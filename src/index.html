@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jokin's Tools — Research Utilities Hub</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon-jk.svg" />
+  <link rel="shortcut icon" href="/public/favicon-jk.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/hub.css" />
+</head>
+<body>
+  <!-- ─── Header ─────────────────────────────────────────────────────────────── -->
+  <header class="hub-header">
+    <div class="header-inner">
+      <div class="logo-block">
+        <svg class="logo-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- Átomo estilizado -->
+          <circle cx="24" cy="24" r="4" fill="#2D9CDB"/>
+          <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#2D9CDB" stroke-width="1.5" fill="none" opacity="0.6"/>
+          <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#27AE60" stroke-width="1.5" fill="none" opacity="0.6" transform="rotate(60 24 24)"/>
+          <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#2D9CDB" stroke-width="1.5" fill="none" opacity="0.4" transform="rotate(120 24 24)"/>
+        </svg>
+        <div class="logo-text">
+          <h1 class="logo-title">
+            <span class="logo-j">J</span>okin's Tools<span class="logo-k-accent"></span>
+          </h1>
+          <p class="logo-subtitle">Research Utilities Hub</p>
+        </div>
+      </div>
+      <div class="header-meta">
+        <span class="version-badge">v1.0</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── Main ────────────────────────────────────────────────────────────────── -->
+  <main class="hub-main">
+    <section class="tools-section">
+      <h2 class="section-label">Herramientas disponibles</h2>
+      <div class="tools-grid">
+
+        <!-- Card: Re-memory -->
+        <a href="/re-memory" class="tool-card tool-card--active">
+          <div class="card-icon-wrap">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+              <!-- Cerebro estilizado -->
+              <path d="M32 12C22 12 14 19 14 28c0 4 1.5 7.5 4 10.2V44h28v-5.8c2.5-2.7 4-6.2 4-10.2C50 19 42 12 32 12z" stroke="#2D9CDB" stroke-width="2" fill="none"/>
+              <path d="M24 28c0-2.2 1.8-4 4-4" stroke="#27AE60" stroke-width="2" stroke-linecap="round"/>
+              <path d="M32 24c2.2 0 4 1.8 4 4" stroke="#27AE60" stroke-width="2" stroke-linecap="round"/>
+              <!-- Espiral de memoria -->
+              <path d="M32 32c0 0 4-4 4-8" stroke="#2D9CDB" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+              <!-- Reloj -->
+              <circle cx="32" cy="50" r="8" stroke="#2D9CDB" stroke-width="2" fill="none"/>
+              <path d="M32 46v4l3 2" stroke="#27AE60" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">Re-memory</h3>
+            <p class="card-desc">Sistema de aprendizaje espaciado con recordatorios por email. Organiza y refuerza tu conocimiento de forma progresiva.</p>
+            <div class="card-tags">
+              <span class="tag">Spaced Repetition</span>
+              <span class="tag">Email</span>
+              <span class="tag">SQLite</span>
+            </div>
+          </div>
+          <div class="card-arrow">→</div>
+        </a>
+
+        <!-- Card: Próximamente -->
+        <div class="tool-card tool-card--soon" aria-disabled="true">
+          <div class="card-icon-wrap">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+              <rect x="20" y="30" width="24" height="20" rx="3" stroke="#555" stroke-width="2" fill="none"/>
+              <path d="M24 30V24a8 8 0 0116 0v6" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="32" cy="40" r="2.5" fill="#555"/>
+            </svg>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">Próximamente</h3>
+            <p class="card-desc">Nueva herramienta en desarrollo. Permanece atento a las actualizaciones del hub.</p>
+            <div class="card-tags">
+              <span class="tag tag--muted">En desarrollo</span>
+            </div>
+          </div>
+          <div class="card-soon-label">Próximamente</div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- ─── Footer ──────────────────────────────────────────────────────────────── -->
+  <footer class="hub-footer">
+    <span>Jokin's Tools &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; <span id="year"></span></span>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

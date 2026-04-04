@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.db
+*.db-shm
+*.db-wal
+data/
+public/favicon-jk.png.placeholder
+*.placeholder
+.DS_Store
+Thumbs.db

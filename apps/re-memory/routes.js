@@ -1,0 +1,258 @@
+const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const crypto = require('crypto');
+
+const router = express.Router();
+
+const {
+  createMemory, getMemoryById, listMemories, updateMemory,
+  deleteMemory, toggleMemory, getAllMemoriesForExport
+} = require('./db');
+
+const { sendMemoryEmail, generateDeactivationToken } = require('./email');
+const { exportToDropbox, getAuthorizationUrl, exchangeCodeForTokens } = require('./dropbox');
+const { startCron } = require('./cron');
+
+// ─── Start cron when routes are loaded ───────────────────────────────────────
+startCron();
+
+// ─── Multer setup (images → /data/uploads/) ──────────────────────────────────
+const uploadsDir = path.join(path.dirname(process.env.DB_PATH || '/data/jokin_tools.db'), 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `memory-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files are allowed'));
+  }
+});
+
+// ─── Serve Re-memory frontend ─────────────────────────────────────────────────
+router.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+router.use('/public', express.static(path.join(__dirname, 'public')));
+
+// ─── API: List memories ───────────────────────────────────────────────────────
+router.get('/api/memories', (req, res) => {
+  try {
+    const result = listMemories(req.query);
+    res.json(result);
+  } catch (err) {
+    console.error('[api] listMemories error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Get one memory ──────────────────────────────────────────────────────
+router.get('/api/memories/:id', (req, res) => {
+  try {
+    const memory = getMemoryById(Number(req.params.id));
+    if (!memory) return res.status(404).json({ error: 'Memory not found' });
+    res.json(memory);
+  } catch (err) {
+    console.error('[api] getMemory error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Create memory ───────────────────────────────────────────────────────
+router.post('/api/memories', (req, res) => {
+  try {
+    const { description, frequency, topic, source_url, active } = req.body;
+    if (!description || !frequency || !topic) {
+      return res.status(400).json({ error: 'description, frequency and topic are required' });
+    }
+    const memory = createMemory({ description, frequency, topic, source_url, active });
+    res.status(201).json(memory);
+  } catch (err) {
+    console.error('[api] createMemory error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Update memory ───────────────────────────────────────────────────────
+router.put('/api/memories/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const existing = getMemoryById(id);
+    if (!existing) return res.status(404).json({ error: 'Memory not found' });
+    const memory = updateMemory(id, req.body);
+    res.json(memory);
+  } catch (err) {
+    console.error('[api] updateMemory error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Delete memory ───────────────────────────────────────────────────────
+router.delete('/api/memories/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const existing = getMemoryById(id);
+    if (!existing) return res.status(404).json({ error: 'Memory not found' });
+
+    // Delete image file if exists
+    if (existing.image_path) {
+      const imgPath = path.join(uploadsDir, path.basename(existing.image_path));
+      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+    }
+
+    deleteMemory(id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[api] deleteMemory error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Toggle active/inactive ─────────────────────────────────────────────
+router.patch('/api/memories/:id/toggle', (req, res) => {
+  try {
+    const memory = toggleMemory(Number(req.params.id));
+    if (!memory) return res.status(404).json({ error: 'Memory not found' });
+    res.json(memory);
+  } catch (err) {
+    console.error('[api] toggleMemory error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Upload image ────────────────────────────────────────────────────────
+router.post('/api/memories/:id/image', upload.single('image'), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const existing = getMemoryById(id);
+    if (!existing) return res.status(404).json({ error: 'Memory not found' });
+    if (!req.file) return res.status(400).json({ error: 'No image file provided' });
+
+    // Remove old image if exists
+    if (existing.image_path) {
+      const oldPath = path.join(uploadsDir, path.basename(existing.image_path));
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+
+    const relativePath = req.file.filename;
+    const memory = updateMemory(id, { image_path: relativePath });
+    res.json({ image_path: relativePath, memory });
+  } catch (err) {
+    console.error('[api] uploadImage error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Test email ──────────────────────────────────────────────────────────
+router.post('/api/test-email/:id', async (req, res) => {
+  try {
+    const memory = getMemoryById(Number(req.params.id));
+    if (!memory) return res.status(404).json({ error: 'Memory not found' });
+    await sendMemoryEmail(memory);
+    res.json({ success: true, message: 'Test email sent' });
+  } catch (err) {
+    console.error('[api] testEmail error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Deactivate from email link ─────────────────────────────────────────
+router.get('/api/deactivate/:id/:token', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const token = req.params.token;
+    const expected = generateDeactivationToken(id);
+
+    if (!crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected))) {
+      return res.status(403).send('<h2>Token inválido</h2>');
+    }
+
+    const memory = getMemoryById(id);
+    if (!memory) return res.status(404).send('<h2>Memoria no encontrada</h2>');
+
+    if (memory.active) {
+      updateMemory(id, { active: 0 });
+    }
+
+    res.send(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
+      <title>Re-memory — Desactivado</title>
+      <style>body{background:#0d1117;color:#e6edf3;font-family:monospace;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}
+      .box{max-width:400px;padding:40px;background:#161b22;border:1px solid #21262d;border-radius:12px}
+      h2{color:#27AE60;margin-bottom:12px}p{color:#7d8590;font-size:14px}
+      a{color:#2D9CDB;text-decoration:none}</style>
+    </head><body>
+      <div class="box">
+        <h2>✓ Recordatorio desactivado</h2>
+        <p>La memoria "<strong>${memory.description.substring(0,80)}</strong>" ya no te enviará más correos.</p>
+        <p style="margin-top:16px"><a href="/re-memory">Ir a Re-memory →</a></p>
+      </div>
+    </body></html>`);
+  } catch (err) {
+    console.error('[api] deactivate error:', err);
+    res.status(500).send('<h2>Error al desactivar</h2>');
+  }
+});
+
+// ─── API: Export CSV to Dropbox ───────────────────────────────────────────────
+router.get('/api/export/csv', async (req, res) => {
+  try {
+    const result = await exportToDropbox();
+    res.json({
+      success: true,
+      path: result.path,
+      filename: result.filename,
+      rows: result.rows,
+      size: result.size,
+      message: `Exportado ${result.rows} registros a Dropbox: ${result.path}`
+    });
+  } catch (err) {
+    console.error('[api] exportCSV error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Dropbox OAuth2 setup (first deploy only) ─────────────────────────────────
+router.get('/auth/dropbox', (req, res) => {
+  try {
+    const url = getAuthorizationUrl();
+    res.redirect(url);
+  } catch (err) {
+    res.status(500).send(`<pre>Error: ${err.message}</pre>`);
+  }
+});
+
+router.get('/auth/dropbox/callback', async (req, res) => {
+  const { code, error } = req.query;
+  if (error) return res.status(400).send(`<pre>Dropbox error: ${error}</pre>`);
+  if (!code) return res.status(400).send('<pre>No code received</pre>');
+
+  try {
+    const tokens = await exchangeCodeForTokens(code);
+    res.send(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
+      <title>Dropbox Auth</title>
+      <style>body{background:#0d1117;color:#e6edf3;font-family:monospace;padding:40px;max-width:700px;margin:0 auto}
+      pre{background:#161b22;padding:20px;border-radius:8px;border:1px solid #21262d;overflow-x:auto;color:#27AE60}
+      h2{color:#2D9CDB}p{color:#7d8590}</style>
+    </head><body>
+      <h2>✓ Autorización completada</h2>
+      <p>Copia el <code>refresh_token</code> y añádelo como variable de entorno <code>DROPBOX_REFRESH_TOKEN</code> en Railway:</p>
+      <pre>${JSON.stringify(tokens, null, 2)}</pre>
+      <p>Una vez configurado, elimina o protege este endpoint de tu código.</p>
+    </body></html>`);
+  } catch (err) {
+    res.status(500).send(`<pre>Error: ${err.message}</pre>`);
+  }
+});
+
+module.exports = router;

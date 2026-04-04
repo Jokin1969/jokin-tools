@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Re-memory — Jokin's Tools</title>
+  <!-- Re-memory favicon via meta tag -->
+  <link rel="icon" type="image/svg+xml" href="/re-memory/public/favicon-rememory.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/re-memory/public/app.css" />
+</head>
+<body>
+
+  <!-- ─── Header ─────────────────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-logo">
+        <a href="/" class="back-link" title="Volver al hub">←</a>
+        <svg viewBox="0 0 40 40" fill="none" class="app-icon" aria-hidden="true">
+          <circle cx="20" cy="16" r="10" stroke="#2D9CDB" stroke-width="1.8" fill="none"/>
+          <path d="M14 16c0-3.3 2.7-6 6-6" stroke="#27AE60" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M26 16c0 3.3-2.7 6-6 6" stroke="#27AE60" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="20" cy="31" r="5" stroke="#2D9CDB" stroke-width="1.5" fill="none"/>
+          <path d="M20 28v3l2 1.5" stroke="#F2C94C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="20" y1="22" x2="20" y2="26" stroke="#2D9CDB" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        <div>
+          <h1 class="app-title">Re-memory</h1>
+          <p class="app-subtitle">Aprendizaje espaciado</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-outline btn-sm" id="btn-export-csv" title="Exportar a Dropbox">
+          <span class="btn-icon">↑</span> Exportar CSV
+        </button>
+      </div>
+    </div>
+    <!-- Nav tabs -->
+    <div class="nav-tabs">
+      <button class="tab-btn active" data-tab="ficha">Ficha</button>
+      <button class="tab-btn" data-tab="listado">Listado</button>
+    </div>
+  </header>
+
+  <!-- ─── Toast notifications ──────────────────────────────────────────────── -->
+  <div id="toast-container"></div>
+
+  <!-- ─── Modal confirmación borrado ──────────────────────────────────────────── -->
+  <div id="modal-delete" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h3 class="modal-title">Eliminar memoria</h3>
+      <p class="modal-body">¿Seguro que deseas eliminar esta memoria? Esta acción no se puede deshacer.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-cancel-delete">Cancelar</button>
+        <button class="btn btn-danger" id="btn-confirm-delete">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Modal imagen ────────────────────────────────────────────────────────── -->
+  <div id="modal-image" class="modal-overlay hidden">
+    <div class="modal-box modal-image-box">
+      <button class="modal-close" id="btn-close-image">✕</button>
+      <img id="modal-image-src" src="" alt="Imagen de la memoria" />
+    </div>
+  </div>
+
+  <!-- ─── Main: Vista Ficha ────────────────────────────────────────────────── -->
+  <main id="view-ficha" class="view active">
+    <div class="view-inner">
+
+      <!-- Toolbar ficha -->
+      <div class="view-toolbar">
+        <div class="toolbar-actions">
+          <button class="btn btn-primary" id="btn-nuevo">+ Nuevo</button>
+          <button class="btn btn-save" id="btn-guardar">Guardar</button>
+          <button class="btn btn-danger-outline" id="btn-borrar" disabled>Borrar</button>
+          <button class="btn btn-claude" id="btn-claude" title="Mejorar con Claude AI">
+            <span class="claude-dot"></span>
+            Claude
+          </button>
+        </div>
+        <div class="record-info" id="record-info"></div>
+      </div>
+
+      <!-- Form -->
+      <div class="card form-card">
+        <form id="form-memory" novalidate>
+          <input type="hidden" id="field-id" />
+
+          <!-- Fila meta (ID + fecha + activo) -->
+          <div class="field-row meta-row" id="meta-row">
+            <div class="field-group field-sm">
+              <label class="field-label">ID</label>
+              <input type="text" id="field-id-display" class="field-input field-readonly" readonly placeholder="—" />
+            </div>
+            <div class="field-group field-sm">
+              <label class="field-label">Fecha creación</label>
+              <input type="text" id="field-created-at" class="field-input field-readonly" readonly placeholder="—" />
+            </div>
+            <div class="field-group field-sm">
+              <label class="field-label">Veces recordada</label>
+              <input type="text" id="field-times-recalled" class="field-input field-readonly" readonly placeholder="0" />
+            </div>
+            <div class="field-group field-sm">
+              <label class="field-label">Activo</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="field-active" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Descripción -->
+          <div class="field-group">
+            <label class="field-label required" for="field-description">Descripción</label>
+            <textarea id="field-description" class="field-textarea" rows="6" placeholder="Escribe aquí el contenido que quieres recordar…" required></textarea>
+          </div>
+
+          <!-- Frecuencia + Tema -->
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label required" for="field-frequency">Frecuencia</label>
+              <select id="field-frequency" class="field-select" required>
+                <option value="">Selecciona frecuencia…</option>
+                <option value="1w">1 semana</option>
+                <option value="2w">2 semanas</option>
+                <option value="3w">3 semanas</option>
+                <option value="1m">1 mes</option>
+                <option value="2m">2 meses</option>
+                <option value="3m">3 meses</option>
+                <option value="6m">6 meses</option>
+                <option value="1y">1 año</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label required" for="field-topic">Tema</label>
+              <select id="field-topic" class="field-select" required>
+                <option value="">Selecciona tema…</option>
+                <option value="Cultura general">Cultura general</option>
+                <option value="Refranes">Refranes</option>
+                <option value="Ciencia">Ciencia</option>
+                <option value="Historia">Historia</option>
+                <option value="Geografía">Geografía</option>
+                <option value="Miscelánea">Miscelánea</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Fuente URL -->
+          <div class="field-group">
+            <label class="field-label" for="field-source-url">Fuente (URL)</label>
+            <div class="url-field-wrap">
+              <input type="url" id="field-source-url" class="field-input" placeholder="https://…" />
+              <a id="field-source-link" href="#" target="_blank" class="url-link hidden" title="Abrir fuente">↗</a>
+            </div>
+          </div>
+
+          <!-- Imagen -->
+          <div class="field-group">
+            <label class="field-label">Imagen</label>
+            <div class="image-field-wrap">
+              <button type="button" class="btn btn-icon-only" id="btn-show-image" title="Añadir imagen">
+                📷
+              </button>
+              <div id="image-field-container" class="hidden">
+                <input type="file" id="field-image" accept="image/*" class="field-file" />
+                <div id="image-preview-wrap" class="hidden">
+                  <img id="image-preview" src="" alt="Vista previa" class="image-preview" />
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-remove-image">Eliminar imagen</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Próximo envío (read-only, solo en edición) -->
+          <div class="field-group" id="next-send-wrap" style="display:none">
+            <label class="field-label">Próximo envío</label>
+            <input type="text" id="field-next-send" class="field-input field-readonly" readonly />
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <!-- ─── Main: Vista Listado ─────────────────────────────────────────────── -->
+  <main id="view-listado" class="view">
+    <div class="view-inner">
+
+      <!-- Toolbar listado -->
+      <div class="view-toolbar">
+        <div class="toolbar-actions">
+          <button class="btn btn-outline btn-sm" id="btn-toggle-filters">
+            ▼ Filtros
+          </button>
+          <span class="record-count" id="record-count">— registros</span>
+        </div>
+        <button class="btn btn-outline btn-sm" id="btn-export-csv-list">
+          <span class="btn-icon">↑</span> Exportar CSV
+        </button>
+      </div>
+
+      <!-- Filters panel -->
+      <div id="filters-panel" class="filters-panel hidden">
+        <div class="filters-grid">
+          <div class="filter-group">
+            <label class="field-label">Tema</label>
+            <div class="multiselect" id="filter-topic">
+              <label><input type="checkbox" value="Cultura general" /> Cultura general</label>
+              <label><input type="checkbox" value="Refranes" /> Refranes</label>
+              <label><input type="checkbox" value="Ciencia" /> Ciencia</label>
+              <label><input type="checkbox" value="Historia" /> Historia</label>
+              <label><input type="checkbox" value="Geografía" /> Geografía</label>
+              <label><input type="checkbox" value="Miscelánea" /> Miscelánea</label>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label class="field-label">Activo</label>
+            <select id="filter-active" class="field-select field-select-sm">
+              <option value="">Todos</option>
+              <option value="1">Activos</option>
+              <option value="0">Inactivos</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="field-label">Frecuencia</label>
+            <div class="multiselect" id="filter-frequency">
+              <label><input type="checkbox" value="1w" /> 1 semana</label>
+              <label><input type="checkbox" value="2w" /> 2 semanas</label>
+              <label><input type="checkbox" value="3w" /> 3 semanas</label>
+              <label><input type="checkbox" value="1m" /> 1 mes</label>
+              <label><input type="checkbox" value="2m" /> 2 meses</label>
+              <label><input type="checkbox" value="3m" /> 3 meses</label>
+              <label><input type="checkbox" value="6m" /> 6 meses</label>
+              <label><input type="checkbox" value="1y" /> 1 año</label>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label class="field-label">Fecha creación</label>
+            <div class="date-range">
+              <input type="date" id="filter-date-from" class="field-input field-input-sm" placeholder="Desde" />
+              <span>—</span>
+              <input type="date" id="filter-date-to" class="field-input field-input-sm" placeholder="Hasta" />
+            </div>
+          </div>
+          <div class="filter-group">
+            <label class="field-label">Veces recordada</label>
+            <div class="range-inputs">
+              <input type="number" id="filter-recalled-min" class="field-input field-input-sm" placeholder="Mín" min="0" />
+              <span>—</span>
+              <input type="number" id="filter-recalled-max" class="field-input field-input-sm" placeholder="Máx" min="0" />
+            </div>
+          </div>
+        </div>
+        <div class="filters-actions">
+          <button class="btn btn-primary btn-sm" id="btn-apply-filters">Aplicar filtros</button>
+          <button class="btn btn-ghost btn-sm" id="btn-reset-filters">Limpiar</button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrapper">
+        <table class="data-table" id="memories-table">
+          <thead>
+            <tr>
+              <th class="sortable" data-col="topic">Tema <span class="sort-icon"></span></th>
+              <th>Descripción</th>
+              <th class="sortable" data-col="created_at">Creación <span class="sort-icon"></span></th>
+              <th class="sortable" data-col="frequency">Frecuencia <span class="sort-icon"></span></th>
+              <th class="sortable" data-col="times_recalled">× Rec. <span class="sort-icon"></span></th>
+              <th class="sortable" data-col="next_send_date">Próximo envío <span class="sort-icon"></span></th>
+              <th class="col-icon" title="Imagen">📷</th>
+              <th class="col-icon" title="Fuente">🔗</th>
+              <th>Activo</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr class="loading-row">
+              <td colspan="10">Cargando…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination" id="pagination"></div>
+
+    </div>
+  </main>
+
+  <script src="/re-memory/public/app.js"></script>
+</body>
+</html>

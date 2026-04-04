@@ -1,0 +1,286 @@
+/* ─── Reset & base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d1117;
+  --bg-card:   #161b22;
+  --bg-card-h: #1c2330;
+  --border:    #21262d;
+  --border-h:  #2D9CDB;
+  --blue:      #2D9CDB;
+  --green:     #27AE60;
+  --yellow:    #F2C94C;
+  --text:      #e6edf3;
+  --text-muted:#7d8590;
+  --text-dim:  #404856;
+  --mono:      'IBM Plex Mono', 'Courier New', monospace;
+  --serif:     'Source Serif 4', Georgia, serif;
+  --radius:    12px;
+  --radius-sm: 6px;
+  --shadow:    0 4px 24px rgba(0,0,0,0.4);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Header ────────────────────────────────────────────────────────────────── */
+.hub-header {
+  border-bottom: 1px solid var(--border);
+  padding: 20px 0;
+  background: rgba(13,17,23,0.95);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.logo-block {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.logo-title {
+  font-family: var(--mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.logo-j {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+/* K subtle highlight — the "K" in "Jokin's" is the 5th char, handled via CSS */
+.logo-title::after {
+  content: '';
+}
+
+.logo-subtitle {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+
+.version-badge {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.05em;
+}
+
+/* ─── Main ──────────────────────────────────────────────────────────────────── */
+.hub-main {
+  flex: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  width: 100%;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ─── Grid ──────────────────────────────────────────────────────────────────── */
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+/* ─── Cards ─────────────────────────────────────────────────────────────────── */
+.tool-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s, box-shadow 0.2s;
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+  overflow: hidden;
+}
+
+.tool-card--active {
+  cursor: pointer;
+}
+
+.tool-card--active:hover {
+  border-color: var(--border-h);
+  background: var(--bg-card-h);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow), 0 0 0 1px rgba(45,156,219,0.15);
+}
+
+.tool-card--active::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--green));
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.tool-card--active:hover::before {
+  opacity: 1;
+}
+
+.tool-card--soon {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: saturate(0.3);
+}
+
+.card-icon-wrap {
+  width: 56px;
+  height: 56px;
+  background: rgba(45,156,219,0.08);
+  border: 1px solid rgba(45,156,219,0.2);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.card-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.card-body {
+  flex: 1;
+}
+
+.card-title {
+  font-family: var(--mono);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+.card-desc {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.tag {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(45,156,219,0.1);
+  color: var(--blue);
+  border: 1px solid rgba(45,156,219,0.2);
+  letter-spacing: 0.03em;
+}
+
+.tag--muted {
+  background: rgba(125,133,144,0.1);
+  color: var(--text-muted);
+  border-color: rgba(125,133,144,0.2);
+}
+
+.card-arrow {
+  font-family: var(--mono);
+  font-size: 1.2rem;
+  color: var(--blue);
+  align-self: flex-end;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  transform: translateX(-4px);
+}
+
+.tool-card--active:hover .card-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.card-soon-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  align-self: flex-end;
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* ─── Footer ────────────────────────────────────────────────────────────────── */
+.hub-footer {
+  border-top: 1px solid var(--border);
+  padding: 16px 24px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .header-inner { flex-wrap: wrap; }
+  .logo-title { font-size: 1.1rem; }
+  .hub-main { padding: 32px 16px; }
+  .tools-grid { grid-template-columns: 1fr; }
+}
