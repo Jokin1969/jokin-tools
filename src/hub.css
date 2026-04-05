@@ -2,27 +2,27 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:        #0a0e14;
-  --bg-card:   #111820;
-  --bg-card-h: #172030;
-  --border:    #1e2836;
-  --border-h:  #2B7EC9;
+  --bg:        #F2EDE3;       /* crema cálida */
+  --bg-card:   #FEFCF7;       /* blanco hueso */
+  --bg-card-h: #EDE6D8;       /* crema hover */
+  --border:    #D4C9B5;       /* borde cálido */
+  --border-h:  #1B6CB0;
   /* Paleta de azules: Bilbao · grisáceo · cyan · Klein · turquesa */
-  --blue:      #1B6CB0;      /* azul Bilbao */
-  --blue-grey: #587BA4;      /* azul grisáceo */
-  --cyan:      #00B8D4;      /* cyan */
-  --klein:     #0028A5;      /* Klein */
-  --turquoise: #009B8D;      /* turquesa */
-  --accent:    #2B7EC9;      /* acento principal hover */
-  --yellow:    #F2C94C;
-  --text:      #dde6f0;
-  --text-muted:#6a7d94;
-  --text-dim:  #384555;
+  --blue:      #1B6CB0;       /* azul Bilbao */
+  --blue-grey: #4A6E96;       /* azul grisáceo */
+  --cyan:      #0097B2;       /* cyan (más intenso sobre crema) */
+  --klein:     #0028A5;       /* Klein */
+  --turquoise: #00857A;       /* turquesa */
+  --accent:    #1E5FA0;       /* acento hover */
+  --yellow:    #C8860A;
+  --text:      #1A2535;       /* navy oscuro */
+  --text-muted:#5A6D82;       /* gris-azulado */
+  --text-dim:  #A0AFBF;       /* muy apagado */
   --mono:      'IBM Plex Mono', 'Courier New', monospace;
   --serif:     'Source Serif 4', Georgia, serif;
   --radius:    12px;
   --radius-sm: 6px;
-  --shadow:    0 4px 24px rgba(0,0,0,0.5);
+  --shadow:    0 4px 24px rgba(26,37,53,0.10);
 }
 
 html { scroll-behavior: smooth; }
@@ -42,7 +42,7 @@ body {
 .hub-header {
   border-bottom: 1px solid var(--border);
   padding: 20px 0;
-  background: rgba(13,17,23,0.95);
+  background: rgba(242,237,227,0.96);
   backdrop-filter: blur(8px);
   position: sticky;
   top: 0;
@@ -161,7 +161,7 @@ body {
   border-color: var(--accent);
   background: var(--bg-card-h);
   transform: translateY(-2px);
-  box-shadow: var(--shadow), 0 0 0 1px rgba(43,126,201,0.18);
+  box-shadow: var(--shadow), 0 0 0 1px rgba(27,108,176,0.15);
 }
 
 .tool-card--active::before {
