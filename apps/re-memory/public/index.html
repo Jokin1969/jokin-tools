@@ -19,12 +19,12 @@
       <div class="header-logo">
         <a href="/" class="back-link" title="Volver al hub">←</a>
         <svg viewBox="0 0 40 40" fill="none" class="app-icon" aria-hidden="true">
-          <circle cx="20" cy="16" r="10" stroke="#2D9CDB" stroke-width="1.8" fill="none"/>
-          <path d="M14 16c0-3.3 2.7-6 6-6" stroke="#27AE60" stroke-width="1.5" stroke-linecap="round"/>
-          <path d="M26 16c0 3.3-2.7 6-6 6" stroke="#27AE60" stroke-width="1.5" stroke-linecap="round"/>
-          <circle cx="20" cy="31" r="5" stroke="#2D9CDB" stroke-width="1.5" fill="none"/>
-          <path d="M20 28v3l2 1.5" stroke="#F2C94C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-          <line x1="20" y1="22" x2="20" y2="26" stroke="#2D9CDB" stroke-width="1.2" stroke-linecap="round"/>
+          <circle cx="20" cy="16" r="10" stroke="#8B31C7" stroke-width="1.8" fill="none"/>
+          <path d="M14 16c0-3.3 2.7-6 6-6" stroke="#C42B8E" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M26 16c0 3.3-2.7 6-6 6" stroke="#C42B8E" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="20" cy="31" r="5" stroke="#8B31C7" stroke-width="1.5" fill="none"/>
+          <path d="M20 28v3l2 1.5" stroke="#A855F7" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="20" y1="22" x2="20" y2="26" stroke="#8B31C7" stroke-width="1.2" stroke-linecap="round"/>
         </svg>
         <div>
           <h1 class="app-title">Re-memory</h1>
@@ -77,6 +77,9 @@
           <button class="btn btn-primary" id="btn-nuevo">+ Nuevo</button>
           <button class="btn btn-save" id="btn-guardar">Guardar</button>
           <button class="btn btn-danger-outline" id="btn-borrar" disabled>Borrar</button>
+          <button class="btn btn-test-email btn-sm" id="btn-test-email" disabled title="Envía un email de prueba con esta memoria">
+            ✉ Test email
+          </button>
           <button class="btn btn-claude" id="btn-claude" title="Mejorar con Claude AI">
             <span class="claude-dot"></span>
             Claude
@@ -102,7 +105,10 @@
             </div>
             <div class="field-group field-sm">
               <label class="field-label">Veces recordada</label>
-              <input type="text" id="field-times-recalled" class="field-input field-readonly" readonly placeholder="0" />
+              <div class="counter-field-wrap">
+                <input type="text" id="field-times-recalled" class="field-input field-readonly" readonly placeholder="0" />
+                <button type="button" class="btn-reset-counter" id="btn-reset-counter" disabled title="Reiniciar contador a cero">↺</button>
+              </div>
             </div>
             <div class="field-group field-sm">
               <label class="field-label">Activo</label>

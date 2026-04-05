@@ -211,6 +211,20 @@ function markSent(id, frequency) {
   `).run(count, now, nextSend, id);
 }
 
+// ─── Reset counter ────────────────────────────────────────────────────────────
+
+function resetCounter(id) {
+  db.prepare('DELETE FROM recall_log WHERE memory_id = ?').run(id);
+  db.prepare('UPDATE memories SET times_recalled = 0 WHERE id = ?').run(id);
+  // Recalculate next_send_date from now
+  const memory = db.prepare('SELECT frequency FROM memories WHERE id = ?').get(id);
+  if (memory) {
+    const nextSend = calcNextSendDate(memory.frequency);
+    db.prepare('UPDATE memories SET next_send_date = ? WHERE id = ?').run(nextSend, id);
+  }
+  return getMemoryById(id);
+}
+
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
 function getAllMemoriesForExport() {
@@ -236,6 +250,7 @@ module.exports = {
   toggleMemory,
   getMemoriesDueToday,
   markSent,
+  resetCounter,
   getAllMemoriesForExport,
   FREQUENCY_DAYS
 };

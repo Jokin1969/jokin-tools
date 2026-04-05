@@ -8,7 +8,7 @@ const router = express.Router();
 
 const {
   createMemory, getMemoryById, listMemories, updateMemory,
-  deleteMemory, toggleMemory, getAllMemoriesForExport
+  deleteMemory, toggleMemory, resetCounter, getAllMemoriesForExport
 } = require('./db');
 
 const { sendMemoryEmail, generateDeactivationToken } = require('./email');
@@ -127,6 +127,20 @@ router.patch('/api/memories/:id/toggle', (req, res) => {
     res.json(memory);
   } catch (err) {
     console.error('[api] toggleMemory error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Reset counter ───────────────────────────────────────────────────────
+router.post('/api/memories/:id/reset-counter', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const existing = getMemoryById(id);
+    if (!existing) return res.status(404).json({ error: 'Memory not found' });
+    const memory = resetCounter(id);
+    res.json(memory);
+  } catch (err) {
+    console.error('[api] resetCounter error:', err);
     res.status(500).json({ error: err.message });
   }
 });

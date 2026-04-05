@@ -96,6 +96,8 @@ function clearForm() {
   $('btn-show-image').textContent = '📷';
   $('next-send-wrap').style.display = 'none';
   $('btn-borrar').disabled = true;
+  $('btn-reset-counter').disabled = true;
+  $('btn-test-email').disabled = true;
   $('record-info').textContent = 'Nuevo registro';
 }
 
@@ -135,6 +137,8 @@ function populateForm(memory) {
   }
 
   $('btn-borrar').disabled = false;
+  $('btn-reset-counter').disabled = false;
+  $('btn-test-email').disabled = false;
   $('record-info').textContent = `Registro #${memory.id}`;
 }
 
@@ -261,6 +265,40 @@ $('btn-confirm-delete').addEventListener('click', async () => {
     if (state.currentTab === 'listado') loadList();
   } catch (err) {
     toast(`Error: ${err.message}`, 'error');
+  }
+});
+
+// ─── Reset counter ────────────────────────────────────────────────────────────
+$('btn-reset-counter').addEventListener('click', async () => {
+  if (!state.currentId) return;
+  if (!confirm('¿Reiniciar el contador a cero? Se borrarán todos los registros de envío de esta memoria.')) return;
+  try {
+    const res = await fetch(`${API}/memories/${state.currentId}/reset-counter`, { method: 'POST' });
+    if (!res.ok) throw new Error((await res.json()).error);
+    const memory = await res.json();
+    $('field-times-recalled').value = memory.times_recalled;
+    toast('Contador reiniciado a cero', 'success');
+  } catch (err) {
+    toast(`Error: ${err.message}`, 'error');
+  }
+});
+
+// ─── Test email ───────────────────────────────────────────────────────────────
+$('btn-test-email').addEventListener('click', async () => {
+  if (!state.currentId) return;
+  const btn = $('btn-test-email');
+  btn.disabled = true;
+  btn.textContent = '✉ Enviando…';
+  try {
+    const res = await fetch(`${API}/test-email/${state.currentId}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    toast('Email de prueba enviado. Revisa tu bandeja de entrada.', 'success', 5000);
+  } catch (err) {
+    toast(`Error al enviar: ${err.message}`, 'error', 6000);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✉ Test email';
   }
 });
 

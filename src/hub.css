@@ -2,22 +2,27 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:        #0d1117;
-  --bg-card:   #161b22;
-  --bg-card-h: #1c2330;
-  --border:    #21262d;
-  --border-h:  #2D9CDB;
-  --blue:      #2D9CDB;
-  --green:     #27AE60;
+  --bg:        #0a0e14;
+  --bg-card:   #111820;
+  --bg-card-h: #172030;
+  --border:    #1e2836;
+  --border-h:  #2B7EC9;
+  /* Paleta de azules: Bilbao · grisáceo · cyan · Klein · turquesa */
+  --blue:      #1B6CB0;      /* azul Bilbao */
+  --blue-grey: #587BA4;      /* azul grisáceo */
+  --cyan:      #00B8D4;      /* cyan */
+  --klein:     #0028A5;      /* Klein */
+  --turquoise: #009B8D;      /* turquesa */
+  --accent:    #2B7EC9;      /* acento principal hover */
   --yellow:    #F2C94C;
-  --text:      #e6edf3;
-  --text-muted:#7d8590;
-  --text-dim:  #404856;
+  --text:      #dde6f0;
+  --text-muted:#6a7d94;
+  --text-dim:  #384555;
   --mono:      'IBM Plex Mono', 'Courier New', monospace;
   --serif:     'Source Serif 4', Georgia, serif;
   --radius:    12px;
   --radius-sm: 6px;
-  --shadow:    0 4px 24px rgba(0,0,0,0.4);
+  --shadow:    0 4px 24px rgba(0,0,0,0.5);
 }
 
 html { scroll-behavior: smooth; }
@@ -76,7 +81,7 @@ body {
 }
 
 .logo-j {
-  color: var(--blue);
+  color: var(--cyan);
   font-weight: 700;
 }
 
@@ -153,10 +158,10 @@ body {
 }
 
 .tool-card--active:hover {
-  border-color: var(--border-h);
+  border-color: var(--accent);
   background: var(--bg-card-h);
   transform: translateY(-2px);
-  box-shadow: var(--shadow), 0 0 0 1px rgba(45,156,219,0.15);
+  box-shadow: var(--shadow), 0 0 0 1px rgba(43,126,201,0.18);
 }
 
 .tool-card--active::before {
@@ -164,7 +169,7 @@ body {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 2px;
-  background: linear-gradient(90deg, var(--blue), var(--green));
+  background: linear-gradient(90deg, var(--klein), var(--blue), var(--cyan), var(--turquoise));
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -182,8 +187,8 @@ body {
 .card-icon-wrap {
   width: 56px;
   height: 56px;
-  background: rgba(45,156,219,0.08);
-  border: 1px solid rgba(45,156,219,0.2);
+  background: rgba(27,108,176,0.08);
+  border: 1px solid rgba(43,126,201,0.22);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -227,9 +232,9 @@ body {
   font-size: 0.65rem;
   padding: 2px 8px;
   border-radius: 4px;
-  background: rgba(45,156,219,0.1);
-  color: var(--blue);
-  border: 1px solid rgba(45,156,219,0.2);
+  background: rgba(27,108,176,0.1);
+  color: var(--cyan);
+  border: 1px solid rgba(43,126,201,0.25);
   letter-spacing: 0.03em;
 }
 
@@ -242,7 +247,7 @@ body {
 .card-arrow {
   font-family: var(--mono);
   font-size: 1.2rem;
-  color: var(--blue);
+  color: var(--cyan);
   align-self: flex-end;
   opacity: 0;
   transition: opacity 0.2s, transform 0.2s;
