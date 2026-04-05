@@ -8,7 +8,7 @@ const router = express.Router();
 
 const {
   createMemory, getMemoryById, listMemories, updateMemory,
-  deleteMemory, toggleMemory, resetCounter, getAllMemoriesForExport
+  deleteMemory, toggleMemory, resetCounter, getAllIds, getAllMemoriesForExport
 } = require('./db');
 
 const { sendMemoryEmail, generateDeactivationToken } = require('./email');
@@ -53,6 +53,16 @@ router.get('/api/memories', (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[api] listMemories error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Get all IDs (for client-side prev/next navigation) ─────────────────
+router.get('/api/ids', (req, res) => {
+  try {
+    const ids = getAllIds(req.query.sort, req.query.order);
+    res.json(ids);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

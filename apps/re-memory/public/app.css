@@ -385,6 +385,64 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 }
 .btn-reset-counter:disabled { opacity: 0.3; cursor: not-allowed; }
 
+/* Search button */
+.btn-search {
+  background: transparent; color: var(--purple);
+  border-color: rgba(122,37,181,0.35);
+}
+.btn-search:hover { background: rgba(122,37,181,0.08); border-color: var(--purple); }
+
+/* Nav controls */
+.toolbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.nav-controls { display: flex; align-items: center; gap: 4px; }
+.btn-nav { font-family: var(--mono); }
+.nav-pos {
+  font-family: var(--mono); font-size: 0.68rem; color: var(--text-muted);
+  min-width: 48px; text-align: center;
+}
+
+/* ─── Search modal ───────────────────────────────────────────────────────────── */
+.modal-search-box { max-width: 560px; padding: 24px; }
+.search-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.search-modal-header .modal-title { margin-bottom: 0; }
+.search-hint {
+  font-family: var(--mono); font-size: 0.68rem; color: var(--text-dim);
+  margin: 6px 0 12px; letter-spacing: 0.03em;
+}
+.search-results {
+  max-height: 380px; overflow-y: auto;
+  margin-top: 8px;
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.search-result-item {
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background 0.12s;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: var(--bg-card-h); }
+.sri-topic {
+  font-family: var(--mono); font-size: 0.65rem; font-weight: 600;
+  color: var(--purple); text-transform: uppercase; letter-spacing: 0.08em;
+}
+.sri-desc {
+  font-size: 0.875rem; color: var(--text); line-height: 1.4;
+}
+.sri-meta {
+  font-family: var(--mono); font-size: 0.65rem; color: var(--text-muted);
+}
+.search-empty {
+  padding: 32px; text-align: center;
+  font-family: var(--mono); font-size: 0.78rem; color: var(--text-dim);
+}
+.search-loading {
+  padding: 20px; text-align: center;
+  font-family: var(--mono); font-size: 0.75rem; color: var(--text-muted);
+}
+
 /* Test email button */
 .btn-test-email {
   background: transparent; color: var(--violet);

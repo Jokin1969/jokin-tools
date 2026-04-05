@@ -12,7 +12,9 @@ const state = {
   listTotal: 0,
   listLimit: 50,
   deleteTarget: null,
-  existingImagePath: null
+  existingImagePath: null,
+  navList: [],            // all IDs in order for prev/next
+  navIndex: -1           // current position in navList
 };
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
@@ -75,6 +77,50 @@ $$('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
+// ─── Navigation list ──────────────────────────────────────────────────────────
+async function refreshNavList() {
+  try {
+    const res = await fetch(`${API}/ids`);
+    if (res.ok) state.navList = await res.json();
+  } catch (_) { /* non-critical */ }
+}
+
+function updateNavButtons() {
+  const idx = state.navList.indexOf(state.currentId);
+  state.navIndex = idx;
+  const btnPrev = $('btn-prev');
+  const btnNext = $('btn-next');
+  const navPos  = $('nav-pos');
+  if (idx === -1 || state.navList.length === 0) {
+    btnPrev.disabled = true;
+    btnNext.disabled = true;
+    navPos.textContent = '';
+    return;
+  }
+  btnPrev.disabled = idx <= 0;
+  btnNext.disabled = idx >= state.navList.length - 1;
+  navPos.textContent = `${idx + 1} / ${state.navList.length}`;
+}
+
+async function navTo(id) {
+  try {
+    const res = await fetch(`${API}/memories/${id}`);
+    if (!res.ok) throw new Error('No encontrado');
+    const memory = await res.json();
+    populateForm(memory);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (err) {
+    toast(`Error: ${err.message}`, 'error');
+  }
+}
+
+$('btn-prev').addEventListener('click', () => {
+  if (state.navIndex > 0) navTo(state.navList[state.navIndex - 1]);
+});
+$('btn-next').addEventListener('click', () => {
+  if (state.navIndex < state.navList.length - 1) navTo(state.navList[state.navIndex + 1]);
+});
+
 // ─── Ficha: Form state management ────────────────────────────────────────────
 function clearForm() {
   state.currentId = null;
@@ -99,6 +145,7 @@ function clearForm() {
   $('btn-reset-counter').disabled = true;
   $('btn-test-email').disabled = true;
   $('record-info').textContent = 'Nuevo registro';
+  updateNavButtons();
 }
 
 function populateForm(memory) {
@@ -140,6 +187,7 @@ function populateForm(memory) {
   $('btn-reset-counter').disabled = false;
   $('btn-test-email').disabled = false;
   $('record-info').textContent = `Registro #${memory.id}`;
+  updateNavButtons();
 }
 
 // URL live preview
@@ -236,6 +284,8 @@ $('btn-guardar').addEventListener('click', async () => {
     }
 
     populateForm(memory);
+    await refreshNavList();
+    updateNavButtons();
   } catch (err) {
     toast(`Error: ${err.message}`, 'error');
   }
@@ -262,6 +312,7 @@ $('btn-confirm-delete').addEventListener('click', async () => {
     toast('Memoria eliminada', 'success');
     state.deleteTarget = null;
     clearForm();
+    await refreshNavList();
     if (state.currentTab === 'listado') loadList();
   } catch (err) {
     toast(`Error: ${err.message}`, 'error');
@@ -592,5 +643,97 @@ $('btn-reset-filters').addEventListener('click', () => {
   loadList();
 });
 
+// ─── Search modal ─────────────────────────────────────────────────────────────
+let searchDebounce = null;
+
+$('btn-buscar').addEventListener('click', () => {
+  $('modal-search').classList.remove('hidden');
+  $('search-input').value = '';
+  $('search-results').innerHTML = '';
+  setTimeout(() => $('search-input').focus(), 50);
+});
+
+$('btn-close-search').addEventListener('click', () => {
+  $('modal-search').classList.add('hidden');
+});
+
+$('modal-search').addEventListener('click', e => {
+  if (e.target === $('modal-search')) $('modal-search').classList.add('hidden');
+});
+
+// Keyboard: Escape closes, Enter selects first result
+$('search-input').addEventListener('keydown', e => {
+  if (e.key === 'Escape') $('modal-search').classList.add('hidden');
+  if (e.key === 'Enter') {
+    const first = $('search-results').querySelector('.search-result-item');
+    if (first) first.click();
+  }
+});
+
+$('search-input').addEventListener('input', () => {
+  clearTimeout(searchDebounce);
+  const q = $('search-input').value.trim();
+  if (!q) { $('search-results').innerHTML = ''; return; }
+  $('search-results').innerHTML = '<div class="search-loading">Buscando…</div>';
+  searchDebounce = setTimeout(() => doSearch(q), 280);
+});
+
+async function doSearch(query) {
+  try {
+    const params = new URLSearchParams({ search: query, limit: 30, sort: 'created_at', order: 'desc' });
+    const res = await fetch(`${API}/memories?${params}`);
+    if (!res.ok) throw new Error('Error en búsqueda');
+    const { rows } = await res.json();
+    renderSearchResults(rows, query);
+  } catch (err) {
+    $('search-results').innerHTML = `<div class="search-empty">Error: ${err.message}</div>`;
+  }
+}
+
+function renderSearchResults(rows, query) {
+  const container = $('search-results');
+  if (!rows.length) {
+    container.innerHTML = '<div class="search-empty">Sin resultados</div>';
+    return;
+  }
+  const hi = (str, q) => {
+    if (!str) return '';
+    const safe = String(str).replace(/</g, '&lt;');
+    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return safe.replace(re, '<mark>$1</mark>');
+  };
+  container.innerHTML = rows.map(m => {
+    const desc = m.description.length > 120 ? m.description.substring(0, 120) + '…' : m.description;
+    const freq = FREQ_LABELS[m.frequency] || m.frequency;
+    return `<div class="search-result-item" data-id="${m.id}">
+      <span class="sri-topic">${esc(m.topic)}</span>
+      <span class="sri-desc">${hi(desc, query)}</span>
+      <span class="sri-meta">#${m.id} · ${freq} · ${formatDate(m.created_at)}</span>
+    </div>`;
+  }).join('');
+
+  container.querySelectorAll('.search-result-item').forEach(item => {
+    item.addEventListener('click', async () => {
+      const id = Number(item.dataset.id);
+      $('modal-search').classList.add('hidden');
+      try {
+        const res = await fetch(`${API}/memories/${id}`);
+        const memory = await res.json();
+        populateForm(memory);
+        switchTab('ficha');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        toast(`Error: ${err.message}`, 'error');
+      }
+    });
+  });
+}
+
+// Highlight style
+const style = document.createElement('style');
+style.textContent = 'mark { background: rgba(122,37,181,0.18); color: var(--purple,#7A25B5); border-radius:2px; padding:0 1px; }';
+document.head.appendChild(style);
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 clearForm();
+refreshNavList();

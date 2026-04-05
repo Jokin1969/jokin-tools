@@ -83,9 +83,15 @@ function getMemoryById(id) {
   return memory;
 }
 
-function listMemories({ topic, active, frequency, date_from, date_to, recalled_min, recalled_max, sort, order, page = 1, limit = 100 } = {}) {
+function listMemories({ topic, active, frequency, date_from, date_to, recalled_min, recalled_max, search, sort, order, page = 1, limit = 100 } = {}) {
   const conditions = [];
   const params = [];
+
+  if (search && search.trim()) {
+    conditions.push(`(m.description LIKE ? OR m.topic LIKE ? OR m.source_url LIKE ?)`);
+    const term = `%${search.trim()}%`;
+    params.push(term, term, term);
+  }
 
   if (topic) {
     const topics = Array.isArray(topic) ? topic : topic.split(',');
@@ -211,6 +217,15 @@ function markSent(id, frequency) {
   `).run(count, now, nextSend, id);
 }
 
+// ─── Navigation: all IDs in order ─────────────────────────────────────────────
+
+function getAllIds(sort = 'created_at', order = 'desc') {
+  const sortMap = { created_at: 'created_at', id: 'id', topic: 'topic' };
+  const col = sortMap[sort] || 'created_at';
+  const dir = order === 'asc' ? 'ASC' : 'DESC';
+  return db.prepare(`SELECT id FROM memories ORDER BY ${col} ${dir}`).all().map(r => r.id);
+}
+
 // ─── Reset counter ────────────────────────────────────────────────────────────
 
 function resetCounter(id) {
@@ -245,6 +260,7 @@ module.exports = {
   createMemory,
   getMemoryById,
   listMemories,
+  getAllIds,
   updateMemory,
   deleteMemory,
   toggleMemory,
