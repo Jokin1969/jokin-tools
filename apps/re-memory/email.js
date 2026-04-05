@@ -3,7 +3,18 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+// BASE_URL must be the public Railway URL (e.g. https://jokin-tools.up.railway.app)
+// If it points to localhost, images in emails won't load for external recipients.
+const BASE_URL = (() => {
+  const url = process.env.BASE_URL || '';
+  if (!url || url.includes('localhost') || url.includes('127.0.0.1')) {
+    console.warn('[email] WARNING: BASE_URL not set or points to localhost. ' +
+      'Images in emails will not load. Set BASE_URL to your Railway public URL.');
+    return url || 'http://localhost:3000';
+  }
+  return url.replace(/\/$/, ''); // strip trailing slash
+})();
+
 const DEACTIVATION_SECRET = process.env.DEACTIVATION_SECRET || 'change-this-secret';
 
 // ─── Transporter ─────────────────────────────────────────────────────────────
@@ -66,12 +77,14 @@ function buildEmailHTML(memory) {
   // Image block (inline if exists)
   let imageBlock = '';
   if (memory.image_path) {
-    const imageUrl = `${BASE_URL}/uploads/${path.basename(memory.image_path)}`;
+    const filename = path.basename(memory.image_path);
+    const imageUrl = `${BASE_URL}/uploads/${filename}`;
+    console.log(`[email] Image URL for memory #${memory.id}: ${imageUrl}`);
     imageBlock = `
       <tr>
         <td style="padding: 0 40px 24px;">
           <img src="${imageUrl}" alt="Imagen de la memoria"
-               style="max-width: 100%; border-radius: 8px; border: 1px solid #2a2a2a;" />
+               style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #ddd; display: block;" />
         </td>
       </tr>`;
   }

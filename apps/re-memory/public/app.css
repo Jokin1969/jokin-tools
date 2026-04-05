@@ -176,10 +176,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 
 .field-textarea { resize: vertical; min-height: 120px; line-height: 1.6; }
 .field-select { cursor: pointer; }
-.field-select option { background: #19122a; }
+.field-select option { background: #fff; color: #1E1530; }
 
 .field-readonly {
-  background: rgba(13,17,23,0.5); color: var(--text-muted);
+  background: rgba(216,204,232,0.35);
+  color: var(--text-muted);
   cursor: default;
 }
 .field-readonly:focus { border-color: var(--border); box-shadow: none; }
