@@ -3,19 +3,19 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 
-// BASE_URL must be the public Railway URL (e.g. https://jokin-tools.up.railway.app)
-// If it points to localhost, images in emails won't load for external recipients.
-const BASE_URL = (() => {
-  const url = process.env.BASE_URL || '';
-  if (!url || url.includes('localhost') || url.includes('127.0.0.1')) {
-    console.warn('[email] WARNING: BASE_URL not set or points to localhost. ' +
-      'Images in emails will not load. Set BASE_URL to your Railway public URL.');
-    return url || 'http://localhost:3000';
-  }
-  return url.replace(/\/$/, ''); // strip trailing slash
-})();
-
 const DEACTIVATION_SECRET = process.env.DEACTIVATION_SECRET || 'change-this-secret';
+
+// Lee BASE_URL en cada llamada, nunca cacheada, para que Railway la recoja
+// correctamente tras añadir/cambiar la variable de entorno + redeploy.
+function getBaseUrl() {
+  const url = (process.env.BASE_URL || '').replace(/\/$/, '');
+  if (!url || url.includes('localhost') || url.includes('127.0.0.1')) {
+    console.warn('[email] WARNING: BASE_URL no definida o apunta a localhost. ' +
+      'Las imágenes y links de desactivación no funcionarán en los emails. ' +
+      'Configura BASE_URL=https://jokins-tools-production.up.railway.app en Railway y redespliega.');
+  }
+  return url || 'http://localhost:3000';
+}
 
 // ─── Transporter ─────────────────────────────────────────────────────────────
 
@@ -66,9 +66,10 @@ const FREQUENCY_LABELS = {
 // ─── Email HTML builder ───────────────────────────────────────────────────────
 
 function buildEmailHTML(memory) {
+  const baseUrl = getBaseUrl();
   const { bg, label } = getBadgeColor(memory.times_recalled);
   const deactivateToken = generateDeactivationToken(memory.id);
-  const deactivateUrl = `${BASE_URL}/re-memory/api/deactivate/${memory.id}/${deactivateToken}`;
+  const deactivateUrl = `${baseUrl}/re-memory/api/deactivate/${memory.id}/${deactivateToken}`;
   const freqLabel = FREQUENCY_LABELS[memory.frequency] || memory.frequency;
   const createdAt = new Date(memory.created_at).toLocaleDateString('es-ES', {
     day: '2-digit', month: 'long', year: 'numeric'
@@ -78,7 +79,7 @@ function buildEmailHTML(memory) {
   let imageBlock = '';
   if (memory.image_path) {
     const filename = path.basename(memory.image_path);
-    const imageUrl = `${BASE_URL}/uploads/${filename}`;
+    const imageUrl = `${baseUrl}/uploads/${filename}`;
     console.log(`[email] Image URL for memory #${memory.id}: ${imageUrl}`);
     imageBlock = `
       <tr>
