@@ -46,6 +46,24 @@ router.get('/', (req, res) => {
 
 router.use('/public', express.static(path.join(__dirname, 'public')));
 
+// ─── API: Config diagnostic (muestra BASE_URL activa sin exponer secrets) ─────
+router.get('/api/config-check', (req, res) => {
+  const baseUrl = process.env.BASE_URL || '(no definida)';
+  const smtpUser = process.env.SMTP_USER ? process.env.SMTP_USER.replace(/(.{3}).*(@.*)/, '$1***$2') : '(no definida)';
+  const deactivationSecret = process.env.DEACTIVATION_SECRET ? '✓ definida' : '✗ usa valor por defecto (inseguro)';
+  const dbPath = process.env.DB_PATH || '(no definida, usando /data/jokin_tools.db)';
+
+  res.json({
+    BASE_URL: baseUrl,
+    BASE_URL_ok: baseUrl.startsWith('https://'),
+    SMTP_USER: smtpUser,
+    DEACTIVATION_SECRET: deactivationSecret,
+    DB_PATH: dbPath,
+    uploads_dir: uploadsDir,
+    node_env: process.env.NODE_ENV || '(no definida)'
+  });
+});
+
 // ─── API: List memories ───────────────────────────────────────────────────────
 router.get('/api/memories', (req, res) => {
   try {
