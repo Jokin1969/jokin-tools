@@ -111,15 +111,15 @@ function buildEmailHTML(memory) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Re-memory — Es hora de recordar</title>
 </head>
-<body style="margin:0; padding:0; background-color:#0d1117; font-family: 'Segoe UI', Arial, sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0d1117; padding: 32px 16px;">
+<body style="margin:0; padding:0; background-color:#f0f0f0; font-family: 'Segoe UI', Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f0f0; padding: 32px 16px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background:#161b22; border-radius:12px; overflow:hidden; border: 1px solid #21262d;">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background:#ffffff; border-radius:12px; overflow:hidden; border: 1px solid #d0d0d0; box-shadow:0 2px 12px rgba(0,0,0,0.08);">
 
           <!-- Header -->
           <tr>
-            <td style="background: linear-gradient(135deg, #0d1117 0%, #1a2332 100%); padding: 32px 40px; border-bottom: 2px solid ${bg};">
+            <td style="background: linear-gradient(135deg, #2c2c3a 0%, #1a2332 100%); padding: 32px 40px; border-bottom: 2px solid ${bg};">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td>
@@ -138,20 +138,20 @@ function buildEmailHTML(memory) {
 
           <!-- Metadata strip -->
           <tr>
-            <td style="padding: 16px 40px; background: #0d1117; border-bottom: 1px solid #21262d;">
+            <td style="padding: 16px 40px; background: #f7f7f7; border-bottom: 1px solid #e0e0e0;">
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="padding-right: 24px;">
-                    <p style="margin:0; font-size:11px; color:#7d8590; text-transform:uppercase; letter-spacing:0.1em; font-family: 'Courier New', monospace;">Tema</p>
-                    <p style="margin:4px 0 0; font-size:13px; color:#2D9CDB; font-weight:600;">${memory.topic}</p>
+                    <p style="margin:0; font-size:11px; color:#888; text-transform:uppercase; letter-spacing:0.1em; font-family: 'Courier New', monospace;">Tema</p>
+                    <p style="margin:4px 0 0; font-size:13px; color:#1B6CB0; font-weight:600;">${memory.topic}</p>
                   </td>
                   <td style="padding-right: 24px;">
-                    <p style="margin:0; font-size:11px; color:#7d8590; text-transform:uppercase; letter-spacing:0.1em; font-family: 'Courier New', monospace;">Frecuencia</p>
-                    <p style="margin:4px 0 0; font-size:13px; color:#e6edf3;">${freqLabel}</p>
+                    <p style="margin:0; font-size:11px; color:#888; text-transform:uppercase; letter-spacing:0.1em; font-family: 'Courier New', monospace;">Frecuencia</p>
+                    <p style="margin:4px 0 0; font-size:13px; color:#333;">${freqLabel}</p>
                   </td>
                   <td>
-                    <p style="margin:0; font-size:11px; color:#7d8590; text-transform:uppercase; letter-spacing:0.1em; font-family: 'Courier New', monospace;">Creada</p>
-                    <p style="margin:4px 0 0; font-size:13px; color:#e6edf3;">${createdAt}</p>
+                    <p style="margin:0; font-size:11px; color:#888; text-transform:uppercase; letter-spacing:0.1em; font-family: 'Courier New', monospace;">Creada</p>
+                    <p style="margin:4px 0 0; font-size:13px; color:#333;">${createdAt}</p>
                   </td>
                 </tr>
               </table>
@@ -162,7 +162,7 @@ function buildEmailHTML(memory) {
           <tr>
             <td style="padding: 32px 40px 24px;">
               <div style="border-left: 3px solid ${bg}; padding-left: 20px;">
-                <p style="margin:0; font-size:16px; line-height:1.7; color:#e6edf3; white-space: pre-wrap;">${escapeHtml(memory.description)}</p>
+                <p style="margin:0; font-size:16px; line-height:1.7; color:#1a1a1a; white-space: pre-wrap;">${escapeHtml(memory.description)}</p>
               </div>
             </td>
           </tr>
@@ -172,9 +172,9 @@ function buildEmailHTML(memory) {
 
           <!-- Footer -->
           <tr>
-            <td style="padding: 24px 40px; background: #0d1117; border-top: 1px solid #21262d;">
-              <p style="margin:0; font-size:12px; color:#7d8590; text-align:center;">
-                Enviado por <strong style="color:#2D9CDB;">Re-memory · Jokin's Tools</strong>
+            <td style="padding: 24px 40px; background: #f7f7f7; border-top: 1px solid #e0e0e0;">
+              <p style="margin:0; font-size:12px; color:#888; text-align:center;">
+                Enviado por <strong style="color:#1B6CB0;">Re-memory · Jokin's Tools</strong>
                 <br />
                 <a href="${deactivateUrl}"
                    style="color:#7d8590; text-decoration:underline; font-size:11px; margin-top:8px; display:inline-block;">
