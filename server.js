@@ -33,6 +33,10 @@ app.use('/src', express.static(path.join(__dirname, 'src')));
 const reMemoryRouter = require('./apps/re-memory/routes');
 app.use('/re-memory', reMemoryRouter);
 
+// ─── Batchwork micro-app ──────────────────────────────────────────────────────
+const batchworkRouter = require('./apps/batchwork/server/routes');
+app.use('/batchwork', batchworkRouter);
+
 // ─── Hub root ─────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));

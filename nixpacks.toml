@@ -1,2 +1,5 @@
 [phases.setup]
-nixPkgs = ["nodejs_22", "python3", "gcc", "gnumake"]
+nixPkgs = ["nodejs_22", "python3", "gcc", "gnumake", "libreoffice"]
+
+[phases.install]
+cmds = ["pip3 install Pillow>=10.0.0 pypdf>=4.0.0 pdf2docx>=0.5.8 2>/dev/null || true"]
