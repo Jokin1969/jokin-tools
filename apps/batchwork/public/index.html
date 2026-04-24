@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Batchwork — Jokin's Tools</title>
+  <link rel="icon" type="image/svg+xml" href="/batchwork/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/batchwork/styles.css" />
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<header class="bw-header">
+  <a href="/batchwork" class="bw-logo">
+    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="2" y="20" width="18" height="5" rx="1" stroke="#2D9CDB" stroke-width="1.5" opacity="0.5"/>
+      <rect x="5"  y="13" width="18" height="5" rx="1" stroke="#2D9CDB" stroke-width="1.5" opacity="0.75"/>
+      <rect x="8" y="6"  width="18" height="5" rx="1" stroke="#2D9CDB" stroke-width="1.5"/>
+    </svg>
+    <span class="bw-logo-name"><span>B</span>atchwork</span>
+  </a>
+  <a href="/" class="bw-back">← Hub</a>
+</header>
+
+<!-- ── Layout ──────────────────────────────────────────────────────────── -->
+<div class="bw-layout">
+
+  <!-- Sidebar -->
+  <aside class="bw-sidebar" id="sidebar">
+    <!-- Populated by JS -->
+  </aside>
+
+  <!-- Main -->
+  <div class="bw-main">
+    <div class="bw-work" id="work-panel">
+      <div class="bw-placeholder" id="placeholder">
+        <svg width="56" height="56" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="40" width="28" height="8" rx="2" stroke="#2D9CDB" stroke-width="2"/>
+          <rect x="12" y="28" width="28" height="8" rx="2" stroke="#2D9CDB" stroke-width="2"/>
+          <rect x="16" y="16" width="28" height="8" rx="2" stroke="#2D9CDB" stroke-width="2"/>
+        </svg>
+        <p>Selecciona una operación en el panel izquierdo</p>
+      </div>
+
+      <!-- Op content (hidden until op selected) -->
+      <div id="op-content" style="display:none; flex-direction:column; gap:20px;">
+        <div class="bw-op-header">
+          <h2 class="bw-op-title" id="op-title"></h2>
+          <p class="bw-op-desc" id="op-desc"></p>
+        </div>
+
+        <!-- Upload zone — single or paired depending on op -->
+        <div id="upload-area"></div>
+
+        <!-- File list (for non-inventory ops) -->
+        <div id="file-list-wrap" style="display:none;">
+          <div class="bw-file-list-wrap">
+            <div class="bw-file-list-header">
+              <span class="bw-file-list-title" id="file-count-label">0 ficheros</span>
+              <button class="bw-btn-clear" id="btn-clear-files">Limpiar todo</button>
+            </div>
+            <div class="bw-file-list" id="file-list"></div>
+          </div>
+        </div>
+
+        <!-- Params zone -->
+        <div id="params-zone"></div>
+      </div>
+    </div>
+
+    <!-- Execute bar (sticky bottom) -->
+    <div class="bw-execute-bar" id="execute-bar">
+      <div class="bw-execute-row">
+        <button class="bw-btn bw-btn-execute" id="btn-execute" disabled>Ejecutar</button>
+        <button class="bw-btn bw-btn-download" id="btn-download" style="display:none">⬇ Descargar resultado</button>
+        <span class="bw-status-msg" id="status-msg"></span>
+      </div>
+      <div class="bw-progress-wrap" id="progress-wrap">
+        <div class="bw-progress-label" id="progress-label"></div>
+        <div class="bw-progress-track"><div class="bw-progress-fill" id="progress-fill"></div></div>
+      </div>
+      <div class="bw-log" id="log-panel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Dialog overlay ──────────────────────────────────────────────────── -->
+<div class="bw-overlay" id="overlay">
+  <div class="bw-dialog" id="dialog">
+    <div class="bw-dialog-title" id="dialog-title"></div>
+    <div class="bw-dialog-body" id="dialog-body"></div>
+    <div class="bw-dialog-detail" id="dialog-detail" style="display:none"></div>
+    <div class="bw-dialog-actions" id="dialog-actions"></div>
+  </div>
+</div>
+
+<script src="/batchwork/app.js"></script>
+</body>
+</html>

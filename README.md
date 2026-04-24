@@ -188,3 +188,53 @@ La app estará disponible en `http://localhost:3000`.
 ## Licencia
 
 MIT
+
+---
+
+## Batchwork
+
+Herramienta de operaciones por lotes sobre ficheros, accesible en `/batchwork`.
+
+### Operaciones disponibles
+
+| # | Operación | Entrada | Salida |
+|---|-----------|---------|--------|
+| 1 | Inventariar carpeta → Excel | Selector de carpeta (`webkitdirectory`) | `.xlsx` |
+| 2 | Renombrar desde lista | Ficheros + `.txt` con nombres | ZIP |
+| 3 | Transparentar PNG (conservando negro) | PNG / JPG | ZIP de PNG |
+| 4 | Ajustar TIFF a 300 ppp / tamaño máximo | TIFF | ZIP de TIFF |
+| 5 | DOCX → PDF | `.docx` | ZIP de PDF |
+| 6 | PDF → DOCX | `.pdf` | ZIP de DOCX |
+| 7 | Unificar carpeta a PDF (normalización DNI) | Ficheros mixtos | ZIP de PDF renombrados |
+| 8 | Unir PDFs en uno solo | `.pdf` | ZIP con PDF unificado |
+| 9 | Dividir PDFs | `.pdf` | ZIP con subcarpetas |
+
+### Variables de entorno de Batchwork
+
+| Variable | Default | Descripción |
+|----------|---------|-------------|
+| `BATCHWORK_MAX_UPLOAD_MB` | `500` | Límite de subida por lote en MB |
+| `BATCHWORK_TMP_DIR` | `/tmp/batchwork` | Directorio de sesiones temporales |
+| `BATCHWORK_SESSION_TTL_MIN` | `30` | TTL de sesiones en minutos |
+| `PYTHON_BIN` | `python3` | Ruta al intérprete Python |
+
+### Dependencias de sistema
+
+Batchwork requiere:
+- **Python 3** con los paquetes: `Pillow>=10.0.0`, `pypdf>=4.0.0`, `pdf2docx>=0.5.8`
+- **LibreOffice Writer** para conversión DOCX→PDF (op. 5 y op. 7 con ficheros .docx)
+
+En Railway con nixpacks, añadir `libreoffice` a `nixpacks.toml` bajo `nixPkgs`. Los paquetes Python se instalan vía `pip3` en la fase de instalación.
+
+### API de Batchwork
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/batchwork` | SPA frontend |
+| `POST` | `/batchwork/api/session` | Crear sesión (devuelve UUID) |
+| `POST` | `/batchwork/api/session/:id/upload` | Subir ficheros al lote |
+| `POST` | `/batchwork/api/session/:id/execute` | Lanzar operación |
+| `GET` | `/batchwork/api/session/:id/status` | Estado de la ejecución |
+| `POST` | `/batchwork/api/session/:id/resolve` | Resolver decisión del usuario |
+| `GET` | `/batchwork/api/session/:id/download` | Descargar resultado |
+| `DELETE` | `/batchwork/api/session/:id` | Eliminar sesión |
