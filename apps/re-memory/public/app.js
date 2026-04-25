@@ -144,7 +144,7 @@ function clearForm() {
   $('btn-borrar').disabled = true;
   $('btn-reset-counter').disabled = true;
   $('btn-test-email').disabled = true;
-  $('record-info').textContent = 'Nuevo registro';
+
   updateNavButtons();
 }
 
@@ -186,7 +186,7 @@ function populateForm(memory) {
   $('btn-borrar').disabled = false;
   $('btn-reset-counter').disabled = false;
   $('btn-test-email').disabled = false;
-  $('record-info').textContent = `Registro #${memory.id}`;
+
   updateNavButtons();
 }
 
@@ -223,6 +223,13 @@ $('btn-remove-image').addEventListener('click', () => {
   $('image-preview').src = '';
   $('image-preview-wrap').classList.add('hidden');
   state.existingImagePath = null;
+});
+
+// ─── Nuevo ────────────────────────────────────────────────────────────────────
+$('btn-nuevo').addEventListener('click', () => {
+  clearForm();
+  switchTab('ficha');
+  $('field-description').focus();
 });
 
 // ─── Guardar ──────────────────────────────────────────────────────────────────
