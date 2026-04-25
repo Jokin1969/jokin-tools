@@ -265,17 +265,43 @@ router.get('/api/export/csv', async (req, res) => {
   }
 });
 
+// ─── Wikipedia image lookup ──────────────────────────────────────────────────
+async function getWikipediaImage(query, lang = 'es') {
+  try {
+    const searchRes = await fetch(
+      `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=1&origin=*`,
+      { headers: { 'User-Agent': 'JokinTools/1.0 (jokin-tools)' } }
+    );
+    if (!searchRes.ok) return lang === 'es' ? getWikipediaImage(query, 'en') : null;
+    const searchData = await searchRes.json();
+    const hit = searchData.query?.search?.[0];
+    if (!hit) return lang === 'es' ? getWikipediaImage(query, 'en') : null;
+
+    const imgRes = await fetch(
+      `https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(hit.title)}&prop=pageimages&format=json&pithumbsize=500&origin=*`,
+      { headers: { 'User-Agent': 'JokinTools/1.0 (jokin-tools)' } }
+    );
+    if (!imgRes.ok) return lang === 'es' ? getWikipediaImage(query, 'en') : null;
+    const imgData = await imgRes.json();
+    const thumbnail = Object.values(imgData.query?.pages || {})[0]?.thumbnail?.source || null;
+    if (!thumbnail && lang === 'es') return getWikipediaImage(query, 'en');
+    return thumbnail;
+  } catch (_) {
+    return lang === 'es' ? getWikipediaImage(query, 'en') : null;
+  }
+}
+
 // ─── API: Claude AI assist ────────────────────────────────────────────────────
 const CLAUDE_SYSTEM_PROMPT = `Eres un asistente que responde EXCLUSIVAMENTE con JSON puro. Sin texto antes ni después. Sin bloques de código markdown. Sin explicaciones.
 
 Cuando recibas un tema o texto, devuelve SOLO este objeto JSON (nada más):
-{"description":"descripción en prosa concisa sin bullet points, priorizando los detalles más memorables. Para palabras entre comillas: definición RAE y etimología. Para refranes: significado y origen. Si solo recibes un nombre o tema, búscalo","url":"URL más relevante o null","imageUrl":"URL directa a imagen de Wikipedia Commons u otra fuente pública libre, o null"}
+{"description":"descripción en prosa concisa sin bullet points, priorizando los detalles más memorables. Para palabras entre comillas: definición RAE y etimología. Para refranes: significado y origen. Si solo recibes un nombre o tema, búscalo","url":"URL más relevante o null","imageQuery":"término de búsqueda en Wikipedia que mejor represente visualmente el tema, o null"}
 
 Reglas estrictas:
 - SOLO JSON, sin texto adicional
 - description: prosa continua, sin guiones ni viñetas
 - url: la fuente más relevante o null (no una cadena vacía)
-- imageUrl: URL directa al archivo de imagen (no a la página web) o null`;
+- imageQuery: término concreto (ej: "fotosíntesis", "Torre Eiffel", "Nikola Tesla") o null`;
 
 function extractJSON(text) {
   // Strategy 1: fenced code block ```json { ... } ```
@@ -302,45 +328,12 @@ function extractJSON(text) {
 
 router.post('/api/claude-assist', async (req, res) => {
   const { topic } = req.body;
-  if (!topic || !topic.trim()) {
-    return res.status(400).json({ error: 'El campo topic es obligatorio' });
-  }
-
+  if (!topic || !topic.trim()) return res.status(400).json({ error: 'El campo topic es obligatorio' });
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return res.status(503).json({ error: 'ANTHROPIC_API_KEY no configurada' });
-  }
-
+  if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY no configurada' });
   try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey });
-
-    const message = await client.messages.create({
-      model: 'claude-opus-4-7',
-      max_tokens: 2048,
-      system: [{ type: 'text', text: CLAUDE_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
-      tools: [{ type: 'web_search_20260209', name: 'web_search' }],
-      messages: [{ role: 'user', content: topic.trim() }]
-    });
-
-    const textBlock = message.content.find(b => b.type === 'text');
-    if (!textBlock) {
-      const types = message.content.map(b => b.type).join(', ');
-      console.error('[claude-assist] no text block. stop_reason=%s content_types=%s', message.stop_reason, types);
-      return res.status(500).json({ error: `Claude no devolvió texto (stop_reason: ${message.stop_reason})` });
-    }
-
-    const data = extractJSON(textBlock.text);
-    if (!data) {
-      console.error('[claude-assist] JSON parse failed. raw:\n%s', textBlock.text);
-      return res.status(500).json({ error: 'No se pudo parsear la respuesta de Claude', raw: textBlock.text });
-    }
-
-    res.json({
-      description: data.description || null,
-      url: data.url || null,
-      imageUrl: data.imageUrl || null
-    });
+    const data = await callClaude(topic.trim());
+    res.json(data);
   } catch (err) {
     console.error('[claude-assist] error:', err.message);
     res.status(500).json({ error: err.message });
@@ -349,6 +342,32 @@ router.post('/api/claude-assist', async (req, res) => {
 
 // ─── API: Unified AI assist (Claude / OpenAI / Gemini) ───────────────────────
 const AI_SYSTEM_PROMPT = CLAUDE_SYSTEM_PROMPT; // same prompt for all providers
+
+async function aiResultWithImage(data) {
+  const imageUrl = data.imageQuery ? await getWikipediaImage(data.imageQuery) : null;
+  return { description: data.description || null, url: data.url || null, imageUrl };
+}
+
+async function callClaude(topic) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada');
+  const Anthropic = require('@anthropic-ai/sdk');
+  const client = new Anthropic({ apiKey });
+  const message = await client.messages.create({
+    model: 'claude-opus-4-7',
+    max_tokens: 2048,
+    system: [{ type: 'text', text: AI_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: topic }]
+  });
+  const textBlock = message.content.find(b => b.type === 'text');
+  if (!textBlock) {
+    console.error('[claude] no text block. stop_reason=%s types=%s', message.stop_reason, message.content.map(b => b.type).join(','));
+    throw new Error(`Claude no devolvió texto (stop_reason: ${message.stop_reason})`);
+  }
+  const data = extractJSON(textBlock.text);
+  if (!data) { console.error('[claude] JSON parse failed. raw:\n%s', textBlock.text); throw new Error('No se pudo parsear la respuesta de Claude'); }
+  return aiResultWithImage(data);
+}
 
 async function callOpenAI(topic) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -366,8 +385,8 @@ async function callOpenAI(topic) {
   });
   const text = response.choices[0]?.message?.content || '';
   const data = extractJSON(text);
-  if (!data) { console.error('[openai-assist] JSON parse failed. raw:\n%s', text); throw new Error('No se pudo parsear la respuesta de OpenAI'); }
-  return { description: data.description || null, url: data.url || null, imageUrl: data.imageUrl || null };
+  if (!data) { console.error('[openai] JSON parse failed. raw:\n%s', text); throw new Error('No se pudo parsear la respuesta de OpenAI'); }
+  return aiResultWithImage(data);
 }
 
 async function callGemini(topic) {
@@ -383,41 +402,19 @@ async function callGemini(topic) {
   const result = await model.generateContent(topic);
   const text = result.response.text();
   const data = extractJSON(text);
-  if (!data) { console.error('[gemini-assist] JSON parse failed. raw:\n%s', text); throw new Error('No se pudo parsear la respuesta de Gemini'); }
-  return { description: data.description || null, url: data.url || null, imageUrl: data.imageUrl || null };
+  if (!data) { console.error('[gemini] JSON parse failed. raw:\n%s', text); throw new Error('No se pudo parsear la respuesta de Gemini'); }
+  return aiResultWithImage(data);
 }
 
 router.post('/api/ai-assist', async (req, res) => {
   const { topic, provider = 'claude' } = req.body;
-  if (!topic || !topic.trim()) {
-    return res.status(400).json({ error: 'El campo topic es obligatorio' });
-  }
+  if (!topic || !topic.trim()) return res.status(400).json({ error: 'El campo topic es obligatorio' });
   try {
     let data;
-    if (provider === 'claude') {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY no configurada' });
-      const Anthropic = require('@anthropic-ai/sdk');
-      const client = new Anthropic({ apiKey });
-      const message = await client.messages.create({
-        model: 'claude-opus-4-7',
-        max_tokens: 2048,
-        system: [{ type: 'text', text: AI_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
-        tools: [{ type: 'web_search_20260209', name: 'web_search' }],
-        messages: [{ role: 'user', content: topic.trim() }]
-      });
-      const textBlock = message.content.find(b => b.type === 'text');
-      if (!textBlock) { console.error('[claude] no text block. stop_reason=%s types=%s', message.stop_reason, message.content.map(b=>b.type).join(',')); throw new Error(`Claude no devolvió texto (stop_reason: ${message.stop_reason})`); }
-      const parsed = extractJSON(textBlock.text);
-      if (!parsed) { console.error('[claude] JSON parse failed. raw:\n%s', textBlock.text); throw new Error('No se pudo parsear la respuesta de Claude'); }
-      data = { description: parsed.description || null, url: parsed.url || null, imageUrl: parsed.imageUrl || null };
-    } else if (provider === 'openai') {
-      data = await callOpenAI(topic.trim());
-    } else if (provider === 'gemini') {
-      data = await callGemini(topic.trim());
-    } else {
-      return res.status(400).json({ error: `Proveedor desconocido: ${provider}` });
-    }
+    if      (provider === 'claude') data = await callClaude(topic.trim());
+    else if (provider === 'openai') data = await callOpenAI(topic.trim());
+    else if (provider === 'gemini') data = await callGemini(topic.trim());
+    else return res.status(400).json({ error: `Proveedor desconocido: ${provider}` });
     res.json(data);
   } catch (err) {
     console.error(`[ai-assist:${provider}] error:`, err.message);
