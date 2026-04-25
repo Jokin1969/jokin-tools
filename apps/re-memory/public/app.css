@@ -37,7 +37,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 .app-header {
   background: rgba(243,237,248,0.97);
   border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; z-index: 200;
+  position: sticky; top: var(--hub-nav-h, 0px); z-index: 200;
   backdrop-filter: blur(8px);
 }
 
@@ -120,8 +120,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 .btn-save:not(:disabled):hover { background: #ad2480; }
 .btn-danger    { background: var(--red); color: #fff; border-color: var(--red); }
 .btn-danger:not(:disabled):hover { background: #d44; }
-.btn-danger-outline { background: transparent; color: var(--red); border-color: var(--red); }
-.btn-danger-outline:not(:disabled):hover { background: rgba(235,87,87,0.08); }
+.btn-danger-outline { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger-outline:not(:disabled):hover { background: var(--red-dark); border-color: var(--red-dark); }
 .btn-outline   { background: transparent; color: var(--text-muted); border-color: var(--border); }
 .btn-outline:not(:disabled):hover { color: var(--text); border-color: var(--text-muted); }
 .btn-ghost     { background: transparent; color: var(--text-muted); border-color: transparent; }
@@ -153,6 +153,33 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
   display: inline-block; width: 10px; height: 10px;
   background: rgba(255,255,255,0.85); border-radius: 50%;
   flex-shrink: 0;
+}
+
+/* ─── AI provider buttons ──────────────────────────────────────────────────── */
+.btn-ai {
+  display: inline-flex; align-items: center; gap: 7px;
+  color: #fff; border-color: transparent;
+}
+.btn-ai:hover:not(:disabled) { opacity: 0.88; }
+.btn-ai:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-ai--claude  { background: linear-gradient(135deg, #F2994A 0%, #E07020 100%); }
+.btn-ai--openai  { background: linear-gradient(135deg, #19C37D 0%, #0E8C58 100%); }
+.btn-ai--gemini  { background: linear-gradient(135deg, #4285F4 0%, #8B5CF6 100%); }
+
+.ai-dot {
+  display: inline-block; width: 10px; height: 10px;
+  background: rgba(255,255,255,0.85); border-radius: 50%; flex-shrink: 0;
+}
+
+#ai-modal-dot.ai--claude { background: #F2994A; }
+#ai-modal-dot.ai--openai { background: #19C37D; }
+#ai-modal-dot.ai--gemini { background: #4285F4; }
+
+.form-ai-row {
+  display: flex; justify-content: flex-end; gap: 10px;
+  margin-top: 8px; padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 .form-claude-row {
@@ -471,15 +498,22 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 
 /* Search button */
 .btn-search {
-  background: transparent; color: var(--purple);
-  border-color: rgba(122,37,181,0.35);
+  background: var(--purple); color: #fff;
+  border-color: var(--purple);
 }
-.btn-search:hover { background: rgba(122,37,181,0.08); border-color: var(--purple); }
+.btn-search:hover { background: var(--accent); border-color: var(--accent); }
 
 /* Nav controls */
 .toolbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .nav-controls { display: flex; align-items: center; gap: 4px; }
-.btn-nav { font-family: var(--mono); }
+.btn-nav {
+  font-family: var(--mono);
+  background: var(--bg-card); color: var(--text-muted);
+  border-color: var(--border);
+}
+.btn-nav:not(:disabled):hover {
+  background: var(--bg-card-h); border-color: var(--border-h); color: var(--text);
+}
 .nav-pos {
   font-family: var(--mono); font-size: 0.68rem; color: var(--text-muted);
   min-width: 48px; text-align: center;
@@ -529,11 +563,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 
 /* Test email button */
 .btn-test-email {
-  background: transparent; color: var(--violet);
-  border-color: rgba(168,85,247,0.4);
+  background: var(--violet); color: #fff;
+  border-color: var(--violet);
 }
 .btn-test-email:not(:disabled):hover {
-  background: rgba(168,85,247,0.08); border-color: var(--violet);
+  background: #8841d8; border-color: #8841d8;
 }
 
 /* ─── Utilities ──────────────────────────────────────────────────────────────── */

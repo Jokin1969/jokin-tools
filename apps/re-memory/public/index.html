@@ -9,16 +9,34 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/hub-nav.css" />
   <link rel="stylesheet" href="/re-memory/public/app.css?v=4" />
 </head>
 <body>
+
+  <!-- ─── Hub nav bar ──────────────────────────────────────────────────────────── -->
+  <nav class="hub-nav" data-app="rememory">
+    <a href="/" class="hub-nav-brand" title="Jokin's Tools Hub">
+      <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="24" cy="24" r="4" fill="#00B8D4"/>
+        <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#1B6CB0" stroke-width="1.5" fill="none" opacity="0.7"/>
+        <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#009B8D" stroke-width="1.5" fill="none" opacity="0.65" transform="rotate(60 24 24)"/>
+        <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#0028A5" stroke-width="1.5" fill="none" opacity="0.5" transform="rotate(120 24 24)"/>
+      </svg>
+      <span class="hub-nav-brand-name"><span class="jn-accent">J</span>okin's Tools</span>
+    </a>
+    <div class="hub-nav-links">
+      <a href="/"          class="hub-nav-link" data-app="hub">Hub</a>
+      <a href="/re-memory" class="hub-nav-link" data-app="rememory">Re-memory</a>
+      <a href="/batchwork" class="hub-nav-link" data-app="batchwork">Batchwork</a>
+    </div>
+  </nav>
 
   <!-- ─── Header ─────────────────────────────────────────────────────────────── -->
   <header class="app-header">
     <div class="header-inner">
       <div class="header-logo">
-        <a href="/" class="back-link" title="Volver al hub">←</a>
-        <svg viewBox="0 0 40 40" fill="none" class="app-icon" aria-hidden="true">
+<svg viewBox="0 0 40 40" fill="none" class="app-icon" aria-hidden="true">
           <circle cx="20" cy="16" r="10" stroke="#8B31C7" stroke-width="1.8" fill="none"/>
           <path d="M14 16c0-3.3 2.7-6 6-6" stroke="#C42B8E" stroke-width="1.5" stroke-linecap="round"/>
           <path d="M26 16c0 3.3-2.7 6-6 6" stroke="#C42B8E" stroke-width="1.5" stroke-linecap="round"/>
@@ -88,21 +106,20 @@
       <!-- Toolbar ficha -->
       <div class="view-toolbar">
         <div class="toolbar-actions">
-          <button class="btn btn-primary" id="btn-nuevo">+ Nuevo</button>
           <button class="btn btn-save" id="btn-guardar">Guardar</button>
           <button class="btn btn-danger-outline" id="btn-borrar" disabled>Borrar</button>
           <button class="btn btn-search" id="btn-buscar" title="Buscar memoria por cualquier campo">
             🔍 Buscar
           </button>
-          <button class="btn btn-test-email btn-sm" id="btn-test-email" disabled title="Envía un email de prueba con esta memoria">
+          <button class="btn btn-test-email" id="btn-test-email" disabled title="Envía un email de prueba con esta memoria">
             ✉ Test email
           </button>
         </div>
         <div class="toolbar-right">
           <div class="nav-controls">
-            <button class="btn btn-ghost btn-sm btn-nav" id="btn-prev" disabled title="Registro anterior">← Ant.</button>
+            <button class="btn btn-nav" id="btn-prev" disabled title="Registro anterior">← Ant.</button>
             <span class="nav-pos" id="nav-pos"></span>
-            <button class="btn btn-ghost btn-sm btn-nav" id="btn-next" disabled title="Registro siguiente">Sig. →</button>
+            <button class="btn btn-nav" id="btn-next" disabled title="Registro siguiente">Sig. →</button>
           </div>
           <div class="record-info" id="record-info"></div>
         </div>
@@ -211,11 +228,19 @@
             <input type="text" id="field-next-send" class="field-input field-readonly" readonly />
           </div>
 
-          <!-- Botón Claude (bottom of form) -->
-          <div class="form-claude-row">
-            <button type="button" class="btn btn-claude-orange" id="btn-claude" title="Consultar con Claude AI">
-              <span class="claude-dot-orange"></span>
+          <!-- Botones AI (bottom of form) -->
+          <div class="form-ai-row">
+            <button type="button" class="btn btn-ai btn-ai--claude" id="btn-claude" title="Consultar con Claude (Anthropic)">
+              <span class="ai-dot"></span>
               Claude
+            </button>
+            <button type="button" class="btn btn-ai btn-ai--openai" id="btn-openai" title="Consultar con GPT-4o (OpenAI)">
+              <span class="ai-dot"></span>
+              GPT-4o
+            </button>
+            <button type="button" class="btn btn-ai btn-ai--gemini" id="btn-gemini" title="Consultar con Gemini (Google)">
+              <span class="ai-dot"></span>
+              Gemini
             </button>
           </div>
 
@@ -339,8 +364,8 @@
     <div class="modal-box modal-claude-box">
       <div class="modal-claude-header">
         <div class="modal-claude-title">
-          <span class="claude-dot-orange" style="width:12px;height:12px;"></span>
-          <h3>Consultar a Claude</h3>
+          <span id="ai-modal-dot" class="ai-dot" style="width:12px;height:12px;"></span>
+          <h3 id="ai-modal-title">Consultar a Claude</h3>
         </div>
         <button class="modal-close" id="btn-close-claude">✕</button>
       </div>

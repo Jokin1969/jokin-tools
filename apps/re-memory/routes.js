@@ -266,16 +266,39 @@ router.get('/api/export/csv', async (req, res) => {
 });
 
 // ─── API: Claude AI assist ────────────────────────────────────────────────────
-const CLAUDE_SYSTEM_PROMPT = `Cada vez que te mande información, resúmela en una descripción en prosa concisa, priorizando los detalles más importantes y memorables. Sin bullet points, sin campo de tema. Añade al final una URL relevante. Para palabras entre comillas: definición RAE y etimología. Para refranes: significado y origen. Si solo te doy un nombre o tema sin texto, búscalo tú.
+const CLAUDE_SYSTEM_PROMPT = `Eres un asistente que responde EXCLUSIVAMENTE con JSON puro. Sin texto antes ni después. Sin bloques de código markdown. Sin explicaciones.
 
-Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:
-{
-  "description": "prosa concisa sin bullet points",
-  "url": "URL más relevante o null",
-  "imageUrl": "URL directa a imagen representativa de Wikipedia Commons u otra fuente pública libre, o null"
+Cuando recibas un tema o texto, devuelve SOLO este objeto JSON (nada más):
+{"description":"descripción en prosa concisa sin bullet points, priorizando los detalles más memorables. Para palabras entre comillas: definición RAE y etimología. Para refranes: significado y origen. Si solo recibes un nombre o tema, búscalo","url":"URL más relevante o null","imageUrl":"URL directa a imagen de Wikipedia Commons u otra fuente pública libre, o null"}
+
+Reglas estrictas:
+- SOLO JSON, sin texto adicional
+- description: prosa continua, sin guiones ni viñetas
+- url: la fuente más relevante o null (no una cadena vacía)
+- imageUrl: URL directa al archivo de imagen (no a la página web) o null`;
+
+function extractJSON(text) {
+  // Strategy 1: fenced code block ```json { ... } ```
+  const fenced = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  if (fenced) {
+    try { return JSON.parse(fenced[1]); } catch (_) {}
+  }
+  // Strategy 2: first complete top-level JSON object
+  const start = text.indexOf('{');
+  if (start !== -1) {
+    let depth = 0;
+    for (let i = start; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      else if (text[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          try { return JSON.parse(text.slice(start, i + 1)); } catch (_) {}
+        }
+      }
+    }
+  }
+  return null;
 }
-
-Para imageUrl: busca una imagen representativa en Wikipedia Commons (URL directa al archivo, no a la página).`;
 
 router.post('/api/claude-assist', async (req, res) => {
   const { topic } = req.body;
@@ -292,7 +315,7 @@ router.post('/api/claude-assist', async (req, res) => {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
 
-    const stream = client.messages.stream({
+    const message = await client.messages.create({
       model: 'claude-opus-4-7',
       max_tokens: 2048,
       system: [{ type: 'text', text: CLAUDE_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
@@ -300,19 +323,19 @@ router.post('/api/claude-assist', async (req, res) => {
       messages: [{ role: 'user', content: topic.trim() }]
     });
 
-    const message = await stream.finalMessage();
-
     const textBlock = message.content.find(b => b.type === 'text');
     if (!textBlock) {
-      return res.status(500).json({ error: 'Claude no devolvió texto' });
+      const types = message.content.map(b => b.type).join(', ');
+      console.error('[claude-assist] no text block. stop_reason=%s content_types=%s', message.stop_reason, types);
+      return res.status(500).json({ error: `Claude no devolvió texto (stop_reason: ${message.stop_reason})` });
     }
 
-    const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const data = extractJSON(textBlock.text);
+    if (!data) {
+      console.error('[claude-assist] JSON parse failed. raw:\n%s', textBlock.text);
       return res.status(500).json({ error: 'No se pudo parsear la respuesta de Claude', raw: textBlock.text });
     }
 
-    const data = JSON.parse(jsonMatch[0]);
     res.json({
       description: data.description || null,
       url: data.url || null,
@@ -320,6 +343,84 @@ router.post('/api/claude-assist', async (req, res) => {
     });
   } catch (err) {
     console.error('[claude-assist] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Unified AI assist (Claude / OpenAI / Gemini) ───────────────────────
+const AI_SYSTEM_PROMPT = CLAUDE_SYSTEM_PROMPT; // same prompt for all providers
+
+async function callOpenAI(topic) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY no configurada');
+  const { default: OpenAI } = require('openai');
+  const client = new OpenAI({ apiKey });
+  const response = await client.chat.completions.create({
+    model: 'gpt-4o',
+    max_tokens: 2048,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: AI_SYSTEM_PROMPT },
+      { role: 'user',   content: topic }
+    ]
+  });
+  const text = response.choices[0]?.message?.content || '';
+  const data = extractJSON(text);
+  if (!data) { console.error('[openai-assist] JSON parse failed. raw:\n%s', text); throw new Error('No se pudo parsear la respuesta de OpenAI'); }
+  return { description: data.description || null, url: data.url || null, imageUrl: data.imageUrl || null };
+}
+
+async function callGemini(topic) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY no configurada');
+  const { GoogleGenerativeAI } = require('@google/generative-ai');
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    systemInstruction: AI_SYSTEM_PROMPT,
+    generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 2048 }
+  });
+  const result = await model.generateContent(topic);
+  const text = result.response.text();
+  const data = extractJSON(text);
+  if (!data) { console.error('[gemini-assist] JSON parse failed. raw:\n%s', text); throw new Error('No se pudo parsear la respuesta de Gemini'); }
+  return { description: data.description || null, url: data.url || null, imageUrl: data.imageUrl || null };
+}
+
+router.post('/api/ai-assist', async (req, res) => {
+  const { topic, provider = 'claude' } = req.body;
+  if (!topic || !topic.trim()) {
+    return res.status(400).json({ error: 'El campo topic es obligatorio' });
+  }
+  try {
+    let data;
+    if (provider === 'claude') {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY no configurada' });
+      const Anthropic = require('@anthropic-ai/sdk');
+      const client = new Anthropic({ apiKey });
+      const message = await client.messages.create({
+        model: 'claude-opus-4-7',
+        max_tokens: 2048,
+        system: [{ type: 'text', text: AI_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+        tools: [{ type: 'web_search_20260209', name: 'web_search' }],
+        messages: [{ role: 'user', content: topic.trim() }]
+      });
+      const textBlock = message.content.find(b => b.type === 'text');
+      if (!textBlock) { console.error('[claude] no text block. stop_reason=%s types=%s', message.stop_reason, message.content.map(b=>b.type).join(',')); throw new Error(`Claude no devolvió texto (stop_reason: ${message.stop_reason})`); }
+      const parsed = extractJSON(textBlock.text);
+      if (!parsed) { console.error('[claude] JSON parse failed. raw:\n%s', textBlock.text); throw new Error('No se pudo parsear la respuesta de Claude'); }
+      data = { description: parsed.description || null, url: parsed.url || null, imageUrl: parsed.imageUrl || null };
+    } else if (provider === 'openai') {
+      data = await callOpenAI(topic.trim());
+    } else if (provider === 'gemini') {
+      data = await callGemini(topic.trim());
+    } else {
+      return res.status(400).json({ error: `Proveedor desconocido: ${provider}` });
+    }
+    res.json(data);
+  } catch (err) {
+    console.error(`[ai-assist:${provider}] error:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });

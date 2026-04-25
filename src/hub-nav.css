@@ -1,0 +1,68 @@
+/* ─── Jokin's Tools — shared hub navigation bar ─────────────────────────────
+   Included by every micro-app. Provides a sticky top bar with brand + nav.
+   Defines --hub-nav-h so app layouts can offset their own sticky headers.   */
+
+:root { --hub-nav-h: 38px; }
+
+.hub-nav {
+  position: sticky;
+  top: 0;
+  z-index: 500;
+  height: var(--hub-nav-h);
+  background: #07090d;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  gap: 12px;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.4);
+}
+
+/* ─── Brand ──────────────────────────────────────────────────────────────── */
+.hub-nav-brand {
+  display: flex; align-items: center; gap: 8px;
+  text-decoration: none; flex-shrink: 0;
+}
+.hub-nav-brand svg { width: 22px; height: 22px; }
+.hub-nav-brand-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem; font-weight: 700;
+  letter-spacing: 0.03em; color: #c9d1d9;
+  white-space: nowrap;
+}
+.hub-nav-brand-name .jn-accent { color: #00B8D4; }
+
+/* ─── Links ──────────────────────────────────────────────────────────────── */
+.hub-nav-links {
+  display: flex; align-items: center; gap: 2px;
+}
+
+.hub-nav-link {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.71rem; font-weight: 500;
+  padding: 4px 11px; border-radius: 5px;
+  text-decoration: none;
+  color: rgba(255,255,255,0.4);
+  transition: color 0.14s, background 0.14s;
+  white-space: nowrap;
+}
+.hub-nav-link:hover {
+  color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.07);
+}
+
+/* Active app highlighted via data-app on the <nav> */
+.hub-nav[data-app="rememory"]  .hub-nav-link[data-app="rememory"],
+.hub-nav[data-app="batchwork"] .hub-nav-link[data-app="batchwork"] {
+  color: #fff;
+  background: rgba(255,255,255,0.11);
+  font-weight: 600;
+}
+
+/* ─── Mobile ─────────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .hub-nav-brand-name { display: none; }
+  .hub-nav { padding: 0 12px; }
+  .hub-nav-link { padding: 4px 8px; font-size: 0.69rem; }
+}
