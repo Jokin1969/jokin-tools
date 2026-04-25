@@ -233,9 +233,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 .claude-result-link:hover { text-decoration: underline; }
 
 .claude-result-img {
-  max-width: 100%; max-height: 200px; border-radius: var(--radius);
-  border: 1px solid var(--border); object-fit: contain;
-  background: var(--bg);
+  display: block;
+  width: auto; height: auto;
+  max-width: 100%; max-height: 300px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
 }
 
 .claude-thinking {
@@ -332,7 +334,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 /* Image field */
 .image-field-wrap { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .field-file { color: var(--text-muted); font-size: 0.85rem; }
-.image-preview { max-width: 240px; max-height: 160px; border-radius: 8px; border: 1px solid var(--border); display: block; }
+.image-preview { display: block; width: auto; height: auto; max-width: 240px; max-height: 240px; border-radius: 8px; border: 1px solid var(--border); }
 #image-preview-wrap { display: flex; flex-direction: column; gap: 8px; }
 
 /* ─── Filters panel ──────────────────────────────────────────────────────────── */

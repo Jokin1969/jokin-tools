@@ -480,15 +480,9 @@ async function acceptClaudeResult() {
   toast('Datos de Claude aplicados al formulario', 'success');
 }
 
-$('btn-claude').addEventListener('click', () => {
-  openClaudeModal($('field-description').value, 'claude');
-});
-$('btn-openai').addEventListener('click', () => {
-  openClaudeModal($('field-description').value, 'openai');
-});
-$('btn-gemini').addEventListener('click', () => {
-  openClaudeModal($('field-description').value, 'gemini');
-});
+$('btn-claude').addEventListener('click', () => { openClaudeModal('', 'claude'); });
+$('btn-openai').addEventListener('click', () => { openClaudeModal('', 'openai'); });
+$('btn-gemini').addEventListener('click', () => { openClaudeModal('', 'gemini'); });
 
 $('btn-close-claude').addEventListener('click', closeClaudeModal);
 $('modal-claude').addEventListener('click', e => {
