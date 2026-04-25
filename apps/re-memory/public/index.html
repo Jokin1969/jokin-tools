@@ -211,11 +211,19 @@
             <input type="text" id="field-next-send" class="field-input field-readonly" readonly />
           </div>
 
-          <!-- Botón Claude (bottom of form) -->
-          <div class="form-claude-row">
-            <button type="button" class="btn btn-claude-orange" id="btn-claude" title="Consultar con Claude AI">
-              <span class="claude-dot-orange"></span>
+          <!-- Botones AI (bottom of form) -->
+          <div class="form-ai-row">
+            <button type="button" class="btn btn-ai btn-ai--claude" id="btn-claude" title="Consultar con Claude (Anthropic)">
+              <span class="ai-dot"></span>
               Claude
+            </button>
+            <button type="button" class="btn btn-ai btn-ai--openai" id="btn-openai" title="Consultar con GPT-4o (OpenAI)">
+              <span class="ai-dot"></span>
+              GPT-4o
+            </button>
+            <button type="button" class="btn btn-ai btn-ai--gemini" id="btn-gemini" title="Consultar con Gemini (Google)">
+              <span class="ai-dot"></span>
+              Gemini
             </button>
           </div>
 
@@ -339,8 +347,8 @@
     <div class="modal-box modal-claude-box">
       <div class="modal-claude-header">
         <div class="modal-claude-title">
-          <span class="claude-dot-orange" style="width:12px;height:12px;"></span>
-          <h3>Consultar a Claude</h3>
+          <span id="ai-modal-dot" class="ai-dot" style="width:12px;height:12px;"></span>
+          <h3 id="ai-modal-title">Consultar a Claude</h3>
         </div>
         <button class="modal-close" id="btn-close-claude">✕</button>
       </div>

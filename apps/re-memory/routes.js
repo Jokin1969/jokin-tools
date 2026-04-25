@@ -347,6 +347,84 @@ router.post('/api/claude-assist', async (req, res) => {
   }
 });
 
+// ─── API: Unified AI assist (Claude / OpenAI / Gemini) ───────────────────────
+const AI_SYSTEM_PROMPT = CLAUDE_SYSTEM_PROMPT; // same prompt for all providers
+
+async function callOpenAI(topic) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY no configurada');
+  const { default: OpenAI } = require('openai');
+  const client = new OpenAI({ apiKey });
+  const response = await client.chat.completions.create({
+    model: 'gpt-4o',
+    max_tokens: 2048,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: AI_SYSTEM_PROMPT },
+      { role: 'user',   content: topic }
+    ]
+  });
+  const text = response.choices[0]?.message?.content || '';
+  const data = extractJSON(text);
+  if (!data) { console.error('[openai-assist] JSON parse failed. raw:\n%s', text); throw new Error('No se pudo parsear la respuesta de OpenAI'); }
+  return { description: data.description || null, url: data.url || null, imageUrl: data.imageUrl || null };
+}
+
+async function callGemini(topic) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY no configurada');
+  const { GoogleGenerativeAI } = require('@google/generative-ai');
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    systemInstruction: AI_SYSTEM_PROMPT,
+    generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 2048 }
+  });
+  const result = await model.generateContent(topic);
+  const text = result.response.text();
+  const data = extractJSON(text);
+  if (!data) { console.error('[gemini-assist] JSON parse failed. raw:\n%s', text); throw new Error('No se pudo parsear la respuesta de Gemini'); }
+  return { description: data.description || null, url: data.url || null, imageUrl: data.imageUrl || null };
+}
+
+router.post('/api/ai-assist', async (req, res) => {
+  const { topic, provider = 'claude' } = req.body;
+  if (!topic || !topic.trim()) {
+    return res.status(400).json({ error: 'El campo topic es obligatorio' });
+  }
+  try {
+    let data;
+    if (provider === 'claude') {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY no configurada' });
+      const Anthropic = require('@anthropic-ai/sdk');
+      const client = new Anthropic({ apiKey });
+      const message = await client.messages.create({
+        model: 'claude-opus-4-7',
+        max_tokens: 2048,
+        system: [{ type: 'text', text: AI_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+        tools: [{ type: 'web_search_20260209', name: 'web_search' }],
+        messages: [{ role: 'user', content: topic.trim() }]
+      });
+      const textBlock = message.content.find(b => b.type === 'text');
+      if (!textBlock) { console.error('[claude] no text block. stop_reason=%s types=%s', message.stop_reason, message.content.map(b=>b.type).join(',')); throw new Error(`Claude no devolvió texto (stop_reason: ${message.stop_reason})`); }
+      const parsed = extractJSON(textBlock.text);
+      if (!parsed) { console.error('[claude] JSON parse failed. raw:\n%s', textBlock.text); throw new Error('No se pudo parsear la respuesta de Claude'); }
+      data = { description: parsed.description || null, url: parsed.url || null, imageUrl: parsed.imageUrl || null };
+    } else if (provider === 'openai') {
+      data = await callOpenAI(topic.trim());
+    } else if (provider === 'gemini') {
+      data = await callGemini(topic.trim());
+    } else {
+      return res.status(400).json({ error: `Proveedor desconocido: ${provider}` });
+    }
+    res.json(data);
+  } catch (err) {
+    console.error(`[ai-assist:${provider}] error:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API: Proxy image (CORS-safe preview) ────────────────────────────────────
 router.get('/api/proxy-image', async (req, res) => {
   const url = req.query.url;

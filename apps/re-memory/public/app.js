@@ -353,16 +353,33 @@ $('btn-test-email').addEventListener('click', async () => {
   }
 });
 
-// ─── Claude modal ─────────────────────────────────────────────────────────────
-let claudeResult = null; // stores { description, url, imageUrl } from last call
+// ─── AI modal (Claude / OpenAI / Gemini) ─────────────────────────────────────
+const AI_PROVIDERS = {
+  claude: { label: 'Claude',  endpoint: 'claude',  btnClass: 'btn-ai--claude', dotClass: 'ai--claude' },
+  openai: { label: 'GPT-4o',  endpoint: 'openai',  btnClass: 'btn-ai--openai', dotClass: 'ai--openai' },
+  gemini: { label: 'Gemini',  endpoint: 'gemini',  btnClass: 'btn-ai--gemini', dotClass: 'ai--gemini' }
+};
 
-function openClaudeModal(prefill) {
-  claudeResult = null;
+let claudeResult   = null; // stores { description, url, imageUrl } from last call
+let activeProvider = 'claude';
+
+function openClaudeModal(prefill, provider) {
+  claudeResult   = null;
+  activeProvider = provider || 'claude';
+
+  const p = AI_PROVIDERS[activeProvider];
+  $('ai-modal-title').textContent = `Consultar a ${p.label}`;
+  const dot = $('ai-modal-dot');
+  dot.className = `ai-dot ai--${activeProvider}`;
+
+  const submitBtn = $('btn-claude-submit');
+  submitBtn.className = `btn btn-ai ${p.btnClass}`;
+
   $('claude-input').value = prefill || '';
   $('claude-results').classList.add('hidden');
   $('claude-input-area').style.display = '';
   $('claude-submit-label').textContent = 'Consultar';
-  $('btn-claude-submit').disabled = false;
+  submitBtn.disabled = false;
   $('modal-claude').classList.remove('hidden');
   setTimeout(() => $('claude-input').focus(), 50);
 }
@@ -383,10 +400,10 @@ async function submitClaudeQuery() {
   $('claude-results').classList.add('hidden');
 
   try {
-    const res = await fetch(`${API}/claude-assist`, {
+    const res = await fetch(`${API}/ai-assist`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic })
+      body: JSON.stringify({ topic, provider: activeProvider })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error en la consulta');
@@ -464,7 +481,13 @@ async function acceptClaudeResult() {
 }
 
 $('btn-claude').addEventListener('click', () => {
-  openClaudeModal($('field-description').value);
+  openClaudeModal($('field-description').value, 'claude');
+});
+$('btn-openai').addEventListener('click', () => {
+  openClaudeModal($('field-description').value, 'openai');
+});
+$('btn-gemini').addEventListener('click', () => {
+  openClaudeModal($('field-description').value, 'gemini');
 });
 
 $('btn-close-claude').addEventListener('click', closeClaudeModal);
@@ -484,7 +507,9 @@ $('btn-claude-retry').addEventListener('click', () => {
   $('claude-results').classList.add('hidden');
   $('claude-input-area').style.display = '';
   $('claude-submit-label').textContent = 'Consultar';
-  $('btn-claude-submit').disabled = false;
+  const submitBtn = $('btn-claude-submit');
+  submitBtn.disabled = false;
+  submitBtn.className = `btn btn-ai ${AI_PROVIDERS[activeProvider].btnClass}`;
   setTimeout(() => $('claude-input').focus(), 50);
 });
 
