@@ -353,29 +353,139 @@ $('btn-test-email').addEventListener('click', async () => {
   }
 });
 
-// ─── Claude button ────────────────────────────────────────────────────────────
-function claudeAction(description) {
-  if (!description.trim()) { toast('Escribe una descripción primero', 'error'); return; }
-  const text = `Claude, organízame esta información para que sea fácil de recordar y retener:\n\n${description}`;
-  navigator.clipboard.writeText(text).then(() => {
-    toast('Texto copiado. Pégalo en Claude para mejorar el formato.', 'success', 5000);
-    window.open('https://claude.ai', '_blank');
-  }).catch(() => {
-    // Fallback for browsers without clipboard API
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    toast('Texto copiado. Pégalo en Claude para mejorar el formato.', 'success', 5000);
-    window.open('https://claude.ai', '_blank');
-  });
+// ─── Claude modal ─────────────────────────────────────────────────────────────
+let claudeResult = null; // stores { description, url, imageUrl } from last call
+
+function openClaudeModal(prefill) {
+  claudeResult = null;
+  $('claude-input').value = prefill || '';
+  $('claude-results').classList.add('hidden');
+  $('claude-input-area').style.display = '';
+  $('claude-submit-label').textContent = 'Consultar';
+  $('btn-claude-submit').disabled = false;
+  $('modal-claude').classList.remove('hidden');
+  setTimeout(() => $('claude-input').focus(), 50);
+}
+
+function closeClaudeModal() {
+  $('modal-claude').classList.add('hidden');
+  claudeResult = null;
+}
+
+async function submitClaudeQuery() {
+  const topic = $('claude-input').value.trim();
+  if (!topic) { toast('Escribe un tema o texto primero', 'error'); return; }
+
+  const btn = $('btn-claude-submit');
+  btn.disabled = true;
+  $('claude-submit-label').innerHTML = '<span class="claude-spinner" style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:6px;"></span>Consultando…';
+
+  $('claude-results').classList.add('hidden');
+
+  try {
+    const res = await fetch(`${API}/claude-assist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error en la consulta');
+
+    claudeResult = data;
+
+    // Populate results
+    $('claude-result-desc').textContent = data.description || '(sin descripción)';
+
+    const urlWrap = $('claude-result-url-wrap');
+    const urlEl   = $('claude-result-url');
+    if (data.url) {
+      urlEl.href = data.url;
+      urlEl.textContent = data.url;
+      urlWrap.style.display = '';
+    } else {
+      urlWrap.style.display = 'none';
+    }
+
+    const imgWrap = $('claude-result-image-wrap');
+    const imgEl   = $('claude-result-image');
+    if (data.imageUrl) {
+      const proxyUrl = `${API}/proxy-image?url=${encodeURIComponent(data.imageUrl)}`;
+      imgEl.src = proxyUrl;
+      imgEl.onerror = () => { imgWrap.style.display = 'none'; };
+      imgWrap.style.display = '';
+    } else {
+      imgWrap.style.display = 'none';
+    }
+
+    $('claude-input-area').style.display = 'none';
+    $('claude-results').classList.remove('hidden');
+
+  } catch (err) {
+    toast(`Claude: ${err.message}`, 'error', 6000);
+    btn.disabled = false;
+    $('claude-submit-label').textContent = 'Consultar';
+  }
+}
+
+async function acceptClaudeResult() {
+  if (!claudeResult) return;
+
+  if (claudeResult.description) {
+    $('field-description').value = claudeResult.description;
+  }
+
+  if (claudeResult.url) {
+    $('field-source-url').value = claudeResult.url;
+    const link = $('field-source-link');
+    link.href = claudeResult.url;
+    link.classList.remove('hidden');
+  }
+
+  if (claudeResult.imageUrl) {
+    try {
+      const proxyUrl = `${API}/proxy-image?url=${encodeURIComponent(claudeResult.imageUrl)}`;
+      const imgRes = await fetch(proxyUrl);
+      if (imgRes.ok) {
+        const blob = await imgRes.blob();
+        const ext = blob.type.split('/')[1] || 'jpg';
+        const file = new File([blob], `claude-image.${ext}`, { type: blob.type });
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        $('field-image').files = dt.files;
+        $('field-image').dispatchEvent(new Event('change'));
+        $('image-field-container').classList.remove('hidden');
+        $('btn-show-image').textContent = '✕';
+      }
+    } catch (_) { /* image optional, skip silently */ }
+  }
+
+  closeClaudeModal();
+  toast('Datos de Claude aplicados al formulario', 'success');
 }
 
 $('btn-claude').addEventListener('click', () => {
-  claudeAction($('field-description').value);
+  openClaudeModal($('field-description').value);
+});
+
+$('btn-close-claude').addEventListener('click', closeClaudeModal);
+$('modal-claude').addEventListener('click', e => {
+  if (e.target === $('modal-claude')) closeClaudeModal();
+});
+
+$('btn-claude-submit').addEventListener('click', submitClaudeQuery);
+$('claude-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitClaudeQuery();
+  if (e.key === 'Escape') closeClaudeModal();
+});
+
+$('btn-claude-accept').addEventListener('click', acceptClaudeResult);
+$('btn-claude-retry').addEventListener('click', () => {
+  claudeResult = null;
+  $('claude-results').classList.add('hidden');
+  $('claude-input-area').style.display = '';
+  $('claude-submit-label').textContent = 'Consultar';
+  $('btn-claude-submit').disabled = false;
+  setTimeout(() => $('claude-input').focus(), 50);
 });
 
 // ─── Export CSV ───────────────────────────────────────────────────────────────
@@ -484,8 +594,8 @@ function buildRow(m) {
       <div style="display:flex;gap:6px;align-items:center;">
         <button class="btn btn-ghost btn-sm btn-edit" data-id="${m.id}" title="Editar">✏️</button>
         <button class="btn btn-danger-outline btn-sm btn-delete-row" data-id="${m.id}" title="Eliminar">🗑️</button>
-        <button class="btn btn-claude btn-sm btn-claude-row" data-id="${m.id}" data-desc="${fullDesc}" title="Claude AI" style="padding:4px 8px;">
-          <span class="claude-dot" style="width:7px;height:7px;"></span>
+        <button class="btn btn-claude-orange btn-sm btn-claude-row" data-id="${m.id}" data-desc="${fullDesc}" title="Claude AI" style="padding:4px 8px;">
+          <span class="claude-dot-orange" style="width:7px;height:7px;"></span>
         </button>
       </div>
     </td>
@@ -550,7 +660,7 @@ function attachRowEvents() {
   $$('.btn-claude-row').forEach(btn => {
     btn.addEventListener('click', () => {
       const desc = btn.dataset.desc.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-      claudeAction(desc);
+      openClaudeModal(desc);
     });
   });
 }

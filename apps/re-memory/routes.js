@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const crypto = require('crypto');
+const fetch = require('node-fetch');
 
 const router = express.Router();
 
@@ -260,6 +261,100 @@ router.get('/api/export/csv', async (req, res) => {
     });
   } catch (err) {
     console.error('[api] exportCSV error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Claude AI assist ────────────────────────────────────────────────────
+const CLAUDE_SYSTEM_PROMPT = `Cada vez que te mande información, resúmela en una descripción en prosa concisa, priorizando los detalles más importantes y memorables. Sin bullet points, sin campo de tema. Añade al final una URL relevante. Para palabras entre comillas: definición RAE y etimología. Para refranes: significado y origen. Si solo te doy un nombre o tema sin texto, búscalo tú.
+
+Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:
+{
+  "description": "prosa concisa sin bullet points",
+  "url": "URL más relevante o null",
+  "imageUrl": "URL directa a imagen representativa de Wikipedia Commons u otra fuente pública libre, o null"
+}
+
+Para imageUrl: busca una imagen representativa en Wikipedia Commons (URL directa al archivo, no a la página).`;
+
+router.post('/api/claude-assist', async (req, res) => {
+  const { topic } = req.body;
+  if (!topic || !topic.trim()) {
+    return res.status(400).json({ error: 'El campo topic es obligatorio' });
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'ANTHROPIC_API_KEY no configurada' });
+  }
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+
+    const stream = client.messages.stream({
+      model: 'claude-opus-4-7',
+      max_tokens: 2048,
+      system: [{ type: 'text', text: CLAUDE_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+      tools: [{ type: 'web_search_20260209', name: 'web_search' }],
+      messages: [{ role: 'user', content: topic.trim() }]
+    });
+
+    const message = await stream.finalMessage();
+
+    const textBlock = message.content.find(b => b.type === 'text');
+    if (!textBlock) {
+      return res.status(500).json({ error: 'Claude no devolvió texto' });
+    }
+
+    const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return res.status(500).json({ error: 'No se pudo parsear la respuesta de Claude', raw: textBlock.text });
+    }
+
+    const data = JSON.parse(jsonMatch[0]);
+    res.json({
+      description: data.description || null,
+      url: data.url || null,
+      imageUrl: data.imageUrl || null
+    });
+  } catch (err) {
+    console.error('[claude-assist] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Proxy image (CORS-safe preview) ────────────────────────────────────
+router.get('/api/proxy-image', async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: 'url requerida' });
+
+  try {
+    const parsed = new URL(url);
+    const allowedHosts = ['upload.wikimedia.org', 'commons.wikimedia.org', 'en.wikipedia.org',
+      'es.wikipedia.org', 'upload.wikipedia.org', 'images.wikimedia.org'];
+    if (!allowedHosts.some(h => parsed.hostname.endsWith(h))) {
+      return res.status(403).json({ error: 'Dominio no permitido para proxy' });
+    }
+
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; JokinTools/1.0)' }
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: `Upstream ${response.status}` });
+    }
+
+    const ct = response.headers.get('content-type') || 'image/jpeg';
+    if (!ct.startsWith('image/')) {
+      return res.status(400).json({ error: 'URL no es una imagen' });
+    }
+
+    res.set('Content-Type', ct);
+    res.set('Cache-Control', 'public, max-age=3600');
+    response.body.pipe(res);
+  } catch (err) {
+    console.error('[proxy-image] error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

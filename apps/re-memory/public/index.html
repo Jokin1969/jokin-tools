@@ -97,10 +97,6 @@
           <button class="btn btn-test-email btn-sm" id="btn-test-email" disabled title="Envía un email de prueba con esta memoria">
             ✉ Test email
           </button>
-          <button class="btn btn-claude" id="btn-claude" title="Mejorar con Claude AI">
-            <span class="claude-dot"></span>
-            Claude
-          </button>
         </div>
         <div class="toolbar-right">
           <div class="nav-controls">
@@ -212,6 +208,14 @@
           <div class="field-group" id="next-send-wrap" style="display:none">
             <label class="field-label">Próximo envío</label>
             <input type="text" id="field-next-send" class="field-input field-readonly" readonly />
+          </div>
+
+          <!-- Botón Claude (bottom of form) -->
+          <div class="form-claude-row">
+            <button type="button" class="btn btn-claude-orange" id="btn-claude" title="Consultar con Claude AI">
+              <span class="claude-dot-orange"></span>
+              Claude
+            </button>
           </div>
 
         </form>
@@ -327,6 +331,48 @@
 
     </div>
   </main>
+
+  <!-- ─── Modal Claude AI ─────────────────────────────────────────────────────── -->
+  <div id="modal-claude" class="modal-overlay hidden">
+    <div class="modal-box modal-claude-box">
+      <div class="modal-claude-header">
+        <div class="modal-claude-title">
+          <span class="claude-dot-orange" style="width:12px;height:12px;"></span>
+          <h3>Consultar a Claude</h3>
+        </div>
+        <button class="modal-close" id="btn-close-claude">✕</button>
+      </div>
+
+      <div id="claude-input-area">
+        <textarea id="claude-input" class="field-textarea" rows="4"
+          placeholder="Escribe un tema, nombre, frase o pega el texto que quieres que Claude resuma…"></textarea>
+        <div class="modal-claude-actions">
+          <button class="btn btn-claude-orange" id="btn-claude-submit">
+            <span id="claude-submit-label">Consultar</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="claude-results" class="hidden">
+        <div class="claude-result-section">
+          <div class="claude-result-label">Descripción</div>
+          <div id="claude-result-desc" class="claude-result-text"></div>
+        </div>
+        <div class="claude-result-section" id="claude-result-url-wrap" style="display:none">
+          <div class="claude-result-label">Fuente</div>
+          <a id="claude-result-url" href="#" target="_blank" class="claude-result-link"></a>
+        </div>
+        <div class="claude-result-section" id="claude-result-image-wrap" style="display:none">
+          <div class="claude-result-label">Imagen</div>
+          <img id="claude-result-image" src="" alt="Imagen sugerida" class="claude-result-img" />
+        </div>
+        <div class="modal-claude-actions modal-claude-accept-row">
+          <button class="btn btn-primary" id="btn-claude-accept">Aplicar al formulario</button>
+          <button class="btn btn-ghost" id="btn-claude-retry">Nueva consulta</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="/re-memory/public/app.js"></script>
 </body>
