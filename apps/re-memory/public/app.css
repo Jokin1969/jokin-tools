@@ -120,8 +120,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 .btn-save:not(:disabled):hover { background: #ad2480; }
 .btn-danger    { background: var(--red); color: #fff; border-color: var(--red); }
 .btn-danger:not(:disabled):hover { background: #d44; }
-.btn-danger-outline { background: transparent; color: var(--red); border-color: var(--red); }
-.btn-danger-outline:not(:disabled):hover { background: rgba(235,87,87,0.08); }
+.btn-danger-outline { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger-outline:not(:disabled):hover { background: var(--red-dark); border-color: var(--red-dark); }
 .btn-outline   { background: transparent; color: var(--text-muted); border-color: var(--border); }
 .btn-outline:not(:disabled):hover { color: var(--text); border-color: var(--text-muted); }
 .btn-ghost     { background: transparent; color: var(--text-muted); border-color: transparent; }
@@ -498,15 +498,22 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 
 /* Search button */
 .btn-search {
-  background: transparent; color: var(--purple);
-  border-color: rgba(122,37,181,0.35);
+  background: var(--purple); color: #fff;
+  border-color: var(--purple);
 }
-.btn-search:hover { background: rgba(122,37,181,0.08); border-color: var(--purple); }
+.btn-search:hover { background: var(--accent); border-color: var(--accent); }
 
 /* Nav controls */
 .toolbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .nav-controls { display: flex; align-items: center; gap: 4px; }
-.btn-nav { font-family: var(--mono); }
+.btn-nav {
+  font-family: var(--mono);
+  background: var(--bg-card); color: var(--text-muted);
+  border-color: var(--border);
+}
+.btn-nav:not(:disabled):hover {
+  background: var(--bg-card-h); border-color: var(--border-h); color: var(--text);
+}
 .nav-pos {
   font-family: var(--mono); font-size: 0.68rem; color: var(--text-muted);
   min-width: 48px; text-align: center;
@@ -556,11 +563,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 
 /* Test email button */
 .btn-test-email {
-  background: transparent; color: var(--violet);
-  border-color: rgba(168,85,247,0.4);
+  background: var(--violet); color: #fff;
+  border-color: var(--violet);
 }
 .btn-test-email:not(:disabled):hover {
-  background: rgba(168,85,247,0.08); border-color: var(--violet);
+  background: #8841d8; border-color: #8841d8;
 }
 
 /* ─── Utilities ──────────────────────────────────────────────────────────────── */

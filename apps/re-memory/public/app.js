@@ -225,13 +225,6 @@ $('btn-remove-image').addEventListener('click', () => {
   state.existingImagePath = null;
 });
 
-// ─── Nuevo ────────────────────────────────────────────────────────────────────
-$('btn-nuevo').addEventListener('click', () => {
-  clearForm();
-  switchTab('ficha');
-  $('field-description').focus();
-});
-
 // ─── Guardar ──────────────────────────────────────────────────────────────────
 $('btn-guardar').addEventListener('click', async () => {
   const description = $('field-description').value.trim();
