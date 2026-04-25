@@ -37,7 +37,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 .app-header {
   background: rgba(243,237,248,0.97);
   border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; z-index: 200;
+  position: sticky; top: var(--hub-nav-h, 0px); z-index: 200;
   backdrop-filter: blur(8px);
 }
 
