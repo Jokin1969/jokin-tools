@@ -504,15 +504,14 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 .btn-search:hover { background: var(--accent); border-color: var(--accent); }
 
 /* Nav controls */
-.toolbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .nav-controls { display: flex; align-items: center; gap: 4px; }
 .btn-nav {
   font-family: var(--mono);
-  background: var(--bg-card); color: var(--text-muted);
-  border-color: var(--border);
+  background: var(--border); color: var(--purple-2);
+  border-color: var(--border-h);
 }
 .btn-nav:not(:disabled):hover {
-  background: var(--bg-card-h); border-color: var(--border-h); color: var(--text);
+  background: var(--bg-card-h); border-color: var(--purple); color: var(--purple);
 }
 .nav-pos {
   font-family: var(--mono); font-size: 0.68rem; color: var(--text-muted);
