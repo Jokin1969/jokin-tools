@@ -295,13 +295,14 @@ async function getWikipediaImage(query, lang = 'es') {
 const CLAUDE_SYSTEM_PROMPT = `Eres un asistente que responde EXCLUSIVAMENTE con JSON puro. Sin texto antes ni después. Sin bloques de código markdown. Sin explicaciones.
 
 Cuando recibas un tema o texto, devuelve SOLO este objeto JSON (nada más):
-{"description":"descripción en prosa concisa sin bullet points, priorizando los detalles más memorables. Para palabras entre comillas: definición RAE y etimología. Para refranes: significado y origen. Si solo recibes un nombre o tema, búscalo","url":"URL más relevante o null","imageQuery":"término de búsqueda en Wikipedia que mejor represente visualmente el tema, o null"}
+{"description":"descripción en prosa concisa sin bullet points, priorizando los detalles más memorables. Para palabras entre comillas: definición RAE y etimología. Para refranes: significado y origen. Si solo recibes un nombre o tema, búscalo","url":"URL más relevante o null","imageQuery":"término de búsqueda en Wikipedia que mejor represente visualmente el tema, o null","topic":"el tema que mejor encaja de esta lista exacta: Cultura general, Refranes, Ciencia, Historia, Geografía, Cinematografía, Naturaleza, Tecnología, Definiciones, Miscelánea"}
 
 Reglas estrictas:
 - SOLO JSON, sin texto adicional
 - description: prosa continua, sin guiones ni viñetas
 - url: la fuente más relevante o null (no una cadena vacía)
-- imageQuery: término concreto (ej: "fotosíntesis", "Torre Eiffel", "Nikola Tesla") o null`;
+- imageQuery: término concreto (ej: "fotosíntesis", "Torre Eiffel", "Nikola Tesla") o null
+- topic: elige EXACTAMENTE uno de los 10 valores de la lista, sin variaciones`;
 
 function extractJSON(text) {
   // Strategy 1: fenced code block ```json { ... } ```
@@ -343,9 +344,13 @@ router.post('/api/claude-assist', async (req, res) => {
 // ─── API: Unified AI assist (Claude / OpenAI / Gemini) ───────────────────────
 const AI_SYSTEM_PROMPT = CLAUDE_SYSTEM_PROMPT; // same prompt for all providers
 
+const VALID_TOPICS = ['Cultura general','Refranes','Ciencia','Historia','Geografía',
+  'Cinematografía','Naturaleza','Tecnología','Definiciones','Miscelánea'];
+
 async function aiResultWithImage(data) {
   const imageUrl = data.imageQuery ? await getWikipediaImage(data.imageQuery) : null;
-  return { description: data.description || null, url: data.url || null, imageUrl };
+  const topic = VALID_TOPICS.includes(data.topic) ? data.topic : null;
+  return { description: data.description || null, url: data.url || null, imageUrl, topic };
 }
 
 async function callClaude(topic) {
