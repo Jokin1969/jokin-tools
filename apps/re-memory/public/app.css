@@ -177,10 +177,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 #ai-modal-dot.ai--gemini { background: #4285F4; }
 
 .form-ai-row {
-  display: flex; justify-content: flex-end; gap: 10px;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
   margin-top: 8px; padding-top: 16px;
   border-top: 1px solid var(--border);
 }
+.form-ai-row .btn-save { margin-right: auto; }
 
 .form-claude-row {
   display: flex; justify-content: flex-end;
