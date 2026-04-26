@@ -177,10 +177,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
 #ai-modal-dot.ai--gemini { background: #4285F4; }
 
 .form-ai-row {
-  display: flex; justify-content: flex-end; gap: 10px;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
   margin-top: 8px; padding-top: 16px;
   border-top: 1px solid var(--border);
 }
+.form-ai-row .btn-save { margin-right: auto; }
 
 .form-claude-row {
   display: flex; justify-content: flex-end;
@@ -238,6 +239,13 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
   max-width: 100%; max-height: 300px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
+}
+
+.claude-result-topic-badge {
+  display: inline-block; font-family: var(--mono); font-size: 0.72rem;
+  background: rgba(122,37,181,0.12); color: var(--purple);
+  padding: 3px 10px; border-radius: 5px; border: 1px solid rgba(122,37,181,0.28);
+  font-weight: 600;
 }
 
 .claude-thinking {

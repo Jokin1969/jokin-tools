@@ -434,6 +434,14 @@ async function submitClaudeQuery() {
       imgWrap.style.display = 'none';
     }
 
+    const topicWrap = $('claude-result-topic-wrap');
+    if (data.topic) {
+      $('claude-result-topic').textContent = data.topic;
+      topicWrap.style.display = '';
+    } else {
+      topicWrap.style.display = 'none';
+    }
+
     $('claude-input-area').style.display = 'none';
     $('claude-results').classList.remove('hidden');
 
@@ -474,6 +482,10 @@ async function acceptClaudeResult() {
         $('btn-show-image').textContent = '✕';
       }
     } catch (_) { /* image optional, skip silently */ }
+  }
+
+  if (claudeResult.topic) {
+    $('field-topic').value = claudeResult.topic;
   }
 
   closeClaudeModal();
