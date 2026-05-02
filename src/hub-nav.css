@@ -2,21 +2,23 @@
    Included by every micro-app. Provides a sticky top bar with brand + nav.
    Defines --hub-nav-h so app layouts can offset their own sticky headers.   */
 
-:root { --hub-nav-h: 38px; }
+:root { --hub-nav-h: 40px; }
 
 .hub-nav {
   position: sticky;
   top: 0;
   z-index: 500;
   height: var(--hub-nav-h);
-  background: #07090d;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: rgba(18,42,88,0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(30,95,184,0.4);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 18px;
+  padding: 0 20px;
   gap: 12px;
-  box-shadow: 0 1px 8px rgba(0,0,0,0.4);
+  box-shadow: 0 1px 12px rgba(5,15,45,0.4);
 }
 
 /* ─── Brand ──────────────────────────────────────────────────────────────── */
@@ -27,11 +29,12 @@
 .hub-nav-brand svg { width: 22px; height: 22px; }
 .hub-nav-brand-name {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.75rem; font-weight: 700;
-  letter-spacing: 0.03em; color: #c9d1d9;
+  font-size: 0.76rem; font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(220,235,255,0.92);
   white-space: nowrap;
 }
-.hub-nav-brand-name .jn-accent { color: #00B8D4; }
+.hub-nav-brand-name .jn-accent { color: #60B8E8; }
 
 /* ─── Links ──────────────────────────────────────────────────────────────── */
 .hub-nav-links {
@@ -43,20 +46,20 @@
   font-size: 0.71rem; font-weight: 500;
   padding: 4px 11px; border-radius: 5px;
   text-decoration: none;
-  color: rgba(255,255,255,0.4);
-  transition: color 0.14s, background 0.14s;
+  color: rgba(180,210,255,0.5);
+  transition: color 0.16s, background 0.16s;
   white-space: nowrap;
 }
 .hub-nav-link:hover {
-  color: rgba(255,255,255,0.85);
-  background: rgba(255,255,255,0.07);
+  color: rgba(220,235,255,0.9);
+  background: rgba(255,255,255,0.09);
 }
 
 /* Active app highlighted via data-app on the <nav> */
 .hub-nav[data-app="rememory"]  .hub-nav-link[data-app="rememory"],
 .hub-nav[data-app="batchwork"] .hub-nav-link[data-app="batchwork"] {
   color: #fff;
-  background: rgba(255,255,255,0.11);
+  background: rgba(96,184,232,0.2);
   font-weight: 600;
 }
 
