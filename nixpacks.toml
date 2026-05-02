@@ -1,22 +1,13 @@
 [phases.setup]
-nixPkgs = [
-  "nodejs_22",
-  "python311",
-  "python311Packages.pip",
-  "python311Packages.pillow",
-  "python311Packages.pypdf",
-  "python311Packages.svglib",
-  "python311Packages.reportlab",
-  "gcc",
-  "gnumake",
-  "libreoffice"
-]
+nixPkgs = ["nodejs_22", "python311", "python311Packages.pip", "gcc", "gnumake", "libreoffice"]
 
 [phases.install]
 cmds = [
   "npm install",
-  "echo '── Python env ──' && python3 --version && which python3",
-  "python3 -c 'import PIL, pypdf, svglib, reportlab; print(\"Nix-installed Python deps OK; PIL\", PIL.__version__)'",
-  "python3 -m venv --system-site-packages .venv && echo '.venv created' || (echo 'WARN: venv failed, pdf2docx will be unavailable' >&2)",
-  "if [ -x .venv/bin/pip ]; then .venv/bin/pip install --no-cache-dir pdf2docx || echo 'WARN: pdf2docx install failed'; fi"
+  "python3 --version && python3 -m pip --version",
+  "python3 -m pip install --target=/app/python_libs --no-cache-dir 'Pillow>=10.0.0' 'pypdf>=4.0.0' 'pdf2docx>=0.5.8' 'svglib>=1.5.1' 'reportlab>=4.0.0'",
+  "PYTHONPATH=/app/python_libs python3 -c 'import PIL, pypdf, svglib, reportlab, pdf2docx; print(\"All Python deps OK; PIL\", PIL.__version__)'"
 ]
+
+[variables]
+PYTHONPATH = "/app/python_libs"
