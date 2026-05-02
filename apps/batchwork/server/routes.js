@@ -105,6 +105,7 @@ router.post('/api/session/:id/execute', express.json(), async (req, res) => {
     'transparent-png': () => require('./operations/transparent-png'),
     'resize-tiff': () => require('./operations/resize-tiff'),
     'docx-to-pdf': () => require('./operations/docx-to-pdf'),
+    'images-to-pdf': () => require('./operations/images-to-pdf'),
     'pdf-to-docx': () => require('./operations/pdf-to-docx'),
     'normalize-dni': () => require('./operations/normalize-dni'),
     'merge-pdfs': () => require('./operations/merge-pdfs'),

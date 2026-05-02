@@ -55,6 +55,14 @@ const OPERATIONS = [
         params: [],
       },
       {
+        id: 'images-to-pdf',
+        label: 'Imágenes → PDF',
+        desc: 'Convierte imágenes (PNG, JPG, SVG, TIFF) a PDF. Cada imagen genera un PDF independiente; los TIFF multipágina se conservan como un único PDF con varias páginas.',
+        params: [
+          { id: 'resolution', type: 'number', label: 'Resolución para ráster (DPI)', default: 150, min: 72 },
+        ],
+      },
+      {
         id: 'pdf-to-docx',
         label: 'PDF → DOCX',
         desc: 'Convierte ficheros .pdf a .docx usando pdf2docx.',
