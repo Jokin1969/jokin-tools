@@ -4,8 +4,9 @@ nixPkgs = ["nodejs_22", "python311", "python311Packages.pip", "gcc", "gnumake", 
 [phases.install]
 cmds = [
   "npm install",
-  "python3 --version && python3 -m pip --version",
-  "python3 -m pip install --target=/app/python_libs --no-cache-dir 'Pillow>=10.0.0' 'pypdf>=4.0.0' 'pdf2docx>=0.5.8' 'svglib>=1.5.1' 'reportlab>=4.0.0'",
+  "python3 --version && which python3",
+  "which pip3 && pip3 --version",
+  "pip3 install --target=/app/python_libs --no-cache-dir 'Pillow>=10.0.0' 'pypdf>=4.0.0' 'pdf2docx>=0.5.8' 'svglib>=1.5.1' 'reportlab>=4.0.0'",
   "PYTHONPATH=/app/python_libs python3 -c 'import PIL, pypdf, svglib, reportlab, pdf2docx; print(\"All Python deps OK; PIL\", PIL.__version__)'"
 ]
 
