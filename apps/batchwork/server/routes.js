@@ -53,15 +53,24 @@ router.get('/api/diag', (req, res) => {
   const { spawnSync } = require('child_process');
   const REPO_ROOT = path.resolve(__dirname, '../../..');
   const VENV_PY = path.join(REPO_ROOT, '.venv', 'bin', 'python');
+  const PYTHON_LIBS = path.join(REPO_ROOT, 'python_libs');
   const PYTHON_BIN = process.env.PYTHON_BIN
     || (fs.existsSync(VENV_PY) ? VENV_PY : 'python3');
+
+  const env = { ...process.env };
+  if (fs.existsSync(PYTHON_LIBS)) {
+    const existing = env.PYTHONPATH ? env.PYTHONPATH.split(':').filter(Boolean) : [];
+    if (!existing.includes(PYTHON_LIBS)) existing.unshift(PYTHON_LIBS);
+    env.PYTHONPATH = existing.join(':');
+  }
 
   const out = {
     repoRoot: REPO_ROOT,
     cwd: process.cwd(),
-    venvPath: VENV_PY,
     venvExists: fs.existsSync(VENV_PY),
+    pythonLibsExists: fs.existsSync(PYTHON_LIBS),
     pythonBin: PYTHON_BIN,
+    pythonpath: env.PYTHONPATH || null,
     envPythonBin: process.env.PYTHON_BIN || null,
   };
   try {
@@ -69,18 +78,31 @@ router.get('/api/diag', (req, res) => {
   } catch (e) {
     out.appDirListingError = e.message;
   }
+  if (fs.existsSync(PYTHON_LIBS)) {
+    try {
+      out.pythonLibsListing = fs.readdirSync(PYTHON_LIBS).slice(0, 50);
+    } catch (e) {
+      out.pythonLibsListingError = e.message;
+    }
+  }
   try {
-    const v = spawnSync(PYTHON_BIN, ['--version'], { encoding: 'utf8' });
+    const v = spawnSync(PYTHON_BIN, ['--version'], { encoding: 'utf8', env });
     out.pythonVersion = (v.stdout || v.stderr || '').trim();
   } catch (e) {
     out.pythonVersionError = e.message;
   }
   try {
     const r = spawnSync(PYTHON_BIN, ['-c',
-      'import sys; print(sys.executable); print(sys.path); import PIL; print("PIL", PIL.__version__)'
-    ], { encoding: 'utf8' });
+      'import sys; print("EXE:", sys.executable);\n'
+      + 'print("PATH:", sys.path);\n'
+      + 'for m in ("PIL","pypdf","svglib","reportlab","pdf2docx"):\n'
+      + '    try:\n'
+      + '        mod = __import__(m); print(m, getattr(mod, "__version__", "ok"))\n'
+      + '    except Exception as e:\n'
+      + '        print(m, "FAIL:", e)\n'
+    ], { encoding: 'utf8', env });
     out.pythonExitCode = r.status;
-    out.pythonStdout = (r.stdout || '').slice(0, 800);
+    out.pythonStdout = (r.stdout || '').slice(0, 1500);
     out.pythonStderr = (r.stderr || '').slice(0, 800);
   } catch (e) {
     out.pythonRunError = e.message;
