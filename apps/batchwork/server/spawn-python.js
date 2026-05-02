@@ -1,8 +1,12 @@
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 const PYTHON_DIR = path.join(__dirname, '../python');
-const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
+const REPO_ROOT = path.resolve(__dirname, '../../..');
+const VENV_PY = path.join(REPO_ROOT, '.venv', 'bin', 'python');
+const PYTHON_BIN = process.env.PYTHON_BIN
+  || (fs.existsSync(VENV_PY) ? VENV_PY : 'python3');
 
 function spawnPython(script, args, session) {
   return new Promise((resolve, reject) => {

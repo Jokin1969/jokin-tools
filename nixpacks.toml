@@ -4,5 +4,7 @@ nixPkgs = ["nodejs_22", "python3", "gcc", "gnumake", "libreoffice"]
 [phases.install]
 cmds = [
   "npm install",
-  "pip3 install 'Pillow>=10.0.0' 'pypdf>=4.0.0' 'pdf2docx>=0.5.8' 'svglib>=1.5.1' 'reportlab>=4.0.0' 2>/dev/null || true"
+  "python3 -m venv .venv",
+  ".venv/bin/pip install --upgrade pip",
+  ".venv/bin/pip install --no-cache-dir 'Pillow>=10.0.0' 'pypdf>=4.0.0' 'pdf2docx>=0.5.8' 'svglib>=1.5.1' 'reportlab>=4.0.0'"
 ]
