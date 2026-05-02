@@ -57,8 +57,16 @@ const OPERATIONS = [
       {
         id: 'images-to-pdf',
         label: 'Imágenes → PDF',
-        desc: 'Convierte imágenes (PNG, JPG, SVG, TIFF) a PDF. Cada imagen genera un PDF independiente; los TIFF multipágina se conservan como un único PDF con varias páginas.',
+        desc: 'Convierte imágenes (PNG, JPG, SVG, TIFF) a PDF. Puedes generar un PDF independiente por imagen, o unirlas todas en un único PDF en orden alfabético del nombre. Los TIFF multipágina se conservan como un único PDF con varias páginas.',
         params: [
+          {
+            id: 'mode', type: 'select', label: '¿Cómo quieres el resultado?', default: 'independent',
+            options: [
+              { value: 'independent', label: 'Un PDF independiente por imagen' },
+              { value: 'merged',      label: 'Un único PDF con todas (orden alfabético)' },
+            ],
+          },
+          { id: 'mergedName', type: 'text', label: 'Nombre del PDF unificado', default: 'imagenes.pdf', conditional: 'mode=merged' },
           { id: 'resolution', type: 'number', label: 'Resolución para ráster (DPI)', default: 150, min: 72 },
         ],
       },
