@@ -5,6 +5,11 @@ const fs = require('fs');
 const sessionModule = require('./session');
 const { resolveSession } = require('./session');
 
+// Eager-load spawn-python para disparar el diagnóstico al boot
+require('./spawn-python');
+
+console.log('[batchwork] router loaded — build marker: 2026-05-02-pythonpath-fix');
+
 const router = express.Router();
 const PUBLIC_DIR = path.join(__dirname, '../public');
 const MAX_MB = parseInt(process.env.BATCHWORK_MAX_UPLOAD_MB) || 500;
