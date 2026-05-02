@@ -6,8 +6,9 @@ cmds = [
   "npm install",
   "python3 --version && which python3",
   "which pip3 && pip3 --version",
-  "pip3 install --target=/app/python_libs --no-cache-dir 'Pillow>=10.0.0' 'pypdf>=4.0.0' 'pdf2docx>=0.5.8' 'svglib>=1.5.1,<1.6' 'reportlab>=4.0.0'",
-  "PYTHONPATH=/app/python_libs python3 -c 'import PIL, pypdf, svglib, reportlab, pdf2docx; print(\"All Python deps OK; PIL\", PIL.__version__)'"
+  "pip3 install --target=/app/python_libs --no-cache-dir 'Pillow>=10.0.0' 'pypdf>=4.0.0' 'svglib>=1.5.1,<1.6' 'reportlab>=4.0.0'",
+  "pip3 install --target=/app/python_libs --no-cache-dir 'pdf2docx>=0.5.8' || echo 'WARN: pdf2docx no instalado (operación pdf-to-docx no estará disponible)'",
+  "PYTHONPATH=/app/python_libs python3 -c 'import PIL, pypdf, svglib, reportlab; print(\"Core Python deps OK; PIL\", PIL.__version__)'"
 ]
 
 [variables]
