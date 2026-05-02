@@ -48,6 +48,46 @@ function makeUpload() {
   });
 }
 
+// ── API: Diagnostic (Python env) ──────────────────────────────────────────────
+router.get('/api/diag', (req, res) => {
+  const { spawnSync } = require('child_process');
+  const REPO_ROOT = path.resolve(__dirname, '../../..');
+  const VENV_PY = path.join(REPO_ROOT, '.venv', 'bin', 'python');
+  const PYTHON_BIN = process.env.PYTHON_BIN
+    || (fs.existsSync(VENV_PY) ? VENV_PY : 'python3');
+
+  const out = {
+    repoRoot: REPO_ROOT,
+    cwd: process.cwd(),
+    venvPath: VENV_PY,
+    venvExists: fs.existsSync(VENV_PY),
+    pythonBin: PYTHON_BIN,
+    envPythonBin: process.env.PYTHON_BIN || null,
+  };
+  try {
+    out.appDirListing = fs.readdirSync(REPO_ROOT).slice(0, 50);
+  } catch (e) {
+    out.appDirListingError = e.message;
+  }
+  try {
+    const v = spawnSync(PYTHON_BIN, ['--version'], { encoding: 'utf8' });
+    out.pythonVersion = (v.stdout || v.stderr || '').trim();
+  } catch (e) {
+    out.pythonVersionError = e.message;
+  }
+  try {
+    const r = spawnSync(PYTHON_BIN, ['-c',
+      'import sys; print(sys.executable); print(sys.path); import PIL; print("PIL", PIL.__version__)'
+    ], { encoding: 'utf8' });
+    out.pythonExitCode = r.status;
+    out.pythonStdout = (r.stdout || '').slice(0, 800);
+    out.pythonStderr = (r.stderr || '').slice(0, 800);
+  } catch (e) {
+    out.pythonRunError = e.message;
+  }
+  res.json(out);
+});
+
 // ── API: Create session ───────────────────────────────────────────────────────
 router.post('/api/session', (req, res) => {
   const session = sessionModule.createSession();

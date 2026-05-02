@@ -1,4 +1,4 @@
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -7,6 +7,25 @@ const REPO_ROOT = path.resolve(__dirname, '../../..');
 const VENV_PY = path.join(REPO_ROOT, '.venv', 'bin', 'python');
 const PYTHON_BIN = process.env.PYTHON_BIN
   || (fs.existsSync(VENV_PY) ? VENV_PY : 'python3');
+
+// ── Startup diagnostic (visible en logs de Railway) ──────────────────────────
+(function diag() {
+  console.log('[batchwork] REPO_ROOT =', REPO_ROOT);
+  console.log('[batchwork] .venv/bin/python exists =', fs.existsSync(VENV_PY));
+  console.log('[batchwork] PYTHON_BIN =', PYTHON_BIN);
+  try {
+    const v = spawnSync(PYTHON_BIN, ['--version'], { encoding: 'utf8' });
+    console.log('[batchwork] python --version:', (v.stdout || v.stderr || '').trim());
+    const pil = spawnSync(PYTHON_BIN, ['-c', 'import PIL, sys; print(PIL.__version__)'], { encoding: 'utf8' });
+    if (pil.status === 0) {
+      console.log('[batchwork] PIL OK, version:', pil.stdout.trim());
+    } else {
+      console.log('[batchwork] PIL import FAILED:', (pil.stderr || '').trim().slice(0, 300));
+    }
+  } catch (e) {
+    console.log('[batchwork] diag error:', e.message);
+  }
+})();
 
 function spawnPython(script, args, session) {
   return new Promise((resolve, reject) => {
