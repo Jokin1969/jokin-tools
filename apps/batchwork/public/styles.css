@@ -445,7 +445,7 @@ body {
   pointer-events: none;
 }
 .bw-btn:active { transform: scale(0.97); }
-.bw-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+.bw-btn:disabled { background: #B8BEC7 !important; color: #6B7280 !important; box-shadow: none !important; cursor: not-allowed; transform: none; }
 
 .bw-btn-execute {
   background: linear-gradient(135deg, #0A6644, var(--green));

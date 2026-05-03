@@ -539,10 +539,20 @@ function updateExecuteBtn() {
 
   if (op.id === 'inventory') {
     ready = state.fileList.length > 0;
+    if (!ready) setStatus('Selecciona una carpeta para continuar', '');
+    else setStatus('', '');
   } else if (op.uploadPaired) {
-    ready = state.files.length > 0 && state.namelistFile !== null;
+    const hasFiles = state.files.length > 0;
+    const hasNames = state.namelistFile !== null;
+    ready = hasFiles && hasNames;
+    if (!hasFiles && !hasNames) setStatus('Carga los ficheros y el .txt con los nombres nuevos', '');
+    else if (!hasFiles)         setStatus('Falta: arrastra los ficheros a renombrar', '');
+    else if (!hasNames)         setStatus('Falta: arrastra el .txt con los nombres nuevos', '');
+    else                        setStatus('', '');
   } else {
     ready = state.files.length > 0;
+    if (!ready) setStatus('Arrastra los ficheros para continuar', '');
+    else setStatus('', '');
   }
 
   // Check total size
