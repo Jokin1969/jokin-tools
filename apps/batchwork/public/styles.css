@@ -195,7 +195,7 @@ body {
 /* ── Main Panel ──────────────────────────────────────────────────────────── */
 .bw-main {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -204,7 +204,6 @@ body {
 
 .bw-work {
   flex: 1;
-  overflow-y: auto;
   padding: 28px 32px;
   display: flex;
   flex-direction: column;
@@ -412,6 +411,9 @@ body {
 
 /* ── Execute bar ─────────────────────────────────────────────────────────── */
 .bw-execute-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
   background: linear-gradient(180deg, var(--bg-sec) 0%, rgba(210,228,248,0.98) 100%);
   border-top: 1px solid rgba(30,95,184,0.16);
   padding: 18px 32px;
