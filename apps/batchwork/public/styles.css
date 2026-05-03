@@ -195,7 +195,7 @@ body {
 /* ── Main Panel ──────────────────────────────────────────────────────────── */
 .bw-main {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -204,6 +204,7 @@ body {
 
 .bw-work {
   flex: 1;
+  overflow-y: auto;
   padding: 28px 32px;
   display: flex;
   flex-direction: column;
