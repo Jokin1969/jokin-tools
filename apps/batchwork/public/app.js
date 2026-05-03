@@ -229,6 +229,7 @@ function renderUploadArea(op) {
       multiple: true,
       onFiles: (files) => {
         state.files = [...state.files, ...files].slice(0, 5000);
+        state.files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
         updateFileList();
         updateExecuteBtn();
       },
@@ -262,6 +263,7 @@ function renderUploadArea(op) {
       multiple: true,
       onFiles: (files) => {
         state.files = [...state.files, ...files].slice(0, 5000);
+        state.files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
         updateFileList();
         updateExecuteBtn();
       },

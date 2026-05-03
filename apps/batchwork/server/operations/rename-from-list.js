@@ -15,7 +15,7 @@ async function run(session, params) {
   const namelistFile = allFiles.find(f => f === '_namelist_.txt');
   if (!namelistFile) throw new Error('No se encontró el fichero de lista de nombres (_namelist_.txt)');
 
-  const files = allFiles.filter(f => f !== '_namelist_.txt').sort((a, b) => a.localeCompare(b, 'es'));
+  const files = allFiles.filter(f => f !== '_namelist_.txt').sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
   const namesRaw = fs.readFileSync(path.join(session.inputDir, namelistFile), 'utf8');
   const names = namesRaw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
