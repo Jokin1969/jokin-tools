@@ -6,14 +6,35 @@ async function run(session, params) {
 
   session.progress = { current: 0, total: 1, message: 'Generando inventario...' };
 
-  const rootName = fileList[0]?.relativePath?.split('/')[0] || 'carpeta';
+  // Detect whether files carry a folder prefix (webkitdirectory / webkitGetAsEntry)
+  // or were dragged as flat files (no '/' in relativePath).
+  const hasFolderPrefix = fileList.some(f => f.relativePath.includes('/'));
+  const rootName = hasFolderPrefix
+    ? (fileList[0]?.relativePath?.split('/')[0] || 'carpeta')
+    : 'ficheros';
 
   // Build first-level structure: files directly in root + immediate subdirs
   const firstLevel = new Map();
 
   for (const entry of fileList) {
     const parts = entry.relativePath.split('/');
-    // parts[0] = root folder, parts[1] = first-level item
+
+    // Flat file (no folder prefix): treat as a root-level file
+    if (!hasFolderPrefix) {
+      const itemName = parts[0];
+      if (!itemName || firstLevel.has(itemName)) continue;
+      const ext = path.extname(itemName);
+      firstLevel.set(itemName, {
+        tipo: 'Fichero',
+        nombre: ext ? path.basename(itemName, ext) : itemName,
+        extension: ext ? ext.slice(1).toUpperCase() : '',
+        tamano: (entry.size / 1024).toFixed(2) + ' KB',
+        rutaRelativa: entry.relativePath,
+      });
+      continue;
+    }
+
+    // Folder mode: parts[0] = root folder, parts[1] = first-level item
     if (parts.length < 2 || !parts[1]) continue;
 
     const itemName = parts[1];

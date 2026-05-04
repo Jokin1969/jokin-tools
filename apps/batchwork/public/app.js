@@ -273,6 +273,37 @@ function renderUploadArea(op) {
   }
 }
 
+// Traverse a FileSystemEntry tree and return plain file-metadata objects
+// with a `webkitRelativePath`-equivalent `relativePath` set correctly.
+async function readDroppedEntries(dataTransferItems) {
+  const results = [];
+
+  async function traverse(entry, pathPrefix) {
+    if (entry.isFile) {
+      await new Promise(resolve => {
+        entry.file(f => {
+          results.push({ name: f.name, size: f.size, type: f.type,
+                         webkitRelativePath: pathPrefix + f.name });
+          resolve();
+        }, () => resolve());
+      });
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      let batch;
+      do {
+        batch = await new Promise(resolve => reader.readEntries(resolve, () => resolve([])));
+        for (const child of batch) await traverse(child, pathPrefix + entry.name + '/');
+      } while (batch.length > 0);
+    }
+  }
+
+  const entries = [...dataTransferItems]
+    .map(i => i.webkitGetAsEntry && i.webkitGetAsEntry())
+    .filter(Boolean);
+  for (const entry of entries) await traverse(entry, '');
+  return results;
+}
+
 function makeDropZone({ label, sub, accept = '', multiple = true, folder = false, onFiles }) {
   const wrap = mk('div', 'bw-drop-area');
   wrap.innerHTML = `
@@ -300,8 +331,19 @@ function makeDropZone({ label, sub, accept = '', multiple = true, folder = false
   wrap.addEventListener('drop', e => {
     e.preventDefault();
     wrap.classList.remove('drag-over');
-    const items = [...(e.dataTransfer.files || [])];
-    if (items.length > 0) onFiles(items);
+    // For folder drop zones: use FileSystem Entry API to preserve folder structure
+    if (folder && e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      readDroppedEntries(e.dataTransfer.items).then(entries => {
+        if (entries.length > 0) onFiles(entries);
+        else {
+          const files = [...(e.dataTransfer.files || [])];
+          if (files.length > 0) onFiles(files);
+        }
+      });
+      return;
+    }
+    const files = [...(e.dataTransfer.files || [])];
+    if (files.length > 0) onFiles(files);
   });
 
   return wrap;
@@ -322,7 +364,13 @@ function handleInventoryFiles(files) {
   if (existing) existing.remove();
   const summary = mk('div', 'bw-inventory-summary');
   summary.style.cssText = 'margin-top:10px;font-family:var(--mono);font-size:0.8rem;color:var(--text-muted)';
-  summary.textContent = `✓ ${state.fileList.length} ficheros cargados de la carpeta "${state.fileList[0]?.relativePath?.split('/')[0] || ''}"`;
+  const rootFolder = state.fileList[0]?.relativePath?.includes('/')
+    ? state.fileList[0].relativePath.split('/')[0]
+    : null;
+  summary.textContent = rootFolder
+    ? `✓ ${state.fileList.length} ficheros cargados de la carpeta "${rootFolder}"`
+    : `✓ ${state.fileList.length} fichero${state.fileList.length !== 1 ? 's' : ''} cargado${state.fileList.length !== 1 ? 's' : ''}`;
+
   area.appendChild(summary);
 
   updateExecuteBtn();
