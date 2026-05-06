@@ -53,6 +53,21 @@
         <button class="btn btn-outline btn-sm" id="btn-export-csv" title="Exportar a Dropbox">
           <span class="btn-icon">↑</span> Exportar CSV
         </button>
+        <button class="btn btn-backup btn-sm" id="btn-backup-now" title="Crear backup ahora en Dropbox">
+          <svg viewBox="0 0 20 20" fill="none" class="btn-svg-icon" stroke="currentColor" stroke-width="1.6">
+            <ellipse cx="10" cy="5" rx="7" ry="2.5"/>
+            <path d="M3 5v4.5c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V5"/>
+            <path d="M3 9.5V14c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V9.5"/>
+          </svg>
+          Backup
+        </button>
+        <button class="btn btn-restore btn-sm" id="btn-restore-open" title="Gestionar y restaurar backups">
+          <svg viewBox="0 0 20 20" fill="none" class="btn-svg-icon" stroke="currentColor" stroke-width="1.6">
+            <path d="M4 10a6 6 0 1 0 1.2-3.6" stroke-linecap="round"/>
+            <path d="M4 6.5V10h3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Restaurar
+        </button>
       </div>
     </div>
     <!-- Nav tabs -->
@@ -399,6 +414,101 @@
           <button class="btn btn-primary" id="btn-claude-accept">Aplicar al formulario</button>
           <button class="btn btn-ghost" id="btn-claude-retry">Nueva consulta</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Modal Backup / Restore ──────────────────────────────────────────────── -->
+  <div id="modal-backup" class="modal-overlay hidden">
+    <div class="modal-box modal-backup-box">
+
+      <!-- Header -->
+      <div class="backup-modal-header">
+        <div class="backup-modal-title-wrap">
+          <svg viewBox="0 0 24 24" fill="none" class="backup-header-icon" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <ellipse cx="12" cy="5" rx="8" ry="3"/>
+            <path d="M4 5v5c0 1.7 3.6 3 8 3s8-1.3 8-3V5" stroke-linecap="round"/>
+            <path d="M4 10v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5" stroke-linecap="round"/>
+          </svg>
+          <h3 class="modal-title">Backups de Re-memory</h3>
+          <span class="backup-count-badge" id="backup-count-badge">—</span>
+        </div>
+        <button class="backup-modal-close" id="btn-close-backup" title="Cerrar">✕</button>
+      </div>
+
+      <!-- Status bar -->
+      <div class="backup-status-bar">
+        <svg viewBox="0 0 16 16" fill="none" class="backup-status-icon" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="8" cy="8" r="6"/>
+          <path d="M8 5v3l2 1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="backup-status-label">Último backup:</span>
+        <span class="backup-last-date" id="backup-last-date">—</span>
+        <span class="backup-status-sep">·</span>
+        <span class="backup-interval-label" id="backup-interval-label">Automático cada 2 h</span>
+      </div>
+
+      <!-- Backup list container -->
+      <div id="backup-list-container">
+        <div class="backup-loading" id="backup-loading">
+          <span class="backup-spinner"></span>
+          Cargando backups…
+        </div>
+        <div class="backup-empty hidden" id="backup-empty">
+          <svg viewBox="0 0 48 48" fill="none" class="backup-empty-icon" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+            <ellipse cx="24" cy="10" rx="16" ry="6"/>
+            <path d="M8 10v10c0 3.3 7.2 6 16 6s16-2.7 16-6V10"/>
+            <path d="M8 20v10c0 3.3 7.2 6 16 6s16-2.7 16-6V20"/>
+          </svg>
+          <p class="backup-empty-title">Sin backups disponibles</p>
+          <p class="backup-empty-sub">Crea el primer backup para poder restaurar datos.</p>
+        </div>
+        <div class="backup-list" id="backup-list"></div>
+      </div>
+
+      <!-- Footer -->
+      <div class="backup-modal-footer">
+        <span class="backup-footer-hint" id="backup-footer-hint"></span>
+        <div class="backup-footer-actions">
+          <button class="btn btn-ghost btn-sm" id="btn-close-backup-footer">Cerrar</button>
+          <button class="btn btn-backup btn-sm" id="btn-backup-from-modal">
+            <svg viewBox="0 0 16 16" fill="none" class="btn-svg-icon" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <ellipse cx="8" cy="4" rx="5.5" ry="2"/>
+              <path d="M2.5 4v4c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"/>
+              <path d="M2.5 8v3c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V8"/>
+            </svg>
+            Crear backup ahora
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── Modal confirm restore ────────────────────────────────────────────────── -->
+  <div id="modal-restore-confirm" class="modal-overlay hidden">
+    <div class="modal-box modal-restore-confirm-box">
+      <div class="restore-confirm-icon-wrap">
+        <svg viewBox="0 0 40 40" fill="none" class="restore-confirm-icon" aria-hidden="true">
+          <circle cx="20" cy="20" r="18" stroke="#B8860B" stroke-width="1.5"/>
+          <path d="M20 13v8" stroke="#B8860B" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="20" cy="26" r="1.5" fill="#B8860B"/>
+        </svg>
+      </div>
+      <h3 class="modal-title">¿Restaurar este backup?</h3>
+      <p class="modal-body" id="restore-confirm-body">
+        Esta acción reemplazará <strong>todos los datos actuales</strong> con los del backup seleccionado. Los datos actuales se perderán de forma irreversible.
+      </p>
+      <p class="restore-confirm-filename" id="restore-confirm-filename"></p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-cancel-restore-confirm">Cancelar</button>
+        <button class="btn btn-restore-danger" id="btn-confirm-restore-action">
+          <svg viewBox="0 0 16 16" fill="none" class="btn-svg-icon" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <path d="M3 8a5 5 0 1 0 1-3" stroke-linecap="round"/>
+            <path d="M3 5.5V8h2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Sí, restaurar
+        </button>
       </div>
     </div>
   </div>

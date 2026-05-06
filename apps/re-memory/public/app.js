@@ -878,3 +878,207 @@ document.head.appendChild(style);
 // ─── Init ─────────────────────────────────────────────────────────────────────
 clearForm();
 refreshNavList();
+
+// ─── Backup system ────────────────────────────────────────────────────────────
+
+// ── Helpers ──
+function formatSize(bytes) {
+  if (bytes < 1024)       return `${bytes} B`;
+  if (bytes < 1048576)    return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1048576).toFixed(2)} MB`;
+}
+
+function formatBackupDate(isoStr) {
+  if (!isoStr) return '—';
+  return new Date(isoStr).toLocaleString('es-ES', {
+    day: '2-digit', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+// ── Backup now button (header) ──
+$('btn-backup-now').addEventListener('click', () => doBackupNow($('btn-backup-now')));
+
+async function doBackupNow(btn) {
+  const origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="backup-spinner" style="width:12px;height:12px;border-width:1.5px;"></span> Creando…`;
+  toast('Creando backup en Dropbox…', 'info');
+  try {
+    const res = await fetch(`${API}/backup/create`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    toast(`✓ Backup creado: ${data.filename} (${formatSize(data.size)})`, 'success', 6000);
+  } catch (err) {
+    toast(`Error al crear backup: ${err.message}`, 'error', 6000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+  }
+}
+
+// ── Restore modal ──
+let pendingRestoreFilename = null;
+
+$('btn-restore-open').addEventListener('click', openBackupModal);
+
+async function openBackupModal() {
+  $('modal-backup').classList.remove('hidden');
+  await loadBackupList();
+}
+
+async function loadBackupList() {
+  const loading   = $('backup-loading');
+  const empty     = $('backup-empty');
+  const list      = $('backup-list');
+  const badge     = $('backup-count-badge');
+  const lastDate  = $('backup-last-date');
+  const hint      = $('backup-footer-hint');
+  const interval  = $('backup-interval-label');
+
+  loading.classList.remove('hidden');
+  empty.classList.add('hidden');
+  list.innerHTML = '';
+  badge.textContent = '—';
+
+  try {
+    const res = await fetch(`${API}/backup/list`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const { backups, count, max } = data;
+
+    badge.textContent = `${count} / ${max}`;
+    hint.textContent  = count > 0
+      ? `${max - count} ranuras disponibles`
+      : '';
+
+    // Read interval from badge if available (comes from env var on server)
+    const intervalHours = 2; // default display value
+    interval.textContent = `Automático cada ${intervalHours} h`;
+
+    loading.classList.add('hidden');
+
+    if (!backups.length) {
+      empty.classList.remove('hidden');
+      lastDate.textContent = '—';
+      return;
+    }
+
+    lastDate.textContent = formatBackupDate(backups[0].created_at);
+    list.innerHTML = backups.map((b, i) => buildBackupItem(b, i === 0)).join('');
+
+    list.querySelectorAll('.btn-restore-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const filename = btn.dataset.filename;
+        pendingRestoreFilename = filename;
+        $('restore-confirm-filename').textContent = filename;
+        $('modal-restore-confirm').classList.remove('hidden');
+      });
+    });
+
+  } catch (err) {
+    loading.classList.add('hidden');
+    list.innerHTML = `<div class="backup-empty">
+      <p class="backup-empty-title" style="color:var(--red)">Error al cargar backups</p>
+      <p class="backup-empty-sub">${esc(err.message)}</p>
+    </div>`;
+  }
+}
+
+function buildBackupItem(backup, isNewest) {
+  const date     = formatBackupDate(backup.created_at);
+  const size     = formatSize(backup.size);
+  const newestCls = isNewest ? ' is-newest' : '';
+  const newestTag = isNewest
+    ? `<span class="backup-item-newest-tag">Último</span>`
+    : '';
+
+  return `<div class="backup-item${newestCls}">
+    <div class="backup-item-row">
+      <div class="backup-item-db-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <ellipse cx="12" cy="5" rx="8" ry="3"/>
+          <path d="M4 5v5c0 1.7 3.6 3 8 3s8-1.3 8-3V5" stroke-linecap="round"/>
+          <path d="M4 10v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="backup-item-info">
+        <div class="backup-item-date">${esc(date)}</div>
+        <div class="backup-item-meta">${esc(backup.filename)}</div>
+      </div>
+      ${newestTag}
+      <span class="backup-item-size">${size}</span>
+      <button class="btn-restore-item" data-filename="${esc(backup.filename)}" title="Restaurar este backup">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <path d="M2.5 7a4.5 4.5 0 1 0 .9-2.7" stroke-linecap="round"/>
+          <path d="M2.5 4.5V7H5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Restaurar
+      </button>
+    </div>
+  </div>`;
+}
+
+// Backup from modal footer button
+$('btn-backup-from-modal').addEventListener('click', async () => {
+  await doBackupNow($('btn-backup-from-modal'));
+  await loadBackupList();
+});
+
+// Close backup modal
+function closeBackupModal() {
+  $('modal-backup').classList.add('hidden');
+}
+$('btn-close-backup').addEventListener('click', closeBackupModal);
+$('btn-close-backup-footer').addEventListener('click', closeBackupModal);
+$('modal-backup').addEventListener('click', e => {
+  if (e.target === $('modal-backup')) closeBackupModal();
+});
+
+// ── Restore confirm modal ──
+$('btn-cancel-restore-confirm').addEventListener('click', () => {
+  $('modal-restore-confirm').classList.add('hidden');
+  pendingRestoreFilename = null;
+});
+
+$('modal-restore-confirm').addEventListener('click', e => {
+  if (e.target === $('modal-restore-confirm')) {
+    $('modal-restore-confirm').classList.add('hidden');
+    pendingRestoreFilename = null;
+  }
+});
+
+$('btn-confirm-restore-action').addEventListener('click', async () => {
+  if (!pendingRestoreFilename) return;
+  const filename = pendingRestoreFilename;
+
+  const btn = $('btn-confirm-restore-action');
+  const origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="backup-spinner" style="width:12px;height:12px;border-width:1.5px;border-top-color:#fff;"></span> Restaurando…`;
+
+  toast('Restaurando backup, por favor espera…', 'info', 8000);
+
+  try {
+    const res = await fetch(`${API}/backup/restore/${encodeURIComponent(filename)}`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    $('modal-restore-confirm').classList.add('hidden');
+    closeBackupModal();
+    pendingRestoreFilename = null;
+
+    toast(`✓ Backup restaurado correctamente. Recargando…`, 'success', 4000);
+
+    // Reload the page after a moment so the UI reflects restored data
+    setTimeout(() => window.location.reload(), 2500);
+
+  } catch (err) {
+    toast(`Error al restaurar: ${err.message}`, 'error', 8000);
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+  }
+});

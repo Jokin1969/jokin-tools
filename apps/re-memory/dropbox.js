@@ -156,5 +156,6 @@ async function exchangeCodeForTokens(code) {
 module.exports = {
   exportToDropbox,
   getAuthorizationUrl,
-  exchangeCodeForTokens
+  exchangeCodeForTokens,
+  getAccessToken
 };
