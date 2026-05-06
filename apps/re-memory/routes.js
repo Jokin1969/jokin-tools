@@ -13,6 +13,7 @@ const {
 
 const { sendMemoryEmail, generateDeactivationToken } = require('./email');
 const { exportToDropbox, getAuthorizationUrl, exchangeCodeForTokens } = require('./dropbox');
+const { createBackup, listBackups, restoreBackup } = require('./backup');
 const { startCron } = require('./cron');
 
 // ─── Start cron when routes are loaded ───────────────────────────────────────
@@ -260,6 +261,56 @@ router.get('/api/export/csv', async (req, res) => {
     });
   } catch (err) {
     console.error('[api] exportCSV error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Backup — crear ──────────────────────────────────────────────────────
+router.post('/api/backup/create', async (req, res) => {
+  try {
+    const result = await createBackup();
+    res.json({
+      success: true,
+      ...result,
+      message: `Backup creado: ${result.filename}`
+    });
+  } catch (err) {
+    console.error('[api] createBackup error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Backup — listar ─────────────────────────────────────────────────────
+router.get('/api/backup/list', async (req, res) => {
+  try {
+    const backups = await listBackups();
+    res.json({
+      backups,
+      count: backups.length,
+      max: parseInt(process.env.BACKUP_MAX_COUNT || '100', 10)
+    });
+  } catch (err) {
+    console.error('[api] listBackups error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Backup — restaurar ──────────────────────────────────────────────────
+router.post('/api/backup/restore/:filename', async (req, res) => {
+  try {
+    const { filename } = req.params;
+    // Validate filename to prevent path traversal
+    if (!filename.endsWith('.db') || /[/\\]/.test(filename) || filename.includes('..')) {
+      return res.status(400).json({ error: 'Nombre de fichero inválido' });
+    }
+    const result = await restoreBackup(filename);
+    res.json({
+      success: true,
+      ...result,
+      message: `Backup restaurado correctamente: ${result.filename}`
+    });
+  } catch (err) {
+    console.error('[api] restoreBackup error:', err);
     res.status(500).json({ error: err.message });
   }
 });
