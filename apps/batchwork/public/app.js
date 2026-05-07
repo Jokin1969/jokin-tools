@@ -113,6 +113,27 @@ const OPERATIONS = [
       },
     ],
   },
+  {
+    group: 'Bioinformática',
+    ops: [{
+      id: 'degen-aa',
+      label: 'Secuencia AA degenerada',
+      desc: 'Analiza una secuencia proteica con posiciones degeneradas, calcula todas las combinaciones posibles y genera un fichero FASTA con todas las variantes.',
+      clientSide: true,
+      params: [
+        {
+          id: 'sequence',
+          type: 'textarea',
+          label: 'Secuencia (pega en cualquier formato)',
+          placeholder: "Con comillas:   'W','N',('N','S'),('M','I','L')\nSin comillas:    W,N,(N,S),(M,I,L)\nCompacto:        WN(NS)(MIL)K",
+          rows: 5,
+          default: '',
+        },
+        { id: 'startPos', type: 'number', label: 'Número de la posición inicial', default: 99, min: 1 },
+        { id: 'maxSeqs',  type: 'number', label: 'Límite de secuencias en el FASTA', default: 10000, min: 1, max: 1000000 },
+      ],
+    }],
+  },
 ];
 
 // Flat map for quick lookup
@@ -133,6 +154,7 @@ const state = {
   paramValues: {},    // { [opId]: { [paramId]: value } }
   appStatus: 'idle',  // idle | uploading | running | done | error
   pollTimer: null,
+  clientSideBlob: null, // { blob, filename } for client-side ops
 };
 
 function getParam(opId, paramId) {
@@ -183,6 +205,9 @@ function selectOp(opId) {
   state.files = [];
   state.namelistFile = null;
   state.fileList = [];
+  state.clientSideBlob = null;
+  const prevResults = $('degen-results');
+  if (prevResults) prevResults.remove();
   resetExecuteBar();
 
   renderSidebar();
@@ -205,6 +230,14 @@ function selectOp(opId) {
 function renderUploadArea(op) {
   const area = $('upload-area');
   area.innerHTML = '';
+
+  if (op.clientSide) {
+    area.style.display = 'none';
+    $('file-list-wrap').style.display = 'none';
+    return;
+  }
+
+  area.style.display = '';
 
   if (op.id === 'inventory') {
     // Single folder picker
@@ -534,6 +567,19 @@ function buildParamField(opId, p) {
     });
     field.appendChild(input);
 
+  } else if (p.type === 'textarea') {
+    const ta = document.createElement('textarea');
+    ta.className = 'bw-input bw-textarea';
+    ta.id = `param-${opId}-${p.id}`;
+    ta.value = getParam(opId, p.id) ?? p.default ?? '';
+    if (p.placeholder) ta.placeholder = p.placeholder;
+    if (p.rows) ta.rows = p.rows;
+    ta.addEventListener('input', () => {
+      setParam(opId, p.id, ta.value);
+      updateExecuteBtn();
+    });
+    field.appendChild(ta);
+
   } else {
     // text
     const input = document.createElement('input');
@@ -585,7 +631,12 @@ function updateExecuteBtn() {
   const op = OPS_MAP[state.selectedOp];
   let ready = false;
 
-  if (op.id === 'inventory') {
+  if (op.clientSide) {
+    const seq = (getParam(op.id, 'sequence') || '').trim();
+    ready = seq.length > 0;
+    if (!ready) setStatus('Introduce una secuencia para continuar', '');
+    else setStatus('', '');
+  } else if (op.id === 'inventory') {
     ready = state.fileList.length > 0;
     if (!ready) setStatus('Selecciona una carpeta para continuar', '');
     else setStatus('', '');
@@ -647,6 +698,11 @@ $('btn-download').addEventListener('click', downloadResult);
 async function startExecution() {
   if (!state.selectedOp) return;
   const op = OPS_MAP[state.selectedOp];
+
+  if (op.clientSide) {
+    runClientSideOp(op);
+    return;
+  }
 
   $('btn-execute').disabled = true;
   $('btn-download').style.display = 'none';
@@ -786,6 +842,19 @@ async function pollStatus(sessionId) {
 
 // ── Download ──────────────────────────────────────────────────────────────────
 async function downloadResult() {
+  if (state.clientSideBlob) {
+    const { blob, filename } = state.clientSideBlob;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return;
+  }
+
   if (!state.sessionId) return;
   window.location.href = `/batchwork/api/session/${state.sessionId}/download`;
   // Allow a fresh execution after download
@@ -872,6 +941,187 @@ function showAwaitingDialog(sessionId, awaitingData) {
 $('overlay').addEventListener('click', e => {
   if (e.target === $('overlay')) $('overlay').classList.remove('open');
 });
+
+// ── Degenerate AA (client-side) ───────────────────────────────────────────────
+
+function parseAASequence(rawInput) {
+  let clean = rawInput.replace(/['"`]/g, '').trim();
+  const positions = [];
+  let i = 0;
+
+  while (i < clean.length) {
+    if (clean[i] === '(') {
+      const close = clean.indexOf(')', i);
+      if (close === -1) { i++; continue; }
+      const inner = clean.slice(i + 1, close).replace(/\s/g, '');
+      let aas;
+      if (inner.includes(',')) {
+        aas = inner.split(',').map(s => s.toUpperCase()).filter(s => s.length > 0);
+      } else {
+        aas = inner.toUpperCase().split('').filter(c => /[A-Z*]/.test(c));
+      }
+      if (aas.length > 0) positions.push(aas);
+      i = close + 1;
+      while (i < clean.length && /[,\s]/.test(clean[i])) i++;
+
+    } else if (/[,\s]/.test(clean[i])) {
+      i++;
+
+    } else if (/[A-Za-z*]/.test(clean[i])) {
+      let j = i;
+      while (j < clean.length && /[A-Za-z*]/.test(clean[j])) j++;
+      const chunk = clean.slice(i, j).toUpperCase();
+      i = j;
+      while (i < clean.length && /[,\s]/.test(clean[i])) i++;
+      if (chunk.length === 1) {
+        positions.push([chunk]);
+      } else {
+        for (const c of chunk) positions.push([c]);
+      }
+
+    } else {
+      i++;
+    }
+  }
+
+  return positions;
+}
+
+function countCombinations(positions) {
+  return positions.reduce((acc, pos) => acc * pos.length, 1);
+}
+
+function generateAllVariants(positions, maxSeqs) {
+  let results = [''];
+  for (const pos of positions) {
+    const next = [];
+    outer: for (const seq of results) {
+      for (const aa of pos) {
+        next.push(seq + aa);
+        if (next.length >= maxSeqs) break outer;
+      }
+    }
+    results = next;
+    if (results.length >= maxSeqs) break;
+  }
+  return results;
+}
+
+function buildFASTABlob(positions, startPos, maxSeqs) {
+  const variants = generateAllVariants(positions, maxSeqs);
+  const end = startPos + positions.length - 1;
+  const lines = [];
+  for (let i = 0; i < variants.length; i++) {
+    lines.push(`>variant_${i + 1} pos${startPos}-${end}`);
+    lines.push(variants[i]);
+  }
+  return new Blob([lines.join('\n') + '\n'], { type: 'text/plain' });
+}
+
+function renderDegenAnalysis(positions, startPos, degenCount, totalCombinations, maxSeqs) {
+  const existing = $('degen-results');
+  if (existing) existing.remove();
+
+  const root = mk('div', 'degen-results');
+  root.id = 'degen-results';
+
+  // Summary
+  const primarySeq = positions.map(p => p[0]).join('');
+  const summary = mk('div', 'degen-summary');
+  summary.innerHTML = `La secuencia <code class="degen-seq-code">${primarySeq}</code> presenta <strong>${degenCount} posición${degenCount !== 1 ? 'es' : ''} degenerada${degenCount !== 1 ? 's' : ''}</strong>`;
+  root.appendChild(summary);
+
+  // Sequence viewer
+  const viewer = mk('div', 'degen-viewer');
+  const numRow = mk('div', 'degen-row degen-row--nums');
+  const aaRow  = mk('div', 'degen-row degen-row--aa');
+  const altRow = mk('div', 'degen-row degen-row--alts');
+
+  for (let i = 0; i < positions.length; i++) {
+    const pos = positions[i];
+    const isDegen = pos.length > 1;
+    const posNum = startPos + i;
+    const degenCls = isDegen ? ' degen-cell--degen' : '';
+
+    numRow.appendChild(mk('div', 'degen-cell' + degenCls, String(posNum)));
+    aaRow.appendChild(mk('div', 'degen-cell degen-cell--aa' + degenCls, pos[0]));
+    altRow.appendChild(mk('div', 'degen-cell degen-cell--alt' + degenCls, isDegen ? pos.join('/') : ''));
+  }
+
+  viewer.appendChild(numRow);
+  viewer.appendChild(aaRow);
+  viewer.appendChild(altRow);
+  root.appendChild(viewer);
+
+  // Stats
+  const stats = mk('div', 'degen-stats');
+  const comboStr = totalCombinations > 1e9
+    ? totalCombinations.toExponential(2)
+    : totalCombinations.toLocaleString('es-ES');
+
+  const mkStat = (val, lbl) => {
+    const s = mk('div', 'degen-stat');
+    s.innerHTML = `<span class="degen-stat-val">${val}</span><span class="degen-stat-lbl">${lbl}</span>`;
+    return s;
+  };
+  stats.appendChild(mkStat(positions.length, 'posiciones<br>en total'));
+  stats.appendChild(mkStat(degenCount, 'posiciones<br>degeneradas'));
+  stats.appendChild(mkStat(comboStr, 'combinaciones<br>posibles'));
+  root.appendChild(stats);
+
+  if (totalCombinations > maxSeqs) {
+    const warn = mk('div', 'degen-warn');
+    warn.innerHTML = `⚠ El FASTA incluirá solo las primeras <strong>${maxSeqs.toLocaleString('es-ES')}</strong> de <strong>${comboStr}</strong> variantes. Aumenta el límite para obtener más.`;
+    root.appendChild(warn);
+  }
+
+  const paramsZone = $('params-zone');
+  paramsZone.parentNode.insertBefore(root, paramsZone.nextSibling);
+}
+
+async function runClientSideOp(op) {
+  $('btn-execute').disabled = true;
+  $('btn-download').style.display = 'none';
+  $('log-panel').innerHTML = '';
+  $('log-panel').classList.remove('visible');
+  $('progress-wrap').classList.remove('visible');
+  state.appStatus = 'running';
+  setStatus('Procesando...');
+
+  const existing = $('degen-results');
+  if (existing) existing.remove();
+  state.clientSideBlob = null;
+
+  try {
+    const rawSeq   = (getParam(op.id, 'sequence') || '').trim();
+    const startPos = Math.max(1, parseInt(getParam(op.id, 'startPos') ?? 99) || 99);
+    const maxSeqs  = Math.max(1, parseInt(getParam(op.id, 'maxSeqs')  ?? 10000) || 10000);
+
+    const positions = parseAASequence(rawSeq);
+    if (positions.length === 0) throw new Error('No se pudo parsear la secuencia. Comprueba el formato.');
+
+    const degenCount        = positions.filter(p => p.length > 1).length;
+    const totalCombinations = countCombinations(positions);
+
+    state.clientSideBlob = {
+      blob: buildFASTABlob(positions, startPos, maxSeqs),
+      filename: `variantes-aa-${new Date().toISOString().slice(0, 10)}.fasta`,
+    };
+
+    renderDegenAnalysis(positions, startPos, degenCount, totalCombinations, maxSeqs);
+
+    state.appStatus = 'done';
+    const limitNote = totalCombinations > maxSeqs ? ` (FASTA: ${maxSeqs.toLocaleString('es-ES')} variantes)` : '';
+    setStatus(`✓ ${degenCount} posición${degenCount !== 1 ? 'es' : ''} degenerada${degenCount !== 1 ? 's' : ''} · ${totalCombinations.toLocaleString('es-ES')} combinaciones${limitNote}`, 'ok');
+    $('btn-execute').style.display = 'none';
+    $('btn-download').style.display = '';
+
+  } catch (err) {
+    state.appStatus = 'error';
+    setStatus(err.message, 'err');
+    $('btn-execute').disabled = false;
+  }
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 renderSidebar();
