@@ -1173,6 +1173,16 @@ function hammingDist(a, b) {
   return d + Math.abs(a.length - b.length);
 }
 
+// Jalview PID distance: d_ij = 100 - PID_ij  (range 0–100)
+function pidDist(a, b) {
+  const compared = Math.max(a.length, b.length);
+  if (compared === 0) return 0;
+  let identical = 0;
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) if (a[i] === b[i]) identical++;
+  return 100 - (identical / compared) * 100;
+}
+
 function filterByN(variants, prions, minN) {
   const passing = [];
   for (let i = 0; i < variants.length; i++) {
@@ -1196,7 +1206,7 @@ function upgmaCluster(seqs, nClusters) {
   const D = Array.from({ length: n }, () => new Float32Array(n));
   for (let i = 0; i < n; i++)
     for (let j = i + 1; j < n; j++)
-      D[i][j] = D[j][i] = hammingDist(seqs[i], seqs[j]);
+      D[i][j] = D[j][i] = pidDist(seqs[i], seqs[j]);
 
   // UPGMA with active set
   const avg = Array.from({ length: n }, (_, i) => Float32Array.from(D[i]));
