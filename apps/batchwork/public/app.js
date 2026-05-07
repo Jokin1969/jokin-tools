@@ -154,6 +154,7 @@ const state = {
   paramValues: {},    // { [opId]: { [paramId]: value } }
   appStatus: 'idle',  // idle | uploading | running | done | error
   pollTimer: null,
+  generatedVariants: null,
   clientSideBlob: null, // { blob, filename } for client-side ops
 };
 
@@ -1025,9 +1026,8 @@ function generateAllVariants(positions, maxSeqs) {
   return results;
 }
 
-function buildFASTABlob(positions, startPos, maxSeqs) {
-  const variants = generateAllVariants(positions, maxSeqs);
-  const end = startPos + positions.length - 1;
+function buildFASTABlob(variants, startPos, seqLen) {
+  const end = startPos + seqLen - 1;
   const lines = [];
   for (let i = 0; i < variants.length; i++) {
     lines.push(`>variant_${i + 1} pos${startPos}-${end}`);
@@ -1093,6 +1093,8 @@ function renderDegenAnalysis(positions, startPos, degenCount, totalCombinations,
     root.appendChild(warn);
   }
 
+  renderClusterSection(root);
+
   const paramsZone = $('params-zone');
   paramsZone.parentNode.insertBefore(root, paramsZone.nextSibling);
 }
@@ -1121,8 +1123,11 @@ async function runClientSideOp(op) {
     const degenCount        = positions.filter(p => p.length > 1).length;
     const totalCombinations = countCombinations(positions);
 
+    const variants = generateAllVariants(positions, maxSeqs);
+    state.generatedVariants = variants;
+
     state.clientSideBlob = {
-      blob: buildFASTABlob(positions, startPos, maxSeqs),
+      blob: buildFASTABlob(variants, startPos, positions.length),
       filename: `variantes-aa-${new Date().toISOString().slice(0, 10)}.fasta`,
     };
 
@@ -1139,6 +1144,251 @@ async function runClientSideOp(op) {
     setStatus(err.message, 'err');
     $('btn-execute').disabled = false;
   }
+}
+
+// ── Clustering helpers ────────────────────────────────────────────────────────
+
+function parseFASTA(text) {
+  const seqs = [];
+  let id = null, seq = '';
+  for (const line of text.split('\n')) {
+    const l = line.trim();
+    if (!l) continue;
+    if (l.startsWith('>')) {
+      if (id !== null && seq) seqs.push({ id, seq });
+      id = l.slice(1).trim();
+      seq = '';
+    } else if (id !== null) {
+      seq += l.toUpperCase().replace(/[^A-Z*]/g, '');
+    }
+  }
+  if (id !== null && seq) seqs.push({ id, seq });
+  return seqs;
+}
+
+function hammingDist(a, b) {
+  let d = 0;
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) if (a[i] !== b[i]) d++;
+  return d + Math.abs(a.length - b.length);
+}
+
+function filterByN(variants, prions, minN) {
+  const passing = [];
+  for (let i = 0; i < variants.length; i++) {
+    let ok = true;
+    for (const p of prions) {
+      if (hammingDist(variants[i], p.seq) < minN) { ok = false; break; }
+    }
+    if (ok) passing.push({ idx: i, seq: variants[i] });
+  }
+  return passing;
+}
+
+const MAX_CLUSTER_SEQS = 800;
+
+function upgmaCluster(seqs, nClusters) {
+  const n = seqs.length;
+  const k = Math.min(nClusters, n);
+  if (n <= k) return seqs.map((_, i) => ({ medoid: i, members: [i] }));
+
+  // Build distance matrix
+  const D = Array.from({ length: n }, () => new Float32Array(n));
+  for (let i = 0; i < n; i++)
+    for (let j = i + 1; j < n; j++)
+      D[i][j] = D[j][i] = hammingDist(seqs[i], seqs[j]);
+
+  // UPGMA with active set
+  const avg = Array.from({ length: n }, (_, i) => Float32Array.from(D[i]));
+  const size = new Int32Array(n).fill(1);
+  const members = Array.from({ length: n }, (_, i) => [i]);
+  const active = new Set(Array.from({ length: n }, (_, i) => i));
+
+  for (let step = 0; step < n - k; step++) {
+    let minVal = Infinity, minI = -1, minJ = -1;
+    const arr = [...active];
+    for (let a = 0; a < arr.length; a++) {
+      for (let b = a + 1; b < arr.length; b++) {
+        if (avg[arr[a]][arr[b]] < minVal) {
+          minVal = avg[arr[a]][arr[b]]; minI = arr[a]; minJ = arr[b];
+        }
+      }
+    }
+    const sI = size[minI], sJ = size[minJ];
+    for (const kk of active) {
+      if (kk === minI || kk === minJ) continue;
+      const d = (avg[minI][kk] * sI + avg[minJ][kk] * sJ) / (sI + sJ);
+      avg[minI][kk] = avg[kk][minI] = d;
+    }
+    size[minI] = sI + sJ;
+    members[minI] = [...members[minI], ...members[minJ]];
+    active.delete(minJ);
+  }
+
+  const result = [];
+  for (const rep of active) {
+    const mems = members[rep];
+    let bestMedoid = mems[0], bestAvg = Infinity;
+    for (const m of mems) {
+      let sum = 0;
+      for (const other of mems) sum += D[m][other];
+      const a = sum / mems.length;
+      if (a < bestAvg) { bestAvg = a; bestMedoid = m; }
+    }
+    result.push({ medoid: bestMedoid, members: mems });
+  }
+  result.sort((a, b) => a.medoid - b.medoid);
+  return result;
+}
+
+function renderClusterSection(root) {
+  const section = mk('div', 'degen-cluster-section');
+
+  const hdr = mk('div', 'degen-cluster-hdr');
+  hdr.innerHTML = '<span class="degen-cluster-title">Filtro + Clusterización</span><span class="degen-cluster-sub">vs. priones naturales · UPGMA</span>';
+  section.appendChild(hdr);
+
+  const f1 = mk('div', 'bw-field');
+  const l1 = mk('label', null, 'Priones naturales (FASTA)');
+  const ta = document.createElement('textarea');
+  ta.className = 'bw-input bw-textarea';
+  ta.id = 'degen-prions-input';
+  ta.rows = 5;
+  ta.placeholder = '>natural_prion_1\nAMKLPS...\n>natural_prion_2\nWNKPS...';
+  f1.appendChild(l1);
+  f1.appendChild(ta);
+  section.appendChild(f1);
+
+  const row = mk('div', 'degen-cluster-row');
+
+  const f2 = mk('div', 'bw-field');
+  f2.appendChild(mk('label', null, 'N mínimo de mutaciones'));
+  const nInput = document.createElement('input');
+  nInput.type = 'number'; nInput.className = 'bw-input'; nInput.id = 'degen-min-n';
+  nInput.value = '17'; nInput.min = '1'; nInput.max = '999';
+  f2.appendChild(nInput);
+
+  const f3 = mk('div', 'bw-field');
+  f3.appendChild(mk('label', null, 'Número de clusters'));
+  const cInput = document.createElement('input');
+  cInput.type = 'number'; cInput.className = 'bw-input'; cInput.id = 'degen-num-clusters';
+  cInput.value = '10'; cInput.min = '1'; cInput.max = '500';
+  f3.appendChild(cInput);
+
+  row.appendChild(f2);
+  row.appendChild(f3);
+  section.appendChild(row);
+
+  const btn = mk('button', 'bw-btn bw-btn-cluster', 'Clusterizar');
+  btn.addEventListener('click', () => runClustering(btn));
+  section.appendChild(btn);
+
+  const resultsDiv = mk('div', '');
+  resultsDiv.id = 'degen-cluster-results';
+  section.appendChild(resultsDiv);
+
+  root.appendChild(section);
+}
+
+async function runClustering(btn) {
+  const prionsText = ($('degen-prions-input')?.value || '').trim();
+  const minN = Math.max(1, parseInt($('degen-min-n')?.value || '17') || 17);
+  const numClusters = Math.max(1, parseInt($('degen-num-clusters')?.value || '10') || 10);
+  const resultsDiv = $('degen-cluster-results');
+  if (!resultsDiv) return;
+
+  if (!state.generatedVariants || state.generatedVariants.length === 0) {
+    resultsDiv.innerHTML = '<div class="degen-cerr">Primero genera las variantes con "Analizar".</div>';
+    return;
+  }
+  if (!prionsText) {
+    resultsDiv.innerHTML = '<div class="degen-cerr">Pega las secuencias de priones naturales en formato FASTA.</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Filtrando...';
+  resultsDiv.innerHTML = '<div class="degen-cloading">⏳ Filtrando variantes vs. priones naturales…</div>';
+  await new Promise(r => setTimeout(r, 15));
+
+  try {
+    const prions = parseFASTA(prionsText);
+    if (prions.length === 0) throw new Error('No se encontraron secuencias FASTA válidas.');
+
+    const filtered = filterByN(state.generatedVariants, prions, minN);
+
+    if (filtered.length === 0) {
+      resultsDiv.innerHTML = `<div class="degen-cempty">Ninguna variante supera N≥${minN} contra ${prions.length} prión${prions.length !== 1 ? 'es' : ''} natural${prions.length !== 1 ? 'es' : ''}.</div>`;
+      return;
+    }
+
+    let clusterInput = filtered;
+    let sampled = false;
+    if (filtered.length > MAX_CLUSTER_SEQS) {
+      const step = filtered.length / MAX_CLUSTER_SEQS;
+      clusterInput = Array.from({ length: MAX_CLUSTER_SEQS }, (_, i) => filtered[Math.floor(i * step)]);
+      sampled = true;
+    }
+
+    btn.textContent = 'Calculando distancias…';
+    resultsDiv.innerHTML = '<div class="degen-cloading">⏳ Calculando matrix de distancias…</div>';
+    await new Promise(r => setTimeout(r, 15));
+
+    const clusters = upgmaCluster(clusterInput.map(v => v.seq), numClusters);
+
+    renderClusterResults(resultsDiv, { prions, minN, filtered, clusterInput, sampled, clusters });
+
+  } catch (err) {
+    resultsDiv.innerHTML = `<div class="degen-cerr">Error: ${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Clusterizar';
+  }
+}
+
+function renderClusterResults(container, { prions, minN, filtered, clusterInput, sampled, clusters }) {
+  container.innerHTML = '';
+
+  const banner = mk('div', 'degen-cbanner');
+  banner.innerHTML = `<strong>${filtered.length.toLocaleString('es-ES')}</strong> variante${filtered.length !== 1 ? 's' : ''} pasan N≥${minN} de ${prions.length} prión${prions.length !== 1 ? 'es' : ''} natural${prions.length !== 1 ? 'es' : ''}`;
+  container.appendChild(banner);
+
+  if (sampled) {
+    const w = mk('div', 'degen-cwarn');
+    w.innerHTML = `⚠ Clustering sobre muestra de <strong>${clusterInput.length}</strong> de ${filtered.length.toLocaleString('es-ES')} variantes filtradas (límite del navegador).`;
+    container.appendChild(w);
+  }
+
+  const lhdr = mk('div', 'degen-clist-hdr');
+  lhdr.textContent = `${clusters.length} cluster${clusters.length !== 1 ? 's' : ''} — centroides (medoides):`;
+  container.appendChild(lhdr);
+
+  const list = mk('div', 'degen-clist');
+  const ids = [];
+  for (let i = 0; i < clusters.length; i++) {
+    const c = clusters[i];
+    const v = clusterInput[c.medoid];
+    const variantId = `variant_${v.idx + 1}`;
+    ids.push(variantId);
+
+    const item = mk('div', 'degen-citem');
+    item.innerHTML =
+      `<span class="degen-citem-cluster">C${String(i + 1).padStart(2, '0')}</span>` +
+      `<code class="degen-citem-seq">${v.seq}</code>` +
+      `<span class="degen-citem-id">${variantId}</span>` +
+      `<span class="degen-citem-size">${c.members.length} seq.</span>`;
+    list.appendChild(item);
+  }
+  container.appendChild(list);
+
+  const copyBtn = mk('button', 'bw-btn bw-btn-cancel degen-copy-btn', '📋 Copiar IDs de centroides');
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(ids.join('\n')).then(() => {
+      copyBtn.textContent = '✓ Copiado';
+      setTimeout(() => { copyBtn.innerHTML = '📋 Copiar IDs de centroides'; }, 2000);
+    });
+  });
+  container.appendChild(copyBtn);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
