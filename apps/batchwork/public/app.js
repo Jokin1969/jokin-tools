@@ -945,7 +945,25 @@ $('overlay').addEventListener('click', e => {
 // ── Degenerate AA (client-side) ───────────────────────────────────────────────
 
 function parseAASequence(rawInput) {
-  let clean = rawInput.replace(/['"`]/g, '').trim();
+  const trimmed = rawInput.trim();
+
+  // Python-style list-of-lists: [['W'], ['N', 'S'], ...]
+  if (trimmed.startsWith('[')) {
+    try {
+      const jsonStr = trimmed.replace(/'/g, '"');
+      const parsed = JSON.parse(jsonStr);
+      if (Array.isArray(parsed) && parsed.every(p => Array.isArray(p))) {
+        const positions = parsed
+          .map(p => p.map(aa => String(aa).toUpperCase().trim()).filter(aa => aa.length > 0))
+          .filter(p => p.length > 0);
+        if (positions.length > 0) return positions;
+      }
+    } catch (e) {
+      // fall through to character parser
+    }
+  }
+
+  let clean = trimmed.replace(/['"`]/g, '');
   const positions = [];
   let i = 0;
 
