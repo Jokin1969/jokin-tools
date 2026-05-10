@@ -1054,6 +1054,344 @@ function buildFASTABlob(variants, startPos, seqLen) {
   return new Blob([lines.join('\n') + '\n'], { type: 'text/plain' });
 }
 
+// ── AA biochemical properties ────────────────────────────────────────────────
+const AA_PROPS = {
+  A:'hydrophobic',V:'hydrophobic',L:'hydrophobic',I:'hydrophobic',
+  P:'hydrophobic',F:'hydrophobic',M:'hydrophobic',W:'hydrophobic',
+  S:'polar',T:'polar',C:'polar',Y:'polar',N:'polar',Q:'polar',
+  K:'positive',R:'positive',H:'positive',
+  D:'negative',E:'negative',G:'special',
+};
+const PROP_COLORS = {
+  hydrophobic:'#D4820A', polar:'#2A9D8F',
+  positive:'#3A70C8',   negative:'#C83A3A', special:'#8B5CF6',
+};
+const PROP_LABELS = {
+  hydrophobic:'Hidrofóbico', polar:'Polar',
+  positive:'Básico',        negative:'Ácido',  special:'Glicina',
+};
+const AA_ORDER = ['A','V','L','I','P','F','M','W','S','T','C','Y','N','Q','K','R','H','D','E','G'];
+function aaProp(aa) { return AA_PROPS[(aa || '').toUpperCase()] || 'special'; }
+
+// ── Degen viz modal ──────────────────────────────────────────────────────────
+function openDegenViz(title, renderFn) {
+  const prev = document.getElementById('degen-viz-modal');
+  if (prev) prev.remove();
+  const modal = document.createElement('div');
+  modal.id = 'degen-viz-modal'; modal.className = 'degen-viz-modal';
+  const inner = document.createElement('div'); inner.className = 'degen-viz-inner';
+  const hdr = document.createElement('div'); hdr.className = 'degen-viz-hdr';
+  const titleEl = document.createElement('div'); titleEl.className = 'degen-viz-title';
+  titleEl.textContent = title;
+  const closeBtn = document.createElement('button'); closeBtn.className = 'degen-viz-close';
+  closeBtn.textContent = '✕';
+  closeBtn.addEventListener('click', () => modal.remove());
+  hdr.appendChild(titleEl); hdr.appendChild(closeBtn);
+  const body = document.createElement('div'); body.className = 'degen-viz-body';
+  inner.appendChild(hdr); inner.appendChild(body);
+  modal.appendChild(inner); document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  const esc = e => { if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', esc); } };
+  document.addEventListener('keydown', esc);
+  renderFn(body);
+}
+
+// ── Viz 1: Retrato de Secuencia (SVG puro) ───────────────────────────────────
+function renderDegenSeqMap(container, positions, startPos) {
+  const CELL = 24, GAP = 3, COLS = 40;
+  const TICK_H = 14, ALT_H = 12;
+  const ROW_H = TICK_H + CELL + ALT_H + GAP;
+  const nRows = Math.ceil(positions.length / COLS);
+  const nCols = Math.min(positions.length, COLS);
+  const PL = 14, PT = 52, PR = 14, PB = 58;
+  const W = PL + nCols * (CELL + GAP) - GAP + PR;
+  const H = PT + nRows * ROW_H + PB;
+  const NS = 'http://www.w3.org/2000/svg';
+
+  const svgEl = (tag, attrs, parent) => {
+    const el = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    if (parent) parent.appendChild(el);
+    return el;
+  };
+  const svgTxt = (x, y, txt, attrs, parent) => {
+    const el = svgEl('text', { x, y, 'font-family':'IBM Plex Mono,monospace', ...attrs }, parent);
+    el.textContent = txt; return el;
+  };
+
+  const svg = svgEl('svg', { viewBox:`0 0 ${W} ${H}`, width:W, height:H }, null);
+  svg.style.cssText = 'max-width:100%;display:block;margin:0 auto;';
+  svgEl('rect', { width:W, height:H, fill:'#F2F7FE', rx:10 }, svg);
+  svgTxt(W/2, 28, 'RETRATO DE SECUENCIA', {
+    'text-anchor':'middle','font-size':'11.5','font-weight':'700','fill':'#1E5FB8',
+  }, svg);
+  svgTxt(W/2, 43, `${positions.length} posiciones · pos ${startPos}–${startPos+positions.length-1}`, {
+    'text-anchor':'middle','font-size':'8.5','fill':'#6A90B8',
+  }, svg);
+
+  for (let i = 0; i < positions.length; i++) {
+    const col = i % COLS, row = Math.floor(i / COLS);
+    const isDegen = positions[i].length > 1;
+    const aa = positions[i][0];
+    const color = PROP_COLORS[aaProp(aa)];
+    const posNum = startPos + i;
+    const x = PL + col * (CELL + GAP);
+    const y = PT + row * ROW_H + TICK_H;
+
+    if (col % 10 === 0) {
+      svgTxt(x + CELL/2, y - 3, String(posNum), {
+        'text-anchor':'middle','font-size':'7.5','fill': isDegen ? color : '#9AB8D4',
+      }, svg);
+    }
+
+    svgEl('rect', { x, y, width:CELL, height:CELL, rx: isDegen ? 6 : 3,
+      fill:color, opacity: isDegen ? 0.82 : 0.22 }, svg);
+
+    if (isDegen) {
+      svgEl('rect', { x:x-1.5, y:y-1.5, width:CELL+3, height:CELL+3, rx:7.5,
+        fill:'none', stroke:color, 'stroke-width':2 }, svg);
+    }
+
+    svgTxt(x + CELL/2, y + CELL/2 + 5, aa, {
+      'text-anchor':'middle',
+      'font-size': isDegen ? '13' : '11',
+      'font-weight': isDegen ? '800' : '600',
+      'fill': isDegen ? '#fff' : color,
+    }, svg);
+
+    if (isDegen) {
+      svgTxt(x + CELL/2, y + CELL + 10, positions[i].slice(1).join('/'), {
+        'text-anchor':'middle','font-size':'8','font-weight':'700','fill':color,
+      }, svg);
+    }
+  }
+
+  const legY = H - PB + 14;
+  const legEntries = Object.keys(PROP_COLORS);
+  const legItemW = Math.floor((W - PL - PR - 8) / legEntries.length);
+  legEntries.forEach((prop, i) => {
+    const lx = PL + i * legItemW;
+    svgEl('rect', { x:lx, y:legY, width:11, height:11, rx:3, fill:PROP_COLORS[prop] }, svg);
+    svgTxt(lx + 14, legY + 9.5, PROP_LABELS[prop], { 'font-size':'8.5','fill':'#2B4F7A' }, svg);
+  });
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'overflow-x:auto;padding:4px 0;';
+  wrap.appendChild(svg);
+  const dlRow = document.createElement('div');
+  dlRow.style.cssText = 'display:flex;gap:8px;margin-top:12px;justify-content:center;';
+  const btnSvg = mk('button', 'bw-btn');
+  btnSvg.style.cssText = 'font-size:0.78rem;padding:6px 16px;';
+  btnSvg.textContent = 'Descargar SVG';
+  btnSvg.addEventListener('click', () => {
+    const s = new XMLSerializer().serializeToString(svg);
+    const b = new Blob([s], { type:'image/svg+xml' });
+    const u = URL.createObjectURL(b);
+    Object.assign(document.createElement('a'), { href:u, download:'retrato-secuencia.svg' }).click();
+    setTimeout(() => URL.revokeObjectURL(u), 1000);
+  });
+  dlRow.appendChild(btnSvg);
+  container.appendChild(wrap);
+  container.appendChild(dlRow);
+}
+
+// ── Viz 2: Perfil de Degeneración (D3) ───────────────────────────────────────
+function renderDegenProfile(container, positions, startPos) {
+  if (typeof d3 === 'undefined') {
+    container.innerHTML = '<p style="color:var(--red);font-family:var(--mono);font-size:0.82rem;padding:20px;">D3.js no disponible.</p>';
+    return;
+  }
+  const degenPos = positions.map((p, i) => ({
+    pos: startPos + i, alts: p.length, primary: p[0],
+  })).filter(d => d.alts > 1);
+  if (!degenPos.length) {
+    container.innerHTML = '<p style="color:var(--text-dim);font-family:var(--mono);font-size:0.85rem;padding:20px;text-align:center;">No hay posiciones degeneradas.</p>';
+    return;
+  }
+  let cumLog = 0;
+  const allPts = positions.map((p, i) => {
+    cumLog += Math.log2(p.length);
+    return { pos: startPos + i, log: cumLog };
+  });
+  const mono = 'IBM Plex Mono,monospace';
+  const W = Math.min(window.innerWidth - 100, 860);
+  const H = 340, M = { top:30, right:74, bottom:72, left:50 };
+  const iW = W - M.left - M.right, iH = H - M.top - M.bottom;
+
+  const svg = d3.select(container).append('svg')
+    .attr('width', W).attr('height', H)
+    .style('max-width','100%').style('display','block').style('margin','0 auto');
+  svg.append('rect').attr('width',W).attr('height',H).attr('fill','#F2F7FE').attr('rx',10);
+
+  // title
+  svg.append('text').attr('x',W/2).attr('y',20).attr('text-anchor','middle')
+    .attr('font-size','11.5').attr('font-weight','700').attr('fill','#0D1F3C')
+    .attr('font-family',mono).text('PERFIL DE DEGENERACIÓN');
+
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+  const xSc = d3.scaleLinear().domain([startPos - 0.5, startPos + positions.length - 0.5]).range([0, iW]);
+  const yL  = d3.scaleLinear().domain([0, 3.5]).range([iH, 0]);
+  const yR  = d3.scaleLinear().domain([0, cumLog * 1.08]).range([iH, 0]);
+
+  g.append('g').call(d3.axisLeft(yL).tickSize(-iW).tickFormat('').ticks(3))
+    .selectAll('line').attr('stroke','rgba(30,95,184,0.08)').attr('stroke-dasharray','4,3');
+  g.selectAll('.domain').remove();
+
+  g.append('path').datum(allPts)
+    .attr('fill','rgba(30,95,184,0.07)')
+    .attr('d', d3.area().x(d=>xSc(d.pos)).y0(iH).y1(d=>yR(d.log)).curve(d3.curveStepAfter));
+  g.append('path').datum(allPts)
+    .attr('fill','none').attr('stroke','#1E5FB8').attr('stroke-width',2).attr('opacity',0.72)
+    .attr('d', d3.line().x(d=>xSc(d.pos)).y(d=>yR(d.log)).curve(d3.curveStepAfter));
+
+  const barW = Math.max(3, Math.min(16, iW / positions.length * 0.6));
+  degenPos.forEach(d => {
+    const col = PROP_COLORS[aaProp(d.primary)];
+    g.append('rect')
+      .attr('x', xSc(d.pos) - barW/2).attr('y', yL(d.alts))
+      .attr('width', barW).attr('height', iH - yL(d.alts))
+      .attr('fill', col).attr('opacity', 0.76).attr('rx', 3);
+    if (barW >= 8) {
+      g.append('text').attr('x', xSc(d.pos)).attr('y', yL(d.alts) - 3)
+        .attr('text-anchor','middle').attr('font-size','9').attr('font-weight','700')
+        .attr('font-family',mono).attr('fill', col).text(d.primary);
+    }
+  });
+
+  const axStyle = sel => sel.selectAll('text').attr('font-family',mono).attr('font-size','9').attr('fill','#2B4F7A');
+  const ticks = d3.range(startPos, startPos + positions.length, Math.max(1, Math.round(positions.length / 10)));
+  axStyle(g.append('g').attr('transform',`translate(0,${iH})`).call(d3.axisBottom(xSc).tickValues(ticks)));
+  axStyle(g.append('g').call(d3.axisLeft(yL).ticks(3).tickFormat(d => d > 0 ? d : '')));
+  axStyle(g.append('g').attr('transform',`translate(${iW},0)`).call(d3.axisRight(yR).ticks(4).tickFormat(d => d.toFixed(1))));
+
+  svg.append('text').attr('transform','rotate(-90)').attr('x',-(M.top+iH/2)).attr('y',14)
+    .attr('text-anchor','middle').attr('font-size','9.5').attr('font-family',mono).attr('fill','#2B4F7A')
+    .text('Alternativas');
+  svg.append('text').attr('transform',`translate(${M.left+iW/2},${H-8})`)
+    .attr('text-anchor','middle').attr('font-size','9.5').attr('font-family',mono).attr('fill','#2B4F7A')
+    .text('Posición');
+  svg.append('text').attr('transform',`translate(${W-8},${M.top+iH/2}) rotate(90)`)
+    .attr('text-anchor','middle').attr('font-size','9.5').attr('font-family',mono).attr('fill','#1E5FB8')
+    .text('log₂ comb. acumuladas');
+
+  // legend (bottom, inside svg)
+  const legY = M.top + iH + 48;
+  const activeProps = [...new Set(degenPos.map(d => aaProp(d.primary)))];
+  const totalLegW = activeProps.length * 88 + 100;
+  const legX0 = Math.max(M.left, (W - totalLegW) / 2);
+  activeProps.forEach((prop, i) => {
+    const lx = legX0 + i * 88;
+    svg.append('rect').attr('x',lx).attr('y',legY).attr('width',10).attr('height',10)
+      .attr('fill',PROP_COLORS[prop]).attr('rx',2);
+    svg.append('text').attr('x',lx+13).attr('y',legY+9).attr('font-size','8.5').attr('fill','#2B4F7A')
+      .attr('font-family',mono).text(PROP_LABELS[prop]);
+  });
+  const lx2 = legX0 + activeProps.length * 88;
+  svg.append('line').attr('x1',lx2).attr('x2',lx2+16).attr('y1',legY+5).attr('y2',legY+5)
+    .attr('stroke','#1E5FB8').attr('stroke-width',2);
+  svg.append('text').attr('x',lx2+20).attr('y',legY+9).attr('font-size','8.5').attr('fill','#1E5FB8')
+    .attr('font-family',mono).text('Comb. acum.');
+}
+
+// ── Viz 3: Paisaje Aminoacídico (D3 heatmap) ─────────────────────────────────
+function renderDegenLandscape(container, positions, startPos) {
+  if (typeof d3 === 'undefined') {
+    container.innerHTML = '<p style="color:var(--red);font-family:var(--mono);font-size:0.82rem;padding:20px;">D3.js no disponible.</p>';
+    return;
+  }
+  const degenPos = positions.map((p, i) => ({ pos: startPos + i, aas: p })).filter(d => d.aas.length > 1);
+  if (!degenPos.length) {
+    container.innerHTML = '<p style="color:var(--text-dim);font-family:var(--mono);font-size:0.85rem;padding:20px;text-align:center;">No hay posiciones degeneradas.</p>';
+    return;
+  }
+  const CELL = 22, nCols = degenPos.length, nRows = AA_ORDER.length;
+  const M = { top:52, left:38, right:16, bottom:48 };
+  const iW = nCols * CELL, iH = nRows * CELL;
+  const W = M.left + iW + M.right, H = M.top + iH + M.bottom;
+  const mono = 'IBM Plex Mono,monospace';
+
+  const scrollWrap = document.createElement('div');
+  scrollWrap.style.cssText = 'overflow-x:auto;padding:4px 0;';
+  container.appendChild(scrollWrap);
+
+  const svg = d3.select(scrollWrap).append('svg')
+    .attr('width', W).attr('height', H)
+    .style('display','block').style('margin','0 auto');
+  svg.append('rect').attr('width',W).attr('height',H).attr('fill','#F2F7FE').attr('rx',10);
+
+  svg.append('text').attr('x',W/2).attr('y',22).attr('text-anchor','middle')
+    .attr('font-size','11.5').attr('font-weight','700').attr('fill','#0D1F3C')
+    .attr('font-family',mono).text('PAISAJE AMINOACÍDICO');
+  svg.append('text').attr('x',W/2).attr('y',36).attr('text-anchor','middle')
+    .attr('font-size','8.5').attr('fill','#6A90B8').attr('font-family',mono)
+    .text('sólido = posición primaria · tenue = alternativa');
+
+  const g = svg.append('g').attr('transform',`translate(${M.left},${M.top})`);
+
+  // property side bands
+  const propBands = [
+    { prop:'hydrophobic', aas:['A','V','L','I','P','F','M','W'] },
+    { prop:'polar',       aas:['S','T','C','Y','N','Q'] },
+    { prop:'positive',    aas:['K','R','H'] },
+    { prop:'negative',    aas:['D','E'] },
+    { prop:'special',     aas:['G'] },
+  ];
+  propBands.forEach(({ prop, aas }) => {
+    const r0 = AA_ORDER.indexOf(aas[0]), r1 = AA_ORDER.indexOf(aas[aas.length-1]);
+    if (r0 < 0) return;
+    g.append('rect').attr('x',-6).attr('y',r0*CELL).attr('width',4)
+      .attr('height',(r1-r0+1)*CELL).attr('fill',PROP_COLORS[prop]).attr('rx',2);
+  });
+
+  // row shading + AA labels
+  AA_ORDER.forEach((aa, ri) => {
+    if (ri % 2 === 0)
+      g.append('rect').attr('x',0).attr('y',ri*CELL).attr('width',iW).attr('height',CELL)
+        .attr('fill','rgba(30,95,184,0.04)');
+    g.append('text').attr('x',-10).attr('y',ri*CELL+CELL/2+4)
+      .attr('text-anchor','end').attr('font-size','10').attr('font-family',mono)
+      .attr('font-weight','700').attr('fill',PROP_COLORS[aaProp(aa)]).text(aa);
+  });
+
+  // column labels
+  degenPos.forEach((dp, ci) => {
+    g.append('text')
+      .attr('transform',`translate(${ci*CELL+CELL/2},${iH+5}) rotate(45)`)
+      .attr('text-anchor','start').attr('font-size','8.5')
+      .attr('font-family',mono).attr('fill','#2B4F7A').text(dp.pos);
+  });
+
+  // grid
+  for (let ci = 0; ci <= nCols; ci++)
+    g.append('line').attr('x1',ci*CELL).attr('x2',ci*CELL).attr('y1',0).attr('y2',iH)
+      .attr('stroke','rgba(30,95,184,0.1)').attr('stroke-width',0.5);
+  for (let ri = 0; ri <= nRows; ri++)
+    g.append('line').attr('x1',0).attr('x2',iW).attr('y1',ri*CELL).attr('y2',ri*CELL)
+      .attr('stroke','rgba(30,95,184,0.1)').attr('stroke-width',0.5);
+
+  // circles
+  const r = CELL * 0.38;
+  degenPos.forEach((dp, ci) => {
+    const cx = ci * CELL + CELL/2;
+    AA_ORDER.forEach((aa, ri) => {
+      const isPrimary = dp.aas[0] === aa;
+      const isAlt = !isPrimary && dp.aas.slice(1).includes(aa);
+      if (!isPrimary && !isAlt) return;
+      const col = PROP_COLORS[aaProp(aa)];
+      g.append('circle').attr('cx',cx).attr('cy',ri*CELL+CELL/2).attr('r',r)
+        .attr('fill',col).attr('opacity', isPrimary ? 0.86 : 0.28);
+      if (r >= 6) {
+        g.append('text').attr('x',cx).attr('y',ri*CELL+CELL/2+3.5)
+          .attr('text-anchor','middle')
+          .attr('font-size', isPrimary ? '9' : '8')
+          .attr('font-family',mono).attr('font-weight', isPrimary ? '800':'600')
+          .attr('fill', isPrimary ? '#fff' : col).attr('opacity', isPrimary ? 1 : 0.9)
+          .text(aa);
+      }
+    });
+  });
+}
+
 function renderDegenAnalysis(positions, startPos, degenCount, totalCombinations, maxSeqs) {
   const existing = $('degen-results');
   if (existing) existing.remove();
@@ -1110,6 +1448,22 @@ function renderDegenAnalysis(positions, startPos, degenCount, totalCombinations,
     warn.innerHTML = `⚠ El FASTA incluirá solo las primeras <strong>${maxSeqs.toLocaleString('es-ES')}</strong> de <strong>${comboStr}</strong> variantes. Aumenta el límite para obtener más.`;
     root.appendChild(warn);
   }
+
+  // Visualizaciones
+  const vizSection = mk('div', 'degen-viz-btns-section');
+  const vizLbl = mk('div', 'degen-section-label'); vizLbl.textContent = 'Visualizaciones';
+  vizSection.appendChild(vizLbl);
+  const vizBtns = mk('div', 'degen-viz-btns');
+  const mkVizBtn = (lbl, cls, fn) => {
+    const b = mk('button', `bw-btn-viz ${cls}`); b.textContent = lbl;
+    b.addEventListener('click', () => openDegenViz(lbl, c => fn(c, positions, startPos)));
+    return b;
+  };
+  vizBtns.appendChild(mkVizBtn('Retrato de Secuencia',   'bw-btn-viz--map',       renderDegenSeqMap));
+  vizBtns.appendChild(mkVizBtn('Perfil de Degeneración', 'bw-btn-viz--profile',   renderDegenProfile));
+  vizBtns.appendChild(mkVizBtn('Paisaje Aminoacídico',   'bw-btn-viz--landscape', renderDegenLandscape));
+  vizSection.appendChild(vizBtns);
+  root.appendChild(vizSection);
 
   renderClusterSection(root);
 
