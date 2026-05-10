@@ -132,6 +132,22 @@ const OPERATIONS = [
         { id: 'startPos', type: 'number', label: 'Número de la posición inicial', default: 99, min: 1 },
         { id: 'maxSeqs',  type: 'number', label: 'Límite de secuencias en el FASTA', default: 10000, min: 1, max: 1000000 },
       ],
+    },
+    {
+      id: 'plddt-kde',
+      label: 'Distribución pLDDT (KDE)',
+      desc: 'Parsea valores pLDDT en formato bruto, calcula una distribución KDE normalizada y genera una gráfica exportable en Excel, PNG y TIFF a 300 DPI.',
+      clientSide: true,
+      params: [
+        {
+          id: 'rawData',
+          type: 'textarea',
+          label: 'Datos brutos — se extrae el último valor numérico de cada línea (se conservan sólo valores entre 0 y 100)',
+          placeholder: '5500Myodes_glareolus 92.5\n5501Myodes_glareolus 92.1\n5502Myodes_glareolus 92.6\n...',
+          rows: 9,
+          default: '',
+        },
+      ],
     }],
   },
 ];
@@ -209,6 +225,8 @@ function selectOp(opId) {
   state.clientSideBlob = null;
   const prevResults = $('degen-results');
   if (prevResults) prevResults.remove();
+  const prevPlddt = $('plddt-results');
+  if (prevPlddt) prevPlddt.remove();
   resetExecuteBar();
 
   renderSidebar();
@@ -633,9 +651,10 @@ function updateExecuteBtn() {
   let ready = false;
 
   if (op.clientSide) {
-    const seq = (getParam(op.id, 'sequence') || '').trim();
-    ready = seq.length > 0;
-    if (!ready) setStatus('Introduce una secuencia para continuar', '');
+    const mainParam = op.params.find(p => p.type === 'textarea');
+    const val = mainParam ? (getParam(op.id, mainParam.id) || '').trim() : '';
+    ready = val.length > 0;
+    if (!ready) setStatus('Introduce los datos para continuar', '');
     else setStatus('', '');
   } else if (op.id === 'inventory') {
     ready = state.fileList.length > 0;
@@ -1110,9 +1129,16 @@ async function runClientSideOp(op) {
 
   const existing = $('degen-results');
   if (existing) existing.remove();
+  const existingPlddt = $('plddt-results');
+  if (existingPlddt) existingPlddt.remove();
   state.clientSideBlob = null;
 
   try {
+    if (op.id === 'plddt-kde') {
+      await runPlddtKde(op);
+      return;
+    }
+
     const rawSeq   = (getParam(op.id, 'sequence') || '').trim();
     const startPos = Math.max(1, parseInt(getParam(op.id, 'startPos') ?? 99) || 99);
     const maxSeqs  = Math.max(1, parseInt(getParam(op.id, 'maxSeqs')  ?? 10000) || 10000);
@@ -1399,6 +1425,293 @@ function renderClusterResults(container, { prions, minN, filtered, clusterInput,
     });
   });
   container.appendChild(copyBtn);
+}
+
+
+// ── pLDDT KDE Analyzer ───────────────────────────────────────────────────────
+
+const PLDDT_C_LINE  = '#c4807f';
+const PLDDT_C_FILL  = 'rgba(196,128,127,0.28)';
+const PLDDT_FONT    = "'Arial','Helvetica Neue',sans-serif";
+const PLDDT_SVG_W   = 680;
+const PLDDT_SVG_H   = 440;
+const PLDDT_M       = { top: 35, right: 45, bottom: 98, left: 68 };
+const PLDDT_IW      = PLDDT_SVG_W - PLDDT_M.left - PLDDT_M.right;
+const PLDDT_IH      = PLDDT_SVG_H - PLDDT_M.top  - PLDDT_M.bottom;
+
+function plddtParseRaw(raw) {
+  const values = [], rejected = [];
+  for (const line of raw.split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    const parts = t.split(/\s+/);
+    const n = parseFloat(parts[parts.length - 1]);
+    if (!isNaN(n) && n >= 0 && n <= 100) values.push(n);
+    else if (!isNaN(n)) rejected.push(n);
+  }
+  return { values, rejected };
+}
+
+function plddtGaussianKernel(bw) {
+  const k = 1 / (bw * Math.sqrt(2 * Math.PI));
+  return u => k * Math.exp(-0.5 * (u / bw) ** 2);
+}
+
+function plddtSilvermanBw(data) {
+  const n = data.length;
+  if (n < 2) return 1;
+  const mu  = data.reduce((a, b) => a + b, 0) / n;
+  const std = Math.sqrt(data.reduce((a, v) => a + (v - mu) ** 2, 0) / n);
+  if (std === 0) return 0.1;
+  return 1.06 * std * Math.pow(n, -0.2);
+}
+
+function plddtComputeKDE(data, kernel, xs) {
+  return xs.map(x => [x, data.reduce((s, v) => s + kernel(x - v), 0) / data.length]);
+}
+
+function plddtDrawChart(values) {
+  const svgEl = document.getElementById('plddt-chart');
+  if (!svgEl || typeof d3 === 'undefined') return;
+
+  const svg = d3.select('#plddt-chart');
+  svg.selectAll('*').remove();
+  svg.attr('width', PLDDT_SVG_W).attr('height', PLDDT_SVG_H)
+     .attr('xmlns', 'http://www.w3.org/2000/svg');
+
+  svg.append('rect')
+    .attr('width', PLDDT_SVG_W).attr('height', PLDDT_SVG_H)
+    .attr('fill', '#ffffff');
+
+  const g = svg.append('g')
+    .attr('transform', `translate(${PLDDT_M.left},${PLDDT_M.top})`);
+
+  const bw  = plddtSilvermanBw(values);
+  const pad = Math.max(bw * 3.5, 0.4);
+  const xMin = Math.min(...values) - pad;
+  const xMax = Math.max(...values) + pad;
+  const xs   = d3.range(xMin, xMax, (xMax - xMin) / 300);
+  const kde  = plddtComputeKDE(values, plddtGaussianKernel(bw), xs);
+  const maxD = Math.max(...kde.map(d => d[1]));
+  const kdeN = kde.map(d => [d[0], d[1] / maxD]);
+
+  const xScale = d3.scaleLinear().domain([xMin, xMax]).range([0, PLDDT_IW]);
+  const yScale = d3.scaleLinear().domain([0, 1.06]).range([PLDDT_IH, 0]);
+
+  g.append('g')
+    .call(d3.axisLeft(yScale).tickValues([0,.2,.4,.6,.8,1]).tickSize(-PLDDT_IW).tickFormat(''))
+    .call(e => e.select('.domain').remove())
+    .call(e => e.selectAll('.tick line').attr('stroke','#e4e4e4').attr('stroke-dasharray','4,4').attr('stroke-width',1));
+
+  const area = d3.area()
+    .x(d => xScale(d[0])).y0(PLDDT_IH).y1(d => yScale(d[1]))
+    .curve(d3.curveMonotoneX);
+  g.append('path').datum(kdeN).attr('fill', PLDDT_C_FILL).attr('d', area);
+
+  const line = d3.line()
+    .x(d => xScale(d[0])).y(d => yScale(d[1]))
+    .curve(d3.curveMonotoneX);
+  g.append('path').datum(kdeN)
+    .attr('fill','none').attr('stroke',PLDDT_C_LINE).attr('stroke-width',2.2).attr('d',line);
+
+  const peak = kdeN.reduce((a, b) => b[1] > a[1] ? b : a);
+  const px = xScale(peak[0]), py = yScale(1);
+  const labelRight  = px < PLDDT_IW * 0.6;
+  g.append('text')
+    .attr('x', px + (labelRight ? 10 : -10))
+    .attr('y', py - 10)
+    .attr('text-anchor', labelRight ? 'start' : 'end')
+    .attr('fill', PLDDT_C_LINE)
+    .attr('font-family', PLDDT_FONT).attr('font-size','13px')
+    .text(peak[0].toFixed(2));
+  g.append('circle')
+    .attr('cx', px).attr('cy', py).attr('r', 5)
+    .attr('fill', PLDDT_C_LINE).attr('stroke','#fff').attr('stroke-width',1.5);
+
+  const axStyle = e => e.selectAll('text')
+    .attr('font-family', PLDDT_FONT).attr('font-size','11px').attr('fill','#444');
+
+  g.append('g').attr('transform',`translate(0,${PLDDT_IH})`)
+    .call(d3.axisBottom(xScale).ticks(7).tickFormat(d3.format('.1f')))
+    .call(axStyle)
+    .call(e => e.select('.domain').attr('stroke','#bbb'))
+    .call(e => e.selectAll('.tick line').attr('stroke','#bbb'));
+  g.append('g')
+    .call(d3.axisLeft(yScale).tickValues([0,.2,.4,.6,.8,1]).tickFormat(d => d === 0 ? '0' : d.toFixed(1)))
+    .call(axStyle)
+    .call(e => e.select('.domain').attr('stroke','#bbb'))
+    .call(e => e.selectAll('.tick line').attr('stroke','#bbb'));
+
+  g.append('text').attr('x', PLDDT_IW/2).attr('y', PLDDT_IH+46)
+    .attr('text-anchor','middle').attr('fill','#333')
+    .attr('font-family',PLDDT_FONT).attr('font-size','13px')
+    .text('Average CA pLDDT');
+
+  g.append('text').attr('transform','rotate(-90)')
+    .attr('x',-(PLDDT_IH/2)).attr('y',-52)
+    .attr('text-anchor','middle').attr('fill','#333')
+    .attr('font-family',PLDDT_FONT).attr('font-size','13px')
+    .text('Density');
+
+  const legY = PLDDT_IH + 76, legCX = PLDDT_IW / 2;
+  g.append('line')
+    .attr('x1',legCX-28).attr('x2',legCX-6).attr('y1',legY).attr('y2',legY)
+    .attr('stroke',PLDDT_C_LINE).attr('stroke-width',2.2);
+  g.append('circle').attr('cx',legCX-17).attr('cy',legY).attr('r',4).attr('fill',PLDDT_C_LINE);
+  g.append('text').attr('x',legCX-1).attr('y',legY+4)
+    .attr('text-anchor','start').attr('fill','#444')
+    .attr('font-family',PLDDT_FONT).attr('font-size','12px')
+    .text('pLDDT distribution');
+}
+
+function plddtSvgToBlob(scale) {
+  return new Promise((resolve, reject) => {
+    const svgEl  = document.getElementById('plddt-chart');
+    if (!svgEl) return reject(new Error('SVG not found'));
+    const svgStr = new XMLSerializer().serializeToString(svgEl);
+    const blob   = new Blob([svgStr], { type: 'image/svg+xml' });
+    const url    = URL.createObjectURL(blob);
+    const img    = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = PLDDT_SVG_W * scale;
+      canvas.height = PLDDT_SVG_H * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b => resolve(b), 'image/png', 1.0);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG render failed')); };
+    img.src = url;
+  });
+}
+
+function plddtDownloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function plddtExportPng(btnEl) {
+  btnEl.disabled = true;
+  try {
+    const pngBlob = await plddtSvgToBlob(3);
+    const arrBuf  = await pngBlob.arrayBuffer();
+    const resp = await fetch('/batchwork/api/export/png', {
+      method: 'POST', headers: { 'Content-Type': 'image/png' }, body: arrBuf,
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    plddtDownloadBlob(await resp.blob(), 'plddt-distribution.png');
+  } catch (e) {
+    setStatus('Error PNG: ' + e.message, 'err');
+  } finally {
+    btnEl.disabled = false;
+  }
+}
+
+async function plddtExportTiff(btnEl) {
+  btnEl.disabled = true;
+  try {
+    const pngBlob = await plddtSvgToBlob(3);
+    const arrBuf  = await pngBlob.arrayBuffer();
+    const resp = await fetch('/batchwork/api/export/tiff', {
+      method: 'POST', headers: { 'Content-Type': 'image/png' }, body: arrBuf,
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    plddtDownloadBlob(await resp.blob(), 'plddt-distribution.tiff');
+  } catch (e) {
+    setStatus('Error TIFF: ' + e.message, 'err');
+  } finally {
+    btnEl.disabled = false;
+  }
+}
+
+function plddtExportExcel(values) {
+  if (typeof XLSX === 'undefined') { setStatus('xlsx.js no disponible', 'err'); return; }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([['pLDDT'], ...values.map(v => [v])]);
+  ws['!cols'] = [{ wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'pLDDT values');
+  XLSX.writeFile(wb, 'plddt-values.xlsx');
+}
+
+function renderPlddtResults(values, rejected) {
+  const existing = $('plddt-results');
+  if (existing) existing.remove();
+
+  const root = document.createElement('div');
+  root.id = 'plddt-results';
+  root.style.cssText = 'margin-top:20px;display:flex;flex-direction:column;gap:16px;';
+
+  // Info bar
+  const minV = Math.min(...values).toFixed(2);
+  const maxV = Math.max(...values).toFixed(2);
+  const mean = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2);
+  const info = document.createElement('div');
+  info.className = 'degen-summary';
+  info.innerHTML = `<strong>${values.length} valores válidos</strong> &nbsp;·&nbsp; min <code>${minV}</code> &nbsp;·&nbsp; max <code>${maxV}</code> &nbsp;·&nbsp; media <code>${mean}</code>` +
+    (rejected.length ? ` &nbsp;·&nbsp; <span style="color:#b07030">${rejected.length} fuera de rango descartados</span>` : '');
+  root.appendChild(info);
+
+  // Chart
+  const chartWrap = document.createElement('div');
+  chartWrap.style.cssText = 'overflow-x:auto;background:#fff;border:1px solid #e0ddd8;border-radius:8px;padding:12px;';
+  const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svgEl.id = 'plddt-chart';
+  chartWrap.appendChild(svgEl);
+  root.appendChild(chartWrap);
+
+  // Export buttons
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
+
+  const mkExportBtn = (label, title) => {
+    const b = document.createElement('button');
+    b.className = 'bw-btn';
+    b.style.cssText = 'font-size:0.82rem;padding:7px 14px;border:1px solid #a08070;color:#7a4040;background:#fff;border-radius:6px;cursor:pointer;';
+    b.textContent = '⬇ ' + label;
+    b.title = title;
+    return b;
+  };
+
+  const btnExcel = mkExportBtn('Excel', 'Descargar valores curados en Excel');
+  btnExcel.addEventListener('click', () => plddtExportExcel(values));
+
+  const btnPng = mkExportBtn('PNG 300 dpi', 'Descargar PNG a 300 DPI');
+  btnPng.addEventListener('click', () => plddtExportPng(btnPng));
+
+  const btnTiff = mkExportBtn('TIFF 300 dpi', 'Descargar TIFF a 300 DPI');
+  btnTiff.addEventListener('click', () => plddtExportTiff(btnTiff));
+
+  btnRow.appendChild(btnExcel);
+  btnRow.appendChild(btnPng);
+  btnRow.appendChild(btnTiff);
+  root.appendChild(btnRow);
+
+  const paramsZone = $('params-zone');
+  paramsZone.parentNode.insertBefore(root, paramsZone.nextSibling);
+
+  // Draw chart after DOM insertion
+  requestAnimationFrame(() => plddtDrawChart(values));
+}
+
+async function runPlddtKde(op) {
+  const raw = (getParam(op.id, 'rawData') || '').trim();
+  const { values, rejected } = plddtParseRaw(raw);
+
+  if (values.length < 2) {
+    throw new Error('Se necesitan al menos 2 valores válidos (entre 0 y 100).');
+  }
+
+  renderPlddtResults(values, rejected);
+
+  state.appStatus = 'done';
+  const note = rejected.length ? ` · ${rejected.length} descartados` : '';
+  setStatus(`✓ ${values.length} valores procesados${note}`, 'ok');
+  $('btn-execute').style.display = 'none';
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
