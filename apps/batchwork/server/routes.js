@@ -247,4 +247,41 @@ router.delete('/api/session/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── API: pLDDT chart export — PNG 300 DPI ────────────────────────────────────
+router.post('/api/export/png',
+  express.raw({ type: 'image/png', limit: '25mb' }),
+  async (req, res) => {
+    try {
+      const sharp = require('sharp');
+      const buf = await sharp(req.body).withMetadata({ density: 300 }).png().toBuffer();
+      res.set('Content-Type', 'image/png');
+      res.set('Content-Disposition', 'attachment; filename="plddt-distribution.png"');
+      res.send(buf);
+    } catch (err) {
+      console.error('[batchwork] PNG export error:', err);
+      res.status(500).json({ error: 'PNG export failed', detail: err.message });
+    }
+  }
+);
+
+// ── API: pLDDT chart export — TIFF 300 DPI ───────────────────────────────────
+router.post('/api/export/tiff',
+  express.raw({ type: 'image/png', limit: '25mb' }),
+  async (req, res) => {
+    try {
+      const sharp = require('sharp');
+      const buf = await sharp(req.body)
+        .withMetadata({ density: 300 })
+        .tiff({ compression: 'lzw', predictor: 'horizontal' })
+        .toBuffer();
+      res.set('Content-Type', 'image/tiff');
+      res.set('Content-Disposition', 'attachment; filename="plddt-distribution.tiff"');
+      res.send(buf);
+    } catch (err) {
+      console.error('[batchwork] TIFF export error:', err);
+      res.status(500).json({ error: 'TIFF export failed', detail: err.message });
+    }
+  }
+);
+
 module.exports = router;
