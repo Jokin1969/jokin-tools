@@ -138,16 +138,7 @@ const OPERATIONS = [
       label: 'Distribución pLDDT (KDE)',
       desc: 'Parsea valores pLDDT en formato bruto, calcula una distribución KDE normalizada y genera una gráfica exportable en Excel, PNG y TIFF a 300 DPI.',
       clientSide: true,
-      params: [
-        {
-          id: 'rawData',
-          type: 'textarea',
-          label: 'Datos brutos — se extrae el último valor numérico de cada línea (se conservan sólo valores entre 0 y 100)',
-          placeholder: '5500Myodes_glareolus 92.5\n5501Myodes_glareolus 92.1\n5502Myodes_glareolus 92.6\n...',
-          rows: 9,
-          default: '',
-        },
-      ],
+      params: [],
     }],
   },
 ];
@@ -469,6 +460,8 @@ function renderParams(op) {
   const zone = $('params-zone');
   zone.innerHTML = '';
 
+  if (op.id === 'plddt-kde') { renderPlddtGroupsUI(); return; }
+
   if (!op.params || op.params.length === 0) return;
 
   // Init defaults
@@ -651,11 +644,17 @@ function updateExecuteBtn() {
   let ready = false;
 
   if (op.clientSide) {
-    const mainParam = op.params.find(p => p.type === 'textarea');
-    const val = mainParam ? (getParam(op.id, mainParam.id) || '').trim() : '';
-    ready = val.length > 0;
-    if (!ready) setStatus('Introduce los datos para continuar', '');
-    else setStatus('', '');
+    if (op.id === 'plddt-kde') {
+      ready = plddtGroups.some(g => g.raw.trim().length > 0);
+      if (!ready) setStatus('Introduce datos en al menos un grupo', '');
+      else setStatus('', '');
+    } else {
+      const mainParam = op.params.find(p => p.type === 'textarea');
+      const val = mainParam ? (getParam(op.id, mainParam.id) || '').trim() : '';
+      ready = val.length > 0;
+      if (!ready) setStatus('Introduce los datos para continuar', '');
+      else setStatus('', '');
+    }
   } else if (op.id === 'inventory') {
     ready = state.fileList.length > 0;
     if (!ready) setStatus('Selecciona una carpeta para continuar', '');
@@ -1430,14 +1429,31 @@ function renderClusterResults(container, { prions, minN, filtered, clusterInput,
 
 // ── pLDDT KDE Analyzer ───────────────────────────────────────────────────────
 
-const PLDDT_C_LINE  = '#c4807f';
-const PLDDT_C_FILL  = 'rgba(196,128,127,0.28)';
-const PLDDT_FONT    = "'Arial','Helvetica Neue',sans-serif";
-const PLDDT_SVG_W   = 680;
-const PLDDT_SVG_H   = 440;
-const PLDDT_M       = { top: 35, right: 45, bottom: 98, left: 68 };
-const PLDDT_IW      = PLDDT_SVG_W - PLDDT_M.left - PLDDT_M.right;
-const PLDDT_IH      = PLDDT_SVG_H - PLDDT_M.top  - PLDDT_M.bottom;
+const PLDDT_PALETTE = [
+  { line: '#c4807f', fill: 'rgba(196,128,127,0.25)' },
+  { line: '#6a9fc4', fill: 'rgba(106,159,196,0.25)' },
+  { line: '#72b472', fill: 'rgba(114,180,114,0.25)' },
+  { line: '#c4a85c', fill: 'rgba(196,168,92,0.25)'  },
+  { line: '#9d72b4', fill: 'rgba(157,114,180,0.25)' },
+  { line: '#c47282', fill: 'rgba(196,114,130,0.25)' },
+];
+const PLDDT_FONT  = "'Arial','Helvetica Neue',sans-serif";
+const PLDDT_SVG_W = 680;
+const PLDDT_IH    = 307;
+const PLDDT_MTOP  = 35;
+const PLDDT_ML    = 68;
+const PLDDT_MR    = 45;
+const PLDDT_IW    = PLDDT_SVG_W - PLDDT_ML - PLDDT_MR;
+
+let plddtGroups        = [{ id: 1, name: 'Grupo 1', raw: '' }];
+let plddtNextId        = 2;
+let plddtShowLegend    = true;
+let plddtCurrentGroups = [];
+
+function plddtSvgH(nLegRows) {
+  // top + innerH + x-tick-space + x-label + gap + leg-rows + bottom-pad
+  return PLDDT_MTOP + PLDDT_IH + 20 + 26 + 16 + 22 * Math.max(1, nLegRows) + 14;
+}
 
 function plddtParseRaw(raw) {
   const values = [], rejected = [];
@@ -1470,115 +1486,125 @@ function plddtComputeKDE(data, kernel, xs) {
   return xs.map(x => [x, data.reduce((s, v) => s + kernel(x - v), 0) / data.length]);
 }
 
-function plddtDrawChart(values) {
+// groups = [{ name, values, palette:{line,fill} }], showLegend, transparent
+function plddtDrawChart(groups, showLegend = true, transparent = false) {
   const svgEl = document.getElementById('plddt-chart');
   if (!svgEl || typeof d3 === 'undefined') return;
 
+  const SVG_H = plddtSvgH(showLegend ? groups.length : 0);
   const svg = d3.select('#plddt-chart');
   svg.selectAll('*').remove();
-  svg.attr('width', PLDDT_SVG_W).attr('height', PLDDT_SVG_H)
-     .attr('xmlns', 'http://www.w3.org/2000/svg');
+  svg.attr('width', PLDDT_SVG_W).attr('height', SVG_H).attr('xmlns', 'http://www.w3.org/2000/svg');
 
-  svg.append('rect')
-    .attr('width', PLDDT_SVG_W).attr('height', PLDDT_SVG_H)
-    .attr('fill', '#ffffff');
+  if (!transparent) {
+    svg.append('rect').attr('width', PLDDT_SVG_W).attr('height', SVG_H).attr('fill', '#ffffff');
+  }
 
-  const g = svg.append('g')
-    .attr('transform', `translate(${PLDDT_M.left},${PLDDT_M.top})`);
+  const g = svg.append('g').attr('transform', `translate(${PLDDT_ML},${PLDDT_MTOP})`);
 
-  const bw  = plddtSilvermanBw(values);
-  const pad = Math.max(bw * 3.5, 0.4);
-  const xMin = Math.min(...values) - pad;
-  const xMax = Math.max(...values) + pad;
-  const xs   = d3.range(xMin, xMax, (xMax - xMin) / 300);
-  const kde  = plddtComputeKDE(values, plddtGaussianKernel(bw), xs);
-  const maxD = Math.max(...kde.map(d => d[1]));
-  const kdeN = kde.map(d => [d[0], d[1] / maxD]);
+  // Combined x domain across all groups
+  const allVals = groups.flatMap(gr => gr.values);
+  const bwMax   = Math.max(...groups.map(gr => plddtSilvermanBw(gr.values)));
+  const pad     = Math.max(bwMax * 3.5, 0.4);
+  const xMin    = Math.min(...allVals) - pad;
+  const xMax    = Math.max(...allVals) + pad;
+  const xs      = d3.range(xMin, xMax, (xMax - xMin) / 300);
 
   const xScale = d3.scaleLinear().domain([xMin, xMax]).range([0, PLDDT_IW]);
   const yScale = d3.scaleLinear().domain([0, 1.06]).range([PLDDT_IH, 0]);
 
+  // Grid
   g.append('g')
     .call(d3.axisLeft(yScale).tickValues([0,.2,.4,.6,.8,1]).tickSize(-PLDDT_IW).tickFormat(''))
     .call(e => e.select('.domain').remove())
     .call(e => e.selectAll('.tick line').attr('stroke','#e4e4e4').attr('stroke-dasharray','4,4').attr('stroke-width',1));
 
-  const area = d3.area()
-    .x(d => xScale(d[0])).y0(PLDDT_IH).y1(d => yScale(d[1]))
-    .curve(d3.curveMonotoneX);
-  g.append('path').datum(kdeN).attr('fill', PLDDT_C_FILL).attr('d', area);
+  // Draw each group (areas first, then lines on top)
+  groups.forEach(grp => {
+    const { fill: fc } = grp.palette;
+    const bw   = plddtSilvermanBw(grp.values);
+    const kdeN = plddtComputeKDE(grp.values, plddtGaussianKernel(bw), xs);
+    const maxD = Math.max(...kdeN.map(d => d[1]));
+    const norm = kdeN.map(d => [d[0], d[1] / maxD]);
+    g.append('path').datum(norm).attr('fill', fc)
+      .attr('d', d3.area().x(d => xScale(d[0])).y0(PLDDT_IH).y1(d => yScale(d[1])).curve(d3.curveMonotoneX));
+    grp._norm = norm; // cache for peak + line pass
+  });
+  groups.forEach(grp => {
+    const { line: lc } = grp.palette;
+    g.append('path').datum(grp._norm)
+      .attr('fill','none').attr('stroke',lc).attr('stroke-width',2.2)
+      .attr('d', d3.line().x(d => xScale(d[0])).y(d => yScale(d[1])).curve(d3.curveMonotoneX));
 
-  const line = d3.line()
-    .x(d => xScale(d[0])).y(d => yScale(d[1]))
-    .curve(d3.curveMonotoneX);
-  g.append('path').datum(kdeN)
-    .attr('fill','none').attr('stroke',PLDDT_C_LINE).attr('stroke-width',2.2).attr('d',line);
+    const peak = grp._norm.reduce((a, b) => b[1] > a[1] ? b : a);
+    const px = xScale(peak[0]), py = yScale(1);
+    const lr = px < PLDDT_IW * 0.6;
+    g.append('text')
+      .attr('x', px + (lr ? 10 : -10)).attr('y', py - 10)
+      .attr('text-anchor', lr ? 'start' : 'end')
+      .attr('fill', lc).attr('font-family', PLDDT_FONT).attr('font-size','13px')
+      .text(peak[0].toFixed(2));
+    g.append('circle').attr('cx', px).attr('cy', py).attr('r', 5)
+      .attr('fill', lc).attr('stroke','#fff').attr('stroke-width',1.5);
+  });
 
-  const peak = kdeN.reduce((a, b) => b[1] > a[1] ? b : a);
-  const px = xScale(peak[0]), py = yScale(1);
-  const labelRight  = px < PLDDT_IW * 0.6;
-  g.append('text')
-    .attr('x', px + (labelRight ? 10 : -10))
-    .attr('y', py - 10)
-    .attr('text-anchor', labelRight ? 'start' : 'end')
-    .attr('fill', PLDDT_C_LINE)
-    .attr('font-family', PLDDT_FONT).attr('font-size','13px')
-    .text(peak[0].toFixed(2));
-  g.append('circle')
-    .attr('cx', px).attr('cy', py).attr('r', 5)
-    .attr('fill', PLDDT_C_LINE).attr('stroke','#fff').attr('stroke-width',1.5);
-
-  const axStyle = e => e.selectAll('text')
-    .attr('font-family', PLDDT_FONT).attr('font-size','11px').attr('fill','#444');
-
+  // Axes
+  const ax = e => e.selectAll('text').attr('font-family', PLDDT_FONT).attr('font-size','11px').attr('fill','#444');
   g.append('g').attr('transform',`translate(0,${PLDDT_IH})`)
     .call(d3.axisBottom(xScale).ticks(7).tickFormat(d3.format('.1f')))
-    .call(axStyle)
-    .call(e => e.select('.domain').attr('stroke','#bbb'))
+    .call(ax).call(e => e.select('.domain').attr('stroke','#bbb'))
     .call(e => e.selectAll('.tick line').attr('stroke','#bbb'));
   g.append('g')
-    .call(d3.axisLeft(yScale).tickValues([0,.2,.4,.6,.8,1]).tickFormat(d => d === 0 ? '0' : d.toFixed(1)))
-    .call(axStyle)
-    .call(e => e.select('.domain').attr('stroke','#bbb'))
+    .call(d3.axisLeft(yScale).tickValues([0,.2,.4,.6,.8,1]).tickFormat(d => d===0?'0':d.toFixed(1)))
+    .call(ax).call(e => e.select('.domain').attr('stroke','#bbb'))
     .call(e => e.selectAll('.tick line').attr('stroke','#bbb'));
 
   g.append('text').attr('x', PLDDT_IW/2).attr('y', PLDDT_IH+46)
     .attr('text-anchor','middle').attr('fill','#333')
-    .attr('font-family',PLDDT_FONT).attr('font-size','13px')
-    .text('Average CA pLDDT');
-
-  g.append('text').attr('transform','rotate(-90)')
-    .attr('x',-(PLDDT_IH/2)).attr('y',-52)
+    .attr('font-family',PLDDT_FONT).attr('font-size','13px').text('Average CA pLDDT');
+  g.append('text').attr('transform','rotate(-90)').attr('x',-(PLDDT_IH/2)).attr('y',-52)
     .attr('text-anchor','middle').attr('fill','#333')
-    .attr('font-family',PLDDT_FONT).attr('font-size','13px')
-    .text('Density');
+    .attr('font-family',PLDDT_FONT).attr('font-size','13px').text('Density');
 
-  const legY = PLDDT_IH + 76, legCX = PLDDT_IW / 2;
-  g.append('line')
-    .attr('x1',legCX-28).attr('x2',legCX-6).attr('y1',legY).attr('y2',legY)
-    .attr('stroke',PLDDT_C_LINE).attr('stroke-width',2.2);
-  g.append('circle').attr('cx',legCX-17).attr('cy',legY).attr('r',4).attr('fill',PLDDT_C_LINE);
-  g.append('text').attr('x',legCX-1).attr('y',legY+4)
-    .attr('text-anchor','start').attr('fill','#444')
-    .attr('font-family',PLDDT_FONT).attr('font-size','12px')
-    .text('pLDDT distribution');
+  // Legend
+  if (showLegend) {
+    const legY0 = PLDDT_IH + 64;
+    const legX  = PLDDT_IW / 2 - 60;
+    groups.forEach((grp, i) => {
+      const { line: lc } = grp.palette;
+      const y = legY0 + i * 22;
+      g.append('line').attr('x1',legX).attr('x2',legX+22).attr('y1',y).attr('y2',y)
+        .attr('stroke',lc).attr('stroke-width',2.2);
+      g.append('circle').attr('cx',legX+11).attr('cy',y).attr('r',4).attr('fill',lc);
+      g.append('text').attr('x',legX+28).attr('y',y+4)
+        .attr('text-anchor','start').attr('fill','#444')
+        .attr('font-family',PLDDT_FONT).attr('font-size','12px').text(grp.name);
+    });
+  }
 }
 
-function plddtSvgToBlob(scale) {
+function plddtSvgToBlob(scale, transparent = false) {
   return new Promise((resolve, reject) => {
-    const svgEl  = document.getElementById('plddt-chart');
+    const svgEl = document.getElementById('plddt-chart');
     if (!svgEl) return reject(new Error('SVG not found'));
-    const svgStr = new XMLSerializer().serializeToString(svgEl);
+    let root = svgEl;
+    if (transparent) {
+      root = svgEl.cloneNode(true);
+      const bgRect = root.querySelector('rect[fill="#ffffff"]');
+      if (bgRect) bgRect.remove();
+    }
+    const svgStr = new XMLSerializer().serializeToString(root);
     const blob   = new Blob([svgStr], { type: 'image/svg+xml' });
     const url    = URL.createObjectURL(blob);
     const img    = new Image();
+    const w = parseInt(svgEl.getAttribute('width')  || PLDDT_SVG_W);
+    const h = parseInt(svgEl.getAttribute('height') || 440);
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      canvas.width  = PLDDT_SVG_W * scale;
-      canvas.height = PLDDT_SVG_H * scale;
+      canvas.width  = w * scale;
+      canvas.height = h * scale;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (!transparent) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
       canvas.toBlob(b => resolve(b), 'image/png', 1.0);
@@ -1595,16 +1621,16 @@ function plddtDownloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-async function plddtExportPng(btnEl) {
+async function plddtExportPng(btnEl, transparent = false) {
   btnEl.disabled = true;
   try {
-    const pngBlob = await plddtSvgToBlob(3);
+    const pngBlob = await plddtSvgToBlob(3, transparent);
     const arrBuf  = await pngBlob.arrayBuffer();
     const resp = await fetch('/batchwork/api/export/png', {
       method: 'POST', headers: { 'Content-Type': 'image/png' }, body: arrBuf,
     });
     if (!resp.ok) throw new Error(await resp.text());
-    plddtDownloadBlob(await resp.blob(), 'plddt-distribution.png');
+    plddtDownloadBlob(await resp.blob(), transparent ? 'plddt-distribution-transparent.png' : 'plddt-distribution.png');
   } catch (e) {
     setStatus('Error PNG: ' + e.message, 'err');
   } finally {
@@ -1629,32 +1655,102 @@ async function plddtExportTiff(btnEl) {
   }
 }
 
-function plddtExportExcel(values) {
+function plddtExportExcel(groups) {
   if (typeof XLSX === 'undefined') { setStatus('xlsx.js no disponible', 'err'); return; }
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([['pLDDT'], ...values.map(v => [v])]);
-  ws['!cols'] = [{ wch: 12 }];
-  XLSX.utils.book_append_sheet(wb, ws, 'pLDDT values');
+  for (const grp of groups) {
+    const ws = XLSX.utils.aoa_to_sheet([['pLDDT'], ...grp.values.map(v => [v])]);
+    ws['!cols'] = [{ wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws, (grp.name || 'Grupo').slice(0, 31));
+  }
   XLSX.writeFile(wb, 'plddt-values.xlsx');
 }
 
-function renderPlddtResults(values, rejected) {
+function renderPlddtGroupsUI() {
+  const zone = $('params-zone');
+  zone.innerHTML = '';
+  const container = document.createElement('div');
+  container.className = 'bw-params';
+
+  function rebuildUI() {
+    container.innerHTML = '';
+    plddtGroups.forEach((grp, i) => {
+      const { line: lc } = PLDDT_PALETTE[i % PLDDT_PALETTE.length];
+      const block = document.createElement('div');
+      block.style.cssText = 'border:1px solid #e0ddd8;border-radius:8px;padding:12px 14px;margin-bottom:10px;background:#fafaf8;';
+
+      const hdr = document.createElement('div');
+      hdr.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+
+      const dot = document.createElement('span');
+      dot.style.cssText = `width:12px;height:12px;border-radius:50%;background:${lc};flex-shrink:0;display:inline-block;`;
+      hdr.appendChild(dot);
+
+      const nameIn = document.createElement('input');
+      nameIn.type = 'text'; nameIn.value = grp.name; nameIn.placeholder = `Grupo ${i + 1}`;
+      nameIn.style.cssText = `flex:1;font-size:0.82rem;padding:4px 8px;border:1px solid #d0ccc8;border-radius:5px;font-family:${PLDDT_FONT};`;
+      nameIn.addEventListener('input', () => { plddtGroups[i].name = nameIn.value || `Grupo ${i + 1}`; });
+      hdr.appendChild(nameIn);
+
+      if (plddtGroups.length > 1) {
+        const rmBtn = document.createElement('button');
+        rmBtn.textContent = '✕'; rmBtn.title = 'Eliminar grupo';
+        rmBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:#aaa;font-size:1rem;padding:2px 6px;border-radius:4px;line-height:1;';
+        rmBtn.addEventListener('mouseover', () => { rmBtn.style.color = '#c44'; });
+        rmBtn.addEventListener('mouseout',  () => { rmBtn.style.color = '#aaa'; });
+        rmBtn.addEventListener('click', () => { plddtGroups.splice(i, 1); rebuildUI(); updateExecuteBtn(); });
+        hdr.appendChild(rmBtn);
+      }
+      block.appendChild(hdr);
+
+      const ta = document.createElement('textarea');
+      ta.value = grp.raw; ta.rows = 6; ta.spellcheck = false;
+      ta.placeholder = '5500Myodes_glareolus 92.5\n5501Myodes_glareolus 92.1\n...';
+      ta.style.cssText = `width:100%;resize:vertical;font-family:${PLDDT_FONT};font-size:0.78rem;padding:8px 10px;border:1px solid #d0ccc8;border-radius:5px;color:#333;box-sizing:border-box;`;
+      ta.addEventListener('input', () => { plddtGroups[i].raw = ta.value; updateExecuteBtn(); });
+      block.appendChild(ta);
+      container.appendChild(block);
+    });
+
+    if (plddtGroups.length < PLDDT_PALETTE.length) {
+      const addBtn = document.createElement('button');
+      addBtn.style.cssText = 'font-size:0.82rem;padding:7px 14px;border:1px dashed #b0a0a0;color:#7a5050;background:transparent;border-radius:6px;cursor:pointer;width:100%;';
+      addBtn.textContent = '＋ Añadir grupo';
+      addBtn.addEventListener('click', () => {
+        plddtGroups.push({ id: plddtNextId++, name: `Grupo ${plddtGroups.length + 1}`, raw: '' });
+        rebuildUI(); updateExecuteBtn();
+      });
+      container.appendChild(addBtn);
+    }
+  }
+
+  rebuildUI();
+  zone.appendChild(container);
+}
+
+function renderPlddtResults(resolvedGroups) {
   const existing = $('plddt-results');
   if (existing) existing.remove();
+  plddtCurrentGroups = resolvedGroups;
 
   const root = document.createElement('div');
   root.id = 'plddt-results';
-  root.style.cssText = 'margin-top:20px;display:flex;flex-direction:column;gap:16px;';
+  root.style.cssText = 'margin-top:20px;display:flex;flex-direction:column;gap:14px;';
 
-  // Info bar
-  const minV = Math.min(...values).toFixed(2);
-  const maxV = Math.max(...values).toFixed(2);
-  const mean = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2);
-  const info = document.createElement('div');
-  info.className = 'degen-summary';
-  info.innerHTML = `<strong>${values.length} valores válidos</strong> &nbsp;·&nbsp; min <code>${minV}</code> &nbsp;·&nbsp; max <code>${maxV}</code> &nbsp;·&nbsp; media <code>${mean}</code>` +
-    (rejected.length ? ` &nbsp;·&nbsp; <span style="color:#b07030">${rejected.length} fuera de rango descartados</span>` : '');
-  root.appendChild(info);
+  // Per-group info bars
+  resolvedGroups.forEach(grp => {
+    const { line: lc } = grp.palette;
+    const minV = Math.min(...grp.values).toFixed(2);
+    const maxV = Math.max(...grp.values).toFixed(2);
+    const mean = (grp.values.reduce((a,b)=>a+b,0)/grp.values.length).toFixed(2);
+    const info = document.createElement('div');
+    info.className = 'degen-summary';
+    info.style.borderLeft = `4px solid ${lc}`;
+    info.style.paddingLeft = '10px';
+    info.innerHTML = `<strong style="color:${lc}">${grp.name}</strong> &nbsp;·&nbsp; <strong>${grp.values.length}</strong> val. &nbsp;·&nbsp; min <code>${minV}</code> · max <code>${maxV}</code> · media <code>${mean}</code>` +
+      (grp.rejected.length ? ` · <span style="color:#b07030">${grp.rejected.length} descartados</span>` : '');
+    root.appendChild(info);
+  });
 
   // Chart
   const chartWrap = document.createElement('div');
@@ -1664,53 +1760,66 @@ function renderPlddtResults(values, rejected) {
   chartWrap.appendChild(svgEl);
   root.appendChild(chartWrap);
 
-  // Export buttons
-  const btnRow = document.createElement('div');
-  btnRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
+  // Controls: legend toggle + exports
+  const ctrlRow = document.createElement('div');
+  ctrlRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
 
-  const mkExportBtn = (label, title) => {
+  const legBtn = document.createElement('button');
+  legBtn.style.cssText = 'font-size:0.82rem;padding:7px 14px;border:1px solid #bbb;color:#555;background:#fff;border-radius:6px;cursor:pointer;';
+  const refreshLegBtn = () => { legBtn.textContent = plddtShowLegend ? '👁 Ocultar leyenda' : '👁 Mostrar leyenda'; };
+  refreshLegBtn();
+  legBtn.addEventListener('click', () => { plddtShowLegend = !plddtShowLegend; refreshLegBtn(); plddtDrawChart(plddtCurrentGroups, plddtShowLegend); });
+  ctrlRow.appendChild(legBtn);
+
+  const mkEx = (label, title) => {
     const b = document.createElement('button');
-    b.className = 'bw-btn';
     b.style.cssText = 'font-size:0.82rem;padding:7px 14px;border:1px solid #a08070;color:#7a4040;background:#fff;border-radius:6px;cursor:pointer;';
-    b.textContent = '⬇ ' + label;
-    b.title = title;
+    b.textContent = '⬇ ' + label; b.title = title;
     return b;
   };
 
-  const btnExcel = mkExportBtn('Excel', 'Descargar valores curados en Excel');
-  btnExcel.addEventListener('click', () => plddtExportExcel(values));
+  const btnExcel = mkEx('Excel',              'Una hoja por grupo con los valores curados');
+  const btnPng   = mkEx('PNG 300 dpi',        'PNG fondo blanco a 300 DPI');
+  const btnPngT  = mkEx('PNG Transp. 300 dpi','PNG fondo transparente a 300 DPI');
+  const btnTiff  = mkEx('TIFF 300 dpi',       'TIFF fondo blanco a 300 DPI');
 
-  const btnPng = mkExportBtn('PNG 300 dpi', 'Descargar PNG a 300 DPI');
-  btnPng.addEventListener('click', () => plddtExportPng(btnPng));
+  btnExcel.addEventListener('click', () => plddtExportExcel(resolvedGroups));
+  btnPng.addEventListener('click',   () => plddtExportPng(btnPng,  false));
+  btnPngT.addEventListener('click',  () => plddtExportPng(btnPngT, true));
+  btnTiff.addEventListener('click',  () => plddtExportTiff(btnTiff));
 
-  const btnTiff = mkExportBtn('TIFF 300 dpi', 'Descargar TIFF a 300 DPI');
-  btnTiff.addEventListener('click', () => plddtExportTiff(btnTiff));
-
-  btnRow.appendChild(btnExcel);
-  btnRow.appendChild(btnPng);
-  btnRow.appendChild(btnTiff);
-  root.appendChild(btnRow);
+  [btnExcel, btnPng, btnPngT, btnTiff].forEach(b => ctrlRow.appendChild(b));
+  root.appendChild(ctrlRow);
 
   const paramsZone = $('params-zone');
   paramsZone.parentNode.insertBefore(root, paramsZone.nextSibling);
-
-  // Draw chart after DOM insertion
-  requestAnimationFrame(() => plddtDrawChart(values));
+  requestAnimationFrame(() => plddtDrawChart(plddtCurrentGroups, plddtShowLegend));
 }
 
 async function runPlddtKde(op) {
-  const raw = (getParam(op.id, 'rawData') || '').trim();
-  const { values, rejected } = plddtParseRaw(raw);
+  const resolvedGroups = [];
+  plddtGroups.forEach((grp, i) => {
+    const { values, rejected } = plddtParseRaw(grp.raw);
+    if (values.length >= 2) {
+      resolvedGroups.push({
+        name:    grp.name || `Grupo ${i + 1}`,
+        values,
+        rejected,
+        palette: PLDDT_PALETTE[i % PLDDT_PALETTE.length],
+      });
+    }
+  });
 
-  if (values.length < 2) {
-    throw new Error('Se necesitan al menos 2 valores válidos (entre 0 y 100).');
+  if (resolvedGroups.length === 0) {
+    throw new Error('Ningún grupo tiene al menos 2 valores válidos (0–100).');
   }
 
-  renderPlddtResults(values, rejected);
+  renderPlddtResults(resolvedGroups);
 
+  const total     = resolvedGroups.reduce((s, g) => s + g.values.length, 0);
+  const discarded = resolvedGroups.reduce((s, g) => s + g.rejected.length, 0);
   state.appStatus = 'done';
-  const note = rejected.length ? ` · ${rejected.length} descartados` : '';
-  setStatus(`✓ ${values.length} valores procesados${note}`, 'ok');
+  setStatus(`✓ ${resolvedGroups.length} grupo${resolvedGroups.length !== 1 ? 's' : ''} · ${total} valores` + (discarded ? ` · ${discarded} descartados` : ''), 'ok');
   $('btn-execute').style.display = 'none';
 }
 
