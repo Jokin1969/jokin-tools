@@ -139,6 +139,13 @@ const OPERATIONS = [
       desc: 'Parsea valores pLDDT en formato bruto, calcula una distribución KDE normalizada y genera una gráfica exportable en Excel, PNG y TIFF a 300 DPI.',
       clientSide: true,
       params: [],
+    },
+    {
+      id: 'mutagen-tree',
+      label: 'Árbol de mutagénesis',
+      desc: 'Compara secuencias derivadas frente a una original y calcula la ruta de síntesis más barata. Las mutaciones que caen dentro de una misma ventana de N nucleótidos cuentan como un único cambio (lo que la empresa factura como un cambio), de modo que algunas secuencias se sintetizan a partir de otras para abaratar el pedido.',
+      clientSide: true,
+      params: [],
     }],
   },
 ];
@@ -218,6 +225,8 @@ function selectOp(opId) {
   if (prevResults) prevResults.remove();
   const prevPlddt = $('plddt-results');
   if (prevPlddt) prevPlddt.remove();
+  const prevMutagen = $('mutagen-results');
+  if (prevMutagen) prevMutagen.remove();
   resetExecuteBar();
 
   renderSidebar();
@@ -461,6 +470,7 @@ function renderParams(op) {
   zone.innerHTML = '';
 
   if (op.id === 'plddt-kde') { renderPlddtGroupsUI(); return; }
+  if (op.id === 'mutagen-tree') { renderMutagenUI(); return; }
 
   if (!op.params || op.params.length === 0) return;
 
@@ -647,6 +657,14 @@ function updateExecuteBtn() {
     if (op.id === 'plddt-kde') {
       ready = plddtGroups.some(g => g.raw.trim().length > 0);
       if (!ready) setStatus('Introduce datos en al menos un grupo', '');
+      else setStatus('', '');
+    } else if (op.id === 'mutagen-tree') {
+      const hasOrig = mutagenInput.original.trim().length > 0;
+      const hasList = mutagenInput.list.trim().length > 0;
+      ready = hasOrig && hasList;
+      if (!hasOrig && !hasList) setStatus('Introduce la secuencia original y el listado de derivadas', '');
+      else if (!hasOrig)        setStatus('Falta: la secuencia original', '');
+      else if (!hasList)        setStatus('Falta: el listado de secuencias derivadas', '');
       else setStatus('', '');
     } else {
       const mainParam = op.params.find(p => p.type === 'textarea');
@@ -1484,11 +1502,17 @@ async function runClientSideOp(op) {
   if (existing) existing.remove();
   const existingPlddt = $('plddt-results');
   if (existingPlddt) existingPlddt.remove();
+  const existingMutagen = $('mutagen-results');
+  if (existingMutagen) existingMutagen.remove();
   state.clientSideBlob = null;
 
   try {
     if (op.id === 'plddt-kde') {
       await runPlddtKde(op);
+      return;
+    }
+    if (op.id === 'mutagen-tree') {
+      await runMutagenTree(op);
       return;
     }
 
@@ -2175,6 +2199,541 @@ async function runPlddtKde(op) {
   state.appStatus = 'done';
   setStatus(`✓ ${resolvedGroups.length} grupo${resolvedGroups.length !== 1 ? 's' : ''} · ${total} valores` + (discarded ? ` · ${discarded} descartados` : ''), 'ok');
   $('btn-execute').style.display = 'none';
+}
+
+// ── Mutagenesis synthesis tree ────────────────────────────────────────────────
+//
+// Compara secuencias derivadas frente a una original (sólo substituciones, misma
+// longitud) y calcula la ruta de síntesis más barata. La empresa de síntesis
+// factura UN cambio por cada grupo de mutaciones que quepa en una ventana de N
+// nucleótidos (por defecto 30). El coste entre dos secuencias = nº mínimo de
+// ventanas de N nt que cubren todas sus diferencias. Con un coste simétrico, la
+// arborescencia de coste mínimo enraizada en la original coincide con el árbol de
+// recubrimiento mínimo (MST), que calculamos con Prim. El resultado indica el
+// orden de mutagénesis (qué secuencia se sintetiza a partir de cuál) que minimiza
+// el número total de cambios facturados.
+
+let mutagenInput = { original: '', list: '', blockSize: 30 };
+
+const MUT_MONO = 'IBM Plex Mono,monospace';
+
+// Parse the original sequence: FASTA (first record) or plain text (all lines joined).
+function mutagenParseOriginal(text) {
+  const t = (text || '').trim();
+  if (!t) return null;
+  if (t.includes('>')) {
+    const arr = parseFASTA(t);
+    return arr.length ? { id: arr[0].id || 'Original', seq: arr[0].seq } : null;
+  }
+  const clean = t.split('\n').map(l => l.trim()).join('').toUpperCase().replace(/[^A-Z*]/g, '');
+  return clean ? { id: 'Original', seq: clean } : null;
+}
+
+// Parse the derived list: FASTA (by headers) or plain text (one sequence per line,
+// auto-named Seq001, Seq002…).
+function mutagenParseList(text) {
+  const t = (text || '').trim();
+  if (!t) return [];
+  if (t.includes('>')) {
+    return parseFASTA(t).map((s, i) => ({
+      id: s.id && s.id.trim() ? s.id.trim() : `Seq${String(i + 1).padStart(3, '0')}`,
+      seq: s.seq,
+    }));
+  }
+  const seqs = [];
+  for (const line of t.split('\n')) {
+    const clean = line.trim().toUpperCase().replace(/[^A-Z*]/g, '');
+    if (!clean) continue;
+    seqs.push({ id: `Seq${String(seqs.length + 1).padStart(3, '0')}`, seq: clean });
+  }
+  return seqs;
+}
+
+// 0-based positions where a and b differ (compares over the shared length).
+function mutagenDiffPositions(a, b) {
+  const positions = [];
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) if (a[i] !== b[i]) positions.push(i);
+  return positions;
+}
+
+// Greedy minimal packing of differing positions into windows of `block` nt.
+// Returns [{ start, end, positions:[...] }] (0-based). Each window spans ≤ block nt.
+function mutagenBlocks(positions, block) {
+  const blocks = [];
+  let i = 0;
+  while (i < positions.length) {
+    const winStart = positions[i];
+    const winEnd = winStart + block - 1;
+    const grp = [];
+    while (i < positions.length && positions[i] <= winEnd) { grp.push(positions[i]); i++; }
+    blocks.push({ start: winStart, end: grp[grp.length - 1], positions: grp });
+  }
+  return blocks;
+}
+
+// Cost = number of windows, computed in O(L) without allocating the position list.
+function mutagenCostDirect(a, b, block) {
+  let windows = 0, winEnd = -1;
+  const len = Math.min(a.length, b.length);
+  for (let p = 0; p < len; p++) {
+    if (a[p] !== b[p] && p > winEnd) { windows++; winEnd = p + block - 1; }
+  }
+  return windows;
+}
+
+// Minimum spanning tree (Prim) over all nodes, rooted at node 0 (the original).
+// Returns { parent[], cost[] } indexed by node. parent[0] = -1.
+function mutagenBuildTree(nodes, block) {
+  const n = nodes.length;
+  const inTree = new Array(n).fill(false);
+  const bestCost = new Array(n).fill(Infinity);
+  const parent = new Array(n).fill(-1);
+  bestCost[0] = 0;
+  for (let it = 0; it < n; it++) {
+    let u = -1, min = Infinity;
+    for (let v = 0; v < n; v++) if (!inTree[v] && bestCost[v] < min) { min = bestCost[v]; u = v; }
+    if (u === -1) break;
+    inTree[u] = true;
+    for (let v = 0; v < n; v++) {
+      if (inTree[v]) continue;
+      const c = mutagenCostDirect(nodes[u].seq, nodes[v].seq, block);
+      if (c < bestCost[v]) { bestCost[v] = c; parent[v] = u; }
+    }
+  }
+  return { parent, cost: bestCost };
+}
+
+function mutagenCostColor(c) {
+  if (c <= 0) return '#9AA7B5';
+  const palette = ['#0D7A55', '#1E5FB8', '#B85820', '#B83232'];
+  return palette[Math.min(c - 1, palette.length - 1)];
+}
+
+// ── Input UI ──────────────────────────────────────────────────────────────────
+function mutagenMakeInput({ label, hint, placeholder, rows, value, onChange }) {
+  const wrap = mk('div', 'bw-field');
+
+  const top = mk('div');
+  top.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;';
+  const lbl = mk('label', null, label);
+  lbl.style.margin = '0';
+  top.appendChild(lbl);
+
+  const fileBtn = mk('button', 'bw-btn bw-btn-cancel');
+  fileBtn.type = 'button';
+  fileBtn.style.cssText = 'font-size:0.72rem;padding:4px 12px;';
+  fileBtn.textContent = '📂 Cargar fichero';
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '.txt,.fasta,.fa,.fas,.seq,.fna,.text';
+  fileInput.style.display = 'none';
+  fileBtn.addEventListener('click', () => fileInput.click());
+  top.appendChild(fileBtn);
+  wrap.appendChild(top);
+
+  if (hint) {
+    const h = mk('div', null, hint);
+    h.style.cssText = `font-family:${MUT_MONO};font-size:0.7rem;color:var(--text-dim);margin-bottom:6px;line-height:1.5;`;
+    wrap.appendChild(h);
+  }
+
+  const ta = document.createElement('textarea');
+  ta.className = 'bw-input bw-textarea';
+  ta.rows = rows || 6;
+  ta.spellcheck = false;
+  ta.placeholder = placeholder || '';
+  ta.value = value || '';
+  ta.addEventListener('input', () => onChange(ta.value));
+  wrap.appendChild(ta);
+  wrap.appendChild(fileInput);
+
+  const loadFile = (file) => {
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = () => { ta.value = r.result; onChange(ta.value); };
+    r.readAsText(file);
+  };
+  fileInput.addEventListener('change', () => { loadFile(fileInput.files[0]); fileInput.value = ''; });
+  ta.addEventListener('dragover', e => { e.preventDefault(); ta.classList.add('drag-over'); });
+  ta.addEventListener('dragleave', () => ta.classList.remove('drag-over'));
+  ta.addEventListener('drop', e => {
+    if (!e.dataTransfer.files || !e.dataTransfer.files.length) return;
+    e.preventDefault();
+    ta.classList.remove('drag-over');
+    loadFile(e.dataTransfer.files[0]);
+  });
+
+  return wrap;
+}
+
+function renderMutagenUI() {
+  const zone = $('params-zone');
+  zone.innerHTML = '';
+  const container = mk('div', 'bw-params');
+
+  container.appendChild(mutagenMakeInput({
+    label: 'Secuencia original (raíz del árbol)',
+    hint: 'Texto plano o FASTA. Pega, carga un fichero o arrastra uno aquí.',
+    placeholder: '>WT\nATGCGTACGT...\n\n…o pega directamente los nucleótidos.',
+    rows: 5,
+    value: mutagenInput.original,
+    onChange: v => { mutagenInput.original = v; updateExecuteBtn(); },
+  }));
+
+  container.appendChild(mutagenMakeInput({
+    label: 'Secuencias derivadas',
+    hint: 'Una secuencia por línea (se autonombran Seq001, Seq002…) o formato FASTA con cabeceras «>nombre». Deben tener la misma longitud que la original (sólo substituciones).',
+    placeholder: 'ATGCGTACGT...\nATGCATACGT...\nATGCGTACTT...\n\n…o FASTA:\n>mutante_A\nATGC...',
+    rows: 9,
+    value: mutagenInput.list,
+    onChange: v => { mutagenInput.list = v; updateExecuteBtn(); },
+  }));
+
+  const bf = mk('div', 'bw-field');
+  bf.appendChild(mk('label', null, 'Tamaño de bloque (nt) — las mutaciones dentro de esta ventana cuentan como 1 cambio'));
+  const bi = document.createElement('input');
+  bi.type = 'number';
+  bi.className = 'bw-input';
+  bi.min = '1';
+  bi.value = mutagenInput.blockSize;
+  bi.style.maxWidth = '180px';
+  bi.addEventListener('input', () => { mutagenInput.blockSize = Math.max(1, parseInt(bi.value) || 30); });
+  bf.appendChild(bi);
+  container.appendChild(bf);
+
+  zone.appendChild(container);
+}
+
+// ── Run + render ────────────────────────────────────────────────────────────
+async function runMutagenTree() {
+  const block = Math.max(1, parseInt(mutagenInput.blockSize) || 30);
+
+  const original = mutagenParseOriginal(mutagenInput.original);
+  if (!original || !original.seq) throw new Error('No se pudo leer la secuencia original.');
+
+  let derived = mutagenParseList(mutagenInput.list);
+  if (derived.length === 0) throw new Error('No se encontró ninguna secuencia en el listado de derivadas.');
+
+  const L = original.seq.length;
+  const excluded = [];
+  derived = derived.filter(d => {
+    if (d.seq.length !== L) { excluded.push({ id: d.id, len: d.seq.length }); return false; }
+    return true;
+  });
+  if (derived.length === 0) {
+    throw new Error(`Ninguna derivada coincide en longitud con la original (${L} nt). Esta herramienta sólo admite substituciones (misma longitud, sin inserciones ni deleciones).`);
+  }
+
+  // Disambiguate duplicate names so the tree stratify doesn't collide.
+  const seen = new Map();
+  for (const d of derived) {
+    if (seen.has(d.id)) { const k = seen.get(d.id) + 1; seen.set(d.id, k); d.id = `${d.id}#${k}`; }
+    else seen.set(d.id, 1);
+  }
+
+  const nodes = [original, ...derived];
+  const tree = mutagenBuildTree(nodes, block);
+
+  let totalCost = 0;
+  for (let i = 1; i < nodes.length; i++) totalCost += tree.cost[i];
+  let naiveCost = 0;
+  for (let i = 1; i < nodes.length; i++) naiveCost += mutagenCostDirect(nodes[0].seq, nodes[i].seq, block);
+
+  renderMutagenResults({ nodes, tree, block, excluded, L, totalCost, naiveCost });
+
+  state.appStatus = 'done';
+  const saved = naiveCost - totalCost;
+  setStatus(
+    `✓ ${derived.length} derivada${derived.length !== 1 ? 's' : ''} · coste óptimo ${totalCost} cambio${totalCost !== 1 ? 's' : ''}` +
+    (saved > 0 ? ` (ahorras ${saved} vs. todo desde la original)` : '') +
+    (excluded.length ? ` · ${excluded.length} excluida${excluded.length !== 1 ? 's' : ''}` : ''),
+    'ok',
+  );
+  $('btn-execute').style.display = 'none';
+}
+
+function renderMutagenResults({ nodes, tree, block, excluded, L, totalCost, naiveCost }) {
+  const existing = $('mutagen-results');
+  if (existing) existing.remove();
+
+  const root = mk('div', 'degen-results');
+  root.id = 'mutagen-results';
+
+  // Summary
+  const summary = mk('div', 'degen-summary');
+  summary.innerHTML = `Original <code class="degen-seq-code">${nodes[0].name || nodes[0].id}</code> · <strong>${L} nt</strong> · ventana de empaquetado <strong>${block} nt</strong>`;
+  root.appendChild(summary);
+
+  // Stats
+  const saved = naiveCost - totalCost;
+  const stats = mk('div', 'degen-stats');
+  const mkStat = (val, lbl) => {
+    const s = mk('div', 'degen-stat');
+    s.innerHTML = `<span class="degen-stat-val">${val}</span><span class="degen-stat-lbl">${lbl}</span>`;
+    return s;
+  };
+  stats.appendChild(mkStat(nodes.length - 1, 'secuencias<br>derivadas'));
+  stats.appendChild(mkStat(totalCost, 'cambios<br>(ruta óptima)'));
+  stats.appendChild(mkStat(naiveCost, 'cambios si todo<br>desde la original'));
+  stats.appendChild(mkStat(saved > 0 ? `−${saved}` : '0', 'cambios<br>ahorrados'));
+  root.appendChild(stats);
+
+  if (excluded.length) {
+    const warn = mk('div', 'degen-warn');
+    warn.innerHTML = `⚠ ${excluded.length} secuencia${excluded.length !== 1 ? 's' : ''} excluida${excluded.length !== 1 ? 's' : ''} por longitud distinta a ${L} nt (sólo se admiten substituciones): ` +
+      excluded.map(e => `<strong>${e.id}</strong> (${e.len} nt)`).join(', ');
+    root.appendChild(warn);
+  }
+
+  // ── Tree visualization ──
+  const treeLbl = mk('div', 'degen-section-label');
+  treeLbl.textContent = 'Árbol de síntesis (la etiqueta de cada rama = cambios facturados)';
+  root.appendChild(treeLbl);
+
+  const treeWrap = mk('div');
+  treeWrap.style.cssText = 'overflow:auto;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px;max-height:620px;';
+  root.appendChild(treeWrap);
+  const svgNode = renderMutagenTreeViz(treeWrap, nodes, tree);
+
+  // ── Synthesis plan ──
+  const planRows = mutagenBuildPlan(nodes, tree, block);
+
+  const planLbl = mk('div', 'degen-section-label');
+  planLbl.textContent = 'Plan de síntesis (orden de mutagénesis recomendado)';
+  planLbl.style.marginTop = '18px';
+  root.appendChild(planLbl);
+
+  const plan = mk('div');
+  plan.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  planRows.forEach((r, idx) => plan.appendChild(mutagenPlanRowEl(r, idx + 1)));
+  root.appendChild(plan);
+
+  // ── Exports ──
+  const dlRow = mk('div');
+  dlRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;';
+
+  const mkBtn = (label) => {
+    const b = mk('button', 'bw-btn bw-btn-cancel');
+    b.style.cssText = 'font-size:0.78rem;padding:6px 14px;';
+    b.textContent = label;
+    return b;
+  };
+
+  const btnSvg = mkBtn('⬇ Árbol (SVG)');
+  btnSvg.addEventListener('click', () => {
+    if (!svgNode) return;
+    const s = new XMLSerializer().serializeToString(svgNode);
+    const b = new Blob([s], { type: 'image/svg+xml' });
+    const u = URL.createObjectURL(b);
+    Object.assign(document.createElement('a'), { href: u, download: 'arbol-mutagenesis.svg' }).click();
+    setTimeout(() => URL.revokeObjectURL(u), 1000);
+  });
+  dlRow.appendChild(btnSvg);
+
+  const btnCsv = mkBtn('⬇ Plan (CSV)');
+  btnCsv.addEventListener('click', () => {
+    const csv = mutagenPlanToCSV(planRows);
+    const b = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const u = URL.createObjectURL(b);
+    Object.assign(document.createElement('a'), { href: u, download: 'plan-mutagenesis.csv' }).click();
+    setTimeout(() => URL.revokeObjectURL(u), 1000);
+  });
+  dlRow.appendChild(btnCsv);
+
+  const btnCopy = mkBtn('📋 Copiar plan');
+  btnCopy.addEventListener('click', () => {
+    navigator.clipboard.writeText(mutagenPlanToText(planRows)).then(() => {
+      btnCopy.textContent = '✓ Copiado';
+      setTimeout(() => { btnCopy.textContent = '📋 Copiar plan'; }, 2000);
+    });
+  });
+  dlRow.appendChild(btnCopy);
+
+  root.appendChild(dlRow);
+
+  const paramsZone = $('params-zone');
+  paramsZone.parentNode.insertBefore(root, paramsZone.nextSibling);
+}
+
+// Build the ordered plan (BFS from root). Each row describes one synthesis step.
+function mutagenBuildPlan(nodes, tree, block) {
+  const children = Array.from({ length: nodes.length }, () => []);
+  for (let i = 1; i < nodes.length; i++) children[tree.parent[i]].push(i);
+  for (const c of children) c.sort((a, b) => (nodes[a].name || nodes[a].id).localeCompare(nodes[b].name || nodes[b].id, undefined, { numeric: true }));
+
+  const rows = [];
+  const queue = [0];
+  while (queue.length) {
+    const u = queue.shift();
+    for (const c of children[u]) {
+      const p = tree.parent[c];
+      const positions = mutagenDiffPositions(nodes[p].seq, nodes[c].seq);
+      const blocks = mutagenBlocks(positions, block).map(b => ({
+        from: b.start + 1,
+        to: b.end + 1,
+        muts: b.positions.map(pos => ({ pos: pos + 1, ref: nodes[p].seq[pos], alt: nodes[c].seq[pos] })),
+      }));
+      rows.push({
+        child: nodes[c].name || nodes[c].id,
+        parent: nodes[p].name || nodes[p].id,
+        cost: tree.cost[c],
+        blocks,
+      });
+      queue.push(c);
+    }
+  }
+  return rows;
+}
+
+function mutagenPlanRowEl(r, step) {
+  const el = mk('div');
+  el.style.cssText = `border:1px solid var(--border);border-left:4px solid ${mutagenCostColor(r.cost)};border-radius:8px;padding:10px 12px;background:var(--bg-card);`;
+
+  const head = mk('div');
+  head.style.cssText = `display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:${MUT_MONO};font-size:0.82rem;color:var(--text);`;
+  const costTxt = r.cost === 0
+    ? 'idéntica (sin coste)'
+    : `${r.cost} cambio${r.cost !== 1 ? 's' : ''}`;
+  head.innerHTML =
+    `<span style="font-weight:700;color:var(--text-dim);">${String(step).padStart(2, '0')}</span>` +
+    `<strong style="color:var(--blue);">${r.child}</strong>` +
+    `<span style="color:var(--text-dim);">a partir de</span>` +
+    `<strong>${r.parent}</strong>` +
+    `<span style="margin-left:auto;font-weight:700;color:${mutagenCostColor(r.cost)};">${costTxt}</span>`;
+  el.appendChild(head);
+
+  if (r.blocks.length) {
+    const list = mk('div');
+    list.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-top:8px;';
+    r.blocks.forEach((b, i) => {
+      const row = mk('div');
+      row.style.cssText = `font-family:${MUT_MONO};font-size:0.72rem;color:var(--text-muted);line-height:1.5;`;
+      const rangeTxt = b.from === b.to ? `pos ${b.from}` : `pos ${b.from}–${b.to}`;
+      const mutTxt = b.muts.map(m => `${m.pos}:${m.ref}→${m.alt}`).join(', ');
+      row.innerHTML =
+        `<span style="display:inline-block;min-width:64px;color:${mutagenCostColor(r.cost)};font-weight:700;">Bloque ${i + 1}</span>` +
+        `<span style="color:var(--text);">${rangeTxt}</span> ` +
+        `<span style="color:var(--text-dim);">(${b.muts.length} mut.)</span> ` +
+        `<span>· ${mutTxt}</span>`;
+      list.appendChild(row);
+    });
+    el.appendChild(list);
+  }
+
+  return el;
+}
+
+function mutagenPlanToText(rows) {
+  const lines = ['Plan de síntesis (orden de mutagénesis)', ''];
+  rows.forEach((r, i) => {
+    const costTxt = r.cost === 0 ? 'idéntica (sin coste)' : `${r.cost} cambio(s)`;
+    lines.push(`${String(i + 1).padStart(2, '0')}. ${r.child} ← ${r.parent}  [${costTxt}]`);
+    r.blocks.forEach((b, j) => {
+      const rangeTxt = b.from === b.to ? `pos ${b.from}` : `pos ${b.from}-${b.to}`;
+      const mutTxt = b.muts.map(m => `${m.pos}:${m.ref}>${m.alt}`).join(', ');
+      lines.push(`     Bloque ${j + 1}: ${rangeTxt} (${b.muts.length} mut.) ${mutTxt}`);
+    });
+  });
+  return lines.join('\n') + '\n';
+}
+
+function mutagenPlanToCSV(rows) {
+  const esc = s => `"${String(s).replace(/"/g, '""')}"`;
+  const out = ['paso,hijo,padre,coste_bloques,bloque,rango_nt,n_mutaciones,mutaciones'];
+  rows.forEach((r, i) => {
+    if (!r.blocks.length) {
+      out.push([i + 1, esc(r.child), esc(r.parent), r.cost, '', '', 0, ''].join(','));
+      return;
+    }
+    r.blocks.forEach((b, j) => {
+      const rangeTxt = b.from === b.to ? `${b.from}` : `${b.from}-${b.to}`;
+      const mutTxt = b.muts.map(m => `${m.pos}:${m.ref}>${m.alt}`).join(' ');
+      out.push([i + 1, esc(r.child), esc(r.parent), r.cost, j + 1, esc(rangeTxt), b.muts.length, esc(mutTxt)].join(','));
+    });
+  });
+  return out.join('\n') + '\n';
+}
+
+// Horizontal d3 tree. Returns the <svg> DOM node (for export) or null.
+function renderMutagenTreeViz(container, nodes, tree) {
+  if (typeof d3 === 'undefined') {
+    container.innerHTML = '<p style="color:var(--red);font-family:var(--mono);font-size:0.82rem;padding:20px;">D3.js no disponible.</p>';
+    return null;
+  }
+
+  const data = nodes.map((nd, i) => ({
+    id: String(i),
+    parentId: i === 0 ? '' : String(tree.parent[i]),
+    name: nd.name || nd.id,
+    cost: tree.cost[i],
+  }));
+
+  let hierarchy;
+  try {
+    hierarchy = d3.stratify().id(d => d.id).parentId(d => d.parentId || null)(data);
+  } catch (e) {
+    container.innerHTML = `<p style="color:var(--red);font-family:var(--mono);font-size:0.82rem;padding:20px;">No se pudo construir el árbol: ${e.message}</p>`;
+    return null;
+  }
+
+  const rowH = 38, colW = 210;
+  d3.tree().nodeSize([rowH, colW])(hierarchy);
+
+  let minX = Infinity, maxX = -Infinity, maxY = 0;
+  hierarchy.each(d => { minX = Math.min(minX, d.x); maxX = Math.max(maxX, d.x); maxY = Math.max(maxY, d.y); });
+
+  const M = { top: 22, right: 150, bottom: 22, left: 70 };
+  const W = M.left + maxY + M.right;
+  const H = M.top + (maxX - minX) + M.bottom;
+
+  const svg = d3.select(container).append('svg')
+    .attr('xmlns', 'http://www.w3.org/2000/svg')
+    .attr('width', W).attr('height', H)
+    .style('display', 'block');
+  svg.append('rect').attr('width', W).attr('height', H).attr('fill', '#F2F7FE').attr('rx', 10);
+
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top - minX})`);
+
+  // Links
+  g.selectAll('path.mut-link').data(hierarchy.links()).join('path')
+    .attr('fill', 'none')
+    .attr('stroke', d => mutagenCostColor(d.target.data.cost))
+    .attr('stroke-width', 2)
+    .attr('opacity', 0.75)
+    .attr('d', d3.linkHorizontal().x(d => d.y).y(d => d.x));
+
+  // Edge labels (cost)
+  g.selectAll('text.mut-elabel').data(hierarchy.links()).join('text')
+    .attr('x', d => (d.source.y + d.target.y) / 2)
+    .attr('y', d => (d.source.x + d.target.x) / 2 - 4)
+    .attr('text-anchor', 'middle')
+    .attr('font-family', MUT_MONO).attr('font-size', '9.5')
+    .attr('font-weight', '700')
+    .attr('fill', d => mutagenCostColor(d.target.data.cost))
+    .text(d => {
+      const c = d.target.data.cost;
+      return c === 0 ? '0' : `${c} cambio${c !== 1 ? 's' : ''}`;
+    });
+
+  // Nodes
+  const node = g.selectAll('g.mut-node').data(hierarchy.descendants()).join('g')
+    .attr('transform', d => `translate(${d.y},${d.x})`);
+  node.append('circle')
+    .attr('r', 6)
+    .attr('fill', d => d.depth === 0 ? '#1E5FB8' : '#fff')
+    .attr('stroke', '#1E5FB8').attr('stroke-width', 2);
+  node.append('text')
+    .attr('x', d => d.children ? -11 : 11)
+    .attr('y', 4)
+    .attr('text-anchor', d => d.children ? 'end' : 'start')
+    .attr('font-family', MUT_MONO)
+    .attr('font-size', '11')
+    .attr('font-weight', d => d.depth === 0 ? '800' : '600')
+    .attr('fill', d => d.depth === 0 ? '#1E5FB8' : '#0D1F3C')
+    .text(d => d.data.name);
+
+  return svg.node();
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

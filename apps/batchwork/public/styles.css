@@ -568,6 +568,11 @@ body {
   white-space: pre;
   font-size: 0.79rem;
 }
+.bw-textarea.drag-over {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-glow);
+  background: var(--bg-hover);
+}
 
 /* ── Degenerate AA results ───────────────────────────────────────────────── */
 .degen-results {
