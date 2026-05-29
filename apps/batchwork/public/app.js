@@ -146,6 +146,13 @@ const OPERATIONS = [
       desc: 'Compara secuencias derivadas frente a una original y calcula la ruta de síntesis más barata. Las mutaciones que caen dentro de una misma ventana de N nucleótidos cuentan como un único cambio (lo que la empresa factura como un cambio), de modo que algunas secuencias se sintetizan a partir de otras para abaratar el pedido.',
       clientSide: true,
       params: [],
+    },
+    {
+      id: 'dna-replace',
+      label: 'Sustituir secuencia en .dna (SnapGene)',
+      desc: 'Carga un fichero .dna de SnapGene, sustituye una región de nucleótidos por otra y descarga un nuevo .dna. Opcionalmente añade una feature para la secuencia entrante, borra la feature solapada, reajusta las coordenadas de las features posteriores y cambia el nombre interno del documento.',
+      clientSide: true,
+      params: [],
     }],
   },
 ];
@@ -227,6 +234,8 @@ function selectOp(opId) {
   if (prevPlddt) prevPlddt.remove();
   const prevMutagen = $('mutagen-results');
   if (prevMutagen) prevMutagen.remove();
+  const prevDnaRep = $('dna-replace-results');
+  if (prevDnaRep) prevDnaRep.remove();
   resetExecuteBar();
 
   renderSidebar();
@@ -471,6 +480,7 @@ function renderParams(op) {
 
   if (op.id === 'plddt-kde') { renderPlddtGroupsUI(); return; }
   if (op.id === 'mutagen-tree') { renderMutagenUI(); return; }
+  if (op.id === 'dna-replace') { renderDnaReplaceUI(); return; }
 
   if (!op.params || op.params.length === 0) return;
 
@@ -665,6 +675,15 @@ function updateExecuteBtn() {
       if (!hasOrig && !hasList) setStatus('Introduce la secuencia original y el listado de derivadas', '');
       else if (!hasOrig)        setStatus('Falta: la secuencia original', '');
       else if (!hasList)        setStatus('Falta: el listado de secuencias derivadas', '');
+      else setStatus('', '');
+    } else if (op.id === 'dna-replace') {
+      const hasFile = !!dnaReplaceInput.file;
+      const hasOld = dnaReplaceInput.oldSeq.trim().length > 0;
+      const hasNew = dnaReplaceInput.newSeq.trim().length > 0;
+      ready = hasFile && hasOld && hasNew;
+      if (!hasFile)     setStatus('Carga un fichero .dna de SnapGene', '');
+      else if (!hasOld) setStatus('Falta: la secuencia de nucleótidos a sustituir', '');
+      else if (!hasNew) setStatus('Falta: la secuencia nueva con la que sustituir', '');
       else setStatus('', '');
     } else {
       const mainParam = op.params.find(p => p.type === 'textarea');
@@ -1504,6 +1523,8 @@ async function runClientSideOp(op) {
   if (existingPlddt) existingPlddt.remove();
   const existingMutagen = $('mutagen-results');
   if (existingMutagen) existingMutagen.remove();
+  const existingDnaRep = $('dna-replace-results');
+  if (existingDnaRep) existingDnaRep.remove();
   state.clientSideBlob = null;
 
   try {
@@ -1513,6 +1534,10 @@ async function runClientSideOp(op) {
     }
     if (op.id === 'mutagen-tree') {
       await runMutagenTree(op);
+      return;
+    }
+    if (op.id === 'dna-replace') {
+      await runDnaReplace(op);
       return;
     }
 
@@ -2914,6 +2939,474 @@ function renderMutagenTreeViz(container, nodes, tree) {
     .text(d => d.data.name);
 
   return svg.node();
+}
+
+// ── SnapGene .dna sequence replacer ───────────────────────────────────────────
+//
+// A SnapGene .dna file is a sequence of TLV packets: [1 byte type][4 bytes
+// big-endian length][payload]. Relevant packets:
+//   type 9  — cookie: payload starts with ASCII "SnapGene"
+//   type 0  — DNA: 1 flags byte (bit 0 = circular) + ASCII bases
+//   type 10 — features: XML <Features><Feature><Segment range="a-b"/></Feature>…
+//             (coordinates are 1-based, inclusive)
+//   type 6  — notes: XML <Notes>…; the displayed name is the "custom map label"
+// We edit the DNA packet (the swap), the features XML (delete/shift/add) and the
+// notes XML (name), keep every other packet byte-for-byte, and re-serialise.
+
+let dnaReplaceInput = {
+  file: null,        // { name, bytes: Uint8Array, info }
+  oldSeq: '',
+  newSeq: '',
+  addFeature: true,
+  featName: '',
+  featType: 'misc_feature',
+  deleteOverlap: true,
+  shiftCoords: true,
+  renameDoc: false,
+  docName: '',
+};
+
+const DNA_FEATURE_TYPES = [
+  'misc_feature', 'CDS', 'gene', 'promoter', 'terminator', 'RBS',
+  'primer_bind', 'protein_bind', 'rep_origin', 'misc_RNA', 'mat_peptide', 'sig_peptide',
+];
+
+const dnaCleanSeq = s => (s || '').toUpperCase().replace(/[^ACGTUNRYSWKMBDHV]/g, '');
+
+// ── Binary layer (pure, no DOM) ───────────────────────────────────────────────
+function dnaParsePackets(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const packets = [];
+  let off = 0;
+  while (off + 5 <= bytes.length) {
+    const type = dv.getUint8(off);
+    const len = dv.getUint32(off + 1, false);
+    const start = off + 5;
+    const end = start + len;
+    if (end > bytes.length) throw new Error('Fichero .dna corrupto o incompleto (paquete fuera de rango).');
+    packets.push({ type, data: bytes.slice(start, end) });
+    off = end;
+  }
+  if (off !== bytes.length) throw new Error('Fichero .dna con bytes sobrantes; ¿formato no reconocido?');
+  return packets;
+}
+
+function dnaValidateCookie(packets) {
+  const c = packets[0];
+  if (!c || c.type !== 9 || c.data.length < 8) {
+    throw new Error('No parece un .dna de SnapGene (falta la cabecera "cookie").');
+  }
+  const tag = String.fromCharCode(...c.data.slice(0, 8));
+  if (tag !== 'SnapGene') throw new Error('Cabecera SnapGene no encontrada; ¿es un .dna válido?');
+}
+
+function dnaSerialize(packets) {
+  let total = 0;
+  for (const p of packets) total += 5 + p.data.length;
+  const out = new Uint8Array(total);
+  const dv = new DataView(out.buffer);
+  let off = 0;
+  for (const p of packets) {
+    dv.setUint8(off, p.type); off += 1;
+    dv.setUint32(off, p.data.length, false); off += 4;
+    out.set(p.data, off); off += p.data.length;
+  }
+  return out;
+}
+
+function dnaBytesToAscii(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 8192) {
+    s += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  }
+  return s;
+}
+function dnaAsciiToBytes(s) {
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 0xff;
+  return out;
+}
+
+// ── XML helpers (browser DOM) ─────────────────────────────────────────────────
+function dnaReserializeXml(originalStr, doc) {
+  let out = new XMLSerializer().serializeToString(doc);
+  const decl = (originalStr.match(/^\s*<\?xml[^>]*\?>/i) || [])[0];
+  if (decl && !/^\s*<\?xml/i.test(out)) out = decl + out;
+  return out;
+}
+
+// Edit the features XML: delete features overlapping the replaced region, shift
+// the coordinates of features located after it, and append a feature for the new
+// sequence. Returns { xml, removed, shifted, added }.
+function dnaEditFeaturesXml(xmlStr, opts) {
+  const { rStart, rEnd, delta, deleteOverlap, shiftCoords, addFeature, featName, featType, newStart, newEnd } = opts;
+  const doc = new DOMParser().parseFromString(xmlStr, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) return { xml: xmlStr, removed: 0, shifted: 0, added: false };
+  const root = doc.documentElement;
+  if (!root || root.nodeName !== 'Features') return { xml: xmlStr, removed: 0, shifted: 0, added: false };
+
+  let removed = 0, shifted = 0;
+  for (const f of Array.from(root.getElementsByTagName('Feature'))) {
+    const segs = Array.from(f.getElementsByTagName('Segment'))
+      .map(s => {
+        const m = (s.getAttribute('range') || '').match(/^(\d+)\s*-\s*(\d+)$/);
+        return m ? { el: s, a: +m[1], b: +m[2] } : null;
+      })
+      .filter(Boolean);
+    if (!segs.length) continue;
+
+    const fmin = Math.min(...segs.map(s => s.a));
+    const fmax = Math.max(...segs.map(s => s.b));
+    const overlaps = !(fmax < rStart || fmin > rEnd);
+
+    if (overlaps && deleteOverlap) { f.parentNode.removeChild(f); removed++; continue; }
+
+    if (shiftCoords && delta !== 0) {
+      let did = false;
+      for (const s of segs) {
+        if (s.a > rEnd) { s.el.setAttribute('range', `${s.a + delta}-${s.b + delta}`); did = true; }
+      }
+      if (did) shifted++;
+    }
+  }
+
+  let added = false;
+  if (addFeature && newEnd >= newStart) {
+    const f = doc.createElement('Feature');
+    f.setAttribute('name', featName || 'secuencia_nueva');
+    f.setAttribute('type', featType || 'misc_feature');
+    f.setAttribute('directionality', '1');
+    const seg = doc.createElement('Segment');
+    seg.setAttribute('range', `${newStart}-${newEnd}`);
+    seg.setAttribute('type', 'standard');
+    seg.setAttribute('color', '#a6acb3');
+    f.appendChild(seg);
+    root.appendChild(f);
+    added = true;
+  }
+
+  return { xml: dnaReserializeXml(xmlStr, doc), removed, shifted, added };
+}
+
+function dnaSetNotesName(xmlStr, name) {
+  const doc = new DOMParser().parseFromString(xmlStr, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) return xmlStr;
+  const root = doc.documentElement;
+  if (!root || root.nodeName !== 'Notes') return xmlStr;
+  const setEl = (tag, val) => {
+    let el = root.getElementsByTagName(tag)[0];
+    if (!el) { el = doc.createElement(tag); root.appendChild(el); }
+    el.textContent = val;
+  };
+  setEl('CustomMapLabel', name);
+  setEl('UseCustomMapLabel', '1');
+  return dnaReserializeXml(xmlStr, doc);
+}
+
+function dnaBuildNotesPacket(name) {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><Notes><UseCustomMapLabel>1</UseCustomMapLabel><CustomMapLabel>${name.replace(/[<&>]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</CustomMapLabel></Notes>`;
+  return { type: 6, data: new TextEncoder().encode(xml) };
+}
+
+// ── Input UI ──────────────────────────────────────────────────────────────────
+function dnaReplaceLoadFile(file, onDone) {
+  file.arrayBuffer().then(buf => {
+    const bytes = new Uint8Array(buf);
+    let info = null, error = null;
+    try {
+      const packets = dnaParsePackets(bytes);
+      dnaValidateCookie(packets);
+      const dnaPkt = packets.find(p => p.type === 0);
+      if (!dnaPkt) throw new Error('El fichero no contiene secuencia de ADN (paquete tipo 0).');
+      const seq = dnaBytesToAscii(dnaPkt.data.slice(1));
+      const featPkt = packets.find(p => p.type === 10);
+      let nFeatures = 0;
+      if (featPkt) nFeatures = (dnaBytesToAscii(featPkt.data).match(/<Feature\b/g) || []).length;
+      info = { length: seq.length, circular: (dnaPkt.data[0] & 1) === 1, nFeatures };
+    } catch (e) { error = e.message; }
+    dnaReplaceInput.file = { name: file.name, bytes };
+    onDone(info, error);
+  });
+}
+
+function renderDnaReplaceUI() {
+  const zone = $('params-zone');
+  zone.innerHTML = '';
+  const container = mk('div', 'bw-params');
+
+  // File loader
+  const fileField = mk('div', 'bw-field');
+  fileField.appendChild(mk('label', null, 'Fichero .dna de SnapGene (original)'));
+  const info = mk('div');
+  info.style.cssText = `font-family:${MUT_MONO};font-size:0.74rem;color:var(--text-muted);margin-top:8px;line-height:1.6;`;
+  const drop = makeDropZone({
+    label: dnaReplaceInput.file ? `✓ ${dnaReplaceInput.file.name}` : 'Arrastra o haz clic para elegir un .dna',
+    sub: 'SnapGene · se procesa en tu navegador',
+    accept: '.dna',
+    multiple: false,
+    onFiles: files => {
+      if (!files[0]) return;
+      info.textContent = 'Leyendo…';
+      dnaReplaceLoadFile(files[0], (fi, err) => {
+        const txt = drop.querySelector('.bw-drop-text');
+        if (txt) txt.textContent = `✓ ${files[0].name}`;
+        if (err) { info.innerHTML = `<span style="color:var(--red)">⚠ ${err}</span>`; }
+        else {
+          info.innerHTML = `<strong>${fi.length.toLocaleString('es-ES')} nt</strong> · ${fi.circular ? 'circular' : 'lineal'} · ${fi.nFeatures} feature${fi.nFeatures !== 1 ? 's' : ''}`;
+        }
+        updateExecuteBtn();
+      });
+    },
+  });
+  fileField.appendChild(drop);
+  fileField.appendChild(info);
+  if (dnaReplaceInput.file) info.textContent = dnaReplaceInput.file.name;
+  container.appendChild(fileField);
+
+  // old / new sequences
+  const mkSeqField = (label, hint, key) => {
+    const f = mk('div', 'bw-field');
+    f.appendChild(mk('label', null, label));
+    const h = mk('div', null, hint);
+    h.style.cssText = `font-family:${MUT_MONO};font-size:0.7rem;color:var(--text-dim);margin:2px 0 6px;line-height:1.5;`;
+    f.appendChild(h);
+    const ta = document.createElement('textarea');
+    ta.className = 'bw-input bw-textarea';
+    ta.rows = 3;
+    ta.spellcheck = false;
+    ta.value = dnaReplaceInput[key];
+    ta.placeholder = 'ATGC…';
+    ta.addEventListener('input', () => { dnaReplaceInput[key] = ta.value; updateExecuteBtn(); });
+    f.appendChild(ta);
+    return f;
+  };
+  container.appendChild(mkSeqField('Secuencia a sustituir (la que está ahora en el .dna)', 'Nucleótidos. Debe aparecer exactamente una vez en la secuencia.', 'oldSeq'));
+  container.appendChild(mkSeqField('Secuencia nueva (con la que sustituir)', 'Nucleótidos. Puede tener longitud distinta a la anterior.', 'newSeq'));
+
+  // Options box
+  const box = mk('div');
+  box.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:12px 14px;background:var(--bg-card);display:flex;flex-direction:column;gap:10px;';
+
+  const mkCheck = (key, label) => {
+    const w = mk('label', 'bw-checkbox-wrap');
+    const c = document.createElement('input');
+    c.type = 'checkbox';
+    c.checked = dnaReplaceInput[key] !== false;
+    w.appendChild(c);
+    w.appendChild(mk('span', null, label));
+    return { w, c };
+  };
+
+  // add feature + name/type
+  const addChk = mkCheck('addFeature', 'Añadir una feature para la secuencia nueva');
+  box.appendChild(addChk.w);
+  const featRow = mk('div');
+  featRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;padding-left:24px;';
+  const nameIn = document.createElement('input');
+  nameIn.type = 'text'; nameIn.className = 'bw-input'; nameIn.placeholder = 'Nombre de la feature';
+  nameIn.style.cssText = 'flex:1;min-width:160px;';
+  nameIn.value = dnaReplaceInput.featName;
+  nameIn.addEventListener('input', () => { dnaReplaceInput.featName = nameIn.value; });
+  const typeSel = document.createElement('select');
+  typeSel.className = 'bw-select';
+  for (const t of DNA_FEATURE_TYPES) {
+    const o = document.createElement('option'); o.value = t; o.textContent = t;
+    if (t === dnaReplaceInput.featType) o.selected = true;
+    typeSel.appendChild(o);
+  }
+  typeSel.addEventListener('change', () => { dnaReplaceInput.featType = typeSel.value; });
+  featRow.appendChild(nameIn);
+  featRow.appendChild(typeSel);
+  box.appendChild(featRow);
+  const syncFeat = () => { featRow.style.display = addChk.c.checked ? 'flex' : 'none'; };
+  addChk.c.addEventListener('change', () => { dnaReplaceInput.addFeature = addChk.c.checked; syncFeat(); });
+  syncFeat();
+
+  const delChk = mkCheck('deleteOverlap', 'Borrar la(s) feature(s) que solapan la región sustituida');
+  delChk.c.addEventListener('change', () => { dnaReplaceInput.deleteOverlap = delChk.c.checked; });
+  box.appendChild(delChk.w);
+
+  const shiftChk = mkCheck('shiftCoords', 'Reajustar coordenadas de las features posteriores (si cambia la longitud)');
+  shiftChk.c.addEventListener('change', () => { dnaReplaceInput.shiftCoords = shiftChk.c.checked; });
+  box.appendChild(shiftChk.w);
+
+  // rename
+  const renChk = mkCheck('renameDoc', 'Cambiar el nombre interno del documento');
+  renChk.c.checked = dnaReplaceInput.renameDoc === true;
+  box.appendChild(renChk.w);
+  const renField = mk('div');
+  renField.style.cssText = 'padding-left:24px;';
+  const renIn = document.createElement('input');
+  renIn.type = 'text'; renIn.className = 'bw-input'; renIn.placeholder = 'Nombre interno (custom map label)';
+  renIn.style.maxWidth = '320px';
+  renIn.value = dnaReplaceInput.docName;
+  renIn.addEventListener('input', () => { dnaReplaceInput.docName = renIn.value; });
+  renField.appendChild(renIn);
+  box.appendChild(renField);
+  const syncRen = () => { renField.style.display = renChk.c.checked ? '' : 'none'; };
+  renChk.c.addEventListener('change', () => { dnaReplaceInput.renameDoc = renChk.c.checked; syncRen(); });
+  syncRen();
+
+  container.appendChild(box);
+
+  // Clear
+  const clearBtn = mk('button', 'bw-btn bw-btn-cancel');
+  clearBtn.type = 'button';
+  clearBtn.style.cssText = 'font-size:0.8rem;padding:7px 16px;align-self:flex-start;margin-top:4px;';
+  clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
+  clearBtn.addEventListener('click', () => {
+    if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
+    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'misc_feature', deleteOverlap: true, shiftCoords: true, renameDoc: false, docName: '' };
+    const res = $('dna-replace-results');
+    if (res) res.remove();
+    resetExecuteBar();
+    renderDnaReplaceUI();
+    updateExecuteBtn();
+  });
+  container.appendChild(clearBtn);
+
+  zone.appendChild(container);
+}
+
+// ── Run + render ────────────────────────────────────────────────────────────
+async function runDnaReplace() {
+  if (!dnaReplaceInput.file) throw new Error('Carga un fichero .dna.');
+  const oldSeq = dnaCleanSeq(dnaReplaceInput.oldSeq);
+  const newSeq = dnaCleanSeq(dnaReplaceInput.newSeq);
+  if (!oldSeq) throw new Error('La secuencia a sustituir no contiene nucleótidos válidos.');
+  if (!newSeq) throw new Error('La secuencia nueva no contiene nucleótidos válidos.');
+
+  const packets = dnaParsePackets(dnaReplaceInput.file.bytes);
+  dnaValidateCookie(packets);
+
+  const dnaPkt = packets.find(p => p.type === 0);
+  if (!dnaPkt) throw new Error('El fichero no contiene secuencia de ADN.');
+  const flags = dnaPkt.data[0];
+  const seq = dnaBytesToAscii(dnaPkt.data.slice(1));
+  const up = seq.toUpperCase();
+
+  const pos = up.indexOf(oldSeq);
+  if (pos < 0) throw new Error('La secuencia a sustituir no se encontró en el documento.');
+  let occurrences = 1, scan = up.indexOf(oldSeq, pos + 1);
+  while (scan >= 0) { occurrences++; scan = up.indexOf(oldSeq, scan + 1); }
+
+  const newFullSeq = seq.slice(0, pos) + newSeq + seq.slice(pos + oldSeq.length);
+  const delta = newSeq.length - oldSeq.length;
+
+  // 1) DNA packet
+  const newData = new Uint8Array(1 + newFullSeq.length);
+  newData[0] = flags;
+  newData.set(dnaAsciiToBytes(newFullSeq), 1);
+  dnaPkt.data = newData;
+
+  // 2) Features packet
+  const rStart = pos + 1, rEnd = pos + oldSeq.length;          // 1-based, region replaced
+  const newStart = pos + 1, newEnd = pos + newSeq.length;      // 1-based, new region
+  let featResult = { removed: 0, shifted: 0, added: false };
+  const featPkt = packets.find(p => p.type === 10);
+  if (featPkt) {
+    const xml = dnaBytesToAscii(featPkt.data);
+    featResult = dnaEditFeaturesXml(xml, {
+      rStart, rEnd, delta,
+      deleteOverlap: dnaReplaceInput.deleteOverlap,
+      shiftCoords: dnaReplaceInput.shiftCoords,
+      addFeature: dnaReplaceInput.addFeature,
+      featName: dnaReplaceInput.featName,
+      featType: dnaReplaceInput.featType,
+      newStart, newEnd,
+    });
+    featPkt.data = new TextEncoder().encode(featResult.xml);
+  } else if (dnaReplaceInput.addFeature) {
+    // No features packet: create a minimal one with the new feature.
+    const nm = (dnaReplaceInput.featName || 'secuencia_nueva').replace(/[<&>]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><Features><Feature name="${nm}" type="${dnaReplaceInput.featType}" directionality="1"><Segment range="${newStart}-${newEnd}" type="standard" color="#a6acb3"/></Feature></Features>`;
+    packets.push({ type: 10, data: new TextEncoder().encode(xml) });
+    featResult.added = true;
+  }
+
+  // 3) Notes name
+  let nameApplied = false;
+  if (dnaReplaceInput.renameDoc && dnaReplaceInput.docName.trim()) {
+    const nm = dnaReplaceInput.docName.trim();
+    const notesPkt = packets.find(p => p.type === 6);
+    if (notesPkt) {
+      notesPkt.data = new TextEncoder().encode(dnaSetNotesName(dnaBytesToAscii(notesPkt.data), nm));
+    } else {
+      packets.push(dnaBuildNotesPacket(nm));
+    }
+    nameApplied = true;
+  }
+
+  // 4) Serialise + download
+  const outBytes = dnaSerialize(packets);
+  const baseName = dnaReplaceInput.file.name.replace(/\.dna$/i, '');
+  const outName = (dnaReplaceInput.renameDoc && dnaReplaceInput.docName.trim())
+    ? dnaReplaceInput.docName.trim().replace(/[^\w.\-]+/g, '_') + '.dna'
+    : `${baseName}_modificado.dna`;
+  state.clientSideBlob = { blob: new Blob([outBytes], { type: 'application/octet-stream' }), filename: outName };
+
+  renderDnaReplaceResults({
+    pos, occurrences, oldLen: oldSeq.length, newLen: newSeq.length, delta,
+    oldTotal: seq.length, newTotal: newFullSeq.length, featResult, nameApplied,
+    circular: (flags & 1) === 1, outName,
+  });
+
+  state.appStatus = 'done';
+  const parts = [`sustituido en pos ${pos + 1}`, `${seq.length.toLocaleString('es-ES')}→${newFullSeq.length.toLocaleString('es-ES')} nt`];
+  if (featResult.added) parts.push('feature añadida');
+  if (featResult.removed) parts.push(`${featResult.removed} feature(s) borrada(s)`);
+  if (featResult.shifted) parts.push(`${featResult.shifted} reajustada(s)`);
+  setStatus('✓ ' + parts.join(' · '), 'ok');
+  $('btn-execute').style.display = 'none';
+  $('btn-download').style.display = '';
+}
+
+function renderDnaReplaceResults(r) {
+  const existing = $('dna-replace-results');
+  if (existing) existing.remove();
+  const root = mk('div', 'degen-results');
+  root.id = 'dna-replace-results';
+
+  const summary = mk('div', 'degen-summary');
+  summary.innerHTML = `Sustitución aplicada en la posición <strong>${(r.pos + 1).toLocaleString('es-ES')}</strong> · documento ${r.circular ? 'circular' : 'lineal'}`;
+  root.appendChild(summary);
+
+  if (r.occurrences > 1) {
+    const warn = mk('div', 'degen-warn');
+    warn.innerHTML = `⚠ La secuencia a sustituir aparecía <strong>${r.occurrences} veces</strong>; se ha sustituido solo la <strong>primera</strong> (posición ${(r.pos + 1).toLocaleString('es-ES')}). Si querías otra, afina la secuencia para que sea única.`;
+    root.appendChild(warn);
+  }
+
+  const stats = mk('div', 'degen-stats');
+  const mkStat = (val, lbl) => {
+    const s = mk('div', 'degen-stat');
+    s.innerHTML = `<span class="degen-stat-val">${val}</span><span class="degen-stat-lbl">${lbl}</span>`;
+    return s;
+  };
+  stats.appendChild(mkStat(r.oldLen.toLocaleString('es-ES'), 'nt<br>retirados'));
+  stats.appendChild(mkStat(r.newLen.toLocaleString('es-ES'), 'nt<br>insertados'));
+  stats.appendChild(mkStat((r.delta >= 0 ? '+' : '') + r.delta.toLocaleString('es-ES'), 'variación<br>de longitud'));
+  stats.appendChild(mkStat(r.newTotal.toLocaleString('es-ES'), 'nt totales<br>(resultado)'));
+  root.appendChild(stats);
+
+  const detail = mk('div');
+  detail.style.cssText = `font-family:${MUT_MONO};font-size:0.78rem;color:var(--text-muted);line-height:1.8;`;
+  const line = (txt) => { const d = mk('div', null, txt); detail.appendChild(d); };
+  line(`📄 Fichero de salida: <strong>${r.outName}</strong>`);
+  if (r.featResult.added) line('🏷️ Feature nueva añadida para la secuencia entrante.');
+  if (r.featResult.removed) line(`🗑️ Features borradas por solapar la región: <strong>${r.featResult.removed}</strong>.`);
+  if (r.featResult.shifted) line(`↔️ Features con coordenadas reajustadas: <strong>${r.featResult.shifted}</strong>.`);
+  if (r.nameApplied) line('✏️ Nombre interno (custom map label) actualizado.');
+  line('Descarga el resultado con el botón «⬇ Descargar resultado».');
+  root.appendChild(detail);
+
+  const note = mk('div', 'degen-warn');
+  note.style.cssText = 'background:rgba(30,95,184,0.06);border-color:var(--border);';
+  note.innerHTML = '💡 Ábrelo en SnapGene para comprobarlo. Otros elementos que dependen de la posición (p. ej. sitios de unión de primers) no se recalculan aquí; SnapGene los reanaliza al abrir.';
+  root.appendChild(note);
+
+  const paramsZone = $('params-zone');
+  paramsZone.parentNode.insertBefore(root, paramsZone.nextSibling);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
