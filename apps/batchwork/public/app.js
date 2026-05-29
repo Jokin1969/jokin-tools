@@ -2213,9 +2213,10 @@ async function runPlddtKde(op) {
 // orden de mutagénesis (qué secuencia se sintetiza a partir de cuál) que minimiza
 // el número total de cambios facturados.
 
-let mutagenInput = { original: '', list: '', blockSize: 30 };
+let mutagenInput = { original: '', list: '', blockSize: 30, allowSynthesis: true, synthCost: 3 };
 
 const MUT_MONO = 'IBM Plex Mono,monospace';
+const MUT_SYNTH_COLOR = '#8B5CF6';
 
 // Parse the original sequence: FASTA (first record) or plain text (all lines joined).
 function mutagenParseOriginal(text) {
@@ -2282,14 +2283,27 @@ function mutagenCostDirect(a, b, block) {
   return windows;
 }
 
-// Minimum spanning tree (Prim) over all nodes, rooted at node 0 (the original).
-// Returns { parent[], cost[] } indexed by node. parent[0] = -1.
-function mutagenBuildTree(nodes, block) {
+// Minimum spanning arborescence rooted at a virtual synthesis source S (Prim).
+// nodes[0] is the original (already exists → reached from S at cost 0). Each
+// derived node is obtained either by de novo synthesis (edge from S at synthCost,
+// when allowed) or by mutation from another node (edge cost = block distance).
+// Returns { parent[], cost[], synthCost, allowSynth } indexed by node:
+//   parent[i] === -1  → attached to the virtual source S
+//       · i === 0      → the original (free, pre-existing base)
+//       · i  >  0      → synthesized de novo (cost = synthCost)
+//   parent[i] >= 0    → mutated from node parent[i] (cost = block distance)
+function mutagenBuildTree(nodes, block, opts = {}) {
+  const allowSynth = opts.allowSynthesis !== false;
+  const synthCost = Math.max(1, opts.synthCost || 3);
   const n = nodes.length;
   const inTree = new Array(n).fill(false);
   const bestCost = new Array(n).fill(Infinity);
   const parent = new Array(n).fill(-1);
-  bestCost[0] = 0;
+
+  // Seed with the edges from the virtual source S (already in the tree).
+  bestCost[0] = 0; // the original exists for free
+  if (allowSynth) for (let i = 1; i < n; i++) bestCost[i] = synthCost; // synthesize de novo
+
   for (let it = 0; it < n; it++) {
     let u = -1, min = Infinity;
     for (let v = 0; v < n; v++) if (!inTree[v] && bestCost[v] < min) { min = bestCost[v]; u = v; }
@@ -2301,7 +2315,7 @@ function mutagenBuildTree(nodes, block) {
       if (c < bestCost[v]) { bestCost[v] = c; parent[v] = u; }
     }
   }
-  return { parent, cost: bestCost };
+  return { parent, cost: bestCost, synthCost, allowSynth };
 }
 
 function mutagenCostColor(c) {
@@ -2402,13 +2416,48 @@ function renderMutagenUI() {
   bf.appendChild(bi);
   container.appendChild(bf);
 
+  // ── Synthesis options ──
+  const synthBox = mk('div');
+  synthBox.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:12px 14px;background:var(--bg-card);';
+
+  const cbWrap = mk('label', 'bw-checkbox-wrap');
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = mutagenInput.allowSynthesis !== false;
+  cbWrap.appendChild(cb);
+  cbWrap.appendChild(mk('span', null, 'Permitir síntesis de novo (la app decide cuántas salen a cuenta)'));
+  synthBox.appendChild(cbWrap);
+
+  const synthHint = mk('div', null, 'Algunas secuencias se sintetizan desde cero como «hub» y el resto se obtienen mutando desde ellas, cuando sale más barato que mutar todo desde la original.');
+  synthHint.style.cssText = `font-family:${MUT_MONO};font-size:0.7rem;color:var(--text-dim);margin:6px 0 0;line-height:1.5;`;
+  synthBox.appendChild(synthHint);
+
+  const scField = mk('div', 'bw-field');
+  scField.style.cssText = 'margin-top:10px;';
+  scField.appendChild(mk('label', null, 'Coste de una síntesis (× el coste de una mutación)'));
+  const sc = document.createElement('input');
+  sc.type = 'number';
+  sc.className = 'bw-input';
+  sc.min = '1';
+  sc.step = '0.5';
+  sc.value = mutagenInput.synthCost;
+  sc.style.maxWidth = '180px';
+  sc.addEventListener('input', () => { mutagenInput.synthCost = Math.max(1, parseFloat(sc.value) || 3); });
+  scField.appendChild(sc);
+  synthBox.appendChild(scField);
+
+  const syncSynthUI = () => { scField.style.display = cb.checked ? '' : 'none'; };
+  cb.addEventListener('change', () => { mutagenInput.allowSynthesis = cb.checked; syncSynthUI(); });
+  syncSynthUI();
+  container.appendChild(synthBox);
+
   const clearBtn = mk('button', 'bw-btn bw-btn-cancel');
   clearBtn.type = 'button';
   clearBtn.style.cssText = 'font-size:0.8rem;padding:7px 16px;align-self:flex-start;margin-top:4px;';
   clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
   clearBtn.addEventListener('click', () => {
     if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
-    mutagenInput = { original: '', list: '', blockSize: 30 };
+    mutagenInput = { original: '', list: '', blockSize: 30, allowSynthesis: true, synthCost: 3 };
     const res = $('mutagen-results');
     if (res) res.remove();
     resetExecuteBar();
@@ -2423,6 +2472,8 @@ function renderMutagenUI() {
 // ── Run + render ────────────────────────────────────────────────────────────
 async function runMutagenTree() {
   const block = Math.max(1, parseInt(mutagenInput.blockSize) || 30);
+  const allowSynthesis = mutagenInput.allowSynthesis !== false;
+  const synthCost = Math.max(1, parseFloat(mutagenInput.synthCost) || 3);
 
   const original = mutagenParseOriginal(mutagenInput.original);
   if (!original || !original.seq) throw new Error('No se pudo leer la secuencia original.');
@@ -2448,27 +2499,43 @@ async function runMutagenTree() {
   }
 
   const nodes = [original, ...derived];
-  const tree = mutagenBuildTree(nodes, block);
+  const tree = mutagenBuildTree(nodes, block, { allowSynthesis, synthCost });
 
-  let totalCost = 0;
-  for (let i = 1; i < nodes.length; i++) totalCost += tree.cost[i];
-  let naiveCost = 0;
-  for (let i = 1; i < nodes.length; i++) naiveCost += mutagenCostDirect(nodes[0].seq, nodes[i].seq, block);
+  // Breakdown of the optimal plan.
+  let nSynth = 0, mutBlocks = 0;
+  for (let i = 1; i < nodes.length; i++) {
+    if (tree.parent[i] === -1) nSynth++;
+    else mutBlocks += tree.cost[i];
+  }
+  const totalCost = mutBlocks + nSynth * synthCost;
 
-  renderMutagenResults({ nodes, tree, block, excluded, L, totalCost, naiveCost });
+  // Reference: best plan WITHOUT any de novo synthesis (everything by mutation).
+  const mutOnlyTree = mutagenBuildTree(nodes, block, { allowSynthesis: false, synthCost });
+  let mutOnlyTotal = 0;
+  for (let i = 1; i < nodes.length; i++) mutOnlyTotal += mutOnlyTree.cost[i];
+
+  renderMutagenResults({
+    nodes, tree, block, excluded, L,
+    totalCost, nSynth, mutBlocks, synthCost, allowSynthesis, mutOnlyTotal,
+  });
 
   state.appStatus = 'done';
-  const saved = naiveCost - totalCost;
-  setStatus(
-    `✓ ${derived.length} derivada${derived.length !== 1 ? 's' : ''} · coste óptimo ${totalCost} cambio${totalCost !== 1 ? 's' : ''}` +
-    (saved > 0 ? ` (ahorras ${saved} vs. todo desde la original)` : '') +
-    (excluded.length ? ` · ${excluded.length} excluida${excluded.length !== 1 ? 's' : ''}` : ''),
-    'ok',
-  );
+  const saved = mutOnlyTotal - totalCost;
+  const parts = [`${derived.length} derivada${derived.length !== 1 ? 's' : ''}`];
+  if (allowSynthesis && nSynth > 0) parts.push(`${nSynth} síntesis + ${mutBlocks} bloque${mutBlocks !== 1 ? 's' : ''}`);
+  parts.push(`coste óptimo ${mutagenFmt(totalCost)}`);
+  if (saved > 0) parts.push(`ahorras ${mutagenFmt(saved)} vs. solo mutación`);
+  if (excluded.length) parts.push(`${excluded.length} excluida${excluded.length !== 1 ? 's' : ''}`);
+  setStatus('✓ ' + parts.join(' · '), 'ok');
   $('btn-execute').style.display = 'none';
 }
 
-function renderMutagenResults({ nodes, tree, block, excluded, L, totalCost, naiveCost }) {
+// Format a cost: integer when whole, otherwise up to 1 decimal.
+function mutagenFmt(x) {
+  return Number.isInteger(x) ? String(x) : x.toFixed(1);
+}
+
+function renderMutagenResults({ nodes, tree, block, excluded, L, totalCost, nSynth, mutBlocks, synthCost, allowSynthesis, mutOnlyTotal }) {
   const existing = $('mutagen-results');
   if (existing) existing.remove();
 
@@ -2477,21 +2544,23 @@ function renderMutagenResults({ nodes, tree, block, excluded, L, totalCost, naiv
 
   // Summary
   const summary = mk('div', 'degen-summary');
-  summary.innerHTML = `Original <code class="degen-seq-code">${nodes[0].name || nodes[0].id}</code> · <strong>${L} nt</strong> · ventana de empaquetado <strong>${block} nt</strong>`;
+  summary.innerHTML = `Original <code class="degen-seq-code">${nodes[0].name || nodes[0].id}</code> · <strong>${L} nt</strong> · ventana de empaquetado <strong>${block} nt</strong>` +
+    (allowSynthesis ? ` · síntesis = <strong>${mutagenFmt(synthCost)}×</strong> una mutación` : ' · sólo mutación (síntesis desactivada)');
   root.appendChild(summary);
 
   // Stats
-  const saved = naiveCost - totalCost;
+  const saved = mutOnlyTotal - totalCost;
   const stats = mk('div', 'degen-stats');
-  const mkStat = (val, lbl) => {
+  const mkStat = (val, lbl, color) => {
     const s = mk('div', 'degen-stat');
-    s.innerHTML = `<span class="degen-stat-val">${val}</span><span class="degen-stat-lbl">${lbl}</span>`;
+    s.innerHTML = `<span class="degen-stat-val"${color ? ` style="color:${color}"` : ''}>${val}</span><span class="degen-stat-lbl">${lbl}</span>`;
     return s;
   };
   stats.appendChild(mkStat(nodes.length - 1, 'secuencias<br>derivadas'));
-  stats.appendChild(mkStat(totalCost, 'cambios<br>(ruta óptima)'));
-  stats.appendChild(mkStat(naiveCost, 'cambios si todo<br>desde la original'));
-  stats.appendChild(mkStat(saved > 0 ? `−${saved}` : '0', 'cambios<br>ahorrados'));
+  if (allowSynthesis) stats.appendChild(mkStat(nSynth, 'síntesis<br>de novo', MUT_SYNTH_COLOR));
+  stats.appendChild(mkStat(mutBlocks, 'bloques de<br>mutación'));
+  stats.appendChild(mkStat(mutagenFmt(totalCost), 'coste total<br>(ruta óptima)'));
+  if (allowSynthesis) stats.appendChild(mkStat(saved > 0 ? `−${mutagenFmt(saved)}` : '0', 'ahorro vs.<br>solo mutación', saved > 0 ? 'var(--green)' : undefined));
   root.appendChild(stats);
 
   if (excluded.length) {
@@ -2503,7 +2572,9 @@ function renderMutagenResults({ nodes, tree, block, excluded, L, totalCost, naiv
 
   // ── Tree visualization ──
   const treeLbl = mk('div', 'degen-section-label');
-  treeLbl.textContent = 'Árbol de síntesis (la etiqueta de cada rama = cambios facturados)';
+  treeLbl.textContent = allowSynthesis
+    ? 'Árbol de síntesis (⚙ = síntesis de novo · ramas = mutaciones facturadas)'
+    : 'Árbol de síntesis (la etiqueta de cada rama = cambios facturados)';
   root.appendChild(treeLbl);
 
   const treeWrap = mk('div');
@@ -2565,51 +2636,73 @@ function renderMutagenResults({ nodes, tree, block, excluded, L, totalCost, naiv
   paramsZone.parentNode.insertBefore(root, paramsZone.nextSibling);
 }
 
-// Build the ordered plan (BFS from root). Each row describes one synthesis step.
+// Build the ordered plan (BFS from the virtual source). Each row is one step:
+//   type 'synth' → synthesize the sequence de novo (cost = synthCost)
+//   type 'mut'   → mutate it from an existing sequence (blocks of changes)
+// The original is the pre-existing base and produces no step.
 function mutagenBuildPlan(nodes, tree, block) {
+  const name = i => nodes[i].name || nodes[i].id;
+  const byName = (a, b) => name(a).localeCompare(name(b), undefined, { numeric: true });
+
   const children = Array.from({ length: nodes.length }, () => []);
-  for (let i = 1; i < nodes.length; i++) children[tree.parent[i]].push(i);
-  for (const c of children) c.sort((a, b) => (nodes[a].name || nodes[a].id).localeCompare(nodes[b].name || nodes[b].id, undefined, { numeric: true }));
+  const roots = []; // nodes attached to the virtual source (original + synthesized)
+  for (let i = 0; i < nodes.length; i++) {
+    if (tree.parent[i] === -1) roots.push(i);
+    else children[tree.parent[i]].push(i);
+  }
+  roots.sort(byName);
+  for (const c of children) c.sort(byName);
 
   const rows = [];
-  const queue = [0];
+  const queue = [...roots]; // BFS guarantees a parent is emitted before its children
   while (queue.length) {
     const u = queue.shift();
-    for (const c of children[u]) {
-      const p = tree.parent[c];
-      const positions = mutagenDiffPositions(nodes[p].seq, nodes[c].seq);
+    if (u === 0) {
+      // the original: pre-existing base, no step
+    } else if (tree.parent[u] === -1) {
+      rows.push({ type: 'synth', child: name(u), parent: null, cost: tree.synthCost, blocks: [] });
+    } else {
+      const p = tree.parent[u];
+      const positions = mutagenDiffPositions(nodes[p].seq, nodes[u].seq);
       const blocks = mutagenBlocks(positions, block).map(b => ({
         from: b.start + 1,
         to: b.end + 1,
-        muts: b.positions.map(pos => ({ pos: pos + 1, ref: nodes[p].seq[pos], alt: nodes[c].seq[pos] })),
+        muts: b.positions.map(pos => ({ pos: pos + 1, ref: nodes[p].seq[pos], alt: nodes[u].seq[pos] })),
       }));
-      rows.push({
-        child: nodes[c].name || nodes[c].id,
-        parent: nodes[p].name || nodes[p].id,
-        cost: tree.cost[c],
-        blocks,
-      });
-      queue.push(c);
+      rows.push({ type: 'mut', child: name(u), parent: name(p), cost: tree.cost[u], blocks });
     }
+    for (const c of children[u]) queue.push(c);
   }
   return rows;
 }
 
 function mutagenPlanRowEl(r, step) {
+  const isSynth = r.type === 'synth';
+  const accent = isSynth ? MUT_SYNTH_COLOR : mutagenCostColor(r.cost);
+
   const el = mk('div');
-  el.style.cssText = `border:1px solid var(--border);border-left:4px solid ${mutagenCostColor(r.cost)};border-radius:8px;padding:10px 12px;background:var(--bg-card);`;
+  el.style.cssText = `border:1px solid var(--border);border-left:4px solid ${accent};border-radius:8px;padding:10px 12px;background:var(--bg-card);`;
 
   const head = mk('div');
   head.style.cssText = `display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:${MUT_MONO};font-size:0.82rem;color:var(--text);`;
-  const costTxt = r.cost === 0
-    ? 'idéntica (sin coste)'
-    : `${r.cost} cambio${r.cost !== 1 ? 's' : ''}`;
-  head.innerHTML =
-    `<span style="font-weight:700;color:var(--text-dim);">${String(step).padStart(2, '0')}</span>` +
-    `<strong style="color:var(--blue);">${r.child}</strong>` +
-    `<span style="color:var(--text-dim);">a partir de</span>` +
-    `<strong>${r.parent}</strong>` +
-    `<span style="margin-left:auto;font-weight:700;color:${mutagenCostColor(r.cost)};">${costTxt}</span>`;
+
+  if (isSynth) {
+    head.innerHTML =
+      `<span style="font-weight:700;color:var(--text-dim);">${String(step).padStart(2, '0')}</span>` +
+      `<span style="color:${MUT_SYNTH_COLOR};font-weight:700;">⚙ Sintetizar de novo</span>` +
+      `<strong style="color:${MUT_SYNTH_COLOR};">${r.child}</strong>` +
+      `<span style="margin-left:auto;font-weight:700;color:${MUT_SYNTH_COLOR};">coste ${mutagenFmt(r.cost)}</span>`;
+  } else {
+    const costTxt = r.cost === 0
+      ? 'idéntica (sin coste)'
+      : `${r.cost} cambio${r.cost !== 1 ? 's' : ''}`;
+    head.innerHTML =
+      `<span style="font-weight:700;color:var(--text-dim);">${String(step).padStart(2, '0')}</span>` +
+      `<strong style="color:var(--blue);">${r.child}</strong>` +
+      `<span style="color:var(--text-dim);">a partir de</span>` +
+      `<strong>${r.parent}</strong>` +
+      `<span style="margin-left:auto;font-weight:700;color:${accent};">${costTxt}</span>`;
+  }
   el.appendChild(head);
 
   if (r.blocks.length) {
@@ -2634,10 +2727,15 @@ function mutagenPlanRowEl(r, step) {
 }
 
 function mutagenPlanToText(rows) {
-  const lines = ['Plan de síntesis (orden de mutagénesis)', ''];
+  const lines = ['Plan de síntesis (orden recomendado)', ''];
   rows.forEach((r, i) => {
+    const num = String(i + 1).padStart(2, '0');
+    if (r.type === 'synth') {
+      lines.push(`${num}. ${r.child} ← síntesis de novo  [coste ${mutagenFmt(r.cost)}]`);
+      return;
+    }
     const costTxt = r.cost === 0 ? 'idéntica (sin coste)' : `${r.cost} cambio(s)`;
-    lines.push(`${String(i + 1).padStart(2, '0')}. ${r.child} ← ${r.parent}  [${costTxt}]`);
+    lines.push(`${num}. ${r.child} ← mutar desde ${r.parent}  [${costTxt}]`);
     r.blocks.forEach((b, j) => {
       const rangeTxt = b.from === b.to ? `pos ${b.from}` : `pos ${b.from}-${b.to}`;
       const mutTxt = b.muts.map(m => `${m.pos}:${m.ref}>${m.alt}`).join(', ');
@@ -2648,28 +2746,32 @@ function mutagenPlanToText(rows) {
 }
 
 // Export the synthesis plan as a real .xlsx with one column per field.
-// One row per block; steps with several blocks span several rows.
+// One row per mutation block; synthesis steps and block-less rows take a single row.
 function mutagenExportExcel(rows) {
   if (typeof XLSX === 'undefined') { setStatus('xlsx.js no disponible', 'err'); return; }
 
-  const header = ['Paso', 'Secuencia', 'A partir de', 'Coste (cambios)',
+  const header = ['Paso', 'Tipo', 'Secuencia', 'A partir de', 'Coste',
                   'Nº bloque', 'Desde (nt)', 'Hasta (nt)', 'Nº mutaciones', 'Mutaciones'];
   const aoa = [header];
 
   rows.forEach((r, i) => {
+    if (r.type === 'synth') {
+      aoa.push([i + 1, 'Síntesis de novo', r.child, '(desde cero)', r.cost, '', '', '', '', '']);
+      return;
+    }
     if (!r.blocks.length) {
-      aoa.push([i + 1, r.child, r.parent, r.cost, '', '', '', 0, 'idéntica (sin coste)']);
+      aoa.push([i + 1, 'Mutación', r.child, r.parent, r.cost, '', '', '', 0, 'idéntica (sin coste)']);
       return;
     }
     r.blocks.forEach((b, j) => {
       const mutTxt = b.muts.map(m => `${m.pos}:${m.ref}>${m.alt}`).join(', ');
-      aoa.push([i + 1, r.child, r.parent, r.cost, j + 1, b.from, b.to, b.muts.length, mutTxt]);
+      aoa.push([i + 1, 'Mutación', r.child, r.parent, r.cost, j + 1, b.from, b.to, b.muts.length, mutTxt]);
     });
   });
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = [
-    { wch: 6 }, { wch: 18 }, { wch: 18 }, { wch: 15 },
+    { wch: 6 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 8 },
     { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 14 }, { wch: 60 },
   ];
   const wb = XLSX.utils.book_new();
@@ -2678,18 +2780,28 @@ function mutagenExportExcel(rows) {
 }
 
 // Horizontal d3 tree. Returns the <svg> DOM node (for export) or null.
+// Node kinds: 'source' (virtual synthesizer), 'original', 'synth', 'mut'.
 function renderMutagenTreeViz(container, nodes, tree) {
   if (typeof d3 === 'undefined') {
     container.innerHTML = '<p style="color:var(--red);font-family:var(--mono);font-size:0.82rem;padding:20px;">D3.js no disponible.</p>';
     return null;
   }
 
-  const data = nodes.map((nd, i) => ({
-    id: String(i),
-    parentId: i === 0 ? '' : String(tree.parent[i]),
-    name: nd.name || nd.id,
-    cost: tree.cost[i],
-  }));
+  // Any sequence (other than the original) attached to the virtual source = synthesized.
+  const hasSynth = nodes.some((_, i) => i > 0 && tree.parent[i] === -1);
+
+  const data = [];
+  if (hasSynth) data.push({ id: 'S', parentId: '', name: '⚙ Síntesis', cost: null, kind: 'source' });
+  nodes.forEach((nd, i) => {
+    const fromSource = tree.parent[i] === -1;
+    data.push({
+      id: 'n' + i,
+      parentId: fromSource ? (hasSynth ? 'S' : '') : 'n' + tree.parent[i],
+      name: nd.name || nd.id,
+      cost: tree.cost[i],
+      kind: i === 0 ? 'original' : (fromSource ? 'synth' : 'mut'),
+    });
+  });
 
   let hierarchy;
   try {
@@ -2705,7 +2817,7 @@ function renderMutagenTreeViz(container, nodes, tree) {
   let minX = Infinity, maxX = -Infinity, maxY = 0;
   hierarchy.each(d => { minX = Math.min(minX, d.x); maxX = Math.max(maxX, d.x); maxY = Math.max(maxY, d.y); });
 
-  const M = { top: 22, right: 150, bottom: 22, left: 70 };
+  const M = { top: 22, right: 160, bottom: 22, left: 80 };
   const W = M.left + maxY + M.right;
   const H = M.top + (maxX - minX) + M.bottom;
 
@@ -2717,42 +2829,67 @@ function renderMutagenTreeViz(container, nodes, tree) {
 
   const g = svg.append('g').attr('transform', `translate(${M.left},${M.top - minX})`);
 
+  const edgeColor = d => {
+    const k = d.target.data.kind;
+    if (k === 'original') return '#9AA7B5';
+    if (k === 'synth') return MUT_SYNTH_COLOR;
+    return mutagenCostColor(d.target.data.cost);
+  };
+  const edgeLabel = d => {
+    const k = d.target.data.kind;
+    if (k === 'original') return 'base';
+    if (k === 'synth') return `síntesis (${mutagenFmt(tree.synthCost)})`;
+    const c = d.target.data.cost;
+    return c === 0 ? '0' : `${c} cambio${c !== 1 ? 's' : ''}`;
+  };
+
   // Links
   g.selectAll('path.mut-link').data(hierarchy.links()).join('path')
     .attr('fill', 'none')
-    .attr('stroke', d => mutagenCostColor(d.target.data.cost))
+    .attr('stroke', edgeColor)
     .attr('stroke-width', 2)
-    .attr('opacity', 0.75)
+    .attr('stroke-dasharray', d => d.target.data.kind === 'synth' ? '5,4' : null)
+    .attr('opacity', 0.8)
     .attr('d', d3.linkHorizontal().x(d => d.y).y(d => d.x));
 
-  // Edge labels (cost)
+  // Edge labels
   g.selectAll('text.mut-elabel').data(hierarchy.links()).join('text')
     .attr('x', d => (d.source.y + d.target.y) / 2)
     .attr('y', d => (d.source.x + d.target.x) / 2 - 4)
     .attr('text-anchor', 'middle')
     .attr('font-family', MUT_MONO).attr('font-size', '9.5')
     .attr('font-weight', '700')
-    .attr('fill', d => mutagenCostColor(d.target.data.cost))
-    .text(d => {
-      const c = d.target.data.cost;
-      return c === 0 ? '0' : `${c} cambio${c !== 1 ? 's' : ''}`;
-    });
+    .attr('fill', edgeColor)
+    .text(edgeLabel);
 
   // Nodes
+  const nodeFill = d => {
+    if (d.data.kind === 'source') return MUT_SYNTH_COLOR;
+    if (d.data.kind === 'original') return '#1E5FB8';
+    if (d.data.kind === 'synth') return MUT_SYNTH_COLOR;
+    return '#fff';
+  };
+  const nodeStroke = d => d.data.kind === 'synth' || d.data.kind === 'source' ? MUT_SYNTH_COLOR : '#1E5FB8';
+
   const node = g.selectAll('g.mut-node').data(hierarchy.descendants()).join('g')
     .attr('transform', d => `translate(${d.y},${d.x})`);
   node.append('circle')
-    .attr('r', 6)
-    .attr('fill', d => d.depth === 0 ? '#1E5FB8' : '#fff')
-    .attr('stroke', '#1E5FB8').attr('stroke-width', 2);
+    .attr('r', d => d.data.kind === 'source' ? 8 : 6)
+    .attr('fill', nodeFill)
+    .attr('stroke', nodeStroke).attr('stroke-width', 2);
   node.append('text')
     .attr('x', d => d.children ? -11 : 11)
     .attr('y', 4)
     .attr('text-anchor', d => d.children ? 'end' : 'start')
     .attr('font-family', MUT_MONO)
-    .attr('font-size', '11')
-    .attr('font-weight', d => d.depth === 0 ? '800' : '600')
-    .attr('fill', d => d.depth === 0 ? '#1E5FB8' : '#0D1F3C')
+    .attr('font-size', d => d.data.kind === 'source' ? '11.5' : '11')
+    .attr('font-weight', d => d.depth === 0 || d.data.kind === 'synth' ? '800' : '600')
+    .attr('fill', d => {
+      if (d.data.kind === 'source') return MUT_SYNTH_COLOR;
+      if (d.data.kind === 'synth') return '#5B3FA8';
+      if (d.data.kind === 'original') return '#1E5FB8';
+      return '#0D1F3C';
+    })
     .text(d => d.data.name);
 
   return svg.node();
