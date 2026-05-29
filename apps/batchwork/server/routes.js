@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const sessionModule = require('./session');
 const { resolveSession } = require('./session');
+const library = require('./library');
 
 // Eager-load spawn-python para disparar el diagnóstico al boot
 require('./spawn-python');
@@ -283,5 +284,59 @@ router.post('/api/export/tiff',
     }
   }
 );
+
+// ── API: .dna document repository (persistent volume) ───────────────────────
+// Light multer instance keeping the upload in memory (documents are small).
+const libUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: ((parseInt(process.env.BATCHWORK_LIBRARY_MAX_FILE_MB) || 50) + 1) * 1024 * 1024 },
+});
+
+function libError(res, err) {
+  const status = err && err.status ? err.status : 500;
+  if (status >= 500) console.error('[batchwork] library error:', err);
+  res.status(status).json({ error: err.message || 'Error en el repositorio.' });
+}
+
+// List saved documents
+router.get('/api/library/dna', (req, res) => {
+  try {
+    res.json({ documents: library.list() });
+  } catch (err) { libError(res, err); }
+});
+
+// Save a document
+router.post('/api/library/dna', (req, res, next) => {
+  libUpload.single('file')(req, res, (err) => {
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'El documento es demasiado grande para el repositorio.' });
+    }
+    if (err) return next(err);
+    try {
+      if (!req.file || !req.file.buffer) return res.status(400).json({ error: 'No se recibió ningún fichero.' });
+      const rawName = req.body.name || req.file.originalname || 'documento.dna';
+      const saved = library.save(rawName, req.file.buffer);
+      res.json({ ok: true, document: saved });
+    } catch (e) { libError(res, e); }
+  });
+});
+
+// Download a saved document
+router.get('/api/library/dna/:name', (req, res) => {
+  try {
+    const { name, buffer } = library.read(req.params.name);
+    res.set('Content-Type', 'application/octet-stream');
+    res.set('Content-Disposition', `attachment; filename="${encodeURIComponent(name)}"`);
+    res.send(buffer);
+  } catch (err) { libError(res, err); }
+});
+
+// Delete a saved document
+router.delete('/api/library/dna/:name', (req, res) => {
+  try {
+    library.remove(req.params.name);
+    res.json({ ok: true });
+  } catch (err) { libError(res, err); }
+});
 
 module.exports = router;

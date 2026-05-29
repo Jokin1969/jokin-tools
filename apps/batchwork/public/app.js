@@ -3108,26 +3108,59 @@ function dnaBuildNotesPacket(name) {
   return { type: 6, data: new TextEncoder().encode(xml) };
 }
 
-// ── Input UI ──────────────────────────────────────────────────────────────────
-function dnaReplaceLoadFile(file, onDone) {
-  file.arrayBuffer().then(buf => {
-    const bytes = new Uint8Array(buf);
-    let info = null, error = null;
-    try {
-      const packets = dnaParsePackets(bytes);
-      dnaValidateCookie(packets);
-      const dnaPkt = packets.find(p => p.type === 0);
-      if (!dnaPkt) throw new Error('El fichero no contiene secuencia de ADN (paquete tipo 0).');
-      const seq = dnaBytesToAscii(dnaPkt.data.slice(1));
-      const featPkt = packets.find(p => p.type === 10);
-      let nFeatures = 0;
-      if (featPkt) nFeatures = (dnaBytesToAscii(featPkt.data).match(/<Feature\b/g) || []).length;
-      info = { length: seq.length, circular: (dnaPkt.data[0] & 1) === 1, nFeatures };
-    } catch (e) { error = e.message; }
-    dnaReplaceInput.file = { name: file.name, bytes };
-    onDone(info, error);
-  });
+// ── Document repository (server-side, persistent volume) ──────────────────────
+let dnaLibCache = null; // last fetched list, for "already saved?" checks
+
+async function dnaLibList() {
+  const res = await fetch('/batchwork/api/library/dna');
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'No se pudo leer el repositorio.');
+  const data = await res.json();
+  dnaLibCache = data.documents || [];
+  return dnaLibCache;
 }
+async function dnaLibSave(name, bytes) {
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('file', new Blob([bytes], { type: 'application/octet-stream' }), name);
+  const res = await fetch('/batchwork/api/library/dna', { method: 'POST', body: fd });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'No se pudo guardar el documento.');
+  return data.document;
+}
+async function dnaLibDelete(name) {
+  const res = await fetch('/batchwork/api/library/dna/' + encodeURIComponent(name), { method: 'DELETE' });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'No se pudo borrar el documento.');
+}
+async function dnaLibFetchBytes(name) {
+  const res = await fetch('/batchwork/api/library/dna/' + encodeURIComponent(name));
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'No se pudo cargar el documento.');
+  return new Uint8Array(await res.arrayBuffer());
+}
+// Mirror of the server name sanitiser, to know if a freshly loaded file already
+// matches a stored document (and skip the "save?" prompt).
+function dnaSafeName(name) {
+  let base = (String(name || '').split(/[\\/]/).pop() || '').trim().replace(/\.dna$/i, '');
+  base = base.replace(/[^\p{L}\p{N}.\- ()\[\]]+/gu, '_').replace(/_{2,}/g, '_').replace(/^[_.\s]+|[_.\s]+$/g, '');
+  if (!base) base = 'documento';
+  return base.slice(0, 120) + '.dna';
+}
+
+// Parse loaded .dna bytes; returns { info, error } without touching state.
+function dnaParseLoaded(bytes) {
+  try {
+    const packets = dnaParsePackets(bytes);
+    dnaValidateCookie(packets);
+    const dnaPkt = packets.find(p => p.type === 0);
+    if (!dnaPkt) throw new Error('El fichero no contiene secuencia de ADN (paquete tipo 0).');
+    const seq = dnaBytesToAscii(dnaPkt.data.slice(1));
+    const featPkt = packets.find(p => p.type === 10);
+    let nFeatures = 0;
+    if (featPkt) nFeatures = (dnaBytesToAscii(featPkt.data).match(/<Feature\b/g) || []).length;
+    return { info: { length: seq.length, circular: (dnaPkt.data[0] & 1) === 1, nFeatures }, error: null };
+  } catch (e) { return { info: null, error: e.message }; }
+}
+
+// ── Input UI ──────────────────────────────────────────────────────────────────
 
 function renderDnaReplaceUI() {
   const zone = $('params-zone');
@@ -3139,6 +3172,72 @@ function renderDnaReplaceUI() {
   fileField.appendChild(mk('label', null, 'Fichero .dna de SnapGene (original)'));
   const info = mk('div');
   info.style.cssText = `font-family:${MUT_MONO};font-size:0.74rem;color:var(--text-muted);margin-top:8px;line-height:1.6;`;
+  const savePrompt = mk('div');   // "¿Guardar en el repositorio?" banner
+  savePrompt.style.marginTop = '8px';
+  const repoPanel = mk('div');    // list of stored documents
+
+  // Apply a freshly loaded document (from disk or from the repository).
+  function applyLoaded(name, bytes, fromRepo) {
+    const { info: fi, error } = dnaParseLoaded(bytes);
+    dnaReplaceInput.file = { name, bytes, fromRepo: !!fromRepo };
+    const txt = drop.querySelector('.bw-drop-text');
+    if (txt) txt.textContent = `✓ ${name}`;
+    if (error) {
+      info.innerHTML = `<span style="color:var(--red)">⚠ ${error}</span>`;
+      savePrompt.innerHTML = '';
+    } else {
+      info.innerHTML = `<strong>${fi.length.toLocaleString('es-ES')} nt</strong> · ${fi.circular ? 'circular' : 'lineal'} · ${fi.nFeatures} feature${fi.nFeatures !== 1 ? 's' : ''}${fromRepo ? ' · <span style="color:var(--green)">📂 del repositorio</span>' : ''}`;
+      renderSavePrompt(name, bytes, fromRepo);
+    }
+    updateExecuteBtn();
+  }
+
+  // Ask whether to keep a disk-loaded document in the repository.
+  function renderSavePrompt(name, bytes, fromRepo) {
+    savePrompt.innerHTML = '';
+    const safe = dnaSafeName(name);
+    const alreadyStored = (dnaLibCache || []).some(d => d.name === safe);
+    if (fromRepo || alreadyStored) {
+      if (alreadyStored && !fromRepo) {
+        const ok = mk('div', null, '✓ Ya está guardado en el repositorio.');
+        ok.style.cssText = 'font-size:0.78rem;color:var(--green);';
+        savePrompt.appendChild(ok);
+      }
+      return;
+    }
+    const banner = mk('div');
+    banner.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:rgba(13,122,85,0.06);';
+    const q = mk('div', null, `💾 ¿Guardar «${safe}» en el repositorio para reutilizarlo otras veces?`);
+    q.style.cssText = 'font-size:0.8rem;flex:1;min-width:200px;';
+    banner.appendChild(q);
+    const yes = mk('button', 'bw-btn bw-btn-primary');
+    yes.type = 'button';
+    yes.style.cssText = 'font-size:0.76rem;padding:6px 14px;';
+    yes.textContent = 'Guardar';
+    const no = mk('button', 'bw-btn bw-btn-cancel');
+    no.type = 'button';
+    no.style.cssText = 'font-size:0.76rem;padding:6px 14px;';
+    no.textContent = 'Ahora no';
+    yes.addEventListener('click', async () => {
+      yes.disabled = true; yes.textContent = 'Guardando…';
+      try {
+        await dnaLibSave(name, bytes);
+        await dnaLibList();
+        savePrompt.innerHTML = '<div style="font-size:0.78rem;color:var(--green)">✓ Guardado en el repositorio.</div>';
+        refreshRepo();
+      } catch (e) {
+        yes.disabled = false; yes.textContent = 'Guardar';
+        const err = mk('div', null, '⚠ ' + e.message);
+        err.style.cssText = 'font-size:0.76rem;color:var(--red);flex-basis:100%;';
+        banner.appendChild(err);
+      }
+    });
+    no.addEventListener('click', () => { savePrompt.innerHTML = ''; });
+    banner.appendChild(yes);
+    banner.appendChild(no);
+    savePrompt.appendChild(banner);
+  }
+
   const drop = makeDropZone({
     label: dnaReplaceInput.file ? `✓ ${dnaReplaceInput.file.name}` : 'Arrastra o haz clic para elegir un .dna',
     sub: 'SnapGene · se procesa en tu navegador',
@@ -3147,20 +3246,86 @@ function renderDnaReplaceUI() {
     onFiles: files => {
       if (!files[0]) return;
       info.textContent = 'Leyendo…';
-      dnaReplaceLoadFile(files[0], (fi, err) => {
-        const txt = drop.querySelector('.bw-drop-text');
-        if (txt) txt.textContent = `✓ ${files[0].name}`;
-        if (err) { info.innerHTML = `<span style="color:var(--red)">⚠ ${err}</span>`; }
-        else {
-          info.innerHTML = `<strong>${fi.length.toLocaleString('es-ES')} nt</strong> · ${fi.circular ? 'circular' : 'lineal'} · ${fi.nFeatures} feature${fi.nFeatures !== 1 ? 's' : ''}`;
-        }
-        updateExecuteBtn();
-      });
+      savePrompt.innerHTML = '';
+      files[0].arrayBuffer().then(buf => applyLoaded(files[0].name, new Uint8Array(buf), false));
     },
   });
   fileField.appendChild(drop);
   fileField.appendChild(info);
-  if (dnaReplaceInput.file) info.textContent = dnaReplaceInput.file.name;
+  fileField.appendChild(savePrompt);
+  if (dnaReplaceInput.file) {
+    info.textContent = dnaReplaceInput.file.name;
+  }
+
+  // ── Repository panel ──────────────────────────────────────────────
+  function refreshRepo() {
+    repoPanel.innerHTML = '';
+    const head = mk('div');
+    head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;';
+    const title = mk('label', null, '📂 Repositorio de documentos guardados');
+    title.style.margin = '0';
+    head.appendChild(title);
+    repoPanel.appendChild(head);
+
+    const listBox = mk('div');
+    listBox.style.cssText = 'border:1px solid var(--border);border-radius:8px;overflow:hidden;';
+    repoPanel.appendChild(listBox);
+
+    const setMsg = (html, color) => {
+      listBox.innerHTML = `<div style="padding:12px 14px;font-family:${MUT_MONO};font-size:0.76rem;color:${color || 'var(--text-muted)'}">${html}</div>`;
+    };
+    setMsg('Cargando…');
+
+    dnaLibList().then(docs => {
+      listBox.innerHTML = '';
+      if (!docs.length) {
+        setMsg('Aún no has guardado ningún documento. Cuando cargues un .dna te preguntaré si quieres guardarlo aquí.');
+        return;
+      }
+      docs.forEach((d, i) => {
+        const row = mk('div');
+        row.style.cssText = `display:flex;align-items:center;gap:10px;padding:9px 12px;${i ? 'border-top:1px solid var(--border);' : ''}`;
+        const meta = mk('div');
+        meta.style.cssText = 'flex:1;min-width:0;';
+        const kb = d.size >= 1024 ? `${(d.size / 1024).toFixed(0)} KB` : `${d.size} B`;
+        const date = new Date(d.savedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+        meta.innerHTML = `<div style="font-size:0.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.name}</div><div style="font-family:${MUT_MONO};font-size:0.7rem;color:var(--text-dim);">${kb} · ${date}</div>`;
+        row.appendChild(meta);
+
+        const load = mk('button', 'bw-btn bw-btn-cancel');
+        load.type = 'button';
+        load.style.cssText = 'font-size:0.74rem;padding:5px 12px;white-space:nowrap;';
+        load.textContent = 'Cargar';
+        load.addEventListener('click', async () => {
+          load.disabled = true; load.textContent = 'Cargando…';
+          try {
+            const bytes = await dnaLibFetchBytes(d.name);
+            applyLoaded(d.name, bytes, true);
+          } catch (e) {
+            info.innerHTML = `<span style="color:var(--red)">⚠ ${e.message}</span>`;
+          } finally { load.disabled = false; load.textContent = 'Cargar'; }
+        });
+        row.appendChild(load);
+
+        const del = mk('button', 'bw-btn bw-btn-cancel');
+        del.type = 'button';
+        del.style.cssText = 'font-size:0.74rem;padding:5px 10px;';
+        del.title = 'Borrar del repositorio';
+        del.textContent = '🗑';
+        del.addEventListener('click', async () => {
+          if (!confirm(`¿Borrar «${d.name}» del repositorio? Esta acción no se puede deshacer.`)) return;
+          del.disabled = true;
+          try { await dnaLibDelete(d.name); await dnaLibList(); refreshRepo(); }
+          catch (e) { del.disabled = false; alert('No se pudo borrar: ' + e.message); }
+        });
+        row.appendChild(del);
+        listBox.appendChild(row);
+      });
+    }).catch(e => setMsg('⚠ ' + e.message, 'var(--red)'));
+  }
+  fileField.appendChild(repoPanel);
+  refreshRepo();
+
   container.appendChild(fileField);
 
   // old / new sequences
