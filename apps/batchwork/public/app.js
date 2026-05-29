@@ -680,10 +680,12 @@ function updateExecuteBtn() {
       const hasFile = !!dnaReplaceInput.file;
       const hasOld = dnaReplaceInput.oldSeq.trim().length > 0;
       const hasNew = dnaReplaceInput.newSeq.trim().length > 0;
-      ready = hasFile && hasOld && hasNew;
-      if (!hasFile)     setStatus('Carga un fichero .dna de SnapGene', '');
-      else if (!hasOld) setStatus('Falta: la secuencia de nucleótidos a sustituir', '');
-      else if (!hasNew) setStatus('Falta: la secuencia nueva con la que sustituir', '');
+      const needsName = dnaReplaceInput.renameDoc && !dnaReplaceInput.docName.trim();
+      ready = hasFile && hasOld && hasNew && !needsName;
+      if (!hasFile)       setStatus('Carga un fichero .dna de SnapGene', '');
+      else if (!hasOld)   setStatus('Falta: la secuencia de nucleótidos a sustituir', '');
+      else if (!hasNew)   setStatus('Falta: la secuencia nueva con la que sustituir', '');
+      else if (needsName) setStatus('Falta: el nombre interno del documento (o desmarca «Cambiar el nombre interno»)', '');
       else setStatus('', '');
     } else {
       const mainParam = op.params.find(p => p.type === 'textarea');
@@ -2960,9 +2962,10 @@ let dnaReplaceInput = {
   addFeature: true,
   featName: '',
   featType: 'misc_feature',
+  featColor: '#a6acb3',
   deleteOverlap: true,
   shiftCoords: true,
-  renameDoc: false,
+  renameDoc: true,
   docName: '',
 };
 
@@ -2972,6 +2975,15 @@ const DNA_FEATURE_TYPES = [
 ];
 
 const dnaCleanSeq = s => (s || '').toUpperCase().replace(/[^ACGTUNRYSWKMBDHV]/g, '');
+
+// Download filename for the resulting .dna. Keeps spaces and accented letters
+// intact; only strips characters that are illegal in filenames.
+function dnaSafeDownloadName(name) {
+  let base = String(name || '').trim().replace(/\.dna$/i, '');
+  base = base.replace(/[\\/:*?"<>|\x00-\x1f]/g, '').replace(/\s+/g, ' ').trim();
+  if (!base) base = 'documento';
+  return base + '.dna';
+}
 
 // ── Binary layer (pure, no DOM) ───────────────────────────────────────────────
 function dnaParsePackets(bytes) {
@@ -3039,7 +3051,7 @@ function dnaReserializeXml(originalStr, doc) {
 // the coordinates of features located after it, and append a feature for the new
 // sequence. Returns { xml, removed, shifted, added }.
 function dnaEditFeaturesXml(xmlStr, opts) {
-  const { rStart, rEnd, delta, deleteOverlap, shiftCoords, addFeature, featName, featType, newStart, newEnd } = opts;
+  const { rStart, rEnd, delta, deleteOverlap, shiftCoords, addFeature, featName, featType, featColor, newStart, newEnd } = opts;
   const doc = new DOMParser().parseFromString(xmlStr, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) return { xml: xmlStr, removed: 0, shifted: 0, added: false };
   const root = doc.documentElement;
@@ -3079,7 +3091,7 @@ function dnaEditFeaturesXml(xmlStr, opts) {
     const seg = doc.createElement('Segment');
     seg.setAttribute('range', `${newStart}-${newEnd}`);
     seg.setAttribute('type', 'standard');
-    seg.setAttribute('color', '#a6acb3');
+    seg.setAttribute('color', featColor || '#a6acb3');
     f.appendChild(seg);
     root.appendChild(f);
     added = true;
@@ -3383,7 +3395,32 @@ function renderDnaReplaceUI() {
   featRow.appendChild(nameIn);
   featRow.appendChild(typeSel);
   box.appendChild(featRow);
-  const syncFeat = () => { featRow.style.display = addChk.c.checked ? 'flex' : 'none'; };
+
+  // feature colour: native picker + quick presets
+  const colorRow = mk('div');
+  colorRow.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-left:24px;';
+  const colorLbl = mk('span', null, 'Color:');
+  colorLbl.style.cssText = `font-family:${MUT_MONO};font-size:0.72rem;color:var(--text-dim);`;
+  colorRow.appendChild(colorLbl);
+  const colorIn = document.createElement('input');
+  colorIn.type = 'color';
+  colorIn.value = dnaReplaceInput.featColor || '#a6acb3';
+  colorIn.title = 'Color de la feature';
+  colorIn.style.cssText = 'width:40px;height:30px;padding:2px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);cursor:pointer;';
+  colorIn.addEventListener('input', () => { dnaReplaceInput.featColor = colorIn.value; });
+  colorRow.appendChild(colorIn);
+  const DNA_FEATURE_PRESETS = ['#f5524b', '#f7a83e', '#f4d03f', '#5fb878', '#3fb6c6', '#4a78c8', '#9b6bd6', '#a6acb3'];
+  for (const col of DNA_FEATURE_PRESETS) {
+    const sw = mk('button');
+    sw.type = 'button';
+    sw.title = col;
+    sw.style.cssText = `width:20px;height:20px;border-radius:5px;border:1px solid var(--border);background:${col};cursor:pointer;padding:0;`;
+    sw.addEventListener('click', () => { dnaReplaceInput.featColor = col; colorIn.value = col; });
+    colorRow.appendChild(sw);
+  }
+  box.appendChild(colorRow);
+
+  const syncFeat = () => { const show = addChk.c.checked ? 'flex' : 'none'; featRow.style.display = show; colorRow.style.display = show; };
   addChk.c.addEventListener('change', () => { dnaReplaceInput.addFeature = addChk.c.checked; syncFeat(); });
   syncFeat();
 
@@ -3405,11 +3442,14 @@ function renderDnaReplaceUI() {
   renIn.type = 'text'; renIn.className = 'bw-input'; renIn.placeholder = 'Nombre interno (custom map label)';
   renIn.style.maxWidth = '320px';
   renIn.value = dnaReplaceInput.docName;
-  renIn.addEventListener('input', () => { dnaReplaceInput.docName = renIn.value; });
+  renIn.addEventListener('input', () => { dnaReplaceInput.docName = renIn.value; updateExecuteBtn(); });
   renField.appendChild(renIn);
+  const renHint = mk('div', null, 'El nombre del fichero descargado conserva tal cual los espacios y las tildes.');
+  renHint.style.cssText = `font-family:${MUT_MONO};font-size:0.68rem;color:var(--text-dim);margin-top:4px;`;
+  renField.appendChild(renHint);
   box.appendChild(renField);
   const syncRen = () => { renField.style.display = renChk.c.checked ? '' : 'none'; };
-  renChk.c.addEventListener('change', () => { dnaReplaceInput.renameDoc = renChk.c.checked; syncRen(); });
+  renChk.c.addEventListener('change', () => { dnaReplaceInput.renameDoc = renChk.c.checked; syncRen(); updateExecuteBtn(); });
   syncRen();
 
   container.appendChild(box);
@@ -3421,7 +3461,7 @@ function renderDnaReplaceUI() {
   clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
   clearBtn.addEventListener('click', () => {
     if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
-    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'misc_feature', deleteOverlap: true, shiftCoords: true, renameDoc: false, docName: '' };
+    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'misc_feature', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '' };
     const res = $('dna-replace-results');
     if (res) res.remove();
     resetExecuteBar();
@@ -3431,6 +3471,7 @@ function renderDnaReplaceUI() {
   container.appendChild(clearBtn);
 
   zone.appendChild(container);
+  updateExecuteBtn();
 }
 
 // ── Run + render ────────────────────────────────────────────────────────────
@@ -3458,6 +3499,17 @@ async function runDnaReplace() {
   const newFullSeq = seq.slice(0, pos) + newSeq + seq.slice(pos + oldSeq.length);
   const delta = newSeq.length - oldSeq.length;
 
+  // nt-to-nt comparison: only meaningful when the final length matches the original.
+  let ntCompare;
+  if (newFullSeq.length === seq.length) {
+    const b = newFullSeq.toUpperCase();
+    let changes = 0;
+    for (let i = 0; i < up.length; i++) if (up[i] !== b[i]) changes++;
+    ntCompare = { applicable: true, changes, total: up.length };
+  } else {
+    ntCompare = { applicable: false, total: seq.length, newTotal: newFullSeq.length };
+  }
+
   // 1) DNA packet
   const newData = new Uint8Array(1 + newFullSeq.length);
   newData[0] = flags;
@@ -3478,13 +3530,15 @@ async function runDnaReplace() {
       addFeature: dnaReplaceInput.addFeature,
       featName: dnaReplaceInput.featName,
       featType: dnaReplaceInput.featType,
+      featColor: dnaReplaceInput.featColor,
       newStart, newEnd,
     });
     featPkt.data = new TextEncoder().encode(featResult.xml);
   } else if (dnaReplaceInput.addFeature) {
     // No features packet: create a minimal one with the new feature.
     const nm = (dnaReplaceInput.featName || 'secuencia_nueva').replace(/[<&>]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
-    const xml = `<?xml version="1.0" encoding="UTF-8"?><Features><Feature name="${nm}" type="${dnaReplaceInput.featType}" directionality="1"><Segment range="${newStart}-${newEnd}" type="standard" color="#a6acb3"/></Feature></Features>`;
+    const col = dnaReplaceInput.featColor || '#a6acb3';
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><Features><Feature name="${nm}" type="${dnaReplaceInput.featType}" directionality="1"><Segment range="${newStart}-${newEnd}" type="standard" color="${col}"/></Feature></Features>`;
     packets.push({ type: 10, data: new TextEncoder().encode(xml) });
     featResult.added = true;
   }
@@ -3506,14 +3560,14 @@ async function runDnaReplace() {
   const outBytes = dnaSerialize(packets);
   const baseName = dnaReplaceInput.file.name.replace(/\.dna$/i, '');
   const outName = (dnaReplaceInput.renameDoc && dnaReplaceInput.docName.trim())
-    ? dnaReplaceInput.docName.trim().replace(/[^\w.\-]+/g, '_') + '.dna'
+    ? dnaSafeDownloadName(dnaReplaceInput.docName)
     : `${baseName}_modificado.dna`;
   state.clientSideBlob = { blob: new Blob([outBytes], { type: 'application/octet-stream' }), filename: outName };
 
   renderDnaReplaceResults({
     pos, occurrences, oldLen: oldSeq.length, newLen: newSeq.length, delta,
     oldTotal: seq.length, newTotal: newFullSeq.length, featResult, nameApplied,
-    circular: (flags & 1) === 1, outName,
+    circular: (flags & 1) === 1, outName, ntCompare,
   });
 
   state.appStatus = 'done';
@@ -3552,12 +3606,21 @@ function renderDnaReplaceResults(r) {
   stats.appendChild(mkStat(r.newLen.toLocaleString('es-ES'), 'nt<br>insertados'));
   stats.appendChild(mkStat((r.delta >= 0 ? '+' : '') + r.delta.toLocaleString('es-ES'), 'variación<br>de longitud'));
   stats.appendChild(mkStat(r.newTotal.toLocaleString('es-ES'), 'nt totales<br>(resultado)'));
+  if (r.ntCompare && r.ntCompare.applicable) {
+    stats.appendChild(mkStat(r.ntCompare.changes.toLocaleString('es-ES'), 'cambios<br>nt-a-nt'));
+  }
   root.appendChild(stats);
 
   const detail = mk('div');
   detail.style.cssText = `font-family:${MUT_MONO};font-size:0.78rem;color:var(--text-muted);line-height:1.8;`;
   const line = (txt) => { const d = mk('div', null, txt); detail.appendChild(d); };
   line(`📄 Fichero de salida: <strong>${r.outName}</strong>`);
+  if (r.ntCompare && r.ntCompare.applicable) {
+    const pct = r.ntCompare.total ? (r.ntCompare.changes / r.ntCompare.total * 100) : 0;
+    line(`🔬 Comparación nt-a-nt con el original: <strong>${r.ntCompare.changes.toLocaleString('es-ES')}</strong> cambio(s) sobre ${r.ntCompare.total.toLocaleString('es-ES')} nt (${pct.toFixed(2)} %).`);
+  } else if (r.ntCompare) {
+    line(`🔬 La secuencia final (${r.ntCompare.newTotal.toLocaleString('es-ES')} nt) tiene distinto tamaño que la original (${r.ntCompare.total.toLocaleString('es-ES')} nt); por eso no se calcula el número de cambios nt-a-nt.`);
+  }
   if (r.featResult.added) line('🏷️ Feature nueva añadida para la secuencia entrante.');
   if (r.featResult.removed) line(`🗑️ Features borradas por solapar la región: <strong>${r.featResult.removed}</strong>.`);
   if (r.featResult.shifted) line(`↔️ Features con coordenadas reajustadas: <strong>${r.featResult.shifted}</strong>.`);
