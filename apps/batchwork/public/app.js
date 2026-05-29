@@ -2402,6 +2402,21 @@ function renderMutagenUI() {
   bf.appendChild(bi);
   container.appendChild(bf);
 
+  const clearBtn = mk('button', 'bw-btn bw-btn-cancel');
+  clearBtn.type = 'button';
+  clearBtn.style.cssText = 'font-size:0.8rem;padding:7px 16px;align-self:flex-start;margin-top:4px;';
+  clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
+  clearBtn.addEventListener('click', () => {
+    if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
+    mutagenInput = { original: '', list: '', blockSize: 30 };
+    const res = $('mutagen-results');
+    if (res) res.remove();
+    resetExecuteBar();
+    renderMutagenUI();
+    updateExecuteBtn();
+  });
+  container.appendChild(clearBtn);
+
   zone.appendChild(container);
 }
 
