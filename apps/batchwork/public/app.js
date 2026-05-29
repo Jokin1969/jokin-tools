@@ -2218,6 +2218,10 @@ let mutagenInput = { original: '', list: '', blockSize: 30, allowSynthesis: true
 const MUT_MONO = 'IBM Plex Mono,monospace';
 const MUT_SYNTH_COLOR = '#8B5CF6';
 
+// Default starting sequence: bank vole (Myodes glareolus) PrP, label 92.
+const MUT_BANKVOLE_FASTA = `>92
+ATGAAGAAGCGGCCAAAGCCTGGAGGGTGGAACACTGGTGGAAGCCGATACCCTGGGCAGGGCAGCCCTGGAGGCAACCGGTACCCACCTCAGGGTGGTGGTACCTGGGGACAGCCCCATGGCGGTGGCTGGGGACAGCCTCACGGTGGTGGTTGGGGTCAGCCTCACGGTGGCGGTTGGGGTCAACCCCATGGCGGCGGCTGGGGTCAAGGAGGTGGCACCCACAATCAGTGGAACAAGCCCAGTAAGCCAAAAACCAACATTAAGCATGTGGCAGGCGCTGCCGCGGCTGGGGCAGTGGTGGGGGGCCTGGGTGGCTACATGCTGGGGAGCGCCATGAGCAGGCCCATGATCCATTTCGGCAATGACTGGGAGGACCGCTACTACCGTGAAAACATGAACCGGTACCCTAACCAAGTGTACTACCGGCCGGTGGACCAGTACAACAACCAGAACAACTTCGTGCACGATTGCGTCAACATCACCATCAAGCAGCATACAGTCACCACTACCACCAAGGGGGAGAACTTCACGGAGACCGACGTCAAGATGATGGAGCGCGTGGTGGAGCAGATGTGCGTCACCCAGTATCAGAAGGAGTCCCAGGCCTACTACGAAGGGAGAAGTTCCTAA`;
+
 // Parse the original sequence: FASTA (first record) or plain text (all lines joined).
 function mutagenParseOriginal(text) {
   const t = (text || '').trim();
@@ -2325,7 +2329,8 @@ function mutagenCostColor(c) {
 }
 
 // ── Input UI ──────────────────────────────────────────────────────────────────
-function mutagenMakeInput({ label, hint, placeholder, rows, value, onChange }) {
+// preset (optional): { label, value } adds a one-click button to fill the textarea.
+function mutagenMakeInput({ label, hint, placeholder, rows, value, onChange, preset }) {
   const wrap = mk('div', 'bw-field');
 
   const top = mk('div');
@@ -2333,6 +2338,9 @@ function mutagenMakeInput({ label, hint, placeholder, rows, value, onChange }) {
   const lbl = mk('label', null, label);
   lbl.style.margin = '0';
   top.appendChild(lbl);
+
+  const btnGroup = mk('div');
+  btnGroup.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
 
   const fileBtn = mk('button', 'bw-btn bw-btn-cancel');
   fileBtn.type = 'button';
@@ -2343,7 +2351,8 @@ function mutagenMakeInput({ label, hint, placeholder, rows, value, onChange }) {
   fileInput.accept = '.txt,.fasta,.fa,.fas,.seq,.fna,.text';
   fileInput.style.display = 'none';
   fileBtn.addEventListener('click', () => fileInput.click());
-  top.appendChild(fileBtn);
+  btnGroup.appendChild(fileBtn);
+  top.appendChild(btnGroup);
   wrap.appendChild(top);
 
   if (hint) {
@@ -2369,6 +2378,17 @@ function mutagenMakeInput({ label, hint, placeholder, rows, value, onChange }) {
     r.readAsText(file);
   };
   fileInput.addEventListener('change', () => { loadFile(fileInput.files[0]); fileInput.value = ''; });
+
+  if (preset) {
+    const presetBtn = mk('button', 'bw-btn bw-btn-cancel');
+    presetBtn.type = 'button';
+    presetBtn.style.cssText = 'font-size:0.72rem;padding:4px 12px;';
+    presetBtn.textContent = preset.label;
+    presetBtn.title = 'Rellenar con esta secuencia predefinida';
+    presetBtn.addEventListener('click', () => { ta.value = preset.value; onChange(ta.value); });
+    btnGroup.insertBefore(presetBtn, fileBtn);
+  }
+
   ta.addEventListener('dragover', e => { e.preventDefault(); ta.classList.add('drag-over'); });
   ta.addEventListener('dragleave', () => ta.classList.remove('drag-over'));
   ta.addEventListener('drop', e => {
@@ -2388,11 +2408,12 @@ function renderMutagenUI() {
 
   container.appendChild(mutagenMakeInput({
     label: 'Secuencia original (raíz del árbol)',
-    hint: 'Texto plano o FASTA. Pega, carga un fichero o arrastra uno aquí.',
+    hint: 'Texto plano o FASTA. Pega, carga un fichero, arrastra uno aquí o usa el botón de bank vole.',
     placeholder: '>WT\nATGCGTACGT...\n\n…o pega directamente los nucleótidos.',
     rows: 5,
     value: mutagenInput.original,
     onChange: v => { mutagenInput.original = v; updateExecuteBtn(); },
+    preset: { label: '🐭 Bank vole (92)', value: MUT_BANKVOLE_FASTA },
   }));
 
   container.appendChild(mutagenMakeInput({
