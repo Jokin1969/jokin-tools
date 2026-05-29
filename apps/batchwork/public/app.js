@@ -679,14 +679,23 @@ function updateExecuteBtn() {
     } else if (op.id === 'dna-replace') {
       const hasFile = !!dnaReplaceInput.file;
       const hasOld = dnaReplaceInput.oldSeq.trim().length > 0;
-      const hasNew = dnaReplaceInput.newSeq.trim().length > 0;
-      const needsName = dnaReplaceInput.renameDoc && !dnaReplaceInput.docName.trim();
-      ready = hasFile && hasOld && hasNew && !needsName;
-      if (!hasFile)       setStatus('Carga un fichero .dna de SnapGene', '');
-      else if (!hasOld)   setStatus('Falta: la secuencia de nucleótidos a sustituir', '');
-      else if (!hasNew)   setStatus('Falta: la secuencia nueva con la que sustituir', '');
-      else if (needsName) setStatus('Falta: el nombre interno del documento (o desmarca «Cambiar el nombre interno»)', '');
-      else setStatus('', '');
+      if (dnaReplaceInput.bulkMode) {
+        const validRows = dnaParseBulk(dnaReplaceInput.bulkText, dnaReplaceInput.bulkHeader).filter(r => r.valid).length;
+        ready = hasFile && hasOld && validRows > 0;
+        if (!hasFile)         setStatus('Carga un fichero .dna de SnapGene', '');
+        else if (!hasOld)     setStatus('Falta: la secuencia a sustituir (común a todas)', '');
+        else if (!validRows)  setStatus('Pega al menos una fila con secuencia nueva en el cuadro de bulk', '');
+        else setStatus(`${validRows} secuencia(s) lista(s) para procesar en bulk`, '');
+      } else {
+        const hasNew = dnaReplaceInput.newSeq.trim().length > 0;
+        const needsName = dnaReplaceInput.renameDoc && !dnaReplaceInput.docName.trim();
+        ready = hasFile && hasOld && hasNew && !needsName;
+        if (!hasFile)       setStatus('Carga un fichero .dna de SnapGene', '');
+        else if (!hasOld)   setStatus('Falta: la secuencia de nucleótidos a sustituir', '');
+        else if (!hasNew)   setStatus('Falta: la secuencia nueva con la que sustituir', '');
+        else if (needsName) setStatus('Falta: el nombre interno del documento (o desmarca «Cambiar el nombre interno»)', '');
+        else setStatus('', '');
+      }
     } else {
       const mainParam = op.params.find(p => p.type === 'textarea');
       const val = mainParam ? (getParam(op.id, mainParam.id) || '').trim() : '';
@@ -2967,6 +2976,9 @@ let dnaReplaceInput = {
   shiftCoords: true,
   renameDoc: true,
   docName: '',
+  bulkMode: false,
+  bulkText: '',
+  bulkHeader: false,
 };
 
 const DNA_FEATURE_TYPES = [
@@ -3340,7 +3352,27 @@ function renderDnaReplaceUI() {
 
   container.appendChild(fileField);
 
-  // old / new sequences
+  // Mode switch: single sequence vs bulk.
+  const bulk = dnaReplaceInput.bulkMode;
+  const modeField = mk('div', 'bw-field');
+  modeField.appendChild(mk('label', null, 'Modo'));
+  const seg = mk('div');
+  seg.style.cssText = 'display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:4px;';
+  const mkSeg = (label, active) => {
+    const b = mk('button', null, label);
+    b.type = 'button';
+    b.style.cssText = `font-size:0.78rem;padding:7px 16px;border:none;cursor:pointer;background:${active ? 'var(--accent,#1E5FB8)' : 'var(--bg-card)'};color:${active ? '#fff' : 'var(--text-muted)'};font-weight:${active ? '600' : '400'};`;
+    return b;
+  };
+  const segSingle = mkSeg('Una secuencia', !bulk);
+  const segBulk = mkSeg('Varias (bulk)', bulk);
+  segSingle.addEventListener('click', () => { if (dnaReplaceInput.bulkMode) { dnaReplaceInput.bulkMode = false; renderDnaReplaceUI(); } });
+  segBulk.addEventListener('click', () => { if (!dnaReplaceInput.bulkMode) { dnaReplaceInput.bulkMode = true; renderDnaReplaceUI(); } });
+  seg.appendChild(segSingle); seg.appendChild(segBulk);
+  modeField.appendChild(seg);
+  container.appendChild(modeField);
+
+  // Sequence to replace (common in both modes).
   const mkSeqField = (label, hint, key) => {
     const f = mk('div', 'bw-field');
     f.appendChild(mk('label', null, label));
@@ -3357,8 +3389,50 @@ function renderDnaReplaceUI() {
     f.appendChild(ta);
     return f;
   };
-  container.appendChild(mkSeqField('Secuencia a sustituir (la que está ahora en el .dna)', 'Nucleótidos. Debe aparecer exactamente una vez en la secuencia.', 'oldSeq'));
-  container.appendChild(mkSeqField('Secuencia nueva (con la que sustituir)', 'Nucleótidos. Puede tener longitud distinta a la anterior.', 'newSeq'));
+  container.appendChild(mkSeqField(
+    bulk ? 'Secuencia a sustituir (común a todas, la que está ahora en el .dna)' : 'Secuencia a sustituir (la que está ahora en el .dna)',
+    'Nucleótidos. Debe aparecer exactamente una vez en la secuencia.', 'oldSeq'));
+
+  if (!bulk) {
+    container.appendChild(mkSeqField('Secuencia nueva (con la que sustituir)', 'Nucleótidos. Puede tener longitud distinta a la anterior.', 'newSeq'));
+  } else {
+    // Bulk table input.
+    const f = mk('div', 'bw-field');
+    f.appendChild(mk('label', null, 'Secuencias en bulk'));
+    const h = mk('div');
+    h.style.cssText = `font-family:${MUT_MONO};font-size:0.7rem;color:var(--text-dim);margin:2px 0 6px;line-height:1.6;`;
+    h.innerHTML = 'Una fila por documento. Columnas (en este orden), separadas por coma, punto y coma o tabulador (puedes pegar directamente desde Excel):<br><strong>nombre interno&nbsp;,&nbsp;secuencia nueva&nbsp;,&nbsp;nombre del feature</strong><br>Si dejas un campo vacío, ese aspecto se queda como estaba. El color y el resto de opciones de abajo se aplican a todas.';
+    f.appendChild(h);
+    const ta = document.createElement('textarea');
+    ta.className = 'bw-input bw-textarea';
+    ta.rows = 8;
+    ta.spellcheck = false;
+    ta.value = dnaReplaceInput.bulkText;
+    ta.placeholder = 'pET28a-GFP, ATGAGCAAGGGC..., GFP\npET28a-RFP, ATGGCCTCCTCC..., RFP';
+    ta.style.cssText = `font-family:${MUT_MONO};`;
+    const counter = mk('div');
+    counter.style.cssText = `font-family:${MUT_MONO};font-size:0.7rem;color:var(--text-dim);margin-top:6px;`;
+    const updCounter = () => {
+      const rows = dnaParseBulk(dnaReplaceInput.bulkText, dnaReplaceInput.bulkHeader);
+      const valid = rows.filter(r => r.valid).length;
+      const skip = rows.length - valid;
+      counter.textContent = rows.length
+        ? `${valid} fila(s) con secuencia válida${skip ? ` · ${skip} sin secuencia (se omitirán)` : ''}.`
+        : '';
+    };
+    ta.addEventListener('input', () => { dnaReplaceInput.bulkText = ta.value; updCounter(); updateExecuteBtn(); });
+    f.appendChild(ta);
+    // header checkbox
+    const hdr = mk('label', 'bw-checkbox-wrap');
+    hdr.style.marginTop = '6px';
+    const hc = document.createElement('input'); hc.type = 'checkbox'; hc.checked = dnaReplaceInput.bulkHeader === true;
+    hc.addEventListener('change', () => { dnaReplaceInput.bulkHeader = hc.checked; updCounter(); updateExecuteBtn(); });
+    hdr.appendChild(hc); hdr.appendChild(mk('span', null, 'La primera fila son encabezados (ignorarla)'));
+    f.appendChild(hdr);
+    f.appendChild(counter);
+    updCounter();
+    container.appendChild(f);
+  }
 
   // Options box
   const box = mk('div');
@@ -3392,8 +3466,13 @@ function renderDnaReplaceUI() {
     typeSel.appendChild(o);
   }
   typeSel.addEventListener('change', () => { dnaReplaceInput.featType = typeSel.value; });
-  featRow.appendChild(nameIn);
+  if (!bulk) featRow.appendChild(nameIn);   // in bulk, the feature name comes from the table
   featRow.appendChild(typeSel);
+  if (bulk) {
+    const fh = mk('span', null, 'El nombre de cada feature se toma de la 3ª columna de la tabla.');
+    fh.style.cssText = `font-family:${MUT_MONO};font-size:0.7rem;color:var(--text-dim);align-self:center;`;
+    featRow.appendChild(fh);
+  }
   box.appendChild(featRow);
 
   // feature colour: native picker + quick presets
@@ -3418,9 +3497,9 @@ function renderDnaReplaceUI() {
     sw.addEventListener('click', () => { dnaReplaceInput.featColor = col; colorIn.value = col; });
     colorRow.appendChild(sw);
   }
-  box.appendChild(colorRow);
+  if (!bulk) box.appendChild(colorRow);   // no per-row colours in bulk mode
 
-  const syncFeat = () => { const show = addChk.c.checked ? 'flex' : 'none'; featRow.style.display = show; colorRow.style.display = show; };
+  const syncFeat = () => { const show = addChk.c.checked ? 'flex' : 'none'; featRow.style.display = show; if (!bulk) colorRow.style.display = show; };
   addChk.c.addEventListener('change', () => { dnaReplaceInput.addFeature = addChk.c.checked; syncFeat(); });
   syncFeat();
 
@@ -3432,25 +3511,31 @@ function renderDnaReplaceUI() {
   shiftChk.c.addEventListener('change', () => { dnaReplaceInput.shiftCoords = shiftChk.c.checked; });
   box.appendChild(shiftChk.w);
 
-  // rename
-  const renChk = mkCheck('renameDoc', 'Cambiar el nombre interno del documento');
-  renChk.c.checked = dnaReplaceInput.renameDoc === true;
-  box.appendChild(renChk.w);
-  const renField = mk('div');
-  renField.style.cssText = 'padding-left:24px;';
-  const renIn = document.createElement('input');
-  renIn.type = 'text'; renIn.className = 'bw-input'; renIn.placeholder = 'Nombre interno (custom map label)';
-  renIn.style.maxWidth = '320px';
-  renIn.value = dnaReplaceInput.docName;
-  renIn.addEventListener('input', () => { dnaReplaceInput.docName = renIn.value; updateExecuteBtn(); });
-  renField.appendChild(renIn);
-  const renHint = mk('div', null, 'El nombre del fichero descargado conserva tal cual los espacios y las tildes.');
-  renHint.style.cssText = `font-family:${MUT_MONO};font-size:0.68rem;color:var(--text-dim);margin-top:4px;`;
-  renField.appendChild(renHint);
-  box.appendChild(renField);
-  const syncRen = () => { renField.style.display = renChk.c.checked ? '' : 'none'; };
-  renChk.c.addEventListener('change', () => { dnaReplaceInput.renameDoc = renChk.c.checked; syncRen(); updateExecuteBtn(); });
-  syncRen();
+  // rename (single mode only — in bulk the internal name comes from the table)
+  if (!bulk) {
+    const renChk = mkCheck('renameDoc', 'Cambiar el nombre interno del documento');
+    renChk.c.checked = dnaReplaceInput.renameDoc === true;
+    box.appendChild(renChk.w);
+    const renField = mk('div');
+    renField.style.cssText = 'padding-left:24px;';
+    const renIn = document.createElement('input');
+    renIn.type = 'text'; renIn.className = 'bw-input'; renIn.placeholder = 'Nombre interno (custom map label)';
+    renIn.style.maxWidth = '320px';
+    renIn.value = dnaReplaceInput.docName;
+    renIn.addEventListener('input', () => { dnaReplaceInput.docName = renIn.value; updateExecuteBtn(); });
+    renField.appendChild(renIn);
+    const renHint = mk('div', null, 'El nombre del fichero descargado conserva tal cual los espacios y las tildes.');
+    renHint.style.cssText = `font-family:${MUT_MONO};font-size:0.68rem;color:var(--text-dim);margin-top:4px;`;
+    renField.appendChild(renHint);
+    box.appendChild(renField);
+    const syncRen = () => { renField.style.display = renChk.c.checked ? '' : 'none'; };
+    renChk.c.addEventListener('change', () => { dnaReplaceInput.renameDoc = renChk.c.checked; syncRen(); updateExecuteBtn(); });
+    syncRen();
+  } else {
+    const bh = mk('div', null, 'El nombre interno de cada documento (y el del fichero) se toma de la 1ª columna de la tabla, conservando espacios y tildes.');
+    bh.style.cssText = `font-family:${MUT_MONO};font-size:0.7rem;color:var(--text-dim);`;
+    box.appendChild(bh);
+  }
 
   container.appendChild(box);
 
@@ -3461,7 +3546,7 @@ function renderDnaReplaceUI() {
   clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
   clearBtn.addEventListener('click', () => {
     if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
-    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'misc_feature', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '' };
+    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'misc_feature', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false };
     const res = $('dna-replace-results');
     if (res) res.remove();
     resetExecuteBar();
@@ -3475,14 +3560,15 @@ function renderDnaReplaceUI() {
 }
 
 // ── Run + render ────────────────────────────────────────────────────────────
-async function runDnaReplace() {
-  if (!dnaReplaceInput.file) throw new Error('Carga un fichero .dna.');
-  const oldSeq = dnaCleanSeq(dnaReplaceInput.oldSeq);
-  const newSeq = dnaCleanSeq(dnaReplaceInput.newSeq);
+// Core: apply one substitution to a template .dna, returning new bytes + stats.
+// oldSeq/newSeq must already be cleaned. renameName '' means "leave the internal
+// name untouched". Throws on errors (sequence not found, etc.).
+function dnaPerformReplacement(templateBytes, opts) {
+  const { oldSeq, newSeq, deleteOverlap, shiftCoords, addFeature, featName, featType, featColor, renameName } = opts;
   if (!oldSeq) throw new Error('La secuencia a sustituir no contiene nucleótidos válidos.');
   if (!newSeq) throw new Error('La secuencia nueva no contiene nucleótidos válidos.');
 
-  const packets = dnaParsePackets(dnaReplaceInput.file.bytes);
+  const packets = dnaParsePackets(templateBytes);
   dnaValidateCookie(packets);
 
   const dnaPkt = packets.find(p => p.type === 0);
@@ -3523,61 +3609,328 @@ async function runDnaReplace() {
   const featPkt = packets.find(p => p.type === 10);
   if (featPkt) {
     const xml = dnaBytesToAscii(featPkt.data);
-    featResult = dnaEditFeaturesXml(xml, {
-      rStart, rEnd, delta,
-      deleteOverlap: dnaReplaceInput.deleteOverlap,
-      shiftCoords: dnaReplaceInput.shiftCoords,
-      addFeature: dnaReplaceInput.addFeature,
-      featName: dnaReplaceInput.featName,
-      featType: dnaReplaceInput.featType,
-      featColor: dnaReplaceInput.featColor,
-      newStart, newEnd,
-    });
+    featResult = dnaEditFeaturesXml(xml, { rStart, rEnd, delta, deleteOverlap, shiftCoords, addFeature, featName, featType, featColor, newStart, newEnd });
     featPkt.data = new TextEncoder().encode(featResult.xml);
-  } else if (dnaReplaceInput.addFeature) {
+  } else if (addFeature) {
     // No features packet: create a minimal one with the new feature.
-    const nm = (dnaReplaceInput.featName || 'secuencia_nueva').replace(/[<&>]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
-    const col = dnaReplaceInput.featColor || '#a6acb3';
-    const xml = `<?xml version="1.0" encoding="UTF-8"?><Features><Feature name="${nm}" type="${dnaReplaceInput.featType}" directionality="1"><Segment range="${newStart}-${newEnd}" type="standard" color="${col}"/></Feature></Features>`;
+    const nm = (featName || 'secuencia_nueva').replace(/[<&>]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    const col = featColor || '#a6acb3';
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><Features><Feature name="${nm}" type="${featType}" directionality="1"><Segment range="${newStart}-${newEnd}" type="standard" color="${col}"/></Feature></Features>`;
     packets.push({ type: 10, data: new TextEncoder().encode(xml) });
     featResult.added = true;
   }
 
   // 3) Notes name
   let nameApplied = false;
-  if (dnaReplaceInput.renameDoc && dnaReplaceInput.docName.trim()) {
-    const nm = dnaReplaceInput.docName.trim();
+  const renm = (renameName || '').trim();
+  if (renm) {
     const notesPkt = packets.find(p => p.type === 6);
-    if (notesPkt) {
-      notesPkt.data = new TextEncoder().encode(dnaSetNotesName(dnaBytesToAscii(notesPkt.data), nm));
-    } else {
-      packets.push(dnaBuildNotesPacket(nm));
-    }
+    if (notesPkt) notesPkt.data = new TextEncoder().encode(dnaSetNotesName(dnaBytesToAscii(notesPkt.data), renm));
+    else packets.push(dnaBuildNotesPacket(renm));
     nameApplied = true;
   }
 
-  // 4) Serialise + download
+  // 4) Serialise
   const outBytes = dnaSerialize(packets);
-  const baseName = dnaReplaceInput.file.name.replace(/\.dna$/i, '');
-  const outName = (dnaReplaceInput.renameDoc && dnaReplaceInput.docName.trim())
-    ? dnaSafeDownloadName(dnaReplaceInput.docName)
-    : `${baseName}_modificado.dna`;
-  state.clientSideBlob = { blob: new Blob([outBytes], { type: 'application/octet-stream' }), filename: outName };
+  return {
+    outBytes, pos, occurrences, oldLen: oldSeq.length, newLen: newSeq.length, delta,
+    oldTotal: seq.length, newTotal: newFullSeq.length, featResult, nameApplied, ntCompare,
+    circular: (flags & 1) === 1,
+  };
+}
 
-  renderDnaReplaceResults({
-    pos, occurrences, oldLen: oldSeq.length, newLen: newSeq.length, delta,
-    oldTotal: seq.length, newTotal: newFullSeq.length, featResult, nameApplied,
-    circular: (flags & 1) === 1, outName, ntCompare,
+async function runDnaReplace() {
+  if (!dnaReplaceInput.file) throw new Error('Carga un fichero .dna.');
+  if (dnaReplaceInput.bulkMode) { await runDnaReplaceBulk(); return; }
+
+  const oldSeq = dnaCleanSeq(dnaReplaceInput.oldSeq);
+  const newSeq = dnaCleanSeq(dnaReplaceInput.newSeq);
+  if (!oldSeq) throw new Error('La secuencia a sustituir no contiene nucleótidos válidos.');
+  if (!newSeq) throw new Error('La secuencia nueva no contiene nucleótidos válidos.');
+
+  const renameName = (dnaReplaceInput.renameDoc && dnaReplaceInput.docName.trim()) ? dnaReplaceInput.docName.trim() : '';
+  const r = dnaPerformReplacement(dnaReplaceInput.file.bytes, {
+    oldSeq, newSeq,
+    deleteOverlap: dnaReplaceInput.deleteOverlap,
+    shiftCoords: dnaReplaceInput.shiftCoords,
+    addFeature: dnaReplaceInput.addFeature,
+    featName: dnaReplaceInput.featName,
+    featType: dnaReplaceInput.featType,
+    featColor: dnaReplaceInput.featColor,
+    renameName,
   });
 
+  const baseName = dnaReplaceInput.file.name.replace(/\.dna$/i, '');
+  const outName = renameName ? dnaSafeDownloadName(renameName) : `${baseName}_modificado.dna`;
+  state.clientSideBlob = { blob: new Blob([r.outBytes], { type: 'application/octet-stream' }), filename: outName };
+
+  renderDnaReplaceResults({ ...r, outName });
+
   state.appStatus = 'done';
-  const parts = [`sustituido en pos ${pos + 1}`, `${seq.length.toLocaleString('es-ES')}→${newFullSeq.length.toLocaleString('es-ES')} nt`];
-  if (featResult.added) parts.push('feature añadida');
-  if (featResult.removed) parts.push(`${featResult.removed} feature(s) borrada(s)`);
-  if (featResult.shifted) parts.push(`${featResult.shifted} reajustada(s)`);
+  const parts = [`sustituido en pos ${r.pos + 1}`, `${r.oldTotal.toLocaleString('es-ES')}→${r.newTotal.toLocaleString('es-ES')} nt`];
+  if (r.featResult.added) parts.push('feature añadida');
+  if (r.featResult.removed) parts.push(`${r.featResult.removed} feature(s) borrada(s)`);
+  if (r.featResult.shifted) parts.push(`${r.featResult.shifted} reajustada(s)`);
   setStatus('✓ ' + parts.join(' · '), 'ok');
   $('btn-execute').style.display = 'none';
   $('btn-download').style.display = '';
+}
+
+// ── Bulk mode ───────────────────────────────────────────────────────────────
+// Parse the pasted table. Columns (in order): internal name, new sequence,
+// feature name. Field separators: comma, semicolon or tab; rows: newlines.
+function dnaParseBulk(text, skipHeader) {
+  const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+  const rows = [];
+  let started = false;
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (!raw.trim()) continue;
+    if (skipHeader && !started) { started = true; continue; }
+    started = true;
+    const fields = raw.split(/[,;\t]/).map(s => s.trim());
+    const name = fields[0] || '';
+    const seqRaw = fields[1] || '';
+    const feat = fields[2] || '';
+    const seq = dnaCleanSeq(seqRaw);
+    rows.push({ lineNo: i + 1, name, seqRaw, seq, feat, valid: seq.length > 0 });
+  }
+  return rows;
+}
+
+// ── Minimal ZIP writer (store, no compression) — keeps us dependency-free ─────
+const DNA_CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function dnaCrc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = DNA_CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+// files: [{ name, data: Uint8Array }] → Blob (application/zip)
+function dnaMakeZip(files) {
+  const enc = new TextEncoder();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  const push = u8 => { chunks.push(u8); offset += u8.length; };
+  const u16 = v => new Uint8Array([v & 0xFF, (v >>> 8) & 0xFF]);
+  const u32 = v => new Uint8Array([v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF]);
+
+  for (const f of files) {
+    const nameBytes = enc.encode(f.name);
+    const data = f.data;
+    const crc = dnaCrc32(data);
+    const localOffset = offset;
+    // Local file header. Bit 11 (0x0800) marks UTF-8 filenames.
+    push(u32(0x04034b50));
+    push(u16(20)); push(u16(0x0800)); push(u16(0));        // version, flags, method=store
+    push(u16(0)); push(u16(0x21));                          // mod time, mod date (arbitrary)
+    push(u32(crc)); push(u32(data.length)); push(u32(data.length));
+    push(u16(nameBytes.length)); push(u16(0));
+    push(nameBytes); push(data);
+    // Central directory record (stored for later).
+    central.push({ nameBytes, crc, size: data.length, localOffset });
+  }
+
+  const cdStart = offset;
+  for (const c of central) {
+    push(u32(0x02014b50));
+    push(u16(20)); push(u16(20)); push(u16(0x0800)); push(u16(0));   // madeBy, needed, flags, method
+    push(u16(0)); push(u16(0x21));                                    // time, date
+    push(u32(c.crc)); push(u32(c.size)); push(u32(c.size));
+    push(u16(c.nameBytes.length)); push(u16(0)); push(u16(0));        // name, extra, comment
+    push(u16(0)); push(u16(0)); push(u32(0));                         // disk, intAttr, extAttr
+    push(u32(c.localOffset));
+    push(c.nameBytes);
+  }
+  const cdSize = offset - cdStart;
+  push(u32(0x06054b50));
+  push(u16(0)); push(u16(0));
+  push(u16(central.length)); push(u16(central.length));
+  push(u32(cdSize)); push(u32(cdStart)); push(u16(0));
+
+  return new Blob(chunks, { type: 'application/zip' });
+}
+
+// Build the CSV report (Excel-friendly: ; separator + UTF-8 BOM).
+function dnaBulkReportCsv(results, meta) {
+  const esc = v => {
+    const s = String(v == null ? '' : v);
+    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const header = ['#', 'Nombre interno', 'Fichero', 'Feature', 'Estado', 'Posición', 'Ocurrencias',
+    'nt original', 'nt resultado', 'Δ longitud', 'Cambios nt-a-nt', 'Features borradas', 'Features reajustadas', 'Feature añadida', 'Observaciones'];
+  const lines = [header.map(esc).join(';')];
+  results.forEach((r, i) => {
+    lines.push([
+      i + 1, r.name || '', r.filename || '', r.feat || '',
+      r.ok ? 'OK' : 'ERROR',
+      r.ok ? r.pos + 1 : '',
+      r.ok ? r.occurrences : '',
+      r.ok ? r.oldTotal : '',
+      r.ok ? r.newTotal : '',
+      r.ok ? (r.delta >= 0 ? '+' + r.delta : r.delta) : '',
+      r.ok ? (r.ntCompare.applicable ? r.ntCompare.changes : 'n/a (distinto tamaño)') : '',
+      r.ok ? r.featResult.removed : '',
+      r.ok ? r.featResult.shifted : '',
+      r.ok ? (r.featResult.added ? 'sí' : 'no') : '',
+      r.ok ? (r.occurrences > 1 ? `secuencia común encontrada ${r.occurrences} veces; sustituida la 1ª` : '') : r.error,
+    ].map(esc).join(';'));
+  });
+  const summary = [
+    '', '',
+    `Informe de sustitución en bulk — ${meta.date}`,
+    `Plantilla: ${meta.template}`,
+    `Secuencia a sustituir (común): ${meta.oldSeq}`,
+    `Filas procesadas: ${meta.processed} · correctas: ${meta.ok} · con error: ${meta.failed} · omitidas (sin secuencia): ${meta.skipped}`,
+  ];
+  return '﻿' + lines.join('\n') + '\n' + summary.map(esc).join('\n') + '\n';
+}
+
+async function runDnaReplaceBulk() {
+  const oldSeq = dnaCleanSeq(dnaReplaceInput.oldSeq);
+  if (!oldSeq) throw new Error('La secuencia a sustituir (común) no contiene nucleótidos válidos.');
+
+  const allRows = dnaParseBulk(dnaReplaceInput.bulkText, dnaReplaceInput.bulkHeader);
+  const rows = allRows.filter(r => r.valid);
+  const skipped = allRows.filter(r => !r.valid);
+  if (!rows.length) throw new Error('No hay ninguna fila con secuencia nueva válida en el cuadro de bulk.');
+
+  const templateBase = dnaReplaceInput.file.name.replace(/\.dna$/i, '');
+  const usedNames = new Map();   // ensure unique filenames inside the zip
+  const uniqueName = base => {
+    let name = base; let n = 1;
+    while (usedNames.has(name.toLowerCase())) { n++; name = base.replace(/\.dna$/i, '') + ` (${n}).dna`; }
+    usedNames.set(name.toLowerCase(), true);
+    return name;
+  };
+
+  const results = [];
+  const zipFiles = [];
+  rows.forEach((row, idx) => {
+    const filenameBase = row.name ? dnaSafeDownloadName(row.name) : `${templateBase}_${idx + 1}.dna`;
+    try {
+      const r = dnaPerformReplacement(dnaReplaceInput.file.bytes, {
+        oldSeq, newSeq: row.seq,
+        deleteOverlap: dnaReplaceInput.deleteOverlap,
+        shiftCoords: dnaReplaceInput.shiftCoords,
+        addFeature: dnaReplaceInput.addFeature,
+        featName: row.feat,                 // per-row feature name (empty → default)
+        featType: dnaReplaceInput.featType,
+        featColor: '#a6acb3',               // no per-row colours in bulk
+        renameName: row.name,               // empty → leave internal name
+      });
+      const filename = uniqueName(filenameBase);
+      zipFiles.push({ name: filename, data: r.outBytes });
+      results.push({ ok: true, name: row.name, feat: row.feat, filename, ...r });
+    } catch (e) {
+      results.push({ ok: false, name: row.name, feat: row.feat, filename: filenameBase, error: e.message });
+    }
+  });
+
+  const okCount = results.filter(r => r.ok).length;
+  const failCount = results.length - okCount;
+  if (!zipFiles.length) throw new Error('Ninguna fila se pudo procesar. Revisa la secuencia a sustituir y el contenido del bulk.');
+
+  const meta = {
+    date: new Date().toLocaleString('es-ES'),
+    template: dnaReplaceInput.file.name,
+    oldSeq,
+    processed: rows.length, ok: okCount, failed: failCount, skipped: skipped.length,
+  };
+  const csv = dnaBulkReportCsv(results, meta);
+  zipFiles.push({ name: 'informe.csv', data: new TextEncoder().encode(csv) });
+
+  const zipBlob = dnaMakeZip(zipFiles);
+  const zipName = `bulk-${templateBase}-${new Date().toISOString().slice(0, 10)}.zip`;
+  state.clientSideBlob = { blob: zipBlob, filename: zipName };
+
+  renderDnaReplaceBulkResults({ results, skipped, meta, zipName, csv });
+
+  state.appStatus = 'done';
+  setStatus(`✓ Bulk: ${okCount} documento(s) generado(s)${failCount ? ` · ${failCount} con error` : ''}${skipped.length ? ` · ${skipped.length} omitida(s)` : ''}`, okCount ? 'ok' : 'err');
+  $('btn-execute').style.display = 'none';
+  $('btn-download').style.display = '';
+}
+
+function renderDnaReplaceBulkResults(data) {
+  const existing = $('dna-replace-results');
+  if (existing) existing.remove();
+  const root = mk('div', 'degen-results');
+  root.id = 'dna-replace-results';
+
+  const { results, skipped, meta, zipName } = data;
+  const okCount = results.filter(r => r.ok).length;
+
+  const summary = mk('div', 'degen-summary');
+  summary.innerHTML = `Transformación en bulk · <strong>${okCount}</strong> documento(s) generado(s)${meta.failed ? ` · <strong style="color:var(--red)">${meta.failed}</strong> con error` : ''}${skipped.length ? ` · ${skipped.length} fila(s) omitida(s) sin secuencia` : ''}`;
+  root.appendChild(summary);
+
+  // Per-row table with original/new sizes.
+  const tableWrap = mk('div');
+  tableWrap.style.cssText = 'overflow-x:auto;border:1px solid var(--border);border-radius:8px;margin-top:4px;';
+  const table = mk('table');
+  table.style.cssText = `width:100%;border-collapse:collapse;font-family:${MUT_MONO};font-size:0.74rem;`;
+  const thStyle = 'text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text-dim);white-space:nowrap;';
+  table.innerHTML = `<thead><tr>
+    <th style="${thStyle}">#</th>
+    <th style="${thStyle}">Documento</th>
+    <th style="${thStyle}">Feature</th>
+    <th style="${thStyle}">nt original</th>
+    <th style="${thStyle}">nt nuevo</th>
+    <th style="${thStyle}">Δ</th>
+    <th style="${thStyle}">Cambios nt-a-nt</th>
+    <th style="${thStyle}">Estado</th>
+  </tr></thead>`;
+  const tbody = mk('tbody');
+  results.forEach((r, i) => {
+    const tr = mk('tr');
+    const td = (html, color) => { const c = mk('td', null); c.style.cssText = `padding:6px 10px;border-bottom:1px solid var(--border);white-space:nowrap;${color ? 'color:' + color + ';' : ''}`; c.innerHTML = html; return c; };
+    tr.appendChild(td(String(i + 1)));
+    tr.appendChild(td(`${r.filename || ''}${r.name ? '' : ' <span style="color:var(--text-dim)">(sin nombre)</span>'}`));
+    tr.appendChild(td(r.feat || '<span style="color:var(--text-dim)">—</span>'));
+    if (r.ok) {
+      tr.appendChild(td(r.oldTotal.toLocaleString('es-ES')));
+      tr.appendChild(td(r.newTotal.toLocaleString('es-ES')));
+      tr.appendChild(td((r.delta >= 0 ? '+' : '') + r.delta.toLocaleString('es-ES')));
+      tr.appendChild(td(r.ntCompare.applicable ? `<strong>${r.ntCompare.changes.toLocaleString('es-ES')}</strong>` : '<span style="color:var(--text-dim)">n/a (distinto tamaño)</span>'));
+      tr.appendChild(td('✓ OK', 'var(--green)'));
+    } else {
+      tr.appendChild(td('—')); tr.appendChild(td('—')); tr.appendChild(td('—')); tr.appendChild(td('—'));
+      tr.appendChild(td('⚠ ' + r.error, 'var(--red)'));
+    }
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+  root.appendChild(tableWrap);
+
+  if (skipped.length) {
+    const sk = mk('div');
+    sk.style.cssText = `font-family:${MUT_MONO};font-size:0.72rem;color:var(--text-dim);margin-top:8px;`;
+    sk.textContent = `Filas omitidas por no tener secuencia nueva: ${skipped.map(s => 'línea ' + s.lineNo).join(', ')}.`;
+    root.appendChild(sk);
+  }
+
+  const detail = mk('div');
+  detail.style.cssText = `font-family:${MUT_MONO};font-size:0.78rem;color:var(--text-muted);line-height:1.8;margin-top:8px;`;
+  detail.innerHTML = `📦 Todo se descarga en <strong>${zipName}</strong>, que incluye los .dna generados y un <strong>informe.csv</strong> con el detalle de cada transformación.`;
+  root.appendChild(detail);
+
+  const note = mk('div', 'degen-warn');
+  note.style.cssText = 'background:rgba(30,95,184,0.06);border-color:var(--border);';
+  note.innerHTML = '💡 La secuencia a sustituir y las opciones (borrado/reajuste de features, tipo de feature) son comunes a todas. Ábrelos en SnapGene para comprobarlos.';
+  root.appendChild(note);
+
+  const paramsZone = $('params-zone');
+  paramsZone.parentNode.insertBefore(root, paramsZone.nextSibling);
 }
 
 function renderDnaReplaceResults(r) {
