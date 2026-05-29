@@ -2546,15 +2546,9 @@ function renderMutagenResults({ nodes, tree, block, excluded, L, totalCost, naiv
   });
   dlRow.appendChild(btnSvg);
 
-  const btnCsv = mkBtn('⬇ Plan (CSV)');
-  btnCsv.addEventListener('click', () => {
-    const csv = mutagenPlanToCSV(planRows);
-    const b = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const u = URL.createObjectURL(b);
-    Object.assign(document.createElement('a'), { href: u, download: 'plan-mutagenesis.csv' }).click();
-    setTimeout(() => URL.revokeObjectURL(u), 1000);
-  });
-  dlRow.appendChild(btnCsv);
+  const btnXlsx = mkBtn('⬇ Plan (Excel)');
+  btnXlsx.addEventListener('click', () => mutagenExportExcel(planRows));
+  dlRow.appendChild(btnXlsx);
 
   const btnCopy = mkBtn('📋 Copiar plan');
   btnCopy.addEventListener('click', () => {
@@ -2653,21 +2647,34 @@ function mutagenPlanToText(rows) {
   return lines.join('\n') + '\n';
 }
 
-function mutagenPlanToCSV(rows) {
-  const esc = s => `"${String(s).replace(/"/g, '""')}"`;
-  const out = ['paso,hijo,padre,coste_bloques,bloque,rango_nt,n_mutaciones,mutaciones'];
+// Export the synthesis plan as a real .xlsx with one column per field.
+// One row per block; steps with several blocks span several rows.
+function mutagenExportExcel(rows) {
+  if (typeof XLSX === 'undefined') { setStatus('xlsx.js no disponible', 'err'); return; }
+
+  const header = ['Paso', 'Secuencia', 'A partir de', 'Coste (cambios)',
+                  'Nº bloque', 'Desde (nt)', 'Hasta (nt)', 'Nº mutaciones', 'Mutaciones'];
+  const aoa = [header];
+
   rows.forEach((r, i) => {
     if (!r.blocks.length) {
-      out.push([i + 1, esc(r.child), esc(r.parent), r.cost, '', '', 0, ''].join(','));
+      aoa.push([i + 1, r.child, r.parent, r.cost, '', '', '', 0, 'idéntica (sin coste)']);
       return;
     }
     r.blocks.forEach((b, j) => {
-      const rangeTxt = b.from === b.to ? `${b.from}` : `${b.from}-${b.to}`;
-      const mutTxt = b.muts.map(m => `${m.pos}:${m.ref}>${m.alt}`).join(' ');
-      out.push([i + 1, esc(r.child), esc(r.parent), r.cost, j + 1, esc(rangeTxt), b.muts.length, esc(mutTxt)].join(','));
+      const mutTxt = b.muts.map(m => `${m.pos}:${m.ref}>${m.alt}`).join(', ');
+      aoa.push([i + 1, r.child, r.parent, r.cost, j + 1, b.from, b.to, b.muts.length, mutTxt]);
     });
   });
-  return out.join('\n') + '\n';
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [
+    { wch: 6 }, { wch: 18 }, { wch: 18 }, { wch: 15 },
+    { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 14 }, { wch: 60 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Plan de síntesis');
+  XLSX.writeFile(wb, 'plan-mutagenesis.xlsx');
 }
 
 // Horizontal d3 tree. Returns the <svg> DOM node (for export) or null.
