@@ -180,26 +180,36 @@ router.post('/api/memories/:id/reset-counter', (req, res) => {
 });
 
 // ─── API: Upload image ────────────────────────────────────────────────────────
-router.post('/api/memories/:id/image', upload.single('image'), (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const existing = getMemoryById(id, req.user.id);
-    if (!existing) return res.status(404).json({ error: 'Memory not found' });
-    if (!req.file) return res.status(400).json({ error: 'No image file provided' });
-
-    // Remove old image if exists
-    if (existing.image_path) {
-      const oldPath = path.join(uploadsDir, path.basename(existing.image_path));
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+router.post('/api/memories/:id/image', (req, res) => {
+  // Run multer manually so upload errors (wrong type, too large) become clean
+  // 4xx responses instead of a generic 500 from the global error handler.
+  upload.single('image')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      return res.status(status).json({ error: err.message });
     }
+    if (err) return res.status(400).json({ error: err.message });
 
-    const relativePath = req.file.filename;
-    const memory = setMemoryImage(id, relativePath, req.user.id);
-    res.json({ image_path: relativePath, memory });
-  } catch (err) {
-    console.error('[api] uploadImage error:', err);
-    res.status(500).json({ error: err.message });
-  }
+    try {
+      const id = Number(req.params.id);
+      const existing = getMemoryById(id, req.user.id);
+      if (!existing) return res.status(404).json({ error: 'Memory not found' });
+      if (!req.file) return res.status(400).json({ error: 'No image file provided' });
+
+      // Remove old image if exists
+      if (existing.image_path) {
+        const oldPath = path.join(uploadsDir, path.basename(existing.image_path));
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+
+      const relativePath = req.file.filename;
+      const memory = setMemoryImage(id, relativePath, req.user.id);
+      res.json({ image_path: relativePath, memory });
+    } catch (e) {
+      console.error('[api] uploadImage error:', e);
+      res.status(500).json({ error: e.message });
+    }
+  });
 });
 
 // ─── API: Test email (to the logged-in user's own address) ─────────────────────
