@@ -75,6 +75,24 @@ app.use((err, req, res, next) => {
 // Ensure there's a working admin (from ADMIN_EMAIL / ADMIN_PASSWORD) before listening.
 authStore.seedAdminFromEnv();
 
+// Re-memory is now per-user. Assign any pre-existing (ownerless) memories to a
+// single owner — REMEMORY_OWNER_EMAIL if set, otherwise the seeded admin.
+try {
+  const reMemoryDb = require('./apps/re-memory/db');
+  const ownerEmail = (process.env.REMEMORY_OWNER_EMAIL || process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+  const owner = ownerEmail ? authStore.getUserByEmail(ownerEmail) : null;
+  if (owner) {
+    const n = reMemoryDb.assignOrphanMemories(owner.id);
+    if (n) console.log(`[re-memory] Assigned ${n} pre-existing memories to ${owner.email}`);
+  } else {
+    const { db } = reMemoryDb;
+    const orphans = db.prepare('SELECT COUNT(*) AS n FROM memories WHERE user_id IS NULL').get().n;
+    if (orphans) console.warn(`[re-memory] ${orphans} memories have no owner and ADMIN_EMAIL/REMEMORY_OWNER_EMAIL is not set — they will be hidden until assigned.`);
+  }
+} catch (e) {
+  console.error('[re-memory] Orphan assignment skipped:', e.message);
+}
+
 app.listen(PORT, () => {
   console.log(`[server] Jokin's Tools running on port ${PORT}`);
   console.log(`[server] DB path: ${process.env.DB_PATH || '/data/jokin_tools.db'}`);

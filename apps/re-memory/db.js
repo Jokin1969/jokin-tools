@@ -42,6 +42,17 @@ db.exec(`
 
 console.log('[db] Database initialized at:', DB_PATH);
 
+// ─── Migration: per-user ownership ──────────────────────────────────────────────
+// Each memory belongs to one user. Older databases predate this column, so add
+// it on the fly. Orphan rows (user_id IS NULL) are assigned to an owner at boot
+// (see assignOrphanMemories, called from server.js after the admin is seeded).
+const memCols = db.prepare('PRAGMA table_info(memories)').all().map(c => c.name);
+if (!memCols.includes('user_id')) {
+  db.exec('ALTER TABLE memories ADD COLUMN user_id INTEGER');
+  console.log('[db] Migrated: added memories.user_id');
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_memories_user ON memories(user_id)');
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const FREQUENCY_DAYS = {
@@ -64,18 +75,22 @@ function calcNextSendDate(frequency, fromDate = new Date()) {
 
 // ─── Memories CRUD ────────────────────────────────────────────────────────────
 
-function createMemory({ description, frequency, topic, image_path, source_url, active = 1 }) {
+function createMemory({ description, frequency, topic, image_path, source_url, active = 1, user_id = null }) {
   const nextSend = calcNextSendDate(frequency);
   const stmt = db.prepare(`
-    INSERT INTO memories (description, frequency, topic, image_path, source_url, active, next_send_date)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO memories (description, frequency, topic, image_path, source_url, active, next_send_date, user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const result = stmt.run(description, frequency, topic, image_path || null, source_url || null, active, nextSend);
+  const result = stmt.run(description, frequency, topic, image_path || null, source_url || null, active, nextSend, user_id);
   return getMemoryById(result.lastInsertRowid);
 }
 
-function getMemoryById(id) {
-  const memory = db.prepare('SELECT * FROM memories WHERE id = ?').get(id);
+// When userId is provided, the lookup is scoped to that owner (returns null if
+// the memory exists but belongs to someone else).
+function getMemoryById(id, userId) {
+  const memory = userId != null
+    ? db.prepare('SELECT * FROM memories WHERE id = ? AND user_id = ?').get(id, userId)
+    : db.prepare('SELECT * FROM memories WHERE id = ?').get(id);
   if (!memory) return null;
   // Attach real times_recalled from recall_log
   const { count } = db.prepare('SELECT COUNT(*) as count FROM recall_log WHERE memory_id = ?').get(id);
@@ -83,9 +98,14 @@ function getMemoryById(id) {
   return memory;
 }
 
-function listMemories({ topic, active, frequency, date_from, date_to, recalled_min, recalled_max, search, sort, order, page = 1, limit = 100 } = {}) {
+function listMemories({ topic, active, frequency, date_from, date_to, recalled_min, recalled_max, search, sort, order, page = 1, limit = 100 } = {}, userId) {
   const conditions = [];
   const params = [];
+
+  if (userId != null) {
+    conditions.push('m.user_id = ?');
+    params.push(userId);
+  }
 
   if (search && search.trim()) {
     conditions.push(`(m.description LIKE ? OR m.topic LIKE ? OR m.source_url LIKE ?)`);
@@ -162,7 +182,7 @@ function listMemories({ topic, active, frequency, date_from, date_to, recalled_m
   return { rows, total, page: Number(page), limit: Number(limit) };
 }
 
-function updateMemory(id, fields) {
+function updateMemory(id, fields, userId) {
   const allowed = ['description', 'frequency', 'topic', 'image_path', 'source_url', 'active', 'next_send_date'];
   const updates = [];
   const values = [];
@@ -173,7 +193,7 @@ function updateMemory(id, fields) {
       values.push(v);
     }
   }
-  if (!updates.length) return getMemoryById(id);
+  if (!updates.length) return getMemoryById(id, userId);
 
   // Recalculate next_send_date if frequency changed (and not explicitly provided)
   if (fields.frequency && !fields.next_send_date) {
@@ -182,26 +202,37 @@ function updateMemory(id, fields) {
   }
 
   values.push(id);
-  db.prepare(`UPDATE memories SET ${updates.join(', ')} WHERE id = ?`).run(...values);
-  return getMemoryById(id);
+  let where = 'id = ?';
+  if (userId != null) { where += ' AND user_id = ?'; values.push(userId); }
+  db.prepare(`UPDATE memories SET ${updates.join(', ')} WHERE ${where}`).run(...values);
+  return getMemoryById(id, userId);
 }
 
-function deleteMemory(id) {
+function deleteMemory(id, userId) {
+  // Guard ownership before removing recall_log rows.
+  if (userId != null && !db.prepare('SELECT 1 FROM memories WHERE id = ? AND user_id = ?').get(id, userId)) return;
   db.prepare('DELETE FROM recall_log WHERE memory_id = ?').run(id);
-  db.prepare('DELETE FROM memories WHERE id = ?').run(id);
+  const where = userId != null ? 'id = ? AND user_id = ?' : 'id = ?';
+  db.prepare(`DELETE FROM memories WHERE ${where}`).run(...(userId != null ? [id, userId] : [id]));
 }
 
-function toggleMemory(id) {
-  db.prepare('UPDATE memories SET active = CASE WHEN active = 1 THEN 0 ELSE 1 END WHERE id = ?').run(id);
-  return getMemoryById(id);
+function toggleMemory(id, userId) {
+  const where = userId != null ? 'id = ? AND user_id = ?' : 'id = ?';
+  db.prepare(`UPDATE memories SET active = CASE WHEN active = 1 THEN 0 ELSE 1 END WHERE ${where}`)
+    .run(...(userId != null ? [id, userId] : [id]));
+  return getMemoryById(id, userId);
 }
 
 // ─── Recall log & scheduling ──────────────────────────────────────────────────
 
 function getMemoriesDueToday() {
+  // Join the owner so the cron can email each memory to its own user. Memories
+  // whose owner is missing or deactivated are skipped.
   return db.prepare(`
-    SELECT * FROM memories
-    WHERE active = 1 AND next_send_date <= datetime('now')
+    SELECT m.*, u.email AS owner_email
+    FROM memories m
+    JOIN users u ON u.id = m.user_id
+    WHERE m.active = 1 AND u.active = 1 AND m.next_send_date <= datetime('now')
   `).all();
 }
 
@@ -219,16 +250,20 @@ function markSent(id, frequency) {
 
 // ─── Navigation: all IDs in order ─────────────────────────────────────────────
 
-function getAllIds(sort = 'created_at', order = 'desc') {
+function getAllIds(sort = 'created_at', order = 'desc', userId) {
   const sortMap = { created_at: 'created_at', id: 'id', topic: 'topic' };
   const col = sortMap[sort] || 'created_at';
   const dir = order === 'asc' ? 'ASC' : 'DESC';
-  return db.prepare(`SELECT id FROM memories ORDER BY ${col} ${dir}`).all().map(r => r.id);
+  const where = userId != null ? 'WHERE user_id = ?' : '';
+  const q = `SELECT id FROM memories ${where} ORDER BY ${col} ${dir}`;
+  const rows = userId != null ? db.prepare(q).all(userId) : db.prepare(q).all();
+  return rows.map(r => r.id);
 }
 
 // ─── Reset counter ────────────────────────────────────────────────────────────
 
-function resetCounter(id) {
+function resetCounter(id, userId) {
+  if (userId != null && !db.prepare('SELECT 1 FROM memories WHERE id = ? AND user_id = ?').get(id, userId)) return null;
   db.prepare('DELETE FROM recall_log WHERE memory_id = ?').run(id);
   db.prepare('UPDATE memories SET times_recalled = 0 WHERE id = ?').run(id);
   // Recalculate next_send_date from now
@@ -237,21 +272,29 @@ function resetCounter(id) {
     const nextSend = calcNextSendDate(memory.frequency);
     db.prepare('UPDATE memories SET next_send_date = ? WHERE id = ?').run(nextSend, id);
   }
-  return getMemoryById(id);
+  return getMemoryById(id, userId);
+}
+
+// Assign every ownerless memory (pre-migration data) to a user. Returns count.
+function assignOrphanMemories(userId) {
+  return db.prepare('UPDATE memories SET user_id = ? WHERE user_id IS NULL').run(userId).changes;
 }
 
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
-function getAllMemoriesForExport() {
-  return db.prepare(`
+function getAllMemoriesForExport(userId) {
+  const where = userId != null ? 'WHERE m.user_id = ?' : '';
+  const q = `
     SELECT
       m.id, m.description, m.created_at, m.frequency, m.topic,
       CASE WHEN m.image_path IS NOT NULL THEN 'true' ELSE 'false' END as has_image,
       m.source_url, m.active, m.next_send_date, m.last_sent_date,
       (SELECT COUNT(*) FROM recall_log r WHERE r.memory_id = m.id) as times_recalled
     FROM memories m
+    ${where}
     ORDER BY m.created_at DESC
-  `).all();
+  `;
+  return userId != null ? db.prepare(q).all(userId) : db.prepare(q).all();
 }
 
 module.exports = {
@@ -268,5 +311,6 @@ module.exports = {
   markSent,
   resetCounter,
   getAllMemoriesForExport,
+  assignOrphanMemories,
   FREQUENCY_DAYS
 };

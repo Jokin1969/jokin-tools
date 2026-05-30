@@ -14,9 +14,10 @@ function startCron() {
 
       for (const memory of memories) {
         try {
-          await sendMemoryEmail(memory);
+          // Each memory is emailed to its own owner.
+          await sendMemoryEmail(memory, memory.owner_email);
           markSent(memory.id, memory.frequency);
-          console.log(`[cron] ✓ Memory #${memory.id} sent and updated`);
+          console.log(`[cron] ✓ Memory #${memory.id} sent to ${memory.owner_email} and updated`);
         } catch (err) {
           console.error(`[cron] ✗ Failed to send memory #${memory.id}:`, err.message);
         }

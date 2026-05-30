@@ -203,14 +203,16 @@ function escapeHtml(str) {
 
 // ─── Send email ───────────────────────────────────────────────────────────────
 
-async function sendMemoryEmail(memory) {
+async function sendMemoryEmail(memory, toEmail) {
+  const recipient = toEmail || process.env.EMAIL_TO;
+  if (!recipient) throw new Error('No recipient: el usuario no tiene email y EMAIL_TO no está definido');
   const transporter = createTransporter();
   const html = buildEmailHTML(memory);
   const subject = `[Re-memory] ${memory.topic}: ${memory.description.substring(0, 60)}${memory.description.length > 60 ? '…' : ''}`;
 
   const info = await transporter.sendMail({
     from: process.env.EMAIL_FROM || '"Re-memory" <noreply@example.com>',
-    to: process.env.EMAIL_TO,
+    to: recipient,
     subject,
     html
   });

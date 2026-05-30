@@ -72,8 +72,8 @@ function generateFilename() {
 
 // ─── Upload to Dropbox ────────────────────────────────────────────────────────
 
-async function exportToDropbox() {
-  const rows = getAllMemoriesForExport();
+async function exportToDropbox(userId) {
+  const rows = getAllMemoriesForExport(userId);
   const csvContent = buildCSV(rows);
   const filename = generateFilename();
 

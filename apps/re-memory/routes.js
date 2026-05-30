@@ -69,7 +69,7 @@ router.get('/api/config-check', (req, res) => {
 // ─── API: List memories ───────────────────────────────────────────────────────
 router.get('/api/memories', (req, res) => {
   try {
-    const result = listMemories(req.query);
+    const result = listMemories(req.query, req.user.id);
     res.json(result);
   } catch (err) {
     console.error('[api] listMemories error:', err);
@@ -80,7 +80,7 @@ router.get('/api/memories', (req, res) => {
 // ─── API: Get all IDs (for client-side prev/next navigation) ─────────────────
 router.get('/api/ids', (req, res) => {
   try {
-    const ids = getAllIds(req.query.sort, req.query.order);
+    const ids = getAllIds(req.query.sort, req.query.order, req.user.id);
     res.json(ids);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -90,7 +90,7 @@ router.get('/api/ids', (req, res) => {
 // ─── API: Get one memory ──────────────────────────────────────────────────────
 router.get('/api/memories/:id', (req, res) => {
   try {
-    const memory = getMemoryById(Number(req.params.id));
+    const memory = getMemoryById(Number(req.params.id), req.user.id);
     if (!memory) return res.status(404).json({ error: 'Memory not found' });
     res.json(memory);
   } catch (err) {
@@ -106,7 +106,7 @@ router.post('/api/memories', (req, res) => {
     if (!description || !frequency || !topic) {
       return res.status(400).json({ error: 'description, frequency and topic are required' });
     }
-    const memory = createMemory({ description, frequency, topic, source_url, active });
+    const memory = createMemory({ description, frequency, topic, source_url, active, user_id: req.user.id });
     res.status(201).json(memory);
   } catch (err) {
     console.error('[api] createMemory error:', err);
@@ -118,9 +118,9 @@ router.post('/api/memories', (req, res) => {
 router.put('/api/memories/:id', (req, res) => {
   try {
     const id = Number(req.params.id);
-    const existing = getMemoryById(id);
+    const existing = getMemoryById(id, req.user.id);
     if (!existing) return res.status(404).json({ error: 'Memory not found' });
-    const memory = updateMemory(id, req.body);
+    const memory = updateMemory(id, req.body, req.user.id);
     res.json(memory);
   } catch (err) {
     console.error('[api] updateMemory error:', err);
@@ -132,7 +132,7 @@ router.put('/api/memories/:id', (req, res) => {
 router.delete('/api/memories/:id', (req, res) => {
   try {
     const id = Number(req.params.id);
-    const existing = getMemoryById(id);
+    const existing = getMemoryById(id, req.user.id);
     if (!existing) return res.status(404).json({ error: 'Memory not found' });
 
     // Delete image file if exists
@@ -141,7 +141,7 @@ router.delete('/api/memories/:id', (req, res) => {
       if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
     }
 
-    deleteMemory(id);
+    deleteMemory(id, req.user.id);
     res.json({ success: true });
   } catch (err) {
     console.error('[api] deleteMemory error:', err);
@@ -152,8 +152,9 @@ router.delete('/api/memories/:id', (req, res) => {
 // ─── API: Toggle active/inactive ─────────────────────────────────────────────
 router.patch('/api/memories/:id/toggle', (req, res) => {
   try {
-    const memory = toggleMemory(Number(req.params.id));
-    if (!memory) return res.status(404).json({ error: 'Memory not found' });
+    const id = Number(req.params.id);
+    if (!getMemoryById(id, req.user.id)) return res.status(404).json({ error: 'Memory not found' });
+    const memory = toggleMemory(id, req.user.id);
     res.json(memory);
   } catch (err) {
     console.error('[api] toggleMemory error:', err);
@@ -165,9 +166,9 @@ router.patch('/api/memories/:id/toggle', (req, res) => {
 router.post('/api/memories/:id/reset-counter', (req, res) => {
   try {
     const id = Number(req.params.id);
-    const existing = getMemoryById(id);
+    const existing = getMemoryById(id, req.user.id);
     if (!existing) return res.status(404).json({ error: 'Memory not found' });
-    const memory = resetCounter(id);
+    const memory = resetCounter(id, req.user.id);
     res.json(memory);
   } catch (err) {
     console.error('[api] resetCounter error:', err);
@@ -179,7 +180,7 @@ router.post('/api/memories/:id/reset-counter', (req, res) => {
 router.post('/api/memories/:id/image', upload.single('image'), (req, res) => {
   try {
     const id = Number(req.params.id);
-    const existing = getMemoryById(id);
+    const existing = getMemoryById(id, req.user.id);
     if (!existing) return res.status(404).json({ error: 'Memory not found' });
     if (!req.file) return res.status(400).json({ error: 'No image file provided' });
 
@@ -190,7 +191,7 @@ router.post('/api/memories/:id/image', upload.single('image'), (req, res) => {
     }
 
     const relativePath = req.file.filename;
-    const memory = updateMemory(id, { image_path: relativePath });
+    const memory = updateMemory(id, { image_path: relativePath }, req.user.id);
     res.json({ image_path: relativePath, memory });
   } catch (err) {
     console.error('[api] uploadImage error:', err);
@@ -198,13 +199,13 @@ router.post('/api/memories/:id/image', upload.single('image'), (req, res) => {
   }
 });
 
-// ─── API: Test email ──────────────────────────────────────────────────────────
+// ─── API: Test email (to the logged-in user's own address) ─────────────────────
 router.post('/api/test-email/:id', async (req, res) => {
   try {
-    const memory = getMemoryById(Number(req.params.id));
+    const memory = getMemoryById(Number(req.params.id), req.user.id);
     if (!memory) return res.status(404).json({ error: 'Memory not found' });
-    await sendMemoryEmail(memory);
-    res.json({ success: true, message: 'Test email sent' });
+    await sendMemoryEmail(memory, req.user.email);
+    res.json({ success: true, message: `Test email sent to ${req.user.email}` });
   } catch (err) {
     console.error('[api] testEmail error:', err);
     res.status(500).json({ error: err.message });
@@ -251,7 +252,7 @@ router.get('/api/deactivate/:id/:token', (req, res) => {
 // ─── API: Export CSV to Dropbox ───────────────────────────────────────────────
 router.get('/api/export/csv', async (req, res) => {
   try {
-    const result = await exportToDropbox();
+    const result = await exportToDropbox(req.user.id);
     res.json({
       success: true,
       path: result.path,

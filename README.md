@@ -172,6 +172,15 @@ tiene asignadas, y el acceso directo a una app sin permiso devuelve un 403.
 - **Admin inicial:** se siembra al arrancar desde `ADMIN_EMAIL` y `ADMIN_PASSWORD`
   (ver `.env.example`). En cada arranque garantiza/actualiza esa cuenta como admin.
 
+**Datos por usuario (Re-memory):** Re-memory aísla los datos por usuario. Cada
+cuenta solo ve, edita y exporta sus propias palabras (columna `memories.user_id`),
+y los recordatorios diarios se envían al email de cada usuario. Al desplegar esta
+versión por primera vez, las palabras que ya existían (sin dueño) se asignan a
+`REMEMORY_OWNER_EMAIL` o, en su defecto, a `ADMIN_EMAIL`. El backup `.db` sigue
+siendo un volcado completo de la base (todos los usuarios) hacia una única cuenta
+de Dropbox del propietario; el botón "Exportar CSV", en cambio, exporta solo las
+palabras del usuario que lo pulsa.
+
 **Primer uso:** define `ADMIN_EMAIL` y `ADMIN_PASSWORD` en las variables de entorno,
 arranca, entra en `/auth/login` con esas credenciales y crea el resto de cuentas
 desde el panel de usuarios. Para añadir una app nueva al control de acceso: regístrala
