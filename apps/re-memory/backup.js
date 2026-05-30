@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { getAccessToken } = require('./dropbox');
-const { db } = require('./db');
+const { db, assignOrphansToConfiguredOwner } = require('./db');
 
 const DROPBOX_UPLOAD_URL   = 'https://content.dropboxapi.com/2/files/upload';
 const DROPBOX_LIST_URL     = 'https://api.dropbox.com/2/files/list_folder';
@@ -150,16 +150,37 @@ async function restoreBackup(filename) {
   const tempPath = path.join(path.dirname(dbPath), `_restore_temp_${Date.now()}.db`);
   fs.writeFileSync(tempPath, buffer);
 
+  // Copy a table using only the columns present in BOTH schemas. This makes the
+  // restore resilient to schema drift — e.g. a backup taken before the
+  // memories.user_id migration simply leaves user_id NULL instead of failing or
+  // (worse) shifting data into the wrong columns with INSERT ... SELECT *.
+  const copyTable = (table) => {
+    const live = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+    const src  = db.prepare(`PRAGMA restore_src.table_info(${table})`).all().map(c => c.name);
+    const cols = live.filter(c => src.includes(c));
+    if (!cols.length) throw new Error(`Backup incompatible: la tabla ${table} no tiene columnas en común`);
+    const colList = cols.map(c => `"${c}"`).join(', ');
+    db.exec(`INSERT INTO ${table} (${colList}) SELECT ${colList} FROM restore_src.${table}`);
+  };
+
+  let attached = false;
   try {
-    // ATTACH backup and atomically replace all data in live connection
+    // ATTACH backup and atomically replace memories/recall_log in the live
+    // connection (users/auth_sessions are intentionally left untouched).
     const safePath = tempPath.replace(/'/g, "''");
     db.exec(`ATTACH DATABASE '${safePath}' AS restore_src`);
+    attached = true;
 
     db.transaction(() => {
       db.exec('DELETE FROM recall_log');
       db.exec('DELETE FROM memories');
-      db.exec('INSERT INTO memories  SELECT * FROM restore_src.memories');
-      db.exec('INSERT INTO recall_log SELECT * FROM restore_src.recall_log');
+      copyTable('memories');
+      copyTable('recall_log');
+
+      // A restored owner id that doesn't exist in the live users table (older or
+      // foreign backup) would hide those memories forever — treat them as
+      // ownerless so they can be reassigned below.
+      db.exec('UPDATE memories SET user_id = NULL WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users)');
 
       // Sync AUTOINCREMENT sequences
       db.exec(`UPDATE sqlite_sequence
@@ -170,13 +191,22 @@ async function restoreBackup(filename) {
                WHERE name = 'recall_log'`);
     })();
 
-    db.exec('DETACH DATABASE restore_src');
+    // Reattach orphaned/unknown-owner memories to the configured owner so
+    // restored data stays visible (mirrors the boot-time orphan assignment).
+    const reassigned = assignOrphansToConfiguredOwner();
+    if (reassigned) console.log(`[backup] Reassigned ${reassigned} restored memories to the configured owner`);
 
     // Reset mtime tracker so auto-backup doesn't immediately re-backup
     lastBackupMtime = fs.existsSync(dbPath) ? fs.statSync(dbPath).mtimeMs : Date.now();
 
     console.log(`[backup] ✓ Restored from: ${filename} (${(buffer.length / 1024).toFixed(1)} KB)`);
   } finally {
+    // Always detach, even if the transaction threw — otherwise the next restore
+    // hits "database restore_src is already in use" until the process restarts.
+    if (attached) {
+      try { db.exec('DETACH DATABASE restore_src'); }
+      catch (e) { console.error('[backup] detach failed:', e.message); }
+    }
     if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
   }
 
