@@ -183,7 +183,11 @@ function listMemories({ topic, active, frequency, date_from, date_to, recalled_m
 }
 
 function updateMemory(id, fields, userId) {
-  const allowed = ['description', 'frequency', 'topic', 'image_path', 'source_url', 'active', 'next_send_date'];
+  // NOTE: image_path is intentionally NOT here — it must only be set via the
+  // dedicated upload endpoint (setMemoryImage). Allowing it through the generic
+  // PUT would let a user point their memory at another user's image filename
+  // and defeat the per-user /uploads ownership check (getImageOwner).
+  const allowed = ['description', 'frequency', 'topic', 'source_url', 'active', 'next_send_date'];
   const updates = [];
   const values = [];
 
@@ -205,6 +209,15 @@ function updateMemory(id, fields, userId) {
   let where = 'id = ?';
   if (userId != null) { where += ' AND user_id = ?'; values.push(userId); }
   db.prepare(`UPDATE memories SET ${updates.join(', ')} WHERE ${where}`).run(...values);
+  return getMemoryById(id, userId);
+}
+
+// Set a memory's uploaded image. Kept separate from updateMemory on purpose so
+// image_path can never be set through the generic PUT body (see updateMemory).
+function setMemoryImage(id, imagePath, userId) {
+  const where = userId != null ? 'id = ? AND user_id = ?' : 'id = ?';
+  const args = userId != null ? [imagePath, id, userId] : [imagePath, id];
+  db.prepare(`UPDATE memories SET image_path = ? WHERE ${where}`).run(...args);
   return getMemoryById(id, userId);
 }
 
@@ -287,6 +300,25 @@ function getImageOwner(filename) {
   return row ? row.user_id : null;
 }
 
+// Resolve a user id from the shared users table (same DB file, different
+// connection-owner). Returns null if not found. Used to reassign orphan
+// memories without coupling this module to the auth store.
+function getUserIdByEmail(email) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return null;
+  const row = db.prepare('SELECT id FROM users WHERE email = ?').get(e);
+  return row ? row.id : null;
+}
+
+// Assign ownerless memories to the configured owner
+// (REMEMORY_OWNER_EMAIL → ADMIN_EMAIL). Returns the number reassigned.
+function assignOrphansToConfiguredOwner() {
+  const email = (process.env.REMEMORY_OWNER_EMAIL || process.env.ADMIN_EMAIL || '');
+  const id = getUserIdByEmail(email);
+  if (!id) return 0;
+  return assignOrphanMemories(id);
+}
+
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
 function getAllMemoriesForExport(userId) {
@@ -308,6 +340,9 @@ module.exports = {
   db,
   calcNextSendDate,
   createMemory,
+  setMemoryImage,
+  getUserIdByEmail,
+  assignOrphansToConfiguredOwner,
   getMemoryById,
   listMemories,
   getAllIds,

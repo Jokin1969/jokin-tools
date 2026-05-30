@@ -8,11 +8,11 @@ const fetch = require('node-fetch');
 const router = express.Router();
 
 const {
-  createMemory, getMemoryById, listMemories, updateMemory,
+  createMemory, setMemoryImage, getMemoryById, listMemories, updateMemory,
   deleteMemory, toggleMemory, resetCounter, getAllIds, getAllMemoriesForExport
 } = require('./db');
 
-const { sendMemoryEmail, generateDeactivationToken } = require('./email');
+const { sendMemoryEmail, generateDeactivationToken, isDeactivationSecretConfigured } = require('./email');
 const { exportToDropbox, getAuthorizationUrl, exchangeCodeForTokens } = require('./dropbox');
 const { createBackup, listBackups, restoreBackup } = require('./backup');
 const { startCron } = require('./cron');
@@ -50,7 +50,7 @@ router.get('/', (req, res) => {
 router.use('/public', express.static(path.join(__dirname, 'public')));
 
 // ─── API: Config diagnostic (muestra BASE_URL activa sin exponer secrets) ─────
-router.get('/api/config-check', (req, res) => {
+router.get('/api/config-check', requireAdmin, (req, res) => {
   const baseUrl = process.env.BASE_URL || '(no definida)';
   const smtpUser = process.env.SMTP_USER ? process.env.SMTP_USER.replace(/(.{3}).*(@.*)/, '$1***$2') : '(no definida)';
   const deactivationSecret = process.env.DEACTIVATION_SECRET ? '✓ definida' : '✗ usa valor por defecto (inseguro)';
@@ -192,7 +192,7 @@ router.post('/api/memories/:id/image', upload.single('image'), (req, res) => {
     }
 
     const relativePath = req.file.filename;
-    const memory = updateMemory(id, { image_path: relativePath }, req.user.id);
+    const memory = setMemoryImage(id, relativePath, req.user.id);
     res.json({ image_path: relativePath, memory });
   } catch (err) {
     console.error('[api] uploadImage error:', err);
@@ -216,19 +216,29 @@ router.post('/api/test-email/:id', async (req, res) => {
 // ─── API: Deactivate from email link ─────────────────────────────────────────
 router.get('/api/deactivate/:id/:token', (req, res) => {
   try {
+    // Fail closed: never honour deactivation links when running on the public
+    // default HMAC secret in production (anyone could forge them).
+    if (process.env.NODE_ENV === 'production' && !isDeactivationSecretConfigured()) {
+      return res.status(503).send('<h2>Desactivación no disponible (DEACTIVATION_SECRET sin configurar)</h2>');
+    }
+
     const id = Number(req.params.id);
     const token = req.params.token;
-    const expected = generateDeactivationToken(id);
+    // Token is bound to the logged-in user (route is behind requireApp), so a
+    // user can only deactivate their own memories — no cross-user toggling.
+    const expected = generateDeactivationToken(id, req.user.id);
 
-    if (!crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected))) {
+    const a = Buffer.from(token);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
       return res.status(403).send('<h2>Token inválido</h2>');
     }
 
-    const memory = getMemoryById(id);
+    const memory = getMemoryById(id, req.user.id);
     if (!memory) return res.status(404).send('<h2>Memoria no encontrada</h2>');
 
     if (memory.active) {
-      updateMemory(id, { active: 0 });
+      updateMemory(id, { active: 0 }, req.user.id);
     }
 
     res.send(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
@@ -439,13 +449,23 @@ router.get('/api/proxy-image', async (req, res) => {
     const parsed = new URL(url);
     const allowedHosts = ['upload.wikimedia.org', 'commons.wikimedia.org', 'en.wikipedia.org',
       'es.wikipedia.org', 'upload.wikipedia.org', 'images.wikimedia.org'];
-    if (!allowedHosts.some(h => parsed.hostname.endsWith(h))) {
+    // Exact host match (endsWith would also accept e.g. "evilupload.wikimedia.org").
+    if (!allowedHosts.includes(parsed.hostname)) {
       return res.status(403).json({ error: 'Dominio no permitido para proxy' });
     }
+    if (parsed.protocol !== 'https:') {
+      return res.status(403).json({ error: 'Solo se permite https' });
+    }
 
+    // Do not follow redirects: an allowed host could 302 to an internal address
+    // (SSRF). Treat a redirect as a failure instead.
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; JokinTools/1.0)' }
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; JokinTools/1.0)' },
+      redirect: 'manual'
     });
+    if (response.status >= 300 && response.status < 400) {
+      return res.status(502).json({ error: 'Redirección no permitida' });
+    }
 
     if (!response.ok) {
       return res.status(response.status).json({ error: `Upstream ${response.status}` });
@@ -517,7 +537,7 @@ router.post('/api/backup/restore/:filename', requireAdmin, async (req, res) => {
 });
 
 // ─── Dropbox OAuth2 setup (first deploy only) ─────────────────────────────────
-router.get('/auth/dropbox', (req, res) => {
+router.get('/auth/dropbox', requireAdmin, (req, res) => {
   try {
     const url = getAuthorizationUrl();
     res.redirect(url);
@@ -526,7 +546,7 @@ router.get('/auth/dropbox', (req, res) => {
   }
 });
 
-router.get('/auth/dropbox/callback', async (req, res) => {
+router.get('/auth/dropbox/callback', requireAdmin, async (req, res) => {
   const { code, error } = req.query;
   if (error) return res.status(400).send(`<pre>Dropbox error: ${error}</pre>`);
   if (!code) return res.status(400).send('<pre>No code received</pre>');

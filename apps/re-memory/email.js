@@ -54,11 +54,31 @@ function createTransporter() {
 
 // ─── Deactivation token ───────────────────────────────────────────────────────
 
-function generateDeactivationToken(memoryId) {
+// Token binds to BOTH the memory id and its owner so a token forged/replayed for
+// one memory can't target another user's memory. Older links (id-only) are no
+// longer honoured — the recipient just toggles it off in the UI instead.
+function generateDeactivationToken(memoryId, userId) {
   return crypto
     .createHmac('sha256', DEACTIVATION_SECRET)
-    .update(String(memoryId))
+    .update(`${memoryId}:${userId}`)
     .digest('hex');
+}
+
+// In production we must NOT run with the public default secret, otherwise anyone
+// can forge deactivation links. The route uses this to fail closed.
+function isDeactivationSecretConfigured() {
+  return !!process.env.DEACTIVATION_SECRET;
+}
+
+// Only http(s) URLs are safe to render as links in an email.
+function isSafeHttpUrl(value) {
+  if (!value) return false;
+  try {
+    const u = new URL(String(value));
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 // ─── Color logic ──────────────────────────────────────────────────────────────
@@ -82,7 +102,7 @@ const FREQUENCY_LABELS = {
 function buildEmailHTML(memory) {
   const baseUrl = getBaseUrl();
   const { bg, label } = getBadgeColor(memory.times_recalled);
-  const deactivateToken = generateDeactivationToken(memory.id);
+  const deactivateToken = generateDeactivationToken(memory.id, memory.user_id);
   const deactivateUrl = `${baseUrl}/re-memory/api/deactivate/${memory.id}/${deactivateToken}`;
   const freqLabel = FREQUENCY_LABELS[memory.frequency] || memory.frequency;
   const createdAt = new Date(memory.created_at).toLocaleDateString('es-ES', {
@@ -101,15 +121,18 @@ function buildEmailHTML(memory) {
       </tr>`;
   }
 
-  // Source link block
+  // Source link block — only render http(s) URLs, and escape into the markup so
+  // a crafted source_url can't inject HTML or a javascript:/data: scheme.
   let sourceBlock = '';
-  if (memory.source_url) {
+  const safeSourceUrl = isSafeHttpUrl(memory.source_url) ? memory.source_url : null;
+  if (safeSourceUrl) {
+    const shown = escapeHtml(safeSourceUrl);
     sourceBlock = `
       <tr>
         <td style="padding: 0 40px 16px;">
           <p style="margin:0; font-size:13px; color:#888;">
-            Fuente: <a href="${memory.source_url}" target="_blank"
-              style="color:#2D9CDB; text-decoration:none;">${memory.source_url}</a>
+            Fuente: <a href="${shown}" target="_blank"
+              style="color:#2D9CDB; text-decoration:none;">${shown}</a>
           </p>
         </td>
       </tr>`;
@@ -242,5 +265,6 @@ async function sendMemoryEmail(memory, toEmail) {
 module.exports = {
   sendMemoryEmail,
   generateDeactivationToken,
+  isDeactivationSecretConfigured,
   getBadgeColor
 };
