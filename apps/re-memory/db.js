@@ -280,6 +280,13 @@ function assignOrphanMemories(userId) {
   return db.prepare('UPDATE memories SET user_id = ? WHERE user_id IS NULL').run(userId).changes;
 }
 
+// Owner (user_id) of the memory that uses this uploaded image filename, or null
+// if no memory references it. Used to gate /uploads access per user.
+function getImageOwner(filename) {
+  const row = db.prepare('SELECT user_id FROM memories WHERE image_path = ?').get(filename);
+  return row ? row.user_id : null;
+}
+
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
 function getAllMemoriesForExport(userId) {
@@ -312,5 +319,6 @@ module.exports = {
   resetCounter,
   getAllMemoriesForExport,
   assignOrphanMemories,
+  getImageOwner,
   FREQUENCY_DAYS
 };

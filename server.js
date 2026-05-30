@@ -26,9 +26,17 @@ const authRouter = require('./apps/auth/routes');
 const { attachUser, requireAuth, requireApp } = require('./apps/auth/middleware');
 app.use(attachUser);
 
-// Serve uploaded files from /data/uploads — behind login (no public access).
-// Emails embed images inline (cid:) instead of linking here.
-app.use('/uploads', requireAuth, express.static(uploadsDir));
+// Serve uploaded files from /data/uploads — per-user. You must be logged in AND
+// own the memory that references the image. Emails don't rely on this route;
+// they embed images inline (cid:). Unknown files → 404, someone else's → 403.
+const reMemoryDb = require('./apps/re-memory/db');
+app.use('/uploads', requireAuth, (req, res, next) => {
+  const filename = path.basename(decodeURIComponent(req.path));
+  const ownerId = reMemoryDb.getImageOwner(filename);
+  if (ownerId == null) return res.status(404).json({ error: 'Not found' });
+  if (ownerId !== req.user.id) return res.status(403).json({ error: 'No tienes acceso a esta imagen.' });
+  next();
+}, express.static(uploadsDir));
 
 // Serve shared public assets (favicons, logos)
 app.use('/public', express.static(path.join(__dirname, 'public')));
@@ -79,7 +87,6 @@ authStore.seedAdminFromEnv();
 // Re-memory is now per-user. Assign any pre-existing (ownerless) memories to a
 // single owner — REMEMORY_OWNER_EMAIL if set, otherwise the seeded admin.
 try {
-  const reMemoryDb = require('./apps/re-memory/db');
   const ownerEmail = (process.env.REMEMORY_OWNER_EMAIL || process.env.ADMIN_EMAIL || '').trim().toLowerCase();
   const owner = ownerEmail ? authStore.getUserByEmail(ownerEmail) : null;
   if (owner) {
