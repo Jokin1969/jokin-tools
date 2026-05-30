@@ -7,11 +7,18 @@ const SESSION_TTL_MS = (parseInt(process.env.BATCHWORK_SESSION_TTL_MIN) || 30) *
 
 const sessions = new Map();
 
-// Purge expired sessions every 5 minutes
+// A session that is actively working must not be reaped, or we'd delete its
+// working directory out from under a long-running operation.
+function isBusy(session) {
+  return session.status === 'running' || session.status === 'awaiting_user';
+}
+
+// Purge expired sessions every 5 minutes. Busy sessions are skipped so an
+// operation that runs past the TTL keeps its files.
 setInterval(() => {
   const now = Date.now();
   for (const [id, session] of sessions) {
-    if (now - session.createdAt > SESSION_TTL_MS) cleanup(id);
+    if (now - session.createdAt > SESSION_TTL_MS && !isBusy(session)) cleanup(id);
   }
 }, 5 * 60 * 1000).unref();
 
@@ -41,9 +48,22 @@ function createSession(ownerId) {
     _timer: null,
   };
 
-  session._timer = setTimeout(() => cleanup(id), SESSION_TTL_MS);
+  session._timer = setTimeout(() => maybeCleanup(id), SESSION_TTL_MS);
   sessions.set(id, session);
   return session;
+}
+
+// Cleanup unless the session is still busy; if busy, check again later instead
+// of destroying an in-flight job's working directory.
+function maybeCleanup(id) {
+  const session = sessions.get(id);
+  if (!session) return;
+  if (isBusy(session)) {
+    session._timer = setTimeout(() => maybeCleanup(id), 60 * 1000);
+    session._timer.unref?.();
+    return;
+  }
+  cleanup(id);
 }
 
 // When ownerId is provided, a session owned by someone else is treated as
@@ -51,7 +71,7 @@ function createSession(ownerId) {
 function getSession(id, ownerId) {
   const session = sessions.get(id);
   if (!session) return null;
-  if (Date.now() - session.createdAt > SESSION_TTL_MS) {
+  if (Date.now() - session.createdAt > SESSION_TTL_MS && !isBusy(session)) {
     cleanup(id);
     return null;
   }

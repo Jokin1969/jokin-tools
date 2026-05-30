@@ -193,12 +193,22 @@ router.post('/api/session/:id/execute', express.json(), async (req, res) => {
     return res.status(400).json({ error: `Unknown operation: ${operation}` });
   }
 
-  // Run asynchronously
-  opFactory().run(session, params).catch(err => {
-    console.error(`[batchwork] operation ${operation} error:`, err.message);
+  // Run asynchronously. Wrap the factory + run() invocation so a synchronous
+  // throw (e.g. a broken require of the operation module) also flips the session
+  // to 'error' instead of leaving it stuck in 'running' until the TTL.
+  try {
+    const result = opFactory().run(session, params);
+    Promise.resolve(result).catch(err => {
+      console.error(`[batchwork] operation ${operation} error:`, err.message);
+      session.status = 'error';
+      session.log.push({ type: 'error', file: '', message: err.message });
+    });
+  } catch (err) {
+    console.error(`[batchwork] operation ${operation} failed to start:`, err.message);
     session.status = 'error';
     session.log.push({ type: 'error', file: '', message: err.message });
-  });
+    return res.status(500).json({ error: `No se pudo iniciar la operación: ${err.message}` });
+  }
 
   res.json({ status: 'running' });
 });
