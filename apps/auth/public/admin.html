@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Usuarios — Jokin's Tools</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon-jk.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/hub.css?v=3" />
+  <style>
+    .adm-bar { border-bottom:1px solid var(--border); background:rgba(242,237,227,.96); position:sticky; top:0; z-index:50; }
+    .adm-bar-in { max-width:1100px; margin:0 auto; padding:16px 24px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .adm-bar h1 { font-family:var(--serif); font-size:1.2rem; font-weight:600; color:var(--text); }
+    .adm-bar h1 .logo-j { color:var(--klein); }
+    .adm-bar-links { display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:0.78rem; }
+    .adm-bar-links a, .adm-bar-links button { font-family:var(--mono); font-size:0.78rem; color:var(--blue); background:none; border:1px solid var(--border); border-radius:var(--radius-sm); padding:6px 12px; cursor:pointer; text-decoration:none; }
+    .adm-bar-links button:hover, .adm-bar-links a:hover { border-color:var(--blue); }
+    .adm-main { max-width:1100px; margin:0 auto; padding:28px 24px 60px; }
+    .adm-section { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:22px 24px; margin-bottom:24px; }
+    .adm-section h2 { font-family:var(--mono); font-size:0.8rem; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin-bottom:16px; }
+    label.fl { display:block; font-family:var(--mono); font-size:0.7rem; color:var(--text-muted); margin-bottom:5px; }
+    .inp { padding:9px 11px; font-size:0.9rem; font-family:var(--serif); border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; color:var(--text); width:100%; }
+    .inp:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(27,108,176,.1); }
+    select.inp { font-family:var(--mono); font-size:0.82rem; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; align-items:end; }
+    .btn { font-family:var(--mono); font-size:0.8rem; font-weight:600; color:#fff; background:var(--blue); border:none; border-radius:var(--radius-sm); padding:10px 16px; cursor:pointer; }
+    .btn:hover { background:var(--accent); }
+    .btn.ghost { background:none; color:var(--blue); border:1px solid var(--border); font-weight:400; }
+    .btn.ghost:hover { border-color:var(--blue); }
+    .btn.danger { background:none; color:#B3261E; border:1px solid #e3b6b2; font-weight:400; }
+    .btn.danger:hover { background:#fbeceb; }
+    .btn:disabled { opacity:.5; cursor:default; }
+    .apps-box { display:flex; flex-wrap:wrap; gap:14px; }
+    .apps-box label { display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:0.78rem; color:var(--text); }
+    .u-table { width:100%; border-collapse:collapse; }
+    .u-table th { text-align:left; font-family:var(--mono); font-size:0.68rem; text-transform:uppercase; letter-spacing:.05em; color:var(--text-dim); padding:8px 10px; border-bottom:1px solid var(--border); }
+    .u-table td { padding:12px 10px; border-bottom:1px solid var(--border); vertical-align:top; font-size:0.86rem; }
+    .u-email { font-family:var(--mono); font-size:0.8rem; color:var(--text); word-break:break-all; }
+    .badge { display:inline-block; font-family:var(--mono); font-size:0.66rem; padding:2px 8px; border-radius:20px; }
+    .badge.admin { background:#e7f0fa; color:var(--klein); }
+    .badge.user { background:#eef0ec; color:var(--text-muted); }
+    .badge.off { background:#fbeceb; color:#B3261E; }
+    .row-actions { display:flex; flex-wrap:wrap; gap:6px; }
+    .msg { font-family:var(--mono); font-size:0.76rem; margin-top:12px; min-height:1.1em; }
+    .msg.err { color:#B3261E; } .msg.ok { color:var(--turquoise); }
+    .you { font-family:var(--mono); font-size:0.64rem; color:var(--text-dim); margin-left:6px; }
+    @media (max-width:680px){ .u-table thead{display:none;} .u-table td{display:block;border:none;padding:4px 0;} .u-table tr{display:block;border-bottom:1px solid var(--border);padding:12px 0;} }
+  </style>
+</head>
+<body>
+  <div class="adm-bar">
+    <div class="adm-bar-in">
+      <h1><span class="logo-j">J</span>okin's Tools · Usuarios</h1>
+      <div class="adm-bar-links">
+        <span id="whoami"></span>
+        <a href="/">← Hub</a>
+        <button id="logout">Salir</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="adm-main">
+    <section class="adm-section">
+      <h2>Crear usuario</h2>
+      <form id="create-form">
+        <div class="grid">
+          <div><label class="fl">Email</label><input class="inp" type="email" id="c-email" required /></div>
+          <div><label class="fl">Nombre (opcional)</label><input class="inp" type="text" id="c-name" /></div>
+          <div><label class="fl">Contraseña (mín. 8)</label><input class="inp" type="text" id="c-password" required /></div>
+          <div><label class="fl">Rol</label>
+            <select class="inp" id="c-role">
+              <option value="user">Usuario</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:16px">
+          <label class="fl">Apps que puede ver <span id="c-apps-hint" class="you"></span></label>
+          <div class="apps-box" id="c-apps"></div>
+        </div>
+        <div style="margin-top:18px"><button class="btn" type="submit">Crear usuario</button></div>
+        <div class="msg" id="c-msg"></div>
+      </form>
+    </section>
+
+    <section class="adm-section">
+      <h2>Usuarios</h2>
+      <div style="overflow-x:auto">
+        <table class="u-table">
+          <thead>
+            <tr><th>Usuario</th><th>Rol</th><th>Apps</th><th>Estado</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="u-body"></tbody>
+        </table>
+      </div>
+      <div class="msg" id="u-msg"></div>
+    </section>
+  </main>
+
+  <script>
+    let APPS = [];
+    let ME = null;
+
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const setMsg = (el, text, kind) => { el.textContent = text; el.className = 'msg' + (kind ? ' ' + kind : ''); };
+
+    async function api(method, url, body) {
+      const r = await fetch(url, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (r.status === 401) { location.href = '/auth/login?next=/auth/admin'; throw new Error('401'); }
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Error en la operación.');
+      return data;
+    }
+
+    function appCheckboxes(containerId, selected, disabled) {
+      const box = document.getElementById(containerId);
+      box.innerHTML = APPS.map(a => `
+        <label><input type="checkbox" value="${esc(a.id)}" ${selected.includes(a.id) ? 'checked' : ''} ${disabled ? 'disabled' : ''}/> ${esc(a.name)}</label>
+      `).join('');
+      return box;
+    }
+    const readChecks = box => [...box.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+
+    // ── Create form ──
+    function syncCreateRole() {
+      const isAdmin = document.getElementById('c-role').value === 'admin';
+      appCheckboxes('c-apps', isAdmin ? APPS.map(a => a.id) : [], isAdmin);
+      document.getElementById('c-apps-hint').textContent = isAdmin ? '(un admin ve todas)' : '';
+    }
+    document.getElementById('c-role').addEventListener('change', syncCreateRole);
+
+    document.getElementById('create-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('c-msg');
+      const role = document.getElementById('c-role').value;
+      try {
+        await api('POST', '/auth/api/users', {
+          email: document.getElementById('c-email').value,
+          name: document.getElementById('c-name').value,
+          password: document.getElementById('c-password').value,
+          role,
+          apps: role === 'admin' ? '*' : readChecks(document.getElementById('c-apps')),
+        });
+        e.target.reset(); syncCreateRole();
+        setMsg(msg, '✓ Usuario creado.', 'ok');
+        loadUsers();
+      } catch (err) { setMsg(msg, err.message, 'err'); }
+    });
+
+    // ── User rows ──
+    async function loadUsers() {
+      const { users } = await api('GET', '/auth/api/users');
+      const body = document.getElementById('u-body');
+      body.innerHTML = '';
+      users.forEach(u => body.appendChild(renderRow(u)));
+    }
+
+    function renderRow(u) {
+      const tr = document.createElement('tr');
+      const isAdmin = u.role === 'admin';
+      const selected = u.apps === '*' ? APPS.map(a => a.id) : u.apps;
+      const isYou = ME && u.id === ME.id;
+
+      const tdUser = document.createElement('td');
+      tdUser.innerHTML = `<div class="u-email">${esc(u.email)}${isYou ? '<span class="you">(tú)</span>' : ''}</div>`;
+      const nameIn = document.createElement('input');
+      nameIn.className = 'inp'; nameIn.style.marginTop = '6px'; nameIn.value = u.name || ''; nameIn.placeholder = 'Nombre';
+      tdUser.appendChild(nameIn);
+
+      const tdRole = document.createElement('td');
+      const roleSel = document.createElement('select');
+      roleSel.className = 'inp';
+      roleSel.innerHTML = `<option value="user">Usuario</option><option value="admin">Administrador</option>`;
+      roleSel.value = u.role;
+      tdRole.appendChild(roleSel);
+
+      const tdApps = document.createElement('td');
+      const appsBox = document.createElement('div');
+      appsBox.className = 'apps-box';
+      const paintApps = () => {
+        const adm = roleSel.value === 'admin';
+        appsBox.innerHTML = APPS.map(a => `<label><input type="checkbox" value="${esc(a.id)}" ${(adm || selected.includes(a.id)) ? 'checked' : ''} ${adm ? 'disabled' : ''}/> ${esc(a.name)}</label>`).join('');
+      };
+      paintApps();
+      roleSel.addEventListener('change', paintApps);
+      tdApps.appendChild(appsBox);
+
+      const tdState = document.createElement('td');
+      tdState.innerHTML = `<span class="badge ${u.active ? (isAdmin ? 'admin' : 'user') : 'off'}">${u.active ? (isAdmin ? 'admin' : 'activo') : 'inactivo'}</span>`;
+
+      const tdActions = document.createElement('td');
+      tdActions.innerHTML = `<div class="row-actions"></div>`;
+      const actions = tdActions.querySelector('.row-actions');
+      const rowMsg = document.createElement('div'); rowMsg.className = 'msg';
+
+      const saveBtn = mkBtn('Guardar', 'btn', async () => {
+        try {
+          await api('PATCH', '/auth/api/users/' + u.id, {
+            name: nameIn.value,
+            role: roleSel.value,
+            apps: roleSel.value === 'admin' ? '*' : readChecks(appsBox),
+          });
+          setMsg(rowMsg, '✓ Guardado.', 'ok'); loadUsers();
+        } catch (err) { setMsg(rowMsg, err.message, 'err'); }
+      });
+
+      const pwBtn = mkBtn('Contraseña', 'btn ghost', async () => {
+        const np = prompt(`Nueva contraseña para ${u.email} (mín. 8):`);
+        if (np == null) return;
+        try { await api('POST', `/auth/api/users/${u.id}/password`, { password: np }); setMsg(rowMsg, '✓ Contraseña cambiada.', 'ok'); }
+        catch (err) { setMsg(rowMsg, err.message, 'err'); }
+      });
+
+      const toggleBtn = mkBtn(u.active ? 'Desactivar' : 'Activar', 'btn ghost', async () => {
+        try { await api('PATCH', '/auth/api/users/' + u.id, { active: !u.active }); loadUsers(); }
+        catch (err) { setMsg(rowMsg, err.message, 'err'); }
+      });
+
+      const delBtn = mkBtn('Eliminar', 'btn danger', async () => {
+        if (!confirm(`¿Eliminar a ${u.email}? Esta acción no se puede deshacer.`)) return;
+        try { await api('DELETE', '/auth/api/users/' + u.id); loadUsers(); }
+        catch (err) { setMsg(rowMsg, err.message, 'err'); }
+      });
+
+      actions.append(saveBtn, pwBtn, toggleBtn);
+      if (!isYou) actions.append(delBtn);
+      tdActions.appendChild(rowMsg);
+
+      tr.append(tdUser, tdRole, tdApps, tdState, tdActions);
+      return tr;
+    }
+
+    function mkBtn(label, cls, onClick) {
+      const b = document.createElement('button'); b.className = cls; b.textContent = label; b.type = 'button';
+      b.addEventListener('click', onClick); return b;
+    }
+
+    document.getElementById('logout').addEventListener('click', async () => {
+      await fetch('/auth/logout', { method: 'POST' }); location.href = '/auth/login';
+    });
+
+    (async function init() {
+      try {
+        const me = await api('GET', '/auth/api/me'); ME = me.user;
+        document.getElementById('whoami').textContent = ME.email;
+        const a = await api('GET', '/auth/api/apps'); APPS = a.apps;
+        syncCreateRole();
+        await loadUsers();
+      } catch (err) {
+        if (err.message !== '401') setMsg(document.getElementById('u-msg'), err.message, 'err');
+      }
+    })();
+  </script>
+</body>
+</html>

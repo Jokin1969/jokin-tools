@@ -156,11 +156,43 @@ La app estará disponible en `http://localhost:3000`.
 
 ---
 
+## Login y roles
+
+El hub está protegido por login. Cada usuario tiene un **rol** y un conjunto de
+**apps** a las que puede acceder; en el hub solo ve las tarjetas de las apps que
+tiene asignadas, y el acceso directo a una app sin permiso devuelve un 403.
+
+- **Autenticación:** sesión con cookie `httpOnly` (`SameSite=Lax`, `Secure` en
+  producción), persistida en SQLite (`auth_sessions`). Contraseñas hasheadas con
+  `scrypt` (sin dependencias nativas). Duración configurable con `AUTH_SESSION_DAYS`.
+- **Roles:** `admin` (ve todas las apps + panel de gestión) y `user` (ve solo las
+  apps que le marque el admin).
+- **Alta de usuarios:** solo el admin, desde el panel `/auth/admin` (crear usuario,
+  cambiar contraseña, activar/desactivar, asignar apps, eliminar).
+- **Admin inicial:** se siembra al arrancar desde `ADMIN_EMAIL` y `ADMIN_PASSWORD`
+  (ver `.env.example`). En cada arranque garantiza/actualiza esa cuenta como admin.
+
+**Primer uso:** define `ADMIN_EMAIL` y `ADMIN_PASSWORD` en las variables de entorno,
+arranca, entra en `/auth/login` con esas credenciales y crea el resto de cuentas
+desde el panel de usuarios. Para añadir una app nueva al control de acceso: regístrala
+en `apps/auth/apps-registry.js` y protégela en `server.js` con `requireApp('<id>')`.
+
+| Ruta | Descripción |
+|---|---|
+| `GET /auth/login` | Página de login |
+| `POST /auth/login` | Iniciar sesión |
+| `POST /auth/logout` | Cerrar sesión |
+| `GET /auth/api/me` | Usuario actual + sus apps |
+| `GET /auth/admin` | Panel de gestión de usuarios (admin) |
+| `GET/POST/PATCH/DELETE /auth/api/users` | CRUD de usuarios (admin) |
+
+---
+
 ## Rutas principales
 
 | Ruta | Descripción |
 |---|---|
-| `GET /` | Hub principal |
+| `GET /` | Hub principal (requiere login) |
 | `GET /re-memory` | App Re-memory |
 | `GET /re-memory/api/memories` | Listar memorias (con filtros) |
 | `POST /re-memory/api/memories` | Crear memoria |

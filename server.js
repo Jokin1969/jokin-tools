@@ -20,25 +20,34 @@ const uploadsDir = path.join(dataDir, 'uploads');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ─── Auth: identify the user on every request ───────────────────────────────────
+const authStore = require('./apps/auth/store');
+const authRouter = require('./apps/auth/routes');
+const { attachUser, requireAuth, requireApp } = require('./apps/auth/middleware');
+app.use(attachUser);
+
 // Serve uploaded files from /data/uploads
 app.use('/uploads', express.static(uploadsDir));
 
 // Serve shared public assets (favicons, logos)
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// ─── Hub frontend ─────────────────────────────────────────────────────────────
+// ─── Hub frontend assets (CSS, etc. — public so the login page can style itself) ─
 app.use('/src', express.static(path.join(__dirname, 'src')));
 
-// ─── Re-memory micro-app ─────────────────────────────────────────────────────
+// ─── Auth (login / logout / user management) ────────────────────────────────────
+app.use('/auth', authRouter);
+
+// ─── Re-memory micro-app (requires access to 're-memory') ───────────────────────
 const reMemoryRouter = require('./apps/re-memory/routes');
-app.use('/re-memory', reMemoryRouter);
+app.use('/re-memory', requireApp('re-memory'), reMemoryRouter);
 
-// ─── Batchwork micro-app ──────────────────────────────────────────────────────
+// ─── Batchwork micro-app (requires access to 'batchwork') ───────────────────────
 const batchworkRouter = require('./apps/batchwork/server/routes');
-app.use('/batchwork', batchworkRouter);
+app.use('/batchwork', requireApp('batchwork'), batchworkRouter);
 
-// ─── Hub root ─────────────────────────────────────────────────────────────────
-app.get('/', (req, res) => {
+// ─── Hub root (requires login) ──────────────────────────────────────────────────
+app.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));
 });
 
@@ -63,6 +72,9 @@ app.use((err, req, res, next) => {
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
+// Ensure there's a working admin (from ADMIN_EMAIL / ADMIN_PASSWORD) before listening.
+authStore.seedAdminFromEnv();
+
 app.listen(PORT, () => {
   console.log(`[server] Jokin's Tools running on port ${PORT}`);
   console.log(`[server] DB path: ${process.env.DB_PATH || '/data/jokin_tools.db'}`);

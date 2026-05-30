@@ -30,8 +30,10 @@
           <p class="logo-subtitle">Personal Utilities Hub</p>
         </div>
       </div>
-      <div class="header-meta">
-        <span class="version-badge">v1.0</span>
+      <div class="header-meta" id="user-bar">
+        <a href="/auth/admin" id="admin-link" class="user-link" style="display:none">Usuarios</a>
+        <span class="user-email" id="user-email"></span>
+        <button class="user-logout" id="logout-btn" type="button">Salir</button>
       </div>
     </div>
   </header>
@@ -40,77 +42,12 @@
   <main class="hub-main">
     <section class="tools-section">
       <h2 class="section-label">Herramientas disponibles</h2>
-      <div class="tools-grid">
-
-        <!-- Card: Re-memory -->
-        <a href="/re-memory" class="tool-card tool-card--active">
-          <div class="card-icon-wrap">
-            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
-              <!-- Cerebro estilizado -->
-              <path d="M32 12C22 12 14 19 14 28c0 4 1.5 7.5 4 10.2V44h28v-5.8c2.5-2.7 4-6.2 4-10.2C50 19 42 12 32 12z" stroke="#1B6CB0" stroke-width="2" fill="none"/>
-              <path d="M24 28c0-2.2 1.8-4 4-4" stroke="#009B8D" stroke-width="2" stroke-linecap="round"/>
-              <path d="M32 24c2.2 0 4 1.8 4 4" stroke="#009B8D" stroke-width="2" stroke-linecap="round"/>
-              <!-- Espiral de memoria -->
-              <path d="M32 32c0 0 4-4 4-8" stroke="#00B8D4" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
-              <!-- Reloj -->
-              <circle cx="32" cy="50" r="8" stroke="#1B6CB0" stroke-width="2" fill="none"/>
-              <path d="M32 46v4l3 2" stroke="#00B8D4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title">Re-memory</h3>
-            <p class="card-desc">Sistema de aprendizaje espaciado con recordatorios por email. Organiza y refuerza tu conocimiento de forma progresiva.</p>
-            <div class="card-tags">
-              <span class="tag">Spaced Repetition</span>
-              <span class="tag">Email</span>
-              <span class="tag">SQLite</span>
-            </div>
-          </div>
-          <div class="card-arrow">→</div>
-        </a>
-
-        <!-- Card: Batchwork -->
-        <a href="/batchwork" class="tool-card tool-card--active">
-          <div class="card-icon-wrap">
-            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
-              <!-- Pila de tres rectángulos con desplazamiento -->
-              <rect x="10" y="38" width="36" height="9" rx="2" stroke="#0097B2" stroke-width="2" fill="none" opacity="0.5"/>
-              <rect x="13" y="28" width="36" height="9" rx="2" stroke="#0097B2" stroke-width="2" fill="none" opacity="0.7"/>
-              <rect x="16" y="18" width="36" height="9" rx="2" stroke="#0097B2" stroke-width="2" fill="none"/>
-            </svg>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title">Batchwork</h3>
-            <p class="card-desc">Operaciones por lotes sobre ficheros. Inventario, renombrado, conversión de documentos, manipulación de PDFs e imágenes.</p>
-            <div class="card-tags">
-              <span class="tag">Lotes</span>
-              <span class="tag">PDF</span>
-              <span class="tag">Imágenes</span>
-            </div>
-          </div>
-          <div class="card-arrow">→</div>
-        </a>
-
-        <!-- Card: Próximamente -->
-        <div class="tool-card tool-card--soon" aria-disabled="true">
-          <div class="card-icon-wrap">
-            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
-              <rect x="20" y="30" width="24" height="20" rx="3" stroke="#555" stroke-width="2" fill="none"/>
-              <path d="M24 30V24a8 8 0 0116 0v6" stroke="#555" stroke-width="2" stroke-linecap="round"/>
-              <circle cx="32" cy="40" r="2.5" fill="#555"/>
-            </svg>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title">Próximamente</h3>
-            <p class="card-desc">Nueva herramienta en desarrollo. Permanece atento a las actualizaciones del hub.</p>
-            <div class="card-tags">
-              <span class="tag tag--muted">En desarrollo</span>
-            </div>
-          </div>
-          <div class="card-soon-label">Próximamente</div>
-        </div>
-
+      <div class="tools-grid" id="tools-grid">
+        <!-- Cards rendered by JS based on the logged-in user's permissions -->
       </div>
+      <p class="tools-empty" id="tools-empty" style="display:none">
+        Tu cuenta todavía no tiene ninguna herramienta asignada. Pide al administrador que te dé acceso.
+      </p>
     </section>
   </main>
 
@@ -121,6 +58,43 @@
 
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await fetch('/auth/logout', { method: 'POST' });
+      location.href = '/auth/login';
+    });
+
+    (async function loadHub() {
+      let data;
+      try {
+        const r = await fetch('/auth/api/me', { headers: { 'Accept': 'application/json' } });
+        if (r.status === 401) { location.href = '/auth/login?next=/'; return; }
+        data = await r.json();
+      } catch { return; }
+
+      const { user, apps } = data;
+      document.getElementById('user-email').textContent = user.email;
+      if (user.role === 'admin') document.getElementById('admin-link').style.display = '';
+
+      const grid = document.getElementById('tools-grid');
+      if (!apps.length) {
+        document.getElementById('tools-empty').style.display = '';
+        return;
+      }
+      grid.innerHTML = apps.map(a => `
+        <a href="${esc(a.path)}" class="tool-card tool-card--active">
+          <div class="card-icon-wrap">${a.icon || ''}</div>
+          <div class="card-body">
+            <h3 class="card-title">${esc(a.name)}</h3>
+            <p class="card-desc">${esc(a.desc)}</p>
+            <div class="card-tags">${(a.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>
+          </div>
+          <div class="card-arrow">→</div>
+        </a>
+      `).join('');
+    })();
   </script>
 </body>
 </html>

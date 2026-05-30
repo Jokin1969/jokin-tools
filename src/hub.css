@@ -289,3 +289,24 @@ body {
   .hub-main { padding: 32px 16px; }
   .tools-grid { grid-template-columns: 1fr; }
 }
+
+/* ─── User bar (auth) ─────────────────────────────────────────────────────────── */
+.header-meta { display: flex; align-items: center; gap: 14px; }
+.user-email { font-family: var(--mono); font-size: 0.78rem; color: var(--text-muted); }
+.user-link {
+  font-family: var(--mono); font-size: 0.76rem; color: var(--blue);
+  text-decoration: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 5px 11px; transition: border-color .15s;
+}
+.user-link:hover { border-color: var(--blue); }
+.user-logout {
+  font-family: var(--mono); font-size: 0.76rem; color: var(--text-muted);
+  background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 5px 11px; cursor: pointer; transition: border-color .15s, color .15s;
+}
+.user-logout:hover { border-color: var(--blue); color: var(--blue); }
+.tools-empty {
+  font-family: var(--mono); font-size: 0.85rem; color: var(--text-muted);
+  background: var(--bg-card); border: 1px dashed var(--border); border-radius: var(--radius);
+  padding: 28px; text-align: center;
+}
