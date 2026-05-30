@@ -41,13 +41,17 @@ function makeUpload() {
   return multer({
     storage: multer.diskStorage({
       destination: (req, file, cb) => {
-        const session = sessionModule.getSession(req.params.id);
+        const session = sessionModule.getSession(req.params.id, req.user.id);
         if (!session) return cb(new Error('Session not found'));
         cb(null, session.inputDir);
       },
       filename: (req, file, cb) => {
         const decoded = Buffer.from(file.originalname, 'latin1').toString('utf8');
-        cb(null, decoded);
+        // Strip any path component: a crafted "../../x" name must not escape the
+        // session input dir (path traversal).
+        const safe = path.basename(decoded);
+        if (!safe || safe === '.' || safe === '..') return cb(new Error('Invalid filename'));
+        cb(null, safe);
       },
     }),
     limits: { fileSize: MAX_MB * 1024 * 1024 },
@@ -118,13 +122,13 @@ router.get('/api/diag', (req, res) => {
 
 // ── API: Create session ───────────────────────────────────────────────────────
 router.post('/api/session', (req, res) => {
-  const session = sessionModule.createSession();
+  const session = sessionModule.createSession(req.user.id);
   res.json({ id: session.id });
 });
 
 // ── API: Upload files ─────────────────────────────────────────────────────────
 router.post('/api/session/:id/upload', (req, res, next) => {
-  const session = sessionModule.getSession(req.params.id);
+  const session = sessionModule.getSession(req.params.id, req.user.id);
   if (!session) return res.status(404).json({ error: 'Session not found' });
 
   makeUpload().fields([
@@ -154,7 +158,7 @@ router.post('/api/session/:id/upload', (req, res, next) => {
 
 // ── API: Execute operation ────────────────────────────────────────────────────
 router.post('/api/session/:id/execute', express.json(), async (req, res) => {
-  const session = sessionModule.getSession(req.params.id);
+  const session = sessionModule.getSession(req.params.id, req.user.id);
   if (!session) return res.status(404).json({ error: 'Session not found' });
   if (session.status === 'running') return res.status(409).json({ error: 'Already running' });
 
@@ -198,7 +202,7 @@ router.post('/api/session/:id/execute', express.json(), async (req, res) => {
 
 // ── API: Status ───────────────────────────────────────────────────────────────
 router.get('/api/session/:id/status', (req, res) => {
-  const session = sessionModule.getSession(req.params.id);
+  const session = sessionModule.getSession(req.params.id, req.user.id);
   if (!session) return res.status(404).json({ error: 'Session not found' });
 
   res.json({
@@ -212,7 +216,7 @@ router.get('/api/session/:id/status', (req, res) => {
 
 // ── API: Resolve awaiting_user ────────────────────────────────────────────────
 router.post('/api/session/:id/resolve', express.json(), (req, res) => {
-  const session = sessionModule.getSession(req.params.id);
+  const session = sessionModule.getSession(req.params.id, req.user.id);
   if (!session) return res.status(404).json({ error: 'Session not found' });
   if (session.status !== 'awaiting_user') {
     return res.status(409).json({ error: 'Session is not awaiting user input' });
@@ -224,7 +228,7 @@ router.post('/api/session/:id/resolve', express.json(), (req, res) => {
 
 // ── API: Download result ──────────────────────────────────────────────────────
 router.get('/api/session/:id/download', (req, res) => {
-  const session = sessionModule.getSession(req.params.id);
+  const session = sessionModule.getSession(req.params.id, req.user.id);
   if (!session) return res.status(404).json({ error: 'Session not found' });
   if (session.status !== 'done') return res.status(409).json({ error: 'Result not ready' });
   if (!session.resultFile || !fs.existsSync(session.resultFile)) {
@@ -243,7 +247,7 @@ router.get('/api/session/:id/download', (req, res) => {
 
 // ── API: Delete session ───────────────────────────────────────────────────────
 router.delete('/api/session/:id', (req, res) => {
-  const session = sessionModule.getSession(req.params.id);
+  const session = sessionModule.getSession(req.params.id, req.user.id);
   if (session) sessionModule.cleanup(session.id);
   res.json({ ok: true });
 });
@@ -298,10 +302,10 @@ function libError(res, err) {
   res.status(status).json({ error: err.message || 'Error en el repositorio.' });
 }
 
-// List saved documents
+// List saved documents (only the caller's own)
 router.get('/api/library/dna', (req, res) => {
   try {
-    res.json({ documents: library.list() });
+    res.json({ documents: library.list(req.user.id) });
   } catch (err) { libError(res, err); }
 });
 
@@ -315,7 +319,7 @@ router.post('/api/library/dna', (req, res, next) => {
     try {
       if (!req.file || !req.file.buffer) return res.status(400).json({ error: 'No se recibió ningún fichero.' });
       const rawName = req.body.name || req.file.originalname || 'documento.dna';
-      const saved = library.save(rawName, req.file.buffer);
+      const saved = library.save(req.user.id, rawName, req.file.buffer);
       res.json({ ok: true, document: saved });
     } catch (e) { libError(res, e); }
   });
@@ -324,7 +328,7 @@ router.post('/api/library/dna', (req, res, next) => {
 // Download a saved document
 router.get('/api/library/dna/:name', (req, res) => {
   try {
-    const { name, buffer } = library.read(req.params.name);
+    const { name, buffer } = library.read(req.user.id, req.params.name);
     res.set('Content-Type', 'application/octet-stream');
     res.set('Content-Disposition', `attachment; filename="${encodeURIComponent(name)}"`);
     res.send(buffer);
@@ -334,7 +338,7 @@ router.get('/api/library/dna/:name', (req, res) => {
 // Delete a saved document
 router.delete('/api/library/dna/:name', (req, res) => {
   try {
-    library.remove(req.params.name);
+    library.remove(req.user.id, req.params.name);
     res.json({ ok: true });
   } catch (err) { libError(res, err); }
 });

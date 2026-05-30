@@ -15,7 +15,7 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
-function createSession() {
+function createSession(ownerId) {
   const id = crypto.randomUUID();
   const inputDir = path.join(TMP_DIR, id, 'input');
   const outputDir = path.join(TMP_DIR, id, 'output');
@@ -24,6 +24,7 @@ function createSession() {
 
   const session = {
     id,
+    ownerId,
     status: 'idle',
     operation: null,
     params: null,
@@ -45,13 +46,16 @@ function createSession() {
   return session;
 }
 
-function getSession(id) {
+// When ownerId is provided, a session owned by someone else is treated as
+// non-existent (404, not 403 — no existence oracle across users).
+function getSession(id, ownerId) {
   const session = sessions.get(id);
   if (!session) return null;
   if (Date.now() - session.createdAt > SESSION_TTL_MS) {
     cleanup(id);
     return null;
   }
+  if (ownerId !== undefined && session.ownerId !== ownerId) return null;
   return session;
 }
 
