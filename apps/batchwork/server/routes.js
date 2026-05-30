@@ -123,6 +123,11 @@ router.get('/api/diag', requireAdmin, (req, res) => {
   res.json(out);
 });
 
+// ── API: Client config (single source of truth for limits) ───────────────────
+router.get('/api/config', (req, res) => {
+  res.json({ maxUploadMb: MAX_MB });
+});
+
 // ── API: Create session ───────────────────────────────────────────────────────
 router.post('/api/session', (req, res) => {
   const session = sessionModule.createSession(req.user.id);
@@ -249,7 +254,11 @@ router.get('/api/session/:id/download', (req, res) => {
   }
 
   res.setHeader('Content-Type', session.resultMime || 'application/octet-stream');
-  res.setHeader('Content-Disposition', `attachment; filename="${session.resultFilename || 'result'}"`);
+  // Encode the filename so quotes/control chars/non-ASCII can't break the header.
+  const rawName = session.resultFilename || 'result';
+  const asciiName = rawName.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+  res.setHeader('Content-Disposition',
+    `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(rawName)}`);
   res.sendFile(session.resultFile, (err) => {
     if (!err) {
       // Clean up session after successful download

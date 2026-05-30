@@ -36,7 +36,9 @@ async function run(session, params) {
 
     if (decision.action === 'cancel') {
       session.log.push({ type: 'info', file: '', message: 'Operación cancelada' });
-      session.status = 'done';
+      // 'cancelled' (not 'done') so the UI doesn't offer a download that would
+      // 404 — there is no result file.
+      session.status = 'cancelled';
       return;
     }
 

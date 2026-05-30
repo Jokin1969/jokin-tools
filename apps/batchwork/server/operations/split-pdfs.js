@@ -39,7 +39,7 @@ async function run(session, params) {
       });
       if (decision === 'cancel') {
         session.log.push({ type: 'info', file: '', message: 'Operación cancelada' });
-        session.status = 'done';
+        session.status = 'cancelled';
         return;
       }
       // decision === 'continue': skip invalid files

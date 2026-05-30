@@ -163,7 +163,20 @@ for (const group of OPERATIONS) {
   for (const op of group.ops) OPS_MAP[op.id] = op;
 }
 
-const MAX_BYTES = 500 * 1024 * 1024; // 500 MB client-side guard
+// Upload limit — the server is the single source of truth (BATCHWORK_MAX_UPLOAD_MB).
+// These defaults are replaced by loadConfig() on startup so client and server
+// never drift.
+let MAX_MB = 500;
+let MAX_BYTES = MAX_MB * 1024 * 1024;
+
+async function loadConfig() {
+  try {
+    const r = await fetch('/batchwork/api/config');
+    if (!r.ok) return;
+    const c = await r.json();
+    if (c.maxUploadMb) { MAX_MB = c.maxUploadMb; MAX_BYTES = MAX_MB * 1024 * 1024; }
+  } catch { /* keep defaults */ }
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const state = {
@@ -320,7 +333,7 @@ function renderUploadArea(op) {
     // Standard single drop zone
     const drop = makeDropZone({
       label: 'Arrastrar ficheros aquí',
-      sub: 'o clic para seleccionar · máx. 500 MB por lote',
+      sub: `o clic para seleccionar · máx. ${MAX_MB} MB por lote`,
       multiple: true,
       onFiles: (files) => {
         state.files = [...state.files, ...files].slice(0, 5000);
@@ -898,6 +911,16 @@ async function pollStatus(sessionId) {
       setStatus(`Error: ${errMsg}`, 'err');
       $('btn-execute').disabled = false;
 
+    } else if (data.status === 'cancelled') {
+      // Cancelled by the user mid-operation: no result to download, just reset
+      // so they can run again.
+      clearPoll();
+      state.appStatus = 'idle';
+      setStatus('Operación cancelada', 'err');
+      $('btn-execute').style.display = '';
+      $('btn-download').style.display = 'none';
+      $('btn-execute').disabled = false;
+
     } else if (data.status === 'awaiting_user') {
       clearPoll();
       showAwaitingDialog(sessionId, data.awaitingData);
@@ -953,13 +976,23 @@ function showAwaitingDialog(sessionId, awaitingData) {
     state.appStatus = 'running';
     setStatus('Reanudando...');
 
-    await fetch(`/batchwork/api/session/${sessionId}/resolve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(decision),
-    });
-
-    startPoll(sessionId);
+    try {
+      const r = await fetch(`/batchwork/api/session/${sessionId}/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(decision),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error(e.error || `Error ${r.status}`);
+      }
+      startPoll(sessionId);
+    } catch (err) {
+      // Don't leave the UI stuck on "Reanudando…" if the request fails.
+      state.appStatus = 'error';
+      setStatus(`No se pudo reanudar: ${err.message}`, 'err');
+      $('btn-execute').disabled = false;
+    }
   }
 
   function addBtn(label, cls, onClick) {
@@ -3991,4 +4024,5 @@ function renderDnaReplaceResults(r) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+loadConfig();      // fetch server upload limit (async; defaults apply meanwhile)
 renderSidebar();

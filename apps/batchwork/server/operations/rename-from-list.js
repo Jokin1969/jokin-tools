@@ -32,7 +32,7 @@ async function run(session, params) {
 
     if (decision === 'cancel') {
       session.log.push({ type: 'info', file: '', message: 'Operación cancelada por el usuario' });
-      session.status = 'done';
+      session.status = 'cancelled';
       return;
     }
     // decision === 'partial': continue with min(files, names) pairs
