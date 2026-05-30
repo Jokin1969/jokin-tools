@@ -3,33 +3,18 @@ const path = require('path');
 const { waitForResolution } = require('../session');
 const { spawnPython } = require('../spawn-python');
 const { createZip } = require('../utils');
+const { matchFilenames } = require('../safe-regex');
 
 async function run(session, params) {
   const pattern = params.pattern || '\\d{8}[A-Za-z]';
-  let regex;
-  try {
-    regex = new RegExp(pattern);
-  } catch (e) {
-    throw new Error(`Expresión regular inválida: ${pattern}`);
-  }
 
   const allFiles = fs.readdirSync(session.inputDir).filter(f => {
     return fs.statSync(path.join(session.inputDir, f)).isFile();
   });
 
-  // Extract ID from each filename
-  const withId = [];
-  const noId = [];
-
-  for (const file of allFiles) {
-    const nameNoExt = path.parse(file).name;
-    const match = regex.exec(nameNoExt) || regex.exec(file);
-    if (match) {
-      withId.push({ file, id: match[0] });
-    } else {
-      noId.push(file);
-    }
-  }
+  // Match the user-supplied pattern in a worker thread with a timeout so a
+  // catastrophic-backtracking (ReDoS) pattern can't hang the whole server.
+  const { withId, noId } = await matchFilenames(pattern, allFiles);
 
   // Group by ID to detect collisions
   const idMap = new Map();

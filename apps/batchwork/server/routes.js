@@ -5,6 +5,7 @@ const fs = require('fs');
 const sessionModule = require('./session');
 const { resolveSession } = require('./session');
 const library = require('./library');
+const { requireAdmin } = require('../../auth/middleware');
 
 // Eager-load spawn-python para disparar el diagnóstico al boot
 require('./spawn-python');
@@ -58,8 +59,10 @@ function makeUpload() {
   });
 }
 
-// ── API: Diagnostic (Python env) ──────────────────────────────────────────────
-router.get('/api/diag', (req, res) => {
+// ── API: Diagnostic (Python env) — admin only ────────────────────────────────
+// Discloses server internals (paths, sys.path, repo listing), so it must not be
+// reachable by every batchwork user.
+router.get('/api/diag', requireAdmin, (req, res) => {
   const { spawnSync } = require('child_process');
   const REPO_ROOT = path.resolve(__dirname, '../../..');
   const VENV_PY = path.join(REPO_ROOT, '.venv', 'bin', 'python');
