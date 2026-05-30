@@ -302,14 +302,15 @@ function libError(res, err) {
   res.status(status).json({ error: err.message || 'Error en el repositorio.' });
 }
 
-// List saved documents (only the caller's own)
+// List saved documents (shared across all batchwork users)
 router.get('/api/library/dna', (req, res) => {
   try {
-    res.json({ documents: library.list(req.user.id) });
+    res.json({ documents: library.list() });
   } catch (err) { libError(res, err); }
 });
 
-// Save a document
+// Save a document. Shared lab library: anyone with batchwork access can ADD and
+// OVERWRITE.
 router.post('/api/library/dna', (req, res, next) => {
   libUpload.single('file')(req, res, (err) => {
     if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
@@ -319,26 +320,27 @@ router.post('/api/library/dna', (req, res, next) => {
     try {
       if (!req.file || !req.file.buffer) return res.status(400).json({ error: 'No se recibió ningún fichero.' });
       const rawName = req.body.name || req.file.originalname || 'documento.dna';
-      const saved = library.save(req.user.id, rawName, req.file.buffer);
+      const saved = library.save(rawName, req.file.buffer);
       res.json({ ok: true, document: saved });
     } catch (e) { libError(res, e); }
   });
 });
 
-// Download a saved document
+// Download a saved document (shared)
 router.get('/api/library/dna/:name', (req, res) => {
   try {
-    const { name, buffer } = library.read(req.user.id, req.params.name);
+    const { name, buffer } = library.read(req.params.name);
     res.set('Content-Type', 'application/octet-stream');
     res.set('Content-Disposition', `attachment; filename="${encodeURIComponent(name)}"`);
     res.send(buffer);
   } catch (err) { libError(res, err); }
 });
 
-// Delete a saved document
+// Delete a saved document. Shared lab library: anyone with batchwork access can
+// delete.
 router.delete('/api/library/dna/:name', (req, res) => {
   try {
-    library.remove(req.user.id, req.params.name);
+    library.remove(req.params.name);
     res.json({ ok: true });
   } catch (err) { libError(res, err); }
 });

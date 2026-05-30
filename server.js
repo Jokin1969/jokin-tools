@@ -143,12 +143,13 @@ function runStartupMigrations() {
     console.error('[re-memory] Orphan assignment skipped:', e.message);
   }
 
-  // Batchwork: move any pre-existing flat .dna library files into the owner's
-  // per-user subdirectory (the repository is now per-user).
+  // Batchwork: the .dna library is shared across users. Consolidate any
+  // per-user subdirectories (from the earlier per-user split) back into the
+  // shared repository.
   try {
-    if (owner) require('./apps/batchwork/server/library').migrateFlatFiles(owner.id);
+    require('./apps/batchwork/server/library').consolidateToShared();
   } catch (e) {
-    console.error('[batchwork] Library migration skipped:', e.message);
+    console.error('[batchwork] Library consolidation skipped:', e.message);
   }
 }
 
