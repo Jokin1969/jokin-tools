@@ -6,8 +6,18 @@ const router = express.Router();
 const store = require('./store');
 const { appsForUser, appsMeta, APP_IDS } = require('./apps-registry');
 const { requireAuth, requireAdmin, setSessionCookie, clearSessionCookie } = require('./middleware');
+const { rateLimit } = require('./rate-limit');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
+
+// Throttle password-guessing on login and password-change.
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Demasiados intentos de inicio de sesión. Espera unos minutos.' });
+const pwdLimiter   = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Demasiados intentos. Espera unos minutos.' });
+
+// A valid-format hash for a random password. Verifying an incoming password
+// against this when the account doesn't exist keeps login response time uniform
+// (defeats user-enumeration by timing).
+const DUMMY_HASH = store.hashPassword(require('crypto').randomBytes(16).toString('hex'));
 
 // ─── Pages ───────────────────────────────────────────────────────────────────
 router.get('/login', (req, res) => {
@@ -26,10 +36,15 @@ function safeNext(next) {
 }
 
 // ─── Login / logout ──────────────────────────────────────────────────────────
-router.post('/login', (req, res) => {
+router.post('/login', loginLimiter, (req, res) => {
   const { email, password } = req.body || {};
   const user = store.getUserByEmail(email);
-  if (!user || !user.active || !store.verifyPassword(password, user.password_hash)) {
+  // Always run one scrypt verification (against a dummy hash when the user is
+  // missing/inactive) so timing doesn't reveal whether an account exists.
+  const usable = user && user.active;
+  const hash = usable ? user.password_hash : DUMMY_HASH;
+  const passwordOk = store.verifyPassword(password, hash);
+  if (!usable || !passwordOk) {
     return res.status(401).json({ error: 'Email o contraseña incorrectos.' });
   }
   const { sid, maxAgeMs } = store.createSession(user.id);
@@ -55,7 +70,7 @@ router.get('/api/me', requireAuth, (req, res) => {
 });
 
 // Change own password.
-router.post('/api/me/password', requireAuth, (req, res) => {
+router.post('/api/me/password', pwdLimiter, requireAuth, (req, res) => {
   const { current, password } = req.body || {};
   const full = store.getUserById(req.user.id);
   if (!full || !store.verifyPassword(current, full.password_hash)) {

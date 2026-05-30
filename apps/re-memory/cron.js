@@ -5,8 +5,14 @@ const { createBackup, hasDbChangedSinceLastBackup } = require('./backup');
 
 // ─── Daily email job: 06:50 Madrid time ──────────────────────────────────────
 
+// Guard against being started twice (e.g. a stray require) and expose the
+// scheduled tasks so the server can stop them on shutdown.
+let tasks = null;
+
 function startCron() {
-  cron.schedule('50 6 * * *', async () => {
+  if (tasks) return { stop: stopCron };
+  tasks = [];
+  tasks.push(cron.schedule('50 6 * * *', async () => {
     console.log('[cron] Running daily Re-memory send job…');
     try {
       const memories = getMemoriesDueToday();
@@ -25,7 +31,7 @@ function startCron() {
     } catch (err) {
       console.error('[cron] Fatal error in send job:', err);
     }
-  }, { timezone: 'Europe/Madrid' });
+  }, { timezone: 'Europe/Madrid' }));
 
   console.log('[cron] Re-memory daily job scheduled (06:50 Europe/Madrid)');
 
@@ -34,7 +40,7 @@ function startCron() {
   const intervalHours = Math.max(1, parseInt(process.env.BACKUP_INTERVAL_HOURS || '2', 10));
   const backupCronExpr = `0 */${intervalHours} * * *`;
 
-  cron.schedule(backupCronExpr, async () => {
+  tasks.push(cron.schedule(backupCronExpr, async () => {
     if (!hasDbChangedSinceLastBackup()) {
       console.log('[backup-cron] No changes since last backup, skipping');
       return;
@@ -46,9 +52,19 @@ function startCron() {
     } catch (err) {
       console.error('[backup-cron] ✗ Failed:', err.message);
     }
-  }, { timezone: 'Europe/Madrid' });
+  }, { timezone: 'Europe/Madrid' }));
 
   console.log(`[cron] Backup job scheduled (every ${intervalHours}h, only on changes)`);
+  return { stop: stopCron };
 }
 
-module.exports = { startCron };
+// Stop all scheduled tasks (used during graceful shutdown).
+function stopCron() {
+  if (!tasks) return;
+  for (const t of tasks) {
+    try { t.stop(); } catch { /* ignore */ }
+  }
+  tasks = null;
+}
+
+module.exports = { startCron, stopCron };

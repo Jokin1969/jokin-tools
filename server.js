@@ -5,6 +5,11 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isProd = process.env.NODE_ENV === 'production';
+
+// Behind Railway's TLS-terminating proxy: trust X-Forwarded-* so secure cookies
+// and req.ip (used for rate limiting) work correctly.
+app.set('trust proxy', 1);
 
 // ─── Ensure /data directories exist ─────────────────────────────────────────
 const dataDir = path.dirname(process.env.DB_PATH || '/data/jokin_tools.db');
@@ -16,9 +21,33 @@ const uploadsDir = path.join(dataDir, 'uploads');
   }
 });
 
+// ─── Security headers (hand-rolled; no helmet dependency) ────────────────────
+app.use((req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.set('X-XSS-Protection', '0');
+  // Permissive CSP: allows the existing inline styles/scripts and Google Fonts
+  // the hub uses, while blocking plugins, framing by others, and base-tag
+  // hijacking. Tighten script-src once inline scripts are removed.
+  res.set('Content-Security-Policy', [
+    "default-src 'self'",
+    "img-src 'self' data: https:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "script-src 'self' 'unsafe-inline'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'self'",
+  ].join('; '));
+  if (isProd) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+});
+
 // ─── Middleware ───────────────────────────────────────────────────────────────
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
 // ─── Auth: identify the user on every request ───────────────────────────────────
 const authStore = require('./apps/auth/store');
@@ -75,36 +104,84 @@ app.use((req, res) => {
 });
 
 // ─── Global error handler ─────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error('[server] Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error', message: err.message });
+  // Respect well-formed client errors (e.g. body-parser's 413/400) instead of
+  // masking them all as 500.
+  const status = err.status || err.statusCode || 500;
+  if (status >= 500) console.error('[server] Unhandled error:', err);
+  // Don't leak internal 5xx details (SQL, paths, API errors) to clients in
+  // production; full detail still goes to the server log above. Client (4xx)
+  // messages are safe to surface.
+  const expose = status < 500 || !isProd;
+  res.status(status).json({
+    error: status >= 500 ? 'Internal server error' : (err.message || 'Error'),
+    ...(expose && status >= 500 ? { message: err.message } : {}),
+  });
 });
 
-// ─── Start ────────────────────────────────────────────────────────────────────
-// Ensure there's a working admin (from ADMIN_EMAIL / ADMIN_PASSWORD) before listening.
-authStore.seedAdminFromEnv();
+// ─── Startup migrations ─────────────────────────────────────────────────────
+function runStartupMigrations() {
+  // Ensure there's a working admin (from ADMIN_EMAIL / ADMIN_PASSWORD).
+  authStore.seedAdminFromEnv();
 
-// Re-memory is now per-user. Assign any pre-existing (ownerless) memories to a
-// single owner — REMEMORY_OWNER_EMAIL if set, otherwise the seeded admin.
-try {
   const ownerEmail = (process.env.REMEMORY_OWNER_EMAIL || process.env.ADMIN_EMAIL || '').trim().toLowerCase();
   const owner = ownerEmail ? authStore.getUserByEmail(ownerEmail) : null;
-  if (owner) {
-    const n = reMemoryDb.assignOrphanMemories(owner.id);
-    if (n) console.log(`[re-memory] Assigned ${n} pre-existing memories to ${owner.email}`);
-  } else {
-    const { db } = reMemoryDb;
-    const orphans = db.prepare('SELECT COUNT(*) AS n FROM memories WHERE user_id IS NULL').get().n;
-    if (orphans) console.warn(`[re-memory] ${orphans} memories have no owner and ADMIN_EMAIL/REMEMORY_OWNER_EMAIL is not set — they will be hidden until assigned.`);
+
+  // Re-memory: assign any pre-existing (ownerless) memories to a single owner.
+  try {
+    if (owner) {
+      const n = reMemoryDb.assignOrphanMemories(owner.id);
+      if (n) console.log(`[re-memory] Assigned ${n} pre-existing memories to ${owner.email}`);
+    } else {
+      const orphans = reMemoryDb.db.prepare('SELECT COUNT(*) AS n FROM memories WHERE user_id IS NULL').get().n;
+      if (orphans) console.warn(`[re-memory] ${orphans} memories have no owner and ADMIN_EMAIL/REMEMORY_OWNER_EMAIL is not set — hidden until assigned.`);
+    }
+  } catch (e) {
+    console.error('[re-memory] Orphan assignment skipped:', e.message);
   }
-} catch (e) {
-  console.error('[re-memory] Orphan assignment skipped:', e.message);
+
+  // Batchwork: move any pre-existing flat .dna library files into the owner's
+  // per-user subdirectory (the repository is now per-user).
+  try {
+    if (owner) require('./apps/batchwork/server/library').migrateFlatFiles(owner.id);
+  } catch (e) {
+    console.error('[batchwork] Library migration skipped:', e.message);
+  }
 }
 
-app.listen(PORT, () => {
-  console.log(`[server] Jokin's Tools running on port ${PORT}`);
-  console.log(`[server] DB path: ${process.env.DB_PATH || '/data/jokin_tools.db'}`);
-  console.log(`[server] NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-});
+// ─── Graceful shutdown ───────────────────────────────────────────────────────
+function shutdown(server, signal) {
+  console.log(`[server] ${signal} received — shutting down…`);
+  try { require('./apps/re-memory/cron').stopCron(); } catch { /* ignore */ }
+  server.close(() => {
+    try { authStore.db.close(); } catch { /* ignore */ }
+    try { reMemoryDb.db.close(); } catch { /* ignore */ }
+    console.log('[server] Closed cleanly.');
+    process.exit(0);
+  });
+  // Don't hang forever if a connection won't drain.
+  setTimeout(() => process.exit(0), 10000).unref?.();
+}
+
+// ─── Start (only when run directly, not when required for tests) ─────────────
+if (require.main === module) {
+  runStartupMigrations();
+
+  // Start the re-memory cron jobs (daily email + periodic backup).
+  try { require('./apps/re-memory/cron').startCron(); }
+  catch (e) { console.error('[cron] failed to start:', e.message); }
+
+  const server = app.listen(PORT, () => {
+    console.log(`[server] Jokin's Tools running on port ${PORT}`);
+    console.log(`[server] DB path: ${process.env.DB_PATH || '/data/jokin_tools.db'}`);
+    console.log(`[server] NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+  });
+
+  process.on('SIGTERM', () => shutdown(server, 'SIGTERM'));
+  process.on('SIGINT',  () => shutdown(server, 'SIGINT'));
+  process.on('unhandledRejection', (reason) => console.error('[server] Unhandled promise rejection:', reason));
+  process.on('uncaughtException',  (err)    => console.error('[server] Uncaught exception:', err));
+}
 
 module.exports = app;

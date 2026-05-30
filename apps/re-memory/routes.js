@@ -15,11 +15,10 @@ const {
 const { sendMemoryEmail, generateDeactivationToken, isDeactivationSecretConfigured } = require('./email');
 const { exportToDropbox, getAuthorizationUrl, exchangeCodeForTokens } = require('./dropbox');
 const { createBackup, listBackups, restoreBackup } = require('./backup');
-const { startCron } = require('./cron');
 const { requireAdmin } = require('../auth/middleware');
 
-// ─── Start cron when routes are loaded ───────────────────────────────────────
-startCron();
+// Note: the cron jobs are started from server.js (so they can be stopped on
+// graceful shutdown and aren't started merely by requiring this router).
 
 // ─── Multer setup (images → /data/uploads/) ──────────────────────────────────
 const uploadsDir = path.join(path.dirname(process.env.DB_PATH || '/data/jokin_tools.db'), 'uploads');
@@ -37,8 +36,11 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only image files are allowed'));
+    // Raster images only. SVG (image/svg+xml) is excluded on purpose: it can
+    // carry scripts and would be a stored-XSS vector if opened directly.
+    const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Solo se permiten imágenes PNG, JPEG, GIF, WEBP o BMP'));
   }
 });
 
