@@ -39,24 +39,66 @@ db.exec(`
 console.log('[auth] Store initialized at:', DB_PATH);
 
 // ─── Password hashing (scrypt) ──────────────────────────────────────────────────
+// Current cost parameters. The values are embedded in each hash so we can raise
+// them later without locking out existing users (verify reads the stored params;
+// logins transparently re-hash to the current cost — see needsRehash/upgrade).
+//   N=32768 → ~32 MB / ~tens of ms per hash. maxmem must exceed 128*N*r.
+const SCRYPT = { N: 32768, r: 8, p: 1, keylen: 64, maxmem: 256 * 1024 * 1024 };
+// Legacy hashes (format "scrypt$salt$hash") were produced with Node's defaults.
+const LEGACY = { N: 16384, r: 8, p: 1 };
+
 function hashPassword(pw) {
   const salt = crypto.randomBytes(16);
-  const hash = crypto.scryptSync(String(pw), salt, 64);
-  return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
+  const { N, r, p, keylen, maxmem } = SCRYPT;
+  const hash = crypto.scryptSync(String(pw), salt, keylen, { N, r, p, maxmem });
+  return `scrypt$${N}$${r}$${p}$${salt.toString('hex')}$${hash.toString('hex')}`;
+}
+
+// Parse either the new (scrypt$N$r$p$salt$hash) or legacy (scrypt$salt$hash)
+// format. Returns null if unrecognised.
+function parseHash(stored) {
+  if (!stored || typeof stored !== 'string') return null;
+  const parts = stored.split('$');
+  if (parts[0] !== 'scrypt') return null;
+  if (parts.length === 6) {
+    const [, N, r, p, saltHex, hashHex] = parts;
+    if (!saltHex || !hashHex) return null;
+    return { N: +N, r: +r, p: +p, saltHex, hashHex };
+  }
+  if (parts.length === 3) {
+    const [, saltHex, hashHex] = parts;
+    if (!saltHex || !hashHex) return null;
+    return { ...LEGACY, saltHex, hashHex };
+  }
+  return null;
 }
 
 function verifyPassword(pw, stored) {
-  if (!stored || typeof stored !== 'string') return false;
-  const [scheme, saltHex, hashHex] = stored.split('$');
-  if (scheme !== 'scrypt' || !saltHex || !hashHex) return false;
+  const parsed = parseHash(stored);
+  if (!parsed) return false;
+  const { N, r, p, saltHex, hashHex } = parsed;
   const expected = Buffer.from(hashHex, 'hex');
   let test;
   try {
-    test = crypto.scryptSync(String(pw), Buffer.from(saltHex, 'hex'), expected.length);
+    test = crypto.scryptSync(String(pw), Buffer.from(saltHex, 'hex'), expected.length,
+      { N, r, p, maxmem: SCRYPT.maxmem });
   } catch {
     return false;
   }
   return expected.length === test.length && crypto.timingSafeEqual(expected, test);
+}
+
+// True when a stored hash is in the legacy format or below the current cost, so
+// it should be re-hashed (done on the user's next successful login).
+function needsRehash(stored) {
+  const parsed = parseHash(stored);
+  if (!parsed) return true;
+  return parsed.N < SCRYPT.N || parsed.r < SCRYPT.r || parsed.p < SCRYPT.p;
+}
+
+// Re-hash to the current cost WITHOUT invalidating sessions (unlike setPassword).
+function upgradePasswordHash(id, pw) {
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(pw), id);
 }
 
 // ─── Normalisation ──────────────────────────────────────────────────────────────
@@ -212,7 +254,7 @@ function seedAdminFromEnv() {
 
 module.exports = {
   db,
-  hashPassword, verifyPassword,
+  hashPassword, verifyPassword, needsRehash, upgradePasswordHash,
   getUserByEmail, getUserById, listUsers, countUsers, countAdmins,
   createUser, updateUser, setPassword, deleteUser, publicUser,
   createSession, getSessionUser, destroySession,

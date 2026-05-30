@@ -52,8 +52,10 @@ app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 // ─── Auth: identify the user on every request ───────────────────────────────────
 const authStore = require('./apps/auth/store');
 const authRouter = require('./apps/auth/routes');
-const { attachUser, requireAuth, requireApp } = require('./apps/auth/middleware');
+const { attachUser, csrfGuard, requireAuth, requireApp } = require('./apps/auth/middleware');
 app.use(attachUser);
+// Reject cross-site state-changing requests (CSRF) before any route runs.
+app.use(csrfGuard);
 
 // Serve uploaded files from /data/uploads — per-user. You must be logged in AND
 // own the memory that references the image. Emails don't rely on this route;

@@ -47,6 +47,10 @@ router.post('/login', loginLimiter, (req, res) => {
   if (!usable || !passwordOk) {
     return res.status(401).json({ error: 'Email o contraseña incorrectos.' });
   }
+  // Transparently upgrade old/weaker password hashes to the current scrypt cost.
+  if (store.needsRehash(user.password_hash)) {
+    try { store.upgradePasswordHash(user.id, password); } catch (e) { console.error('[auth] rehash failed:', e.message); }
+  }
   const { sid, maxAgeMs } = store.createSession(user.id);
   setSessionCookie(res, sid, maxAgeMs);
   res.json({ ok: true, redirect: safeNext(req.body.next) });
