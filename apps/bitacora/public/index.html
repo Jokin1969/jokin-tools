@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bitácora — Jokin's Tools</title>
+  <link rel="icon" type="image/svg+xml" href="/bitacora/public/favicon-bitacora.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/hub-nav.css" />
+  <script src="/src/hub-nav.js?v=1" defer></script>
+  <link rel="stylesheet" href="/bitacora/public/app.css?v=1" />
+</head>
+<body>
+
+  <!-- ─── Hub nav bar ──────────────────────────────────────────────────────────── -->
+  <nav class="hub-nav" data-app="bitacora">
+    <a href="/" class="hub-nav-brand" title="Jokin's Tools Hub">
+      <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="24" cy="24" r="4" fill="#00B8D4"/>
+        <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#1B6CB0" stroke-width="1.5" fill="none" opacity="0.7"/>
+        <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#009B8D" stroke-width="1.5" fill="none" opacity="0.65" transform="rotate(60 24 24)"/>
+        <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#0028A5" stroke-width="1.5" fill="none" opacity="0.5" transform="rotate(120 24 24)"/>
+      </svg>
+      <span class="hub-nav-brand-name"><span class="jn-accent">J</span>okin's Tools</span>
+    </a>
+    <div class="hub-nav-links">
+      <a href="/"          class="hub-nav-link" data-app="hub">Hub</a>
+      <a href="/re-memory" class="hub-nav-link" data-app="rememory">Re-memory</a>
+      <a href="/bitacora"  class="hub-nav-link" data-app="bitacora">Bitácora</a>
+      <a href="/batchwork" class="hub-nav-link" data-app="batchwork">Batchwork</a>
+    </div>
+  </nav>
+
+  <!-- ─── Header ─────────────────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-logo">
+        <svg viewBox="0 0 40 40" fill="none" class="app-icon" aria-hidden="true">
+          <path d="M11 6h13l8 8v20a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" stroke="#1F9D62" stroke-width="2" fill="none"/>
+          <path d="M24 6v8h8" stroke="#1F9D62" stroke-width="2" fill="none"/>
+          <path d="M14 22h12M14 27h12M14 32h8" stroke="#27AE60" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <div>
+          <div class="app-title">Bitácora</div>
+          <div class="app-subtitle">Registro personal de hechos</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="stat-chip" id="stat-total" title="Entradas registradas">— entradas</span>
+        <button class="btn btn-outline btn-sm" id="btn-export" type="button" title="Exportar a Dropbox (CSV)">
+          <span class="btn-icon">↑</span> Exportar
+        </button>
+        <button class="btn btn-primary btn-sm" id="btn-new" type="button">+ Nueva entrada</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+
+    <!-- ─── Toolbar: búsqueda + filtros ──────────────────────────────────────── -->
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg viewBox="0 0 20 20" class="search-icon" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="9" cy="9" r="6"/><path d="M14 14l4 4" stroke-linecap="round"/>
+        </svg>
+        <input type="search" id="search" placeholder="Buscar en hechos, comentarios, lugar…" autocomplete="off" />
+      </div>
+      <button class="btn btn-ghost btn-sm" id="btn-toggle-filters" type="button">▼ Filtros</button>
+      <div class="sort-wrap">
+        <label>Orden:</label>
+        <select id="sort">
+          <option value="fecha">Fecha del hecho</option>
+          <option value="created_at">Fecha de registro</option>
+          <option value="nivel">Importancia</option>
+          <option value="categoria">Categoría</option>
+        </select>
+        <select id="order">
+          <option value="desc">↓ Descendente</option>
+          <option value="asc">↑ Ascendente</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="filters-panel hidden" id="filters-panel">
+      <div class="filter-group">
+        <span class="filter-label">Importancia</span>
+        <div class="chips" id="filter-nivel"></div>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Categoría</span>
+        <div class="chips" id="filter-categoria"></div>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Factores del momento</span>
+        <div class="chips" id="filter-factores"></div>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Rango de fechas</span>
+        <div class="date-range">
+          <input type="date" id="filter-from" /> <span>—</span> <input type="date" id="filter-to" />
+        </div>
+      </div>
+      <div class="filter-group">
+        <label class="check-inline"><input type="checkbox" id="filter-notado" /> Solo los que notó otra persona</label>
+      </div>
+      <div class="filter-actions">
+        <button class="btn btn-ghost btn-sm" id="btn-reset-filters" type="button">Limpiar filtros</button>
+      </div>
+    </div>
+
+    <!-- ─── Listado ──────────────────────────────────────────────────────────── -->
+    <div class="list-meta"><span id="list-count">—</span></div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="col-fecha">Fecha</th>
+            <th class="col-nivel">Imp.</th>
+            <th class="col-cat">Categoría</th>
+            <th>Hecho</th>
+            <th class="col-lugar">Lugar</th>
+            <th class="col-act"></th>
+          </tr>
+        </thead>
+        <tbody id="list-body"></tbody>
+      </table>
+    </div>
+    <div class="empty-state hidden" id="empty-state">
+      <p>No hay entradas que coincidan.</p>
+      <button class="btn btn-primary btn-sm" id="btn-new-empty" type="button">+ Registrar la primera</button>
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+  </main>
+
+  <!-- ─── Modal: formulario crear/editar ───────────────────────────────────────── -->
+  <div class="modal-overlay hidden" id="modal-form">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2 id="form-title">Nueva entrada</h2>
+        <button class="modal-close" id="btn-close-form" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="entry-form" class="entry-form">
+        <input type="hidden" id="f-id" />
+        <div class="form-row two">
+          <div class="field">
+            <label for="f-fecha">Fecha del hecho <span class="req">*</span></label>
+            <input type="date" id="f-fecha" required />
+          </div>
+          <div class="field">
+            <label for="f-nivel">Nivel de importancia</label>
+            <select id="f-nivel"></select>
+          </div>
+        </div>
+        <div class="form-row two">
+          <div class="field">
+            <label for="f-lugar">Lugar</label>
+            <input type="text" id="f-lugar" placeholder="Ej: Laboratorio priones" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="f-categoria">Categoría del hecho</label>
+            <select id="f-categoria"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-hecho">Hecho <span class="req">*</span></label>
+          <textarea id="f-hecho" rows="4" required placeholder="¿Qué ocurrió? Descríbelo con detalle."></textarea>
+        </div>
+        <div class="field">
+          <label for="f-como">Cómo me di cuenta</label>
+          <textarea id="f-como" rows="2" placeholder="¿Cómo lo detectaste? ¿Algo te lo recordó?"></textarea>
+        </div>
+        <div class="field">
+          <label>Factores del momento</label>
+          <div class="chips" id="f-factores"></div>
+        </div>
+        <div class="form-row two">
+          <div class="field">
+            <label class="check-inline"><input type="checkbox" id="f-notado" /> Lo notó otra persona</label>
+          </div>
+          <div class="field" id="f-quien-wrap" style="display:none">
+            <label for="f-quien">¿Quién?</label>
+            <input type="text" id="f-quien" placeholder="Nombre o relación" autocomplete="off" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-comentario">Comentario</label>
+          <textarea id="f-comentario" rows="3" placeholder="Reflexión, contexto, lo que recuerdas al respecto…"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" id="btn-cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── Modal: detalle ───────────────────────────────────────────────────────── -->
+  <div class="modal-overlay hidden" id="modal-detail">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>Detalle</h2>
+        <button class="modal-close" id="btn-close-detail" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <div id="detail-body" class="detail-body"></div>
+      <div class="form-actions between">
+        <div class="nav-pair">
+          <button class="btn btn-ghost btn-sm" id="btn-prev" type="button">← Anterior</button>
+          <button class="btn btn-ghost btn-sm" id="btn-next" type="button">Siguiente →</button>
+        </div>
+        <div>
+          <button class="btn btn-danger-outline btn-sm" id="btn-delete" type="button">Eliminar</button>
+          <button class="btn btn-primary btn-sm" id="btn-edit" type="button">Editar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/bitacora/public/app.js?v=1" defer></script>
+</body>
+</html>

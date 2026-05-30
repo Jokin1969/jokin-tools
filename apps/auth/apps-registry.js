@@ -31,6 +31,18 @@ const APPS = [
       <rect x="16" y="18" width="36" height="9" rx="2" stroke="#0097B2" stroke-width="2" fill="none"/>
     </svg>`,
   },
+  {
+    id: 'bitacora',
+    name: 'Bitácora',
+    path: '/bitacora',
+    desc: 'Registro personal de hechos y circunstancias para revisar con perspectiva a lo largo del tiempo. Formulario sencillo y búsqueda potente.',
+    tags: ['Registro', 'Personal', 'SQLite'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <path d="M18 10h20l10 10v32a2 2 0 0 1-2 2H18a2 2 0 0 1-2-2V12a2 2 0 0 1 2-2z" stroke="#1F9D62" stroke-width="2" fill="none"/>
+      <path d="M38 10v10h10" stroke="#1F9D62" stroke-width="2" fill="none" stroke-linejoin="round"/>
+      <path d="M24 32h16M24 39h16M24 46h10" stroke="#27AE60" stroke-width="2" stroke-linecap="round"/>
+    </svg>`,
+  },
 ];
 
 const APP_IDS = APPS.map(a => a.id);

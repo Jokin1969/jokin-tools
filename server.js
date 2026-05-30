@@ -86,6 +86,11 @@ app.use('/re-memory', requireApp('re-memory'), reMemoryRouter);
 const batchworkRouter = require('./apps/batchwork/server/routes');
 app.use('/batchwork', requireApp('batchwork'), batchworkRouter);
 
+// ─── Bitácora micro-app (requires access to 'bitacora') ─────────────────────────
+const bitacoraDb = require('./apps/bitacora/db');
+const bitacoraRouter = require('./apps/bitacora/routes');
+app.use('/bitacora', requireApp('bitacora'), bitacoraRouter);
+
 // ─── Hub root (requires login) ──────────────────────────────────────────────────
 app.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));
@@ -143,6 +148,16 @@ function runStartupMigrations() {
     console.error('[re-memory] Orphan assignment skipped:', e.message);
   }
 
+  // Bitácora: assign any pre-existing (ownerless) entries to the same owner.
+  try {
+    if (owner) {
+      const n = bitacoraDb.assignOrphans(owner.id);
+      if (n) console.log(`[bitacora] Assigned ${n} pre-existing entries to ${owner.email}`);
+    }
+  } catch (e) {
+    console.error('[bitacora] Orphan assignment skipped:', e.message);
+  }
+
   // Batchwork: the .dna library is shared across users. Consolidate any
   // per-user subdirectories (from the earlier per-user split) back into the
   // shared repository.
@@ -160,6 +175,7 @@ function shutdown(server, signal) {
   server.close(() => {
     try { authStore.db.close(); } catch { /* ignore */ }
     try { reMemoryDb.db.close(); } catch { /* ignore */ }
+    try { bitacoraDb.db.close(); } catch { /* ignore */ }
     console.log('[server] Closed cleanly.');
     process.exit(0);
   });

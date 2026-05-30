@@ -163,6 +163,11 @@ async function restoreBackup(filename) {
     db.exec(`INSERT INTO ${table} (${colList}) SELECT ${colList} FROM restore_src.${table}`);
   };
 
+  // Whether the backup we're restoring from contains a given table (older
+  // backups predate some apps, e.g. bitacora).
+  const srcHasTable = (table) =>
+    !!db.prepare(`SELECT name FROM restore_src.sqlite_master WHERE type='table' AND name=?`).get(table);
+
   let attached = false;
   try {
     // ATTACH backup and atomically replace memories/recall_log in the live
@@ -171,6 +176,8 @@ async function restoreBackup(filename) {
     db.exec(`ATTACH DATABASE '${safePath}' AS restore_src`);
     attached = true;
 
+    const restoreBitacora = srcHasTable('bitacora');
+
     db.transaction(() => {
       db.exec('DELETE FROM recall_log');
       db.exec('DELETE FROM memories');
@@ -178,9 +185,16 @@ async function restoreBackup(filename) {
       copyTable('recall_log');
 
       // A restored owner id that doesn't exist in the live users table (older or
-      // foreign backup) would hide those memories forever — treat them as
-      // ownerless so they can be reassigned below.
+      // foreign backup) would hide those rows forever — treat them as ownerless
+      // so they can be reassigned below.
       db.exec('UPDATE memories SET user_id = NULL WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users)');
+
+      // Bitácora (only if the backup contains it).
+      if (restoreBitacora) {
+        db.exec('DELETE FROM bitacora');
+        copyTable('bitacora');
+        db.exec('UPDATE bitacora SET user_id = NULL WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM users)');
+      }
 
       // Sync AUTOINCREMENT sequences
       db.exec(`UPDATE sqlite_sequence
@@ -189,12 +203,21 @@ async function restoreBackup(filename) {
       db.exec(`UPDATE sqlite_sequence
                SET seq = (SELECT COALESCE(MAX(id),0) FROM recall_log)
                WHERE name = 'recall_log'`);
+      if (restoreBitacora) {
+        db.exec(`UPDATE sqlite_sequence
+                 SET seq = (SELECT COALESCE(MAX(id),0) FROM bitacora)
+                 WHERE name = 'bitacora'`);
+      }
     })();
 
-    // Reattach orphaned/unknown-owner memories to the configured owner so
-    // restored data stays visible (mirrors the boot-time orphan assignment).
+    // Reattach orphaned/unknown-owner rows to the configured owner so restored
+    // data stays visible (mirrors the boot-time orphan assignment).
     const reassigned = assignOrphansToConfiguredOwner();
     if (reassigned) console.log(`[backup] Reassigned ${reassigned} restored memories to the configured owner`);
+    try {
+      const nb = require('../bitacora/db').assignOrphansToConfiguredOwner();
+      if (nb) console.log(`[backup] Reassigned ${nb} restored bitácora entries to the configured owner`);
+    } catch (e) { console.error('[backup] bitacora reassign skipped:', e.message); }
 
     // Reset mtime tracker so auto-backup doesn't immediately re-backup
     lastBackupMtime = fs.existsSync(dbPath) ? fs.statSync(dbPath).mtimeMs : Date.now();
