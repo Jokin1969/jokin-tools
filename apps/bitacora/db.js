@@ -52,6 +52,7 @@ const CATEGORIAS = [
 const FACTORES = [
   'Cansancio', 'Falta de sueño', 'Estrés', 'Prisa',
   'Alcohol', 'Enfermedad o fiebre', 'Medicación',
+  'Ningún factor aparente',
 ];
 
 // CSV of factors → clean array limited to the known set.
