@@ -26,8 +26,9 @@ const authRouter = require('./apps/auth/routes');
 const { attachUser, requireAuth, requireApp } = require('./apps/auth/middleware');
 app.use(attachUser);
 
-// Serve uploaded files from /data/uploads
-app.use('/uploads', express.static(uploadsDir));
+// Serve uploaded files from /data/uploads — behind login (no public access).
+// Emails embed images inline (cid:) instead of linking here.
+app.use('/uploads', requireAuth, express.static(uploadsDir));
 
 // Serve shared public assets (favicons, logos)
 app.use('/public', express.static(path.join(__dirname, 'public')));

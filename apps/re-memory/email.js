@@ -5,6 +5,20 @@ const fs = require('fs');
 
 const DEACTIVATION_SECRET = process.env.DEACTIVATION_SECRET || 'change-this-secret';
 
+// Uploaded images live next to the DB, in /data/uploads. They are now served
+// behind login (see server.js), so emails can no longer link to a public URL —
+// instead we attach the file inline via a Content-ID (cid:).
+const UPLOADS_DIR = path.join(path.dirname(process.env.DB_PATH || '/data/jokin_tools.db'), 'uploads');
+const EMAIL_IMAGE_CID = 'memory-image';
+
+// Returns the absolute path to a memory's uploaded image, or null if there is
+// none or the file is missing on disk.
+function resolveImageFile(memory) {
+  if (!memory.image_path) return null;
+  const file = path.join(UPLOADS_DIR, path.basename(memory.image_path));
+  return fs.existsSync(file) ? file : null;
+}
+
 // Lee BASE_URL en cada llamada, nunca cacheada, para que Railway la recoja
 // correctamente tras añadir/cambiar la variable de entorno + redeploy.
 function getBaseUrl() {
@@ -75,16 +89,13 @@ function buildEmailHTML(memory) {
     day: '2-digit', month: 'long', year: 'numeric'
   });
 
-  // Image block (inline if exists)
+  // Image block — attached inline via cid: (file resolved in sendMemoryEmail)
   let imageBlock = '';
-  if (memory.image_path) {
-    const filename = path.basename(memory.image_path);
-    const imageUrl = `${baseUrl}/uploads/${filename}`;
-    console.log(`[email] Image URL for memory #${memory.id}: ${imageUrl}`);
+  if (resolveImageFile(memory)) {
     imageBlock = `
       <tr>
         <td style="padding: 0 40px 24px;">
-          <img src="${imageUrl}" alt="Imagen de la memoria"
+          <img src="cid:${EMAIL_IMAGE_CID}" alt="Imagen de la memoria"
                style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #ddd; display: block;" />
         </td>
       </tr>`;
@@ -210,11 +221,18 @@ async function sendMemoryEmail(memory, toEmail) {
   const html = buildEmailHTML(memory);
   const subject = `[Re-memory] ${memory.topic}: ${memory.description.substring(0, 60)}${memory.description.length > 60 ? '…' : ''}`;
 
+  // Attach the uploaded image inline so it renders without a public /uploads URL.
+  const imageFile = resolveImageFile(memory);
+  const attachments = imageFile
+    ? [{ filename: path.basename(imageFile), path: imageFile, cid: EMAIL_IMAGE_CID }]
+    : [];
+
   const info = await transporter.sendMail({
     from: process.env.EMAIL_FROM || '"Re-memory" <noreply@example.com>',
     to: recipient,
     subject,
-    html
+    html,
+    attachments
   });
 
   console.log(`[email] Sent memory #${memory.id} → ${info.messageId}`);

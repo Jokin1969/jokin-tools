@@ -16,6 +16,7 @@ const { sendMemoryEmail, generateDeactivationToken } = require('./email');
 const { exportToDropbox, getAuthorizationUrl, exchangeCodeForTokens } = require('./dropbox');
 const { createBackup, listBackups, restoreBackup } = require('./backup');
 const { startCron } = require('./cron');
+const { requireAdmin } = require('../auth/middleware');
 
 // ─── Start cron when routes are loaded ───────────────────────────────────────
 startCron();
@@ -465,7 +466,9 @@ router.get('/api/proxy-image', async (req, res) => {
 });
 
 // ─── API: Backup — crear ──────────────────────────────────────────────────────
-router.post('/api/backup/create', async (req, res) => {
+// Los backups son un volcado COMPLETO de la base (todos los usuarios) y el
+// restore reescribe toda la base, así que estos endpoints son solo de admin.
+router.post('/api/backup/create', requireAdmin, async (req, res) => {
   try {
     const result = await createBackup();
     res.json({
@@ -480,7 +483,7 @@ router.post('/api/backup/create', async (req, res) => {
 });
 
 // ─── API: Backup — listar ─────────────────────────────────────────────────────
-router.get('/api/backup/list', async (req, res) => {
+router.get('/api/backup/list', requireAdmin, async (req, res) => {
   try {
     const backups = await listBackups();
     res.json({
@@ -495,7 +498,7 @@ router.get('/api/backup/list', async (req, res) => {
 });
 
 // ─── API: Backup — restaurar ──────────────────────────────────────────────────
-router.post('/api/backup/restore/:filename', async (req, res) => {
+router.post('/api/backup/restore/:filename', requireAdmin, async (req, res) => {
   try {
     const { filename } = req.params;
     if (!filename.endsWith('.db') || /[/\\]/.test(filename) || filename.includes('..')) {

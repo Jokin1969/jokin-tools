@@ -896,6 +896,24 @@ function formatBackupDate(isoStr) {
   });
 }
 
+// ── Backup is admin-only: hide the buttons for everyone else ──
+// (The server also enforces this; this just avoids showing dead controls.)
+(async function gateBackupButtons() {
+  try {
+    const res = await fetch('/auth/api/me');
+    if (!res.ok) throw new Error('me failed');
+    const { user } = await res.json();
+    if (!user || user.role !== 'admin') {
+      ['btn-backup-now', 'btn-restore-open'].forEach(id => {
+        const el = $(id);
+        if (el) el.style.display = 'none';
+      });
+    }
+  } catch (_) {
+    // If we can't tell, leave the buttons; the API will still return 403.
+  }
+})();
+
 // ── Backup now button (header) ──
 $('btn-backup-now').addEventListener('click', () => doBackupNow($('btn-backup-now')));
 
