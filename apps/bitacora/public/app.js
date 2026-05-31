@@ -161,12 +161,15 @@ function renderList({ rows, total, page, limit }) {
 
 function rowHtml(e) {
   const hecho = e.hecho.length > 160 ? e.hecho.slice(0, 160) + '…' : e.hecho;
+  // cell-empty marks blank cells so the mobile card layout can hide them.
+  const catEmpty = e.categoria ? '' : ' cell-empty';
+  const lugarEmpty = e.lugar ? '' : ' cell-empty';
   return `<tr data-id="${e.id}">
     <td class="cell-fecha">${esc(e.fecha)}</td>
-    <td><span class="nivel-badge nivel-${esc(e.nivel)}">${esc(e.nivel)}</span></td>
-    <td>${e.categoria ? `<span class="cat-tag">${esc(e.categoria)}</span>` : '<span class="cell-muted">—</span>'}</td>
+    <td class="cell-nivel"><span class="nivel-badge nivel-${esc(e.nivel)}">${esc(e.nivel)}</span></td>
+    <td class="cell-cat${catEmpty}">${e.categoria ? `<span class="cat-tag">${esc(e.categoria)}</span>` : '<span class="cell-muted">—</span>'}</td>
     <td class="cell-hecho">${esc(hecho)}</td>
-    <td class="cell-muted">${esc(e.lugar || '—')}</td>
+    <td class="cell-lugar cell-muted${lugarEmpty}">${esc(e.lugar || '—')}</td>
     <td class="row-arrow">→</td>
   </tr>`;
 }

@@ -161,7 +161,40 @@ select:focus, input:focus, textarea:focus { outline: none; border-color: var(--b
 
 @media (max-width: 640px) {
   .form-row.two { grid-template-columns: 1fr; }
-  .col-lugar, .col-cat { display: none; }
   .patterns-grid { grid-template-columns: 1fr; }
   .bar-row { grid-template-columns: 80px 1fr 30px; }
+
+  /* La tabla se transforma en tarjetas apiladas: cada hecho ocupa todo el
+     ancho y se lee completo, sin scroll horizontal. */
+  .table-wrap { background: transparent; border: none; overflow: visible; }
+  .data-table, .data-table tbody { display: block; }
+  .data-table thead { display: none; }            /* cabeceras de columna ocultas */
+
+  .data-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px 9px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 13px 15px;
+    margin-bottom: 10px;
+  }
+  .data-table tr:hover { background: var(--bg-card); }   /* sin hover de fila en móvil */
+
+  .data-table td { display: block; padding: 0; border: none !important; }
+  .cell-empty { display: none; }                  /* oculta categoría/lugar vacíos */
+
+  /* Línea superior: fecha · nivel · categoría … y flecha a la derecha. */
+  .cell-fecha { order: 1; }
+  .cell-nivel { order: 2; }
+  .cell-cat   { order: 3; }
+  .row-arrow  { order: 4; margin-left: auto; }
+
+  /* El hecho, protagonista, en su propia línea a ancho completo. */
+  .cell-hecho { order: 5; flex: 0 0 100%; font-size: 0.98rem; line-height: 1.5; }
+  /* Lugar al pie, también a ancho completo. */
+  .cell-lugar { order: 6; flex: 0 0 100%; }
+  .cell-lugar:not(.cell-empty)::before { content: '📍 '; }
 }
