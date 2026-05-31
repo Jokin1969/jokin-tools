@@ -431,6 +431,7 @@ function buildReportHtml(rows) {
 
   const filtros = describeFilters();
   const generado = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
+  const backUrl = location.href;   // para regresar a la app conservando los filtros
 
   const card = (title, body) => `<section class="r-card"><h3>${title}</h3>${body}</section>`;
 
@@ -473,9 +474,20 @@ function buildReportHtml(rows) {
   .r-dv { display: block; white-space: pre-wrap; }
   .r-reg { font-size: 9.5px; color: #9CB3A6; margin-top: 5px; }
   .r-foot { margin-top: 20px; padding-top: 8px; border-top: 1px solid #C9E2D2; font-size: 10px; color: #9CB3A6; text-align: center; }
-  @media screen { body { background: #fff; max-width: 880px; margin: 24px auto; padding: 0 20px; } }
+  .r-toolbar { position: sticky; top: 0; z-index: 10; display: flex; gap: 8px; background: #157A4B; padding: 9px 14px; }
+  .r-toolbar button { font-family: -apple-system, system-ui, sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; border: 0; border-radius: 6px; padding: 8px 14px; background: #fff; color: #157A4B; }
+  .r-toolbar button.ghost { background: rgba(255,255,255,.16); color: #fff; }
+  @media screen { body { background: #fff; }
+    .r-toolbar { margin-bottom: 16px; }
+    .r-body { max-width: 880px; margin: 0 auto; padding: 0 20px 24px; } }
+  @media print { .r-toolbar { display: none !important; } }
 </style>
 </head><body>
+  <div class="r-toolbar" role="toolbar">
+    <button type="button" onclick="volverApp()">← Volver a la Bitácora</button>
+    <button type="button" class="ghost" onclick="window.print()">Imprimir / PDF</button>
+  </div>
+  <div class="r-body">
   <header class="r-head">
     <h1>Bitácora — Informe</h1>
     <div class="r-sub">Registro personal de hechos</div>
@@ -503,8 +515,16 @@ function buildReportHtml(rows) {
   ` : '<p style="margin-top:24px;color:#4F6B5C">No hay entradas que coincidan con los filtros actuales.</p>'}
 
   <div class="r-foot">Bitácora · Jokin's Tools — documento generado automáticamente</div>
+  </div>
 
   <script>
+    var APP_URL = ${JSON.stringify(backUrl)};
+    function volverApp() {
+      // Si el informe se abrió como ventana/pestaña emergente, ciérrala.
+      window.close();
+      // Si sigue abierto (móvil/PWA lo abre en la misma vista), vuelve a la app.
+      setTimeout(function () { if (!window.closed) location.href = APP_URL; }, 150);
+    }
     window.addEventListener('load', function () {
       var go = function () { try { window.focus(); window.print(); } catch (e) {} };
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { setTimeout(go, 150); });
