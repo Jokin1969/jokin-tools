@@ -49,6 +49,9 @@
       </div>
       <div class="header-actions">
         <span class="stat-chip" id="stat-total" title="Entradas registradas">— entradas</span>
+        <button class="btn btn-ghost btn-sm" id="btn-patterns" type="button" title="Ver patrones y evolución">
+          <span class="btn-icon">📊</span> Patrones
+        </button>
         <button class="btn btn-outline btn-sm" id="btn-export" type="button" title="Exportar a Dropbox (CSV)">
           <span class="btn-icon">↑</span> Exportar
         </button>
@@ -58,6 +61,37 @@
   </header>
 
   <main class="app-main">
+
+    <!-- ─── Panel de patrones (oculto por defecto) ───────────────────────────── -->
+    <section class="patterns hidden" id="patterns-panel" aria-label="Patrones y evolución">
+      <div class="patterns-head">
+        <h2>Patrones y evolución</h2>
+        <button class="modal-close" id="btn-close-patterns" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <p class="patterns-empty hidden" id="patterns-empty">Aún no hay datos suficientes. Registra algunas entradas y vuelve aquí.</p>
+      <div class="patterns-grid" id="patterns-grid">
+        <div class="pattern-card">
+          <h3>Registros por año</h3>
+          <p class="pattern-sub">¿Estás anotando más con el tiempo?</p>
+          <div class="bars" id="chart-year"></div>
+        </div>
+        <div class="pattern-card">
+          <h3>Tipo de lapsus</h3>
+          <p class="pattern-sub">Qué categorías predominan.</p>
+          <div class="bars" id="chart-categoria"></div>
+        </div>
+        <div class="pattern-card">
+          <h3>Concentración por lugar</h3>
+          <p class="pattern-sub">Dónde ocurren más.</p>
+          <div class="bars" id="chart-lugar"></div>
+        </div>
+        <div class="pattern-card">
+          <h3>Concentración por mes</h3>
+          <p class="pattern-sub">¿Hay épocas que se repiten?</p>
+          <div class="bars" id="chart-month"></div>
+        </div>
+      </div>
+    </section>
 
     <!-- ─── Toolbar: búsqueda + filtros ──────────────────────────────────────── -->
     <div class="toolbar">

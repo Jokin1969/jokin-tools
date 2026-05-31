@@ -199,6 +199,49 @@ function getStats(userId) {
   return { total, byNivel };
 }
 
+// ─── Insights (patterns panel) ─────────────────────────────────────────────────
+// Three aggregations, in the order the user cares about them:
+//   1) volume over time (per year),
+//   2) which type of lapsus predominates (per categoría),
+//   3) where/when they concentrate (per lugar + per month-of-year).
+// All scoped per user. SQL is parameterised; the only interpolation is the
+// user_id filter clause, never user input.
+function getInsights(userId) {
+  const where = userId != null ? 'WHERE user_id = ?' : '';
+  const args = userId != null ? [userId] : [];
+  const rows = (sql) => (userId != null ? db.prepare(sql).all(userId) : db.prepare(sql).all());
+
+  // 1) Per year (uses the first 4 chars of fecha, YYYY-MM-DD).
+  const byYear = rows(
+    `SELECT substr(fecha,1,4) AS year, COUNT(*) AS n
+       FROM bitacora ${where}
+      GROUP BY year ORDER BY year ASC`
+  );
+
+  // 2) Per categoría (NULL/empty grouped as "Sin categoría").
+  const byCategoria = rows(
+    `SELECT COALESCE(NULLIF(TRIM(categoria),''),'Sin categoría') AS categoria, COUNT(*) AS n
+       FROM bitacora ${where}
+      GROUP BY categoria ORDER BY n DESC, categoria ASC`
+  );
+
+  // 3a) Concentration by place.
+  const byLugar = rows(
+    `SELECT COALESCE(NULLIF(TRIM(lugar),''),'Sin lugar') AS lugar, COUNT(*) AS n
+       FROM bitacora ${where}
+      GROUP BY lugar ORDER BY n DESC, lugar ASC`
+  );
+  // 3b) Concentration by month-of-year (1..12), to spot seasonal clustering.
+  const byMonth = rows(
+    `SELECT CAST(substr(fecha,6,2) AS INTEGER) AS month, COUNT(*) AS n
+       FROM bitacora ${where}
+      GROUP BY month ORDER BY month ASC`
+  );
+
+  const total = db.prepare(`SELECT COUNT(*) AS n FROM bitacora ${where}`).get(...args).n;
+  return { total, byYear, byCategoria, byLugar, byMonth };
+}
+
 // ─── Export ─────────────────────────────────────────────────────────────────────
 function getAllForExport(userId) {
   const where = userId != null ? 'WHERE user_id = ?' : '';
@@ -221,6 +264,6 @@ module.exports = {
   db,
   NIVELES, CATEGORIAS, FACTORES,
   createEntry, getEntryById, updateEntry, deleteEntry,
-  listEntries, getAllIds, getStats, getAllForExport,
+  listEntries, getAllIds, getStats, getInsights, getAllForExport,
   assignOrphans, assignOrphansToConfiguredOwner,
 };

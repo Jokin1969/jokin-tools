@@ -71,3 +71,27 @@ test('update is scoped to owner', () => {
   bita.updateEntry(id, { nivel: 'Bajo' }, B.id);
   assert.equal(bita.getEntryById(id, A.id).nivel, 'Alto', 'B could not modify A row');
 });
+
+test('getInsights aggregates per year/categoria/lugar/month, scoped per user', () => {
+  const ins = bita.getInsights(A.id);
+  assert.equal(ins.total, 3);
+  // Years: 2022, 2023, 2025 — one each.
+  assert.deepEqual(ins.byYear.map(y => y.year), ['2022', '2023', '2025']);
+  assert.ok(ins.byYear.every(y => y.n === 1));
+  // Categorías ordered by frequency desc; here all distinct (1 each).
+  assert.equal(ins.byCategoria.reduce((s, c) => s + c.n, 0), 3);
+  assert.ok(ins.byCategoria.some(c => c.categoria === 'Falso recuerdo'));
+  // Lugar: "Lab" appears twice → must be the top entry.
+  assert.equal(ins.byLugar[0].lugar, 'Lab');
+  assert.equal(ins.byLugar[0].n, 2);
+  // Month: March (3) appears twice (2023-03, 2025-03).
+  const march = ins.byMonth.find(m => m.month === 3);
+  assert.equal(march.n, 2);
+});
+
+test('getInsights for a user with no entries is empty', () => {
+  const ins = bita.getInsights(B.id);
+  assert.equal(ins.total, 0);
+  assert.deepEqual(ins.byYear, []);
+  assert.deepEqual(ins.byCategoria, []);
+});

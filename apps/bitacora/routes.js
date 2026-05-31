@@ -5,7 +5,7 @@ const router = express.Router();
 const {
   NIVELES, CATEGORIAS, FACTORES,
   createEntry, getEntryById, updateEntry, deleteEntry,
-  listEntries, getAllIds, getStats, getAllForExport,
+  listEntries, getAllIds, getStats, getInsights, getAllForExport,
 } = require('./db');
 const { exportToDropbox } = require('./dropbox');
 
@@ -41,6 +41,15 @@ router.get('/api/ids', (req, res) => {
 router.get('/api/stats', (req, res) => {
   try {
     res.json(getStats(req.user.id));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Aggregations for the patterns panel (per year / categoría / lugar / month).
+router.get('/api/insights', (req, res) => {
+  try {
+    res.json(getInsights(req.user.id));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

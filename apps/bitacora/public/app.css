@@ -140,9 +140,28 @@ select:focus, input:focus, textarea:focus { outline: none; border-color: var(--b
 .toast.ok { background: var(--green-2); }
 .toast.err { background: var(--danger); }
 
+/* ─── Patterns panel ─────────────────────────────────────────────────────────── */
+.patterns { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 18px; }
+.patterns-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.patterns-head h2 { font-family: var(--mono); font-size: 0.95rem; font-weight: 700; color: var(--green-2); }
+.patterns-empty { color: var(--text-muted); font-size: 0.9rem; padding: 10px 0; }
+.patterns-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 8px; }
+.pattern-card { background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.pattern-card h3 { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; color: var(--text); }
+.pattern-sub { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px; }
+.bars { display: flex; flex-direction: column; gap: 7px; }
+.bar-row { display: grid; grid-template-columns: 96px 1fr 34px; align-items: center; gap: 8px; }
+.bar-label { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { background: var(--bg-card-h); border-radius: 5px; height: 16px; overflow: hidden; }
+.bar-fill { background: var(--green); height: 100%; border-radius: 5px; min-width: 2px; transition: width .3s ease; }
+.bar-val { font-family: var(--mono); font-size: 0.72rem; color: var(--text); text-align: left; }
+.bars-empty { font-size: 0.8rem; color: var(--text-dim); font-style: italic; }
+
 .hidden { display: none !important; }
 
 @media (max-width: 640px) {
   .form-row.two { grid-template-columns: 1fr; }
   .col-lugar, .col-cat { display: none; }
+  .patterns-grid { grid-template-columns: 1fr; }
+  .bar-row { grid-template-columns: 80px 1fr 30px; }
 }

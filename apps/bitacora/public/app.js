@@ -85,6 +85,8 @@ function wireEvents() {
 
   $('btn-close-detail').addEventListener('click', () => $('modal-detail').classList.add('hidden'));
   $('btn-export').addEventListener('click', doExport);
+  $('btn-patterns').addEventListener('click', togglePatterns);
+  $('btn-close-patterns').addEventListener('click', () => $('patterns-panel').classList.add('hidden'));
 
   // Close modals on overlay click
   document.querySelectorAll('.modal-overlay').forEach(ov => {
@@ -288,6 +290,52 @@ async function doDelete(id) {
     toast('Entrada eliminada.', 'ok');
     loadList(); loadStats();
   } catch (err) { toast(err.message, 'err'); }
+}
+
+// ─── Patterns panel ─────────────────────────────────────────────────────────────
+const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+async function togglePatterns() {
+  const panel = $('patterns-panel');
+  if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+  try {
+    const r = await fetch(`${API}/insights`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Error');
+    renderInsights(d);
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
+
+// Render a labelled horizontal bar chart into a container.
+// data: [{label, value}]; widths are relative to the max value.
+function renderBars(container, data) {
+  if (!data.length) { container.innerHTML = '<p class="bars-empty">Sin datos.</p>'; return; }
+  const max = Math.max(...data.map(d => d.value), 1);
+  container.innerHTML = data.map(d => `
+    <div class="bar-row">
+      <span class="bar-label" title="${esc(d.label)}">${esc(d.label)}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${Math.round(d.value / max * 100)}%"></span></span>
+      <span class="bar-val">${d.value}</span>
+    </div>`).join('');
+}
+
+function renderInsights(d) {
+  const grid = $('patterns-grid');
+  const empty = $('patterns-empty');
+  if (!d.total) { grid.classList.add('hidden'); empty.classList.remove('hidden'); return; }
+  grid.classList.remove('hidden'); empty.classList.add('hidden');
+
+  // 1) Registros por año.
+  renderBars($('chart-year'), d.byYear.map(r => ({ label: r.year, value: r.n })));
+  // 2) Tipo de lapsus (categoría), ya viene ordenado por frecuencia desc.
+  renderBars($('chart-categoria'), d.byCategoria.map(r => ({ label: r.categoria, value: r.n })));
+  // 3a) Concentración por lugar (top 8 para no saturar).
+  renderBars($('chart-lugar'), d.byLugar.slice(0, 8).map(r => ({ label: r.lugar, value: r.n })));
+  // 3b) Concentración por mes (nombre de mes).
+  renderBars($('chart-month'), d.byMonth.map(r => ({ label: MESES[r.month] || r.month, value: r.n })));
 }
 
 // ─── Export ─────────────────────────────────────────────────────────────────────
