@@ -138,7 +138,14 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* It's a toggle button now. */
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.18s;
 }
+.bw-sidebar-group-label:hover { color: var(--text-muted); }
 .bw-sidebar-group-label::after {
   content: '';
   flex: 1;
@@ -146,6 +153,18 @@ body {
   background: var(--border);
   opacity: 0.7;
 }
+/* Collapse chevron: points right when collapsed, rotates down when expanded. */
+.bw-group-chevron {
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+.bw-sidebar-group:not(.collapsed) .bw-group-chevron { transform: rotate(90deg); }
+.bw-sidebar-group.collapsed .bw-sidebar-group-items { display: none; }
 
 .bw-op-btn {
   display: flex;

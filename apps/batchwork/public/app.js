@@ -3,33 +3,34 @@
 // ── Operations definition ─────────────────────────────────────────────────────
 const OPERATIONS = [
   {
-    group: 'Inventario',
-    ops: [{
-      id: 'inventory',
-      label: 'Inventariar carpeta → Excel',
-      desc: 'Genera un fichero Excel con el inventario del primer nivel de la carpeta seleccionada.',
-      folderMode: true,
-      params: [],
-    }],
+    group: 'Folder tools',
+    key: 'folder',
+    ops: [
+      {
+        id: 'inventory',
+        label: 'Inventariar carpetas',
+        desc: 'Genera un fichero Excel con el inventario del primer nivel de la carpeta seleccionada.',
+        folderMode: true,
+        params: [],
+      },
+      {
+        id: 'rename',
+        label: 'Renombrar lista de nombres',
+        desc: 'Renombra un lote de ficheros según el orden de líneas de un fichero .txt.',
+        uploadPaired: true,
+        params: [
+          { id: 'keepExtension', type: 'checkbox', label: 'Conservar extensión original', default: true },
+        ],
+      },
+    ],
   },
   {
-    group: 'Renombrado',
-    ops: [{
-      id: 'rename',
-      label: 'Renombrar desde lista de nombres',
-      desc: 'Renombra un lote de ficheros según el orden de líneas de un fichero .txt.',
-      uploadPaired: true,
-      params: [
-        { id: 'keepExtension', type: 'checkbox', label: 'Conservar extensión original', default: true },
-      ],
-    }],
-  },
-  {
-    group: 'Imágenes',
+    group: 'Image tools',
+    key: 'image',
     ops: [
       {
         id: 'transparent-png',
-        label: 'Transparentar PNG (conservando negro)',
+        label: 'Transparentar PNG',
         desc: 'Convierte el fondo claro a transparente, preservando los píxeles oscuros.',
         params: [
           { id: 'threshold', type: 'range', label: 'Umbral de negro (0–255)', min: 0, max: 255, default: 60 },
@@ -37,22 +38,11 @@ const OPERATIONS = [
       },
       {
         id: 'resize-tiff',
-        label: 'Ajustar TIFF a 300 ppp / tamaño máximo',
+        label: 'Ajustar TIFF a 300 ppp',
         desc: 'Fija los TIFF a 300 ppp y reduce dimensiones si superan el tamaño máximo indicado.',
         params: [
           { id: 'maxMB', type: 'number', label: 'Tamaño máximo (MB)', default: 12, min: 1 },
         ],
-      },
-    ],
-  },
-  {
-    group: 'PDF y documentos',
-    ops: [
-      {
-        id: 'docx-to-pdf',
-        label: 'DOCX → PDF',
-        desc: 'Convierte ficheros .docx a .pdf usando LibreOffice headless.',
-        params: [],
       },
       {
         id: 'images-to-pdf',
@@ -69,6 +59,18 @@ const OPERATIONS = [
           { id: 'mergedName', type: 'text', label: 'Nombre del PDF unificado', default: 'imagenes.pdf', conditional: 'mode=merged' },
           { id: 'resolution', type: 'number', label: 'Resolución para ráster (DPI)', default: 150, min: 72 },
         ],
+      },
+    ],
+  },
+  {
+    group: 'Document tools',
+    key: 'document',
+    ops: [
+      {
+        id: 'docx-to-pdf',
+        label: 'DOCX → PDF',
+        desc: 'Convierte ficheros .docx a .pdf usando LibreOffice headless.',
+        params: [],
       },
       {
         id: 'pdf-to-docx',
@@ -114,46 +116,49 @@ const OPERATIONS = [
     ],
   },
   {
-    group: 'Bioinformática',
-    ops: [{
-      id: 'degen-aa',
-      label: 'Secuencia AA degenerada',
-      desc: 'Analiza una secuencia proteica con posiciones degeneradas, calcula todas las combinaciones posibles y genera un fichero FASTA con todas las variantes.',
-      clientSide: true,
-      params: [
-        {
-          id: 'sequence',
-          type: 'textarea',
-          label: 'Secuencia (pega en cualquier formato)',
-          placeholder: "Con comillas:   'W','N',('N','S'),('M','I','L')\nSin comillas:    W,N,(N,S),(M,I,L)\nCompacto:        WN(NS)(MIL)K",
-          rows: 5,
-          default: '',
-        },
-        { id: 'startPos', type: 'number', label: 'Número de la posición inicial', default: 99, min: 1 },
-        { id: 'maxSeqs',  type: 'number', label: 'Límite de secuencias en el FASTA', default: 10000, min: 1, max: 1000000 },
-      ],
-    },
-    {
-      id: 'plddt-kde',
-      label: 'Distribución pLDDT (KDE)',
-      desc: 'Parsea valores pLDDT en formato bruto, calcula una distribución KDE normalizada y genera una gráfica exportable en Excel, PNG y TIFF a 300 DPI.',
-      clientSide: true,
-      params: [],
-    },
-    {
-      id: 'mutagen-tree',
-      label: 'Árbol de mutagénesis',
-      desc: 'Compara secuencias derivadas frente a una original y calcula la ruta de síntesis más barata. Las mutaciones que caen dentro de una misma ventana de N nucleótidos cuentan como un único cambio (lo que la empresa factura como un cambio), de modo que algunas secuencias se sintetizan a partir de otras para abaratar el pedido.',
-      clientSide: true,
-      params: [],
-    },
-    {
-      id: 'dna-replace',
-      label: 'Sustituir secuencia en .dna (SnapGene)',
-      desc: 'Carga un fichero .dna de SnapGene, sustituye una región de nucleótidos por otra y descarga un nuevo .dna. Opcionalmente añade una feature para la secuencia entrante, borra la feature solapada, reajusta las coordenadas de las features posteriores y cambia el nombre interno del documento.',
-      clientSide: true,
-      params: [],
-    }],
+    group: 'Laboratory tools',
+    key: 'lab',
+    ops: [
+      {
+        id: 'degen-aa',
+        label: 'Generar secuencia de AA degenerada',
+        desc: 'Analiza una secuencia proteica con posiciones degeneradas, calcula todas las combinaciones posibles y genera un fichero FASTA con todas las variantes.',
+        clientSide: true,
+        params: [
+          {
+            id: 'sequence',
+            type: 'textarea',
+            label: 'Secuencia (pega en cualquier formato)',
+            placeholder: "Con comillas:   'W','N',('N','S'),('M','I','L')\nSin comillas:    W,N,(N,S),(M,I,L)\nCompacto:        WN(NS)(MIL)K",
+            rows: 5,
+            default: '',
+          },
+          { id: 'startPos', type: 'number', label: 'Número de la posición inicial', default: 99, min: 1 },
+          { id: 'maxSeqs',  type: 'number', label: 'Límite de secuencias en el FASTA', default: 10000, min: 1, max: 1000000 },
+        ],
+      },
+      {
+        id: 'plddt-kde',
+        label: 'Distribución pLDDT (KDE)',
+        desc: 'Parsea valores pLDDT en formato bruto, calcula una distribución KDE normalizada y genera una gráfica exportable en Excel, PNG y TIFF a 300 DPI.',
+        clientSide: true,
+        params: [],
+      },
+      {
+        id: 'mutagen-tree',
+        label: 'Árbol para solicitar mutagénesis',
+        desc: 'Compara secuencias derivadas frente a una original y calcula la ruta de síntesis más barata. Las mutaciones que caen dentro de una misma ventana de N nucleótidos cuentan como un único cambio (lo que la empresa factura como un cambio), de modo que algunas secuencias se sintetizan a partir de otras para abaratar el pedido.',
+        clientSide: true,
+        params: [],
+      },
+      {
+        id: 'dna-replace',
+        label: 'Generar plásmidos .dna (SnapGene)',
+        desc: 'Carga un fichero .dna de SnapGene, sustituye una región de nucleótidos por otra y descarga un nuevo .dna. Opcionalmente añade una feature para la secuencia entrante, borra la feature solapada, reajusta las coordenadas de las features posteriores y cambia el nombre interno del documento.',
+        clientSide: true,
+        params: [],
+      },
+    ],
   },
 ];
 
@@ -215,19 +220,51 @@ function fmtSize(bytes) {
 }
 
 // ── Sidebar render ────────────────────────────────────────────────────────────
+// Collapsed-group state persists in localStorage so the user's layout sticks
+// between visits. Default (no stored value) = every group expanded.
+const SIDEBAR_STATE_KEY = 'bw:sidebar:collapsed';
+
+function loadCollapsedGroups() {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_STATE_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch { return new Set(); }
+}
+let collapsedGroups = loadCollapsedGroups();
+
+function saveCollapsedGroups() {
+  try { localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify([...collapsedGroups])); } catch { /* ignore */ }
+}
+
+function toggleGroup(key) {
+  if (collapsedGroups.has(key)) collapsedGroups.delete(key);
+  else collapsedGroups.add(key);
+  saveCollapsedGroups();
+  renderSidebar();
+}
+
 function renderSidebar() {
   const sb = $('sidebar');
   sb.innerHTML = '';
   for (const group of OPERATIONS) {
-    const groupEl = mk('div', 'bw-sidebar-group');
-    const label = mk('div', 'bw-sidebar-group-label', group.group);
-    groupEl.appendChild(label);
+    const collapsed = collapsedGroups.has(group.key);
+    const groupEl = mk('div', 'bw-sidebar-group' + (collapsed ? ' collapsed' : ''));
+
+    const header = mk('button', 'bw-sidebar-group-label');
+    header.type = 'button';
+    header.setAttribute('aria-expanded', String(!collapsed));
+    header.innerHTML = `<span class="bw-group-chevron" aria-hidden="true"></span><span class="bw-group-name">${group.group}</span>`;
+    header.addEventListener('click', () => toggleGroup(group.key));
+    groupEl.appendChild(header);
+
+    const itemsEl = mk('div', 'bw-sidebar-group-items');
     for (const op of group.ops) {
       const btn = mk('button', 'bw-op-btn' + (state.selectedOp === op.id ? ' active' : ''), op.label);
       btn.dataset.opId = op.id;
       btn.addEventListener('click', () => selectOp(op.id));
-      groupEl.appendChild(btn);
+      itemsEl.appendChild(btn);
     }
+    groupEl.appendChild(itemsEl);
     sb.appendChild(groupEl);
   }
 }
