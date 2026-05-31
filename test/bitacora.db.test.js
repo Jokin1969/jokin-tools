@@ -95,3 +95,17 @@ test('getInsights for a user with no entries is empty', () => {
   assert.deepEqual(ins.byYear, []);
   assert.deepEqual(ins.byCategoria, []);
 });
+
+test('getAllFiltered returns every matching row (unpaginated, fecha desc) for the report', () => {
+  const all = bita.getAllFiltered({}, A.id);
+  assert.equal(all.length, 3, 'all A entries, no pagination');
+  // Always chronological, most recent first, regardless of any on-screen sort.
+  assert.equal(all[0].fecha, '2025-03-11');
+  assert.equal(all[all.length - 1].fecha, '2022-05-23');
+  // Applies the same filters as the list.
+  assert.equal(bita.getAllFiltered({ categoria: 'Objeto extraviado' }, A.id).length, 1);
+  assert.equal(bita.getAllFiltered({ date_from: '2023-01-01' }, A.id).length, 2);
+  assert.equal(bita.getAllFiltered({ search: 'mando' }, A.id).length, 1);
+  // Scoped per user.
+  assert.equal(bita.getAllFiltered({}, B.id).length, 0);
+});

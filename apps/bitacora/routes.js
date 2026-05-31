@@ -5,7 +5,7 @@ const router = express.Router();
 const {
   NIVELES, CATEGORIAS, FACTORES,
   createEntry, getEntryById, updateEntry, deleteEntry,
-  listEntries, getAllIds, getStats, getInsights, getAllForExport,
+  listEntries, getAllFiltered, getAllIds, getStats, getInsights, getAllForExport,
 } = require('./db');
 const { exportToDropbox } = require('./dropbox');
 
@@ -51,6 +51,17 @@ router.get('/api/insights', (req, res) => {
   try {
     res.json(getInsights(req.user.id));
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// All entries matching the current filters, for the printable report (client
+// builds the summary from these rows so it always matches what was filtered).
+router.get('/api/report', (req, res) => {
+  try {
+    res.json({ rows: getAllFiltered(req.query, req.user.id) });
+  } catch (err) {
+    console.error('[bitacora] report error:', err);
     res.status(500).json({ error: err.message });
   }
 });

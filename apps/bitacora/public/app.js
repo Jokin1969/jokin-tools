@@ -85,6 +85,7 @@ function wireEvents() {
 
   $('btn-close-detail').addEventListener('click', () => $('modal-detail').classList.add('hidden'));
   $('btn-export').addEventListener('click', doExport);
+  $('btn-report').addEventListener('click', doReport);
   $('btn-patterns').addEventListener('click', togglePatterns);
   $('btn-close-patterns').addEventListener('click', () => $('patterns-panel').classList.add('hidden'));
 
@@ -349,6 +350,186 @@ async function doExport() {
     toast(data.message || 'Exportado.', 'ok');
   } catch (err) {
     toast(`Error al exportar: ${err.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ─── Printable report / PDF ──────────────────────────────────────────────────────
+// Opens a self-contained printable document in a new window (the browser's
+// "Save as PDF" turns it into a PDF). Respects the filters currently applied to
+// the list, and builds the whole summary client-side from the returned rows so
+// it always matches exactly what was filtered.
+const NIVEL_COLOR = { Bajo: '#27AE60', Medio: '#C99A00', Alto: '#C0392B' };
+
+// Human-readable description of the active filters, for the report header.
+function describeFilters() {
+  const f = state.filters;
+  const parts = [];
+  if (state.search) parts.push(`Búsqueda: “${state.search}”`);
+  if (f.nivel.length) parts.push(`Importancia: ${f.nivel.join(', ')}`);
+  if (f.categoria.length) parts.push(`Categoría: ${f.categoria.join(', ')}`);
+  if (f.factores.length) parts.push(`Factores: ${f.factores.join(', ')}`);
+  if (f.from || f.to) parts.push(`Fechas: ${f.from || '…'} – ${f.to || '…'}`);
+  if (f.notado) parts.push('Solo los que notó otra persona');
+  return parts;
+}
+
+// Tally a list of labels into a [{label, value}] array sorted by value desc.
+function tally(labels) {
+  const m = new Map();
+  for (const l of labels) m.set(l, (m.get(l) || 0) + 1);
+  return [...m.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+}
+
+// Simple inline-styled horizontal bars for the printed document.
+function reportBars(data) {
+  if (!data.length) return '<p style="color:#4F6B5C">Sin datos.</p>';
+  const max = Math.max(...data.map(d => d.value), 1);
+  return `<div class="r-bars">${data.map(d => `
+    <div class="r-bar">
+      <span class="r-bar-label">${esc(d.label)}</span>
+      <span class="r-bar-track"><span class="r-bar-fill" style="width:${Math.round(d.value / max * 100)}%"></span></span>
+      <span class="r-bar-val">${d.value}</span>
+    </div>`).join('')}</div>`;
+}
+
+function reportEntryHtml(e) {
+  const factores = e.factores ? e.factores.split(',').filter(Boolean) : [];
+  const block = (label, value) => value
+    ? `<div class="r-field"><span class="r-dl">${label}</span><span class="r-dv">${esc(value)}</span></div>` : '';
+  const color = NIVEL_COLOR[e.nivel] || '#4F6B5C';
+  return `<article class="r-entry">
+    <div class="r-entry-head">
+      <span class="r-fecha">${esc(e.fecha)}</span>
+      <span class="r-nivel" style="background:${color}">${esc(e.nivel)}</span>
+      ${e.categoria ? `<span class="r-cat">${esc(e.categoria)}</span>` : ''}
+      ${e.lugar ? `<span class="r-lugar">· ${esc(e.lugar)}</span>` : ''}
+    </div>
+    <div class="r-field"><span class="r-dl">Hecho</span><span class="r-dv">${esc(e.hecho)}</span></div>
+    ${block('Cómo me di cuenta', e.como)}
+    ${factores.length ? `<div class="r-field"><span class="r-dl">Factores del momento</span><span class="r-dv">${factores.map(esc).join(' · ')}</span></div>` : ''}
+    ${e.notado_otros ? `<div class="r-field"><span class="r-dl">Lo notó otra persona</span><span class="r-dv">Sí${e.notado_quien ? ' — ' + esc(e.notado_quien) : ''}</span></div>` : ''}
+    ${block('Comentario', e.comentario)}
+    <div class="r-reg">Registrado: ${esc((e.created_at || '').replace('T', ' ').slice(0, 16))}</div>
+  </article>`;
+}
+
+function buildReportHtml(rows) {
+  const total = rows.length;
+  const byNivel = META.niveles.map(n => ({ label: n, value: rows.filter(r => r.nivel === n).length }));
+  // rows arrive ordered by fecha DESC → first is most recent, last is oldest.
+  const rango = total ? `${rows[total - 1].fecha} – ${rows[0].fecha}` : '—';
+
+  const byYear = tally(rows.map(r => r.fecha.slice(0, 4))).sort((a, b) => a.label.localeCompare(b.label));
+  const byCategoria = tally(rows.map(r => (r.categoria || '').trim() || 'Sin categoría'));
+  const byLugar = tally(rows.map(r => (r.lugar || '').trim() || 'Sin lugar')).slice(0, 10);
+  const byMonth = tally(rows.map(r => MESES[parseInt(r.fecha.slice(5, 7), 10)] || r.fecha.slice(5, 7)));
+
+  const filtros = describeFilters();
+  const generado = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  const card = (title, body) => `<section class="r-card"><h3>${title}</h3>${body}</section>`;
+
+  return `<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="UTF-8" />
+<title>Bitácora — Informe (${generado})</title>
+<style>
+  * { box-sizing: border-box; }
+  @page { margin: 18mm 16mm; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: #14241B; font-size: 12px; line-height: 1.55; margin: 0; }
+  h1 { font-size: 22px; margin: 0; color: #157A4B; }
+  h2 { font-size: 14px; margin: 22px 0 8px; color: #157A4B; border-bottom: 1.5px solid #C9E2D2; padding-bottom: 3px; }
+  h3 { font-size: 12px; margin: 0 0 6px; color: #14241B; }
+  .r-head { border-bottom: 2px solid #1F9D62; padding-bottom: 12px; margin-bottom: 6px; }
+  .r-sub { color: #4F6B5C; font-size: 11px; margin-top: 2px; }
+  .r-meta { color: #4F6B5C; font-size: 11px; margin-top: 8px; }
+  .r-filtros { background: #EEF6F0; border: 1px solid #C9E2D2; border-radius: 6px; padding: 8px 10px; margin-top: 10px; font-size: 11px; }
+  .r-filtros b { color: #157A4B; }
+  .r-summary { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
+  .r-stat { border: 1px solid #C9E2D2; border-radius: 6px; padding: 8px 14px; min-width: 90px; }
+  .r-stat .n { font-size: 20px; font-weight: 700; }
+  .r-stat .l { font-size: 10px; color: #4F6B5C; text-transform: uppercase; letter-spacing: .05em; }
+  .r-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .r-card { border: 1px solid #C9E2D2; border-radius: 8px; padding: 10px 12px; break-inside: avoid; }
+  .r-bars { display: flex; flex-direction: column; gap: 4px; }
+  .r-bar { display: grid; grid-template-columns: 120px 1fr 28px; align-items: center; gap: 6px; font-size: 11px; }
+  .r-bar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #4F6B5C; }
+  .r-bar-track { background: #E0F0E6; border-radius: 4px; height: 11px; overflow: hidden; }
+  .r-bar-fill { display: block; height: 100%; background: #1F9D62; }
+  .r-bar-val { text-align: right; font-variant-numeric: tabular-nums; }
+  .r-entry { border: 1px solid #C9E2D2; border-radius: 8px; padding: 10px 12px; margin-bottom: 9px; break-inside: avoid; }
+  .r-entry-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
+  .r-fecha { font-weight: 700; }
+  .r-nivel { color: #fff; font-size: 10px; font-weight: 700; padding: 1px 8px; border-radius: 10px; }
+  .r-cat { background: #E0F0E6; color: #157A4B; font-size: 10px; padding: 1px 8px; border-radius: 10px; }
+  .r-lugar { color: #4F6B5C; font-size: 11px; }
+  .r-field { margin: 3px 0; }
+  .r-dl { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; color: #4F6B5C; }
+  .r-dv { display: block; white-space: pre-wrap; }
+  .r-reg { font-size: 9.5px; color: #9CB3A6; margin-top: 5px; }
+  .r-foot { margin-top: 20px; padding-top: 8px; border-top: 1px solid #C9E2D2; font-size: 10px; color: #9CB3A6; text-align: center; }
+  @media screen { body { background: #fff; max-width: 880px; margin: 24px auto; padding: 0 20px; } }
+</style>
+</head><body>
+  <header class="r-head">
+    <h1>Bitácora — Informe</h1>
+    <div class="r-sub">Registro personal de hechos</div>
+    <div class="r-meta">Generado el ${generado} · ${total} ${total === 1 ? 'entrada' : 'entradas'} · Periodo: ${rango}</div>
+    ${filtros.length ? `<div class="r-filtros"><b>Informe filtrado.</b> ${filtros.map(esc).join(' · ')}</div>` : ''}
+  </header>
+
+  ${total ? `
+  <h2>Resumen</h2>
+  <div class="r-summary">
+    <div class="r-stat"><div class="n">${total}</div><div class="l">Total</div></div>
+    ${byNivel.map(n => `<div class="r-stat"><div class="n" style="color:${NIVEL_COLOR[n.label] || '#14241B'}">${n.value}</div><div class="l">${esc(n.label)}</div></div>`).join('')}
+  </div>
+
+  <h2>Patrones</h2>
+  <div class="r-grid">
+    ${card('Registros por año', reportBars(byYear))}
+    ${card('Tipo de lapsus', reportBars(byCategoria))}
+    ${card('Concentración por lugar', reportBars(byLugar))}
+    ${card('Concentración por mes', reportBars(byMonth))}
+  </div>
+
+  <h2>Detalle cronológico</h2>
+  ${rows.map(reportEntryHtml).join('')}
+  ` : '<p style="margin-top:24px;color:#4F6B5C">No hay entradas que coincidan con los filtros actuales.</p>'}
+
+  <div class="r-foot">Bitácora · Jokin's Tools — documento generado automáticamente</div>
+
+  <script>
+    window.addEventListener('load', function () {
+      var go = function () { try { window.focus(); window.print(); } catch (e) {} };
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { setTimeout(go, 150); });
+      else setTimeout(go, 300);
+    });
+  </script>
+</body></html>`;
+}
+
+async function doReport() {
+  const btn = $('btn-report'); btn.disabled = true;
+  toast('Generando informe…');
+  // Open the window synchronously inside the click handler so it isn't blocked.
+  const win = window.open('', '_blank');
+  if (!win) { toast('Permite las ventanas emergentes para generar el informe.', 'err'); btn.disabled = false; return; }
+  win.document.write('<!DOCTYPE html><title>Generando informe…</title><body style="font-family:Georgia,serif;color:#4F6B5C;padding:40px">Generando informe…</body>');
+  try {
+    const q = buildQuery();          // report endpoint applies only the filter params
+    const r = await fetch(`${API}/report?${q}`);
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error');
+    win.document.open();
+    win.document.write(buildReportHtml(data.rows || []));
+    win.document.close();
+    toast('Informe listo. Usa “Imprimir → Guardar como PDF”.', 'ok');
+  } catch (err) {
+    win.close();
+    toast(`Error al generar el informe: ${err.message}`, 'err');
   } finally {
     btn.disabled = false;
   }

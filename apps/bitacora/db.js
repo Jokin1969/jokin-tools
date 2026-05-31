@@ -123,7 +123,12 @@ function deleteEntry(id, userId) {
 }
 
 // ─── List with powerful search & filters ───────────────────────────────────────
-function listEntries({ search, nivel, categoria, date_from, date_to, factores, notado, sort, order, page = 1, limit = 100 } = {}, userId) {
+// Allowed sort columns (shared by list, ids and report so they stay in sync).
+const SORT_MAP = { fecha: 'fecha', created_at: 'created_at', nivel: 'nivel', categoria: 'categoria', id: 'id' };
+
+// Build the parameterised WHERE clause shared by listEntries and getAllFiltered,
+// so the printable report applies exactly the same filters as the on-screen list.
+function buildFilter({ search, nivel, categoria, date_from, date_to, factores, notado } = {}, userId) {
   const conditions = [];
   const params = [];
 
@@ -157,10 +162,14 @@ function listEntries({ search, nivel, categoria, date_from, date_to, factores, n
   }
   if (notado === '1' || notado === 1 || notado === true) { conditions.push('notado_otros = 1'); }
 
-  const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { whereClause: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params };
+}
 
-  const sortMap = { fecha: 'fecha', created_at: 'created_at', nivel: 'nivel', categoria: 'categoria', id: 'id' };
-  const sortCol = sortMap[sort] || 'fecha';
+function listEntries(query = {}, userId) {
+  const { sort, order, page = 1, limit = 100 } = query;
+  const { whereClause, params } = buildFilter(query, userId);
+
+  const sortCol = SORT_MAP[sort] || 'fecha';
   const sortDir = order === 'asc' ? 'ASC' : 'DESC';
   // Stable secondary sort so same-date rows keep a deterministic order.
   const orderClause = `ORDER BY ${sortCol} ${sortDir}, id ${sortDir}`;
@@ -174,10 +183,16 @@ function listEntries({ search, nivel, categoria, date_from, date_to, factores, n
   return { rows, total, page: Math.max(Number(page) || 1, 1), limit: lim };
 }
 
+// Every row matching the given filters, unpaginated — for the printable report.
+// Always chronological (most recent first) regardless of the on-screen sort.
+function getAllFiltered(query = {}, userId) {
+  const { whereClause, params } = buildFilter(query, userId);
+  return db.prepare(`SELECT * FROM bitacora ${whereClause} ORDER BY fecha DESC, id DESC`).all(...params);
+}
+
 // Ordered ids for client-side prev/next navigation in the detail view.
 function getAllIds(sort = 'fecha', order = 'desc', userId) {
-  const sortMap = { fecha: 'fecha', created_at: 'created_at', nivel: 'nivel', categoria: 'categoria', id: 'id' };
-  const col = sortMap[sort] || 'fecha';
+  const col = SORT_MAP[sort] || 'fecha';
   const dir = order === 'asc' ? 'ASC' : 'DESC';
   const where = userId != null ? 'WHERE user_id = ?' : '';
   const q = `SELECT id FROM bitacora ${where} ORDER BY ${col} ${dir}, id ${dir}`;
@@ -264,6 +279,6 @@ module.exports = {
   db,
   NIVELES, CATEGORIAS, FACTORES,
   createEntry, getEntryById, updateEntry, deleteEntry,
-  listEntries, getAllIds, getStats, getInsights, getAllForExport,
+  listEntries, getAllFiltered, getAllIds, getStats, getInsights, getAllForExport,
   assignOrphans, assignOrphansToConfiguredOwner,
 };
