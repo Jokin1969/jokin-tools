@@ -182,6 +182,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
   border-top: 1px solid var(--border);
 }
 .form-ai-row .btn-save { margin-right: auto; }
+/* Las 3 IA agrupadas; en escritorio se mantienen juntas a la derecha. */
+.ai-buttons { display: flex; align-items: center; gap: 10px; }
 
 .form-claude-row {
   display: flex; justify-content: flex-end;
@@ -820,4 +822,44 @@ body { background: var(--bg); color: var(--text); font-family: var(--serif); fon
   .header-inner { flex-wrap: wrap; }
   .meta-row { grid-template-columns: 1fr 1fr; }
   .toolbar-actions { flex-wrap: wrap; }
+
+  /* Cabecera: Exportar / Backup / Restaurar a ancho completo y apilados,
+     más altos para tocarlos con el dedo. (Escritorio no se ve afectado.) */
+  .header-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .header-actions .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 11px 16px;
+    font-size: 0.8rem;
+  }
+
+  /* Formulario: las 3 IA en una fila propia ENCIMA de Guardar.
+     column-reverse hace que Guardar (primero en el DOM) caiga abajo a ancho
+     completo, y las IA queden arriba repartidas en una sola línea. */
+  .form-ai-row {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .ai-buttons {
+    display: flex;
+    gap: 8px;
+  }
+  .ai-buttons .btn-ai {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+  }
+  .form-ai-row .btn-save {
+    margin-right: 0;          /* anula el margin-right:auto de escritorio */
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+  }
 }
