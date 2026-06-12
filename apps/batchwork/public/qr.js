@@ -127,8 +127,8 @@
               </div>
               <label class="qr-slider"><span class="qr-hint">Tamaño del recuadro</span>
                 <input type="range" id="qr-logo-scale" min="12" max="34" value="22" /></label>
-              <label class="qr-slider"><span class="qr-hint">Tamaño del logo dentro</span>
-                <input type="range" id="qr-logo-inner" min="40" max="100" value="90" /></label>
+              <label class="qr-slider"><span class="qr-hint">Zoom del logo <span class="qr-opt">· recorta a la forma si supera el 100%</span></span>
+                <input type="range" id="qr-logo-inner" min="50" max="250" value="90" /></label>
               <span class="qr-ecc-note">La corrección de errores sube a «H» automáticamente con logo.</span>
             </div>
           </div>

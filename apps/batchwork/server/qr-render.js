@@ -111,7 +111,7 @@ function sanitizeConfig(input = {}) {
     logo: hasLogo ? input.logo : null,
     logoScale: Math.min(34, Math.max(12, Number(input.logoScale) || 22)), // recuadro: % del ancho
     logoShape: input.logoShape === 'square' ? 'square' : 'circle',
-    logoInner: Math.min(100, Math.max(40, Number(input.logoInner) || 90)), // logo: % del recuadro
+    logoInner: Math.min(250, Math.max(50, Number(input.logoInner) || 90)), // zoom del logo: % del recuadro
     frame: !!input.frame,
     frameText: String(input.frameText || 'Escanéame').slice(0, 28),
   };
@@ -158,12 +158,33 @@ function buildSvg(cfgInput) {
   const W = total + 2 * pad;
   const H = total + 2 * pad + labelH;
 
-  const fill = cfg.gradient ? 'url(#qrGrad)' : cfg.fg;
-  const defs = cfg.gradient
-    ? `<defs><linearGradient id="qrGrad" x1="0" y1="0" x2="1" y2="1">`
+  // Unique id suffix: several QR SVGs can share a page (preview, repo thumbs),
+  // so gradient/clip ids must not collide.
+  const uid = Math.random().toString(36).slice(2, 8);
+
+  // Centre-logo geometry (backing half-size in modules), needed by both the clip
+  // path in <defs> and the drawing below.
+  let logo = null;
+  if (cfg.logo) {
+    const c = pad + total / 2;
+    logo = { cx: c, cy: c, backR: (cfg.logoScale / 100) * size / 2 + 0.6, cr: 0 };
+    logo.cr = Math.min(1.4, logo.backR * 0.16);
+  }
+
+  let defsInner = '';
+  if (cfg.gradient) {
+    defsInner += `<linearGradient id="qrGrad-${uid}" x1="0" y1="0" x2="1" y2="1">`
       + `<stop offset="0" stop-color="${cfg.fg}"/><stop offset="1" stop-color="${cfg.grad2}"/>`
-      + `</linearGradient></defs>`
-    : '';
+      + `</linearGradient>`;
+  }
+  if (logo) {
+    const shape = cfg.logoShape === 'square'
+      ? `<rect x="${n(logo.cx - logo.backR)}" y="${n(logo.cy - logo.backR)}" width="${n(2 * logo.backR)}" height="${n(2 * logo.backR)}" rx="${n(logo.cr)}"/>`
+      : `<circle cx="${n(logo.cx)}" cy="${n(logo.cy)}" r="${n(logo.backR)}"/>`;
+    defsInner += `<clipPath id="logoClip-${uid}">${shape}</clipPath>`;
+  }
+  const defs = defsInner ? `<defs>${defsInner}</defs>` : '';
+  const fill = cfg.gradient ? `url(#qrGrad-${uid})` : cfg.fg;
 
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${n(W)} ${n(H)}" shape-rendering="geometricPrecision">`;
   svg += defs;
@@ -183,24 +204,21 @@ function buildSvg(cfgInput) {
   svg += `<path fill-rule="evenodd" d="${frames}"/>`;
   svg += `</g>`;
 
-  // Centre logo: white backing (circle or rounded square) + the image, inside the
-  // QR (never over the label). backR is the backing half-size in modules; the
-  // image fills a configurable fraction of it. For a circular backing the image
-  // box is kept inside the inscribed square so its corners never poke out.
-  if (cfg.logo) {
-    const cx = pad + total / 2;
-    const cy = pad + total / 2;
-    const backR = (cfg.logoScale / 100) * size / 2 + 0.6;
-    const maxFit = cfg.logoShape === 'square' ? 0.94 : 0.72;
-    const imgR = backR * maxFit * (cfg.logoInner / 100);
+  // Centre logo: white backing (circle or rounded square) + the image clipped to
+  // that shape. logoScale sizes the backing (% of width); logoInner is a zoom on
+  // the image (% of the backing): <100% leaves a margin, 100% fills it, >100%
+  // enlarges and the excess is cropped to the shape (never spills out). "slice"
+  // covers the box without distortion, so a small subject can be zoomed to fit.
+  if (logo) {
+    const { cx, cy, backR, cr } = logo;
     if (cfg.logoShape === 'square') {
-      const cr = Math.min(1.4, backR * 0.16);
       svg += `<rect x="${n(cx - backR)}" y="${n(cy - backR)}" width="${n(2 * backR)}" height="${n(2 * backR)}" rx="${n(cr)}" fill="#ffffff"/>`;
     } else {
       svg += `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(backR)}" fill="#ffffff"/>`;
     }
+    const imgR = backR * (cfg.logoInner / 100);
     svg += `<image x="${n(cx - imgR)}" y="${n(cy - imgR)}" width="${n(2 * imgR)}" height="${n(2 * imgR)}" `
-      + `href="${cfg.logo}" preserveAspectRatio="xMidYMid meet"/>`;
+      + `href="${cfg.logo}" preserveAspectRatio="xMidYMid slice" clip-path="url(#logoClip-${uid})"/>`;
   }
 
   // Frame label text.
