@@ -109,7 +109,9 @@ function sanitizeConfig(input = {}) {
     grad2: color(input.grad2, '#1B6CB0'),
     ecc,
     logo: hasLogo ? input.logo : null,
-    logoScale: Math.min(34, Math.max(10, Number(input.logoScale) || 22)), // % of width
+    logoScale: Math.min(34, Math.max(12, Number(input.logoScale) || 22)), // recuadro: % del ancho
+    logoShape: input.logoShape === 'square' ? 'square' : 'circle',
+    logoInner: Math.min(100, Math.max(40, Number(input.logoInner) || 90)), // logo: % del recuadro
     frame: !!input.frame,
     frameText: String(input.frameText || 'Escanéame').slice(0, 28),
   };
@@ -181,13 +183,22 @@ function buildSvg(cfgInput) {
   svg += `<path fill-rule="evenodd" d="${frames}"/>`;
   svg += `</g>`;
 
-  // Centre logo: white backing disc + the image, inside the QR (not the label).
+  // Centre logo: white backing (circle or rounded square) + the image, inside the
+  // QR (never over the label). backR is the backing half-size in modules; the
+  // image fills a configurable fraction of it. For a circular backing the image
+  // box is kept inside the inscribed square so its corners never poke out.
   if (cfg.logo) {
     const cx = pad + total / 2;
     const cy = pad + total / 2;
     const backR = (cfg.logoScale / 100) * size / 2 + 0.6;
-    const imgR = backR * 0.82;
-    svg += `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(backR)}" fill="#ffffff"/>`;
+    const maxFit = cfg.logoShape === 'square' ? 0.94 : 0.72;
+    const imgR = backR * maxFit * (cfg.logoInner / 100);
+    if (cfg.logoShape === 'square') {
+      const cr = Math.min(1.4, backR * 0.16);
+      svg += `<rect x="${n(cx - backR)}" y="${n(cy - backR)}" width="${n(2 * backR)}" height="${n(2 * backR)}" rx="${n(cr)}" fill="#ffffff"/>`;
+    } else {
+      svg += `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(backR)}" fill="#ffffff"/>`;
+    }
     svg += `<image x="${n(cx - imgR)}" y="${n(cy - imgR)}" width="${n(2 * imgR)}" height="${n(2 * imgR)}" `
       + `href="${cfg.logo}" preserveAspectRatio="xMidYMid meet"/>`;
   }

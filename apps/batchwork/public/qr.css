@@ -74,8 +74,11 @@
 /* Logo */
 .qr-logo-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .qr-logo-name { font-size: 0.8rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
-.qr-logo-size { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.qr-logo-size { display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
 .qr-logo-size input[type="range"] { width: 100%; accent-color: var(--blue); }
+.qr-logo-shape { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.qr-logo-shape .qr-check input { width: 14px; height: 14px; }
+.qr-slider { display: flex; flex-direction: column; gap: 3px; }
 .qr-ecc-note { font-size: 0.72rem; color: var(--text-dim); }
 .qr-btn-x {
   border: 1px solid var(--border); background: var(--bg-card); color: var(--red);

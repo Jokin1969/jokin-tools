@@ -37,7 +37,7 @@
       url: '', name: '', style: 'classic',
       fg: '#111111', bg: '#ffffff', transparent: false,
       gradient: false, grad2: '#1B6CB0', ecc: 'M',
-      logo: null, logoName: '', logoScale: 22,
+      logo: null, logoName: '', logoScale: 22, logoShape: 'circle', logoInner: 90,
       frame: false, frameText: 'Escáneame',
     };
   }
@@ -53,6 +53,8 @@
       ecc: state.ecc,
       logo: state.logo,
       logoScale: state.logoScale,
+      logoShape: state.logoShape,
+      logoInner: state.logoInner,
       frame: state.frame,
       frameText: state.frameText,
     };
@@ -118,8 +120,15 @@
               <button type="button" class="qr-btn-x" id="qr-logo-remove" style="display:none" title="Quitar logo">✕</button>
             </div>
             <div class="qr-logo-size" id="qr-logo-size" style="display:none">
-              <span class="qr-hint">Tamaño del logo</span>
-              <input type="range" id="qr-logo-scale" min="10" max="34" value="22" />
+              <div class="qr-logo-shape">
+                <span class="qr-hint">Forma del recuadro</span>
+                <label class="qr-check"><input type="radio" name="qr-logo-shape" value="circle" checked> Círculo</label>
+                <label class="qr-check"><input type="radio" name="qr-logo-shape" value="square"> Cuadrado</label>
+              </div>
+              <label class="qr-slider"><span class="qr-hint">Tamaño del recuadro</span>
+                <input type="range" id="qr-logo-scale" min="12" max="34" value="22" /></label>
+              <label class="qr-slider"><span class="qr-hint">Tamaño del logo dentro</span>
+                <input type="range" id="qr-logo-inner" min="40" max="100" value="90" /></label>
               <span class="qr-ecc-note">La corrección de errores sube a «H» automáticamente con logo.</span>
             </div>
           </div>
@@ -402,6 +411,8 @@
     state.logo = cfg.logo || null;
     state.logoName = cfg.logo ? 'logo' : '';
     state.logoScale = cfg.logoScale || 22;
+    state.logoShape = cfg.logoShape === 'square' ? 'square' : 'circle';
+    state.logoInner = cfg.logoInner || 90;
     state.frame = !!cfg.frame;
     state.frameText = cfg.frameText || 'Escáneame';
     syncControls();
@@ -421,6 +432,8 @@
     q('qr-grad2-wrap').style.display = state.gradient ? '' : 'none';
     q('qr-ecc').value = state.ecc;
     q('qr-logo-scale').value = state.logoScale;
+    q('qr-logo-inner').value = state.logoInner;
+    root.querySelectorAll('input[name="qr-logo-shape"]').forEach((r) => { r.checked = r.value === state.logoShape; });
     q('qr-logo-name').textContent = state.logoName;
     q('qr-logo-remove').style.display = state.logo ? '' : 'none';
     q('qr-logo-size').style.display = state.logo ? '' : 'none';
@@ -489,6 +502,10 @@
     q('qr-logo-file').addEventListener('change', (e) => handleLogo(e.target.files[0]));
     q('qr-logo-remove').addEventListener('click', clearLogo);
     q('qr-logo-scale').addEventListener('input', (e) => { state.logoScale = Number(e.target.value); schedulePreview(); });
+    q('qr-logo-inner').addEventListener('input', (e) => { state.logoInner = Number(e.target.value); schedulePreview(); });
+    root.querySelectorAll('input[name="qr-logo-shape"]').forEach((rb) => {
+      rb.addEventListener('change', (e) => { if (e.target.checked) { state.logoShape = e.target.value; schedulePreview(); } });
+    });
 
     q('qr-frame').addEventListener('change', (e) => {
       state.frame = e.target.checked; q('qr-frame-text').style.display = e.target.checked ? '' : 'none'; schedulePreview();
