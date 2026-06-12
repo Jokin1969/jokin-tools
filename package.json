@@ -21,6 +21,8 @@
     "node-fetch": "^2.7.0",
     "nodemailer": "^6.9.13",
     "openai": "^4.104.0",
+    "pdfkit": "^0.19.1",
+    "qrcode": "^1.5.4",
     "sharp": "^0.33.5"
   },
   "engines": {

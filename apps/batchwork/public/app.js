@@ -160,6 +160,19 @@ const OPERATIONS = [
       },
     ],
   },
+  {
+    group: 'Miscelánea',
+    key: 'misc',
+    ops: [
+      {
+        id: 'qr',
+        label: 'QRs',
+        desc: 'Genera códigos QR personalizados a partir de una URL: estilos, color, logo central y marco con etiqueta. Expórtalos en PNG, JPEG, WEBP, SVG o PDF, cópialos, envíalos por email y guárdalos en tu repositorio.',
+        // Bespoke UI mounted from qr.js — bypasses the generic upload/execute flow.
+        fullCustom: 'qr',
+      },
+    ],
+  },
 ];
 
 // Flat map for quick lookup
@@ -297,6 +310,22 @@ function selectOp(opId) {
   const op = OPS_MAP[opId];
   $('op-title').textContent = op.label;
   $('op-desc').textContent = op.desc;
+
+  // Restore the execute bar (a previous fullCustom op may have hidden it).
+  $('execute-bar').style.display = '';
+
+  // Fully custom ops render their own panel and own controls — skip the generic
+  // upload / params / execute machinery entirely.
+  if (op.fullCustom === 'qr') {
+    $('upload-area').style.display = 'none';
+    $('file-list-wrap').style.display = 'none';
+    $('execute-bar').style.display = 'none';
+    const zone = $('params-zone');
+    zone.innerHTML = '';
+    if (window.QRTool) window.QRTool.mount(zone);
+    else zone.innerHTML = '<p style="color:#B83232">No se pudo cargar la herramienta de QRs.</p>';
+    return;
+  }
 
   renderUploadArea(op);
   renderParams(op);

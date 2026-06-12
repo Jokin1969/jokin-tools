@@ -367,4 +367,7 @@ router.delete('/api/library/dna/:name', (req, res) => {
   } catch (err) { libError(res, err); }
 });
 
+// ── API: QRs (Miscelánea) ─────────────────────────────────────────────────────
+router.use('/api/qr', require('./qr-routes'));
+
 module.exports = router;
