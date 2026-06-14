@@ -207,6 +207,8 @@ router.patch('/api/users/:id', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'No puedes desactivar tu propia cuenta.' });
   }
   try {
+    // Force a password change on next login, or clear that flag, on demand.
+    if (req.body.must_change !== undefined) store.setMustChange(id, !!req.body.must_change);
     res.json({ user: store.updateUser(id, fields) });
   } catch (e) {
     res.status(400).json({ error: e.message });

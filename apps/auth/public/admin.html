@@ -222,13 +222,18 @@
         catch (err) { setMsg(rowMsg, err.message, 'err'); }
       });
 
+      const pendBtn = mkBtn(u.must_change ? 'Quitar pendiente' : 'Forzar cambio', 'btn ghost', async () => {
+        try { await api('PATCH', '/auth/api/users/' + u.id, { must_change: !u.must_change }); loadUsers(); }
+        catch (err) { setMsg(rowMsg, err.message, 'err'); }
+      });
+
       const delBtn = mkBtn('Eliminar', 'btn danger', async () => {
         if (!confirm(`¿Eliminar a ${u.email}? Esta acción no se puede deshacer.`)) return;
         try { await api('DELETE', '/auth/api/users/' + u.id); loadUsers(); }
         catch (err) { setMsg(rowMsg, err.message, 'err'); }
       });
 
-      actions.append(saveBtn, pwBtn, toggleBtn);
+      actions.append(saveBtn, pwBtn, pendBtn, toggleBtn);
       if (!isYou) actions.append(delBtn);
       tdActions.appendChild(rowMsg);
 
