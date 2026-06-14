@@ -132,6 +132,13 @@ function runStartupMigrations() {
   // Ensure there's a working admin (from ADMIN_EMAIL / ADMIN_PASSWORD).
   authStore.seedAdminFromEnv();
 
+  // Seed the team's accounts (idempotent): default password + forced change.
+  try {
+    require('./apps/auth/seed-users').seedInitialUsers();
+  } catch (e) {
+    console.error('[auth] initial user seeding skipped:', e.message);
+  }
+
   const ownerEmail = (process.env.REMEMORY_OWNER_EMAIL || process.env.ADMIN_EMAIL || '').trim().toLowerCase();
   const owner = ownerEmail ? authStore.getUserByEmail(ownerEmail) : null;
 

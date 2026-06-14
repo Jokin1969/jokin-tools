@@ -36,6 +36,17 @@ db.exec(`
   );
 `);
 
+// ─── Migrations: columns added after the initial release ────────────────────────
+// must_change → force a password change on first login;
+// reset_token / reset_token_exp → email-based password recovery (token is hashed).
+{
+  const cols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+  const add = (name, ddl) => { if (!cols.includes(name)) db.exec(`ALTER TABLE users ADD COLUMN ${ddl}`); };
+  add('must_change',     'must_change INTEGER NOT NULL DEFAULT 0');
+  add('reset_token',     'reset_token TEXT');
+  add('reset_token_exp', 'reset_token_exp DATETIME');
+}
+
 console.log('[auth] Store initialized at:', DB_PATH);
 
 // ─── Password hashing (scrypt) ──────────────────────────────────────────────────
@@ -121,6 +132,7 @@ function publicUser(u) {
     role: u.role,
     apps: u.apps === '*' ? '*' : (u.apps ? u.apps.split(',') : []),
     active: !!u.active,
+    must_change: !!u.must_change,
     created_at: u.created_at,
     last_login: u.last_login,
   };
@@ -139,7 +151,7 @@ function countUsers() {
   return db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
 }
 
-function createUser({ email, name, password, role = 'user', apps = '' }) {
+function createUser({ email, name, password, role = 'user', apps = '', mustChange = false }) {
   const e = normEmail(email);
   if (!e || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw new Error('Email no válido.');
   if (!password || String(password).length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
@@ -147,8 +159,8 @@ function createUser({ email, name, password, role = 'user', apps = '' }) {
   const r = role === 'admin' ? 'admin' : 'user';
   const appsCsv = r === 'admin' ? '*' : normApps(apps);
   const info = db.prepare(
-    'INSERT INTO users (email, name, password_hash, role, apps, active) VALUES (?, ?, ?, ?, ?, 1)'
-  ).run(e, name || '', hashPassword(password), r, appsCsv);
+    'INSERT INTO users (email, name, password_hash, role, apps, active, must_change) VALUES (?, ?, ?, ?, ?, 1, ?)'
+  ).run(e, name || '', hashPassword(password), r, appsCsv, mustChange ? 1 : 0);
   return publicUser(getUserById(info.lastInsertRowid));
 }
 
@@ -177,9 +189,35 @@ function updateUser(id, fields) {
 
 function setPassword(id, password) {
   if (!password || String(password).length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), id);
+  // Setting a password also invalidates any outstanding reset token.
+  db.prepare('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_exp = NULL WHERE id = ?')
+    .run(hashPassword(password), id);
   // Changing the password kills every existing session for that user.
   db.prepare('DELETE FROM auth_sessions WHERE user_id = ?').run(id);
+}
+
+// ─── Forced first-login change + email password recovery ────────────────────────
+const sha256 = s => crypto.createHash('sha256').update(String(s)).digest('hex');
+
+function setMustChange(id, value) {
+  db.prepare('UPDATE users SET must_change = ? WHERE id = ?').run(value ? 1 : 0, id);
+}
+
+// Issue a single-use reset token (1 h). Only its hash is stored, so a DB leak
+// can't be replayed. Returns the plain token to embed in the email link.
+function createResetToken(id) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const exp = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  db.prepare('UPDATE users SET reset_token = ?, reset_token_exp = ? WHERE id = ?').run(sha256(token), exp, id);
+  return token;
+}
+
+function getUserByResetToken(token) {
+  if (!token) return null;
+  const row = db.prepare('SELECT * FROM users WHERE reset_token = ?').get(sha256(token));
+  if (!row || !row.active) return null;
+  if (!row.reset_token_exp || new Date(row.reset_token_exp).getTime() < Date.now()) return null;
+  return row;
 }
 
 function deleteUser(id) {
@@ -246,9 +284,11 @@ function seedAdminFromEnv() {
       .run(email, 'Admin', hashPassword(password), 'admin', '*');
     console.log(`[auth] Seeded admin account: ${email}`);
   } else {
-    db.prepare("UPDATE users SET password_hash = ?, role = 'admin', apps = '*', active = 1 WHERE id = ?")
-      .run(hashPassword(password), existing.id);
-    console.log(`[auth] Admin account ensured/updated from env: ${email}`);
+    // Ensure the admin can always get in (role/active/all-apps) but DON'T reset
+    // their password on every boot — that would clobber a password the admin
+    // chose via the change/reset flow. Recovery now goes through forgot-password.
+    db.prepare("UPDATE users SET role = 'admin', apps = '*', active = 1 WHERE id = ?").run(existing.id);
+    console.log(`[auth] Admin account ensured from env (password left intact): ${email}`);
   }
 }
 
@@ -257,6 +297,7 @@ module.exports = {
   hashPassword, verifyPassword, needsRehash, upgradePasswordHash,
   getUserByEmail, getUserById, listUsers, countUsers, countAdmins,
   createUser, updateUser, setPassword, deleteUser, publicUser,
+  setMustChange, createResetToken, getUserByResetToken,
   createSession, getSessionUser, destroySession,
   seedAdminFromEnv,
 };

@@ -88,13 +88,34 @@ function csrfGuard(req, res, next) {
   return next(); // no Origin/Referer → not a cross-site browser request
 }
 
+// Users flagged must_change can't use anything until they set a new password.
+// HTML requests are bounced to the forced change page; API calls get a 403 the
+// client can detect. The change-password page/API itself uses requireLogin
+// (below) so it is never gated — avoiding a redirect loop.
+function passwordChangeGate(req, res) {
+  if (req.user && req.user.must_change) {
+    if (wantsJson(req)) { res.status(403).json({ error: 'Debes cambiar tu contraseña antes de continuar.', must_change: true }); return true; }
+    res.redirect('/auth/change-password');
+    return true;
+  }
+  return false;
+}
+
+// Logged in only — does NOT enforce the password-change gate.
+function requireLogin(req, res, next) {
+  if (!req.user) return denyOrRedirect(req, res, 401, 'Inicia sesión para continuar.');
+  next();
+}
+
 function requireAuth(req, res, next) {
   if (!req.user) return denyOrRedirect(req, res, 401, 'Inicia sesión para continuar.');
+  if (passwordChangeGate(req, res)) return;
   next();
 }
 
 function requireAdmin(req, res, next) {
   if (!req.user) return denyOrRedirect(req, res, 401, 'Inicia sesión para continuar.');
+  if (passwordChangeGate(req, res)) return;
   if (req.user.role !== 'admin') return denyOrRedirect(req, res, 403, 'Necesitas permisos de administrador.');
   next();
 }
@@ -103,12 +124,13 @@ function requireAdmin(req, res, next) {
 function requireApp(appId) {
   return (req, res, next) => {
     if (!req.user) return denyOrRedirect(req, res, 401, 'Inicia sesión para continuar.');
+    if (passwordChangeGate(req, res)) return;
     if (!canAccess(req.user, appId)) return denyOrRedirect(req, res, 403, 'No tienes acceso a esta herramienta.');
     next();
   };
 }
 
 module.exports = {
-  COOKIE_NAME, attachUser, csrfGuard, requireAuth, requireAdmin, requireApp,
+  COOKIE_NAME, attachUser, csrfGuard, requireAuth, requireAdmin, requireApp, requireLogin,
   setSessionCookie, clearSessionCookie,
 };

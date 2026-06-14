@@ -4,8 +4,9 @@ const path = require('path');
 const router = express.Router();
 
 const store = require('./store');
+const mailer = require('./mailer');
 const { appsForUser, appsMeta, APP_IDS } = require('./apps-registry');
-const { requireAuth, requireAdmin, setSessionCookie, clearSessionCookie } = require('./middleware');
+const { requireAuth, requireAdmin, requireLogin, setSessionCookie, clearSessionCookie } = require('./middleware');
 const { rateLimit } = require('./rate-limit');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -13,6 +14,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 // Throttle password-guessing on login and password-change.
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Demasiados intentos de inicio de sesión. Espera unos minutos.' });
 const pwdLimiter   = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Demasiados intentos. Espera unos minutos.' });
+const resetLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 6,  message: 'Demasiadas solicitudes. Espera unos minutos.' });
 
 // A valid-format hash for a random password. Verifying an incoming password
 // against this when the account doesn't exist keeps login response time uniform
@@ -53,7 +55,9 @@ router.post('/login', loginLimiter, (req, res) => {
   }
   const { sid, maxAgeMs } = store.createSession(user.id);
   setSessionCookie(res, sid, maxAgeMs);
-  res.json({ ok: true, redirect: safeNext(req.body.next) });
+  // First-login / temp passwords must be changed before going anywhere else.
+  const redirect = user.must_change ? '/auth/change-password' : safeNext(req.body.next);
+  res.json({ ok: true, redirect, must_change: !!user.must_change });
 });
 
 router.post('/logout', (req, res) => {
@@ -91,6 +95,75 @@ router.post('/api/me/password', pwdLimiter, requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── Forced first-login change + self-service change ───────────────────────────
+router.get('/change-password', requireLogin, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'change-password.html'));
+});
+
+router.post('/api/change-password', pwdLimiter, requireLogin, (req, res) => {
+  const { current, password } = req.body || {};
+  const full = store.getUserById(req.user.id);
+  if (!full) return res.status(401).json({ error: 'Sesión no válida.' });
+  // A voluntary change (not forced) must prove the current password.
+  if (!full.must_change && !store.verifyPassword(current, full.password_hash)) {
+    return res.status(400).json({ error: 'La contraseña actual no es correcta.' });
+  }
+  const np = String(password || '');
+  if (np.length < 8) return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres.' });
+  if (np === '12345678') return res.status(400).json({ error: 'Elige una contraseña distinta de la inicial (12345678).' });
+  try {
+    store.setPassword(req.user.id, np);      // wipes sessions
+    store.setMustChange(req.user.id, false);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  // Re-issue a session so the user stays logged in after the change.
+  const { sid, maxAgeMs } = store.createSession(req.user.id);
+  setSessionCookie(res, sid, maxAgeMs);
+  res.json({ ok: true });
+});
+
+// ─── Forgot / reset password by email ──────────────────────────────────────────
+router.get('/forgot-password', (req, res) => {
+  if (req.user && !req.user.must_change) return res.redirect('/');
+  res.sendFile(path.join(PUBLIC_DIR, 'forgot-password.html'));
+});
+
+router.post('/forgot-password', resetLimiter, async (req, res) => {
+  try {
+    const user = store.getUserByEmail((req.body || {}).email);
+    if (user && user.active && mailer.smtpConfigured()) {
+      const token = store.createResetToken(user.id);
+      try { await mailer.sendResetEmail(user, token); }
+      catch (e) { console.error('[auth] reset email failed:', e.message); }
+    }
+  } catch (e) {
+    console.error('[auth] forgot-password error:', e.message);
+  }
+  // Always the same response — never reveal whether an email exists.
+  res.json({ ok: true });
+});
+
+router.get('/reset-password/:token', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'reset-password.html'));
+});
+
+router.post('/reset-password', resetLimiter, (req, res) => {
+  const { token, password } = req.body || {};
+  const user = store.getUserByResetToken(token);
+  if (!user) return res.status(400).json({ error: 'El enlace no es válido o ha caducado. Solicita uno nuevo.' });
+  const np = String(password || '');
+  if (np.length < 8) return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres.' });
+  if (np === '12345678') return res.status(400).json({ error: 'Elige una contraseña distinta de la inicial (12345678).' });
+  try {
+    store.setPassword(user.id, np);          // also clears the reset token + sessions
+    store.setMustChange(user.id, false);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  res.json({ ok: true });
+});
+
 // ─── Admin: app registry + user management ─────────────────────────────────────
 router.get('/api/apps', requireAdmin, (req, res) => {
   res.json({ apps: appsMeta() });
@@ -103,7 +176,10 @@ router.get('/api/users', requireAdmin, (req, res) => {
 router.post('/api/users', requireAdmin, (req, res) => {
   try {
     const { email, name, password, role, apps } = req.body || {};
-    const user = store.createUser({ email, name, password, role, apps: sanitizeApps(apps) });
+    // Admin-created accounts get a temporary password the user must change on
+    // first login (unless the admin explicitly opts out).
+    const mustChange = req.body.mustChange !== false;
+    const user = store.createUser({ email, name, password, role, apps: sanitizeApps(apps), mustChange });
     res.status(201).json({ user });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -142,6 +218,9 @@ router.post('/api/users/:id/password', requireAdmin, (req, res) => {
   if (!store.getUserById(id)) return res.status(404).json({ error: 'Usuario no encontrado.' });
   try {
     store.setPassword(id, (req.body || {}).password);
+    // An admin-set password is temporary → force the user to change it next time,
+    // unless the admin explicitly opts out.
+    store.setMustChange(id, (req.body || {}).mustChange !== false);
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: e.message });
