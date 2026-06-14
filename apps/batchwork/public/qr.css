@@ -101,6 +101,12 @@
   border-radius: 50%; cursor: pointer; font-size: 0.7rem; padding: 0;
 }
 .qr-saved-logo-x:hover { background: var(--red); color: #fff; }
+.qr-saved-logo-edit {
+  position: absolute; top: -6px; left: -6px; width: 18px; height: 18px; line-height: 1;
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--blue);
+  border-radius: 50%; cursor: pointer; font-size: 0.65rem; padding: 0;
+}
+.qr-saved-logo-edit:hover { background: var(--blue); color: #fff; }
 
 /* Buttons */
 .qr-btn {

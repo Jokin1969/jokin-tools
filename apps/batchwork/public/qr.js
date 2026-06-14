@@ -298,6 +298,7 @@
       box.innerHTML = '<span class="qr-hint">Tus logos (clic para usar):</span>' + d.items.map((it) => `
         <span class="qr-saved-logo" data-id="${it.id}" title="${esc(it.name)}">
           <img src="${esc(it.data)}" alt="${esc(it.name)}" data-act="use" />
+          <button type="button" class="qr-saved-logo-edit" data-act="rename" title="Renombrar">✎</button>
           <button type="button" class="qr-saved-logo-x" data-act="del" title="Eliminar">✕</button>
         </span>`).join('');
       // Cache each logo's data on its node so a click applies it without a round-trip.
@@ -326,6 +327,19 @@
   async function delLogo(id) {
     try {
       const r = await fetch(API + '/logos/' + id, { method: 'DELETE' });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Error'); }
+      loadLogos();
+    } catch (err) { toast(err.message, 'err'); }
+  }
+
+  async function renameLogoUI(id, current) {
+    const name = window.prompt('Nuevo nombre del logo:', current || '');
+    if (name === null) return; // cancelado
+    try {
+      const r = await fetch(API + '/logos/' + id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Error'); }
       loadLogos();
     } catch (err) { toast(err.message, 'err'); }
@@ -568,6 +582,7 @@
       const card = el.closest('.qr-saved-logo');
       if (!card) return;
       if (el.dataset.act === 'del') delLogo(card.dataset.id);
+      else if (el.dataset.act === 'rename') renameLogoUI(card.dataset.id, card._data && card._data.name);
       else if (el.dataset.act === 'use' && card._data) useLogo(card._data.data, card._data.name);
     });
     q('qr-logo-scale').addEventListener('input', (e) => { state.logoScale = Number(e.target.value); schedulePreview(); });

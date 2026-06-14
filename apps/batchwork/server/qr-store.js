@@ -112,7 +112,14 @@ function removeLogo(id, userId) {
   return db.prepare(`DELETE FROM qr_logos WHERE ${where}`).run(...args).changes > 0;
 }
 
+function renameLogo(id, name, userId) {
+  const finalName = (name && String(name).trim()) ? String(name).trim().slice(0, 80) : 'Logo';
+  const where = userId != null ? 'id = ? AND user_id = ?' : 'id = ?';
+  const args = userId != null ? [finalName, id, userId] : [finalName, id];
+  return db.prepare(`UPDATE qr_logos SET name = ? WHERE ${where}`).run(...args).changes > 0;
+}
+
 module.exports = {
   db, list, get, create, remove, systematicName,
-  listLogos, createLogo, removeLogo,
+  listLogos, createLogo, removeLogo, renameLogo,
 };

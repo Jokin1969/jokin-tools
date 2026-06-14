@@ -175,6 +175,14 @@ router.post('/logos', json, (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+router.patch('/logos/:id(\\d+)', json, (req, res) => {
+  try {
+    const ok = store.renameLogo(Number(req.params.id), (req.body || {}).name, req.user.id);
+    if (!ok) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+});
+
 router.delete('/logos/:id(\\d+)', (req, res) => {
   try {
     const ok = store.removeLogo(Number(req.params.id), req.user.id);
