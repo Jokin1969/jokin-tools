@@ -86,6 +86,22 @@
 }
 .qr-btn-x:hover { background: var(--bg-hover); }
 
+/* Saved logo library */
+.qr-saved-logos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.qr-saved-logos .qr-hint { flex: 0 0 100%; }
+.qr-saved-logo { position: relative; width: 46px; height: 46px; }
+.qr-saved-logo img {
+  width: 100%; height: 100%; object-fit: contain; cursor: pointer;
+  background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 3px;
+}
+.qr-saved-logo img:hover { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-glow); }
+.qr-saved-logo-x {
+  position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; line-height: 1;
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--red);
+  border-radius: 50%; cursor: pointer; font-size: 0.7rem; padding: 0;
+}
+.qr-saved-logo-x:hover { background: var(--red); color: #fff; }
+
 /* Buttons */
 .qr-btn {
   font: inherit; font-size: 0.88rem; font-weight: 600; cursor: pointer;

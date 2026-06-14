@@ -161,6 +161,28 @@ router.get('/:id(\\d+)', (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+// ── Reusable logo library ───────────────────────────────────────────────────────
+router.get('/logos', (req, res) => {
+  try { res.json({ items: store.listLogos(req.user.id) }); } catch (err) { fail(res, err); }
+});
+
+router.post('/logos', json, (req, res) => {
+  try {
+    const { name, data } = req.body || {};
+    if (!data || !/^data:image\//i.test(data)) { const e = new Error('Imagen no válida.'); e.status = 400; throw e; }
+    if (data.length > 1200000) { const e = new Error('La imagen es demasiado grande para guardarla.'); e.status = 413; throw e; }
+    res.status(201).json({ item: store.createLogo({ name, data }, req.user.id) });
+  } catch (err) { fail(res, err); }
+});
+
+router.delete('/logos/:id(\\d+)', (req, res) => {
+  try {
+    const ok = store.removeLogo(Number(req.params.id), req.user.id);
+    if (!ok) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+});
+
 router.delete('/:id(\\d+)', (req, res) => {
   try {
     const ok = store.remove(Number(req.params.id), req.user.id);

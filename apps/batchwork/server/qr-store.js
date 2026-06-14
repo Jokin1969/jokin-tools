@@ -29,6 +29,15 @@ db.exec(`
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_qr_user ON qr_codes(user_id);
+
+  CREATE TABLE IF NOT EXISTS qr_logos (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER,
+    name        TEXT NOT NULL,
+    data        TEXT NOT NULL,                     -- image dataURL (downscaled)
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_qr_logos_user ON qr_logos(user_id);
 `);
 
 console.log('[batchwork/qr] Repository ready at:', DB_PATH);
@@ -81,4 +90,29 @@ function remove(id, userId) {
   return db.prepare(`DELETE FROM qr_codes WHERE ${where}`).run(...args).changes > 0;
 }
 
-module.exports = { db, list, get, create, remove, systematicName };
+// ── Reusable logo library (per user) ────────────────────────────────────────────
+function listLogos(userId) {
+  const where = userId != null ? 'WHERE user_id = ?' : '';
+  const args = userId != null ? [userId] : [];
+  return db.prepare(`SELECT id, name, data, created_at FROM qr_logos ${where} ORDER BY created_at DESC, id DESC`).all(...args);
+}
+
+function createLogo({ name, data }, userId = null) {
+  const info = db.prepare('INSERT INTO qr_logos (user_id, name, data) VALUES (@user_id, @name, @data)').run({
+    user_id: userId,
+    name: (name && String(name).trim()) ? String(name).trim().slice(0, 80) : 'Logo',
+    data: String(data),
+  });
+  return db.prepare('SELECT id, name, data, created_at FROM qr_logos WHERE id = ?').get(info.lastInsertRowid);
+}
+
+function removeLogo(id, userId) {
+  const where = userId != null ? 'id = ? AND user_id = ?' : 'id = ?';
+  const args = userId != null ? [id, userId] : [id];
+  return db.prepare(`DELETE FROM qr_logos WHERE ${where}`).run(...args).changes > 0;
+}
+
+module.exports = {
+  db, list, get, create, remove, systematicName,
+  listLogos, createLogo, removeLogo,
+};

@@ -115,10 +115,12 @@
             <span class="qr-label">Logo central <span class="qr-opt">· opcional</span></span>
             <div class="qr-logo-row">
               <button type="button" class="qr-btn qr-btn-soft" id="qr-logo-pick">Elegir imagen…</button>
+              <button type="button" class="qr-btn qr-btn-soft" id="qr-logo-save" style="display:none" title="Guardar en tus logos para reutilizarlo">★ Guardar logo</button>
               <input type="file" id="qr-logo-file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/*" hidden />
               <span class="qr-logo-name" id="qr-logo-name"></span>
               <button type="button" class="qr-btn-x" id="qr-logo-remove" style="display:none" title="Quitar logo">✕</button>
             </div>
+            <div class="qr-saved-logos" id="qr-saved-logos" style="display:none"></div>
             <div class="qr-logo-size" id="qr-logo-size" style="display:none">
               <div class="qr-logo-shape">
                 <span class="qr-hint">Forma del recuadro</span>
@@ -251,8 +253,7 @@
         state.logoName = file.name;
         if (state.ecc === 'L' || state.ecc === 'M') { state.ecc = 'H'; q('qr-ecc').value = 'H'; }
         q('qr-logo-name').textContent = file.name;
-        q('qr-logo-remove').style.display = '';
-        q('qr-logo-size').style.display = '';
+        toggleLogoUI();
         schedulePreview();
       };
       img.onerror = () => toast('No se pudo leer la imagen.', 'err');
@@ -261,13 +262,73 @@
     reader.readAsDataURL(file);
   }
 
+  // Apply a logo (from disk or the saved library) into the current QR.
+  function useLogo(data, name) {
+    state.logo = data; state.logoName = name || 'logo';
+    if (state.ecc === 'L' || state.ecc === 'M') { state.ecc = 'H'; q('qr-ecc').value = 'H'; }
+    q('qr-logo-name').textContent = state.logoName;
+    toggleLogoUI();
+    schedulePreview();
+  }
+
+  function toggleLogoUI() {
+    const has = !!state.logo;
+    q('qr-logo-remove').style.display = has ? '' : 'none';
+    q('qr-logo-size').style.display = has ? '' : 'none';
+    q('qr-logo-save').style.display = has ? '' : 'none';
+  }
+
   function clearLogo() {
     state.logo = null; state.logoName = '';
     q('qr-logo-file').value = '';
     q('qr-logo-name').textContent = '';
-    q('qr-logo-remove').style.display = 'none';
-    q('qr-logo-size').style.display = 'none';
+    toggleLogoUI();
     schedulePreview();
+  }
+
+  // ── Reusable logo library ──────────────────────────────────────────────────────
+  async function loadLogos() {
+    const box = q('qr-saved-logos');
+    try {
+      const r = await fetch(API + '/logos');
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Error');
+      if (!d.items.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
+      box.style.display = '';
+      box.innerHTML = '<span class="qr-hint">Tus logos (clic para usar):</span>' + d.items.map((it) => `
+        <span class="qr-saved-logo" data-id="${it.id}" title="${esc(it.name)}">
+          <img src="${esc(it.data)}" alt="${esc(it.name)}" data-act="use" />
+          <button type="button" class="qr-saved-logo-x" data-act="del" title="Eliminar">✕</button>
+        </span>`).join('');
+      // Cache each logo's data on its node so a click applies it without a round-trip.
+      box.querySelectorAll('.qr-saved-logo').forEach((el) => {
+        const it = d.items.find((x) => String(x.id) === el.dataset.id);
+        if (it) el._data = it;
+      });
+    } catch { box.style.display = 'none'; }
+  }
+
+  async function doSaveLogo() {
+    if (!state.logo) return;
+    toast('Guardando logo…');
+    try {
+      const r = await fetch(API + '/logos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: state.logoName || 'Logo', data: state.logo }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Error');
+      toast('Logo guardado ✓', 'ok');
+      loadLogos();
+    } catch (err) { toast(err.message, 'err'); }
+  }
+
+  async function delLogo(id) {
+    try {
+      const r = await fetch(API + '/logos/' + id, { method: 'DELETE' });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Error'); }
+      loadLogos();
+    } catch (err) { toast(err.message, 'err'); }
   }
 
   // ── Download helper ──────────────────────────────────────────────────────────────
@@ -435,8 +496,7 @@
     q('qr-logo-inner').value = state.logoInner;
     root.querySelectorAll('input[name="qr-logo-shape"]').forEach((r) => { r.checked = r.value === state.logoShape; });
     q('qr-logo-name').textContent = state.logoName;
-    q('qr-logo-remove').style.display = state.logo ? '' : 'none';
-    q('qr-logo-size').style.display = state.logo ? '' : 'none';
+    toggleLogoUI();
     q('qr-frame').checked = state.frame;
     q('qr-frame-text').value = state.frameText;
     q('qr-frame-text').style.display = state.frame ? '' : 'none';
@@ -501,6 +561,15 @@
     q('qr-logo-pick').addEventListener('click', () => q('qr-logo-file').click());
     q('qr-logo-file').addEventListener('change', (e) => handleLogo(e.target.files[0]));
     q('qr-logo-remove').addEventListener('click', clearLogo);
+    q('qr-logo-save').addEventListener('click', doSaveLogo);
+    q('qr-saved-logos').addEventListener('click', (e) => {
+      const el = e.target.closest('[data-act]');
+      if (!el) return;
+      const card = el.closest('.qr-saved-logo');
+      if (!card) return;
+      if (el.dataset.act === 'del') delLogo(card.dataset.id);
+      else if (el.dataset.act === 'use' && card._data) useLogo(card._data.data, card._data.name);
+    });
     q('qr-logo-scale').addEventListener('input', (e) => { state.logoScale = Number(e.target.value); schedulePreview(); });
     q('qr-logo-inner').addEventListener('input', (e) => { state.logoInner = Number(e.target.value); schedulePreview(); });
     root.querySelectorAll('input[name="qr-logo-shape"]').forEach((rb) => {
@@ -540,6 +609,7 @@
     syncControls();
     loadStyles();
     loadRepo();
+    loadLogos();
   }
 
   window.QRTool = { mount };
