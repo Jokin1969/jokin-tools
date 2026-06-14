@@ -12,7 +12,8 @@ const isProd = process.env.NODE_ENV === 'production';
 app.set('trust proxy', 1);
 
 // ─── Ensure /data directories exist ─────────────────────────────────────────
-const dataDir = path.dirname(process.env.DB_PATH || '/data/jokin_tools.db');
+const dbPath = process.env.DB_PATH || '/data/jokin_tools.db';
+const dataDir = path.dirname(dbPath);
 const uploadsDir = path.join(dataDir, 'uploads');
 [dataDir, uploadsDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
@@ -20,6 +21,17 @@ const uploadsDir = path.join(dataDir, 'uploads');
     console.log(`[server] Created directory: ${dir}`);
   }
 });
+
+// Persistence safeguard: in production the SQLite file MUST live on the mounted
+// Railway volume (/data). If DB_PATH points elsewhere, every redeploy silently
+// starts from an empty DB on ephemeral disk — users would be asked to change
+// their password again and again, saved data would vanish, etc. Warn loudly so
+// this is obvious in the logs.
+if (process.env.NODE_ENV === 'production' && !path.resolve(dbPath).startsWith('/data')) {
+  console.warn('[server] ⚠️  DB_PATH no está bajo /data (' + dbPath + '). '
+    + 'En Railway la base de datos debe vivir en el volumen montado en /data o se '
+    + 'perderá en cada despliegue. Configura DB_PATH=/data/jokin_tools.db y el volumen.');
+}
 
 // ─── Security headers (hand-rolled; no helmet dependency) ────────────────────
 app.use((req, res, next) => {

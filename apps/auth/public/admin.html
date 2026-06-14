@@ -40,6 +40,7 @@
     .badge.admin { background:#e7f0fa; color:var(--klein); }
     .badge.user { background:#eef0ec; color:var(--text-muted); }
     .badge.off { background:#fbeceb; color:#B3261E; }
+    .badge.pending { background:#fdf2d6; color:#8C6800; }
     .row-actions { display:flex; flex-wrap:wrap; gap:6px; }
     .msg { font-family:var(--mono); font-size:0.76rem; margin-top:12px; min-height:1.1em; }
     .msg.err { color:#B3261E; } .msg.ok { color:var(--turquoise); }
@@ -190,7 +191,8 @@
       tdApps.appendChild(appsBox);
 
       const tdState = document.createElement('td');
-      tdState.innerHTML = `<span class="badge ${u.active ? (isAdmin ? 'admin' : 'user') : 'off'}">${u.active ? (isAdmin ? 'admin' : 'activo') : 'inactivo'}</span>`;
+      tdState.innerHTML = `<span class="badge ${u.active ? (isAdmin ? 'admin' : 'user') : 'off'}">${u.active ? (isAdmin ? 'admin' : 'activo') : 'inactivo'}</span>`
+        + (u.must_change ? ' <span class="badge pending" title="Entrará con la contraseña inicial y deberá cambiarla en su próximo acceso">contraseña pendiente</span>' : '');
 
       const tdActions = document.createElement('td');
       tdActions.innerHTML = `<div class="row-actions"></div>`;
@@ -211,7 +213,7 @@
       const pwBtn = mkBtn('Contraseña', 'btn ghost', async () => {
         const np = prompt(`Nueva contraseña para ${u.email} (mín. 8):`);
         if (np == null) return;
-        try { await api('POST', `/auth/api/users/${u.id}/password`, { password: np }); setMsg(rowMsg, '✓ Contraseña cambiada.', 'ok'); }
+        try { await api('POST', `/auth/api/users/${u.id}/password`, { password: np }); setMsg(rowMsg, '✓ Contraseña cambiada. El usuario deberá cambiarla al entrar.', 'ok'); loadUsers(); }
         catch (err) { setMsg(rowMsg, err.message, 'err'); }
       });
 
