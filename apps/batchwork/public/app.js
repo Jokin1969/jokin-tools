@@ -113,6 +113,13 @@ const OPERATIONS = [
           },
           { id: 'blockSize', type: 'number', label: 'N (tamaño del bloque)', default: 4, min: 1, conditional: 'splitMode=blocksN' },
           { id: 'pattern', type: 'text', label: 'Patrón de bloques — páginas por bloque, separadas por comas', default: '', placeholder: 'ej. 3,2,2,1 (para un PDF de 8 páginas)', conditional: 'splitMode=pattern' },
+          {
+            id: 'grouping', type: 'select', label: 'Organización de los archivos de salida', default: 'byFile',
+            options: [
+              { value: 'byFile',  label: 'Una carpeta por fichero (con sus bloques dentro)' },
+              { value: 'byBlock', label: 'Una carpeta por bloque (con todos los ficheros dentro, mismo nombre)' },
+            ],
+          },
         ],
       },
     ],

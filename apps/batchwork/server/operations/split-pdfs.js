@@ -10,7 +10,10 @@ async function run(session, params) {
     expectedPages,
     blockSize = 4,
     pattern = '',
+    grouping = 'byFile',
   } = params;
+
+  const groupingArg = grouping === 'byBlock' ? 'byBlock' : 'byFile';
 
   const inputFiles = fs.readdirSync(session.inputDir)
     .filter(f => /\.pdf$/i.test(f))
@@ -79,6 +82,7 @@ async function run(session, params) {
     '--input', session.inputDir,
     '--output', session.outputDir,
     '--mode', modeArg,
+    '--grouping', groupingArg,
   ], session);
 
   const zipPath = path.join(path.dirname(session.outputDir), 'result.zip');
