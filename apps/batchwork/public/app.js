@@ -97,7 +97,7 @@ const OPERATIONS = [
       {
         id: 'split-pdfs',
         label: 'Dividir PDFs',
-        desc: 'Divide cada PDF en páginas sueltas, pares/impares, o bloques de N páginas.',
+        desc: 'Divide cada PDF en páginas sueltas, pares/impares, bloques de N páginas, o un patrón personalizado de tamaños (ej. 3,2,2,1).',
         params: [
           { id: 'expectedPages', type: 'number', label: 'Nº de páginas esperado (deja vacío para omitir validación)', default: '', min: 1 },
           {
@@ -108,9 +108,11 @@ const OPERATIONS = [
               { value: 'blocks2', label: 'Bloques de 2 páginas' },
               { value: 'blocks3', label: 'Bloques de 3 páginas' },
               { value: 'blocksN', label: 'Bloques de N páginas (personalizable)' },
+              { value: 'pattern', label: 'Patrón personalizado (ej. 3,2,2,1)' },
             ],
           },
           { id: 'blockSize', type: 'number', label: 'N (tamaño del bloque)', default: 4, min: 1, conditional: 'splitMode=blocksN' },
+          { id: 'pattern', type: 'text', label: 'Patrón de bloques — páginas por bloque, separadas por comas', default: '', placeholder: 'ej. 3,2,2,1 (para un PDF de 8 páginas)', conditional: 'splitMode=pattern' },
         ],
       },
     ],
@@ -698,6 +700,7 @@ function buildParamField(opId, p) {
     input.className = 'bw-input';
     input.id = `param-${opId}-${p.id}`;
     input.value = getParam(opId, p.id) ?? p.default ?? '';
+    if (p.placeholder) input.placeholder = p.placeholder;
     input.addEventListener('input', () => {
       setParam(opId, p.id, input.value);
       updateExecuteBtn();

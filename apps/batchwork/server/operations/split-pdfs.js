@@ -9,6 +9,7 @@ async function run(session, params) {
     splitMode = 'pages',
     expectedPages,
     blockSize = 4,
+    pattern = '',
   } = params;
 
   const inputFiles = fs.readdirSync(session.inputDir)
@@ -52,7 +53,24 @@ async function run(session, params) {
 
   const resolvedBlockSize = (splitMode === 'blocksN') ? (parseInt(blockSize) || 4) : 2;
 
-  const modeArg = splitMode === 'blocksN' ? `blocks:${resolvedBlockSize}`
+  // Custom pattern: a comma-separated list of block sizes, e.g. "3,2,2,1".
+  // Each PDF is cut sequentially into those block sizes; any leftover pages
+  // (when the pattern sums to fewer than the page count) go into a final block.
+  let patternArg = '';
+  if (splitMode === 'pattern') {
+    const sizes = String(pattern)
+      .split(/[\s,]+/)
+      .map(s => parseInt(s, 10))
+      .filter(nn => Number.isInteger(nn) && nn > 0 && nn <= 10000)
+      .slice(0, 2000);
+    if (sizes.length === 0) {
+      throw new Error('Introduce un patrón de bloques válido, por ejemplo: 3,2,2,1');
+    }
+    patternArg = sizes.join(',');
+  }
+
+  const modeArg = splitMode === 'pattern' ? `pattern:${patternArg}`
+    : splitMode === 'blocksN' ? `blocks:${resolvedBlockSize}`
     : splitMode === 'blocks2' ? 'blocks:2'
     : splitMode === 'blocks3' ? 'blocks:3'
     : splitMode;
