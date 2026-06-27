@@ -15,13 +15,6 @@ function splitPair(line) {
   return null;
 }
 
-// Name without its (last) extension — used for matching and for the new name,
-// so the file always keeps its ORIGINAL extension.
-function baseName(name) {
-  const ext = path.extname(name);
-  return ext ? name.slice(0, -ext.length) : name;
-}
-
 async function run(session) {
   const allFiles = fs.readdirSync(session.inputDir)
     .filter(f => fs.statSync(path.join(session.inputDir, f)).isFile());
@@ -35,7 +28,9 @@ async function run(session) {
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
   if (files.length === 0) throw new Error('No se han subido ficheros para renombrar');
 
-  // Build a case-insensitive map: old base name (lowercased) → new base name.
+  // Build a case-insensitive map from the left (current) name → right (new) name,
+  // both kept verbatim (no extension stripping, so dotted names like
+  // "plasmido.v2" survive intact).
   const raw = fs.readFileSync(path.join(session.inputDir, listFile), 'utf8');
   const map = new Map();
   let badLines = 0;
@@ -44,7 +39,7 @@ async function run(session) {
     if (!trimmed) continue;
     const pair = splitPair(trimmed);
     if (!pair || !pair[0] || !pair[1]) { badLines++; continue; }
-    map.set(baseName(pair[0]).toLowerCase(), baseName(pair[1]));
+    map.set(pair[0].toLowerCase(), pair[1]);
   }
   if (map.size === 0) {
     throw new Error('El listado de parejas está vacío o no tiene un separador válido (tabulador, ->, ; o ,).');
@@ -63,15 +58,24 @@ async function run(session) {
     const srcFile = files[i];
     const ext = path.extname(srcFile);
     const stem = ext ? srcFile.slice(0, -ext.length) : srcFile;
-    const newBase = map.get(stem.toLowerCase());
+    // Match the list entry against the name WITHOUT extension first (the normal
+    // case), and fall back to the full filename (tolerates entries that include
+    // the extension).
+    const newVal = map.get(stem.toLowerCase()) ?? map.get(srcFile.toLowerCase());
 
     session.progress = { current: i + 1, total: files.length, message: srcFile };
 
-    if (newBase === undefined) { skipped.push(srcFile); continue; }  // no pair → omit
+    if (newVal === undefined) { skipped.push(srcFile); continue; }  // no pair → omit
 
-    let newName = newBase + ext;
+    // Always keep the file's ORIGINAL extension; append it unless the new name
+    // already ends with it (so 'plasmido'→'plasmido.dna', and 'x.dna' stays 'x.dna').
+    let newName = (ext && !newVal.toLowerCase().endsWith(ext.toLowerCase())) ? newVal + ext : newVal;
     let n = 2;
-    while (usedOut.has(newName.toLowerCase())) { newName = `${newBase} (${n++})${ext}`; }
+    while (usedOut.has(newName.toLowerCase())) {
+      const e2 = path.extname(newName);
+      const b2 = e2 ? newName.slice(0, -e2.length) : newName;
+      newName = `${b2} (${n++})${e2}`;
+    }
     usedOut.add(newName.toLowerCase());
 
     try {
