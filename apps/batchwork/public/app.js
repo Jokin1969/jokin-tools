@@ -15,12 +15,19 @@ const OPERATIONS = [
       },
       {
         id: 'rename',
-        label: 'Renombrar lista de nombres',
-        desc: 'Renombra un lote de ficheros según el orden de líneas de un fichero .txt.',
+        label: 'Renombrar por orden de lista',
+        desc: 'Renombra un lote de ficheros según el ORDEN: el fichero N (por orden de nombre) toma el nombre N de la lista (un nombre por línea, .txt).',
         uploadPaired: true,
         params: [
           { id: 'keepExtension', type: 'checkbox', label: 'Conservar extensión original', default: true },
         ],
+      },
+      {
+        id: 'rename-pairs',
+        label: 'Renombrar por parejas (nombre → nombre)',
+        desc: 'Renombra emparejando cada fichero con un listado de parejas «nombre actual → nombre nuevo». Solo se renombran los ficheros cuyo nombre coincida con una pareja (sin distinguir mayúsculas); los demás se omiten. No hace falta que haya tantas parejas como ficheros.',
+        uploadPairs: true,
+        params: [],
       },
     ],
   },
@@ -211,6 +218,7 @@ const state = {
   sessionId: null,
   files: [],          // File objects
   namelistFile: null, // File for op 'rename'
+  pairsText: '',      // pasted/loaded pairs list for op 'rename-pairs'
   fileList: [],       // Metadata for op 'inventory'
   paramValues: {},    // { [opId]: { [paramId]: value } }
   appStatus: 'idle',  // idle | uploading | running | done | error
@@ -298,6 +306,7 @@ function selectOp(opId) {
   state.selectedOp = opId;
   state.files = [];
   state.namelistFile = null;
+  state.pairsText = '';
   state.fileList = [];
   state.clientSideBlob = null;
   const prevResults = $('degen-results');
@@ -401,6 +410,56 @@ function renderUploadArea(op) {
 
     pair.appendChild(dropFiles);
     pair.appendChild(dropNames);
+    area.appendChild(pair);
+    $('file-list-wrap').style.display = '';
+
+  } else if (op.uploadPairs) {
+    // Files + a pairs list (paste into a textarea or load a .txt)
+    const pair = mk('div', 'bw-upload-pair');
+
+    const dropFiles = makeDropZone({
+      label: 'Ficheros a renombrar',
+      sub: 'Drag & drop o clic',
+      multiple: true,
+      onFiles: (files) => {
+        state.files = [...state.files, ...files].slice(0, 5000);
+        state.files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+        updateFileList();
+        updateExecuteBtn();
+      },
+    });
+
+    const panel = mk('div', 'bw-pairs-panel');
+    panel.appendChild(mk('div', 'bw-pairs-label', 'Listado de parejas — pega el texto o carga un .txt'));
+    const ta = document.createElement('textarea');
+    ta.className = 'bw-input bw-textarea';
+    ta.rows = 8;
+    ta.placeholder = 'Una pareja por línea «nombre actual → nombre nuevo». Separador: tabulador, ->, ; o ,\n\nIMG_001\tboda\nIMG_002 -> luna_de_miel\nIMG_003;cena';
+    ta.value = state.pairsText || '';
+    ta.addEventListener('input', () => { state.pairsText = ta.value; updateExecuteBtn(); });
+    panel.appendChild(ta);
+
+    const loadRow = mk('div', 'bw-pairs-load');
+    const loadBtn = mk('button', 'bw-btn-clear', 'Cargar .txt…');
+    loadBtn.type = 'button';
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.txt,text/plain';
+    fileInput.style.display = 'none';
+    loadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => { ta.value = reader.result; state.pairsText = String(reader.result); updateExecuteBtn(); };
+      reader.readAsText(f);
+    });
+    loadRow.appendChild(loadBtn);
+    loadRow.appendChild(fileInput);
+    panel.appendChild(loadRow);
+
+    pair.appendChild(dropFiles);
+    pair.appendChild(panel);
     area.appendChild(pair);
     $('file-list-wrap').style.display = '';
 
@@ -804,6 +863,14 @@ function updateExecuteBtn() {
     else if (!hasFiles)         setStatus('Falta: arrastra los ficheros a renombrar', '');
     else if (!hasNames)         setStatus('Falta: arrastra el .txt con los nombres nuevos', '');
     else                        setStatus('', '');
+  } else if (op.uploadPairs) {
+    const hasFiles = state.files.length > 0;
+    const hasPairs = (state.pairsText || '').trim().length > 0;
+    ready = hasFiles && hasPairs;
+    if (!hasFiles && !hasPairs) setStatus('Carga los ficheros y pega/carga el listado de parejas', '');
+    else if (!hasFiles)         setStatus('Falta: arrastra los ficheros a renombrar', '');
+    else if (!hasPairs)         setStatus('Falta: el listado de parejas (pega el texto o carga un .txt)', '');
+    else                        setStatus('', '');
   } else {
     ready = state.files.length > 0;
     if (!ready) setStatus('Arrastra los ficheros para continuar', '');
@@ -922,6 +989,11 @@ async function uploadFiles(sessionId, op) {
   for (const f of state.files) formData.append('files', f, f.name);
   if (op.uploadPaired && state.namelistFile) {
     formData.append('nameList', state.namelistFile, state.namelistFile.name);
+  }
+  // The pairs list rides the same 'nameList' channel (server renames it to
+  // _namelist_.txt); we turn the pasted/loaded text into a file here.
+  if (op.uploadPairs && (state.pairsText || '').trim()) {
+    formData.append('nameList', new Blob([state.pairsText], { type: 'text/plain' }), '_pairs_.txt');
   }
 
   const res = await fetch(`/batchwork/api/session/${sessionId}/upload`, {

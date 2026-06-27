@@ -325,6 +325,12 @@ body {
 /* ── Special zones for op2 (two inputs) ─────────────────────────────────── */
 .bw-upload-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
+/* Pairs list panel (op rename-pairs) */
+.bw-pairs-panel { display: flex; flex-direction: column; gap: 8px; }
+.bw-pairs-label { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); }
+.bw-pairs-panel .bw-textarea { width: 100%; min-height: 150px; resize: vertical; font-family: var(--mono); font-size: 0.82rem; white-space: pre; }
+.bw-pairs-load { display: flex; justify-content: flex-end; }
+
 /* ── File list ───────────────────────────────────────────────────────────── */
 .bw-file-list-wrap {
   background: var(--bg-card);

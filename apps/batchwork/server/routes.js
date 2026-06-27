@@ -182,6 +182,7 @@ router.post('/api/session/:id/execute', express.json(), async (req, res) => {
   const OPERATIONS = {
     'inventory': () => require('./operations/inventory'),
     'rename': () => require('./operations/rename-from-list'),
+    'rename-pairs': () => require('./operations/rename-pairs'),
     'transparent-png': () => require('./operations/transparent-png'),
     'resize-tiff': () => require('./operations/resize-tiff'),
     'docx-to-pdf': () => require('./operations/docx-to-pdf'),
