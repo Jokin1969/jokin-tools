@@ -444,7 +444,7 @@ function renderUploadArea(op) {
     const ta = document.createElement('textarea');
     ta.className = 'bw-input bw-textarea';
     ta.rows = 8;
-    ta.placeholder = 'Una pareja por línea «nombre actual → nombre nuevo». Separador: tabulador, ->, ; o ,\n\nIMG_001\tboda\nIMG_002 -> luna_de_miel\nIMG_003;cena';
+    ta.placeholder = 'Una pareja por línea «nombre actual → nombre nuevo». Separador: tabulador, ->, ; o ,\nEl nombre va SIN extensión; los espacios valen y las comillas son opcionales.\nUna misma línea renombra todas las extensiones de ese nombre (.dna, .gb…).\n\npAAV 7OR I109I W145Y vole PrP\t6666\nIMG_002 -> luna_de_miel\nIMG_003;cena';
     ta.value = state.pairsText || '';
     ta.addEventListener('input', () => { state.pairsText = ta.value; updateExecuteBtn(); });
     panel.appendChild(ta);

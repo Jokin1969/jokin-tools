@@ -2,14 +2,26 @@ const fs = require('fs');
 const path = require('path');
 const { createZip } = require('../utils');
 
+// Remove one layer of surrounding quotes (straight, typographic or angular), so
+// the user can wrap names that contain spaces in quotes — or not; both work.
+function stripQuotes(s) {
+  s = s.trim();
+  const quotes = [['"', '"'], ["'", "'"], ['“', '”'], ['‘', '’'], ['«', '»']];
+  for (const [a, b] of quotes) {
+    if (s.length >= 2 && s[0] === a && s[s.length - 1] === b) return s.slice(1, -1).trim();
+  }
+  return s;
+}
+
 // Split one line of the pairs list into [oldName, newName]. The separator is
 // auto-detected per line, in priority order: TAB, arrow (-> => →), ';', ','.
+// Surrounding quotes around each side are optional and stripped.
 function splitPair(line) {
   const seps = ['\t', '->', '=>', '→', ';', ','];
   for (const sep of seps) {
     const i = line.indexOf(sep);
     if (i !== -1) {
-      return [line.slice(0, i).trim(), line.slice(i + sep.length).trim()];
+      return [stripQuotes(line.slice(0, i)), stripQuotes(line.slice(i + sep.length))];
     }
   }
   return null;
