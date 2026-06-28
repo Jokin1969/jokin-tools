@@ -174,6 +174,12 @@ const OPERATIONS = [
         clientSide: true,
         params: [],
       },
+      {
+        id: 'dna-gb-compare',
+        label: 'Comparar secuencias .dna vs .gb (verificar proveedor)',
+        desc: 'Verifica que el plásmido que te fabrica el proveedor (GenScript, .gb) coincide exactamente con el que diseñaste en SnapGene (.dna). Suelta de golpe todos los ficheros: se emparejan por nombre (mismo nombre = misma pareja, ignorando la extensión) y se comparan uno a uno, nucleótido a nucleótido.',
+        fullCustom: 'dnacompare',
+      },
     ],
   },
   {
@@ -334,14 +340,18 @@ function selectOp(opId) {
 
   // Fully custom ops render their own panel and own controls — skip the generic
   // upload / params / execute machinery entirely.
-  if (op.fullCustom === 'qr') {
+  if (op.fullCustom) {
     $('upload-area').style.display = 'none';
     $('file-list-wrap').style.display = 'none';
     $('execute-bar').style.display = 'none';
     const zone = $('params-zone');
     zone.innerHTML = '';
-    if (window.QRTool) window.QRTool.mount(zone);
-    else zone.innerHTML = '<p style="color:#B83232">No se pudo cargar la herramienta de QRs.</p>';
+    if (op.fullCustom === 'qr') {
+      if (window.QRTool) window.QRTool.mount(zone);
+      else zone.innerHTML = '<p style="color:#B83232">No se pudo cargar la herramienta de QRs.</p>';
+    } else if (op.fullCustom === 'dnacompare') {
+      renderDnaCompareUI(zone);
+    }
     return;
   }
 
@@ -3151,7 +3161,7 @@ let dnaReplaceInput = {
   newSeq: '',
   addFeature: true,
   featName: '',
-  featType: 'misc_feature',
+  featType: 'CDS',
   featColor: '#a6acb3',
   deleteOverlap: true,
   shiftCoords: true,
@@ -3727,7 +3737,7 @@ function renderDnaReplaceUI() {
   clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
   clearBtn.addEventListener('click', () => {
     if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
-    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'misc_feature', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false };
+    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'CDS', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false };
     const res = $('dna-replace-results');
     if (res) res.remove();
     resetExecuteBar();
@@ -4169,6 +4179,310 @@ function renderDnaReplaceResults(r) {
 
   const paramsZone = $('params-zone');
   paramsZone.parentNode.insertBefore(root, paramsZone.nextSibling);
+}
+
+// ── .dna vs .gb sequence comparison (verify provider) ─────────────────────────
+//
+// Compares the plasmid you designed in SnapGene (.dna, binary) against the one
+// the provider (e.g. GenScript) sends back (.gb, GenBank text). Files are paired
+// by name (extension ignored, case-insensitive); only complete pairs are
+// compared, nt-by-nt. Because a circular plasmid can be linearised at any base
+// and on either strand, a sequence that differs only by a circular rotation
+// and/or reverse-complement IS the same molecule — we detect and label that
+// instead of crying "mismatch".
+
+function cmpSeqFromDna(bytes) {
+  const packets = dnaParsePackets(bytes);
+  dnaValidateCookie(packets);
+  const dnaPkt = packets.find(p => p.type === 0);
+  if (!dnaPkt) throw new Error('El .dna no contiene secuencia de ADN.');
+  const seq = dnaBytesToAscii(dnaPkt.data.slice(1)).toUpperCase().replace(/[^A-Z]/g, '');
+  return { seq, circular: (dnaPkt.data[0] & 1) === 1, topologyKnown: true };
+}
+
+function cmpSeqFromGb(text) {
+  const locusLine = (text.match(/^LOCUS[^\n]*/m) || [''])[0];
+  const circular = /\bcircular\b/i.test(locusLine);
+  const linear = /\blinear\b/i.test(locusLine);
+  let seq = '';
+  const oi = text.search(/^ORIGIN/m);
+  if (oi >= 0) {
+    let after = text.slice(oi).replace(/^ORIGIN[^\n]*\n?/, '');
+    const term = after.search(/^\/\//m);
+    if (term >= 0) after = after.slice(0, term);
+    seq = after.replace(/[^A-Za-z]/g, '').toUpperCase();
+  }
+  return { seq, circular, topologyKnown: circular || linear };
+}
+
+const CMP_COMP = { A:'T',T:'A',G:'C',C:'G',U:'A',N:'N',R:'Y',Y:'R',S:'S',W:'W',K:'M',M:'K',B:'V',V:'B',D:'H',H:'D' };
+function cmpRevComp(s) {
+  let out = '';
+  for (let i = s.length - 1; i >= 0; i--) out += CMP_COMP[s[i]] || 'N';
+  return out;
+}
+
+// Compare two sequences as (possibly circular) plasmids.
+function cmpCompare(a, b) {
+  if (a === b && a.length > 0) return { status: 'identical', len: a.length };
+  if (a.length !== b.length) return { status: 'mismatch', reason: 'length', lenA: a.length, lenB: b.length };
+  const aa = a + a;
+  const idx = aa.indexOf(b);
+  if (idx > 0) return { status: 'rotated', offset: idx, len: a.length };
+  const rb = cmpRevComp(b);
+  const idxR = aa.indexOf(rb);
+  if (idxR >= 0) return { status: 'revcomp', offset: idxR, len: a.length };
+  let diffs = 0, first = -1;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) { diffs++; if (first < 0) first = i; }
+  return { status: 'mismatch', reason: 'content', diffs, first, len: a.length };
+}
+
+const cmpFmt = n => Number(n).toLocaleString('es-ES');
+
+function renderDnaCompareUI(zone) {
+  const cmp = { items: [] }; // { name, base, kind, seq, circular, topologyKnown, error }
+  const root = mk('div', 'bw-params');
+
+  // ── Explanation ─────────────────────────────────────────────────────────────
+  const intro = mk('div', 'dnacmp-intro');
+  intro.innerHTML = `
+    <h3>¿Qué hace y por qué?</h3>
+    <p>Cuando diseñas un plásmido en <strong>SnapGene</strong> obtienes un fichero <code>.dna</code>.
+       El proveedor (p. ej. <strong>GenScript</strong>) te lo fabrica y te devuelve la secuencia en formato
+       <strong>GenBank</strong> <code>.gb</code>. Esta herramienta confirma que lo que te van a fabricar
+       <strong>coincide exactamente</strong> con lo que pediste: mismo número de nucleótidos y mismos nucleótidos.</p>
+    <ol>
+      <li>Suelta de golpe <strong>todos</strong> los ficheros (tus <code>.dna</code> y los <code>.gb</code> del proveedor) — vale arrastrar o el explorador.</li>
+      <li>Se <strong>emparejan por nombre</strong> (se ignora la extensión y las mayúsculas). Si un nombre no tiene pareja exacta, <strong>no se compara</strong> y se avisa.</li>
+      <li>Cada pareja se compara <strong>nucleótido a nucleótido</strong>. Como un plásmido circular puede venir «cortado» en otro punto o en la hebra contraria, también se detecta ese caso: sigue siendo <strong>la misma molécula</strong>.</li>
+    </ol>`;
+  root.appendChild(intro);
+
+  // ── Drop zone ───────────────────────────────────────────────────────────────
+  const drop = makeDropZone({
+    label: 'Suelta aquí los .dna y los .gb',
+    sub: 'Arrastra o haz clic · varios a la vez',
+    accept: '.dna,.gb,.gbk,.gbff,.genbank',
+    multiple: true,
+    onFiles: handleFiles,
+  });
+  root.appendChild(drop);
+
+  const listWrap = mk('div', 'dnacmp-loaded');
+  root.appendChild(listWrap);
+
+  const actions = mk('div', 'dnacmp-actions');
+  const btnCompare = mk('button', 'bw-btn bw-btn-primary', 'Comparar');
+  btnCompare.type = 'button'; btnCompare.disabled = true;
+  const btnClear = mk('button', 'bw-btn bw-btn-cancel', 'Vaciar');
+  btnClear.type = 'button';
+  actions.appendChild(btnCompare); actions.appendChild(btnClear);
+  root.appendChild(actions);
+
+  const results = mk('div', 'dnacmp-results');
+  root.appendChild(results);
+
+  zone.appendChild(root);
+
+  const kindOf = name =>
+    /\.dna$/i.test(name) ? 'dna' :
+    /\.(gb|gbk|gbff|genbank)$/i.test(name) ? 'gb' : null;
+  const baseOf = name => name.replace(/\.[^.\\/]+$/, '').replace(/^.*[\\/]/, '');
+
+  async function handleFiles(files) {
+    for (const f of files) {
+      const kind = kindOf(f.name);
+      const base = baseOf(f.name);
+      if (!kind) { cmp.items.push({ name: f.name, base, kind: null, error: 'Extensión no reconocida (usa .dna o .gb).' }); continue; }
+      try {
+        if (kind === 'dna') {
+          const buf = new Uint8Array(await f.arrayBuffer());
+          const { seq, circular, topologyKnown } = cmpSeqFromDna(buf);
+          if (!seq) throw new Error('Secuencia vacía.');
+          cmp.items.push({ name: f.name, base, kind, seq, circular, topologyKnown });
+        } else {
+          const text = await f.text();
+          const { seq, circular, topologyKnown } = cmpSeqFromGb(text);
+          if (!seq) throw new Error('No se encontró la sección ORIGIN con secuencia.');
+          cmp.items.push({ name: f.name, base, kind, seq, circular, topologyKnown });
+        }
+      } catch (e) {
+        cmp.items.push({ name: f.name, base, kind, error: e.message });
+      }
+    }
+    renderLoaded();
+    btnCompare.disabled = cmp.items.length === 0;
+  }
+
+  function renderLoaded() {
+    listWrap.innerHTML = '';
+    if (!cmp.items.length) return;
+    const head = mk('div', 'dnacmp-loaded-head', `${cmp.items.length} fichero(s) cargado(s)`);
+    listWrap.appendChild(head);
+    const grid = mk('div', 'dnacmp-chips');
+    cmp.items.forEach((it, i) => {
+      const chip = mk('div', 'dnacmp-chip' + (it.error ? ' is-err' : ''));
+      const badge = it.kind ? it.kind.toUpperCase() : '??';
+      chip.innerHTML = `<span class="dnacmp-chip-badge dnacmp-${it.kind || 'bad'}">${badge}</span>` +
+        `<span class="dnacmp-chip-name">${it.name}</span>` +
+        (it.error ? `<span class="dnacmp-chip-err">⚠ ${it.error}</span>`
+                  : `<span class="dnacmp-chip-meta">${cmpFmt(it.seq.length)} nt</span>`);
+      const x = mk('button', 'dnacmp-chip-x', '×');
+      x.type = 'button';
+      x.addEventListener('click', () => { cmp.items.splice(i, 1); renderLoaded(); btnCompare.disabled = cmp.items.length === 0; });
+      chip.appendChild(x);
+      grid.appendChild(chip);
+    });
+    listWrap.appendChild(grid);
+  }
+
+  btnClear.addEventListener('click', () => {
+    cmp.items = [];
+    renderLoaded();
+    results.innerHTML = '';
+    btnCompare.disabled = true;
+    const txt = drop.querySelector('.bw-drop-text');
+    if (txt) txt.textContent = 'Suelta aquí los .dna y los .gb';
+  });
+
+  btnCompare.addEventListener('click', () => runComparison(cmp.items, results));
+}
+
+function runComparison(items, results) {
+  // Group by base name (case-insensitive). Keep the first valid item per side.
+  const groups = new Map(); // key -> { base, dna, gb, dnaErr, gbErr }
+  for (const it of items) {
+    const key = it.base.toLowerCase();
+    if (!groups.has(key)) groups.set(key, { base: it.base, dna: null, gb: null, dnaErr: null, gbErr: null });
+    const g = groups.get(key);
+    if (it.kind === 'dna') { if (it.error) g.dnaErr = g.dnaErr || it; else g.dna = g.dna || it; }
+    else if (it.kind === 'gb') { if (it.error) g.gbErr = g.gbErr || it; else g.gb = g.gb || it; }
+    else { g.gbErr = g.gbErr || it; } // unknown extension
+  }
+
+  const rows = [];
+  for (const g of groups.values()) {
+    if (g.dna && g.gb) {
+      rows.push({ kind: 'pair', base: g.base, dna: g.dna, gb: g.gb, cmp: cmpCompare(g.dna.seq, g.gb.seq) });
+    } else if (g.dna && !g.gb) {
+      rows.push({ kind: 'lonely', base: g.base, have: 'dna', miss: 'gb', item: g.dna, err: g.gbErr });
+    } else if (g.gb && !g.dna) {
+      rows.push({ kind: 'lonely', base: g.base, have: 'gb', miss: 'dna', item: g.gb, err: g.dnaErr });
+    } else {
+      rows.push({ kind: 'error', base: g.base, item: g.dnaErr || g.gbErr });
+    }
+  }
+  rows.sort((a, b) => a.base.localeCompare(b.base, undefined, { numeric: true, sensitivity: 'base' }));
+
+  // Tally
+  const isPass = r => r.kind === 'pair' && r.cmp.status !== 'mismatch';
+  const identical = rows.filter(r => r.kind === 'pair' && r.cmp.status === 'identical').length;
+  const sameMol = rows.filter(r => r.kind === 'pair' && (r.cmp.status === 'rotated' || r.cmp.status === 'revcomp')).length;
+  const fail = rows.filter(r => r.kind === 'pair' && r.cmp.status === 'mismatch').length;
+  const lonely = rows.filter(r => r.kind === 'lonely').length;
+  const errs = rows.filter(r => r.kind === 'error').length;
+
+  results.innerHTML = '';
+
+  const summary = mk('div', 'dnacmp-summary');
+  const pill = (cls, n, label) => `<div class="dnacmp-pill ${cls}"><span class="dnacmp-pill-n">${n}</span> ${label}</div>`;
+  summary.innerHTML =
+    pill('ok', identical, 'idénticas') +
+    pill('ok2', sameMol, 'misma molécula<br><small>(rotada / hebra inversa)</small>') +
+    pill('bad', fail, 'NO coinciden') +
+    pill('warn', lonely, 'sin pareja') +
+    (errs ? pill('warn', errs, 'con error') : '');
+  results.appendChild(summary);
+
+  if (!rows.length) {
+    results.appendChild(mk('div', 'degen-cerr', 'No hay nada que comparar.'));
+    return;
+  }
+
+  for (const r of rows) results.appendChild(buildCmpCard(r));
+}
+
+function buildCmpCard(r) {
+  const card = mk('div', 'dnacmp-card');
+
+  if (r.kind === 'pair') {
+    const c = r.cmp;
+    const pass = c.status !== 'mismatch';
+    card.classList.add(pass ? (c.status === 'identical' ? 'is-ident' : 'is-same') : 'is-fail');
+
+    const icon = pass ? (c.status === 'identical' ? '✓' : '↻') : '✗';
+    let title, sub;
+    if (c.status === 'identical') {
+      title = 'Secuencia IDÉNTICA';
+      sub = 'Mismo número de nucleótidos y mismos nucleótidos, en el mismo orden.';
+    } else if (c.status === 'rotated') {
+      title = 'Misma secuencia (mismo plásmido)';
+      sub = `El <code>.gb</code> está «cortado» en otra posición: empieza en el nt <strong>${cmpFmt(c.offset + 1)}</strong> de tu <code>.dna</code>. En un plásmido circular es exactamente la misma molécula.`;
+    } else if (c.status === 'revcomp') {
+      title = 'Misma secuencia (hebra inversa)';
+      sub = `El <code>.gb</code> es la <strong>hebra complementaria inversa</strong>${c.offset ? ` y empieza en otra posición (nt <strong>${cmpFmt(c.offset + 1)}</strong>)` : ''}. Es la misma molécula de doble cadena.`;
+    } else if (c.reason === 'length') {
+      title = 'NO COINCIDE — distinta longitud';
+      sub = `Tu <code>.dna</code> tiene <strong>${cmpFmt(c.lenA)} nt</strong> y el <code>.gb</code> del proveedor <strong>${cmpFmt(c.lenB)} nt</strong> (diferencia de ${cmpFmt(Math.abs(c.lenA - c.lenB))} nt).`;
+    } else {
+      title = 'NO COINCIDE — mismos nt, secuencia distinta';
+      sub = `Misma longitud (${cmpFmt(c.len)} nt) pero <strong>${cmpFmt(c.diffs)} nucleótido(s) distinto(s)</strong>; el primero en la posición <strong>${cmpFmt(c.first + 1)}</strong>.`;
+    }
+
+    card.innerHTML =
+      `<div class="dnacmp-card-bar"><span class="dnacmp-ico">${icon}</span>` +
+      `<div class="dnacmp-card-h"><div class="dnacmp-card-name">${r.base}</div>` +
+      `<div class="dnacmp-card-title">${title}</div></div></div>` +
+      `<div class="dnacmp-card-body">` +
+        cmpLenRow(r.dna, r.gb, c) +
+        `<p class="dnacmp-card-sub">${sub}</p>` +
+      `</div>`;
+    return card;
+  }
+
+  if (r.kind === 'lonely') {
+    card.classList.add('is-lonely');
+    const haveDna = r.have === 'dna';
+    card.innerHTML =
+      `<div class="dnacmp-card-bar"><span class="dnacmp-ico">⚠</span>` +
+      `<div class="dnacmp-card-h"><div class="dnacmp-card-name">${r.base}</div>` +
+      `<div class="dnacmp-card-title">Sin pareja — no comparado</div></div></div>` +
+      `<div class="dnacmp-card-body"><p class="dnacmp-card-sub">` +
+      `Solo se ha encontrado el <code>.${haveDna ? 'dna' : 'gb'}</code> (${cmpFmt(r.item.seq.length)} nt). ` +
+      `Falta el <code>.${r.miss}</code> con el mismo nombre, así que no se puede comparar.` +
+      (r.err ? ` <span class="dnacmp-chip-err">Había un <code>.${r.miss}</code> con ese nombre pero falló: ${r.err.error}</span>` : '') +
+      `</p></div>`;
+    return card;
+  }
+
+  // error
+  card.classList.add('is-fail');
+  card.innerHTML =
+    `<div class="dnacmp-card-bar"><span class="dnacmp-ico">✗</span>` +
+    `<div class="dnacmp-card-h"><div class="dnacmp-card-name">${r.base}</div>` +
+    `<div class="dnacmp-card-title">Error al leer el fichero</div></div></div>` +
+    `<div class="dnacmp-card-body"><p class="dnacmp-card-sub">${r.item ? r.item.error : 'Error desconocido.'}</p></div>`;
+  return card;
+}
+
+// Visual nt-count comparison: two bars + an equals/!= verdict.
+function cmpLenRow(dna, gb, c) {
+  const eq = c.status !== 'mismatch' || c.reason === 'content'; // same length
+  const verdict = eq
+    ? `<span class="dnacmp-eq ok">${cmpFmt(dna.seq.length)} nt = ${cmpFmt(gb.seq.length)} nt</span>`
+    : `<span class="dnacmp-eq bad">${cmpFmt(dna.seq.length)} nt ≠ ${cmpFmt(gb.seq.length)} nt</span>`;
+  const ntOk = (c.status === 'identical' || c.status === 'rotated' || c.status === 'revcomp');
+  const top = (dna.circular || gb.circular) ? 'circular' : (dna.topologyKnown && gb.topologyKnown ? 'lineal' : '');
+  return `<div class="dnacmp-lenrow">
+      <div class="dnacmp-side"><span class="dnacmp-side-tag dnacmp-dna">.dna</span> ${cmpFmt(dna.seq.length)} nt</div>
+      ${verdict}
+      <div class="dnacmp-side"><span class="dnacmp-side-tag dnacmp-gb">.gb</span> ${cmpFmt(gb.seq.length)} nt</div>
+    </div>
+    <div class="dnacmp-checks">
+      <span class="dnacmp-check ${eq ? 'ok' : 'bad'}">${eq ? '✓' : '✗'} mismo nº de nt</span>
+      <span class="dnacmp-check ${ntOk ? 'ok' : 'bad'}">${ntOk ? '✓' : '✗'} mismos nucleótidos</span>
+      ${top ? `<span class="dnacmp-check neutral">${top === 'circular' ? '◯ circular' : '— lineal'}</span>` : ''}
+    </div>`;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
