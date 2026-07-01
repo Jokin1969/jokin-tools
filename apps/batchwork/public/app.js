@@ -4437,6 +4437,10 @@ function buildCmpCard(r) {
         cmpLenRow(r.dna, r.gb, c) +
         `<p class="dnacmp-card-sub">${sub}</p>` +
       `</div>`;
+    // Only when there ARE differences: a collapsed Clustal-style diff viewer.
+    if (c.status === 'mismatch') {
+      card.querySelector('.dnacmp-card-body').appendChild(buildDnaDiff(r.dna.seq, r.gb.seq));
+    }
     return card;
   }
 
@@ -4483,6 +4487,113 @@ function cmpLenRow(dna, gb, c) {
       <span class="dnacmp-check ${ntOk ? 'ok' : 'bad'}">${ntOk ? '✓' : '✗'} mismos nucleótidos</span>
       ${top ? `<span class="dnacmp-check neutral">${top === 'circular' ? '◯ circular' : '— lineal'}</span>` : ''}
     </div>`;
+}
+
+// ── Clustal-style diff viewer (only for mismatching pairs) ────────────────────
+//
+// Cheap O(n) alignment: trim the common prefix and suffix, then the differing
+// middle is padded with gaps «−» so both rows line up. This pinpoints a single
+// insertion/deletion or a substitution block exactly, works for any plasmid size
+// (no O(n·m) DP matrix), and for a run of substitutions degrades to a plain
+// positional comparison. We render it Clustal-style: 60 columns per block, with
+// the differing nucleotides highlighted.
+
+function cmpAlign(a, b) {
+  const la = a.length, lb = b.length;
+  const maxP = Math.min(la, lb);
+  let p = 0;
+  while (p < maxP && a[p] === b[p]) p++;
+  let s = 0;
+  const maxS = maxP - p;
+  while (s < maxS && a[la - 1 - s] === b[lb - 1 - s]) s++;
+  const aMid = a.slice(p, la - s);
+  const bMid = b.slice(p, lb - s);
+  const width = Math.max(aMid.length, bMid.length);
+  const pre = a.slice(0, p);
+  const suf = a.slice(la - s);
+  const aa = pre + aMid + '-'.repeat(width - aMid.length) + suf;
+  const bb = pre + bMid + '-'.repeat(width - bMid.length) + suf;
+  return { aa, bb };
+}
+
+function cmpMismatchCount(aln) {
+  let m = 0;
+  for (let i = 0; i < aln.aa.length; i++) if (aln.aa[i] !== aln.bb[i]) m++;
+  return m;
+}
+
+// Align forward and against the reverse complement of b; keep whichever differs
+// less. A revcomp-with-a-few-mutations would otherwise show as a sea of red.
+function cmpBestAlign(a, b) {
+  const fwd = cmpAlign(a, b);
+  const mFwd = cmpMismatchCount(fwd);
+  const rc = cmpAlign(a, cmpRevComp(b));
+  const mRc = cmpMismatchCount(rc);
+  return mRc < mFwd ? { ...rc, revcomp: true, mism: mRc } : { ...fwd, revcomp: false, mism: mFwd };
+}
+
+function buildDnaDiff(dnaSeq, gbSeq) {
+  const details = document.createElement('details');
+  details.className = 'dnacmp-diff';
+  const summary = document.createElement('summary');
+  summary.innerHTML = '🔍 Ver dónde están las diferencias <span class="dnacmp-diff-hint">(alineamiento tipo Clustal)</span>';
+  details.appendChild(summary);
+  const body = mk('div', 'dnacmp-diff-body');
+  details.appendChild(body);
+  let built = false;
+  details.addEventListener('toggle', () => {
+    if (details.open && !built) { built = true; body.appendChild(renderDnaAlignment(dnaSeq, gbSeq)); }
+  });
+  return details;
+}
+
+function renderDnaAlignment(a, b) {
+  const wrap = mk('div', 'dnacmp-aln');
+  const { aa, bb, revcomp, mism } = cmpBestAlign(a, b);
+  const total = aa.length;
+  const COLS = 60;
+  const CAP = 60000;                // don't render absurdly long alignments
+  const shown = Math.min(total, CAP);
+  const coordW = String(Math.max(a.length, b.length)).length;
+
+  const note = mk('div', 'dnacmp-aln-note');
+  note.innerHTML =
+    `Diferencias resaltadas en <span class="dnacmp-nt-diff">rojo</span>. ` +
+    `«−» = hueco (inserción/deleción). ` +
+    (revcomp ? 'El <code>.gb</code> se muestra como <strong>hebra complementaria inversa</strong> (así alinea mejor). ' : '') +
+    `<strong>${cmpFmt(mism)}</strong> posición(es) con diferencias sobre ${cmpFmt(total)}.`;
+  wrap.appendChild(note);
+
+  const scroll = mk('div', 'dnacmp-aln-scroll');
+  let posA = 0, posB = 0;
+  for (let start = 0; start < shown; start += COLS) {
+    const end = Math.min(start + COLS, shown);
+    const segA = aa.slice(start, end), segB = bb.slice(start, end);
+    const aStart = posA + 1, bStart = posB + 1;
+    let rowA = '', rowB = '', mark = '';
+    for (let i = 0; i < segA.length; i++) {
+      const ca = segA[i], cb = segB[i];
+      const diff = ca !== cb;
+      rowA += diff ? `<span class="dnacmp-nt-diff">${ca}</span>` : ca;
+      rowB += diff ? `<span class="dnacmp-nt-diff">${cb}</span>` : cb;
+      mark += diff ? '^' : ' ';
+      if (ca !== '-') posA++;
+      if (cb !== '-') posB++;
+    }
+    const gut = (label, coord) => `<span class="dnacmp-aln-gut">${label.padEnd(5)}${String(coord).padStart(coordW)}</span> `;
+    const block = mk('div', 'dnacmp-aln-block');
+    block.innerHTML =
+      `<div class="dnacmp-aln-row">${gut('.dna', aStart)}${rowA} <span class="dnacmp-aln-end">${posA}</span></div>` +
+      `<div class="dnacmp-aln-row dnacmp-aln-mark">${gut('', '')}${mark}</div>` +
+      `<div class="dnacmp-aln-row">${gut('.gb', bStart)}${rowB} <span class="dnacmp-aln-end">${posB}</span></div>`;
+    scroll.appendChild(block);
+  }
+  wrap.appendChild(scroll);
+
+  if (total > CAP) {
+    wrap.appendChild(mk('div', 'dnacmp-aln-note', `… alineamiento recortado a ${cmpFmt(CAP)} columnas de ${cmpFmt(total)}.`));
+  }
+  return wrap;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
