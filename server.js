@@ -103,6 +103,13 @@ const bitacoraDb = require('./apps/bitacora/db');
 const bitacoraRouter = require('./apps/bitacora/routes');
 app.use('/bitacora', requireApp('bitacora'), bitacoraRouter);
 
+// ─── Imprimir (email-to-print): agent API, no login — the local print agent ─────
+// authenticates with IMPRIMIR_AGENT_KEY. No browser UI. Requiring the module
+// creates its DB table.
+const imprimirDb = require('./apps/imprimir/db');
+const imprimirRouter = require('./apps/imprimir/routes');
+app.use('/imprimir', imprimirRouter);
+
 // ─── Hub root (requires login) ──────────────────────────────────────────────────
 app.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));
@@ -191,10 +198,12 @@ function runStartupMigrations() {
 function shutdown(server, signal) {
   console.log(`[server] ${signal} received — shutting down…`);
   try { require('./apps/re-memory/cron').stopCron(); } catch { /* ignore */ }
+  try { require('./apps/imprimir/poller').stopPolling(); } catch { /* ignore */ }
   server.close(() => {
     try { authStore.db.close(); } catch { /* ignore */ }
     try { reMemoryDb.db.close(); } catch { /* ignore */ }
     try { bitacoraDb.db.close(); } catch { /* ignore */ }
+    try { imprimirDb.db.close(); } catch { /* ignore */ }
     console.log('[server] Closed cleanly.');
     process.exit(0);
   });
@@ -209,6 +218,10 @@ if (require.main === module) {
   // Start the re-memory cron jobs (daily email + periodic backup).
   try { require('./apps/re-memory/cron').startCron(); }
   catch (e) { console.error('[cron] failed to start:', e.message); }
+
+  // Start the email-to-print poller (no-op unless IMPRIMIR_ENABLED=true).
+  try { require('./apps/imprimir/poller').startPolling(); }
+  catch (e) { console.error('[imprimir] poller failed to start:', e.message); }
 
   const server = app.listen(PORT, () => {
     console.log(`[server] Jokin's Tools running on port ${PORT}`);

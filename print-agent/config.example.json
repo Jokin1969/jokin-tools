@@ -1,0 +1,7 @@
+{
+  "server_url": "https://jokins-tools-production.up.railway.app",
+  "api_key": "PEGA-AQUI-EL-MISMO-VALOR-QUE-IMPRIMIR_AGENT_KEY-DEL-SERVIDOR",
+  "printer": "\\\\cicpri042\\Color",
+  "sumatra_path": "C:\\Program Files\\SumatraPDF\\SumatraPDF.exe",
+  "poll_seconds": 5
+}

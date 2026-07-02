@@ -1,0 +1,92 @@
+const { test, beforeEach } = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { useTempDb } = require('./helpers');
+
+useTempDb();
+const db = require('../apps/imprimir/db');
+
+// Tests share one DB within this process; start each from an empty queue so
+// FIFO/count assertions are deterministic.
+beforeEach(() => { db.db.prepare('DELETE FROM print_jobs').run(); });
+
+const STORAGE = fs.mkdtempSync(path.join(os.tmpdir(), 'impr-db-'));
+let counter = 0;
+function makeJob(over = {}) {
+  counter++;
+  const file = path.join(STORAGE, `job${counter}.pdf`);
+  fs.writeFileSync(file, Buffer.from('%PDF-1.4 job ' + counter));
+  return db.enqueueJob({
+    message_id: over.message_id || `<m${counter}@x>`,
+    part_idx: over.part_idx || 0,
+    sender: 'castilla@joaquincastilla.com',
+    subject: 'S' + counter,
+    filename: `doc${counter}.pdf`,
+    mime: 'application/pdf',
+    printer: '\\\\cicpri042\\Color',
+    size_bytes: 10,
+    file_path: file,
+    ...over,
+  });
+}
+
+test('enqueue + counts + jobExists', () => {
+  const j = makeJob();
+  assert.equal(j.status, 'queued');
+  assert.ok(db.jobExists(j.message_id, 0));
+  assert.equal(db.jobExists('<no-existe@x>', 0), false);
+  assert.equal(db.counts().queued, 1);
+});
+
+test('claimNextJob es FIFO, marca printing y suma attempts', () => {
+  const a = makeJob();
+  const b = makeJob();
+  const first = db.claimNextJob();
+  assert.equal(first.id, a.id, 'coge el más antiguo primero');
+  assert.equal(first.status, 'printing');
+  assert.equal(first.attempts, 1);
+  const second = db.claimNextJob();
+  assert.equal(second.id, b.id);
+});
+
+test('markDone y markFailed', () => {
+  const j = makeJob();
+  const claimed = db.claimNextJob();
+  assert.ok(db.markDone(claimed.id));
+  const done = db.getJob(claimed.id);
+  assert.equal(done.status, 'done');
+  assert.ok(done.printed_at, 'printed_at se rellena');
+
+  const k = makeJob();
+  const c2 = db.claimNextJob();
+  assert.ok(db.markFailed(c2.id, 'impresora offline'));
+  const failed = db.getJob(c2.id);
+  assert.equal(failed.status, 'failed');
+  assert.equal(failed.error, 'impresora offline');
+});
+
+test('requeueStale devuelve a la cola trabajos printing viejos', () => {
+  const j = makeJob();
+  db.claimNextJob();                       // → printing, attempts 1
+  // Envejecer el created_at a hace 1 hora.
+  db.db.prepare("UPDATE print_jobs SET created_at = datetime('now','-60 minutes') WHERE id = ?").run(j.id);
+  const n = db.requeueStale(3, 10);        // attempts<3 y >10 min
+  assert.ok(n >= 1);
+  assert.equal(db.getJob(j.id).status, 'queued');
+});
+
+test('purgeOld borra trabajos terminados y sus ficheros', () => {
+  const j = makeJob();
+  const claimed = db.claimNextJob();
+  db.markDone(claimed.id);
+  const file = db.getJob(j.id).file_path;
+  assert.ok(fs.existsSync(file));
+  // Envejecer para superar el umbral (en producción son días).
+  db.db.prepare("UPDATE print_jobs SET created_at = datetime('now','-2 days') WHERE id = ?").run(j.id);
+  const removed = db.purgeOld(0);          // umbral 0 → borra lo terminado
+  assert.ok(removed >= 1);
+  assert.equal(db.getJob(j.id), undefined, 'la fila se eliminó');
+  assert.equal(fs.existsSync(file), false, 'el fichero se eliminó');
+});
