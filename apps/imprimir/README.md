@@ -70,6 +70,16 @@ requests.post(f"{HUB}/imprimir/api/submit",
 2. Su backend hace el `POST /imprimir/api/submit` al hub con `PRINT_HUB_KEY`.
 3. El agente lo imprime en segundos; el estado se ve en `/imprimir/status`.
 
+## Elegir impresora
+- El agente local **reporta** las impresoras instaladas; se ven en el panel.
+- En el panel puedes **fijar una impresora por defecto** que persiste hasta que la
+  cambies (se usa cuando un trabajo no indica impresora).
+- Cada trabajo puede **elegir impresora**: pasa `printer` en `POST .../submit`.
+- Las apps pueden poblar un selector con `GET /imprimir/api/printers`
+  (cabecera `X-Api-Key: <IMPRIMIR_SUBMIT_KEY>`) → `{ default, known: [nombres] }`.
+
+Prioridad de destino: `printer` del trabajo → default del panel → `IMPRIMIR_DEFAULT_PRINTER`.
+
 ## Configuración
 Ver `.env.example` (`IMPRIMIR_*`). Para el envío por API basta con definir
 `IMPRIMIR_SUBMIT_KEY` en el hub y usar ese mismo valor en las apps que envían.

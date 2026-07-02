@@ -63,6 +63,29 @@ def _get(cfg, path, with_key=True, timeout=30):
         return status, resp.read().decode("utf-8")
 
 
+def list_printers():
+    """Nombres de impresoras instaladas (PowerShell Get-Printer)."""
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", "Get-Printer | Select-Object -ExpandProperty Name"],
+            capture_output=True, text=True, timeout=25,
+        )
+        return [l.strip() for l in out.stdout.splitlines() if l.strip()]
+    except Exception:
+        return []
+
+
+def report_printers(cfg):
+    """Envía al servidor la lista de impresoras (para el selector del panel/apps)."""
+    printers = list_printers()
+    if printers:
+        try:
+            api(cfg, "POST", "/imprimir/api/agent/printers", {"printers": printers})
+        except Exception:
+            pass
+    return printers
+
+
 def do_check():
     """Valida de una vez toda la instalación e imprime un informe ✓/✗."""
     ok = True
@@ -87,14 +110,14 @@ def do_check():
     have_sumatra = os.path.exists(cfg["sumatra_path"])
     line(have_sumatra, "SumatraPDF encontrado", "" if have_sumatra else "corrige 'sumatra_path' en config.json")
 
-    # Impresora (best-effort: no todas las colas de red aparecen listadas)
+    # Impresora
     printer = cfg.get("printer") or ""
     if printer:
-        try:
-            out = subprocess.run(["wmic", "printer", "get", "name"], capture_output=True, text=True, timeout=20).stdout.lower()
-            found = printer.lower() in out or printer.split("\\")[-1].lower() in out
-            line(found, "Impresora visible", printer if found else f"'{printer}' no aparece; comprueba que esté instalada/conectada")
-        except Exception:
+        names = list_printers()
+        if names:
+            found = any(printer.lower() == n.lower() or printer.split("\\")[-1].lower() == n.lower() for n in names)
+            line(found, "Impresora visible", printer if found else f"'{printer}' no está entre: {', '.join(names)}")
+        else:
             print(f"  [??] No pude listar impresoras; comprueba a mano que exista {printer}")
 
     # Servidor accesible + servicio activo
@@ -183,12 +206,18 @@ def main():
     cfg = load_config()
     poll = max(2, int(cfg.get("poll_seconds", 5)))
     print(f"[agente] Iniciado. Servidor: {cfg['server_url']} · impresora: {cfg.get('printer') or '(la del trabajo)'} · cada {poll}s")
+    report_printers(cfg)                 # publica las impresoras al arrancar
+    report_every = max(1, 60 // poll)    # y luego ~cada 60 s
     backoff = poll
+    i = 0
     while True:
         try:
             # Vacía la cola de golpe si hay varios trabajos.
             while process_one(cfg):
                 pass
+            i += 1
+            if i % report_every == 0:
+                report_printers(cfg)
             backoff = poll
         except urllib.error.HTTPError as e:
             print(f"[agente] HTTP {e.code}: {e.reason}")

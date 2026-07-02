@@ -90,6 +90,11 @@
     </div>
 
     <div class="panel">
+      <h2>Impresora por defecto</h2>
+      <div id="printers"><div class="muted">Cargando…</div></div>
+    </div>
+
+    <div class="panel">
       <h2>Diagnóstico en vivo</h2>
       <div class="kv" id="diag"><div class="muted">Cargando…</div></div>
     </div>
@@ -124,6 +129,7 @@
         $('printer').textContent = (c.enabled ? 'Servicio ACTIVO' : 'Servicio INACTIVO') + (c.defaultPrinter ? ' · ' + c.defaultPrinter : '');
         renderChecklist(d.checklist || []);
         renderConfig(c);
+        renderPrinters(d.printers || { known: [] });
         renderDiag(d.diag || {}, c);
         for (const k of ['queued','printing','done','failed']) $('c-' + k).textContent = d.counts[k] ?? 0;
         renderRows(d.jobs || []);
@@ -159,6 +165,48 @@
         ['Avisos', `acuse de recibo: ${yn(c.notifyReceived)} · sin documento: ${yn(c.notifySenderNoPdf)}`],
       ];
       $('config').innerHTML = rows.map(([k, v]) => `<div class="k">${esc(k)}</div><div class="v">${v}</div>`).join('');
+    }
+
+    function renderPrinters(p) {
+      const known = (p.known || []).map(x => x.name);
+      const current = p.default || p.envDefault || '';
+      let opts = known.map(n => `<option value="${esc(n)}" ${n === current ? 'selected' : ''}>${esc(n)}</option>`).join('');
+      if (current && !known.includes(current)) opts = `<option value="${esc(current)}" selected>${esc(current)}</option>` + opts;
+      $('printers').innerHTML =
+        `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+          <select id="prsel" style="min-width:260px">${opts}<option value="__custom__">(escribir otra…)</option></select>
+          <input id="prcustom" placeholder="\\\\servidor\\cola" style="display:none;min-width:220px" />
+          <button id="prsave">Guardar por defecto</button>
+          <span id="prmsg" class="imap-res"></span>
+        </div>
+        <div class="muted" style="font-size:.8rem">${p.default
+          ? 'Fijada en el panel: <b>' + esc(p.default) + '</b> — se usa hasta que la cambies.'
+          : 'Actual: <b>' + esc(p.envDefault || '—') + '</b> (valor del entorno; fija una aquí para persistirla).'}</div>
+        <div style="margin-top:12px">
+          <div class="muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">Impresoras detectadas por el agente</div>
+          ${(p.known && p.known.length)
+            ? '<ul style="margin:6px 0 0 18px">' + p.known.map(x => `<li>${esc(x.name)}${x.lastSeen ? ` <span class="muted">· visto ${fmt(x.lastSeen)}</span>` : ''}</li>`).join('') + '</ul>'
+            : '<div class="muted">Ninguna todavía (el agente las reporta al arrancar; actualiza el agente si hace falta).</div>'}
+        </div>`;
+      const sel = $('prsel'), custom = $('prcustom');
+      sel.addEventListener('change', () => { custom.style.display = sel.value === '__custom__' ? '' : 'none'; });
+      $('prsave').addEventListener('click', savePrinter);
+    }
+
+    async function savePrinter() {
+      const sel = $('prsel'), custom = $('prcustom');
+      const printer = sel.value === '__custom__' ? custom.value.trim() : sel.value;
+      $('prmsg').textContent = 'guardando…';
+      try {
+        const r = await fetch('/imprimir/api/printers/default', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ printer }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) { $('prmsg').innerHTML = `<span class="no">${esc(d.error || ('error ' + r.status))}</span>`; return; }
+        $('prmsg').innerHTML = '<span class="yes">✓ guardada</span>';
+        load();
+      } catch (e) { $('prmsg').innerHTML = `<span class="no">${esc(e.message)}</span>`; }
     }
 
     function renderDiag(g, c) {

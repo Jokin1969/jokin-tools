@@ -37,9 +37,50 @@ db.exec(`
     UNIQUE(message_id, part_idx)
   );
   CREATE INDEX IF NOT EXISTS idx_print_jobs_status ON print_jobs(status, id);
+
+  CREATE TABLE IF NOT EXISTS imprimir_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+  );
 `);
 
 console.log('[imprimir] Table ready at:', DB_PATH);
+
+// ─── Settings (persisted, "until changed") ──────────────────────────────────────
+function getSetting(key) {
+  const row = db.prepare('SELECT value FROM imprimir_settings WHERE key = ?').get(key);
+  return row ? row.value : null;
+}
+function setSetting(key, value) {
+  db.prepare('INSERT INTO imprimir_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+    .run(key, value == null ? null : String(value));
+}
+
+// Default printer chosen in the panel (persists until changed). Falls back to
+// the env default elsewhere when this is null.
+function getDefaultPrinter() {
+  const v = getSetting('default_printer');
+  return v && v.trim() ? v.trim() : null;
+}
+function setDefaultPrinter(name) {
+  setSetting('default_printer', name == null ? '' : String(name).trim());
+  return getDefaultPrinter();
+}
+
+// Printers reported by the local agent (name + when last seen), so the panel and
+// other apps can offer a real selector.
+function getKnownPrinters() {
+  try { return JSON.parse(getSetting('known_printers') || '[]'); } catch { return []; }
+}
+function reportPrinters(names, nowIso) {
+  const clean = [...new Set((names || []).map(n => String(n).trim()).filter(Boolean))];
+  const prev = new Map(getKnownPrinters().map(p => [p.name, p]));
+  const merged = clean.map(name => ({ name, lastSeen: nowIso || (prev.get(name) && prev.get(name).lastSeen) || null }));
+  // keep previously-known printers not in this report (agent might list a subset)
+  for (const p of getKnownPrinters()) if (!clean.includes(p.name)) merged.push(p);
+  setSetting('known_printers', JSON.stringify(merged));
+  return merged;
+}
 
 // ─── Queue operations ───────────────────────────────────────────────────────────
 
@@ -146,4 +187,5 @@ module.exports = {
   db,
   jobExists, enqueueJob, getJob, claimNextJob,
   markDone, markFailed, requeueJob, requeueStale, listJobs, counts, purgeOld,
+  getSetting, setSetting, getDefaultPrinter, setDefaultPrinter, getKnownPrinters, reportPrinters,
 };

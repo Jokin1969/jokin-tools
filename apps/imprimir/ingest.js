@@ -88,7 +88,8 @@ function storeDoc(cfg, db, meta, pdfBuffer) {
     subject: meta.subject,
     filename: meta.filename,
     mime: 'application/pdf',
-    printer: meta.printer || cfg.defaultPrinter || null,
+    // Per-job printer wins; else the panel's persisted default; else the env one.
+    printer: meta.printer || db.getDefaultPrinter() || cfg.defaultPrinter || null,
     size_bytes: pdfBuffer.length,
     file_path: filePath,
   });

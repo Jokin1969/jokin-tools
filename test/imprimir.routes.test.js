@@ -121,6 +121,42 @@ test('submit: tipo no soportado → 400', async () => {
   assert.equal(r.status, 400);
 });
 
+test('impresoras: el agente reporta y la app las lista', async () => {
+  const rep = await fetch(base + '/imprimir/api/agent/printers', {
+    method: 'POST', headers: { 'X-Api-Key': 'testkey123', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ printers: ['Color en cicpri042', 'Microsoft Print to PDF'] }),
+  });
+  assert.equal(rep.status, 200);
+  const r = await fetch(base + '/imprimir/api/printers', { headers: { 'X-Api-Key': 'submitkey456' } });
+  assert.equal(r.status, 200);
+  const d = await r.json();
+  assert.ok(d.known.includes('Microsoft Print to PDF'));
+});
+
+test('impresoras: fijar default es admin (401 sin sesión, ok con admin)', async () => {
+  const no = await fetch(base + '/imprimir/api/printers/default', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ printer: 'Microsoft Print to PDF' }),
+  });
+  assert.equal(no.status, 401);
+  const ok = await fetch(base + '/imprimir/api/printers/default', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', Cookie: adminCookie },
+    body: JSON.stringify({ printer: 'Microsoft Print to PDF' }),
+  });
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).default, 'Microsoft Print to PDF');
+});
+
+test('submit sin printer usa el default persistente', async () => {
+  db.setDefaultPrinter('MiDefault');
+  const fd = new FormData();
+  fd.append('file', new Blob([Buffer.from('%PDF-1.4 z')], { type: 'application/pdf' }), 'a.pdf');
+  const r = await fetch(base + '/imprimir/api/submit', { method: 'POST', headers: { 'X-Api-Key': 'submitkey456' }, body: fd });
+  const d = await r.json();
+  assert.equal(db.getJob(d.id).printer, 'MiDefault');
+  db.setDefaultPrinter('');
+});
+
 test('página de estado (admin): sin sesión → 401', async () => {
   const r = await fetch(base + '/imprimir/api/status', { headers: { Accept: 'application/json' } });
   assert.equal(r.status, 401);

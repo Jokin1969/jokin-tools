@@ -163,7 +163,32 @@ router.get('/api/status', requireAdmin, (req, res) => {
     checklist: readiness(mc, diag),
     counts: db.counts(),
     jobs,
+    printers: { default: db.getDefaultPrinter(), envDefault: mc.defaultPrinter, known: db.getKnownPrinters() },
   });
+});
+
+// The local agent reports the printers installed on its PC (so the panel/apps
+// can offer a real selector).
+router.post('/api/agent/printers', apiKeyGuard, (req, res) => {
+  const names = Array.isArray(req.body && req.body.printers) ? req.body.printers : [];
+  const merged = db.reportPrinters(names, new Date().toISOString());
+  res.json({ ok: true, count: merged.length });
+});
+
+// Printer list for other apps' selectors (submit key). Returns the persisted
+// default and the printers reported by the agent.
+router.get('/api/printers', submitKeyGuard, (req, res) => {
+  res.json({
+    default: db.getDefaultPrinter() || config().defaultPrinter || null,
+    known: db.getKnownPrinters().map(p => p.name),
+  });
+});
+
+// Set the persisted default printer (panel, admin). Empty ⇒ back to env default.
+router.post('/api/printers/default', requireAdmin, (req, res) => {
+  const printer = String((req.body && req.body.printer) || '').trim();
+  const value = db.setDefaultPrinter(printer);
+  res.json({ ok: true, default: value });
 });
 
 // Actively test the IMAP connection with the current credentials.

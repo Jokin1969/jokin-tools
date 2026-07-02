@@ -89,6 +89,23 @@ test('requeueStale devuelve a la cola trabajos printing viejos', () => {
   assert.equal(db.getJob(j.id).status, 'queued');
 });
 
+test('settings: impresora por defecto persiste hasta cambiarla', () => {
+  db.db.prepare('DELETE FROM imprimir_settings').run();
+  assert.equal(db.getDefaultPrinter(), null);
+  db.setDefaultPrinter('\\\\cicpri042\\Color');
+  assert.equal(db.getDefaultPrinter(), '\\\\cicpri042\\Color');
+  db.setDefaultPrinter('');                     // vaciar → vuelve a null
+  assert.equal(db.getDefaultPrinter(), null);
+});
+
+test('settings: impresoras reportadas (dedup + merge de reportes)', () => {
+  db.db.prepare('DELETE FROM imprimir_settings').run();
+  db.reportPrinters(['A', 'B', 'A'], '2026-07-02T10:00:00Z');
+  assert.deepEqual(db.getKnownPrinters().map(p => p.name).sort(), ['A', 'B']);
+  db.reportPrinters(['B', 'C'], '2026-07-02T11:00:00Z');
+  assert.deepEqual(db.getKnownPrinters().map(p => p.name).sort(), ['A', 'B', 'C']); // A se conserva
+});
+
 test('purgeOld borra trabajos terminados y sus ficheros', () => {
   const j = makeJob();
   const claimed = db.claimNextJob();
