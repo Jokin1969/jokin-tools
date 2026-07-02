@@ -206,6 +206,19 @@ router.post('/api/diag/imap-test', requireAdmin, async (req, res) => {
   }
 });
 
+// Delete a single job (trash button; queued jobs that shouldn't print, or failed).
+router.post('/api/jobs/:id/delete', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!db.getJob(id)) return res.status(404).json({ error: 'Trabajo no encontrado.' });
+  db.deleteJob(id);
+  res.json({ ok: true });
+});
+
+// Clear all finished (done) jobs from the list.
+router.post('/api/jobs/clear-done', requireAdmin, (req, res) => {
+  res.json({ ok: true, removed: db.clearDone() });
+});
+
 // Reprint a finished job (re-queues it so the agent picks it up again).
 router.post('/api/jobs/:id/reprint', requireAdmin, (req, res) => {
   const id = Number(req.params.id);

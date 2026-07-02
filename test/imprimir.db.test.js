@@ -89,6 +89,27 @@ test('requeueStale devuelve a la cola trabajos printing viejos', () => {
   assert.equal(db.getJob(j.id).status, 'queued');
 });
 
+test('deleteJob borra el trabajo y su fichero', () => {
+  const j = makeJob();
+  const file = j.file_path;
+  assert.ok(fs.existsSync(file));
+  assert.ok(db.deleteJob(j.id));
+  assert.equal(db.getJob(j.id), undefined);
+  assert.equal(fs.existsSync(file), false);
+  assert.equal(db.deleteJob(999999), false, 'id inexistente → false');
+});
+
+test('clearDone borra solo los done (deja queued/failed)', () => {
+  const a = makeJob(); db.claimNextJob(); db.markDone(a.id);   // done
+  const b = makeJob();                                          // queued
+  const c = makeJob(); db.claimNextJob(); db.markFailed(c.id, 'x'); // failed
+  const removed = db.clearDone();
+  assert.ok(removed >= 1);
+  assert.equal(db.getJob(a.id), undefined, 'el done se borró');
+  assert.ok(db.getJob(b.id), 'el queued sigue');
+  assert.ok(db.getJob(c.id), 'el failed sigue');
+});
+
 test('settings: impresora por defecto persiste hasta cambiarla', () => {
   db.db.prepare('DELETE FROM imprimir_settings').run();
   assert.equal(db.getDefaultPrinter(), null);

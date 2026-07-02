@@ -47,6 +47,7 @@
     .muted{color:var(--muted)} .err{color:#f08a8a;font-size:.76rem}
     button{font-family:var(--mono);cursor:pointer;border-radius:7px;border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:6px 12px;font-size:.76rem}
     button:hover{border-color:var(--blue);color:#fff} button:disabled{opacity:.5;cursor:default}
+    button.del{padding:5px 9px} button.del:hover{border-color:var(--red);color:#f08a8a}
     .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:.78rem}
     .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
     .dot.on{background:var(--green)} .dot.off{background:var(--red)}
@@ -100,7 +101,10 @@
     </div>
 
     <div class="panel">
-      <h2>Cola de trabajos</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+        <h2 style="margin:0">Cola de trabajos</h2>
+        <button id="cleardone">🧹 Limpiar realizados</button>
+      </div>
       <table>
         <thead><tr><th>#</th><th>Documento</th><th>Remitente</th><th>Estado</th><th>Int.</th><th>Recibido</th><th>Impreso</th><th></th></tr></thead>
         <tbody id="rows"><tr><td colspan="8" class="muted">Cargando…</td></tr></tbody>
@@ -224,8 +228,10 @@
     function renderRows(jobs) {
       if (!jobs.length) { $('rows').innerHTML = '<tr><td colspan="8" class="muted">No hay trabajos todavía. Envía un email con un adjunto a la dirección de impresión.</td></tr>'; return; }
       $('rows').innerHTML = jobs.map(j => {
-        const canReprint = (j.status === 'done' || j.status === 'failed');
         const err = j.error ? `<div class="err">${esc(j.error)}</div>` : '';
+        const actions = [];
+        if (j.status === 'done' || j.status === 'failed') actions.push(`<button data-id="${j.id}" class="rp">Reimprimir</button>`);
+        if (j.status === 'queued' || j.status === 'failed') actions.push(`<button data-id="${j.id}" class="del" title="Borrar de la cola">🗑</button>`);
         return `<tr>
           <td class="muted">${j.id}</td>
           <td>${esc(j.filename)}${j.subject ? `<div class="muted" style="font-size:.72rem">${esc(j.subject)}</div>` : ''}${err}</td>
@@ -234,10 +240,33 @@
           <td class="muted">${j.attempts ?? 0}</td>
           <td class="muted">${fmt(j.created_at)}</td>
           <td class="muted">${fmt(j.printed_at)}</td>
-          <td>${canReprint ? `<button data-id="${j.id}" class="rp">Reimprimir</button>` : ''}</td>
+          <td style="white-space:nowrap">${actions.join(' ')}</td>
         </tr>`;
       }).join('');
       document.querySelectorAll('button.rp').forEach(b => b.addEventListener('click', () => reprint(b)));
+      document.querySelectorAll('button.del').forEach(b => b.addEventListener('click', () => delOne(b)));
+    }
+
+    async function delOne(btn) {
+      if (!confirm('¿Borrar este trabajo de la cola? (no se imprimirá)')) return;
+      btn.disabled = true;
+      try {
+        const r = await fetch('/imprimir/api/jobs/' + btn.dataset.id + '/delete', { method: 'POST', headers: { Accept: 'application/json' } });
+        if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error || ('Error ' + r.status)); btn.disabled = false; return; }
+        load();
+      } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
+    }
+
+    async function clearDone() {
+      if (!confirm('¿Quitar de la lista todos los trabajos ya impresos?')) return;
+      const btn = $('cleardone'); btn.disabled = true;
+      try {
+        const r = await fetch('/imprimir/api/jobs/clear-done', { method: 'POST', headers: { Accept: 'application/json' } });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) alert(d.error || ('Error ' + r.status));
+        load();
+      } catch (e) { alert('Error: ' + e.message); }
+      btn.disabled = false;
     }
 
     async function reprint(btn) {
@@ -265,6 +294,7 @@
 
     $('refresh').addEventListener('click', load);
     $('imaptest').addEventListener('click', imapTest);
+    $('cleardone').addEventListener('click', clearDone);
     setInterval(() => { if ($('auto').checked) load(); }, 4000);
     load();
   </script>

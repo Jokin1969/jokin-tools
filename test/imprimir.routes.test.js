@@ -210,6 +210,26 @@ test('reimprimir (admin): reencola un trabajo terminado', async () => {
   assert.equal(db.getJob(job.id).status, 'queued');
 });
 
+test('borrar un trabajo (admin): 401 sin sesión, ok con admin', async () => {
+  const job = enqueueSample();
+  const no = await fetch(base + `/imprimir/api/jobs/${job.id}/delete`, { method: 'POST', headers: { Accept: 'application/json' } });
+  assert.equal(no.status, 401);
+  assert.ok(db.getJob(job.id), 'sigue existiendo tras el intento sin sesión');
+  const ok = await fetch(base + `/imprimir/api/jobs/${job.id}/delete`, { method: 'POST', headers: { Accept: 'application/json', Cookie: adminCookie } });
+  assert.equal(ok.status, 200);
+  assert.equal(db.getJob(job.id), undefined, 'se borró');
+});
+
+test('limpiar realizados (admin) borra solo los done', async () => {
+  const a = enqueueSample(); db.markDone(a.id);
+  const b = enqueueSample(); // queued
+  const r = await fetch(base + '/imprimir/api/jobs/clear-done', { method: 'POST', headers: { Accept: 'application/json', Cookie: adminCookie } });
+  assert.equal(r.status, 200);
+  assert.ok((await r.json()).removed >= 1);
+  assert.equal(db.getJob(a.id), undefined, 'done borrado');
+  assert.ok(db.getJob(b.id), 'queued conservado');
+});
+
 test('reimprimir sin sesión admin → 401', async () => {
   const job = enqueueSample();
   const r = await fetch(base + `/imprimir/api/jobs/${job.id}/reprint`, { method: 'POST', headers: { Accept: 'application/json' } });

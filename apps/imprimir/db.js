@@ -153,6 +153,26 @@ function requeueStale(maxAttempts, olderThanMinutes) {
   `).run(maxAttempts, olderThanMinutes * 60).changes;
 }
 
+// Delete a single job (and its stored PDF). Used by the per-row trash button.
+function deleteJob(id) {
+  const job = getJob(id);
+  if (!job) return false;
+  try { if (job.file_path && fs.existsSync(job.file_path)) fs.unlinkSync(job.file_path); } catch { /* ignore */ }
+  return db.prepare('DELETE FROM print_jobs WHERE id = ?').run(id).changes > 0;
+}
+
+// Remove all finished (done) jobs and their files. Returns how many were cleared.
+function clearDone() {
+  const rows = db.prepare("SELECT id, file_path FROM print_jobs WHERE status = 'done'").all();
+  const del = db.prepare('DELETE FROM print_jobs WHERE id = ?');
+  let n = 0;
+  for (const r of rows) {
+    try { if (r.file_path && fs.existsSync(r.file_path)) fs.unlinkSync(r.file_path); } catch { /* ignore */ }
+    del.run(r.id); n++;
+  }
+  return n;
+}
+
 function listJobs({ status, limit = 100 } = {}) {
   const lim = Math.min(Math.max(Number(limit) || 100, 1), 500);
   if (status) return db.prepare('SELECT * FROM print_jobs WHERE status = ? ORDER BY id DESC LIMIT ?').all(status, lim);
@@ -187,5 +207,6 @@ module.exports = {
   db,
   jobExists, enqueueJob, getJob, claimNextJob,
   markDone, markFailed, requeueJob, requeueStale, listJobs, counts, purgeOld,
+  deleteJob, clearDone,
   getSetting, setSetting, getDefaultPrinter, setDefaultPrinter, getKnownPrinters, reportPrinters,
 };
