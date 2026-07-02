@@ -7,7 +7,11 @@ const sharp = require('sharp');
 
 // Turns a supported attachment into a print-ready PDF, so the local agent only
 // ever deals with PDFs. Supported: PDF (passthrough), PNG/JPEG (embedded in an
-// A4 page) and DOCX (via LibreOffice headless — the same engine Batchwork uses).
+// A4 page) and office documents — DOCX/XLSX/PPTX (and their legacy/ODF cousins)
+// via LibreOffice headless, the same engine Batchwork uses.
+
+// Office formats LibreOffice can convert to PDF.
+const OFFICE = new Set(['docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'doc', 'xls', 'ppt', 'rtf']);
 
 // Map a filename/mime to a printable kind, or null if unsupported.
 function kindOf(filename, mime) {
@@ -16,7 +20,12 @@ function kindOf(filename, mime) {
   if (type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
   if (type === 'image/png' || name.endsWith('.png')) return 'png';
   if (type === 'image/jpeg' || name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'jpg';
-  if (name.endsWith('.docx') || type.includes('wordprocessingml')) return 'docx';
+  const ext = (name.match(/\.([a-z0-9]+)$/) || [])[1];
+  if (ext && OFFICE.has(ext)) return ext;
+  // Fall back to MIME for office types sent as octet-stream with no extension.
+  if (type.includes('wordprocessingml')) return 'docx';
+  if (type.includes('spreadsheetml')) return 'xlsx';
+  if (type.includes('presentationml')) return 'pptx';
   return null;
 }
 
@@ -44,13 +53,15 @@ function rmrf(dir) {
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
 }
 
-// DOCX → PDF via LibreOffice headless. A per-call UserInstallation profile keeps
-// concurrent conversions (e.g. Batchwork running at the same time) from clashing
-// on the shared profile lock.
-function libreConvertDocx(buffer /*, filename */) {
+// Office document → PDF via LibreOffice headless. Writes the source with its real
+// extension so LibreOffice picks the right filter. A per-call UserInstallation
+// profile keeps concurrent conversions (e.g. Batchwork at the same time) from
+// clashing on the shared profile lock.
+function libreConvert(buffer, ext) {
   return new Promise((resolve, reject) => {
-    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'impr-docx-'));
-    const inFile = path.join(work, 'in.docx');
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'impr-office-'));
+    const safeExt = /^[a-z0-9]{1,5}$/i.test(ext) ? ext.toLowerCase() : 'bin';
+    const inFile = path.join(work, 'in.' + safeExt);
     const outFile = path.join(work, 'in.pdf');
     const profile = path.join(work, 'profile');
     fs.writeFileSync(inFile, buffer);
@@ -67,29 +78,22 @@ function libreConvertDocx(buffer /*, filename */) {
         }
         rmrf(work);
         const detail = String((stderr || (err && err.message) || 'sin salida')).slice(0, 200);
-        reject(new Error('LibreOffice no pudo convertir el DOCX: ' + detail));
+        reject(new Error('LibreOffice no pudo convertir el documento: ' + detail));
       },
     );
   });
 }
 
-// Normalise one attachment to a PDF buffer. `deps.convertDocx` is injectable so
-// the DOCX branch can be unit-tested without LibreOffice.
+// Normalise one attachment to a PDF buffer. `deps.convertOffice` is injectable so
+// the office branch can be unit-tested without LibreOffice.
 async function toPdf(doc, deps = {}) {
-  const convertDocx = deps.convertDocx || libreConvertDocx;
+  const convertOffice = deps.convertOffice || libreConvert;
   const kind = doc.kind || kindOf(doc.filename, doc.mime);
   if (!doc.content || !doc.content.length) throw new Error('Adjunto vacío');
-  switch (kind) {
-    case 'pdf':
-      return { buffer: doc.content, kind };
-    case 'png':
-    case 'jpg':
-      return { buffer: await imageToPdf(doc.content), kind };
-    case 'docx':
-      return { buffer: await convertDocx(doc.content, doc.filename), kind };
-    default:
-      throw new Error(`Tipo no soportado para impresión: ${doc.filename}`);
-  }
+  if (kind === 'pdf') return { buffer: doc.content, kind };
+  if (kind === 'png' || kind === 'jpg') return { buffer: await imageToPdf(doc.content), kind };
+  if (OFFICE.has(kind)) return { buffer: await convertOffice(doc.content, kind), kind };
+  throw new Error(`Tipo no soportado para impresión: ${doc.filename}`);
 }
 
-module.exports = { kindOf, toPdf, imageToPdf, libreConvertDocx };
+module.exports = { kindOf, toPdf, imageToPdf, libreConvert, OFFICE };

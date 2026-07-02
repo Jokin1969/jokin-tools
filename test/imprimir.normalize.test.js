@@ -5,12 +5,15 @@ const { kindOf, toPdf, imageToPdf } = require('../apps/imprimir/normalize');
 
 const isPdf = (buf) => Buffer.isBuffer(buf) && buf.slice(0, 5).toString() === '%PDF-';
 
-test('kindOf detecta pdf / png / jpg / docx y descarta el resto', () => {
+test('kindOf detecta pdf / png / jpg / office y descarta el resto', () => {
   assert.equal(kindOf('a.pdf', 'application/pdf'), 'pdf');
   assert.equal(kindOf('a.PNG', ''), 'png');
   assert.equal(kindOf('foto.jpg', ''), 'jpg');
   assert.equal(kindOf('x', 'image/jpeg'), 'jpg');
   assert.equal(kindOf('carta.docx', 'application/octet-stream'), 'docx');
+  assert.equal(kindOf('hoja.xlsx', 'application/octet-stream'), 'xlsx');
+  assert.equal(kindOf('charla.pptx', 'application/octet-stream'), 'pptx');
+  assert.equal(kindOf('x', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'), 'xlsx');
   assert.equal(kindOf('nota.txt', 'text/plain'), null);
 });
 
@@ -39,16 +42,18 @@ test('imageToPdf directo también produce PDF', async () => {
   assert.ok(isPdf(await imageToPdf(png)));
 });
 
-test('DOCX usa el convertidor (inyectado) y devuelve su PDF', async () => {
+test('office (DOCX/XLSX/PPTX) usa el convertidor inyectado con la extensión correcta', async () => {
   const fakePdf = Buffer.from('%PDF-1.4 convertido por libreoffice');
-  let called = null;
-  const out = await toPdf(
-    { filename: 'carta.docx', mime: 'application/octet-stream', content: Buffer.from('PKfakedocx') },
-    { convertDocx: async (buf, name) => { called = name; return fakePdf; } },
-  );
-  assert.equal(called, 'carta.docx', 'se llama al convertidor con el nombre');
-  assert.deepEqual(out.buffer, fakePdf);
-  assert.equal(out.kind, 'docx');
+  for (const [file, kind] of [['carta.docx', 'docx'], ['hoja.xlsx', 'xlsx'], ['charla.pptx', 'pptx']]) {
+    let calledExt = null;
+    const out = await toPdf(
+      { filename: file, mime: 'application/octet-stream', content: Buffer.from('PKfake') },
+      { convertOffice: async (buf, ext) => { calledExt = ext; return fakePdf; } },
+    );
+    assert.equal(calledExt, kind, `convierte ${file} con extensión ${kind}`);
+    assert.deepEqual(out.buffer, fakePdf);
+    assert.equal(out.kind, kind);
+  }
 });
 
 test('tipo no soportado lanza error', async () => {

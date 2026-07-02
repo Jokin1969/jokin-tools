@@ -67,6 +67,18 @@ test('markDone y markFailed', () => {
   assert.equal(failed.error, 'impresora offline');
 });
 
+test('requeueJob reencola un trabajo terminado (reimprimir)', () => {
+  const j = makeJob();
+  const claimed = db.claimNextJob();
+  db.markFailed(claimed.id, 'sin papel');
+  assert.equal(db.getJob(j.id).status, 'failed');
+  assert.ok(db.requeueJob(j.id));
+  const back = db.getJob(j.id);
+  assert.equal(back.status, 'queued');
+  assert.equal(back.error, null);
+  assert.equal(back.attempts, 0);
+});
+
 test('requeueStale devuelve a la cola trabajos printing viejos', () => {
   const j = makeJob();
   db.claimNextJob();                       // → printing, attempts 1

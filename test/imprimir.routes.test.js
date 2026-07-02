@@ -12,11 +12,16 @@ process.env.IMPRIMIR_ENABLED = 'false'; // no IMAP poll during tests
 
 const app = require('../server');           // require.main !== module ⇒ no listen/cron
 const db = require('../apps/imprimir/db');
+const store = require('../apps/auth/store');
+const { makeUser } = require('./helpers');
 
-let base, server, seq = 0;
+let base, server, seq = 0, adminCookie = '';
 before(async () => {
   await new Promise((r) => { server = app.listen(0, r); });
   base = `http://127.0.0.1:${server.address().port}`;
+  const admin = makeUser(store, 'admin@test.com', 'admin');
+  const { sid } = store.createSession(admin.id);
+  adminCookie = `jt_sid=${sid}`;
 });
 after(() => { try { server.close(); } catch { /* ignore */ } });
 
@@ -82,4 +87,37 @@ test('flujo del agente: failed marca error', async () => {
   const row = db.getJob(job.id);
   assert.equal(row.status, 'failed');
   assert.equal(row.error, 'impresora sin papel');
+});
+
+test('página de estado (admin): sin sesión → 401', async () => {
+  const r = await fetch(base + '/imprimir/api/status', { headers: { Accept: 'application/json' } });
+  assert.equal(r.status, 401);
+});
+
+test('página de estado (admin): con sesión admin → cuentas + trabajos', async () => {
+  enqueueSample();
+  const r = await fetch(base + '/imprimir/api/status', { headers: { Accept: 'application/json', Cookie: adminCookie } });
+  assert.equal(r.status, 200);
+  const d = await r.json();
+  assert.ok(d.counts && typeof d.counts.queued === 'number');
+  assert.ok(Array.isArray(d.jobs));
+});
+
+test('reimprimir (admin): reencola un trabajo terminado', async () => {
+  const job = enqueueSample();
+  // Marcarlo done directamente (determinista; no depende del FIFO de la cola).
+  db.markDone(job.id);
+  assert.equal(db.getJob(job.id).status, 'done');
+
+  const r = await fetch(base + `/imprimir/api/jobs/${job.id}/reprint`, {
+    method: 'POST', headers: { Accept: 'application/json', Cookie: adminCookie },
+  });
+  assert.equal(r.status, 200);
+  assert.equal(db.getJob(job.id).status, 'queued');
+});
+
+test('reimprimir sin sesión admin → 401', async () => {
+  const job = enqueueSample();
+  const r = await fetch(base + `/imprimir/api/jobs/${job.id}/reprint`, { method: 'POST', headers: { Accept: 'application/json' } });
+  assert.equal(r.status, 401);
 });

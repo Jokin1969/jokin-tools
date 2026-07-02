@@ -4,10 +4,13 @@ Imprime en tu impresora física los documentos que llegan por email a
 `imprimir@joaquincastilla.com`. Este agente corre en el **PC que tiene acceso a
 la impresora** (`\\cicpri042\Color`) y va **tirando** de la cola del servidor.
 
-Formatos aceptados en el email: **PDF, imágenes (JPG/PNG) y Word (DOCX)**. El
-servidor los convierte a PDF antes de encolarlos, así que el agente siempre
-imprime PDF. El remitente recibe un **acuse de recibo** ("en cola") y luego la
-**confirmación de impresión** (o el aviso de error).
+Formatos aceptados en el email: **PDF, imágenes (JPG/PNG) y Office
+(DOCX/XLSX/PPTX)**. El servidor los convierte a PDF antes de encolarlos, así que
+el agente siempre imprime PDF. El remitente recibe un **acuse de recibo** ("en
+cola") y luego la **confirmación de impresión** (o el aviso de error).
+
+Los administradores pueden ver la cola y **reimprimir** en la página de estado:
+`https://TU-SERVIDOR/imprimir/status`.
 
 ```
 Remitente ──email+PDF──▶  Buzón imprimir@…  ──IMAP──▶  Servidor (jokin-tools)

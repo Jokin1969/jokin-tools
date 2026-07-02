@@ -93,6 +93,14 @@ function markFailed(id, error) {
   return db.prepare("UPDATE print_jobs SET status = 'failed', error = ? WHERE id = ?").run(String(error || '').slice(0, 500), id).changes > 0;
 }
 
+// Put a finished job back in the queue for a fresh print (used by the status
+// page's "reprint" action). Resets the error and attempt counter.
+function requeueJob(id) {
+  return db.prepare(
+    "UPDATE print_jobs SET status = 'queued', error = NULL, printed_at = NULL, attempts = 0 WHERE id = ?"
+  ).run(id).changes > 0;
+}
+
 // Return a 'printing' job to the queue (e.g. agent died mid-print, or a stale
 // reclaim). Kept simple: only re-queue, never beyond a max attempts count.
 function requeueStale(maxAttempts, olderThanMinutes) {
@@ -137,5 +145,5 @@ function purgeOld(days) {
 module.exports = {
   db,
   jobExists, enqueueJob, getJob, claimNextJob,
-  markDone, markFailed, requeueStale, listJobs, counts, purgeOld,
+  markDone, markFailed, requeueJob, requeueStale, listJobs, counts, purgeOld,
 };

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Imprimir — Estado de la cola</title>
+  <style>
+    :root{
+      --bg:#0f1626;--panel:#182238;--panel2:#1e2b45;--border:#2b3b5c;
+      --text:#e6edf7;--muted:#93a6c8;--blue:#3b82f6;--green:#22a06b;
+      --amber:#c98a12;--red:#d64545;--mono:'IBM Plex Mono','Courier New',monospace;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px;line-height:1.5}
+    header{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    h1{font-size:1.05rem;margin:0}
+    .sub{color:var(--muted);font-size:.8rem}
+    main{padding:20px 24px;max-width:1100px;margin:0 auto}
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
+    .card .n{font-size:1.8rem;font-weight:700}
+    .card .l{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}
+    .card.queued .n{color:var(--blue)} .card.printing .n{color:var(--amber)}
+    .card.done .n{color:var(--green)} .card.failed .n{color:var(--red)}
+    table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+    th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);font-size:.82rem;vertical-align:top}
+    th{color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:.68rem}
+    tr:last-child td{border-bottom:none}
+    .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.7rem;font-weight:700}
+    .pill.queued{background:rgba(59,130,246,.15);color:#7cb0ff}
+    .pill.printing{background:rgba(201,138,18,.18);color:#e6b450}
+    .pill.done{background:rgba(34,160,107,.16);color:#5fd39b}
+    .pill.failed{background:rgba(214,69,69,.16);color:#f08a8a}
+    .file{color:var(--text)} .muted{color:var(--muted)}
+    .err{color:#f08a8a;font-size:.76rem}
+    button{font-family:var(--mono);cursor:pointer;border-radius:7px;border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:5px 12px;font-size:.76rem}
+    button:hover{border-color:var(--blue);color:#fff}
+    button:disabled{opacity:.5;cursor:default}
+    .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;color:var(--muted);font-size:.78rem}
+    .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+    .dot.on{background:var(--green)} .dot.off{background:var(--red)}
+    a{color:var(--blue);text-decoration:none}
+    @media(max-width:680px){.cards{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🖨️ Imprimir — Estado de la cola</h1>
+      <div class="sub">Cola de impresión por email · <a href="/">← Hub</a></div>
+    </div>
+    <div class="sub" id="printer"></div>
+  </header>
+  <main>
+    <div class="toolbar">
+      <span id="conn"><span class="dot off"></span>conectando…</span>
+      <span>·</span>
+      <label><input type="checkbox" id="auto" checked /> Auto-actualizar (4 s)</label>
+      <button id="refresh" style="margin-left:auto">Actualizar ahora</button>
+    </div>
+    <div class="cards">
+      <div class="card queued"><div class="n" id="c-queued">–</div><div class="l">En cola</div></div>
+      <div class="card printing"><div class="n" id="c-printing">–</div><div class="l">Imprimiendo</div></div>
+      <div class="card done"><div class="n" id="c-done">–</div><div class="l">Hechos</div></div>
+      <div class="card failed"><div class="n" id="c-failed">–</div><div class="l">Fallidos</div></div>
+    </div>
+    <table>
+      <thead><tr><th>#</th><th>Documento</th><th>Remitente</th><th>Estado</th><th>Creado</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="6" class="muted">Cargando…</td></tr></tbody>
+    </table>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+    const fmt = t => { try { return new Date(t + 'Z').toLocaleString('es-ES'); } catch { return t || ''; } };
+
+    async function load() {
+      try {
+        const r = await fetch('/imprimir/api/status', { headers: { Accept: 'application/json' } });
+        if (r.status === 401 || r.status === 403) { $('conn').innerHTML = '<span class="dot off"></span>sin permiso — <a href="/auth/login">inicia sesión como admin</a>'; return; }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        $('conn').innerHTML = '<span class="dot on"></span>conectado';
+        $('printer').textContent = (d.enabled ? 'Servicio activo' : 'Servicio inactivo') + (d.printer ? ' · ' + d.printer : '');
+        for (const k of ['queued','printing','done','failed']) $('c-' + k).textContent = d.counts[k] ?? 0;
+        renderRows(d.jobs || []);
+      } catch (e) {
+        $('conn').innerHTML = '<span class="dot off"></span>error: ' + esc(e.message);
+      }
+    }
+
+    function renderRows(jobs) {
+      if (!jobs.length) { $('rows').innerHTML = '<tr><td colspan="6" class="muted">No hay trabajos todavía.</td></tr>'; return; }
+      $('rows').innerHTML = jobs.map(j => {
+        const canReprint = (j.status === 'done' || j.status === 'failed');
+        const err = j.error ? `<div class="err">${esc(j.error)}</div>` : '';
+        return `<tr>
+          <td class="muted">${j.id}</td>
+          <td><span class="file">${esc(j.filename)}</span>${err}</td>
+          <td class="muted">${esc(j.sender || '')}</td>
+          <td><span class="pill ${j.status}">${j.status}</span></td>
+          <td class="muted">${esc(fmt(j.created_at))}</td>
+          <td>${canReprint ? `<button data-id="${j.id}" class="rp">Reimprimir</button>` : ''}</td>
+        </tr>`;
+      }).join('');
+      document.querySelectorAll('button.rp').forEach(b => b.addEventListener('click', () => reprint(b)));
+    }
+
+    async function reprint(btn) {
+      btn.disabled = true; btn.textContent = '…';
+      try {
+        const r = await fetch('/imprimir/api/jobs/' + btn.dataset.id + '/reprint', { method: 'POST', headers: { Accept: 'application/json' } });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) { alert(d.error || ('Error ' + r.status)); btn.disabled = false; btn.textContent = 'Reimprimir'; return; }
+        load();
+      } catch (e) { alert('Error: ' + e.message); btn.disabled = false; btn.textContent = 'Reimprimir'; }
+    }
+
+    $('refresh').addEventListener('click', load);
+    let timer = setInterval(() => { if ($('auto').checked) load(); }, 4000);
+    load();
+  </script>
+</body>
+</html>

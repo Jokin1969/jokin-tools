@@ -1,11 +1,13 @@
 const express = require('express');
 const fs = require('fs');
+const path = require('path');
 const crypto = require('crypto');
 const router = express.Router();
 
 const db = require('./db');
 const mailer = require('./mailer');
 const { config } = require('./config');
+const { requireAdmin } = require('../auth/middleware');
 
 // ─── API-key guard for the local print agent ────────────────────────────────────
 // The agent is not a browser session; it authenticates with a shared secret
@@ -80,6 +82,34 @@ router.post('/api/jobs/:id/failed', apiKeyGuard, (req, res) => {
 // ─── Debug/list (key-protected) ─────────────────────────────────────────────────
 router.get('/api/jobs', apiKeyGuard, (req, res) => {
   res.json({ jobs: db.listJobs({ status: req.query.status, limit: req.query.limit }) });
+});
+
+// ─── Status page (admins only) ──────────────────────────────────────────────────
+// A small dashboard to watch the queue and reprint finished jobs. Cookie-auth
+// (admin), separate from the agent's API-key routes.
+router.get('/status', requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'status.html'));
+});
+
+router.get('/api/status', requireAdmin, (req, res) => {
+  res.json({
+    enabled: config().enabled,
+    printer: config().defaultPrinter || null,
+    counts: db.counts(),
+    jobs: db.listJobs({ limit: 50 }),
+  });
+});
+
+// Reprint a finished job (re-queues it so the agent picks it up again).
+router.post('/api/jobs/:id/reprint', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const job = db.getJob(id);
+  if (!job) return res.status(404).json({ error: 'Trabajo no encontrado.' });
+  if (!job.file_path || !fs.existsSync(job.file_path)) {
+    return res.status(410).json({ error: 'El PDF ya no está disponible (se limpió por antigüedad).' });
+  }
+  db.requeueJob(id);
+  res.json({ ok: true });
 });
 
 module.exports = router;
