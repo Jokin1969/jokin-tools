@@ -54,6 +54,73 @@ def api(cfg, method, path, body=None):
         return json.loads(raw) if raw else {}
 
 
+def _get(cfg, path, with_key=True, timeout=30):
+    req = urllib.request.Request(cfg["server_url"] + path, method="GET")
+    if with_key:
+        req.add_header("X-Api-Key", cfg["api_key"])
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        status = getattr(resp, "status", None) or resp.getcode()
+        return status, resp.read().decode("utf-8")
+
+
+def do_check():
+    """Valida de una vez toda la instalación e imprime un informe ✓/✗."""
+    ok = True
+
+    def line(good, label, detail=""):
+        nonlocal ok
+        if not good:
+            ok = False
+        print(f"  [{'OK' if good else 'XX'}] {label}" + (f" — {detail}" if detail else ""))
+
+    print("== Comprobación del agente de impresión (jokin-tools) ==")
+    if not os.path.exists(CONFIG_PATH):
+        print(f"  [XX] No existe {CONFIG_PATH}. Copia config.example.json a config.json y edítalo.")
+        return 1
+    cfg = load_config()  # sale si faltan server_url / api_key
+    print(f"  Servidor  : {cfg['server_url']}")
+    print(f"  Impresora : {cfg.get('printer') or '(la del trabajo)'}")
+    print(f"  SumatraPDF: {cfg['sumatra_path']}")
+    print("-" * 60)
+
+    # SumatraPDF
+    have_sumatra = os.path.exists(cfg["sumatra_path"])
+    line(have_sumatra, "SumatraPDF encontrado", "" if have_sumatra else "corrige 'sumatra_path' en config.json")
+
+    # Impresora (best-effort: no todas las colas de red aparecen listadas)
+    printer = cfg.get("printer") or ""
+    if printer:
+        try:
+            out = subprocess.run(["wmic", "printer", "get", "name"], capture_output=True, text=True, timeout=20).stdout.lower()
+            found = printer.lower() in out or printer.split("\\")[-1].lower() in out
+            line(found, "Impresora visible", printer if found else f"'{printer}' no aparece; comprueba que esté instalada/conectada")
+        except Exception:
+            print(f"  [??] No pude listar impresoras; comprueba a mano que exista {printer}")
+
+    # Servidor accesible + servicio activo
+    try:
+        st, body = _get(cfg, "/imprimir/api/health", with_key=False)
+        line(st == 200, "Servidor accesible", f"health={body.strip()}")
+        enabled = '"enabled":true' in body.replace(" ", "")
+        line(enabled, "Servicio activado en el servidor", "" if enabled else "pon IMPRIMIR_ENABLED=true en el servidor y redespliega")
+    except Exception as e:
+        line(False, "Servidor accesible", f"{e} · ¿URL correcta y hay Internet?")
+
+    # API key válida
+    try:
+        st, _ = _get(cfg, "/imprimir/api/jobs")
+        line(st == 200, "API key válida", "" if st == 200 else f"HTTP {st}")
+    except urllib.error.HTTPError as e:
+        hint = "la api_key NO coincide con IMPRIMIR_AGENT_KEY del servidor" if e.code in (401, 403) else f"HTTP {e.code}"
+        line(False, "API key válida", hint)
+    except Exception as e:
+        line(False, "API key válida", str(e))
+
+    print("-" * 60)
+    print("  RESULTADO:", "TODO OK — el agente puede funcionar." if ok else "HAY PROBLEMAS — revisa las líneas [XX].")
+    return 0 if ok else 1
+
+
 def print_pdf(cfg, pdf_bytes, printer):
     """Imprime en silencio con SumatraPDF. Lanza excepción si falla."""
     sumatra = cfg["sumatra_path"]
@@ -134,6 +201,8 @@ def main():
 
 
 if __name__ == "__main__":
+    if "--check" in sys.argv or "-c" in sys.argv:
+        sys.exit(do_check())
     try:
         main()
     except KeyboardInterrupt:

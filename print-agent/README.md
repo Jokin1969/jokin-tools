@@ -22,10 +22,25 @@ Remitente ──email+PDF──▶  Buzón imprimir@…  ──IMAP──▶  Se
                                                     marca "hecho" → email de confirmación
 ```
 
+> ⚠️ Este agente NO es el mismo que el de otros proyectos (p. ej. el de Research
+> Tools, que escucha en `http://localhost:9100`). Éste **pregunta** a tu servidor
+> de jokin‑tools por trabajos (`server_url` + `api_key`). Pueden convivir: instala
+> éste en **su propia carpeta** y déjalos correr a la vez.
+
 ## Requisitos
 - **Python 3** (marca *Add Python to PATH* al instalar).
-- **SumatraPDF** (https://www.sumatrapdfreader.org/). Ruta por defecto:
-  `C:\Program Files\SumatraPDF\SumatraPDF.exe`.
+- **SumatraPDF** (https://www.sumatrapdfreader.org/). Ruta habitual:
+  `C:\Program Files\SumatraPDF\SumatraPDF.exe` — pero si lo instalaste solo para
+  tu usuario está en `C:\Users\<usuario>\AppData\Local\SumatraPDF\SumatraPDF.exe`.
+  Pon la ruta correcta en `sumatra_path` (compruébalo con `where SumatraPDF` o
+  mirando ese AppData).
+
+## Comprobar la instalación de un vistazo
+```
+python agent.py --check
+```
+Valida config, conexión al servidor, validez de la API key y SumatraPDF, e imprime
+un informe `[OK]`/`[XX]`. Úsalo siempre que algo no funcione.
 
 ## Instalación (Windows)
 1. Copia esta carpeta `print-agent/` al PC de la impresora.
