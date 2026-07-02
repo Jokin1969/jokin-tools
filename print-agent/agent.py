@@ -26,6 +26,16 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(HERE, "config.json")
 
+# On Windows, a windowless process (pythonw) spawning a console child (PowerShell,
+# SumatraPDF) flashes a console window. CREATE_NO_WINDOW keeps them hidden. The
+# flag is 0 on other platforms, so this is a no-op there.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def _run(cmd, **kwargs):
+    """subprocess.run without flashing a console window on Windows."""
+    return subprocess.run(cmd, creationflags=_NO_WINDOW, **kwargs)
+
 
 def load_config():
     if not os.path.exists(CONFIG_PATH):
@@ -66,7 +76,7 @@ def _get(cfg, path, with_key=True, timeout=30):
 def list_printers():
     """Nombres de impresoras instaladas (PowerShell Get-Printer)."""
     try:
-        out = subprocess.run(
+        out = _run(
             ["powershell", "-NoProfile", "-Command", "Get-Printer | Select-Object -ExpandProperty Name"],
             capture_output=True, text=True, timeout=25,
         )
@@ -158,7 +168,7 @@ def print_pdf(cfg, pdf_bytes, printer):
         with os.fdopen(fd, "wb") as f:
             f.write(pdf_bytes)
         # -print-to <impresora> -silent -exit-when-done: sin diálogos.
-        result = subprocess.run(
+        result = _run(
             [sumatra, "-print-to", target, "-silent", "-exit-when-done", tmp],
             capture_output=True, text=True, timeout=180,
         )
@@ -207,7 +217,7 @@ def main():
     poll = max(2, int(cfg.get("poll_seconds", 5)))
     print(f"[agente] Iniciado. Servidor: {cfg['server_url']} · impresora: {cfg.get('printer') or '(la del trabajo)'} · cada {poll}s")
     report_printers(cfg)                 # publica las impresoras al arrancar
-    report_every = max(1, 60 // poll)    # y luego ~cada 60 s
+    report_every = max(1, 300 // poll)   # y luego ~cada 5 min (oculto, sin ventana)
     backoff = poll
     i = 0
     while True:
