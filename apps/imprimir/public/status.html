@@ -146,7 +146,7 @@
     function renderConfig(c) {
       const rows = [
         ['Servicio', c.enabled ? '<span class="yes">activado</span>' : '<span class="no">desactivado</span>'],
-        ['Buzón (IMAP)', `${esc(c.imap.user || '—')} · ${esc(c.imap.host)}:${c.imap.port} · ${esc(c.imap.mailbox)} · ${c.imap.secure ? 'TLS' : 'sin TLS'}`],
+        ['Buzón (IMAP)', `${esc(c.imap.user || '—')} · ${esc(c.imap.host)}:${c.imap.port}${c.imap.hostFrom === 'SMTP_HOST' ? ' <span class="muted">(host de SMTP_HOST)</span>' : (c.imap.hostFrom === 'default' ? ' <span class="no">(por defecto imap.gmail.com)</span>' : '')} · ${esc(c.imap.mailbox)} · ${c.imap.secure ? 'TLS' : 'sin TLS'}`],
         ['Contraseña IMAP', yn(c.imap.hasPass)],
         ['Remitentes autorizados', c.allowAll ? 'Cualquiera (ALLOW_ALL)' : (c.allowlist.length ? esc(c.allowlist.join(', ')) : '<span class="no">vacío — nadie puede imprimir</span>')],
         ['Impresora por defecto', esc(c.defaultPrinter || '—')],

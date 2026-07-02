@@ -28,6 +28,27 @@ test('maskedConfig expone lo visible y oculta los secretos', () => {
   assert.equal(mc.smtp.hasPass, true);
 });
 
+test('IMAP host: hereda de SMTP_HOST si no se define IMPRIMIR_IMAP_HOST', () => {
+  const savedImap = process.env.IMPRIMIR_IMAP_HOST;
+  const savedSmtp = process.env.SMTP_HOST;
+  try {
+    delete process.env.IMPRIMIR_IMAP_HOST;
+    process.env.SMTP_HOST = 'mail.joaquincastilla.com';
+    let mc = maskedConfig();
+    assert.equal(mc.imap.host, 'mail.joaquincastilla.com');
+    assert.equal(mc.imap.hostFrom, 'SMTP_HOST');
+    assert.equal(mc.imap.port, 993, 'el puerto IMAP sigue siendo 993, no el de SMTP');
+
+    process.env.IMPRIMIR_IMAP_HOST = 'imap.otro.com';
+    mc = maskedConfig();
+    assert.equal(mc.imap.host, 'imap.otro.com');
+    assert.equal(mc.imap.hostFrom, 'IMPRIMIR_IMAP_HOST');
+  } finally {
+    if (savedImap === undefined) delete process.env.IMPRIMIR_IMAP_HOST; else process.env.IMPRIMIR_IMAP_HOST = savedImap;
+    if (savedSmtp === undefined) delete process.env.SMTP_HOST; else process.env.SMTP_HOST = savedSmtp;
+  }
+});
+
 test('readiness: todo configurado + sondeo OK + agente visto → todo ok', () => {
   const items = readiness(maskedConfig(), {
     lastPollAt: '2026-07-02T09:00:00Z', lastPollOk: true, lastAgentPullAt: '2026-07-02T09:01:00Z',

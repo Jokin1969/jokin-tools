@@ -19,7 +19,10 @@ function config() {
   return {
     enabled: bool(process.env.IMPRIMIR_ENABLED, false),
     imap: {
-      host: process.env.IMPRIMIR_IMAP_HOST || 'imap.gmail.com',
+      // The IMAP host usually matches the mail server, so default to SMTP_HOST
+      // (the account already configured for sending) before falling back to
+      // Gmail. Port stays 993 (IMAPS) — SMTP_PORT is a different service.
+      host: process.env.IMPRIMIR_IMAP_HOST || process.env.SMTP_HOST || 'imap.gmail.com',
       port: Number(process.env.IMPRIMIR_IMAP_PORT) || 993,
       secure: bool(process.env.IMPRIMIR_IMAP_SECURE, true),
       user: process.env.IMPRIMIR_IMAP_USER || '',
@@ -52,9 +55,11 @@ function isAllowed(cfg, address) {
 // visible; secrets (passwords, agent key) become booleans only.
 function maskedConfig() {
   const c = config();
+  const imapHostFrom = process.env.IMPRIMIR_IMAP_HOST ? 'IMPRIMIR_IMAP_HOST'
+    : (process.env.SMTP_HOST ? 'SMTP_HOST' : 'default');
   return {
     enabled: c.enabled,
-    imap: { host: c.imap.host, port: c.imap.port, secure: c.imap.secure, user: c.imap.user, mailbox: c.imap.mailbox, hasPass: !!c.imap.pass },
+    imap: { host: c.imap.host, hostFrom: imapHostFrom, port: c.imap.port, secure: c.imap.secure, user: c.imap.user, mailbox: c.imap.mailbox, hasPass: !!c.imap.pass },
     allowlist: c.allowlist,
     allowAll: c.allowAll,
     defaultPrinter: c.defaultPrinter,
