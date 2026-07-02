@@ -35,6 +35,7 @@ function config() {
     maxBytes: (Number(process.env.IMPRIMIR_MAX_MB) || 25) * 1024 * 1024,
     pollCron: process.env.IMPRIMIR_POLL_CRON || '* * * * *',   // every minute
     retentionDays: Number(process.env.IMPRIMIR_RETENTION_DAYS) || 14,
+    notifyReceived: bool(process.env.IMPRIMIR_NOTIFY_RECEIVED, true),
     notifySenderNoPdf: bool(process.env.IMPRIMIR_NOTIFY_NO_PDF, true),
   };
 }

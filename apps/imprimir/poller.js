@@ -1,7 +1,8 @@
 const cron = require('node-cron');
 const { simpleParser } = require('mailparser');
 const { config } = require('./config');
-const { classifyMessage, persistEnqueue } = require('./ingest');
+const { classifyMessage, storeDoc } = require('./ingest');
+const { toPdf } = require('./normalize');
 const { pollMailbox } = require('./imap');
 const db = require('./db');
 const mailer = require('./mailer');
@@ -21,19 +22,48 @@ async function handleSource(source, cfg) {
     return true; // don't reply — avoids email backscatter to spoofed senders
   }
 
-  if (result.action === 'no_pdf') {
-    console.log('[imprimir] Correo sin PDF de', result.sender);
+  if (result.action === 'empty') {
+    console.log('[imprimir] Correo sin documento imprimible de', result.sender);
     if (cfg.notifySenderNoPdf) {
-      try { await mailer.sendNoPdf(result.sender, result.subject, result.oversized); }
-      catch (e) { console.error('[imprimir] No se pudo avisar (sin PDF):', e.message); }
+      try { await mailer.sendNothing(result.sender, result.subject, result.oversized); }
+      catch (e) { console.error('[imprimir] No se pudo avisar (sin documento):', e.message); }
     }
     return true;
   }
 
-  // enqueue — persistEnqueue may throw on disk errors; let it propagate so the
-  // message stays unseen and is retried (enqueue is idempotent).
-  const created = persistEnqueue(result, cfg, db);
-  console.log(`[imprimir] Encolado(s) ${created.length} trabajo(s) de ${result.sender} (${result.subject || 'sin asunto'})`);
+  // enqueue: normalise each attachment to PDF, then store + enqueue. Conversion
+  // failures are permanent (bad file) → report to the sender, don't retry. Disk
+  // write errors propagate so the message stays unseen and is retried later
+  // (enqueue is idempotent by message_id + part_idx).
+  const created = [];
+  const convFailed = [];
+  for (const doc of result.docs) {
+    if (db.jobExists(result.messageId, doc.part_idx)) continue;
+    let pdf;
+    try {
+      pdf = await toPdf(doc);
+    } catch (e) {
+      console.error('[imprimir] Conversión falló para', doc.filename, '—', e.message);
+      convFailed.push({ filename: doc.filename, error: e.message });
+      continue;
+    }
+    created.push(storeDoc(cfg, db, {
+      messageId: result.messageId, part_idx: doc.part_idx,
+      sender: result.sender, subject: result.subject, filename: doc.filename,
+    }, pdf.buffer));
+  }
+
+  if (created.length) {
+    console.log(`[imprimir] Encolado(s) ${created.length} trabajo(s) de ${result.sender} (${result.subject || 'sin asunto'})`);
+    if (cfg.notifyReceived) {
+      try { await mailer.sendReceived(result.sender, result.subject, created); }
+      catch (e) { console.error('[imprimir] No se pudo enviar el acuse de recibo:', e.message); }
+    }
+  }
+  if (convFailed.length) {
+    try { await mailer.sendConversionFailed(result.sender, convFailed); }
+    catch (e) { console.error('[imprimir] No se pudo avisar de conversión fallida:', e.message); }
+  }
   return true;
 }
 

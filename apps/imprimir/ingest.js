@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { isAllowed } = require('./config');
+const { kindOf } = require('./normalize');
 
 // ─── Pure helpers (no I/O — unit tested) ──────────────────────────────────────
 
@@ -10,17 +11,13 @@ function senderOf(parsed) {
   return v && v.address ? String(v.address).trim().toLowerCase() : '';
 }
 
-function isPdf(att) {
-  const type = String(att.contentType || '').toLowerCase();
-  const name = String(att.filename || '').toLowerCase();
-  return type === 'application/pdf' || name.endsWith('.pdf');
-}
-
-function safeFilename(name) {
-  let base = String(name || 'documento.pdf').split(/[\\/]/).pop();
+// Sanitise a filename for display/storage. Keeps the original extension unless
+// `forceExt` (e.g. '.pdf') is given, in which case it replaces it.
+function safeFilename(name, forceExt) {
+  let base = String(name || 'documento').split(/[\\/]/).pop();
   base = base.replace(/[^\p{L}\p{N}.\-_() ]+/gu, '_').replace(/_{2,}/g, '_').replace(/^[_.\s]+|[_.\s]+$/g, '');
   if (!base) base = 'documento';
-  if (!/\.pdf$/i.test(base)) base += '.pdf';
+  if (forceExt) base = base.replace(/\.[^.]+$/, '') + forceExt;
   return base.slice(0, 120);
 }
 
@@ -37,9 +34,10 @@ function messageIdOf(parsed) {
 }
 
 // Decide what to do with a parsed email. Returns one of:
-//   { action: 'reject',  reason: 'sender', sender }
-//   { action: 'no_pdf',  sender, messageId, subject }        (allowed but nothing to print)
-//   { action: 'enqueue', sender, messageId, subject, pdfs: [...], oversized: [...] }
+//   { action: 'reject',  reason: 'sender', sender, ... }
+//   { action: 'empty',   sender, messageId, subject, oversized }   (allowed, nothing to print)
+//   { action: 'enqueue', sender, messageId, subject, docs: [...], oversized: [...] }
+// `docs` are printable attachments (PDF/PNG/JPG/DOCX), each with its raw content.
 // Never throws; pure function of its inputs.
 function classifyMessage(parsed, cfg) {
   const sender = senderOf(parsed);
@@ -50,56 +48,52 @@ function classifyMessage(parsed, cfg) {
     return { action: 'reject', reason: 'sender', sender, messageId, subject };
   }
 
-  const pdfs = [];
+  const docs = [];
   const oversized = [];
   let idx = 0;
   for (const att of (parsed.attachments || [])) {
-    if (!isPdf(att)) continue;
+    const kind = kindOf(att.filename, att.contentType);
+    if (!kind) continue; // not a printable type
     const size = att.size || (att.content ? att.content.length : 0);
     const entry = {
       part_idx: idx++,
       filename: safeFilename(att.filename),
-      mime: 'application/pdf',
+      mime: att.contentType || '',
+      kind,
       size,
       content: att.content || null,
     };
     if (cfg.maxBytes && size > cfg.maxBytes) oversized.push(entry);
-    else pdfs.push(entry);
+    else docs.push(entry);
   }
 
-  if (!pdfs.length) return { action: 'no_pdf', sender, messageId, subject, oversized };
-  return { action: 'enqueue', sender, messageId, subject, pdfs, oversized };
+  if (!docs.length) return { action: 'empty', sender, messageId, subject, oversized };
+  return { action: 'enqueue', sender, messageId, subject, docs, oversized };
 }
 
-// ─── Persistence (writes PDFs to disk + rows to the queue) ─────────────────────
+// ─── Persistence (writes the normalised PDF to disk + a row to the queue) ──────
 
-// Persist an 'enqueue' classification. Skips attachments already stored (dedupe
-// by message_id + part_idx). Returns the jobs actually created.
-function persistEnqueue(result, cfg, db) {
+// Store one already-normalised PDF and enqueue it. `meta.filename` is the name
+// shown to the user (original, e.g. carta.docx); the file on disk is a .pdf.
+// Returns the created job. Caller must check db.jobExists first for dedupe.
+function storeDoc(cfg, db, meta, pdfBuffer) {
   if (!fs.existsSync(cfg.storageDir)) fs.mkdirSync(cfg.storageDir, { recursive: true });
-  const created = [];
-  for (const pdf of result.pdfs) {
-    if (db.jobExists(result.messageId, pdf.part_idx)) continue;
-    if (!pdf.content || !pdf.content.length) continue;
-    const token = crypto.randomBytes(8).toString('hex');
-    const filePath = path.join(cfg.storageDir, `${token}-${pdf.filename}`);
-    fs.writeFileSync(filePath, pdf.content);
-    const job = db.enqueueJob({
-      message_id: result.messageId,
-      part_idx: pdf.part_idx,
-      sender: result.sender,
-      subject: result.subject,
-      filename: pdf.filename,
-      mime: pdf.mime,
-      printer: cfg.defaultPrinter || null,
-      size_bytes: pdf.size,
-      file_path: filePath,
-    });
-    created.push(job);
-  }
-  return created;
+  const token = crypto.randomBytes(8).toString('hex');
+  const filePath = path.join(cfg.storageDir, `${token}-${safeFilename(meta.filename, '.pdf')}`);
+  fs.writeFileSync(filePath, pdfBuffer);
+  return db.enqueueJob({
+    message_id: meta.messageId,
+    part_idx: meta.part_idx,
+    sender: meta.sender,
+    subject: meta.subject,
+    filename: meta.filename,
+    mime: 'application/pdf',
+    printer: cfg.defaultPrinter || null,
+    size_bytes: pdfBuffer.length,
+    file_path: filePath,
+  });
 }
 
 module.exports = {
-  senderOf, isPdf, safeFilename, messageIdOf, classifyMessage, persistEnqueue,
+  senderOf, safeFilename, messageIdOf, classifyMessage, storeDoc,
 };
