@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Imprimir — Estado de la cola</title>
+  <title>Imprimir — Estado y diagnóstico</title>
   <style>
     :root{
       --bg:#0f1626;--panel:#182238;--panel2:#1e2b45;--border:#2b3b5c;
@@ -14,39 +14,51 @@
     body{margin:0;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px;line-height:1.5}
     header{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
     h1{font-size:1.05rem;margin:0}
+    h2{font-size:.82rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px}
     .sub{color:var(--muted);font-size:.8rem}
-    main{padding:20px 24px;max-width:1100px;margin:0 auto}
-    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
+    main{padding:20px 24px;max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .card{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px}
     .card .n{font-size:1.8rem;font-weight:700}
-    .card .l{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}
+    .card .l{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em}
     .card.queued .n{color:var(--blue)} .card.printing .n{color:var(--amber)}
     .card.done .n{color:var(--green)} .card.failed .n{color:var(--red)}
-    table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden}
-    th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);font-size:.82rem;vertical-align:top}
-    th{color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:.68rem}
+    /* checklist */
+    .check{display:flex;gap:12px;padding:9px 0;border-bottom:1px dashed var(--border);align-items:flex-start}
+    .check:last-child{border-bottom:none}
+    .ico{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem}
+    .ico.ok{background:rgba(34,160,107,.18);color:#5fd39b} .ico.warn{background:rgba(201,138,18,.2);color:#e6b450} .ico.error{background:rgba(214,69,69,.2);color:#f08a8a}
+    .check .cl{font-weight:600} .check .cd{color:var(--muted);font-size:.8rem}
+    /* config grid */
+    .kv{display:grid;grid-template-columns:200px 1fr;gap:6px 14px}
+    .kv .k{color:var(--muted)} .kv .v{color:var(--text);word-break:break-word}
+    .yes{color:#5fd39b} .no{color:#f08a8a}
+    /* table */
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);font-size:.8rem;vertical-align:top}
+    th{color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:.66rem}
     tr:last-child td{border-bottom:none}
-    .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.7rem;font-weight:700}
+    .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700}
     .pill.queued{background:rgba(59,130,246,.15);color:#7cb0ff}
     .pill.printing{background:rgba(201,138,18,.18);color:#e6b450}
     .pill.done{background:rgba(34,160,107,.16);color:#5fd39b}
     .pill.failed{background:rgba(214,69,69,.16);color:#f08a8a}
-    .file{color:var(--text)} .muted{color:var(--muted)}
-    .err{color:#f08a8a;font-size:.76rem}
-    button{font-family:var(--mono);cursor:pointer;border-radius:7px;border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:5px 12px;font-size:.76rem}
-    button:hover{border-color:var(--blue);color:#fff}
-    button:disabled{opacity:.5;cursor:default}
-    .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;color:var(--muted);font-size:.78rem}
+    .muted{color:var(--muted)} .err{color:#f08a8a;font-size:.76rem}
+    button{font-family:var(--mono);cursor:pointer;border-radius:7px;border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:6px 12px;font-size:.76rem}
+    button:hover{border-color:var(--blue);color:#fff} button:disabled{opacity:.5;cursor:default}
+    .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:.78rem}
     .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
     .dot.on{background:var(--green)} .dot.off{background:var(--red)}
     a{color:var(--blue);text-decoration:none}
-    @media(max-width:680px){.cards{grid-template-columns:repeat(2,1fr)}}
+    .imap-res{font-size:.78rem}
+    @media(max-width:760px){.cards{grid-template-columns:repeat(2,1fr)}.kv{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
   <header>
     <div>
-      <h1>🖨️ Imprimir — Estado de la cola</h1>
+      <h1>🖨️ Imprimir — Estado y diagnóstico</h1>
       <div class="sub">Cola de impresión por email · <a href="/">← Hub</a></div>
     </div>
     <div class="sub" id="printer"></div>
@@ -54,26 +66,52 @@
   <main>
     <div class="toolbar">
       <span id="conn"><span class="dot off"></span>conectando…</span>
-      <span>·</span>
       <label><input type="checkbox" id="auto" checked /> Auto-actualizar (4 s)</label>
-      <button id="refresh" style="margin-left:auto">Actualizar ahora</button>
+      <button id="refresh">Actualizar</button>
+      <button id="imaptest">Probar conexión IMAP</button>
+      <span class="imap-res" id="imapres"></span>
     </div>
+
+    <div class="panel">
+      <h2>¿Está todo listo?</h2>
+      <div id="checklist"><div class="muted">Cargando…</div></div>
+    </div>
+
     <div class="cards">
       <div class="card queued"><div class="n" id="c-queued">–</div><div class="l">En cola</div></div>
       <div class="card printing"><div class="n" id="c-printing">–</div><div class="l">Imprimiendo</div></div>
       <div class="card done"><div class="n" id="c-done">–</div><div class="l">Hechos</div></div>
       <div class="card failed"><div class="n" id="c-failed">–</div><div class="l">Fallidos</div></div>
     </div>
-    <table>
-      <thead><tr><th>#</th><th>Documento</th><th>Remitente</th><th>Estado</th><th>Creado</th><th></th></tr></thead>
-      <tbody id="rows"><tr><td colspan="6" class="muted">Cargando…</td></tr></tbody>
-    </table>
+
+    <div class="panel">
+      <h2>Configuración visible</h2>
+      <div class="kv" id="config"><div class="muted">Cargando…</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Diagnóstico en vivo</h2>
+      <div class="kv" id="diag"><div class="muted">Cargando…</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Cola de trabajos</h2>
+      <table>
+        <thead><tr><th>#</th><th>Documento</th><th>Remitente</th><th>Estado</th><th>Int.</th><th>Recibido</th><th>Impreso</th><th></th></tr></thead>
+        <tbody id="rows"><tr><td colspan="8" class="muted">Cargando…</td></tr></tbody>
+      </table>
+    </div>
   </main>
 
   <script>
     const $ = id => document.getElementById(id);
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
-    const fmt = t => { try { return new Date(t + 'Z').toLocaleString('es-ES'); } catch { return t || ''; } };
+    const yn = b => b ? '<span class="yes">✓ sí</span>' : '<span class="no">✗ no</span>';
+    function fmt(t){
+      if(!t) return '—';
+      try{ const iso = /[TZ]/.test(t) ? t : (t.replace(' ','T')+'Z'); return new Date(iso).toLocaleString('es-ES'); }
+      catch{ return t; }
+    }
 
     async function load() {
       try {
@@ -81,8 +119,12 @@
         if (r.status === 401 || r.status === 403) { $('conn').innerHTML = '<span class="dot off"></span>sin permiso — <a href="/auth/login">inicia sesión como admin</a>'; return; }
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
-        $('conn').innerHTML = '<span class="dot on"></span>conectado';
-        $('printer').textContent = (d.enabled ? 'Servicio activo' : 'Servicio inactivo') + (d.printer ? ' · ' + d.printer : '');
+        $('conn').innerHTML = '<span class="dot on"></span>panel conectado';
+        const c = d.config;
+        $('printer').textContent = (c.enabled ? 'Servicio ACTIVO' : 'Servicio INACTIVO') + (c.defaultPrinter ? ' · ' + c.defaultPrinter : '');
+        renderChecklist(d.checklist || []);
+        renderConfig(c);
+        renderDiag(d.diag || {}, c);
         for (const k of ['queued','printing','done','failed']) $('c-' + k).textContent = d.counts[k] ?? 0;
         renderRows(d.jobs || []);
       } catch (e) {
@@ -90,17 +132,59 @@
       }
     }
 
+    function renderChecklist(items) {
+      if (!items.length) { $('checklist').innerHTML = '<div class="muted">—</div>'; return; }
+      $('checklist').innerHTML = items.map(i => {
+        const sym = i.level === 'ok' ? '✓' : (i.level === 'warn' ? '!' : '✗');
+        return `<div class="check">
+          <div class="ico ${i.level}">${sym}</div>
+          <div><div class="cl">${esc(i.label)}</div><div class="cd">${esc(i.detail)}</div></div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderConfig(c) {
+      const rows = [
+        ['Servicio', c.enabled ? '<span class="yes">activado</span>' : '<span class="no">desactivado</span>'],
+        ['Buzón (IMAP)', `${esc(c.imap.user || '—')} · ${esc(c.imap.host)}:${c.imap.port} · ${esc(c.imap.mailbox)} · ${c.imap.secure ? 'TLS' : 'sin TLS'}`],
+        ['Contraseña IMAP', yn(c.imap.hasPass)],
+        ['Remitentes autorizados', c.allowAll ? 'Cualquiera (ALLOW_ALL)' : (c.allowlist.length ? esc(c.allowlist.join(', ')) : '<span class="no">vacío — nadie puede imprimir</span>')],
+        ['Impresora por defecto', esc(c.defaultPrinter || '—')],
+        ['API key del agente', yn(c.hasAgentKey)],
+        ['SMTP (avisos)', `${esc(c.smtp.from || '—')} · ${yn(c.smtp.hasPass)}`],
+        ['Frecuencia de sondeo', esc(c.pollCron)],
+        ['Retención', c.retentionDays + ' días'],
+        ['Tamaño máx. adjunto', c.maxMB + ' MB'],
+        ['Avisos', `acuse de recibo: ${yn(c.notifyReceived)} · sin documento: ${yn(c.notifySenderNoPdf)}`],
+      ];
+      $('config').innerHTML = rows.map(([k, v]) => `<div class="k">${esc(k)}</div><div class="v">${v}</div>`).join('');
+    }
+
+    function renderDiag(g, c) {
+      const pollState = g.lastPollAt ? (g.lastPollOk ? '<span class="yes">correcto</span>' : `<span class="no">error: ${esc(g.lastPollError || '')}</span>`) : 'aún no ha sondeado';
+      const rows = [
+        ['Último sondeo del buzón', `${fmt(g.lastPollAt)} · ${pollState}`],
+        ['Nuevos en el último sondeo', String(g.lastPollNew ?? 0)],
+        ['Último email encolado', fmt(g.lastEmailAt)],
+        ['Agente de impresión visto', g.lastAgentPullAt ? fmt(g.lastAgentPullAt) : '<span class="no">nunca — ¿está arrancado el agente?</span>'],
+        ['Servidor arrancado', fmt(g.startedAt)],
+      ];
+      $('diag').innerHTML = rows.map(([k, v]) => `<div class="k">${esc(k)}</div><div class="v">${v}</div>`).join('');
+    }
+
     function renderRows(jobs) {
-      if (!jobs.length) { $('rows').innerHTML = '<tr><td colspan="6" class="muted">No hay trabajos todavía.</td></tr>'; return; }
+      if (!jobs.length) { $('rows').innerHTML = '<tr><td colspan="8" class="muted">No hay trabajos todavía. Envía un email con un adjunto a la dirección de impresión.</td></tr>'; return; }
       $('rows').innerHTML = jobs.map(j => {
         const canReprint = (j.status === 'done' || j.status === 'failed');
         const err = j.error ? `<div class="err">${esc(j.error)}</div>` : '';
         return `<tr>
           <td class="muted">${j.id}</td>
-          <td><span class="file">${esc(j.filename)}</span>${err}</td>
+          <td>${esc(j.filename)}${j.subject ? `<div class="muted" style="font-size:.72rem">${esc(j.subject)}</div>` : ''}${err}</td>
           <td class="muted">${esc(j.sender || '')}</td>
           <td><span class="pill ${j.status}">${j.status}</span></td>
-          <td class="muted">${esc(fmt(j.created_at))}</td>
+          <td class="muted">${j.attempts ?? 0}</td>
+          <td class="muted">${fmt(j.created_at)}</td>
+          <td class="muted">${fmt(j.printed_at)}</td>
           <td>${canReprint ? `<button data-id="${j.id}" class="rp">Reimprimir</button>` : ''}</td>
         </tr>`;
       }).join('');
@@ -117,8 +201,22 @@
       } catch (e) { alert('Error: ' + e.message); btn.disabled = false; btn.textContent = 'Reimprimir'; }
     }
 
+    async function imapTest() {
+      const btn = $('imaptest'); btn.disabled = true;
+      $('imapres').innerHTML = '<span class="muted">probando…</span>';
+      try {
+        const r = await fetch('/imprimir/api/diag/imap-test', { method: 'POST', headers: { Accept: 'application/json' } });
+        const d = await r.json();
+        $('imapres').innerHTML = d.ok
+          ? `<span class="yes">✓ conectado a ${esc(d.mailbox)} · ${d.unseen} sin leer</span>`
+          : `<span class="no">✗ ${esc(d.error || 'error')}</span>`;
+      } catch (e) { $('imapres').innerHTML = `<span class="no">✗ ${esc(e.message)}</span>`; }
+      btn.disabled = false;
+    }
+
     $('refresh').addEventListener('click', load);
-    let timer = setInterval(() => { if ($('auto').checked) load(); }, 4000);
+    $('imaptest').addEventListener('click', imapTest);
+    setInterval(() => { if ($('auto').checked) load(); }, 4000);
     load();
   </script>
 </body>

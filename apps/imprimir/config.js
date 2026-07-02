@@ -48,4 +48,61 @@ function isAllowed(cfg, address) {
   return cfg.allowlist.includes(addr);
 }
 
-module.exports = { config, isAllowed, bool, list };
+// A view of the config safe to show on the status page: emails/hosts/printer are
+// visible; secrets (passwords, agent key) become booleans only.
+function maskedConfig() {
+  const c = config();
+  return {
+    enabled: c.enabled,
+    imap: { host: c.imap.host, port: c.imap.port, secure: c.imap.secure, user: c.imap.user, mailbox: c.imap.mailbox, hasPass: !!c.imap.pass },
+    allowlist: c.allowlist,
+    allowAll: c.allowAll,
+    defaultPrinter: c.defaultPrinter,
+    hasAgentKey: !!c.agentKey,
+    smtp: {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      user: process.env.SMTP_USER || '',
+      from: process.env.EMAIL_FROM || process.env.SMTP_USER || '',
+      hasPass: !!process.env.SMTP_PASS,
+    },
+    storageDir: c.storageDir,
+    pollCron: c.pollCron,
+    retentionDays: c.retentionDays,
+    maxMB: Math.round(c.maxBytes / 1024 / 1024),
+    notifyReceived: c.notifyReceived,
+    notifySenderNoPdf: c.notifySenderNoPdf,
+  };
+}
+
+// Turn the masked config + live diagnostics into a human checklist so the status
+// page can say, at a glance, what's ready and what's blocking printing. Pure.
+function readiness(mc, diag = {}) {
+  const items = [];
+  const add = (ok, label, detail, failLevel = 'error') => items.push({ ok, label, detail, level: ok ? 'ok' : failLevel });
+
+  add(mc.enabled, 'Servicio activado',
+    mc.enabled ? 'IMPRIMIR_ENABLED=true' : 'Está desactivado. Pon IMPRIMIR_ENABLED=true y redespliega.');
+  add(!!(mc.imap.user && mc.imap.hasPass), 'Credenciales del buzón (IMAP)',
+    (mc.imap.user && mc.imap.hasPass) ? `${mc.imap.user} · ${mc.imap.host}:${mc.imap.port}` : 'Faltan IMPRIMIR_IMAP_USER / IMPRIMIR_IMAP_PASS (contraseña de aplicación).');
+  add(mc.allowAll || (mc.allowlist && mc.allowlist.length > 0), 'Remitentes autorizados',
+    mc.allowAll ? 'Cualquiera (IMPRIMIR_ALLOW_ALL=true)' : (mc.allowlist.length ? mc.allowlist.join(', ') : 'Lista vacía: NADIE puede imprimir. Define IMPRIMIR_ALLOWLIST.'));
+  add(!!mc.hasAgentKey, 'Clave del agente (API key)',
+    mc.hasAgentKey ? 'Configurada' : 'Falta IMPRIMIR_AGENT_KEY; el agente no podrá autenticarse.');
+  add(!!mc.defaultPrinter, 'Impresora por defecto',
+    mc.defaultPrinter || 'Sin definir (el agente usará la de su config.json).', 'warn');
+  add(!!(mc.smtp.user && mc.smtp.hasPass), 'SMTP para avisos por email',
+    (mc.smtp.user && mc.smtp.hasPass) ? `${mc.smtp.from}` : 'Sin SMTP: no se enviarán acuses de recibo ni confirmaciones.', 'warn');
+
+  const polled = !!diag.lastPollAt;
+  add(polled && diag.lastPollOk === true, 'Último sondeo del buzón',
+    !polled ? 'Aún no se ha sondeado el buzón (¿servicio desactivado o recién arrancado?).'
+      : (diag.lastPollOk ? `Correcto · ${diag.lastPollAt}` : `Falló: ${diag.lastPollError}`),
+    polled && diag.lastPollOk === false ? 'error' : 'warn');
+  add(!!diag.lastAgentPullAt, 'Agente de impresión visto',
+    diag.lastAgentPullAt ? `Última consulta del agente: ${diag.lastAgentPullAt}`
+      : 'El agente aún no ha contactado. ¿Está arrancado en el PC de la impresora, con la URL del servidor y la misma API key?', 'warn');
+
+  return items;
+}
+
+module.exports = { config, isAllowed, bool, list, maskedConfig, readiness };

@@ -6,6 +6,7 @@ const { toPdf } = require('./normalize');
 const { pollMailbox } = require('./imap');
 const db = require('./db');
 const mailer = require('./mailer');
+const { recordPoll } = require('./state');
 
 let tasks = null;
 let running = false;
@@ -85,8 +86,10 @@ async function runIngestOnce() {
     if (requeued) console.log(`[imprimir] ${requeued} trabajo(s) colgado(s) devueltos a la cola.`);
 
     const res = await pollMailbox(cfg, (src) => handleSource(src, cfg));
+    recordPoll({ ok: true, newMsgs: res.processed });
     if (res.processed) console.log(`[imprimir] Poll: ${res.processed} mensaje(s) nuevos, ${res.marked} procesado(s).`);
   } catch (e) {
+    recordPoll({ ok: false, error: e.message });
     console.error('[imprimir] Poll falló:', e.message);
   } finally {
     running = false;

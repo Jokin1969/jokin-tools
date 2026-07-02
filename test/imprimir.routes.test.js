@@ -94,13 +94,39 @@ test('página de estado (admin): sin sesión → 401', async () => {
   assert.equal(r.status, 401);
 });
 
-test('página de estado (admin): con sesión admin → cuentas + trabajos', async () => {
+test('página de estado (admin): cuentas + trabajos + config enmascarada + checklist', async () => {
   enqueueSample();
   const r = await fetch(base + '/imprimir/api/status', { headers: { Accept: 'application/json', Cookie: adminCookie } });
   assert.equal(r.status, 200);
   const d = await r.json();
   assert.ok(d.counts && typeof d.counts.queued === 'number');
   assert.ok(Array.isArray(d.jobs));
+  // config visible, secretos enmascarados
+  assert.equal(d.config.hasAgentKey, true);
+  assert.ok(!('agentKey' in d.config), 'no filtra la API key');
+  assert.equal(d.config.defaultPrinter, '\\\\cicpri042\\Color');
+  assert.ok(Array.isArray(d.checklist) && d.checklist.length > 0);
+  assert.ok('lastPollAt' in d.diag && 'lastAgentPullAt' in d.diag);
+});
+
+test('imap-test: sin sesión admin → 401', async () => {
+  const r = await fetch(base + '/imprimir/api/diag/imap-test', { method: 'POST', headers: { Accept: 'application/json' } });
+  assert.equal(r.status, 401);
+});
+
+test('imap-test: admin sin credenciales IMAP → ok:false sin reventar', async () => {
+  const r = await fetch(base + '/imprimir/api/diag/imap-test', { method: 'POST', headers: { Accept: 'application/json', Cookie: adminCookie } });
+  assert.equal(r.status, 200);
+  const d = await r.json();
+  assert.equal(d.ok, false);
+  assert.match(d.error, /credenciales|usuario|contrase/i);
+});
+
+test('el agente que pide trabajo actualiza el heartbeat (lastAgentPullAt)', async () => {
+  await fetch(base + '/imprimir/api/jobs/next', { headers: { 'X-Api-Key': 'testkey123' } });
+  const r = await fetch(base + '/imprimir/api/status', { headers: { Accept: 'application/json', Cookie: adminCookie } });
+  const d = await r.json();
+  assert.ok(d.diag.lastAgentPullAt, 'se registra la última consulta del agente');
 });
 
 test('reimprimir (admin): reencola un trabajo terminado', async () => {

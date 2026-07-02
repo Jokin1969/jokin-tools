@@ -6,7 +6,8 @@ const router = express.Router();
 
 const db = require('./db');
 const mailer = require('./mailer');
-const { config } = require('./config');
+const { config, maskedConfig, readiness } = require('./config');
+const { state, recordAgentPull } = require('./state');
 const { requireAdmin } = require('../auth/middleware');
 
 // ─── API-key guard for the local print agent ────────────────────────────────────
@@ -36,6 +37,7 @@ router.get('/api/health', (req, res) => {
 
 // ─── Agent: claim the next queued job (returns the PDF as base64) ───────────────
 router.get('/api/jobs/next', apiKeyGuard, (req, res) => {
+  recordAgentPull(); // heartbeat: the agent is alive and talking to us
   const job = db.claimNextJob();
   if (!job) return res.json({ job: null });
   let pdf_base64;
@@ -92,12 +94,35 @@ router.get('/status', requireAdmin, (req, res) => {
 });
 
 router.get('/api/status', requireAdmin, (req, res) => {
+  const mc = maskedConfig();
+  const jobs = db.listJobs({ limit: 50 });
+  const diag = {
+    ...state,
+    now: new Date().toISOString(),
+    lastEmailAt: jobs.length ? jobs[0].created_at : null,
+  };
   res.json({
-    enabled: config().enabled,
-    printer: config().defaultPrinter || null,
+    config: mc,
+    diag,
+    checklist: readiness(mc, diag),
     counts: db.counts(),
-    jobs: db.listJobs({ limit: 50 }),
+    jobs,
   });
+});
+
+// Actively test the IMAP connection with the current credentials.
+router.post('/api/diag/imap-test', requireAdmin, async (req, res) => {
+  const cfg = config();
+  if (!cfg.imap.user || !cfg.imap.pass) {
+    return res.json({ ok: false, error: 'Faltan usuario/contraseña IMAP en la configuración.' });
+  }
+  try {
+    const { testConnection } = require('./imap'); // lazy: only load imapflow on demand
+    const result = await testConnection(cfg);
+    res.json(result);
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
 });
 
 // Reprint a finished job (re-queues it so the agent picks it up again).

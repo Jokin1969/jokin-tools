@@ -42,4 +42,28 @@ async function pollMailbox(cfg, handleSource) {
   return { processed, marked: toMark.length };
 }
 
-module.exports = { pollMailbox };
+// Actively test the IMAP connection + credentials (used by the status page's
+// "Probar conexión" button). Returns { ok, mailbox, unseen } or throws.
+async function testConnection(cfg) {
+  const client = new ImapFlow({
+    host: cfg.imap.host,
+    port: cfg.imap.port,
+    secure: cfg.imap.secure,
+    auth: { user: cfg.imap.user, pass: cfg.imap.pass },
+    logger: false,
+    socketTimeout: 20000,
+  });
+  await client.connect();
+  const lock = await client.getMailboxLock(cfg.imap.mailbox);
+  let unseen = 0;
+  try {
+    const found = await client.search({ seen: false }, { uid: true });
+    unseen = Array.isArray(found) ? found.length : 0;
+  } finally {
+    lock.release();
+  }
+  await client.logout();
+  return { ok: true, mailbox: cfg.imap.mailbox, unseen };
+}
+
+module.exports = { pollMailbox, testConnection };

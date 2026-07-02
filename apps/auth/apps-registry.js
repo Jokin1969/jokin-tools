@@ -32,6 +32,19 @@ const APPS = [
     </svg>`,
   },
   {
+    id: 'imprimir',
+    name: 'Imprimir',
+    path: '/imprimir/status',
+    desc: 'Cola de impresión por email: envía un PDF, imagen o documento a la dirección de impresión y sale en la impresora. Panel de estado y diagnóstico.',
+    tags: ['Email', 'Impresión', 'Diagnóstico'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <path d="M20 26V12h24v14" stroke="#1B6CB0" stroke-width="2" fill="none" stroke-linejoin="round"/>
+      <rect x="12" y="26" width="40" height="20" rx="2" stroke="#0097B2" stroke-width="2" fill="none"/>
+      <path d="M20 40h24v12H20z" stroke="#009B8D" stroke-width="2" fill="none" stroke-linejoin="round"/>
+      <circle cx="45" cy="33" r="2" fill="#00B8D4"/>
+    </svg>`,
+  },
+  {
     id: 'bitacora',
     name: 'Bitácora',
     path: '/bitacora',
