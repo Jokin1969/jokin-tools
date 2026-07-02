@@ -151,6 +151,7 @@
         ['Remitentes autorizados', c.allowAll ? 'Cualquiera (ALLOW_ALL)' : (c.allowlist.length ? esc(c.allowlist.join(', ')) : '<span class="no">vacío — nadie puede imprimir</span>')],
         ['Impresora por defecto', esc(c.defaultPrinter || '—')],
         ['API key del agente', yn(c.hasAgentKey)],
+        ['Envío por API (otras apps)', c.hasSubmitKey ? `${yn(true)} · POST /imprimir/api/submit` : yn(false)],
         ['SMTP (avisos)', `${esc(c.smtp.from || '—')} · ${yn(c.smtp.hasPass)}`],
         ['Frecuencia de sondeo', esc(c.pollCron)],
         ['Retención', c.retentionDays + ' días'],

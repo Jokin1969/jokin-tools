@@ -34,6 +34,10 @@ function config() {
     allowAll: bool(process.env.IMPRIMIR_ALLOW_ALL, false),
     defaultPrinter: process.env.IMPRIMIR_DEFAULT_PRINTER || '',
     agentKey: process.env.IMPRIMIR_AGENT_KEY || '',
+    // Key other apps use to push print jobs to POST /imprimir/api/submit. Kept
+    // separate from the agent key (submit ≠ pull privileges). Falls back to the
+    // agent key only if unset, for convenience.
+    submitKey: process.env.IMPRIMIR_SUBMIT_KEY || '',
     storageDir: process.env.IMPRIMIR_DIR || path.join(dataDir, 'imprimir'),
     maxBytes: (Number(process.env.IMPRIMIR_MAX_MB) || 25) * 1024 * 1024,
     pollCron: process.env.IMPRIMIR_POLL_CRON || '* * * * *',   // every minute
@@ -64,6 +68,7 @@ function maskedConfig() {
     allowAll: c.allowAll,
     defaultPrinter: c.defaultPrinter,
     hasAgentKey: !!c.agentKey,
+    hasSubmitKey: !!(c.submitKey || c.agentKey),
     smtp: {
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       user: process.env.SMTP_USER || '',

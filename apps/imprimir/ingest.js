@@ -88,7 +88,7 @@ function storeDoc(cfg, db, meta, pdfBuffer) {
     subject: meta.subject,
     filename: meta.filename,
     mime: 'application/pdf',
-    printer: cfg.defaultPrinter || null,
+    printer: meta.printer || cfg.defaultPrinter || null,
     size_bytes: pdfBuffer.length,
     file_path: filePath,
   });

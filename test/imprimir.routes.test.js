@@ -6,6 +6,7 @@ const { useTempDb } = require('./helpers');
 
 const tmp = useTempDb();
 process.env.IMPRIMIR_AGENT_KEY = 'testkey123';
+process.env.IMPRIMIR_SUBMIT_KEY = 'submitkey456';
 process.env.IMPRIMIR_DEFAULT_PRINTER = '\\\\cicpri042\\Color';
 process.env.IMPRIMIR_DIR = path.join(tmp.dir, 'impr');
 process.env.IMPRIMIR_ENABLED = 'false'; // no IMAP poll during tests
@@ -87,6 +88,37 @@ test('flujo del agente: failed marca error', async () => {
   const row = db.getJob(job.id);
   assert.equal(row.status, 'failed');
   assert.equal(row.error, 'impresora sin papel');
+});
+
+test('submit: sin clave → 401', async () => {
+  const fd = new FormData();
+  fd.append('file', new Blob([Buffer.from('%PDF-1.4 x')], { type: 'application/pdf' }), 'x.pdf');
+  const r = await fetch(base + '/imprimir/api/submit', { method: 'POST', body: fd });
+  assert.equal(r.status, 401);
+});
+
+test('submit: otra app envía un PDF y entra en la cola', async () => {
+  const fd = new FormData();
+  fd.append('file', new Blob([Buffer.from('%PDF-1.4 hola cola')], { type: 'application/pdf' }), 'desde_otra_app.pdf');
+  fd.append('source', 'research-tools');
+  fd.append('printer', 'OtraImpresora');
+  const r = await fetch(base + '/imprimir/api/submit', { method: 'POST', headers: { 'X-Api-Key': 'submitkey456' }, body: fd });
+  assert.equal(r.status, 200);
+  const d = await r.json();
+  assert.ok(d.ok && d.id);
+  const job = db.getJob(d.id);
+  assert.equal(job.status, 'queued');
+  assert.equal(job.filename, 'desde_otra_app.pdf');
+  assert.equal(job.sender, 'research-tools');
+  assert.equal(job.printer, 'OtraImpresora', 'respeta la impresora indicada por la app');
+  assert.equal(fs.readFileSync(job.file_path).slice(0, 5).toString(), '%PDF-');
+});
+
+test('submit: tipo no soportado → 400', async () => {
+  const fd = new FormData();
+  fd.append('file', new Blob([Buffer.from('hola')], { type: 'text/plain' }), 'nota.txt');
+  const r = await fetch(base + '/imprimir/api/submit', { method: 'POST', headers: { 'X-Api-Key': 'submitkey456' }, body: fd });
+  assert.equal(r.status, 400);
 });
 
 test('página de estado (admin): sin sesión → 401', async () => {

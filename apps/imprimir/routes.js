@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const multer = require('multer');
 const router = express.Router();
 
 const db = require('./db');
@@ -9,6 +10,9 @@ const mailer = require('./mailer');
 const { config, maskedConfig, readiness } = require('./config');
 const { state, recordAgentPull } = require('./state');
 const { requireAdmin } = require('../auth/middleware');
+
+// In-memory upload for the submit API (files go straight into the queue).
+const submitUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: config().maxBytes } });
 
 // ─── API-key guard for the local print agent ────────────────────────────────────
 // The agent is not a browser session; it authenticates with a shared secret
@@ -28,11 +32,63 @@ function apiKeyGuard(req, res, next) {
   next();
 }
 
+// Guard for the submit API — other apps authenticate with the submit key
+// (falls back to the agent key if a dedicated submit key isn't set).
+function submitKeyGuard(req, res, next) {
+  const cfg = config();
+  const key = cfg.submitKey || cfg.agentKey;
+  if (!key) return res.status(503).json({ error: 'Servicio de impresión no configurado (falta IMPRIMIR_SUBMIT_KEY).' });
+  const provided = req.get('x-api-key') || (req.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!timingEqual(provided, key)) return res.status(401).json({ error: 'Clave de envío inválida.' });
+  next();
+}
+
 // ─── Health / reachability (no key: lets the agent verify the URL) ──────────────
 // Intentionally minimal — no queue counts here to avoid leaking activity to
 // unauthenticated callers (use GET /api/jobs with the key for that).
 router.get('/api/health', (req, res) => {
   res.json({ ok: true, enabled: config().enabled });
+});
+
+// ─── Submit: any app (any repo/Railway project) pushes a job to the queue ───────
+// Multipart: field `file` (PDF/image/office) + optional `filename`, `printer`,
+// `source`, `subject`. Server-to-server with the submit key. The single local
+// agent prints it — so a "Print" button anywhere ends up on the printer.
+router.post('/api/submit', submitKeyGuard, submitUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer || !req.file.buffer.length) {
+      return res.status(400).json({ error: 'Falta el fichero (campo multipart "file").' });
+    }
+    const { kindOf, toPdf } = require('./normalize'); // lazy: only load pdfkit/sharp on first submit
+    const { storeDoc } = require('./ingest');
+
+    const filename = String(req.body.filename || req.file.originalname || 'documento.pdf');
+    const mime = req.file.mimetype || '';
+    const kind = kindOf(filename, mime);
+    if (!kind) return res.status(400).json({ error: 'Tipo no soportado (usa PDF, imagen JPG/PNG o documento Office).' });
+
+    let pdf;
+    try {
+      pdf = await toPdf({ filename, mime, content: req.file.buffer, kind });
+    } catch (e) {
+      return res.status(400).json({ error: 'No se pudo preparar para impresión: ' + e.message });
+    }
+
+    const cfg = config();
+    const job = storeDoc(cfg, db, {
+      messageId: 'submit:' + crypto.randomBytes(12).toString('hex'),
+      part_idx: 0,
+      sender: String(req.body.source || '') || '(envío por API)',
+      subject: String(req.body.subject || filename),
+      filename,
+      printer: String(req.body.printer || '') || undefined,
+    }, pdf.buffer);
+
+    res.json({ ok: true, id: job.id, status: job.status, printer: job.printer });
+  } catch (e) {
+    console.error('[imprimir] submit error:', e.message);
+    res.status(500).json({ error: 'Error al encolar el trabajo de impresión.' });
+  }
 });
 
 // ─── Agent: claim the next queued job (returns the PDF as base64) ───────────────
