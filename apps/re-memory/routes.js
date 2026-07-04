@@ -272,6 +272,57 @@ router.get('/api/deactivate/:id/:token', (req, res) => {
   }
 });
 
+// ─── API: Change frequency from email link ───────────────────────────────────
+const FREQ_LABELS = { '1w': '1 semana', '2w': '2 semanas', '3w': '3 semanas', '1m': '1 mes', '2m': '2 meses', '3m': '3 meses', '6m': '6 meses', '1y': '1 año' };
+const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+router.get('/api/set-frequency/:id/:freq/:token', (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production' && !isDeactivationSecretConfigured()) {
+      return res.status(503).send('<h2>Acción no disponible (DEACTIVATION_SECRET sin configurar)</h2>');
+    }
+    const id = Number(req.params.id);
+    const freq = req.params.freq;
+    if (!FREQ_LABELS[freq]) return res.status(400).send('<h2>Frecuencia no válida</h2>');
+
+    // Token binds to the logged-in user (route is behind requireApp), so a user
+    // can only change their own memories.
+    const expected = generateDeactivationToken(id, req.user.id);
+    const a = Buffer.from(req.params.token);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return res.status(403).send('<h2>Token inválido</h2>');
+    }
+
+    const memory = getMemoryById(id, req.user.id);
+    if (!memory) return res.status(404).send('<h2>Memoria no encontrada</h2>');
+
+    updateMemory(id, { frequency: freq }, req.user.id);  // recalcula next_send_date
+    const updated = getMemoryById(id, req.user.id);
+    const nextDate = updated.next_send_date
+      ? new Date(updated.next_send_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+      : '—';
+
+    res.send(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
+      <title>Re-memory — Frecuencia actualizada</title>
+      <style>body{background:#0d1117;color:#e6edf3;font-family:monospace;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}
+      .box{max-width:420px;padding:40px;background:#161b22;border:1px solid #21262d;border-radius:12px}
+      h2{color:#27AE60;margin-bottom:12px}p{color:#7d8590;font-size:14px;line-height:1.6}
+      a{color:#2D9CDB;text-decoration:none}</style>
+    </head><body>
+      <div class="box">
+        <h2>✓ Frecuencia actualizada</h2>
+        <p>"<strong>${escHtml(memory.description.substring(0, 80))}</strong>"</p>
+        <p>Ahora recibirás el recordatorio cada <strong>${FREQ_LABELS[freq]}</strong>.<br/>Próximo aviso: <strong>${nextDate}</strong>.</p>
+        <p style="margin-top:16px"><a href="/re-memory">Ir a Re-memory →</a></p>
+      </div>
+    </body></html>`);
+  } catch (err) {
+    console.error('[api] set-frequency error:', err);
+    res.status(500).send('<h2>Error al cambiar la frecuencia</h2>');
+  }
+});
+
 // ─── API: Export CSV to Dropbox ───────────────────────────────────────────────
 router.get('/api/export/csv', async (req, res) => {
   try {

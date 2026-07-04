@@ -105,6 +105,18 @@ function buildEmailHTML(memory) {
   const deactivateToken = generateDeactivationToken(memory.id, memory.user_id);
   const deactivateUrl = `${baseUrl}/re-memory/api/deactivate/${memory.id}/${deactivateToken}`;
   const freqLabel = FREQUENCY_LABELS[memory.frequency] || memory.frequency;
+
+  // Quick "change frequency" pills for the email footer (the current one is
+  // marked, the rest link to the signed set-frequency route).
+  const FREQ_ORDER = ['1w', '2w', '3w', '1m', '2m', '3m', '6m', '1y'];
+  const freqPills = FREQ_ORDER.map(f => {
+    const lbl = FREQUENCY_LABELS[f] || f;
+    if (f === memory.frequency) {
+      return `<span style="display:inline-block;margin:3px 4px 3px 0;padding:6px 11px;border-radius:16px;background:#1B6CB0;color:#fff;font-size:12px;font-family:'Courier New',monospace;">${lbl} ✓</span>`;
+    }
+    const url = `${baseUrl}/re-memory/api/set-frequency/${memory.id}/${f}/${deactivateToken}`;
+    return `<a href="${url}" style="display:inline-block;margin:3px 4px 3px 0;padding:6px 11px;border-radius:16px;background:#eef2f7;color:#1B6CB0;font-size:12px;font-family:'Courier New',monospace;text-decoration:none;border:1px solid #d0d9e6;">${lbl}</a>`;
+  }).join('');
   const createdAt = new Date(memory.created_at).toLocaleDateString('es-ES', {
     day: '2-digit', month: 'long', year: 'numeric'
   });
@@ -204,16 +216,28 @@ function buildEmailHTML(memory) {
           ${imageBlock}
           ${sourceBlock}
 
+          <!-- Actions: change frequency -->
+          <tr>
+            <td style="padding: 20px 40px 6px; background: #f7f7f7; border-top: 1px solid #e0e0e0;">
+              <p style="margin:0 0 8px; font-size:12px; color:#555; font-family:'Courier New',monospace;">🔁 Cambiar frecuencia del recordatorio:</p>
+              <div>${freqPills}</div>
+            </td>
+          </tr>
+          <!-- Actions: deactivate -->
+          <tr>
+            <td style="padding: 10px 40px 8px; background: #f7f7f7; text-align:center;">
+              <a href="${deactivateUrl}"
+                 style="display:inline-block; padding:9px 18px; border-radius:8px; background:#ffffff; color:#C0392B; border:1px solid #e0b4b0; font-size:12px; font-family:'Courier New',monospace; text-decoration:none;">
+                ⏸ Desactivar hasta nueva orden
+              </a>
+            </td>
+          </tr>
           <!-- Footer -->
           <tr>
-            <td style="padding: 24px 40px; background: #f7f7f7; border-top: 1px solid #e0e0e0;">
-              <p style="margin:0; font-size:12px; color:#888; text-align:center;">
+            <td style="padding: 8px 40px 20px; background: #f7f7f7;">
+              <p style="margin:0; font-size:11px; color:#999; text-align:center;">
                 Enviado por <strong style="color:#1B6CB0;">Re-memory · Jokin's Tools</strong>
-                <br />
-                <a href="${deactivateUrl}"
-                   style="color:#7d8590; text-decoration:underline; font-size:11px; margin-top:8px; display:inline-block;">
-                  Desactivar este recordatorio
-                </a>
+                <br /><span style="color:#aaa;">Al pulsar puede pedirte iniciar sesión.</span>
               </p>
             </td>
           </tr>
@@ -266,5 +290,6 @@ module.exports = {
   sendMemoryEmail,
   generateDeactivationToken,
   isDeactivationSecretConfigured,
-  getBadgeColor
+  getBadgeColor,
+  buildEmailHTML
 };
