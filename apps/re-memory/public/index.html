@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/hub-nav.css" />
   <script src="/src/hub-nav.js?v=1" defer></script>
-  <link rel="stylesheet" href="/re-memory/public/app.css?v=4" />
+  <link rel="stylesheet" href="/re-memory/public/app.css?v=5" />
 </head>
 <body>
 
@@ -239,6 +239,12 @@
           <div class="field-group" id="next-send-wrap" style="display:none">
             <label class="field-label">Próximo envío</label>
             <input type="text" id="field-next-send" class="field-input field-readonly" readonly />
+          </div>
+
+          <!-- Historial (solo en edición): envíos y cambios -->
+          <div class="field-group" id="history-wrap" style="display:none">
+            <label class="field-label">Historial</label>
+            <div id="history-list" class="history-list"></div>
           </div>
 
           <!-- Botones AI (bottom of form) -->
@@ -516,6 +522,6 @@
     </div>
   </div>
 
-  <script src="/re-memory/public/app.js"></script>
+  <script src="/re-memory/public/app.js?v=2"></script>
 </body>
 </html>

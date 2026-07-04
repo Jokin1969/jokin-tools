@@ -141,6 +141,8 @@ function clearForm() {
   $('image-field-container').classList.add('hidden');
   $('btn-show-image').textContent = '📷';
   $('next-send-wrap').style.display = 'none';
+  $('history-wrap').style.display = 'none';
+  $('history-list').innerHTML = '';
   $('btn-borrar').disabled = true;
   $('btn-reset-counter').disabled = true;
   $('btn-test-email').disabled = true;
@@ -187,7 +189,44 @@ function populateForm(memory) {
   $('btn-reset-counter').disabled = false;
   $('btn-test-email').disabled = false;
 
+  loadHistory(memory.id);
   updateNavButtons();
+}
+
+// ─── Activity history (sends + changes) ──────────────────────────────────────
+const HISTORY_META = {
+  sent:         { icon: '📧', label: 'Enviado' },
+  created:      { icon: '✨', label: 'Creada' },
+  freq_changed: { icon: '🔁', label: 'Frecuencia cambiada' },
+  deactivated:  { icon: '⏸️', label: 'Desactivada' },
+  reactivated:  { icon: '▶️', label: 'Reactivada' },
+  reset:        { icon: '↺', label: 'Contador reiniciado' },
+};
+
+async function loadHistory(id) {
+  const wrap = $('history-wrap');
+  const list = $('history-list');
+  wrap.style.display = '';
+  list.innerHTML = '<div class="history-empty">Cargando…</div>';
+  try {
+    const res = await fetch(`${API}/memories/${id}/history`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const events = await res.json();
+    if (!events.length) { list.innerHTML = '<div class="history-empty">Sin actividad todavía.</div>'; return; }
+    list.innerHTML = events.map(e => {
+      const meta = HISTORY_META[e.type] || { icon: '•', label: e.type };
+      const detail = e.detail ? ` <span class="history-detail">${esc(e.detail)}</span>` : '';
+      return `<div class="history-item">
+        <span class="history-icon">${meta.icon}</span>
+        <div class="history-body">
+          <div class="history-what">${meta.label}${detail}</div>
+          <div class="history-when">${formatDateTime(e.at)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    list.innerHTML = '<div class="history-empty">No se pudo cargar el historial.</div>';
+  }
 }
 
 // URL live preview

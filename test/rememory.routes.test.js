@@ -48,3 +48,11 @@ test('sin sesión → 401 (no cambia, protege de prefetch)', async () => {
   assert.ok(r.status === 401 || r.status === 302);
   assert.notEqual(rm.getMemoryById(mem.id, user.id).frequency, '3m');
 });
+
+test('historial vía API devuelve eventos (created + cambios)', async () => {
+  const r = await fetch(`${base}/re-memory/api/memories/${mem.id}/history`, { headers: { Cookie: cookie } });
+  assert.equal(r.status, 200);
+  const events = await r.json();
+  assert.ok(Array.isArray(events) && events.length > 0);
+  assert.ok(events.some(e => e.type === 'created'));
+});

@@ -53,3 +53,48 @@ test('calcNextSendDate returns a valid future ISO date', () => {
   assert.ok(!Number.isNaN(Date.parse(iso)), 'parseable ISO');
   assert.throws(() => rm.calcNextSendDate('bogus'), /frequency/i);
 });
+
+// ─── Activity history ─────────────────────────────────────────────────────────
+test('historial: createMemory registra "created"', () => {
+  const m = rm.createMemory({ description: 'hist', frequency: '1w', topic: 'T', user_id: A.id });
+  assert.ok(rm.listHistory(m.id, A.id).some(e => e.type === 'created'));
+});
+
+test('historial: cambio de frecuencia registra antes → después', () => {
+  const m = rm.createMemory({ description: 'freq', frequency: '1w', topic: 'T', user_id: A.id });
+  rm.updateMemory(m.id, { frequency: '2m' }, A.id);
+  const fc = rm.listHistory(m.id, A.id).find(e => e.type === 'freq_changed');
+  assert.ok(fc);
+  assert.equal(fc.detail, '1 semana → 2 meses');
+});
+
+test('historial: toggle registra desactivada/reactivada; reset registra reset', () => {
+  const m = rm.createMemory({ description: 'tg', frequency: '1w', topic: 'T', user_id: A.id });
+  rm.toggleMemory(m.id, A.id);
+  rm.toggleMemory(m.id, A.id);
+  rm.resetCounter(m.id, A.id);
+  const types = rm.listHistory(m.id, A.id).map(e => e.type);
+  assert.ok(types.includes('deactivated'));
+  assert.ok(types.includes('reactivated'));
+  assert.ok(types.includes('reset'));
+});
+
+test('historial: markSent aparece como envío', () => {
+  const m = rm.createMemory({ description: 'sent', frequency: '1w', topic: 'T', user_id: A.id });
+  rm.markSent(m.id, '1w');
+  assert.ok(rm.listHistory(m.id, A.id).some(e => e.type === 'sent'));
+});
+
+test('historial: es por dueño (otro usuario no lo ve)', () => {
+  const m = rm.createMemory({ description: 'scoped', frequency: '1w', topic: 'T', user_id: A.id });
+  assert.ok(rm.listHistory(m.id, A.id).length > 0);
+  assert.equal(rm.listHistory(m.id, B.id).length, 0);
+});
+
+test('backfillCreatedEvents repone "created" faltantes', () => {
+  const m = rm.createMemory({ description: 'bf', frequency: '1w', topic: 'T', user_id: A.id });
+  rm.db.prepare('DELETE FROM memory_events WHERE memory_id = ?').run(m.id);
+  assert.equal(rm.listHistory(m.id, A.id).length, 0);
+  assert.ok(rm.backfillCreatedEvents() >= 1);
+  assert.ok(rm.listHistory(m.id, A.id).some(e => e.type === 'created'));
+});

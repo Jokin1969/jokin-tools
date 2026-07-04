@@ -9,7 +9,8 @@ const router = express.Router();
 
 const {
   createMemory, setMemoryImage, getMemoryById, listMemories, updateMemory,
-  deleteMemory, toggleMemory, resetCounter, getAllIds, getAllMemoriesForExport
+  deleteMemory, toggleMemory, resetCounter, getAllIds, getAllMemoriesForExport,
+  listHistory
 } = require('./db');
 
 const { sendMemoryEmail, generateDeactivationToken, isDeactivationSecretConfigured } = require('./email');
@@ -165,6 +166,18 @@ router.patch('/api/memories/:id/toggle', (req, res) => {
   }
 });
 
+// ─── API: Activity history (sends + changes) ─────────────────────────────────
+router.get('/api/memories/:id/history', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!getMemoryById(id, req.user.id)) return res.status(404).json({ error: 'Memory not found' });
+    res.json(listHistory(id, req.user.id));
+  } catch (err) {
+    console.error('[api] history error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API: Reset counter ───────────────────────────────────────────────────────
 router.post('/api/memories/:id/reset-counter', (req, res) => {
   try {
@@ -297,11 +310,17 @@ router.get('/api/set-frequency/:id/:freq/:token', (req, res) => {
     const memory = getMemoryById(id, req.user.id);
     if (!memory) return res.status(404).send('<h2>Memoria no encontrada</h2>');
 
-    updateMemory(id, { frequency: freq }, req.user.id);  // recalcula next_send_date
+    const oldLabel = FREQ_LABELS[memory.frequency] || memory.frequency;
+    const noChange = memory.frequency === freq;
+    updateMemory(id, { frequency: freq }, req.user.id);  // recalcula next_send_date (y registra el cambio)
     const updated = getMemoryById(id, req.user.id);
     const nextDate = updated.next_send_date
       ? new Date(updated.next_send_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
       : '—';
+
+    const changeLine = noChange
+      ? `La frecuencia ya era <strong>${FREQ_LABELS[freq]}</strong> (sin cambios).`
+      : `Cambiado: <strong>${escHtml(oldLabel)}</strong> → <strong>${FREQ_LABELS[freq]}</strong>.`;
 
     res.send(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
       <title>Re-memory — Frecuencia actualizada</title>
@@ -313,7 +332,7 @@ router.get('/api/set-frequency/:id/:freq/:token', (req, res) => {
       <div class="box">
         <h2>✓ Frecuencia actualizada</h2>
         <p>"<strong>${escHtml(memory.description.substring(0, 80))}</strong>"</p>
-        <p>Ahora recibirás el recordatorio cada <strong>${FREQ_LABELS[freq]}</strong>.<br/>Próximo aviso: <strong>${nextDate}</strong>.</p>
+        <p>${changeLine}<br/>Próximo aviso: <strong>${nextDate}</strong>.</p>
         <p style="margin-top:16px"><a href="/re-memory">Ir a Re-memory →</a></p>
       </div>
     </body></html>`);

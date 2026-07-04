@@ -38,6 +38,18 @@ db.exec(`
     sent_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (memory_id) REFERENCES memories(id)
   );
+
+  -- Change log (what changed, and when). Sends live in recall_log; this records
+  -- created / frequency changed / deactivated / reactivated / reset.
+  CREATE TABLE IF NOT EXISTS memory_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    memory_id  INTEGER NOT NULL,
+    user_id    INTEGER,
+    type       TEXT NOT NULL,
+    detail     TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_memory_events ON memory_events(memory_id, id);
 `);
 
 console.log('[db] Database initialized at:', DB_PATH);
@@ -61,6 +73,50 @@ const FREQUENCY_DAYS = {
   '6m': 180, '1y': 365
 };
 
+const FREQUENCY_LABELS = {
+  '1w': '1 semana', '2w': '2 semanas', '3w': '3 semanas',
+  '1m': '1 mes', '2m': '2 meses', '3m': '3 meses', '6m': '6 meses', '1y': '1 año'
+};
+const freqLabel = f => FREQUENCY_LABELS[f] || f;
+
+// ─── Activity log ─────────────────────────────────────────────────────────────
+// Record a change on a memory. Sends are logged separately (recall_log); this is
+// for created / freq_changed / deactivated / reactivated / reset.
+function addEvent(memoryId, type, detail = null, at = null) {
+  const row = db.prepare('SELECT user_id FROM memories WHERE id = ?').get(memoryId);
+  const uid = row ? row.user_id : null;
+  if (at) {
+    db.prepare('INSERT INTO memory_events (memory_id, user_id, type, detail, created_at) VALUES (?, ?, ?, ?, ?)').run(memoryId, uid, type, detail, at);
+  } else {
+    db.prepare('INSERT INTO memory_events (memory_id, user_id, type, detail) VALUES (?, ?, ?, ?)').run(memoryId, uid, type, detail);
+  }
+}
+
+// Unified, owner-scoped timeline: sends (recall_log) + changes (memory_events),
+// newest first.
+function listHistory(memoryId, userId) {
+  if (userId != null && !db.prepare('SELECT 1 FROM memories WHERE id = ? AND user_id = ?').get(memoryId, userId)) return [];
+  const sends = db.prepare('SELECT sent_at AS at FROM recall_log WHERE memory_id = ?').all(memoryId)
+    .map(r => ({ type: 'sent', detail: 'Recordatorio enviado', at: r.at }));
+  const events = db.prepare('SELECT type, detail, created_at AS at FROM memory_events WHERE memory_id = ?').all(memoryId)
+    .map(r => ({ type: r.type, detail: r.detail, at: r.at }));
+  return [...sends, ...events].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+}
+
+// One-time (idempotent) backfill: give every existing memory a 'created' event
+// at its creation date, so the timeline shows a start even for old memories.
+// Past sends are already in recall_log; past frequency/active changes are not
+// recoverable and simply start being logged from now on.
+function backfillCreatedEvents() {
+  const rows = db.prepare(
+    "SELECT id, created_at FROM memories m WHERE NOT EXISTS (SELECT 1 FROM memory_events e WHERE e.memory_id = m.id AND e.type = 'created')"
+  ).all();
+  const ins = db.prepare("INSERT INTO memory_events (memory_id, user_id, type, detail, created_at) VALUES (?, (SELECT user_id FROM memories WHERE id = ?), 'created', 'Memoria creada', ?)");
+  const tx = db.transaction(() => { for (const r of rows) ins.run(r.id, r.id, r.created_at); });
+  tx();
+  return rows.length;
+}
+
 function calcNextSendDate(frequency, fromDate = new Date()) {
   const base = new Date(fromDate);
   const days = FREQUENCY_DAYS[frequency];
@@ -82,6 +138,7 @@ function createMemory({ description, frequency, topic, image_path, source_url, a
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const result = stmt.run(description, frequency, topic, image_path || null, source_url || null, active, nextSend, user_id);
+  addEvent(result.lastInsertRowid, 'created', 'Memoria creada');
   return getMemoryById(result.lastInsertRowid);
 }
 
@@ -191,6 +248,11 @@ function updateMemory(id, fields, userId) {
   const updates = [];
   const values = [];
 
+  // Snapshot the fields we log a change for, before the update.
+  const old = userId != null
+    ? db.prepare('SELECT frequency, active FROM memories WHERE id = ? AND user_id = ?').get(id, userId)
+    : db.prepare('SELECT frequency, active FROM memories WHERE id = ?').get(id);
+
   for (const [k, v] of Object.entries(fields)) {
     if (allowed.includes(k)) {
       updates.push(`${k} = ?`);
@@ -209,6 +271,16 @@ function updateMemory(id, fields, userId) {
   let where = 'id = ?';
   if (userId != null) { where += ' AND user_id = ?'; values.push(userId); }
   db.prepare(`UPDATE memories SET ${updates.join(', ')} WHERE ${where}`).run(...values);
+
+  // Log the meaningful changes.
+  if (old) {
+    if (fields.frequency && fields.frequency !== old.frequency) {
+      addEvent(id, 'freq_changed', `${freqLabel(old.frequency)} → ${freqLabel(fields.frequency)}`);
+    }
+    if (fields.active !== undefined && Number(fields.active) !== old.active) {
+      addEvent(id, Number(fields.active) ? 'reactivated' : 'deactivated', null);
+    }
+  }
   return getMemoryById(id, userId);
 }
 
@@ -233,7 +305,9 @@ function toggleMemory(id, userId) {
   const where = userId != null ? 'id = ? AND user_id = ?' : 'id = ?';
   db.prepare(`UPDATE memories SET active = CASE WHEN active = 1 THEN 0 ELSE 1 END WHERE ${where}`)
     .run(...(userId != null ? [id, userId] : [id]));
-  return getMemoryById(id, userId);
+  const m = getMemoryById(id, userId);
+  if (m) addEvent(id, m.active ? 'reactivated' : 'deactivated', null);
+  return m;
 }
 
 // ─── Recall log & scheduling ──────────────────────────────────────────────────
@@ -285,6 +359,7 @@ function resetCounter(id, userId) {
     const nextSend = calcNextSendDate(memory.frequency);
     db.prepare('UPDATE memories SET next_send_date = ? WHERE id = ?').run(nextSend, id);
   }
+  addEvent(id, 'reset', 'Contador reiniciado y próximo envío reprogramado');
   return getMemoryById(id, userId);
 }
 
@@ -355,5 +430,16 @@ module.exports = {
   getAllMemoriesForExport,
   assignOrphanMemories,
   getImageOwner,
+  listHistory,
+  backfillCreatedEvents,
   FREQUENCY_DAYS
 };
+
+// One-time, idempotent: ensure old memories have a 'created' event so their
+// timeline isn't empty. Runs at module load; only inserts what's missing.
+try {
+  const n = backfillCreatedEvents();
+  if (n) console.log(`[re-memory] Backfilled 'created' events for ${n} memories`);
+} catch (e) {
+  console.error('[re-memory] backfillCreatedEvents skipped:', e.message);
+}
