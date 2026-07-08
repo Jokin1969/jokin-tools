@@ -187,6 +187,32 @@ const OPERATIONS = [
     key: 'misc',
     ops: [
       {
+        id: 'watermark',
+        label: 'Marca de agua (PDF e imágenes)',
+        desc: 'Añade una marca de agua a PDFs (todas las páginas) e imágenes (JPG/PNG/WEBP/TIFF/GIF). Elige el tipo, el texto (deja uno estándar o escribe el tuyo), el color y la intensidad. Devuelve cada fichero en su mismo formato y calidad, con el nombre acabado en «_watermarked_».',
+        params: [
+          { id: 'text', type: 'text', label: 'Texto de la marca', default: 'CONFIDENCIAL', placeholder: 'CONFIDENCIAL' },
+          {
+            id: 'style', type: 'select', label: 'Tipo de marca', default: 'diagonal',
+            options: [
+              { value: 'diagonal', label: 'Diagonal (una grande cruzando)' },
+              { value: 'tiled', label: 'Mosaico (repetida por todo)' },
+              { value: 'footer', label: 'Pie de página (discreta abajo)' },
+            ],
+          },
+          {
+            id: 'color', type: 'select', label: 'Color', default: 'gris',
+            options: [
+              { value: 'gris', label: 'Gris' },
+              { value: 'rojo', label: 'Rojo' },
+              { value: 'azul', label: 'Azul' },
+              { value: 'negro', label: 'Negro' },
+            ],
+          },
+          { id: 'intensity', type: 'range', label: 'Intensidad (%)', min: 5, max: 60, default: 25 },
+        ],
+      },
+      {
         id: 'qr',
         label: 'QRs',
         desc: 'Genera códigos QR personalizados a partir de una URL: estilos, color, logo central y marco con etiqueta. Expórtalos en PNG, JPEG, WEBP, SVG o PDF, cópialos, envíalos por email y guárdalos en tu repositorio.',

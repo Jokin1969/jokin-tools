@@ -191,6 +191,7 @@ router.post('/api/session/:id/execute', express.json(), async (req, res) => {
     'normalize-dni': () => require('./operations/normalize-dni'),
     'merge-pdfs': () => require('./operations/merge-pdfs'),
     'split-pdfs': () => require('./operations/split-pdfs'),
+    'watermark': () => require('./operations/watermark'),
   };
 
   const opFactory = OPERATIONS[operation];
