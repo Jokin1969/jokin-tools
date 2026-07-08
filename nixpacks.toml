@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["nodejs_22", "python311", "python311Packages.pip", "gcc", "gnumake", "libreoffice"]
+nixPkgs = ["nodejs_22", "python311", "python311Packages.pip", "gcc", "gnumake", "libreoffice", "qpdf"]
 
 [phases.install]
 cmds = [

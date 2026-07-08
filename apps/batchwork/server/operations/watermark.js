@@ -1,5 +1,7 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { execFile } = require('child_process');
 const sharp = require('sharp');
 const { PDFDocument, StandardFonts, rgb, degrees } = require('pdf-lib');
 const { createZip } = require('../utils');
@@ -110,9 +112,43 @@ function drawItemPdf(page, W, H, place, iw, ih, drawAt) {
   }
 }
 
+function rmrf(dir) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ } }
+
+// Best-effort decrypt with qpdf (removes owner-only encryption, no password
+// needed). Returns decrypted bytes, or null if qpdf is missing/fails (e.g. the
+// PDF has a real user password).
+function qpdfDecrypt(bytes) {
+  return new Promise((resolve) => {
+    let work;
+    try { work = fs.mkdtempSync(path.join(os.tmpdir(), 'wm-dec-')); } catch { return resolve(null); }
+    const inF = path.join(work, 'in.pdf'), outF = path.join(work, 'out.pdf');
+    try { fs.writeFileSync(inF, bytes); } catch { rmrf(work); return resolve(null); }
+    execFile(process.env.QPDF_BIN || 'qpdf', ['--decrypt', '--password=', inF, outF], { timeout: 60000 }, () => {
+      let buf = null;
+      try { if (fs.existsSync(outF)) buf = fs.readFileSync(outF); } catch { /* ignore */ }
+      rmrf(work);
+      resolve(buf && buf.length ? buf : null);
+    });
+  });
+}
+
+// Load a PDF, transparently decrypting encrypted ones. Encrypted PDFs can't be
+// edited by pdf-lib (it would emit a corrupt file), so we decrypt first or fail
+// with a clear, actionable error.
+async function loadPdf(bytes) {
+  try {
+    return await PDFDocument.load(bytes); // strict: throws if encrypted
+  } catch (e) {
+    if (!/encrypt/i.test(e.message || '')) throw e; // genuinely broken source
+  }
+  const dec = await qpdfDecrypt(bytes);
+  if (dec) return PDFDocument.load(dec, { ignoreEncryption: true });
+  throw new Error('PDF protegido/cifrado: no se puede marcar. Quítale la contraseña o la protección y vuelve a intentarlo.');
+}
+
 async function watermarkPdf(bytes, opts) {
   const { kind, text, colorPdf, layout, sizeScale, opacity, logoBuf, rotation } = opts;
-  const pdf = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
+  const pdf = await loadPdf(bytes);
 
   let embedded = null;
   if (kind === 'logo') {

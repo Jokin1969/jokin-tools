@@ -95,3 +95,16 @@ test('rotación: el override fuerza el ángulo; 0 = automática por layout', () 
   const rots = wm.placements('mosaico', 400, 300, 60, 20, 15).map(p => p.rot);
   assert.ok(rots.every(r => r === 15));
 });
+
+test('PDF normal (pdfkit) se marca y sigue siendo legible', async () => {
+  const PDFKit = require('pdfkit');
+  const src = await new Promise(r => { const d = new PDFKit(); const c = []; d.on('data', x => c.push(x)); d.on('end', () => r(Buffer.concat(c))); d.text('doc', 80, 80); d.end(); });
+  const out = await wm.watermarkPdf(src, textOpts());
+  assert.equal((await PDFDocument.load(out)).getPageCount(), 1);
+});
+
+test('PDF cifrado → error claro, no genera fichero corrupto', async () => {
+  const PDFKit = require('pdfkit');
+  const enc = await new Promise(r => { const d = new PDFKit({ userPassword: 'x', ownerPassword: 'y' }); const c = []; d.on('data', x => c.push(x)); d.on('end', () => r(Buffer.concat(c))); d.text('doc', 80, 80); d.end(); });
+  await assert.rejects(() => wm.watermarkPdf(enc, textOpts()), /protegido|cifrado/i);
+});
