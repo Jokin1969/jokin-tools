@@ -28,14 +28,16 @@ function outputName(name) {
 // Placements in screen coordinates (origin top-left, y down). Each item is placed
 // by its CENTER (cx, cy) with a clockwise rotation `rot` (degrees). `iw`/`ih` are
 // the mark's natural width/height (used for tiling spacing).
-function placements(layout, W, H, iw, ih) {
+function placements(layout, W, H, iw, ih, rotOverride = null) {
   const cx = W / 2, cy = H / 2;
-  if (layout === 'centro') return [{ cx, cy, rot: 0 }];
-  if (layout === 'pie') return [{ cx, cy: H - ih * 0.75, rot: 0 }];
-  if (layout === 'esquina') return [{ cx: W - iw / 2 - Math.min(W, H) * 0.03, cy: H - ih / 2 - Math.min(W, H) * 0.03, rot: 0 }];
-  if (layout === 'diagonal') return [{ cx, cy, rot: -(Math.atan2(H, W) * 180 / Math.PI) }];
-  // repeated: mosaico (no rotation) or diagonal-rep (rotated)
-  const rot = layout === 'diagonal-rep' ? -30 : 0;
+  // A non-zero override forces that exact angle on every placement.
+  const ov = (rotOverride == null || rotOverride === 0) ? null : rotOverride;
+  if (layout === 'centro') return [{ cx, cy, rot: ov ?? 0 }];
+  if (layout === 'pie') return [{ cx, cy: H - ih * 0.75, rot: ov ?? 0 }];
+  if (layout === 'esquina') return [{ cx: W - iw / 2 - Math.min(W, H) * 0.03, cy: H - ih / 2 - Math.min(W, H) * 0.03, rot: ov ?? 0 }];
+  if (layout === 'diagonal') return [{ cx, cy, rot: ov ?? -(Math.atan2(H, W) * 180 / Math.PI) }];
+  // repeated: mosaico (no rotation) or diagonal-rep (rotated); override wins
+  const rot = ov ?? (layout === 'diagonal-rep' ? -30 : 0);
   const gapX = iw + Math.max(iw * 0.5, 20);
   const gapY = ih + Math.max(ih * 1.3, 24);
   const pts = [];
@@ -49,7 +51,7 @@ function placements(layout, W, H, iw, ih) {
 
 // ── Images (SVG overlay composited by sharp) ───────────────────────────────────
 async function buildOverlaySvg(W, H, opts) {
-  const { kind, text, colorSvg, layout, sizeScale, opacity, logoBuf } = opts;
+  const { kind, text, colorSvg, layout, sizeScale, opacity, logoBuf, rotation } = opts;
   const min = Math.min(W, H);
   let iw, ih, el; // natural width/height + a function (px,py,rot)→svg element
 
@@ -78,7 +80,7 @@ async function buildOverlaySvg(W, H, opts) {
     el = (px, py, rot) => `<text x="${px}" y="${py + fontSize * 0.34}" text-anchor="middle" font-size="${fontSize}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="bold" fill="${colorSvg}" fill-opacity="${opacity}" transform="rotate(${rot} ${px} ${py})">${t}</text>`;
   }
 
-  const body = placements(layout, W, H, iw, ih).map(p => el(p.cx, p.cy, p.rot)).join('');
+  const body = placements(layout, W, H, iw, ih, rotation).map(p => el(p.cx, p.cy, p.rot)).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${body}</svg>`;
 }
 
@@ -109,7 +111,7 @@ function drawItemPdf(page, W, H, place, iw, ih, drawAt) {
 }
 
 async function watermarkPdf(bytes, opts) {
-  const { kind, text, colorPdf, layout, sizeScale, opacity, logoBuf } = opts;
+  const { kind, text, colorPdf, layout, sizeScale, opacity, logoBuf, rotation } = opts;
   const pdf = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
 
   let embedded = null;
@@ -154,7 +156,7 @@ async function watermarkPdf(bytes, opts) {
       };
     }
 
-    drawItemPdf(page, W, H, placements(layout, W, H, iw, ih), iw, ih, drawAt);
+    drawItemPdf(page, W, H, placements(layout, W, H, iw, ih, rotation), iw, ih, drawAt);
   }
   return Buffer.from(await pdf.save());
 }
@@ -167,6 +169,8 @@ async function run(session, params) {
   const colorKey = COLORS[params.color] ? params.color : 'gris';
   const color = COLORS[colorKey];
   const opacity = Math.min(0.95, Math.max(0.03, (parseInt(params.intensity ?? 25, 10) || 25) / 100));
+  const rotDeg = parseInt(params.rotation ?? 0, 10) || 0;
+  const rotation = rotDeg !== 0 ? Math.max(-90, Math.min(90, rotDeg)) : null; // null = automática por layout
 
   // Optional logo image (uploaded through the nameList channel → _namelist_.txt).
   let logoBuf = null;
@@ -179,7 +183,7 @@ async function run(session, params) {
     } catch { throw new Error('La imagen de marca (logo) no es una imagen válida.'); }
   }
   const kind = logoBuf ? 'logo' : 'text';
-  const common = { kind, text, colorSvg: color.svg, colorPdf: color.pdf, layout, sizeScale, opacity, logoBuf };
+  const common = { kind, text, colorSvg: color.svg, colorPdf: color.pdf, layout, sizeScale, opacity, logoBuf, rotation };
 
   const files = fs.readdirSync(session.inputDir)
     .filter(f => f !== '_namelist_.txt' && fs.statSync(path.join(session.inputDir, f)).isFile())

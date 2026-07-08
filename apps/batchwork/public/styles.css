@@ -1097,3 +1097,14 @@ body {
 .dnacmp-aln-end { color: var(--text-dim); }
 .dnacmp-aln-mark { color: var(--red); }
 .dnacmp-nt-diff { background: var(--red); color: #fff; font-weight: 700; border-radius: 2px; }
+
+/* ── Preset buttons (e.g. watermark) ──────────────────────────────────────── */
+.bw-preset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.bw-preset-label { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); }
+.bw-preset-btn {
+  font-family: var(--mono); font-size: 0.74rem; cursor: pointer;
+  padding: 6px 12px; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+  transition: border-color .15s, color .15s, background .15s;
+}
+.bw-preset-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-glow); }

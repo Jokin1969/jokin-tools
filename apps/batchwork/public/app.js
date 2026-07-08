@@ -222,6 +222,12 @@ const OPERATIONS = [
             ],
           },
           { id: 'intensity', type: 'range', label: 'Intensidad (%)', min: 5, max: 60, default: 25 },
+          { id: 'rotation', type: 'range', label: 'Rotación (° · 0 = automática)', min: -90, max: 90, default: 0 },
+        ],
+        presets: [
+          { label: '🔴 CONFIDENCIAL', values: { text: 'CONFIDENCIAL', layout: 'diagonal', size: 'grande', color: 'rojo', intensity: 35, rotation: 0 } },
+          { label: 'BORRADOR', values: { text: 'BORRADOR', layout: 'diagonal', size: 'mediana', color: 'gris', intensity: 30, rotation: 0 } },
+          { label: 'COPIA (mosaico)', values: { text: 'COPIA', layout: 'mosaico', size: 'pequeña', color: 'gris', intensity: 20, rotation: 0 } },
         ],
       },
       {
@@ -717,6 +723,23 @@ function renderParams(op) {
     if (getParam(op.id, p.id) === undefined) {
       setParam(op.id, p.id, p.default ?? '');
     }
+  }
+
+  // One-click presets (rendered above the params).
+  if (op.presets && op.presets.length) {
+    const row = mk('div', 'bw-preset-row');
+    row.appendChild(mk('span', 'bw-preset-label', 'Preajustes:'));
+    for (const preset of op.presets) {
+      const b = mk('button', 'bw-preset-btn', preset.label);
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        for (const [k, v] of Object.entries(preset.values)) setParam(op.id, k, v);
+        renderParams(op);
+        updateExecuteBtn();
+      });
+      row.appendChild(b);
+    }
+    zone.appendChild(row);
   }
 
   const normalParams = op.params.filter(p => !p.advanced && !p.conditional);

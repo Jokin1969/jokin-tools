@@ -85,3 +85,13 @@ test('buildOverlaySvg: texto y logo', async () => {
   const l = await wm.buildOverlaySvg(400, 300, { kind: 'logo', logoBuf: await pngLogo(), layout: 'centro', sizeScale: 1, opacity: 0.5 });
   assert.ok(l.includes('<image') && l.includes('data:image/png;base64,'));
 });
+
+test('rotación: el override fuerza el ángulo; 0 = automática por layout', () => {
+  assert.equal(wm.placements('centro', 400, 300, 100, 30, 45)[0].rot, 45);
+  assert.equal(wm.placements('diagonal', 400, 300, 100, 30, -20)[0].rot, -20);
+  // 0 (o null) → automática: en diagonal es el ángulo de la página, no 0
+  assert.notEqual(wm.placements('diagonal', 400, 300, 100, 30, 0)[0].rot, 0);
+  // en mosaico, override aplica el mismo ángulo a todas
+  const rots = wm.placements('mosaico', 400, 300, 60, 20, 15).map(p => p.rot);
+  assert.ok(rots.every(r => r === 15));
+});
