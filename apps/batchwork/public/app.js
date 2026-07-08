@@ -189,19 +189,31 @@ const OPERATIONS = [
       {
         id: 'watermark',
         label: 'Marca de agua (PDF e imágenes)',
-        desc: 'Añade una marca de agua a PDFs (todas las páginas) e imágenes (JPG/PNG/WEBP/TIFF/GIF). Elige el tipo, el texto (deja uno estándar o escribe el tuyo), el color y la intensidad. Devuelve cada fichero en su mismo formato y calidad, con el nombre acabado en «_watermarked_».',
+        desc: 'Añade una marca de agua a PDFs (todas las páginas) e imágenes (JPG/PNG/WEBP/TIFF/GIF). Usa texto (deja uno estándar o escribe el tuyo) o sube una imagen/logo. Elige posición, tamaño, color e intensidad. Devuelve cada fichero en su mismo formato y calidad, con el nombre acabado en «_watermarked_».',
+        uploadImageMark: true,
         params: [
-          { id: 'text', type: 'text', label: 'Texto de la marca', default: 'CONFIDENCIAL', placeholder: 'CONFIDENCIAL' },
+          { id: 'text', type: 'text', label: 'Texto (si no subes logo)', default: 'CONFIDENCIAL', placeholder: 'CONFIDENCIAL' },
           {
-            id: 'style', type: 'select', label: 'Tipo de marca', default: 'diagonal',
+            id: 'layout', type: 'select', label: 'Posición / repetición', default: 'diagonal',
             options: [
-              { value: 'diagonal', label: 'Diagonal (una grande cruzando)' },
-              { value: 'tiled', label: 'Mosaico (repetida por todo)' },
-              { value: 'footer', label: 'Pie de página (discreta abajo)' },
+              { value: 'diagonal', label: 'Diagonal (una grande)' },
+              { value: 'diagonal-rep', label: 'Diagonal repetida' },
+              { value: 'mosaico', label: 'Mosaico (rejilla)' },
+              { value: 'centro', label: 'Centro' },
+              { value: 'pie', label: 'Pie de página' },
+              { value: 'esquina', label: 'Esquina inferior' },
             ],
           },
           {
-            id: 'color', type: 'select', label: 'Color', default: 'gris',
+            id: 'size', type: 'select', label: 'Tamaño', default: 'mediana',
+            options: [
+              { value: 'pequeña', label: 'Pequeña' },
+              { value: 'mediana', label: 'Mediana' },
+              { value: 'grande', label: 'Grande' },
+            ],
+          },
+          {
+            id: 'color', type: 'select', label: 'Color (solo texto)', default: 'gris',
             options: [
               { value: 'gris', label: 'Gris' },
               { value: 'rojo', label: 'Rojo' },
@@ -496,6 +508,39 @@ function renderUploadArea(op) {
 
     pair.appendChild(dropFiles);
     pair.appendChild(panel);
+    area.appendChild(pair);
+    $('file-list-wrap').style.display = '';
+
+  } else if (op.uploadImageMark) {
+    // Files to watermark + an optional logo/image mark.
+    const pair = mk('div', 'bw-upload-pair');
+    const dropFiles = makeDropZone({
+      label: 'PDFs e imágenes a marcar',
+      sub: 'Drag & drop o clic · varios a la vez',
+      multiple: true,
+      onFiles: (files) => {
+        state.files = [...state.files, ...files].slice(0, 5000);
+        state.files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+        updateFileList();
+        updateExecuteBtn();
+      },
+    });
+    const dropLogo = makeDropZone({
+      label: 'Imagen/logo de marca (opcional)',
+      sub: 'PNG con transparencia recomendado · si no, se usa el texto',
+      accept: 'image/*',
+      multiple: false,
+      onFiles: (files) => {
+        if (files[0]) {
+          state.namelistFile = files[0];
+          const badge = dropLogo.querySelector('.bw-drop-text');
+          if (badge) badge.textContent = `✓ ${files[0].name}`;
+        }
+        updateExecuteBtn();
+      },
+    });
+    pair.appendChild(dropFiles);
+    pair.appendChild(dropLogo);
     area.appendChild(pair);
     $('file-list-wrap').style.display = '';
 
@@ -907,6 +952,10 @@ function updateExecuteBtn() {
     else if (!hasFiles)         setStatus('Falta: arrastra los ficheros a renombrar', '');
     else if (!hasPairs)         setStatus('Falta: el listado de parejas (pega el texto o carga un .txt)', '');
     else                        setStatus('', '');
+  } else if (op.uploadImageMark) {
+    ready = state.files.length > 0; // el logo es opcional
+    if (!ready) setStatus('Arrastra los PDFs/imágenes a marcar', '');
+    else setStatus(state.namelistFile ? 'Marca con imagen/logo' : 'Marca con texto', '');
   } else {
     ready = state.files.length > 0;
     if (!ready) setStatus('Arrastra los ficheros para continuar', '');
@@ -1030,6 +1079,10 @@ async function uploadFiles(sessionId, op) {
   // _namelist_.txt); we turn the pasted/loaded text into a file here.
   if (op.uploadPairs && (state.pairsText || '').trim()) {
     formData.append('nameList', new Blob([state.pairsText], { type: 'text/plain' }), '_pairs_.txt');
+  }
+  // The optional logo/image mark rides the same 'nameList' channel.
+  if (op.uploadImageMark && state.namelistFile) {
+    formData.append('nameList', state.namelistFile, state.namelistFile.name);
   }
 
   const res = await fetch(`/batchwork/api/session/${sessionId}/upload`, {
