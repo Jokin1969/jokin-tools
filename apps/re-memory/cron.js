@@ -12,13 +12,20 @@ let tasks = null;
 function startCron() {
   if (tasks) return { stop: stopCron };
   tasks = [];
-  tasks.push(cron.schedule('50 6 * * *', async () => {
-    console.log('[cron] Running daily Re-memory send job…');
-    try {
-      const memories = getMemoriesDueToday();
-      console.log(`[cron] Found ${memories.length} memories due today`);
+  // Run at several times of day and send only a few per run, so a morning batch
+  // of due reminders trickles out across the day instead of arriving all at once.
+  const sendCron = process.env.REMEMORY_SEND_CRON || '50 6,10,14,18 * * *';
+  const maxPerRun = Math.max(1, parseInt(process.env.REMEMORY_MAX_PER_RUN || '2', 10));
 
-      for (const memory of memories) {
+  tasks.push(cron.schedule(sendCron, async () => {
+    console.log('[cron] Running Re-memory send job…');
+    try {
+      const due = getMemoriesDueToday()
+        .sort((a, b) => String(a.next_send_date).localeCompare(String(b.next_send_date)));
+      const batch = due.slice(0, maxPerRun);
+      console.log(`[cron] ${due.length} due · sending ${batch.length} (máx ${maxPerRun}/run)`);
+
+      for (const memory of batch) {
         try {
           // Each memory is emailed to its own owner.
           await sendMemoryEmail(memory, memory.owner_email);
@@ -28,12 +35,15 @@ function startCron() {
           console.error(`[cron] ✗ Failed to send memory #${memory.id}:`, err.message);
         }
       }
+      if (due.length > batch.length) {
+        console.log(`[cron] ${due.length - batch.length} pendiente(s) para el siguiente turno (reparte los emails).`);
+      }
     } catch (err) {
       console.error('[cron] Fatal error in send job:', err);
     }
   }, { timezone: 'Europe/Madrid' }));
 
-  console.log('[cron] Re-memory daily job scheduled (06:50 Europe/Madrid)');
+  console.log(`[cron] Re-memory send job scheduled (${sendCron} Europe/Madrid, ≤${maxPerRun}/run)`);
 
   // ─── Automatic backup job ─────────────────────────────────────────────────
   // Interval controlled by BACKUP_INTERVAL_HOURS (default: 2)

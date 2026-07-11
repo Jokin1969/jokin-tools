@@ -198,6 +198,7 @@ const HISTORY_META = {
   sent:         { icon: '📧', label: 'Enviado' },
   created:      { icon: '✨', label: 'Creada' },
   freq_changed: { icon: '🔁', label: 'Frecuencia cambiada' },
+  postponed:    { icon: '⏭️', label: 'Aplazada' },
   deactivated:  { icon: '⏸️', label: 'Desactivada' },
   reactivated:  { icon: '▶️', label: 'Reactivada' },
   reset:        { icon: '↺', label: 'Contador reiniciado' },

@@ -103,19 +103,25 @@ function buildEmailHTML(memory) {
   const baseUrl = getBaseUrl();
   const { bg, label } = getBadgeColor(memory.times_recalled);
   const deactivateToken = generateDeactivationToken(memory.id, memory.user_id);
-  const deactivateUrl = `${baseUrl}/re-memory/api/deactivate/${memory.id}/${deactivateToken}`;
+  const deactivateUrl = `${baseUrl}/re-memory/accion/desactivar/${memory.id}/${deactivateToken}`;
   const freqLabel = FREQUENCY_LABELS[memory.frequency] || memory.frequency;
 
   // Quick "change frequency" pills for the email footer (the current one is
-  // marked, the rest link to the signed set-frequency route).
+  // marked, the rest link to the signed frequency route).
   const FREQ_ORDER = ['1w', '2w', '3w', '1m', '2m', '3m', '6m', '1y'];
   const freqPills = FREQ_ORDER.map(f => {
     const lbl = FREQUENCY_LABELS[f] || f;
     if (f === memory.frequency) {
       return `<span style="display:inline-block;margin:3px 4px 3px 0;padding:6px 11px;border-radius:16px;background:#1B6CB0;color:#fff;font-size:12px;font-family:'Courier New',monospace;">${lbl} ✓</span>`;
     }
-    const url = `${baseUrl}/re-memory/api/set-frequency/${memory.id}/${f}/${deactivateToken}`;
+    const url = `${baseUrl}/re-memory/accion/frecuencia/${memory.id}/${f}/${deactivateToken}`;
     return `<a href="${url}" style="display:inline-block;margin:3px 4px 3px 0;padding:6px 11px;border-radius:16px;background:#eef2f7;color:#1B6CB0;font-size:12px;font-family:'Courier New',monospace;text-decoration:none;border:1px solid #d0d9e6;">${lbl}</a>`;
+  }).join('');
+
+  // "Postpone" pills: push the next reminder forward so several don't pile up.
+  const postponePills = [1, 2, 3].map(n => {
+    const url = `${baseUrl}/re-memory/accion/posponer/${memory.id}/${n}/${deactivateToken}`;
+    return `<a href="${url}" style="display:inline-block;margin:3px 4px 3px 0;padding:6px 12px;border-radius:16px;background:#f2f7ee;color:#2E7D32;font-size:12px;font-family:'Courier New',monospace;text-decoration:none;border:1px solid #c9e0c2;">+${n} día${n !== 1 ? 's' : ''}</a>`;
   }).join('');
   const createdAt = new Date(memory.created_at).toLocaleDateString('es-ES', {
     day: '2-digit', month: 'long', year: 'numeric'
@@ -216,9 +222,16 @@ function buildEmailHTML(memory) {
           ${imageBlock}
           ${sourceBlock}
 
-          <!-- Actions: change frequency -->
+          <!-- Actions: postpone next send -->
           <tr>
             <td style="padding: 20px 40px 6px; background: #f7f7f7; border-top: 1px solid #e0e0e0;">
+              <p style="margin:0 0 8px; font-size:12px; color:#555; font-family:'Courier New',monospace;">⏭️ Aplazar el próximo aviso (para no juntar varios):</p>
+              <div>${postponePills}</div>
+            </td>
+          </tr>
+          <!-- Actions: change frequency -->
+          <tr>
+            <td style="padding: 12px 40px 6px; background: #f7f7f7;">
               <p style="margin:0 0 8px; font-size:12px; color:#555; font-family:'Courier New',monospace;">🔁 Cambiar frecuencia del recordatorio:</p>
               <div>${freqPills}</div>
             </td>

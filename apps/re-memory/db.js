@@ -363,6 +363,18 @@ function resetCounter(id, userId) {
   return getMemoryById(id, userId);
 }
 
+// Push the next send date forward by N days (from the email "posponer" button),
+// to spread out reminders that would otherwise arrive together.
+function postponeMemory(id, days, userId) {
+  const m = getMemoryById(id, userId);
+  if (!m) return null;
+  const d = m.next_send_date ? new Date(m.next_send_date) : new Date();
+  d.setDate(d.getDate() + Number(days));
+  updateMemory(id, { next_send_date: d.toISOString() }, userId);
+  addEvent(id, 'postponed', `Próximo envío aplazado +${days} día${Number(days) !== 1 ? 's' : ''}`);
+  return getMemoryById(id, userId);
+}
+
 // Assign every ownerless memory (pre-migration data) to a user. Returns count.
 function assignOrphanMemories(userId) {
   return db.prepare('UPDATE memories SET user_id = ? WHERE user_id IS NULL').run(userId).changes;
@@ -427,6 +439,7 @@ module.exports = {
   getMemoriesDueToday,
   markSent,
   resetCounter,
+  postponeMemory,
   getAllMemoriesForExport,
   assignOrphanMemories,
   getImageOwner,

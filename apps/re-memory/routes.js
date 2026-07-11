@@ -10,7 +10,7 @@ const router = express.Router();
 const {
   createMemory, setMemoryImage, getMemoryById, listMemories, updateMemory,
   deleteMemory, toggleMemory, resetCounter, getAllIds, getAllMemoriesForExport,
-  listHistory
+  listHistory, postponeMemory
 } = require('./db');
 
 const { sendMemoryEmail, generateDeactivationToken, isDeactivationSecretConfigured } = require('./email');
@@ -239,7 +239,7 @@ router.post('/api/test-email/:id', async (req, res) => {
 });
 
 // ─── API: Deactivate from email link ─────────────────────────────────────────
-router.get('/api/deactivate/:id/:token', (req, res) => {
+router.get('/accion/desactivar/:id/:token', (req, res) => {
   try {
     // Fail closed: never honour deactivation links when running on the public
     // default HMAC secret in production (anyone could forge them).
@@ -289,7 +289,7 @@ router.get('/api/deactivate/:id/:token', (req, res) => {
 const FREQ_LABELS = { '1w': '1 semana', '2w': '2 semanas', '3w': '3 semanas', '1m': '1 mes', '2m': '2 meses', '3m': '3 meses', '6m': '6 meses', '1y': '1 año' };
 const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-router.get('/api/set-frequency/:id/:freq/:token', (req, res) => {
+router.get('/accion/frecuencia/:id/:freq/:token', (req, res) => {
   try {
     if (process.env.NODE_ENV === 'production' && !isDeactivationSecretConfigured()) {
       return res.status(503).send('<h2>Acción no disponible (DEACTIVATION_SECRET sin configurar)</h2>');
@@ -339,6 +339,51 @@ router.get('/api/set-frequency/:id/:freq/:token', (req, res) => {
   } catch (err) {
     console.error('[api] set-frequency error:', err);
     res.status(500).send('<h2>Error al cambiar la frecuencia</h2>');
+  }
+});
+
+// ─── Postpone next send from email link (spread out reminders) ───────────────
+router.get('/accion/posponer/:id/:days/:token', (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production' && !isDeactivationSecretConfigured()) {
+      return res.status(503).send('<h2>Acción no disponible (DEACTIVATION_SECRET sin configurar)</h2>');
+    }
+    const id = Number(req.params.id);
+    const days = Number(req.params.days);
+    if (![1, 2, 3, 5, 7].includes(days)) return res.status(400).send('<h2>Días no válidos</h2>');
+
+    const expected = generateDeactivationToken(id, req.user.id);
+    const a = Buffer.from(req.params.token);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return res.status(403).send('<h2>Token inválido</h2>');
+    }
+
+    const memory = getMemoryById(id, req.user.id);
+    if (!memory) return res.status(404).send('<h2>Memoria no encontrada</h2>');
+
+    const updated = postponeMemory(id, days, req.user.id);
+    const nextDate = updated && updated.next_send_date
+      ? new Date(updated.next_send_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+      : '—';
+
+    res.send(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
+      <title>Re-memory — Aplazado</title>
+      <style>body{background:#0d1117;color:#e6edf3;font-family:monospace;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}
+      .box{max-width:420px;padding:40px;background:#161b22;border:1px solid #21262d;border-radius:12px}
+      h2{color:#27AE60;margin-bottom:12px}p{color:#7d8590;font-size:14px;line-height:1.6}
+      a{color:#2D9CDB;text-decoration:none}</style>
+    </head><body>
+      <div class="box">
+        <h2>✓ Recordatorio aplazado ${days} día${days !== 1 ? 's' : ''}</h2>
+        <p>"<strong>${escHtml(memory.description.substring(0, 80))}</strong>"</p>
+        <p>Próximo aviso: <strong>${nextDate}</strong>.</p>
+        <p style="margin-top:16px"><a href="/re-memory">Ir a Re-memory →</a></p>
+      </div>
+    </body></html>`);
+  } catch (err) {
+    console.error('[api] posponer error:', err);
+    res.status(500).send('<h2>Error al aplazar</h2>');
   }
 });
 
