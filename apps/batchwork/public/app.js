@@ -3449,9 +3449,16 @@ async function dnaLibDelete(name) {
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'No se pudo borrar el documento.');
 }
 async function dnaLibFetchBytes(name) {
-  const res = await fetch('/batchwork/api/library/dna/' + encodeURIComponent(name));
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'No se pudo cargar el documento.');
-  return new Uint8Array(await res.arrayBuffer());
+  const res = await fetch('/batchwork/api/library/dna/' + encodeURIComponent(name), { headers: { Accept: 'application/octet-stream' } });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const j = await res.json(); if (j && j.error) msg = `${j.error} (HTTP ${res.status})`; } catch { /* not JSON */ }
+    if (res.status === 401) msg = 'Sesión caducada: recarga la página e inicia sesión de nuevo.';
+    throw new Error(msg);
+  }
+  const buf = await res.arrayBuffer();
+  if (!buf || buf.byteLength === 0) throw new Error('el servidor devolvió una respuesta vacía');
+  return new Uint8Array(buf);
 }
 // Mirror of the server name sanitiser, to know if a freshly loaded file already
 // matches a stored document (and skip the "save?" prompt).
@@ -3615,11 +3622,13 @@ function renderDnaReplaceUI() {
         load.textContent = 'Cargar';
         load.addEventListener('click', async () => {
           load.disabled = true; load.textContent = 'Cargando…';
+          info.innerHTML = `<span style="color:var(--text-muted)">Cargando «${d.name}» del repositorio…</span>`;
           try {
             const bytes = await dnaLibFetchBytes(d.name);
             applyLoaded(d.name, bytes, true);
           } catch (e) {
-            info.innerHTML = `<span style="color:var(--red)">⚠ ${e.message}</span>`;
+            console.error('[dna repo] Cargar falló:', e);
+            info.innerHTML = `<span style="color:var(--red)">⚠ No se pudo cargar «${d.name}»: ${e.message}</span>`;
           } finally { load.disabled = false; load.textContent = 'Cargar'; }
         });
         row.appendChild(load);
