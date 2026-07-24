@@ -206,6 +206,36 @@ function getChunkTexts(ids) {
   return map;
 }
 
+// Lexical keyword search: find chunks whose text contains any of the given terms
+// (exact, case-insensitive substring — so codes like "AAV-F" match literally).
+// terms: [{term, rare}]. Returns [{id, idx, pageStart, pageEnd, lexScore, matched}]
+// ranked by a term-coverage score (rare terms weighted double), capped at `limit`.
+function searchChunksByTerms(docId, terms, limit = 40) {
+  if (!terms || !terms.length) return [];
+  const stmt = db.prepare(
+    "SELECT id, idx, page_start, page_end FROM pdfqa_chunks WHERE doc_id = ? AND text LIKE ? ESCAPE '\\' COLLATE NOCASE"
+  );
+  const acc = new Map();
+  for (const { term, rare } of terms) {
+    const key = String(term).toLowerCase();
+    const like = '%' + String(term).replace(/[\\%_]/g, '\\$&') + '%';
+    let rows;
+    try { rows = stmt.all(docId, like); } catch { continue; }
+    const w = rare ? 2 : 1;
+    for (const r of rows) {
+      let e = acc.get(r.id);
+      if (!e) { e = { id: r.id, idx: r.idx, pageStart: r.page_start, pageEnd: r.page_end, lexScore: 0, terms: new Set() }; acc.set(r.id, e); }
+      if (!e.terms.has(key)) { e.terms.add(key); e.lexScore += w; }
+    }
+  }
+  const arr = [...acc.values()].map(e => ({
+    id: e.id, idx: e.idx, pageStart: e.pageStart, pageEnd: e.pageEnd,
+    lexScore: e.lexScore, matched: e.terms.size,
+  }));
+  arr.sort((a, b) => b.lexScore - a.lexScore);
+  return arr.slice(0, limit);
+}
+
 // ── Shared Q&A repository ─────────────────────────────────────────────────────
 function saveQA({ docId, docName, userId, userEmail, question, answer, sources }) {
   const info = db.prepare(
@@ -259,6 +289,6 @@ module.exports = {
   db,
   createDoc, getDoc, listDocs, updateProgress, setPages, setWarning,
   markReady, markError, removeDoc,
-  insertChunks, countChunks, loadEmbeddings, getChunkTexts,
+  insertChunks, countChunks, loadEmbeddings, getChunkTexts, searchChunksByTerms,
   saveQA, getQA, listQA, removeQA,
 };

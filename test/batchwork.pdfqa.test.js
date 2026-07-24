@@ -104,6 +104,37 @@ test('store: doc lifecycle, embedding BLOB round-trip, retrieval, isolation, cas
   assert.equal(store.countChunks(doc.id), 0);
 });
 
+test('extractTerms: keeps rare codes/acronyms, drops stopwords, flags rare', () => {
+  const t = ai.extractTerms('Hay algún abstract que muestre algún estudio con el AAV-F?');
+  const terms = t.map(x => x.term);
+  assert.ok(terms.includes('AAV-F'), 'keeps the hyphenated code');
+  assert.ok(t.find(x => x.term === 'AAV-F').rare, 'AAV-F flagged rare');
+  assert.ok(!terms.includes('que') && !terms.includes('con') && !terms.includes('estudio'), 'stopwords dropped');
+
+  const t2 = ai.extractTerms('AAV-F8 hemophilia FVIII ST-920');
+  const rare = t2.filter(x => x.rare).map(x => x.term);
+  assert.ok(rare.includes('AAV-F8') && rare.includes('FVIII') && rare.includes('ST-920'), 'codes flagged rare');
+});
+
+test('store: lexical search finds exact term matches and ranks by coverage', () => {
+  const doc = store.createDoc({ name: 'aav.pdf', bytes: 1, model: 'text-embedding-3-small' }, 8);
+  store.insertChunks(doc.id, [
+    { idx: 0, pageStart: 10, pageEnd: 10, text: 'Overview of AAV2 and AAV8 serotypes.', embedding: [1, 0] },
+    { idx: 1, pageStart: 2719, pageEnd: 2722, text: 'AAV-F is a CNS-tropic engineered capsid in this abstract.', embedding: [0, 1] },
+  ]);
+  store.markReady(doc.id, { chunks: 2 });
+
+  const terms = ai.extractTerms('algún abstract con AAV-F');
+  const hits = store.searchChunksByTerms(doc.id, terms, 40);
+  assert.equal(hits.length, 1, 'only the AAV-F chunk matches');
+  assert.equal(hits[0].pageStart, 2719);
+  assert.ok(hits[0].matched >= 1);
+
+  // A term that appears nowhere returns nothing; LIKE wildcards are escaped.
+  assert.equal(store.searchChunksByTerms(doc.id, [{ term: 'AAV-Z9', rare: true }], 40).length, 0);
+  assert.equal(store.searchChunksByTerms(doc.id, [{ term: '100%_x', rare: true }], 40).length, 0);
+});
+
 test('store: markError records the failure on the doc', () => {
   const doc = store.createDoc({ name: 'roto.pdf', bytes: 1 }, 3);
   store.markError(doc.id, 'PDF escaneado');

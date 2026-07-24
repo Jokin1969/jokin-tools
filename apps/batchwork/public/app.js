@@ -4745,6 +4745,21 @@ function pdfqaPageRef(s, e) {
   return s === e ? `pág. ${s}` : `págs. ${s}–${e}`;
 }
 
+// Render source page ranges as chips. When the original PDF is available, each
+// chip is a link that opens the PDF at that page (#page=N, honoured by the
+// browser's built-in viewer).
+function pdfqaSourceChips(sources, docId, hasPdf) {
+  const base = 'display:inline-block;padding:2px 9px;margin:2px 4px 2px 0;border-radius:12px;background:#eef5fc;border:1px solid #cfe1f5;color:#1B6CB0;font-size:12px;';
+  return (sources || []).map(s => {
+    const label = pdfqaPageRef(s.pageStart, s.pageEnd);
+    if (hasPdf && docId != null) {
+      const href = `/batchwork/api/pdfqa/docs/${docId}/pdf#page=${s.pageStart}`;
+      return `<a href="${href}" target="_blank" rel="noopener" title="Abrir la página ${s.pageStart} del PDF" style="${base}text-decoration:none;cursor:pointer;">${label} ↗</a>`;
+    }
+    return `<span style="${base}">${label}</span>`;
+  }).join('');
+}
+
 async function pdfqaApi(path, opts) {
   const r = await fetch('/batchwork/api/pdfqa' + path, opts);
   const ct = r.headers.get('content-type') || '';
@@ -4989,9 +5004,7 @@ function renderPdfQaUI(zone) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ docId: d.id, question: q }),
       });
-      const src = (sources || []).map(s =>
-        `<span style="display:inline-block;padding:2px 9px;margin:2px 4px 2px 0;border-radius:12px;background:#eef5fc;border:1px solid #cfe1f5;color:#1B6CB0;font-size:12px;">${pdfqaPageRef(s.pageStart, s.pageEnd)}</span>`
-      ).join('');
+      const src = pdfqaSourceChips(sources, d.id, d.hasPdf);
       answerBox.innerHTML =
         `<div style="background:#fff;border:1px solid #e2e2e2;border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.55;color:#1a1a1a;">${pdfqaFormatAnswer(answer)}</div>` +
         (src ? `<div style="margin-top:10px;font-size:12px;color:#666;">Páginas consultadas: ${src}</div>` : '') +
@@ -5055,9 +5068,7 @@ function renderPdfQaUI(zone) {
 
       const body = mk('div');
       body.style.cssText = 'padding:0 14px 14px;';
-      const src = (it.sources || []).map(s =>
-        `<span style="display:inline-block;padding:2px 9px;margin:2px 4px 2px 0;border-radius:12px;background:#eef5fc;border:1px solid #cfe1f5;color:#1B6CB0;font-size:12px;">${pdfqaPageRef(s.pageStart, s.pageEnd)}</span>`
-      ).join('');
+      const src = pdfqaSourceChips(it.sources, it.docId, it.hasPdf);
       body.innerHTML =
         `<div style="border-top:1px solid #eee;padding-top:10px;font-size:14px;line-height:1.55;color:#1a1a1a;">${pdfqaFormatAnswer(it.answer)}</div>` +
         (src ? `<div style="margin-top:8px;font-size:12px;color:#666;">Páginas: ${src}</div>` : '');
@@ -5080,12 +5091,18 @@ function renderPdfQaUI(zone) {
     try {
       ui.meta = await pdfqaApi('/meta');
       const missing = [];
-      if (!ui.meta.openai) missing.push('OPENAI_API_KEY (indexado)');
+      if (!ui.meta.embedReady) missing.push('OPENAI_API_KEY o VOYAGE_API_KEY (indexado)');
       if (!ui.meta.anthropic) missing.push('ANTHROPIC_API_KEY (respuestas)');
       if (missing.length) {
         warnBox.style.display = '';
         warnBox.innerHTML = '⚠ Faltan claves de IA en el servidor: <strong>' + missing.join('</strong>, <strong>') +
-          '</strong>. Configúralas en Railway para poder ' + (!ui.meta.openai ? 'digerir' : 'preguntar') + '.';
+          '</strong>. Configúralas en Railway para poder ' + (!ui.meta.embedReady ? 'digerir' : 'preguntar') + '.';
+      } else if (ui.meta.embedModel) {
+        // Small info note: which embedding model new digests use + rerank status.
+        const rr = ui.meta.rerank ? ' · reranker activo' : '';
+        const info = mk('div', null, `Indexado con <strong>${pdfqaEsc(ui.meta.embedModel)}</strong> (${pdfqaEsc(ui.meta.embedProvider)})${rr}. Búsqueda híbrida (semántica + palabras clave).`);
+        info.style.cssText = 'font-size:12px;color:#777;margin:-6px 0 12px;';
+        warnBox.insertAdjacentElement('afterend', info);
       }
     } catch { /* meta optional */ }
     await refreshDocs();
