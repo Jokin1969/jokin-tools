@@ -132,6 +132,28 @@ function openaiClient() {
 
 const EMBED_CAP = 8000; // hard cap per input string (chars), well under token limits
 
+// Voyage/MongoDB base URL. Voyage AI is now owned by MongoDB and there are TWO
+// kinds of key, each tied to a different endpoint:
+//   · native Voyage AI key (prefix "pa-") → https://api.voyageai.com/v1
+//   · MongoDB Atlas model key (prefix "al-") → https://ai.mongodb.com/v1
+// We pick the endpoint from the key prefix so either kind works out of the box.
+// Override with PDFQA_VOYAGE_BASE_URL if needed.
+function voyageBase() {
+  if (process.env.PDFQA_VOYAGE_BASE_URL) return process.env.PDFQA_VOYAGE_BASE_URL.replace(/\/+$/, '');
+  const key = process.env.VOYAGE_API_KEY || '';
+  return /^al-/i.test(key) ? 'https://ai.mongodb.com/v1' : 'https://api.voyageai.com/v1';
+}
+
+// Friendlier hint when the key type doesn't match the endpoint (the 403 the user hit).
+function voyageKeyHint(status, body) {
+  if (status === 401 || status === 403 || /cannot access this endpoint|correct key/i.test(body || '')) {
+    const key = process.env.VOYAGE_API_KEY || '';
+    const kind = /^al-/i.test(key) ? 'MongoDB Atlas (al-…)' : (/^pa-/i.test(key) ? 'Voyage AI (pa-…)' : 'desconocido');
+    return ` — La clave VOYAGE_API_KEY (tipo ${kind}) no coincide con el endpoint. Usa una clave de Voyage AI (pa-…) o de MongoDB Atlas (al-…); el sistema elige el endpoint por el prefijo.`;
+  }
+  return '';
+}
+
 // Embed a single batch (already size-bounded) with the given model/provider.
 // inputType is 'document' (chunks) or 'query' (the question) — Voyage uses it to
 // tune the vectors; OpenAI ignores it.
@@ -139,14 +161,14 @@ async function embedBatch(batch, model, inputType) {
   if (providerForModel(model) === 'voyage') {
     const apiKey = process.env.VOYAGE_API_KEY;
     if (!apiKey) { const e = new Error('VOYAGE_API_KEY no configurada.'); e.status = 503; throw e; }
-    const resp = await fetch('https://api.voyageai.com/v1/embeddings', {
+    const resp = await fetch(`${voyageBase()}/embeddings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({ model, input: batch, input_type: inputType }),
     });
     if (!resp.ok) {
       const t = await resp.text().catch(() => '');
-      const e = new Error(`Voyage embeddings ${resp.status}: ${t.slice(0, 200)}`);
+      const e = new Error(`Voyage embeddings ${resp.status}: ${t.slice(0, 160)}${voyageKeyHint(resp.status, t)}`);
       e.status = resp.status >= 500 ? 502 : 400; throw e;
     }
     const data = await resp.json();
@@ -200,7 +222,7 @@ function rerankAvailable() {
 async function rerank(question, documents, topK) {
   const apiKey = process.env.VOYAGE_API_KEY;
   if (!apiKey) return null;
-  const resp = await fetch('https://api.voyageai.com/v1/rerank', {
+  const resp = await fetch(`${voyageBase()}/rerank`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
