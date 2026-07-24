@@ -48,6 +48,22 @@ db.exec(`
     FOREIGN KEY (doc_id) REFERENCES pdfqa_docs(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_pdfqa_chunks_doc ON pdfqa_chunks(doc_id);
+
+  -- SHARED question/answer repository: every answered question is saved here and
+  -- visible to ALL users (a team knowledge base). Intentionally NOT scoped per
+  -- user. Kept even if the source document is later deleted (doc_name is stored).
+  CREATE TABLE IF NOT EXISTS pdfqa_qa (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id      INTEGER,
+    doc_name    TEXT,
+    user_id     INTEGER,
+    user_email  TEXT,
+    question    TEXT NOT NULL,
+    answer      TEXT NOT NULL,
+    sources     TEXT,                                -- JSON [{pageStart,pageEnd}]
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_pdfqa_qa_created ON pdfqa_qa(created_at);
 `);
 
 console.log('[batchwork/pdfqa] Repository ready at:', DB_PATH);
@@ -190,9 +206,59 @@ function getChunkTexts(ids) {
   return map;
 }
 
+// ── Shared Q&A repository ─────────────────────────────────────────────────────
+function saveQA({ docId, docName, userId, userEmail, question, answer, sources }) {
+  const info = db.prepare(
+    `INSERT INTO pdfqa_qa (doc_id, doc_name, user_id, user_email, question, answer, sources)
+     VALUES (@doc_id, @doc_name, @user_id, @user_email, @question, @answer, @sources)`
+  ).run({
+    doc_id: docId != null ? docId : null,
+    doc_name: docName || null,
+    user_id: userId != null ? userId : null,
+    user_email: userEmail || null,
+    question: String(question),
+    answer: String(answer),
+    sources: JSON.stringify(sources || []),
+  });
+  return getQA(info.lastInsertRowid);
+}
+
+function getQA(id) {
+  const row = db.prepare('SELECT * FROM pdfqa_qa WHERE id = ?').get(id);
+  if (!row) return null;
+  let sources = [];
+  try { sources = row.sources ? JSON.parse(row.sources) : []; } catch { /* ignore */ }
+  return {
+    id: row.id, docId: row.doc_id, docName: row.doc_name,
+    userId: row.user_id, userEmail: row.user_email,
+    question: row.question, answer: row.answer, sources, created_at: row.created_at,
+  };
+}
+
+// Shared: returns everyone's Q&A, newest first (capped for safety).
+function listQA(limit = 500) {
+  return db.prepare(
+    `SELECT id, doc_id, doc_name, user_email, question, answer, sources, created_at
+       FROM pdfqa_qa ORDER BY created_at DESC, id DESC LIMIT ?`
+  ).all(limit).map(row => {
+    let sources = [];
+    try { sources = row.sources ? JSON.parse(row.sources) : []; } catch { /* ignore */ }
+    return {
+      id: row.id, docId: row.doc_id, docName: row.doc_name, userEmail: row.user_email,
+      question: row.question, answer: row.answer, sources, created_at: row.created_at,
+    };
+  });
+}
+
+// Shared lab resource: any batchwork user may delete an entry (like the .dna library).
+function removeQA(id) {
+  return db.prepare('DELETE FROM pdfqa_qa WHERE id = ?').run(id).changes > 0;
+}
+
 module.exports = {
   db,
   createDoc, getDoc, listDocs, updateProgress, setPages, setWarning,
   markReady, markError, removeDoc,
   insertChunks, countChunks, loadEmbeddings, getChunkTexts,
+  saveQA, getQA, listQA, removeQA,
 };

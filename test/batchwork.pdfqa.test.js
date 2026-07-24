@@ -111,3 +111,41 @@ test('store: markError records the failure on the doc', () => {
   assert.equal(d.status, 'error');
   assert.match(d.error, /escaneado/);
 });
+
+test('store: shared Q&A repository is visible to all users and deletable by anyone', () => {
+  const a = store.saveQA({
+    docId: 10, docName: 'A.pdf', userId: 1, userEmail: 'ana@lab.com',
+    question: '¿Qué es X?', answer: 'X es Y (pág. 3).', sources: [{ pageStart: 3, pageEnd: 3 }],
+  });
+  const b = store.saveQA({
+    docId: 11, docName: 'B.pdf', userId: 2, userEmail: 'beto@lab.com',
+    question: '¿Cómo funciona Z?', answer: 'Z hace W (págs. 5–6).', sources: [{ pageStart: 5, pageEnd: 6 }],
+  });
+
+  // Not scoped: listQA takes no user id and returns everyone's, newest first.
+  const all = store.listQA();
+  assert.ok(all.length >= 2);
+  assert.equal(all[0].id, b.id, 'newest first');
+  const seen = all.find(x => x.id === a.id);
+  assert.equal(seen.userEmail, 'ana@lab.com');
+  assert.equal(seen.docName, 'A.pdf');
+  assert.deepEqual(seen.sources, [{ pageStart: 3, pageEnd: 3 }]);
+
+  // Any user can delete (shared lab resource).
+  assert.equal(store.removeQA(a.id), true);
+  assert.equal(store.listQA().some(x => x.id === a.id), false);
+});
+
+test('store: Q&A survives deletion of its source document', () => {
+  const doc = store.createDoc({ name: 'fuente.pdf', bytes: 5 }, 4);
+  store.insertChunks(doc.id, [{ idx: 0, pageStart: 1, pageEnd: 1, text: 'hola', embedding: [1, 0] }]);
+  store.markReady(doc.id, { chunks: 1 });
+  const qa = store.saveQA({
+    docId: doc.id, docName: doc.name, userId: 4, userEmail: 'c@lab.com',
+    question: 'p', answer: 'r (pág. 1).', sources: [{ pageStart: 1, pageEnd: 1 }],
+  });
+  store.removeDoc(doc.id, 4);
+  const still = store.listQA().find(x => x.id === qa.id);
+  assert.ok(still, 'Q&A entry is kept');
+  assert.equal(still.docName, 'fuente.pdf', 'document name preserved for reference');
+});

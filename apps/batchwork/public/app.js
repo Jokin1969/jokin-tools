@@ -4756,7 +4756,7 @@ async function pdfqaApi(path, opts) {
 function renderPdfQaUI(zone) {
   if (pdfqaPollTimer) { clearTimeout(pdfqaPollTimer); pdfqaPollTimer = null; }
 
-  const ui = { docs: [], selectedId: null, meta: null, pendingFile: null, busy: false };
+  const ui = { docs: [], selectedId: null, meta: null, pendingFile: null, busy: false, qa: [], qaFilter: '' };
   const cardCss = 'margin:0 0 16px;padding:16px 18px;border:1px solid #e2e2e2;border-radius:12px;background:#fbfbfb;';
 
   const root = mk('div', 'bw-params');
@@ -4821,6 +4821,23 @@ function renderPdfQaUI(zone) {
   const answerBox = mk('div'); answerBox.style.cssText = 'margin-top:14px;';
   askCard.appendChild(answerBox);
   root.appendChild(askCard);
+
+  // ── 4 · Repositorio compartido de preguntas y respuestas ──────────────────────
+  const qaCard = mk('div'); qaCard.style.cssText = cardCss;
+  const qaHead = mk('div'); qaHead.style.cssText = 'display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;';
+  qaHead.appendChild(mk('h3', null, '4 · Preguntas y respuestas guardadas'));
+  const qaShared = mk('span', null, '· compartido con todos los usuarios');
+  qaShared.style.cssText = 'font-size:12px;color:#888;';
+  qaHead.appendChild(qaShared);
+  qaCard.appendChild(qaHead);
+  const qaSearch = document.createElement('input');
+  qaSearch.className = 'bw-input'; qaSearch.type = 'search';
+  qaSearch.placeholder = 'Buscar en preguntas, respuestas o documentos…';
+  qaSearch.style.cssText = 'margin:10px 0;width:100%;';
+  qaCard.appendChild(qaSearch);
+  const qaWrap = mk('div');
+  qaCard.appendChild(qaWrap);
+  root.appendChild(qaCard);
 
   zone.appendChild(root);
 
@@ -4977,7 +4994,10 @@ function renderPdfQaUI(zone) {
       ).join('');
       answerBox.innerHTML =
         `<div style="background:#fff;border:1px solid #e2e2e2;border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.55;color:#1a1a1a;">${pdfqaFormatAnswer(answer)}</div>` +
-        (src ? `<div style="margin-top:10px;font-size:12px;color:#666;">Páginas consultadas: ${src}</div>` : '');
+        (src ? `<div style="margin-top:10px;font-size:12px;color:#666;">Páginas consultadas: ${src}</div>` : '') +
+        '<div style="margin-top:8px;font-size:12px;color:#1a7f37;">✓ Guardado en el repositorio compartido (sección 4).</div>';
+      ta.value = '';
+      await refreshQA();  // surface the new entry at the top of the shared repo
     } catch (err) {
       answerBox.innerHTML = `<div style="color:#B83232;font-size:13px;">${pdfqaEsc(err.message)}</div>`;
     } finally {
@@ -4986,6 +5006,74 @@ function renderPdfQaUI(zone) {
   }
   btnAsk.addEventListener('click', ask);
   ta.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') ask(); });
+
+  // ── Shared Q&A repository ─────────────────────────────────────────────────────
+  qaSearch.addEventListener('input', () => { ui.qaFilter = qaSearch.value.trim().toLowerCase(); renderQA(); });
+
+  async function refreshQA() {
+    try { const { items } = await pdfqaApi('/qa'); ui.qa = items || []; } catch { /* keep previous */ }
+    renderQA();
+  }
+
+  function pdfqaWhen(s) {
+    // SQLite CURRENT_TIMESTAMP is UTC "YYYY-MM-DD HH:MM:SS"; show a friendly local date.
+    if (!s) return '';
+    const d = new Date(s.replace(' ', 'T') + 'Z');
+    if (isNaN(d)) return s;
+    return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderQA() {
+    qaWrap.innerHTML = '';
+    const f = ui.qaFilter;
+    const items = !f ? ui.qa : ui.qa.filter(it =>
+      (it.question || '').toLowerCase().includes(f) ||
+      (it.answer || '').toLowerCase().includes(f) ||
+      (it.docName || '').toLowerCase().includes(f) ||
+      (it.userEmail || '').toLowerCase().includes(f));
+
+    if (!ui.qa.length) {
+      const e = mk('div', null, 'Todavía no hay preguntas guardadas. Las que hagáis en la sección 3 aparecerán aquí para todos.');
+      e.style.cssText = 'color:#888;font-size:13px;'; qaWrap.appendChild(e); return;
+    }
+    const count = mk('div', null, `${items.length} de ${ui.qa.length} pregunta(s)`);
+    count.style.cssText = 'font-size:12px;color:#888;margin-bottom:8px;'; qaWrap.appendChild(count);
+    if (!items.length) return;
+
+    for (const it of items) {
+      const box = mk('div');
+      box.style.cssText = 'border:1px solid #e2e2e2;border-radius:10px;background:#fff;margin-bottom:10px;overflow:hidden;';
+
+      const det = document.createElement('details');
+      const sum = document.createElement('summary');
+      sum.style.cssText = 'cursor:pointer;padding:12px 14px;list-style:none;';
+      const who = it.userEmail ? pdfqaEsc(it.userEmail.split('@')[0]) : 'anónimo';
+      sum.innerHTML =
+        `<div style="font-weight:600;color:#111;">${pdfqaEsc(it.question)}</div>` +
+        `<div style="font-size:12px;color:#777;margin-top:3px;">📄 ${pdfqaEsc(it.docName || '—')} · 👤 ${who} · 🕒 ${pdfqaWhen(it.created_at)}</div>`;
+      det.appendChild(sum);
+
+      const body = mk('div');
+      body.style.cssText = 'padding:0 14px 14px;';
+      const src = (it.sources || []).map(s =>
+        `<span style="display:inline-block;padding:2px 9px;margin:2px 4px 2px 0;border-radius:12px;background:#eef5fc;border:1px solid #cfe1f5;color:#1B6CB0;font-size:12px;">${pdfqaPageRef(s.pageStart, s.pageEnd)}</span>`
+      ).join('');
+      body.innerHTML =
+        `<div style="border-top:1px solid #eee;padding-top:10px;font-size:14px;line-height:1.55;color:#1a1a1a;">${pdfqaFormatAnswer(it.answer)}</div>` +
+        (src ? `<div style="margin-top:8px;font-size:12px;color:#666;">Páginas: ${src}</div>` : '');
+      const del = mk('button', 'bw-btn bw-btn-cancel', 'Eliminar');
+      del.type = 'button'; del.style.cssText = 'margin-top:10px;font-size:12px;padding:4px 10px;';
+      del.addEventListener('click', async () => {
+        if (!confirm('¿Eliminar esta pregunta del repositorio compartido? La verán (o dejarán de ver) todos los usuarios.')) return;
+        try { await pdfqaApi('/qa/' + it.id, { method: 'DELETE' }); } catch (err) { alert(err.message); return; }
+        await refreshQA();
+      });
+      body.appendChild(del);
+      det.appendChild(body);
+      box.appendChild(det);
+      qaWrap.appendChild(box);
+    }
+  }
 
   // ── Boot ────────────────────────────────────────────────────────────────────
   (async () => {
@@ -5001,6 +5089,7 @@ function renderPdfQaUI(zone) {
       }
     } catch { /* meta optional */ }
     await refreshDocs();
+    await refreshQA();
     schedulePoll();
   })();
 }

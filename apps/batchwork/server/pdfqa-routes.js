@@ -226,7 +226,32 @@ router.post('/ask', json, async (req, res) => {
       seen.add(key);
       sources.push({ pageStart: c.pageStart, pageEnd: c.pageEnd, score: Math.round(c.score * 1000) / 1000 });
     }
-    res.json({ answer, sources });
+
+    // Save to the SHARED Q&A repository (visible to everyone). Best-effort: a
+    // storage hiccup must not fail the answer the user already got.
+    let saved = null;
+    try {
+      saved = store.saveQA({
+        docId: doc.id, docName: doc.name,
+        userId: req.user.id, userEmail: req.user.email || null,
+        question: q, answer, sources: sources.map(s => ({ pageStart: s.pageStart, pageEnd: s.pageEnd })),
+      });
+    } catch (e) { console.error('[batchwork/pdfqa] no se pudo guardar la Q&A:', e.message); }
+
+    res.json({ answer, sources, qa: saved });
+  } catch (err) { fail(res, err); }
+});
+
+// ── Shared Q&A repository (visible to all users) ────────────────────────────────
+router.get('/qa', (req, res) => {
+  try { res.json({ items: store.listQA() }); } catch (err) { fail(res, err); }
+});
+
+router.delete('/qa/:id(\\d+)', (req, res) => {
+  try {
+    const ok = store.removeQA(Number(req.params.id));
+    if (!ok) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ ok: true });
   } catch (err) { fail(res, err); }
 });
 
