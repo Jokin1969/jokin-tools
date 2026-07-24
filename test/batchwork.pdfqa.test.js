@@ -116,6 +116,15 @@ test('extractTerms: keeps rare codes/acronyms, drops stopwords, flags rare', () 
   assert.ok(rare.includes('AAV-F8') && rare.includes('FVIII') && rare.includes('ST-920'), 'codes flagged rare');
 });
 
+test('detectLang: forces answer language from the question, not the document', () => {
+  assert.equal(ai.detectLang('Any study with AAV-F?'), 'en');
+  assert.equal(ai.detectLang('Is there any abstract about AAV-F?'), 'en');
+  assert.equal(ai.detectLang('Hay algún abstract que muestre estudio con AAV-F?'), 'es');
+  assert.equal(ai.detectLang('¿Cuál es el límite de temperatura?'), 'es');
+  assert.equal(ai.detectLang('Que estudios hay sobre AAV-F'), 'es'); // no accents
+  assert.equal(ai.detectLang(''), 'es'); // default to Spanish
+});
+
 test('store: lexical search finds exact term matches and ranks by coverage', () => {
   const doc = store.createDoc({ name: 'aav.pdf', bytes: 1, model: 'text-embedding-3-small' }, 8);
   store.insertChunks(doc.id, [

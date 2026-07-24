@@ -244,6 +244,23 @@ function extractTerms(query) {
   return terms;
 }
 
+// Detect the language of the QUESTION so we can force the answer language
+// explicitly. "Same language as the question" is too soft when the whole
+// retrieved context is in English — the model drifts to English. A hard,
+// single-language directive fixes it. Returns 'es' or 'en'.
+function detectLang(text) {
+  const t = String(text || '').toLowerCase();
+  if (/[áéíóúñ¿¡]/.test(t)) return 'es';
+  const pad = ' ' + t.replace(/[^\p{L}\s]/gu, ' ').replace(/\s+/g, ' ') + ' ';
+  const ES = [' el ', ' la ', ' los ', ' las ', ' un ', ' una ', ' de ', ' del ', ' que ', ' con ', ' por ', ' para ', ' hay ', ' algún ', ' alguna ', ' cual ', ' que ', ' como ', ' esta ', ' es ', ' se ', ' en ', ' y ', ' o ', ' muestra ', ' estudio ', ' sobre ', ' cuales '];
+  const EN = [' the ', ' a ', ' an ', ' of ', ' that ', ' with ', ' for ', ' is ', ' are ', ' any ', ' study ', ' show ', ' what ', ' which ', ' how ', ' does ', ' this ', ' in ', ' and ', ' or ', ' about ', ' there ', ' can ', ' do '];
+  let es = 0;
+  let en = 0;
+  for (const w of ES) if (pad.includes(w)) es++;
+  for (const w of EN) if (pad.includes(w)) en++;
+  return en > es ? 'en' : 'es'; // ties → Spanish (the user's primary language)
+}
+
 // ── Claude answer ───────────────────────────────────────────────────────────────
 // contexts: [{pageStart, pageEnd, text, score}] already sorted best-first.
 async function answerQuestion(question, contexts) {
@@ -251,6 +268,9 @@ async function answerQuestion(question, contexts) {
   if (!apiKey) { const e = new Error('ANTHROPIC_API_KEY no configurada.'); e.status = 503; throw e; }
   const Anthropic = require('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey });
+
+  const lang = detectLang(question);
+  const langName = lang === 'es' ? 'ESPAÑOL' : 'INGLÉS (English)';
 
   const pageRef = c => (c.pageStart === c.pageEnd ? `pág. ${c.pageStart}` : `págs. ${c.pageStart}–${c.pageEnd}`);
   const contextBlock = contexts
@@ -260,20 +280,21 @@ async function answerQuestion(question, contexts) {
   const system =
     'Eres un asistente experto que responde preguntas sobre un documento PDF a partir de ' +
     'fragmentos recuperados de él. Reglas:\n' +
-    '1) Responde SIEMPRE en el mismo idioma en el que está escrita la PREGUNTA del usuario ' +
-    '(si pregunta en español, responde en español; si pregunta en inglés, responde en inglés), ' +
-    'aunque el documento esté en otro idioma. Hazlo de forma clara y bien estructurada.\n' +
+    `1) Escribe TODA tu respuesta EXCLUSIVAMENTE en ${langName}, aunque los fragmentos del ` +
+    'documento estén en otro idioma. No cambies de idioma bajo ninguna circunstancia; si el ' +
+    'documento está en inglés y debes responder en español, traduce lo necesario.\n' +
     '2) Usa ÚNICAMENTE la información de los fragmentos proporcionados. No inventes datos. ' +
-    'Puedes citar textualmente frases del documento en su idioma original cuando aporte precisión.\n' +
+    'Puedes citar entre comillas alguna frase clave del documento en su idioma original cuando ' +
+    'aporte precisión, pero el resto de la respuesta va en el idioma indicado.\n' +
     '3) Cita siempre las páginas en las que te apoyas, entre paréntesis, p. ej. (pág. 12) / (págs. 12–14) ' +
     'o (p. 12) / (pp. 12–14) según el idioma de tu respuesta.\n' +
-    '4) Si la respuesta no está en los fragmentos, dilo con claridad (en el idioma de la pregunta) ' +
-    'y, si procede, sugiere reformular la pregunta.\n' +
+    '4) Si la respuesta no está en los fragmentos, dilo con claridad y, si procede, sugiere reformular.\n' +
     '5) Sé conciso pero completo; usa listas cuando ayuden.';
 
   const userContent =
     `FRAGMENTOS DEL DOCUMENTO:\n\n${contextBlock}\n\n` +
-    `────────\n\nPREGUNTA DEL USUARIO:\n${question}`;
+    `────────\n\nPREGUNTA DEL USUARIO:\n${question}\n\n` +
+    `[RECUERDA: redacta toda la respuesta en ${langName}.]`;
 
   const msg = await client.messages.create({
     model: ANSWER_MODEL,
@@ -289,7 +310,7 @@ async function answerQuestion(question, contexts) {
 module.exports = {
   EMBED_MODEL, OPENAI_EMBED_MODEL, VOYAGE_EMBED_MODEL, RERANK_MODEL, ANSWER_MODEL,
   TARGET_CHARS, OVERLAP_CHARS,
-  voyageEnabled, defaultEmbedModel, providerForModel, rerankAvailable,
+  voyageEnabled, defaultEmbedModel, providerForModel, rerankAvailable, detectLang,
   splitIntoSegments, chunkPages, cosineTopK, extractTerms,
   embedTexts, embedQuery, rerank, answerQuestion,
 };

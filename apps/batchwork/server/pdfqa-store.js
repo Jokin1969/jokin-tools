@@ -101,7 +101,7 @@ function listDocs(userId) {
   const where = userId != null ? 'WHERE user_id = ?' : '';
   const args = userId != null ? [userId] : [];
   return db.prepare(
-    `SELECT id, name, pages, chunks, bytes, status, progress, warning, error, created_at
+    `SELECT id, name, pages, chunks, bytes, status, progress, warning, error, model, created_at
        FROM pdfqa_docs ${where} ORDER BY created_at DESC, id DESC`
   ).all(...args).map(row => {
     let progress = null;

@@ -4745,19 +4745,69 @@ function pdfqaPageRef(s, e) {
   return s === e ? `pág. ${s}` : `págs. ${s}–${e}`;
 }
 
+// Friendly label for an embedding model (so the user can see what each doc used).
+function pdfqaModelLabel(m) {
+  if (!m) return '';
+  return /^voyage/i.test(m) ? `Voyage · ${m}` : `OpenAI · ${m}`;
+}
+
 // Render source page ranges as chips. When the original PDF is available, each
-// chip is a link that opens the PDF at that page (#page=N, honoured by the
-// browser's built-in viewer).
-function pdfqaSourceChips(sources, docId, hasPdf) {
-  const base = 'display:inline-block;padding:2px 9px;margin:2px 4px 2px 0;border-radius:12px;background:#eef5fc;border:1px solid #cfe1f5;color:#1B6CB0;font-size:12px;';
+// chip is a BUTTON that opens an in-app viewer showing that page of the PDF.
+function pdfqaSourceChips(sources, docId, hasPdf, docName) {
+  const base = 'padding:2px 10px;margin:2px 4px 2px 0;border-radius:12px;background:#eef5fc;border:1px solid #cfe1f5;color:#1B6CB0;font-size:12px;';
   return (sources || []).map(s => {
     const label = pdfqaPageRef(s.pageStart, s.pageEnd);
     if (hasPdf && docId != null) {
-      const href = `/batchwork/api/pdfqa/docs/${docId}/pdf#page=${s.pageStart}`;
-      return `<a href="${href}" target="_blank" rel="noopener" title="Abrir la página ${s.pageStart} del PDF" style="${base}text-decoration:none;cursor:pointer;">${label} ↗</a>`;
+      return `<button type="button" class="pdfqa-page-btn" data-doc="${docId}" data-page="${s.pageStart}" data-name="${pdfqaEsc(docName || '')}" ` +
+        `title="Ver la página ${s.pageStart} del PDF" style="${base}cursor:pointer;font-family:inherit;">${label} 🔍</button>`;
     }
-    return `<span style="${base}">${label}</span>`;
+    return `<span style="display:inline-block;${base}">${label}</span>`;
   }).join('');
+}
+
+// ── In-app PDF page viewer (modal with the browser's native PDF viewer) ─────────
+function pdfqaViewer() {
+  let el = document.getElementById('pdfqa-viewer');
+  if (el) return el;
+  el = mk('div');
+  el.id = 'pdfqa-viewer';
+  el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,27,45,.62);display:none;align-items:center;justify-content:center;padding:2vh 2vw;';
+  el.innerHTML =
+    '<div style="background:#fff;border-radius:12px;width:min(1000px,96vw);height:95vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.35);">' +
+      '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #e2e2e2;background:#fafafa;">' +
+        '<strong id="pdfqa-viewer-title" style="flex:1;font-size:14px;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Página</strong>' +
+        '<a id="pdfqa-viewer-tab" target="_blank" rel="noopener" class="bw-btn" style="font-size:12px;text-decoration:none;">Pestaña ↗</a>' +
+        '<button id="pdfqa-viewer-close" class="bw-btn bw-btn-cancel" type="button" style="font-size:12px;">Cerrar ✕</button>' +
+      '</div>' +
+      '<iframe id="pdfqa-viewer-frame" title="Página del PDF" style="flex:1;width:100%;border:0;background:#525659;"></iframe>' +
+    '</div>';
+  document.body.appendChild(el);
+  const hide = () => { el.style.display = 'none'; const f = el.querySelector('#pdfqa-viewer-frame'); if (f) f.src = 'about:blank'; };
+  el.addEventListener('click', e => { if (e.target === el) hide(); });
+  el.querySelector('#pdfqa-viewer-close').addEventListener('click', hide);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && el.style.display !== 'none') hide(); });
+  el._hide = hide;
+  return el;
+}
+
+function pdfqaViewPage(docId, page, name) {
+  const el = pdfqaViewer();
+  const url = `/batchwork/api/pdfqa/docs/${docId}/pdf#page=${page}`;
+  el.querySelector('#pdfqa-viewer-frame').src = url;
+  el.querySelector('#pdfqa-viewer-tab').href = url;
+  el.querySelector('#pdfqa-viewer-title').textContent = (name ? name + ' · ' : '') + 'página ' + page;
+  el.style.display = 'flex';
+}
+
+// One delegated handler for every page button (they're injected via innerHTML).
+if (!window.__pdfqaPageDelegated) {
+  window.__pdfqaPageDelegated = true;
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.pdfqa-page-btn');
+    if (!b) return;
+    e.preventDefault();
+    pdfqaViewPage(b.dataset.doc, b.dataset.page, b.dataset.name);
+  });
 }
 
 async function pdfqaApi(path, opts) {
@@ -4928,8 +4978,12 @@ function renderPdfQaUI(zone) {
       } else {
         metaLine = pdfqaProgressText(d.progress);
       }
+      const modelLine = (d.status === 'ready' && d.model)
+        ? `<div style="font-size:11.5px;color:#888;margin-top:2px;">🧠 Indexado con <strong>${pdfqaEsc(pdfqaModelLabel(d.model))}</strong></div>`
+        : '';
       main.innerHTML =
         `<div style="font-weight:600;color:#111;word-break:break-word;">${isSel ? '✓ ' : ''}${pdfqaEsc(d.name)}</div>` +
+        modelLine +
         `<div style="font-size:12.5px;color:#555;margin-top:2px;">${metaLine}</div>`;
       if (d.status === 'processing') main.appendChild(pdfqaProgressBar(d.progress));
       if (d.warning && d.status === 'ready') {
@@ -5004,7 +5058,7 @@ function renderPdfQaUI(zone) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ docId: d.id, question: q }),
       });
-      const src = pdfqaSourceChips(sources, d.id, d.hasPdf);
+      const src = pdfqaSourceChips(sources, d.id, d.hasPdf, d.name);
       answerBox.innerHTML =
         `<div style="background:#fff;border:1px solid #e2e2e2;border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.55;color:#1a1a1a;">${pdfqaFormatAnswer(answer)}</div>` +
         (src ? `<div style="margin-top:10px;font-size:12px;color:#666;">Páginas consultadas: ${src}</div>` : '') +
@@ -5068,7 +5122,7 @@ function renderPdfQaUI(zone) {
 
       const body = mk('div');
       body.style.cssText = 'padding:0 14px 14px;';
-      const src = pdfqaSourceChips(it.sources, it.docId, it.hasPdf);
+      const src = pdfqaSourceChips(it.sources, it.docId, it.hasPdf, it.docName);
       body.innerHTML =
         `<div style="border-top:1px solid #eee;padding-top:10px;font-size:14px;line-height:1.55;color:#1a1a1a;">${pdfqaFormatAnswer(it.answer)}</div>` +
         (src ? `<div style="margin-top:8px;font-size:12px;color:#666;">Páginas: ${src}</div>` : '');
