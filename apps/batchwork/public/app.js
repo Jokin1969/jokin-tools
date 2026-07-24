@@ -237,6 +237,13 @@ const OPERATIONS = [
         // Bespoke UI mounted from qr.js — bypasses the generic upload/execute flow.
         fullCustom: 'qr',
       },
+      {
+        id: 'pdfqa',
+        label: 'Preguntar a un PDF (IA)',
+        desc: 'Sube un PDF grande (incluso de miles de páginas, texto real — no escaneado) y «digiérelo» una vez: se extrae el texto de cada página, se trocea y se indexa con IA. Después pregunta en lenguaje natural y la IA te responde citando las páginas exactas. Los documentos digeridos quedan guardados para volver a preguntar cuando quieras.',
+        // Bespoke UI — bypasses the generic upload/execute flow.
+        fullCustom: 'pdfqa',
+      },
     ],
   },
 ];
@@ -395,6 +402,8 @@ function selectOp(opId) {
       else zone.innerHTML = '<p style="color:#B83232">No se pudo cargar la herramienta de QRs.</p>';
     } else if (op.fullCustom === 'dnacompare') {
       renderDnaCompareUI(zone);
+    } else if (op.fullCustom === 'pdfqa') {
+      renderPdfQaUI(zone);
     }
     return;
   }
@@ -4705,6 +4714,295 @@ function renderDnaAlignment(a, b) {
     wrap.appendChild(mk('div', 'dnacmp-aln-note', `… alineamiento recortado a ${cmpFmt(CAP)} columnas de ${cmpFmt(total)}.`));
   }
   return wrap;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Preguntar a un PDF (IA) — RAG sobre un PDF grande
+// ════════════════════════════════════════════════════════════════════════════
+let pdfqaPollTimer = null;
+
+function pdfqaEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Light markdown → HTML for the AI answer (bold, bullet lists, paragraphs).
+function pdfqaFormatAnswer(text) {
+  return String(text || '').split(/\n{2,}/).map(block => {
+    const lines = block.split('\n');
+    if (lines.length && lines.every(l => /^\s*[-*•]\s+/.test(l))) {
+      return '<ul style="margin:6px 0 6px 18px;padding:0;">' +
+        lines.map(l => '<li>' + pdfqaEsc(l.replace(/^\s*[-*•]\s+/, '')).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') + '</li>').join('') +
+        '</ul>';
+    }
+    return '<p style="margin:0 0 10px;">' +
+      lines.map(l => pdfqaEsc(l)).join('<br>').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') +
+      '</p>';
+  }).join('');
+}
+
+function pdfqaPageRef(s, e) {
+  return s === e ? `pág. ${s}` : `págs. ${s}–${e}`;
+}
+
+async function pdfqaApi(path, opts) {
+  const r = await fetch('/batchwork/api/pdfqa' + path, opts);
+  const ct = r.headers.get('content-type') || '';
+  const data = ct.includes('json') ? await r.json().catch(() => ({})) : {};
+  if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
+  return data;
+}
+
+function renderPdfQaUI(zone) {
+  if (pdfqaPollTimer) { clearTimeout(pdfqaPollTimer); pdfqaPollTimer = null; }
+
+  const ui = { docs: [], selectedId: null, meta: null, pendingFile: null, busy: false };
+  const cardCss = 'margin:0 0 16px;padding:16px 18px;border:1px solid #e2e2e2;border-radius:12px;background:#fbfbfb;';
+
+  const root = mk('div', 'bw-params');
+
+  // ── Intro ─────────────────────────────────────────────────────────────────
+  const intro = mk('div', 'dnacmp-intro');
+  intro.innerHTML = `
+    <h3>¿Qué hace y por qué?</h3>
+    <p>Sube un PDF —aunque tenga <strong>miles de páginas</strong>— y «digiérelo» una sola vez. Se extrae el
+       texto de cada página, se trocea en fragmentos y se <strong>indexa con IA</strong> (embeddings). A partir
+       de ahí puedes <strong>preguntar en lenguaje natural</strong> y la IA responde apoyándose solo en el
+       documento y <strong>citando las páginas exactas</strong>.</p>
+    <ol>
+      <li><strong>Digerir:</strong> suelta el PDF y pulsa «Digerir». Tarda un poco (extracción + indexado); verás el progreso.</li>
+      <li><strong>Guardado:</strong> los documentos digeridos quedan almacenados; no hay que volver a subirlos.</li>
+      <li><strong>Preguntar:</strong> elige un documento, escribe tu pregunta y obtén la respuesta con sus páginas de referencia.</li>
+    </ol>
+    <p style="font-size:12px;color:#777;margin-top:6px;">Requiere texto real en el PDF (no escaneado / sin OCR). Un documento escaneado no tendría texto que extraer.</p>`;
+  root.appendChild(intro);
+
+  const warnBox = mk('div');
+  warnBox.style.cssText = 'display:none;margin:0 0 14px;padding:10px 12px;border-radius:8px;background:#fff4e5;border:1px solid #f0c27a;color:#8a5a00;font-size:13px;';
+  root.appendChild(warnBox);
+
+  // ── 1 · Digerir ─────────────────────────────────────────────────────────────
+  const digestCard = mk('div'); digestCard.style.cssText = cardCss;
+  digestCard.appendChild(mk('h3', null, '1 · Digerir un PDF nuevo'));
+  const drop = makeDropZone({
+    label: 'Suelta aquí un PDF', sub: 'texto real, no escaneado · uno cada vez',
+    accept: '.pdf', multiple: false, onFiles: onPick,
+  });
+  digestCard.appendChild(drop);
+  const digestRow = mk('div'); digestRow.style.cssText = 'display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap;';
+  const btnDigest = mk('button', 'bw-btn bw-btn-primary', 'Digerir'); btnDigest.type = 'button'; btnDigest.disabled = true;
+  const pickInfo = mk('span'); pickInfo.style.cssText = 'font-size:13px;color:#555;';
+  digestRow.appendChild(btnDigest); digestRow.appendChild(pickInfo);
+  digestCard.appendChild(digestRow);
+  const digestMsg = mk('div'); digestMsg.style.cssText = 'margin-top:8px;font-size:13px;';
+  digestCard.appendChild(digestMsg);
+  root.appendChild(digestCard);
+
+  // ── 2 · Documentos ──────────────────────────────────────────────────────────
+  const listCard = mk('div'); listCard.style.cssText = cardCss;
+  listCard.appendChild(mk('h3', null, '2 · Mis documentos digeridos'));
+  const listWrap = mk('div');
+  listCard.appendChild(listWrap);
+  root.appendChild(listCard);
+
+  // ── 3 · Preguntar ─────────────────────────────────────────────────────────────
+  const askCard = mk('div'); askCard.style.cssText = cardCss;
+  askCard.appendChild(mk('h3', null, '3 · Preguntar'));
+  const askDocLabel = mk('div'); askDocLabel.style.cssText = 'font-size:13px;color:#555;margin-bottom:8px;';
+  askCard.appendChild(askDocLabel);
+  const ta = document.createElement('textarea');
+  ta.className = 'bw-input bw-textarea'; ta.rows = 3;
+  ta.placeholder = 'Escribe tu pregunta sobre el documento seleccionado…';
+  askCard.appendChild(ta);
+  const askRow = mk('div'); askRow.style.cssText = 'display:flex;gap:10px;margin-top:8px;align-items:center;';
+  const btnAsk = mk('button', 'bw-btn bw-btn-primary', 'Preguntar'); btnAsk.type = 'button';
+  askRow.appendChild(btnAsk);
+  askCard.appendChild(askRow);
+  const answerBox = mk('div'); answerBox.style.cssText = 'margin-top:14px;';
+  askCard.appendChild(answerBox);
+  root.appendChild(askCard);
+
+  zone.appendChild(root);
+
+  // ── Behaviour ───────────────────────────────────────────────────────────────
+  function onPick(files) {
+    const f = files && files[0];
+    if (!f) return;
+    if (!/\.pdf$/i.test(f.name)) { digestMsg.style.color = '#B83232'; digestMsg.textContent = 'Solo se admiten ficheros PDF.'; return; }
+    ui.pendingFile = f;
+    pickInfo.textContent = `${f.name} · ${fmtSize(f.size)}`;
+    btnDigest.disabled = false;
+    digestMsg.textContent = '';
+  }
+
+  btnDigest.addEventListener('click', async () => {
+    if (!ui.pendingFile || ui.busy) return;
+    ui.busy = true; btnDigest.disabled = true;
+    digestMsg.style.color = '#555';
+    digestMsg.textContent = `Subiendo «${ui.pendingFile.name}»…`;
+    try {
+      const fd = new FormData();
+      fd.append('file', ui.pendingFile, ui.pendingFile.name);
+      const { doc } = await pdfqaApi('/digest', { method: 'POST', body: fd });
+      digestMsg.style.color = '#1a7f37';
+      digestMsg.textContent = 'Recibido. Procesando en segundo plano (extracción + indexado)…';
+      ui.pendingFile = null; pickInfo.textContent = '';
+      const t = drop.querySelector('.bw-drop-text'); if (t) t.textContent = 'Suelta aquí un PDF';
+      ui.selectedId = doc.id;
+      await refreshDocs();
+      schedulePoll();
+    } catch (err) {
+      digestMsg.style.color = '#B83232';
+      digestMsg.textContent = err.message;
+    } finally {
+      ui.busy = false;
+      btnDigest.disabled = !ui.pendingFile;
+    }
+  });
+
+  async function refreshDocs() {
+    try {
+      const { items } = await pdfqaApi('/docs');
+      ui.docs = items || [];
+    } catch { /* keep previous */ }
+    // Default selection: keep current if still present & ready, else first ready.
+    const ready = ui.docs.filter(d => d.status === 'ready');
+    if (!ui.docs.some(d => d.id === ui.selectedId)) ui.selectedId = null;
+    if (ui.selectedId == null && ready.length) ui.selectedId = ready[0].id;
+    renderDocs();
+    renderAskLabel();
+  }
+
+  function renderDocs() {
+    listWrap.innerHTML = '';
+    if (!ui.docs.length) {
+      listWrap.appendChild(mk('div', null, 'Todavía no has digerido ningún documento.'));
+      listWrap.lastChild.style.cssText = 'color:#888;font-size:13px;';
+      return;
+    }
+    for (const d of ui.docs) {
+      const row = mk('div');
+      const selectable = d.status === 'ready';
+      const isSel = d.id === ui.selectedId && selectable;
+      row.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:10px 12px;margin-bottom:8px;border-radius:10px;border:1px solid ' +
+        (isSel ? '#1B6CB0' : '#e2e2e2') + ';background:' + (isSel ? '#eef5fc' : '#fff') + ';';
+
+      const main = mk('div'); main.style.cssText = 'flex:1;min-width:0;cursor:' + (selectable ? 'pointer' : 'default') + ';';
+      let metaLine = '';
+      if (d.status === 'ready') {
+        metaLine = `${d.pages} págs · ${d.chunks} fragmentos · ${fmtSize(d.bytes)}`;
+      } else if (d.status === 'error') {
+        metaLine = `<span style="color:#B83232;">⚠ ${pdfqaEsc(d.error || 'Error al procesar')}</span>`;
+      } else {
+        metaLine = pdfqaProgressText(d.progress);
+      }
+      main.innerHTML =
+        `<div style="font-weight:600;color:#111;word-break:break-word;">${isSel ? '✓ ' : ''}${pdfqaEsc(d.name)}</div>` +
+        `<div style="font-size:12.5px;color:#555;margin-top:2px;">${metaLine}</div>`;
+      if (d.status === 'processing') main.appendChild(pdfqaProgressBar(d.progress));
+      if (d.warning && d.status === 'ready') {
+        const w = mk('div', null, '⚠ ' + pdfqaEsc(d.warning));
+        w.style.cssText = 'font-size:12px;color:#8a5a00;margin-top:4px;';
+        main.appendChild(w);
+      }
+      if (selectable) main.addEventListener('click', () => { ui.selectedId = d.id; renderDocs(); renderAskLabel(); });
+      row.appendChild(main);
+
+      const del = mk('button', 'bw-btn bw-btn-cancel', '🗑'); del.type = 'button';
+      del.title = 'Eliminar documento'; del.style.cssText = 'flex:0 0 auto;';
+      del.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm(`¿Eliminar «${d.name}» y su índice? Esta acción no se puede deshacer.`)) return;
+        try { await pdfqaApi('/docs/' + d.id, { method: 'DELETE' }); } catch (err) { alert(err.message); return; }
+        if (ui.selectedId === d.id) ui.selectedId = null;
+        await refreshDocs();
+      });
+      row.appendChild(del);
+      listWrap.appendChild(row);
+    }
+  }
+
+  function pdfqaProgressText(p) {
+    if (!p) return 'En cola…';
+    if (p.phase === 'extracting') return p.total ? `Extrayendo texto (${p.current}/${p.total} págs)` : 'Extrayendo texto…';
+    if (p.phase === 'embedding') return p.total ? `Indexando fragmentos (${p.current}/${p.total})` : 'Indexando…';
+    return p.message || 'Procesando…';
+  }
+
+  function pdfqaProgressBar(p) {
+    const wrap = mk('div'); wrap.style.cssText = 'height:6px;border-radius:4px;background:#e6e6e6;overflow:hidden;margin-top:6px;';
+    const bar = mk('div');
+    const pct = p && p.total ? Math.max(4, Math.min(100, Math.round(p.current / p.total * 100))) : 12;
+    bar.style.cssText = `height:100%;width:${pct}%;background:#1B6CB0;transition:width .3s;`;
+    wrap.appendChild(bar);
+    return wrap;
+  }
+
+  function schedulePoll() {
+    if (pdfqaPollTimer) { clearTimeout(pdfqaPollTimer); pdfqaPollTimer = null; }
+    const anyProcessing = ui.docs.some(d => d.status === 'processing');
+    if (!anyProcessing) return;
+    pdfqaPollTimer = setTimeout(async () => {
+      // Stop if the user navigated away (this UI was replaced).
+      if (!document.body.contains(zone)) { pdfqaPollTimer = null; return; }
+      await refreshDocs();
+      schedulePoll();
+    }, 1600);
+  }
+
+  function renderAskLabel() {
+    const d = ui.docs.find(x => x.id === ui.selectedId && x.status === 'ready');
+    if (d) {
+      askDocLabel.innerHTML = `Documento: <strong>${pdfqaEsc(d.name)}</strong> <span style="color:#888;">(${d.pages} págs)</span>`;
+    } else {
+      askDocLabel.innerHTML = '<span style="color:#888;">Selecciona arriba un documento ya digerido para preguntar.</span>';
+    }
+  }
+
+  async function ask() {
+    const d = ui.docs.find(x => x.id === ui.selectedId && x.status === 'ready');
+    if (!d) { answerBox.innerHTML = '<div style="color:#B83232;font-size:13px;">Selecciona un documento digerido.</div>'; return; }
+    const q = ta.value.trim();
+    if (!q) { ta.focus(); return; }
+    if (ui.busy) return;
+    ui.busy = true; btnAsk.disabled = true;
+    answerBox.innerHTML = '<div style="color:#555;font-size:13px;">Buscando en el documento y redactando la respuesta…</div>';
+    try {
+      const { answer, sources } = await pdfqaApi('/ask', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docId: d.id, question: q }),
+      });
+      const src = (sources || []).map(s =>
+        `<span style="display:inline-block;padding:2px 9px;margin:2px 4px 2px 0;border-radius:12px;background:#eef5fc;border:1px solid #cfe1f5;color:#1B6CB0;font-size:12px;">${pdfqaPageRef(s.pageStart, s.pageEnd)}</span>`
+      ).join('');
+      answerBox.innerHTML =
+        `<div style="background:#fff;border:1px solid #e2e2e2;border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.55;color:#1a1a1a;">${pdfqaFormatAnswer(answer)}</div>` +
+        (src ? `<div style="margin-top:10px;font-size:12px;color:#666;">Páginas consultadas: ${src}</div>` : '');
+    } catch (err) {
+      answerBox.innerHTML = `<div style="color:#B83232;font-size:13px;">${pdfqaEsc(err.message)}</div>`;
+    } finally {
+      ui.busy = false; btnAsk.disabled = false;
+    }
+  }
+  btnAsk.addEventListener('click', ask);
+  ta.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') ask(); });
+
+  // ── Boot ────────────────────────────────────────────────────────────────────
+  (async () => {
+    try {
+      ui.meta = await pdfqaApi('/meta');
+      const missing = [];
+      if (!ui.meta.openai) missing.push('OPENAI_API_KEY (indexado)');
+      if (!ui.meta.anthropic) missing.push('ANTHROPIC_API_KEY (respuestas)');
+      if (missing.length) {
+        warnBox.style.display = '';
+        warnBox.innerHTML = '⚠ Faltan claves de IA en el servidor: <strong>' + missing.join('</strong>, <strong>') +
+          '</strong>. Configúralas en Railway para poder ' + (!ui.meta.openai ? 'digerir' : 'preguntar') + '.';
+      }
+    } catch { /* meta optional */ }
+    await refreshDocs();
+    schedulePoll();
+  })();
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

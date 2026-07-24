@@ -1,0 +1,113 @@
+const { test } = require('node:test');
+const assert = require('node:assert');
+const { useTempDb } = require('./helpers');
+
+useTempDb();
+const ai = require('../apps/batchwork/server/pdfqa-ai');
+const store = require('../apps/batchwork/server/pdfqa-store');
+
+// ── Chunking ─────────────────────────────────────────────────────────────────
+test('chunkPages: sequential idx, valid page spans, non-empty text', () => {
+  const pages = [];
+  for (let p = 1; p <= 8; p++) {
+    let t = '';
+    for (let par = 0; par < 4; par++) t += ('Página ' + p + ' párrafo ' + par + '. ').repeat(25) + '\n\n';
+    pages.push({ page: p, text: t });
+  }
+  const chunks = ai.chunkPages(pages, { targetChars: 3000, overlapChars: 350 });
+  assert.ok(chunks.length >= 8, 'produces multiple chunks');
+  chunks.forEach((c, i) => {
+    assert.equal(c.idx, i, 'idx sequential');
+    assert.ok(c.text.trim().length > 0, 'chunk has text');
+    assert.ok(c.pageStart >= 1 && c.pageEnd <= 8, 'page span within document');
+    assert.ok(c.pageStart <= c.pageEnd, 'pageStart <= pageEnd');
+  });
+});
+
+test('chunkPages: skips empty/whitespace pages, keeps page numbers', () => {
+  const chunks = ai.chunkPages([
+    { page: 1, text: '' },
+    { page: 2, text: '   \n  ' },
+    { page: 3, text: 'Hola mundo.' },
+  ]);
+  assert.equal(chunks.length, 1);
+  assert.equal(chunks[0].pageStart, 3);
+  assert.equal(chunks[0].text, 'Hola mundo.');
+});
+
+test('chunkPages: hard-splits a paragraph larger than the cap', () => {
+  const big = 'x'.repeat(20000);
+  const chunks = ai.chunkPages([{ page: 1, text: big }]);
+  assert.ok(chunks.length > 1, 'splits the giant paragraph');
+  assert.ok(chunks.every(c => c.text.length <= 6000), 'each piece under HARD_MAX');
+});
+
+test('chunkPages: always makes forward progress (no infinite loop) with tiny target', () => {
+  const pages = [{ page: 1, text: Array.from({ length: 40 }, (_, i) => 'Frase ' + i + '.').join('\n\n') }];
+  const chunks = ai.chunkPages(pages, { targetChars: 10, overlapChars: 50 });
+  assert.ok(chunks.length > 0 && chunks.length < 200, 'terminates with a sane chunk count');
+});
+
+// ── Cosine search ────────────────────────────────────────────────────────────
+test('cosineTopK: ranks by similarity and respects k', () => {
+  const items = [
+    { id: 1, idx: 0, pageStart: 1, pageEnd: 1, embedding: new Float32Array([1, 0, 0]) },
+    { id: 2, idx: 1, pageStart: 2, pageEnd: 2, embedding: new Float32Array([0, 1, 0]) },
+    { id: 3, idx: 2, pageStart: 3, pageEnd: 3, embedding: new Float32Array([0.7, 0.7, 0]) },
+  ];
+  const top = ai.cosineTopK([1, 0, 0], items, 2);
+  assert.equal(top.length, 2);
+  assert.equal(top[0].id, 1, 'exact match first');
+  assert.equal(top[1].id, 3, 'partial match second');
+  assert.ok(top[0].score > top[1].score);
+});
+
+test('cosineTopK: skips vectors of the wrong dimension', () => {
+  const items = [{ id: 1, idx: 0, pageStart: 1, pageEnd: 1, embedding: new Float32Array([1, 0, 0]) }];
+  assert.equal(ai.cosineTopK([1, 0], items, 5).length, 0);
+});
+
+// ── Store round-trip ─────────────────────────────────────────────────────────
+test('store: doc lifecycle, embedding BLOB round-trip, retrieval, isolation, cascade', () => {
+  const doc = store.createDoc({ name: 'libro.pdf', bytes: 999, model: 'text-embedding-3-small' }, 7);
+  assert.equal(doc.status, 'processing');
+
+  const chunks = [
+    { idx: 0, pageStart: 1, pageEnd: 2, text: 'El gato duerme.', embedding: [1, 0, 0, 0] },
+    { idx: 1, pageStart: 3, pageEnd: 3, text: 'El perro corre.', embedding: [0, 1, 0, 0] },
+    { idx: 2, pageStart: 4, pageEnd: 5, text: 'El pájaro vuela.', embedding: [0, 0, 1, 0] },
+  ];
+  store.insertChunks(doc.id, chunks);
+  store.markReady(doc.id, { chunks: chunks.length });
+
+  const d2 = store.getDoc(doc.id, 7);
+  assert.equal(d2.status, 'ready');
+  assert.equal(d2.chunks, 3);
+
+  const items = store.loadEmbeddings(doc.id);
+  assert.equal(items.length, 3);
+  assert.equal(items[0].embedding.length, 4);
+  assert.deepEqual(Array.from(items[0].embedding), [1, 0, 0, 0]);
+
+  const top = ai.cosineTopK([1, 0, 0, 0], items, 1);
+  const texts = store.getChunkTexts(top.map(t => t.id));
+  assert.equal(texts[top[0].id].text, 'El gato duerme.');
+
+  // Per-user isolation.
+  assert.equal(store.listDocs(7).length, 1);
+  assert.equal(store.listDocs(9).length, 0);
+  assert.equal(store.getDoc(doc.id, 9), null);
+
+  // Delete cascades to chunks.
+  assert.equal(store.removeDoc(doc.id, 7), true);
+  assert.equal(store.listDocs(7).length, 0);
+  assert.equal(store.countChunks(doc.id), 0);
+});
+
+test('store: markError records the failure on the doc', () => {
+  const doc = store.createDoc({ name: 'roto.pdf', bytes: 1 }, 3);
+  store.markError(doc.id, 'PDF escaneado');
+  const d = store.getDoc(doc.id, 3);
+  assert.equal(d.status, 'error');
+  assert.match(d.error, /escaneado/);
+});

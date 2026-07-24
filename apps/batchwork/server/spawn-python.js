@@ -89,4 +89,4 @@ function spawnPython(script, args, session) {
   });
 }
 
-module.exports = { spawnPython };
+module.exports = { spawnPython, PYTHON_BIN, PYTHON_DIR, buildPythonEnv };
