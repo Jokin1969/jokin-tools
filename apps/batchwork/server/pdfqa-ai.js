@@ -156,10 +156,15 @@ async function answerQuestion(question, contexts) {
   const system =
     'Eres un asistente experto que responde preguntas sobre un documento PDF a partir de ' +
     'fragmentos recuperados de él. Reglas:\n' +
-    '1) Responde en español, de forma clara y bien estructurada.\n' +
-    '2) Usa ÚNICAMENTE la información de los fragmentos proporcionados. No inventes datos.\n' +
-    '3) Cita siempre las páginas en las que te apoyas, entre paréntesis, p. ej. (pág. 12) o (págs. 12–14).\n' +
-    '4) Si la respuesta no está en los fragmentos, dilo con claridad («No encuentro esa información en las páginas recuperadas») y, si procede, sugiere reformular la pregunta.\n' +
+    '1) Responde SIEMPRE en el mismo idioma en el que está escrita la PREGUNTA del usuario ' +
+    '(si pregunta en español, responde en español; si pregunta en inglés, responde en inglés), ' +
+    'aunque el documento esté en otro idioma. Hazlo de forma clara y bien estructurada.\n' +
+    '2) Usa ÚNICAMENTE la información de los fragmentos proporcionados. No inventes datos. ' +
+    'Puedes citar textualmente frases del documento en su idioma original cuando aporte precisión.\n' +
+    '3) Cita siempre las páginas en las que te apoyas, entre paréntesis, p. ej. (pág. 12) / (págs. 12–14) ' +
+    'o (p. 12) / (pp. 12–14) según el idioma de tu respuesta.\n' +
+    '4) Si la respuesta no está en los fragmentos, dilo con claridad (en el idioma de la pregunta) ' +
+    'y, si procede, sugiere reformular la pregunta.\n' +
     '5) Sé conciso pero completo; usa listas cuando ayuden.';
 
   const userContent =
