@@ -95,10 +95,11 @@ const OPERATIONS = [
       },
       {
         id: 'merge-pdfs',
-        label: 'Unir PDFs en uno solo',
-        desc: 'Concatena todos los PDFs del lote en un único fichero, ordenados alfabéticamente.',
+        label: 'Unir documentos en un PDF',
+        desc: 'Une en un único PDF cualquier mezcla de PDFs, documentos de Office (.docx, .doc, .odt, .rtf, .txt, .pptx, .ppt, .odp, .xlsx, .xls, .ods) e imágenes (JPG, PNG, WEBP, TIFF, GIF, BMP). Cada documento no-PDF se convierte a PDF automáticamente. Se unen en orden alfabético del nombre: para controlar el orden, numera los ficheros (01_, 02_, 03_…).',
         params: [
           { id: 'outputName', type: 'text', label: 'Nombre del PDF resultante', default: 'unificado.pdf' },
+          { id: 'resolution', type: 'number', label: 'Resolución de las imágenes (ppp)', default: 150, min: 72, max: 600 },
         ],
       },
       {

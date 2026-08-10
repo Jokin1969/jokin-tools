@@ -1,23 +1,25 @@
 const { spawnPython } = require('../spawn-python');
-const { createZip } = require('../utils');
 const path = require('path');
 const fs = require('fs');
 
 async function run(session, params) {
   const outputName = (params.outputName || 'unificado.pdf').replace(/[^a-zA-Z0-9._\-ñÑáéíóúÁÉÍÓÚüÜ ]/g, '_');
   const outFile = path.join(session.outputDir, outputName.endsWith('.pdf') ? outputName : outputName + '.pdf');
+  const resolution = parseInt(params.resolution, 10) || 150;
 
-  await spawnPython('merge_pdfs.py', [
+  await spawnPython('merge_documents.py', [
     '--input', session.inputDir,
     '--output', outFile,
+    '--resolution', String(resolution),
   ], session);
 
-  const zipPath = path.join(path.dirname(session.outputDir), 'result.zip');
-  await createZip(session.outputDir, zipPath);
+  if (!fs.existsSync(outFile)) {
+    throw new Error('No se pudo generar el PDF unificado (revisa que los ficheros sean PDF, Office o imágenes admitidas).');
+  }
 
-  session.resultFile = zipPath;
-  session.resultMime = 'application/zip';
-  session.resultFilename = 'pdfs_unidos.zip';
+  session.resultFile = outFile;
+  session.resultMime = 'application/pdf';
+  session.resultFilename = path.basename(outFile);
   session.status = 'done';
 }
 
