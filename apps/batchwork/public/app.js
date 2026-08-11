@@ -239,6 +239,13 @@ const OPERATIONS = [
         fullCustom: 'qr',
       },
       {
+        id: 'sello',
+        label: 'Generar sellos',
+        desc: 'Diseña sellos digitales tipo imprenta: redondos, ovalados o rectangulares, con texto que bordea el emblema (arriba y abajo), texto o logo central, color de tinta y texturas realistas (como un sello físico escaneado). Expórtalos con fondo transparente en PNG, JPEG, WEBP, SVG o PDF, cópialos, envíalos por email y guárdalos en tu repositorio.',
+        // Bespoke UI mounted from stamp.js — bypasses the generic upload/execute flow.
+        fullCustom: 'stamp',
+      },
+      {
         id: 'pdfqa',
         label: 'Preguntar a un PDF (IA)',
         desc: 'Sube un PDF grande (incluso de miles de páginas, texto real — no escaneado) y «digiérelo» una vez: se extrae el texto de cada página, se trocea y se indexa con IA. Después pregunta en lenguaje natural y la IA te responde citando las páginas exactas. Los documentos digeridos quedan guardados para volver a preguntar cuando quieras.',
@@ -401,6 +408,9 @@ function selectOp(opId) {
     if (op.fullCustom === 'qr') {
       if (window.QRTool) window.QRTool.mount(zone);
       else zone.innerHTML = '<p style="color:#B83232">No se pudo cargar la herramienta de QRs.</p>';
+    } else if (op.fullCustom === 'stamp') {
+      if (window.StampTool) window.StampTool.mount(zone);
+      else zone.innerHTML = '<p style="color:#B83232">No se pudo cargar la herramienta de sellos.</p>';
     } else if (op.fullCustom === 'dnacompare') {
       renderDnaCompareUI(zone);
     } else if (op.fullCustom === 'pdfqa') {

@@ -165,3 +165,9 @@
   .qr-preview-col { position: static; }
   .qr-preview { max-width: 320px; margin: 0 auto; width: 100%; }
 }
+
+/* ── Stamp tool: ink swatches ──────────────────────────────────────────────── */
+.qr-inks { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.st-ink-sw { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.15); cursor: pointer; padding: 0; }
+.st-ink-sw:hover { transform: scale(1.1); }
