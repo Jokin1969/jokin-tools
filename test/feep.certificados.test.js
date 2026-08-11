@@ -78,6 +78,21 @@ test('orientation is stored and returned on the certificate and defaults', () =>
   assert.equal(db.getDefaults(3).orientation, 'vertical');
 });
 
+test('seal mode is stored on the certificate and defaults; PDF renders each mode', async () => {
+  const c = db.createCert({ recipient_name: 'Sello Test', seal_mode: 'ninguno' }, 3);
+  assert.equal(db.getCert(c.id, 3).seal_mode, 'ninguno');
+  const c2 = db.createCert({ recipient_name: 'Sello Img', seal_mode: 'imagen', seal_data: 'data:image/png;base64,iVBORw0KGgo=' }, 3);
+  assert.equal(db.getCert(c2.id, 3).seal_mode, 'imagen');
+
+  db.saveDefaults(3, { signer_name: 'Alberto Martínez', seal_mode: 'ninguno' });
+  assert.equal(db.getDefaults(3).seal_mode, 'ninguno');
+
+  for (const seal_mode of ['emblema', 'ninguno', 'imagen']) {
+    const buf = await pdf.render({ ref: 'FEEP-2026-0001', recipient_name: 'X', seal_mode, seal_data: seal_mode === 'imagen' ? null : null });
+    assert.equal(buf.slice(0, 5).toString('latin1'), '%PDF-', `PDF for seal ${seal_mode}`);
+  }
+});
+
 test('event_date is stored, and issue date = event + 1 day (with rollover)', () => {
   const c = db.createCert({ recipient_name: 'Fecha Test', event_date: '2018-11-30', date_text: '30 de noviembre de 2018' }, 3);
   assert.equal(db.getCert(c.id, 3).event_date, '2018-11-30');

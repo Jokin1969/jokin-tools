@@ -37,6 +37,8 @@ db.exec(`
     foundation     TEXT,
     logo_data      TEXT,                 -- data URL (image) or null
     signature_data TEXT,                 -- data URL (image) or null
+    seal_mode      TEXT,                 -- 'emblema' | 'ninguno' | 'imagen'
+    seal_data      TEXT,                 -- data URL (image) when seal_mode='imagen'
     accent         TEXT,                 -- theme colour key
     orientation    TEXT,                 -- 'horizontal' | 'vertical'
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -54,6 +56,8 @@ db.exec(`
     foundation     TEXT,
     accent         TEXT,
     orientation    TEXT,
+    seal_mode      TEXT,
+    seal_data      TEXT,
     updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
@@ -61,7 +65,11 @@ db.exec(`
 // Lightweight migration: add columns that may be missing on databases created by
 // an earlier version (CREATE TABLE IF NOT EXISTS won't add them). Safe to run on
 // every boot — ALTER throws if the column already exists, which we ignore.
-for (const [tbl, col] of [['feep_certificates', 'orientation'], ['feep_cert_defaults', 'orientation'], ['feep_certificates', 'event_date']]) {
+for (const [tbl, col] of [
+  ['feep_certificates', 'orientation'], ['feep_cert_defaults', 'orientation'], ['feep_certificates', 'event_date'],
+  ['feep_certificates', 'seal_mode'], ['feep_certificates', 'seal_data'],
+  ['feep_cert_defaults', 'seal_mode'], ['feep_cert_defaults', 'seal_data'],
+]) {
   try { db.prepare(`ALTER TABLE ${tbl} ADD COLUMN ${col} TEXT`).run(); } catch { /* already present */ }
 }
 
@@ -84,7 +92,8 @@ function nextRef(year) {
 }
 
 const CERT_FIELDS = ['recipient_name', 'role', 'event', 'talk_title', 'date_text', 'event_date',
-  'place', 'signer_name', 'signer_role', 'foundation', 'logo_data', 'signature_data', 'accent', 'orientation'];
+  'place', 'signer_name', 'signer_role', 'foundation', 'logo_data', 'signature_data',
+  'seal_mode', 'seal_data', 'accent', 'orientation'];
 
 function createCert(data, userId, refYear) {
   const row = {
@@ -97,10 +106,10 @@ function createCert(data, userId, refYear) {
   const info = db.prepare(
     `INSERT INTO feep_certificates
        (ref, user_id, recipient_name, role, event, talk_title, date_text, event_date, place,
-        signer_name, signer_role, foundation, logo_data, signature_data, accent, orientation)
+        signer_name, signer_role, foundation, logo_data, signature_data, seal_mode, seal_data, accent, orientation)
      VALUES
        (@ref, @user_id, @recipient_name, @role, @event, @talk_title, @date_text, @event_date, @place,
-        @signer_name, @signer_role, @foundation, @logo_data, @signature_data, @accent, @orientation)`
+        @signer_name, @signer_role, @foundation, @logo_data, @signature_data, @seal_mode, @seal_data, @accent, @orientation)`
   ).run(row);
   return getCert(info.lastInsertRowid, userId);
 }
@@ -134,16 +143,18 @@ function removeCert(id, userId) {
 // ── Per-user defaults ─────────────────────────────────────────────────────────
 function getDefaults(userId) {
   const row = db.prepare('SELECT * FROM feep_cert_defaults WHERE user_id = ?').get(userId);
-  return row || { user_id: userId, logo_data: null, signature_data: null, signer_name: null, signer_role: null, foundation: FOUNDATION, accent: null, orientation: null };
+  return row || { user_id: userId, logo_data: null, signature_data: null, seal_mode: null, seal_data: null, signer_name: null, signer_role: null, foundation: FOUNDATION, accent: null, orientation: null };
 }
 
 function saveDefaults(userId, d) {
   db.prepare(
-    `INSERT INTO feep_cert_defaults (user_id, logo_data, signature_data, signer_name, signer_role, foundation, accent, orientation, updated_at)
-     VALUES (@user_id, @logo_data, @signature_data, @signer_name, @signer_role, @foundation, @accent, @orientation, CURRENT_TIMESTAMP)
+    `INSERT INTO feep_cert_defaults (user_id, logo_data, signature_data, seal_mode, seal_data, signer_name, signer_role, foundation, accent, orientation, updated_at)
+     VALUES (@user_id, @logo_data, @signature_data, @seal_mode, @seal_data, @signer_name, @signer_role, @foundation, @accent, @orientation, CURRENT_TIMESTAMP)
      ON CONFLICT(user_id) DO UPDATE SET
        logo_data = excluded.logo_data,
        signature_data = excluded.signature_data,
+       seal_mode = excluded.seal_mode,
+       seal_data = excluded.seal_data,
        signer_name = excluded.signer_name,
        signer_role = excluded.signer_role,
        foundation = excluded.foundation,
@@ -154,6 +165,8 @@ function saveDefaults(userId, d) {
     user_id: userId,
     logo_data: d.logo_data || null,
     signature_data: d.signature_data || null,
+    seal_mode: d.seal_mode || null,
+    seal_data: d.seal_data || null,
     signer_name: d.signer_name || null,
     signer_role: d.signer_role || null,
     foundation: d.foundation || FOUNDATION,

@@ -85,6 +85,8 @@ function cleanData(body) {
     foundation: str(b.foundation, 200) || db.FOUNDATION,
     logo_data: img(b.logo_data),
     signature_data: img(b.signature_data),
+    seal_mode: ['emblema', 'ninguno', 'imagen'].includes(b.seal_mode) ? b.seal_mode : 'emblema',
+    seal_data: img(b.seal_data),
     accent,
     orientation: b.orientation === 'vertical' ? 'vertical' : 'horizontal',
   };
@@ -94,23 +96,25 @@ const certToRender = (c) => ({
   ref: c.ref, recipient_name: c.recipient_name, role: c.role, event: c.event,
   talk_title: c.talk_title, date_text: c.date_text, event_date: c.event_date, place: c.place,
   signer_name: c.signer_name, signer_role: c.signer_role, foundation: c.foundation,
-  logo_data: c.logo_data, signature_data: c.signature_data, accent: c.accent,
+  logo_data: c.logo_data, signature_data: c.signature_data,
+  seal_mode: c.seal_mode, seal_data: c.seal_data, accent: c.accent,
   orientation: c.orientation,
 });
 
-// Render data for a SAVED certificate. If it has no logo/signature of its own,
-// fall back to the owner's current defaults — so setting the logo & signature
-// once (as defaults) makes every saved certificate render complete, including
-// ones created in bulk before the images were uploaded.
+// Render data for a SAVED certificate. If it has no logo/signature/seal of its
+// own, fall back to the owner's current defaults — so setting them once (as
+// defaults) makes every saved certificate render complete, including ones created
+// in bulk before the images were uploaded.
 function renderData(cert, userId) {
   const base = certToRender(cert);
-  if (base.logo_data && base.signature_data && base.signer_name && base.orientation) return base;
   const def = db.getDefaults(userId) || {};
   if (!base.logo_data) base.logo_data = def.logo_data || null;
   if (!base.signature_data) base.signature_data = def.signature_data || null;
   if (!base.signer_name) base.signer_name = def.signer_name || base.signer_name;
   if (!base.signer_role) base.signer_role = def.signer_role || base.signer_role;
   if (!base.orientation) base.orientation = def.orientation || base.orientation;
+  if (!base.seal_mode) base.seal_mode = def.seal_mode || 'emblema';
+  if (base.seal_mode === 'imagen' && !base.seal_data) base.seal_data = def.seal_data || null;
   return base;
 }
 
@@ -144,6 +148,8 @@ router.post('/api/defaults', json, (req, res) => {
     const saved = db.saveDefaults(req.user.id, {
       logo_data: img(b.logo_data),
       signature_data: img(b.signature_data),
+      seal_mode: ['emblema', 'ninguno', 'imagen'].includes(b.seal_mode) ? b.seal_mode : null,
+      seal_data: img(b.seal_data),
       signer_name: b.signer_name ? String(b.signer_name).slice(0, 160) : null,
       signer_role: b.signer_role ? String(b.signer_role).slice(0, 200) : null,
       foundation: b.foundation ? String(b.foundation).slice(0, 200) : db.FOUNDATION,
@@ -163,8 +169,8 @@ router.post('/api/image', uploadImage.single('image'), async (req, res) => {
     if (!req.file || !req.file.buffer || !req.file.buffer.length) {
       const e = new Error('No se recibió ninguna imagen.'); e.status = 400; throw e;
     }
-    const kind = req.query.kind === 'logo' ? 'logo' : 'signature';
-    const maxDim = kind === 'logo' ? 900 : 1000;
+    const kind = ['logo', 'signature', 'seal'].includes(req.query.kind) ? req.query.kind : 'signature';
+    const maxDim = kind === 'logo' ? 900 : (kind === 'seal' ? 700 : 1000);
 
     let meta;
     try { meta = await sharp(req.file.buffer, { failOn: 'none' }).metadata(); }
@@ -175,9 +181,9 @@ router.post('/api/image', uploadImage.single('image'), async (req, res) => {
       .resize({ width: maxDim, height: maxDim, fit: 'inside', withoutEnlargement: true });
 
     let mime, out;
-    if (kind === 'signature') {
-      // Remove the (near-white) background so the signature sits cleanly on the
-      // certificate: white → transparent, ink → opaque, edges → partial alpha.
+    if (kind === 'signature' || kind === 'seal') {
+      // Remove the (near-white) background so the signature/seal sits cleanly on
+      // the certificate: white → transparent, ink → opaque, edges → partial alpha.
       out = await whiteToTransparent(pipe);
       mime = 'image/png';
     } else if (meta.hasAlpha) {

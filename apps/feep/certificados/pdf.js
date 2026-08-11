@@ -193,8 +193,19 @@ function render(data) {
     doc.font('Times-Italic').fontSize(11.5).fillColor(MUTED)
       .text(closing, bodyX, closingY, { width: bodyW, align: 'center' });
 
-    // Seal (left) + signature block (right)
-    drawSeal(doc, M + 80, H - 118, primary, gold, esc(d.ref));
+    // Seal (left): decorative FEEP emblem, a real uploaded seal image, or nothing.
+    const sealMode = d.seal_mode || 'emblema';
+    const sealCx = M + 80;
+    const sealCy = H - 118;
+    if (sealMode === 'imagen') {
+      const sealImg = imgBuffer(d.seal_data);
+      if (sealImg) {
+        try { doc.image(sealImg, sealCx - 52, sealCy - 52, { fit: [104, 104], align: 'center', valign: 'center' }); }
+        catch { /* ignore bad seal image */ }
+      }
+    } else if (sealMode !== 'ninguno') {
+      drawSeal(doc, sealCx, sealCy, primary, gold, esc(d.ref));
+    }
 
     const sigCx = W - M - 108;
     const sig = imgBuffer(d.signature_data);

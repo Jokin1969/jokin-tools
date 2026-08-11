@@ -100,6 +100,25 @@
           </div>
         </div>
 
+        <h3>Sello</h3>
+        <div class="field">
+          <label>Sello del certificado</label>
+          <div class="seg" id="seal-mode">
+            <button type="button" class="seg-btn" data-seal="emblema">Emblema FEEP</button>
+            <button type="button" class="seg-btn" data-seal="ninguno">Sin sello</button>
+            <button type="button" class="seg-btn" data-seal="imagen">Imagen propia</button>
+          </div>
+        </div>
+        <div class="field" id="seal-upload-field" style="display:none">
+          <label>Imagen del sello</label>
+          <div class="uploader">
+            <div class="drop" id="seal-drop">Subir sello (cualquier formato; el fondo se hace transparente)</div>
+            <img class="thumb" id="seal-thumb" alt="sello" />
+            <button type="button" class="clear" id="seal-clear">Quitar</button>
+            <input type="file" id="seal-input" accept="image/*,.heic,.heif" hidden />
+          </div>
+        </div>
+
         <h3>Diseño</h3>
         <div class="field">
           <label>Orientación</label>
@@ -142,6 +161,6 @@
     </div>
   </div>
 
-  <script src="/feep/assets/certificados.js?v=5"></script>
+  <script src="/feep/assets/certificados.js?v=6"></script>
 </body>
 </html>

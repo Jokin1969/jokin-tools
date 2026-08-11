@@ -10,7 +10,7 @@ const THEME_COLORS = {
   clasico: '#1b2a4a', burdeos: '#6e1e2a', verde: '#1f4636', grafito: '#2f3336',
 };
 
-const state = { logo: null, signature: null, accent: 'clasico', orientation: 'horizontal', meta: null, previewUrl: null };
+const state = { logo: null, signature: null, seal: null, sealMode: 'emblema', accent: 'clasico', orientation: 'horizontal', meta: null, previewUrl: null };
 
 function longDateToday() {
   const d = new Date();
@@ -65,9 +65,22 @@ function collectData() {
     foundation: state.meta ? state.meta.foundation : undefined,
     logo_data: state.logo,
     signature_data: state.signature,
+    seal_mode: state.sealMode,
+    seal_data: state.seal,
     accent: state.accent,
     orientation: state.orientation,
   };
+}
+
+// Seal toggle: emblema | ninguno | imagen
+function setSealMode(mode, skipPreview) {
+  state.sealMode = ['emblema', 'ninguno', 'imagen'].includes(mode) ? mode : 'emblema';
+  document.querySelectorAll('#seal-mode .seg-btn').forEach(b => b.classList.toggle('sel', b.dataset.seal === state.sealMode));
+  $('seal-upload-field').style.display = state.sealMode === 'imagen' ? '' : 'none';
+  if (!skipPreview) schedulePreview();
+}
+function wireSeal() {
+  document.querySelectorAll('#seal-mode .seg-btn').forEach(b => b.addEventListener('click', () => setSealMode(b.dataset.seal)));
 }
 
 // Orientation toggle
@@ -102,8 +115,10 @@ async function runPreview() {
 // ── Uploaders ───────────────────────────────────────────────────────────────────
 function wireUploader(kind, maxDim) {
   const drop = $(kind + '-drop'), input = $(kind + '-input'), thumb = $(kind + '-thumb'), clear = $(kind + '-clear');
-  const canonical = kind === 'logo' ? 'logo' : 'signature';
-  const idle = canonical === 'logo' ? 'Subir logo (cualquier formato, incl. HEIC del iPhone)' : 'Subir firma (PNG con fondo transparente recomendado)';
+  const canonical = kind === 'logo' ? 'logo' : (kind === 'seal' ? 'seal' : 'signature');
+  const idle = canonical === 'logo' ? 'Subir logo (cualquier formato, incl. HEIC del iPhone)'
+    : canonical === 'seal' ? 'Subir sello (cualquier formato; el fondo se hace transparente)'
+      : 'Subir firma (PNG con fondo transparente recomendado)';
   const setImg = (dataUrl) => {
     state[canonical] = dataUrl;
     if (dataUrl) { thumb.src = dataUrl; thumb.style.display = 'block'; clear.style.display = 'inline'; drop.textContent = '✓ Imagen cargada — cambiar'; }
@@ -194,8 +209,10 @@ async function loadCert(id) {
     state.accent = item.accent || 'clasico';
     renderThemes(state.meta.themes);
     setOrient(item.orientation || 'horizontal', true);
+    setSealMode(item.seal_mode || 'emblema', true);
     wireUploader['set_logo'](item.logo_data || null);
     wireUploader['set_signature'](item.signature_data || null);
+    wireUploader['set_seal'](item.seal_data || null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setMsg('action-msg', `Recuperado ${item.ref || ''}. Puedes editarlo y volver a guardarlo.`, false);
     runPreview();
@@ -249,6 +266,7 @@ function wireActions() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           logo_data: state.logo, signature_data: state.signature,
+          seal_mode: state.sealMode, seal_data: state.seal,
           signer_name: $('f-signer').value, signer_role: $('f-signer-role').value,
           accent: state.accent, orientation: state.orientation,
         }),
@@ -284,9 +302,12 @@ function fmtDate(s) {
 (async () => {
   wireUploader('logo', 800);
   wireUploader('sig', 900);
+  wireUploader('seal', 700);
   wireOrient();
+  wireSeal();
   wireActions();
   setOrient('horizontal', true);
+  setSealMode('emblema', true);
   $('f-date').value = longDateToday();
   try {
     const meta = await api('/meta');
@@ -296,8 +317,10 @@ function fmtDate(s) {
     if (d.signer_role) $('f-signer-role').value = d.signer_role;
     if (d.accent) state.accent = d.accent;
     if (d.orientation) setOrient(d.orientation, true);
+    if (d.seal_mode) setSealMode(d.seal_mode, true);
     if (d.logo_data) wireUploader['set_logo'](d.logo_data);
     if (d.signature_data) wireUploader['set_signature'](d.signature_data);
+    if (d.seal_data) wireUploader['set_seal'](d.seal_data);
     renderThemes(meta.themes);
   } catch (err) { setMsg('form-msg', err.message, true); }
   runPreview();
