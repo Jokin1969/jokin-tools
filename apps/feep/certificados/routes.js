@@ -40,6 +40,25 @@ function setDownload(res, filename, mime) {
     `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
 }
 
+// Turn a signature's near-white background transparent. Luminance-based: bright
+// pixels become fully transparent, dark ink stays opaque, mid-tones (anti-aliased
+// edges) get partial alpha for a clean cut-out. Any existing transparency is kept.
+async function whiteToTransparent(pipe) {
+  const { data, info } = await pipe.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const ch = info.channels; // 4 (RGBA)
+  const WHITE = 236, INK = 120; // luminance thresholds
+  for (let i = 0; i < data.length; i += ch) {
+    const L = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    let a;
+    if (L >= WHITE) a = 0;
+    else if (L <= INK) a = 255;
+    else a = Math.round(255 * (WHITE - L) / (WHITE - INK));
+    if (a < data[i + 3]) data[i + 3] = a; // never increase existing transparency
+  }
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: ch } })
+    .png({ compressionLevel: 9 }).toBuffer();
+}
+
 // Validate + normalise the certificate fields coming from the client.
 function cleanData(body) {
   const b = body || {};
@@ -59,6 +78,7 @@ function cleanData(body) {
     event: str(b.event, 400),
     talk_title: str(b.talk_title, 300),
     date_text: str(b.date_text, 120),
+    event_date: /^\d{4}-\d{2}-\d{2}$/.test(String(b.event_date || '')) ? String(b.event_date) : null,
     place: str(b.place, 120),
     signer_name: str(b.signer_name, 160),
     signer_role: str(b.signer_role, 200),
@@ -72,7 +92,7 @@ function cleanData(body) {
 
 const certToRender = (c) => ({
   ref: c.ref, recipient_name: c.recipient_name, role: c.role, event: c.event,
-  talk_title: c.talk_title, date_text: c.date_text, place: c.place,
+  talk_title: c.talk_title, date_text: c.date_text, event_date: c.event_date, place: c.place,
   signer_name: c.signer_name, signer_role: c.signer_role, foundation: c.foundation,
   logo_data: c.logo_data, signature_data: c.signature_data, accent: c.accent,
   orientation: c.orientation,
@@ -155,8 +175,16 @@ router.post('/api/image', uploadImage.single('image'), async (req, res) => {
       .resize({ width: maxDim, height: maxDim, fit: 'inside', withoutEnlargement: true });
 
     let mime, out;
-    if (meta.hasAlpha) { out = await pipe.png({ compressionLevel: 9 }).toBuffer(); mime = 'image/png'; }
-    else { out = await pipe.jpeg({ quality: 88, mozjpeg: true }).toBuffer(); mime = 'image/jpeg'; }
+    if (kind === 'signature') {
+      // Remove the (near-white) background so the signature sits cleanly on the
+      // certificate: white → transparent, ink → opaque, edges → partial alpha.
+      out = await whiteToTransparent(pipe);
+      mime = 'image/png';
+    } else if (meta.hasAlpha) {
+      out = await pipe.png({ compressionLevel: 9 }).toBuffer(); mime = 'image/png';
+    } else {
+      out = await pipe.jpeg({ quality: 88, mozjpeg: true }).toBuffer(); mime = 'image/jpeg';
+    }
 
     const dataUrl = `data:${mime};base64,${out.toString('base64')}`;
     if (dataUrl.length > 2_800_000) { const e = new Error('La imagen es demasiado grande incluso reducida.'); e.status = 413; throw e; }

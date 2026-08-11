@@ -16,6 +16,11 @@ function longDateToday() {
   const d = new Date();
   return `${d.getDate()} de ${MONTHS[d.getMonth()]} de ${d.getFullYear()}`;
 }
+// ISO (YYYY-MM-DD) → "10 de noviembre de 2018"
+function isoToLong(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? `${+m[3]} de ${MONTHS[+m[2] - 1]} de ${m[1]}` : '';
+}
 
 async function api(path, opts) {
   const r = await fetch(API + path, opts);
@@ -53,6 +58,7 @@ function collectData() {
     event: $('f-event').value,
     talk_title: $('f-talk').value,
     date_text: $('f-date').value,
+    event_date: $('f-event-date').value || null,
     place: $('f-place').value,
     signer_name: $('f-signer').value,
     signer_role: $('f-signer-role').value,
@@ -180,6 +186,7 @@ async function loadCert(id) {
     $('f-role').value = item.role || '';
     $('f-event').value = item.event || '';
     $('f-talk').value = item.talk_title || '';
+    $('f-event-date').value = item.event_date || '';
     $('f-date').value = item.date_text || '';
     $('f-place').value = item.place || '';
     $('f-signer').value = item.signer_name || '';
@@ -248,6 +255,14 @@ function wireActions() {
       });
       setMsg('form-msg', 'Guardado como predeterminado. Se rellenará automáticamente la próxima vez.', false);
     } catch (err) { setMsg('form-msg', err.message, true); }
+  });
+
+  // Picking the event date auto-fills the display text and recomputes the preview
+  // (the certificate is expedited the day after — computed server-side).
+  $('f-event-date').addEventListener('change', () => {
+    const iso = $('f-event-date').value;
+    if (iso) $('f-date').value = isoToLong(iso);
+    schedulePreview();
   });
 
   // Re-preview on edits

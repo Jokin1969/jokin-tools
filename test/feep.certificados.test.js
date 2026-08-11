@@ -78,6 +78,16 @@ test('orientation is stored and returned on the certificate and defaults', () =>
   assert.equal(db.getDefaults(3).orientation, 'vertical');
 });
 
+test('event_date is stored, and issue date = event + 1 day (with rollover)', () => {
+  const c = db.createCert({ recipient_name: 'Fecha Test', event_date: '2018-11-30', date_text: '30 de noviembre de 2018' }, 3);
+  assert.equal(db.getCert(c.id, 3).event_date, '2018-11-30');
+  assert.equal(pdf.longFromISO('2018-11-10', 1), '11 de noviembre de 2018');
+  assert.equal(pdf.longFromISO('2018-11-30', 1), '1 de diciembre de 2018');
+  assert.equal(pdf.longFromISO('2025-12-31', 1), '1 de enero de 2026');
+  assert.equal(pdf.longFromISO('', 1), null);
+  assert.equal(pdf.longFromISO('texto libre', 1), null);
+});
+
 test('pdf.render tolerates missing fields and bad image data', async () => {
   const buf = await pdf.render({ recipient_name: 'Solo Nombre', logo_data: 'not-an-image', signature_data: 'data:image/png;base64,@@@' });
   assert.equal(buf.slice(0, 5).toString('latin1'), '%PDF-');

@@ -30,6 +30,7 @@ db.exec(`
     event          TEXT,                 -- "IX Convención de Familiares…"
     talk_title     TEXT,                 -- optional
     date_text      TEXT,                 -- free text: "15 de marzo de 2026"
+    event_date     TEXT,                 -- ISO (YYYY-MM-DD) — para calcular la expedición
     place          TEXT,                 -- optional
     signer_name    TEXT,
     signer_role    TEXT,
@@ -60,7 +61,7 @@ db.exec(`
 // Lightweight migration: add columns that may be missing on databases created by
 // an earlier version (CREATE TABLE IF NOT EXISTS won't add them). Safe to run on
 // every boot — ALTER throws if the column already exists, which we ignore.
-for (const [tbl, col] of [['feep_certificates', 'orientation'], ['feep_cert_defaults', 'orientation']]) {
+for (const [tbl, col] of [['feep_certificates', 'orientation'], ['feep_cert_defaults', 'orientation'], ['feep_certificates', 'event_date']]) {
   try { db.prepare(`ALTER TABLE ${tbl} ADD COLUMN ${col} TEXT`).run(); } catch { /* already present */ }
 }
 
@@ -82,7 +83,7 @@ function nextRef(year) {
   return `FEEP-${y}-${String(max + 1).padStart(4, '0')}`;
 }
 
-const CERT_FIELDS = ['recipient_name', 'role', 'event', 'talk_title', 'date_text',
+const CERT_FIELDS = ['recipient_name', 'role', 'event', 'talk_title', 'date_text', 'event_date',
   'place', 'signer_name', 'signer_role', 'foundation', 'logo_data', 'signature_data', 'accent', 'orientation'];
 
 function createCert(data, userId, refYear) {
@@ -95,10 +96,10 @@ function createCert(data, userId, refYear) {
   row.foundation = data.foundation || FOUNDATION;
   const info = db.prepare(
     `INSERT INTO feep_certificates
-       (ref, user_id, recipient_name, role, event, talk_title, date_text, place,
+       (ref, user_id, recipient_name, role, event, talk_title, date_text, event_date, place,
         signer_name, signer_role, foundation, logo_data, signature_data, accent, orientation)
      VALUES
-       (@ref, @user_id, @recipient_name, @role, @event, @talk_title, @date_text, @place,
+       (@ref, @user_id, @recipient_name, @role, @event, @talk_title, @date_text, @event_date, @place,
         @signer_name, @signer_role, @foundation, @logo_data, @signature_data, @accent, @orientation)`
   ).run(row);
   return getCert(info.lastInsertRowid, userId);

@@ -56,13 +56,19 @@
 
         <div class="row2">
           <div class="field">
-            <label for="f-date">Fecha completa</label>
-            <input type="text" id="f-date" placeholder="15 de marzo de 2026" />
+            <label for="f-event-date">Fecha del evento</label>
+            <input type="date" id="f-event-date" />
+            <div class="hint">La expedición se pone automáticamente el día siguiente.</div>
           </div>
           <div class="field">
             <label for="f-place">Lugar (opcional)</label>
             <input type="text" id="f-place" placeholder="Madrid" />
           </div>
+        </div>
+        <div class="field">
+          <label for="f-date">Texto de la fecha en el certificado</label>
+          <input type="text" id="f-date" placeholder="15 de marzo de 2026" />
+          <div class="hint">Se rellena solo desde la fecha del evento; edítalo si es un rango (p. ej. «14-16 de noviembre de 2025»).</div>
         </div>
 
         <h3>Firma y firmante</h3>
@@ -136,6 +142,6 @@
     </div>
   </div>
 
-  <script src="/feep/assets/certificados.js?v=4"></script>
+  <script src="/feep/assets/certificados.js?v=5"></script>
 </body>
 </html>

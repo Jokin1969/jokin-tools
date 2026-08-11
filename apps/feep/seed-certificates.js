@@ -64,6 +64,7 @@ function seedFeepCertificates(user) {
       event,
       talk_title: c.talk,
       date_text: dateText,
+      event_date: c.date,
       signer_name: SIGNER,
       signer_role: SIGNER_ROLE,
       accent: 'clasico',

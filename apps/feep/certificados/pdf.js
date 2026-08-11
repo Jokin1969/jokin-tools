@@ -30,6 +30,18 @@ function imgBuffer(dataUrl) {
 
 function esc(s) { return String(s == null ? '' : s).trim(); }
 
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+  'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+// ISO (YYYY-MM-DD) → "11 de noviembre de 2018", optionally +N days. Null if invalid.
+function longFromISO(iso, addDays) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  if (!m) return null;
+  const dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  if (isNaN(dt)) return null;
+  if (addDays) dt.setUTCDate(dt.getUTCDate() + addDays);
+  return `${dt.getUTCDate()} de ${MONTHS[dt.getUTCMonth()]} de ${dt.getUTCFullYear()}`;
+}
+
 // Build the certificate body sentence from the fields.
 function bodyText(d) {
   const role = esc(d.role) || 'ponente';
@@ -174,8 +186,12 @@ function render(data) {
     while (bsize > 10 && doc.heightOfString(body, { width: bodyW, align: 'center', lineGap: 3 }) > avail) { bsize -= 1; doc.fontSize(bsize); }
     doc.fillColor(INK).text(body, bodyX, y, { width: bodyW, align: 'center', lineGap: 3 });
 
+    const issueDate = longFromISO(d.event_date, 1); // se expide el día siguiente al evento
+    const closing = issueDate
+      ? `Y para que así conste, se expide el presente certificado el ${issueDate}.`
+      : 'Y para que así conste, se expide el presente certificado.';
     doc.font('Times-Italic').fontSize(11.5).fillColor(MUTED)
-      .text('Y para que así conste, se expide el presente certificado.', bodyX, closingY, { width: bodyW, align: 'center' });
+      .text(closing, bodyX, closingY, { width: bodyW, align: 'center' });
 
     // Seal (left) + signature block (right)
     drawSeal(doc, M + 80, H - 118, primary, gold, esc(d.ref));
@@ -201,4 +217,4 @@ function render(data) {
   });
 }
 
-module.exports = { render, THEMES };
+module.exports = { render, THEMES, longFromISO };
