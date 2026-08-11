@@ -192,6 +192,15 @@ function runStartupMigrations() {
     console.error('[bitacora] Orphan assignment skipped:', e.message);
   }
 
+  // FEEP: seed the foundation's known attendance certificates (idempotent) into
+  // the owner's repository so they can be recovered/downloaded/emailed later.
+  try {
+    const feepOwner = owner || authStore.getUserByEmail('castilla@joaquincastilla.com');
+    require('./apps/feep/seed-certificates').seedFeepCertificates(feepOwner);
+  } catch (e) {
+    console.error('[feep] certificate seeding skipped:', e.message);
+  }
+
   // Batchwork: the .dna library is shared across users. Consolidate any
   // per-user subdirectories (from the earlier per-user split) back into the
   // shared repository.

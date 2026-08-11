@@ -11,6 +11,7 @@ process.env.FEEP_DB_PATH = path.join(dir, 'feep.db');
 
 const db = require('../apps/feep/db');
 const pdf = require('../apps/feep/certificados/pdf');
+const seed = require('../apps/feep/seed-certificates');
 
 test('nextRef: sequential per year, zero-padded', () => {
   assert.match(db.nextRef(2026), /^FEEP-2026-0001$/);
@@ -80,4 +81,20 @@ test('orientation is stored and returned on the certificate and defaults', () =>
 test('pdf.render tolerates missing fields and bad image data', async () => {
   const buf = await pdf.render({ recipient_name: 'Solo Nombre', logo_data: 'not-an-image', signature_data: 'data:image/png;base64,@@@' });
   assert.equal(buf.slice(0, 5).toString('latin1'), '%PDF-');
+});
+
+test('seed.longDate: ISO → Spanish long date (timezone-safe)', () => {
+  assert.equal(seed.longDate('2018-11-10'), '10 de noviembre de 2018');
+  assert.equal(seed.longDate('2025-11-15'), '15 de noviembre de 2025');
+});
+
+test('seed: imports the 11 known certificates and is idempotent', () => {
+  const user = { id: 100, email: 'x@feep.es' };
+  assert.equal(seed.seedFeepCertificates(user), 11, 'first run creates all 11');
+  assert.equal(seed.seedFeepCertificates(user), 0, 'second run creates none');
+  const list = db.listCerts(100);
+  assert.equal(list.length, 11);
+  const refs = list.map(c => c.ref);
+  assert.equal(new Set(refs).size, refs.length, 'references are unique');
+  assert.ok(list.every(c => c.event.startsWith('la ') && /de 20\d\d$/.test(c.date_text)));
 });

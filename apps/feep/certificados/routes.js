@@ -72,6 +72,22 @@ const certToRender = (c) => ({
   orientation: c.orientation,
 });
 
+// Render data for a SAVED certificate. If it has no logo/signature of its own,
+// fall back to the owner's current defaults — so setting the logo & signature
+// once (as defaults) makes every saved certificate render complete, including
+// ones created in bulk before the images were uploaded.
+function renderData(cert, userId) {
+  const base = certToRender(cert);
+  if (base.logo_data && base.signature_data && base.signer_name && base.orientation) return base;
+  const def = db.getDefaults(userId) || {};
+  if (!base.logo_data) base.logo_data = def.logo_data || null;
+  if (!base.signature_data) base.signature_data = def.signature_data || null;
+  if (!base.signer_name) base.signer_name = def.signer_name || base.signer_name;
+  if (!base.signer_role) base.signer_role = def.signer_role || base.signer_role;
+  if (!base.orientation) base.orientation = def.orientation || base.orientation;
+  return base;
+}
+
 // ── UI ───────────────────────────────────────────────────────────────────────
 router.get('/', (req, res) => res.sendFile(path.join(PUB, 'certificados.html')));
 
@@ -158,7 +174,7 @@ router.get('/api/cert/:id(\\d+)/pdf', async (req, res) => {
   try {
     const c = db.getCert(Number(req.params.id), req.user.id);
     if (!c) return res.status(404).json({ error: 'No encontrado' });
-    const buf = await render(certToRender(c));
+    const buf = await render(renderData(c, req.user.id));
     setDownload(res, `Certificado_${safeStem(c.recipient_name)}.pdf`, 'application/pdf');
     res.send(buf);
   } catch (err) { fail(res, err); }
@@ -174,7 +190,7 @@ router.post('/api/cert/:id(\\d+)/email', json, async (req, res) => {
     const to = ((req.body && req.body.to) || '').trim() || (req.user && req.user.email);
     if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) { const e = new Error('Destinatario de email no válido.'); e.status = 400; throw e; }
 
-    const buf = await render(certToRender(c));
+    const buf = await render(renderData(c, req.user.id));
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: Number(process.env.SMTP_PORT) || 587,
