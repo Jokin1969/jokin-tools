@@ -196,7 +196,9 @@ function runStartupMigrations() {
   // the owner's repository so they can be recovered/downloaded/emailed later.
   try {
     const feepOwner = owner || authStore.getUserByEmail('castilla@joaquincastilla.com');
-    require('./apps/feep/seed-certificates').seedFeepCertificates(feepOwner);
+    const feepSeed = require('./apps/feep/seed-certificates');
+    feepSeed.seedDefaultAssets(feepOwner);   // logo/firma desde apps/feep/assets/ (si existen)
+    feepSeed.seedFeepCertificates(feepOwner);
   } catch (e) {
     console.error('[feep] certificate seeding skipped:', e.message);
   }

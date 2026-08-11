@@ -7,7 +7,16 @@
 // guardan SOLO con texto; el logo y la firma se toman de los predeterminados del
 // usuario en el momento de generar el PDF (ver renderData en certificados/routes).
 
+const fs = require('fs');
+const path = require('path');
 const feepDb = require('./db');
+
+// Si existen ficheros de logo/firma en apps/feep/assets/, se cargan como
+// predeterminados del propietario automáticamente (así no hay que subirlos a
+// mano). Ficheros admitidos (el primero que exista):
+const ASSETS_DIR = path.join(__dirname, 'assets');
+const LOGO_FILES = ['logo.png', 'logo.jpg', 'logo.jpeg', 'logo.webp'];
+const SIGNATURE_FILES = ['firma-secretario.png', 'firma.png', 'firma-secretario.jpg', 'firma.jpg'];
 
 const SIGNER = 'Alberto Martínez';
 const SIGNER_ROLE = 'Secretario de la Fundación Española de Enfermedades Priónicas';
@@ -66,4 +75,46 @@ function seedFeepCertificates(user) {
   return created;
 }
 
-module.exports = { seedFeepCertificates, CERTS, longDate };
+// Read an image file (from the first existing candidate) into a data URL.
+function fileToDataUrl(dir, candidates) {
+  for (const name of candidates) {
+    const p = path.join(dir, name);
+    try {
+      if (fs.existsSync(p)) {
+        const ext = path.extname(p).toLowerCase().replace('.', '');
+        const mime = ext === 'jpg' ? 'jpeg' : ext;
+        return `data:image/${mime};base64,` + fs.readFileSync(p).toString('base64');
+      }
+    } catch { /* skip unreadable */ }
+  }
+  return null;
+}
+
+// If logo/signature files are present in apps/feep/assets/, activate them as the
+// owner's default logo & signature — but never overwrite anything the user has
+// already set from the app. No-op if the files aren't there.
+function seedDefaultAssets(user) {
+  if (!user || user.id == null) return false;
+  const logo = fileToDataUrl(ASSETS_DIR, LOGO_FILES);
+  const sig = fileToDataUrl(ASSETS_DIR, SIGNATURE_FILES);
+  if (!logo && !sig) return false;
+
+  const cur = feepDb.getDefaults(user.id) || {};
+  const next = {
+    logo_data: cur.logo_data || logo || null,
+    signature_data: cur.signature_data || sig || null,
+    signer_name: cur.signer_name || SIGNER,
+    signer_role: cur.signer_role || SIGNER_ROLE,
+    foundation: cur.foundation || undefined,
+    accent: cur.accent || null,
+    orientation: cur.orientation || null,
+  };
+  const changed = next.logo_data !== cur.logo_data || next.signature_data !== cur.signature_data
+    || next.signer_name !== cur.signer_name || next.signer_role !== cur.signer_role;
+  if (!changed) return false;
+  feepDb.saveDefaults(user.id, next);
+  console.log(`[feep] Predeterminados de logo/firma activados para ${user.email}`);
+  return true;
+}
+
+module.exports = { seedFeepCertificates, seedDefaultAssets, CERTS, longDate };

@@ -119,8 +119,10 @@ function wireUploader(kind, maxDim) {
     input.value = '';
   });
   clear.addEventListener('click', () => setImg(null));
-  // expose the setter for recovery / defaults prefill
-  wireUploader['set_' + kind] = setImg;
+  // expose the setter under the CANONICAL name ('logo' | 'signature') so recovery
+  // and defaults-prefill callers match, regardless of the DOM element ids.
+  const canonical = kind === 'logo' ? 'logo' : 'signature';
+  wireUploader['set_' + canonical] = setImg;
 }
 
 function setMsg(id, text, isErr) {
