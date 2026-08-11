@@ -35,24 +35,15 @@ async function apiPdfBlob(path, body) {
   return r.blob();
 }
 
-// Downscale any image file to a PNG data URL bounded by maxDim.
-function fileToPng(file, maxDim) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      let { width: w, height: h } = img;
-      const scale = Math.min(1, maxDim / Math.max(w, h));
-      w = Math.round(w * scale); h = Math.round(h * scale);
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen.')); };
-    img.src = url;
-  });
+// Process an image file on the SERVER (sharp) → normalised data URL. This works
+// for any format, including iPhone HEIC which the browser can't decode client-side.
+async function uploadImage(file, kind) {
+  const fd = new FormData();
+  fd.append('image', file);
+  const r = await fetch(`${API}/image?kind=${encodeURIComponent(kind)}`, { method: 'POST', body: fd });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'No se pudo procesar la imagen.');
+  return data.dataUrl;
 }
 
 function collectData() {
@@ -105,23 +96,25 @@ async function runPreview() {
 // ── Uploaders ───────────────────────────────────────────────────────────────────
 function wireUploader(kind, maxDim) {
   const drop = $(kind + '-drop'), input = $(kind + '-input'), thumb = $(kind + '-thumb'), clear = $(kind + '-clear');
+  const canonical = kind === 'logo' ? 'logo' : 'signature';
+  const idle = canonical === 'logo' ? 'Subir logo (cualquier formato, incl. HEIC del iPhone)' : 'Subir firma (PNG con fondo transparente recomendado)';
   const setImg = (dataUrl) => {
-    state[kind === 'logo' ? 'logo' : 'signature'] = dataUrl;
+    state[canonical] = dataUrl;
     if (dataUrl) { thumb.src = dataUrl; thumb.style.display = 'block'; clear.style.display = 'inline'; drop.textContent = '✓ Imagen cargada — cambiar'; }
-    else { thumb.style.display = 'none'; clear.style.display = 'none'; drop.textContent = kind === 'logo' ? 'Subir logo (PNG/JPG)' : 'Subir firma (PNG con fondo transparente recomendado)'; }
+    else { thumb.style.display = 'none'; clear.style.display = 'none'; drop.textContent = idle; }
     schedulePreview();
   };
   drop.addEventListener('click', () => input.click());
   input.addEventListener('change', async () => {
     if (!input.files[0]) return;
-    try { setImg(await fileToPng(input.files[0], maxDim)); }
-    catch (e) { setMsg('form-msg', e.message, true); }
+    drop.textContent = 'Procesando imagen…';
+    try { setImg(await uploadImage(input.files[0], canonical)); }
+    catch (e) { setMsg('form-msg', e.message, true); drop.textContent = idle; }
     input.value = '';
   });
   clear.addEventListener('click', () => setImg(null));
   // expose the setter under the CANONICAL name ('logo' | 'signature') so recovery
   // and defaults-prefill callers match, regardless of the DOM element ids.
-  const canonical = kind === 'logo' ? 'logo' : 'signature';
   wireUploader['set_' + canonical] = setImg;
 }
 

@@ -7,6 +7,8 @@
 
 const express = require('express');
 const path = require('path');
+const multer = require('multer');
+const sharp = require('sharp');
 const nodemailer = require('nodemailer');
 const db = require('../db');
 const { render, THEMES } = require('./pdf');
@@ -15,8 +17,12 @@ const router = express.Router();
 const PUB = path.join(__dirname, '../public');
 
 // Image data URLs make bodies larger than the hub-wide 1 MB default; the client
-// downscales images so this stays comfortable.
+// sends already-processed (downscaled) data URLs so this stays comfortable.
 const json = express.json({ limit: '8mb' });
+
+// Raw image uploads (logo/signature) are processed server-side with sharp so ANY
+// format works — including iPhone HEIC, which browsers can't decode client-side.
+const uploadImage = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
 
 function fail(res, err) {
   const status = err && err.status ? err.status : 500;
@@ -125,6 +131,36 @@ router.post('/api/defaults', json, (req, res) => {
       orientation: b.orientation === 'vertical' ? 'vertical' : (b.orientation === 'horizontal' ? 'horizontal' : null),
     });
     res.json({ defaults: saved });
+  } catch (err) { fail(res, err); }
+});
+
+// ── Process an uploaded image (logo/signature) → normalised data URL ───────────
+// Accepts any format sharp can read (PNG, JPEG, WEBP, TIFF, GIF, HEIC/HEIF…),
+// auto-orients via EXIF, downscales, and returns a compact data URL: PNG when the
+// image has transparency (signatures), JPEG otherwise (photos/logos).
+router.post('/api/image', uploadImage.single('image'), async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer || !req.file.buffer.length) {
+      const e = new Error('No se recibió ninguna imagen.'); e.status = 400; throw e;
+    }
+    const kind = req.query.kind === 'logo' ? 'logo' : 'signature';
+    const maxDim = kind === 'logo' ? 900 : 1000;
+
+    let meta;
+    try { meta = await sharp(req.file.buffer, { failOn: 'none' }).metadata(); }
+    catch { const e = new Error('No se pudo leer la imagen (formato no soportado).'); e.status = 400; throw e; }
+
+    const pipe = sharp(req.file.buffer, { failOn: 'none' })
+      .rotate() // auto-orient from EXIF (iPhone photos)
+      .resize({ width: maxDim, height: maxDim, fit: 'inside', withoutEnlargement: true });
+
+    let mime, out;
+    if (meta.hasAlpha) { out = await pipe.png({ compressionLevel: 9 }).toBuffer(); mime = 'image/png'; }
+    else { out = await pipe.jpeg({ quality: 88, mozjpeg: true }).toBuffer(); mime = 'image/jpeg'; }
+
+    const dataUrl = `data:${mime};base64,${out.toString('base64')}`;
+    if (dataUrl.length > 2_800_000) { const e = new Error('La imagen es demasiado grande incluso reducida.'); e.status = 413; throw e; }
+    res.json({ dataUrl });
   } catch (err) { fail(res, err); }
 });
 
