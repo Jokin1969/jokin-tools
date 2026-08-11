@@ -60,6 +60,7 @@ function cleanData(body) {
     logo_data: img(b.logo_data),
     signature_data: img(b.signature_data),
     accent,
+    orientation: b.orientation === 'vertical' ? 'vertical' : 'horizontal',
   };
 }
 
@@ -68,6 +69,7 @@ const certToRender = (c) => ({
   talk_title: c.talk_title, date_text: c.date_text, place: c.place,
   signer_name: c.signer_name, signer_role: c.signer_role, foundation: c.foundation,
   logo_data: c.logo_data, signature_data: c.signature_data, accent: c.accent,
+  orientation: c.orientation,
 });
 
 // ── UI ───────────────────────────────────────────────────────────────────────
@@ -104,6 +106,7 @@ router.post('/api/defaults', json, (req, res) => {
       signer_role: b.signer_role ? String(b.signer_role).slice(0, 200) : null,
       foundation: b.foundation ? String(b.foundation).slice(0, 200) : db.FOUNDATION,
       accent: THEMES[b.accent] ? b.accent : null,
+      orientation: b.orientation === 'vertical' ? 'vertical' : (b.orientation === 'horizontal' ? 'horizontal' : null),
     });
     res.json({ defaults: saved });
   } catch (err) { fail(res, err); }

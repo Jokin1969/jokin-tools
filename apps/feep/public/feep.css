@@ -78,6 +78,12 @@ textarea { resize: vertical; min-height: 60px; }
 .uploader .thumb { width: 64px; height: 44px; border: 1px solid var(--line); border-radius: 6px; object-fit: contain; background: #fff; display: none; }
 .uploader .clear { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px; display: none; }
 
+/* segmented control (orientation) */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg-btn { font: inherit; font-size: 13px; padding: 8px 16px; border: none; background: #fff; color: var(--muted); cursor: pointer; }
+.seg-btn + .seg-btn { border-left: 1px solid var(--line); }
+.seg-btn.sel { background: var(--navy); color: #fff; font-weight: 600; }
+
 /* themes */
 .themes { display: flex; gap: 8px; flex-wrap: wrap; }
 .theme-dot { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }

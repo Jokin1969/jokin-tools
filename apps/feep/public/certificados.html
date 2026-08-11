@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Certificado de asistencia · FEEP</title>
-  <link rel="stylesheet" href="/feep/assets/feep.css?v=1" />
+  <link rel="stylesheet" href="/feep/assets/feep.css?v=2" />
 </head>
 <body>
   <nav class="feep-nav">
@@ -68,7 +68,7 @@
         <h3>Firma y firmante</h3>
         <div class="field">
           <label for="f-signer">Nombre del firmante</label>
-          <input type="text" id="f-signer" placeholder="Nombre del secretario/a" />
+          <input type="text" id="f-signer" value="Alberto Martínez" placeholder="Nombre del secretario/a" />
         </div>
         <div class="field">
           <label for="f-signer-role">Cargo del firmante</label>
@@ -95,7 +95,17 @@
         </div>
 
         <h3>Diseño</h3>
-        <div class="themes" id="themes"></div>
+        <div class="field">
+          <label>Orientación</label>
+          <div class="seg" id="orient">
+            <button type="button" class="seg-btn" data-orient="horizontal">▭ Horizontal</button>
+            <button type="button" class="seg-btn" data-orient="vertical">▯ Vertical</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Color</label>
+          <div class="themes" id="themes"></div>
+        </div>
 
         <div class="actions">
           <button type="button" class="btn btn-ghost" id="btn-save-defaults" title="Guarda el logo, la firma y el firmante para no volver a introducirlos">★ Guardar logo/firma/firmante</button>
@@ -126,6 +136,6 @@
     </div>
   </div>
 
-  <script src="/feep/assets/certificados.js?v=1"></script>
+  <script src="/feep/assets/certificados.js?v=2"></script>
 </body>
 </html>

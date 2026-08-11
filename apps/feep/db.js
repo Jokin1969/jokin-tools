@@ -37,6 +37,7 @@ db.exec(`
     logo_data      TEXT,                 -- data URL (image) or null
     signature_data TEXT,                 -- data URL (image) or null
     accent         TEXT,                 -- theme colour key
+    orientation    TEXT,                 -- 'horizontal' | 'vertical'
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_feep_cert_user ON feep_certificates(user_id);
@@ -51,24 +52,38 @@ db.exec(`
     signer_role    TEXT,
     foundation     TEXT,
     accent         TEXT,
+    orientation    TEXT,
     updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+// Lightweight migration: add columns that may be missing on databases created by
+// an earlier version (CREATE TABLE IF NOT EXISTS won't add them). Safe to run on
+// every boot — ALTER throws if the column already exists, which we ignore.
+for (const [tbl, col] of [['feep_certificates', 'orientation'], ['feep_cert_defaults', 'orientation']]) {
+  try { db.prepare(`ALTER TABLE ${tbl} ADD COLUMN ${col} TEXT`).run(); } catch { /* already present */ }
+}
 
 console.log('[feep] Database ready at:', DB_PATH);
 
 const FOUNDATION = 'Fundación Española de Enfermedades Priónicas';
 
 // ── Certificates ────────────────────────────────────────────────────────────────
-// A human-friendly reference: FEEP-<year>-<NNNN>.
+// A human-friendly reference: FEEP-<year>-<NNNN>. Based on the highest existing
+// sequence for the year (NOT a row count) so it stays unique even after deletions.
 function nextRef(year) {
   const y = year || new Date().getFullYear();
-  const n = db.prepare("SELECT COUNT(*) AS c FROM feep_certificates WHERE ref LIKE ?").get(`FEEP-${y}-%`).c;
-  return `FEEP-${y}-${String(n + 1).padStart(4, '0')}`;
+  const rows = db.prepare("SELECT ref FROM feep_certificates WHERE ref LIKE ?").all(`FEEP-${y}-%`);
+  let max = 0;
+  for (const r of rows) {
+    const m = /-(\d+)$/.exec(r.ref || '');
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `FEEP-${y}-${String(max + 1).padStart(4, '0')}`;
 }
 
 const CERT_FIELDS = ['recipient_name', 'role', 'event', 'talk_title', 'date_text',
-  'place', 'signer_name', 'signer_role', 'foundation', 'logo_data', 'signature_data', 'accent'];
+  'place', 'signer_name', 'signer_role', 'foundation', 'logo_data', 'signature_data', 'accent', 'orientation'];
 
 function createCert(data, userId, refYear) {
   const row = {
@@ -81,10 +96,10 @@ function createCert(data, userId, refYear) {
   const info = db.prepare(
     `INSERT INTO feep_certificates
        (ref, user_id, recipient_name, role, event, talk_title, date_text, place,
-        signer_name, signer_role, foundation, logo_data, signature_data, accent)
+        signer_name, signer_role, foundation, logo_data, signature_data, accent, orientation)
      VALUES
        (@ref, @user_id, @recipient_name, @role, @event, @talk_title, @date_text, @place,
-        @signer_name, @signer_role, @foundation, @logo_data, @signature_data, @accent)`
+        @signer_name, @signer_role, @foundation, @logo_data, @signature_data, @accent, @orientation)`
   ).run(row);
   return getCert(info.lastInsertRowid, userId);
 }
@@ -118,13 +133,13 @@ function removeCert(id, userId) {
 // ── Per-user defaults ─────────────────────────────────────────────────────────
 function getDefaults(userId) {
   const row = db.prepare('SELECT * FROM feep_cert_defaults WHERE user_id = ?').get(userId);
-  return row || { user_id: userId, logo_data: null, signature_data: null, signer_name: null, signer_role: null, foundation: FOUNDATION, accent: null };
+  return row || { user_id: userId, logo_data: null, signature_data: null, signer_name: null, signer_role: null, foundation: FOUNDATION, accent: null, orientation: null };
 }
 
 function saveDefaults(userId, d) {
   db.prepare(
-    `INSERT INTO feep_cert_defaults (user_id, logo_data, signature_data, signer_name, signer_role, foundation, accent, updated_at)
-     VALUES (@user_id, @logo_data, @signature_data, @signer_name, @signer_role, @foundation, @accent, CURRENT_TIMESTAMP)
+    `INSERT INTO feep_cert_defaults (user_id, logo_data, signature_data, signer_name, signer_role, foundation, accent, orientation, updated_at)
+     VALUES (@user_id, @logo_data, @signature_data, @signer_name, @signer_role, @foundation, @accent, @orientation, CURRENT_TIMESTAMP)
      ON CONFLICT(user_id) DO UPDATE SET
        logo_data = excluded.logo_data,
        signature_data = excluded.signature_data,
@@ -132,6 +147,7 @@ function saveDefaults(userId, d) {
        signer_role = excluded.signer_role,
        foundation = excluded.foundation,
        accent = excluded.accent,
+       orientation = excluded.orientation,
        updated_at = CURRENT_TIMESTAMP`
   ).run({
     user_id: userId,
@@ -141,6 +157,7 @@ function saveDefaults(userId, d) {
     signer_role: d.signer_role || null,
     foundation: d.foundation || FOUNDATION,
     accent: d.accent || null,
+    orientation: d.orientation || null,
   });
   return getDefaults(userId);
 }

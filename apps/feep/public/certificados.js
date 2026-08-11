@@ -10,7 +10,7 @@ const THEME_COLORS = {
   clasico: '#1b2a4a', burdeos: '#6e1e2a', verde: '#1f4636', grafito: '#2f3336',
 };
 
-const state = { logo: null, signature: null, accent: 'clasico', meta: null, previewUrl: null };
+const state = { logo: null, signature: null, accent: 'clasico', orientation: 'horizontal', meta: null, previewUrl: null };
 
 function longDateToday() {
   const d = new Date();
@@ -69,7 +69,18 @@ function collectData() {
     logo_data: state.logo,
     signature_data: state.signature,
     accent: state.accent,
+    orientation: state.orientation,
   };
+}
+
+// Orientation toggle
+function setOrient(o, skipPreview) {
+  state.orientation = o === 'vertical' ? 'vertical' : 'horizontal';
+  document.querySelectorAll('#orient .seg-btn').forEach(b => b.classList.toggle('sel', b.dataset.orient === state.orientation));
+  if (!skipPreview) schedulePreview();
+}
+function wireOrient() {
+  document.querySelectorAll('#orient .seg-btn').forEach(b => b.addEventListener('click', () => setOrient(b.dataset.orient)));
 }
 
 // ── Live preview (debounced) ────────────────────────────────────────────────────
@@ -180,6 +191,7 @@ async function loadCert(id) {
     $('f-signer-role').value = item.signer_role || '';
     state.accent = item.accent || 'clasico';
     renderThemes(state.meta.themes);
+    setOrient(item.orientation || 'horizontal', true);
     wireUploader['set_logo'](item.logo_data || null);
     wireUploader['set_signature'](item.signature_data || null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -235,7 +247,8 @@ function wireActions() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           logo_data: state.logo, signature_data: state.signature,
-          signer_name: $('f-signer').value, signer_role: $('f-signer-role').value, accent: state.accent,
+          signer_name: $('f-signer').value, signer_role: $('f-signer-role').value,
+          accent: state.accent, orientation: state.orientation,
         }),
       });
       setMsg('form-msg', 'Guardado como predeterminado. Se rellenará automáticamente la próxima vez.', false);
@@ -261,20 +274,21 @@ function fmtDate(s) {
 (async () => {
   wireUploader('logo', 800);
   wireUploader('sig', 900);
+  wireOrient();
   wireActions();
+  setOrient('horizontal', true);
   $('f-date').value = longDateToday();
   try {
     const meta = await api('/meta');
     state.meta = meta;
-    renderThemes(meta.themes);
     const d = meta.defaults || {};
     if (d.signer_name) $('f-signer').value = d.signer_name;
     if (d.signer_role) $('f-signer-role').value = d.signer_role;
     if (d.accent) state.accent = d.accent;
+    if (d.orientation) setOrient(d.orientation, true);
     if (d.logo_data) wireUploader['set_logo'](d.logo_data);
     if (d.signature_data) wireUploader['set_signature'](d.signature_data);
     renderThemes(meta.themes);
-    if (!meta.emailConfigured) $('preview-note').textContent = '';
   } catch (err) { setMsg('form-msg', err.message, true); }
   runPreview();
   refreshRepo();

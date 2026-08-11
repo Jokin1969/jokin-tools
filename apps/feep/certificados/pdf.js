@@ -89,8 +89,9 @@ function render(data) {
     const t = theme(d.accent);
     const primary = t.primary;
     const gold = t.gold;
+    const vertical = d.orientation === 'vertical';
 
-    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 0, info: {
+    const doc = new PDFDocument({ size: 'A4', layout: vertical ? 'portrait' : 'landscape', margin: 0, info: {
       Title: `Certificado ${esc(d.ref) || ''}`.trim(),
       Author: esc(d.foundation) || 'Fundación Española de Enfermedades Priónicas',
     } });
@@ -99,12 +100,14 @@ function render(data) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const W = doc.page.width;   // 841.89
-    const H = doc.page.height;  // 595.28
+    const W = doc.page.width;
+    const H = doc.page.height;
     const cx = W / 2;
+    const M = vertical ? 56 : 66;          // side margin for the content band
+    const contentW = W - 2 * M;
     const foundation = esc(d.foundation) || 'Fundación Española de Enfermedades Priónicas';
 
-    // Ground + double frame
+    // Ground + double frame + corner flourishes
     doc.rect(0, 0, W, H).fill(CREAM);
     doc.lineWidth(2.5).strokeColor(primary).rect(22, 22, W - 44, H - 44).stroke();
     doc.lineWidth(0.8).strokeColor(gold).rect(31, 31, W - 62, H - 62).stroke();
@@ -113,71 +116,82 @@ function render(data) {
     drawCorner(doc, 34, H - 34, 1, -1, gold);
     drawCorner(doc, W - 34, H - 34, -1, -1, gold);
 
-    // Header — logo (if any) then foundation name in small caps
+    // Centred, self-advancing text within the content band. Returns its height.
+    const draw = (str, y, font, size, color, opts = {}) => {
+      const o = Object.assign({ width: contentW, align: 'center' }, opts);
+      doc.font(font).fontSize(size).fillColor(color).text(str, M, y, o);
+      return doc.heightOfString(str, o);
+    };
+    const fitSize = (str, start, min, spacing) => {
+      let s = start; doc.fontSize(s);
+      while (s > min && doc.widthOfString(str, spacing != null ? { characterSpacing: spacing } : undefined) > contentW) { s -= 1; doc.fontSize(s); }
+      return s;
+    };
+
+    // ── Top section (flows from the top) ──────────────────────────────────────
+    let y = vertical ? 62 : 50;
     const logo = imgBuffer(d.logo_data);
-    let headerBottom = 60;
     if (logo) {
-      try { doc.image(logo, cx - 115, 50, { fit: [230, 66], align: 'center', valign: 'center' }); headerBottom = 120; }
+      const lw = Math.min(vertical ? 210 : 230, contentW * 0.62);
+      const lh = vertical ? 96 : 70;
+      try { doc.image(logo, cx - lw / 2, y, { fit: [lw, lh], align: 'center', valign: 'center' }); y += lh + 12; }
       catch { /* fall through to text header */ }
     }
-    doc.fillColor(primary).font('Times-Bold').fontSize(logo ? 12 : 17)
-      .text(foundation.toUpperCase(), 70, logo ? 122 : 66, { width: W - 140, align: 'center', characterSpacing: logo ? 2 : 2.5 });
-    headerBottom = logo ? 140 : 92;
+    doc.font('Times-Bold'); fitSize(foundation.toUpperCase(), logo ? (vertical ? 11 : 12) : (vertical ? 15 : 17), 9, logo ? 2 : 2.5);
+    y += draw(foundation.toUpperCase(), y, 'Times-Bold', doc._fontSize, primary, { characterSpacing: logo ? 2 : 2.5 });
+    y += vertical ? 16 : 14;
 
-    // Title
-    doc.fillColor(primary).font('Times-Bold').fontSize(30)
-      .text('CERTIFICADO DE ASISTENCIA', 70, headerBottom + 18, { width: W - 140, align: 'center', characterSpacing: 4 });
-    drawDivider(doc, cx, headerBottom + 62, 300, gold, primary);
+    doc.font('Times-Bold');
+    const tSize = fitSize('CERTIFICADO DE ASISTENCIA', vertical ? 24 : 30, 15, vertical ? 2.5 : 4);
+    y += draw('CERTIFICADO DE ASISTENCIA', y, 'Times-Bold', tSize, primary, { characterSpacing: vertical ? 2.5 : 4 });
+    y += 12;
+    drawDivider(doc, cx, y, Math.min(300, contentW * 0.8), gold, primary);
+    y += 22;
 
-    // "Se certifica que"
-    let y = headerBottom + 82;
-    doc.fillColor(MUTED).font('Times-Italic').fontSize(14)
-      .text('Se certifica que', 70, y, { width: W - 140, align: 'center' });
+    y += draw('Se certifica que', y, 'Times-Italic', 14, MUTED);
+    y += 6;
 
-    // Recipient name (the star)
-    y += 26;
     const name = esc(d.recipient_name) || '—';
-    doc.fillColor(primary).font('Times-Bold').fontSize(33)
-      .text(name, 70, y, { width: W - 140, align: 'center' });
-    const nameH = doc.heightOfString(name, { width: W - 140, align: 'center' });
-    y += nameH + 6;
-    // underline flourish under the name
+    doc.font('Times-Bold');
+    const nSize = fitSize(name, vertical ? 30 : 33, 17);
+    y += draw(name, y, 'Times-Bold', nSize, primary) + 6;
+
+    // flourish under the name
     doc.save().lineWidth(0.8).strokeColor(gold);
     doc.moveTo(cx - 120, y).lineTo(cx + 120, y).stroke();
     doc.fillColor(gold).moveTo(cx, y - 3).lineTo(cx + 4, y).lineTo(cx, y + 3).lineTo(cx - 4, y).closePath().fill();
     doc.restore();
+    y += vertical ? 20 : 16;
 
-    // Body sentence — adapt font size so it fits above the signature area
-    y += 16;
+    // ── Bottom section (anchored to the page bottom) ──────────────────────────
+    const closingY = H - (vertical ? 210 : 150);
+    const bodyW = contentW - (vertical ? 16 : 40);
+    const bodyX = M + (contentW - bodyW) / 2;
     const body = bodyText(d);
-    const bodyW = W - 220;
-    let bsize = 15;
+    const avail = Math.max(40, closingY - y - 14);
+    let bsize = vertical ? 14 : 15;
     doc.font('Times-Roman').fontSize(bsize);
-    while (bsize > 11 && doc.heightOfString(body, { width: bodyW, align: 'center', lineGap: 3 }) > 96) {
-      bsize -= 1; doc.fontSize(bsize);
-    }
-    doc.fillColor(INK).text(body, 110, y, { width: bodyW, align: 'center', lineGap: 3 });
+    while (bsize > 10 && doc.heightOfString(body, { width: bodyW, align: 'center', lineGap: 3 }) > avail) { bsize -= 1; doc.fontSize(bsize); }
+    doc.fillColor(INK).text(body, bodyX, y, { width: bodyW, align: 'center', lineGap: 3 });
 
-    // Closing line
-    doc.fillColor(MUTED).font('Times-Italic').fontSize(11.5)
-      .text('Y para que así conste, se expide el presente certificado.', 110, H - 150, { width: bodyW, align: 'center' });
+    doc.font('Times-Italic').fontSize(11.5).fillColor(MUTED)
+      .text('Y para que así conste, se expide el presente certificado.', bodyX, closingY, { width: bodyW, align: 'center' });
 
     // Seal (left) + signature block (right)
-    drawSeal(doc, 200, H - 118, primary, gold, esc(d.ref));
+    drawSeal(doc, M + 80, H - 118, primary, gold, esc(d.ref));
 
-    const sigCx = W - 235;
+    const sigCx = W - M - 108;
     const sig = imgBuffer(d.signature_data);
     if (sig) {
-      try { doc.image(sig, sigCx - 80, H - 165, { fit: [160, 52], align: 'center', valign: 'bottom' }); }
+      try { doc.image(sig, sigCx - 82, H - 168, { fit: [164, 54], align: 'center', valign: 'bottom' }); }
       catch { /* ignore bad image */ }
     }
     doc.save().lineWidth(0.8).strokeColor(primary).moveTo(sigCx - 100, H - 108).lineTo(sigCx + 100, H - 108).stroke().restore();
     doc.fillColor(primary).font('Times-Bold').fontSize(13)
-      .text(esc(d.signer_name) || 'El Secretario', sigCx - 110, H - 102, { width: 220, align: 'center' });
+      .text(esc(d.signer_name) || 'El Secretario', sigCx - 115, H - 102, { width: 230, align: 'center' });
     doc.fillColor(INK).font('Times-Roman').fontSize(10.5)
-      .text(esc(d.signer_role) || 'Secretario de la Fundación Española de Enfermedades Priónicas', sigCx - 120, H - 86, { width: 240, align: 'center' });
+      .text(esc(d.signer_role) || 'Secretario de la Fundación Española de Enfermedades Priónicas', sigCx - 125, H - 86, { width: 250, align: 'center' });
 
-    // Reference (bottom-centre)
     if (esc(d.ref)) {
       doc.fillColor(MUTED).font('Times-Roman').fontSize(9)
         .text(`Certificado nº ${esc(d.ref)}`, 40, H - 52, { width: W - 80, align: 'center', characterSpacing: 1 });

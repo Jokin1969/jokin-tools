@@ -55,17 +55,26 @@ test('defaults: save + reload per user', () => {
   assert.equal(db.getDefaults(7).signer_name, 'Otro');
 });
 
-test('pdf.render produces a valid PDF for every theme', async () => {
+test('pdf.render produces a valid PDF for every theme and orientation', async () => {
   for (const accent of Object.keys(pdf.THEMES)) {
-    const buf = await pdf.render({
-      ref: 'FEEP-2026-0001', recipient_name: 'María Fernández', role: 'ponente',
-      event: 'la IX Convención de Familiares', talk_title: 'Diagnóstico precoz',
-      date_text: '15 de marzo de 2026', place: 'Madrid',
-      signer_name: 'Joaquín Castilla', signer_role: 'Secretario', accent,
-    });
-    assert.ok(Buffer.isBuffer(buf) && buf.length > 1000, `PDF generated (${accent})`);
-    assert.equal(buf.slice(0, 5).toString('latin1'), '%PDF-', `valid PDF header (${accent})`);
+    for (const orientation of ['horizontal', 'vertical']) {
+      const buf = await pdf.render({
+        ref: 'FEEP-2026-0001', recipient_name: 'María Fernández', role: 'ponente',
+        event: 'la IX Convención de Familiares', talk_title: 'Diagnóstico precoz',
+        date_text: '15 de marzo de 2026', place: 'Madrid',
+        signer_name: 'Alberto Martínez', signer_role: 'Secretario', accent, orientation,
+      });
+      assert.ok(Buffer.isBuffer(buf) && buf.length > 1000, `PDF generated (${accent}/${orientation})`);
+      assert.equal(buf.slice(0, 5).toString('latin1'), '%PDF-', `valid PDF header (${accent}/${orientation})`);
+    }
   }
+});
+
+test('orientation is stored and returned on the certificate and defaults', () => {
+  const c = db.createCert({ recipient_name: 'Vert Test', orientation: 'vertical' }, 3);
+  assert.equal(db.getCert(c.id, 3).orientation, 'vertical');
+  db.saveDefaults(3, { signer_name: 'Alberto Martínez', orientation: 'vertical' });
+  assert.equal(db.getDefaults(3).orientation, 'vertical');
 });
 
 test('pdf.render tolerates missing fields and bad image data', async () => {
