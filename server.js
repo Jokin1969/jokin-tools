@@ -110,6 +110,14 @@ const imprimirDb = require('./apps/imprimir/db');
 const imprimirRouter = require('./apps/imprimir/routes');
 app.use('/imprimir', imprimirRouter);
 
+// ─── FEEP · Fundación Española de Enfermedades Priónicas (requires access) ──────
+// Self-contained section: its own router + its own SQLite file (apps/feep/db.js →
+// feep.db). Nothing here couples to the other apps, so it can be lifted out to the
+// foundation's own repository by copying apps/feep/ + feep.db. See MIGRATION.md.
+const feepDb = require('./apps/feep/db');
+const feepRouter = require('./apps/feep');
+app.use('/feep', requireApp('feep'), feepRouter);
+
 // ─── Hub root (requires login) ──────────────────────────────────────────────────
 app.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));

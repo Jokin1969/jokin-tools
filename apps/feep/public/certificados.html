@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Certificado de asistencia · FEEP</title>
+  <link rel="stylesheet" href="/feep/assets/feep.css?v=1" />
+</head>
+<body>
+  <nav class="feep-nav">
+    <svg class="feep-crest" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="24" cy="24" r="21" stroke="#cbb27e" stroke-width="2"/>
+      <circle cx="24" cy="24" r="16" stroke="#cbb27e" stroke-width="1"/>
+      <text x="24" y="29" text-anchor="middle" font-family="Georgia, serif" font-size="13" fill="#fbf9f3" font-weight="bold">FEEP</text>
+    </svg>
+    <div class="feep-brand">
+      <span class="t">Certificado de asistencia</span>
+      <span class="s">Fundación Española de Enfermedades Priónicas</span>
+    </div>
+    <span class="spacer"></span>
+    <a href="/feep">← Sección FEEP</a>
+  </nav>
+
+  <div class="feep-wrap">
+    <div class="cert-grid">
+      <!-- Form -->
+      <div class="panel">
+        <h2>Datos del certificado</h2>
+
+        <div class="field">
+          <label for="f-name">Nombre y apellidos *</label>
+          <input type="text" id="f-name" placeholder="p. ej. María de los Ángeles Fernández" />
+        </div>
+
+        <div class="field">
+          <label for="f-role">Condición</label>
+          <input type="text" id="f-role" list="roles" value="ponente" />
+          <datalist id="roles">
+            <option value="ponente"></option>
+            <option value="asistente"></option>
+            <option value="moderador"></option>
+            <option value="participante"></option>
+            <option value="miembro del comité organizador"></option>
+          </datalist>
+        </div>
+
+        <div class="field">
+          <label for="f-event">Evento</label>
+          <textarea id="f-event" placeholder="p. ej. la IX Convención de Familiares de la Fundación Española de Enfermedades Priónicas"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="f-talk">Título de la ponencia (opcional)</label>
+          <input type="text" id="f-talk" placeholder="p. ej. Avances en el diagnóstico precoz" />
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label for="f-date">Fecha completa</label>
+            <input type="text" id="f-date" placeholder="15 de marzo de 2026" />
+          </div>
+          <div class="field">
+            <label for="f-place">Lugar (opcional)</label>
+            <input type="text" id="f-place" placeholder="Madrid" />
+          </div>
+        </div>
+
+        <h3>Firma y firmante</h3>
+        <div class="field">
+          <label for="f-signer">Nombre del firmante</label>
+          <input type="text" id="f-signer" placeholder="Nombre del secretario/a" />
+        </div>
+        <div class="field">
+          <label for="f-signer-role">Cargo del firmante</label>
+          <input type="text" id="f-signer-role" value="Secretario de la Fundación Española de Enfermedades Priónicas" />
+        </div>
+
+        <div class="field">
+          <label>Logo de la fundación</label>
+          <div class="uploader">
+            <div class="drop" id="logo-drop">Subir logo (PNG/JPG)</div>
+            <img class="thumb" id="logo-thumb" alt="logo" />
+            <button type="button" class="clear" id="logo-clear">Quitar</button>
+            <input type="file" id="logo-input" accept="image/*" hidden />
+          </div>
+        </div>
+        <div class="field">
+          <label>Firma (imagen)</label>
+          <div class="uploader">
+            <div class="drop" id="sig-drop">Subir firma (PNG con fondo transparente recomendado)</div>
+            <img class="thumb" id="sig-thumb" alt="firma" />
+            <button type="button" class="clear" id="sig-clear">Quitar</button>
+            <input type="file" id="sig-input" accept="image/*" hidden />
+          </div>
+        </div>
+
+        <h3>Diseño</h3>
+        <div class="themes" id="themes"></div>
+
+        <div class="actions">
+          <button type="button" class="btn btn-ghost" id="btn-save-defaults" title="Guarda el logo, la firma y el firmante para no volver a introducirlos">★ Guardar logo/firma/firmante</button>
+        </div>
+        <div class="msg" id="form-msg"></div>
+      </div>
+
+      <!-- Preview + actions -->
+      <div class="panel">
+        <div class="preview-head">
+          <h2 style="margin:0;">Vista previa</h2>
+          <span class="preview-note" id="preview-note"></span>
+        </div>
+        <iframe class="preview-frame" id="preview" title="Vista previa del certificado"></iframe>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="btn-save">Guardar en repositorio</button>
+          <button type="button" class="btn btn-gold" id="btn-download">⬇ Descargar PDF</button>
+          <button type="button" class="btn btn-ghost" id="btn-refresh">↻ Actualizar vista</button>
+        </div>
+        <div class="msg" id="action-msg"></div>
+      </div>
+    </div>
+
+    <!-- Repository -->
+    <div class="repo panel">
+      <h2>Certificados guardados</h2>
+      <div id="repo-list"><p class="empty">Cargando…</p></div>
+    </div>
+  </div>
+
+  <script src="/feep/assets/certificados.js?v=1"></script>
+</body>
+</html>

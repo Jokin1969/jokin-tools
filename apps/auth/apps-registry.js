@@ -56,6 +56,19 @@ const APPS = [
       <path d="M24 32h16M24 39h16M24 46h10" stroke="#27AE60" stroke-width="2" stroke-linecap="round"/>
     </svg>`,
   },
+  {
+    id: 'feep',
+    name: 'FEEP',
+    path: '/feep',
+    desc: 'Sección de la Fundación Española de Enfermedades Priónicas. Herramientas propias de la fundación, empezando por los certificados de asistencia.',
+    tags: ['Fundación', 'Certificados', 'PDF'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <circle cx="32" cy="32" r="21" stroke="#1b2a4a" stroke-width="2"/>
+      <circle cx="32" cy="32" r="15" stroke="#b5893c" stroke-width="1.5"/>
+      <path d="M25 30h14M25 35h9" stroke="#b5893c" stroke-width="2" stroke-linecap="round"/>
+      <path d="M28 44l-1.5 6 5.5-3 5.5 3L36 44" stroke="#1b2a4a" stroke-width="1.6" stroke-linejoin="round"/>
+    </svg>`,
+  },
 ];
 
 const APP_IDS = APPS.map(a => a.id);
