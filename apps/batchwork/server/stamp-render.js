@@ -285,6 +285,36 @@ async function buildSvgAsync(cfgInput) {
   return buildSvg({ ...cfg, __sanitized: true });
 }
 
+// ── Self-contained fonts ────────────────────────────────────────────────────────
+// The browser preview uses the visitor's system fonts, but server-side
+// rasterisation goes through librsvg + fontconfig — and the production container
+// has no "DejaVu Sans" installed, so every glyph rendered as a missing-glyph box
+// (librsvg ignores SVG @font-face, so embedding the font doesn't help; it must be
+// visible to fontconfig). We ship the font in the repo and, at load time, register
+// its folder with fontconfig via a generated config that also keeps any system
+// fonts. Runs once, best-effort — a failure just leaves the previous behaviour.
+function setupFontconfig() {
+  if (process.env.FONTCONFIG_FILE) return; // respect an explicit host configuration
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    const fontsDir = path.join(__dirname, 'fonts');
+    if (!fs.existsSync(fontsDir)) return;
+    const cacheDir = path.join(os.tmpdir(), 'batchwork-fc-cache');
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const confPath = path.join(os.tmpdir(), 'batchwork-fonts.conf');
+    const conf = `<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "fonts.dtd">\n<fontconfig>\n`
+      + `  <include ignore_missing="yes">/etc/fonts/fonts.conf</include>\n`
+      + `  <dir>${fontsDir}</dir>\n`
+      + `  <cachedir>${cacheDir}</cachedir>\n`
+      + `</fontconfig>\n`;
+    fs.writeFileSync(confPath, conf);
+    process.env.FONTCONFIG_FILE = confPath; // read lazily by librsvg on first render
+  } catch { /* best-effort: fall back to system fonts */ }
+}
+setupFontconfig();
+
 // ── Rasterisation / export (mirrors qr-render) ──────────────────────────────────
 async function rasterize(svg, format, { width = 1024, bg = 'transparent' } = {}) {
   const sharp = require('sharp');
