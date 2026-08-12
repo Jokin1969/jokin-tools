@@ -42,8 +42,26 @@ function longFromISO(iso, addDays) {
   return `${dt.getUTCDate()} de ${MONTHS[dt.getUTCMonth()]} de ${dt.getUTCFullYear()}`;
 }
 
-// Build the certificate body sentence from the fields.
+// Two flavours of the same certificate, chosen at output time:
+//   'ponencia'   → certifies the person spoke (default; needs a role of "ponente")
+//   'asistencia' → certifies plain attendance, with the on-site schedule
+// The type falls back from the role for records saved before the distinction existed.
+function certType(d) {
+  if (d.cert_type === 'asistencia' || d.cert_type === 'ponencia') return d.cert_type;
+  return String(d.role || '').trim().toLowerCase() === 'ponente' ? 'ponencia' : 'asistencia';
+}
+
+// Build the certificate body sentence from the fields, per type.
 function bodyText(d) {
+  if (certType(d) === 'asistencia') {
+    let s = 'asistió';
+    if (esc(d.event)) s += ` a ${esc(d.event)}`;
+    if (esc(d.date_text)) s += `, celebrada el ${esc(d.date_text)}`;
+    if (esc(d.place)) s += ` en ${esc(d.place)}`;
+    if (esc(d.hora_inicio) && esc(d.hora_fin)) s += `, entre las ${esc(d.hora_inicio)} y las ${esc(d.hora_fin)} horas`;
+    if (esc(d.horas_presenciales)) s += ` (${esc(d.horas_presenciales)}h presenciales)`;
+    return s.replace(/\s+/g, ' ').trim() + '.';
+  }
   const role = esc(d.role) || 'ponente';
   let s = `actuó como ${role}`;
   if (esc(d.event)) s += ` en ${esc(d.event)}`;
@@ -154,8 +172,9 @@ function render(data) {
     y += vertical ? 16 : 14;
 
     doc.font('Times-Bold');
-    const tSize = fitSize('CERTIFICADO DE ASISTENCIA', vertical ? 24 : 30, 15, vertical ? 2.5 : 4);
-    y += draw('CERTIFICADO DE ASISTENCIA', y, 'Times-Bold', tSize, primary, { characterSpacing: vertical ? 2.5 : 4 });
+    const title = certType(d) === 'asistencia' ? 'CERTIFICADO DE ASISTENCIA' : 'CERTIFICADO DE PONENCIA';
+    const tSize = fitSize(title, vertical ? 24 : 30, 15, vertical ? 2.5 : 4);
+    y += draw(title, y, 'Times-Bold', tSize, primary, { characterSpacing: vertical ? 2.5 : 4 });
     y += 12;
     drawDivider(doc, cx, y, Math.min(300, contentW * 0.8), gold, primary);
     y += 22;

@@ -41,6 +41,10 @@ db.exec(`
     seal_data      TEXT,                 -- data URL (image) when seal_mode='imagen'
     accent         TEXT,                 -- theme colour key
     orientation    TEXT,                 -- 'horizontal' | 'vertical'
+    cert_type      TEXT,                 -- 'ponencia' (con ponencia) | 'asistencia' (estándar)
+    hora_inicio    TEXT,                 -- "10:00"  (certificado de asistencia)
+    hora_fin       TEXT,                 -- "18:30"  (certificado de asistencia)
+    horas_presenciales TEXT,             -- "6,5"    (certificado de asistencia)
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_feep_cert_user ON feep_certificates(user_id);
@@ -69,6 +73,8 @@ for (const [tbl, col] of [
   ['feep_certificates', 'orientation'], ['feep_cert_defaults', 'orientation'], ['feep_certificates', 'event_date'],
   ['feep_certificates', 'seal_mode'], ['feep_certificates', 'seal_data'],
   ['feep_cert_defaults', 'seal_mode'], ['feep_cert_defaults', 'seal_data'],
+  ['feep_certificates', 'cert_type'], ['feep_certificates', 'hora_inicio'],
+  ['feep_certificates', 'hora_fin'], ['feep_certificates', 'horas_presenciales'],
 ]) {
   try { db.prepare(`ALTER TABLE ${tbl} ADD COLUMN ${col} TEXT`).run(); } catch { /* already present */ }
 }
@@ -93,7 +99,8 @@ function nextRef(year) {
 
 const CERT_FIELDS = ['recipient_name', 'role', 'event', 'talk_title', 'date_text', 'event_date',
   'place', 'signer_name', 'signer_role', 'foundation', 'logo_data', 'signature_data',
-  'seal_mode', 'seal_data', 'accent', 'orientation'];
+  'seal_mode', 'seal_data', 'accent', 'orientation',
+  'cert_type', 'hora_inicio', 'hora_fin', 'horas_presenciales'];
 
 function createCert(data, userId, refYear) {
   const row = {
@@ -106,10 +113,12 @@ function createCert(data, userId, refYear) {
   const info = db.prepare(
     `INSERT INTO feep_certificates
        (ref, user_id, recipient_name, role, event, talk_title, date_text, event_date, place,
-        signer_name, signer_role, foundation, logo_data, signature_data, seal_mode, seal_data, accent, orientation)
+        signer_name, signer_role, foundation, logo_data, signature_data, seal_mode, seal_data, accent, orientation,
+        cert_type, hora_inicio, hora_fin, horas_presenciales)
      VALUES
        (@ref, @user_id, @recipient_name, @role, @event, @talk_title, @date_text, @event_date, @place,
-        @signer_name, @signer_role, @foundation, @logo_data, @signature_data, @seal_mode, @seal_data, @accent, @orientation)`
+        @signer_name, @signer_role, @foundation, @logo_data, @signature_data, @seal_mode, @seal_data, @accent, @orientation,
+        @cert_type, @hora_inicio, @hora_fin, @horas_presenciales)`
   ).run(row);
   return getCert(info.lastInsertRowid, userId);
 }
@@ -128,7 +137,7 @@ function listCerts(userId) {
   const args = userId != null ? [userId] : [];
   return db.prepare(
     `SELECT id, ref, recipient_name, role, event, talk_title, date_text, place,
-            signer_name, created_at,
+            signer_name, cert_type, created_at,
             (logo_data IS NOT NULL) AS has_logo, (signature_data IS NOT NULL) AS has_signature
        FROM feep_certificates ${where} ORDER BY created_at DESC, id DESC`
   ).all(...args);

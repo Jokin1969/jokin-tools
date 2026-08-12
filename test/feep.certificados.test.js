@@ -103,6 +103,31 @@ test('seal mode is stored on the certificate and defaults; PDF renders each mode
   }
 });
 
+test('cert_type + schedule are stored and listed; both body types render', async () => {
+  const c = db.createCert({
+    recipient_name: 'Asistente Prueba', role: 'asistente', cert_type: 'asistencia',
+    event: 'la V Convención de afectados y profesionales de enfermedades priónicas',
+    date_text: '20 de noviembre de 2021', place: 'Madrid',
+    hora_inicio: '10:00', hora_fin: '18:30', horas_presenciales: '6,5',
+  }, 42);
+  const full = db.getCert(c.id, 42);
+  assert.equal(full.cert_type, 'asistencia');
+  assert.equal(full.hora_inicio, '10:00');
+  assert.equal(full.hora_fin, '18:30');
+  assert.equal(full.horas_presenciales, '6,5');
+  // the repository list carries the type so it can label each row.
+  assert.equal(db.listCerts(42).find(x => x.id === c.id).cert_type, 'asistencia');
+
+  for (const cert_type of ['ponencia', 'asistencia']) {
+    const buf = await pdf.render({
+      recipient_name: 'X', role: 'ponente', cert_type,
+      event: 'la V Convención', date_text: '20 de noviembre de 2021', place: 'Madrid',
+      talk_title: 'Una ponencia', hora_inicio: '10:00', hora_fin: '18:30', horas_presenciales: '6,5',
+    });
+    assert.equal(buf.slice(0, 5).toString('latin1'), '%PDF-', `PDF for ${cert_type}`);
+  }
+});
+
 test('event_date is stored, and issue date = event + 1 day (with rollover)', () => {
   const c = db.createCert({ recipient_name: 'Fecha Test', event_date: '2018-11-30', date_text: '30 de noviembre de 2018' }, 3);
   assert.equal(db.getCert(c.id, 3).event_date, '2018-11-30');

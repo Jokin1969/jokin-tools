@@ -10,7 +10,9 @@ const THEME_COLORS = {
   clasico: '#1b2a4a', burdeos: '#6e1e2a', verde: '#1f4636', grafito: '#2f3336',
 };
 
-const state = { logo: null, signature: null, seal: null, sealMode: 'emblema', accent: 'clasico', orientation: 'horizontal', meta: null, previewUrl: null };
+const state = { logo: null, signature: null, seal: null, sealMode: 'emblema', accent: 'clasico', orientation: 'horizontal', certType: 'ponencia', meta: null, previewUrl: null };
+
+function isPonente() { return ($('f-role').value || '').trim().toLowerCase() === 'ponente'; }
 
 function longDateToday() {
   const d = new Date();
@@ -51,7 +53,9 @@ async function uploadImage(file, kind) {
   return data.dataUrl;
 }
 
-function collectData() {
+// The certificate info is identical for both types; `typeOverride` lets an output
+// block (Ponencia / Asistencia) render/save its own type regardless of the preview.
+function collectData(typeOverride) {
   return {
     recipient_name: $('f-name').value,
     role: $('f-role').value,
@@ -60,6 +64,9 @@ function collectData() {
     date_text: $('f-date').value,
     event_date: $('f-event-date').value || null,
     place: $('f-place').value,
+    hora_inicio: $('f-hi').value,
+    hora_fin: $('f-hf').value,
+    horas_presenciales: $('f-hp').value,
     signer_name: $('f-signer').value,
     signer_role: $('f-signer-role').value,
     foundation: state.meta ? state.meta.foundation : undefined,
@@ -69,7 +76,37 @@ function collectData() {
     seal_data: state.seal,
     accent: state.accent,
     orientation: state.orientation,
+    cert_type: typeOverride || state.certType,
   };
+}
+
+// Filename for a downloaded PDF, differentiated by type.
+function downloadName(type, name) {
+  const stem = type === 'asistencia' ? 'Certificado_de_Asistencia' : 'Certificado_de_Ponencia';
+  const who = (name || 'certificado').replace(/[^\w.\- áéíóúñÁÉÍÓÚÑ]/gi, '_');
+  return `${stem}_${who}.pdf`;
+}
+
+// ── Certificate type (drives the preview) ───────────────────────────────────────
+function setCertType(type, skipPreview) {
+  state.certType = type === 'asistencia' ? 'asistencia' : 'ponencia';
+  document.querySelectorAll('#cert-type .seg-btn').forEach(b => b.classList.toggle('sel', b.dataset.type === state.certType));
+  if (!skipPreview) schedulePreview();
+}
+function wireCertType() {
+  document.querySelectorAll('#cert-type .seg-btn').forEach(b =>
+    b.addEventListener('click', () => { if (!b.disabled) setCertType(b.dataset.type); }));
+}
+
+// "Certificado de Ponencia" is only valid when the condition is «ponente»: disable
+// its preview tab and its output block, and fall back to Asistencia when it's off.
+function updatePonenteAvailability() {
+  const on = isPonente();
+  const pTab = document.querySelector('#cert-type .seg-btn[data-type="ponencia"]');
+  if (pTab) { pTab.disabled = !on; pTab.title = on ? '' : 'Pon «ponente» en la condición para activarlo'; }
+  $('out-ponencia').classList.toggle('disabled', !on);
+  ['pon-save', 'pon-download'].forEach(id => { $(id).disabled = !on; });
+  if (!on && state.certType === 'ponencia') setCertType('asistencia', true);
 }
 
 // Seal toggle: emblema | ninguno | imagen
@@ -173,9 +210,11 @@ async function refreshRepo() {
       const row = document.createElement('div');
       row.className = 'repo-item';
       const when = fmtDate(it.created_at);
+      const kind = (it.cert_type === 'asistencia' || (!it.cert_type && (it.role || '').trim().toLowerCase() !== 'ponente'))
+        ? 'Asistencia' : 'Ponencia';
       row.innerHTML =
         `<div class="main">
-           <div class="name">${esc(it.recipient_name)}</div>
+           <div class="name">${esc(it.recipient_name)} <span class="tag">${kind}</span></div>
            <div class="meta">${esc(it.ref || '')}${it.role ? ' · ' + esc(it.role) : ''}${it.event ? ' · ' + esc(clip(it.event, 70)) : ''}</div>
            <div class="meta">${esc(it.date_text || '')}${it.date_text ? ' · ' : ''}creado ${when}</div>
            <div class="row-actions">
@@ -204,12 +243,17 @@ async function loadCert(id) {
     $('f-event-date').value = item.event_date || '';
     $('f-date').value = item.date_text || '';
     $('f-place').value = item.place || '';
+    $('f-hi').value = item.hora_inicio || '';
+    $('f-hf').value = item.hora_fin || '';
+    $('f-hp').value = item.horas_presenciales || '';
     $('f-signer').value = item.signer_name || '';
     $('f-signer-role').value = item.signer_role || '';
     state.accent = item.accent || 'clasico';
     renderThemes(state.meta.themes);
     setOrient(item.orientation || 'horizontal', true);
     setSealMode(item.seal_mode || 'emblema', true);
+    updatePonenteAvailability();
+    setCertType(item.cert_type || (isPonente() ? 'ponencia' : 'asistencia'), true);
     wireUploader['set_logo'](item.logo_data || null);
     wireUploader['set_signature'](item.signature_data || null);
     wireUploader['set_seal'](item.seal_data || null);
@@ -236,29 +280,34 @@ async function deleteCert(it) {
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────────
+async function downloadType(type) {
+  if (!$('f-name').value.trim()) { setMsg('action-msg', 'Indica el nombre y apellidos.', true); return; }
+  try {
+    const blob = await apiPdfBlob('/preview?format=pdf', collectData(type));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = downloadName(type, $('f-name').value.trim());
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch (err) { setMsg('action-msg', err.message, true); }
+}
+async function saveType(type) {
+  if (!$('f-name').value.trim()) { setMsg('action-msg', 'Indica el nombre y apellidos.', true); return; }
+  try {
+    const { item } = await api('/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collectData(type)) });
+    const label = type === 'asistencia' ? 'Certificado de asistencia' : 'Certificado de Ponencia';
+    setMsg('action-msg', `${label} guardado como ${item.ref}.`, false);
+    refreshRepo();
+  } catch (err) { setMsg('action-msg', err.message, true); }
+}
+
 function wireActions() {
   $('btn-refresh').addEventListener('click', runPreview);
 
-  $('btn-download').addEventListener('click', async () => {
-    if (!$('f-name').value.trim()) { setMsg('action-msg', 'Indica el nombre y apellidos.', true); return; }
-    try {
-      const blob = await apiPdfBlob('/preview?format=pdf', collectData());
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `Certificado_${($('f-name').value.trim() || 'certificado').replace(/[^\w.\- áéíóúñÁÉÍÓÚÑ]/gi, '_')}.pdf`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    } catch (err) { setMsg('action-msg', err.message, true); }
-  });
-
-  $('btn-save').addEventListener('click', async () => {
-    if (!$('f-name').value.trim()) { setMsg('action-msg', 'Indica el nombre y apellidos.', true); return; }
-    try {
-      const { item } = await api('/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collectData()) });
-      setMsg('action-msg', `Guardado como ${item.ref}.`, false);
-      refreshRepo();
-    } catch (err) { setMsg('action-msg', err.message, true); }
-  });
+  $('pon-download').addEventListener('click', () => downloadType('ponencia'));
+  $('pon-save').addEventListener('click', () => saveType('ponencia'));
+  $('asi-download').addEventListener('click', () => downloadType('asistencia'));
+  $('asi-save').addEventListener('click', () => saveType('asistencia'));
 
   $('btn-save-defaults').addEventListener('click', async () => {
     try {
@@ -283,8 +332,11 @@ function wireActions() {
     schedulePreview();
   });
 
+  // The condition drives whether the Ponencia certificate is available.
+  $('f-role').addEventListener('input', updatePonenteAvailability);
+
   // Re-preview on edits
-  ['f-name', 'f-role', 'f-event', 'f-talk', 'f-date', 'f-place', 'f-signer', 'f-signer-role']
+  ['f-name', 'f-role', 'f-event', 'f-talk', 'f-date', 'f-place', 'f-hi', 'f-hf', 'f-hp', 'f-signer', 'f-signer-role']
     .forEach(id => $(id).addEventListener('input', schedulePreview));
 }
 
@@ -305,10 +357,13 @@ function fmtDate(s) {
   wireUploader('seal', 700);
   wireOrient();
   wireSeal();
+  wireCertType();
   wireActions();
   setOrient('horizontal', true);
   setSealMode('emblema', true);
   $('f-date').value = longDateToday();
+  updatePonenteAvailability();
+  setCertType(isPonente() ? 'ponencia' : 'asistencia', true);
   try {
     const meta = await api('/meta');
     state.meta = meta;

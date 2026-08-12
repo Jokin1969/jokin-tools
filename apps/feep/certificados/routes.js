@@ -89,8 +89,24 @@ function cleanData(body) {
     seal_data: img(b.seal_data),
     accent,
     orientation: b.orientation === 'vertical' ? 'vertical' : 'horizontal',
+    // 'ponencia' (con ponencia) vs 'asistencia' (estándar), resuelto en los botones
+    // de salida. Si no se indica, se deduce de la condición (rol).
+    cert_type: ['ponencia', 'asistencia'].includes(b.cert_type)
+      ? b.cert_type
+      : (String(b.role || '').trim().toLowerCase() === 'ponente' ? 'ponencia' : 'asistencia'),
+    hora_inicio: str(b.hora_inicio, 12),
+    hora_fin: str(b.hora_fin, 12),
+    horas_presenciales: str(b.horas_presenciales, 16),
   };
 }
+
+// Human label + filename type for a certificate, from its type (or role fallback).
+function typeOf(c) {
+  if (c.cert_type === 'asistencia' || c.cert_type === 'ponencia') return c.cert_type;
+  return String(c.role || '').trim().toLowerCase() === 'ponente' ? 'ponencia' : 'asistencia';
+}
+function typeLabel(c) { return typeOf(c) === 'asistencia' ? 'Certificado de asistencia' : 'Certificado de Ponencia'; }
+function fileStem(c) { return typeOf(c) === 'asistencia' ? 'Certificado_de_Asistencia' : 'Certificado_de_Ponencia'; }
 
 const certToRender = (c) => ({
   ref: c.ref, recipient_name: c.recipient_name, role: c.role, event: c.event,
@@ -99,6 +115,8 @@ const certToRender = (c) => ({
   logo_data: c.logo_data, signature_data: c.signature_data,
   seal_mode: c.seal_mode, seal_data: c.seal_data, accent: c.accent,
   orientation: c.orientation,
+  cert_type: c.cert_type, hora_inicio: c.hora_inicio, hora_fin: c.hora_fin,
+  horas_presenciales: c.horas_presenciales,
 });
 
 // Render data for a SAVED certificate. If it has no logo/signature/seal of its
@@ -260,7 +278,7 @@ router.get('/api/cert/:id(\\d+)/pdf', async (req, res) => {
     const c = db.getCert(Number(req.params.id), req.user.id);
     if (!c) return res.status(404).json({ error: 'No encontrado' });
     const buf = await render(renderData(c, req.user.id));
-    setDownload(res, `Certificado_${safeStem(c.recipient_name)}.pdf`, 'application/pdf');
+    setDownload(res, `${fileStem(c)}_${safeStem(c.recipient_name)}.pdf`, 'application/pdf');
     res.send(buf);
   } catch (err) { fail(res, err); }
 });
@@ -276,6 +294,8 @@ router.post('/api/cert/:id(\\d+)/email', json, async (req, res) => {
     if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) { const e = new Error('Destinatario de email no válido.'); e.status = 400; throw e; }
 
     const buf = await render(renderData(c, req.user.id));
+    const label = typeLabel(c);
+    const labelLower = label.charAt(0).toLowerCase() + label.slice(1); // "certificado de …"
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: Number(process.env.SMTP_PORT) || 587,
@@ -287,10 +307,10 @@ router.post('/api/cert/:id(\\d+)/email', json, async (req, res) => {
         <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;background:#fff;border:1px solid #e2ddd0;border-radius:12px;overflow:hidden;">
           <tr><td style="background:#1b2a4a;padding:22px 28px;">
             <p style="margin:0;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#c9b280;">Fundación Española de Enfermedades Priónicas</p>
-            <h1 style="margin:6px 0 0;font-size:20px;color:#fbf9f3;">Certificado de asistencia</h1>
+            <h1 style="margin:6px 0 0;font-size:20px;color:#fbf9f3;">${escapeHtml(label)}</h1>
           </td></tr>
           <tr><td style="padding:26px 28px;color:#33322e;font-size:15px;line-height:1.6;">
-            <p style="margin:0 0 10px;">Adjuntamos el certificado de asistencia a nombre de <strong>${escapeHtml(c.recipient_name)}</strong>.</p>
+            <p style="margin:0 0 10px;">Adjuntamos el ${escapeHtml(labelLower)} a nombre de <strong>${escapeHtml(c.recipient_name)}</strong>.</p>
             <p style="margin:0;color:#8a8578;font-size:13px;">Referencia: ${escapeHtml(c.ref || '')}</p>
           </td></tr>
         </table>
@@ -299,9 +319,9 @@ router.post('/api/cert/:id(\\d+)/email', json, async (req, res) => {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM || `"FEEP · Certificados" <${user}>`,
       to,
-      subject: `Certificado de asistencia · ${c.recipient_name}`,
+      subject: `${label} · ${c.recipient_name}`,
       html,
-      attachments: [{ filename: `Certificado_${safeStem(c.recipient_name)}.pdf`, content: buf, contentType: 'application/pdf' }],
+      attachments: [{ filename: `${fileStem(c)}_${safeStem(c.recipient_name)}.pdf`, content: buf, contentType: 'application/pdf' }],
     });
     res.json({ ok: true, to });
   } catch (err) { fail(res, err); }

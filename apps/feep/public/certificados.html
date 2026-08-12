@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Certificado de asistencia · FEEP</title>
-  <link rel="stylesheet" href="/feep/assets/feep.css?v=3" />
+  <link rel="stylesheet" href="/feep/assets/feep.css?v=4" />
 </head>
 <body>
   <nav class="feep-nav">
@@ -69,6 +69,24 @@
           <label for="f-date">Texto de la fecha en el certificado</label>
           <input type="text" id="f-date" placeholder="15 de marzo de 2026" />
           <div class="hint">Se rellena solo desde la fecha del evento; edítalo si es un rango (p. ej. «14-16 de noviembre de 2025»).</div>
+        </div>
+
+        <div class="field">
+          <label>Horario <span class="hint" style="font-weight:400">(solo para el certificado de asistencia)</span></label>
+          <div class="row3">
+            <div class="field" style="margin:0">
+              <input type="text" id="f-hi" placeholder="10:00" />
+              <div class="hint">Hora de inicio</div>
+            </div>
+            <div class="field" style="margin:0">
+              <input type="text" id="f-hf" placeholder="18:30" />
+              <div class="hint">Hora de fin</div>
+            </div>
+            <div class="field" style="margin:0">
+              <input type="text" id="f-hp" placeholder="6,5" />
+              <div class="hint">Horas presenciales</div>
+            </div>
+          </div>
         </div>
 
         <h3>Firma y firmante</h3>
@@ -144,11 +162,30 @@
           <h2 style="margin:0;">Vista previa</h2>
           <span class="preview-note" id="preview-note"></span>
         </div>
+        <div class="seg" id="cert-type" style="margin-bottom:10px;">
+          <button type="button" class="seg-btn" data-type="ponencia">Certificado de Ponencia</button>
+          <button type="button" class="seg-btn" data-type="asistencia">Certificado de asistencia</button>
+        </div>
         <img class="preview-frame" id="preview" alt="Vista previa del certificado" />
-        <div class="actions">
-          <button type="button" class="btn btn-primary" id="btn-save">Guardar en repositorio</button>
-          <button type="button" class="btn btn-gold" id="btn-download">⬇ Descargar PDF</button>
-          <button type="button" class="btn btn-ghost" id="btn-refresh">↻ Actualizar vista</button>
+        <button type="button" class="btn btn-ghost" id="btn-refresh" style="margin-top:10px;">↻ Actualizar vista</button>
+
+        <!-- Two output blocks: the certificate info is the same; only the type differs -->
+        <div class="out-block" id="out-ponencia">
+          <div class="out-title">Certificado de Ponencia</div>
+          <div class="out-hint" id="pon-hint">Certifica la ponencia. Disponible cuando la condición es «ponente».</div>
+          <div class="actions">
+            <button type="button" class="btn btn-primary" id="pon-save">Guardar en repositorio</button>
+            <button type="button" class="btn btn-gold" id="pon-download">⬇ Descargar PDF</button>
+          </div>
+        </div>
+
+        <div class="out-block" id="out-asistencia">
+          <div class="out-title">Certificado de asistencia</div>
+          <div class="out-hint">Certifica la asistencia, con el horario (entre las X y las Y horas, horas presenciales).</div>
+          <div class="actions">
+            <button type="button" class="btn btn-primary" id="asi-save">Guardar en repositorio</button>
+            <button type="button" class="btn btn-gold" id="asi-download">⬇ Descargar PDF</button>
+          </div>
         </div>
         <div class="msg" id="action-msg"></div>
       </div>
@@ -161,6 +198,6 @@
     </div>
   </div>
 
-  <script src="/feep/assets/certificados.js?v=7"></script>
+  <script src="/feep/assets/certificados.js?v=8"></script>
 </body>
 </html>
