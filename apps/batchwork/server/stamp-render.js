@@ -70,6 +70,8 @@ function sanitizeConfig(input = {}) {
     separator: ['star', 'dot', 'none'].includes(input.separator) ? input.separator : 'star',
     logo: hasLogo ? input.logo : null,
     logoScale: Math.min(70, Math.max(15, Number(input.logoScale) || 40)),
+    logoInk: input.logoInk != null ? !!input.logoInk : true, // convertir el logo a la tinta del sello
+    __logoReady: !!input.__logoReady, // ya preprocesado (no volver a entintar)
     texture,
     intensity: Math.min(100, Math.max(0, input.intensity == null ? 55 : Number(input.intensity))),
     rotation: Math.min(20, Math.max(-20, Number(input.rotation) || 0)),
@@ -231,6 +233,58 @@ function starPath(cx, cy, r, fill) {
   return `<path d="${d}z" fill="${fill}"/>`;
 }
 
+// ── Turn a logo into a monochrome silhouette in the stamp's ink ─────────────────
+// So a stamp can be "generated from a logo": the emblem reads as engraved ink, not
+// a pasted photo. If the logo has transparency, its opaque shape becomes the
+// silhouette (regardless of colour); otherwise dark areas become ink and light
+// areas transparent (a logo on a white background).
+function hexToRgb(hex) {
+  let h = String(hex || '#000').replace('#', '');
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const num = parseInt(h, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+async function inkifyLogo(dataUrl, inkHex) {
+  const m = /^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/.exec(String(dataUrl || ''));
+  if (!m) return dataUrl;
+  const sharp = require('sharp');
+  const buf = Buffer.from(m[1], 'base64');
+  const { data, info } = await sharp(buf, { failOn: 'none' })
+    .resize({ width: 600, height: 600, fit: 'inside', withoutEnlargement: true })
+    .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const ch = info.channels;
+  // Does the image carry real transparency (i.e. a cut-out shape)?
+  let transparent = false;
+  for (let i = 3; i < data.length; i += ch) { if (data[i] < 240) { transparent = true; break; } }
+  const ink = hexToRgb(inkHex);
+  const out = Buffer.alloc(data.length);
+  for (let i = 0; i < data.length; i += ch) {
+    const a = data[i + 3];
+    let inkA;
+    if (transparent) {
+      inkA = a / 255;                                   // opaque shape → ink
+    } else {
+      const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      inkA = 1 - lum / 255;                             // dark → ink, white → clear
+    }
+    inkA = Math.max(0, Math.min(1, (inkA - 0.08) * 1.7)); // a touch more contrast
+    out[i] = ink.r; out[i + 1] = ink.g; out[i + 2] = ink.b; out[i + 3] = Math.round(inkA * 255);
+  }
+  const png = await sharp(out, { raw: { width: info.width, height: info.height, channels: ch } }).png().toBuffer();
+  return 'data:image/png;base64,' + png.toString('base64');
+}
+
+// Build the SVG, first converting the central logo to ink when requested. Async
+// because the logo conversion uses sharp. Preview and export both go through here.
+async function buildSvgAsync(cfgInput) {
+  const cfg = cfgInput.__sanitized ? cfgInput : sanitizeConfig(cfgInput);
+  if (cfg.logo && cfg.logoInk && !cfg.__logoReady) {
+    const inked = await inkifyLogo(cfg.logo, cfg.ink);
+    return buildSvg({ ...cfg, logo: inked, __logoReady: true, __sanitized: true });
+  }
+  return buildSvg({ ...cfg, __sanitized: true });
+}
+
 // ── Rasterisation / export (mirrors qr-render) ──────────────────────────────────
 async function rasterize(svg, format, { width = 1024, bg = 'transparent' } = {}) {
   const sharp = require('sharp');
@@ -272,8 +326,7 @@ async function toPdf(svg, { name = 'Sello' } = {}) {
 
 async function exportConfig(cfgInput, format, meta = {}) {
   const cfg = sanitizeConfig(cfgInput);
-  cfg.__sanitized = true;
-  const { svg } = buildSvg(cfg);
+  const { svg } = await buildSvgAsync({ ...cfg, __sanitized: true });
   if (format === 'svg') return { buffer: Buffer.from(svg), mime: 'image/svg+xml', ext: 'svg' };
   if (format === 'pdf') return { buffer: await toPdf(svg, { name: meta.name }), mime: 'application/pdf', ext: 'pdf' };
   return rasterize(svg, format, { width: meta.width || 1024, bg: cfg.bg });
@@ -294,7 +347,7 @@ function texturePreviews() {
 }
 
 module.exports = {
-  sanitizeConfig, buildSvg, rasterize, toPdf, exportConfig,
+  sanitizeConfig, buildSvg, buildSvgAsync, inkifyLogo, rasterize, toPdf, exportConfig,
   shapePreviews, texturePreviews,
   SHAPES, SHAPE_IDS, TEXTURES, TEXTURE_IDS, INK_PRESETS,
 };

@@ -20,7 +20,7 @@
       name: '', shape: 'doubleCircle', ink: '#1B3A8C', transparent: true, bg: '#ffffff',
       border: true, borderWidth: 1.6, innerLines: false, separator: 'star',
       topText: '', bottomText: '', centerText: '', arcSize: 1, centerSize: 1,
-      logo: null, logoName: '', logoScale: 40,
+      logo: null, logoName: '', logoScale: 40, logoInk: true,
       texture: 'entintado', intensity: 55, rotation: 0,
     };
   }
@@ -33,7 +33,7 @@
       innerLines: state.innerLines, separator: state.separator,
       topText: state.topText, bottomText: state.bottomText, centerText: state.centerText,
       arcSize: state.arcSize, centerSize: state.centerSize,
-      logo: state.logo, logoScale: state.logoScale,
+      logo: state.logo, logoScale: state.logoScale, logoInk: state.logoInk,
       texture: state.texture, intensity: state.intensity, rotation: state.rotation,
     };
   }
@@ -114,6 +114,7 @@
               <button type="button" class="qr-btn-x" id="st-logo-remove" style="display:none" title="Quitar logo">✕</button>
             </div>
             <div class="qr-logo-size" id="st-logo-size" style="display:none">
+              <label class="qr-check"><input type="checkbox" id="st-logo-ink" checked> Convertir el logo a la tinta del sello (silueta)</label>
               <label class="qr-slider"><span class="qr-hint">Tamaño del logo</span>
                 <input type="range" id="st-logo-scale" min="15" max="70" value="40" /></label>
             </div>
@@ -327,7 +328,7 @@
     state.separator = cfg.separator || 'star';
     state.topText = cfg.topText || ''; state.bottomText = cfg.bottomText || ''; state.centerText = cfg.centerText || '';
     state.arcSize = cfg.arcSize || 1; state.centerSize = cfg.centerSize || 1;
-    state.logo = cfg.logo || null; state.logoName = cfg.logo ? 'logo' : ''; state.logoScale = cfg.logoScale || 40;
+    state.logo = cfg.logo || null; state.logoName = cfg.logo ? 'logo' : ''; state.logoScale = cfg.logoScale || 40; state.logoInk = cfg.logoInk !== false;
     state.texture = cfg.texture || 'entintado'; state.intensity = cfg.intensity == null ? 55 : cfg.intensity;
     state.rotation = cfg.rotation || 0;
     syncControls(); schedulePreview();
@@ -342,7 +343,7 @@
     q('st-border').checked = state.border; q('st-inner').checked = state.innerLines; q('st-sep').value = state.separator;
     q('st-bw').value = state.borderWidth; q('st-arc').value = state.arcSize; q('st-cs').value = state.centerSize;
     q('st-rot').value = state.rotation; q('st-intensity').value = state.intensity;
-    q('st-logo-scale').value = state.logoScale; q('st-logo-name').textContent = state.logoName;
+    q('st-logo-scale').value = state.logoScale; q('st-logo-ink').checked = state.logoInk; q('st-logo-name').textContent = state.logoName;
     toggleLogoUI();
     markActive('st-shapes', state.shape); markActive('st-textures', state.texture);
   }
@@ -403,6 +404,7 @@
     on('st-logo-file', 'change', (e) => handleLogo(e.target.files[0]));
     on('st-logo-remove', 'click', clearLogo);
     on('st-logo-scale', 'input', (e) => { state.logoScale = Number(e.target.value); schedulePreview(); });
+    on('st-logo-ink', 'change', (e) => { state.logoInk = e.target.checked; schedulePreview(); });
     on('st-download', 'click', doDownload);
     on('st-copy', 'click', doCopy);
     on('st-send', 'click', doSend);

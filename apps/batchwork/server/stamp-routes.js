@@ -54,9 +54,9 @@ router.get('/meta', (req, res) => {
 });
 
 // ── Live preview: returns the SVG for the given config ──────────────────────────
-router.post('/render', json, (req, res) => {
+router.post('/render', json, async (req, res) => {
   try {
-    const { svg } = render.buildSvg(req.body || {});
+    const { svg } = await render.buildSvgAsync(req.body || {});
     res.json({ svg });
   } catch (err) { fail(res, err); }
 });
@@ -129,11 +129,11 @@ router.get('/list', (req, res) => {
   try { res.json({ items: store.list(req.user.id) }); } catch (err) { fail(res, err); }
 });
 
-router.post('/save', json, (req, res) => {
+router.post('/save', json, async (req, res) => {
   try {
     const { name, config = {} } = req.body || {};
     const cfg = render.sanitizeConfig(config);
-    const { svg } = render.buildSvg(cfg);
+    const { svg } = await render.buildSvgAsync(config); // thumbnail with the logo inked
     const saved = store.create({ name, subtitle: subtitleOf(cfg), config, thumb: svg }, req.user.id);
     res.status(201).json({ item: saved });
   } catch (err) { fail(res, err); }

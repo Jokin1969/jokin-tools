@@ -58,6 +58,23 @@ test('export: PNG and SVG buffers', async () => {
   assert.ok(svg.buffer.toString('utf8').startsWith('<svg'));
 });
 
+test('inkifyLogo + buildSvgAsync: a central logo becomes an inked silhouette', async () => {
+  const sharp = require('sharp');
+  const logo = 'data:image/png;base64,' + (await sharp({
+    create: { width: 24, height: 24, channels: 4, background: { r: 20, g: 20, b: 20, alpha: 1 } },
+  }).png().toBuffer()).toString('base64');
+
+  const inked = await render.inkifyLogo(logo, '#1B3A8C');
+  assert.match(inked, /^data:image\/png;base64,/);
+  assert.notEqual(inked, logo, 'logo is re-processed to ink');
+
+  const { svg } = await render.buildSvgAsync({ shape: 'circle', topText: 'FEEP', logo, logoInk: true, ink: '#1B3A8C' });
+  assert.ok(svg.includes('<image'), 'inked logo embedded');
+
+  const { svg: svgOrig } = await render.buildSvgAsync({ shape: 'circle', logo, logoInk: false });
+  assert.ok(svgOrig.includes('<image'), 'original logo embedded when not inked');
+});
+
 test('store: create/list/get/delete, scoped per user', () => {
   const cfg = { shape: 'doubleCircle', topText: 'FEEP', centerText: 'Oficial', texture: 'entintado' };
   const s = store.create({ name: 'Mi sello', subtitle: 'FEEP · Oficial', config: cfg, thumb: '<svg/>' }, 7);
