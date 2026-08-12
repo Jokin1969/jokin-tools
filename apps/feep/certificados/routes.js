@@ -11,7 +11,7 @@ const multer = require('multer');
 const sharp = require('sharp');
 const nodemailer = require('nodemailer');
 const db = require('../db');
-const { render, THEMES } = require('./pdf');
+const { render, renderPng, THEMES } = require('./pdf');
 
 const router = express.Router();
 const PUB = path.join(__dirname, '../public');
@@ -203,9 +203,24 @@ router.post('/api/preview', json, async (req, res) => {
   try {
     const data = cleanData(req.body);
     if (!data.recipient_name) data.recipient_name = 'Nombre y apellidos';
-    const buf = await render({ ...data, ref: (req.body && req.body.ref) || '' });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.send(buf);
+    const payload = { ...data, ref: (req.body && req.body.ref) || '' };
+    // The download button asks for the real PDF; the live preview wants a PNG.
+    if (req.query.format === 'pdf') {
+      const buf = await render(payload);
+      res.setHeader('Content-Type', 'application/pdf');
+      return res.send(buf);
+    }
+    // Serve a PNG so the preview shows on every device (iOS Safari won't render a
+    // PDF blob in an <img>). Fall back to the PDF if pdftoppm isn't available.
+    try {
+      const png = await renderPng(payload);
+      res.setHeader('Content-Type', 'image/png');
+      res.send(png);
+    } catch {
+      const buf = await render(payload);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.send(buf);
+    }
   } catch (err) { fail(res, err); }
 });
 

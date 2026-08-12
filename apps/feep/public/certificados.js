@@ -105,7 +105,7 @@ async function runPreview() {
     const blob = await apiPdfBlob('/preview', collectData());
     if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
     state.previewUrl = URL.createObjectURL(blob);
-    $('preview').src = state.previewUrl + '#toolbar=0&view=FitH';
+    $('preview').src = state.previewUrl;
     $('preview-note').textContent = '';
   } catch (err) {
     $('preview-note').textContent = err.message;
@@ -242,7 +242,7 @@ function wireActions() {
   $('btn-download').addEventListener('click', async () => {
     if (!$('f-name').value.trim()) { setMsg('action-msg', 'Indica el nombre y apellidos.', true); return; }
     try {
-      const blob = await apiPdfBlob('/preview', collectData());
+      const blob = await apiPdfBlob('/preview?format=pdf', collectData());
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `Certificado_${($('f-name').value.trim() || 'certificado').replace(/[^\w.\- áéíóúñÁÉÍÓÚÑ]/gi, '_')}.pdf`;

@@ -7,6 +7,10 @@
 // asset files to ship — it renders identically on Railway.
 
 const PDFDocument = require('pdfkit');
+const { execFile } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const THEMES = {
   clasico: { primary: '#1b2a4a', gold: '#b5893c' },
@@ -228,4 +232,26 @@ function render(data) {
   });
 }
 
-module.exports = { render, THEMES, longFromISO };
+// Rasterise the certificate PDF to a PNG buffer via poppler's pdftoppm. Browsers
+// (notably iOS Safari) refuse to display a PDF blob inside an <img>/<iframe>, so
+// the live preview uses this instead. Throws if pdftoppm is unavailable — callers
+// should fall back to serving the PDF itself.
+function renderPng(data, dpi) {
+  return render(data).then((pdf) => new Promise((resolve, reject) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'certpng-'));
+    const inF = path.join(dir, 'in.pdf');
+    const outPref = path.join(dir, 'out');
+    const cleanup = () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ } };
+    try { fs.writeFileSync(inF, pdf); } catch (e) { cleanup(); return reject(e); }
+    execFile('pdftoppm', ['-png', '-singlefile', '-r', String(dpi || 110), inF, outPref], (err) => {
+      if (err) { cleanup(); return reject(err); }
+      try {
+        const png = fs.readFileSync(outPref + '.png');
+        cleanup();
+        resolve(png);
+      } catch (e) { cleanup(); reject(e); }
+    });
+  }));
+}
+
+module.exports = { render, renderPng, THEMES, longFromISO };
