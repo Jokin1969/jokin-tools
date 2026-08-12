@@ -116,7 +116,7 @@
             <div class="qr-logo-size" id="st-logo-size" style="display:none">
               <label class="qr-check"><input type="checkbox" id="st-logo-ink" checked> Convertir el logo a la tinta del sello (silueta)</label>
               <label class="qr-slider"><span class="qr-hint">Tamaño del logo</span>
-                <input type="range" id="st-logo-scale" min="15" max="70" value="40" /></label>
+                <input type="range" id="st-logo-scale" min="15" max="100" value="40" /></label>
             </div>
           </div>
         </div>

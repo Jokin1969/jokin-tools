@@ -69,7 +69,7 @@ function sanitizeConfig(input = {}) {
     centerSize: Math.min(2.2, Math.max(0.5, Number(input.centerSize) || 1)),
     separator: ['star', 'dot', 'none'].includes(input.separator) ? input.separator : 'star',
     logo: hasLogo ? input.logo : null,
-    logoScale: Math.min(70, Math.max(15, Number(input.logoScale) || 40)),
+    logoScale: Math.min(100, Math.max(15, Number(input.logoScale) || 40)),
     logoInk: input.logoInk != null ? !!input.logoInk : true, // convertir el logo a la tinta del sello
     __logoReady: !!input.__logoReady, // ya preprocesado (no volver a entintar)
     texture,
