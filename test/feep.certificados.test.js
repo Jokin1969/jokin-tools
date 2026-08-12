@@ -71,6 +71,16 @@ test('pdf.render produces a valid PDF for every theme and orientation', async ()
   }
 });
 
+test('pdf.renderPng rasterises the certificate to a PNG (for the on-screen preview)', async () => {
+  const png = await pdf.renderPng({
+    ref: 'FEEP-2026-0001', recipient_name: 'María Fernández',
+    event: 'la IX Convención de Familiares', accent: 'clasico', orientation: 'horizontal',
+  });
+  assert.ok(Buffer.isBuffer(png) && png.length > 1000, 'PNG buffer produced');
+  // PNG magic number: \x89 P N G
+  assert.equal(png.slice(1, 4).toString('latin1'), 'PNG', 'valid PNG signature');
+});
+
 test('orientation is stored and returned on the certificate and defaults', () => {
   const c = db.createCert({ recipient_name: 'Vert Test', orientation: 'vertical' }, 3);
   assert.equal(db.getCert(c.id, 3).orientation, 'vertical');
