@@ -178,7 +178,7 @@ const OPERATIONS = [
       {
         id: 'dna-gb-compare',
         label: 'Comparar secuencias .dna vs .gb (verificar proveedor)',
-        desc: 'Verifica que el plásmido que te fabrica el proveedor (GenScript, .gb) coincide exactamente con el que diseñaste en SnapGene (.dna). Suelta de golpe todos los ficheros: se emparejan por nombre (mismo nombre = misma pareja, ignorando la extensión) y se comparan uno a uno, nucleótido a nucleótido.',
+        desc: 'Verifica que el plásmido que te fabrica el proveedor (GenScript, .gb) coincide exactamente con el que diseñaste en SnapGene (.dna), nucleótido a nucleótido. Dos modos: emparejar por nombre muchos ficheros a la vez, o comparar una sola pareja (un .dna y un .gb) aunque tengan nombres distintos.',
         fullCustom: 'dnacompare',
       },
     ],
@@ -4371,7 +4371,7 @@ function cmpCompare(a, b) {
 const cmpFmt = n => Number(n).toLocaleString('es-ES');
 
 function renderDnaCompareUI(zone) {
-  const cmp = { items: [] }; // { name, base, kind, seq, circular, topologyKnown, error }
+  const cmp = { items: [], mode: 'byname' }; // { name, base, kind, seq, circular, topologyKnown, error }
   const root = mk('div', 'bw-params');
 
   // ── Explanation ─────────────────────────────────────────────────────────────
@@ -4381,13 +4381,33 @@ function renderDnaCompareUI(zone) {
     <p>Cuando diseñas un plásmido en <strong>SnapGene</strong> obtienes un fichero <code>.dna</code>.
        El proveedor (p. ej. <strong>GenScript</strong>) te lo fabrica y te devuelve la secuencia en formato
        <strong>GenBank</strong> <code>.gb</code>. Esta herramienta confirma que lo que te van a fabricar
-       <strong>coincide exactamente</strong> con lo que pediste: mismo número de nucleótidos y mismos nucleótidos.</p>
-    <ol>
-      <li>Suelta de golpe <strong>todos</strong> los ficheros (tus <code>.dna</code> y los <code>.gb</code> del proveedor) — vale arrastrar o el explorador.</li>
-      <li>Se <strong>emparejan por nombre</strong> (se ignora la extensión y las mayúsculas). Si un nombre no tiene pareja exacta, <strong>no se compara</strong> y se avisa.</li>
-      <li>Cada pareja se compara <strong>nucleótido a nucleótido</strong>. Como un plásmido circular puede venir «cortado» en otro punto o en la hebra contraria, también se detecta ese caso: sigue siendo <strong>la misma molécula</strong>.</li>
-    </ol>`;
+       <strong>coincide exactamente</strong> con lo que pediste: mismo número de nucleótidos y mismos nucleótidos.
+       La comparación es <strong>nucleótido a nucleótido</strong> y, como un plásmido circular puede venir «cortado»
+       en otro punto o en la hebra contraria, también detecta ese caso: sigue siendo <strong>la misma molécula</strong>.</p>`;
   root.appendChild(intro);
+
+  // ── Mode selector: two clearly-differentiated ways to compare ────────────────
+  const modes = mk('div', 'dnacmp-modes');
+  modes.innerHTML = `
+    <label class="dnacmp-mode is-sel" data-mode="byname">
+      <input type="radio" name="dnacmp-mode" value="byname" checked>
+      <div class="dnacmp-mode-body">
+        <div class="dnacmp-mode-t">Varios ficheros · emparejar por nombre</div>
+        <div class="dnacmp-mode-d">Suelta de golpe <strong>todos</strong> los <code>.dna</code> y <code>.gb</code>.
+          Se emparejan por nombre (<strong>misma base = misma pareja</strong>, ignorando extensión y mayúsculas) y se
+          comparan uno a uno. Ideal para verificar muchos plásmidos a la vez.</div>
+      </div>
+    </label>
+    <label class="dnacmp-mode" data-mode="pair">
+      <input type="radio" name="dnacmp-mode" value="pair">
+      <div class="dnacmp-mode-body">
+        <div class="dnacmp-mode-t">Una sola pareja · nombres distintos</div>
+        <div class="dnacmp-mode-d">Compara <strong>exactamente un <code>.dna</code> con un <code>.gb</code></strong>,
+          <strong>aunque se llamen distinto</strong>. Útil cuando el proveedor te devuelve el fichero con otro nombre.
+          Solo se admite una pareja (un fichero de cada extensión).</div>
+      </div>
+    </label>`;
+  root.appendChild(modes);
 
   // ── Drop zone ───────────────────────────────────────────────────────────────
   const drop = makeDropZone({
@@ -4420,6 +4440,44 @@ function renderDnaCompareUI(zone) {
     /\.(gb|gbk|gbff|genbank)$/i.test(name) ? 'gb' : null;
   const baseOf = name => name.replace(/\.[^.\\/]+$/, '').replace(/^.*[\\/]/, '');
 
+  const dropLabel = () => cmp.mode === 'pair' ? 'Suelta un .dna y un .gb' : 'Suelta aquí los .dna y los .gb';
+
+  // In single-pair mode only one valid file of each extension is kept (the last
+  // dropped wins); error chips are kept so the user sees what failed.
+  function enforcePairLimit() {
+    if (cmp.mode !== 'pair') return;
+    let dna = null, gb = null; const errs = [];
+    for (const it of cmp.items) {
+      if (it.error) { errs.push(it); continue; }
+      if (it.kind === 'dna') dna = it;
+      else if (it.kind === 'gb') gb = it;
+    }
+    cmp.items = [...(dna ? [dna] : []), ...(gb ? [gb] : []), ...errs];
+  }
+
+  function updateEnabled() {
+    if (cmp.mode === 'pair') {
+      const dna = cmp.items.find(it => it.kind === 'dna' && !it.error);
+      const gb = cmp.items.find(it => it.kind === 'gb' && !it.error);
+      btnCompare.disabled = !(dna && gb);
+    } else {
+      btnCompare.disabled = cmp.items.length === 0;
+    }
+  }
+
+  function setMode(m) {
+    cmp.mode = m === 'pair' ? 'pair' : 'byname';
+    modes.querySelectorAll('.dnacmp-mode').forEach(el => el.classList.toggle('is-sel', el.dataset.mode === cmp.mode));
+    enforcePairLimit();
+    results.innerHTML = '';
+    renderLoaded();
+    updateEnabled();
+    const txt = drop.querySelector('.bw-drop-text');
+    if (txt) txt.textContent = dropLabel();
+  }
+  modes.querySelectorAll('input[name="dnacmp-mode"]').forEach(inp =>
+    inp.addEventListener('change', () => setMode(inp.value)));
+
   async function handleFiles(files) {
     for (const f of files) {
       const kind = kindOf(f.name);
@@ -4441,14 +4499,16 @@ function renderDnaCompareUI(zone) {
         cmp.items.push({ name: f.name, base, kind, error: e.message });
       }
     }
+    enforcePairLimit();
     renderLoaded();
-    btnCompare.disabled = cmp.items.length === 0;
+    updateEnabled();
   }
 
   function renderLoaded() {
     listWrap.innerHTML = '';
     if (!cmp.items.length) return;
-    const head = mk('div', 'dnacmp-loaded-head', `${cmp.items.length} fichero(s) cargado(s)`);
+    const head = mk('div', 'dnacmp-loaded-head',
+      cmp.mode === 'pair' ? 'Pareja a comparar (nombres distintos permitidos)' : `${cmp.items.length} fichero(s) cargado(s)`);
     listWrap.appendChild(head);
     const grid = mk('div', 'dnacmp-chips');
     cmp.items.forEach((it, i) => {
@@ -4460,7 +4520,7 @@ function renderDnaCompareUI(zone) {
                   : `<span class="dnacmp-chip-meta">${cmpFmt(it.seq.length)} nt</span>`);
       const x = mk('button', 'dnacmp-chip-x', '×');
       x.type = 'button';
-      x.addEventListener('click', () => { cmp.items.splice(i, 1); renderLoaded(); btnCompare.disabled = cmp.items.length === 0; });
+      x.addEventListener('click', () => { cmp.items.splice(i, 1); renderLoaded(); updateEnabled(); });
       chip.appendChild(x);
       grid.appendChild(chip);
     });
@@ -4471,15 +4531,16 @@ function renderDnaCompareUI(zone) {
     cmp.items = [];
     renderLoaded();
     results.innerHTML = '';
-    btnCompare.disabled = true;
+    updateEnabled();
     const txt = drop.querySelector('.bw-drop-text');
-    if (txt) txt.textContent = 'Suelta aquí los .dna y los .gb';
+    if (txt) txt.textContent = dropLabel();
   });
 
-  btnCompare.addEventListener('click', () => runComparison(cmp.items, results));
+  btnCompare.addEventListener('click', () => runComparison(cmp.items, results, cmp.mode));
 }
 
-function runComparison(items, results) {
+function runComparison(items, results, mode) {
+  if (mode === 'pair') return runPairComparison(items, results);
   // Group by base name (case-insensitive). Keep the first valid item per side.
   const groups = new Map(); // key -> { base, dna, gb, dnaErr, gbErr }
   for (const it of items) {
@@ -4531,6 +4592,21 @@ function runComparison(items, results) {
   }
 
   for (const r of rows) results.appendChild(buildCmpCard(r));
+}
+
+// Single-pair mode: compare one .dna against one .gb directly, ignoring names.
+function runPairComparison(items, results) {
+  const dna = items.find(it => it.kind === 'dna' && !it.error);
+  const gb = items.find(it => it.kind === 'gb' && !it.error);
+  results.innerHTML = '';
+  if (!dna || !gb) {
+    results.appendChild(mk('div', 'degen-cerr', 'Necesitas exactamente un .dna y un .gb para comparar la pareja.'));
+    return;
+  }
+  const c = cmpCompare(dna.seq, gb.seq);
+  // Show both filenames as the card title, since in this mode they can differ.
+  const r = { kind: 'pair', base: `${dna.name}  ↔  ${gb.name}`, dna, gb, cmp: c };
+  results.appendChild(buildCmpCard(r));
 }
 
 function buildCmpCard(r) {
