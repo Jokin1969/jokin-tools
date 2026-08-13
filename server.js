@@ -118,6 +118,13 @@ const feepDb = require('./apps/feep/db');
 const feepRouter = require('./apps/feep');
 app.use('/feep', requireApp('feep'), feepRouter);
 
+// ─── Gestión de QR (TIS) micro-app (requires access to 'qr-tis') ────────────────
+// Self-contained: its own router + its own SQLite file (apps/qr-tis/db.js →
+// qr_tis.db). People + their TIS code, rendered as scannable QR codes.
+const qrTisDb = require('./apps/qr-tis/db');
+const qrTisRouter = require('./apps/qr-tis/routes');
+app.use('/qr-tis', requireApp('qr-tis'), qrTisRouter);
+
 // ─── Hub root (requires login) ──────────────────────────────────────────────────
 app.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));
@@ -223,6 +230,7 @@ function shutdown(server, signal) {
     try { reMemoryDb.db.close(); } catch { /* ignore */ }
     try { bitacoraDb.db.close(); } catch { /* ignore */ }
     try { imprimirDb.db.close(); } catch { /* ignore */ }
+    try { qrTisDb.db.close(); } catch { /* ignore */ }
     console.log('[server] Closed cleanly.');
     process.exit(0);
   });

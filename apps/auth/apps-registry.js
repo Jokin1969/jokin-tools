@@ -57,6 +57,22 @@ const APPS = [
     </svg>`,
   },
   {
+    id: 'qr-tis',
+    name: 'Gestión de QR (TIS)',
+    path: '/qr-tis',
+    desc: 'Base de datos de personas y su código TIS con generación de códigos QR escaneables. Introducir, visualizar y utilizar el QR del TIS para la gestión de la medicación.',
+    tags: ['QR', 'TIS', 'SQLite'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <rect x="12" y="12" width="16" height="16" rx="2" stroke="#1B6CB0" stroke-width="2"/>
+      <rect x="17" y="17" width="6" height="6" rx="1" fill="#0097B2"/>
+      <rect x="36" y="12" width="16" height="16" rx="2" stroke="#1B6CB0" stroke-width="2"/>
+      <rect x="41" y="17" width="6" height="6" rx="1" fill="#0097B2"/>
+      <rect x="12" y="36" width="16" height="16" rx="2" stroke="#1B6CB0" stroke-width="2"/>
+      <rect x="17" y="41" width="6" height="6" rx="1" fill="#0097B2"/>
+      <path d="M36 36h5v5M52 36v5h-5M36 52h5M47 47v5h5" stroke="#00B8D4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`,
+  },
+  {
     id: 'feep',
     name: 'FEEP',
     path: '/feep',
