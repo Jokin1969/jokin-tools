@@ -28,8 +28,11 @@ db.exec(`
     pharmacy_no TEXT,                    -- 5 digits assigned by the pharmacy (leading zeros preserved)
     nombre      TEXT NOT NULL,
     apellidos   TEXT NOT NULL,
-    tis         TEXT NOT NULL,           -- 7 digits, leading zeros preserved
+    tis         TEXT NOT NULL,           -- 8 digits, leading zeros preserved
     group_name  TEXT,                    -- optional group membership
+    qr_dark     TEXT,                    -- per-person QR colour (null = global default)
+    qr_light    TEXT,                    -- per-person QR background (null = global default)
+    qr_style    TEXT,                    -- per-person QR style 'square'|'dots' (null = global)
     active     INTEGER NOT NULL DEFAULT 1,
     created_by INTEGER,
     created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -61,6 +64,9 @@ db.exec(`
 // Lightweight migrations for DBs created before these columns existed.
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN last_used_at DATETIME').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN pharmacy_no TEXT').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE tis_people ADD COLUMN qr_dark TEXT').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE tis_people ADD COLUMN qr_light TEXT').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE tis_people ADD COLUMN qr_style TEXT').run(); } catch { /* already present */ }
 
 console.log('[qr-tis] Database ready at:', DB_PATH);
 
@@ -72,7 +78,7 @@ const DEFAULT_SETTINGS = {
 // ── People ──────────────────────────────────────────────────────────────────────
 function listPeople() {
   return db.prepare(
-    `SELECT id, pharmacy_no, nombre, apellidos, tis, group_name, active, created_at, updated_at
+    `SELECT id, pharmacy_no, nombre, apellidos, tis, group_name, qr_dark, qr_light, qr_style, active, created_at, updated_at
        FROM tis_people ORDER BY apellidos COLLATE NOCASE, nombre COLLATE NOCASE, id`
   ).all();
 }
@@ -83,12 +89,14 @@ function getPerson(id) {
 
 function createPerson(data, userId) {
   const info = db.prepare(
-    `INSERT INTO tis_people (pharmacy_no, nombre, apellidos, tis, group_name, active, created_by, last_used_at)
-     VALUES (@pharmacy_no, @nombre, @apellidos, @tis, @group_name, 1, @created_by, CURRENT_TIMESTAMP)`
+    `INSERT INTO tis_people (pharmacy_no, nombre, apellidos, tis, group_name, qr_dark, qr_light, qr_style, active, created_by, last_used_at)
+     VALUES (@pharmacy_no, @nombre, @apellidos, @tis, @group_name, @qr_dark, @qr_light, @qr_style, 1, @created_by, CURRENT_TIMESTAMP)`
   ).run({
     pharmacy_no: data.pharmacy_no || null,
     nombre: data.nombre, apellidos: data.apellidos, tis: data.tis,
-    group_name: data.group_name || null, created_by: userId != null ? userId : null,
+    group_name: data.group_name || null,
+    qr_dark: data.qr_dark || null, qr_light: data.qr_light || null, qr_style: data.qr_style || null,
+    created_by: userId != null ? userId : null,
   });
   return getPerson(info.lastInsertRowid);
 }
@@ -124,13 +132,16 @@ function updatePerson(id, data) {
     apellidos: data.apellidos != null ? data.apellidos : cur.apellidos,
     tis: data.tis != null ? data.tis : cur.tis,
     group_name: data.group_name !== undefined ? (data.group_name || null) : cur.group_name,
+    qr_dark: data.qr_dark !== undefined ? (data.qr_dark || null) : cur.qr_dark,
+    qr_light: data.qr_light !== undefined ? (data.qr_light || null) : cur.qr_light,
+    qr_style: data.qr_style !== undefined ? (data.qr_style || null) : cur.qr_style,
     active: data.active != null ? (data.active ? 1 : 0) : cur.active,
   };
   db.prepare(
     `UPDATE tis_people
        SET pharmacy_no = @pharmacy_no, nombre = @nombre, apellidos = @apellidos, tis = @tis,
-           group_name = @group_name, active = @active,
-           updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP
+           group_name = @group_name, qr_dark = @qr_dark, qr_light = @qr_light, qr_style = @qr_style,
+           active = @active, updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP
      WHERE id = @id`
   ).run({ ...next, id });
   return getPerson(id);

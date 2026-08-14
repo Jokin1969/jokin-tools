@@ -28,7 +28,7 @@ function gotoFicha(id, navIds) { S.nav = Array.isArray(navIds) ? navIds.slice() 
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 // Accent/ñ-insensitive, lowercase — for the fast search.
 function norm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
-function fmtTis(t) { return String(t || '').replace(/(\d{3})(\d{2})(\d{2})/, '$1 $2 $3'); }
+function fmtTis(t) { return String(t || '').replace(/(\d{4})(\d{4})/, '$1 $2'); }
 
 async function api(path, opts) {
   const r = await fetch(API + path, opts);
@@ -83,6 +83,19 @@ function qrSvg(text, o) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${tot} ${tot}" shape-rendering="${rendering}"><rect width="${tot}" height="${tot}" fill="${light}"/><g fill="${dark}">${d}</g></svg>`;
 }
 
+// Effective QR options for a person: colour/background/style come from the person
+// (per-person), falling back to the shared defaults; size and robustness are global.
+function qrOpts(p, size) {
+  const st = S.settings;
+  return {
+    dark: (p && p.qr_dark) || st.qr_dark,
+    light: (p && p.qr_light) || st.qr_light,
+    style: (p && p.qr_style) || st.qr_style,
+    ecc: st.qr_ecc,
+    size,
+  };
+}
+
 // ── Data loading ────────────────────────────────────────────────────────────────
 async function reloadPeople() {
   const { items } = await api('/people');
@@ -103,6 +116,21 @@ function saveSettingsDebounced() {
   settingsTimer = setTimeout(async () => {
     try { const { settings } = await api('/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S.settings) }); S.settings = settings; }
     catch (e) { toast(e.message, 'err'); }
+  }, 400);
+}
+
+// Persist a person's per-person QR overrides (colour/background/style), debounced.
+let pqrTimer = null, pqrId = null, pqrPatch = {};
+function savePersonQrDebounced(id, patch) {
+  if (pqrId !== id) pqrPatch = {};
+  pqrId = id; pqrPatch = { ...pqrPatch, ...patch };
+  if (pqrTimer) clearTimeout(pqrTimer);
+  pqrTimer = setTimeout(async () => {
+    const saveId = pqrId, savePatch = pqrPatch; pqrId = null; pqrPatch = {};
+    try {
+      const { item } = await api('/people/' + saveId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(savePatch) });
+      S.byId.set(item.id, item); const i = S.people.findIndex(x => x.id === item.id); if (i >= 0) S.people[i] = item;
+    } catch (e) { toast(e.message, 'err'); }
   }, 400);
 }
 
@@ -166,10 +194,10 @@ function viewForm() {
        <div class="qt-field">
          <label>Código TIS <span class="req">*</span></label>
          <div class="qt-tis-wrap">
-           <input class="qt-input" id="f-tis" placeholder="0000000" inputmode="numeric" maxlength="7" autocomplete="off" />
+           <input class="qt-input" id="f-tis" placeholder="00000000" inputmode="numeric" maxlength="8" autocomplete="off" />
            <button type="button" class="qt-scan-btn" id="f-scan" title="Escanear QR con la cámara">⛶</button>
          </div>
-         <div class="qt-field-hint">7 cifras. Los ceros a la izquierda cuentan. Puedes escribirlo o pulsar ⛶ para escanear un QR.</div>
+         <div class="qt-field-hint">8 cifras. Los ceros a la izquierda cuentan. Puedes escribirlo o pulsar ⛶ para escanear un QR.</div>
        </div>
        <div class="qt-form-actions">
          <button class="qt-btn qt-btn-ghost" id="f-cancel">Cancelar</button>
@@ -179,11 +207,11 @@ function viewForm() {
   $('back').onclick = viewHome;
   $('f-cancel').onclick = viewHome;
   const tisEl = $('f-tis');
-  tisEl.addEventListener('input', () => { tisEl.value = tisEl.value.replace(/\D/g, '').slice(0, 7); });
+  tisEl.addEventListener('input', () => { tisEl.value = tisEl.value.replace(/\D/g, '').slice(0, 8); });
   $('f-scan').onclick = () => openScanner((raw, digits) => {
-    tisEl.value = (digits && digits.length >= 7) ? digits.slice(0, 7) : digits || '';
-    if (tisEl.value.length === 7) toast('TIS escaneado: ' + tisEl.value, 'ok');
-    else toast('QR leído, pero no son 7 cifras. Revísalo.', 'err');
+    tisEl.value = (digits && digits.length >= 8) ? digits.slice(0, 8) : digits || '';
+    if (tisEl.value.length === 8) toast('TIS escaneado: ' + tisEl.value, 'ok');
+    else toast('QR leído, pero no son 8 cifras. Revísalo.', 'err');
   });
   $('f-save').onclick = submitForm;
   const farmEl = $('f-farmacia');
@@ -201,10 +229,10 @@ async function submitForm() {
   $('f-farmacia').classList.toggle('is-invalid', !/^\d{5}$/.test(pharmacy_no));
   $('f-nombre').classList.toggle('is-invalid', !nombre);
   $('f-apellidos').classList.toggle('is-invalid', !apellidos);
-  $('f-tis').classList.toggle('is-invalid', !/^\d{7}$/.test(tis));
+  $('f-tis').classList.toggle('is-invalid', !/^\d{8}$/.test(tis));
   if (!/^\d{5}$/.test(pharmacy_no)) { err.textContent = 'El Nº de farmacia debe tener exactamente 5 cifras.'; return; }
   if (!nombre || !apellidos) { err.textContent = 'Nombre y apellidos son obligatorios.'; return; }
-  if (!/^\d{7}$/.test(tis)) { err.textContent = 'El Código TIS debe tener exactamente 7 cifras.'; return; }
+  if (!/^\d{8}$/.test(tis)) { err.textContent = 'El Código TIS debe tener exactamente 8 cifras.'; return; }
   err.textContent = '';
   try {
     const { item } = await api('/people', jbody({ pharmacy_no, nombre, apellidos, tis }));
@@ -226,7 +254,7 @@ function viewFicha(id, opts) {
   const inCart = S.cart.has(id);
   const st = S.settings;
   const qrHtml = p.active
-    ? `<div class="qt-qr-box" id="ficha-qr">${qrSvg(p.tis, { dark: st.qr_dark, light: st.qr_light, style: st.qr_style, ecc: st.qr_ecc, size: st.qr_size })}</div>`
+    ? `<div class="qt-qr-box" id="ficha-qr">${qrSvg(p.tis, qrOpts(p, st.qr_size))}</div>`
     : `<div class="qt-inactive-banner">Persona <strong>inactiva</strong>.<br>El QR no está disponible hasta reactivarla.</div>`;
   const groupChip = (p.groups && p.groups.length)
     ? p.groups.map(g => `<span class="qt-chip-group" data-gsel="${esc(g)}" title="Seleccionar el grupo">👥 ${esc(g)}</span>`).join(' ')
@@ -252,7 +280,7 @@ function viewFicha(id, opts) {
          <div class="qt-qr-name">${esc(p.nombre)} ${esc(p.apellidos)}</div>
          ${qrHtml}
          <div class="qt-qr-tis">${p.active ? fmtTis(p.tis) : ''}</div>
-         ${p.active ? mandoHtml(st) : ''}
+         ${p.active ? mandoHtml(st, p) : ''}
        </div>
        <div class="qt-ficha-info">
          <h2>${esc(p.nombre)} ${esc(p.apellidos)}</h2>
@@ -286,7 +314,7 @@ function viewFicha(id, opts) {
   }
   $('act-edit').onclick = () => editPerson(p);
   $('act-list').onclick = viewList;
-  if (p.active) wireMando(() => { const box = $('ficha-qr'); if (box) box.innerHTML = qrSvg(p.tis, { dark: S.settings.qr_dark, light: S.settings.qr_light, style: S.settings.qr_style, ecc: S.settings.qr_ecc, size: S.settings.qr_size }); });
+  if (p.active) wireMando(p, () => { const box = $('ficha-qr'); if (box) box.innerHTML = qrSvg(p.tis, qrOpts(p, S.settings.qr_size)); });
   $('act-cart').onclick = async () => { await toggleCart(id); viewFicha(id, opts); };
   $('act-active').onclick = async () => { await setActive(p, !p.active); viewFicha(id, opts); };
   $('act-del').onclick = async () => { if (await removePerson(p)) viewList(); };
@@ -340,19 +368,19 @@ function editPerson(p) {
      <div class="qt-field"><label>Nombre <span class="req">*</span></label><input class="qt-input" id="e-nombre" value="${esc(p.nombre)}"></div>
      <div class="qt-field"><label>Apellidos <span class="req">*</span></label><input class="qt-input" id="e-apellidos" value="${esc(p.apellidos)}"></div>
      <div class="qt-field"><label>Código TIS <span class="req">*</span></label>
-       <div class="qt-tis-wrap"><input class="qt-input" id="e-tis" maxlength="7" inputmode="numeric" value="${esc(p.tis)}" style="font-family:var(--mono);letter-spacing:.28em;text-align:center"><button type="button" class="qt-scan-btn" id="e-scan" title="Escanear QR">⛶</button></div></div>
+       <div class="qt-tis-wrap"><input class="qt-input" id="e-tis" maxlength="8" inputmode="numeric" value="${esc(p.tis)}" style="font-family:var(--mono);letter-spacing:.28em;text-align:center"><button type="button" class="qt-scan-btn" id="e-scan" title="Escanear QR">⛶</button></div></div>
      <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" data-close>Cancelar</button><button class="qt-btn qt-btn-primary" id="e-save">Guardar cambios</button></div>`
   );
   const farm = $('e-farm'), tis = $('e-tis');
   farm.addEventListener('input', () => { farm.value = farm.value.replace(/\D/g, '').slice(0, 5); });
-  tis.addEventListener('input', () => { tis.value = tis.value.replace(/\D/g, '').slice(0, 7); });
-  $('e-scan').onclick = () => openScanner((raw, digits) => { tis.value = (digits && digits.length >= 7) ? digits.slice(0, 7) : (digits || ''); });
+  tis.addEventListener('input', () => { tis.value = tis.value.replace(/\D/g, '').slice(0, 8); });
+  $('e-scan').onclick = () => openScanner((raw, digits) => { tis.value = (digits && digits.length >= 8) ? digits.slice(0, 8) : (digits || ''); });
   const save = async () => {
     const pharmacy_no = farm.value.replace(/\D/g, ''), nombre = $('e-nombre').value.trim(), apellidos = $('e-apellidos').value.trim(), t = tis.value.replace(/\D/g, '');
     const err = $('e-err');
     if (!/^\d{5}$/.test(pharmacy_no)) { err.textContent = 'El Nº de farmacia debe tener exactamente 5 cifras.'; return; }
     if (!nombre || !apellidos) { err.textContent = 'Nombre y apellidos son obligatorios.'; return; }
-    if (!/^\d{7}$/.test(t)) { err.textContent = 'El Código TIS debe tener exactamente 7 cifras.'; return; }
+    if (!/^\d{8}$/.test(t)) { err.textContent = 'El Código TIS debe tener exactamente 8 cifras.'; return; }
     try {
       const { item } = await api('/people/' + p.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pharmacy_no, nombre, apellidos, tis: t }) });
       S.byId.set(item.id, item);
@@ -363,47 +391,62 @@ function editPerson(p) {
   $('e-save').onclick = save;
 }
 
-// ── The QR "mando" (shared global settings) ─────────────────────────────────────
-function mandoHtml(st) {
+// ── The QR "mando" ──────────────────────────────────────────────────────────────
+// Colour, background and style are PER PERSON; size and robustness are shared.
+function mandoHtml(st, p) {
   const swatches = ['#0f172a', '#1273b8', '#0a9d8e', '#7c3aed', '#c23a3a', '#b26a00', '#000000'];
+  const dark = (p && p.qr_dark) || st.qr_dark;
+  const light = (p && p.qr_light) || st.qr_light;
+  const style = (p && p.qr_style) || st.qr_style;
+  const hasOv = !!(p && (p.qr_dark || p.qr_light || p.qr_style));
   return `<div class="qt-mando">
-    <div class="qt-mando-h">⚙ Ajustes del QR <span class="qt-mando-note">(compartidos)</span></div>
-    <div class="qt-mando-row"><label>Tamaño</label><input type="range" id="m-size" min="160" max="620" step="10" value="${st.qr_size}"></div>
+    <div class="qt-mando-h">⚙ Ajustes del QR</div>
+    <div class="qt-mando-row"><label>Tamaño</label><input type="range" id="m-size" min="160" max="620" step="10" value="${st.qr_size}"><span class="qt-mando-note">compartido</span></div>
     <div class="qt-mando-row"><label>Color</label>
-      <div class="qt-swatches" id="m-swatches">${swatches.map(c => `<div class="qt-swatch${c === st.qr_dark ? ' sel' : ''}" data-c="${c}" style="background:${c}"></div>`).join('')}</div>
-      <input type="color" class="qt-color-input" id="m-dark" value="${st.qr_dark}" title="Color personalizado">
+      <div class="qt-swatches" id="m-swatches">${swatches.map(c => `<div class="qt-swatch${c === dark ? ' sel' : ''}" data-c="${c}" style="background:${c}"></div>`).join('')}</div>
+      <input type="color" class="qt-color-input" id="m-dark" value="${dark}" title="Color personalizado">
     </div>
     <div class="qt-mando-row"><label>Fondo</label>
-      <input type="color" class="qt-color-input" id="m-light" value="${st.qr_light}" title="Color de fondo">
+      <input type="color" class="qt-color-input" id="m-light" value="${light}" title="Color de fondo">
       <label style="width:auto">Estilo</label>
       <div class="qt-seg" id="m-style">
-        <button data-s="square" class="${st.qr_style !== 'dots' ? 'sel' : ''}">Cuadrado</button>
-        <button data-s="dots" class="${st.qr_style === 'dots' ? 'sel' : ''}">Puntos</button>
+        <button data-s="square" class="${style !== 'dots' ? 'sel' : ''}">Cuadrado</button>
+        <button data-s="dots" class="${style === 'dots' ? 'sel' : ''}">Puntos</button>
       </div>
     </div>
+    <div class="qt-mando-note" style="margin:-4px 0 8px">🎨 Color, fondo y estilo son <b>de esta persona</b>. ${hasOv ? '<a id="m-reset" style="color:var(--brand);cursor:pointer;font-weight:600">Usar los de por defecto</a>' : ''}</div>
     <div class="qt-mando-row"><label>Robustez</label>
       <div class="qt-seg" id="m-ecc">
         ${['L', 'M', 'Q', 'H'].map(e => `<button data-e="${e}" class="${st.qr_ecc === e ? 'sel' : ''}">${e}</button>`).join('')}
       </div>
-      <span class="qt-mando-note">Mayor = más denso pero más tolerante</span>
+      <span class="qt-mando-note">compartida</span>
     </div>
   </div>`;
 }
-function wireMando(rerender) {
-  const apply = () => { rerender(); saveSettingsDebounced(); };
-  $('m-size').addEventListener('input', e => { S.settings.qr_size = Number(e.target.value); apply(); });
-  $('m-dark').addEventListener('input', e => { S.settings.qr_dark = e.target.value; syncSwatch(); apply(); });
-  $('m-light').addEventListener('input', e => { S.settings.qr_light = e.target.value; apply(); });
+function wireMando(p, rerender) {
+  const applyGlobal = () => { rerender(); saveSettingsDebounced(); };
+  const applyPerson = (patch) => { Object.assign(p, patch); rerender(); savePersonQrDebounced(p.id, patch); };
+  const syncSwatch = () => { const dark = p.qr_dark || S.settings.qr_dark; $('m-swatches').querySelectorAll('.qt-swatch').forEach(sw => sw.classList.toggle('sel', sw.dataset.c === dark)); };
+  $('m-size').addEventListener('input', e => { S.settings.qr_size = Number(e.target.value); applyGlobal(); });
+  $('m-dark').addEventListener('input', e => { $('m-dark').value = e.target.value; applyPerson({ qr_dark: e.target.value }); syncSwatch(); });
+  $('m-light').addEventListener('input', e => { applyPerson({ qr_light: e.target.value }); });
   $('m-swatches').querySelectorAll('.qt-swatch').forEach(sw => sw.addEventListener('click', () => {
-    S.settings.qr_dark = sw.dataset.c; $('m-dark').value = sw.dataset.c; syncSwatch(); apply();
+    $('m-dark').value = sw.dataset.c; applyPerson({ qr_dark: sw.dataset.c }); syncSwatch();
   }));
   $('m-style').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-    S.settings.qr_style = b.dataset.s; $('m-style').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b)); apply();
+    $('m-style').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b)); applyPerson({ qr_style: b.dataset.s });
   }));
   $('m-ecc').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-    S.settings.qr_ecc = b.dataset.e; $('m-ecc').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b)); apply();
+    S.settings.qr_ecc = b.dataset.e; $('m-ecc').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b)); applyGlobal();
   }));
-  function syncSwatch() { $('m-swatches').querySelectorAll('.qt-swatch').forEach(sw => sw.classList.toggle('sel', sw.dataset.c === S.settings.qr_dark)); }
+  const reset = $('m-reset');
+  if (reset) reset.onclick = async () => {
+    try {
+      const { item } = await api('/people/' + p.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ qr_dark: null, qr_light: null, qr_style: null }) });
+      S.byId.set(item.id, item); const i = S.people.findIndex(x => x.id === item.id); if (i >= 0) S.people[i] = item;
+      viewFicha(p.id);
+    } catch (e) { toast(e.message, 'err'); }
+  };
 }
 
 // ── (2) Visualizar — listado ─────────────────────────────────────────────────────
@@ -538,7 +581,7 @@ function renderRows() {
       ? '<span class="qt-state-dot"><span class="dot"></span>Activa</span>'
       : '<span class="qt-state-dot off"><span class="dot"></span>Inactiva</span>';
     const qrCell = S.showListQr
-      ? `<td>${p.active ? `<span class="qt-list-qr" data-open="${p.id}">${qrSvg(p.tis, { dark: st.qr_dark, light: st.qr_light, style: st.qr_style, ecc: st.qr_ecc, size: st.list_qr_size })}</span>` : '<span style="color:#b3bcc7">—</span>'}</td>`
+      ? `<td>${p.active ? `<span class="qt-list-qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, st.list_qr_size))}</span>` : '<span style="color:#b3bcc7">—</span>'}</td>`
       : '';
     const inCart = S.cart.has(p.id);
     return `<tr class="${p.active ? '' : 'is-inactive'} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
@@ -657,7 +700,7 @@ function renderCart() {
   if (!items.length) { body.innerHTML = '<div class="qt-empty">El carrito está vacío.<br>Añade personas desde el listado o su ficha.</div>'; return; }
   body.innerHTML = items.map(p => {
     const sel = S.selected.has(p.id);
-    const qr = p.active ? `<span class="qr" data-open="${p.id}">${qrSvg(p.tis, { dark: st.qr_dark, light: st.qr_light, style: st.qr_style, ecc: st.qr_ecc, size })}</span>` : `<span class="qr" style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;color:#9aa4b0;font-size:.8rem">Inactiva</span>`;
+    const qr = p.active ? `<span class="qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, size))}</span>` : `<span class="qr" style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;color:#9aa4b0;font-size:.8rem">Inactiva</span>`;
     const group = (p.groups && p.groups.length) ? p.groups.map(g => `<span class="qt-grouptag" data-group="${esc(g)}">${esc(g)}</span>`).join(' ') : '';
     return `<div class="qt-cart-card ${sel ? 'is-selected' : ''}">
        ${qr}
@@ -719,9 +762,9 @@ function viewHelp() {
       <ul>
         <li><strong>Nº de farmacia</strong>: 5 cifras que asigna la farmacia. Es el número que aparece <strong>primero</strong> en el listado.</li>
         <li><strong>Nombre</strong> y <strong>Apellidos</strong>.</li>
-        <li><strong>Código TIS</strong>: 7 cifras. Es lo que codifica el QR.</li>
+        <li><strong>Código TIS</strong>: 8 cifras. Es lo que codifica el QR.</li>
       </ul>
-      <div class="qt-note warn"><b>Los ceros a la izquierda cuentan.</b> <code>0012345</code> no es lo mismo que <code>12345</code>. La app los conserva siempre, y al importar desde Excel los recupera aunque Excel los haya borrado.</div>
+      <div class="qt-note warn"><b>Los ceros a la izquierda cuentan.</b> <code>00123456</code> no es lo mismo que <code>123456</code>. La app los conserva siempre, y al importar desde Excel los recupera aunque Excel los haya borrado.</div>
       <p>Todos los campos son obligatorios al crear una persona a mano.</p>` },
     { id: 'introducir', icon: '➕', title: 'Introducir una persona', html: `
       <p>Portada → <span class="qt-chip-inline">Introducir persona</span>. Escribe los cuatro campos. El Código TIS puedes teclearlo o pulsar el botón <span class="qt-chip-inline">⛶</span> para <strong>escanear un QR</strong> con la cámara: apunta al código y se rellena solo.</p>
@@ -735,7 +778,7 @@ function viewHelp() {
         <li><strong>Estilo</strong>: cuadrado o de puntos.</li>
         <li><strong>Robustez</strong>: mayor = más denso pero más tolerante a manchas/arrugas.</li>
       </ul>
-      <div class="qt-note tip">Estos ajustes son <b>compartidos</b>: se mantienen para todos hasta que alguien los cambie. Todos los estilos se mantienen escaneables.</div>` },
+      <div class="qt-note tip"><b>Color, fondo y estilo son de cada persona</b> (una puede tener el QR rojo y otra verde, etc.). El <b>tamaño</b> y la <b>robustez</b> son compartidos para todos. Con «Usar los de por defecto» una persona vuelve a los colores/estilo generales. Todos los estilos se mantienen escaneables.</div>` },
     { id: 'buscar', icon: '🔎', title: 'Buscar (rápido y sin tildes)', html: `
       <p>En el listado, la barra de búsqueda filtra al instante por <strong>Nº de farmacia, nombre, apellidos, TIS o grupo</strong>. No distingue tildes ni la ñ.</p>
       <ul>
@@ -816,7 +859,7 @@ function stamp() { const d = new Date(); const p = n => String(n).padStart(2, '0
 
 // Excel eats leading zeros of numbers → recover a fixed-width code by padding.
 function padNum(v, n) { let s = String(v == null ? '' : v).replace(/\D/g, ''); if (s.length && s.length < n) s = s.padStart(n, '0'); return s; }
-function padTis(v) { return padNum(v, 7); }
+function padTis(v) { return padNum(v, 8); }
 
 const EXPORT_COLS = [
   { key: 'pharmacy_no', label: 'Nº Farmacia', def: true, text: true, get: p => String(p.pharmacy_no || '') },
@@ -860,7 +903,7 @@ function toolExcelIO() {
     `<div class="qt-modal-h"><h3>Plantilla e importación (Excel)</h3><button class="qt-x" data-close>×</button></div>
      <div class="qt-tool-opt">
        <h4>1 · Descargar plantilla</h4>
-       <p>Un Excel con las columnas <strong>Nº Farmacia (5 cifras), Nombre, Apellidos, Código TIS (7 cifras) y Grupo</strong> listo para rellenar. Los códigos van como texto para no perder los ceros a la izquierda. En <strong>Grupo</strong> puedes poner varios separados por punto y coma (<code>Planta 2; Urgencias</code>).</p>
+       <p>Un Excel con las columnas <strong>Nº Farmacia (5 cifras), Nombre, Apellidos, Código TIS (8 cifras) y Grupo</strong> listo para rellenar. Los códigos van como texto para no perder los ceros a la izquierda. En <strong>Grupo</strong> puedes poner varios separados por punto y coma (<code>Planta 2; Urgencias</code>).</p>
        <button class="qt-btn qt-btn-primary" id="tpl-dl">⬇ Descargar plantilla .xlsx</button>
      </div>
      <div class="qt-tool-opt">
@@ -883,8 +926,8 @@ function toolExcelIO() {
 function downloadTemplate() {
   const aoa = [
     ['Nº Farmacia', 'Nombre', 'Apellidos', 'Código TIS', 'Grupo'],
-    ['01234', 'José', 'Pérez García', '0012345', 'Planta 2'],
-    ['00250', 'María', 'López Ruiz', '0100200', 'Planta 2; Urgencias'],
+    ['01234', 'José', 'Pérez García', '00123456', 'Planta 2'],
+    ['00250', 'María', 'López Ruiz', '01002000', 'Planta 2; Urgencias'],
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 26 }, { wch: 14 }, { wch: 26 }];

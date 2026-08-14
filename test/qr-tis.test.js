@@ -12,14 +12,14 @@ process.env.QR_TIS_DB_PATH = path.join(dir, 'qr_tis.db');
 const db = require('../apps/qr-tis/db');
 
 test('createPerson preserves the TIS and pharmacy number exactly, leading zeros included', () => {
-  const p = db.createPerson({ pharmacy_no: '01234', nombre: 'José', apellidos: 'Pérez García', tis: '0012345' }, 1);
-  assert.equal(p.tis, '0012345');           // stored as text — zeros count
-  assert.equal(p.tis.length, 7);
+  const p = db.createPerson({ pharmacy_no: '01234', nombre: 'José', apellidos: 'Pérez García', tis: '00123456' }, 1);
+  assert.equal(p.tis, '00123456');          // stored as text — zeros count
+  assert.equal(p.tis.length, 8);
   assert.equal(p.pharmacy_no, '01234');     // 5-digit pharmacy number, zeros preserved
   assert.equal(p.active, 1);
   assert.equal(p.nombre, 'José');
   const back = db.getPerson(p.id);
-  assert.equal(back.tis, '0012345');
+  assert.equal(back.tis, '00123456');
   assert.equal(back.pharmacy_no, '01234');
 });
 
@@ -39,6 +39,21 @@ test('update, active toggle and group membership', () => {
   // multiple groups are stored newline-joined in the same column
   const u4 = db.updatePerson(p.id, { group_name: 'Planta 2\nUrgencias' });
   assert.equal(db.getPerson(p.id).group_name, 'Planta 2\nUrgencias');
+});
+
+test('per-person QR overrides (colour/background/style) are stored and cleared', () => {
+  const p = db.createPerson({ nombre: 'Color', apellidos: 'Test', tis: '00000011', qr_dark: '#c23a3a', qr_style: 'dots' }, 1);
+  assert.equal(p.qr_dark, '#c23a3a');
+  assert.equal(p.qr_style, 'dots');
+  assert.equal(p.qr_light, null);          // not set → null (falls back to global)
+  // change and then clear
+  const u = db.updatePerson(p.id, { qr_dark: '#1f9d62', qr_light: '#fff8e1' });
+  assert.equal(u.qr_dark, '#1f9d62');
+  assert.equal(u.qr_light, '#fff8e1');
+  assert.equal(u.qr_style, 'dots');        // untouched field kept
+  const cleared = db.updatePerson(p.id, { qr_dark: null, qr_light: null, qr_style: null });
+  assert.equal(cleared.qr_dark, null);
+  assert.equal(cleared.qr_style, null);
 });
 
 test('listPeople returns everyone; delete removes and detaches from carts', () => {

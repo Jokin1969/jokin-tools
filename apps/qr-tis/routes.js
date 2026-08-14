@@ -35,11 +35,14 @@ function setDownload(res, filename, mime) {
 async function buildPeoplePdf(people, size, title, st) {
   const PDFDocument = require('pdfkit');
   const QRCode = require('qrcode');
-  const color = { dark: /^#[0-9a-f]{6}$/i.test(st.qr_dark) ? st.qr_dark : '#0f172a', light: '#ffffff' };
-  // Pre-render every QR (PNG) at ~2× for crisp print.
-  const pngs = await Promise.all(people.map(p =>
-    p.active ? QRCode.toBuffer(String(p.tis), { type: 'png', errorCorrectionLevel: 'M', margin: 1, width: Math.round(size * 2), color }).catch(() => null) : Promise.resolve(null)
-  ));
+  const gdark = /^#[0-9a-f]{6}$/i.test(st.qr_dark) ? st.qr_dark : '#0f172a';
+  // Pre-render every QR (PNG) at ~2× for crisp print, honouring each person's colour.
+  const pngs = await Promise.all(people.map(p => {
+    if (!p.active) return Promise.resolve(null);
+    const dark = /^#[0-9a-f]{6}$/i.test(p.qr_dark) ? p.qr_dark : gdark;
+    const light = /^#[0-9a-f]{6}$/i.test(p.qr_light) ? p.qr_light : '#ffffff';
+    return QRCode.toBuffer(String(p.tis), { type: 'png', errorCorrectionLevel: 'M', margin: 1, width: Math.round(size * 2), color: { dark, light } }).catch(() => null);
+  }));
   return await new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 40, info: { Title: title } });
     const chunks = [];
@@ -101,7 +104,7 @@ function cleanName(v, label, max) {
 // TIS: exactly 7 digits, leading zeros preserved. Tolerate spaces the user may type.
 function cleanTis(v) {
   const s = String(v == null ? '' : v).replace(/\s+/g, '');
-  if (!/^\d{7}$/.test(s)) throw bad('El Código TIS debe tener exactamente 7 cifras (los ceros a la izquierda cuentan).');
+  if (!/^\d{8}$/.test(s)) throw bad('El Código TIS debe tener exactamente 8 cifras (los ceros a la izquierda cuentan).');
   return s;
 }
 // Pharmacy number: exactly 5 digits, leading zeros preserved. Required on create/import.
@@ -137,6 +140,9 @@ function cleanGroups(input) {
 }
 
 const CLR = /^#[0-9a-fA-F]{6}$/;
+// Per-person QR overrides: a valid hex / style, or null (= fall back to global).
+function cleanColorOpt(v) { return CLR.test(String(v == null ? '' : v)) ? v : null; }
+function cleanStyleOpt(v) { return ['square', 'dots'].includes(v) ? v : null; }
 function cleanSettings(b) {
   const clamp = (n, lo, hi, dflt) => { const x = Math.round(Number(n)); return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : dflt; };
   const d = db.DEFAULT_SETTINGS;
@@ -158,6 +164,7 @@ const publicPerson = (p) => {
     nombre: p.nombre, apellidos: p.apellidos, tis: p.tis,
     groups,                                   // array of group names
     group_name: groups.join('; ') || null,    // display / search / sort string
+    qr_dark: p.qr_dark || null, qr_light: p.qr_light || null, qr_style: p.qr_style || null,
     active: p.active ? 1 : 0,
     created_at: p.created_at, updated_at: p.updated_at,
   };
@@ -199,6 +206,7 @@ router.post('/api/people', json, (req, res) => {
       apellidos: cleanName(b.apellidos, 'Apellidos', 160),
       tis: cleanTis(b.tis),
       group_name: cleanGroups(b.groups !== undefined ? b.groups : b.group_name),
+      qr_dark: cleanColorOpt(b.qr_dark), qr_light: cleanColorOpt(b.qr_light), qr_style: cleanStyleOpt(b.qr_style),
     };
     res.status(201).json({ item: publicPerson(db.createPerson(data, req.user.id)) });
   } catch (err) { fail(res, err); }
@@ -213,6 +221,9 @@ router.patch('/api/people/:id(\\d+)', json, (req, res) => {
     if (b.apellidos != null) data.apellidos = cleanName(b.apellidos, 'Apellidos', 160);
     if (b.tis != null) data.tis = cleanTis(b.tis);
     if (b.groups !== undefined || b.group_name !== undefined) data.group_name = cleanGroups(b.groups !== undefined ? b.groups : b.group_name);
+    if (b.qr_dark !== undefined) data.qr_dark = cleanColorOpt(b.qr_dark);
+    if (b.qr_light !== undefined) data.qr_light = cleanColorOpt(b.qr_light);
+    if (b.qr_style !== undefined) data.qr_style = cleanStyleOpt(b.qr_style);
     if (b.active != null) data.active = b.active ? 1 : 0;
     const p = db.updatePerson(Number(req.params.id), data);
     if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
