@@ -122,7 +122,7 @@ function viewHome() {
   const icoList = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M16 14h24M16 24h24M16 34h24"/><circle cx="9" cy="14" r="2"/><circle cx="9" cy="24" r="2"/><circle cx="9" cy="34" r="2"/></svg>`;
   const icoQr = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="8" y="8" width="12" height="12" rx="2"/><rect x="28" y="8" width="12" height="12" rx="2"/><rect x="8" y="28" width="12" height="12" rx="2"/><path d="M28 28h5v5M40 28v5h-5M28 40h5M35 35v5h5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   main().innerHTML =
-    `<div class="qt-hero"><h1>Gestión de QR (TIS)</h1><p>Personas y su Código TIS como códigos QR listos para escanear.</p></div>
+    `<div class="qt-hero"><h1>Gestión de QR (TIS)</h1><p>Personas y su Código TIS como códigos QR listos para escanear. <a id="hero-help" style="color:var(--brand);font-weight:600;cursor:pointer">¿Cómo funciona? Abre la ayuda ❔</a></p></div>
      <div class="qt-cards">
        ${card(1, 'form', icoAdd, 'Introducir persona', 'Nombre, apellidos y Código TIS (a mano o escaneando un QR). Genera al instante su código.')}
        ${card(2, 'list', icoList, 'Visualizar listado', 'Todas las personas con búsqueda potente, orden, selección, grupos y carrito.')}
@@ -133,6 +133,7 @@ function viewHome() {
     if (go === 'use') { if (S.currentPersonId && S.byId.has(S.currentPersonId)) viewFicha(S.currentPersonId); else viewList(); }
     else showView(go);
   }));
+  const hh = $('hero-help'); if (hh) hh.onclick = viewHelp;
 }
 
 // ── (1) Introducir ──────────────────────────────────────────────────────────────
@@ -643,6 +644,96 @@ function openScanner(onResult) {
     .catch(e => { note.textContent = 'No se pudo acceder a la cámara: ' + e.message + '. Escríbelo a mano.'; note.className = 'qt-scan-note err'; });
 }
 
+// ── Manual / Ayuda ───────────────────────────────────────────────────────────────
+function viewHelp() {
+  S.view = 'help';
+  const SECS = [
+    { id: 'inicio', icon: '🚀', title: 'Qué es y cómo empezar', html: `
+      <p>Esta app guarda <strong>personas</strong> y su <strong>Código TIS</strong> (el número para la gestión de la medicación) y lo convierte en un <strong>código QR</strong> que se puede escanear. Cada persona tiene también un <strong>Nº de farmacia</strong> de 5 cifras.</p>
+      <ol class="qt-steps">
+        <li><b>Introducir persona</b>: rellena Nº de farmacia, nombre, apellidos y TIS. Al guardar aparece su QR grande.</li>
+        <li><b>Visualizar</b>: consulta el listado, busca, ordena, agrupa, selecciona…</li>
+        <li><b>Utilizar el QR</b>: abre la ficha de una persona y muestra su QR a gran tamaño para escanearlo.</li>
+      </ol>
+      <div class="qt-note tip">Los tres accesos están en la portada. Este manual está siempre disponible en el botón <span class="qt-chip-inline">❔ Ayuda</span> de arriba.</div>` },
+    { id: 'campos', icon: '🔢', title: 'Los campos y los ceros', html: `
+      <ul>
+        <li><strong>Nº de farmacia</strong>: 5 cifras que asigna la farmacia. Es el número que aparece <strong>primero</strong> en el listado.</li>
+        <li><strong>Nombre</strong> y <strong>Apellidos</strong>.</li>
+        <li><strong>Código TIS</strong>: 7 cifras. Es lo que codifica el QR.</li>
+      </ul>
+      <div class="qt-note warn"><b>Los ceros a la izquierda cuentan.</b> <code>0012345</code> no es lo mismo que <code>12345</code>. La app los conserva siempre, y al importar desde Excel los recupera aunque Excel los haya borrado.</div>
+      <p>Todos los campos son obligatorios al crear una persona a mano.</p>` },
+    { id: 'introducir', icon: '➕', title: 'Introducir una persona', html: `
+      <p>Portada → <span class="qt-chip-inline">Introducir persona</span>. Escribe los cuatro campos. El Código TIS puedes teclearlo o pulsar el botón <span class="qt-chip-inline">⛶</span> para <strong>escanear un QR</strong> con la cámara: apunta al código y se rellena solo.</p>
+      <p>Al guardar verás el <strong>QR grande</strong> de la persona (la vista «Utilizar el QR»), con un botón para ir al listado.</p>
+      <div class="qt-note">Escanear requiere permiso de cámara y conexión segura (https). Si no está disponible, escribe el TIS a mano.</div>` },
+    { id: 'qr', icon: '🎛️', title: 'El QR y sus ajustes (el «mando»)', html: `
+      <p>En la ficha de una persona, bajo el QR, tienes el <strong>mando</strong> para ajustar:</p>
+      <ul>
+        <li><strong>Tamaño</strong>: hazlo más grande o pequeño.</li>
+        <li><strong>Color</strong> del código y <strong>fondo</strong>.</li>
+        <li><strong>Estilo</strong>: cuadrado o de puntos.</li>
+        <li><strong>Robustez</strong>: mayor = más denso pero más tolerante a manchas/arrugas.</li>
+      </ul>
+      <div class="qt-note tip">Estos ajustes son <b>compartidos</b>: se mantienen para todos hasta que alguien los cambie. Todos los estilos se mantienen escaneables.</div>` },
+    { id: 'buscar', icon: '🔎', title: 'Buscar (rápido y sin tildes)', html: `
+      <p>En el listado, la barra de búsqueda filtra al instante por <strong>Nº de farmacia, nombre, apellidos, TIS o grupo</strong>. No distingue tildes ni la ñ.</p>
+      <ul>
+        <li><span class="qt-chip-inline">AND</span> (por defecto): deben aparecer <strong>todas</strong> las palabras. Con <code>os rez</code> encuentras a «José Pérez».</li>
+        <li><span class="qt-chip-inline">OR</span>: vale con que aparezca <strong>cualquiera</strong> de las palabras.</li>
+      </ul>` },
+    { id: 'listado', icon: '📋', title: 'Ordenar y ver el QR en el listado', html: `
+      <p>Pulsa cualquier <strong>cabecera</strong> para ordenar (otra vez para invertir).</p>
+      <p>El botón <span class="qt-chip-inline">▦ QR en el listado</span> muestra el QR de cada persona dentro de la tabla, con un <strong>deslizador de tamaño</strong> para poder escanearlo desde ahí mismo.</p>` },
+    { id: 'gestionar', icon: '🗂️', title: 'Seleccionar, ocultar, inactivar, eliminar', html: `
+      <ul>
+        <li><strong>Seleccionar</strong>: casilla de la izquierda. Con <span class="qt-chip-inline">✔ Solo seleccionadas</span> filtras por ellas; <span class="qt-chip-inline">✕ Quitar selección</span> las limpia.</li>
+        <li><strong>Ocultar</strong> (icono 👁): quita a alguien de la vista <strong>temporalmente</strong>. Se indica cuántas hay ocultas y puedes volver a mostrarlas. No se recuerda al salir.</li>
+        <li><strong>Inactivar</strong> (icono ⊘): la persona se vuelve gris y su <strong>QR queda inaccesible</strong> hasta reactivarla. También desde su ficha.</li>
+        <li><strong>Eliminar</strong> (icono 🗑): borra a la persona (pide confirmación). También desde la ficha.</li>
+      </ul>` },
+    { id: 'grupos', icon: '👥', title: 'Grupos (varios por persona)', html: `
+      <p>Una persona puede pertenecer a <strong>varios grupos</strong>. En su ficha, «Gestionar grupos» te deja añadir grupos (chips) y quitarlos con la ×.</p>
+      <p>Los grupos se ven en el listado y en el carrito como etiquetas. Al <strong>pulsar una etiqueta de grupo</strong> se seleccionan de golpe todos los que pertenecen a ese grupo. La búsqueda también encuentra por grupo.</p>` },
+    { id: 'carrito', icon: '🛒', title: 'El carrito', html: `
+      <p>Cada usuario tiene <strong>su propio carrito</strong>. Añade personas desde el listado (icono 🛒) o desde su ficha. Ábrelo con el botón 🛒 de arriba.</p>
+      <ul>
+        <li>Muestra cada persona con su <strong>QR a tamaño escaneable</strong>.</li>
+        <li>Puedes <strong>seleccionar</strong> dentro del carrito (con contador), <strong>sacar a los no seleccionados</strong>, <strong>vaciar</strong> (con confirmación) u <strong>ocultar</strong> el panel.</li>
+        <li><strong>Ver en listado</strong> filtra la lista a lo que hay en el carrito. Al pulsar una persona vas a su ficha.</li>
+      </ul>` },
+    { id: 'importar', icon: '📥', title: 'Plantilla e importación (Excel)', html: `
+      <p>En el listado, <span class="qt-chip-inline">📄 Plantilla / Importar</span>:</p>
+      <ol>
+        <li><strong>Descarga la plantilla</strong>: un Excel con <code>Nº Farmacia</code>, <code>Nombre</code>, <code>Apellidos</code> y <code>Código TIS</code>.</li>
+        <li>Rellénala y <strong>súbela</strong>. Se validan las filas; las que fallan se informan (y se omiten), el resto se importan.</li>
+      </ol>
+      <div class="qt-note tip">Para meter a alguien en <b>varios grupos</b> desde Excel, añade una columna <code>Grupo</code> y separa los grupos con <b>punto y coma</b>: <code>Planta 2; Urgencias</code>.</div>` },
+    { id: 'exportar', icon: '📦', title: 'Exportar (Excel y PDF)', html: `
+      <ul>
+        <li><span class="qt-chip-inline">📊 Exportar Excel</span>: elige <strong>qué columnas</strong>, el <strong>orden</strong> y qué personas (las que se ven, las seleccionadas o todas).</li>
+        <li><span class="qt-chip-inline">🖨️ Exportar PDF</span>: una hoja imprimible de códigos QR con nombre y TIS, con <strong>tamaño de QR variable</strong>.</li>
+      </ul>` },
+    { id: 'recientes', icon: '🕘', title: 'Recientes', html: `
+      <p><span class="qt-chip-inline">🕘 Recientes</span> muestra las <strong>últimas 10 personas manejadas</strong> (creadas, editadas o cuya ficha se ha abierto). Pulsa una para ir a su ficha.</p>` },
+  ];
+  const nav = SECS.map(s => `<a data-go="help-${s.id}">${s.icon} ${s.title}</a>`).join('');
+  const secs = SECS.map(s => `<section class="qt-help-sec" id="help-${s.id}"><h2><span class="em">${s.icon}</span>${s.title}</h2>${s.html}</section>`).join('');
+  main().innerHTML =
+    `<button class="qt-back" id="back">← Volver</button>
+     <div class="qt-help-hero"><h1>Manual de Gestión de QR (TIS)</h1><p>Todo lo que puedes hacer, explicado paso a paso. Usa el índice para saltar a cada apartado.</p></div>
+     <div class="qt-help-wrap">
+       <nav class="qt-help-nav">${nav}</nav>
+       <div class="qt-help-content">${secs}</div>
+     </div>`;
+  $('back').onclick = () => (S.currentPersonId ? viewList() : viewHome());
+  main().querySelectorAll('.qt-help-nav [data-go]').forEach(a => a.addEventListener('click', () => {
+    const el = document.getElementById(a.dataset.go); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  window.scrollTo({ top: 0 });
+}
+
 // ── Generic tool modal + Excel/PDF/Recientes ────────────────────────────────────
 function openModal(html) {
   const box = $('tool-modal-box'); box.innerHTML = html;
@@ -887,6 +978,7 @@ function fmtDateTime(s) {
 // ── Boot ────────────────────────────────────────────────────────────────────────
 (async () => {
   $('cart-toggle').onclick = () => { if ($('cart-panel').classList.contains('open')) closeCart(); else openCart(); };
+  $('help-btn').onclick = viewHelp;
   $('scrim').onclick = closeCart;
   $('tool-modal').addEventListener('click', e => { if (e.target === $('tool-modal')) closeModal(); });
   $('go-home').addEventListener('click', e => { e.preventDefault(); viewHome(); });
