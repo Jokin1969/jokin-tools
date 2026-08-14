@@ -846,20 +846,21 @@ function viewHelp() {
       <p>Cada usuario tiene <strong>su propio carrito</strong>. Añade personas desde el listado (icono 🛒) o desde su ficha. Ábrelo con el botón 🛒 de arriba.</p>
       <ul>
         <li>Muestra cada persona con su <strong>QR a tamaño escaneable</strong>.</li>
-        <li>Puedes <strong>seleccionar</strong> dentro del carrito (con contador), <strong>sacar a los no seleccionados</strong>, <strong>vaciar</strong> (con confirmación) u <strong>ocultar</strong> el panel.</li>
+        <li>Puedes <strong>seleccionar</strong> dentro del carrito (con contador; la tarjeta marcada se <strong>resalta en azul</strong>), <strong>sacar a los no seleccionados</strong>, <strong>vaciar</strong> (con confirmación) u <strong>ocultar</strong> el panel.</li>
         <li><strong>Ver en listado</strong> filtra la lista a lo que hay en el carrito. Al pulsar una persona vas a su ficha.</li>
       </ul>` },
     { id: 'importar', icon: '📥', title: 'Plantilla e importación (Excel)', html: `
-      <p>En el listado, <span class="qt-chip-inline">📄 Plantilla / Importar</span>:</p>
+      <p>Los botones están <strong>arriba a la derecha</strong> del listado. En <span class="qt-chip-inline">📄 Plantilla / Importar</span>:</p>
       <ol>
-        <li><strong>Descarga la plantilla</strong>: un Excel con <code>Nº Farmacia</code>, <code>Nombre</code>, <code>Apellidos</code> y <code>Código TIS</code>.</li>
-        <li>Rellénala y <strong>súbela</strong>. Se validan las filas; las que fallan se informan (y se omiten), el resto se importan.</li>
+        <li><strong>Descarga la plantilla</strong>: un Excel con las columnas <code>Nº Farmacia</code>, <code>Nombre</code>, <code>Apellidos</code>, <code>Código TIS</code> y <code>Grupo</code>.</li>
+        <li>Rellénala y <strong>súbela</strong>. Se validan las filas; las que fallan o están <strong>duplicadas</strong> (Nº de farmacia distinto de 00000, o TIS) se informan y se omiten; el resto se importan.</li>
       </ol>
-      <div class="qt-note tip">Para meter a alguien en <b>varios grupos</b> desde Excel, añade una columna <code>Grupo</code> y separa los grupos con <b>punto y coma</b>: <code>Planta 2; Urgencias</code>.</div>` },
+      <div class="qt-note tip">En la columna <code>Grupo</code> puedes poner <b>varios grupos separados por punto y coma</b>: <code>Planta 2; Urgencias</code>. Si dejas el <b>Nº de farmacia</b> en blanco, se pone <code>00000</code> automáticamente.</div>` },
     { id: 'exportar', icon: '📦', title: 'Exportar (Excel y PDF)', html: `
+      <p>Ambos botones están <strong>arriba a la derecha</strong> del listado.</p>
       <ul>
         <li><span class="qt-chip-inline">📊 Exportar Excel</span>: elige <strong>qué columnas</strong>, el <strong>orden</strong> y qué personas (las que se ven, las seleccionadas o todas).</li>
-        <li><span class="qt-chip-inline">🖨️ Exportar PDF</span>: una hoja imprimible de códigos QR con nombre y TIS, con <strong>tamaño de QR variable</strong>.</li>
+        <li><span class="qt-chip-inline">🖨️ Exportar PDF</span>: una hoja imprimible de códigos QR con el <strong>nombre, el TIS y el Nº de farmacia</strong>, con <strong>tamaño de QR variable</strong>. Cada QR sale con el <strong>color de esa persona</strong>.</li>
       </ul>` },
     { id: 'recientes', icon: '🕘', title: 'Recientes', html: `
       <p><span class="qt-chip-inline">🕘 Recientes</span> muestra las <strong>últimas 10 personas manejadas</strong> (creadas, editadas o cuya ficha se ha abierto). Pulsa una para ir a su ficha.</p>` },
