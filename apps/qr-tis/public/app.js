@@ -17,7 +17,12 @@ const S = {
   selected: new Set(), hidden: new Set(),
   showListQr: false, selectedOnly: false, cartView: false,
   currentPersonId: null, view: 'home',
+  nav: [], // ordered person ids for the Anterior/Siguiente context of the ficha
 };
+
+// Open a person's ficha carrying the navigation context it came from (an ordered
+// list of ids), so Anterior/Siguiente cycle exactly that subset — not the whole DB.
+function gotoFicha(id, navIds) { S.nav = Array.isArray(navIds) ? navIds.slice() : []; viewFicha(id); }
 
 // ── Tiny helpers ────────────────────────────────────────────────────────────────
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -130,7 +135,7 @@ function viewHome() {
      </div>`;
   main().querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
     const go = b.dataset.go;
-    if (go === 'use') { if (S.currentPersonId && S.byId.has(S.currentPersonId)) viewFicha(S.currentPersonId); else viewList(); }
+    if (go === 'use') { if (S.currentPersonId && S.byId.has(S.currentPersonId)) gotoFicha(S.currentPersonId, []); else viewList(); }
     else showView(go);
   }));
   const hh = $('hero-help'); if (hh) hh.onclick = viewHelp;
@@ -205,6 +210,7 @@ async function submitForm() {
     const { item } = await api('/people', jbody({ pharmacy_no, nombre, apellidos, tis }));
     await reloadPeople();
     toast('Persona guardada ✓', 'ok');
+    S.nav = [];
     viewFicha(item.id, { justCreated: true });
   } catch (e) { err.textContent = e.message; }
 }
@@ -225,8 +231,22 @@ function viewFicha(id, opts) {
   const groupChip = (p.groups && p.groups.length)
     ? p.groups.map(g => `<span class="qt-chip-group" data-gsel="${esc(g)}" title="Seleccionar el grupo">👥 ${esc(g)}</span>`).join(' ')
     : '';
+  // Anterior / Siguiente cycle the navigation context the ficha came from.
+  const nav = (S.nav || []).filter(nid => S.byId.has(nid));
+  const navIdx = nav.indexOf(id);
+  const hasNav = navIdx >= 0 && nav.length > 1;
+  const navBar = hasNav
+    ? `<div class="qt-navpair">
+         <span class="qt-navpos">${navIdx + 1} / ${nav.length}</span>
+         <button class="qt-btn qt-btn-ghost qt-btn-sm" id="nav-prev" ${navIdx <= 0 ? 'disabled' : ''}>← Anterior</button>
+         <button class="qt-btn qt-btn-ghost qt-btn-sm" id="nav-next" ${navIdx >= nav.length - 1 ? 'disabled' : ''}>Siguiente →</button>
+       </div>`
+    : '';
   main().innerHTML =
-    `<button class="qt-back" id="back">← ${opts.justCreated ? 'Inicio' : 'Volver'}</button>
+    `<div class="qt-ficha-top">
+       <button class="qt-back" id="back">← ${opts.justCreated ? 'Inicio' : 'Volver'}</button>
+       ${navBar}
+     </div>
      <div class="qt-panel qt-ficha">
        <div class="qt-qr-stage">
          <div class="qt-qr-name">${esc(p.nombre)} ${esc(p.apellidos)}</div>
@@ -250,6 +270,7 @@ function viewFicha(id, opts) {
          </div>
          <div id="group-area"></div>
          <div class="qt-ficha-actions">
+           <button class="qt-btn qt-btn-primary" id="act-edit">✏️ Editar información</button>
            <button class="qt-btn ${inCart ? 'qt-btn-ghost' : 'qt-btn-teal'}" id="act-cart">${inCart ? '✓ En el carrito' : '🛒 Añadir al carrito'}</button>
            <button class="qt-btn qt-btn-ghost" id="act-group">👥 ${(p.groups && p.groups.length) ? 'Gestionar grupos' : 'Añadir a grupo'}</button>
            <button class="qt-btn qt-btn-ghost" id="act-active">${p.active ? '⊘ Inactivar' : '✓ Activar'}</button>
@@ -259,6 +280,11 @@ function viewFicha(id, opts) {
        </div>
      </div>`;
   $('back').onclick = opts.justCreated ? viewHome : viewList;
+  if (hasNav) {
+    if (navIdx > 0) $('nav-prev').onclick = () => viewFicha(nav[navIdx - 1]);
+    if (navIdx < nav.length - 1) $('nav-next').onclick = () => viewFicha(nav[navIdx + 1]);
+  }
+  $('act-edit').onclick = () => editPerson(p);
   $('act-list').onclick = viewList;
   if (p.active) wireMando(() => { const box = $('ficha-qr'); if (box) box.innerHTML = qrSvg(p.tis, { dark: S.settings.qr_dark, light: S.settings.qr_light, style: S.settings.qr_style, ecc: S.settings.qr_ecc, size: S.settings.qr_size }); });
   $('act-cart').onclick = async () => { await toggleCart(id); viewFicha(id, opts); };
@@ -302,6 +328,39 @@ function renderGroupManager(p) {
   $('grp-add').onclick = add;
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
   area.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => saveGroups(groups.filter((_, i) => i !== Number(b.dataset.rm))));
+}
+
+// Edit a person's core information (Nº farmacia, nombre, apellidos, TIS).
+function editPerson(p) {
+  openModal(
+    `<div class="qt-modal-h"><h3>Editar información</h3><button class="qt-x" data-close>×</button></div>
+     <div class="qt-form-err" id="e-err"></div>
+     <div class="qt-field"><label>Nº de farmacia <span class="req">*</span></label>
+       <input class="qt-input" id="e-farm" maxlength="5" inputmode="numeric" value="${esc(p.pharmacy_no || '')}" style="font-family:var(--mono);letter-spacing:.28em;text-align:center"></div>
+     <div class="qt-field"><label>Nombre <span class="req">*</span></label><input class="qt-input" id="e-nombre" value="${esc(p.nombre)}"></div>
+     <div class="qt-field"><label>Apellidos <span class="req">*</span></label><input class="qt-input" id="e-apellidos" value="${esc(p.apellidos)}"></div>
+     <div class="qt-field"><label>Código TIS <span class="req">*</span></label>
+       <div class="qt-tis-wrap"><input class="qt-input" id="e-tis" maxlength="7" inputmode="numeric" value="${esc(p.tis)}" style="font-family:var(--mono);letter-spacing:.28em;text-align:center"><button type="button" class="qt-scan-btn" id="e-scan" title="Escanear QR">⛶</button></div></div>
+     <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" data-close>Cancelar</button><button class="qt-btn qt-btn-primary" id="e-save">Guardar cambios</button></div>`
+  );
+  const farm = $('e-farm'), tis = $('e-tis');
+  farm.addEventListener('input', () => { farm.value = farm.value.replace(/\D/g, '').slice(0, 5); });
+  tis.addEventListener('input', () => { tis.value = tis.value.replace(/\D/g, '').slice(0, 7); });
+  $('e-scan').onclick = () => openScanner((raw, digits) => { tis.value = (digits && digits.length >= 7) ? digits.slice(0, 7) : (digits || ''); });
+  const save = async () => {
+    const pharmacy_no = farm.value.replace(/\D/g, ''), nombre = $('e-nombre').value.trim(), apellidos = $('e-apellidos').value.trim(), t = tis.value.replace(/\D/g, '');
+    const err = $('e-err');
+    if (!/^\d{5}$/.test(pharmacy_no)) { err.textContent = 'El Nº de farmacia debe tener exactamente 5 cifras.'; return; }
+    if (!nombre || !apellidos) { err.textContent = 'Nombre y apellidos son obligatorios.'; return; }
+    if (!/^\d{7}$/.test(t)) { err.textContent = 'El Código TIS debe tener exactamente 7 cifras.'; return; }
+    try {
+      const { item } = await api('/people/' + p.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pharmacy_no, nombre, apellidos, tis: t }) });
+      S.byId.set(item.id, item);
+      const i = S.people.findIndex(x => x.id === item.id); if (i >= 0) S.people[i] = item;
+      closeModal(); toast('Información actualizada', 'ok'); viewFicha(p.id);
+    } catch (e) { $('e-err').textContent = e.message; }
+  };
+  $('e-save').onclick = save;
 }
 
 // ── The QR "mando" (shared global settings) ─────────────────────────────────────
@@ -501,7 +560,7 @@ function renderRows() {
   }).join('');
 
   // wire
-  tbody.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => viewFicha(Number(el.dataset.open))));
+  tbody.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => gotoFicha(Number(el.dataset.open), filteredPeople().map(x => x.id))));
   tbody.querySelectorAll('[data-sel]').forEach(cb => cb.addEventListener('change', () => {
     const id = Number(cb.dataset.sel); if (cb.checked) S.selected.add(id); else S.selected.delete(id); renderRows();
   }));
@@ -610,7 +669,7 @@ function renderCart() {
        </div>
      </div>`;
   }).join('');
-  body.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => { closeCart(); viewFicha(Number(el.dataset.open)); }));
+  body.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => { closeCart(); gotoFicha(Number(el.dataset.open), items.map(x => x.id)); }));
   body.querySelectorAll('[data-sel]').forEach(cb => cb.addEventListener('change', () => { const id = Number(cb.dataset.sel); if (cb.checked) S.selected.add(id); else S.selected.delete(id); renderCart(); if (S.view === 'list') renderRows(); }));
   body.querySelectorAll('[data-group]').forEach(g => g.addEventListener('click', () => { closeCart(); selectGroup(g.dataset.group, true); }));
   body.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', async () => { await toggleCart(Number(b.dataset.remove)); renderCart(); if (S.view === 'list') renderRows(); }));
@@ -685,9 +744,11 @@ function viewHelp() {
       </ul>` },
     { id: 'listado', icon: '📋', title: 'Ordenar y ver el QR en el listado', html: `
       <p>Pulsa cualquier <strong>cabecera</strong> para ordenar (otra vez para invertir).</p>
-      <p>El botón <span class="qt-chip-inline">▦ QR en el listado</span> muestra el QR de cada persona dentro de la tabla, con un <strong>deslizador de tamaño</strong> para poder escanearlo desde ahí mismo.</p>` },
-    { id: 'gestionar', icon: '🗂️', title: 'Seleccionar, ocultar, inactivar, eliminar', html: `
+      <p>El botón <span class="qt-chip-inline">▦ QR en el listado</span> muestra el QR de cada persona dentro de la tabla, con un <strong>deslizador de tamaño</strong> para poder escanearlo desde ahí mismo.</p>
+      <div class="qt-note tip">Al abrir la ficha de una persona desde el listado, arriba a la derecha aparecen <b>← Anterior</b> y <b>Siguiente →</b> que recorren <b>exactamente el listado del que vienes</b> (con su filtro/orden actual), no todas las personas de la base de datos.</div>` },
+    { id: 'gestionar', icon: '🗂️', title: 'Editar, seleccionar, ocultar, inactivar, eliminar', html: `
       <ul>
+        <li><strong>Editar</strong>: en la ficha de una persona, <span class="qt-chip-inline">✏️ Editar información</span> permite corregir el Nº de farmacia, nombre, apellidos y TIS.</li>
         <li><strong>Seleccionar</strong>: casilla de la izquierda. Con <span class="qt-chip-inline">✔ Solo seleccionadas</span> filtras por ellas; <span class="qt-chip-inline">✕ Quitar selección</span> las limpia.</li>
         <li><strong>Ocultar</strong> (icono 👁): quita a alguien de la vista <strong>temporalmente</strong>. Se indica cuántas hay ocultas y puedes volver a mostrarlas. No se recuerda al salir.</li>
         <li><strong>Inactivar</strong> (icono ⊘): la persona se vuelve gris y su <strong>QR queda inaccesible</strong> hasta reactivarla. También desde su ficha.</li>
@@ -957,7 +1018,7 @@ async function toolRecent() {
          <span class="ts">${esc(p.tis)}</span>
          <span class="when">${fmtDateTime(p.handled_at)}</span>
        </div>`).join('')}</div>`;
-    $('recent-body').querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => { closeModal(); viewFicha(Number(el.dataset.open)); }));
+    $('recent-body').querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => { closeModal(); gotoFicha(Number(el.dataset.open), items.map(x => x.id)); }));
   } catch (e) { $('recent-body').innerHTML = `<div class="err" style="color:var(--danger)">${esc(e.message)}</div>`; }
 }
 

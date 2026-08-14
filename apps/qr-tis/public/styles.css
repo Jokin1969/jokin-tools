@@ -98,6 +98,10 @@ button { font-family: inherit; }
 .qt-form-actions .qt-btn { flex: 1; justify-content: center; font-size: 1rem; padding: 14px; }
 
 /* ── Ficha (big QR) ─────────────────────────────────────────────────────────── */
+.qt-ficha-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.qt-ficha-top .qt-back { margin-bottom: 0; }
+.qt-navpair { display: inline-flex; align-items: center; gap: 8px; }
+.qt-navpos { font-family: var(--mono); font-size: 0.82rem; font-weight: 700; color: var(--muted); background: #eef3f8; border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; }
 .qt-ficha { display: grid; grid-template-columns: 1.2fr 1fr; gap: 26px; align-items: start; }
 @media (max-width: 860px) { .qt-ficha { grid-template-columns: 1fr; } }
 .qt-qr-stage { background: linear-gradient(160deg, #fbfdff, #eef5fb); border: 1px solid var(--line); border-radius: 20px; padding: 26px; display: flex; flex-direction: column; align-items: center; gap: 16px; box-shadow: var(--shadow); }
@@ -214,6 +218,7 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .qt-modal { position: fixed; inset: 0; background: rgba(15,34,51,0.45); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .qt-modal[hidden] { display: none; }
 .qt-modal-box { background: #fff; border-radius: 18px; box-shadow: var(--shadow-lg); width: min(440px, 100%); padding: 22px; }
+#scan-modal { z-index: 70; } /* above the edit/tool modal when scanning from within it */
 .qt-scan-box { width: min(400px, 100%); }
 .qt-modal-h { display: flex; align-items: center; margin-bottom: 14px; }
 .qt-modal-h h3 { font-size: 1.2rem; font-weight: 800; }
