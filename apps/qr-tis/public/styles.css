@@ -105,7 +105,10 @@ button { font-family: inherit; }
 .qt-inactive-banner { background: #f0f0f2; color: #6b7280; border: 1px dashed #c3c9d2; border-radius: 14px; padding: 30px; text-align: center; font-weight: 600; }
 
 .qt-ficha-info h2 { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.01em; }
-.qt-ficha-meta { color: var(--muted); font-size: 0.9rem; margin: 4px 0 18px; }
+.qt-ficha-meta { color: var(--muted); font-size: 0.9rem; margin: 4px 0 16px; }
+.qt-pharm-badge { display: flex; align-items: center; gap: 14px; background: linear-gradient(135deg, #12406e, #1273b8); color: #fff; border-radius: 15px; padding: 14px 20px; margin-bottom: 18px; box-shadow: 0 10px 26px rgba(18,115,184,0.25); }
+.qt-pharm-badge .lbl { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; opacity: 0.85; }
+.qt-pharm-badge .num { margin-left: auto; font-family: var(--mono); font-weight: 700; font-size: 1.9rem; letter-spacing: 0.22em; }
 .qt-kv { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
 .qt-kv-row { display: flex; justify-content: space-between; gap: 12px; padding: 11px 14px; background: #f6f9fc; border: 1px solid var(--line); border-radius: 11px; }
 .qt-kv-row .k { color: var(--muted); font-size: 0.82rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -165,6 +168,8 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .qt-cell-name { font-weight: 700; cursor: pointer; }
 .qt-cell-name:hover { color: var(--brand); }
 .qt-cell-tis { font-family: var(--mono); letter-spacing: 0.1em; font-weight: 600; }
+.qt-cell-pharm { display: inline-block; font-family: var(--mono); font-weight: 700; letter-spacing: 0.12em; color: var(--brand-2); background: #eaf2fb; border: 1px solid #cfe2f4; border-radius: 7px; padding: 2px 9px; cursor: pointer; }
+.qt-cell-pharm:hover { background: #dcebfa; }
 .qt-cell-actions { display: flex; gap: 5px; justify-content: flex-end; }
 .qt-iconbtn { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; font-size: 0.9rem; line-height: 1; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
 .qt-iconbtn:hover { border-color: var(--brand); color: var(--brand); }

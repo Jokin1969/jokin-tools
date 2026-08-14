@@ -142,8 +142,13 @@ function viewForm() {
     `<button class="qt-back" id="back">← Inicio</button>
      <div class="qt-panel qt-form">
        <div class="qt-section-title">Introducir persona / TIS</div>
-       <div class="qt-section-sub">Los tres campos son obligatorios <span style="color:var(--danger)">*</span></div>
+       <div class="qt-section-sub">Todos los campos son obligatorios <span style="color:var(--danger)">*</span></div>
        <div class="qt-form-err" id="f-err"></div>
+       <div class="qt-field">
+         <label>Nº de farmacia <span class="req">*</span></label>
+         <input class="qt-input" id="f-farmacia" placeholder="00000" inputmode="numeric" maxlength="5" autocomplete="off" style="font-family:var(--mono);letter-spacing:.28em;text-align:center" />
+         <div class="qt-field-hint">5 cifras que asigna la farmacia. Los ceros a la izquierda cuentan.</div>
+       </div>
        <div class="qt-field">
          <label>Nombre <span class="req">*</span></label>
          <input class="qt-input" id="f-nombre" placeholder="p. ej. José" autocomplete="off" />
@@ -175,23 +180,28 @@ function viewForm() {
     else toast('QR leído, pero no son 7 cifras. Revísalo.', 'err');
   });
   $('f-save').onclick = submitForm;
-  $('f-nombre').focus();
-  [tisEl, $('f-nombre'), $('f-apellidos')].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') submitForm(); }));
+  const farmEl = $('f-farmacia');
+  farmEl.addEventListener('input', () => { farmEl.value = farmEl.value.replace(/\D/g, '').slice(0, 5); });
+  farmEl.focus();
+  [farmEl, tisEl, $('f-nombre'), $('f-apellidos')].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') submitForm(); }));
 }
 
 async function submitForm() {
+  const pharmacy_no = $('f-farmacia').value.replace(/\D/g, '');
   const nombre = $('f-nombre').value.trim();
   const apellidos = $('f-apellidos').value.trim();
   const tis = $('f-tis').value.replace(/\D/g, '');
   const err = $('f-err');
+  $('f-farmacia').classList.toggle('is-invalid', !/^\d{5}$/.test(pharmacy_no));
   $('f-nombre').classList.toggle('is-invalid', !nombre);
   $('f-apellidos').classList.toggle('is-invalid', !apellidos);
   $('f-tis').classList.toggle('is-invalid', !/^\d{7}$/.test(tis));
+  if (!/^\d{5}$/.test(pharmacy_no)) { err.textContent = 'El Nº de farmacia debe tener exactamente 5 cifras.'; return; }
   if (!nombre || !apellidos) { err.textContent = 'Nombre y apellidos son obligatorios.'; return; }
   if (!/^\d{7}$/.test(tis)) { err.textContent = 'El Código TIS debe tener exactamente 7 cifras.'; return; }
   err.textContent = '';
   try {
-    const { item } = await api('/people', jbody({ nombre, apellidos, tis }));
+    const { item } = await api('/people', jbody({ pharmacy_no, nombre, apellidos, tis }));
     await reloadPeople();
     toast('Persona guardada ✓', 'ok');
     viewFicha(item.id, { justCreated: true });
@@ -226,7 +236,12 @@ function viewFicha(id, opts) {
        <div class="qt-ficha-info">
          <h2>${esc(p.nombre)} ${esc(p.apellidos)}</h2>
          <div class="qt-ficha-meta">Alta: ${fmtDate(p.created_at)}${groupChip ? ' · ' : ''}${groupChip}</div>
+         <div class="qt-pharm-badge">
+           <span class="lbl">Nº de farmacia</span>
+           <span class="num">${p.pharmacy_no ? esc(p.pharmacy_no) : '—'}</span>
+         </div>
          <div class="qt-kv">
+           <div class="qt-kv-row"><span class="k">Nº Farmacia</span><span class="v mono">${p.pharmacy_no ? esc(p.pharmacy_no) : '—'}</span></div>
            <div class="qt-kv-row"><span class="k">Nombre</span><span class="v">${esc(p.nombre)}</span></div>
            <div class="qt-kv-row"><span class="k">Apellidos</span><span class="v">${esc(p.apellidos)}</span></div>
            <div class="qt-kv-row"><span class="k">Código TIS</span><span class="v mono">${esc(p.tis)}</span></div>
@@ -377,6 +392,7 @@ function viewList() {
 function renderHead() {
   const cols = [
     { key: 'sel', label: '', sort: false },
+    { key: 'pharmacy_no', label: 'Nº Farmacia' },
     { key: 'nombre', label: 'Nombre' },
     { key: 'apellidos', label: 'Apellidos' },
     { key: 'tis', label: 'Código TIS' },
@@ -406,7 +422,7 @@ function filteredPeople() {
   const tokens = norm(S.query).split(/\s+/).filter(Boolean);
   if (tokens.length) {
     rows = rows.filter(p => {
-      const hay = norm([p.nombre, p.apellidos, p.tis, p.group_name].join(' '));
+      const hay = norm([p.pharmacy_no, p.nombre, p.apellidos, p.tis, p.group_name].join(' '));
       return S.andor === 'OR' ? tokens.some(t => hay.includes(t)) : tokens.every(t => hay.includes(t));
     });
   }
@@ -424,7 +440,7 @@ function renderRows() {
   const rows = filteredPeople();
   const st = S.settings;
   const tbody = $('tbody');
-  const colspan = S.showListQr ? 7 : 6;
+  const colspan = S.showListQr ? 9 : 8; // sel + pharmacy + nombre + apellidos + tis + grupo + estado (+ qr) + acciones
   const selInCart = [...S.selected].filter(id => S.cart.has(id)).length;
   $('list-count').textContent =
     `${rows.length} de ${S.people.length}` +
@@ -435,7 +451,7 @@ function renderRows() {
     ? `<div class="qt-hidden-note">👁 Hay <strong>${S.hidden.size}</strong> persona(s) oculta(s) temporalmente. <a id="unhide">Mostrar todas</a></div>` : '';
   if (S.hidden.size) $('unhide').onclick = () => { S.hidden.clear(); renderRows(); };
 
-  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="${colspan + 1}"><div class="qt-empty">No hay personas que coincidan.</div></td></tr>`; return; }
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="${colspan}"><div class="qt-empty">No hay personas que coincidan.</div></td></tr>`; return; }
 
   tbody.innerHTML = rows.map(p => {
     const sel = S.selected.has(p.id);
@@ -449,6 +465,7 @@ function renderRows() {
     const inCart = S.cart.has(p.id);
     return `<tr class="${p.active ? '' : 'is-inactive'} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
       <td><input type="checkbox" class="qt-check" data-sel="${p.id}" ${sel ? 'checked' : ''}></td>
+      <td><span class="qt-cell-pharm" data-open="${p.id}">${p.pharmacy_no ? esc(p.pharmacy_no) : '<span style=\"color:#c3c9d2\">—</span>'}</span></td>
       <td><span class="qt-cell-name" data-open="${p.id}">${esc(p.nombre)}</span></td>
       <td>${esc(p.apellidos)}</td>
       <td class="qt-cell-tis">${esc(p.tis)}</td>
@@ -568,7 +585,7 @@ function renderCart() {
        ${qr}
        <div class="info">
          <div class="nm" data-open="${p.id}">${esc(p.nombre)} ${esc(p.apellidos)} ${group}</div>
-         <div class="ts">${esc(p.tis)}</div>
+         <div class="ts">${p.pharmacy_no ? 'Farm. ' + esc(p.pharmacy_no) + ' · ' : ''}${esc(p.tis)}</div>
          <label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:.82rem;cursor:pointer"><input type="checkbox" class="qt-check" data-sel="${p.id}" ${sel ? 'checked' : ''}> Seleccionar</label>
          <button class="qt-iconbtn danger" data-remove="${p.id}" title="Sacar del carrito" style="margin-left:8px">✕</button>
        </div>
@@ -627,18 +644,20 @@ function downloadBlob(blob, name) {
 }
 function stamp() { const d = new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`; }
 
-// Excel eats leading zeros of numbers → recover a 7-digit TIS by padding.
-function padTis(v) { let s = String(v == null ? '' : v).replace(/\D/g, ''); if (s.length && s.length < 7) s = s.padStart(7, '0'); return s; }
+// Excel eats leading zeros of numbers → recover a fixed-width code by padding.
+function padNum(v, n) { let s = String(v == null ? '' : v).replace(/\D/g, ''); if (s.length && s.length < n) s = s.padStart(n, '0'); return s; }
+function padTis(v) { return padNum(v, 7); }
 
 const EXPORT_COLS = [
-  { key: 'num', label: 'Nº', def: true, get: (p, i) => i + 1 },
-  { key: 'id', label: 'ID interno', def: false, get: p => p.id },
+  { key: 'pharmacy_no', label: 'Nº Farmacia', def: true, text: true, get: p => String(p.pharmacy_no || '') },
   { key: 'nombre', label: 'Nombre', def: true, get: p => p.nombre },
   { key: 'apellidos', label: 'Apellidos', def: true, get: p => p.apellidos },
-  { key: 'tis', label: 'Código TIS', def: true, tis: true, get: p => String(p.tis) },
+  { key: 'tis', label: 'Código TIS', def: true, text: true, get: p => String(p.tis) },
   { key: 'group_name', label: 'Grupo', def: true, get: p => p.group_name || '' },
   { key: 'active', label: 'Estado', def: false, get: p => (p.active ? 'Activa' : 'Inactiva') },
   { key: 'created_at', label: 'Fecha de alta', def: false, get: p => fmtDate(p.created_at) },
+  { key: 'num', label: 'Nº (secuencia)', def: false, get: (p, i) => i + 1 },
+  { key: 'id', label: 'ID interno', def: false, get: p => p.id },
 ];
 
 function sortPeople(arr, key, dir) {
@@ -671,12 +690,12 @@ function toolExcelIO() {
     `<div class="qt-modal-h"><h3>Plantilla e importación (Excel)</h3><button class="qt-x" data-close>×</button></div>
      <div class="qt-tool-opt">
        <h4>1 · Descargar plantilla</h4>
-       <p>Un Excel con las columnas <strong>Nº, Nombre, Apellidos y Código TIS</strong> listo para rellenar. El Código TIS va como texto para no perder los ceros a la izquierda.</p>
+       <p>Un Excel con las columnas <strong>Nº Farmacia (5 cifras), Nombre, Apellidos y Código TIS (7 cifras)</strong> listo para rellenar. Los códigos van como texto para no perder los ceros a la izquierda.</p>
        <button class="qt-btn qt-btn-primary" id="tpl-dl">⬇ Descargar plantilla .xlsx</button>
      </div>
      <div class="qt-tool-opt">
        <h4>2 · Importar Excel relleno</h4>
-       <p>Sube el mismo Excel con los datos. Se leen Nombre, Apellidos y Código TIS (7 cifras). Las filas no válidas se informan y se omiten.</p>
+       <p>Sube el mismo Excel con los datos. Se leen Nº Farmacia, Nombre, Apellidos y Código TIS. Las filas no válidas se informan y se omiten.</p>
        <div class="qt-dropfile" id="imp-drop">📥 Haz clic o arrastra aquí tu Excel (.xlsx / .csv)</div>
        <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" hidden>
        <div class="qt-import-report" id="imp-report"></div>
@@ -693,14 +712,14 @@ function toolExcelIO() {
 
 function downloadTemplate() {
   const aoa = [
-    ['Nº', 'Nombre', 'Apellidos', 'Código TIS'],
-    [1, 'José', 'Pérez García', '0012345'],
-    [2, 'María', 'López Ruiz', '0100200'],
+    ['Nº Farmacia', 'Nombre', 'Apellidos', 'Código TIS'],
+    ['01234', 'José', 'Pérez García', '0012345'],
+    ['00250', 'María', 'López Ruiz', '0100200'],
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 5 }, { wch: 22 }, { wch: 26 }, { wch: 14 }];
-  // Force the Código TIS column (D) to text so zeros survive.
-  for (let r = 1; r <= 2; r++) { const c = XLSX.utils.encode_cell({ r, c: 3 }); if (ws[c]) { ws[c].t = 's'; ws[c].z = '@'; } }
+  ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 26 }, { wch: 14 }];
+  // Force the numeric-code columns (A: Nº Farmacia, D: Código TIS) to text so zeros survive.
+  for (let r = 1; r <= 2; r++) for (const c of [0, 3]) { const cell = XLSX.utils.encode_cell({ r, c }); if (ws[cell]) { ws[cell].t = 's'; ws[cell].z = '@'; } }
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Personas');
   XLSX.writeFile(wb, 'Plantilla_TIS.xlsx');
 }
@@ -728,17 +747,18 @@ async function importFile(file) {
     if (!aoa.length) throw new Error('El Excel está vacío.');
     const header = aoa[0].map(h => norm(String(h)));
     const find = (...names) => header.findIndex(h => names.some(n => h.includes(n)));
-    const ci = { nombre: find('nombre'), apellidos: find('apellido'), tis: find('tis') };
-    if (ci.nombre < 0 || ci.apellidos < 0 || ci.tis < 0)
-      throw new Error('Faltan columnas. El Excel debe tener «Nombre», «Apellidos» y «Código TIS».');
+    const ci = { pharmacy: find('farmacia'), nombre: find('nombre'), apellidos: find('apellido'), tis: find('tis') };
+    if (ci.pharmacy < 0 || ci.nombre < 0 || ci.apellidos < 0 || ci.tis < 0)
+      throw new Error('Faltan columnas. El Excel debe tener «Nº Farmacia», «Nombre», «Apellidos» y «Código TIS».');
     const rows = [];
     for (let i = 1; i < aoa.length; i++) {
       const r = aoa[i];
+      const pharmacy_no = padNum(r[ci.pharmacy], 5);
       const nombre = String(r[ci.nombre] || '').trim();
       const apellidos = String(r[ci.apellidos] || '').trim();
       const tis = padTis(r[ci.tis]);
-      if (!nombre && !apellidos && !tis) continue; // skip blank rows
-      rows.push({ __row: i + 1, nombre, apellidos, tis });
+      if (!pharmacy_no && !nombre && !apellidos && !tis) continue; // skip blank rows
+      rows.push({ __row: i + 1, pharmacy_no, nombre, apellidos, tis });
     }
     if (!rows.length) throw new Error('No hay filas con datos.');
     report.innerHTML = `Importando ${rows.length} fila(s)…`;
@@ -780,9 +800,8 @@ function toolExportExcel() {
     people.forEach((p, i) => aoa.push(chosen.map(c => c.get(p, i))));
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = chosen.map(c => ({ wch: c.key === 'apellidos' ? 26 : c.key === 'nombre' ? 20 : 14 }));
-    // Keep the TIS column as text (leading zeros).
-    const tisIdx = chosen.findIndex(c => c.tis);
-    if (tisIdx >= 0) for (let r = 1; r <= people.length; r++) { const cell = ws[XLSX.utils.encode_cell({ r, c: tisIdx })]; if (cell) { cell.t = 's'; cell.z = '@'; } }
+    // Keep number-like codes (Nº Farmacia, TIS) as text so leading zeros survive.
+    chosen.forEach((c, ci) => { if (c.text) for (let r = 1; r <= people.length; r++) { const cell = ws[XLSX.utils.encode_cell({ r, c: ci })]; if (cell) { cell.t = 's'; cell.z = '@'; } } });
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Personas TIS');
     XLSX.writeFile(wb, `TIS_personas_${stamp()}.xlsx`);
     closeModal(); toast('Excel generado', 'ok');
@@ -824,6 +843,7 @@ async function toolRecent() {
     if (!items.length) { $('recent-body').innerHTML = '<div class="qt-empty">Aún no se ha manejado ninguna persona.</div>'; return; }
     $('recent-body').innerHTML = `<div class="qt-recent-list">${items.map(p =>
       `<div class="qt-recent-item ${p.active ? '' : 'off'}" data-open="${p.id}">
+         <span class="qt-cell-pharm">${p.pharmacy_no ? esc(p.pharmacy_no) : '—'}</span>
          <span class="nm">${esc(p.nombre)} ${esc(p.apellidos)}</span>
          <span class="ts">${esc(p.tis)}</span>
          <span class="when">${fmtDateTime(p.handled_at)}</span>

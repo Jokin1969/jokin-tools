@@ -49,7 +49,7 @@ async function buildPeoplePdf(people, size, title, st) {
 
     const pageW = doc.page.width, pageH = doc.page.height, M = 40;
     const usableW = pageW - 2 * M;
-    const labelH = 30;
+    const labelH = 44;
     const gap = 18;
     const cellW = Math.max(size, 90);
     const cols = Math.max(1, Math.floor((usableW + gap) / (cellW + gap)));
@@ -82,6 +82,10 @@ async function buildPeoplePdf(people, size, title, st) {
         .text(`${p.nombre} ${p.apellidos}`, x, y + size + 4, { width: cellW, align: 'center', ellipsis: true, height: 14 });
       doc.fillColor('#1273b8').font('Courier-Bold').fontSize(11)
         .text(String(p.tis), x, y + size + 17, { width: cellW, align: 'center' });
+      if (p.pharmacy_no) {
+        doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
+          .text(`Farmacia: ${p.pharmacy_no}`, x, y + size + 31, { width: cellW, align: 'center' });
+      }
     });
 
     doc.end();
@@ -98,6 +102,13 @@ function cleanName(v, label, max) {
 function cleanTis(v) {
   const s = String(v == null ? '' : v).replace(/\s+/g, '');
   if (!/^\d{7}$/.test(s)) throw bad('El Código TIS debe tener exactamente 7 cifras (los ceros a la izquierda cuentan).');
+  return s;
+}
+// Pharmacy number: exactly 5 digits, leading zeros preserved. Required on create/import.
+function cleanPharmacy(v, required) {
+  const s = String(v == null ? '' : v).replace(/\s+/g, '');
+  if (!s) { if (required) throw bad('El Nº de farmacia (5 cifras) es obligatorio.'); return null; }
+  if (!/^\d{5}$/.test(s)) throw bad('El Nº de farmacia debe tener exactamente 5 cifras (los ceros a la izquierda cuentan).');
   return s;
 }
 function cleanGroup(v) {
@@ -121,7 +132,8 @@ function cleanSettings(b) {
 }
 
 const publicPerson = (p) => p && ({
-  id: p.id, nombre: p.nombre, apellidos: p.apellidos, tis: p.tis,
+  id: p.id, pharmacy_no: p.pharmacy_no || null,
+  nombre: p.nombre, apellidos: p.apellidos, tis: p.tis,
   group_name: p.group_name || null, active: p.active ? 1 : 0,
   created_at: p.created_at, updated_at: p.updated_at,
 });
@@ -157,6 +169,7 @@ router.post('/api/people', json, (req, res) => {
   try {
     const b = req.body || {};
     const data = {
+      pharmacy_no: cleanPharmacy(b.pharmacy_no, true),
       nombre: cleanName(b.nombre, 'Nombre', 120),
       apellidos: cleanName(b.apellidos, 'Apellidos', 160),
       tis: cleanTis(b.tis),
@@ -170,6 +183,7 @@ router.patch('/api/people/:id(\\d+)', json, (req, res) => {
   try {
     const b = req.body || {};
     const data = {};
+    if (b.pharmacy_no !== undefined) data.pharmacy_no = cleanPharmacy(b.pharmacy_no, false);
     if (b.nombre != null) data.nombre = cleanName(b.nombre, 'Nombre', 120);
     if (b.apellidos != null) data.apellidos = cleanName(b.apellidos, 'Apellidos', 160);
     if (b.tis != null) data.tis = cleanTis(b.tis);
@@ -200,6 +214,7 @@ router.post('/api/import', jsonBig, (req, res) => {
     rows.forEach((r, i) => {
       try {
         valid.push({
+          pharmacy_no: cleanPharmacy(r.pharmacy_no, true),
           nombre: cleanName(r.nombre, 'Nombre', 120),
           apellidos: cleanName(r.apellidos, 'Apellidos', 160),
           tis: cleanTis(r.tis),

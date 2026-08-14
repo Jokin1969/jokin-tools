@@ -24,11 +24,12 @@ db.pragma('journal_mode = WAL');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS tis_people (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    nombre     TEXT NOT NULL,
-    apellidos  TEXT NOT NULL,
-    tis        TEXT NOT NULL,           -- 7 digits, leading zeros preserved
-    group_name TEXT,                    -- optional group membership
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    pharmacy_no TEXT,                    -- 5 digits assigned by the pharmacy (leading zeros preserved)
+    nombre      TEXT NOT NULL,
+    apellidos   TEXT NOT NULL,
+    tis         TEXT NOT NULL,           -- 7 digits, leading zeros preserved
+    group_name  TEXT,                    -- optional group membership
     active     INTEGER NOT NULL DEFAULT 1,
     created_by INTEGER,
     created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -57,8 +58,9 @@ db.exec(`
   );
 `);
 
-// Lightweight migration for DBs created before last_used_at existed.
+// Lightweight migrations for DBs created before these columns existed.
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN last_used_at DATETIME').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE tis_people ADD COLUMN pharmacy_no TEXT').run(); } catch { /* already present */ }
 
 console.log('[qr-tis] Database ready at:', DB_PATH);
 
@@ -70,7 +72,7 @@ const DEFAULT_SETTINGS = {
 // ── People ──────────────────────────────────────────────────────────────────────
 function listPeople() {
   return db.prepare(
-    `SELECT id, nombre, apellidos, tis, group_name, active, created_at, updated_at
+    `SELECT id, pharmacy_no, nombre, apellidos, tis, group_name, active, created_at, updated_at
        FROM tis_people ORDER BY apellidos COLLATE NOCASE, nombre COLLATE NOCASE, id`
   ).all();
 }
@@ -81,9 +83,10 @@ function getPerson(id) {
 
 function createPerson(data, userId) {
   const info = db.prepare(
-    `INSERT INTO tis_people (nombre, apellidos, tis, group_name, active, created_by, last_used_at)
-     VALUES (@nombre, @apellidos, @tis, @group_name, 1, @created_by, CURRENT_TIMESTAMP)`
+    `INSERT INTO tis_people (pharmacy_no, nombre, apellidos, tis, group_name, active, created_by, last_used_at)
+     VALUES (@pharmacy_no, @nombre, @apellidos, @tis, @group_name, 1, @created_by, CURRENT_TIMESTAMP)`
   ).run({
+    pharmacy_no: data.pharmacy_no || null,
     nombre: data.nombre, apellidos: data.apellidos, tis: data.tis,
     group_name: data.group_name || null, created_by: userId != null ? userId : null,
   });
@@ -103,7 +106,7 @@ function touchPerson(id) {
 // The N people most recently handled (created / edited / viewed).
 function recentPeople(limit) {
   return db.prepare(
-    `SELECT id, nombre, apellidos, tis, group_name, active,
+    `SELECT id, pharmacy_no, nombre, apellidos, tis, group_name, active,
             COALESCE(last_used_at, updated_at, created_at) AS handled_at
        FROM tis_people
       ORDER BY COALESCE(last_used_at, updated_at, created_at) DESC, id DESC
@@ -116,6 +119,7 @@ function updatePerson(id, data) {
   const cur = getPerson(id);
   if (!cur) return null;
   const next = {
+    pharmacy_no: data.pharmacy_no !== undefined ? (data.pharmacy_no || null) : cur.pharmacy_no,
     nombre: data.nombre != null ? data.nombre : cur.nombre,
     apellidos: data.apellidos != null ? data.apellidos : cur.apellidos,
     tis: data.tis != null ? data.tis : cur.tis,
@@ -124,7 +128,7 @@ function updatePerson(id, data) {
   };
   db.prepare(
     `UPDATE tis_people
-       SET nombre = @nombre, apellidos = @apellidos, tis = @tis,
+       SET pharmacy_no = @pharmacy_no, nombre = @nombre, apellidos = @apellidos, tis = @tis,
            group_name = @group_name, active = @active,
            updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP
      WHERE id = @id`

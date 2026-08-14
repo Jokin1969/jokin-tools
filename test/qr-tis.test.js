@@ -11,14 +11,16 @@ process.env.QR_TIS_DB_PATH = path.join(dir, 'qr_tis.db');
 
 const db = require('../apps/qr-tis/db');
 
-test('createPerson preserves the TIS exactly, leading zeros included', () => {
-  const p = db.createPerson({ nombre: 'José', apellidos: 'Pérez García', tis: '0012345' }, 1);
+test('createPerson preserves the TIS and pharmacy number exactly, leading zeros included', () => {
+  const p = db.createPerson({ pharmacy_no: '01234', nombre: 'José', apellidos: 'Pérez García', tis: '0012345' }, 1);
   assert.equal(p.tis, '0012345');           // stored as text — zeros count
   assert.equal(p.tis.length, 7);
+  assert.equal(p.pharmacy_no, '01234');     // 5-digit pharmacy number, zeros preserved
   assert.equal(p.active, 1);
   assert.equal(p.nombre, 'José');
   const back = db.getPerson(p.id);
   assert.equal(back.tis, '0012345');
+  assert.equal(back.pharmacy_no, '01234');
 });
 
 test('update, active toggle and group membership', () => {
