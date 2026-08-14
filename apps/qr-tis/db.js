@@ -31,8 +31,9 @@ db.exec(`
     group_name TEXT,                    -- optional group membership
     active     INTEGER NOT NULL DEFAULT 1,
     created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP   -- bumped on create/edit/view ("handled")
   );
   CREATE INDEX IF NOT EXISTS idx_tis_people_active ON tis_people(active);
 
@@ -56,6 +57,9 @@ db.exec(`
   );
 `);
 
+// Lightweight migration for DBs created before last_used_at existed.
+try { db.prepare('ALTER TABLE tis_people ADD COLUMN last_used_at DATETIME').run(); } catch { /* already present */ }
+
 console.log('[qr-tis] Database ready at:', DB_PATH);
 
 const DEFAULT_SETTINGS = {
@@ -77,13 +81,34 @@ function getPerson(id) {
 
 function createPerson(data, userId) {
   const info = db.prepare(
-    `INSERT INTO tis_people (nombre, apellidos, tis, group_name, active, created_by)
-     VALUES (@nombre, @apellidos, @tis, @group_name, 1, @created_by)`
+    `INSERT INTO tis_people (nombre, apellidos, tis, group_name, active, created_by, last_used_at)
+     VALUES (@nombre, @apellidos, @tis, @group_name, 1, @created_by, CURRENT_TIMESTAMP)`
   ).run({
     nombre: data.nombre, apellidos: data.apellidos, tis: data.tis,
     group_name: data.group_name || null, created_by: userId != null ? userId : null,
   });
   return getPerson(info.lastInsertRowid);
+}
+
+// Insert many people in one transaction. `rows` are already validated.
+// Returns the created rows.
+const createManyPeople = db.transaction((rows, userId) => rows.map(r => createPerson(r, userId)));
+
+// Bump "last handled" without touching updated_at (used when a ficha/QR is opened).
+function touchPerson(id) {
+  db.prepare('UPDATE tis_people SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+  return getPerson(id);
+}
+
+// The N people most recently handled (created / edited / viewed).
+function recentPeople(limit) {
+  return db.prepare(
+    `SELECT id, nombre, apellidos, tis, group_name, active,
+            COALESCE(last_used_at, updated_at, created_at) AS handled_at
+       FROM tis_people
+      ORDER BY COALESCE(last_used_at, updated_at, created_at) DESC, id DESC
+      LIMIT ?`
+  ).all(Math.max(1, Math.min(50, limit || 10)));
 }
 
 // Partial update: only the provided fields change.
@@ -100,7 +125,8 @@ function updatePerson(id, data) {
   db.prepare(
     `UPDATE tis_people
        SET nombre = @nombre, apellidos = @apellidos, tis = @tis,
-           group_name = @group_name, active = @active, updated_at = CURRENT_TIMESTAMP
+           group_name = @group_name, active = @active,
+           updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP
      WHERE id = @id`
   ).run({ ...next, id });
   return getPerson(id);
@@ -153,7 +179,8 @@ function cartClear(userId) {
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listPeople, getPerson, createPerson, updatePerson, deletePerson,
+  listPeople, getPerson, createPerson, createManyPeople, updatePerson, deletePerson,
+  touchPerson, recentPeople,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,
 };

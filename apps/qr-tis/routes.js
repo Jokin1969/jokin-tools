@@ -13,6 +13,7 @@ const db = require('./db');
 const router = express.Router();
 const PUB = path.join(__dirname, 'public');
 const json = express.json({ limit: '256kb' });
+const jsonBig = express.json({ limit: '4mb' }); // bulk import / big export selections
 
 function fail(res, err) {
   const status = err && err.status ? err.status : 500;
@@ -20,6 +21,72 @@ function fail(res, err) {
   res.status(status).json({ error: err.message || 'Error en Gestión de QR (TIS).' });
 }
 function bad(msg, status = 400) { const e = new Error(msg); e.status = status; return e; }
+
+function setDownload(res, filename, mime) {
+  const ascii = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Content-Disposition',
+    `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+}
+
+// Build a printable PDF sheet: a grid of QR codes (server-rendered) with the
+// person's name and TIS beneath each. The QR side length (points) is the caller's
+// variable. Inactive people show a placeholder instead of a scannable QR.
+async function buildPeoplePdf(people, size, title, st) {
+  const PDFDocument = require('pdfkit');
+  const QRCode = require('qrcode');
+  const color = { dark: /^#[0-9a-f]{6}$/i.test(st.qr_dark) ? st.qr_dark : '#0f172a', light: '#ffffff' };
+  // Pre-render every QR (PNG) at ~2× for crisp print.
+  const pngs = await Promise.all(people.map(p =>
+    p.active ? QRCode.toBuffer(String(p.tis), { type: 'png', errorCorrectionLevel: 'M', margin: 1, width: Math.round(size * 2), color }).catch(() => null) : Promise.resolve(null)
+  ));
+  return await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 40, info: { Title: title } });
+    const chunks = [];
+    doc.on('data', c => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    const pageW = doc.page.width, pageH = doc.page.height, M = 40;
+    const usableW = pageW - 2 * M;
+    const labelH = 30;
+    const gap = 18;
+    const cellW = Math.max(size, 90);
+    const cols = Math.max(1, Math.floor((usableW + gap) / (cellW + gap)));
+    const cellH = size + labelH + 10;
+    const colGap = cols > 1 ? (usableW - cols * cellW) / (cols - 1) : 0;
+
+    // Header
+    doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(17).text(title, M, M, { width: usableW });
+    doc.fillColor('#5c7086').font('Helvetica').fontSize(9)
+      .text(`${people.length} persona(s) · Gestión de QR (TIS)`, M, M + 22, { width: usableW });
+    let top = M + 46;
+
+    people.forEach((p, i) => {
+      const col = i % cols;
+      if (i > 0 && col === 0) {
+        top += cellH + gap;
+        if (top + cellH > pageH - M) { doc.addPage(); top = M; }
+      }
+      const x = M + col * (cellW + colGap);
+      const y = top;
+      const qx = x + (cellW - size) / 2;
+      if (pngs[i]) {
+        try { doc.image(pngs[i], qx, y, { width: size, height: size }); } catch { /* skip */ }
+      } else {
+        doc.save().lineWidth(1).strokeColor('#c3c9d2').dash(3, { space: 3 }).rect(qx, y, size, size).stroke().undash();
+        doc.fillColor('#9aa4b0').font('Helvetica').fontSize(9).text('Inactiva', qx, y + size / 2 - 6, { width: size, align: 'center' });
+        doc.restore();
+      }
+      doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(10)
+        .text(`${p.nombre} ${p.apellidos}`, x, y + size + 4, { width: cellW, align: 'center', ellipsis: true, height: 14 });
+      doc.fillColor('#1273b8').font('Courier-Bold').fontSize(11)
+        .text(String(p.tis), x, y + size + 17, { width: cellW, align: 'center' });
+    });
+
+    doc.end();
+  });
+}
 
 // ── Validation ──────────────────────────────────────────────────────────────────
 function cleanName(v, label, max) {
@@ -119,6 +186,66 @@ router.delete('/api/people/:id(\\d+)', (req, res) => {
     const ok = db.deletePerson(Number(req.params.id));
     if (!ok) return res.status(404).json({ error: 'Persona no encontrada.' });
     res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+});
+
+// ── Bulk import (from a filled-in Excel, parsed client-side) ────────────────────
+router.post('/api/import', jsonBig, (req, res) => {
+  try {
+    const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : null;
+    if (!rows) throw bad('No se recibieron filas para importar.');
+    if (rows.length > 5000) throw bad('Demasiadas filas (máximo 5000 por importación).');
+    const valid = [];
+    const errors = [];
+    rows.forEach((r, i) => {
+      try {
+        valid.push({
+          nombre: cleanName(r.nombre, 'Nombre', 120),
+          apellidos: cleanName(r.apellidos, 'Apellidos', 160),
+          tis: cleanTis(r.tis),
+          group_name: cleanGroup(r.group_name),
+        });
+      } catch (e) { errors.push({ row: (r.__row != null ? r.__row : i + 1), error: e.message }); }
+    });
+    const created = valid.length ? db.createManyPeople(valid, req.user.id) : [];
+    res.json({ created: created.length, errors, total: rows.length });
+  } catch (err) { fail(res, err); }
+});
+
+// ── Recently handled ────────────────────────────────────────────────────────────
+router.get('/api/recent', (req, res) => {
+  try { res.json({ items: db.recentPeople(10).map(p => ({ ...publicPerson(p), handled_at: p.handled_at })) }); }
+  catch (err) { fail(res, err); }
+});
+
+// Mark a person as "handled" (called when its ficha/QR is opened).
+router.post('/api/people/:id(\\d+)/touch', (req, res) => {
+  try {
+    const p = db.touchPerson(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
+    res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+});
+
+// ── PDF export: a sheet of QR codes with a chosen (variable) QR size ─────────────
+router.post('/api/export/pdf', jsonBig, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const size = Math.round(Math.min(300, Math.max(48, Number(b.qr_size) || 150))); // points
+    const title = (b.title ? String(b.title) : 'Listado de códigos TIS').slice(0, 120);
+    let people;
+    if (Array.isArray(b.ids) && b.ids.length) {
+      if (b.ids.length > 2000) throw bad('Demasiadas personas para el PDF (máximo 2000).');
+      const byId = new Map(db.listPeople().map(p => [p.id, p]));
+      people = b.ids.map(id => byId.get(Number(id))).filter(Boolean);
+    } else {
+      people = db.listPeople();
+    }
+    if (!people.length) throw bad('No hay personas que exportar.');
+    const st = db.getSettings();
+    const buf = await buildPeoplePdf(people, size, title, st);
+    setDownload(res, `TIS_${title.replace(/[^\w áéíóúñÁÉÍÓÚÑ-]/gi, '_').slice(0, 40)}.pdf`, 'application/pdf');
+    res.send(buf);
   } catch (err) { fail(res, err); }
 });
 

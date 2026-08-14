@@ -57,6 +57,36 @@ test('global settings persist and clamp is applied by the caller shape', () => {
   assert.equal(db.getSettings().qr_size, 500);
 });
 
+test('createManyPeople (bulk import) inserts all in one go', () => {
+  const before = db.listPeople().length;
+  const rows = [
+    { nombre: 'Imp Uno', apellidos: 'A', tis: '2000001' },
+    { nombre: 'Imp Dos', apellidos: 'B', tis: '2000002', group_name: 'Lote X' },
+  ];
+  const created = db.createManyPeople(rows, 3);
+  assert.equal(created.length, 2);
+  assert.equal(db.listPeople().length, before + 2);
+  assert.equal(created[1].group_name, 'Lote X');
+});
+
+test('touchPerson bumps last_used_at; recentPeople orders by it (limit respected)', () => {
+  const a = db.createPerson({ nombre: 'Rec A', apellidos: 'X', tis: '3000001' }, 1);
+  const b = db.createPerson({ nombre: 'Rec B', apellidos: 'X', tis: '3000002' }, 1);
+  // touchPerson updates last_used_at
+  const t0 = db.getPerson(a.id).last_used_at;
+  db.touchPerson(a.id);
+  assert.ok(db.getPerson(a.id).last_used_at >= t0);
+  // Set distinct timestamps directly (CURRENT_TIMESTAMP is only 1s-resolution).
+  db.db.prepare('UPDATE tis_people SET last_used_at = ? WHERE id = ?').run('2999-01-01 00:00:00', a.id);
+  db.db.prepare('UPDATE tis_people SET last_used_at = ? WHERE id = ?').run('2999-01-01 00:00:01', b.id);
+  const recent = db.recentPeople(10);
+  const ia = recent.findIndex(p => p.id === a.id);
+  const ib = recent.findIndex(p => p.id === b.id);
+  assert.ok(ib >= 0 && ia >= 0 && ib < ia, 'B (later timestamp) comes before A');
+  assert.ok('handled_at' in recent[0]);
+  assert.ok(db.recentPeople(3).length <= 3, 'limit respected');
+});
+
 test('cart is per-user and isolated', () => {
   const p1 = db.createPerson({ nombre: 'C1', apellidos: 'X', tis: '1000001' }, 1);
   const p2 = db.createPerson({ nombre: 'C2', apellidos: 'X', tis: '1000002' }, 1);

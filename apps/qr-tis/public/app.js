@@ -204,6 +204,8 @@ function viewFicha(id, opts) {
   const p = S.byId.get(id);
   if (!p) { toast('Persona no encontrada.', 'err'); return viewList(); }
   S.view = 'ficha'; S.currentPersonId = id;
+  // Mark as "handled" so it surfaces in Recientes (fire-and-forget).
+  if (!opts.justCreated) { api('/people/' + id + '/touch', { method: 'POST' }).catch(() => {}); }
   const inCart = S.cart.has(id);
   const st = S.settings;
   const qrHtml = p.active
@@ -321,6 +323,12 @@ function viewList() {
     `<button class="qt-back" id="back">← Inicio</button>
      <div class="qt-section-title">Listado de personas</div>
      <div class="qt-section-sub">Busca, ordena, selecciona, agrupa y usa el carrito. Haz clic en una persona para ver su QR.</div>
+     <div class="qt-actions-bar">
+       <button class="qt-action" id="a-excel-io"><span class="em">📄</span><span class="lbl">Plantilla / Importar<small>Excel de personas</small></span></button>
+       <button class="qt-action" id="a-export-xlsx"><span class="em">📊</span><span class="lbl">Exportar Excel<small>elige campos y orden</small></span></button>
+       <button class="qt-action" id="a-export-pdf"><span class="em">🖨️</span><span class="lbl">Exportar PDF<small>QR de tamaño variable</small></span></button>
+       <button class="qt-action" id="a-recent"><span class="em">🕘</span><span class="lbl">Recientes<small>últimas 10 manejadas</small></span></button>
+     </div>
      <div class="qt-search-wrap">
        <div class="qt-search"><span class="ico">🔎</span>
          <input id="q" placeholder="Buscar por nombre, apellidos, TIS o grupo… (p. ej. «os rez»)" value="${esc(S.query)}" autocomplete="off">
@@ -343,6 +351,10 @@ function viewList() {
      <div id="hidden-note"></div>
      <div class="qt-table-wrap"><table class="qt-table"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>`;
   $('back').onclick = viewHome;
+  $('a-excel-io').onclick = toolExcelIO;
+  $('a-export-xlsx').onclick = toolExportExcel;
+  $('a-export-pdf').onclick = toolExportPdf;
+  $('a-recent').onclick = toolRecent;
   const q = $('q');
   q.addEventListener('input', () => { S.query = q.value; renderRows(); });
   $('andor').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
@@ -596,6 +608,230 @@ function openScanner(onResult) {
     .catch(e => { note.textContent = 'No se pudo acceder a la cámara: ' + e.message + '. Escríbelo a mano.'; note.className = 'qt-scan-note err'; });
 }
 
+// ── Generic tool modal + Excel/PDF/Recientes ────────────────────────────────────
+function openModal(html) {
+  const box = $('tool-modal-box'); box.innerHTML = html;
+  $('tool-modal').hidden = false;
+  box.querySelectorAll('[data-close]').forEach(b => b.onclick = closeModal);
+}
+function closeModal() { $('tool-modal').hidden = true; $('tool-modal-box').innerHTML = ''; }
+
+async function apiBlob(path, body) {
+  const r = await fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || ('Error ' + r.status)); }
+  return r.blob();
+}
+function downloadBlob(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function stamp() { const d = new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`; }
+
+// Excel eats leading zeros of numbers → recover a 7-digit TIS by padding.
+function padTis(v) { let s = String(v == null ? '' : v).replace(/\D/g, ''); if (s.length && s.length < 7) s = s.padStart(7, '0'); return s; }
+
+const EXPORT_COLS = [
+  { key: 'num', label: 'Nº', def: true, get: (p, i) => i + 1 },
+  { key: 'id', label: 'ID interno', def: false, get: p => p.id },
+  { key: 'nombre', label: 'Nombre', def: true, get: p => p.nombre },
+  { key: 'apellidos', label: 'Apellidos', def: true, get: p => p.apellidos },
+  { key: 'tis', label: 'Código TIS', def: true, tis: true, get: p => String(p.tis) },
+  { key: 'group_name', label: 'Grupo', def: true, get: p => p.group_name || '' },
+  { key: 'active', label: 'Estado', def: false, get: p => (p.active ? 'Activa' : 'Inactiva') },
+  { key: 'created_at', label: 'Fecha de alta', def: false, get: p => fmtDate(p.created_at) },
+];
+
+function sortPeople(arr, key, dir) {
+  const mul = dir === 'desc' ? -1 : 1;
+  return arr.slice().sort((a, b) => {
+    if (key === 'active' || key === 'id') return ((a[key] || 0) - (b[key] || 0)) * mul;
+    const av = norm(a[key] == null ? '' : a[key]), bv = norm(b[key] == null ? '' : b[key]);
+    return av.localeCompare(bv, 'es', { numeric: true }) * mul;
+  });
+}
+// People for an export scope. 'filtered' respects the current search/sort/hide.
+function scopePeople(scope) {
+  if (scope === 'selected') return S.people.filter(p => S.selected.has(p.id));
+  if (scope === 'all') return S.people.slice();
+  return filteredPeople();
+}
+const scopeHtml = (id) =>
+  `<div class="qt-tool-row">
+     <label>Personas:</label>
+     <select class="qt-select" id="${id}">
+       <option value="filtered">Las que se ven ahora (${filteredPeople().length})</option>
+       <option value="selected">Solo seleccionadas (${S.selected.size})</option>
+       <option value="all">Todas (${S.people.length})</option>
+     </select>
+   </div>`;
+
+// ── Tool 1: plantilla Excel + importación ───────────────────────────────────────
+function toolExcelIO() {
+  openModal(
+    `<div class="qt-modal-h"><h3>Plantilla e importación (Excel)</h3><button class="qt-x" data-close>×</button></div>
+     <div class="qt-tool-opt">
+       <h4>1 · Descargar plantilla</h4>
+       <p>Un Excel con las columnas <strong>Nº, Nombre, Apellidos y Código TIS</strong> listo para rellenar. El Código TIS va como texto para no perder los ceros a la izquierda.</p>
+       <button class="qt-btn qt-btn-primary" id="tpl-dl">⬇ Descargar plantilla .xlsx</button>
+     </div>
+     <div class="qt-tool-opt">
+       <h4>2 · Importar Excel relleno</h4>
+       <p>Sube el mismo Excel con los datos. Se leen Nombre, Apellidos y Código TIS (7 cifras). Las filas no válidas se informan y se omiten.</p>
+       <div class="qt-dropfile" id="imp-drop">📥 Haz clic o arrastra aquí tu Excel (.xlsx / .csv)</div>
+       <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" hidden>
+       <div class="qt-import-report" id="imp-report"></div>
+     </div>`
+  );
+  $('tpl-dl').onclick = downloadTemplate;
+  const drop = $('imp-drop'), file = $('imp-file');
+  drop.onclick = () => file.click();
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('drag'); };
+  drop.ondragleave = () => drop.classList.remove('drag');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('drag'); if (e.dataTransfer.files[0]) importFile(e.dataTransfer.files[0]); };
+  file.onchange = () => { if (file.files[0]) importFile(file.files[0]); };
+}
+
+function downloadTemplate() {
+  const aoa = [
+    ['Nº', 'Nombre', 'Apellidos', 'Código TIS'],
+    [1, 'José', 'Pérez García', '0012345'],
+    [2, 'María', 'López Ruiz', '0100200'],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 5 }, { wch: 22 }, { wch: 26 }, { wch: 14 }];
+  // Force the Código TIS column (D) to text so zeros survive.
+  for (let r = 1; r <= 2; r++) { const c = XLSX.utils.encode_cell({ r, c: 3 }); if (ws[c]) { ws[c].t = 's'; ws[c].z = '@'; } }
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Personas');
+  XLSX.writeFile(wb, 'Plantilla_TIS.xlsx');
+}
+
+function parseWorkbook(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = e => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        resolve(XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }));
+      } catch (err) { reject(new Error('No se pudo leer el Excel.')); }
+    };
+    fr.onerror = () => reject(new Error('No se pudo leer el fichero.'));
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+async function importFile(file) {
+  const report = $('imp-report');
+  report.innerHTML = 'Leyendo…';
+  try {
+    const aoa = await parseWorkbook(file);
+    if (!aoa.length) throw new Error('El Excel está vacío.');
+    const header = aoa[0].map(h => norm(String(h)));
+    const find = (...names) => header.findIndex(h => names.some(n => h.includes(n)));
+    const ci = { nombre: find('nombre'), apellidos: find('apellido'), tis: find('tis') };
+    if (ci.nombre < 0 || ci.apellidos < 0 || ci.tis < 0)
+      throw new Error('Faltan columnas. El Excel debe tener «Nombre», «Apellidos» y «Código TIS».');
+    const rows = [];
+    for (let i = 1; i < aoa.length; i++) {
+      const r = aoa[i];
+      const nombre = String(r[ci.nombre] || '').trim();
+      const apellidos = String(r[ci.apellidos] || '').trim();
+      const tis = padTis(r[ci.tis]);
+      if (!nombre && !apellidos && !tis) continue; // skip blank rows
+      rows.push({ __row: i + 1, nombre, apellidos, tis });
+    }
+    if (!rows.length) throw new Error('No hay filas con datos.');
+    report.innerHTML = `Importando ${rows.length} fila(s)…`;
+    const res = await api('/import', jbody({ rows }));
+    await reloadPeople();
+    let html = `<div class="ok">✓ ${res.created} persona(s) importada(s)${res.errors.length ? `, ${res.errors.length} con error` : ''}.</div>`;
+    if (res.errors.length) html += `<div class="qt-import-errs">${res.errors.map(e => `<div class="err">Fila ${e.row}: ${esc(e.error)}</div>`).join('')}</div>`;
+    html += `<div style="margin-top:12px"><button class="qt-btn qt-btn-primary" id="imp-done">Ver listado</button></div>`;
+    report.innerHTML = html;
+    $('imp-done').onclick = () => { closeModal(); viewList(); };
+    toast(`${res.created} importada(s)`, 'ok');
+  } catch (e) { report.innerHTML = `<div class="err">✕ ${esc(e.message)}</div>`; }
+}
+
+// ── Tool 2: exportar Excel (elige campos y orden) ────────────────────────────────
+function toolExportExcel() {
+  const cols = EXPORT_COLS.map(c =>
+    `<label class="qt-check-row"><input type="checkbox" data-col="${c.key}" ${c.def ? 'checked' : ''}> ${c.label}</label>`).join('');
+  const sortOpts = EXPORT_COLS.filter(c => c.key !== 'num').map(c => `<option value="${c.key}" ${c.key === S.sort.key ? 'selected' : ''}>${c.label}</option>`).join('');
+  openModal(
+    `<div class="qt-modal-h"><h3>Exportar a Excel</h3><button class="qt-x" data-close>×</button></div>
+     <p style="color:var(--muted);font-size:.88rem;margin:0 0 8px">Elige las columnas, el orden y qué personas exportar.</p>
+     <div class="qt-field-grid">${cols}</div>
+     <div class="qt-tool-row">
+       <label>Ordenar por:</label>
+       <select class="qt-select" id="ex-sort">${sortOpts}</select>
+       <select class="qt-select" id="ex-dir"><option value="asc" ${S.sort.dir === 'asc' ? 'selected' : ''}>Ascendente</option><option value="desc" ${S.sort.dir === 'desc' ? 'selected' : ''}>Descendente</option></select>
+     </div>
+     ${scopeHtml('ex-scope')}
+     <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" data-close>Cancelar</button><button class="qt-btn qt-btn-primary" id="ex-go">⬇ Descargar Excel</button></div>`
+  );
+  $('ex-go').onclick = () => {
+    const chosen = EXPORT_COLS.filter(c => $('tool-modal-box').querySelector(`[data-col="${c.key}"]`).checked);
+    if (!chosen.length) { toast('Elige al menos una columna.', 'err'); return; }
+    let people = scopePeople($('ex-scope').value);
+    people = sortPeople(people, $('ex-sort').value, $('ex-dir').value);
+    if (!people.length) { toast('No hay personas que exportar.', 'err'); return; }
+    const aoa = [chosen.map(c => c.label)];
+    people.forEach((p, i) => aoa.push(chosen.map(c => c.get(p, i))));
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = chosen.map(c => ({ wch: c.key === 'apellidos' ? 26 : c.key === 'nombre' ? 20 : 14 }));
+    // Keep the TIS column as text (leading zeros).
+    const tisIdx = chosen.findIndex(c => c.tis);
+    if (tisIdx >= 0) for (let r = 1; r <= people.length; r++) { const cell = ws[XLSX.utils.encode_cell({ r, c: tisIdx })]; if (cell) { cell.t = 's'; cell.z = '@'; } }
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Personas TIS');
+    XLSX.writeFile(wb, `TIS_personas_${stamp()}.xlsx`);
+    closeModal(); toast('Excel generado', 'ok');
+  };
+}
+
+// ── Tool 3: exportar PDF (tamaño de QR variable) ─────────────────────────────────
+function toolExportPdf() {
+  openModal(
+    `<div class="qt-modal-h"><h3>Exportar PDF de códigos QR</h3><button class="qt-x" data-close>×</button></div>
+     <p style="color:var(--muted);font-size:.88rem;margin:0 0 8px">Una hoja imprimible con los QR y su TIS. Ajusta el tamaño del QR.</p>
+     <div class="qt-tool-row"><label>Título:</label><input class="qt-select" style="flex:1" id="pdf-title" value="Listado de códigos TIS" maxlength="120"></div>
+     <div class="qt-tool-row" style="align-items:center">
+       <label>Tamaño del QR:</label>
+       <input type="range" id="pdf-size" min="70" max="280" step="10" value="150" style="flex:1;accent-color:var(--brand)">
+       <span id="pdf-size-v" style="font-family:var(--mono);font-weight:700;color:var(--brand-2)">150</span>
+     </div>
+     ${scopeHtml('pdf-scope')}
+     <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" data-close>Cancelar</button><button class="qt-btn qt-btn-primary" id="pdf-go">⬇ Descargar PDF</button></div>`
+  );
+  const sz = $('pdf-size'); sz.oninput = () => { $('pdf-size-v').textContent = sz.value; };
+  $('pdf-go').onclick = async () => {
+    const people = scopePeople($('pdf-scope').value);
+    if (!people.length) { toast('No hay personas que exportar.', 'err'); return; }
+    const btn = $('pdf-go'); btn.disabled = true; btn.textContent = 'Generando…';
+    try {
+      const blob = await apiBlob('/export/pdf', { ids: people.map(p => p.id), qr_size: Number(sz.value), title: $('pdf-title').value });
+      downloadBlob(blob, `TIS_QR_${stamp()}.pdf`);
+      closeModal(); toast('PDF generado', 'ok');
+    } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = '⬇ Descargar PDF'; }
+  };
+}
+
+// ── Tool 4: recientes ────────────────────────────────────────────────────────────
+async function toolRecent() {
+  openModal(`<div class="qt-modal-h"><h3>Últimas 10 personas manejadas</h3><button class="qt-x" data-close>×</button></div><div id="recent-body">Cargando…</div>`);
+  try {
+    const { items } = await api('/recent');
+    if (!items.length) { $('recent-body').innerHTML = '<div class="qt-empty">Aún no se ha manejado ninguna persona.</div>'; return; }
+    $('recent-body').innerHTML = `<div class="qt-recent-list">${items.map(p =>
+      `<div class="qt-recent-item ${p.active ? '' : 'off'}" data-open="${p.id}">
+         <span class="nm">${esc(p.nombre)} ${esc(p.apellidos)}</span>
+         <span class="ts">${esc(p.tis)}</span>
+         <span class="when">${fmtDateTime(p.handled_at)}</span>
+       </div>`).join('')}</div>`;
+    $('recent-body').querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => { closeModal(); viewFicha(Number(el.dataset.open)); }));
+  } catch (e) { $('recent-body').innerHTML = `<div class="err" style="color:var(--danger)">${esc(e.message)}</div>`; }
+}
+
 // ── Misc ──────────────────────────────────────────────────────────────────────
 function fmtDate(s) {
   if (!s) return '';
@@ -603,11 +839,18 @@ function fmtDate(s) {
   if (isNaN(d)) return s;
   return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
 }
+function fmtDateTime(s) {
+  if (!s) return '';
+  const d = new Date(String(s).replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return s;
+  return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
 
 // ── Boot ────────────────────────────────────────────────────────────────────────
 (async () => {
   $('cart-toggle').onclick = () => { if ($('cart-panel').classList.contains('open')) closeCart(); else openCart(); };
   $('scrim').onclick = closeCart;
+  $('tool-modal').addEventListener('click', e => { if (e.target === $('tool-modal')) closeModal(); });
   $('go-home').addEventListener('click', e => { e.preventDefault(); viewHome(); });
   try {
     const meta = await api('/meta');
