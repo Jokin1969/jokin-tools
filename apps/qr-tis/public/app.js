@@ -911,7 +911,6 @@ const EXPORT_COLS = [
   { key: 'group_name', label: 'Grupo', def: true, get: p => p.group_name || '' },
   { key: 'active', label: 'Estado', def: false, get: p => (p.active ? 'Activa' : 'Inactiva') },
   { key: 'created_at', label: 'Fecha de alta', def: false, get: p => fmtDate(p.created_at) },
-  { key: 'num', label: 'Nº (secuencia)', def: false, get: (p, i) => i + 1 },
   { key: 'id', label: 'ID interno', def: false, get: p => p.id },
 ];
 
@@ -1035,7 +1034,7 @@ async function importFile(file) {
 function toolExportExcel() {
   const cols = EXPORT_COLS.map(c =>
     `<label class="qt-check-row"><input type="checkbox" data-col="${c.key}" ${c.def ? 'checked' : ''}> ${c.label}</label>`).join('');
-  const sortOpts = EXPORT_COLS.filter(c => c.key !== 'num').map(c => `<option value="${c.key}" ${c.key === S.sort.key ? 'selected' : ''}>${c.label}</option>`).join('');
+  const sortOpts = EXPORT_COLS.map(c => `<option value="${c.key}" ${c.key === S.sort.key ? 'selected' : ''}>${c.label}</option>`).join('');
   openModal(
     `<div class="qt-modal-h"><h3>Exportar a Excel</h3><button class="qt-x" data-close>×</button></div>
      <p style="color:var(--muted);font-size:.88rem;margin:0 0 8px">Elige las columnas, el orden y qué personas exportar.</p>
