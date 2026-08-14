@@ -48,7 +48,8 @@ db.exec(`
     qr_light     TEXT,
     qr_style     TEXT,                  -- 'square' | 'dots'
     qr_ecc       TEXT,                  -- 'L' | 'M' | 'Q' | 'H'
-    list_qr_size INTEGER,
+    list_qr_size INTEGER,               -- QR size in the table's QR column
+    card_qr_size INTEGER,               -- QR size in the cards view
     updated_by   INTEGER,
     updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -67,12 +68,13 @@ try { db.prepare('ALTER TABLE tis_people ADD COLUMN pharmacy_no TEXT').run(); } 
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN qr_dark TEXT').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN qr_light TEXT').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN qr_style TEXT').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE tis_settings ADD COLUMN card_qr_size INTEGER').run(); } catch { /* already present */ }
 
 console.log('[qr-tis] Database ready at:', DB_PATH);
 
 const DEFAULT_SETTINGS = {
   qr_size: 340, qr_dark: '#0f172a', qr_light: '#ffffff',
-  qr_style: 'square', qr_ecc: 'M', list_qr_size: 150,
+  qr_style: 'square', qr_ecc: 'M', list_qr_size: 100, card_qr_size: 200,
 };
 
 // ── People ──────────────────────────────────────────────────────────────────────
@@ -172,22 +174,24 @@ function deletePerson(id) {
 
 // ── Global QR settings (single shared row) ──────────────────────────────────────
 function getSettings() {
-  const row = db.prepare('SELECT * FROM tis_settings WHERE id = 1').get();
-  return { ...DEFAULT_SETTINGS, ...(row || {}) };
+  const row = db.prepare('SELECT * FROM tis_settings WHERE id = 1').get() || {};
+  const out = { ...DEFAULT_SETTINGS };
+  for (const k of Object.keys(DEFAULT_SETTINGS)) if (row[k] != null) out[k] = row[k]; // NULL → default
+  return out;
 }
 
 function saveSettings(data, userId) {
   const s = { ...getSettings(), ...data };
   db.prepare(
-    `INSERT INTO tis_settings (id, qr_size, qr_dark, qr_light, qr_style, qr_ecc, list_qr_size, updated_by, updated_at)
-     VALUES (1, @qr_size, @qr_dark, @qr_light, @qr_style, @qr_ecc, @list_qr_size, @updated_by, CURRENT_TIMESTAMP)
+    `INSERT INTO tis_settings (id, qr_size, qr_dark, qr_light, qr_style, qr_ecc, list_qr_size, card_qr_size, updated_by, updated_at)
+     VALUES (1, @qr_size, @qr_dark, @qr_light, @qr_style, @qr_ecc, @list_qr_size, @card_qr_size, @updated_by, CURRENT_TIMESTAMP)
      ON CONFLICT(id) DO UPDATE SET
        qr_size = excluded.qr_size, qr_dark = excluded.qr_dark, qr_light = excluded.qr_light,
        qr_style = excluded.qr_style, qr_ecc = excluded.qr_ecc, list_qr_size = excluded.list_qr_size,
-       updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP`
+       card_qr_size = excluded.card_qr_size, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP`
   ).run({
     qr_size: s.qr_size, qr_dark: s.qr_dark, qr_light: s.qr_light,
-    qr_style: s.qr_style, qr_ecc: s.qr_ecc, list_qr_size: s.list_qr_size,
+    qr_style: s.qr_style, qr_ecc: s.qr_ecc, list_qr_size: s.list_qr_size, card_qr_size: s.card_qr_size,
     updated_by: userId != null ? userId : null,
   });
   return getSettings();

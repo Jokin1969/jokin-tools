@@ -82,15 +82,22 @@ test('listPeople returns everyone; delete removes and detaches from carts', () =
   assert.ok(!db.cartIds(5).includes(p.id), 'deleting a person clears it from carts');
 });
 
-test('global settings persist and clamp is applied by the caller shape', () => {
+test('global settings persist; separate list/card QR defaults (100/200)', () => {
   const s0 = db.getSettings();
   assert.equal(s0.qr_size, db.DEFAULT_SETTINGS.qr_size);
-  const s1 = db.saveSettings({ qr_size: 500, qr_dark: '#123456', qr_style: 'dots' }, 7);
+  assert.equal(s0.list_qr_size, 100);   // table QR default
+  assert.equal(s0.card_qr_size, 200);   // cards QR default
+  const s1 = db.saveSettings({ qr_size: 500, qr_dark: '#123456', qr_style: 'dots', card_qr_size: 180 }, 7);
   assert.equal(s1.qr_size, 500);
   assert.equal(s1.qr_dark, '#123456');
   assert.equal(s1.qr_style, 'dots');
+  assert.equal(s1.card_qr_size, 180);
+  assert.equal(s1.list_qr_size, 100, 'untouched size keeps its default');
   // reload reflects the shared row (persists until someone changes it)
   assert.equal(db.getSettings().qr_size, 500);
+  // a NULL column (e.g. after a migration) falls back to the default, not null
+  db.db.prepare('UPDATE tis_settings SET card_qr_size = NULL WHERE id = 1').run();
+  assert.equal(db.getSettings().card_qr_size, 200);
 });
 
 test('createManyPeople (bulk import) inserts all in one go', () => {

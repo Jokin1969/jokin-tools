@@ -153,6 +153,7 @@ function cleanSettings(b) {
     qr_style: ['square', 'dots'].includes(b.qr_style) ? b.qr_style : d.qr_style,
     qr_ecc: ['L', 'M', 'Q', 'H'].includes(b.qr_ecc) ? b.qr_ecc : d.qr_ecc,
     list_qr_size: clamp(b.list_qr_size, 70, 420, d.list_qr_size),
+    card_qr_size: clamp(b.card_qr_size, 80, 200, d.card_qr_size),
   };
 }
 

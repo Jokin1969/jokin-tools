@@ -480,7 +480,7 @@ function viewList() {
        </div>
        ${S.listMode !== 'cards' ? `<button class="qt-toggle ${S.showListQr ? 'on' : ''}" id="tg-qr">▦ QR en el listado</button>` : ''}
        <span class="qt-inline-size" id="qr-size-wrap" ${(S.listMode === 'cards' || S.showListQr) ? '' : 'hidden'}>
-         Tamaño QR <input type="range" id="list-qr-size" min="80" max="360" step="10" value="${st.list_qr_size}"><span id="list-qr-size-v">${st.list_qr_size}px</span>
+         Tamaño QR <input type="range" id="list-qr-size" min="80" max="${S.listMode === 'cards' ? 200 : 360}" step="10" value="${S.listMode === 'cards' ? st.card_qr_size : st.list_qr_size}"><span id="list-qr-size-v">${S.listMode === 'cards' ? st.card_qr_size : st.list_qr_size}px</span>
        </span>
        ${S.listMode === 'cards' ? `<span class="qt-inline-sort">Ordenar
          <select class="qt-select" id="cards-sort">${SORT_FIELDS.map(f => `<option value="${f.key}" ${S.sort.key === f.key ? 'selected' : ''}>${f.label}</option>`).join('')}</select>
@@ -513,7 +513,9 @@ function viewList() {
   if ($('list-qr-size')) {
     const sizeEl = $('list-qr-size');
     sizeEl.addEventListener('input', () => {
-      S.settings.list_qr_size = Number(sizeEl.value); $('list-qr-size-v').textContent = sizeEl.value + 'px';
+      const v = Number(sizeEl.value);
+      if (S.listMode === 'cards') S.settings.card_qr_size = v; else S.settings.list_qr_size = v;
+      $('list-qr-size-v').textContent = v + 'px';
       saveSettingsDebounced(); renderRows();
     });
   }
@@ -645,9 +647,10 @@ function personRowHtml(p) {
 function personCardHtml(p) {
   const st = S.settings, sel = S.selected.has(p.id), inCart = S.cart.has(p.id);
   const groups = (p.groups && p.groups.length) ? p.groups.map(g => `<span class="qt-grouptag" data-group="${esc(g)}" title="Seleccionar todo el grupo">${esc(g)}</span>`).join('') : '';
+  // The QR box is a fixed square (uniform cards); the QR just scales inside it.
   const qr = p.active
-    ? `<span class="qt-pcard-qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, st.list_qr_size))}</span>`
-    : `<span class="qt-pcard-qr inactive" data-open="${p.id}" style="width:${st.list_qr_size}px;height:${st.list_qr_size}px">Inactiva</span>`;
+    ? `<span class="qt-pcard-qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, st.card_qr_size))}</span>`
+    : `<span class="qt-pcard-qr inactive" data-open="${p.id}" style="width:${st.card_qr_size}px;height:${st.card_qr_size}px">Inactiva</span>`;
   return `<div class="qt-pcard ${p.active ? '' : 'is-inactive'} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
     <div class="qt-pcard-head">
       <input type="checkbox" class="qt-check" data-sel="${p.id}">
@@ -657,7 +660,7 @@ function personCardHtml(p) {
     ${qr}
     <div class="qt-pcard-name" data-open="${p.id}">${esc(p.nombre)} ${esc(p.apellidos)}</div>
     <div class="qt-pcard-tis">${esc(p.tis)}</div>
-    ${groups ? `<div class="qt-pcard-groups">${groups}</div>` : ''}
+    <div class="qt-pcard-groups">${groups}</div>
     <div class="qt-pcard-actions">${personActionsHtml(p, inCart)}</div>
   </div>`;
 }
@@ -697,7 +700,7 @@ function renderRows() {
   if (!rows.length) { body.innerHTML = '<div class="qt-empty">No hay personas que coincidan.</div>'; return; }
 
   if (S.listMode === 'cards') {
-    body.innerHTML = `<div class="qt-pcards" style="--qrw:${S.settings.list_qr_size}px">${rows.map(personCardHtml).join('')}</div>`;
+    body.innerHTML = `<div class="qt-pcards" style="--qrw:${S.settings.card_qr_size}px">${rows.map(personCardHtml).join('')}</div>`;
     // checkboxes need their checked state set (kept out of the HTML to avoid stale attrs)
     body.querySelectorAll('[data-sel]').forEach(cb => { cb.checked = S.selected.has(Number(cb.dataset.sel)); });
   } else {
