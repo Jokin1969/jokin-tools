@@ -160,6 +160,27 @@ button { font-family: inherit; }
 .qt-inline-size input[type=range] { accent-color: var(--brand); width: 110px; }
 .qt-inline-size span { font-size: 0.78rem; font-weight: 700; color: var(--brand-2); font-family: var(--mono); }
 
+/* ── Group filter cards (collapsible) ───────────────────────────────────────── */
+.qt-groups { margin-bottom: 14px; }
+.qt-groups-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.qt-groups-toggle { display: inline-flex; align-items: center; gap: 8px; background: none; border: none; cursor: pointer; font: inherit; font-size: 0.92rem; font-weight: 700; color: var(--muted); padding: 6px 2px; }
+.qt-groups-toggle:hover { color: var(--brand); }
+.qt-groups-toggle .chev { display: inline-block; transition: transform .15s; font-size: 0.8rem; }
+.qt-groups-toggle .chev.open { transform: rotate(90deg); }
+.qt-groups-count { background: #eef3f8; border: 1px solid var(--line); border-radius: 20px; padding: 0 9px; font-size: 0.78rem; font-weight: 700; color: var(--brand-2); }
+.qt-groups-clear { background: var(--brand); color: #fff; border: none; border-radius: 20px; padding: 5px 12px; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+.qt-groups-clear:hover { background: var(--brand-2); }
+.qt-groups-cards { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.qt-groups-cards[hidden] { display: none; }
+.qt-groups-empty { color: var(--muted); font-size: 0.86rem; }
+.qt-groupcard { display: flex; flex-direction: column; align-items: flex-start; min-width: 120px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 15px; cursor: pointer; box-shadow: var(--shadow); transition: transform .1s, box-shadow .16s, border-color .16s; }
+.qt-groupcard:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--brand); }
+.qt-groupcard .gc-count { font-size: 1.55rem; font-weight: 800; color: var(--brand); line-height: 1; }
+.qt-groupcard .gc-name { font-size: 0.84rem; font-weight: 600; color: var(--ink); margin-top: 4px; }
+.qt-groupcard.active { background: linear-gradient(135deg, #12406e, #1273b8); border-color: var(--brand-2); }
+.qt-groupcard.active .gc-count { color: #fff; }
+.qt-groupcard.active .gc-name { color: rgba(255,255,255,0.92); }
+
 /* ── Table ──────────────────────────────────────────────────────────────────── */
 .qt-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
 table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
@@ -266,6 +287,11 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .qt-toast[hidden] { display: none; }
 .qt-toast.ok { background: var(--ok); }
 .qt-toast.err { background: var(--danger); }
+
+/* ── List top row: back + power actions aligned right ───────────────────────── */
+.qt-list-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+.qt-list-top .qt-back { margin-bottom: 0; }
+.qt-list-top .qt-actions-bar { margin-bottom: 0; justify-content: flex-end; }
 
 /* ── Power actions bar (import/export/recientes) ────────────────────────────── */
 .qt-actions-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }

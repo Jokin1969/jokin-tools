@@ -16,6 +16,7 @@ const S = {
   sort: { key: 'apellidos', dir: 'asc' },
   selected: new Set(), hidden: new Set(),
   showListQr: false, selectedOnly: false, cartView: false,
+  groupFilter: null, groupsOpen: false, // group filter cards (collapsed by default)
   currentPersonId: null, view: 'home',
   nav: [], // ordered person ids for the Anterior/Siguiente context of the ficha
 };
@@ -454,15 +455,18 @@ function viewList() {
   S.view = 'list';
   const st = S.settings;
   main().innerHTML =
-    `<button class="qt-back" id="back">← Inicio</button>
+    `<div class="qt-list-top">
+       <button class="qt-back" id="back">← Inicio</button>
+       <div class="qt-actions-bar">
+         <button class="qt-action" id="a-excel-io"><span class="em">📄</span><span class="lbl">Plantilla / Importar<small>Excel de personas</small></span></button>
+         <button class="qt-action" id="a-export-xlsx"><span class="em">📊</span><span class="lbl">Exportar Excel<small>elige campos y orden</small></span></button>
+         <button class="qt-action" id="a-export-pdf"><span class="em">🖨️</span><span class="lbl">Exportar PDF<small>QR de tamaño variable</small></span></button>
+         <button class="qt-action" id="a-recent"><span class="em">🕘</span><span class="lbl">Recientes<small>últimas 10 manejadas</small></span></button>
+       </div>
+     </div>
      <div class="qt-section-title">Listado de personas</div>
      <div class="qt-section-sub">Busca, ordena, selecciona, agrupa y usa el carrito. Haz clic en una persona para ver su QR.</div>
-     <div class="qt-actions-bar">
-       <button class="qt-action" id="a-excel-io"><span class="em">📄</span><span class="lbl">Plantilla / Importar<small>Excel de personas</small></span></button>
-       <button class="qt-action" id="a-export-xlsx"><span class="em">📊</span><span class="lbl">Exportar Excel<small>elige campos y orden</small></span></button>
-       <button class="qt-action" id="a-export-pdf"><span class="em">🖨️</span><span class="lbl">Exportar PDF<small>QR de tamaño variable</small></span></button>
-       <button class="qt-action" id="a-recent"><span class="em">🕘</span><span class="lbl">Recientes<small>últimas 10 manejadas</small></span></button>
-     </div>
+     <div class="qt-groups" id="groups"></div>
      <div class="qt-search-wrap">
        <div class="qt-search"><span class="ico">🔎</span>
          <input id="q" placeholder="Buscar por nombre, apellidos, TIS o grupo… (p. ej. «os rez»)" value="${esc(S.query)}" autocomplete="off">
@@ -505,7 +509,41 @@ function viewList() {
       saveSettingsDebounced(); renderRows();
     });
   }
+  renderGroupsPanel();
   renderHead(); renderRows();
+}
+
+// Collapsible panel of "quantifiable" group cards that filter the list. Collapsed
+// by default; expanding shows one card per group with its people count.
+function renderGroupsPanel() {
+  const wrap = $('groups');
+  if (!wrap) return;
+  const counts = new Map(); // display name → { name, count }
+  for (const p of S.people) for (const g of (p.groups || [])) {
+    const k = norm(g);
+    if (!counts.has(k)) counts.set(k, { name: g, count: 0 });
+    counts.get(k).count++;
+  }
+  const groups = [...counts.values()].sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
+  wrap.innerHTML =
+    `<div class="qt-groups-head">
+       <button class="qt-groups-toggle" id="groups-toggle" aria-expanded="${S.groupsOpen}">
+         <span class="chev ${S.groupsOpen ? 'open' : ''}">▸</span> Grupos <span class="qt-groups-count">${groups.length}</span>
+       </button>
+       ${S.groupFilter ? `<button class="qt-groups-clear" id="groups-clear" title="Quitar el filtro">Filtrando: ${esc(S.groupFilter)} ✕</button>` : ''}
+     </div>
+     <div class="qt-groups-cards" id="groups-cards" ${S.groupsOpen ? '' : 'hidden'}>
+       ${groups.length
+        ? groups.map(g => `<button class="qt-groupcard ${S.groupFilter && norm(S.groupFilter) === norm(g.name) ? 'active' : ''}" data-gfilter="${esc(g.name)}"><span class="gc-count">${g.count}</span><span class="gc-name">${esc(g.name)}</span></button>`).join('')
+        : '<span class="qt-groups-empty">Todavía no hay grupos. Añádelos desde la ficha de una persona.</span>'}
+     </div>`;
+  $('groups-toggle').onclick = () => { S.groupsOpen = !S.groupsOpen; renderGroupsPanel(); };
+  const clr = $('groups-clear'); if (clr) clr.onclick = () => { S.groupFilter = null; renderGroupsPanel(); renderRows(); };
+  wrap.querySelectorAll('[data-gfilter]').forEach(c => c.onclick = () => {
+    const g = c.dataset.gfilter;
+    S.groupFilter = (S.groupFilter && norm(S.groupFilter) === norm(g)) ? null : g; // toggle
+    renderGroupsPanel(); renderRows();
+  });
 }
 
 function renderHead() {
@@ -538,6 +576,7 @@ function filteredPeople() {
   let rows = S.people.filter(p => !S.hidden.has(p.id));
   if (S.cartView) rows = rows.filter(p => S.cart.has(p.id));
   if (S.selectedOnly) rows = rows.filter(p => S.selected.has(p.id));
+  if (S.groupFilter) rows = rows.filter(p => (p.groups || []).some(g => norm(g) === norm(S.groupFilter)));
   const tokens = norm(S.query).split(/\s+/).filter(Boolean);
   if (tokens.length) {
     rows = rows.filter(p => {
@@ -799,7 +838,8 @@ function viewHelp() {
       </ul>` },
     { id: 'grupos', icon: '👥', title: 'Grupos (varios por persona)', html: `
       <p>Una persona puede pertenecer a <strong>varios grupos</strong>. En su ficha, «Gestionar grupos» te deja añadir grupos (chips) y quitarlos con la ×.</p>
-      <p>Los grupos se ven en el listado y en el carrito como etiquetas. Al <strong>pulsar una etiqueta de grupo</strong> se seleccionan de golpe todos los que pertenecen a ese grupo. La búsqueda también encuentra por grupo.</p>` },
+      <p>Los grupos se ven en el listado y en el carrito como etiquetas. Al <strong>pulsar una etiqueta de grupo</strong> se seleccionan de golpe todos los que pertenecen a ese grupo. La búsqueda también encuentra por grupo.</p>
+      <div class="qt-note tip">Bajo el título del listado hay una cabecera <b>«Grupos»</b> (plegada por defecto). Al desplegarla aparecen <b>tarjetas por grupo con su número de personas</b>: pulsa una para <b>filtrar</b> el listado a ese grupo, y otra vez (o «Filtrando… ✕») para quitar el filtro.</div>` },
     { id: 'carrito', icon: '🛒', title: 'El carrito', html: `
       <p>Cada usuario tiene <strong>su propio carrito</strong>. Añade personas desde el listado (icono 🛒) o desde su ficha. Ábrelo con el botón 🛒 de arriba.</p>
       <ul>
