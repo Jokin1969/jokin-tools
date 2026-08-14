@@ -87,6 +87,24 @@ function getPerson(id) {
   return db.prepare('SELECT * FROM tis_people WHERE id = ?').get(id) || null;
 }
 
+// Uniqueness helpers. The pharmacy number must be unique EXCEPT '00000' (the
+// "no number" placeholder, which may repeat). The TIS must always be unique.
+// `exceptId` excludes a person from the check (for edits).
+function pharmacyTaken(pharmacy_no, exceptId) {
+  if (!pharmacy_no || pharmacy_no === '00000') return false;
+  const row = exceptId != null
+    ? db.prepare('SELECT 1 FROM tis_people WHERE pharmacy_no = ? AND id != ?').get(pharmacy_no, exceptId)
+    : db.prepare('SELECT 1 FROM tis_people WHERE pharmacy_no = ?').get(pharmacy_no);
+  return !!row;
+}
+function tisTaken(tis, exceptId) {
+  if (!tis) return false;
+  const row = exceptId != null
+    ? db.prepare('SELECT 1 FROM tis_people WHERE tis = ? AND id != ?').get(tis, exceptId)
+    : db.prepare('SELECT 1 FROM tis_people WHERE tis = ?').get(tis);
+  return !!row;
+}
+
 function createPerson(data, userId) {
   const info = db.prepare(
     `INSERT INTO tis_people (pharmacy_no, nombre, apellidos, tis, group_name, qr_dark, qr_light, qr_style, active, created_by, last_used_at)
@@ -195,7 +213,7 @@ function cartClear(userId) {
 module.exports = {
   db, DEFAULT_SETTINGS,
   listPeople, getPerson, createPerson, createManyPeople, updatePerson, deletePerson,
-  touchPerson, recentPeople,
+  pharmacyTaken, tisTaken, touchPerson, recentPeople,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,
 };

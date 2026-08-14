@@ -182,7 +182,7 @@ function viewForm() {
        <div class="qt-field">
          <label>Nº de farmacia <span class="req">*</span></label>
          <input class="qt-input" id="f-farmacia" placeholder="00000" inputmode="numeric" maxlength="5" autocomplete="off" style="font-family:var(--mono);letter-spacing:.28em;text-align:center" />
-         <div class="qt-field-hint">5 cifras que asigna la farmacia. Los ceros a la izquierda cuentan.</div>
+         <div class="qt-field-hint">5 cifras que asigna la farmacia (los ceros a la izquierda cuentan). No puede repetirse. <strong>Si no dispones de un número, añade 00000</strong> (este sí puede repetirse).</div>
        </div>
        <div class="qt-field">
          <label>Nombre <span class="req">*</span></label>
@@ -365,7 +365,8 @@ function editPerson(p) {
     `<div class="qt-modal-h"><h3>Editar información</h3><button class="qt-x" data-close>×</button></div>
      <div class="qt-form-err" id="e-err"></div>
      <div class="qt-field"><label>Nº de farmacia <span class="req">*</span></label>
-       <input class="qt-input" id="e-farm" maxlength="5" inputmode="numeric" value="${esc(p.pharmacy_no || '')}" style="font-family:var(--mono);letter-spacing:.28em;text-align:center"></div>
+       <input class="qt-input" id="e-farm" maxlength="5" inputmode="numeric" value="${esc(p.pharmacy_no || '')}" style="font-family:var(--mono);letter-spacing:.28em;text-align:center">
+       <div class="qt-field-hint">No puede repetirse. Si no dispones de un número, añade 00000.</div></div>
      <div class="qt-field"><label>Nombre <span class="req">*</span></label><input class="qt-input" id="e-nombre" value="${esc(p.nombre)}"></div>
      <div class="qt-field"><label>Apellidos <span class="req">*</span></label><input class="qt-input" id="e-apellidos" value="${esc(p.apellidos)}"></div>
      <div class="qt-field"><label>Código TIS <span class="req">*</span></label>
@@ -799,10 +800,11 @@ function viewHelp() {
       <div class="qt-note tip">Los tres accesos están en la portada. Este manual está siempre disponible en el botón <span class="qt-chip-inline">❔ Ayuda</span> de arriba.</div>` },
     { id: 'campos', icon: '🔢', title: 'Los campos y los ceros', html: `
       <ul>
-        <li><strong>Nº de farmacia</strong>: 5 cifras que asigna la farmacia. Es el número que aparece <strong>primero</strong> en el listado.</li>
+        <li><strong>Nº de farmacia</strong>: 5 cifras que asigna la farmacia. Aparece <strong>primero</strong> en el listado y <strong>no puede repetirse</strong>. Si no dispones de un número, pon <code>00000</code> (este sí puede repetirse).</li>
         <li><strong>Nombre</strong> y <strong>Apellidos</strong>.</li>
-        <li><strong>Código TIS</strong>: 8 cifras. Es lo que codifica el QR.</li>
+        <li><strong>Código TIS</strong>: 8 cifras, <strong>único</strong> (no se puede repetir). Es lo que codifica el QR.</li>
       </ul>
+      <div class="qt-note">Si al <b>importar</b> se cuela un Nº de farmacia (que no sea 00000) o un Código TIS repetido, esa fila <b>se avisa y se omite</b>; el resto se importan.</div>
       <div class="qt-note warn"><b>Los ceros a la izquierda cuentan.</b> <code>00123456</code> no es lo mismo que <code>123456</code>. La app los conserva siempre, y al importar desde Excel los recupera aunque Excel los haya borrado.</div>
       <p>Todos los campos son obligatorios al crear una persona a mano.</p>` },
     { id: 'introducir', icon: '➕', title: 'Introducir una persona', html: `
@@ -1006,12 +1008,14 @@ async function importFile(file) {
     const rows = [];
     for (let i = 1; i < aoa.length; i++) {
       const r = aoa[i];
-      const pharmacy_no = padNum(r[ci.pharmacy], 5);
+      const pharmacyRaw = padNum(r[ci.pharmacy], 5);
       const nombre = String(r[ci.nombre] || '').trim();
       const apellidos = String(r[ci.apellidos] || '').trim();
       const tis = padTis(r[ci.tis]);
       const group_name = ci.grupo >= 0 ? String(r[ci.grupo] || '').trim() : '';
-      if (!pharmacy_no && !nombre && !apellidos && !tis) continue; // skip blank rows
+      if (!pharmacyRaw && !nombre && !apellidos && !tis) continue; // skip blank rows
+      // Empty pharmacy → the "no number" placeholder 00000 (which may repeat).
+      const pharmacy_no = pharmacyRaw || '00000';
       rows.push({ __row: i + 1, pharmacy_no, nombre, apellidos, tis, group_name });
     }
     if (!rows.length) throw new Error('No hay filas con datos.');

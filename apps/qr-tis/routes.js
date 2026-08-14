@@ -208,6 +208,8 @@ router.post('/api/people', json, (req, res) => {
       group_name: cleanGroups(b.groups !== undefined ? b.groups : b.group_name),
       qr_dark: cleanColorOpt(b.qr_dark), qr_light: cleanColorOpt(b.qr_light), qr_style: cleanStyleOpt(b.qr_style),
     };
+    if (db.pharmacyTaken(data.pharmacy_no)) throw bad(`El Nº de farmacia ${data.pharmacy_no} ya está asignado a otra persona.`);
+    if (db.tisTaken(data.tis)) throw bad(`El Código TIS ${data.tis} ya está asignado a otra persona.`);
     res.status(201).json({ item: publicPerson(db.createPerson(data, req.user.id)) });
   } catch (err) { fail(res, err); }
 });
@@ -225,7 +227,10 @@ router.patch('/api/people/:id(\\d+)', json, (req, res) => {
     if (b.qr_light !== undefined) data.qr_light = cleanColorOpt(b.qr_light);
     if (b.qr_style !== undefined) data.qr_style = cleanStyleOpt(b.qr_style);
     if (b.active != null) data.active = b.active ? 1 : 0;
-    const p = db.updatePerson(Number(req.params.id), data);
+    const id = Number(req.params.id);
+    if (data.pharmacy_no && db.pharmacyTaken(data.pharmacy_no, id)) throw bad(`El Nº de farmacia ${data.pharmacy_no} ya está asignado a otra persona.`);
+    if (data.tis && db.tisTaken(data.tis, id)) throw bad(`El Código TIS ${data.tis} ya está asignado a otra persona.`);
+    const p = db.updatePerson(id, data);
     if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
     res.json({ item: publicPerson(p) });
   } catch (err) { fail(res, err); }
@@ -247,16 +252,25 @@ router.post('/api/import', jsonBig, (req, res) => {
     if (rows.length > 5000) throw bad('Demasiadas filas (máximo 5000 por importación).');
     const valid = [];
     const errors = [];
+    const seenPh = new Set(), seenTis = new Set(); // catch duplicates WITHIN the file too
     rows.forEach((r, i) => {
+      const rowNo = (r.__row != null ? r.__row : i + 1);
       try {
-        valid.push({
+        const rec = {
           pharmacy_no: cleanPharmacy(r.pharmacy_no, true),
           nombre: cleanName(r.nombre, 'Nombre', 120),
           apellidos: cleanName(r.apellidos, 'Apellidos', 160),
           tis: cleanTis(r.tis),
           group_name: cleanGroups(r.group_name),
-        });
-      } catch (e) { errors.push({ row: (r.__row != null ? r.__row : i + 1), error: e.message }); }
+        };
+        // TIS must be unique (no exceptions); pharmacy unique except '00000'.
+        if (seenTis.has(rec.tis) || db.tisTaken(rec.tis)) throw bad(`Código TIS ${rec.tis} duplicado.`);
+        if (rec.pharmacy_no !== '00000' && (seenPh.has(rec.pharmacy_no) || db.pharmacyTaken(rec.pharmacy_no)))
+          throw bad(`Nº de farmacia ${rec.pharmacy_no} duplicado.`);
+        seenTis.add(rec.tis);
+        if (rec.pharmacy_no !== '00000') seenPh.add(rec.pharmacy_no);
+        valid.push(rec);
+      } catch (e) { errors.push({ row: rowNo, error: e.message }); }
     });
     const created = valid.length ? db.createManyPeople(valid, req.user.id) : [];
     res.json({ created: created.length, errors, total: rows.length });

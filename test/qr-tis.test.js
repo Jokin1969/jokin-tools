@@ -41,6 +41,22 @@ test('update, active toggle and group membership', () => {
   assert.equal(db.getPerson(p.id).group_name, 'Planta 2\nUrgencias');
 });
 
+test('uniqueness: pharmacy (except 00000) and TIS', () => {
+  const a = db.createPerson({ pharmacy_no: '55501', nombre: 'Uno', apellidos: 'X', tis: '55500001' }, 1);
+  // pharmacy taken by another
+  assert.equal(db.pharmacyTaken('55501'), true);
+  assert.equal(db.pharmacyTaken('55501', a.id), false, 'excludes self');
+  assert.equal(db.pharmacyTaken('55502'), false, 'free number');
+  // 00000 never counts as taken (can repeat)
+  db.createPerson({ pharmacy_no: '00000', nombre: 'Sin', apellidos: 'Num', tis: '55500002' }, 1);
+  db.createPerson({ pharmacy_no: '00000', nombre: 'Sin2', apellidos: 'Num', tis: '55500003' }, 1);
+  assert.equal(db.pharmacyTaken('00000'), false, '00000 may repeat');
+  // TIS taken
+  assert.equal(db.tisTaken('55500001'), true);
+  assert.equal(db.tisTaken('55500001', a.id), false, 'excludes self');
+  assert.equal(db.tisTaken('55599999'), false);
+});
+
 test('per-person QR overrides (colour/background/style) are stored and cleared', () => {
   const p = db.createPerson({ nombre: 'Color', apellidos: 'Test', tis: '00000011', qr_dark: '#c23a3a', qr_style: 'dots' }, 1);
   assert.equal(p.qr_dark, '#c23a3a');
