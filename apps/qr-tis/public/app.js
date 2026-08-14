@@ -860,7 +860,7 @@ function toolExcelIO() {
     `<div class="qt-modal-h"><h3>Plantilla e importación (Excel)</h3><button class="qt-x" data-close>×</button></div>
      <div class="qt-tool-opt">
        <h4>1 · Descargar plantilla</h4>
-       <p>Un Excel con las columnas <strong>Nº Farmacia (5 cifras), Nombre, Apellidos y Código TIS (7 cifras)</strong> listo para rellenar. Los códigos van como texto para no perder los ceros a la izquierda.</p>
+       <p>Un Excel con las columnas <strong>Nº Farmacia (5 cifras), Nombre, Apellidos, Código TIS (7 cifras) y Grupo</strong> listo para rellenar. Los códigos van como texto para no perder los ceros a la izquierda. En <strong>Grupo</strong> puedes poner varios separados por punto y coma (<code>Planta 2; Urgencias</code>).</p>
        <button class="qt-btn qt-btn-primary" id="tpl-dl">⬇ Descargar plantilla .xlsx</button>
      </div>
      <div class="qt-tool-opt">
@@ -882,12 +882,12 @@ function toolExcelIO() {
 
 function downloadTemplate() {
   const aoa = [
-    ['Nº Farmacia', 'Nombre', 'Apellidos', 'Código TIS'],
-    ['01234', 'José', 'Pérez García', '0012345'],
-    ['00250', 'María', 'López Ruiz', '0100200'],
+    ['Nº Farmacia', 'Nombre', 'Apellidos', 'Código TIS', 'Grupo'],
+    ['01234', 'José', 'Pérez García', '0012345', 'Planta 2'],
+    ['00250', 'María', 'López Ruiz', '0100200', 'Planta 2; Urgencias'],
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 26 }, { wch: 14 }];
+  ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 26 }, { wch: 14 }, { wch: 26 }];
   // Force the numeric-code columns (A: Nº Farmacia, D: Código TIS) to text so zeros survive.
   for (let r = 1; r <= 2; r++) for (const c of [0, 3]) { const cell = XLSX.utils.encode_cell({ r, c }); if (ws[cell]) { ws[cell].t = 's'; ws[cell].z = '@'; } }
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Personas');
@@ -917,7 +917,7 @@ async function importFile(file) {
     if (!aoa.length) throw new Error('El Excel está vacío.');
     const header = aoa[0].map(h => norm(String(h)));
     const find = (...names) => header.findIndex(h => names.some(n => h.includes(n)));
-    const ci = { pharmacy: find('farmacia'), nombre: find('nombre'), apellidos: find('apellido'), tis: find('tis') };
+    const ci = { pharmacy: find('farmacia'), nombre: find('nombre'), apellidos: find('apellido'), tis: find('tis'), grupo: find('grupo') };
     if (ci.pharmacy < 0 || ci.nombre < 0 || ci.apellidos < 0 || ci.tis < 0)
       throw new Error('Faltan columnas. El Excel debe tener «Nº Farmacia», «Nombre», «Apellidos» y «Código TIS».');
     const rows = [];
@@ -927,8 +927,9 @@ async function importFile(file) {
       const nombre = String(r[ci.nombre] || '').trim();
       const apellidos = String(r[ci.apellidos] || '').trim();
       const tis = padTis(r[ci.tis]);
+      const group_name = ci.grupo >= 0 ? String(r[ci.grupo] || '').trim() : '';
       if (!pharmacy_no && !nombre && !apellidos && !tis) continue; // skip blank rows
-      rows.push({ __row: i + 1, pharmacy_no, nombre, apellidos, tis });
+      rows.push({ __row: i + 1, pharmacy_no, nombre, apellidos, tis, group_name });
     }
     if (!rows.length) throw new Error('No hay filas con datos.');
     report.innerHTML = `Importando ${rows.length} fila(s)…`;
