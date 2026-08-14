@@ -16,6 +16,7 @@ const S = {
   sort: { key: 'apellidos', dir: 'asc' },
   selected: new Set(), hidden: new Set(),
   showListQr: false, selectedOnly: false, cartView: false,
+  listMode: 'table', // 'table' | 'cards'
   groupFilter: null, groupsOpen: false, // group filter cards (collapsed by default)
   currentPersonId: null, view: 'home',
   nav: [], // ordered person ids for the Anterior/Siguiente context of the ficha
@@ -143,7 +144,7 @@ function showView(name, arg) {
   if (name === 'ficha') return viewFicha(arg);
 }
 
-// Home — three big cards
+// Home — two clear cards (add a person / consult everyone).
 function viewHome() {
   S.view = 'home';
   const card = (n, go, ico, title, desc) =>
@@ -153,20 +154,14 @@ function viewHome() {
        <h3>${title}</h3><p>${desc}</p>
      </button>`;
   const icoAdd = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M24 12v24M12 24h24"/><rect x="6" y="6" width="36" height="36" rx="8" opacity="0.35"/></svg>`;
-  const icoList = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M16 14h24M16 24h24M16 34h24"/><circle cx="9" cy="14" r="2"/><circle cx="9" cy="24" r="2"/><circle cx="9" cy="34" r="2"/></svg>`;
   const icoQr = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="8" y="8" width="12" height="12" rx="2"/><rect x="28" y="8" width="12" height="12" rx="2"/><rect x="8" y="28" width="12" height="12" rx="2"/><path d="M28 28h5v5M40 28v5h-5M28 40h5M35 35v5h5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   main().innerHTML =
     `<div class="qt-hero"><h1>Gestión de QR (TIS)</h1><p>Personas y su Código TIS como códigos QR listos para escanear. <a id="hero-help" style="color:var(--brand);font-weight:600;cursor:pointer">¿Cómo funciona? Abre la ayuda ❔</a></p></div>
-     <div class="qt-cards">
-       ${card(1, 'form', icoAdd, 'Introducir persona', 'Nombre, apellidos y Código TIS (a mano o escaneando un QR). Genera al instante su código.')}
-       ${card(2, 'list', icoList, 'Visualizar listado', 'Todas las personas con búsqueda potente, orden, selección, grupos y carrito.')}
-       ${card(3, 'use', icoQr, 'Utilizar el QR', 'Muestra el QR de una persona a gran tamaño y ajustable para escanearlo.')}
+     <div class="qt-cards qt-cards-2">
+       ${card(1, 'form', icoAdd, 'Introducir persona', 'Da de alta a alguien: nombre, apellidos y Código TIS (a mano o escaneando un QR). Genera su código al instante.')}
+       ${card(2, 'list', icoQr, 'Consultar personas', 'Busca, filtra y ordena a todas las personas —como lista o como tarjetas— y pulsa a cualquiera para ver y usar su QR en grande.')}
      </div>`;
-  main().querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
-    const go = b.dataset.go;
-    if (go === 'use') { if (S.currentPersonId && S.byId.has(S.currentPersonId)) gotoFicha(S.currentPersonId, []); else viewList(); }
-    else showView(go);
-  }));
+  main().querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go)));
   const hh = $('hero-help'); if (hh) hh.onclick = viewHelp;
 }
 
@@ -470,7 +465,7 @@ function viewList() {
      <div class="qt-groups" id="groups"></div>
      <div class="qt-search-wrap">
        <div class="qt-search"><span class="ico">🔎</span>
-         <input id="q" placeholder="Buscar por nombre, apellidos, TIS o grupo… (p. ej. «os rez»)" value="${esc(S.query)}" autocomplete="off">
+         <input id="q" placeholder="Buscar por Nº de farmacia, nombre, apellidos, TIS o grupo… (p. ej. «os rez»)" value="${esc(S.query)}" autocomplete="off">
        </div>
        <div class="qt-andor" id="andor" title="AND = todas las palabras · OR = cualquier palabra">
          <button data-v="AND" class="${S.andor === 'AND' ? 'sel' : ''}">AND</button>
@@ -479,16 +474,23 @@ function viewList() {
      </div>
      <div class="qt-toolbar">
        <span class="qt-count" id="list-count"></span>
-       <button class="qt-toggle ${S.showListQr ? 'on' : ''}" id="tg-qr">▦ QR en el listado</button>
-       <span class="qt-inline-size" id="qr-size-wrap" ${S.showListQr ? '' : 'hidden'}>
-         <input type="range" id="list-qr-size" min="80" max="360" step="10" value="${st.list_qr_size}"><span id="list-qr-size-v">${st.list_qr_size}px</span>
+       <div class="qt-seg qt-mode" id="list-mode" title="Ver como lista o como tarjetas">
+         <button data-m="table" class="${S.listMode !== 'cards' ? 'sel' : ''}">▤ Listado</button>
+         <button data-m="cards" class="${S.listMode === 'cards' ? 'sel' : ''}">▦ Tarjetas</button>
+       </div>
+       ${S.listMode !== 'cards' ? `<button class="qt-toggle ${S.showListQr ? 'on' : ''}" id="tg-qr">▦ QR en el listado</button>` : ''}
+       <span class="qt-inline-size" id="qr-size-wrap" ${(S.listMode === 'cards' || S.showListQr) ? '' : 'hidden'}>
+         Tamaño QR <input type="range" id="list-qr-size" min="80" max="360" step="10" value="${st.list_qr_size}"><span id="list-qr-size-v">${st.list_qr_size}px</span>
        </span>
+       ${S.listMode === 'cards' ? `<span class="qt-inline-sort">Ordenar
+         <select class="qt-select" id="cards-sort">${SORT_FIELDS.map(f => `<option value="${f.key}" ${S.sort.key === f.key ? 'selected' : ''}>${f.label}</option>`).join('')}</select>
+         <select class="qt-select" id="cards-dir"><option value="asc" ${S.sort.dir === 'asc' ? 'selected' : ''}>▲</option><option value="desc" ${S.sort.dir === 'desc' ? 'selected' : ''}>▼</option></select></span>` : ''}
        <button class="qt-toggle ${S.selectedOnly ? 'on' : ''}" id="tg-selected">✔ Solo seleccionadas</button>
        <button class="qt-toggle ${S.cartView ? 'on' : ''}" id="tg-cart">🛒 Solo carrito</button>
        <button class="qt-toggle" id="clear-sel">✕ Quitar selección</button>
      </div>
      <div id="hidden-note"></div>
-     <div class="qt-table-wrap"><table class="qt-table"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>`;
+     <div id="list-body"></div>`;
   $('back').onclick = viewHome;
   $('a-excel-io').onclick = toolExcelIO;
   $('a-export-xlsx').onclick = toolExportExcel;
@@ -499,11 +501,16 @@ function viewList() {
   $('andor').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     S.andor = b.dataset.v; $('andor').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b)); renderRows();
   }));
-  $('tg-qr').onclick = () => { S.showListQr = !S.showListQr; viewList(); };
+  $('list-mode').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { S.listMode = b.dataset.m; viewList(); }));
+  if ($('tg-qr')) $('tg-qr').onclick = () => { S.showListQr = !S.showListQr; viewList(); };
   $('tg-selected').onclick = () => { S.selectedOnly = !S.selectedOnly; viewList(); };
   $('tg-cart').onclick = () => { S.cartView = !S.cartView; viewList(); };
   $('clear-sel').onclick = () => { S.selected.clear(); renderRows(); };
-  if (S.showListQr) {
+  if ($('cards-sort')) {
+    $('cards-sort').addEventListener('change', () => { S.sort.key = $('cards-sort').value; renderRows(); });
+    $('cards-dir').addEventListener('change', () => { S.sort.dir = $('cards-dir').value; renderRows(); });
+  }
+  if ($('list-qr-size')) {
     const sizeEl = $('list-qr-size');
     sizeEl.addEventListener('input', () => {
       S.settings.list_qr_size = Number(sizeEl.value); $('list-qr-size-v').textContent = sizeEl.value + 'px';
@@ -511,8 +518,19 @@ function viewList() {
     });
   }
   renderGroupsPanel();
-  renderHead(); renderRows();
+  renderRows();
 }
+
+// Sort fields offered in the cards-view "Ordenar" dropdown (the table sorts by
+// clicking its headers).
+const SORT_FIELDS = [
+  { key: 'pharmacy_no', label: 'Nº Farmacia' },
+  { key: 'nombre', label: 'Nombre' },
+  { key: 'apellidos', label: 'Apellidos' },
+  { key: 'tis', label: 'Código TIS' },
+  { key: 'group_name', label: 'Grupo' },
+  { key: 'active', label: 'Estado' },
+];
 
 // Collapsible panel of "quantifiable" group cards that filter the list. Collapsed
 // by default; expanding shows one card per group with its people count.
@@ -547,7 +565,8 @@ function renderGroupsPanel() {
   });
 }
 
-function renderHead() {
+// Table header row (sortable columns).
+function headTr() {
   const cols = [
     { key: 'sel', label: '', sort: false },
     { key: 'pharmacy_no', label: 'Nº Farmacia' },
@@ -559,17 +578,19 @@ function renderHead() {
   ];
   if (S.showListQr) cols.push({ key: 'qr', label: 'QR', sort: false });
   cols.push({ key: 'act', label: '', sort: false });
-  $('thead').innerHTML = '<tr>' + cols.map(c => {
+  return '<tr>' + cols.map(c => {
     if (c.sort === false) return `<th class="no-sort">${c.label}</th>`;
     const sorted = S.sort.key === c.key;
     const arrow = sorted ? (S.sort.dir === 'asc' ? '▲' : '▼') : '↕';
     return `<th data-key="${c.key}" class="${sorted ? 'sorted' : ''}">${c.label} <span class="arrow">${arrow}</span></th>`;
   }).join('') + '</tr>';
-  $('thead').querySelectorAll('th[data-key]').forEach(th => th.addEventListener('click', () => {
+}
+function wireHeadSort(container) {
+  container.querySelectorAll('th[data-key]').forEach(th => th.addEventListener('click', () => {
     const k = th.dataset.key;
     if (S.sort.key === k) S.sort.dir = S.sort.dir === 'asc' ? 'desc' : 'asc';
     else { S.sort.key = k; S.sort.dir = 'asc'; }
-    renderHead(); renderRows();
+    renderRows();
   }));
 }
 
@@ -595,63 +616,95 @@ function filteredPeople() {
   return rows;
 }
 
+// One table row for a person.
+function personRowHtml(p) {
+  const st = S.settings, sel = S.selected.has(p.id), inCart = S.cart.has(p.id);
+  const group = (p.groups && p.groups.length)
+    ? `<span class="qt-grouptags">${p.groups.map(g => `<span class="qt-grouptag" data-group="${esc(g)}" title="Seleccionar todo el grupo">${esc(g)}</span>`).join('')}</span>`
+    : '<span style="color:#b3bcc7">—</span>';
+  const state = p.active
+    ? '<span class="qt-state-dot"><span class="dot"></span>Activa</span>'
+    : '<span class="qt-state-dot off"><span class="dot"></span>Inactiva</span>';
+  const qrCell = S.showListQr
+    ? `<td>${p.active ? `<span class="qt-list-qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, st.list_qr_size))}</span>` : '<span style="color:#b3bcc7">—</span>'}</td>`
+    : '';
+  return `<tr class="${p.active ? '' : 'is-inactive'} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
+    <td><input type="checkbox" class="qt-check" data-sel="${p.id}" ${sel ? 'checked' : ''}></td>
+    <td><span class="qt-cell-pharm" data-open="${p.id}">${p.pharmacy_no ? esc(p.pharmacy_no) : '<span style=\"color:#c3c9d2\">—</span>'}</span></td>
+    <td><span class="qt-cell-name" data-open="${p.id}">${esc(p.nombre)}</span></td>
+    <td>${esc(p.apellidos)}</td>
+    <td class="qt-cell-tis">${esc(p.tis)}</td>
+    <td>${group}</td>
+    <td>${state}</td>
+    ${qrCell}
+    <td><div class="qt-cell-actions">${personActionsHtml(p, inCart)}</div></td>
+  </tr>`;
+}
+
+// One card for a person (cards view — QR-forward, like the cart).
+function personCardHtml(p) {
+  const st = S.settings, sel = S.selected.has(p.id), inCart = S.cart.has(p.id);
+  const groups = (p.groups && p.groups.length) ? p.groups.map(g => `<span class="qt-grouptag" data-group="${esc(g)}" title="Seleccionar todo el grupo">${esc(g)}</span>`).join('') : '';
+  const qr = p.active
+    ? `<span class="qt-pcard-qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, st.list_qr_size))}</span>`
+    : `<span class="qt-pcard-qr inactive" data-open="${p.id}" style="width:${st.list_qr_size}px;height:${st.list_qr_size}px">Inactiva</span>`;
+  return `<div class="qt-pcard ${p.active ? '' : 'is-inactive'} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
+    <div class="qt-pcard-head">
+      <input type="checkbox" class="qt-check" data-sel="${p.id}">
+      <span class="qt-cell-pharm" data-open="${p.id}">${p.pharmacy_no ? esc(p.pharmacy_no) : '—'}</span>
+      <span class="qt-state-dot ${p.active ? '' : 'off'}" style="margin-left:auto"><span class="dot"></span></span>
+    </div>
+    ${qr}
+    <div class="qt-pcard-name" data-open="${p.id}">${esc(p.nombre)} ${esc(p.apellidos)}</div>
+    <div class="qt-pcard-tis">${esc(p.tis)}</div>
+    ${groups ? `<div class="qt-pcard-groups">${groups}</div>` : ''}
+    <div class="qt-pcard-actions">${personActionsHtml(p, inCart)}</div>
+  </div>`;
+}
+
+function personActionsHtml(p, inCart) {
+  return `<button class="qt-iconbtn" data-cart="${p.id}" title="${inCart ? 'Quitar del carrito' : 'Añadir al carrito'}">${inCart ? '✓🛒' : '🛒'}</button>
+    <button class="qt-iconbtn" data-active="${p.id}" title="${p.active ? 'Inactivar' : 'Activar'}">${p.active ? '⊘' : '✓'}</button>
+    <button class="qt-iconbtn" data-hide="${p.id}" title="Ocultar del listado (temporal)">👁</button>
+    <button class="qt-iconbtn danger" data-del="${p.id}" title="Eliminar">🗑</button>`;
+}
+
+// Shared wiring for row/card items (both use the same data-* hooks).
+function wireListItems(container) {
+  container.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => gotoFicha(Number(el.dataset.open), filteredPeople().map(x => x.id))));
+  container.querySelectorAll('[data-sel]').forEach(cb => cb.addEventListener('change', () => {
+    const id = Number(cb.dataset.sel); if (cb.checked) S.selected.add(id); else S.selected.delete(id); renderRows();
+  }));
+  container.querySelectorAll('[data-group]').forEach(g => g.addEventListener('click', () => selectGroup(g.dataset.group)));
+  container.querySelectorAll('[data-cart]').forEach(b => b.addEventListener('click', async () => { await toggleCart(Number(b.dataset.cart)); renderRows(); }));
+  container.querySelectorAll('[data-active]').forEach(b => b.addEventListener('click', async () => { const p = S.byId.get(Number(b.dataset.active)); await setActive(p, !p.active); renderRows(); }));
+  container.querySelectorAll('[data-hide]').forEach(b => b.addEventListener('click', () => { S.hidden.add(Number(b.dataset.hide)); renderRows(); }));
+  container.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => { const p = S.byId.get(Number(b.dataset.del)); if (await removePerson(p)) renderRows(); }));
+}
+
+// Render the list body as a table or as cards, per S.listMode.
 function renderRows() {
   const rows = filteredPeople();
-  const st = S.settings;
-  const tbody = $('tbody');
-  const colspan = S.showListQr ? 9 : 8; // sel + pharmacy + nombre + apellidos + tis + grupo + estado (+ qr) + acciones
-  const selInCart = [...S.selected].filter(id => S.cart.has(id)).length;
   $('list-count').textContent =
     `${rows.length} de ${S.people.length}` +
     (S.selected.size ? ` · ${S.selected.size} seleccionada(s)` : '') +
     (S.hidden.size ? ` · ${S.hidden.size} oculta(s)` : '');
-  // hidden note
   $('hidden-note').innerHTML = S.hidden.size
     ? `<div class="qt-hidden-note">👁 Hay <strong>${S.hidden.size}</strong> persona(s) oculta(s) temporalmente. <a id="unhide">Mostrar todas</a></div>` : '';
   if (S.hidden.size) $('unhide').onclick = () => { S.hidden.clear(); renderRows(); };
 
-  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="${colspan}"><div class="qt-empty">No hay personas que coincidan.</div></td></tr>`; return; }
+  const body = $('list-body');
+  if (!rows.length) { body.innerHTML = '<div class="qt-empty">No hay personas que coincidan.</div>'; return; }
 
-  tbody.innerHTML = rows.map(p => {
-    const sel = S.selected.has(p.id);
-    const group = (p.groups && p.groups.length)
-      ? `<span class="qt-grouptags">${p.groups.map(g => `<span class="qt-grouptag" data-group="${esc(g)}" title="Seleccionar todo el grupo">${esc(g)}</span>`).join('')}</span>`
-      : '<span style="color:#b3bcc7">—</span>';
-    const state = p.active
-      ? '<span class="qt-state-dot"><span class="dot"></span>Activa</span>'
-      : '<span class="qt-state-dot off"><span class="dot"></span>Inactiva</span>';
-    const qrCell = S.showListQr
-      ? `<td>${p.active ? `<span class="qt-list-qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, st.list_qr_size))}</span>` : '<span style="color:#b3bcc7">—</span>'}</td>`
-      : '';
-    const inCart = S.cart.has(p.id);
-    return `<tr class="${p.active ? '' : 'is-inactive'} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
-      <td><input type="checkbox" class="qt-check" data-sel="${p.id}" ${sel ? 'checked' : ''}></td>
-      <td><span class="qt-cell-pharm" data-open="${p.id}">${p.pharmacy_no ? esc(p.pharmacy_no) : '<span style=\"color:#c3c9d2\">—</span>'}</span></td>
-      <td><span class="qt-cell-name" data-open="${p.id}">${esc(p.nombre)}</span></td>
-      <td>${esc(p.apellidos)}</td>
-      <td class="qt-cell-tis">${esc(p.tis)}</td>
-      <td>${group}</td>
-      <td>${state}</td>
-      ${qrCell}
-      <td><div class="qt-cell-actions">
-        <button class="qt-iconbtn" data-cart="${p.id}" title="${inCart ? 'Quitar del carrito' : 'Añadir al carrito'}">${inCart ? '✓🛒' : '🛒'}</button>
-        <button class="qt-iconbtn" data-active="${p.id}" title="${p.active ? 'Inactivar' : 'Activar'}">${p.active ? '⊘' : '✓'}</button>
-        <button class="qt-iconbtn" data-hide="${p.id}" title="Ocultar del listado (temporal)">👁</button>
-        <button class="qt-iconbtn danger" data-del="${p.id}" title="Eliminar">🗑</button>
-      </div></td>
-    </tr>`;
-  }).join('');
-
-  // wire
-  tbody.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => gotoFicha(Number(el.dataset.open), filteredPeople().map(x => x.id))));
-  tbody.querySelectorAll('[data-sel]').forEach(cb => cb.addEventListener('change', () => {
-    const id = Number(cb.dataset.sel); if (cb.checked) S.selected.add(id); else S.selected.delete(id); renderRows();
-  }));
-  tbody.querySelectorAll('[data-group]').forEach(g => g.addEventListener('click', () => selectGroup(g.dataset.group)));
-  tbody.querySelectorAll('[data-cart]').forEach(b => b.addEventListener('click', async () => { await toggleCart(Number(b.dataset.cart)); renderRows(); }));
-  tbody.querySelectorAll('[data-active]').forEach(b => b.addEventListener('click', async () => { const p = S.byId.get(Number(b.dataset.active)); await setActive(p, !p.active); renderRows(); }));
-  tbody.querySelectorAll('[data-hide]').forEach(b => b.addEventListener('click', () => { S.hidden.add(Number(b.dataset.hide)); renderRows(); }));
-  tbody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => { const p = S.byId.get(Number(b.dataset.del)); if (await removePerson(p)) renderRows(); }));
+  if (S.listMode === 'cards') {
+    body.innerHTML = `<div class="qt-pcards" style="--qrw:${S.settings.list_qr_size}px">${rows.map(personCardHtml).join('')}</div>`;
+    // checkboxes need their checked state set (kept out of the HTML to avoid stale attrs)
+    body.querySelectorAll('[data-sel]').forEach(cb => { cb.checked = S.selected.has(Number(cb.dataset.sel)); });
+  } else {
+    body.innerHTML = `<div class="qt-table-wrap"><table class="qt-table"><thead>${headTr()}</thead><tbody>${rows.map(personRowHtml).join('')}</tbody></table></div>`;
+    wireHeadSort(body);
+  }
+  wireListItems(body);
 }
 
 // Select every person in a group (adds to the current selection).
@@ -794,10 +847,9 @@ function viewHelp() {
       <p>Esta app guarda <strong>personas</strong> y su <strong>Código TIS</strong> (el número para la gestión de la medicación) y lo convierte en un <strong>código QR</strong> que se puede escanear. Cada persona tiene también un <strong>Nº de farmacia</strong> de 5 cifras.</p>
       <ol class="qt-steps">
         <li><b>Introducir persona</b>: rellena Nº de farmacia, nombre, apellidos y TIS. Al guardar aparece su QR grande.</li>
-        <li><b>Visualizar</b>: consulta el listado, busca, ordena, agrupa, selecciona…</li>
-        <li><b>Utilizar el QR</b>: abre la ficha de una persona y muestra su QR a gran tamaño para escanearlo.</li>
+        <li><b>Consultar personas</b>: entra al listado, busca/filtra/ordena y pulsa a cualquiera para ver y usar su QR en grande.</li>
       </ol>
-      <div class="qt-note tip">Los tres accesos están en la portada. Este manual está siempre disponible en el botón <span class="qt-chip-inline">❔ Ayuda</span> de arriba.</div>` },
+      <div class="qt-note tip">Los dos accesos están en la portada. Este manual está siempre disponible en el botón <span class="qt-chip-inline">❔ Ayuda</span> de arriba.</div>` },
     { id: 'campos', icon: '🔢', title: 'Los campos y los ceros', html: `
       <ul>
         <li><strong>Nº de farmacia</strong>: 5 cifras que asigna la farmacia. Aparece <strong>primero</strong> en el listado y <strong>no puede repetirse</strong>. Si no dispones de un número, pon <code>00000</code> (este sí puede repetirse).</li>
@@ -809,7 +861,7 @@ function viewHelp() {
       <p>Todos los campos son obligatorios al crear una persona a mano.</p>` },
     { id: 'introducir', icon: '➕', title: 'Introducir una persona', html: `
       <p>Portada → <span class="qt-chip-inline">Introducir persona</span>. Escribe los cuatro campos. El Código TIS puedes teclearlo o pulsar el botón <span class="qt-chip-inline">⛶</span> para <strong>escanear un QR</strong> con la cámara: apunta al código y se rellena solo.</p>
-      <p>Al guardar verás el <strong>QR grande</strong> de la persona (la vista «Utilizar el QR»), con un botón para ir al listado.</p>
+      <p>Al guardar verás el <strong>QR grande</strong> de la persona (su ficha), con un botón para ir al listado.</p>
       <div class="qt-note">Escanear requiere permiso de cámara y conexión segura (https). Si no está disponible, escribe el TIS a mano.</div>` },
     { id: 'qr', icon: '🎛️', title: 'El QR y sus ajustes (el «mando»)', html: `
       <p>En la ficha de una persona, bajo el QR, tienes el <strong>mando</strong> para ajustar:</p>
@@ -826,9 +878,13 @@ function viewHelp() {
         <li><span class="qt-chip-inline">AND</span> (por defecto): deben aparecer <strong>todas</strong> las palabras. Con <code>os rez</code> encuentras a «José Pérez».</li>
         <li><span class="qt-chip-inline">OR</span>: vale con que aparezca <strong>cualquiera</strong> de las palabras.</li>
       </ul>` },
-    { id: 'listado', icon: '📋', title: 'Ordenar y ver el QR en el listado', html: `
-      <p>Pulsa cualquier <strong>cabecera</strong> para ordenar (otra vez para invertir).</p>
-      <p>El botón <span class="qt-chip-inline">▦ QR en el listado</span> muestra el QR de cada persona dentro de la tabla, con un <strong>deslizador de tamaño</strong> para poder escanearlo desde ahí mismo.</p>
+    { id: 'listado', icon: '📋', title: 'Listado o tarjetas, ordenar y ver el QR', html: `
+      <p>Con el conmutador <span class="qt-chip-inline">▤ Listado | ▦ Tarjetas</span> eliges cómo verlo:</p>
+      <ul>
+        <li><strong>Listado</strong> (tabla): pulsa cualquier <strong>cabecera</strong> para ordenar (otra vez para invertir). El botón <span class="qt-chip-inline">▦ QR en el listado</span> añade el QR de cada persona en la tabla.</li>
+        <li><strong>Tarjetas</strong>: cada persona como una tarjeta con su <strong>QR bien visible</strong> (como en el carrito), con un desplegable para <strong>ordenar</strong>.</li>
+      </ul>
+      <p>En ambos modos, el deslizador <strong>Tamaño QR</strong> ajusta lo grande que se ve el código para poder escanearlo.</p>
       <div class="qt-note tip">Al abrir la ficha de una persona desde el listado, arriba a la derecha aparecen <b>← Anterior</b> y <b>Siguiente →</b> que recorren <b>exactamente el listado del que vienes</b> (con su filtro/orden actual), no todas las personas de la base de datos.</div>` },
     { id: 'gestionar', icon: '🗂️', title: 'Editar, seleccionar, ocultar, inactivar, eliminar', html: `
       <ul>

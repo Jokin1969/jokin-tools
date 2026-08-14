@@ -63,7 +63,8 @@ button { font-family: inherit; }
 .qt-hero h1 { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em; }
 .qt-hero p { color: var(--muted); margin: 8px 0 0; font-size: 1rem; }
 .qt-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-@media (max-width: 820px) { .qt-cards { grid-template-columns: 1fr; } }
+.qt-cards-2 { grid-template-columns: repeat(2, 1fr); max-width: 780px; margin: 0 auto; }
+@media (max-width: 820px) { .qt-cards, .qt-cards-2 { grid-template-columns: 1fr; } }
 .qt-card { position: relative; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 26px 24px; cursor: pointer; box-shadow: var(--shadow); transition: transform .12s, box-shadow .18s, border-color .18s; overflow: hidden; }
 .qt-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: var(--brand); }
 .qt-card::after { content: ''; position: absolute; inset: 0 0 auto 0; height: 5px; background: linear-gradient(90deg, var(--brand), var(--teal), var(--accent)); }
@@ -214,6 +215,23 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .qt-empty { text-align: center; color: var(--muted); padding: 40px 20px; }
 .qt-hidden-note { margin-top: 12px; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 10px; }
 .qt-hidden-note a { color: var(--brand); font-weight: 600; cursor: pointer; }
+
+/* ── Cards view of the list ─────────────────────────────────────────────────── */
+.qt-inline-sort { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: var(--muted); }
+.qt-pcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--qrw, 150px) + 34px), 1fr)); gap: 14px; align-items: start; }
+.qt-pcard { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; align-items: center; gap: 8px; transition: box-shadow .16s, border-color .16s; }
+.qt-pcard:hover { box-shadow: var(--shadow-lg); }
+.qt-pcard.is-selected { border-color: var(--brand); background: linear-gradient(135deg, #eaf4fd, #dff0fb); box-shadow: 0 0 0 2px rgba(18,115,184,0.28); }
+.qt-pcard.is-inactive { opacity: 0.6; filter: grayscale(0.7); }
+.qt-pcard-head { display: flex; align-items: center; gap: 8px; width: 100%; }
+.qt-pcard-qr { line-height: 0; cursor: pointer; background: #fff; padding: 6px; border: 1px solid var(--line); border-radius: 10px; }
+.qt-pcard-qr svg { display: block; }
+.qt-pcard-qr.inactive { display: flex; align-items: center; justify-content: center; color: #9aa4b0; font-size: 0.82rem; font-weight: 600; line-height: 1.1; text-align: center; }
+.qt-pcard-name { font-weight: 700; text-align: center; cursor: pointer; line-height: 1.2; }
+.qt-pcard-name:hover { color: var(--brand); }
+.qt-pcard-tis { font-family: var(--mono); letter-spacing: 0.1em; color: var(--muted); font-size: 0.86rem; }
+.qt-pcard-groups { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.qt-pcard-actions { display: flex; gap: 5px; margin-top: 2px; }
 
 /* ── Cart slide-over ────────────────────────────────────────────────────────── */
 .qt-cart { position: fixed; top: var(--hub-nav-h, 40px); right: 0; height: calc(100vh - var(--hub-nav-h, 40px)); width: min(480px, 94vw); background: var(--bg); background-image: var(--bg-grad); border-left: 1px solid var(--line); box-shadow: -20px 0 50px rgba(18,64,110,0.18); transform: translateX(100%); transition: transform .25s ease; z-index: 40; display: flex; flex-direction: column; }
