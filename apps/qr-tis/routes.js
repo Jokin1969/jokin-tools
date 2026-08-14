@@ -111,10 +111,29 @@ function cleanPharmacy(v, required) {
   if (!/^\d{5}$/.test(s)) throw bad('El Nº de farmacia debe tener exactamente 5 cifras (los ceros a la izquierda cuentan).');
   return s;
 }
-function cleanGroup(v) {
-  if (v == null) return null;
-  const s = String(v).trim().replace(/\s+/g, ' ').slice(0, 80);
-  return s || null;
+// A person can belong to several groups. They're stored in the group_name column
+// joined by newlines (a group name is a single line, so it never collides).
+function parseGroups(str) {
+  return String(str == null ? '' : str).split('\n').map(s => s.trim()).filter(Boolean);
+}
+// Accept either an array (from the app) or a string (an imported cell, where
+// several groups may be separated by ; or a newline). Normalise, de-dupe
+// (case-insensitive), cap the count, and return the newline-joined storage string.
+function cleanGroups(input) {
+  let arr;
+  if (Array.isArray(input)) arr = input;
+  else if (input == null) return null;
+  else arr = String(input).split(/[\n;]/);
+  const seen = new Set(), out = [];
+  for (let g of arr) {
+    g = String(g == null ? '' : g).trim().replace(/\s+/g, ' ').slice(0, 80);
+    if (!g) continue;
+    const k = g.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k); out.push(g);
+    if (out.length >= 30) break;
+  }
+  return out.length ? out.join('\n') : null;
 }
 
 const CLR = /^#[0-9a-fA-F]{6}$/;
@@ -131,12 +150,18 @@ function cleanSettings(b) {
   };
 }
 
-const publicPerson = (p) => p && ({
-  id: p.id, pharmacy_no: p.pharmacy_no || null,
-  nombre: p.nombre, apellidos: p.apellidos, tis: p.tis,
-  group_name: p.group_name || null, active: p.active ? 1 : 0,
-  created_at: p.created_at, updated_at: p.updated_at,
-});
+const publicPerson = (p) => {
+  if (!p) return p;
+  const groups = parseGroups(p.group_name);
+  return {
+    id: p.id, pharmacy_no: p.pharmacy_no || null,
+    nombre: p.nombre, apellidos: p.apellidos, tis: p.tis,
+    groups,                                   // array of group names
+    group_name: groups.join('; ') || null,    // display / search / sort string
+    active: p.active ? 1 : 0,
+    created_at: p.created_at, updated_at: p.updated_at,
+  };
+};
 
 // ── UI ───────────────────────────────────────────────────────────────────────
 router.get('/', (req, res) => res.sendFile(path.join(PUB, 'index.html')));
@@ -173,7 +198,7 @@ router.post('/api/people', json, (req, res) => {
       nombre: cleanName(b.nombre, 'Nombre', 120),
       apellidos: cleanName(b.apellidos, 'Apellidos', 160),
       tis: cleanTis(b.tis),
-      group_name: cleanGroup(b.group_name),
+      group_name: cleanGroups(b.groups !== undefined ? b.groups : b.group_name),
     };
     res.status(201).json({ item: publicPerson(db.createPerson(data, req.user.id)) });
   } catch (err) { fail(res, err); }
@@ -187,7 +212,7 @@ router.patch('/api/people/:id(\\d+)', json, (req, res) => {
     if (b.nombre != null) data.nombre = cleanName(b.nombre, 'Nombre', 120);
     if (b.apellidos != null) data.apellidos = cleanName(b.apellidos, 'Apellidos', 160);
     if (b.tis != null) data.tis = cleanTis(b.tis);
-    if (b.group_name !== undefined) data.group_name = cleanGroup(b.group_name);
+    if (b.groups !== undefined || b.group_name !== undefined) data.group_name = cleanGroups(b.groups !== undefined ? b.groups : b.group_name);
     if (b.active != null) data.active = b.active ? 1 : 0;
     const p = db.updatePerson(Number(req.params.id), data);
     if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
@@ -218,7 +243,7 @@ router.post('/api/import', jsonBig, (req, res) => {
           nombre: cleanName(r.nombre, 'Nombre', 120),
           apellidos: cleanName(r.apellidos, 'Apellidos', 160),
           tis: cleanTis(r.tis),
-          group_name: cleanGroup(r.group_name),
+          group_name: cleanGroups(r.group_name),
         });
       } catch (e) { errors.push({ row: (r.__row != null ? r.__row : i + 1), error: e.message }); }
     });

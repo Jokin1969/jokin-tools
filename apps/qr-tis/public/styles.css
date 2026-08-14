@@ -264,6 +264,15 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .qt-recent-item .ts { font-family: var(--mono); color: var(--muted); font-size: 0.84rem; }
 .qt-recent-item .when { font-size: 0.74rem; color: var(--muted); }
 
+/* groups (multiple) */
+.qt-grouptags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.qt-group-mgr { border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin: 6px 0 4px; background: #f8fbfe; }
+.qt-group-mgr-h { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 10px; }
+.qt-group-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+.qt-group-echip { display: inline-flex; align-items: center; gap: 6px; background: #e8f2fb; color: var(--brand-2); border: 1px solid #cbe2f5; padding: 4px 6px 4px 11px; border-radius: 20px; font-size: 0.84rem; font-weight: 700; }
+.qt-group-echip button { border: none; background: rgba(18,64,110,0.12); color: var(--brand-2); width: 18px; height: 18px; border-radius: 50%; cursor: pointer; font-size: 0.9rem; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.qt-group-echip button:hover { background: var(--danger); color: #fff; }
+
 /* group-add inline */
 .qt-group-inline { display: flex; gap: 8px; margin-top: 10px; }
 .qt-group-inline input { flex: 1; padding: 9px 12px; border: 2px solid var(--line); border-radius: 10px; font-size: 0.9rem; }

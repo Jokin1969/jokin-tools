@@ -221,8 +221,8 @@ function viewFicha(id, opts) {
   const qrHtml = p.active
     ? `<div class="qt-qr-box" id="ficha-qr">${qrSvg(p.tis, { dark: st.qr_dark, light: st.qr_light, style: st.qr_style, ecc: st.qr_ecc, size: st.qr_size })}</div>`
     : `<div class="qt-inactive-banner">Persona <strong>inactiva</strong>.<br>El QR no está disponible hasta reactivarla.</div>`;
-  const groupChip = p.group_name
-    ? `<span class="qt-chip-group" id="ficha-group" title="Ver el grupo">👥 ${esc(p.group_name)}</span>`
+  const groupChip = (p.groups && p.groups.length)
+    ? p.groups.map(g => `<span class="qt-chip-group" data-gsel="${esc(g)}" title="Seleccionar el grupo">👥 ${esc(g)}</span>`).join(' ')
     : '';
   main().innerHTML =
     `<button class="qt-back" id="back">← ${opts.justCreated ? 'Inicio' : 'Volver'}</button>
@@ -250,7 +250,7 @@ function viewFicha(id, opts) {
          <div id="group-area"></div>
          <div class="qt-ficha-actions">
            <button class="qt-btn ${inCart ? 'qt-btn-ghost' : 'qt-btn-teal'}" id="act-cart">${inCart ? '✓ En el carrito' : '🛒 Añadir al carrito'}</button>
-           <button class="qt-btn qt-btn-ghost" id="act-group">👥 ${p.group_name ? 'Cambiar grupo' : 'Añadir a grupo'}</button>
+           <button class="qt-btn qt-btn-ghost" id="act-group">👥 ${(p.groups && p.groups.length) ? 'Gestionar grupos' : 'Añadir a grupo'}</button>
            <button class="qt-btn qt-btn-ghost" id="act-active">${p.active ? '⊘ Inactivar' : '✓ Activar'}</button>
            <button class="qt-btn qt-btn-ghost" id="act-list">☰ Ver listado</button>
            <button class="qt-btn qt-btn-danger" id="act-del">🗑 Eliminar</button>
@@ -263,28 +263,44 @@ function viewFicha(id, opts) {
   $('act-cart').onclick = async () => { await toggleCart(id); viewFicha(id, opts); };
   $('act-active').onclick = async () => { await setActive(p, !p.active); viewFicha(id, opts); };
   $('act-del').onclick = async () => { if (await removePerson(p)) viewList(); };
-  $('act-group').onclick = () => renderGroupInline(p);
-  const gc = $('ficha-group'); if (gc) gc.onclick = () => selectGroup(p.group_name, true);
+  $('act-group').onclick = () => renderGroupManager(p);
+  main().querySelectorAll('[data-gsel]').forEach(el => el.onclick = () => selectGroup(el.dataset.gsel, true));
+  if (opts.openGroups) renderGroupManager(p);
 }
 
-function renderGroupInline(p) {
+// Multi-group manager: current groups as removable chips + a field to add more.
+function renderGroupManager(p) {
   const area = $('group-area');
-  area.innerHTML =
-    `<div class="qt-group-inline">
-       <input id="grp-input" placeholder="Nombre del grupo (vacío = quitar)" value="${esc(p.group_name || '')}" maxlength="80" />
-       <button class="qt-btn qt-btn-primary qt-btn-sm" id="grp-save">Guardar</button>
-     </div>`;
-  const inp = $('grp-input'); inp.focus();
-  const save = async () => {
+  const groups = p.groups || [];
+  const saveGroups = async (next) => {
     try {
-      const { item } = await api('/people/' + p.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group_name: inp.value.trim() }) });
-      S.byId.set(item.id, item); await reloadPeople();
-      toast(item.group_name ? 'Añadida al grupo «' + item.group_name + '»' : 'Quitada del grupo', 'ok');
-      viewFicha(p.id);
+      const { item } = await api('/people/' + p.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groups: next }) });
+      S.byId.set(item.id, item);
+      const i = S.people.findIndex(x => x.id === item.id); if (i >= 0) S.people[i] = item;
+      viewFicha(p.id, { openGroups: true });
     } catch (e) { toast(e.message, 'err'); }
   };
-  $('grp-save').onclick = save;
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') save(); });
+  area.innerHTML =
+    `<div class="qt-group-mgr">
+       <div class="qt-group-mgr-h">Grupos de esta persona</div>
+       <div class="qt-group-chips">${groups.length
+        ? groups.map((g, i) => `<span class="qt-group-echip">${esc(g)}<button data-rm="${i}" title="Quitar del grupo">×</button></span>`).join('')
+        : '<span style="color:var(--muted);font-size:.85rem">Todavía no pertenece a ningún grupo.</span>'}</div>
+       <div class="qt-group-inline">
+         <input id="grp-input" placeholder="Escribe un grupo y pulsa Añadir" maxlength="80" autocomplete="off" />
+         <button class="qt-btn qt-btn-primary qt-btn-sm" id="grp-add">Añadir</button>
+       </div>
+     </div>`;
+  const inp = $('grp-input'); inp.focus();
+  const add = () => {
+    const g = inp.value.trim();
+    if (!g) return;
+    if (groups.some(x => x.toLowerCase() === g.toLowerCase())) { toast('Ya pertenece a ese grupo.', 'err'); return; }
+    saveGroups([...groups, g]);
+  };
+  $('grp-add').onclick = add;
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+  area.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => saveGroups(groups.filter((_, i) => i !== Number(b.dataset.rm))));
 }
 
 // ── The QR "mando" (shared global settings) ─────────────────────────────────────
@@ -455,7 +471,9 @@ function renderRows() {
 
   tbody.innerHTML = rows.map(p => {
     const sel = S.selected.has(p.id);
-    const group = p.group_name ? `<span class="qt-grouptag" data-group="${esc(p.group_name)}" title="Seleccionar todo el grupo">${esc(p.group_name)}</span>` : '<span style="color:#b3bcc7">—</span>';
+    const group = (p.groups && p.groups.length)
+      ? `<span class="qt-grouptags">${p.groups.map(g => `<span class="qt-grouptag" data-group="${esc(g)}" title="Seleccionar todo el grupo">${esc(g)}</span>`).join('')}</span>`
+      : '<span style="color:#b3bcc7">—</span>';
     const state = p.active
       ? '<span class="qt-state-dot"><span class="dot"></span>Activa</span>'
       : '<span class="qt-state-dot off"><span class="dot"></span>Inactiva</span>';
@@ -497,7 +515,7 @@ function renderRows() {
 function selectGroup(group, goList) {
   if (!group) return;
   const g = norm(group);
-  const ids = S.people.filter(p => norm(p.group_name) === g).map(p => p.id);
+  const ids = S.people.filter(p => (p.groups || []).some(x => norm(x) === g)).map(p => p.id);
   ids.forEach(id => S.selected.add(id));
   toast(`${ids.length} persona(s) del grupo «${group}» seleccionadas`, 'ok');
   if (goList && S.view !== 'list') viewList(); else if (S.view === 'list') renderRows();
@@ -580,7 +598,7 @@ function renderCart() {
   body.innerHTML = items.map(p => {
     const sel = S.selected.has(p.id);
     const qr = p.active ? `<span class="qr" data-open="${p.id}">${qrSvg(p.tis, { dark: st.qr_dark, light: st.qr_light, style: st.qr_style, ecc: st.qr_ecc, size })}</span>` : `<span class="qr" style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;color:#9aa4b0;font-size:.8rem">Inactiva</span>`;
-    const group = p.group_name ? `<span class="qt-grouptag" data-group="${esc(p.group_name)}">${esc(p.group_name)}</span>` : '';
+    const group = (p.groups && p.groups.length) ? p.groups.map(g => `<span class="qt-grouptag" data-group="${esc(g)}">${esc(g)}</span>`).join(' ') : '';
     return `<div class="qt-cart-card ${sel ? 'is-selected' : ''}">
        ${qr}
        <div class="info">

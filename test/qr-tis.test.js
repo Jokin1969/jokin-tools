@@ -36,6 +36,9 @@ test('update, active toggle and group membership', () => {
   // clearing the group
   const u3 = db.updatePerson(p.id, { group_name: '' });
   assert.equal(u3.group_name, null);
+  // multiple groups are stored newline-joined in the same column
+  const u4 = db.updatePerson(p.id, { group_name: 'Planta 2\nUrgencias' });
+  assert.equal(db.getPerson(p.id).group_name, 'Planta 2\nUrgencias');
 });
 
 test('listPeople returns everyone; delete removes and detaches from carts', () => {
