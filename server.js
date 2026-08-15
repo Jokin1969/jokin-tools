@@ -125,6 +125,13 @@ const qrTisDb = require('./apps/qr-tis/db');
 const qrTisRouter = require('./apps/qr-tis/routes');
 app.use('/qr-tis', requireApp('qr-tis'), qrTisRouter);
 
+// ─── Gestor de códigos Data Matrix (requires access to 'datamatrix') ────────────
+// Self-contained: its own router + its own SQLite file (apps/datamatrix/db.js →
+// datamatrix.db). Medication boxes by their GS1 Data Matrix codes.
+const dmDb = require('./apps/datamatrix/db');
+const dmRouter = require('./apps/datamatrix/routes');
+app.use('/datamatrix', requireApp('datamatrix'), dmRouter);
+
 // ─── Hub root (requires login) ──────────────────────────────────────────────────
 app.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));
@@ -231,6 +238,7 @@ function shutdown(server, signal) {
     try { bitacoraDb.db.close(); } catch { /* ignore */ }
     try { imprimirDb.db.close(); } catch { /* ignore */ }
     try { qrTisDb.db.close(); } catch { /* ignore */ }
+    try { dmDb.db.close(); } catch { /* ignore */ }
     console.log('[server] Closed cleanly.');
     process.exit(0);
   });

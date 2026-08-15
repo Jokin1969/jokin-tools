@@ -73,6 +73,24 @@ const APPS = [
     </svg>`,
   },
   {
+    id: 'datamatrix',
+    name: 'Gestor de códigos Data Matrix',
+    path: '/datamatrix',
+    desc: 'Inventario de cajas de medicación por sus códigos Data Matrix (GS1). Escanea para dar entrada, marca como utilizada la salida, agrupa por medicamento y genera Data Matrix escaneables.',
+    tags: ['Data Matrix', 'GS1', 'Inventario'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <path d="M14 14v36M14 50h36" stroke="#1B6CB0" stroke-width="3" stroke-linecap="round"/>
+      <rect x="20" y="16" width="6" height="6" fill="#0097B2"/>
+      <rect x="32" y="16" width="6" height="6" fill="#00B8D4"/>
+      <rect x="44" y="16" width="6" height="6" fill="#0097B2"/>
+      <rect x="20" y="28" width="6" height="6" fill="#00B8D4"/>
+      <rect x="44" y="28" width="6" height="6" fill="#00B8D4"/>
+      <rect x="32" y="40" width="6" height="6" fill="#0097B2"/>
+      <rect x="44" y="40" width="6" height="6" fill="#00B8D4"/>
+      <path d="M50 14h2M14 12v2" stroke="#1B6CB0" stroke-width="3" stroke-linecap="round"/>
+    </svg>`,
+  },
+  {
     id: 'feep',
     name: 'FEEP',
     path: '/feep',

@@ -1,0 +1,84 @@
+'use strict';
+
+// ── GS1 Data Matrix parser (pharmaceutical) ─────────────────────────────────────
+// Spanish/EU medicine boxes carry a GS1 Data Matrix that encodes, via Application
+// Identifiers (AIs):
+//   01  GTIN            (14 digits, fixed)        → the product
+//   21  Serial number   (variable)               → unique per box
+//   17  Expiry date      (YYMMDD, 6 digits fixed)
+//   10  Batch / lot      (variable)
+//   710-714 National reimbursement number (variable) → "Código Nacional" (ES)
+// Variable-length fields are separated by the FNC1/GS character (ASCII 29) which a
+// scanner reports as \x1d. Some scanners also prefix a symbology id ("]d2"/"]C1").
+//
+// We keep the RAW verbatim (to re-encode an identical, scannable Data Matrix) and
+// also segregate the useful fields for display/search.
+
+const GS = '\x1d';
+
+// AIs with a predefined (fixed) data length — they need no separator afterwards.
+const FIXED = {
+  '00': 18, '01': 14, '02': 14, '03': 14, '04': 16,
+  '11': 6, '12': 6, '13': 6, '14': 6, '15': 6, '16': 6, '17': 6, '18': 6, '19': 6,
+  '20': 2,
+};
+
+// Normalise the raw string a scanner produced.
+function normalizeRaw(raw) {
+  let s = String(raw == null ? '' : raw);
+  s = s.replace(/^\][A-Za-z]\d/, ''); // strip symbology identifier (]d2, ]C1, ]e0…)
+  s = s.replace(/^[\x1d]+/, '');        // strip a leading GS/FNC1
+  return s;
+}
+
+// Parse into { gtin, serial, lote, caducidad(raw YYMMDD), cn }.
+function parse(raw) {
+  const s = normalizeRaw(raw);
+  const out = { gtin: null, serial: null, lote: null, caducidad: null, cn: null };
+  let i = 0;
+  const readVar = () => {
+    let j = s.indexOf(GS, i);
+    if (j < 0) j = s.length;
+    const v = s.slice(i, j);
+    i = j < s.length ? j + 1 : j;
+    return v;
+  };
+  let guard = 0;
+  while (i < s.length && guard++ < 64) {
+    const ai3 = s.substr(i, 3);
+    if (/^71[0-4]$/.test(ai3)) { i += 3; const v = readVar(); if (!out.cn) out.cn = v; continue; }
+    const ai2 = s.substr(i, 2);
+    if (ai2 === '01') { i += 2; out.gtin = s.substr(i, 14); i += 14; continue; }
+    if (ai2 === '17') { i += 2; out.caducidad = s.substr(i, 6); i += 6; continue; }
+    if (ai2 === '10') { i += 2; out.lote = readVar() || null; continue; }
+    if (ai2 === '21') { i += 2; out.serial = readVar() || null; continue; }
+    if (FIXED[ai2] != null) { i += 2 + FIXED[ai2]; continue; } // skip other fixed AIs
+    // Unknown → treat as a variable field and skip it (keeps parsing robust).
+    if (/^\d{2}$/.test(ai2)) { i += 2; readVar(); continue; }
+    break; // not GS1-shaped from here
+  }
+  return out;
+}
+
+// YYMMDD → ISO date (YYYY-MM-DD). DD == 00 means "end of month" (GS1 rule).
+function expiryToIso(yymmdd) {
+  const m = /^(\d{2})(\d{2})(\d{2})$/.exec(String(yymmdd || ''));
+  if (!m) return null;
+  const year = 2000 + (+m[1]);
+  const month = +m[2];
+  let day = +m[3];
+  if (month < 1 || month > 12) return null;
+  if (day === 0) day = new Date(Date.UTC(year, month, 0)).getUTCDate(); // last day of month
+  if (day < 1 || day > 31) return null;
+  const p = n => String(n).padStart(2, '0');
+  return `${year}-${p(month)}-${p(day)}`;
+}
+
+// A stable identity for "the same physical box": GTIN + serial when present,
+// otherwise the raw content (so codes without a serial are still de-duplicated).
+function boxKey(fields, raw) {
+  if (fields && fields.gtin && fields.serial) return fields.gtin + '|' + fields.serial;
+  return 'raw:' + normalizeRaw(raw);
+}
+
+module.exports = { GS, parse, normalizeRaw, expiryToIso, boxKey };
