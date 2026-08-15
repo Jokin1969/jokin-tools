@@ -49,7 +49,6 @@ db.exec(`
     shape      TEXT,                     -- shape override (null = auto from GTIN)
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
-  CREATE INDEX IF NOT EXISTS idx_dm_products_cn ON dm_products(cn);
 
   CREATE TABLE IF NOT EXISTS dm_settings (
     id           INTEGER PRIMARY KEY CHECK (id = 1),
@@ -70,6 +69,9 @@ db.exec(`
 `);
 
 try { db.prepare('ALTER TABLE dm_products ADD COLUMN cn TEXT').run(); } catch { /* already present */ }
+// The cn index must be created AFTER the migration that adds the column (an old
+// db_products table won't have `cn` at CREATE-TABLE time).
+try { db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_products_cn ON dm_products(cn)').run(); } catch { /* ignore */ }
 
 console.log('[datamatrix] Database ready at:', DB_PATH);
 
