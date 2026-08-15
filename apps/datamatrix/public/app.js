@@ -173,13 +173,16 @@ function viewScan() {
 function renderScanLog() {
   const box = $('scan-log'); if (!box) return;
   if (!S._scanLog.length) { box.innerHTML = '<div class="dm-scan-empty">Aún no has escaneado nada en esta sesión.</div>'; return; }
-  box.innerHTML = S._scanLog.slice(0, 12).map(e => {
+  box.innerHTML = S._scanLog.slice(0, 12).map((e, idx) => {
     const it = e.item;
     const cls = e.kind === 'added' ? 'ok' : e.kind === 'used' ? 'used' : 'warn';
+    const isDup = e.kind === 'dup' || e.kind === 'dupused';
     const badge = { added: '✓ Añadida', used: '⬆ Utilizada', dup: '• Ya estaba', dupused: '• Ya utilizada', notfound: '⚠ No estaba', err: '✕ Error' }[e.kind] || e.kind;
     const name = it ? (it.nombre || it.gtin || '—') : (e.msg || '');
     const meta = it ? `${it.serial ? 'Nº ' + esc(it.serial) : ''}${it.caducidad ? ' · Cad ' + fmtDate(it.caducidad) : ''}` : '';
-    return `<div class="dm-scan-line ${cls}"><span class="dm-line-badge">${badge}</span><span class="dm-line-name" ${it ? `data-open="${it.id}"` : ''}>${esc(name)}</span><span class="dm-line-meta">${meta}</span></div>`;
+    const go = it ? `<a class="dm-line-go">${isDup ? '🔎 Ver la caja →' : 'Ver ficha →'}</a>` : '';
+    return `<div class="dm-scan-line ${cls}${idx === 0 ? ' is-new' : ''}${isDup ? ' is-dup' : ''}" ${it ? `data-open="${it.id}"` : ''}>` +
+      `<span class="dm-line-badge">${badge}</span><span class="dm-line-name">${esc(name)}</span><span class="dm-line-meta">${meta}</span>${go}</div>`;
   }).join('');
   box.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => gotoFicha(Number(el.dataset.open), [])));
 }

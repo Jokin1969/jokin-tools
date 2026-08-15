@@ -395,9 +395,17 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .dm-scan-line.ok .dm-line-badge { color: var(--ok); }
 .dm-scan-line.used .dm-line-badge { color: var(--teal); }
 .dm-scan-line.warn .dm-line-badge { color: var(--warn); }
-.dm-line-name { font-weight: 600; flex: 1; cursor: pointer; }
-.dm-line-name[data-open]:hover { color: var(--brand); }
+.dm-line-name { font-weight: 600; flex: 1; }
 .dm-line-meta { font-family: var(--mono); font-size: 0.76rem; color: var(--muted); }
+.dm-line-go { color: var(--brand); font-weight: 700; font-size: 0.8rem; white-space: nowrap; }
+.dm-scan-line[data-open] { cursor: pointer; }
+.dm-scan-line[data-open]:hover { border-color: var(--brand); }
+.dm-scan-line.is-dup { border-color: var(--warn); background: #fdf6ec; }
+.dm-scan-line.is-dup .dm-line-go { color: var(--warn); }
+.dm-scan-line.is-new { animation: dm-flash 1.1s ease; }
+@keyframes dm-flash { 0% { box-shadow: 0 0 0 3px rgba(18,115,184,0.4); } 60% { box-shadow: 0 0 0 3px rgba(18,115,184,0.15); } 100% { box-shadow: none; } }
+.dm-scan-line.is-dup.is-new { animation: dm-flash-warn 1.1s ease; }
+@keyframes dm-flash-warn { 0% { box-shadow: 0 0 0 3px rgba(178,106,0,0.45); } 100% { box-shadow: none; } }
 
 /* inventory tabs */
 .dm-invtabs { display: inline-flex; gap: 6px; margin-bottom: 12px; }
