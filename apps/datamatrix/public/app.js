@@ -16,7 +16,7 @@ const S = {
   query: '', andor: 'AND',
   sort: { key: 'nombre', dir: 'asc' },
   selected: new Set(), hidden: new Set(),
-  listMode: 'table', groupBy: false, archive: false,
+  listMode: 'table', groupBy: false, archive: false, uncatOnly: false,
   medFilter: null, // filter list to a GTIN
   currentItemId: null, view: 'home', nav: [],
 };
@@ -352,6 +352,7 @@ function viewList() {
        ${S.listMode !== 'cards' ? `<button class="qt-toggle ${S.showListQr ? 'on' : ''}" id="tg-qr">▦ DM en el listado</button>` : ''}
        <span class="qt-inline-size" id="dm-size-wrap" ${(S.listMode === 'cards' || S.showListQr) ? '' : 'hidden'}>Tamaño DM <input type="range" id="list-dm-size" min="80" max="${S.listMode === 'cards' ? 220 : 360}" step="10" value="${S.listMode === 'cards' ? st.card_dm_size : st.list_dm_size}"><span id="list-dm-size-v">${S.listMode === 'cards' ? st.card_dm_size : st.list_dm_size}px</span></span>
        ${S.listMode === 'cards' && !S.groupBy ? `<span class="qt-inline-sort">Ordenar <select class="qt-select" id="cards-sort">${SORT_FIELDS.map(f => `<option value="${f.key}" ${S.sort.key === f.key ? 'selected' : ''}>${f.label}</option>`).join('')}</select><select class="qt-select" id="cards-dir"><option value="asc" ${S.sort.dir === 'asc' ? 'selected' : ''}>▲</option><option value="desc" ${S.sort.dir === 'desc' ? 'selected' : ''}>▼</option></select></span>` : ''}
+       <button class="qt-toggle ${S.uncatOnly ? 'on' : ''}" id="tg-uncat" title="Medicamentos sin nombre (aún no catalogados)">🏷️ Sin catalogar (${S.items.filter(x => !x.nombre).length})</button>
        <button class="qt-toggle ${S.selectedOnly ? 'on' : ''}" id="tg-selected">✔ Solo seleccionadas</button>
        <button class="qt-toggle ${S.cartView ? 'on' : ''}" id="tg-cart">🛒 Solo carrito</button>
        <button class="qt-toggle" id="clear-sel">✕ Quitar selección</button>
@@ -370,6 +371,7 @@ function viewList() {
   $('list-mode').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { S.listMode = b.dataset.m; viewList(); }));
   if ($('tg-group')) $('tg-group').onclick = () => { S.groupBy = !S.groupBy; viewList(); };
   if ($('tg-qr')) $('tg-qr').onclick = () => { S.showListQr = !S.showListQr; viewList(); };
+  $('tg-uncat').onclick = () => { S.uncatOnly = !S.uncatOnly; viewList(); };
   $('tg-selected').onclick = () => { S.selectedOnly = !S.selectedOnly; viewList(); };
   $('tg-cart').onclick = () => { S.cartView = !S.cartView; viewList(); };
   $('clear-sel').onclick = () => { S.selected.clear(); renderList(); };
@@ -385,6 +387,7 @@ function filteredItems() {
   if (S.cartView) rows = rows.filter(p => S.cart.has(p.id));
   if (S.selectedOnly) rows = rows.filter(p => S.selected.has(p.id));
   if (S.medFilter) rows = rows.filter(p => p.gtin === S.medFilter);
+  if (S.uncatOnly) rows = rows.filter(p => !p.nombre);
   const tokens = norm(S.query).split(/\s+/).filter(Boolean);
   if (tokens.length) rows = rows.filter(p => { const hay = norm([p.nombre, p.gtin, p.serial, p.lote, p.caducidad, p.cn, p.raw].join(' ')); return S.andor === 'OR' ? tokens.some(t => hay.includes(t)) : tokens.every(t => hay.includes(t)); });
   const { key, dir } = S.sort, mul = dir === 'asc' ? 1 : -1;
@@ -654,7 +657,7 @@ function viewHelp() {
     { id: 'dm', icon: '🎨', title: 'Data Matrix y colores por medicamento', html: `<p>Cada <b>medicamento</b> recibe un <b>color y una forma</b> propios (automáticos, editables) para asociarlo de un vistazo — todas las cajas del mismo medicamento comparten color. En la ficha, «Nombre / color del medicamento» cambia el nombre, el color y la forma de todas sus cajas. El <b>tamaño</b> del Data Matrix es un ajuste compartido.</p>` },
     { id: 'agrupar', icon: '🧬', title: 'Agrupar por medicamento', html: `<p>En vista <b>Tarjetas</b>, el botón <b>«Agrupar por medicamento»</b> junta las cajas del mismo producto en una sola tarjeta con el <b>recuento</b> (cuántas quedan). Pulsa «Ver las N» para desglosarlas.</p>` },
     { id: 'buscar', icon: '🔎', title: 'Buscar', html: `<p>Busca por <b>medicamento, GTIN, nº de serie, lote, caducidad o código nacional</b> (sin tildes). <b>AND</b> exige todas las palabras; <b>OR</b>, cualquiera.</p>` },
-    { id: 'resto', icon: '🗂️', title: 'Listado/tarjetas, carrito, importar y exportar', html: `<p>Como en QR (TIS): conmutador <b>Listado/Tarjetas</b>, ordenar, seleccionar, ocultar (temporal), eliminar y <b>carrito</b> propio. Arriba a la derecha: <b>Importar</b> (catálogo GTIN→nombre y cajas por RAW), <b>Exportar Excel</b> (elige columnas/orden), <b>Exportar PDF</b> (Data Matrix a tamaño variable, con su color) y <b>Recientes</b>.</p><div class="qt-note tip">Las <b>caducadas</b> ⚠ y las <b>próximas a caducar</b> ⏳ (≤ 90 días) se resaltan.</div>` },
+    { id: 'resto', icon: '🗂️', title: 'Listado/tarjetas, carrito, importar y exportar', html: `<p>Como en QR (TIS): conmutador <b>Listado/Tarjetas</b>, ordenar, seleccionar, ocultar (temporal), eliminar y <b>carrito</b> propio. Arriba a la derecha: <b>Importar</b> (catálogo GTIN→nombre y cajas por RAW), <b>Exportar Excel</b> (elige columnas/orden), <b>Exportar PDF</b> (Data Matrix a tamaño variable, con su color) y <b>Recientes</b>.</p><div class="qt-note tip">Las <b>caducadas</b> ⚠ y las <b>próximas a caducar</b> ⏳ (≤ 90 días) se resaltan. El filtro <b>🏷️ Sin catalogar (N)</b> muestra los medicamentos que aún no tienen nombre, para nombrarlos en su ficha o re-importar el catálogo.</div>` },
   ];
   const nav = SECS.map(s => `<a data-go="help-${s.id}">${s.icon} ${s.title}</a>`).join('');
   const secs = SECS.map(s => `<section class="qt-help-sec" id="help-${s.id}"><h2><span class="em">${s.icon}</span>${s.title}</h2>${s.html}</section>`).join('');
