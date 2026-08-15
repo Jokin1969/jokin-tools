@@ -139,6 +139,7 @@ function deleteItem(id) {
   db.prepare('DELETE FROM dm_cart WHERE item_id = ?').run(id);
   return db.prepare('DELETE FROM dm_items WHERE id = ?').run(id).changes > 0;
 }
+const deleteMany = db.transaction((ids) => { let n = 0; for (const id of ids) if (deleteItem(id)) n++; return n; });
 function counts() {
   const a = db.prepare("SELECT COUNT(*) n FROM dm_items WHERE status='activo'").get().n;
   const u = db.prepare("SELECT COUNT(*) n FROM dm_items WHERE status='utilizado'").get().n;
@@ -210,7 +211,7 @@ function cartClear(userId) { db.prepare('DELETE FROM dm_cart WHERE user_id = ?')
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listItems, getItem, findByKey, createItem, createManyItems, setUsed, touchItem, recentItems, deleteItem, counts,
+  listItems, getItem, findByKey, createItem, createManyItems, setUsed, touchItem, recentItems, deleteItem, deleteMany, counts,
   getProduct, listProducts, upsertProduct, importProducts,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,

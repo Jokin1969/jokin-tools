@@ -102,6 +102,17 @@ test('createManyItems bulk + product import', () => {
   assert.equal(db.getItem(created[0].id).nombre, 'Paracetamol 1g', 'both boxes share the medication name');
 });
 
+test('deleteMany removes several boxes and detaches them from carts', () => {
+  const a = db.createItem({ raw: 'dm1', box_key: 'dmk1', gtin: '01111111111116', serial: 'D1' }, 1);
+  const b = db.createItem({ raw: 'dm2', box_key: 'dmk2', gtin: '01111111111116', serial: 'D2' }, 1);
+  db.cartAdd(3, a.id); db.cartAdd(3, b.id);
+  const n = db.deleteMany([a.id, b.id, 999999]);
+  assert.equal(n, 2);
+  assert.equal(db.getItem(a.id), null);
+  assert.equal(db.getItem(b.id), null);
+  assert.equal(db.cartIds(3).length, 0, 'removed from the cart too');
+});
+
 test('settings defaults + persistence; cart per user', () => {
   const s = db.getSettings();
   assert.equal(s.list_dm_size, 100);

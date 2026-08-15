@@ -128,6 +128,15 @@ router.delete('/api/item/:id(\\d+)', (req, res) => {
   try { const ok = db.deleteItem(Number(req.params.id)); if (!ok) return res.status(404).json({ error: 'No encontrado.' }); res.json({ ok: true }); }
   catch (err) { fail(res, err); }
 });
+// Bulk delete (the selected boxes) — permanent.
+router.post('/api/items/delete', jsonBig, (req, res) => {
+  try {
+    const ids = Array.isArray(req.body && req.body.ids) ? req.body.ids.map(Number).filter(Number.isInteger) : null;
+    if (!ids || !ids.length) throw bad('No se recibieron cajas.');
+    if (ids.length > 5000) throw bad('Demasiadas cajas.');
+    res.json({ deleted: db.deleteMany(ids) });
+  } catch (err) { fail(res, err); }
+});
 
 // ── Products (GTIN → nombre / colour / shape) ────────────────────────────────────
 router.get('/api/products', (req, res) => {

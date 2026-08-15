@@ -407,6 +407,9 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .dm-scan-line.is-dup.is-new { animation: dm-flash-warn 1.1s ease; }
 @keyframes dm-flash-warn { 0% { box-shadow: 0 0 0 3px rgba(178,106,0,0.45); } 100% { box-shadow: none; } }
 
+.qt-toggle.dm-danger { color: var(--danger); border-color: #e7c9c9; }
+.qt-toggle.dm-danger:hover:not(:disabled) { background: var(--danger); color: #fff; border-color: var(--danger); }
+
 /* inventory tabs */
 .dm-invtabs { display: inline-flex; gap: 6px; margin-bottom: 12px; }
 .dm-tab { border: 1px solid var(--line); background: #fff; border-radius: 20px; padding: 7px 15px; font-size: 0.85rem; font-weight: 600; color: var(--muted); cursor: pointer; }
