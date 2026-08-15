@@ -74,6 +74,15 @@ function expiryToIso(yymmdd) {
   return `${year}-${p(month)}-${p(day)}`;
 }
 
+// Canonical 14-digit GTIN. A box's Data Matrix carries a GTIN-14 (AI 01), but a
+// pharmacy catalogue (Farmatic, Bot PLUS…) usually lists the barcode as an EAN-13.
+// GTIN-14 = "0" + EAN-13, so we pad/trim everything to 14 digits to match reliably.
+function normGtin(s) {
+  const d = String(s == null ? '' : s).replace(/\D/g, '');
+  if (!d) return null;
+  return d.length >= 14 ? d.slice(-14) : d.padStart(14, '0');
+}
+
 // A stable identity for "the same physical box": GTIN + serial when present,
 // otherwise the raw content (so codes without a serial are still de-duplicated).
 function boxKey(fields, raw) {
@@ -81,4 +90,4 @@ function boxKey(fields, raw) {
   return 'raw:' + normalizeRaw(raw);
 }
 
-module.exports = { GS, parse, normalizeRaw, expiryToIso, boxKey };
+module.exports = { GS, parse, normalizeRaw, expiryToIso, boxKey, normGtin };

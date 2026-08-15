@@ -51,6 +51,21 @@ test('createItem + findByKey dedup; product name resolved via join', () => {
   assert.equal(db.getItem(it.id).nombre, 'Ibuprofeno 600');
 });
 
+test('normGtin canonicalises; EAN-13 catalogue matches GTIN-14 boxes', () => {
+  assert.equal(gs1.normGtin('8470006991545'), '08470006991545'); // EAN-13 → GTIN-14
+  assert.equal(gs1.normGtin('08470006991545'), '08470006991545'); // already 14
+  assert.equal(gs1.normGtin('  847 000 699 1545 '), '08470006991545');
+  const it = db.createItem({ raw: 'e1', box_key: 'ek1', gtin: '08470006991545', serial: 'E1' }, 1);
+  db.upsertProduct(gs1.normGtin('8470006991545'), { nombre: 'Ibuprofeno EAN' }); // catalogue lists EAN-13
+  assert.equal(db.getItem(it.id).nombre, 'Ibuprofeno EAN');
+});
+
+test('CN fallback resolves the name when the GTIN is not catalogued', () => {
+  const it = db.createItem({ raw: 'cnr', box_key: 'cnk', gtin: '09999999999999', serial: 'C1', cn: '654321' }, 1);
+  db.upsertProduct('05555555555555', { cn: '654321', nombre: 'Resuelto por CN' });
+  assert.equal(db.getItem(it.id).nombre, 'Resuelto por CN');
+});
+
 test('setUsed archives; listItems by status; counts', () => {
   const before = db.counts();
   const it = db.createItem({ raw: 'r2', box_key: 'k2', gtin: '05000000000031', serial: 'S2' }, 1);

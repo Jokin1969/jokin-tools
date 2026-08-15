@@ -536,8 +536,8 @@ const scopeHtml = id => `<div class="qt-tool-row"><label>Cajas:</label><select c
 function toolIO() {
   openModal(
     `<div class="qt-modal-h"><h3>Importar / Catálogo</h3><button class="qt-x" data-close>×</button></div>
-     <div class="qt-tool-opt"><h4>Catálogo de medicamentos (GTIN → nombre)</h4>
-       <p>Sube un Excel con columnas <code>GTIN</code> y <code>Nombre</code>. Al escanear una caja, se rellena el nombre por su GTIN.</p>
+     <div class="qt-tool-opt"><h4>Catálogo de medicamentos (código → nombre)</h4>
+       <p>Sube el listado de artículos de <b>Farmatic</b> (o Bot PLUS) en Excel/CSV con, al menos, <code>Código de barras</code> (EAN/GTIN) y <code>Descripción</code>. Si trae <code>Código Nacional</code>, también se guarda. Al escanear una caja, el nombre se rellena por su código; <b>re-importa cuando cambie</b> y se actualiza en todas las cajas.</p>
        <button class="qt-btn qt-btn-ghost" id="cat-tpl">⬇ Plantilla catálogo</button>
        <div class="qt-dropfile" id="cat-drop" style="margin-top:10px">📥 Importar catálogo (.xlsx / .csv)</div>
        <input type="file" id="cat-file" accept=".xlsx,.xls,.csv" hidden>
@@ -551,7 +551,7 @@ function toolIO() {
        <div class="qt-import-report" id="box-report"></div>
      </div>`
   );
-  $('cat-tpl').onclick = () => dlSheet([['GTIN', 'Nombre'], ['08470006991545', 'Ibuprofeno 600 mg 40 comp'], ['08470008123456', 'Paracetamol 1 g 40 comp']], 'Catalogo_medicamentos.xlsx', [0]);
+  $('cat-tpl').onclick = () => dlSheet([['Código de barras', 'Código Nacional', 'Descripción'], ['8470006991545', '699154', 'Ibuprofeno 600 mg 40 comprimidos'], ['8470008123456', '812345', 'Paracetamol 1 g 40 comprimidos']], 'Catalogo_medicamentos.xlsx', [0, 1]);
   $('box-tpl').onclick = () => { const GS = String.fromCharCode(29); dlSheet([['RAW'], ['0108470006991545' + '21SN0001' + GS + '17261130' + '10LOTE1']], 'Plantilla_cajas.xlsx', [0]); };
   wireDrop('cat-drop', 'cat-file', importCatalog);
   wireDrop('box-drop', 'box-file', importBoxes);
@@ -563,11 +563,21 @@ async function importCatalog(file) {
   const rep = $('cat-report'); rep.innerHTML = 'Leyendo…';
   try {
     const aoa = await readSheet(file); const header = aoa[0].map(h => norm(String(h)));
-    const gi = header.findIndex(h => h.includes('gtin') || h.includes('codigo') || h.includes('ean')), ni = header.findIndex(h => h.includes('nombre') || h.includes('medic'));
-    if (gi < 0 || ni < 0) throw new Error('Faltan columnas «GTIN» y «Nombre».');
-    const rows = aoa.slice(1).map(r => ({ gtin: String(r[gi] || '').replace(/\D/g, ''), nombre: String(r[ni] || '').trim() })).filter(r => r.gtin);
+    // Barcode column (Farmatic: «Código de barras» / EAN); it IS the GTIN.
+    const gi = header.findIndex(h => h.includes('barra') || h.includes('barcode') || h.includes('ean') || h.includes('gtin') || h.includes('codbar'));
+    // Name column (Farmatic uses «Descripción»).
+    const ni = header.findIndex(h => h.includes('descrip') || h.includes('nombre') || h.includes('articulo') || h.includes('denomin') || h.includes('medic'));
+    // Optional Código Nacional.
+    const ci = header.findIndex(h => (h.includes('nacional') || /(^|\W)cn(\W|$)/.test(h) || h.includes('cod nac') || h.includes('codnac')) && !h.includes('barra'));
+    if (gi < 0 || ni < 0) throw new Error('Faltan columnas. Necesito el «Código de barras» (EAN/GTIN) y la «Descripción» (nombre).');
+    const rows = aoa.slice(1).map(r => ({
+      gtin: String(r[gi] || '').replace(/\D/g, ''),
+      cn: ci >= 0 ? String(r[ci] || '').replace(/\D/g, '') : '',
+      nombre: String(r[ni] || '').trim(),
+    })).filter(r => r.gtin.replace(/^0+/, '').length >= 8);
+    if (!rows.length) throw new Error('No hay filas con un código de barras válido.');
     const res = await api('/products/import', jbody({ rows }));
-    await reloadItems(); rep.innerHTML = `<div class="ok">✓ ${res.imported} medicamento(s) en el catálogo${res.skipped ? `, ${res.skipped} omitidos` : ''}.</div>`;
+    await reloadItems(); rep.innerHTML = `<div class="ok">✓ ${res.imported} medicamento(s) en el catálogo${res.skipped ? `, ${res.skipped} sin código válido omitidos` : ''}. Los nombres se aplican a todas sus cajas.</div>`;
     toast('Catálogo importado', 'ok');
   } catch (e) { rep.innerHTML = `<div class="err">✕ ${esc(e.message)}</div>`; }
 }

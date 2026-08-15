@@ -42,12 +42,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_dm_items_boxkey ON dm_items(box_key);
 
   CREATE TABLE IF NOT EXISTS dm_products (
-    gtin       TEXT PRIMARY KEY,
+    gtin       TEXT PRIMARY KEY,         -- canonical 14-digit GTIN
+    cn         TEXT,                     -- Código Nacional (reference / fallback match)
     nombre     TEXT,
     color      TEXT,                     -- hex override (null = auto from GTIN)
     shape      TEXT,                     -- shape override (null = auto from GTIN)
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE INDEX IF NOT EXISTS idx_dm_products_cn ON dm_products(cn);
 
   CREATE TABLE IF NOT EXISTS dm_settings (
     id           INTEGER PRIMARY KEY CHECK (id = 1),
@@ -67,16 +69,23 @@ db.exec(`
   );
 `);
 
+try { db.prepare('ALTER TABLE dm_products ADD COLUMN cn TEXT').run(); } catch { /* already present */ }
+
 console.log('[datamatrix] Database ready at:', DB_PATH);
 
 const DEFAULT_SETTINGS = { dm_size: 300, list_dm_size: 100, card_dm_size: 200, dm_light: '#ffffff' };
 
 // ── Items (boxes) ─────────────────────────────────────────────────────────────────
+// Name/colour/shape come from the medication catalogue by GTIN; if that GTIN has
+// no catalogue entry, fall back to a match by Código Nacional (when the code
+// carried one). Colour/shape still key off the box's own GTIN for a stable look.
 const ITEM_SELECT =
   `SELECT i.id, i.raw, i.box_key, i.gtin, i.serial, i.lote, i.caducidad, i.cn, i.status,
           i.used_at, i.created_at, i.updated_at,
-          p.nombre AS nombre, p.color AS color, p.shape AS shape
-     FROM dm_items i LEFT JOIN dm_products p ON p.gtin = i.gtin`;
+          COALESCE(p.nombre, pc.nombre) AS nombre, p.color AS color, p.shape AS shape
+     FROM dm_items i
+     LEFT JOIN dm_products p  ON p.gtin = i.gtin
+     LEFT JOIN dm_products pc ON pc.cn = i.cn AND i.cn IS NOT NULL AND i.cn <> ''`;
 
 function listItems(status) {
   const where = status ? 'WHERE i.status = ?' : '';
@@ -141,29 +150,32 @@ function upsertProduct(gtin, data) {
   const cur = getProduct(gtin) || {};
   const row = {
     gtin,
+    cn: data.cn !== undefined ? (data.cn || null) : (cur.cn || null),
     nombre: data.nombre !== undefined ? (data.nombre || null) : (cur.nombre || null),
     color: data.color !== undefined ? (data.color || null) : (cur.color || null),
     shape: data.shape !== undefined ? (data.shape || null) : (cur.shape || null),
   };
   db.prepare(
-    `INSERT INTO dm_products (gtin, nombre, color, shape, updated_at)
-     VALUES (@gtin, @nombre, @color, @shape, CURRENT_TIMESTAMP)
-     ON CONFLICT(gtin) DO UPDATE SET nombre = excluded.nombre, color = excluded.color,
+    `INSERT INTO dm_products (gtin, cn, nombre, color, shape, updated_at)
+     VALUES (@gtin, @cn, @nombre, @color, @shape, CURRENT_TIMESTAMP)
+     ON CONFLICT(gtin) DO UPDATE SET cn = excluded.cn, nombre = excluded.nombre, color = excluded.color,
        shape = excluded.shape, updated_at = CURRENT_TIMESTAMP`
   ).run(row);
   return getProduct(gtin);
 }
-// Import GTIN→nombre rows (only sets the name; keeps any colour/shape override).
+// Import catalogue rows (GTIN and/or CN → nombre). Idempotent: updates the name
+// (and CN) of existing medications and adds new ones; never touches colour/shape
+// overrides. Re-import the Farmatic export any time to refresh names everywhere.
 const importProducts = db.transaction((rows) => {
   let n = 0;
   for (const r of rows) {
-    if (!r.gtin) continue;
+    if (!r.gtin) continue; // keyed by GTIN (the barcode the catalogue lists)
     const cur = getProduct(r.gtin) || {};
     db.prepare(
-      `INSERT INTO dm_products (gtin, nombre, color, shape, updated_at)
-       VALUES (@gtin, @nombre, @color, @shape, CURRENT_TIMESTAMP)
-       ON CONFLICT(gtin) DO UPDATE SET nombre = excluded.nombre, updated_at = CURRENT_TIMESTAMP`
-    ).run({ gtin: r.gtin, nombre: r.nombre || null, color: cur.color || null, shape: cur.shape || null });
+      `INSERT INTO dm_products (gtin, cn, nombre, color, shape, updated_at)
+       VALUES (@gtin, @cn, @nombre, @color, @shape, CURRENT_TIMESTAMP)
+       ON CONFLICT(gtin) DO UPDATE SET nombre = excluded.nombre, cn = COALESCE(excluded.cn, dm_products.cn), updated_at = CURRENT_TIMESTAMP`
+    ).run({ gtin: r.gtin, cn: r.cn || null, nombre: r.nombre || null, color: cur.color || null, shape: cur.shape || null });
     n++;
   }
   return n;

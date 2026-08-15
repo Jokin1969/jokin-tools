@@ -57,7 +57,7 @@ function publicItem(it) {
 // Parse a raw string into the fields we store.
 function fieldsFromRaw(raw) {
   const f = gs1.parse(raw);
-  return { raw, box_key: gs1.boxKey(f, raw), gtin: f.gtin, serial: f.serial, lote: f.lote, caducidad: gs1.expiryToIso(f.caducidad), cn: f.cn };
+  return { raw, box_key: gs1.boxKey(f, raw), gtin: gs1.normGtin(f.gtin), serial: f.serial, lote: f.lote, caducidad: gs1.expiryToIso(f.caducidad), cn: f.cn };
 }
 
 // ── UI ───────────────────────────────────────────────────────────────────────
@@ -149,8 +149,12 @@ router.post('/api/products/import', jsonBig, (req, res) => {
     if (!rows) throw bad('No se recibieron filas.');
     if (rows.length > 20000) throw bad('Demasiadas filas.');
     const clean = rows
-      .map(r => ({ gtin: String(r.gtin || '').replace(/\s+/g, ''), nombre: r.nombre ? String(r.nombre).trim().slice(0, 160) : null }))
-      .filter(r => /^\d{8,14}$/.test(r.gtin));
+      .map(r => ({
+        gtin: gs1.normGtin(r.gtin),
+        cn: r.cn ? String(r.cn).replace(/\D/g, '').slice(0, 12) || null : null,
+        nombre: r.nombre ? String(r.nombre).trim().slice(0, 160) : null,
+      }))
+      .filter(r => r.gtin && r.gtin.replace(/^0+/, '').length >= 8); // a real barcode
     const n = db.importProducts(clean);
     res.json({ imported: n, total: rows.length, skipped: rows.length - clean.length });
   } catch (err) { fail(res, err); }
