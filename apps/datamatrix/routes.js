@@ -149,12 +149,14 @@ router.post('/api/products/import', jsonBig, (req, res) => {
     if (!rows) throw bad('No se recibieron filas.');
     if (rows.length > 20000) throw bad('Demasiadas filas.');
     const clean = rows
-      .map(r => ({
-        gtin: gs1.normGtin(r.gtin),
-        cn: r.cn ? String(r.cn).replace(/\D/g, '').slice(0, 12) || null : null,
-        nombre: r.nombre ? String(r.nombre).trim().slice(0, 160) : null,
-      }))
-      .filter(r => r.gtin && r.gtin.replace(/^0+/, '').length >= 8); // a real barcode
+      .map(r => {
+        const cn = r.cn ? String(r.cn).replace(/\D/g, '').slice(0, 12) || null : null;
+        // GTIN from the barcode; if there isn't one, reconstruct it from the CN.
+        const fromBar = gs1.normGtin(r.gtin);
+        const gtin = (fromBar && fromBar.replace(/^0+/, '').length >= 8) ? fromBar : gs1.cnToGtin(cn);
+        return { gtin, cn, nombre: r.nombre ? String(r.nombre).trim().slice(0, 160) : null };
+      })
+      .filter(r => r.gtin);
     const n = db.importProducts(clean);
     res.json({ imported: n, total: rows.length, skipped: rows.length - clean.length });
   } catch (err) { fail(res, err); }

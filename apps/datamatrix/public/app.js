@@ -537,7 +537,7 @@ function toolIO() {
   openModal(
     `<div class="qt-modal-h"><h3>Importar / Catálogo</h3><button class="qt-x" data-close>×</button></div>
      <div class="qt-tool-opt"><h4>Catálogo de medicamentos (código → nombre)</h4>
-       <p>Sube el listado de artículos de <b>Farmatic</b> (o Bot PLUS) en Excel/CSV con, al menos, <code>Código de barras</code> (EAN/GTIN) y <code>Descripción</code>. Si trae <code>Código Nacional</code>, también se guarda. Al escanear una caja, el nombre se rellena por su código; <b>re-importa cuando cambie</b> y se actualiza en todas las cajas.</p>
+       <p>Sube el listado de artículos de <b>Farmatic</b> (o Bot PLUS) en Excel/CSV. Necesita la <code>Descripción</code> y, al menos, el <code>Código de barras</code> (EAN/GTIN) <b>o</b> el <code>Código Nacional</code> (si solo tienes el CN, la app reconstruye el GTIN). Al escanear una caja el nombre se rellena por su código; <b>re-importa cuando cambie</b> y se actualiza en todas las cajas.</p>
        <button class="qt-btn qt-btn-ghost" id="cat-tpl">⬇ Plantilla catálogo</button>
        <div class="qt-dropfile" id="cat-drop" style="margin-top:10px">📥 Importar catálogo (.xlsx / .csv)</div>
        <input type="file" id="cat-file" accept=".xlsx,.xls,.csv" hidden>
@@ -569,13 +569,13 @@ async function importCatalog(file) {
     const ni = header.findIndex(h => h.includes('descrip') || h.includes('nombre') || h.includes('articulo') || h.includes('denomin') || h.includes('medic'));
     // Optional Código Nacional.
     const ci = header.findIndex(h => (h.includes('nacional') || /(^|\W)cn(\W|$)/.test(h) || h.includes('cod nac') || h.includes('codnac')) && !h.includes('barra'));
-    if (gi < 0 || ni < 0) throw new Error('Faltan columnas. Necesito el «Código de barras» (EAN/GTIN) y la «Descripción» (nombre).');
+    if (ni < 0 || (gi < 0 && ci < 0)) throw new Error('Faltan columnas. Necesito la «Descripción» (nombre) y, al menos, el «Código de barras» (EAN/GTIN) o el «Código Nacional».');
     const rows = aoa.slice(1).map(r => ({
-      gtin: String(r[gi] || '').replace(/\D/g, ''),
+      gtin: gi >= 0 ? String(r[gi] || '').replace(/\D/g, '') : '',
       cn: ci >= 0 ? String(r[ci] || '').replace(/\D/g, '') : '',
       nombre: String(r[ni] || '').trim(),
-    })).filter(r => r.gtin.replace(/^0+/, '').length >= 8);
-    if (!rows.length) throw new Error('No hay filas con un código de barras válido.');
+    })).filter(r => r.gtin.replace(/^0+/, '').length >= 8 || r.cn.length >= 4);
+    if (!rows.length) throw new Error('No hay filas con código de barras o Código Nacional válidos.');
     const res = await api('/products/import', jbody({ rows }));
     await reloadItems(); rep.innerHTML = `<div class="ok">✓ ${res.imported} medicamento(s) en el catálogo${res.skipped ? `, ${res.skipped} sin código válido omitidos` : ''}. Los nombres se aplican a todas sus cajas.</div>`;
     toast('Catálogo importado', 'ok');

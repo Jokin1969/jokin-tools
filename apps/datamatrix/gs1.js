@@ -83,6 +83,27 @@ function normGtin(s) {
   return d.length >= 14 ? d.slice(-14) : d.padStart(14, '0');
 }
 
+// EAN-13 check digit for a 12-digit body.
+function ean13Check(body12) {
+  const d = String(body12); let sum = 0;
+  for (let i = 0; i < 12; i++) sum += (i % 2 === 0 ? 1 : 3) * (+d[i] || 0);
+  return String((10 - (sum % 10)) % 10);
+}
+// Reconstruct the canonical GTIN-14 from a Spanish Código Nacional so a catalogue
+// that only has the CN (no barcode) can still match boxes by GTIN. CN6 →
+// 847000+CN6, CN7 → 84700+CN7 (both give a 12-digit body → EAN-13 → GTIN-14).
+// It only ever produces a match when the box's REAL GTIN equals this, so a wrong
+// reconstruction just misses — it never mislabels.
+function cnToGtin(cn) {
+  const d = String(cn == null ? '' : cn).replace(/\D/g, '');
+  if (!d) return null;
+  let body12;
+  if (d.length <= 6) body12 = '847000' + d.padStart(6, '0');
+  else if (d.length === 7) body12 = '84700' + d;
+  else return null;
+  return '0' + body12 + ean13Check(body12);
+}
+
 // A stable identity for "the same physical box": GTIN + serial when present,
 // otherwise the raw content (so codes without a serial are still de-duplicated).
 function boxKey(fields, raw) {
@@ -90,4 +111,4 @@ function boxKey(fields, raw) {
   return 'raw:' + normalizeRaw(raw);
 }
 
-module.exports = { GS, parse, normalizeRaw, expiryToIso, boxKey, normGtin };
+module.exports = { GS, parse, normalizeRaw, expiryToIso, boxKey, normGtin, cnToGtin, ean13Check };

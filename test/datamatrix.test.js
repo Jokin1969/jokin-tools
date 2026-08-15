@@ -60,6 +60,18 @@ test('normGtin canonicalises; EAN-13 catalogue matches GTIN-14 boxes', () => {
   assert.equal(db.getItem(it.id).nombre, 'Ibuprofeno EAN');
 });
 
+test('cnToGtin reconstructs a valid GTIN; a CN-only catalogue matches boxes', () => {
+  const g = gs1.cnToGtin('699154'); // CN6 → 0 + 847000 + 699154 + check
+  assert.equal(g.length, 14);
+  assert.ok(g.startsWith('0847000699154'));
+  assert.equal(g[13], gs1.ean13Check('847000699154')); // valid EAN-13 check digit
+  assert.equal(gs1.cnToGtin('1234567').length, 14);    // CN7 supported too
+  // a box whose real GTIN equals the reconstruction gets the name from a CN-only catalogue
+  const it = db.createItem({ raw: 'cno', box_key: 'cnob', gtin: g, serial: 'K1' }, 1);
+  db.upsertProduct(g, { cn: '699154', nombre: 'Solo CN' }); // as the import stores it (derived GTIN)
+  assert.equal(db.getItem(it.id).nombre, 'Solo CN');
+});
+
 test('CN fallback resolves the name when the GTIN is not catalogued', () => {
   const it = db.createItem({ raw: 'cnr', box_key: 'cnk', gtin: '09999999999999', serial: 'C1', cn: '654321' }, 1);
   db.upsertProduct('05555555555555', { cn: '654321', nombre: 'Resuelto por CN' });
