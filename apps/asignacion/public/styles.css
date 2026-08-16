@@ -435,3 +435,110 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
   padding: 1px 7px; border-radius: 999px; white-space: nowrap; vertical-align: middle; letter-spacing: .01em; }
 .dm-asig-pre { background: #fff3d6; color: #8a5a00; border: 1px solid #f2d48a; }
 .dm-asig-done { background: #e5e9ee; color: #55606e; border: 1px solid #d3d9e0; }
+
+/* ═══ Asignación de medicación — app-specific styles (az-*) ═══════════════════ */
+.qt-tool-note { color: var(--muted); font-size: 0.85rem; margin: 2px 0 12px; }
+.az-panel { max-width: 1040px; }
+
+/* Person picker + live search */
+.az-picker { margin-top: 14px; }
+.az-results { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.az-result { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; cursor: pointer; }
+.az-result:hover { border-color: var(--brand); box-shadow: var(--shadow); }
+.az-result-name { font-weight: 700; color: var(--ink); }
+.az-result-tis { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+.az-noresult { background: #fff; border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px; color: var(--muted); font-size: 0.9rem; }
+.az-noresult a { color: var(--brand); font-weight: 600; }
+
+/* Overview cards */
+.az-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 10px; }
+.az-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; cursor: pointer; box-shadow: var(--shadow); transition: transform .12s, border-color .16s; }
+.az-card:hover { transform: translateY(-2px); border-color: var(--brand); }
+.az-card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.az-card-name { font-weight: 800; color: var(--ink); }
+.az-card-sub { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+.az-chip { font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.az-chip-none { background: #eef2f6; color: #7a8698; }
+.az-chip-todo { background: #fff3d6; color: #8a5a00; }
+.az-chip-pre { background: #e7f0fb; color: #1c5f9a; }
+.az-chip-done { background: #e2f5ec; color: #128a5b; }
+
+/* Ficha layout */
+.az-ficha { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 24px; align-items: start; }
+.az-personcard { position: sticky; top: 84px; }
+.az-tisbig { font-family: var(--mono); font-size: 1.35rem; font-weight: 700; letter-spacing: 0.08em; color: var(--brand); }
+.az-person-meta { font-size: 0.82rem; color: var(--muted); margin-top: 4px; text-align: center; }
+.az-mando { display: flex; gap: 16px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+.az-mando label { font-size: 0.74rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.az-fichainfo { min-width: 0; }
+
+/* Month bar */
+.az-monthbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.az-monthlabel { font-weight: 700; color: var(--ink); font-size: 0.9rem; }
+.az-monthstate { font-size: 0.78rem; color: var(--ok); font-weight: 600; }
+.az-monthstate.is-closed { color: var(--muted); }
+
+/* Progress row */
+.az-progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+.az-prog-item { background: #f6f9fc; border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; }
+.az-prog-n { display: block; font-size: 1.4rem; font-weight: 800; color: var(--ink); }
+.az-prog-l { display: block; font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+.az-prog-pre { background: #fff8ea; border-color: #f2d48a; }
+.az-prog-done { background: #eaf7f0; border-color: #b6e3ca; }
+
+/* Section headings */
+.az-sec-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 18px 0 8px; font-weight: 800; color: var(--ink); }
+
+/* Plan rows */
+.az-plan { display: flex; flex-direction: column; gap: 6px; }
+.az-planrow { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; flex-wrap: wrap; }
+.az-plan-shape { flex: 0 0 auto; display: inline-flex; }
+.az-plan-name { flex: 1 1 200px; min-width: 0; font-weight: 700; color: var(--ink); display: flex; flex-direction: column; }
+.az-plan-name small { font-weight: 500; color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }
+.az-plan-prog { font-size: 0.76rem; font-weight: 700; padding: 3px 8px; border-radius: 8px; }
+.az-plan-prog.is-ok { background: #e2f5ec; color: #128a5b; }
+.az-plan-prog.is-short { background: #fff3d6; color: #8a5a00; }
+.az-plan-qty { font-size: 0.85rem; color: var(--muted); }
+.az-qty { width: 48px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; font-family: var(--mono); text-align: center; }
+.az-empty-sm { color: var(--muted); font-size: 0.86rem; padding: 10px 4px; }
+
+/* Attached box lines */
+.az-lines { display: flex; flex-direction: column; gap: 14px; }
+.az-linegroup { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; }
+.az-linegroup-h { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+.az-lg-count { background: var(--brand); color: #fff; font-size: 0.7rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+.az-linegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.az-line { display: flex; flex-direction: column; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; }
+.az-line.is-pre { border-color: #f2d48a; background: #fffdf7; }
+.az-line.is-asignada { background: #f4f6f8; }
+.az-line-gone { flex-direction: row; justify-content: space-between; background: #faf3f3; border-color: #e7c9c9; }
+.az-line-dm { line-height: 0; }
+.az-line-dm.is-grey { opacity: 0.55; }
+.az-line-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.az-line-info b { font-size: 0.86rem; color: var(--ink); display: inline-flex; align-items: center; gap: 5px; justify-content: center; }
+.az-line-info small { font-size: 0.72rem; color: var(--muted); }
+.az-line-state { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; align-self: center; }
+.az-line-state.st-pre { background: #fff3d6; color: #8a5a00; }
+.az-line-state.st-done { background: #e5e9ee; color: #55606e; }
+.az-line-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
+
+/* Medication / box picker rows (in the tool modal) */
+.az-medlist { display: flex; flex-direction: column; gap: 6px; max-height: 52vh; overflow: auto; }
+.az-medrow { display: flex; align-items: center; gap: 10px; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+.az-medrow:hover { border-color: var(--brand); box-shadow: var(--shadow); }
+.az-medrow-name { flex: 1 1 auto; min-width: 0; font-weight: 700; color: var(--ink); display: flex; flex-direction: column; }
+.az-medrow-name small { font-weight: 500; color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }
+.az-medrow-add { font-size: 1.05rem; }
+
+/* Add-box tabs */
+.az-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.az-tab { flex: 1 1 auto; padding: 8px 12px; border: 1px solid var(--line); background: #fff; border-radius: 10px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.az-tab.sel { border-color: var(--brand); color: var(--brand); background: #eef6fc; }
+.az-tabpane { min-height: 60px; }
+
+@media (max-width: 820px) {
+  .az-ficha { grid-template-columns: 1fr; }
+  .az-personcard { position: static; }
+  .az-progress { grid-template-columns: repeat(2, 1fr); }
+}

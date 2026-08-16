@@ -113,6 +113,28 @@ test('deleteMany removes several boxes and detaches them from carts', () => {
   assert.equal(db.cartIds(3).length, 0, 'removed from the cart too');
 });
 
+test('setAssignee reserves a box (pre-asignada) without using it; availableItems + counts', () => {
+  const it = db.createItem({ raw: 'asg1', box_key: 'asgk1', gtin: '02222222222229', serial: 'A1' }, 1);
+  // Available before reserving.
+  assert.ok(db.availableItems('02222222222229').some(x => x.id === it.id));
+  const pre = db.counts().preasignada;
+  db.setAssignee(it.id, 7, 'Ana Pérez');
+  const r = db.getItem(it.id);
+  assert.equal(r.status, 'activo', 'still in stock while pre-asignada');
+  assert.equal(r.assignee_id, 7);
+  assert.equal(r.assignee_name, 'Ana Pérez');
+  assert.equal(db.counts().preasignada, pre + 1, 'counts the reservation');
+  // No longer offered as available (reserved for someone).
+  assert.ok(!db.availableItems('02222222222229').some(x => x.id === it.id));
+  // Dispensing keeps the assignee link.
+  db.setUsed(it.id, true);
+  assert.equal(db.getItem(it.id).status, 'utilizado');
+  assert.equal(db.getItem(it.id).assignee_id, 7, 'assignee preserved through setUsed');
+  // Clearing the reservation.
+  db.setAssignee(it.id, null, null);
+  assert.equal(db.getItem(it.id).assignee_id, null);
+});
+
 test('settings defaults + persistence; cart per user', () => {
   const s = db.getSettings();
   assert.equal(s.list_dm_size, 100);

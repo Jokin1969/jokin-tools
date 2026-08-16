@@ -43,6 +43,10 @@ const clampN = (n, lo, hi, d) => { const x = Math.round(Number(n)); return Numbe
 // Resolve a stored item into what the UI needs (name + effective colour/shape).
 function publicItem(it) {
   if (!it) return it;
+  // Three-state assignment view (shared with the Asignación app):
+  //   preasignada = reserved for a person, still in stock (status 'activo')
+  //   asignada    = dispensed to that person (status 'utilizado' + assignee)
+  const asig_state = it.assignee_id != null ? (it.status === 'utilizado' ? 'asignada' : 'preasignada') : null;
   return {
     id: it.id, raw: it.raw, gtin: it.gtin || null, serial: it.serial || null,
     lote: it.lote || null, caducidad: it.caducidad || null, cn: it.cn || null,
@@ -50,6 +54,9 @@ function publicItem(it) {
     nombre: it.nombre || null,
     color: visual.resolveColor(it.gtin, it.color),
     shape: visual.resolveShape(it.gtin, it.shape),
+    assignee_id: it.assignee_id != null ? it.assignee_id : null,
+    assignee_name: it.assignee_name || null,
+    asig_state,
     created_at: it.created_at, updated_at: it.updated_at,
   };
 }

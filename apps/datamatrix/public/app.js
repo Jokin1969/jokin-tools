@@ -16,7 +16,7 @@ const S = {
   query: '', andor: 'AND',
   sort: { key: 'nombre', dir: 'asc' },
   selected: new Set(), hidden: new Set(),
-  listMode: 'table', groupBy: false, archive: false, uncatOnly: false,
+  listMode: 'table', groupBy: false, archive: false, uncatOnly: false, preasigOnly: false,
   medFilter: null, // filter list to a GTIN
   currentItemId: null, view: 'home', nav: [],
 };
@@ -95,6 +95,17 @@ function shapeSvg(shape, color, px) {
     pentagon: `<path d="M12 2l10 7.3-3.8 11.7H5.8L2 9.3z" fill="${c}"/>`,
     cross: `<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" fill="${c}"/>` }[shape] || `<circle cx="12" cy="12" r="9" fill="${c}"/>`;
   return `<svg class="dm-shape" width="${px}" height="${px}" viewBox="0 0 24 24" aria-hidden="true">${s}</svg>`;
+}
+
+// A small badge for boxes reserved/dispensed via the Asignación app.
+//   preasignada → reserved for a person (still in stock)
+//   asignada    → dispensed to that person
+function asigBadge(it) {
+  if (!it || !it.asig_state) return '';
+  const who = it.assignee_name ? ' · ' + esc(it.assignee_name) : '';
+  return it.asig_state === 'asignada'
+    ? `<span class="dm-asig dm-asig-done" title="Asignada${who}">✓ Asignada${who}</span>`
+    : `<span class="dm-asig dm-asig-pre" title="Pre-asignada${who}">🔗 Pre-asignada${who}</span>`;
 }
 
 // ── Data loading ────────────────────────────────────────────────────────────────
@@ -251,6 +262,7 @@ function viewFicha(id, opts) {
        <div class="qt-ficha-info">
          <h2>${esc(it.nombre || 'Medicamento sin nombre')}</h2>
          <div class="qt-ficha-meta">Alta: ${fmtDate(it.created_at)} · ${used ? '<span style="color:var(--muted)">● Utilizada</span>' : '<span style="color:var(--ok)">● Sin utilizar</span>'}</div>
+         ${it.asig_state ? `<div class="qt-ficha-meta">${asigBadge(it)}</div>` : ''}
          <div class="qt-kv">
            <div class="qt-kv-row"><span class="k">Medicamento</span><span class="v">${esc(it.nombre || '—')}</span></div>
            <div class="qt-kv-row"><span class="k">GTIN</span><span class="v mono">${esc(it.gtin || '—')}</span></div>
@@ -353,6 +365,7 @@ function viewList() {
        <span class="qt-inline-size" id="dm-size-wrap" ${(S.listMode === 'cards' || S.showListQr) ? '' : 'hidden'}>Tamaño DM <input type="range" id="list-dm-size" min="80" max="${S.listMode === 'cards' ? 220 : 360}" step="10" value="${S.listMode === 'cards' ? st.card_dm_size : st.list_dm_size}"><span id="list-dm-size-v">${S.listMode === 'cards' ? st.card_dm_size : st.list_dm_size}px</span></span>
        ${S.listMode === 'cards' && !S.groupBy ? `<span class="qt-inline-sort">Ordenar <select class="qt-select" id="cards-sort">${SORT_FIELDS.map(f => `<option value="${f.key}" ${S.sort.key === f.key ? 'selected' : ''}>${f.label}</option>`).join('')}</select><select class="qt-select" id="cards-dir"><option value="asc" ${S.sort.dir === 'asc' ? 'selected' : ''}>▲</option><option value="desc" ${S.sort.dir === 'desc' ? 'selected' : ''}>▼</option></select></span>` : ''}
        <button class="qt-toggle ${S.uncatOnly ? 'on' : ''}" id="tg-uncat" title="Medicamentos sin nombre (aún no catalogados)">🏷️ Sin catalogar (${S.items.filter(x => !x.nombre).length})</button>
+       ${!S.archive ? `<button class="qt-toggle ${S.preasigOnly ? 'on' : ''}" id="tg-preasig" title="Cajas reservadas para una persona (desde Asignación)">🔗 Pre-asignadas (${S.items.filter(x => x.asig_state === 'preasignada').length})</button>` : ''}
        <button class="qt-toggle ${S.selectedOnly ? 'on' : ''}" id="tg-selected">✔ Solo seleccionadas</button>
        <button class="qt-toggle ${S.cartView ? 'on' : ''}" id="tg-cart">🛒 Solo carrito</button>
        <button class="qt-toggle" id="clear-sel">✕ Quitar selección</button>
@@ -373,6 +386,7 @@ function viewList() {
   if ($('tg-group')) $('tg-group').onclick = () => { S.groupBy = !S.groupBy; viewList(); };
   if ($('tg-qr')) $('tg-qr').onclick = () => { S.showListQr = !S.showListQr; viewList(); };
   $('tg-uncat').onclick = () => { S.uncatOnly = !S.uncatOnly; viewList(); };
+  if ($('tg-preasig')) $('tg-preasig').onclick = () => { S.preasigOnly = !S.preasigOnly; viewList(); };
   $('tg-selected').onclick = () => { S.selectedOnly = !S.selectedOnly; viewList(); };
   $('tg-cart').onclick = () => { S.cartView = !S.cartView; viewList(); };
   $('clear-sel').onclick = () => { S.selected.clear(); renderList(); };
@@ -390,6 +404,7 @@ function filteredItems() {
   if (S.selectedOnly) rows = rows.filter(p => S.selected.has(p.id));
   if (S.medFilter) rows = rows.filter(p => p.gtin === S.medFilter);
   if (S.uncatOnly) rows = rows.filter(p => !p.nombre);
+  if (S.preasigOnly) rows = rows.filter(p => p.asig_state === 'preasignada');
   const tokens = norm(S.query).split(/\s+/).filter(Boolean);
   if (tokens.length) rows = rows.filter(p => { const hay = norm([p.nombre, p.gtin, p.serial, p.lote, p.caducidad, p.cn, p.raw].join(' ')); return S.andor === 'OR' ? tokens.some(t => hay.includes(t)) : tokens.every(t => hay.includes(t)); });
   const { key, dir } = S.sort, mul = dir === 'asc' ? 1 : -1;
@@ -450,7 +465,7 @@ function itemRowHtml(it) {
   const dmCell = S.showListQr ? `<td><span class="qt-list-qr" data-open="${it.id}">${dmSvg(it.raw, dmOpts(it, S.settings.list_dm_size))}</span></td>` : '';
   return `<tr class="${sel ? 'is-selected' : ''}" data-id="${it.id}">
     <td><input type="checkbox" class="qt-check" data-sel="${it.id}" ${sel ? 'checked' : ''}></td>
-    <td><span class="dm-name-cell" data-open="${it.id}">${shapeSvg(it.shape, it.color, 14)} <span class="qt-cell-name">${esc(it.nombre || 'Sin nombre')}</span></span></td>
+    <td><span class="dm-name-cell" data-open="${it.id}">${shapeSvg(it.shape, it.color, 14)} <span class="qt-cell-name">${esc(it.nombre || 'Sin nombre')}</span></span> ${asigBadge(it)}</td>
     <td class="qt-cell-tis">${esc(it.gtin || '—')}</td>
     <td class="qt-cell-tis">${esc(it.serial || '—')}</td>
     <td class="qt-cell-tis">${esc(it.lote || '—')}</td>
@@ -466,7 +481,7 @@ function itemCardHtml(it) {
     <span class="qt-pcard-qr" data-open="${it.id}">${dmSvg(it.raw, dmOpts(it, S.settings.card_dm_size))}</span>
     <div class="qt-pcard-name" data-open="${it.id}">${esc(it.nombre || 'Sin nombre')}</div>
     <div class="qt-pcard-tis">${it.serial ? 'Nº ' + esc(it.serial) : ('GTIN ' + esc(it.gtin || '—'))}</div>
-    <div class="qt-pcard-groups"></div>
+    <div class="qt-pcard-groups">${asigBadge(it)}</div>
     <div class="qt-pcard-actions">${itemActionsHtml(it, inCart)}</div>
   </div>`;
 }
@@ -668,6 +683,7 @@ function viewHelp() {
     { id: 'escanear', icon: '📥', title: 'Escanear (entrada y salida)', html: `<p>En <b>Escanear</b> eliges el modo:</p><ul><li><b>Entrada</b>: cada código añade una caja al inventario (queda «sin utilizar»).</li><li><b>Salida</b>: cada código marca esa caja como <b>utilizada</b> (sale del inventario y de las búsquedas).</li></ul><div class="qt-note tip">Con un <b>lector de sobremesa</b> (tipo teclado), haz clic en el campo y escanea; se procesa al pulsar Enter y el foco se queda listo para el siguiente. En móvil, usa el botón 📷.</div>` },
     { id: 'campos', icon: '🔢', title: 'Los datos del Data Matrix', html: `<p>Del código GS1 se extraen: <b>GTIN</b> (identifica el producto), <b>Nº de serie</b> (único por caja), <b>Lote</b>, <b>Caducidad</b> y <b>Código Nacional</b>. El <b>nombre comercial</b> no va en el código: se toma del <b>catálogo GTIN→nombre</b> (importable) o lo escribes en la ficha.</p><div class="qt-note">Los códigos <b>nunca se repiten por completo</b> (el nº de serie los hace únicos). Si reescaneas una caja ya metida, se avisa.</div>` },
     { id: 'usar', icon: '⬆', title: 'Marcar utilizada', html: `<p>Una caja se marca utilizada de tres formas: en modo <b>Salida</b> del escáner, con el botón <b>⬆</b> del listado, o desde su ficha. Al hacerlo <b>sale del inventario</b>; puedes verla en la pestaña <b>«Utilizadas»</b> y devolverla si te equivocaste.</p>` },
+    { id: 'preasig', icon: '🔗', title: 'Pre-asignadas (Asignación)', html: `<p>Desde la app <b>Asignación de medicación</b> una caja puede quedar <b>🔗 Pre-asignada</b> a una persona: sigue <b>en stock</b> (sin utilizar) pero reservada para ella. Se muestra con una etiqueta en el listado, las tarjetas y la ficha, y el filtro <b>🔗 Pre-asignadas (N)</b> las agrupa. Cuando allí se <b>asigna de verdad</b>, la caja pasa a <b>utilizada</b> (✓ Asignada) igual que una salida normal.</p>` },
     { id: 'dm', icon: '🎨', title: 'Data Matrix y colores por medicamento', html: `<p>Cada <b>medicamento</b> recibe un <b>color y una forma</b> propios (automáticos, editables) para asociarlo de un vistazo — todas las cajas del mismo medicamento comparten color. En la ficha, «Nombre / color del medicamento» cambia el nombre, el color y la forma de todas sus cajas. El <b>tamaño</b> del Data Matrix es un ajuste compartido.</p>` },
     { id: 'agrupar', icon: '🧬', title: 'Agrupar por medicamento', html: `<p>En vista <b>Tarjetas</b>, el botón <b>«Agrupar por medicamento»</b> junta las cajas del mismo producto en una sola tarjeta con el <b>recuento</b> (cuántas quedan). Pulsa «Ver las N» para desglosarlas.</p>` },
     { id: 'buscar', icon: '🔎', title: 'Buscar', html: `<p>Busca por <b>medicamento, GTIN, nº de serie, lote, caducidad o código nacional</b> (sin tildes). <b>AND</b> exige todas las palabras; <b>OR</b>, cualquiera.</p>` },

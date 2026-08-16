@@ -1,0 +1,465 @@
+'use strict';
+
+// ── Asignación de medicación — frontend SPA ──────────────────────────────────────
+// Bridges people (qr-tis) and medication boxes (datamatrix). Flow:
+//   1) pick a person (must exist in QR-TIS)  2) build/keep their medication plan
+//   3) each month, pre-assign real boxes (reserve them) and, when dispensing in the
+//      external health app, click each Data Matrix to "Asignar" (mark it utilizado).
+// QR codes render with qrcode-generator; Data Matrix with bwip-js; scanning ZXing.
+
+const API = '/asignacion/api';
+const $ = id => document.getElementById(id);
+const main = () => $('qt-main');
+
+const S = {
+  settings: null, qrSettings: null, month: null, user: null,
+  view: 'home',
+  overview: [], overviewQuery: '',
+  search: [], searchQuery: '',
+  person: null, ficha: null, ym: null,
+};
+
+// ── Tiny helpers ────────────────────────────────────────────────────────────────
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function norm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+function fmtTis(t) { return String(t || '').replace(/(\d{4})(\d{4})/, '$1 $2'); }
+async function api(path, opts) {
+  const r = await fetch(API + path, opts);
+  const ct = r.headers.get('content-type') || '';
+  const data = ct.includes('json') ? await r.json().catch(() => ({})) : {};
+  if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
+  return data;
+}
+function jbody(obj) { return { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) }; }
+function fmtDate(s) { if (!s) return ''; const d = new Date(String(s).replace(' ', 'T') + 'Z'); return isNaN(d) ? s : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function fmtYm(ym) { if (!ym) return ''; const [y, m] = ym.split('-'); const names = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']; return `${names[Number(m) - 1] || m} ${y}`; }
+
+let toastTimer = null;
+function toast(msg, kind) { const t = $('toast'); t.textContent = msg; t.className = 'qt-toast' + (kind ? ' ' + kind : ''); t.hidden = false; if (toastTimer) clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2800); }
+function confirmBox(title, body, okLabel) {
+  return new Promise(resolve => {
+    $('confirm-title').textContent = title; $('confirm-body').textContent = body; $('confirm-yes').textContent = okLabel || 'Aceptar';
+    const m = $('confirm-modal'); m.hidden = false;
+    const done = v => { m.hidden = true; $('confirm-yes').onclick = null; $('confirm-no').onclick = null; resolve(v); };
+    $('confirm-yes').onclick = () => done(true); $('confirm-no').onclick = () => done(false);
+  });
+}
+function openTool(html) { const box = $('tool-modal-box'); box.innerHTML = html; $('tool-modal').hidden = false; }
+function closeTool() { $('tool-modal').hidden = true; $('tool-modal-box').innerHTML = ''; }
+
+// Expiry status (mirrors the Data Matrix app).
+function expiryState(iso) { if (!iso) return ''; const d = new Date(iso + 'T00:00:00Z'); if (isNaN(d)) return ''; const days = Math.floor((d - new Date()) / 86400000); if (days < 0) return 'vencida'; if (days <= 90) return 'pronto'; return ''; }
+function cadDisplay(iso) { if (!iso) return '—'; const st = expiryState(iso); const cls = st === 'vencida' ? 'cad-bad' : st === 'pronto' ? 'cad-soon' : ''; return `<span class="dm-cad ${cls}">${fmtDate(iso)}${st === 'vencida' ? ' ⚠' : st === 'pronto' ? ' ⏳' : ''}</span>`; }
+
+// ── QR rendering (client-side SVG, qrcode-generator) ─────────────────────────────
+function qrSvg(text, o) {
+  o = o || {};
+  const dark = o.dark || '#0f172a', light = o.light || '#ffffff';
+  const style = o.style === 'dots' ? 'dots' : 'square';
+  const ecc = ['L', 'M', 'Q', 'H'].includes(o.ecc) ? o.ecc : 'M';
+  const size = o.size || 300, margin = 4;
+  let qr;
+  try { qr = qrcode(0, ecc); qr.addData(String(text)); qr.make(); }
+  catch (e) { return `<svg width="${size}" height="${size}"></svg>`; }
+  const n = qr.getModuleCount(), tot = n + margin * 2;
+  const inFinder = (r, c) => (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
+  let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) {
+    const x = c + margin, y = r + margin;
+    d += (style === 'dots' && !inFinder(r, c))
+      ? `<rect x="${(x - 0.02).toFixed(2)}" y="${(y - 0.02).toFixed(2)}" width="1.04" height="1.04" rx="0.5" ry="0.5"/>`
+      : `<rect x="${(x - 0.02).toFixed(2)}" y="${(y - 0.02).toFixed(2)}" width="1.04" height="1.04"/>`;
+  }
+  const rendering = style === 'dots' ? 'geometricPrecision' : 'crispEdges';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${tot} ${tot}" shape-rendering="${rendering}"><rect width="${tot}" height="${tot}" fill="${light}"/><g fill="${dark}">${d}</g></svg>`;
+}
+function qrOpts(p, size) {
+  const st = S.qrSettings || {};
+  return { dark: (p && p.qr_dark) || st.qr_dark || '#0f172a', light: (p && p.qr_light) || st.qr_light || '#ffffff', style: (p && p.qr_style) || st.qr_style || 'square', ecc: st.qr_ecc || 'M', size };
+}
+
+// ── Data Matrix rendering (client, bwip-js) ──────────────────────────────────────
+function dmSvg(raw, o) {
+  o = o || {};
+  const dark = (o.dark || '#0f172a').replace('#', ''), light = (o.light || '#ffffff').replace('#', ''), size = o.size || 150;
+  let svg;
+  try { svg = bwipjs.toSVG({ bcid: 'datamatrix', text: String(raw || ''), barcolor: dark, backgroundcolor: light, paddingwidth: 1, paddingheight: 1 }); }
+  catch (e) { return `<svg width="${size}" height="${size}"></svg>`; }
+  return svg.replace(/<svg /, `<svg width="${size}" height="${size}" shape-rendering="crispEdges" `);
+}
+function shapeSvg(shape, color, px) {
+  px = px || 16; const c = color || '#1273b8';
+  const s = { circle: `<circle cx="12" cy="12" r="9" fill="${c}"/>`, square: `<rect x="3.5" y="3.5" width="17" height="17" rx="3" fill="${c}"/>`,
+    triangle: `<path d="M12 3l9 16H3z" fill="${c}"/>`, diamond: `<path d="M12 2l10 10-10 10L2 12z" fill="${c}"/>`,
+    hexagon: `<path d="M7 3h10l5 9-5 9H7l-5-9z" fill="${c}"/>`, star: `<path d="M12 2l2.9 6 6.6.6-5 4.3 1.6 6.5L12 22l-5.7 3.4 1.6-6.5-5-4.3 6.6-.6z" fill="${c}"/>`,
+    pentagon: `<path d="M12 2l10 7.3-3.8 11.7H5.8L2 9.3z" fill="${c}"/>`, cross: `<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" fill="${c}"/>` }[shape] || `<circle cx="12" cy="12" r="9" fill="${c}"/>`;
+  return `<svg class="dm-shape" width="${px}" height="${px}" viewBox="0 0 24 24" aria-hidden="true">${s}</svg>`;
+}
+
+// ── Scanner (camera → ZXing, decodes Data Matrix + QR) ───────────────────────────
+let _zxReader = null;
+function openScanner(title, onResult) {
+  const modal = $('scan-modal'), video = $('scan-video'), note = $('scan-note');
+  $('scan-title').textContent = title || 'Escanear';
+  let stopped = false, controls = null;
+  const stop = () => { stopped = true; try { if (controls) controls.stop(); } catch { } try { const s = video.srcObject; if (s) s.getTracks().forEach(t => t.stop()); } catch { } video.srcObject = null; modal.hidden = true; };
+  $('scan-close').onclick = stop;
+  modal.hidden = false; note.textContent = 'Solicitando cámara…'; note.className = 'qt-scan-note';
+  try {
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.DATA_MATRIX, ZXing.BarcodeFormat.QR_CODE]);
+    if (!_zxReader) _zxReader = new ZXing.BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120 });
+    _zxReader.decodeFromVideoDevice(undefined, video, (result, err, ctrl) => {
+      controls = ctrl; if (stopped) return;
+      note.textContent = 'Apunta al código Data Matrix de la caja…';
+      if (result) { const text = result.getText(); stop(); onResult(text); }
+    }).then(c => { controls = c; }).catch(e => { note.textContent = 'No se pudo acceder a la cámara: ' + e.message; note.className = 'qt-scan-note err'; });
+  } catch (e) { note.textContent = 'Lector no disponible: ' + e.message; note.className = 'qt-scan-note err'; }
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────────
+async function boot() {
+  try {
+    const meta = await api('/meta');
+    S.settings = meta.settings; S.qrSettings = meta.qrSettings; S.month = meta.month; S.user = meta.user;
+    $('help-btn').onclick = viewHelp;
+    $('go-home').onclick = (e) => { e.preventDefault(); viewHome(); };
+    await viewHome();
+  } catch (e) { main().innerHTML = `<div class="qt-empty">No se pudo cargar: ${esc(e.message)}</div>`; }
+}
+
+// ── Home / panel ─────────────────────────────────────────────────────────────────
+async function viewHome() {
+  S.view = 'home'; S.person = null; S.ficha = null;
+  try { const { items } = await api('/overview'); S.overview = items; } catch (e) { S.overview = []; }
+  renderHome();
+}
+function renderHome() {
+  const rows = S.overview;
+  main().innerHTML =
+    `<div class="qt-panel az-panel">
+       <div class="qt-section-title">Asignación de medicación</div>
+       <div class="qt-section-sub">Elige una persona (de QR·TIS) para preparar y asignar su medicación (cajas Data Matrix). Control mensual: ${esc(fmtYm(S.month))}.</div>
+
+       <div class="az-picker">
+         <div class="qt-search"><span class="ico">🔎</span><input id="pq" placeholder="Buscar persona por nombre, apellidos, TIS, nº de farmacia…" autocomplete="off" value="${esc(S.searchQuery)}"></div>
+         <div id="pq-results" class="az-results"></div>
+       </div>
+
+       <div class="qt-section-title" style="margin-top:22px">En seguimiento (${rows.length})</div>
+       <div class="qt-section-sub">Personas con plan o asignaciones. El estado es el del mes en curso.</div>
+       <div id="ov-body">${overviewHtml(rows)}</div>
+     </div>`;
+  const pq = $('pq');
+  pq.addEventListener('input', () => { S.searchQuery = pq.value; searchPeople(pq.value); });
+  if (S.searchQuery) searchPeople(S.searchQuery);
+  wireOverview();
+}
+function statusChip(r) {
+  if (!r.plan_count && !r.has_month_period) return `<span class="az-chip az-chip-none">sin plan</span>`;
+  const c = r.month_counts;
+  if (!r.has_month_period || c.total === 0) return `<span class="az-chip az-chip-todo">⏳ pendiente este mes</span>`;
+  const pre = c.preasignada, done = c.asignada;
+  if (pre > 0) return `<span class="az-chip az-chip-pre">🔗 ${done} asignada(s) · ${pre} por asignar</span>`;
+  return `<span class="az-chip az-chip-done">✓ ${done} asignada(s)</span>`;
+}
+function overviewHtml(rows) {
+  if (!rows.length) return '<div class="qt-empty">Aún no hay personas en seguimiento. Busca una persona arriba y crea su plan.</div>';
+  return `<div class="az-cards">` + rows.map(r => {
+    const p = r.person;
+    return `<div class="az-card" data-open="${p.id}">
+      <div class="az-card-h"><span class="az-card-name">${esc(p.apellidos)}, ${esc(p.nombre)}</span>${statusChip(r)}</div>
+      <div class="az-card-sub">TIS ${esc(fmtTis(p.tis))}${p.pharmacy_no ? ' · Farmacia ' + esc(p.pharmacy_no) : ''}</div>
+      <div class="az-card-sub">${r.plan_count} medicamento(s) en el plan · ${r.planned_total} caja(s)/mes${r.latest ? ' · último: ' + esc(fmtYm(r.latest.ym)) : ''}</div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+function wireOverview() { main().querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => openPerson(Number(el.dataset.open)))); }
+
+let searchTimer = null;
+function searchPeople(q) {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(async () => {
+    const box = $('pq-results'); if (!box) return;
+    const query = String(q || '').trim();
+    if (!query) { box.innerHTML = ''; return; }
+    try {
+      const { items } = await api('/people?q=' + encodeURIComponent(query));
+      if (!items.length) {
+        box.innerHTML = `<div class="az-noresult">No hay ninguna persona que coincida en <b>QR (TIS)</b>. Si es nueva, <a href="/qr-tis" target="_blank" rel="noopener">añádela primero en la app de QR (TIS)</a> y vuelve aquí.</div>`;
+        return;
+      }
+      box.innerHTML = items.slice(0, 12).map(p => `<button class="az-result" data-pick="${p.id}"><span class="az-result-name">${esc(p.apellidos)}, ${esc(p.nombre)}</span><span class="az-result-tis">TIS ${esc(fmtTis(p.tis))}${p.pharmacy_no ? ' · Farm. ' + esc(p.pharmacy_no) : ''}</span></button>`).join('');
+      box.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => openPerson(Number(b.dataset.pick))));
+    } catch (e) { box.innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; }
+  }, 220);
+}
+
+// ── Open a person's ficha ────────────────────────────────────────────────────────
+async function openPerson(id, ym) {
+  try {
+    const data = await api(`/person/${id}/ficha` + (ym ? '?ym=' + encodeURIComponent(ym) : ''));
+    S.person = data.person; S.ficha = data; S.ym = data.ym; S.view = 'ficha';
+    renderFicha();
+  } catch (e) { toast(e.message, 'err'); }
+}
+async function reloadFicha() { if (S.person) await openPerson(S.person.id, S.ym); }
+// Some endpoints return a full ficha payload — use it directly.
+function applyFicha(data) { S.person = data.person; S.ficha = data; S.ym = data.ym; renderFicha(); }
+
+function renderFicha() {
+  const f = S.ficha, p = f.person, per = f.period;
+  const closed = per.status === 'cerrado';
+  const isNew = per.status === 'nuevo';
+  const dmSize = S.settings.ficha_dm_size, qrSize = S.settings.ficha_qr_size;
+
+  // Month selector: known periods + the current month if missing.
+  const known = new Map(f.periods.map(pr => [pr.ym, pr]));
+  if (!known.has(f.month)) known.set(f.month, { ym: f.month, status: 'nuevo', counts: { preasignada: 0, asignada: 0, total: 0 } });
+  if (!known.has(f.ym)) known.set(f.ym, { ym: f.ym, status: per.status, counts: { preasignada: 0, asignada: 0, total: 0 } });
+  const months = [...known.values()].sort((a, b) => b.ym.localeCompare(a.ym));
+
+  main().innerHTML =
+    `<div class="qt-ficha-top"><button class="qt-back" id="back">← Volver</button></div>
+     <div class="qt-panel qt-ficha az-ficha">
+       <div class="qt-qr-stage az-personcard">
+         <div class="qt-qr-name">${esc(p.nombre)} ${esc(p.apellidos)}</div>
+         <div class="qt-qr-box" id="ficha-qr">${qrSvg(p.tis, qrOpts(p, qrSize))}</div>
+         <div class="qt-qr-tis az-tisbig">${esc(fmtTis(p.tis))}</div>
+         <div class="az-person-meta">${p.pharmacy_no ? 'Farmacia ' + esc(p.pharmacy_no) : ''}${p.group_name ? (p.pharmacy_no ? ' · ' : '') + esc(p.group_name) : ''}</div>
+         <div class="az-mando">
+           <label>QR <input type="range" id="qr-size" min="160" max="460" step="10" value="${qrSize}"></label>
+           <label>DM <input type="range" id="dm-size" min="90" max="240" step="10" value="${dmSize}"></label>
+         </div>
+       </div>
+
+       <div class="qt-ficha-info az-fichainfo">
+         <div class="az-monthbar">
+           <label class="az-monthlabel">Mes</label>
+           <select class="qt-select" id="month-sel">${months.map(m => `<option value="${m.ym}" ${m.ym === f.ym ? 'selected' : ''}>${esc(fmtYm(m.ym))}${m.status === 'cerrado' ? ' · cerrado' : m.status === 'nuevo' ? ' · nuevo' : ''}</option>`).join('')}</select>
+           ${!isNew ? (closed ? `<button class="qt-btn qt-btn-ghost qt-btn-sm" id="per-reopen">↩ Reabrir</button>` : `<button class="qt-btn qt-btn-ghost qt-btn-sm" id="per-close">🔒 Cerrar mes</button>`) : ''}
+           <span class="az-monthstate ${closed ? 'is-closed' : ''}">${isNew ? 'Mes nuevo (sin cajas todavía)' : closed ? 'Mes cerrado' : 'Mes abierto'}</span>
+         </div>
+
+         ${progressHtml(f.progress)}
+
+         <div class="az-sec-h"><span>💊 Plan de medicación</span><button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-med">➕ Añadir medicamento</button></div>
+         <div class="az-plan">${planHtml(f.plan, closed)}</div>
+
+         <div class="az-sec-h"><span>📦 Cajas de la ficha (${f.lines.length})</span><button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-box" ${closed ? 'disabled' : ''}>➕ Añadir DM</button></div>
+         <div class="az-lines">${linesHtml(f.lines, closed, dmSize)}</div>
+       </div>
+     </div>`;
+
+  $('back').onclick = viewHome;
+  $('month-sel').onchange = (e) => openPerson(p.id, e.target.value);
+  if ($('per-close')) $('per-close').onclick = async () => { try { applyFicha(await api(`/period/${per.id}/close`, { method: 'POST' })); toast('Mes cerrado.'); } catch (er) { toast(er.message, 'err'); } };
+  if ($('per-reopen')) $('per-reopen').onclick = async () => { try { applyFicha(await api(`/period/${per.id}/reopen`, { method: 'POST' })); toast('Mes reabierto.'); } catch (er) { toast(er.message, 'err'); } };
+  $('add-med').onclick = openMedPicker;
+  if ($('add-box')) $('add-box').onclick = () => openAddBox(null);
+
+  // Live size sliders (persist, debounced).
+  $('qr-size').oninput = (e) => { const v = Number(e.target.value); $('ficha-qr').innerHTML = qrSvg(p.tis, qrOpts(p, v)); saveSize({ ficha_qr_size: v }); };
+  $('dm-size').oninput = (e) => { const v = Number(e.target.value); S.settings.ficha_dm_size = v; document.querySelectorAll('.az-line-dm').forEach(el => { const raw = el.dataset.raw, color = el.dataset.color; el.innerHTML = dmSvg(raw, { dark: color, light: '#ffffff', size: v }); }); saveSize({ ficha_dm_size: v }); };
+
+  wirePlan(closed); wireLines(closed);
+}
+
+function progressHtml(pr) {
+  const pend = Math.max(pr.planned_total, pr.attached_total);
+  return `<div class="az-progress">
+    <div class="az-prog-item"><span class="az-prog-n">${pr.planned_total}</span><span class="az-prog-l">plan (cajas/mes)</span></div>
+    <div class="az-prog-item"><span class="az-prog-n">${pr.attached_total}</span><span class="az-prog-l">en la ficha</span></div>
+    <div class="az-prog-item az-prog-pre"><span class="az-prog-n">${pr.pre_total}</span><span class="az-prog-l">🔗 por asignar</span></div>
+    <div class="az-prog-item az-prog-done"><span class="az-prog-n">${pr.asignada_total}</span><span class="az-prog-l">✓ asignadas</span></div>
+  </div>`;
+}
+
+function planHtml(plan, closed) {
+  if (!plan.length) return '<div class="az-empty-sm">Sin medicamentos en el plan. Pulsa «➕ Añadir medicamento».</div>';
+  return plan.map(m => {
+    const need = m.qty, done = m.asignada, att = m.attached;
+    const short = att < need;
+    return `<div class="az-planrow" data-gtin="${esc(m.gtin)}">
+      <span class="az-plan-shape">${shapeSvg(m.shape, m.color, 20)}</span>
+      <span class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>GTIN ${esc(m.gtin)} · ${m.available} disponible(s) en stock</small></span>
+      <span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${done}/${need} asignadas · ${att} en ficha</span>
+      <span class="az-plan-qty">×<input type="number" class="az-qty" data-plan="${m.id}" value="${m.qty}" min="1" max="99" ${closed ? 'disabled' : ''}></span>
+      ${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-pre="${esc(m.gtin)}">🔗 Pre-asignar</button>`}
+      <button class="qt-iconbtn danger" data-delplan="${m.id}" title="Quitar del plan">🗑</button>
+    </div>`;
+  }).join('');
+}
+function wirePlan(closed) {
+  main().querySelectorAll('[data-delplan]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await confirmBox('Quitar del plan', '¿Quitar este medicamento del plan de la persona? No afecta a las cajas ya asignadas.', 'Quitar'))) return;
+    try { const { plan } = await api('/plan/' + b.dataset.delplan, { method: 'DELETE' }); S.ficha.plan = mergePlan(S.ficha.plan, plan); renderFicha(); } catch (e) { toast(e.message, 'err'); }
+  }));
+  main().querySelectorAll('.az-qty').forEach(inp => inp.addEventListener('change', async () => {
+    try { await api('/plan/' + inp.dataset.plan, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ qty: Number(inp.value) }) }); await reloadFicha(); } catch (e) { toast(e.message, 'err'); }
+  }));
+  main().querySelectorAll('[data-pre]').forEach(b => b.addEventListener('click', () => openAddBox(b.dataset.pre)));
+}
+// Keep progress fields (attached/asignada) when the server returns a bare plan list.
+function mergePlan(oldPlan, fresh) { const by = new Map((oldPlan || []).map(p => [p.gtin, p])); return fresh.map(p => ({ ...p, attached: (by.get(p.gtin) || {}).attached || 0, asignada: (by.get(p.gtin) || {}).asignada || 0 })); }
+
+function lineHtml(ln, closed, dmSize) {
+  const box = ln.box;
+  if (!box) return `<div class="az-line az-line-gone"><div class="az-line-info"><b>Caja eliminada</b><small>La caja ya no existe en Data Matrix.</small></div><button class="qt-iconbtn danger" data-delline="${ln.id}" title="Quitar">🗑</button></div>`;
+  const asignada = ln.state === 'asignada';
+  return `<div class="az-line ${asignada ? 'is-asignada' : 'is-pre'}" data-id="${ln.id}">
+    <div class="az-line-dm ${asignada ? 'is-grey' : ''}" data-raw="${esc(box.raw)}" data-color="${esc(box.color)}">${dmSvg(box.raw, { dark: asignada ? '#9aa7b4' : box.color, light: '#ffffff', size: dmSize })}</div>
+    <div class="az-line-info">
+      <b>${shapeSvg(box.shape, box.color, 14)} ${esc(box.nombre || 'Sin nombre')}</b>
+      <small>${box.serial ? 'Nº ' + esc(box.serial) + ' · ' : ''}${box.caducidad ? 'Cad ' + cadDisplay(box.caducidad) : 'GTIN ' + esc(box.gtin || '—')}</small>
+      <span class="az-line-state ${asignada ? 'st-done' : 'st-pre'}">${asignada ? '✓ Asignada' + (ln.assigned_at ? ' · ' + fmtDate(ln.assigned_at) : '') : '🔗 Pre-asignada'}</span>
+    </div>
+    <div class="az-line-actions">
+      ${asignada
+        ? (closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-unassign="${ln.id}">↩ Revertir</button>`)
+        : (closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assign="${ln.id}">✅ Asignar</button>`)}
+      ${closed ? '' : `<button class="qt-iconbtn danger" data-delline="${ln.id}" title="Quitar de la ficha">🗑</button>`}
+    </div>
+  </div>`;
+}
+function linesHtml(lines, closed, dmSize) {
+  if (!lines.length) return '<div class="az-empty-sm">Todavía no hay cajas en la ficha. Pre-asigna desde el plan o pulsa «➕ Añadir DM».</div>';
+  // Group by medication.
+  const groups = new Map();
+  for (const ln of lines) { const g = (ln.box && ln.box.gtin) || ln.gtin || '—'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(ln); }
+  return [...groups.entries()].map(([g, arr]) => {
+    const sample = arr.find(x => x.box) || arr[0];
+    const name = (sample.box && sample.box.nombre) || 'Sin nombre';
+    return `<div class="az-linegroup"><div class="az-linegroup-h">${sample.box ? shapeSvg(sample.box.shape, sample.box.color, 16) : ''} ${esc(name)} <span class="az-lg-count">×${arr.length}</span></div>
+      <div class="az-linegrid">${arr.map(ln => lineHtml(ln, closed, dmSize)).join('')}</div></div>`;
+  }).join('');
+}
+function wireLines(closed) {
+  main().querySelectorAll('[data-assign]').forEach(b => b.addEventListener('click', async () => {
+    try { applyFicha(await api('/line/' + b.dataset.assign + '/assign', { method: 'POST' })); toast('Caja asignada (marcada utilizada).'); } catch (e) { toast(e.message, 'err'); }
+  }));
+  main().querySelectorAll('[data-unassign]').forEach(b => b.addEventListener('click', async () => {
+    try { applyFicha(await api('/line/' + b.dataset.unassign + '/unassign', { method: 'POST' })); toast('Asignación revertida (vuelve a pre-asignada).'); } catch (e) { toast(e.message, 'err'); }
+  }));
+  main().querySelectorAll('[data-delline]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await confirmBox('Quitar caja', '¿Quitar esta caja de la ficha? Se libera la reserva y, si estaba asignada, vuelve al inventario.', 'Quitar'))) return;
+    try { applyFicha(await api('/line/' + b.dataset.delline, { method: 'DELETE' })); toast('Caja retirada de la ficha.'); } catch (e) { toast(e.message, 'err'); }
+  }));
+}
+
+// ── Medication picker (add a medication to the plan) ─────────────────────────────
+function openMedPicker() {
+  openTool(`<div class="qt-modal-h"><h3>Añadir medicamento al plan</h3><button class="qt-x" id="mp-close">×</button></div>
+    <p class="qt-tool-note">Solo medicamentos que ya están en <b>Data Matrix</b>. Si falta alguno, añádelo allí (escanea una caja o impórtalo).</p>
+    <div class="qt-search" style="margin-bottom:10px"><span class="ico">🔎</span><input id="mp-q" placeholder="Buscar medicamento por nombre, GTIN o CN…" autocomplete="off"></div>
+    <div id="mp-list" class="az-medlist"></div>`);
+  $('mp-close').onclick = closeTool;
+  const q = $('mp-q');
+  const load = async () => {
+    try {
+      const { items } = await api('/medications?q=' + encodeURIComponent(q.value || ''));
+      const list = $('mp-list');
+      if (!items.length) { list.innerHTML = `<div class="az-noresult">No hay medicamentos en Data Matrix que coincidan. <a href="/datamatrix" target="_blank" rel="noopener">Ábrelo para añadirlo</a>.</div>`; return; }
+      list.innerHTML = items.slice(0, 40).map(m => `<button class="az-medrow" data-gtin="${esc(m.gtin)}"><span class="az-plan-shape">${shapeSvg(m.shape, m.color, 18)}</span><span class="az-medrow-name">${esc(m.nombre || 'Sin nombre')}<small>GTIN ${esc(m.gtin)}${m.cn ? ' · CN ' + esc(m.cn) : ''} · ${m.available} en stock</small></span><span class="az-medrow-add">➕</span></button>`).join('');
+      list.querySelectorAll('[data-gtin]').forEach(b => b.addEventListener('click', () => addMedToPlan(b.dataset.gtin)));
+    } catch (e) { $('mp-list').innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; }
+  };
+  let t = null; q.addEventListener('input', () => { if (t) clearTimeout(t); t = setTimeout(load, 200); });
+  load();
+}
+async function addMedToPlan(gtin) {
+  try {
+    await api(`/person/${S.person.id}/plan`, jbody({ gtin, qty: 1 }));
+    closeTool(); await reloadFicha(); toast('Medicamento añadido al plan.');
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+// ── Add a box to the ficha (pre-assign): from inventory or by scanning ───────────
+function openAddBox(gtin) {
+  openTool(`<div class="qt-modal-h"><h3>Añadir caja (pre-asignar)${gtin ? '' : ''}</h3><button class="qt-x" id="ab-close">×</button></div>
+    <div class="az-tabs"><button class="az-tab sel" data-tab="inv">📦 Del inventario</button><button class="az-tab" data-tab="scan">📷 Escanear / pegar</button></div>
+    <div id="ab-inv" class="az-tabpane">
+      <div class="qt-search" style="margin-bottom:10px"><span class="ico">🔎</span><input id="ab-q" placeholder="Filtrar por medicamento o GTIN…" autocomplete="off" value="${gtin ? esc(gtin) : ''}"></div>
+      <div id="ab-list" class="az-medlist"></div>
+    </div>
+    <div id="ab-scan" class="az-tabpane" hidden>
+      <p class="qt-tool-note">Escanea el Data Matrix de la caja con la cámara o pega su contenido. Si la caja no está en Data Matrix, se creará allí como <b>pre-asignada</b>.</p>
+      <div class="qt-tool-row"><button class="qt-btn qt-btn-teal" id="ab-cam">📷 Cámara</button></div>
+      <div class="qt-field"><label>Contenido del Data Matrix</label><textarea class="qt-input" id="ab-raw" rows="3" placeholder="Pega aquí el contenido escaneado…"></textarea></div>
+      <div class="qt-tool-row"><button class="qt-btn qt-btn-primary" id="ab-add">🔗 Pre-asignar</button></div>
+    </div>`);
+  $('ab-close').onclick = closeTool;
+  const panes = { inv: $('ab-inv'), scan: $('ab-scan') };
+  main(); // noop
+  $('tool-modal-box').querySelectorAll('.az-tab').forEach(t => t.addEventListener('click', () => {
+    $('tool-modal-box').querySelectorAll('.az-tab').forEach(x => x.classList.toggle('sel', x === t));
+    Object.entries(panes).forEach(([k, el]) => el.hidden = k !== t.dataset.tab);
+  }));
+
+  // Inventory tab
+  const q = $('ab-q');
+  const loadInv = async () => {
+    const list = $('ab-list');
+    const query = norm(q.value);
+    try {
+      // If the filter looks like a specific GTIN, use the fast endpoint; else pull
+      // the medication list and show available boxes across matches.
+      let boxes = [];
+      const meds = (await api('/medications?q=' + encodeURIComponent(q.value || ''))).items;
+      const pick = gtin ? meds.filter(m => m.gtin === gtin) : meds.filter(m => m.available > 0);
+      const chosen = (pick.length ? pick : meds).slice(0, 15);
+      for (const m of chosen) {
+        if (!m.available) continue;
+        const av = (await api('/available/' + encodeURIComponent(m.gtin))).items;
+        boxes = boxes.concat(av);
+      }
+      if (!boxes.length) { list.innerHTML = `<div class="az-noresult">No hay cajas disponibles (sin reservar) para este filtro. Usa la pestaña «Escanear / pegar» para dar entrada a una caja nueva.</div>`; return; }
+      list.innerHTML = boxes.slice(0, 60).map(b => `<button class="az-medrow" data-item="${b.id}"><span class="az-plan-shape">${shapeSvg(b.shape, b.color, 18)}</span><span class="az-medrow-name">${esc(b.nombre || 'Sin nombre')}<small>${b.serial ? 'Nº ' + esc(b.serial) + ' · ' : ''}${b.caducidad ? 'Cad ' + esc(b.caducidad) + ' · ' : ''}GTIN ${esc(b.gtin || '—')}</small></span><span class="az-medrow-add">🔗</span></button>`).join('');
+      list.querySelectorAll('[data-item]').forEach(btn => btn.addEventListener('click', () => preassign({ item_id: Number(btn.dataset.item) })));
+    } catch (e) { list.innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; }
+  };
+  let t = null; q.addEventListener('input', () => { if (t) clearTimeout(t); t = setTimeout(loadInv, 220); });
+  loadInv();
+
+  // Scan tab
+  $('ab-cam').onclick = () => openScanner('Escanear caja', (text) => { $('ab-raw').value = text; toast('Código leído. Pulsa «Pre-asignar».'); });
+  $('ab-add').onclick = () => { const raw = $('ab-raw').value.trim(); if (!raw) { toast('Pega o escanea un código.', 'err'); return; } preassign({ raw }); };
+}
+async function preassign(payload) {
+  try {
+    const data = await api(`/person/${S.person.id}/preassign`, jbody({ ...payload, ym: S.ym }));
+    closeTool(); applyFicha(data); toast('Caja pre-asignada.');
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+// ── Settings (ficha sizes, debounced) ────────────────────────────────────────────
+let sizeTimer = null;
+function saveSize(patch) {
+  S.settings = { ...S.settings, ...patch };
+  if (sizeTimer) clearTimeout(sizeTimer);
+  sizeTimer = setTimeout(async () => { try { const { settings } = await api('/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S.settings) }); S.settings = settings; } catch (e) { /* silent */ } }, 400);
+}
+
+// ── Help ─────────────────────────────────────────────────────────────────────────
+function viewHelp() {
+  openTool(`<div class="qt-modal-h"><h3>Manual · Asignación de medicación</h3><button class="qt-x" id="h-close">×</button></div>
+    <div class="qt-help">
+      <p>Esta herramienta une las otras dos: las <b>personas</b> vienen de <b>QR (TIS)</b> y las <b>cajas</b> de <b>Data Matrix</b>. Sirve para preparar la medicación de cada persona y asignarla en la aplicación de Salud.</p>
+      <ol>
+        <li><b>Elige la persona.</b> Búscala por nombre o TIS. Si no aparece, hay que darla de alta primero en <b>QR (TIS)</b>.</li>
+        <li><b>Plan de medicación.</b> Añade los medicamentos que toma habitualmente (solo pueden salir de <b>Data Matrix</b>) y cuántas cajas al mes. El plan se guarda y se repite cada mes.</li>
+        <li><b>Pre-asignar cajas.</b> Para cada medicamento, reserva una caja real: elígela del inventario o escanéala. Queda <b>🔗 Pre-asignada</b> (reservada, pero <i>sigue en stock</i>). Este estado también se ve en la app Data Matrix.</li>
+        <li><b>Asignar de verdad.</b> Cuando la asignes en la aplicación de Salud, pulsa <b>✅ Asignar</b> sobre su Data Matrix. La caja pasa a <b>✓ Asignada</b> (se marca <i>utilizada</i> en Data Matrix) y se pone en gris.</li>
+      </ol>
+      <div class="qt-note tip">Los tres estados de una caja: <b>Sin utilizar</b> → <b>🔗 Pre-asignada</b> (reservada para la persona) → <b>✓ Asignada</b> (= utilizada). Puedes <b>↩ Revertir</b> una asignación (vuelve a pre-asignada) o <b>🗑 quitar</b> la caja de la ficha (se libera y, si estaba asignada, vuelve al inventario).</div>
+      <div class="qt-note">El <b>control es mensual</b>: cada mes es un periodo propio. Si Salud aún no ha liberado la medicación, deja las cajas pre-asignadas y vuelve más adelante para asignarlas. Puedes <b>cambiar de mes</b> arriba y <b>cerrar</b> un mes cuando esté completo.</div>
+      <p class="qt-help-foot">La ficha muestra el <b>QR del TIS</b> bien grande (para la app de Salud) y cada caja como <b>Data Matrix</b> en color. Ajusta los tamaños con los deslizadores.</p>
+    </div>`);
+  $('h-close').onclick = closeTool;
+}
+
+// Close modals on scrim / escape.
+document.addEventListener('click', (e) => { if (e.target.classList && e.target.classList.contains('qt-modal')) { e.target.hidden = true; } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { ['tool-modal', 'scan-modal', 'confirm-modal'].forEach(id => { const m = $(id); if (m && !m.hidden) m.hidden = true; }); } });
+
+boot();

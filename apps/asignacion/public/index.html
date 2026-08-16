@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gestor de códigos Data Matrix · Jokin's Tools</title>
+  <title>Asignación de medicación · Jokin's Tools</title>
   <link rel="icon" type="image/svg+xml" href="/public/favicon-jk.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/hub-nav.css?v=3" />
   <script src="/src/hub-nav.js?v=1" defer></script>
-  <link rel="stylesheet" href="/datamatrix/assets/styles.css?v=4" />
+  <link rel="stylesheet" href="/asignacion/assets/styles.css?v=1" />
 </head>
 <body>
 
-<nav class="hub-nav" data-app="datamatrix">
+<nav class="hub-nav" data-app="asignacion">
   <a href="/" class="hub-nav-brand" title="Jokin's Tools Hub">
     <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <circle cx="24" cy="24" r="4" fill="#00B8D4"/>
@@ -26,35 +26,32 @@
   </a>
   <div class="hub-nav-links">
     <a href="/" class="hub-nav-link" data-app="hub">Hub</a>
+    <a href="/qr-tis" class="hub-nav-link" data-app="qr-tis">QR (TIS)</a>
     <a href="/datamatrix" class="hub-nav-link" data-app="datamatrix">Data Matrix</a>
+    <a href="/asignacion" class="hub-nav-link" data-app="asignacion">Asignación</a>
   </div>
 </nav>
 
 <header class="qt-header">
   <div class="qt-header-in">
-    <a href="/datamatrix" class="qt-logo" id="go-home">
+    <a href="/asignacion" class="qt-logo" id="go-home">
       <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M14 14v36M14 50h36" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-        <rect x="20" y="16" width="6" height="6" fill="currentColor"/>
-        <rect x="32" y="16" width="6" height="6" fill="currentColor"/>
-        <rect x="44" y="16" width="6" height="6" fill="currentColor"/>
-        <rect x="20" y="28" width="6" height="6" fill="currentColor"/>
-        <rect x="44" y="28" width="6" height="6" fill="currentColor"/>
-        <rect x="32" y="40" width="6" height="6" fill="currentColor"/>
+        <circle cx="22" cy="20" r="8" stroke="currentColor" stroke-width="2.4"/>
+        <path d="M8 50c0-8 6-13 14-13s14 5 14 13" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <rect x="40" y="30" width="18" height="18" rx="3" stroke="currentColor" stroke-width="2.4"/>
+        <path d="M45 39h8M49 35v8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
       </svg>
       <div class="qt-logo-txt">
-        <span class="t">Data Matrix</span>
-        <span class="s">Inventario de medicación</span>
+        <span class="t">Asignación de medicación</span>
+        <span class="s">Persona (TIS) + cajas (Data Matrix)</span>
       </div>
     </a>
     <button class="qt-help-btn" id="help-btn" title="Manual / Ayuda">❔ <span class="qt-help-btn-t">Ayuda</span></button>
-    <button class="qt-cart-btn" id="cart-toggle" title="Carrito">🛒 <span class="qt-cart-count" id="cart-count">0</span></button>
   </div>
 </header>
 
 <main class="qt-main" id="qt-main"><!-- views injected here --></main>
 
-<aside class="qt-cart" id="cart-panel" aria-hidden="true"></aside>
 <div class="qt-scrim" id="scrim" hidden></div>
 
 <!-- Scan modal (camera → ZXing decodes Data Matrix / QR) -->
@@ -62,7 +59,7 @@
   <div class="qt-modal-box qt-scan-box">
     <div class="qt-modal-h"><h3 id="scan-title">Escanear Data Matrix</h3><button class="qt-x" id="scan-close">×</button></div>
     <div class="qt-scan-video-wrap"><video id="scan-video" playsinline muted></video><div class="qt-scan-frame"></div></div>
-    <p class="qt-scan-note" id="scan-note">Apunta la cámara al código Data Matrix…</p>
+    <p class="qt-scan-note" id="scan-note">Apunta la cámara al código Data Matrix de la caja…</p>
     <canvas id="scan-canvas" hidden></canvas>
   </div>
 </div>
@@ -86,9 +83,9 @@
 
 <div class="qt-toast" id="toast" hidden></div>
 
-<script src="/datamatrix/assets/vendor/bwip-js.js?v=1"></script>
-<script src="/datamatrix/assets/vendor/zxing.js?v=1"></script>
-<script src="/datamatrix/assets/vendor/xlsx.full.min.js?v=1"></script>
-<script src="/datamatrix/assets/app.js?v=7"></script>
+<script src="/asignacion/assets/vendor/qrcode.js?v=1"></script>
+<script src="/asignacion/assets/vendor/bwip-js.js?v=1"></script>
+<script src="/asignacion/assets/vendor/zxing.js?v=1"></script>
+<script src="/asignacion/assets/app.js?v=1"></script>
 </body>
 </html>

@@ -132,6 +132,14 @@ const dmDb = require('./apps/datamatrix/db');
 const dmRouter = require('./apps/datamatrix/routes');
 app.use('/datamatrix', requireApp('datamatrix'), dmRouter);
 
+// ─── Asignación de medicación (requires access to 'asignacion') ─────────────────
+// Bridges qr-tis (people) and datamatrix (boxes). Its own SQLite file
+// (apps/asignacion/db.js → asignacion.db) holds only the assignment layer; the
+// people/boxes stay in their own apps' databases.
+const asigDb = require('./apps/asignacion/db');
+const asigRouter = require('./apps/asignacion/routes');
+app.use('/asignacion', requireApp('asignacion'), asigRouter);
+
 // ─── Hub root (requires login) ──────────────────────────────────────────────────
 app.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));
@@ -239,6 +247,7 @@ function shutdown(server, signal) {
     try { imprimirDb.db.close(); } catch { /* ignore */ }
     try { qrTisDb.db.close(); } catch { /* ignore */ }
     try { dmDb.db.close(); } catch { /* ignore */ }
+    try { asigDb.db.close(); } catch { /* ignore */ }
     console.log('[server] Closed cleanly.');
     process.exit(0);
   });

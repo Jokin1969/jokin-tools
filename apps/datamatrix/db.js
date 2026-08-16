@@ -73,6 +73,17 @@ try { db.prepare('ALTER TABLE dm_products ADD COLUMN cn TEXT').run(); } catch { 
 // db_products table won't have `cn` at CREATE-TABLE time).
 try { db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_products_cn ON dm_products(cn)').run(); } catch { /* ignore */ }
 
+// ── Assignment link (shared with the "Asignación de medicación" app) ─────────────
+// A box can be reserved for a person before it is dispensed. `assignee_id` is the
+// qr-tis person the box is (pre)assigned to; `assignee_name` is a denormalised
+// snapshot so this app can show the badge without needing the people database.
+//   Pre-asignada = status 'activo' AND assignee_id IS NOT NULL (reserved, still in stock)
+//   Asignada     = status 'utilizado' AND assignee_id IS NOT NULL (dispensed via assignment)
+//   Utilizada    = status 'utilizado' AND assignee_id IS NULL (used straight from this app)
+try { db.prepare('ALTER TABLE dm_items ADD COLUMN assignee_id INTEGER').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE dm_items ADD COLUMN assignee_name TEXT').run(); } catch { /* already present */ }
+try { db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_items_assignee ON dm_items(assignee_id)').run(); } catch { /* ignore */ }
+
 console.log('[datamatrix] Database ready at:', DB_PATH);
 
 const DEFAULT_SETTINGS = { dm_size: 300, list_dm_size: 100, card_dm_size: 200, dm_light: '#ffffff' };
@@ -83,7 +94,7 @@ const DEFAULT_SETTINGS = { dm_size: 300, list_dm_size: 100, card_dm_size: 200, d
 // carried one). Colour/shape still key off the box's own GTIN for a stable look.
 const ITEM_SELECT =
   `SELECT i.id, i.raw, i.box_key, i.gtin, i.serial, i.lote, i.caducidad, i.cn, i.status,
-          i.used_at, i.created_at, i.updated_at,
+          i.used_at, i.created_at, i.updated_at, i.assignee_id, i.assignee_name,
           COALESCE(p.nombre, pc.nombre) AS nombre, p.color AS color, p.shape AS shape
      FROM dm_items i
      LEFT JOIN dm_products p  ON p.gtin = i.gtin
@@ -129,6 +140,28 @@ function touchItem(id) {
   db.prepare('UPDATE dm_items SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
   return getItem(id);
 }
+// Reserve (or release) a box for a person. Passing assigneeId = null clears it.
+// Does NOT change status — pre-asignada keeps the box 'activo' (still in stock);
+// the caller marks it 'utilizado' (setUsed) when it is actually dispensed.
+function setAssignee(id, assigneeId, assigneeName) {
+  const it = db.prepare('SELECT id FROM dm_items WHERE id = ?').get(id);
+  if (!it) return null;
+  db.prepare(
+    `UPDATE dm_items SET assignee_id = @assignee_id, assignee_name = @assignee_name,
+            updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP WHERE id = @id`
+  ).run({ id, assignee_id: assigneeId != null ? assigneeId : null, assignee_name: assigneeId != null ? (assigneeName || null) : null });
+  return getItem(id);
+}
+// Boxes available to reserve: 'activo' and not already reserved for someone.
+// Optionally restricted to one GTIN (the medication being fulfilled).
+function availableItems(gtin) {
+  const where = gtin ? "AND i.gtin = ?" : "";
+  const args = gtin ? [gtin] : [];
+  return db.prepare(
+    `${ITEM_SELECT} WHERE i.status = 'activo' AND i.assignee_id IS NULL ${where}
+      ORDER BY i.caducidad IS NULL, i.caducidad, i.id`
+  ).all(...args);
+}
 function recentItems(limit) {
   return db.prepare(
     `${ITEM_SELECT} WHERE i.status = 'activo'
@@ -143,7 +176,8 @@ const deleteMany = db.transaction((ids) => { let n = 0; for (const id of ids) if
 function counts() {
   const a = db.prepare("SELECT COUNT(*) n FROM dm_items WHERE status='activo'").get().n;
   const u = db.prepare("SELECT COUNT(*) n FROM dm_items WHERE status='utilizado'").get().n;
-  return { activo: a, utilizado: u };
+  const pre = db.prepare("SELECT COUNT(*) n FROM dm_items WHERE status='activo' AND assignee_id IS NOT NULL").get().n;
+  return { activo: a, utilizado: u, preasignada: pre };
 }
 
 // ── Products (GTIN → nombre / colour / shape) ────────────────────────────────────
@@ -211,7 +245,7 @@ function cartClear(userId) { db.prepare('DELETE FROM dm_cart WHERE user_id = ?')
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listItems, getItem, findByKey, createItem, createManyItems, setUsed, touchItem, recentItems, deleteItem, deleteMany, counts,
+  listItems, getItem, findByKey, createItem, createManyItems, setUsed, touchItem, setAssignee, availableItems, recentItems, deleteItem, deleteMany, counts,
   getProduct, listProducts, upsertProduct, importProducts,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,

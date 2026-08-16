@@ -91,6 +91,19 @@ const APPS = [
     </svg>`,
   },
   {
+    id: 'asignacion',
+    name: 'Asignación de medicación',
+    path: '/asignacion',
+    desc: 'Une personas (QR·TIS) y cajas (Data Matrix): prepara el plan mensual de cada persona, pre-asigna cajas reales y márcalas como asignadas al dispensarlas en la aplicación de Salud.',
+    tags: ['Asignación', 'TIS', 'Data Matrix'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <circle cx="24" cy="22" r="8" stroke="#1B6CB0" stroke-width="2"/>
+      <path d="M12 50c0-8 5-13 12-13s12 5 12 13" stroke="#009B8D" stroke-width="2" stroke-linecap="round"/>
+      <rect x="40" y="30" width="16" height="16" rx="3" stroke="#0097B2" stroke-width="2"/>
+      <path d="M44 38h8M48 34v8" stroke="#00B8D4" stroke-width="2" stroke-linecap="round"/>
+    </svg>`,
+  },
+  {
     id: 'feep',
     name: 'FEEP',
     path: '/feep',
