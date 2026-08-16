@@ -167,6 +167,7 @@ const publicPerson = (p) => {
     group_name: groups.join('; ') || null,    // display / search / sort string
     qr_dark: p.qr_dark || null, qr_light: p.qr_light || null, qr_style: p.qr_style || null,
     active: p.active ? 1 : 0,
+    deceased: p.deceased ? 1 : 0, deceased_at: p.deceased_at || null,
     created_at: p.created_at, updated_at: p.updated_at,
   };
 };
@@ -282,6 +283,16 @@ router.post('/api/import', jsonBig, (req, res) => {
 router.get('/api/recent', (req, res) => {
   try { res.json({ items: db.recentPeople(10).map(p => ({ ...publicPerson(p), handled_at: p.handled_at })) }); }
   catch (err) { fail(res, err); }
+});
+
+// Mark a person as deceased (or revert). Deceased also makes the QR inaccessible.
+router.post('/api/people/:id(\\d+)/deceased', json, (req, res) => {
+  try {
+    const deceased = !!(req.body && req.body.deceased);
+    const p = db.setDeceased(Number(req.params.id), deceased);
+    if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
+    res.json({ item: publicPerson(p) });
+  } catch (err) { fail(res, err); }
 });
 
 // Mark a person as "handled" (called when its ficha/QR is opened).

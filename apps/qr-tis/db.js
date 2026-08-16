@@ -34,6 +34,8 @@ db.exec(`
     qr_light    TEXT,                    -- per-person QR background (null = global default)
     qr_style    TEXT,                    -- per-person QR style 'square'|'dots' (null = global)
     active     INTEGER NOT NULL DEFAULT 1,
+    deceased    INTEGER NOT NULL DEFAULT 0,   -- 1 = persona fallecida (permanente, reversible)
+    deceased_at DATETIME,                     -- cuándo se marcó el fallecimiento
     created_by INTEGER,
     created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -68,6 +70,8 @@ try { db.prepare('ALTER TABLE tis_people ADD COLUMN pharmacy_no TEXT').run(); } 
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN qr_dark TEXT').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN qr_light TEXT').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN qr_style TEXT').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE tis_people ADD COLUMN deceased INTEGER NOT NULL DEFAULT 0').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE tis_people ADD COLUMN deceased_at DATETIME').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE tis_settings ADD COLUMN card_qr_size INTEGER').run(); } catch { /* already present */ }
 
 console.log('[qr-tis] Database ready at:', DB_PATH);
@@ -80,7 +84,7 @@ const DEFAULT_SETTINGS = {
 // ── People ──────────────────────────────────────────────────────────────────────
 function listPeople() {
   return db.prepare(
-    `SELECT id, pharmacy_no, nombre, apellidos, tis, group_name, qr_dark, qr_light, qr_style, active, created_at, updated_at
+    `SELECT id, pharmacy_no, nombre, apellidos, tis, group_name, qr_dark, qr_light, qr_style, active, deceased, deceased_at, created_at, updated_at
        FROM tis_people ORDER BY apellidos COLLATE NOCASE, nombre COLLATE NOCASE, id`
   ).all();
 }
@@ -172,6 +176,26 @@ function deletePerson(id) {
   return db.prepare('DELETE FROM tis_people WHERE id = ?').run(id).changes > 0;
 }
 
+// Mark a person as deceased (or revert it). Deceased implies inactive: the QR is
+// made inaccessible and the person leaves the active flows. Reverting restores
+// them to active. The record is always kept.
+function setDeceased(id, deceased) {
+  const cur = getPerson(id);
+  if (!cur) return null;
+  if (deceased) {
+    db.prepare(
+      `UPDATE tis_people SET deceased = 1, deceased_at = CURRENT_TIMESTAMP, active = 0,
+              updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).run(id);
+  } else {
+    db.prepare(
+      `UPDATE tis_people SET deceased = 0, deceased_at = NULL, active = 1,
+              updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).run(id);
+  }
+  return getPerson(id);
+}
+
 // ── Global QR settings (single shared row) ──────────────────────────────────────
 function getSettings() {
   const row = db.prepare('SELECT * FROM tis_settings WHERE id = 1').get() || {};
@@ -216,7 +240,7 @@ function cartClear(userId) {
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listPeople, getPerson, createPerson, createManyPeople, updatePerson, deletePerson,
+  listPeople, getPerson, createPerson, createManyPeople, updatePerson, deletePerson, setDeceased,
   pharmacyTaken, tisTaken, touchPerson, recentPeople,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,

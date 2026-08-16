@@ -41,6 +41,24 @@ test('update, active toggle and group membership', () => {
   assert.equal(db.getPerson(p.id).group_name, 'Planta 2\nUrgencias');
 });
 
+test('setDeceased marks/reverts a person; deceased implies inactive; kept in listPeople', () => {
+  const p = db.createPerson({ nombre: 'Luis', apellidos: 'Vega', tis: '5550001' }, 1);
+  assert.equal(p.deceased, 0);
+  // Mark deceased → deceased=1, timestamped, and inactive.
+  const d = db.setDeceased(p.id, true);
+  assert.equal(d.deceased, 1);
+  assert.equal(d.active, 0, 'deceased implies inactive (QR inaccessible)');
+  assert.ok(d.deceased_at, 'records when it was marked');
+  // Still present in the directory (record is kept).
+  assert.ok(db.listPeople().some(x => x.id === p.id));
+  assert.ok('deceased' in db.listPeople().find(x => x.id === p.id));
+  // Revert → deceased cleared and reactivated.
+  const r = db.setDeceased(p.id, false);
+  assert.equal(r.deceased, 0);
+  assert.equal(r.deceased_at, null);
+  assert.equal(r.active, 1, 'reverting restores active');
+});
+
 test('uniqueness: pharmacy (except 00000) and TIS', () => {
   const a = db.createPerson({ pharmacy_no: '55501', nombre: 'Uno', apellidos: 'X', tis: '55500001' }, 1);
   // pharmacy taken by another

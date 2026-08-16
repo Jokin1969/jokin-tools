@@ -15,7 +15,7 @@ const S = {
   query: '', andor: 'AND',
   sort: { key: 'apellidos', dir: 'asc' },
   selected: new Set(), hidden: new Set(),
-  showListQr: false, selectedOnly: false, cartView: false,
+  showListQr: false, selectedOnly: false, cartView: false, hideDeceased: false,
   listMode: 'table', // 'table' | 'cards'
   groupFilter: null, groupsOpen: false, // group filter cards (collapsed by default)
   currentPersonId: null, view: 'home',
@@ -251,7 +251,9 @@ function viewFicha(id, opts) {
   const st = S.settings;
   const qrHtml = p.active
     ? `<div class="qt-qr-box" id="ficha-qr">${qrSvg(p.tis, qrOpts(p, st.qr_size))}</div>`
-    : `<div class="qt-inactive-banner">Persona <strong>inactiva</strong>.<br>El QR no está disponible hasta reactivarla.</div>`;
+    : p.deceased
+      ? `<div class="qt-inactive-banner qt-deceased-banner">✝ Persona <strong>fallecida</strong>${p.deceased_at ? '<br>' + fmtDate(p.deceased_at) : ''}.<br>El QR no está disponible.</div>`
+      : `<div class="qt-inactive-banner">Persona <strong>inactiva</strong>.<br>El QR no está disponible hasta reactivarla.</div>`;
   const groupChip = (p.groups && p.groups.length)
     ? p.groups.map(g => `<span class="qt-chip-group" data-gsel="${esc(g)}" title="Seleccionar el grupo">👥 ${esc(g)}</span>`).join(' ')
     : '';
@@ -290,14 +292,15 @@ function viewFicha(id, opts) {
            <div class="qt-kv-row"><span class="k">Nombre</span><span class="v">${esc(p.nombre)}</span></div>
            <div class="qt-kv-row"><span class="k">Apellidos</span><span class="v">${esc(p.apellidos)}</span></div>
            <div class="qt-kv-row"><span class="k">Código TIS</span><span class="v mono">${esc(p.tis)}</span></div>
-           <div class="qt-kv-row"><span class="k">Estado</span><span class="v">${p.active ? '<span style="color:var(--ok)">● Activa</span>' : '<span style="color:var(--muted)">● Inactiva</span>'}</span></div>
+           <div class="qt-kv-row"><span class="k">Estado</span><span class="v">${p.deceased ? `<span style="color:var(--muted)">✝ Fallecida${p.deceased_at ? ' · ' + fmtDate(p.deceased_at) : ''}</span>` : p.active ? '<span style="color:var(--ok)">● Activa</span>' : '<span style="color:var(--muted)">● Inactiva</span>'}</span></div>
          </div>
          <div id="group-area"></div>
          <div class="qt-ficha-actions">
            <button class="qt-btn qt-btn-primary" id="act-edit">✏️ Editar información</button>
            <button class="qt-btn ${inCart ? 'qt-btn-ghost' : 'qt-btn-teal'}" id="act-cart">${inCart ? '✓ En el carrito' : '🛒 Añadir al carrito'}</button>
            <button class="qt-btn qt-btn-ghost" id="act-group">👥 ${(p.groups && p.groups.length) ? 'Gestionar grupos' : 'Añadir a grupo'}</button>
-           <button class="qt-btn qt-btn-ghost" id="act-active">${p.active ? '⊘ Inactivar' : '✓ Activar'}</button>
+           ${p.deceased ? '' : `<button class="qt-btn qt-btn-ghost" id="act-active">${p.active ? '⊘ Inactivar' : '✓ Activar'}</button>`}
+           <button class="qt-btn qt-btn-ghost qt-btn-deceased" id="act-deceased">${p.deceased ? '↩ Quitar fallecimiento' : '✝ Dar por fallecida'}</button>
            <button class="qt-btn qt-btn-ghost" id="act-list">☰ Ver listado</button>
            <button class="qt-btn qt-btn-danger" id="act-del">🗑 Eliminar</button>
          </div>
@@ -312,7 +315,8 @@ function viewFicha(id, opts) {
   $('act-list').onclick = viewList;
   if (p.active) wireMando(p, () => { const box = $('ficha-qr'); if (box) box.innerHTML = qrSvg(p.tis, qrOpts(p, S.settings.qr_size)); });
   $('act-cart').onclick = async () => { await toggleCart(id); viewFicha(id, opts); };
-  $('act-active').onclick = async () => { await setActive(p, !p.active); viewFicha(id, opts); };
+  if ($('act-active')) $('act-active').onclick = async () => { await setActive(p, !p.active); viewFicha(id, opts); };
+  $('act-deceased').onclick = async () => { if (await toggleDeceased(p)) viewFicha(id, opts); };
   $('act-del').onclick = async () => { if (await removePerson(p)) viewList(); };
   $('act-group').onclick = () => renderGroupManager(p);
   main().querySelectorAll('[data-gsel]').forEach(el => el.onclick = () => selectGroup(el.dataset.gsel, true));
@@ -487,6 +491,7 @@ function viewList() {
          <select class="qt-select" id="cards-dir"><option value="asc" ${S.sort.dir === 'asc' ? 'selected' : ''}>▲</option><option value="desc" ${S.sort.dir === 'desc' ? 'selected' : ''}>▼</option></select></span>` : ''}
        <button class="qt-toggle ${S.selectedOnly ? 'on' : ''}" id="tg-selected">✔ Solo seleccionadas</button>
        <button class="qt-toggle ${S.cartView ? 'on' : ''}" id="tg-cart">🛒 Solo carrito</button>
+       <button class="qt-toggle ${S.hideDeceased ? 'on' : ''}" id="tg-deceased" title="Ocultar del listado las personas fallecidas">✝ Ocultar fallecidas (${S.people.filter(p => p.deceased).length})</button>
        <button class="qt-toggle" id="clear-sel">✕ Quitar selección</button>
      </div>
      <div id="hidden-note"></div>
@@ -505,6 +510,7 @@ function viewList() {
   if ($('tg-qr')) $('tg-qr').onclick = () => { S.showListQr = !S.showListQr; viewList(); };
   $('tg-selected').onclick = () => { S.selectedOnly = !S.selectedOnly; viewList(); };
   $('tg-cart').onclick = () => { S.cartView = !S.cartView; viewList(); };
+  $('tg-deceased').onclick = () => { S.hideDeceased = !S.hideDeceased; viewList(); };
   $('clear-sel').onclick = () => { S.selected.clear(); renderRows(); };
   if ($('cards-sort')) {
     $('cards-sort').addEventListener('change', () => { S.sort.key = $('cards-sort').value; renderRows(); });
@@ -600,6 +606,7 @@ function filteredPeople() {
   let rows = S.people.filter(p => !S.hidden.has(p.id));
   if (S.cartView) rows = rows.filter(p => S.cart.has(p.id));
   if (S.selectedOnly) rows = rows.filter(p => S.selected.has(p.id));
+  if (S.hideDeceased) rows = rows.filter(p => !p.deceased);
   if (S.groupFilter) rows = rows.filter(p => (p.groups || []).some(g => norm(g) === norm(S.groupFilter)));
   const tokens = norm(S.query).split(/\s+/).filter(Boolean);
   if (tokens.length) {
@@ -624,13 +631,15 @@ function personRowHtml(p) {
   const group = (p.groups && p.groups.length)
     ? `<span class="qt-grouptags">${p.groups.map(g => `<span class="qt-grouptag" data-group="${esc(g)}" title="Seleccionar todo el grupo">${esc(g)}</span>`).join('')}</span>`
     : '<span style="color:#b3bcc7">—</span>';
-  const state = p.active
-    ? '<span class="qt-state-dot"><span class="dot"></span>Activa</span>'
-    : '<span class="qt-state-dot off"><span class="dot"></span>Inactiva</span>';
+  const state = p.deceased
+    ? '<span class="qt-state-dot deceased"><span class="dot"></span>✝ Fallecida</span>'
+    : p.active
+      ? '<span class="qt-state-dot"><span class="dot"></span>Activa</span>'
+      : '<span class="qt-state-dot off"><span class="dot"></span>Inactiva</span>';
   const qrCell = S.showListQr
     ? `<td>${p.active ? `<span class="qt-list-qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, st.list_qr_size))}</span>` : '<span style="color:#b3bcc7">—</span>'}</td>`
     : '';
-  return `<tr class="${p.active ? '' : 'is-inactive'} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
+  return `<tr class="${p.active ? '' : 'is-inactive'} ${p.deceased ? 'is-deceased' : ''} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
     <td><input type="checkbox" class="qt-check" data-sel="${p.id}" ${sel ? 'checked' : ''}></td>
     <td><span class="qt-cell-pharm" data-open="${p.id}">${p.pharmacy_no ? esc(p.pharmacy_no) : '<span style=\"color:#c3c9d2\">—</span>'}</span></td>
     <td><span class="qt-cell-name" data-open="${p.id}">${esc(p.nombre)}</span></td>
@@ -650,12 +659,12 @@ function personCardHtml(p) {
   // The QR box is a fixed square (uniform cards); the QR just scales inside it.
   const qr = p.active
     ? `<span class="qt-pcard-qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, st.card_qr_size))}</span>`
-    : `<span class="qt-pcard-qr inactive" data-open="${p.id}" style="width:${st.card_qr_size}px;height:${st.card_qr_size}px">Inactiva</span>`;
-  return `<div class="qt-pcard ${p.active ? '' : 'is-inactive'} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
+    : `<span class="qt-pcard-qr inactive" data-open="${p.id}" style="width:${st.card_qr_size}px;height:${st.card_qr_size}px">${p.deceased ? '✝ Fallecida' : 'Inactiva'}</span>`;
+  return `<div class="qt-pcard ${p.active ? '' : 'is-inactive'} ${p.deceased ? 'is-deceased' : ''} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
     <div class="qt-pcard-head">
       <input type="checkbox" class="qt-check" data-sel="${p.id}">
       <span class="qt-cell-pharm" data-open="${p.id}">${p.pharmacy_no ? esc(p.pharmacy_no) : '—'}</span>
-      <span class="qt-state-dot ${p.active ? '' : 'off'}" style="margin-left:auto"><span class="dot"></span></span>
+      <span class="qt-state-dot ${p.deceased ? 'deceased' : p.active ? '' : 'off'}" style="margin-left:auto" title="${p.deceased ? 'Fallecida' : p.active ? 'Activa' : 'Inactiva'}"><span class="dot"></span></span>
     </div>
     ${qr}
     <div class="qt-pcard-name" data-open="${p.id}">${esc(p.nombre)} ${esc(p.apellidos)}</div>
@@ -667,7 +676,8 @@ function personCardHtml(p) {
 
 function personActionsHtml(p, inCart) {
   return `<button class="qt-iconbtn" data-cart="${p.id}" title="${inCart ? 'Quitar del carrito' : 'Añadir al carrito'}">${inCart ? '✓🛒' : '🛒'}</button>
-    <button class="qt-iconbtn" data-active="${p.id}" title="${p.active ? 'Inactivar' : 'Activar'}">${p.active ? '⊘' : '✓'}</button>
+    ${p.deceased ? '' : `<button class="qt-iconbtn" data-active="${p.id}" title="${p.active ? 'Inactivar' : 'Activar'}">${p.active ? '⊘' : '✓'}</button>`}
+    <button class="qt-iconbtn" data-deceased="${p.id}" data-to="${p.deceased ? '0' : '1'}" title="${p.deceased ? 'Quitar fallecimiento' : 'Dar por fallecida'}">${p.deceased ? '↩' : '✝'}</button>
     <button class="qt-iconbtn" data-hide="${p.id}" title="Ocultar del listado (temporal)">👁</button>
     <button class="qt-iconbtn danger" data-del="${p.id}" title="Eliminar">🗑</button>`;
 }
@@ -681,6 +691,7 @@ function wireListItems(container) {
   container.querySelectorAll('[data-group]').forEach(g => g.addEventListener('click', () => selectGroup(g.dataset.group)));
   container.querySelectorAll('[data-cart]').forEach(b => b.addEventListener('click', async () => { await toggleCart(Number(b.dataset.cart)); renderRows(); }));
   container.querySelectorAll('[data-active]').forEach(b => b.addEventListener('click', async () => { const p = S.byId.get(Number(b.dataset.active)); await setActive(p, !p.active); renderRows(); }));
+  container.querySelectorAll('[data-deceased]').forEach(b => b.addEventListener('click', async () => { const p = S.byId.get(Number(b.dataset.deceased)); if (await toggleDeceased(p)) renderRows(); }));
   container.querySelectorAll('[data-hide]').forEach(b => b.addEventListener('click', () => { S.hidden.add(Number(b.dataset.hide)); renderRows(); }));
   container.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => { const p = S.byId.get(Number(b.dataset.del)); if (await removePerson(p)) renderRows(); }));
 }
@@ -736,6 +747,23 @@ async function setActive(p, active) {
     const i = S.people.findIndex(x => x.id === item.id); if (i >= 0) S.people[i] = item;
     toast(active ? 'Persona activada' : 'Persona inactivada (QR inaccesible)', 'ok');
   } catch (e) { toast(e.message, 'err'); }
+}
+// Mark/unmark a person as deceased. Marking asks for confirmation (it also makes
+// the QR inaccessible); the record is kept and it's reversible.
+async function toggleDeceased(p) {
+  const marking = !p.deceased;
+  if (marking) {
+    const ok = await confirmBox('Dar por fallecida',
+      `¿Marcar a «${p.nombre} ${p.apellidos}» (TIS ${p.tis}) como fallecida? Se conserva la ficha, pero el QR deja de estar disponible. Podrás revertirlo.`, 'Dar por fallecida');
+    if (!ok) return false;
+  }
+  try {
+    const { item } = await api('/people/' + p.id + '/deceased', jbody({ deceased: marking }));
+    S.byId.set(item.id, item);
+    const i = S.people.findIndex(x => x.id === item.id); if (i >= 0) S.people[i] = item;
+    toast(marking ? 'Persona marcada como fallecida' : 'Fallecimiento retirado (persona activada)', 'ok');
+    return true;
+  } catch (e) { toast(e.message, 'err'); return false; }
 }
 async function removePerson(p) {
   const ok = await confirmBox('Eliminar persona', `¿Eliminar a «${p.nombre} ${p.apellidos}» (TIS ${p.tis})? Esta acción no se puede deshacer.`, 'Eliminar');
@@ -889,12 +917,13 @@ function viewHelp() {
       </ul>
       <p>En ambos modos, el deslizador <strong>Tamaño QR</strong> ajusta lo grande que se ve el código para poder escanearlo.</p>
       <div class="qt-note tip">Al abrir la ficha de una persona desde el listado, arriba a la derecha aparecen <b>← Anterior</b> y <b>Siguiente →</b> que recorren <b>exactamente el listado del que vienes</b> (con su filtro/orden actual), no todas las personas de la base de datos.</div>` },
-    { id: 'gestionar', icon: '🗂️', title: 'Editar, seleccionar, ocultar, inactivar, eliminar', html: `
+    { id: 'gestionar', icon: '🗂️', title: 'Editar, seleccionar, ocultar, inactivar, fallecida, eliminar', html: `
       <ul>
         <li><strong>Editar</strong>: en la ficha de una persona, <span class="qt-chip-inline">✏️ Editar información</span> permite corregir el Nº de farmacia, nombre, apellidos y TIS.</li>
         <li><strong>Seleccionar</strong>: casilla de la izquierda. Con <span class="qt-chip-inline">✔ Solo seleccionadas</span> filtras por ellas; <span class="qt-chip-inline">✕ Quitar selección</span> las limpia.</li>
         <li><strong>Ocultar</strong> (icono 👁): quita a alguien de la vista <strong>temporalmente</strong>. Se indica cuántas hay ocultas y puedes volver a mostrarlas. No se recuerda al salir.</li>
         <li><strong>Inactivar</strong> (icono ⊘): la persona se vuelve gris y su <strong>QR queda inaccesible</strong> hasta reactivarla. También desde su ficha.</li>
+        <li><strong>Dar por fallecida</strong> (icono ✝, o el botón en la ficha): marca a la persona como <strong>fallecida</strong> (pide confirmación). Se <strong>conserva la ficha</strong> pero el <strong>QR deja de estar disponible</strong> y sale de los flujos activos (incluida la app de Asignación). Es <strong>reversible</strong> con <span class="qt-chip-inline">↩ Quitar fallecimiento</span>. El botón <span class="qt-chip-inline">✝ Ocultar fallecidas</span> del listado las esconde.</li>
         <li><strong>Eliminar</strong> (icono 🗑): borra a la persona (pide confirmación). También desde la ficha.</li>
       </ul>` },
     { id: 'grupos', icon: '👥', title: 'Grupos (varios por persona)', html: `
@@ -969,7 +998,7 @@ const EXPORT_COLS = [
   { key: 'apellidos', label: 'Apellidos', def: true, get: p => p.apellidos },
   { key: 'tis', label: 'Código TIS', def: true, text: true, get: p => String(p.tis) },
   { key: 'group_name', label: 'Grupo', def: true, get: p => p.group_name || '' },
-  { key: 'active', label: 'Estado', def: false, get: p => (p.active ? 'Activa' : 'Inactiva') },
+  { key: 'active', label: 'Estado', def: false, get: p => (p.deceased ? 'Fallecida' : p.active ? 'Activa' : 'Inactiva') },
   { key: 'created_at', label: 'Fecha de alta', def: false, get: p => fmtDate(p.created_at) },
   { key: 'id', label: 'ID interno', def: false, get: p => p.id },
 ];
