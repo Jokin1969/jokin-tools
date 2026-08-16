@@ -17,6 +17,7 @@ const S = {
   overview: [], overviewQuery: '',
   search: [], searchQuery: '',
   person: null, ficha: null, ym: null,
+  notif: { due: [], upcoming: [], counts: { due: 0, upcoming: 0 }, today: null },
 };
 
 // ── Tiny helpers ────────────────────────────────────────────────────────────────
@@ -123,15 +124,49 @@ async function boot() {
     const meta = await api('/meta');
     S.settings = meta.settings; S.qrSettings = meta.qrSettings; S.month = meta.month; S.user = meta.user;
     $('help-btn').onclick = viewHelp;
+    $('bell-btn').onclick = openNotifications;
     $('go-home').onclick = (e) => { e.preventDefault(); viewHome(); };
+    await refreshNotifications();
     await viewHome();
   } catch (e) { main().innerHTML = `<div class="qt-empty">No se pudo cargar: ${esc(e.message)}</div>`; }
+}
+
+// ── Notifications (release-date bell) ────────────────────────────────────────────
+async function refreshNotifications() {
+  try { S.notif = await api('/notifications'); } catch (e) { /* keep previous */ }
+  const badge = $('bell-count'); if (!badge) return;
+  const n = S.notif.counts ? S.notif.counts.due : 0;
+  badge.textContent = n; badge.hidden = !n;
+  $('bell-btn').classList.toggle('has-due', !!n);
+}
+function notifRow(e, kind) {
+  const b = e.box;
+  const when = kind === 'due'
+    ? `<span class="az-note-when st-due">✅ ${e.days === 0 ? 'hoy' : e.days < 0 ? 'desde hace ' + Math.abs(e.days) + ' día(s)' : ''} · ${fmtDate(e.release_at)}</span>`
+    : `<span class="az-note-when st-soon">🗓 en ${e.days} día(s) · ${fmtDate(e.release_at)}</span>`;
+  return `<button class="az-note" data-open="${e.person.id}" data-ym="${esc(e.ym || '')}">
+    <span class="az-note-shape">${b ? shapeSvg(b.shape, b.color, 18) : '📦'}</span>
+    <span class="az-note-body"><b>${esc(e.person.apellidos)}, ${esc(e.person.nombre)}</b><small>${esc(b && b.nombre || 'Medicamento')}${b && b.serial ? ' · Nº ' + esc(b.serial) : ''}</small></span>
+    ${when}
+  </button>`;
+}
+function openNotifications() {
+  const d = S.notif.due || [], u = S.notif.upcoming || [];
+  openTool(`<div class="qt-modal-h"><h3>🔔 Avisos de liberación</h3><button class="qt-x" id="nt-close">×</button></div>
+    <p class="qt-tool-note">Cajas <b>pre-asignadas</b> con fecha prevista de liberación en la aplicación de Salud.</p>
+    <div class="az-note-sec"><div class="az-note-h">✅ Ya se pueden asignar (${d.length})</div>
+      ${d.length ? `<div class="az-notelist">${d.map(e => notifRow(e, 'due')).join('')}</div>` : '<div class="az-empty-sm">Nada pendiente de asignar por fecha.</div>'}</div>
+    <div class="az-note-sec"><div class="az-note-h">🗓 Próximas a liberar (${u.length})</div>
+      ${u.length ? `<div class="az-notelist">${u.map(e => notifRow(e, 'soon')).join('')}</div>` : '<div class="az-empty-sm">No hay próximas programadas.</div>'}</div>`);
+  $('nt-close').onclick = closeTool;
+  $('tool-modal-box').querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { closeTool(); openPerson(Number(b.dataset.open), b.dataset.ym || undefined); }));
 }
 
 // ── Home / panel ─────────────────────────────────────────────────────────────────
 async function viewHome() {
   S.view = 'home'; S.person = null; S.ficha = null;
   try { const { items } = await api('/overview'); S.overview = items; } catch (e) { S.overview = []; }
+  refreshNotifications();
   renderHome();
 }
 function renderHome() {
@@ -167,8 +202,9 @@ function overviewHtml(rows) {
   if (!rows.length) return '<div class="qt-empty">Aún no hay personas en seguimiento. Busca una persona arriba y crea su plan.</div>';
   return `<div class="az-cards">` + rows.map(r => {
     const p = r.person;
-    return `<div class="az-card" data-open="${p.id}">
+    return `<div class="az-card ${r.ready_count ? 'has-ready' : ''}" data-open="${p.id}">
       <div class="az-card-h"><span class="az-card-name">${esc(p.apellidos)}, ${esc(p.nombre)}</span>${statusChip(r)}</div>
+      ${r.ready_count ? `<div class="az-card-ready">🔔 ${r.ready_count} caja(s) ya se pueden asignar</div>` : ''}
       <div class="az-card-sub">TIS ${esc(fmtTis(p.tis))}${p.pharmacy_no ? ' · Farmacia ' + esc(p.pharmacy_no) : ''}</div>
       <div class="az-card-sub">${r.plan_count} medicamento(s) en el plan · ${r.planned_total} caja(s)/mes${r.latest ? ' · último: ' + esc(fmtYm(r.latest.ym)) : ''}</div>
     </div>`;
@@ -205,7 +241,7 @@ async function openPerson(id, ym) {
 }
 async function reloadFicha() { if (S.person) await openPerson(S.person.id, S.ym); }
 // Some endpoints return a full ficha payload — use it directly.
-function applyFicha(data) { S.person = data.person; S.ficha = data; S.ym = data.ym; renderFicha(); }
+function applyFicha(data) { S.person = data.person; S.ficha = data; S.ym = data.ym; renderFicha(); refreshNotifications(); }
 
 function renderFicha() {
   const f = S.ficha, p = f.person, per = f.period;
@@ -303,21 +339,31 @@ function wirePlan(closed) {
 // Keep progress fields (attached/asignada) when the server returns a bare plan list.
 function mergePlan(oldPlan, fresh) { const by = new Map((oldPlan || []).map(p => [p.gtin, p])); return fresh.map(p => ({ ...p, attached: (by.get(p.gtin) || {}).attached || 0, asignada: (by.get(p.gtin) || {}).asignada || 0 })); }
 
+// Release-date chip for a pre-asignada box (when Salud will free it).
+function releaseChip(ln) {
+  if (ln.release_state === 'lista') return `<span class="az-rel az-rel-ready">✅ Ya se puede asignar${ln.release_at ? ' · desde ' + fmtDate(ln.release_at) : ''}</span>`;
+  if (ln.release_state === 'programada') return `<span class="az-rel az-rel-soon">🗓 Se libera ${fmtDate(ln.release_at)} · ${ln.release_days === 1 ? 'mañana' : 'faltan ' + ln.release_days + ' días'}</span>`;
+  return `<span class="az-rel az-rel-none">🗓 Sin fecha de liberación</span>`;
+}
 function lineHtml(ln, closed, dmSize) {
   const box = ln.box;
   if (!box) return `<div class="az-line az-line-gone"><div class="az-line-info"><b>Caja eliminada</b><small>La caja ya no existe en Data Matrix.</small></div><button class="qt-iconbtn danger" data-delline="${ln.id}" title="Quitar">🗑</button></div>`;
   const asignada = ln.state === 'asignada';
-  return `<div class="az-line ${asignada ? 'is-asignada' : 'is-pre'}" data-id="${ln.id}">
+  const ready = ln.release_state === 'lista';
+  const cls = asignada ? 'is-asignada' : ready ? 'is-ready' : 'is-pre';
+  return `<div class="az-line ${cls}" data-id="${ln.id}">
     <div class="az-line-dm ${asignada ? 'is-grey' : ''}" data-raw="${esc(box.raw)}" data-color="${esc(box.color)}">${dmSvg(box.raw, { dark: asignada ? '#9aa7b4' : box.color, light: '#ffffff', size: dmSize })}</div>
     <div class="az-line-info">
       <b>${shapeSvg(box.shape, box.color, 14)} ${esc(box.nombre || 'Sin nombre')}</b>
       <small>${box.serial ? 'Nº ' + esc(box.serial) + ' · ' : ''}${box.caducidad ? 'Cad ' + cadDisplay(box.caducidad) : 'GTIN ' + esc(box.gtin || '—')}</small>
       <span class="az-line-state ${asignada ? 'st-done' : 'st-pre'}">${asignada ? '✓ Asignada' + (ln.assigned_at ? ' · ' + fmtDate(ln.assigned_at) : '') : '🔗 Pre-asignada'}</span>
+      ${asignada ? '' : releaseChip(ln)}
     </div>
     <div class="az-line-actions">
       ${asignada
         ? (closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-unassign="${ln.id}">↩ Revertir</button>`)
         : (closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assign="${ln.id}">✅ Asignar</button>`)}
+      ${asignada || closed ? '' : `<button class="qt-iconbtn" data-release="${ln.id}" title="Fecha de liberación (Salud)">🗓</button>`}
       ${closed ? '' : `<button class="qt-iconbtn danger" data-delline="${ln.id}" title="Quitar de la ficha">🗑</button>`}
     </div>
   </div>`;
@@ -345,6 +391,31 @@ function wireLines(closed) {
     if (!(await confirmBox('Quitar caja', '¿Quitar esta caja de la ficha? Se libera la reserva y, si estaba asignada, vuelve al inventario.', 'Quitar'))) return;
     try { applyFicha(await api('/line/' + b.dataset.delline, { method: 'DELETE' })); toast('Caja retirada de la ficha.'); } catch (e) { toast(e.message, 'err'); }
   }));
+  main().querySelectorAll('[data-release]').forEach(b => b.addEventListener('click', () => {
+    const ln = (S.ficha.lines || []).find(x => x.id === Number(b.dataset.release)); if (ln) openReleasePicker(ln);
+  }));
+}
+
+// Set the date on which Salud will free a pre-asignada box (drives the bell).
+function openReleasePicker(ln) {
+  const box = ln.box || {};
+  const cur = ln.release_at || '';
+  openTool(`<div class="qt-modal-h"><h3>🗓 Fecha de liberación</h3><button class="qt-x" id="rp-close">×</button></div>
+    <p class="qt-tool-note">Fecha en la que la aplicación de Salud liberará esta caja para poder asignarla. Ese día aparecerá en la campana 🔔.</p>
+    <div class="qt-field"><label>Medicamento</label><div class="az-rp-med">${shapeSvg(box.shape, box.color, 18)} ${esc(box.nombre || 'Sin nombre')}${box.serial ? ' · Nº ' + esc(box.serial) : ''}</div></div>
+    <div class="qt-field"><label>Fecha prevista de liberación</label><input type="date" class="qt-input" id="rp-date" value="${esc(cur)}"></div>
+    <div class="qt-modal-actions">
+      ${cur ? '<button class="qt-btn qt-btn-ghost" id="rp-clear">Quitar fecha</button>' : ''}
+      <button class="qt-btn qt-btn-ghost" id="rp-cancel">Cancelar</button>
+      <button class="qt-btn qt-btn-primary" id="rp-save">Guardar</button>
+    </div>`);
+  $('rp-close').onclick = closeTool; $('rp-cancel').onclick = closeTool;
+  const send = async (date) => {
+    try { applyFicha(await api('/line/' + ln.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date }) })); closeTool(); toast(date ? 'Fecha de liberación guardada.' : 'Fecha eliminada.'); }
+    catch (e) { toast(e.message, 'err'); }
+  };
+  $('rp-save').onclick = () => { const v = $('rp-date').value; if (!v) { toast('Elige una fecha o pulsa «Quitar fecha».', 'err'); return; } send(v); };
+  if ($('rp-clear')) $('rp-clear').onclick = () => send('');
 }
 
 // ── Medication picker (add a medication to the plan) ─────────────────────────────
@@ -452,6 +523,7 @@ function viewHelp() {
         <li><b>Asignar de verdad.</b> Cuando la asignes en la aplicación de Salud, pulsa <b>✅ Asignar</b> sobre su Data Matrix. La caja pasa a <b>✓ Asignada</b> (se marca <i>utilizada</i> en Data Matrix) y se pone en gris.</li>
       </ol>
       <div class="qt-note tip">Los tres estados de una caja: <b>Sin utilizar</b> → <b>🔗 Pre-asignada</b> (reservada para la persona) → <b>✓ Asignada</b> (= utilizada). Puedes <b>↩ Revertir</b> una asignación (vuelve a pre-asignada) o <b>🗑 quitar</b> la caja de la ficha (se libera y, si estaba asignada, vuelve al inventario).</div>
+      <div class="qt-note">🗓 <b>¿Salud aún no ha liberado una caja?</b> Sobre esa caja pre-asignada, pulsa <b>🗓</b> y anota la <b>fecha prevista de liberación</b>. Ese día aparecerá en la <b>campana 🔔</b> (arriba) dentro de «✅ Ya se pueden asignar», y también verás las <b>próximas a liberar</b>. Así no hace falta recordar cuándo volver: la app te avisa.</div>
       <div class="qt-note">El <b>control es mensual</b>: cada mes es un periodo propio. Si Salud aún no ha liberado la medicación, deja las cajas pre-asignadas y vuelve más adelante para asignarlas. Puedes <b>cambiar de mes</b> arriba y <b>cerrar</b> un mes cuando esté completo.</div>
       <p class="qt-help-foot">La ficha muestra el <b>QR del TIS</b> bien grande (para la app de Salud) y cada caja como <b>Data Matrix</b> en color. Ajusta los tamaños con los deslizadores.</p>
     </div>`);

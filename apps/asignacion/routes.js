@@ -30,6 +30,10 @@ function bad(msg, status = 400) { const e = new Error(msg); e.status = status; r
 // Current month as 'YYYY-MM'.
 function thisMonth() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function cleanYm(v) { const s = String(v == null ? '' : v).trim(); return /^\d{4}-\d{2}$/.test(s) ? s : thisMonth(); }
+// Today (local) as 'YYYY-MM-DD'.
+function todayIso() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+// Whole days from today to an ISO date (negative = already past). null if no date.
+function daysUntil(iso) { if (!iso) return null; const a = new Date(todayIso() + 'T00:00:00'), b = new Date(iso + 'T00:00:00'); if (isNaN(b)) return null; return Math.round((b - a) / 86400000); }
 
 // ── Views of the two foreign records ─────────────────────────────────────────────
 function parseGroups(str) { return String(str == null ? '' : str).split('\n').map(s => s.trim()).filter(Boolean); }
@@ -63,9 +67,13 @@ function boxView(item) {
 // from the datamatrix inventory afterwards).
 function lineView(line) {
   const item = dmDb.getItem(line.item_id);
+  const days = daysUntil(line.release_at);
+  // Only pre-asignada boxes care about a release date. 'lista' = date reached.
+  const release_state = (line.state === 'preasignada' && line.release_at) ? (days <= 0 ? 'lista' : 'programada') : null;
   return {
     id: line.id, period_id: line.period_id, person_id: line.person_id, gtin: line.gtin,
     item_id: line.item_id, state: line.state, assigned_at: line.assigned_at, created_at: line.created_at,
+    release_at: line.release_at || null, release_days: days, release_state,
     box: boxView(item),
   };
 }
@@ -221,6 +229,10 @@ router.get('/api/person/:id(\\d+)/ficha', (req, res) => {
 router.get('/api/overview', (req, res) => {
   try {
     const month = thisMonth();
+    const today = todayIso();
+    // Boxes ready to assign (release date reached), bucketed by person.
+    const readyBy = new Map();
+    for (const ln of db.pendingReleaseLines()) if (ln.release_at <= today) readyBy.set(ln.person_id, (readyBy.get(ln.person_id) || 0) + 1);
     const ids = new Set([...db.planPersonIds(), ...db.periodPersonIds()]);
     const rows = [];
     for (const id of ids) {
@@ -234,6 +246,7 @@ router.get('/api/overview', (req, res) => {
       rows.push({
         person: personView(p), plan_count: plan.length, planned_total,
         month_counts: counts, has_month_period: !!period,
+        ready_count: readyBy.get(id) || 0,
         latest: latest ? { ym: latest.ym, status: latest.status } : null,
       });
     }
@@ -330,6 +343,20 @@ router.post('/api/line/:id(\\d+)/unassign', (req, res) => {
     res.json(fichaPayload(p, pr.ym));
   } catch (err) { fail(res, err); }
 });
+// Set/clear the date on which Salud is expected to free a pre-assigned box.
+router.put('/api/line/:id(\\d+)/release', json, (req, res) => {
+  try {
+    const line = db.getLine(Number(req.params.id));
+    if (!line) return res.status(404).json({ error: 'Asignación no encontrada.' });
+    const b = req.body || {};
+    const date = String(b.date == null ? '' : b.date).trim();
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw bad('Fecha no válida (AAAA-MM-DD).');
+    db.setLineRelease(line.id, date || null);
+    const pr = db.getPeriod(line.period_id); const p = qrDb.getPerson(line.person_id);
+    res.json(fichaPayload(p, pr.ym));
+  } catch (err) { fail(res, err); }
+});
+
 // Remove a box from the ficha entirely: releases the reservation and, if it had
 // been dispensed through this line, returns it to the inventory.
 router.delete('/api/line/:id(\\d+)', (req, res) => {
@@ -345,6 +372,30 @@ router.delete('/api/line/:id(\\d+)', (req, res) => {
     const pr = db.getPeriod(line.period_id); const p = qrDb.getPerson(line.person_id);
     res.json(fichaPayload(p, pr.ym));
   } catch (err) { fail(res, err); }
+});
+
+// ── Notifications (boxes whose Salud release date has arrived / is coming) ───────
+function notifications() {
+  const today = todayIso();
+  const due = [], upcoming = [];
+  for (const ln of db.pendingReleaseLines()) {
+    const p = qrDb.getPerson(ln.person_id);
+    if (!p) continue; // person removed
+    const item = dmDb.getItem(ln.item_id);
+    const pr = db.getPeriod(ln.period_id);
+    const entry = {
+      line_id: ln.id, ym: pr ? pr.ym : null,
+      person: { id: p.id, nombre: p.nombre, apellidos: p.apellidos, tis: p.tis },
+      box: item ? { nombre: item.nombre || null, gtin: item.gtin || null, serial: item.serial || null,
+        caducidad: item.caducidad || null, color: dmVisual.resolveColor(item.gtin, item.color), shape: dmVisual.resolveShape(item.gtin, item.shape) } : null,
+      release_at: ln.release_at, days: daysUntil(ln.release_at),
+    };
+    if (ln.release_at <= today) due.push(entry); else upcoming.push(entry);
+  }
+  return { today, due, upcoming, counts: { due: due.length, upcoming: upcoming.length } };
+}
+router.get('/api/notifications', (req, res) => {
+  try { res.json(notifications()); } catch (err) { fail(res, err); }
 });
 
 // ── Settings (ficha display sizes) ───────────────────────────────────────────────

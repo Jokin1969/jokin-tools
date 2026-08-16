@@ -58,6 +58,7 @@ db.exec(`
     item_id     INTEGER NOT NULL,         -- datamatrix box id
     box_key     TEXT,
     state       TEXT NOT NULL DEFAULT 'preasignada', -- 'preasignada' | 'asignada'
+    release_at  TEXT,                     -- 'YYYY-MM-DD' when Salud will free the box (optional)
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     assigned_at DATETIME,
     UNIQUE(period_id, item_id)
@@ -74,6 +75,9 @@ db.exec(`
     updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+// Lightweight migration for DBs created before the release date existed.
+try { db.prepare('ALTER TABLE asig_line ADD COLUMN release_at TEXT').run(); } catch { /* already present */ }
 
 console.log('[asignacion] Database ready at:', DB_PATH);
 
@@ -153,12 +157,13 @@ function lineByItem(itemId) {
 }
 function addLine(data) {
   const info = db.prepare(
-    `INSERT INTO asig_line (period_id, person_id, gtin, item_id, box_key, state, assigned_at)
-     VALUES (@period_id, @person_id, @gtin, @item_id, @box_key, @state, @assigned_at)`
+    `INSERT INTO asig_line (period_id, person_id, gtin, item_id, box_key, state, release_at, assigned_at)
+     VALUES (@period_id, @person_id, @gtin, @item_id, @box_key, @state, @release_at, @assigned_at)`
   ).run({
     period_id: data.period_id, person_id: data.person_id, gtin: data.gtin || null,
     item_id: data.item_id, box_key: data.box_key || null,
     state: data.state === 'asignada' ? 'asignada' : 'preasignada',
+    release_at: data.release_at || null,
     assigned_at: data.state === 'asignada' ? new Date().toISOString().replace('T', ' ').slice(0, 19) : null,
   });
   return getLine(info.lastInsertRowid);
@@ -169,7 +174,16 @@ function setLineState(id, state) {
     .run(asignada ? 'asignada' : 'preasignada', asignada ? new Date().toISOString().replace('T', ' ').slice(0, 19) : null, id);
   return getLine(id);
 }
+// Set (or clear, with null) the date on which Salud will free this box.
+function setLineRelease(id, isoDate) {
+  db.prepare('UPDATE asig_line SET release_at = ? WHERE id = ?').run(isoDate || null, id);
+  return getLine(id);
+}
 function deleteLine(id) { return db.prepare('DELETE FROM asig_line WHERE id = ?').run(id).changes > 0; }
+// Still-reserved boxes that carry a planned release date (for the notifications).
+function pendingReleaseLines() {
+  return db.prepare("SELECT * FROM asig_line WHERE state = 'preasignada' AND release_at IS NOT NULL ORDER BY release_at, id").all();
+}
 
 // Counts for a period: how many boxes pre-assigned vs. already dispensed.
 function periodCounts(periodId) {
@@ -200,6 +214,6 @@ module.exports = {
   db, DEFAULT_SETTINGS,
   listPlan, getPlanLine, planByGtin, upsertPlan, deletePlanLine, planPersonIds,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
-  listLines, getLine, findLine, lineByItem, addLine, setLineState, deleteLine, periodCounts,
+  listLines, getLine, findLine, lineByItem, addLine, setLineState, setLineRelease, pendingReleaseLines, deleteLine, periodCounts,
   getSettings, saveSettings,
 };

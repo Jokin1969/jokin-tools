@@ -542,3 +542,33 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
   .az-personcard { position: static; }
   .az-progress { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Release-date notifications (campana) ──────────────────────────────────── */
+.az-bell { position: relative; }
+.az-bell.has-due { border-color: #f2b84a; }
+.az-bell-count { background: var(--danger); }
+
+.az-note-sec { margin-top: 8px; }
+.az-note-h { font-weight: 800; color: var(--ink); margin: 10px 0 6px; font-size: 0.92rem; }
+.az-notelist { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow: auto; }
+.az-note { display: flex; align-items: center; gap: 10px; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+.az-note:hover { border-color: var(--brand); box-shadow: var(--shadow); }
+.az-note-shape { flex: 0 0 auto; display: inline-flex; }
+.az-note-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.az-note-body b { color: var(--ink); font-size: 0.88rem; }
+.az-note-body small { color: var(--muted); font-size: 0.74rem; }
+.az-note-when { font-size: 0.72rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.az-note-when.st-due { background: #e2f5ec; color: #128a5b; }
+.az-note-when.st-soon { background: #eef2f6; color: #55606e; }
+
+/* Release chip inside a ficha box line */
+.az-rel { font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; align-self: center; margin-top: 2px; }
+.az-rel-ready { background: #e2f5ec; color: #128a5b; }
+.az-rel-soon { background: #fff3d6; color: #8a5a00; }
+.az-rel-none { background: #eef2f6; color: #8a95a4; }
+.az-line.is-ready { border-color: #9bd8b6; background: #f2fbf6; box-shadow: 0 0 0 2px rgba(18,138,91,0.10); }
+.az-rp-med { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink); }
+
+/* Overview card readiness */
+.az-card.has-ready { border-color: #9bd8b6; }
+.az-card-ready { margin-top: 6px; font-size: 0.78rem; font-weight: 700; color: #128a5b; background: #e2f5ec; border-radius: 8px; padding: 4px 8px; display: inline-block; }

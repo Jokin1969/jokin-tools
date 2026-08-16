@@ -140,6 +140,53 @@ test('overview lists the person with their plan and month status', async () => {
   assert.equal(row.has_month_period, true);
 });
 
+test('release date: schedule, bucket due vs upcoming, and clear on assign', async () => {
+  const bPast = dmDb.createItem({ raw: 'R-PAST', box_key: 'BKP', gtin: GTIN, serial: 'P1' }, 1).id;
+  const bFut = dmDb.createItem({ raw: 'R-FUT', box_key: 'BKF', gtin: GTIN, serial: 'F1' }, 1).id;
+  await call('POST', `/person/${otherId}/preassign`, { item_id: bPast, ym: '2026-09' });
+  await call('POST', `/person/${otherId}/preassign`, { item_id: bFut, ym: '2026-09' });
+  let ficha = (await call('GET', `/person/${otherId}/ficha?ym=2026-09`)).data;
+  const lPast = ficha.lines.find(l => l.item_id === bPast).id;
+  const lFut = ficha.lines.find(l => l.item_id === bFut).id;
+
+  // Past date → ready ("lista"); far-future date → scheduled ("programada").
+  let r = await call('PUT', `/line/${lPast}/release`, { date: '2020-01-01' });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.lines.find(l => l.item_id === bPast).release_state, 'lista');
+  r = await call('PUT', `/line/${lFut}/release`, { date: '2999-12-31' });
+  const lf = r.data.lines.find(l => l.item_id === bFut);
+  assert.equal(lf.release_state, 'programada');
+  assert.ok(lf.release_days > 0);
+
+  // Notifications bucket them correctly.
+  let nt = (await call('GET', '/notifications')).data;
+  assert.ok(nt.due.some(e => e.line_id === lPast), 'past date is due');
+  assert.ok(nt.upcoming.some(e => e.line_id === lFut), 'future date is upcoming');
+
+  // Overview surfaces the ready count for that person.
+  const ov = (await call('GET', '/overview')).data;
+  assert.ok((ov.items.find(x => x.person.id === otherId) || {}).ready_count >= 1);
+
+  // Assigning the ready box removes it from the notifications.
+  await call('POST', `/line/${lPast}/assign`);
+  nt = (await call('GET', '/notifications')).data;
+  assert.ok(!nt.due.some(e => e.line_id === lPast), 'assigned box no longer notified');
+});
+
+test('invalid release date rejected; clearing resets the state', async () => {
+  const b = dmDb.createItem({ raw: 'R-CLR', box_key: 'BKC', gtin: GTIN, serial: 'C9' }, 1).id;
+  await call('POST', `/person/${otherId}/preassign`, { item_id: b, ym: '2026-09' });
+  const ficha = (await call('GET', `/person/${otherId}/ficha?ym=2026-09`)).data;
+  const lid = ficha.lines.find(l => l.item_id === b).id;
+  const bad = await call('PUT', `/line/${lid}/release`, { date: '2026/09/01' });
+  assert.equal(bad.status, 400, 'wrong format rejected');
+  await call('PUT', `/line/${lid}/release`, { date: '2027-01-15' });
+  const cleared = (await call('PUT', `/line/${lid}/release`, { date: '' })).data;
+  const l = cleared.lines.find(x => x.item_id === b);
+  assert.equal(l.release_at, null);
+  assert.equal(l.release_state, null);
+});
+
 test('period close / reopen toggles status', async () => {
   const ficha = (await call('GET', `/person/${personId}/ficha?ym=2026-08`)).data;
   const perId = ficha.period.id;
