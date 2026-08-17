@@ -69,3 +69,28 @@
   .hub-nav { padding: 0 12px; }
   .hub-nav-link { padding: 4px 8px; font-size: 0.69rem; }
 }
+
+/* ─── Pharmacy app switcher ─────────────────────────────────────────────────
+   A compact segmented control placed in each pharmacy app's own header, to jump
+   between QR (TIS), Data Matrix and Asignación. Colours come from the app's own
+   CSS variables (with literal fallbacks so it also looks right on its own).     */
+.pharma-switch {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 3px; border: 1px solid var(--line, #dbe4ee); border-radius: 12px;
+  background: rgba(240,246,251,0.9);
+}
+.pharma-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 11px; border-radius: 9px;
+  font-size: 0.82rem; font-weight: 600; white-space: nowrap;
+  color: var(--muted, #5c7086); text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.pharma-link svg { width: 15px; height: 15px; flex: none; }
+.pharma-link:hover { background: #fff; color: var(--brand, #1273b8); }
+.pharma-link.is-current { background: var(--brand, #1273b8); color: #fff; box-shadow: 0 2px 8px rgba(18,115,184,0.28); }
+.pharma-link.is-current:hover { color: #fff; }
+@media (max-width: 720px) {
+  .pharma-link .pl { display: none; }
+  .pharma-link { padding: 6px 9px; }
+}

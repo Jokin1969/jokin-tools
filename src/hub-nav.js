@@ -6,7 +6,7 @@
   function slug(id) { return String(id).replace(/-/g, ''); }
 
   async function trimNav() {
-    const links = document.querySelectorAll('.hub-nav-link[data-app]');
+    const links = document.querySelectorAll('.hub-nav-link[data-app], .pharma-link[data-app]');
     if (!links.length) return;
     let data;
     try {
