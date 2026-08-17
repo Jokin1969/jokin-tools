@@ -3305,7 +3305,8 @@ let dnaReplaceInput = {
   satPos: '',              // e.g. "168" or "G168"
   satAAs: null,            // array of selected AA letters (null = all 19 by default)
   satKey: '',              // position identity the current satAAs belong to
-  satPrefix: '',           // optional name prefix for the generated documents
+  satPrefix: '',           // optional name prefix (e.g. "pAAV_")
+  satSuffix: '',           // optional text after the mutation (e.g. " vole PrP")
 };
 
 const DNA_FEATURE_TYPES = [
@@ -3915,7 +3916,7 @@ function renderDnaReplaceUI() {
   clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
   clearBtn.addEventListener('click', () => {
     if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
-    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'CDS', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false, bulkSubmode: 'manual', satPos: '', satAAs: null, satKey: '', satPrefix: '' };
+    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'CDS', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false, bulkSubmode: 'manual', satPos: '', satAAs: null, satKey: '', satPrefix: '', satSuffix: '' };
     const res = $('dna-replace-results');
     if (res) res.remove();
     resetExecuteBar();
@@ -4275,11 +4276,12 @@ async function runDnaSaturate() {
   if (st.error) throw new Error(st.error);
   if (!st.selected.length) throw new Error('Selecciona al menos un aminoácido para generar variantes.');
   const { oldSeq, parsed, selected } = st;
-  const prefix = (dnaReplaceInput.satPrefix || '').trim();
+  const prefix = dnaReplaceInput.satPrefix || '';
+  const suffix = dnaReplaceInput.satSuffix || '';
   const posLabel = String(parsed.pos).padStart(3, '0');
   const rows = selected.map(aa => {
-    const code = `${parsed.orig}${posLabel}${aa}`;
-    return { name: prefix + code, seq: BWBio.buildVariantNt(oldSeq, parsed.pos, aa), feat: prefix + code };
+    const name = `${prefix}${parsed.orig}${posLabel}${aa}${suffix}`;
+    return { name, seq: BWBio.buildVariantNt(oldSeq, parsed.pos, aa), feat: name };
   });
   await dnaRunRows(oldSeq, rows, [], {
     // Non-destructive: change only the codon, keep every feature, rename the doc.
@@ -4332,15 +4334,23 @@ function renderDnaSatPanel(container, oldTa) {
     posField.appendChild(posIn);
     panelRoot.appendChild(posField);
 
-    // Prefix
+    // Name: prefix + mutation + suffix
     const preField = mk('div', 'bw-field'); preField.style.marginTop = '8px';
-    preField.appendChild(mk('label', null, 'Prefijo del nombre (opcional)'));
+    preField.appendChild(mk('label', null, 'Nombre del documento (opcional)'));
+    const nameRow = mk('div');
+    nameRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
     const preIn = document.createElement('input');
-    preIn.type = 'text'; preIn.className = 'bw-input'; preIn.style.maxWidth = '280px';
-    preIn.placeholder = 'p. ej. pAAV_   →   pAAV_G168A'; preIn.value = dnaReplaceInput.satPrefix;
-    preField.appendChild(preIn);
-    const preHint = mk('div', null, 'Cada documento se llama «prefijo + Original + posición + Nuevo» (p. ej. G168A). Ese nombre va al fichero y al nombre interno del .dna.');
-    preHint.style.cssText = `font-family:${MONO};font-size:0.68rem;color:var(--text-dim);margin-top:4px;`;
+    preIn.type = 'text'; preIn.className = 'bw-input'; preIn.style.cssText = 'flex:1;min-width:130px;max-width:220px;';
+    preIn.placeholder = 'Prefijo (p. ej. pAAV_)'; preIn.value = dnaReplaceInput.satPrefix;
+    const midTag = mk('span', null, 'G123A');
+    midTag.style.cssText = `font-family:${MONO};font-size:0.8rem;font-weight:700;color:var(--accent,#1E5FB8);padding:0 2px;`;
+    const sufIn = document.createElement('input');
+    sufIn.type = 'text'; sufIn.className = 'bw-input'; sufIn.style.cssText = 'flex:1;min-width:130px;max-width:220px;';
+    sufIn.placeholder = 'Sufijo (p. ej. " vole PrP")'; sufIn.value = dnaReplaceInput.satSuffix;
+    nameRow.appendChild(preIn); nameRow.appendChild(midTag); nameRow.appendChild(sufIn);
+    preField.appendChild(nameRow);
+    const preHint = mk('div', null, 'El nombre es «prefijo + mutación + sufijo». La mutación (Original + posición + Nuevo, p. ej. G123A) va en medio. Respeta los espacios que escribas (p. ej. sufijo « vole PrP» → pAAV_G123A vole PrP).');
+    preHint.style.cssText = `font-family:${MONO};font-size:0.68rem;color:var(--text-dim);margin-top:6px;line-height:1.5;`;
     preField.appendChild(preHint);
     panelRoot.appendChild(preField);
 
@@ -4405,15 +4415,17 @@ function renderDnaSatPanel(container, oldTa) {
       const count = mk('div');
       count.style.cssText = `font-family:${MONO};font-size:0.74rem;color:var(--text-muted);margin-top:8px;`;
       const n = dnaReplaceInput.satAAs.length;
-      const prefix = (dnaReplaceInput.satPrefix || '').trim();
+      const prefix = dnaReplaceInput.satPrefix || '';
+      const suffix = dnaReplaceInput.satSuffix || '';
       count.innerHTML = n
-        ? `Se generarán <b>${n}</b> construcción(es): ${dnaReplaceInput.satAAs.slice(0, 8).map(a => `${prefix}${parsed.orig}${posLabel}${a}`).join(', ')}${n > 8 ? '…' : ''}`
+        ? `Se generarán <b>${n}</b> construcción(es): ${dnaReplaceInput.satAAs.slice(0, 6).map(a => `${prefix}${parsed.orig}${posLabel}${a}${suffix}`).join(', ')}${n > 6 ? '…' : ''}`
         : 'No hay ninguna variante seleccionada.';
       grid.appendChild(count);
     };
 
     posIn.addEventListener('input', () => { dnaReplaceInput.satPos = posIn.value; renderGrid(); updateExecuteBtn(); });
     preIn.addEventListener('input', () => { dnaReplaceInput.satPrefix = preIn.value; renderGrid(); updateExecuteBtn(); });
+    sufIn.addEventListener('input', () => { dnaReplaceInput.satSuffix = sufIn.value; renderGrid(); updateExecuteBtn(); });
     renderGrid();
   };
 
