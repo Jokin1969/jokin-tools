@@ -3305,8 +3305,11 @@ let dnaReplaceInput = {
   satPos: '',              // e.g. "168" or "G168"
   satAAs: null,            // array of selected AA letters (null = all 19 by default)
   satKey: '',              // position identity the current satAAs belong to
-  satPrefix: '',           // optional name prefix (e.g. "pAAV_")
+  satPrefix: '',           // optional file-name prefix (e.g. "pAAV_")
   satSuffix: '',           // optional text after the mutation (e.g. " vole PrP")
+  satAddFeat: true,        // add a CDS feature named per variant
+  satFeatPrefix: '',       // optional feature-name prefix
+  satFeatSuffix: '',       // optional feature-name suffix
 };
 
 const DNA_FEATURE_TYPES = [
@@ -3916,7 +3919,7 @@ function renderDnaReplaceUI() {
   clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
   clearBtn.addEventListener('click', () => {
     if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
-    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'CDS', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false, bulkSubmode: 'manual', satPos: '', satAAs: null, satKey: '', satPrefix: '', satSuffix: '' };
+    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'CDS', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false, bulkSubmode: 'manual', satPos: '', satAAs: null, satKey: '', satPrefix: '', satSuffix: '', satAddFeat: true, satFeatPrefix: '', satFeatSuffix: '' };
     const res = $('dna-replace-results');
     if (res) res.remove();
     resetExecuteBar();
@@ -4278,15 +4281,23 @@ async function runDnaSaturate() {
   const { oldSeq, parsed, selected } = st;
   const prefix = dnaReplaceInput.satPrefix || '';
   const suffix = dnaReplaceInput.satSuffix || '';
+  const featPrefix = dnaReplaceInput.satFeatPrefix || '';
+  const featSuffix = dnaReplaceInput.satFeatSuffix || '';
+  const addFeat = dnaReplaceInput.satAddFeat !== false;
   const posLabel = String(parsed.pos).padStart(3, '0');
   const rows = selected.map(aa => {
-    const name = `${prefix}${parsed.orig}${posLabel}${aa}${suffix}`;
-    return { name, seq: BWBio.buildVariantNt(oldSeq, parsed.pos, aa), feat: name };
+    const mut = `${parsed.orig}${posLabel}${aa}`;
+    return {
+      name: `${prefix}${mut}${suffix}`,
+      seq: BWBio.buildVariantNt(oldSeq, parsed.pos, aa),
+      feat: `${featPrefix}${mut}${featSuffix}`,   // used only when addFeature is on
+    };
   });
   await dnaRunRows(oldSeq, rows, [], {
-    // Non-destructive: change only the codon, keep every feature, rename the doc.
-    deleteOverlap: false, shiftCoords: false, addFeature: false,
-    featType: dnaReplaceInput.featType, featColor: '#a6acb3',
+    // Change only the codon and rename the doc. Optionally add a CDS feature over
+    // the ORF named per variant; keep all the original features either way.
+    deleteOverlap: false, shiftCoords: false, addFeature: addFeat,
+    featType: 'CDS', featColor: '#a6acb3',
     zipPrefix: `saturacion-${parsed.orig}${posLabel}`,
     reportLabel: `Saturación de la posición ${parsed.orig}${posLabel} (codón óptimo humano)`,
   });
@@ -4353,6 +4364,34 @@ function renderDnaSatPanel(container, oldTa) {
     preHint.style.cssText = `font-family:${MONO};font-size:0.68rem;color:var(--text-dim);margin-top:6px;line-height:1.5;`;
     preField.appendChild(preHint);
     panelRoot.appendChild(preField);
+
+    // Feature CDS name: prefix + mutation + suffix (same procedure, own fields)
+    const featField = mk('div', 'bw-field'); featField.style.marginTop = '10px';
+    const featChkWrap = mk('label', 'bw-checkbox-wrap');
+    const featChk = document.createElement('input'); featChk.type = 'checkbox'; featChk.checked = dnaReplaceInput.satAddFeat !== false;
+    featChkWrap.appendChild(featChk); featChkWrap.appendChild(mk('span', null, 'Añadir una feature CDS a cada construcción, con este nombre'));
+    featField.appendChild(featChkWrap);
+    const featRow = mk('div');
+    featRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;padding-left:24px;';
+    const fPreIn = document.createElement('input');
+    fPreIn.type = 'text'; fPreIn.className = 'bw-input'; fPreIn.style.cssText = 'flex:1;min-width:130px;max-width:220px;';
+    fPreIn.placeholder = 'Prefijo del feature'; fPreIn.value = dnaReplaceInput.satFeatPrefix;
+    const fMid = mk('span', null, 'G123A');
+    fMid.style.cssText = `font-family:${MONO};font-size:0.8rem;font-weight:700;color:var(--accent,#1E5FB8);padding:0 2px;`;
+    const fSufIn = document.createElement('input');
+    fSufIn.type = 'text'; fSufIn.className = 'bw-input'; fSufIn.style.cssText = 'flex:1;min-width:130px;max-width:220px;';
+    fSufIn.placeholder = 'Sufijo del feature'; fSufIn.value = dnaReplaceInput.satFeatSuffix;
+    featRow.appendChild(fPreIn); featRow.appendChild(fMid); featRow.appendChild(fSufIn);
+    featField.appendChild(featRow);
+    const featHint = mk('div', null, 'El feature es de tipo CDS y cubre el ORF sustituido; su nombre se forma igual: «prefijo + mutación + sufijo». Las features originales del .dna se conservan.');
+    featHint.style.cssText = `font-family:${MONO};font-size:0.68rem;color:var(--text-dim);margin-top:6px;padding-left:24px;line-height:1.5;`;
+    featField.appendChild(featHint);
+    const syncFeat = () => { const on = featChk.checked; featRow.style.opacity = on ? '1' : '0.5'; fPreIn.disabled = !on; fSufIn.disabled = !on; };
+    featChk.addEventListener('change', () => { dnaReplaceInput.satAddFeat = featChk.checked; syncFeat(); });
+    fPreIn.addEventListener('input', () => { dnaReplaceInput.satFeatPrefix = fPreIn.value; });
+    fSufIn.addEventListener('input', () => { dnaReplaceInput.satFeatSuffix = fSufIn.value; });
+    syncFeat();
+    panelRoot.appendChild(featField);
 
     // Grid area
     const grid = mk('div'); grid.style.marginTop = '10px';
