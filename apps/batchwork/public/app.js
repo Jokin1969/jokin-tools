@@ -171,7 +171,7 @@ const OPERATIONS = [
       {
         id: 'dna-replace',
         label: 'Generar plásmidos .dna (SnapGene)',
-        desc: 'Carga un fichero .dna de SnapGene, sustituye una región de nucleótidos por otra y descarga un nuevo .dna. Opcionalmente añade una feature para la secuencia entrante, borra la feature solapada, reajusta las coordenadas de las features posteriores y cambia el nombre interno del documento.',
+        desc: 'Carga un fichero .dna de SnapGene, sustituye una región de nucleótidos por otra y descarga un nuevo .dna. Opcionalmente añade una feature para la secuencia entrante, borra la feature solapada, reajusta las coordenadas de las features posteriores y cambia el nombre interno del documento. En «Varias (bulk)» puedes pegar tú las secuencias o, dada una posición del ORF, generar automáticamente sus 19 variantes aminoacídicas (codón óptimo humano).',
         clientSide: true,
         params: [],
       },
@@ -951,7 +951,15 @@ function updateExecuteBtn() {
     } else if (op.id === 'dna-replace') {
       const hasFile = !!dnaReplaceInput.file;
       const hasOld = dnaReplaceInput.oldSeq.trim().length > 0;
-      if (dnaReplaceInput.bulkMode) {
+      if (dnaReplaceInput.bulkMode && dnaReplaceInput.bulkSubmode === 'saturate') {
+        const st = dnaSatState();
+        const n = st.selected ? st.selected.length : 0;
+        ready = hasFile && !st.error && n > 0;
+        if (!hasFile)        setStatus('Carga un fichero .dna de SnapGene', '');
+        else if (st.error)   setStatus(st.error, '');
+        else if (!n)         setStatus('Selecciona al menos un aminoácido', '');
+        else setStatus(`${n} variante(s) de ${st.parsed.orig}${String(st.parsed.pos).padStart(3, '0')} lista(s) para generar`, '');
+      } else if (dnaReplaceInput.bulkMode) {
         const validRows = dnaParseBulk(dnaReplaceInput.bulkText, dnaReplaceInput.bulkHeader).filter(r => r.valid).length;
         ready = hasFile && hasOld && validRows > 0;
         if (!hasFile)         setStatus('Carga un fichero .dna de SnapGene', '');
@@ -3292,6 +3300,12 @@ let dnaReplaceInput = {
   bulkMode: false,
   bulkText: '',
   bulkHeader: false,
+  // Saturation sub-mode (auto-generate amino-acid variants at one ORF position).
+  bulkSubmode: 'manual',   // 'manual' | 'saturate'
+  satPos: '',              // e.g. "168" or "G168"
+  satAAs: null,            // array of selected AA letters (null = all 19 by default)
+  satKey: '',              // position identity the current satAAs belong to
+  satPrefix: '',           // optional name prefix for the generated documents
 };
 
 const DNA_FEATURE_TYPES = [
@@ -3676,6 +3690,7 @@ function renderDnaReplaceUI() {
 
   // Mode switch: single sequence vs bulk.
   const bulk = dnaReplaceInput.bulkMode;
+  const satMode = bulk && dnaReplaceInput.bulkSubmode === 'saturate';
   const modeField = mk('div', 'bw-field');
   modeField.appendChild(mk('label', null, 'Modo'));
   const seg = mk('div');
@@ -3703,6 +3718,7 @@ function renderDnaReplaceUI() {
     f.appendChild(h);
     const ta = document.createElement('textarea');
     ta.className = 'bw-input bw-textarea';
+    ta.id = 'dna-seqfield-' + key;
     ta.rows = 3;
     ta.spellcheck = false;
     ta.value = dnaReplaceInput[key];
@@ -3711,13 +3727,41 @@ function renderDnaReplaceUI() {
     f.appendChild(ta);
     return f;
   };
-  container.appendChild(mkSeqField(
+  const oldSeqField = mkSeqField(
     bulk ? 'Secuencia a sustituir (común a todas, la que está ahora en el .dna)' : 'Secuencia a sustituir (la que está ahora en el .dna)',
-    'Nucleótidos. Debe aparecer exactamente una vez en la secuencia.', 'oldSeq'));
+    'Nucleótidos. Debe aparecer exactamente una vez en la secuencia.', 'oldSeq');
+  container.appendChild(oldSeqField);
 
   if (!bulk) {
     container.appendChild(mkSeqField('Secuencia nueva (con la que sustituir)', 'Nucleótidos. Puede tener longitud distinta a la anterior.', 'newSeq'));
   } else {
+    // Bulk sub-mode: paste-your-own table vs. auto-generate amino-acid variants.
+    const subField = mk('div', 'bw-field');
+    subField.appendChild(mk('label', null, '¿Qué secuencias nuevas?'));
+    const subSeg = mk('div');
+    subSeg.style.cssText = 'display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:4px;flex-wrap:wrap;';
+    const mkSub = (label, active) => {
+      const b = mk('button', null, label); b.type = 'button';
+      b.style.cssText = `font-size:0.78rem;padding:7px 16px;border:none;cursor:pointer;background:${active ? 'var(--accent,#1E5FB8)' : 'var(--bg-card)'};color:${active ? '#fff' : 'var(--text-muted)'};font-weight:${active ? '600' : '400'};`;
+      return b;
+    };
+    const subManual = mkSub('Ya sé las secuencias', !satMode);
+    const subSat = mkSub('Generar variantes de un aminoácido', satMode);
+    subManual.addEventListener('click', () => { if (dnaReplaceInput.bulkSubmode !== 'manual') { dnaReplaceInput.bulkSubmode = 'manual'; renderDnaReplaceUI(); updateExecuteBtn(); } });
+    subSat.addEventListener('click', () => { if (dnaReplaceInput.bulkSubmode !== 'saturate') { dnaReplaceInput.bulkSubmode = 'saturate'; renderDnaReplaceUI(); updateExecuteBtn(); } });
+    subSeg.appendChild(subManual); subSeg.appendChild(subSat);
+    subField.appendChild(subSeg);
+    const subHint = mk('div', null, satMode
+      ? 'La app analiza el ORF de arriba, y para una posición que indiques genera las 19 variantes aminoacídicas (codón óptimo humano).'
+      : 'Pega tú mismo la tabla de secuencias nuevas (una por documento).');
+    subHint.style.cssText = `font-family:${MUT_MONO};font-size:0.7rem;color:var(--text-dim);margin-top:6px;line-height:1.5;`;
+    subField.appendChild(subHint);
+    container.appendChild(subField);
+  }
+
+  if (satMode) {
+    renderDnaSatPanel(container, oldSeqField.querySelector('textarea'));
+  } else if (bulk) {
     // Bulk table input.
     const f = mk('div', 'bw-field');
     f.appendChild(mk('label', null, 'Secuencias en bulk'));
@@ -3756,7 +3800,9 @@ function renderDnaReplaceUI() {
     container.appendChild(f);
   }
 
-  // Options box
+  // Options box (feature/coord/rename). Hidden in saturation mode, where the swap
+  // is a single codon (non-destructive: every feature is kept, doc auto-renamed).
+  if (!satMode) {
   const box = mk('div');
   box.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:12px 14px;background:var(--bg-card);display:flex;flex-direction:column;gap:10px;';
 
@@ -3860,6 +3906,7 @@ function renderDnaReplaceUI() {
   }
 
   container.appendChild(box);
+  } // end if(!satMode) options box
 
   // Clear
   const clearBtn = mk('button', 'bw-btn bw-btn-cancel');
@@ -3868,7 +3915,7 @@ function renderDnaReplaceUI() {
   clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
   clearBtn.addEventListener('click', () => {
     if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
-    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'CDS', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false };
+    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'CDS', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false, bulkSubmode: 'manual', satPos: '', satAAs: null, satKey: '', satPrefix: '' };
     const res = $('dna-replace-results');
     if (res) res.remove();
     resetExecuteBar();
@@ -3963,7 +4010,10 @@ function dnaPerformReplacement(templateBytes, opts) {
 
 async function runDnaReplace() {
   if (!dnaReplaceInput.file) throw new Error('Carga un fichero .dna.');
-  if (dnaReplaceInput.bulkMode) { await runDnaReplaceBulk(); return; }
+  if (dnaReplaceInput.bulkMode) {
+    if (dnaReplaceInput.bulkSubmode === 'saturate') { await runDnaSaturate(); return; }
+    await runDnaReplaceBulk(); return;
+  }
 
   const oldSeq = dnaCleanSeq(dnaReplaceInput.oldSeq);
   const newSeq = dnaCleanSeq(dnaReplaceInput.newSeq);
@@ -4109,6 +4159,7 @@ function dnaBulkReportCsv(results, meta) {
   const summary = [
     '', '',
     `Informe de sustitución en bulk — ${meta.date}`,
+    ...(meta.extraLabel ? [meta.extraLabel] : []),
     `Plantilla: ${meta.template}`,
     `Secuencia a sustituir (común): ${meta.oldSeq}`,
     `Filas procesadas: ${meta.processed} · correctas: ${meta.ok} · con error: ${meta.failed} · omitidas (sin secuencia): ${meta.skipped}`,
@@ -4116,15 +4167,11 @@ function dnaBulkReportCsv(results, meta) {
   return '﻿' + lines.join('\n') + '\n' + summary.map(esc).join('\n') + '\n';
 }
 
-async function runDnaReplaceBulk() {
-  const oldSeq = dnaCleanSeq(dnaReplaceInput.oldSeq);
-  if (!oldSeq) throw new Error('La secuencia a sustituir (común) no contiene nucleótidos válidos.');
-
-  const allRows = dnaParseBulk(dnaReplaceInput.bulkText, dnaReplaceInput.bulkHeader);
-  const rows = allRows.filter(r => r.valid);
-  const skipped = allRows.filter(r => !r.valid);
-  if (!rows.length) throw new Error('No hay ninguna fila con secuencia nueva válida en el cuadro de bulk.');
-
+// Shared core for both bulk paths: given the common oldSeq and a list of rows
+// ({ name, seq, feat }), replace oldSeq→row.seq in the template for each, zip the
+// results + a CSV report, and render. `opts` carries the feature/coord behaviour.
+async function dnaRunRows(oldSeq, rows, skipped, opts) {
+  if (!rows.length) throw new Error('No hay ninguna construcción que generar.');
   const templateBase = dnaReplaceInput.file.name.replace(/\.dna$/i, '');
   const usedNames = new Map();   // ensure unique filenames inside the zip
   const uniqueName = base => {
@@ -4141,12 +4188,12 @@ async function runDnaReplaceBulk() {
     try {
       const r = dnaPerformReplacement(dnaReplaceInput.file.bytes, {
         oldSeq, newSeq: row.seq,
-        deleteOverlap: dnaReplaceInput.deleteOverlap,
-        shiftCoords: dnaReplaceInput.shiftCoords,
-        addFeature: dnaReplaceInput.addFeature,
+        deleteOverlap: opts.deleteOverlap,
+        shiftCoords: opts.shiftCoords,
+        addFeature: opts.addFeature,
         featName: row.feat,                 // per-row feature name (empty → default)
-        featType: dnaReplaceInput.featType,
-        featColor: '#a6acb3',               // no per-row colours in bulk
+        featType: opts.featType,
+        featColor: opts.featColor || '#a6acb3',
         renameName: row.name,               // empty → leave internal name
       });
       const filename = uniqueName(filenameBase);
@@ -4159,27 +4206,220 @@ async function runDnaReplaceBulk() {
 
   const okCount = results.filter(r => r.ok).length;
   const failCount = results.length - okCount;
-  if (!zipFiles.length) throw new Error('Ninguna fila se pudo procesar. Revisa la secuencia a sustituir y el contenido del bulk.');
+  if (!zipFiles.length) throw new Error('Ninguna construcción se pudo generar. Revisa la secuencia a sustituir.');
 
   const meta = {
     date: new Date().toLocaleString('es-ES'),
     template: dnaReplaceInput.file.name,
     oldSeq,
     processed: rows.length, ok: okCount, failed: failCount, skipped: skipped.length,
+    extraLabel: opts.reportLabel || '',
   };
   const csv = dnaBulkReportCsv(results, meta);
   zipFiles.push({ name: 'informe.csv', data: new TextEncoder().encode(csv) });
 
   const zipBlob = dnaMakeZip(zipFiles);
-  const zipName = `bulk-${templateBase}-${new Date().toISOString().slice(0, 10)}.zip`;
+  const zipName = `${opts.zipPrefix || 'bulk'}-${templateBase}-${new Date().toISOString().slice(0, 10)}.zip`;
   state.clientSideBlob = { blob: zipBlob, filename: zipName };
 
   renderDnaReplaceBulkResults({ results, skipped, meta, zipName, csv });
 
   state.appStatus = 'done';
-  setStatus(`✓ Bulk: ${okCount} documento(s) generado(s)${failCount ? ` · ${failCount} con error` : ''}${skipped.length ? ` · ${skipped.length} omitida(s)` : ''}`, okCount ? 'ok' : 'err');
+  setStatus(`✓ ${okCount} documento(s) generado(s)${failCount ? ` · ${failCount} con error` : ''}${skipped.length ? ` · ${skipped.length} omitida(s)` : ''}`, okCount ? 'ok' : 'err');
   $('btn-execute').style.display = 'none';
   $('btn-download').style.display = '';
+}
+
+async function runDnaReplaceBulk() {
+  const oldSeq = dnaCleanSeq(dnaReplaceInput.oldSeq);
+  if (!oldSeq) throw new Error('La secuencia a sustituir (común) no contiene nucleótidos válidos.');
+
+  const allRows = dnaParseBulk(dnaReplaceInput.bulkText, dnaReplaceInput.bulkHeader);
+  const rows = allRows.filter(r => r.valid);
+  const skipped = allRows.filter(r => !r.valid);
+  if (!rows.length) throw new Error('No hay ninguna fila con secuencia nueva válida en el cuadro de bulk.');
+
+  await dnaRunRows(oldSeq, rows, skipped, {
+    deleteOverlap: dnaReplaceInput.deleteOverlap,
+    shiftCoords: dnaReplaceInput.shiftCoords,
+    addFeature: dnaReplaceInput.addFeature,
+    featType: dnaReplaceInput.featType,
+    featColor: '#a6acb3',
+    zipPrefix: 'bulk',
+  });
+}
+
+// ── Saturation sub-mode: 19 amino-acid variants at one ORF position ────────────
+// Pure state derived from the current inputs (used by the panel, the execute-bar
+// validation and the runner). Never mutates state.
+function dnaSatState() {
+  const oldSeq = dnaCleanSeq(dnaReplaceInput.oldSeq);
+  if (!oldSeq) return { oldSeq: '', error: 'Introduce arriba la «Secuencia a sustituir» (el ORF) para analizarla.' };
+  const analyze = BWBio.analyzeOrf(oldSeq);
+  if (analyze.fatal) return { oldSeq, analyze, error: analyze.fatal };
+  const parsed = BWBio.parsePosition(dnaReplaceInput.satPos, analyze.residues);
+  if (parsed.error) return { oldSeq, analyze, parsed, error: parsed.error };
+  const key = parsed.pos + parsed.orig;
+  const all19 = BWBio.AA_ORDER.filter(a => a !== parsed.orig);
+  let selected;
+  if (Array.isArray(dnaReplaceInput.satAAs) && dnaReplaceInput.satKey === key) {
+    selected = dnaReplaceInput.satAAs.filter(a => a !== parsed.orig && BWBio.AA_ORDER.includes(a));
+  } else {
+    selected = all19.slice();   // default: all 19
+  }
+  return { oldSeq, analyze, parsed, orig: parsed.orig, all19, selected, key };
+}
+
+async function runDnaSaturate() {
+  const st = dnaSatState();
+  if (st.error) throw new Error(st.error);
+  if (!st.selected.length) throw new Error('Selecciona al menos un aminoácido para generar variantes.');
+  const { oldSeq, parsed, selected } = st;
+  const prefix = (dnaReplaceInput.satPrefix || '').trim();
+  const posLabel = String(parsed.pos).padStart(3, '0');
+  const rows = selected.map(aa => {
+    const code = `${parsed.orig}${posLabel}${aa}`;
+    return { name: prefix + code, seq: BWBio.buildVariantNt(oldSeq, parsed.pos, aa), feat: prefix + code };
+  });
+  await dnaRunRows(oldSeq, rows, [], {
+    // Non-destructive: change only the codon, keep every feature, rename the doc.
+    deleteOverlap: false, shiftCoords: false, addFeature: false,
+    featType: dnaReplaceInput.featType, featColor: '#a6acb3',
+    zipPrefix: `saturacion-${parsed.orig}${posLabel}`,
+    reportLabel: `Saturación de la posición ${parsed.orig}${posLabel} (codón óptimo humano)`,
+  });
+}
+
+// The saturation panel: analyse the ORF, ask for a position, and show the 19
+// amino-acid toggles (codón óptimo humano). Re-analyses live when the ORF changes.
+function renderDnaSatPanel(container, oldTa) {
+  const MONO = MUT_MONO;
+  const panelRoot = mk('div');
+  container.appendChild(panelRoot);
+
+  const paint = () => {
+    panelRoot.innerHTML = '';
+    const oldSeq = dnaCleanSeq(dnaReplaceInput.oldSeq);
+    if (!oldSeq) {
+      const note = mk('div', null, 'Introduce arriba la «Secuencia a sustituir» (el ORF) para analizarla y elegir la posición a mutar.');
+      note.style.cssText = 'font-size:0.8rem;color:var(--text-dim);padding:10px;border:1px dashed var(--border);border-radius:8px;';
+      panelRoot.appendChild(note);
+      return;
+    }
+    const analyze = BWBio.analyzeOrf(oldSeq);
+    const sum = mk('div');
+    sum.style.cssText = `border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--bg-card);font-family:${MONO};font-size:0.72rem;line-height:1.6;color:var(--text-muted);`;
+    if (analyze.fatal) {
+      sum.innerHTML = `<span style="color:var(--danger,#f5524b)">${analyze.fatal}</span>`;
+      panelRoot.appendChild(sum);
+      return;
+    }
+    const aaPrev = analyze.aaString.length > 90 ? analyze.aaString.slice(0, 90) + '…' : analyze.aaString;
+    sum.innerHTML = `ORF: <b>${analyze.len} nt</b> · <b>${analyze.nCodons}</b> codones · <b>${analyze.codingCount}</b> aminoácidos.<br>` +
+      `Traducción (M001…): <span style="word-break:break-all">${aaPrev}</span>` +
+      (analyze.warnings.length ? '<br>' + analyze.warnings.map(w => `<span style="color:#f7a83e">⚠ ${w}</span>`).join('<br>') : '');
+    panelRoot.appendChild(sum);
+
+    // Position
+    const posField = mk('div', 'bw-field'); posField.style.marginTop = '10px';
+    posField.appendChild(mk('label', null, 'Posición del aminoácido a mutar'));
+    const posHint = mk('div', null, 'Escribe el número (p. ej. 168) o con su aminoácido (p. ej. G168 — se comprueba que coincide). La primera Met es M001.');
+    posHint.style.cssText = `font-family:${MONO};font-size:0.7rem;color:var(--text-dim);margin:2px 0 6px;`;
+    posField.appendChild(posHint);
+    const posIn = document.createElement('input');
+    posIn.type = 'text'; posIn.className = 'bw-input'; posIn.style.maxWidth = '200px';
+    posIn.placeholder = 'p. ej. 168 o G168'; posIn.value = dnaReplaceInput.satPos;
+    posField.appendChild(posIn);
+    panelRoot.appendChild(posField);
+
+    // Prefix
+    const preField = mk('div', 'bw-field'); preField.style.marginTop = '8px';
+    preField.appendChild(mk('label', null, 'Prefijo del nombre (opcional)'));
+    const preIn = document.createElement('input');
+    preIn.type = 'text'; preIn.className = 'bw-input'; preIn.style.maxWidth = '280px';
+    preIn.placeholder = 'p. ej. pAAV_   →   pAAV_G168A'; preIn.value = dnaReplaceInput.satPrefix;
+    preField.appendChild(preIn);
+    const preHint = mk('div', null, 'Cada documento se llama «prefijo + Original + posición + Nuevo» (p. ej. G168A). Ese nombre va al fichero y al nombre interno del .dna.');
+    preHint.style.cssText = `font-family:${MONO};font-size:0.68rem;color:var(--text-dim);margin-top:4px;`;
+    preField.appendChild(preHint);
+    panelRoot.appendChild(preField);
+
+    // Grid area
+    const grid = mk('div'); grid.style.marginTop = '10px';
+    panelRoot.appendChild(grid);
+
+    const renderGrid = () => {
+      grid.innerHTML = '';
+      const parsed = BWBio.parsePosition(dnaReplaceInput.satPos, analyze.residues);
+      if (parsed.error) {
+        const e = mk('div', null, dnaReplaceInput.satPos ? parsed.error : 'Escribe una posición para ver las 19 variantes.');
+        e.style.cssText = `font-size:0.78rem;color:${dnaReplaceInput.satPos ? 'var(--danger,#f5524b)' : 'var(--text-dim)'};padding:6px 0;`;
+        grid.appendChild(e);
+        return;
+      }
+      const key = parsed.pos + parsed.orig;
+      if (dnaReplaceInput.satKey !== key || !Array.isArray(dnaReplaceInput.satAAs)) {
+        dnaReplaceInput.satKey = key;
+        dnaReplaceInput.satAAs = BWBio.AA_ORDER.filter(a => a !== parsed.orig);
+      }
+      const sel = new Set(dnaReplaceInput.satAAs);
+      const posLabel = String(parsed.pos).padStart(3, '0');
+
+      const head = mk('div');
+      head.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;';
+      const info = mk('div');
+      info.style.cssText = `font-family:${MONO};font-size:0.76rem;color:var(--text-muted);`;
+      info.innerHTML = `Posición <b>${parsed.pos}</b>: original <b>${parsed.orig}</b> (${BWBio.AA_NAMES[parsed.orig] || '?'}) · codón <b>${parsed.origCodon}</b>. Marca las variantes a generar:`;
+      head.appendChild(info);
+      const btnAll = mk('button', 'bw-btn bw-btn-cancel'); btnAll.type = 'button'; btnAll.textContent = 'Todas (19)'; btnAll.style.cssText = 'font-size:0.72rem;padding:4px 10px;';
+      const btnNone = mk('button', 'bw-btn bw-btn-cancel'); btnNone.type = 'button'; btnNone.textContent = 'Ninguna'; btnNone.style.cssText = 'font-size:0.72rem;padding:4px 10px;';
+      btnAll.addEventListener('click', () => { dnaReplaceInput.satAAs = BWBio.AA_ORDER.filter(a => a !== parsed.orig); renderGrid(); updateExecuteBtn(); });
+      btnNone.addEventListener('click', () => { dnaReplaceInput.satAAs = []; renderGrid(); updateExecuteBtn(); });
+      head.appendChild(btnAll); head.appendChild(btnNone);
+      grid.appendChild(head);
+
+      const cells = mk('div');
+      cells.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;';
+      for (const aa of BWBio.AA_ORDER) {
+        if (aa === parsed.orig) continue;   // skip the original → 19 remain
+        const codon = BWBio.variantCodon(aa, oldSeq);
+        const dist = BWBio.codonDistance(parsed.origCodon, codon);
+        const on = sel.has(aa);
+        const lab = mk('label');
+        lab.style.cssText = `display:flex;align-items:center;gap:7px;border:1px solid ${on ? 'var(--accent,#1E5FB8)' : 'var(--border)'};border-radius:7px;padding:5px 8px;cursor:pointer;background:${on ? 'rgba(30,95,184,0.08)' : 'var(--bg-card)'};`;
+        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = on;
+        cb.addEventListener('change', () => {
+          const s = new Set(dnaReplaceInput.satAAs);
+          if (cb.checked) s.add(aa); else s.delete(aa);
+          dnaReplaceInput.satAAs = BWBio.AA_ORDER.filter(a => s.has(a));
+          renderGrid(); updateExecuteBtn();
+        });
+        const txt = mk('span');
+        txt.style.cssText = `font-family:${MONO};font-size:0.74rem;`;
+        txt.innerHTML = `<b>${parsed.orig}${posLabel}${aa}</b> · ${BWBio.AA_NAMES[aa]} · ${codon} <span style="color:var(--text-dim)">(${dist} nt)</span>`;
+        lab.appendChild(cb); lab.appendChild(txt);
+        cells.appendChild(lab);
+      }
+      grid.appendChild(cells);
+
+      const count = mk('div');
+      count.style.cssText = `font-family:${MONO};font-size:0.74rem;color:var(--text-muted);margin-top:8px;`;
+      const n = dnaReplaceInput.satAAs.length;
+      const prefix = (dnaReplaceInput.satPrefix || '').trim();
+      count.innerHTML = n
+        ? `Se generarán <b>${n}</b> construcción(es): ${dnaReplaceInput.satAAs.slice(0, 8).map(a => `${prefix}${parsed.orig}${posLabel}${a}`).join(', ')}${n > 8 ? '…' : ''}`
+        : 'No hay ninguna variante seleccionada.';
+      grid.appendChild(count);
+    };
+
+    posIn.addEventListener('input', () => { dnaReplaceInput.satPos = posIn.value; renderGrid(); updateExecuteBtn(); });
+    preIn.addEventListener('input', () => { dnaReplaceInput.satPrefix = preIn.value; renderGrid(); updateExecuteBtn(); });
+    renderGrid();
+  };
+
+  // Re-analyse live if the ORF (oldSeq) textarea above changes.
+  if (oldTa) oldTa.addEventListener('input', paint);
+  paint();
 }
 
 function renderDnaReplaceBulkResults(data) {
