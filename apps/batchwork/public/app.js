@@ -3307,9 +3307,11 @@ let dnaReplaceInput = {
   satKey: '',              // position identity the current satAAs belong to
   satPrefix: '',           // optional file-name prefix (e.g. "pAAV_")
   satSuffix: '',           // optional text after the mutation (e.g. " vole PrP")
-  satAddFeat: true,        // add a CDS feature named per variant
+  satAddFeat: true,        // rename the CDS feature (name it per variant)
   satFeatPrefix: '',       // optional feature-name prefix
   satFeatSuffix: '',       // optional feature-name suffix
+  satHasSignal: true,      // does the gene include its signal peptide?
+  satSignalLen: '',        // signal-peptide length (aa) when it's absent
 };
 
 const DNA_FEATURE_TYPES = [
@@ -3394,11 +3396,11 @@ function dnaReserializeXml(originalStr, doc) {
 // the coordinates of features located after it, and append a feature for the new
 // sequence. Returns { xml, removed, shifted, added }.
 function dnaEditFeaturesXml(xmlStr, opts) {
-  const { rStart, rEnd, delta, deleteOverlap, shiftCoords, addFeature, featName, featType, featColor, newStart, newEnd } = opts;
+  const { rStart, rEnd, delta, deleteOverlap, shiftCoords, addFeature, featName, featType, featColor, newStart, newEnd, renameCdsName } = opts;
   const doc = new DOMParser().parseFromString(xmlStr, 'application/xml');
-  if (doc.getElementsByTagName('parsererror').length) return { xml: xmlStr, removed: 0, shifted: 0, added: false };
+  if (doc.getElementsByTagName('parsererror').length) return { xml: xmlStr, removed: 0, shifted: 0, added: false, renamed: false };
   const root = doc.documentElement;
-  if (!root || root.nodeName !== 'Features') return { xml: xmlStr, removed: 0, shifted: 0, added: false };
+  if (!root || root.nodeName !== 'Features') return { xml: xmlStr, removed: 0, shifted: 0, added: false, renamed: false };
 
   let removed = 0, shifted = 0;
   for (const f of Array.from(root.getElementsByTagName('Feature'))) {
@@ -3425,8 +3427,31 @@ function dnaEditFeaturesXml(xmlStr, opts) {
     }
   }
 
-  let added = false;
-  if (addFeature && newEnd >= newStart) {
+  let added = false, renamed = false;
+
+  // Rename mode: instead of adding a feature, rename the existing CDS that covers
+  // the region (so no two features stack on the same span). If there is no such
+  // CDS, fall back to adding one.
+  if (renameCdsName) {
+    let target = null;
+    for (const f of Array.from(root.getElementsByTagName('Feature'))) {
+      if ((f.getAttribute('type') || '').toLowerCase() !== 'cds') continue;
+      const segs = Array.from(f.getElementsByTagName('Segment'))
+        .map(s => { const m = (s.getAttribute('range') || '').match(/^(\d+)\s*-\s*(\d+)$/); return m ? { a: +m[1], b: +m[2] } : null; })
+        .filter(Boolean);
+      if (!segs.length) continue;
+      const fmin = Math.min(...segs.map(s => s.a)), fmax = Math.max(...segs.map(s => s.b));
+      if (!(fmax < newStart || fmin > newEnd)) { target = f; break; }
+    }
+    if (target) { target.setAttribute('name', renameCdsName); renamed = true; }
+    else if (newEnd >= newStart) {
+      const f = doc.createElement('Feature');
+      f.setAttribute('name', renameCdsName); f.setAttribute('type', 'CDS'); f.setAttribute('directionality', '1');
+      const seg = doc.createElement('Segment');
+      seg.setAttribute('range', `${newStart}-${newEnd}`); seg.setAttribute('type', 'standard'); seg.setAttribute('color', featColor || '#a6acb3');
+      f.appendChild(seg); root.appendChild(f); added = true;
+    }
+  } else if (addFeature && newEnd >= newStart) {
     const f = doc.createElement('Feature');
     f.setAttribute('name', featName || 'secuencia_nueva');
     f.setAttribute('type', featType || 'misc_feature');
@@ -3440,7 +3465,7 @@ function dnaEditFeaturesXml(xmlStr, opts) {
     added = true;
   }
 
-  return { xml: dnaReserializeXml(xmlStr, doc), removed, shifted, added };
+  return { xml: dnaReserializeXml(xmlStr, doc), removed, shifted, added, renamed };
 }
 
 function dnaSetNotesName(xmlStr, name) {
@@ -3919,7 +3944,7 @@ function renderDnaReplaceUI() {
   clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
   clearBtn.addEventListener('click', () => {
     if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
-    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'CDS', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false, bulkSubmode: 'manual', satPos: '', satAAs: null, satKey: '', satPrefix: '', satSuffix: '', satAddFeat: true, satFeatPrefix: '', satFeatSuffix: '' };
+    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'CDS', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false, bulkSubmode: 'manual', satPos: '', satAAs: null, satKey: '', satPrefix: '', satSuffix: '', satAddFeat: true, satFeatPrefix: '', satFeatSuffix: '', satHasSignal: true, satSignalLen: '' };
     const res = $('dna-replace-results');
     if (res) res.remove();
     resetExecuteBar();
@@ -3937,7 +3962,7 @@ function renderDnaReplaceUI() {
 // oldSeq/newSeq must already be cleaned. renameName '' means "leave the internal
 // name untouched". Throws on errors (sequence not found, etc.).
 function dnaPerformReplacement(templateBytes, opts) {
-  const { oldSeq, newSeq, deleteOverlap, shiftCoords, addFeature, featName, featType, featColor, renameName } = opts;
+  const { oldSeq, newSeq, deleteOverlap, shiftCoords, addFeature, featName, featType, featColor, renameName, renameCdsName } = opts;
   if (!oldSeq) throw new Error('La secuencia a sustituir no contiene nucleótidos válidos.');
   if (!newSeq) throw new Error('La secuencia nueva no contiene nucleótidos válidos.');
 
@@ -3978,17 +4003,18 @@ function dnaPerformReplacement(templateBytes, opts) {
   // 2) Features packet
   const rStart = pos + 1, rEnd = pos + oldSeq.length;          // 1-based, region replaced
   const newStart = pos + 1, newEnd = pos + newSeq.length;      // 1-based, new region
-  let featResult = { removed: 0, shifted: 0, added: false };
+  let featResult = { removed: 0, shifted: 0, added: false, renamed: false };
   const featPkt = packets.find(p => p.type === 10);
   if (featPkt) {
     const xml = dnaBytesToAscii(featPkt.data);
-    featResult = dnaEditFeaturesXml(xml, { rStart, rEnd, delta, deleteOverlap, shiftCoords, addFeature, featName, featType, featColor, newStart, newEnd });
+    featResult = dnaEditFeaturesXml(xml, { rStart, rEnd, delta, deleteOverlap, shiftCoords, addFeature, featName, featType, featColor, newStart, newEnd, renameCdsName });
     featPkt.data = new TextEncoder().encode(featResult.xml);
-  } else if (addFeature) {
-    // No features packet: create a minimal one with the new feature.
-    const nm = (featName || 'secuencia_nueva').replace(/[<&>]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  } else if (addFeature || renameCdsName) {
+    // No features packet: create a minimal one with the (renamed) CDS feature.
+    const nm = String(renameCdsName || featName || 'secuencia_nueva').replace(/[<&>]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
     const col = featColor || '#a6acb3';
-    const xml = `<?xml version="1.0" encoding="UTF-8"?><Features><Feature name="${nm}" type="${featType}" directionality="1"><Segment range="${newStart}-${newEnd}" type="standard" color="${col}"/></Feature></Features>`;
+    const type = renameCdsName ? 'CDS' : featType;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><Features><Feature name="${nm}" type="${type}" directionality="1"><Segment range="${newStart}-${newEnd}" type="standard" color="${col}"/></Feature></Features>`;
     packets.push({ type: 10, data: new TextEncoder().encode(xml) });
     featResult.added = true;
   }
@@ -4156,7 +4182,7 @@ function dnaBulkReportCsv(results, meta) {
       r.ok ? (r.ntCompare.applicable ? r.ntCompare.changes : 'n/a (distinto tamaño)') : '',
       r.ok ? r.featResult.removed : '',
       r.ok ? r.featResult.shifted : '',
-      r.ok ? (r.featResult.added ? 'sí' : 'no') : '',
+      r.ok ? (r.featResult.renamed ? 'CDS renombrada' : r.featResult.added ? 'añadida' : 'no') : '',
       r.ok ? (r.occurrences > 1 ? `secuencia común encontrada ${r.occurrences} veces; sustituida la 1ª` : '') : r.error,
     ].map(esc).join(';'));
   });
@@ -4198,6 +4224,7 @@ async function dnaRunRows(oldSeq, rows, skipped, opts) {
         featName: row.feat,                 // per-row feature name (empty → default)
         featType: opts.featType,
         featColor: opts.featColor || '#a6acb3',
+        renameCdsName: opts.renameCds ? row.feat : null,   // rename the ORF's CDS
         renameName: row.name,               // empty → leave internal name
       });
       const filename = uniqueName(filenameBase);
@@ -4256,14 +4283,27 @@ async function runDnaReplaceBulk() {
 // ── Saturation sub-mode: 19 amino-acid variants at one ORF position ────────────
 // Pure state derived from the current inputs (used by the panel, the execute-bar
 // validation and the runner). Never mutates state.
+// Signal-peptide offset: keep wild-type numbering even when the gene lacks its
+// signal peptide (codonPos = typed − signalLen + 1, i.e. offset = 1 − signalLen).
+function dnaSatOffset() {
+  if (dnaReplaceInput.satHasSignal === false) {
+    const L = Math.round(Number(dnaReplaceInput.satSignalLen));
+    if (!Number.isFinite(L) || L < 1) return { error: 'Indica de cuántos aminoácidos es el péptido señal (o marca que sí lo tiene).' };
+    return { offset: 1 - L, signalLen: L };
+  }
+  return { offset: 0, signalLen: 0 };
+}
 function dnaSatState() {
   const oldSeq = dnaCleanSeq(dnaReplaceInput.oldSeq);
   if (!oldSeq) return { oldSeq: '', error: 'Introduce arriba la «Secuencia a sustituir» (el ORF) para analizarla.' };
   const analyze = BWBio.analyzeOrf(oldSeq);
   if (analyze.fatal) return { oldSeq, analyze, error: analyze.fatal };
-  const parsed = BWBio.parsePosition(dnaReplaceInput.satPos, analyze.residues);
-  if (parsed.error) return { oldSeq, analyze, parsed, error: parsed.error };
-  const key = parsed.pos + parsed.orig;
+  const off = dnaSatOffset();
+  if (off.error) return { oldSeq, analyze, error: off.error };
+  const { offset, signalLen } = off;
+  const parsed = BWBio.parsePosition(dnaReplaceInput.satPos, analyze.residues, offset);
+  if (parsed.error) return { oldSeq, analyze, parsed, offset, signalLen, error: parsed.error };
+  const key = parsed.codonPos + parsed.orig;
   const all19 = BWBio.AA_ORDER.filter(a => a !== parsed.orig);
   let selected;
   if (Array.isArray(dnaReplaceInput.satAAs) && dnaReplaceInput.satKey === key) {
@@ -4271,7 +4311,7 @@ function dnaSatState() {
   } else {
     selected = all19.slice();   // default: all 19
   }
-  return { oldSeq, analyze, parsed, orig: parsed.orig, all19, selected, key };
+  return { oldSeq, analyze, parsed, orig: parsed.orig, all19, selected, key, offset, signalLen };
 }
 
 async function runDnaSaturate() {
@@ -4284,22 +4324,23 @@ async function runDnaSaturate() {
   const featPrefix = dnaReplaceInput.satFeatPrefix || '';
   const featSuffix = dnaReplaceInput.satFeatSuffix || '';
   const addFeat = dnaReplaceInput.satAddFeat !== false;
-  const posLabel = String(parsed.pos).padStart(3, '0');
+  const posLabel = String(parsed.pos).padStart(3, '0');  // wild-type number (for names)
   const rows = selected.map(aa => {
     const mut = `${parsed.orig}${posLabel}${aa}`;
     return {
       name: `${prefix}${mut}${suffix}`,
-      seq: BWBio.buildVariantNt(oldSeq, parsed.pos, aa),
-      feat: `${featPrefix}${mut}${featSuffix}`,   // used only when addFeature is on
+      seq: BWBio.buildVariantNt(oldSeq, parsed.codonPos, aa),   // real codon in the ORF
+      feat: `${featPrefix}${mut}${featSuffix}`,                 // used only when renaming the CDS
     };
   });
+  const sig = st.signalLen ? ` · sin péptido señal (${st.signalLen} aa; codón ${parsed.codonPos})` : '';
   await dnaRunRows(oldSeq, rows, [], {
-    // Change only the codon and rename the doc. Optionally add a CDS feature over
-    // the ORF named per variant; keep all the original features either way.
-    deleteOverlap: false, shiftCoords: false, addFeature: addFeat,
+    // Change only the codon and rename the doc. Optionally rename the ORF's CDS
+    // feature per variant (no duplicate features); keep every other feature.
+    deleteOverlap: false, shiftCoords: false, addFeature: false, renameCds: addFeat,
     featType: 'CDS', featColor: '#a6acb3',
     zipPrefix: `saturacion-${parsed.orig}${posLabel}`,
-    reportLabel: `Saturación de la posición ${parsed.orig}${posLabel} (codón óptimo humano)`,
+    reportLabel: `Saturación de la posición ${parsed.orig}${posLabel} (codón óptimo humano)${sig}`,
   });
 }
 
@@ -4333,9 +4374,34 @@ function renderDnaSatPanel(container, oldTa) {
       (analyze.warnings.length ? '<br>' + analyze.warnings.map(w => `<span style="color:#f7a83e">⚠ ${w}</span>`).join('<br>') : '');
     panelRoot.appendChild(sum);
 
+    // Signal peptide: keep wild-type numbering even when the gene lacks it.
+    const sigField = mk('div', 'bw-field'); sigField.style.marginTop = '10px';
+    const sigChkWrap = mk('label', 'bw-checkbox-wrap');
+    const sigChk = document.createElement('input'); sigChk.type = 'checkbox'; sigChk.checked = dnaReplaceInput.satHasSignal !== false;
+    sigChkWrap.appendChild(sigChk); sigChkWrap.appendChild(mk('span', null, 'El gen incluye su péptido señal (la numeración coincide con la wild-type)'));
+    sigField.appendChild(sigChkWrap);
+    const sigLenRow = mk('div');
+    sigLenRow.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;padding-left:24px;';
+    const sigLenLbl = mk('span', null, 'Longitud del péptido señal (aa):');
+    sigLenLbl.style.cssText = `font-family:${MONO};font-size:0.72rem;color:var(--text-dim);`;
+    sigLenRow.appendChild(sigLenLbl);
+    const sigLenIn = document.createElement('input');
+    sigLenIn.type = 'number'; sigLenIn.min = '1'; sigLenIn.className = 'bw-input'; sigLenIn.style.maxWidth = '90px';
+    sigLenIn.placeholder = 'p. ej. 23'; sigLenIn.value = dnaReplaceInput.satSignalLen;
+    sigLenRow.appendChild(sigLenIn);
+    sigField.appendChild(sigLenRow);
+    const sigHint = mk('div', null, 'Si el gen NO tiene péptido señal, se numera igual que la wild-type: la posición que escribas se ajusta a «posición − longitud + 1» (por la Met que se conserva). Ej.: G223 con 23 aa → se cambia el codón 201, pero la variante se sigue llamando G223.');
+    sigHint.style.cssText = `font-family:${MONO};font-size:0.68rem;color:var(--text-dim);margin-top:6px;line-height:1.5;`;
+    sigField.appendChild(sigHint);
+    const syncSig = () => { const has = sigChk.checked; sigLenRow.style.display = has ? 'none' : 'flex'; sigHint.style.display = has ? 'none' : 'block'; };
+    sigChk.addEventListener('change', () => { dnaReplaceInput.satHasSignal = sigChk.checked; syncSig(); renderGrid(); updateExecuteBtn(); });
+    sigLenIn.addEventListener('input', () => { dnaReplaceInput.satSignalLen = sigLenIn.value; renderGrid(); updateExecuteBtn(); });
+    syncSig();
+    panelRoot.appendChild(sigField);
+
     // Position
     const posField = mk('div', 'bw-field'); posField.style.marginTop = '10px';
-    posField.appendChild(mk('label', null, 'Posición del aminoácido a mutar'));
+    posField.appendChild(mk('label', null, 'Posición del aminoácido a mutar (numeración wild-type)'));
     const posHint = mk('div', null, 'Escribe el número (p. ej. 168) o con su aminoácido (p. ej. G168 — se comprueba que coincide). La primera Met es M001.');
     posHint.style.cssText = `font-family:${MONO};font-size:0.7rem;color:var(--text-dim);margin:2px 0 6px;`;
     posField.appendChild(posHint);
@@ -4369,7 +4435,7 @@ function renderDnaSatPanel(container, oldTa) {
     const featField = mk('div', 'bw-field'); featField.style.marginTop = '10px';
     const featChkWrap = mk('label', 'bw-checkbox-wrap');
     const featChk = document.createElement('input'); featChk.type = 'checkbox'; featChk.checked = dnaReplaceInput.satAddFeat !== false;
-    featChkWrap.appendChild(featChk); featChkWrap.appendChild(mk('span', null, 'Añadir una feature CDS a cada construcción, con este nombre'));
+    featChkWrap.appendChild(featChk); featChkWrap.appendChild(mk('span', null, 'Renombrar el feature CDS del ORF con este nombre (no crea uno nuevo)'));
     featField.appendChild(featChkWrap);
     const featRow = mk('div');
     featRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;padding-left:24px;';
@@ -4383,7 +4449,7 @@ function renderDnaSatPanel(container, oldTa) {
     fSufIn.placeholder = 'Sufijo del feature'; fSufIn.value = dnaReplaceInput.satFeatSuffix;
     featRow.appendChild(fPreIn); featRow.appendChild(fMid); featRow.appendChild(fSufIn);
     featField.appendChild(featRow);
-    const featHint = mk('div', null, 'El feature es de tipo CDS y cubre el ORF sustituido; su nombre se forma igual: «prefijo + mutación + sufijo». Las features originales del .dna se conservan.');
+    const featHint = mk('div', null, 'Se busca el feature de tipo CDS que cubre el ORF y se le pone este nombre (mismo procedimiento: «prefijo + mutación + sufijo»), sin crear un CDS duplicado. Si no hubiera ninguno, se añade uno. El resto de features se conservan.');
     featHint.style.cssText = `font-family:${MONO};font-size:0.68rem;color:var(--text-dim);margin-top:6px;padding-left:24px;line-height:1.5;`;
     featField.appendChild(featHint);
     const syncFeat = () => { const on = featChk.checked; featRow.style.opacity = on ? '1' : '0.5'; fPreIn.disabled = !on; fSufIn.disabled = !on; };
@@ -4399,14 +4465,21 @@ function renderDnaSatPanel(container, oldTa) {
 
     const renderGrid = () => {
       grid.innerHTML = '';
-      const parsed = BWBio.parsePosition(dnaReplaceInput.satPos, analyze.residues);
+      const off = dnaSatOffset();
+      if (off.error) {
+        const e = mk('div', null, off.error);
+        e.style.cssText = 'font-size:0.78rem;color:var(--danger,#f5524b);padding:6px 0;';
+        grid.appendChild(e);
+        return;
+      }
+      const parsed = BWBio.parsePosition(dnaReplaceInput.satPos, analyze.residues, off.offset);
       if (parsed.error) {
         const e = mk('div', null, dnaReplaceInput.satPos ? parsed.error : 'Escribe una posición para ver las 19 variantes.');
         e.style.cssText = `font-size:0.78rem;color:${dnaReplaceInput.satPos ? 'var(--danger,#f5524b)' : 'var(--text-dim)'};padding:6px 0;`;
         grid.appendChild(e);
         return;
       }
-      const key = parsed.pos + parsed.orig;
+      const key = parsed.codonPos + parsed.orig;
       if (dnaReplaceInput.satKey !== key || !Array.isArray(dnaReplaceInput.satAAs)) {
         dnaReplaceInput.satKey = key;
         dnaReplaceInput.satAAs = BWBio.AA_ORDER.filter(a => a !== parsed.orig);
@@ -4418,7 +4491,8 @@ function renderDnaSatPanel(container, oldTa) {
       head.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;';
       const info = mk('div');
       info.style.cssText = `font-family:${MONO};font-size:0.76rem;color:var(--text-muted);`;
-      info.innerHTML = `Posición <b>${parsed.pos}</b>: original <b>${parsed.orig}</b> (${BWBio.AA_NAMES[parsed.orig] || '?'}) · codón <b>${parsed.origCodon}</b>. Marca las variantes a generar:`;
+      const mapNote = off.offset ? ` <span style="color:#f7a83e">(sin péptido señal: se cambia el codón ${parsed.codonPos} del ORF)</span>` : '';
+      info.innerHTML = `Posición <b>${parsed.pos}</b>: original <b>${parsed.orig}</b> (${BWBio.AA_NAMES[parsed.orig] || '?'}) · codón <b>${parsed.origCodon}</b>${mapNote}. Marca las variantes a generar:`;
       head.appendChild(info);
       const btnAll = mk('button', 'bw-btn bw-btn-cancel'); btnAll.type = 'button'; btnAll.textContent = 'Todas (19)'; btnAll.style.cssText = 'font-size:0.72rem;padding:4px 10px;';
       const btnNone = mk('button', 'bw-btn bw-btn-cancel'); btnNone.type = 'button'; btnNone.textContent = 'Ninguna'; btnNone.style.cssText = 'font-size:0.72rem;padding:4px 10px;';

@@ -80,7 +80,15 @@
   // Parse a position input ("168" or "G168") against a residues array. Validates
   // range, that it isn't a stop codon, and — if a letter is given — that the
   // original amino acid matches (a safety check against typos).
-  function parsePosition(input, residues) {
+  //
+  // `offset` maps the typed (wild-type) number to the real codon index in the ORF:
+  // codonPos = typed + offset. It is 0 when the sequence matches the wild-type
+  // numbering, and (1 - signalLength) when the plasmid's gene has NO signal
+  // peptide but we still number as the wild-type (so G223 with a 23-aa signal
+  // peptide targets codon 223 - 23 + 1 = 201). The returned `pos` is the typed
+  // number (used for names/labels); `codonPos` is where the change is made.
+  function parsePosition(input, residues, offset) {
+    offset = offset || 0;
     const s = String(input == null ? '' : input).trim().toUpperCase();
     if (!s) return { error: 'Escribe la posición del aminoácido (por ejemplo 168 o G168).' };
     const m = s.match(/^([A-Z*]?)0*(\d+)$/);
@@ -88,14 +96,19 @@
     const letter = m[1];
     const pos = parseInt(m[2], 10);
     if (!pos || pos < 1) return { error: 'La posición debe ser 1 o mayor.' };
-    const r = (residues || []).find(x => x.pos === pos);
-    if (!r) return { error: `La posición ${pos} está fuera del ORF (tiene ${(residues || []).length} codones).` };
-    if (r.aa === '*') return { error: `La posición ${pos} es un codón STOP; no se puede mutar como aminoácido.` };
-    if (r.aa === 'X') return { error: `La posición ${pos} tiene un codón no reconocido (${r.codon}).` };
-    if (letter && letter !== '*' && letter !== r.aa) {
-      return { error: `En la posición ${pos} el aminoácido original es ${r.aa} (${AA_NAMES[r.aa] || '?'}), no ${letter}. Corrige la posición.` };
+    const codonPos = pos + offset;
+    const where = offset ? ` (codón ${codonPos} del ORF)` : '';
+    const r = (residues || []).find(x => x.pos === codonPos);
+    if (!r) {
+      if (codonPos < 1) return { error: `La posición ${pos} queda antes del inicio de la proteína en este plásmido (¿cae dentro del péptido señal?).` };
+      return { error: `La posición ${pos}${where} está fuera del ORF (tiene ${(residues || []).length} codones).` };
     }
-    return { pos, orig: r.aa, origCodon: r.codon };
+    if (r.aa === '*') return { error: `La posición ${pos}${where} es un codón STOP; no se puede mutar como aminoácido.` };
+    if (r.aa === 'X') return { error: `La posición ${pos}${where} tiene un codón no reconocido (${r.codon}).` };
+    if (letter && letter !== '*' && letter !== r.aa) {
+      return { error: `En la posición ${pos}${where} el aminoácido es ${r.aa} (${AA_NAMES[r.aa] || '?'}), no ${letter}. Corrige la posición o el péptido señal.` };
+    }
+    return { pos, codonPos, orig: r.aa, origCodon: r.codon };
   }
 
   // Codon that will be used to encode `aa` (human-optimised). Preserves the RNA

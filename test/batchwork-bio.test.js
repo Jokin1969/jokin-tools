@@ -44,15 +44,35 @@ test('parsePosition accepts 168 and G168, validates the original residue', () =>
   assert.equal(pLetter.orig, 'G');
   const padded = bio.parsePosition('G002', res);
   assert.equal(padded.pos, 2);
+  assert.equal(padded.codonPos, 2);   // no offset → same
   // wrong letter caught
   const wrong = bio.parsePosition('A2', res);
-  assert.match(wrong.error, /original es G/);
+  assert.match(wrong.error, /aminoácido es G/);
   // out of range
   assert.match(bio.parsePosition('99', res).error, /fuera del ORF/);
   // stop codon position rejected (pos 4 = TAA)
   assert.match(bio.parsePosition('4', res).error, /STOP/);
   // garbage
   assert.match(bio.parsePosition('abc', res).error, /no válido/);
+});
+
+test('parsePosition with a signal-peptide offset keeps wild-type numbering', () => {
+  // Construct (no signal peptide): M G A K D W * → residues 1..6.
+  // Wild-type had a 4-aa signal peptide, so offset = 1 - 4 = -3.
+  // Wild-type position 5 (should be the construct's residue 2 = Gly).
+  const res = bio.analyzeOrf('ATGGGTGCCAAAGATTGGTAA').residues; // M G A K D W *
+  const offset = 1 - 4;
+  const p = bio.parsePosition('G5', res, offset);
+  assert.equal(p.pos, 5, 'label keeps the wild-type number');
+  assert.equal(p.codonPos, 2, '5 - 4 + 1 = 2');
+  assert.equal(p.orig, 'G');
+  assert.equal(p.origCodon, 'GGT');
+  // The classic example: G223 with a 23-aa signal peptide → codon 201.
+  assert.equal(223 + (1 - 23), 201);
+  // A wild-type position that maps before the start (inside the signal peptide) errors.
+  assert.match(bio.parsePosition('2', res, offset).error, /péptido señal|antes del inicio/);
+  // Wrong letter still caught against the mapped residue.
+  assert.match(bio.parsePosition('A5', res, offset).error, /aminoácido es G/);
 });
 
 test('buildVariantNt swaps exactly one codon using the human-optimised codon', () => {
