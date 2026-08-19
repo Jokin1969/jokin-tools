@@ -552,7 +552,7 @@ function openShareModal(n) {
     $('sh-list').innerHTML = list.length ? list.map(u => `<label class="az-shitem ${allOn ? 'is-dim' : ''}"><input type="checkbox" data-u="${u.id}" ${checked.has(u.id) ? 'checked' : ''} ${allOn ? 'disabled' : ''}><span>${esc(u.name)}<small>${esc(u.email)}</small></span></label>`).join('') : '<div class="az-empty-sm">Sin usuarios que coincidan.</div>';
     $('sh-list').querySelectorAll('[data-u]').forEach(cb => cb.addEventListener('change', () => { const id = Number(cb.dataset.u); if (cb.checked) checked.add(id); else checked.delete(id); apply(); }));
   };
-  const updHead = () => { const t = $('sh-state'); if (t) t.textContent = allOn ? 'Visible para TODOS los usuarios.' : (checked.size ? `Compartida con ${checked.size} usuario(s).` : 'Privada (solo tú).'); };
+  const updHead = () => { const t = $('sh-state'); if (t) t.textContent = allOn ? 'Visible para todos los usuarios de esta app.' : (checked.size ? `Compartida con ${checked.size} usuario(s).` : 'Privada (solo tú).'); };
   openTool(`<div class="qt-modal-h"><h3>🔗 Compartir nota</h3><button class="qt-x" id="sh-close">×</button></div>
     <label class="az-shtoggle"><input type="checkbox" id="sh-all" ${allOn ? 'checked' : ''}> <b>Visible para todos</b></label>
     <div class="qt-tool-note" id="sh-state"></div>
@@ -965,7 +965,7 @@ function viewHelp() {
       <ul>
         <li><b>Crear</b>: «➕ Nueva nota». <b>Arrastra</b> por la cabecera para moverla y <b>redimensiona</b> por la esquina inferior derecha. La posición y el tamaño se guardan solos.</li>
         <li><b>Color</b>: los círculos de colores cambian el fondo al instante. <b>Texto</b>: se guarda solo al dejar de escribir.</li>
-        <li><b>Compartir</b> (🔗, solo en tus notas): «Visible para todos» o elige usuarios concretos. <b>Quien puede ver una nota también puede editarla</b> (es una conversación sobre el post-it). Solo el autor (o un administrador) puede borrarla o cambiar con quién se comparte.</li>
+        <li><b>Compartir</b> (🔗, solo en tus notas): «Visible para todos» o elige usuarios concretos. Solo aparecen los usuarios <b>con acceso a esta app</b> — las notas no se comparten con el resto del hub. <b>Quien puede ver una nota también puede editarla</b> (es una conversación sobre el post-it). Solo el autor (o un administrador) puede borrarla o cambiar con quién se comparte.</li>
         <li><b>🔔 Avisar (recados)</b>: al compartir puedes marcar la nota para que <b>avise</b> a los destinatarios al abrir la app. Se explica en la sección siguiente, <b>«Recados: avisar de una nota»</b>.</li>
       </ul>
       <div class="qt-note tip">El icono <b>🗒️</b> avisa: se pone <b>rojo con un contador</b> cuando tienes <b>notas nuevas sin ver</b>. Las pestañas con novedades muestran un punto. Al abrir un tablón, sus notas se marcan como vistas.</div>` },

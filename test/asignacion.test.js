@@ -10,11 +10,17 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'asig-test-'));
 process.env.QR_TIS_DB_PATH = path.join(dir, 'qr.db');
 process.env.DM_DB_PATH = path.join(dir, 'dm.db');
 process.env.ASIG_DB_PATH = path.join(dir, 'asig.db');
+process.env.DB_PATH = path.join(dir, 'auth.db');   // isolate the auth store too
 
 const express = require('express');
 const qrDb = require('../apps/qr-tis/db');
 const dmDb = require('../apps/datamatrix/db');
 const gs1 = require('../apps/datamatrix/gs1');
+const authStore = require('../apps/auth/store');
+// Seed the auth users the router keys off: 1 & 2 can access Asignación, 3 cannot.
+authStore.createUser({ email: 'u1@example.com', name: 'Uno',  password: 'password1', apps: ['asignacion'] });          // id 1
+authStore.createUser({ email: 'u2@example.com', name: 'Dos',  password: 'password1', apps: ['asignacion'] });          // id 2
+authStore.createUser({ email: 'u3@example.com', name: 'Tres', password: 'password1', apps: ['qr-tis'] });              // id 3 (sin Asignación)
 const router = require('../apps/asignacion/routes');
 
 // A tiny app that injects a logged-in user and mounts the real router.
@@ -436,4 +442,21 @@ test('post-its: alertas — avisar a los destinatarios, ver, apagar y re-avisar'
   const priv = (await call('PUT', `/notes/${n.id}`, { visibility: 'privada' })).data.item;
   assert.equal(priv.alert, 0, 'una nota privada no avisa');
   assert.ok(!(await call2('GET', '/notes/alerts')).data.items.some(x => x.id === n.id), 'sin acceso, sin alerta');
+});
+
+test('post-its: compartir se limita a usuarios con acceso a la app', async () => {
+  // El selector de compartir solo lista usuarios con acceso a Asignación (1 y 2), no el 3.
+  const users = (await call('GET', '/users')).data.items.map(u => u.id);
+  assert.ok(users.includes(1) && users.includes(2), 'lista a los usuarios con acceso');
+  assert.ok(!users.includes(3), 'NO lista a un usuario sin acceso a la app');
+
+  const board = (await call('GET', '/boards')).data.items[0].id;
+  const n = (await call('POST', '/notes', { board_id: board, content: 'para gente de la app', visibility: 'privada' })).data.item;
+  // Intentar compartir con el 2 (con acceso) y el 3 (sin acceso): solo se guarda el 2.
+  const up = (await call('PUT', `/notes/${n.id}`, { visibility: 'personalizada', viewer_ids: [2, 3] })).data.item;
+  assert.deepEqual(up.viewer_ids.sort(), [2], 'el destinatario sin acceso se descarta');
+
+  // Lo mismo al crear la nota directamente con viewers.
+  const n2 = (await call('POST', '/notes', { board_id: board, content: 'otra', visibility: 'personalizada', viewer_ids: [2, 3] })).data.item;
+  assert.deepEqual(n2.viewer_ids.sort(), [2], 'al crear también se filtra por acceso');
 });

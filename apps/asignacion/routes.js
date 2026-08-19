@@ -18,8 +18,15 @@ const dmVisual = require('../datamatrix/visual');
 const release = require('./release');
 const email = require('./email');
 const authStore = require('../auth/store');
+const { canAccess } = require('../auth/apps-registry');
 
 const router = express.Router();
+
+// Usuarios que pueden acceder a ESTA app: las notas solo se comparten entre
+// ellos, nunca con el resto del hub. (Un admin ve/entra en todas las apps.)
+const APP_ID = 'asignacion';
+function appUsers() { return authStore.listUsers().filter(u => canAccess(u, APP_ID)); }
+function appUserIds() { return new Set(appUsers().map(u => u.id)); }
 const PUB = path.join(__dirname, 'public');
 const json = express.json({ limit: '256kb' });
 
@@ -453,9 +460,10 @@ function canManageNote(note, req) { return note.author_id === req.user.id || isA
 function canManageBoard(b, req) { return b.author_id === req.user.id || isAdmin(req); }
 function noteView(n, req) { return { ...n, puede_gestionar: canManageNote(n, req), has_viewers: (n.viewer_ids || []).length > 0 }; }
 
-// Users (for the share modal).
+// Users (for the share modal). Solo los que tienen acceso a esta app: no se
+// expone al resto del hub ni se puede compartir una nota fuera de la app.
 router.get('/api/users', (req, res) => {
-  try { res.json({ items: authStore.listUsers().map(u => ({ id: u.id, name: u.name || u.email, email: u.email })), userId: req.user.id }); }
+  try { res.json({ items: appUsers().map(u => ({ id: u.id, name: u.name || u.email, email: u.email })), userId: req.user.id }); }
   catch (err) { fail(res, err); }
 });
 
@@ -494,7 +502,10 @@ router.post('/api/notes', json, (req, res) => {
     const b = req.body || {};
     if (!db.getBoard(Number(b.board_id))) throw bad('Tablón no válido.');
     const note = db.createNote({ board_id: Number(b.board_id), content: b.content, color: b.color, pos_x: b.pos_x, pos_y: b.pos_y, width: b.width, height: b.height, visibility: b.visibility }, req.user.id);
-    if (note.visibility === 'personalizada' && Array.isArray(b.viewer_ids)) db.setNoteViewers(note.id, b.viewer_ids.map(Number).filter(Number.isInteger));
+    if (note.visibility === 'personalizada' && Array.isArray(b.viewer_ids)) {
+      const allowed = appUserIds(); allowed.add(note.author_id);
+      db.setNoteViewers(note.id, b.viewer_ids.map(Number).filter(id => Number.isInteger(id) && allowed.has(id)));
+    }
     const full = { ...db.getNote(note.id), viewer_ids: db.noteViewers(note.id), is_new: false };
     res.status(201).json({ item: noteView(full, req) });
   } catch (err) { fail(res, err); }
@@ -511,7 +522,12 @@ router.put('/api/notes/:id(\\d+)', json, (req, res) => {
     const patch = {};
     for (const k of ['content', 'color', 'pos_x', 'pos_y', 'width', 'height', 'visibility', 'alert']) if (b[k] !== undefined) patch[k] = b[k];
     db.updateNote(note.id, patch, req.user.id);
-    if (b.viewer_ids !== undefined) db.setNoteViewers(note.id, (Array.isArray(b.viewer_ids) ? b.viewer_ids : []).map(Number).filter(Number.isInteger));
+    if (b.viewer_ids !== undefined) {
+      // Solo destinatarios con acceso a esta app (más el autor, que siempre puede).
+      const allowed = appUserIds(); allowed.add(note.author_id);
+      const ids = (Array.isArray(b.viewer_ids) ? b.viewer_ids : []).map(Number).filter(id => Number.isInteger(id) && allowed.has(id));
+      db.setNoteViewers(note.id, ids);
+    }
     const full = { ...db.getNote(note.id), viewer_ids: db.noteViewers(note.id) };
     res.json({ item: noteView(full, req) });
   } catch (err) { fail(res, err); }
