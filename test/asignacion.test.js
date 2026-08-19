@@ -159,9 +159,9 @@ test('release date: schedule, bucket due vs upcoming, and clear on assign', asyn
   assert.ok(lf.release_days > 0);
 
   // Notifications bucket them correctly.
-  let nt = (await call('GET', '/notifications')).data;
-  assert.ok(nt.due.some(e => e.line_id === lPast), 'past date is due');
-  assert.ok(nt.upcoming.some(e => e.line_id === lFut), 'future date is upcoming');
+  let nt = (await call('GET', '/release?mode=box&criterion=lte')).data;
+  assert.ok(nt.matched.some(e => e.line_id === lPast), 'past date is due');
+  assert.ok(nt.pending.some(e => e.line_id === lFut), 'future date is upcoming');
 
   // Overview surfaces the ready count for that person.
   const ov = (await call('GET', '/overview')).data;
@@ -169,8 +169,8 @@ test('release date: schedule, bucket due vs upcoming, and clear on assign', asyn
 
   // Assigning the ready box removes it from the notifications.
   await call('POST', `/line/${lPast}/assign`);
-  nt = (await call('GET', '/notifications')).data;
-  assert.ok(!nt.due.some(e => e.line_id === lPast), 'assigned box no longer notified');
+  nt = (await call('GET', '/release?mode=box&criterion=lte')).data;
+  assert.ok(!nt.matched.some(e => e.line_id === lPast), 'assigned box no longer notified');
 });
 
 test('invalid release date rejected; clearing resets the state', async () => {
@@ -268,4 +268,57 @@ test('release search results are alphabetical by person (apellidos, nombre)', as
   const names = data.matched.map(e => e.person.apellidos);
   const iA = names.indexOf('Álvarez'), iZ = names.indexOf('Zamora');
   assert.ok(iA >= 0 && iZ >= 0 && iA < iZ, 'Álvarez comes before Zamora alphabetically');
+});
+
+const asigDb = require('../apps/asignacion/db');
+
+test('notifications: CRUD, validation, toggle and preview', async () => {
+  // create requires recipients (and a date for 'once')
+  const badNoRcpt = await call('POST', '/notif', { ntype: 'any', criterion: 'exact', schedule_kind: 'once', once_date: '2026-09-01', send_time: '08:00', recipients: '' });
+  assert.equal(badNoRcpt.status, 400);
+  const badNoDate = await call('POST', '/notif', { ntype: 'any', schedule_kind: 'once', send_time: '08:00', recipients: 'a@b.com' });
+  assert.equal(badNoDate.status, 400);
+
+  const created = await call('POST', '/notif', { name: 'Diario', ntype: 'all', criterion: 'lte', schedule_kind: 'recurring', weekdays: '1,2,3,4,5', send_time: '08:30', recipients: 'a@b.com, mal, c@d.com' });
+  assert.equal(created.status, 201);
+  const id = created.data.item.id;
+  assert.equal(created.data.item.recipients, 'a@b.com, c@d.com');  // invalid dropped
+  assert.equal(created.data.item.weekdays, '1,2,3,4,5');
+
+  const list = await call('GET', '/notif');
+  assert.ok(list.data.items.some(n => n.id === id));
+  assert.ok(list.data.userEmail);
+
+  const tg = await call('POST', `/notif/${id}/toggle`);
+  assert.equal(tg.data.item.enabled, 0);
+
+  // preview returns HTML (0 people is fine)
+  const pv = await call('POST', '/notif/preview', { ntype: 'any', criterion: 'exact', ref_date: '2999-01-01', recipients: 'a@b.com', schedule_kind: 'once', once_date: '2999-01-01' });
+  assert.equal(pv.status, 200);
+  assert.match(pv.data.html, /<html/i);
+  assert.equal(typeof pv.data.count, 'number');
+
+  const del = await call('DELETE', `/notif/${id}`);
+  assert.equal(del.data.ok, true);
+  assert.ok(!(await call('GET', '/notif')).data.items.some(n => n.id === id));
+});
+
+test('dueNotifs fires by time/day and only once per day; once disables after send', () => {
+  const rec = asigDb.createNotif({ ntype: 'any', criterion: 'exact', schedule_kind: 'recurring', weekdays: '', send_time: '08:00', recipients: 'a@b.com', enabled: 1 }, 1);
+  assert.equal(asigDb.dueNotifs('2030-01-01', '07:59', 3).length, 0, 'before time');
+  assert.ok(asigDb.dueNotifs('2030-01-01', '08:00', 3).some(n => n.id === rec.id), 'at time');
+  asigDb.markNotifSent(rec.id, '2030-01-01');
+  assert.equal(asigDb.dueNotifs('2030-01-01', '09:00', 3).filter(n => n.id === rec.id).length, 0, 'not twice same day');
+  assert.ok(asigDb.dueNotifs('2030-01-02', '09:00', 3).some(n => n.id === rec.id), 'fires next day');
+
+  // weekday restriction
+  const wk = asigDb.createNotif({ ntype: 'any', criterion: 'exact', schedule_kind: 'recurring', weekdays: '1', send_time: '08:00', recipients: 'a@b.com', enabled: 1 }, 1);
+  assert.equal(asigDb.dueNotifs('2030-01-01', '09:00', 2).filter(n => n.id === wk.id).length, 0, 'wrong weekday');
+  assert.ok(asigDb.dueNotifs('2030-01-01', '09:00', 1).some(n => n.id === wk.id), 'right weekday');
+
+  // once disables after sending
+  const once = asigDb.createNotif({ ntype: 'any', criterion: 'exact', schedule_kind: 'once', once_date: '2030-02-02', send_time: '08:00', recipients: 'a@b.com', enabled: 1 }, 1);
+  assert.ok(asigDb.dueNotifs('2030-02-02', '09:00', 6).some(n => n.id === once.id));
+  asigDb.markNotifSent(once.id, '2030-02-02');
+  assert.equal(asigDb.getNotif(once.id).enabled, 0, 'one-time disabled after send');
 });

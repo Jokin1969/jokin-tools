@@ -18,6 +18,7 @@ const S = {
   search: [], searchQuery: '',
   person: null, ficha: null, ym: null,
   notif: { due: [], upcoming: [], counts: { due: 0, upcoming: 0 }, today: null },
+  peopleFilter: null,   // when set (array of ids), the home shows only these (from an email link)
 };
 
 // ── Tiny helpers ────────────────────────────────────────────────────────────────
@@ -125,8 +126,15 @@ async function boot() {
     S.settings = meta.settings; S.qrSettings = meta.qrSettings; S.month = meta.month; S.user = meta.user;
     $('help-btn').onclick = viewHelp;
     $('bell-btn').onclick = openNotifications;
-    $('go-home').onclick = (e) => { e.preventDefault(); viewHome(); };
+    $('notif-btn').onclick = openNotifManager;
+    $('go-home').onclick = (e) => { e.preventDefault(); S.peopleFilter = null; viewHome(); };
     await refreshNotifications();
+    // Deep links from the notification emails: ?person=<id> or ?people=<id,id,…>.
+    const params = new URLSearchParams(location.search);
+    const personId = Number(params.get('person'));
+    const peopleCsv = params.get('people');
+    if (personId) { await viewHome(); openPerson(personId); return; }
+    if (peopleCsv) { S.peopleFilter = peopleCsv.split(',').map(Number).filter(Boolean); await viewHome(); return; }
     await viewHome();
   } catch (e) { main().innerHTML = `<div class="qt-empty">No se pudo cargar: ${esc(e.message)}</div>`; }
 }
@@ -220,6 +228,113 @@ function openNotifications() {
   notifLoad(stt);
 }
 
+// ── Scheduled email notifications (manager) ──────────────────────────────────────
+let notifState = { items: [], userEmail: '' };
+const WD_LABELS = { '0': 'D', '1': 'L', '2': 'M', '3': 'X', '4': 'J', '5': 'V', '6': 'S' };
+async function openNotifManager() {
+  try { const d = await api('/notif'); notifState = { items: d.items, userEmail: d.userEmail || '' }; }
+  catch (e) { toast(e.message, 'err'); return; }
+  renderNotifList();
+}
+function fmtNotifSchedule(n) {
+  if (n.schedule_kind === 'once') return `una vez · ${fmtDate(n.once_date)} · ${n.send_time}`;
+  const days = (n.weekdays || '').split(',').filter(Boolean);
+  return `recurrente · ${days.length ? days.map(d => WD_LABELS[d] || d).join(' ') : 'todos los días'} · ${n.send_time}`;
+}
+function notifRowHtml(n) {
+  const type = n.ntype === 'all' ? 'Toda la medicación' : '≥1 medicamento';
+  const crit = n.criterion === 'lte' ? 'acumulado' : 'novedades del día';
+  const rc = (n.recipients || '').split(',').map(s => s.trim()).filter(Boolean);
+  return `<div class="az-notif ${n.enabled ? '' : 'is-off'}">
+    <div class="az-notif-body">
+      <b>${esc(n.name || type)}</b>
+      <small>${esc(type)} · ${esc(crit)} · ${esc(fmtNotifSchedule(n))}</small>
+      <small>✉️ ${rc.length ? esc(rc.join(', ')) : 'sin destinatarios'}${n.last_sent_date ? ' · último: ' + fmtDate(n.last_sent_date) : ''}</small>
+    </div>
+    <div class="az-notif-actions">
+      <button class="qt-toggle ${n.enabled ? 'on' : ''}" data-tg="${n.id}" title="Activar/desactivar">${n.enabled ? 'ON' : 'OFF'}</button>
+      <button class="qt-iconbtn" data-edit="${n.id}" title="Editar">✏️</button>
+      <button class="qt-iconbtn" data-send="${n.id}" title="Enviar ahora">✉️</button>
+      <button class="qt-iconbtn danger" data-del="${n.id}" title="Borrar">🗑</button>
+    </div>
+  </div>`;
+}
+function renderNotifList() {
+  openTool(`<div class="qt-modal-h"><h3>✉️ Notificaciones por email</h3><button class="qt-x" id="nt2-close">×</button></div>
+    <p class="qt-tool-note">Programa avisos: la app envía un email con las personas a las que les sale medicación (con su QR para Salud, los Data Matrix y enlaces a la app).</p>
+    <div style="margin-bottom:12px"><button class="qt-btn qt-btn-primary" id="nt2-new">➕ Nueva notificación</button></div>
+    <div class="az-notiflist">${notifState.items.length ? notifState.items.map(notifRowHtml).join('') : '<div class="az-empty-sm">Aún no hay notificaciones. Crea una con «Nueva notificación».</div>'}</div>`);
+  $('nt2-close').onclick = closeTool;
+  $('nt2-new').onclick = () => notifForm(null);
+  const box = $('tool-modal-box');
+  box.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => notifForm(notifState.items.find(x => x.id === Number(b.dataset.edit))));
+  box.querySelectorAll('[data-tg]').forEach(b => b.onclick = async () => { try { await api('/notif/' + b.dataset.tg + '/toggle', { method: 'POST' }); await openNotifManager(); } catch (e) { toast(e.message, 'err'); } });
+  box.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!(await confirmBox('Borrar notificación', '¿Borrar esta notificación programada?', 'Borrar'))) return; try { await api('/notif/' + b.dataset.del, { method: 'DELETE' }); await openNotifManager(); } catch (e) { toast(e.message, 'err'); } });
+  box.querySelectorAll('[data-send]').forEach(b => b.onclick = async () => { if (!(await confirmBox('Enviar ahora', '¿Enviar este email ahora a los destinatarios?', 'Enviar'))) return; try { const r = await api('/notif/' + b.dataset.send + '/send', jbody({})); toast(r.sent ? `Enviado · ${r.count} persona(s).` : 'No se envió (0 personas).'); } catch (e) { toast(e.message, 'err'); } });
+}
+function notifForm(n) {
+  const f = {
+    id: n ? n.id : null, name: n ? (n.name || '') : '', ntype: n ? n.ntype : 'any',
+    criterion: n ? n.criterion : 'exact', schedule_kind: n ? n.schedule_kind : 'once',
+    once_date: n && n.once_date ? n.once_date : todayIsoClient(), weekdays: n ? (n.weekdays || '') : '',
+    send_time: n ? n.send_time : '08:00', recipients: n ? n.recipients : (notifState.userEmail || ''),
+  };
+  const seg = (name, opts) => `<div class="az-seg" data-fseg="${name}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" class="${v === f[name] ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  const WD = [['1', 'L'], ['2', 'M'], ['3', 'X'], ['4', 'J'], ['5', 'V'], ['6', 'S'], ['0', 'D']];
+  const wdSet = new Set(f.weekdays.split(',').filter(Boolean));
+  openTool(`<div class="qt-modal-h"><h3>${f.id ? 'Editar' : 'Nueva'} notificación</h3><button class="qt-x" id="nf-close">×</button></div>
+    <div class="az-form">
+      <label class="az-flabel">Nombre (opcional)</label>
+      <input class="qt-input" id="nf-name" maxlength="120" value="${esc(f.name)}" placeholder="p. ej. Aviso diario 08:00">
+      <label class="az-flabel">Tipo de notificación</label>${seg('ntype', [['any', 'Al menos un medicamento'], ['all', 'Toda la medicación']])}
+      <label class="az-flabel">Criterio del día</label>${seg('criterion', [['exact', 'Novedades del día'], ['lte', 'Acumulado a la fecha']])}
+      <label class="az-flabel">Cuándo</label>${seg('schedule_kind', [['once', 'Una vez'], ['recurring', 'Recurrente']])}
+      <div id="nf-once" ${f.schedule_kind === 'once' ? '' : 'hidden'}><label class="az-flabel">Fecha</label><input type="date" class="qt-input" id="nf-date" value="${esc(f.once_date)}" style="max-width:200px"></div>
+      <div id="nf-rec" ${f.schedule_kind === 'recurring' ? '' : 'hidden'}><label class="az-flabel">Días de la semana <small>(ninguno = todos los días)</small></label>
+        <div class="az-wd">${WD.map(([v, l]) => `<label class="az-wd-item"><input type="checkbox" data-wd="${v}" ${wdSet.has(v) ? 'checked' : ''}> ${l}</label>`).join('')}</div></div>
+      <label class="az-flabel">Hora <small>(formato 24h / militar)</small></label>
+      <input type="time" class="qt-input" id="nf-time" value="${esc(f.send_time)}" style="max-width:150px">
+      <label class="az-flabel">Destinatarios <small>(emails separados por comas)</small></label>
+      <input class="qt-input" id="nf-rcpt" value="${esc(f.recipients)}" placeholder="tucorreo@ejemplo.com, otro@ejemplo.com">
+      <div class="qt-modal-actions" style="justify-content:flex-start;flex-wrap:wrap;gap:8px;margin-top:14px">
+        <button class="qt-btn qt-btn-primary" id="nf-save">💾 Guardar</button>
+        <button class="qt-btn qt-btn-ghost" id="nf-preview">👁 Vista previa</button>
+        ${f.id ? `<button class="qt-btn qt-btn-teal" id="nf-send">✉️ Enviar ahora</button>` : ''}
+        <button class="qt-btn qt-btn-ghost" id="nf-back">← Volver</button>
+      </div>
+      <div class="az-form-hint">La vista previa se abre en una pestaña nueva con la fecha de referencia (la del envío único, o hoy). «Enviar ahora» usa la versión guardada.</div>
+    </div>`);
+  $('nf-close').onclick = closeTool;
+  $('nf-back').onclick = () => renderNotifList();
+  $('tool-modal-box').querySelectorAll('.az-seg[data-fseg]').forEach(sg => sg.querySelectorAll('button').forEach(btn => btn.onclick = () => {
+    const name = sg.dataset.fseg; f[name] = btn.dataset.v; sg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn));
+    if (name === 'schedule_kind') { $('nf-once').hidden = f.schedule_kind !== 'once'; $('nf-rec').hidden = f.schedule_kind !== 'recurring'; }
+  }));
+  const readDraft = () => ({
+    name: $('nf-name').value, ntype: f.ntype, criterion: f.criterion, schedule_kind: f.schedule_kind,
+    once_date: $('nf-date') ? $('nf-date').value : '',
+    weekdays: [...$('tool-modal-box').querySelectorAll('[data-wd]:checked')].map(c => c.dataset.wd).join(','),
+    send_time: $('nf-time').value, recipients: $('nf-rcpt').value,
+  });
+  $('nf-save').onclick = async () => {
+    const d = readDraft();
+    try {
+      if (f.id) await api('/notif/' + f.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+      else await api('/notif', jbody(d));
+      toast('Notificación guardada.'); await openNotifManager();
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  $('nf-preview').onclick = async () => {
+    const d = readDraft(); d.ref_date = (d.schedule_kind === 'once' && d.once_date) ? d.once_date : todayIsoClient();
+    try { const r = await api('/notif/preview', jbody(d)); const w = window.open('', '_blank'); if (w) { w.document.write(r.html); w.document.close(); } else toast('Permite las ventanas emergentes para ver la vista previa.', 'err'); }
+    catch (e) { toast(e.message, 'err'); }
+  };
+  if ($('nf-send')) $('nf-send').onclick = async () => {
+    if (!(await confirmBox('Enviar ahora', '¿Enviar este email ahora a los destinatarios guardados?', 'Enviar'))) return;
+    try { const r = await api('/notif/' + f.id + '/send', jbody({})); toast(r.sent ? `Enviado · ${r.count} persona(s).` : 'No se envió.'); } catch (e) { toast(e.message, 'err'); }
+  };
+}
+
 // ── Home / panel ─────────────────────────────────────────────────────────────────
 async function viewHome() {
   S.view = 'home'; S.person = null; S.ficha = null;
@@ -228,7 +343,11 @@ async function viewHome() {
   renderHome();
 }
 function renderHome() {
-  const rows = S.overview;
+  const filtering = Array.isArray(S.peopleFilter) && S.peopleFilter.length;
+  const rows = filtering ? S.overview.filter(r => S.peopleFilter.includes(r.person.id)) : S.overview;
+  const banner = filtering
+    ? `<div class="az-filter-banner">👥 Mostrando <b>${rows.length}</b> persona(s) de una notificación. <a id="clear-filter">Ver todas →</a></div>`
+    : '';
   main().innerHTML =
     `<div class="qt-panel az-panel">
        <div class="qt-section-title">Asignación de medicación</div>
@@ -239,10 +358,12 @@ function renderHome() {
          <div id="pq-results" class="az-results"></div>
        </div>
 
+       ${banner}
        <div class="qt-section-title" style="margin-top:22px">En seguimiento (${rows.length})</div>
        <div class="qt-section-sub">Personas con plan o asignaciones. El estado es el del mes en curso.</div>
        <div id="ov-body">${overviewHtml(rows)}</div>
      </div>`;
+  if ($('clear-filter')) $('clear-filter').onclick = () => { S.peopleFilter = null; renderHome(); };
   const pq = $('pq');
   pq.addEventListener('input', () => { S.searchQuery = pq.value; searchPeople(pq.value); });
   if (S.searchQuery) searchPeople(S.searchQuery);
@@ -587,6 +708,17 @@ function viewHelp() {
       </ul>
       <p>Los resultados se separan en <b>✅ disponibles</b> y <b>🗓 aún no</b>. En modo por persona, cada fila muestra cuándo saldrán <b>todas</b> (o la primera) y un desplegable con cada caja y su fecha. Al pulsar te lleva a la ficha.</p>
       <div class="qt-note">Ej.: una persona con <b>3 cajas</b> y 3 fechas. En modo <b>«Todas las cajas»</b> solo te avisa cuando ya han salido las tres, para ir <b>una sola vez</b>. En <b>«Al menos una»</b> te avisa en cuanto sale la primera.</div>` },
+    { id: 'notificaciones', icon: '✉️', title: 'Notificaciones por email', html: `<p>El botón <b>✉️</b> (arriba) abre las <b>notificaciones programadas</b>: la app te envía por email un aviso con las personas a las que les sale medicación en Salud. Puedes crear varias, activarlas/desactivarlas, editarlas o borrarlas.</p>
+      <p>Al crear una eliges:</p>
+      <ul>
+        <li><b>Tipo</b>: <b>Al menos un medicamento</b> o <b>Toda la medicación</b> (agrupa por persona igual que la campana).</li>
+        <li><b>Criterio del día</b>: <b>Novedades del día</b> (lo que sale justo ese día) o <b>Acumulado a la fecha</b> (todo lo disponible para ese día).</li>
+        <li><b>Cuándo</b>: <b>Una vez</b> (fecha del calendario) o <b>Recurrente</b> (días de la semana; ninguno = todos los días).</li>
+        <li><b>Hora</b> en formato <b>24h (militar)</b>.</li>
+        <li><b>Destinatarios</b>: por defecto tu email; añade más separados por comas.</li>
+      </ul>
+      <p>El email es <b>bonito en HTML</b> e incluye, por cada persona: su <b>QR del TIS</b> (para abrir la app de Salud), sus <b>Data Matrix</b> con los datos de cada caja que le sale, un enlace <b>«Abrir ficha»</b> (va directo a esa persona en la app) y, arriba, <b>«Ver estas N personas en la app»</b> (abre el listado con solo ese grupo).</p>
+      <div class="qt-note tip">Pulsa <b>👁 Vista previa</b> para ver el email en una pestaña nueva antes de programarlo, y <b>✉️ Enviar ahora</b> para probarlo en el momento. El envío programado necesita el correo configurado en el servidor (SMTP).</div>` },
     { id: 'mes', icon: '📅', title: 'Control mensual', html: `<p>El control es <b>mensual</b>: cada mes es un <b>periodo</b> propio de la persona, con su propio recuento. Arriba en la ficha puedes <b>cambiar de mes</b> y <b>cerrar</b> un mes cuando esté completo (o <b>reabrirlo</b>).</p><p>Si Salud aún no ha liberado la medicación, deja las cajas <b>pre-asignadas</b> y vuelve más adelante (a veces varias veces al mes) para <b>asignarlas</b> cuando ya se pueda. El histórico de meses anteriores queda guardado.</p>` },
     { id: 'ficha', icon: '🪪', title: 'La ficha de la persona', html: `<p>La ficha muestra los <b>datos de la persona</b> y su <b>QR del TIS</b> bien grande (para escanearlo en la app de Salud), y cada caja como <b>Data Matrix en color</b> (mismo color por medicamento que en la app Data Matrix). Los <b>recuentos</b> de arriba resumen: plan, en la ficha, por asignar y asignadas.</p><p>Con los deslizadores <b>QR</b> y <b>DM</b> ajustas el tamaño de los códigos; el ajuste se recuerda.</p>` },
     { id: 'viajar', icon: '🔀', title: 'Saltar entre las apps', html: `<p>Arriba, junto al título, tienes el <b>selector</b> <b>QR (TIS) · Data Matrix · Asignación</b> para <b>cambiar de app</b> con un clic. La app en la que estás aparece resaltada.</p>` },

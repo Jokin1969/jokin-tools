@@ -75,6 +75,24 @@ db.exec(`
     updated_by    INTEGER,
     updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS asig_notif (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT,
+    ntype         TEXT NOT NULL DEFAULT 'any',       -- 'any' (≥1 medicamento) | 'all' (toda la medicación)
+    criterion     TEXT NOT NULL DEFAULT 'exact',     -- 'exact' (novedades del día) | 'lte' (acumulado ≤ fecha)
+    schedule_kind TEXT NOT NULL DEFAULT 'once',       -- 'once' | 'recurring'
+    once_date     TEXT,                               -- YYYY-MM-DD (once)
+    weekdays      TEXT,                               -- CSV 0-6 (recurring; vacío = todos los días)
+    send_time     TEXT NOT NULL DEFAULT '08:00',      -- HH:MM (24h)
+    recipients    TEXT NOT NULL DEFAULT '',           -- CSV de emails
+    enabled       INTEGER NOT NULL DEFAULT 1,
+    last_sent_date TEXT,                              -- YYYY-MM-DD del último envío
+    last_sent_at   DATETIME,
+    created_by    INTEGER,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Lightweight migration for DBs created before the release date existed.
@@ -196,6 +214,62 @@ function periodCounts(periodId) {
   return { preasignada: pre, asignada: asig, total: pre + asig };
 }
 
+// ── Scheduled email notifications ────────────────────────────────────────────────
+function listNotifs() { return db.prepare('SELECT * FROM asig_notif ORDER BY enabled DESC, send_time, id').all(); }
+function getNotif(id) { return db.prepare('SELECT * FROM asig_notif WHERE id = ?').get(id) || null; }
+function createNotif(data, userId) {
+  const info = db.prepare(
+    `INSERT INTO asig_notif (name, ntype, criterion, schedule_kind, once_date, weekdays, send_time, recipients, enabled, created_by)
+     VALUES (@name, @ntype, @criterion, @schedule_kind, @once_date, @weekdays, @send_time, @recipients, @enabled, @created_by)`
+  ).run({
+    name: data.name || null, ntype: data.ntype, criterion: data.criterion, schedule_kind: data.schedule_kind,
+    once_date: data.once_date || null, weekdays: data.weekdays || null, send_time: data.send_time,
+    recipients: data.recipients || '', enabled: data.enabled != null ? (data.enabled ? 1 : 0) : 1,
+    created_by: userId != null ? userId : null,
+  });
+  return getNotif(info.lastInsertRowid);
+}
+function updateNotif(id, data) {
+  const cur = getNotif(id); if (!cur) return null;
+  const n = {
+    name: data.name !== undefined ? (data.name || null) : cur.name,
+    ntype: data.ntype || cur.ntype, criterion: data.criterion || cur.criterion,
+    schedule_kind: data.schedule_kind || cur.schedule_kind,
+    once_date: data.once_date !== undefined ? (data.once_date || null) : cur.once_date,
+    weekdays: data.weekdays !== undefined ? (data.weekdays || null) : cur.weekdays,
+    send_time: data.send_time || cur.send_time,
+    recipients: data.recipients !== undefined ? (data.recipients || '') : cur.recipients,
+    enabled: data.enabled != null ? (data.enabled ? 1 : 0) : cur.enabled,
+  };
+  db.prepare(
+    `UPDATE asig_notif SET name=@name, ntype=@ntype, criterion=@criterion, schedule_kind=@schedule_kind,
+       once_date=@once_date, weekdays=@weekdays, send_time=@send_time, recipients=@recipients, enabled=@enabled,
+       updated_at=CURRENT_TIMESTAMP WHERE id=@id`
+  ).run({ ...n, id });
+  return getNotif(id);
+}
+function deleteNotif(id) { return db.prepare('DELETE FROM asig_notif WHERE id = ?').run(id).changes > 0; }
+function setNotifEnabled(id, on) { db.prepare('UPDATE asig_notif SET enabled=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(on ? 1 : 0, id); return getNotif(id); }
+// Mark a notification as fired today (and disable one-time ones so they don't repeat).
+function markNotifSent(id, dateIso) {
+  const n = getNotif(id); if (!n) return null;
+  db.prepare('UPDATE asig_notif SET last_sent_date=?, last_sent_at=CURRENT_TIMESTAMP, enabled=? WHERE id=?')
+    .run(dateIso, n.schedule_kind === 'once' ? 0 : n.enabled, id);
+  return getNotif(id);
+}
+// Notifications that should fire now (fire if the time has passed today, not sent
+// today, and today matches the schedule). `wd` is the day of week (0=Sun..6=Sat).
+function dueNotifs(dateIso, timeHhmm, wd) {
+  return listNotifs().filter(n => {
+    if (!n.enabled) return false;
+    if (n.last_sent_date === dateIso) return false;
+    if (String(n.send_time) > timeHhmm) return false;
+    if (n.schedule_kind === 'once') return n.once_date === dateIso;
+    const days = (n.weekdays || '').split(',').map(s => s.trim()).filter(Boolean);
+    return days.length === 0 || days.includes(String(wd));
+  });
+}
+
 // ── Settings ────────────────────────────────────────────────────────────────────
 function getSettings() {
   const row = db.prepare('SELECT * FROM asig_settings WHERE id = 1').get() || {};
@@ -220,5 +294,6 @@ module.exports = {
   listPlan, getPlanLine, planByGtin, upsertPlan, deletePlanLine, planPersonIds,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
   listLines, getLine, findLine, lineByItem, addLine, setLineState, setLineRelease, pendingReleaseLines, deleteLine, periodCounts,
+  listNotifs, getNotif, createNotif, updateNotif, deleteNotif, setNotifEnabled, markNotifSent, dueNotifs,
   getSettings, saveSettings,
 };

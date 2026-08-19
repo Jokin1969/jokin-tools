@@ -240,6 +240,7 @@ function shutdown(server, signal) {
   console.log(`[server] ${signal} received — shutting down…`);
   try { require('./apps/re-memory/cron').stopCron(); } catch { /* ignore */ }
   try { require('./apps/imprimir/poller').stopPolling(); } catch { /* ignore */ }
+  try { require('./apps/asignacion/cron').stopCron(); } catch { /* ignore */ }
   server.close(() => {
     try { authStore.db.close(); } catch { /* ignore */ }
     try { reMemoryDb.db.close(); } catch { /* ignore */ }
@@ -266,6 +267,10 @@ if (require.main === module) {
   // Start the email-to-print poller (no-op unless IMPRIMIR_ENABLED=true).
   try { require('./apps/imprimir/poller').startPolling(); }
   catch (e) { console.error('[imprimir] poller failed to start:', e.message); }
+
+  // Start the Asignación notification scheduler (sends the scheduled digests).
+  try { require('./apps/asignacion/cron').startCron(); }
+  catch (e) { console.error('[asignacion] cron failed to start:', e.message); }
 
   const server = app.listen(PORT, () => {
     console.log(`[server] Jokin's Tools running on port ${PORT}`);

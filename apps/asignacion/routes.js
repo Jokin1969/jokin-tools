@@ -15,6 +15,8 @@ const qrDb = require('../qr-tis/db');
 const dmDb = require('../datamatrix/db');
 const gs1 = require('../datamatrix/gs1');
 const dmVisual = require('../datamatrix/visual');
+const release = require('./release');
+const email = require('./email');
 
 const router = express.Router();
 const PUB = path.join(__dirname, 'public');
@@ -375,91 +377,70 @@ router.delete('/api/line/:id(\\d+)', (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
-// ── Notifications (boxes whose Salud release date has arrived / is coming) ───────
-function notifications() {
-  const today = todayIso();
-  const due = [], upcoming = [];
-  for (const ln of db.pendingReleaseLines()) {
-    const p = qrDb.getPerson(ln.person_id);
-    if (!p) continue; // person removed
-    const item = dmDb.getItem(ln.item_id);
-    const pr = db.getPeriod(ln.period_id);
-    const entry = {
-      line_id: ln.id, ym: pr ? pr.ym : null,
-      person: { id: p.id, nombre: p.nombre, apellidos: p.apellidos, tis: p.tis },
-      box: item ? { nombre: item.nombre || null, gtin: item.gtin || null, serial: item.serial || null,
-        caducidad: item.caducidad || null, color: dmVisual.resolveColor(item.gtin, item.color), shape: dmVisual.resolveShape(item.gtin, item.shape) } : null,
-      release_at: ln.release_at, days: daysUntil(ln.release_at),
-    };
-    if (ln.release_at <= today) due.push(entry); else upcoming.push(entry);
-  }
-  return { today, due, upcoming, counts: { due: due.length, upcoming: upcoming.length } };
-}
-router.get('/api/notifications', (req, res) => {
-  try { res.json(notifications()); } catch (err) { fail(res, err); }
+// ── Release search (by date/criterion) + per-person aggregation ─────────────────
+router.get('/api/release', (req, res) => {
+  try { res.json(release.releaseSearch(req.query || {})); } catch (err) { fail(res, err); }
 });
 
-// ── Release search (by date/criterion) + per-person aggregation ─────────────────
-// Groups every still-reserved box that carries a release date, by person.
-function releaseGroups() {
-  const byId = new Map();
-  for (const ln of db.pendingReleaseLines()) {
-    const p = qrDb.getPerson(ln.person_id);
-    if (!p) continue;
-    const item = dmDb.getItem(ln.item_id);
-    const pr = db.getPeriod(ln.period_id);
-    if (!byId.has(p.id)) byId.set(p.id, { person: { id: p.id, nombre: p.nombre, apellidos: p.apellidos, tis: p.tis }, boxes: [] });
-    byId.get(p.id).boxes.push({
-      line_id: ln.id, ym: pr ? pr.ym : null, release_at: ln.release_at, days: daysUntil(ln.release_at),
-      box: item ? { nombre: item.nombre || null, gtin: item.gtin || null, serial: item.serial || null,
-        caducidad: item.caducidad || null, color: dmVisual.resolveColor(item.gtin, item.color), shape: dmVisual.resolveShape(item.gtin, item.shape) } : null,
-    });
+// ── Scheduled email notifications ────────────────────────────────────────────────
+function cleanNotif(b, forCreate) {
+  const out = {};
+  out.name = b.name != null ? String(b.name).trim().slice(0, 120) : null;
+  out.ntype = b.ntype === 'all' ? 'all' : 'any';
+  out.criterion = b.criterion === 'lte' ? 'lte' : 'exact';
+  out.schedule_kind = b.schedule_kind === 'recurring' ? 'recurring' : 'once';
+  out.once_date = cleanDate(b.once_date);
+  const wd = String(b.weekdays || '').split(',').map(s => s.trim()).filter(s => /^[0-6]$/.test(s));
+  out.weekdays = [...new Set(wd)].sort().join(',') || null;
+  out.send_time = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(b.send_time || '')) ? b.send_time : '08:00';
+  out.recipients = email.parseRecipients(b.recipients).join(', ');
+  if (b.enabled !== undefined) out.enabled = b.enabled ? 1 : 0;
+  if (forCreate) {
+    if (out.schedule_kind === 'once' && !out.once_date) throw bad('Elige la fecha del envío único.');
+    if (!out.recipients) throw bad('Añade al menos un destinatario de email válido.');
   }
-  return byId;
+  return out;
 }
-
-// Search/aggregate the release dates.
-//   date      — reference date (default today)
-//   criterion — 'lte' (released on/before date) | 'exact' (released exactly that day)
-//   mode      — 'box' (one entry per box) | 'all' (person ready when ALL out) | 'any' (when any out)
-function releaseSearch(q) {
-  const today = todayIso();
-  const date = cleanDate(q.date) || today;
-  const criterion = q.criterion === 'exact' ? 'exact' : 'lte';
-  const mode = ['box', 'all', 'any'].includes(q.mode) ? q.mode : (db.getSettings().notify_mode || 'all');
-  const sat = (rel) => criterion === 'exact' ? rel === date : rel <= date;
-  // Alphabetical by person (apellidos, nombre); for boxes, release date as tie-break.
-  const nameKey = p => `${p.apellidos} ${p.nombre}`;
-  const byName = (a, b) => nameKey(a.person).localeCompare(nameKey(b.person), 'es', { sensitivity: 'base' });
-  const groups = [...releaseGroups().values()];
-  const matched = [], pending = [];
-
-  if (mode === 'box') {
-    for (const g of groups) for (const b of g.boxes) {
-      (sat(b.release_at) ? matched : pending).push({ person: g.person, ...b });
-    }
-    const cmp = (a, b) => byName(a, b) || a.release_at.localeCompare(b.release_at);
-    matched.sort(cmp);
-    pending.sort(cmp);
-  } else {
-    for (const g of groups) {
-      const dates = g.boxes.map(b => b.release_at);
-      const aggDate = mode === 'all' ? dates.reduce((m, d) => (d > m ? d : m)) : dates.reduce((m, d) => (d < m ? d : m));
-      const ready = mode === 'all' ? g.boxes.every(b => sat(b.release_at)) : g.boxes.some(b => sat(b.release_at));
-      const entry = {
-        person: g.person, aggDate, aggDays: daysUntil(aggDate), total: g.boxes.length,
-        releasedByToday: g.boxes.filter(b => b.release_at <= today).length,
-        boxes: g.boxes.map(b => ({ ...b, satisfied: sat(b.release_at) })).sort((a, b) => a.release_at.localeCompare(b.release_at)),
-      };
-      (ready ? matched : pending).push(entry);
-    }
-    matched.sort(byName);
-    pending.sort(byName);
-  }
-  return { today, date, criterion, mode, matched, pending, counts: { matched: matched.length, pending: pending.length } };
-}
-router.get('/api/release', (req, res) => {
-  try { res.json(releaseSearch(req.query || {})); } catch (err) { fail(res, err); }
+router.get('/api/notif', (req, res) => {
+  try { res.json({ items: db.listNotifs(), userEmail: req.user.email }); } catch (err) { fail(res, err); }
+});
+router.post('/api/notif', json, (req, res) => {
+  try { res.status(201).json({ item: db.createNotif(cleanNotif(req.body || {}, true), req.user.id) }); } catch (err) { fail(res, err); }
+});
+router.put('/api/notif/:id(\\d+)', json, (req, res) => {
+  try {
+    const cur = db.getNotif(Number(req.params.id));
+    if (!cur) return res.status(404).json({ error: 'Notificación no encontrada.' });
+    const patch = cleanNotif({ ...cur, ...req.body }, true);
+    res.json({ item: db.updateNotif(cur.id, patch) });
+  } catch (err) { fail(res, err); }
+});
+router.post('/api/notif/:id(\\d+)/toggle', (req, res) => {
+  try { const n = db.getNotif(Number(req.params.id)); if (!n) return res.status(404).json({ error: 'No encontrada.' }); res.json({ item: db.setNotifEnabled(n.id, !n.enabled) }); }
+  catch (err) { fail(res, err); }
+});
+router.delete('/api/notif/:id(\\d+)', (req, res) => {
+  try { const ok = db.deleteNotif(Number(req.params.id)); if (!ok) return res.status(404).json({ error: 'No encontrada.' }); res.json({ ok: true }); }
+  catch (err) { fail(res, err); }
+});
+// Preview the email HTML for a draft (no send). Accepts a full notif body.
+router.post('/api/notif/preview', json, async (req, res) => {
+  try {
+    const draft = cleanNotif(req.body || {}, false);
+    const refDate = cleanDate(req.body && req.body.ref_date) || release.todayIso();
+    const p = await email.previewHtml(draft, refDate);
+    res.json({ html: p.html, count: p.count, subject: p.subject, refDate });
+  } catch (err) { fail(res, err); }
+});
+// Send a saved notification right now (test). refDate defaults to today.
+router.post('/api/notif/:id(\\d+)/send', json, async (req, res) => {
+  try {
+    const n = db.getNotif(Number(req.params.id));
+    if (!n) return res.status(404).json({ error: 'No encontrada.' });
+    const refDate = cleanDate(req.body && req.body.ref_date) || release.todayIso();
+    const r = await email.sendNotif(n, refDate, { force: true });
+    res.json({ ok: true, ...r });
+  } catch (err) { fail(res, err); }
 });
 
 // ── Settings (ficha display sizes) ───────────────────────────────────────────────

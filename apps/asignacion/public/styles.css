@@ -590,3 +590,21 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-note-sub { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.75rem; color: var(--ink); }
 .az-note-sub .st-due { color: #128a5b; font-weight: 700; }
 .az-note-sub .st-soon { color: #8a5a00; font-weight: 700; }
+
+/* ── Scheduled notifications (email) ────────────────────────────────────────── */
+.az-notif-btn { min-width: 40px; }
+.az-filter-banner { margin-top: 14px; background: #eef6fc; border: 1px solid #cfe4f6; border-radius: 10px; padding: 8px 12px; font-size: 0.85rem; color: var(--ink); }
+.az-filter-banner a { color: var(--brand); font-weight: 700; cursor: pointer; }
+.az-notiflist { display: flex; flex-direction: column; gap: 8px; max-height: 56vh; overflow: auto; }
+.az-notif { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fff; }
+.az-notif.is-off { opacity: 0.6; }
+.az-notif-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.az-notif-body b { color: var(--ink); font-size: 0.9rem; }
+.az-notif-body small { color: var(--muted); font-size: 0.74rem; }
+.az-notif-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.az-form { display: flex; flex-direction: column; gap: 4px; }
+.az-flabel { font-size: 0.8rem; font-weight: 700; color: var(--ink); margin-top: 12px; }
+.az-flabel small { font-weight: 500; color: var(--muted); }
+.az-wd { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.az-wd-item { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; font-size: 0.8rem; font-weight: 700; color: var(--ink); cursor: pointer; }
+.az-form-hint { font-size: 0.72rem; color: var(--muted); margin-top: 10px; line-height: 1.5; }
