@@ -94,6 +94,34 @@ test('variantCodon preserves RNA alphabet and codonDistance counts nt changes', 
   assert.equal(bio.codonDistance('GCC', 'GCC'), 0);
 });
 
+test('parseSubstitution validates a single change and derives the original', () => {
+  const res = bio.analyzeOrf('ATGGGTGCCAAAGATTGGTAA').residues; // M G A K D W *
+  const ok = bio.parseSubstitution('G2V', res);
+  assert.equal(ok.orig, 'G'); assert.equal(ok.pos, 2); assert.equal(ok.newAA, 'V'); assert.equal(ok.name, 'G002V');
+  // original letter optional (derived)
+  assert.equal(bio.parseSubstitution('2V', res).name, 'G002V');
+  // wrong original letter
+  assert.match(bio.parseSubstitution('A2V', res).error, /aminoácido es G/);
+  // "no change" rejected
+  assert.match(bio.parseSubstitution('G2G', res).error, /no modifica/);
+  // invalid new AA / format
+  assert.match(bio.parseSubstitution('G2B', res).error, /aminoácido válido|no es una sustitución/);
+  assert.match(bio.parseSubstitution('hello', res).error, /no es una sustitución/);
+  // with a signal-peptide offset the position stays wild-type in the name
+  const off = 1 - 4; // 4-aa signal peptide
+  const sig = bio.parseSubstitution('G5V', res, off);
+  assert.equal(sig.codonPos, 2); assert.equal(sig.name, 'G005V');
+});
+
+test('parseSubList parses many, flags errors and duplicates', () => {
+  const res = bio.analyzeOrf('ATGGGTGCCAAAGATTGGTAA').residues; // M G A K D W *
+  const list = bio.parseSubList('G2V, A3L, G2V, K4R, D5*, oops', res);
+  const valid = list.filter(x => x.valid).map(x => x.name);
+  assert.deepEqual(valid, ['G002V', 'A003L', 'K004R']);
+  // second G2V flagged as duplicate; D5* invalid (stop as target); oops invalid
+  assert.equal(list.filter(x => !x.valid).length, 3);
+});
+
 test('the 19 variants exclude the original amino acid', () => {
   const orig = 'G';
   const variants = bio.AA_ORDER.filter(a => a !== orig);

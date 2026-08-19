@@ -953,11 +953,12 @@ function updateExecuteBtn() {
       const hasOld = dnaReplaceInput.oldSeq.trim().length > 0;
       if (dnaReplaceInput.bulkMode && dnaReplaceInput.bulkSubmode === 'saturate') {
         const st = dnaSatState();
-        const n = st.selected ? st.selected.length : 0;
+        const n = st.constructs ? st.constructs.length : 0;
         ready = hasFile && !st.error && n > 0;
         if (!hasFile)        setStatus('Carga un fichero .dna de SnapGene', '');
         else if (st.error)   setStatus(st.error, '');
-        else if (!n)         setStatus('Selecciona al menos un aminoácido', '');
+        else if (!n)         setStatus('Selecciona al menos una variante', '');
+        else if (st.mode === 'list') setStatus(`${n} sustitución(es) lista(s) para generar`, '');
         else setStatus(`${n} variante(s) de ${st.parsed.orig}${String(st.parsed.pos).padStart(3, '0')} lista(s) para generar`, '');
       } else if (dnaReplaceInput.bulkMode) {
         const validRows = dnaParseBulk(dnaReplaceInput.bulkText, dnaReplaceInput.bulkHeader).filter(r => r.valid).length;
@@ -3312,6 +3313,10 @@ let dnaReplaceInput = {
   satFeatSuffix: '',       // optional feature-name suffix
   satHasSignal: true,      // does the gene include its signal peptide?
   satSignalLen: '',        // signal-peptide length (aa) when it's absent
+  satVariantMode: 'position', // 'position' (19 AAs at one pos) | 'list' (specific changes)
+  satList: '',             // comma-separated substitutions (e.g. "G223A, D45V")
+  satListSel: null,        // selected substitution names (null = all valid)
+  satListKey: '',          // identity of the current valid list (to reset selection)
 };
 
 const DNA_FEATURE_TYPES = [
@@ -3944,7 +3949,7 @@ function renderDnaReplaceUI() {
   clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
   clearBtn.addEventListener('click', () => {
     if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
-    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'CDS', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false, bulkSubmode: 'manual', satPos: '', satAAs: null, satKey: '', satPrefix: '', satSuffix: '', satAddFeat: true, satFeatPrefix: '', satFeatSuffix: '', satHasSignal: true, satSignalLen: '' };
+    dnaReplaceInput = { file: null, oldSeq: '', newSeq: '', addFeature: true, featName: '', featType: 'CDS', featColor: '#a6acb3', deleteOverlap: true, shiftCoords: true, renameDoc: true, docName: '', bulkMode: false, bulkText: '', bulkHeader: false, bulkSubmode: 'manual', satPos: '', satAAs: null, satKey: '', satPrefix: '', satSuffix: '', satAddFeat: true, satFeatPrefix: '', satFeatSuffix: '', satHasSignal: true, satSignalLen: '', satVariantMode: 'position', satList: '', satListSel: null, satListKey: '' };
     const res = $('dna-replace-results');
     if (res) res.remove();
     resetExecuteBar();
@@ -4301,46 +4306,60 @@ function dnaSatState() {
   const off = dnaSatOffset();
   if (off.error) return { oldSeq, analyze, error: off.error };
   const { offset, signalLen } = off;
+  const mode = dnaReplaceInput.satVariantMode === 'list' ? 'list' : 'position';
+  const base = { oldSeq, analyze, offset, signalLen, mode };
+
+  if (mode === 'list') {
+    const subs = BWBio.parseSubList(dnaReplaceInput.satList, analyze.residues, offset);
+    const valid = subs.filter(s => s.valid);
+    if (!valid.length) return { ...base, subs, selected: [], constructs: [], error: dnaReplaceInput.satList.trim() ? 'Ninguna sustitución válida en la lista.' : 'Escribe las sustituciones (por ejemplo G223A, D45V).' };
+    const key = valid.map(s => s.name).join(',');
+    let selNames;
+    if (Array.isArray(dnaReplaceInput.satListSel) && dnaReplaceInput.satListKey === key) selNames = dnaReplaceInput.satListSel.filter(n => valid.some(s => s.name === n));
+    else selNames = valid.map(s => s.name);
+    const constructs = valid.filter(s => selNames.includes(s.name)).map(s => ({ codonPos: s.codonPos, name: s.name, newAA: s.newAA }));
+    return { ...base, subs, valid, key, selNames, constructs, selected: constructs };
+  }
+
+  // Position mode: all (selected) amino acids at one position.
   const parsed = BWBio.parsePosition(dnaReplaceInput.satPos, analyze.residues, offset);
-  if (parsed.error) return { oldSeq, analyze, parsed, offset, signalLen, error: parsed.error };
+  if (parsed.error) return { ...base, parsed, error: parsed.error };
   const key = parsed.codonPos + parsed.orig;
   const all19 = BWBio.AA_ORDER.filter(a => a !== parsed.orig);
-  let selected;
-  if (Array.isArray(dnaReplaceInput.satAAs) && dnaReplaceInput.satKey === key) {
-    selected = dnaReplaceInput.satAAs.filter(a => a !== parsed.orig && BWBio.AA_ORDER.includes(a));
-  } else {
-    selected = all19.slice();   // default: all 19
-  }
-  return { oldSeq, analyze, parsed, orig: parsed.orig, all19, selected, key, offset, signalLen };
+  let selAAs;
+  if (Array.isArray(dnaReplaceInput.satAAs) && dnaReplaceInput.satKey === key) selAAs = dnaReplaceInput.satAAs.filter(a => a !== parsed.orig && BWBio.AA_ORDER.includes(a));
+  else selAAs = all19.slice();
+  const posLabel = String(parsed.pos).padStart(3, '0');
+  const constructs = selAAs.map(aa => ({ codonPos: parsed.codonPos, name: `${parsed.orig}${posLabel}${aa}`, newAA: aa }));
+  return { ...base, parsed, orig: parsed.orig, all19, selAAs, key, constructs, selected: constructs };
 }
 
 async function runDnaSaturate() {
   const st = dnaSatState();
   if (st.error) throw new Error(st.error);
-  if (!st.selected.length) throw new Error('Selecciona al menos un aminoácido para generar variantes.');
-  const { oldSeq, parsed, selected } = st;
+  if (!st.constructs.length) throw new Error('Selecciona al menos una variante para generar.');
+  const { oldSeq, constructs, mode } = st;
   const prefix = dnaReplaceInput.satPrefix || '';
   const suffix = dnaReplaceInput.satSuffix || '';
   const featPrefix = dnaReplaceInput.satFeatPrefix || '';
   const featSuffix = dnaReplaceInput.satFeatSuffix || '';
   const addFeat = dnaReplaceInput.satAddFeat !== false;
-  const posLabel = String(parsed.pos).padStart(3, '0');  // wild-type number (for names)
-  const rows = selected.map(aa => {
-    const mut = `${parsed.orig}${posLabel}${aa}`;
-    return {
-      name: `${prefix}${mut}${suffix}`,
-      seq: BWBio.buildVariantNt(oldSeq, parsed.codonPos, aa),   // real codon in the ORF
-      feat: `${featPrefix}${mut}${featSuffix}`,                 // used only when renaming the CDS
-    };
-  });
-  const sig = st.signalLen ? ` · sin péptido señal (${st.signalLen} aa; codón ${parsed.codonPos})` : '';
+  const rows = constructs.map(c => ({
+    name: `${prefix}${c.name}${suffix}`,
+    seq: BWBio.buildVariantNt(oldSeq, c.codonPos, c.newAA),   // real codon in the ORF
+    feat: `${featPrefix}${c.name}${featSuffix}`,              // used only when renaming the CDS
+  }));
+  const sig = st.signalLen ? ` · sin péptido señal (${st.signalLen} aa)` : '';
+  const label = mode === 'list'
+    ? `Sustituciones concretas (${constructs.length}; codón óptimo humano)${sig}`
+    : `Saturación de la posición ${st.parsed.orig}${String(st.parsed.pos).padStart(3, '0')} (codón óptimo humano)${sig}`;
+  const zipPrefix = mode === 'list' ? 'sustituciones' : `saturacion-${st.parsed.orig}${String(st.parsed.pos).padStart(3, '0')}`;
   await dnaRunRows(oldSeq, rows, [], {
     // Change only the codon and rename the doc. Optionally rename the ORF's CDS
     // feature per variant (no duplicate features); keep every other feature.
     deleteOverlap: false, shiftCoords: false, addFeature: false, renameCds: addFeat,
     featType: 'CDS', featColor: '#a6acb3',
-    zipPrefix: `saturacion-${parsed.orig}${posLabel}`,
-    reportLabel: `Saturación de la posición ${parsed.orig}${posLabel} (codón óptimo humano)${sig}`,
+    zipPrefix, reportLabel: label,
   });
 }
 
@@ -4399,17 +4418,49 @@ function renderDnaSatPanel(container, oldTa) {
     syncSig();
     panelRoot.appendChild(sigField);
 
-    // Position
-    const posField = mk('div', 'bw-field'); posField.style.marginTop = '10px';
-    posField.appendChild(mk('label', null, 'Posición del aminoácido a mutar (numeración wild-type)'));
-    const posHint = mk('div', null, 'Escribe el número (p. ej. 168) o con su aminoácido (p. ej. G168 — se comprueba que coincide). La primera Met es M001.');
-    posHint.style.cssText = `font-family:${MONO};font-size:0.7rem;color:var(--text-dim);margin:2px 0 6px;`;
-    posField.appendChild(posHint);
-    const posIn = document.createElement('input');
-    posIn.type = 'text'; posIn.className = 'bw-input'; posIn.style.maxWidth = '200px';
-    posIn.placeholder = 'p. ej. 168 o G168'; posIn.value = dnaReplaceInput.satPos;
-    posField.appendChild(posIn);
-    panelRoot.appendChild(posField);
+    // Variant mode: all AAs at one position, or specific changes across positions.
+    const listMode = dnaReplaceInput.satVariantMode === 'list';
+    const vmField = mk('div', 'bw-field'); vmField.style.marginTop = '10px';
+    vmField.appendChild(mk('label', null, '¿Qué cambios generar?'));
+    const vmSeg = mk('div');
+    vmSeg.style.cssText = 'display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:4px;flex-wrap:wrap;';
+    const mkVm = (label, active) => { const b = mk('button', null, label); b.type = 'button'; b.style.cssText = `font-size:0.78rem;padding:7px 14px;border:none;cursor:pointer;background:${active ? 'var(--accent,#1E5FB8)' : 'var(--bg-card)'};color:${active ? '#fff' : 'var(--text-muted)'};font-weight:${active ? '600' : '400'};`; return b; };
+    const vmPos = mkVm('Todas las variantes de una posición', !listMode);
+    const vmList = mkVm('Cambios concretos (lista)', listMode);
+    vmPos.addEventListener('click', () => { if (dnaReplaceInput.satVariantMode !== 'position') { dnaReplaceInput.satVariantMode = 'position'; paint(); updateExecuteBtn(); } });
+    vmList.addEventListener('click', () => { if (dnaReplaceInput.satVariantMode !== 'list') { dnaReplaceInput.satVariantMode = 'list'; paint(); updateExecuteBtn(); } });
+    vmSeg.appendChild(vmPos); vmSeg.appendChild(vmList);
+    vmField.appendChild(vmSeg);
+    panelRoot.appendChild(vmField);
+
+    if (!listMode) {
+      // Position input (all amino acids at that position).
+      const posField = mk('div', 'bw-field'); posField.style.marginTop = '10px';
+      posField.appendChild(mk('label', null, 'Posición del aminoácido a mutar (numeración wild-type)'));
+      const posHint = mk('div', null, 'Escribe el número (p. ej. 168) o con su aminoácido (p. ej. G168 — se comprueba que coincide). La primera Met es M001.');
+      posHint.style.cssText = `font-family:${MONO};font-size:0.7rem;color:var(--text-dim);margin:2px 0 6px;`;
+      posField.appendChild(posHint);
+      const posIn = document.createElement('input');
+      posIn.type = 'text'; posIn.className = 'bw-input'; posIn.style.maxWidth = '200px';
+      posIn.placeholder = 'p. ej. 168 o G168'; posIn.value = dnaReplaceInput.satPos;
+      posIn.addEventListener('input', () => { dnaReplaceInput.satPos = posIn.value; renderGrid(); updateExecuteBtn(); });
+      posField.appendChild(posIn);
+      panelRoot.appendChild(posField);
+    } else {
+      // Substitution list (specific changes across positions).
+      const listField = mk('div', 'bw-field'); listField.style.marginTop = '10px';
+      listField.appendChild(mk('label', null, 'Sustituciones (numeración wild-type)'));
+      const listHint = mk('div', null, 'Escríbelas separadas por comas, p. ej. «G223A, D45V, K102R». Se comprueba cada una (posición y aminoácido original) y podrás desmarcar las que no quieras. Puedes omitir el aminoácido original (p. ej. 223A).');
+      listHint.style.cssText = `font-family:${MONO};font-size:0.7rem;color:var(--text-dim);margin:2px 0 6px;line-height:1.5;`;
+      listField.appendChild(listHint);
+      const listIn = document.createElement('textarea');
+      listIn.className = 'bw-input bw-textarea'; listIn.rows = 2; listIn.spellcheck = false;
+      listIn.style.cssText = `font-family:${MONO};`;
+      listIn.placeholder = 'G223A, D45V, K102R'; listIn.value = dnaReplaceInput.satList;
+      listIn.addEventListener('input', () => { dnaReplaceInput.satList = listIn.value; renderGrid(); updateExecuteBtn(); });
+      listField.appendChild(listIn);
+      panelRoot.appendChild(listField);
+    }
 
     // Name: prefix + mutation + suffix
     const preField = mk('div', 'bw-field'); preField.style.marginTop = '8px';
@@ -4472,6 +4523,68 @@ function renderDnaSatPanel(container, oldTa) {
         grid.appendChild(e);
         return;
       }
+
+      // ── List mode: specific substitutions across positions ──────────────────
+      if (dnaReplaceInput.satVariantMode === 'list') {
+        const subs = BWBio.parseSubList(dnaReplaceInput.satList, analyze.residues, off.offset);
+        if (!subs.length) {
+          const e = mk('div', null, 'Escribe las sustituciones (por ejemplo G223A, D45V) para comprobarlas.');
+          e.style.cssText = 'font-size:0.78rem;color:var(--text-dim);padding:6px 0;';
+          grid.appendChild(e); return;
+        }
+        const valid = subs.filter(s => s.valid);
+        const key = valid.map(s => s.name).join(',');
+        if (dnaReplaceInput.satListKey !== key || !Array.isArray(dnaReplaceInput.satListSel)) {
+          dnaReplaceInput.satListKey = key;
+          dnaReplaceInput.satListSel = valid.map(s => s.name);
+        }
+        const sel = new Set(dnaReplaceInput.satListSel);
+        const head = mk('div');
+        head.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;';
+        const info = mk('div'); info.style.cssText = `font-family:${MONO};font-size:0.76rem;color:var(--text-muted);`;
+        info.innerHTML = `<b>${valid.length}</b> sustitución(es) válida(s)${subs.length - valid.length ? ` · <span style="color:#f5524b">${subs.length - valid.length} con error</span>` : ''}. Marca las que quieras generar:`;
+        head.appendChild(info);
+        const btnAll = mk('button', 'bw-btn bw-btn-cancel'); btnAll.type = 'button'; btnAll.textContent = 'Todas'; btnAll.style.cssText = 'font-size:0.72rem;padding:4px 10px;';
+        const btnNone = mk('button', 'bw-btn bw-btn-cancel'); btnNone.type = 'button'; btnNone.textContent = 'Ninguna'; btnNone.style.cssText = 'font-size:0.72rem;padding:4px 10px;';
+        btnAll.addEventListener('click', () => { dnaReplaceInput.satListSel = valid.map(s => s.name); renderGrid(); updateExecuteBtn(); });
+        btnNone.addEventListener('click', () => { dnaReplaceInput.satListSel = []; renderGrid(); updateExecuteBtn(); });
+        head.appendChild(btnAll); head.appendChild(btnNone);
+        grid.appendChild(head);
+
+        const cells = mk('div');
+        cells.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;';
+        for (const s of subs) {
+          if (!s.valid) {
+            const bad = mk('div');
+            bad.style.cssText = 'border:1px solid #e7c9c9;border-radius:7px;padding:5px 8px;background:#fbf2f2;';
+            bad.innerHTML = `<span style="font-family:${MONO};font-size:0.72rem;color:#b3403a">✕ ${s.error}</span>`;
+            cells.appendChild(bad); continue;
+          }
+          const codon = BWBio.variantCodon(s.newAA, oldSeq);
+          const dist = BWBio.codonDistance(s.origCodon, codon);
+          const on = sel.has(s.name);
+          const lab = mk('label');
+          lab.style.cssText = `display:flex;align-items:center;gap:7px;border:1px solid ${on ? 'var(--accent,#1E5FB8)' : 'var(--border)'};border-radius:7px;padding:5px 8px;cursor:pointer;background:${on ? 'rgba(30,95,184,0.08)' : 'var(--bg-card)'};`;
+          const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = on;
+          cb.addEventListener('change', () => { const set = new Set(dnaReplaceInput.satListSel); if (cb.checked) set.add(s.name); else set.delete(s.name); dnaReplaceInput.satListSel = valid.map(v => v.name).filter(n => set.has(n)); renderGrid(); updateExecuteBtn(); });
+          const codonNote = off.offset ? ` · codón ${s.codonPos}` : '';
+          const txt = mk('span'); txt.style.cssText = `font-family:${MONO};font-size:0.73rem;`;
+          txt.innerHTML = `<b>${s.name}</b> · ${BWBio.AA_NAMES[s.orig]}→${BWBio.AA_NAMES[s.newAA]}${codonNote} · ${codon} <span style="color:var(--text-dim)">(${dist} nt)</span>`;
+          lab.appendChild(cb); lab.appendChild(txt);
+          cells.appendChild(lab);
+        }
+        grid.appendChild(cells);
+
+        const count = mk('div'); count.style.cssText = `font-family:${MONO};font-size:0.74rem;color:var(--text-muted);margin-top:8px;`;
+        const chosen = valid.filter(s => sel.has(s.name));
+        const prefix = dnaReplaceInput.satPrefix || '', suffix = dnaReplaceInput.satSuffix || '';
+        count.innerHTML = chosen.length
+          ? `Se generarán <b>${chosen.length}</b> construcción(es): ${chosen.slice(0, 6).map(s => `${prefix}${s.name}${suffix}`).join(', ')}${chosen.length > 6 ? '…' : ''}`
+          : 'No hay ninguna sustitución seleccionada.';
+        grid.appendChild(count);
+        return;
+      }
+
       const parsed = BWBio.parsePosition(dnaReplaceInput.satPos, analyze.residues, off.offset);
       if (parsed.error) {
         const e = mk('div', null, dnaReplaceInput.satPos ? parsed.error : 'Escribe una posición para ver las 19 variantes.');
@@ -4536,7 +4649,6 @@ function renderDnaSatPanel(container, oldTa) {
       grid.appendChild(count);
     };
 
-    posIn.addEventListener('input', () => { dnaReplaceInput.satPos = posIn.value; renderGrid(); updateExecuteBtn(); });
     preIn.addEventListener('input', () => { dnaReplaceInput.satPrefix = preIn.value; renderGrid(); updateExecuteBtn(); });
     sufIn.addEventListener('input', () => { dnaReplaceInput.satSuffix = sufIn.value; renderGrid(); updateExecuteBtn(); });
     renderGrid();

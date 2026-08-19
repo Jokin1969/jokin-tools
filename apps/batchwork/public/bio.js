@@ -111,6 +111,39 @@
     return { pos, codonPos, orig: r.aa, origCodon: r.codon };
   }
 
+  // Parse a single substitution like "G223A" (or "223A" — original derived): the
+  // original amino acid (optional, validated), the position (wild-type), and the
+  // new amino acid. Uses the same signal-peptide `offset` as parsePosition.
+  // Returns { orig, pos, codonPos, origCodon, newAA, name } or { error }.
+  function parseSubstitution(input, residues, offset) {
+    const raw = String(input == null ? '' : input).trim();
+    if (!raw) return { error: 'Sustitución vacía.' };
+    const s = raw.toUpperCase();
+    const m = s.match(/^([A-Z*]?)0*(\d+)([A-Z*])$/);
+    if (!m) return { error: `«${raw}» no es una sustitución válida (usa por ejemplo G223A).` };
+    const origL = m[1], digits = m[2], newL = m[3];
+    if (!AA_ORDER.includes(newL)) return { error: `«${raw}»: «${newL}» no es un aminoácido válido.` };
+    const p = parsePosition(origL + digits, residues, offset);
+    if (p.error) return { error: `«${raw}»: ${p.error}` };
+    if (newL === p.orig) return { error: `«${raw}»: el cambio no modifica el aminoácido (ya es ${p.orig}).` };
+    return { orig: p.orig, pos: p.pos, codonPos: p.codonPos, origCodon: p.origCodon, newAA: newL, name: `${p.orig}${String(p.pos).padStart(3, '0')}${newL}` };
+  }
+
+  // Parse a comma/semicolon/newline-separated list of substitutions. Returns one
+  // entry per token: { raw, valid, error?, ...parseSubstitution fields }. Duplicate
+  // (same resulting name) valid entries are marked invalid after the first.
+  function parseSubList(text, residues, offset) {
+    const tokens = String(text == null ? '' : text).split(/[,;\n]+/).map(t => t.trim()).filter(Boolean);
+    const seen = new Set();
+    return tokens.map(raw => {
+      const r = parseSubstitution(raw, residues, offset);
+      if (r.error) return { raw, valid: false, error: r.error };
+      if (seen.has(r.name)) return { raw, valid: false, error: `«${raw}»: repetida (${r.name}).`, ...r };
+      seen.add(r.name);
+      return { raw, valid: true, ...r };
+    });
+  }
+
   // Codon that will be used to encode `aa` (human-optimised). Preserves the RNA
   // alphabet if the template sequence uses U instead of T.
   function variantCodon(aa, likeSeq) {
@@ -143,6 +176,6 @@
 
   return {
     GENETIC_CODE, HUMAN_CODON, AA_NAMES, AA_ORDER, AA_GROUP,
-    cleanNt, translateCodon, analyzeOrf, parsePosition, variantCodon, codonDistance, buildVariantNt,
+    cleanNt, translateCodon, analyzeOrf, parsePosition, parseSubstitution, parseSubList, variantCodon, codonDistance, buildVariantNt,
   };
 });
