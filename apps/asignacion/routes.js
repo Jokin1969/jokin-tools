@@ -428,6 +428,9 @@ function releaseSearch(q) {
   const criterion = q.criterion === 'exact' ? 'exact' : 'lte';
   const mode = ['box', 'all', 'any'].includes(q.mode) ? q.mode : (db.getSettings().notify_mode || 'all');
   const sat = (rel) => criterion === 'exact' ? rel === date : rel <= date;
+  // Alphabetical by person (apellidos, nombre); for boxes, release date as tie-break.
+  const nameKey = p => `${p.apellidos} ${p.nombre}`;
+  const byName = (a, b) => nameKey(a.person).localeCompare(nameKey(b.person), 'es', { sensitivity: 'base' });
   const groups = [...releaseGroups().values()];
   const matched = [], pending = [];
 
@@ -435,8 +438,9 @@ function releaseSearch(q) {
     for (const g of groups) for (const b of g.boxes) {
       (sat(b.release_at) ? matched : pending).push({ person: g.person, ...b });
     }
-    matched.sort((a, b) => a.release_at.localeCompare(b.release_at));
-    pending.sort((a, b) => a.release_at.localeCompare(b.release_at));
+    const cmp = (a, b) => byName(a, b) || a.release_at.localeCompare(b.release_at);
+    matched.sort(cmp);
+    pending.sort(cmp);
   } else {
     for (const g of groups) {
       const dates = g.boxes.map(b => b.release_at);
@@ -449,8 +453,8 @@ function releaseSearch(q) {
       };
       (ready ? matched : pending).push(entry);
     }
-    matched.sort((a, b) => a.aggDate.localeCompare(b.aggDate));
-    pending.sort((a, b) => a.aggDate.localeCompare(b.aggDate));
+    matched.sort(byName);
+    pending.sort(byName);
   }
   return { today, date, criterion, mode, matched, pending, counts: { matched: matched.length, pending: pending.length } };
 }

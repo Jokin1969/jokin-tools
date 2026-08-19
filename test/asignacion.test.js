@@ -251,3 +251,21 @@ test('notify_mode persists in settings', async () => {
   assert.ok(meta.settings.ficha_qr_size > 0);
   await call('PUT', '/settings', { notify_mode: 'all' });
 });
+
+test('release search results are alphabetical by person (apellidos, nombre)', async () => {
+  // Two people whose boxes are already out; expect Álvarez before Zamora.
+  const mk = (ph, nom, ape, tis) => qrDb.createPerson({ pharmacy_no: ph, nombre: nom, apellidos: ape, tis }, 1).id;
+  const pA = mk('44444', 'Zoe', 'Álvarez', '00044444');
+  const pZ = mk('55555', 'Ana', 'Zamora', '00055555');
+  for (const [pid, key, serial] of [[pA, 'ORDA', 'OA'], [pZ, 'ORDZ', 'OZ']]) {
+    const it = dmDb.createItem({ raw: 'R-' + key, box_key: key, gtin: GTIN, serial }, 1).id;
+    await call('POST', `/person/${pid}/preassign`, { item_id: it, ym: '2026-10' });
+    const f = (await call('GET', `/person/${pid}/ficha?ym=2026-10`)).data;
+    const line = f.lines.find(l => l.item_id === it).id;
+    await call('PUT', `/line/${line}/release`, { date: '2020-01-01' });
+  }
+  const data = (await call('GET', '/release?mode=any&criterion=lte')).data;
+  const names = data.matched.map(e => e.person.apellidos);
+  const iA = names.indexOf('Álvarez'), iZ = names.indexOf('Zamora');
+  assert.ok(iA >= 0 && iZ >= 0 && iA < iZ, 'Álvarez comes before Zamora alphabetically');
+});
