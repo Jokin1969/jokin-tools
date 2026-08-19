@@ -34,6 +34,7 @@ function cleanYm(v) { const s = String(v == null ? '' : v).trim(); return /^\d{4
 function todayIso() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 // Whole days from today to an ISO date (negative = already past). null if no date.
 function daysUntil(iso) { if (!iso) return null; const a = new Date(todayIso() + 'T00:00:00'), b = new Date(iso + 'T00:00:00'); if (isNaN(b)) return null; return Math.round((b - a) / 86400000); }
+function cleanDate(v) { const s = String(v == null ? '' : v).trim(); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null; }
 
 // ── Views of the two foreign records ─────────────────────────────────────────────
 function parseGroups(str) { return String(str == null ? '' : str).split('\n').map(s => s.trim()).filter(Boolean); }
@@ -398,15 +399,75 @@ router.get('/api/notifications', (req, res) => {
   try { res.json(notifications()); } catch (err) { fail(res, err); }
 });
 
+// ── Release search (by date/criterion) + per-person aggregation ─────────────────
+// Groups every still-reserved box that carries a release date, by person.
+function releaseGroups() {
+  const byId = new Map();
+  for (const ln of db.pendingReleaseLines()) {
+    const p = qrDb.getPerson(ln.person_id);
+    if (!p) continue;
+    const item = dmDb.getItem(ln.item_id);
+    const pr = db.getPeriod(ln.period_id);
+    if (!byId.has(p.id)) byId.set(p.id, { person: { id: p.id, nombre: p.nombre, apellidos: p.apellidos, tis: p.tis }, boxes: [] });
+    byId.get(p.id).boxes.push({
+      line_id: ln.id, ym: pr ? pr.ym : null, release_at: ln.release_at, days: daysUntil(ln.release_at),
+      box: item ? { nombre: item.nombre || null, gtin: item.gtin || null, serial: item.serial || null,
+        caducidad: item.caducidad || null, color: dmVisual.resolveColor(item.gtin, item.color), shape: dmVisual.resolveShape(item.gtin, item.shape) } : null,
+    });
+  }
+  return byId;
+}
+
+// Search/aggregate the release dates.
+//   date      — reference date (default today)
+//   criterion — 'lte' (released on/before date) | 'exact' (released exactly that day)
+//   mode      — 'box' (one entry per box) | 'all' (person ready when ALL out) | 'any' (when any out)
+function releaseSearch(q) {
+  const today = todayIso();
+  const date = cleanDate(q.date) || today;
+  const criterion = q.criterion === 'exact' ? 'exact' : 'lte';
+  const mode = ['box', 'all', 'any'].includes(q.mode) ? q.mode : (db.getSettings().notify_mode || 'all');
+  const sat = (rel) => criterion === 'exact' ? rel === date : rel <= date;
+  const groups = [...releaseGroups().values()];
+  const matched = [], pending = [];
+
+  if (mode === 'box') {
+    for (const g of groups) for (const b of g.boxes) {
+      (sat(b.release_at) ? matched : pending).push({ person: g.person, ...b });
+    }
+    matched.sort((a, b) => a.release_at.localeCompare(b.release_at));
+    pending.sort((a, b) => a.release_at.localeCompare(b.release_at));
+  } else {
+    for (const g of groups) {
+      const dates = g.boxes.map(b => b.release_at);
+      const aggDate = mode === 'all' ? dates.reduce((m, d) => (d > m ? d : m)) : dates.reduce((m, d) => (d < m ? d : m));
+      const ready = mode === 'all' ? g.boxes.every(b => sat(b.release_at)) : g.boxes.some(b => sat(b.release_at));
+      const entry = {
+        person: g.person, aggDate, aggDays: daysUntil(aggDate), total: g.boxes.length,
+        releasedByToday: g.boxes.filter(b => b.release_at <= today).length,
+        boxes: g.boxes.map(b => ({ ...b, satisfied: sat(b.release_at) })).sort((a, b) => a.release_at.localeCompare(b.release_at)),
+      };
+      (ready ? matched : pending).push(entry);
+    }
+    matched.sort((a, b) => a.aggDate.localeCompare(b.aggDate));
+    pending.sort((a, b) => a.aggDate.localeCompare(b.aggDate));
+  }
+  return { today, date, criterion, mode, matched, pending, counts: { matched: matched.length, pending: pending.length } };
+}
+router.get('/api/release', (req, res) => {
+  try { res.json(releaseSearch(req.query || {})); } catch (err) { fail(res, err); }
+});
+
 // ── Settings (ficha display sizes) ───────────────────────────────────────────────
 router.put('/api/settings', json, (req, res) => {
   try {
     const b = req.body || {}, d = db.DEFAULT_SETTINGS;
     const clamp = (n, lo, hi, dflt) => { const x = Math.round(Number(n)); return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : dflt; };
-    res.json({ settings: db.saveSettings({
-      ficha_qr_size: clamp(b.ficha_qr_size, 120, 600, d.ficha_qr_size),
-      ficha_dm_size: clamp(b.ficha_dm_size, 80, 320, d.ficha_dm_size),
-    }, req.user.id) });
+    const patch = {};                                   // only touch the fields provided
+    if (b.ficha_qr_size !== undefined) patch.ficha_qr_size = clamp(b.ficha_qr_size, 120, 600, d.ficha_qr_size);
+    if (b.ficha_dm_size !== undefined) patch.ficha_dm_size = clamp(b.ficha_dm_size, 80, 320, d.ficha_dm_size);
+    if (b.notify_mode !== undefined) patch.notify_mode = ['all', 'any', 'box'].includes(b.notify_mode) ? b.notify_mode : d.notify_mode;
+    res.json({ settings: db.saveSettings(patch, req.user.id) });
   } catch (err) { fail(res, err); }
 });
 

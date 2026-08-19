@@ -131,35 +131,93 @@ async function boot() {
   } catch (e) { main().innerHTML = `<div class="qt-empty">No se pudo cargar: ${esc(e.message)}</div>`; }
 }
 
-// ── Notifications (release-date bell) ────────────────────────────────────────────
+// ── Notifications / release-date search (bell) ───────────────────────────────────
+function todayIsoClient() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+const NOTIF_MODES = [['all', 'Todas las cajas'], ['any', 'Al menos una'], ['box', 'Por caja']];
+
+// Bell badge: how many are "ready to assign" today, under the saved grouping mode.
 async function refreshNotifications() {
-  try { S.notif = await api('/notifications'); } catch (e) { /* keep previous */ }
+  const mode = (S.settings && S.settings.notify_mode) || 'all';
+  try { S.rel = await api('/release?criterion=lte&mode=' + mode); } catch (e) { return; }
   const badge = $('bell-count'); if (!badge) return;
-  const n = S.notif.counts ? S.notif.counts.due : 0;
+  const n = S.rel.counts ? S.rel.counts.matched : 0;
   badge.textContent = n; badge.hidden = !n;
   $('bell-btn').classList.toggle('has-due', !!n);
 }
-function notifRow(e, kind) {
+
+// One box (mode 'box').
+function notifBoxRow(e, matched) {
   const b = e.box;
-  const when = kind === 'due'
-    ? `<span class="az-note-when st-due">✅ ${e.days === 0 ? 'hoy' : e.days < 0 ? 'desde hace ' + Math.abs(e.days) + ' día(s)' : ''} · ${fmtDate(e.release_at)}</span>`
-    : `<span class="az-note-when st-soon">🗓 en ${e.days} día(s) · ${fmtDate(e.release_at)}</span>`;
+  const when = matched
+    ? `<span class="az-note-when st-due">✅ ${e.days === 0 ? 'hoy' : e.days < 0 ? 'desde hace ' + Math.abs(e.days) + ' día(s)' : fmtDate(e.release_at)} · ${fmtDate(e.release_at)}</span>`
+    : `<span class="az-note-when st-soon">🗓 ${e.days > 0 ? 'en ' + e.days + ' día(s)' : ''} · ${fmtDate(e.release_at)}</span>`;
   return `<button class="az-note" data-open="${e.person.id}" data-ym="${esc(e.ym || '')}">
     <span class="az-note-shape">${b ? shapeSvg(b.shape, b.color, 18) : '📦'}</span>
     <span class="az-note-body"><b>${esc(e.person.apellidos)}, ${esc(e.person.nombre)}</b><small>${esc(b && b.nombre || 'Medicamento')}${b && b.serial ? ' · Nº ' + esc(b.serial) : ''}</small></span>
     ${when}
   </button>`;
 }
+// One person aggregating their pending boxes (mode 'all' / 'any').
+function notifPersonRow(e, mode) {
+  const done = e.aggDays <= 0;
+  const agg = done
+    ? (mode === 'all' ? '✅ todas ya han salido' : '✅ ya ha salido alguna')
+    : (mode === 'all' ? `todas salen el ${fmtDate(e.aggDate)} · faltan ${e.aggDays} día(s)` : `la primera sale el ${fmtDate(e.aggDate)} · faltan ${e.aggDays} día(s)`);
+  const ym = (e.boxes[0] && e.boxes[0].ym) || '';
+  const boxes = e.boxes.map(b => `<div class="az-note-sub"><span>${b.box ? shapeSvg(b.box.shape, b.box.color, 12) : '📦'} ${esc(b.box && b.box.nombre || 'Medicamento')}${b.box && b.box.serial ? ' · Nº ' + esc(b.box.serial) : ''}</span><span class="${b.satisfied ? 'st-due' : 'st-soon'}">${b.satisfied ? '✅' : '🗓'} ${fmtDate(b.release_at)}</span></div>`).join('');
+  return `<div class="az-note-person">
+    <div class="az-note-person-h">
+      <button class="az-note az-note-flex" data-open="${e.person.id}" data-ym="${esc(ym)}">
+        <span class="az-note-body"><b>${esc(e.person.apellidos)}, ${esc(e.person.nombre)}</b><small>${esc(agg)} · ${e.releasedByToday}/${e.total} ya salida(s)</small></span>
+      </button>
+      <button class="az-note-exp" data-exp="${e.person.id}" title="Ver las cajas">▾ ${e.total}</button>
+    </div>
+    <div class="az-note-boxes" id="exp-${e.person.id}" hidden>${boxes}</div>
+  </div>`;
+}
+function notifResultsHtml(data) {
+  const rowFn = (data.mode === 'box') ? (e, m) => notifBoxRow(e, m) : (e) => notifPersonRow(e, data.mode);
+  const isToday = data.date === data.today;
+  const okLabel = data.criterion === 'exact'
+    ? `Salen exactamente el ${fmtDate(data.date)}`
+    : (isToday ? 'Ya se pueden asignar (hoy)' : `Disponibles para el ${fmtDate(data.date)}`);
+  const noLabel = data.criterion === 'exact' ? `Otras fechas` : (isToday ? 'Próximas a liberar' : `Aún no, para el ${fmtDate(data.date)}`);
+  const sec = (title, arr, ok) => `<div class="az-note-sec"><div class="az-note-h">${ok ? '✅' : '🗓'} ${title} (${arr.length})</div>${arr.length ? `<div class="az-notelist">${arr.map(e => rowFn(e, ok)).join('')}</div>` : '<div class="az-empty-sm">Nada aquí.</div>'}</div>`;
+  return sec(okLabel, data.matched, true) + sec(noLabel, data.pending, false);
+}
+async function notifLoad(stt) {
+  const results = $('nt-results'); if (!results) return;
+  results.innerHTML = '<div class="az-empty-sm">Cargando…</div>';
+  const params = new URLSearchParams({ criterion: stt.criterion, mode: stt.mode });
+  if (stt.date) params.set('date', stt.date);
+  let data;
+  try { data = await api('/release?' + params.toString()); } catch (e) { results.innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; return; }
+  S.rel = data;
+  results.innerHTML = notifResultsHtml(data);
+  results.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { closeTool(); openPerson(Number(b.dataset.open), b.dataset.ym || undefined); }));
+  results.querySelectorAll('[data-exp]').forEach(h => h.addEventListener('click', () => { const box = document.getElementById('exp-' + h.dataset.exp); if (box) box.hidden = !box.hidden; }));
+}
 function openNotifications() {
-  const d = S.notif.due || [], u = S.notif.upcoming || [];
-  openTool(`<div class="qt-modal-h"><h3>🔔 Avisos de liberación</h3><button class="qt-x" id="nt-close">×</button></div>
-    <p class="qt-tool-note">Cajas <b>pre-asignadas</b> con fecha prevista de liberación en la aplicación de Salud.</p>
-    <div class="az-note-sec"><div class="az-note-h">✅ Ya se pueden asignar (${d.length})</div>
-      ${d.length ? `<div class="az-notelist">${d.map(e => notifRow(e, 'due')).join('')}</div>` : '<div class="az-empty-sm">Nada pendiente de asignar por fecha.</div>'}</div>
-    <div class="az-note-sec"><div class="az-note-h">🗓 Próximas a liberar (${u.length})</div>
-      ${u.length ? `<div class="az-notelist">${u.map(e => notifRow(e, 'soon')).join('')}</div>` : '<div class="az-empty-sm">No hay próximas programadas.</div>'}</div>`);
+  const stt = { date: todayIsoClient(), criterion: 'lte', mode: (S.settings && S.settings.notify_mode) || 'all' };
+  const seg = (name, opts, cur) => `<div class="az-seg" data-seg="${name}">${opts.map(([v, l]) => `<button data-v="${v}" class="${v === cur ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  openTool(`<div class="qt-modal-h"><h3>🔔 Liberación en Salud</h3><button class="qt-x" id="nt-close">×</button></div>
+    <p class="qt-tool-note">Cajas <b>pre-asignadas</b> con fecha prevista de salir (liberarse) en la aplicación de Salud. Hasta que no salen, no puedes asignarlas.</p>
+    <div class="az-note-ctl">
+      <label>Avisar por: ${seg('mode', NOTIF_MODES, stt.mode)}</label>
+      <label>Criterio: ${seg('criterion', [['lte', 'En o antes de'], ['exact', 'Fecha exacta']], stt.criterion)}</label>
+      <label>Fecha: <input type="date" id="nt-date" class="qt-input" value="${stt.date}"></label>
+    </div>
+    <div id="nt-results"></div>`);
   $('nt-close').onclick = closeTool;
-  $('tool-modal-box').querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { closeTool(); openPerson(Number(b.dataset.open), b.dataset.ym || undefined); }));
+  $('tool-modal-box').querySelectorAll('.az-seg').forEach(seg => seg.querySelectorAll('button').forEach(btn => btn.addEventListener('click', async () => {
+    const name = seg.dataset.seg, v = btn.dataset.v;
+    seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn));
+    stt[name] = v;
+    if (name === 'mode') { S.settings.notify_mode = v; try { await api('/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notify_mode: v }) }); } catch {} refreshNotifications(); }
+    notifLoad(stt);
+  })));
+  $('nt-date').addEventListener('change', () => { stt.date = $('nt-date').value || todayIsoClient(); notifLoad(stt); });
+  notifLoad(stt);
 }
 
 // ── Home / panel ─────────────────────────────────────────────────────────────────
@@ -520,7 +578,15 @@ function viewHelp() {
     { id: 'plan', icon: '💊', title: '2) Plan de medicación', html: `<p>Cada persona tiene un <b>plan</b>: los medicamentos que toma habitualmente y <b>cuántas cajas al mes</b> de cada uno. Los medicamentos <b>solo pueden salir de Data Matrix</b>; si falta alguno, se añade allí (escaneando una caja o importando el catálogo).</p><p>El plan <b>se guarda y se repite cada mes</b>, así no hay que reintroducirlo. Con <b>«➕ Añadir medicamento»</b> lo amplías; con el número <b>× N</b> ajustas las cajas/mes; y la 🗑 lo quita del plan (no toca las cajas ya asignadas).</p>` },
     { id: 'preasignar', icon: '🔗', title: '3) Pre-asignar cajas', html: `<p>Para cada medicamento del plan, reserva una <b>caja real</b> con <b>«🔗 Pre-asignar»</b> (o «➕ Añadir DM»). Puedes:</p><ul><li><b>Elegir del inventario</b>: una caja «sin utilizar» de ese medicamento que ya esté en Data Matrix.</li><li><b>Escanear / pegar</b> su Data Matrix: si la caja no estaba en Data Matrix, <b>se crea allí</b> automáticamente como pre-asignada.</li></ul><p>La caja queda <b>🔗 Pre-asignada</b>: reservada para esa persona pero <b>sigue en stock</b> (no se ha dispensado). Este estado <b>también se ve en la app Data Matrix</b>, para que las dos apps nunca se descuadren.</p>` },
     { id: 'asignar', icon: '✅', title: '4) Asignar de verdad', html: `<p>Cuando ya la asignas en la aplicación de <b>Salud</b>, pulsa <b>«✅ Asignar»</b> sobre esa caja. Pasa a <b>✓ Asignada</b> (se marca <b>utilizada</b> en Data Matrix, sale del inventario) y su Data Matrix se pone en <b>gris</b>.</p><div class="qt-note tip">Los <b>tres estados</b> de una caja: <b>Sin utilizar</b> → <b>🔗 Pre-asignada</b> (reservada) → <b>✓ Asignada</b> (= utilizada). Puedes <b>↩ Revertir</b> una asignación (vuelve a pre-asignada) o <b>🗑 quitar</b> la caja de la ficha (se libera la reserva y, si estaba asignada, vuelve al inventario).</div>` },
-    { id: 'liberacion', icon: '🗓️', title: 'Fecha de liberación y avisos 🔔', html: `<p>A veces Salud <b>todavía no ha liberado</b> un Data Matrix y no se puede asignar. En esa caja pre-asignada, pulsa <b>🗓</b> y anota la <b>fecha prevista de liberación</b>.</p><p>Ese día, la caja aparece en la <b>campana 🔔</b> (arriba) dentro de <b>«✅ Ya se pueden asignar»</b>, y mientras tanto la verás en <b>«🗓 Próximas a liberar»</b> con los días que faltan. Cada aviso te lleva directo a la ficha de esa persona.</p><div class="qt-note">Así <b>no hay que recordar</b> cuándo volver: la app avisa sola. La campana muestra un contador rojo de cuántas cajas ya se pueden asignar.</div>` },
+    { id: 'liberacion', icon: '🗓️', title: 'Fecha de liberación, búsqueda y avisos 🔔', html: `<p>A veces Salud <b>todavía no ha liberado</b> un Data Matrix (aún no se puede retirar/asignar). En esa caja pre-asignada, pulsa <b>🗓</b> y anota la <b>fecha prevista de liberación</b>.</p>
+      <p>La <b>campana 🔔</b> (arriba) abre el buscador de liberación con tres controles:</p>
+      <ul>
+        <li><b>Avisar por</b>: <b>Todas las cajas</b> (una persona aparece como lista solo cuando ya han salido <i>todas</i> sus cajas pendientes — un único viaje), <b>Al menos una</b> (en cuanto sale la primera) o <b>Por caja</b> (una por una). Lo que elijas se recuerda y manda el contador rojo de la campana.</li>
+        <li><b>Criterio</b>: <b>En o antes de</b> una fecha (lo que ya se podrá asignar para esa fecha) o <b>Fecha exacta</b> (lo que sale justo ese día).</li>
+        <li><b>Fecha</b>: por defecto hoy; cámbiala para planificar.</li>
+      </ul>
+      <p>Los resultados se separan en <b>✅ disponibles</b> y <b>🗓 aún no</b>. En modo por persona, cada fila muestra cuándo saldrán <b>todas</b> (o la primera) y un desplegable con cada caja y su fecha. Al pulsar te lleva a la ficha.</p>
+      <div class="qt-note">Ej.: una persona con <b>3 cajas</b> y 3 fechas. En modo <b>«Todas las cajas»</b> solo te avisa cuando ya han salido las tres, para ir <b>una sola vez</b>. En <b>«Al menos una»</b> te avisa en cuanto sale la primera.</div>` },
     { id: 'mes', icon: '📅', title: 'Control mensual', html: `<p>El control es <b>mensual</b>: cada mes es un <b>periodo</b> propio de la persona, con su propio recuento. Arriba en la ficha puedes <b>cambiar de mes</b> y <b>cerrar</b> un mes cuando esté completo (o <b>reabrirlo</b>).</p><p>Si Salud aún no ha liberado la medicación, deja las cajas <b>pre-asignadas</b> y vuelve más adelante (a veces varias veces al mes) para <b>asignarlas</b> cuando ya se pueda. El histórico de meses anteriores queda guardado.</p>` },
     { id: 'ficha', icon: '🪪', title: 'La ficha de la persona', html: `<p>La ficha muestra los <b>datos de la persona</b> y su <b>QR del TIS</b> bien grande (para escanearlo en la app de Salud), y cada caja como <b>Data Matrix en color</b> (mismo color por medicamento que en la app Data Matrix). Los <b>recuentos</b> de arriba resumen: plan, en la ficha, por asignar y asignadas.</p><p>Con los deslizadores <b>QR</b> y <b>DM</b> ajustas el tamaño de los códigos; el ajuste se recuerda.</p>` },
     { id: 'viajar', icon: '🔀', title: 'Saltar entre las apps', html: `<p>Arriba, junto al título, tienes el <b>selector</b> <b>QR (TIS) · Data Matrix · Asignación</b> para <b>cambiar de app</b> con un clic. La app en la que estás aparece resaltada.</p>` },

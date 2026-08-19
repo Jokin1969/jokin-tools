@@ -196,3 +196,58 @@ test('period close / reopen toggles status', async () => {
   const reopened = (await call('POST', `/period/${perId}/reopen`)).data;
   assert.equal(reopened.period.status, 'abierto');
 });
+
+test('release search: modes (box/all/any) and criteria (lte/exact)', async () => {
+  // A fresh person with two dated boxes: one already out (past), one future.
+  const pid = qrDb.createPerson({ pharmacy_no: '33333', nombre: 'Marta', apellidos: 'Ruiz', tis: '00033333' }, 1).id;
+  const bPast = dmDb.createItem({ raw: 'R-RP', box_key: 'RP', gtin: GTIN, serial: 'RP1' }, 1).id;
+  const bFut = dmDb.createItem({ raw: 'R-RF', box_key: 'RF', gtin: GTIN, serial: 'RF1' }, 1).id;
+  await call('POST', `/person/${pid}/preassign`, { item_id: bPast, ym: '2026-10' });
+  await call('POST', `/person/${pid}/preassign`, { item_id: bFut, ym: '2026-10' });
+  const ficha = (await call('GET', `/person/${pid}/ficha?ym=2026-10`)).data;
+  const lPast = ficha.lines.find(l => l.item_id === bPast).id;
+  const lFut = ficha.lines.find(l => l.item_id === bFut).id;
+  await call('PUT', `/line/${lPast}/release`, { date: '2020-01-01' }); // already out
+  await call('PUT', `/line/${lFut}/release`, { date: '2999-12-31' });  // far future
+
+  // Mode BOX, criterion lte, date today: past box matched, future pending.
+  const box = (await call('GET', '/release?mode=box&criterion=lte')).data;
+  assert.equal(box.mode, 'box');
+  assert.ok(box.matched.some(e => e.line_id === lPast));
+  assert.ok(box.pending.some(e => e.line_id === lFut));
+
+  // Mode ALL: person is NOT ready (not all out); aggDate is the latest (future).
+  const all = (await call('GET', '/release?mode=all&criterion=lte')).data;
+  const inAllPending = all.pending.find(e => e.person.id === pid);
+  assert.ok(inAllPending, 'ALL: person still pending');
+  assert.equal(inAllPending.aggDate, '2999-12-31');
+  assert.equal(inAllPending.total, 2);
+  assert.equal(inAllPending.releasedByToday, 1);
+  assert.ok(!all.matched.some(e => e.person.id === pid));
+
+  // Mode ANY: person IS ready (one out); aggDate is the earliest (past).
+  const any = (await call('GET', '/release?mode=any&criterion=lte')).data;
+  const inAnyMatched = any.matched.find(e => e.person.id === pid);
+  assert.ok(inAnyMatched, 'ANY: person ready');
+  assert.equal(inAnyMatched.aggDate, '2020-01-01');
+
+  // Criterion EXACT with the future date: only the future box matches (box mode).
+  const exact = (await call('GET', '/release?mode=box&criterion=exact&date=2999-12-31')).data;
+  assert.ok(exact.matched.some(e => e.line_id === lFut));
+  assert.ok(!exact.matched.some(e => e.line_id === lPast));
+
+  // Assigning a box removes it from the release search.
+  await call('POST', `/line/${lPast}/assign`);
+  const after = (await call('GET', '/release?mode=box&criterion=lte')).data;
+  assert.ok(!after.matched.some(e => e.line_id === lPast), 'assigned box no longer listed');
+});
+
+test('notify_mode persists in settings', async () => {
+  const s1 = (await call('PUT', '/settings', { notify_mode: 'any' })).data;
+  assert.equal(s1.settings.notify_mode, 'any');
+  // sizes untouched by a mode-only update
+  const meta = (await call('GET', '/meta')).data;
+  assert.equal(meta.settings.notify_mode, 'any');
+  assert.ok(meta.settings.ficha_qr_size > 0);
+  await call('PUT', '/settings', { notify_mode: 'all' });
+});

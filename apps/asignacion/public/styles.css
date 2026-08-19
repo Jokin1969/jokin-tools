@@ -572,3 +572,21 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 /* Overview card readiness */
 .az-card.has-ready { border-color: #9bd8b6; }
 .az-card-ready { margin-top: 6px; font-size: 0.78rem; font-weight: 700; color: #128a5b; background: #e2f5ec; border-radius: 8px; padding: 4px 8px; display: inline-block; }
+
+/* ── Release search panel (bell) ───────────────────────────────────────────── */
+.az-note-ctl { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; margin: 4px 0 12px; }
+.az-note-ctl > label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; color: var(--muted); }
+.az-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.az-seg button { border: none; background: #fff; color: var(--muted); font-size: 0.76rem; font-weight: 600; padding: 6px 11px; cursor: pointer; }
+.az-seg button.on { background: var(--brand); color: #fff; }
+.az-note-ctl input[type="date"] { padding: 5px 8px; font-size: 0.8rem; }
+
+.az-note-person { border: 1px solid var(--line); border-radius: 10px; background: #fff; margin-bottom: 6px; overflow: hidden; }
+.az-note-person-h { display: flex; align-items: stretch; }
+.az-note-flex { flex: 1 1 auto; border: none !important; border-radius: 0 !important; margin: 0; }
+.az-note-exp { flex: 0 0 auto; border: none; border-left: 1px solid var(--line); background: #f6f9fc; color: var(--muted); font-weight: 700; font-size: 0.74rem; padding: 0 12px; cursor: pointer; }
+.az-note-exp:hover { color: var(--brand); }
+.az-note-boxes { border-top: 1px dashed var(--line); padding: 6px 12px; display: flex; flex-direction: column; gap: 4px; }
+.az-note-sub { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.75rem; color: var(--ink); }
+.az-note-sub .st-due { color: #128a5b; font-weight: 700; }
+.az-note-sub .st-soon { color: #8a5a00; font-weight: 700; }

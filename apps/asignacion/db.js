@@ -71,6 +71,7 @@ db.exec(`
     id            INTEGER PRIMARY KEY CHECK (id = 1),
     ficha_qr_size INTEGER,
     ficha_dm_size INTEGER,
+    notify_mode   TEXT,
     updated_by    INTEGER,
     updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -78,10 +79,13 @@ db.exec(`
 
 // Lightweight migration for DBs created before the release date existed.
 try { db.prepare('ALTER TABLE asig_line ADD COLUMN release_at TEXT').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE asig_settings ADD COLUMN notify_mode TEXT').run(); } catch { /* already present */ }
 
 console.log('[asignacion] Database ready at:', DB_PATH);
 
-const DEFAULT_SETTINGS = { ficha_qr_size: 300, ficha_dm_size: 150 };
+// notify_mode: how the release bell groups a person's pending boxes —
+//   'all' (ready when ALL are out), 'any' (ready when any is out), 'box' (per box).
+const DEFAULT_SETTINGS = { ficha_qr_size: 300, ficha_dm_size: 150, notify_mode: 'all' };
 
 // ── Plan (recurring medications per person) ──────────────────────────────────────
 function listPlan(personId) {
@@ -202,11 +206,12 @@ function getSettings() {
 function saveSettings(data, userId) {
   const s = { ...getSettings(), ...data };
   db.prepare(
-    `INSERT INTO asig_settings (id, ficha_qr_size, ficha_dm_size, updated_by, updated_at)
-     VALUES (1, @ficha_qr_size, @ficha_dm_size, @updated_by, CURRENT_TIMESTAMP)
+    `INSERT INTO asig_settings (id, ficha_qr_size, ficha_dm_size, notify_mode, updated_by, updated_at)
+     VALUES (1, @ficha_qr_size, @ficha_dm_size, @notify_mode, @updated_by, CURRENT_TIMESTAMP)
      ON CONFLICT(id) DO UPDATE SET ficha_qr_size = excluded.ficha_qr_size,
-       ficha_dm_size = excluded.ficha_dm_size, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP`
-  ).run({ ficha_qr_size: s.ficha_qr_size, ficha_dm_size: s.ficha_dm_size, updated_by: userId != null ? userId : null });
+       ficha_dm_size = excluded.ficha_dm_size, notify_mode = excluded.notify_mode,
+       updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP`
+  ).run({ ficha_qr_size: s.ficha_qr_size, ficha_dm_size: s.ficha_dm_size, notify_mode: s.notify_mode, updated_by: userId != null ? userId : null });
   return getSettings();
 }
 
