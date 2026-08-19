@@ -129,6 +129,7 @@ async function boot() {
     S.isAdmin = !!meta.isAdmin; S.noteColors = meta.noteColors || []; S.notesBadge = meta.notesBadge || S.notesBadge;
     S.board.userId = meta.user.id;
     renderNotesBadge();
+    checkNoteAlerts();                                  // aviso destacado si alguien me marcó una nota
     $('help-btn').onclick = viewHelp;
     $('bell-btn').onclick = openNotifications;
     $('notif-btn').onclick = openNotifManager;
@@ -351,6 +352,41 @@ function renderNotesBadge() {
 }
 async function refreshNotesBadge() { try { S.notesBadge = await api('/notes/badge'); renderNotesBadge(); } catch { /* keep */ } }
 
+// Al abrir la app: si otro usuario me ha marcado notas con aviso, se lo muestro destacado.
+async function checkNoteAlerts() {
+  let data; try { data = await api('/notes/alerts'); } catch { return; }
+  const items = (data && data.items) || [];
+  if (!items.length) return;
+  showAlertModal(items);
+}
+function showAlertModal(items) {
+  const cards = items.map(it => `
+    <div class="az-alert-item" data-board="${it.board_id}">
+      <span class="az-alert-dot" style="background:${esc(it.color || '#FEF08A')}"></span>
+      <div class="az-alert-body">
+        <div class="az-alert-from"><b>${esc(it.author_name)}</b> · tablón «${esc(it.board_name)}»</div>
+        <div class="az-alert-txt">${esc(it.excerpt)}</div>
+      </div>
+    </div>`).join('');
+  const n = items.length;
+  openTool(`<div class="az-alert-modal">
+      <div class="az-alert-head"><span class="az-alert-bell">🔔</span>
+        <h3>${n === 1 ? 'Tienes una nota que requiere tu atención' : `Tienes ${n} notas que requieren tu atención`}</h3></div>
+      <p class="az-alert-lead">Alguien te ha dejado ${n === 1 ? 'un recado' : 'recados'} en el tablón de notas. Ábrelo${n === 1 ? '' : 's'} cuando puedas.</p>
+      <div class="az-alert-list">${cards}</div>
+      <div class="qt-modal-actions">
+        <button class="qt-btn qt-btn-ghost" id="al-later">Ahora no</button>
+        <button class="qt-btn qt-btn-primary" id="al-open">Ver ${n === 1 ? 'la nota' : 'las notas'} →</button>
+      </div>
+    </div>`);
+  const firstBoard = items[0].board_id;
+  $('al-later').onclick = closeTool;
+  $('al-open').onclick = () => { closeTool(); if (firstBoard) { localStorage.setItem('asig_board', String(firstBoard)); S.board.currentId = firstBoard; } viewBoard(); };
+  $('tool-modal-box').querySelectorAll('.az-alert-item').forEach(el => el.addEventListener('click', () => {
+    const bid = Number(el.dataset.board); closeTool(); if (bid) { localStorage.setItem('asig_board', String(bid)); S.board.currentId = bid; } viewBoard();
+  }));
+}
+
 async function viewBoard() {
   S.view = 'board'; S.person = null; S.ficha = null; S.peopleFilter = null;
   try {
@@ -421,16 +457,17 @@ function saveNote(id, patch) {
 // Read the card's current rotation angle (radians) from its computed transform.
 function readRotation(el) { const t = getComputedStyle(el).transform; if (!t || t === 'none') return 0; try { const m = new DOMMatrixReadOnly(t); return Math.atan2(m.b, m.a); } catch { return 0; } }
 function clampN2(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
-function noteMetaIcon(n) { return n.visibility === 'todos' ? '🌐 todos' : n.visibility === 'personalizada' ? '👥' : '🔒'; }
+function noteMetaIcon(n) { const base = n.visibility === 'todos' ? '🌐 todos' : n.visibility === 'personalizada' ? '👥' : '🔒'; return n.alert ? base + ' 🔔' : base; }
 function refreshCardShareState(id) {
   const n = S.board.notes.find(x => x.id === id); if (!n) return;
   const canvas = $('board-canvas'); const card = canvas && canvas.querySelector(`.postit-card[data-id="${id}"]`); if (!card) return;
   const share = card.querySelector('.postit-share'); if (share) { share.classList.remove('shared', 'all'); if (n.has_viewers) share.classList.add('shared'); else if (n.visibility === 'todos') share.classList.add('all'); }
+  card.classList.toggle('is-alerting', !!n.alert);
   const meta = card.querySelector('.postit-meta'); if (meta) meta.textContent = noteMetaIcon(n);
 }
 function buildNoteCard(n) {
   const card = document.createElement('div');
-  card.className = 'postit-card'; card.dataset.id = n.id;
+  card.className = 'postit-card' + (n.alert ? ' is-alerting' : ''); card.dataset.id = n.id;
   card.style.left = n.pos_x + 'px'; card.style.top = n.pos_y + 'px';
   card.style.width = n.width + 'px'; card.style.height = n.height + 'px'; card.style.background = n.color;
   const mng = n.puede_gestionar;
@@ -489,12 +526,25 @@ function openShareModal(n) {
   const authorId = n.author_id;
   const allUsers = S.board.users.filter(u => u.id !== authorId);
   let allOn = n.visibility === 'todos';
+  let alertOn = !!n.alert;
   const checked = new Set(n.visibility === 'personalizada' ? (n.viewer_ids || []) : []);
   if (n.visibility === 'privada' && !checked.size) { try { (JSON.parse(localStorage.getItem('asig_share_last') || '[]')).forEach(id => { if (allUsers.some(u => u.id === id)) checked.add(id); }); } catch { /* */ } }
   const apply = async () => {
     let visibility, viewer_ids = [];
     if (allOn) visibility = 'todos'; else if (checked.size) { visibility = 'personalizada'; viewer_ids = [...checked]; } else visibility = 'privada';
-    try { await saveNote(n.id, { visibility, viewer_ids }); if (visibility === 'personalizada') localStorage.setItem('asig_share_last', JSON.stringify(viewer_ids)); refreshCardShareState(n.id); updHead(); } catch { /* */ }
+    if (visibility === 'privada') alertOn = false;           // una nota privada no avisa a nadie
+    try {
+      const item = await saveNote(n.id, { visibility, viewer_ids, alert: alertOn });
+      n.alert = !!(item && item.alert);
+      if (visibility === 'personalizada') localStorage.setItem('asig_share_last', JSON.stringify(viewer_ids));
+      refreshCardShareState(n.id); updHead(); syncAlertUi();
+    } catch { /* */ }
+  };
+  const isShared = () => allOn || checked.size > 0;
+  const syncAlertUi = () => {
+    const cb = $('sh-alert'); if (cb) { cb.checked = alertOn; cb.disabled = !isShared(); }
+    const row = $('sh-alert-row'); if (row) row.classList.toggle('is-dim', !isShared());
+    const rp = $('sh-repoke'); if (rp) rp.hidden = !(isShared() && n.alert);
   };
   const render = (filter) => {
     const q = norm(filter || '');
@@ -508,11 +558,20 @@ function openShareModal(n) {
     <div class="qt-tool-note" id="sh-state"></div>
     <div class="qt-search" style="margin:8px 0"><span class="ico">🔎</span><input id="sh-q" placeholder="Buscar usuario…" autocomplete="off"></div>
     <div id="sh-list" class="az-shlist"></div>
+    <label class="az-shtoggle az-alert-row" id="sh-alert-row"><input type="checkbox" id="sh-alert"> <b>🔔 Avisar a los destinatarios</b>
+      <small>Les saltará un aviso destacado al abrir la app hasta que abran la nota.</small></label>
+    <button class="qt-btn qt-btn-ghost qt-btn-sm az-repoke" id="sh-repoke" hidden>🔔 Volver a avisar (aunque ya la vieran)</button>
     <div class="az-form-hint">Quien puede <b>ver</b> la nota también puede <b>editarla</b> (es una conversación sobre el post-it). Los cambios se aplican al instante.</div>`);
   $('sh-close').onclick = closeTool;
   $('sh-all').addEventListener('change', () => { allOn = $('sh-all').checked; render($('sh-q').value); apply(); });
   $('sh-q').addEventListener('input', () => render($('sh-q').value));
-  render(''); updHead();
+  $('sh-alert').addEventListener('change', () => { alertOn = $('sh-alert').checked; apply(); });
+  $('sh-repoke').addEventListener('click', async () => {
+    try { const r = await api('/notes/' + n.id + '/repoke', { method: 'POST' }); n.alert = !!(r.item && r.item.alert); alertOn = n.alert;
+      const i = S.board.notes.findIndex(x => x.id === n.id); if (i >= 0) S.board.notes[i] = r.item;
+      refreshCardShareState(n.id); syncAlertUi(); toast('Aviso reenviado a los destinatarios.', 'ok'); } catch (e) { toast(e.message, 'err'); }
+  });
+  render(''); updHead(); syncAlertUi();
 }
 
 // ── Home / panel ─────────────────────────────────────────────────────────────────
@@ -907,8 +966,9 @@ function viewHelp() {
         <li><b>Crear</b>: «➕ Nueva nota». <b>Arrastra</b> por la cabecera para moverla y <b>redimensiona</b> por la esquina inferior derecha. La posición y el tamaño se guardan solos.</li>
         <li><b>Color</b>: los círculos de colores cambian el fondo al instante. <b>Texto</b>: se guarda solo al dejar de escribir.</li>
         <li><b>Compartir</b> (🔗, solo en tus notas): «Visible para todos» o elige usuarios concretos. <b>Quien puede ver una nota también puede editarla</b> (es una conversación sobre el post-it). Solo el autor (o un administrador) puede borrarla o cambiar con quién se comparte.</li>
+        <li><b>🔔 Avisar a los destinatarios</b> (dentro de 🔗, al compartir): marca la nota para que a quien la comparte le salte un <b>aviso destacado al abrir la app</b> hasta que la abra. Ideal para <b>recados</b> o cosas pendientes que el otro debe tener en cuenta. Las notas que están avisando se ven con un <b>borde ámbar</b> y una campanita 🔔. Si el destinatario ya la vio pero quieres <b>recordárselo otra vez</b>, usa «Volver a avisar».</li>
       </ul>
-      <div class="qt-note tip">El icono <b>🗒️</b> avisa: se pone <b>rojo con un contador</b> cuando tienes <b>notas nuevas sin ver</b>. Las pestañas con novedades muestran un punto. Al abrir un tablón, sus notas se marcan como vistas.</div>` },
+      <div class="qt-note tip">El icono <b>🗒️</b> avisa: se pone <b>rojo con un contador</b> cuando tienes <b>notas nuevas sin ver</b>. Las pestañas con novedades muestran un punto. Al abrir un tablón, sus notas se marcan como vistas (y se apaga su aviso). Si alguien te marcó una nota con 🔔, al entrar en la app verás un <b>recuadro destacado</b> con el recado y un botón para ir directo a él.</div>` },
     { id: 'viajar', icon: '🔀', title: 'Saltar entre las apps', html: `<p>Arriba, junto al título, tienes el <b>selector</b> <b>QR (TIS) · Data Matrix · Asignación</b> para <b>cambiar de app</b> con un clic. La app en la que estás aparece resaltada.</p>` },
   ];
   const nav = SECS.map(s => `<a data-go="help-${s.id}">${s.icon} ${s.title}</a>`).join('');

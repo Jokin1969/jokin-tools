@@ -134,6 +134,7 @@ db.exec(`
 // Lightweight migration for DBs created before the release date existed.
 try { db.prepare('ALTER TABLE asig_line ADD COLUMN release_at TEXT').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE asig_settings ADD COLUMN notify_mode TEXT').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE asig_note ADD COLUMN alert INTEGER NOT NULL DEFAULT 0').run(); } catch { /* already present */ }
 
 console.log('[asignacion] Database ready at:', DB_PATH);
 
@@ -385,6 +386,9 @@ function updateNote(id, patch, uid) {
   if (patch.width !== undefined) set.width = clampW(patch.width);
   if (patch.height !== undefined) set.height = clampH(patch.height);
   if (patch.visibility !== undefined) set.visibility = ['todos', 'personalizada', 'privada'].includes(patch.visibility) ? patch.visibility : cur.visibility;
+  if (patch.alert !== undefined) set.alert = patch.alert ? 1 : 0;
+  // Una nota privada no tiene destinatarios: el aviso deja de tener sentido.
+  if (set.visibility === 'privada') set.alert = 0;
   const keys = Object.keys(set);
   if (keys.length) {
     db.prepare(`UPDATE asig_note SET ${keys.map(k => `${k} = @${k}`).join(', ')}, edited_by = @eb, updated_at = CURRENT_TIMESTAMP WHERE id = @id`).run({ ...set, eb: uid != null ? uid : null, id });
@@ -407,11 +411,29 @@ function markNotesSeen(uid, boardId) {
   const where = boardId ? 'AND n.board_id = @board' : '';
   db.prepare(`INSERT OR IGNORE INTO asig_note_seen (note_id, user_id) SELECT n.id, @uid FROM asig_note n WHERE ${VIS_WHERE} ${where}`).run({ uid, board: boardId || 0 });
 }
-// Header badge: how many notes the user can see, and how many are still new.
+// Notas que otro usuario me ha marcado con aviso y aún no he visto.
+// (alert=1, no soy el autor, la puedo ver, y no está marcada como vista por mí.)
+const ALERT_WHERE = `n.alert = 1 AND n.author_id IS NOT @uid AND ${VIS_WHERE}
+  AND NOT EXISTS (SELECT 1 FROM asig_note_seen s WHERE s.note_id = n.id AND s.user_id = @uid)`;
+function pendingAlerts(uid) {
+  return db.prepare(
+    `SELECT n.id, n.board_id, n.content, n.color, n.author_id, n.updated_at, b.name AS board_name
+       FROM asig_note n JOIN asig_board b ON b.id = n.board_id
+      WHERE ${ALERT_WHERE} ORDER BY n.updated_at DESC, n.id DESC`
+  ).all({ uid });
+}
+// Re-avisar: el autor "reabre" la nota borrando el visto de los demás y re-activando el aviso.
+const repokeNote = db.transaction((noteId, authorId) => {
+  db.prepare('DELETE FROM asig_note_seen WHERE note_id = ? AND user_id IS NOT ?').run(noteId, authorId);
+  db.prepare('UPDATE asig_note SET alert = 1 WHERE id = ?').run(noteId);
+  return getNote(noteId);
+});
+// Header badge: how many notes the user can see, how many are still new, y cuántas le avisan.
 function notesBadge(uid) {
   const total = db.prepare(`SELECT COUNT(*) c FROM asig_note n WHERE ${VIS_WHERE}`).get({ uid }).c;
   const neu = db.prepare(`SELECT COUNT(*) c FROM asig_note n WHERE ${VIS_WHERE} AND NOT EXISTS (SELECT 1 FROM asig_note_seen s WHERE s.note_id = n.id AND s.user_id = @uid)`).get({ uid }).c;
-  return { notes: total, new_notes: neu };
+  const alerts = db.prepare(`SELECT COUNT(*) c FROM asig_note n WHERE ${ALERT_WHERE}`).get({ uid }).c;
+  return { notes: total, new_notes: neu, alerts };
 }
 
 // ── Settings ────────────────────────────────────────────────────────────────────
@@ -441,5 +463,6 @@ module.exports = {
   listNotifs, getNotif, createNotif, updateNotif, deleteNotif, setNotifEnabled, markNotifSent, dueNotifs,
   NOTE_COLORS, listBoards, getBoard, boardCount, createBoard, renameBoard, deleteBoard,
   getNote, listNotes, createNote, updateNote, deleteNote, noteViewers, setNoteViewers, canSeeNote, markNotesSeen, notesBadge,
+  pendingAlerts, repokeNote,
   getSettings, saveSettings,
 };

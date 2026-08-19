@@ -505,11 +505,11 @@ router.put('/api/notes/:id(\\d+)', json, (req, res) => {
   try {
     const note = db.getNote(Number(req.params.id)); if (!note) return res.status(404).json({ error: 'Nota no encontrada.' });
     const b = req.body || {};
-    const changingShare = (b.visibility !== undefined) || (b.viewer_ids !== undefined);
-    if (changingShare) { if (!canManageNote(note, req)) throw bad('Solo el autor o un administrador puede cambiar quién la ve.', 403); }
+    const changingShare = (b.visibility !== undefined) || (b.viewer_ids !== undefined) || (b.alert !== undefined);
+    if (changingShare) { if (!canManageNote(note, req)) throw bad('Solo el autor o un administrador puede cambiar quién la ve o avisar.', 403); }
     else if (!db.canSeeNote(note, req.user.id)) throw bad('No tienes acceso a esta nota.', 403);
     const patch = {};
-    for (const k of ['content', 'color', 'pos_x', 'pos_y', 'width', 'height', 'visibility']) if (b[k] !== undefined) patch[k] = b[k];
+    for (const k of ['content', 'color', 'pos_x', 'pos_y', 'width', 'height', 'visibility', 'alert']) if (b[k] !== undefined) patch[k] = b[k];
     db.updateNote(note.id, patch, req.user.id);
     if (b.viewer_ids !== undefined) db.setNoteViewers(note.id, (Array.isArray(b.viewer_ids) ? b.viewer_ids : []).map(Number).filter(Number.isInteger));
     const full = { ...db.getNote(note.id), viewer_ids: db.noteViewers(note.id) };
@@ -529,6 +529,33 @@ router.post('/api/notes/seen', json, (req, res) => {
 });
 router.get('/api/notes/badge', (req, res) => {
   try { res.json(db.notesBadge(req.user.id)); } catch (err) { fail(res, err); }
+});
+// Notas que otro usuario me ha marcado con aviso y aún no he abierto.
+router.get('/api/notes/alerts', (req, res) => {
+  try {
+    const items = db.pendingAlerts(req.user.id).map((n) => {
+      const author = n.author_id != null ? authStore.getUserById(n.author_id) : null;
+      const txt = String(n.content || '').replace(/\s+/g, ' ').trim();
+      return {
+        id: n.id, board_id: n.board_id, board_name: n.board_name, color: n.color,
+        excerpt: txt.length > 140 ? txt.slice(0, 140) + '…' : (txt || '(nota sin texto)'),
+        author_name: author ? (author.name || author.email) : 'Alguien',
+        updated_at: n.updated_at,
+      };
+    });
+    res.json({ items });
+  } catch (err) { fail(res, err); }
+});
+// Re-avisar a los destinatarios (solo el autor o un administrador).
+router.post('/api/notes/:id(\\d+)/repoke', (req, res) => {
+  try {
+    const note = db.getNote(Number(req.params.id)); if (!note) return res.status(404).json({ error: 'Nota no encontrada.' });
+    if (!canManageNote(note, req)) throw bad('Solo el autor o un administrador puede volver a avisar.', 403);
+    if (note.visibility === 'privada') throw bad('Una nota privada no tiene destinatarios a los que avisar.');
+    db.repokeNote(note.id, note.author_id);
+    const full = { ...db.getNote(note.id), viewer_ids: db.noteViewers(note.id) };
+    res.json({ item: noteView(full, req) });
+  } catch (err) { fail(res, err); }
 });
 
 // ── Settings (ficha display sizes) ───────────────────────────────────────────────

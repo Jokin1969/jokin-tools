@@ -397,3 +397,43 @@ test('post-its: visibility — who sees / who edits / who manages', async () => 
   await call('PUT', `/notes/${n.id}`, { visibility: 'personalizada', viewer_ids: [] });
   assert.ok(!(await call2('GET', `/notes?board_id=${board}`)).data.items.some(x => x.id === n.id), 'sin viewers u2 no la ve');
 });
+
+test('post-its: alertas — avisar a los destinatarios, ver, apagar y re-avisar', async () => {
+  const board = (await call('GET', '/boards')).data.items[0].id;
+  const n = (await call('POST', '/notes', { board_id: board, content: '  Revisa   el pedido \n de mañana ', visibility: 'privada' })).data.item;
+
+  // Un no-gestor no puede activar el aviso.
+  assert.equal((await call2('PUT', `/notes/${n.id}`, { alert: true })).status, 403);
+
+  // Compartir con u2 y marcar el aviso (todo en el mismo PUT del autor).
+  const shared = (await call('PUT', `/notes/${n.id}`, { visibility: 'personalizada', viewer_ids: [2], alert: true })).data.item;
+  assert.equal(shared.alert, 1, 'la nota queda marcada con aviso');
+
+  // u2 recibe la alerta pendiente, con autor, tablón y extracto limpio.
+  let al = (await call2('GET', '/notes/alerts')).data.items;
+  const mine = al.find(x => x.id === n.id);
+  assert.ok(mine, 'u2 tiene la alerta pendiente');
+  assert.equal(mine.board_id, board);
+  assert.ok(mine.board_name, 'incluye el nombre del tablón');
+  assert.equal(mine.excerpt, 'Revisa el pedido de mañana', 'extracto con espacios colapsados');
+  assert.ok(typeof mine.author_name === 'string' && mine.author_name.length, 'incluye un nombre de autor');
+  assert.ok((await call2('GET', '/notes/badge')).data.alerts >= 1, 'el badge de u2 cuenta la alerta');
+
+  // El autor no se avisa a sí mismo.
+  assert.ok(!(await call('GET', '/notes/alerts')).data.items.some(x => x.id === n.id), 'u1 (autor) no se auto-avisa');
+
+  // Al abrir el tablón (marcar visto) la alerta se apaga para u2.
+  await call2('POST', '/notes/seen', { board_id: board });
+  assert.ok(!(await call2('GET', '/notes/alerts')).data.items.some(x => x.id === n.id), 'tras verla, ya no le avisa');
+
+  // El autor vuelve a avisar → reaparece para u2.
+  assert.equal((await call2('POST', `/notes/${n.id}/repoke`)).status, 403, 'u2 no puede re-avisar');
+  const re = (await call('POST', `/notes/${n.id}/repoke`)).data.item;
+  assert.equal(re.alert, 1);
+  assert.ok((await call2('GET', '/notes/alerts')).data.items.some(x => x.id === n.id), 're-avisada: vuelve a aparecer');
+
+  // Volver a privada apaga el aviso.
+  const priv = (await call('PUT', `/notes/${n.id}`, { visibility: 'privada' })).data.item;
+  assert.equal(priv.alert, 0, 'una nota privada no avisa');
+  assert.ok(!(await call2('GET', '/notes/alerts')).data.items.some(x => x.id === n.id), 'sin acceso, sin alerta');
+});

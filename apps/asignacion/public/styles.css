@@ -664,6 +664,9 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
   font-family: inherit; font-size: 0.9rem; line-height: 1.4; color: #1a2332; }
 .postit-resize { position: absolute; right: 2px; bottom: 2px; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none;
   background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,.28) 50%); border-radius: 0 0 8px 0; }
+/* A note actively alerting its recipients gets a warm ring so the author sees it's "live". */
+.postit-card.is-alerting { box-shadow: 0 0 0 2px #f2b84a, 0 6px 16px rgba(0,0,0,.2); }
+.postit-card.is-alerting:hover { box-shadow: 0 0 0 2px #f2b84a, 0 10px 24px rgba(0,0,0,.24); }
 
 /* Share modal */
 .az-shtoggle { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-bottom: 4px; cursor: pointer; }
@@ -672,3 +675,22 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-shitem.is-dim { opacity: 0.5; }
 .az-shitem span { display: flex; flex-direction: column; }
 .az-shitem small { color: var(--muted); font-size: 0.72rem; }
+.az-alert-row { flex-wrap: wrap; margin-top: 12px; padding: 8px 10px; border: 1px solid #f2c877; background: #fff7e6; border-radius: 10px; }
+.az-alert-row small { flex-basis: 100%; color: var(--muted); font-size: 0.72rem; font-weight: 400; margin-left: 26px; }
+.az-alert-row.is-dim { opacity: 0.5; }
+.az-repoke { margin-top: 8px; }
+
+/* Boot alert: someone left me notes */
+.az-alert-modal { display: flex; flex-direction: column; gap: 10px; }
+.az-alert-head { display: flex; align-items: center; gap: 10px; }
+.az-alert-head h3 { margin: 0; font-size: 1.05rem; }
+.az-alert-bell { font-size: 1.6rem; animation: az-ring 1.4s ease-in-out infinite; transform-origin: 50% 0; }
+@keyframes az-ring { 0%,60%,100% { transform: rotate(0); } 70% { transform: rotate(14deg); } 80% { transform: rotate(-12deg); } 90% { transform: rotate(6deg); } }
+.az-alert-lead { margin: 0; color: var(--muted); font-size: 0.86rem; }
+.az-alert-list { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow: auto; }
+.az-alert-item { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; cursor: pointer; background: var(--card, #fff); }
+.az-alert-item:hover { border-color: #f2b84a; background: #fffdf6; }
+.az-alert-dot { flex: 0 0 auto; width: 14px; height: 14px; border-radius: 4px; margin-top: 3px; border: 1px solid rgba(0,0,0,.18); }
+.az-alert-body { min-width: 0; }
+.az-alert-from { font-size: 0.8rem; color: var(--muted); }
+.az-alert-txt { font-size: 0.9rem; color: var(--ink, #1a2332); white-space: pre-wrap; overflow-wrap: anywhere; }
