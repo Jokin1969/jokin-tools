@@ -322,3 +322,78 @@ test('dueNotifs fires by time/day and only once per day; once disables after sen
   asigDb.markNotifSent(once.id, '2030-02-02');
   assert.equal(asigDb.getNotif(once.id).enabled, 0, 'one-time disabled after send');
 });
+
+// A second app instance acting as a different (non-admin) user, sharing the DBs.
+const app2 = express();
+app2.use((req, res, next) => { req.user = { id: 2, email: 'u2@e', name: 'Otro' }; next(); });
+app2.use('/asignacion', router);
+let server2, base2;
+before(async () => { await new Promise(r => { server2 = app2.listen(0, r); }); base2 = `http://127.0.0.1:${server2.address().port}/asignacion/api`; });
+after(() => { try { server2.close(); } catch { } });
+async function call2(method, path, body) {
+  const opts = { method, headers: {} };
+  if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const r = await fetch(base2 + path, opts);
+  return { status: r.status, data: await r.json().catch(() => ({})) };
+}
+
+test('post-its: board CRUD, seed and last-board protection', async () => {
+  const b0 = (await call('GET', '/boards')).data;            // ensures the seed board
+  assert.ok(b0.items.length >= 1);
+  const created = await call('POST', '/boards', { name: 'Turno mañana' });
+  assert.equal(created.status, 201);
+  const bid = created.data.item.id;
+  const ren = await call('PUT', `/boards/${bid}`, { name: 'Mañana' });
+  assert.equal(ren.data.item.name, 'Mañana');
+  // delete down to one → the last one is protected
+  let boards = (await call('GET', '/boards')).data.items;
+  for (const b of boards.slice(1)) await call('DELETE', `/boards/${b.id}`);
+  const remaining = (await call('GET', '/boards')).data.items;
+  assert.equal(remaining.length, 1);
+  const blocked = await call('DELETE', `/boards/${remaining[0].id}`);
+  assert.equal(blocked.status, 400);
+  assert.match(blocked.data.error, /último tablón/);
+});
+
+test('post-its: note create validates colour/size, partial updates persist', async () => {
+  const board = (await call('GET', '/boards')).data.items[0].id;
+  const c = await call('POST', '/notes', { board_id: board, content: 'Hola', color: 'no-existe', pos_x: 30, pos_y: 40, width: 5, height: -9, visibility: 'privada' });
+  assert.equal(c.status, 201);
+  assert.equal(c.data.item.color, '#FEF08A');      // invalid → yellow
+  assert.equal(c.data.item.width, 160);            // clamped up to min
+  assert.equal(c.data.item.height, 140);
+  assert.equal(c.data.item.puede_gestionar, true);
+  const id = c.data.item.id;
+  // move (partial)
+  await call('PUT', `/notes/${id}`, { pos_x: 111, pos_y: 222 });
+  // colour (partial)
+  await call('PUT', `/notes/${id}`, { color: '#BBF7D0' });
+  const list = (await call('GET', `/notes?board_id=${board}`)).data.items.find(n => n.id === id);
+  assert.equal(list.pos_x, 111); assert.equal(list.pos_y, 222); assert.equal(list.color, '#BBF7D0');
+});
+
+test('post-its: visibility — who sees / who edits / who manages', async () => {
+  const board = (await call('GET', '/boards')).data.items[0].id;
+  const n = (await call('POST', '/notes', { board_id: board, content: 'privada de u1', visibility: 'privada' })).data.item;
+  // user 2 does NOT see u1's private note
+  let u2 = (await call2('GET', `/notes?board_id=${board}`)).data.items;
+  assert.ok(!u2.some(x => x.id === n.id), 'u2 no ve la privada');
+  // user 2 cannot edit it (can't see)
+  assert.equal((await call2('PUT', `/notes/${n.id}`, { content: 'hack' })).status, 403);
+  // share with everyone → u2 sees it, and CAN edit it (ver = editar)…
+  await call('PUT', `/notes/${n.id}`, { visibility: 'todos' });
+  u2 = (await call2('GET', `/notes?board_id=${board}`)).data.items;
+  const seen = u2.find(x => x.id === n.id);
+  assert.ok(seen, 'u2 ve la de todos');
+  assert.equal(seen.puede_gestionar, false, 'u2 no la gestiona');
+  assert.equal((await call2('PUT', `/notes/${n.id}`, { content: 'respuesta de u2' })).status, 200, 'u2 puede editar el texto');
+  // …but u2 cannot change its sharing or delete it
+  assert.equal((await call2('PUT', `/notes/${n.id}`, { visibility: 'privada' })).status, 403);
+  assert.equal((await call2('DELETE', `/notes/${n.id}`)).status, 403);
+  // personalizada with viewer = 2
+  await call('PUT', `/notes/${n.id}`, { visibility: 'personalizada', viewer_ids: [2] });
+  const pers = (await call2('GET', `/notes?board_id=${board}`)).data.items.find(x => x.id === n.id);
+  assert.ok(pers, 'u2 (viewer) ve la personalizada');
+  await call('PUT', `/notes/${n.id}`, { visibility: 'personalizada', viewer_ids: [] });
+  assert.ok(!(await call2('GET', `/notes?board_id=${board}`)).data.items.some(x => x.id === n.id), 'sin viewers u2 no la ve');
+});

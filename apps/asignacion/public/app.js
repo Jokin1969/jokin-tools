@@ -19,6 +19,8 @@ const S = {
   person: null, ficha: null, ym: null,
   notif: { due: [], upcoming: [], counts: { due: 0, upcoming: 0 }, today: null },
   peopleFilter: null,   // when set (array of ids), the home shows only these (from an email link)
+  isAdmin: false, noteColors: [], notesBadge: { notes: 0, new_notes: 0 },
+  board: { boards: [], currentId: null, notes: [], users: [], userId: null },
 };
 
 // ── Tiny helpers ────────────────────────────────────────────────────────────────
@@ -124,9 +126,13 @@ async function boot() {
   try {
     const meta = await api('/meta');
     S.settings = meta.settings; S.qrSettings = meta.qrSettings; S.month = meta.month; S.user = meta.user;
+    S.isAdmin = !!meta.isAdmin; S.noteColors = meta.noteColors || []; S.notesBadge = meta.notesBadge || S.notesBadge;
+    S.board.userId = meta.user.id;
+    renderNotesBadge();
     $('help-btn').onclick = viewHelp;
     $('bell-btn').onclick = openNotifications;
     $('notif-btn').onclick = openNotifManager;
+    $('notes-btn').onclick = viewBoard;
     $('go-home').onclick = (e) => { e.preventDefault(); S.peopleFilter = null; viewHome(); };
     await refreshNotifications();
     // Deep links from the notification emails: ?person=<id> or ?people=<id,id,…>.
@@ -335,11 +341,186 @@ function notifForm(n) {
   };
 }
 
+// ── Post-its (tablón de notas) ───────────────────────────────────────────────────
+function renderNotesBadge() {
+  const btn = $('notes-btn'), badge = $('notes-count'); if (!btn) return;
+  const b = S.notesBadge || {};
+  btn.classList.remove('has-notes', 'has-new');
+  if (b.new_notes > 0) { btn.classList.add('has-new'); badge.textContent = b.new_notes; badge.hidden = false; }
+  else { badge.hidden = true; if (b.notes > 0) btn.classList.add('has-notes'); }
+}
+async function refreshNotesBadge() { try { S.notesBadge = await api('/notes/badge'); renderNotesBadge(); } catch { /* keep */ } }
+
+async function viewBoard() {
+  S.view = 'board'; S.person = null; S.ficha = null; S.peopleFilter = null;
+  try {
+    const bd = await api('/boards'); S.board.boards = bd.items; S.board.userId = bd.userId; S.isAdmin = bd.isAdmin;
+    let cur = Number(localStorage.getItem('asig_board') || 0);
+    if (!S.board.boards.some(b => b.id === cur)) cur = S.board.boards[0] ? S.board.boards[0].id : null;
+    S.board.currentId = cur;
+    if (!S.board.users.length) { try { const u = await api('/users'); S.board.users = u.items; } catch { /* ignore */ } }
+    await loadBoardNotes();
+  } catch (e) { toast(e.message, 'err'); }
+}
+async function loadBoardNotes() {
+  const id = S.board.currentId;
+  if (id) localStorage.setItem('asig_board', String(id));
+  try { const r = id ? await api('/notes?board_id=' + id) : { items: [] }; S.board.notes = r.items; } catch { S.board.notes = []; }
+  renderBoard();
+  if (id) { try { const r = await api('/notes/seen', jbody({ board_id: id })); if (r.badge) { S.notesBadge = r.badge; renderNotesBadge(); } } catch { /* ignore */ } }
+  try { const bd = await api('/boards'); S.board.boards = bd.items; renderBoardTabs(); } catch { /* ignore */ }
+}
+function renderBoard() {
+  main().innerHTML =
+    `<div class="qt-ficha-top"><button class="qt-back" id="back">← Volver</button></div>
+     <div class="az-board-wrap">
+       <div class="az-tabs" id="board-tabs"></div>
+       <div class="az-board-toolbar">
+         <button class="qt-btn qt-btn-primary qt-btn-sm" id="new-note">➕ Nueva nota</button>
+         <span class="az-board-hint">Arrastra por la cabecera · redimensiona por la esquina · el color y el texto se guardan solos. Quien ve una nota, la edita.</span>
+       </div>
+       <div class="az-canvas" id="board-canvas"></div>
+     </div>`;
+  $('back').onclick = viewHome;
+  $('new-note').onclick = createNoteHere;
+  renderBoardTabs();
+  renderCanvas();
+}
+function renderBoardTabs() {
+  const wrap = $('board-tabs'); if (!wrap) return;
+  const canMng = b => b.author_id === S.board.userId || S.isAdmin;
+  wrap.innerHTML = S.board.boards.map(b => `<div class="az-tab ${b.id === S.board.currentId ? 'sel' : ''}" data-b="${b.id}">
+      <span class="az-tab-name">${esc(b.name)}${b.new_count ? '<span class="az-tab-dot" title="Notas nuevas"></span>' : ''}</span>
+      ${canMng(b) ? `<span class="az-tab-actions"><button data-ren="${b.id}" title="Renombrar">✏️</button><button data-delb="${b.id}" title="Borrar">🗑</button></span>` : ''}
+    </div>`).join('') + `<button class="az-tab az-tab-new" id="new-board">＋ Nuevo tablón</button>`;
+  wrap.querySelectorAll('[data-b]').forEach(t => t.addEventListener('click', e => { if (e.target.closest('[data-ren],[data-delb]')) return; if (Number(t.dataset.b) === S.board.currentId) return; S.board.currentId = Number(t.dataset.b); loadBoardNotes(); }));
+  $('new-board').onclick = async () => { const name = prompt('Nombre del nuevo tablón:'); if (!name || !name.trim()) return; try { const r = await api('/boards', jbody({ name: name.trim() })); S.board.currentId = r.item.id; await viewBoard(); } catch (e) { toast(e.message, 'err'); } };
+  wrap.querySelectorAll('[data-ren]').forEach(b => b.addEventListener('click', async () => { const bd = S.board.boards.find(x => x.id === Number(b.dataset.ren)); const name = prompt('Nuevo nombre del tablón:', bd ? bd.name : ''); if (!name || !name.trim()) return; try { await api('/boards/' + b.dataset.ren, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim() }) }); await viewBoard(); } catch (e) { toast(e.message, 'err'); } }));
+  wrap.querySelectorAll('[data-delb]').forEach(b => b.addEventListener('click', async () => { if (!(await confirmBox('Borrar tablón', '¿Borrar este tablón y todas sus notas? No se puede deshacer.', 'Borrar'))) return; try { await api('/boards/' + b.dataset.delb, { method: 'DELETE' }); S.board.currentId = null; await viewBoard(); } catch (e) { toast(e.message, 'err'); } }));
+}
+function renderCanvas() {
+  const canvas = $('board-canvas'); if (!canvas) return;
+  canvas.innerHTML = '';
+  if (!S.board.notes.length) { canvas.innerHTML = '<div class="az-canvas-empty">No hay notas en este tablón. Crea una con «➕ Nueva nota».</div>'; return; }
+  for (const n of S.board.notes) canvas.appendChild(buildNoteCard(n));
+}
+async function createNoteHere() {
+  const k = S.board.notes.length;
+  try {
+    const r = await api('/notes', jbody({ board_id: S.board.currentId, content: '', color: S.noteColors[0], visibility: 'privada', width: 240, height: 200, pos_x: 24 + (k % 6) * 28, pos_y: 24 + (k % 6) * 28 }));
+    S.board.notes.push(r.item);
+    const canvas = $('board-canvas'); const empty = canvas.querySelector('.az-canvas-empty'); if (empty) empty.remove();
+    const card = buildNoteCard(r.item); canvas.appendChild(card); const ta = card.querySelector('textarea'); if (ta) ta.focus();
+  } catch (e) { toast(e.message, 'err'); }
+}
+function saveNote(id, patch) {
+  return api('/notes/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
+    .then(r => { const i = S.board.notes.findIndex(x => x.id === id); if (i >= 0) S.board.notes[i] = r.item; return r.item; })
+    .catch(e => { toast(e.message, 'err'); throw e; });
+}
+// Read the card's current rotation angle (radians) from its computed transform.
+function readRotation(el) { const t = getComputedStyle(el).transform; if (!t || t === 'none') return 0; try { const m = new DOMMatrixReadOnly(t); return Math.atan2(m.b, m.a); } catch { return 0; } }
+function clampN2(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+function noteMetaIcon(n) { return n.visibility === 'todos' ? '🌐 todos' : n.visibility === 'personalizada' ? '👥' : '🔒'; }
+function refreshCardShareState(id) {
+  const n = S.board.notes.find(x => x.id === id); if (!n) return;
+  const canvas = $('board-canvas'); const card = canvas && canvas.querySelector(`.postit-card[data-id="${id}"]`); if (!card) return;
+  const share = card.querySelector('.postit-share'); if (share) { share.classList.remove('shared', 'all'); if (n.has_viewers) share.classList.add('shared'); else if (n.visibility === 'todos') share.classList.add('all'); }
+  const meta = card.querySelector('.postit-meta'); if (meta) meta.textContent = noteMetaIcon(n);
+}
+function buildNoteCard(n) {
+  const card = document.createElement('div');
+  card.className = 'postit-card'; card.dataset.id = n.id;
+  card.style.left = n.pos_x + 'px'; card.style.top = n.pos_y + 'px';
+  card.style.width = n.width + 'px'; card.style.height = n.height + 'px'; card.style.background = n.color;
+  const mng = n.puede_gestionar;
+  const shareCls = n.has_viewers ? 'shared' : (n.visibility === 'todos' ? 'all' : '');
+  card.innerHTML =
+    `<div class="postit-head">
+       <span class="postit-drag" title="Arrastrar">⠿</span>
+       <span class="postit-meta">${noteMetaIcon(n)}</span>
+       <span class="postit-actions">
+         ${mng ? `<button class="postit-btn postit-share ${shareCls}" title="Compartir">🔗</button>` : ''}
+         ${mng ? `<button class="postit-btn postit-del" title="Borrar">🗑</button>` : ''}
+       </span>
+     </div>
+     <div class="postit-swatches">${S.noteColors.map(c => `<button class="postit-swatch ${c === n.color ? 'sel' : ''}" data-c="${c}" style="background:${c}" aria-label="color"></button>`).join('')}</div>
+     <textarea class="postit-text" placeholder="Escribe…" spellcheck="false">${esc(n.content)}</textarea>
+     <div class="postit-resize" title="Redimensionar"></div>`;
+  const head = card.querySelector('.postit-head'), ta = card.querySelector('.postit-text'), handle = card.querySelector('.postit-resize');
+
+  head.addEventListener('pointerdown', e => {
+    if (e.target.closest('button')) return;
+    e.preventDefault(); try { head.setPointerCapture(e.pointerId); } catch { /* */ }
+    const sx = e.clientX, sy = e.clientY, ox = parseFloat(card.style.left) || 0, oy = parseFloat(card.style.top) || 0;
+    card.classList.add('dragging'); let nx = ox, ny = oy;
+    const move = ev => { nx = Math.max(0, ox + (ev.clientX - sx)); ny = Math.max(0, oy + (ev.clientY - sy)); card.style.left = nx + 'px'; card.style.top = ny + 'px'; };
+    const up = () => { head.removeEventListener('pointermove', move); head.removeEventListener('pointerup', up); head.removeEventListener('pointercancel', up); card.classList.remove('dragging'); saveNote(n.id, { pos_x: nx, pos_y: ny }); };
+    head.addEventListener('pointermove', move); head.addEventListener('pointerup', up); head.addEventListener('pointercancel', up);
+  });
+
+  handle.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation(); try { handle.setPointerCapture(e.pointerId); } catch { /* */ }
+    card._userResized = true;
+    const sx = e.clientX, sy = e.clientY, ow = card.offsetWidth, oh = card.offsetHeight;
+    const th = readRotation(card), cos = Math.cos(th), sin = Math.sin(th);
+    const move = ev => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      const ldx = dx * cos + dy * sin, ldy = -dx * sin + dy * cos;
+      card.style.width = clampN2(ow + ldx, 180, 480) + 'px';
+      card.style.height = clampN2(oh + ldy, 160, 560) + 'px';
+    };
+    const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); };
+    handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
+  });
+  const ro = new ResizeObserver(() => { if (!card._userResized) return; clearTimeout(card._roTimer); card._roTimer = setTimeout(() => saveNote(n.id, { width: card.offsetWidth, height: card.offsetHeight }), 500); });
+  ro.observe(card);
+
+  card.querySelectorAll('.postit-swatch').forEach(sw => sw.addEventListener('click', () => {
+    const c = sw.dataset.c; card.style.background = c; card.querySelectorAll('.postit-swatch').forEach(x => x.classList.toggle('sel', x === sw)); saveNote(n.id, { color: c });
+  }));
+  ta.addEventListener('input', () => { clearTimeout(card._txtTimer); card._txtTimer = setTimeout(() => saveNote(n.id, { content: ta.value }), 600); });
+
+  const share = card.querySelector('.postit-share'); if (share) share.addEventListener('click', () => openShareModal(n));
+  const del = card.querySelector('.postit-del'); if (del) del.addEventListener('click', async () => { if (!(await confirmBox('Borrar nota', '¿Borrar esta nota?', 'Borrar'))) return; try { await api('/notes/' + n.id, { method: 'DELETE' }); S.board.notes = S.board.notes.filter(x => x.id !== n.id); card.remove(); if (!S.board.notes.length) renderCanvas(); } catch (e) { toast(e.message, 'err'); } });
+  return card;
+}
+function openShareModal(n) {
+  const authorId = n.author_id;
+  const allUsers = S.board.users.filter(u => u.id !== authorId);
+  let allOn = n.visibility === 'todos';
+  const checked = new Set(n.visibility === 'personalizada' ? (n.viewer_ids || []) : []);
+  if (n.visibility === 'privada' && !checked.size) { try { (JSON.parse(localStorage.getItem('asig_share_last') || '[]')).forEach(id => { if (allUsers.some(u => u.id === id)) checked.add(id); }); } catch { /* */ } }
+  const apply = async () => {
+    let visibility, viewer_ids = [];
+    if (allOn) visibility = 'todos'; else if (checked.size) { visibility = 'personalizada'; viewer_ids = [...checked]; } else visibility = 'privada';
+    try { await saveNote(n.id, { visibility, viewer_ids }); if (visibility === 'personalizada') localStorage.setItem('asig_share_last', JSON.stringify(viewer_ids)); refreshCardShareState(n.id); updHead(); } catch { /* */ }
+  };
+  const render = (filter) => {
+    const q = norm(filter || '');
+    const list = allUsers.filter(u => !q || norm(u.name + ' ' + u.email).includes(q));
+    $('sh-list').innerHTML = list.length ? list.map(u => `<label class="az-shitem ${allOn ? 'is-dim' : ''}"><input type="checkbox" data-u="${u.id}" ${checked.has(u.id) ? 'checked' : ''} ${allOn ? 'disabled' : ''}><span>${esc(u.name)}<small>${esc(u.email)}</small></span></label>`).join('') : '<div class="az-empty-sm">Sin usuarios que coincidan.</div>';
+    $('sh-list').querySelectorAll('[data-u]').forEach(cb => cb.addEventListener('change', () => { const id = Number(cb.dataset.u); if (cb.checked) checked.add(id); else checked.delete(id); apply(); }));
+  };
+  const updHead = () => { const t = $('sh-state'); if (t) t.textContent = allOn ? 'Visible para TODOS los usuarios.' : (checked.size ? `Compartida con ${checked.size} usuario(s).` : 'Privada (solo tú).'); };
+  openTool(`<div class="qt-modal-h"><h3>🔗 Compartir nota</h3><button class="qt-x" id="sh-close">×</button></div>
+    <label class="az-shtoggle"><input type="checkbox" id="sh-all" ${allOn ? 'checked' : ''}> <b>Visible para todos</b></label>
+    <div class="qt-tool-note" id="sh-state"></div>
+    <div class="qt-search" style="margin:8px 0"><span class="ico">🔎</span><input id="sh-q" placeholder="Buscar usuario…" autocomplete="off"></div>
+    <div id="sh-list" class="az-shlist"></div>
+    <div class="az-form-hint">Quien puede <b>ver</b> la nota también puede <b>editarla</b> (es una conversación sobre el post-it). Los cambios se aplican al instante.</div>`);
+  $('sh-close').onclick = closeTool;
+  $('sh-all').addEventListener('change', () => { allOn = $('sh-all').checked; render($('sh-q').value); apply(); });
+  $('sh-q').addEventListener('input', () => render($('sh-q').value));
+  render(''); updHead();
+}
+
 // ── Home / panel ─────────────────────────────────────────────────────────────────
 async function viewHome() {
   S.view = 'home'; S.person = null; S.ficha = null;
   try { const { items } = await api('/overview'); S.overview = items; } catch (e) { S.overview = []; }
   refreshNotifications();
+  refreshNotesBadge();
   renderHome();
 }
 function renderHome() {
@@ -721,6 +902,13 @@ function viewHelp() {
       <div class="qt-note tip">Pulsa <b>👁 Vista previa</b> para ver el email en una pestaña nueva antes de programarlo, y <b>✉️ Enviar ahora</b> para probarlo en el momento. El envío programado necesita el correo configurado en el servidor (SMTP).</div>` },
     { id: 'mes', icon: '📅', title: 'Control mensual', html: `<p>El control es <b>mensual</b>: cada mes es un <b>periodo</b> propio de la persona, con su propio recuento. Arriba en la ficha puedes <b>cambiar de mes</b> y <b>cerrar</b> un mes cuando esté completo (o <b>reabrirlo</b>).</p><p>Si Salud aún no ha liberado la medicación, deja las cajas <b>pre-asignadas</b> y vuelve más adelante (a veces varias veces al mes) para <b>asignarlas</b> cuando ya se pueda. El histórico de meses anteriores queda guardado.</p>` },
     { id: 'ficha', icon: '🪪', title: 'La ficha de la persona', html: `<p>La ficha muestra los <b>datos de la persona</b> y su <b>QR del TIS</b> bien grande (para escanearlo en la app de Salud), y cada caja como <b>Data Matrix en color</b> (mismo color por medicamento que en la app Data Matrix). Los <b>recuentos</b> de arriba resumen: plan, en la ficha, por asignar y asignadas.</p><p>Con los deslizadores <b>QR</b> y <b>DM</b> ajustas el tamaño de los códigos; el ajuste se recuerda.</p>` },
+    { id: 'notas', icon: '🗒️', title: 'Tablón de notas (post-its)', html: `<p>El botón <b>🗒️</b> (arriba) abre un <b>tablón de notas adhesivas</b> compartidas con el equipo. Puedes tener varios <b>tablones</b> (pestañas): crear, renombrar o borrar (siempre queda al menos uno).</p>
+      <ul>
+        <li><b>Crear</b>: «➕ Nueva nota». <b>Arrastra</b> por la cabecera para moverla y <b>redimensiona</b> por la esquina inferior derecha. La posición y el tamaño se guardan solos.</li>
+        <li><b>Color</b>: los círculos de colores cambian el fondo al instante. <b>Texto</b>: se guarda solo al dejar de escribir.</li>
+        <li><b>Compartir</b> (🔗, solo en tus notas): «Visible para todos» o elige usuarios concretos. <b>Quien puede ver una nota también puede editarla</b> (es una conversación sobre el post-it). Solo el autor (o un administrador) puede borrarla o cambiar con quién se comparte.</li>
+      </ul>
+      <div class="qt-note tip">El icono <b>🗒️</b> avisa: se pone <b>rojo con un contador</b> cuando tienes <b>notas nuevas sin ver</b>. Las pestañas con novedades muestran un punto. Al abrir un tablón, sus notas se marcan como vistas.</div>` },
     { id: 'viajar', icon: '🔀', title: 'Saltar entre las apps', html: `<p>Arriba, junto al título, tienes el <b>selector</b> <b>QR (TIS) · Data Matrix · Asignación</b> para <b>cambiar de app</b> con un clic. La app en la que estás aparece resaltada.</p>` },
   ];
   const nav = SECS.map(s => `<a data-go="help-${s.id}">${s.icon} ${s.title}</a>`).join('');

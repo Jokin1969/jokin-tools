@@ -93,6 +93,42 @@ db.exec(`
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  -- ── Post-its (notas adhesivas) en tablones ─────────────────────────────────
+  CREATE TABLE IF NOT EXISTS asig_board (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL,
+    author_id  INTEGER,                            -- null = tablón semilla del sistema
+    ord        INTEGER NOT NULL DEFAULT 0,         -- orden de las pestañas
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS asig_note (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id   INTEGER NOT NULL,
+    content    TEXT NOT NULL DEFAULT '',
+    color      TEXT NOT NULL DEFAULT '#FEF08A',
+    pos_x      REAL NOT NULL DEFAULT 20,
+    pos_y      REAL NOT NULL DEFAULT 20,
+    width      REAL NOT NULL DEFAULT 240,
+    height     REAL NOT NULL DEFAULT 200,
+    visibility TEXT NOT NULL DEFAULT 'privada',    -- 'privada' | 'todos' | 'personalizada'
+    author_id  INTEGER,
+    edited_by  INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_asig_note_board ON asig_note(board_id);
+  CREATE TABLE IF NOT EXISTS asig_note_viewer (
+    note_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    PRIMARY KEY (note_id, user_id)
+  );
+  CREATE TABLE IF NOT EXISTS asig_note_seen (
+    note_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (note_id, user_id)
+  );
 `);
 
 // Lightweight migration for DBs created before the release date existed.
@@ -270,6 +306,114 @@ function dueNotifs(dateIso, timeHhmm, wd) {
   });
 }
 
+// ── Post-its (boards + notes) ─────────────────────────────────────────────────────
+const NOTE_COLORS = ['#FEF08A', '#BFDBFE', '#BBF7D0', '#FBCFE8', '#FDE68A', '#DDD6FE', '#FECACA', '#E2E8F0'];
+const NOTE_MIN_W = 160, NOTE_MIN_H = 140, NOTE_MAX_W = 900, NOTE_MAX_H = 900;
+function cleanNoteColor(c) { return NOTE_COLORS.includes(c) ? c : NOTE_COLORS[0]; }
+function clampW(n) { const x = Number(n); return Number.isFinite(x) ? Math.min(NOTE_MAX_W, Math.max(NOTE_MIN_W, x)) : 240; }
+function clampH(n) { const x = Number(n); return Number.isFinite(x) ? Math.min(NOTE_MAX_H, Math.max(NOTE_MIN_H, x)) : 200; }
+
+// A note is visible to a user if they authored it, it's for everyone, or they are
+// an explicit viewer of a 'personalizada' note.
+const VIS_WHERE = `(n.author_id = @uid OR n.visibility = 'todos' OR (n.visibility = 'personalizada' AND EXISTS (SELECT 1 FROM asig_note_viewer v WHERE v.note_id = n.id AND v.user_id = @uid)))`;
+
+function ensureSeedBoard() {
+  const c = db.prepare('SELECT COUNT(*) c FROM asig_board').get().c;
+  if (!c) db.prepare("INSERT INTO asig_board (name, author_id, ord) VALUES ('Tablón', NULL, 0)").run();
+}
+function getBoard(id) { return db.prepare('SELECT * FROM asig_board WHERE id = ?').get(id) || null; }
+function boardCount() { return db.prepare('SELECT COUNT(*) c FROM asig_board').get().c; }
+// Boards with, per board, how many notes the user can see and how many are new.
+function listBoards(uid) {
+  ensureSeedBoard();
+  const boards = db.prepare('SELECT * FROM asig_board ORDER BY ord, id').all();
+  const vis = db.prepare(`SELECT COUNT(*) c FROM asig_note n WHERE n.board_id = @board AND ${VIS_WHERE}`);
+  const neu = db.prepare(`SELECT COUNT(*) c FROM asig_note n WHERE n.board_id = @board AND ${VIS_WHERE} AND NOT EXISTS (SELECT 1 FROM asig_note_seen s WHERE s.note_id = n.id AND s.user_id = @uid)`);
+  return boards.map(b => ({ ...b, note_count: vis.get({ board: b.id, uid }).c, new_count: neu.get({ board: b.id, uid }).c }));
+}
+function createBoard(name, uid) {
+  const ord = db.prepare('SELECT COALESCE(MAX(ord), -1) + 1 o FROM asig_board').get().o;
+  const info = db.prepare('INSERT INTO asig_board (name, author_id, ord) VALUES (?, ?, ?)').run(name, uid != null ? uid : null, ord);
+  return getBoard(info.lastInsertRowid);
+}
+function renameBoard(id, name) { db.prepare('UPDATE asig_board SET name = ? WHERE id = ?').run(name, id); return getBoard(id); }
+const deleteBoard = db.transaction((id) => {
+  const ids = db.prepare('SELECT id FROM asig_note WHERE board_id = ?').all(id).map(r => r.id);
+  for (const nid of ids) { db.prepare('DELETE FROM asig_note_viewer WHERE note_id = ?').run(nid); db.prepare('DELETE FROM asig_note_seen WHERE note_id = ?').run(nid); }
+  db.prepare('DELETE FROM asig_note WHERE board_id = ?').run(id);
+  return db.prepare('DELETE FROM asig_board WHERE id = ?').run(id).changes > 0;
+});
+
+function getNote(id) { return db.prepare('SELECT * FROM asig_note WHERE id = ?').get(id) || null; }
+function noteViewers(noteId) { return db.prepare('SELECT user_id FROM asig_note_viewer WHERE note_id = ? ORDER BY user_id').all(noteId).map(r => r.user_id); }
+// Can this user see the note (visibility rule)?
+function canSeeNote(note, uid) {
+  if (!note) return false;
+  if (note.author_id === uid) return true;
+  if (note.visibility === 'todos') return true;
+  if (note.visibility === 'personalizada') return noteViewers(note.id).includes(uid);
+  return false;
+}
+// Notes of a board visible to the user, decorated with viewer_ids + is_new.
+function listNotes(boardId, uid) {
+  const rows = db.prepare(`SELECT n.*, (NOT EXISTS (SELECT 1 FROM asig_note_seen s WHERE s.note_id = n.id AND s.user_id = @uid)) AS is_new
+     FROM asig_note n WHERE n.board_id = @board AND ${VIS_WHERE} ORDER BY n.id`).all({ board: boardId, uid });
+  return rows.map(n => ({ ...n, is_new: !!n.is_new, viewer_ids: n.visibility === 'personalizada' ? noteViewers(n.id) : [] }));
+}
+function createNote(data, uid) {
+  const info = db.prepare(
+    `INSERT INTO asig_note (board_id, content, color, pos_x, pos_y, width, height, visibility, author_id, edited_by)
+     VALUES (@board_id, @content, @color, @pos_x, @pos_y, @width, @height, @visibility, @author_id, @edited_by)`
+  ).run({
+    board_id: data.board_id, content: String(data.content || ''), color: cleanNoteColor(data.color),
+    pos_x: Number(data.pos_x) || 20, pos_y: Number(data.pos_y) || 20, width: clampW(data.width), height: clampH(data.height),
+    visibility: ['todos', 'personalizada'].includes(data.visibility) ? data.visibility : 'privada',
+    author_id: uid != null ? uid : null, edited_by: uid != null ? uid : null,
+  });
+  const note = getNote(info.lastInsertRowid);
+  db.prepare('INSERT OR IGNORE INTO asig_note_seen (note_id, user_id) VALUES (?, ?)').run(note.id, uid); // el autor ya la ha "visto"
+  return note;
+}
+// Partial update: only the provided fields change. Sizes/colours are validated.
+function updateNote(id, patch, uid) {
+  const cur = getNote(id); if (!cur) return null;
+  const set = {}, out = [];
+  if (patch.content !== undefined) set.content = String(patch.content);
+  if (patch.color !== undefined) set.color = cleanNoteColor(patch.color);
+  if (patch.pos_x !== undefined) set.pos_x = Math.max(0, Number(patch.pos_x) || 0);
+  if (patch.pos_y !== undefined) set.pos_y = Math.max(0, Number(patch.pos_y) || 0);
+  if (patch.width !== undefined) set.width = clampW(patch.width);
+  if (patch.height !== undefined) set.height = clampH(patch.height);
+  if (patch.visibility !== undefined) set.visibility = ['todos', 'personalizada', 'privada'].includes(patch.visibility) ? patch.visibility : cur.visibility;
+  const keys = Object.keys(set);
+  if (keys.length) {
+    db.prepare(`UPDATE asig_note SET ${keys.map(k => `${k} = @${k}`).join(', ')}, edited_by = @eb, updated_at = CURRENT_TIMESTAMP WHERE id = @id`).run({ ...set, eb: uid != null ? uid : null, id });
+  }
+  return getNote(id);
+}
+function setNoteViewers(noteId, ids) {
+  db.prepare('DELETE FROM asig_note_viewer WHERE note_id = ?').run(noteId);
+  const ins = db.prepare('INSERT OR IGNORE INTO asig_note_viewer (note_id, user_id) VALUES (?, ?)');
+  for (const uid of (ids || [])) if (Number.isInteger(uid)) ins.run(noteId, uid);
+  return noteViewers(noteId);
+}
+const deleteNote = db.transaction((id) => {
+  db.prepare('DELETE FROM asig_note_viewer WHERE note_id = ?').run(id);
+  db.prepare('DELETE FROM asig_note_seen WHERE note_id = ?').run(id);
+  return db.prepare('DELETE FROM asig_note WHERE id = ?').run(id).changes > 0;
+});
+// Mark every note the user can see (optionally in one board) as seen.
+function markNotesSeen(uid, boardId) {
+  const where = boardId ? 'AND n.board_id = @board' : '';
+  db.prepare(`INSERT OR IGNORE INTO asig_note_seen (note_id, user_id) SELECT n.id, @uid FROM asig_note n WHERE ${VIS_WHERE} ${where}`).run({ uid, board: boardId || 0 });
+}
+// Header badge: how many notes the user can see, and how many are still new.
+function notesBadge(uid) {
+  const total = db.prepare(`SELECT COUNT(*) c FROM asig_note n WHERE ${VIS_WHERE}`).get({ uid }).c;
+  const neu = db.prepare(`SELECT COUNT(*) c FROM asig_note n WHERE ${VIS_WHERE} AND NOT EXISTS (SELECT 1 FROM asig_note_seen s WHERE s.note_id = n.id AND s.user_id = @uid)`).get({ uid }).c;
+  return { notes: total, new_notes: neu };
+}
+
 // ── Settings ────────────────────────────────────────────────────────────────────
 function getSettings() {
   const row = db.prepare('SELECT * FROM asig_settings WHERE id = 1').get() || {};
@@ -295,5 +439,7 @@ module.exports = {
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
   listLines, getLine, findLine, lineByItem, addLine, setLineState, setLineRelease, pendingReleaseLines, deleteLine, periodCounts,
   listNotifs, getNotif, createNotif, updateNotif, deleteNotif, setNotifEnabled, markNotifSent, dueNotifs,
+  NOTE_COLORS, listBoards, getBoard, boardCount, createBoard, renameBoard, deleteBoard,
+  getNote, listNotes, createNote, updateNote, deleteNote, noteViewers, setNoteViewers, canSeeNote, markNotesSeen, notesBadge,
   getSettings, saveSettings,
 };

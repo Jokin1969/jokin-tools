@@ -17,6 +17,7 @@ const gs1 = require('../datamatrix/gs1');
 const dmVisual = require('../datamatrix/visual');
 const release = require('./release');
 const email = require('./email');
+const authStore = require('../auth/store');
 
 const router = express.Router();
 const PUB = path.join(__dirname, 'public');
@@ -113,6 +114,9 @@ router.get('/api/meta', (req, res) => {
       qrSettings: qrDb.getSettings(),
       month: thisMonth(),
       user: { id: req.user.id, email: req.user.email, name: req.user.name || req.user.email },
+      isAdmin: isAdmin(req),
+      noteColors: db.NOTE_COLORS,
+      notesBadge: db.notesBadge(req.user.id),
     });
   } catch (err) { fail(res, err); }
 });
@@ -441,6 +445,90 @@ router.post('/api/notif/:id(\\d+)/send', json, async (req, res) => {
     const r = await email.sendNotif(n, refDate, { force: true });
     res.json({ ok: true, ...r });
   } catch (err) { fail(res, err); }
+});
+
+// ── Post-its (boards + notes) ─────────────────────────────────────────────────────
+function isAdmin(req) { return !!(req.user && req.user.role === 'admin'); }
+function canManageNote(note, req) { return note.author_id === req.user.id || isAdmin(req); }
+function canManageBoard(b, req) { return b.author_id === req.user.id || isAdmin(req); }
+function noteView(n, req) { return { ...n, puede_gestionar: canManageNote(n, req), has_viewers: (n.viewer_ids || []).length > 0 }; }
+
+// Users (for the share modal).
+router.get('/api/users', (req, res) => {
+  try { res.json({ items: authStore.listUsers().map(u => ({ id: u.id, name: u.name || u.email, email: u.email })), userId: req.user.id }); }
+  catch (err) { fail(res, err); }
+});
+
+router.get('/api/boards', (req, res) => {
+  try { res.json({ items: db.listBoards(req.user.id), userId: req.user.id, isAdmin: isAdmin(req) }); } catch (err) { fail(res, err); }
+});
+router.post('/api/boards', json, (req, res) => {
+  try { const name = String((req.body && req.body.name) || '').trim().slice(0, 80); if (!name) throw bad('El tablón necesita un nombre.'); res.status(201).json({ item: db.createBoard(name, req.user.id) }); }
+  catch (err) { fail(res, err); }
+});
+router.put('/api/boards/:id(\\d+)', json, (req, res) => {
+  try {
+    const b = db.getBoard(Number(req.params.id)); if (!b) return res.status(404).json({ error: 'Tablón no encontrado.' });
+    if (!canManageBoard(b, req)) throw bad('Solo el autor o un administrador puede renombrarlo.', 403);
+    const name = String((req.body && req.body.name) || '').trim().slice(0, 80); if (!name) throw bad('Nombre vacío.');
+    res.json({ item: db.renameBoard(b.id, name) });
+  } catch (err) { fail(res, err); }
+});
+router.delete('/api/boards/:id(\\d+)', (req, res) => {
+  try {
+    const b = db.getBoard(Number(req.params.id)); if (!b) return res.status(404).json({ error: 'Tablón no encontrado.' });
+    if (db.boardCount() <= 1) throw bad('No puedes borrar el último tablón; siempre debe quedar uno.');
+    if (!canManageBoard(b, req)) throw bad('Solo el autor o un administrador puede borrarlo.', 403);
+    db.deleteBoard(b.id); res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+});
+
+router.get('/api/notes', (req, res) => {
+  try {
+    const boardId = Number(req.query.board_id); if (!boardId) throw bad('Falta board_id.');
+    res.json({ items: db.listNotes(boardId, req.user.id).map(n => noteView(n, req)) });
+  } catch (err) { fail(res, err); }
+});
+router.post('/api/notes', json, (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!db.getBoard(Number(b.board_id))) throw bad('Tablón no válido.');
+    const note = db.createNote({ board_id: Number(b.board_id), content: b.content, color: b.color, pos_x: b.pos_x, pos_y: b.pos_y, width: b.width, height: b.height, visibility: b.visibility }, req.user.id);
+    if (note.visibility === 'personalizada' && Array.isArray(b.viewer_ids)) db.setNoteViewers(note.id, b.viewer_ids.map(Number).filter(Number.isInteger));
+    const full = { ...db.getNote(note.id), viewer_ids: db.noteViewers(note.id), is_new: false };
+    res.status(201).json({ item: noteView(full, req) });
+  } catch (err) { fail(res, err); }
+});
+// Partial update. Editing content/pos/size/colour needs "can see"; changing the
+// visibility/viewers needs "can manage" (author or admin).
+router.put('/api/notes/:id(\\d+)', json, (req, res) => {
+  try {
+    const note = db.getNote(Number(req.params.id)); if (!note) return res.status(404).json({ error: 'Nota no encontrada.' });
+    const b = req.body || {};
+    const changingShare = (b.visibility !== undefined) || (b.viewer_ids !== undefined);
+    if (changingShare) { if (!canManageNote(note, req)) throw bad('Solo el autor o un administrador puede cambiar quién la ve.', 403); }
+    else if (!db.canSeeNote(note, req.user.id)) throw bad('No tienes acceso a esta nota.', 403);
+    const patch = {};
+    for (const k of ['content', 'color', 'pos_x', 'pos_y', 'width', 'height', 'visibility']) if (b[k] !== undefined) patch[k] = b[k];
+    db.updateNote(note.id, patch, req.user.id);
+    if (b.viewer_ids !== undefined) db.setNoteViewers(note.id, (Array.isArray(b.viewer_ids) ? b.viewer_ids : []).map(Number).filter(Number.isInteger));
+    const full = { ...db.getNote(note.id), viewer_ids: db.noteViewers(note.id) };
+    res.json({ item: noteView(full, req) });
+  } catch (err) { fail(res, err); }
+});
+router.delete('/api/notes/:id(\\d+)', (req, res) => {
+  try {
+    const note = db.getNote(Number(req.params.id)); if (!note) return res.status(404).json({ error: 'Nota no encontrada.' });
+    if (!canManageNote(note, req)) throw bad('Solo el autor o un administrador puede borrarla.', 403);
+    db.deleteNote(note.id); res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+});
+router.post('/api/notes/seen', json, (req, res) => {
+  try { const boardId = req.body && req.body.board_id ? Number(req.body.board_id) : null; db.markNotesSeen(req.user.id, boardId); res.json({ badge: db.notesBadge(req.user.id) }); }
+  catch (err) { fail(res, err); }
+});
+router.get('/api/notes/badge', (req, res) => {
+  try { res.json(db.notesBadge(req.user.id)); } catch (err) { fail(res, err); }
 });
 
 // ── Settings (ficha display sizes) ───────────────────────────────────────────────
