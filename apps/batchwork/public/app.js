@@ -262,6 +262,25 @@ for (const group of OPERATIONS) {
   for (const op of group.ops) OPS_MAP[op.id] = op;
 }
 
+// ── Sub-feature access ──────────────────────────────────────────────────────────
+// The admin can restrict a user to a subset of tools. The server tells us which
+// features are allowed (loadConfig); we hide the rest. Each tool maps to one
+// access-feature. `null` = not loaded yet / full access → show everything.
+const OP_FEATURE = {
+  inventory: 'folder', rename: 'folder', 'rename-pairs': 'folder',
+  'transparent-png': 'image', 'resize-tiff': 'image', 'images-to-pdf': 'image',
+  'docx-to-pdf': 'document', 'pdf-to-docx': 'document', 'normalize-dni': 'document',
+  'merge-pdfs': 'document', 'split-pdfs': 'document',
+  'degen-aa': 'lab', 'plddt-kde': 'lab', 'mutagen-tree': 'lab', 'dna-replace': 'lab', 'dna-gb-compare': 'lab',
+  watermark: 'watermark', qr: 'qr', sello: 'stamp', pdfqa: 'pdfqa',
+};
+let ALLOWED_FEATURES = null;   // Set of allowed feature ids, or null = show all
+function opAllowed(opId) {
+  if (!ALLOWED_FEATURES) return true;
+  const f = OP_FEATURE[opId];
+  return !f || ALLOWED_FEATURES.has(f);
+}
+
 // Upload limit — the server is the single source of truth (BATCHWORK_MAX_UPLOAD_MB).
 // These defaults are replaced by loadConfig() on startup so client and server
 // never drift.
@@ -274,6 +293,7 @@ async function loadConfig() {
     if (!r.ok) return;
     const c = await r.json();
     if (c.maxUploadMb) { MAX_MB = c.maxUploadMb; MAX_BYTES = MAX_MB * 1024 * 1024; }
+    if (Array.isArray(c.features)) { ALLOWED_FEATURES = new Set(c.features); renderSidebar(); }
   } catch { /* keep defaults */ }
 }
 
@@ -342,6 +362,8 @@ function renderSidebar() {
   const sb = $('sidebar');
   sb.innerHTML = '';
   for (const group of OPERATIONS) {
+    const ops = group.ops.filter(op => opAllowed(op.id));
+    if (!ops.length) continue;                       // hide groups with no allowed tools
     const collapsed = collapsedGroups.has(group.key);
     const groupEl = mk('div', 'bw-sidebar-group' + (collapsed ? ' collapsed' : ''));
 
@@ -353,7 +375,7 @@ function renderSidebar() {
     groupEl.appendChild(header);
 
     const itemsEl = mk('div', 'bw-sidebar-group-items');
-    for (const op of group.ops) {
+    for (const op of ops) {
       const btn = mk('button', 'bw-op-btn' + (state.selectedOp === op.id ? ' active' : ''), op.label);
       btn.dataset.opId = op.id;
       btn.addEventListener('click', () => selectOp(op.id));
@@ -367,6 +389,7 @@ function renderSidebar() {
 // ── Select operation ──────────────────────────────────────────────────────────
 function selectOp(opId) {
   if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
+  if (!opAllowed(opId)) return;                      // not permitted for this user
 
   state.selectedOp = opId;
   state.files = [];

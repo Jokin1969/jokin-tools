@@ -6,6 +6,21 @@ const sessionModule = require('./session');
 const { resolveSession } = require('./session');
 const library = require('./library');
 const { requireAdmin } = require('../../auth/middleware');
+const { canAccessFeature, featuresForUser } = require('../../auth/apps-registry');
+
+// Which access-feature each server-run operation belongs to (lab tools run in the
+// browser and QR/stamp/pdfqa have their own sub-routers, gated separately below).
+const OP_FEATURE = {
+  inventory: 'folder', rename: 'folder', 'rename-pairs': 'folder',
+  'transparent-png': 'image', 'resize-tiff': 'image', 'images-to-pdf': 'image',
+  'docx-to-pdf': 'document', 'pdf-to-docx': 'document', 'normalize-dni': 'document',
+  'merge-pdfs': 'document', 'split-pdfs': 'document',
+  watermark: 'watermark',
+};
+// Gate a request on a Batchwork sub-feature.
+const featureGate = (feature) => (req, res, next) =>
+  canAccessFeature(req.user, 'batchwork', feature) ? next()
+    : res.status(403).json({ error: 'No tienes acceso a esta herramienta.' });
 
 // Eager-load spawn-python para disparar el diagnóstico al boot
 require('./spawn-python');
@@ -125,7 +140,7 @@ router.get('/api/diag', requireAdmin, (req, res) => {
 
 // ── API: Client config (single source of truth for limits) ───────────────────
 router.get('/api/config', (req, res) => {
-  res.json({ maxUploadMb: MAX_MB });
+  res.json({ maxUploadMb: MAX_MB, features: featuresForUser(req.user, 'batchwork') });
 });
 
 // ── API: Create session ───────────────────────────────────────────────────────
@@ -172,6 +187,12 @@ router.post('/api/session/:id/execute', express.json(), async (req, res) => {
 
   const { operation, params = {} } = req.body;
   if (!operation) return res.status(400).json({ error: 'operation is required' });
+
+  // Enforce sub-feature access: an operation the user isn't allowed to use is 403.
+  const feat = OP_FEATURE[operation];
+  if (feat && !canAccessFeature(req.user, 'batchwork', feat)) {
+    return res.status(403).json({ error: 'No tienes acceso a esta herramienta.' });
+  }
 
   session.operation = operation;
   session.params = params;
@@ -370,8 +391,8 @@ router.delete('/api/library/dna/:name', (req, res) => {
 });
 
 // ── API: QRs (Miscelánea) ─────────────────────────────────────────────────────
-router.use('/api/qr', require('./qr-routes'));
-router.use('/api/stamp', require('./stamp-routes'));
-router.use('/api/pdfqa', require('./pdfqa-routes'));
+router.use('/api/qr', featureGate('qr'), require('./qr-routes'));
+router.use('/api/stamp', featureGate('stamp'), require('./stamp-routes'));
+router.use('/api/pdfqa', featureGate('pdfqa'), require('./pdfqa-routes'));
 
 module.exports = router;

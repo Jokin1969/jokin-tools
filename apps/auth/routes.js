@@ -5,7 +5,7 @@ const router = express.Router();
 
 const store = require('./store');
 const mailer = require('./mailer');
-const { appsForUser, appsMeta, APP_IDS } = require('./apps-registry');
+const { appsForUser, appsMeta, APP_IDS, isFeatureId } = require('./apps-registry');
 const { requireAuth, requireAdmin, requireLogin, setSessionCookie, clearSessionCookie } = require('./middleware');
 const { rateLimit } = require('./rate-limit');
 
@@ -241,11 +241,15 @@ router.delete('/api/users/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// Keep only known app ids (defends against typos / stale clients).
+// Keep only known app ids and valid "<app>/<feature>" scoped ids (defends
+// against typos / stale clients). A scoped id is dropped if its base app isn't
+// also granted — a feature grant with no app to attach to is meaningless.
 function sanitizeApps(apps) {
   if (apps === '*') return '*';
-  const list = Array.isArray(apps) ? apps : String(apps || '').split(',');
-  return list.map(s => String(s).trim()).filter(a => APP_IDS.includes(a));
+  const list = (Array.isArray(apps) ? apps : String(apps || '').split(',')).map(s => String(s).trim()).filter(Boolean);
+  const base = new Set(list.filter(a => APP_IDS.includes(a)));
+  const scoped = list.filter(a => isFeatureId(a) && base.has(a.split('/')[0]));
+  return [...base, ...new Set(scoped)];
 }
 
 module.exports = router;

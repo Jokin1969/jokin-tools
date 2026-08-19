@@ -120,6 +120,58 @@ const APPS = [
 
 const APP_IDS = APPS.map(a => a.id);
 
+// ─── Sub-app features (fine-grained access WITHIN an app) ───────────────────────
+// Some apps bundle many independent tools. An admin can restrict a user to a
+// subset. We model each grant as a scoped id in the user's `apps` CSV, of the
+// form "<appId>/<featureId>". Backwards-compatible rule: a user who has the base
+// app id but NO scoped ids for it keeps FULL access (so nothing changes for the
+// users created before this existed). As soon as one "<appId>/<featureId>" is
+// present, access is restricted to the listed features.
+const APP_FEATURES = {
+  batchwork: [
+    { id: 'folder',    name: 'Herramientas de carpetas' },
+    { id: 'image',     name: 'Herramientas de imagen' },
+    { id: 'document',  name: 'Herramientas de documentos' },
+    { id: 'lab',       name: 'Herramientas de laboratorio' },
+    { id: 'watermark', name: 'Marca de agua' },
+    { id: 'qr',        name: 'QRs' },
+    { id: 'stamp',     name: 'Sellos' },
+    { id: 'pdfqa',     name: 'Preguntar a un PDF (IA)' },
+  ],
+};
+
+function featureIds(appId) { return (APP_FEATURES[appId] || []).map(f => f.id); }
+function appHasFeatures(appId) { return !!(APP_FEATURES[appId] && APP_FEATURES[appId].length); }
+// A valid scoped id is "<knownApp>/<knownFeature>".
+function isFeatureId(scoped) {
+  const [app, feat] = String(scoped || '').split('/');
+  return !!feat && featureIds(app).includes(feat);
+}
+function userAppList(user) {
+  if (!user) return [];
+  if (user.apps === '*') return ['*'];
+  return Array.isArray(user.apps) ? user.apps : String(user.apps || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+// Which features of an app a user may use. Returns the full list when the user
+// has the app without any scoped ids (legacy/full), or the explicit subset.
+function featuresForUser(user, appId) {
+  const all = featureIds(appId);
+  if (!all.length) return [];
+  if (!user) return [];
+  if (user.role === 'admin' || user.apps === '*') return all.slice();
+  const list = userAppList(user);
+  if (!list.includes(appId)) return [];
+  const scoped = list.filter(x => x.startsWith(appId + '/')).map(x => x.split('/')[1]).filter(f => all.includes(f));
+  return scoped.length ? scoped : all.slice();      // no scopes → full (legacy)
+}
+
+function canAccessFeature(user, appId, featureId) {
+  if (!appHasFeatures(appId)) return canAccess(user, appId);
+  if (!canAccess(user, appId)) return false;
+  return featuresForUser(user, appId).includes(featureId);
+}
+
 // Apps a given user may access. role 'admin' (or apps '*') → everything.
 function appsForUser(user) {
   if (!user) return [];
@@ -137,7 +189,11 @@ function canAccess(user, appId) {
 }
 
 // Public-facing card metadata (no need to ship icons over the API; the hub
-// already has them, but it's handy for the admin checkboxes).
-const appsMeta = () => APPS.map(({ id, name, path, desc, tags }) => ({ id, name, path, desc, tags }));
+// already has them, but it's handy for the admin checkboxes). Each app also
+// carries its `features` (empty for apps without fine-grained control).
+const appsMeta = () => APPS.map(({ id, name, path, desc, tags }) => ({ id, name, path, desc, tags, features: APP_FEATURES[id] || [] }));
 
-module.exports = { APPS, APP_IDS, appsForUser, canAccess, appsMeta };
+module.exports = {
+  APPS, APP_IDS, appsForUser, canAccess, appsMeta,
+  APP_FEATURES, featureIds, appHasFeatures, isFeatureId, featuresForUser, canAccessFeature,
+};

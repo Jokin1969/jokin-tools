@@ -32,6 +32,10 @@
     .btn:disabled { opacity:.5; cursor:default; }
     .apps-box { display:flex; flex-wrap:wrap; gap:14px; }
     .apps-box label { display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:0.78rem; color:var(--text); }
+    .app-item { display:flex; flex-direction:column; gap:4px; }
+    .feat-box { display:flex; flex-wrap:wrap; gap:6px 14px; margin:2px 0 4px 20px; padding:8px 12px; border-left:2px solid var(--border); background:rgba(0,0,0,.015); border-radius:var(--radius-sm); }
+    .feat-box label { font-size:0.72rem; color:var(--text-muted); }
+    .feat-hint { flex-basis:100%; font-size:0.64rem; color:var(--text-dim); margin-bottom:2px; }
     .u-table { width:100%; border-collapse:collapse; }
     .u-table th { text-align:left; font-family:var(--mono); font-size:0.68rem; text-transform:uppercase; letter-spacing:.05em; color:var(--text-dim); padding:8px 10px; border-bottom:1px solid var(--border); }
     .u-table td { padding:12px 10px; border-bottom:1px solid var(--border); vertical-align:top; font-size:0.86rem; }
@@ -117,19 +121,55 @@
       return data;
     }
 
-    function appCheckboxes(containerId, selected, disabled) {
-      const box = document.getElementById(containerId);
-      box.innerHTML = APPS.map(a => `
-        <label><input type="checkbox" value="${esc(a.id)}" ${selected.includes(a.id) ? 'checked' : ''} ${disabled ? 'disabled' : ''}/> ${esc(a.name)}</label>
-      `).join('');
-      return box;
+    // Render app checkboxes, each with an optional nested box of sub-features.
+    // `selected` is the user's apps array (base ids + "app/feature" scoped ids).
+    function paintAppsInto(box, selected, isAdmin) {
+      box.innerHTML = APPS.map(a => {
+        const appChecked = isAdmin || selected.includes(a.id);
+        const feats = a.features || [];
+        let featHtml = '';
+        if (feats.length) {
+          const scopedSel = selected.filter(s => s.startsWith(a.id + '/')).map(s => s.split('/')[1]);
+          const anyScoped = scopedSel.length > 0;   // no scopes → full access (all on)
+          featHtml = `<div class="feat-box" data-app="${esc(a.id)}" style="display:${appChecked && !isAdmin ? 'flex' : 'none'}">`
+            + `<div class="feat-hint">Marca los grupos permitidos (todos marcados = acceso completo):</div>`
+            + feats.map(f => {
+                const fChecked = isAdmin || !anyScoped || scopedSel.includes(f.id);
+                return `<label><input type="checkbox" class="feat-cb" value="${esc(a.id)}/${esc(f.id)}" ${fChecked ? 'checked' : ''} ${isAdmin ? 'disabled' : ''}/> ${esc(f.name)}</label>`;
+              }).join('')
+            + `</div>`;
+        }
+        return `<div class="app-item">`
+          + `<label><input type="checkbox" class="app-cb" value="${esc(a.id)}" ${appChecked ? 'checked' : ''} ${isAdmin ? 'disabled' : ''}/> ${esc(a.name)}</label>`
+          + featHtml + `</div>`;
+      }).join('');
+      // Toggling an app shows/hides its sub-feature box.
+      box.querySelectorAll('.app-cb').forEach(cb => cb.addEventListener('change', () => {
+        const fb = box.querySelector('.feat-box[data-app="' + cb.value + '"]');
+        if (fb) fb.style.display = cb.checked ? 'flex' : 'none';
+      }));
     }
-    const readChecks = box => [...box.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+    // Build the apps payload: each checked app's id, plus "app/feature" scoped
+    // ids only when a strict subset of its features is selected (all/none = full).
+    function readApps(box) {
+      const out = [];
+      box.querySelectorAll('.app-cb:checked').forEach(cb => {
+        const appId = cb.value;
+        out.push(appId);
+        const fb = box.querySelector('.feat-box[data-app="' + appId + '"]');
+        if (fb) {
+          const all = [...fb.querySelectorAll('.feat-cb')];
+          const checked = all.filter(c => c.checked);
+          if (checked.length && checked.length < all.length) out.push(...checked.map(c => c.value));
+        }
+      });
+      return out;
+    }
 
     // ── Create form ──
     function syncCreateRole() {
       const isAdmin = document.getElementById('c-role').value === 'admin';
-      appCheckboxes('c-apps', isAdmin ? APPS.map(a => a.id) : [], isAdmin);
+      paintAppsInto(document.getElementById('c-apps'), [], isAdmin);
       document.getElementById('c-apps-hint').textContent = isAdmin ? '(un admin ve todas)' : '';
     }
     document.getElementById('c-role').addEventListener('change', syncCreateRole);
@@ -144,7 +184,7 @@
           name: document.getElementById('c-name').value,
           password: document.getElementById('c-password').value,
           role,
-          apps: role === 'admin' ? '*' : readChecks(document.getElementById('c-apps')),
+          apps: role === 'admin' ? '*' : readApps(document.getElementById('c-apps')),
         });
         e.target.reset(); syncCreateRole();
         setMsg(msg, '✓ Usuario creado.', 'ok');
@@ -182,10 +222,7 @@
       const tdApps = document.createElement('td');
       const appsBox = document.createElement('div');
       appsBox.className = 'apps-box';
-      const paintApps = () => {
-        const adm = roleSel.value === 'admin';
-        appsBox.innerHTML = APPS.map(a => `<label><input type="checkbox" value="${esc(a.id)}" ${(adm || selected.includes(a.id)) ? 'checked' : ''} ${adm ? 'disabled' : ''}/> ${esc(a.name)}</label>`).join('');
-      };
+      const paintApps = () => paintAppsInto(appsBox, selected, roleSel.value === 'admin');
       paintApps();
       roleSel.addEventListener('change', paintApps);
       tdApps.appendChild(appsBox);
@@ -204,7 +241,7 @@
           await api('PATCH', '/auth/api/users/' + u.id, {
             name: nameIn.value,
             role: roleSel.value,
-            apps: roleSel.value === 'admin' ? '*' : readChecks(appsBox),
+            apps: roleSel.value === 'admin' ? '*' : readApps(appsBox),
           });
           setMsg(rowMsg, '✓ Guardado.', 'ok'); loadUsers();
         } catch (err) { setMsg(rowMsg, err.message, 'err'); }
