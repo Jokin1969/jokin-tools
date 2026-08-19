@@ -966,9 +966,19 @@ function viewHelp() {
         <li><b>Crear</b>: «➕ Nueva nota». <b>Arrastra</b> por la cabecera para moverla y <b>redimensiona</b> por la esquina inferior derecha. La posición y el tamaño se guardan solos.</li>
         <li><b>Color</b>: los círculos de colores cambian el fondo al instante. <b>Texto</b>: se guarda solo al dejar de escribir.</li>
         <li><b>Compartir</b> (🔗, solo en tus notas): «Visible para todos» o elige usuarios concretos. <b>Quien puede ver una nota también puede editarla</b> (es una conversación sobre el post-it). Solo el autor (o un administrador) puede borrarla o cambiar con quién se comparte.</li>
-        <li><b>🔔 Avisar a los destinatarios</b> (dentro de 🔗, al compartir): marca la nota para que a quien la comparte le salte un <b>aviso destacado al abrir la app</b> hasta que la abra. Ideal para <b>recados</b> o cosas pendientes que el otro debe tener en cuenta. Las notas que están avisando se ven con un <b>borde ámbar</b> y una campanita 🔔. Si el destinatario ya la vio pero quieres <b>recordárselo otra vez</b>, usa «Volver a avisar».</li>
+        <li><b>🔔 Avisar (recados)</b>: al compartir puedes marcar la nota para que <b>avise</b> a los destinatarios al abrir la app. Se explica en la sección siguiente, <b>«Recados: avisar de una nota»</b>.</li>
       </ul>
-      <div class="qt-note tip">El icono <b>🗒️</b> avisa: se pone <b>rojo con un contador</b> cuando tienes <b>notas nuevas sin ver</b>. Las pestañas con novedades muestran un punto. Al abrir un tablón, sus notas se marcan como vistas (y se apaga su aviso). Si alguien te marcó una nota con 🔔, al entrar en la app verás un <b>recuadro destacado</b> con el recado y un botón para ir directo a él.</div>` },
+      <div class="qt-note tip">El icono <b>🗒️</b> avisa: se pone <b>rojo con un contador</b> cuando tienes <b>notas nuevas sin ver</b>. Las pestañas con novedades muestran un punto. Al abrir un tablón, sus notas se marcan como vistas.</div>` },
+    { id: 'recados', icon: '🔔', title: 'Recados: avisar de una nota', html: `<p>Las notas sirven también para <b>dejarse recados entre compañeros</b>: cosas pendientes, información que traspasar, algo que el otro debe tener en cuenta. Para que <b>no pasen desapercibidas</b>, puedes marcar una nota para que <b>avise</b> a las personas con las que la compartes.</p>
+      <p><b>Cómo avisar</b> (solo el autor o un administrador):</p>
+      <ol>
+        <li>Abre <b>🔗 Compartir</b> en tu nota y elige con quién la compartes («todos» o personas concretas).</li>
+        <li>Marca la casilla <b>«🔔 Avisar a los destinatarios»</b>. (En una nota <b>privada</b> no está disponible: sin destinatarios no hay a quién avisar.)</li>
+      </ol>
+      <p><b>Qué ve quien recibe el recado</b>: al <b>abrir la app</b> le aparece un <b>recuadro destacado</b> — <i>«Tienes una nota que requiere tu atención»</i> — con <b>quién</b> se lo dejó, en qué <b>tablón</b> y un <b>extracto</b> del texto. Con <b>«Ver la nota →»</b> (o pulsando el propio recado) va directo al tablón. Si prefiere dejarlo para luego, <b>«Ahora no»</b> y le volverá a salir la próxima vez que entre. Si son varios recados, se listan todos.</p>
+      <p><b>El aviso se apaga solo</b> cuando la persona <b>abre el tablón</b> de esa nota (deja de recibir el recuadro). En el tablón, las notas que están avisando se distinguen con un <b>borde ámbar</b> y una campanita <b>🔔</b>.</p>
+      <p><b>Volver a avisar</b>: si el destinatario ya la vio pero quieres <b>recordárselo</b>, abre <b>🔗 Compartir</b> y pulsa <b>«🔔 Volver a avisar»</b>. La nota vuelve a avisar aunque ya la hubieran abierto.</p>
+      <div class="qt-note tip">Es la forma rápida de decir «oye, mira esto»: escribe el recado en una nota, compártela con quien corresponda y marca 🔔. Esa persona lo verá <b>sí o sí</b> al entrar en la app.</div>` },
     { id: 'viajar', icon: '🔀', title: 'Saltar entre las apps', html: `<p>Arriba, junto al título, tienes el <b>selector</b> <b>QR (TIS) · Data Matrix · Asignación</b> para <b>cambiar de app</b> con un clic. La app en la que estás aparece resaltada.</p>` },
   ];
   const nav = SECS.map(s => `<a data-go="help-${s.id}">${s.icon} ${s.title}</a>`).join('');
