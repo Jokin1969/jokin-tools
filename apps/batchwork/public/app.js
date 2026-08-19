@@ -3942,10 +3942,12 @@ function renderDnaReplaceUI() {
   container.appendChild(box);
   } // end if(!satMode) options box
 
-  // Clear
+  // Bottom row: clear + FASTA export (all modified sequences, nt or aa)
+  const bottomRow = mk('div');
+  bottomRow.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:4px;';
   const clearBtn = mk('button', 'bw-btn bw-btn-cancel');
   clearBtn.type = 'button';
-  clearBtn.style.cssText = 'font-size:0.8rem;padding:7px 16px;align-self:flex-start;margin-top:4px;';
+  clearBtn.style.cssText = 'font-size:0.8rem;padding:7px 16px;';
   clearBtn.textContent = '↺ Limpiar y empezar de nuevo';
   clearBtn.addEventListener('click', () => {
     if (state.appStatus === 'running' || state.appStatus === 'uploading') return;
@@ -3956,7 +3958,17 @@ function renderDnaReplaceUI() {
     renderDnaReplaceUI();
     updateExecuteBtn();
   });
-  container.appendChild(clearBtn);
+  bottomRow.appendChild(clearBtn);
+
+  const fastaLbl = mk('span', null, '⤓ FASTA de las secuencias modificadas:');
+  fastaLbl.style.cssText = `font-family:${MUT_MONO};font-size:0.76rem;color:var(--text-muted);margin-left:6px;`;
+  bottomRow.appendChild(fastaLbl);
+  const fastaNt = mk('button', 'bw-btn bw-btn-cancel'); fastaNt.type = 'button'; fastaNt.textContent = 'nt'; fastaNt.title = 'Descargar un FASTA con las secuencias de nucleótidos'; fastaNt.style.cssText = 'font-size:0.8rem;padding:7px 16px;';
+  const fastaAa = mk('button', 'bw-btn bw-btn-cancel'); fastaAa.type = 'button'; fastaAa.textContent = 'aa'; fastaAa.title = 'Descargar un FASTA con las secuencias traducidas a aminoácidos'; fastaAa.style.cssText = 'font-size:0.8rem;padding:7px 16px;';
+  fastaNt.addEventListener('click', () => exportDnaFasta('nt'));
+  fastaAa.addEventListener('click', () => exportDnaFasta('aa'));
+  bottomRow.appendChild(fastaNt); bottomRow.appendChild(fastaAa);
+  container.appendChild(bottomRow);
 
   zone.appendChild(container);
   updateExecuteBtn();
@@ -4361,6 +4373,52 @@ async function runDnaSaturate() {
     featType: 'CDS', featColor: '#a6acb3',
     zipPrefix, reportLabel: label,
   });
+}
+
+// ── FASTA export of the modified sequences (nt / aa), across all modes ──────────
+// Gathers { name, nt } for every construction currently defined: the single new
+// sequence, each bulk row, or each saturation variant.
+function dnaCollectConstructions() {
+  const out = [];
+  const templateBase = (dnaReplaceInput.file && dnaReplaceInput.file.name.replace(/\.dna$/i, '')) || 'seq';
+  if (dnaReplaceInput.bulkMode && dnaReplaceInput.bulkSubmode === 'saturate') {
+    const st = dnaSatState();
+    if (st.error) throw new Error(st.error);
+    const prefix = dnaReplaceInput.satPrefix || '', suffix = dnaReplaceInput.satSuffix || '';
+    for (const c of st.constructs) out.push({ name: `${prefix}${c.name}${suffix}`, nt: BWBio.buildVariantNt(st.oldSeq, c.codonPos, c.newAA) });
+    return out;
+  }
+  if (dnaReplaceInput.bulkMode) {
+    const rows = dnaParseBulk(dnaReplaceInput.bulkText, dnaReplaceInput.bulkHeader).filter(r => r.valid);
+    rows.forEach((r, i) => out.push({ name: r.name || `${templateBase}_${i + 1}`, nt: r.seq }));
+    return out;
+  }
+  const nt = dnaCleanSeq(dnaReplaceInput.newSeq);
+  if (nt) out.push({ name: (dnaReplaceInput.renameDoc && dnaReplaceInput.docName.trim()) || `${templateBase}_modificado`, nt });
+  return out;
+}
+// Frame-1 translation (T-based); '*' = stop, 'X' = unknown/incomplete handled by dropping the tail.
+function dnaTranslateFrame1(nt) {
+  const s = String(nt || '').toUpperCase().replace(/U/g, 'T').replace(/[^ACGT]/g, '');
+  let aa = '';
+  for (let i = 0; i + 3 <= s.length; i += 3) aa += (BWBio.GENETIC_CODE[s.substr(i, 3)] || 'X');
+  return aa;
+}
+function dnaFastaWrap(s, n) { const out = []; for (let i = 0; i < s.length; i += n) out.push(s.slice(i, i + n)); return out.join('\n'); }
+function exportDnaFasta(kind) {
+  let items;
+  try { items = dnaCollectConstructions(); } catch (e) { setStatus('No se pudo exportar: ' + e.message, 'err'); return; }
+  if (!items.length) { setStatus('No hay secuencias modificadas que exportar (introduce la secuencia nueva, el bulk o las variantes).', 'err'); return; }
+  const text = items.map(it => {
+    const header = String(it.name || 'secuencia').replace(/[\r\n]+/g, ' ').trim() || 'secuencia';
+    const seq = kind === 'aa' ? dnaTranslateFrame1(it.nt) : String(it.nt || '').toUpperCase();
+    return '>' + header + '\n' + (dnaFastaWrap(seq, 70) || '');
+  }).join('\n') + '\n';
+  const templateBase = (dnaReplaceInput.file && dnaReplaceInput.file.name.replace(/\.dna$/i, '')) || 'secuencias';
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${templateBase}_modificadas_${kind}.fasta` });
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  setStatus(`✓ FASTA (${kind}) generado — ${items.length} secuencia(s).`, 'ok');
 }
 
 // The saturation panel: analyse the ORF, ask for a position, and show the 19
