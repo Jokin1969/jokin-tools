@@ -601,6 +601,170 @@ router.delete('/api/line/:id(\\d+)', (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+// ── Precintos físicos: control de "pegado" en la hoja oficial de Salud ───────────
+// Every ASSIGNED unit this month (a DM line 'asignada' or an asig_precinto row) is a
+// physical barcode the pharmacy must cut and stick on the official 4×7 A4 sheet
+// before month-end. Here we aggregate them by medication, track which are already
+// stuck, produce the ordering PDF, and record photo evidence.
+const eanFromGtin = (g) => { const d = String(g || '').replace(/\D/g, ''); return d.length === 14 ? (d[0] === '0' ? d.slice(1) : null) : (d.length === 13 ? d : null); };
+function buildStickers(ym) {
+  const out = [];
+  for (const l of db.assignedLinesForYm(ym)) {
+    const item = dmDb.getItem(l.item_id) || {};
+    const gtin = l.gtin || item.gtin || null;
+    const cn = item.cn || cima.cnFromBarcode(eanFromGtin(gtin) || '') || null;
+    const barcode = (cn ? cima.barcodeFromCn(cn) : null) || eanFromGtin(gtin);
+    out.push({ source: 'line', id: l.id, person_id: l.person_id, gtin, cn, barcode, nombre: item.nombre || null, serial: item.serial || null,
+      pegado: !!l.pegado, pegado_at: l.pegado_at || null, method: l.pegado_method || null, evidencia_id: l.evidencia_id || null, assigned_at: l.assigned_at || l.updated_at || null });
+  }
+  for (const pr of db.precintosForYm(ym)) {
+    const cn = pr.cn || (pr.barcode ? cima.cnFromBarcode(pr.barcode) : null);
+    const barcode = pr.barcode || (cn ? cima.barcodeFromCn(cn) : null) || eanFromGtin(pr.gtin);
+    out.push({ source: 'precinto', id: pr.id, person_id: pr.person_id, gtin: pr.gtin || null, cn: cn || null, barcode, nombre: pr.nombre || null, serial: null,
+      pegado: !!pr.pegado, pegado_at: pr.pegado_at || null, method: pr.pegado_method || null, evidencia_id: pr.evidencia_id || null, assigned_at: pr.assigned_at || null });
+  }
+  const pcache = new Map();
+  for (const s of out) {
+    if (!pcache.has(s.person_id)) pcache.set(s.person_id, qrDb.getPerson(s.person_id));
+    const p = pcache.get(s.person_id);
+    s.person = p ? { id: p.id, nombre: p.nombre, apellidos: p.apellidos } : { id: s.person_id, nombre: '', apellidos: '' };
+  }
+  return out;
+}
+function stickerKey(s) { return s.cn || s.barcode || s.gtin || (s.nombre ? 'n:' + s.nombre : '—'); }
+function stickerPayload(ym) {
+  const stickers = buildStickers(ym);
+  const groups = new Map();
+  for (const s of stickers) {
+    const key = stickerKey(s);
+    if (!groups.has(key)) groups.set(key, { key, cn: s.cn, barcode: s.barcode, gtin: s.gtin, nombre: s.nombre, por_pegar: 0, pegados: 0, items: [] });
+    const g = groups.get(key);
+    if (s.pegado) g.pegados++; else g.por_pegar++;
+    if (!g.nombre && s.nombre) g.nombre = s.nombre;
+    if (!g.cn && s.cn) g.cn = s.cn;
+    if (!g.barcode && s.barcode) g.barcode = s.barcode;
+    g.items.push({ source: s.source, id: s.id, person: s.person, barcode: s.barcode, cn: s.cn, nombre: s.nombre, serial: s.serial, pegado: s.pegado, pegado_at: s.pegado_at, method: s.method, evidencia_id: s.evidencia_id, assigned_at: s.assigned_at });
+  }
+  const groupArr = [...groups.values()].sort((a, b) => (a.nombre || 'zzz').localeCompare(b.nombre || 'zzz') || String(a.cn || '').localeCompare(String(b.cn || '')));
+  for (const g of groupArr) g.items.sort((a, b) => (a.person.apellidos || '').localeCompare(b.person.apellidos || '') || (a.person.nombre || '').localeCompare(b.person.nombre || ''));
+  const por_pegar = stickers.filter(s => !s.pegado).length;
+  return { ym, months: db.stickerMonths(), totals: { por_pegar, pegados: stickers.length - por_pegar, total: stickers.length }, groups: groupArr, evidencias: db.listEvidencia(ym) };
+}
+function markStickerItems(items, pegado, method, evidenciaId) {
+  let n = 0;
+  for (const it of (Array.isArray(items) ? items : [])) {
+    const id = Number(it && it.id);
+    if (!id) continue;
+    if (it.source === 'line') { db.setLinePegado(id, pegado, method, evidenciaId); n++; }
+    else if (it.source === 'precinto') { db.setPrecintoPegado(id, pegado, method, evidenciaId); n++; }
+  }
+  return n;
+}
+router.get('/api/stickers', (req, res) => {
+  try { res.json(stickerPayload(cleanYm(req.query.ym))); } catch (err) { fail(res, err); }
+});
+router.post('/api/stickers/mark', json, (req, res) => {
+  try { const b = req.body || {}; markStickerItems(b.items, true, b.method || 'manual', b.evidencia_id != null ? Number(b.evidencia_id) : null); res.json(stickerPayload(cleanYm(b.ym))); } catch (err) { fail(res, err); }
+});
+router.post('/api/stickers/unmark', json, (req, res) => {
+  try { const b = req.body || {}; markStickerItems(b.items, false); res.json(stickerPayload(cleanYm(b.ym))); } catch (err) { fail(res, err); }
+});
+// Mark ALL still-pending precintos of one medication (group) as stuck.
+router.post('/api/stickers/mark-med', json, (req, res) => {
+  try {
+    const b = req.body || {}; const ym = cleanYm(b.ym); const key = String(b.key || '');
+    const pending = buildStickers(ym).filter(s => !s.pegado && stickerKey(s) === key);
+    markStickerItems(pending.map(s => ({ source: s.source, id: s.id })), true, b.method || 'manual', b.evidencia_id != null ? Number(b.evidencia_id) : null);
+    res.json({ marked: pending.length, ...stickerPayload(ym) });
+  } catch (err) { fail(res, err); }
+});
+// Scanner cotejo: a scanned barcode/DM marks the NEXT pending precinto of that med.
+router.post('/api/stickers/scan', json, (req, res) => {
+  try {
+    const b = req.body || {}; const ym = cleanYm(b.ym); const raw = String(b.code == null ? '' : b.code).trim();
+    if (!raw) throw bad('Código vacío.');
+    const f = gs1.parse(raw); const digits = raw.replace(/\D/g, '');
+    let cn = null, barcode = null, gtin = null;
+    if (f && f.gtin) { gtin = gs1.normGtin(f.gtin); cn = f.cn || cima.cnFromBarcode(eanFromGtin(gtin) || ''); barcode = cn ? cima.barcodeFromCn(cn) : eanFromGtin(gtin); }
+    else if (/^\d{12,14}$/.test(digits)) { const ean = digits.length === 14 && digits[0] === '0' ? digits.slice(1) : digits; barcode = ean; cn = cima.cnFromBarcode(ean); gtin = cn ? cima.gtinFromCn(cn) : null; }
+    else throw bad('No reconozco el código escaneado.');
+    const pending = buildStickers(ym).filter(s => !s.pegado && ((cn && s.cn === cn) || (barcode && s.barcode === barcode) || (gtin && s.gtin === gtin)));
+    if (!pending.length) return res.status(409).json({ error: 'No queda ningún precinto por pegar de ese medicamento este mes.', nomatch: true, cn, barcode });
+    const target = pending[0];
+    markStickerItems([{ source: target.source, id: target.id }], true, 'scan', null);
+    res.json({ ok: true, matched: { cn: target.cn, nombre: target.nombre, person: target.person }, remaining: pending.length - 1, ...stickerPayload(ym) });
+  } catch (err) { fail(res, err); }
+});
+// Photo evidence (base64 data URL). Returns the id to attach when marking pegado.
+const jsonPhoto = express.json({ limit: '12mb' });
+router.post('/api/stickers/evidencia', jsonPhoto, (req, res) => {
+  try {
+    const b = req.body || {}; const ym = cleanYm(b.ym);
+    const m = /^data:([^;]+);base64,([\s\S]+)$/.exec(String(b.photo || ''));
+    if (!m) throw bad('Foto no válida.');
+    const buf = Buffer.from(m[2], 'base64');
+    if (!buf.length) throw bad('Foto vacía.');
+    if (buf.length > 10 * 1024 * 1024) throw bad('Foto demasiado grande (máx. 10 MB).');
+    const id = db.addEvidencia({ ym, photo: buf, mime: m[1], note: b.note || null }, req.user.id);
+    res.json({ evidencia_id: id, mime: m[1] });
+  } catch (err) { fail(res, err); }
+});
+router.get('/api/stickers/evidencia/:id(\\d+)', (req, res) => {
+  try {
+    const ev = db.getEvidencia(Number(req.params.id));
+    if (!ev) return res.status(404).end();
+    res.set('Content-Type', ev.mime || 'image/jpeg'); res.set('Cache-Control', 'private, max-age=3600'); res.send(ev.photo);
+  } catch { res.status(404).end(); }
+});
+// PDF: barcodes ordered by medication, 4×7 per A4 page, to stick & compare against
+// the official Salud sheet.
+router.get('/api/stickers/pdf', async (req, res) => {
+  try {
+    const ym = cleanYm(req.query.ym); const all = req.query.filter === 'all';
+    let stickers = buildStickers(ym);
+    if (!all) stickers = stickers.filter(s => !s.pegado);
+    stickers.sort((a, b) => String(a.cn || a.barcode || '').localeCompare(String(b.cn || b.barcode || '')) || (a.person.apellidos || '').localeCompare(b.person.apellidos || ''));
+    await buildStickersPdf(res, ym, stickers, all);
+  } catch (err) { fail(res, err); }
+});
+async function buildStickersPdf(res, ym, stickers, includeStuck) {
+  const PDFDocument = require('pdfkit');
+  const bwipjs = require('bwip-js');
+  const pngs = await Promise.all(stickers.map(async s => {
+    if (!s.barcode || !/^\d{12,13}$/.test(String(s.barcode))) return null;
+    try { return await bwipjs.toBuffer({ bcid: 'ean13', text: String(s.barcode), scale: 2, height: 12, includetext: true, textxalign: 'center' }); }
+    catch { return null; }
+  }));
+  const doc = new PDFDocument({ size: 'A4', margin: 28 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="precintos-${ym}.pdf"`);
+  doc.pipe(res);
+  const COLS = 4, ROWS = 7, per = COLS * ROWS, M = 28, TOP = 58;
+  const pageW = doc.page.width - M * 2, gridH = doc.page.height - TOP - M;
+  const cellW = pageW / COLS, cellH = gridH / ROWS;
+  const header = () => {
+    doc.fontSize(14).fillColor('#0f172a').text(`Precintos ${includeStuck ? '(todos)' : 'por pegar'} · ${ym}`, M, 22, { lineBreak: false });
+    doc.fontSize(8).fillColor('#64748b').text(`${stickers.length} precinto(s) · ordenados por medicamento · hoja 4 × 7`, M, 41, { lineBreak: false });
+  };
+  if (!stickers.length) { header(); doc.fontSize(11).fillColor('#64748b').text(`No hay precintos ${includeStuck ? '' : 'pendientes '}este mes.`, M, 80); doc.end(); return; }
+  stickers.forEach((s, i) => {
+    const idx = i % per;
+    if (i > 0 && idx === 0) doc.addPage();
+    if (idx === 0) header();
+    const col = idx % COLS, row = Math.floor(idx / COLS);
+    const x = M + col * cellW, y = TOP + row * cellH;
+    doc.rect(x + 2, y + 2, cellW - 4, cellH - 4).lineWidth(0.5).stroke('#e2e8f0');
+    const png = pngs[i];
+    if (png) { const iw = Math.min(cellW - 14, 108); doc.image(png, x + (cellW - iw) / 2, y + 8, { width: iw }); }
+    else { doc.fontSize(7.5).fillColor('#b91c1c').text('sin código de barras', x + 6, y + 24, { width: cellW - 12, align: 'center' }); }
+    const name = String(s.nombre || 'Medicamento');
+    doc.fontSize(7).fillColor('#0f172a').text(name.length > 42 ? name.slice(0, 40) + '…' : name, x + 6, y + cellH - 34, { width: cellW - 12, align: 'center', lineBreak: false });
+    doc.fontSize(6.5).fillColor('#475569').text(`${s.cn ? 'CN ' + s.cn + ' · ' : ''}${s.person.apellidos}, ${s.person.nombre}`, x + 6, y + cellH - 23, { width: cellW - 12, align: 'center', lineBreak: false });
+    if (s.pegado) doc.fontSize(6).fillColor('#16a34a').text('PEGADO', x + 6, y + cellH - 12, { width: cellW - 12, align: 'center', lineBreak: false });
+  });
+  doc.end();
+}
+
 // ── Release search (by date/criterion) + per-person aggregation ─────────────────
 router.get('/api/release', (req, res) => {
   try { res.json(release.releaseSearch(req.query || {})); } catch (err) { fail(res, err); }

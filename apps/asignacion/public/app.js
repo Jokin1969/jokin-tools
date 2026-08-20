@@ -21,6 +21,7 @@ const S = {
   peopleFilter: null,   // when set (array of ids), the home shows only these (from an email link)
   isAdmin: false, noteColors: [], notesBadge: { notes: 0, new_notes: 0 },
   board: { boards: [], currentId: null, notes: [], users: [], userId: null },
+  stickers: null, stkYm: null, stkShowPegados: false,
 };
 
 // ── Tiny helpers ────────────────────────────────────────────────────────────────
@@ -414,7 +415,7 @@ function showAlertModal(items) {
 }
 
 async function viewBoard() {
-  stopScannerMode(true);
+  stopScannerMode(true); stopStkScanner(true);
   S.view = 'board'; S.person = null; S.ficha = null; S.peopleFilter = null;
   try {
     const bd = await api('/boards'); S.board.boards = bd.items; S.board.userId = bd.userId; S.isAdmin = bd.isAdmin;
@@ -630,12 +631,19 @@ function renderHome() {
        <div class="qt-section-title" style="margin-top:22px">En seguimiento (${rows.length})</div>
        <div class="qt-section-sub">Personas con plan o asignaciones. El estado es el del mes en curso.</div>
        <div id="ov-body">${overviewHtml(rows)}</div>
+     </div>
+
+     <div class="qt-panel az-panel az-stk-panel">
+       <div class="qt-section-title">🏷️ Control de precintos <span class="az-stk-sub2">(pegado en la hoja de Salud)</span></div>
+       <div class="qt-section-sub">Cada medicación asignada tiene un <b>precinto</b> (código de barras) que hay que recortar y pegar en la hoja oficial <b>4×7</b> antes de fin de mes. Aquí ves cuántos faltan, los ordenas por medicamento (PDF), y marcas los pegados a mano, escaneando o con una foto de prueba.</div>
+       <div id="stk-body"><div class="az-empty-sm">Cargando…</div></div>
      </div>`;
   if ($('clear-filter')) $('clear-filter').onclick = () => { S.peopleFilter = null; renderHome(); };
   const pq = $('pq');
   pq.addEventListener('input', () => { S.searchQuery = pq.value; searchPeople(pq.value); });
   if (S.searchQuery) searchPeople(S.searchQuery);
   wireOverview();
+  loadStickers(S.stkYm || undefined);
 }
 function statusChip(r) {
   if (!r.plan_count && !r.has_month_period) return `<span class="az-chip az-chip-none">sin plan</span>`;
@@ -680,6 +688,7 @@ function searchPeople(q) {
 
 // ── Open a person's ficha ────────────────────────────────────────────────────────
 async function openPerson(id, ym) {
+  stopStkScanner(true);
   try {
     const data = await api(`/person/${id}/ficha` + (ym ? '?ym=' + encodeURIComponent(ym) : ''));
     S.person = data.person; S.ficha = data; S.ym = data.ym; S.view = 'ficha';
@@ -1031,6 +1040,161 @@ function renderScannerLog() {
   const box = $('scan-log'); if (!box) return;
   box.innerHTML = scanner.log.length
     ? scanner.log.map(e => `<div class="az-scanline ${e.kind === 'ok' ? 'is-ok' : 'is-err'}"><span class="az-scan-ic">${e.kind === 'ok' ? '✓' : '✗'}</span><span class="az-scan-msg">${esc(e.msg)}</span><span class="az-scan-at">${esc(e.at)}</span></div>`).join('')
+    : '<div class="az-scan-empty">Esperando lecturas…</div>';
+}
+
+// ── Control de precintos (pegado en la hoja oficial de Salud) ─────────────────────
+async function loadStickers(ym) {
+  const body = $('stk-body'); if (!body) return;
+  try { S.stickers = await api('/stickers' + (ym ? '?ym=' + encodeURIComponent(ym) : '')); S.stkYm = S.stickers.ym; }
+  catch (e) { body.innerHTML = `<div class="az-noresult">No se pudo cargar el control de precintos: ${esc(e.message)}</div>`; return; }
+  renderStickers();
+}
+function renderStickers() {
+  const body = $('stk-body'); if (!body) return;
+  const d = S.stickers; if (!d) { body.innerHTML = '<div class="az-empty-sm">Cargando…</div>'; return; }
+  const ym = d.ym, t = d.totals, showP = S.stkShowPegados;
+  const months = (d.months && d.months.length) ? d.months.slice() : [];
+  if (!months.some(m => m.ym === ym)) months.unshift({ ym, total: t.total });
+  const monthOpts = months.map(m => `<option value="${m.ym}" ${m.ym === ym ? 'selected' : ''}>${esc(fmtYm(m.ym))} · ${m.total} precinto(s)</option>`).join('');
+  const groupsHtml = d.groups.length ? d.groups.map(g => stkGroupHtml(g, showP)).join('') : '<div class="az-empty-sm">No hay precintos asignados este mes. Se rellenará al asignar medicación.</div>';
+  const q = 'ym=' + encodeURIComponent(ym);
+  body.innerHTML = `
+    <div class="az-stk-bar">
+      <label class="az-stk-month">Mes <select class="qt-select" id="stk-month">${monthOpts}</select></label>
+      <div class="az-stk-counters">
+        <div class="az-stk-count ${t.por_pegar > 0 ? 'is-pending' : 'is-done'}"><span class="n">${t.por_pegar}</span><span class="l">por pegar</span></div>
+        <div class="az-stk-count is-ok"><span class="n">${t.pegados}</span><span class="l">✓ pegados</span></div>
+        <div class="az-stk-count"><span class="n">${t.total}</span><span class="l">asignados</span></div>
+      </div>
+    </div>
+    <div class="az-stk-actions">
+      <a class="qt-btn qt-btn-primary" href="${API}/stickers/pdf?${q}&filter=pending" target="_blank" rel="noopener" title="PDF de los precintos que faltan, ordenados por medicamento">📄 PDF por pegar (4×7)</a>
+      <a class="qt-btn qt-btn-ghost" href="${API}/stickers/pdf?${q}&filter=all" target="_blank" rel="noopener">📄 PDF (todos)</a>
+      <button class="qt-btn qt-btn-teal" id="stk-scan" title="Pasa el escáner por cada precinto para cotejarlo y marcarlo pegado">📟 Escanear para cotejar</button>
+      <label class="az-stk-toggle"><input type="checkbox" id="stk-showpeg" ${showP ? 'checked' : ''}> Ver también los pegados</label>
+    </div>
+    <div class="az-stk-groups">${groupsHtml}</div>
+    ${(d.evidencias && d.evidencias.length) ? stkEvidHtml(d.evidencias) : ''}`;
+  $('stk-month').onchange = e => loadStickers(e.target.value);
+  $('stk-showpeg').onchange = e => { S.stkShowPegados = e.target.checked; renderStickers(); };
+  $('stk-scan').onclick = () => toggleStkScanner(ym);
+  if (stkScan.on) { const b = $('stk-scan'); if (b) b.classList.add('is-on'); }
+  wireStkGroups();
+}
+function stkGroupHtml(g, showP) {
+  const pending = g.items.filter(i => !i.pegado);
+  const done = g.items.filter(i => i.pegado);
+  const shown = showP ? g.items : pending;
+  const bc = g.barcode ? eanSvg(g.barcode) : '';
+  const itemRows = shown.map(i => {
+    const j = JSON.stringify({ source: i.source, id: i.id });
+    const who = `${esc(i.person.apellidos)}, ${esc(i.person.nombre)}`;
+    const tag = `${i.source === 'line' ? '📦 DM' : '🏷️ precinto'}${i.serial ? ' · ' + esc(i.serial) : ''}`;
+    const right = i.pegado
+      ? `<span class="az-stk-i-state">✓ pegado${i.pegado_at ? ' · ' + fmtDate(i.pegado_at) : ''}${i.method ? ' · ' + esc(i.method) : ''}</span>${i.evidencia_id ? ` <a class="az-stk-evlink" href="${API}/stickers/evidencia/${i.evidencia_id}" target="_blank" rel="noopener" title="Ver la foto de prueba">📷</a>` : ''} <button class="qt-iconbtn" data-stk-unmark='${j}' title="Revertir a por pegar">↩</button>`
+      : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-stk-mark='${j}'>✅ Pegado</button>`;
+    return `<div class="az-stk-item ${i.pegado ? 'is-peg' : ''}"><span class="az-stk-i-who">${who}</span><span class="az-stk-i-tag">${tag}</span><span class="az-stk-i-right">${right}</span></div>`;
+  }).join('');
+  return `<div class="az-stk-group ${pending.length ? '' : 'is-complete'}">
+    <div class="az-stk-g-head">
+      <div class="az-stk-g-title"><b>${esc(g.nombre || 'Medicamento')}</b><small>${g.cn ? 'CN ' + esc(g.cn) : ''}${g.barcode ? ' · ' + esc(g.barcode) : ''}</small></div>
+      <span class="az-stk-badge ${pending.length ? 'is-pending' : 'is-done'}">${done.length}/${g.items.length} pegados</span>
+    </div>
+    ${bc ? `<div class="az-stk-g-bc">${bc}</div>` : ''}
+    <div class="az-stk-g-actions">
+      ${pending.length ? `<button class="qt-btn qt-btn-teal qt-btn-sm" data-stk-markmed="${esc(g.key)}">✅ Marcar pegados (${pending.length})</button>` : '<span class="az-stk-complete">✓ Todos pegados</span>'}
+      ${pending.length ? `<label class="qt-btn qt-btn-ghost qt-btn-sm az-stk-photo">📷 Foto y marcar<input type="file" accept="image/*" capture="environment" data-stk-photo="${esc(g.key)}" hidden></label>` : ''}
+    </div>
+    <div class="az-stk-items">${itemRows || '<div class="az-empty-sm">Todos pegados en este medicamento.</div>'}</div>
+  </div>`;
+}
+function stkEvidHtml(evs) {
+  return `<div class="az-stk-evsec"><div class="az-stk-ev-h">📷 Fotos de prueba de este mes (${evs.length})</div>
+    <div class="az-stk-evgrid">${evs.map(e => `<a class="az-stk-ev" href="${API}/stickers/evidencia/${e.id}" target="_blank" rel="noopener" title="Prueba · ${esc(fmtDate(e.created_at))}"><img src="${API}/stickers/evidencia/${e.id}" alt="Foto de prueba" loading="lazy"></a>`).join('')}</div></div>`;
+}
+function wireStkGroups() {
+  const body = $('stk-body'); if (!body) return;
+  const post = async (path, payload, okMsg) => {
+    try { S.stickers = await api(path, jbody({ ym: S.stickers.ym, ...payload })); renderStickers(); if (okMsg) toast(okMsg); }
+    catch (e) { toast(e.message, 'err'); }
+  };
+  body.querySelectorAll('[data-stk-mark]').forEach(b => b.onclick = () => post('/stickers/mark', { items: [JSON.parse(b.dataset.stkMark)], method: 'manual' }));
+  body.querySelectorAll('[data-stk-unmark]').forEach(b => b.onclick = () => post('/stickers/unmark', { items: [JSON.parse(b.dataset.stkUnmark)] }));
+  body.querySelectorAll('[data-stk-markmed]').forEach(b => b.onclick = async () => {
+    if (!(await confirmBox('Marcar pegados', '¿Marcar como pegados todos los precintos pendientes de este medicamento? Dejarán de aparecer como por pegar.', 'Marcar'))) return;
+    try { const r = await api('/stickers/mark-med', jbody({ ym: S.stickers.ym, key: b.dataset.stkMarkmed, method: 'manual' })); S.stickers = r; renderStickers(); toast(`${r.marked} precinto(s) marcados.`); }
+    catch (e) { toast(e.message, 'err'); }
+  });
+  body.querySelectorAll('[data-stk-photo]').forEach(inp => inp.onchange = () => stkPhotoMark(inp));
+}
+async function stkPhotoMark(inp) {
+  const file = inp.files && inp.files[0]; const key = inp.dataset.stkPhoto; if (!file) return;
+  if (file.size > 10 * 1024 * 1024) { toast('La foto es muy grande (máx. 10 MB).', 'err'); inp.value = ''; return; }
+  toast('Subiendo foto de prueba…');
+  try {
+    const dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+    const ev = await api('/stickers/evidencia', jbody({ ym: S.stickers.ym, photo: dataUrl }));
+    const r = await api('/stickers/mark-med', jbody({ ym: S.stickers.ym, key, method: 'foto', evidencia_id: ev.evidencia_id }));
+    S.stickers = r; renderStickers(); toast(`${r.marked} precinto(s) pegados, con foto de prueba guardada.`);
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+// Scanner de cotejo para el control de precintos (independiente del de la ficha).
+const stkScan = { on: false, ym: null, buf: '', timer: null, handler: null, log: [], busy: false };
+function toggleStkScanner(ym) { if (stkScan.on) stopStkScanner(); else startStkScanner(ym); }
+function startStkScanner(ym) {
+  stopStkScanner(true);
+  stkScan.on = true; stkScan.ym = ym; stkScan.buf = ''; stkScan.log = [];
+  stkScan.handler = onStkKey; document.addEventListener('keydown', stkScan.handler, true);
+  renderStkPanel(); const b = $('stk-scan'); if (b) b.classList.add('is-on');
+}
+function stopStkScanner(silent) {
+  if (stkScan.handler) { document.removeEventListener('keydown', stkScan.handler, true); stkScan.handler = null; }
+  if (stkScan.timer) { clearTimeout(stkScan.timer); stkScan.timer = null; }
+  stkScan.on = false; stkScan.buf = '';
+  const p = $('stk-panel'); if (p) p.remove();
+  const b = $('stk-scan'); if (b) b.classList.remove('is-on');
+  if (!silent) toast('Escáner de cotejo desactivado.');
+}
+function onStkKey(e) {
+  if (!stkScan.on) return;
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  if (isEditableTarget(e.target)) return;
+  if (e.key === 'Enter') { if (stkScan.buf) { e.preventDefault(); const c = stkScan.buf; stkScan.buf = ''; processStkScan(c); } return; }
+  if (e.key && e.key.length === 1) { stkScan.buf += e.key; if (stkScan.timer) clearTimeout(stkScan.timer); stkScan.timer = setTimeout(() => { stkScan.buf = ''; }, 400); }
+}
+async function processStkScan(code) {
+  if (stkScan.busy) return; stkScan.busy = true;
+  try {
+    const r = await api('/stickers/scan', jbody({ ym: stkScan.ym, code }));
+    const who = r.matched && r.matched.person ? ` · ${r.matched.person.apellidos}, ${r.matched.person.nombre}` : '';
+    stkScanLog('ok', `${r.matched && r.matched.nombre ? r.matched.nombre : 'Medicamento'}${who} · pegado · quedan ${r.remaining}`);
+    S.stickers = r; renderStickers();
+  } catch (e) {
+    stkScanLog('err', e.data && e.data.nomatch ? `«${code}» sin precintos por pegar de ese medicamento` : (e.message || 'Error') + ` («${code}»)`);
+  } finally { stkScan.busy = false; }
+}
+function stkScanLog(kind, msg) {
+  stkScan.log.unshift({ kind, msg, at: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) });
+  if (stkScan.log.length > 40) stkScan.log.length = 40;
+  renderStkLog();
+}
+function renderStkPanel() {
+  if ($('stk-panel')) { renderStkLog(); return; }
+  const el = document.createElement('div');
+  el.className = 'az-scanpanel az-stkpanel'; el.id = 'stk-panel';
+  el.innerHTML = `<div class="az-scanpanel-h"><span class="az-scan-live">📟 Cotejo de precintos <span class="az-scan-dot"></span></span><button class="qt-x" id="stk-panel-x" title="Salir del cotejo">×</button></div>
+    <p class="az-scanpanel-note">Pasa el escáner por cada <b>precinto</b> (o su Data Matrix). Cada lectura marca uno como <b>pegado</b> y descuenta del pendiente. Sigue escuchando.</p>
+    <div class="az-scanlog" id="stk-log"></div>`;
+  document.body.appendChild(el);
+  $('stk-panel-x').onclick = () => stopStkScanner();
+  renderStkLog();
+}
+function renderStkLog() {
+  const box = $('stk-log'); if (!box) return;
+  box.innerHTML = stkScan.log.length
+    ? stkScan.log.map(e => `<div class="az-scanline ${e.kind === 'ok' ? 'is-ok' : 'is-err'}"><span class="az-scan-ic">${e.kind === 'ok' ? '✓' : '✗'}</span><span class="az-scan-msg">${esc(e.msg)}</span><span class="az-scan-at">${esc(e.at)}</span></div>`).join('')
     : '<div class="az-scan-empty">Esperando lecturas…</div>';
 }
 // Same day next month (clamped to the last day of that month).

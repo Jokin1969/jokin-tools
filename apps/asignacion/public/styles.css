@@ -780,3 +780,48 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-scanline.is-err .az-scan-ic { color: #f87171; }
 .az-scan-msg { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .az-scan-at { flex: 0 0 auto; color: #7e8da3; font-family: var(--mono, monospace); font-size: 0.72rem; }
+
+/* ── Control de precintos (pegado) ────────────────────────────────────────────── */
+.az-stk-panel { margin-top: 18px; }
+.az-stk-sub2 { font-weight: 600; color: var(--muted); font-size: 0.85rem; }
+.az-stk-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin: 8px 0 12px; }
+.az-stk-month { font-weight: 700; color: var(--ink); display: inline-flex; align-items: center; gap: 8px; }
+.az-stk-counters { display: flex; gap: 10px; }
+.az-stk-count { min-width: 92px; text-align: center; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: #fff; }
+.az-stk-count .n { display: block; font-size: 1.5rem; font-weight: 800; line-height: 1; color: var(--ink); font-family: var(--mono, monospace); }
+.az-stk-count .l { display: block; font-size: 0.7rem; color: var(--muted); margin-top: 3px; }
+.az-stk-count.is-pending { border-color: #f2c14e; background: #fff8e8; }
+.az-stk-count.is-pending .n { color: #8a5a00; }
+.az-stk-count.is-ok .n { color: #128a5b; }
+.az-stk-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.az-stk-toggle { font-size: 0.82rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+#stk-scan.is-on { background: #0e7a63; box-shadow: 0 0 0 3px rgba(14,122,99,.25); }
+
+.az-stk-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.az-stk-group { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; display: flex; flex-direction: column; gap: 8px; }
+.az-stk-group.is-complete { background: #f4fbf7; border-color: #bfe6d1; }
+.az-stk-g-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.az-stk-g-title b { display: block; color: var(--ink); font-size: 0.95rem; }
+.az-stk-g-title small { color: var(--muted); font-size: 0.72rem; font-family: var(--mono, monospace); }
+.az-stk-badge { flex: 0 0 auto; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+.az-stk-badge.is-pending { background: #fff3d6; color: #8a5a00; }
+.az-stk-badge.is-done { background: #e2f5ec; color: #128a5b; }
+.az-stk-g-bc { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; display: flex; justify-content: center; }
+.az-stk-g-bc .az-ean-svg { width: 100%; max-width: 220px; height: auto; }
+.az-stk-g-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.az-stk-photo { cursor: pointer; }
+.az-stk-complete { color: #128a5b; font-weight: 700; font-size: 0.82rem; }
+.az-stk-items { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+.az-stk-item { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 9px; background: #f8fafc; font-size: 0.82rem; }
+.az-stk-item.is-peg { background: #f2fbf6; }
+.az-stk-i-who { font-weight: 600; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.az-stk-i-tag { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
+.az-stk-i-right { display: inline-flex; align-items: center; gap: 6px; }
+.az-stk-i-state { color: #128a5b; font-size: 0.74rem; font-weight: 600; white-space: nowrap; }
+.az-stk-evlink { text-decoration: none; }
+.az-stk-evsec { margin-top: 16px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.az-stk-ev-h { font-weight: 700; color: var(--ink); font-size: 0.82rem; margin-bottom: 8px; }
+.az-stk-evgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+.az-stk-ev img { width: 100%; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+/* The cotejo scanner panel sits a bit higher so it doesn't clash with the ficha one */
+.az-stkpanel { bottom: 18px; }

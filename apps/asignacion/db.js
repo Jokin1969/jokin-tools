@@ -193,6 +193,31 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_asig_precinto_period ON asig_precinto(period_id);
 `);
 
+// ── Precinto "pegado" (stuck on the official Salud sheet) + photo evidence ────────
+// Salud makes the pharmacy cut each ASSIGNED medication's barcode ("precinto") and
+// stick it on an official 4×7 A4 sheet before month-end; unstuck ⇒ unpaid. Every
+// assigned unit — a Data Matrix line (state 'asignada') or an asig_precinto row —
+// is one physical precinto to stick. We track that per source row, plus a photo
+// evidence store (proof it was sent) associated to the precintos it covers.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS asig_evidencia (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    ym         TEXT,
+    photo      BLOB NOT NULL,
+    mime       TEXT,
+    note       TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_asig_evidencia_ym ON asig_evidencia(ym);
+`);
+for (const t of ['asig_line', 'asig_precinto']) {
+  try { db.prepare(`ALTER TABLE ${t} ADD COLUMN pegado INTEGER NOT NULL DEFAULT 0`).run(); } catch { /* present */ }
+  try { db.prepare(`ALTER TABLE ${t} ADD COLUMN pegado_at DATETIME`).run(); } catch { /* present */ }
+  try { db.prepare(`ALTER TABLE ${t} ADD COLUMN pegado_method TEXT`).run(); } catch { /* present */ }
+  try { db.prepare(`ALTER TABLE ${t} ADD COLUMN evidencia_id INTEGER`).run(); } catch { /* present */ }
+}
+
 console.log('[asignacion] Database ready at:', DB_PATH);
 
 // notify_mode: how the release bell groups a person's pending boxes —
@@ -446,6 +471,50 @@ function nextMonthSameDay(iso) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// ── Precintos físicos (pegado en la hoja oficial) ────────────────────────────────
+// A "sticker" is any ASSIGNED unit that yields a physical barcode to cut & stick:
+// a Data Matrix line in state 'asignada', or an asig_precinto row. Pegado state is
+// stored on each source table; we read them together, filtered by month (period.ym).
+function assignedLinesForYm(ym) {
+  return db.prepare(
+    `SELECT l.* FROM asig_line l JOIN asig_period p ON p.id = l.period_id
+     WHERE p.ym = ? AND l.state = 'asignada' ORDER BY l.id`
+  ).all(ym);
+}
+function precintosForYm(ym) {
+  return db.prepare(
+    `SELECT pr.* FROM asig_precinto pr JOIN asig_period p ON p.id = pr.period_id
+     WHERE p.ym = ? ORDER BY pr.id`
+  ).all(ym);
+}
+// Months that have at least one assigned sticker (for the month selector), newest first.
+function stickerMonths() {
+  const a = db.prepare(`SELECT p.ym ym, COUNT(*) n FROM asig_line l JOIN asig_period p ON p.id = l.period_id WHERE l.state = 'asignada' GROUP BY p.ym`).all();
+  const b = db.prepare(`SELECT p.ym ym, COUNT(*) n FROM asig_precinto pr JOIN asig_period p ON p.id = pr.period_id GROUP BY p.ym`).all();
+  const m = new Map();
+  for (const r of [...a, ...b]) m.set(r.ym, (m.get(r.ym) || 0) + r.n);
+  return [...m.entries()].map(([ym, total]) => ({ ym, total })).sort((x, y) => y.ym.localeCompare(x.ym));
+}
+function setLinePegado(id, pegado, method, evidenciaId) {
+  if (pegado) db.prepare(`UPDATE asig_line SET pegado = 1, pegado_at = CURRENT_TIMESTAMP, pegado_method = ?, evidencia_id = ? WHERE id = ?`).run(method || 'manual', evidenciaId != null ? evidenciaId : null, id);
+  else db.prepare(`UPDATE asig_line SET pegado = 0, pegado_at = NULL, pegado_method = NULL, evidencia_id = NULL WHERE id = ?`).run(id);
+  return db.prepare('SELECT * FROM asig_line WHERE id = ?').get(id) || null;
+}
+function setPrecintoPegado(id, pegado, method, evidenciaId) {
+  if (pegado) db.prepare(`UPDATE asig_precinto SET pegado = 1, pegado_at = CURRENT_TIMESTAMP, pegado_method = ?, evidencia_id = ? WHERE id = ?`).run(method || 'manual', evidenciaId != null ? evidenciaId : null, id);
+  else db.prepare(`UPDATE asig_precinto SET pegado = 0, pegado_at = NULL, pegado_method = NULL, evidencia_id = NULL WHERE id = ?`).run(id);
+  return db.prepare('SELECT * FROM asig_precinto WHERE id = ?').get(id) || null;
+}
+// Photo evidence (proof the precintos were sent stuck). Stored as a BLOB.
+function addEvidencia(data, userId) {
+  const info = db.prepare(
+    `INSERT INTO asig_evidencia (ym, photo, mime, note, created_by) VALUES (@ym, @photo, @mime, @note, @created_by)`
+  ).run({ ym: data.ym || null, photo: data.photo, mime: data.mime || 'image/jpeg', note: data.note || null, created_by: userId != null ? userId : null });
+  return info.lastInsertRowid;
+}
+function getEvidencia(id) { return db.prepare('SELECT * FROM asig_evidencia WHERE id = ?').get(id) || null; }
+function listEvidencia(ym) { return db.prepare('SELECT id, ym, mime, note, created_at, created_by FROM asig_evidencia WHERE ym = ? ORDER BY id DESC').all(ym); }
+
 // ── Scheduled email notifications ────────────────────────────────────────────────
 function listNotifs() { return db.prepare('SELECT * FROM asig_notif ORDER BY enabled DESC, send_time, id').all(); }
 function getNotif(id) { return db.prepare('SELECT * FROM asig_notif WHERE id = ?').get(id) || null; }
@@ -658,6 +727,8 @@ module.exports = {
   DEFAULT_ADVANCE, clampAdvance, effectiveDate,
   listLines, getLine, findLine, lineByItem, addLine, setLineState, setLineRelease, setLineAdvance, pendingReleaseLines, deleteLine, periodCounts,
   getPrecinto, listPrecinto, addPrecinto, deletePrecinto, precintoCountByPlan, nextMonthSameDay,
+  assignedLinesForYm, precintosForYm, stickerMonths, setLinePegado, setPrecintoPegado,
+  addEvidencia, getEvidencia, listEvidencia,
   listNotifs, getNotif, createNotif, updateNotif, deleteNotif, setNotifEnabled, markNotifSent, dueNotifs,
   NOTE_COLORS, listBoards, getBoard, boardCount, createBoard, renameBoard, deleteBoard,
   getNote, listNotes, createNote, updateNote, deleteNote, noteViewers, setNoteViewers, canSeeNote, markNotesSeen, notesBadge,

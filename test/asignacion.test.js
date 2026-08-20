@@ -220,6 +220,68 @@ test('CIMA foto: ETag revalida y refresca la imagen (thumbnail → full)', async
   assert.notEqual(r2.headers.get('etag'), etag1, 'el ETag cambia con la nueva imagen');
 });
 
+test('precintos (pegado): agrega DM+precinto, marca/escanea/revierte, foto y PDF', async () => {
+  const cima = require('../apps/datamatrix/cima');
+  const ym = '2026-07';
+  const pid = qrDb.createPerson({ pharmacy_no: '80090', nombre: 'Peg', apellidos: 'Ado', tis: '00080090' }, 1).id;
+  // A catalogued med + a box, assigned through the normal flow (→ one physical precinto).
+  await call('POST', `/person/${pid}/plan`, { gtin: GTIN, qty: 1 });
+  const boxX = dmDb.createItem({ raw: 'R-PEG1', box_key: 'PEG1', gtin: GTIN, serial: 'PG1', cn: '699154' }, 1).id;
+  await call('POST', `/person/${pid}/preassign`, { item_id: boxX, ym });
+  const ficha = (await call('GET', `/person/${pid}/ficha?ym=${ym}`)).data;
+  const lineX = ficha.lines.find(l => l.item_id === boxX);
+  await call('POST', `/line/${lineX.id}/assign`, { next_release_at: '' });
+  // A precinto med (no box) → another physical precinto.
+  const med = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Ibuprofeno 600', barcode: '8470007150008', qty: 1 })).data.plan.find(m => m.cn === '715000');
+  await call('POST', `/person/${pid}/assign-precinto`, { plan_id: med.id, ym });
+
+  // Sticker view: 2 assigned, both pending, grouped by medication.
+  let stk = (await call('GET', `/stickers?ym=${ym}`)).data;
+  assert.equal(stk.totals.total, 2);
+  assert.equal(stk.totals.por_pegar, 2);
+  assert.equal(stk.totals.pegados, 0);
+  assert.equal(stk.groups.length, 2, 'agrupados por medicamento');
+
+  // Mark the Ibuprofeno group as stuck (manual/bulk).
+  const grpIbu = stk.groups.find(g => g.cn === '715000');
+  stk = (await call('POST', '/stickers/mark-med', { ym, key: grpIbu.key })).data;
+  assert.equal(stk.marked, 1);
+  assert.equal(stk.totals.pegados, 1);
+  assert.equal(stk.totals.por_pegar, 1);
+
+  // Scan the box precinto's barcode → cotejo marks it stuck.
+  const bcBox = cima.barcodeFromCn('699154');
+  const scan = await call('POST', '/stickers/scan', { ym, code: bcBox });
+  assert.equal(scan.status, 200);
+  assert.equal(scan.data.ok, true);
+  assert.equal(scan.data.totals.por_pegar, 0);
+  // Nothing left of that med → 409 nomatch.
+  assert.equal((await call('POST', '/stickers/scan', { ym, code: bcBox })).status, 409);
+
+  // Photo evidence → stored and retrievable.
+  const png = 'data:image/png;base64,' + Buffer.from('FAKE-PNG-BYTES').toString('base64');
+  const ev = await call('POST', '/stickers/evidencia', { ym, photo: png });
+  assert.equal(ev.status, 200);
+  assert.ok(ev.data.evidencia_id);
+  const evImg = await fetch(base + '/stickers/evidencia/' + ev.data.evidencia_id);
+  assert.equal(evImg.status, 200);
+
+  // Revert one precinto → back to pending.
+  const revItem = grpIbu.items[0];
+  stk = (await call('POST', '/stickers/unmark', { ym, items: [{ source: revItem.source, id: revItem.id }] })).data;
+  assert.equal(stk.totals.por_pegar, 1);
+
+  // PDF endpoint returns a real PDF.
+  const pdf = await fetch(base + '/stickers/pdf?ym=' + ym);
+  assert.equal(pdf.status, 200);
+  assert.equal(pdf.headers.get('content-type'), 'application/pdf');
+  const bytes = Buffer.from(await pdf.arrayBuffer());
+  assert.ok(bytes.length > 500 && bytes.slice(0, 4).toString() === '%PDF', 'es un PDF');
+
+  // The month shows up in the selector.
+  assert.ok(stk.months.some(m => m.ym === ym));
+});
+
 test('linking a mismatched box warns (409) but can be forced', async () => {
   const pid = qrDb.createPerson({ pharmacy_no: '80002', nombre: 'Iker', apellidos: 'Dao', tis: '00080002' }, 1).id;
   const med = (await call('POST', `/person/${pid}/plan`, { cn: '999999', nombre: 'Medicamento X', qty: 1 })).data.plan.find(m => m.cn === '999999');
