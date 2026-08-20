@@ -213,8 +213,9 @@ test('release search: modes (box/all/any) and criteria (lte/exact)', async () =>
   const ficha = (await call('GET', `/person/${pid}/ficha?ym=2026-10`)).data;
   const lPast = ficha.lines.find(l => l.item_id === bPast).id;
   const lFut = ficha.lines.find(l => l.item_id === bFut).id;
-  await call('PUT', `/line/${lPast}/release`, { date: '2020-01-01' }); // already out
-  await call('PUT', `/line/${lFut}/release`, { date: '2999-12-31' });  // far future
+  // advance_days:0 → effective == official, so the exact-date assertions below hold.
+  await call('PUT', `/line/${lPast}/release`, { date: '2020-01-01', advance_days: 0 }); // already out
+  await call('PUT', `/line/${lFut}/release`, { date: '2999-12-31', advance_days: 0 });  // far future
 
   // Mode BOX, criterion lte, date today: past box matched, future pending.
   const box = (await call('GET', '/release?mode=box&criterion=lte')).data;
@@ -246,6 +247,43 @@ test('release search: modes (box/all/any) and criteria (lte/exact)', async () =>
   await call('POST', `/line/${lPast}/assign`);
   const after = (await call('GET', '/release?mode=box&criterion=lte')).data;
   assert.ok(!after.matched.some(e => e.line_id === lPast), 'assigned box no longer listed');
+});
+
+test('días de anticipación: efectiva = oficial − anticipación; por defecto 15; ajustable por línea', async () => {
+  const isoIn = (days) => { const d = new Date(); d.setDate(d.getDate() + days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const pid = qrDb.createPerson({ pharmacy_no: '66666', nombre: 'Nél', apellidos: 'Antic', tis: '00066666' }, 1).id;
+  const bx = dmDb.createItem({ raw: 'R-ANT', box_key: 'ANT', gtin: GTIN, serial: 'AN1' }, 1).id;
+  await call('POST', `/person/${pid}/preassign`, { item_id: bx, ym: '2026-11' });
+  let ficha = (await call('GET', `/person/${pid}/ficha?ym=2026-11`)).data;
+  const lid = ficha.lines.find(l => l.item_id === bx).id;
+
+  // Fecha oficial dentro de 10 días. Con anticipación 15 (por defecto) → efectiva ya pasada → "lista".
+  let l = (await call('PUT', `/line/${lid}/release`, { date: isoIn(10) })).data.lines.find(x => x.id === lid);
+  assert.equal(l.advance_days, 15, 'por defecto 15 días de anticipación');
+  assert.equal(l.effective_at, isoIn(-5), 'efectiva = oficial − 15');
+  assert.equal(l.release_state, 'lista', 'con 15 días de anticipación ya está disponible');
+
+  // La campana (efectiva) la da por disponible hoy.
+  let box = (await call('GET', '/release?mode=box&criterion=lte')).data;
+  assert.ok(box.matched.some(e => e.line_id === lid), 'la búsqueda usa la fecha efectiva');
+
+  // Sin anticipación (0) → efectiva = oficial (dentro de 10 días) → "programada".
+  l = (await call('PUT', `/line/${lid}/release`, { advance_days: 0 })).data.lines.find(x => x.id === lid);
+  assert.equal(l.advance_days, 0);
+  assert.equal(l.effective_at, isoIn(10));
+  assert.equal(l.release_state, 'programada');
+  box = (await call('GET', '/release?mode=box&criterion=lte')).data;
+  assert.ok(box.pending.some(e => e.line_id === lid), 'sin anticipación aún no está disponible');
+  assert.ok(!box.matched.some(e => e.line_id === lid));
+
+  // Se puede cambiar solo la anticipación, manteniendo la fecha oficial.
+  l = (await call('PUT', `/line/${lid}/release`, { advance_days: 3 })).data.lines.find(x => x.id === lid);
+  assert.equal(l.advance_days, 3);
+  assert.equal(l.effective_at, isoIn(7), 'oficial se mantiene; efectiva = oficial − 3');
+
+  // Validación: fuera de rango se rechaza.
+  assert.equal((await call('PUT', `/line/${lid}/release`, { advance_days: 400 })).status, 400);
+  assert.equal((await call('PUT', `/line/${lid}/release`, { advance_days: -1 })).status, 400);
 });
 
 test('notify_mode persists in settings', async () => {

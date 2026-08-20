@@ -163,9 +163,11 @@ async function refreshNotifications() {
 // One box (mode 'box').
 function notifBoxRow(e, matched) {
   const b = e.box;
+  const eff = fmtDate(e.effective_at || e.release_at);
+  const offNote = (e.release_at && e.release_at !== e.effective_at) ? ` <small class="az-off">of. ${fmtDate(e.release_at)}</small>` : '';
   const when = matched
-    ? `<span class="az-note-when st-due">✅ ${e.days === 0 ? 'hoy' : e.days < 0 ? 'desde hace ' + Math.abs(e.days) + ' día(s)' : fmtDate(e.release_at)} · ${fmtDate(e.release_at)}</span>`
-    : `<span class="az-note-when st-soon">🗓 ${e.days > 0 ? 'en ' + e.days + ' día(s)' : ''} · ${fmtDate(e.release_at)}</span>`;
+    ? `<span class="az-note-when st-due">✅ ${e.days === 0 ? 'hoy' : e.days < 0 ? 'desde hace ' + Math.abs(e.days) + ' día(s)' : eff}${offNote}</span>`
+    : `<span class="az-note-when st-soon">🗓 ${e.days > 0 ? 'en ' + e.days + ' día(s) · ' : ''}${eff}${offNote}</span>`;
   return `<button class="az-note" data-open="${e.person.id}" data-ym="${esc(e.ym || '')}">
     <span class="az-note-shape">${b ? shapeSvg(b.shape, b.color, 18) : '📦'}</span>
     <span class="az-note-body"><b>${esc(e.person.apellidos)}, ${esc(e.person.nombre)}</b><small>${esc(b && b.nombre || 'Medicamento')}${b && b.serial ? ' · Nº ' + esc(b.serial) : ''}</small></span>
@@ -176,14 +178,18 @@ function notifBoxRow(e, matched) {
 function notifPersonRow(e, mode) {
   const done = e.aggDays <= 0;
   const agg = done
-    ? (mode === 'all' ? '✅ todas ya han salido' : '✅ ya ha salido alguna')
-    : (mode === 'all' ? `todas salen el ${fmtDate(e.aggDate)} · faltan ${e.aggDays} día(s)` : `la primera sale el ${fmtDate(e.aggDate)} · faltan ${e.aggDays} día(s)`);
+    ? (mode === 'all' ? '✅ todas ya están disponibles' : '✅ ya hay alguna disponible')
+    : (mode === 'all' ? `todas disponibles el ${fmtDate(e.aggDate)} · faltan ${e.aggDays} día(s)` : `la primera disponible el ${fmtDate(e.aggDate)} · faltan ${e.aggDays} día(s)`);
   const ym = (e.boxes[0] && e.boxes[0].ym) || '';
-  const boxes = e.boxes.map(b => `<div class="az-note-sub"><span>${b.box ? shapeSvg(b.box.shape, b.box.color, 12) : '📦'} ${esc(b.box && b.box.nombre || 'Medicamento')}${b.box && b.box.serial ? ' · Nº ' + esc(b.box.serial) : ''}</span><span class="${b.satisfied ? 'st-due' : 'st-soon'}">${b.satisfied ? '✅' : '🗓'} ${fmtDate(b.release_at)}</span></div>`).join('');
+  const boxes = e.boxes.map(b => {
+    const eff = fmtDate(b.effective_at || b.release_at);
+    const offNote = (b.release_at && b.release_at !== b.effective_at) ? ` <small class="az-off">of. ${fmtDate(b.release_at)}</small>` : '';
+    return `<div class="az-note-sub"><span>${b.box ? shapeSvg(b.box.shape, b.box.color, 12) : '📦'} ${esc(b.box && b.box.nombre || 'Medicamento')}${b.box && b.box.serial ? ' · Nº ' + esc(b.box.serial) : ''}</span><span class="${b.satisfied ? 'st-due' : 'st-soon'}">${b.satisfied ? '✅' : '🗓'} ${eff}${offNote}</span></div>`;
+  }).join('');
   return `<div class="az-note-person">
     <div class="az-note-person-h">
       <button class="az-note az-note-flex" data-open="${e.person.id}" data-ym="${esc(ym)}">
-        <span class="az-note-body"><b>${esc(e.person.apellidos)}, ${esc(e.person.nombre)}</b><small>${esc(agg)} · ${e.releasedByToday}/${e.total} ya salida(s)</small></span>
+        <span class="az-note-body"><b>${esc(e.person.apellidos)}, ${esc(e.person.nombre)}</b><small>${esc(agg)} · ${e.releasedByToday}/${e.total} ya disponible(s)</small></span>
       </button>
       <button class="az-note-exp" data-exp="${e.person.id}" title="Ver las cajas">▾ ${e.total}</button>
     </div>
@@ -758,11 +764,21 @@ function wirePlan(closed) {
 // Keep progress fields (attached/asignada) when the server returns a bare plan list.
 function mergePlan(oldPlan, fresh) { const by = new Map((oldPlan || []).map(p => [p.gtin, p])); return fresh.map(p => ({ ...p, attached: (by.get(p.gtin) || {}).attached || 0, asignada: (by.get(p.gtin) || {}).asignada || 0 })); }
 
-// Release-date chip for a pre-asignada box (when Salud will free it).
+// Release-date chip for a pre-asignada box. Shows the EFFECTIVE date (official −
+// days of anticipation) — that's when the pharmacy can act — and, smaller, the
+// official date. Clickable: opens the picker to change date / anticipation.
 function releaseChip(ln) {
-  if (ln.release_state === 'lista') return `<span class="az-rel az-rel-ready">✅ Ya se puede asignar${ln.release_at ? ' · desde ' + fmtDate(ln.release_at) : ''}</span>`;
-  if (ln.release_state === 'programada') return `<span class="az-rel az-rel-soon">🗓 Se libera ${fmtDate(ln.release_at)} · ${ln.release_days === 1 ? 'mañana' : 'faltan ' + ln.release_days + ' días'}</span>`;
-  return `<span class="az-rel az-rel-none">🗓 Sin fecha de liberación</span>`;
+  const off = ln.release_at ? fmtDate(ln.release_at) : null;
+  const eff = ln.effective_at ? fmtDate(ln.effective_at) : null;
+  const adv = ln.advance_days != null ? ln.advance_days : 15;
+  const sub = (off && adv > 0) ? ` <small class="az-rel-off">(oficial ${off} · −${adv} d)</small>` : '';
+  if (ln.release_state === 'lista')
+    return `<button type="button" class="az-rel az-rel-ready az-rel-click" data-release="${ln.id}" title="Cambiar fecha o días de anticipación">✅ Ya se puede asignar${eff ? ' · desde ' + eff : ''}${sub}</button>`;
+  if (ln.release_state === 'programada') {
+    const when = ln.effective_days === 0 ? 'hoy' : ln.effective_days === 1 ? 'mañana' : 'faltan ' + ln.effective_days + ' días';
+    return `<button type="button" class="az-rel az-rel-soon az-rel-click" data-release="${ln.id}" title="Cambiar fecha o días de anticipación">🗓 Disponible ${eff} · ${when}${sub}</button>`;
+  }
+  return `<button type="button" class="az-rel az-rel-none az-rel-click" data-release="${ln.id}" title="Poner fecha de liberación">🗓 Sin fecha de liberación</button>`;
 }
 function lineHtml(ln, closed, dmSize) {
   const box = ln.box;
@@ -815,26 +831,51 @@ function wireLines(closed) {
   }));
 }
 
-// Set the date on which Salud will free a pre-asignada box (drives the bell).
+// Compute an effective ISO date (official − N days) on the client, for live preview.
+function effectiveIso(iso, adv) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return null;
+  const d = new Date(iso + 'T00:00:00'); if (isNaN(d)) return null;
+  d.setDate(d.getDate() - Math.min(365, Math.max(0, Math.round(Number(adv) || 0))));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// Set the official Salud date AND the days of anticipation for a pre-asignada box.
+// The effective date (official − anticipation) is what drives readiness and the bell.
 function openReleasePicker(ln) {
   const box = ln.box || {};
   const cur = ln.release_at || '';
+  const adv = ln.advance_days != null ? ln.advance_days : 15;
   openTool(`<div class="qt-modal-h"><h3>🗓 Fecha de liberación</h3><button class="qt-x" id="rp-close">×</button></div>
-    <p class="qt-tool-note">Fecha en la que la aplicación de Salud liberará esta caja para poder asignarla. Ese día aparecerá en la campana 🔔.</p>
+    <p class="qt-tool-note">La <b>fecha oficial</b> es la que marca Salud. La <b>fecha efectiva</b> (cuando la farmacia ya puede actuar y cuando avisa la app) es la oficial menos los <b>días de anticipación</b>.</p>
     <div class="qt-field"><label>Medicamento</label><div class="az-rp-med">${shapeSvg(box.shape, box.color, 18)} ${esc(box.nombre || 'Sin nombre')}${box.serial ? ' · Nº ' + esc(box.serial) : ''}</div></div>
-    <div class="qt-field"><label>Fecha prevista de liberación</label><input type="date" class="qt-input" id="rp-date" value="${esc(cur)}"></div>
+    <div class="qt-field"><label>Fecha oficial de liberación (Salud)</label><input type="date" class="qt-input" id="rp-date" value="${esc(cur)}"></div>
+    <div class="qt-field"><label>Días de anticipación</label><input type="number" class="qt-input" id="rp-adv" min="0" max="365" step="1" value="${esc(String(adv))}"><small class="az-field-hint">Por defecto 15. Se aplica solo a esta caja (medicamento + persona).</small></div>
+    <div class="az-rp-eff" id="rp-eff"></div>
     <div class="qt-modal-actions">
       ${cur ? '<button class="qt-btn qt-btn-ghost" id="rp-clear">Quitar fecha</button>' : ''}
       <button class="qt-btn qt-btn-ghost" id="rp-cancel">Cancelar</button>
       <button class="qt-btn qt-btn-primary" id="rp-save">Guardar</button>
     </div>`);
   $('rp-close').onclick = closeTool; $('rp-cancel').onclick = closeTool;
-  const send = async (date) => {
-    try { applyFicha(await api('/line/' + ln.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date }) })); closeTool(); toast(date ? 'Fecha de liberación guardada.' : 'Fecha eliminada.'); }
+  const preview = () => {
+    const d = $('rp-date').value, a = $('rp-adv').value;
+    const eff = effectiveIso(d, a);
+    $('rp-eff').innerHTML = d
+      ? (eff ? `Fecha efectiva: <b>${fmtDate(eff)}</b> <span class="az-rp-eff-sub">(oficial ${fmtDate(d)} − ${Math.max(0, Math.round(Number(a) || 0))} días)</span>` : '')
+      : '<span class="az-rp-eff-sub">Sin fecha oficial, no hay fecha efectiva.</span>';
+  };
+  $('rp-date').addEventListener('input', preview); $('rp-adv').addEventListener('input', preview); preview();
+  const send = async (payload, okMsg) => {
+    try { applyFicha(await api('/line/' + ln.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })); closeTool(); toast(okMsg); }
     catch (e) { toast(e.message, 'err'); }
   };
-  $('rp-save').onclick = () => { const v = $('rp-date').value; if (!v) { toast('Elige una fecha o pulsa «Quitar fecha».', 'err'); return; } send(v); };
-  if ($('rp-clear')) $('rp-clear').onclick = () => send('');
+  $('rp-save').onclick = () => {
+    const v = $('rp-date').value;
+    const a = Math.round(Number($('rp-adv').value));
+    if (!v) { toast('Elige una fecha o pulsa «Quitar fecha».', 'err'); return; }
+    if (!Number.isFinite(a) || a < 0 || a > 365) { toast('Días de anticipación no válidos (0–365).', 'err'); return; }
+    send({ date: v, advance_days: a }, 'Fecha y anticipación guardadas.');
+  };
+  if ($('rp-clear')) $('rp-clear').onclick = () => send({ date: '' }, 'Fecha eliminada.');
 }
 
 // ── Medication picker (add a medication to the plan) ─────────────────────────────
@@ -939,7 +980,8 @@ function viewHelp() {
     { id: 'plan', icon: '💊', title: '2) Plan de medicación', html: `<p>Cada persona tiene un <b>plan</b>: los medicamentos que toma habitualmente y <b>cuántas cajas al mes</b> de cada uno. Los medicamentos <b>solo pueden salir de Data Matrix</b>; si falta alguno, se añade allí (escaneando una caja o importando el catálogo).</p><p>El plan <b>se guarda y se repite cada mes</b>, así no hay que reintroducirlo. Con <b>«➕ Añadir medicamento»</b> lo amplías; con el número <b>× N</b> ajustas las cajas/mes; y la 🗑 lo quita del plan (no toca las cajas ya asignadas).</p>` },
     { id: 'preasignar', icon: '🔗', title: '3) Pre-asignar cajas', html: `<p>Para cada medicamento del plan, reserva una <b>caja real</b> con <b>«🔗 Pre-asignar»</b> (o «➕ Añadir DM»). Puedes:</p><ul><li><b>Elegir del inventario</b>: una caja «sin utilizar» de ese medicamento que ya esté en Data Matrix.</li><li><b>Escanear / pegar</b> su Data Matrix: si la caja no estaba en Data Matrix, <b>se crea allí</b> automáticamente como pre-asignada.</li></ul><p>La caja queda <b>🔗 Pre-asignada</b>: reservada para esa persona pero <b>sigue en stock</b> (no se ha dispensado). Este estado <b>también se ve en la app Data Matrix</b>, para que las dos apps nunca se descuadren.</p>` },
     { id: 'asignar', icon: '✅', title: '4) Asignar de verdad', html: `<p>Cuando ya la asignas en la aplicación de <b>Salud</b>, pulsa <b>«✅ Asignar»</b> sobre esa caja. Pasa a <b>✓ Asignada</b> (se marca <b>utilizada</b> en Data Matrix, sale del inventario) y su Data Matrix se pone en <b>gris</b>.</p><div class="qt-note tip">Los <b>tres estados</b> de una caja: <b>Sin utilizar</b> → <b>🔗 Pre-asignada</b> (reservada) → <b>✓ Asignada</b> (= utilizada). Puedes <b>↩ Revertir</b> una asignación (vuelve a pre-asignada) o <b>🗑 quitar</b> la caja de la ficha (se libera la reserva y, si estaba asignada, vuelve al inventario).</div>` },
-    { id: 'liberacion', icon: '🗓️', title: 'Fecha de liberación, búsqueda y avisos 🔔', html: `<p>A veces Salud <b>todavía no ha liberado</b> un Data Matrix (aún no se puede retirar/asignar). En esa caja pre-asignada, pulsa <b>🗓</b> y anota la <b>fecha prevista de liberación</b>.</p>
+    { id: 'liberacion', icon: '🗓️', title: 'Fecha de liberación, anticipación y avisos 🔔', html: `<p>A veces Salud <b>todavía no ha liberado</b> un Data Matrix (aún no se puede retirar/asignar). En esa caja pre-asignada, pulsa <b>🗓</b> y anota la <b>fecha oficial</b> prevista de liberación.</p>
+      <div class="qt-note tip"><b>Fecha oficial vs. fecha efectiva.</b> La <b>oficial</b> es la que marca Salud; la <b>efectiva</b> es la oficial <b>menos los «días de anticipación»</b> (por defecto <b>15</b>), porque la farmacia suele poder actuar antes. <b>Todos los cálculos</b> (disponibilidad en la ficha, la campana 🔔 y las notificaciones por email) usan la <b>fecha efectiva</b>. En la ficha, la etiqueta de cada caja muestra la fecha efectiva (y, más pequeña, la oficial y los días de anticipación). <b>Pulsa esa etiqueta</b> (o el botón 🗓) para abrir el modal y cambiar la fecha oficial y/o los días de anticipación. Los días de anticipación se guardan <b>por caja</b> (medicamento + persona), así que puedes ponerlos distintos para casos excepcionales.</div>
       <p>La <b>campana 🔔</b> (arriba) abre el buscador de liberación con tres controles:</p>
       <ul>
         <li><b>Avisar por</b>: <b>Todas las cajas</b> (una persona aparece como lista solo cuando ya han salido <i>todas</i> sus cajas pendientes — un único viaje), <b>Al menos una</b> (en cuanto sale la primera) o <b>Por caja</b> (una por una). Lo que elijas se recuerda y manda el contador rojo de la campana.</li>
@@ -952,7 +994,7 @@ function viewHelp() {
       <p>Al crear una eliges:</p>
       <ul>
         <li><b>Tipo</b>: <b>Al menos un medicamento</b> o <b>Toda la medicación</b> (agrupa por persona igual que la campana).</li>
-        <li><b>Criterio del día</b>: <b>Novedades del día</b> (lo que sale justo ese día) o <b>Acumulado a la fecha</b> (todo lo disponible para ese día).</li>
+        <li><b>Criterio del día</b>: <b>Novedades del día</b> (lo que queda disponible justo ese día) o <b>Acumulado a la fecha</b> (todo lo disponible para ese día). Se calcula sobre la <b>fecha efectiva</b> (oficial − días de anticipación).</li>
         <li><b>Cuándo</b>: <b>Una vez</b> (fecha del calendario) o <b>Recurrente</b> (días de la semana; ninguno = todos los días).</li>
         <li><b>Hora</b> en formato <b>24h (militar)</b>.</li>
         <li><b>Destinatarios</b>: por defecto tu email; añade más separados por comas.</li>

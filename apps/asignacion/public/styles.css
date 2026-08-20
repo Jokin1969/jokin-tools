@@ -570,8 +570,16 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-rel-ready { background: #e2f5ec; color: #128a5b; }
 .az-rel-soon { background: #fff3d6; color: #8a5a00; }
 .az-rel-none { background: #eef2f6; color: #8a95a4; }
+/* The chip is a button so it can be clicked to change date / anticipation. */
+.az-rel-click { border: none; cursor: pointer; font-family: inherit; line-height: 1.3; text-align: left; }
+.az-rel-click:hover { filter: brightness(0.97); box-shadow: 0 0 0 2px rgba(0,0,0,0.06); }
+.az-rel-off { font-weight: 600; opacity: 0.75; }
+.az-off { color: #93a1b3; font-weight: 600; }
 .az-line.is-ready { border-color: #9bd8b6; background: #f2fbf6; box-shadow: 0 0 0 2px rgba(18,138,91,0.10); }
 .az-rp-med { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink); }
+.az-field-hint { display: block; margin-top: 4px; color: var(--muted); font-size: 0.72rem; }
+.az-rp-eff { margin: 6px 0 2px; padding: 9px 12px; background: #f2fbf6; border: 1px solid #cdeede; border-radius: 10px; font-size: 0.85rem; color: #14603f; }
+.az-rp-eff-sub { color: #6a8a7a; font-weight: 500; }
 
 /* Overview card readiness */
 .az-card.has-ready { border-color: #9bd8b6; }

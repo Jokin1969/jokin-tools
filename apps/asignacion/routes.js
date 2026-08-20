@@ -78,13 +78,17 @@ function boxView(item) {
 // from the datamatrix inventory afterwards).
 function lineView(line) {
   const item = dmDb.getItem(line.item_id);
-  const days = daysUntil(line.release_at);
-  // Only pre-asignada boxes care about a release date. 'lista' = date reached.
-  const release_state = (line.state === 'preasignada' && line.release_at) ? (days <= 0 ? 'lista' : 'programada') : null;
+  const advance_days = line.advance_days == null ? db.DEFAULT_ADVANCE : line.advance_days;
+  const effective_at = db.effectiveDate(line.release_at, advance_days);   // oficial − anticipación
+  const effDays = daysUntil(effective_at);          // días hasta la fecha EFECTIVA
+  const officialDays = daysUntil(line.release_at);  // informativo: días hasta la oficial
+  // Only pre-asignada boxes care about a release date. 'lista' = effective date reached.
+  const release_state = (line.state === 'preasignada' && line.release_at) ? (effDays <= 0 ? 'lista' : 'programada') : null;
   return {
     id: line.id, period_id: line.period_id, person_id: line.person_id, gtin: line.gtin,
     item_id: line.item_id, state: line.state, assigned_at: line.assigned_at, created_at: line.created_at,
-    release_at: line.release_at || null, release_days: days, release_state,
+    release_at: line.release_at || null, advance_days, effective_at,
+    release_days: officialDays, effective_days: effDays, release_state,
     box: boxView(item),
   };
 }
@@ -244,9 +248,12 @@ router.get('/api/overview', (req, res) => {
   try {
     const month = thisMonth();
     const today = todayIso();
-    // Boxes ready to assign (release date reached), bucketed by person.
+    // Boxes ready to assign (EFFECTIVE date reached), bucketed by person.
     const readyBy = new Map();
-    for (const ln of db.pendingReleaseLines()) if (ln.release_at <= today) readyBy.set(ln.person_id, (readyBy.get(ln.person_id) || 0) + 1);
+    for (const ln of db.pendingReleaseLines()) {
+      const eff = db.effectiveDate(ln.release_at, ln.advance_days);
+      if (eff && eff <= today) readyBy.set(ln.person_id, (readyBy.get(ln.person_id) || 0) + 1);
+    }
     const ids = new Set([...db.planPersonIds(), ...db.periodPersonIds()]);
     const rows = [];
     for (const id of ids) {
@@ -357,15 +364,24 @@ router.post('/api/line/:id(\\d+)/unassign', (req, res) => {
     res.json(fichaPayload(p, pr.ym));
   } catch (err) { fail(res, err); }
 });
-// Set/clear the date on which Salud is expected to free a pre-assigned box.
+// Set/clear the official Salud date and/or the days-of-anticipation of a box.
+// Both are optional: send `date` to change the official date, `advance_days` to
+// change the anticipation (default 15). The effective date is derived from both.
 router.put('/api/line/:id(\\d+)/release', json, (req, res) => {
   try {
     const line = db.getLine(Number(req.params.id));
     if (!line) return res.status(404).json({ error: 'Asignación no encontrada.' });
     const b = req.body || {};
-    const date = String(b.date == null ? '' : b.date).trim();
-    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw bad('Fecha no válida (AAAA-MM-DD).');
-    db.setLineRelease(line.id, date || null);
+    if (b.date !== undefined) {
+      const date = String(b.date == null ? '' : b.date).trim();
+      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw bad('Fecha no válida (AAAA-MM-DD).');
+      db.setLineRelease(line.id, date || null);
+    }
+    if (b.advance_days !== undefined) {
+      const n = Math.round(Number(b.advance_days));
+      if (!Number.isFinite(n) || n < 0 || n > 365) throw bad('Días de anticipación no válidos (0–365).');
+      db.setLineAdvance(line.id, n);
+    }
     const pr = db.getPeriod(line.period_id); const p = qrDb.getPerson(line.person_id);
     res.json(fichaPayload(p, pr.ym));
   } catch (err) { fail(res, err); }

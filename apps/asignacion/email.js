@@ -63,7 +63,7 @@ async function buildParts(notif, refDate) {
       const dmCid = `dm-${b.line_id}`;
       const png = it ? await renderDmPng(it.raw, color) : null;
       if (png) images.push({ cid: dmCid, buffer: png, filename: `dm-${b.line_id}.png` });
-      meds.push({ it, color, dmCid: png ? dmCid : null, release_at: b.release_at });
+      meds.push({ it, color, dmCid: png ? dmCid : null, release_at: b.release_at, effective_at: b.effective_at, advance_days: b.advance_days });
     }
     cards.push({ p, pp, qrCid, meds, personLink: `${base}/asignacion?person=${p.id}` });
   }
@@ -85,7 +85,7 @@ async function buildParts(notif, refDate) {
         <td style="padding:6px 10px 6px 0;vertical-align:middle;">${dm}</td>
         <td style="padding:6px 0;vertical-align:middle;font-size:13px;color:#1a2332;">
           <b>${esc(it.nombre || 'Medicamento')}</b><br>
-          <span style="color:#5c7086;font-size:12px;">${it.serial ? 'Nº ' + esc(it.serial) + ' · ' : ''}${it.caducidad ? 'Cad ' + esc(fmtDateEs(it.caducidad)) + ' · ' : ''}Sale el ${esc(fmtDateEs(m.release_at))}</span>
+          <span style="color:#5c7086;font-size:12px;">${it.serial ? 'Nº ' + esc(it.serial) + ' · ' : ''}${it.caducidad ? 'Cad ' + esc(fmtDateEs(it.caducidad)) + ' · ' : ''}Disponible desde ${esc(fmtDateEs(m.effective_at || m.release_at))}${m.effective_at && m.effective_at !== m.release_at ? ' <span style="color:#93a1b3;">(oficial ' + esc(fmtDateEs(m.release_at)) + ')</span>' : ''}</span>
         </td></tr>`;
     }).join('');
     return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;border:1px solid #e6ebf1;border-radius:12px;">

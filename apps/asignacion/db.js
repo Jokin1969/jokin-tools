@@ -135,6 +135,9 @@ db.exec(`
 try { db.prepare('ALTER TABLE asig_line ADD COLUMN release_at TEXT').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE asig_settings ADD COLUMN notify_mode TEXT').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE asig_note ADD COLUMN alert INTEGER NOT NULL DEFAULT 0').run(); } catch { /* already present */ }
+// Días de anticipación: la fecha efectiva (en la que ya se puede actuar) es la
+// fecha oficial de Salud menos estos días. Por defecto 15, ajustable por línea.
+try { db.prepare('ALTER TABLE asig_line ADD COLUMN advance_days INTEGER NOT NULL DEFAULT 15').run(); } catch { /* already present */ }
 
 console.log('[asignacion] Database ready at:', DB_PATH);
 
@@ -202,6 +205,22 @@ const deletePeriod = db.transaction((id) => {
 function periodPersonIds() { return db.prepare('SELECT DISTINCT person_id FROM asig_period').all().map(r => r.person_id); }
 
 // ── Line (a box attached to a person within a period) ────────────────────────────
+// Días de anticipación por defecto (la farmacia suele actuar 15 días antes de la
+// fecha oficial de Salud). Ajustable por línea (medicamento + persona).
+const DEFAULT_ADVANCE = 15;
+function clampAdvance(v) {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return DEFAULT_ADVANCE;
+  return Math.min(365, Math.max(0, n));
+}
+// Fecha efectiva = fecha oficial − días de anticipación (ISO 'YYYY-MM-DD' o null).
+function effectiveDate(isoOfficial, advanceDays) {
+  if (!isoOfficial || !/^\d{4}-\d{2}-\d{2}$/.test(isoOfficial)) return null;
+  const d = new Date(isoOfficial + 'T00:00:00');
+  if (isNaN(d)) return null;
+  d.setDate(d.getDate() - clampAdvance(advanceDays));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function listLines(periodId) {
   return db.prepare('SELECT * FROM asig_line WHERE period_id = ? ORDER BY gtin, id').all(periodId);
 }
@@ -216,13 +235,14 @@ function lineByItem(itemId) {
 }
 function addLine(data) {
   const info = db.prepare(
-    `INSERT INTO asig_line (period_id, person_id, gtin, item_id, box_key, state, release_at, assigned_at)
-     VALUES (@period_id, @person_id, @gtin, @item_id, @box_key, @state, @release_at, @assigned_at)`
+    `INSERT INTO asig_line (period_id, person_id, gtin, item_id, box_key, state, release_at, advance_days, assigned_at)
+     VALUES (@period_id, @person_id, @gtin, @item_id, @box_key, @state, @release_at, @advance_days, @assigned_at)`
   ).run({
     period_id: data.period_id, person_id: data.person_id, gtin: data.gtin || null,
     item_id: data.item_id, box_key: data.box_key || null,
     state: data.state === 'asignada' ? 'asignada' : 'preasignada',
     release_at: data.release_at || null,
+    advance_days: data.advance_days == null ? DEFAULT_ADVANCE : clampAdvance(data.advance_days),
     assigned_at: data.state === 'asignada' ? new Date().toISOString().replace('T', ' ').slice(0, 19) : null,
   });
   return getLine(info.lastInsertRowid);
@@ -236,6 +256,11 @@ function setLineState(id, state) {
 // Set (or clear, with null) the date on which Salud will free this box.
 function setLineRelease(id, isoDate) {
   db.prepare('UPDATE asig_line SET release_at = ? WHERE id = ?').run(isoDate || null, id);
+  return getLine(id);
+}
+// Set the days-of-anticipation for this line (medication + person).
+function setLineAdvance(id, days) {
+  db.prepare('UPDATE asig_line SET advance_days = ? WHERE id = ?').run(clampAdvance(days), id);
   return getLine(id);
 }
 function deleteLine(id) { return db.prepare('DELETE FROM asig_line WHERE id = ?').run(id).changes > 0; }
@@ -459,7 +484,8 @@ module.exports = {
   db, DEFAULT_SETTINGS,
   listPlan, getPlanLine, planByGtin, upsertPlan, deletePlanLine, planPersonIds,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
-  listLines, getLine, findLine, lineByItem, addLine, setLineState, setLineRelease, pendingReleaseLines, deleteLine, periodCounts,
+  DEFAULT_ADVANCE, clampAdvance, effectiveDate,
+  listLines, getLine, findLine, lineByItem, addLine, setLineState, setLineRelease, setLineAdvance, pendingReleaseLines, deleteLine, periodCounts,
   listNotifs, getNotif, createNotif, updateNotif, deleteNotif, setNotifEnabled, markNotifSent, dueNotifs,
   NOTE_COLORS, listBoards, getBoard, boardCount, createBoard, renameBoard, deleteBoard,
   getNote, listNotes, createNote, updateNote, deleteNote, noteViewers, setNoteViewers, canSeeNote, markNotesSeen, notesBadge,
