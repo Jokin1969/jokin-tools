@@ -21,7 +21,8 @@ const S = {
   peopleFilter: null,   // when set (array of ids), the home shows only these (from an email link)
   isAdmin: false, noteColors: [], notesBadge: { notes: 0, new_notes: 0 },
   board: { boards: [], currentId: null, notes: [], users: [], userId: null },
-  stickers: null, stkYm: null, stkShowPegados: false, stkGroupBy: 'med', stkFilter: [], stkFilterRes: [],
+  stickers: null, stkYm: null, stkStatus: 'pending', stkGroupBy: 'med', stkFilter: [], stkFilterRes: [], stkNotesOnly: false,
+  ov: { res: [], estado: 'all', notesOnly: false, q: '' },
 };
 
 // ── Tiny helpers ────────────────────────────────────────────────────────────────
@@ -613,9 +614,8 @@ async function viewHome() {
 }
 function renderHome() {
   const filtering = Array.isArray(S.peopleFilter) && S.peopleFilter.length;
-  const rows = filtering ? S.overview.filter(r => S.peopleFilter.includes(r.person.id)) : S.overview;
   const banner = filtering
-    ? `<div class="az-filter-banner">👥 Mostrando <b>${rows.length}</b> persona(s) de una notificación. <a id="clear-filter">Ver todas →</a></div>`
+    ? `<div class="az-filter-banner">👥 Filtrando por una notificación (${S.peopleFilter.length} persona/s). <a id="clear-filter">Ver todas →</a></div>`
     : '';
   main().innerHTML =
     `<div class="qt-panel az-panel">
@@ -628,9 +628,7 @@ function renderHome() {
        </div>
 
        ${banner}
-       <div class="qt-section-title" style="margin-top:22px">En seguimiento (${rows.length})</div>
-       <div class="qt-section-sub">Personas con plan o asignaciones. El estado es el del mes en curso.</div>
-       <div id="ov-body">${overviewHtml(rows)}</div>
+       <div id="ov-wrap"></div>
      </div>
 
      <div class="qt-panel az-panel az-stk-panel">
@@ -642,7 +640,7 @@ function renderHome() {
   const pq = $('pq');
   pq.addEventListener('input', () => { S.searchQuery = pq.value; searchPeople(pq.value); });
   if (S.searchQuery) searchPeople(S.searchQuery);
-  wireOverview();
+  renderOverviewSection();
   loadStickers(S.stkYm || undefined);
 }
 function statusChip(r) {
@@ -653,19 +651,96 @@ function statusChip(r) {
   if (pre > 0) return `<span class="az-chip az-chip-pre">🔗 ${done} asignada(s) · ${pre} por asignar</span>`;
   return `<span class="az-chip az-chip-done">✓ ${done} asignada(s)</span>`;
 }
+// ── Overview filtering (scales to hundreds of people) ────────────────────────────
+function ovResidencia(r) { return (r.person.groups && r.person.groups.length) ? r.person.groups.join(' · ') : 'Sin grupo'; }
+function ovEstado(r) {
+  if ((r.plan_count || 0) === 0) return 'noplan';
+  const planned = r.planned_total || 0, asg = r.month_counts ? r.month_counts.asignada : 0;
+  return (planned > 0 && asg >= planned) ? 'assigned' : 'partial';
+}
+function overviewFiltered() {
+  const f = S.ov, q = norm(f.q);
+  return S.overview.filter(r => {
+    if (Array.isArray(S.peopleFilter) && S.peopleFilter.length && !S.peopleFilter.includes(r.person.id)) return false;
+    if (f.res.length && !f.res.includes(ovResidencia(r))) return false;
+    if (f.estado === 'assigned' && ovEstado(r) !== 'assigned') return false;
+    if (f.estado === 'partial' && ovEstado(r) !== 'partial') return false;
+    if (f.estado === 'noplan' && ovEstado(r) !== 'noplan') return false;
+    if (f.estado === 'ready' && !((r.ready_count || 0) > 0)) return false;
+    if (f.notesOnly && !(r.note && r.note.text)) return false;
+    if (q) { const hay = norm(`${r.person.apellidos} ${r.person.nombre} ${r.person.tis} ${r.person.pharmacy_no || ''}`); if (!hay.includes(q)) return false; }
+    return true;
+  });
+}
+function ovControlsHtml() {
+  const f = S.ov;
+  const resMap = new Map();
+  for (const r of S.overview) { const k = ovResidencia(r); resMap.set(k, (resMap.get(k) || 0) + 1); }
+  const resKeys = [...resMap.keys()].sort((a, b) => a === 'Sin grupo' ? 1 : b === 'Sin grupo' ? -1 : a.localeCompare(b, 'es'));
+  const hasRes = resKeys.length > 1 || (resKeys.length === 1 && resKeys[0] !== 'Sin grupo');
+  const estados = [['all', 'Todas'], ['partial', 'Falta por asignar'], ['assigned', 'Todo asignado'], ['ready', 'Con algo listo'], ['noplan', 'Sin plan']];
+  return `<div class="az-ovfilters">
+    <div class="qt-search az-ov-search"><span class="ico">🔎</span><input id="ov-q" placeholder="Filtrar en seguimiento (nombre, TIS, farmacia)…" autocomplete="off" value="${esc(f.q)}"></div>
+    <div class="az-ovfilter-row"><span class="az-stk-flabel">Estado</span><div class="az-seg az-ovseg" id="ov-estado">${estados.map(([v, l]) => `<button data-v="${v}" class="${f.estado === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <button class="az-stk-chip ${f.notesOnly ? 'on' : ''}" id="ov-notesonly" title="Solo personas con nota">📝 Con notas</button></div>
+    ${hasRes ? `<div class="az-ovfilter-row"><span class="az-stk-flabel">Residencia</span><div class="az-stk-filters">
+      <button class="az-stk-chip ${f.res.length === 0 ? 'on' : ''}" data-ov-res="__all">Todas</button>
+      ${resKeys.map(k => `<button class="az-stk-chip ${f.res.includes(k) ? 'on' : ''}" data-ov-res="${esc(k)}">${esc(shortLabel(k))} <b>${resMap.get(k)}</b></button>`).join('')}</div></div>` : ''}
+  </div>`;
+}
+function renderOverviewSection() {
+  const wrap = $('ov-wrap'); if (!wrap) return;
+  const filtered = overviewFiltered();
+  wrap.innerHTML = `<div class="qt-section-title" style="margin-top:22px">En seguimiento (<span id="ov-count">${filtered.length}</span>${filtered.length !== S.overview.length ? ' de ' + S.overview.length : ''})</div>
+    <div class="qt-section-sub">Personas con plan o asignaciones. El estado es el del mes en curso.</div>
+    ${ovControlsHtml()}
+    <div id="ov-body">${overviewHtml(filtered)}</div>`;
+  // Estado + residence + notes chips → full re-render (buttons, no focus to keep).
+  const seg = $('ov-estado'); if (seg) seg.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { S.ov.estado = b.dataset.v; renderOverviewSection(); });
+  if ($('ov-notesonly')) $('ov-notesonly').onclick = () => { S.ov.notesOnly = !S.ov.notesOnly; renderOverviewSection(); };
+  wrap.querySelectorAll('[data-ov-res]').forEach(c => c.onclick = () => {
+    const k = c.dataset.ovRes;
+    if (k === '__all') S.ov.res = [];
+    else { const set = new Set(S.ov.res || []); set.has(k) ? set.delete(k) : set.add(k); S.ov.res = [...set]; }
+    renderOverviewSection();
+  });
+  // Text filter → update only the body (keep input focus).
+  const q = $('ov-q');
+  if (q) q.addEventListener('input', () => { S.ov.q = q.value; updateOverviewBody(); });
+  wireOverview();
+}
+function updateOverviewBody() {
+  const filtered = overviewFiltered();
+  const c = $('ov-count'); if (c) c.textContent = filtered.length;
+  const body = $('ov-body'); if (body) { body.innerHTML = overviewHtml(filtered); wireOverview(); }
+}
+const OV_CAP = 120;
 function overviewHtml(rows) {
-  if (!rows.length) return '<div class="qt-empty">Aún no hay personas en seguimiento. Busca una persona arriba y crea su plan.</div>';
-  return `<div class="az-cards">` + rows.map(r => {
+  if (!S.overview.length) return '<div class="qt-empty">Aún no hay personas en seguimiento. Busca una persona arriba y crea su plan.</div>';
+  if (!rows.length) return '<div class="qt-empty">No hay personas que coincidan con el filtro.</div>';
+  const shown = rows.slice(0, OV_CAP);
+  const more = rows.length > OV_CAP ? `<div class="az-ov-more">Mostrando ${OV_CAP} de ${rows.length}. Afina el filtro (residencia, estado o búsqueda) para acotar.</div>` : '';
+  return `<div class="az-cards">` + shown.map(r => {
     const p = r.person;
-    return `<div class="az-card ${r.ready_count ? 'has-ready' : ''}" data-open="${p.id}">
+    const note = r.note ? `<div class="az-ent-note az-ov-note" style="background:${esc(r.note.color || '#FEF08A')}">${esc(r.note.text)}</div>` : '';
+    return `<div class="az-card ${r.ready_count ? 'has-ready' : ''}${r.note ? ' has-note' : ''}" data-open="${p.id}">
+      <button class="qt-iconbtn az-card-note ${r.note ? 'has' : ''}" data-note="${p.id}" title="${r.note ? 'Editar nota' : 'Añadir nota'}">📝</button>
       <div class="az-card-h"><span class="az-card-name">${esc(p.apellidos)}, ${esc(p.nombre)}</span>${statusChip(r)}</div>
       ${r.ready_count ? `<div class="az-card-ready">🔔 ${r.ready_count} caja(s) ya se pueden asignar</div>` : ''}
-      <div class="az-card-sub">TIS ${esc(fmtTis(p.tis))}${p.pharmacy_no ? ' · Farmacia ' + esc(p.pharmacy_no) : ''}</div>
+      <div class="az-card-sub">TIS ${esc(fmtTis(p.tis))}${p.pharmacy_no ? ' · Farmacia ' + esc(p.pharmacy_no) : ''}${(p.groups && p.groups.length) ? ' · 🏠 ' + esc(p.groups.join(' · ')) : ''}</div>
       <div class="az-card-sub">${r.plan_count} medicamento(s) en el plan · ${r.planned_total} caja(s)/mes${r.latest ? ' · último: ' + esc(fmtYm(r.latest.ym)) : ''}</div>
+      ${note}
     </div>`;
-  }).join('') + `</div>`;
+  }).join('') + `</div>` + more;
 }
-function wireOverview() { main().querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => openPerson(Number(el.dataset.open)))); }
+function wireOverview() {
+  main().querySelectorAll('.az-card[data-open]').forEach(el => el.addEventListener('click', e => { if (e.target.closest('[data-note]')) return; openPerson(Number(el.dataset.open)); }));
+  main().querySelectorAll('[data-note]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const id = Number(b.dataset.note), row = S.overview.find(r => r.person.id === id);
+    openNoteEditor({ subtitle: row ? `${row.person.apellidos}, ${row.person.nombre}` : '', endpoint: `/note/person/${id}`, current: row && row.note, onSaved: (note) => { if (row) row.note = note; renderOverviewSection(); } });
+  }));
+}
 
 let searchTimer = null;
 function searchPeople(q) {
@@ -1064,10 +1139,11 @@ function renderStickers() {
   // pegados visibility. This drives grouping (by med or by person) and bulk actions.
   const allItems = [];
   for (const g of d.groups) for (const i of g.items) allItems.push({ ...i, medKey: g.key, medNombre: g.nombre, medCn: g.cn, medBarcode: g.barcode, resKey: i.residencia || 'Sin grupo' });
-  const medFilter = S.stkFilter || [], resFilter = S.stkFilterRes || [];
+  const medFilter = S.stkFilter || [], resFilter = S.stkFilterRes || [], status = S.stkStatus || 'pending', notesOnly = !!S.stkNotesOnly;
   const inMed = (k) => medFilter.length === 0 || medFilter.includes(k);
   const inRes = (r) => resFilter.length === 0 || resFilter.includes(r);
-  const visible = allItems.filter(i => inMed(i.medKey) && inRes(i.resKey) && (showP || !i.pegado));
+  const inStatus = (i) => status === 'all' ? true : status === 'pegados' ? i.pegado : !i.pegado;
+  const visible = allItems.filter(i => inMed(i.medKey) && inRes(i.resKey) && inStatus(i) && (!notesOnly || (i.note && i.note.text)));
   const visiblePending = visible.filter(i => !i.pegado);
   const pendingItems = visiblePending.map(i => ({ source: i.source, id: i.id }));
 
@@ -1086,15 +1162,15 @@ function renderStickers() {
   body.innerHTML = `
     <div class="az-stk-bar">
       <label class="az-stk-month">Mes <select class="qt-select" id="stk-month">${monthOpts}</select></label>
-      <div class="az-stk-counters">
-        <div class="az-stk-count ${t.por_pegar > 0 ? 'is-pending' : 'is-done'}"><span class="n">${t.por_pegar}</span><span class="l">por pegar</span></div>
-        <div class="az-stk-count is-ok"><span class="n">${t.pegados}</span><span class="l">✓ pegados</span></div>
-        <div class="az-stk-count"><span class="n">${t.total}</span><span class="l">asignados</span></div>
+      <div class="az-stk-counters" id="stk-status">
+        <button class="az-stk-count is-pending ${status === 'pending' ? 'on' : ''}" data-stk-status="pending"><span class="n">${t.por_pegar}</span><span class="l">por pegar</span></button>
+        <button class="az-stk-count is-ok ${status === 'pegados' ? 'on' : ''}" data-stk-status="pegados"><span class="n">${t.pegados}</span><span class="l">✓ pegados</span></button>
+        <button class="az-stk-count ${status === 'all' ? 'on' : ''}" data-stk-status="all"><span class="n">${t.total}</span><span class="l">asignados</span></button>
       </div>
     </div>
     <div class="az-stk-controls">
       <div class="az-seg az-stk-seg" id="stk-groupby"><button data-gb="med" class="${S.stkGroupBy === 'med' ? 'on' : ''}">Por medicamento</button><button data-gb="person" class="${S.stkGroupBy === 'person' ? 'on' : ''}">Por persona</button>${hasResidencias ? `<button data-gb="residencia" class="${S.stkGroupBy === 'residencia' ? 'on' : ''}">Por residencia</button>` : ''}</div>
-      <label class="az-stk-toggle"><input type="checkbox" id="stk-showpeg" ${showP ? 'checked' : ''}> Ver también los pegados</label>
+      <button class="az-stk-chip ${notesOnly ? 'on' : ''}" id="stk-notesonly" title="Mostrar solo los precintos que tienen una nota">📝 Con notas</button>
     </div>
     <div class="az-stk-filterblock"><span class="az-stk-flabel">Medicamento</span><div class="az-stk-filters">${medChips}</div></div>
     ${hasResidencias ? `<div class="az-stk-filterblock"><span class="az-stk-flabel">Residencia</span><div class="az-stk-filters">${resChips}</div></div>` : ''}
@@ -1111,7 +1187,8 @@ function renderStickers() {
     ${(d.evidencias && d.evidencias.length) ? stkEvidHtml(d.evidencias) : ''}`;
 
   $('stk-month').onchange = e => loadStickers(e.target.value);
-  $('stk-showpeg').onchange = e => { S.stkShowPegados = e.target.checked; renderStickers(); };
+  $('stk-status').querySelectorAll('[data-stk-status]').forEach(b => b.onclick = () => { S.stkStatus = b.dataset.stkStatus; renderStickers(); });
+  if ($('stk-notesonly')) $('stk-notesonly').onclick = () => { S.stkNotesOnly = !S.stkNotesOnly; renderStickers(); };
   $('stk-scan').onclick = () => toggleStkScanner(ym);
   if (stkScan.on) { const b = $('stk-scan'); if (b) b.classList.add('is-on'); }
   $('stk-groupby').querySelectorAll('[data-gb]').forEach(b => b.onclick = () => { S.stkGroupBy = b.dataset.gb; renderStickers(); });
@@ -1190,14 +1267,42 @@ function stkItemRow(i, mode) {
     : mode === 'residencia' ? `${esc(i.person.apellidos)}, ${esc(i.person.nombre)} <small class="az-stk-i-med">· ${esc(shortLabel(i.medNombre || i.medCn || ''))}</small>`
       : `${esc(i.person.apellidos)}, ${esc(i.person.nombre)}`;
   const tag = `${i.source === 'line' ? '📦 DM' : '🏷️'}${i.serial ? ' · ' + esc(i.serial) : ''}`;
+  const noteBtn = `<button class="qt-iconbtn az-note-ic ${i.note ? 'has' : ''}" data-stk-note='${j}' title="${i.note ? 'Editar nota' : 'Añadir nota'}">📝</button>`;
   const right = i.pegado
     ? `<span class="az-stk-i-state">✓ pegado${i.method ? ' · ' + esc(i.method) : ''}</span>${i.evidencia_id ? ` <a class="az-stk-evlink" href="${API}/stickers/evidencia/${i.evidencia_id}" target="_blank" rel="noopener" title="Ver la foto de prueba">📷</a>` : ''} <button class="qt-iconbtn" data-stk-unmark='${j}' title="Revertir a por pegar">↩</button>`
     : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-stk-mark='${j}'>✅ Pegado</button>`;
-  return `<div class="az-stk-item ${i.pegado ? 'is-peg' : ''}"><span class="az-stk-i-who">${label}</span><span class="az-stk-i-tag">${tag}</span><span class="az-stk-i-right">${right}</span></div>`;
+  const noteLine = i.note ? `<div class="az-ent-note" style="background:${esc(i.note.color || '#FEF08A')}">${esc(i.note.text)}</div>` : '';
+  return `<div class="az-stk-item ${i.pegado ? 'is-peg' : ''}${i.note ? ' has-note' : ''}"><div class="az-stk-item-main"><span class="az-stk-i-who">${label}</span><span class="az-stk-i-tag">${tag}</span><span class="az-stk-i-right">${noteBtn}${right}</span></div>${noteLine}</div>`;
 }
+function findStkItem(source, id) { for (const g of ((S.stickers && S.stickers.groups) || [])) for (const it of g.items) if (it.source === source && it.id === Number(id)) return it; return null; }
 function stkEvidHtml(evs) {
   return `<div class="az-stk-evsec"><div class="az-stk-ev-h">📷 Fotos de prueba de este mes (${evs.length})</div>
     <div class="az-stk-evgrid">${evs.map(e => `<a class="az-stk-ev" href="${API}/stickers/evidencia/${e.id}" target="_blank" rel="noopener" title="Prueba · ${esc(fmtDate(e.created_at))}"><img src="${API}/stickers/evidencia/${e.id}" alt="Foto de prueba" loading="lazy"></a>`).join('')}</div></div>`;
+}
+// A small, pretty note editor for a person or a precinto (upsert; empty = borrar).
+const AZ_NOTE_COLORS = ['#FEF08A', '#FBCFE8', '#BFDBFE', '#BBF7D0', '#FED7AA', '#E9D5FF', '#FECACA'];
+function noteColorList() { return (Array.isArray(S.noteColors) && S.noteColors.length) ? S.noteColors : AZ_NOTE_COLORS; }
+function openNoteEditor(opts) {
+  const cur = opts.current || {}, cols = noteColorList();
+  let color = cur.color || cols[0];
+  openTool(`<div class="qt-modal-h"><h3>📝 Nota${opts.subtitle ? ' · ' + esc(opts.subtitle) : ''}</h3><button class="qt-x" id="nte-x">×</button></div>
+    <p class="qt-tool-note">Una nota corta para recordar «qué le pasa». Se guarda sola y luego puedes filtrar por «Con notas».</p>
+    <div class="az-noteedit" id="nte-card" style="background:${esc(color)}"><textarea id="nte-text" class="az-noteedit-ta" maxlength="2000" placeholder="Escribe la nota…">${esc(cur.text || '')}</textarea></div>
+    <div class="az-noteedit-cols">${cols.map(c => `<button class="az-noteedit-sw ${c === color ? 'sel' : ''}" data-c="${esc(c)}" style="background:${esc(c)}" aria-label="color"></button>`).join('')}</div>
+    <div class="qt-modal-actions">
+      ${cur.text ? '<button class="qt-btn qt-btn-danger" id="nte-del">Borrar nota</button>' : ''}
+      <button class="qt-btn qt-btn-ghost" id="nte-cancel">Cancelar</button>
+      <button class="qt-btn qt-btn-primary" id="nte-save">Guardar</button>
+    </div>`);
+  $('nte-x').onclick = closeTool; $('nte-cancel').onclick = closeTool;
+  $('tool-modal-box').querySelectorAll('.az-noteedit-sw').forEach(sw => sw.onclick = () => { color = sw.dataset.c; $('nte-card').style.background = color; $('tool-modal-box').querySelectorAll('.az-noteedit-sw').forEach(x => x.classList.toggle('sel', x === sw)); });
+  const save = async (text) => {
+    try { const r = await api(opts.endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, color }) }); closeTool(); opts.onSaved(r.note || null); toast(text.trim() ? 'Nota guardada.' : 'Nota borrada.'); }
+    catch (e) { toast(e.message, 'err'); }
+  };
+  $('nte-save').onclick = () => save($('nte-text').value);
+  if ($('nte-del')) $('nte-del').onclick = () => save('');
+  setTimeout(() => { const ta = $('nte-text'); if (ta) ta.focus(); }, 30);
 }
 // Ask what to print and how to order it, then open the PDF with those options.
 function openStkPrintModal() {
@@ -1243,6 +1348,10 @@ function wireStkGroups() {
     stkMarkItems(items, 'manual');
   });
   body.querySelectorAll('[data-stk-photoset]').forEach(inp => inp.onchange = () => stkPhotoMarkItems(inp, JSON.parse(inp.dataset.stkPhotoset)));
+  body.querySelectorAll('[data-stk-note]').forEach(b => b.onclick = () => {
+    const it = JSON.parse(b.dataset.stkNote), item = findStkItem(it.source, it.id);
+    openNoteEditor({ subtitle: item ? `${item.person.apellidos}, ${item.person.nombre} · ${item.nombre || ''}` : '', endpoint: `/note/sticker/${it.source}/${it.id}`, current: item && item.note, onSaved: (note) => { if (item) item.note = note; renderStickers(); } });
+  });
 }
 async function stkMarkItems(items, method) {
   if (!items || !items.length) return;

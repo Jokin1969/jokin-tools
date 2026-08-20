@@ -374,6 +374,7 @@ router.get('/api/overview', (req, res) => {
       if (eff && eff <= today) readyBy.set(pm.person_id, (readyBy.get(pm.person_id) || 0) + 1);
     }
     const ids = new Set([...db.planPersonIds(), ...db.periodPersonIds()]);
+    const pnotes = db.entNotesMap('person');
     const rows = [];
     for (const id of ids) {
       const p = qrDb.getPerson(id);
@@ -388,6 +389,7 @@ router.get('/api/overview', (req, res) => {
         month_counts: counts, has_month_period: !!period,
         ready_count: readyBy.get(id) || 0,
         latest: latest ? { ym: latest.ym, status: latest.status } : null,
+        note: pnotes.get(String(id)) || null,
       });
     }
     const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -624,6 +626,7 @@ function buildStickers(ym) {
       pegado: !!pr.pegado, pegado_at: pr.pegado_at || null, method: pr.pegado_method || null, evidencia_id: pr.evidencia_id || null, assigned_at: pr.assigned_at || null });
   }
   const pcache = new Map();
+  const snotes = db.entNotesMap('sticker');
   for (const s of out) {
     if (!pcache.has(s.person_id)) pcache.set(s.person_id, qrDb.getPerson(s.person_id));
     const p = pcache.get(s.person_id);
@@ -631,6 +634,7 @@ function buildStickers(ym) {
     s.person = p ? { id: p.id, nombre: p.nombre, apellidos: p.apellidos } : { id: s.person_id, nombre: '', apellidos: '' };
     s.groups = groups;
     s.residencia = groups.length ? groups.join(' · ') : null;   // grupo(s) de QR (TIS), usado como residencia
+    s.note = snotes.get(`${s.source}:${s.id}`) || null;
   }
   return out;
 }
@@ -646,7 +650,7 @@ function stickerPayload(ym) {
     if (!g.nombre && s.nombre) g.nombre = s.nombre;
     if (!g.cn && s.cn) g.cn = s.cn;
     if (!g.barcode && s.barcode) g.barcode = s.barcode;
-    g.items.push({ source: s.source, id: s.id, person: s.person, groups: s.groups, residencia: s.residencia, barcode: s.barcode, cn: s.cn, nombre: s.nombre, serial: s.serial, pegado: s.pegado, pegado_at: s.pegado_at, method: s.method, evidencia_id: s.evidencia_id, assigned_at: s.assigned_at });
+    g.items.push({ source: s.source, id: s.id, person: s.person, groups: s.groups, residencia: s.residencia, note: s.note, barcode: s.barcode, cn: s.cn, nombre: s.nombre, serial: s.serial, pegado: s.pegado, pegado_at: s.pegado_at, method: s.method, evidencia_id: s.evidencia_id, assigned_at: s.assigned_at });
   }
   const groupArr = [...groups.values()].sort((a, b) => (a.nombre || 'zzz').localeCompare(b.nombre || 'zzz') || String(a.cn || '').localeCompare(String(b.cn || '')));
   for (const g of groupArr) g.items.sort((a, b) => (a.person.apellidos || '').localeCompare(b.person.apellidos || '') || (a.person.nombre || '').localeCompare(b.person.nombre || ''));
@@ -718,6 +722,18 @@ router.get('/api/stickers/evidencia/:id(\\d+)', (req, res) => {
     if (!ev) return res.status(404).end();
     res.set('Content-Type', ev.mime || 'image/jpeg'); res.set('Cache-Control', 'private, max-age=3600'); res.send(ev.photo);
   } catch { res.status(404).end(); }
+});
+// Notes attached to a person or a precinto (upsert; empty text clears it).
+router.put('/api/note/person/:id(\\d+)', json, (req, res) => {
+  try {
+    const p = qrDb.getPerson(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
+    res.json({ note: db.setEntNote('person', p.id, req.body || {}, req.user.id) });
+  } catch (err) { fail(res, err); }
+});
+router.put('/api/note/sticker/:source(line|precinto)/:id(\\d+)', json, (req, res) => {
+  try { res.json({ note: db.setEntNote('sticker', `${req.params.source}:${req.params.id}`, req.body || {}, req.user.id) }); }
+  catch (err) { fail(res, err); }
 });
 // PDF: barcodes laid out 4×7 per A4 page, to stick & compare against the official
 // Salud sheet. The ordering/grouping and the subset are chosen in the print modal

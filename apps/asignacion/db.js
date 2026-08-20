@@ -218,6 +218,21 @@ for (const t of ['asig_line', 'asig_precinto']) {
   try { db.prepare(`ALTER TABLE ${t} ADD COLUMN evidencia_id INTEGER`).run(); } catch { /* present */ }
 }
 
+// ── Notes attached to an entity (a person or a physical precinto) ─────────────────
+// A small, pretty note ("qué le pasa"): one per entity, upsert, with a colour.
+// entity_type: 'person' | 'sticker'; entity_key: person id, or "<source>:<id>".
+db.exec(`
+  CREATE TABLE IF NOT EXISTS asig_entnote (
+    entity_type TEXT NOT NULL,
+    entity_key  TEXT NOT NULL,
+    text        TEXT NOT NULL,
+    color       TEXT,
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_by  INTEGER,
+    PRIMARY KEY (entity_type, entity_key)
+  );
+`);
+
 console.log('[asignacion] Database ready at:', DB_PATH);
 
 // notify_mode: how the release bell groups a person's pending boxes —
@@ -515,6 +530,23 @@ function addEvidencia(data, userId) {
 function getEvidencia(id) { return db.prepare('SELECT * FROM asig_evidencia WHERE id = ?').get(id) || null; }
 function listEvidencia(ym) { return db.prepare('SELECT id, ym, mime, note, created_at, created_by FROM asig_evidencia WHERE ym = ? ORDER BY id DESC').all(ym); }
 
+// ── Entity notes (person / sticker) ──────────────────────────────────────────────
+function getEntNote(type, key) { return db.prepare('SELECT entity_type, entity_key, text, color, updated_at FROM asig_entnote WHERE entity_type = ? AND entity_key = ?').get(type, String(key)) || null; }
+function setEntNote(type, key, data, userId) {
+  const text = String(data && data.text != null ? data.text : '').trim();
+  if (!text) { db.prepare('DELETE FROM asig_entnote WHERE entity_type = ? AND entity_key = ?').run(type, String(key)); return null; }
+  db.prepare(`INSERT INTO asig_entnote (entity_type, entity_key, text, color, updated_at, updated_by)
+     VALUES (@t, @k, @text, @color, CURRENT_TIMESTAMP, @u)
+     ON CONFLICT(entity_type, entity_key) DO UPDATE SET text = excluded.text, color = excluded.color, updated_at = CURRENT_TIMESTAMP, updated_by = excluded.updated_by`)
+    .run({ t: type, k: String(key), text: text.slice(0, 2000), color: data.color || null, u: userId != null ? userId : null });
+  return getEntNote(type, key);
+}
+function entNotesMap(type) {
+  const m = new Map();
+  for (const r of db.prepare('SELECT entity_key, text, color, updated_at FROM asig_entnote WHERE entity_type = ?').all(type)) m.set(r.entity_key, { text: r.text, color: r.color, updated_at: r.updated_at });
+  return m;
+}
+
 // ── Scheduled email notifications ────────────────────────────────────────────────
 function listNotifs() { return db.prepare('SELECT * FROM asig_notif ORDER BY enabled DESC, send_time, id').all(); }
 function getNotif(id) { return db.prepare('SELECT * FROM asig_notif WHERE id = ?').get(id) || null; }
@@ -729,6 +761,7 @@ module.exports = {
   getPrecinto, listPrecinto, addPrecinto, deletePrecinto, precintoCountByPlan, nextMonthSameDay,
   assignedLinesForYm, precintosForYm, stickerMonths, setLinePegado, setPrecintoPegado,
   addEvidencia, getEvidencia, listEvidencia,
+  getEntNote, setEntNote, entNotesMap,
   listNotifs, getNotif, createNotif, updateNotif, deleteNotif, setNotifEnabled, markNotifSent, dueNotifs,
   NOTE_COLORS, listBoards, getBoard, boardCount, createBoard, renameBoard, deleteBoard,
   getNote, listNotes, createNote, updateNote, deleteNote, noteViewers, setNoteViewers, canSeeNote, markNotesSeen, notesBadge,

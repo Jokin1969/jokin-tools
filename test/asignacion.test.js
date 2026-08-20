@@ -303,6 +303,31 @@ test('precintos: residencia (grupo QR·TIS) + opciones de impresión del PDF', a
   assert.ok(bytes.length > 500 && bytes.slice(0, 4).toString() === '%PDF');
 });
 
+test('notas: persona y precinto (upsert + borrar) aparecen en overview y stickers', async () => {
+  const ym = '2026-05';
+  const pid = qrDb.createPerson({ pharmacy_no: '80097', nombre: 'Nota', apellidos: 'Test', tis: '00080097' }, 1).id;
+  const med = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Ibuprofeno 600', barcode: '8470007150008', qty: 1 })).data.plan.find(m => m.cn === '715000');
+  await call('POST', `/person/${pid}/assign-precinto`, { plan_id: med.id, ym });
+  // Person note.
+  const pn = await call('PUT', `/note/person/${pid}`, { text: 'Alérgica a X', color: '#FBCFE8' });
+  assert.equal(pn.status, 200);
+  assert.equal(pn.data.note.text, 'Alérgica a X');
+  const ov = (await call('GET', '/overview')).data.items.find(r => r.person.id === pid);
+  assert.ok(ov && ov.note && ov.note.text === 'Alérgica a X', 'person note in overview');
+  // Sticker note (on the precinto row).
+  const stk = (await call('GET', `/stickers?ym=${ym}`)).data;
+  const item = stk.groups.flatMap(g => g.items)[0];
+  const sn = await call('PUT', `/note/sticker/${item.source}/${item.id}`, { text: 'Precinto dudoso' });
+  assert.equal(sn.status, 200);
+  const stk2 = (await call('GET', `/stickers?ym=${ym}`)).data;
+  const item2 = stk2.groups.flatMap(g => g.items).find(i => i.source === item.source && i.id === item.id);
+  assert.ok(item2.note && item2.note.text === 'Precinto dudoso', 'sticker note in payload');
+  // Empty text clears the note.
+  await call('PUT', `/note/person/${pid}`, { text: '' });
+  const ov2 = (await call('GET', '/overview')).data.items.find(r => r.person.id === pid);
+  assert.equal(ov2.note, null, 'empty text clears the person note');
+});
+
 test('linking a mismatched box warns (409) but can be forced', async () => {
   const pid = qrDb.createPerson({ pharmacy_no: '80002', nombre: 'Iker', apellidos: 'Dao', tis: '00080002' }, 1).id;
   const med = (await call('POST', `/person/${pid}/plan`, { cn: '999999', nombre: 'Medicamento X', qty: 1 })).data.plan.find(m => m.cn === '999999');

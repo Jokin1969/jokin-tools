@@ -847,3 +847,37 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-stk-i-med { color: var(--muted); font-weight: 500; }
 .az-pr-check { display: flex; align-items: center; gap: 8px; font-size: 0.86rem; color: var(--ink); margin: 6px 0; cursor: pointer; }
 .az-pr-seg { margin-bottom: 4px; }
+
+/* Status counter cards as filters */
+.az-stk-count { border: 1px solid var(--line); background: #fff; cursor: pointer; font: inherit; transition: box-shadow .12s, border-color .12s, transform .05s; }
+.az-stk-count:hover { border-color: #94a3b8; }
+.az-stk-count.on { border-color: var(--teal, #0e7a63); box-shadow: 0 0 0 2px rgba(14,122,99,.2); }
+.az-stk-count.is-pending.on { border-color: #f2c14e; box-shadow: 0 0 0 2px rgba(242,193,78,.35); }
+.az-stk-count.is-ok.on { border-color: #34d399; box-shadow: 0 0 0 2px rgba(52,211,153,.3); }
+
+/* Entity notes (person / precinto) */
+.az-ent-note { border-radius: 9px; padding: 7px 10px; font-size: 0.82rem; color: #3a2f00; white-space: pre-wrap; overflow-wrap: anywhere; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.az-ov-note { margin-top: 8px; }
+.az-card { position: relative; }
+.az-card-note { position: absolute; top: 8px; right: 8px; opacity: .5; }
+.az-card-note.has, .az-card.has-note .az-card-note { opacity: 1; }
+.az-card.has-note { border-color: #f2c14e; }
+.az-note-ic { opacity: .5; }
+.az-note-ic.has { opacity: 1; }
+.az-stk-item.has-note { flex-direction: column; align-items: stretch; gap: 6px; }
+.az-stk-item-main { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; }
+.az-stk-i-right { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Overview filters */
+.az-ovfilters { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 14px; }
+.az-ov-search { max-width: 420px; }
+.az-ovfilter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.az-ovseg button { font-size: 0.8rem; }
+.az-ov-more { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #fff8e8; border: 1px solid #f2c14e; font-size: 0.85rem; color: #8a5a00; }
+
+/* Note editor modal */
+.az-noteedit { border-radius: 12px; padding: 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,.1); }
+.az-noteedit-ta { width: 100%; min-height: 110px; border: none; background: transparent; resize: vertical; font: inherit; font-size: 0.95rem; color: #2a2200; outline: none; }
+.az-noteedit-cols { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.az-noteedit-sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(0,0,0,.12); cursor: pointer; }
+.az-noteedit-sw.sel { border-color: #0f172a; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0f172a; }
