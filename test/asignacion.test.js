@@ -136,6 +136,72 @@ test('plan CN/barcode cross-check: rejects an inconsistent pair, derives CN from
   assert.ok(derived.find(m => m.cn === '885442'), 'CN derived from the barcode');
 });
 
+test('assign-precinto: marca asignada en Salud sin caja, cuenta y se revierte', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80070', nombre: 'Pre', apellidos: 'Cinto', tis: '00080070' }, 1).id;
+  const med = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Ibuprofeno 600', barcode: '8470007150008', qty: 2 })).data.plan.find(m => m.cn === '715000');
+  // Manual assign by precinto, capturing the next release date.
+  const r = await call('POST', `/person/${pid}/assign-precinto`, { plan_id: med.id, ym: '2026-08', next_release_at: '2026-09-15' });
+  assert.equal(r.status, 200);
+  const pm = r.data.plan.find(m => m.id === med.id);
+  assert.equal(pm.boxes, 0, 'no real box in the ficha');
+  assert.equal(pm.precinto, 1);
+  assert.equal(pm.asignada, 1, 'precinto counts as assigned');
+  assert.equal(pm.release_at, '2026-09-15', 'next release captured on the medication');
+  assert.equal(r.data.progress.asignada_total, 1, 'period progress includes the precinto');
+  assert.equal(r.data.precintos.length, 1);
+  assert.equal(r.data.precintos[0].plan_id, med.id);
+  // A second unit → 2 assigned.
+  const r2 = await call('POST', `/person/${pid}/assign-precinto`, { plan_id: med.id, ym: '2026-08' });
+  assert.equal(r2.data.plan.find(m => m.id === med.id).precinto, 2);
+  // Revert the first one.
+  const rev = await call('DELETE', `/precinto/${r.data.precintos[0].id}`);
+  assert.equal(rev.status, 200);
+  assert.equal(rev.data.plan.find(m => m.id === med.id).precinto, 1);
+});
+
+test('scan: precinto (código de barras) marca asignada y avanza la fecha', async () => {
+  const asigDb = require('../apps/asignacion/db');
+  const pid = qrDb.createPerson({ pharmacy_no: '80071', nombre: 'Esc', apellidos: 'Aner', tis: '00080071' }, 1).id;
+  const med = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Ibuprofeno 600', barcode: '8470007150008', qty: 2 })).data.plan.find(m => m.cn === '715000');
+  await call('PUT', `/plan/${med.id}/release`, { date: '2026-08-20', advance_days: 15 });
+  // Scanner types the EAN-13 precinto + Enter.
+  const r = await call('POST', `/person/${pid}/scan`, { code: '8470007150008', ym: '2026-08' });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.mode, 'precinto');
+  assert.equal(r.data.med.cn, '715000');
+  assert.equal(r.data.next_release_at, asigDb.nextMonthSameDay('2026-08-20'));
+  assert.equal(r.data.next_release_at, '2026-09-20');
+  const pm = r.data.ficha.plan.find(m => m.id === med.id);
+  assert.equal(pm.precinto, 1);
+  assert.equal(pm.asignada, 1);
+  assert.equal(pm.release_at, '2026-09-20', 'recurring date advanced to same day next month');
+});
+
+test('scan: Data Matrix asocia y asigna la caja directamente', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80072', nombre: 'Dema', apellidos: 'Trix', tis: '00080072' }, 1).id;
+  await call('POST', `/person/${pid}/plan`, { gtin: GTIN, qty: 1 });
+  const raw = '01' + '08470006991545' + '21SCAN-DM1' + gs1.GS + '17261130';
+  const r = await call('POST', `/person/${pid}/scan`, { code: raw, ym: '2026-08' });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.mode, 'dm');
+  const created = dmDb.findByKey('08470006991545|SCAN-DM1');
+  assert.ok(created && created.assignee_id === pid, 'box created and reserved for the person');
+  assert.equal(created.status, 'utilizado', 'box marked used (assigned)');
+  const line = r.data.ficha.lines.find(l => l.item_id === created.id);
+  assert.ok(line && line.state === 'asignada', 'line is asignada');
+  const pm = r.data.ficha.plan.find(m => m.gtin === GTIN);
+  assert.equal(pm.boxes, 1);
+  assert.equal(pm.asignada, 1);
+});
+
+test('scan: un código que no está en el plan responde 409 nomatch', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80073', nombre: 'Sin', apellidos: 'Plan', tis: '00080073' }, 1).id;
+  // Person has no plan → scanning a valid precinto barcode → 409 nomatch.
+  const r = await call('POST', `/person/${pid}/scan`, { code: '8470007150008', ym: '2026-08' });
+  assert.equal(r.status, 409);
+  assert.equal(r.data.nomatch, true);
+});
+
 test('linking a mismatched box warns (409) but can be forced', async () => {
   const pid = qrDb.createPerson({ pharmacy_no: '80002', nombre: 'Iker', apellidos: 'Dao', tis: '00080002' }, 1).id;
   const med = (await call('POST', `/person/${pid}/plan`, { cn: '999999', nombre: 'Medicamento X', qty: 1 })).data.plan.find(m => m.cn === '999999');

@@ -745,3 +745,38 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-alert-body { min-width: 0; }
 .az-alert-from { font-size: 0.8rem; color: var(--muted); }
 .az-alert-txt { font-size: 0.9rem; color: var(--ink, #1a2332); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ── Assign-in-Salud: precinto progress + scanner mode ─────────────────────────── */
+.az-sec-h-actions { display: flex; align-items: center; gap: 8px; }
+.az-pend-prog { font-size: 0.76rem; font-weight: 700; color: #128a5b; background: #e2f5ec; border-radius: 8px; padding: 3px 8px; align-self: flex-start; }
+.az-precinto.az-precinto-sm { padding: 10px; }
+.az-precinto.az-precinto-sm .az-ean-svg { max-width: 260px; }
+
+/* Assigned-by-precinto cards (no box) */
+.az-prec-h { margin: 16px 0 8px; font-size: 0.8rem; font-weight: 700; color: #128a5b; }
+.az-precgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.az-preccard { border: 1px solid #b9e6cf; background: #f2fbf6; border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.az-prec-body { min-width: 0; }
+.az-prec-body b { display: block; font-size: 0.9rem; color: var(--ink); }
+.az-prec-body small { color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }
+.az-prec-actions { flex: 0 0 auto; }
+
+/* Scanner mode: toggle state + floating listening panel */
+#scan-mode.is-on { background: #0e7a63; box-shadow: 0 0 0 3px rgba(14,122,99,.25); }
+.az-scanpanel { position: fixed; right: 18px; bottom: 18px; width: min(360px, calc(100vw - 36px)); z-index: 1200; background: #0f172a; color: #e6edf5; border-radius: 16px; box-shadow: 0 18px 50px rgba(0,0,0,.4); overflow: hidden; }
+.az-scanpanel-h { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: #101c33; }
+.az-scan-live { font-weight: 800; letter-spacing: .01em; display: flex; align-items: center; gap: 8px; }
+.az-scan-dot { width: 10px; height: 10px; border-radius: 50%; background: #34d399; box-shadow: 0 0 0 0 rgba(52,211,153,.7); animation: azscanpulse 1.4s infinite; }
+@keyframes azscanpulse { 0% { box-shadow: 0 0 0 0 rgba(52,211,153,.6); } 70% { box-shadow: 0 0 0 8px rgba(52,211,153,0); } 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); } }
+.az-scanpanel-h .qt-x { color: #e6edf5; }
+.az-scanpanel-note { margin: 0; padding: 10px 14px; font-size: 0.78rem; line-height: 1.4; color: #b7c4d6; border-bottom: 1px solid rgba(255,255,255,.08); }
+.az-scanlog { max-height: 260px; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.az-scan-empty { color: #8695ab; font-size: 0.82rem; padding: 10px 4px; text-align: center; }
+.az-scanline { display: flex; align-items: baseline; gap: 8px; font-size: 0.82rem; padding: 7px 9px; border-radius: 9px; background: rgba(255,255,255,.04); }
+.az-scanline.is-ok { border-left: 3px solid #34d399; }
+.az-scanline.is-err { border-left: 3px solid #f87171; }
+.az-scan-ic { flex: 0 0 auto; font-weight: 800; }
+.az-scanline.is-ok .az-scan-ic { color: #34d399; }
+.az-scanline.is-err .az-scan-ic { color: #f87171; }
+.az-scan-msg { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.az-scan-at { flex: 0 0 auto; color: #7e8da3; font-family: var(--mono, monospace); font-size: 0.72rem; }

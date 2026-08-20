@@ -326,10 +326,13 @@ function fichaPayload(person, ym) {
     if (!byGtin.has(g)) byGtin.set(g, { attached: 0, asignada: 0 });
     const e = byGtin.get(g); e.attached++; if (ln.state === 'asignada') e.asignada++;
   }
+  const precByPlan = period ? db.precintoCountByPlan(period.id) : new Map();
   const plan = planView(person.id).map(pl => {
     const prog = byGtin.get(pl.gtin) || { attached: 0, asignada: 0 };
-    return { ...pl, attached: prog.attached, asignada: prog.asignada };
+    const prec = precByPlan.get(pl.id) || 0;   // asignados por precinto (sin caja)
+    return { ...pl, boxes: prog.attached, attached: prog.attached + prec, asignada: prog.asignada + prec, precinto: prec };
   });
+  const precintos = period ? db.listPrecinto(period.id).map(r => ({ id: r.id, plan_id: r.plan_id, gtin: r.gtin, cn: r.cn, barcode: r.barcode, nombre: r.nombre, assigned_at: r.assigned_at })) : [];
   const counts = period ? db.periodCounts(period.id) : { preasignada: 0, asignada: 0, total: 0 };
   const planned_total = plan.filter(p => p.active).reduce((s, p) => s + p.qty, 0);
   const periods = db.listPeriods(person.id).map(pr => ({ id: pr.id, ym: pr.ym, status: pr.status, counts: db.periodCounts(pr.id) }));
@@ -337,7 +340,7 @@ function fichaPayload(person, ym) {
     person: personView(person), qrSettings: qrDb.getSettings(),
     month: thisMonth(), ym,
     period: period ? { id: period.id, ym: period.ym, status: period.status, created_at: period.created_at, closed_at: period.closed_at } : { id: null, ym, status: 'nuevo' },
-    periods, plan, lines,
+    periods, plan, lines, precintos,
     progress: { planned_total, attached_total: counts.total, asignada_total: counts.asignada, pre_total: counts.preasignada },
   };
 }
@@ -497,6 +500,79 @@ router.post('/api/line/:id(\\d+)/unassign', (req, res) => {
     db.setLineState(line.id, 'preasignada');
     const pr = db.getPeriod(line.period_id); const p = qrDb.getPerson(line.person_id);
     res.json(fichaPayload(p, pr.ym));
+  } catch (err) { fail(res, err); }
+});
+// Mark a plan medication as assigned in Salud WITHOUT a box, via its "precinto"
+// (barcode). One call = one unit. Also captures the medication's next release date.
+router.post('/api/person/:id(\\d+)/assign-precinto', json, (req, res) => {
+  try {
+    const p = qrDb.getPerson(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
+    const b = req.body || {};
+    const med = db.getPlanLine(Number(b.plan_id));
+    if (!med || med.person_id !== p.id) throw bad('Medicamento del plan no encontrado.');
+    const ym = cleanYm(b.ym);
+    const next = String(b.next_release_at == null ? '' : b.next_release_at).trim();
+    if (next && !/^\d{4}-\d{2}-\d{2}$/.test(next)) throw bad('Fecha de la próxima liberación no válida (AAAA-MM-DD).');
+    const period = db.getOrCreatePeriod(p.id, ym, req.user.id);
+    db.addPrecinto({ period_id: period.id, person_id: p.id, plan_id: med.id, gtin: med.gtin, cn: med.cn, barcode: med.barcode, nombre: med.nombre }, req.user.id);
+    if (b.next_release_at !== undefined) db.setPlanRelease(med.id, next || null);
+    res.json(fichaPayload(p, ym));
+  } catch (err) { fail(res, err); }
+});
+// Revert a precinto assignment.
+router.delete('/api/precinto/:id(\\d+)', (req, res) => {
+  try {
+    const r = db.getPrecinto(Number(req.params.id)); if (!r) return res.status(404).json({ error: 'No encontrado.' });
+    db.deletePrecinto(r.id);
+    const pr = db.getPeriod(r.period_id); const p = qrDb.getPerson(r.person_id);
+    res.json(fichaPayload(p, pr ? pr.ym : cleanYm()));
+  } catch (err) { fail(res, err); }
+});
+// Scanner endpoint: resolve a scanned code (Data Matrix or barcode/precinto) to a
+// plan medication of this person and mark it assigned. For "scanner mode": the
+// scanner types the code + Enter, and we assign directly.
+router.post('/api/person/:id(\\d+)/scan', json, (req, res) => {
+  try {
+    const p = qrDb.getPerson(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
+    const b = req.body || {};
+    const ym = cleanYm(b.ym);
+    const raw = String(b.code == null ? '' : b.code).trim();
+    if (!raw) throw bad('Código vacío.');
+
+    // Identify the medication: GS1 Data Matrix (has a GTIN) or a plain EAN-13 precinto.
+    const f = gs1.parse(raw);
+    const digits = raw.replace(/\D/g, '');
+    let gtin = null, cn = null, isDm = false;
+    if (f && f.gtin) { gtin = gs1.normGtin(f.gtin); cn = f.cn || null; isDm = true; }
+    else if (/^\d{12,14}$/.test(digits)) {
+      const ean = digits.length === 14 && digits[0] === '0' ? digits.slice(1) : digits;
+      cn = cima.cnFromBarcode(ean); gtin = cn ? cima.gtinFromCn(cn) : null;
+    } else throw bad('No reconozco el código escaneado.');
+
+    const med = db.planForItem(p.id, gtin, cn);
+    if (!med) return res.status(409).json({ error: 'Ese medicamento no está en el plan de esta persona.', nomatch: true, gtin, cn });
+
+    const period = db.getOrCreatePeriod(p.id, ym, req.user.id);
+    const nextDate = db.nextMonthSameDay(med.release_at);
+    let mode;
+    if (isDm) {
+      const data = { raw, box_key: gs1.boxKey(f, raw), gtin, serial: f.serial, lote: f.lote, caducidad: gs1.expiryToIso(f.caducidad), cn };
+      let item = dmDb.findByKey(data.box_key) || dmDb.createItem(data, req.user.id);
+      if (item.assignee_id != null && item.assignee_id !== p.id) throw bad(`Esa caja ya está asociada a ${item.assignee_name || 'otra persona'}.`);
+      dmDb.setAssignee(item.id, p.id, personName(p));
+      const line = db.findLine(period.id, item.id);
+      if (line) db.setLineState(line.id, 'asignada');
+      else db.addLine({ period_id: period.id, person_id: p.id, gtin: item.gtin, item_id: item.id, box_key: item.box_key, state: 'asignada' });
+      dmDb.setUsed(item.id, true);
+      mode = 'dm';
+    } else {
+      db.addPrecinto({ period_id: period.id, person_id: p.id, plan_id: med.id, gtin: med.gtin, cn: med.cn, barcode: med.barcode, nombre: med.nombre }, req.user.id);
+      mode = 'precinto';
+    }
+    db.setPlanRelease(med.id, nextDate);   // advance the recurring date
+    res.json({ ok: true, mode, med: { id: med.id, nombre: med.nombre || null, cn: med.cn || null, gtin: med.gtin || null }, next_release_at: nextDate, ficha: fichaPayload(p, ym) });
   } catch (err) { fail(res, err); }
 });
 // Remove a box from the ficha entirely: releases the reservation and, if it had

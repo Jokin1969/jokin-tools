@@ -178,6 +178,19 @@ try { db.prepare('ALTER TABLE asig_plan ADD COLUMN advance_days INTEGER NOT NULL
 db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_asig_plan_person_gtin ON asig_plan(person_id, gtin) WHERE gtin IS NOT NULL;
   CREATE UNIQUE INDEX IF NOT EXISTS idx_asig_plan_person_cn ON asig_plan(person_id, cn) WHERE gtin IS NULL AND cn IS NOT NULL;
+
+  -- Direct assignments recorded WITHOUT a Data Matrix box: the medication was
+  -- assigned in Salud by scanning its barcode ("precinto"). One row = one unit.
+  CREATE TABLE IF NOT EXISTS asig_precinto (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    period_id   INTEGER NOT NULL,
+    person_id   INTEGER NOT NULL,
+    plan_id     INTEGER,
+    gtin        TEXT, cn TEXT, barcode TEXT, nombre TEXT,
+    assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_by  INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_asig_precinto_period ON asig_precinto(period_id);
 `);
 
 console.log('[asignacion] Database ready at:', DB_PATH);
@@ -391,7 +404,39 @@ function pendingReleaseLines() {
 function periodCounts(periodId) {
   const pre = db.prepare("SELECT COUNT(*) n FROM asig_line WHERE period_id = ? AND state = 'preasignada'").get(periodId).n;
   const asig = db.prepare("SELECT COUNT(*) n FROM asig_line WHERE period_id = ? AND state = 'asignada'").get(periodId).n;
-  return { preasignada: pre, asignada: asig, total: pre + asig };
+  const prec = db.prepare("SELECT COUNT(*) n FROM asig_precinto WHERE period_id = ?").get(periodId).n;
+  return { preasignada: pre, asignada: asig + prec, total: pre + asig + prec };
+}
+
+// ── Precinto (direct assignments without a Data Matrix box) ───────────────────────
+function getPrecinto(id) { return db.prepare('SELECT * FROM asig_precinto WHERE id = ?').get(id) || null; }
+function listPrecinto(periodId) { return db.prepare('SELECT * FROM asig_precinto WHERE period_id = ? ORDER BY id').all(periodId); }
+function addPrecinto(data, userId) {
+  const info = db.prepare(
+    `INSERT INTO asig_precinto (period_id, person_id, plan_id, gtin, cn, barcode, nombre, created_by)
+     VALUES (@period_id, @person_id, @plan_id, @gtin, @cn, @barcode, @nombre, @created_by)`
+  ).run({
+    period_id: data.period_id, person_id: data.person_id, plan_id: data.plan_id != null ? data.plan_id : null,
+    gtin: data.gtin || null, cn: data.cn || null, barcode: data.barcode || null, nombre: data.nombre || null,
+    created_by: userId != null ? userId : null,
+  });
+  return getPrecinto(info.lastInsertRowid);
+}
+function deletePrecinto(id) { return db.prepare('DELETE FROM asig_precinto WHERE id = ?').run(id).changes > 0; }
+// How many precinto assignments each plan medication has in a period.
+function precintoCountByPlan(periodId) {
+  const map = new Map();
+  for (const r of db.prepare('SELECT plan_id, COUNT(*) n FROM asig_precinto WHERE period_id = ? GROUP BY plan_id').all(periodId)) map.set(r.plan_id, r.n);
+  return map;
+}
+// Same day of the next month (clamped to the last day). ISO in → ISO out.
+function nextMonthSameDay(iso) {
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? new Date(iso + 'T00:00:00') : new Date();
+  const day = base.getDate();
+  const d = new Date(base.getFullYear(), base.getMonth() + 1, 1);
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, last));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // ── Scheduled email notifications ────────────────────────────────────────────────
@@ -605,6 +650,7 @@ module.exports = {
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
   DEFAULT_ADVANCE, clampAdvance, effectiveDate,
   listLines, getLine, findLine, lineByItem, addLine, setLineState, setLineRelease, setLineAdvance, pendingReleaseLines, deleteLine, periodCounts,
+  getPrecinto, listPrecinto, addPrecinto, deletePrecinto, precintoCountByPlan, nextMonthSameDay,
   listNotifs, getNotif, createNotif, updateNotif, deleteNotif, setNotifEnabled, markNotifSent, dueNotifs,
   NOTE_COLORS, listBoards, getBoard, boardCount, createBoard, renameBoard, deleteBoard,
   getNote, listNotes, createNote, updateNote, deleteNote, noteViewers, setNoteViewers, canSeeNote, markNotesSeen, notesBadge,

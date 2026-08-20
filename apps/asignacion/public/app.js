@@ -409,6 +409,7 @@ function showAlertModal(items) {
 }
 
 async function viewBoard() {
+  stopScannerMode(true);
   S.view = 'board'; S.person = null; S.ficha = null; S.peopleFilter = null;
   try {
     const bd = await api('/boards'); S.board.boards = bd.items; S.board.userId = bd.userId; S.isAdmin = bd.isAdmin;
@@ -597,6 +598,7 @@ function openShareModal(n) {
 
 // ── Home / panel ─────────────────────────────────────────────────────────────────
 async function viewHome() {
+  stopScannerMode(true);
   S.view = 'home'; S.person = null; S.ficha = null;
   try { const { items } = await api('/overview'); S.overview = items; } catch (e) { S.overview = []; }
   refreshNotifications();
@@ -722,8 +724,9 @@ function renderFicha() {
          <div class="az-sec-h"><span>💊 Plan de medicación</span><button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-med">➕ Añadir medicamento</button></div>
          <div class="az-plan">${planHtml(f.plan, closed)}</div>
 
-         <div class="az-sec-h"><span>📦 Cajas de la ficha (${f.lines.length})</span><button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-box" ${closed ? 'disabled' : ''}>➕ Añadir DM</button></div>
+         <div class="az-sec-h"><span>📦 Cajas de la ficha (${f.lines.length})</span><span class="az-sec-h-actions">${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" id="scan-mode" title="Modo escáner: pasa el lector por el precinto o el DM y se asigna solo">📟 Modo escáner</button>`}<button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-box" ${closed ? 'disabled' : ''}>➕ Añadir DM</button></span></div>
          <div class="az-lines">${linesHtml(f.lines, closed, dmSize)}</div>
+         ${precintoHtml(f.precintos, closed)}
          ${pendingHtml(f.plan, closed)}
        </div>
      </div>`;
@@ -734,6 +737,8 @@ function renderFicha() {
   if ($('per-reopen')) $('per-reopen').onclick = async () => { try { applyFicha(await api(`/period/${per.id}/reopen`, { method: 'POST' })); toast('Mes reabierto.'); } catch (er) { toast(er.message, 'err'); } };
   $('add-med').onclick = openMedPicker;
   if ($('add-box')) $('add-box').onclick = () => openAddBox(null);
+  if ($('scan-mode')) $('scan-mode').onclick = () => toggleScannerMode(p.id);
+  if (scanner.on && scanner.personId === p.id) renderScannerPanel(); else stopScannerMode(true);
 
   // Live size sliders (persist, debounced).
   $('qr-size').oninput = (e) => { const v = Number(e.target.value); $('ficha-qr').innerHTML = qrSvg(p.tis, qrOpts(p, v)); saveSize({ ficha_qr_size: v }); };
@@ -755,8 +760,8 @@ function progressHtml(pr) {
 function planHtml(plan, closed) {
   if (!plan.length) return '<div class="az-empty-sm">Sin medicamentos en el plan. Pulsa «➕ Añadir medicamento».</div>';
   return plan.map(m => {
-    const need = m.qty, done = m.asignada, att = m.attached;
-    const short = att < need;
+    const need = m.qty, done = m.asignada || 0, boxes = m.boxes || 0, prec = m.precinto || 0;
+    const short = done < need;
     // CN-only meds (info before any Data Matrix) show the national code and a
     // "pendiente de caja" flag; catalogued meds show the GTIN + stock.
     const idline = m.cn_only
@@ -766,19 +771,25 @@ function planHtml(plan, closed) {
     const icon = m.foto_caja
       ? `<button class="az-plan-foto-btn" data-boxfoto="${m.id}" title="Ver la caja en grande"><img class="az-plan-foto" src="${API}/cima/foto/${esc(m.cn)}/caja" alt="Caja" loading="lazy" onerror="this.style.display='none'"></button>`
       : shapeSvg(m.shape, m.color, 22);
+    // "No DM" = no real Data Matrix box in the ficha (precintos don't count).
+    const noDm = boxes === 0;
     // Precinto = scannable barcode for Salud. Inline (right) while there's no Data
     // Matrix; behind the 🏷️ button once a DM box exists (the DM is preferred).
-    const noDm = (m.attached || 0) === 0;
     const bcInline = (noDm && m.barcode) ? `<div class="az-plan-bc" data-precinto="${m.id}" title="Ampliar el precinto">${eanSvg(m.barcode)}</div>` : '';
+    const progTxt = `${done}/${need} asignadas${boxes ? ' · ' + boxes + ' en ficha' : ''}${prec ? ' · ' + prec + ' por precinto' : ''}`;
+    // Manual "mark assigned in Salud" (by precinto, no box) while units remain and
+    // there's no DM box to assign from.
+    const canPrecinto = !closed && noDm && done < need;
     return `<div class="az-planrow${m.cn_only ? ' is-cnonly' : ''}" data-plan-row="${m.id}">
       <span class="az-plan-shape">${icon}</span>
-      <div class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small><div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${done}/${need} asignadas · ${att} en ficha</span></div></div>
+      <div class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small><div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${progTxt}</span></div></div>
       ${bcInline}
       <div class="az-plan-actions">
         <span class="az-plan-qty">×<input type="number" class="az-qty" data-plan="${m.id}" value="${m.qty}" min="1" max="99" ${closed ? 'disabled' : ''}></span>
         ${(!noDm && m.barcode) ? `<button class="qt-iconbtn" data-precinto="${m.id}" title="Ver el código de barras (precinto)">🏷️</button>` : ''}
         ${m.foto_pastilla ? `<button class="qt-iconbtn" data-pill="${m.id}" title="Ver la pastilla (AEMPS)">💊</button>` : ''}
-        ${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assoc="${m.id}">🔗 ${m.cn_only ? 'Asociar caja' : 'Pre-asignar'}</button>`}
+        ${canPrecinto ? `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assignprec="${m.id}" title="Marcar como asignada en Salud (por precinto, sin caja)">✅ Asignar</button>` : ''}
+        ${closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-assoc="${m.id}">🔗 ${m.cn_only ? 'Asociar caja' : 'Pre-asignar'}</button>`}
         ${(!closed && m.cn_only) ? `<button class="qt-iconbtn" data-editplan="${m.id}" title="Editar nombre / CN / código de barras">✏️</button>` : ''}
         <button class="qt-iconbtn danger" data-delplan="${m.id}" title="Quitar del plan">🗑</button>
       </div>
@@ -820,6 +831,28 @@ function wirePlan(closed) {
   main().querySelectorAll('[data-boxfoto]').forEach(b => b.addEventListener('click', () => { const m = findMed(b.dataset.boxfoto); if (m) openImageModal(m, 'caja', 'Imagen de la caja', '📦'); }));
   main().querySelectorAll('[data-pill]').forEach(b => b.addEventListener('click', () => { const m = findMed(b.dataset.pill); if (m) openImageModal(m, 'pastilla', 'Imagen de la forma farmacéutica', '💊'); }));
   main().querySelectorAll('[data-precinto]').forEach(b => b.addEventListener('click', () => { const m = findMed(b.dataset.precinto); if (m) openPrecinto(m); }));
+  main().querySelectorAll('[data-assignprec]').forEach(b => b.addEventListener('click', () => { const m = findMed(b.dataset.assignprec); if (m) openPrecintoAssign(m); }));
+}
+// Manually mark a medication as "assigned in Salud" by its precinto (no box). Also
+// captures the medication's NEXT release date (prefilled: same day next month).
+function openPrecintoAssign(med) {
+  const prefill = sameDayNextMonth(med.release_at);
+  const bc = med.barcode ? eanSvg(med.barcode) : '';
+  openTool(`<div class="qt-modal-h"><h3>✅ Asignar en Salud (precinto)</h3><button class="qt-x" id="ap-close">×</button></div>
+    <p class="qt-tool-note">Marca una unidad de <b>${esc(med.nombre || 'este medicamento')}</b> como <b>asignada en Salud</b> mediante su <b>precinto</b> (código de barras), sin registrar caja (Data Matrix). Cuenta como asignada del mes.</p>
+    ${bc ? `<div class="az-precinto az-precinto-sm">${bc}</div><div class="az-precinto-num">${esc(med.barcode)}</div>` : '<p class="qt-tool-note">Este medicamento no tiene código de barras guardado, pero puedes marcarlo igualmente.</p>'}
+    <div class="qt-field"><label>Próxima fecha de liberación (Salud)</label><input type="date" class="qt-input" id="ap-date" value="${esc(prefill)}"><small class="az-field-hint">Propuesta: mismo día del mes siguiente. Déjala vacía si aún no la sabes.</small></div>
+    <div class="qt-modal-actions">
+      <button class="qt-btn qt-btn-ghost" id="ap-cancel">Cancelar</button>
+      <button class="qt-btn qt-btn-teal" id="ap-do">✅ Asignar</button>
+    </div>`);
+  $('ap-close').onclick = closeTool; $('ap-cancel').onclick = closeTool;
+  $('ap-do').onclick = async () => {
+    const v = $('ap-date').value;
+    if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('Fecha no válida.', 'err'); return; }
+    try { applyFicha(await api('/person/' + S.person.id + '/assign-precinto', jbody({ plan_id: med.id, ym: S.ym, next_release_at: v || '' }))); closeTool(); toast('Asignada en Salud (precinto).'); }
+    catch (e) { toast(e.message, 'err'); }
+  };
 }
 // Show the box barcode ("precinto") as a scannable EAN-13 for the Salud app.
 function openPrecinto(med) {
@@ -868,23 +901,38 @@ function linesHtml(lines, closed, dmSize) {
 // Pending medications (no Data Matrix this month) shown in the boxes section, with
 // their box photo and a scannable EAN-13 "precinto" for the Salud app.
 function pendingHtml(plan, closed) {
-  const pend = (plan || []).filter(m => m.active && (m.attached || 0) === 0);
+  const pend = (plan || []).filter(m => m.active && (m.boxes || 0) === 0 && (m.asignada || 0) < m.qty);
   if (!pend.length) return '';
-  return `<div class="az-pend-h">🏷️ Pendientes de caja — escanea el <b>precinto</b> en la app de Salud (mientras no haya Data Matrix)</div>
+  return `<div class="az-pend-h">🏷️ Pendientes de caja — pásale el escáner al <b>precinto</b> (o escanéalo en Salud) mientras no haya Data Matrix</div>
     <div class="az-pendgrid">${pend.map(m => {
       const icon = m.foto_caja
         ? `<button class="az-plan-foto-btn" data-boxfoto="${m.id}" title="Ver la caja en grande"><img class="az-pend-foto" src="${API}/cima/foto/${esc(m.cn)}/caja" alt="Caja" loading="lazy" onerror="this.style.display='none'"></button>`
         : `<span class="az-plan-shape">${shapeSvg(m.shape, m.color, 28)}</span>`;
       const bc = m.barcode ? eanSvg(m.barcode) : '';
+      const done = m.asignada || 0, prec = m.precinto || 0;
+      const prog = (done > 0) ? `<div class="az-pend-prog">✅ ${done}/${m.qty} asignada(s)${prec ? ' (precinto)' : ''}</div>` : '';
       return `<div class="az-pendcard">
         <div class="az-pend-top">${icon}<div class="az-pend-info"><b>${esc(m.nombre || 'Medicamento')}</b><small>${m.cn ? 'CN ' + esc(m.cn) : ''}${m.barcode ? ' · CB ' + esc(m.barcode) : ''}</small></div></div>
         ${bc ? `<div class="az-pend-ean" data-precinto="${m.id}" title="Ampliar el precinto">${bc}</div>` : '<div class="az-empty-sm">Sin código de barras. Añádelo con ✏️ en el plan o con «🔎 CIMA».</div>'}
+        ${prog}
         <div class="az-pend-actions">
           ${m.foto_pastilla ? `<button class="qt-iconbtn" data-pill="${m.id}" title="Ver la pastilla (AEMPS)">💊</button>` : ''}
-          ${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assoc="${m.id}">🔗 Asociar caja</button>`}
+          ${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assignprec="${m.id}" title="Marcar como asignada en Salud (precinto)">✅ Asignar</button>`}
+          ${closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-assoc="${m.id}">🔗 Asociar caja</button>`}
         </div>
       </div>`;
     }).join('')}</div>`;
+}
+// Assignments recorded by "precinto" (no Data Matrix box). Shown in the boxes
+// section so they read as "already assigned in Salud", each revertible.
+function precintoHtml(precintos, closed) {
+  const list = precintos || [];
+  if (!list.length) return '';
+  return `<div class="az-prec-h">✅ Asignadas por precinto (sin caja) — ${list.length}</div>
+    <div class="az-precgrid">${list.map(pc => `<div class="az-preccard" data-precid="${pc.id}">
+      <div class="az-prec-body"><b>${esc(pc.nombre || 'Medicamento')}</b><small>${pc.cn ? 'CN ' + esc(pc.cn) : ''}${pc.barcode ? ' · CB ' + esc(pc.barcode) : ''}${pc.assigned_at ? ' · ' + fmtDate(pc.assigned_at) : ''}</small></div>
+      <div class="az-prec-actions">${closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-delprec="${pc.id}" title="Revertir esta asignación">↩ Revertir</button>`}</div>
+    </div>`).join('')}</div>`;
 }
 function wireLines(closed) {
   main().querySelectorAll('[data-assign]').forEach(b => b.addEventListener('click', () => {
@@ -897,6 +945,88 @@ function wireLines(closed) {
     if (!(await confirmBox('Quitar caja', '¿Quitar esta caja de la ficha? Se libera la reserva y, si estaba asignada, vuelve al inventario.', 'Quitar'))) return;
     try { applyFicha(await api('/line/' + b.dataset.delline, { method: 'DELETE' })); toast('Caja retirada de la ficha.'); } catch (e) { toast(e.message, 'err'); }
   }));
+  main().querySelectorAll('[data-delprec]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await confirmBox('Revertir asignación', '¿Revertir esta asignación por precinto? Vuelve a quedar pendiente.', 'Revertir'))) return;
+    try { applyFicha(await api('/precinto/' + b.dataset.delprec, { method: 'DELETE' })); toast('Asignación revertida.'); } catch (e) { toast(e.message, 'err'); }
+  }));
+}
+
+// ── Scanner mode ─────────────────────────────────────────────────────────────────
+// "Disposes" the app to receive keyboard input from a barcode scanner (which emulates
+// a keyboard: it types the code + Enter). Each Enter assigns the medication directly
+// and the panel keeps listening. Works for a DM (associates + assigns the box) or a
+// plain precinto barcode (marks assigned without a box).
+const scanner = { on: false, personId: null, buf: '', timer: null, handler: null, log: [], busy: false };
+function toggleScannerMode(personId) { if (scanner.on && scanner.personId === personId) stopScannerMode(); else startScannerMode(personId); }
+function startScannerMode(personId) {
+  stopScannerMode(true);
+  scanner.on = true; scanner.personId = personId; scanner.buf = ''; scanner.log = [];
+  scanner.handler = onScannerKey;
+  document.addEventListener('keydown', scanner.handler, true);
+  renderScannerPanel();
+  const btn = $('scan-mode'); if (btn) btn.classList.add('is-on');
+}
+function stopScannerMode(silent) {
+  if (scanner.handler) { document.removeEventListener('keydown', scanner.handler, true); scanner.handler = null; }
+  if (scanner.timer) { clearTimeout(scanner.timer); scanner.timer = null; }
+  scanner.on = false; scanner.buf = '';
+  const panel = $('scan-panel'); if (panel) panel.remove();
+  const btn = $('scan-mode'); if (btn) btn.classList.remove('is-on');
+  if (!silent) toast('Modo escáner desactivado.');
+}
+function isEditableTarget(t) {
+  if (!t) return false;
+  const tag = (t.tagName || '').toLowerCase();
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
+}
+function onScannerKey(e) {
+  if (!scanner.on) return;
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  if (isEditableTarget(e.target)) return;          // let the user type in real fields
+  if (e.key === 'Enter') {
+    if (scanner.buf) { e.preventDefault(); const code = scanner.buf; scanner.buf = ''; processScan(code); }
+    return;
+  }
+  if (e.key && e.key.length === 1) {
+    scanner.buf += e.key;
+    if (scanner.timer) clearTimeout(scanner.timer);
+    scanner.timer = setTimeout(() => { scanner.buf = ''; }, 400);   // stray keys don't linger
+  }
+}
+async function processScan(code) {
+  if (scanner.busy) return;
+  scanner.busy = true;
+  try {
+    const r = await api('/person/' + scanner.personId + '/scan', jbody({ code, ym: S.ym }));
+    scannerLog('ok', `${r.mode === 'dm' ? '📦' : '🏷️'} ${r.med.nombre || 'Medicamento'} · asignada${r.next_release_at ? ' · próxima ' + fmtDate(r.next_release_at) : ''}`);
+    if (r.ficha) { S.person = r.ficha.person; S.ficha = r.ficha; S.ym = r.ficha.ym; renderFicha(); refreshNotifications(); }
+  } catch (e) {
+    scannerLog('err', e.data && e.data.nomatch ? `«${code}» no está en el plan de esta persona` : (e.message || 'Error al escanear') + ` («${code}»)`);
+  } finally { scanner.busy = false; }
+}
+function scannerLog(kind, msg) {
+  scanner.log.unshift({ kind, msg, at: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) });
+  if (scanner.log.length > 30) scanner.log.length = 30;
+  renderScannerLog();
+}
+function renderScannerPanel() {
+  const markBtn = () => { const b = $('scan-mode'); if (b) b.classList.add('is-on'); };
+  if ($('scan-panel')) { renderScannerLog(); markBtn(); return; }
+  const el = document.createElement('div');
+  el.className = 'az-scanpanel'; el.id = 'scan-panel';
+  el.innerHTML = `<div class="az-scanpanel-h"><span class="az-scan-live">📟 Modo escáner <span class="az-scan-dot"></span></span><button class="qt-x" id="scan-panel-x" title="Salir del modo escáner">×</button></div>
+    <p class="az-scanpanel-note">Pasa el escáner por el <b>precinto</b> o el <b>Data Matrix</b>. Cada lectura se asigna sola (próxima liberación: mismo día del mes que viene). No hace falta clicar.</p>
+    <div class="az-scanlog" id="scan-log"></div>`;
+  document.body.appendChild(el);
+  $('scan-panel-x').onclick = () => stopScannerMode();
+  renderScannerLog();
+  const btn = $('scan-mode'); if (btn) btn.classList.add('is-on');
+}
+function renderScannerLog() {
+  const box = $('scan-log'); if (!box) return;
+  box.innerHTML = scanner.log.length
+    ? scanner.log.map(e => `<div class="az-scanline ${e.kind === 'ok' ? 'is-ok' : 'is-err'}"><span class="az-scan-ic">${e.kind === 'ok' ? '✓' : '✗'}</span><span class="az-scan-msg">${esc(e.msg)}</span><span class="az-scan-at">${esc(e.at)}</span></div>`).join('')
+    : '<div class="az-scan-empty">Esperando lecturas…</div>';
 }
 // Same day next month (clamped to the last day of that month).
 function sameDayNextMonth(iso) {
