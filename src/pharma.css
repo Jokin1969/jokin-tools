@@ -1,0 +1,74 @@
+/* ── Farmacia — mini-hub (mismo diseño azul que las tres apps) ─────────────────── */
+:root {
+  --bg: #eef3f8;
+  --bg-grad: radial-gradient(1200px 600px at 80% -10%, #dcecf7 0%, transparent 60%), radial-gradient(900px 500px at -10% 10%, #e2f5f1 0%, transparent 55%);
+  --card: #ffffff;
+  --ink: #0f2233;
+  --muted: #5c7086;
+  --line: #dbe4ee;
+  --brand: #1273b8;
+  --brand-2: #0f5f9a;
+  --teal: #0a9d8e;
+  --accent: #00b8d4;
+  --shadow: 0 6px 24px rgba(18,64,110,0.08);
+  --shadow-lg: 0 18px 50px rgba(18,64,110,0.16);
+  --r: 16px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--ink); background: var(--bg); background-image: var(--bg-grad); background-attachment: fixed;
+  min-height: 100vh; display: flex; flex-direction: column;
+}
+h1, h2, h3 { margin: 0; }
+button { font-family: inherit; }
+a { color: inherit; }
+
+/* Header — como en las apps (qt-header) */
+.ph-header { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,0.82); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.ph-header-in { max-width: 1100px; margin: 0 auto; padding: 12px 22px; display: flex; align-items: center; gap: 16px; }
+.ph-logo { display: flex; align-items: center; gap: 12px; background: none; border: none; cursor: pointer; text-align: left; padding: 0; }
+.ph-logo-badge { display: inline-flex; align-items: center; height: 42px; padding-right: 14px; border-right: 1px solid var(--line); }
+.ph-logo-badge img { height: 36px; width: auto; display: block; }
+.ph-logo-txt { display: flex; flex-direction: column; line-height: 1.15; }
+.ph-kicker { font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); text-decoration: none; }
+.ph-kicker:hover { color: var(--brand); text-decoration: underline; }
+.ph-logo-txt .t { font-weight: 800; font-size: 1.15rem; color: var(--ink); }
+.ph-logo-txt .s { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.02em; }
+.ph-help-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 0.95rem; font-weight: 600; padding: 9px 16px; border-radius: 12px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; box-shadow: var(--shadow); transition: background .15s, border-color .15s, color .15s; }
+.ph-help-btn:hover { border-color: var(--brand); color: var(--brand); }
+.ph-help-btn.is-on { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* Main */
+.ph-main { flex: 1; max-width: 1100px; width: 100%; margin: 0 auto; padding: 30px 22px 40px; }
+.ph-hero h1 { font-size: 1.7rem; font-weight: 800; }
+.ph-hero p { margin: 6px 0 0; color: var(--muted); font-size: 0.95rem; }
+.ph-label { margin: 26px 0 14px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+/* Tiles — estilo tarjeta de las apps */
+.ph-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+.ph-card { display: flex; align-items: flex-start; gap: 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 22px; text-decoration: none; color: inherit; box-shadow: var(--shadow); position: relative; transition: transform .12s ease, box-shadow .2s ease, border-color .2s ease; overflow: hidden; }
+.ph-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: linear-gradient(180deg, var(--brand), var(--teal)); opacity: 0; transition: opacity .2s; }
+.ph-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--brand); }
+.ph-card:hover::before { opacity: 1; }
+.ph-card-ico { flex: none; width: 60px; height: 60px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #eaf4fd, #e6f7f3); border: 1px solid #d6e6f3; }
+.ph-card-ico svg { width: 40px; height: 40px; }
+.ph-card-body { min-width: 0; display: flex; flex-direction: column; }
+.ph-card-title { display: block; font-size: 1.12rem; font-weight: 800; color: var(--brand-2); }
+.ph-card-desc { display: block; margin: 6px 0 10px; font-size: 0.86rem; color: var(--muted); line-height: 1.45; }
+.ph-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.ph-tag { font-size: 0.68rem; font-weight: 600; color: var(--brand); background: #e8f2fb; border: 1px solid #cfe4f5; border-radius: 999px; padding: 2px 9px; }
+.ph-card-arrow { position: absolute; right: 16px; bottom: 14px; color: var(--brand); font-size: 1.2rem; opacity: .35; transition: opacity .2s, transform .2s; }
+.ph-card:hover .ph-card-arrow { opacity: 1; transform: translateX(3px); }
+.ph-card.is-help .ph-card-ico { background: linear-gradient(135deg, #eef6ff, #eafcf6); }
+
+.ph-empty { color: var(--muted); background: #fff; border: 1px dashed var(--line); border-radius: var(--r); padding: 24px; text-align: center; }
+.ph-footer { max-width: 1100px; width: 100%; margin: 0 auto; padding: 18px 22px 28px; color: var(--muted); font-size: 0.82rem; }
+.ph-footer a { color: var(--brand); text-decoration: none; }
+.ph-footer a:hover { text-decoration: underline; }
+
+@media (max-width: 560px) {
+  .ph-logo-txt .s { display: none; }
+  .ph-card { padding: 18px; }
+}
