@@ -107,6 +107,20 @@ test('plan CN-only: add a medication by Código Nacional before any Data Matrix,
   assert.equal(graduated.gtin, '08470007150009');
 });
 
+test('edit a CN-only plan medication (name / CN / barcode) without deleting', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80060', nombre: 'Edi', apellidos: 'Tar', tis: '00080060' }, 1).id;
+  const med = (await call('POST', `/person/${pid}/plan`, { cn: '885442', nombre: 'Ixia mal', barcode: '8470008854424' })).data.plan.find(m => m.cn === '885442');
+  // Fix the name and change the code to another valid CN + its barcode.
+  const up = (await call('PATCH', `/plan/${med.id}`, { nombre: 'Ixia 10 mg', cn: '715000', barcode: '8470007150008' })).data.plan.find(m => m.id === med.id);
+  assert.equal(up.nombre, 'Ixia 10 mg');
+  assert.equal(up.cn, '715000');
+  // An inconsistent CN/barcode edit is rejected.
+  assert.equal((await call('PATCH', `/plan/${med.id}`, { cn: '65498', barcode: '8470008854424' })).status, 400);
+  // Duplicate CN in the same person's plan is rejected.
+  const other = (await call('POST', `/person/${pid}/plan`, { cn: '999001', nombre: 'Otro' })).data.plan.find(m => m.cn === '999001');
+  assert.equal((await call('PATCH', `/plan/${other.id}`, { cn: '715000' })).status, 400);
+});
+
 test('plan CN/barcode cross-check: rejects an inconsistent pair, derives CN from barcode', async () => {
   const pid = qrDb.createPerson({ pharmacy_no: '80050', nombre: 'Cruz', apellidos: 'Check', tis: '00080050' }, 1).id;
   // CN 65498 with the barcode of CN 885442 → inconsistent → rejected.

@@ -13,6 +13,7 @@ const db = require('./db');
 const gs1 = require('./gs1');
 const visual = require('./visual');
 const cima = require('./cima');
+const cimaCache = require('./cima-cache');
 
 const router = express.Router();
 const PUB = path.join(__dirname, 'public');
@@ -164,8 +165,16 @@ router.put('/api/product/:gtin([0-9A-Za-z]+)', json, (req, res) => {
 router.get('/api/cima/cn/:cn([0-9]+)', async (req, res) => {
   try {
     if (req.query.debug) return res.json(await cima.probeByCn(req.params.cn));  // raw + mapped, to verify field names
-    res.json({ item: await cima.lookupByCn(req.params.cn) });
+    res.json({ item: await cimaCache.lookupByCnCached(req.params.cn) });        // cached + offline fallback
   } catch (err) { res.status(err.status || 502).json({ error: err.message, offline: !!err.offline }); }
+});
+// Serve a medication photo (box/pill) from the local cache (works offline).
+router.get('/api/cima/foto/:cn([0-9]+)/:tipo(caja|pastilla)', async (req, res) => {
+  try {
+    const buf = await cimaCache.foto(req.params.cn, req.params.tipo);
+    if (!buf) return res.status(404).end();
+    res.set('Content-Type', 'image/jpeg'); res.set('Cache-Control', 'public, max-age=86400'); res.send(buf);
+  } catch { res.status(404).end(); }
 });
 router.get('/api/cima/search', async (req, res) => {
   try { res.json({ items: await cima.searchByName(req.query.q || '') }); }

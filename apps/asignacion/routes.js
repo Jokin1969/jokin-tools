@@ -18,6 +18,7 @@ const dmVisual = require('../datamatrix/visual');
 const release = require('./release');
 const email = require('./email');
 const cima = require('../datamatrix/cima');
+const cimaCache = require('../datamatrix/cima-cache');
 const authStore = require('../auth/store');
 const { canAccess } = require('../auth/apps-registry');
 
@@ -37,6 +38,25 @@ function fail(res, err) {
   res.status(status).json({ error: err.message || 'Error en Asignación de medicación.' });
 }
 function bad(msg, status = 400) { const e = new Error(msg); e.status = status; return e; }
+
+// Normalise a Código Nacional + barcode pair. When `check` is true (CN-only meds),
+// they must be consistent (each derives from the other): fills the missing one and
+// rejects an incoherent pair, which prevents mistyped Codes.
+function normCnBarcode(rawCn, rawBar, check = true) {
+  let cn = rawCn ? String(rawCn).replace(/\D/g, '') || null : null;
+  let barcode = rawBar ? String(rawBar).replace(/\D/g, '') || null : null;
+  if (barcode && barcode.length === 14 && barcode[0] === '0') barcode = barcode.slice(1);  // GTIN-14 → EAN-13
+  if (!check) return { cn, barcode };
+  if (!cn && barcode) cn = cima.cnFromBarcode(barcode) || cn;
+  if (cn && barcode) {
+    const expected = cima.barcodeFromCn(cn);
+    if (expected && expected !== barcode) {
+      const real = cima.cnFromBarcode(barcode);
+      throw bad(`El código de barras (${barcode}) no coincide con el Código Nacional ${cn}${real ? ` (ese barcode es del CN ${real})` : ''}. Revisa ambos.`);
+    }
+  }
+  return { cn, barcode };
+}
 
 // Current month as 'YYYY-MM'.
 function thisMonth() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
@@ -154,8 +174,16 @@ router.get('/api/medications', (req, res) => {
 router.get('/api/cima/cn/:cn([0-9]+)', async (req, res) => {
   try {
     if (req.query.debug) return res.json(await cima.probeByCn(req.params.cn));  // raw + mapped, to verify field names
-    res.json({ item: await cima.lookupByCn(req.params.cn) });
+    res.json({ item: await cimaCache.lookupByCnCached(req.params.cn) });        // cached + offline fallback
   } catch (err) { res.status(err.status || 502).json({ error: err.message, offline: !!err.offline }); }
+});
+// Serve a medication photo (box/pill) from the local cache (works offline).
+router.get('/api/cima/foto/:cn([0-9]+)/:tipo(caja|pastilla)', async (req, res) => {
+  try {
+    const buf = await cimaCache.foto(req.params.cn, req.params.tipo);
+    if (!buf) return res.status(404).end();
+    res.set('Content-Type', 'image/jpeg'); res.set('Cache-Control', 'public, max-age=86400'); res.send(buf);
+  } catch { res.status(404).end(); }
 });
 router.get('/api/cima/search', async (req, res) => {
   try { res.json({ items: await cima.searchByName(req.query.q || '') }); }
@@ -206,23 +234,9 @@ router.post('/api/person/:id(\\d+)/plan', json, (req, res) => {
     if (!p) return res.status(404).json({ error: 'Persona no encontrada en QR (TIS).' });
     const b = req.body || {};
     const gtin = b.gtin ? gs1.normGtin(b.gtin) : null;
-    let cn = b.cn ? String(b.cn).replace(/\D/g, '') || null : null;
     const nombre = b.nombre ? String(b.nombre).trim() : null;
-    let barcode = b.barcode ? String(b.barcode).replace(/\D/g, '') || null : null;
-    // Normalise a 14-digit GTIN pasted as barcode down to its EAN-13.
-    if (barcode && barcode.length === 14 && barcode[0] === '0') barcode = barcode.slice(1);
-    // Código Nacional ⇄ código de barras se derivan uno del otro: rellena el que
-    // falte y no dejes guardar una pareja incoherente (evita CN mal tecleados).
-    if (!gtin) {
-      if (!cn && barcode) cn = cima.cnFromBarcode(barcode) || cn;
-      if (cn && barcode) {
-        const expected = cima.barcodeFromCn(cn);
-        if (expected && expected !== barcode) {
-          const real = cima.cnFromBarcode(barcode);
-          throw bad(`El código de barras (${barcode}) no coincide con el Código Nacional ${cn}${real ? ` (ese barcode es del CN ${real})` : ''}. Revisa ambos.`);
-        }
-      }
-    }
+    // CN ⇄ barcode se derivan uno del otro: rellena el que falte y valida la pareja.
+    const { cn, barcode } = normCnBarcode(b.cn, b.barcode, !gtin);
     if (gtin && gtin.replace(/^0+/, '').length >= 8) {
       // Catalogued path: the GTIN must exist in the Data Matrix app.
       const known = dmDb.getProduct(gtin) || dmDb.availableItems(gtin).length || dmDb.listItems('utilizado').some(i => i.gtin === gtin);
@@ -248,7 +262,21 @@ router.patch('/api/plan/:id(\\d+)', json, (req, res) => {
     const line = db.getPlanLine(Number(req.params.id));
     if (!line) return res.status(404).json({ error: 'Línea de plan no encontrada.' });
     const b = req.body || {};
-    db.updatePlanById(line.id, { qty: b.qty, notes: b.notes, active: b.active });
+    if (b.qty !== undefined || b.notes !== undefined || b.active !== undefined) {
+      db.updatePlanById(line.id, { qty: b.qty, notes: b.notes, active: b.active });
+    }
+    // Edit the medication itself (name; and CN/barcode for CN-only meds).
+    if (b.nombre !== undefined || b.cn !== undefined || b.barcode !== undefined) {
+      const edit = { nombre: b.nombre !== undefined ? b.nombre : undefined };
+      if (!line.gtin && (b.cn !== undefined || b.barcode !== undefined)) {
+        const { cn, barcode } = normCnBarcode(b.cn !== undefined ? b.cn : line.cn, b.barcode !== undefined ? b.barcode : line.barcode, true);
+        if (!cn) throw bad('Indica el Código Nacional.');
+        const dup = db.planByCn(line.person_id, cn);           // no duplicar CN en la misma persona
+        if (dup && dup.id !== line.id) throw bad('Ya tienes otro medicamento con ese Código Nacional en el plan.');
+        edit.cn = cn; edit.barcode = barcode;
+      }
+      db.editPlanMed(line.id, edit);
+    }
     res.json({ plan: planView(line.person_id) });
   } catch (err) { fail(res, err); }
 });

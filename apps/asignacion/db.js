@@ -240,6 +240,19 @@ function updatePlanById(id, data) {
   });
   return getPlanLine(id);
 }
+// Edit a plan medication's identity/name. For a CN-only med you can change name,
+// Código Nacional and barcode; for a catalogued med (has GTIN) only the name.
+function editPlanMed(id, data) {
+  const cur = getPlanLine(id); if (!cur) return null;
+  const nombre = data.nombre !== undefined ? (String(data.nombre).trim() || null) : cur.nombre;
+  if (cur.gtin) { db.prepare('UPDATE asig_plan SET nombre = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nombre, id); return getPlanLine(id); }
+  db.prepare('UPDATE asig_plan SET nombre = @nombre, cn = @cn, barcode = @barcode, updated_at = CURRENT_TIMESTAMP WHERE id = @id').run({
+    id, nombre,
+    cn: data.cn !== undefined ? (String(data.cn).replace(/\D/g, '') || null) : cur.cn,
+    barcode: data.barcode !== undefined ? (data.barcode ? String(data.barcode).replace(/\D/g, '') : null) : cur.barcode,
+  });
+  return getPlanLine(id);
+}
 // A CN-only plan med "graduates" once a real box gives us its GTIN. If the person
 // already has that GTIN in the plan, merge (drop the CN-only row); else set gtin.
 function reconcilePlanGtin(id, gtin) {
@@ -587,7 +600,7 @@ function saveSettings(data, userId) {
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listPlan, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, reconcilePlanGtin, deletePlanLine, planPersonIds,
+  listPlan, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, deletePlanLine, planPersonIds,
   setPlanRelease, setPlanAdvance, plansForRelease, planForItem, findPendingLineForMed,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
   DEFAULT_ADVANCE, clampAdvance, effectiveDate,

@@ -84,6 +84,26 @@ try { db.prepare('ALTER TABLE dm_items ADD COLUMN assignee_id INTEGER').run(); }
 try { db.prepare('ALTER TABLE dm_items ADD COLUMN assignee_name TEXT').run(); } catch { /* already present */ }
 try { db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_items_assignee ON dm_items(assignee_id)').run(); } catch { /* ignore */ }
 
+// ── CIMA (AEMPS) local cache ─────────────────────────────────────────────────────
+// Every successful lookup is stored here (data + downloaded thumbnails) so the app
+// keeps working offline for medications already seen, and images load from us.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS cima_cache (
+    cn            TEXT PRIMARY KEY,
+    nombre        TEXT,
+    barcode       TEXT,
+    gtin          TEXT,
+    nregistro     TEXT,
+    pactivos      TEXT,
+    labtitular    TEXT,
+    foto_caja     BLOB,
+    foto_pastilla BLOB,
+    foto_caja_url     TEXT,
+    foto_pastilla_url TEXT,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
 console.log('[datamatrix] Database ready at:', DB_PATH);
 
 const DEFAULT_SETTINGS = { dm_size: 300, list_dm_size: 100, card_dm_size: 200, dm_light: '#ffffff' };
@@ -252,10 +272,55 @@ function cartAdd(userId, itemId) { db.prepare('INSERT OR IGNORE INTO dm_cart (us
 function cartRemove(userId, itemId) { db.prepare('DELETE FROM dm_cart WHERE user_id = ? AND item_id = ?').run(userId, itemId); return cartIds(userId); }
 function cartClear(userId) { db.prepare('DELETE FROM dm_cart WHERE user_id = ?').run(userId); return []; }
 
+// ── CIMA local cache ─────────────────────────────────────────────────────────────
+// Metadata (no blobs) + which photos are stored — for the offline fallback.
+function cimaCacheGet(cn) {
+  if (!cn) return null;
+  return db.prepare(
+    `SELECT cn, nombre, barcode, gtin, nregistro, pactivos, labtitular,
+            foto_caja_url, foto_pastilla_url,
+            (foto_caja IS NOT NULL) AS has_caja, (foto_pastilla IS NOT NULL) AS has_pastilla, updated_at
+       FROM cima_cache WHERE cn = ?`
+  ).get(String(cn)) || null;
+}
+// Upsert. Keeps a previously downloaded image if this time we couldn't fetch it.
+function cimaCachePut(cn, d = {}) {
+  if (!cn) return;
+  db.prepare(
+    `INSERT INTO cima_cache (cn, nombre, barcode, gtin, nregistro, pactivos, labtitular, foto_caja, foto_pastilla, foto_caja_url, foto_pastilla_url, updated_at)
+     VALUES (@cn, @nombre, @barcode, @gtin, @nregistro, @pactivos, @labtitular, @foto_caja, @foto_pastilla, @foto_caja_url, @foto_pastilla_url, CURRENT_TIMESTAMP)
+     ON CONFLICT(cn) DO UPDATE SET
+       nombre = COALESCE(excluded.nombre, cima_cache.nombre),
+       barcode = COALESCE(excluded.barcode, cima_cache.barcode),
+       gtin = COALESCE(excluded.gtin, cima_cache.gtin),
+       nregistro = COALESCE(excluded.nregistro, cima_cache.nregistro),
+       pactivos = COALESCE(excluded.pactivos, cima_cache.pactivos),
+       labtitular = COALESCE(excluded.labtitular, cima_cache.labtitular),
+       foto_caja = COALESCE(excluded.foto_caja, cima_cache.foto_caja),
+       foto_pastilla = COALESCE(excluded.foto_pastilla, cima_cache.foto_pastilla),
+       foto_caja_url = COALESCE(excluded.foto_caja_url, cima_cache.foto_caja_url),
+       foto_pastilla_url = COALESCE(excluded.foto_pastilla_url, cima_cache.foto_pastilla_url),
+       updated_at = CURRENT_TIMESTAMP`
+  ).run({
+    cn: String(cn), nombre: d.nombre || null, barcode: d.barcode || null, gtin: d.gtin || null,
+    nregistro: d.nregistro || null, pactivos: d.pactivos || null, labtitular: d.labtitular || null,
+    foto_caja: d.foto_caja || null, foto_pastilla: d.foto_pastilla || null,
+    foto_caja_url: d.foto_caja_url || null, foto_pastilla_url: d.foto_pastilla_url || null,
+  });
+}
+function cimaCacheFoto(cn, tipo) {
+  if (!cn) return null;
+  const col = tipo === 'pastilla' ? 'foto_pastilla' : 'foto_caja';
+  const row = db.prepare(`SELECT ${col} AS b FROM cima_cache WHERE cn = ?`).get(String(cn));
+  return row && row.b ? row.b : null;
+}
+function cimaCacheCount() { return db.prepare('SELECT COUNT(*) n FROM cima_cache').get().n; }
+
 module.exports = {
   db, DEFAULT_SETTINGS,
   listItems, getItem, findByKey, createItem, createManyItems, setUsed, touchItem, setAssignee, availableItems, availableItemsByCn, recentItems, deleteItem, deleteMany, counts,
   getProduct, listProducts, upsertProduct, importProducts,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,
+  cimaCacheGet, cimaCachePut, cimaCacheFoto, cimaCacheCount,
 };

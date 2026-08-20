@@ -324,8 +324,9 @@ function editProduct(it) {
       else {
         nombre.value = item.nombre;
         const f = item.fotos || {};
-        const one = (x, lbl) => (x && x.thumb) ? `<a class="dm-cima-foto" href="${esc(x.full || x.thumb)}" target="_blank" rel="noopener" title="Ver ${lbl} (AEMPS)"><img src="${esc(x.thumb)}" alt="${lbl}" loading="lazy"><span>${lbl}</span></a>` : '';
-        const fh = one(f.caja, 'Caja') + one(f.pastilla, 'Pastilla');
+        const fcn = item.cn || cn;
+        const one = (x, tipo, lbl) => x ? `<a class="dm-cima-foto" href="${esc(x.full || (API + '/cima/foto/' + fcn + '/' + tipo))}" target="_blank" rel="noopener" title="Ver ${lbl} (AEMPS)"><img src="${esc(API + '/cima/foto/' + fcn + '/' + tipo)}" alt="${lbl}" loading="lazy" onerror="this.style.display='none'"><span>${lbl}</span></a>` : '';
+        const fh = one(f.caja, 'caja', 'Caja') + one(f.pastilla, 'pastilla', 'Pastilla');
         const box = $('pm-fotos'); if (box) box.innerHTML = fh ? `<div class="dm-cima-fotos">${fh}</div><small class="dm-note" style="margin-top:2px">Imágenes: AEMPS · CIMA</small>` : '';
         toast('Nombre traído de CIMA (AEMPS). Pulsa «Guardar».', 'ok'); nombre.focus();
       }
