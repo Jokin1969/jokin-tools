@@ -10,7 +10,7 @@ const $ = id => document.getElementById(id);
 const main = () => $('qt-main');
 
 const S = {
-  people: [], byId: new Map(), settings: null, user: null,
+  people: [], byId: new Map(), settings: null, user: null, canAsignacion: false,
   cart: new Set(),
   query: '', andor: 'AND',
   sort: { key: 'apellidos', dir: 'asc' },
@@ -296,6 +296,7 @@ function viewFicha(id, opts) {
          </div>
          <div id="group-area"></div>
          <div class="qt-ficha-actions">
+           ${S.canAsignacion ? '<span id="med-link-slot" class="qt-medlink-slot"></span>' : ''}
            <button class="qt-btn qt-btn-primary" id="act-edit">✏️ Editar información</button>
            <button class="qt-btn ${inCart ? 'qt-btn-ghost' : 'qt-btn-teal'}" id="act-cart">${inCart ? '✓ En el carrito' : '🛒 Añadir al carrito'}</button>
            <button class="qt-btn qt-btn-ghost" id="act-group">👥 ${(p.groups && p.groups.length) ? 'Gestionar grupos' : 'Añadir a grupo'}</button>
@@ -321,6 +322,25 @@ function viewFicha(id, opts) {
   $('act-group').onclick = () => renderGroupManager(p);
   main().querySelectorAll('[data-gsel]').forEach(el => el.onclick = () => selectGroup(el.dataset.gsel, true));
   if (opts.openGroups) renderGroupManager(p);
+  if (S.canAsignacion) loadMedLink(p);
+}
+
+// Fill the ficha's medication button from the Asignación app (async, non-blocking).
+// Shows a count when the person already has a plan, or a "create plan" call to
+// action when they don't. Both jump to the person's medication ficha.
+async function loadMedLink(p) {
+  const slot = $('med-link-slot'); if (!slot) return;
+  let s;
+  try { s = (await api('/people/' + p.id + '/med-summary')).summary; }
+  catch { return; }   // no access / error → leave the slot empty
+  if (!slot.isConnected) return;
+  const href = '/asignacion?person=' + p.id;
+  if (s.has_plan) {
+    const n = s.active_count || s.plan_count;
+    slot.outerHTML = `<a class="qt-btn qt-btn-teal" href="${href}" title="Ver y gestionar la medicación de esta persona">💊 Medicación · ${n} medicamento${n === 1 ? '' : 's'}</a>`;
+  } else {
+    slot.outerHTML = `<a class="qt-btn qt-btn-ghost qt-medlink-empty" href="${href}" title="Abrir su ficha de medicación para empezar el plan">💊 Crear plan de medicación</a>`;
+  }
 }
 
 // Multi-group manager: current groups as removable chips + a field to add more.
@@ -1221,7 +1241,7 @@ function fmtDateTime(s) {
   $('go-home').addEventListener('click', e => { e.preventDefault(); viewHome(); });
   try {
     const meta = await api('/meta');
-    S.settings = meta.settings; S.user = meta.user;
+    S.settings = meta.settings; S.user = meta.user; S.canAsignacion = !!meta.canAsignacion;
     await reloadPeople();
     await reloadCart();
     viewHome();

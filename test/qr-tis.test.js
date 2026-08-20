@@ -163,3 +163,46 @@ test('cart is per-user and isolated', () => {
   assert.equal(db.cartIds(10).length, 0);
   assert.equal(db.cartIds(11).length, 1, 'clearing one user leaves others intact');
 });
+
+// ── Medication button (QR·TIS → Asignación) ──────────────────────────────────────
+test('med-summary endpoint + canAsignacion meta flag (with access gating)', async () => {
+  const http = require('http');
+  const express = require('express');
+  process.env.ASIG_DB_PATH = path.join(dir, 'asig.db');
+  const asigDb = require('../apps/asignacion/db');
+  const router = require('../apps/qr-tis/routes');
+
+  // Toggle the user's app access via a header: 'yes' → admin, 'no' → no apps.
+  const app = express();
+  app.use((req, res, next) => {
+    req.user = req.headers['x-acc'] === 'no'
+      ? { id: 2, email: 'no@e', name: 'NoAsig', role: 'user', apps: ['qr-tis'] }
+      : { id: 1, email: 'ok@e', name: 'Admin', role: 'admin', apps: '*' };
+    next();
+  });
+  app.use('/qr-tis', router);
+  const server = await new Promise(res => { const s = app.listen(0, () => res(s)); });
+  const base = `http://127.0.0.1:${server.address().port}/qr-tis/api`;
+  const get = (p, acc) => fetch(base + p, { headers: acc ? { 'x-acc': acc } : {} }).then(async r => ({ status: r.status, data: await r.json().catch(() => ({})) }));
+
+  try {
+    const person = db.createPerson({ nombre: 'Med', apellidos: 'Link', tis: '7000001' }, 1);
+    // No plan yet → has_plan false.
+    const empty = await get(`/people/${person.id}/med-summary`);
+    assert.equal(empty.status, 200);
+    assert.equal(empty.data.summary.has_plan, false);
+    assert.equal(empty.data.summary.plan_count, 0);
+    // Add two medications → counts reflect it.
+    asigDb.addPlanMed(person.id, { cn: '715000', nombre: 'Ibuprofeno 600' });
+    asigDb.addPlanMed(person.id, { cn: '885442', nombre: 'Ixia 10 mg' });
+    const full = await get(`/people/${person.id}/med-summary`);
+    assert.equal(full.data.summary.has_plan, true);
+    assert.equal(full.data.summary.plan_count, 2);
+    assert.equal(full.data.summary.active_count, 2);
+    // Meta advertises access for an admin, and hides it for a user without it.
+    assert.equal((await get('/meta')).data.canAsignacion, true);
+    assert.equal((await get('/meta', 'no')).data.canAsignacion, false);
+    // A user without Asignación access is refused the summary.
+    assert.equal((await get(`/people/${person.id}/med-summary`, 'no')).status, 403);
+  } finally { server.close(); }
+});

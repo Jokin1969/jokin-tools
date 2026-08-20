@@ -374,3 +374,7 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .qt-deceased-banner { background: #fbf6ec; color: #7a5a1a; border-color: #e6d3a6; }
 .qt-btn-deceased { color: #8a5a00; }
 .qt-btn-deceased:hover { border-color: #c99a3a; color: #7a4e00; background: #fbf3e4; }
+
+/* Medication link button (jumps to the Asignación app) */
+a.qt-btn { text-decoration: none; }
+.qt-medlink-empty { opacity: .9; }

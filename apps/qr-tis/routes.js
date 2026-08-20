@@ -9,6 +9,8 @@
 const express = require('express');
 const path = require('path');
 const db = require('./db');
+const { canAccess } = require('../auth/apps-registry');
+const asigDb = require('../asignacion/db');   // cross-app read for the medication button
 
 const router = express.Router();
 const PUB = path.join(__dirname, 'public');
@@ -182,7 +184,19 @@ router.get('/api/meta', (req, res) => {
     res.json({
       settings: db.getSettings(),
       user: { id: req.user.id, email: req.user.email, name: req.user.name || req.user.email },
+      canAsignacion: canAccess(req.user, 'asignacion'),   // show the medication button?
     });
+  } catch (err) { fail(res, err); }
+});
+
+// Medication summary for a person, to drive the "Ver/Crear medicación" button on
+// the ficha. Only for users who can access the Asignación app.
+router.get('/api/people/:id(\\d+)/med-summary', (req, res) => {
+  try {
+    if (!canAccess(req.user, 'asignacion')) return res.status(403).json({ error: 'Sin acceso a Asignación.' });
+    const p = db.getPerson(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
+    res.json({ summary: asigDb.personMedSummary(p.id) });
   } catch (err) { fail(res, err); }
 });
 

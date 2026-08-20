@@ -203,6 +203,13 @@ const DEFAULT_SETTINGS = { ficha_qr_size: 300, ficha_dm_size: 150, notify_mode: 
 function listPlan(personId) {
   return db.prepare('SELECT * FROM asig_plan WHERE person_id = ? ORDER BY id').all(personId);
 }
+// Lightweight medication summary for a person (used by the QR·TIS ficha button).
+function personMedSummary(personId) {
+  const rows = db.prepare('SELECT active FROM asig_plan WHERE person_id = ?').all(personId);
+  const active_count = rows.filter(r => r.active).length;
+  const latest = latestPeriod(personId);
+  return { plan_count: rows.length, active_count, has_plan: rows.length > 0, latest_ym: latest ? latest.ym : null };
+}
 function getPlanLine(id) { return db.prepare('SELECT * FROM asig_plan WHERE id = ?').get(id) || null; }
 function planByGtin(personId, gtin) {
   return db.prepare('SELECT * FROM asig_plan WHERE person_id = ? AND gtin = ?').get(personId, gtin) || null;
@@ -645,7 +652,7 @@ function saveSettings(data, userId) {
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listPlan, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, deletePlanLine, planPersonIds,
+  listPlan, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, deletePlanLine, planPersonIds,
   setPlanRelease, setPlanAdvance, plansForRelease, planForItem, findPendingLineForMed,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
   DEFAULT_ADVANCE, clampAdvance, effectiveDate,
