@@ -349,7 +349,7 @@ function fichaPayload(person, ym) {
     person: personView(person), qrSettings: qrDb.getSettings(),
     month: thisMonth(), ym,
     period: period ? { id: period.id, ym: period.ym, status: period.status, created_at: period.created_at, closed_at: period.closed_at } : { id: null, ym, status: 'nuevo' },
-    periods, plan, lines, precintos,
+    periods, plan, lines, precintos, note: db.getEntNote('person', person.id),
     progress: { planned_total, attached_total: counts.total, asignada_total: counts.asignada, pre_total: counts.preasignada },
   };
 }

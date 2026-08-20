@@ -794,6 +794,7 @@ function renderFicha() {
          <div class="qt-qr-box" id="ficha-qr">${qrSvg(p.tis, qrOpts(p, qrSize))}</div>
          <div class="qt-qr-tis az-tisbig">${esc(fmtTis(p.tis))}</div>
          <div class="az-person-meta">${p.pharmacy_no ? 'Farmacia ' + esc(p.pharmacy_no) : ''}${p.group_name ? (p.pharmacy_no ? ' · ' : '') + esc(p.group_name) : ''}</div>
+         <div class="az-person-note" id="ficha-note">${f.note ? `<div class="az-ent-note" style="background:${esc(f.note.color || '#FEF08A')}">${esc(f.note.text)}</div>` : ''}<button class="qt-btn qt-btn-ghost qt-btn-sm az-person-notebtn" id="ficha-note-btn">📝 ${f.note ? 'Editar nota' : 'Añadir nota'}</button></div>
          <div class="az-mando">
            <label>QR <input type="range" id="qr-size" min="160" max="460" step="10" value="${qrSize}"></label>
            <label>DM <input type="range" id="dm-size" min="90" max="240" step="10" value="${dmSize}"></label>
@@ -828,6 +829,10 @@ function renderFicha() {
   if ($('add-box')) $('add-box').onclick = () => openAddBox(null);
   if ($('scan-mode')) $('scan-mode').onclick = () => toggleScannerMode(p.id);
   if (scanner.on && scanner.personId === p.id) renderScannerPanel(); else stopScannerMode(true);
+  if ($('ficha-note-btn')) $('ficha-note-btn').onclick = () => openNoteEditor({
+    subtitle: `${p.apellidos}, ${p.nombre}`, endpoint: `/note/person/${p.id}`, current: f.note,
+    onSaved: (note) => { S.ficha.note = note; renderFicha(); },
+  });
 
   // Live size sliders (persist, debounced).
   $('qr-size').oninput = (e) => { const v = Number(e.target.value); $('ficha-qr').innerHTML = qrSvg(p.tis, qrOpts(p, v)); saveSize({ ficha_qr_size: v }); };
