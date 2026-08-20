@@ -972,6 +972,8 @@ function viewHelp() {
       </ul>` },
     { id: 'recientes', icon: '🕘', title: 'Recientes', html: `
       <p><span class="qt-chip-inline">🕘 Recientes</span> muestra las <strong>últimas 10 personas manejadas</strong> (creadas, editadas o cuya ficha se ha abierto). Pulsa una para ir a su ficha.</p>` },
+    { id: 'medicacion', icon: '💊', title: 'Ir a su medicación (Asignación)', html: `
+      <p>En la <strong>ficha</strong> de una persona hay un botón <strong>💊 Medicación</strong> que lleva directo a su medicación en la app de <strong>Asignación de medicación</strong>: indica cuántos medicamentos tiene en el plan y, si no tiene, ofrece <strong>crearlo</strong>. Solo aparece si tienes acceso a esa app.</p>` },
   ];
   const nav = SECS.map(s => `<a data-go="help-${s.id}">${s.icon} ${s.title}</a>`).join('');
   const secs = SECS.map(s => `<section class="qt-help-sec" id="help-${s.id}"><h2><span class="em">${s.icon}</span>${s.title}</h2>${s.html}</section>`).join('');
