@@ -48,8 +48,16 @@ function confirmBox(title, body, okLabel) {
     $('confirm-yes').onclick = () => done(true); $('confirm-no').onclick = () => done(false);
   });
 }
-function openTool(html) { const box = $('tool-modal-box'); box.innerHTML = html; $('tool-modal').hidden = false; }
-function closeTool() { $('tool-modal').hidden = true; $('tool-modal-box').innerHTML = ''; }
+function openTool(html) { const box = $('tool-modal-box'); box.classList.remove('az-modal-wide'); box.innerHTML = html; $('tool-modal').hidden = false; }
+function closeTool() { $('tool-modal').hidden = true; const box = $('tool-modal-box'); box.classList.remove('az-modal-wide'); box.innerHTML = ''; }
+// A big modal showing a CIMA image (box 'caja' or pill 'pastilla') large.
+function openImageModal(med, tipo, label, emoji) {
+  openTool(`<div class="qt-modal-h"><h3>${emoji} ${esc(med.nombre || 'Medicamento')}</h3><button class="qt-x" id="im-close">×</button></div>
+    <div class="az-img-modal"><img src="${API}/cima/foto/${esc(med.cn)}/${tipo}" alt="${label}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'az-noresult',textContent:'No hay imagen disponible.'}))"></div>
+    <div class="az-form-hint" style="text-align:center">${label} · AEMPS · CIMA</div>`);
+  $('tool-modal-box').classList.add('az-modal-wide');
+  $('im-close').onclick = closeTool;
+}
 
 // Expiry status (mirrors the Data Matrix app).
 function expiryState(iso) { if (!iso) return ''; const d = new Date(iso + 'T00:00:00Z'); if (isNaN(d)) return ''; const days = Math.floor((d - new Date()) / 86400000); if (days < 0) return 'vencida'; if (days <= 90) return 'pronto'; return ''; }
@@ -754,23 +762,27 @@ function planHtml(plan, closed) {
     const idline = m.cn_only
       ? `CN ${esc(m.cn || '—')}${m.barcode ? ' · CB ' + esc(m.barcode) : ''} · <b class="az-plan-flag">pendiente de caja</b>${m.available ? ` · ${m.available} compatible(s) en stock` : ''}`
       : `GTIN ${esc(m.gtin)} · ${m.available} disponible(s) en stock`;
-    // Box photo (CIMA) instead of the colour shape when we have it cached.
+    // Box photo (CIMA) instead of the colour shape when we have it cached; click to enlarge.
     const icon = m.foto_caja
-      ? `<img class="az-plan-foto" src="${API}/cima/foto/${esc(m.cn)}/caja" alt="Caja" loading="lazy" title="Caja (AEMPS)" onerror="this.style.display='none'">`
-      : shapeSvg(m.shape, m.color, 20);
-    // Precinto = scannable barcode for Salud, only while there's no Data Matrix.
+      ? `<button class="az-plan-foto-btn" data-boxfoto="${m.id}" title="Ver la caja en grande"><img class="az-plan-foto" src="${API}/cima/foto/${esc(m.cn)}/caja" alt="Caja" loading="lazy" onerror="this.style.display='none'"></button>`
+      : shapeSvg(m.shape, m.color, 22);
+    // Precinto = scannable barcode for Salud. Inline (right) while there's no Data
+    // Matrix; behind the 🏷️ button once a DM box exists (the DM is preferred).
     const noDm = (m.attached || 0) === 0;
+    const bcInline = (noDm && m.barcode) ? `<div class="az-plan-bc" data-precinto="${m.id}" title="Ampliar el precinto">${eanSvg(m.barcode)}</div>` : '';
     return `<div class="az-planrow${m.cn_only ? ' is-cnonly' : ''}" data-plan-row="${m.id}">
       <span class="az-plan-shape">${icon}</span>
       <span class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small></span>
-      ${planReleaseChip(m)}
-      <span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${done}/${need} asignadas · ${att} en ficha</span>
-      <span class="az-plan-qty">×<input type="number" class="az-qty" data-plan="${m.id}" value="${m.qty}" min="1" max="99" ${closed ? 'disabled' : ''}></span>
-      ${(noDm && m.barcode) ? `<button class="qt-iconbtn" data-precinto="${m.id}" title="Precinto (código de barras) para escanear en Salud">🏷️</button>` : ''}
-      ${m.foto_pastilla ? `<button class="qt-iconbtn" data-pill="${m.id}" title="Ver la pastilla (AEMPS)">💊</button>` : ''}
-      ${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assoc="${m.id}">🔗 ${m.cn_only ? 'Asociar caja' : 'Pre-asignar'}</button>`}
-      ${(!closed && m.cn_only) ? `<button class="qt-iconbtn" data-editplan="${m.id}" title="Editar nombre / CN / código de barras">✏️</button>` : ''}
-      <button class="qt-iconbtn danger" data-delplan="${m.id}" title="Quitar del plan">🗑</button>
+      <div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${done}/${need} asignadas · ${att} en ficha</span></div>
+      ${bcInline}
+      <div class="az-plan-actions">
+        <span class="az-plan-qty">×<input type="number" class="az-qty" data-plan="${m.id}" value="${m.qty}" min="1" max="99" ${closed ? 'disabled' : ''}></span>
+        ${(!noDm && m.barcode) ? `<button class="qt-iconbtn" data-precinto="${m.id}" title="Ver el código de barras (precinto)">🏷️</button>` : ''}
+        ${m.foto_pastilla ? `<button class="qt-iconbtn" data-pill="${m.id}" title="Ver la pastilla (AEMPS)">💊</button>` : ''}
+        ${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assoc="${m.id}">🔗 ${m.cn_only ? 'Asociar caja' : 'Pre-asignar'}</button>`}
+        ${(!closed && m.cn_only) ? `<button class="qt-iconbtn" data-editplan="${m.id}" title="Editar nombre / CN / código de barras">✏️</button>` : ''}
+        <button class="qt-iconbtn danger" data-delplan="${m.id}" title="Quitar del plan">🗑</button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -805,19 +817,10 @@ function wirePlan(closed) {
   main().querySelectorAll('[data-editplan]').forEach(b => b.addEventListener('click', () => {
     const med = (S.ficha.plan || []).find(x => x.id === Number(b.dataset.editplan)); if (med) openEditMed(med);
   }));
-  main().querySelectorAll('[data-pill]').forEach(b => b.addEventListener('click', () => {
-    const med = (S.ficha.plan || []).find(x => x.id === Number(b.dataset.pill)); if (med) openPillModal(med);
-  }));
-  main().querySelectorAll('[data-precinto]').forEach(b => b.addEventListener('click', () => {
-    const med = (S.ficha.plan || []).find(x => x.id === Number(b.dataset.precinto)); if (med) openPrecinto(med);
-  }));
-}
-// Show the pill photo (AEMPS) in a modal.
-function openPillModal(med) {
-  openTool(`<div class="qt-modal-h"><h3>💊 ${esc(med.nombre || 'Medicamento')}</h3><button class="qt-x" id="pi-close">×</button></div>
-    <div class="az-pill-modal"><img src="${API}/cima/foto/${esc(med.cn)}/pastilla" alt="Pastilla" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'az-noresult',textContent:'No hay imagen de la pastilla.'}))"></div>
-    <div class="az-form-hint" style="text-align:center">Imagen de la forma farmacéutica · AEMPS · CIMA</div>`);
-  $('pi-close').onclick = closeTool;
+  const findMed = (id) => (S.ficha.plan || []).find(x => x.id === Number(id));
+  main().querySelectorAll('[data-boxfoto]').forEach(b => b.addEventListener('click', () => { const m = findMed(b.dataset.boxfoto); if (m) openImageModal(m, 'caja', 'Imagen de la caja', '📦'); }));
+  main().querySelectorAll('[data-pill]').forEach(b => b.addEventListener('click', () => { const m = findMed(b.dataset.pill); if (m) openImageModal(m, 'pastilla', 'Imagen de la forma farmacéutica', '💊'); }));
+  main().querySelectorAll('[data-precinto]').forEach(b => b.addEventListener('click', () => { const m = findMed(b.dataset.precinto); if (m) openPrecinto(m); }));
 }
 // Show the box barcode ("precinto") as a scannable EAN-13 for the Salud app.
 function openPrecinto(med) {
@@ -871,7 +874,7 @@ function pendingHtml(plan, closed) {
   return `<div class="az-pend-h">🏷️ Pendientes de caja — escanea el <b>precinto</b> en la app de Salud (mientras no haya Data Matrix)</div>
     <div class="az-pendgrid">${pend.map(m => {
       const icon = m.foto_caja
-        ? `<img class="az-pend-foto" src="${API}/cima/foto/${esc(m.cn)}/caja" alt="Caja" loading="lazy" onerror="this.style.display='none'">`
+        ? `<button class="az-plan-foto-btn" data-boxfoto="${m.id}" title="Ver la caja en grande"><img class="az-pend-foto" src="${API}/cima/foto/${esc(m.cn)}/caja" alt="Caja" loading="lazy" onerror="this.style.display='none'"></button>`
         : `<span class="az-plan-shape">${shapeSvg(m.shape, m.color, 28)}</span>`;
       const bc = m.barcode ? eanSvg(m.barcode) : '';
       return `<div class="az-pendcard">

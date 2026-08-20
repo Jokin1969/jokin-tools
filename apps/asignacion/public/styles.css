@@ -509,13 +509,21 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-cima-foto { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; text-decoration: none; color: var(--muted); font-size: 0.7rem; }
 .az-cima-foto img { width: 84px; height: 84px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .az-plan-shape { flex: 0 0 auto; display: inline-flex; align-items: center; }
-.az-plan-foto { width: 46px; height: 46px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.az-plan-foto { width: 52px; height: 52px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; display: block; }
+.az-plan-foto-btn { padding: 0; border: none; background: none; cursor: zoom-in; display: inline-flex; flex: 0 0 auto; }
+/* Plan row: date over progress (meta), inline scannable barcode, actions at the end */
+.az-plan-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; flex: 0 0 auto; }
+.az-plan-bc { flex: 0 0 auto; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; cursor: zoom-in; }
+.az-plan-bc .az-ean-svg { display: block; width: 200px; height: auto; }
+.az-plan-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
 /* Precinto (EAN-13) modal */
 .az-precinto { display: flex; justify-content: center; padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
 .az-precinto .az-ean-svg { width: 100%; max-width: 340px; height: auto; }
 .az-precinto-num { text-align: center; font-family: var(--mono, monospace); font-weight: 700; letter-spacing: 0.12em; margin-top: 8px; color: var(--ink); }
-.az-pill-modal { display: flex; justify-content: center; padding: 8px 0; }
-.az-pill-modal img { max-width: 100%; max-height: 60vh; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+/* Big image modal (box / pill) */
+.qt-tool-box.az-modal-wide { max-width: 860px; width: 94vw; }
+.az-img-modal { display: flex; justify-content: center; padding: 8px 0; }
+.az-img-modal img { max-width: 100%; max-height: 74vh; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 /* Pending-medication cards (precinto) in the boxes section */
 .az-pend-h { margin: 14px 0 8px; font-size: 0.8rem; font-weight: 700; color: #8a5a00; }
 .az-pendgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
