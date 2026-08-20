@@ -8,40 +8,26 @@
 // unreachable, the caller can still type the data by hand. All calls are made
 // server-side (the browser can't reach CIMA under our CSP), with a short timeout.
 //
-// NOTE: the hosting environment must allow outbound HTTPS to cima.aemps.es.
+// Lives in the Data Matrix app because it's about the medication catalogue; the
+// Asignación app reuses it. NOTE: the hosting environment must allow outbound
+// HTTPS to cima.aemps.es.
+
+const gs1 = require('./gs1');
 
 const BASE = (process.env.CIMA_BASE_URL || 'https://cima.aemps.es/cima/rest').replace(/\/+$/, '');
 const TIMEOUT_MS = Number(process.env.CIMA_TIMEOUT_MS) || 6000;
 const ENABLED = String(process.env.CIMA_ENABLED || 'true').toLowerCase() !== 'false';
 
-// ── Barcode / GTIN math (Spanish medication EAN-13, prefix 847000) ────────────────
-// EAN-13 check digit for a 12-digit body (weights 1,3,1,3,… from the left).
-function ean13CheckDigit(body12) {
-  const d = String(body12);
-  if (!/^\d{12}$/.test(d)) return null;
-  let sum = 0;
-  for (let i = 0; i < 12; i++) sum += Number(d[i]) * (i % 2 === 0 ? 1 : 3);
-  return (10 - (sum % 10)) % 10;
-}
-// EAN-13 barcode for a 6-digit Código Nacional: 847000 + CN + check. Older/most
-// medications. For other CN lengths we don't guess (the exact GTIN comes from the
-// scanned Data Matrix), so we return null.
-function barcodeFromCn(cn) {
-  const c = String(cn == null ? '' : cn).trim();
-  if (!/^\d{6}$/.test(c)) return null;
-  const body = '847000' + c;                 // 12 digits
-  const cd = ean13CheckDigit(body);
-  return cd == null ? null : body + cd;       // 13 digits (EAN-13)
-}
-// GS1 GTIN-14 = '0' + EAN-13 (what the box's Data Matrix carries).
-function gtinFromCn(cn) {
-  const ean = barcodeFromCn(cn);
-  return ean ? '0' + ean : null;
-}
-// Recover the Código Nacional from a Spanish EAN-13 (prefix 847000).
+// ── Barcode / GTIN math (Spanish medication codes; delegated to gs1) ──────────────
+const ean13CheckDigit = (body12) => /^\d{12}$/.test(String(body12)) ? gs1.ean13Check(String(body12)) : null;
+// GS1 GTIN-14 for a Código Nacional (847000+CN6, or 84700+CN7).
+function gtinFromCn(cn) { return gs1.cnToGtin(cn); }
+// EAN-13 barcode = GTIN-14 without its leading '0'.
+function barcodeFromCn(cn) { const g = gs1.cnToGtin(cn); return g ? g.replace(/^0/, '') : null; }
+// Recover a 6-digit Código Nacional from a Spanish EAN-13 (prefix 847000).
 function cnFromBarcode(ean13) {
   const s = String(ean13 == null ? '' : ean13).trim();
-  if (/^847000\d{7}$/.test(s)) return s.slice(6, 12);   // 847000 + CN(6) + check
+  if (/^847000\d{7}$/.test(s)) return s.slice(6, 12);
   return null;
 }
 
@@ -66,7 +52,7 @@ async function getJson(path, fetchImpl) {
   }
 }
 
-// Normalise a CIMA "medicamento" (+ its presentaciones) into what our app stores.
+// Normalise a CIMA "medicamento" (+ its presentaciones) into what our apps store.
 // `cn` (optional) picks the exact presentation's name when present.
 function mapMedicamento(med, cn) {
   if (!med || (!med.nombre && !med.nregistro)) return null;
@@ -86,18 +72,27 @@ function mapMedicamento(med, cn) {
     source: 'cima',
   };
 }
+const validCn = (cn) => /^\d{5,7}$/.test(String(cn == null ? '' : cn).trim());
+function badCn() { const e = new Error('Código Nacional no válido.'); e.status = 400; return e; }
 
-// Look up a medication by Código Nacional. Returns the mapped object or null (not
-// found). Throws an `offline` error if CIMA can't be reached.
+// Look up a medication by Código Nacional → mapped object (or null if not found).
 async function lookupByCn(cn, opts = {}) {
   const c = String(cn == null ? '' : cn).trim();
-  if (!/^\d{5,7}$/.test(c)) { const e = new Error('Código Nacional no válido.'); e.status = 400; throw e; }
+  if (!validCn(c)) throw badCn();
   const med = await getJson(`/medicamento?cn=${encodeURIComponent(c)}`, opts.fetchImpl);
   return mapMedicamento(med, c);
 }
 
-// Search medications by free text (name / active ingredient). Returns up to `limit`
-// mapped presentations. Throws an `offline` error if CIMA can't be reached.
+// Diagnostic: return the raw CIMA response alongside the mapped result (for
+// verifying field names in a real environment). ?debug=1 on the route uses this.
+async function probeByCn(cn, opts = {}) {
+  const c = String(cn == null ? '' : cn).trim();
+  if (!validCn(c)) throw badCn();
+  const raw = await getJson(`/medicamento?cn=${encodeURIComponent(c)}`, opts.fetchImpl);
+  return { url: `${BASE}/medicamento?cn=${c}`, item: mapMedicamento(raw, c), raw };
+}
+
+// Search medications by free text (name / active ingredient) → mapped presentations.
 async function searchByName(text, opts = {}) {
   const q = String(text == null ? '' : text).trim();
   if (q.length < 3) return [];
@@ -123,5 +118,5 @@ async function searchByName(text, opts = {}) {
 module.exports = {
   ENABLED, BASE,
   ean13CheckDigit, barcodeFromCn, gtinFromCn, cnFromBarcode,
-  mapMedicamento, lookupByCn, searchByName,
+  mapMedicamento, lookupByCn, probeByCn, searchByName,
 };

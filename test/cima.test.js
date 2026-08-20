@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const cima = require('../apps/asignacion/cima');
+const cima = require('../apps/datamatrix/cima');
 
 // ── Barcode / GTIN math ──────────────────────────────────────────────────────────
 test('ean13CheckDigit matches a known EAN-13', () => {
@@ -13,8 +13,11 @@ test('barcode / gtin derive from a 6-digit CN and round-trip back', () => {
   assert.equal(cima.barcodeFromCn('654321'), '8470006543214');
   assert.equal(cima.gtinFromCn('654321'), '08470006543214');
   assert.equal(cima.cnFromBarcode('8470006543214'), '654321');
-  // Non-6-digit CNs are not guessed (the exact GTIN comes from the scanned box).
-  assert.equal(cima.barcodeFromCn('6543210'), null);
+  // 7-digit CNs use the 84700 prefix (handled by gs1).
+  const b7 = cima.barcodeFromCn('6543210');
+  assert.match(b7, /^84700\d{8}$/);
+  assert.equal(cima.gtinFromCn('6543210').length, 14);
+  // Empty / invalid → null.
   assert.equal(cima.barcodeFromCn(''), null);
   assert.equal(cima.cnFromBarcode('1234567890123'), null);
 });

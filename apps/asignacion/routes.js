@@ -17,7 +17,7 @@ const gs1 = require('../datamatrix/gs1');
 const dmVisual = require('../datamatrix/visual');
 const release = require('./release');
 const email = require('./email');
-const cima = require('./cima');
+const cima = require('../datamatrix/cima');
 const authStore = require('../auth/store');
 const { canAccess } = require('../auth/apps-registry');
 
@@ -152,8 +152,10 @@ router.get('/api/medications', (req, res) => {
 });
 // ── CIMA (AEMPS) lookup — optional: fill name/barcode from a Código Nacional ──────
 router.get('/api/cima/cn/:cn([0-9]+)', async (req, res) => {
-  try { res.json({ item: await cima.lookupByCn(req.params.cn) }); }
-  catch (err) { res.status(err.status || 502).json({ error: err.message, offline: !!err.offline }); }
+  try {
+    if (req.query.debug) return res.json(await cima.probeByCn(req.params.cn));  // raw + mapped, to verify field names
+    res.json({ item: await cima.lookupByCn(req.params.cn) });
+  } catch (err) { res.status(err.status || 502).json({ error: err.message, offline: !!err.offline }); }
 });
 router.get('/api/cima/search', async (req, res) => {
   try { res.json({ items: await cima.searchByName(req.query.q || '') }); }

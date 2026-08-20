@@ -28,7 +28,7 @@ async function api(path, opts) {
   const r = await fetch(API + path, opts);
   const ct = r.headers.get('content-type') || '';
   const data = ct.includes('json') ? await r.json().catch(() => ({})) : {};
-  if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
+  if (!r.ok) { const err = new Error(data.error || `Error ${r.status}`); err.status = r.status; err.data = data; throw err; }
   return data;
 }
 function jbody(obj) { return { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) }; }
@@ -303,7 +303,7 @@ function editProduct(it) {
   area.innerHTML =
     `<div class="qt-group-mgr">
        <div class="qt-group-mgr-h">Medicamento (GTIN ${esc(gtin)}) — afecta a todas sus cajas</div>
-       <div class="qt-field" style="margin:0 0 10px"><input class="qt-input" id="pm-nombre" placeholder="Nombre comercial del medicamento" value="${esc(it.nombre || '')}" maxlength="160"></div>
+       <div class="qt-field" style="margin:0 0 10px"><div class="dm-cima-row"><input class="qt-input" id="pm-nombre" placeholder="Nombre comercial del medicamento" value="${esc(it.nombre || '')}" maxlength="160"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="pm-cima" title="Traer el nombre desde CIMA (AEMPS)${it.cn ? ' · CN ' + esc(it.cn) : ''}">🔎 CIMA</button></div>${it.cn ? '' : '<small class="dm-note" style="margin-top:4px">Esta caja no trae Código Nacional; escribe el nombre a mano.</small>'}</div>
        <div class="qt-mando-row"><label>Color</label><div class="qt-swatches" id="pm-swatches">${swatches.map(c => `<div class="qt-swatch${c === it.color ? ' sel' : ''}" data-c="${c}" style="background:${c}"></div>`).join('')}</div><input type="color" class="qt-color-input" id="pm-color" value="${it.color}"></div>
        <div class="qt-mando-row"><label>Forma</label><div class="qt-shape-picker" id="pm-shapes">${S.shapes.map(sh => `<button class="dm-shape-btn ${sh === it.shape ? 'sel' : ''}" data-s="${sh}" title="${sh}">${shapeSvg(sh, it.color, 20)}</button>`).join('')}</div></div>
        <div class="qt-group-inline"><button class="qt-btn qt-btn-primary qt-btn-sm" id="pm-save">Guardar</button></div>
@@ -312,6 +312,18 @@ function editProduct(it) {
   const save = async (patch) => { try { await api('/product/' + encodeURIComponent(gtin), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }); await reloadItems(); viewFicha(it.id); setTimeout(() => editProduct(S.byId.get(it.id) || it), 0); } catch (e) { toast(e.message, 'err'); } };
   $('pm-save').onclick = () => save({ nombre: nombre.value.trim() });
   nombre.addEventListener('keydown', e => { if (e.key === 'Enter') save({ nombre: nombre.value.trim() }); });
+  // Fill the name from CIMA (AEMPS) using the box's Código Nacional.
+  $('pm-cima').onclick = async () => {
+    const cn = String(it.cn || '').replace(/\D/g, '');
+    if (!/^\d{5,7}$/.test(cn)) { toast('Esta caja no trae un Código Nacional válido; escribe el nombre a mano.', 'err'); return; }
+    const btn = $('pm-cima'); btn.disabled = true; const prev = btn.textContent; btn.textContent = '…';
+    try {
+      const { item } = await api('/cima/cn/' + cn);
+      if (!item || !item.nombre) toast('CIMA no encontró ese Código Nacional.', 'err');
+      else { nombre.value = item.nombre; toast('Nombre traído de CIMA (AEMPS). Pulsa «Guardar».', 'ok'); nombre.focus(); }
+    } catch (e) { toast((e.offline || (e.data && e.data.offline)) ? 'No se pudo consultar CIMA ahora; escribe el nombre a mano.' : e.message, 'err'); }
+    finally { btn.disabled = false; btn.textContent = prev; }
+  };
   $('pm-color').addEventListener('input', e => save({ color: e.target.value }));
   area.querySelectorAll('#pm-swatches .qt-swatch').forEach(sw => sw.addEventListener('click', () => save({ color: sw.dataset.c })));
   area.querySelectorAll('#pm-shapes .dm-shape-btn').forEach(b => b.addEventListener('click', () => save({ shape: b.dataset.s })));

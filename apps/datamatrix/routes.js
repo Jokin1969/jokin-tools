@@ -12,6 +12,7 @@ const path = require('path');
 const db = require('./db');
 const gs1 = require('./gs1');
 const visual = require('./visual');
+const cima = require('./cima');
 
 const router = express.Router();
 const PUB = path.join(__dirname, 'public');
@@ -158,6 +159,17 @@ router.put('/api/product/:gtin([0-9A-Za-z]+)', json, (req, res) => {
     if (b.shape !== undefined) patch.shape = visual.SHAPES.includes(b.shape) ? b.shape : null;
     res.json({ item: db.upsertProduct(req.params.gtin, patch) });
   } catch (err) { fail(res, err); }
+});
+// ── CIMA (AEMPS) lookup — fill a medication's name from its Código Nacional ──────
+router.get('/api/cima/cn/:cn([0-9]+)', async (req, res) => {
+  try {
+    if (req.query.debug) return res.json(await cima.probeByCn(req.params.cn));  // raw + mapped, to verify field names
+    res.json({ item: await cima.lookupByCn(req.params.cn) });
+  } catch (err) { res.status(err.status || 502).json({ error: err.message, offline: !!err.offline }); }
+});
+router.get('/api/cima/search', async (req, res) => {
+  try { res.json({ items: await cima.searchByName(req.query.q || '') }); }
+  catch (err) { res.status(err.status || 502).json({ error: err.message, offline: !!err.offline }); }
 });
 router.post('/api/products/import', jsonBig, (req, res) => {
   try {
