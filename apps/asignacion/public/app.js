@@ -21,7 +21,7 @@ const S = {
   peopleFilter: null,   // when set (array of ids), the home shows only these (from an email link)
   isAdmin: false, noteColors: [], notesBadge: { notes: 0, new_notes: 0 },
   board: { boards: [], currentId: null, notes: [], users: [], userId: null },
-  stickers: null, stkYm: null, stkShowPegados: false,
+  stickers: null, stkYm: null, stkShowPegados: false, stkGroupBy: 'med', stkFilter: [],
 };
 
 // ── Tiny helpers ────────────────────────────────────────────────────────────────
@@ -1050,6 +1050,8 @@ async function loadStickers(ym) {
   catch (e) { body.innerHTML = `<div class="az-noresult">No se pudo cargar el control de precintos: ${esc(e.message)}</div>`; return; }
   renderStickers();
 }
+function shortLabel(s) { s = String(s || ''); return s.length > 20 ? s.slice(0, 19) + '…' : s; }
+function itemsAttr(items) { return JSON.stringify(items.map(i => ({ source: i.source, id: i.id }))); }
 function renderStickers() {
   const body = $('stk-body'); if (!body) return;
   const d = S.stickers; if (!d) { body.innerHTML = '<div class="az-empty-sm">Cargando…</div>'; return; }
@@ -1057,7 +1059,22 @@ function renderStickers() {
   const months = (d.months && d.months.length) ? d.months.slice() : [];
   if (!months.some(m => m.ym === ym)) months.unshift({ ym, total: t.total });
   const monthOpts = months.map(m => `<option value="${m.ym}" ${m.ym === ym ? 'selected' : ''}>${esc(fmtYm(m.ym))} · ${m.total} precinto(s)</option>`).join('');
-  const groupsHtml = d.groups.length ? d.groups.map(g => stkGroupHtml(g, showP)).join('') : '<div class="az-empty-sm">No hay precintos asignados este mes. Se rellenará al asignar medicación.</div>';
+
+  // Flatten items with their medication meta, then apply the medication filter +
+  // pegados visibility. This drives grouping (by med or by person) and bulk actions.
+  const allItems = [];
+  for (const g of d.groups) for (const i of g.items) allItems.push({ ...i, medKey: g.key, medNombre: g.nombre, medCn: g.cn, medBarcode: g.barcode });
+  const filter = S.stkFilter || [];
+  const inFilter = (k) => filter.length === 0 || filter.includes(k);
+  const visible = allItems.filter(i => inFilter(i.medKey) && (showP || !i.pegado));
+  const visiblePending = visible.filter(i => !i.pegado);
+  const pendingItems = visiblePending.map(i => ({ source: i.source, id: i.id }));
+
+  // Medication filter chips (with pending counts).
+  const chips = `<button class="az-stk-chip ${filter.length === 0 ? 'on' : ''}" data-stk-chip="__all">Todos <b>${t.por_pegar}</b></button>` +
+    d.groups.map(g => { const p = g.items.filter(i => !i.pegado).length; return `<button class="az-stk-chip ${filter.includes(g.key) ? 'on' : ''} ${p === 0 ? 'is-done' : ''}" data-stk-chip="${esc(g.key)}" title="${esc(g.nombre || '')}${g.cn ? ' · CN ' + esc(g.cn) : ''}">${esc(shortLabel(g.nombre || g.cn || g.key))} <b>${p}</b></button>`; }).join('');
+
+  const groupsHtml = S.stkGroupBy === 'person' ? stkByPersonHtml(visible) : stkByMedHtml(visible, d.groups);
   const q = 'ym=' + encodeURIComponent(ym);
   body.innerHTML = `
     <div class="az-stk-bar">
@@ -1068,46 +1085,86 @@ function renderStickers() {
         <div class="az-stk-count"><span class="n">${t.total}</span><span class="l">asignados</span></div>
       </div>
     </div>
-    <div class="az-stk-actions">
-      <a class="qt-btn qt-btn-primary" href="${API}/stickers/pdf?${q}&filter=pending" target="_blank" rel="noopener" title="PDF de los precintos que faltan, ordenados por medicamento">📄 PDF por pegar (4×7)</a>
-      <a class="qt-btn qt-btn-ghost" href="${API}/stickers/pdf?${q}&filter=all" target="_blank" rel="noopener">📄 PDF (todos)</a>
-      <button class="qt-btn qt-btn-teal" id="stk-scan" title="Pasa el escáner por cada precinto para cotejarlo y marcarlo pegado">📟 Escanear para cotejar</button>
+    <div class="az-stk-controls">
+      <div class="az-seg az-stk-seg" id="stk-groupby"><button data-gb="med" class="${S.stkGroupBy !== 'person' ? 'on' : ''}">Por medicamento</button><button data-gb="person" class="${S.stkGroupBy === 'person' ? 'on' : ''}">Por persona</button></div>
       <label class="az-stk-toggle"><input type="checkbox" id="stk-showpeg" ${showP ? 'checked' : ''}> Ver también los pegados</label>
+    </div>
+    <div class="az-stk-filters">${chips}</div>
+    <div class="az-stk-actions">
+      <a class="qt-btn qt-btn-ghost qt-btn-sm" href="${API}/stickers/pdf?${q}&filter=pending" target="_blank" rel="noopener" title="PDF de los precintos que faltan, ordenados por medicamento">📄 PDF por pegar (4×7)</a>
+      <a class="qt-btn qt-btn-ghost qt-btn-sm" href="${API}/stickers/pdf?${q}&filter=all" target="_blank" rel="noopener">📄 PDF (todos)</a>
+      <button class="qt-btn qt-btn-teal qt-btn-sm" id="stk-scan" title="Pasa el escáner por cada precinto para cotejarlo y marcarlo pegado">📟 Escanear para cotejar</button>
+    </div>
+    <div class="az-stk-bulkbar ${visiblePending.length ? '' : 'is-empty'}">
+      <span class="az-stk-bulk-info">${filter.length ? '🔎 Filtrado · ' : 'En la vista · '}<b>${visiblePending.length}</b> por pegar</span>
+      ${visiblePending.length ? `<button class="qt-btn qt-btn-teal qt-btn-sm" id="stk-bulk-mark">✅ Marcar pegados (${visiblePending.length})</button>
+        <label class="qt-btn qt-btn-ghost qt-btn-sm az-stk-photo">📷 Foto y marcar (${visiblePending.length})<input type="file" accept="image/*" capture="environment" id="stk-bulk-photo" hidden></label>` : '<span class="az-stk-complete">✓ Nada pendiente en la vista</span>'}
     </div>
     <div class="az-stk-groups">${groupsHtml}</div>
     ${(d.evidencias && d.evidencias.length) ? stkEvidHtml(d.evidencias) : ''}`;
+
   $('stk-month').onchange = e => loadStickers(e.target.value);
   $('stk-showpeg').onchange = e => { S.stkShowPegados = e.target.checked; renderStickers(); };
   $('stk-scan').onclick = () => toggleStkScanner(ym);
   if (stkScan.on) { const b = $('stk-scan'); if (b) b.classList.add('is-on'); }
+  $('stk-groupby').querySelectorAll('[data-gb]').forEach(b => b.onclick = () => { S.stkGroupBy = b.dataset.gb; renderStickers(); });
+  body.querySelectorAll('[data-stk-chip]').forEach(c => c.onclick = () => {
+    const k = c.dataset.stkChip;
+    if (k === '__all') S.stkFilter = [];
+    else { const f = new Set(S.stkFilter || []); f.has(k) ? f.delete(k) : f.add(k); S.stkFilter = [...f]; }
+    renderStickers();
+  });
+  if ($('stk-bulk-mark')) $('stk-bulk-mark').onclick = async () => {
+    if (!(await confirmBox('Marcar pegados', `¿Marcar como pegados los ${pendingItems.length} precintos por pegar de la vista actual?`, 'Marcar'))) return;
+    stkMarkItems(pendingItems, 'manual');
+  };
+  if ($('stk-bulk-photo')) $('stk-bulk-photo').onchange = (e) => stkPhotoMarkItems(e.target, pendingItems);
   wireStkGroups();
 }
-function stkGroupHtml(g, showP) {
-  const pending = g.items.filter(i => !i.pegado);
-  const done = g.items.filter(i => i.pegado);
-  const shown = showP ? g.items : pending;
-  const bc = g.barcode ? eanSvg(g.barcode) : '';
-  const itemRows = shown.map(i => {
-    const j = JSON.stringify({ source: i.source, id: i.id });
-    const who = `${esc(i.person.apellidos)}, ${esc(i.person.nombre)}`;
-    const tag = `${i.source === 'line' ? '📦 DM' : '🏷️ precinto'}${i.serial ? ' · ' + esc(i.serial) : ''}`;
-    const right = i.pegado
-      ? `<span class="az-stk-i-state">✓ pegado${i.pegado_at ? ' · ' + fmtDate(i.pegado_at) : ''}${i.method ? ' · ' + esc(i.method) : ''}</span>${i.evidencia_id ? ` <a class="az-stk-evlink" href="${API}/stickers/evidencia/${i.evidencia_id}" target="_blank" rel="noopener" title="Ver la foto de prueba">📷</a>` : ''} <button class="qt-iconbtn" data-stk-unmark='${j}' title="Revertir a por pegar">↩</button>`
-      : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-stk-mark='${j}'>✅ Pegado</button>`;
-    return `<div class="az-stk-item ${i.pegado ? 'is-peg' : ''}"><span class="az-stk-i-who">${who}</span><span class="az-stk-i-tag">${tag}</span><span class="az-stk-i-right">${right}</span></div>`;
+// Group the visible items by medication (ordered like the server groups).
+function stkByMedHtml(visible, groups) {
+  const byKey = new Map();
+  for (const i of visible) { if (!byKey.has(i.medKey)) byKey.set(i.medKey, []); byKey.get(i.medKey).push(i); }
+  if (!byKey.size) return '<div class="az-empty-sm">Nada que mostrar con este filtro.</div>';
+  return groups.filter(g => byKey.has(g.key)).map(g => {
+    const items = byKey.get(g.key);
+    const pending = items.filter(i => !i.pegado);
+    const bc = g.barcode ? eanSvg(g.barcode) : '';
+    const title = `<b>${esc(g.nombre || 'Medicamento')}</b><small>${g.cn ? 'CN ' + esc(g.cn) : ''}${g.barcode ? ' · ' + esc(g.barcode) : ''}</small>`;
+    return stkGroupCard(title, `${g.items.filter(i => i.pegado).length}/${g.items.length}`, pending, items.map(i => stkItemRow(i, 'med')).join(''), bc);
   }).join('');
+}
+// Group the visible items by person (each may span several medications).
+function stkByPersonHtml(visible) {
+  const byP = new Map();
+  for (const i of visible) { const k = i.person.id; if (!byP.has(k)) byP.set(k, { person: i.person, items: [] }); byP.get(k).items.push(i); }
+  const groups = [...byP.values()].sort((a, b) => (a.person.apellidos || '').localeCompare(b.person.apellidos || '') || (a.person.nombre || '').localeCompare(b.person.nombre || ''));
+  if (!groups.length) return '<div class="az-empty-sm">Nada que mostrar con este filtro.</div>';
+  return groups.map(g => {
+    const pending = g.items.filter(i => !i.pegado);
+    const title = `<b>${esc(g.person.apellidos)}, ${esc(g.person.nombre)}</b><small>${g.items.length} precinto(s)</small>`;
+    return stkGroupCard(title, `${g.items.filter(i => i.pegado).length}/${g.items.length}`, pending, g.items.map(i => stkItemRow(i, 'person')).join(''), '');
+  }).join('');
+}
+function stkGroupCard(titleHtml, progText, pending, itemsHtml, bcHtml) {
   return `<div class="az-stk-group ${pending.length ? '' : 'is-complete'}">
-    <div class="az-stk-g-head">
-      <div class="az-stk-g-title"><b>${esc(g.nombre || 'Medicamento')}</b><small>${g.cn ? 'CN ' + esc(g.cn) : ''}${g.barcode ? ' · ' + esc(g.barcode) : ''}</small></div>
-      <span class="az-stk-badge ${pending.length ? 'is-pending' : 'is-done'}">${done.length}/${g.items.length} pegados</span>
-    </div>
-    ${bc ? `<div class="az-stk-g-bc">${bc}</div>` : ''}
+    <div class="az-stk-g-head"><div class="az-stk-g-title">${titleHtml}</div><span class="az-stk-badge ${pending.length ? 'is-pending' : 'is-done'}">${progText} pegados</span></div>
+    ${bcHtml ? `<div class="az-stk-g-bc">${bcHtml}</div>` : ''}
     <div class="az-stk-g-actions">
-      ${pending.length ? `<button class="qt-btn qt-btn-teal qt-btn-sm" data-stk-markmed="${esc(g.key)}">✅ Marcar pegados (${pending.length})</button>` : '<span class="az-stk-complete">✓ Todos pegados</span>'}
-      ${pending.length ? `<label class="qt-btn qt-btn-ghost qt-btn-sm az-stk-photo">📷 Foto y marcar<input type="file" accept="image/*" capture="environment" data-stk-photo="${esc(g.key)}" hidden></label>` : ''}
+      ${pending.length ? `<button class="qt-btn qt-btn-teal qt-btn-sm" data-stk-markset='${itemsAttr(pending)}'>✅ Marcar pegados (${pending.length})</button>
+        <label class="qt-btn qt-btn-ghost qt-btn-sm az-stk-photo">📷 Foto y marcar<input type="file" accept="image/*" capture="environment" data-stk-photoset='${itemsAttr(pending)}' hidden></label>` : '<span class="az-stk-complete">✓ Todos pegados</span>'}
     </div>
-    <div class="az-stk-items">${itemRows || '<div class="az-empty-sm">Todos pegados en este medicamento.</div>'}</div>
+    <div class="az-stk-items">${itemsHtml || '<div class="az-empty-sm">Nada aquí.</div>'}</div>
   </div>`;
+}
+function stkItemRow(i, mode) {
+  const j = JSON.stringify({ source: i.source, id: i.id });
+  const label = mode === 'person' ? `${esc(i.medNombre || 'Medicamento')}${i.medCn ? ' · CN ' + esc(i.medCn) : ''}` : `${esc(i.person.apellidos)}, ${esc(i.person.nombre)}`;
+  const tag = `${i.source === 'line' ? '📦 DM' : '🏷️'}${i.serial ? ' · ' + esc(i.serial) : ''}`;
+  const right = i.pegado
+    ? `<span class="az-stk-i-state">✓ pegado${i.method ? ' · ' + esc(i.method) : ''}</span>${i.evidencia_id ? ` <a class="az-stk-evlink" href="${API}/stickers/evidencia/${i.evidencia_id}" target="_blank" rel="noopener" title="Ver la foto de prueba">📷</a>` : ''} <button class="qt-iconbtn" data-stk-unmark='${j}' title="Revertir a por pegar">↩</button>`
+    : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-stk-mark='${j}'>✅ Pegado</button>`;
+  return `<div class="az-stk-item ${i.pegado ? 'is-peg' : ''}"><span class="az-stk-i-who">${label}</span><span class="az-stk-i-tag">${tag}</span><span class="az-stk-i-right">${right}</span></div>`;
 }
 function stkEvidHtml(evs) {
   return `<div class="az-stk-evsec"><div class="az-stk-ev-h">📷 Fotos de prueba de este mes (${evs.length})</div>
@@ -1115,28 +1172,34 @@ function stkEvidHtml(evs) {
 }
 function wireStkGroups() {
   const body = $('stk-body'); if (!body) return;
-  const post = async (path, payload, okMsg) => {
-    try { S.stickers = await api(path, jbody({ ym: S.stickers.ym, ...payload })); renderStickers(); if (okMsg) toast(okMsg); }
-    catch (e) { toast(e.message, 'err'); }
-  };
-  body.querySelectorAll('[data-stk-mark]').forEach(b => b.onclick = () => post('/stickers/mark', { items: [JSON.parse(b.dataset.stkMark)], method: 'manual' }));
-  body.querySelectorAll('[data-stk-unmark]').forEach(b => b.onclick = () => post('/stickers/unmark', { items: [JSON.parse(b.dataset.stkUnmark)] }));
-  body.querySelectorAll('[data-stk-markmed]').forEach(b => b.onclick = async () => {
-    if (!(await confirmBox('Marcar pegados', '¿Marcar como pegados todos los precintos pendientes de este medicamento? Dejarán de aparecer como por pegar.', 'Marcar'))) return;
-    try { const r = await api('/stickers/mark-med', jbody({ ym: S.stickers.ym, key: b.dataset.stkMarkmed, method: 'manual' })); S.stickers = r; renderStickers(); toast(`${r.marked} precinto(s) marcados.`); }
-    catch (e) { toast(e.message, 'err'); }
+  body.querySelectorAll('[data-stk-mark]').forEach(b => b.onclick = () => stkMarkItems([JSON.parse(b.dataset.stkMark)], 'manual'));
+  body.querySelectorAll('[data-stk-unmark]').forEach(b => b.onclick = () => stkUnmarkItems([JSON.parse(b.dataset.stkUnmark)]));
+  body.querySelectorAll('[data-stk-markset]').forEach(b => b.onclick = async () => {
+    const items = JSON.parse(b.dataset.stkMarkset);
+    if (items.length > 1 && !(await confirmBox('Marcar pegados', `¿Marcar como pegados ${items.length} precintos? Dejarán de aparecer como por pegar.`, 'Marcar'))) return;
+    stkMarkItems(items, 'manual');
   });
-  body.querySelectorAll('[data-stk-photo]').forEach(inp => inp.onchange = () => stkPhotoMark(inp));
+  body.querySelectorAll('[data-stk-photoset]').forEach(inp => inp.onchange = () => stkPhotoMarkItems(inp, JSON.parse(inp.dataset.stkPhotoset)));
 }
-async function stkPhotoMark(inp) {
-  const file = inp.files && inp.files[0]; const key = inp.dataset.stkPhoto; if (!file) return;
+async function stkMarkItems(items, method) {
+  if (!items || !items.length) return;
+  try { S.stickers = await api('/stickers/mark', jbody({ ym: S.stickers.ym, items, method: method || 'manual' })); renderStickers(); toast(`${items.length} precinto(s) marcados como pegados.`); }
+  catch (e) { toast(e.message, 'err'); }
+}
+async function stkUnmarkItems(items) {
+  try { S.stickers = await api('/stickers/unmark', jbody({ ym: S.stickers.ym, items })); renderStickers(); }
+  catch (e) { toast(e.message, 'err'); }
+}
+async function stkPhotoMarkItems(inp, items) {
+  const file = inp.files && inp.files[0]; if (!file) return;
+  if (!items || !items.length) { toast('No hay precintos pendientes que marcar.', 'err'); inp.value = ''; return; }
   if (file.size > 10 * 1024 * 1024) { toast('La foto es muy grande (máx. 10 MB).', 'err'); inp.value = ''; return; }
   toast('Subiendo foto de prueba…');
   try {
     const dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
     const ev = await api('/stickers/evidencia', jbody({ ym: S.stickers.ym, photo: dataUrl }));
-    const r = await api('/stickers/mark-med', jbody({ ym: S.stickers.ym, key, method: 'foto', evidencia_id: ev.evidencia_id }));
-    S.stickers = r; renderStickers(); toast(`${r.marked} precinto(s) pegados, con foto de prueba guardada.`);
+    S.stickers = await api('/stickers/mark', jbody({ ym: S.stickers.ym, items, method: 'foto', evidencia_id: ev.evidencia_id }));
+    renderStickers(); toast(`${items.length} precinto(s) pegados, con foto de prueba guardada.`);
   } catch (e) { toast(e.message, 'err'); }
 }
 

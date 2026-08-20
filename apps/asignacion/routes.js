@@ -732,9 +732,10 @@ async function buildStickersPdf(res, ym, stickers, includeStuck) {
   const bwipjs = require('bwip-js');
   const pngs = await Promise.all(stickers.map(async s => {
     if (!s.barcode || !/^\d{12,13}$/.test(String(s.barcode))) return null;
-    try { return await bwipjs.toBuffer({ bcid: 'ean13', text: String(s.barcode), scale: 2, height: 12, includetext: true, textxalign: 'center' }); }
+    try { return await bwipjs.toBuffer({ bcid: 'ean13', text: String(s.barcode), scale: 3, height: 10, includetext: true, textxalign: 'center', backgroundcolor: 'ffffff', paddingwidth: 2, paddingheight: 1 }); }
     catch { return null; }
   }));
+  const pngSize = (b) => (b && b.length > 24 && b.readUInt32BE(0) === 0x89504e47) ? { w: b.readUInt32BE(16), h: b.readUInt32BE(20) } : null;
   const doc = new PDFDocument({ size: 'A4', margin: 28 });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="precintos-${ym}.pdf"`);
@@ -755,12 +756,20 @@ async function buildStickersPdf(res, ym, stickers, includeStuck) {
     const x = M + col * cellW, y = TOP + row * cellH;
     doc.rect(x + 2, y + 2, cellW - 4, cellH - 4).lineWidth(0.5).stroke('#e2e8f0');
     const png = pngs[i];
-    if (png) { const iw = Math.min(cellW - 14, 108); doc.image(png, x + (cellW - iw) / 2, y + 8, { width: iw }); }
-    else { doc.fontSize(7.5).fillColor('#b91c1c').text('sin código de barras', x + 6, y + 24, { width: cellW - 12, align: 'center' }); }
-    const name = String(s.nombre || 'Medicamento');
-    doc.fontSize(7).fillColor('#0f172a').text(name.length > 42 ? name.slice(0, 40) + '…' : name, x + 6, y + cellH - 34, { width: cellW - 12, align: 'center', lineBreak: false });
-    doc.fontSize(6.5).fillColor('#475569').text(`${s.cn ? 'CN ' + s.cn + ' · ' : ''}${s.person.apellidos}, ${s.person.nombre}`, x + 6, y + cellH - 23, { width: cellW - 12, align: 'center', lineBreak: false });
-    if (s.pegado) doc.fontSize(6).fillColor('#16a34a').text('PEGADO', x + 6, y + cellH - 12, { width: cellW - 12, align: 'center', lineBreak: false });
+    let capY = y + 40;
+    if (png) {
+      // Fit the barcode into a fixed box (centred), so captions never overlap it.
+      const maxW = cellW - 16, maxH = 44, nat = pngSize(png);
+      let dw = maxW, dh = maxH;
+      if (nat) { const sc = Math.min(maxW / nat.w, maxH / nat.h); dw = nat.w * sc; dh = nat.h * sc; }
+      doc.image(png, x + (cellW - dw) / 2, y + 9, { width: dw, height: dh });
+      capY = y + 9 + dh + 5;
+    } else {
+      doc.fontSize(7.5).fillColor('#b91c1c').text('sin código de barras', x + 6, y + 22, { width: cellW - 12, align: 'center' });
+    }
+    doc.fontSize(6.8).fillColor('#0f172a').text(String(s.nombre || 'Medicamento'), x + 6, capY, { width: cellW - 12, align: 'center', height: 16, ellipsis: true });
+    doc.fontSize(6).fillColor('#475569').text(`${s.cn ? 'CN ' + s.cn + ' · ' : ''}${s.person.apellidos}, ${s.person.nombre}`, x + 6, capY + 17, { width: cellW - 12, align: 'center', height: 9, ellipsis: true, lineBreak: false });
+    if (s.pegado) doc.fontSize(5.5).fillColor('#16a34a').text('PEGADO', x + 6, capY + 27, { width: cellW - 12, align: 'center', lineBreak: false });
   });
   doc.end();
 }

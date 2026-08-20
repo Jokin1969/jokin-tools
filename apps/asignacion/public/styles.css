@@ -825,3 +825,17 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-stk-ev img { width: 100%; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
 /* The cotejo scanner panel sits a bit higher so it doesn't clash with the ficha one */
 .az-stkpanel { bottom: 18px; }
+
+/* Precinto control — filter chips, group-by, bulk bar */
+.az-stk-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.az-stk-seg button { font-size: 0.8rem; }
+.az-stk-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.az-stk-chip { border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 999px; padding: 5px 11px; font-size: 0.78rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background .12s, border-color .12s; }
+.az-stk-chip b { font-family: var(--mono, monospace); background: #fff3d6; color: #8a5a00; border-radius: 999px; padding: 0 6px; font-size: 0.72rem; }
+.az-stk-chip.is-done b { background: #e2f5ec; color: #128a5b; }
+.az-stk-chip.on { border-color: var(--teal, #0e7a63); background: #e7f7f2; color: #0e5a49; }
+.az-stk-chip:hover { border-color: #94a3b8; }
+.az-stk-bulkbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: #fff8e8; border: 1px solid #f2c14e; margin-bottom: 14px; }
+.az-stk-bulkbar.is-empty { background: #f4fbf7; border-color: #bfe6d1; }
+.az-stk-bulk-info { font-size: 0.86rem; color: var(--ink); }
+.az-stk-bulk-info b { font-family: var(--mono, monospace); font-size: 1rem; }
