@@ -839,3 +839,11 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-stk-bulkbar.is-empty { background: #f4fbf7; border-color: #bfe6d1; }
 .az-stk-bulk-info { font-size: 0.86rem; color: var(--ink); }
 .az-stk-bulk-info b { font-family: var(--mono, monospace); font-size: 1rem; }
+
+/* Precinto filters (two dimensions) + print modal */
+.az-stk-filterblock { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.az-stk-flabel { flex: 0 0 84px; font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; padding-top: 4px; }
+.az-stk-filterblock .az-stk-filters { margin-bottom: 0; flex: 1 1 auto; }
+.az-stk-i-med { color: var(--muted); font-weight: 500; }
+.az-pr-check { display: flex; align-items: center; gap: 8px; font-size: 0.86rem; color: var(--ink); margin: 6px 0; cursor: pointer; }
+.az-pr-seg { margin-bottom: 4px; }

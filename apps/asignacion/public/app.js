@@ -21,7 +21,7 @@ const S = {
   peopleFilter: null,   // when set (array of ids), the home shows only these (from an email link)
   isAdmin: false, noteColors: [], notesBadge: { notes: 0, new_notes: 0 },
   board: { boards: [], currentId: null, notes: [], users: [], userId: null },
-  stickers: null, stkYm: null, stkShowPegados: false, stkGroupBy: 'med', stkFilter: [],
+  stickers: null, stkYm: null, stkShowPegados: false, stkGroupBy: 'med', stkFilter: [], stkFilterRes: [],
 };
 
 // ── Tiny helpers ────────────────────────────────────────────────────────────────
@@ -1063,19 +1063,26 @@ function renderStickers() {
   // Flatten items with their medication meta, then apply the medication filter +
   // pegados visibility. This drives grouping (by med or by person) and bulk actions.
   const allItems = [];
-  for (const g of d.groups) for (const i of g.items) allItems.push({ ...i, medKey: g.key, medNombre: g.nombre, medCn: g.cn, medBarcode: g.barcode });
-  const filter = S.stkFilter || [];
-  const inFilter = (k) => filter.length === 0 || filter.includes(k);
-  const visible = allItems.filter(i => inFilter(i.medKey) && (showP || !i.pegado));
+  for (const g of d.groups) for (const i of g.items) allItems.push({ ...i, medKey: g.key, medNombre: g.nombre, medCn: g.cn, medBarcode: g.barcode, resKey: i.residencia || 'Sin grupo' });
+  const medFilter = S.stkFilter || [], resFilter = S.stkFilterRes || [];
+  const inMed = (k) => medFilter.length === 0 || medFilter.includes(k);
+  const inRes = (r) => resFilter.length === 0 || resFilter.includes(r);
+  const visible = allItems.filter(i => inMed(i.medKey) && inRes(i.resKey) && (showP || !i.pegado));
   const visiblePending = visible.filter(i => !i.pegado);
   const pendingItems = visiblePending.map(i => ({ source: i.source, id: i.id }));
 
   // Medication filter chips (with pending counts).
-  const chips = `<button class="az-stk-chip ${filter.length === 0 ? 'on' : ''}" data-stk-chip="__all">Todos <b>${t.por_pegar}</b></button>` +
-    d.groups.map(g => { const p = g.items.filter(i => !i.pegado).length; return `<button class="az-stk-chip ${filter.includes(g.key) ? 'on' : ''} ${p === 0 ? 'is-done' : ''}" data-stk-chip="${esc(g.key)}" title="${esc(g.nombre || '')}${g.cn ? ' · CN ' + esc(g.cn) : ''}">${esc(shortLabel(g.nombre || g.cn || g.key))} <b>${p}</b></button>`; }).join('');
+  const medChips = `<button class="az-stk-chip ${medFilter.length === 0 ? 'on' : ''}" data-stk-chip="__all">Todos <b>${t.por_pegar}</b></button>` +
+    d.groups.map(g => { const p = g.items.filter(i => !i.pegado).length; return `<button class="az-stk-chip ${medFilter.includes(g.key) ? 'on' : ''} ${p === 0 ? 'is-done' : ''}" data-stk-chip="${esc(g.key)}" title="${esc(g.nombre || '')}${g.cn ? ' · CN ' + esc(g.cn) : ''}">${esc(shortLabel(g.nombre || g.cn || g.key))} <b>${p}</b></button>`; }).join('');
+  // Residence (grupo de QR·TIS) chips — cumulative with the medication filter.
+  const resMap = new Map();
+  for (const i of allItems) { const k = i.resKey; if (!resMap.has(k)) resMap.set(k, 0); if (!i.pegado) resMap.set(k, resMap.get(k) + 1); }
+  const resKeys = [...resMap.keys()].sort((a, b) => a === 'Sin grupo' ? 1 : b === 'Sin grupo' ? -1 : a.localeCompare(b));
+  const hasResidencias = resKeys.length > 1 || (resKeys.length === 1 && resKeys[0] !== 'Sin grupo');
+  const resChips = `<button class="az-stk-chip ${resFilter.length === 0 ? 'on' : ''}" data-stk-reschip="__all">Todas</button>` +
+    resKeys.map(k => `<button class="az-stk-chip ${resFilter.includes(k) ? 'on' : ''} ${resMap.get(k) === 0 ? 'is-done' : ''}" data-stk-reschip="${esc(k)}">${esc(shortLabel(k))} <b>${resMap.get(k)}</b></button>`).join('');
 
-  const groupsHtml = S.stkGroupBy === 'person' ? stkByPersonHtml(visible) : stkByMedHtml(visible, d.groups);
-  const q = 'ym=' + encodeURIComponent(ym);
+  const groupsHtml = S.stkGroupBy === 'residencia' ? stkByResidenciaHtml(visible) : S.stkGroupBy === 'person' ? stkByPersonHtml(visible) : stkByMedHtml(visible, d.groups);
   body.innerHTML = `
     <div class="az-stk-bar">
       <label class="az-stk-month">Mes <select class="qt-select" id="stk-month">${monthOpts}</select></label>
@@ -1086,17 +1093,17 @@ function renderStickers() {
       </div>
     </div>
     <div class="az-stk-controls">
-      <div class="az-seg az-stk-seg" id="stk-groupby"><button data-gb="med" class="${S.stkGroupBy !== 'person' ? 'on' : ''}">Por medicamento</button><button data-gb="person" class="${S.stkGroupBy === 'person' ? 'on' : ''}">Por persona</button></div>
+      <div class="az-seg az-stk-seg" id="stk-groupby"><button data-gb="med" class="${S.stkGroupBy === 'med' ? 'on' : ''}">Por medicamento</button><button data-gb="person" class="${S.stkGroupBy === 'person' ? 'on' : ''}">Por persona</button>${hasResidencias ? `<button data-gb="residencia" class="${S.stkGroupBy === 'residencia' ? 'on' : ''}">Por residencia</button>` : ''}</div>
       <label class="az-stk-toggle"><input type="checkbox" id="stk-showpeg" ${showP ? 'checked' : ''}> Ver también los pegados</label>
     </div>
-    <div class="az-stk-filters">${chips}</div>
+    <div class="az-stk-filterblock"><span class="az-stk-flabel">Medicamento</span><div class="az-stk-filters">${medChips}</div></div>
+    ${hasResidencias ? `<div class="az-stk-filterblock"><span class="az-stk-flabel">Residencia</span><div class="az-stk-filters">${resChips}</div></div>` : ''}
     <div class="az-stk-actions">
-      <a class="qt-btn qt-btn-ghost qt-btn-sm" href="${API}/stickers/pdf?${q}&filter=pending" target="_blank" rel="noopener" title="PDF de los precintos que faltan, ordenados por medicamento">📄 PDF por pegar (4×7)</a>
-      <a class="qt-btn qt-btn-ghost qt-btn-sm" href="${API}/stickers/pdf?${q}&filter=all" target="_blank" rel="noopener">📄 PDF (todos)</a>
+      <button class="qt-btn qt-btn-primary qt-btn-sm" id="stk-print" title="Elegir qué imprimir y cómo ordenarlo">📄 Imprimir PDF…</button>
       <button class="qt-btn qt-btn-teal qt-btn-sm" id="stk-scan" title="Pasa el escáner por cada precinto para cotejarlo y marcarlo pegado">📟 Escanear para cotejar</button>
     </div>
     <div class="az-stk-bulkbar ${visiblePending.length ? '' : 'is-empty'}">
-      <span class="az-stk-bulk-info">${filter.length ? '🔎 Filtrado · ' : 'En la vista · '}<b>${visiblePending.length}</b> por pegar</span>
+      <span class="az-stk-bulk-info">${(medFilter.length || resFilter.length) ? '🔎 Filtrado · ' : 'En la vista · '}<b>${visiblePending.length}</b> por pegar</span>
       ${visiblePending.length ? `<button class="qt-btn qt-btn-teal qt-btn-sm" id="stk-bulk-mark">✅ Marcar pegados (${visiblePending.length})</button>
         <label class="qt-btn qt-btn-ghost qt-btn-sm az-stk-photo">📷 Foto y marcar (${visiblePending.length})<input type="file" accept="image/*" capture="environment" id="stk-bulk-photo" hidden></label>` : '<span class="az-stk-complete">✓ Nada pendiente en la vista</span>'}
     </div>
@@ -1108,10 +1115,17 @@ function renderStickers() {
   $('stk-scan').onclick = () => toggleStkScanner(ym);
   if (stkScan.on) { const b = $('stk-scan'); if (b) b.classList.add('is-on'); }
   $('stk-groupby').querySelectorAll('[data-gb]').forEach(b => b.onclick = () => { S.stkGroupBy = b.dataset.gb; renderStickers(); });
+  if ($('stk-print')) $('stk-print').onclick = () => openStkPrintModal();
   body.querySelectorAll('[data-stk-chip]').forEach(c => c.onclick = () => {
     const k = c.dataset.stkChip;
     if (k === '__all') S.stkFilter = [];
     else { const f = new Set(S.stkFilter || []); f.has(k) ? f.delete(k) : f.add(k); S.stkFilter = [...f]; }
+    renderStickers();
+  });
+  body.querySelectorAll('[data-stk-reschip]').forEach(c => c.onclick = () => {
+    const k = c.dataset.stkReschip;
+    if (k === '__all') S.stkFilterRes = [];
+    else { const f = new Set(S.stkFilterRes || []); f.has(k) ? f.delete(k) : f.add(k); S.stkFilterRes = [...f]; }
     renderStickers();
   });
   if ($('stk-bulk-mark')) $('stk-bulk-mark').onclick = async () => {
@@ -1146,6 +1160,19 @@ function stkByPersonHtml(visible) {
     return stkGroupCard(title, `${g.items.filter(i => i.pegado).length}/${g.items.length}`, pending, g.items.map(i => stkItemRow(i, 'person')).join(''), '');
   }).join('');
 }
+// Group the visible items by residence (the person's QR·TIS group), then by person.
+function stkByResidenciaHtml(visible) {
+  const byR = new Map();
+  for (const i of visible) { const k = i.resKey; if (!byR.has(k)) byR.set(k, []); byR.get(k).push(i); }
+  const keys = [...byR.keys()].sort((a, b) => a === 'Sin grupo' ? 1 : b === 'Sin grupo' ? -1 : a.localeCompare(b));
+  if (!keys.length) return '<div class="az-empty-sm">Nada que mostrar con este filtro.</div>';
+  return keys.map(k => {
+    const items = byR.get(k).slice().sort((a, b) => (a.person.apellidos || '').localeCompare(b.person.apellidos || '') || (a.medNombre || '').localeCompare(b.medNombre || ''));
+    const pending = items.filter(i => !i.pegado);
+    const title = `<b>🏠 ${esc(k)}</b><small>${items.length} precinto(s)</small>`;
+    return stkGroupCard(title, `${items.filter(i => i.pegado).length}/${items.length}`, pending, items.map(i => stkItemRow(i, 'residencia')).join(''), '');
+  }).join('');
+}
 function stkGroupCard(titleHtml, progText, pending, itemsHtml, bcHtml) {
   return `<div class="az-stk-group ${pending.length ? '' : 'is-complete'}">
     <div class="az-stk-g-head"><div class="az-stk-g-title">${titleHtml}</div><span class="az-stk-badge ${pending.length ? 'is-pending' : 'is-done'}">${progText} pegados</span></div>
@@ -1159,7 +1186,9 @@ function stkGroupCard(titleHtml, progText, pending, itemsHtml, bcHtml) {
 }
 function stkItemRow(i, mode) {
   const j = JSON.stringify({ source: i.source, id: i.id });
-  const label = mode === 'person' ? `${esc(i.medNombre || 'Medicamento')}${i.medCn ? ' · CN ' + esc(i.medCn) : ''}` : `${esc(i.person.apellidos)}, ${esc(i.person.nombre)}`;
+  const label = mode === 'person' ? `${esc(i.medNombre || 'Medicamento')}${i.medCn ? ' · CN ' + esc(i.medCn) : ''}`
+    : mode === 'residencia' ? `${esc(i.person.apellidos)}, ${esc(i.person.nombre)} <small class="az-stk-i-med">· ${esc(shortLabel(i.medNombre || i.medCn || ''))}</small>`
+      : `${esc(i.person.apellidos)}, ${esc(i.person.nombre)}`;
   const tag = `${i.source === 'line' ? '📦 DM' : '🏷️'}${i.serial ? ' · ' + esc(i.serial) : ''}`;
   const right = i.pegado
     ? `<span class="az-stk-i-state">✓ pegado${i.method ? ' · ' + esc(i.method) : ''}</span>${i.evidencia_id ? ` <a class="az-stk-evlink" href="${API}/stickers/evidencia/${i.evidencia_id}" target="_blank" rel="noopener" title="Ver la foto de prueba">📷</a>` : ''} <button class="qt-iconbtn" data-stk-unmark='${j}' title="Revertir a por pegar">↩</button>`
@@ -1169,6 +1198,40 @@ function stkItemRow(i, mode) {
 function stkEvidHtml(evs) {
   return `<div class="az-stk-evsec"><div class="az-stk-ev-h">📷 Fotos de prueba de este mes (${evs.length})</div>
     <div class="az-stk-evgrid">${evs.map(e => `<a class="az-stk-ev" href="${API}/stickers/evidencia/${e.id}" target="_blank" rel="noopener" title="Prueba · ${esc(fmtDate(e.created_at))}"><img src="${API}/stickers/evidencia/${e.id}" alt="Foto de prueba" loading="lazy"></a>`).join('')}</div></div>`;
+}
+// Ask what to print and how to order it, then open the PDF with those options.
+function openStkPrintModal() {
+  const d = S.stickers; if (!d) return;
+  const ym = d.ym, medF = S.stkFilter || [], resF = S.stkFilterRes || [];
+  const nFilter = medF.length + resF.length;
+  const hasRes = new Set((d.groups || []).flatMap(g => g.items.map(i => i.residencia || 'Sin grupo'))).size > 1;
+  const st = { content: 'pending', order: (['med', 'person', 'residencia'].includes(S.stkGroupBy) ? S.stkGroupBy : 'med'), sub: 'med' };
+  const seg = (name, opts) => `<div class="az-seg az-pr-seg" data-prseg="${name}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" class="${v === st[name] ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  openTool(`<div class="qt-modal-h"><h3>📄 Imprimir precintos</h3><button class="qt-x" id="pr-close">×</button></div>
+    <p class="qt-tool-note">Elige qué precintos imprimir y cómo ordenarlos. Salen en rejilla <b>4×7</b> por A4 para pegarlos en la hoja oficial y cotejar.</p>
+    <div class="az-form">
+      <label class="az-flabel">Qué precintos</label>${seg('content', [['pending', 'Solo por pegar'], ['all', 'Todos']])}
+      ${nFilter ? `<label class="az-pr-check"><input type="checkbox" id="pr-restrict" checked> Solo los que tengo filtrados ahora (${nFilter} filtro${nFilter > 1 ? 's' : ''})</label>` : ''}
+      <label class="az-flabel">Ordenar por</label>${seg('order', [['med', 'Medicamento'], ['person', 'Persona']].concat(hasRes ? [['residencia', 'Residencia']] : []))}
+      <div id="pr-sub" ${st.order === 'residencia' ? '' : 'hidden'}><label class="az-flabel">Dentro de cada residencia</label>${seg('sub', [['med', 'Medicamento'], ['person', 'Persona']])}</div>
+      <label class="az-pr-check"><input type="checkbox" id="pr-pagebreak"> Empezar cada grupo en una página nueva</label>
+      <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" id="pr-cancel">Cancelar</button><button class="qt-btn qt-btn-primary" id="pr-go">📄 Abrir PDF</button></div>
+    </div>`);
+  $('pr-close').onclick = closeTool; $('pr-cancel').onclick = closeTool;
+  $('tool-modal-box').querySelectorAll('.az-pr-seg').forEach(sg => sg.querySelectorAll('button').forEach(btn => btn.onclick = () => {
+    const name = sg.dataset.prseg; st[name] = btn.dataset.v; sg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn));
+    if (name === 'order') $('pr-sub').hidden = st.order !== 'residencia';
+  }));
+  $('pr-go').onclick = () => {
+    const restrict = $('pr-restrict') && $('pr-restrict').checked;
+    const params = new URLSearchParams({ ym, filter: st.content, order: st.order });
+    if (st.order === 'residencia') params.set('sub', st.sub);
+    if ($('pr-pagebreak').checked) params.set('pagebreak', '1');
+    if (restrict && medF.length) params.set('meds', JSON.stringify(medF));
+    if (restrict && resF.length) params.set('groups', JSON.stringify(resF));
+    window.open(`${API}/stickers/pdf?${params.toString()}`, '_blank');
+    closeTool();
+  };
 }
 function wireStkGroups() {
   const body = $('stk-body'); if (!body) return;

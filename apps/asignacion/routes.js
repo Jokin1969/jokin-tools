@@ -627,7 +627,10 @@ function buildStickers(ym) {
   for (const s of out) {
     if (!pcache.has(s.person_id)) pcache.set(s.person_id, qrDb.getPerson(s.person_id));
     const p = pcache.get(s.person_id);
+    const groups = p && p.group_name ? String(p.group_name).split('\n').map(x => x.trim()).filter(Boolean) : [];
     s.person = p ? { id: p.id, nombre: p.nombre, apellidos: p.apellidos } : { id: s.person_id, nombre: '', apellidos: '' };
+    s.groups = groups;
+    s.residencia = groups.length ? groups.join(' · ') : null;   // grupo(s) de QR (TIS), usado como residencia
   }
   return out;
 }
@@ -643,7 +646,7 @@ function stickerPayload(ym) {
     if (!g.nombre && s.nombre) g.nombre = s.nombre;
     if (!g.cn && s.cn) g.cn = s.cn;
     if (!g.barcode && s.barcode) g.barcode = s.barcode;
-    g.items.push({ source: s.source, id: s.id, person: s.person, barcode: s.barcode, cn: s.cn, nombre: s.nombre, serial: s.serial, pegado: s.pegado, pegado_at: s.pegado_at, method: s.method, evidencia_id: s.evidencia_id, assigned_at: s.assigned_at });
+    g.items.push({ source: s.source, id: s.id, person: s.person, groups: s.groups, residencia: s.residencia, barcode: s.barcode, cn: s.cn, nombre: s.nombre, serial: s.serial, pegado: s.pegado, pegado_at: s.pegado_at, method: s.method, evidencia_id: s.evidencia_id, assigned_at: s.assigned_at });
   }
   const groupArr = [...groups.values()].sort((a, b) => (a.nombre || 'zzz').localeCompare(b.nombre || 'zzz') || String(a.cn || '').localeCompare(String(b.cn || '')));
   for (const g of groupArr) g.items.sort((a, b) => (a.person.apellidos || '').localeCompare(b.person.apellidos || '') || (a.person.nombre || '').localeCompare(b.person.nombre || ''));
@@ -716,26 +719,56 @@ router.get('/api/stickers/evidencia/:id(\\d+)', (req, res) => {
     res.set('Content-Type', ev.mime || 'image/jpeg'); res.set('Cache-Control', 'private, max-age=3600'); res.send(ev.photo);
   } catch { res.status(404).end(); }
 });
-// PDF: barcodes ordered by medication, 4×7 per A4 page, to stick & compare against
-// the official Salud sheet.
+// PDF: barcodes laid out 4×7 per A4 page, to stick & compare against the official
+// Salud sheet. The ordering/grouping and the subset are chosen in the print modal
+// (order=med|person|residencia, optional secondary sub, one page per group, and an
+// optional restriction to the meds/residencias currently filtered on screen).
+const stkMedName = s => (s.nombre || 'zzz') + '|' + (s.cn || s.barcode || '');
+const stkPersonName = s => (s.person.apellidos || 'zzz') + '|' + (s.person.nombre || '');
+const stkResName = s => (s.residencia || 'zzz~');
 router.get('/api/stickers/pdf', async (req, res) => {
   try {
-    const ym = cleanYm(req.query.ym); const all = req.query.filter === 'all';
+    const ym = cleanYm(req.query.ym);
+    const all = req.query.filter === 'all';
+    const order = ['med', 'person', 'residencia'].includes(req.query.order) ? req.query.order : 'med';
+    const sub = req.query.sub === 'person' ? 'person' : 'med';
+    const pagebreak = req.query.pagebreak === '1';
+    const parseList = (v) => { if (!v) return []; try { const a = JSON.parse(v); if (Array.isArray(a)) return a.map(String); } catch { /* csv */ } return String(v).split(',').map(s => s.trim()).filter(Boolean); };
+    const meds = parseList(req.query.meds);
+    const groups = parseList(req.query.groups);
     let stickers = buildStickers(ym);
     if (!all) stickers = stickers.filter(s => !s.pegado);
-    stickers.sort((a, b) => String(a.cn || a.barcode || '').localeCompare(String(b.cn || b.barcode || '')) || (a.person.apellidos || '').localeCompare(b.person.apellidos || ''));
-    await buildStickersPdf(res, ym, stickers, all);
+    if (meds.length) stickers = stickers.filter(s => meds.includes(stickerKey(s)));
+    if (groups.length) stickers = stickers.filter(s => groups.includes(s.residencia || '—'));
+    const cmp = (a, b, f) => f(a).localeCompare(f(b));
+    stickers.sort((a, b) => {
+      if (order === 'residencia') {
+        const r = cmp(a, b, stkResName); if (r) return r;
+        const first = sub === 'person' ? stkPersonName : stkMedName, second = sub === 'person' ? stkMedName : stkPersonName;
+        return cmp(a, b, first) || cmp(a, b, second);
+      }
+      if (order === 'person') return cmp(a, b, stkPersonName) || cmp(a, b, stkMedName);
+      return cmp(a, b, stkMedName) || cmp(a, b, stkPersonName);
+    });
+    const groupKeyFn = order === 'residencia' ? (s => s.residencia || 'Sin grupo')
+      : order === 'person' ? (s => `${s.person.apellidos}, ${s.person.nombre}`)
+        : (s => s.nombre || 'Medicamento');
+    const orderLabel = order === 'residencia' ? `por residencia · ${sub === 'person' ? 'persona' : 'medicamento'}` : order === 'person' ? 'por persona' : 'por medicamento';
+    await buildStickersPdf(res, ym, stickers, all, { pagebreak, groupKeyFn, orderLabel });
   } catch (err) { fail(res, err); }
 });
-async function buildStickersPdf(res, ym, stickers, includeStuck) {
+async function buildStickersPdf(res, ym, stickers, includeStuck, opts = {}) {
   const PDFDocument = require('pdfkit');
   const bwipjs = require('bwip-js');
-  const pngs = await Promise.all(stickers.map(async s => {
-    if (!s.barcode || !/^\d{12,13}$/.test(String(s.barcode))) return null;
-    try { return await bwipjs.toBuffer({ bcid: 'ean13', text: String(s.barcode), scale: 3, height: 10, includetext: true, textxalign: 'center', backgroundcolor: 'ffffff', paddingwidth: 2, paddingheight: 1 }); }
-    catch { return null; }
+  // Render each DISTINCT barcode once (many precintos repeat), keyed by barcode.
+  const uniqueBars = [...new Set(stickers.map(s => s.barcode).filter(b => /^\d{12,13}$/.test(String(b || ''))))];
+  const pairs = await Promise.all(uniqueBars.map(async b => {
+    try { return [b, await bwipjs.toBuffer({ bcid: 'ean13', text: String(b), scale: 3, height: 10, includetext: true, textxalign: 'center', backgroundcolor: 'ffffff', paddingwidth: 2, paddingheight: 1 })]; }
+    catch { return [b, null]; }
   }));
+  const pngByBar = new Map(pairs);
   const pngSize = (b) => (b && b.length > 24 && b.readUInt32BE(0) === 0x89504e47) ? { w: b.readUInt32BE(16), h: b.readUInt32BE(20) } : null;
+
   const doc = new PDFDocument({ size: 'A4', margin: 28 });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="precintos-${ym}.pdf"`);
@@ -743,33 +776,42 @@ async function buildStickersPdf(res, ym, stickers, includeStuck) {
   const COLS = 4, ROWS = 7, per = COLS * ROWS, M = 28, TOP = 58;
   const pageW = doc.page.width - M * 2, gridH = doc.page.height - TOP - M;
   const cellW = pageW / COLS, cellH = gridH / ROWS;
-  const header = () => {
+  const total = stickers.length;
+  const header = (label) => {
     doc.fontSize(14).fillColor('#0f172a').text(`Precintos ${includeStuck ? '(todos)' : 'por pegar'} · ${ym}`, M, 22, { lineBreak: false });
-    doc.fontSize(8).fillColor('#64748b').text(`${stickers.length} precinto(s) · ordenados por medicamento · hoja 4 × 7`, M, 41, { lineBreak: false });
+    doc.fontSize(8).fillColor('#64748b').text(`${total} precinto(s) · ${opts.orderLabel || 'ordenados por medicamento'} · hoja 4 × 7${label ? ' · ' + label : ''}`, M, 41, { width: pageW, lineBreak: false, ellipsis: true });
   };
-  if (!stickers.length) { header(); doc.fontSize(11).fillColor('#64748b').text(`No hay precintos ${includeStuck ? '' : 'pendientes '}este mes.`, M, 80); doc.end(); return; }
-  stickers.forEach((s, i) => {
-    const idx = i % per;
-    if (i > 0 && idx === 0) doc.addPage();
-    if (idx === 0) header();
+  // Split into pages: optionally a fresh page whenever the primary group changes.
+  const buckets = [];
+  if (opts.pagebreak && opts.groupKeyFn) {
+    let last = Symbol('none'), cur = null;
+    for (const s of stickers) { const k = opts.groupKeyFn(s); if (k !== last) { cur = { label: k, items: [] }; buckets.push(cur); last = k; } cur.items.push(s); }
+  } else buckets.push({ label: null, items: stickers });
+  const pages = [];
+  for (const b of buckets) for (let i = 0; i < b.items.length; i += per) pages.push({ label: b.label, items: b.items.slice(i, i + per) });
+  if (!pages.length) { header(); doc.fontSize(11).fillColor('#64748b').text(`No hay precintos ${includeStuck ? '' : 'pendientes '}con estas opciones.`, M, 80); doc.end(); return; }
+
+  const drawCell = (s, idx) => {
     const col = idx % COLS, row = Math.floor(idx / COLS);
     const x = M + col * cellW, y = TOP + row * cellH;
     doc.rect(x + 2, y + 2, cellW - 4, cellH - 4).lineWidth(0.5).stroke('#e2e8f0');
-    const png = pngs[i];
+    const png = pngByBar.get(s.barcode);
     let capY = y + 40;
     if (png) {
-      // Fit the barcode into a fixed box (centred), so captions never overlap it.
       const maxW = cellW - 16, maxH = 44, nat = pngSize(png);
       let dw = maxW, dh = maxH;
       if (nat) { const sc = Math.min(maxW / nat.w, maxH / nat.h); dw = nat.w * sc; dh = nat.h * sc; }
       doc.image(png, x + (cellW - dw) / 2, y + 9, { width: dw, height: dh });
       capY = y + 9 + dh + 5;
-    } else {
-      doc.fontSize(7.5).fillColor('#b91c1c').text('sin código de barras', x + 6, y + 22, { width: cellW - 12, align: 'center' });
-    }
+    } else { doc.fontSize(7.5).fillColor('#b91c1c').text('sin código de barras', x + 6, y + 22, { width: cellW - 12, align: 'center' }); }
     doc.fontSize(6.8).fillColor('#0f172a').text(String(s.nombre || 'Medicamento'), x + 6, capY, { width: cellW - 12, align: 'center', height: 16, ellipsis: true });
     doc.fontSize(6).fillColor('#475569').text(`${s.cn ? 'CN ' + s.cn + ' · ' : ''}${s.person.apellidos}, ${s.person.nombre}`, x + 6, capY + 17, { width: cellW - 12, align: 'center', height: 9, ellipsis: true, lineBreak: false });
     if (s.pegado) doc.fontSize(5.5).fillColor('#16a34a').text('PEGADO', x + 6, capY + 27, { width: cellW - 12, align: 'center', lineBreak: false });
+  };
+  pages.forEach((pg, pi) => {
+    if (pi > 0) doc.addPage();
+    header(pg.label);
+    pg.items.forEach((s, idx) => drawCell(s, idx));
   });
   doc.end();
 }

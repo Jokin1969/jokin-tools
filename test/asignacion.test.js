@@ -282,6 +282,27 @@ test('precintos (pegado): agrega DM+precinto, marca/escanea/revierte, foto y PDF
   assert.ok(stk.months.some(m => m.ym === ym));
 });
 
+test('precintos: residencia (grupo QR·TIS) + opciones de impresión del PDF', async () => {
+  const ym = '2026-06';
+  const g1 = qrDb.createPerson({ pharmacy_no: '80095', nombre: 'Rosa', apellidos: 'Uno', tis: '00080095', group_name: 'Residencia Sol' }, 1).id;
+  const g2 = qrDb.createPerson({ pharmacy_no: '80096', nombre: 'Tere', apellidos: 'Dos', tis: '00080096', group_name: 'Residencia Luna' }, 1).id;
+  for (const pid of [g1, g2]) {
+    const med = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Ibuprofeno 600', barcode: '8470007150008', qty: 1 })).data.plan.find(m => m.cn === '715000');
+    await call('POST', `/person/${pid}/assign-precinto`, { plan_id: med.id, ym });
+  }
+  const stk = (await call('GET', `/stickers?ym=${ym}`)).data;
+  // Items carry the residence (from the person's QR·TIS group).
+  const items = stk.groups.flatMap(g => g.items);
+  assert.ok(items.some(i => i.residencia === 'Residencia Sol'));
+  assert.ok(items.some(i => i.residencia === 'Residencia Luna'));
+  // PDF ordered by residence, one page per group, restricted to one residence.
+  const pdf = await fetch(base + `/stickers/pdf?ym=${ym}&filter=all&order=residencia&sub=person&pagebreak=1&groups=${encodeURIComponent(JSON.stringify(['Residencia Sol']))}`);
+  assert.equal(pdf.status, 200);
+  assert.equal(pdf.headers.get('content-type'), 'application/pdf');
+  const bytes = Buffer.from(await pdf.arrayBuffer());
+  assert.ok(bytes.length > 500 && bytes.slice(0, 4).toString() === '%PDF');
+});
+
 test('linking a mismatched box warns (409) but can be forced', async () => {
   const pid = qrDb.createPerson({ pharmacy_no: '80002', nombre: 'Iker', apellidos: 'Dao', tis: '00080002' }, 1).id;
   const med = (await call('POST', `/person/${pid}/plan`, { cn: '999999', nombre: 'Medicamento X', qty: 1 })).data.plan.find(m => m.cn === '999999');
