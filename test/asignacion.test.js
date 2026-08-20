@@ -202,6 +202,24 @@ test('scan: un código que no está en el plan responde 409 nomatch', async () =
   assert.equal(r.data.nomatch, true);
 });
 
+test('CIMA foto: ETag revalida y refresca la imagen (thumbnail → full)', async () => {
+  const thumb = Buffer.from('THUMB-small');
+  dmDb.cimaCachePut('991234', { nombre: 'Foto Test', foto_caja: thumb, foto_caja_url: 'http://x/thumbnails/a.jpg' });
+  const r1 = await fetch(base + '/cima/foto/991234/caja');
+  assert.equal(r1.status, 200);
+  const etag1 = r1.headers.get('etag');
+  assert.ok(etag1, 'envía un ETag');
+  assert.match(r1.headers.get('cache-control') || '', /no-cache/);
+  // Conditional GET con el mismo ETag → 304.
+  const r304 = await fetch(base + '/cima/foto/991234/caja', { headers: { 'If-None-Match': etag1 } });
+  assert.equal(r304.status, 304);
+  // Reemplazar por una imagen más grande (full) → el validador antiguo ya no vale.
+  dmDb.cimaCachePut('991234', { foto_caja: Buffer.from('FULL-image-much-larger-payload-bytes') });
+  const r2 = await fetch(base + '/cima/foto/991234/caja', { headers: { 'If-None-Match': etag1 } });
+  assert.equal(r2.status, 200, 'validador obsoleto → se envía la nueva imagen');
+  assert.notEqual(r2.headers.get('etag'), etag1, 'el ETag cambia con la nueva imagen');
+});
+
 test('linking a mismatched box warns (409) but can be forced', async () => {
   const pid = qrDb.createPerson({ pharmacy_no: '80002', nombre: 'Iker', apellidos: 'Dao', tis: '00080002' }, 1).id;
   const med = (await call('POST', `/person/${pid}/plan`, { cn: '999999', nombre: 'Medicamento X', qty: 1 })).data.plan.find(m => m.cn === '999999');

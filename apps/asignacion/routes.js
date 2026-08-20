@@ -178,11 +178,20 @@ router.get('/api/cima/cn/:cn([0-9]+)', async (req, res) => {
   } catch (err) { res.status(err.status || 502).json({ error: err.message, offline: !!err.offline }); }
 });
 // Serve a medication photo (box/pill) from the local cache (works offline).
+// Uses revalidation (ETag) instead of a long max-age so that when a photo is
+// refreshed in CIMA (e.g. thumbnail → full-size), the browser picks up the new
+// image immediately instead of showing the stale cached one.
 router.get('/api/cima/foto/:cn([0-9]+)/:tipo(caja|pastilla)', async (req, res) => {
   try {
     const buf = await cimaCache.foto(req.params.cn, req.params.tipo);
     if (!buf) return res.status(404).end();
-    res.set('Content-Type', 'image/jpeg'); res.set('Cache-Control', 'public, max-age=86400'); res.send(buf);
+    const row = dmDb.cimaCacheGet(String(req.params.cn).replace(/\D/g, ''));
+    const etag = `"${req.params.cn}-${req.params.tipo}-${(row && row.updated_at) || ''}-${buf.length}"`;
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Cache-Control', 'no-cache');   // may store, but must revalidate before reuse
+    res.set('ETag', etag);
+    if (req.headers['if-none-match'] === etag) return res.status(304).end();
+    res.send(buf);
   } catch { res.status(404).end(); }
 });
 router.get('/api/cima/search', async (req, res) => {

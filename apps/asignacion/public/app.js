@@ -35,6 +35,11 @@ async function api(path, opts) {
   return data;
 }
 function jbody(obj) { return { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) }; }
+// CIMA photo URL. The ?r bump forces browsers to drop images cached under the old
+// long max-age (which could be low-res thumbnails); from then on ETag revalidation
+// keeps them fresh.
+const FOTO_REV = '2';
+function fotoUrl(cn, tipo) { return `${API}/cima/foto/${encodeURIComponent(cn || '')}/${tipo}?r=${FOTO_REV}`; }
 function fmtDate(s) { if (!s) return ''; const d = new Date(String(s).replace(' ', 'T') + 'Z'); return isNaN(d) ? s : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function fmtYm(ym) { if (!ym) return ''; const [y, m] = ym.split('-'); const names = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']; return `${names[Number(m) - 1] || m} ${y}`; }
 
@@ -53,7 +58,7 @@ function closeTool() { $('tool-modal').hidden = true; const box = $('tool-modal-
 // A big modal showing a CIMA image (box 'caja' or pill 'pastilla') large.
 function openImageModal(med, tipo, label, emoji) {
   openTool(`<div class="qt-modal-h"><h3>${emoji} ${esc(med.nombre || 'Medicamento')}</h3><button class="qt-x" id="im-close">×</button></div>
-    <div class="az-img-modal"><img src="${API}/cima/foto/${esc(med.cn)}/${tipo}" alt="${label}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'az-noresult',textContent:'No hay imagen disponible.'}))"></div>
+    <div class="az-img-modal"><img src="${fotoUrl(med.cn, tipo)}" alt="${label}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'az-noresult',textContent:'No hay imagen disponible.'}))"></div>
     <div class="az-form-hint" style="text-align:center">${label} · AEMPS · CIMA</div>`);
   $('tool-modal-box').classList.add('az-modal-wide');
   $('im-close').onclick = closeTool;
@@ -769,7 +774,7 @@ function planHtml(plan, closed) {
       : `GTIN ${esc(m.gtin)} · ${m.available} disponible(s) en stock`;
     // Box photo (CIMA) instead of the colour shape when we have it cached; click to enlarge.
     const icon = m.foto_caja
-      ? `<button class="az-plan-foto-btn" data-boxfoto="${m.id}" title="Ver la caja en grande"><img class="az-plan-foto" src="${API}/cima/foto/${esc(m.cn)}/caja" alt="Caja" loading="lazy" onerror="this.style.display='none'"></button>`
+      ? `<button class="az-plan-foto-btn" data-boxfoto="${m.id}" title="Ver la caja en grande"><img class="az-plan-foto" src="${fotoUrl(m.cn, 'caja')}" alt="Caja" loading="lazy" onerror="this.style.display='none'"></button>`
       : shapeSvg(m.shape, m.color, 22);
     // "No DM" = no real Data Matrix box in the ficha (precintos don't count).
     const noDm = boxes === 0;
@@ -906,7 +911,7 @@ function pendingHtml(plan, closed) {
   return `<div class="az-pend-h">🏷️ Pendientes de caja — pásale el escáner al <b>precinto</b> (o escanéalo en Salud) mientras no haya Data Matrix</div>
     <div class="az-pendgrid">${pend.map(m => {
       const icon = m.foto_caja
-        ? `<button class="az-plan-foto-btn" data-boxfoto="${m.id}" title="Ver la caja en grande"><img class="az-pend-foto" src="${API}/cima/foto/${esc(m.cn)}/caja" alt="Caja" loading="lazy" onerror="this.style.display='none'"></button>`
+        ? `<button class="az-plan-foto-btn" data-boxfoto="${m.id}" title="Ver la caja en grande"><img class="az-pend-foto" src="${fotoUrl(m.cn, 'caja')}" alt="Caja" loading="lazy" onerror="this.style.display='none'"></button>`
         : `<span class="az-plan-shape">${shapeSvg(m.shape, m.color, 28)}</span>`;
       const bc = m.barcode ? eanSvg(m.barcode) : '';
       const done = m.asignada || 0, prec = m.precinto || 0;
@@ -1109,7 +1114,7 @@ function openPlanReleasePicker(med) {
 // The click-through opens the full-size image at AEMPS.
 function cimaFotosHtml(cn, fotos) {
   if (!fotos || !cn) return '';
-  const one = (f, tipo, lbl) => f ? `<a class="az-cima-foto" href="${esc(f.full || (API + '/cima/foto/' + cn + '/' + tipo))}" target="_blank" rel="noopener" title="Ver ${lbl} (AEMPS)"><img src="${esc(API + '/cima/foto/' + cn + '/' + tipo)}" alt="${lbl}" loading="lazy" onerror="this.style.display='none'"><span>${lbl}</span></a>` : '';
+  const one = (f, tipo, lbl) => f ? `<a class="az-cima-foto" href="${esc(f.full || fotoUrl(cn, tipo))}" target="_blank" rel="noopener" title="Ver ${lbl} (AEMPS)"><img src="${fotoUrl(cn, tipo)}" alt="${lbl}" loading="lazy" onerror="this.style.display='none'"><span>${lbl}</span></a>` : '';
   const inner = one(fotos.caja, 'caja', 'Caja') + one(fotos.pastilla, 'pastilla', 'Pastilla');
   return inner ? `<div class="az-cima-fotos">${inner}</div><div class="az-form-hint" style="margin-top:2px">Imágenes: AEMPS · CIMA · guardadas</div>` : '';
 }
