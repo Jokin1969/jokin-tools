@@ -213,11 +213,17 @@ function planView(personId) {
     const effective_at = db.effectiveDate(l.release_at, advance_days);
     const effective_days = daysUntil(effective_at);
     const release_state = !l.release_at ? 'sin_fecha' : (effective_days != null && effective_days <= 0 ? 'disponible' : 'programada');
+    // Barcode ("precinto") for scanning into Salud when there's no Data Matrix.
+    const eanFromGtin = (g) => (g && g.length === 14 && g[0] === '0') ? g.slice(1) : g;
+    const barcode = l.barcode || (l.cn ? cima.barcodeFromCn(l.cn) : null) || (l.gtin ? eanFromGtin(l.gtin) : null);
+    // Cached CIMA photos (by Código Nacional) for this medication.
+    const cc = l.cn ? dmDb.cimaCacheGet(l.cn) : null;
     return {
-      id: l.id, gtin: l.gtin || null, cn: l.cn || null, barcode: l.barcode || null,
+      id: l.id, gtin: l.gtin || null, cn: l.cn || null, barcode,
       qty: l.qty, notes: l.notes || null, active: l.active,
       nombre, color, shape, available, cn_only: !hasGtin,
       release_at: l.release_at || null, advance_days, effective_at, effective_days, release_state,
+      foto_caja: !!(cc && cc.has_caja), foto_pastilla: !!(cc && cc.has_pastilla),
     };
   });
 }

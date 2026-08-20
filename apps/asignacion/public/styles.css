@@ -508,7 +508,14 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-cima-fotos { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
 .az-cima-foto { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; text-decoration: none; color: var(--muted); font-size: 0.7rem; }
 .az-cima-foto img { width: 84px; height: 84px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
-.az-plan-shape { flex: 0 0 auto; display: inline-flex; }
+.az-plan-shape { flex: 0 0 auto; display: inline-flex; align-items: center; }
+.az-plan-foto { width: 46px; height: 46px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+/* Precinto (EAN-13) modal */
+.az-precinto { display: flex; justify-content: center; padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+.az-precinto .az-ean-svg { width: 100%; max-width: 340px; height: auto; }
+.az-precinto-num { text-align: center; font-family: var(--mono, monospace); font-weight: 700; letter-spacing: 0.12em; margin-top: 8px; color: var(--ink); }
+.az-pill-modal { display: flex; justify-content: center; padding: 8px 0; }
+.az-pill-modal img { max-width: 100%; max-height: 60vh; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .az-plan-name { flex: 1 1 200px; min-width: 0; font-weight: 700; color: var(--ink); display: flex; flex-direction: column; }
 .az-plan-name small { font-weight: 500; color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }
 .az-plan-prog { font-size: 0.76rem; font-weight: 700; padding: 3px 8px; border-radius: 8px; }
