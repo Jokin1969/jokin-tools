@@ -148,7 +148,7 @@ async function boot() {
 
 // ── Notifications / release-date search (bell) ───────────────────────────────────
 function todayIsoClient() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
-const NOTIF_MODES = [['all', 'Todas las cajas'], ['any', 'Al menos una'], ['box', 'Por caja']];
+const NOTIF_MODES = [['all', 'Toda la medicación'], ['any', 'Al menos uno'], ['box', 'Por medicamento']];
 
 // Bell badge: how many are "ready to assign" today, under the saved grouping mode.
 async function refreshNotifications() {
@@ -160,44 +160,42 @@ async function refreshNotifications() {
   $('bell-btn').classList.toggle('has-due', !!n);
 }
 
-// One box (mode 'box').
-function notifBoxRow(e, matched) {
-  const b = e.box;
+// One medication (mode 'box' = por medicamento).
+function notifMedRow(e, matched) {
   const eff = fmtDate(e.effective_at || e.release_at);
   const offNote = (e.release_at && e.release_at !== e.effective_at) ? ` <small class="az-off">of. ${fmtDate(e.release_at)}</small>` : '';
   const when = matched
     ? `<span class="az-note-when st-due">✅ ${e.days === 0 ? 'hoy' : e.days < 0 ? 'desde hace ' + Math.abs(e.days) + ' día(s)' : eff}${offNote}</span>`
     : `<span class="az-note-when st-soon">🗓 ${e.days > 0 ? 'en ' + e.days + ' día(s) · ' : ''}${eff}${offNote}</span>`;
-  return `<button class="az-note" data-open="${e.person.id}" data-ym="${esc(e.ym || '')}">
-    <span class="az-note-shape">${b ? shapeSvg(b.shape, b.color, 18) : '📦'}</span>
-    <span class="az-note-body"><b>${esc(e.person.apellidos)}, ${esc(e.person.nombre)}</b><small>${esc(b && b.nombre || 'Medicamento')}${b && b.serial ? ' · Nº ' + esc(b.serial) : ''}</small></span>
+  return `<button class="az-note" data-open="${e.person.id}">
+    <span class="az-note-shape">${shapeSvg(e.shape, e.color, 18)}</span>
+    <span class="az-note-body"><b>${esc(e.person.apellidos)}, ${esc(e.person.nombre)}</b><small>${esc(e.nombre || 'Medicamento')}</small></span>
     ${when}
   </button>`;
 }
-// One person aggregating their pending boxes (mode 'all' / 'any').
+// One person aggregating their dated medications (mode 'all' / 'any').
 function notifPersonRow(e, mode) {
   const done = e.aggDays <= 0;
   const agg = done
     ? (mode === 'all' ? '✅ todas ya están disponibles' : '✅ ya hay alguna disponible')
     : (mode === 'all' ? `todas disponibles el ${fmtDate(e.aggDate)} · faltan ${e.aggDays} día(s)` : `la primera disponible el ${fmtDate(e.aggDate)} · faltan ${e.aggDays} día(s)`);
-  const ym = (e.boxes[0] && e.boxes[0].ym) || '';
-  const boxes = e.boxes.map(b => {
-    const eff = fmtDate(b.effective_at || b.release_at);
-    const offNote = (b.release_at && b.release_at !== b.effective_at) ? ` <small class="az-off">of. ${fmtDate(b.release_at)}</small>` : '';
-    return `<div class="az-note-sub"><span>${b.box ? shapeSvg(b.box.shape, b.box.color, 12) : '📦'} ${esc(b.box && b.box.nombre || 'Medicamento')}${b.box && b.box.serial ? ' · Nº ' + esc(b.box.serial) : ''}</span><span class="${b.satisfied ? 'st-due' : 'st-soon'}">${b.satisfied ? '✅' : '🗓'} ${eff}${offNote}</span></div>`;
+  const meds = e.meds.map(m => {
+    const eff = fmtDate(m.effective_at || m.release_at);
+    const offNote = (m.release_at && m.release_at !== m.effective_at) ? ` <small class="az-off">of. ${fmtDate(m.release_at)}</small>` : '';
+    return `<div class="az-note-sub"><span>${shapeSvg(m.shape, m.color, 12)} ${esc(m.nombre || 'Medicamento')}</span><span class="${m.satisfied ? 'st-due' : 'st-soon'}">${m.satisfied ? '✅' : '🗓'} ${eff}${offNote}</span></div>`;
   }).join('');
   return `<div class="az-note-person">
     <div class="az-note-person-h">
-      <button class="az-note az-note-flex" data-open="${e.person.id}" data-ym="${esc(ym)}">
+      <button class="az-note az-note-flex" data-open="${e.person.id}">
         <span class="az-note-body"><b>${esc(e.person.apellidos)}, ${esc(e.person.nombre)}</b><small>${esc(agg)} · ${e.releasedByToday}/${e.total} ya disponible(s)</small></span>
       </button>
-      <button class="az-note-exp" data-exp="${e.person.id}" title="Ver las cajas">▾ ${e.total}</button>
+      <button class="az-note-exp" data-exp="${e.person.id}" title="Ver los medicamentos">▾ ${e.total}</button>
     </div>
-    <div class="az-note-boxes" id="exp-${e.person.id}" hidden>${boxes}</div>
+    <div class="az-note-boxes" id="exp-${e.person.id}" hidden>${meds}</div>
   </div>`;
 }
 function notifResultsHtml(data) {
-  const rowFn = (data.mode === 'box') ? (e, m) => notifBoxRow(e, m) : (e) => notifPersonRow(e, data.mode);
+  const rowFn = (data.mode === 'box') ? (e, m) => notifMedRow(e, m) : (e) => notifPersonRow(e, data.mode);
   const isToday = data.date === data.today;
   const okLabel = data.criterion === 'exact'
     ? `Salen exactamente el ${fmtDate(data.date)}`
@@ -749,12 +747,27 @@ function planHtml(plan, closed) {
     return `<div class="az-planrow${m.cn_only ? ' is-cnonly' : ''}" data-plan-row="${m.id}">
       <span class="az-plan-shape">${shapeSvg(m.shape, m.color, 20)}</span>
       <span class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small></span>
+      ${planReleaseChip(m)}
       <span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${done}/${need} asignadas · ${att} en ficha</span>
       <span class="az-plan-qty">×<input type="number" class="az-qty" data-plan="${m.id}" value="${m.qty}" min="1" max="99" ${closed ? 'disabled' : ''}></span>
       ${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assoc="${m.id}">🔗 ${m.cn_only ? 'Asociar caja' : 'Pre-asignar'}</button>`}
       <button class="qt-iconbtn danger" data-delplan="${m.id}" title="Quitar del plan">🗑</button>
     </div>`;
   }).join('');
+}
+// Release-state chip for a plan medication. The state (and colour) is driven by
+// its Salud release date + anticipation. Clickable → set/edit the date.
+function planReleaseChip(m) {
+  const off = m.release_at ? fmtDate(m.release_at) : null;
+  const eff = m.effective_at ? fmtDate(m.effective_at) : null;
+  const adv = m.advance_days != null ? m.advance_days : 15;
+  const sub = (off && adv > 0) ? ` <small class="az-rel-off">(oficial ${off} · −${adv} d)</small>` : '';
+  if (m.release_state === 'sin_fecha')
+    return `<button type="button" class="az-rel az-rel-none az-rel-click" data-planrel="${m.id}" title="Poner fecha de liberación (Salud)">🗓 Sin fecha — pendiente</button>`;
+  if (m.release_state === 'disponible')
+    return `<button type="button" class="az-rel az-rel-ready az-rel-click" data-planrel="${m.id}" title="Cambiar fecha o días de anticipación">✅ Disponible${eff ? ' desde ' + eff : ''}${sub}</button>`;
+  const when = m.effective_days === 0 ? 'hoy' : m.effective_days === 1 ? 'mañana' : 'faltan ' + m.effective_days + ' días';
+  return `<button type="button" class="az-rel az-rel-soon az-rel-click" data-planrel="${m.id}" title="Cambiar fecha o días de anticipación">🗓 Disponible ${eff} · ${when}${sub}</button>`;
 }
 function wirePlan(closed) {
   main().querySelectorAll('[data-delplan]').forEach(b => b.addEventListener('click', async () => {
@@ -767,45 +780,29 @@ function wirePlan(closed) {
   main().querySelectorAll('[data-assoc]').forEach(b => b.addEventListener('click', () => {
     const med = (S.ficha.plan || []).find(x => x.id === Number(b.dataset.assoc)); if (med) openAddBox(med);
   }));
+  main().querySelectorAll('[data-planrel]').forEach(b => b.addEventListener('click', () => {
+    const med = (S.ficha.plan || []).find(x => x.id === Number(b.dataset.planrel)); if (med) openPlanReleasePicker(med);
+  }));
 }
 // Keep progress fields (attached/asignada) when the server returns a bare plan list.
 function mergePlan(oldPlan, fresh) { const by = new Map((oldPlan || []).map(p => [p.id, p])); return fresh.map(p => ({ ...p, attached: (by.get(p.id) || {}).attached || 0, asignada: (by.get(p.id) || {}).asignada || 0 })); }
 
-// Release-date chip for a pre-asignada box. Shows the EFFECTIVE date (official −
-// days of anticipation) — that's when the pharmacy can act — and, smaller, the
-// official date. Clickable: opens the picker to change date / anticipation.
-function releaseChip(ln) {
-  const off = ln.release_at ? fmtDate(ln.release_at) : null;
-  const eff = ln.effective_at ? fmtDate(ln.effective_at) : null;
-  const adv = ln.advance_days != null ? ln.advance_days : 15;
-  const sub = (off && adv > 0) ? ` <small class="az-rel-off">(oficial ${off} · −${adv} d)</small>` : '';
-  if (ln.release_state === 'lista')
-    return `<button type="button" class="az-rel az-rel-ready az-rel-click" data-release="${ln.id}" title="Cambiar fecha o días de anticipación">✅ Ya se puede asignar${eff ? ' · desde ' + eff : ''}${sub}</button>`;
-  if (ln.release_state === 'programada') {
-    const when = ln.effective_days === 0 ? 'hoy' : ln.effective_days === 1 ? 'mañana' : 'faltan ' + ln.effective_days + ' días';
-    return `<button type="button" class="az-rel az-rel-soon az-rel-click" data-release="${ln.id}" title="Cambiar fecha o días de anticipación">🗓 Disponible ${eff} · ${when}${sub}</button>`;
-  }
-  return `<button type="button" class="az-rel az-rel-none az-rel-click" data-release="${ln.id}" title="Poner fecha de liberación">🗓 Sin fecha de liberación</button>`;
-}
 function lineHtml(ln, closed, dmSize) {
   const box = ln.box;
   if (!box) return `<div class="az-line az-line-gone"><div class="az-line-info"><b>Caja eliminada</b><small>La caja ya no existe en Data Matrix.</small></div><button class="qt-iconbtn danger" data-delline="${ln.id}" title="Quitar">🗑</button></div>`;
   const asignada = ln.state === 'asignada';
-  const ready = ln.release_state === 'lista';
-  const cls = asignada ? 'is-asignada' : ready ? 'is-ready' : 'is-pre';
+  const cls = asignada ? 'is-asignada' : 'is-pre';
   return `<div class="az-line ${cls}" data-id="${ln.id}">
     <div class="az-line-dm ${asignada ? 'is-grey' : ''}" data-raw="${esc(box.raw)}" data-color="${esc(box.color)}">${dmSvg(box.raw, { dark: asignada ? '#9aa7b4' : box.color, light: '#ffffff', size: dmSize })}</div>
     <div class="az-line-info">
       <b>${shapeSvg(box.shape, box.color, 14)} ${esc(box.nombre || 'Sin nombre')}</b>
       <small>${box.serial ? 'Nº ' + esc(box.serial) + ' · ' : ''}${box.caducidad ? 'Cad ' + cadDisplay(box.caducidad) : 'GTIN ' + esc(box.gtin || '—')}</small>
       <span class="az-line-state ${asignada ? 'st-done' : 'st-pre'}">${asignada ? '✓ Asignada' + (ln.assigned_at ? ' · ' + fmtDate(ln.assigned_at) : '') : '🔗 Pre-asignada'}</span>
-      ${asignada ? '' : releaseChip(ln)}
     </div>
     <div class="az-line-actions">
       ${asignada
         ? (closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-unassign="${ln.id}">↩ Revertir</button>`)
         : (closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assign="${ln.id}">✅ Asignar</button>`)}
-      ${asignada || closed ? '' : `<button class="qt-iconbtn" data-release="${ln.id}" title="Fecha de liberación (Salud)">🗓</button>`}
       ${closed ? '' : `<button class="qt-iconbtn danger" data-delline="${ln.id}" title="Quitar de la ficha">🗑</button>`}
     </div>
   </div>`;
@@ -823,8 +820,8 @@ function linesHtml(lines, closed, dmSize) {
   }).join('');
 }
 function wireLines(closed) {
-  main().querySelectorAll('[data-assign]').forEach(b => b.addEventListener('click', async () => {
-    try { applyFicha(await api('/line/' + b.dataset.assign + '/assign', { method: 'POST' })); toast('Caja asignada (marcada utilizada).'); } catch (e) { toast(e.message, 'err'); }
+  main().querySelectorAll('[data-assign]').forEach(b => b.addEventListener('click', () => {
+    const ln = (S.ficha.lines || []).find(x => x.id === Number(b.dataset.assign)); if (ln) openAssignModal(ln);
   }));
   main().querySelectorAll('[data-unassign]').forEach(b => b.addEventListener('click', async () => {
     try { applyFicha(await api('/line/' + b.dataset.unassign + '/unassign', { method: 'POST' })); toast('Asignación revertida (vuelve a pre-asignada).'); } catch (e) { toast(e.message, 'err'); }
@@ -833,9 +830,36 @@ function wireLines(closed) {
     if (!(await confirmBox('Quitar caja', '¿Quitar esta caja de la ficha? Se libera la reserva y, si estaba asignada, vuelve al inventario.', 'Quitar'))) return;
     try { applyFicha(await api('/line/' + b.dataset.delline, { method: 'DELETE' })); toast('Caja retirada de la ficha.'); } catch (e) { toast(e.message, 'err'); }
   }));
-  main().querySelectorAll('[data-release]').forEach(b => b.addEventListener('click', () => {
-    const ln = (S.ficha.lines || []).find(x => x.id === Number(b.dataset.release)); if (ln) openReleasePicker(ln);
-  }));
+}
+// Same day next month (clamped to the last day of that month).
+function sameDayNextMonth(iso) {
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? new Date(iso + 'T00:00:00') : new Date();
+  const day = base.getDate();
+  const d = new Date(base.getFullYear(), base.getMonth() + 1, 1);
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, last));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// Assigning in Salud is where we capture the medication's NEXT release date.
+function openAssignModal(ln) {
+  const box = ln.box || {};
+  const med = (S.ficha.plan || []).find(m => (m.gtin && box.gtin && m.gtin === box.gtin) || (m.cn && box.cn && m.cn === box.cn));
+  const prefill = sameDayNextMonth(med && med.release_at);
+  openTool(`<div class="qt-modal-h"><h3>✅ Asignar en Salud</h3><button class="qt-x" id="as-close">×</button></div>
+    <p class="qt-tool-note">Vas a marcar esta caja como <b>asignada</b> (se envía a Salud y sale del inventario). Indica <b>cuándo saldrá la próxima</b> de este medicamento; esa fecha gobernará cuándo vuelve a estar disponible.</p>
+    <div class="qt-field"><label>Medicamento</label><div class="az-rp-med">${shapeSvg(box.shape, box.color, 18)} ${esc(box.nombre || (med && med.nombre) || 'Sin nombre')}${box.serial ? ' · Nº ' + esc(box.serial) : ''}</div></div>
+    <div class="qt-field"><label>Próxima fecha de liberación (Salud)</label><input type="date" class="qt-input" id="as-date" value="${esc(prefill)}"><small class="az-field-hint">Propuesta: mismo día del mes siguiente. Déjala vacía si aún no la sabes.</small></div>
+    <div class="qt-modal-actions">
+      <button class="qt-btn qt-btn-ghost" id="as-cancel">Cancelar</button>
+      <button class="qt-btn qt-btn-teal" id="as-do">✅ Asignar</button>
+    </div>`);
+  $('as-close').onclick = closeTool; $('as-cancel').onclick = closeTool;
+  $('as-do').onclick = async () => {
+    const v = $('as-date').value;
+    if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('Fecha no válida.', 'err'); return; }
+    try { applyFicha(await api('/line/' + ln.id + '/assign', jbody({ next_release_at: v || '' }))); closeTool(); toast(v ? 'Caja asignada. Próxima liberación guardada.' : 'Caja asignada.'); }
+    catch (e) { toast(e.message, 'err'); }
+  };
 }
 
 // Compute an effective ISO date (official − N days) on the client, for live preview.
@@ -845,17 +869,16 @@ function effectiveIso(iso, adv) {
   d.setDate(d.getDate() - Math.min(365, Math.max(0, Math.round(Number(adv) || 0))));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-// Set the official Salud date AND the days of anticipation for a pre-asignada box.
-// The effective date (official − anticipation) is what drives readiness and the bell.
-function openReleasePicker(ln) {
-  const box = ln.box || {};
-  const cur = ln.release_at || '';
-  const adv = ln.advance_days != null ? ln.advance_days : 15;
+// Set the official Salud date AND the days of anticipation for a MEDICATION (plan).
+// The effective date (official − anticipation) drives its state and the bell.
+function openPlanReleasePicker(med) {
+  const cur = med.release_at || '';
+  const adv = med.advance_days != null ? med.advance_days : 15;
   openTool(`<div class="qt-modal-h"><h3>🗓 Fecha de liberación</h3><button class="qt-x" id="rp-close">×</button></div>
-    <p class="qt-tool-note">La <b>fecha oficial</b> es la que marca Salud. La <b>fecha efectiva</b> (cuando la farmacia ya puede actuar y cuando avisa la app) es la oficial menos los <b>días de anticipación</b>.</p>
-    <div class="qt-field"><label>Medicamento</label><div class="az-rp-med">${shapeSvg(box.shape, box.color, 18)} ${esc(box.nombre || 'Sin nombre')}${box.serial ? ' · Nº ' + esc(box.serial) : ''}</div></div>
+    <p class="qt-tool-note">La <b>fecha oficial</b> es la que marca Salud para este medicamento. La <b>fecha efectiva</b> (cuando ya se puede coger/asignar y cuando avisa la app) es la oficial menos los <b>días de anticipación</b>. Es del <b>medicamento</b> (recurrente): vale mes a mes hasta que la cambies.</p>
+    <div class="qt-field"><label>Medicamento</label><div class="az-rp-med">${shapeSvg(med.shape, med.color, 18)} ${esc(med.nombre || 'Sin nombre')}</div></div>
     <div class="qt-field"><label>Fecha oficial de liberación (Salud)</label><input type="date" class="qt-input" id="rp-date" value="${esc(cur)}"></div>
-    <div class="qt-field"><label>Días de anticipación</label><input type="number" class="qt-input" id="rp-adv" min="0" max="365" step="1" value="${esc(String(adv))}"><small class="az-field-hint">Por defecto 15. Se aplica solo a esta caja (medicamento + persona).</small></div>
+    <div class="qt-field"><label>Días de anticipación</label><input type="number" class="qt-input" id="rp-adv" min="0" max="365" step="1" value="${esc(String(adv))}"><small class="az-field-hint">Por defecto 15. Se aplica a este medicamento de esta persona.</small></div>
     <div class="az-rp-eff" id="rp-eff"></div>
     <div class="qt-modal-actions">
       ${cur ? '<button class="qt-btn qt-btn-ghost" id="rp-clear">Quitar fecha</button>' : ''}
@@ -868,11 +891,11 @@ function openReleasePicker(ln) {
     const eff = effectiveIso(d, a);
     $('rp-eff').innerHTML = d
       ? (eff ? `Fecha efectiva: <b>${fmtDate(eff)}</b> <span class="az-rp-eff-sub">(oficial ${fmtDate(d)} − ${Math.max(0, Math.round(Number(a) || 0))} días)</span>` : '')
-      : '<span class="az-rp-eff-sub">Sin fecha oficial, no hay fecha efectiva.</span>';
+      : '<span class="az-rp-eff-sub">Sin fecha oficial, el medicamento queda «pendiente de fecha».</span>';
   };
   $('rp-date').addEventListener('input', preview); $('rp-adv').addEventListener('input', preview); preview();
   const send = async (payload, okMsg) => {
-    try { applyFicha(await api('/line/' + ln.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })); closeTool(); toast(okMsg); }
+    try { const r = await api('/plan/' + med.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); S.ficha.plan = mergePlan(S.ficha.plan, r.plan); renderFicha(); closeTool(); toast(okMsg); }
     catch (e) { toast(e.message, 'err'); }
   };
   $('rp-save').onclick = () => {
@@ -1028,17 +1051,19 @@ function viewHelp() {
     { id: 'plan', icon: '💊', title: '2) Plan de medicación', html: `<p>Cada persona tiene un <b>plan</b>: los medicamentos que toma habitualmente y <b>cuántas cajas al mes</b> de cada uno. Con <b>«➕ Añadir medicamento»</b> lo amplías; con el número <b>× N</b> ajustas las cajas/mes; y la 🗑 lo quita del plan (no toca las cajas ya asignadas). El plan <b>se guarda y se repite cada mes</b>.</p>
       <div class="qt-note tip"><b>Puedes añadir un medicamento de dos formas:</b><ul><li><b>Del catálogo</b>: si ya está en Data Matrix, búscalo por nombre, GTIN o CN y añádelo.</li><li><b>Por Código Nacional</b> (novedad): si la información llega <b>antes de tener el Data Matrix</b>, añádelo solo con su <b>Código Nacional</b> + nombre (y opcionalmente el código de barras). Queda en el plan como <b>«pendiente de caja»</b> (borde discontinuo ámbar), sin caja todavía. Es el paso <b>previo a la pre-asignación</b>.</li></ul>Más adelante le asocias una caja real (ver el paso siguiente) y deja de estar pendiente.</div>` },
     { id: 'preasignar', icon: '🔗', title: '3) Pre-asignar / asociar cajas', html: `<p>Para cada medicamento del plan, reserva una <b>caja real</b> con <b>«🔗 Pre-asignar»</b> (medicamentos del catálogo) o <b>«🔗 Asociar caja»</b> (medicamentos <b>pendientes de caja</b>, añadidos por Código Nacional). En ambos casos puedes:</p><ul><li><b>Elegir del inventario</b>: una caja «sin utilizar» compatible que ya esté en Data Matrix (para los pendientes de caja, se filtran por su <b>Código Nacional</b>).</li><li><b>Escanear / pegar</b> su Data Matrix: si la caja no estaba en Data Matrix, <b>se crea allí</b> automáticamente como pre-asignada <b>y</b> queda asociada a ese medicamento del plan.</li></ul><p>Si la caja <b>no coincide</b> con el medicamento (por CN/GTIN), la app <b>te avisa</b> y te deja <b>asociarla igualmente</b> si quieres. Al asociar la primera caja, un medicamento «pendiente de caja» pasa a ser normal.</p><p>La caja queda <b>🔗 Pre-asignada</b>: reservada para esa persona pero <b>sigue en stock</b>. Este estado <b>también se ve en la app Data Matrix</b>, para que las dos apps nunca se descuadren.</p>` },
-    { id: 'asignar', icon: '✅', title: '4) Asignar de verdad', html: `<p>Cuando ya la asignas en la aplicación de <b>Salud</b>, pulsa <b>«✅ Asignar»</b> sobre esa caja. Pasa a <b>✓ Asignada</b> (se marca <b>utilizada</b> en Data Matrix, sale del inventario) y su Data Matrix se pone en <b>gris</b>.</p><div class="qt-note tip">Los <b>tres estados</b> de una caja: <b>Sin utilizar</b> → <b>🔗 Pre-asignada</b> (reservada) → <b>✓ Asignada</b> (= utilizada). Puedes <b>↩ Revertir</b> una asignación (vuelve a pre-asignada) o <b>🗑 quitar</b> la caja de la ficha (se libera la reserva y, si estaba asignada, vuelve al inventario).</div>` },
-    { id: 'liberacion', icon: '🗓️', title: 'Fecha de liberación, anticipación y avisos 🔔', html: `<p>A veces Salud <b>todavía no ha liberado</b> un Data Matrix (aún no se puede retirar/asignar). En esa caja pre-asignada, pulsa <b>🗓</b> y anota la <b>fecha oficial</b> prevista de liberación.</p>
-      <div class="qt-note tip"><b>Fecha oficial vs. fecha efectiva.</b> La <b>oficial</b> es la que marca Salud; la <b>efectiva</b> es la oficial <b>menos los «días de anticipación»</b> (por defecto <b>15</b>), porque la farmacia suele poder actuar antes. <b>Todos los cálculos</b> (disponibilidad en la ficha, la campana 🔔 y las notificaciones por email) usan la <b>fecha efectiva</b>. En la ficha, la etiqueta de cada caja muestra la fecha efectiva (y, más pequeña, la oficial y los días de anticipación). <b>Pulsa esa etiqueta</b> (o el botón 🗓) para abrir el modal y cambiar la fecha oficial y/o los días de anticipación. Los días de anticipación se guardan <b>por caja</b> (medicamento + persona), así que puedes ponerlos distintos para casos excepcionales.</div>
-      <p>La <b>campana 🔔</b> (arriba) abre el buscador de liberación con tres controles:</p>
+    { id: 'asignar', icon: '✅', title: '4) Asignar de verdad', html: `<p>Cuando ya la asignas en la aplicación de <b>Salud</b>, pulsa <b>«✅ Asignar»</b> sobre esa caja. Pasa a <b>✓ Asignada</b> (se marca <b>utilizada</b> en Data Matrix, sale del inventario) y su Data Matrix se pone en <b>gris</b>.</p>
+      <div class="qt-note tip">Al pulsar <b>«✅ Asignar»</b> la app te pide la <b>fecha de la PRÓXIMA liberación</b> de ese medicamento (ya propuesta al <b>mismo día del mes siguiente</b>, editable). Es el momento natural para anotarla: acabas de dispensar la caja y sabes cuándo sale la siguiente. Esa fecha se guarda <b>en el medicamento</b> y gobierna cuándo vuelve a estar disponible (ver la sección siguiente). Puedes dejarla en blanco si aún no la sabes.</div>
+      <div class="qt-note tip">Los <b>tres estados</b> de una caja: <b>Sin utilizar</b> → <b>🔗 Pre-asignada</b> (reservada) → <b>✓ Asignada</b> (= utilizada). Puedes <b>↩ Revertir</b> una asignación (vuelve a pre-asignada) o <b>🗑 quitar</b> la caja de la ficha (se libera la reserva y, si estaba asignada, vuelve al inventario). Al asignar, la caja <b>desaparece</b> del inventario; el medicamento vuelve el mes siguiente <b>sin caja</b> hasta que le asocies otra.</div>` },
+    { id: 'liberacion', icon: '🗓️', title: 'Fecha de liberación, anticipación y avisos 🔔', html: `<p>La <b>fecha de liberación</b> es cuándo Salud deja disponible el medicamento. Vive <b>en el medicamento</b> (no en la caja), porque es <b>recurrente</b>: la caja se dispensa y desaparece, pero el medicamento vuelve cada mes en la misma fecha (p. ej. «sale los 23»).</p>
+      <div class="qt-note tip"><b>El medicamento aparece SIEMPRE</b> en el plan; lo que cambia es su <b>estado</b>, marcado por la fecha:<ul><li><b>🗓 Sin fecha — pendiente</b>: no tiene fecha de liberación; se queda así <b>permanentemente</b> hasta que le pongas una.</li><li><b>🗓 Programada</b>: tiene fecha pero aún no llega la <b>efectiva</b>.</li><li><b>✅ Disponible</b>: llegó la fecha efectiva; ya se puede coger/asignar.</li></ul>La etiqueta de estado del medicamento es <b>clicable</b>: abre el modal para poner/cambiar la <b>fecha oficial</b> y los <b>días de anticipación</b>. También se captura sola al <b>Asignar</b> (paso anterior).</div>
+      <div class="qt-note tip"><b>Fecha oficial vs. fecha efectiva.</b> La <b>oficial</b> es la que marca Salud; la <b>efectiva</b> es la oficial <b>menos los «días de anticipación»</b> (por defecto <b>15</b>): si sale el 23, ya se puede coger desde el 8. <b>Todos los cálculos</b> (estado en la ficha, la campana 🔔 y las notificaciones por email) usan la <b>efectiva</b>. Los días de anticipación se guardan <b>por medicamento y persona</b>, así que puedes ponerlos distintos en casos excepcionales.</div>
+      <p>La <b>campana 🔔</b> (arriba) abre el buscador con tres controles:</p>
       <ul>
-        <li><b>Avisar por</b>: <b>Todas las cajas</b> (una persona aparece como lista solo cuando ya han salido <i>todas</i> sus cajas pendientes — un único viaje), <b>Al menos una</b> (en cuanto sale la primera) o <b>Por caja</b> (una por una). Lo que elijas se recuerda y manda el contador rojo de la campana.</li>
-        <li><b>Criterio</b>: <b>En o antes de</b> una fecha (lo que ya se podrá asignar para esa fecha) o <b>Fecha exacta</b> (lo que sale justo ese día).</li>
+        <li><b>Avisar por</b>: <b>Toda la medicación</b> (la persona aparece lista solo cuando <i>todos</i> sus medicamentos están disponibles — un único viaje), <b>Al menos uno</b> (en cuanto lo está el primero) o <b>Por medicamento</b> (uno a uno). Lo que elijas se recuerda y manda el contador rojo de la campana.</li>
+        <li><b>Criterio</b>: <b>En o antes de</b> una fecha (lo disponible para esa fecha) o <b>Fecha exacta</b>.</li>
         <li><b>Fecha</b>: por defecto hoy; cámbiala para planificar.</li>
       </ul>
-      <p>Los resultados se separan en <b>✅ disponibles</b> y <b>🗓 aún no</b>. En modo por persona, cada fila muestra cuándo saldrán <b>todas</b> (o la primera) y un desplegable con cada caja y su fecha. Al pulsar te lleva a la ficha.</p>
-      <div class="qt-note">Ej.: una persona con <b>3 cajas</b> y 3 fechas. En modo <b>«Todas las cajas»</b> solo te avisa cuando ya han salido las tres, para ir <b>una sola vez</b>. En <b>«Al menos una»</b> te avisa en cuanto sale la primera.</div>` },
+      <p>Los resultados se separan en <b>✅ disponibles</b> y <b>🗓 aún no</b>. En modo por persona, cada fila muestra cuándo estarán <b>todos</b> (o el primero) y un desplegable con cada medicamento y su fecha. Al pulsar te lleva a la ficha.</p>` },
     { id: 'notificaciones', icon: '✉️', title: 'Notificaciones por email', html: `<p>El botón <b>✉️</b> (arriba) abre las <b>notificaciones programadas</b>: la app te envía por email un aviso con las personas a las que les sale medicación en Salud. Puedes crear varias, activarlas/desactivarlas, editarlas o borrarlas.</p>
       <p>Al crear una eliges:</p>
       <ul>

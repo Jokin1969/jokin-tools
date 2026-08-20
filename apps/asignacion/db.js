@@ -35,6 +35,8 @@ db.exec(`
     qty        INTEGER NOT NULL DEFAULT 1,-- boxes per period
     notes      TEXT,
     active     INTEGER NOT NULL DEFAULT 1,
+    release_at   TEXT,                    -- official Salud release date of the NEXT box (recurring, per medication)
+    advance_days INTEGER NOT NULL DEFAULT 15, -- effective date = release_at − advance_days
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -140,6 +142,11 @@ try { db.prepare('ALTER TABLE asig_note ADD COLUMN alert INTEGER NOT NULL DEFAUL
 // Días de anticipación: la fecha efectiva (en la que ya se puede actuar) es la
 // fecha oficial de Salud menos estos días. Por defecto 15, ajustable por línea.
 try { db.prepare('ALTER TABLE asig_line ADD COLUMN advance_days INTEGER NOT NULL DEFAULT 15').run(); } catch { /* already present */ }
+// The release date + anticipation now live on the MEDICATION (recurring plan), not
+// on the ephemeral box: a box is dispensed and gone, but the medication returns
+// every month on the same Salud date.
+try { db.prepare('ALTER TABLE asig_plan ADD COLUMN release_at TEXT').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE asig_plan ADD COLUMN advance_days INTEGER NOT NULL DEFAULT 15').run(); } catch { /* already present */ }
 
 // Plan medications can now exist by Código Nacional before any GTIN/Data Matrix.
 // Old asig_plan had `gtin NOT NULL` + inline UNIQUE(person_id,gtin); rebuild it so
@@ -243,6 +250,31 @@ function reconcilePlanGtin(id, gtin) {
   return getPlanLine(id);
 }
 function deletePlanLine(id) { return db.prepare('DELETE FROM asig_plan WHERE id = ?').run(id).changes > 0; }
+// Set (or clear, with null) the official Salud release date of a plan medication.
+function setPlanRelease(id, isoDate) {
+  db.prepare('UPDATE asig_plan SET release_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(isoDate || null, id);
+  return getPlanLine(id);
+}
+function setPlanAdvance(id, days) {
+  db.prepare('UPDATE asig_plan SET advance_days = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(clampAdvance(days), id);
+  return getPlanLine(id);
+}
+// All active plan medications that carry a release date (for the bell / notifications).
+function plansForRelease() {
+  return db.prepare("SELECT * FROM asig_plan WHERE active = 1 AND release_at IS NOT NULL ORDER BY release_at, id").all();
+}
+// The most recent still-reserved (pre-asignada) box for a person's medication, by
+// GTIN — used to show its Data Matrix in the notification email (may be none).
+function findPendingLineForMed(personId, gtin) {
+  if (!gtin) return null;
+  return db.prepare("SELECT * FROM asig_line WHERE person_id = ? AND gtin = ? AND state = 'preasignada' ORDER BY id DESC LIMIT 1").get(personId, gtin) || null;
+}
+// The plan medication a box/line belongs to (match by GTIN, then by Código Nacional).
+function planForItem(personId, gtin, cn) {
+  if (gtin) { const g = planByGtin(personId, gtin); if (g) return g; }
+  if (cn) { const c = planByCn(personId, cn); if (c) return c; }
+  return null;
+}
 // Person ids that have at least one plan line (for the overview list).
 function planPersonIds() { return db.prepare('SELECT DISTINCT person_id FROM asig_plan').all().map(r => r.person_id); }
 
@@ -556,6 +588,7 @@ function saveSettings(data, userId) {
 module.exports = {
   db, DEFAULT_SETTINGS,
   listPlan, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, reconcilePlanGtin, deletePlanLine, planPersonIds,
+  setPlanRelease, setPlanAdvance, plansForRelease, planForItem, findPendingLineForMed,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
   DEFAULT_ADVANCE, clampAdvance, effectiveDate,
   listLines, getLine, findLine, lineByItem, addLine, setLineState, setLineRelease, setLineAdvance, pendingReleaseLines, deleteLine, periodCounts,

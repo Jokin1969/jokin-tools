@@ -1,8 +1,9 @@
 'use strict';
 
 // ── Asignación — release-date computation (shared by routes, cron and email) ─────
-// Groups still-reserved (pre-asignada) boxes that carry a Salud release date by
-// person, and answers the search/aggregation the bell and the notifications use.
+// The release date lives on the MEDICATION (recurring plan), not on a box: a box is
+// dispensed and gone, but the medication returns every month on the same Salud
+// date. Availability runs on the EFFECTIVE date = official − anticipation days.
 
 const qrDb = require('../qr-tis/db');
 const dmDb = require('../datamatrix/db');
@@ -15,60 +16,58 @@ function daysUntil(iso) { if (!iso) return null; const a = new Date(todayIso() +
 const nameKey = p => `${p.apellidos} ${p.nombre}`;
 const byName = (a, b) => nameKey(a.person).localeCompare(nameKey(b.person), 'es', { sensitivity: 'base' });
 
-// Lightweight box view (for the API/bell).
-function boxLite(item) {
-  return item ? {
-    nombre: item.nombre || null, gtin: item.gtin || null, serial: item.serial || null,
-    caducidad: item.caducidad || null, color: dmVisual.resolveColor(item.gtin, item.color), shape: dmVisual.resolveShape(item.gtin, item.shape),
-  } : null;
+// Name/colour/shape for a plan medication (catalogue by GTIN, else the typed name).
+function medMeta(pm) {
+  const prod = pm.gtin ? dmDb.getProduct(pm.gtin) : null;
+  return {
+    nombre: (prod && prod.nombre) || pm.nombre || 'Medicamento',
+    color: dmVisual.resolveColor(pm.gtin, prod && prod.color),
+    shape: dmVisual.resolveShape(pm.gtin, prod && prod.shape),
+  };
 }
+function effectiveOf(pm) { return db.effectiveDate(pm.release_at, pm.advance_days); }
 
-// Effective date = official Salud date − days-of-anticipation (that's when the
-// pharmacy can actually act). All the readiness/notification maths run on it.
-function effectiveOf(ln) { return db.effectiveDate(ln.release_at, ln.advance_days); }
-
+// Group active, dated plan medications by person.
 function releaseGroups() {
   const byId = new Map();
-  for (const ln of db.pendingReleaseLines()) {
-    const p = qrDb.getPerson(ln.person_id);
+  for (const pm of db.plansForRelease()) {
+    const p = qrDb.getPerson(pm.person_id);
     if (!p) continue;
-    const item = dmDb.getItem(ln.item_id);
-    const pr = db.getPeriod(ln.period_id);
-    const eff = effectiveOf(ln);
-    if (!byId.has(p.id)) byId.set(p.id, { person: { id: p.id, nombre: p.nombre, apellidos: p.apellidos, tis: p.tis }, boxes: [] });
-    byId.get(p.id).boxes.push({
-      line_id: ln.id, ym: pr ? pr.ym : null,
-      release_at: ln.release_at, advance_days: ln.advance_days, effective_at: eff,
-      days: daysUntil(eff), box: boxLite(item),
+    const eff = effectiveOf(pm);
+    const meta = medMeta(pm);
+    if (!byId.has(p.id)) byId.set(p.id, { person: { id: p.id, nombre: p.nombre, apellidos: p.apellidos, tis: p.tis }, meds: [] });
+    byId.get(p.id).meds.push({
+      plan_id: pm.id, gtin: pm.gtin || null, cn: pm.cn || null,
+      nombre: meta.nombre, color: meta.color, shape: meta.shape,
+      release_at: pm.release_at, advance_days: pm.advance_days, effective_at: eff, days: daysUntil(eff),
     });
   }
   return byId;
 }
 
-// Bell search: date + criterion (lte/exact) + mode (box/all/any). Alphabetical.
+// Bell search: date + criterion (lte/exact) + mode. 'box' now means "per medication".
 function releaseSearch(q) {
   const today = todayIso();
   const date = cleanDate(q.date) || today;
   const criterion = q.criterion === 'exact' ? 'exact' : 'lte';
   const mode = ['box', 'all', 'any'].includes(q.mode) ? q.mode : (db.getSettings().notify_mode || 'all');
-  // All comparisons run on the EFFECTIVE date (official − anticipation days).
   const sat = (eff) => criterion === 'exact' ? eff === date : eff <= date;
   const groups = [...releaseGroups().values()];
   const matched = [], pending = [];
 
   if (mode === 'box') {
-    for (const g of groups) for (const b of g.boxes) (sat(b.effective_at) ? matched : pending).push({ person: g.person, ...b });
+    for (const g of groups) for (const m of g.meds) (sat(m.effective_at) ? matched : pending).push({ person: g.person, ...m });
     const cmp = (a, b) => byName(a, b) || a.effective_at.localeCompare(b.effective_at);
     matched.sort(cmp); pending.sort(cmp);
   } else {
     for (const g of groups) {
-      const dates = g.boxes.map(b => b.effective_at);
+      const dates = g.meds.map(m => m.effective_at);
       const aggDate = mode === 'all' ? dates.reduce((m, d) => (d > m ? d : m)) : dates.reduce((m, d) => (d < m ? d : m));
-      const ready = mode === 'all' ? g.boxes.every(b => sat(b.effective_at)) : g.boxes.some(b => sat(b.effective_at));
+      const ready = mode === 'all' ? g.meds.every(m => sat(m.effective_at)) : g.meds.some(m => sat(m.effective_at));
       const entry = {
-        person: g.person, aggDate, aggDays: daysUntil(aggDate), total: g.boxes.length,
-        releasedByToday: g.boxes.filter(b => b.effective_at <= today).length,
-        boxes: g.boxes.map(b => ({ ...b, satisfied: sat(b.effective_at) })).sort((a, b) => a.effective_at.localeCompare(b.effective_at)),
+        person: g.person, aggDate, aggDays: daysUntil(aggDate), total: g.meds.length,
+        releasedByToday: g.meds.filter(m => m.effective_at <= today).length,
+        meds: g.meds.map(m => ({ ...m, satisfied: sat(m.effective_at) })).sort((a, b) => a.effective_at.localeCompare(b.effective_at)),
       };
       (ready ? matched : pending).push(entry);
     }
@@ -77,30 +76,32 @@ function releaseSearch(q) {
   return { today, date, criterion, mode, matched, pending, counts: { matched: matched.length, pending: pending.length } };
 }
 
-// Rich per-person data for the notification email (keeps the full person + item
-// records, so the QR and the Data Matrix can be rendered). `opts` = { ntype, criterion }.
+// Rich per-person data for the notification email. For each satisfying medication
+// we include its pre-assigned box (if any) so the Data Matrix can be rendered.
 function peopleForNotif(opts, refDate) {
   const criterion = opts.criterion === 'exact' ? 'exact' : 'lte';
   const mode = opts.ntype === 'all' ? 'all' : 'any';
-  // The digest fires on the EFFECTIVE date (official − anticipation days).
   const sat = (eff) => criterion === 'exact' ? eff === refDate : eff <= refDate;
   const byId = new Map();
-  for (const ln of db.pendingReleaseLines()) {
-    const p = qrDb.getPerson(ln.person_id);
+  for (const pm of db.plansForRelease()) {
+    const p = qrDb.getPerson(pm.person_id);
     if (!p) continue;
-    const item = dmDb.getItem(ln.item_id);
-    if (!byId.has(p.id)) byId.set(p.id, { person: p, boxes: [] });
-    byId.get(p.id).boxes.push({ line_id: ln.id, item, release_at: ln.release_at, advance_days: ln.advance_days, effective_at: effectiveOf(ln) });
+    const eff = effectiveOf(pm);
+    const line = pm.gtin ? db.findPendingLineForMed(pm.person_id, pm.gtin) : null;
+    const item = line ? dmDb.getItem(line.item_id) : null;
+    const meta = medMeta(pm);
+    if (!byId.has(p.id)) byId.set(p.id, { person: p, meds: [] });
+    byId.get(p.id).meds.push({ plan_id: pm.id, nombre: meta.nombre, gtin: pm.gtin || null, cn: pm.cn || null, release_at: pm.release_at, effective_at: eff, item });
   }
   const people = [];
   for (const g of byId.values()) {
-    const satisfying = g.boxes.filter(b => sat(b.effective_at));
-    const include = mode === 'all' ? (g.boxes.length > 0 && g.boxes.every(b => sat(b.effective_at))) : satisfying.length > 0;
+    const satisfying = g.meds.filter(m => sat(m.effective_at));
+    const include = mode === 'all' ? (g.meds.length > 0 && g.meds.every(m => sat(m.effective_at))) : satisfying.length > 0;
     if (!include) continue;
     people.push({
-      person: g.person, boxes: g.boxes, satisfying,
-      total: g.boxes.length, satisfiedCount: satisfying.length,
-      allOut: g.boxes.every(b => sat(b.effective_at)),
+      person: g.person, meds: g.meds, satisfying,
+      total: g.meds.length, satisfiedCount: satisfying.length,
+      allOut: g.meds.every(m => sat(m.effective_at)),
     });
   }
   people.sort(byName);

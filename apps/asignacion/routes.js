@@ -78,17 +78,10 @@ function boxView(item) {
 // from the datamatrix inventory afterwards).
 function lineView(line) {
   const item = dmDb.getItem(line.item_id);
-  const advance_days = line.advance_days == null ? db.DEFAULT_ADVANCE : line.advance_days;
-  const effective_at = db.effectiveDate(line.release_at, advance_days);   // oficial − anticipación
-  const effDays = daysUntil(effective_at);          // días hasta la fecha EFECTIVA
-  const officialDays = daysUntil(line.release_at);  // informativo: días hasta la oficial
-  // Only pre-asignada boxes care about a release date. 'lista' = effective date reached.
-  const release_state = (line.state === 'preasignada' && line.release_at) ? (effDays <= 0 ? 'lista' : 'programada') : null;
+  // Release dates now live on the medication (plan), not on the box.
   return {
     id: line.id, period_id: line.period_id, person_id: line.person_id, gtin: line.gtin,
     item_id: line.item_id, state: line.state, assigned_at: line.assigned_at, created_at: line.created_at,
-    release_at: line.release_at || null, advance_days, effective_at,
-    release_days: officialDays, effective_days: effDays, release_state,
     box: boxView(item),
   };
 }
@@ -174,10 +167,17 @@ function planView(personId) {
     const color = dmVisual.resolveColor(l.gtin, cat && cat.color);
     const shape = dmVisual.resolveShape(l.gtin, cat && cat.shape);
     const available = hasGtin ? dmDb.availableItems(l.gtin).length : (l.cn ? dmDb.availableItemsByCn(l.cn).length : 0);
+    // Release date lives on the medication (recurring). It drives the state:
+    // sin_fecha (permanent, needs a date) → programada (before effective) → disponible.
+    const advance_days = l.advance_days == null ? db.DEFAULT_ADVANCE : l.advance_days;
+    const effective_at = db.effectiveDate(l.release_at, advance_days);
+    const effective_days = daysUntil(effective_at);
+    const release_state = !l.release_at ? 'sin_fecha' : (effective_days != null && effective_days <= 0 ? 'disponible' : 'programada');
     return {
       id: l.id, gtin: l.gtin || null, cn: l.cn || null, barcode: l.barcode || null,
       qty: l.qty, notes: l.notes || null, active: l.active,
       nombre, color, shape, available, cn_only: !hasGtin,
+      release_at: l.release_at || null, advance_days, effective_at, effective_days, release_state,
     };
   });
 }
@@ -234,6 +234,26 @@ router.delete('/api/plan/:id(\\d+)', (req, res) => {
     res.json({ plan: planView(line.person_id) });
   } catch (err) { fail(res, err); }
 });
+// Set/clear the official Salud release date and/or the anticipation of a plan
+// medication (recurring). The effective date derives from both.
+router.put('/api/plan/:id(\\d+)/release', json, (req, res) => {
+  try {
+    const line = db.getPlanLine(Number(req.params.id));
+    if (!line) return res.status(404).json({ error: 'Línea de plan no encontrada.' });
+    const b = req.body || {};
+    if (b.date !== undefined) {
+      const date = String(b.date == null ? '' : b.date).trim();
+      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw bad('Fecha no válida (AAAA-MM-DD).');
+      db.setPlanRelease(line.id, date || null);
+    }
+    if (b.advance_days !== undefined) {
+      const n = Math.round(Number(b.advance_days));
+      if (!Number.isFinite(n) || n < 0 || n > 365) throw bad('Días de anticipación no válidos (0–365).');
+      db.setPlanAdvance(line.id, n);
+    }
+    res.json({ plan: planView(line.person_id) });
+  } catch (err) { fail(res, err); }
+});
 
 // ── Ficha (person + period + attached boxes + plan progress) ─────────────────────
 function fichaPayload(person, ym) {
@@ -275,10 +295,11 @@ router.get('/api/overview', (req, res) => {
     const month = thisMonth();
     const today = todayIso();
     // Boxes ready to assign (EFFECTIVE date reached), bucketed by person.
+    // Medications available now (effective date reached), bucketed by person.
     const readyBy = new Map();
-    for (const ln of db.pendingReleaseLines()) {
-      const eff = db.effectiveDate(ln.release_at, ln.advance_days);
-      if (eff && eff <= today) readyBy.set(ln.person_id, (readyBy.get(ln.person_id) || 0) + 1);
+    for (const pm of db.plansForRelease()) {
+      const eff = db.effectiveDate(pm.release_at, pm.advance_days);
+      if (eff && eff <= today) readyBy.set(pm.person_id, (readyBy.get(pm.person_id) || 0) + 1);
     }
     const ids = new Set([...db.planPersonIds(), ...db.periodPersonIds()]);
     const rows = [];
@@ -386,12 +407,23 @@ router.post('/api/person/:id(\\d+)/preassign', json, (req, res) => {
 });
 
 // Assign for real (the click during the health-app assignment): box → 'utilizado'.
-router.post('/api/line/:id(\\d+)/assign', (req, res) => {
+// Assign for real (send to Salud). This is also where the NEXT release date of the
+// medication is captured: the box is gone, but the medication returns next month.
+router.post('/api/line/:id(\\d+)/assign', json, (req, res) => {
   try {
     const line = db.getLine(Number(req.params.id));
     if (!line) return res.status(404).json({ error: 'Asignación no encontrada.' });
+    const b = req.body || {};
+    const next = String(b.next_release_at == null ? '' : b.next_release_at).trim();
+    if (next && !/^\d{4}-\d{2}-\d{2}$/.test(next)) throw bad('Fecha de la próxima liberación no válida (AAAA-MM-DD).');
     dmDb.setUsed(line.item_id, true);            // keeps the assignee link
     db.setLineState(line.id, 'asignada');
+    // Record the medication's next Salud release date (recurring, on the plan).
+    if (b.next_release_at !== undefined) {
+      const item = dmDb.getItem(line.item_id);
+      const med = db.planForItem(line.person_id, line.gtin || (item && item.gtin), item && item.cn);
+      if (med) db.setPlanRelease(med.id, next || null);
+    }
     const pr = db.getPeriod(line.period_id); const p = qrDb.getPerson(line.person_id);
     res.json(fichaPayload(p, pr.ym));
   } catch (err) { fail(res, err); }
@@ -407,29 +439,6 @@ router.post('/api/line/:id(\\d+)/unassign', (req, res) => {
     res.json(fichaPayload(p, pr.ym));
   } catch (err) { fail(res, err); }
 });
-// Set/clear the official Salud date and/or the days-of-anticipation of a box.
-// Both are optional: send `date` to change the official date, `advance_days` to
-// change the anticipation (default 15). The effective date is derived from both.
-router.put('/api/line/:id(\\d+)/release', json, (req, res) => {
-  try {
-    const line = db.getLine(Number(req.params.id));
-    if (!line) return res.status(404).json({ error: 'Asignación no encontrada.' });
-    const b = req.body || {};
-    if (b.date !== undefined) {
-      const date = String(b.date == null ? '' : b.date).trim();
-      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw bad('Fecha no válida (AAAA-MM-DD).');
-      db.setLineRelease(line.id, date || null);
-    }
-    if (b.advance_days !== undefined) {
-      const n = Math.round(Number(b.advance_days));
-      if (!Number.isFinite(n) || n < 0 || n > 365) throw bad('Días de anticipación no válidos (0–365).');
-      db.setLineAdvance(line.id, n);
-    }
-    const pr = db.getPeriod(line.period_id); const p = qrDb.getPerson(line.person_id);
-    res.json(fichaPayload(p, pr.ym));
-  } catch (err) { fail(res, err); }
-});
-
 // Remove a box from the ficha entirely: releases the reservation and, if it had
 // been dispensed through this line, returns it to the inventory.
 router.delete('/api/line/:id(\\d+)', (req, res) => {

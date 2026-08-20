@@ -187,51 +187,44 @@ test('overview lists the person with their plan and month status', async () => {
   assert.equal(row.has_month_period, true);
 });
 
-test('release date: schedule, bucket due vs upcoming, and clear on assign', async () => {
-  const bPast = dmDb.createItem({ raw: 'R-PAST', box_key: 'BKP', gtin: GTIN, serial: 'P1' }, 1).id;
-  const bFut = dmDb.createItem({ raw: 'R-FUT', box_key: 'BKF', gtin: GTIN, serial: 'F1' }, 1).id;
-  await call('POST', `/person/${otherId}/preassign`, { item_id: bPast, ym: '2026-09' });
-  await call('POST', `/person/${otherId}/preassign`, { item_id: bFut, ym: '2026-09' });
-  let ficha = (await call('GET', `/person/${otherId}/ficha?ym=2026-09`)).data;
-  const lPast = ficha.lines.find(l => l.item_id === bPast).id;
-  const lFut = ficha.lines.find(l => l.item_id === bFut).id;
+test('liberación por medicamento: estado por fecha, campana por medicamento, y quitar fecha', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '30900', nombre: 'Rel', apellidos: 'Med', tis: '00030900' }, 1).id;
+  const add = (cn, nombre) => call('POST', `/person/${pid}/plan`, { cn, nombre, qty: 1 });
+  const m1 = (await add('700001', 'Med Pasado')).data.plan.find(m => m.cn === '700001');
+  const m2 = (await add('700002', 'Med Futuro')).data.plan.find(m => m.cn === '700002');
 
-  // Past date → ready ("lista"); far-future date → scheduled ("programada").
-  let r = await call('PUT', `/line/${lPast}/release`, { date: '2020-01-01' });
-  assert.equal(r.status, 200);
-  assert.equal(r.data.lines.find(l => l.item_id === bPast).release_state, 'lista');
-  r = await call('PUT', `/line/${lFut}/release`, { date: '2999-12-31' });
-  const lf = r.data.lines.find(l => l.item_id === bFut);
-  assert.equal(lf.release_state, 'programada');
-  assert.ok(lf.release_days > 0);
+  // advance_days:0 → effective == official. Past = disponible; far-future = programada.
+  const p1 = (await call('PUT', `/plan/${m1.id}/release`, { date: '2020-01-01', advance_days: 0 })).data.plan.find(m => m.id === m1.id);
+  assert.equal(p1.release_state, 'disponible');
+  const p2 = (await call('PUT', `/plan/${m2.id}/release`, { date: '2999-12-31', advance_days: 0 })).data.plan.find(m => m.id === m2.id);
+  assert.equal(p2.release_state, 'programada');
 
-  // Notifications bucket them correctly.
-  let nt = (await call('GET', '/release?mode=box&criterion=lte')).data;
-  assert.ok(nt.matched.some(e => e.line_id === lPast), 'past date is due');
-  assert.ok(nt.pending.some(e => e.line_id === lFut), 'future date is upcoming');
+  // Bell (por medicamento): the available med is due, the future one is upcoming.
+  const nt = (await call('GET', '/release?mode=box&criterion=lte')).data;
+  assert.ok(nt.matched.some(e => e.plan_id === m1.id), 'available med is due');
+  assert.ok(nt.pending.some(e => e.plan_id === m2.id), 'future med is upcoming');
 
   // Overview surfaces the ready count for that person.
   const ov = (await call('GET', '/overview')).data;
-  assert.ok((ov.items.find(x => x.person.id === otherId) || {}).ready_count >= 1);
+  assert.ok((ov.items.find(x => x.person.id === pid) || {}).ready_count >= 1);
 
-  // Assigning the ready box removes it from the notifications.
-  await call('POST', `/line/${lPast}/assign`);
-  nt = (await call('GET', '/release?mode=box&criterion=lte')).data;
-  assert.ok(!nt.matched.some(e => e.line_id === lPast), 'assigned box no longer notified');
+  // Clearing the date → 'sin_fecha' (permanent pending) and off the bell.
+  const cleared = (await call('PUT', `/plan/${m1.id}/release`, { date: '' })).data.plan.find(m => m.id === m1.id);
+  assert.equal(cleared.release_at, null);
+  assert.equal(cleared.release_state, 'sin_fecha');
+  assert.ok(!(await call('GET', '/release?mode=box&criterion=lte')).data.matched.some(e => e.plan_id === m1.id), 'no date → not on the bell');
 });
 
-test('invalid release date rejected; clearing resets the state', async () => {
-  const b = dmDb.createItem({ raw: 'R-CLR', box_key: 'BKC', gtin: GTIN, serial: 'C9' }, 1).id;
-  await call('POST', `/person/${otherId}/preassign`, { item_id: b, ym: '2026-09' });
-  const ficha = (await call('GET', `/person/${otherId}/ficha?ym=2026-09`)).data;
-  const lid = ficha.lines.find(l => l.item_id === b).id;
-  const bad = await call('PUT', `/line/${lid}/release`, { date: '2026/09/01' });
-  assert.equal(bad.status, 400, 'wrong format rejected');
-  await call('PUT', `/line/${lid}/release`, { date: '2027-01-15' });
-  const cleared = (await call('PUT', `/line/${lid}/release`, { date: '' })).data;
-  const l = cleared.lines.find(x => x.item_id === b);
-  assert.equal(l.release_at, null);
-  assert.equal(l.release_state, null);
+test('fecha del medicamento: validación de formato y de anticipación', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '34000', nombre: 'Val', apellidos: 'Ida', tis: '00034000' }, 1).id;
+  const m = (await call('POST', `/person/${pid}/plan`, { cn: '701000', nombre: 'X', qty: 1 })).data.plan[0];
+  assert.equal((await call('PUT', `/plan/${m.id}/release`, { date: '2026/09/01' })).status, 400, 'wrong format rejected');
+  assert.equal((await call('PUT', `/plan/${m.id}/release`, { advance_days: 400 })).status, 400, 'advance out of range rejected');
+  const okd = (await call('PUT', `/plan/${m.id}/release`, { date: '2027-01-15' })).data.plan[0];
+  assert.equal(okd.release_at, '2027-01-15');
+  const cleared = (await call('PUT', `/plan/${m.id}/release`, { date: '' })).data.plan[0];
+  assert.equal(cleared.release_at, null);
+  assert.equal(cleared.release_state, 'sin_fecha');
 });
 
 test('period close / reopen toggles status', async () => {
@@ -244,27 +237,21 @@ test('period close / reopen toggles status', async () => {
   assert.equal(reopened.period.status, 'abierto');
 });
 
-test('release search: modes (box/all/any) and criteria (lte/exact)', async () => {
-  // A fresh person with two dated boxes: one already out (past), one future.
+test('búsqueda por fecha (por medicamento): modos box/all/any y criterios lte/exact', async () => {
   const pid = qrDb.createPerson({ pharmacy_no: '33333', nombre: 'Marta', apellidos: 'Ruiz', tis: '00033333' }, 1).id;
-  const bPast = dmDb.createItem({ raw: 'R-RP', box_key: 'RP', gtin: GTIN, serial: 'RP1' }, 1).id;
-  const bFut = dmDb.createItem({ raw: 'R-RF', box_key: 'RF', gtin: GTIN, serial: 'RF1' }, 1).id;
-  await call('POST', `/person/${pid}/preassign`, { item_id: bPast, ym: '2026-10' });
-  await call('POST', `/person/${pid}/preassign`, { item_id: bFut, ym: '2026-10' });
-  const ficha = (await call('GET', `/person/${pid}/ficha?ym=2026-10`)).data;
-  const lPast = ficha.lines.find(l => l.item_id === bPast).id;
-  const lFut = ficha.lines.find(l => l.item_id === bFut).id;
-  // advance_days:0 → effective == official, so the exact-date assertions below hold.
-  await call('PUT', `/line/${lPast}/release`, { date: '2020-01-01', advance_days: 0 }); // already out
-  await call('PUT', `/line/${lFut}/release`, { date: '2999-12-31', advance_days: 0 });  // far future
+  const m1 = (await call('POST', `/person/${pid}/plan`, { cn: '702001', nombre: 'Uno', qty: 1 })).data.plan.find(m => m.cn === '702001');
+  const m2 = (await call('POST', `/person/${pid}/plan`, { cn: '702002', nombre: 'Dos', qty: 1 })).data.plan.find(m => m.cn === '702002');
+  // advance_days:0 → effective == official, so the exact-date assertions hold.
+  await call('PUT', `/plan/${m1.id}/release`, { date: '2020-01-01', advance_days: 0 }); // available
+  await call('PUT', `/plan/${m2.id}/release`, { date: '2999-12-31', advance_days: 0 }); // far future
 
-  // Mode BOX, criterion lte, date today: past box matched, future pending.
+  // Mode BOX (per medication), criterion lte, date today.
   const box = (await call('GET', '/release?mode=box&criterion=lte')).data;
   assert.equal(box.mode, 'box');
-  assert.ok(box.matched.some(e => e.line_id === lPast));
-  assert.ok(box.pending.some(e => e.line_id === lFut));
+  assert.ok(box.matched.some(e => e.plan_id === m1.id));
+  assert.ok(box.pending.some(e => e.plan_id === m2.id));
 
-  // Mode ALL: person is NOT ready (not all out); aggDate is the latest (future).
+  // Mode ALL: person NOT ready (not all available); aggDate is the latest.
   const all = (await call('GET', '/release?mode=all&criterion=lte')).data;
   const inAllPending = all.pending.find(e => e.person.id === pid);
   assert.ok(inAllPending, 'ALL: person still pending');
@@ -273,58 +260,43 @@ test('release search: modes (box/all/any) and criteria (lte/exact)', async () =>
   assert.equal(inAllPending.releasedByToday, 1);
   assert.ok(!all.matched.some(e => e.person.id === pid));
 
-  // Mode ANY: person IS ready (one out); aggDate is the earliest (past).
+  // Mode ANY: person IS ready (one available); aggDate is the earliest.
   const any = (await call('GET', '/release?mode=any&criterion=lte')).data;
   const inAnyMatched = any.matched.find(e => e.person.id === pid);
   assert.ok(inAnyMatched, 'ANY: person ready');
   assert.equal(inAnyMatched.aggDate, '2020-01-01');
 
-  // Criterion EXACT with the future date: only the future box matches (box mode).
+  // Criterion EXACT with the future date: only the future medication matches.
   const exact = (await call('GET', '/release?mode=box&criterion=exact&date=2999-12-31')).data;
-  assert.ok(exact.matched.some(e => e.line_id === lFut));
-  assert.ok(!exact.matched.some(e => e.line_id === lPast));
-
-  // Assigning a box removes it from the release search.
-  await call('POST', `/line/${lPast}/assign`);
-  const after = (await call('GET', '/release?mode=box&criterion=lte')).data;
-  assert.ok(!after.matched.some(e => e.line_id === lPast), 'assigned box no longer listed');
+  assert.ok(exact.matched.some(e => e.plan_id === m2.id));
+  assert.ok(!exact.matched.some(e => e.plan_id === m1.id));
 });
 
-test('días de anticipación: efectiva = oficial − anticipación; por defecto 15; ajustable por línea', async () => {
+test('anticipación por medicamento: efectiva = oficial − anticipación; y se captura al asignar', async () => {
   const isoIn = (days) => { const d = new Date(); d.setDate(d.getDate() + days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-  const pid = qrDb.createPerson({ pharmacy_no: '66666', nombre: 'Nél', apellidos: 'Antic', tis: '00066666' }, 1).id;
-  const bx = dmDb.createItem({ raw: 'R-ANT', box_key: 'ANT', gtin: GTIN, serial: 'AN1' }, 1).id;
-  await call('POST', `/person/${pid}/preassign`, { item_id: bx, ym: '2026-11' });
-  let ficha = (await call('GET', `/person/${pid}/ficha?ym=2026-11`)).data;
-  const lid = ficha.lines.find(l => l.item_id === bx).id;
+  const pid = qrDb.createPerson({ pharmacy_no: '66666', nombre: 'Nel', apellidos: 'Antic', tis: '00066666' }, 1).id;
+  const m = (await call('POST', `/person/${pid}/plan`, { gtin: GTIN, qty: 1 })).data.plan.find(x => x.gtin === GTIN);
 
-  // Fecha oficial dentro de 10 días. Con anticipación 15 (por defecto) → efectiva ya pasada → "lista".
-  let l = (await call('PUT', `/line/${lid}/release`, { date: isoIn(10) })).data.lines.find(x => x.id === lid);
-  assert.equal(l.advance_days, 15, 'por defecto 15 días de anticipación');
-  assert.equal(l.effective_at, isoIn(-5), 'efectiva = oficial − 15');
-  assert.equal(l.release_state, 'lista', 'con 15 días de anticipación ya está disponible');
+  // Oficial dentro de 10 días, anticipación 15 (por defecto) → efectiva pasada → 'disponible'.
+  let p = (await call('PUT', `/plan/${m.id}/release`, { date: isoIn(10) })).data.plan.find(x => x.id === m.id);
+  assert.equal(p.advance_days, 15, 'por defecto 15 días de anticipación');
+  assert.equal(p.effective_at, isoIn(-5), 'efectiva = oficial − 15');
+  assert.equal(p.release_state, 'disponible');
 
-  // La campana (efectiva) la da por disponible hoy.
-  let box = (await call('GET', '/release?mode=box&criterion=lte')).data;
-  assert.ok(box.matched.some(e => e.line_id === lid), 'la búsqueda usa la fecha efectiva');
+  // Sin anticipación (0) → efectiva = oficial (dentro de 10 días) → 'programada'.
+  p = (await call('PUT', `/plan/${m.id}/release`, { advance_days: 0 })).data.plan.find(x => x.id === m.id);
+  assert.equal(p.effective_at, isoIn(10));
+  assert.equal(p.release_state, 'programada');
+  assert.equal((await call('PUT', `/plan/${m.id}/release`, { advance_days: 400 })).status, 400);
 
-  // Sin anticipación (0) → efectiva = oficial (dentro de 10 días) → "programada".
-  l = (await call('PUT', `/line/${lid}/release`, { advance_days: 0 })).data.lines.find(x => x.id === lid);
-  assert.equal(l.advance_days, 0);
-  assert.equal(l.effective_at, isoIn(10));
-  assert.equal(l.release_state, 'programada');
-  box = (await call('GET', '/release?mode=box&criterion=lte')).data;
-  assert.ok(box.pending.some(e => e.line_id === lid), 'sin anticipación aún no está disponible');
-  assert.ok(!box.matched.some(e => e.line_id === lid));
-
-  // Se puede cambiar solo la anticipación, manteniendo la fecha oficial.
-  l = (await call('PUT', `/line/${lid}/release`, { advance_days: 3 })).data.lines.find(x => x.id === lid);
-  assert.equal(l.advance_days, 3);
-  assert.equal(l.effective_at, isoIn(7), 'oficial se mantiene; efectiva = oficial − 3');
-
-  // Validación: fuera de rango se rechaza.
-  assert.equal((await call('PUT', `/line/${lid}/release`, { advance_days: 400 })).status, 400);
-  assert.equal((await call('PUT', `/line/${lid}/release`, { advance_days: -1 })).status, 400);
+  // La PRÓXIMA fecha se captura al pulsar Asignar (clic de asignación).
+  const bx = dmDb.createItem({ raw: 'R-ASGN', box_key: 'ASGN', gtin: GTIN, serial: 'AS1' }, 1).id;
+  await call('POST', `/person/${pid}/preassign`, { item_id: bx, plan_id: m.id, ym: '2026-08' });
+  const fic = (await call('GET', `/person/${pid}/ficha?ym=2026-08`)).data;
+  const line = fic.lines.find(l => l.item_id === bx).id;
+  const after = (await call('POST', `/line/${line}/assign`, { next_release_at: isoIn(30) })).data;
+  const medAfter = after.plan.find(x => x.id === m.id);
+  assert.equal(medAfter.release_at, isoIn(30), 'la próxima fecha de liberación se guarda en el medicamento al asignar');
 });
 
 test('notify_mode persists in settings', async () => {
@@ -337,17 +309,13 @@ test('notify_mode persists in settings', async () => {
   await call('PUT', '/settings', { notify_mode: 'all' });
 });
 
-test('release search results are alphabetical by person (apellidos, nombre)', async () => {
-  // Two people whose boxes are already out; expect Álvarez before Zamora.
+test('búsqueda por fecha: orden alfabético por persona (apellidos, nombre)', async () => {
   const mk = (ph, nom, ape, tis) => qrDb.createPerson({ pharmacy_no: ph, nombre: nom, apellidos: ape, tis }, 1).id;
   const pA = mk('44444', 'Zoe', 'Álvarez', '00044444');
   const pZ = mk('55555', 'Ana', 'Zamora', '00055555');
-  for (const [pid, key, serial] of [[pA, 'ORDA', 'OA'], [pZ, 'ORDZ', 'OZ']]) {
-    const it = dmDb.createItem({ raw: 'R-' + key, box_key: key, gtin: GTIN, serial }, 1).id;
-    await call('POST', `/person/${pid}/preassign`, { item_id: it, ym: '2026-10' });
-    const f = (await call('GET', `/person/${pid}/ficha?ym=2026-10`)).data;
-    const line = f.lines.find(l => l.item_id === it).id;
-    await call('PUT', `/line/${line}/release`, { date: '2020-01-01' });
+  for (const [pid, cn] of [[pA, '703001'], [pZ, '703002']]) {
+    const m = (await call('POST', `/person/${pid}/plan`, { cn, nombre: 'Med', qty: 1 })).data.plan.find(x => x.cn === cn);
+    await call('PUT', `/plan/${m.id}/release`, { date: '2020-01-01', advance_days: 0 });
   }
   const data = (await call('GET', '/release?mode=any&criterion=lte')).data;
   const names = data.matched.map(e => e.person.apellidos);

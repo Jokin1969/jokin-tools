@@ -58,12 +58,12 @@ async function buildParts(notif, refDate) {
     try { images.push({ cid: qrCid, buffer: await renderQrPng(p.tis, p), filename: `qr-${p.tis}.png` }); } catch { /* skip */ }
     const meds = [];
     for (const b of pp.satisfying) {
-      const it = b.item;
+      const it = b.item;   // may be null: the box may not be pre-assigned yet
       const color = it ? dmVisual.resolveColor(it.gtin, it.color) : '#0f172a';
-      const dmCid = `dm-${b.line_id}`;
+      const dmCid = `dm-${b.plan_id}`;
       const png = it ? await renderDmPng(it.raw, color) : null;
-      if (png) images.push({ cid: dmCid, buffer: png, filename: `dm-${b.line_id}.png` });
-      meds.push({ it, color, dmCid: png ? dmCid : null, release_at: b.release_at, effective_at: b.effective_at, advance_days: b.advance_days });
+      if (png) images.push({ cid: dmCid, buffer: png, filename: `dm-${b.plan_id}.png` });
+      meds.push({ nombre: b.nombre, it, color, dmCid: png ? dmCid : null, release_at: b.release_at, effective_at: b.effective_at });
     }
     cards.push({ p, pp, qrCid, meds, personLink: `${base}/asignacion?person=${p.id}` });
   }
@@ -80,11 +80,13 @@ async function buildParts(notif, refDate) {
       : `<span style="background:#fff3d6;color:#8a5a00;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;">${c.pp.satisfiedCount} de ${c.pp.total}</span>`;
     const medRows = c.meds.map(m => {
       const it = m.it || {};
-      const dm = m.dmCid ? `<img src="cid:${m.dmCid}" width="66" height="66" alt="Data Matrix" style="display:block;border:1px solid #e6ebf1;border-radius:6px;">` : '';
+      const dm = m.dmCid
+        ? `<img src="cid:${m.dmCid}" width="66" height="66" alt="Data Matrix" style="display:block;border:1px solid #e6ebf1;border-radius:6px;">`
+        : `<div style="width:66px;height:66px;border:1px dashed #d6deea;border-radius:6px;color:#93a1b3;font-size:9px;text-align:center;line-height:66px;">sin caja</div>`;
       return `<tr>
         <td style="padding:6px 10px 6px 0;vertical-align:middle;">${dm}</td>
         <td style="padding:6px 0;vertical-align:middle;font-size:13px;color:#1a2332;">
-          <b>${esc(it.nombre || 'Medicamento')}</b><br>
+          <b>${esc(m.nombre || it.nombre || 'Medicamento')}</b><br>
           <span style="color:#5c7086;font-size:12px;">${it.serial ? 'Nº ' + esc(it.serial) + ' · ' : ''}${it.caducidad ? 'Cad ' + esc(fmtDateEs(it.caducidad)) + ' · ' : ''}Disponible desde ${esc(fmtDateEs(m.effective_at || m.release_at))}${m.effective_at && m.effective_at !== m.release_at ? ' <span style="color:#93a1b3;">(oficial ' + esc(fmtDateEs(m.release_at)) + ')</span>' : ''}</span>
         </td></tr>`;
     }).join('');
