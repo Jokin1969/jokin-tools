@@ -47,10 +47,9 @@ async function lookupByCnCached(cn, opts = {}) {
     const item = await cima.lookupByCn(cn, opts);
     if (item) {
       const fc = item.fotos || {};
-      const [caja, pastilla] = await Promise.all([
-        fetchImage(fc.caja && fc.caja.thumb, opts.fetchImpl),
-        fetchImage(fc.pastilla && fc.pastilla.thumb, opts.fetchImpl),
-      ]);
+      // Prefer the FULL-size image (better for the big modal); fall back to the thumb.
+      const fetchBest = async (f) => f ? ((f.full && await fetchImage(f.full, opts.fetchImpl)) || (f.thumb && await fetchImage(f.thumb, opts.fetchImpl)) || null) : null;
+      const [caja, pastilla] = await Promise.all([fetchBest(fc.caja), fetchBest(fc.pastilla)]);
       db.cimaCachePut(item.cn || cn, {
         nombre: item.nombre, barcode: item.barcode, gtin: item.gtin, nregistro: item.nregistro,
         pactivos: item.pactivos, labtitular: item.labtitular,

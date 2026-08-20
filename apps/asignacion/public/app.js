@@ -772,8 +772,7 @@ function planHtml(plan, closed) {
     const bcInline = (noDm && m.barcode) ? `<div class="az-plan-bc" data-precinto="${m.id}" title="Ampliar el precinto">${eanSvg(m.barcode)}</div>` : '';
     return `<div class="az-planrow${m.cn_only ? ' is-cnonly' : ''}" data-plan-row="${m.id}">
       <span class="az-plan-shape">${icon}</span>
-      <span class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small></span>
-      <div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${done}/${need} asignadas · ${att} en ficha</span></div>
+      <div class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small><div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${done}/${need} asignadas · ${att} en ficha</span></div></div>
       ${bcInline}
       <div class="az-plan-actions">
         <span class="az-plan-qty">×<input type="number" class="az-qty" data-plan="${m.id}" value="${m.qty}" min="1" max="99" ${closed ? 'disabled' : ''}></span>
