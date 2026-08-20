@@ -22,7 +22,8 @@ const S = {
   isAdmin: false, noteColors: [], notesBadge: { notes: 0, new_notes: 0 },
   board: { boards: [], currentId: null, notes: [], users: [], userId: null },
   stickers: null, stkYm: null, stkStatus: 'pending', stkGroupBy: 'med', stkFilter: [], stkFilterRes: [], stkNotesOnly: false,
-  ov: { res: [], estado: 'all', notesOnly: false, q: '' },
+  ov: { res: [], estado: 'all', notesOnly: false, cartOnly: false, q: '' },
+  cart: new Set(), cartPeople: new Map(),
 };
 
 // ── Tiny helpers ────────────────────────────────────────────────────────────────
@@ -158,7 +159,10 @@ async function boot() {
     $('bell-btn').onclick = openNotifications;
     $('notif-btn').onclick = openNotifManager;
     $('notes-btn').onclick = viewBoard;
+    $('cart-toggle').onclick = () => { const p = $('cart-panel'); if (p.classList.contains('open')) closeCart(); else openCart(); };
+    $('scrim').onclick = () => { closeCart(); };
     $('go-home').onclick = (e) => { e.preventDefault(); S.peopleFilter = null; viewHome(); };
+    await reloadCart();
     await refreshNotifications();
     // Deep links from the notification emails: ?person=<id> or ?people=<id,id,…>.
     const params = new URLSearchParams(location.search);
@@ -668,6 +672,7 @@ function overviewFiltered() {
     if (f.estado === 'noplan' && ovEstado(r) !== 'noplan') return false;
     if (f.estado === 'ready' && !((r.ready_count || 0) > 0)) return false;
     if (f.notesOnly && !(r.note && r.note.text)) return false;
+    if (f.cartOnly && !S.cart.has(r.person.id)) return false;
     if (q) { const hay = norm(`${r.person.apellidos} ${r.person.nombre} ${r.person.tis} ${r.person.pharmacy_no || ''}`); if (!hay.includes(q)) return false; }
     return true;
   });
@@ -682,7 +687,8 @@ function ovControlsHtml() {
   return `<div class="az-ovfilters">
     <div class="qt-search az-ov-search"><span class="ico">🔎</span><input id="ov-q" placeholder="Filtrar en seguimiento (nombre, TIS, farmacia)…" autocomplete="off" value="${esc(f.q)}"></div>
     <div class="az-ovfilter-row"><span class="az-stk-flabel">Estado</span><div class="az-seg az-ovseg" id="ov-estado">${estados.map(([v, l]) => `<button data-v="${v}" class="${f.estado === v ? 'on' : ''}">${l}</button>`).join('')}</div>
-      <button class="az-stk-chip ${f.notesOnly ? 'on' : ''}" id="ov-notesonly" title="Solo personas con nota">📝 Con notas</button></div>
+      <button class="az-stk-chip ${f.notesOnly ? 'on' : ''}" id="ov-notesonly" title="Solo personas con nota">📝 Con notas</button>
+      <button class="az-stk-chip ${f.cartOnly ? 'on' : ''}" id="ov-cartonly" title="Solo las personas del carrito">🛒 Solo carrito</button></div>
     ${hasRes ? `<div class="az-ovfilter-row"><span class="az-stk-flabel">Residencia</span><div class="az-stk-filters">
       <button class="az-stk-chip ${f.res.length === 0 ? 'on' : ''}" data-ov-res="__all">Todas</button>
       ${resKeys.map(k => `<button class="az-stk-chip ${f.res.includes(k) ? 'on' : ''}" data-ov-res="${esc(k)}">${esc(shortLabel(k))} <b>${resMap.get(k)}</b></button>`).join('')}</div></div>` : ''}
@@ -698,6 +704,7 @@ function renderOverviewSection() {
   // Estado + residence + notes chips → full re-render (buttons, no focus to keep).
   const seg = $('ov-estado'); if (seg) seg.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { S.ov.estado = b.dataset.v; renderOverviewSection(); });
   if ($('ov-notesonly')) $('ov-notesonly').onclick = () => { S.ov.notesOnly = !S.ov.notesOnly; renderOverviewSection(); };
+  if ($('ov-cartonly')) $('ov-cartonly').onclick = () => { S.ov.cartOnly = !S.ov.cartOnly; renderOverviewSection(); };
   wrap.querySelectorAll('[data-ov-res]').forEach(c => c.onclick = () => {
     const k = c.dataset.ovRes;
     if (k === '__all') S.ov.res = [];
@@ -721,10 +728,13 @@ function overviewHtml(rows) {
   const shown = rows.slice(0, OV_CAP);
   const more = rows.length > OV_CAP ? `<div class="az-ov-more">Mostrando ${OV_CAP} de ${rows.length}. Afina el filtro (residencia, estado o búsqueda) para acotar.</div>` : '';
   return `<div class="az-cards">` + shown.map(r => {
-    const p = r.person;
+    const p = r.person, inCart = S.cart.has(p.id);
     const note = r.note ? `<div class="az-ent-note az-ov-note" style="background:${esc(r.note.color || '#FEF08A')}">${esc(r.note.text)}</div>` : '';
     return `<div class="az-card ${r.ready_count ? 'has-ready' : ''}${r.note ? ' has-note' : ''}" data-open="${p.id}">
-      <button class="qt-iconbtn az-card-note ${r.note ? 'has' : ''}" data-note="${p.id}" title="${r.note ? 'Editar nota' : 'Añadir nota'}">📝</button>
+      <div class="az-card-actions">
+        <button class="qt-iconbtn az-card-cart ${inCart ? 'has' : ''}" data-cart="${p.id}" title="${inCart ? 'Quitar del carrito' : 'Añadir al carrito'}">${inCart ? '✓🛒' : '🛒'}</button>
+        <button class="qt-iconbtn az-card-note ${r.note ? 'has' : ''}" data-note="${p.id}" title="${r.note ? 'Editar nota' : 'Añadir nota'}">📝</button>
+      </div>
       <div class="az-card-h"><span class="az-card-name">${esc(p.apellidos)}, ${esc(p.nombre)}</span>${statusChip(r)}</div>
       ${r.ready_count ? `<div class="az-card-ready">🔔 ${r.ready_count} caja(s) ya se pueden asignar</div>` : ''}
       <div class="az-card-sub">TIS ${esc(fmtTis(p.tis))}${p.pharmacy_no ? ' · Farmacia ' + esc(p.pharmacy_no) : ''}${(p.groups && p.groups.length) ? ' · 🏠 ' + esc(p.groups.join(' · ')) : ''}</div>
@@ -734,12 +744,67 @@ function overviewHtml(rows) {
   }).join('') + `</div>` + more;
 }
 function wireOverview() {
-  main().querySelectorAll('.az-card[data-open]').forEach(el => el.addEventListener('click', e => { if (e.target.closest('[data-note]')) return; openPerson(Number(el.dataset.open)); }));
+  main().querySelectorAll('.az-card[data-open]').forEach(el => el.addEventListener('click', e => { if (e.target.closest('[data-note],[data-cart]')) return; openPerson(Number(el.dataset.open)); }));
   main().querySelectorAll('[data-note]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
     const id = Number(b.dataset.note), row = S.overview.find(r => r.person.id === id);
     openNoteEditor({ subtitle: row ? `${row.person.apellidos}, ${row.person.nombre}` : '', endpoint: `/note/person/${id}`, current: row && row.note, onSaved: (note) => { if (row) row.note = note; renderOverviewSection(); } });
   }));
+  main().querySelectorAll('[data-cart]').forEach(b => b.addEventListener('click', async e => { e.stopPropagation(); await toggleCart(Number(b.dataset.cart)); updateOverviewBody(); }));
+}
+
+// ── Cart of people (slide-over, like the other apps) ─────────────────────────────
+async function reloadCart() { try { applyCart(await api('/cart')); } catch { /* keep */ } }
+function applyCart(data) {
+  S.cart = new Set(data.ids || []);
+  S.cartPeople = new Map((data.items || []).map(it => [it.person.id, it]));
+  updateCartCount();
+}
+function updateCartCount() { const b = $('cart-count'); if (b) b.textContent = S.cart.size; }
+async function toggleCart(id) {
+  try { applyCart(await api('/cart/' + id, { method: S.cart.has(id) ? 'DELETE' : 'POST' })); }
+  catch (e) { toast(e.message, 'err'); }
+}
+function openCart() { $('cart-panel').classList.add('open'); $('scrim').hidden = false; renderCart(); }
+function closeCart() { $('cart-panel').classList.remove('open'); $('scrim').hidden = true; }
+function renderCart() {
+  const panel = $('cart-panel'); if (!panel) return;
+  const items = [...S.cartPeople.values()], size = 92;
+  panel.innerHTML = `
+    <div class="qt-cart-head"><h2>🛒 Carrito</h2><span class="qt-cart-count">${items.length}</span><button class="qt-x" id="cart-x">×</button></div>
+    <div class="qt-cart-tools">
+      <button class="qt-btn qt-btn-ghost qt-btn-sm" id="cart-hide">Ocultar</button>
+      <button class="qt-btn ${S.ov.cartOnly ? 'qt-btn-teal' : 'qt-btn-ghost'} qt-btn-sm" id="cart-only">${S.ov.cartOnly ? '✓ ' : ''}Ver solo el carrito</button>
+      <button class="qt-btn qt-btn-ghost qt-btn-sm" id="cart-pdf" ${items.length ? '' : 'disabled'} title="PDF de los precintos del mes de estas personas">📄 Precintos (PDF)</button>
+      <button class="qt-btn qt-btn-danger qt-btn-sm" id="cart-empty" ${items.length ? '' : 'disabled'}>Vaciar</button>
+    </div>
+    <div class="qt-cart-body" id="cart-body">${items.length ? items.map(it => cartCardHtml(it, size)).join('') : '<div class="qt-empty">El carrito está vacío.<br>Añádelo desde las tarjetas de «En seguimiento» o desde la ficha de una persona.</div>'}</div>`;
+  $('cart-x').onclick = closeCart; $('cart-hide').onclick = closeCart;
+  $('cart-only').onclick = () => { S.ov.cartOnly = !S.ov.cartOnly; renderCart(); if (S.view === 'home') renderOverviewSection(); };
+  if ($('cart-empty')) $('cart-empty').onclick = async () => {
+    if (!(await confirmBox('Vaciar carrito', '¿Vaciar todo el carrito?', 'Vaciar'))) return;
+    try { applyCart(await api('/cart', { method: 'DELETE' })); renderCart(); if (S.view === 'home') renderOverviewSection(); } catch (e) { toast(e.message, 'err'); }
+  };
+  if ($('cart-pdf')) $('cart-pdf').onclick = () => {
+    const ym = (S.stickers && S.stickers.ym) || S.month;
+    const params = new URLSearchParams({ ym, filter: 'all', order: 'person', persons: JSON.stringify([...S.cart]) });
+    window.open(`${API}/stickers/pdf?${params.toString()}`, '_blank');
+  };
+  panel.querySelectorAll('[data-open]').forEach(el => el.onclick = () => { closeCart(); openPerson(Number(el.dataset.open)); });
+  panel.querySelectorAll('[data-remove]').forEach(b => b.onclick = async () => { await toggleCart(Number(b.dataset.remove)); renderCart(); if (S.view === 'home') renderOverviewSection(); });
+}
+function cartCardHtml(it, size) {
+  const p = it.person;
+  const qr = p.active ? `<span class="qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, size))}</span>` : `<span class="qr" style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;color:#9aa4b0;font-size:.8rem">Inactiva</span>`;
+  const note = it.note ? `<div class="az-ent-note" style="background:${esc(it.note.color || '#FEF08A')};margin-top:8px">${esc(it.note.text)}</div>` : '';
+  return `<div class="qt-cart-card">${qr}
+    <div class="info">
+      <div class="nm" data-open="${p.id}">${esc(p.apellidos)}, ${esc(p.nombre)}</div>
+      <div class="ts">${p.pharmacy_no ? 'Farm. ' + esc(p.pharmacy_no) + ' · ' : ''}${esc(fmtTis(p.tis))}</div>
+      ${(p.groups && p.groups.length) ? `<div class="ts">🏠 ${esc(p.groups.join(' · '))}</div>` : ''}
+      <button class="qt-iconbtn danger" data-remove="${p.id}" title="Sacar del carrito" style="margin-top:8px">✕ Sacar</button>
+      ${note}
+    </div></div>`;
 }
 
 let searchTimer = null;
@@ -794,7 +859,7 @@ function renderFicha() {
          <div class="qt-qr-box" id="ficha-qr">${qrSvg(p.tis, qrOpts(p, qrSize))}</div>
          <div class="qt-qr-tis az-tisbig">${esc(fmtTis(p.tis))}</div>
          <div class="az-person-meta">${p.pharmacy_no ? 'Farmacia ' + esc(p.pharmacy_no) : ''}${p.group_name ? (p.pharmacy_no ? ' · ' : '') + esc(p.group_name) : ''}</div>
-         <div class="az-person-note" id="ficha-note">${f.note ? `<div class="az-ent-note" style="background:${esc(f.note.color || '#FEF08A')}">${esc(f.note.text)}</div>` : ''}<button class="qt-btn qt-btn-ghost qt-btn-sm az-person-notebtn" id="ficha-note-btn">📝 ${f.note ? 'Editar nota' : 'Añadir nota'}</button></div>
+         <div class="az-person-note" id="ficha-note">${f.note ? `<div class="az-ent-note" style="background:${esc(f.note.color || '#FEF08A')}">${esc(f.note.text)}</div>` : ''}<div class="az-person-noteact"><button class="qt-btn qt-btn-ghost qt-btn-sm az-person-notebtn" id="ficha-note-btn">📝 ${f.note ? 'Editar nota' : 'Añadir nota'}</button><button class="qt-btn qt-btn-ghost qt-btn-sm" id="ficha-cart">${S.cart.has(p.id) ? '✓ En el carrito' : '🛒 Añadir al carrito'}</button></div></div>
          <div class="az-mando">
            <label>QR <input type="range" id="qr-size" min="160" max="460" step="10" value="${qrSize}"></label>
            <label>DM <input type="range" id="dm-size" min="90" max="240" step="10" value="${dmSize}"></label>
@@ -833,6 +898,7 @@ function renderFicha() {
     subtitle: `${p.apellidos}, ${p.nombre}`, endpoint: `/note/person/${p.id}`, current: f.note,
     onSaved: (note) => { S.ficha.note = note; renderFicha(); },
   });
+  if ($('ficha-cart')) $('ficha-cart').onclick = async () => { await toggleCart(p.id); const b = $('ficha-cart'); if (b) b.textContent = S.cart.has(p.id) ? '✓ En el carrito' : '🛒 Añadir al carrito'; };
 
   // Live size sliders (persist, debounced).
   $('qr-size').oninput = (e) => { const v = Number(e.target.value); $('ficha-qr').innerHTML = qrSvg(p.tis, qrOpts(p, v)); saveSize({ ficha_qr_size: v }); };

@@ -398,6 +398,18 @@ router.get('/api/overview', (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+// ── Per-user cart of people ──────────────────────────────────────────────────────
+function cartPayload(userId) {
+  const ids = db.cartIds(userId);
+  const pnotes = db.entNotesMap('person');
+  const items = ids.map(id => { const p = qrDb.getPerson(id); return p ? { person: personView(p), note: pnotes.get(String(id)) || null } : null; }).filter(Boolean);
+  return { ids, items };
+}
+router.get('/api/cart', (req, res) => { try { res.json(cartPayload(req.user.id)); } catch (err) { fail(res, err); } });
+router.post('/api/cart/:id(\\d+)', (req, res) => { try { db.cartAdd(req.user.id, Number(req.params.id)); res.json(cartPayload(req.user.id)); } catch (err) { fail(res, err); } });
+router.delete('/api/cart/:id(\\d+)', (req, res) => { try { db.cartRemove(req.user.id, Number(req.params.id)); res.json(cartPayload(req.user.id)); } catch (err) { fail(res, err); } });
+router.delete('/api/cart', (req, res) => { try { db.cartClear(req.user.id); res.json(cartPayload(req.user.id)); } catch (err) { fail(res, err); } });
+
 // ── Period lifecycle ─────────────────────────────────────────────────────────────
 router.post('/api/person/:id(\\d+)/period', json, (req, res) => {
   try {
@@ -752,10 +764,12 @@ router.get('/api/stickers/pdf', async (req, res) => {
     const parseList = (v) => { if (!v) return []; try { const a = JSON.parse(v); if (Array.isArray(a)) return a.map(String); } catch { /* csv */ } return String(v).split(',').map(s => s.trim()).filter(Boolean); };
     const meds = parseList(req.query.meds);
     const groups = parseList(req.query.groups);
+    const persons = parseList(req.query.persons).map(Number).filter(Boolean);
     let stickers = buildStickers(ym);
     if (!all) stickers = stickers.filter(s => !s.pegado);
     if (meds.length) stickers = stickers.filter(s => meds.includes(stickerKey(s)));
     if (groups.length) stickers = stickers.filter(s => groups.includes(s.residencia || '—'));
+    if (persons.length) stickers = stickers.filter(s => persons.includes(s.person.id));
     const cmp = (a, b, f) => f(a).localeCompare(f(b));
     stickers.sort((a, b) => {
       if (order === 'residencia') {

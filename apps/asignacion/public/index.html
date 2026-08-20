@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/hub-nav.css?v=4" />
   <script src="/src/hub-nav.js?v=2" defer></script>
-  <link rel="stylesheet" href="/asignacion/assets/styles.css?v=21" />
+  <link rel="stylesheet" href="/asignacion/assets/styles.css?v=22" />
 </head>
 <body>
 
@@ -52,6 +52,7 @@
       <a href="/datamatrix" class="pharma-link" data-app="datamatrix"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4v16M5 20h15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="9" y="5" width="3" height="3" fill="currentColor"/><rect x="15" y="5" width="3" height="3" fill="currentColor"/><rect x="9" y="11" width="3" height="3" fill="currentColor"/><rect x="16" y="12" width="2.6" height="2.6" fill="currentColor"/></svg><span class="pl">Data Matrix</span></a>
       <a href="/asignacion" class="pharma-link is-current" aria-current="page" data-app="asignacion"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="2"/><path d="M3.6 20c0-3 2.4-5 5.4-5s5.4 2 5.4 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="15.4" y="12.4" width="6" height="6" rx="1.4" stroke="currentColor" stroke-width="2"/></svg><span class="pl">Asignación</span></a>
     </nav>
+    <button class="qt-cart-btn" id="cart-toggle" title="Carrito de personas">🛒 <span class="qt-cart-count" id="cart-count">0</span></button>
     <button class="qt-cart-btn az-bell" id="bell-btn" title="Avisos de liberación (buscar por fecha)">🔔 <span class="qt-cart-count az-bell-count" id="bell-count" hidden>0</span></button>
     <button class="qt-cart-btn az-notif-btn" id="notif-btn" title="Notificaciones por email (programadas)">✉️</button>
     <button class="qt-cart-btn az-notes-btn" id="notes-btn" title="Tablón de notas (post-its)">🗒️ <span class="qt-cart-count az-notes-count" id="notes-count" hidden>0</span></button>
@@ -61,6 +62,7 @@
 
 <main class="qt-main" id="qt-main"><!-- views injected here --></main>
 
+<aside class="qt-cart" id="cart-panel" aria-hidden="true"></aside>
 <div class="qt-scrim" id="scrim" hidden></div>
 
 <!-- Scan modal (camera → ZXing decodes Data Matrix / QR) -->
@@ -95,6 +97,6 @@
 <script src="/asignacion/assets/vendor/qrcode.js?v=1"></script>
 <script src="/asignacion/assets/vendor/bwip-js.js?v=1"></script>
 <script src="/asignacion/assets/vendor/zxing.js?v=1"></script>
-<script src="/asignacion/assets/app.js?v=27"></script>
+<script src="/asignacion/assets/app.js?v=28"></script>
 </body>
 </html>

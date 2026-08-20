@@ -231,6 +231,13 @@ db.exec(`
     updated_by  INTEGER,
     PRIMARY KEY (entity_type, entity_key)
   );
+  -- Per-user cart of people (like the other apps).
+  CREATE TABLE IF NOT EXISTS asig_cart (
+    user_id   INTEGER NOT NULL,
+    person_id INTEGER NOT NULL,
+    added_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, person_id)
+  );
 `);
 
 console.log('[asignacion] Database ready at:', DB_PATH);
@@ -547,6 +554,12 @@ function entNotesMap(type) {
   return m;
 }
 
+// ── Per-user cart of people ──────────────────────────────────────────────────────
+function cartIds(userId) { return db.prepare('SELECT person_id FROM asig_cart WHERE user_id = ? ORDER BY added_at, person_id').all(userId).map(r => r.person_id); }
+function cartAdd(userId, personId) { db.prepare('INSERT OR IGNORE INTO asig_cart (user_id, person_id) VALUES (?, ?)').run(userId, personId); return cartIds(userId); }
+function cartRemove(userId, personId) { db.prepare('DELETE FROM asig_cart WHERE user_id = ? AND person_id = ?').run(userId, personId); return cartIds(userId); }
+function cartClear(userId) { db.prepare('DELETE FROM asig_cart WHERE user_id = ?').run(userId); return []; }
+
 // ── Scheduled email notifications ────────────────────────────────────────────────
 function listNotifs() { return db.prepare('SELECT * FROM asig_notif ORDER BY enabled DESC, send_time, id').all(); }
 function getNotif(id) { return db.prepare('SELECT * FROM asig_notif WHERE id = ?').get(id) || null; }
@@ -762,6 +775,7 @@ module.exports = {
   assignedLinesForYm, precintosForYm, stickerMonths, setLinePegado, setPrecintoPegado,
   addEvidencia, getEvidencia, listEvidencia,
   getEntNote, setEntNote, entNotesMap,
+  cartIds, cartAdd, cartRemove, cartClear,
   listNotifs, getNotif, createNotif, updateNotif, deleteNotif, setNotifEnabled, markNotifSent, dueNotifs,
   NOTE_COLORS, listBoards, getBoard, boardCount, createBoard, renameBoard, deleteBoard,
   getNote, listNotes, createNote, updateNote, deleteNote, noteViewers, setNoteViewers, canSeeNote, markNotesSeen, notesBadge,

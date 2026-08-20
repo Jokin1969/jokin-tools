@@ -885,3 +885,10 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 /* Person note in the ficha card */
 .az-person-note { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 10px 0 4px; width: 100%; }
 .az-person-note .az-ent-note { width: 100%; text-align: left; }
+
+/* Overview card action cluster (cart + note) */
+.az-card-actions { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; }
+.az-card-actions .qt-iconbtn { opacity: .55; }
+.az-card-actions .qt-iconbtn.has, .az-card:hover .az-card-actions .qt-iconbtn { opacity: 1; }
+.az-card-note { position: static; }
+.az-person-noteact { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
