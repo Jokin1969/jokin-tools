@@ -802,7 +802,7 @@ function planReleaseChip(m) {
   const off = m.release_at ? fmtDate(m.release_at) : null;
   const eff = m.effective_at ? fmtDate(m.effective_at) : null;
   const adv = m.advance_days != null ? m.advance_days : 15;
-  const sub = (off && adv > 0) ? ` <small class="az-rel-off">(oficial ${off} · −${adv} d)</small>` : '';
+  const sub = (off && adv > 0) ? ` <small class="az-rel-off">(${off})</small>` : '';
   if (m.release_state === 'sin_fecha')
     return `<button type="button" class="az-rel az-rel-none az-rel-click" data-planrel="${m.id}" title="Poner fecha de liberación (Salud)">🗓 Sin fecha — pendiente</button>`;
   if (m.release_state === 'disponible')
