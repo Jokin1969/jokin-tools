@@ -914,9 +914,11 @@ function openMedPicker() {
     <p class="qt-tool-note">Del <b>catálogo</b> (ya en Data Matrix) o, si aún no lo está, <b>por Código Nacional</b> (información previa, sin caja todavía).</p>
     <div class="qt-search" style="margin-bottom:10px"><span class="ico">🔎</span><input id="mp-q" placeholder="Buscar en el catálogo por nombre, GTIN o CN…" autocomplete="off"></div>
     <div id="mp-list" class="az-medlist"></div>
+    <div class="qt-tool-row" style="margin:-2px 0 8px"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima-search">🔎 Buscar en CIMA (AEMPS)</button><span class="az-form-hint" style="margin:0">busca el medicamento en la base oficial y trae CN, nombre y código de barras</span></div>
     <div class="az-cnform">
       <div class="az-cnform-h">➕ Añadir por Código Nacional (aún sin Data Matrix)</div>
-      <div class="qt-field"><label>Código Nacional (CN)</label><input class="qt-input" id="mp-cn" inputmode="numeric" placeholder="p. ej. 712345" autocomplete="off"></div>
+      <div class="qt-field"><label>Código Nacional (CN)</label>
+        <div class="az-cn-row"><input class="qt-input" id="mp-cn" inputmode="numeric" placeholder="p. ej. 712345" autocomplete="off"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima" title="Traer nombre y código de barras desde CIMA (AEMPS)">🔎 CIMA</button></div></div>
       <div class="qt-field"><label>Nombre del medicamento</label><input class="qt-input" id="mp-nombre" placeholder="Nombre comercial" autocomplete="off"></div>
       <div class="qt-field"><label>Código de barras (opcional)</label><input class="qt-input" id="mp-barcode" inputmode="numeric" placeholder="EAN / código de barras" autocomplete="off"></div>
       <div class="qt-field"><label>Cajas al mes</label><input class="qt-input" id="mp-qty" type="number" min="1" max="99" value="1"></div>
@@ -929,12 +931,43 @@ function openMedPicker() {
     try {
       const { items } = await api('/medications?q=' + encodeURIComponent(q.value || ''));
       const list = $('mp-list');
-      if (!items.length) { list.innerHTML = `<div class="az-noresult">No hay medicamentos en el catálogo que coincidan. Usa <b>«Añadir por Código Nacional»</b> más abajo, o <a href="/datamatrix" target="_blank" rel="noopener">ábrelo</a>.</div>`; return; }
+      if (!items.length) { list.innerHTML = `<div class="az-noresult">No hay medicamentos en el catálogo que coincidan. Prueba <b>«🔎 Buscar en CIMA»</b> o <b>«Añadir por Código Nacional»</b> abajo.</div>`; return; }
       list.innerHTML = items.slice(0, 40).map(m => `<button class="az-medrow" data-gtin="${esc(m.gtin)}"><span class="az-plan-shape">${shapeSvg(m.shape, m.color, 18)}</span><span class="az-medrow-name">${esc(m.nombre || 'Sin nombre')}<small>GTIN ${esc(m.gtin)}${m.cn ? ' · CN ' + esc(m.cn) : ''} · ${m.available} en stock</small></span><span class="az-medrow-add">➕</span></button>`).join('');
       list.querySelectorAll('[data-gtin]').forEach(b => b.addEventListener('click', () => addMedToPlan({ gtin: b.dataset.gtin })));
     } catch (e) { $('mp-list').innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; }
   };
   let t = null; q.addEventListener('input', () => { if (t) clearTimeout(t); t = setTimeout(load, 200); });
+  // Fill the CN form from a CIMA record (name + derived barcode).
+  const fillFromCima = (it) => {
+    if (it.cn) $('mp-cn').value = it.cn;
+    if (it.nombre) $('mp-nombre').value = it.nombre;
+    if (it.barcode) $('mp-barcode').value = it.barcode;
+    $('mp-cn').scrollIntoView({ block: 'nearest' });
+  };
+  const cimaErr = (e) => (e.offline || (e.data && e.data.offline)) ? 'No se pudo consultar CIMA ahora; escribe los datos a mano.' : (e.message || 'Error al consultar CIMA.');
+  // Look up by the typed Código Nacional.
+  $('mp-cima').onclick = async () => {
+    const cn = $('mp-cn').value.trim();
+    if (!/^\d{5,7}$/.test(cn)) { toast('Escribe un Código Nacional (5–7 dígitos).', 'err'); return; }
+    const btn = $('mp-cima'); btn.disabled = true; const prev = btn.textContent; btn.textContent = '…';
+    try { const { item } = await api('/cima/cn/' + cn); if (!item) toast('CIMA no encontró ese Código Nacional.', 'err'); else { fillFromCima(item); toast('Datos traídos de CIMA (AEMPS).', 'ok'); } }
+    catch (e) { toast(cimaErr(e), 'err'); }
+    finally { btn.disabled = false; btn.textContent = prev; }
+  };
+  // Search CIMA by name and let the user pick a presentation.
+  $('mp-cima-search').onclick = async () => {
+    if (t) clearTimeout(t);   // don't let the debounced catalog reload clobber the CIMA results
+    const text = (q.value || $('mp-nombre').value || '').trim();
+    if (text.length < 3) { toast('Escribe al menos 3 letras en el buscador de arriba.', 'err'); return; }
+    const list = $('mp-list'); list.innerHTML = '<div class="az-noresult">Buscando en CIMA…</div>';
+    try {
+      const { items } = await api('/cima/search?q=' + encodeURIComponent(text));
+      if (!items.length) { list.innerHTML = '<div class="az-noresult">CIMA no devolvió resultados para esa búsqueda.</div>'; return; }
+      list.innerHTML = `<div class="az-form-hint" style="margin:2px 0 6px">Resultados de CIMA (AEMPS) — pulsa uno para rellenar el formulario de abajo:</div>` +
+        items.map((m, i) => `<button class="az-medrow" data-cima="${i}"><span class="az-plan-shape">💊</span><span class="az-medrow-name">${esc(m.nombre || 'Sin nombre')}<small>${m.cn ? 'CN ' + esc(m.cn) : 'sin CN'}${m.barcode ? ' · CB ' + esc(m.barcode) : ''}${m.labtitular ? ' · ' + esc(m.labtitular) : ''}</small></span><span class="az-medrow-add">⬇</span></button>`).join('');
+      list.querySelectorAll('[data-cima]').forEach(b => b.addEventListener('click', () => { fillFromCima(items[Number(b.dataset.cima)]); toast('Datos copiados de CIMA. Revisa y pulsa «Añadir al plan».', 'ok'); }));
+    } catch (e) { list.innerHTML = `<div class="az-noresult">${esc(cimaErr(e))}</div>`; }
+  };
   $('mp-add-cn').onclick = () => {
     const cn = $('mp-cn').value.trim(), nombre = $('mp-nombre').value.trim(), barcode = $('mp-barcode').value.trim();
     const qty = Number($('mp-qty').value) || 1;
@@ -1049,7 +1082,8 @@ function viewHelp() {
     { id: 'inicio', icon: '🚀', title: 'Qué es', html: `<p>Une las otras dos apps: las <b>personas</b> vienen de <b>QR (TIS)</b> y las <b>cajas de medicación</b> de <b>Data Matrix</b>. Sirve para preparar la medicación de cada persona y llevar el control de lo que se le va asignando en la aplicación de <b>Salud</b> (que no es la nuestra), mes a mes.</p><div class="qt-note tip">El flujo es siempre el mismo: <b>elegir persona → plan de medicación → pre-asignar cajas → asignar de verdad</b>. Abajo se explica cada paso.</div>` },
     { id: 'persona', icon: '🧑', title: '1) Elegir la persona', html: `<p>En el inicio, busca a la persona por <b>nombre, apellidos, TIS o nº de farmacia</b>. Las personas <b>salen de la app QR (TIS)</b>: si no aparece, hay que <b>darla de alta primero allí</b> (hay un enlace directo) y volver.</p><p>El panel de inicio muestra las personas <b>en seguimiento</b> (con plan o asignaciones) y su estado del mes en curso. Pulsa una para abrir su <b>ficha</b>.</p>` },
     { id: 'plan', icon: '💊', title: '2) Plan de medicación', html: `<p>Cada persona tiene un <b>plan</b>: los medicamentos que toma habitualmente y <b>cuántas cajas al mes</b> de cada uno. Con <b>«➕ Añadir medicamento»</b> lo amplías; con el número <b>× N</b> ajustas las cajas/mes; y la 🗑 lo quita del plan (no toca las cajas ya asignadas). El plan <b>se guarda y se repite cada mes</b>.</p>
-      <div class="qt-note tip"><b>Puedes añadir un medicamento de dos formas:</b><ul><li><b>Del catálogo</b>: si ya está en Data Matrix, búscalo por nombre, GTIN o CN y añádelo.</li><li><b>Por Código Nacional</b> (novedad): si la información llega <b>antes de tener el Data Matrix</b>, añádelo solo con su <b>Código Nacional</b> + nombre (y opcionalmente el código de barras). Queda en el plan como <b>«pendiente de caja»</b> (borde discontinuo ámbar), sin caja todavía. Es el paso <b>previo a la pre-asignación</b>.</li></ul>Más adelante le asocias una caja real (ver el paso siguiente) y deja de estar pendiente.</div>` },
+      <div class="qt-note tip"><b>Puedes añadir un medicamento de dos formas:</b><ul><li><b>Del catálogo</b>: si ya está en Data Matrix, búscalo por nombre, GTIN o CN y añádelo.</li><li><b>Por Código Nacional</b> (novedad): si la información llega <b>antes de tener el Data Matrix</b>, añádelo solo con su <b>Código Nacional</b> + nombre (y opcionalmente el código de barras). Queda en el plan como <b>«pendiente de caja»</b> (borde discontinuo ámbar), sin caja todavía. Es el paso <b>previo a la pre-asignación</b>.</li></ul>Más adelante le asocias una caja real (ver el paso siguiente) y deja de estar pendiente.</div>
+      <div class="qt-note tip"><b>🔎 CIMA (AEMPS).</b> Al añadir por Código Nacional, pulsa <b>«🔎 CIMA»</b> junto al CN para <b>traer el nombre y el código de barras</b> desde la base de datos oficial de medicamentos (AEMPS), o usa <b>«🔎 Buscar en CIMA»</b> para buscar por nombre y elegir. Es una comodidad: si CIMA no está disponible, puedes escribir los datos a mano igual que siempre. (Requiere que el servidor tenga salida a Internet hacia <i>cima.aemps.es</i>.)</div>` },
     { id: 'preasignar', icon: '🔗', title: '3) Pre-asignar / asociar cajas', html: `<p>Para cada medicamento del plan, reserva una <b>caja real</b> con <b>«🔗 Pre-asignar»</b> (medicamentos del catálogo) o <b>«🔗 Asociar caja»</b> (medicamentos <b>pendientes de caja</b>, añadidos por Código Nacional). En ambos casos puedes:</p><ul><li><b>Elegir del inventario</b>: una caja «sin utilizar» compatible que ya esté en Data Matrix (para los pendientes de caja, se filtran por su <b>Código Nacional</b>).</li><li><b>Escanear / pegar</b> su Data Matrix: si la caja no estaba en Data Matrix, <b>se crea allí</b> automáticamente como pre-asignada <b>y</b> queda asociada a ese medicamento del plan.</li></ul><p>Si la caja <b>no coincide</b> con el medicamento (por CN/GTIN), la app <b>te avisa</b> y te deja <b>asociarla igualmente</b> si quieres. Al asociar la primera caja, un medicamento «pendiente de caja» pasa a ser normal.</p><p>La caja queda <b>🔗 Pre-asignada</b>: reservada para esa persona pero <b>sigue en stock</b>. Este estado <b>también se ve en la app Data Matrix</b>, para que las dos apps nunca se descuadren.</p>` },
     { id: 'asignar', icon: '✅', title: '4) Asignar de verdad', html: `<p>Cuando ya la asignas en la aplicación de <b>Salud</b>, pulsa <b>«✅ Asignar»</b> sobre esa caja. Pasa a <b>✓ Asignada</b> (se marca <b>utilizada</b> en Data Matrix, sale del inventario) y su Data Matrix se pone en <b>gris</b>.</p>
       <div class="qt-note tip">Al pulsar <b>«✅ Asignar»</b> la app te pide la <b>fecha de la PRÓXIMA liberación</b> de ese medicamento (ya propuesta al <b>mismo día del mes siguiente</b>, editable). Es el momento natural para anotarla: acabas de dispensar la caja y sabes cuándo sale la siguiente. Esa fecha se guarda <b>en el medicamento</b> y gobierna cuándo vuelve a estar disponible (ver la sección siguiente). Puedes dejarla en blanco si aún no la sabes.</div>

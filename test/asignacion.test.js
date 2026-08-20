@@ -65,6 +65,13 @@ test('medications list comes from datamatrix', async () => {
   assert.ok(data.items.some(m => m.gtin === GTIN && m.nombre === 'Ibuprofeno 600'));
 });
 
+test('CIMA lookup endpoint is wired and validates the Código Nacional', async () => {
+  // Too-short CN → 400 without touching the network (route regex requires digits).
+  const r = await call('GET', '/cima/cn/1');
+  assert.equal(r.status, 400);
+  assert.equal(r.data.offline, false);
+});
+
 test('add a medication to the plan (must exist in DM)', async () => {
   const bad = await call('POST', `/person/${personId}/plan`, { gtin: '09999999999999', qty: 1 });
   assert.equal(bad.status, 400, 'unknown medication rejected');

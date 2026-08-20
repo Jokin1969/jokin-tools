@@ -17,6 +17,7 @@ const gs1 = require('../datamatrix/gs1');
 const dmVisual = require('../datamatrix/visual');
 const release = require('./release');
 const email = require('./email');
+const cima = require('./cima');
 const authStore = require('../auth/store');
 const { canAccess } = require('../auth/apps-registry');
 
@@ -148,6 +149,15 @@ router.get('/api/person/:id(\\d+)', (req, res) => {
 // ── Medications (from datamatrix, for the plan picker) ───────────────────────────
 router.get('/api/medications', (req, res) => {
   try { res.json({ items: medicationList(req.query.q || '') }); } catch (err) { fail(res, err); }
+});
+// ── CIMA (AEMPS) lookup — optional: fill name/barcode from a Código Nacional ──────
+router.get('/api/cima/cn/:cn([0-9]+)', async (req, res) => {
+  try { res.json({ item: await cima.lookupByCn(req.params.cn) }); }
+  catch (err) { res.status(err.status || 502).json({ error: err.message, offline: !!err.offline }); }
+});
+router.get('/api/cima/search', async (req, res) => {
+  try { res.json({ items: await cima.searchByName(req.query.q || '') }); }
+  catch (err) { res.status(err.status || 502).json({ error: err.message, offline: !!err.offline }); }
 });
 // Boxes available to pre-assign for a medication (activo + not reserved).
 router.get('/api/available/:gtin([0-9A-Za-z]+)', (req, res) => {

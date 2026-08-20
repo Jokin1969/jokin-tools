@@ -502,6 +502,9 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-plan-flag { color: #8a5a00; font-weight: 700; }
 .az-cnform { margin-top: 14px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 12px; background: #fbfdff; }
 .az-cnform-h { font-weight: 700; color: var(--ink); font-size: 0.9rem; margin-bottom: 8px; }
+.az-cn-row { display: flex; gap: 8px; align-items: stretch; }
+.az-cn-row .qt-input { flex: 1 1 auto; }
+.az-cn-row .qt-btn { flex: 0 0 auto; white-space: nowrap; }
 .az-plan-shape { flex: 0 0 auto; display: inline-flex; }
 .az-plan-name { flex: 1 1 200px; min-width: 0; font-weight: 700; color: var(--ink); display: flex; flex-direction: column; }
 .az-plan-name small { font-weight: 500; color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }
