@@ -33,17 +33,30 @@ const SAMPLE = {
     { cn: '654321', nombre: 'IBUPROFENO NORMON 600 mg EFG, 40 comprimidos', comerc: true },
     { cn: '654999', nombre: 'IBUPROFENO NORMON 600 mg EFG, 500 comprimidos', comerc: true },
   ],
+  fotos: [
+    { tipo: 'materialas', url: 'https://cima.aemps.es/cima/fotos/thumbnails/materialas/65432/65432_materialas.jpg' },
+    { tipo: 'formafarmac', url: 'https://cima.aemps.es/cima/fotos/thumbnails/formafarmac/65432/65432_formafarmac.jpg' },
+  ],
 };
 
 test('mapMedicamento picks the exact presentation by CN and derives the barcode', () => {
   const m = cima.mapMedicamento(SAMPLE, '654321');
-  assert.equal(m.cn, '654321');
+  assert.equal(m.cn, '654321');           // presentation CN, NOT the nregistro
+  assert.notEqual(m.cn, m.nregistro);
   assert.match(m.nombre, /40 comprimidos/);
   assert.equal(m.barcode, '8470006543214');
   assert.equal(m.gtin, '08470006543214');
   assert.equal(m.pactivos, 'IBUPROFENO');
   assert.equal(m.labtitular, 'LABORATORIOS NORMON, S.A.');
   assert.equal(m.source, 'cima');
+});
+
+test('mapMedicamento extracts box and pill photos (thumb + full)', () => {
+  const m = cima.mapMedicamento(SAMPLE, '654321');
+  assert.ok(m.fotos.caja && m.fotos.pastilla, 'both photos present');
+  assert.match(m.fotos.caja.thumb, /materialas/);
+  assert.match(m.fotos.caja.full, /\/full\/materialas\//);   // full-size swaps the folder
+  assert.match(m.fotos.pastilla.thumb, /formafarmac/);
 });
 
 // A fake fetch that returns a canned JSON (no network).

@@ -86,7 +86,7 @@ test('plan CN-only: add a medication by Código Nacional before any Data Matrix,
   // Adding by CN requires a name.
   assert.equal((await call('POST', `/person/${pid}/plan`, { cn: '715000' })).status, 400);
   // Add the medication with only its national code (no GTIN / no box yet).
-  const added = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Ibuprofeno 600', barcode: '8470007150009', qty: 2 })).data.plan;
+  const added = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Ibuprofeno 600', barcode: '8470007150008', qty: 2 })).data.plan;
   const med = added.find(m => m.cn === '715000');
   assert.ok(med, 'CN-only med is in the plan');
   assert.equal(med.cn_only, true);
@@ -105,6 +105,21 @@ test('plan CN-only: add a medication by Código Nacional before any Data Matrix,
   const graduated = ficha.plan.find(m => m.id === med.id);
   assert.equal(graduated.cn_only, false, 'CN-only med reconciled to a GTIN once linked');
   assert.equal(graduated.gtin, '08470007150009');
+});
+
+test('plan CN/barcode cross-check: rejects an inconsistent pair, derives CN from barcode', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80050', nombre: 'Cruz', apellidos: 'Check', tis: '00080050' }, 1).id;
+  // CN 65498 with the barcode of CN 885442 → inconsistent → rejected.
+  const bad = await call('POST', `/person/${pid}/plan`, { cn: '65498', nombre: 'Ixia', barcode: '8470008854424' });
+  assert.equal(bad.status, 400);
+  assert.match(bad.data.error, /885442/);   // tells you the barcode's real CN
+  // A 14-digit GTIN pasted as barcode is normalised, and matches CN 885442.
+  const ok = (await call('POST', `/person/${pid}/plan`, { cn: '885442', nombre: 'Ixia 10 mg', barcode: '08470008854424' })).data.plan;
+  assert.ok(ok.find(m => m.cn === '885442'));
+  // Barcode only (no CN) → the CN is derived from it.
+  const pid2 = qrDb.createPerson({ pharmacy_no: '80051', nombre: 'Der', apellidos: 'Iva', tis: '00080051' }, 1).id;
+  const derived = (await call('POST', `/person/${pid2}/plan`, { nombre: 'Ixia 10 mg', barcode: '8470008854424' })).data.plan;
+  assert.ok(derived.find(m => m.cn === '885442'), 'CN derived from the barcode');
 });
 
 test('linking a mismatched box warns (409) but can be forced', async () => {

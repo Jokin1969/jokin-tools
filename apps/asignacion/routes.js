@@ -206,9 +206,23 @@ router.post('/api/person/:id(\\d+)/plan', json, (req, res) => {
     if (!p) return res.status(404).json({ error: 'Persona no encontrada en QR (TIS).' });
     const b = req.body || {};
     const gtin = b.gtin ? gs1.normGtin(b.gtin) : null;
-    const cn = b.cn ? String(b.cn).trim() : null;
+    let cn = b.cn ? String(b.cn).replace(/\D/g, '') || null : null;
     const nombre = b.nombre ? String(b.nombre).trim() : null;
-    const barcode = b.barcode ? String(b.barcode).trim() : null;
+    let barcode = b.barcode ? String(b.barcode).replace(/\D/g, '') || null : null;
+    // Normalise a 14-digit GTIN pasted as barcode down to its EAN-13.
+    if (barcode && barcode.length === 14 && barcode[0] === '0') barcode = barcode.slice(1);
+    // Código Nacional ⇄ código de barras se derivan uno del otro: rellena el que
+    // falte y no dejes guardar una pareja incoherente (evita CN mal tecleados).
+    if (!gtin) {
+      if (!cn && barcode) cn = cima.cnFromBarcode(barcode) || cn;
+      if (cn && barcode) {
+        const expected = cima.barcodeFromCn(cn);
+        if (expected && expected !== barcode) {
+          const real = cima.cnFromBarcode(barcode);
+          throw bad(`El código de barras (${barcode}) no coincide con el Código Nacional ${cn}${real ? ` (ese barcode es del CN ${real})` : ''}. Revisa ambos.`);
+        }
+      }
+    }
     if (gtin && gtin.replace(/^0+/, '').length >= 8) {
       // Catalogued path: the GTIN must exist in the Data Matrix app.
       const known = dmDb.getProduct(gtin) || dmDb.availableItems(gtin).length || dmDb.listItems('utilizado').some(i => i.gtin === gtin);

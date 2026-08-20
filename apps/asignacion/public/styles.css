@@ -505,6 +505,9 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-cn-row { display: flex; gap: 8px; align-items: stretch; }
 .az-cn-row .qt-input { flex: 1 1 auto; }
 .az-cn-row .qt-btn { flex: 0 0 auto; white-space: nowrap; }
+.az-cima-fotos { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.az-cima-foto { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; text-decoration: none; color: var(--muted); font-size: 0.7rem; }
+.az-cima-foto img { width: 84px; height: 84px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .az-plan-shape { flex: 0 0 auto; display: inline-flex; }
 .az-plan-name { flex: 1 1 200px; min-width: 0; font-weight: 700; color: var(--ink); display: flex; flex-direction: column; }
 .az-plan-name small { font-weight: 500; color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }

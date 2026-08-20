@@ -54,6 +54,17 @@ async function getJson(path, fetchImpl) {
 
 // Normalise a CIMA "medicamento" (+ its presentaciones) into what our apps store.
 // `cn` (optional) picks the exact presentation's name when present.
+// Extract the box ('materialas') and pill/form ('formafarmac') photos from a CIMA
+// medicamento. Each foto has a thumbnail url; the full-size one swaps the folder.
+function mapFotos(med) {
+  const fotos = Array.isArray(med && med.fotos) ? med.fotos : [];
+  const pick = (tipo) => {
+    const f = fotos.find(x => x && x.tipo === tipo && x.url);
+    if (!f) return null;
+    return { thumb: f.url, full: String(f.url).replace('/thumbnails/', '/full/') };
+  };
+  return { caja: pick('materialas'), pastilla: pick('formafarmac') };
+}
 function mapMedicamento(med, cn) {
   if (!med || (!med.nombre && !med.nregistro)) return null;
   const pres = Array.isArray(med.presentaciones) ? med.presentaciones : [];
@@ -69,6 +80,7 @@ function mapMedicamento(med, cn) {
     comercializado: med.comerc === undefined ? null : !!med.comerc,
     barcode: barcodeFromCn(theCn),
     gtin: gtinFromCn(theCn),
+    fotos: mapFotos(med),
     source: 'cima',
   };
 }
@@ -101,13 +113,14 @@ async function searchByName(text, opts = {}) {
   const limit = Math.min(25, Math.max(1, opts.limit || 15));
   const out = [];
   for (const med of rows) {
+    const fotos = mapFotos(med);
     const pres = Array.isArray(med.presentaciones) && med.presentaciones.length ? med.presentaciones : [{ cn: null, nombre: med.nombre }];
     for (const p of pres) {
       const cn = p.cn ? String(p.cn) : null;
       out.push({
         cn, nombre: p.nombre || med.nombre || null,
         nregistro: med.nregistro || null, pactivos: med.pactivos || null, labtitular: med.labtitular || null,
-        barcode: barcodeFromCn(cn), gtin: gtinFromCn(cn), source: 'cima',
+        barcode: barcodeFromCn(cn), gtin: gtinFromCn(cn), fotos, source: 'cima',
       });
       if (out.length >= limit) return out;
     }

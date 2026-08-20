@@ -358,6 +358,9 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .dm-cima-row { display: flex; gap: 8px; align-items: stretch; }
 .dm-cima-row .qt-input { flex: 1 1 auto; }
 .dm-cima-row .qt-btn { flex: 0 0 auto; white-space: nowrap; }
+.dm-cima-fotos { display: flex; gap: 10px; margin: 8px 0 2px; flex-wrap: wrap; }
+.dm-cima-foto { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; text-decoration: none; color: var(--muted); font-size: 0.7rem; }
+.dm-cima-foto img { width: 84px; height: 84px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .qt-group-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
 .qt-group-echip { display: inline-flex; align-items: center; gap: 6px; background: #e8f2fb; color: var(--brand-2); border: 1px solid #cbe2f5; padding: 4px 6px 4px 11px; border-radius: 20px; font-size: 0.84rem; font-weight: 700; }
 .qt-group-echip button { border: none; background: rgba(18,64,110,0.12); color: var(--brand-2); width: 18px; height: 18px; border-radius: 50%; cursor: pointer; font-size: 0.9rem; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }

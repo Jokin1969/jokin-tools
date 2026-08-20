@@ -304,6 +304,7 @@ function editProduct(it) {
     `<div class="qt-group-mgr">
        <div class="qt-group-mgr-h">Medicamento (GTIN ${esc(gtin)}) — afecta a todas sus cajas</div>
        <div class="qt-field" style="margin:0 0 10px"><div class="dm-cima-row"><input class="qt-input" id="pm-nombre" placeholder="Nombre comercial del medicamento" value="${esc(it.nombre || '')}" maxlength="160"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="pm-cima" title="Traer el nombre desde CIMA (AEMPS)${it.cn ? ' · CN ' + esc(it.cn) : ''}">🔎 CIMA</button></div>${it.cn ? '' : '<small class="dm-note" style="margin-top:4px">Esta caja no trae Código Nacional; escribe el nombre a mano.</small>'}</div>
+       <div id="pm-fotos"></div>
        <div class="qt-mando-row"><label>Color</label><div class="qt-swatches" id="pm-swatches">${swatches.map(c => `<div class="qt-swatch${c === it.color ? ' sel' : ''}" data-c="${c}" style="background:${c}"></div>`).join('')}</div><input type="color" class="qt-color-input" id="pm-color" value="${it.color}"></div>
        <div class="qt-mando-row"><label>Forma</label><div class="qt-shape-picker" id="pm-shapes">${S.shapes.map(sh => `<button class="dm-shape-btn ${sh === it.shape ? 'sel' : ''}" data-s="${sh}" title="${sh}">${shapeSvg(sh, it.color, 20)}</button>`).join('')}</div></div>
        <div class="qt-group-inline"><button class="qt-btn qt-btn-primary qt-btn-sm" id="pm-save">Guardar</button></div>
@@ -320,7 +321,14 @@ function editProduct(it) {
     try {
       const { item } = await api('/cima/cn/' + cn);
       if (!item || !item.nombre) toast('CIMA no encontró ese Código Nacional.', 'err');
-      else { nombre.value = item.nombre; toast('Nombre traído de CIMA (AEMPS). Pulsa «Guardar».', 'ok'); nombre.focus(); }
+      else {
+        nombre.value = item.nombre;
+        const f = item.fotos || {};
+        const one = (x, lbl) => (x && x.thumb) ? `<a class="dm-cima-foto" href="${esc(x.full || x.thumb)}" target="_blank" rel="noopener" title="Ver ${lbl} (AEMPS)"><img src="${esc(x.thumb)}" alt="${lbl}" loading="lazy"><span>${lbl}</span></a>` : '';
+        const fh = one(f.caja, 'Caja') + one(f.pastilla, 'Pastilla');
+        const box = $('pm-fotos'); if (box) box.innerHTML = fh ? `<div class="dm-cima-fotos">${fh}</div><small class="dm-note" style="margin-top:2px">Imágenes: AEMPS · CIMA</small>` : '';
+        toast('Nombre traído de CIMA (AEMPS). Pulsa «Guardar».', 'ok'); nombre.focus();
+      }
     } catch (e) { toast((e.offline || (e.data && e.data.offline)) ? 'No se pudo consultar CIMA ahora; escribe el nombre a mano.' : e.message, 'err'); }
     finally { btn.disabled = false; btn.textContent = prev; }
   };
