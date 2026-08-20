@@ -5,7 +5,7 @@ const router = express.Router();
 
 const store = require('./store');
 const mailer = require('./mailer');
-const { appsForUser, appsMeta, APP_IDS, isFeatureId } = require('./apps-registry');
+const { appsForUser, appsMeta, APP_IDS, isFeatureId, groupsForUser } = require('./apps-registry');
 const { requireAuth, requireAdmin, requireLogin, setSessionCookie, clearSessionCookie } = require('./middleware');
 const { rateLimit } = require('./rate-limit');
 
@@ -74,7 +74,7 @@ router.get('/logout', (req, res) => {
 
 // ─── Current user + their apps ─────────────────────────────────────────────────
 router.get('/api/me', requireAuth, (req, res) => {
-  res.json({ user: req.user, apps: appsForUser(req.user) });
+  res.json({ user: req.user, apps: appsForUser(req.user), groups: groupsForUser(req.user) });
 });
 
 // Change own password.

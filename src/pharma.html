@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Farmacia — Jokin's Tools</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon-jk.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/hub.css?v=4" />
+</head>
+<body>
+  <header class="hub-header">
+    <div class="header-inner">
+      <button class="logo-block" id="logo-home" type="button" title="Farmacia — inicio" style="background:none;border:none;cursor:pointer;text-align:left">
+        <span class="pharma-hub-logo"><img src="/public/pharmacy-logo.svg" alt="" /></span>
+        <div class="logo-text">
+          <a href="/" class="pharma-kicker" title="Ir al Hub principal">Jokin's Tools ›</a>
+          <h1 class="logo-title">Farmacia</h1>
+          <p class="logo-subtitle">Suite de gestión de medicación</p>
+        </div>
+      </button>
+      <div class="header-meta">
+        <button class="pharma-help-btn" id="help-toggle" type="button">❔ <span>Ayuda</span></button>
+      </div>
+    </div>
+  </header>
+
+  <main class="hub-main">
+    <section class="tools-section">
+      <h2 class="section-label" id="section-label">Aplicaciones</h2>
+      <div class="tools-grid" id="grid"></div>
+      <p class="tools-empty" id="empty" style="display:none">No tienes acceso a ninguna app de farmacia. Pide acceso al administrador.</p>
+    </section>
+  </main>
+
+  <footer class="hub-footer"><span>Jokin's Tools &nbsp;·&nbsp; Farmacia &nbsp;·&nbsp; <a href="/" style="color:inherit">Hub principal</a></span></footer>
+
+  <script>
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    let APPS = [], mode = 'apps';
+
+    const card = (href, icon, title, desc, tags, cls) => `
+      <a href="${esc(href)}" class="tool-card tool-card--active${cls || ''}">
+        <div class="card-icon-wrap">${icon || ''}</div>
+        <div class="card-body">
+          <h3 class="card-title">${esc(title)}</h3>
+          <p class="card-desc">${esc(desc)}</p>
+          <div class="card-tags">${(tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>
+        </div>
+        <div class="card-arrow">→</div>
+      </a>`;
+
+    function render() {
+      const grid = document.getElementById('grid');
+      document.getElementById('section-label').textContent = mode === 'help' ? 'Ayuda — elige un manual' : 'Aplicaciones';
+      document.getElementById('help-toggle').classList.toggle('is-on', mode === 'help');
+      if (mode === 'help') {
+        grid.innerHTML = APPS.map(a => card(a.path + '?help=1', a.icon, 'Ayuda · ' + a.name, 'Abre el manual de ' + a.name + '.', ['Manual'], ' tool-card--help')).join('');
+      } else {
+        grid.innerHTML = APPS.map(a => card(a.path, a.icon, a.name, a.desc, a.tags)).join('');
+      }
+    }
+
+    (async function () {
+      let data;
+      try {
+        const r = await fetch('/auth/api/me', { headers: { Accept: 'application/json' } });
+        if (r.status === 401) { location.href = '/auth/login?next=/farmacia'; return; }
+        data = await r.json();
+      } catch { return; }
+      APPS = (data.apps || []).filter(a => a.group === 'farmacia');
+      if (!APPS.length) { document.getElementById('empty').style.display = ''; return; }
+      render();
+      document.getElementById('logo-home').addEventListener('click', e => { if (e.target.closest('.pharma-kicker')) return; mode = 'apps'; render(); });
+      document.getElementById('help-toggle').addEventListener('click', () => { mode = mode === 'help' ? 'apps' : 'help'; render(); });
+    })();
+  </script>
+</body>
+</html>

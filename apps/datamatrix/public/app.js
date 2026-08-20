@@ -730,6 +730,6 @@ function viewHelp() {
     const meta = await api('/meta');
     S.settings = meta.settings; S.user = meta.user; S.counts = meta.counts || S.counts; S.palette = meta.palette || []; S.shapes = meta.shapes || [];
     await reloadItems(); await reloadCart();
-    viewHome();
+    if (new URLSearchParams(location.search).has('help')) viewHelp(); else viewHome();
   } catch (e) { main().innerHTML = `<div class="qt-panel"><p style="color:var(--danger)">No se pudo cargar la app: ${esc(e.message)}</p></div>`; }
 })();

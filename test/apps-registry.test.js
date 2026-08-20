@@ -71,3 +71,25 @@ test('store keeps scoped app ids and canAccessFeature reads them back', () => {
   const u2 = store.updateUser(u.id, { apps: ['batchwork'] });
   assert.equal(reg.canAccessFeature(u2, 'batchwork', 'qr'), true);
 });
+
+// ── App groups (pharmacy mini-hub) ───────────────────────────────────────────────
+test('pharmacy apps form a "farmacia" group; groupsForUser respects access', () => {
+  // Admin sees the group.
+  const admin = { role: 'admin', apps: '*' };
+  const gAdmin = reg.groupsForUser(admin);
+  assert.ok(gAdmin.some(g => g.id === 'farmacia'), 'admin has the farmacia group');
+  assert.equal(reg.GROUPS.farmacia.path, '/farmacia');
+  // A user with only one pharma app still reaches the group; its member apps filter by access.
+  const u = { role: 'user', apps: ['asignacion'] };
+  assert.ok(reg.groupsForUser(u).some(g => g.id === 'farmacia'));
+  assert.deepEqual(reg.groupAppsForUser(u, 'farmacia').map(a => a.id), ['asignacion']);
+  // A user with no pharma app doesn't see the group.
+  const other = { role: 'user', apps: ['bitacora'] };
+  assert.equal(reg.groupsForUser(other).some(g => g.id === 'farmacia'), false);
+  // appsMeta carries the group tag for pharma apps.
+  const meta = reg.appsMeta();
+  assert.equal(meta.find(a => a.id === 'qr-tis').group, 'farmacia');
+  assert.equal(meta.find(a => a.id === 'datamatrix').group, 'farmacia');
+  assert.equal(meta.find(a => a.id === 'asignacion').group, 'farmacia');
+  assert.equal(meta.find(a => a.id === 'bitacora').group, null);
+});

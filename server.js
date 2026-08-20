@@ -145,6 +145,11 @@ app.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));
 });
 
+// Mini-hub for the pharmacy suite (QR·TIS · Data Matrix · Asignación).
+app.get('/farmacia', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'src', 'pharma.html'));
+});
+
 // Favicon hub principal
 app.get('/favicon.ico', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'favicon-jk.svg'), {

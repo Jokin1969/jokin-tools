@@ -310,3 +310,14 @@ body {
   background: var(--bg-card); border: 1px dashed var(--border); border-radius: var(--radius);
   padding: 28px; text-align: center;
 }
+
+/* ── Pharmacy group card + mini-hub ─────────────────────────────────────────── */
+.tool-card--group .card-icon-wrap { background: linear-gradient(135deg, #eaf4fd, #e6f7f3); }
+.pharma-hub-logo { display: inline-flex; }
+.pharma-hub-logo img { height: 46px; width: auto; display: block; }
+.pharma-kicker { display: inline-block; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; color: #6b7a8d; text-decoration: none; margin-bottom: 2px; }
+.pharma-kicker:hover { text-decoration: underline; color: #1B6CB0; }
+.pharma-help-btn { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 12px; border: 1px solid #cdd7e3; background: #fff; color: #22303f; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.pharma-help-btn:hover { border-color: #1B6CB0; }
+.pharma-help-btn.is-on { background: #1B6CB0; border-color: #1B6CB0; color: #fff; }
+.tool-card--help .card-icon-wrap { filter: grayscale(0.25); opacity: 0.92; }

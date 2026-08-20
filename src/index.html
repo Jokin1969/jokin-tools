@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/src/hub.css?v=3" />
+  <link rel="stylesheet" href="/src/hub.css?v=4" />
 </head>
 <body>
   <!-- ─── Header ─────────────────────────────────────────────────────────────── -->
@@ -74,7 +74,7 @@
         data = await r.json();
       } catch { return; }
 
-      const { user, apps } = data;
+      const { user, apps, groups } = data;
       document.getElementById('user-email').textContent = user.email;
       if (user.role === 'admin') document.getElementById('admin-link').style.display = '';
 
@@ -83,17 +83,31 @@
         document.getElementById('tools-empty').style.display = '';
         return;
       }
-      grid.innerHTML = apps.map(a => `
-        <a href="${esc(a.path)}" class="tool-card tool-card--active">
-          <div class="card-icon-wrap">${a.icon || ''}</div>
+      // Collapse apps that belong to a group into ONE group card (shown at the
+      // position of the group's first member); the group card leads to a mini-hub.
+      const groupById = Object.fromEntries((groups || []).map(g => [g.id, g]));
+      const seenGroup = new Set();
+      const cardHtml = (c, extraClass) => `
+        <a href="${esc(c.path)}" class="tool-card tool-card--active${extraClass || ''}">
+          <div class="card-icon-wrap">${c.icon || ''}</div>
           <div class="card-body">
-            <h3 class="card-title">${esc(a.name)}</h3>
-            <p class="card-desc">${esc(a.desc)}</p>
-            <div class="card-tags">${(a.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>
+            <h3 class="card-title">${esc(c.name)}</h3>
+            <p class="card-desc">${esc(c.desc)}</p>
+            <div class="card-tags">${(c.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>
           </div>
           <div class="card-arrow">→</div>
-        </a>
-      `).join('');
+        </a>`;
+      const cards = [];
+      for (const a of apps) {
+        if (a.group && groupById[a.group]) {
+          if (seenGroup.has(a.group)) continue;
+          seenGroup.add(a.group);
+          cards.push(cardHtml(groupById[a.group], ' tool-card--group'));
+        } else {
+          cards.push(cardHtml(a));
+        }
+      }
+      grid.innerHTML = cards.join('');
     })();
   </script>
 </body>

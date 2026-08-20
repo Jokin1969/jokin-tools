@@ -166,6 +166,7 @@ async function boot() {
     await refreshNotifications();
     // Deep links from the notification emails: ?person=<id> or ?people=<id,id,…>.
     const params = new URLSearchParams(location.search);
+    if (params.has('help')) { await viewHome(); viewHelp(); return; }
     const personId = Number(params.get('person'));
     const peopleCsv = params.get('people');
     if (personId) { await viewHome(); openPerson(personId); return; }

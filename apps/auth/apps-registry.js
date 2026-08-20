@@ -58,6 +58,7 @@ const APPS = [
   },
   {
     id: 'qr-tis',
+    group: 'farmacia',
     name: 'Gestión de QR (TIS)',
     path: '/qr-tis',
     desc: 'Base de datos de personas y su código TIS con generación de códigos QR escaneables. Introducir, visualizar y utilizar el QR del TIS para la gestión de la medicación.',
@@ -74,6 +75,7 @@ const APPS = [
   },
   {
     id: 'datamatrix',
+    group: 'farmacia',
     name: 'Gestor de códigos Data Matrix',
     path: '/datamatrix',
     desc: 'Inventario de cajas de medicación por sus códigos Data Matrix (GS1). Escanea para dar entrada, marca como utilizada la salida, agrupa por medicamento y genera Data Matrix escaneables.',
@@ -92,6 +94,7 @@ const APPS = [
   },
   {
     id: 'asignacion',
+    group: 'farmacia',
     name: 'Asignación de medicación',
     path: '/asignacion',
     desc: 'Une personas (QR·TIS) y cajas (Data Matrix): prepara el plan mensual de cada persona, pre-asigna cajas reales y márcalas como asignadas al dispensarlas en la aplicación de Salud.',
@@ -191,9 +194,35 @@ function canAccess(user, appId) {
 // Public-facing card metadata (no need to ship icons over the API; the hub
 // already has them, but it's handy for the admin checkboxes). Each app also
 // carries its `features` (empty for apps without fine-grained control).
-const appsMeta = () => APPS.map(({ id, name, path, desc, tags }) => ({ id, name, path, desc, tags, features: APP_FEATURES[id] || [] }));
+const appsMeta = () => APPS.map(({ id, name, path, desc, tags, group }) => ({ id, name, path, desc, tags, group: group || null, features: APP_FEATURES[id] || [] }));
+
+// App groups: a set of related apps shown in the main hub as ONE card that leads
+// to a mini-hub. Currently just the pharmacy suite.
+const GROUPS = {
+  farmacia: {
+    id: 'farmacia', name: 'Farmacia', path: '/farmacia',
+    desc: 'Suite de farmacia: personas y su QR (TIS), inventario de cajas (Data Matrix) y la asignación mensual de medicación. Entra al mini-hub para elegir.',
+    tags: ['QR (TIS)', 'Data Matrix', 'Asignación'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <rect x="14" y="10" width="36" height="44" rx="6" stroke="#1B6CB0" stroke-width="2"/>
+      <path d="M32 22v16M24 30h16" stroke="#009B8D" stroke-width="3" stroke-linecap="round"/>
+      <path d="M22 10v6h20v-6" stroke="#0097B2" stroke-width="2"/>
+    </svg>`,
+  },
+};
+const GROUP_IDS = Object.keys(GROUPS);
+// The groups a user can reach (they have access to ≥1 member app).
+function groupsForUser(user) {
+  const ids = new Set(appsForUser(user).map(a => a.id));
+  return GROUP_IDS
+    .filter(g => APPS.some(a => a.group === g && ids.has(a.id)))
+    .map(g => GROUPS[g]);
+}
+// Member apps of a group that the user can access (for the mini-hub).
+function groupAppsForUser(user, groupId) { return appsForUser(user).filter(a => a.group === groupId); }
 
 module.exports = {
   APPS, APP_IDS, appsForUser, canAccess, appsMeta,
   APP_FEATURES, featureIds, appHasFeatures, isFeatureId, featuresForUser, canAccessFeature,
+  GROUPS, GROUP_IDS, groupsForUser, groupAppsForUser,
 };

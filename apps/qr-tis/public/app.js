@@ -1246,7 +1246,7 @@ function fmtDateTime(s) {
     S.settings = meta.settings; S.user = meta.user; S.canAsignacion = !!meta.canAsignacion;
     await reloadPeople();
     await reloadCart();
-    viewHome();
+    if (new URLSearchParams(location.search).has('help')) viewHelp(); else viewHome();
   } catch (e) {
     main().innerHTML = `<div class="qt-panel"><p style="color:var(--danger)">No se pudo cargar la app: ${esc(e.message)}</p></div>`;
   }
