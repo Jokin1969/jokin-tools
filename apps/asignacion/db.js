@@ -28,13 +28,15 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS asig_plan (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     person_id  INTEGER NOT NULL,          -- qr-tis person id
-    gtin       TEXT NOT NULL,             -- datamatrix medication (GTIN)
+    gtin       TEXT,                      -- datamatrix medication (GTIN) — null until a box links it
+    cn         TEXT,                      -- Código Nacional (identity when there's no GTIN yet)
+    nombre     TEXT,                      -- medication name (typed; used when the catalogue has none)
+    barcode    TEXT,                      -- EAN / código de barras (optional)
     qty        INTEGER NOT NULL DEFAULT 1,-- boxes per period
     notes      TEXT,
     active     INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(person_id, gtin)
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_asig_plan_person ON asig_plan(person_id);
 
@@ -139,6 +141,38 @@ try { db.prepare('ALTER TABLE asig_note ADD COLUMN alert INTEGER NOT NULL DEFAUL
 // fecha oficial de Salud menos estos días. Por defecto 15, ajustable por línea.
 try { db.prepare('ALTER TABLE asig_line ADD COLUMN advance_days INTEGER NOT NULL DEFAULT 15').run(); } catch { /* already present */ }
 
+// Plan medications can now exist by Código Nacional before any GTIN/Data Matrix.
+// Old asig_plan had `gtin NOT NULL` + inline UNIQUE(person_id,gtin); rebuild it so
+// gtin is nullable and CN-only rows are possible. (No FKs reference asig_plan.)
+{
+  const planCols = db.prepare('PRAGMA table_info(asig_plan)').all().map(c => c.name);
+  if (!planCols.includes('cn')) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE asig_plan_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, person_id INTEGER NOT NULL,
+          gtin TEXT, cn TEXT, nombre TEXT, barcode TEXT,
+          qty INTEGER NOT NULL DEFAULT 1, notes TEXT, active INTEGER NOT NULL DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO asig_plan_new (id, person_id, gtin, qty, notes, active, created_at, updated_at)
+          SELECT id, person_id, gtin, qty, notes, active, created_at, updated_at FROM asig_plan;
+        DROP TABLE asig_plan;
+        ALTER TABLE asig_plan_new RENAME TO asig_plan;
+        CREATE INDEX IF NOT EXISTS idx_asig_plan_person ON asig_plan(person_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_asig_plan_person_gtin ON asig_plan(person_id, gtin) WHERE gtin IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_asig_plan_person_cn ON asig_plan(person_id, cn) WHERE gtin IS NULL AND cn IS NOT NULL;
+      `);
+    })();
+  }
+}
+// Partial unique indexes — created AFTER the migration so `cn` is guaranteed to
+// exist: one catalogued med (by GTIN) and one CN-only med (by CN) per person.
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_asig_plan_person_gtin ON asig_plan(person_id, gtin) WHERE gtin IS NOT NULL;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_asig_plan_person_cn ON asig_plan(person_id, cn) WHERE gtin IS NULL AND cn IS NOT NULL;
+`);
+
 console.log('[asignacion] Database ready at:', DB_PATH);
 
 // notify_mode: how the release bell groups a person's pending boxes —
@@ -153,21 +187,60 @@ function getPlanLine(id) { return db.prepare('SELECT * FROM asig_plan WHERE id =
 function planByGtin(personId, gtin) {
   return db.prepare('SELECT * FROM asig_plan WHERE person_id = ? AND gtin = ?').get(personId, gtin) || null;
 }
-function upsertPlan(personId, gtin, data) {
-  const cur = planByGtin(personId, gtin) || {};
-  const row = {
-    person_id: personId, gtin,
-    qty: data.qty != null ? Math.max(1, Math.min(99, Math.round(Number(data.qty)) || 1)) : (cur.qty || 1),
+// A CN-only plan med (no GTIN yet) — the "info before Data Matrix" state.
+function planByCn(personId, cn) {
+  return db.prepare('SELECT * FROM asig_plan WHERE person_id = ? AND cn = ? AND gtin IS NULL').get(personId, cn) || null;
+}
+const cleanQty = (v, dflt = 1) => (v != null ? Math.max(1, Math.min(99, Math.round(Number(v)) || 1)) : dflt);
+// Add/update a plan medication. Identify by GTIN (catalogued) or, when there's no
+// GTIN yet, by Código Nacional. Both keep nombre/barcode/qty/notes.
+function addPlanMed(personId, data) {
+  const gtin = data.gtin ? String(data.gtin).trim() : null;
+  const cn = data.cn ? String(data.cn).trim() : null;
+  const nombre = data.nombre != null ? (String(data.nombre).trim() || null) : null;
+  const barcode = data.barcode != null ? (String(data.barcode).trim() || null) : null;
+  const cur = gtin ? planByGtin(personId, gtin) : (cn ? planByCn(personId, cn) : null);
+  if (cur) {
+    db.prepare(`UPDATE asig_plan SET qty = @qty, notes = @notes, active = @active,
+       cn = COALESCE(@cn, cn), nombre = COALESCE(@nombre, nombre), barcode = COALESCE(@barcode, barcode),
+       updated_at = CURRENT_TIMESTAMP WHERE id = @id`).run({
+      id: cur.id, qty: cleanQty(data.qty, cur.qty || 1),
+      notes: data.notes !== undefined ? (data.notes || null) : (cur.notes || null),
+      active: data.active != null ? (data.active ? 1 : 0) : (cur.active != null ? cur.active : 1),
+      cn, nombre, barcode,
+    });
+    return getPlanLine(cur.id);
+  }
+  const info = db.prepare(
+    `INSERT INTO asig_plan (person_id, gtin, cn, nombre, barcode, qty, notes, active, updated_at)
+     VALUES (@person_id, @gtin, @cn, @nombre, @barcode, @qty, @notes, @active, CURRENT_TIMESTAMP)`
+  ).run({
+    person_id: personId, gtin, cn, nombre, barcode,
+    qty: cleanQty(data.qty), notes: data.notes || null,
+    active: data.active != null ? (data.active ? 1 : 0) : 1,
+  });
+  return getPlanLine(info.lastInsertRowid);
+}
+// Back-compat helper for the GTIN path.
+function upsertPlan(personId, gtin, data) { return addPlanMed(personId, { ...data, gtin }); }
+// Edit qty/notes/active of a plan row by id (works for CN-only rows too).
+function updatePlanById(id, data) {
+  const cur = getPlanLine(id); if (!cur) return null;
+  db.prepare(`UPDATE asig_plan SET qty = @qty, notes = @notes, active = @active, updated_at = CURRENT_TIMESTAMP WHERE id = @id`).run({
+    id, qty: cleanQty(data.qty, cur.qty || 1),
     notes: data.notes !== undefined ? (data.notes || null) : (cur.notes || null),
     active: data.active != null ? (data.active ? 1 : 0) : (cur.active != null ? cur.active : 1),
-  };
-  db.prepare(
-    `INSERT INTO asig_plan (person_id, gtin, qty, notes, active, updated_at)
-     VALUES (@person_id, @gtin, @qty, @notes, @active, CURRENT_TIMESTAMP)
-     ON CONFLICT(person_id, gtin) DO UPDATE SET qty = excluded.qty, notes = excluded.notes,
-       active = excluded.active, updated_at = CURRENT_TIMESTAMP`
-  ).run(row);
-  return planByGtin(personId, gtin);
+  });
+  return getPlanLine(id);
+}
+// A CN-only plan med "graduates" once a real box gives us its GTIN. If the person
+// already has that GTIN in the plan, merge (drop the CN-only row); else set gtin.
+function reconcilePlanGtin(id, gtin) {
+  const cur = getPlanLine(id); if (!cur || !gtin || cur.gtin) return cur;
+  const existing = planByGtin(cur.person_id, gtin);
+  if (existing && existing.id !== cur.id) { db.prepare('DELETE FROM asig_plan WHERE id = ?').run(cur.id); return existing; }
+  db.prepare('UPDATE asig_plan SET gtin = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(gtin, id);
+  return getPlanLine(id);
 }
 function deletePlanLine(id) { return db.prepare('DELETE FROM asig_plan WHERE id = ?').run(id).changes > 0; }
 // Person ids that have at least one plan line (for the overview list).
@@ -482,7 +555,7 @@ function saveSettings(data, userId) {
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listPlan, getPlanLine, planByGtin, upsertPlan, deletePlanLine, planPersonIds,
+  listPlan, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, reconcilePlanGtin, deletePlanLine, planPersonIds,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
   DEFAULT_ADVANCE, clampAdvance, effectiveDate,
   listLines, getLine, findLine, lineByItem, addLine, setLineState, setLineRelease, setLineAdvance, pendingReleaseLines, deleteLine, periodCounts,

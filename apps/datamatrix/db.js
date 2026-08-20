@@ -162,6 +162,15 @@ function availableItems(gtin) {
       ORDER BY i.caducidad IS NULL, i.caducidad, i.id`
   ).all(...args);
 }
+// Available (unreserved) boxes matching a Código Nacional — for linking a box to a
+// plan medication that has no GTIN yet.
+function availableItemsByCn(cn) {
+  if (!cn) return [];
+  return db.prepare(
+    `${ITEM_SELECT} WHERE i.status = 'activo' AND i.assignee_id IS NULL AND i.cn = ?
+      ORDER BY i.caducidad IS NULL, i.caducidad, i.id`
+  ).all(String(cn));
+}
 function recentItems(limit) {
   return db.prepare(
     `${ITEM_SELECT} WHERE i.status = 'activo'
@@ -245,7 +254,7 @@ function cartClear(userId) { db.prepare('DELETE FROM dm_cart WHERE user_id = ?')
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listItems, getItem, findByKey, createItem, createManyItems, setUsed, touchItem, setAssignee, availableItems, recentItems, deleteItem, deleteMany, counts,
+  listItems, getItem, findByKey, createItem, createManyItems, setUsed, touchItem, setAssignee, availableItems, availableItemsByCn, recentItems, deleteItem, deleteMany, counts,
   getProduct, listProducts, upsertProduct, importProducts,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,

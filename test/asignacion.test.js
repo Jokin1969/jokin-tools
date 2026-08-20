@@ -74,6 +74,47 @@ test('add a medication to the plan (must exist in DM)', async () => {
   assert.equal(ok.data.plan[0].qty, 2);
 });
 
+test('plan CN-only: add a medication by Código Nacional before any Data Matrix, then link a box', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80001', nombre: 'Noa', apellidos: 'Cea', tis: '00080001' }, 1).id;
+  // Adding by CN requires a name.
+  assert.equal((await call('POST', `/person/${pid}/plan`, { cn: '715000' })).status, 400);
+  // Add the medication with only its national code (no GTIN / no box yet).
+  const added = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Ibuprofeno 600', barcode: '8470007150009', qty: 2 })).data.plan;
+  const med = added.find(m => m.cn === '715000');
+  assert.ok(med, 'CN-only med is in the plan');
+  assert.equal(med.cn_only, true);
+  assert.equal(med.gtin, null);
+  assert.equal(med.nombre, 'Ibuprofeno 600');
+  assert.equal(med.available, 0, 'no compatible box yet');
+
+  // A real box with that CN appears in stock → the plan med now has a compatible box.
+  const cnBox = dmDb.createItem({ raw: 'R-CN715', box_key: 'CN715', gtin: '08470007150009', serial: 'C1', cn: '715000' }, 1).id;
+  const planNow = (await call('GET', `/person/${pid}/plan`)).data.plan;
+  assert.equal(planNow.find(m => m.cn === '715000').available, 1, 'available-by-CN finds it');
+
+  // Link that box to the plan med → it becomes pre-asignada AND the med graduates to a GTIN.
+  const ficha = (await call('POST', `/person/${pid}/preassign`, { item_id: cnBox, plan_id: med.id, ym: '2026-08' })).data;
+  assert.ok(ficha.lines.some(l => l.item_id === cnBox && l.state === 'preasignada'), 'box pre-assigned');
+  const graduated = ficha.plan.find(m => m.id === med.id);
+  assert.equal(graduated.cn_only, false, 'CN-only med reconciled to a GTIN once linked');
+  assert.equal(graduated.gtin, '08470007150009');
+});
+
+test('linking a mismatched box warns (409) but can be forced', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80002', nombre: 'Iker', apellidos: 'Dao', tis: '00080002' }, 1).id;
+  const med = (await call('POST', `/person/${pid}/plan`, { cn: '999999', nombre: 'Medicamento X', qty: 1 })).data.plan.find(m => m.cn === '999999');
+  // A box whose CN/GTIN doesn't match the plan med.
+  const wrong = dmDb.createItem({ raw: 'R-WRONG', box_key: 'WRONG', gtin: GTIN, serial: 'W1', cn: '715000' }, 1).id;
+  const warn = await call('POST', `/person/${pid}/preassign`, { item_id: wrong, plan_id: med.id, ym: '2026-08' });
+  assert.equal(warn.status, 409);
+  assert.equal(warn.data.mismatch, true);
+  assert.ok(warn.data.med && warn.data.box, 'warning carries both sides');
+  // Forcing it through succeeds.
+  const forced = await call('POST', `/person/${pid}/preassign`, { item_id: wrong, plan_id: med.id, ym: '2026-08', force: true });
+  assert.equal(forced.status, 200);
+  assert.ok(forced.data.lines.some(l => l.item_id === wrong));
+});
+
 test('preassign a box → reserved, box stays in stock (pre-asignada)', async () => {
   const { status, data } = await call('POST', `/person/${personId}/preassign`, { item_id: box1, ym: '2026-08' });
   assert.equal(status, 200);

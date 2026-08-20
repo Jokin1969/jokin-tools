@@ -160,13 +160,25 @@ router.get('/api/medications', (req, res) => {
 router.get('/api/available/:gtin([0-9A-Za-z]+)', (req, res) => {
   try { res.json({ items: dmDb.availableItems(req.params.gtin).map(boxView) }); } catch (err) { fail(res, err); }
 });
+// Available boxes for a plan medication that has only a Código Nacional (no GTIN yet).
+router.get('/api/available-cn/:cn([0-9A-Za-z]+)', (req, res) => {
+  try { res.json({ items: dmDb.availableItemsByCn(req.params.cn).map(boxView) }); } catch (err) { fail(res, err); }
+});
 
 // ── Plan (recurring medications per person) ──────────────────────────────────────
 function planView(personId) {
   return db.listPlan(personId).map(l => {
-    const m = medMeta(l.gtin);
-    return { id: l.id, gtin: l.gtin, qty: l.qty, notes: l.notes || null, active: l.active,
-      nombre: m.nombre, color: m.color, shape: m.shape, available: dmDb.availableItems(l.gtin).length };
+    const hasGtin = !!l.gtin;
+    const cat = hasGtin ? medMeta(l.gtin) : null;
+    const nombre = (cat && cat.nombre) || l.nombre || null;
+    const color = dmVisual.resolveColor(l.gtin, cat && cat.color);
+    const shape = dmVisual.resolveShape(l.gtin, cat && cat.shape);
+    const available = hasGtin ? dmDb.availableItems(l.gtin).length : (l.cn ? dmDb.availableItemsByCn(l.cn).length : 0);
+    return {
+      id: l.id, gtin: l.gtin || null, cn: l.cn || null, barcode: l.barcode || null,
+      qty: l.qty, notes: l.notes || null, active: l.active,
+      nombre, color, shape, available, cn_only: !hasGtin,
+    };
   });
 }
 router.get('/api/person/:id(\\d+)/plan', (req, res) => {
@@ -181,13 +193,27 @@ router.post('/api/person/:id(\\d+)/plan', json, (req, res) => {
     const p = qrDb.getPerson(Number(req.params.id));
     if (!p) return res.status(404).json({ error: 'Persona no encontrada en QR (TIS).' });
     const b = req.body || {};
-    const gtin = gs1.normGtin(b.gtin);
-    if (!gtin || gtin.replace(/^0+/, '').length < 8) throw bad('GTIN no válido.');
-    // The medication must exist in the Data Matrix app (a catalogued product or an
-    // actual box). Otherwise it has to be added there first.
-    const known = dmDb.getProduct(gtin) || dmDb.availableItems(gtin).length || dmDb.listItems('utilizado').some(i => i.gtin === gtin);
-    if (!known) throw bad('Ese medicamento no está en la app Data Matrix. Añádelo allí primero (escanea una caja o impórtalo).');
-    db.upsertPlan(p.id, gtin, { qty: b.qty, notes: b.notes });
+    const gtin = b.gtin ? gs1.normGtin(b.gtin) : null;
+    const cn = b.cn ? String(b.cn).trim() : null;
+    const nombre = b.nombre ? String(b.nombre).trim() : null;
+    const barcode = b.barcode ? String(b.barcode).trim() : null;
+    if (gtin && gtin.replace(/^0+/, '').length >= 8) {
+      // Catalogued path: the GTIN must exist in the Data Matrix app.
+      const known = dmDb.getProduct(gtin) || dmDb.availableItems(gtin).length || dmDb.listItems('utilizado').some(i => i.gtin === gtin);
+      if (!known) throw bad('Ese medicamento no está en la app Data Matrix. Añádelo allí primero (escanea una caja o impórtalo).');
+      db.addPlanMed(p.id, { gtin, qty: b.qty, notes: b.notes, nombre, barcode, cn });
+    } else if (cn) {
+      // CN-only path (info before Data Matrix). Promote to catalogued if the CN is
+      // already known in the medication catalogue; otherwise keep it CN-only.
+      const prod = dmDb.listProducts().find(x => x.cn && String(x.cn) === cn);
+      if (prod) db.addPlanMed(p.id, { gtin: prod.gtin, qty: b.qty, notes: b.notes, nombre: nombre || prod.nombre, barcode, cn });
+      else {
+        if (!nombre) throw bad('Indica el nombre del medicamento.');
+        db.addPlanMed(p.id, { cn, nombre, barcode, qty: b.qty, notes: b.notes });
+      }
+    } else {
+      throw bad('Indica el GTIN o el Código Nacional del medicamento.');
+    }
     res.json({ plan: planView(p.id) });
   } catch (err) { fail(res, err); }
 });
@@ -196,7 +222,7 @@ router.patch('/api/plan/:id(\\d+)', json, (req, res) => {
     const line = db.getPlanLine(Number(req.params.id));
     if (!line) return res.status(404).json({ error: 'Línea de plan no encontrada.' });
     const b = req.body || {};
-    db.upsertPlan(line.person_id, line.gtin, { qty: b.qty, notes: b.notes, active: b.active });
+    db.updatePlanById(line.id, { qty: b.qty, notes: b.notes, active: b.active });
     res.json({ plan: planView(line.person_id) });
   } catch (err) { fail(res, err); }
 });
@@ -332,12 +358,29 @@ router.post('/api/person/:id(\\d+)/preassign', json, (req, res) => {
       throw bad(`Esa caja ya está pre-asignada a ${item.assignee_name || 'otra persona'}.`);
     }
 
+    // If we're linking the box to a specific plan medication, check it matches
+    // (by GTIN or Código Nacional). On mismatch, warn (409) unless forced.
+    const planId = b.plan_id != null ? Number(b.plan_id) : null;
+    let planMed = planId ? db.getPlanLine(planId) : null;
+    if (planMed && planMed.person_id === p.id) {
+      const matches = (planMed.gtin && item.gtin && planMed.gtin === item.gtin) || (planMed.cn && item.cn && planMed.cn === item.cn);
+      if (!matches && !b.force) {
+        return res.status(409).json({
+          error: 'La caja escaneada no parece del mismo medicamento del plan.', mismatch: true,
+          box: { nombre: item.nombre || null, gtin: item.gtin || null, cn: item.cn || null },
+          med: { nombre: planMed.nombre || null, gtin: planMed.gtin || null, cn: planMed.cn || null },
+        });
+      }
+    }
+
     const period = db.getOrCreatePeriod(p.id, ym, req.user.id);
     const existing = db.findLine(period.id, item.id);
     if (!existing) {
       dmDb.setAssignee(item.id, p.id, personName(p));
       db.addLine({ period_id: period.id, person_id: p.id, gtin: item.gtin, item_id: item.id, box_key: item.box_key, state: 'preasignada' });
     }
+    // A CN-only plan med "graduates" to catalogued once we know the box's GTIN.
+    if (planMed && !planMed.gtin && item.gtin) db.reconcilePlanGtin(planMed.id, item.gtin);
     res.json(fichaPayload(p, ym));
   } catch (err) { fail(res, err); }
 });

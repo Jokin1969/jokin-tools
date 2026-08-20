@@ -497,6 +497,11 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 /* Plan rows */
 .az-plan { display: flex; flex-direction: column; gap: 6px; }
 .az-planrow { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; flex-wrap: wrap; }
+/* A CN-only med (info before Data Matrix) is marked with a dashed amber edge. */
+.az-planrow.is-cnonly { border-style: dashed; border-color: #e6c07a; background: #fffdf7; }
+.az-plan-flag { color: #8a5a00; font-weight: 700; }
+.az-cnform { margin-top: 14px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 12px; background: #fbfdff; }
+.az-cnform-h { font-weight: 700; color: var(--ink); font-size: 0.9rem; margin-bottom: 8px; }
 .az-plan-shape { flex: 0 0 auto; display: inline-flex; }
 .az-plan-name { flex: 1 1 200px; min-width: 0; font-weight: 700; color: var(--ink); display: flex; flex-direction: column; }
 .az-plan-name small { font-weight: 500; color: var(--muted); font-size: 0.72rem; font-family: var(--mono); }
