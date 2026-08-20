@@ -716,6 +716,7 @@ function renderFicha() {
 
          <div class="az-sec-h"><span>📦 Cajas de la ficha (${f.lines.length})</span><button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-box" ${closed ? 'disabled' : ''}>➕ Añadir DM</button></div>
          <div class="az-lines">${linesHtml(f.lines, closed, dmSize)}</div>
+         ${pendingHtml(f.plan, closed)}
        </div>
      </div>`;
 
@@ -861,6 +862,27 @@ function linesHtml(lines, closed, dmSize) {
     return `<div class="az-linegroup"><div class="az-linegroup-h">${sample.box ? shapeSvg(sample.box.shape, sample.box.color, 16) : ''} ${esc(name)} <span class="az-lg-count">×${arr.length}</span></div>
       <div class="az-linegrid">${arr.map(ln => lineHtml(ln, closed, dmSize)).join('')}</div></div>`;
   }).join('');
+}
+// Pending medications (no Data Matrix this month) shown in the boxes section, with
+// their box photo and a scannable EAN-13 "precinto" for the Salud app.
+function pendingHtml(plan, closed) {
+  const pend = (plan || []).filter(m => m.active && (m.attached || 0) === 0);
+  if (!pend.length) return '';
+  return `<div class="az-pend-h">🏷️ Pendientes de caja — escanea el <b>precinto</b> en la app de Salud (mientras no haya Data Matrix)</div>
+    <div class="az-pendgrid">${pend.map(m => {
+      const icon = m.foto_caja
+        ? `<img class="az-pend-foto" src="${API}/cima/foto/${esc(m.cn)}/caja" alt="Caja" loading="lazy" onerror="this.style.display='none'">`
+        : `<span class="az-plan-shape">${shapeSvg(m.shape, m.color, 28)}</span>`;
+      const bc = m.barcode ? eanSvg(m.barcode) : '';
+      return `<div class="az-pendcard">
+        <div class="az-pend-top">${icon}<div class="az-pend-info"><b>${esc(m.nombre || 'Medicamento')}</b><small>${m.cn ? 'CN ' + esc(m.cn) : ''}${m.barcode ? ' · CB ' + esc(m.barcode) : ''}</small></div></div>
+        ${bc ? `<div class="az-pend-ean" data-precinto="${m.id}" title="Ampliar el precinto">${bc}</div>` : '<div class="az-empty-sm">Sin código de barras. Añádelo con ✏️ en el plan o con «🔎 CIMA».</div>'}
+        <div class="az-pend-actions">
+          ${m.foto_pastilla ? `<button class="qt-iconbtn" data-pill="${m.id}" title="Ver la pastilla (AEMPS)">💊</button>` : ''}
+          ${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assoc="${m.id}">🔗 Asociar caja</button>`}
+        </div>
+      </div>`;
+    }).join('')}</div>`;
 }
 function wireLines(closed) {
   main().querySelectorAll('[data-assign]').forEach(b => b.addEventListener('click', () => {
