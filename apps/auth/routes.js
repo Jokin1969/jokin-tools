@@ -5,7 +5,7 @@ const router = express.Router();
 
 const store = require('./store');
 const mailer = require('./mailer');
-const { appsForUser, appsMeta, APP_IDS, isFeatureId, groupsForUser } = require('./apps-registry');
+const { appsForUser, appsMeta, APP_IDS, isFeatureId, groupsForUser, GROUPS } = require('./apps-registry');
 const { requireAuth, requireAdmin, requireLogin, setSessionCookie, clearSessionCookie } = require('./middleware');
 const { rateLimit } = require('./rate-limit');
 
@@ -166,7 +166,7 @@ router.post('/reset-password', resetLimiter, (req, res) => {
 
 // ─── Admin: app registry + user management ─────────────────────────────────────
 router.get('/api/apps', requireAdmin, (req, res) => {
-  res.json({ apps: appsMeta() });
+  res.json({ apps: appsMeta(), groups: Object.values(GROUPS).map(({ id, name, desc }) => ({ id, name, desc })) });
 });
 
 router.get('/api/users', requireAdmin, (req, res) => {

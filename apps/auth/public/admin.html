@@ -104,6 +104,7 @@
 
   <script>
     let APPS = [];
+    let GROUPS_MAP = {};
     let ME = null;
 
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -121,36 +122,68 @@
       return data;
     }
 
-    // Render app checkboxes, each with an optional nested box of sub-features.
+    // One normal app checkbox, with an optional nested box of sub-features.
+    function appItemHtml(a, selected, isAdmin) {
+      const appChecked = isAdmin || selected.includes(a.id);
+      const feats = a.features || [];
+      let featHtml = '';
+      if (feats.length) {
+        const scopedSel = selected.filter(s => s.startsWith(a.id + '/')).map(s => s.split('/')[1]);
+        const anyScoped = scopedSel.length > 0;   // no scopes → full access (all on)
+        featHtml = `<div class="feat-box" data-app="${esc(a.id)}" style="display:${appChecked && !isAdmin ? 'flex' : 'none'}">`
+          + `<div class="feat-hint">Marca los grupos permitidos (todos marcados = acceso completo):</div>`
+          + feats.map(f => {
+              const fChecked = isAdmin || !anyScoped || scopedSel.includes(f.id);
+              return `<label><input type="checkbox" class="feat-cb" value="${esc(a.id)}/${esc(f.id)}" ${fChecked ? 'checked' : ''} ${isAdmin ? 'disabled' : ''}/> ${esc(f.name)}</label>`;
+            }).join('')
+          + `</div>`;
+      }
+      return `<div class="app-item">`
+        + `<label><input type="checkbox" class="app-cb" value="${esc(a.id)}" ${appChecked ? 'checked' : ''} ${isAdmin ? 'disabled' : ''}/> ${esc(a.name)}</label>`
+        + featHtml + `</div>`;
+    }
+    // A group (e.g. Farmacia): one parent checkbox that expands to its member apps.
+    // The members are the real grants; the parent id is NOT stored.
+    function groupItemHtml(groupId, selected, isAdmin) {
+      const members = APPS.filter(a => a.group === groupId);
+      const label = (GROUPS_MAP[groupId] && GROUPS_MAP[groupId].name) || groupId;
+      const anyMember = isAdmin || members.some(m => selected.includes(m.id));
+      const boxHtml = `<div class="feat-box group-box" data-group="${esc(groupId)}" style="display:${anyMember && !isAdmin ? 'flex' : 'none'}">`
+        + `<div class="feat-hint">Marca las apps de ${esc(label)} permitidas (todas marcadas = acceso completo):</div>`
+        + members.map(m => {
+            const mChecked = isAdmin || selected.includes(m.id);
+            return `<label><input type="checkbox" class="group-member-cb" value="${esc(m.id)}" ${mChecked ? 'checked' : ''} ${isAdmin ? 'disabled' : ''}/> ${esc(m.name)}</label>`;
+          }).join('')
+        + `</div>`;
+      return `<div class="app-item">`
+        + `<label><input type="checkbox" class="group-cb" value="${esc(groupId)}" ${anyMember ? 'checked' : ''} ${isAdmin ? 'disabled' : ''}/> <b>${esc(label)}</b></label>`
+        + boxHtml + `</div>`;
+    }
+    // Render app checkboxes; apps that belong to a group collapse into one parent.
     // `selected` is the user's apps array (base ids + "app/feature" scoped ids).
     function paintAppsInto(box, selected, isAdmin) {
-      box.innerHTML = APPS.map(a => {
-        const appChecked = isAdmin || selected.includes(a.id);
-        const feats = a.features || [];
-        let featHtml = '';
-        if (feats.length) {
-          const scopedSel = selected.filter(s => s.startsWith(a.id + '/')).map(s => s.split('/')[1]);
-          const anyScoped = scopedSel.length > 0;   // no scopes → full access (all on)
-          featHtml = `<div class="feat-box" data-app="${esc(a.id)}" style="display:${appChecked && !isAdmin ? 'flex' : 'none'}">`
-            + `<div class="feat-hint">Marca los grupos permitidos (todos marcados = acceso completo):</div>`
-            + feats.map(f => {
-                const fChecked = isAdmin || !anyScoped || scopedSel.includes(f.id);
-                return `<label><input type="checkbox" class="feat-cb" value="${esc(a.id)}/${esc(f.id)}" ${fChecked ? 'checked' : ''} ${isAdmin ? 'disabled' : ''}/> ${esc(f.name)}</label>`;
-              }).join('')
-            + `</div>`;
-        }
-        return `<div class="app-item">`
-          + `<label><input type="checkbox" class="app-cb" value="${esc(a.id)}" ${appChecked ? 'checked' : ''} ${isAdmin ? 'disabled' : ''}/> ${esc(a.name)}</label>`
-          + featHtml + `</div>`;
-      }).join('');
-      // Toggling an app shows/hides its sub-feature box.
+      const done = new Set(), parts = [];
+      for (const a of APPS) {
+        if (a.group) { if (done.has(a.group)) continue; done.add(a.group); parts.push(groupItemHtml(a.group, selected, isAdmin)); }
+        else parts.push(appItemHtml(a, selected, isAdmin));
+      }
+      box.innerHTML = parts.join('');
+      // Toggling a feature-app shows/hides its sub-feature box.
       box.querySelectorAll('.app-cb').forEach(cb => cb.addEventListener('change', () => {
         const fb = box.querySelector('.feat-box[data-app="' + cb.value + '"]');
         if (fb) fb.style.display = cb.checked ? 'flex' : 'none';
       }));
+      // Toggling a group shows/hides its member box; turning it ON checks all members.
+      box.querySelectorAll('.group-cb').forEach(cb => cb.addEventListener('change', () => {
+        const gb = box.querySelector('.group-box[data-group="' + cb.value + '"]');
+        if (!gb) return;
+        gb.style.display = cb.checked ? 'flex' : 'none';
+        if (cb.checked) gb.querySelectorAll('.group-member-cb').forEach(m => { if (!m.disabled) m.checked = true; });
+      }));
     }
-    // Build the apps payload: each checked app's id, plus "app/feature" scoped
-    // ids only when a strict subset of its features is selected (all/none = full).
+    // Build the apps payload: each checked app's id, plus "app/feature" scoped ids
+    // only when a strict subset of its features is selected (all/none = full); and
+    // each checked group's checked member app ids (the group id itself is not stored).
     function readApps(box) {
       const out = [];
       box.querySelectorAll('.app-cb:checked').forEach(cb => {
@@ -162,6 +195,10 @@
           const checked = all.filter(c => c.checked);
           if (checked.length && checked.length < all.length) out.push(...checked.map(c => c.value));
         }
+      });
+      box.querySelectorAll('.group-cb:checked').forEach(cb => {
+        const gb = box.querySelector('.group-box[data-group="' + cb.value + '"]');
+        if (gb) gb.querySelectorAll('.group-member-cb:checked').forEach(m => out.push(m.value));
       });
       return out;
     }
@@ -292,6 +329,7 @@
         const me = await api('GET', '/auth/api/me'); ME = me.user;
         document.getElementById('whoami').textContent = ME.email;
         const a = await api('GET', '/auth/api/apps'); APPS = a.apps;
+        (a.groups || []).forEach(g => { GROUPS_MAP[g.id] = g; });
         syncCreateRole();
         await loadUsers();
       } catch (err) {
