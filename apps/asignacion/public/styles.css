@@ -1011,3 +1011,9 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-pend-details > summary::before { content: '▸'; position: absolute; left: 10px; top: 8px; color: #8a5a00; font-size: 0.9rem; transition: transform .15s; }
 .az-pend-details[open] > summary::before { transform: rotate(90deg); }
 .az-pend-details > summary:hover { border-color: #d9b482; background: #fdf3e2; }
+
+/* «¿A quién sirve esta DM?» modal: box header + candidates table */
+.az-dc-dm { margin: 10px 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #f6fbff; }
+.az-dc-dm-name { font-weight: 800; color: var(--ink); }
+.az-dc-dm-meta { font-size: 0.82rem; color: var(--muted); margin-top: 3px; }
+.az-dc-act { white-space: nowrap; text-align: right; }

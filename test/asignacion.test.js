@@ -837,3 +837,27 @@ test('plan vacío: createEmptyPlan persiste y cuenta como "con plan"', async () 
   asigDb.createEmptyPlan(pid, 1);
   assert.equal(asigDb.personMedSummary(pid).has_plan, true);
 });
+
+test('DM → candidatos por CN y asociación (preassign) marca la caja asociada', async () => {
+  const asigDb = require('../apps/asignacion/db');
+  // Persona con ese CN en el plan.
+  const pid = qrDb.createPerson({ pharmacy_no: '90123', nombre: 'Cand', apellidos: 'Idato', tis: '00990123' }, 1).id;
+  asigDb.addPlanMed(pid, { cn: '715000', nombre: 'IBUPROFENO 600', qty: 2 });
+  // Una DM real de ese CN (GTIN 847000+CN → cnForCima = 715000).
+  const gtin = gs1.cnToGtin('715000');                 // 0 + 847000715000 + check
+  const raw = '01' + gtin + '21DM-CAND-1' + gs1.GS + '17261130';
+  const c = (await call('POST', '/dm/candidates', { raw })).data;
+  assert.equal(c.dm.cn, '715000', 'resuelve el CN de la DM');
+  assert.equal(c.dm.state, 'nueva');
+  const row = c.candidates.find(x => x.person.id === pid);
+  assert.ok(row, 'la persona con ese CN aparece como candidata');
+  assert.equal(row.med.qty, 2);
+  // Asociar (preassign) la DM a esa persona.
+  const r = await call('POST', `/person/${pid}/preassign`, { raw, plan_id: row.plan_id });
+  assert.equal(r.status, 200);
+  // La caja queda asociada (preasignada) a la persona, con su Nº de farmacia.
+  const box = dmDb.findByKey(gs1.boxKey(gs1.parse(raw), raw));
+  assert.ok(box && box.assignee_id === pid, 'la caja queda asociada a la persona');
+  assert.equal(box.assignee_pharmacy, '90123', 'guarda el Nº de farmacia para el listado de DM');
+  assert.equal(box.status, 'activo', 'sigue en stock (asociada, no asignada)');
+});

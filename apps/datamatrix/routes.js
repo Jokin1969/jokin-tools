@@ -58,6 +58,7 @@ function publicItem(it) {
     shape: visual.resolveShape(it.gtin, it.shape),
     assignee_id: it.assignee_id != null ? it.assignee_id : null,
     assignee_name: it.assignee_name || null,
+    assignee_pharmacy: it.assignee_pharmacy || null,
     asig_state,
     created_at: it.created_at, updated_at: it.updated_at,
   };

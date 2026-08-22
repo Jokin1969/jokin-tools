@@ -82,6 +82,7 @@ try { db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_products_cn ON dm_products(c
 //   Utilizada    = status 'utilizado' AND assignee_id IS NULL (used straight from this app)
 try { db.prepare('ALTER TABLE dm_items ADD COLUMN assignee_id INTEGER').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE dm_items ADD COLUMN assignee_name TEXT').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE dm_items ADD COLUMN assignee_pharmacy TEXT').run(); } catch { /* already present */ }
 try { db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_items_assignee ON dm_items(assignee_id)').run(); } catch { /* ignore */ }
 
 // ── CIMA (AEMPS) local cache ─────────────────────────────────────────────────────
@@ -114,7 +115,7 @@ const DEFAULT_SETTINGS = { dm_size: 300, list_dm_size: 100, card_dm_size: 200, d
 // carried one). Colour/shape still key off the box's own GTIN for a stable look.
 const ITEM_SELECT =
   `SELECT i.id, i.raw, i.box_key, i.gtin, i.serial, i.lote, i.caducidad, i.cn, i.status,
-          i.used_at, i.created_at, i.updated_at, i.assignee_id, i.assignee_name,
+          i.used_at, i.created_at, i.updated_at, i.assignee_id, i.assignee_name, i.assignee_pharmacy,
           COALESCE(p.nombre, pc.nombre) AS nombre, p.color AS color, p.shape AS shape
      FROM dm_items i
      LEFT JOIN dm_products p  ON p.gtin = i.gtin
@@ -163,13 +164,18 @@ function touchItem(id) {
 // Reserve (or release) a box for a person. Passing assigneeId = null clears it.
 // Does NOT change status — pre-asignada keeps the box 'activo' (still in stock);
 // the caller marks it 'utilizado' (setUsed) when it is actually dispensed.
-function setAssignee(id, assigneeId, assigneeName) {
+function setAssignee(id, assigneeId, assigneeName, assigneePharmacy) {
   const it = db.prepare('SELECT id FROM dm_items WHERE id = ?').get(id);
   if (!it) return null;
   db.prepare(
-    `UPDATE dm_items SET assignee_id = @assignee_id, assignee_name = @assignee_name,
+    `UPDATE dm_items SET assignee_id = @assignee_id, assignee_name = @assignee_name, assignee_pharmacy = @assignee_pharmacy,
             updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP WHERE id = @id`
-  ).run({ id, assignee_id: assigneeId != null ? assigneeId : null, assignee_name: assigneeId != null ? (assigneeName || null) : null });
+  ).run({
+    id,
+    assignee_id: assigneeId != null ? assigneeId : null,
+    assignee_name: assigneeId != null ? (assigneeName || null) : null,
+    assignee_pharmacy: assigneeId != null ? (assigneePharmacy || null) : null,
+  });
   return getItem(id);
 }
 // Boxes available to reserve: 'activo' and not already reserved for someone.

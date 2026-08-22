@@ -695,6 +695,7 @@ function renderHome() {
          <div class="az-picker-row">
            <div class="qt-search az-picker-search"><span class="ico">🔎</span><input id="pq" placeholder="Buscar persona por nombre, apellidos, TIS, nº de farmacia…" autocomplete="off" value="${esc(S.searchQuery)}"></div>
            <button class="qt-btn qt-btn-ghost az-import-btn" id="import-med">📥 Importar medicación (por Código Nacional)</button>
+           <button class="qt-btn qt-btn-ghost az-import-btn" id="dm-candidates">🔗 ¿A quién sirve esta DM?</button>
          </div>
          <div id="pq-results" class="az-results"></div>
        </div>
@@ -713,6 +714,7 @@ function renderHome() {
   pq.addEventListener('input', () => { S.searchQuery = pq.value; searchPeople(pq.value); });
   if (S.searchQuery) searchPeople(S.searchQuery);
   if ($('import-med')) $('import-med').onclick = openMedImport;
+  if ($('dm-candidates')) $('dm-candidates').onclick = openDmCandidates;
   renderOverviewSection();
   loadStickers(S.stkYm || undefined);
 }
@@ -784,6 +786,83 @@ function statusChip(r) {
   const pre = c.preasignada, done = c.asignada;
   if (pre > 0) return `<span class="az-chip az-chip-pre">🔗 ${done} asignada(s) · ${pre} por asignar</span>`;
   return `<span class="az-chip az-chip-done">✓ ${done} asignada(s)</span>`;
+}
+
+// ── DM → «¿a quién sirve esta caja?» ────────────────────────────────────────────
+// Enter a Data Matrix and get every person whose plan includes that medication (by
+// CN), with a full sortable list, links to each person, and a one-click «Asociar»
+// that pre-asigns the box to that person's plan medication.
+function openDmCandidates() {
+  const st = { dm: null, rows: [], sort: { key: 'apellidos', dir: 'asc' } };
+  openTool(`<div class="qt-modal-h"><h3>🔗 ¿A quién sirve esta Data Matrix?</h3><button class="qt-x" id="dc-x">×</button></div>
+    <p class="qt-tool-note">Escanea o pega una <b>Data Matrix</b> (o su GTIN) y pulsa <b>Enter</b>. Verás las personas cuyo plan incluye ese medicamento (por su <b>Código Nacional</b>). Pulsa <b>«🔗 Asociar»</b> para reservarles la caja (queda <b>asociada</b>; la asignación definitiva se hace luego en Salud).</p>
+    <div class="qt-field"><div class="qt-search"><span class="ico">🔳</span><input class="qt-input" id="dc-input" autocomplete="off" placeholder="Escanea o pega la Data Matrix y pulsa Enter…"></div></div>
+    <div id="dc-dm"></div>
+    <div id="dc-body"><div class="az-form-hint">Aún no has introducido ninguna Data Matrix.</div></div>`);
+  $('tool-modal-box').classList.add('az-modal-wide');
+  $('dc-x').onclick = closeTool;
+  const inp = $('dc-input'); setTimeout(() => inp && inp.focus(), 40);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); runSearch(); } });
+
+  async function runSearch() {
+    const raw = inp.value.trim(); if (!raw) return;
+    $('dc-body').innerHTML = '<div class="az-form-hint">Buscando…</div>';
+    try {
+      const r = await api('/dm/candidates', jbody({ raw }));
+      st.dm = r.dm; st.rows = r.candidates || [];
+      renderDm(); renderRows();
+    } catch (e) { $('dc-dm').innerHTML = ''; $('dc-body').innerHTML = `<div class="az-empty">${esc(e.message)}</div>`; }
+  }
+  function renderDm() {
+    const d = st.dm; if (!d) { $('dc-dm').innerHTML = ''; return; }
+    const who = d.assignee_name ? ' a ' + esc(d.assignee_name) : '';
+    const stateLabel = { nueva: 'nueva (aún no está en Data Matrix)', libre: 'libre — sin asociar', asociada: 'ya asociada' + who, asignada: 'ya asignada' + who, utilizada: '⚠️ utilizada sin trazabilidad' }[d.state] || d.state;
+    $('dc-dm').innerHTML = `<div class="az-dc-dm">
+      <div class="az-dc-dm-name">💊 ${esc(d.nombre || 'Medicamento no identificado')}</div>
+      <div class="az-dc-dm-meta">${d.cn ? 'CN ' + esc(d.cn) : 'sin CN'}${d.caducidad ? ' · Cad ' + fmtDate(d.caducidad) : ''}${d.gtin ? ' · GTIN ' + esc(d.gtin) : ''} · Estado: <b>${esc(stateLabel)}</b></div>
+    </div>`;
+  }
+  function sortedRows() {
+    const { key, dir } = st.sort, mul = dir === 'desc' ? -1 : 1;
+    const val = (r) => key === 'pharmacy_no' ? (r.person.pharmacy_no || '') : key === 'residencia' ? ((r.person.groups || []).join(' · ')) : key === 'qty' ? (r.med.qty || 0) : key === 'med' ? (r.med.nombre || '') : `${r.person.apellidos} ${r.person.nombre}`;
+    return st.rows.slice().sort((a, b) => { const va = val(a), vb = val(b); let c = key === 'qty' ? (va - vb) : String(va).localeCompare(String(vb), 'es'); return c !== 0 ? c * mul : `${a.person.apellidos} ${a.person.nombre}`.localeCompare(`${b.person.apellidos} ${b.person.nombre}`, 'es'); });
+  }
+  function renderRows() {
+    const body = $('dc-body');
+    if (!st.dm) { body.innerHTML = '<div class="az-form-hint">Aún no has introducido ninguna Data Matrix.</div>'; return; }
+    if (!st.rows.length) { body.innerHTML = '<div class="az-empty">Ninguna persona tiene ese medicamento (por CN) en su plan. Puedes importarlo a alguien o revisar el código.</div>'; return; }
+    const cols = [['apellidos', 'Persona'], ['pharmacy_no', 'Nº Far.'], ['residencia', 'Residencia'], ['med', 'Medicamento del plan'], ['qty', 'Cajas/mes']];
+    const arrow = k => st.sort.key === k ? (st.sort.dir === 'desc' ? ' ▼' : ' ▲') : '';
+    const head = `<thead><tr>${cols.map(([k, l]) => `<th data-k="${k}" class="${st.sort.key === k ? 'sorted' : ''}${k === 'qty' ? ' az-ovt-num' : ''}">${l}${arrow(k)}</th>`).join('')}<th></th></tr></thead>`;
+    const rows = sortedRows().map(r => `<tr>
+      <td class="az-ovt-name"><span class="az-ovt-ape">${esc(r.person.apellidos)},</span> <span class="az-ovt-nom">${esc(r.person.nombre)}</span></td>
+      <td class="az-ovt-mono">${r.person.pharmacy_no ? esc(r.person.pharmacy_no) : '—'}</td>
+      <td>${(r.person.groups && r.person.groups.length) ? esc(r.person.groups.join(' · ')) : '<span class="az-ovt-dim">Sin grupo</span>'}</td>
+      <td>${esc(r.med.nombre || '—')}${r.med.cn ? ` <span class="az-ovt-mono">· CN ${esc(r.med.cn)}</span>` : ''}</td>
+      <td class="az-ovt-num">${r.med.qty}</td>
+      <td class="az-dc-act"><button class="qt-btn qt-btn-teal qt-btn-sm" data-assoc="${r.person.id}" data-plan="${r.plan_id}">🔗 Asociar</button> <button class="qt-btn qt-btn-ghost qt-btn-sm" data-open="${r.person.id}">Ficha ↗</button></td>
+    </tr>`).join('');
+    body.innerHTML = `<div class="az-ovt-wrap"><table class="az-ovt">${head}<tbody>${rows}</tbody></table></div>`;
+    body.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => { const k = th.dataset.k; if (st.sort.key === k) st.sort.dir = st.sort.dir === 'asc' ? 'desc' : 'asc'; else st.sort = { key: k, dir: 'asc' }; renderRows(); });
+    body.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { closeTool(); openPerson(Number(b.dataset.open)); });
+    body.querySelectorAll('[data-assoc]').forEach(b => b.onclick = () => associate(Number(b.dataset.assoc), Number(b.dataset.plan), b));
+  }
+  async function associate(personId, planId, btn, force) {
+    btn.disabled = true; const prev = btn.textContent; btn.textContent = 'Asociando…';
+    try {
+      await api(`/person/${personId}/preassign`, jbody({ raw: st.dm.raw, plan_id: planId, force: !!force }));
+      btn.textContent = '✓ Asociada'; btn.classList.remove('qt-btn-teal'); btn.classList.add('qt-btn-ghost'); btn.disabled = true;
+      toast('Caja asociada a la persona.', 'ok');
+      st.dm.state = 'asociada'; st.dm.assignee_id = personId; renderDm();
+      try { const { items } = await api('/overview'); S.overview = items; if (S.view === 'home') renderOverviewSection(); } catch { /* */ }
+    } catch (e) {
+      if (e.status === 409 && e.data && e.data.mismatch) {
+        const ok = await confirmBox('El medicamento no coincide', 'La caja no parece del mismo medicamento del plan (CN/GTIN distinto). ¿Asociarla igualmente?', 'Asociar igualmente');
+        btn.disabled = false; btn.textContent = prev;
+        if (ok) return associate(personId, planId, btn, true);
+      } else { toast(e.message, 'err'); btn.disabled = false; btn.textContent = prev; }
+    }
+  }
 }
 // ── Overview filtering (scales to hundreds of people) ────────────────────────────
 function ovResidencia(r) { return (r.person.groups && r.person.groups.length) ? r.person.groups.join(' · ') : 'Sin grupo'; }
@@ -2106,6 +2185,8 @@ function viewHelp() {
     { id: 'importar-med', icon: '📥', title: 'Importar medicación en lote (por Código Nacional)', html: `<p>En el <b>inicio</b>, el botón <b>«📥 Importar medicación (por Código Nacional)»</b> añade medicamentos a muchas personas a la vez. Pega <b>una línea por persona</b>: primero su <b>identificador</b> (TIS o Nº de farmacia, tú eliges arriba) y luego sus <b>Códigos Nacionales</b> separados por comas o espacios. Ejemplo: <code>00930868: 885442, 715000, 659432</code>.</p>
       <div class="qt-note tip">La app busca cada CN en <b>CIMA (AEMPS)</b> para rellenar <b>nombre y código de barras</b>, y lo añade al plan como <b>«pendiente de caja»</b> (con las cajas/mes que indiques). Reimportar el mismo CN <b>lo actualiza</b>, no lo duplica. Si CIMA no responde, se añade igualmente solo con su CN (luego lo completas con «🔎 CIMA» o ✏️). Al terminar verás un resumen con lo añadido y los avisos (personas no encontradas, CN no válidos).</div>
       <div class="qt-note tip"><b>Identificador tolerante.</b> No hace falta poner los <b>ceros a la izquierda</b> (da igual <code>7001</code> que <code>07001</code>). Y si el identificador que pegas <b>no coincide</b> con el modo elegido, la app lo busca <b>también por el otro</b> en <b>QR (TIS)</b> (TIS ↔ Nº de farmacia): así, mientras la persona exista en QR (TIS), se encuentra. Si esa persona <b>aún no tenía plan</b>, se le <b>crea</b> automáticamente al añadirle su primera medicación.</div>` },
+    { id: 'dm-candidatos', icon: '🔗', title: '¿A quién sirve una Data Matrix?', html: `<p>En el <b>inicio</b>, el botón <b>«🔗 ¿A quién sirve esta DM?»</b> abre un buscador: <b>escanea o pega una Data Matrix</b> (o su GTIN) y pulsa <b>Enter</b>. La app lee su <b>Código Nacional</b> (del GTIN o del AI 712), la identifica en <b>CIMA</b> y te muestra un <b>listado ordenable</b> de todas las personas cuyo plan incluye ese medicamento, con enlaces a su ficha.</p>
+      <div class="qt-note tip"><b>Asociar en un clic.</b> Pulsa <b>«🔗 Asociar»</b> en una persona y la caja queda <b>reservada</b> para ella y para ese medicamento concreto del plan: pasa a estado <b>«asociada»</b> y en la app <b>Data Matrix</b> se ve como <b>«🔗 Asociado · Nº de farmacia»</b> con enlace a la persona. Esto <b>todavía no es «asignada»</b>: la asignación definitiva es el paso que se hace <b>delante de la app de Salud</b>. Si la caja no es del mismo medicamento del plan, la app avisa y te deja asociarla igualmente.</div>` },
     { id: 'plan', icon: '💊', title: '2) Plan de medicación', html: `<p>Cada persona tiene un <b>plan</b>: los medicamentos que toma habitualmente y <b>cuántas cajas al mes</b> de cada uno. Con <b>«➕ Añadir medicamento»</b> lo amplías; con el número <b>× N</b> ajustas las cajas/mes; y la 🗑 lo quita del plan (no toca las cajas ya asignadas). El plan <b>se guarda y se repite cada mes</b>.</p>
       <div class="qt-note tip"><b>Puedes añadir un medicamento de dos formas:</b><ul><li><b>Del catálogo</b>: si ya está en Data Matrix, búscalo por nombre, GTIN o CN y añádelo.</li><li><b>Por Código Nacional</b> (novedad): si la información llega <b>antes de tener el Data Matrix</b>, añádelo solo con su <b>Código Nacional</b> + nombre (y opcionalmente el código de barras). Queda en el plan como <b>«pendiente de caja»</b> (borde discontinuo ámbar), sin caja todavía. Es el paso <b>previo a la pre-asignación</b>.</li></ul>Más adelante le asocias una caja real (ver el paso siguiente) y deja de estar pendiente.</div>
       <div class="qt-note tip"><b>🔎 CIMA (AEMPS).</b> Al añadir por Código Nacional, pulsa <b>«🔎 CIMA»</b> junto al CN para <b>traer el nombre y el código de barras</b> desde la base de datos oficial de medicamentos (AEMPS), o usa <b>«🔎 Buscar en CIMA»</b> para buscar por nombre y elegir. Al traerlo, muestra además la <b>foto de la caja y de la pastilla</b> (fuente: AEMPS). Es una comodidad: si CIMA no está disponible, puedes escribir los datos a mano igual que siempre. La app <b>comprueba que el Código Nacional y el código de barras cuadren</b> (y rellena uno desde el otro), para evitar altas con datos incoherentes. Cada consulta correcta se <b>guarda en local</b> (datos + imágenes), así que ese medicamento sigue funcionando aunque luego CIMA no esté disponible. Y con el botón <b>✏️</b> de un medicamento «pendiente de caja» puedes <b>editar su nombre, CN o código de barras</b> sin tener que borrarlo. (Requiere que el servidor tenga salida a Internet hacia <i>cima.aemps.es</i>.)</div>

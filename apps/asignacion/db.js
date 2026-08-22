@@ -257,6 +257,17 @@ const DEFAULT_SETTINGS = { ficha_qr_size: 300, ficha_dm_size: 150, notify_mode: 
 function listPlan(personId) {
   return db.prepare('SELECT * FROM asig_plan WHERE person_id = ? ORDER BY id').all(personId);
 }
+// Active plan medications across ALL people that match a Código Nacional or a GTIN
+// — used to find who could use a given Data Matrix box (the "conexión del CN").
+function plansByCnOrGtin(cn, gtin) {
+  const c = cn ? String(cn) : null, g = gtin ? String(gtin) : null;
+  if (!c && !g) return [];
+  return db.prepare(
+    `SELECT * FROM asig_plan
+      WHERE active = 1 AND ((@cn IS NOT NULL AND cn = @cn) OR (@gtin IS NOT NULL AND gtin = @gtin))
+      ORDER BY id`
+  ).all({ cn: c, gtin: g });
+}
 // Lightweight medication summary for a person (used by the QR·TIS ficha button).
 function personMedSummary(personId) {
   const rows = db.prepare('SELECT active FROM asig_plan WHERE person_id = ?').all(personId);
@@ -784,7 +795,7 @@ function saveSettings(data, userId) {
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listPlan, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, deletePlanLine, planPersonIds,
+  listPlan, plansByCnOrGtin, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, deletePlanLine, planPersonIds,
   createEmptyPlan, personsWithPlanSet,
   setPlanRelease, setPlanAdvance, plansForRelease, planForItem, findPendingLineForMed,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,

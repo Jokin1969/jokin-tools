@@ -549,7 +549,7 @@ router.post('/api/person/:id(\\d+)/preassign', json, (req, res) => {
       const raw = String(b.raw == null ? '' : b.raw).trim();
       if (!raw) throw bad('No se recibió ninguna caja (id o Data Matrix).');
       const f = gs1.parse(raw);
-      const data = { raw, box_key: gs1.boxKey(f, raw), gtin: gs1.normGtin(f.gtin), serial: f.serial, lote: f.lote, caducidad: gs1.expiryToIso(f.caducidad), cn: f.cn };
+      const data = { raw, box_key: gs1.boxKey(f, raw), gtin: gs1.normGtin(f.gtin), serial: f.serial, lote: f.lote, caducidad: gs1.expiryToIso(f.caducidad), cn: gs1.cnForCima(f) };
       item = dmDb.findByKey(data.box_key);
       if (!item) {
         item = dmDb.createItem(data, req.user.id);
@@ -583,12 +583,51 @@ router.post('/api/person/:id(\\d+)/preassign', json, (req, res) => {
     const period = db.getOrCreatePeriod(p.id, ym, req.user.id);
     const existing = db.findLine(period.id, item.id);
     if (!existing) {
-      dmDb.setAssignee(item.id, p.id, personName(p));
+      dmDb.setAssignee(item.id, p.id, personName(p), p.pharmacy_no || null);
       db.addLine({ period_id: period.id, person_id: p.id, gtin: item.gtin, item_id: item.id, box_key: item.box_key, state: 'preasignada' });
     }
     // A CN-only plan med "graduates" to catalogued once we know the box's GTIN.
     if (planMed && !planMed.gtin && item.gtin) db.reconcilePlanGtin(planMed.id, item.gtin);
     res.json(fichaPayload(p, ym));
+  } catch (err) { fail(res, err); }
+});
+
+// ── DM → candidate people (the "conexión del CN") ───────────────────────────────
+// Given a Data Matrix, return every person whose plan has that medication (by CN or
+// GTIN) so the box can be associated to one of them. Also resolves the box name from
+// CIMA and reports the box's current state.
+router.post('/api/dm/candidates', json, async (req, res) => {
+  try {
+    const raw = String((req.body && req.body.raw) == null ? '' : req.body.raw).trim();
+    if (!raw) throw bad('Escanea o pega una Data Matrix.');
+    const f = gs1.parse(raw);
+    const gtin = gs1.normGtin(f.gtin);
+    const cn = gs1.cnForCima(f);
+    if (!gtin && !cn) throw bad('No he podido leer el GTIN ni el Código Nacional de esa Data Matrix.');
+    // Name: DM catalogue by GTIN, else CIMA (cached, tolerant), else the CN cache.
+    let nombre = null;
+    if (gtin) { const prod = dmDb.getProduct(gtin); if (prod && prod.nombre) nombre = prod.nombre; }
+    if (!nombre && cn) { try { const it = await cimaCache.lookupByCnCached(cn); if (it && it.nombre) nombre = it.nombre; } catch { /* offline */ } }
+    if (!nombre && cn) { const cc = dmDb.cimaCacheGet(String(cn).replace(/\D/g, '')); if (cc && cc.nombre) nombre = cc.nombre; }
+    const box_key = gs1.boxKey(f, raw);
+    const existing = dmDb.findByKey(box_key);
+    const dm = {
+      raw, gtin, cn, nombre, caducidad: gs1.expiryToIso(f.caducidad), serial: f.serial || null,
+      state: existing ? (existing.assignee_id != null ? (existing.status === 'utilizado' ? 'asignada' : 'asociada') : (existing.status === 'utilizado' ? 'utilizada' : 'libre')) : 'nueva',
+      assignee_id: existing ? (existing.assignee_id != null ? existing.assignee_id : null) : null,
+      assignee_name: existing ? (existing.assignee_name || null) : null,
+    };
+    const candidates = [];
+    for (const pl of db.plansByCnOrGtin(cn, gtin)) {
+      const person = qrDb.getPerson(pl.person_id);
+      if (!person || !person.active) continue;
+      candidates.push({
+        person: personView(person),
+        plan_id: pl.id,
+        med: { nombre: pl.nombre || nombre || null, cn: pl.cn || null, gtin: pl.gtin || null, qty: pl.qty || 1 },
+      });
+    }
+    res.json({ dm, candidates });
   } catch (err) { fail(res, err); }
 });
 
@@ -668,7 +707,7 @@ router.post('/api/person/:id(\\d+)/scan', json, (req, res) => {
     const f = gs1.parse(raw);
     const digits = raw.replace(/\D/g, '');
     let gtin = null, cn = null, isDm = false;
-    if (f && f.gtin) { gtin = gs1.normGtin(f.gtin); cn = f.cn || null; isDm = true; }
+    if (f && f.gtin) { gtin = gs1.normGtin(f.gtin); cn = gs1.cnForCima(f) || null; isDm = true; }
     else if (/^\d{12,14}$/.test(digits)) {
       const ean = digits.length === 14 && digits[0] === '0' ? digits.slice(1) : digits;
       cn = cima.cnFromBarcode(ean); gtin = cn ? cima.gtinFromCn(cn) : null;
@@ -684,7 +723,7 @@ router.post('/api/person/:id(\\d+)/scan', json, (req, res) => {
       const data = { raw, box_key: gs1.boxKey(f, raw), gtin, serial: f.serial, lote: f.lote, caducidad: gs1.expiryToIso(f.caducidad), cn };
       let item = dmDb.findByKey(data.box_key) || dmDb.createItem(data, req.user.id);
       if (item.assignee_id != null && item.assignee_id !== p.id) throw bad(`Esa caja ya está asociada a ${item.assignee_name || 'otra persona'}.`);
-      dmDb.setAssignee(item.id, p.id, personName(p));
+      dmDb.setAssignee(item.id, p.id, personName(p), p.pharmacy_no || null);
       const line = db.findLine(period.id, item.id);
       if (line) db.setLineState(line.id, 'asignada');
       else db.addLine({ period_id: period.id, person_id: p.id, gtin: item.gtin, item_id: item.id, box_key: item.box_key, state: 'asignada' });

@@ -105,8 +105,12 @@ function shapeSvg(shape, color, px) {
 function asigBadge(it) {
   if (!it) return '';
   if (it.asig_state === 'preasignada') {
-    const who = it.assignee_name ? ' · ' + esc(it.assignee_name) : '';
-    return `<span class="dm-asig dm-asig-pre" title="Reservada para una persona${who}">🔗 Pre-asignada${who}</span>`;
+    const far = it.assignee_pharmacy ? ' · Nº ' + esc(it.assignee_pharmacy) : '';
+    const title = it.assignee_name ? `Asociada a ${it.assignee_name}${it.assignee_pharmacy ? ' (Nº ' + it.assignee_pharmacy + ')' : ''}` : 'Asociada a una persona';
+    const link = it.assignee_id != null
+      ? `<a class="dm-trace-link" href="/asignacion?person=${it.assignee_id}" title="${esc(title)}">Asociado${far} ↗</a>`
+      : `Asociado${far}`;
+    return `<span class="dm-asig dm-asig-pre" title="${esc(title)}">🔗 ${link}</span>`;
   }
   if (it.status === 'utilizado') {
     if (it.assignee_id != null) {
