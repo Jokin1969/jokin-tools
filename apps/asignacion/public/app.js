@@ -155,6 +155,47 @@ function openScanner(title, onResult) {
   } catch (e) { note.textContent = 'Lector no disponible: ' + e.message; note.className = 'qt-scan-note err'; }
 }
 
+// ── UI state persistence (survive navigation between apps) ──────────────────────
+// Keep the same overview filters / open ficha when going Asignación → otra app →
+// back, instead of resetting the home to «todas las personas». Per-browser.
+const UI_KEY = 'asig_ui';
+function persistState() {
+  try {
+    localStorage.setItem(UI_KEY, JSON.stringify({
+      view: S.view, ov: S.ov, searchQuery: S.searchQuery,
+      peopleFilter: S.peopleFilter, personId: S.person ? S.person.id : null,
+      stkStatus: S.stkStatus, stkGroupBy: S.stkGroupBy,
+      stkFilter: S.stkFilter, stkFilterRes: S.stkFilterRes, stkNotesOnly: S.stkNotesOnly,
+    }));
+  } catch { /* */ }
+}
+function restoreState() {
+  try {
+    const raw = localStorage.getItem(UI_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || typeof s !== 'object') return null;
+    if (s.ov && typeof s.ov === 'object') {
+      S.ov = {
+        res: Array.isArray(s.ov.res) ? s.ov.res : [],
+        estado: typeof s.ov.estado === 'string' ? s.ov.estado : 'all',
+        notesOnly: !!s.ov.notesOnly, cartOnly: !!s.ov.cartOnly,
+        q: typeof s.ov.q === 'string' ? s.ov.q : '',
+      };
+    }
+    if (typeof s.searchQuery === 'string') S.searchQuery = s.searchQuery;
+    if (Array.isArray(s.peopleFilter) && s.peopleFilter.length) S.peopleFilter = s.peopleFilter;
+    if (typeof s.stkStatus === 'string') S.stkStatus = s.stkStatus;
+    if (typeof s.stkGroupBy === 'string') S.stkGroupBy = s.stkGroupBy;
+    if (Array.isArray(s.stkFilter)) S.stkFilter = s.stkFilter;
+    if (Array.isArray(s.stkFilterRes)) S.stkFilterRes = s.stkFilterRes;
+    S.stkNotesOnly = !!s.stkNotesOnly;
+    return s;
+  } catch { return null; }
+}
+window.addEventListener('pagehide', persistState);
+window.addEventListener('beforeunload', persistState);
+
 // ── Boot ─────────────────────────────────────────────────────────────────────────
 async function boot() {
   try {
@@ -180,6 +221,9 @@ async function boot() {
     const peopleCsv = params.get('people');
     if (personId) { await viewHome(); openPerson(personId); return; }
     if (peopleCsv) { S.peopleFilter = peopleCsv.split(',').map(Number).filter(Boolean); await viewHome(); return; }
+    // No deep link → restore the last UI state (filters, open ficha) if any.
+    const saved = restoreState();
+    if (saved && saved.view === 'ficha' && saved.personId) { await viewHome(); openPerson(saved.personId); return; }
     await viewHome();
   } catch (e) { main().innerHTML = `<div class="qt-empty">No se pudo cargar: ${esc(e.message)}</div>`; }
 }

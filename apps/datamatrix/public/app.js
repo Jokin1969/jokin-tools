@@ -719,6 +719,41 @@ function viewHelp() {
   window.scrollTo({ top: 0 });
 }
 
+// ── UI state persistence (survive navigation between apps) ──────────────────────
+// Keep the same filtered list / selection when going Data Matrix → otra app → back,
+// instead of resetting to «todas las cajas». Per-browser, in localStorage.
+const UI_KEY = 'dm_ui';
+function persistState() {
+  try {
+    localStorage.setItem(UI_KEY, JSON.stringify({
+      view: S.view, query: S.query, andor: S.andor, sort: S.sort,
+      listMode: S.listMode, groupBy: S.groupBy, archive: S.archive,
+      uncatOnly: S.uncatOnly, preasigOnly: S.preasigOnly, medFilter: S.medFilter,
+      selected: [...S.selected], hidden: [...S.hidden], currentItemId: S.currentItemId,
+    }));
+  } catch { }
+}
+function restoreState() {
+  try {
+    const raw = localStorage.getItem(UI_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || typeof s !== 'object') return null;
+    if (typeof s.query === 'string') S.query = s.query;
+    if (s.andor === 'AND' || s.andor === 'OR') S.andor = s.andor;
+    if (s.sort && typeof s.sort.key === 'string') S.sort = { key: s.sort.key, dir: s.sort.dir === 'desc' ? 'desc' : 'asc' };
+    if (s.listMode === 'table' || s.listMode === 'cards') S.listMode = s.listMode;
+    S.groupBy = !!s.groupBy; S.archive = !!s.archive; S.uncatOnly = !!s.uncatOnly; S.preasigOnly = !!s.preasigOnly;
+    S.medFilter = (typeof s.medFilter === 'string' && s.medFilter) ? s.medFilter : null;
+    if (Array.isArray(s.selected)) S.selected = new Set(s.selected.filter(id => S.byId.has(id)));
+    if (Array.isArray(s.hidden)) S.hidden = new Set(s.hidden.filter(id => S.byId.has(id)));
+    if (s.currentItemId && S.byId.has(s.currentItemId)) S.currentItemId = s.currentItemId;
+    return s;
+  } catch { return null; }
+}
+window.addEventListener('pagehide', persistState);
+window.addEventListener('beforeunload', persistState);
+
 // ── Boot ────────────────────────────────────────────────────────────────────────
 (async () => {
   $('cart-toggle').onclick = () => { if ($('cart-panel').classList.contains('open')) closeCart(); else openCart(); };
@@ -730,6 +765,10 @@ function viewHelp() {
     const meta = await api('/meta');
     S.settings = meta.settings; S.user = meta.user; S.counts = meta.counts || S.counts; S.palette = meta.palette || []; S.shapes = meta.shapes || [];
     await reloadItems(); await reloadCart();
-    if (new URLSearchParams(location.search).has('help')) viewHelp(); else viewHome();
+    const saved = restoreState();
+    if (new URLSearchParams(location.search).has('help')) viewHelp();
+    else if (saved && saved.view === 'ficha' && S.currentItemId && S.byId.has(S.currentItemId)) viewFicha(S.currentItemId);
+    else if (saved && saved.view === 'list') viewList();
+    else viewHome();
   } catch (e) { main().innerHTML = `<div class="qt-panel"><p style="color:var(--danger)">No se pudo cargar la app: ${esc(e.message)}</p></div>`; }
 })();

@@ -1419,6 +1419,46 @@ function fmtDateTime(s) {
   return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+// ── UI state persistence (survive navigation between apps) ──────────────────────
+// So going QR → Asignación → back to QR keeps the same filtered list / selection,
+// instead of resetting to «todas las personas». Kept per-browser in localStorage.
+const UI_KEY = 'qrtis_ui';
+function persistState() {
+  try {
+    localStorage.setItem(UI_KEY, JSON.stringify({
+      view: S.view, query: S.query, andor: S.andor,
+      sort: S.sort, listMode: S.listMode,
+      showListQr: S.showListQr, selectedOnly: S.selectedOnly, cartView: S.cartView,
+      hideDeceased: S.hideDeceased, notesOnly: S.notesOnly,
+      groupFilter: S.groupFilter, groupsOpen: S.groupsOpen,
+      selected: [...S.selected], hidden: [...S.hidden],
+      currentPersonId: S.currentPersonId,
+    }));
+  } catch { }
+}
+function restoreState() {
+  try {
+    const raw = localStorage.getItem(UI_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || typeof s !== 'object') return null;
+    if (typeof s.query === 'string') S.query = s.query;
+    if (s.andor === 'AND' || s.andor === 'OR') S.andor = s.andor;
+    if (s.sort && typeof s.sort.key === 'string') S.sort = { key: s.sort.key, dir: s.sort.dir === 'desc' ? 'desc' : 'asc' };
+    if (s.listMode === 'table' || s.listMode === 'cards') S.listMode = s.listMode;
+    S.showListQr = !!s.showListQr; S.selectedOnly = !!s.selectedOnly; S.cartView = !!s.cartView;
+    S.hideDeceased = !!s.hideDeceased; S.notesOnly = !!s.notesOnly;
+    S.groupFilter = (typeof s.groupFilter === 'string' && s.groupFilter) ? s.groupFilter : null;
+    S.groupsOpen = !!s.groupsOpen;
+    if (Array.isArray(s.selected)) S.selected = new Set(s.selected.filter(id => S.byId.has(id)));
+    if (Array.isArray(s.hidden)) S.hidden = new Set(s.hidden.filter(id => S.byId.has(id)));
+    if (s.currentPersonId && S.byId.has(s.currentPersonId)) S.currentPersonId = s.currentPersonId;
+    return s;
+  } catch { return null; }
+}
+window.addEventListener('pagehide', persistState);
+window.addEventListener('beforeunload', persistState);
+
 // ── Boot ────────────────────────────────────────────────────────────────────────
 (async () => {
   $('cart-toggle').onclick = () => { if ($('cart-panel').classList.contains('open')) closeCart(); else openCart(); };
@@ -1431,10 +1471,14 @@ function fmtDateTime(s) {
     S.settings = meta.settings; S.user = meta.user; S.canAsignacion = !!meta.canAsignacion;
     await reloadPeople();
     await reloadCart();
+    const saved = restoreState();
     const params = new URLSearchParams(location.search);
     const personId = Number(params.get('person'));
     if (params.has('help')) viewHelp();
     else if (personId && S.byId.has(personId)) viewFicha(personId);
+    else if (saved && saved.view === 'ficha' && S.currentPersonId && S.byId.has(S.currentPersonId)) viewFicha(S.currentPersonId);
+    else if (saved && saved.view === 'list') viewList();
+    else if (saved && saved.view === 'form') viewHome();
     else viewHome();
   } catch (e) {
     main().innerHTML = `<div class="qt-panel"><p style="color:var(--danger)">No se pudo cargar la app: ${esc(e.message)}</p></div>`;
