@@ -139,8 +139,18 @@ router.get('/api/item/:id(\\d+)', (req, res) => {
 router.post('/api/item/:id(\\d+)/used', json, (req, res) => {
   try {
     const used = !!(req.body && req.body.used);
+    const cur = db.getItem(Number(req.params.id));
+    if (!cur) return res.status(404).json({ error: 'No encontrado.' });
+    // A box linked to a person (asociada/asignada desde Asignación) NO se gestiona
+    // desde aquí: evitar que se devuelva/marque a mano y se descuadre con el plan.
+    if (cur.assignee_id != null) {
+      return res.status(409).json({
+        error: `Esta caja está ${cur.status === 'utilizado' ? 'asignada' : 'asociada'} a ${cur.assignee_name || 'una persona'} desde Asignación. Para devolverla al inventario, quítala desde la ficha del plan de esa persona.`,
+        managed_by_asignacion: true,
+        assignee_id: cur.assignee_id, assignee_name: cur.assignee_name || null,
+      });
+    }
     const it = db.setUsed(Number(req.params.id), used);
-    if (!it) return res.status(404).json({ error: 'No encontrado.' });
     res.json({ item: publicItem(it) });
   } catch (err) { fail(res, err); }
 });

@@ -1026,3 +1026,13 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-abgrp-count { margin-left: auto; font-weight: 800; color: var(--brand-2); font-size: 0.85rem; }
 .az-abgrp-boxes { border-top: 1px solid var(--line); background: #fbfdff; padding: 4px; }
 .az-abgrp-boxes .az-abbox { margin: 2px 0; }
+
+/* Plan medication → association state button (per month) */
+.az-plan-assoc { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+.az-plan-assoc:hover { border-color: var(--brand); color: var(--brand); }
+.az-plan-assoc.has-stock { background: #e8f2fb; border-color: #bcdcf5; color: var(--brand-2); }   /* hay DM del CN para asociar */
+.az-plan-assoc.has-stock:hover { background: #dcecfa; }
+.az-plan-state { text-decoration: none; border: 1px solid transparent; font-weight: 700; }
+.az-plan-state.is-asociado { background: #e2f5ec; color: #128a5b; border-color: #b6e3ca; }          /* asociada (verde) */
+.az-plan-state.is-asignada { background: #f6e4e6; color: #8a2b33; border-color: #e3c2c6; }          /* asignada (granate claro) */
+.az-plan-state:hover { filter: brightness(0.97); }

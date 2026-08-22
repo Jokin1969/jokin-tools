@@ -194,3 +194,24 @@ test('/api/cima/complete names un-named products from the cache (offline-safe)',
     assert.equal(db.getProduct('08470007116622').nombre, 'IBUPROFENO PRUEBA 600 mg');
   } finally { server.close(); }
 });
+
+test('una caja con asignee NO se devuelve/marca desde Data Matrix (gestión en Asignación)', async () => {
+  const express = require('express');
+  const router = require('../apps/datamatrix/routes');
+  const app = express();
+  app.use((req, res, next) => { req.user = { id: 1, email: 'a@e', name: 'A', role: 'admin', apps: '*' }; next(); });
+  app.use('/datamatrix', router);
+  const server = await new Promise(r => { const s = app.listen(0, () => r(s)); });
+  const base = `http://127.0.0.1:${server.address().port}/datamatrix/api`;
+  const call = (m, p, b) => fetch(base + p, { method: m, headers: b ? { 'Content-Type': 'application/json' } : {}, body: b ? JSON.stringify(b) : undefined }).then(async r => ({ status: r.status, data: await r.json().catch(() => ({})) }));
+  try {
+    const it = db.createItem({ raw: 'GRD1', box_key: 'GRDK1', gtin: '08470006991545', serial: 'GD1' }, 1);
+    db.setAssignee(it.id, 77, 'Persona X', '77001');
+    db.setUsed(it.id, true);                    // asignada (utilizado + assignee)
+    // Intentar devolver al inventario desde DM → bloqueado.
+    const r = await call('POST', `/item/${it.id}/used`, { used: false });
+    assert.equal(r.status, 409);
+    assert.equal(r.data.managed_by_asignacion, true);
+    assert.equal(db.getItem(it.id).status, 'utilizado', 'no cambia: sigue utilizada');
+  } finally { server.close(); }
+});

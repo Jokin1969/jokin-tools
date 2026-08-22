@@ -228,6 +228,8 @@ async function boot() {
     // Deep links from the notification emails: ?person=<id> or ?people=<id,id,…>.
     const params = new URLSearchParams(location.search);
     if (params.has('help')) { await viewHome(); viewHelp(); return; }
+    const dmRaw = params.get('dm');
+    if (dmRaw) { await viewHome(); openDmCandidates(dmRaw); return; }   // deep link from Data Matrix
     const personId = Number(params.get('person'));
     const peopleCsv = params.get('people');
     if (personId) { await viewHome(); openPerson(personId); return; }
@@ -792,7 +794,7 @@ function statusChip(r) {
 // Enter a Data Matrix and get every person whose plan includes that medication (by
 // CN), with a full sortable list, links to each person, and a one-click «Asociar»
 // that pre-asigns the box to that person's plan medication.
-function openDmCandidates() {
+function openDmCandidates(initialRaw) {
   const st = { dm: null, rows: [], sort: { key: 'apellidos', dir: 'asc' } };
   openTool(`<div class="qt-modal-h"><h3>🔗 ¿A quién sirve esta Data Matrix?</h3><button class="qt-x" id="dc-x">×</button></div>
     <p class="qt-tool-note">Escanea o pega una <b>Data Matrix</b> (o su GTIN) y pulsa <b>Enter</b>. Verás las personas cuyo plan incluye ese medicamento (por su <b>Código Nacional</b>). Pulsa <b>«🔗 Asociar»</b> para reservarles la caja (queda <b>asociada</b>; la asignación definitiva se hace luego en Salud).</p>
@@ -803,6 +805,7 @@ function openDmCandidates() {
   $('dc-x').onclick = closeTool;
   const inp = $('dc-input'); setTimeout(() => inp && inp.focus(), 40);
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); runSearch(); } });
+  if (initialRaw) { inp.value = initialRaw; runSearch(); }   // deep link from Data Matrix
 
   async function runSearch() {
     const raw = inp.value.trim(); if (!raw) return;
@@ -1276,6 +1279,28 @@ function planCardSimple(m) {
       <span class="az-plan-sprog ${ok ? 'is-ok' : 'is-short'}">×${m.qty} · ${done}/${need}</span></div>
   </div>`;
 }
+// State-aware association button for a plan medication (this month):
+//   asignada (todas)        → «✓ Asignada» granate, enlaza a la caja en Data Matrix
+//   asociada (todas, no asig)→ «🔗 Asociado» verde, enlaza a la caja en Data Matrix
+//   quedan por asociar       → «🔗 Asociar DM» (azul claro si hay stock del CN)
+// Todo esto es del MES en curso: al cambiar de mes vuelve a cero.
+function planAssocBtn(m, closed) {
+  if (closed) return '';
+  const need = m.qty || 1, done = m.asignada || 0, attached = m.attached || 0;
+  const dmLink = m.box_item_id ? `/datamatrix?item=${m.box_item_id}` : null;
+  if (done >= need) {
+    return dmLink
+      ? `<a class="qt-btn qt-btn-sm az-plan-state is-asignada" href="${dmLink}" title="Ver la caja asignada en Data Matrix">✓ Asignada ↗</a>`
+      : `<span class="qt-btn qt-btn-sm az-plan-state is-asignada" title="Asignada en Salud (por precinto)">✓ Asignada</span>`;
+  }
+  if (attached >= need) {
+    return dmLink
+      ? `<a class="qt-btn qt-btn-sm az-plan-state is-asociado" href="${dmLink}" title="Ver la caja asociada en Data Matrix">🔗 Asociado ↗</a>`
+      : `<span class="qt-btn qt-btn-sm az-plan-state is-asociado">🔗 Asociado</span>`;
+  }
+  const stock = m.available > 0;
+  return `<button class="qt-btn qt-btn-sm az-plan-assoc${stock ? ' has-stock' : ''}" data-assoc="${m.id}" title="${stock ? m.available + ' caja(s) con este CN en stock para asociar' : 'Asociar una caja Data Matrix con este CN'}">🔗 Asociar DM${stock ? ' (' + m.available + ')' : ''}</button>`;
+}
 function planRowFull(m, closed) {
     const need = m.qty, done = m.asignada || 0, boxes = m.boxes || 0, prec = m.precinto || 0;
     const short = done < need;
@@ -1306,7 +1331,7 @@ function planRowFull(m, closed) {
         ${(!noDm && m.barcode) ? `<button class="qt-iconbtn" data-precinto="${m.id}" title="Ver el código de barras (precinto)">🏷️</button>` : ''}
         ${m.foto_pastilla ? `<button class="qt-iconbtn" data-pill="${m.id}" title="Ver la pastilla (AEMPS)">💊</button>` : ''}
         ${canPrecinto ? `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assignprec="${m.id}" title="Marcar como asignada en Salud (por precinto, sin caja)">✅ Asignar</button>` : ''}
-        ${closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-assoc="${m.id}" title="Asociar una caja Data Matrix con este CN">🔗 Asociar DM</button>`}
+        ${planAssocBtn(m, closed)}
         ${(!closed && m.cn_only) ? `<button class="qt-iconbtn" data-editplan="${m.id}" title="Editar nombre / CN / código de barras">✏️</button>` : ''}
         <button class="qt-iconbtn danger" data-delplan="${m.id}" title="Quitar del plan">🗑</button>
       </div>
@@ -1406,6 +1431,7 @@ function lineHtml(ln, closed, dmSize) {
       ${asignada
         ? (closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-unassign="${ln.id}">↩ Revertir</button>`)
         : (closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assign="${ln.id}">✅ Asignar</button>`)}
+      <a class="qt-iconbtn" href="/datamatrix?item=${ln.item_id}" title="Ver esta caja en la app Data Matrix">📦↗</a>
       ${closed ? '' : `<button class="qt-iconbtn danger" data-delline="${ln.id}" title="Quitar de la ficha">🗑</button>`}
     </div>
   </div>`;
@@ -2223,7 +2249,9 @@ function viewHelp() {
         <li><b>Fuera, «➕ Asociar DM»</b> (junto a «Cajas de la ficha»): muestra <b>todo el inventario disponible</b>, <b>agrupado por CN</b> con el número de unidades de cada uno (como el inventario de Data Matrix). Despliega un medicamento y elige una caja.</li>
       </ul>
       <p>También puedes <b>escanear / pegar</b> una Data Matrix: si no estaba en Data Matrix, <b>se crea</b> y queda asociada. Si el <b>CN no coincide</b> con el medicamento del plan, la app <b>te avisa</b> (recomienda asociar el mismo CN) pero te deja <b>seguir</b> si quieres.</p>
-      <p>La caja queda <b>🔗 Asociada</b> a la persona (por su Nº de farmacia): reservada pero <b>aún en stock</b>. La <b>asignación</b> definitiva (que la saca del stock) es el paso posterior, delante de <b>Salud</b>. Ambos estados <b>se ven también en la app Data Matrix</b>.</p>` },
+      <p>La caja queda <b>🔗 Asociada</b> a la persona (por su Nº de farmacia): reservada pero <b>aún en stock</b>. La <b>asignación</b> definitiva (que la saca del stock) es el paso posterior, delante de <b>Salud</b>. Ambos estados <b>se ven también en la app Data Matrix</b>.</p>
+      <div class="qt-note tip"><b>El botón de cada medicamento cambia de color según el estado del mes:</b> blanco = sin asociar; <b>azul claro</b> = hay una caja de ese CN en stock lista para asociar; <b>verde «🔗 Asociado»</b> = ya tiene caja asociada; <b>granate «✓ Asignada»</b> = ya se envió a Salud. En verde y granate, el botón <b>enlaza a la ficha de esa caja</b> en Data Matrix (también con el icono 📦↗ de cada caja de la ficha). Todo esto es <b>del mes en curso</b> y vuelve a cero al cambiar de mes.</div>
+      <div class="qt-note warn"><b>Importante:</b> una caja asociada/asignada desde aquí <b>no</b> se puede devolver al inventario desde la app Data Matrix. Para liberarla, quítala desde <b>esta ficha</b> (🗑 en la caja): se libera la reserva y, si el medicamento se había añadido por CN, vuelve a «pendiente de caja».</div>` },
     { id: 'asignar', icon: '✅', title: '4) Asignar de verdad', html: `<p>Cuando ya la asignas en la aplicación de <b>Salud</b>, pulsa <b>«✅ Asignar»</b> sobre esa caja. Pasa a <b>✓ Asignada</b> (se marca <b>utilizada</b> en Data Matrix, sale del inventario) y su Data Matrix se pone en <b>gris</b>.</p>
       <div class="qt-note tip">Al pulsar <b>«✅ Asignar»</b> la app te pide la <b>fecha de la PRÓXIMA liberación</b> de ese medicamento (ya propuesta al <b>mismo día del mes siguiente</b>, editable). Es el momento natural para anotarla: acabas de dispensar la caja y sabes cuándo sale la siguiente. Esa fecha se guarda <b>en el medicamento</b> y gobierna cuándo vuelve a estar disponible (ver la sección siguiente). Puedes dejarla en blanco si aún no la sabes.</div>
       <div class="qt-note tip">Los <b>tres estados</b> de una caja: <b>Sin utilizar</b> → <b>🔗 Pre-asignada</b> (reservada) → <b>✓ Asignada</b> (= utilizada). Puedes <b>↩ Revertir</b> una asignación (vuelve a pre-asignada) o <b>🗑 quitar</b> la caja de la ficha (se libera la reserva y, si estaba asignada, vuelve al inventario). Al asignar, la caja <b>desaparece</b> del inventario; el medicamento vuelve el mes siguiente <b>sin caja</b> hasta que le asocies otra.</div>` },

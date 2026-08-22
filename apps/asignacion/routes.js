@@ -429,14 +429,18 @@ function fichaPayload(person, ym) {
   const byGtin = new Map();
   for (const ln of lines) {
     const g = ln.gtin || (ln.box && ln.box.gtin) || '—';
-    if (!byGtin.has(g)) byGtin.set(g, { attached: 0, asignada: 0 });
-    const e = byGtin.get(g); e.attached++; if (ln.state === 'asignada') e.asignada++;
+    if (!byGtin.has(g)) byGtin.set(g, { attached: 0, asignada: 0, itemId: null, asignadaItemId: null });
+    const e = byGtin.get(g); e.attached++;
+    if (e.itemId == null) e.itemId = ln.item_id;
+    if (ln.state === 'asignada') { e.asignada++; if (e.asignadaItemId == null) e.asignadaItemId = ln.item_id; }
   }
   const precByPlan = period ? db.precintoCountByPlan(period.id) : new Map();
   const plan = planView(person.id).map(pl => {
-    const prog = byGtin.get(pl.gtin) || { attached: 0, asignada: 0 };
+    const prog = byGtin.get(pl.gtin) || { attached: 0, asignada: 0, itemId: null, asignadaItemId: null };
     const prec = precByPlan.get(pl.id) || 0;   // asignados por precinto (sin caja)
-    return { ...pl, boxes: prog.attached, attached: prog.attached + prec, asignada: prog.asignada + prec, precinto: prec };
+    // The Data Matrix box linked to this med THIS MONTH (prefer the assigned one) —
+    // to drive the plan card's state button and its link to the DM ficha.
+    return { ...pl, boxes: prog.attached, attached: prog.attached + prec, asignada: prog.asignada + prec, precinto: prec, box_item_id: prog.asignadaItemId || prog.itemId || null };
   });
   const precintos = period ? db.listPrecinto(period.id).map(r => ({ id: r.id, plan_id: r.plan_id, gtin: r.gtin, cn: r.cn, barcode: r.barcode, nombre: r.nombre, assigned_at: r.assigned_at })) : [];
   const counts = period ? db.periodCounts(period.id) : { preasignada: 0, asignada: 0, total: 0 };
@@ -749,6 +753,14 @@ router.delete('/api/line/:id(\\d+)', (req, res) => {
       dmDb.setAssignee(line.item_id, null, null);
     }
     db.deleteLine(line.id);
+    // Un-graduate: if the medication this box belonged to (by GTIN) is now boxless and
+    // still has a Código Nacional, drop its GTIN so it returns to «pendiente de caja»
+    // (CN-only look: fondo crema + lápiz de edición), como si nunca se hubiera asociado.
+    const gtin = item && item.gtin;
+    if (gtin) {
+      const stillHasBox = db.listLines(line.period_id).some(l => { const it = dmDb.getItem(l.item_id); return it && it.gtin === gtin; });
+      if (!stillHasBox) { const med = db.listPlan(line.person_id).find(pl => pl.gtin === gtin && pl.cn); if (med) db.clearPlanGtin(med.id); }
+    }
     const pr = db.getPeriod(line.period_id); const p = qrDb.getPerson(line.person_id);
     res.json(fichaPayload(p, pr.ym));
   } catch (err) { fail(res, err); }

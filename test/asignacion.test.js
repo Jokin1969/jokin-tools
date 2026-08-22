@@ -861,3 +861,29 @@ test('DM → candidatos por CN y asociación (preassign) marca la caja asociada'
   assert.equal(box.assignee_pharmacy, '90123', 'guarda el Nº de farmacia para el listado de DM');
   assert.equal(box.status, 'activo', 'sigue en stock (asociada, no asignada)');
 });
+
+test('quitar la caja de un plan des-gradúa el CN (vuelve a «pendiente de caja»)', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80700', nombre: 'Un', apellidos: 'Grad', tis: '00080700' }, 1).id;
+  const med = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Ibu', barcode: '8470007150008' })).data.plan.find(m => m.cn === '715000');
+  assert.equal(med.cn_only, true);
+  const box = dmDb.createItem({ raw: 'RG1', box_key: 'RGK1', gtin: '08470007150009', serial: 'G1', cn: '715000' }, 1).id;
+  let ficha = (await call('POST', `/person/${pid}/preassign`, { item_id: box, plan_id: med.id, ym: '2026-08' })).data;
+  let g = ficha.plan.find(m => m.id === med.id);
+  assert.equal(g.cn_only, false, 'al asociar, gradúa a GTIN'); assert.equal(g.gtin, '08470007150009');
+  const line = ficha.lines.find(l => l.item_id === box);
+  ficha = (await call('DELETE', `/line/${line.id}`)).data;
+  const back = ficha.plan.find(m => m.id === med.id);
+  assert.equal(back.cn_only, true, 'al quitar la caja vuelve a pendiente de caja');
+  assert.equal(back.gtin, null);
+  const it = dmDb.getItem(box);
+  assert.equal(it.status, 'activo'); assert.equal(it.assignee_id, null);
+});
+
+test('ficha: cada med del plan trae box_item_id de la caja asociada (para enlazar a DM)', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80710', nombre: 'Lnk', apellidos: 'Box', tis: '00080710' }, 1).id;
+  const med = (await call('POST', `/person/${pid}/plan`, { cn: '885442', nombre: 'Ixia', barcode: '8470008854424' })).data.plan.find(m => m.cn === '885442');
+  const box = dmDb.createItem({ raw: 'RL1', box_key: 'RLK1', gtin: '08470008854424', serial: 'L1', cn: '885442' }, 1).id;
+  const ficha = (await call('POST', `/person/${pid}/preassign`, { item_id: box, plan_id: med.id, ym: '2026-08' })).data;
+  const m = ficha.plan.find(x => x.id === med.id);
+  assert.equal(m.box_item_id, box, 'box_item_id apunta a la caja asociada');
+});

@@ -354,6 +354,13 @@ function reconcilePlanGtin(id, gtin) {
   return getPlanLine(id);
 }
 function deletePlanLine(id) { return db.prepare('DELETE FROM asig_plan WHERE id = ?').run(id).changes > 0; }
+// Reverse of reconcilePlanGtin: drop the GTIN so a med with a CN goes back to
+// "pendiente de caja" (CN-only) when its box is removed. Only if it still has a CN.
+function clearPlanGtin(id) {
+  const cur = getPlanLine(id); if (!cur || !cur.gtin || !cur.cn) return cur;
+  db.prepare('UPDATE asig_plan SET gtin = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+  return getPlanLine(id);
+}
 // Set (or clear, with null) the official Salud release date of a plan medication.
 function setPlanRelease(id, isoDate) {
   db.prepare('UPDATE asig_plan SET release_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(isoDate || null, id);
@@ -795,7 +802,7 @@ function saveSettings(data, userId) {
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listPlan, plansByCnOrGtin, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, deletePlanLine, planPersonIds,
+  listPlan, plansByCnOrGtin, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, clearPlanGtin, deletePlanLine, planPersonIds,
   createEmptyPlan, personsWithPlanSet,
   setPlanRelease, setPlanAdvance, plansForRelease, planForItem, findPendingLineForMed,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,

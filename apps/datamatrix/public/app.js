@@ -293,6 +293,7 @@ function viewFicha(id, opts) {
         : `<button class="qt-btn qt-btn-teal" id="act-use">⬆ Marcar utilizada</button>`}
            <button class="qt-btn ${inCart ? 'qt-btn-ghost' : 'qt-btn-ghost'}" id="act-cart">${inCart ? '✓ En el carrito' : '🛒 Añadir al carrito'}</button>
            <button class="qt-btn qt-btn-ghost" id="act-prod">✏️ Nombre / color del medicamento</button>
+           <a class="qt-btn qt-btn-ghost" href="/asignacion?dm=${encodeURIComponent(it.raw)}" title="Ver a qué personas se les puede asociar/asignar esta caja (por su CN)">🔗 ¿A quién asociarla?</a>
            <button class="qt-btn qt-btn-ghost" id="act-list">☰ Ver inventario</button>
            <button class="qt-btn qt-btn-danger" id="act-del">🗑 Eliminar</button>
          </div>
@@ -645,6 +646,12 @@ function wireListItems(container) {
 // ── Shared actions ─────────────────────────────────────────────────────────────
 async function toggleCart(id) { try { const path = '/cart/' + id; const { ids } = await api(path, { method: S.cart.has(id) ? 'DELETE' : 'POST' }); S.cart = new Set(ids); updateCartCount(); if ($('cart-panel').classList.contains('open')) renderCart(); } catch (e) { toast(e.message, 'err'); } }
 async function setUsed(it, used) {
+  // A box linked to a person (asociada/asignada desde Asignación) se gestiona allí:
+  // no se marca ni se devuelve a mano desde aquí, para no descuadrar el plan.
+  if (it.assignee_id != null) {
+    toast(`Esta caja está ${it.status === 'utilizado' ? 'asignada' : 'asociada'} a ${it.assignee_name || 'una persona'} desde Asignación. Para devolverla al inventario, quítala desde la ficha del plan.`, 'err');
+    return false;
+  }
   // Protect the manual "mark utilizada": once used, it leaves the inventory, and if
   // it isn't linked to a person it can't be traced (easy to "lose"). Ask expressly.
   if (used) {
@@ -875,7 +882,8 @@ function viewHelp() {
         <li><b>✓ Asignada a &lt;persona&gt;</b> (verde): ya se ha <b>enviado a la app de Salud</b> (dispensada). <b>Sale del stock</b>. Es el paso que se hace delante de Salud.</li>
         <li><b>⚠️ Utilizada sin trazabilidad</b> (rojo): se marcó utilizada <b>a mano</b> sin vincularla a nadie; no se puede saber a quién fue. Evítalo asignando desde Asignación.</li>
       </ul>
-      <div class="qt-note tip">El filtro <b>🔗 Pre-asignadas (N)</b> agrupa las <b>asociadas</b>. La asociación se hace desde <b>Asignación</b> (por escáner o con «¿A quién sirve esta DM?»).</div>` },
+      <div class="qt-note tip">El filtro <b>🔗 Pre-asignadas (N)</b> agrupa las <b>asociadas</b>. La asociación se hace desde <b>Asignación</b>. Desde la <b>ficha</b> de una caja, el botón <b>«🔗 ¿A quién asociarla?»</b> te lleva a la lista de personas que la pueden usar (por su CN) para asociarla allí.</div>
+      <div class="qt-note warn">Una caja <b>asociada o asignada</b> a una persona se gestiona <b>solo desde Asignación</b>: aquí no se puede devolver al inventario ni marcar a mano (te avisará). Para liberarla, quítala desde la <b>ficha del plan</b> de esa persona.</div>` },
     { id: 'dm', icon: '🎨', title: 'Data Matrix y colores por medicamento', html: `<p>Cada <b>medicamento</b> recibe un <b>color y una forma</b> propios (automáticos, editables) para asociarlo de un vistazo — todas las cajas del mismo medicamento comparten color. En la ficha, «Nombre / color del medicamento» cambia el nombre, el color y la forma de todas sus cajas. El <b>tamaño</b> del Data Matrix es un ajuste compartido.</p>` },
     { id: 'agrupar', icon: '🧬', title: 'Agrupar cajas iguales', html: `<p>En el <b>listado</b>, el filtro <b>«🧬 Agrupar iguales»</b> (activado por defecto) junta en una sola fila las cajas <b>indistinguibles</b> —mismo medicamento (CN), <b>misma caducidad</b> y mismo estado— mostrando <b>×N unidades</b>. Púlsala para <b>desplegar</b> y ver cada caja (Nº de serie, lote, acciones). Acorta el listado y ves cuántas iguales tienes. La casilla del grupo selecciona todas sus cajas.</p>
       <p>En vista <b>Tarjetas</b>, <b>«Agrupar por medicamento»</b> junta las cajas del mismo producto en una tarjeta con el recuento. La casilla de la <b>cabecera</b> del listado selecciona o deselecciona <b>todo</b>.</p>` },
@@ -937,7 +945,10 @@ window.addEventListener('beforeunload', persistState);
     S.settings = meta.settings; S.user = meta.user; S.counts = meta.counts || S.counts; S.palette = meta.palette || []; S.shapes = meta.shapes || [];
     await reloadItems(); await reloadCart();
     const saved = restoreState();
-    if (new URLSearchParams(location.search).has('help')) viewHelp();
+    const params = new URLSearchParams(location.search);
+    const itemId = Number(params.get('item'));
+    if (params.has('help')) viewHelp();
+    else if (itemId && S.byId.has(itemId)) viewFicha(itemId);   // deep link from Asignación
     else if (saved && saved.view === 'ficha' && S.currentItemId && S.byId.has(S.currentItemId)) viewFicha(S.currentItemId);
     else if (saved && saved.view === 'list') viewList();
     else viewHome();
