@@ -1017,3 +1017,12 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-dc-dm-name { font-weight: 800; color: var(--ink); }
 .az-dc-dm-meta { font-size: 0.82rem; color: var(--muted); margin-top: 3px; }
 .az-dc-act { white-space: nowrap; text-align: right; }
+
+/* «Asociar DM» modal: inventory grouped by CN (collapsible) */
+.az-abgrp { border: 1px solid var(--line); border-radius: 10px; background: #fff; margin-bottom: 6px; overflow: hidden; }
+.az-abgrp-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: none; border: none; text-align: left; cursor: pointer; font: inherit; }
+.az-abgrp-head:hover { background: #f3f8fd; }
+.az-abgrp-chev { color: var(--brand); width: 12px; flex: none; }
+.az-abgrp-count { margin-left: auto; font-weight: 800; color: var(--brand-2); font-size: 0.85rem; }
+.az-abgrp-boxes { border-top: 1px solid var(--line); background: #fbfdff; padding: 4px; }
+.az-abgrp-boxes .az-abbox { margin: 2px 0; }

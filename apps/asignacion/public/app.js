@@ -1191,7 +1191,7 @@ function renderFicha() {
 
          ${progressHtml(f.progress)}
 
-         <div class="az-sec-h"><span>📦 Cajas de la ficha (${f.lines.length})</span><span class="az-sec-h-actions">${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" id="scan-mode" title="Modo escáner: pasa el lector por el precinto o el DM y se asigna solo">📟 Modo escáner</button>`}<button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-box" ${closed ? 'disabled' : ''}>➕ Añadir DM</button></span></div>
+         <div class="az-sec-h"><span>📦 Cajas de la ficha (${f.lines.length})</span><span class="az-sec-h-actions">${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" id="scan-mode" title="Modo escáner: pasa el lector por el precinto o el DM y se asigna solo">📟 Modo escáner</button>`}<button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-box" ${closed ? 'disabled' : ''}>➕ Asociar DM</button></span></div>
          <div class="az-lines">${linesHtml(f.lines, closed, dmSize)}</div>
          ${precintoHtml(f.precintos, closed)}
          ${pendingHtml(f.plan, closed)}
@@ -1306,7 +1306,7 @@ function planRowFull(m, closed) {
         ${(!noDm && m.barcode) ? `<button class="qt-iconbtn" data-precinto="${m.id}" title="Ver el código de barras (precinto)">🏷️</button>` : ''}
         ${m.foto_pastilla ? `<button class="qt-iconbtn" data-pill="${m.id}" title="Ver la pastilla (AEMPS)">💊</button>` : ''}
         ${canPrecinto ? `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assignprec="${m.id}" title="Marcar como asignada en Salud (por precinto, sin caja)">✅ Asignar</button>` : ''}
-        ${closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-assoc="${m.id}">🔗 ${m.cn_only ? 'Asociar caja' : 'Pre-asignar'}</button>`}
+        ${closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-assoc="${m.id}" title="Asociar una caja Data Matrix con este CN">🔗 Asociar DM</button>`}
         ${(!closed && m.cn_only) ? `<button class="qt-iconbtn" data-editplan="${m.id}" title="Editar nombre / CN / código de barras">✏️</button>` : ''}
         <button class="qt-iconbtn danger" data-delplan="${m.id}" title="Quitar del plan">🗑</button>
       </div>
@@ -1411,7 +1411,7 @@ function lineHtml(ln, closed, dmSize) {
   </div>`;
 }
 function linesHtml(lines, closed, dmSize) {
-  if (!lines.length) return '<div class="az-empty-sm">Todavía no hay cajas en la ficha. Pre-asigna desde el plan o pulsa «➕ Añadir DM».</div>';
+  if (!lines.length) return '<div class="az-empty-sm">Todavía no hay cajas en la ficha. Asocia desde cada medicamento del plan o pulsa «➕ Asociar DM».</div>';
   // Group by medication.
   const groups = new Map();
   for (const ln of lines) { const g = (ln.box && ln.box.gtin) || ln.gtin || '—'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(ln); }
@@ -1443,7 +1443,7 @@ function pendingHtml(plan, closed) {
         <div class="az-pend-actions">
           ${m.foto_pastilla ? `<button class="qt-iconbtn" data-pill="${m.id}" title="Ver la pastilla (AEMPS)">💊</button>` : ''}
           ${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assignprec="${m.id}" title="Marcar como asignada en Salud (precinto)">✅ Asignar</button>`}
-          ${closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-assoc="${m.id}">🔗 Asociar caja</button>`}
+          ${closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-assoc="${m.id}" title="Asociar una caja Data Matrix con este CN">🔗 Asociar DM</button>`}
         </div>
       </div>`;
     }).join('')}</div>
@@ -2091,13 +2091,14 @@ async function addMedToPlan(payload) {
 // gets associated to that medication (with a mismatch warning if it doesn't match).
 function openAddBox(med) {
   const scoped = med && typeof med === 'object';
-  const title = scoped ? `Asociar caja · ${esc(med.nombre || 'medicamento')}` : 'Añadir caja (pre-asignar)';
+  const title = scoped ? `Asociar DM · ${esc(med.nombre || 'medicamento')}` : 'Asociar DM (elige del inventario)';
   const planId = scoped ? med.id : undefined;
   openTool(`<div class="qt-modal-h"><h3>${title}</h3><button class="qt-x" id="ab-close">×</button></div>
-    ${scoped && med.cn_only ? `<p class="qt-tool-note">Este medicamento está <b>pendiente de caja</b> (CN ${esc(med.cn || '—')}). Elige una caja del inventario que coincida o escanea una nueva.</p>` : ''}
+    ${scoped ? `<p class="qt-tool-note">Solo se muestran las cajas del inventario <b>con este CN (${esc(med.cn || '—')})</b>. Elige una para asociarla, o escanea una nueva.</p>`
+      : `<p class="qt-tool-note">Todo el inventario disponible, <b>agrupado por Código Nacional</b>. Despliega un medicamento y elige una caja para asociarla a esta persona. Si el CN no coincide con su plan, se te avisará (pero podrás seguir).</p>`}
     <div class="az-tabs"><button class="az-tab sel" data-tab="inv">📦 Del inventario</button><button class="az-tab" data-tab="scan">📷 Escanear / pegar</button></div>
     <div id="ab-inv" class="az-tabpane">
-      ${scoped ? '' : `<div class="qt-search" style="margin-bottom:10px"><span class="ico">🔎</span><input id="ab-q" placeholder="Filtrar por medicamento o GTIN…" autocomplete="off"></div>`}
+      ${scoped ? '' : `<div class="qt-search" style="margin-bottom:10px"><span class="ico">🔎</span><input id="ab-q" placeholder="Filtrar por medicamento o CN…" autocomplete="off"></div>`}
       <div id="ab-list" class="az-medlist"></div>
     </div>
     <div id="ab-scan" class="az-tabpane" hidden>
@@ -2113,34 +2114,59 @@ function openAddBox(med) {
     Object.entries(panes).forEach(([k, el]) => el.hidden = k !== t.dataset.tab);
   }));
 
-  const renderBoxes = (boxes) => {
-    const list = $('ab-list');
-    if (!boxes.length) { list.innerHTML = `<div class="az-noresult">No hay cajas disponibles (sin reservar)${scoped ? ' que coincidan con este medicamento' : ''}. Usa la pestaña «Escanear / pegar» para dar entrada a una caja nueva.</div>`; return; }
-    list.innerHTML = boxes.slice(0, 60).map(b => `<button class="az-medrow" data-item="${b.id}"><span class="az-plan-shape">${shapeSvg(b.shape, b.color, 18)}</span><span class="az-medrow-name">${esc(b.nombre || 'Sin nombre')}<small>${b.serial ? 'Nº ' + esc(b.serial) + ' · ' : ''}${b.caducidad ? 'Cad ' + esc(b.caducidad) + ' · ' : ''}${b.gtin ? 'GTIN ' + esc(b.gtin) : (b.cn ? 'CN ' + esc(b.cn) : '')}</small></span><span class="az-medrow-add">🔗</span></button>`).join('');
-    list.querySelectorAll('[data-item]').forEach(btn => btn.addEventListener('click', () => preassign({ item_id: Number(btn.dataset.item), plan_id: planId })));
-  };
+  // One box → a pickable row. CN is shown (never the GTIN, per request).
+  const boxItemHtml = (b) => `<button class="az-medrow az-abbox" data-item="${b.id}"><span class="az-plan-shape">${shapeSvg(b.shape, b.color, 16)}</span><span class="az-medrow-name">${esc(b.nombre || 'Sin nombre')}<small>${b.serial ? 'Nº ' + esc(b.serial) + ' · ' : ''}${b.caducidad ? 'Cad ' + esc(b.caducidad) + ' · ' : ''}${b.cn ? 'CN ' + esc(b.cn) : ''}</small></span><span class="az-medrow-add">🔗</span></button>`;
+  const wireBoxes = (root) => root.querySelectorAll('[data-item]').forEach(btn => btn.addEventListener('click', () => preassign({ item_id: Number(btn.dataset.item), plan_id: planId })));
 
   // Inventory tab
   if (scoped) {
+    // Only boxes that share this medication's CN (or GTIN). May be none.
     (async () => {
+      const list = $('ab-list');
       try {
-        const boxes = med.cn_only
-          ? (await api('/available-cn/' + encodeURIComponent(med.cn || ''))).items
-          : (await api('/available/' + encodeURIComponent(med.gtin))).items;
-        renderBoxes(boxes);
-      } catch (e) { $('ab-list').innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; }
+        let boxes = med.cn ? (await api('/available-cn/' + encodeURIComponent(med.cn))).items : [];
+        if (med.gtin) { const byG = (await api('/available/' + encodeURIComponent(med.gtin))).items; const seen = new Set(boxes.map(b => b.id)); for (const b of byG) if (!seen.has(b.id)) boxes.push(b); }
+        list.innerHTML = boxes.length
+          ? boxes.slice(0, 100).map(boxItemHtml).join('')
+          : `<div class="az-noresult">No hay ninguna caja en el inventario con este CN (${esc(med.cn || med.gtin || '—')}). Usa «Escanear / pegar» para dar entrada a una caja nueva.</div>`;
+        wireBoxes(list);
+      } catch (e) { list.innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; }
     })();
   } else {
+    // Whole inventory grouped by CN (medication), with counts, collapsible.
     const q = $('ab-q');
     const loadInv = async () => {
+      const list = $('ab-list');
       try {
-        let boxes = [];
-        const meds = (await api('/medications?q=' + encodeURIComponent(q.value || ''))).items;
-        const pick = meds.filter(m => m.available > 0);
-        const chosen = (pick.length ? pick : meds).slice(0, 15);
-        for (const m of chosen) { if (!m.available) continue; const av = (await api('/available/' + encodeURIComponent(m.gtin))).items; boxes = boxes.concat(av); }
-        renderBoxes(boxes);
-      } catch (e) { $('ab-list').innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; }
+        const meds = (await api('/medications?q=' + encodeURIComponent(q.value || ''))).items.filter(m => m.available > 0);
+        if (!meds.length) { list.innerHTML = '<div class="az-noresult">No hay cajas disponibles en el inventario. Usa «Escanear / pegar» para dar entrada a una caja nueva.</div>'; return; }
+        list.innerHTML = meds.map(m => `
+          <div class="az-abgrp">
+            <button class="az-abgrp-head" data-abtoggle="${esc(m.gtin)}">
+              <span class="az-abgrp-chev">▸</span>
+              <span class="az-plan-shape">${shapeSvg(m.shape, m.color, 18)}</span>
+              <span class="az-medrow-name">${esc(m.nombre || 'Sin nombre')}<small>${m.cn ? 'CN ' + esc(m.cn) : 'sin CN'}</small></span>
+              <span class="az-abgrp-count">×${m.available}</span>
+            </button>
+            <div class="az-abgrp-boxes" data-abboxes="${esc(m.gtin)}" hidden></div>
+          </div>`).join('');
+        list.querySelectorAll('[data-abtoggle]').forEach(h => h.onclick = async () => {
+          const gtin = h.dataset.abtoggle;
+          const wrap = list.querySelector(`[data-abboxes="${CSS.escape(gtin)}"]`);
+          const chev = h.querySelector('.az-abgrp-chev');
+          if (!wrap.hidden) { wrap.hidden = true; if (chev) chev.textContent = '▸'; return; }
+          if (!wrap.dataset.loaded) {
+            wrap.innerHTML = '<div class="az-empty-sm">Cargando…</div>';
+            try {
+              const items = (await api('/available/' + encodeURIComponent(gtin))).items;
+              wrap.dataset.loaded = '1';
+              wrap.innerHTML = items.length ? items.map(boxItemHtml).join('') : '<div class="az-empty-sm">Sin cajas.</div>';
+              wireBoxes(wrap);
+            } catch (e) { wrap.innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; }
+          }
+          wrap.hidden = false; if (chev) chev.textContent = '▾';
+        });
+      } catch (e) { list.innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; }
     };
     let t = null; q.addEventListener('input', () => { if (t) clearTimeout(t); t = setTimeout(loadInv, 220); });
     loadInv();
@@ -2191,7 +2217,13 @@ function viewHelp() {
       <div class="qt-note tip"><b>Puedes añadir un medicamento de dos formas:</b><ul><li><b>Del catálogo</b>: si ya está en Data Matrix, búscalo por nombre, GTIN o CN y añádelo.</li><li><b>Por Código Nacional</b> (novedad): si la información llega <b>antes de tener el Data Matrix</b>, añádelo solo con su <b>Código Nacional</b> + nombre (y opcionalmente el código de barras). Queda en el plan como <b>«pendiente de caja»</b> (borde discontinuo ámbar), sin caja todavía. Es el paso <b>previo a la pre-asignación</b>.</li></ul>Más adelante le asocias una caja real (ver el paso siguiente) y deja de estar pendiente.</div>
       <div class="qt-note tip"><b>🔎 CIMA (AEMPS).</b> Al añadir por Código Nacional, pulsa <b>«🔎 CIMA»</b> junto al CN para <b>traer el nombre y el código de barras</b> desde la base de datos oficial de medicamentos (AEMPS), o usa <b>«🔎 Buscar en CIMA»</b> para buscar por nombre y elegir. Al traerlo, muestra además la <b>foto de la caja y de la pastilla</b> (fuente: AEMPS). Es una comodidad: si CIMA no está disponible, puedes escribir los datos a mano igual que siempre. La app <b>comprueba que el Código Nacional y el código de barras cuadren</b> (y rellena uno desde el otro), para evitar altas con datos incoherentes. Cada consulta correcta se <b>guarda en local</b> (datos + imágenes), así que ese medicamento sigue funcionando aunque luego CIMA no esté disponible. Y con el botón <b>✏️</b> de un medicamento «pendiente de caja» puedes <b>editar su nombre, CN o código de barras</b> sin tener que borrarlo. (Requiere que el servidor tenga salida a Internet hacia <i>cima.aemps.es</i>.)</div>
       <div class="qt-note tip">En cada medicamento del plan verás, si están disponibles: la <b>foto de la caja</b> (en vez del icono de color), un botón <b>💊</b> para ver la <b>pastilla</b>, y —<b>solo cuando aún no tiene Data Matrix</b>— un botón <b>🏷️ Precinto</b> que muestra el <b>código de barras grande y escaneable</b> para asignarlo en la <b>app de Salud</b>. Si la caja ya tiene Data Matrix, escanéalo mejor (el DM es preferible al precinto).</div>` },
-    { id: 'preasignar', icon: '🔗', title: '3) Pre-asignar / asociar cajas', html: `<p>Para cada medicamento del plan, reserva una <b>caja real</b> con <b>«🔗 Pre-asignar»</b> (medicamentos del catálogo) o <b>«🔗 Asociar caja»</b> (medicamentos <b>pendientes de caja</b>, añadidos por Código Nacional). En ambos casos puedes:</p><ul><li><b>Elegir del inventario</b>: una caja «sin utilizar» compatible que ya esté en Data Matrix (para los pendientes de caja, se filtran por su <b>Código Nacional</b>).</li><li><b>Escanear / pegar</b> su Data Matrix: si la caja no estaba en Data Matrix, <b>se crea allí</b> automáticamente como pre-asignada <b>y</b> queda asociada a ese medicamento del plan.</li></ul><p>Si la caja <b>no coincide</b> con el medicamento (por CN/GTIN), la app <b>te avisa</b> y te deja <b>asociarla igualmente</b> si quieres. Al asociar la primera caja, un medicamento «pendiente de caja» pasa a ser normal.</p><p>La caja queda <b>🔗 Pre-asignada</b>: reservada para esa persona pero <b>sigue en stock</b>. Este estado <b>también se ve en la app Data Matrix</b>, para que las dos apps nunca se descuadren.</p>` },
+    { id: 'preasignar', icon: '🔗', title: '3) Asociar cajas (DM) a la persona', html: `<p>La asociación se basa en el <b>Código Nacional (CN)</b>: reservas una caja del inventario a esta persona y a un medicamento de su plan. Hay <b>dos botones «🔗 Asociar DM»</b>:</p>
+      <ul>
+        <li><b>Dentro de cada medicamento del plan</b>: muestra <b>solo las cajas del inventario con ese CN</b> (puede que no haya ninguna). Lo más rápido y seguro.</li>
+        <li><b>Fuera, «➕ Asociar DM»</b> (junto a «Cajas de la ficha»): muestra <b>todo el inventario disponible</b>, <b>agrupado por CN</b> con el número de unidades de cada uno (como el inventario de Data Matrix). Despliega un medicamento y elige una caja.</li>
+      </ul>
+      <p>También puedes <b>escanear / pegar</b> una Data Matrix: si no estaba en Data Matrix, <b>se crea</b> y queda asociada. Si el <b>CN no coincide</b> con el medicamento del plan, la app <b>te avisa</b> (recomienda asociar el mismo CN) pero te deja <b>seguir</b> si quieres.</p>
+      <p>La caja queda <b>🔗 Asociada</b> a la persona (por su Nº de farmacia): reservada pero <b>aún en stock</b>. La <b>asignación</b> definitiva (que la saca del stock) es el paso posterior, delante de <b>Salud</b>. Ambos estados <b>se ven también en la app Data Matrix</b>.</p>` },
     { id: 'asignar', icon: '✅', title: '4) Asignar de verdad', html: `<p>Cuando ya la asignas en la aplicación de <b>Salud</b>, pulsa <b>«✅ Asignar»</b> sobre esa caja. Pasa a <b>✓ Asignada</b> (se marca <b>utilizada</b> en Data Matrix, sale del inventario) y su Data Matrix se pone en <b>gris</b>.</p>
       <div class="qt-note tip">Al pulsar <b>«✅ Asignar»</b> la app te pide la <b>fecha de la PRÓXIMA liberación</b> de ese medicamento (ya propuesta al <b>mismo día del mes siguiente</b>, editable). Es el momento natural para anotarla: acabas de dispensar la caja y sabes cuándo sale la siguiente. Esa fecha se guarda <b>en el medicamento</b> y gobierna cuándo vuelve a estar disponible (ver la sección siguiente). Puedes dejarla en blanco si aún no la sabes.</div>
       <div class="qt-note tip">Los <b>tres estados</b> de una caja: <b>Sin utilizar</b> → <b>🔗 Pre-asignada</b> (reservada) → <b>✓ Asignada</b> (= utilizada). Puedes <b>↩ Revertir</b> una asignación (vuelve a pre-asignada) o <b>🗑 quitar</b> la caja de la ficha (se libera la reserva y, si estaba asignada, vuelve al inventario). Al asignar, la caja <b>desaparece</b> del inventario; el medicamento vuelve el mes siguiente <b>sin caja</b> hasta que le asocies otra.</div>` },
