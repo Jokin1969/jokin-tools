@@ -442,12 +442,22 @@ a.qt-btn { text-decoration: none; }
 .qt-link-discreet { border: none; background: none; padding: 0; margin-left: 6px; color: var(--brand, #1273b8); font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .qt-link-discreet:hover { color: var(--brand-2, #0f5f9a); }
 
-/* "QR sin actualizar" modal: person list, click to reveal the code input */
-.qt-qrp-list { display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow: auto; }
-.qt-qrp-item { border: 1px solid var(--line, #dbe4ee); border-radius: 10px; background: #fff; overflow: hidden; }
-.qt-qrp-head { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px; background: none; border: none; text-align: left; cursor: pointer; }
-.qt-qrp-head:hover { background: #f3f8fd; }
-.qt-qrp-name { font-weight: 700; color: var(--ink, #0f2233); }
-.qt-qrp-meta { font-size: 0.76rem; color: var(--muted, #5c7086); font-family: var(--mono, monospace); }
-.qt-qrp-edit { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line, #dbe4ee); background: #f7fafd; }
+/* Wide variant of the shared tool modal */
+.qt-modal-box.qt-modal-wide { width: min(760px, 100%); }
+
+/* "QR sin actualizar" modal: grouped person list, click to reveal the code input */
+.qt-qrp-list { display: flex; flex-direction: column; gap: 6px; max-height: 66vh; overflow: auto; }
+.qt-qrp-group { display: flex; align-items: baseline; gap: 8px; margin: 12px 2px 2px; font-weight: 800; color: var(--brand-2, #0f5f9a); font-size: 0.9rem; }
+.qt-qrp-group:first-child { margin-top: 0; }
+.qt-qrp-gname { flex: 1 1 auto; }
+.qt-qrp-gcount { font-size: 0.75rem; font-weight: 700; color: var(--muted, #5c7086); background: #eef3f8; border-radius: 999px; padding: 1px 9px; }
+.qt-qrp-item { border: 1px solid var(--line, #dbe4ee); border-radius: 10px; background: #fff; }
+.qt-qrp-head { display: flex; align-items: center; gap: 8px; }
+.qt-qrp-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; background: none; border: none; text-align: left; cursor: pointer; border-radius: 10px 0 0 10px; }
+.qt-qrp-main:hover { background: #f3f8fd; }
+.qt-qrp-name { font-weight: 700; color: var(--ink, #0f2233); line-height: 1.3; }
+.qt-qrp-meta { font-size: 0.78rem; color: var(--muted, #5c7086); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.qt-qrp-ficha { flex: 0 0 auto; margin-right: 10px; white-space: nowrap; }
+.qt-qrp-edit { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line, #dbe4ee); background: #f7fafd; border-radius: 0 0 10px 10px; }
+.qt-qrp-edit[hidden] { display: none; }   /* author display must not defeat the hidden attribute */
 .qt-qrp-edit input { flex: 1 1 auto; }

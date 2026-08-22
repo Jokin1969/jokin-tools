@@ -1150,12 +1150,13 @@ function viewHelp() {
 }
 
 // ── Generic tool modal + Excel/PDF/Recientes ────────────────────────────────────
-function openModal(html) {
+function openModal(html, opts) {
   const box = $('tool-modal-box'); box.innerHTML = html;
+  box.classList.toggle('qt-modal-wide', !!(opts && opts.wide));
   $('tool-modal').hidden = false;
   box.querySelectorAll('[data-close]').forEach(b => b.onclick = closeModal);
 }
-function closeModal() { $('tool-modal').hidden = true; $('tool-modal-box').innerHTML = ''; }
+function closeModal() { $('tool-modal').hidden = true; const box = $('tool-modal-box'); box.innerHTML = ''; box.classList.remove('qt-modal-wide'); }
 
 async function apiBlob(path, body) {
   const r = await fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -1388,11 +1389,13 @@ function refreshQrPendingBtn() {
 }
 // A comfortable way to fill the real QR code person by person: a modal listing the
 // pending people; click one, scan/type its code, accept → it leaves the list.
+function qrpGroupKey(p) { return (p.groups && p.groups.length) ? p.groups.join(' · ') : 'Sin grupo'; }
 function openQrPending() {
   openModal(
     `<div class="qt-modal-h"><h3>QR sin actualizar <span id="qrp-count"></span></h3><button class="qt-x" data-close>×</button></div>
-     <p style="color:var(--muted);font-size:.9rem;margin:0 0 10px">Personas cuyo QR todavía codifica el <strong>TIS</strong>. Pulsa una, <strong>escanea</strong> (lector emulador de teclado) o escribe su <strong>código real</strong> y acepta: desaparecerá de la lista.</p>
-     <div class="qt-qrp-list" id="qrp-list"></div>`
+     <p style="color:var(--muted);font-size:.9rem;margin:0 0 10px">Personas cuyo QR todavía codifica el <strong>TIS</strong>, <strong>agrupadas por residencia</strong>. Pulsa una, <strong>escanea</strong> (lector emulador de teclado) o escribe su <strong>código real</strong> y acepta: desaparecerá de la lista. O abre su <strong>ficha</strong>.</p>
+     <div class="qt-qrp-list" id="qrp-list"></div>`,
+    { wide: true }
   );
   renderQrPendingList();
 }
@@ -1402,17 +1405,28 @@ function renderQrPendingList() {
   const cnt = $('qrp-count'); if (cnt) cnt.textContent = `(${pending.length})`;
   refreshQrPendingBtn();   // keep the discreet counter in the list behind in sync
   if (!pending.length) { list.innerHTML = '<div class="qt-empty">🎉 Todas las personas tienen su código real. ¡Listo!</div>'; return; }
-  list.innerHTML = pending.map(p => `
+  // Group by residence, ordered (Sin grupo last), and by surname within each.
+  const byG = new Map();
+  for (const p of pending) { const k = qrpGroupKey(p); if (!byG.has(k)) byG.set(k, []); byG.get(k).push(p); }
+  const keys = [...byG.keys()].sort((a, b) => a === 'Sin grupo' ? 1 : b === 'Sin grupo' ? -1 : a.localeCompare(b, 'es'));
+  for (const k of keys) byG.get(k).sort((a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es'));
+  const rowHtml = p => `
     <div class="qt-qrp-item" data-qrp="${p.id}">
-      <button class="qt-qrp-head" data-qrp-toggle="${p.id}">
-        <span class="qt-qrp-name">${esc(p.apellidos)}, ${esc(p.nombre)}</span>
-        <span class="qt-qrp-meta">Nº ${p.pharmacy_no ? esc(p.pharmacy_no) : '—'} · TIS ${esc(fmtTis(p.tis))}</span>
-      </button>
+      <div class="qt-qrp-head">
+        <button class="qt-qrp-main" data-qrp-toggle="${p.id}" title="Escribir / escanear el código">
+          <span class="qt-qrp-name">${esc(p.apellidos)}, ${esc(p.nombre)}</span>
+          <span class="qt-qrp-meta">${(p.groups && p.groups.length) ? '👥 ' + esc(p.groups.join(' · ')) + ' · ' : ''}Nº ${p.pharmacy_no ? esc(p.pharmacy_no) : '—'} · TIS ${esc(fmtTis(p.tis))}</span>
+        </button>
+        <button class="qt-btn qt-btn-ghost qt-btn-sm qt-qrp-ficha" data-qrp-open="${p.id}" title="Abrir la ficha de la persona">Ficha ↗</button>
+      </div>
       <div class="qt-qrp-edit" hidden>
         <input class="qt-input" data-qrp-input="${p.id}" placeholder="Escanea o escribe el código real…" autocomplete="off">
         <button class="qt-btn qt-btn-primary qt-btn-sm" data-qrp-save="${p.id}">✓ Aceptar</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  list.innerHTML = keys.map(k => `
+    <div class="qt-qrp-group"><span class="qt-qrp-gname">${k === 'Sin grupo' ? '— Sin grupo' : '👥 ' + esc(k)}</span><span class="qt-qrp-gcount">${byG.get(k).length}</span></div>
+    ${byG.get(k).map(rowHtml).join('')}`).join('');
   list.querySelectorAll('[data-qrp-toggle]').forEach(h => h.onclick = () => {
     const item = h.closest('.qt-qrp-item'); const ed = item.querySelector('.qt-qrp-edit');
     const wasHidden = ed.hidden;
@@ -1420,6 +1434,7 @@ function renderQrPendingList() {
     ed.hidden = !wasHidden;
     if (!ed.hidden) { const inp = ed.querySelector('input'); setTimeout(() => inp && inp.focus(), 20); }
   });
+  list.querySelectorAll('[data-qrp-open]').forEach(btn => btn.onclick = () => { const id = Number(btn.dataset.qrpOpen); closeModal(); viewFicha(id); });
   list.querySelectorAll('[data-qrp-save]').forEach(btn => btn.onclick = () => saveQrPending(Number(btn.dataset.qrpSave)));
   list.querySelectorAll('[data-qrp-input]').forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveQrPending(Number(inp.dataset.qrpInput)); } }));
 }
