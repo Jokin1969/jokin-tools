@@ -1076,9 +1076,16 @@ function viewHelp() {
     { id: 'notas', icon: '📝', title: 'Notas por persona', html: `
       <p>Puedes pegar una <b>nota</b> (texto + color) a cada persona, para recordar «qué le pasa». Se añade/edita con el botón <b>📝</b> de su fila o tarjeta en el listado, o en su <b>ficha</b> («📝 Añadir/Editar nota»). La nota se ve en la tarjeta y en la ficha.</p>
       <p>En el listado, el botón <b>«📝 Con nota»</b> filtra para ver solo las personas que tienen una nota. Un texto vacío borra la nota.</p>` },
-    { id: 'grupos-color', icon: '🎨', title: 'Un color de QR por residencia (grupo)', html: `
-      <p>En la ficha de una persona, junto a los colores del QR, el botón <b>🏠🎨</b> abre <b>«Colores por grupo/residencia»</b>: asigna un color de QR a cada grupo para <b>distinguir residencias de un vistazo</b>.</p>
-      <p>El color del grupo pasa a ser el <b>color por defecto</b> del QR de todas las personas de ese grupo. Si una persona tiene un <b>color propio</b> (elegido en «Ajustes del QR»), ese manda sobre el del grupo. Si alguien está en varios grupos, se usa el color del primero que tenga uno asignado.</p>` },
+    { id: 'grupos-color', icon: '🎨', title: 'Un color por residencia (grupo)', html: `
+      <p>En la <b>ficha</b> de una persona, junto a los colores del QR, el botón <b>🏠🎨</b> abre <b>«Colores por grupo/residencia»</b>: lista todos los grupos que existen y a cada uno le asignas un <b>color</b> (paleta rápida o selector personalizado; la «✕» lo quita). Sirve para <b>distinguir residencias de un vistazo</b>.</p>
+      <p><b>Precedencia del color del QR:</b> color propio de la persona (en «Ajustes del QR») › color de su grupo/residencia › color global por defecto. Si alguien está en varios grupos, se usa el del primero que tenga color.</p>
+      <p><b>Dónde se ve ese color:</b></p>
+      <ul>
+        <li>El <b>QR</b> de esas personas (en el listado, las tarjetas, la ficha y el PDF exportado).</li>
+        <li>El <b>nombre del grupo</b> allí donde aparece (etiquetas en el listado, ficha, carrito y gestor de grupos).</li>
+        <li>Las <b>tarjetas contadoras</b> del panel «Grupos»: una franja del color y, al seleccionarlas, un degradado en ese mismo color.</li>
+        <li>También en el <b>QR de la app de Asignación</b> y en los <b>emails de notificación</b> (usan el mismo color de residencia).</li>
+      </ul>` },
     { id: 'grupos', icon: '👥', title: 'Grupos (varios por persona)', html: `
       <p>Una persona puede pertenecer a <strong>varios grupos</strong>. En su ficha, «Gestionar grupos» te deja añadir grupos (chips) y quitarlos con la ×.</p>
       <p>Los grupos se ven en el listado y en el carrito como etiquetas. Al <strong>pulsar una etiqueta de grupo</strong> se seleccionan de golpe todos los que pertenecen a ese grupo. La búsqueda también encuentra por grupo.</p>
