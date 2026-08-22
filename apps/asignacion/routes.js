@@ -31,6 +31,7 @@ function appUsers() { return authStore.listUsers().filter(u => canAccess(u, APP_
 function appUserIds() { return new Set(appUsers().map(u => u.id)); }
 const PUB = path.join(__dirname, 'public');
 const json = express.json({ limit: '256kb' });
+const jsonBig = express.json({ limit: '3mb' });   // bulk medication import
 
 function fail(res, err) {
   const status = err && err.status ? err.status : 500;
@@ -169,6 +170,63 @@ router.get('/api/person/:id(\\d+)', (req, res) => {
 // ── Medications (from datamatrix, for the plan picker) ───────────────────────────
 router.get('/api/medications', (req, res) => {
   try { res.json({ items: medicationList(req.query.q || '') }); } catch (err) { fail(res, err); }
+});
+// ── Bulk import: add medications (by Código Nacional) to people's plans ───────────
+// Each row = { person: "<TIS or Nº farmacia or id>", cns: ["885442", …] }. For each
+// CN we look it up in CIMA (cached) to fill name + barcode, then add it to the plan
+// (CN-only, "pendiente de caja"). Re-importing the same CN just updates it.
+router.post('/api/plan/import', jsonBig, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const by = b.by === 'pharmacy' ? 'pharmacy' : 'tis';
+    const qty = Math.min(99, Math.max(1, Math.round(Number(b.qty) || 1)));
+    const rows = Array.isArray(b.rows) ? b.rows : [];
+    if (!rows.length) throw bad('No se recibieron filas para importar.');
+    if (rows.length > 1000) throw bad('Demasiadas filas (máximo 1000).');
+    // Resolve people by the chosen identifier.
+    const all = qrDb.listPeople();
+    const byTis = new Map(all.map(p => [String(p.tis), p]));
+    const byPh = new Map(all.filter(p => p.pharmacy_no && p.pharmacy_no !== '00000').map(p => [String(p.pharmacy_no), p]));
+    const byId = new Map(all.map(p => [String(p.id), p]));
+    const resolve = (code) => {
+      const c = String(code == null ? '' : code).trim();
+      if (by === 'pharmacy') return byPh.get(c) || null;
+      return byTis.get(c) || byId.get(c) || null;
+    };
+    // Parse rows + collect distinct valid CNs for a single CIMA pass.
+    const cnSet = new Set();
+    const parsed = rows.map((r, i) => {
+      const cns = (Array.isArray(r.cns) ? r.cns : []).map(x => String(x).replace(/\D/g, '')).filter(x => /^\d{4,7}$/.test(x));
+      cns.forEach(c => cnSet.add(c));
+      return { line: i + 1, code: r.person, person: resolve(r.person), cns };
+    });
+    // CIMA lookups (cached; tolerant of offline), limited concurrency.
+    const info = new Map(); let cimaReached = false, cimaFound = 0;
+    const cnList = [...cnSet], CONC = 5;
+    for (let k = 0; k < cnList.length; k += CONC) {
+      await Promise.all(cnList.slice(k, k + CONC).map(async cn => {
+        try { const it = await cimaCache.lookupByCnCached(cn); if (it) { cimaReached = true; info.set(cn, it); if (it.nombre) cimaFound++; } }
+        catch { /* offline / not found → add without CIMA info */ }
+      }));
+    }
+    // Apply to plans.
+    let added = 0, updated = 0; const errors = [];
+    const seenPeople = new Set();
+    for (const row of parsed) {
+      if (!row.person) { errors.push({ line: row.line, code: row.code, error: 'Persona no encontrada.' }); continue; }
+      if (!row.cns.length) { errors.push({ line: row.line, code: row.code, error: 'Sin Códigos Nacionales válidos.' }); continue; }
+      seenPeople.add(row.person.id);
+      for (const cn of row.cns) {
+        try {
+          const it = info.get(cn) || {};
+          const existed = !!db.planByCn(row.person.id, cn);
+          db.addPlanMed(row.person.id, { cn, nombre: it.nombre || `Medicamento CN ${cn}`, barcode: it.barcode || null, qty });
+          if (existed) updated++; else added++;
+        } catch (e) { errors.push({ line: row.line, code: row.code, cn, error: e.message }); }
+      }
+    }
+    res.json({ ok: true, people: seenPeople.size, added, updated, cima: { reached: cimaReached, found: cimaFound, missing: cnSet.size - cimaFound, total: cnSet.size }, errors });
+  } catch (err) { fail(res, err); }
 });
 // ── CIMA (AEMPS) lookup — optional: fill name/barcode from a Código Nacional ──────
 router.get('/api/cima/cn/:cn([0-9]+)', async (req, res) => {

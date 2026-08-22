@@ -892,3 +892,8 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-card-actions .qt-iconbtn.has, .az-card:hover .az-card-actions .qt-iconbtn { opacity: 1; }
 .az-card-note { position: static; }
 .az-person-noteact { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+/* Bulk medication import */
+.az-home-actions { margin: 10px 0 2px; }
+.az-mi-ta { width: 100%; font-family: var(--mono, monospace); font-size: 0.9rem; line-height: 1.5; resize: vertical; }
+.az-mi-preview { margin: 4px 0; }

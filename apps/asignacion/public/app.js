@@ -638,6 +638,7 @@ function renderHome() {
          <div class="qt-search"><span class="ico">🔎</span><input id="pq" placeholder="Buscar persona por nombre, apellidos, TIS, nº de farmacia…" autocomplete="off" value="${esc(S.searchQuery)}"></div>
          <div id="pq-results" class="az-results"></div>
        </div>
+       <div class="az-home-actions"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="import-med">📥 Importar medicación (por Código Nacional)</button></div>
 
        ${banner}
        <div id="ov-wrap"></div>
@@ -652,8 +653,58 @@ function renderHome() {
   const pq = $('pq');
   pq.addEventListener('input', () => { S.searchQuery = pq.value; searchPeople(pq.value); });
   if (S.searchQuery) searchPeople(S.searchQuery);
+  if ($('import-med')) $('import-med').onclick = openMedImport;
   renderOverviewSection();
   loadStickers(S.stkYm || undefined);
+}
+// Bulk-import medications by Código Nacional: paste one line per person
+// ("<TIS o Nº de farmacia>  cn, cn, cn"). CIMA fills each medication's name/barcode.
+function parseMedImport(text) {
+  const rows = [];
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const nums = raw.match(/\d+/g);
+    if (!nums || nums.length < 2) continue;   // need a person code + at least one CN
+    rows.push({ person: nums[0], cns: nums.slice(1) });
+  }
+  return rows;
+}
+function openMedImport() {
+  const st = { by: 'tis' };
+  const seg = `<div class="az-seg" id="mi-by"><button type="button" data-v="tis" class="on">TIS</button><button type="button" data-v="pharmacy">Nº de farmacia</button></div>`;
+  openTool(`<div class="qt-modal-h"><h3>📥 Importar medicación por Código Nacional</h3><button class="qt-x" id="mi-x">×</button></div>
+    <p class="qt-tool-note">Pega <b>una línea por persona</b>: primero su <b>identificador</b> y luego sus <b>Códigos Nacionales</b> separados por comas (o espacios). La app buscará cada medicamento en <b>CIMA</b> para rellenar nombre y código de barras, y lo añadirá al plan (queda «pendiente de caja»).</p>
+    <div class="qt-field"><label>Identificar persona por</label>${seg}</div>
+    <div class="qt-field"><label>Cajas al mes por defecto</label><input type="number" class="qt-input" id="mi-qty" min="1" max="99" value="1" style="max-width:120px"></div>
+    <div class="qt-field"><label>Listado</label><textarea class="qt-input az-mi-ta" id="mi-text" rows="9" placeholder="00930868: 885442, 715000, 659432&#10;00930869  712345 998877&#10;…"></textarea></div>
+    <div class="az-mi-preview" id="mi-preview"></div>
+    <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" id="mi-cancel">Cancelar</button><button class="qt-btn qt-btn-primary" id="mi-go">📥 Importar</button></div>
+    <div id="mi-report"></div>`);
+  $('mi-x').onclick = closeTool; $('mi-cancel').onclick = closeTool;
+  $('tool-modal-box').querySelectorAll('#mi-by button').forEach(btn => btn.onclick = () => { st.by = btn.dataset.v; $('mi-by').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn)); });
+  const preview = () => {
+    const rows = parseMedImport($('mi-text').value);
+    const cns = rows.reduce((s, r) => s + r.cns.length, 0);
+    $('mi-preview').innerHTML = rows.length ? `<div class="az-form-hint">Se detectan <b>${rows.length}</b> persona(s) y <b>${cns}</b> código(s) nacional(es).</div>` : '<div class="az-form-hint">Pega el listado arriba.</div>';
+  };
+  $('mi-text').addEventListener('input', preview); preview();
+  $('mi-go').onclick = async () => {
+    const rows = parseMedImport($('mi-text').value);
+    if (!rows.length) { toast('No hay filas válidas. Revisa el formato.', 'err'); return; }
+    const qty = Math.max(1, Math.min(99, Math.round(Number($('mi-qty').value) || 1)));
+    const btn = $('mi-go'); btn.disabled = true; btn.textContent = 'Importando (consultando CIMA)…';
+    try {
+      const r = await api('/plan/import', jbody({ by: st.by, qty, rows }));
+      const errs = r.errors || [];
+      $('mi-report').innerHTML = `<div class="qt-note ${errs.length ? 'warn' : 'tip'}" style="margin-top:12px">
+        <b>✓ Importación terminada.</b><br>
+        Personas: <b>${r.people}</b> · Medicamentos añadidos: <b>${r.added}</b> · Actualizados: <b>${r.updated}</b><br>
+        CIMA: ${r.cima.reached ? `datos de <b>${r.cima.found}</b>/${r.cima.total} códigos${r.cima.missing ? ` · <b>${r.cima.missing}</b> sin datos (añadidos por CN)` : ''}` : '<b>no disponible</b> ahora (los medicamentos se añadieron solo con su CN; edítalos o pulsa «🔎 CIMA» luego)'}.
+        ${errs.length ? `<br><br><b>${errs.length} aviso(s):</b><ul style="margin:6px 0 0;padding-left:18px">${errs.slice(0, 30).map(e => `<li>Línea ${e.line} (${esc(String(e.code))})${e.cn ? ' · CN ' + esc(e.cn) : ''}: ${esc(e.error)}</li>`).join('')}${errs.length > 30 ? `<li>…y ${errs.length - 30} más</li>` : ''}</ul>` : ''}
+      </div>`;
+      toast(`Importado: ${r.added} añadidos, ${r.updated} actualizados.`, 'ok');
+      viewHome();   // refresh overview counts (keeps the modal open with its report)
+    } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = '📥 Importar'; }
+  };
 }
 function statusChip(r) {
   if (!r.plan_count && !r.has_month_period) return `<span class="az-chip az-chip-none">sin plan</span>`;
@@ -1804,6 +1855,8 @@ function viewHelp() {
   const SECS = [
     { id: 'inicio', icon: '🚀', title: 'Qué es', html: `<p>Une las otras dos apps: las <b>personas</b> vienen de <b>QR (TIS)</b> y las <b>cajas de medicación</b> de <b>Data Matrix</b>. Sirve para preparar la medicación de cada persona y llevar el control de lo que se le va asignando en la aplicación de <b>Salud</b> (que no es la nuestra), mes a mes.</p><div class="qt-note tip">El flujo es siempre el mismo: <b>elegir persona → plan de medicación → pre-asignar cajas → asignar de verdad</b>. Abajo se explica cada paso.</div>` },
     { id: 'persona', icon: '🧑', title: '1) Elegir la persona', html: `<p>En el inicio, busca a la persona por <b>nombre, apellidos, TIS o nº de farmacia</b>. Las personas <b>salen de la app QR (TIS)</b>: si no aparece, hay que <b>darla de alta primero allí</b> (hay un enlace directo) y volver.</p><p>El panel de inicio muestra las personas <b>en seguimiento</b> (con plan o asignaciones) y su estado del mes en curso. Pulsa una para abrir su <b>ficha</b>.</p>` },
+    { id: 'importar-med', icon: '📥', title: 'Importar medicación en lote (por Código Nacional)', html: `<p>En el <b>inicio</b>, el botón <b>«📥 Importar medicación (por Código Nacional)»</b> añade medicamentos a muchas personas a la vez. Pega <b>una línea por persona</b>: primero su <b>identificador</b> (TIS o Nº de farmacia, tú eliges arriba) y luego sus <b>Códigos Nacionales</b> separados por comas o espacios. Ejemplo: <code>00930868: 885442, 715000, 659432</code>.</p>
+      <div class="qt-note tip">La app busca cada CN en <b>CIMA (AEMPS)</b> para rellenar <b>nombre y código de barras</b>, y lo añade al plan como <b>«pendiente de caja»</b> (con las cajas/mes que indiques). Reimportar el mismo CN <b>lo actualiza</b>, no lo duplica. Si CIMA no responde, se añade igualmente solo con su CN (luego lo completas con «🔎 CIMA» o ✏️). Al terminar verás un resumen con lo añadido y los avisos (personas no encontradas, CN no válidos).</div>` },
     { id: 'plan', icon: '💊', title: '2) Plan de medicación', html: `<p>Cada persona tiene un <b>plan</b>: los medicamentos que toma habitualmente y <b>cuántas cajas al mes</b> de cada uno. Con <b>«➕ Añadir medicamento»</b> lo amplías; con el número <b>× N</b> ajustas las cajas/mes; y la 🗑 lo quita del plan (no toca las cajas ya asignadas). El plan <b>se guarda y se repite cada mes</b>.</p>
       <div class="qt-note tip"><b>Puedes añadir un medicamento de dos formas:</b><ul><li><b>Del catálogo</b>: si ya está en Data Matrix, búscalo por nombre, GTIN o CN y añádelo.</li><li><b>Por Código Nacional</b> (novedad): si la información llega <b>antes de tener el Data Matrix</b>, añádelo solo con su <b>Código Nacional</b> + nombre (y opcionalmente el código de barras). Queda en el plan como <b>«pendiente de caja»</b> (borde discontinuo ámbar), sin caja todavía. Es el paso <b>previo a la pre-asignación</b>.</li></ul>Más adelante le asocias una caja real (ver el paso siguiente) y deja de estar pendiente.</div>
       <div class="qt-note tip"><b>🔎 CIMA (AEMPS).</b> Al añadir por Código Nacional, pulsa <b>«🔎 CIMA»</b> junto al CN para <b>traer el nombre y el código de barras</b> desde la base de datos oficial de medicamentos (AEMPS), o usa <b>«🔎 Buscar en CIMA»</b> para buscar por nombre y elegir. Al traerlo, muestra además la <b>foto de la caja y de la pastilla</b> (fuente: AEMPS). Es una comodidad: si CIMA no está disponible, puedes escribir los datos a mano igual que siempre. La app <b>comprueba que el Código Nacional y el código de barras cuadren</b> (y rellena uno desde el otro), para evitar altas con datos incoherentes. Cada consulta correcta se <b>guarda en local</b> (datos + imágenes), así que ese medicamento sigue funcionando aunque luego CIMA no esté disponible. Y con el botón <b>✏️</b> de un medicamento «pendiente de caja» puedes <b>editar su nombre, CN o código de barras</b> sin tener que borrarlo. (Requiere que el servidor tenga salida a Internet hacia <i>cima.aemps.es</i>.)</div>

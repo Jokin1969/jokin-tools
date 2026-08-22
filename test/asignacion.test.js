@@ -328,6 +328,38 @@ test('notas: persona y precinto (upsert + borrar) aparecen en overview y sticker
   assert.equal(ov2.note, null, 'empty text clears the person note');
 });
 
+test('importar medicación por CN: resuelve por TIS, añade al plan y avisa de no encontrados', async () => {
+  const a = qrDb.createPerson({ pharmacy_no: '80200', nombre: 'Imp', apellidos: 'Ort', tis: '00080200' }, 1).id;
+  const b = qrDb.createPerson({ pharmacy_no: '80201', nombre: 'Dos', apellidos: 'Imp', tis: '00080201' }, 1).id;
+  const rows = [
+    { person: '00080200', cns: ['715000', '885442'] },
+    { person: '00080201', cns: ['659432'] },
+    { person: '00089999', cns: ['715000'] },   // TIS inexistente → error
+    { person: '00080200', cns: ['xx'] },        // sin CN válido → error
+  ];
+  const r = (await call('POST', '/plan/import', { by: 'tis', qty: 2, rows })).data;
+  assert.equal(r.ok, true);
+  assert.equal(r.people, 2, 'dos personas válidas');
+  assert.equal(r.added, 3, 'tres medicamentos añadidos');
+  assert.ok(r.errors.some(e => /no encontrada/i.test(e.error)), 'avisa de la persona inexistente');
+  assert.ok(r.errors.some(e => /Códigos Nacionales/i.test(e.error)), 'avisa de la fila sin CN válido');
+  // El plan de la persona A tiene los dos CN, con qty 2.
+  const planA = (await call('GET', `/person/${a}/plan`)).data.plan;
+  const ibu = planA.find(m => m.cn === '715000');
+  assert.ok(ibu, 'CN 715000 en el plan de A');
+  assert.equal(ibu.qty, 2);
+  assert.ok(planA.some(m => m.cn === '885442'));
+  // Reimportar el mismo CN lo actualiza (no duplica).
+  const r2 = (await call('POST', '/plan/import', { by: 'tis', qty: 3, rows: [{ person: '00080200', cns: ['715000'] }] })).data;
+  assert.equal(r2.updated, 1);
+  assert.equal(r2.added, 0);
+  const planA2 = (await call('GET', `/person/${a}/plan`)).data.plan;
+  assert.equal(planA2.filter(m => m.cn === '715000').length, 1, 'no se duplica');
+  assert.equal(planA2.find(m => m.cn === '715000').qty, 3, 'qty actualizada');
+  // Persona B por TIS.
+  assert.ok((await call('GET', `/person/${b}/plan`)).data.plan.some(m => m.cn === '659432'));
+});
+
 test('linking a mismatched box warns (409) but can be forced', async () => {
   const pid = qrDb.createPerson({ pharmacy_no: '80002', nombre: 'Iker', apellidos: 'Dao', tis: '00080002' }, 1).id;
   const med = (await call('POST', `/person/${pid}/plan`, { cn: '999999', nombre: 'Medicamento X', qty: 1 })).data.plan.find(m => m.cn === '999999');
