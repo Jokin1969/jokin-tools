@@ -475,3 +475,22 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .qt-table tbody tr.dm-sub { background: #fbfdff; }
 .dm-sub-name { padding-left: 20px; }
 .dm-sub-arrow { color: var(--muted); margin-right: 4px; }
+
+/* CIMA images: ficha thumbnails + big modal + list cell */
+.dm-fotos { display: flex; gap: 12px; justify-content: center; margin: 10px 0 2px; }
+.dm-foto-thumb { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; padding: 0; cursor: pointer; color: var(--muted); font-size: 0.7rem; }
+.dm-foto-thumb img { width: 74px; height: 74px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; transition: border-color .14s, transform .12s; }
+.dm-foto-thumb:hover img { border-color: var(--brand); transform: scale(1.04); }
+.dm-modal-wide { max-width: 720px; width: 94vw; }
+.dm-img-modal { display: flex; align-items: center; justify-content: center; padding: 6px 0 10px; }
+.dm-img-modal img { max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 10px; }
+.dm-td-foto { width: 1%; white-space: nowrap; vertical-align: middle; }
+.dm-foto-mini { background: none; border: none; padding: 0; cursor: pointer; line-height: 0; }
+.dm-foto-mini img { width: 46px; height: 46px; object-fit: contain; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.dm-foto-mini:hover img { border-color: var(--brand); }
+.dm-td-foto-none { color: var(--muted); opacity: .5; }
+
+/* Uniform height for the toolbar filters/buttons (aesthetics) */
+.qt-toolbar .qt-toggle, .qt-toolbar .qt-seg, .qt-toolbar .qt-inline-size { min-height: 38px; box-sizing: border-box; }
+.qt-toolbar .qt-seg { align-items: stretch; }
+.qt-toolbar .qt-seg button { display: inline-flex; align-items: center; }

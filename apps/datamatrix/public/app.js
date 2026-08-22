@@ -16,7 +16,7 @@ const S = {
   query: '', andor: 'AND',
   sort: { key: 'nombre', dir: 'asc' },
   selected: new Set(), hidden: new Set(),
-  listMode: 'table', groupBy: false, groupSame: true, archive: false, uncatOnly: false, preasigOnly: false,
+  listMode: 'table', groupBy: false, groupSame: true, showListFoto: false, archive: false, uncatOnly: false, preasigOnly: false,
   medFilter: null, // filter list to a GTIN
   currentItemId: null, view: 'home', nav: [],
 };
@@ -271,6 +271,7 @@ function viewFicha(id, opts) {
          ${dmHtml}
          <div class="qt-qr-cn">${it.cn ? 'CN ' + esc(it.cn) : 'Sin Código Nacional'}</div>
          <div class="qt-qr-tis" style="font-size:.92rem;letter-spacing:.04em;color:var(--muted)">${it.caducidad ? 'Cad ' + fmtDate(it.caducidad) : ''}${it.serial ? (it.caducidad ? ' · ' : '') + 'Nº ' + esc(it.serial) : ''}</div>
+         ${fotoThumbsHtml(it)}
          ${mandoHtml(st, it)}
        </div>
        <div class="qt-ficha-info">
@@ -302,6 +303,7 @@ function viewFicha(id, opts) {
   $('act-list').onclick = viewList;
   if (hasNav) { if (navIdx > 0) $('nav-prev').onclick = () => viewFicha(nav[navIdx - 1]); if (navIdx < nav.length - 1) $('nav-next').onclick = () => viewFicha(nav[navIdx + 1]); }
   wireMando(it, () => { const box = $('ficha-dm'); if (box) box.innerHTML = dmSvg(it.raw, dmOpts(it, S.settings.dm_size)); });
+  wireFotoThumbs(main());
   const useBtn = $('act-use'); if (useBtn) useBtn.onclick = async () => { if (await setUsed(it, true)) { await reloadItems(); viewList(); } };
   const unBtn = $('act-unuse'); if (unBtn) unBtn.onclick = async () => { if (await setUsed(it, false)) { await reloadItems(); viewFicha(id, opts); } };
   $('act-cart').onclick = async () => { await toggleCart(id); viewFicha(id, opts); };
@@ -398,6 +400,7 @@ function viewList() {
        <div class="qt-seg qt-mode" id="list-mode"><button data-m="table" class="${S.listMode !== 'cards' ? 'sel' : ''}">▤ Listado</button><button data-m="cards" class="${S.listMode === 'cards' ? 'sel' : ''}">▦ Tarjetas</button></div>
        ${S.listMode === 'cards' ? `<button class="qt-toggle ${S.groupBy ? 'on' : ''}" id="tg-group">🧬 Agrupar por medicamento</button>` : ''}
        ${S.listMode !== 'cards' ? `<button class="qt-toggle ${S.showListQr ? 'on' : ''}" id="tg-qr">▦ DM en el listado</button>` : ''}
+       ${S.listMode !== 'cards' ? `<button class="qt-toggle ${S.showListFoto ? 'on' : ''}" id="tg-foto" title="Mostrar la foto de la caja (AEMPS) en el listado">📷 Foto en el listado</button>` : ''}
        ${S.listMode !== 'cards' ? `<button class="qt-toggle ${S.groupSame ? 'on' : ''}" id="tg-groupsame" title="Agrupar cajas idénticas (mismo medicamento y caducidad)">🧬 Agrupar iguales</button>` : ''}
        <span class="qt-inline-size" id="dm-size-wrap" ${(S.listMode === 'cards' || S.showListQr) ? '' : 'hidden'}>Tamaño DM <input type="range" id="list-dm-size" min="80" max="${S.listMode === 'cards' ? 220 : 360}" step="10" value="${S.listMode === 'cards' ? st.card_dm_size : st.list_dm_size}"><span id="list-dm-size-v">${S.listMode === 'cards' ? st.card_dm_size : st.list_dm_size}px</span></span>
        ${S.listMode === 'cards' && !S.groupBy ? `<span class="qt-inline-sort">Ordenar <select class="qt-select" id="cards-sort">${SORT_FIELDS.map(f => `<option value="${f.key}" ${S.sort.key === f.key ? 'selected' : ''}>${f.label}</option>`).join('')}</select><select class="qt-select" id="cards-dir"><option value="asc" ${S.sort.dir === 'asc' ? 'selected' : ''}>▲</option><option value="desc" ${S.sort.dir === 'desc' ? 'selected' : ''}>▼</option></select></span>` : ''}
@@ -424,6 +427,7 @@ function viewList() {
   if ($('tg-group')) $('tg-group').onclick = () => { S.groupBy = !S.groupBy; viewList(); };
   if ($('tg-qr')) $('tg-qr').onclick = () => { S.showListQr = !S.showListQr; viewList(); };
   if ($('tg-groupsame')) $('tg-groupsame').onclick = () => { S.groupSame = !S.groupSame; viewList(); };
+  if ($('tg-foto')) $('tg-foto').onclick = () => { S.showListFoto = !S.showListFoto; viewList(); };
   $('tg-uncat').onclick = () => { S.uncatOnly = !S.uncatOnly; viewList(); };
   if ($('tg-preasig')) $('tg-preasig').onclick = () => { S.preasigOnly = !S.preasigOnly; viewList(); };
   $('tg-selected').onclick = () => { S.selectedOnly = !S.selectedOnly; viewList(); };
@@ -508,6 +512,7 @@ function grpHeaderHtml(arr) {
   const allSel = arr.every(x => S.selected.has(x.id));
   return `<tr class="dm-grp" data-grpkey="${esc(key)}">
     <td><input type="checkbox" class="qt-check" data-grpsel="${esc(key)}" ${allSel ? 'checked' : ''}></td>
+    ${listFotoCell(it)}
     ${dmCell}
     <td class="dm-td-name">
       <button class="dm-grp-toggle" data-grptoggle="${esc(key)}" title="Desplegar / plegar las ${arr.length} unidades"><span class="dm-grp-chev">▸</span> <span class="dm-name-2l"><span class="qt-cell-name">${esc(it.nombre || 'Sin nombre')}</span></span></button>
@@ -522,6 +527,7 @@ function subRowHtml(it, key) {
   const dmCell = S.showListQr ? '<td class="dm-td-dm"></td>' : '';
   return `<tr class="dm-sub ${sel ? 'is-selected' : ''}" data-id="${it.id}" data-grp="${esc(key)}" hidden>
     <td><input type="checkbox" class="qt-check" data-sel="${it.id}" ${sel ? 'checked' : ''}></td>
+    ${listFotoCell(it, true)}
     ${dmCell}
     <td class="dm-td-name dm-sub-name"><span class="dm-sub-arrow">↳</span> <span class="az-ovt-mono" data-open="${it.id}" style="cursor:pointer">${it.serial ? 'Nº ' + esc(it.serial) : '#' + it.id}</span>${it.lote ? ' <span class="az-ovt-dim">· Lote ' + esc(it.lote) + '</span>' : ''}</td>
     <td class="dm-td-cad">${cadDisplay(it.caducidad)}</td>
@@ -567,8 +573,9 @@ function wireGroupCards(container) { container.querySelectorAll('[data-med]').fo
 function headTr() {
   // DM on the left, then the medication (name + CN), then the expiry. GTIN / serial
   // / lote / RAW are not shown here (they live in the ficha).
-  const cols = [{ key: 'sel', nosort: true }];
-  if (S.showListQr) cols.push({ key: 'dm', label: 'DM', nosort: true });   // solo si se activa el filtro
+  const cols = [{ key: 'sel', label: `<input type="checkbox" class="qt-check" id="sel-all" title="Seleccionar / deseleccionar todo">`, nosort: true, raw: true }];
+  if (S.showListFoto) cols.push({ key: 'foto', label: '📷 Caja', nosort: true });  // solo si se activa el filtro
+  if (S.showListQr) cols.push({ key: 'dm', label: 'DM', nosort: true });            // solo si se activa el filtro
   cols.push({ key: 'nombre', label: 'Medicamento' }, { key: 'caducidad', label: 'Caducidad' }, { key: 'act', nosort: true });
   return '<tr>' + cols.map(c => {
     if (c.nosort) return `<th class="no-sort">${c.label || ''}</th>`;
@@ -585,12 +592,20 @@ function itemActionsHtml(it, inCart) {
     <button class="qt-iconbtn" data-hide="${it.id}" title="Ocultar (temporal)">👁</button>
     <button class="qt-iconbtn danger" data-del="${it.id}" title="Eliminar">🗑</button>`;
 }
+// Optional box-image cell (only when «📷 Foto en el listado» is on).
+function listFotoCell(it, blank) {
+  if (!S.showListFoto) return '';
+  if (blank) return '<td class="dm-td-foto"></td>';
+  if (it && it.cn && it.foto_caja) return `<td class="dm-td-foto"><button class="dm-foto-mini" data-foto="caja" data-fid="${it.id}" title="Ver la caja en grande (AEMPS)"><img src="${fotoUrl(it.cn, 'caja')}" alt="Caja" loading="lazy" onerror="this.closest('.dm-foto-mini').remove()"></button></td>`;
+  return '<td class="dm-td-foto"><span class="dm-td-foto-none">—</span></td>';
+}
 function itemRowHtml(it) {
   const sel = S.selected.has(it.id), inCart = S.cart.has(it.id);
   const dmCell = S.showListQr ? `<td class="dm-td-dm"><span class="qt-list-qr" data-open="${it.id}">${dmSvg(it.raw, dmOpts(it, S.settings.list_dm_size))}</span></td>` : '';
   const badge = asigBadge(it);
   return `<tr class="${sel ? 'is-selected' : ''}" data-id="${it.id}">
     <td><input type="checkbox" class="qt-check" data-sel="${it.id}" ${sel ? 'checked' : ''}></td>
+    ${listFotoCell(it)}
     ${dmCell}
     <td class="dm-td-name">
       <span class="dm-name-2l" data-open="${it.id}" title="${esc(it.nombre || 'Sin nombre')}">${shapeSvg(it.shape, it.color, 13)} <span class="qt-cell-name">${esc(it.nombre || 'Sin nombre')}</span></span>
@@ -614,6 +629,13 @@ function itemCardHtml(it) {
 function wireListItems(container) {
   container.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => gotoFicha(Number(el.dataset.open), filteredItems().map(x => x.id))));
   container.querySelectorAll('[data-sel]').forEach(cb => cb.addEventListener('change', () => { const id = Number(cb.dataset.sel); if (cb.checked) S.selected.add(id); else S.selected.delete(id); renderList(); }));
+  wireFotoThumbs(container);
+  const selAll = $('sel-all');
+  if (selAll) {
+    const rows = filteredItems();
+    selAll.checked = rows.length > 0 && rows.every(r => S.selected.has(r.id));
+    selAll.onchange = () => { const rws = filteredItems(); if (selAll.checked) rws.forEach(r => S.selected.add(r.id)); else rws.forEach(r => S.selected.delete(r.id)); renderList(); };
+  }
   container.querySelectorAll('[data-cart]').forEach(b => b.addEventListener('click', async () => { await toggleCart(Number(b.dataset.cart)); renderList(); }));
   container.querySelectorAll('[data-used]').forEach(b => b.addEventListener('click', async () => { const it = S.byId.get(Number(b.dataset.used)); if (await setUsed(it, b.dataset.to === '1')) { await reloadItems(); if (S.view === 'list') renderList(); } }));
   container.querySelectorAll('[data-hide]').forEach(b => b.addEventListener('click', () => { S.hidden.add(Number(b.dataset.hide)); renderList(); }));
@@ -689,8 +711,28 @@ function renderCart() {
 }
 
 // ── Tools: import/catalog, export Excel/PDF, recientes ───────────────────────────
-function openModal(html) { const box = $('tool-modal-box'); box.innerHTML = html; $('tool-modal').hidden = false; box.querySelectorAll('[data-close]').forEach(b => b.onclick = closeModal); }
-function closeModal() { $('tool-modal').hidden = true; $('tool-modal-box').innerHTML = ''; }
+function openModal(html, opts) { const box = $('tool-modal-box'); box.innerHTML = html; box.classList.toggle('dm-modal-wide', !!(opts && opts.wide)); $('tool-modal').hidden = false; box.querySelectorAll('[data-close]').forEach(b => b.onclick = closeModal); }
+function closeModal() { $('tool-modal').hidden = true; const box = $('tool-modal-box'); box.innerHTML = ''; box.classList.remove('dm-modal-wide'); }
+// CIMA box/pill photo (served from our cache; works offline once seen).
+function fotoUrl(cn, tipo) { return API + '/cima/foto/' + encodeURIComponent(cn || '') + '/' + tipo; }
+// Big image modal (same idea as QR·TIS): open the box or pill photo full-size.
+function openImageModal(it, tipo, label) {
+  openModal(`<div class="qt-modal-h"><h3>${tipo === 'caja' ? '📦' : '💊'} ${esc(it.nombre || 'Medicamento')}</h3><button class="qt-x" data-close>×</button></div>
+    <div class="dm-img-modal"><img src="${fotoUrl(it.cn, tipo)}" alt="${esc(label)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'dm-note',textContent:'No hay imagen disponible.'}))"></div>
+    <div class="dm-note" style="text-align:center">${esc(label)} · AEMPS · CIMA</div>`, { wide: true });
+}
+// Small clickable thumbnails (box + pill) for a box, if CIMA has them.
+function fotoThumbsHtml(it) {
+  if (!it || !it.cn || (!it.foto_caja && !it.foto_pastilla)) return '';
+  const one = (has, tipo, lbl) => has ? `<button class="dm-foto-thumb" data-foto="${tipo}" data-fid="${it.id}" title="Ver ${lbl} en grande (AEMPS)"><img src="${fotoUrl(it.cn, tipo)}" alt="${lbl}" loading="lazy" onerror="this.closest('.dm-foto-thumb').remove()"><span>${lbl}</span></button>` : '';
+  return `<div class="dm-fotos">${one(it.foto_caja, 'caja', 'Caja')}${one(it.foto_pastilla, 'pastilla', 'Pastilla')}</div>`;
+}
+function wireFotoThumbs(container) {
+  container.querySelectorAll('[data-foto]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const it = S.byId.get(Number(b.dataset.fid)); if (it) openImageModal(it, b.dataset.foto, b.dataset.foto === 'caja' ? 'Caja' : 'Pastilla');
+  }));
+}
 
 const EXPORT_COLS = [
   { key: 'nombre', label: 'Medicamento', def: true, get: it => it.nombre || '' },
@@ -822,11 +864,21 @@ function viewHelp() {
     { id: 'inicio', icon: '🚀', title: 'Qué es', html: `<p>Un inventario de <b>cajas de medicación</b> por su <b>Data Matrix</b>. Escaneas para dar entrada, marcas la salida cuando se usa, y la app te dice qué queda sin utilizar. La información (medicamento, GTIN, nº de serie, lote, caducidad, código nacional) se extrae del propio Data Matrix (GS1).</p>` },
     { id: 'escanear', icon: '📥', title: 'Escanear (entrada y salida)', html: `<p>En <b>Escanear</b> eliges el modo:</p><ul><li><b>Entrada</b>: cada código añade una caja al inventario (queda «sin utilizar»).</li><li><b>Salida</b>: cada código marca esa caja como <b>utilizada</b> (sale del inventario y de las búsquedas).</li></ul><div class="qt-note tip">Con un <b>lector de sobremesa</b> (tipo teclado), haz clic en el campo y escanea; se procesa al pulsar Enter y el foco se queda listo para el siguiente. En móvil, usa el botón 📷.</div>` },
     { id: 'campos', icon: '🔢', title: 'Los datos del Data Matrix', html: `<p>Del código GS1 se extraen: <b>GTIN</b> (identifica el producto), <b>Nº de serie</b> (único por caja), <b>Lote</b>, <b>Caducidad</b> y <b>Código Nacional</b>. El <b>nombre comercial</b> no va en el código: se toma del <b>catálogo GTIN→nombre</b> (importable) o lo escribes en la ficha.</p><div class="qt-note">Los códigos <b>nunca se repiten por completo</b> (el nº de serie los hace únicos). Si reescaneas una caja ya metida, se avisa.</div>` },
-    { id: 'usar', icon: '⬆', title: 'Marcar utilizada', html: `<p>Una caja se marca utilizada de tres formas: en modo <b>Salida</b> del escáner, con el botón <b>⬆</b> del listado, o desde su ficha. Al hacerlo <b>sale del inventario</b>; puedes verla en la pestaña <b>«Utilizadas»</b> y devolverla si te equivocaste.</p>` },
-    { id: 'cima', icon: '🔎', title: 'Nombre e imágenes desde CIMA (AEMPS)', html: `<p>En la ficha de una caja, el botón <b>«🔎 CIMA»</b> trae el <b>nombre comercial</b> desde la base oficial de medicamentos (AEMPS) usando el <b>Código Nacional</b> de la caja, y muestra la <b>foto de la caja y de la pastilla</b>. Es una comodidad: si CIMA no está disponible o la caja no trae Código Nacional, escribe el nombre a mano. Lo consultado se <b>guarda en local</b> (datos + imágenes), así que sigue disponible aunque luego CIMA no lo esté. (Requiere que el servidor tenga salida hacia <i>cima.aemps.es</i>.)</p>` },
-    { id: 'preasig', icon: '🔗', title: 'Pre-asignadas (Asignación)', html: `<p>Desde la app <b>Asignación de medicación</b> una caja puede quedar <b>🔗 Pre-asignada</b> a una persona: sigue <b>en stock</b> (sin utilizar) pero reservada para ella. Se muestra con una etiqueta en el listado, las tarjetas y la ficha, y el filtro <b>🔗 Pre-asignadas (N)</b> las agrupa. Cuando allí se <b>asigna de verdad</b>, la caja pasa a <b>utilizada</b> (✓ Asignada) igual que una salida normal.</p>` },
+    { id: 'usar', icon: '⬆', title: 'Marcar utilizada', html: `<p>Una caja se marca utilizada de tres formas: en modo <b>Salida</b> del escáner, con el botón <b>⬆</b> del listado, o desde su ficha. Al hacerlo <b>sale del inventario</b>; puedes verla en la pestaña <b>«Utilizadas»</b> y devolverla si te equivocaste.</p>
+      <div class="qt-note warn">Marcarla a mano pide <b>confirmación</b>: si la caja <b>no está vinculada</b> a una persona, después <b>no se sabrá a quién fue</b> (fácil de perder). Lo recomendable es <b>asignarla desde Asignación</b> para que quede trazada (✓ Asignada a la persona, con enlace).</div>` },
+    { id: 'cima', icon: '🔎', title: 'Nombre e imágenes desde CIMA (AEMPS)', html: `<p>Al escanear o importar, la app pide a <b>CIMA (AEMPS)</b> el <b>nombre comercial</b> (por el <b>Código Nacional</b>, que saca del GTIN o del AI 712) y descarga la <b>foto de la caja y de la pastilla</b>. En la <b>ficha</b> esas imágenes aparecen <b>debajo del Data Matrix</b>; al pulsarlas se abren <b>en grande</b> (igual que en QR·TIS). En el <b>listado</b>, el filtro <b>«📷 Foto en el listado»</b> muestra la foto de la caja a la izquierda (desactivado por defecto).</p>
+      <div class="qt-note tip">Si CIMA no estaba disponible al escanear/importar, usa <b>«🔄 Completar desde CIMA»</b> para rellenar en bloque nombres e imágenes de las cajas sin nombre. Lo consultado se <b>guarda en local</b> (datos + imágenes) y sigue disponible offline. (Requiere salida del servidor hacia <i>cima.aemps.es</i>.)</div>` },
+    { id: 'estados', icon: '🚦', title: 'Los estados de una caja (importante)', html: `<p>Cada caja Data Matrix pasa por estos estados, que verás como <b>etiquetas de color</b> en el listado, las tarjetas, el carrito y la ficha:</p>
+      <ul>
+        <li><b>● No asignada</b> (gris): está en el <b>stock</b>, sin reservar para nadie.</li>
+        <li><b>🔗 Asociado · Nº de farmacia</b> (ámbar): <b>reservada</b> a una persona (desde <b>Asignación</b>) y a un medicamento de su plan, pero <b>sigue en stock</b>. Aún no se ha dispensado. La etiqueta enlaza a la persona.</li>
+        <li><b>✓ Asignada a &lt;persona&gt;</b> (verde): ya se ha <b>enviado a la app de Salud</b> (dispensada). <b>Sale del stock</b>. Es el paso que se hace delante de Salud.</li>
+        <li><b>⚠️ Utilizada sin trazabilidad</b> (rojo): se marcó utilizada <b>a mano</b> sin vincularla a nadie; no se puede saber a quién fue. Evítalo asignando desde Asignación.</li>
+      </ul>
+      <div class="qt-note tip">El filtro <b>🔗 Pre-asignadas (N)</b> agrupa las <b>asociadas</b>. La asociación se hace desde <b>Asignación</b> (por escáner o con «¿A quién sirve esta DM?»).</div>` },
     { id: 'dm', icon: '🎨', title: 'Data Matrix y colores por medicamento', html: `<p>Cada <b>medicamento</b> recibe un <b>color y una forma</b> propios (automáticos, editables) para asociarlo de un vistazo — todas las cajas del mismo medicamento comparten color. En la ficha, «Nombre / color del medicamento» cambia el nombre, el color y la forma de todas sus cajas. El <b>tamaño</b> del Data Matrix es un ajuste compartido.</p>` },
-    { id: 'agrupar', icon: '🧬', title: 'Agrupar por medicamento', html: `<p>En vista <b>Tarjetas</b>, el botón <b>«Agrupar por medicamento»</b> junta las cajas del mismo producto en una sola tarjeta con el <b>recuento</b> (cuántas quedan). Pulsa «Ver las N» para desglosarlas.</p>` },
+    { id: 'agrupar', icon: '🧬', title: 'Agrupar cajas iguales', html: `<p>En el <b>listado</b>, el filtro <b>«🧬 Agrupar iguales»</b> (activado por defecto) junta en una sola fila las cajas <b>indistinguibles</b> —mismo medicamento (CN), <b>misma caducidad</b> y mismo estado— mostrando <b>×N unidades</b>. Púlsala para <b>desplegar</b> y ver cada caja (Nº de serie, lote, acciones). Acorta el listado y ves cuántas iguales tienes. La casilla del grupo selecciona todas sus cajas.</p>
+      <p>En vista <b>Tarjetas</b>, <b>«Agrupar por medicamento»</b> junta las cajas del mismo producto en una tarjeta con el recuento. La casilla de la <b>cabecera</b> del listado selecciona o deselecciona <b>todo</b>.</p>` },
     { id: 'buscar', icon: '🔎', title: 'Buscar', html: `<p>Busca por <b>medicamento, GTIN, nº de serie, lote, caducidad o código nacional</b> (sin tildes). <b>AND</b> exige todas las palabras; <b>OR</b>, cualquiera.</p>` },
     { id: 'resto', icon: '🗂️', title: 'Listado/tarjetas, carrito, importar y exportar', html: `<p>Como en QR (TIS): conmutador <b>Listado/Tarjetas</b>, ordenar, seleccionar, ocultar (temporal), <b>eliminar</b> (borrado permanente: una a una con 🗑, o en lote con «🗑 Eliminar sel.») y <b>carrito</b> propio. Arriba a la derecha: <b>Importar</b> (catálogo GTIN→nombre y cajas por RAW), <b>Exportar Excel</b> (elige columnas/orden), <b>Exportar PDF</b> (Data Matrix a tamaño variable, con su color) y <b>Recientes</b>.</p><div class="qt-note tip">Las <b>caducadas</b> ⚠ y las <b>próximas a caducar</b> ⏳ (≤ 90 días) se resaltan. El filtro <b>🏷️ Sin catalogar (N)</b> muestra los medicamentos que aún no tienen nombre, para nombrarlos en su ficha o re-importar el catálogo.</div>` },
   ];

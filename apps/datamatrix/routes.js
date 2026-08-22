@@ -49,9 +49,11 @@ function publicItem(it) {
   //   preasignada = reserved for a person, still in stock (status 'activo')
   //   asignada    = dispensed to that person (status 'utilizado' + assignee)
   const asig_state = it.assignee_id != null ? (it.status === 'utilizado' ? 'asignada' : 'preasignada') : null;
+  const cc = it.cn ? db.cimaCacheGet(String(it.cn).replace(/\D/g, '')) : null;
   return {
     id: it.id, raw: it.raw, gtin: it.gtin || null, serial: it.serial || null,
     lote: it.lote || null, caducidad: it.caducidad || null, cn: it.cn || null,
+    foto_caja: !!(cc && cc.has_caja), foto_pastilla: !!(cc && cc.has_pastilla),
     status: it.status, used_at: it.used_at || null,
     nombre: it.nombre || null,
     color: visual.resolveColor(it.gtin, it.color),
