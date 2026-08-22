@@ -148,7 +148,7 @@ function cleanStyleOpt(v) { return ['square', 'dots'].includes(v) ? v : null; }
 function cleanSettings(b) {
   const clamp = (n, lo, hi, dflt) => { const x = Math.round(Number(n)); return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : dflt; };
   const d = db.DEFAULT_SETTINGS;
-  return {
+  const out = {
     qr_size: clamp(b.qr_size, 120, 900, d.qr_size),
     qr_dark: CLR.test(String(b.qr_dark || '')) ? b.qr_dark : d.qr_dark,
     qr_light: CLR.test(String(b.qr_light || '')) ? b.qr_light : d.qr_light,
@@ -157,6 +157,17 @@ function cleanSettings(b) {
     list_qr_size: clamp(b.list_qr_size, 70, 420, d.list_qr_size),
     card_qr_size: clamp(b.card_qr_size, 80, 200, d.card_qr_size),
   };
+  // Per-group QR colours (optional): only include when provided, so normal saves
+  // don't wipe them. Keep only valid { "group": "#rrggbb" } pairs.
+  if (b.group_colors && typeof b.group_colors === 'object' && !Array.isArray(b.group_colors)) {
+    const gc = {};
+    for (const [k, v] of Object.entries(b.group_colors)) {
+      const name = String(k).trim().slice(0, 80);
+      if (name && CLR.test(String(v || ''))) gc[name] = v;
+    }
+    out.group_colors = gc;
+  }
+  return out;
 }
 
 const publicPerson = (p) => {

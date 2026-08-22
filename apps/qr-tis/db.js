@@ -73,6 +73,7 @@ try { db.prepare('ALTER TABLE tis_people ADD COLUMN qr_style TEXT').run(); } cat
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN deceased INTEGER NOT NULL DEFAULT 0').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN deceased_at DATETIME').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE tis_settings ADD COLUMN card_qr_size INTEGER').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE tis_settings ADD COLUMN group_colors TEXT').run(); } catch { /* already present */ }
 
 console.log('[qr-tis] Database ready at:', DB_PATH);
 
@@ -201,21 +202,25 @@ function getSettings() {
   const row = db.prepare('SELECT * FROM tis_settings WHERE id = 1').get() || {};
   const out = { ...DEFAULT_SETTINGS };
   for (const k of Object.keys(DEFAULT_SETTINGS)) if (row[k] != null) out[k] = row[k]; // NULL → default
+  // Per-group QR colours (residence distinction): { "Grupo": "#rrggbb" }
+  try { out.group_colors = row.group_colors ? JSON.parse(row.group_colors) : {}; } catch { out.group_colors = {}; }
   return out;
 }
 
 function saveSettings(data, userId) {
   const s = { ...getSettings(), ...data };
+  const groupColors = (s.group_colors && typeof s.group_colors === 'object') ? s.group_colors : {};
   db.prepare(
-    `INSERT INTO tis_settings (id, qr_size, qr_dark, qr_light, qr_style, qr_ecc, list_qr_size, card_qr_size, updated_by, updated_at)
-     VALUES (1, @qr_size, @qr_dark, @qr_light, @qr_style, @qr_ecc, @list_qr_size, @card_qr_size, @updated_by, CURRENT_TIMESTAMP)
+    `INSERT INTO tis_settings (id, qr_size, qr_dark, qr_light, qr_style, qr_ecc, list_qr_size, card_qr_size, group_colors, updated_by, updated_at)
+     VALUES (1, @qr_size, @qr_dark, @qr_light, @qr_style, @qr_ecc, @list_qr_size, @card_qr_size, @group_colors, @updated_by, CURRENT_TIMESTAMP)
      ON CONFLICT(id) DO UPDATE SET
        qr_size = excluded.qr_size, qr_dark = excluded.qr_dark, qr_light = excluded.qr_light,
        qr_style = excluded.qr_style, qr_ecc = excluded.qr_ecc, list_qr_size = excluded.list_qr_size,
-       card_qr_size = excluded.card_qr_size, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP`
+       card_qr_size = excluded.card_qr_size, group_colors = excluded.group_colors, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP`
   ).run({
     qr_size: s.qr_size, qr_dark: s.qr_dark, qr_light: s.qr_light,
     qr_style: s.qr_style, qr_ecc: s.qr_ecc, list_qr_size: s.list_qr_size, card_qr_size: s.card_qr_size,
+    group_colors: JSON.stringify(groupColors),
     updated_by: userId != null ? userId : null,
   });
   return getSettings();

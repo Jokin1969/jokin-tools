@@ -206,3 +206,18 @@ test('med-summary endpoint + canAsignacion meta flag (with access gating)', asyn
     assert.equal((await get(`/people/${person.id}/med-summary`, 'no')).status, 403);
   } finally { server.close(); }
 });
+
+test('group_colors: se guardan, se filtran (color válido) y persisten en settings', () => {
+  // Valid map is stored and returned parsed.
+  let s = db.saveSettings({ group_colors: { 'Residencia Sol': '#1273b8', 'Residencia Luna': '#c23a3a' } }, 1);
+  assert.deepEqual(s.group_colors, { 'Residencia Sol': '#1273b8', 'Residencia Luna': '#c23a3a' });
+  s = db.getSettings();
+  assert.equal(s.group_colors['Residencia Sol'], '#1273b8');
+  // A normal settings save (no group_colors) must NOT wipe them.
+  s = db.saveSettings({ qr_size: 300 }, 1);
+  assert.equal(s.group_colors['Residencia Luna'], '#c23a3a');
+  assert.equal(s.qr_size, 300);
+  // Clearing to empty map removes them.
+  s = db.saveSettings({ group_colors: {} }, 1);
+  assert.deepEqual(s.group_colors, {});
+});

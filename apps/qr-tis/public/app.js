@@ -87,10 +87,18 @@ function qrSvg(text, o) {
 
 // Effective QR options for a person: colour/background/style come from the person
 // (per-person), falling back to the shared defaults; size and robustness are global.
+// The QR colour a person inherits from their group/residence, if any (first group
+// that has a colour assigned). Used as the default when the person has no override.
+function groupColorFor(p) {
+  const gc = (S.settings && S.settings.group_colors) || {};
+  if (!p || !Array.isArray(p.groups)) return null;
+  for (const g of p.groups) if (gc[g]) return gc[g];
+  return null;
+}
 function qrOpts(p, size) {
   const st = S.settings;
   return {
-    dark: (p && p.qr_dark) || st.qr_dark,
+    dark: (p && p.qr_dark) || groupColorFor(p) || st.qr_dark,
     light: (p && p.qr_light) || st.qr_light,
     style: (p && p.qr_style) || st.qr_style,
     ecc: st.qr_ecc,
@@ -416,7 +424,8 @@ function editPerson(p) {
 // Colour, background and style are PER PERSON; size and robustness are shared.
 function mandoHtml(st, p) {
   const swatches = ['#0f172a', '#1273b8', '#0a9d8e', '#7c3aed', '#c23a3a', '#b26a00', '#000000'];
-  const dark = (p && p.qr_dark) || st.qr_dark;
+  const gc = groupColorFor(p);
+  const dark = (p && p.qr_dark) || gc || st.qr_dark;
   const light = (p && p.qr_light) || st.qr_light;
   const style = (p && p.qr_style) || st.qr_style;
   const hasOv = !!(p && (p.qr_dark || p.qr_light || p.qr_style));
@@ -426,7 +435,9 @@ function mandoHtml(st, p) {
     <div class="qt-mando-row"><label>Color</label>
       <div class="qt-swatches" id="m-swatches">${swatches.map(c => `<div class="qt-swatch${c === dark ? ' sel' : ''}" data-c="${c}" style="background:${c}"></div>`).join('')}</div>
       <input type="color" class="qt-color-input" id="m-dark" value="${dark}" title="Color personalizado">
+      <button type="button" class="qt-mando-gc" id="m-groupcolors" title="Colores por grupo / residencia">🏠🎨</button>
     </div>
+    ${gc && !(p && p.qr_dark) ? `<div class="qt-mando-note" style="margin:-4px 0 6px">🏠 Este QR toma el color de su <b>residencia/grupo</b>. Elige un color personal arriba para cambiarlo solo en esta persona.</div>` : ''}
     <div class="qt-mando-row"><label>Fondo</label>
       <input type="color" class="qt-color-input" id="m-light" value="${light}" title="Color de fondo">
       <label style="width:auto">Estilo</label>
@@ -447,7 +458,8 @@ function mandoHtml(st, p) {
 function wireMando(p, rerender) {
   const applyGlobal = () => { rerender(); saveSettingsDebounced(); };
   const applyPerson = (patch) => { Object.assign(p, patch); rerender(); savePersonQrDebounced(p.id, patch); };
-  const syncSwatch = () => { const dark = p.qr_dark || S.settings.qr_dark; $('m-swatches').querySelectorAll('.qt-swatch').forEach(sw => sw.classList.toggle('sel', sw.dataset.c === dark)); };
+  const syncSwatch = () => { const dark = p.qr_dark || groupColorFor(p) || S.settings.qr_dark; $('m-swatches').querySelectorAll('.qt-swatch').forEach(sw => sw.classList.toggle('sel', sw.dataset.c === dark)); };
+  if ($('m-groupcolors')) $('m-groupcolors').onclick = () => openGroupColors(p);
   $('m-size').addEventListener('input', e => { S.settings.qr_size = Number(e.target.value); applyGlobal(); });
   $('m-dark').addEventListener('input', e => { $('m-dark').value = e.target.value; applyPerson({ qr_dark: e.target.value }); syncSwatch(); });
   $('m-light').addEventListener('input', e => { applyPerson({ qr_light: e.target.value }); });
@@ -466,6 +478,44 @@ function wireMando(p, rerender) {
       const { item } = await api('/people/' + p.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ qr_dark: null, qr_light: null, qr_style: null }) });
       S.byId.set(item.id, item); const i = S.people.findIndex(x => x.id === item.id); if (i >= 0) S.people[i] = item;
       viewFicha(p.id);
+    } catch (e) { toast(e.message, 'err'); }
+  };
+}
+
+// Assign a QR colour to each group/residence. The colour becomes the default QR
+// colour of every person in that group (a personal colour still overrides it).
+function openGroupColors(current) {
+  const SW = ['#0f172a', '#1273b8', '#0a9d8e', '#7c3aed', '#c23a3a', '#b26a00', '#128a5b', '#d81b60', '#000000'];
+  const groups = [...new Set(S.people.flatMap(p => p.groups || []))].sort((a, b) => a.localeCompare(b, 'es'));
+  const map = { ...((S.settings && S.settings.group_colors) || {}) };
+  const rowHtml = g => {
+    const cur = map[g] || '';
+    return `<div class="qt-gc-row" data-g="${esc(g)}">
+      <span class="qt-gc-name">👥 ${esc(g)}</span>
+      <span class="qt-gc-swatches">${SW.map(c => `<button type="button" class="qt-gc-sw${cur.toLowerCase() === c ? ' sel' : ''}" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')}</span>
+      <input type="color" class="qt-gc-input" value="${cur || '#0f172a'}" title="Color personalizado">
+      <button type="button" class="qt-gc-clear ${cur ? '' : 'is-none'}" title="Sin color (usar el de por defecto)">${cur ? '✕' : '—'}</button>
+    </div>`;
+  };
+  openModal(`<div class="qt-modal-h"><h3>🎨 Colores por grupo / residencia</h3><button class="qt-x" data-close>×</button></div>
+    <p class="qt-note">Asigna un color de QR a cada grupo para <b>distinguir residencias de un vistazo</b>. Se aplica a todas las personas del grupo; si alguien tiene un color propio, ese manda.</p>
+    ${groups.length ? `<div class="qt-gc-list">${groups.map(rowHtml).join('')}</div>` : '<div class="qt-note warn">Todavía no hay grupos. Añade grupos a las personas (en su ficha) y vuelve aquí.</div>'}
+    <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" data-close>Cancelar</button>${groups.length ? '<button class="qt-btn qt-btn-primary" id="gc-save">Guardar colores</button>' : ''}</div>`);
+  const box = $('tool-modal-box');
+  box.querySelectorAll('.qt-gc-row').forEach(row => {
+    const g = row.dataset.g;
+    const input = row.querySelector('.qt-gc-input');
+    const clear = row.querySelector('.qt-gc-clear');
+    const setSel = () => row.querySelectorAll('.qt-gc-sw').forEach(sw => sw.classList.toggle('sel', (map[g] || '').toLowerCase() === sw.dataset.c));
+    row.querySelectorAll('.qt-gc-sw').forEach(sw => sw.onclick = () => { map[g] = sw.dataset.c; input.value = sw.dataset.c; clear.classList.remove('is-none'); clear.textContent = '✕'; setSel(); });
+    input.oninput = () => { map[g] = input.value; clear.classList.remove('is-none'); clear.textContent = '✕'; setSel(); };
+    clear.onclick = () => { delete map[g]; clear.classList.add('is-none'); clear.textContent = '—'; setSel(); };
+  });
+  if ($('gc-save')) $('gc-save').onclick = async () => {
+    try {
+      const { settings } = await api('/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...S.settings, group_colors: map }) });
+      S.settings = settings; closeModal(); toast('Colores por grupo guardados.', 'ok');
+      if (current && S.view === 'ficha') viewFicha(current.id); else if (S.view === 'list') renderRows();
     } catch (e) { toast(e.message, 'err'); }
   };
 }
@@ -946,6 +996,9 @@ function viewHelp() {
         <li><strong>Dar por fallecida</strong> (icono ✝, o el botón en la ficha): marca a la persona como <strong>fallecida</strong> (pide confirmación). Se <strong>conserva la ficha</strong> pero el <strong>QR deja de estar disponible</strong> y sale de los flujos activos (incluida la app de Asignación). Es <strong>reversible</strong> con <span class="qt-chip-inline">↩ Quitar fallecimiento</span>. El botón <span class="qt-chip-inline">✝ Ocultar fallecidas</span> del listado las esconde.</li>
         <li><strong>Eliminar</strong> (icono 🗑): borra a la persona (pide confirmación). También desde la ficha.</li>
       </ul>` },
+    { id: 'grupos-color', icon: '🎨', title: 'Un color de QR por residencia (grupo)', html: `
+      <p>En la ficha de una persona, junto a los colores del QR, el botón <b>🏠🎨</b> abre <b>«Colores por grupo/residencia»</b>: asigna un color de QR a cada grupo para <b>distinguir residencias de un vistazo</b>.</p>
+      <p>El color del grupo pasa a ser el <b>color por defecto</b> del QR de todas las personas de ese grupo. Si una persona tiene un <b>color propio</b> (elegido en «Ajustes del QR»), ese manda sobre el del grupo. Si alguien está en varios grupos, se usa el color del primero que tenga uno asignado.</p>` },
     { id: 'grupos', icon: '👥', title: 'Grupos (varios por persona)', html: `
       <p>Una persona puede pertenecer a <strong>varios grupos</strong>. En su ficha, «Gestionar grupos» te deja añadir grupos (chips) y quitarlos con la ×.</p>
       <p>Los grupos se ven en el listado y en el carrito como etiquetas. Al <strong>pulsar una etiqueta de grupo</strong> se seleccionan de golpe todos los que pertenecen a ese grupo. La búsqueda también encuentra por grupo.</p>

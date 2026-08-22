@@ -378,3 +378,17 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 /* Medication link button (jumps to the Asignación app) */
 a.qt-btn { text-decoration: none; }
 .qt-medlink-empty { opacity: .9; }
+
+/* ── QR colours per group / residence ─────────────────────────────────────────── */
+.qt-mando-gc { flex: none; width: 34px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; font-size: 0.9rem; line-height: 1; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.qt-mando-gc:hover { border-color: var(--brand); }
+.qt-gc-list { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 4px; max-height: 60vh; overflow-y: auto; }
+.qt-gc-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.qt-gc-name { font-weight: 700; color: var(--ink); flex: 1 1 140px; min-width: 120px; }
+.qt-gc-swatches { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.qt-gc-sw { width: 24px; height: 24px; border-radius: 7px; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+.qt-gc-sw.sel { box-shadow: 0 0 0 2px var(--brand); transform: scale(1.08); }
+.qt-gc-input { width: 34px; height: 28px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; padding: 2px; }
+.qt-gc-clear { width: 30px; height: 28px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; color: var(--muted); }
+.qt-gc-clear:hover { border-color: var(--danger); color: var(--danger); }
+.qt-gc-clear.is-none { color: #b8c2cf; cursor: default; }
