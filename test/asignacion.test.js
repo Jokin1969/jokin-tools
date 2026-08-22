@@ -343,6 +343,12 @@ test('importar medicación por CN: resuelve por TIS, añade al plan y avisa de n
   assert.equal(r.added, 3, 'tres medicamentos añadidos');
   assert.ok(r.errors.some(e => /no encontrada/i.test(e.error)), 'avisa de la persona inexistente');
   assert.ok(r.errors.some(e => /Códigos Nacionales/i.test(e.error)), 'avisa de la fila sin CN válido');
+  // Detalle de los CN sin datos de CIMA (aquí CIMA está offline → todos figuran).
+  assert.ok(Array.isArray(r.cima.missingCns), 'cima.missingCns es una lista');
+  const m715 = r.cima.missingCns.find(m => m.cn === '715000');
+  assert.ok(m715, 'lista los CN sin datos de CIMA (con su código)');
+  assert.ok(m715.people >= 1, 'indica en cuántas personas está cada CN sin datos');
+  assert.ok(m715.barcode === null || typeof m715.barcode === 'string', 'incluye el código de barras derivado (o null)');
   // El plan de la persona A tiene los dos CN, con qty 2.
   const planA = (await call('GET', `/person/${a}/plan`)).data.plan;
   const ibu = planA.find(m => m.cn === '715000');

@@ -235,7 +235,18 @@ router.post('/api/plan/import', jsonBig, async (req, res) => {
         } catch (e) { errors.push({ line: row.line, code: row.code, cn, error: e.message }); }
       }
     }
-    res.json({ ok: true, people: seenPeople.size, added, updated, cima: { reached: cimaReached, found: cimaFound, missing: cnSet.size - cimaFound, total: cnSet.size }, errors });
+    // Which CNs got NO usable data from CIMA (added with only their Código Nacional).
+    // Include the derived barcode and how many people/rows carry each, so they're
+    // easy to identify and complete later.
+    const missingCns = cnList
+      .filter(cn => !(info.get(cn) && info.get(cn).nombre))
+      .map(cn => ({
+        cn,
+        barcode: cima.barcodeFromCn(cn) || null,
+        people: parsed.filter(r => r.person && r.cns.includes(cn)).length,
+      }))
+      .sort((a, b) => a.cn.localeCompare(b.cn));
+    res.json({ ok: true, people: seenPeople.size, added, updated, cima: { reached: cimaReached, found: cimaFound, missing: cnSet.size - cimaFound, total: cnSet.size, missingCns }, errors });
   } catch (err) { fail(res, err); }
 });
 // ── CIMA (AEMPS) lookup — optional: fill name/barcode from a Código Nacional ──────

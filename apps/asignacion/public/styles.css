@@ -446,6 +446,12 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 
 /* Person picker + live search */
 .az-picker { margin-top: 14px; }
+/* Search + «Importar medicación» on one row: the button sits to the right and
+   matches the search box height (same thickness). */
+.az-picker-row { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+.az-picker-search { flex: 1 1 320px; }
+.az-import-btn { flex: 0 0 auto; white-space: nowrap; border-radius: 13px; }
+@media (max-width: 620px) { .az-import-btn { flex: 1 1 100%; } }
 .az-results { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .az-result { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left;
   background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; cursor: pointer; }
@@ -905,6 +911,11 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 /* Bulk medication import */
 .az-home-actions { margin: 10px 0 2px; }
 .az-mi-ta { width: 100%; font-family: var(--mono, monospace); font-size: 0.9rem; line-height: 1.5; resize: vertical; }
+.az-mi-missing { margin: 8px 0 2px; }
+.az-mi-missing > summary { cursor: pointer; font-weight: 600; }
+.az-mi-missing ul { margin: 6px 0 0; padding-left: 18px; max-height: 220px; overflow: auto; }
+.az-mi-missing li { margin: 2px 0; }
+.az-mi-bc { font-family: var(--mono, monospace); }
 .az-mi-preview { margin: 4px 0; }
 
 /* ── Plan: sort + compact views + duplicate finder ────────────────────────────── */

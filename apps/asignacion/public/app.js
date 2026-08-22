@@ -689,10 +689,12 @@ function renderHome() {
        <div class="qt-section-sub">Elige una persona (de QR·TIS) para preparar y asignar su medicación (cajas Data Matrix). Control mensual: ${esc(fmtYm(S.month))}.</div>
 
        <div class="az-picker">
-         <div class="qt-search"><span class="ico">🔎</span><input id="pq" placeholder="Buscar persona por nombre, apellidos, TIS, nº de farmacia…" autocomplete="off" value="${esc(S.searchQuery)}"></div>
+         <div class="az-picker-row">
+           <div class="qt-search az-picker-search"><span class="ico">🔎</span><input id="pq" placeholder="Buscar persona por nombre, apellidos, TIS, nº de farmacia…" autocomplete="off" value="${esc(S.searchQuery)}"></div>
+           <button class="qt-btn qt-btn-ghost az-import-btn" id="import-med">📥 Importar medicación (por Código Nacional)</button>
+         </div>
          <div id="pq-results" class="az-results"></div>
        </div>
-       <div class="az-home-actions"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="import-med">📥 Importar medicación (por Código Nacional)</button></div>
 
        ${banner}
        <div id="ov-wrap"></div>
@@ -749,11 +751,17 @@ function openMedImport() {
     try {
       const r = await api('/plan/import', jbody({ by: st.by, qty, rows }));
       const errs = r.errors || [];
+      const miss = (r.cima && Array.isArray(r.cima.missingCns)) ? r.cima.missingCns : [];
+      const missHtml = miss.length ? `<details class="az-mi-missing" open>
+          <summary><b>${miss.length}</b> código(s) sin datos de CIMA — se añadieron solo con su Código Nacional (complétalos luego con «🔎 CIMA» o ✏️). Pulsa para ver cuáles.</summary>
+          <ul>${miss.map(m => `<li>CN <b>${esc(m.cn)}</b>${m.barcode ? ` · código de barras <span class="az-mi-bc">${esc(m.barcode)}</span>` : ''} · en ${m.people} persona(s)</li>`).join('')}</ul>
+        </details>` : '';
       $('mi-report').innerHTML = `<div class="qt-note ${errs.length ? 'warn' : 'tip'}" style="margin-top:12px">
         <b>✓ Importación terminada.</b><br>
         Personas: <b>${r.people}</b> · Medicamentos añadidos: <b>${r.added}</b> · Actualizados: <b>${r.updated}</b><br>
-        CIMA: ${r.cima.reached ? `datos de <b>${r.cima.found}</b>/${r.cima.total} códigos${r.cima.missing ? ` · <b>${r.cima.missing}</b> sin datos (añadidos por CN)` : ''}` : '<b>no disponible</b> ahora (los medicamentos se añadieron solo con su CN; edítalos o pulsa «🔎 CIMA» luego)'}.
-        ${errs.length ? `<br><br><b>${errs.length} aviso(s):</b><ul style="margin:6px 0 0;padding-left:18px">${errs.slice(0, 30).map(e => `<li>Línea ${e.line} (${esc(String(e.code))})${e.cn ? ' · CN ' + esc(e.cn) : ''}: ${esc(e.error)}</li>`).join('')}${errs.length > 30 ? `<li>…y ${errs.length - 30} más</li>` : ''}</ul>` : ''}
+        CIMA: ${r.cima.reached ? `datos de <b>${r.cima.found}</b>/${r.cima.total} códigos${r.cima.missing ? ` · <b>${r.cima.missing}</b> sin datos` : ''}` : '<b>no disponible</b> ahora (los medicamentos se añadieron solo con su CN; edítalos o pulsa «🔎 CIMA» luego)'}.
+        ${missHtml}
+        ${errs.length ? `<br><b>${errs.length} aviso(s):</b><ul style="margin:6px 0 0;padding-left:18px">${errs.slice(0, 30).map(e => `<li>Línea ${e.line} (${esc(String(e.code))})${e.cn ? ' · CN ' + esc(e.cn) : ''}: ${esc(e.error)}</li>`).join('')}${errs.length > 30 ? `<li>…y ${errs.length - 30} más</li>` : ''}</ul>` : ''}
       </div>`;
       toast(`Importado: ${r.added} añadidos, ${r.updated} actualizados.`, 'ok');
       viewHome();   // refresh overview counts (keeps the modal open with its report)
@@ -761,7 +769,7 @@ function openMedImport() {
       btn.disabled = false; btn.textContent = '✓ Importado · Cerrar';
       btn.classList.remove('qt-btn-primary'); btn.classList.add('qt-btn-teal');
       btn.onclick = closeTool;
-      const cancel = $('mi-cancel'); if (cancel) cancel.hidden = true;
+      const cancel = $('mi-cancel'); if (cancel) cancel.style.display = 'none';
     } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = '📥 Importar'; }
   };
 }
