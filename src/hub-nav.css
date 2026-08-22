@@ -94,3 +94,13 @@
   .pharma-link .pl { display: none; }
   .pharma-link { padding: 6px 9px; }
 }
+
+/* ── Clear "✕" button inside search fields (.qt-search) ───────────────────────── */
+.qt-search.has-clear input { padding-right: 40px; }
+.qt-search-x {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; border: none; background: transparent;
+  color: var(--muted, #5c7086); font-size: 0.95rem; line-height: 1; cursor: pointer;
+  border-radius: 50%; display: none; align-items: center; justify-content: center; padding: 0;
+}
+.qt-search-x:hover { background: rgba(15,34,51,0.08); color: var(--ink, #0f2233); }

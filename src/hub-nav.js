@@ -28,4 +28,45 @@
   } else {
     trimNav();
   }
+
+  // ─── Clear "✕" for every search box (.qt-search) ──────────────────────────────
+  // Adds a discreet clear button to each search field, shown only when it has
+  // text. Clicking it empties the field and fires an `input` event so the app
+  // re-filters. Applied to all current and future .qt-search inputs.
+  function addClear(input) {
+    if (!input || input.dataset.hasClear) return;
+    const wrap = input.closest('.qt-search');
+    if (!wrap) return;
+    input.dataset.hasClear = '1';
+    wrap.classList.add('has-clear');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'qt-search-x';
+    btn.title = 'Limpiar búsqueda';
+    btn.setAttribute('aria-label', 'Limpiar búsqueda');
+    btn.tabIndex = -1;
+    btn.textContent = '✕';
+    const sync = () => { btn.style.display = input.value ? 'flex' : 'none'; };
+    btn.addEventListener('mousedown', e => e.preventDefault()); // don't steal focus
+    btn.addEventListener('click', () => {
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      try { input.focus(); } catch (e) { /* */ }
+      sync();
+    });
+    input.addEventListener('input', sync);
+    wrap.appendChild(btn);
+    sync();
+  }
+  function scanSearches() { document.querySelectorAll('.qt-search input').forEach(addClear); }
+  let raf = 0;
+  function scheduleScan() { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; scanSearches(); }); }
+
+  function initSearchClears() {
+    scanSearches();
+    try { new MutationObserver(scheduleScan).observe(document.body, { childList: true, subtree: true }); } catch (e) { /* */ }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSearchClears);
+  else initSearchClears();
 })();
