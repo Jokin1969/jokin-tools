@@ -479,9 +479,14 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 
 /* Month bar */
 .az-monthbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-.az-monthlabel { font-weight: 700; color: var(--ink); font-size: 0.9rem; }
+.az-monthlabel { font-weight: 700; color: var(--muted); font-size: 0.82rem; }
 .az-monthstate { font-size: 0.78rem; color: var(--ok); font-weight: 600; }
 .az-monthstate.is-closed { color: var(--muted); }
+/* Slim monthly-assignment header: Mes selector lives discreetly in the actions area,
+   with its state note on a small line just below. */
+.az-sec-h-month .qt-select-sm { max-width: 190px; }
+.az-monthnote { font-size: 0.76rem; font-weight: 600; color: var(--ok); margin: -2px 0 12px; }
+.az-monthnote.is-closed { color: var(--muted); }
 
 /* Progress row */
 .az-progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
@@ -493,6 +498,10 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 
 /* Section headings */
 .az-sec-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 18px 0 8px; font-weight: 800; color: var(--ink); }
+/* Plan de medicación: heading protagonista, arriba del todo de la columna */
+.az-sec-h-plan { margin-top: 2px; align-items: flex-start; }
+.az-plan-title { font-size: 1.5rem; font-weight: 800; color: var(--ink); line-height: 1.15; }
+.az-sec-h-month { margin-top: 22px; }
 
 /* Plan rows */
 .az-plan { display: flex; flex-direction: column; gap: 6px; }
@@ -870,7 +879,7 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 
 /* Overview filters */
 .az-ovfilters { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 14px; }
-.az-ov-search { max-width: 420px; }
+.az-ov-search { max-width: 720px; }
 .az-ovfilter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .az-ovseg button { font-size: 0.8rem; }
 .az-ov-more { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #fff8e8; border: 1px solid #f2c14e; font-size: 0.85rem; color: #8a5a00; }

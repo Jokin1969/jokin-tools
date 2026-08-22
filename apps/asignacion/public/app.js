@@ -757,6 +757,11 @@ function openMedImport() {
       </div>`;
       toast(`Importado: ${r.added} añadidos, ${r.updated} actualizados.`, 'ok');
       viewHome();   // refresh overview counts (keeps the modal open with its report)
+      // Import done: turn the action button into a "Cerrar" so it no longer says «Importando…».
+      btn.disabled = false; btn.textContent = '✓ Importado · Cerrar';
+      btn.classList.remove('qt-btn-primary'); btn.classList.add('qt-btn-teal');
+      btn.onclick = closeTool;
+      const cancel = $('mi-cancel'); if (cancel) cancel.hidden = true;
     } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = '📥 Importar'; }
   };
 }
@@ -1072,22 +1077,22 @@ function renderFicha() {
        </div>
 
        <div class="qt-ficha-info az-fichainfo">
-         <div class="az-monthbar">
-           <label class="az-monthlabel">Mes</label>
-           <select class="qt-select" id="month-sel">${months.map(m => `<option value="${m.ym}" ${m.ym === f.ym ? 'selected' : ''}>${esc(fmtYm(m.ym))}${m.status === 'cerrado' ? ' · cerrado' : m.status === 'nuevo' ? ' · nuevo' : ''}</option>`).join('')}</select>
-           ${!isNew ? (closed ? `<button class="qt-btn qt-btn-ghost qt-btn-sm" id="per-reopen">↩ Reabrir</button>` : `<button class="qt-btn qt-btn-ghost qt-btn-sm" id="per-close">🔒 Cerrar mes</button>`) : ''}
-           <span class="az-monthstate ${closed ? 'is-closed' : ''}">${isNew ? 'Mes nuevo (sin cajas todavía)' : closed ? 'Mes cerrado' : 'Mes abierto'}</span>
-         </div>
-
-         ${progressHtml(f.progress)}
-
-         <div class="az-sec-h"><span>💊 Plan de medicación</span><span class="az-sec-h-actions az-plan-tools">
+         <div class="az-sec-h az-sec-h-plan"><span class="az-plan-title">💊 Plan de medicación</span><span class="az-sec-h-actions az-plan-tools">
            <label class="az-plan-sortlbl">Ordenar <select class="qt-select qt-select-sm" id="plan-sort"><option value="def" ${S.planSort === 'def' ? 'selected' : ''}>Por defecto</option><option value="nombre" ${S.planSort === 'nombre' ? 'selected' : ''}>Nombre</option><option value="cn" ${S.planSort === 'cn' ? 'selected' : ''}>CN</option></select></label>
            <div class="az-seg az-planview" id="plan-view"><button type="button" data-pv="full" class="${S.planView === 'full' ? 'on' : ''}" title="Vista completa">▤</button><button type="button" data-pv="list" class="${S.planView === 'list' ? 'on' : ''}" title="Lista compacta">≣</button><button type="button" data-pv="cards" class="${S.planView === 'cards' ? 'on' : ''}" title="Tarjetas compactas">▦</button></div>
            <button class="qt-btn qt-btn-ghost qt-btn-sm" id="plan-dup" title="Buscar CN/medicamentos duplicados">🔁 Duplicados</button>
            <button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-med">➕ Añadir medicamento</button>
          </span></div>
          <div class="az-plan az-planmode-${S.planView}">${planHtml(f.plan, closed)}</div>
+
+         <div class="az-sec-h az-sec-h-month"><span>📦 Asignación del mes</span><span class="az-sec-h-actions">
+           <label class="az-monthlabel">Mes</label>
+           <select class="qt-select qt-select-sm" id="month-sel">${months.map(m => `<option value="${m.ym}" ${m.ym === f.ym ? 'selected' : ''}>${esc(fmtYm(m.ym))}${m.status === 'cerrado' ? ' · cerrado' : m.status === 'nuevo' ? ' · nuevo' : ''}</option>`).join('')}</select>
+           ${!isNew ? (closed ? `<button class="qt-btn qt-btn-ghost qt-btn-sm" id="per-reopen">↩ Reabrir</button>` : `<button class="qt-btn qt-btn-ghost qt-btn-sm" id="per-close">🔒 Cerrar mes</button>`) : ''}
+         </span></div>
+         <div class="az-monthnote ${closed ? 'is-closed' : ''}">${isNew ? 'Mes nuevo (sin cajas todavía)' : closed ? 'Mes cerrado' : 'Mes abierto'}</div>
+
+         ${progressHtml(f.progress)}
 
          <div class="az-sec-h"><span>📦 Cajas de la ficha (${f.lines.length})</span><span class="az-sec-h-actions">${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" id="scan-mode" title="Modo escáner: pasa el lector por el precinto o el DM y se asigna solo">📟 Modo escáner</button>`}<button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-box" ${closed ? 'disabled' : ''}>➕ Añadir DM</button></span></div>
          <div class="az-lines">${linesHtml(f.lines, closed, dmSize)}</div>
@@ -1124,12 +1129,15 @@ function renderFicha() {
 }
 
 function progressHtml(pr) {
-  const pend = Math.max(pr.planned_total, pr.attached_total);
   return `<div class="az-progress">
-    <div class="az-prog-item"><span class="az-prog-n">${pr.planned_total}</span><span class="az-prog-l">plan (cajas/mes)</span></div>
-    <div class="az-prog-item"><span class="az-prog-n">${pr.attached_total}</span><span class="az-prog-l">en la ficha</span></div>
-    <div class="az-prog-item az-prog-pre"><span class="az-prog-n">${pr.pre_total}</span><span class="az-prog-l">🔗 por asignar</span></div>
-    <div class="az-prog-item az-prog-done"><span class="az-prog-n">${pr.asignada_total}</span><span class="az-prog-l">✓ asignadas</span></div>
+    <div class="az-prog-item" title="Cajas al mes que suma el plan de esta persona (lo que debería dispensarse cada mes).">
+      <span class="az-prog-n">${pr.planned_total}</span><span class="az-prog-l">plan (cajas/mes)</span></div>
+    <div class="az-prog-item" title="Cajas (Data Matrix) ya añadidas a la ficha de este mes: la suma de las pre-asignadas y las asignadas.">
+      <span class="az-prog-n">${pr.attached_total}</span><span class="az-prog-l">cajas en la ficha</span></div>
+    <div class="az-prog-item az-prog-pre" title="Cajas reservadas para esta persona (pre-asignadas) que aún NO se han asignado en la app de Salud.">
+      <span class="az-prog-n">${pr.pre_total}</span><span class="az-prog-l">🔗 por asignar</span></div>
+    <div class="az-prog-item az-prog-done" title="Cajas ya asignadas de verdad en la app de Salud este mes (salen del inventario).">
+      <span class="az-prog-n">${pr.asignada_total}</span><span class="az-prog-l">✓ asignadas</span></div>
   </div>`;
 }
 
