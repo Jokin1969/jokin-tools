@@ -924,3 +924,8 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-plan-scard-body b { font-size: 0.85rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .az-plan-scard-body small { color: var(--muted); font-family: var(--mono, monospace); font-size: 0.72rem; }
 .az-plan-scard-body .az-plan-sprog { align-self: flex-start; margin-top: 2px; }
+
+/* Person name / QR link to QR (TIS) */
+.az-person-link { text-decoration: none; color: inherit; cursor: pointer; }
+.az-person-link:hover { color: var(--brand); text-decoration: underline; }
+.az-qr-link { display: block; cursor: pointer; }

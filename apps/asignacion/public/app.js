@@ -916,8 +916,8 @@ function renderFicha() {
     `<div class="qt-ficha-top"><button class="qt-back" id="back">← Volver</button></div>
      <div class="qt-panel qt-ficha az-ficha">
        <div class="qt-qr-stage az-personcard">
-         <div class="qt-qr-name">${esc(p.nombre)} ${esc(p.apellidos)}</div>
-         <div class="qt-qr-box" id="ficha-qr">${qrSvg(p.tis, qrOpts(p, qrSize))}</div>
+         <a class="qt-qr-name az-person-link" href="/qr-tis?person=${p.id}" title="Abrir a la persona en QR (TIS)">${esc(p.nombre)} ${esc(p.apellidos)}</a>
+         <a class="qt-qr-box az-qr-link" id="ficha-qr" href="/qr-tis?person=${p.id}" title="Abrir a la persona en QR (TIS)">${qrSvg(p.tis, qrOpts(p, qrSize))}</a>
          <div class="qt-qr-tis az-tisbig">${esc(fmtTis(p.tis))}</div>
          <div class="az-person-meta">${p.pharmacy_no ? 'Farmacia ' + esc(p.pharmacy_no) : ''}${p.group_name ? (p.pharmacy_no ? ' · ' : '') + esc(p.group_name) : ''}</div>
          <div class="az-person-note" id="ficha-note">${f.note ? `<div class="az-ent-note" style="background:${esc(f.note.color || '#FEF08A')}">${esc(f.note.text)}</div>` : ''}<div class="az-person-noteact"><button class="qt-btn qt-btn-ghost qt-btn-sm az-person-notebtn" id="ficha-note-btn">📝 ${f.note ? 'Editar nota' : 'Añadir nota'}</button><button class="qt-btn qt-btn-ghost qt-btn-sm" id="ficha-cart">${S.cart.has(p.id) ? '✓ En el carrito' : '🛒 Añadir al carrito'}</button></div></div>

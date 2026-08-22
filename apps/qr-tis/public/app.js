@@ -1431,7 +1431,11 @@ function fmtDateTime(s) {
     S.settings = meta.settings; S.user = meta.user; S.canAsignacion = !!meta.canAsignacion;
     await reloadPeople();
     await reloadCart();
-    if (new URLSearchParams(location.search).has('help')) viewHelp(); else viewHome();
+    const params = new URLSearchParams(location.search);
+    const personId = Number(params.get('person'));
+    if (params.has('help')) viewHelp();
+    else if (personId && S.byId.has(personId)) viewFicha(personId);
+    else viewHome();
   } catch (e) {
     main().innerHTML = `<div class="qt-panel"><p style="color:var(--danger)">No se pudo cargar la app: ${esc(e.message)}</p></div>`;
   }
