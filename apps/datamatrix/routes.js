@@ -173,6 +173,28 @@ router.put('/api/product/:gtin([0-9A-Za-z]+)', json, (req, res) => {
     res.json({ item: db.upsertProduct(req.params.gtin, patch) });
   } catch (err) { fail(res, err); }
 });
+// ── Complete un-named medications from CIMA (name + box/pill images) ────────────
+// Batch: goes product by product (deduped by GTIN) that has no name yet, resolves
+// its Código Nacional (own, or from the GTIN, or from any of its boxes) and asks
+// CIMA (cached). Stops early and reports if CIMA is offline.
+router.post('/api/cima/complete', json, async (req, res) => {
+  try {
+    const pending = db.listProducts().filter(p => !p.nombre && p.gtin);
+    let named = 0, tried = 0, offline = false, missing = 0;
+    for (const p of pending) {
+      const cn = p.cn || gs1.cnForCima({ gtin: p.gtin }) || db.firstItemCnForGtin(p.gtin);
+      if (!cn) { missing++; continue; }
+      tried++;
+      try {
+        const it = await cimaCache.lookupByCnCached(cn);   // also downloads/caches its images
+        if (it && it.nombre) { db.upsertProduct(p.gtin, { nombre: it.nombre, cn: it.cn || cn }); named++; }
+        else missing++;
+      } catch (e) { if (e.offline) { offline = true; break; } missing++; }
+    }
+    res.json({ ok: true, total: pending.length, tried, named, missing, offline });
+  } catch (err) { fail(res, err); }
+});
+
 // ── CIMA (AEMPS) lookup — fill a medication's name from its Código Nacional ──────
 router.get('/api/cima/cn/:cn([0-9]+)', async (req, res) => {
   try {

@@ -365,6 +365,7 @@ function viewList() {
        <div class="qt-actions-bar">
          <button class="qt-action" id="a-scan"><span class="em">📥</span><span class="lbl">Escanear<small>entrada / salida</small></span></button>
          <button class="qt-action" id="a-io"><span class="em">📄</span><span class="lbl">Importar / Catálogo<small>cajas y nombres</small></span></button>
+         <button class="qt-action" id="a-cima"><span class="em">🔄</span><span class="lbl">Completar desde CIMA<small>nombres e imágenes</small></span></button>
          <button class="qt-action" id="a-xlsx"><span class="em">📊</span><span class="lbl">Exportar Excel<small>elige campos y orden</small></span></button>
          <button class="qt-action" id="a-pdf"><span class="em">🖨️</span><span class="lbl">Exportar PDF<small>Data Matrix a tamaño</small></span></button>
          <button class="qt-action" id="a-recent"><span class="em">🕘</span><span class="lbl">Recientes<small>últimas 10</small></span></button>
@@ -397,6 +398,7 @@ function viewList() {
   $('back').onclick = viewHome;
   $('a-scan').onclick = viewScan;
   $('a-io').onclick = toolIO;
+  $('a-cima').onclick = completeFromCima;
   $('a-xlsx').onclick = toolExportExcel;
   $('a-pdf').onclick = toolExportPdf;
   $('a-recent').onclick = toolRecent;
@@ -431,6 +433,26 @@ function filteredItems() {
   const { key, dir } = S.sort, mul = dir === 'asc' ? 1 : -1;
   rows.sort((a, b) => { const av = norm(a[key] == null ? '' : a[key]), bv = norm(b[key] == null ? '' : b[key]); return av.localeCompare(bv, 'es', { numeric: true }) * mul; });
   return rows;
+}
+
+// Fill the name (and box/pill images) of every medication still un-named, from CIMA.
+async function completeFromCima() {
+  const pending = new Set(S.items.filter(x => !x.nombre && x.gtin).map(x => x.gtin)).size;
+  if (!pending) { toast('Todas las cajas ya tienen su medicamento identificado. 🎉', 'ok'); return; }
+  if (!(await confirmBox('Completar desde CIMA', `Se consultará CIMA (AEMPS) para ${pending} medicamento(s) sin nombre y se traerán su nombre e imágenes. Puede tardar un poco.`, 'Completar'))) return;
+  const btn = $('a-cima'); if (btn) { btn.disabled = true; btn.classList.add('is-busy'); }
+  toast('Consultando CIMA…');
+  try {
+    const r = await api('/cima/complete', jbody({}));
+    await reloadItems();
+    if (S.view === 'list') renderList();
+    const parts = [`✓ ${r.named} nombrado(s)`];
+    if (r.missing) parts.push(`${r.missing} sin datos`);
+    if (r.offline) parts.push('CIMA no disponible ahora');
+    toast(parts.join(' · '), r.offline ? 'err' : 'ok');
+  } catch (e) {
+    toast(e.offline ? 'CIMA no disponible ahora; inténtalo más tarde.' : e.message, 'err');
+  } finally { const b = $('a-cima'); if (b) { b.disabled = false; b.classList.remove('is-busy'); } }
 }
 
 function renderList() {

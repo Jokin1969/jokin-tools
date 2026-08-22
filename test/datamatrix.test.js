@@ -173,3 +173,24 @@ test('settings defaults + persistence; cart per user', () => {
   db.deleteItem(it.id);
   assert.ok(!db.cartIds(9).includes(it.id), 'delete detaches from cart');
 });
+
+test('/api/cima/complete names un-named products from the cache (offline-safe)', async () => {
+  process.env.CIMA_ENABLED = 'false';
+  const express = require('express');
+  const router = require('../apps/datamatrix/routes');
+  const app = express();
+  app.use((req, res, next) => { req.user = { id: 1, email: 'a@e', name: 'A', role: 'admin', apps: '*' }; next(); });
+  app.use('/datamatrix', router);
+  const server = await new Promise(r => { const s = app.listen(0, () => r(s)); });
+  const base = `http://127.0.0.1:${server.address().port}/datamatrix/api`;
+  const call = (m, p, b) => fetch(base + p, { method: m, headers: b ? { 'Content-Type': 'application/json' } : {}, body: b ? JSON.stringify(b) : undefined }).then(async r => ({ status: r.status, data: await r.json().catch(() => ({})) }));
+  try {
+    db.cimaCachePut('711662', { nombre: 'IBUPROFENO PRUEBA 600 mg' });   // seed the local cache
+    db.createItem({ raw: 'cc1', box_key: 'cck1', gtin: '08470007116622', serial: 'S1', cn: '711662' }, 1);
+    db.upsertProduct('08470007116622', { cn: '711662' });                // stub product, no name
+    const r = await call('POST', '/cima/complete', {});
+    assert.equal(r.status, 200);
+    assert.ok(r.data.named >= 1, 'nombra al menos uno desde la caché');
+    assert.equal(db.getProduct('08470007116622').nombre, 'IBUPROFENO PRUEBA 600 mg');
+  } finally { server.close(); }
+});

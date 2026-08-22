@@ -211,6 +211,11 @@ function counts() {
 
 // ── Products (GTIN → nombre / colour / shape) ────────────────────────────────────
 function getProduct(gtin) { return db.prepare('SELECT * FROM dm_products WHERE gtin = ?').get(gtin) || null; }
+// A CN seen on any box of this GTIN (helps name a product that has no CN of its own).
+function firstItemCnForGtin(gtin) {
+  const r = db.prepare("SELECT cn FROM dm_items WHERE gtin = ? AND cn IS NOT NULL AND cn <> '' ORDER BY id LIMIT 1").get(gtin);
+  return r ? r.cn : null;
+}
 function listProducts() { return db.prepare('SELECT * FROM dm_products ORDER BY nombre COLLATE NOCASE, gtin').all(); }
 function upsertProduct(gtin, data) {
   const cur = getProduct(gtin) || {};
@@ -319,7 +324,7 @@ function cimaCacheCount() { return db.prepare('SELECT COUNT(*) n FROM cima_cache
 module.exports = {
   db, DEFAULT_SETTINGS,
   listItems, getItem, findByKey, createItem, createManyItems, setUsed, touchItem, setAssignee, availableItems, availableItemsByCn, recentItems, deleteItem, deleteMany, counts,
-  getProduct, listProducts, upsertProduct, importProducts,
+  getProduct, listProducts, upsertProduct, importProducts, firstItemCnForGtin,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,
   cimaCacheGet, cimaCachePut, cimaCacheFoto, cimaCacheCount,
