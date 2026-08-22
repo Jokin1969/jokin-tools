@@ -38,10 +38,19 @@ async function buildPeoplePdf(people, size, title, st) {
   const PDFDocument = require('pdfkit');
   const QRCode = require('qrcode');
   const gdark = /^#[0-9a-f]{6}$/i.test(st.qr_dark) ? st.qr_dark : '#0f172a';
+  // Per-group QR colour (residence distinction): person override > group colour > global.
+  const gcMap = (st.group_colors && typeof st.group_colors === 'object') ? st.group_colors : {};
+  const groupColor = (p) => {
+    for (const g of (p.group_name ? String(p.group_name).split('\n') : [])) {
+      const c = gcMap[g.trim()];
+      if (/^#[0-9a-f]{6}$/i.test(c || '')) return c;
+    }
+    return null;
+  };
   // Pre-render every QR (PNG) at ~2× for crisp print, honouring each person's colour.
   const pngs = await Promise.all(people.map(p => {
     if (!p.active) return Promise.resolve(null);
-    const dark = /^#[0-9a-f]{6}$/i.test(p.qr_dark) ? p.qr_dark : gdark;
+    const dark = /^#[0-9a-f]{6}$/i.test(p.qr_dark) ? p.qr_dark : (groupColor(p) || gdark);
     const light = /^#[0-9a-f]{6}$/i.test(p.qr_light) ? p.qr_light : '#ffffff';
     return QRCode.toBuffer(String(p.tis), { type: 'png', errorCorrectionLevel: 'M', margin: 1, width: Math.round(size * 2), color: { dark, light } }).catch(() => null);
   }));

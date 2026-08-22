@@ -392,3 +392,16 @@ a.qt-btn { text-decoration: none; }
 .qt-gc-clear { width: 30px; height: 28px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; color: var(--muted); }
 .qt-gc-clear:hover { border-color: var(--danger); color: var(--danger); }
 .qt-gc-clear.is-none { color: #b8c2cf; cursor: default; }
+
+/* ── Group name tinted with its assigned QR colour (--gc) ─────────────────────── */
+.qt-chip-group.has-gc, .qt-grouptag.has-gc, .qt-group-echip.has-gc {
+  background: color-mix(in srgb, var(--gc) 14%, #fff);
+  border-color: color-mix(in srgb, var(--gc) 45%, #fff);
+  color: color-mix(in srgb, var(--gc) 82%, #000);
+}
+.qt-chip-group.has-gc:hover, .qt-grouptag.has-gc:hover { background: color-mix(in srgb, var(--gc) 24%, #fff); }
+/* Counter cards: a top strip in the group colour, and its own gradient when active */
+.qt-groupcard.has-gc { box-shadow: inset 0 4px 0 var(--gc), var(--shadow); }
+.qt-groupcard.has-gc .gc-count { color: var(--gc); }
+.qt-groupcard.active.has-gc { background: linear-gradient(135deg, color-mix(in srgb, var(--gc) 58%, #000), var(--gc)); border-color: transparent; box-shadow: none; }
+.qt-groupcard.active.has-gc .gc-count, .qt-groupcard.active.has-gc .gc-name { color: #fff; }

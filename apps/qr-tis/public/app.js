@@ -95,6 +95,10 @@ function groupColorFor(p) {
   for (const g of p.groups) if (gc[g]) return gc[g];
   return null;
 }
+// A single group's colour, and helpers to tint its name chips/cards with it.
+function groupColorByName(n) { const gc = (S.settings && S.settings.group_colors) || {}; return gc[n] || null; }
+function gcCls(n) { return groupColorByName(n) ? ' has-gc' : ''; }
+function gcStyle(n) { const c = groupColorByName(n); return c ? ` style="--gc:${esc(c)}"` : ''; }
 function qrOpts(p, size) {
   const st = S.settings;
   return {
@@ -263,7 +267,7 @@ function viewFicha(id, opts) {
       ? `<div class="qt-inactive-banner qt-deceased-banner">✝ Persona <strong>fallecida</strong>${p.deceased_at ? '<br>' + fmtDate(p.deceased_at) : ''}.<br>El QR no está disponible.</div>`
       : `<div class="qt-inactive-banner">Persona <strong>inactiva</strong>.<br>El QR no está disponible hasta reactivarla.</div>`;
   const groupChip = (p.groups && p.groups.length)
-    ? p.groups.map(g => `<span class="qt-chip-group" data-gsel="${esc(g)}" title="Seleccionar el grupo">👥 ${esc(g)}</span>`).join(' ')
+    ? p.groups.map(g => `<span class="qt-chip-group${gcCls(g)}"${gcStyle(g)} data-gsel="${esc(g)}" title="Seleccionar el grupo">👥 ${esc(g)}</span>`).join(' ')
     : '';
   // Anterior / Siguiente cycle the navigation context the ficha came from.
   const nav = (S.nav || []).filter(nid => S.byId.has(nid));
@@ -367,7 +371,7 @@ function renderGroupManager(p) {
     `<div class="qt-group-mgr">
        <div class="qt-group-mgr-h">Grupos de esta persona</div>
        <div class="qt-group-chips">${groups.length
-        ? groups.map((g, i) => `<span class="qt-group-echip">${esc(g)}<button data-rm="${i}" title="Quitar del grupo">×</button></span>`).join('')
+        ? groups.map((g, i) => `<span class="qt-group-echip${gcCls(g)}"${gcStyle(g)}>${esc(g)}<button data-rm="${i}" title="Quitar del grupo">×</button></span>`).join('')
         : '<span style="color:var(--muted);font-size:.85rem">Todavía no pertenece a ningún grupo.</span>'}</div>
        <div class="qt-group-inline">
          <input id="grp-input" placeholder="Escribe un grupo y pulsa Añadir" maxlength="80" autocomplete="off" />
@@ -631,7 +635,7 @@ function renderGroupsPanel() {
      </div>
      <div class="qt-groups-cards" id="groups-cards" ${S.groupsOpen ? '' : 'hidden'}>
        ${groups.length
-        ? groups.map(g => `<button class="qt-groupcard ${S.groupFilter && norm(S.groupFilter) === norm(g.name) ? 'active' : ''}" data-gfilter="${esc(g.name)}"><span class="gc-count">${g.count}</span><span class="gc-name">${esc(g.name)}</span></button>`).join('')
+        ? groups.map(g => `<button class="qt-groupcard ${S.groupFilter && norm(S.groupFilter) === norm(g.name) ? 'active' : ''}${gcCls(g.name)}"${gcStyle(g.name)} data-gfilter="${esc(g.name)}"><span class="gc-count">${g.count}</span><span class="gc-name">${esc(g.name)}</span></button>`).join('')
         : '<span class="qt-groups-empty">Todavía no hay grupos. Añádelos desde la ficha de una persona.</span>'}
      </div>`;
   $('groups-toggle').onclick = () => { S.groupsOpen = !S.groupsOpen; renderGroupsPanel(); };
@@ -699,7 +703,7 @@ function filteredPeople() {
 function personRowHtml(p) {
   const st = S.settings, sel = S.selected.has(p.id), inCart = S.cart.has(p.id);
   const group = (p.groups && p.groups.length)
-    ? `<span class="qt-grouptags">${p.groups.map(g => `<span class="qt-grouptag" data-group="${esc(g)}" title="Seleccionar todo el grupo">${esc(g)}</span>`).join('')}</span>`
+    ? `<span class="qt-grouptags">${p.groups.map(g => `<span class="qt-grouptag${gcCls(g)}"${gcStyle(g)} data-group="${esc(g)}" title="Seleccionar todo el grupo">${esc(g)}</span>`).join('')}</span>`
     : '<span style="color:#b3bcc7">—</span>';
   const state = p.deceased
     ? '<span class="qt-state-dot deceased"><span class="dot"></span>✝ Fallecida</span>'
@@ -725,7 +729,7 @@ function personRowHtml(p) {
 // One card for a person (cards view — QR-forward, like the cart).
 function personCardHtml(p) {
   const st = S.settings, sel = S.selected.has(p.id), inCart = S.cart.has(p.id);
-  const groups = (p.groups && p.groups.length) ? p.groups.map(g => `<span class="qt-grouptag" data-group="${esc(g)}" title="Seleccionar todo el grupo">${esc(g)}</span>`).join('') : '';
+  const groups = (p.groups && p.groups.length) ? p.groups.map(g => `<span class="qt-grouptag${gcCls(g)}"${gcStyle(g)} data-group="${esc(g)}" title="Seleccionar todo el grupo">${esc(g)}</span>`).join('') : '';
   // The QR box is a fixed square (uniform cards); the QR just scales inside it.
   const qr = p.active
     ? `<span class="qt-pcard-qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, st.card_qr_size))}</span>`
@@ -895,7 +899,7 @@ function renderCart() {
   body.innerHTML = items.map(p => {
     const sel = S.selected.has(p.id);
     const qr = p.active ? `<span class="qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, size))}</span>` : `<span class="qr" style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;color:#9aa4b0;font-size:.8rem">Inactiva</span>`;
-    const group = (p.groups && p.groups.length) ? p.groups.map(g => `<span class="qt-grouptag" data-group="${esc(g)}">${esc(g)}</span>`).join(' ') : '';
+    const group = (p.groups && p.groups.length) ? p.groups.map(g => `<span class="qt-grouptag${gcCls(g)}"${gcStyle(g)} data-group="${esc(g)}">${esc(g)}</span>`).join(' ') : '';
     return `<div class="qt-cart-card ${sel ? 'is-selected' : ''}">
        ${qr}
        <div class="info">
