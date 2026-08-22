@@ -22,7 +22,7 @@ const S = {
   isAdmin: false, noteColors: [], notesBadge: { notes: 0, new_notes: 0 },
   board: { boards: [], currentId: null, notes: [], users: [], userId: null },
   stickers: null, stkYm: null, stkStatus: 'pending', stkGroupBy: 'med', stkFilter: [], stkFilterRes: [], stkNotesOnly: false,
-  ov: { res: [], estado: 'all', notesOnly: false, cartOnly: false, q: '' },
+  ov: { res: [], estado: 'all', notesOnly: false, cartOnly: false, q: '', med: '' },
   ovView: 'list', ovSort: { key: 'apellidos', dir: 'asc' },
   pendOpen: false,   // "Pendientes de caja" section collapsed by default
   cart: new Set(), cartPeople: new Map(),
@@ -189,6 +189,7 @@ function restoreState() {
         estado: typeof s.ov.estado === 'string' ? s.ov.estado : 'all',
         notesOnly: !!s.ov.notesOnly, cartOnly: !!s.ov.cartOnly,
         q: typeof s.ov.q === 'string' ? s.ov.q : '',
+        med: typeof s.ov.med === 'string' ? s.ov.med : '',
       };
     }
     if (typeof s.searchQuery === 'string') S.searchQuery = s.searchQuery;
@@ -760,6 +761,7 @@ function openMedImport() {
         <b>✓ Importación terminada.</b><br>
         Personas: <b>${r.people}</b> · Medicamentos añadidos: <b>${r.added}</b> · Actualizados: <b>${r.updated}</b><br>
         CIMA: ${r.cima.reached ? `datos de <b>${r.cima.found}</b>/${r.cima.total} códigos${r.cima.missing ? ` · <b>${r.cima.missing}</b> sin datos` : ''}` : '<b>no disponible</b> ahora (los medicamentos se añadieron solo con su CN; edítalos o pulsa «🔎 CIMA» luego)'}.
+        ${r.noted ? `<br>📝 Se ha añadido una <b>nota</b> a <b>${r.noted}</b> persona(s) con algún CN no reconocido.` : ''}
         ${missHtml}
         ${errs.length ? `<br><b>${errs.length} aviso(s):</b><ul style="margin:6px 0 0;padding-left:18px">${errs.slice(0, 30).map(e => `<li>Línea ${e.line} (${esc(String(e.code))})${e.cn ? ' · CN ' + esc(e.cn) : ''}: ${esc(e.error)}</li>`).join('')}${errs.length > 30 ? `<li>…y ${errs.length - 30} más</li>` : ''}</ul>` : ''}
       </div>`;
@@ -800,6 +802,7 @@ function overviewFiltered() {
     if (f.notesOnly && !(r.note && r.note.text)) return false;
     if (f.cartOnly && !S.cart.has(r.person.id)) return false;
     if (q) { const hay = norm(`${r.person.apellidos} ${r.person.nombre} ${r.person.tis} ${r.person.pharmacy_no || ''}`); if (!hay.includes(q)) return false; }
+    if (f.med) { const mq = norm(f.med); if (!norm(r.med_search || '').includes(mq)) return false; }
     return true;
   });
 }
@@ -811,7 +814,10 @@ function ovControlsHtml() {
   const hasRes = resKeys.length > 1 || (resKeys.length === 1 && resKeys[0] !== 'Sin grupo');
   const estados = [['all', 'Todas'], ['partial', 'Falta por asignar'], ['assigned', 'Todo asignado'], ['ready', 'Con algo listo'], ['noplan', 'Sin plan']];
   return `<div class="az-ovfilters">
-    <div class="qt-search az-ov-search"><span class="ico">🔎</span><input id="ov-q" placeholder="Filtrar en seguimiento (nombre, TIS, farmacia)…" autocomplete="off" value="${esc(f.q)}"></div>
+    <div class="az-ov-searchrow">
+      <div class="qt-search az-ov-search"><span class="ico">🔎</span><input id="ov-q" placeholder="Filtrar personas (nombre, TIS, farmacia)…" autocomplete="off" value="${esc(f.q)}"></div>
+      <div class="qt-search az-ov-medsearch"><span class="ico">💊</span><input id="ov-med" placeholder="Buscar por medicamento (CN, nombre, código de barras)…" autocomplete="off" value="${esc(f.med || '')}"></div>
+    </div>
     <div class="az-ovfilter-row"><span class="az-stk-flabel">Estado</span><div class="az-seg az-ovseg" id="ov-estado">${estados.map(([v, l]) => `<button data-v="${v}" class="${f.estado === v ? 'on' : ''}">${l}</button>`).join('')}</div>
       <button class="az-stk-chip ${f.notesOnly ? 'on' : ''}" id="ov-notesonly" title="Solo personas con nota">📝 Con notas</button>
       <button class="az-stk-chip ${f.cartOnly ? 'on' : ''}" id="ov-cartonly" title="Solo las personas del carrito">🛒 Solo carrito</button></div>
@@ -850,9 +856,11 @@ function renderOverviewSection() {
     else { const set = new Set(S.ov.res || []); set.has(k) ? set.delete(k) : set.add(k); S.ov.res = [...set]; }
     renderOverviewSection();
   });
-  // Text filter → update only the body (keep input focus).
+  // Text filters → update only the body (keep input focus).
   const q = $('ov-q');
   if (q) q.addEventListener('input', () => { S.ov.q = q.value; updateOverviewBody(); });
+  const qm = $('ov-med');
+  if (qm) qm.addEventListener('input', () => { S.ov.med = qm.value; updateOverviewBody(); });
   wireOverview();
 }
 function updateOverviewBody() {

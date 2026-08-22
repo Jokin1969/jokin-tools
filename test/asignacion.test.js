@@ -377,6 +377,24 @@ test('importar medicación por CN: resuelve por TIS, añade al plan y avisa de n
   assert.ok((await call('GET', `/person/${c}/plan`)).data.plan.some(m => m.cn === '715000'));
 });
 
+test('importar: CN no reconocido por CIMA deja una nota en la persona', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80500', nombre: 'Note', apellidos: 'Cima', tis: '00080500' }, 1).id;
+  // CIMA está offline en el sandbox → 715000 se añade como "Medicamento CN 715000".
+  const r = (await call('POST', '/plan/import', { by: 'tis', qty: 1, rows: [{ person: '00080500', cns: ['715000'] }] })).data;
+  assert.ok(r.noted >= 1, 'informa de las notas añadidas');
+  const note = asigDb.getEntNote('person', pid);
+  assert.ok(note && /no ha sido reconocido/i.test(note.text), 'la persona tiene una nota de CN no reconocido');
+  assert.ok(note.text.includes('715000'), 'la nota indica el CN concreto');
+});
+
+test('overview: incluye med_search para poder filtrar por medicamento (CN/nombre/barcode)', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80600', nombre: 'Med', apellidos: 'Search', tis: '00080600' }, 1).id;
+  await call('POST', `/person/${pid}/plan`, { cn: '123456', nombre: 'IBUPROFENO MARCA X', qty: 1 });
+  const row = (await call('GET', '/overview')).data.items.find(x => x.person.id === pid);
+  assert.ok(row && typeof row.med_search === 'string', 'cada fila trae med_search');
+  assert.ok(/123456/.test(row.med_search) && /IBUPROFENO/i.test(row.med_search), 'med_search contiene CN y nombre');
+});
+
 test('importar medicación: si el identificador elegido falla, busca en QR (TIS) por el otro y crea el plan', async () => {
   // Persona con TIS y Nº de farmacia que "strippean" a valores distintos.
   const d = qrDb.createPerson({ pharmacy_no: '55501', nombre: 'Cruz', apellidos: 'Ada', tis: '00061234' }, 1).id;

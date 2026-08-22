@@ -885,7 +885,9 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 
 /* Overview filters */
 .az-ovfilters { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 14px; }
-.az-ov-search { max-width: 720px; }
+/* Two search fields side by side: personas (izq.) y medicamento (der.). */
+.az-ov-searchrow { display: flex; gap: 10px; flex-wrap: wrap; }
+.az-ov-search, .az-ov-medsearch { flex: 1 1 320px; min-width: 240px; }
 .az-ovfilter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .az-ovseg button { font-size: 0.8rem; }
 .az-ov-more { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #fff8e8; border: 1px solid #f2c14e; font-size: 0.85rem; color: #8a5a00; }

@@ -219,6 +219,7 @@ router.post('/api/plan/import', jsonBig, async (req, res) => {
     // Apply to plans.
     let added = 0, updated = 0; const errors = [];
     const seenPeople = new Set();
+    const unrecByPerson = new Map();   // personId → Set(cns) whose CIMA name wasn't found
     for (const row of parsed) {
       if (!row.person) { errors.push({ line: row.line, code: row.code, error: 'Persona no encontrada en QR (TIS).' }); continue; }
       if (!row.cns.length) { errors.push({ line: row.line, code: row.code, error: 'Sin Códigos Nacionales válidos.' }); continue; }
@@ -232,8 +233,24 @@ router.post('/api/plan/import', jsonBig, async (req, res) => {
           const existed = !!db.planByCn(row.person.id, cn);
           db.addPlanMed(row.person.id, { cn, nombre: it.nombre || `Medicamento CN ${cn}`, barcode: it.barcode || null, qty });
           if (existed) updated++; else added++;
+          if (!it.nombre) {   // CN not recognised by CIMA → flag on the person's note
+            if (!unrecByPerson.has(row.person.id)) unrecByPerson.set(row.person.id, new Set());
+            unrecByPerson.get(row.person.id).add(cn);
+          }
         } catch (e) { errors.push({ line: row.line, code: row.code, cn, error: e.message }); }
       }
+    }
+    // For people who got a medication with an unrecognised CN, leave a post-it note
+    // (the same one shown by «Añadir nota»), without clobbering an existing note.
+    let noted = 0;
+    for (const [pid, cnSetP] of unrecByPerson) {
+      try {
+        const cnsArr = [...cnSetP].sort();
+        const warn = `⚠️ Tiene una medicación cuyo código nacional (CN) no ha sido reconocido (CN ${cnsArr.join(', ')}). Complétala con «🔎 CIMA» o ✏️.`;
+        const existing = db.getEntNote('person', pid);
+        if (!existing) { db.setEntNote('person', pid, { text: warn, color: '#FED7AA' }, req.user.id); noted++; }
+        else if (!/no ha sido reconocido/i.test(existing.text || '')) { db.setEntNote('person', pid, { text: `${existing.text}\n${warn}`, color: existing.color || '#FED7AA' }, req.user.id); noted++; }
+      } catch { /* nota es best-effort */ }
     }
     // Which CNs got NO usable data from CIMA (added with only their Código Nacional).
     // Include the derived barcode and how many people/rows carry each, so they're
@@ -246,7 +263,7 @@ router.post('/api/plan/import', jsonBig, async (req, res) => {
         people: parsed.filter(r => r.person && r.cns.includes(cn)).length,
       }))
       .sort((a, b) => a.cn.localeCompare(b.cn));
-    res.json({ ok: true, people: seenPeople.size, added, updated, cima: { reached: cimaReached, found: cimaFound, missing: cnSet.size - cimaFound, total: cnSet.size, missingCns }, errors });
+    res.json({ ok: true, people: seenPeople.size, added, updated, noted, cima: { reached: cimaReached, found: cimaFound, missing: cnSet.size - cimaFound, total: cnSet.size, missingCns }, errors });
   } catch (err) { fail(res, err); }
 });
 // ── CIMA (AEMPS) lookup — optional: fill name/barcode from a Código Nacional ──────
@@ -469,6 +486,9 @@ router.get('/api/overview', (req, res) => {
         ready_count: readyBy.get(id) || 0,
         latest: latest ? { ym: latest.ym, status: latest.status } : null,
         note: pnotes.get(String(id)) || null,
+        // Searchable text of this person's plan medications (CN · nombre · barcode),
+        // for the "buscar por medicamento" filter in the overview.
+        med_search: plan.map(l => `${l.cn || ''} ${l.nombre || ''} ${l.barcode || ''}`).join(' '),
       });
     }
     const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
