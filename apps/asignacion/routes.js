@@ -183,15 +183,17 @@ router.post('/api/plan/import', jsonBig, async (req, res) => {
     const rows = Array.isArray(b.rows) ? b.rows : [];
     if (!rows.length) throw bad('No se recibieron filas para importar.');
     if (rows.length > 1000) throw bad('Demasiadas filas (máximo 1000).');
-    // Resolve people by the chosen identifier.
+    // Resolve people by the chosen identifier. Compare with leading zeros stripped
+    // so "7001" matches the stored "07001" (and the same for the 8-digit TIS).
+    const strip = v => String(v == null ? '' : v).replace(/\D/g, '').replace(/^0+/, '');
     const all = qrDb.listPeople();
-    const byTis = new Map(all.map(p => [String(p.tis), p]));
-    const byPh = new Map(all.filter(p => p.pharmacy_no && p.pharmacy_no !== '00000').map(p => [String(p.pharmacy_no), p]));
+    const byTis = new Map(all.map(p => [strip(p.tis), p]));
+    const byPh = new Map(all.filter(p => p.pharmacy_no && p.pharmacy_no !== '00000').map(p => [strip(p.pharmacy_no), p]));
     const byId = new Map(all.map(p => [String(p.id), p]));
     const resolve = (code) => {
-      const c = String(code == null ? '' : code).trim();
-      if (by === 'pharmacy') return byPh.get(c) || null;
-      return byTis.get(c) || byId.get(c) || null;
+      const k = strip(code);
+      if (by === 'pharmacy') return byPh.get(k) || null;
+      return byTis.get(k) || byId.get(String(code == null ? '' : code).trim()) || null;
     };
     // Parse rows + collect distinct valid CNs for a single CIMA pass.
     const cnSet = new Set();

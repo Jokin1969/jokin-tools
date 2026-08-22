@@ -358,6 +358,17 @@ test('importar medicación por CN: resuelve por TIS, añade al plan y avisa de n
   assert.equal(planA2.find(m => m.cn === '715000').qty, 3, 'qty actualizada');
   // Persona B por TIS.
   assert.ok((await call('GET', `/person/${b}/plan`)).data.plan.some(m => m.cn === '659432'));
+
+  // Sin ceros a la izquierda: el TIS 00080200 debe resolver aunque se pase "80200".
+  const rz = (await call('POST', '/plan/import', { by: 'tis', qty: 1, rows: [{ person: '80200', cns: ['998001'] }] })).data;
+  assert.equal(rz.people, 1, 'resuelve el TIS sin ceros a la izquierda');
+  assert.equal(rz.added, 1);
+  assert.ok((await call('GET', `/person/${a}/plan`)).data.plan.some(m => m.cn === '998001'));
+  // Y por Nº de farmacia sin ceros: "80200" ~ pharmacy "80200" (5 cifras) para otra persona.
+  const c = qrDb.createPerson({ pharmacy_no: '07001', nombre: 'Far', apellidos: 'Zero', tis: '00070001' }, 1).id;
+  const rp = (await call('POST', '/plan/import', { by: 'pharmacy', qty: 1, rows: [{ person: '7001', cns: ['715000'] }] })).data;
+  assert.equal(rp.people, 1, 'resuelve el Nº de farmacia 07001 pasando "7001"');
+  assert.ok((await call('GET', `/person/${c}/plan`)).data.plan.some(m => m.cn === '715000'));
 });
 
 test('linking a mismatched box warns (409) but can be forced', async () => {
