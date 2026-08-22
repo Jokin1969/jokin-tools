@@ -114,6 +114,8 @@ function qrOpts(p, size) {
   const st = S.qrSettings || {};
   return { dark: (p && p.qr_dark) || asigGroupColor(p) || st.qr_dark || '#0f172a', light: (p && p.qr_light) || st.qr_light || '#ffffff', style: (p && p.qr_style) || st.qr_style || 'square', ecc: st.qr_ecc || 'M', size };
 }
+// What the QR encodes: the real pharmacy code when set, else the TIS. Never shown as text.
+function qrValue(p) { return (p && p.qr_code) ? p.qr_code : (p ? p.tis : ''); }
 
 // ── Data Matrix rendering (client, bwip-js) ──────────────────────────────────────
 function dmSvg(raw, o) {
@@ -1007,7 +1009,7 @@ function renderCart() {
 }
 function cartCardHtml(it, size) {
   const p = it.person;
-  const qr = p.active ? `<span class="qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, size))}</span>` : `<span class="qr" style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;color:#9aa4b0;font-size:.8rem">Inactiva</span>`;
+  const qr = p.active ? `<span class="qr" data-open="${p.id}">${qrSvg(qrValue(p), qrOpts(p, size))}</span>` : `<span class="qr" style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;color:#9aa4b0;font-size:.8rem">Inactiva</span>`;
   const note = it.note ? `<div class="az-ent-note" style="background:${esc(it.note.color || '#FEF08A')};margin-top:8px">${esc(it.note.text)}</div>` : '';
   return `<div class="qt-cart-card">${qr}
     <div class="info">
@@ -1082,7 +1084,7 @@ function renderFicha() {
      <div class="qt-panel qt-ficha az-ficha">
        <div class="qt-qr-stage az-personcard">
          <a class="qt-qr-name az-person-link" href="/qr-tis?person=${p.id}" title="Abrir a la persona en QR (TIS)">${esc(p.nombre)} ${esc(p.apellidos)}</a>
-         <a class="qt-qr-box az-qr-link" id="ficha-qr" href="/qr-tis?person=${p.id}" title="Abrir a la persona en QR (TIS)">${qrSvg(p.tis, qrOpts(p, qrSize))}</a>
+         <a class="qt-qr-box az-qr-link" id="ficha-qr" href="/qr-tis?person=${p.id}" title="Abrir a la persona en QR (TIS)">${qrSvg(qrValue(p), qrOpts(p, qrSize))}</a>
          <div class="qt-qr-tis az-tisbig">${esc(fmtTis(p.tis))}</div>
          <div class="az-person-meta">${p.pharmacy_no ? 'Farmacia ' + esc(p.pharmacy_no) : ''}${p.group_name ? (p.pharmacy_no ? ' · ' : '') + esc(p.group_name) : ''}</div>
          <div class="az-person-note" id="ficha-note">${f.note ? `<div class="az-ent-note" style="background:${esc(f.note.color || '#FEF08A')}">${esc(f.note.text)}</div>` : ''}<div class="az-person-noteact"><button class="qt-btn qt-btn-ghost qt-btn-sm az-person-notebtn" id="ficha-note-btn">📝 ${f.note ? 'Editar nota' : 'Añadir nota'}</button><button class="qt-btn qt-btn-ghost qt-btn-sm" id="ficha-cart">${S.cart.has(p.id) ? '✓ En el carrito' : '🛒 Añadir al carrito'}</button></div></div>
@@ -1138,7 +1140,7 @@ function renderFicha() {
   if ($('ficha-cart')) $('ficha-cart').onclick = async () => { await toggleCart(p.id); const b = $('ficha-cart'); if (b) b.textContent = S.cart.has(p.id) ? '✓ En el carrito' : '🛒 Añadir al carrito'; };
 
   // Live size sliders (persist, debounced).
-  $('qr-size').oninput = (e) => { const v = Number(e.target.value); $('ficha-qr').innerHTML = qrSvg(p.tis, qrOpts(p, v)); saveSize({ ficha_qr_size: v }); };
+  $('qr-size').oninput = (e) => { const v = Number(e.target.value); $('ficha-qr').innerHTML = qrSvg(qrValue(p), qrOpts(p, v)); saveSize({ ficha_qr_size: v }); };
   $('dm-size').oninput = (e) => { const v = Number(e.target.value); S.settings.ficha_dm_size = v; document.querySelectorAll('.az-line-dm').forEach(el => { const raw = el.dataset.raw, color = el.dataset.color; el.innerHTML = dmSvg(raw, { dark: color, light: '#ffffff', size: v }); }); saveSize({ ficha_dm_size: v }); };
 
   wirePlan(closed); wireLines(closed);

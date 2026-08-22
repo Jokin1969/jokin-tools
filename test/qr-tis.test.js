@@ -244,3 +244,43 @@ test('person notes: upsert, borrar y aparecen en el payload de personas', async 
     assert.equal((await call('GET', `/people/${pid}`)).data.item.note, null);
   } finally { server.close(); }
 });
+
+test('QR code: asociación por Nº de farmacia, PATCH, PUT y borrado (fallback al TIS)', async () => {
+  const express = require('express');
+  const router = require('../apps/qr-tis/routes');
+  const app = express();
+  app.use((req, res, next) => { req.user = { id: 1, email: 'a@e', name: 'A', role: 'admin', apps: '*' }; next(); });
+  app.use('/qr-tis', router);
+  const server = await new Promise(r => { const s = app.listen(0, () => r(s)); });
+  const base = `http://127.0.0.1:${server.address().port}/qr-tis/api`;
+  const call = (m, p, b) => fetch(base + p, { method: m, headers: b ? { 'Content-Type': 'application/json' } : {}, body: b ? JSON.stringify(b) : undefined }).then(async r => ({ status: r.status, data: await r.json().catch(() => ({})) }));
+  try {
+    const a = db.createPerson({ pharmacy_no: '88001', nombre: 'Qr', apellidos: 'Uno', tis: '00880001' }, 1).id;
+    const b = db.createPerson({ pharmacy_no: '88002', nombre: 'Qr', apellidos: 'Dos', tis: '00880002' }, 1).id;
+    // Import association by pharmacy number; one pharmacy doesn't exist.
+    const imp = await call('POST', '/qr-codes/import', { rows: [
+      { pharmacy_no: '88001', qr_code: 'LONG-CODE-AAA-1234567890' },
+      { pharmacy_no: '88002', qr_code: 'LONG-CODE-BBB-0987654321' },
+      { pharmacy_no: '99999', qr_code: 'X' },
+    ] });
+    assert.equal(imp.status, 200);
+    assert.equal(imp.data.updated, 2, 'asocia 2 códigos');
+    assert.deepEqual(imp.data.notFound, ['99999'], 'informa del Nº de farmacia inexistente');
+    // The code reaches the payload (used to build the QR) but the TIS is untouched.
+    const pa = (await call('GET', `/people/${a}`)).data.item;
+    assert.equal(pa.qr_code, 'LONG-CODE-AAA-1234567890');
+    assert.equal(pa.tis, '00880001', 'el TIS no cambia');
+    // Import only touches qr_code — never other fields.
+    assert.equal(pa.nombre, 'Qr');
+    // PATCH can set it too.
+    await call('PATCH', `/people/${a}`, { qr_code: 'EDIT-CODE-999' });
+    assert.equal((await call('GET', `/people/${a}`)).data.item.qr_code, 'EDIT-CODE-999');
+    // PUT (scanner path) sets one person's code.
+    const put = await call('PUT', `/people/${b}/qr-code`, { qr_code: 'SCAN-CODE-777' });
+    assert.equal(put.status, 200);
+    assert.equal(put.data.item.qr_code, 'SCAN-CODE-777');
+    // Empty clears it (QR falls back to the TIS).
+    await call('PUT', `/people/${b}/qr-code`, { qr_code: '' });
+    assert.equal((await call('GET', `/people/${b}`)).data.item.qr_code, null);
+  } finally { server.close(); }
+});

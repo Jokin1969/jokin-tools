@@ -99,6 +99,9 @@ function groupColorFor(p) {
 function groupColorByName(n) { const gc = (S.settings && S.settings.group_colors) || {}; return gc[n] || null; }
 function gcCls(n) { return groupColorByName(n) ? ' has-gc' : ''; }
 function gcStyle(n) { const c = groupColorByName(n); return c ? ` style="--gc:${esc(c)}"` : ''; }
+// What the person's QR must encode: the real pharmacy code when set, else the TIS
+// (fallback while codes are still being loaded). Never shown as text — only encoded.
+function qrValue(p) { return (p && p.qr_code) ? p.qr_code : (p ? p.tis : ''); }
 function qrOpts(p, size) {
   const st = S.settings;
   return {
@@ -262,7 +265,7 @@ function viewFicha(id, opts) {
   const inCart = S.cart.has(id);
   const st = S.settings;
   const qrHtml = p.active
-    ? `<div class="qt-qr-box" id="ficha-qr">${qrSvg(p.tis, qrOpts(p, st.qr_size))}</div>`
+    ? `<div class="qt-qr-box" id="ficha-qr">${qrSvg(qrValue(p), qrOpts(p, st.qr_size))}</div>`
     : p.deceased
       ? `<div class="qt-inactive-banner qt-deceased-banner">✝ Persona <strong>fallecida</strong>${p.deceased_at ? '<br>' + fmtDate(p.deceased_at) : ''}.<br>El QR no está disponible.</div>`
       : `<div class="qt-inactive-banner">Persona <strong>inactiva</strong>.<br>El QR no está disponible hasta reactivarla.</div>`;
@@ -329,7 +332,7 @@ function viewFicha(id, opts) {
   $('act-edit').onclick = () => editPerson(p);
   if ($('act-note')) $('act-note').onclick = () => editPersonNote(id, () => viewFicha(id, opts));
   $('act-list').onclick = viewList;
-  if (p.active) wireMando(p, () => { const box = $('ficha-qr'); if (box) box.innerHTML = qrSvg(p.tis, qrOpts(p, S.settings.qr_size)); });
+  if (p.active) wireMando(p, () => { const box = $('ficha-qr'); if (box) box.innerHTML = qrSvg(qrValue(p), qrOpts(p, S.settings.qr_size)); });
   $('act-cart').onclick = async () => { await toggleCart(id); viewFicha(id, opts); };
   if ($('act-active')) $('act-active').onclick = async () => { await setActive(p, !p.active); viewFicha(id, opts); };
   $('act-deceased').onclick = async () => { if (await toggleDeceased(p)) viewFicha(id, opts); };
@@ -405,6 +408,9 @@ function editPerson(p) {
      <div class="qt-field"><label>Apellidos <span class="req">*</span></label><input class="qt-input" id="e-apellidos" value="${esc(p.apellidos)}"></div>
      <div class="qt-field"><label>Código TIS <span class="req">*</span></label>
        <div class="qt-tis-wrap"><input class="qt-input" id="e-tis" maxlength="8" inputmode="numeric" value="${esc(p.tis)}" style="font-family:var(--mono);letter-spacing:.28em;text-align:center"><button type="button" class="qt-scan-btn" id="e-scan" title="Escanear QR">⛶</button></div></div>
+     <div class="qt-field"><label>Código del QR (opcional)</label>
+       <input class="qt-input" id="e-qrcode" value="${esc(p.qr_code || '')}" autocomplete="off" placeholder="Escanea con el lector (emulador de teclado) o escribe el código…">
+       <div class="qt-field-hint">Es lo que codifica el QR (más largo que el TIS). Enfoca aquí y escanea con el lector, o escríbelo. <strong>No se muestra</strong> en la app. Vacío = el QR usa el TIS.</div></div>
      <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" data-close>Cancelar</button><button class="qt-btn qt-btn-primary" id="e-save">Guardar cambios</button></div>`
   );
   const farm = $('e-farm'), tis = $('e-tis');
@@ -418,7 +424,7 @@ function editPerson(p) {
     if (!nombre || !apellidos) { err.textContent = 'Nombre y apellidos son obligatorios.'; return; }
     if (!/^\d{8}$/.test(t)) { err.textContent = 'El Código TIS debe tener exactamente 8 cifras.'; return; }
     try {
-      const { item } = await api('/people/' + p.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pharmacy_no, nombre, apellidos, tis: t }) });
+      const { item } = await api('/people/' + p.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pharmacy_no, nombre, apellidos, tis: t, qr_code: $('e-qrcode').value.trim() }) });
       S.byId.set(item.id, item);
       const i = S.people.findIndex(x => x.id === item.id); if (i >= 0) S.people[i] = item;
       closeModal(); toast('Información actualizada', 'ok'); viewFicha(p.id);
@@ -536,6 +542,7 @@ function viewList() {
        <button class="qt-back" id="back">← Inicio</button>
        <div class="qt-actions-bar">
          <button class="qt-action" id="a-excel-io"><span class="em">📄</span><span class="lbl">Plantilla / Importar<small>Excel de personas</small></span></button>
+         <button class="qt-action" id="a-qr-assoc"><span class="em">🔗</span><span class="lbl">Asociar QR<small>código real por Nº farmacia</small></span></button>
          <button class="qt-action" id="a-export-xlsx"><span class="em">📊</span><span class="lbl">Exportar Excel<small>elige campos y orden</small></span></button>
          <button class="qt-action" id="a-export-pdf"><span class="em">🖨️</span><span class="lbl">Exportar PDF<small>QR de tamaño variable</small></span></button>
          <button class="qt-action" id="a-recent"><span class="em">🕘</span><span class="lbl">Recientes<small>últimas 10 manejadas</small></span></button>
@@ -576,6 +583,7 @@ function viewList() {
      <div id="list-body"></div>`;
   $('back').onclick = viewHome;
   $('a-excel-io').onclick = toolExcelIO;
+  $('a-qr-assoc').onclick = toolQrAssoc;
   $('a-export-xlsx').onclick = toolExportExcel;
   $('a-export-pdf').onclick = toolExportPdf;
   $('a-recent').onclick = toolRecent;
@@ -724,7 +732,7 @@ function personRowHtml(p) {
       ? '<span class="qt-state-dot"><span class="dot"></span>Activa</span>'
       : '<span class="qt-state-dot off"><span class="dot"></span>Inactiva</span>';
   const qrCell = S.showListQr
-    ? `<td>${p.active ? `<span class="qt-list-qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, st.list_qr_size))}</span>` : '<span style="color:#b3bcc7">—</span>'}</td>`
+    ? `<td>${p.active ? `<span class="qt-list-qr" data-open="${p.id}">${qrSvg(qrValue(p), qrOpts(p, st.list_qr_size))}</span>` : '<span style="color:#b3bcc7">—</span>'}</td>`
     : '';
   return `<tr class="${p.active ? '' : 'is-inactive'} ${p.deceased ? 'is-deceased' : ''} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
     <td><input type="checkbox" class="qt-check" data-sel="${p.id}" ${sel ? 'checked' : ''}></td>
@@ -746,7 +754,7 @@ function personCardHtml(p) {
   const groups = (p.groups && p.groups.length) ? p.groups.map(g => `<span class="qt-grouptag${gcCls(g)}"${gcStyle(g)} data-group="${esc(g)}" title="Seleccionar todo el grupo">${esc(g)}</span>`).join('') : '';
   // The QR box is a fixed square (uniform cards); the QR just scales inside it.
   const qr = p.active
-    ? `<span class="qt-pcard-qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, st.card_qr_size))}</span>`
+    ? `<span class="qt-pcard-qr" data-open="${p.id}">${qrSvg(qrValue(p), qrOpts(p, st.card_qr_size))}</span>`
     : `<span class="qt-pcard-qr inactive" data-open="${p.id}" style="width:${st.card_qr_size}px;height:${st.card_qr_size}px">${p.deceased ? '✝ Fallecida' : 'Inactiva'}</span>`;
   return `<div class="qt-pcard ${p.active ? '' : 'is-inactive'} ${p.deceased ? 'is-deceased' : ''} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
     <div class="qt-pcard-head">
@@ -971,7 +979,7 @@ function renderCart() {
   if (!items.length) { body.innerHTML = '<div class="qt-empty">El carrito está vacío.<br>Añade personas desde el listado o su ficha.</div>'; return; }
   body.innerHTML = items.map(p => {
     const sel = S.selected.has(p.id);
-    const qr = p.active ? `<span class="qr" data-open="${p.id}">${qrSvg(p.tis, qrOpts(p, size))}</span>` : `<span class="qr" style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;color:#9aa4b0;font-size:.8rem">Inactiva</span>`;
+    const qr = p.active ? `<span class="qr" data-open="${p.id}">${qrSvg(qrValue(p), qrOpts(p, size))}</span>` : `<span class="qr" style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;color:#9aa4b0;font-size:.8rem">Inactiva</span>`;
     const group = (p.groups && p.groups.length) ? p.groups.map(g => `<span class="qt-grouptag${gcCls(g)}"${gcStyle(g)} data-group="${esc(g)}">${esc(g)}</span>`).join(' ') : '';
     return `<div class="qt-cart-card ${sel ? 'is-selected' : ''}">
        ${qr}
@@ -1104,6 +1112,13 @@ function viewHelp() {
         <li>Rellénala y <strong>súbela</strong>. Se validan las filas; las que fallan o están <strong>duplicadas</strong> (Nº de farmacia distinto de 00000, o TIS) se informan y se omiten; el resto se importan.</li>
       </ol>
       <div class="qt-note tip">En la columna <code>Grupo</code> puedes poner <b>varios grupos separados por punto y coma</b>: <code>Planta 2; Urgencias</code>. Si dejas el <b>Nº de farmacia</b> en blanco, se pone <code>00000</code> automáticamente.</div>` },
+    { id: 'qr-codigo', icon: '🔳', title: 'El código real del QR', html: `
+      <p>El QR de cada persona <strong>ya no codifica el TIS</strong>, sino un <strong>código real</strong> (más largo) que usa la farmacia. Ese código <strong>no se muestra</strong> en la app: solo se convierte en QR. El <strong>TIS se sigue viendo</strong> como siempre. Si una persona todavía no tiene código, su QR usa el TIS como antes.</p>
+      <p>Hay <strong>dos formas</strong> de asignarlo:</p>
+      <ol>
+        <li><span class="qt-chip-inline">🔗 Asociar QR</span> (arriba del listado): descarga una <strong>plantilla</strong> con <code>Nº Farmacia</code>, <code>Nombre</code>, <code>Apellidos</code> y <code>Código QR</code> (con el código actual si ya lo tiene), rellena/edita la columna <strong>Código QR</strong> y súbela. Se empareja por <strong>Nº de farmacia</strong>: <strong>solo cambia el código</strong> de quien ya existe (no crea ni toca nada más). Una celda vacía deja el QR en el TIS.</li>
+        <li><strong>Escáner o a mano</strong>: en <span class="qt-chip-inline">✏️ Editar información</span> de la persona hay un campo <strong>«Código del QR»</strong>. Enfócalo y <strong>escanea con el lector</strong> (emulador de teclado) o escríbelo. Vacío = usa el TIS.</li>
+      </ol>` },
     { id: 'exportar', icon: '📦', title: 'Exportar (Excel y PDF)', html: `
       <p>Ambos botones están <strong>arriba a la derecha</strong> del listado.</p>
       <ul>
@@ -1279,6 +1294,81 @@ async function importFile(file) {
     report.innerHTML = html;
     $('imp-done').onclick = () => { closeModal(); viewList(); };
     toast(`${res.created} importada(s)`, 'ok');
+  } catch (e) { report.innerHTML = `<div class="err">✕ ${esc(e.message)}</div>`; }
+}
+
+// ── Tool: asociar el código real del QR por Nº de farmacia ──────────────────────
+// El QR de la persona ya no codifica el TIS sino un código más largo. Aquí se sube
+// la asociación «Nº de farmacia → Código QR». Solo cambia el código de las personas
+// cuyo Nº de farmacia ya existe; no crea ni toca nada más. El código no se muestra.
+function toolQrAssoc() {
+  openModal(
+    `<div class="qt-modal-h"><h3>Asociar el código del QR (por Nº de farmacia)</h3><button class="qt-x" data-close>×</button></div>
+     <div class="qt-tool-opt">
+       <p style="color:var(--muted);font-size:.9rem;margin:0 0 8px">El QR de cada persona codifica un <strong>código real</strong> (más largo que el TIS). Aquí subes la relación <strong>Nº de farmacia → Código QR</strong>. Solo se actualiza el código de las personas cuyo <strong>Nº de farmacia ya existe</strong>; no se crea ni cambia nada más. El código <strong>no se muestra</strong> en la app: solo se convierte en QR. El TIS se sigue viendo igual.</p>
+       <h4>1 · Descargar plantilla</h4>
+       <p>Un Excel con <strong>Nº Farmacia</strong>, <strong>Nombre</strong>, <strong>Apellidos</strong> y <strong>Código QR</strong> de todas las personas (con su código actual si ya lo tienen). Rellena/edita la columna <strong>Código QR</strong> y vuelve a subirlo.</p>
+       <button class="qt-btn qt-btn-primary" id="qra-dl">⬇ Descargar plantilla .xlsx</button>
+     </div>
+     <div class="qt-tool-opt">
+       <h4>2 · Importar la asociación</h4>
+       <p>Sube el Excel con la columna <strong>Código QR</strong> rellena. Se empareja por <strong>Nº de farmacia</strong>. Una celda vacía deja el QR en su valor por defecto (el TIS).</p>
+       <div class="qt-dropfile" id="qra-drop">📥 Haz clic o arrastra aquí tu Excel (.xlsx / .csv)</div>
+       <input type="file" id="qra-file" accept=".xlsx,.xls,.csv" hidden>
+       <div class="qt-import-report" id="qra-report"></div>
+     </div>`
+  );
+  $('qra-dl').onclick = downloadQrAssocTemplate;
+  const drop = $('qra-drop'), file = $('qra-file');
+  drop.onclick = () => file.click();
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('drag'); };
+  drop.ondragleave = () => drop.classList.remove('drag');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('drag'); if (e.dataTransfer.files[0]) importQrAssoc(e.dataTransfer.files[0]); };
+  file.onchange = () => { if (file.files[0]) importQrAssoc(file.files[0]); };
+}
+
+function downloadQrAssocTemplate() {
+  const people = (S.people || []).filter(p => p.pharmacy_no && p.pharmacy_no !== '00000');
+  const aoa = [['Nº Farmacia', 'Nombre', 'Apellidos', 'Código QR']];
+  if (!people.length) aoa.push(['01234', 'José', 'Pérez García', '']);
+  for (const p of people) aoa.push([p.pharmacy_no, p.nombre, p.apellidos, p.qr_code || '']);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 26 }, { wch: 40 }];
+  // Nº Farmacia (col A) and the QR code (col D) as text so nothing is mangled.
+  for (let r = 1; r < aoa.length; r++) for (const c of [0, 3]) { const cell = XLSX.utils.encode_cell({ r, c }); if (ws[cell]) { ws[cell].t = 's'; ws[cell].z = '@'; } }
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Asociación QR');
+  XLSX.writeFile(wb, 'Asociacion_QR.xlsx');
+}
+
+async function importQrAssoc(file) {
+  const report = $('qra-report');
+  report.innerHTML = 'Leyendo…';
+  try {
+    const aoa = await parseWorkbook(file);
+    if (!aoa.length) throw new Error('El Excel está vacío.');
+    const header = aoa[0].map(h => norm(String(h)));
+    const find = (...names) => header.findIndex(h => names.some(n => h.includes(n)));
+    const ci = { pharmacy: find('farmacia'), qr: find('codigo qr', 'código qr', 'codigo', 'qr') };
+    if (ci.pharmacy < 0 || ci.qr < 0) throw new Error('Faltan columnas. El Excel debe tener «Nº Farmacia» y «Código QR».');
+    const rows = [];
+    for (let i = 1; i < aoa.length; i++) {
+      const r = aoa[i];
+      const pharmacy_no = padNum(r[ci.pharmacy], 5);
+      const qr_code = String(r[ci.qr] == null ? '' : r[ci.qr]).trim();
+      if (!pharmacy_no) continue;
+      rows.push({ pharmacy_no, qr_code });
+    }
+    if (!rows.length) throw new Error('No hay filas con Nº de farmacia.');
+    report.innerHTML = `Asociando ${rows.length} código(s)…`;
+    const res = await api('/qr-codes/import', jbody({ rows }));
+    await reloadPeople();
+    const nf = res.notFound || [];
+    let html = `<div class="ok">✓ ${res.updated} código(s) asociado(s)${res.cleared ? `, ${res.cleared} vaciado(s)` : ''}${nf.length ? `, ${nf.length} Nº de farmacia no encontrado(s)` : ''}.</div>`;
+    if (nf.length) html += `<div class="qt-import-errs"><div class="err">No encontrados: ${esc(nf.slice(0, 40).join(', '))}${nf.length > 40 ? `… (+${nf.length - 40})` : ''}</div></div>`;
+    html += `<div style="margin-top:12px"><button class="qt-btn qt-btn-primary" id="qra-done">Ver listado</button></div>`;
+    report.innerHTML = html;
+    $('qra-done').onclick = () => { closeModal(); viewList(); };
+    toast(`${res.updated} QR asociado(s)`, 'ok');
   } catch (e) { report.innerHTML = `<div class="err">✕ ${esc(e.message)}</div>`; }
 }
 

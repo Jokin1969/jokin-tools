@@ -77,6 +77,7 @@ function personView(p) {
     id: p.id, pharmacy_no: p.pharmacy_no || null, nombre: p.nombre, apellidos: p.apellidos, tis: p.tis,
     groups, group_name: groups.join('; ') || null, active: p.active ? 1 : 0,
     qr_dark: p.qr_dark || null, qr_light: p.qr_light || null, qr_style: p.qr_style || null,
+    qr_code: p.qr_code || null,   // real code the QR encodes (falls back to TIS); never shown as text
   };
 }
 function personName(p) { return p ? `${p.nombre} ${p.apellidos}`.trim() : ''; }

@@ -64,7 +64,7 @@ async function buildParts(notif, refDate) {
   for (const pp of data.people) {
     const p = pp.person;
     const qrCid = `qr-${p.id}`;
-    try { images.push({ cid: qrCid, buffer: await renderQrPng(p.tis, p, groupColors, qrSt.qr_dark), filename: `qr-${p.tis}.png` }); } catch { /* skip */ }
+    try { images.push({ cid: qrCid, buffer: await renderQrPng(p.qr_code || p.tis, p, groupColors, qrSt.qr_dark), filename: `qr-${p.tis}.png` }); } catch { /* skip */ }
     const meds = [];
     for (const b of pp.satisfying) {
       const it = b.item;   // may be null: the box may not be pre-assigned yet

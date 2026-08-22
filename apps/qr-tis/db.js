@@ -74,6 +74,10 @@ try { db.prepare('ALTER TABLE tis_people ADD COLUMN deceased INTEGER NOT NULL DE
 try { db.prepare('ALTER TABLE tis_people ADD COLUMN deceased_at DATETIME').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE tis_settings ADD COLUMN card_qr_size INTEGER').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE tis_settings ADD COLUMN group_colors TEXT').run(); } catch { /* already present */ }
+// The real code that the pharmacy QR must encode (longer than the TIS). When set,
+// the person's QR encodes THIS instead of the TIS. The TIS is still what we show as
+// text; this value is never displayed, only turned into the QR.
+try { db.prepare('ALTER TABLE tis_people ADD COLUMN qr_code TEXT').run(); } catch { /* already present */ }
 
 // A small, pretty note per person (like the ones in Asignación): one per person.
 db.exec(`
@@ -96,7 +100,7 @@ const DEFAULT_SETTINGS = {
 // ── People ──────────────────────────────────────────────────────────────────────
 function listPeople() {
   return db.prepare(
-    `SELECT id, pharmacy_no, nombre, apellidos, tis, group_name, qr_dark, qr_light, qr_style, active, deceased, deceased_at, created_at, updated_at
+    `SELECT id, pharmacy_no, nombre, apellidos, tis, group_name, qr_dark, qr_light, qr_style, qr_code, active, deceased, deceased_at, created_at, updated_at
        FROM tis_people ORDER BY apellidos COLLATE NOCASE, nombre COLLATE NOCASE, id`
   ).all();
 }
@@ -171,17 +175,47 @@ function updatePerson(id, data) {
     qr_dark: data.qr_dark !== undefined ? (data.qr_dark || null) : cur.qr_dark,
     qr_light: data.qr_light !== undefined ? (data.qr_light || null) : cur.qr_light,
     qr_style: data.qr_style !== undefined ? (data.qr_style || null) : cur.qr_style,
+    qr_code: data.qr_code !== undefined ? (data.qr_code || null) : cur.qr_code,
     active: data.active != null ? (data.active ? 1 : 0) : cur.active,
   };
   db.prepare(
     `UPDATE tis_people
        SET pharmacy_no = @pharmacy_no, nombre = @nombre, apellidos = @apellidos, tis = @tis,
            group_name = @group_name, qr_dark = @qr_dark, qr_light = @qr_light, qr_style = @qr_style,
-           active = @active, updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP
+           qr_code = @qr_code, active = @active, updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP
      WHERE id = @id`
   ).run({ ...next, id });
   return getPerson(id);
 }
+
+// Set (or clear) just the QR code of one person — used by the keyboard-emulator
+// scanner path and by the association import.
+function setQrCode(id, code) {
+  const cur = getPerson(id);
+  if (!cur) return null;
+  db.prepare('UPDATE tis_people SET qr_code = ?, updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .run(code ? String(code).trim() : null, id);
+  return getPerson(id);
+}
+
+// Bulk-associate QR codes by pharmacy number. `rows` = [{pharmacy_no, qr_code}].
+// Only updates the qr_code of people whose pharmacy_no already exists (never creates
+// or touches anything else). Returns { updated, notFound: [pharmacy_no,…], cleared }.
+const setQrCodesByPharmacy = db.transaction((rows) => {
+  let updated = 0, cleared = 0; const notFound = [];
+  const find = db.prepare('SELECT id FROM tis_people WHERE pharmacy_no = ?');
+  const upd = db.prepare('UPDATE tis_people SET qr_code = ?, updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP WHERE id = ?');
+  for (const r of rows) {
+    const ph = String(r.pharmacy_no == null ? '' : r.pharmacy_no).trim();
+    if (!ph) continue;
+    const person = find.get(ph);
+    if (!person) { notFound.push(ph); continue; }
+    const code = r.qr_code != null ? String(r.qr_code).trim() : '';
+    upd.run(code || null, person.id);
+    if (code) updated++; else cleared++;
+  }
+  return { updated, cleared, notFound };
+});
 
 function deletePerson(id) {
   db.prepare('DELETE FROM tis_cart WHERE person_id = ?').run(id);
@@ -257,6 +291,7 @@ function cartClear(userId) {
 module.exports = {
   db, DEFAULT_SETTINGS,
   listPeople, getPerson, createPerson, createManyPeople, updatePerson, deletePerson, setDeceased,
+  setQrCode, setQrCodesByPharmacy,
   pharmacyTaken, tisTaken, touchPerson, recentPeople,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,

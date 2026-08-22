@@ -52,7 +52,8 @@ async function buildPeoplePdf(people, size, title, st) {
     if (!p.active) return Promise.resolve(null);
     const dark = /^#[0-9a-f]{6}$/i.test(p.qr_dark) ? p.qr_dark : (groupColor(p) || gdark);
     const light = /^#[0-9a-f]{6}$/i.test(p.qr_light) ? p.qr_light : '#ffffff';
-    return QRCode.toBuffer(String(p.tis), { type: 'png', errorCorrectionLevel: 'M', margin: 1, width: Math.round(size * 2), color: { dark, light } }).catch(() => null);
+    const value = p.qr_code ? String(p.qr_code) : String(p.tis);   // real code when set, else TIS
+    return QRCode.toBuffer(value, { type: 'png', errorCorrectionLevel: 'M', margin: 1, width: Math.round(size * 2), color: { dark, light } }).catch(() => null);
   }));
   return await new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 40, info: { Title: title } });
@@ -188,6 +189,7 @@ const publicPerson = (p) => {
     groups,                                   // array of group names
     group_name: groups.join('; ') || null,    // display / search / sort string
     qr_dark: p.qr_dark || null, qr_light: p.qr_light || null, qr_style: p.qr_style || null,
+    qr_code: p.qr_code || null,                // value the QR encodes (falls back to TIS if empty); never shown as text
     active: p.active ? 1 : 0,
     deceased: p.deceased ? 1 : 0, deceased_at: p.deceased_at || null,
     created_at: p.created_at, updated_at: p.updated_at,
@@ -287,6 +289,7 @@ router.patch('/api/people/:id(\\d+)', json, (req, res) => {
     if (b.qr_dark !== undefined) data.qr_dark = cleanColorOpt(b.qr_dark);
     if (b.qr_light !== undefined) data.qr_light = cleanColorOpt(b.qr_light);
     if (b.qr_style !== undefined) data.qr_style = cleanStyleOpt(b.qr_style);
+    if (b.qr_code !== undefined) { const c = String(b.qr_code == null ? '' : b.qr_code).trim(); if (c.length > 4096) throw bad('El código del QR es demasiado largo.'); data.qr_code = c; }
     if (b.active != null) data.active = b.active ? 1 : 0;
     const id = Number(req.params.id);
     if (data.pharmacy_no && db.pharmacyTaken(data.pharmacy_no, id)) throw bad(`El Nº de farmacia ${data.pharmacy_no} ya está asignado a otra persona.`);
@@ -335,6 +338,35 @@ router.post('/api/import', jsonBig, (req, res) => {
     });
     const created = valid.length ? db.createManyPeople(valid, req.user.id) : [];
     res.json({ created: created.length, errors, total: rows.length });
+  } catch (err) { fail(res, err); }
+});
+
+// ── QR code association (pharmacy_no → real QR code) ────────────────────────────
+// The pharmacy QR encodes a longer code, NOT the TIS. Here we bulk-associate that
+// code by pharmacy number: only people whose Nº de farmacia already exists get their
+// qr_code updated; nothing else is created or changed.
+router.post('/api/qr-codes/import', jsonBig, (req, res) => {
+  try {
+    const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : null;
+    if (!rows) throw bad('No se recibieron filas para importar.');
+    if (rows.length > 20000) throw bad('Demasiadas filas (máximo 20000 por importación).');
+    const clean = rows
+      .map(r => ({ pharmacy_no: String(r.pharmacy_no == null ? '' : r.pharmacy_no).replace(/\s+/g, ''), qr_code: String(r.qr_code == null ? '' : r.qr_code).trim() }))
+      .filter(r => r.pharmacy_no);
+    const result = db.setQrCodesByPharmacy(clean);
+    res.json({ ...result, total: clean.length });
+  } catch (err) { fail(res, err); }
+});
+
+// Set (or clear) one person's QR code — the keyboard-emulator scanner path.
+// Send { qr_code: "…" }; an empty value clears it (the QR falls back to the TIS).
+router.put('/api/people/:id(\\d+)/qr-code', json, (req, res) => {
+  try {
+    const p = db.getPerson(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
+    const code = String((req.body && req.body.qr_code) == null ? '' : req.body.qr_code).trim();
+    if (code.length > 4096) throw bad('El código del QR es demasiado largo.');
+    res.json({ item: publicPerson(db.setQrCode(p.id, code)) });
   } catch (err) { fail(res, err); }
 });
 
