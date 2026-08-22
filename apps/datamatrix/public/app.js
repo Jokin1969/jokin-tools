@@ -16,7 +16,7 @@ const S = {
   query: '', andor: 'AND',
   sort: { key: 'nombre', dir: 'asc' },
   selected: new Set(), hidden: new Set(),
-  listMode: 'table', groupBy: false, groupSame: true, showListFoto: false, archive: false, uncatOnly: false, preasigOnly: false,
+  listMode: 'table', groupBy: false, groupSame: true, showListFoto: false, tab: 'activo', uncatOnly: false, preasigOnly: false,
   medFilter: null, // filter list to a GTIN
   currentItemId: null, view: 'home', nav: [],
 };
@@ -102,19 +102,25 @@ function shapeSvg(shape, color, px) {
 //   asignada    → dispensed to that person
 // Assignment / usage badge — with traceability: a USED box that was assigned to a
 // person links to that person; a USED box with no assignee is flagged as untraceable.
+// "(Nº farmacia · grupo)" of the assignee, for the badge.
+function assigneeParen(it) {
+  const bits = [];
+  if (it.assignee_pharmacy) bits.push('Nº ' + esc(it.assignee_pharmacy));
+  if (it.assignee_group) bits.push(esc(it.assignee_group));
+  return bits.length ? ` <span class="dm-asig-paren">(${bits.join(' · ')})</span>` : '';
+}
 function asigBadge(it) {
   if (!it) return '';
+  const who = it.assignee_name ? esc(it.assignee_name) : 'la persona';
   if (it.asig_state === 'preasignada') {
-    const far = it.assignee_pharmacy ? ' · Nº ' + esc(it.assignee_pharmacy) : '';
-    const title = it.assignee_name ? `Asociada a ${it.assignee_name}${it.assignee_pharmacy ? ' (Nº ' + it.assignee_pharmacy + ')' : ''}` : 'Asociada a una persona';
     const link = it.assignee_id != null
-      ? `<a class="dm-trace-link" href="/asignacion?person=${it.assignee_id}" title="${esc(title)}">Asociado${far} ↗</a>`
-      : `Asociado${far}`;
-    return `<span class="dm-asig dm-asig-pre" title="${esc(title)}">🔗 ${link}</span>`;
+      ? `<a class="dm-trace-link" href="/asignacion?person=${it.assignee_id}" title="Abrir a la persona">${who}${assigneeParen(it)} ↗</a>`
+      : `${who}${assigneeParen(it)}`;
+    return `<span class="dm-asig dm-asig-pre" title="Asociada a ${who}">🔗 Asociado a ${link}</span>`;
   }
   if (it.status === 'utilizado') {
     if (it.assignee_id != null) {
-      return `<span class="dm-asig dm-asig-done">✓ Asignada a <a class="dm-trace-link" href="/asignacion?person=${it.assignee_id}" title="Abrir a la persona">${esc(it.assignee_name || 'la persona')} ↗</a></span>`;
+      return `<span class="dm-asig dm-asig-done">✓ Asignada a <a class="dm-trace-link" href="/asignacion?person=${it.assignee_id}" title="Abrir a la persona">${who}${assigneeParen(it)} ↗</a></span>`;
     }
     return `<span class="dm-asig dm-asig-warn" title="Se marcó utilizada sin registrar a quién se asignó">⚠️ Utilizada sin trazabilidad</span>`;
   }
@@ -123,7 +129,7 @@ function asigBadge(it) {
 
 // ── Data loading ────────────────────────────────────────────────────────────────
 async function reloadItems() {
-  const { items, counts } = await api('/items?status=' + (S.archive ? 'utilizado' : 'activo'));
+  const { items, counts } = await api('/items?status=' + S.tab);
   S.items = items; S.byId = new Map(items.map(i => [i.id, i])); if (counts) S.counts = counts;
 }
 async function reloadCart() { const { ids } = await api('/cart'); S.cart = new Set(ids); updateCartCount(); }
@@ -290,7 +296,7 @@ function viewFicha(id, opts) {
          <div class="qt-ficha-actions">
            ${used
         ? `<button class="qt-btn qt-btn-primary" id="act-unuse">↩ Devolver al inventario</button>`
-        : `<button class="qt-btn qt-btn-teal" id="act-use">⬆ Marcar utilizada</button>`}
+        : `<button class="qt-btn dm-btn-maroon" id="act-use">⬆ Marcar utilizada</button>`}
            <button class="qt-btn ${inCart ? 'qt-btn-ghost' : 'qt-btn-ghost'}" id="act-cart">${inCart ? '✓ En el carrito' : '🛒 Añadir al carrito'}</button>
            <button class="qt-btn qt-btn-ghost" id="act-prod">✏️ Nombre / color del medicamento</button>
            <a class="qt-btn qt-btn-ghost" href="/asignacion?dm=${encodeURIComponent(it.raw)}" title="Ver a qué personas se les puede asociar/asignar esta caja (por su CN)">🔗 ¿A quién asociarla?</a>
@@ -388,9 +394,9 @@ function viewList() {
          <button class="qt-action" id="a-recent"><span class="em">🕘</span><span class="lbl">Recientes<small>últimas 10</small></span></button>
        </div>
      </div>
-     <div class="qt-section-title">${S.archive ? 'Medicación utilizada (archivo)' : 'Inventario · sin utilizar'}</div>
+     <div class="qt-section-title">${S.tab === 'archivado' ? 'Archivadas (utilizadas hace más de un mes)' : S.tab === 'utilizado' ? 'Medicación utilizada' : 'Inventario · sin utilizar'}</div>
      <div class="qt-section-sub">Busca, agrupa por medicamento, ordena y usa el carrito. Pulsa una caja para ver su Data Matrix.</div>
-     <div class="dm-invtabs"><button class="dm-tab ${S.archive ? '' : 'sel'}" data-arch="0">Sin utilizar (${S.counts.activo})</button><button class="dm-tab ${S.archive ? 'sel' : ''}" data-arch="1">Utilizadas (${S.counts.utilizado})</button></div>
+     <div class="dm-invtabs"><button class="dm-tab ${S.tab === 'activo' ? 'sel' : ''}" data-tab="activo">Sin utilizar (${S.counts.activo})</button><button class="dm-tab ${S.tab === 'utilizado' ? 'sel' : ''}" data-tab="utilizado">Utilizadas (${S.counts.utilizado})</button><button class="dm-tab ${S.tab === 'archivado' ? 'sel' : ''}" data-tab="archivado">🗄️ Archivadas (${S.counts.archivado || 0})</button></div>
      <div class="qt-search-wrap">
        <div class="qt-search"><span class="ico">🔎</span><input id="q" placeholder="Buscar por medicamento, GTIN, serie, lote, caducidad, CN…" value="${esc(S.query)}" autocomplete="off"></div>
        <div class="qt-andor" id="andor"><button data-v="AND" class="${S.andor === 'AND' ? 'sel' : ''}">AND</button><button data-v="OR" class="${S.andor === 'OR' ? 'sel' : ''}">OR</button></div>
@@ -406,7 +412,7 @@ function viewList() {
        <span class="qt-inline-size" id="dm-size-wrap" ${(S.listMode === 'cards' || S.showListQr) ? '' : 'hidden'}>Tamaño DM <input type="range" id="list-dm-size" min="80" max="${S.listMode === 'cards' ? 220 : 360}" step="10" value="${S.listMode === 'cards' ? st.card_dm_size : st.list_dm_size}"><span id="list-dm-size-v">${S.listMode === 'cards' ? st.card_dm_size : st.list_dm_size}px</span></span>
        ${S.listMode === 'cards' && !S.groupBy ? `<span class="qt-inline-sort">Ordenar <select class="qt-select" id="cards-sort">${SORT_FIELDS.map(f => `<option value="${f.key}" ${S.sort.key === f.key ? 'selected' : ''}>${f.label}</option>`).join('')}</select><select class="qt-select" id="cards-dir"><option value="asc" ${S.sort.dir === 'asc' ? 'selected' : ''}>▲</option><option value="desc" ${S.sort.dir === 'desc' ? 'selected' : ''}>▼</option></select></span>` : ''}
        <button class="qt-toggle ${S.uncatOnly ? 'on' : ''}" id="tg-uncat" title="Medicamentos sin nombre (aún no catalogados)">🏷️ Sin catalogar (${S.items.filter(x => !x.nombre).length})</button>
-       ${!S.archive ? `<button class="qt-toggle ${S.preasigOnly ? 'on' : ''}" id="tg-preasig" title="Cajas reservadas para una persona (desde Asignación)">🔗 Pre-asignadas (${S.items.filter(x => x.asig_state === 'preasignada').length})</button>` : ''}
+       ${S.tab === 'activo' ? `<button class="qt-toggle ${S.preasigOnly ? 'on' : ''}" id="tg-preasig" title="Cajas reservadas para una persona (desde Asignación)">🔗 Pre-asignadas (${S.items.filter(x => x.asig_state === 'preasignada').length})</button>` : ''}
        <button class="qt-toggle ${S.selectedOnly ? 'on' : ''}" id="tg-selected">✔ Solo seleccionadas</button>
        <button class="qt-toggle ${S.cartView ? 'on' : ''}" id="tg-cart">🛒 Solo carrito</button>
        <button class="qt-toggle" id="clear-sel">✕ Quitar selección</button>
@@ -421,7 +427,7 @@ function viewList() {
   $('a-xlsx').onclick = toolExportExcel;
   $('a-pdf').onclick = toolExportPdf;
   $('a-recent').onclick = toolRecent;
-  main().querySelectorAll('[data-arch]').forEach(b => b.addEventListener('click', async () => { const arch = b.dataset.arch === '1'; if (arch === S.archive) return; S.archive = arch; S.medFilter = null; await reloadItems(); viewList(); }));
+  main().querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', async () => { const t = b.dataset.tab; if (t === S.tab) return; S.tab = t; S.medFilter = null; S.selected.clear(); await reloadItems(); viewList(); }));
   const q = $('q'); q.addEventListener('input', () => { S.query = q.value; renderList(); });
   $('andor').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { S.andor = b.dataset.v; $('andor').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b)); renderList(); }));
   $('list-mode').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { S.listMode = b.dataset.m; viewList(); }));
@@ -588,10 +594,33 @@ function wireHeadSort(container) { container.querySelectorAll('th[data-key]').fo
 
 function itemActionsHtml(it, inCart) {
   const used = it.status === 'utilizado';
+  const archived = !!it.archived;
   return `<button class="qt-iconbtn" data-cart="${it.id}" title="${inCart ? 'Quitar del carrito' : 'Añadir al carrito'}">${inCart ? '✓🛒' : '🛒'}</button>
-    <button class="qt-iconbtn" data-used="${it.id}" data-to="${used ? '0' : '1'}" title="${used ? 'Devolver al inventario' : 'Marcar utilizada'}">${used ? '↩' : '⬆'}</button>
+    ${archived
+      ? `<button class="qt-iconbtn" data-unarchive="${it.id}" title="Desarchivar (volver a Utilizadas)">🗄️↩</button>`
+      : `<button class="qt-iconbtn" data-used="${it.id}" data-to="${used ? '0' : '1'}" title="${used ? 'Devolver al inventario' : 'Marcar utilizada'}">${used ? '↩' : '⬆'}</button>`}
     <button class="qt-iconbtn" data-hide="${it.id}" title="Ocultar (temporal)">👁</button>
     <button class="qt-iconbtn danger" data-del="${it.id}" title="Eliminar">🗑</button>`;
+}
+// Un-archive requires typing an exact phrase (so nobody does it by accident).
+async function unarchiveWithPhrase(it) {
+  const REQUIRED = 'Deseo cambiar de estado';
+  return new Promise(resolve => {
+    openModal(`<div class="qt-modal-h"><h3>🗄️ Desarchivar caja</h3><button class="qt-x" data-close>×</button></div>
+      <p class="qt-tool-note">Las cajas se archivan automáticamente pasado un mes para <b>no perder la trazabilidad</b> (se sabe a quién se asignó la medicación). Sacarla del archivo es una acción deliberada.</p>
+      <p class="qt-tool-note">Para continuar, escribe exactamente: <b>${REQUIRED}</b></p>
+      <div class="qt-field"><input class="qt-input" id="ua-text" autocomplete="off" placeholder="Escribe la frase…"></div>
+      <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" data-close>Cancelar</button><button class="qt-btn qt-btn-primary" id="ua-go" disabled>Desarchivar</button></div>`);
+    const inp = $('ua-text'), go = $('ua-go');
+    setTimeout(() => inp && inp.focus(), 40);
+    const check = () => { go.disabled = inp.value.trim() !== REQUIRED; };
+    inp.addEventListener('input', check);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !go.disabled) go.click(); });
+    go.onclick = async () => {
+      try { await api('/item/' + it.id + '/unarchive', jbody({})); closeModal(); toast('Caja desarchivada (vuelve a Utilizadas).', 'ok'); resolve(true); }
+      catch (e) { toast(e.message, 'err'); resolve(false); }
+    };
+  });
 }
 // Optional box-image cell (only when «📷 Foto en el listado» is on).
 function listFotoCell(it, blank) {
@@ -639,6 +668,7 @@ function wireListItems(container) {
   }
   container.querySelectorAll('[data-cart]').forEach(b => b.addEventListener('click', async () => { await toggleCart(Number(b.dataset.cart)); renderList(); }));
   container.querySelectorAll('[data-used]').forEach(b => b.addEventListener('click', async () => { const it = S.byId.get(Number(b.dataset.used)); if (await setUsed(it, b.dataset.to === '1')) { await reloadItems(); if (S.view === 'list') renderList(); } }));
+  container.querySelectorAll('[data-unarchive]').forEach(b => b.addEventListener('click', async () => { const it = S.byId.get(Number(b.dataset.unarchive)); if (it && await unarchiveWithPhrase(it)) { await reloadItems(); if (S.view === 'list') renderList(); } }));
   container.querySelectorAll('[data-hide]').forEach(b => b.addEventListener('click', () => { S.hidden.add(Number(b.dataset.hide)); renderList(); }));
   container.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => { const it = S.byId.get(Number(b.dataset.del)); if (await removeItem(it)) renderList(); }));
 }
@@ -667,7 +697,7 @@ async function setUsed(it, used) {
   try {
     await api('/item/' + it.id + '/used', jbody({ used }));
     toast(used ? 'Marcada utilizada' : 'Devuelta al inventario', 'ok');
-    S.counts = (await api('/items?status=' + (S.archive ? 'utilizado' : 'activo'))).counts || S.counts;
+    S.counts = (await api('/items?status=' + S.tab)).counts || S.counts;
     return true;
   } catch (e) { toast(e.message, 'err'); return false; }
 }
@@ -873,6 +903,8 @@ function viewHelp() {
     { id: 'campos', icon: '🔢', title: 'Los datos del Data Matrix', html: `<p>Del código GS1 se extraen: <b>GTIN</b> (identifica el producto), <b>Nº de serie</b> (único por caja), <b>Lote</b>, <b>Caducidad</b> y <b>Código Nacional</b>. El <b>nombre comercial</b> no va en el código: se toma del <b>catálogo GTIN→nombre</b> (importable) o lo escribes en la ficha.</p><div class="qt-note">Los códigos <b>nunca se repiten por completo</b> (el nº de serie los hace únicos). Si reescaneas una caja ya metida, se avisa.</div>` },
     { id: 'usar', icon: '⬆', title: 'Marcar utilizada', html: `<p>Una caja se marca utilizada de tres formas: en modo <b>Salida</b> del escáner, con el botón <b>⬆</b> del listado, o desde su ficha. Al hacerlo <b>sale del inventario</b>; puedes verla en la pestaña <b>«Utilizadas»</b> y devolverla si te equivocaste.</p>
       <div class="qt-note warn">Marcarla a mano pide <b>confirmación</b>: si la caja <b>no está vinculada</b> a una persona, después <b>no se sabrá a quién fue</b> (fácil de perder). Lo recomendable es <b>asignarla desde Asignación</b> para que quede trazada (✓ Asignada a la persona, con enlace).</div>` },
+    { id: 'archivo', icon: '🗄️', title: 'Archivadas (trazabilidad a largo plazo)', html: `<p>El inventario tiene tres pestañas: <b>Sin utilizar</b>, <b>Utilizadas</b> y <b>🗄️ Archivadas</b>. Una caja utilizada pasa <b>sola</b> a <b>Archivadas</b> cuando lleva <b>más de un mes</b> usada: así «Utilizadas» no se llena, pero <b>no se pierde la trazabilidad</b> (se sigue sabiendo a quién se asignó la medicación).</p>
+      <div class="qt-note warn">Sacar una caja del archivo (volver a «Utilizadas») es <b>deliberado</b>: pide escribir la frase exacta <b>«Deseo cambiar de estado»</b> en un aviso, para que nadie lo haga por descuido. Una vez desarchivada a mano, ya no se vuelve a archivar sola.</div>` },
     { id: 'cima', icon: '🔎', title: 'Nombre e imágenes desde CIMA (AEMPS)', html: `<p>Al escanear o importar, la app pide a <b>CIMA (AEMPS)</b> el <b>nombre comercial</b> (por el <b>Código Nacional</b>, que saca del GTIN o del AI 712) y descarga la <b>foto de la caja y de la pastilla</b>. En la <b>ficha</b> esas imágenes aparecen <b>debajo del Data Matrix</b>; al pulsarlas se abren <b>en grande</b> (igual que en QR·TIS). En el <b>listado</b>, el filtro <b>«📷 Foto en el listado»</b> muestra la foto de la caja a la izquierda (desactivado por defecto).</p>
       <div class="qt-note tip">Si CIMA no estaba disponible al escanear/importar, usa <b>«🔄 Completar desde CIMA»</b> para rellenar en bloque nombres e imágenes de las cajas sin nombre. Lo consultado se <b>guarda en local</b> (datos + imágenes) y sigue disponible offline. (Requiere salida del servidor hacia <i>cima.aemps.es</i>.)</div>` },
     { id: 'estados', icon: '🚦', title: 'Los estados de una caja (importante)', html: `<p>Cada caja Data Matrix pasa por estos estados, que verás como <b>etiquetas de color</b> en el listado, las tarjetas, el carrito y la ficha:</p>
@@ -906,7 +938,7 @@ function persistState() {
   try {
     localStorage.setItem(UI_KEY, JSON.stringify({
       view: S.view, query: S.query, andor: S.andor, sort: S.sort,
-      listMode: S.listMode, groupBy: S.groupBy, archive: S.archive,
+      listMode: S.listMode, groupBy: S.groupBy, tab: S.tab,
       uncatOnly: S.uncatOnly, preasigOnly: S.preasigOnly, medFilter: S.medFilter,
       selected: [...S.selected], hidden: [...S.hidden], currentItemId: S.currentItemId,
     }));
@@ -922,7 +954,7 @@ function restoreState() {
     if (s.andor === 'AND' || s.andor === 'OR') S.andor = s.andor;
     if (s.sort && typeof s.sort.key === 'string') S.sort = { key: s.sort.key, dir: s.sort.dir === 'desc' ? 'desc' : 'asc' };
     if (s.listMode === 'table' || s.listMode === 'cards') S.listMode = s.listMode;
-    S.groupBy = !!s.groupBy; S.archive = !!s.archive; S.uncatOnly = !!s.uncatOnly; S.preasigOnly = !!s.preasigOnly;
+    S.groupBy = !!s.groupBy; S.tab = ['activo', 'utilizado', 'archivado'].includes(s.tab) ? s.tab : 'activo'; S.uncatOnly = !!s.uncatOnly; S.preasigOnly = !!s.preasigOnly;
     S.medFilter = (typeof s.medFilter === 'string' && s.medFilter) ? s.medFilter : null;
     if (Array.isArray(s.selected)) S.selected = new Set(s.selected.filter(id => S.byId.has(id)));
     if (Array.isArray(s.hidden)) S.hidden = new Set(s.hidden.filter(id => S.byId.has(id)));
@@ -947,6 +979,11 @@ window.addEventListener('beforeunload', persistState);
     const saved = restoreState();
     const params = new URLSearchParams(location.search);
     const itemId = Number(params.get('item'));
+    // Deep link from Asignación: load the box even if it's used/archived (not in the
+    // current tab) so the ficha opens the specific box, not the inventory list.
+    if (itemId && !S.byId.has(itemId)) {
+      try { const { item } = await api('/item/' + itemId); if (item) { S.items.push(item); S.byId.set(item.id, item); } } catch { /* */ }
+    }
     if (params.has('help')) viewHelp();
     else if (itemId && S.byId.has(itemId)) viewFicha(itemId);   // deep link from Asignación
     else if (saved && saved.view === 'ficha' && S.currentItemId && S.byId.has(S.currentItemId)) viewFicha(S.currentItemId);

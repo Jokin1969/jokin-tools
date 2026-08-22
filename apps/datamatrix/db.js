@@ -83,6 +83,13 @@ try { db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_products_cn ON dm_products(c
 try { db.prepare('ALTER TABLE dm_items ADD COLUMN assignee_id INTEGER').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE dm_items ADD COLUMN assignee_name TEXT').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE dm_items ADD COLUMN assignee_pharmacy TEXT').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE dm_items ADD COLUMN assignee_group TEXT').run(); } catch { /* already present */ }
+// Archive: used boxes auto-move to «Archivadas» after a month (keeps traceability
+// without cluttering «Utilizadas»). `archived_manual`=1 marks a box a user pulled
+// back to «Utilizadas», so auto-archive won't touch it again.
+try { db.prepare('ALTER TABLE dm_items ADD COLUMN archived INTEGER NOT NULL DEFAULT 0').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE dm_items ADD COLUMN archived_at DATETIME').run(); } catch { /* already present */ }
+try { db.prepare('ALTER TABLE dm_items ADD COLUMN archived_manual INTEGER NOT NULL DEFAULT 0').run(); } catch { /* already present */ }
 try { db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_items_assignee ON dm_items(assignee_id)').run(); } catch { /* ignore */ }
 
 // ── CIMA (AEMPS) local cache ─────────────────────────────────────────────────────
@@ -115,16 +122,34 @@ const DEFAULT_SETTINGS = { dm_size: 300, list_dm_size: 100, card_dm_size: 200, d
 // carried one). Colour/shape still key off the box's own GTIN for a stable look.
 const ITEM_SELECT =
   `SELECT i.id, i.raw, i.box_key, i.gtin, i.serial, i.lote, i.caducidad, i.cn, i.status,
-          i.used_at, i.created_at, i.updated_at, i.assignee_id, i.assignee_name, i.assignee_pharmacy,
+          i.used_at, i.created_at, i.updated_at, i.assignee_id, i.assignee_name, i.assignee_pharmacy, i.assignee_group, i.archived,
           COALESCE(p.nombre, pc.nombre) AS nombre, p.color AS color, p.shape AS shape
      FROM dm_items i
      LEFT JOIN dm_products p  ON p.gtin = i.gtin
      LEFT JOIN dm_products pc ON pc.cn = i.cn AND i.cn IS NOT NULL AND i.cn <> ''`;
 
-function listItems(status) {
-  const where = status ? 'WHERE i.status = ?' : '';
-  const args = status ? [status] : [];
-  return db.prepare(`${ITEM_SELECT} ${where} ORDER BY p.nombre COLLATE NOCASE, i.gtin, i.caducidad, i.id`).all(...args);
+// tab: 'activo' (stock) | 'utilizado' (used, not archived) | 'archivado' (used, archived).
+function listItems(tab) {
+  let where = '';
+  if (tab === 'activo') where = "WHERE i.status = 'activo'";
+  else if (tab === 'utilizado') where = "WHERE i.status = 'utilizado' AND i.archived = 0";
+  else if (tab === 'archivado') where = "WHERE i.status = 'utilizado' AND i.archived = 1";
+  return db.prepare(`${ITEM_SELECT} ${where} ORDER BY p.nombre COLLATE NOCASE, i.gtin, i.caducidad, i.id`).all();
+}
+// Auto-archive: used boxes older than `days` (by used_at) move to «Archivadas»,
+// unless a user manually pulled them back. Returns how many were archived.
+function autoArchive(days) {
+  const d = Number.isFinite(days) ? days : 30;
+  const cutoff = new Date(Date.now() - d * 86400000).toISOString().replace('T', ' ').slice(0, 19);
+  return db.prepare(
+    `UPDATE dm_items SET archived = 1, archived_at = CURRENT_TIMESTAMP
+      WHERE status = 'utilizado' AND archived = 0 AND archived_manual = 0 AND used_at IS NOT NULL AND used_at <= ?`
+  ).run(cutoff).changes;
+}
+// Manually move an archived box back to «Utilizadas» (won't auto-archive again).
+function unarchiveItem(id) {
+  db.prepare('UPDATE dm_items SET archived = 0, archived_manual = 1, archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+  return getItem(id);
 }
 function getItem(id) {
   return db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(id) || null;
@@ -164,17 +189,18 @@ function touchItem(id) {
 // Reserve (or release) a box for a person. Passing assigneeId = null clears it.
 // Does NOT change status — pre-asignada keeps the box 'activo' (still in stock);
 // the caller marks it 'utilizado' (setUsed) when it is actually dispensed.
-function setAssignee(id, assigneeId, assigneeName, assigneePharmacy) {
+function setAssignee(id, assigneeId, assigneeName, assigneePharmacy, assigneeGroup) {
   const it = db.prepare('SELECT id FROM dm_items WHERE id = ?').get(id);
   if (!it) return null;
   db.prepare(
-    `UPDATE dm_items SET assignee_id = @assignee_id, assignee_name = @assignee_name, assignee_pharmacy = @assignee_pharmacy,
+    `UPDATE dm_items SET assignee_id = @assignee_id, assignee_name = @assignee_name, assignee_pharmacy = @assignee_pharmacy, assignee_group = @assignee_group,
             updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP WHERE id = @id`
   ).run({
     id,
     assignee_id: assigneeId != null ? assigneeId : null,
     assignee_name: assigneeId != null ? (assigneeName || null) : null,
     assignee_pharmacy: assigneeId != null ? (assigneePharmacy || null) : null,
+    assignee_group: assigneeId != null ? (assigneeGroup || null) : null,
   });
   return getItem(id);
 }
@@ -209,10 +235,12 @@ function deleteItem(id) {
 }
 const deleteMany = db.transaction((ids) => { let n = 0; for (const id of ids) if (deleteItem(id)) n++; return n; });
 function counts() {
+  autoArchive(30);   // keep «Utilizadas» tidy: used > 1 month → «Archivadas»
   const a = db.prepare("SELECT COUNT(*) n FROM dm_items WHERE status='activo'").get().n;
-  const u = db.prepare("SELECT COUNT(*) n FROM dm_items WHERE status='utilizado'").get().n;
+  const u = db.prepare("SELECT COUNT(*) n FROM dm_items WHERE status='utilizado' AND archived=0").get().n;
+  const arch = db.prepare("SELECT COUNT(*) n FROM dm_items WHERE status='utilizado' AND archived=1").get().n;
   const pre = db.prepare("SELECT COUNT(*) n FROM dm_items WHERE status='activo' AND assignee_id IS NOT NULL").get().n;
-  return { activo: a, utilizado: u, preasignada: pre };
+  return { activo: a, utilizado: u, archivado: arch, preasignada: pre };
 }
 
 // ── Products (GTIN → nombre / colour / shape) ────────────────────────────────────
@@ -329,7 +357,7 @@ function cimaCacheCount() { return db.prepare('SELECT COUNT(*) n FROM cima_cache
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listItems, getItem, findByKey, createItem, createManyItems, setUsed, touchItem, setAssignee, availableItems, availableItemsByCn, recentItems, deleteItem, deleteMany, counts,
+  listItems, getItem, findByKey, createItem, createManyItems, setUsed, touchItem, setAssignee, availableItems, availableItemsByCn, recentItems, deleteItem, deleteMany, counts, autoArchive, unarchiveItem,
   getProduct, listProducts, upsertProduct, importProducts, firstItemCnForGtin,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,

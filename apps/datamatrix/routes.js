@@ -61,6 +61,8 @@ function publicItem(it) {
     assignee_id: it.assignee_id != null ? it.assignee_id : null,
     assignee_name: it.assignee_name || null,
     assignee_pharmacy: it.assignee_pharmacy || null,
+    assignee_group: it.assignee_group || null,
+    archived: it.archived ? 1 : 0,
     asig_state,
     created_at: it.created_at, updated_at: it.updated_at,
   };
@@ -128,8 +130,9 @@ router.post('/api/use', json, (req, res) => {
 // ── Items ─────────────────────────────────────────────────────────────────────
 router.get('/api/items', (req, res) => {
   try {
-    const status = req.query.status === 'utilizado' ? 'utilizado' : 'activo';
-    res.json({ items: db.listItems(status).map(publicItem), counts: db.counts() });
+    const counts = db.counts();   // also runs auto-archive
+    const tab = ['utilizado', 'archivado'].includes(req.query.status) ? req.query.status : 'activo';
+    res.json({ items: db.listItems(tab).map(publicItem), counts });
   } catch (err) { fail(res, err); }
 });
 router.get('/api/item/:id(\\d+)', (req, res) => {
@@ -154,8 +157,22 @@ router.post('/api/item/:id(\\d+)/used', json, (req, res) => {
     res.json({ item: publicItem(it) });
   } catch (err) { fail(res, err); }
 });
+// Move an archived box back to «Utilizadas» (the UI gates this behind a typed
+// confirmation). It won't auto-archive again.
+router.post('/api/item/:id(\\d+)/unarchive', json, (req, res) => {
+  try {
+    const cur = db.getItem(Number(req.params.id));
+    if (!cur) return res.status(404).json({ error: 'No encontrado.' });
+    const it = db.unarchiveItem(cur.id);
+    res.json({ item: publicItem(it) });
+  } catch (err) { fail(res, err); }
+});
 router.post('/api/item/:id(\\d+)/touch', (req, res) => {
   try { const it = db.touchItem(Number(req.params.id)); if (!it) return res.status(404).json({ error: 'No encontrado.' }); res.json({ ok: true }); }
+  catch (err) { fail(res, err); }
+});
+router.get('/api/item/:id(\\d+)', (req, res) => {
+  try { const it = db.getItem(Number(req.params.id)); if (!it) return res.status(404).json({ error: 'No encontrado.' }); res.json({ item: publicItem(it) }); }
   catch (err) { fail(res, err); }
 });
 router.delete('/api/item/:id(\\d+)', (req, res) => {

@@ -587,7 +587,7 @@ router.post('/api/person/:id(\\d+)/preassign', json, (req, res) => {
     const period = db.getOrCreatePeriod(p.id, ym, req.user.id);
     const existing = db.findLine(period.id, item.id);
     if (!existing) {
-      dmDb.setAssignee(item.id, p.id, personName(p), p.pharmacy_no || null);
+      dmDb.setAssignee(item.id, p.id, personName(p), p.pharmacy_no || null, parseGroups(p.group_name).join(" · ") || null);
       db.addLine({ period_id: period.id, person_id: p.id, gtin: item.gtin, item_id: item.id, box_key: item.box_key, state: 'preasignada' });
     }
     // A CN-only plan med "graduates" to catalogued once we know the box's GTIN.
@@ -621,7 +621,7 @@ router.post('/api/dm/candidates', json, async (req, res) => {
       assignee_id: existing ? (existing.assignee_id != null ? existing.assignee_id : null) : null,
       assignee_name: existing ? (existing.assignee_name || null) : null,
     };
-    const candidates = [];
+    let candidates = [];
     for (const pl of db.plansByCnOrGtin(cn, gtin)) {
       const person = qrDb.getPerson(pl.person_id);
       if (!person || !person.active) continue;
@@ -631,6 +631,8 @@ router.post('/api/dm/candidates', json, async (req, res) => {
         med: { nombre: pl.nombre || nombre || null, cn: pl.cn || null, gtin: pl.gtin || null, qty: pl.qty || 1 },
       });
     }
+    // If the box is already associated/assigned, show ONLY that person.
+    if (dm.assignee_id != null) candidates = candidates.filter(c => c.person.id === dm.assignee_id);
     res.json({ dm, candidates });
   } catch (err) { fail(res, err); }
 });
@@ -727,7 +729,7 @@ router.post('/api/person/:id(\\d+)/scan', json, (req, res) => {
       const data = { raw, box_key: gs1.boxKey(f, raw), gtin, serial: f.serial, lote: f.lote, caducidad: gs1.expiryToIso(f.caducidad), cn };
       let item = dmDb.findByKey(data.box_key) || dmDb.createItem(data, req.user.id);
       if (item.assignee_id != null && item.assignee_id !== p.id) throw bad(`Esa caja ya está asociada a ${item.assignee_name || 'otra persona'}.`);
-      dmDb.setAssignee(item.id, p.id, personName(p), p.pharmacy_no || null);
+      dmDb.setAssignee(item.id, p.id, personName(p), p.pharmacy_no || null, parseGroups(p.group_name).join(" · ") || null);
       const line = db.findLine(period.id, item.id);
       if (line) db.setLineState(line.id, 'asignada');
       else db.addLine({ period_id: period.id, person_id: p.id, gtin: item.gtin, item_id: item.id, box_key: item.box_key, state: 'asignada' });

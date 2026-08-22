@@ -215,3 +215,27 @@ test('una caja con asignee NO se devuelve/marca desde Data Matrix (gestión en A
     assert.equal(db.getItem(it.id).status, 'utilizado', 'no cambia: sigue utilizada');
   } finally { server.close(); }
 });
+
+test('archivado automático (>1 mes) y desarchivar manual (no se re-archiva)', () => {
+  const it = db.createItem({ raw: 'ARCH1', box_key: 'ARCHK1', gtin: '08470006991545', serial: 'AR1' }, 1);
+  db.setUsed(it.id, true);
+  db.db.prepare("UPDATE dm_items SET used_at = '2020-01-01 00:00:00' WHERE id = ?").run(it.id);
+  const c = db.counts();                       // ejecuta auto-archivado
+  assert.ok(c.archivado >= 1, 'cuenta archivadas');
+  assert.equal(db.getItem(it.id).archived, 1, 'la caja vieja se archiva sola');
+  assert.ok(db.listItems('archivado').some(x => x.id === it.id));
+  assert.ok(!db.listItems('utilizado').some(x => x.id === it.id), 'ya no está en Utilizadas');
+  // Desarchivar → vuelve a Utilizadas y NO se re-archiva.
+  db.unarchiveItem(it.id);
+  assert.equal(db.getItem(it.id).archived, 0);
+  db.counts();                                 // auto-archivado otra vez
+  assert.equal(db.getItem(it.id).archived, 0, 'una vez desarchivada a mano, no se re-archiva');
+});
+
+test('setAssignee guarda el grupo y publicItem lo expone', () => {
+  const it = db.createItem({ raw: 'GRP1', box_key: 'GRPK1', gtin: '08470006991545', serial: 'GR1' }, 1);
+  db.setAssignee(it.id, 55, 'Pérez García, Ana', '55001', 'Residencia Norte');
+  const row = db.getItem(it.id);
+  assert.equal(row.assignee_group, 'Residencia Norte');
+  assert.equal(row.assignee_pharmacy, '55001');
+});

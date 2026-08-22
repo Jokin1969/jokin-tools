@@ -494,3 +494,8 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .qt-toolbar .qt-toggle, .qt-toolbar .qt-seg, .qt-toolbar .qt-inline-size { min-height: 38px; box-sizing: border-box; }
 .qt-toolbar .qt-seg { align-items: stretch; }
 .qt-toolbar .qt-seg button { display: inline-flex; align-items: center; }
+
+/* Maroon action button (e.g. "Marcar utilizada") */
+.dm-btn-maroon { background: #8a2b33; color: #fff; }
+.dm-btn-maroon:hover { background: #73232a; }
+.dm-asig-paren { font-weight: 600; opacity: .9; }
