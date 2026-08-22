@@ -224,7 +224,20 @@ router.get('/api/people/:id(\\d+)/med-summary', (req, res) => {
 router.get('/api/people', (req, res) => {
   try {
     const notes = db.notesMap();
-    res.json({ items: db.listPeople().map(p => ({ ...publicPerson(p), note: notes.get(p.id) || null })) });
+    const canAsig = canAccess(req.user, 'asignacion');
+    const planSet = canAsig ? asigDb.personsWithPlanSet() : null;
+    res.json({ items: db.listPeople().map(p => ({ ...publicPerson(p), note: notes.get(p.id) || null, ...(planSet ? { has_plan: planSet.has(p.id) } : {}) })) });
+  } catch (err) { fail(res, err); }
+});
+// Create an (empty) medication plan for a person, so it persists and shows as
+// "con plan". Only for users with access to Asignación.
+router.post('/api/people/:id(\\d+)/create-plan', (req, res) => {
+  try {
+    if (!canAccess(req.user, 'asignacion')) return res.status(403).json({ error: 'Sin acceso a Asignación.' });
+    const p = db.getPerson(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
+    asigDb.createEmptyPlan(p.id, req.user.id);
+    res.json({ ok: true, has_plan: true });
   } catch (err) { fail(res, err); }
 });
 

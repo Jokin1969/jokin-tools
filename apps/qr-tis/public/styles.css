@@ -427,3 +427,13 @@ a.qt-btn { text-decoration: none; }
 .az-noteedit-cols { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
 .az-noteedit-sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(0,0,0,.12); cursor: pointer; }
 .az-noteedit-sw.sel { border-color: #0f172a; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0f172a; }
+
+/* ── Medication-plan pill in the list (grey = no plan, green = has plan) ───────── */
+.qt-plan-pill { border: 1px solid transparent; border-radius: 999px; padding: 3px 10px; font-size: 1rem; line-height: 1; cursor: pointer; transition: background .12s, border-color .12s, transform .05s; }
+.qt-plan-pill:hover { transform: translateY(-1px); }
+.qt-plan-pill.none { background: #eef1f5; border-color: #dbe1e8; }
+.qt-plan-pill.none:hover { background: #e3e8ee; border-color: #c7d0da; }
+.qt-plan-pill.has { background: #e2f5ec; border-color: #bfe6d1; }
+.qt-plan-pill.has:hover { background: #d3efe0; border-color: #9fd8ba; }
+.qt-td-plan { width: 1%; white-space: nowrap; text-align: center; }
+.qt-th-sel { width: 1%; }

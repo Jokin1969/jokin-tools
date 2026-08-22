@@ -767,3 +767,21 @@ test('post-its: compartir se limita a usuarios con acceso a la app', async () =>
   const n2 = (await call('POST', '/notes', { board_id: board, content: 'otra', visibility: 'personalizada', viewer_ids: [2, 3] })).data.item;
   assert.deepEqual(n2.viewer_ids.sort(), [2], 'al crear también se filtra por acceso');
 });
+
+test('plan vacío: createEmptyPlan persiste y cuenta como "con plan"', async () => {
+  const asigDb = require('../apps/asignacion/db');
+  const pid = qrDb.createPerson({ pharmacy_no: '80300', nombre: 'Vac', apellidos: 'Io', tis: '00080300' }, 1).id;
+  // Sin plan al principio.
+  assert.equal(asigDb.personMedSummary(pid).has_plan, false);
+  assert.equal(asigDb.personsWithPlanSet().has(pid), false);
+  // Crear plan vacío → persiste y cuenta como con plan (sin medicamentos).
+  asigDb.createEmptyPlan(pid, 1);
+  const s = asigDb.personMedSummary(pid);
+  assert.equal(s.has_plan, true);
+  assert.equal(s.plan_count, 0);
+  assert.equal(s.empty_plan, true);
+  assert.equal(asigDb.personsWithPlanSet().has(pid), true);
+  // Idempotente.
+  asigDb.createEmptyPlan(pid, 1);
+  assert.equal(asigDb.personMedSummary(pid).has_plan, true);
+});

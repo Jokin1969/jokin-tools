@@ -654,23 +654,30 @@ function renderGroupsPanel() {
 
 // Table header row (sortable columns).
 function headTr() {
-  const cols = [
-    { key: 'sel', label: '', sort: false },
-    { key: 'pharmacy_no', label: 'Nº Farmacia' },
+  const cols = [{ key: 'sel', label: '', sort: false }];
+  if (S.canAsignacion) cols.push({ key: 'plan', label: '💊', sort: false });
+  cols.push(
+    { key: 'pharmacy_no', label: 'Nº Far.' },
     { key: 'nombre', label: 'Nombre' },
     { key: 'apellidos', label: 'Apellidos' },
     { key: 'tis', label: 'Código TIS' },
     { key: 'group_name', label: 'Grupo' },
     { key: 'active', label: 'Estado' },
-  ];
+  );
   if (S.showListQr) cols.push({ key: 'qr', label: 'QR', sort: false });
   cols.push({ key: 'act', label: '', sort: false });
   return '<tr>' + cols.map(c => {
+    if (c.key === 'sel') return `<th class="no-sort qt-th-sel"><input type="checkbox" id="sel-all" class="qt-check" title="Seleccionar / deseleccionar todo el listado"></th>`;
     if (c.sort === false) return `<th class="no-sort">${c.label}</th>`;
     const sorted = S.sort.key === c.key;
     const arrow = sorted ? (S.sort.dir === 'asc' ? '▲' : '▼') : '↕';
     return `<th data-key="${c.key}" class="${sorted ? 'sorted' : ''}">${c.label} <span class="arrow">${arrow}</span></th>`;
   }).join('') + '</tr>';
+}
+// A pill that shows/links a person's medication plan (green = has, grey = none).
+function planPillHtml(p) {
+  const has = !!p.has_plan;
+  return `<button class="qt-plan-pill ${has ? 'has' : 'none'}" data-plan="${p.id}" title="${has ? 'Ir al plan de medicación' : 'Sin plan — pulsa para crearlo'}" aria-label="Plan de medicación">💊</button>`;
 }
 function wireHeadSort(container) {
   container.querySelectorAll('th[data-key]').forEach(th => th.addEventListener('click', () => {
@@ -721,6 +728,7 @@ function personRowHtml(p) {
     : '';
   return `<tr class="${p.active ? '' : 'is-inactive'} ${p.deceased ? 'is-deceased' : ''} ${sel ? 'is-selected' : ''}" data-id="${p.id}">
     <td><input type="checkbox" class="qt-check" data-sel="${p.id}" ${sel ? 'checked' : ''}></td>
+    ${S.canAsignacion ? `<td class="qt-td-plan">${planPillHtml(p)}</td>` : ''}
     <td><span class="qt-cell-pharm" data-open="${p.id}">${p.pharmacy_no ? esc(p.pharmacy_no) : '<span style=\"color:#c3c9d2\">—</span>'}</span></td>
     <td><span class="qt-cell-name" data-open="${p.id}">${esc(p.nombre)}</span></td>
     <td>${esc(p.apellidos)}</td>
@@ -744,6 +752,7 @@ function personCardHtml(p) {
     <div class="qt-pcard-head">
       <input type="checkbox" class="qt-check" data-sel="${p.id}">
       <span class="qt-cell-pharm" data-open="${p.id}">${p.pharmacy_no ? esc(p.pharmacy_no) : '—'}</span>
+      ${S.canAsignacion ? planPillHtml(p) : ''}
       <span class="qt-state-dot ${p.deceased ? 'deceased' : p.active ? '' : 'off'}" style="margin-left:auto" title="${p.deceased ? 'Fallecida' : p.active ? 'Activa' : 'Inactiva'}"><span class="dot"></span></span>
     </div>
     ${qr}
@@ -803,6 +812,7 @@ function wireListItems(container) {
     const id = Number(cb.dataset.sel); if (cb.checked) S.selected.add(id); else S.selected.delete(id); renderRows();
   }));
   container.querySelectorAll('[data-group]').forEach(g => g.addEventListener('click', () => selectGroup(g.dataset.group)));
+  container.querySelectorAll('[data-plan]').forEach(b => b.addEventListener('click', () => onPlanPill(Number(b.dataset.plan))));
   container.querySelectorAll('[data-note]').forEach(b => b.addEventListener('click', () => editPersonNote(Number(b.dataset.note), renderRows)));
   container.querySelectorAll('[data-cart]').forEach(b => b.addEventListener('click', async () => { await toggleCart(Number(b.dataset.cart)); renderRows(); }));
   container.querySelectorAll('[data-active]').forEach(b => b.addEventListener('click', async () => { const p = S.byId.get(Number(b.dataset.active)); await setActive(p, !p.active); renderRows(); }));
@@ -832,8 +842,30 @@ function renderRows() {
   } else {
     body.innerHTML = `<div class="qt-table-wrap"><table class="qt-table"><thead>${headTr()}</thead><tbody>${rows.map(personRowHtml).join('')}</tbody></table></div>`;
     wireHeadSort(body);
+    const selAll = body.querySelector('#sel-all');
+    if (selAll) {
+      const allSel = rows.length > 0 && rows.every(p => S.selected.has(p.id));
+      selAll.checked = allSel;
+      selAll.indeterminate = !allSel && rows.some(p => S.selected.has(p.id));
+      selAll.onclick = () => { const on = selAll.checked; rows.forEach(p => on ? S.selected.add(p.id) : S.selected.delete(p.id)); renderRows(); };
+    }
   }
   wireListItems(body);
+}
+// Pill click: go to the plan (if it exists) or offer to create an empty one.
+function onPlanPill(id) {
+  const p = S.byId.get(id); if (!p) return;
+  if (p.has_plan) { location.href = '/asignacion?person=' + id; return; }
+  openModal(`<div class="qt-modal-h"><h3>💊 Plan de medicación</h3><button class="qt-x" data-close>×</button></div>
+    <p style="font-size:.95rem;line-height:1.5"><b>${esc(p.nombre)} ${esc(p.apellidos)}</b> todavía no tiene plan de medicación. ¿Quieres <b>crear su plan</b> (aunque esté vacío) y abrirlo? Así queda listo para añadirle medicación o para una importación en lote.</p>
+    <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" data-close>Cancelar</button><button class="qt-btn qt-btn-primary" id="cp-go">Sí, crear y abrir</button></div>`);
+  $('cp-go').onclick = async () => {
+    try {
+      await api('/people/' + id + '/create-plan', { method: 'POST' });
+      p.has_plan = true; S.byId.set(id, p); const i = S.people.findIndex(x => x.id === id); if (i >= 0) S.people[i] = p;
+      location.href = '/asignacion?person=' + id;
+    } catch (e) { toast(e.message, 'err'); }
+  };
 }
 
 // Select every person in a group (adds to the current selection).
@@ -1073,8 +1105,9 @@ function viewHelp() {
       </ul>` },
     { id: 'recientes', icon: '🕘', title: 'Recientes', html: `
       <p><span class="qt-chip-inline">🕘 Recientes</span> muestra las <strong>últimas 10 personas manejadas</strong> (creadas, editadas o cuya ficha se ha abierto). Pulsa una para ir a su ficha.</p>` },
-    { id: 'medicacion', icon: '💊', title: 'Ir a su medicación (Asignación)', html: `
-      <p>En la <strong>ficha</strong> de una persona hay un botón <strong>💊 Medicación</strong> que lleva directo a su medicación en la app de <strong>Asignación de medicación</strong>: indica cuántos medicamentos tiene en el plan y, si no tiene, ofrece <strong>crearlo</strong>. Solo aparece si tienes acceso a esa app.</p>` },
+    { id: 'medicacion', icon: '💊', title: 'Plan de medicación (pastilla) e ir a Asignación', html: `
+      <p>En el <strong>listado</strong>, cada persona muestra una <strong>pastilla 💊</strong>: <strong>verde</strong> si ya tiene plan de medicación y <strong>gris</strong> si no. Al pulsarla, si tiene plan te lleva directo a él en <strong>Asignación</strong>; si no, te pregunta si quieres <strong>crear su plan</strong> (aunque quede vacío) y lo abre. Un plan creado <strong>se guarda</strong> aunque no tenga medicamentos todavía. Solo aparece si tienes acceso a Asignación.</p>
+      <p>En la <strong>ficha</strong> también está el botón <strong>💊 Medicación</strong>, con el mismo destino.</p>` },
   ];
   const nav = SECS.map(s => `<a data-go="help-${s.id}">${s.icon} ${s.title}</a>`).join('');
   const secs = SECS.map(s => `<section class="qt-help-sec" id="help-${s.id}"><h2><span class="em">${s.icon}</span>${s.title}</h2>${s.html}</section>`).join('');

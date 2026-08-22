@@ -238,6 +238,13 @@ db.exec(`
     added_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, person_id)
   );
+  -- A person's medication plan can exist "empty" (created on purpose, no meds yet)
+  -- so it persists and shows as "con plan" even before any medication is added.
+  CREATE TABLE IF NOT EXISTS asig_plan_created (
+    person_id  INTEGER PRIMARY KEY,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER
+  );
 `);
 
 console.log('[asignacion] Database ready at:', DB_PATH);
@@ -255,7 +262,13 @@ function personMedSummary(personId) {
   const rows = db.prepare('SELECT active FROM asig_plan WHERE person_id = ?').all(personId);
   const active_count = rows.filter(r => r.active).length;
   const latest = latestPeriod(personId);
-  return { plan_count: rows.length, active_count, has_plan: rows.length > 0, latest_ym: latest ? latest.ym : null };
+  const flagged = !!db.prepare('SELECT 1 FROM asig_plan_created WHERE person_id = ?').get(personId);
+  return { plan_count: rows.length, active_count, has_plan: rows.length > 0 || flagged, empty_plan: rows.length === 0 && flagged, latest_ym: latest ? latest.ym : null };
+}
+// Mark a person's plan as created (empty is fine); persists so it counts as a plan.
+function createEmptyPlan(personId, userId) {
+  db.prepare('INSERT OR IGNORE INTO asig_plan_created (person_id, created_by) VALUES (?, ?)').run(personId, userId != null ? userId : null);
+  return true;
 }
 function getPlanLine(id) { return db.prepare('SELECT * FROM asig_plan WHERE id = ?').get(id) || null; }
 function planByGtin(personId, gtin) {
@@ -356,7 +369,12 @@ function planForItem(personId, gtin, cn) {
   return null;
 }
 // Person ids that have at least one plan line (for the overview list).
-function planPersonIds() { return db.prepare('SELECT DISTINCT person_id FROM asig_plan').all().map(r => r.person_id); }
+function planPersonIds() {
+  const set = new Set(db.prepare('SELECT DISTINCT person_id FROM asig_plan').all().map(r => r.person_id));
+  for (const r of db.prepare('SELECT person_id FROM asig_plan_created').all()) set.add(r.person_id);
+  return [...set];
+}
+function personsWithPlanSet() { return new Set(planPersonIds()); }
 
 // ── Period (monthly cycle per person) ────────────────────────────────────────────
 function getPeriod(id) { return db.prepare('SELECT * FROM asig_period WHERE id = ?').get(id) || null; }
@@ -767,6 +785,7 @@ function saveSettings(data, userId) {
 module.exports = {
   db, DEFAULT_SETTINGS,
   listPlan, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, deletePlanLine, planPersonIds,
+  createEmptyPlan, personsWithPlanSet,
   setPlanRelease, setPlanAdvance, plansForRelease, planForItem, findPendingLineForMed,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
   DEFAULT_ADVANCE, clampAdvance, effectiveDate,
