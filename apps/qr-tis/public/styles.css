@@ -405,3 +405,14 @@ a.qt-btn { text-decoration: none; }
 .qt-groupcard.has-gc .gc-count { color: var(--gc); }
 .qt-groupcard.active.has-gc { background: linear-gradient(135deg, color-mix(in srgb, var(--gc) 58%, #000), var(--gc)); border-color: transparent; box-shadow: none; }
 .qt-groupcard.active.has-gc .gc-count, .qt-groupcard.active.has-gc .gc-name { color: #fff; }
+
+/* ── Export PDF modal: residence filter + ordering ────────────────────────────── */
+.qt-exp-block { margin: 12px 0 4px; }
+.qt-exp-label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
+.qt-exp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.qt-exp-chip { border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 999px; padding: 5px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+.qt-exp-chip:hover { border-color: var(--brand); }
+.qt-exp-chip.sel { border-color: var(--brand); background: #e8f2fb; color: var(--brand-2); }
+.qt-exp-chip.has-gc.sel { background: color-mix(in srgb, var(--gc) 18%, #fff); border-color: var(--gc); color: color-mix(in srgb, var(--gc) 82%, #000); }
+.qt-exp-hint { font-size: 0.74rem; color: var(--muted); margin-top: 5px; }
+.qt-exp-seg { flex-wrap: wrap; }

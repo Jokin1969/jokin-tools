@@ -1025,7 +1025,7 @@ function viewHelp() {
       <p>Ambos botones están <strong>arriba a la derecha</strong> del listado.</p>
       <ul>
         <li><span class="qt-chip-inline">📊 Exportar Excel</span>: elige <strong>qué columnas</strong>, el <strong>orden</strong> y qué personas (las que se ven, las seleccionadas o todas).</li>
-        <li><span class="qt-chip-inline">🖨️ Exportar PDF</span>: una hoja imprimible de códigos QR con el <strong>nombre, el TIS y el Nº de farmacia</strong>, con <strong>tamaño de QR variable</strong>. Cada QR sale con el <strong>color de esa persona</strong>.</li>
+        <li><span class="qt-chip-inline">🖨️ Exportar PDF</span>: una hoja imprimible de códigos QR con el <strong>nombre, el TIS y el Nº de farmacia</strong>, con <strong>tamaño de QR variable</strong>. Puedes <strong>filtrar por residencias (grupos)</strong> y elegir el <strong>orden</strong>: Nº de farmacia, TIS, Nombre, Apellidos o <strong>Residencia</strong>; si ordenas por residencia, eliges además <strong>cómo ordenar dentro de cada una</strong>. Cada QR sale con el <strong>color de su persona o de su residencia</strong>.</li>
       </ul>` },
     { id: 'recientes', icon: '🕘', title: 'Recientes', html: `
       <p><span class="qt-chip-inline">🕘 Recientes</span> muestra las <strong>últimas 10 personas manejadas</strong> (creadas, editadas o cuya ficha se ha abierto). Pulsa una para ir a su ficha.</p>` },
@@ -1234,10 +1234,31 @@ function toolExportExcel() {
 }
 
 // ── Tool 3: exportar PDF (tamaño de QR variable) ─────────────────────────────────
+// Sort value for a person by a field (residence = its groups joined).
+function personSortVal(p, key) {
+  if (key === 'pharmacy_no') return String(p.pharmacy_no || '');
+  if (key === 'tis') return String(p.tis || '');
+  if (key === 'nombre') return norm(p.nombre || '');
+  if (key === 'apellidos') return norm(p.apellidos || '');
+  if (key === 'residencia') return norm((p.groups && p.groups.length) ? p.groups.join(' · ') : '￿'); // sin grupo al final
+  return '';
+}
+function sortPeopleBy(list, order, sub) {
+  const cmp = (a, b, k) => personSortVal(a, k).localeCompare(personSortVal(b, k), 'es', { numeric: true });
+  return list.slice().sort((a, b) => {
+    if (order === 'residencia') return cmp(a, b, 'residencia') || cmp(a, b, sub || 'apellidos') || cmp(a, b, 'nombre');
+    return cmp(a, b, order) || cmp(a, b, 'apellidos') || cmp(a, b, 'nombre');
+  });
+}
 function toolExportPdf() {
+  const groups = [...new Set(S.people.flatMap(p => p.groups || []))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+  const st = { order: 'apellidos', sub: 'apellidos', res: new Set() };
+  const ORDERS = [['pharmacy_no', 'Nº farmacia'], ['tis', 'TIS'], ['nombre', 'Nombre'], ['apellidos', 'Apellidos'], ['residencia', 'Residencia']];
+  const SUBS = [['pharmacy_no', 'Nº farmacia'], ['tis', 'TIS'], ['nombre', 'Nombre'], ['apellidos', 'Apellidos']];
+  const seg = (id, opts, cur) => `<div class="qt-seg qt-exp-seg" id="${id}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" class="${v === cur ? 'sel' : ''}">${l}</button>`).join('')}</div>`;
   openModal(
     `<div class="qt-modal-h"><h3>Exportar PDF de códigos QR</h3><button class="qt-x" data-close>×</button></div>
-     <p style="color:var(--muted);font-size:.88rem;margin:0 0 8px">Una hoja imprimible con los QR y su TIS. Ajusta el tamaño del QR.</p>
+     <p style="color:var(--muted);font-size:.88rem;margin:0 0 8px">Una hoja imprimible con los QR y su TIS. Elige qué exportar, cómo ordenarlo y el tamaño.</p>
      <div class="qt-tool-row"><label>Título:</label><input class="qt-select" style="flex:1" id="pdf-title" value="Listado de códigos TIS" maxlength="120"></div>
      <div class="qt-tool-row" style="align-items:center">
        <label>Tamaño del QR:</label>
@@ -1245,17 +1266,40 @@ function toolExportPdf() {
        <span id="pdf-size-v" style="font-family:var(--mono);font-weight:700;color:var(--brand-2)">150</span>
      </div>
      ${scopeHtml('pdf-scope')}
+     ${groups.length ? `<div class="qt-exp-block"><label class="qt-exp-label">Residencias (grupos)</label>
+       <div class="qt-exp-chips" id="pdf-res"><button type="button" class="qt-exp-chip sel" data-r="__all">Todas</button>${groups.map(g => `<button type="button" class="qt-exp-chip${gcCls(g)}"${gcStyle(g)} data-r="${esc(g)}">${esc(g)}</button>`).join('')}</div>
+       <div class="qt-exp-hint">Sin seleccionar ninguna = todas. Se combina con el ámbito de arriba.</div></div>` : ''}
+     <div class="qt-exp-block"><label class="qt-exp-label">Ordenar por</label>${seg('pdf-order', ORDERS, st.order)}
+       <div id="pdf-sub-wrap" hidden style="margin-top:8px"><label class="qt-exp-label">Después, dentro de cada residencia</label>${seg('pdf-sub', SUBS, st.sub)}</div></div>
      <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" data-close>Cancelar</button><button class="qt-btn qt-btn-primary" id="pdf-go">⬇ Descargar PDF</button></div>`
   );
   const sz = $('pdf-size'); sz.oninput = () => { $('pdf-size-v').textContent = sz.value; };
+  const box = $('tool-modal-box');
+  // Residence chips (multi-select; "Todas" clears).
+  if ($('pdf-res')) box.querySelectorAll('#pdf-res .qt-exp-chip').forEach(c => c.onclick = () => {
+    const r = c.dataset.r;
+    if (r === '__all') st.res.clear();
+    else { st.res.has(r) ? st.res.delete(r) : st.res.add(r); }
+    box.querySelectorAll('#pdf-res .qt-exp-chip').forEach(x => x.classList.toggle('sel', x.dataset.r === '__all' ? st.res.size === 0 : st.res.has(x.dataset.r)));
+  });
+  // Order segments (+ show the secondary one only when ordering by residence).
+  box.querySelector('#pdf-order').querySelectorAll('button').forEach(b => b.onclick = () => {
+    st.order = b.dataset.v; box.querySelector('#pdf-order').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b));
+    $('pdf-sub-wrap').hidden = st.order !== 'residencia';
+  });
+  box.querySelector('#pdf-sub').querySelectorAll('button').forEach(b => b.onclick = () => {
+    st.sub = b.dataset.v; box.querySelector('#pdf-sub').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b));
+  });
   $('pdf-go').onclick = async () => {
-    const people = scopePeople($('pdf-scope').value);
-    if (!people.length) { toast('No hay personas que exportar.', 'err'); return; }
+    let people = scopePeople($('pdf-scope').value);
+    if (st.res.size) people = people.filter(p => (p.groups || []).some(g => st.res.has(g)));
+    people = sortPeopleBy(people, st.order, st.sub);
+    if (!people.length) { toast('No hay personas que exportar con esos filtros.', 'err'); return; }
     const btn = $('pdf-go'); btn.disabled = true; btn.textContent = 'Generando…';
     try {
       const blob = await apiBlob('/export/pdf', { ids: people.map(p => p.id), qr_size: Number(sz.value), title: $('pdf-title').value });
       downloadBlob(blob, `TIS_QR_${stamp()}.pdf`);
-      closeModal(); toast('PDF generado', 'ok');
+      closeModal(); toast(`PDF generado · ${people.length} persona(s)`, 'ok');
     } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = '⬇ Descargar PDF'; }
   };
 }
