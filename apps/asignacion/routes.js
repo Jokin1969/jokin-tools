@@ -733,7 +733,10 @@ function stickerPayload(ym) {
     g.items.push({ source: s.source, id: s.id, person: s.person, groups: s.groups, residencia: s.residencia, note: s.note, barcode: s.barcode, cn: s.cn, nombre: s.nombre, serial: s.serial, pegado: s.pegado, pegado_at: s.pegado_at, method: s.method, evidencia_id: s.evidencia_id, assigned_at: s.assigned_at });
   }
   const groupArr = [...groups.values()].sort((a, b) => (a.nombre || 'zzz').localeCompare(b.nombre || 'zzz') || String(a.cn || '').localeCompare(String(b.cn || '')));
-  for (const g of groupArr) g.items.sort((a, b) => (a.person.apellidos || '').localeCompare(b.person.apellidos || '') || (a.person.nombre || '').localeCompare(b.person.nombre || ''));
+  for (const g of groupArr) {
+    g.items.sort((a, b) => (a.person.apellidos || '').localeCompare(b.person.apellidos || '') || (a.person.nombre || '').localeCompare(b.person.nombre || ''));
+    g.foto_caja = !!(g.cn && (dmDb.cimaCacheGet(g.cn) || {}).has_caja);   // ¿hay foto de la caja en CIMA?
+  }
   const por_pegar = stickers.filter(s => !s.pegado).length;
   return { ym, months: db.stickerMonths(), totals: { por_pegar, pegados: stickers.length - por_pegar, total: stickers.length }, groups: groupArr, evidencias: db.listEvidencia(ym) };
 }

@@ -964,3 +964,21 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-ovt-actions { white-space: nowrap; text-align: right; width: 1%; }
 .az-ovt-actions .qt-iconbtn { opacity: .55; }
 .az-ovt-row:hover .az-ovt-actions .qt-iconbtn, .az-ovt-actions .qt-iconbtn.has { opacity: 1; }
+
+/* ── Ficha: navegación Anterior / Siguiente (cabecera) ────────────────────────── */
+.az-ficha-nav { display: inline-flex; align-items: center; gap: 8px; }
+.az-ficha-navpos { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 44px; text-align: center; }
+
+/* ── Precinto (control de pegado): foto de la caja en la cabecera del grupo ────── */
+.az-stk-g-title { flex: 1 1 auto; min-width: 0; }
+.az-stk-g-foto { flex: 0 0 auto; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; overflow: hidden; line-height: 0; transition: border-color .14s, transform .12s; }
+.az-stk-g-foto:hover { border-color: var(--brand); transform: scale(1.04); }
+.az-stk-g-foto img { width: 46px; height: 46px; object-fit: contain; display: block; }
+
+/* ── "Pendientes de caja": sección plegable (colapsada por defecto) ────────────── */
+.az-pend-details { margin: 14px 0 4px; }
+.az-pend-details > summary { list-style: none; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; margin: 0 0 8px; padding: 8px 10px; border: 1px dashed #e4c9a0; border-radius: 10px; background: #fffaf0; }
+.az-pend-details > summary::-webkit-details-marker { display: none; }
+.az-pend-details > summary::before { content: '▸'; color: #8a5a00; font-size: 0.9rem; transition: transform .15s; }
+.az-pend-details[open] > summary::before { transform: rotate(90deg); }
+.az-pend-details > summary:hover { border-color: #d9b482; background: #fdf3e2; }

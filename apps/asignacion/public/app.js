@@ -24,6 +24,7 @@ const S = {
   stickers: null, stkYm: null, stkStatus: 'pending', stkGroupBy: 'med', stkFilter: [], stkFilterRes: [], stkNotesOnly: false,
   ov: { res: [], estado: 'all', notesOnly: false, cartOnly: false, q: '' },
   ovView: 'list', ovSort: { key: 'apellidos', dir: 'asc' },
+  pendOpen: false,   // "Pendientes de caja" section collapsed by default
   cart: new Set(), cartPeople: new Map(),
   planView: 'full', planSort: 'def',
 };
@@ -1041,8 +1042,22 @@ function renderFicha() {
   if (!known.has(f.ym)) known.set(f.ym, { ym: f.ym, status: per.status, counts: { preasignada: 0, asignada: 0, total: 0 } });
   const months = [...known.values()].sort((a, b) => b.ym.localeCompare(a.ym));
 
+  // Navigation between people, following the same order/filter as the "En seguimiento"
+  // list the user was looking at (so Anterior/Siguiente move through assigned people).
+  const nav = (S.overview && S.overview.length) ? sortedOverview(overviewFiltered()).map(r => r.person.id) : [];
+  const navIdx = nav.indexOf(p.id);
+  const prevId = navIdx > 0 ? nav[navIdx - 1] : null;
+  const nextId = (navIdx >= 0 && navIdx < nav.length - 1) ? nav[navIdx + 1] : null;
+
   main().innerHTML =
-    `<div class="qt-ficha-top"><button class="qt-back" id="back">← Volver</button></div>
+    `<div class="qt-ficha-top">
+       <button class="qt-back" id="back">← Volver</button>
+       ${navIdx >= 0 ? `<div class="az-ficha-nav">
+         <button class="qt-btn qt-btn-ghost qt-btn-sm" id="ficha-prev" ${prevId ? '' : 'disabled'} title="Persona anterior">← Anterior</button>
+         <span class="az-ficha-navpos">${navIdx + 1} / ${nav.length}</span>
+         <button class="qt-btn qt-btn-ghost qt-btn-sm" id="ficha-next" ${nextId ? '' : 'disabled'} title="Persona siguiente">Siguiente →</button>
+       </div>` : ''}
+     </div>
      <div class="qt-panel qt-ficha az-ficha">
        <div class="qt-qr-stage az-personcard">
          <a class="qt-qr-name az-person-link" href="/qr-tis?person=${p.id}" title="Abrir a la persona en QR (TIS)">${esc(p.nombre)} ${esc(p.apellidos)}</a>
@@ -1082,6 +1097,9 @@ function renderFicha() {
      </div>`;
 
   $('back').onclick = viewHome;
+  if ($('ficha-prev') && prevId) $('ficha-prev').onclick = () => openPerson(prevId);
+  if ($('ficha-next') && nextId) $('ficha-next').onclick = () => openPerson(nextId);
+  if ($('pend-details')) $('pend-details').addEventListener('toggle', (e) => { S.pendOpen = e.target.open; });
   $('month-sel').onchange = (e) => openPerson(p.id, e.target.value);
   if ($('per-close')) $('per-close').onclick = async () => { try { applyFicha(await api(`/period/${per.id}/close`, { method: 'POST' })); toast('Mes cerrado.'); } catch (er) { toast(er.message, 'err'); } };
   if ($('per-reopen')) $('per-reopen').onclick = async () => { try { applyFicha(await api(`/period/${per.id}/reopen`, { method: 'POST' })); toast('Mes reabierto.'); } catch (er) { toast(er.message, 'err'); } };
@@ -1304,7 +1322,8 @@ function linesHtml(lines, closed, dmSize) {
 function pendingHtml(plan, closed) {
   const pend = (plan || []).filter(m => m.active && (m.boxes || 0) === 0 && (m.asignada || 0) < m.qty);
   if (!pend.length) return '';
-  return `<div class="az-pend-h">🏷️ Pendientes de caja — pásale el escáner al <b>precinto</b> (o escanéalo en Salud) mientras no haya Data Matrix</div>
+  return `<details class="az-pend-details" id="pend-details"${S.pendOpen ? ' open' : ''}>
+    <summary class="az-pend-h">🏷️ Pendientes de caja (${pend.length}) — pásale el escáner al <b>precinto</b> (o escanéalo en Salud) mientras no haya Data Matrix</summary>
     <div class="az-pendgrid">${pend.map(m => {
       const icon = m.foto_caja
         ? `<button class="az-plan-foto-btn" data-boxfoto="${m.id}" title="Ver la caja en grande"><img class="az-pend-foto" src="${fotoUrl(m.cn, 'caja')}" alt="Caja" loading="lazy" onerror="this.style.display='none'"></button>`
@@ -1322,7 +1341,8 @@ function pendingHtml(plan, closed) {
           ${closed ? '' : `<button class="qt-btn qt-btn-ghost qt-btn-sm" data-assoc="${m.id}">🔗 Asociar caja</button>`}
         </div>
       </div>`;
-    }).join('')}</div>`;
+    }).join('')}</div>
+  </details>`;
 }
 // Assignments recorded by "precinto" (no Data Matrix box). Shown in the boxes
 // section so they read as "already assigned in Salud", each revertible.
@@ -1533,8 +1553,9 @@ function stkByMedHtml(visible, groups) {
     const items = byKey.get(g.key);
     const pending = items.filter(i => !i.pegado);
     const bc = g.barcode ? eanSvg(g.barcode) : '';
+    const foto = g.foto_caja ? `<button class="az-stk-g-foto" data-stkfoto="${esc(g.key)}" title="Ver la caja en grande"><img src="${fotoUrl(g.cn, 'caja')}" alt="Caja" loading="lazy" onerror="this.closest('.az-stk-g-foto').remove()"></button>` : '';
     const title = `<b>${esc(g.nombre || 'Medicamento')}</b><small>${g.cn ? 'CN ' + esc(g.cn) : ''}${g.barcode ? ' · ' + esc(g.barcode) : ''}</small>`;
-    return stkGroupCard(title, `${g.items.filter(i => i.pegado).length}/${g.items.length}`, pending, items.map(i => stkItemRow(i, 'med')).join(''), bc);
+    return stkGroupCard(title, `${g.items.filter(i => i.pegado).length}/${g.items.length}`, pending, items.map(i => stkItemRow(i, 'med')).join(''), bc, foto);
   }).join('');
 }
 // Group the visible items by person (each may span several medications).
@@ -1562,9 +1583,9 @@ function stkByResidenciaHtml(visible) {
     return stkGroupCard(title, `${items.filter(i => i.pegado).length}/${items.length}`, pending, items.map(i => stkItemRow(i, 'residencia')).join(''), '');
   }).join('');
 }
-function stkGroupCard(titleHtml, progText, pending, itemsHtml, bcHtml) {
+function stkGroupCard(titleHtml, progText, pending, itemsHtml, bcHtml, fotoHtml) {
   return `<div class="az-stk-group ${pending.length ? '' : 'is-complete'}">
-    <div class="az-stk-g-head"><div class="az-stk-g-title">${titleHtml}</div><span class="az-stk-badge ${pending.length ? 'is-pending' : 'is-done'}">${progText} pegados</span></div>
+    <div class="az-stk-g-head">${fotoHtml || ''}<div class="az-stk-g-title">${titleHtml}</div><span class="az-stk-badge ${pending.length ? 'is-pending' : 'is-done'}">${progText} pegados</span></div>
     ${bcHtml ? `<div class="az-stk-g-bc">${bcHtml}</div>` : ''}
     <div class="az-stk-g-actions">
       ${pending.length ? `<button class="qt-btn qt-btn-teal qt-btn-sm" data-stk-markset='${itemsAttr(pending)}'>✅ Marcar pegados (${pending.length})</button>
@@ -1652,6 +1673,10 @@ function openStkPrintModal() {
 }
 function wireStkGroups() {
   const body = $('stk-body'); if (!body) return;
+  body.querySelectorAll('[data-stkfoto]').forEach(b => b.onclick = () => {
+    const g = ((S.stickers && S.stickers.groups) || []).find(x => x.key === b.dataset.stkfoto);
+    if (g) openImageModal({ cn: g.cn, nombre: g.nombre }, 'caja', 'Caja', '📦');
+  });
   body.querySelectorAll('[data-stk-mark]').forEach(b => b.onclick = () => stkMarkItems([JSON.parse(b.dataset.stkMark)], 'manual'));
   body.querySelectorAll('[data-stk-unmark]').forEach(b => b.onclick = () => stkUnmarkItems([JSON.parse(b.dataset.stkUnmark)]));
   body.querySelectorAll('[data-stk-markset]').forEach(b => b.onclick = async () => {
