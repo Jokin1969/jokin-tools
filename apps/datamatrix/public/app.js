@@ -100,12 +100,21 @@ function shapeSvg(shape, color, px) {
 // A small badge for boxes reserved/dispensed via the Asignación app.
 //   preasignada → reserved for a person (still in stock)
 //   asignada    → dispensed to that person
+// Assignment / usage badge — with traceability: a USED box that was assigned to a
+// person links to that person; a USED box with no assignee is flagged as untraceable.
 function asigBadge(it) {
-  if (!it || !it.asig_state) return '';
-  const who = it.assignee_name ? ' · ' + esc(it.assignee_name) : '';
-  return it.asig_state === 'asignada'
-    ? `<span class="dm-asig dm-asig-done" title="Asignada${who}">✓ Asignada${who}</span>`
-    : `<span class="dm-asig dm-asig-pre" title="Pre-asignada${who}">🔗 Pre-asignada${who}</span>`;
+  if (!it) return '';
+  if (it.asig_state === 'preasignada') {
+    const who = it.assignee_name ? ' · ' + esc(it.assignee_name) : '';
+    return `<span class="dm-asig dm-asig-pre" title="Reservada para una persona${who}">🔗 Pre-asignada${who}</span>`;
+  }
+  if (it.status === 'utilizado') {
+    if (it.assignee_id != null) {
+      return `<span class="dm-asig dm-asig-done">✓ Asignada a <a class="dm-trace-link" href="/asignacion?person=${it.assignee_id}" title="Abrir a la persona">${esc(it.assignee_name || 'la persona')} ↗</a></span>`;
+    }
+    return `<span class="dm-asig dm-asig-warn" title="Se marcó utilizada sin registrar a quién se asignó">⚠️ Utilizada sin trazabilidad</span>`;
+  }
+  return '';
 }
 
 // ── Data loading ────────────────────────────────────────────────────────────────
@@ -288,8 +297,8 @@ function viewFicha(id, opts) {
   $('act-list').onclick = viewList;
   if (hasNav) { if (navIdx > 0) $('nav-prev').onclick = () => viewFicha(nav[navIdx - 1]); if (navIdx < nav.length - 1) $('nav-next').onclick = () => viewFicha(nav[navIdx + 1]); }
   wireMando(it, () => { const box = $('ficha-dm'); if (box) box.innerHTML = dmSvg(it.raw, dmOpts(it, S.settings.dm_size)); });
-  const useBtn = $('act-use'); if (useBtn) useBtn.onclick = async () => { await setUsed(it, true); viewList(); };
-  const unBtn = $('act-unuse'); if (unBtn) unBtn.onclick = async () => { await setUsed(it, false); viewFicha(id, opts); };
+  const useBtn = $('act-use'); if (useBtn) useBtn.onclick = async () => { if (await setUsed(it, true)) { await reloadItems(); viewList(); } };
+  const unBtn = $('act-unuse'); if (unBtn) unBtn.onclick = async () => { if (await setUsed(it, false)) { await reloadItems(); viewFicha(id, opts); } };
   $('act-cart').onclick = async () => { await toggleCart(id); viewFicha(id, opts); };
   $('act-prod').onclick = () => editProduct(it);
   $('act-del').onclick = async () => { if (await removeItem(it)) viewList(); };
@@ -491,11 +500,9 @@ function wireGroupCards(container) { container.querySelectorAll('[data-med]').fo
 function headTr() {
   // DM on the left, then the medication (name + CN), then the expiry. GTIN / serial
   // / lote / RAW are not shown here (they live in the ficha).
-  const cols = [
-    { key: 'sel', nosort: true }, { key: 'dm', label: 'DM', nosort: true },
-    { key: 'nombre', label: 'Medicamento' }, { key: 'caducidad', label: 'Caducidad' },
-    { key: 'act', nosort: true },
-  ];
+  const cols = [{ key: 'sel', nosort: true }];
+  if (S.showListQr) cols.push({ key: 'dm', label: 'DM', nosort: true });   // solo si se activa el filtro
+  cols.push({ key: 'nombre', label: 'Medicamento' }, { key: 'caducidad', label: 'Caducidad' }, { key: 'act', nosort: true });
   return '<tr>' + cols.map(c => {
     if (c.nosort) return `<th class="no-sort">${c.label || ''}</th>`;
     const sorted = S.sort.key === c.key;
@@ -513,12 +520,14 @@ function itemActionsHtml(it, inCart) {
 }
 function itemRowHtml(it) {
   const sel = S.selected.has(it.id), inCart = S.cart.has(it.id);
+  const dmCell = S.showListQr ? `<td class="dm-td-dm"><span class="qt-list-qr" data-open="${it.id}">${dmSvg(it.raw, dmOpts(it, S.settings.list_dm_size))}</span></td>` : '';
+  const badge = asigBadge(it);
   return `<tr class="${sel ? 'is-selected' : ''}" data-id="${it.id}">
     <td><input type="checkbox" class="qt-check" data-sel="${it.id}" ${sel ? 'checked' : ''}></td>
-    <td class="dm-td-dm"><span class="qt-list-qr" data-open="${it.id}">${dmSvg(it.raw, dmOpts(it, S.settings.list_dm_size))}</span></td>
+    ${dmCell}
     <td class="dm-td-name">
       <span class="dm-name-2l" data-open="${it.id}" title="${esc(it.nombre || 'Sin nombre')}">${shapeSvg(it.shape, it.color, 13)} <span class="qt-cell-name">${esc(it.nombre || 'Sin nombre')}</span></span>
-      <span class="dm-cell-cn">${it.cn ? 'CN ' + esc(it.cn) : ''}${asigBadge(it) ? ' ' + asigBadge(it) : ''}</span>
+      <span class="dm-cell-cn">${it.cn ? 'CN ' + esc(it.cn) : ''}${badge ? (it.cn ? ' · ' : '') + badge : ''}</span>
     </td>
     <td class="dm-td-cad">${cadDisplay(it.caducidad)}</td>
     <td><div class="qt-cell-actions">${itemActionsHtml(it, inCart)}</div></td>
@@ -530,7 +539,7 @@ function itemCardHtml(it) {
     <div class="qt-pcard-head"><input type="checkbox" class="qt-check" data-sel="${it.id}"><span class="dm-medshape">${shapeSvg(it.shape, it.color, 18)}</span><span class="dm-card-cad" style="margin-left:auto">${cadDisplay(it.caducidad)}</span></div>
     <span class="qt-pcard-qr" data-open="${it.id}">${dmSvg(it.raw, dmOpts(it, S.settings.card_dm_size))}</span>
     <div class="qt-pcard-name" data-open="${it.id}">${esc(it.nombre || 'Sin nombre')}</div>
-    <div class="qt-pcard-tis">${it.serial ? 'Nº ' + esc(it.serial) : ('GTIN ' + esc(it.gtin || '—'))}</div>
+    <div class="qt-pcard-tis">${it.cn ? 'CN ' + esc(it.cn) : '—'}</div>
     <div class="qt-pcard-groups">${asigBadge(it)}</div>
     <div class="qt-pcard-actions">${itemActionsHtml(it, inCart)}</div>
   </div>`;
@@ -539,7 +548,7 @@ function wireListItems(container) {
   container.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => gotoFicha(Number(el.dataset.open), filteredItems().map(x => x.id))));
   container.querySelectorAll('[data-sel]').forEach(cb => cb.addEventListener('change', () => { const id = Number(cb.dataset.sel); if (cb.checked) S.selected.add(id); else S.selected.delete(id); renderList(); }));
   container.querySelectorAll('[data-cart]').forEach(b => b.addEventListener('click', async () => { await toggleCart(Number(b.dataset.cart)); renderList(); }));
-  container.querySelectorAll('[data-used]').forEach(b => b.addEventListener('click', async () => { const it = S.byId.get(Number(b.dataset.used)); await setUsed(it, b.dataset.to === '1'); await reloadItems(); if (S.view === 'list') renderList(); }));
+  container.querySelectorAll('[data-used]').forEach(b => b.addEventListener('click', async () => { const it = S.byId.get(Number(b.dataset.used)); if (await setUsed(it, b.dataset.to === '1')) { await reloadItems(); if (S.view === 'list') renderList(); } }));
   container.querySelectorAll('[data-hide]').forEach(b => b.addEventListener('click', () => { S.hidden.add(Number(b.dataset.hide)); renderList(); }));
   container.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => { const it = S.byId.get(Number(b.dataset.del)); if (await removeItem(it)) renderList(); }));
 }
@@ -547,11 +556,24 @@ function wireListItems(container) {
 // ── Shared actions ─────────────────────────────────────────────────────────────
 async function toggleCart(id) { try { const path = '/cart/' + id; const { ids } = await api(path, { method: S.cart.has(id) ? 'DELETE' : 'POST' }); S.cart = new Set(ids); updateCartCount(); if ($('cart-panel').classList.contains('open')) renderCart(); } catch (e) { toast(e.message, 'err'); } }
 async function setUsed(it, used) {
+  // Protect the manual "mark utilizada": once used, it leaves the inventory, and if
+  // it isn't linked to a person it can't be traced (easy to "lose"). Ask expressly.
+  if (used) {
+    const traced = it.assignee_id != null;
+    const title = traced ? 'Marcar utilizada' : '⚠️ Marcar utilizada SIN trazabilidad';
+    const body = traced
+      ? `Vas a marcar esta caja${it.nombre ? ' de «' + it.nombre + '»' : ''} como UTILIZADA. Saldrá del inventario y quedará registrada como asignada a ${it.assignee_name || 'la persona vinculada'}, así que podrás trazarla. ¿Continuar?`
+      : `Vas a marcar esta caja${it.nombre ? ' de «' + it.nombre + '»' : ''} como UTILIZADA a mano. NO está vinculada a ninguna persona, por lo que después NO se sabrá a quién se asignó ni el motivo: será fácil perderle la pista. Lo recomendable es asignarla desde la app de Asignación. ¿Marcarla como utilizada de todos modos?`;
+    if (!(await confirmBox(title, body, 'Marcar utilizada'))) return false;
+  } else {
+    if (!(await confirmBox('Devolver al inventario', `Vas a devolver esta caja${it.nombre ? ' de «' + it.nombre + '»' : ''} al inventario: volverá a estar «sin utilizar» y disponible. ¿Continuar?`, 'Devolver'))) return false;
+  }
   try {
-    const { item } = await api('/item/' + it.id + '/used', jbody({ used }));
+    await api('/item/' + it.id + '/used', jbody({ used }));
     toast(used ? 'Marcada utilizada' : 'Devuelta al inventario', 'ok');
     S.counts = (await api('/items?status=' + (S.archive ? 'utilizado' : 'activo'))).counts || S.counts;
-  } catch (e) { toast(e.message, 'err'); }
+    return true;
+  } catch (e) { toast(e.message, 'err'); return false; }
 }
 async function removeItem(it) {
   if (!(await confirmBox('Eliminar caja', `¿Eliminar esta caja${it.nombre ? ' de «' + it.nombre + '»' : ''}? No se puede deshacer.`, 'Eliminar'))) return false;
@@ -588,8 +610,9 @@ function renderCart() {
   body.innerHTML = items.map(it => {
     const sel = S.selected.has(it.id);
     return `<div class="qt-cart-card ${sel ? 'is-selected' : ''}"><span class="qr" data-open="${it.id}">${dmSvg(it.raw, dmOpts(it, size))}</span>
-      <div class="info"><div class="nm" data-open="${it.id}">${shapeSvg(it.shape, it.color, 15)} ${esc(it.nombre || it.gtin || 'Caja')}</div>
-      <div class="ts">${it.serial ? 'Nº ' + esc(it.serial) + ' · ' : ''}Cad ${fmtDate(it.caducidad) || '—'}</div>
+      <div class="info"><div class="nm" data-open="${it.id}">${shapeSvg(it.shape, it.color, 15)} ${esc(it.nombre || 'Sin nombre')}</div>
+      <div class="ts">${it.cn ? 'CN ' + esc(it.cn) + ' · ' : ''}Cad ${fmtDate(it.caducidad) || '—'}</div>
+      ${asigBadge(it) ? `<div class="dm-cart-trace">${asigBadge(it)}</div>` : ''}
       <label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:.82rem;cursor:pointer"><input type="checkbox" class="qt-check" data-sel="${it.id}" ${sel ? 'checked' : ''}> Seleccionar</label>
       <button class="qt-iconbtn danger" data-remove="${it.id}" title="Sacar del carrito" style="margin-left:8px">✕</button></div></div>`;
   }).join('');

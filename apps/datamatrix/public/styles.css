@@ -444,7 +444,11 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .dm-asig { display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; font-weight: 700;
   padding: 1px 7px; border-radius: 999px; white-space: nowrap; vertical-align: middle; letter-spacing: .01em; }
 .dm-asig-pre { background: #fff3d6; color: #8a5a00; border: 1px solid #f2d48a; }
-.dm-asig-done { background: #e5e9ee; color: #55606e; border: 1px solid #d3d9e0; }
+.dm-asig-done { background: #e2f5ec; color: #128a5b; border: 1px solid #b6e3ca; }
+.dm-asig-warn { background: #fdeaea; color: #b3261e; border: 1px solid #f2c0bc; }
+.dm-trace-link { color: inherit; font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
+.dm-trace-link:hover { text-decoration: none; }
+.dm-cart-trace { margin-top: 4px; }
 
 /* ── Listado (tabla): DM a la izquierda · nombre (máx 2 líneas) + CN · caducidad ── */
 .dm-td-dm { width: 1%; white-space: nowrap; vertical-align: middle; }
