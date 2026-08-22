@@ -126,6 +126,16 @@ function cleanPharmacy(v, required) {
   if (!/^\d{5}$/.test(s)) throw bad('El Nº de farmacia debe tener exactamente 5 cifras (los ceros a la izquierda cuentan).');
   return s;
 }
+// The real QR code (magstripe-like: e.g. "%0000…^…^02^APELLIDO/NOMBRE      ? TDG").
+// Keep it VERBATIM — %, ^, ?, / and inner/trailing spaces are all significant. Only
+// strip line breaks (a keyboard-emulator scanner ends its read with Enter). A value
+// that is only whitespace clears the code (the QR falls back to the TIS).
+function cleanQrCode(v) {
+  const s = String(v == null ? '' : v).replace(/[\r\n]+/g, '');
+  if (s.trim() === '') return '';
+  if (s.length > 4096) throw bad('El código del QR es demasiado largo.');
+  return s;
+}
 // A person can belong to several groups. They're stored in the group_name column
 // joined by newlines (a group name is a single line, so it never collides).
 function parseGroups(str) {
@@ -289,7 +299,7 @@ router.patch('/api/people/:id(\\d+)', json, (req, res) => {
     if (b.qr_dark !== undefined) data.qr_dark = cleanColorOpt(b.qr_dark);
     if (b.qr_light !== undefined) data.qr_light = cleanColorOpt(b.qr_light);
     if (b.qr_style !== undefined) data.qr_style = cleanStyleOpt(b.qr_style);
-    if (b.qr_code !== undefined) { const c = String(b.qr_code == null ? '' : b.qr_code).trim(); if (c.length > 4096) throw bad('El código del QR es demasiado largo.'); data.qr_code = c; }
+    if (b.qr_code !== undefined) data.qr_code = cleanQrCode(b.qr_code);
     if (b.active != null) data.active = b.active ? 1 : 0;
     const id = Number(req.params.id);
     if (data.pharmacy_no && db.pharmacyTaken(data.pharmacy_no, id)) throw bad(`El Nº de farmacia ${data.pharmacy_no} ya está asignado a otra persona.`);
@@ -351,7 +361,7 @@ router.post('/api/qr-codes/import', jsonBig, (req, res) => {
     if (!rows) throw bad('No se recibieron filas para importar.');
     if (rows.length > 20000) throw bad('Demasiadas filas (máximo 20000 por importación).');
     const clean = rows
-      .map(r => ({ pharmacy_no: String(r.pharmacy_no == null ? '' : r.pharmacy_no).replace(/\s+/g, ''), qr_code: String(r.qr_code == null ? '' : r.qr_code).trim() }))
+      .map(r => ({ pharmacy_no: String(r.pharmacy_no == null ? '' : r.pharmacy_no).replace(/\s+/g, ''), qr_code: cleanQrCode(r.qr_code) }))
       .filter(r => r.pharmacy_no);
     const result = db.setQrCodesByPharmacy(clean);
     res.json({ ...result, total: clean.length });
@@ -364,8 +374,7 @@ router.put('/api/people/:id(\\d+)/qr-code', json, (req, res) => {
   try {
     const p = db.getPerson(Number(req.params.id));
     if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
-    const code = String((req.body && req.body.qr_code) == null ? '' : req.body.qr_code).trim();
-    if (code.length > 4096) throw bad('El código del QR es demasiado largo.');
+    const code = cleanQrCode(req.body && req.body.qr_code);
     res.json({ item: publicPerson(db.setQrCode(p.id, code)) });
   } catch (err) { fail(res, err); }
 });

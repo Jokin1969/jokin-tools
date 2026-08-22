@@ -437,3 +437,17 @@ a.qt-btn { text-decoration: none; }
 .qt-plan-pill.has:hover { background: #d3efe0; border-color: #9fd8ba; }
 .qt-td-plan { width: 1%; white-space: nowrap; text-align: center; }
 .qt-th-sel { width: 1%; }
+
+/* Discreet inline link (e.g. "N con el QR sin actualizar") under the list heading */
+.qt-link-discreet { border: none; background: none; padding: 0; margin-left: 6px; color: var(--brand, #1273b8); font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.qt-link-discreet:hover { color: var(--brand-2, #0f5f9a); }
+
+/* "QR sin actualizar" modal: person list, click to reveal the code input */
+.qt-qrp-list { display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow: auto; }
+.qt-qrp-item { border: 1px solid var(--line, #dbe4ee); border-radius: 10px; background: #fff; overflow: hidden; }
+.qt-qrp-head { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px; background: none; border: none; text-align: left; cursor: pointer; }
+.qt-qrp-head:hover { background: #f3f8fd; }
+.qt-qrp-name { font-weight: 700; color: var(--ink, #0f2233); }
+.qt-qrp-meta { font-size: 0.76rem; color: var(--muted, #5c7086); font-family: var(--mono, monospace); }
+.qt-qrp-edit { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line, #dbe4ee); background: #f7fafd; }
+.qt-qrp-edit input { flex: 1 1 auto; }

@@ -424,7 +424,7 @@ function editPerson(p) {
     if (!nombre || !apellidos) { err.textContent = 'Nombre y apellidos son obligatorios.'; return; }
     if (!/^\d{8}$/.test(t)) { err.textContent = 'El Código TIS debe tener exactamente 8 cifras.'; return; }
     try {
-      const { item } = await api('/people/' + p.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pharmacy_no, nombre, apellidos, tis: t, qr_code: $('e-qrcode').value.trim() }) });
+      const { item } = await api('/people/' + p.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pharmacy_no, nombre, apellidos, tis: t, qr_code: $('e-qrcode').value }) });
       S.byId.set(item.id, item);
       const i = S.people.findIndex(x => x.id === item.id); if (i >= 0) S.people[i] = item;
       closeModal(); toast('Información actualizada', 'ok'); viewFicha(p.id);
@@ -549,7 +549,7 @@ function viewList() {
        </div>
      </div>
      <div class="qt-section-title">Listado de personas</div>
-     <div class="qt-section-sub">Busca, ordena, selecciona, agrupa y usa el carrito. Haz clic en una persona para ver su QR.</div>
+     <div class="qt-section-sub">Busca, ordena, selecciona, agrupa y usa el carrito. Haz clic en una persona para ver su QR. <button class="qt-link-discreet" id="qr-pending-btn" hidden></button></div>
      <div class="qt-groups" id="groups"></div>
      <div class="qt-search-wrap">
        <div class="qt-search"><span class="ico">🔎</span>
@@ -584,6 +584,7 @@ function viewList() {
   $('back').onclick = viewHome;
   $('a-excel-io').onclick = toolExcelIO;
   $('a-qr-assoc').onclick = toolQrAssoc;
+  refreshQrPendingBtn();
   $('a-export-xlsx').onclick = toolExportExcel;
   $('a-export-pdf').onclick = toolExportPdf;
   $('a-recent').onclick = toolRecent;
@@ -1118,7 +1119,8 @@ function viewHelp() {
       <ol>
         <li><span class="qt-chip-inline">🔗 Asociar QR</span> (arriba del listado): descarga una <strong>plantilla</strong> con <code>Nº Farmacia</code>, <code>Nombre</code>, <code>Apellidos</code> y <code>Código QR</code> (con el código actual si ya lo tiene), rellena/edita la columna <strong>Código QR</strong> y súbela. Se empareja por <strong>Nº de farmacia</strong>: <strong>solo cambia el código</strong> de quien ya existe (no crea ni toca nada más). Una celda vacía deja el QR en el TIS.</li>
         <li><strong>Escáner o a mano</strong>: en <span class="qt-chip-inline">✏️ Editar información</span> de la persona hay un campo <strong>«Código del QR»</strong>. Enfócalo y <strong>escanea con el lector</strong> (emulador de teclado) o escríbelo. Vacío = usa el TIS.</li>
-      </ol>` },
+      </ol>
+      <div class="qt-note tip">Bajo el título del listado, cuando haya personas sin código, aparece un enlace discreto <b>«🔳 N con el QR sin actualizar»</b>: ábrelo para <b>ir completándolos de uno en uno</b> (pulsas una persona, escaneas/escribes su código y aceptas; desaparece de la lista). El código se guarda <b>tal cual</b> (respeta espacios y símbolos como <code>% ^ ? /</code>).</div>` },
     { id: 'exportar', icon: '📦', title: 'Exportar (Excel y PDF)', html: `
       <p>Ambos botones están <strong>arriba a la derecha</strong> del listado.</p>
       <ul>
@@ -1354,7 +1356,7 @@ async function importQrAssoc(file) {
     for (let i = 1; i < aoa.length; i++) {
       const r = aoa[i];
       const pharmacy_no = padNum(r[ci.pharmacy], 5);
-      const qr_code = String(r[ci.qr] == null ? '' : r[ci.qr]).trim();
+      const qr_code = String(r[ci.qr] == null ? '' : r[ci.qr]);   // verbatim; backend limpia solo saltos de línea
       if (!pharmacy_no) continue;
       rows.push({ pharmacy_no, qr_code });
     }
@@ -1370,6 +1372,68 @@ async function importQrAssoc(file) {
     $('qra-done').onclick = () => { closeModal(); viewList(); };
     toast(`${res.updated} QR asociado(s)`, 'ok');
   } catch (e) { report.innerHTML = `<div class="err">✕ ${esc(e.message)}</div>`; }
+}
+
+// People whose QR still encodes the TIS (no real code yet). Active only.
+function qrPendingPeople() { return (S.people || []).filter(p => p.active && !p.qr_code); }
+// Discreet link under the list heading: "N con el QR sin actualizar".
+function refreshQrPendingBtn() {
+  const b = $('qr-pending-btn'); if (!b) return;
+  const n = qrPendingPeople().length;
+  if (!n) { b.hidden = true; return; }
+  b.hidden = false;
+  b.textContent = `🔳 ${n} con el QR sin actualizar`;
+  b.title = 'Ver y completar el código real del QR de quienes todavía usan el TIS';
+  b.onclick = openQrPending;
+}
+// A comfortable way to fill the real QR code person by person: a modal listing the
+// pending people; click one, scan/type its code, accept → it leaves the list.
+function openQrPending() {
+  openModal(
+    `<div class="qt-modal-h"><h3>QR sin actualizar <span id="qrp-count"></span></h3><button class="qt-x" data-close>×</button></div>
+     <p style="color:var(--muted);font-size:.9rem;margin:0 0 10px">Personas cuyo QR todavía codifica el <strong>TIS</strong>. Pulsa una, <strong>escanea</strong> (lector emulador de teclado) o escribe su <strong>código real</strong> y acepta: desaparecerá de la lista.</p>
+     <div class="qt-qrp-list" id="qrp-list"></div>`
+  );
+  renderQrPendingList();
+}
+function renderQrPendingList() {
+  const list = $('qrp-list'); if (!list) return;
+  const pending = qrPendingPeople();
+  const cnt = $('qrp-count'); if (cnt) cnt.textContent = `(${pending.length})`;
+  refreshQrPendingBtn();   // keep the discreet counter in the list behind in sync
+  if (!pending.length) { list.innerHTML = '<div class="qt-empty">🎉 Todas las personas tienen su código real. ¡Listo!</div>'; return; }
+  list.innerHTML = pending.map(p => `
+    <div class="qt-qrp-item" data-qrp="${p.id}">
+      <button class="qt-qrp-head" data-qrp-toggle="${p.id}">
+        <span class="qt-qrp-name">${esc(p.apellidos)}, ${esc(p.nombre)}</span>
+        <span class="qt-qrp-meta">Nº ${p.pharmacy_no ? esc(p.pharmacy_no) : '—'} · TIS ${esc(fmtTis(p.tis))}</span>
+      </button>
+      <div class="qt-qrp-edit" hidden>
+        <input class="qt-input" data-qrp-input="${p.id}" placeholder="Escanea o escribe el código real…" autocomplete="off">
+        <button class="qt-btn qt-btn-primary qt-btn-sm" data-qrp-save="${p.id}">✓ Aceptar</button>
+      </div>
+    </div>`).join('');
+  list.querySelectorAll('[data-qrp-toggle]').forEach(h => h.onclick = () => {
+    const item = h.closest('.qt-qrp-item'); const ed = item.querySelector('.qt-qrp-edit');
+    const wasHidden = ed.hidden;
+    list.querySelectorAll('.qt-qrp-edit').forEach(e => { e.hidden = true; });
+    ed.hidden = !wasHidden;
+    if (!ed.hidden) { const inp = ed.querySelector('input'); setTimeout(() => inp && inp.focus(), 20); }
+  });
+  list.querySelectorAll('[data-qrp-save]').forEach(btn => btn.onclick = () => saveQrPending(Number(btn.dataset.qrpSave)));
+  list.querySelectorAll('[data-qrp-input]').forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveQrPending(Number(inp.dataset.qrpInput)); } }));
+}
+async function saveQrPending(id) {
+  const inp = document.querySelector(`[data-qrp-input="${id}"]`); if (!inp) return;
+  const code = inp.value;
+  if (!code.trim()) { toast('Escanea o escribe el código antes de aceptar.', 'err'); inp.focus(); return; }
+  try {
+    const { item } = await api('/people/' + id + '/qr-code', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ qr_code: code }) });
+    if (item) { S.byId.set(item.id, item); const i = S.people.findIndex(x => x.id === item.id); if (i >= 0) S.people[i] = item; }
+    const row = document.querySelector(`.qt-qrp-item[data-qrp="${id}"]`); if (row) row.remove();
+    renderQrPendingList();      // updates the counter / empty state
+    toast('Código guardado.', 'ok');
+  } catch (e) { toast(e.message, 'err'); }
 }
 
 // ── Tool 2: exportar Excel (elige campos y orden) ────────────────────────────────

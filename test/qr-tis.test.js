@@ -282,5 +282,16 @@ test('QR code: asociación por Nº de farmacia, PATCH, PUT y borrado (fallback a
     // Empty clears it (QR falls back to the TIS).
     await call('PUT', `/people/${b}/qr-code`, { qr_code: '' });
     assert.equal((await call('GET', `/people/${b}`)).data.item.qr_code, null);
+
+    // Real-world code: kept VERBATIM (%, ^, ?, / and inner/trailing spaces all matter).
+    const real = '%0000000000930868^BBBBBBBBBN583421^02^CASTILLA/CASTRILLON/JOAQUIN            ? TDG';
+    await call('PUT', `/people/${a}/qr-code`, { qr_code: real });
+    assert.equal((await call('GET', `/people/${a}`)).data.item.qr_code, real, 'código guardado exactamente igual');
+    // Same fidelity through the association import, and a trailing newline (scanner Enter) is dropped.
+    await call('POST', '/qr-codes/import', { rows: [{ pharmacy_no: '88002', qr_code: real + '\r\n' }] });
+    assert.equal((await call('GET', `/people/${b}`)).data.item.qr_code, real, 'import conserva el código y quita el salto de línea');
+    // Whitespace-only clears it.
+    await call('PUT', `/people/${a}/qr-code`, { qr_code: '   ' });
+    assert.equal((await call('GET', `/people/${a}`)).data.item.qr_code, null);
   } finally { server.close(); }
 });

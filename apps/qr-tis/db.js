@@ -190,11 +190,15 @@ function updatePerson(id, data) {
 
 // Set (or clear) just the QR code of one person — used by the keyboard-emulator
 // scanner path and by the association import.
+// NOTE: the code is stored VERBATIM (it can contain %, ^, ?, / and meaningful
+// spaces, e.g. "%0000…^…^02^APELLIDO/NOMBRE      ? TDG"). Callers pass an
+// already-cleaned value; here we only turn an empty string into NULL.
 function setQrCode(id, code) {
   const cur = getPerson(id);
   if (!cur) return null;
+  const c = code == null ? '' : String(code);
   db.prepare('UPDATE tis_people SET qr_code = ?, updated_at = CURRENT_TIMESTAMP, last_used_at = CURRENT_TIMESTAMP WHERE id = ?')
-    .run(code ? String(code).trim() : null, id);
+    .run(c.length ? c : null, id);
   return getPerson(id);
 }
 
@@ -210,9 +214,9 @@ const setQrCodesByPharmacy = db.transaction((rows) => {
     if (!ph) continue;
     const person = find.get(ph);
     if (!person) { notFound.push(ph); continue; }
-    const code = r.qr_code != null ? String(r.qr_code).trim() : '';
-    upd.run(code || null, person.id);
-    if (code) updated++; else cleared++;
+    const code = r.qr_code != null ? String(r.qr_code) : '';   // verbatim (spaces/%^?/ matter)
+    upd.run(code.length ? code : null, person.id);
+    if (code.length) updated++; else cleared++;
   }
   return { updated, cleared, notFound };
 });
