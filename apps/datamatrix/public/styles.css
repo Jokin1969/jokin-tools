@@ -459,3 +459,19 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .dm-name-2l svg { flex: 0 0 auto; position: relative; top: 2px; }
 .dm-cell-cn { display: block; margin-top: 3px; font-size: 0.78rem; color: var(--muted); font-family: var(--mono); letter-spacing: .04em; }
 .dm-td-cad { white-space: nowrap; vertical-align: middle; }
+
+/* Estado «No asignada» (en stock) */
+.dm-asig-stock { background: #eef2f7; color: #5c7086; border: 1px solid #dbe4ee; }
+
+/* CN bajo el Data Matrix en la ficha */
+.qt-qr-cn { font-family: var(--mono); font-weight: 700; letter-spacing: .08em; color: var(--brand-2, #0f5f9a); margin-top: 6px; }
+
+/* Agrupación de cajas idénticas en el listado (mismo CN + caducidad + estado) */
+.qt-table tbody tr.dm-grp { background: #f4f8fc; }
+.qt-table tbody tr.dm-grp:hover { background: #eaf3fb; }
+.dm-grp-toggle { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; font: inherit; color: var(--ink); font-weight: 700; }
+.dm-grp-chev { color: var(--brand, #1273b8); font-size: 0.9rem; width: 12px; display: inline-block; }
+.dm-grp-count { color: var(--brand-2, #0f5f9a); }
+.qt-table tbody tr.dm-sub { background: #fbfdff; }
+.dm-sub-name { padding-left: 20px; }
+.dm-sub-arrow { color: var(--muted); margin-right: 4px; }

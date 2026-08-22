@@ -16,7 +16,7 @@ const S = {
   query: '', andor: 'AND',
   sort: { key: 'nombre', dir: 'asc' },
   selected: new Set(), hidden: new Set(),
-  listMode: 'table', groupBy: false, archive: false, uncatOnly: false, preasigOnly: false,
+  listMode: 'table', groupBy: false, groupSame: true, archive: false, uncatOnly: false, preasigOnly: false,
   medFilter: null, // filter list to a GTIN
   currentItemId: null, view: 'home', nav: [],
 };
@@ -118,7 +118,7 @@ function asigBadge(it) {
     }
     return `<span class="dm-asig dm-asig-warn" title="Se marcó utilizada sin registrar a quién se asignó">⚠️ Utilizada sin trazabilidad</span>`;
   }
-  return '';
+  return `<span class="dm-asig dm-asig-stock" title="En stock, sin reservar para nadie">● No asignada</span>`;
 }
 
 // ── Data loading ────────────────────────────────────────────────────────────────
@@ -269,13 +269,14 @@ function viewFicha(id, opts) {
        <div class="qt-qr-stage">
          <div class="qt-qr-name">${shapeSvg(it.shape, it.color, 20)} ${esc(it.nombre || 'Medicamento sin nombre')}</div>
          ${dmHtml}
-         <div class="qt-qr-tis" style="font-size:1rem;letter-spacing:.06em">${it.serial ? 'Nº ' + esc(it.serial) : (it.gtin ? 'GTIN ' + esc(it.gtin) : '')}</div>
+         <div class="qt-qr-cn">${it.cn ? 'CN ' + esc(it.cn) : 'Sin Código Nacional'}</div>
+         <div class="qt-qr-tis" style="font-size:.92rem;letter-spacing:.04em;color:var(--muted)">${it.caducidad ? 'Cad ' + fmtDate(it.caducidad) : ''}${it.serial ? (it.caducidad ? ' · ' : '') + 'Nº ' + esc(it.serial) : ''}</div>
          ${mandoHtml(st, it)}
        </div>
        <div class="qt-ficha-info">
          <h2>${esc(it.nombre || 'Medicamento sin nombre')}</h2>
-         <div class="qt-ficha-meta">Alta: ${fmtDate(it.created_at)} · ${used ? '<span style="color:var(--muted)">● Utilizada</span>' : '<span style="color:var(--ok)">● Sin utilizar</span>'}</div>
-         ${it.asig_state ? `<div class="qt-ficha-meta">${asigBadge(it)}</div>` : ''}
+         <div class="qt-ficha-meta">Alta: ${fmtDate(it.created_at)}</div>
+         <div class="qt-ficha-meta">${asigBadge(it)}</div>
          <div class="qt-kv">
            <div class="qt-kv-row"><span class="k">Medicamento</span><span class="v">${esc(it.nombre || '—')}</span></div>
            <div class="qt-kv-row"><span class="k">GTIN</span><span class="v mono">${esc(it.gtin || '—')}</span></div>
@@ -397,6 +398,7 @@ function viewList() {
        <div class="qt-seg qt-mode" id="list-mode"><button data-m="table" class="${S.listMode !== 'cards' ? 'sel' : ''}">▤ Listado</button><button data-m="cards" class="${S.listMode === 'cards' ? 'sel' : ''}">▦ Tarjetas</button></div>
        ${S.listMode === 'cards' ? `<button class="qt-toggle ${S.groupBy ? 'on' : ''}" id="tg-group">🧬 Agrupar por medicamento</button>` : ''}
        ${S.listMode !== 'cards' ? `<button class="qt-toggle ${S.showListQr ? 'on' : ''}" id="tg-qr">▦ DM en el listado</button>` : ''}
+       ${S.listMode !== 'cards' ? `<button class="qt-toggle ${S.groupSame ? 'on' : ''}" id="tg-groupsame" title="Agrupar cajas idénticas (mismo medicamento y caducidad)">🧬 Agrupar iguales</button>` : ''}
        <span class="qt-inline-size" id="dm-size-wrap" ${(S.listMode === 'cards' || S.showListQr) ? '' : 'hidden'}>Tamaño DM <input type="range" id="list-dm-size" min="80" max="${S.listMode === 'cards' ? 220 : 360}" step="10" value="${S.listMode === 'cards' ? st.card_dm_size : st.list_dm_size}"><span id="list-dm-size-v">${S.listMode === 'cards' ? st.card_dm_size : st.list_dm_size}px</span></span>
        ${S.listMode === 'cards' && !S.groupBy ? `<span class="qt-inline-sort">Ordenar <select class="qt-select" id="cards-sort">${SORT_FIELDS.map(f => `<option value="${f.key}" ${S.sort.key === f.key ? 'selected' : ''}>${f.label}</option>`).join('')}</select><select class="qt-select" id="cards-dir"><option value="asc" ${S.sort.dir === 'asc' ? 'selected' : ''}>▲</option><option value="desc" ${S.sort.dir === 'desc' ? 'selected' : ''}>▼</option></select></span>` : ''}
        <button class="qt-toggle ${S.uncatOnly ? 'on' : ''}" id="tg-uncat" title="Medicamentos sin nombre (aún no catalogados)">🏷️ Sin catalogar (${S.items.filter(x => !x.nombre).length})</button>
@@ -421,6 +423,7 @@ function viewList() {
   $('list-mode').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { S.listMode = b.dataset.m; viewList(); }));
   if ($('tg-group')) $('tg-group').onclick = () => { S.groupBy = !S.groupBy; viewList(); };
   if ($('tg-qr')) $('tg-qr').onclick = () => { S.showListQr = !S.showListQr; viewList(); };
+  if ($('tg-groupsame')) $('tg-groupsame').onclick = () => { S.groupSame = !S.groupSame; viewList(); };
   $('tg-uncat').onclick = () => { S.uncatOnly = !S.uncatOnly; viewList(); };
   if ($('tg-preasig')) $('tg-preasig').onclick = () => { S.preasigOnly = !S.preasigOnly; viewList(); };
   $('tg-selected').onclick = () => { S.selectedOnly = !S.selectedOnly; viewList(); };
@@ -478,8 +481,68 @@ function renderList() {
   if (!rows.length) { body.innerHTML = '<div class="qt-empty">No hay cajas que coincidan.</div>'; return; }
   if (S.listMode === 'cards' && S.groupBy) { body.innerHTML = `<div class="qt-pcards" style="--qrw:${S.settings.card_dm_size}px">${groupCardsHtml(rows)}</div>`; wireGroupCards(body); return; }
   if (S.listMode === 'cards') { body.innerHTML = `<div class="qt-pcards" style="--qrw:${S.settings.card_dm_size}px">${rows.map(itemCardHtml).join('')}</div>`; body.querySelectorAll('[data-sel]').forEach(cb => { cb.checked = S.selected.has(Number(cb.dataset.sel)); }); wireListItems(body); return; }
-  body.innerHTML = `<div class="qt-table-wrap"><table class="qt-table"><thead>${headTr()}</thead><tbody>${rows.map(itemRowHtml).join('')}</tbody></table></div>`;
-  wireHeadSort(body); wireListItems(body);
+  body.innerHTML = `<div class="qt-table-wrap"><table class="qt-table"><thead>${headTr()}</thead><tbody>${tableBodyHtml(rows)}</tbody></table></div>`;
+  wireHeadSort(body); wireListItems(body); wireGroupRows(body);
+}
+// Identity of "the same, indistinguishable box": medication (GTIN, else CN) + expiry
+// + the same assignment state (so stock, asociada-to-X and asignada-to-X don't mix).
+function stateBucket(it) {
+  if (it.status === 'utilizado') return it.assignee_id != null ? 'asig:' + it.assignee_id : 'anom';
+  return it.assignee_id != null ? 'asoc:' + it.assignee_id : 'stock';
+}
+function grpKey(it) { return `${it.gtin || it.cn || 'x'}|${it.caducidad || ''}|${stateBucket(it)}`; }
+function tableBodyHtml(rows) {
+  if (!S.groupSame) return rows.map(it => itemRowHtml(it)).join('');
+  const groups = new Map();
+  for (const it of rows) { const k = grpKey(it); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(it); }
+  let html = '';
+  for (const arr of groups.values()) {
+    if (arr.length === 1) { html += itemRowHtml(arr[0]); continue; }
+    html += grpHeaderHtml(arr) + arr.map(it => subRowHtml(it, grpKey(it))).join('');
+  }
+  return html;
+}
+function grpHeaderHtml(arr) {
+  const it = arr[0], key = grpKey(it);
+  const dmCell = S.showListQr ? `<td class="dm-td-dm"><span class="qt-list-qr">${dmSvg(it.raw, dmOpts(it, S.settings.list_dm_size))}</span></td>` : '';
+  const allSel = arr.every(x => S.selected.has(x.id));
+  return `<tr class="dm-grp" data-grpkey="${esc(key)}">
+    <td><input type="checkbox" class="qt-check" data-grpsel="${esc(key)}" ${allSel ? 'checked' : ''}></td>
+    ${dmCell}
+    <td class="dm-td-name">
+      <button class="dm-grp-toggle" data-grptoggle="${esc(key)}" title="Desplegar / plegar las ${arr.length} unidades"><span class="dm-grp-chev">▸</span> <span class="dm-name-2l"><span class="qt-cell-name">${esc(it.nombre || 'Sin nombre')}</span></span></button>
+      <span class="dm-cell-cn">${it.cn ? 'CN ' + esc(it.cn) + ' · ' : ''}<b class="dm-grp-count">×${arr.length} unidades</b>${asigBadge(it) ? ' · ' + asigBadge(it) : ''}</span>
+    </td>
+    <td class="dm-td-cad">${cadDisplay(it.caducidad)}</td>
+    <td></td>
+  </tr>`;
+}
+function subRowHtml(it, key) {
+  const sel = S.selected.has(it.id), inCart = S.cart.has(it.id);
+  const dmCell = S.showListQr ? '<td class="dm-td-dm"></td>' : '';
+  return `<tr class="dm-sub ${sel ? 'is-selected' : ''}" data-id="${it.id}" data-grp="${esc(key)}" hidden>
+    <td><input type="checkbox" class="qt-check" data-sel="${it.id}" ${sel ? 'checked' : ''}></td>
+    ${dmCell}
+    <td class="dm-td-name dm-sub-name"><span class="dm-sub-arrow">↳</span> <span class="az-ovt-mono" data-open="${it.id}" style="cursor:pointer">${it.serial ? 'Nº ' + esc(it.serial) : '#' + it.id}</span>${it.lote ? ' <span class="az-ovt-dim">· Lote ' + esc(it.lote) + '</span>' : ''}</td>
+    <td class="dm-td-cad">${cadDisplay(it.caducidad)}</td>
+    <td><div class="qt-cell-actions">${itemActionsHtml(it, inCart)}</div></td>
+  </tr>`;
+}
+function wireGroupRows(container) {
+  container.querySelectorAll('[data-grptoggle]').forEach(b => b.onclick = () => {
+    const key = b.dataset.grptoggle;
+    const subs = container.querySelectorAll(`tr.dm-sub[data-grp="${CSS.escape(key)}"]`);
+    const open = subs.length && subs[0].hidden;
+    subs.forEach(tr => { tr.hidden = !open; });
+    const chev = b.querySelector('.dm-grp-chev'); if (chev) chev.textContent = open ? '▾' : '▸';
+  });
+  container.querySelectorAll('[data-grpsel]').forEach(cb => cb.addEventListener('change', () => {
+    const key = cb.dataset.grpsel;
+    container.querySelectorAll(`tr.dm-sub[data-grp="${CSS.escape(key)}"]`).forEach(tr => {
+      const id = Number(tr.dataset.id); if (cb.checked) S.selected.add(id); else S.selected.delete(id);
+    });
+    renderList();
+  }));
 }
 
 // Group cards: one per medication (GTIN) with count.
