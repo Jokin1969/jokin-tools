@@ -929,3 +929,38 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-person-link { text-decoration: none; color: inherit; cursor: pointer; }
 .az-person-link:hover { color: var(--brand); text-decoration: underline; }
 .az-qr-link { display: block; cursor: pointer; }
+
+/* ── "En seguimiento": header toggle (listado ↔ tarjetas) ─────────────────────── */
+.az-ov-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.az-ovview { flex: none; }
+.az-ovview button { font-size: 0.8rem; }
+
+/* Card: surname on its own line, first name in dark blue, status chip below */
+.az-card-h { padding-right: 54px; }              /* keep clear of the top-right actions */
+.az-card-name { line-height: 1.2; }
+.az-card-nombre { color: var(--brand-2); }
+.az-card-status { margin-top: 8px; }
+
+/* ── "En seguimiento": sortable list/table ────────────────────────────────────── */
+.az-ovt-wrap { overflow-x: auto; margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: var(--shadow); }
+.az-ovt { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.az-ovt thead th { position: sticky; top: 0; z-index: 1; background: #f3f7fb; color: var(--muted); font-weight: 700; text-align: left; padding: 9px 12px; white-space: nowrap; cursor: pointer; border-bottom: 1px solid var(--line); user-select: none; }
+.az-ovt thead th:hover { color: var(--brand); }
+.az-ovt thead th.sorted { color: var(--brand-2); }
+.az-ovt thead th.az-ovt-num { text-align: right; }
+.az-ovt tbody td { padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.az-ovt tbody tr:last-child td { border-bottom: none; }
+.az-ovt-row { cursor: pointer; transition: background .12s; }
+.az-ovt-row:hover { background: #f3f8fd; }
+.az-ovt-row.has-ready { background: #f2fbf6; }
+.az-ovt-row.has-ready:hover { background: #e9f7f0; }
+.az-ovt-name { font-weight: 700; color: var(--ink); }
+.az-ovt-name .az-ovt-nom { color: var(--brand-2); }
+.az-ovt-mono { font-family: var(--mono, monospace); font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+.az-ovt-num { text-align: right; font-variant-numeric: tabular-nums; }
+.az-ovt-dim { color: var(--muted); opacity: .7; }
+.az-ovt-notedot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); vertical-align: middle; margin-left: 4px; }
+.az-ovt-ready { font-size: 0.72rem; font-weight: 700; color: #128a5b; white-space: nowrap; }
+.az-ovt-actions { white-space: nowrap; text-align: right; width: 1%; }
+.az-ovt-actions .qt-iconbtn { opacity: .55; }
+.az-ovt-row:hover .az-ovt-actions .qt-iconbtn, .az-ovt-actions .qt-iconbtn.has { opacity: 1; }

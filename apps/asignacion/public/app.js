@@ -23,10 +23,17 @@ const S = {
   board: { boards: [], currentId: null, notes: [], users: [], userId: null },
   stickers: null, stkYm: null, stkStatus: 'pending', stkGroupBy: 'med', stkFilter: [], stkFilterRes: [], stkNotesOnly: false,
   ov: { res: [], estado: 'all', notesOnly: false, cartOnly: false, q: '' },
+  ovView: 'list', ovSort: { key: 'apellidos', dir: 'asc' },
   cart: new Set(), cartPeople: new Map(),
   planView: 'full', planSort: 'def',
 };
-try { S.planView = localStorage.getItem('asig_plan_view') || 'full'; S.planSort = localStorage.getItem('asig_plan_sort') || 'def'; } catch { /* */ }
+try {
+  S.planView = localStorage.getItem('asig_plan_view') || 'full';
+  S.planSort = localStorage.getItem('asig_plan_sort') || 'def';
+  S.ovView = localStorage.getItem('asig_ov_view') || 'list';
+  const os = JSON.parse(localStorage.getItem('asig_ov_sort') || 'null');
+  if (os && typeof os.key === 'string') S.ovSort = { key: os.key, dir: os.dir === 'desc' ? 'desc' : 'asc' };
+} catch { /* */ }
 
 // ── Tiny helpers ────────────────────────────────────────────────────────────────
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -802,10 +809,23 @@ function ovControlsHtml() {
 function renderOverviewSection() {
   const wrap = $('ov-wrap'); if (!wrap) return;
   const filtered = overviewFiltered();
-  wrap.innerHTML = `<div class="qt-section-title" style="margin-top:22px">En seguimiento (<span id="ov-count">${filtered.length}</span>${filtered.length !== S.overview.length ? ' de ' + S.overview.length : ''})</div>
-    <div class="qt-section-sub">Personas con plan o asignaciones. El estado es el del mes en curso.</div>
+  wrap.innerHTML = `<div class="az-ov-head" style="margin-top:22px">
+      <div>
+        <div class="qt-section-title">En seguimiento (<span id="ov-count">${filtered.length}</span>${filtered.length !== S.overview.length ? ' de ' + S.overview.length : ''})</div>
+        <div class="qt-section-sub">Personas con plan o asignaciones. El estado es el del mes en curso.</div>
+      </div>
+      <div class="az-seg az-ovview" id="ov-view" title="Ver como listado o como tarjetas">
+        <button data-ovv="list" class="${S.ovView !== 'cards' ? 'on' : ''}">▤ Listado</button>
+        <button data-ovv="cards" class="${S.ovView === 'cards' ? 'on' : ''}">▦ Tarjetas</button>
+      </div>
+    </div>
     ${ovControlsHtml()}
     <div id="ov-body">${overviewHtml(filtered)}</div>`;
+  // View toggle (listado ↔ tarjetas), persisted.
+  const vseg = $('ov-view'); if (vseg) vseg.querySelectorAll('[data-ovv]').forEach(b => b.onclick = () => {
+    S.ovView = b.dataset.ovv; try { localStorage.setItem('asig_ov_view', S.ovView); } catch { /* */ }
+    renderOverviewSection();
+  });
   // Estado + residence + notes chips → full re-render (buttons, no focus to keep).
   const seg = $('ov-estado'); if (seg) seg.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { S.ov.estado = b.dataset.v; renderOverviewSection(); });
   if ($('ov-notesonly')) $('ov-notesonly').onclick = () => { S.ov.notesOnly = !S.ov.notesOnly; renderOverviewSection(); };
@@ -827,11 +847,43 @@ function updateOverviewBody() {
   const body = $('ov-body'); if (body) { body.innerHTML = overviewHtml(filtered); wireOverview(); }
 }
 const OV_CAP = 120;
+// Sortable columns for the "En seguimiento" list.
+const OV_COLS = [
+  ['apellidos', 'Persona'], ['tis', 'TIS'], ['pharmacy_no', 'Nº Far.'], ['residencia', 'Residencia'],
+  ['plan_count', 'Med.'], ['planned_total', 'Cajas/mes'], ['estado', 'Estado'], ['latest', 'Último'],
+];
+const OV_ESTADO_RANK = { noplan: 0, partial: 1, assigned: 2 };
+function ovSortVal(r, key) {
+  const p = r.person;
+  switch (key) {
+    case 'tis': return String(p.tis || '');
+    case 'pharmacy_no': return String(p.pharmacy_no || '');
+    case 'residencia': return ovResidencia(r);
+    case 'plan_count': return r.plan_count || 0;
+    case 'planned_total': return r.planned_total || 0;
+    case 'estado': return OV_ESTADO_RANK[ovEstado(r)] ?? 0;
+    case 'latest': return r.latest ? r.latest.ym : '';
+    case 'apellidos': default: return `${p.apellidos} ${p.nombre}`;
+  }
+}
+function sortedOverview(rows) {
+  const { key, dir } = S.ovSort; const mul = dir === 'desc' ? -1 : 1;
+  const numeric = key === 'plan_count' || key === 'planned_total' || key === 'estado';
+  return rows.slice().sort((a, b) => {
+    const va = ovSortVal(a, key), vb = ovSortVal(b, key);
+    let c = numeric ? (va - vb) : String(va).localeCompare(String(vb), 'es');
+    if (c !== 0) return c * mul;
+    return `${a.person.apellidos} ${a.person.nombre}`.localeCompare(`${b.person.apellidos} ${b.person.nombre}`, 'es');
+  });
+}
 function overviewHtml(rows) {
   if (!S.overview.length) return '<div class="qt-empty">Aún no hay personas en seguimiento. Busca una persona arriba y crea su plan.</div>';
   if (!rows.length) return '<div class="qt-empty">No hay personas que coincidan con el filtro.</div>';
-  const shown = rows.slice(0, OV_CAP);
+  const shown = sortedOverview(rows).slice(0, OV_CAP);
   const more = rows.length > OV_CAP ? `<div class="az-ov-more">Mostrando ${OV_CAP} de ${rows.length}. Afina el filtro (residencia, estado o búsqueda) para acotar.</div>` : '';
+  return (S.ovView === 'cards' ? overviewCardsHtml(shown) : overviewListHtml(shown)) + more;
+}
+function overviewCardsHtml(shown) {
   return `<div class="az-cards">` + shown.map(r => {
     const p = r.person, inCart = S.cart.has(p.id);
     const note = r.note ? `<div class="az-ent-note az-ov-note" style="background:${esc(r.note.color || '#FEF08A')}">${esc(r.note.text)}</div>` : '';
@@ -840,22 +892,55 @@ function overviewHtml(rows) {
         <button class="qt-iconbtn az-card-cart ${inCart ? 'has' : ''}" data-cart="${p.id}" title="${inCart ? 'Quitar del carrito' : 'Añadir al carrito'}">${inCart ? '✓🛒' : '🛒'}</button>
         <button class="qt-iconbtn az-card-note ${r.note ? 'has' : ''}" data-note="${p.id}" title="${r.note ? 'Editar nota' : 'Añadir nota'}">📝</button>
       </div>
-      <div class="az-card-h"><span class="az-card-name">${esc(p.apellidos)}, ${esc(p.nombre)}</span>${statusChip(r)}</div>
+      <div class="az-card-h"><span class="az-card-name">${esc(p.apellidos)},<br><span class="az-card-nombre">${esc(p.nombre)}</span></span></div>
+      <div class="az-card-status">${statusChip(r)}</div>
       ${r.ready_count ? `<div class="az-card-ready">🔔 ${r.ready_count} caja(s) ya se pueden asignar</div>` : ''}
       <div class="az-card-sub">TIS ${esc(fmtTis(p.tis))}${p.pharmacy_no ? ' · Farmacia ' + esc(p.pharmacy_no) : ''}${(p.groups && p.groups.length) ? ' · 🏠 ' + esc(p.groups.join(' · ')) : ''}</div>
       <div class="az-card-sub">${r.plan_count} medicamento(s) en el plan · ${r.planned_total} caja(s)/mes${r.latest ? ' · último: ' + esc(fmtYm(r.latest.ym)) : ''}</div>
       ${note}
     </div>`;
-  }).join('') + `</div>` + more;
+  }).join('') + `</div>`;
+}
+function overviewListHtml(shown) {
+  const arrow = k => S.ovSort.key === k ? (S.ovSort.dir === 'desc' ? ' ▼' : ' ▲') : '';
+  const head = `<thead><tr>${OV_COLS.map(([k, l]) =>
+    `<th data-sort="${k}" class="${S.ovSort.key === k ? 'sorted' : ''}${(k === 'plan_count' || k === 'planned_total') ? ' az-ovt-num' : ''}" title="Ordenar por ${esc(l)}">${l}${arrow(k)}</th>`).join('')}<th class="az-ovt-actions"></th></tr></thead>`;
+  const body = shown.map(r => {
+    const p = r.person, inCart = S.cart.has(p.id);
+    return `<tr class="az-ovt-row${r.ready_count ? ' has-ready' : ''}${r.note ? ' has-note' : ''}" data-open="${p.id}">
+      <td class="az-ovt-name"><span class="az-ovt-ape">${esc(p.apellidos)},</span> <span class="az-ovt-nom">${esc(p.nombre)}</span>${r.note ? ` <span class="az-ovt-notedot" title="${esc(r.note.text)}" style="background:${esc(r.note.color || '#FEF08A')}"></span>` : ''}</td>
+      <td class="az-ovt-mono">${esc(fmtTis(p.tis))}</td>
+      <td class="az-ovt-mono">${p.pharmacy_no ? esc(p.pharmacy_no) : '<span class="az-ovt-dim">—</span>'}</td>
+      <td>${(p.groups && p.groups.length) ? esc(p.groups.join(' · ')) : '<span class="az-ovt-dim">Sin grupo</span>'}</td>
+      <td class="az-ovt-num">${r.plan_count}</td>
+      <td class="az-ovt-num">${r.planned_total}</td>
+      <td>${statusChip(r)}${r.ready_count ? ` <span class="az-ovt-ready" title="${r.ready_count} caja(s) ya se pueden asignar">🔔${r.ready_count}</span>` : ''}</td>
+      <td class="az-ovt-mono">${r.latest ? esc(fmtYm(r.latest.ym)) : '<span class="az-ovt-dim">—</span>'}</td>
+      <td class="az-ovt-actions">
+        <button class="qt-iconbtn az-card-cart ${inCart ? 'has' : ''}" data-cart="${p.id}" title="${inCart ? 'Quitar del carrito' : 'Añadir al carrito'}">${inCart ? '✓🛒' : '🛒'}</button>
+        <button class="qt-iconbtn az-card-note ${r.note ? 'has' : ''}" data-note="${p.id}" title="${r.note ? 'Editar nota' : 'Añadir nota'}">📝</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="az-ovt-wrap"><table class="az-ovt">${head}<tbody>${body}</tbody></table></div>`;
 }
 function wireOverview() {
-  main().querySelectorAll('.az-card[data-open]').forEach(el => el.addEventListener('click', e => { if (e.target.closest('[data-note],[data-cart]')) return; openPerson(Number(el.dataset.open)); }));
-  main().querySelectorAll('[data-note]').forEach(b => b.addEventListener('click', e => {
+  const body = $('ov-body'); if (!body) return;
+  body.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', e => { if (e.target.closest('[data-note],[data-cart]')) return; openPerson(Number(el.dataset.open)); }));
+  body.querySelectorAll('[data-note]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
     const id = Number(b.dataset.note), row = S.overview.find(r => r.person.id === id);
     openNoteEditor({ subtitle: row ? `${row.person.apellidos}, ${row.person.nombre}` : '', endpoint: `/note/person/${id}`, current: row && row.note, onSaved: (note) => { if (row) row.note = note; renderOverviewSection(); } });
   }));
-  main().querySelectorAll('[data-cart]').forEach(b => b.addEventListener('click', async e => { e.stopPropagation(); await toggleCart(Number(b.dataset.cart)); updateOverviewBody(); }));
+  body.querySelectorAll('[data-cart]').forEach(b => b.addEventListener('click', async e => { e.stopPropagation(); await toggleCart(Number(b.dataset.cart)); updateOverviewBody(); }));
+  // Sortable table headers.
+  body.querySelectorAll('.az-ovt th[data-sort]').forEach(th => th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    if (S.ovSort.key === k) S.ovSort = { key: k, dir: S.ovSort.dir === 'asc' ? 'desc' : 'asc' };
+    else S.ovSort = { key: k, dir: 'asc' };
+    try { localStorage.setItem('asig_ov_sort', JSON.stringify(S.ovSort)); } catch { /* */ }
+    updateOverviewBody();
+  }));
 }
 
 // ── Cart of people (slide-over, like the other apps) ─────────────────────────────
