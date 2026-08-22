@@ -190,10 +190,15 @@ router.post('/api/plan/import', jsonBig, async (req, res) => {
     const byTis = new Map(all.map(p => [strip(p.tis), p]));
     const byPh = new Map(all.filter(p => p.pharmacy_no && p.pharmacy_no !== '00000').map(p => [strip(p.pharmacy_no), p]));
     const byId = new Map(all.map(p => [String(p.id), p]));
+    // Try the chosen identifier first, then fall back to the *other* one (and the
+    // raw id) so a person that exists in QR (TIS) is found even when pasted under
+    // the "wrong" column — e.g. a Nº de farmacia while importing «por TIS». Once
+    // resolved, addPlanMed below creates the (empty) plan and adds the medication.
     const resolve = (code) => {
       const k = strip(code);
-      if (by === 'pharmacy') return byPh.get(k) || null;
-      return byTis.get(k) || byId.get(String(code == null ? '' : code).trim()) || null;
+      const primary = by === 'pharmacy' ? byPh : byTis;
+      const secondary = by === 'pharmacy' ? byTis : byPh;
+      return primary.get(k) || secondary.get(k) || byId.get(String(code == null ? '' : code).trim()) || null;
     };
     // Parse rows + collect distinct valid CNs for a single CIMA pass.
     const cnSet = new Set();
@@ -215,8 +220,11 @@ router.post('/api/plan/import', jsonBig, async (req, res) => {
     let added = 0, updated = 0; const errors = [];
     const seenPeople = new Set();
     for (const row of parsed) {
-      if (!row.person) { errors.push({ line: row.line, code: row.code, error: 'Persona no encontrada.' }); continue; }
+      if (!row.person) { errors.push({ line: row.line, code: row.code, error: 'Persona no encontrada en QR (TIS).' }); continue; }
       if (!row.cns.length) { errors.push({ line: row.line, code: row.code, error: 'Sin Códigos Nacionales válidos.' }); continue; }
+      // Ensure the plan exists (created empty if the person had none yet) before
+      // adding the imported medications.
+      if (!seenPeople.has(row.person.id)) { try { db.createEmptyPlan(row.person.id, req.user.id); } catch { /* */ } }
       seenPeople.add(row.person.id);
       for (const cn of row.cns) {
         try {

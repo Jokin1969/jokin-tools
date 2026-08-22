@@ -371,6 +371,23 @@ test('importar medicación por CN: resuelve por TIS, añade al plan y avisa de n
   assert.ok((await call('GET', `/person/${c}/plan`)).data.plan.some(m => m.cn === '715000'));
 });
 
+test('importar medicación: si el identificador elegido falla, busca en QR (TIS) por el otro y crea el plan', async () => {
+  // Persona con TIS y Nº de farmacia que "strippean" a valores distintos.
+  const d = qrDb.createPerson({ pharmacy_no: '55501', nombre: 'Cruz', apellidos: 'Ada', tis: '00061234' }, 1).id;
+  // No tiene plan todavía.
+  assert.equal(asigDb.personMedSummary(d).has_plan, false, 'sin plan al empezar');
+  // Importando «por TIS», pero pasando su Nº de farmacia (55501): debe resolver por el otro identificador.
+  const r1 = (await call('POST', '/plan/import', { by: 'tis', qty: 1, rows: [{ person: '55501', cns: ['715000'] }] })).data;
+  assert.equal(r1.people, 1, 'resuelve por Nº de farmacia aunque el modo sea TIS');
+  assert.equal(r1.added, 1);
+  assert.equal(asigDb.personMedSummary(d).has_plan, true, 'ahora tiene plan');
+  assert.ok((await call('GET', `/person/${d}/plan`)).data.plan.some(m => m.cn === '715000'));
+  // Importando «por Nº de farmacia», pero pasando su TIS (61234 sin ceros): resuelve por el otro.
+  const r2 = (await call('POST', '/plan/import', { by: 'pharmacy', qty: 1, rows: [{ person: '61234', cns: ['885442'] }] })).data;
+  assert.equal(r2.people, 1, 'resuelve por TIS aunque el modo sea Nº de farmacia');
+  assert.ok((await call('GET', `/person/${d}/plan`)).data.plan.some(m => m.cn === '885442'));
+});
+
 test('linking a mismatched box warns (409) but can be forced', async () => {
   const pid = qrDb.createPerson({ pharmacy_no: '80002', nombre: 'Iker', apellidos: 'Dao', tis: '00080002' }, 1).id;
   const med = (await call('POST', `/person/${pid}/plan`, { cn: '999999', nombre: 'Medicamento X', qty: 1 })).data.plan.find(m => m.cn === '999999');
