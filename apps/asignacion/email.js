@@ -32,8 +32,15 @@ function parseRecipients(csv) {
 const TYPE_LABEL = { any: 'Al menos un medicamento', all: 'Toda la medicación' };
 const CRIT_LABEL = { exact: 'novedades del día', lte: 'acumulado a la fecha' };
 
-async function renderQrPng(tis, person) {
-  const dark = CLR.test(person.qr_dark || '') ? person.qr_dark : '#0f172a';
+// QR colour precedence: person override > group/residence colour > global default.
+function groupColorFor(person, groupColors) {
+  const gc = groupColors || {};
+  for (const g of String(person.group_name || '').split('\n').map(s => s.trim()).filter(Boolean)) if (CLR.test(gc[g] || '')) return gc[g];
+  return null;
+}
+async function renderQrPng(tis, person, groupColors, globalDark) {
+  const dark = CLR.test(person.qr_dark || '') ? person.qr_dark
+    : (groupColorFor(person, groupColors) || (CLR.test(globalDark || '') ? globalDark : '#0f172a'));
   const light = CLR.test(person.qr_light || '') ? person.qr_light : '#ffffff';
   return qrcode.toBuffer(String(tis), { type: 'png', errorCorrectionLevel: 'M', margin: 1, width: 220, color: { dark, light } });
 }
@@ -44,6 +51,8 @@ async function renderDmPng(raw, color) {
 // Build { subject, html, images:[{cid, buffer, filename}], count, people }.
 async function buildParts(notif, refDate) {
   const dmVisual = require('../datamatrix/visual');
+  const qrSt = require('../qr-tis/db').getSettings();
+  const groupColors = qrSt.group_colors || {};
   const data = release.peopleForNotif({ ntype: notif.ntype, criterion: notif.criterion }, refDate);
   const base = getBaseUrl();
   const images = [];
@@ -55,7 +64,7 @@ async function buildParts(notif, refDate) {
   for (const pp of data.people) {
     const p = pp.person;
     const qrCid = `qr-${p.id}`;
-    try { images.push({ cid: qrCid, buffer: await renderQrPng(p.tis, p), filename: `qr-${p.tis}.png` }); } catch { /* skip */ }
+    try { images.push({ cid: qrCid, buffer: await renderQrPng(p.tis, p, groupColors, qrSt.qr_dark), filename: `qr-${p.tis}.png` }); } catch { /* skip */ }
     const meds = [];
     for (const b of pp.satisfying) {
       const it = b.item;   // may be null: the box may not be pre-assigned yet

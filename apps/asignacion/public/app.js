@@ -93,9 +93,16 @@ function qrSvg(text, o) {
   const rendering = style === 'dots' ? 'geometricPrecision' : 'crispEdges';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${tot} ${tot}" shape-rendering="${rendering}"><rect width="${tot}" height="${tot}" fill="${light}"/><g fill="${dark}">${d}</g></svg>`;
 }
+// QR colour a person inherits from their group/residence (QR·TIS group colours).
+function asigGroupColor(p) {
+  const gc = (S.qrSettings && S.qrSettings.group_colors) || {};
+  if (!p || !Array.isArray(p.groups)) return null;
+  for (const g of p.groups) if (gc[g]) return gc[g];
+  return null;
+}
 function qrOpts(p, size) {
   const st = S.qrSettings || {};
-  return { dark: (p && p.qr_dark) || st.qr_dark || '#0f172a', light: (p && p.qr_light) || st.qr_light || '#ffffff', style: (p && p.qr_style) || st.qr_style || 'square', ecc: st.qr_ecc || 'M', size };
+  return { dark: (p && p.qr_dark) || asigGroupColor(p) || st.qr_dark || '#0f172a', light: (p && p.qr_light) || st.qr_light || '#ffffff', style: (p && p.qr_style) || st.qr_style || 'square', ecc: st.qr_ecc || 'M', size };
 }
 
 // ── Data Matrix rendering (client, bwip-js) ──────────────────────────────────────
