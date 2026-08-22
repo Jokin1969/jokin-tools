@@ -523,6 +523,13 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-cima-fotos { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
 .az-cima-foto { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; text-decoration: none; color: var(--muted); font-size: 0.7rem; }
 .az-cima-foto img { width: 84px; height: 84px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+/* Edit-medication modal: box + pill image slots (blank if no image) */
+.az-em-fotos { display: flex; gap: 14px; margin-top: 4px; }
+.az-em-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.az-em-foto { width: 92px; height: 92px; border: 1px solid var(--line); border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.az-em-foto.is-empty { border-style: dashed; background: #f7fafd; }
+.az-em-foto img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.az-em-lbl { font-size: 0.74rem; color: var(--muted); }
 .az-plan-shape { flex: 0 0 auto; display: inline-flex; align-items: center; }
 .az-plan-foto { width: 52px; height: 52px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; display: block; }
 .az-plan-foto-btn { padding: 0; border: none; background: none; cursor: zoom-in; display: inline-flex; flex: 0 0 auto; }

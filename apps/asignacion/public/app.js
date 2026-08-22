@@ -1878,6 +1878,21 @@ function cimaFotosHtml(cn, fotos) {
   const inner = one(fotos.caja, 'caja', 'Caja') + one(fotos.pastilla, 'pastilla', 'Pastilla');
   return inner ? `<div class="az-cima-fotos">${inner}</div><div class="az-form-hint" style="margin-top:2px">Imágenes: AEMPS · CIMA · guardadas</div>` : '';
 }
+// Always-visible box + pill image slots (blank when there's no image), for the
+// edit-medication modal. Clicking an image opens it full-size in a new tab.
+function medFotoSlot(cn, tipo, lbl, has) {
+  const box = (has && cn)
+    ? `<a class="az-em-foto" href="${fotoUrl(cn, tipo)}" target="_blank" rel="noopener" title="Ver ${lbl} en grande (AEMPS)"><img src="${fotoUrl(cn, tipo)}" alt="${lbl}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('is-empty')"></a>`
+    : `<div class="az-em-foto is-empty"></div>`;
+  return `<div class="az-em-slot">${box}<span class="az-em-lbl">${lbl}</span></div>`;
+}
+function editFotosHtml(med) {
+  return `<div class="qt-field"><label>Imágenes (AEMPS · CIMA)</label>
+    <div class="az-em-fotos">
+      ${medFotoSlot(med.cn, 'caja', 'Caja', med.foto_caja)}
+      ${medFotoSlot(med.cn, 'pastilla', 'Pastilla', med.foto_pastilla)}
+    </div></div>`;
+}
 // Edit an existing plan medication (name / CN / barcode) without deleting it.
 function openEditMed(med) {
   openTool(`<div class="qt-modal-h"><h3>✏️ Editar medicamento</h3><button class="qt-x" id="em-close">×</button></div>
@@ -1885,7 +1900,7 @@ function openEditMed(med) {
     <div class="qt-field"><label>Nombre del medicamento</label><input class="qt-input" id="em-nombre" value="${esc(med.nombre || '')}" maxlength="160" autocomplete="off"></div>
     <div class="qt-field"><label>Código Nacional (CN)</label><div class="az-cn-row"><input class="qt-input" id="em-cn" inputmode="numeric" value="${esc(med.cn || '')}" autocomplete="off"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="em-cima" title="Traer datos desde CIMA (AEMPS)">🔎 CIMA</button></div></div>
     <div class="qt-field"><label>Código de barras (opcional)</label><input class="qt-input" id="em-barcode" inputmode="numeric" value="${esc(med.barcode || '')}" autocomplete="off"></div>
-    <div id="em-fotos"></div>
+    <div id="em-fotos">${editFotosHtml(med)}</div>
     <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" id="em-cancel">Cancelar</button><button class="qt-btn qt-btn-primary" id="em-save">Guardar</button></div>`);
   $('em-close').onclick = closeTool; $('em-cancel').onclick = closeTool;
   $('em-barcode').addEventListener('input', () => { const bar = $('em-barcode').value.replace(/\D/g, ''); if (!$('em-cn').value.trim() && /^847000\d{7}$/.test(bar)) $('em-cn').value = bar.slice(6, 12); });
@@ -1893,7 +1908,7 @@ function openEditMed(med) {
     const cn = $('em-cn').value.trim();
     if (!/^\d{5,7}$/.test(cn)) { toast('Escribe un Código Nacional (5–7 dígitos).', 'err'); return; }
     const btn = $('em-cima'); btn.disabled = true; const prev = btn.textContent; btn.textContent = '…';
-    try { const { item } = await api('/cima/cn/' + cn); if (!item) toast('CIMA no encontró ese Código Nacional.', 'err'); else { if (item.nombre) $('em-nombre').value = item.nombre; if (item.barcode) $('em-barcode').value = item.barcode; $('em-fotos').innerHTML = cimaFotosHtml(item.cn, item.fotos); toast('Datos traídos de CIMA (AEMPS).', 'ok'); } }
+    try { const { item } = await api('/cima/cn/' + cn); if (!item) toast('CIMA no encontró ese Código Nacional.', 'err'); else { if (item.nombre) $('em-nombre').value = item.nombre; if (item.barcode) $('em-barcode').value = item.barcode; $('em-fotos').innerHTML = editFotosHtml({ cn: item.cn, foto_caja: !!(item.fotos && item.fotos.caja), foto_pastilla: !!(item.fotos && item.fotos.pastilla) }); toast('Datos traídos de CIMA (AEMPS).', 'ok'); } }
     catch (e) { toast((e.offline || (e.data && e.data.offline)) ? 'No se pudo consultar CIMA ahora; edítalo a mano.' : e.message, 'err'); }
     finally { btn.disabled = false; btn.textContent = prev; }
   };
