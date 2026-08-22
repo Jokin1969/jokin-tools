@@ -25,6 +25,31 @@ test('gs1.parse extracts GTIN, serial, lote, caducidad, CN (with ]d2 and DD=00)'
   assert.equal(gs1.expiryToIso('261130'), '2026-11-30');
 });
 
+test('gs1.parse survives MISSING FNC1 separators (real pharmacy DMs, copy-pasted)', () => {
+  // 847000 box: GTIN carries the CN; serial then expiry, no separators.
+  const a = gs1.parse('0108470007116622211024156505650710TPVF917280831');
+  assert.equal(a.gtin, '08470007116622');
+  assert.equal(gs1.expiryToIso(a.caducidad), '2028-08-31');
+  assert.equal(gs1.cnForCima(a), '711662');       // from the 847000 GTIN
+  // 843653 box: manufacturer GTIN, CN lives in AI 712 (CN6 + check digit).
+  const b = gs1.parse('010843653124877221E23W4M1XEG1XA610ACD259172709307127292487');
+  assert.equal(b.gtin, '08436531248772');
+  assert.equal(gs1.expiryToIso(b.caducidad), '2027-09-30');
+  assert.equal(b.cn, '7292487');                  // NHRN (712), 7 chars
+  assert.equal(gs1.cnForCima(b), '729248');       // 6-digit CN CIMA understands
+  // Another 843653 example.
+  const c = gs1.parse('010843653080014821PXNA3158DXK810EK26770173101317129395797');
+  assert.equal(gs1.cnForCima(c), '939579');
+  assert.equal(gs1.expiryToIso(c.caducidad), '2031-01-31');
+});
+
+test('gs1.parse still honours FNC1 separators when present (serial not truncated)', () => {
+  // A serial that contains "17" must NOT be cut when a real GS terminates it.
+  const f = gs1.parse('0108470006991545' + '21AB17CD99' + GS + '17261130');
+  assert.equal(f.serial, 'AB17CD99');
+  assert.equal(f.caducidad, '261130');
+});
+
 test('gs1.boxKey uses GTIN|serial (identity of a box)', () => {
   const f = gs1.parse('0108470006991545' + '21SN0001' + GS + '17261130');
   assert.equal(gs1.boxKey(f, 'x'), '08470006991545|SN0001');

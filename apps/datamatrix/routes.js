@@ -66,7 +66,19 @@ function publicItem(it) {
 // Parse a raw string into the fields we store.
 function fieldsFromRaw(raw) {
   const f = gs1.parse(raw);
-  return { raw, box_key: gs1.boxKey(f, raw), gtin: gs1.normGtin(f.gtin), serial: f.serial, lote: f.lote, caducidad: gs1.expiryToIso(f.caducidad), cn: f.cn };
+  return { raw, box_key: gs1.boxKey(f, raw), gtin: gs1.normGtin(f.gtin), serial: f.serial, lote: f.lote, caducidad: gs1.expiryToIso(f.caducidad), cn: gs1.cnForCima(f) };
+}
+// Fill a box's medication name from CIMA (cached, tolerant of offline). Best-effort:
+// on failure the product stays a stub and can be named later. Never throws.
+async function nameProductFromCima(gtin, cn) {
+  if (!gtin) return;
+  const prod = db.getProduct(gtin);
+  if (!prod) db.upsertProduct(gtin, { cn: cn || null });        // stub so a name can attach
+  if (!cn || (prod && prod.nombre)) return;                      // no CN, or already named
+  try {
+    const it = await cimaCache.lookupByCnCached(cn);
+    if (it && it.nombre) db.upsertProduct(gtin, { nombre: it.nombre, cn: it.cn || cn });
+  } catch { /* CIMA offline → leave the stub; the name can be filled later */ }
 }
 
 // ── UI ───────────────────────────────────────────────────────────────────────
@@ -85,15 +97,15 @@ router.get('/api/meta', (req, res) => {
 });
 
 // ── Scan IN (entrada): add a box, or report it's already known ──────────────────
-router.post('/api/scan', json, (req, res) => {
+router.post('/api/scan', json, async (req, res) => {
   try {
     const raw = cleanRaw(req.body && req.body.raw);
     const data = fieldsFromRaw(raw);
     const existing = db.findByKey(data.box_key);
     if (existing) return res.json({ duplicate: true, status: existing.status, item: publicItem(existing) });
     const item = db.createItem(data, req.user.id);
-    if (data.gtin && !db.getProduct(data.gtin)) db.upsertProduct(data.gtin, {}); // stub so a name can be attached
-    res.status(201).json({ item: publicItem(item) });
+    await nameProductFromCima(data.gtin, data.cn);   // identify the medication via CIMA
+    res.status(201).json({ item: publicItem(db.findByKey(data.box_key) || item) });
   } catch (err) { fail(res, err); }
 });
 

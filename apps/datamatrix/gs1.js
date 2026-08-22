@@ -31,16 +31,43 @@ function normalizeRaw(raw) {
   return s;
 }
 
+// Is `str6` a plausible YYMMDD (used to anchor variable fields when separators are
+// missing): month 01-12, day 00-31 (00 = end of month, a GS1 rule).
+function validYymmdd(str6) {
+  const m = /^(\d{2})(\d{2})(\d{2})$/.exec(String(str6 || ''));
+  if (!m) return false;
+  const mm = +m[2], dd = +m[3];
+  return mm >= 1 && mm <= 12 && dd >= 0 && dd <= 31;
+}
+
 // Parse into { gtin, serial, lote, caducidad(raw YYMMDD), cn }.
+//
+// Ideally variable-length fields (21 serial, 10 lot, 71x NHRN) are terminated by the
+// FNC1/GS separator. But some scanners (and any copy-paste) DROP it, and then a
+// naive parser lets the serial swallow the rest — losing the expiry and the Código
+// Nacional. So when there's no separator we cut a variable field at the next
+// RELIABLE anchor: an expiry "17"+valid-date or an NHRN "71x". Serial/lot may then
+// absorb an un-delimited neighbour (best effort), but the GTIN, expiry and CN — what
+// identifies the medication — come out right.
 function parse(raw) {
   const s = normalizeRaw(raw);
   const out = { gtin: null, serial: null, lote: null, caducidad: null, cn: null };
   let i = 0;
+  // First reliable AI anchor in [from, limit): "71x" (NHRN) or "17"+valid date.
+  const nextAnchor = (from, limit) => {
+    for (let k = from; k < limit; k++) {
+      if (/^71[0-4]$/.test(s.substr(k, 3))) return k;
+      if (s.substr(k, 2) === '17' && k + 8 <= s.length && validYymmdd(s.substr(k + 2, 6))) return k;
+    }
+    return -1;
+  };
   const readVar = () => {
-    let j = s.indexOf(GS, i);
-    if (j < 0) j = s.length;
-    const v = s.slice(i, j);
-    i = j < s.length ? j + 1 : j;
+    let end = s.length;
+    const gsPos = s.indexOf(GS, i);
+    if (gsPos >= 0) end = gsPos;                 // an authoritative separator wins
+    else { const anc = nextAnchor(i + 1, end); if (anc >= 0) end = anc; }  // else cut at an anchor
+    const v = s.slice(i, end);
+    i = (end < s.length && s[end] === GS) ? end + 1 : end;
     return v;
   };
   let guard = 0;
@@ -104,6 +131,19 @@ function cnToGtin(cn) {
   return '0' + body12 + ean13Check(body12);
 }
 
+// The 6-digit Código Nacional that CIMA understands, derived from a parsed DM:
+//  · Spanish reimbursed meds embed it in the GTIN (847000+CN6) → recover it there.
+//  · Otherwise use the NHRN from AI 71x (Spain uses 712); it carries the 6-digit CN
+//    plus a check digit (7 chars) — drop the check digit for CIMA.
+function cnForCima(fields) {
+  const ean = fields && fields.gtin ? String(fields.gtin).replace(/\D/g, '').slice(-13) : '';
+  if (/^847000\d{7}$/.test(ean)) return ean.slice(6, 12);
+  const nhrn = fields && fields.cn ? String(fields.cn).replace(/\D/g, '') : '';
+  if (nhrn.length === 7) return nhrn.slice(0, 6);
+  if (nhrn.length === 6) return nhrn;
+  return null;
+}
+
 // A stable identity for "the same physical box": GTIN + serial when present,
 // otherwise the raw content (so codes without a serial are still de-duplicated).
 function boxKey(fields, raw) {
@@ -111,4 +151,4 @@ function boxKey(fields, raw) {
   return 'raw:' + normalizeRaw(raw);
 }
 
-module.exports = { GS, parse, normalizeRaw, expiryToIso, boxKey, normGtin, cnToGtin, ean13Check };
+module.exports = { GS, parse, normalizeRaw, expiryToIso, boxKey, normGtin, cnToGtin, ean13Check, cnForCima, validYymmdd };
