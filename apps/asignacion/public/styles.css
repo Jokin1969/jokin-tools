@@ -919,7 +919,7 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-mi-preview { margin: 4px 0; }
 
 /* ── Plan: sort + compact views + duplicate finder ────────────────────────────── */
-.az-plan-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.az-plan-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; flex: 1 1 auto; }
 .az-plan-sortlbl { font-size: 0.8rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
 .qt-select-sm { padding: 5px 8px; font-size: 0.82rem; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .az-planview button { font-size: 0.95rem; padding: 5px 9px; }
@@ -997,8 +997,8 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 
 /* ── "Pendientes de caja": sección plegable (colapsada por defecto) ────────────── */
 .az-pend-details { margin: 14px 0 4px; }
-.az-pend-details > summary { list-style: none; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; margin: 0 0 8px; padding: 8px 10px; border: 1px dashed #e4c9a0; border-radius: 10px; background: #fffaf0; }
+.az-pend-details > summary { list-style: none; cursor: pointer; user-select: none; display: block; margin: 0 0 8px; padding: 8px 10px 8px 28px; position: relative; border: 1px dashed #e4c9a0; border-radius: 10px; background: #fffaf0; }
 .az-pend-details > summary::-webkit-details-marker { display: none; }
-.az-pend-details > summary::before { content: '▸'; color: #8a5a00; font-size: 0.9rem; transition: transform .15s; }
+.az-pend-details > summary::before { content: '▸'; position: absolute; left: 10px; top: 8px; color: #8a5a00; font-size: 0.9rem; transition: transform .15s; }
 .az-pend-details[open] > summary::before { transform: rotate(90deg); }
 .az-pend-details > summary:hover { border-color: #d9b482; background: #fdf3e2; }
