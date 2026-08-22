@@ -221,3 +221,26 @@ test('group_colors: se guardan, se filtran (color válido) y persisten en settin
   s = db.saveSettings({ group_colors: {} }, 1);
   assert.deepEqual(s.group_colors, {});
 });
+
+test('person notes: upsert, borrar y aparecen en el payload de personas', async () => {
+  const http = require('http'); const express = require('express');
+  const router = require('../apps/qr-tis/routes');
+  const app = express();
+  app.use((req, res, next) => { req.user = { id: 1, email: 'a@e', name: 'A', role: 'admin', apps: '*' }; next(); });
+  app.use('/qr-tis', router);
+  const server = await new Promise(r => { const s = app.listen(0, () => r(s)); });
+  const base = `http://127.0.0.1:${server.address().port}/qr-tis/api`;
+  const call = (m, p, b) => fetch(base + p, { method: m, headers: b ? { 'Content-Type': 'application/json' } : {}, body: b ? JSON.stringify(b) : undefined }).then(async r => ({ status: r.status, data: await r.json().catch(() => ({})) }));
+  try {
+    const pid = db.createPerson({ pharmacy_no: '77001', nombre: 'Nota', apellidos: 'Uno', tis: '00770001' }, 1).id;
+    // Set a note.
+    const put = await call('PUT', `/people/${pid}/note`, { text: 'Silla de ruedas', color: '#BFDBFE' });
+    assert.equal(put.status, 200); assert.equal(put.data.note.text, 'Silla de ruedas');
+    // It shows in the list payload + single get.
+    assert.ok((await call('GET', '/people')).data.items.find(x => x.id === pid).note.text === 'Silla de ruedas');
+    assert.equal((await call('GET', `/people/${pid}`)).data.item.note.color, '#BFDBFE');
+    // Empty text clears it.
+    await call('PUT', `/people/${pid}/note`, { text: '' });
+    assert.equal((await call('GET', `/people/${pid}`)).data.item.note, null);
+  } finally { server.close(); }
+});

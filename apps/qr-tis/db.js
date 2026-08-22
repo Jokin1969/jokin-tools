@@ -75,6 +75,17 @@ try { db.prepare('ALTER TABLE tis_people ADD COLUMN deceased_at DATETIME').run()
 try { db.prepare('ALTER TABLE tis_settings ADD COLUMN card_qr_size INTEGER').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE tis_settings ADD COLUMN group_colors TEXT').run(); } catch { /* already present */ }
 
+// A small, pretty note per person (like the ones in Asignación): one per person.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tis_note (
+    person_id  INTEGER PRIMARY KEY,
+    text       TEXT NOT NULL,
+    color      TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_by INTEGER
+  );
+`);
+
 console.log('[qr-tis] Database ready at:', DB_PATH);
 
 const DEFAULT_SETTINGS = {
@@ -249,4 +260,18 @@ module.exports = {
   pharmacyTaken, tisTaken, touchPerson, recentPeople,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,
+  getNote, setNote, notesMap,
 };
+
+// ── Per-person notes ─────────────────────────────────────────────────────────────
+function getNote(personId) { return db.prepare('SELECT person_id, text, color, updated_at FROM tis_note WHERE person_id = ?').get(personId) || null; }
+function setNote(personId, data, userId) {
+  const text = String(data && data.text != null ? data.text : '').trim();
+  if (!text) { db.prepare('DELETE FROM tis_note WHERE person_id = ?').run(personId); return null; }
+  db.prepare(`INSERT INTO tis_note (person_id, text, color, updated_at, updated_by)
+     VALUES (@id, @text, @color, CURRENT_TIMESTAMP, @u)
+     ON CONFLICT(person_id) DO UPDATE SET text = excluded.text, color = excluded.color, updated_at = CURRENT_TIMESTAMP, updated_by = excluded.updated_by`)
+    .run({ id: personId, text: text.slice(0, 2000), color: data.color || null, u: userId != null ? userId : null });
+  return getNote(personId);
+}
+function notesMap() { const m = new Map(); for (const r of db.prepare('SELECT person_id, text, color, updated_at FROM tis_note').all()) m.set(r.person_id, { text: r.text, color: r.color, updated_at: r.updated_at }); return m; }

@@ -15,7 +15,7 @@ const S = {
   query: '', andor: 'AND',
   sort: { key: 'apellidos', dir: 'asc' },
   selected: new Set(), hidden: new Set(),
-  showListQr: false, selectedOnly: false, cartView: false, hideDeceased: false,
+  showListQr: false, selectedOnly: false, cartView: false, hideDeceased: false, notesOnly: false,
   listMode: 'table', // 'table' | 'cards'
   groupFilter: null, groupsOpen: false, // group filter cards (collapsed by default)
   currentPersonId: null, view: 'home',
@@ -307,9 +307,11 @@ function viewFicha(id, opts) {
            <div class="qt-kv-row"><span class="k">Estado</span><span class="v">${p.deceased ? `<span style="color:var(--muted)">✝ Fallecida${p.deceased_at ? ' · ' + fmtDate(p.deceased_at) : ''}</span>` : p.active ? '<span style="color:var(--ok)">● Activa</span>' : '<span style="color:var(--muted)">● Inactiva</span>'}</span></div>
          </div>
          <div id="group-area"></div>
+         <div id="ficha-note">${p.note ? `<div class="az-ent-note" style="background:${esc(p.note.color || '#FEF08A')};margin:10px 0">${esc(p.note.text)}</div>` : ''}</div>
          <div class="qt-ficha-actions">
            ${S.canAsignacion ? '<span id="med-link-slot" class="qt-medlink-slot"></span>' : ''}
            <button class="qt-btn qt-btn-primary" id="act-edit">✏️ Editar información</button>
+           <button class="qt-btn qt-btn-ghost" id="act-note">📝 ${p.note ? 'Editar nota' : 'Añadir nota'}</button>
            <button class="qt-btn ${inCart ? 'qt-btn-ghost' : 'qt-btn-teal'}" id="act-cart">${inCart ? '✓ En el carrito' : '🛒 Añadir al carrito'}</button>
            <button class="qt-btn qt-btn-ghost" id="act-group">👥 ${(p.groups && p.groups.length) ? 'Gestionar grupos' : 'Añadir a grupo'}</button>
            ${p.deceased ? '' : `<button class="qt-btn qt-btn-ghost" id="act-active">${p.active ? '⊘ Inactivar' : '✓ Activar'}</button>`}
@@ -325,6 +327,7 @@ function viewFicha(id, opts) {
     if (navIdx < nav.length - 1) $('nav-next').onclick = () => viewFicha(nav[navIdx + 1]);
   }
   $('act-edit').onclick = () => editPerson(p);
+  if ($('act-note')) $('act-note').onclick = () => editPersonNote(id, () => viewFicha(id, opts));
   $('act-list').onclick = viewList;
   if (p.active) wireMando(p, () => { const box = $('ficha-qr'); if (box) box.innerHTML = qrSvg(p.tis, qrOpts(p, S.settings.qr_size)); });
   $('act-cart').onclick = async () => { await toggleCart(id); viewFicha(id, opts); };
@@ -566,6 +569,7 @@ function viewList() {
        <button class="qt-toggle ${S.selectedOnly ? 'on' : ''}" id="tg-selected">✔ Solo seleccionadas</button>
        <button class="qt-toggle ${S.cartView ? 'on' : ''}" id="tg-cart">🛒 Solo carrito</button>
        <button class="qt-toggle ${S.hideDeceased ? 'on' : ''}" id="tg-deceased" title="Ocultar del listado las personas fallecidas">✝ Ocultar fallecidas (${S.people.filter(p => p.deceased).length})</button>
+       <button class="qt-toggle ${S.notesOnly ? 'on' : ''}" id="tg-notes" title="Mostrar solo las personas con nota">📝 Con nota (${S.people.filter(p => p.note && p.note.text).length})</button>
        <button class="qt-toggle" id="clear-sel">✕ Quitar selección</button>
      </div>
      <div id="hidden-note"></div>
@@ -585,6 +589,7 @@ function viewList() {
   $('tg-selected').onclick = () => { S.selectedOnly = !S.selectedOnly; viewList(); };
   $('tg-cart').onclick = () => { S.cartView = !S.cartView; viewList(); };
   $('tg-deceased').onclick = () => { S.hideDeceased = !S.hideDeceased; viewList(); };
+  if ($('tg-notes')) $('tg-notes').onclick = () => { S.notesOnly = !S.notesOnly; viewList(); };
   $('clear-sel').onclick = () => { S.selected.clear(); renderRows(); };
   if ($('cards-sort')) {
     $('cards-sort').addEventListener('change', () => { S.sort.key = $('cards-sort').value; renderRows(); });
@@ -681,6 +686,7 @@ function filteredPeople() {
   if (S.cartView) rows = rows.filter(p => S.cart.has(p.id));
   if (S.selectedOnly) rows = rows.filter(p => S.selected.has(p.id));
   if (S.hideDeceased) rows = rows.filter(p => !p.deceased);
+  if (S.notesOnly) rows = rows.filter(p => p.note && p.note.text);
   if (S.groupFilter) rows = rows.filter(p => (p.groups || []).some(g => norm(g) === norm(S.groupFilter)));
   const tokens = norm(S.query).split(/\s+/).filter(Boolean);
   if (tokens.length) {
@@ -744,16 +750,50 @@ function personCardHtml(p) {
     <div class="qt-pcard-name" data-open="${p.id}">${esc(p.nombre)} ${esc(p.apellidos)}</div>
     <div class="qt-pcard-tis">${esc(p.tis)}</div>
     <div class="qt-pcard-groups">${groups}</div>
+    ${p.note ? `<div class="az-ent-note qt-pcard-note" style="background:${esc(p.note.color || '#FEF08A')}">${esc(p.note.text)}</div>` : ''}
     <div class="qt-pcard-actions">${personActionsHtml(p, inCart)}</div>
   </div>`;
 }
 
 function personActionsHtml(p, inCart) {
-  return `<button class="qt-iconbtn" data-cart="${p.id}" title="${inCart ? 'Quitar del carrito' : 'Añadir al carrito'}">${inCart ? '✓🛒' : '🛒'}</button>
+  return `<button class="qt-iconbtn az-note-ic ${p.note ? 'has' : ''}" data-note="${p.id}" title="${p.note ? 'Editar nota' : 'Añadir nota'}">📝</button>
+    <button class="qt-iconbtn" data-cart="${p.id}" title="${inCart ? 'Quitar del carrito' : 'Añadir al carrito'}">${inCart ? '✓🛒' : '🛒'}</button>
     ${p.deceased ? '' : `<button class="qt-iconbtn" data-active="${p.id}" title="${p.active ? 'Inactivar' : 'Activar'}">${p.active ? '⊘' : '✓'}</button>`}
     <button class="qt-iconbtn" data-deceased="${p.id}" data-to="${p.deceased ? '0' : '1'}" title="${p.deceased ? 'Quitar fallecimiento' : 'Dar por fallecida'}">${p.deceased ? '↩' : '✝'}</button>
     <button class="qt-iconbtn" data-hide="${p.id}" title="Ocultar del listado (temporal)">👁</button>
     <button class="qt-iconbtn danger" data-del="${p.id}" title="Eliminar">🗑</button>`;
+}
+// ── Per-person notes (pretty editor + "Con nota" filter) ──────────────────────────
+const AZ_NOTE_COLORS = ['#FEF08A', '#FBCFE8', '#BFDBFE', '#BBF7D0', '#FED7AA', '#E9D5FF', '#FECACA'];
+function openNoteEditor(opts) {
+  const cur = opts.current || {}, cols = AZ_NOTE_COLORS;
+  let color = cur.color || cols[0];
+  openModal(`<div class="qt-modal-h"><h3>📝 Nota${opts.subtitle ? ' · ' + esc(opts.subtitle) : ''}</h3><button class="qt-x" data-close>×</button></div>
+    <p style="color:var(--muted);font-size:.88rem;margin:0 0 8px">Una nota corta para recordar «qué le pasa». Luego puedes filtrar por «📝 Con nota».</p>
+    <div class="az-noteedit" id="nte-card" style="background:${esc(color)}"><textarea id="nte-text" class="az-noteedit-ta" maxlength="2000" placeholder="Escribe la nota…">${esc(cur.text || '')}</textarea></div>
+    <div class="az-noteedit-cols">${cols.map(c => `<button type="button" class="az-noteedit-sw ${c === color ? 'sel' : ''}" data-c="${esc(c)}" style="background:${esc(c)}" aria-label="color"></button>`).join('')}</div>
+    <div class="qt-modal-actions">${cur.text ? '<button class="qt-btn qt-btn-danger" id="nte-del">Borrar nota</button>' : ''}<button class="qt-btn qt-btn-ghost" data-close>Cancelar</button><button class="qt-btn qt-btn-primary" id="nte-save">Guardar</button></div>`);
+  const box = $('tool-modal-box');
+  box.querySelectorAll('.az-noteedit-sw').forEach(sw => sw.onclick = () => { color = sw.dataset.c; $('nte-card').style.background = color; box.querySelectorAll('.az-noteedit-sw').forEach(x => x.classList.toggle('sel', x === sw)); });
+  const save = async (text) => {
+    try { const r = await api(opts.endpoint, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, color }) }); closeModal(); opts.onSaved(r.note || null); }
+    catch (e) { toast(e.message, 'err'); }
+  };
+  $('nte-save').onclick = () => save($('nte-text').value);
+  if ($('nte-del')) $('nte-del').onclick = () => save('');
+  setTimeout(() => { const t = $('nte-text'); if (t) t.focus(); }, 30);
+}
+function editPersonNote(id, after) {
+  const p = S.byId.get(id); if (!p) return;
+  openNoteEditor({
+    subtitle: `${p.nombre} ${p.apellidos}`, endpoint: `/people/${id}/note`, current: p.note,
+    onSaved: (note) => {
+      p.note = note; S.byId.set(id, p);
+      const i = S.people.findIndex(x => x.id === id); if (i >= 0) S.people[i] = p;
+      toast(note ? 'Nota guardada.' : 'Nota borrada.', 'ok');
+      if (after) after();
+    },
+  });
 }
 
 // Shared wiring for row/card items (both use the same data-* hooks).
@@ -763,6 +803,7 @@ function wireListItems(container) {
     const id = Number(cb.dataset.sel); if (cb.checked) S.selected.add(id); else S.selected.delete(id); renderRows();
   }));
   container.querySelectorAll('[data-group]').forEach(g => g.addEventListener('click', () => selectGroup(g.dataset.group)));
+  container.querySelectorAll('[data-note]').forEach(b => b.addEventListener('click', () => editPersonNote(Number(b.dataset.note), renderRows)));
   container.querySelectorAll('[data-cart]').forEach(b => b.addEventListener('click', async () => { await toggleCart(Number(b.dataset.cart)); renderRows(); }));
   container.querySelectorAll('[data-active]').forEach(b => b.addEventListener('click', async () => { const p = S.byId.get(Number(b.dataset.active)); await setActive(p, !p.active); renderRows(); }));
   container.querySelectorAll('[data-deceased]').forEach(b => b.addEventListener('click', async () => { const p = S.byId.get(Number(b.dataset.deceased)); if (await toggleDeceased(p)) renderRows(); }));
@@ -1000,6 +1041,9 @@ function viewHelp() {
         <li><strong>Dar por fallecida</strong> (icono ✝, o el botón en la ficha): marca a la persona como <strong>fallecida</strong> (pide confirmación). Se <strong>conserva la ficha</strong> pero el <strong>QR deja de estar disponible</strong> y sale de los flujos activos (incluida la app de Asignación). Es <strong>reversible</strong> con <span class="qt-chip-inline">↩ Quitar fallecimiento</span>. El botón <span class="qt-chip-inline">✝ Ocultar fallecidas</span> del listado las esconde.</li>
         <li><strong>Eliminar</strong> (icono 🗑): borra a la persona (pide confirmación). También desde la ficha.</li>
       </ul>` },
+    { id: 'notas', icon: '📝', title: 'Notas por persona', html: `
+      <p>Puedes pegar una <b>nota</b> (texto + color) a cada persona, para recordar «qué le pasa». Se añade/edita con el botón <b>📝</b> de su fila o tarjeta en el listado, o en su <b>ficha</b> («📝 Añadir/Editar nota»). La nota se ve en la tarjeta y en la ficha.</p>
+      <p>En el listado, el botón <b>«📝 Con nota»</b> filtra para ver solo las personas que tienen una nota. Un texto vacío borra la nota.</p>` },
     { id: 'grupos-color', icon: '🎨', title: 'Un color de QR por residencia (grupo)', html: `
       <p>En la ficha de una persona, junto a los colores del QR, el botón <b>🏠🎨</b> abre <b>«Colores por grupo/residencia»</b>: asigna un color de QR a cada grupo para <b>distinguir residencias de un vistazo</b>.</p>
       <p>El color del grupo pasa a ser el <b>color por defecto</b> del QR de todas las personas de ese grupo. Si una persona tiene un <b>color propio</b> (elegido en «Ajustes del QR»), ese manda sobre el del grupo. Si alguien está en varios grupos, se usa el color del primero que tenga uno asignado.</p>` },

@@ -222,14 +222,26 @@ router.get('/api/people/:id(\\d+)/med-summary', (req, res) => {
 
 // ── People ──────────────────────────────────────────────────────────────────────
 router.get('/api/people', (req, res) => {
-  try { res.json({ items: db.listPeople().map(publicPerson) }); } catch (err) { fail(res, err); }
+  try {
+    const notes = db.notesMap();
+    res.json({ items: db.listPeople().map(p => ({ ...publicPerson(p), note: notes.get(p.id) || null })) });
+  } catch (err) { fail(res, err); }
 });
 
 router.get('/api/people/:id(\\d+)', (req, res) => {
   try {
     const p = db.getPerson(Number(req.params.id));
     if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
-    res.json({ item: publicPerson(p) });
+    res.json({ item: { ...publicPerson(p), note: db.getNote(p.id) } });
+  } catch (err) { fail(res, err); }
+});
+
+// A small note attached to a person (empty text clears it).
+router.put('/api/people/:id(\\d+)/note', json, (req, res) => {
+  try {
+    const p = db.getPerson(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
+    res.json({ note: db.setNote(p.id, req.body || {}, req.user.id) });
   } catch (err) { fail(res, err); }
 });
 

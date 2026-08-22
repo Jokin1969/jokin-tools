@@ -416,3 +416,14 @@ a.qt-btn { text-decoration: none; }
 .qt-exp-chip.has-gc.sel { background: color-mix(in srgb, var(--gc) 18%, #fff); border-color: var(--gc); color: color-mix(in srgb, var(--gc) 82%, #000); }
 .qt-exp-hint { font-size: 0.74rem; color: var(--muted); margin-top: 5px; }
 .qt-exp-seg { flex-wrap: wrap; }
+
+/* ── Per-person notes ─────────────────────────────────────────────────────────── */
+.az-ent-note { border-radius: 9px; padding: 7px 10px; font-size: 0.82rem; color: #3a2f00; white-space: pre-wrap; overflow-wrap: anywhere; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.qt-pcard-note { margin: 6px 0 2px; text-align: left; }
+.az-note-ic { opacity: .55; }
+.az-note-ic.has { opacity: 1; }
+.az-noteedit { border-radius: 12px; padding: 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,.1); }
+.az-noteedit-ta { width: 100%; min-height: 110px; border: none; background: transparent; resize: vertical; font: inherit; font-size: 0.95rem; color: #2a2200; outline: none; }
+.az-noteedit-cols { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.az-noteedit-sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(0,0,0,.12); cursor: pointer; }
+.az-noteedit-sw.sel { border-color: #0f172a; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0f172a; }
