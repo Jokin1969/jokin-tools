@@ -445,3 +445,13 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
   padding: 1px 7px; border-radius: 999px; white-space: nowrap; vertical-align: middle; letter-spacing: .01em; }
 .dm-asig-pre { background: #fff3d6; color: #8a5a00; border: 1px solid #f2d48a; }
 .dm-asig-done { background: #e5e9ee; color: #55606e; border: 1px solid #d3d9e0; }
+
+/* ── Listado (tabla): DM a la izquierda · nombre (máx 2 líneas) + CN · caducidad ── */
+.dm-td-dm { width: 1%; white-space: nowrap; vertical-align: middle; }
+.dm-td-dm .qt-list-qr svg { display: block; }
+.dm-td-name { min-width: 0; max-width: 460px; }
+.dm-name-2l { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 700; line-height: 1.25; cursor: pointer; align-items: flex-start; }
+.dm-name-2l:hover .qt-cell-name { color: var(--brand); }
+.dm-name-2l svg { flex: 0 0 auto; position: relative; top: 2px; }
+.dm-cell-cn { display: block; margin-top: 3px; font-size: 0.78rem; color: var(--muted); font-family: var(--mono); letter-spacing: .04em; }
+.dm-td-cad { white-space: nowrap; vertical-align: middle; }

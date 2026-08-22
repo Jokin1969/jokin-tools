@@ -467,10 +467,18 @@ function groupCardsHtml(rows) {
 function wireGroupCards(container) { container.querySelectorAll('[data-med]').forEach(el => el.addEventListener('click', () => { S.medFilter = el.dataset.med; S.groupBy = false; viewList(); })); }
 
 function headTr() {
-  const cols = [{ key: 'sel', s: 0 }, { key: 'nombre', label: 'Medicamento' }, { key: 'gtin', label: 'GTIN' }, { key: 'serial', label: 'Nº serie' }, { key: 'lote', label: 'Lote' }, { key: 'caducidad', label: 'Caducidad' }];
-  if (S.showListQr) cols.push({ key: 'dm', label: 'DM', s: 0 });
-  cols.push({ key: 'act', s: 0 });
-  return '<tr>' + cols.map(c => { if (!c.label) return `<th class="no-sort">${c.label || ''}</th>`; const sorted = S.sort.key === c.key; return `<th data-key="${c.key}" class="${sorted ? 'sorted' : ''}">${c.label} <span class="arrow">${sorted ? (S.sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span></th>`; }).join('') + '</tr>';
+  // DM on the left, then the medication (name + CN), then the expiry. GTIN / serial
+  // / lote / RAW are not shown here (they live in the ficha).
+  const cols = [
+    { key: 'sel', nosort: true }, { key: 'dm', label: 'DM', nosort: true },
+    { key: 'nombre', label: 'Medicamento' }, { key: 'caducidad', label: 'Caducidad' },
+    { key: 'act', nosort: true },
+  ];
+  return '<tr>' + cols.map(c => {
+    if (c.nosort) return `<th class="no-sort">${c.label || ''}</th>`;
+    const sorted = S.sort.key === c.key;
+    return `<th data-key="${c.key}" class="${sorted ? 'sorted' : ''}">${c.label} <span class="arrow">${sorted ? (S.sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span></th>`;
+  }).join('') + '</tr>';
 }
 function wireHeadSort(container) { container.querySelectorAll('th[data-key]').forEach(th => th.addEventListener('click', () => { const k = th.dataset.key; if (S.sort.key === k) S.sort.dir = S.sort.dir === 'asc' ? 'desc' : 'asc'; else { S.sort.key = k; S.sort.dir = 'asc'; } renderList(); })); }
 
@@ -483,15 +491,14 @@ function itemActionsHtml(it, inCart) {
 }
 function itemRowHtml(it) {
   const sel = S.selected.has(it.id), inCart = S.cart.has(it.id);
-  const dmCell = S.showListQr ? `<td><span class="qt-list-qr" data-open="${it.id}">${dmSvg(it.raw, dmOpts(it, S.settings.list_dm_size))}</span></td>` : '';
   return `<tr class="${sel ? 'is-selected' : ''}" data-id="${it.id}">
     <td><input type="checkbox" class="qt-check" data-sel="${it.id}" ${sel ? 'checked' : ''}></td>
-    <td><span class="dm-name-cell" data-open="${it.id}">${shapeSvg(it.shape, it.color, 14)} <span class="qt-cell-name">${esc(it.nombre || 'Sin nombre')}</span></span> ${asigBadge(it)}</td>
-    <td class="qt-cell-tis">${esc(it.gtin || '—')}</td>
-    <td class="qt-cell-tis">${esc(it.serial || '—')}</td>
-    <td class="qt-cell-tis">${esc(it.lote || '—')}</td>
-    <td>${cadDisplay(it.caducidad)}</td>
-    ${dmCell}
+    <td class="dm-td-dm"><span class="qt-list-qr" data-open="${it.id}">${dmSvg(it.raw, dmOpts(it, S.settings.list_dm_size))}</span></td>
+    <td class="dm-td-name">
+      <span class="dm-name-2l" data-open="${it.id}" title="${esc(it.nombre || 'Sin nombre')}">${shapeSvg(it.shape, it.color, 13)} <span class="qt-cell-name">${esc(it.nombre || 'Sin nombre')}</span></span>
+      <span class="dm-cell-cn">${it.cn ? 'CN ' + esc(it.cn) : ''}${asigBadge(it) ? ' ' + asigBadge(it) : ''}</span>
+    </td>
+    <td class="dm-td-cad">${cadDisplay(it.caducidad)}</td>
     <td><div class="qt-cell-actions">${itemActionsHtml(it, inCart)}</div></td>
   </tr>`;
 }

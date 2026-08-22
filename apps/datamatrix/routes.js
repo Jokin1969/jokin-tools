@@ -220,7 +220,7 @@ router.post('/api/products/import', jsonBig, (req, res) => {
 });
 
 // ── Bulk import of boxes from RAW codes ─────────────────────────────────────────
-router.post('/api/import', jsonBig, (req, res) => {
+router.post('/api/import', jsonBig, async (req, res) => {
   try {
     const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : null;
     if (!rows) throw bad('No se recibieron filas para importar.');
@@ -239,8 +239,19 @@ router.post('/api/import', jsonBig, (req, res) => {
       } catch (e) { errors.push({ row: rowNo, error: e.message }); }
     });
     const created = valid.length ? db.createManyItems(valid, req.user.id) : [];
-    for (const d of valid) if (d.gtin && !db.getProduct(d.gtin)) db.upsertProduct(d.gtin, {});
-    res.json({ created: created.length, errors, total: rows.length });
+    // Identify each medication via CIMA — one by one (deduped by GTIN), with the
+    // cache + downloaded box/pill images. Tolerant of offline: names/images fill in
+    // now if reachable, or later otherwise.
+    let named = 0; const doneGtins = new Set();
+    for (const d of valid) {
+      if (!d.gtin || doneGtins.has(d.gtin)) continue;
+      doneGtins.add(d.gtin);
+      const before = db.getProduct(d.gtin);
+      await nameProductFromCima(d.gtin, d.cn);
+      const after = db.getProduct(d.gtin);
+      if (after && after.nombre && (!before || !before.nombre)) named++;
+    }
+    res.json({ created: created.length, named, errors, total: rows.length });
   } catch (err) { fail(res, err); }
 });
 
