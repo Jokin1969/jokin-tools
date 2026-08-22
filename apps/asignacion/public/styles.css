@@ -897,3 +897,30 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-home-actions { margin: 10px 0 2px; }
 .az-mi-ta { width: 100%; font-family: var(--mono, monospace); font-size: 0.9rem; line-height: 1.5; resize: vertical; }
 .az-mi-preview { margin: 4px 0; }
+
+/* ── Plan: sort + compact views + duplicate finder ────────────────────────────── */
+.az-plan-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.az-plan-sortlbl { font-size: 0.8rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.qt-select-sm { padding: 5px 8px; font-size: 0.82rem; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.az-planview button { font-size: 0.95rem; padding: 5px 9px; }
+.az-plan .is-dup { outline: 2px solid var(--danger); outline-offset: -2px; border-radius: 10px; background: #fff1f1; }
+/* Compact list */
+.az-plan-simple-list { display: flex; flex-direction: column; gap: 3px; }
+.az-plan-srow { display: grid; grid-template-columns: 22px 1fr auto auto auto; align-items: center; gap: 10px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; font-size: 0.86rem; }
+.az-plan-sicon { display: inline-flex; align-items: center; justify-content: center; }
+.az-plan-sfoto { width: 20px; height: 20px; object-fit: contain; border-radius: 4px; }
+.az-plan-sname { font-weight: 700; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.az-plan-scn { color: var(--muted); font-family: var(--mono, monospace); font-size: 0.76rem; white-space: nowrap; }
+.az-plan-sqty { color: var(--muted); font-size: 0.8rem; }
+.az-plan-sprog { font-size: 0.74rem; font-weight: 700; padding: 2px 7px; border-radius: 7px; }
+.az-plan-sprog.is-ok { background: #e2f5ec; color: #128a5b; }
+.az-plan-sprog.is-short { background: #fff3d6; color: #8a5a00; }
+/* Compact cards */
+.az-plan-simple-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.az-plan-scard { display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 11px; background: #fff; padding: 8px 10px; }
+.az-plan-scard-ico { flex: 0 0 auto; display: inline-flex; }
+.az-plan-cfoto { width: 30px; height: 30px; object-fit: contain; border-radius: 6px; }
+.az-plan-scard-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.az-plan-scard-body b { font-size: 0.85rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.az-plan-scard-body small { color: var(--muted); font-family: var(--mono, monospace); font-size: 0.72rem; }
+.az-plan-scard-body .az-plan-sprog { align-self: flex-start; margin-top: 2px; }

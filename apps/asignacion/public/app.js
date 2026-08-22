@@ -24,7 +24,9 @@ const S = {
   stickers: null, stkYm: null, stkStatus: 'pending', stkGroupBy: 'med', stkFilter: [], stkFilterRes: [], stkNotesOnly: false,
   ov: { res: [], estado: 'all', notesOnly: false, cartOnly: false, q: '' },
   cart: new Set(), cartPeople: new Map(),
+  planView: 'full', planSort: 'def',
 };
+try { S.planView = localStorage.getItem('asig_plan_view') || 'full'; S.planSort = localStorage.getItem('asig_plan_sort') || 'def'; } catch { /* */ }
 
 // ── Tiny helpers ────────────────────────────────────────────────────────────────
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -935,8 +937,13 @@ function renderFicha() {
 
          ${progressHtml(f.progress)}
 
-         <div class="az-sec-h"><span>💊 Plan de medicación</span><button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-med">➕ Añadir medicamento</button></div>
-         <div class="az-plan">${planHtml(f.plan, closed)}</div>
+         <div class="az-sec-h"><span>💊 Plan de medicación</span><span class="az-sec-h-actions az-plan-tools">
+           <label class="az-plan-sortlbl">Ordenar <select class="qt-select qt-select-sm" id="plan-sort"><option value="def" ${S.planSort === 'def' ? 'selected' : ''}>Por defecto</option><option value="nombre" ${S.planSort === 'nombre' ? 'selected' : ''}>Nombre</option><option value="cn" ${S.planSort === 'cn' ? 'selected' : ''}>CN</option></select></label>
+           <div class="az-seg az-planview" id="plan-view"><button type="button" data-pv="full" class="${S.planView === 'full' ? 'on' : ''}" title="Vista completa">▤</button><button type="button" data-pv="list" class="${S.planView === 'list' ? 'on' : ''}" title="Lista compacta">≣</button><button type="button" data-pv="cards" class="${S.planView === 'cards' ? 'on' : ''}" title="Tarjetas compactas">▦</button></div>
+           <button class="qt-btn qt-btn-ghost qt-btn-sm" id="plan-dup" title="Buscar CN/medicamentos duplicados">🔁 Duplicados</button>
+           <button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-med">➕ Añadir medicamento</button>
+         </span></div>
+         <div class="az-plan az-planmode-${S.planView}">${planHtml(f.plan, closed)}</div>
 
          <div class="az-sec-h"><span>📦 Cajas de la ficha (${f.lines.length})</span><span class="az-sec-h-actions">${closed ? '' : `<button class="qt-btn qt-btn-teal qt-btn-sm" id="scan-mode" title="Modo escáner: pasa el lector por el precinto o el DM y se asigna solo">📟 Modo escáner</button>`}<button class="qt-btn qt-btn-ghost qt-btn-sm" id="add-box" ${closed ? 'disabled' : ''}>➕ Añadir DM</button></span></div>
          <div class="az-lines">${linesHtml(f.lines, closed, dmSize)}</div>
@@ -950,6 +957,9 @@ function renderFicha() {
   if ($('per-close')) $('per-close').onclick = async () => { try { applyFicha(await api(`/period/${per.id}/close`, { method: 'POST' })); toast('Mes cerrado.'); } catch (er) { toast(er.message, 'err'); } };
   if ($('per-reopen')) $('per-reopen').onclick = async () => { try { applyFicha(await api(`/period/${per.id}/reopen`, { method: 'POST' })); toast('Mes reabierto.'); } catch (er) { toast(er.message, 'err'); } };
   $('add-med').onclick = openMedPicker;
+  if ($('plan-sort')) $('plan-sort').onchange = (e) => { S.planSort = e.target.value; try { localStorage.setItem('asig_plan_sort', S.planSort); } catch {} renderFicha(); };
+  if ($('plan-view')) $('plan-view').querySelectorAll('[data-pv]').forEach(b => b.onclick = () => { S.planView = b.dataset.pv; try { localStorage.setItem('asig_plan_view', S.planView); } catch {} renderFicha(); });
+  if ($('plan-dup')) $('plan-dup').onclick = findPlanDuplicates;
   if ($('add-box')) $('add-box').onclick = () => openAddBox(null);
   if ($('scan-mode')) $('scan-mode').onclick = () => toggleScannerMode(p.id);
   if (scanner.on && scanner.personId === p.id) renderScannerPanel(); else stopScannerMode(true);
@@ -976,9 +986,45 @@ function progressHtml(pr) {
   </div>`;
 }
 
+function planDupKey(m) { return String(m.cn || m.gtin || ('n:' + (m.nombre || ''))); }
+function sortedPlan(plan) {
+  const s = S.planSort || 'def';
+  if (s === 'cn') return plan.slice().sort((a, b) => String(a.cn || a.gtin || '~').localeCompare(String(b.cn || b.gtin || '~'), 'es', { numeric: true }));
+  if (s === 'nombre') return plan.slice().sort((a, b) => String(a.nombre || '~').localeCompare(String(b.nombre || '~'), 'es'));
+  return plan;
+}
+// Plan renderer. Three views: 'full' (default, complete), 'list' and 'cards'
+// (both compact, to see 10-15 medications at a glance). Sorted per S.planSort.
 function planHtml(plan, closed) {
   if (!plan.length) return '<div class="az-empty-sm">Sin medicamentos en el plan. Pulsa «➕ Añadir medicamento».</div>';
-  return plan.map(m => {
+  const list = sortedPlan(plan);
+  if (S.planView === 'list') return `<div class="az-plan-simple-list">${list.map(planRowSimple).join('')}</div>`;
+  if (S.planView === 'cards') return `<div class="az-plan-simple-cards">${list.map(planCardSimple).join('')}</div>`;
+  return list.map(m => planRowFull(m, closed)).join('');
+}
+// Compact one-line row (view: Lista).
+function planRowSimple(m) {
+  const done = m.asignada || 0, need = m.qty, ok = done >= need;
+  const icon = m.foto_caja ? `<img class="az-plan-sfoto" src="${fotoUrl(m.cn, 'caja')}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{}))">` : shapeSvg(m.shape, m.color, 15);
+  return `<div class="az-plan-srow" data-dupkey="${esc(planDupKey(m))}">
+    <span class="az-plan-sicon">${icon}</span>
+    <span class="az-plan-sname">${esc(m.nombre || 'Sin nombre')}</span>
+    <span class="az-plan-scn">${m.cn ? 'CN ' + esc(m.cn) : (m.gtin ? esc(m.gtin) : '—')}</span>
+    <span class="az-plan-sqty">×${m.qty}</span>
+    <span class="az-plan-sprog ${ok ? 'is-ok' : 'is-short'}">${done}/${need}</span>
+  </div>`;
+}
+// Compact small card (view: Tarjetas).
+function planCardSimple(m) {
+  const done = m.asignada || 0, need = m.qty, ok = done >= need;
+  const icon = m.foto_caja ? `<img class="az-plan-cfoto" src="${fotoUrl(m.cn, 'caja')}" alt="" loading="lazy" onerror="this.style.display='none'">` : shapeSvg(m.shape, m.color, 26);
+  return `<div class="az-plan-scard" data-dupkey="${esc(planDupKey(m))}">
+    <div class="az-plan-scard-ico">${icon}</div>
+    <div class="az-plan-scard-body"><b>${esc(m.nombre || 'Sin nombre')}</b><small>${m.cn ? 'CN ' + esc(m.cn) : (m.gtin ? esc(m.gtin) : '')}</small>
+      <span class="az-plan-sprog ${ok ? 'is-ok' : 'is-short'}">×${m.qty} · ${done}/${need}</span></div>
+  </div>`;
+}
+function planRowFull(m, closed) {
     const need = m.qty, done = m.asignada || 0, boxes = m.boxes || 0, prec = m.precinto || 0;
     const short = done < need;
     // CN-only meds (info before any Data Matrix) show the national code and a
@@ -999,7 +1045,7 @@ function planHtml(plan, closed) {
     // Manual "mark assigned in Salud" (by precinto, no box) while units remain and
     // there's no DM box to assign from.
     const canPrecinto = !closed && noDm && done < need;
-    return `<div class="az-planrow${m.cn_only ? ' is-cnonly' : ''}" data-plan-row="${m.id}">
+    return `<div class="az-planrow${m.cn_only ? ' is-cnonly' : ''}" data-plan-row="${m.id}" data-dupkey="${esc(planDupKey(m))}">
       <span class="az-plan-shape">${icon}</span>
       <div class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small><div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${progTxt}</span></div></div>
       ${bcInline}
@@ -1013,7 +1059,14 @@ function planHtml(plan, closed) {
         <button class="qt-iconbtn danger" data-delplan="${m.id}" title="Quitar del plan">🗑</button>
       </div>
     </div>`;
-  }).join('');
+}
+// Highlight medications that share the same CN/GTIN (or name) within the plan.
+function findPlanDuplicates() {
+  const plan = (S.ficha && S.ficha.plan) || [];
+  const seen = new Set(), dups = new Set();
+  for (const m of plan) { const k = planDupKey(m); if (seen.has(k)) dups.add(k); else seen.add(k); }
+  main().querySelectorAll('[data-dupkey]').forEach(el => el.classList.toggle('is-dup', dups.has(el.dataset.dupkey)));
+  toast(dups.size ? `${dups.size} medicamento(s) duplicado(s) resaltado(s) en el plan.` : 'Sin duplicados en el plan.', dups.size ? 'err' : 'ok');
 }
 // Release-state chip for a plan medication. The state (and colour) is driven by
 // its Salud release date + anticipation. Clickable → set/edit the date.
