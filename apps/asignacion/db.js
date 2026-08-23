@@ -257,6 +257,10 @@ const DEFAULT_SETTINGS = { ficha_qr_size: 300, ficha_dm_size: 150, notify_mode: 
 function listPlan(personId) {
   return db.prepare('SELECT * FROM asig_plan WHERE person_id = ? ORDER BY id').all(personId);
 }
+// How many DIFFERENT medications are being handled: distinct CN across active plans.
+function distinctCnCount() {
+  return db.prepare("SELECT COUNT(DISTINCT cn) n FROM asig_plan WHERE active = 1 AND cn IS NOT NULL AND cn <> ''").get().n;
+}
 // Active plan medications across ALL people that match a Código Nacional or a GTIN
 // — used to find who could use a given Data Matrix box (the "conexión del CN").
 function plansByCnOrGtin(cn, gtin) {
@@ -802,7 +806,7 @@ function saveSettings(data, userId) {
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listPlan, plansByCnOrGtin, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, clearPlanGtin, deletePlanLine, planPersonIds,
+  listPlan, plansByCnOrGtin, distinctCnCount, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, clearPlanGtin, deletePlanLine, planPersonIds,
   createEmptyPlan, personsWithPlanSet,
   setPlanRelease, setPlanAdvance, plansForRelease, planForItem, findPendingLineForMed,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,

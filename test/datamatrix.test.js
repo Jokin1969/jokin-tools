@@ -174,7 +174,7 @@ test('settings defaults + persistence; cart per user', () => {
   assert.ok(!db.cartIds(9).includes(it.id), 'delete detaches from cart');
 });
 
-test('/api/cima/complete names un-named products from the cache (offline-safe)', async () => {
+test('/api/cima/complete refreshes/names products from the cache (offline-safe)', async () => {
   process.env.CIMA_ENABLED = 'false';
   const express = require('express');
   const router = require('../apps/datamatrix/routes');
@@ -190,7 +190,8 @@ test('/api/cima/complete names un-named products from the cache (offline-safe)',
     db.upsertProduct('08470007116622', { cn: '711662' });                // stub product, no name
     const r = await call('POST', '/cima/complete', {});
     assert.equal(r.status, 200);
-    assert.ok(r.data.named >= 1, 'nombra al menos uno desde la caché');
+    assert.ok(r.data.checked >= 1, 'consulta al menos un medicamento');
+    assert.ok(r.data.renamed >= 1, 'aplica al menos un nombre nuevo desde la caché');
     assert.equal(db.getProduct('08470007116622').nombre, 'IBUPROFENO PRUEBA 600 mg');
   } finally { server.close(); }
 });

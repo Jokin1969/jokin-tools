@@ -149,6 +149,16 @@ app.get('/', requireAuth, (req, res) => {
 app.get('/farmacia', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'pharma.html'));
 });
+// Live counters for the pharmacy hub cards.
+app.get('/farmacia/api/counts', requireAuth, (req, res) => {
+  try {
+    res.json({
+      people: qrTisDb.listPeople().length,            // personas en QR (TIS)
+      dmActive: dmDb.counts().activo,                 // DM sin utilizar (en stock)
+      cnCount: asigDb.distinctCnCount(),              // medicamentos distintos (CN) en Asignación
+    });
+  } catch { res.json({}); }
+});
 
 // Favicon hub principal
 app.get('/favicon.ico', (req, res) => {

@@ -481,6 +481,7 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .dm-foto-thumb { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; padding: 0; cursor: pointer; color: var(--muted); font-size: 0.7rem; }
 .dm-foto-thumb img { width: 74px; height: 74px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: #fff; transition: border-color .14s, transform .12s; }
 .dm-foto-thumb:hover img { border-color: var(--brand); transform: scale(1.04); }
+.dm-cima-stamp { text-align: center; font-size: 0.72rem; color: var(--muted); margin: 4px 0 2px; letter-spacing: .01em; }
 .dm-modal-wide { max-width: 720px; width: 94vw; }
 .dm-img-modal { display: flex; align-items: center; justify-content: center; padding: 6px 0 10px; }
 .dm-img-modal img { max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 10px; }

@@ -887,3 +887,19 @@ test('ficha: cada med del plan trae box_item_id de la caja asociada (para enlaza
   const m = ficha.plan.find(x => x.id === med.id);
   assert.equal(m.box_item_id, box, 'box_item_id apunta a la caja asociada');
 });
+
+test('distinctCnCount cuenta medicamentos (CN) distintos y activos', () => {
+  const asigDb = require('../apps/asignacion/db');
+  const before = asigDb.distinctCnCount();
+  const pid = qrDb.createPerson({ pharmacy_no: '80999', nombre: 'Cnt', apellidos: 'Meds', tis: '00080999' }, 1).id;
+  // Two distinct CNs for one person + one repeated CN for another → +2 distinct.
+  qrDb.createPerson({ pharmacy_no: '80998', nombre: 'Cnt2', apellidos: 'Meds2', tis: '00080998' }, 1);
+  const uniqA = '900101', uniqB = '900102';
+  return (async () => {
+    await call('POST', '/plan/import', { by: 'tis', qty: 1, rows: [{ person: '00080999', cns: [uniqA, uniqB] }] });
+    await call('POST', '/plan/import', { by: 'tis', qty: 1, rows: [{ person: '00080998', cns: [uniqA] }] });
+    const after = asigDb.distinctCnCount();
+    assert.equal(after, before + 2, 'suma 2 CN nuevos y distintos (el repetido no cuenta doble)');
+    assert.ok(pid > 0);
+  })();
+});

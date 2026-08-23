@@ -278,6 +278,7 @@ function viewFicha(id, opts) {
          <div class="qt-qr-cn">${it.cn ? 'CN ' + esc(it.cn) : 'Sin Código Nacional'}</div>
          <div class="qt-qr-tis" style="font-size:.92rem;letter-spacing:.04em;color:var(--muted)">${it.caducidad ? 'Cad ' + fmtDate(it.caducidad) : ''}${it.serial ? (it.caducidad ? ' · ' : '') + 'Nº ' + esc(it.serial) : ''}</div>
          ${fotoThumbsHtml(it)}
+         ${cimaStamp(it)}
          ${mandoHtml(st, it)}
        </div>
        <div class="qt-ficha-info">
@@ -388,7 +389,7 @@ function viewList() {
        <div class="qt-actions-bar">
          <button class="qt-action" id="a-scan"><span class="em">📥</span><span class="lbl">Escanear<small>entrada / salida</small></span></button>
          <button class="qt-action" id="a-io"><span class="em">📄</span><span class="lbl">Importar / Catálogo<small>cajas y nombres</small></span></button>
-         <button class="qt-action" id="a-cima"><span class="em">🔄</span><span class="lbl">Completar desde CIMA<small>nombres e imágenes</small></span></button>
+         <button class="qt-action" id="a-cima"><span class="em">🔄</span><span class="lbl">Actualizar desde CIMA<small>nombres e imágenes al día</small></span></button>
          <button class="qt-action" id="a-xlsx"><span class="em">📊</span><span class="lbl">Exportar Excel<small>elige campos y orden</small></span></button>
          <button class="qt-action" id="a-pdf"><span class="em">🖨️</span><span class="lbl">Exportar PDF<small>Data Matrix a tamaño</small></span></button>
          <button class="qt-action" id="a-recent"><span class="em">🕘</span><span class="lbl">Recientes<small>últimas 10</small></span></button>
@@ -462,18 +463,23 @@ function filteredItems() {
   return rows;
 }
 
-// Fill the name (and box/pill images) of every medication still un-named, from CIMA.
+// Refresh name and box/pill images of EVERY medication from CIMA — fills what's
+// missing and replaces what's outdated, so the catalogue stays up to date.
 async function completeFromCima() {
-  const pending = new Set(S.items.filter(x => !x.nombre && x.gtin).map(x => x.gtin)).size;
-  if (!pending) { toast('Todas las cajas ya tienen su medicamento identificado. 🎉', 'ok'); return; }
-  if (!(await confirmBox('Completar desde CIMA', `Se consultará CIMA (AEMPS) para ${pending} medicamento(s) sin nombre y se traerán su nombre e imágenes. Puede tardar un poco.`, 'Completar'))) return;
+  const total = new Set(S.items.filter(x => x.gtin).map(x => x.gtin)).size;
+  if (!total) { toast('No hay medicamentos que actualizar todavía.', 'ok'); return; }
+  if (!(await confirmBox('Actualizar desde CIMA', `Se consultará CIMA (AEMPS) para TODOS los medicamentos (${total}) y se actualizarán nombres e imágenes con lo último publicado, sustituyendo lo que haya cambiado. Puede tardar un poco.`, 'Actualizar'))) return;
   const btn = $('a-cima'); if (btn) { btn.disabled = true; btn.classList.add('is-busy'); }
   toast('Consultando CIMA…');
   try {
     const r = await api('/cima/complete', jbody({}));
     await reloadItems();
     if (S.view === 'list') renderList();
-    const parts = [`✓ ${r.named} nombrado(s)`];
+    else if (S.view === 'ficha' && S.currentItemId) viewFicha(S.currentItemId);
+    const parts = [];
+    if (r.refreshed) parts.push(`✓ ${r.refreshed} actualizado(s) desde CIMA`);
+    else parts.push('✓ Ya estaba todo al día');
+    if (r.renamed) parts.push(`${r.renamed} con nombre nuevo`);
     if (r.missing) parts.push(`${r.missing} sin datos`);
     if (r.offline) parts.push('CIMA no disponible ahora');
     toast(parts.join(' · '), r.offline ? 'err' : 'ok');
@@ -764,6 +770,13 @@ function fotoThumbsHtml(it) {
   const one = (has, tipo, lbl) => has ? `<button class="dm-foto-thumb" data-foto="${tipo}" data-fid="${it.id}" title="Ver ${lbl} en grande (AEMPS)"><img src="${fotoUrl(it.cn, tipo)}" alt="${lbl}" loading="lazy" onerror="this.closest('.dm-foto-thumb').remove()"><span>${lbl}</span></button>` : '';
   return `<div class="dm-fotos">${one(it.foto_caja, 'caja', 'Caja')}${one(it.foto_pastilla, 'pastilla', 'Pastilla')}</div>`;
 }
+// Small caption telling when the CIMA (AEMPS) info for this box was last fetched.
+function cimaStamp(it) {
+  if (!it || !it.cima_updated_at) return '';
+  const d = fmtDate(String(it.cima_updated_at).slice(0, 10));
+  if (!d) return '';
+  return `<div class="dm-cima-stamp" title="El botón «🔄 Actualizar desde CIMA» vuelve a consultar AEMPS y sustituye lo que haya cambiado.">ℹ️ Info de CIMA (AEMPS): ${d}</div>`;
+}
 function wireFotoThumbs(container) {
   container.querySelectorAll('[data-foto]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
@@ -906,7 +919,7 @@ function viewHelp() {
     { id: 'archivo', icon: '🗄️', title: 'Archivadas (trazabilidad a largo plazo)', html: `<p>El inventario tiene tres pestañas: <b>Sin utilizar</b>, <b>Utilizadas</b> y <b>🗄️ Archivadas</b>. Una caja utilizada pasa <b>sola</b> a <b>Archivadas</b> cuando lleva <b>más de un mes</b> usada: así «Utilizadas» no se llena, pero <b>no se pierde la trazabilidad</b> (se sigue sabiendo a quién se asignó la medicación).</p>
       <div class="qt-note warn">Sacar una caja del archivo (volver a «Utilizadas») es <b>deliberado</b>: pide escribir la frase exacta <b>«Deseo cambiar de estado»</b> en un aviso, para que nadie lo haga por descuido. Una vez desarchivada a mano, ya no se vuelve a archivar sola.</div>` },
     { id: 'cima', icon: '🔎', title: 'Nombre e imágenes desde CIMA (AEMPS)', html: `<p>Al escanear o importar, la app pide a <b>CIMA (AEMPS)</b> el <b>nombre comercial</b> (por el <b>Código Nacional</b>, que saca del GTIN o del AI 712) y descarga la <b>foto de la caja y de la pastilla</b>. En la <b>ficha</b> esas imágenes aparecen <b>debajo del Data Matrix</b>; al pulsarlas se abren <b>en grande</b> (igual que en QR·TIS). En el <b>listado</b>, el filtro <b>«📷 Foto en el listado»</b> muestra la foto de la caja a la izquierda (desactivado por defecto).</p>
-      <div class="qt-note tip">Si CIMA no estaba disponible al escanear/importar, usa <b>«🔄 Completar desde CIMA»</b> para rellenar en bloque nombres e imágenes de las cajas sin nombre. Lo consultado se <b>guarda en local</b> (datos + imágenes) y sigue disponible offline. (Requiere salida del servidor hacia <i>cima.aemps.es</i>.)</div>` },
+      <div class="qt-note tip">El botón <b>«🔄 Actualizar desde CIMA»</b> vuelve a consultar AEMPS para <b>todos</b> los medicamentos: rellena lo que falte <b>y sustituye lo que haya cambiado</b> (nombre e imágenes), para estar siempre al día. Cada ficha muestra <b>«ℹ️ Info de CIMA (AEMPS): fecha»</b> con la última vez que se trajo esa información. Lo consultado se <b>guarda en local</b> (datos + imágenes) y sigue disponible offline. (Requiere salida del servidor hacia <i>cima.aemps.es</i>.)</div>` },
     { id: 'estados', icon: '🚦', title: 'Los estados de una caja (importante)', html: `<p>Cada caja Data Matrix pasa por estos estados, que verás como <b>etiquetas de color</b> en el listado, las tarjetas, el carrito y la ficha:</p>
       <ul>
         <li><b>● No asignada</b> (gris): está en el <b>stock</b>, sin reservar para nadie.</li>

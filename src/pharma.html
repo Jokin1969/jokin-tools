@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/src/pharma.css?v=3" />
+  <link rel="stylesheet" href="/src/pharma.css?v=4" />
 </head>
 <body>
   <header class="ph-header">
@@ -44,7 +44,7 @@
         <a class="ph-card-main" href="${esc(a.path)}">
           <span class="ph-card-ico">${a.icon || ''}</span>
           <span class="ph-card-body">
-            <span class="ph-card-title">${esc(a.name)}</span>
+            <span class="ph-card-title">${esc(a.name)} <span class="ph-count" data-count="${esc(a.path)}" hidden></span></span>
             <span class="ph-card-desc">${esc(a.desc)}</span>
             <span class="ph-tags">${(a.tags || []).map(t => `<span class="ph-tag">${esc(t)}</span>`).join('')}</span>
           </span>
@@ -63,6 +63,19 @@
       const apps = (data.apps || []).filter(a => a.group === 'farmacia');
       if (!apps.length) { document.getElementById('label').style.display = 'none'; document.getElementById('empty').style.display = ''; return; }
       document.getElementById('grid').innerHTML = apps.map(tile).join('');
+      // Live counters per card.
+      try {
+        const c = await (await fetch('/farmacia/api/counts', { headers: { Accept: 'application/json' } })).json();
+        const labels = {
+          '/qr-tis': c.people != null ? `👥 ${c.people} personas` : null,
+          '/datamatrix': c.dmActive != null ? `📦 ${c.dmActive} sin utilizar` : null,
+          '/asignacion': c.cnCount != null ? `💊 ${c.cnCount} medicamentos` : null,
+        };
+        document.querySelectorAll('.ph-count').forEach(el => {
+          const t = labels[el.dataset.count];
+          if (t) { el.textContent = t; el.hidden = false; }
+        });
+      } catch { /* counters are optional */ }
     })();
   </script>
 </body>

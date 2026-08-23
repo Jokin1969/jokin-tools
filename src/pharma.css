@@ -75,3 +75,6 @@ a { color: inherit; }
   .ph-logo-txt .s { display: none; }
   .ph-card { padding: 18px; }
 }
+
+/* Live counter badge inside each hub card title */
+.ph-count { display: inline-block; vertical-align: middle; margin-left: 6px; font-size: 0.7rem; font-weight: 700; color: #128a5b; background: #e2f5ec; border: 1px solid #b6e3ca; border-radius: 999px; padding: 2px 9px; }

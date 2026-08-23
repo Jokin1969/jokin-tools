@@ -54,6 +54,7 @@ function publicItem(it) {
     id: it.id, raw: it.raw, gtin: it.gtin || null, serial: it.serial || null,
     lote: it.lote || null, caducidad: it.caducidad || null, cn: it.cn || null,
     foto_caja: !!(cc && cc.has_caja), foto_pastilla: !!(cc && cc.has_pastilla),
+    cima_updated_at: cc ? cc.updated_at : null,
     status: it.status, used_at: it.used_at || null,
     nombre: it.nombre || null,
     color: visual.resolveColor(it.gtin, it.color),
@@ -203,25 +204,29 @@ router.put('/api/product/:gtin([0-9A-Za-z]+)', json, (req, res) => {
     res.json({ item: db.upsertProduct(req.params.gtin, patch) });
   } catch (err) { fail(res, err); }
 });
-// ── Complete un-named medications from CIMA (name + box/pill images) ────────────
-// Batch: goes product by product (deduped by GTIN) that has no name yet, resolves
-// its Código Nacional (own, or from the GTIN, or from any of its boxes) and asks
-// CIMA (cached). Stops early and reports if CIMA is offline.
+// ── Update everything from CIMA (name + box/pill images + fetch date) ───────────
+// Re-queries CIMA for EVERY medication (deduped by GTIN, resolving its Código
+// Nacional) — not just the ones missing a name — so names and images are always up
+// to date; the cache stores the new fetch date and replaces changed images. Stops
+// early and reports if CIMA is offline.
 router.post('/api/cima/complete', json, async (req, res) => {
   try {
-    const pending = db.listProducts().filter(p => !p.nombre && p.gtin);
-    let named = 0, tried = 0, offline = false, missing = 0;
-    for (const p of pending) {
+    const prods = db.listProducts().filter(p => p.gtin);
+    let checked = 0, refreshed = 0, renamed = 0, missing = 0, offline = false;
+    for (const p of prods) {
       const cn = p.cn || gs1.cnForCima({ gtin: p.gtin }) || db.firstItemCnForGtin(p.gtin);
       if (!cn) { missing++; continue; }
-      tried++;
+      checked++;
       try {
-        const it = await cimaCache.lookupByCnCached(cn);   // also downloads/caches its images
-        if (it && it.nombre) { db.upsertProduct(p.gtin, { nombre: it.nombre, cn: it.cn || cn }); named++; }
-        else missing++;
+        const it = await cimaCache.lookupByCnCached(cn);   // re-fetch: data + images + updated_at
+        if (it && it.nombre) {
+          if ((p.nombre || null) !== it.nombre) renamed++;
+          db.upsertProduct(p.gtin, { nombre: it.nombre, cn: it.cn || cn });
+          if (!it.cached) refreshed++;   // came from the network (fresh)
+        } else missing++;
       } catch (e) { if (e.offline) { offline = true; break; } missing++; }
     }
-    res.json({ ok: true, total: pending.length, tried, named, missing, offline });
+    res.json({ ok: true, total: prods.length, checked, refreshed, renamed, missing, offline });
   } catch (err) { fail(res, err); }
 });
 
