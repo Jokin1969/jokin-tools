@@ -14,6 +14,7 @@ const gs1 = require('./gs1');
 const visual = require('./visual');
 const cima = require('./cima');
 const cimaCache = require('./cima-cache');
+const { handleHelpPdf } = require('../../lib/help-pdf');
 
 const router = express.Router();
 const PUB = path.join(__dirname, 'public');
@@ -356,6 +357,14 @@ router.post('/api/export/pdf', jsonBig, async (req, res) => {
     res.send(buf);
   } catch (err) { fail(res, err); }
 });
+
+// ── Manual / Ayuda → PDF (elegant, branded) ─────────────────────────────────────
+router.post('/api/help/pdf', jsonBig, (req, res) => handleHelpPdf(req, res, {
+  appLabel: 'Data Matrix',
+  filename: 'Manual_Data_Matrix.pdf',
+  defaultTitle: 'Manual · Gestor de Data Matrix',
+  defaultSubtitle: 'Todo lo que puedes hacer, paso a paso.',
+}));
 
 async function buildItemsPdf(items, size, title) {
   const PDFDocument = require('pdfkit');

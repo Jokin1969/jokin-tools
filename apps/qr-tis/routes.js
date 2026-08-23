@@ -11,6 +11,7 @@ const path = require('path');
 const db = require('./db');
 const { canAccess } = require('../auth/apps-registry');
 const asigDb = require('../asignacion/db');   // cross-app read for the medication button
+const { handleHelpPdf } = require('../../lib/help-pdf');
 
 const router = express.Router();
 const PUB = path.join(__dirname, 'public');
@@ -425,6 +426,14 @@ router.post('/api/export/pdf', jsonBig, async (req, res) => {
     res.send(buf);
   } catch (err) { fail(res, err); }
 });
+
+// ── Manual / Ayuda → PDF (elegant, branded) ─────────────────────────────────────
+router.post('/api/help/pdf', jsonBig, (req, res) => handleHelpPdf(req, res, {
+  appLabel: 'QR (TIS)',
+  filename: 'Manual_QR_TIS.pdf',
+  defaultTitle: 'Manual de Gestión de QR (TIS)',
+  defaultSubtitle: 'Todo lo que puedes hacer, explicado paso a paso.',
+}));
 
 // ── Global QR settings (shared) ─────────────────────────────────────────────────
 router.put('/api/settings', json, (req, res) => {

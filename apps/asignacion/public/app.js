@@ -2337,10 +2337,26 @@ function viewHelp() {
   ];
   const nav = SECS.map(s => `<a data-go="help-${s.id}">${s.icon} ${s.title}</a>`).join('');
   const secs = SECS.map(s => `<section class="qt-help-sec" id="help-${s.id}"><h2><span class="em">${s.icon}</span>${s.title}</h2>${s.html}</section>`).join('');
-  main().innerHTML = `<button class="qt-back" id="back">← Volver</button><div class="qt-help-hero"><h1>Manual · Asignación de medicación</h1><p>Cómo preparar y asignar la medicación de cada persona, paso a paso.</p></div><div class="qt-help-wrap"><nav class="qt-help-nav">${nav}</nav><div class="qt-help-content">${secs}</div></div>`;
+  main().innerHTML = `<button class="qt-back" id="back">← Volver</button><div class="qt-help-hero"><div class="qt-help-hero-txt"><h1>Manual · Asignación de medicación</h1><p>Cómo preparar y asignar la medicación de cada persona, paso a paso.</p></div><button class="qt-help-dl" id="help-pdf" title="Descargar todo el manual en PDF">⬇ Descargar PDF</button></div><div class="qt-help-wrap"><nav class="qt-help-nav">${nav}</nav><div class="qt-help-content">${secs}</div></div>`;
   $('back').onclick = () => { if (S.person && S.ficha) renderFicha(); else viewHome(); };
   main().querySelectorAll('.qt-help-nav [data-go]').forEach(a => a.addEventListener('click', () => { const el = document.getElementById(a.dataset.go); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
+  $('help-pdf').onclick = () => downloadHelpPdf(SECS, 'Manual · Asignación de medicación', 'Cómo preparar y asignar la medicación de cada persona, paso a paso.', 'Manual_Asignacion.pdf');
   window.scrollTo({ top: 0 });
+}
+
+// Ask the server to turn the on-screen manual into an elegant, branded PDF.
+async function downloadHelpPdf(secs, title, subtitle, filename) {
+  const btn = $('help-pdf'); if (!btn) return;
+  const prev = btn.innerHTML; btn.disabled = true; btn.innerHTML = '⏳ Generando…';
+  try {
+    const r = await fetch(API + '/help/pdf', jbody({ title, subtitle, sections: secs.map(s => ({ icon: s.icon, title: s.title, html: s.html })) }));
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || ('Error ' + r.status)); }
+    const blob = await r.blob();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('Manual en PDF descargado 📄', 'ok');
+  } catch (e) { toast(e.message || 'No se pudo generar el PDF.', 'err'); }
+  finally { btn.disabled = false; btn.innerHTML = prev; }
 }
 
 // Close modals on scrim / escape.

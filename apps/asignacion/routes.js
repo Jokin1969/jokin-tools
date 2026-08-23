@@ -21,6 +21,7 @@ const cima = require('../datamatrix/cima');
 const cimaCache = require('../datamatrix/cima-cache');
 const authStore = require('../auth/store');
 const { canAccess } = require('../auth/apps-registry');
+const { handleHelpPdf } = require('../../lib/help-pdf');
 
 const router = express.Router();
 
@@ -39,6 +40,14 @@ function fail(res, err) {
   res.status(status).json({ error: err.message || 'Error en Asignación de medicación.' });
 }
 function bad(msg, status = 400) { const e = new Error(msg); e.status = status; return e; }
+
+// ── Manual / Ayuda → PDF (elegant, branded) ─────────────────────────────────────
+router.post('/api/help/pdf', jsonBig, (req, res) => handleHelpPdf(req, res, {
+  appLabel: 'Asignación',
+  filename: 'Manual_Asignacion.pdf',
+  defaultTitle: 'Manual · Asignación de medicación',
+  defaultSubtitle: 'Cómo preparar y asignar la medicación de cada persona, paso a paso.',
+}));
 
 // Normalise a Código Nacional + barcode pair. When `check` is true (CN-only meds),
 // they must be consistent (each derives from the other): fills the missing one and
