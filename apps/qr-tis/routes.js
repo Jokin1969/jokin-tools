@@ -337,6 +337,7 @@ router.post('/api/import', jsonBig, (req, res) => {
           apellidos: cleanName(r.apellidos, 'Apellidos', 160),
           tis: cleanTis(r.tis),
           group_name: cleanGroups(r.group_name),
+          qr_code: cleanQrCode(r.qr_code),          // real QR value (empty → QR uses the TIS)
         };
         // TIS must be unique (no exceptions); pharmacy unique except '00000'.
         if (seenTis.has(rec.tis) || db.tisTaken(rec.tis)) throw bad(`Código TIS ${rec.tis} duplicado.`);

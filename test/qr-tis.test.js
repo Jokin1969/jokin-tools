@@ -295,3 +295,29 @@ test('QR code: asociación por Nº de farmacia, PATCH, PUT y borrado (fallback a
     assert.equal((await call('GET', `/people/${a}`)).data.item.qr_code, null);
   } finally { server.close(); }
 });
+
+test('bulk import (/api/import) crea personas con su Código QR (real); vacío = QR usa el TIS', async () => {
+  const express = require('express');
+  const router = require('../apps/qr-tis/routes');
+  const app = express();
+  app.use((req, res, next) => { req.user = { id: 1, email: 'a@e', name: 'A', role: 'admin', apps: '*' }; next(); });
+  app.use('/qr-tis', router);
+  const server = await new Promise(r => { const s = app.listen(0, () => r(s)); });
+  const base = `http://127.0.0.1:${server.address().port}/qr-tis/api`;
+  const call = (m, p, b) => fetch(base + p, { method: m, headers: b ? { 'Content-Type': 'application/json' } : {}, body: b ? JSON.stringify(b) : undefined }).then(async r => ({ status: r.status, data: await r.json().catch(() => ({})) }));
+  try {
+    const real = '%0000000000930868^BBBBBBBBBN583421^02^IMPO/QR/UNO? TDG';
+    const r = await call('POST', '/import', { rows: [
+      { __row: 2, pharmacy_no: '71011', nombre: 'Impo', apellidos: 'ConQR', tis: '00710111', qr_code: real, group_name: 'Planta 9' },
+      { __row: 3, pharmacy_no: '71012', nombre: 'Impo', apellidos: 'SinQR', tis: '00710112', qr_code: '' },
+    ] });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.data.errors, [], 'sin errores de validación');
+    const list = (await call('GET', '/people')).data.items;
+    const withQr = list.find(x => x.tis === '00710111');
+    const noQr = list.find(x => x.tis === '00710112');
+    assert.ok(withQr && noQr, 'ambas personas importadas');
+    assert.equal(withQr.qr_code, real, 'guarda el Código QR (real) tal cual');
+    assert.equal(noQr.qr_code, null, 'sin Código QR → null (el QR usará el TIS)');
+  } finally { server.close(); }
+});

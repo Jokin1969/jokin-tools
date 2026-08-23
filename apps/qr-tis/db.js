@@ -129,13 +129,14 @@ function tisTaken(tis, exceptId) {
 
 function createPerson(data, userId) {
   const info = db.prepare(
-    `INSERT INTO tis_people (pharmacy_no, nombre, apellidos, tis, group_name, qr_dark, qr_light, qr_style, active, created_by, last_used_at)
-     VALUES (@pharmacy_no, @nombre, @apellidos, @tis, @group_name, @qr_dark, @qr_light, @qr_style, 1, @created_by, CURRENT_TIMESTAMP)`
+    `INSERT INTO tis_people (pharmacy_no, nombre, apellidos, tis, group_name, qr_dark, qr_light, qr_style, qr_code, active, created_by, last_used_at)
+     VALUES (@pharmacy_no, @nombre, @apellidos, @tis, @group_name, @qr_dark, @qr_light, @qr_style, @qr_code, 1, @created_by, CURRENT_TIMESTAMP)`
   ).run({
     pharmacy_no: data.pharmacy_no || null,
     nombre: data.nombre, apellidos: data.apellidos, tis: data.tis,
     group_name: data.group_name || null,
     qr_dark: data.qr_dark || null, qr_light: data.qr_light || null, qr_style: data.qr_style || null,
+    qr_code: data.qr_code || null,             // real QR value (empty → QR falls back to TIS)
     created_by: userId != null ? userId : null,
   });
   return getPerson(info.lastInsertRowid);
