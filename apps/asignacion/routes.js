@@ -41,6 +41,21 @@ function fail(res, err) {
 }
 function bad(msg, status = 400) { const e = new Error(msg); e.status = status; return e; }
 
+// Fill a box's medication name (and cache its box/pill images) from CIMA, by the
+// box's Código Nacional. Best-effort and offline-tolerant: on failure the product
+// stays a stub and can be completed later with "Actualizar desde CIMA". Never throws.
+async function nameBoxFromCima(item) {
+  if (!item || !item.gtin) return;
+  const cn = item.cn || gs1.cnForCima({ gtin: item.gtin });
+  if (!cn) return;
+  const prod = dmDb.getProduct(item.gtin);
+  if (prod && prod.nombre) return;                 // already named → nothing to do
+  try {
+    const it = await cimaCache.lookupByCnCached(cn);   // re-fetch: name + images, cached
+    if (it && it.nombre) dmDb.upsertProduct(item.gtin, { nombre: it.nombre, cn: it.cn || cn });
+  } catch { /* CIMA offline → leave the stub; can be completed later */ }
+}
+
 // ── Manual / Ayuda → PDF (elegant, branded) ─────────────────────────────────────
 router.post('/api/help/pdf', jsonBig, (req, res) => handleHelpPdf(req, res, {
   appLabel: 'Asignación',
@@ -546,7 +561,7 @@ router.post('/api/period/:id(\\d+)/reopen', (req, res) => {
 // Pre-assign a box to a person for a month. Accepts an existing box id, or a raw
 // Data Matrix (scanned) — creating the box in the datamatrix app if it's new, so
 // the two apps never drift apart.
-router.post('/api/person/:id(\\d+)/preassign', json, (req, res) => {
+router.post('/api/person/:id(\\d+)/preassign', json, async (req, res) => {
   try {
     const p = qrDb.getPerson(Number(req.params.id));
     if (!p) return res.status(404).json({ error: 'La persona no está en QR (TIS). Añádela allí primero.' });
@@ -569,6 +584,10 @@ router.post('/api/person/:id(\\d+)/preassign', json, (req, res) => {
         if (data.gtin && !dmDb.getProduct(data.gtin)) dmDb.upsertProduct(data.gtin, {});
       }
     }
+    // Enrich from CIMA (name + box/pill images) so a scanned box never associates
+    // with incomplete info; re-read to reflect the resolved name in the response.
+    await nameBoxFromCima(item);
+    item = dmDb.getItem(item.id) || item;
 
     // Validate the box can be reserved for this person.
     if (item.status === 'utilizado' && item.assignee_id !== p.id) {
@@ -709,7 +728,7 @@ router.delete('/api/precinto/:id(\\d+)', (req, res) => {
 // Scanner endpoint: resolve a scanned code (Data Matrix or barcode/precinto) to a
 // plan medication of this person and mark it assigned. For "scanner mode": the
 // scanner types the code + Enter, and we assign directly.
-router.post('/api/person/:id(\\d+)/scan', json, (req, res) => {
+router.post('/api/person/:id(\\d+)/scan', json, async (req, res) => {
   try {
     const p = qrDb.getPerson(Number(req.params.id));
     if (!p) return res.status(404).json({ error: 'Persona no encontrada.' });
@@ -738,6 +757,7 @@ router.post('/api/person/:id(\\d+)/scan', json, (req, res) => {
       const data = { raw, box_key: gs1.boxKey(f, raw), gtin, serial: f.serial, lote: f.lote, caducidad: gs1.expiryToIso(f.caducidad), cn };
       let item = dmDb.findByKey(data.box_key) || dmDb.createItem(data, req.user.id);
       if (item.assignee_id != null && item.assignee_id !== p.id) throw bad(`Esa caja ya está asociada a ${item.assignee_name || 'otra persona'}.`);
+      await nameBoxFromCima(item);   // complete name + images from CIMA before assigning
       dmDb.setAssignee(item.id, p.id, personName(p), p.pharmacy_no || null, parseGroups(p.group_name).join(" · ") || null);
       const line = db.findLine(period.id, item.id);
       if (line) db.setLineState(line.id, 'asignada');

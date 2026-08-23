@@ -903,3 +903,18 @@ test('distinctCnCount cuenta medicamentos (CN) distintos y activos', () => {
     assert.ok(pid > 0);
   })();
 });
+
+test('preassign por escaneo pasa por CIMA y completa el nombre de la caja', async () => {
+  process.env.CIMA_ENABLED = 'false';                 // offline → usa la caché sembrada
+  const asigDb = require('../apps/asignacion/db');
+  const pid = qrDb.createPerson({ pharmacy_no: '80870', nombre: 'Cim', apellidos: 'Box', tis: '00080870' }, 1).id;
+  const GS = String.fromCharCode(29);
+  const gtin = '08470008854424', cn = '885442';
+  dmDb.cimaCachePut(cn, { nombre: 'FROVATRIPTAN PRUEBA 2,5 mg' });   // seed local CIMA cache
+  const raw = '01' + gtin + '21' + 'SNCIMAX1' + GS + '17' + '271130' + '10' + 'LOTEC1';
+  const r = await call('POST', `/person/${pid}/preassign`, { raw, ym: '2026-08' });
+  assert.equal(r.status, 200);
+  const prod = dmDb.getProduct(gtin);
+  assert.ok(prod, 'la caja creó su producto en Data Matrix');
+  assert.equal(prod.nombre, 'FROVATRIPTAN PRUEBA 2,5 mg', 'el nombre se completa desde CIMA al asociar');
+});
