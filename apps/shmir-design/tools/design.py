@@ -253,6 +253,12 @@ def main(argv: list[str]) -> int:
         help="Tabla `transcrito<TAB>valor` para ponderar la carga de seed.",
     )
     parser.add_argument(
+        "--accesibilidad", action="store_true",
+        help="Calcula la accesibilidad de cada diana con ViennaRNA (ventanas de "
+             "contexto ±80 y ±150 nt). Es un criterio de DESEMPATE, nunca un filtro, y "
+             "es lento: por eso va aparte.",
+    )
+    parser.add_argument(
         "--transgen", type=Path,
         help="FASTA del casete AAV completo (ITR a ITR). Los candidatos que lo tocan "
              "apagarian la propia construccion terapeutica.",
@@ -582,6 +588,7 @@ def main(argv: list[str]) -> int:
                 abundance=abundantes,
                 utr3_set=transcriptoma,
                 expression=expresion,
+                accessibility=args.accesibilidad,
                 specificity_target=args.target,
                 thresholds=thresholds,
             )

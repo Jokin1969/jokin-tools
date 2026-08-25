@@ -18,7 +18,9 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 from .conservation import ConservationReport
+from .accessibility import CONTEXT_WINDOWS, DISCREPANCY
 from .filters import FilterState, Verdict
+from .folding import VIENNA_AVAILABLE
 from .mirna import SEED_SPACE
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
@@ -348,6 +350,36 @@ def text_report(
             f"declarado (conocidos: {', '.join(sorted(TAXIDS))}). No se inventa."
         )
     lines.append(f"  ⚠  {SEED_CAVEAT}")
+
+    lines.extend(["", "── Accesibilidad de la diana ──"])
+    if not tiling.accessibility:
+        lines.append(
+            "  NOT_RUN: no se pidio (--accesibilidad). NOT_RUN no es cero: no haber "
+            "plegado no es lo mismo que una diana inaccesible."
+        )
+    elif not VIENNA_AVAILABLE:
+        lines.append(
+            "  NOT_RUN: se pidio, pero ViennaRNA no esta instalado "
+            "(`pip install ViennaRNA`). NOT_RUN no es cero."
+        )
+    else:
+        calculadas = [w for w in tiling.windows if w.accesibilidad is not None]
+        discrepantes = [
+            w for w in calculadas if w.accesibilidad.discrepant
+        ]
+        lines.append(
+            f"  Calculada en {len(calculadas)} ventana(s), con dos ventanas de "
+            f"contexto: ±{CONTEXT_WINDOWS[0]} y ±{CONTEXT_WINDOWS[1]} nt."
+        )
+        lines.append(
+            f"  En {len(discrepantes)} de ellas las dos ventanas discrepan mas de "
+            f"{DISCREPANCY:.0%}: ahi el numero depende de donde se corte el contexto y "
+            f"no sirve para desempatar."
+        )
+        lines.append(
+            "  Es el criterio peor predicho del pipeline: va de DESEMPATE y no descarta "
+            "a nadie. Se guarda para poder correlacionarlo contra el knockdown medido."
+        )
 
     lines.extend(["", "── Elementos repetitivos ──"])
     if tiling.mask is None:
