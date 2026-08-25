@@ -351,6 +351,42 @@ def text_report(
         )
     lines.append(f"  ⚠  {SEED_CAVEAT}")
 
+    lines.extend(["", "── Poliadenilacion alternativa (APA) ──"])
+    if tiling.apa_sites is None:
+        con_riesgo = sum(1 for w in tiling.windows if w.riesgo_APA)
+        lines.append(
+            f"  riesgo_APA es una PREDICCION, no un dato: {con_riesgo} de "
+            f"{len(tiling.windows)} ventana(s) "
+            f"({con_riesgo / len(tiling.windows):.1%}) quedan por detras de una señal "
+            f"de APA posible."
+        )
+        lines.append(
+            "  Que esa señal se use o no, esto no lo puede saber. Si se usa, esas "
+            "ventanas tienen un techo de knockdown duro e invisible. Con una tabla de "
+            "PolyA_DB o PolyASite (--apa-medido) el dato sustituiria a la prediccion."
+        )
+    else:
+        lines.append(f"  Sitios MEDIDOS: {tiling.apa_sites.provenance}")
+        lines.append(
+            "  El dato sustituye a la prediccion. Un sitio medido ES el sitio de corte, "
+            "no el hexamero: no se le suman los 10-30 nt."
+        )
+        con_techo = [
+            w for w in tiling.windows
+            if w.apa is not None and w.apa.knockdown_ceiling is not None
+        ]
+        if con_techo:
+            peor = min(w.apa.knockdown_ceiling for w in con_techo)
+            lines.append(
+                f"  Techo de knockdown mas bajo entre las ventanas evaluadas: "
+                f"{peor:.0%}."
+            )
+        elif tiling.apa_sites is not None and not tiling.apa_sites.has_fractions:
+            lines.append(
+                "  La tabla no trae la fraccion de lecturas de todos los sitios, asi "
+                "que hay riesgo identificado pero no techo. No se inventa."
+            )
+
     lines.extend(["", "── Accesibilidad de la diana ──"])
     if not tiling.accessibility:
         lines.append(

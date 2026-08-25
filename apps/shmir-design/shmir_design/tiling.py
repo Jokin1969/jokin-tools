@@ -30,6 +30,7 @@ from dataclasses import dataclass
 
 from .accessibility import Accessibility, accessibility_of
 from .anatomy import Anatomy, Region, RegionSource, TileRange
+from .apa import ApaAssessment, ApaSites, apa_assessment
 from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
 from .masking import RepeatMask, apply_mask, filter_repeats
 from .hard_filters import (
@@ -175,6 +176,7 @@ class TiledWindow:
     #: Numeros comparativos, nunca veredictos: por eso NO entran en `filters`.
     carga_seed: SeedLoad | None = None
     accesibilidad: Accessibility | None = None
+    apa: ApaAssessment | None = None
 
     @property
     def bandera_polyA_debil(self) -> bool:
@@ -236,6 +238,7 @@ class TilingReport:
     abundance: AbundanceList | None = None
     utr3_set: Utr3Set | None = None
     accessibility: bool = False
+    apa_sites: ApaSites | None = None
     polya_mode: PolyAMode = PolyAMode.ESCALONADO
 
     def biofisicos_ok(self) -> int:
@@ -374,6 +377,7 @@ def tile_utr(
     utr3_set: Utr3Set | None = None,
     expression: dict[str, float] | None = None,
     accessibility: bool = False,
+    apa_sites: ApaSites | None = None,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
     thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> TilingReport:
@@ -483,6 +487,19 @@ def tile_utr(
                 )
             )
 
+        # Bloque 5: con sitios medidos, el dato sustituye a la prediccion.
+        apa = None
+        if region is Region.UTR3:
+            if apa_sites is not None and apa_sites.coords == "3utr":
+                posicion = anatomy.utr3_position(anotada.window.start)
+            else:
+                posicion = anotada.window.start
+            apa = apa_assessment(
+                window_start=posicion if posicion is not None else anotada.window.start,
+                sites=apa_sites,
+                predicted_risk=anotada.riesgo_APA,
+            )
+
         acceso = None
         if accessibility and escaneable:
             acceso = accessibility_of(
@@ -546,7 +563,11 @@ def tile_utr(
                 carga_seed=carga,
                 accesibilidad=acceso,
                 tercio=anotada.tercio,
-                riesgo_APA=anotada.riesgo_APA and region is Region.UTR3,
+                riesgo_APA=(
+                    (apa.risk if apa is not None else anotada.riesgo_APA)
+                    and region is Region.UTR3
+                ),
+                apa=apa,
                 apa_aplica=region is Region.UTR3,
                 apa_upstream=anotada.apa_upstream,
                 senales_debiles=anotada.senales_debiles,
@@ -577,5 +598,6 @@ def tile_utr(
         abundance=abundance,
         utr3_set=utr3_set,
         accessibility=accessibility,
+        apa_sites=apa_sites,
         polya_mode=polya_mode,
     )

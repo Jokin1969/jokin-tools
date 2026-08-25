@@ -31,6 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from shmir_design.apa import load_apa_sites  # noqa: E402
 from shmir_design.anatomy import (  # noqa: E402
     Anatomy,
     Region,
@@ -253,6 +254,18 @@ def main(argv: list[str]) -> int:
         help="Tabla `transcrito<TAB>valor` para ponderar la carga de seed.",
     )
     parser.add_argument(
+        "--apa-medido", type=Path,
+        help="Tabla `posicion<TAB>fraccion<TAB>nombre` de sitios de poliadenilacion "
+             "MEDIDOS (PolyA_DB, PolyASite). Con ella, el dato sustituye a la "
+             "prediccion de riesgo_APA y se puede dar el techo de knockdown.",
+    )
+    parser.add_argument("--apa-version", help="Version de la tabla; obligatoria")
+    parser.add_argument("--apa-md5", help="md5 esperado; si no cuadra, PARA")
+    parser.add_argument(
+        "--apa-coords", choices=("3utr", "transcrito"), default="3utr",
+        help="En que coordenadas estan las posiciones de --apa-medido.",
+    )
+    parser.add_argument(
         "--accesibilidad", action="store_true",
         help="Calcula la accesibilidad de cada diana con ViennaRNA (ventanas de "
              "contexto ±80 y ±150 nt). Es un criterio de DESEMPATE, nunca un filtro, y "
@@ -437,6 +450,20 @@ def main(argv: list[str]) -> int:
                 )
             expresion = load_expression_table(args.expresion)
 
+        apa_sitios = None
+        if args.apa_medido:
+            if not args.apa_version:
+                raise ValueError(
+                    "--apa-medido necesita --apa-version: este dato SUSTITUYE a una "
+                    "prediccion, asi que sin procedencia no vale. Se aborta."
+                )
+            apa_sitios = load_apa_sites(
+                args.apa_medido,
+                version=args.apa_version,
+                expected_md5=args.apa_md5,
+                coords=args.apa_coords,
+            )
+
         transgen_db = None
         if args.transgen:
             if not args.transgen_version:
@@ -589,6 +616,7 @@ def main(argv: list[str]) -> int:
                 utr3_set=transcriptoma,
                 expression=expresion,
                 accessibility=args.accesibilidad,
+                apa_sites=apa_sitios,
                 specificity_target=args.target,
                 thresholds=thresholds,
             )
