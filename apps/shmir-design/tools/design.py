@@ -60,7 +60,7 @@ from shmir_design.orf import (  # noqa: E402
     format_cds_suggestion,
     propose_cds,
 )
-from shmir_design.polya import read_fasta_sequence  # noqa: E402
+from shmir_design.polya import PolyAMode, read_fasta_sequence  # noqa: E402
 from shmir_design.reference import REFERENCES, load_3utr  # noqa: E402
 from shmir_design.scaffold import SGEP_SCAFFOLD, load_scaffold  # noqa: E402
 from shmir_design.seeds import BOOTSTRAP_SEEDS, parse_seed_table  # noqa: E402
@@ -247,6 +247,14 @@ def main(argv: list[str]) -> int:
         help="Sigue adelante aunque el CDS declarado no termine en codon de parada. "
              "Por defecto eso aborta, porque casi siempre es un desplazamiento de "
              "coordenadas que corre todo el 3'UTR sin avisar.",
+    )
+    parser.add_argument(
+        "--polyA-modo", choices=[m.value for m in PolyAMode],
+        default=PolyAMode.ESCALONADO.value,
+        help="Criterio de poliadenilacion: 'estricto' tumba toda ventana que solape "
+             "cualquier hexamero; 'escalonado' solo las señales fuertes; 'permisivo' "
+             "solo las que quedan por detras del sitio de corte de la señal terminal. "
+             "El informe saca el top-N bajo los tres, siempre.",
     )
     parser.add_argument(
         "--cuota-region", metavar="REGION=N[,REGION=N]",
@@ -452,6 +460,7 @@ def main(argv: list[str]) -> int:
                 mask=mask,
                 anatomy=anatomias[especie],
                 tile_range=rangos[especie],
+                polya_mode=PolyAMode(args.polyA_modo),
                 specificity_db=refseq,
                 transgene_db=transgen_db,
                 specificity_target=args.target,

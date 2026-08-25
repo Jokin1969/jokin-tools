@@ -40,8 +40,12 @@ from .hard_filters import (
     evaluate_window,
 )
 from .polya import (
+    POLYA_COLUMNS,
     Aviso,
+    PolyAAnnotation,
+    PolyAMode,
     PolyASignal,
+    annotate_polya,
     Tercio,
     Window,
     annotate_3utr,
@@ -129,6 +133,7 @@ class TiledWindow:
     estricto_ok: bool = True
     especificidad: FilterResult | None = None
     transgen: FilterResult | None = None
+    polya: PolyAAnnotation | None = None
 
     @property
     def bandera_polyA_debil(self) -> bool:
@@ -185,6 +190,7 @@ class TilingReport:
     thresholds: Thresholds = DEFAULT_THRESHOLDS
     tile_range: TileRange | None = None
     transgene_db: SpecificityDatabase | None = None
+    polya_mode: PolyAMode = PolyAMode.ESCALONADO
 
     def biofisicos_ok(self) -> int:
         return sum(1 for w in self.windows if w.biofisicos_ok)
@@ -267,6 +273,7 @@ class TilingReport:
         filtros = [r.name for r in self.windows[0].filters] if self.windows else []
         columns = (
             ["inicio", "fin", "region", "inicio_3utr", "fin_3utr", "diana", "guia", "tercio"]
+            + list(POLYA_COLUMNS)
             + filtros
             + ["biofisicos_ok", "riesgo_APA", "veredicto", "motivos"]
         )
@@ -282,6 +289,10 @@ class TilingReport:
                     tiled.evaluation.sequence,
                     tiled.evaluation.guide,
                     tiled.tercio.value if tiled.tercio else "",
+                ]
+                + [
+                    (tiled.polya.as_columns()[c] if tiled.polya else "")
+                    for c in POLYA_COLUMNS
                 ]
                 + [r.state.value for r in tiled.filters]
                 + [
@@ -308,6 +319,7 @@ def tile_utr(
     mask: RepeatMask | None = None,
     anatomy: Anatomy | None = None,
     tile_range: TileRange | None = None,
+    polya_mode: PolyAMode = PolyAMode.ESCALONADO,
     specificity_db: SpecificityDatabase | None = None,
     specificity_target: str | None = None,
     transgene_db: SpecificityDatabase | None = None,
@@ -371,7 +383,14 @@ def tile_utr(
         # Bloque 9: polyA y APA son heuristicas del 3'UTR. Sobre una ventana del ORF o
         # del 5'UTR no dan ni PASS ni FAIL — la pregunta no va con ese candidato — y
         # tampoco es NOT_RUN, porque no hay ninguna laguna que tapar.
-        zona_prohibida = anotada.zona_prohibida
+        anotacion_polya = annotate_polya(
+            anotada.window,
+            list(signals),
+            utr_length=len(cleaned),
+            sequence=original,
+            mode=polya_mode,
+        )
+        zona_prohibida = anotacion_polya.veredicto
         if region is not Region.UTR3:
             zona_prohibida = FilterResult(
                 name=zona_prohibida.name,
@@ -438,6 +457,7 @@ def tile_utr(
                 repeticiones=filter_repeats(start, anotada.window.end, mask),
                 especificidad=especificidad,
                 transgen=transgen,
+                polya=anotacion_polya,
                 tercio=anotada.tercio,
                 riesgo_APA=anotada.riesgo_APA and region is Region.UTR3,
                 apa_aplica=region is Region.UTR3,
@@ -466,4 +486,5 @@ def tile_utr(
         thresholds=thresholds,
         tile_range=tile_range,
         transgene_db=transgene_db,
+        polya_mode=polya_mode,
     )

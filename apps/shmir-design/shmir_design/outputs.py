@@ -22,7 +22,11 @@ from .filters import FilterState, Verdict
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
-from .selection import ReportSelection, penalty_sensitivity
+from .selection import (
+    ReportSelection,
+    penalty_sensitivity,
+    polya_mode_comparison,
+)
 from .specificity import (
     SEED_CAVEAT,
     TAXIDS,
@@ -372,6 +376,21 @@ def text_report(
             f"{len(tiling.windows)}."
         )
         lines.append(f"  ⚠  {TRANSGENE_ORIENTATION_NOTE}")
+
+    lines.extend(
+        [
+            "",
+            "── Criterio de poliadenilacion: los tres modos lado a lado ──",
+            f"  Modo usado en esta corrida: {tiling.polya_mode.value}",
+            "  El corte no ocurre en el hexamero, ocurre 10-30 nt aguas abajo: el "
+            "hexamero se queda",
+            "  dentro del ARNm maduro. La ventana que desaparece es la que empieza "
+            "DESPUES del corte,",
+            "  asi que la zona prohibida por esa razon es asimetrica y esta desplazada "
+            "aguas abajo.",
+        ]
+    )
+    lines.append(polya_mode_comparison(tiling, selection.selection.config).format_text())
 
     sensibilidad = penalty_sensitivity(tiling, selection.selection.config)
     lines.extend(

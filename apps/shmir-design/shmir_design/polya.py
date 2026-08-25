@@ -660,3 +660,281 @@ def analyze_3utr(
         cleaned = normalize_sequence(sequence)
         resolved_length = utr_length or (first_position + len(cleaned) - 1)
     return annotate_3utr(windows, signals, resolved_length)
+
+
+# ─── polyA como ANOTACION, no como veredicto (bloque 3) ──────────────────────
+#
+# El umbral simetrico de ±SIGNAL_FLANK no sale de ningun articulo, y debajo habia tres
+# preocupaciones distintas metidas en un solo PASS/FAIL. Aqui se separan en cinco campos
+# de los que solo uno es un veredicto.
+#
+# La geometria importa y es contraintuitiva: el corte NO ocurre en el hexamero, ocurre
+# 10-30 nt aguas abajo. El hexamero se queda DENTRO del ARNm maduro, asi que una ventana
+# que lo contiene sigue existiendo en el transcrito. La que desaparece es la que empieza
+# despues del sitio de corte. Por eso la zona prohibida por esta razon es asimetrica y
+# esta desplazada aguas abajo, no centrada en el hexamero.
+
+CLEAVAGE_MIN = 10   # nt aguas abajo del final del hexamero
+CLEAVAGE_MAX = 30
+
+#: Las posiciones 2-8 de la guia (la seed) emparejan con el extremo 3' de la ventana
+#: diana: la guia es el complemento inverso, asi que su posicion i emparejta con la
+#: posicion (longitud + 1 - i) de la diana. Para una ventana de 22 nt, la seed cae en
+#: las posiciones 15-21.
+SEED_GUIDE_START = 2
+SEED_GUIDE_END = 8
+TARGET_WINDOW_SIZE = 22
+SEED_TARGET_START = TARGET_WINDOW_SIZE + 1 - SEED_GUIDE_END   # 15
+SEED_TARGET_END = TARGET_WINDOW_SIZE + 1 - SEED_GUIDE_START   # 21
+
+#: Un hexamero solo casi nunca es un sitio funcional: hace falta un elemento GU-rico o
+#: U-rico 10-30 nt aguas abajo. Estas dos fracciones son convencion nuestra, no un valor
+#: publicado, asi que van como parametros y se barren en el informe.
+DSE_GU_FRACTION = 0.60
+DSE_U_FRACTION = 0.50
+
+
+class RelativePosition(StrEnum):
+    AGUAS_ARRIBA = "aguas arriba"
+    SOLAPANDO = "solapando"
+    DENTRO = "dentro"
+    AGUAS_ABAJO = "aguas abajo"
+
+
+class PolyAMode(StrEnum):
+    """Los tres criterios, para poder enseñar el top-N bajo los tres.
+
+    Si los tres coinciden, el debate sobre el umbral es irrelevante y queda documentado.
+    """
+
+    ESTRICTO = "estricto"        # ±flanco para los doce hexameros por igual
+    ESCALONADO = "escalonado"    # FAIL solo para las señales fuertes
+    PERMISIVO = "permisivo"      # FAIL solo por detras del corte de la terminal
+
+
+def seed_target_span(window: Window) -> tuple[int, int]:
+    """Tramo absoluto de la diana con el que empareja la seed (posiciones 2-8)."""
+    if window.length != TARGET_WINDOW_SIZE:
+        raise ValueError(
+            f"La geometria de la seed esta calculada para ventanas de "
+            f"{TARGET_WINDOW_SIZE} nt y esta mide {window.length}; se aborta en vez de "
+            f"devolver un tramo que no corresponde."
+        )
+    return (
+        window.start + SEED_TARGET_START - 1,
+        window.start + SEED_TARGET_END - 1,
+    )
+
+
+def _relative_position(window: Window, signal: PolyASignal) -> tuple[RelativePosition, int]:
+    """Donde cae la señal respecto a la ventana, y a cuantos nt."""
+    if signal.end < window.start:
+        return RelativePosition.AGUAS_ARRIBA, window.start - signal.end - 1
+    if signal.position > window.end:
+        return RelativePosition.AGUAS_ABAJO, signal.position - window.end - 1
+    if window.start <= signal.position and signal.end <= window.end:
+        return RelativePosition.DENTRO, 0
+    return RelativePosition.SOLAPANDO, 0
+
+
+def _dse_context(
+    signal: PolyASignal,
+    sequence: str | None,
+    *,
+    gu_fraction: float = DSE_GU_FRACTION,
+    u_fraction: float = DSE_U_FRACTION,
+) -> bool | None:
+    """¿Hay elemento GU-rico o U-rico 10-30 nt aguas abajo? `None` si no se puede mirar.
+
+    Sin secuencia no se puede responder, y `None` significa exactamente eso: no es un
+    "no" disfrazado.
+    """
+    if sequence is None:
+        return None
+    inicio = signal.end + CLEAVAGE_MIN
+    fin = signal.end + CLEAVAGE_MAX
+    if fin > len(sequence):
+        return None
+    tramo = sequence[inicio:fin].upper()
+    if not tramo:
+        return None
+    gu = sum(1 for b in tramo if b in "GT") / len(tramo)
+    u = sum(1 for b in tramo if b == "T") / len(tramo)
+    return gu >= gu_fraction or u >= u_fraction
+
+
+#: Los cinco campos, en el orden en que salen en las tablas.
+POLYA_COLUMNS = (
+    "polyA_hexamero",
+    "polyA_clase",
+    "polyA_posicion_rel",
+    "polyA_solapa_seed",
+    "polyA_veredicto",
+)
+
+
+@dataclass(frozen=True)
+class PolyAAnnotation:
+    """Los cinco campos, mas el contexto y la banda de incertidumbre del corte."""
+
+    hexamero: str
+    clase: str
+    posicion_rel: RelativePosition | None
+    distancia: int
+    solapa_seed: bool
+    veredicto: FilterResult
+    signal: PolyASignal | None = None
+    contexto_gu_rico: bool | None = None
+    tras_corte_posible: bool = False
+    tras_corte_seguro: bool = False
+
+    def as_columns(self) -> dict[str, str]:
+        if self.posicion_rel is None:
+            posicion = ""
+        elif self.posicion_rel in (RelativePosition.DENTRO, RelativePosition.SOLAPANDO):
+            posicion = self.posicion_rel.value
+        else:
+            posicion = f"{self.posicion_rel.value}, {self.distancia} nt"
+        return {
+            "polyA_hexamero": self.hexamero,
+            "polyA_clase": self.clase,
+            "polyA_posicion_rel": posicion,
+            "polyA_solapa_seed": "si" if self.solapa_seed else "no",
+            "polyA_veredicto": self.veredicto.state.value,
+        }
+
+
+#: Orden de gravedad para elegir que hexamero manda cuando hay varios.
+_GRAVEDAD = {
+    SignalClass.TERMINAL_PROBABLE: 0,
+    SignalClass.APA_POSSIBLE: 1,
+    SignalClass.OTHER: 2,
+}
+
+
+def annotate_polya(
+    window: Window,
+    signals: list[PolyASignal],
+    *,
+    utr_length: int,
+    sequence: str | None = None,
+    mode: PolyAMode = PolyAMode.ESCALONADO,
+) -> PolyAAnnotation:
+    """Anota una ventana: cinco campos, y solo uno es un veredicto."""
+    cercanas = sorted(
+        signals,
+        key=lambda s: (
+            _GRAVEDAD[s.classification],
+            abs(s.position - window.start),
+        ),
+    )
+    principal = cercanas[0] if cercanas else None
+
+    solapa_seed = False
+    if window.length == TARGET_WINDOW_SIZE:
+        seed_inicio, seed_fin = seed_target_span(window)
+        solapa_seed = any(
+            s.position <= seed_fin and s.end >= seed_inicio for s in signals
+        )
+
+    terminales = [
+        s for s in signals if s.classification is SignalClass.TERMINAL_PROBABLE
+    ]
+    tras_posible = any(window.start > s.end + CLEAVAGE_MIN for s in terminales)
+    tras_seguro = any(window.start > s.end + CLEAVAGE_MAX for s in terminales)
+
+    posicion, distancia = (
+        _relative_position(window, principal) if principal else (None, 0)
+    )
+
+    veredicto = _veredicto_polya(
+        window,
+        signals,
+        mode=mode,
+        tras_seguro=tras_seguro,
+        tras_posible=tras_posible,
+        terminales=terminales,
+    )
+
+    return PolyAAnnotation(
+        hexamero=principal.motif if principal else "",
+        clase=principal.classification.value if principal else "",
+        posicion_rel=posicion,
+        distancia=distancia,
+        solapa_seed=solapa_seed,
+        veredicto=veredicto,
+        signal=principal,
+        contexto_gu_rico=_dse_context(principal, sequence) if principal else None,
+        tras_corte_posible=tras_posible,
+        tras_corte_seguro=tras_seguro,
+    )
+
+
+def _veredicto_polya(
+    window: Window,
+    signals: list[PolyASignal],
+    *,
+    mode: PolyAMode,
+    tras_seguro: bool,
+    tras_posible: bool,
+    terminales: list[PolyASignal],
+) -> FilterResult:
+    """El unico campo que es un veredicto. El modo va siempre escrito en el motivo."""
+    def resultado(state: FilterState, texto: str) -> FilterResult:
+        return FilterResult(
+            name=FILTER_NAME, state=state, reason=f"[modo {mode.value}] {texto}"
+        )
+
+    if tras_seguro:
+        detalle = "; ".join(
+            f"{s.motif} en {s.position}-{s.end} (corte como mucho en "
+            f"{s.end + CLEAVAGE_MAX})"
+            for s in terminales
+        )
+        return resultado(
+            FilterState.FAIL,
+            f"La ventana empieza en {window.start}, por detras del sitio de corte de la "
+            f"señal terminal: {detalle}. Ese tramo no esta en el ARNm maduro, asi que "
+            f"la diana no existe.",
+        )
+
+    solapadas = tuple(
+        s for s in signals
+        if window.start <= s.forbidden_end and window.end >= s.forbidden_start
+    )
+    fuertes = tuple(s for s in solapadas if s.is_hard_block)
+
+    if mode is PolyAMode.ESTRICTO and solapadas:
+        detalle = "; ".join(f"{s.motif} en {s.position}" for s in solapadas)
+        return resultado(
+            FilterState.FAIL,
+            f"Solapa {len(solapadas)} hexamero(s) ±{solapadas[0].flank} nt ({detalle}). "
+            f"El criterio estricto no distingue entre hexameros.",
+        )
+
+    if mode is PolyAMode.ESCALONADO and fuertes:
+        detalle = "; ".join(
+            f"{s.motif} en {s.position} ({s.classification.value})" for s in fuertes
+        )
+        return resultado(
+            FilterState.FAIL,
+            f"Solapa señal fuerte de poliadenilacion ±{fuertes[0].flank} nt: {detalle}.",
+        )
+
+    avisos = []
+    if tras_posible:
+        avisos.append(
+            f"La ventana cae en la banda incierta del corte ({CLEAVAGE_MIN}-"
+            f"{CLEAVAGE_MAX} nt tras el hexamero): puede quedar fuera del ARNm maduro."
+        )
+    if solapadas and mode is not PolyAMode.ESTRICTO:
+        avisos.append(
+            f"Solapa {len(solapadas)} hexamero(s), "
+            + "; ".join(f"{s.motif} en {s.position}" for s in solapadas)
+            + "."
+        )
+    return resultado(
+        FilterState.PASS,
+        " ".join(avisos)
+        or f"Sin solape con ninguna de las {len(signals)} señal(es) detectadas.",
+    )

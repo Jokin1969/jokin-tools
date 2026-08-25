@@ -524,6 +524,7 @@ def penalty_sensitivity(
             min_spacing=base.min_spacing,
             require_one_per_tercio=base.require_one_per_tercio,
             weak_polya_penalty=value,
+            region_quota=base.region_quota,
         )
         seleccion = select_from_report(report, variante)
         selections[value] = tuple(c.start for c in seleccion.selection.chosen)
@@ -532,5 +533,85 @@ def penalty_sensitivity(
         values=tuple(values),
         selections=selections,
         flagged=sum(1 for w in report.windows if w.bandera_polyA_debil),
+        stable=len(set(selections.values())) == 1,
+    )
+
+
+# ─── Los tres criterios de polyA, lado a lado (bloque 3) ─────────────────────
+
+
+@dataclass(frozen=True)
+class PolyAModeComparison:
+    """Top-N bajo los tres modos. Si coinciden, el debate del umbral es irrelevante."""
+
+    selections: dict[str, tuple[int, ...]]
+    eligible: dict[str, int]
+    stable: bool
+
+    def format_text(self) -> str:
+        lines = [
+            "  Modo        elegibles   candidatos elegidos",
+        ]
+        for modo, elegidos in self.selections.items():
+            posiciones = ", ".join(str(p) for p in elegidos) or "ninguno"
+            lines.append(f"  {modo:<11} {self.eligible[modo]:>9}   {posiciones}")
+        if self.stable:
+            lines.append(
+                "  Los tres modos eligen exactamente los mismos candidatos: el umbral "
+                "de polyA no decide nada aqui, asi que el debate sobre el ±10 nt es "
+                "irrelevante para esta seleccion."
+            )
+        else:
+            lines.append(
+                "  Los tres modos NO eligen lo mismo: aqui el criterio de polyA SI "
+                "cambia quien entra, asi que la eleccion de modo es una decision de "
+                "diseño y no un detalle."
+            )
+        return "\n".join(lines)
+
+
+def polya_mode_comparison(
+    report: TilingReport, config: SelectionConfig | None = None
+) -> PolyAModeComparison:
+    """Rehace la seleccion bajo los tres criterios de polyA y compara quien sale.
+
+    Mismo patron que el barrido de la penalizacion: si mover el criterio no cambia el
+    top-N, se dice y se olvida el asunto; si lo cambia, se dice con esas palabras.
+    """
+    from dataclasses import replace
+
+    from .anatomy import Region
+    from .polya import PolyAMode, annotate_polya
+
+    base = config or SelectionConfig()
+    selections: dict[str, tuple[int, ...]] = {}
+    elegibles: dict[str, int] = {}
+
+    for modo in PolyAMode:
+        ventanas = []
+        for window in report.windows:
+            if window.region is not Region.UTR3:
+                # Fuera del 3'UTR el filtro sale NO_APLICA en los tres modos.
+                ventanas.append(window)
+                continue
+            anotacion = annotate_polya(
+                window.window,
+                list(report.signals),
+                utr_length=report.utr_length,
+                mode=modo,
+            )
+            ventanas.append(
+                replace(
+                    window, zona_prohibida=anotacion.veredicto, polya=anotacion
+                )
+            )
+        variante = replace(report, windows=tuple(ventanas), polya_mode=modo)
+        seleccion = select_from_report(variante, base)
+        selections[modo.value] = tuple(c.start for c in seleccion.selection.chosen)
+        elegibles[modo.value] = sum(1 for w in ventanas if is_eligible(w, base))
+
+    return PolyAModeComparison(
+        selections=selections,
+        eligible=elegibles,
         stable=len(set(selections.values())) == 1,
     )
