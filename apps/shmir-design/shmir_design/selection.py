@@ -33,6 +33,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .anatomy import Region
 from .filters import FilterState, Verdict
 from .polya import Tercio
 from .tiling import TiledWindow, TilingReport
@@ -51,6 +52,10 @@ class SelectionConfig:
     min_spacing: int = DEFAULT_MIN_SPACING
     require_one_per_tercio: bool = True
     weak_polya_penalty: float = DEFAULT_WEAK_POLYA_PENALTY
+    #: Cuota por region, del tipo ((Region.UTR3, 7), (Region.CDS, 3)). Sin ella, solo
+    #: entran candidatos del 3'UTR: una ventana del ORF nunca se cuela por accidente,
+    #: solo si alguien la pide. La suma tiene que ser exactamente `n_candidates`.
+    region_quota: tuple[tuple[Region, int], ...] | None = None
 
     def __post_init__(self) -> None:
         if self.n_candidates < 1:
@@ -67,6 +72,25 @@ class SelectionConfig:
                 f"weak_polya_penalty={self.weak_polya_penalty}: una penalizacion "
                 f"negativa premiaria a la ventana marcada; se aborta."
             )
+        if self.region_quota is not None:
+            regiones = [r for r, _ in self.region_quota]
+            if len(set(regiones)) != len(regiones):
+                raise ValueError(
+                    f"La cuota por region repite alguna region ({regiones}); se aborta "
+                    f"en vez de quedarse con una de las dos cifras."
+                )
+            if any(n < 0 for _, n in self.region_quota):
+                raise ValueError(
+                    f"La cuota por region {self.region_quota} tiene alguna cifra "
+                    f"negativa; se aborta."
+                )
+            total = sum(n for _, n in self.region_quota)
+            if total != self.n_candidates:
+                raise ValueError(
+                    f"La cuota por region suma {total} y se piden "
+                    f"{self.n_candidates} candidatos. Se aborta en vez de decidir por "
+                    f"nuestra cuenta que region se lleva la diferencia."
+                )
 
 
 @dataclass(frozen=True)
@@ -75,12 +99,15 @@ class Choice:
 
     start: int
     end: int
-    tercio: Tercio
+    #: `None` fuera del 3'UTR: los tercios se calculan sobre el 3'UTR y no significan
+    #: nada sobre el ORF.
+    tercio: Tercio | None
     #: Puntuacion con la que se ordena: asimetria menos la penalizacion.
     asymmetry: float
     label: str
     asymmetry_raw: float = 0.0
     penalty: float = 0.0
+    region: Region = Region.UTR3
 
 
 @dataclass(frozen=True)
@@ -139,19 +166,134 @@ def _respects_spacing(candidate: Choice, chosen: list[Choice], min_spacing: int)
     return all(abs(candidate.start - c.start) >= min_spacing for c in chosen)
 
 
+def _cuota_por_tercio(
+    disponibles: list[Site],
+    plazas: int,
+    *,
+    chosen: list[Choice],
+    usados: set[int],
+    config: SelectionConfig,
+    quota_unfilled: list[str],
+) -> None:
+    """Reparte hasta `plazas` entre los tres tercios del 3'UTR, uno cada uno."""
+    for tercio in TERCIOS:
+        if len(chosen) >= plazas:
+            quota_unfilled.append(
+                f"tercio {tercio.value}: no quedaban plazas ({plazas} pedidas)."
+            )
+            continue
+        del_tercio = [
+            s for s in disponibles
+            if s.best.tercio is tercio and id(s) not in usados
+        ]
+        if not del_tercio:
+            quota_unfilled.append(
+                f"tercio {tercio.value}: no hay ningun sitio elegible en ese tercio."
+            )
+            continue
+        elegido = next(
+            (
+                s for s in del_tercio
+                if _respects_spacing(s.best, chosen, config.min_spacing)
+            ),
+            None,
+        )
+        if elegido is None:
+            quota_unfilled.append(
+                f"tercio {tercio.value}: hay {len(del_tercio)} sitio(s) elegible(s), "
+                f"pero todos quedan a menos de {config.min_spacing} nt de un "
+                f"candidato ya elegido (espaciado)."
+            )
+            continue
+        chosen.append(elegido.best)
+        usados.add(id(elegido))
+
+
+def _rellenar(
+    disponibles: list[Site],
+    tope: int,
+    *,
+    chosen: list[Choice],
+    usados: set[int],
+    config: SelectionConfig,
+) -> None:
+    """Coge por asimetria hasta llegar a `tope`, respetando el espaciado."""
+    for site in disponibles:
+        if len(chosen) >= tope:
+            break
+        if id(site) in usados:
+            continue
+        if not _respects_spacing(site.best, chosen, config.min_spacing):
+            continue
+        chosen.append(site.best)
+        usados.add(id(site))
+
+
 def choose(sites: list[Site], config: SelectionConfig) -> Selection:
-    """Seleccion voraz: cuota por tercio primero, y el resto por asimetria (paso 5)."""
+    """Seleccion voraz: cuota por tercio primero, y el resto por asimetria (paso 5).
+
+    Con `region_quota` la seleccion se hace region por region: cada una se lleva
+    exactamente las plazas que se le pidieron, y si no puede llenarlas se dice — no se
+    rellenan con candidatos de otra region, porque el reparto es una decision de diseño
+    y no un cupo que se pueda mover solo.
+    """
     ordenados = sorted(sites, key=lambda s: (-s.best.asymmetry, s.best.start))
     chosen: list[Choice] = []
     usados: set[int] = set()
     quota_unfilled: list[str] = []
     notes: list[str] = []
 
+    if config.region_quota is not None:
+        if not sites:
+            notes.append(
+                "No habia ningun sitio elegible: la seleccion esta vacia. Revisa "
+                "cuantas ventanas superan los filtros antes de buscar el fallo en la "
+                "seleccion."
+            )
+        for region, plazas in config.region_quota:
+            if plazas == 0:
+                continue
+            de_region = [s for s in ordenados if s.best.region is region]
+            antes = len(chosen)
+            if region is Region.UTR3 and config.require_one_per_tercio:
+                _cuota_por_tercio(
+                    de_region,
+                    antes + plazas,
+                    chosen=chosen,
+                    usados=usados,
+                    config=config,
+                    quota_unfilled=quota_unfilled,
+                )
+            _rellenar(
+                de_region, antes + plazas,
+                chosen=chosen, usados=usados, config=config,
+            )
+            puestos = len(chosen) - antes
+            if puestos < plazas:
+                quota_unfilled.append(
+                    f"region {region.value}: se pedian {plazas} candidato(s) y solo "
+                    f"salen {puestos}. Habia {len(de_region)} sitio(s) elegible(s) en "
+                    f"esa region; los que faltan no cumplen el espaciado de "
+                    f"{config.min_spacing} nt o no existen. No se rellena con "
+                    f"candidatos de otra region."
+                )
+        por_asimetria = sorted(chosen, key=lambda c: (-c.asymmetry, c.start))
+        return Selection(
+            chosen=tuple(sorted(chosen, key=lambda c: c.start)),
+            sites=tuple(sites),
+            config=config,
+            quota_unfilled=tuple(quota_unfilled),
+            notes=tuple(notes),
+            _ranked=tuple(c.start for c in por_asimetria),
+        )
+
     if not sites:
         notes.append(
             "No habia ningun sitio elegible: la seleccion esta vacia. Revisa cuantas "
             "ventanas superan los filtros antes de buscar el fallo en la seleccion."
         )
+
+    ordenados = [s for s in ordenados if s.best.region is Region.UTR3]
 
     if config.require_one_per_tercio:
         if config.n_candidates < len(TERCIOS):
@@ -240,22 +382,35 @@ class ReportSelection:
         return bool(self.not_run_filters)
 
 
-def is_eligible(window: TiledWindow) -> bool:
+def is_eligible(window: TiledWindow, config: SelectionConfig | None = None) -> bool:
     """Elegible = supera los seis biofisicos y no falla ningun filtro conocido.
 
     Un filtro en NOT_RUN no descarta la ventana, pero tampoco la aprueba: su veredicto
     seguira siendo INCOMPLETE y la seleccion entera sera provisional.
+
+    Fuera del 3'UTR hace falta ademas que alguien haya pedido esa region con una cuota
+    (`SelectionConfig.region_quota`). Sin cuota, una ventana del ORF no entra: puede ser
+    una diana perfectamente valida, pero es una decision de diseño, no un descuido.
     """
-    if window.tercio is None:
-        return False  # fuera del 3'UTR: no es diana de este diseño
+    regiones_pedidas = (
+        {r for r, n in config.region_quota if n > 0}
+        if config is not None and config.region_quota is not None
+        else {Region.UTR3}
+    )
+    if window.region not in regiones_pedidas:
+        return False
+    if window.region is Region.UTR3 and window.tercio is None:
+        return False
     if not window.biofisicos_ok:
         return False
     return all(r.state is not FilterState.FAIL for r in window.filters)
 
 
-def is_eligible_strict(window: TiledWindow) -> bool:
+def is_eligible_strict(
+    window: TiledWindow, config: SelectionConfig | None = None
+) -> bool:
     """Elegible con el criterio ESTRICTO: ±flanco para los doce hexameros por igual."""
-    return is_eligible(window) and window.estricto_ok
+    return is_eligible(window, config) and window.estricto_ok
 
 
 def eligible_choices(
@@ -270,7 +425,7 @@ def eligible_choices(
     config = config or SelectionConfig()
     choices: list[Choice] = []
     for window in report.windows:
-        if not is_eligible(window):
+        if not is_eligible(window, config):
             continue
         asymmetry = window.evaluation.asymmetry
         if asymmetry is None:
@@ -289,6 +444,7 @@ def eligible_choices(
                 label=window.window.name,
                 asymmetry_raw=asymmetry,
                 penalty=penalty,
+                region=window.region,
             )
         )
     return choices

@@ -273,3 +273,90 @@ class TestRangoDeTilado(unittest.TestCase):
         codigo, salida, _ = self._correr(["--tile-desde", "1", "--tile-hasta", "99999"])
         self.assertEqual(codigo, 2)
         self.assertIn("586", salida)
+
+
+class TestCuotaPorRegion(unittest.TestCase):
+    """Bloque 9: '7 del 3'UTR y 3 del CDS', y NO_APLICA fuera del 3'UTR."""
+
+    def _correr(self, extra):
+        tmp = Path(tempfile.mkdtemp())
+        fa = _fasta(tmp)
+        codigo, salida = _correr(
+            ["--fasta", str(fa), "--out", str(tmp), "--cds", *CDS_COORDS] + extra
+        )
+        return codigo, salida, tmp
+
+    def test_una_cuota_que_no_suma_el_total_aborta(self):
+        codigo, salida, _ = self._correr(
+            ["--candidates", "6", "--cuota-region", "3utr=4,cds=1"]
+        )
+        self.assertEqual(codigo, 2)
+        self.assertIn("6", salida)
+
+    def test_una_region_desconocida_aborta(self):
+        codigo, salida, _ = self._correr(["--cuota-region", "intron=6"])
+        self.assertEqual(codigo, 2)
+        self.assertIn("intron", salida)
+
+    def test_una_cuota_mal_escrita_aborta(self):
+        codigo, salida, _ = self._correr(["--cuota-region", "3utr"])
+        self.assertEqual(codigo, 2)
+        self.assertIn("REGION=NUMERO", salida)
+
+    def test_la_cuota_sale_en_el_informe(self):
+        codigo, salida, tmp = self._correr(
+            ["--candidates", "4", "--cuota-region", "3utr=3,cds=1"]
+        )
+        self.assertEqual(codigo, 0, salida)
+        texto = list(tmp.glob("*informe*.txt"))[0].read_text(encoding="utf-8")
+        self.assertIn("Cuota por region pedida", texto)
+        self.assertIn("CDS: 1", texto)
+
+    def test_las_ventanas_del_CDS_llevan_el_polyA_en_NO_APLICA(self):
+        codigo, salida, tmp = self._correr([])
+        self.assertEqual(codigo, 0, salida)
+        filas = (
+            list(tmp.glob("*ventanas.tsv"))[0]
+            .read_text(encoding="utf-8")
+            .strip()
+            .splitlines()
+        )
+        cabecera = filas[0].split("\t")
+        col_region = cabecera.index("region")
+        col_polya = cabecera.index("zona_prohibida_polyA")
+        del_cds = [f.split("\t") for f in filas[1:] if f.split("\t")[col_region] == "CDS"]
+        self.assertTrue(del_cds)
+        self.assertTrue(all(f[col_polya] == "NO_APLICA" for f in del_cds))
+
+    def test_las_ventanas_del_3utr_no_llevan_NO_APLICA(self):
+        codigo, _, tmp = self._correr([])
+        self.assertEqual(codigo, 0)
+        filas = (
+            list(tmp.glob("*ventanas.tsv"))[0]
+            .read_text(encoding="utf-8")
+            .strip()
+            .splitlines()
+        )
+        cabecera = filas[0].split("\t")
+        col_region = cabecera.index("region")
+        col_polya = cabecera.index("zona_prohibida_polyA")
+        del_utr3 = [
+            f.split("\t") for f in filas[1:] if f.split("\t")[col_region] == "3'UTR"
+        ]
+        self.assertTrue(del_utr3)
+        self.assertNotIn("NO_APLICA", {f[col_polya] for f in del_utr3})
+
+    def test_el_riesgo_APA_del_CDS_sale_NO_APLICA(self):
+        codigo, _, tmp = self._correr([])
+        self.assertEqual(codigo, 0)
+        filas = (
+            list(tmp.glob("*ventanas.tsv"))[0]
+            .read_text(encoding="utf-8")
+            .strip()
+            .splitlines()
+        )
+        cabecera = filas[0].split("\t")
+        col_region = cabecera.index("region")
+        col_apa = cabecera.index("riesgo_APA")
+        del_cds = [f.split("\t") for f in filas[1:] if f.split("\t")[col_region] == "CDS"]
+        self.assertTrue(all(f[col_apa] == "NO_APLICA" for f in del_cds))

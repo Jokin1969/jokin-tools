@@ -124,7 +124,8 @@ def fasta_guides(selection: ReportSelection, *, species: str) -> str:
         rank = selection.selection.rank_of(choice.start)
         lines.append(
             f">{species}_pos{choice.start}_rank{rank} guia(ADN) "
-            f"tercio={choice.tercio.value} asimetria={choice.asymmetry:+.2f} "
+            f"tercio={choice.tercio.value if choice.tercio else choice.region.value} "
+            f"asimetria={choice.asymmetry:+.2f} "
             f"veredicto={window.verdict.value}"
         )
         lines.extend(
@@ -250,6 +251,17 @@ def text_report(
                 )
     lines.extend(f"  ⚠  {w}" for w in anatomy_warnings)
 
+    if selection.selection.config.region_quota is not None:
+        reparto = ", ".join(
+            f"{region.value}: {cuantos}"
+            for region, cuantos in selection.selection.config.region_quota
+        )
+        lines.append(f"  Cuota por region pedida — {reparto}")
+        lines.append(
+            "  Los filtros de polyA y APA salen NO_APLICA fuera del 3'UTR: son "
+            "heuristicas de 3'UTR y sobre el ORF no dan ni PASS ni FAIL."
+        )
+
     lines.extend(["", "── Señales de poliadenilacion ──"])
     if tiling.signals:
         lines.extend(f"  · {s.describe()}" for s in tiling.signals)
@@ -295,7 +307,8 @@ def text_report(
         window = selection.window_of(choice)
         lines.append(
             f"    #{selection.selection.rank_of(choice.start)} "
-            f"pos {choice.start}-{choice.end} {choice.tercio.value:<8} "
+            f"pos {choice.start}-{choice.end} "
+            f"{(choice.tercio.value if choice.tercio else choice.region.value):<8} "
             f"asim {choice.asymmetry:+.2f}  {window.verdict.value}"
             + ("  riesgo_APA" if window.riesgo_APA else "")
         )

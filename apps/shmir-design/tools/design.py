@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shmir_design.anatomy import (  # noqa: E402
     Anatomy,
+    Region,
     TileRange,
     RegionSource,
     check_cds_boundaries,
@@ -92,6 +93,35 @@ SIN_ANATOMIA = (
     "Si no sabes cuales son, --proponer-cds calcula el marco mas largo y te enseña "
     "el comando; la propuesta no decide por ti."
 )
+
+
+REGIONES_CLI = {"5utr": Region.UTR5, "cds": Region.CDS, "3utr": Region.UTR3}
+
+
+def parse_cuota_region(texto: str) -> tuple[tuple[Region, int], ...]:
+    """`3utr=7,cds=3` -> ((Region.UTR3, 7), (Region.CDS, 3))."""
+    cuota: list[tuple[Region, int]] = []
+    for trozo in texto.split(","):
+        if "=" not in trozo:
+            raise ValueError(
+                f"--cuota-region: {trozo!r} no tiene la forma REGION=NUMERO. Ejemplo: "
+                f"--cuota-region 3utr=7,cds=3"
+            )
+        nombre, _, numero = trozo.partition("=")
+        clave = nombre.strip().lower()
+        if clave not in REGIONES_CLI:
+            raise ValueError(
+                f"--cuota-region: region {nombre.strip()!r} desconocida; las que hay "
+                f"son {', '.join(sorted(REGIONES_CLI))}."
+            )
+        try:
+            cuantos = int(numero)
+        except ValueError as exc:
+            raise ValueError(
+                f"--cuota-region: {numero!r} no es un numero entero ({exc})."
+            ) from exc
+        cuota.append((REGIONES_CLI[clave], cuantos))
+    return tuple(cuota)
 
 
 def resolver_anatomia(
@@ -211,6 +241,13 @@ def main(argv: list[str]) -> int:
              "coordenadas que corre todo el 3'UTR sin avisar.",
     )
     parser.add_argument(
+        "--cuota-region", metavar="REGION=N[,REGION=N]",
+        help="Reparto de los candidatos por region, p.ej. '3utr=7,cds=3'. Sin esto "
+             "solo entran candidatos del 3'UTR: una ventana del ORF puede ser diana "
+             "valida, pero eso se pide, no se cuela. La suma tiene que ser igual a "
+             "--candidates.",
+    )
+    parser.add_argument(
         "--tile-desde", type=int, metavar="POS",
         help="Primera posicion a tilar. Por defecto, el principio de la secuencia.",
     )
@@ -282,7 +319,11 @@ def main(argv: list[str]) -> int:
                 expected_md5=args.refseq_md5,
             )
         config = SelectionConfig(
-            n_candidates=args.candidates, min_spacing=args.min_spacing
+            n_candidates=args.candidates,
+            min_spacing=args.min_spacing,
+            region_quota=(
+                parse_cuota_region(args.cuota_region) if args.cuota_region else None
+            ),
         )
         thresholds = Thresholds(
             gc_min=args.gc_min,

@@ -104,6 +104,7 @@ class TiledWindow:
     repeticiones: FilterResult
     tercio: Tercio | None
     riesgo_APA: bool
+    apa_aplica: bool = True
     region: Region = Region.UTR3
     inicio_3utr: int | None = None
     fin_3utr: int | None = None
@@ -267,7 +268,7 @@ class TilingReport:
                 + [r.state.value for r in tiled.filters]
                 + [
                     str(tiled.biofisicos_ok),
-                    str(tiled.riesgo_APA),
+                    str(tiled.riesgo_APA) if tiled.apa_aplica else "NO_APLICA",
                     tiled.verdict.value,
                     tiled.failure_reasons,
                 ]
@@ -367,22 +368,39 @@ def tile_utr(
                     target=specificity_target,
                 ).as_filter()
 
+        region = anatomy.region_of(
+            (anotada.window.start + anotada.window.end) // 2
+        )
+        # Bloque 9: polyA y APA son heuristicas del 3'UTR. Sobre una ventana del ORF o
+        # del 5'UTR no dan ni PASS ni FAIL — la pregunta no va con ese candidato — y
+        # tampoco es NOT_RUN, porque no hay ninguna laguna que tapar.
+        zona_prohibida = anotada.zona_prohibida
+        if region is not Region.UTR3:
+            zona_prohibida = FilterResult(
+                name=zona_prohibida.name,
+                state=FilterState.NO_APLICA,
+                reason=(
+                    f"La ventana cae en {region.value}, no en el 3'UTR. Las señales de "
+                    f"poliadenilacion solo tienen sentido sobre el 3'UTR: aqui la "
+                    f"pregunta no aplica. NO_APLICA no es PASS."
+                ),
+            )
+
         tiled.append(
             TiledWindow(
                 window=anotada.window,
                 evaluation=evaluation,
-                zona_prohibida=anotada.zona_prohibida,
+                zona_prohibida=zona_prohibida,
                 seed=filter_seed(evaluation.guide, seeds),
                 repeticiones=filter_repeats(start, anotada.window.end, mask),
                 especificidad=especificidad,
                 tercio=anotada.tercio,
-                riesgo_APA=anotada.riesgo_APA,
+                riesgo_APA=anotada.riesgo_APA and region is Region.UTR3,
+                apa_aplica=region is Region.UTR3,
                 apa_upstream=anotada.apa_upstream,
                 senales_debiles=anotada.senales_debiles,
                 estricto_ok=anotada.estricto_ok,
-                region=anatomy.region_of(
-                    (anotada.window.start + anotada.window.end) // 2
-                ),
+                region=region,
                 inicio_3utr=anatomy.utr3_position(anotada.window.start),
                 fin_3utr=anatomy.utr3_position(anotada.window.end),
                 cruza_frontera=anatomy.crosses_boundary(

@@ -275,7 +275,8 @@ def map_svg(
         )
         parts.append(
             f'<circle cx="{x:.1f}" cy="{TRACK_Y + TRACK_H + 40}" r="9" fill="#1b6cb0">'
-            f'<title>#{rank} pos {choice.start}-{choice.end}, {choice.tercio.value}, '
+            f'<title>#{rank} pos {choice.start}-{choice.end}, '
+            f'{choice.tercio.value if choice.tercio else choice.region.value}, '
             f'asimetria {choice.asymmetry:+.2f}, {window.verdict.value}</title></circle>'
         )
         parts.append(
