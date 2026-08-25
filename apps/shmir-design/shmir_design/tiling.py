@@ -28,7 +28,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from .anatomy import Anatomy, Region
+from .anatomy import Anatomy, Region, RegionSource
 from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
 from .masking import RepeatMask, apply_mask, filter_repeats
 from .hard_filters import (
@@ -299,7 +299,13 @@ def tile_utr(
     Las señales de poliadenilacion se buscan sobre la secuencia SIN enmascarar.
     """
     original = normalize_sequence(sequence, name="secuencia")
-    anatomy = anatomy or Anatomy.whole_is_utr3(len(original))
+    # `tile_utr` sin anatomia significa lo que dice su nombre: la secuencia que llega
+    # YA es un 3'UTR. Ese contrato esta en el nombre de la funcion, asi que aqui la
+    # declaracion es explicita y queda registrada en `anatomy.source`. Lo que se elimino
+    # fue el fallback del CLI, que aplicaba esto a transcritos completos sin decirlo.
+    anatomy = anatomy or Anatomy.whole_is_utr3(
+        len(original), source=RegionSource.TODO_3UTR_DECLARADO
+    )
     if anatomy.length != len(original):
         raise ValueError(
             f"La anatomia declara {anatomy.length} nt y la secuencia mide "

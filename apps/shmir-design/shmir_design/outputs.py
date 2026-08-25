@@ -187,6 +187,7 @@ def text_report(
     scaffold: ScaffoldSpec,
     transcript: ReferenceTranscript | None = None,
     conservation: ConservationReport | None = None,
+    anatomy_warnings: tuple[str, ...] = (),
 ) -> str:
     lines = [
         f"═══ Diseño de shmiR — {species} ═══",
@@ -219,8 +220,8 @@ def text_report(
         )
     elif transcript is None:
         lines.append(
-            "  Sin transcrito verificado y sin CDS declarado: se ha tratado TODA la "
-            "secuencia como 3'UTR. Si has dado un mRNA completo, pasa --cds INICIO FIN."
+            f"  Se ha tratado TODA la secuencia ({anatomia.length if anatomia else '?'} "
+            f"nt) como 3'UTR, por declaracion explicita."
         )
     else:
         lines.extend(
@@ -235,6 +236,10 @@ def text_report(
                 f"({transcript.utr3_length} nt)",
             ]
         )
+
+    if anatomia is not None:
+        lines.append(f"  Procedencia de la anatomia: {anatomia.source.describe()}")
+    lines.extend(f"  ⚠  {w}" for w in anatomy_warnings)
 
     lines.extend(["", "── Señales de poliadenilacion ──"])
     if tiling.signals:

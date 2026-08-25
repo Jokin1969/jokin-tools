@@ -7,7 +7,7 @@ Datos reales: NM_000311.5 — 5'UTR 1-67, CDS 68-829, 3'UTR 830-2435 (2435 nt).
 
 import unittest
 
-from shmir_design.anatomy import Anatomy, Region
+from shmir_design.anatomy import Anatomy, Region, RegionSource
 
 HUMANO = dict(length=2435, cds=(68, 829))
 
@@ -22,7 +22,7 @@ class TestConstruccion(unittest.TestCase):
         self.assertEqual(a.utr3_length, 1606)
 
     def test_todo_es_3utr(self):
-        a = Anatomy.whole_is_utr3(1606)
+        a = Anatomy.whole_is_utr3(1606, source=RegionSource.TODO_3UTR_DECLARADO)
         self.assertIsNone(a.utr5)
         self.assertIsNone(a.cds)
         self.assertEqual(a.utr3, (1, 1606))
@@ -93,7 +93,7 @@ class TestTercios(unittest.TestCase):
         self.assertIsNone(Anatomy.from_cds(**HUMANO).tercio_of(100, 121))
 
     def test_con_todo_3utr_los_tercios_son_los_de_siempre(self):
-        a = Anatomy.whole_is_utr3(1242)
+        a = Anatomy.whole_is_utr3(1242, source=RegionSource.TODO_3UTR_DECLARADO)
         self.assertEqual(a.tercio_of(288, 309).value, "proximal")
         self.assertEqual(a.tercio_of(1214, 1235).value, "distal")
 

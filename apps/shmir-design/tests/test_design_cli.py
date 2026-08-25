@@ -53,7 +53,7 @@ class TestDosEspecies(unittest.TestCase):
         codigo = main(
             ["--fasta", str(a), "--name", "modelo",
              "--fasta-b", str(b), "--name-b", "diana",
-             "--out", str(salida)] + (extra or [])
+             "--out", str(salida), "--region", "3utr"] + (extra or [])
         )
         return codigo, salida
 
@@ -83,7 +83,10 @@ class TestUmbralesPorLineaDeComandos(unittest.TestCase):
         fasta = directorio / "sonda.fa"
         fasta.write_text(secuencia or SONDA)
         salida = directorio / "salida"
-        codigo = main(["--fasta", str(fasta), "--name", "sonda", "--out", str(salida)] + extra)
+        codigo = main(
+            ["--fasta", str(fasta), "--name", "sonda", "--out", str(salida),
+             "--region", "3utr"] + extra
+        )
         return codigo, salida
 
     def test_el_GC_minimo_se_puede_mover(self):
@@ -142,7 +145,8 @@ class TestEjecucionCompleta(unittest.TestCase):
         fasta.write_text(SONDA, encoding="utf-8")
         salida = Path(directorio) / "salida"
         codigo = main(
-            ["--fasta", str(fasta), "--name", "sonda", "--out", str(salida)]
+            ["--fasta", str(fasta), "--name", "sonda", "--out", str(salida),
+             "--region", "3utr"]
             + (extra or [])
         )
         return codigo, salida

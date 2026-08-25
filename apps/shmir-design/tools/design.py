@@ -31,7 +31,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shmir_design.anatomy import Anatomy  # noqa: E402
+from shmir_design.anatomy import (  # noqa: E402
+    Anatomy,
+    RegionSource,
+    check_cds_boundaries,
+    cds_stop_codon_ok,
+)
+from shmir_design.genbank import load_genbank_cds  # noqa: E402
 from shmir_design.conservation import (  # noqa: E402
     MIN_BLOCK_LENGTH,
     Utr3,
@@ -46,6 +52,11 @@ from shmir_design.outputs import (  # noqa: E402
     tsv_all_windows,
     tsv_oligos,
     tsv_selected,
+)
+from shmir_design.orf import (  # noqa: E402
+    find_orfs,
+    format_cds_suggestion,
+    propose_cds,
 )
 from shmir_design.polya import read_fasta_sequence  # noqa: E402
 from shmir_design.reference import REFERENCES, load_3utr  # noqa: E402
@@ -66,6 +77,79 @@ def load_seeds(path: Path):
             f"No se pudo leer el fichero de seeds {path} ({exc}); se aborta el diseño."
         ) from exc
     return parse_seed_table(text, source=str(path))
+
+
+SIN_ANATOMIA = (
+    "no se ha resuelto donde acaba el CDS, asi que no se sabe que tramo del "
+    "transcrito es cada posicion y la anatomia queda SIN RESOLVER. Tilar de todos "
+    "modos trataria el 5'UTR y el CDS como si fueran 3'UTR: los tercios saldrian "
+    "corridos y habria candidatos del ORF presentados como candidatos del 3'UTR. "
+    "Hay tres formas de resolverlo, por orden de fiabilidad:\n"
+    "  1. --genbank FICHERO.gb  — el CDS anotado del RefSeq (lo mas fiable)\n"
+    "  2. --cds INICIO FIN      — las coordenadas a mano\n"
+    "  3. --region 3utr         — declarar que la secuencia YA es el 3'UTR\n"
+    "Si no sabes cuales son, --proponer-cds calcula el marco mas largo y te enseña "
+    "el comando; la propuesta no decide por ti."
+)
+
+
+def resolver_anatomia(
+    *,
+    nombre: str,
+    secuencia: str,
+    coords,
+    genbank,
+    genbank_md5,
+    region: str,
+    desde_fixture: bool,
+) -> Anatomy:
+    """Fija la anatomia por una de las tres vias, o aborta. Nunca adivina.
+
+    Antes habia aqui un `else: whole_is_utr3(...)` que convertia el "no se" en un
+    "todo es 3'UTR" silencioso. Ese camino ya no existe.
+    """
+    if desde_fixture:
+        # Los fixtures de REFERENCES ya son 3'UTR extraidos y comprobados por md5.
+        return Anatomy.whole_is_utr3(
+            len(secuencia), source=RegionSource.FIXTURE_VERIFICADO
+        )
+    if genbank is not None:
+        anotacion = load_genbank_cds(genbank, expected_md5=genbank_md5)
+        anotacion.check_against_sequence_length(len(secuencia))
+        return Anatomy.from_cds(
+            cds=anotacion.cds,
+            length=len(secuencia),
+            source=RegionSource.ANOTACION_GENBANK,
+        )
+    if coords:
+        return Anatomy.from_cds(
+            cds=(coords[0], coords[1]),
+            length=len(secuencia),
+            source=RegionSource.CDS_DECLARADA,
+        )
+    if region == "3utr":
+        return Anatomy.whole_is_utr3(
+            len(secuencia), source=RegionSource.TODO_3UTR_DECLARADO
+        )
+    raise ShmirDesignError(f"{nombre}: {SIN_ANATOMIA}")
+
+
+def comprobar_fronteras(
+    secuencia: str, anatomia: Anatomy, *, permitir_sin_parada: bool
+) -> tuple[str, ...]:
+    """Comprueba el CDS declarado contra las bases. El codon de parada es aviso duro."""
+    if anatomia.cds is None:
+        return tuple(anatomia.warnings)
+    avisos = tuple(anatomia.warnings) + check_cds_boundaries(secuencia, anatomia)
+    if cds_stop_codon_ok(secuencia, anatomia) is False and not permitir_sin_parada:
+        detalle = next((a for a in avisos if "codon de parada" in a), "")
+        raise ShmirDesignError(
+            f"{detalle} Se aborta el diseño: un CDS corrido corre tambien el 3'UTR, y "
+            f"con el todas las posiciones y los tercios. Comprueba las coordenadas, o "
+            f"pasa --genbank, o repite con --permitir-cds-sin-codon-parada si sabes "
+            f"que este CDS es asi a proposito."
+        )
+    return avisos
 
 
 def main(argv: list[str]) -> int:
@@ -104,9 +188,32 @@ def main(argv: list[str]) -> int:
         help="Lo mismo para --fasta-b.",
     )
     parser.add_argument(
+        "--genbank", type=Path,
+        help="Fichero GenBank del transcrito de --fasta: de ahi sale el CDS anotado, "
+             "que es mas fiable que declararlo a mano.",
+    )
+    parser.add_argument("--genbank-b", type=Path, help="Lo mismo para --fasta-b.")
+    parser.add_argument(
+        "--genbank-md5", help="md5 esperado del --genbank; si no cuadra, PARA."
+    )
+    parser.add_argument("--genbank-b-md5", help="md5 esperado del --genbank-b.")
+    parser.add_argument(
+        "--proponer-cds", action="store_true",
+        help="Calcula el marco de lectura mas largo de --fasta, lo enseña con el "
+             "comando --cds para pegar, y NO diseña nada. La propuesta no fija la "
+             "anatomia: eso lo decide una persona.",
+    )
+    parser.add_argument(
+        "--permitir-cds-sin-codon-parada", action="store_true",
+        help="Sigue adelante aunque el CDS declarado no termine en codon de parada. "
+             "Por defecto eso aborta, porque casi siempre es un desplazamiento de "
+             "coordenadas que corre todo el 3'UTR sin avisar.",
+    )
+    parser.add_argument(
         "--region", choices=("transcrito", "3utr"), default="transcrito",
-        help="'3utr' declara que la secuencia dada YA es el 3'UTR (por defecto se "
-             "asume eso mismo si no pasas --cds).",
+        help="'3utr' declara que la secuencia dada YA es el 3'UTR. No hay valor por "
+             "defecto que resuelva la anatomia: sin --cds, sin --genbank y sin "
+             "--region 3utr el diseño aborta en vez de adivinar.",
     )
     parser.add_argument("--gc-min", type=float, default=DEFAULT_THRESHOLDS.gc_min)
     parser.add_argument("--gc-max", type=float, default=DEFAULT_THRESHOLDS.gc_max)
@@ -175,6 +282,31 @@ def main(argv: list[str]) -> int:
                 "--cds y --region 3utr son incompatibles: o la secuencia es el "
                 "transcrito con su CDS, o ya es el 3'UTR."
             )
+        if args.genbank and args.cds:
+            raise ValueError(
+                "--genbank y --cds declaran los dos la misma frontera. Elige uno: si "
+                "no coinciden, no hay forma de saber cual vale."
+            )
+        if args.genbank and args.region == "3utr":
+            raise ValueError(
+                "--genbank y --region 3utr son incompatibles: un GenBank describe el "
+                "transcrito completo, no un 3'UTR suelto."
+            )
+
+        if args.proponer_cds:
+            if not args.fasta:
+                raise ValueError(
+                    "--proponer-cds necesita --fasta: la propuesta se calcula sobre la "
+                    "secuencia que se da."
+                )
+            secuencia = read_fasta_sequence(args.fasta)
+            marcos = find_orfs(secuencia)
+            print(
+                format_cds_suggestion(
+                    propose_cds(secuencia), alternatives=max(0, len(marcos) - 1)
+                )
+            )
+            return 0
 
         if args.fasta:
             secuencias = {args.name: read_fasta_sequence(args.fasta)}
@@ -197,13 +329,22 @@ def main(argv: list[str]) -> int:
                 for nombre, accession in DEFAULT_PAIR.items()
             }
 
-        anatomias = {}
+        anatomias, avisos_anatomia = {}, {}
         for nombre, secuencia in secuencias.items():
-            coords = args.cds if nombre == args.name else args.cds_b
-            anatomias[nombre] = (
-                Anatomy.from_cds(cds=(coords[0], coords[1]), length=len(secuencia))
-                if coords
-                else Anatomy.whole_is_utr3(len(secuencia))
+            es_a = nombre == args.name
+            anatomias[nombre] = resolver_anatomia(
+                nombre=nombre,
+                secuencia=secuencia,
+                coords=args.cds if es_a else args.cds_b,
+                genbank=args.genbank if es_a else args.genbank_b,
+                genbank_md5=args.genbank_md5 if es_a else args.genbank_b_md5,
+                region=args.region,
+                desde_fixture=transcripts[nombre] is not None,
+            )
+            avisos_anatomia[nombre] = comprobar_fronteras(
+                secuencia,
+                anatomias[nombre],
+                permitir_sin_parada=args.permitir_cds_sin_codon_parada,
             )
 
         conservation = None
@@ -238,6 +379,7 @@ def main(argv: list[str]) -> int:
                 scaffold=scaffold,
                 transcript=transcripts[especie],
                 conservation=conservation,
+                anatomy_warnings=avisos_anatomia[especie],
             )
             salidas = {
                 f"{especie}_ventanas.tsv": tsv_all_windows(tiling),
