@@ -21,6 +21,8 @@ Las reglas del proyecto están en [`CLAUDE.md`](./CLAUDE.md) y son vinculantes.
 | 15 | Selección voraz: espaciado de 50 nt, cuota por tercio, N configurable | `shmir_design/selection.py` |
 | — | Horquilla miR-E de 97 nt lista para pedir (andamio parametrizable) | `shmir_design/scaffold.py`, `tools/oligo.py` |
 | — | Diseño completo con las cinco salidas | `shmir_design/outputs.py`, `tools/design.py` |
+| — | Datos para la interfaz: semáforo, tablas, mapa SVG, descargas | `shmir_design/presentation.py` |
+| — | Interfaz web (opcional, única dependencia externa) | `ui/streamlit_app.py` |
 | — | Estados de filtro `PASS`/`FAIL`/`NOT_RUN` y su agregación | `shmir_design/filters.py` |
 | — | Verificador de la regla 2 sobre el AST | `tools/check_rules.py` |
 
@@ -49,6 +51,28 @@ print(report.format_text())
 
 Coordenadas 1-based; `distance_to_3p` cuenta los nucleótidos entre el último del motivo
 y el extremo 3'.
+
+## Interfaz web (opcional)
+
+```bash
+pip install -r apps/shmir-design/requirements-ui.txt
+streamlit run apps/shmir-design/ui/streamlit_app.py
+```
+
+Sube los dos mRNA, ajusta los umbrales en el panel lateral —cada control lleva su valor
+por defecto en la etiqueta— y obtienes: semáforo arriba (verde si todos los filtros
+corrieron para los candidatos, ámbar diciendo cuáles no), anatomía del transcrito, mapa
+del 3'UTR con candidatos, señales de poliadenilación, zonas enmascaradas y bloques
+conservados, tabla de candidatos con un estado por filtro en columnas separadas, y
+descarga de las cinco salidas.
+
+**La interfaz no tiene lógica**: todo lo que decide algo está en
+`shmir_design/presentation.py` con tests, y la página solo llama. El núcleo y los CLI
+siguen funcionando sin Streamlit instalado.
+
+Si el mRNA subido no coincide con una referencia verificada por checksum, la app **no
+adivina el ORF**: te pide las coordenadas del 3'UTR y las marca como declaradas por ti,
+sin verificar.
 
 ## Diseño completo
 

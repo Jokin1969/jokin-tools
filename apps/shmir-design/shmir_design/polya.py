@@ -145,6 +145,8 @@ class PolyASignal:
     utr_length: int
     distance_to_3p: int
     classification: SignalClass
+    #: nt prohibidos a cada lado de la señal. Umbral ajustable, no constante escondida.
+    flank: int = SIGNAL_FLANK
 
     @property
     def end(self) -> int:
@@ -156,11 +158,11 @@ class PolyASignal:
 
     @property
     def forbidden_start(self) -> int:
-        return max(1, self.position - SIGNAL_FLANK)
+        return max(1, self.position - self.flank)
 
     @property
     def forbidden_end(self) -> int:
-        return min(self.utr_length, self.end + SIGNAL_FLANK)
+        return min(self.utr_length, self.end + self.flank)
 
     def describe(self) -> str:
         return (
@@ -169,13 +171,23 @@ class PolyASignal:
         )
 
 
-def classify_signal(motif: str, position: int, utr_length: int) -> PolyASignal:
+def classify_signal(
+    motif: str,
+    position: int,
+    utr_length: int,
+    flank: int = SIGNAL_FLANK,
+) -> PolyASignal:
     """Clasifica una señal por sus coordenadas, sin necesitar la secuencia."""
     motif = motif.upper()
     if motif not in ALL_SIGNALS:
         raise ValueError(
             f"{motif!r} no es una señal de poliadenilacion conocida "
             f"(canonica {CANONICAL_SIGNAL} o variantes {', '.join(VARIANT_SIGNALS)}); "
+            f"se aborta la clasificacion."
+        )
+    if flank < 0:
+        raise ValueError(
+            f"flank={flank} invalido: la zona prohibida no puede ser negativa; "
             f"se aborta la clasificacion."
         )
     if position < 1:
@@ -204,6 +216,7 @@ def classify_signal(motif: str, position: int, utr_length: int) -> PolyASignal:
         utr_length=utr_length,
         distance_to_3p=distance,
         classification=classification,
+        flank=flank,
     )
 
 
@@ -212,6 +225,7 @@ def find_polya_signals(
     *,
     first_position: int = 1,
     utr_length: int | None = None,
+    flank: int = SIGNAL_FLANK,
 ) -> list[PolyASignal]:
     """Busca todas las señales sobre `sequence`, solapamientos incluidos.
 
@@ -241,7 +255,9 @@ def find_polya_signals(
     for motif in ALL_SIGNALS:
         index = cleaned.find(motif)
         while index != -1:
-            signals.append(classify_signal(motif, first_position + index, utr_length))
+            signals.append(
+                classify_signal(motif, first_position + index, utr_length, flank=flank)
+            )
             index = cleaned.find(motif, index + 1)
 
     signals.sort(key=lambda s: (s.position, s.motif))
@@ -406,6 +422,7 @@ def _validate_window(window: Window, utr_length: int) -> None:
 
 
 def _zona_prohibida(window: Window, signals: list[PolyASignal]) -> FilterResult:
+    flank = signals[0].flank if signals else SIGNAL_FLANK
     solapadas = [
         s for s in signals
         if window.start <= s.forbidden_end and window.end >= s.forbidden_start
@@ -419,14 +436,14 @@ def _zona_prohibida(window: Window, signals: list[PolyASignal]) -> FilterResult:
         return FilterResult(
             name=FILTER_NAME,
             state=FilterState.FAIL,
-            reason=f"Solapa señal de poliadenilacion ±{SIGNAL_FLANK} nt: {detalle}.",
+            reason=f"Solapa señal de poliadenilacion ±{flank} nt: {detalle}.",
         )
     return FilterResult(
         name=FILTER_NAME,
         state=FilterState.PASS,
         reason=(
             f"Sin solape con ninguna de las {len(signals)} señal(es) detectadas "
-            f"(±{SIGNAL_FLANK} nt)."
+            f"(±{flank} nt)."
         ),
     )
 

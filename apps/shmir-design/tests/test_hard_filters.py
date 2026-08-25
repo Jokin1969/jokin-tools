@@ -16,6 +16,7 @@ import unittest
 
 from shmir_design.filters import FilterState, Verdict
 from shmir_design.hard_filters import (
+    DEFAULT_THRESHOLDS,
     GC_MAX,
     GC_MIN,
     MAX_HOMOPOLYMER,
@@ -24,6 +25,7 @@ from shmir_design.hard_filters import (
     filter_gc,
     filter_homopolymer,
     gc_fraction,
+    Thresholds,
     guide_from_target,
     reverse_complement_rna,
 )
@@ -201,6 +203,52 @@ class TestEvaluacionDeVentana(unittest.TestCase):
     def test_una_ventana_de_longitud_distinta_es_error_explicito(self):
         with self.assertRaises(ValueError):
             evaluate_window(BLOCK)
+
+
+class TestUmbralesAjustables(unittest.TestCase):
+    """Los umbrales se pueden mover sin tocar la logica; los de por defecto no cambian."""
+
+    def test_los_valores_por_defecto_son_los_de_siempre(self):
+        self.assertEqual(DEFAULT_THRESHOLDS.gc_min, GC_MIN)
+        self.assertEqual(DEFAULT_THRESHOLDS.gc_max, GC_MAX)
+        self.assertEqual(DEFAULT_THRESHOLDS.max_homopolymer, MAX_HOMOPOLYMER)
+        self.assertEqual(DEFAULT_THRESHOLDS.min_asymmetry, 0.5)
+        self.assertEqual(DEFAULT_THRESHOLDS.polya_flank, 10)
+
+    def test_un_rango_de_GC_invertido_aborta(self):
+        with self.assertRaises(ValueError):
+            Thresholds(gc_min=0.6, gc_max=0.4)
+
+    def test_un_GC_fuera_de_0_1_aborta(self):
+        with self.assertRaises(ValueError):
+            Thresholds(gc_max=1.5)
+
+    def test_un_homopolimero_menor_que_1_aborta(self):
+        with self.assertRaises(ValueError):
+            Thresholds(max_homopolymer=0)
+
+    def test_un_flanco_negativo_aborta(self):
+        with self.assertRaises(ValueError):
+            Thresholds(polya_flank=-1)
+
+    def test_bajar_el_GC_minimo_deja_pasar_el_offset_1(self):
+        umbrales = Thresholds(gc_min=0.20)
+        self.assertIs(filter_gc(W1, umbrales).state, FilterState.PASS)
+        self.assertIn("0.20", filter_gc(W1, umbrales).reason)
+
+    def test_subir_el_homopolimero_deja_pasar_el_offset_0(self):
+        self.assertIs(
+            filter_homopolymer(W0, Thresholds(max_homopolymer=4)).state,
+            FilterState.PASS,
+        )
+
+    def test_bajar_el_umbral_de_asimetria_deja_pasar_una_negativa(self):
+        evaluacion = evaluate_window(W1, thresholds=Thresholds(min_asymmetry=-3.0))
+        self.assertEqual(failures(evaluacion), {"GC"})
+
+    def test_los_umbrales_llegan_a_la_evaluacion_entera(self):
+        evaluacion = evaluate_window(W1, thresholds=Thresholds(gc_min=0.20, min_asymmetry=-3.0))
+        self.assertEqual(failures(evaluacion), set())
 
 
 if __name__ == "__main__":

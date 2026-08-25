@@ -127,8 +127,14 @@ Reglas de agregación:
 
 ### Regla 6 — Entorno
 
-- Python 3.11+ (`match`, `tomllib`, `ExceptionGroup` disponibles), solo `stdlib`.
-- Sin frameworks web en la v1: la interfaz es CLI.
+- Python 3.11+ (`match`, `tomllib`, `ExceptionGroup` disponibles), solo `stdlib` en
+  **todo** `shmir_design/` y en los `tools/`.
+- La interfaz Streamlit (`ui/streamlit_app.py`) es la única excepción autorizada, y con
+  una condición: **no contiene lógica**. Lo que decide algo vive en
+  `shmir_design/presentation.py`, con tests. Si la UI empieza a decidir —ordenar,
+  filtrar, elegir un color según un umbral— eso se arregla moviéndolo al núcleo, no
+  añadiendo más código a la página.
+- El núcleo y los CLI tienen que seguir funcionando sin Streamlit instalado.
 - Cada dependencia externa requiere autorización explícita y queda anotada en
   `docs/dependencias-autorizadas.md` con quién la autorizó y para qué.
   **Ese registro está hoy vacío: la v1 es stdlib pura.**
@@ -198,6 +204,9 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   en todo andamio cargado de fichero.
 - Elegible no es aprobado: mientras haya filtros en `NOT_RUN`, la selección es
   provisional y los candidatos salen `INCOMPLETE`.
+- Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
+  verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
+  nunca leerlo de la UI.
 - Implementado: pasos 0 (fixtures + checksum), 1-2 (enmascarado), 3 y 15 (tiling,
   sitios y selección), 4-8
   (filtros de ventana, incluida la asimetría), 9 (poliadenilación), 10 (mecánica de

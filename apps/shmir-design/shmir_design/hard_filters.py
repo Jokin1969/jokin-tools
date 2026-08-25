@@ -20,9 +20,10 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import lru_cache
 
 from .filters import FilterResult, FilterState, Verdict, overall_verdict
-from .polya import normalize_sequence
+from .polya import SIGNAL_FLANK, normalize_sequence
 from .thermo import turner_asymmetry
 
 WINDOW_SIZE = 22
@@ -33,7 +34,52 @@ MIN_ASYMMETRY = 0.5  # kcal/mol
 
 #: Motivo G-cuadruplex canonico: cuatro tramos de >=3 G separados por 1-7 nt.
 G4_PATTERN = re.compile(r"G{3,}[ACGUTN]{1,7}G{3,}[ACGUTN]{1,7}G{3,}[ACGUTN]{1,7}G{3,}")
-HOMOPOLYMER_PATTERN = re.compile(r"(.)\1{" + str(MAX_HOMOPOLYMER) + r",}")
+@lru_cache(maxsize=None)
+def homopolymer_pattern(max_run: int) -> re.Pattern[str]:
+    """Tramos de mas de `max_run` bases iguales seguidas."""
+    return re.compile(r"(.)\1{" + str(max_run) + r",}")
+
+
+HOMOPOLYMER_PATTERN = homopolymer_pattern(MAX_HOMOPOLYMER)
+
+
+@dataclass(frozen=True)
+class Thresholds:
+    """Umbrales ajustables. Los valores por defecto son los verificados del proyecto.
+
+    Estan aqui juntos para que una interfaz pueda ofrecerlos sin tocar la logica: los
+    filtros son los mismos, solo cambia el numero contra el que comparan.
+    """
+
+    gc_min: float = GC_MIN
+    gc_max: float = GC_MAX
+    max_homopolymer: int = MAX_HOMOPOLYMER
+    min_asymmetry: float = MIN_ASYMMETRY
+    polya_flank: int = SIGNAL_FLANK
+
+    def __post_init__(self) -> None:
+        for nombre, valor in (("gc_min", self.gc_min), ("gc_max", self.gc_max)):
+            if not 0.0 <= valor <= 1.0:
+                raise ValueError(
+                    f"{nombre}={valor}: el GC es una fraccion entre 0 y 1; se aborta."
+                )
+        if self.gc_min > self.gc_max:
+            raise ValueError(
+                f"gc_min={self.gc_min} es mayor que gc_max={self.gc_max}: ninguna "
+                f"ventana podria pasar; se aborta en vez de filtrarlo todo en silencio."
+            )
+        if self.max_homopolymer < 1:
+            raise ValueError(
+                f"max_homopolymer={self.max_homopolymer}: debe ser al menos 1; se aborta."
+            )
+        if self.polya_flank < 0:
+            raise ValueError(
+                f"polya_flank={self.polya_flank}: la zona prohibida no puede ser "
+                f"negativa; se aborta."
+            )
+
+
+DEFAULT_THRESHOLDS = Thresholds()
 
 COMPLEMENT = str.maketrans("ACGTN", "UGCAN")
 
@@ -57,37 +103,44 @@ def guide_from_target(sequence: str) -> str:
     return "U" + guide[1:]
 
 
-def filter_gc(sequence: str) -> FilterResult:
+def filter_gc(sequence: str, thresholds: Thresholds = DEFAULT_THRESHOLDS) -> FilterResult:
     value = gc_fraction(sequence)
-    if GC_MIN <= value <= GC_MAX:
+    rango = f"[{thresholds.gc_min:.2f}, {thresholds.gc_max:.2f}]"
+    if thresholds.gc_min <= value <= thresholds.gc_max:
         return FilterResult(
             name="GC",
             state=FilterState.PASS,
-            reason=f"GC {value:.3f} dentro de [{GC_MIN:.2f}, {GC_MAX:.2f}].",
+            reason=f"GC {value:.3f} dentro de {rango}.",
         )
-    lado = "por debajo del minimo" if value < GC_MIN else "por encima del maximo"
+    lado = (
+        "por debajo del minimo" if value < thresholds.gc_min else "por encima del maximo"
+    )
     return FilterResult(
         name="GC",
         state=FilterState.FAIL,
-        reason=f"GC {value:.3f} {lado} [{GC_MIN:.2f}, {GC_MAX:.2f}].",
+        reason=f"GC {value:.3f} {lado} {rango}.",
     )
 
 
-def filter_homopolymer(sequence: str) -> FilterResult:
+def filter_homopolymer(
+    sequence: str, thresholds: Thresholds = DEFAULT_THRESHOLDS
+) -> FilterResult:
     cleaned = normalize_sequence(sequence)
-    match = HOMOPOLYMER_PATTERN.search(cleaned)
+    match = homopolymer_pattern(thresholds.max_homopolymer).search(cleaned)
     if match is None:
         return FilterResult(
             name="homopolimero",
             state=FilterState.PASS,
-            reason=f"Sin tramos de mas de {MAX_HOMOPOLYMER} nt iguales seguidos.",
+            reason=(
+                f"Sin tramos de mas de {thresholds.max_homopolymer} nt iguales seguidos."
+            ),
         )
     return FilterResult(
         name="homopolimero",
         state=FilterState.FAIL,
         reason=(
             f"Homopolimero {match.group(0)} ({len(match.group(0))} nt) en la posicion "
-            f"{match.start() + 1}; el maximo es {MAX_HOMOPOLYMER}."
+            f"{match.start() + 1}; el maximo es {thresholds.max_homopolymer}."
         ),
     )
 
@@ -114,6 +167,7 @@ def filter_g4(sequence: str, *, name: str = "G4_diana") -> FilterResult:
 def filter_asymmetry(
     guide: str,
     model: AsymmetryModel | None = turner_asymmetry,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> FilterResult:
     """Asimetria de la GUIA (no de la diana). `model=None` deja el filtro en NOT_RUN."""
     if model is None:
@@ -128,13 +182,16 @@ def filter_asymmetry(
         )
 
     value = model(guide)
-    estado = FilterState.PASS if value >= MIN_ASYMMETRY else FilterState.FAIL
+    estado = (
+        FilterState.PASS if value >= thresholds.min_asymmetry else FilterState.FAIL
+    )
     comparacion = ">=" if estado is FilterState.PASS else "por debajo de"
     return FilterResult(
         name="asimetria",
         state=estado,
         reason=(
-            f"Asimetria {value:+.2f} kcal/mol {comparacion} {MIN_ASYMMETRY}, "
+            f"Asimetria {value:+.2f} kcal/mol {comparacion} "
+            f"{thresholds.min_asymmetry}, "
             f"sobre la guia {guide} (proxy heuristico, ver thermo.py)."
         ),
     )
@@ -175,6 +232,7 @@ def evaluate_window(
     *,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
     offset: int = 0,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> WindowEvaluation:
     """Aplica los filtros duros a una ventana de 22 nt y devuelve todos los motivos."""
     cleaned = normalize_sequence(sequence)
@@ -205,11 +263,11 @@ def evaluate_window(
         sequence=cleaned,
         guide=guide,
         filters=(
-            filter_gc(cleaned),
-            filter_homopolymer(cleaned),
+            filter_gc(cleaned, thresholds),
+            filter_homopolymer(cleaned, thresholds),
             filter_g4(cleaned, name="G4_diana"),
             filter_g4(guide, name="G4_guia"),
-            filter_asymmetry(guide, asymmetry_model),
+            filter_asymmetry(guide, asymmetry_model, thresholds),
         ),
         offset=offset,
         asymmetry=None if asymmetry_model is None else asymmetry_model(guide),

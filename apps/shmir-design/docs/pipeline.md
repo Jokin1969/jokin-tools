@@ -146,3 +146,20 @@ sección, y el TSV de seleccionados lo lleva en una columna.
 | `{especie}_guias.fasta` | las guías en ADN, para BLAST (paso 12, manual en la v1) |
 | `{especie}_oligos.tsv` | la horquilla ensamblada de cada candidato, con sus avisos en cada fila |
 | `{especie}_informe.txt` | anatomía, señales de poliadenilación, bloques conservados, avisos y **qué filtros no se ejecutaron** |
+
+## Interfaz
+
+`ui/streamlit_app.py` es una capa sobre lo anterior, sin lógica propia. Lo que decide
+algo está en `shmir_design/presentation.py` y tiene tests: el color del semáforo, las
+filas de las tablas, el mapa SVG del 3'UTR y el paquete de descargas.
+
+El semáforo mira los **candidatos seleccionados**, no todas las ventanas: una ventana
+enmascarada nunca se evalúa —tiene `N`— y eso no significa que un filtro no haya llegado
+a correr. Lo que decide el color es si lo que vas a encargar está filtrado del todo. Las
+ventanas no evaluables se cuentan aparte, en el detalle del semáforo.
+
+Los umbrales ajustables son `hard_filters.Thresholds`: GC mínimo y máximo, homopolímero
+máximo, asimetría mínima y flanco prohibido alrededor de la señal de poliadenilación;
+más el número de candidatos, el espaciado mínimo y la longitud mínima de bloque
+conservado. Los valores por defecto son los verificados y salen escritos en la etiqueta
+de cada control.

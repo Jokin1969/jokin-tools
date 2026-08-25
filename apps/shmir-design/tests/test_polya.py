@@ -418,5 +418,51 @@ class TestUtrCompletos(unittest.TestCase):
         self.assertIs(report.windows[0].zona_prohibida.state, FilterState.FAIL)
 
 
+class TestFlancoAjustable(unittest.TestCase):
+    """El +-10 nt de la zona prohibida es un umbral, no una constante escondida."""
+
+    def test_por_defecto_son_10(self):
+        signal = classify_signal("ATTAAA", 1582, HUMAN_UTR_LENGTH)
+        self.assertEqual(signal.flank, SIGNAL_FLANK)
+        self.assertEqual(signal.forbidden_start, 1572)
+
+    def test_con_flanco_0_la_zona_es_la_señal(self):
+        signal = classify_signal("ATTAAA", 1582, HUMAN_UTR_LENGTH, flank=0)
+        self.assertEqual((signal.forbidden_start, signal.forbidden_end), (1582, 1587))
+
+    def test_un_flanco_mayor_prohibe_mas(self):
+        signal = classify_signal("ATTAAA", 1582, HUMAN_UTR_LENGTH, flank=30)
+        self.assertEqual(signal.forbidden_start, 1552)
+
+    def test_el_flanco_llega_desde_la_busqueda(self):
+        signals = find_polya_signals(
+            HUMAN_WINDOW_SEQ,
+            first_position=HUMAN_WINDOW_START,
+            utr_length=HUMAN_UTR_LENGTH,
+            flank=0,
+        )
+        self.assertEqual(signals[0].flank, 0)
+
+    def test_con_flanco_0_una_ventana_pegada_a_la_señal_pasa(self):
+        signals = find_polya_signals(
+            HUMAN_WINDOW_SEQ,
+            first_position=HUMAN_WINDOW_START,
+            utr_length=HUMAN_UTR_LENGTH,
+            flank=0,
+        )
+        report = annotate_3utr([Window(1560, 21, "antes")], signals, HUMAN_UTR_LENGTH)
+        self.assertIs(report.windows[0].zona_prohibida.state, FilterState.PASS)
+
+    def test_el_motivo_dice_el_flanco_usado(self):
+        signals = find_polya_signals(
+            HUMAN_WINDOW_SEQ,
+            first_position=HUMAN_WINDOW_START,
+            utr_length=HUMAN_UTR_LENGTH,
+            flank=30,
+        )
+        report = annotate_3utr([Window(1560, 22, "w")], signals, HUMAN_UTR_LENGTH)
+        self.assertIn("30", report.windows[0].zona_prohibida.reason)
+
+
 if __name__ == "__main__":
     unittest.main()

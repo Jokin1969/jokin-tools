@@ -31,8 +31,10 @@ from dataclasses import dataclass
 from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
 from .masking import RepeatMask, apply_mask, filter_repeats
 from .hard_filters import (
+    DEFAULT_THRESHOLDS,
     WINDOW_SIZE,
     AsymmetryModel,
+    Thresholds,
     WindowEvaluation,
     evaluate_window,
 )
@@ -133,6 +135,7 @@ class TilingReport:
     avisos: tuple[Aviso, ...]
     seeds: SeedSet | None
     mask: RepeatMask | None = None
+    thresholds: Thresholds = DEFAULT_THRESHOLDS
 
     def biofisicos_ok(self) -> int:
         return sum(1 for w in self.windows if w.biofisicos_ok)
@@ -252,6 +255,7 @@ def tile_utr(
     seeds: SeedSet | None = None,
     mask: RepeatMask | None = None,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> TilingReport:
     """Enmascara, RETILA y evalua todas las ventanas. Ninguna se omite del informe.
 
@@ -260,7 +264,7 @@ def tile_utr(
     Las señales de poliadenilacion se buscan sobre la secuencia SIN enmascarar.
     """
     original = normalize_sequence(sequence, name="3'UTR")
-    signals = find_polya_signals(original)
+    signals = find_polya_signals(original, flank=thresholds.polya_flank)
     cleaned = apply_mask(original, mask)
     windows = [
         Window(start, window_size, label=f"w{start}")
@@ -275,6 +279,7 @@ def tile_utr(
             cleaned[start - 1 : start - 1 + window_size],
             asymmetry_model=asymmetry_model,
             offset=start,
+            thresholds=thresholds,
         )
         tiled.append(
             TiledWindow(
@@ -297,4 +302,5 @@ def tile_utr(
         avisos=annotated.avisos,
         seeds=seeds,
         mask=mask,
+        thresholds=thresholds,
     )

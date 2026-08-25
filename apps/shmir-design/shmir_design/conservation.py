@@ -27,8 +27,10 @@ from dataclasses import dataclass, field
 
 from .filters import Verdict
 from .hard_filters import (
+    DEFAULT_THRESHOLDS,
     WINDOW_SIZE,
     AsymmetryModel,
+    Thresholds,
     WindowEvaluation,
     evaluate_window,
     gc_fraction,
@@ -100,6 +102,7 @@ class ConservedBlock:
         *,
         window_size: int = WINDOW_SIZE,
         asymmetry_model: AsymmetryModel | None = turner_asymmetry,
+        thresholds: Thresholds = DEFAULT_THRESHOLDS,
     ) -> list[WindowEvaluation]:
         """TODAS las ventanas posibles dentro del bloque, evaluadas una por una."""
         if self.length < window_size:
@@ -109,6 +112,7 @@ class ConservedBlock:
                 self.sequence[offset : offset + window_size],
                 asymmetry_model=asymmetry_model,
                 offset=offset,
+                thresholds=thresholds,
             )
             for offset in range(self.length - window_size + 1)
         ]
@@ -262,11 +266,14 @@ def build_conservation_report(
     min_length: int = MIN_BLOCK_LENGTH,
     window_size: int = WINDOW_SIZE,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> ConservationReport:
     blocks = find_conserved_blocks(utr_a, utr_b, min_length=min_length)
     evaluations = {
         index: block.window_evaluations(
-            window_size=window_size, asymmetry_model=asymmetry_model
+            window_size=window_size,
+            asymmetry_model=asymmetry_model,
+            thresholds=thresholds,
         )
         for index, block in enumerate(blocks)
     }
