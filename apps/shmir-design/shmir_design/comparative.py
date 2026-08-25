@@ -22,13 +22,15 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
+from .external_score import FEATURE_COLUMNS, ExternalScore, splashrna_features
 from .gblock import build_gblock
 from .polya import POLYA_COLUMNS
 from .scaffold import ScaffoldSpec, build_hairpin
 from .selection import ReportSelection
 
 #: Columnas fijas, en el orden en que se leen. Las de `filtro:<nombre>` se añaden
-#: detras, una por filtro, y `knockdown_medido` va SIEMPRE la ultima.
+#: detras, una por filtro, y las tres columnas que esperan un dato de fuera
+#: —`score_externo`, `fuente_score` y `knockdown_medido`— van SIEMPRE las ultimas.
 COMPARATIVE_COLUMNS = (
     "inicio_3utr",
     "fin_3utr",
@@ -54,16 +56,28 @@ COMPARATIVE_COLUMNS = (
     "carga_seed",
     "accesibilidad",
     "accesibilidad_seed",
+    *FEATURE_COLUMNS,
     "veredicto",
+    "score_externo",
+    "fuente_score",
     "knockdown_medido",
 )
 
+#: Las que se rellenan desde fuera y por eso van al final, juntas y vacias.
+PENDIENTES = ("score_externo", "fuente_score", "knockdown_medido")
+
 CABECERA = (
-    "# Tabla comparativa de shmir-design. La columna knockdown_medido va VACIA a "
-    "proposito:\n"
-    "# rellenala en el laboratorio y devuelve el fichero para poder correlacionar cada\n"
-    "# parametro contra la potencia real. Un campo vacio significa 'no se midio', "
-    "NUNCA cero.\n"
+    "# Tabla comparativa de shmir-design. Las columnas knockdown_medido y "
+    "score_externo van\n"
+    "# VACIAS a proposito: la primera se rellena en el laboratorio, la segunda con "
+    "miRarchitect\n"
+    "# (ver el bloque de instrucciones del informe, o tools/import_scores.py). Un "
+    "campo vacio\n"
+    "# significa 'no se midio', NUNCA cero.\n"
+    "# El score externo es INFORMATIVO: no es un filtro, no da PASS y no da FAIL. Las\n"
+    "# columnas feat_* son las features de SplashRNA calculadas aqui, SIN combinar: "
+    "una\n"
+    "# feature no es un score, y aqui no se entrena ningun modelo.\n"
 )
 
 
@@ -88,9 +102,9 @@ def comparative_rows(
         filtros = [r.name for r in selection.window_of(elegidos[0]).filters]
 
     columnas = [
-        *COMPARATIVE_COLUMNS[:-1],
+        *COMPARATIVE_COLUMNS[: -len(PENDIENTES)],
         *(f"filtro:{n}" for n in filtros),
-        "knockdown_medido",
+        *PENDIENTES,
     ]
     rows = [columnas]
 
@@ -140,7 +154,12 @@ def comparative_rows(
                 else ""
             ),
             "accesibilidad_seed": _seed_access(window),
+            **splashrna_features(window.evaluation.guide),
             "veredicto": window.verdict.value,
+            # Vacias las dos: nadie ha puntuado esta guia. `ExternalScore()` sin
+            # argumentos es la forma de decirlo, y no hay ninguna rama que rellene
+            # esto con una cuenta local (ver `external_score.py`).
+            **ExternalScore().as_columns(),
             "knockdown_medido": "",
         }
         for resultado in window.filters:

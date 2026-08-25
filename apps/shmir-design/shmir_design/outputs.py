@@ -26,6 +26,7 @@ from .reference import ReferenceTranscript
 from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
 from .comparative import comparative_text, comparative_tsv
+from .external_score import manual_instructions
 from .selection import (
     coverage_report,
     ReportSelection,
@@ -369,6 +370,16 @@ def text_report(
 
     lines.extend(["", "── Tabla comparativa de los candidatos ──"])
     lines.append(comparative_text(selection, scaffold))
+
+    lines.extend(["", "── Score externo (columna vacia) ──"])
+    lines.append(
+        manual_instructions(
+            [
+                selection.window_of(choice).evaluation.guide
+                for choice in selection.selection.chosen
+            ]
+        )
+    )
 
     lines.extend(["", "── Rango que cubre la seleccion ──"])
     lines.append(

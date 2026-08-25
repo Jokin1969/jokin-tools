@@ -52,6 +52,44 @@ Para desbloquearlo: ampliar la política de red del entorno remoto
 (https://code.claude.com/docs/en/claude-code-on-the-web) o ejecutar el script desde una
 máquina con salida a internet.
 
+## Intentos de verificación de los servicios de score (2026-08-25)
+
+Se pidió comprobar si miRarchitect (preprint de febrero de 2026) o SplashRNA exponen una
+API pública antes de escribir nada contra ellas. **No se ha podido comprobar.** Las
+cuatro direcciones dan 403 en el CONNECT del proxy de este entorno, que es una
+denegación de política de red y no una respuesta del servicio: no dice nada sobre si la
+API existe.
+
+```
+$ curl -sS -o /dev/null -w "http=%{http_code}\n" --max-time 20 https://mirarchitect.org
+curl: (56) CONNECT tunnel failed, response 403
+http=000
+```
+
+| Host | Resultado | Fecha |
+|---|---|---|
+| `mirarchitect.org` | `connect_rejected` — 403 al CONNECT | 2026-08-25 |
+| `www.mirarchitect.org` | `connect_rejected` — 403 al CONNECT | 2026-08-25 |
+| `splashrna.mskcc.org` | `connect_rejected` — 403 al CONNECT | 2026-08-25 |
+| `splashrna.org` | `connect_rejected` — 403 al CONNECT | 2026-08-25 |
+
+Consecuencias, todas visibles en `shmir_design/external_score.py`:
+
+- `MIRARCHITECT_API` y `SPLASHRNA_API` valen `None`. Ninguna URL se usa como endpoint.
+- La columna `score_externo` de la tabla comparativa va **vacía**, igual que
+  `knockdown_medido`. No se rellena con nada calculado aquí.
+- Las features de SplashRNA (asimetría, GC de la guía, posición 1, posiciones 2-7,
+  composición de la seed, GC del bucle) sí se calculan y salen en columnas `feat_*`
+  **separadas y sin combinar**: una feature no es un score y aquí no se entrena ningún
+  modelo.
+- El informe imprime el bloque «Score externo» con las instrucciones para puntuar a mano
+  y el comando de `tools/import_scores.py`. La única URL que aparece,
+  `https://mirarchitect.org`, va marcada como no verificada desde aquí y **no la llama
+  ningún código**: es para que una persona la abra en su navegador.
+- El test de plausibilidad que se pidió —la guía de SGEP `TAGATAAGCATTATAATTCCTA` tiene
+  que caer en el cuartil superior— está escrito y se **salta de forma visible** mientras
+  no haya endpoint. No aprueba en silencio.
+
 ## Lo que sabe el responsable del proyecto (NO verificado desde aquí)
 
 Se anota como contexto, no como autorización. Ninguna de estas URLs está en el código.

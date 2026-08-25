@@ -15,6 +15,7 @@ sabra que parametros predicen algo y cuales son decoracion.
 import unittest
 
 from shmir_design.comparative import COMPARATIVE_COLUMNS, comparative_rows, comparative_tsv
+from shmir_design.external_score import FEATURE_COLUMNS, splashrna_features
 from shmir_design.scaffold import SGEP_SCAFFOLD
 from shmir_design.selection import SelectionConfig, select_from_report
 from shmir_design.specificity import SpecificityDatabase
@@ -205,3 +206,74 @@ class TestGuardaContraColisionDeColumnas(unittest.TestCase):
         gc = filas[1][filas[0].index("GC")]
         float(gc)  # si fuera el estado del filtro, esto reventaria
         self.assertIn(filas[1][filas[0].index("filtro:GC")], ("PASS", "FAIL", "NOT_RUN"))
+
+
+class TestScoreExterno(unittest.TestCase):
+    """La columna `score_externo` viaja al lado de `knockdown_medido`.
+
+    Las dos van vacias hasta que alguien traiga datos: una del laboratorio y la otra de
+    miRarchitect. Ninguna se rellena con un numero calculado aqui — eso seria un score
+    propio con etiqueta ajena, que es justo lo que se prohibio al pedir esta columna.
+    """
+
+    def columnas(self):
+        _, seleccion = _piezas()
+        return comparative_rows(seleccion, SGEP_SCAFFOLD)[0]
+
+    def test_las_tres_ultimas_son_score_fuente_y_knockdown(self):
+        self.assertEqual(
+            COMPARATIVE_COLUMNS[-3:],
+            ("score_externo", "fuente_score", "knockdown_medido"),
+        )
+
+    def test_las_dos_columnas_del_score_van_vacias(self):
+        _, seleccion = _piezas()
+        filas = comparative_rows(seleccion, SGEP_SCAFFOLD)
+        cabecera = filas[0]
+        for fila in filas[1:]:
+            for columna in ("score_externo", "fuente_score"):
+                with self.subTest(columna):
+                    self.assertEqual(fila[cabecera.index(columna)], "")
+
+    def test_las_features_de_splashrna_estan_en_columnas_separadas(self):
+        columnas = self.columnas()
+        for feature in FEATURE_COLUMNS:
+            with self.subTest(feature):
+                self.assertIn(feature, columnas)
+
+    def test_las_features_si_traen_valor(self):
+        # Las features SI se calculan —son aritmetica sobre la propia guia— y por eso
+        # no van vacias. Lo que no existe es el score que saldria de combinarlas.
+        _, seleccion = _piezas()
+        filas = comparative_rows(seleccion, SGEP_SCAFFOLD)
+        indice = filas[0].index("feat_GC_seed")
+        for fila in filas[1:]:
+            self.assertNotEqual(fila[indice], "")
+
+    def test_las_features_de_cada_fila_son_las_de_SU_guia(self):
+        _, seleccion = _piezas()
+        filas = comparative_rows(seleccion, SGEP_SCAFFOLD)
+        guia = filas[0].index("guia")
+        for fila in filas[1:]:
+            esperado = splashrna_features(fila[guia])
+            for feature, valor in esperado.items():
+                with self.subTest(feature=feature, guia=fila[guia]):
+                    self.assertEqual(fila[filas[0].index(feature)], valor)
+
+    def test_la_cabecera_explica_que_el_score_no_es_un_veredicto(self):
+        _, seleccion = _piezas()
+        texto = comparative_tsv(seleccion, SGEP_SCAFFOLD, with_header=True)
+        cabecera = "\n".join(
+            l for l in texto.splitlines() if l.startswith("#")
+        ).lower()
+        self.assertIn("score_externo", cabecera)
+        self.assertIn("informativ", cabecera)
+
+    def test_ninguna_fila_pone_un_score_calculado_aqui(self):
+        # Guarda explicita: si algun dia alguien rellena `score_externo` con una cuenta
+        # local, este test lo para. La procedencia es parte del dato.
+        _, seleccion = _piezas()
+        filas = comparative_rows(seleccion, SGEP_SCAFFOLD)
+        fuente = filas[0].index("fuente_score")
+        for fila in filas[1:]:
+            self.assertNotIn(fila[fuente], ("splashrna_features", "local", "shmir"))

@@ -282,6 +282,19 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - **`riesgo_APA` es una PREDICCIÓN mientras no haya `--apa-medido`**, y el informe lo
   dice con esa palabra. Con sitios medidos el dato sustituye a la predicción y sale el
   techo de knockdown.
+- **`score_externo` va vacía y no se rellena aquí.** Se comprobó el 2026-08-25 si
+  miRarchitect y SplashRNA tienen API: las cuatro direcciones dan 403 en el CONNECT del
+  proxy de este entorno, que es una denegación de política de red y **no una respuesta
+  del servicio** — o sea, no se ha podido comprobar, que no es lo mismo que no existir.
+  Por eso `external_score.MIRARCHITECT_API` y `SPLASHRNA_API` valen `None` y ninguna URL
+  se usa como endpoint. Las features de SplashRNA (asimetría, GC, posición 1, posiciones
+  2-7, composición de la seed, GC del bucle) **sí** se calculan y salen en columnas
+  `feat_*` separadas y sin combinar: una feature no es un score, y aquí no se entrena
+  ningún modelo ni se etiqueta de miRarchitect un número calculado por nosotros. El
+  informe imprime cómo puntuar a mano y `tools/import_scores.py` mete el resultado en la
+  tabla, con `fuente_score = manual_mirarchitect`. El score es informativo: nunca FAIL,
+  nunca PASS. El test de plausibilidad de la guía de SGEP está escrito y se salta de
+  forma visible mientras no haya endpoint. Ver `docs/endpoints-verificados.md`.
 - **La tabla comparativa lleva una columna `knockdown_medido` vacía** para que vuelva
   rellena del laboratorio. No la rellenes ni la quites: es el instrumento con el que se
   sabrá qué parámetros predicen potencia y cuáles son decoración.

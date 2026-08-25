@@ -12,8 +12,9 @@ from shmir_design.outputs import (
     tsv_oligos,
     tsv_selected,
 )
+from shmir_design.external_score import MANUAL_URL, VERIFICACION
 from shmir_design.reference import REFERENCES
-from shmir_design.scaffold import UNVERIFIED_TAG, ScaffoldSpec
+from shmir_design.scaffold import SGEP_SCAFFOLD, UNVERIFIED_TAG, ScaffoldSpec
 from shmir_design.selection import SelectionConfig, select_from_report
 from shmir_design.tiling import tile_utr
 
@@ -213,3 +214,46 @@ class TestInformeDeTexto(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBloqueDelScoreExterno(unittest.TestCase):
+    """El informe explica que la columna `score_externo` esta vacia y como llenarla.
+
+    Sin API verificada, lo unico honesto es decir donde puntuar a mano y como importar
+    el resultado. Y decir que la comprobacion de los endpoints dio 403 del proxy, que
+    NO es lo mismo que "no existen".
+    """
+
+    def informe(self):
+        report, seleccion = piezas()
+        return text_report(
+            species="sonda", tiling=report, selection=seleccion,
+            scaffold=SGEP_SCAFFOLD,
+        )
+
+    def test_dice_que_la_columna_va_vacia(self):
+        self.assertIn("score_externo", self.informe())
+
+    def test_da_las_instrucciones_manuales_con_su_fecha(self):
+        texto = self.informe()
+        self.assertIn(MANUAL_URL, texto)
+        self.assertIn(VERIFICACION, texto)
+        self.assertIn("no se ha podido comprobar", texto)
+
+    def test_da_el_comando_de_importacion(self):
+        self.assertIn("tools/import_scores.py", self.informe())
+
+    def test_dice_que_no_es_un_veredicto(self):
+        texto = self.informe().lower()
+        self.assertIn("informativo", texto)
+
+    def test_lista_las_guias_elegidas_para_pegarlas(self):
+        report, seleccion = piezas()
+        texto = text_report(
+            species="sonda", tiling=report, selection=seleccion,
+            scaffold=SGEP_SCAFFOLD,
+        )
+        for choice in seleccion.selection.chosen:
+            guia = seleccion.window_of(choice).evaluation.guide.replace("U", "T")
+            with self.subTest(guia):
+                self.assertIn(guia, texto)
