@@ -1,50 +1,64 @@
 # Batchwork
 
-Proyecto Python del hub. Vive dentro de `jokin-tools` pero es independiente del
-backend Node/Express: Python 3.11+, solo librería estándar, interfaz CLI (regla 6).
+Proyecto Python del hub. Vive dentro de `jokin-tools` pero es independiente del backend
+Node/Express: Python 3.11+, solo librería estándar, sin frameworks web, interfaz CLI
+(regla 6). No se acopla a nada del hub.
 
-## Estado
+Las reglas del proyecto están en [`CLAUDE.md`](./CLAUDE.md) y son vinculantes.
 
-Solo hay reglas y su verificador. **No hay código funcional todavía**, y hay dos
-bloqueantes declarados:
+## Qué hay implementado
 
-- **Sin datos reales.** La regla 5 exige tests con datos reales; los datos no llegaron
-  con el encargo. `tests/data/` está vacío a propósito y no se rellena con secuencias
-  sintéticas — eso sería la regla 1 por otra puerta.
-- **Sin endpoints verificados.** `docs/endpoints-verificados.md` está vacío, así que no
-  se escribe ninguna llamada de red (regla 4).
+| Paso | Qué | Dónde |
+|---|---|---|
+| 0 | Descarga + verificación de checksum (longitud, extremos, md5) y extracción de los 3'UTR | `batchwork/fetch.py`, `batchwork/reference.py`, `tools/fetch_data.py` |
+| 9 | Guardarrailes de poliadenilación: señales, zonas prohibidas ±10 nt, aviso de APA, tercios | `batchwork/polya.py` |
+| — | Estados de filtro `PASS`/`FAIL`/`NOT_RUN` y su agregación | `batchwork/filters.py` |
+| — | Verificador de la regla 2 sobre el AST | `tools/check_rules.py` |
 
-## Ficheros
+El pipeline completo, con el orden no negociable y qué queda pendiente, está en
+[`docs/pipeline.md`](./docs/pipeline.md). Los valores esperados verificados (tiling,
+conteos PASS, bloque conservado) están en
+[`docs/valores-esperados.md`](./docs/valores-esperados.md).
 
-| Ruta | Qué es |
-|---|---|
-| `CLAUDE.md` | Las seis reglas innegociables y sus contratos concretos. Vinculante. |
-| `AGENTS.md` | Resumen de las reglas para agentes que no leen `CLAUDE.md`. |
-| `docs/endpoints-verificados.md` | Registro de URLs externas verificadas (vacío). |
-| `docs/dependencias-autorizadas.md` | Registro de dependencias autorizadas (vacío). |
-| `tools/check_rules.py` | Verificador de la regla 2 sobre el AST. |
-| `tests/test_check_rules.py` | Tests del verificador (escritos antes que él). |
-| `tests/data/PROCEDENCIA.md` | Procedencia de los datos de test (vacío). |
+## Guardarrailes de poliadenilación
+
+```python
+from batchwork.polya import Window, analyze_3utr
+
+report = analyze_3utr(secuencia_3utr, [Window(start=1581, length=22, label="w1581")])
+print(report.format_text())
+```
+
+- **A.** Localiza `AATAAA` y las nueve variantes principales, con posición y distancia
+  al extremo 3'. Marca *señal terminal probable* a 10–40 nt del final y *APA posible*
+  toda `AATAAA` canónica a más de 100 nt. Toda ventana que solape una señal ±10 nt sale
+  con `zona_prohibida = FAIL`.
+- **B.** Si hay un APA proximal, el informe emite `⚠ AVISO [APA_PROXIMAL]`. Los
+  candidatos corriente abajo **no se excluyen**: se anotan con `riesgo_APA=True`.
+- **C.** Cada ventana se anota con su tercio (`proximal` / `medio` / `distal`), para las
+  cuotas de selección del paso 15.
+
+Coordenadas 1-based; `distance_to_3p` cuenta los nucleótidos entre el último del motivo
+y el extremo 3'.
+
+## Estado: dos bloqueantes
+
+- **Sin secuencias.** La política de red del entorno bloquea NCBI, Ensembl, UCSC y
+  miRBase (403 al CONNECT). `tests/data/` está vacío y los tests de extremo a extremo
+  se saltan de forma visible. Ver [`tests/data/PROCEDENCIA.md`](./tests/data/PROCEDENCIA.md).
+- **Sin endpoints verificados.** Por eso `batchwork/fetch.py` no contiene ninguna URL y
+  `tools/fetch_data.py` exige `--efetch-url`. Ver
+  [`docs/endpoints-verificados.md`](./docs/endpoints-verificados.md).
 
 ## Comprobaciones
 
 ```bash
-# Regla 2: manejo de errores que se traga fallos
-npm run check:batchwork
-# o: python3 apps/batchwork/tools/check_rules.py [ruta ...]
+npm run check:batchwork   # regla 2 sobre el AST
+npm run test:batchwork    # tests
 
-# Tests
-npm run test:batchwork
-# o: cd apps/batchwork && python3 -m unittest discover -s tests -t .
+# Paso 0, desde una máquina con salida a internet:
+python3 apps/batchwork/tools/fetch_data.py --efetch-url <base verificada> --email tu@correo
 ```
 
 `check_rules.py` sale con 0 si está limpio, 1 si hay violaciones y 2 si algún fichero no
-se pudo analizar — un fichero no analizable nunca cuenta como limpio.
-
-## Qué hace falta para empezar a escribir código
-
-1. Los datos reales para los tests, con su procedencia (fuente, accession, fecha).
-2. Los endpoints externos que deba usar Batchwork, para verificarlos antes de escribir
-   ninguna URL.
-3. La descripción del pipeline: qué candidatos entran, qué filtros se aplican y qué
-   recurso externo necesita cada uno (para el contrato `PASS`/`FAIL`/`NOT_RUN`).
+se pudo analizar. `fetch_data.py` sale con 2 y no escribe nada si un md5 no coincide.

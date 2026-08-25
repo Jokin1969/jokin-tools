@@ -136,8 +136,8 @@ Reglas de agregación:
 falla si encuentra manejo de errores prohibido por la regla 2:
 
 ```bash
-python3 apps/batchwork/tools/check_rules.py        # todo apps/batchwork/
-python3 -m unittest discover -s apps/batchwork/tests -t .
+npm run check:batchwork   # o: python3 apps/batchwork/tools/check_rules.py [ruta ...]
+npm run test:batchwork    # o: cd apps/batchwork && python3 -m unittest discover -s tests -t .
 ```
 
 Pásalos antes de cada commit que toque `apps/batchwork/`.
@@ -157,9 +157,13 @@ Pásalos antes de cada commit que toque `apps/batchwork/`.
 
 ## Estado actual (bloqueantes)
 
-- **No hay datos reales.** La regla 5 los da por "proporcionados abajo", pero no
-  llegaron con el encargo. `tests/data/` está vacío a propósito y no se rellenará con
-  datos sintéticos.
-- **No hay endpoints verificados.** Hasta que los haya, no se escribe ninguna llamada
-  de red.
-- No hay código funcional de Batchwork todavía: solo las reglas y su verificador.
+- **No hay secuencias.** La política de red del entorno rechaza el CONNECT a
+  `eutils.ncbi.nlm.nih.gov`, `rest.ensembl.org`, `api.genome.ucsc.edu` y
+  `www.mirbase.org` (403). `tests/data/` está vacío y los tests que necesitan los 3'UTR
+  completos se saltan de forma visible. No se rellenan con secuencia sintética.
+- **No hay endpoints verificados desde este proyecto.** Por eso `batchwork/fetch.py` no
+  contiene ninguna URL y `tools/fetch_data.py` exige `--efetch-url`. Lo que el
+  responsable ha verificado por su cuenta está anotado como contexto, no como
+  autorización, en `docs/endpoints-verificados.md`.
+- Implementado: paso 0 (descarga + checksum) y paso 9 (guardarrailes de
+  poliadenilación). El resto del pipeline, en `docs/pipeline.md`.
