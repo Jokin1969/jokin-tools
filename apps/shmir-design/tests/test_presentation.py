@@ -100,6 +100,36 @@ class TestFilasDeTabla(unittest.TestCase):
             with self.subTest(columna):
                 self.assertIn(columna, fila)
 
+    def test_el_valor_de_la_asimetria_no_lo_pisa_el_estado_del_filtro(self):
+        """El filtro se llama 'asimetria' y el numero tambien se llamaba asi: uno
+        machacaba al otro y la tabla perdia el valor. Son dos columnas distintas."""
+        _, seleccion = piezas()
+        fila = candidate_rows(seleccion)[0]
+        self.assertIn(fila["asimetria"], ("PASS", "FAIL", "NOT_RUN"))
+        self.assertIsInstance(fila["asimetria_kcal"], float)
+        elegido = seleccion.selection.chosen[0]
+        self.assertAlmostEqual(fila["asimetria_kcal"], round(elegido.asymmetry, 2))
+
+    def test_cada_filtro_tiene_su_columna_con_su_estado(self):
+        _, seleccion = piezas()
+        elegido = seleccion.selection.chosen[0]
+        ventana = seleccion.window_of(elegido)
+        fila = candidate_rows(seleccion)[0]
+        for resultado in ventana.filters:
+            with self.subTest(resultado.name):
+                self.assertEqual(fila[resultado.name], resultado.state.value)
+
+    def test_ninguna_columna_de_filtro_pisa_a_otra_columna(self):
+        """Guardia contra futuras colisiones de nombres al fusionar diccionarios."""
+        tiling, seleccion = piezas()
+        nombres_filtro = {r.name for r in tiling.windows[0].filters}
+        otras = {"rango", "inicio", "fin", "tercio", "asimetria_kcal",
+                 "biofisicos_ok", "riesgo_APA", "veredicto", "diana", "guia"}
+        self.assertEqual(nombres_filtro & otras, set())
+        self.assertEqual(
+            len(candidate_rows(seleccion)[0]), len(nombres_filtro) + len(otras)
+        )
+
     def test_los_estados_son_texto_no_booleanos(self):
         _, seleccion = piezas()
         self.assertIn(candidate_rows(seleccion)[0]["seed"], ("PASS", "FAIL", "NOT_RUN"))
@@ -107,6 +137,12 @@ class TestFilasDeTabla(unittest.TestCase):
     def test_todas_las_ventanas_caben_en_window_rows(self):
         tiling, _ = piezas()
         self.assertEqual(len(window_rows(tiling)), len(tiling.windows))
+
+    def test_window_rows_tambien_separa_valor_y_estado_de_la_asimetria(self):
+        tiling, _ = piezas()
+        fila = window_rows(tiling)[0]
+        self.assertIn(fila["asimetria"], ("PASS", "FAIL", "NOT_RUN"))
+        self.assertIsInstance(fila["asimetria_kcal"], float)
 
 
 class TestAnatomia(unittest.TestCase):

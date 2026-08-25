@@ -112,7 +112,9 @@ def candidate_rows(selection: ReportSelection) -> list[dict[str, object]]:
                 "inicio": choice.start,
                 "fin": choice.end,
                 "tercio": choice.tercio.value,
-                "asimetria": round(choice.asymmetry, 2),
+                # El VALOR de la asimetria y el ESTADO de su filtro son dos columnas:
+                # si comparten nombre, el diccionario fusionado pierde el numero.
+                "asimetria_kcal": round(choice.asymmetry, 2),
                 **_filter_columns(window),
                 "biofisicos_ok": window.biofisicos_ok,
                 "riesgo_APA": window.riesgo_APA,
@@ -131,7 +133,10 @@ def window_rows(report: TilingReport) -> list[dict[str, object]]:
             "inicio": w.window.start,
             "fin": w.window.end,
             "tercio": w.tercio.value,
-            "asimetria": None if w.evaluation.asymmetry is None else round(w.evaluation.asymmetry, 2),
+            "asimetria_kcal": (
+                None if w.evaluation.asymmetry is None
+                else round(w.evaluation.asymmetry, 2)
+            ),
             **_filter_columns(w),
             "biofisicos_ok": w.biofisicos_ok,
             "veredicto": w.verdict.value,

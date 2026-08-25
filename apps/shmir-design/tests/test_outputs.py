@@ -57,6 +57,15 @@ class TestTsvSeleccionados(unittest.TestCase):
         lineas = tsv_selected(seleccion, species="sonda").splitlines()
         self.assertEqual(len(lineas), len(seleccion.selection.chosen) + 1)
 
+    def test_lleva_una_columna_por_filtro(self):
+        """Quien abra este TSV tiene que ver QUE filtro falta, no solo INCOMPLETE."""
+        _, seleccion = piezas()
+        cabecera = tsv_selected(seleccion, species="sonda").splitlines()[0].split("\t")
+        for filtro in ("GC", "homopolimero", "asimetria", "G4_diana", "G4_guia",
+                       "zona_prohibida_polyA", "repeticiones", "seed"):
+            with self.subTest(filtro):
+                self.assertIn(filtro, cabecera)
+
     def test_lleva_rango_tercio_asimetria_y_veredicto(self):
         _, seleccion = piezas()
         lineas = tsv_selected(seleccion, species="sonda").splitlines()

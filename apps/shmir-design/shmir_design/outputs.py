@@ -49,6 +49,15 @@ def _sin_correr(selection: ReportSelection) -> str:
 
 
 def tsv_selected(selection: ReportSelection, *, species: str) -> str:
+    """Los candidatos, con el estado de CADA filtro en su columna.
+
+    Quien abra este fichero tiene que poder ver que filtro falta sin abrir otro: un
+    `INCOMPLETE` a secas invita a decidir sin saber que le falta al candidato.
+    """
+    chosen = list(selection.selection.chosen)
+    filtros = (
+        [r.name for r in selection.window_of(chosen[0]).filters] if chosen else []
+    )
     rows = [
         [
             "especie",
@@ -56,17 +65,22 @@ def tsv_selected(selection: ReportSelection, *, species: str) -> str:
             "inicio",
             "fin",
             "tercio",
-            "asimetria",
-            "diana",
-            "guia",
+            "asimetria_kcal",
+        ]
+        + filtros
+        + [
+            "biofisicos_ok",
             "riesgo_APA",
             "veredicto",
+            "diana",
+            "guia",
             "filtros_sin_correr",
         ]
     ]
     sin_correr = _sin_correr(selection)
-    for choice in selection.selection.chosen:
+    for choice in chosen:
         window = selection.window_of(choice)
+        estados = {r.name: r.state.value for r in window.filters}
         rows.append(
             [
                 species,
@@ -75,10 +89,14 @@ def tsv_selected(selection: ReportSelection, *, species: str) -> str:
                 str(choice.end),
                 choice.tercio.value,
                 f"{choice.asymmetry:+.2f}",
-                window.evaluation.sequence,
-                window.evaluation.guide,
+            ]
+            + [estados[name] for name in filtros]
+            + [
+                str(window.biofisicos_ok),
                 str(window.riesgo_APA),
                 window.verdict.value,
+                window.evaluation.sequence,
+                window.evaluation.guide,
                 sin_correr,
             ]
         )
