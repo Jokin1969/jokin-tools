@@ -17,6 +17,7 @@ Las reglas del proyecto están en [`CLAUDE.md`](./CLAUDE.md) y son vinculantes.
 | 9 | Guardarrailes de poliadenilación: señales, zonas prohibidas ±10 nt, aviso de APA, tercios | `shmir_design/polya.py` |
 | 10 | Seed de la guía (posiciones 2–8) contra familias de miRNA — **mecánica**, falta `mature.fa` | `shmir_design/seeds.py` |
 | 14 | Bloques conservados entre dos 3'UTR, con todas sus ventanas evaluadas | `shmir_design/conservation.py`, `tools/conservation_report.py` |
+| — | Horquilla miR-E de 97 nt lista para pedir (andamio SGEP verificado) | `shmir_design/scaffold.py`, `tools/oligo.py` |
 | — | Estados de filtro `PASS`/`FAIL`/`NOT_RUN` y su agregación | `shmir_design/filters.py` |
 | — | Verificador de la regla 2 sobre el AST | `tools/check_rules.py` |
 
@@ -62,6 +63,19 @@ python3 apps/shmir-design/tools/tiling_report.py --tsv /tmp/salida
 `--bootstrap-seeds` carga una lista de 12 seeds que sirve para probar la mecánica y
 **no** para cribar candidatos; el informe lo dice en cada ejecución. Una ventana con una
 `N` no es evaluable: sus filtros salen en `NOT_RUN` con el motivo, nunca en `PASS`.
+
+## Salida de oligos
+
+```bash
+python3 apps/shmir-design/tools/oligo.py --target GTTATTATTGGCTTGCACTTTG
+```
+
+Monta `flanco5(18) + pasajera(22) + loop(19) + guía(22) + flanco3(16)` = 97 nt, con la
+guía en el brazo 3p. Los flancos y el loop están verificados contra SGEP (Addgene
+#111170). **La regla del desapareamiento de la pasajera no lo está** —está derivada de un
+solo ejemplo— y sale un aviso `REGLA_NO_CONFIRMADA` en cada oligo hasta que se verifique
+contra un segundo plásmido miR-E (#111177). Los flancos extendidos del pri-miR para el
+cassette AAV siguen sin decidir y `extended_cassette()` aborta en vez de inventarlos.
 
 ## Bloques conservados
 

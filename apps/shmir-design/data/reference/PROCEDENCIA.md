@@ -51,6 +51,8 @@ llega al repositorio.
 | Fragmento | Coordenadas | Fuente |
 |---|---|---|
 | `AATTAAACGAGCGAAGATGAGC` (22 nt) | 3'UTR humano, 1581–1602 | proporcionado y verificado por el responsable |
+| `GTTATTATTGGCTTGCACTTTG` (22 nt) | 3'UTR humano, 1237–1258 | proporcionado y verificado por el responsable |
+| Andamio miR-E: flancos, loop y horquilla de 97 nt | plásmido SGEP | Addgene #111170, fichero SnapGene de la secuencia depositada, coincidente con tres fuentes |
 | `TTTTCTATATTTGTAACTTTGCATGT` (26 nt) | bloque conservado; humano 1507–1532, ratón 1138–1163 | proporcionado y verificado por el responsable |
 
 Son los únicos tramos de secuencia real que aparecen en el código. Las sondas de los

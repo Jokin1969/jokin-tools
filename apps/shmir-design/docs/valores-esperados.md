@@ -117,3 +117,24 @@ los FASTA.
 
 Los cinco valores están cubiertos por tests (`test_thermo.py`), igual que las dos guías
 de cordura biológica que detectarían una inversión de signo.
+
+## Horquilla miR-E de referencia — **verificada**
+
+Andamio SGEP (Addgene #111170), contra el fichero SnapGene de la secuencia depositada:
+
+```
+flanco5  TGCTGTTGACAGTGAGCG     (18 nt)
+loop     TAGTGAAGCCACAGATGTA    (19 nt)
+flanco3  TGCCTACTGCCTCGGA       (16 nt)
+
+guia      TAGATAAGCATTATAATTCCTA
+pasajera  CAGGAATTATAATGCTTATCTA     (revcomp con la posicion 1 T→C)
+97-mero   TGCTGTTGACAGTGAGCGCAGGAATTATAATGCTTATCTATAGTGAAGCCACAGATGTATAGATAAGCATTATAATTCCTATGCCTACTGCCTCGGA
+```
+
+Estado: **implementado y verificado hoy** (`scaffold.py`). El 97-mero se reconstruye
+byte a byte, y la transición de la posición 1 está cubierta en los cuatro casos (T, C,
+y los no cubiertos A y G, que avisan sin tocar la base).
+
+La regla de la pasajera sigue marcada como `REGLA_NO_CONFIRMADA`: ver
+`preguntas-abiertas.md`.

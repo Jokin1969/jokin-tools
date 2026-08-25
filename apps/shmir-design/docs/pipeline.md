@@ -77,3 +77,26 @@ herramienta para los dos. La decisión de usarlos es del usuario.
 Con los filtros 4–9 implementados, una ventana ya puede salir `PASS`. Los pasos 2, 10,
 11 y 12 siguen pendientes: cuando entren, un candidato sin sus fixtures saldrá
 `INCOMPLETE`, nunca `PASS`.
+
+## Después del pipeline: la horquilla (salida de oligos)
+
+`scaffold.py` monta el 97-mero miR-E que se pide al sintetizador:
+
+```
+flanco5(18) + PASAJERA(22) + loop(19) + GUIA(22) + flanco3(16) = 97 nt
+```
+
+Andamio SGEP (Addgene #111170), **verificado**: los flancos y el loop son dato, no
+suposición. La guía va en el brazo 3p.
+
+Lo que **no** está verificado, y sale avisado en cada oligo:
+
+- **La regla de la pasajera.** No es el complementario reverso exacto: lleva un
+  desapareamiento deliberado en la posición 1 (transición T↔C). Derivada de **un solo
+  ejemplo**; hay que confirmarla contra un segundo plásmido miR-E (LT3GEPIR #111177).
+  Si el complementario reverso empieza por A o por G, el caso no está cubierto: la base
+  no se toca y se avisa, en vez de inventar una transición que nadie ha visto.
+- **Los flancos extendidos del pri-miR** para el cassette AAV: sin decidir.
+  `extended_cassette()` aborta en vez de rellenarlos.
+
+`SCAFFOLD["verified"] = True` se refiere solo al 97-mero.

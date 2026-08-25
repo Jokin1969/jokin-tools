@@ -14,7 +14,26 @@ Desde que los datos de referencia son fixtures versionados
 ([`fixtures.md`](./fixtures.md)), esto ha dejado de ser un bloqueante del análisis: solo
 limita el camino opcional `--fetch`.
 
-### 2. Fixtures que faltan
+### 2. Regla del desapareamiento de la pasajera — **no confirmada**
+
+La pasajera del andamio miR-E lleva un desapareamiento en su posición 1: C donde el
+complementario reverso daría T. La regla implementada es la transición T↔C, y está
+derivada de **un solo ejemplo** (SGEP #111170).
+
+Para fijarla hace falta: la secuencia de un segundo plásmido miR-E con una guía distinta
+—LT3GEPIR (Addgene #111177) sirve— y comprobar que su pasajera cumple la misma
+transición. Si el complementario reverso de esa guía empieza por A o por G, mejor: ese
+es justamente el caso que hoy no está cubierto.
+
+Hasta entonces `scaffold.py` la marca como `REGLA_NO_CONFIRMADA` y el aviso sale en cada
+salida de oligos. Con A o G no se aplica ninguna transición y se avisa.
+
+### 3. Flancos extendidos del pri-miR — sin decidir
+
+Necesarios para el cassette AAV, no para el clonaje en SGEP. `extended_cassette()`
+aborta en vez de inventarlos. Lo verificado es el 97-mero y solo el 97-mero.
+
+### 4. Fixtures que faltan
 
 - `data/reference/NM_011170.3.fa` y `NM_000311.5.fa`: 7 tests saltados hasta que estén.
 - miRBase `mature.fa` (paso 10), export de gnomAD (paso 11), track `rmsk` (paso 2):

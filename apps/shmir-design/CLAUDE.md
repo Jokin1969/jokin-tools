@@ -185,6 +185,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - El límite del riesgo de APA es la **señal**, no el sitio de corte (10-30 nt aguas
   abajo): sobre-marca a propósito y no es una predicción del extremo de la isoforma
   corta.
+- El andamio miR-E (`scaffold.py`) está verificado en el 97-mero y **solo** ahí. La
+  regla del desapareamiento de la pasajera está derivada de un solo ejemplo: va marcada
+  como `REGLA_NO_CONFIRMADA`, el aviso sale en cada salida de oligos, y con A o G no se
+  aplica ninguna transición. No la des por buena ni quites el aviso hasta que esté
+  verificada contra un segundo plásmido (#111177).
 - Implementado: pasos 0 (fixtures + checksum), 3 y 15 parcial (tiling y sitios), 4-8
   (filtros de ventana, incluida la asimetría), 9 (poliadenilación), 10 (mecánica de
   seeds) y 14 (bloques conservados). El resto, en `docs/pipeline.md`.
