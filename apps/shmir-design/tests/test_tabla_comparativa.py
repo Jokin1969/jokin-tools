@@ -169,3 +169,39 @@ class TestBloqueLegible(unittest.TestCase):
 
         _, seleccion = _piezas()
         self.assertIn("region", comparative_text(seleccion, SGEP_SCAFFOLD))
+
+
+class TestGuardaContraColisionDeColumnas(unittest.TestCase):
+    """Cuatro filtros se llaman IGUAL que columnas fijas: GC, asimetria, transgen y
+    seed_colision. Hoy no chocan porque las de filtro llevan prefijo `filtro:`, pero
+    nada lo obligaba. Si alguien quita el prefijo, el diccionario fusionado pierde el
+    valor numerico en silencio — que es el fallo que ya se colo una vez en la interfaz.
+    """
+
+    def test_hay_nombres_de_filtro_que_coinciden_con_columnas_fijas(self):
+        tiling, _ = _piezas()
+        nombres = {r.name for r in tiling.windows[0].filters}
+        self.assertTrue(
+            nombres & set(COMPARATIVE_COLUMNS),
+            "si esto deja de ser cierto, este guarda ya no hace falta",
+        )
+
+    def test_pero_ninguna_columna_aparece_dos_veces(self):
+        _, seleccion = _piezas()
+        columnas = comparative_rows(seleccion, SGEP_SCAFFOLD)[0]
+        self.assertEqual(len(columnas), len(set(columnas)))
+
+    def test_y_las_de_filtro_van_todas_con_prefijo(self):
+        tiling, seleccion = _piezas()
+        columnas = comparative_rows(seleccion, SGEP_SCAFFOLD)[0]
+        for filtro in tiling.windows[0].filters:
+            self.assertIn(f"filtro:{filtro.name}", columnas)
+            self.assertNotIn(filtro.name, COMPARATIVE_COLUMNS[:-1] + ("knockdown_medido",)
+                             if filtro.name not in COMPARATIVE_COLUMNS else ())
+
+    def test_la_columna_GC_sigue_siendo_el_numero_y_no_el_estado(self):
+        _, seleccion = _piezas()
+        filas = comparative_rows(seleccion, SGEP_SCAFFOLD)
+        gc = filas[1][filas[0].index("GC")]
+        float(gc)  # si fuera el estado del filtro, esto reventaria
+        self.assertIn(filas[1][filas[0].index("filtro:GC")], ("PASS", "FAIL", "NOT_RUN"))

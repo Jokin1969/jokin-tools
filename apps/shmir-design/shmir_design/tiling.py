@@ -498,10 +498,19 @@ def tile_utr(
         if region is Region.UTR3:
             if apa_sites is not None and apa_sites.coords == "3utr":
                 posicion = anatomy.utr3_position(anotada.window.start)
+                if posicion is None:
+                    # La ventana empieza ANTES del 3'UTR: cuenta como 3'UTR porque su
+                    # punto medio cae ahi, pero su inicio no tiene coordenada de 3'UTR.
+                    # Se ancla al principio del 3'UTR, que es la respuesta correcta a la
+                    # pregunta del APA: una ventana que empieza en el CDS no puede estar
+                    # por detras de ningun sitio de corte del 3'UTR. Antes se caia en la
+                    # coordenada de TRANSCRITO y se comparaba contra sitios dados en
+                    # coordenadas de 3'UTR — mezcla silenciosa de sistemas.
+                    posicion = 1
             else:
                 posicion = anotada.window.start
             apa = apa_assessment(
-                window_start=posicion if posicion is not None else anotada.window.start,
+                window_start=posicion,
                 sites=apa_sites,
                 predicted_risk=anotada.riesgo_APA,
             )

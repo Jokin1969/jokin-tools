@@ -677,6 +677,12 @@ def analyze_3utr(
 CLEAVAGE_MIN = 10   # nt aguas abajo del final del hexamero
 CLEAVAGE_MAX = 30
 
+#: Hasta que distancia se ANOTA una señal en los campos descriptivos de la ventana.
+#: Es una convencion de presentacion, no un umbral de decision: el veredicto mira todas
+#: las señales pase lo que pase. Existe porque, sin ella, una ventana en la posicion 50
+#: salia anotada con el hexamero terminal de la posicion 1200 — cierto, pero ilegible.
+ANNOTATION_RADIUS = 100
+
 #: Las posiciones 2-8 de la guia (la seed) emparejan con el extremo 3' de la ventana
 #: diana: la guia es el complemento inverso, asi que su posicion i emparejta con la
 #: posicion (longitud + 1 - i) de la diana. Para una ventana de 22 nt, la seed cae en
@@ -724,6 +730,15 @@ def seed_target_span(window: Window) -> tuple[int, int]:
         window.start + SEED_TARGET_START - 1,
         window.start + SEED_TARGET_END - 1,
     )
+
+
+def _distance(window: Window, signal: PolyASignal) -> int:
+    """Hueco entre la ventana y la señal; 0 si se tocan o se solapan."""
+    if signal.end < window.start:
+        return window.start - signal.end - 1
+    if signal.position > window.end:
+        return signal.position - window.end - 1
+    return 0
 
 
 def _relative_position(window: Window, signal: PolyASignal) -> tuple[RelativePosition, int]:
@@ -821,8 +836,27 @@ def annotate_polya(
     mode: PolyAMode = PolyAMode.ESCALONADO,
 ) -> PolyAAnnotation:
     """Anota una ventana: cinco campos, y solo uno es un veredicto."""
+    terminales = [
+        s for s in signals if s.classification is SignalClass.TERMINAL_PROBABLE
+    ]
+    tras_posible = any(window.start > s.end + CLEAVAGE_MIN for s in terminales)
+    tras_seguro = any(window.start > s.end + CLEAVAGE_MAX for s in terminales)
+
+    #: Solo se ANOTA lo que esta CERCA de esta ventana, mas la señal terminal que la
+    #: deja por detras del corte (esa importa aunque este lejos, porque es la que
+    #: produce el FAIL). Coger la señal mas grave de toda la secuencia llenaria la
+    #: columna `polyA_hexamero` de hexameros a mil nt, y la tabla comparativa se lee de
+    #: un vistazo. El VEREDICTO sigue mirandolas TODAS: esto solo decide que se enseña.
+    relevantes = [
+        s for s in signals
+        if _distance(window, s) <= ANNOTATION_RADIUS
+        or (
+            s.classification is SignalClass.TERMINAL_PROBABLE
+            and window.start > s.end + CLEAVAGE_MIN
+        )
+    ]
     cercanas = sorted(
-        signals,
+        relevantes,
         key=lambda s: (
             _GRAVEDAD[s.classification],
             abs(s.position - window.start),
@@ -836,12 +870,6 @@ def annotate_polya(
         solapa_seed = any(
             s.position <= seed_fin and s.end >= seed_inicio for s in signals
         )
-
-    terminales = [
-        s for s in signals if s.classification is SignalClass.TERMINAL_PROBABLE
-    ]
-    tras_posible = any(window.start > s.end + CLEAVAGE_MIN for s in terminales)
-    tras_seguro = any(window.start > s.end + CLEAVAGE_MAX for s in terminales)
 
     posicion, distancia = (
         _relative_position(window, principal) if principal else (None, 0)

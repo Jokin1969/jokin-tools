@@ -341,3 +341,56 @@ class TestIntegracion(unittest.TestCase):
         comparacion = polya_mode_comparison(self._tiling(), SelectionConfig())
         self.assertIsInstance(comparacion.stable, bool)
         self.assertEqual(set(comparacion.selections), {m.value for m in PolyAMode})
+
+
+class TestSoloSeAnotaLoQueImporta(unittest.TestCase):
+    """El hexamero que se reporta tiene que ser uno RELEVANTE para esa ventana.
+
+    Fallo encontrado en revision: `annotate_polya` cogia el hexamero mas grave de TODA
+    la secuencia, estuviera donde estuviera. Una ventana en la posicion 50 con la unica
+    señal en la 1200 salia con `polyA_hexamero=AATAAA` y clase SEÑAL_TERMINAL_PROBABLE.
+    La distancia se veia en otra columna, pero la tabla comparativa se lee de un vistazo
+    y esa fila decia que el candidato tenia una señal terminal encima.
+    """
+
+    LEJOS = _señal("AATAAA", 1200, SignalClass.TERMINAL_PROBABLE)
+
+    def test_una_señal_lejana_no_se_anota_como_hexamero_de_la_ventana(self):
+        a = annotate_polya(Window(50, 22), [self.LEJOS], utr_length=UTR)
+        self.assertEqual(a.as_columns()["polyA_hexamero"], "")
+
+    def test_ni_su_clase(self):
+        a = annotate_polya(Window(50, 22), [self.LEJOS], utr_length=UTR)
+        self.assertEqual(a.as_columns()["polyA_clase"], "")
+
+    def test_ni_su_posicion_relativa(self):
+        a = annotate_polya(Window(50, 22), [self.LEJOS], utr_length=UTR)
+        self.assertEqual(a.as_columns()["polyA_posicion_rel"], "")
+
+    def test_una_señal_que_solapa_si_se_anota(self):
+        a = annotate_polya(Window(1198, 22), [self.LEJOS], utr_length=UTR)
+        self.assertEqual(a.as_columns()["polyA_hexamero"], "AATAAA")
+
+    def test_una_señal_en_el_flanco_si_se_anota(self):
+        cerca = _señal("AATAAA", 1200, SignalClass.TERMINAL_PROBABLE)
+        a = annotate_polya(Window(1180, 22), [cerca], utr_length=UTR)
+        self.assertEqual(a.as_columns()["polyA_hexamero"], "AATAAA")
+
+    def test_una_terminal_que_deja_la_ventana_tras_el_corte_si_se_anota(self):
+        """Aunque no solape: es la que produce el FAIL, tiene que verse."""
+        a = annotate_polya(
+            Window(1250, 22), [self.LEJOS], utr_length=UTR, mode=PolyAMode.PERMISIVO
+        )
+        self.assertEqual(a.as_columns()["polyA_hexamero"], "AATAAA")
+        self.assertIs(a.veredicto.state, FilterState.FAIL)
+
+    def test_el_veredicto_no_cambia_por_esto(self):
+        """Regresion: el filtro sigue mirando TODAS las señales, solo cambia lo anotado."""
+        a = annotate_polya(Window(50, 22), [self.LEJOS], utr_length=UTR)
+        self.assertIs(a.veredicto.state, FilterState.PASS)
+
+    def test_el_solape_con_la_seed_sigue_mirando_todas(self):
+        a = annotate_polya(
+            Window(1018, 22), [_señal("ACTAAA", 1034)], utr_length=UTR
+        )
+        self.assertTrue(a.solapa_seed)

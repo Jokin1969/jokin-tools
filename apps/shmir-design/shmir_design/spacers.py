@@ -189,6 +189,7 @@ class SpacerChoice:
 class SpacerSearch:
     choice: SpacerChoice | None
     evaluated: int
+    #: Cuantos candidatos descarto el filtro duro ANTES de plegarlos.
     rejected: int
     note: str
 
@@ -204,9 +205,17 @@ def _random_spacer(rng: random.Random, length: int) -> str:
     return "".join(rng.choices(bases, weights=pesos, k=length))
 
 
-def _candidates(rng: random.Random, length: int, cuantos: int) -> list[str]:
-    """Candidatos que YA pasan los filtros duros. Los que no, ni se pliegan."""
+def _candidates(
+    rng: random.Random, length: int, cuantos: int
+) -> tuple[list[str], int]:
+    """Candidatos que YA pasan los filtros duros. Los que no, ni se pliegan.
+
+    Devuelve tambien cuantos se descartaron. Si se agotan los intentos y salen menos de
+    los pedidos, quien llama tiene que poder decirlo: un presupuesto que no se gasta
+    entero y no se menciona parece una busqueda completa.
+    """
     salida: list[str] = []
+    descartados = 0
     intentos = 0
     tope = cuantos * 200
     while len(salida) < cuantos and intentos < tope:
@@ -214,7 +223,9 @@ def _candidates(rng: random.Random, length: int, cuantos: int) -> list[str]:
         sonda = _random_spacer(rng, length)
         if is_acceptable(sonda):
             salida.append(sonda)
-    return salida
+        else:
+            descartados += 1
+    return salida, descartados
 
 
 def choose_spacers(
@@ -279,8 +290,17 @@ def choose_spacers(
     restante = budget - evaluados
     por_etapa = max(1, restante // 3)
 
-    cinco = _candidates(rng, SPACER5_LENGTH, por_etapa)
-    tres = _candidates(rng, SPACER3_LENGTH, por_etapa)
+    cinco, descartados5 = _candidates(rng, SPACER5_LENGTH, por_etapa)
+    tres, descartados3 = _candidates(rng, SPACER3_LENGTH, por_etapa)
+    descartados = descartados5 + descartados3
+    corto = ""
+    if len(cinco) < por_etapa or len(tres) < por_etapa:
+        corto = (
+            f" AVISO: no se pudieron generar todos los candidatos pedidos "
+            f"({len(cinco)}/{por_etapa} de 5' y {len(tres)}/{por_etapa} de 3'): los "
+            f"filtros duros dejan poco sitio. La busqueda es mas corta de lo que dice "
+            f"el presupuesto."
+        )
 
     parejas: list[tuple[str, str]] = []
     parejas.extend((c, STANDARD_3) for c in cinco)
@@ -304,12 +324,13 @@ def choose_spacers(
         return SpacerSearch(
             choice=None,
             evaluated=evaluados,
-            rejected=len(parejas) - (evaluados - 1),
+            rejected=descartados,
             note=(
                 f"No se encontro ningun par de espaciadores que conserve la estructura "
                 f"del 97-mero dentro del intron, en {evaluados} candidato(s) plegados "
-                f"(presupuesto {budget}). No se inventa uno peor: sube el presupuesto o "
-                f"cambia de candidato."
+                f"(presupuesto {budget}; {descartados} descartado(s) por los filtros "
+                f"duros antes de plegar). No se inventa uno peor: sube el presupuesto o "
+                f"cambia de candidato.{corto}"
             ),
         )
 
@@ -319,10 +340,10 @@ def choose_spacers(
     return SpacerSearch(
         choice=mejor,
         evaluated=evaluados,
-        rejected=len(parejas) + 1 - evaluados,
+        rejected=descartados,
         note=(
             f"Los estandar NO conservan la estructura con esta guia. De "
             f"{evaluados} candidato(s) plegados, {len(validos)} la conservan; se ha "
-            f"elegido el de menor MFE del intron completo."
+            f"elegido el de menor MFE del intron completo.{corto}"
         ),
     )

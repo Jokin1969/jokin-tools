@@ -222,3 +222,57 @@ class TestCargaDesdeDisco(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestVentanasQueCruzanLaFrontera(unittest.TestCase):
+    """Fallo encontrado en revision: mezcla silenciosa de sistemas de coordenadas.
+
+    La region de una ventana se decide por su PUNTO MEDIO, asi que una ventana que
+    empieza en el CDS y acaba en el 3'UTR cuenta como 3'UTR. Para el APA se convertia su
+    inicio a coordenadas de 3'UTR — y para esas ventanas la conversion no existe, asi que
+    se caia en la coordenada de TRANSCRITO y se comparaba contra sitios dados en
+    coordenadas de 3'UTR. En NM_011170.3 son 21 ventanas.
+
+    Lo correcto: una ventana que empieza antes del 3'UTR no puede estar por detras de
+    ningun sitio de corte del 3'UTR.
+    """
+
+    def _tiling(self, sitios):
+        from shmir_design.anatomy import Anatomy
+        from shmir_design.tiling import tile_utr
+
+        secuencia = "GCGTCAGTACGATCGAATTACT" * 30  # 660 nt
+        anatomia = Anatomy.from_cds(cds=(45, 146), length=len(secuencia))
+        return tile_utr(secuencia, anatomy=anatomia, apa_sites=sitios), anatomia
+
+    SITIOS = ApaSites(
+        sites=(ApaSite(50, 0.4, "proximal"), ApaSite(500, 0.6, "distal")),
+        source="sonda", version="sonda", checksum="0" * 32, coords="3utr",
+    )
+
+    def test_las_ventanas_de_frontera_no_salen_como_perdidas(self):
+        tiling, anatomia = self._tiling(self.SITIOS)
+        frontera = [
+            w for w in tiling.windows
+            if w.apa is not None and anatomia.utr3_position(w.window.start) is None
+        ]
+        self.assertTrue(frontera, "no hay ventanas de frontera en la sonda")
+        for w in frontera:
+            with self.subTest(inicio=w.window.start):
+                self.assertEqual(w.apa.lost_fraction, 0.0)
+                self.assertFalse(w.apa.risk)
+
+    def test_una_ventana_bien_dentro_del_3utr_si_pierde(self):
+        tiling, anatomia = self._tiling(self.SITIOS)
+        dentro = [
+            w for w in tiling.windows
+            if (p := anatomia.utr3_position(w.window.start)) is not None and p > 100
+        ]
+        self.assertTrue(dentro)
+        self.assertGreater(dentro[0].apa.lost_fraction, 0.0)
+
+    def test_sin_sitios_medidos_no_cambia_nada(self):
+        tiling, _ = self._tiling(None)
+        for w in tiling.windows:
+            if w.apa is not None:
+                self.assertFalse(w.apa.measured)
