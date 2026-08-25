@@ -132,3 +132,40 @@ class TestTSV(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBloqueLegible(unittest.TestCase):
+    """Un candidato del CDS no tiene coordenada de 3'UTR: la fila no puede salir coja."""
+
+    def test_la_primera_columna_nunca_va_vacia(self):
+        from shmir_design.anatomy import Anatomy, RegionSource
+        from shmir_design.comparative import comparative_text
+        from shmir_design.selection import SelectionConfig, select_from_report
+
+        utr5 = "GCGTCAGTACGATCGAATTACT" * 2
+        cds = "ATG" + "GCTAACGGGACT" * 8 + "TAA"
+        utr3 = "GCGTCAGTACGATCGAATTACT" * 20
+        secuencia = utr5 + cds + utr3
+        tiling = tile_utr(
+            secuencia,
+            anatomy=Anatomy.from_cds(cds=(45, 146), length=len(secuencia)),
+        )
+        from shmir_design.anatomy import Region
+
+        seleccion = select_from_report(
+            tiling,
+            SelectionConfig(
+                n_candidates=2,
+                region_quota=((Region.UTR3, 1), (Region.CDS, 1)),
+                require_one_per_tercio=False,
+            ),
+        )
+        texto = comparative_text(seleccion, SGEP_SCAFFOLD)
+        for linea in texto.splitlines()[1:3]:
+            self.assertTrue(linea.strip().split()[0].isdigit(), linea)
+
+    def test_el_bloque_dice_la_region_de_cada_candidato(self):
+        from shmir_design.comparative import comparative_text
+
+        _, seleccion = _piezas()
+        self.assertIn("region", comparative_text(seleccion, SGEP_SCAFFOLD))

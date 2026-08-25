@@ -182,7 +182,9 @@ def comparative_tsv(
 #: Columnas que se enseñan en el bloque legible del informe. La tabla entera no cabe en
 #: una consola, asi que el informe da las que sirven para decidir y el TSV lo trae todo.
 RESUMEN_COLUMNS = (
+    "inicio_transcrito",
     "inicio_3utr",
+    "region",
     "tercio",
     "GC",
     "asimetria",
