@@ -52,6 +52,7 @@ from shmir_design.reference import REFERENCES, load_3utr  # noqa: E402
 from shmir_design.scaffold import SGEP_SCAFFOLD, load_scaffold  # noqa: E402
 from shmir_design.seeds import BOOTSTRAP_SEEDS, parse_seed_table  # noqa: E402
 from shmir_design.selection import SelectionConfig, select_from_report  # noqa: E402
+from shmir_design.specificity import load_database  # noqa: E402
 from shmir_design.tiling import tile_utr  # noqa: E402
 
 DEFAULT_PAIR = {"raton": "NM_011170.3", "humano": "NM_000311.5"}
@@ -85,6 +86,13 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--bootstrap-seeds", action="store_true")
     parser.add_argument("--repeats", type=Path, help="Intervalos repetitivos `inicio fin`")
     parser.add_argument("--min-block", type=int, default=MIN_BLOCK_LENGTH)
+    parser.add_argument("--refseq", type=Path, help="FASTA local de RefSeq RNA")
+    parser.add_argument("--refseq-name", default="RefSeq RNA")
+    parser.add_argument("--refseq-version", help="Version o fecha de descarga")
+    parser.add_argument("--refseq-md5", help="md5 esperado; si no cuadra, PARA")
+    parser.add_argument(
+        "--target", help="Accession del gen diana, para no contarlo como off-target"
+    )
     parser.add_argument(
         "--cds", nargs=2, type=int, metavar=("INICIO", "FIN"),
         help="Coordenadas 1-based del CDS en la secuencia de --fasta. Con esto se "
@@ -132,6 +140,25 @@ def main(argv: list[str]) -> int:
         if args.seeds:
             seeds = load_seeds(args.seeds)
         mask = load_mask_file(args.repeats) if args.repeats else None
+
+        refseq = None
+        if args.refseq:
+            if not args.refseq_version:
+                raise ValueError(
+                    "--refseq necesita --refseq-version: sin procedencia el veredicto "
+                    "de especificidad no es auditable."
+                )
+            if not args.target:
+                raise ValueError(
+                    "--refseq necesita --target con el accession del gen diana: sin el, "
+                    "todo sitio parece un off-target."
+                )
+            refseq = load_database(
+                args.refseq,
+                name=args.refseq_name,
+                version=args.refseq_version,
+                expected_md5=args.refseq_md5,
+            )
         config = SelectionConfig(
             n_candidates=args.candidates, min_spacing=args.min_spacing
         )
@@ -199,6 +226,8 @@ def main(argv: list[str]) -> int:
                 seeds=seeds,
                 mask=mask,
                 anatomy=anatomias[especie],
+                specificity_db=refseq,
+                specificity_target=args.target,
                 thresholds=thresholds,
             )
             seleccion = select_from_report(tiling, config)

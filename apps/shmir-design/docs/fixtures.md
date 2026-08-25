@@ -11,6 +11,7 @@ Aplica a todo lo que sea dato de referencia:
 | Transcritos NCBI | `data/reference/NM_*.fa` | 0, 1 | implementado; fixtures pendientes de añadir |
 | miRBase `mature.fa` | `data/reference/mature.fa` | 10 (seed vs miRNA) | mecánica lista (`seeds.py`); falta el fichero y su checksum |
 | Export de gnomAD | `data/reference/gnomad_*.tsv` | 11 (AF > 0.001) | pendiente |
+| RefSeq RNA de la especie | `data/reference/refseq_rna_*.fa` | 12 (especificidad) | lector listo (`specificity.load_database`, con md5); falta el fichero |
 | Track `rmsk` de UCSC | `data/reference/rmsk_*.tsv` | 2 (enmascarado) | lector listo (`masking.load_mask_file`, formato `inicio<TAB>fin`); falta el recorte y su checksum |
 
 ## Qué hace falta para añadir un fixture nuevo

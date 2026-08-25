@@ -208,6 +208,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - El módulo NheI–SacI de 149 nt (`gblock.py`) lleva contextos nativos de SGEP que **no
   se recortan ni se sustituyen**: llevan el CNNC de SRSF3. El `GGGG` del contexto 3' es
   nativo, por eso la comprobación de homopolímeros mira solo la parte variable.
+- **La especificidad no cubre los off-targets por seed** y el informe lo dice en cada
+  ejecución. No lo quites ni lo suavices: es el hueco más grande que queda, y un
+  veredicto de especificidad "limpio" sin esa frase invita a creer que la guía está
+  comprobada cuando lo que se ha comprobado son los alineamientos, no las seeds.
+- El BLAST remoto es **inspección, nunca veredicto**, y solo para los supervivientes.
 - **El orden de operaciones del paso 15 no se cambia**: enmascarar y RETILAR, filtros
   duros, ordenar por asimetría, agrupar en sitios, selección voraz. Enmascarar después
   de tilar produce un ranking contaminado que parece correcto.

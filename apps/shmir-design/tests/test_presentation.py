@@ -21,6 +21,7 @@ from shmir_design.presentation import (
 from shmir_design.reference import REFERENCES
 from shmir_design.scaffold import SGEP_SCAFFOLD
 from shmir_design.seeds import BOOTSTRAP_SEEDS
+from shmir_design.specificity import SpecificityDatabase
 from shmir_design.selection import SelectionConfig, select_from_report
 from shmir_design.tiling import tile_utr
 
@@ -28,8 +29,25 @@ SONDA = "GCGTCAGTACGATCGAATTACT" * 30
 BLOQUE = "TTTTCTATATTTGTAACTTTGCATGT"
 
 
-def piezas(seeds=None, mask=None):
-    tiling = tile_utr(SONDA, seeds=seeds, mask=mask)
+def piezas(seeds=None, mask=None, specificity=False):
+    """`specificity=True` carga una base minima donde la unica diana es la sonda."""
+    base = (
+        SpecificityDatabase(
+            name="base de prueba",
+            version="2026-08-25",
+            checksum="0" * 32,
+            records={"diana": SONDA},
+        )
+        if specificity
+        else None
+    )
+    tiling = tile_utr(
+        SONDA,
+        seeds=seeds,
+        mask=mask,
+        specificity_db=base,
+        specificity_target="diana" if base else None,
+    )
     return tiling, select_from_report(tiling, SelectionConfig(n_candidates=3))
 
 
@@ -56,7 +74,7 @@ class TestSemaforo(unittest.TestCase):
 
     def test_verde_solo_si_corrieron_todos(self):
         mask = RepeatMask(intervals=((1, 5),), source="prueba")
-        _, seleccion = piezas(seeds=BOOTSTRAP_SEEDS, mask=mask)
+        _, seleccion = piezas(seeds=BOOTSTRAP_SEEDS, mask=mask, specificity=True)
         luz = status_light(seleccion)
         self.assertEqual(luz.color, "verde")
         self.assertEqual(luz.pending, ())
@@ -68,7 +86,7 @@ class TestSemaforo(unittest.TestCase):
     def test_las_ventanas_no_evaluables_se_cuentan_aparte_del_semaforo(self):
         """Enmascarar deja ventanas con N sin evaluar; eso no es un filtro sin correr."""
         mask = RepeatMask(intervals=((1, 5),), source="prueba")
-        _, seleccion = piezas(seeds=BOOTSTRAP_SEEDS, mask=mask)
+        _, seleccion = piezas(seeds=BOOTSTRAP_SEEDS, mask=mask, specificity=True)
         luz = status_light(seleccion)
         self.assertEqual(luz.color, "verde")
         self.assertIn("no evaluable", luz.detail.lower())

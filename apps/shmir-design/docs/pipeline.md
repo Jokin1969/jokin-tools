@@ -17,7 +17,7 @@ parece correcto.
 | 9 | Exclusión de señales de poliadenilación ±10 nt | duro/escalonado | ninguno | — | **implementado** (`polya.py`), con dos niveles: ver abajo |
 | 10 | Seed sin colisión con miRNA | duro | fixture `mature.fa` (descarga manual) | `NOT_RUN` | mecánica **implementada** (`seeds.py`); falta `mature.fa`: la lista de 12 es un arranque, no un filtro |
 | 11 | Sin variante con AF > 0.001 (solo humano) | duro | fixture del export de gnomAD | `NOT_RUN` | pendiente |
-| 12 | Especificidad (BLAST) | duro | **manual en la v1** | `NOT_RUN` | pendiente |
+| 12 | Especificidad | duro | fixture de RefSeq RNA (descarga manual) | `NOT_RUN` | **implementado** (`specificity.py`); falta el fichero |
 | 13 | Accesibilidad (RNAplfold) | **ranking** | ViennaRNA (pip) | omitir, sin penalización | pendiente; la dependencia necesita autorización escrita (regla 6) |
 | 14 | Detección de bloques conservados | informativo | ninguno | — | **implementado** (`conservation.py`, `tools/conservation_report.py`) |
 | 15 | Agrupación en sitios + selección voraz | selección | ninguno | — | **implementado** (`selection.py`, `tools/design.py`) |
@@ -212,3 +212,38 @@ Comprobaciones por módulo: longitud 149; `GCTAGC` y `GAGCTC` una sola vez cada 
 segundo sitio rompería el clonaje y es FAIL); sin `ACGCGT` (MluI) ni `ACCGGT` (AgeI); y
 sin homopolímeros ≥4 **en la parte variable** — el `GGGG` del contexto 3' es nativo y va
 por diseño.
+
+## Especificidad (paso 12)
+
+Motor primario: **escaneo exhaustivo local** sobre RefSeq RNA de la especie, descargado
+a mano y versionado con checksum. Enumera todos los sitios con 0, 1 y 2 desapareamientos
+usando el principio del palomar (3 bloques para ≤2 desapareamientos), así que no hay
+falsos negativos.
+
+| Situación | Veredicto |
+|---|---|
+| Algún sitio de 0 o 1 desapareamiento fuera del gen diana | **FAIL**, con la lista |
+| Solo sitios de 2 desapareamientos fuera de la diana | **PASS** con aviso y la lista |
+| Sin base cargada | **NOT_RUN** — nunca PASS |
+
+**Orientación.** Un ARNm solo es diana si contiene el *complemento inverso* de la guía.
+Los hits en la misma orientación se buscan aparte, se cuentan aparte y **no entran en el
+veredicto**; el motivo dice cuántos se descartaron por eso. Es el error de lectura fácil
+de cometer.
+
+**Guía y pasajera por separado**, deduplicando por (transcrito, posición, hebra) y
+marcando de cuál viene cada hit: son dos especies distintas con off-targets distintos.
+
+**Coste.** Solo se escanean las ventanas que superan los filtros biofísicos; el resto
+salen `NOT_RUN` con ese motivo escrito. El BLAST remoto es solo inspección, nunca fuente
+del veredicto, y el informe genera la orden exacta con su taxid solo para los
+supervivientes, recordando la etiqueta de NCBI (una sumisión cada ~10 s, polling ≥60 s).
+
+### Lo que este filtro NO resuelve
+
+Los off-targets **mediados por seed**. El sitio complementario a las posiciones 2–8
+aparece por azar cada ~16 kb: hay miles en el transcriptoma y **ningún alineador los
+devuelve**, porque no son alineamientos. Eso se cuenta aparte —sitios 7mer-m8/8mer en
+3'UTR ponderados por expresión cerebral, o siSPOTR/POTS— y es el hueco más importante
+que queda abierto. El filtro `seed`, hoy en `NOT_RUN`, es justo eso. El informe lo dice
+en cada ejecución.

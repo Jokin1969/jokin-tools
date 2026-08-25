@@ -53,6 +53,8 @@ llega al repositorio.
 | `AATTAAACGAGCGAAGATGAGC` (22 nt) | 3'UTR humano, 1581–1602 | proporcionado y verificado por el responsable |
 | `GTTATTATTGGCTTGCACTTTG` (22 nt) | 3'UTR humano, 1237–1258 | proporcionado y verificado por el responsable |
 | Andamio miR-E: flancos, loop y horquilla de 97 nt | plásmido SGEP | Addgene #111170, fichero SnapGene de la secuencia depositada, coincidente con tres fuentes |
+| Contextos del módulo NheI–SacI (20 + 20 nt) | SGEP 1739–1758 y 1856–1875 | proporcionados y verificados por el responsable |
+| `GGCCGTTCCATCCAGTACTAAA` (22 nt) | NM_011170.3, 1967–1988 | deducido del dato verificado «la guía 1018 casa con 0 desapareamientos, antisentido, en 1967–1988»; comprobado contra la seed TTAGTAC, su sitio GTACTAA, el ACTAAA en 1983 y los 203 nt al extremo 3' |
 | `TTTTCTATATTTGTAACTTTGCATGT` (26 nt) | bloque conservado; humano 1507–1532, ratón 1138–1163 | proporcionado y verificado por el responsable |
 
 Son los únicos tramos de secuencia real que aparecen en el código. Las sondas de los

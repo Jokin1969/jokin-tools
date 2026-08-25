@@ -187,6 +187,15 @@ class TestInformeDeTexto(unittest.TestCase):
         self.assertIn("escalonado", texto.lower())
         self.assertIn("estricto", texto.lower())
 
+    def test_saca_la_seccion_de_especificidad(self):
+        texto = self.informe()
+        self.assertIn("Especificidad", texto)
+        self.assertIn("seed", texto.lower())
+        self.assertIn("7mer", texto)
+
+    def test_sin_base_dice_que_no_se_ejecuto(self):
+        self.assertIn("NOT_RUN", self.informe())
+
     def test_saca_la_sensibilidad_de_la_penalizacion(self):
         texto = self.informe()
         self.assertIn("sensibilidad", texto.lower())

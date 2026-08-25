@@ -65,7 +65,7 @@ El orden de operaciones es **no negociable** y está en [`docs/pipeline.md`](./d
 | 9 | Exclusión de señales de poliadenilación ±10 nt | **hecho** | `polya.py` |
 | 10 | Seed sin colisión con miRNA | **mecánica hecha**; falta `mature.fa` de miRBase | `seeds.py` |
 | 11 | Variantes con AF > 0.001 (gnomAD) | **no empezado** | — |
-| 12 | Especificidad (BLAST) | **no empezado** | — |
+| 12 | Especificidad (escaneo exhaustivo local + BLAST de inspección) | **implementado**; falta el fixture de RefSeq RNA | `specificity.py` |
 | 13 | Accesibilidad (RNAplfold, solo ranking) | **no empezado**; ViennaRNA 2.7.2 accesible en pypi (comprobado) | — |
 | 14 | Bloques conservados | **hecho** | `conservation.py` |
 | 15 | Sitios + selección voraz (50 nt, cuota por tercio, N=6) | **hecho** | `selection.py` |
@@ -212,6 +212,10 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 2. `mature.fa` de miRBase → cierra el paso 10 (la mecánica ya está). Pide un `head -8`
    del fichero real antes de escribir su parser: el formato no se supone.
 3. Fixture de `rmsk` → cierra el paso 2 (el lector ya está).
+3b. Fixture de RefSeq RNA de cada especie → cierra el paso 12 (el motor ya está).
+    **El hueco más importante que quedará abierto aun así son los off-targets mediados
+    por seed**: ningún alineador los devuelve, hacen falta 7mer-m8/8mer ponderados por
+    expresión o siSPOTR/POTS.
 4. Pasos 11 (gnomAD), 12 (BLAST) y 13 (ViennaRNA), en ese orden de dependencia.
 5. Segundo plásmido miR-E (#111177) → confirma o corrige la regla de la pasajera.
 6. Detección de ORF (paso 1) si se quiere que la interfaz acepte mRNA arbitrarios sin

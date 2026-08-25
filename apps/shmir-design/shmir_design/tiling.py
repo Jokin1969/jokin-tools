@@ -48,8 +48,21 @@ from .polya import (
     find_polya_signals,
     normalize_sequence,
 )
+from .scaffold import passenger_from_guide
 from .seeds import SeedSet, filter_seed
+from .specificity import SpecificityDatabase, filter_specificity
 from .thermo import turner_asymmetry
+
+
+#: Estado por defecto del filtro de especificidad: sin base, NOT_RUN.
+_ESPECIFICIDAD_SIN_BASE = FilterResult(
+    name="especificidad",
+    state=FilterState.NOT_RUN,
+    reason=(
+        "No hay base de RefSeq RNA cargada, asi que el filtro de especificidad no se "
+        "ejecuta. NOT_RUN no es PASS."
+    ),
+)
 
 
 def tile_positions(utr_length: int, window_size: int = WINDOW_SIZE) -> list[int]:
@@ -98,6 +111,7 @@ class TiledWindow:
     apa_upstream: tuple[PolyASignal, ...] = ()
     senales_debiles: tuple[PolyASignal, ...] = ()
     estricto_ok: bool = True
+    especificidad: FilterResult | None = None
 
     @property
     def bandera_polyA_debil(self) -> bool:
@@ -110,6 +124,7 @@ class TiledWindow:
             self.zona_prohibida,
             self.repeticiones,
             self.seed,
+            self.especificidad or _ESPECIFICIDAD_SIN_BASE,
         )
 
     def filter(self, name: str) -> FilterResult:
@@ -145,6 +160,7 @@ class TilingReport:
     windows: tuple[TiledWindow, ...]
     signals: tuple[PolyASignal, ...]
     anatomy: Anatomy | None = None
+    specificity_db: SpecificityDatabase | None = None
     avisos: tuple[Aviso, ...] = ()
     seeds: SeedSet | None = None
     mask: RepeatMask | None = None
@@ -271,6 +287,8 @@ def tile_utr(
     seeds: SeedSet | None = None,
     mask: RepeatMask | None = None,
     anatomy: Anatomy | None = None,
+    specificity_db: SpecificityDatabase | None = None,
+    specificity_target: str | None = None,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
     thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> TilingReport:
@@ -296,6 +314,12 @@ def tile_utr(
     ]
     annotated = annotate_3utr(windows, signals, len(cleaned), anatomy=anatomy)
 
+    if specificity_db is not None and not specificity_target:
+        raise ValueError(
+            "Con base de especificidad hay que declarar el gen diana "
+            "(specificity_target): sin el, todo sitio parece un off-target."
+        )
+
     tiled: list[TiledWindow] = []
     for anotada in annotated.windows:
         start = anotada.window.start
@@ -305,6 +329,28 @@ def tile_utr(
             offset=start,
             thresholds=thresholds,
         )
+        especificidad = None
+        if specificity_db is not None:
+            if evaluation.asymmetry is None or not biophysical_ok(
+                list(evaluation.filters) + [anotada.zona_prohibida]
+            ):
+                especificidad = FilterResult(
+                    name="especificidad",
+                    state=FilterState.NOT_RUN,
+                    reason=(
+                        "No evaluada: por coste, la especificidad solo se escanea en "
+                        "las ventanas que superan los filtros biofisicos. NOT_RUN no "
+                        "es PASS."
+                    ),
+                )
+            else:
+                especificidad = filter_specificity(
+                    evaluation.guide.replace("U", "T"),
+                    passenger_from_guide(evaluation.guide).sequence,
+                    specificity_db,
+                    target=specificity_target,
+                ).as_filter()
+
         tiled.append(
             TiledWindow(
                 window=anotada.window,
@@ -312,6 +358,7 @@ def tile_utr(
                 zona_prohibida=anotada.zona_prohibida,
                 seed=filter_seed(evaluation.guide, seeds),
                 repeticiones=filter_repeats(start, anotada.window.end, mask),
+                especificidad=especificidad,
                 tercio=anotada.tercio,
                 riesgo_APA=anotada.riesgo_APA,
                 apa_upstream=anotada.apa_upstream,
@@ -334,6 +381,7 @@ def tile_utr(
         windows=tuple(tiled),
         signals=tuple(signals),
         anatomy=anatomy,
+        specificity_db=specificity_db,
         avisos=annotated.avisos,
         seeds=seeds,
         mask=mask,

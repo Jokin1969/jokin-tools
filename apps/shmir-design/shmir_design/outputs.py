@@ -23,6 +23,7 @@ from .reference import ReferenceTranscript
 from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
 from .selection import ReportSelection, penalty_sensitivity
+from .specificity import SEED_CAVEAT, TAXIDS, blast_command
 from .tiling import TilingReport
 
 FASTA_WRAP = 60
@@ -284,6 +285,32 @@ def text_report(
             f"asim {choice.asymmetry:+.2f}  {window.verdict.value}"
             + ("  riesgo_APA" if window.riesgo_APA else "")
         )
+
+    lines.extend(["", "── Especificidad ──"])
+    if tiling.specificity_db is None:
+        lines.append(
+            "  NOT_RUN: no hay base de RefSeq RNA cargada. NOT_RUN no es PASS — un "
+            "fallo de red, un timeout o una base ausente nunca se convierten en PASS."
+        )
+    else:
+        lines.append(f"  Base: {tiling.specificity_db.provenance}")
+        lines.append(
+            "  Parametros: escaneo exhaustivo local, hasta 2 desapareamientos, guia y "
+            "pasajera por separado; solo cuentan los hits antisentido."
+        )
+    if selection.selection.chosen and species in TAXIDS:
+        lines.append(
+            f"  BLAST remoto de inspeccion (NUNCA fuente del veredicto), solo para los "
+            f"{len(selection.selection.chosen)} supervivientes:"
+        )
+        lines.append(f"    {blast_command(f'{species}_guias.fasta', species)}")
+        lines.append("    Etiqueta de NCBI: una sumision cada ~10 s, polling >= 60 s.")
+    elif selection.selection.chosen:
+        lines.append(
+            f"  Para el BLAST remoto hace falta el taxid de {species!r}, que no esta "
+            f"declarado (conocidos: {', '.join(sorted(TAXIDS))}). No se inventa."
+        )
+    lines.append(f"  ⚠  {SEED_CAVEAT}")
 
     sensibilidad = penalty_sensitivity(tiling, selection.selection.config)
     lines.extend(
