@@ -18,6 +18,7 @@ from .filters import FilterState
 from .outputs import fasta_guides, text_report, tsv_all_windows, tsv_oligos, tsv_selected
 from .reference import ReferenceTranscript
 from .scaffold import ScaffoldSpec
+from .polya import POLYA_COLUMNS
 from .selection import ReportSelection
 from .tiling import TiledWindow, TilingReport
 
@@ -118,10 +119,29 @@ def candidate_rows(selection: ReportSelection) -> list[dict[str, object]]:
                 # El VALOR de la asimetria y el ESTADO de su filtro son dos columnas:
                 # si comparten nombre, el diccionario fusionado pierde el numero.
                 "asimetria_kcal": round(choice.asymmetry, 2),
+                # Los cinco campos de polyA por separado: un solo estado comprimido
+                # deja al lector sin saber que filtro falta (bloque 3).
+                **(
+                    window.polya.as_columns()
+                    if window.polya
+                    else dict.fromkeys(POLYA_COLUMNS, "")
+                ),
+                # Numeros comparativos, no veredictos: vacios cuando no se calcularon,
+                # nunca a cero (bloques 1b y 4).
+                "carga_seed": (
+                    window.carga_seed.as_column() if window.carga_seed else ""
+                ),
+                "accesibilidad": (
+                    window.accesibilidad.as_column() if window.accesibilidad else ""
+                ),
                 **_filter_columns(window),
                 "bandera_polyA_debil": window.bandera_polyA_debil,
                 "biofisicos_ok": window.biofisicos_ok,
-                "riesgo_APA": window.riesgo_APA,
+                "riesgo_APA": (
+                    window.apa.as_column()
+                    if window.apa is not None
+                    else ("NO_APLICA" if not window.apa_aplica else window.riesgo_APA)
+                ),
                 "veredicto": window.verdict.value,
                 "diana": window.evaluation.sequence,
                 "guia": window.evaluation.guide,

@@ -247,3 +247,38 @@ devuelve**, porque no son alineamientos. Eso se cuenta aparte —sitios 7mer-m8/
 3'UTR ponderados por expresión cerebral, o siSPOTR/POTS— y es el hueco más importante
 que queda abierto. El filtro `seed`, hoy en `NOT_RUN`, es justo eso. El informe lo dice
 en cada ejecución.
+
+
+## Cambios de la tanda de diez bloques
+
+**Paso 1 — anatomía.** Ya no hay fallback. Tres vías (`--genbank`, `--cds`,
+`--region 3utr`), la procedencia impresa en el informe, y `orf.py` que propone sin
+decidir. El codón de parada es aviso duro.
+
+**Ventana de tilado.** `--tile-desde` / `--tile-hasta`, en coordenadas de transcrito o de
+3'UTR. Solo entran las ventanas que caben enteras. El informe imprime siempre el rango y
+qué regiones anatómicas cubre.
+
+**Paso 9 — polyA.** De veredicto a anotación de cinco campos. La geometría del corte es
+asimétrica: el corte va 10–30 nt aguas abajo del hexámero, así que la ventana que
+desaparece es la que empieza después del corte, no la que contiene la señal.
+`--polyA-modo` da los tres criterios y el informe saca el top-N bajo los tres.
+
+**Paso 10 — seed.** Dos preguntas separadas: colisión con un miARN endógeno (dos niveles)
+y carga de off-targets por seed (número comparativo). Ninguna lista vive en el código.
+
+**Paso 12b — transgén.** El casete AAV como segunda base del mismo motor de
+especificidad. FAIL con 0 o 1 desapareamiento.
+
+**Paso 13 — accesibilidad.** Implementado como desempate, nunca filtro, con dos ventanas
+de contexto.
+
+**APA.** Con `--apa-medido`, el dato sustituye a la predicción y sale el techo de
+knockdown.
+
+**Selección.** Cuota por región (`--cuota-region`), estado `NO_APLICA` fuera del 3'UTR, y
+reparto por cobertura de rango (`--reparto-rango`) para que los diez candidatos cubran
+los extremos de los parámetros dudosos en vez de amontonarse donde la asimetría es mejor.
+
+**Salida.** Una sexta salida, `{especie}_comparativa.tsv`, con todos los parámetros lado
+a lado y la columna `knockdown_medido` vacía.

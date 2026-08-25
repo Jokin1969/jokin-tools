@@ -4,7 +4,8 @@ Documento de traspaso. Dice **qué está hecho, qué está verificado con datos 
 está bloqueado y qué no se puede romper**. Si vas a tocar código, lee además
 [`CLAUDE.md`](./CLAUDE.md), que es vinculante.
 
-Última actualización: 2026-08-25. Todo lo descrito aquí está en `main`.
+Última actualización: 2026-08-25 (tanda de diez bloques). Todo lo descrito aquí
+está en `main`.
 
 ---
 
@@ -18,7 +19,7 @@ Tres puertas de entrada, el mismo núcleo detrás:
 
 ```bash
 # 1. Desde el hub: Batchwork → Laboratory tools → «Diseñar shmiRs (3′UTR → oligos)»
-#    Subes uno o dos FASTA, ajustas umbrales, descargas un ZIP con las cinco salidas.
+#    Subes uno o dos FASTA, ajustas umbrales, descargas un ZIP con las seis salidas.
 
 # 2. CLI
 python3 apps/shmir-design/tools/design.py --fasta a.fa --name raton \
@@ -32,8 +33,8 @@ streamlit run apps/shmir-design/ui/streamlit_app.py
 Comprobaciones:
 
 ```bash
-npm run test:shmir     # 402 tests, 12 saltados
-npm run check:shmir    # verificador de la regla 2 sobre el AST, 43 ficheros
+npm run test:shmir     # 882 tests, 15 saltados (los saltados esperan fixtures)
+npm run check:shmir    # verificador de la regla 2 sobre el AST, 74 ficheros
 npm test               # suite del hub Node, 257 tests (no la rompe nada de aquí)
 ```
 
@@ -50,8 +51,8 @@ El orden de operaciones es **no negociable** y está en [`docs/pipeline.md`](./d
 | # | Paso | Estado | Dónde |
 |---:|---|---|---|
 | 0 | Carga de referencias + verificación de checksum | **hecho** | `reference.py`, `tools/reference_data.py` |
-| 1 | Anatomía del transcrito (ORF, UTRs) | **parcial**: coordenadas verificadas de los dos accessions registrados; **no hay detección de ORF** | `reference.py` |
-| 2 | Enmascarado de repeticiones → RETILAR | **hecho**; falta el fichero de intervalos | `masking.py` |
+| 1 | Anatomía del transcrito (ORF, UTRs) | **hecho**: tres vías (`--genbank`, `--cds`, `--region 3utr`), procedencia impresa, y **no hay fallback silencioso** | `anatomy.py`, `genbank.py`, `orf.py` |
+| 2 | Enmascarado de repeticiones → RETILAR | **hecho**, lee `.out` de RepeatMasker y tabla rmsk de UCSC; falta el fichero | `masking.py` |
 | 3 | Tiling de 22-meros | **hecho** | `tiling.py` |
 | 4 | GC 0.30–0.52 | **hecho** | `hard_filters.py` |
 | 5 | Sin homopolímeros ≥4 | **hecho** | `hard_filters.py` |
@@ -62,21 +63,27 @@ El orden de operaciones es **no negociable** y está en [`docs/pipeline.md`](./d
 | — | Plegado del 97-mero (ViennaRNA, opcional) | **hecho** | `folding.py` |
 | — | Módulo NheI–SacI de 149 nt | **hecho** | `gblock.py` |
 | 8 | Sin motivo G-cuádruplex | **hecho**, sobre diana **y** guía | `hard_filters.py` |
-| 9 | Exclusión de señales de poliadenilación ±10 nt | **hecho** | `polya.py` |
-| 10 | Seed sin colisión con miRNA | **mecánica hecha**; falta `mature.fa` de miRBase | `seeds.py` |
+| 9 | polyA como **anotación** de cinco campos + tres modos | **hecho** | `polya.py` |
+| 10a | Colisión de seed con miARN endógeno (dos niveles) | **hecho**; falta `mature.fa` y la lista de MirGeneDB | `mirna.py` |
+| 10b | Carga de off-targets por seed (número comparativo) | **hecho**; falta el FASTA de 3'UTR del transcriptoma | `seed_load.py` |
 | 11 | Variantes con AF > 0.001 (gnomAD) | **no empezado** | — |
-| 12 | Especificidad (escaneo exhaustivo local + BLAST de inspección) | **implementado**; falta el fixture de RefSeq RNA | `specificity.py` |
-| 13 | Accesibilidad (RNAplfold, solo ranking) | **no empezado**; ViennaRNA 2.7.2 accesible en pypi (comprobado) | — |
+| 12 | Especificidad (escaneo exhaustivo local + BLAST de inspección) | **hecho**; falta el fixture de RefSeq RNA | `specificity.py` |
+| 12b | Transgén AAV como segunda base de especificidad | **hecho**; falta el FASTA del casete | `specificity.filter_transgene` |
+| 13 | Accesibilidad de la diana (desempate, nunca filtro) | **hecho** con ViennaRNA 2.7.2; `--accesibilidad` | `accessibility.py` |
+| — | APA con sitios medidos (PolyA_DB / PolyASite) | **hecho**; falta la tabla | `apa.py` |
+| — | Ventana de tilado explícita | **hecho** | `anatomy.TileRange` |
+| — | Cuota por región y estado `NO_APLICA` | **hecho** | `selection.py`, `filters.py` |
+| — | Tabla comparativa + `knockdown_medido` + reparto por rango | **hecho** | `comparative.py`, `selection.coverage_report` |
 | 14 | Bloques conservados | **hecho** | `conservation.py` |
 | 15 | Sitios + selección voraz (50 nt, cuota por tercio, N=6) | **hecho** | `selection.py` |
 | — | Horquilla miR-E de 97 nt | **hecho** | `scaffold.py`, `tools/oligo.py` |
-| — | Cinco salidas | **hecho** | `outputs.py`, `tools/design.py` |
+| — | Seis salidas | **hecho** | `outputs.py`, `comparative.py`, `tools/design.py` |
 | — | Interfaz Streamlit | **hecho** | `presentation.py` + `ui/streamlit_app.py` |
 | — | Operación en el sidebar de Batchwork | **hecho** | `apps/batchwork/server/operations/shmir-design.js` |
 
 ---
 
-## 3. Las cinco salidas
+## 3. Las seis salidas
 
 Por especie, con el mismo contenido en las tres puertas de entrada:
 
@@ -86,7 +93,8 @@ Por especie, con el mismo contenido en las tres puertas de entrada:
 | `{especie}_seleccionados.tsv` | los candidatos, con rango por asimetría, tercio, veredicto y filtros sin correr |
 | `{especie}_guias.fasta` | las guías en ADN, para BLAST (paso 12, manual en la v1) |
 | `{especie}_oligos.tsv` | la horquilla de 97 nt de cada candidato, **con sus avisos en cada fila** |
-| `{especie}_informe.txt` | anatomía, señales de poliadenilación, bloques conservados, avisos y **qué filtros no se ejecutaron** |
+| `{especie}_comparativa.tsv` | **la tabla del bloque 6**: los N elegidos con todos los parámetros lado a lado y una columna `knockdown_medido` VACÍA para que vuelva rellena del laboratorio |
+| `{especie}_informe.txt` | anatomía y su procedencia, rango tilado, polyA bajo los tres modos, repeticiones, seed, especificidad, transgén, APA, accesibilidad, rango cubierto por la selección y **qué filtros no se ejecutaron** |
 
 ---
 
@@ -96,8 +104,12 @@ Por especie, con el mismo contenido en las tres puertas de entrada:
   secuencia: GC, homopolímero, asimetría, G4 diana, G4 guía y zona prohibida de
   poliadenilación. Es el contador de referencia: comprobable sin red y sin fixtures.
 - **`aptas`** — ventanas con veredicto `PASS`, que además superan los filtros externos.
-  **Hoy es 0**, y debe serlo: con miRBase, gnomAD, BLAST y `rmsk` ausentes, esos filtros
-  están en `NOT_RUN`, y `NOT_RUN` no es `PASS`.
+  **Hoy es 0**, y debe serlo: con miRBase, gnomAD, RefSeq, el casete del transgén y
+  `rmsk` ausentes, esos filtros están en `NOT_RUN`, y `NOT_RUN` no es `PASS`.
+
+Un tercer valor que **no** es ninguno de los dos: `NO_APLICA`. Marca las preguntas que
+no van con ese candidato (polyA sobre una ventana del ORF). No es una laguna, así que no
+impide aprobar — pero si TODO sale `NO_APLICA`, el veredicto es `INCOMPLETE`.
 
 Mezclarlos es exactamente el fallo que hace que un candidato incompleto parezca
 aprobado. Son dos métodos, dos columnas del TSV y dos líneas del informe.
@@ -139,15 +151,34 @@ aprobado. Son dos métodos, dos columnas del TSV y dos líneas del informe.
 ## 6. Bloqueantes
 
 1. **Faltan los dos FASTA** en `data/reference/`: `NM_011170.3.fa` y `NM_000311.5.fa`.
-   Sin ellos, 12 tests se saltan de forma visible. Con ellos, se ponen en verde solos.
-   No se sustituyen por secuencia sintética (regla 1).
+   Sin ellos, 15 tests se saltan de forma visible. Con ellos, se ponen en verde solos.
+   No se sustituyen por secuencia sintética (regla 1). **Esto es lo que impide tilar el
+   3'UTR humano**, que estaba pedido en esta tanda: el código lo soporta entero, pero no
+   hay secuencia que tilar.
 2. **La política de red del entorno de desarrollo bloquea** NCBI, Ensembl, UCSC, gnomAD
    y miRBase (403 al CONNECT). Por eso ninguna URL está escrita en el código y `--fetch`
    exige `--efetch-url`. `pypi.org` sí es accesible.
-3. **Faltan los fixtures externos**: `mature.fa` (paso 10), export de gnomAD (11),
-   `rmsk` (2). El patrón para añadirlos está en [`docs/fixtures.md`](./docs/fixtures.md):
-   descarga manual, checksum **registrado en código con test**, carga por una función
-   que aborta si no cuadra.
+3. **Faltan los ficheros externos.** Todos tienen ya su lector, su checksum y su flag; lo
+   único que falta es el fichero. Mientras falten, su filtro está en `NOT_RUN`:
+
+   | Fichero | Desbloquea | Flag |
+   |---|---|---|
+   | RefSeq RNA versionado | especificidad (paso 12) | `--refseq` |
+   | `mature.fa` de miRBase | colisión de seed, nivel aviso | `--mirbase` |
+   | lista de MirGeneDB | colisión de seed, nivel FAIL | `--abundancia` |
+   | 3'UTR del transcriptoma | carga de off-targets por seed | `--transcriptoma-3utr` |
+   | `.out` de RepeatMasker o tabla rmsk | elementos repetitivos (paso 2) | `--rmsk` |
+   | FASTA del casete AAV completo | filtro del transgén | `--transgen` |
+   | PolyA_DB / PolyASite | APA medido en vez de predicho | `--apa-medido` |
+   | tabla de expresión cerebral | ponderar la carga de seed | `--expresion` |
+   | export de gnomAD | paso 11, **sin implementar** | — |
+
+   El patrón está en [`docs/fixtures.md`](./docs/fixtures.md): descarga manual, checksum
+   registrado, carga por una función que aborta si no cuadra.
+4. **El importador de PolyA_DB / PolyASite lee un formato propio**
+   (`posicion<TAB>fraccion<TAB>nombre`), no el volcado original. No se adivinó el reparto
+   de columnas de un fichero que nadie ha visto (regla 4). Con un volcado real de
+   ejemplo, el importador se escribe.
 
 ---
 
@@ -181,7 +212,10 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 2. **Ningún `except` se traga un fallo.** `npm run check:shmir` lo comprueba sobre el
    AST. Un `except` que no relanza necesita un comentario `# rule2-ok: <motivo>` y solo
    vale para excepciones concretas.
-3. **`NOT_RUN` no es `PASS`.** Un filtro ausente no es un filtro superado.
+3. **`NOT_RUN` no es `PASS`.** Un filtro ausente no es un filtro superado. Y `NO_APLICA`
+   no es una cuarta forma de `NOT_RUN`: significa que la pregunta no va con ese
+   candidato, no que no se pudiera responder. Nunca se usa para esquivar un filtro que
+   sí aplicaba.
 4. **Los checksums viven en código con test** (`test_reference.py`), no solo en un `.md`:
    uno que solo vive en documentación se puede ajustar para que un fichero pase.
 5. **Los avisos de oligo no se pueden silenciar.** No hay parámetro para ello en ninguna
@@ -191,6 +225,15 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 7. **El orden de operaciones del paso 15 no se cambia**: enmascarar y RETILAR, filtros
    duros, ordenar por asimetría, agrupar en sitios, selección voraz.
 8. **Los tests van antes que la funcionalidad**, y con datos reales.
+9. **La anatomía no se adivina.** No existe ningún camino que convierta un "no sé" en un
+   "todo es 3'UTR": `Anatomy.whole_is_utr3` exige declarar la procedencia por nombre, y
+   `orf.py` no importa el módulo de anatomía (hay un test sobre el propio fuente).
+10. **Un número comparativo que no se calculó va vacío, nunca a cero.** Cero sitios de
+    seed y no haber contado son cosas distintas, y la tabla no las confunde.
+11. **La columna `knockdown_medido` se queda vacía.** Es el instrumento con el que se
+    sabrá qué parámetros predicen potencia; rellenarla desde el código la inutiliza.
+12. **La accesibilidad nunca filtra.** Es el criterio peor predicho del pipeline y va
+    solo de desempate.
 
 ---
 
@@ -203,6 +246,9 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 | «el mejor del bloque es el offset 1» | mismo error de signo | el mejor es el **offset 3** (+0.77) |
 | «pasajera = revcomp exacto» | lleva un desapareamiento deliberado en la posición 1 | **resuelto**: la posición 1 nunca es el complemento Watson-Crick de la posición 22 de la guía |
 | «transición T↔C» / «por defecto A» | regla trasplantada del diseño de miR-451, que es otra geometría; se generalizó desde una sola guía acabada en C sin volver a mirar el ejemplo de referencia | **por defecto C, y A cuando la C sería la prohibida** (guía acabada en G) |
+| `--fasta` sin `--cds` tilaba el transcrito entero como 3'UTR | fallback silencioso a `whole_is_utr3`. En la corrida real sobre `NM_011170.3` metió las 744 ventanas del CDS y las 163 del 5'UTR en el mismo saco que las 1221 del 3'UTR, con 71 y 41 marcadas elegibles | **aborta** enumerando las tres vías; la procedencia sale en el informe |
+| «la zona prohibida de polyA es simétrica ±10 nt» | el corte ocurre 10–30 nt **aguas abajo** del hexámero, que se queda dentro del ARNm maduro | la zona prohibida es **asimétrica y desplazada aguas abajo**; FAIL solo pasado el corte máximo |
+| `seed` y `seed_colision` como dos columnas a la vez | responden a la misma pregunta con distinta profundidad, y la peor parecía igual de autorizada | con miRBase cargado, `seed` sale `NO_APLICA` remitiendo a la otra |
 
 ---
 
@@ -216,13 +262,16 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
     **El hueco más importante que quedará abierto aun así son los off-targets mediados
     por seed**: ningún alineador los devuelve, hacen falta 7mer-m8/8mer ponderados por
     expresión o siSPOTR/POTS.
-4. Pasos 11 (gnomAD), 12 (BLAST) y 13 (ViennaRNA), en ese orden de dependencia.
+4. Paso 11 (gnomAD): es el único paso del pipeline sin empezar.
 5. Segundo plásmido miR-E (#111177) → confirma o corrige la regla de la pasajera.
-6. Detección de ORF (paso 1) si se quiere que la interfaz acepte mRNA arbitrarios sin
-   pedir coordenadas.
+6. Importador del volcado original de PolyA_DB / PolyASite, cuando haya un fichero de
+   ejemplo que mirar.
 7. Pantalla a medida dentro de Batchwork (semáforo, mapa, tabla) si se quiere la
    experiencia de la Streamlit dentro del hub: el backend ya es el mismo, cambiaría
    devolver JSON en vez de un ZIP.
+8. Correlacionar la columna `knockdown_medido` cuando vuelva del laboratorio. Ese
+   análisis es el que dirá qué parámetros predicen potencia; hasta entonces el orden por
+   asimetría es una convención, no un resultado.
 
 ---
 
@@ -234,16 +283,25 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 | `shmir_design/filters.py` | `PASS`/`FAIL`/`NOT_RUN`, agregación, conjunto biofísico |
 | `shmir_design/reference.py` | Registro verificado, checksums, carga de fixtures |
 | `shmir_design/fetch.py` | Descarga opcional; **sin ninguna URL** |
-| `shmir_design/polya.py` | Señales, zonas prohibidas, tercios, aviso de APA, TSV |
+| `shmir_design/anatomy.py` | Regiones, `RegionSource`, dobles coordenadas, `TileRange` |
+| `shmir_design/genbank.py` | CDS anotado de un `.gb` suministrado; de aquí no sale secuencia |
+| `shmir_design/orf.py` | Propone un marco e imprime el `--cds`; **nunca decide** |
+| `shmir_design/polya.py` | Señales, anotación de cinco campos, tres modos, tercios, TSV |
+| `shmir_design/apa.py` | APA con sitios medidos y techo de knockdown |
 | `shmir_design/thermo.py` | Proxy de asimetría (Turner 2004) |
 | `shmir_design/hard_filters.py` | Filtros de ventana y `Thresholds` ajustables |
-| `shmir_design/seeds.py` | Seed 2–8 y colisión con familias de miRNA |
+| `shmir_design/seeds.py` | Seed 2–8 y lista de arranque (se retira si hay miRBase) |
+| `shmir_design/mirna.py` | Colisión de seed con miARN endógeno, en dos niveles |
+| `shmir_design/seed_load.py` | Carga de off-targets por seed: 7mer-m8, 7mer-A1, 8mer |
+| `shmir_design/specificity.py` | Especificidad y transgén, mismo motor |
+| `shmir_design/accessibility.py` | Accesibilidad de la diana; desempate, nunca filtro |
+| `shmir_design/comparative.py` | Tabla comparativa y columna `knockdown_medido` |
 | `shmir_design/masking.py` | Enmascarado de repeticiones |
 | `shmir_design/tiling.py` | Tiling, contadores, sitios |
 | `shmir_design/conservation.py` | Bloques idénticos entre dos 3'UTR |
 | `shmir_design/selection.py` | Selección voraz con espaciado y cuota |
 | `shmir_design/scaffold.py` | Andamio miR-E parametrizable y horquilla |
-| `shmir_design/outputs.py` | Las cinco salidas |
+| `shmir_design/outputs.py` | Las seis salidas |
 | `shmir_design/presentation.py` | Semáforo, tablas, mapa SVG, descargas |
 | `tools/` | CLIs: `design`, `tiling_report`, `conservation_report`, `oligo`, `reference_data`, `check_rules` |
 | `ui/streamlit_app.py` | Interfaz, sin lógica |

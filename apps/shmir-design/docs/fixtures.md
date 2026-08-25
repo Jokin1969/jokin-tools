@@ -41,3 +41,32 @@ Los transcritos son 2,4 kb: se versionan sin discusión. Para ficheros grandes (
 completo, exports de gnomAD), recorta primero a lo que el pipeline necesita, versiona el
 recorte, y anota en `PROCEDENCIA.md` el comando exacto del recorte y el checksum del
 fichero original. Un recorte sin trazabilidad es un dato huérfano.
+
+
+## Ficheros que añadió la tanda de diez bloques
+
+Todos siguen el mismo patrón: descarga manual, checksum comprobado en la carga, y sin
+él el filtro queda en `NOT_RUN`. Ninguno tiene URL escrita en el código (regla 4).
+
+| Fichero | Flags | Formato que espera el lector |
+|---|---|---|
+| GenBank del transcrito | `--genbank`, `--genbank-md5` | registro `.gb` con **una** feature CDS completa, sin `join`, sin `complement` y sin `<`/`>` |
+| RepeatMasker | `--rmsk`, `--rmsk-version`, `--rmsk-md5` | `.out` de RepeatMasker **o** tabla `rmsk` de UCSC, en coordenadas de la secuencia consultada |
+| miRBase | `--mirbase`, `--mirbase-version`, `--mirbase-md5`, `--mirbase-especies` | `mature.fa` tal cual; se filtra por prefijo (`mmu-`, `hsa-`) |
+| MirGeneDB | `--abundancia`, `--abundancia-version`, `--abundancia-md5` | un nombre de miARN por línea, `#` para comentarios |
+| 3'UTR del transcriptoma | `--transcriptoma-3utr`, `--transcriptoma-version`, `--transcriptoma-md5` | FASTA, un registro por transcrito |
+| Expresión | `--expresion` | `transcrito<TAB>valor` |
+| Casete AAV | `--transgen`, `--transgen-version`, `--transgen-md5` | FASTA del casete completo, ITR a ITR |
+| APA medido | `--apa-medido`, `--apa-version`, `--apa-md5`, `--apa-coords` | `posicion<TAB>fraccion<TAB>nombre` |
+
+### Sobre las coordenadas del `rmsk`
+
+El lector acepta las coordenadas **de la secuencia consultada**, no las genómicas. Lo
+natural es correr RepeatMasker sobre el propio FASTA del transcrito. Si se pasa un
+volcado genómico, el enmascarado aborta diciéndolo — no enmascara el tramo equivocado.
+
+### Sobre el APA medido
+
+El formato es propio a propósito: no se adivinó el reparto de columnas de un volcado de
+PolyA_DB o PolyASite que nadie ha visto (regla 4). La conversión se hace una vez a mano
+y se versiona. Con un volcado real de ejemplo se escribe el importador directo.

@@ -10,6 +10,7 @@ import unittest
 
 from shmir_design.conservation import Utr3, build_conservation_report
 from shmir_design.masking import RepeatMask
+from shmir_design.polya import POLYA_COLUMNS
 from shmir_design.presentation import (
     anatomy_rows,
     candidate_rows,
@@ -184,7 +185,8 @@ class TestFilasDeTabla(unittest.TestCase):
         nombres_filtro = {r.name for r in tiling.windows[0].filters}
         otras = {"rango", "inicio", "fin", "region", "inicio_3utr", "fin_3utr",
                  "tercio", "asimetria_kcal", "bandera_polyA_debil",
-                 "biofisicos_ok", "riesgo_APA", "veredicto", "diana", "guia"}
+                 "biofisicos_ok", "riesgo_APA", "veredicto", "diana", "guia",
+                 "carga_seed", "accesibilidad", *POLYA_COLUMNS}
         self.assertEqual(nombres_filtro & otras, set())
         self.assertEqual(
             len(candidate_rows(seleccion)[0]), len(nombres_filtro) + len(otras)
@@ -303,3 +305,29 @@ class TestDescargas(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestColumnasNuevasEnLaTabla(unittest.TestCase):
+    """La UI no puede comprimir los campos nuevos en un solo estado (bloques 3, 1b, 4)."""
+
+    def test_los_cinco_campos_de_polyA_van_por_separado(self):
+        _, seleccion = piezas()
+        fila = candidate_rows(seleccion)[0]
+        for campo in POLYA_COLUMNS:
+            self.assertIn(campo, fila)
+
+    def test_la_carga_de_seed_y_la_accesibilidad_tienen_columna(self):
+        _, seleccion = piezas()
+        fila = candidate_rows(seleccion)[0]
+        self.assertIn("carga_seed", fila)
+        self.assertIn("accesibilidad", fila)
+
+    def test_sin_calcular_van_vacias_y_no_a_cero(self):
+        _, seleccion = piezas()
+        fila = candidate_rows(seleccion)[0]
+        self.assertEqual(fila["carga_seed"], "")
+        self.assertEqual(fila["accesibilidad"], "")
+
+    def test_el_riesgo_APA_dice_si_es_prediccion(self):
+        _, seleccion = piezas()
+        self.assertIn("prediccion", str(candidate_rows(seleccion)[0]["riesgo_APA"]))

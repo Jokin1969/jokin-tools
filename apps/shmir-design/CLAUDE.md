@@ -91,11 +91,19 @@ Todo filtro devuelve uno de tres estados, nunca un booleano:
 | `PASS` | El filtro corrió con todos sus recursos y el candidato lo supera. |
 | `FAIL` | El filtro corrió con todos sus recursos y el candidato no lo supera. |
 | `NOT_RUN` | El filtro no llegó a ejecutarse (recurso externo caído, dato ausente, sin autorización). |
+| `NO_APLICA` | La pregunta no va con ese candidato (p. ej. polyA sobre una ventana del ORF). |
 
 Reglas de agregación:
 
 - Un candidato con **cualquier** filtro en `NOT_RUN` no puede reportarse como aprobado.
   Su veredicto global es `INCOMPLETE`, nunca `PASS`.
+- `NO_APLICA` **no** es una cuarta forma de `NOT_RUN`. `NOT_RUN` dice "no pude
+  comprobarlo": es una laguna, y una laguna impide aprobar. `NO_APLICA` dice "esa
+  pregunta no se le hace a este candidato". No estorba al veredicto — pero si TODO sale
+  `NO_APLICA` el veredicto es `INCOMPLETE`, porque no se llegó a preguntar nada. Nunca
+  se usa para esquivar un filtro que sí aplicaba.
+- Un número comparativo (carga de seed, accesibilidad) que no se calculó va **vacío** en
+  la tabla, nunca a cero: no haber contado y contar cero son cosas distintas.
 - Todo `NOT_RUN` y todo `FAIL` llevan un `reason` legible que dice qué recurso faltó.
 - La salida (CSV, JSON o texto) incluye una columna/campo por filtro con su estado. No
   se colapsan filtros ni se omiten los que no corrieron: un filtro ausente de la salida
@@ -203,8 +211,42 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   y para `AATAAA`/`ATTAAA` en `APA_POSIBLE`; las variantes raras dejan bandera y
   penalización de ranking. El informe saca las dos cifras de elegibles.
 - **Las coordenadas van siempre por partida doble**: transcrito y 3'UTR. Los tercios se
-  calculan sobre el 3'UTR. No hay detección de ORF: o se declara el CDS, o se declara
-  que la secuencia ya es el 3'UTR.
+  calculan sobre el 3'UTR.
+- **La anatomía nunca se adivina.** Hay tres vías (`--genbank`, `--cds`, `--region
+  3utr`) y la que se usó sale impresa en el informe (`RegionSource`). No existe ningún
+  camino que convierta un "no sé" en un "todo es 3'UTR": `Anatomy.whole_is_utr3` exige
+  declarar la procedencia por nombre. `orf.py` puede PROPONER un marco e imprimir el
+  `--cds` para pegar, pero no importa el módulo de anatomía y un test lo comprueba
+  sobre el propio fuente.
+- **El codón de parada es aviso duro**: un CDS declarado que no termina en TAA/TAG/TGA
+  aborta el diseño salvo `--permitir-cds-sin-codon-parada`. Es el chequeo que pilla el
+  off-by-one y el lío 0-based/1-based, que corren el 3'UTR entero sin avisar.
+- **Fuera del 3'UTR no se cuela nadie por accidente**: una ventana del ORF solo entra si
+  se pidió su región con `--cuota-region`. Y allí polyA, APA y los tercios salen
+  `NO_APLICA`, no `PASS`.
+- **polyA es anotación, no veredicto**: cinco campos (`polyA_hexamero`, `polyA_clase`,
+  `polyA_posicion_rel`, `polyA_solapa_seed`, `polyA_veredicto`). El corte ocurre 10-30 nt
+  **aguas abajo** del hexámero, así que la ventana que desaparece es la que empieza tras
+  el corte, no la que contiene la señal: la zona prohibida es asimétrica. `--polyA-modo`
+  tiene tres criterios y el informe saca el top-N bajo los tres; el defecto sigue siendo
+  `escalonado`, así que ninguna corrida anterior cambia de resultado.
+- **La seed son dos preguntas**: colisión con un miARN endógeno (`mirna.py`, dos niveles
+  — FAIL solo contra la lista curada de abundantes, aviso contra el resto) y carga de
+  off-targets por seed (`seed_load.py`, un número comparativo, nunca un veredicto). No
+  hay ninguna lista de miARN escrita en el código y un test lo comprueba.
+- **El transgén es una segunda base de especificidad**: `filter_transgene` con el casete
+  AAV. FAIL con 0 o 1 desapareamiento, porque una guía a un solo desapareamiento apaga
+  la construcción terapéutica casi igual que a su diana — y eso sería un fallo
+  silencioso.
+- **La accesibilidad es DESEMPATE, nunca filtro**: es el criterio peor predicho del
+  pipeline. Se calculan dos ventanas de contexto (±80 y ±150) y si discrepan el informe
+  dice que el número no sirve para desempatar.
+- **`riesgo_APA` es una PREDICCIÓN mientras no haya `--apa-medido`**, y el informe lo
+  dice con esa palabra. Con sitios medidos el dato sustituye a la predicción y sale el
+  techo de knockdown.
+- **La tabla comparativa lleva una columna `knockdown_medido` vacía** para que vuelva
+  rellena del laboratorio. No la rellenes ni la quites: es el instrumento con el que se
+  sabrá qué parámetros predicen potencia y cuáles son decoración.
 - El módulo NheI–SacI de 149 nt (`gblock.py`) lleva contextos nativos de SGEP que **no
   se recortan ni se sustituyen**: llevan el CNNC de SRSF3. El `GGGG` del contexto 3' es
   nativo, por eso la comprobación de homopolímeros mira solo la parte variable.
@@ -224,7 +266,26 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
   verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
   nunca leerlo de la UI.
-- Implementado: pasos 0 (fixtures + checksum), 1 (anatomía declarada), 2 (enmascarado),
-  3 y 15 (tiling, sitios y selección), 4-8 (filtros de ventana, incluida la asimetría),
-  9 (poliadenilación escalonada), 10 (mecánica de seeds) y 14 (bloques conservados),
-  más la horquilla y el módulo de 149 nt. El resto, en `docs/pipeline.md`.
+- Implementado: pasos 0 (fixtures + checksum), 1 (anatomía resuelta por tres vías),
+  2 (enmascarado con rmsk real), 3 y 15 (tiling, sitios y selección), 4-8 (filtros de
+  ventana, incluida la asimetría), 9 (polyA como anotación de cinco campos), 10 (seed en
+  dos preguntas: colisión y carga), 12 (especificidad + transgén), 13 (accesibilidad) y
+  14 (bloques conservados), más la horquilla, el módulo de 149 nt, el APA con dato
+  medido y la tabla comparativa. El resto, en `docs/pipeline.md`.
+
+## Ficheros que faltan (por eso hay filtros en NOT_RUN)
+
+Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
+filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
+
+| Fichero | Qué desbloquea | Flag |
+|---|---|---|
+| `data/reference/*.fa` | los dos 3'UTR de referencia (15 tests saltados) | — |
+| RefSeq RNA versionado | especificidad | `--refseq` |
+| `mature.fa` de miRBase | colisión de seed, nivel aviso | `--mirbase` |
+| lista de MirGeneDB | colisión de seed, nivel FAIL | `--abundancia` |
+| 3'UTR del transcriptoma | carga de off-targets por seed | `--transcriptoma-3utr` |
+| máscara rmsk de ratón | elementos repetitivos | `--rmsk` |
+| casete AAV completo | filtro del transgén | `--transgen` |
+| PolyA_DB / PolyASite | APA medido en vez de predicho | `--apa-medido` |
+| tabla de expresión | ponderar la carga de seed | `--expresion` |
