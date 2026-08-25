@@ -8,7 +8,8 @@ Reparto: **el manifiesto se versiona en git, los ficheros NO**. Un RefSeq RNA co
 un `mature.fa` no tienen por que entrar en el repositorio; lo que tiene que entrar es la
 linea que dice cual era y como comprobarlo.
 
-Una linea por fichero: `nombre`, `filtro`, `tamaño`, `md5`, `fecha`, `origen`.
+Una linea por fichero: `nombre`, `filtro`, `tamaño`, `md5`, `fecha_descarga`,
+`origen`.
 
 ## Lo que este manifiesto NO es
 
@@ -33,7 +34,14 @@ from pathlib import Path
 from .errors import ShmirDesignError
 
 MANIFEST_NAME = "manifest.tsv"
-MANIFEST_COLUMNS = ("nombre", "filtro", "tamaño", "md5", "fecha", "origen")
+MANIFEST_COLUMNS = (
+    "nombre",
+    "filtro",
+    "tamaño",
+    "md5",
+    "fecha_descarga",
+    "origen",
+)
 
 #: Ficheros del directorio que no son datos y no cuentan como sobrantes.
 _NO_SON_DATOS = frozenset({MANIFEST_NAME, ".gitignore"})

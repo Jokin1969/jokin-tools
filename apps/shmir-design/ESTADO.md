@@ -307,7 +307,7 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 | `shmir_design/scaffold.py` | Andamio miR-E parametrizable y horquilla |
 | `shmir_design/outputs.py` | Las seis salidas |
 | `shmir_design/presentation.py` | Semáforo, tablas, mapa SVG, descargas |
-| `tools/` | CLIs: `design`, `blocks`, `data_status`, `tiling_report`, `conservation_report`, `oligo`, `reference_data`, `check_rules` |
+| `tools/` | CLIs: `design`, `blocks`, `check_data`, `tiling_report`, `conservation_report`, `oligo`, `reference_data`, `check_rules` |
 | `ui/streamlit_app.py` | Interfaz, sin lógica |
 | `config/andamio.example.toml` | Andamio parametrizable, `verificado = false` por defecto |
 | `docs/` | pipeline, fixtures, valores esperados, preguntas abiertas, endpoints, dependencias |

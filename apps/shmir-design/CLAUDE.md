@@ -180,7 +180,7 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - **`data/reference/manifest.tsv` se versiona en git; los ficheros de datos NO.** Un
   RefSeq RNA completo no entra en el repositorio; lo que entra es la línea que dice cuál
   era y cómo comprobarlo. Cada informe copia las líneas de los ficheros que usó: sin eso
-  un veredicto no es auditable dentro de un año. `tools/data_status.py` valida el
+  un veredicto no es auditable dentro de un año. `tools/check_data.py` valida el
   directorio y dice qué filtros pueden correr, sin lanzar ningún diseño.
 - **Ojo con los dos checksums**: el md5 del manifiesto es el del FICHERO en disco; el que
   `reference.py` verifica es el de la SECUENCIA canónica (mayúsculas, sin cabecera, sin

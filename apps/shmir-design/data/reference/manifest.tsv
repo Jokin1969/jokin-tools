@@ -11,8 +11,8 @@
 # es el invariante 4 del proyecto. No se copian el uno en el otro.
 #
 # Una entrada con el md5 vacio significa "todavia no se ha descargado ni registrado".
-# `tools/data_status.py` calcula el md5 del fichero que haya y te dice que apuntar aqui.
-nombre	filtro	tamaño	md5	fecha	origen
+# `tools/check_data.py` calcula el md5 del fichero que haya y te dice que apuntar aqui.
+nombre	filtro	tamaño	md5	fecha_descarga	origen
 NM_011170.3.fa	transcrito de referencia (raton, Prnp)				NCBI efetch, descarga manual; la secuencia se verifica ademas contra el md5 canonico 44fb8cd80883844cde5e53bbc367b176 registrado en reference.py
 NM_000311.5.fa	transcrito de referencia (humano, PRNP)				NCBI efetch, descarga manual; la secuencia se verifica ademas contra el md5 canonico e28a945d24ce53e0d1d93ba5b55a532a registrado en reference.py
 refseq_rna.fa	especificidad (paso 12)				RefSeq RNA versionado, descarga manual; se pasa con --refseq y --refseq-version

@@ -1,6 +1,6 @@
 """Tests del comando de estado de los datos (tanda C).
 
-Regla 5: escritos antes que `tools/data_status.py`.
+Regla 5: escritos antes que `tools/check_data.py`.
 
 Para que sirve: saber en diez segundos si merece la pena correr o falta algo. Valida el
 directorio contra el manifiesto y dice que filtros pueden correr y cuales quedaran en
@@ -14,7 +14,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from shmir_design.manifest import MANIFEST_COLUMNS, MANIFEST_NAME
-from tools.data_status import main
+from tools.check_data import main
 
 CABECERA = "\t".join(MANIFEST_COLUMNS)
 TABLA = f"""\

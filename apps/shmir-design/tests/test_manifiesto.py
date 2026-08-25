@@ -44,7 +44,9 @@ def _md5(datos: bytes) -> str:
 class TestFormato(unittest.TestCase):
 
     def test_las_columnas_son_las_pedidas(self):
-        for columna in ("nombre", "filtro", "tamaño", "md5", "fecha", "origen"):
+        for columna in (
+            "nombre", "filtro", "tamaño", "md5", "fecha_descarga", "origen",
+        ):
             self.assertIn(columna, MANIFEST_COLUMNS)
 
     def test_el_fichero_se_llama_manifest_tsv(self):

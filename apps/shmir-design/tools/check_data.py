@@ -1,7 +1,7 @@
 """Estado de `data/reference/`: que hay, que falta y que filtros podran correr.
 
-    python3 apps/shmir-design/tools/data_status.py
-    python3 apps/shmir-design/tools/data_status.py --dir otra/carpeta --tsv
+    python3 apps/shmir-design/tools/check_data.py
+    python3 apps/shmir-design/tools/check_data.py --dir otra/carpeta --tsv
 
 No lanza ningun diseño ni escribe nada: valida el directorio contra su manifiesto y
 imprime la tabla. Sirve para saber en diez segundos si merece la pena correr.
