@@ -203,6 +203,7 @@ def text_report(
     transcript: ReferenceTranscript | None = None,
     conservation: ConservationReport | None = None,
     anatomy_warnings: tuple[str, ...] = (),
+    provenance: tuple[str, ...] = (),
 ) -> str:
     lines = [
         f"═══ Diseño de shmiR — {species} ═══",
@@ -353,11 +354,28 @@ def text_report(
         )
     lines.append(f"  ⚠  {SEED_CAVEAT}")
 
+    if provenance:
+        lines.extend(
+            [
+                "",
+                "── Procedencia de los ficheros de referencia usados ──",
+                "  Copiado del manifiesto de data/reference/. Sin estas lineas, dentro "
+                "de un año",
+                "  nadie podra saber con que version de cada base se saco este "
+                "veredicto.",
+            ]
+        )
+        lines.extend(f"    {l}" for l in provenance)
+
     lines.extend(["", "── Tabla comparativa de los candidatos ──"])
     lines.append(comparative_text(selection, scaffold))
 
     lines.extend(["", "── Rango que cubre la seleccion ──"])
-    lines.append(coverage_report(selection.selection).format_text())
+    lines.append(
+        coverage_report(
+            selection.selection, sites=list(selection.selection.sites)
+        ).format_text()
+    )
     if not selection.selection.config.spread_coverage:
         lines.append(
             "  La seleccion se hizo por asimetria, no repartiendo. La asimetria predice "

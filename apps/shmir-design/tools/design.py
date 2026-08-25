@@ -54,6 +54,11 @@ from shmir_design.blocks import (  # noqa: E402
 )
 from shmir_design.comparative import comparative_tsv  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
+from shmir_design.manifest import (  # noqa: E402
+    MANIFEST_NAME,
+    check_directory,
+    load_manifest,
+)
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
 from shmir_design.masking import load_mask_file, load_rmsk  # noqa: E402
 from shmir_design.outputs import (  # noqa: E402
@@ -69,7 +74,11 @@ from shmir_design.orf import (  # noqa: E402
     propose_cds,
 )
 from shmir_design.polya import PolyAMode, read_fasta_sequence  # noqa: E402
-from shmir_design.reference import REFERENCES, load_3utr  # noqa: E402
+from shmir_design.reference import (  # noqa: E402
+    REFERENCES,
+    fixture_filename,
+    load_3utr,
+)
 from shmir_design.scaffold import SGEP_SCAFFOLD, load_scaffold  # noqa: E402
 from shmir_design.mirna import (  # noqa: E402
     load_abundance_list,
@@ -85,6 +94,39 @@ from shmir_design.specificity import load_database  # noqa: E402
 from shmir_design.tiling import tile_utr  # noqa: E402
 
 DEFAULT_PAIR = {"raton": "NM_011170.3", "humano": "NM_000311.5"}
+
+DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "reference"
+
+
+def estado_de_los_datos(directorio: Path, *, permitir_sin_manifiesto: bool):
+    """Comprueba el directorio de referencias ANTES de correr nada y lo imprime.
+
+    Sin esto, una corrida de hace tres meses no es reproducible: no queda registro de
+    con que version de cada base se saco el veredicto.
+    """
+    try:
+        estado = check_directory(directorio)
+    except ShmirDesignError as exc:
+        if permitir_sin_manifiesto:
+            print(
+                f"  ⚠  Sin manifiesto en {directorio} ({exc}). Se sigue por "
+                f"--sin-manifiesto, pero esta corrida NO es reproducible.\n"
+            )
+            return None, None
+        raise ShmirDesignError(
+            f"{exc} Si de verdad quieres correr sin registro de procedencia, repite con "
+            f"--sin-manifiesto; la corrida no sera reproducible."
+        ) from exc
+
+    print(estado.format_text())
+    print()
+    if estado.mismatched:
+        nombres = ", ".join(r.entry.name for r in estado.mismatched)
+        raise ShmirDesignError(
+            f"Hay ficheros de referencia que NO son los que dicen ser ({nombres}); se "
+            f"aborta antes de usarlos para ningun veredicto."
+        )
+    return estado, load_manifest(directorio / MANIFEST_NAME)
 
 
 def load_seeds(path: Path):
@@ -204,6 +246,16 @@ def main(argv: list[str]) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--out", type=Path, help="Directorio de salida (obligatorio)")
+    parser.add_argument(
+        "--datos", type=Path, default=DEFAULT_DATA_DIR,
+        help="Directorio de ficheros de referencia con su manifest.tsv. Se comprueba "
+             "ANTES de correr nada y su estado se imprime.",
+    )
+    parser.add_argument(
+        "--sin-manifiesto", action="store_true",
+        help="Sigue adelante aunque no haya manifiesto. La corrida no sera "
+             "reproducible y el informe lo dira.",
+    )
     parser.add_argument("--fasta", type=Path, help="3'UTR suelto en FASTA")
     parser.add_argument("--name", default="3utr", help="Nombre de especie para --fasta")
     parser.add_argument(
@@ -525,6 +577,11 @@ def main(argv: list[str]) -> int:
             ),
             spread_coverage=args.reparto_rango,
         )
+        estado_datos, manifiesto = estado_de_los_datos(
+            args.datos, permitir_sin_manifiesto=args.sin_manifiesto
+        )
+        usados: list[str] = []
+
         thresholds = Thresholds(
             gc_min=args.gc_min,
             gc_max=args.gc_max,
@@ -622,6 +679,21 @@ def main(argv: list[str]) -> int:
                 thresholds=thresholds,
             )
 
+        # Los ficheros que de verdad se han usado: sus lineas del manifiesto van al
+        # informe. Un veredicto sin esto no es auditable dentro de un año.
+        for ruta in (
+            args.refseq, args.mirbase, args.abundancia, args.transcriptoma_3utr,
+            args.expresion, args.transgen, args.rmsk, args.repeats, args.apa_medido,
+            args.genbank, args.genbank_b,
+        ):
+            if ruta is not None:
+                usados.append(Path(ruta).name)
+        if not args.fasta:
+            usados.extend(
+                fixture_filename(REFERENCES[accession])
+                for accession in DEFAULT_PAIR.values()
+            )
+
         args.out.mkdir(parents=True, exist_ok=True)
         for especie, secuencia in secuencias.items():
             tiling = tile_utr(
@@ -651,6 +723,14 @@ def main(argv: list[str]) -> int:
                 transcript=transcripts[especie],
                 conservation=conservation,
                 anatomy_warnings=avisos_anatomia[especie],
+                provenance=(
+                    manifiesto.provenance_lines(usados)
+                    if manifiesto is not None
+                    else (
+                        "Sin manifiesto: no hay registro de procedencia y esta corrida "
+                        "NO es reproducible.",
+                    )
+                ),
             )
             salidas = {
                 f"{especie}_ventanas.tsv": tsv_all_windows(tiling),

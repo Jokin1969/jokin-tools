@@ -218,3 +218,126 @@ class TestElRepartoCambiaLaEleccion(unittest.TestCase):
 
     def test_y_los_dos_repartos_son_distintos(self):
         self.assertNotEqual(self._elegir(False), self._elegir(True))
+
+
+class TestEjeNoEstudiable(unittest.TestCase):
+    """Distinguir «la seleccion no reparte» de «este 3'UTR no da para estudiarlo».
+
+    Si TODOS los candidatos que sobreviven a los filtros tienen el GC entre 0,41 y 0,50,
+    que la seleccion no cubra el rango no es un fallo: es que ese eje no se puede
+    estudiar con este 3'UTR, y hay que dejar de tratarlo como variable.
+    """
+
+    #: Piscina entera con el GC apretado: no hay de donde sacar un extremo bajo.
+    APRETADOS = [
+        _sitio(100 * i, gc=0.41 + 0.01 * i, acceso=0.5, asimetria=2.0 - 0.1 * i)
+        for i in range(1, 6)
+    ]
+    #: Piscina con los dos extremos disponibles.
+    ANCHOS = [
+        _sitio(100, gc=0.30, acceso=0.2, asimetria=2.0),
+        _sitio(200, gc=0.31, acceso=0.2, asimetria=1.9),
+        _sitio(300, gc=0.70, acceso=0.9, asimetria=0.1),
+    ]
+
+    def _cobertura(self, sitios, n=2, spread=True):
+        config = SelectionConfig(
+            n_candidates=n, require_one_per_tercio=False,
+            spread_coverage=spread, min_spacing=50,
+        )
+        return coverage_report(choose(list(sitios), config), sites=sitios)
+
+    def _lineas_del_eje(self, cobertura, eje="GC"):
+        """Solo las lineas de un eje: cada eje tiene su propio diagnostico."""
+        texto = cobertura.format_text().splitlines()
+        recogiendo, salida = False, []
+        for linea in texto:
+            if linea.strip().startswith(eje):
+                recogiendo, salida = True, [linea]
+                continue
+            if recogiendo:
+                if linea.startswith("  ") and linea.strip() and not linea.startswith("      "):
+                    break
+                salida.append(linea)
+        return "\n".join(salida)
+
+    def test_si_la_piscina_entera_esta_apretada_el_eje_no_es_estudiable(self):
+        texto = self._lineas_del_eje(self._cobertura(self.APRETADOS))
+        self.assertIn("no se puede estudiar", texto.lower())
+
+    def test_y_lo_dice_con_el_rango_real_de_la_piscina(self):
+        texto = self._lineas_del_eje(self._cobertura(self.APRETADOS))
+        self.assertIn("0.42", texto)
+        self.assertIn("0.46", texto)
+
+    def test_y_dice_que_deje_de_tratarse_como_variable(self):
+        texto = self._lineas_del_eje(self._cobertura(self.APRETADOS))
+        self.assertIn("variable", texto.lower())
+
+    def test_no_lo_llama_fallo_de_la_app(self):
+        texto = self._lineas_del_eje(self._cobertura(self.APRETADOS))
+        self.assertIn("no es un fallo", texto.lower())
+
+    def test_si_la_piscina_daba_de_si_el_diagnostico_es_otro(self):
+        """Aqui si es la seleccion la que no ha repartido, y se dice distinto."""
+        texto = self._lineas_del_eje(
+            self._cobertura(self.ANCHOS, n=2, spread=False)
+        )
+        self.assertIn("si habia", texto.lower())
+        self.assertNotIn("no se puede estudiar", texto.lower())
+
+    def test_con_reparto_la_piscina_ancha_si_cubre_el_GC(self):
+        texto = self._lineas_del_eje(self._cobertura(self.ANCHOS, n=2, spread=True))
+        self.assertNotIn("NO SE CUBRE", texto)
+
+    def test_sin_la_piscina_no_se_puede_distinguir_y_se_dice(self):
+        """Compatibilidad: llamar sin `sites` sigue valiendo, pero no diagnostica."""
+        config = SelectionConfig(
+            n_candidates=2, require_one_per_tercio=False, spread_coverage=False,
+            min_spacing=50,
+        )
+        cobertura = coverage_report(choose(list(self.ANCHOS), config))
+        self.assertIn("no se comprobo", self._lineas_del_eje(cobertura).lower())
+
+    def test_un_recorrido_corto_no_pasa_por_cubierto(self):
+        """El caso real: GC de 0,41 a 0,50 cruza el corte pero son 0,09 de recorrido."""
+        apretados = [
+            _sitio(100, gc=0.41, acceso=0.5, asimetria=2.0),
+            _sitio(200, gc=0.50, acceso=0.5, asimetria=1.9),
+        ]
+        cobertura = coverage_report(
+            choose(
+                list(apretados),
+                SelectionConfig(
+                    n_candidates=2, require_one_per_tercio=False, min_spacing=50
+                ),
+            ),
+            sites=apretados,
+        )
+        texto = self._lineas_del_eje(cobertura)
+        self.assertIn("recorrido es demasiado corto", texto)
+        self.assertIn("no se puede estudiar", texto.lower())
+
+    def test_dice_el_minimo_que_se_esta_pidiendo(self):
+        apretados = [
+            _sitio(100, gc=0.41, acceso=0.5),
+            _sitio(200, gc=0.50, acceso=0.5),
+        ]
+        cobertura = coverage_report(
+            choose(
+                list(apretados),
+                SelectionConfig(
+                    n_candidates=2, require_one_per_tercio=False, min_spacing=50
+                ),
+            ),
+            sites=apretados,
+        )
+        self.assertIn("0.10", self._lineas_del_eje(cobertura))
+
+    def test_el_eje_estudiable_se_marca_como_tal(self):
+        cobertura = self._cobertura(self.ANCHOS)
+        self.assertTrue(cobertura.axes["GC"]["estudiable"])
+
+    def test_el_eje_no_estudiable_tambien(self):
+        cobertura = self._cobertura(self.APRETADOS)
+        self.assertFalse(cobertura.axes["GC"]["estudiable"])

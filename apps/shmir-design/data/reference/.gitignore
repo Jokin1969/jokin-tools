@@ -1,0 +1,7 @@
+# Los datos de referencia NO entran en git: un RefSeq RNA completo o un mature.fa no
+# tienen por que estar en el repositorio. Lo que si entra es el manifiesto, que dice
+# cual era cada fichero y como comprobarlo.
+*
+!.gitignore
+!manifest.tsv
+!PROCEDENCIA.md

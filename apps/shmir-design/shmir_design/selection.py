@@ -32,6 +32,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 from .accessibility import CONTEXT_WINDOWS as _CTX
 from .anatomy import Region
@@ -658,6 +659,17 @@ COVERAGE_AXES = ("GC", "accesibilidad", "APA", "polyA_debil")
 GC_SPLIT = 0.45
 ACCESSIBILITY_SPLIT = 0.50
 
+#: Recorrido MINIMO que tiene que tener la piscina de elegibles en un eje continuo para
+#: que ese eje se pueda estudiar. Contar solo los bins engaña: una piscina con el GC
+#: entre 0,41 y 0,50 cruza el corte de 0,45 y "cubre" los dos bins, pero son 0,09 de
+#: recorrido — no hay contraste que correlacionar contra el knockdown.
+#:
+#: Los valores son convencion nuestra, no una cifra publicada, asi que se IMPRIMEN en el
+#: informe junto al recorrido real para que quien lo lea pueda discrepar con criterio.
+#: Referencia para el GC: el filtro duro deja pasar 0,30-0,52, o sea 0,22 de recorrido
+#: total; se pide al menos la mitad.
+MIN_SPAN = MappingProxyType({"GC": 0.10, "accesibilidad": 0.30})
+
 
 def _bins(choice: Choice) -> dict[str, str | None]:
     """Celda de cada eje. `None` cuando no hay dato: un eje sin dato no se reparte."""
@@ -718,7 +730,20 @@ def _spread(
 
 @dataclass(frozen=True)
 class CoverageReport:
-    """Que rango cubre la seleccion en cada eje dudoso."""
+    """Que rango cubre la seleccion en cada eje dudoso, y si el eje da para estudiarlo.
+
+    La distincion importa y no es cosmetica. Que la seleccion no cubra un eje puede
+    significar dos cosas muy distintas:
+
+      - La piscina de candidatos elegibles SI tenia los dos extremos y la seleccion no
+        los cogio. Eso se arregla pidiendo `--reparto-rango` o mas candidatos.
+      - La piscina entera esta apretada — p. ej. todos los supervivientes con GC entre
+        0,41 y 0,50. Entonces **no es un fallo de la app**: es informacion. Ese eje no
+        se puede estudiar con este 3'UTR, y hay que dejar de tratarlo como variable.
+
+    Distinguirlas necesita mirar la piscina, no solo los elegidos; por eso
+    `coverage_report` acepta `sites`. Sin ella no se diagnostica, y se dice.
+    """
 
     axes: dict[str, dict[str, object]]
 
@@ -732,47 +757,137 @@ class CoverageReport:
                 )
                 continue
             celdas = datos["celdas"]
+            rango = datos.get("rango")
+            detalle = f" (de {rango[0]:.2f} a {rango[1]:.2f})" if rango else ""
             if len(celdas) < 2:
                 unica = next(iter(celdas)) if celdas else "?"
                 lines.append(
                     f"  {eje:<14} NO SE CUBRE el rango: los {datos['total']} "
-                    f"candidato(s) caen todos en {unica!r}, asi que este parametro no "
-                    f"podra correlacionarse contra el knockdown."
+                    f"candidato(s) caen todos en {unica!r}."
                 )
+                lines.extend(self._diagnostico(eje, datos))
                 continue
-            rango = datos.get("rango")
-            detalle = f" (de {rango[0]:.2f} a {rango[1]:.2f})" if rango else ""
-            lines.append(
-                f"  {eje:<14} cubre {', '.join(sorted(celdas))}{detalle}"
-            )
+            if datos.get("estudiable") is False:
+                lines.append(
+                    f"  {eje:<14} cubre {', '.join(sorted(celdas))}{detalle}, pero el "
+                    f"recorrido es demasiado corto."
+                )
+                lines.extend(self._diagnostico(eje, datos))
+                continue
+            linea = f"  {eje:<14} cubre {', '.join(sorted(celdas))}{detalle}"
+            if datos.get("estudiable") is None and eje in MIN_SPAN:
+                linea += (
+                    "  [no se comprobo el recorrido de la piscina de elegibles]"
+                )
+            lines.append(linea)
         return "\n".join(lines)
 
+    def _sangria(self) -> str:
+        return " " * 17
 
-def coverage_report(selection: Selection) -> CoverageReport:
-    """Rango cubierto por los elegidos, eje por eje. Se imprime siempre."""
-    elegidos = list(selection.chosen)
-    ejes: dict[str, dict[str, object]] = {}
+    def _diagnostico(self, eje: str, datos: dict[str, object]) -> list[str]:
+        estudiable = datos.get("estudiable")
+        sangria = self._sangria()
+        if estudiable is None:
+            return [
+                f"{sangria}No se comprobo si la piscina de elegibles daba de si, asi "
+                f"que no se puede decir si es cosa de la seleccion o del 3'UTR."
+            ]
+        if estudiable:
+            rango = datos.get("rango_piscina")
+            detalle = (
+                f" (la piscina va de {rango[0]:.2f} a {rango[1]:.2f})" if rango else ""
+            )
+            return [
+                f"{sangria}Pero SI habia candidatos elegibles en los dos "
+                f"extremos{detalle}: es la seleccion la que no los ha repartido. "
+                f"Prueba --reparto-rango o mas candidatos.",
+            ]
+        rango = datos.get("rango_piscina")
+        minimo = MIN_SPAN.get(eje)
+        if rango and minimo is not None:
+            recorrido = rango[1] - rango[0]
+            detalle = (
+                f" — TODOS los elegibles caen entre {rango[0]:.2f} y {rango[1]:.2f}, "
+                f"{recorrido:.2f} de recorrido, por debajo del minimo de {minimo:.2f} "
+                f"que pedimos para dar un eje por estudiable"
+            )
+        elif rango:
+            detalle = (
+                f" — todos los elegibles caen entre {rango[0]:.2f} y {rango[1]:.2f}"
+            )
+        else:
+            detalle = " — no hay elegibles en el otro extremo"
+        sangria = self._sangria()
+        return [
+            f"{sangria}Y no hay de donde sacarlos{detalle}.",
+            f"{sangria}Eso NO ES UN FALLO de la app ni de la seleccion: es INFORMACION.",
+            f"{sangria}Este eje NO SE PUEDE ESTUDIAR con este 3'UTR. Deja de tratarlo "
+            f"como variable del experimento:",
+            f"{sangria}no habra contraste que correlacionar contra el knockdown medido, "
+            f"por muchos candidatos que se pidan.",
+        ]
+
+
+def _celdas_y_rango(choices: list[Choice], eje: str) -> tuple[set[str], tuple | None, int]:
+    celdas: set[str] = set()
+    sin_dato = 0
+    for choice in choices:
+        celda = _bins(choice)[eje]
+        if celda is None:
+            sin_dato += 1
+        else:
+            celdas.add(celda)
     valores = {
-        "GC": [c.gc for c in elegidos],
-        "accesibilidad": [c.accessibility for c in elegidos],
-    }
+        "GC": [c.gc for c in choices],
+        "accesibilidad": [c.accessibility for c in choices],
+    }.get(eje)
+    rango = None
+    if valores is not None:
+        presentes = [v for v in valores if v is not None]
+        if presentes:
+            rango = (min(presentes), max(presentes))
+    return celdas, rango, sin_dato
+
+
+def coverage_report(
+    selection: Selection, sites: list[Site] | None = None
+) -> CoverageReport:
+    """Rango cubierto por los elegidos, eje por eje. Se imprime siempre.
+
+    `sites` es la piscina de sitios elegibles. Con ella se puede distinguir "la
+    seleccion no reparte" de "este 3'UTR no da para estudiar ese eje", que es una
+    diferencia de interpretacion, no de grado. Sin ella no se diagnostica y se dice.
+    """
+    elegidos = list(selection.chosen)
+    piscina = [s.best for s in (sites if sites is not None else selection.sites)] if (
+        sites is not None or selection.sites
+    ) else []
+    ejes: dict[str, dict[str, object]] = {}
+
     for eje in COVERAGE_AXES:
-        celdas = set()
-        sin_dato = 0
-        for choice in elegidos:
-            celda = _bins(choice)[eje]
-            if celda is None:
-                sin_dato += 1
-            else:
-                celdas.add(celda)
+        celdas, rango, sin_dato = _celdas_y_rango(elegidos, eje)
         datos: dict[str, object] = {
             "celdas": celdas,
             "sin_dato": sin_dato,
             "total": len(elegidos),
         }
-        if eje in valores:
-            presentes = [v for v in valores[eje] if v is not None]
-            if presentes:
-                datos["rango"] = (min(presentes), max(presentes))
+        if rango is not None:
+            datos["rango"] = rango
+        if sites is not None:
+            celdas_piscina, rango_piscina, _ = _celdas_y_rango(piscina, eje)
+            #: Un eje continuo necesita ADEMAS recorrido: dos bins que se tocan a los
+            #: lados de un corte arbitrario no son contraste.
+            minimo = MIN_SPAN.get(eje)
+            bastante = True
+            if minimo is not None:
+                bastante = (
+                    rango_piscina is not None
+                    and (rango_piscina[1] - rango_piscina[0]) >= minimo
+                )
+            datos["estudiable"] = len(celdas_piscina) >= 2 and bastante
+            datos["celdas_piscina"] = celdas_piscina
+            if rango_piscina is not None:
+                datos["rango_piscina"] = rango_piscina
         ejes[eje] = datos
     return CoverageReport(axes=ejes)

@@ -1,0 +1,25 @@
+# Manifiesto de data/reference/ — se versiona en git; los ficheros de datos NO.
+#
+# Para que existe: sin este registro, una corrida de hace tres meses no es reproducible
+# y un veredicto no es auditable dentro de un año. Cada informe copia de aqui las lineas
+# de los ficheros que uso.
+#
+# OJO CON LOS DOS CHECKSUMS. El md5 de esta tabla es el del FICHERO tal cual esta en
+# disco: sirve para comprobar que la descarga es la misma de siempre. El md5 que
+# `reference.py` verifica para los dos transcritos es OTRO: el de la SECUENCIA canonica
+# (mayusculas, sin cabecera y sin saltos de linea), y ese vive en codigo con test porque
+# es el invariante 4 del proyecto. No se copian el uno en el otro.
+#
+# Una entrada con el md5 vacio significa "todavia no se ha descargado ni registrado".
+# `tools/data_status.py` calcula el md5 del fichero que haya y te dice que apuntar aqui.
+nombre	filtro	tamaño	md5	fecha	origen
+NM_011170.3.fa	transcrito de referencia (raton, Prnp)				NCBI efetch, descarga manual; la secuencia se verifica ademas contra el md5 canonico 44fb8cd80883844cde5e53bbc367b176 registrado en reference.py
+NM_000311.5.fa	transcrito de referencia (humano, PRNP)				NCBI efetch, descarga manual; la secuencia se verifica ademas contra el md5 canonico e28a945d24ce53e0d1d93ba5b55a532a registrado en reference.py
+refseq_rna.fa	especificidad (paso 12)				RefSeq RNA versionado, descarga manual; se pasa con --refseq y --refseq-version
+mature.fa	colision de seed, nivel aviso (paso 10a)				miRBase, descarga manual; se pasa con --mirbase y --mirbase-version
+mirgenedb_cerebro.txt	colision de seed, nivel FAIL (paso 10a)				MirGeneDB, lista curada de miARN abundantes en cerebro; se pasa con --abundancia
+transcriptoma_3utr.fa	carga de off-targets por seed (paso 10b)				3'UTR del transcriptoma, descarga manual; se pasa con --transcriptoma-3utr
+expresion_cerebro.tsv	ponderacion de la carga de seed				Tabla transcrito<TAB>valor; se pasa con --expresion
+rmsk_mouse.out	elementos repetitivos (paso 2)				RepeatMasker sobre el FASTA del transcrito, o tabla rmsk de UCSC; se pasa con --rmsk
+aav_casete.fa	filtro del transgen (paso 12b)				Casete AAV completo, ITR a ITR, generado por el laboratorio; se pasa con --transgen
+apa_medido.tsv	APA medido en vez de predicho				PolyA_DB o PolyASite, convertido a posicion<TAB>fraccion<TAB>nombre; se pasa con --apa-medido

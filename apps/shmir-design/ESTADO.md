@@ -299,6 +299,7 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 | `shmir_design/accessibility.py` | Accesibilidad de la diana; desempate, nunca filtro |
 | `shmir_design/comparative.py` | Tabla comparativa y columna `knockdown_medido` |
 | `shmir_design/blocks.py` | Bloques listos para pedir y sus comprobaciones |
+| `shmir_design/manifest.py` | Manifiesto de `data/reference/`: qué hay, qué falta, qué se usó |
 | `shmir_design/masking.py` | Enmascarado de repeticiones |
 | `shmir_design/tiling.py` | Tiling, contadores, sitios |
 | `shmir_design/conservation.py` | Bloques idénticos entre dos 3'UTR |
@@ -306,7 +307,7 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 | `shmir_design/scaffold.py` | Andamio miR-E parametrizable y horquilla |
 | `shmir_design/outputs.py` | Las seis salidas |
 | `shmir_design/presentation.py` | Semáforo, tablas, mapa SVG, descargas |
-| `tools/` | CLIs: `design`, `blocks`, `tiling_report`, `conservation_report`, `oligo`, `reference_data`, `check_rules` |
+| `tools/` | CLIs: `design`, `blocks`, `data_status`, `tiling_report`, `conservation_report`, `oligo`, `reference_data`, `check_rules` |
 | `ui/streamlit_app.py` | Interfaz, sin lógica |
 | `config/andamio.example.toml` | Andamio parametrizable, `verificado = false` por defecto |
 | `docs/` | pipeline, fixtures, valores esperados, preguntas abiertas, endpoints, dependencias |

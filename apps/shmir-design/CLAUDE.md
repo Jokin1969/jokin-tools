@@ -177,6 +177,21 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 
 ## Estado actual (bloqueantes)
 
+- **`data/reference/manifest.tsv` se versiona en git; los ficheros de datos NO.** Un
+  RefSeq RNA completo no entra en el repositorio; lo que entra es la línea que dice cuál
+  era y cómo comprobarlo. Cada informe copia las líneas de los ficheros que usó: sin eso
+  un veredicto no es auditable dentro de un año. `tools/data_status.py` valida el
+  directorio y dice qué filtros pueden correr, sin lanzar ningún diseño.
+- **Ojo con los dos checksums**: el md5 del manifiesto es el del FICHERO en disco; el que
+  `reference.py` verifica es el de la SECUENCIA canónica (mayúsculas, sin cabecera, sin
+  saltos). Son cantidades distintas y copiar una en la otra haría que el fichero bueno se
+  rechazara. Hay un test que comprueba que no se confunden.
+- **Un eje que la selección no cubre puede significar dos cosas** y el informe las
+  distingue: que la piscina de elegibles sí tenía los dos extremos y la selección no los
+  cogió (se arregla con `--reparto-rango`), o que la piscina entera está apretada. Lo
+  segundo **no es un fallo**: es información, y el informe dice con esas palabras que ese
+  eje no se puede estudiar con ese 3'UTR y hay que dejar de tratarlo como variable. Para
+  los ejes continuos no basta con tocar dos bins: hace falta recorrido (`MIN_SPAN`).
 - **Los datos de referencia son fixtures versionados**, no descargas: `data/reference/`,
   verificados por checksum en cada carga (`docs/fixtures.md`). Nada del análisis depende
   de la red. Los dos `.fa` todavía no están en el repositorio, así que 7 tests se saltan
