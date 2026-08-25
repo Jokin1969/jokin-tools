@@ -23,7 +23,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st  # noqa: E402
 
-from shmir_design.conservation import Utr3, build_conservation_report  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.fetch import parse_fasta_payload  # noqa: E402
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
@@ -34,6 +33,7 @@ from shmir_design.presentation import (  # noqa: E402
     candidate_rows,
     map_svg,
     block_rows,
+    conservation_for,
     output_bundle,
     status_light,
     window_rows,
@@ -236,11 +236,22 @@ def main() -> None:
         modelo = st.file_uploader("mRNA — especie modelo", type=["fa", "fasta", "txt"])
         nombre_modelo = st.text_input("Nombre de la especie modelo", "modelo")
     with columnas[1]:
-        diana = st.file_uploader("mRNA — especie diana", type=["fa", "fasta", "txt"])
-        nombre_diana = st.text_input("Nombre de la especie diana", "diana")
+        diana = st.file_uploader(
+            "mRNA — segunda especie (opcional)", type=["fa", "fasta", "txt"]
+        )
+        nombre_diana = st.text_input("Nombre de la segunda especie", "diana")
 
-    if not modelo or not diana:
-        st.info("Sube los dos FASTA de mRNA para empezar.")
+    if not modelo:
+        st.info(
+            "Sube al menos un FASTA de mRNA para empezar. Con dos se buscan ademas los "
+            "bloques conservados entre ellos."
+        )
+        return
+    if diana and nombre_diana == nombre_modelo:
+        st.error(
+            f"**PARA** — las dos especies se llaman igual ({nombre_modelo!r}); "
+            f"renombra una para no mezclar sus salidas."
+        )
         return
 
     try:
@@ -264,10 +275,9 @@ def main() -> None:
             ruta.write_bytes(scaffold_file.getvalue())
             scaffold = load_scaffold(ruta)
 
-        secuencias = {
-            nombre_modelo: _fasta_sequence(modelo),
-            nombre_diana: _fasta_sequence(diana),
-        }
+        secuencias = {nombre_modelo: _fasta_sequence(modelo)}
+        if diana:
+            secuencias[nombre_diana] = _fasta_sequence(diana)
     except (ShmirDesignError, ValueError, OSError) as exc:
         # rule2-ok: frontera de la interfaz. El fallo se enseña entero al usuario y no
         # se pinta ningun resultado: no hay degradado silencioso.
@@ -288,12 +298,18 @@ def main() -> None:
             nombre: anatomia_y_utr3(secuencia, nombre)
             for nombre, secuencia in secuencias.items()
         }
-        conservacion = build_conservation_report(
-            Utr3(nombre_modelo, anatomias[nombre_modelo][1]),
-            Utr3(nombre_diana, anatomias[nombre_diana][1]),
+        # La decision de si hay algo que comparar vive en presentation.py, con test:
+        # la pagina no decide nada.
+        conservacion = conservation_for(
+            {nombre: utr3 for nombre, (_, utr3) in anatomias.items()},
             min_length=min_bloque,
             thresholds=umbrales,
         )
+        if conservacion is None:
+            st.info(
+                "Una sola especie: no hay bloques conservados que buscar. Sube una "
+                "segunda para compararlas."
+            )
 
         ficheros: dict[str, str] = {}
         for nombre, (transcrito, utr3) in anatomias.items():

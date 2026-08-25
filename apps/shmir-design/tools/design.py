@@ -59,6 +59,7 @@ from shmir_design.manifest import (  # noqa: E402
     MANIFEST_NAME,
     check_directory,
     load_manifest,
+    roles_available,
 )
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
 from shmir_design.masking import load_mask_file, load_rmsk  # noqa: E402
@@ -183,6 +184,61 @@ def parse_cuota_region(texto: str) -> tuple[tuple[Region, int], ...]:
     return tuple(cuota)
 
 
+#: Que argumento del CLI recibe la ruta, la version y el md5 de cada rol. Solo estos
+#: tres: lo demas (el gen diana, el sistema de coordenadas) no es un fichero y el
+#: manifiesto no lo sabe.
+DESTINOS = {
+    "refseq": ("refseq", "refseq_version", "refseq_md5"),
+    "mirbase": ("mirbase", "mirbase_version", "mirbase_md5"),
+    "abundancia": ("abundancia", "abundancia_version", "abundancia_md5"),
+    "transcriptoma": (
+        "transcriptoma_3utr", "transcriptoma_version", "transcriptoma_md5",
+    ),
+    "expresion": ("expresion", None, None),
+    "rmsk": ("rmsk", "rmsk_version", "rmsk_md5"),
+    "transgen": ("transgen", "transgen_version", "transgen_md5"),
+    "apa": ("apa_medido", "apa_version", "apa_md5"),
+}
+
+
+def conectar_desde_manifiesto(args, estado) -> None:
+    """Rellena los argumentos de fichero a partir del manifiesto.
+
+    Una flag explicita MANDA sobre el manifiesto —hace falta para poder probar un
+    fichero suelto sin registrarlo— pero se dice en la consola: sobrescribir en silencio
+    lo que dice el registro de procedencia es justo lo que este atajo viene a evitar.
+    """
+    disponibles = roles_available(estado)
+    if not disponibles:
+        print(
+            "  --usar-manifiesto: ningun fichero de referencia esta en OK, asi que no "
+            "hay nada que conectar. Los filtros que dependen de uno quedaran en "
+            "NOT_RUN.\n"
+        )
+        return
+
+    print("  --usar-manifiesto conecta:")
+    for rol in disponibles:
+        destino, version, md5 = DESTINOS[rol.role]
+        entrada = estado.result_of(rol.filename).entry
+        if getattr(args, destino) is not None:
+            print(
+                f"    {rol.filename:<24} NO se conecta: --{destino.replace('_', '-')} "
+                f"explicito manda sobre el manifiesto."
+            )
+            continue
+        setattr(args, destino, args.datos / rol.filename)
+        if version is not None:
+            setattr(args, version, entrada.date or entrada.md5)
+        if md5 is not None:
+            setattr(args, md5, entrada.md5)
+        print(
+            f"    {rol.filename:<24} → {rol.what}  ({entrada.date or 'sin fecha'}, "
+            f"md5 {entrada.md5[:8]}…)"
+        )
+    print()
+
+
 def resolver_anatomia(
     *,
     nombre: str,
@@ -251,6 +307,12 @@ def main(argv: list[str]) -> int:
         "--datos", type=Path, default=DEFAULT_DATA_DIR,
         help="Directorio de ficheros de referencia con su manifest.tsv. Se comprueba "
              "ANTES de correr nada y su estado se imprime.",
+    )
+    parser.add_argument(
+        "--usar-manifiesto", action="store_true",
+        help="Conecta solo cada fichero de --datos que este en OK con el filtro que le "
+             "toca, con la version y el md5 del propio manifiesto. Sustituye a las 31 "
+             "flags de fontaneria; una flag explicita sigue mandando sobre esto.",
     )
     parser.add_argument(
         "--sin-manifiesto", action="store_true",
@@ -459,6 +521,19 @@ def main(argv: list[str]) -> int:
         return 2
 
     try:
+        estado_datos, manifiesto = estado_de_los_datos(
+            args.datos, permitir_sin_manifiesto=args.sin_manifiesto
+        )
+        usados: list[str] = []
+
+        if args.usar_manifiesto:
+            if estado_datos is None:
+                raise ShmirDesignError(
+                    f"--usar-manifiesto necesita un {MANIFEST_NAME} en {args.datos}: "
+                    f"es de donde salen el fichero, la version y el md5 de cada filtro."
+                )
+            conectar_desde_manifiesto(args, estado_datos)
+
         scaffold = load_scaffold(args.scaffold) if args.scaffold else SGEP_SCAFFOLD
         seeds = BOOTSTRAP_SEEDS if args.bootstrap_seeds else None
         if args.seeds:
@@ -590,11 +665,6 @@ def main(argv: list[str]) -> int:
             ),
             spread_coverage=args.reparto_rango,
         )
-        estado_datos, manifiesto = estado_de_los_datos(
-            args.datos, permitir_sin_manifiesto=args.sin_manifiesto
-        )
-        usados: list[str] = []
-
         thresholds = Thresholds(
             gc_min=args.gc_min,
             gc_max=args.gc_max,

@@ -415,3 +415,51 @@ class TestAmbarGraduado(unittest.TestCase):
         luz = status_light(seleccion)
         self.assertEqual(luz.total, 0)
         self.assertEqual(luz.ran, 0)
+
+
+class TestUnaSolaEspecie(unittest.TestCase):
+    """La interfaz exigia DOS FASTA para arrancar; el CLI corre con uno.
+
+    La corrida murina es de una especie. Que la pagina bloquee el caso mas comun no es
+    un detalle de presentacion, asi que la decision —¿hay bloques conservados que
+    calcular?— vive aqui, con test, y no en la pagina.
+    """
+
+    def test_con_dos_secuencias_hay_informe_de_conservacion(self):
+        from shmir_design.presentation import conservation_for
+
+        bloque = "TTTTCTATATTTGTAACTTTGCATGT"
+        informe = conservation_for(
+            {
+                "modelo": "GCGTCAGTACGATCGAATTACT" * 10 + bloque,
+                "diana": "ACGTCAGTACGATCGAATTAGT" * 8 + bloque,
+            }
+        )
+        self.assertIsNotNone(informe)
+        self.assertTrue(informe.blocks)
+
+    def test_con_una_sola_no_hay_nada_que_comparar(self):
+        from shmir_design.presentation import conservation_for
+
+        self.assertIsNone(conservation_for({"raton": "GCGTCAGTACGATCGAATTACT" * 10}))
+
+    def test_con_ninguna_tampoco_revienta(self):
+        from shmir_design.presentation import conservation_for
+
+        self.assertIsNone(conservation_for({}))
+
+    def test_con_mas_de_dos_aborta_en_vez_de_elegir_dos(self):
+        from shmir_design.errors import ShmirDesignError
+        from shmir_design.presentation import conservation_for
+
+        with self.assertRaises(ShmirDesignError):
+            conservation_for({"a": "ACGT" * 10, "b": "ACGT" * 10, "c": "ACGT" * 10})
+
+    def test_el_paquete_de_salidas_funciona_sin_conservacion(self):
+        tiling, seleccion = piezas()
+        bundle = output_bundle(
+            species="sonda", tiling=tiling, selection=seleccion,
+            scaffold=SGEP_SCAFFOLD, conservation=None,
+        )
+        texto = bundle["sonda_informe.txt"]
+        self.assertIn("No se comparo con otra especie", texto)

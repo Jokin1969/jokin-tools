@@ -15,7 +15,14 @@ from html import escape
 
 from .blocks import blocks_fasta, blocks_tsv, build_block, order_sheet
 from .comparative import comparative_tsv
-from .conservation import ConservationReport
+from .conservation import (
+    MIN_BLOCK_LENGTH,
+    ConservationReport,
+    Utr3,
+    build_conservation_report,
+)
+from .errors import ShmirDesignError
+from .hard_filters import DEFAULT_THRESHOLDS, Thresholds
 from .filters import FilterState
 from .outputs import fasta_guides, text_report, tsv_all_windows, tsv_oligos, tsv_selected
 from .reference import ReferenceTranscript
@@ -373,6 +380,34 @@ def output_bundle(
     if blocks:
         salidas.update(block_bundle(selection, scaffold, species=species))
     return salidas
+
+
+def conservation_for(
+    sequences: dict[str, str],
+    *,
+    min_length: int = MIN_BLOCK_LENGTH,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
+) -> ConservationReport | None:
+    """Bloques conservados entre dos 3'UTR, o `None` si solo hay uno.
+
+    Con una sola especie no hay nada que comparar, y eso no es un error: la corrida
+    murina es de una especie. Con mas de dos si se aborta — elegir dos por nuestra
+    cuenta seria decidir cual es el modelo y cual la diana.
+    """
+    if len(sequences) < 2:
+        return None
+    if len(sequences) > 2:
+        raise ShmirDesignError(
+            f"Se han dado {len(sequences)} secuencias y los bloques conservados se "
+            f"buscan entre DOS. Se aborta en vez de elegir dos por nuestra cuenta."
+        )
+    (nombre_a, seq_a), (nombre_b, seq_b) = sequences.items()
+    return build_conservation_report(
+        Utr3(nombre_a, seq_a),
+        Utr3(nombre_b, seq_b),
+        min_length=min_length,
+        thresholds=thresholds,
+    )
 
 
 def block_bundle(

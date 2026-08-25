@@ -177,6 +177,14 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 
 ## Estado actual (bloqueantes)
 
+- **`--usar-manifiesto` es la forma normal de correr.** Conecta cada fichero de
+  `data/reference/` que esté en `OK` con el filtro que su rol declara, tomando la
+  versión y el md5 del propio manifiesto. Sustituye a 31 flags de fontanería, y cierra
+  un fallo real: antes se podía teclear `--refseq-version 2024` apuntando a un fichero
+  de 2026 y nadie se enteraba, porque el fichero y su versión iban por separado. La
+  correspondencia fichero→filtro vive en `manifest.ROLES`, **en código**: como séptima
+  columna del manifiesto se podría reasignar un fichero a otro filtro sin que se viera
+  en el diff. Una flag explícita sigue mandando, pero se dice en la consola.
 - **`data/reference/manifest.tsv` se versiona en git; los ficheros de datos NO.** Un
   RefSeq RNA completo no entra en el repositorio; lo que entra es la línea que dice cuál
   era y cómo comprobarlo. Cada informe copia las líneas de los ficheros que usó: sin eso

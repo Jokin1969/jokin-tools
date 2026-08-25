@@ -57,6 +57,87 @@ class EntryStatus(StrEnum):
 
 
 @dataclass(frozen=True)
+class Role:
+    """Que filtro desbloquea cada fichero, y que flags del CLI sustituye.
+
+    Vive en CODIGO y no como septima columna del manifiesto por dos razones: el formato
+    de seis columnas esta fijado, y una correspondencia editable desde un fichero de
+    datos permitiria reasignar un fichero a otro filtro sin que se vea en el diff.
+    """
+
+    role: str
+    filename: str
+    what: str
+    replaces: tuple[str, ...]
+
+
+#: Unico sitio donde vive la correspondencia fichero → filtro. `--usar-manifiesto` la
+#: recorre y conecta cada fichero que este en OK con lo que le toca.
+ROLES: tuple[Role, ...] = (
+    Role(
+        role="refseq",
+        filename="refseq_rna.fa",
+        what="especificidad (paso 12)",
+        replaces=("--refseq", "--refseq-name", "--refseq-version", "--refseq-md5"),
+    ),
+    Role(
+        role="mirbase",
+        filename="mature.fa",
+        what="colision de seed, nivel aviso (paso 10a)",
+        replaces=("--mirbase", "--mirbase-version", "--mirbase-md5"),
+    ),
+    Role(
+        role="abundancia",
+        filename="mirgenedb_cerebro.txt",
+        what="colision de seed, nivel FAIL (paso 10a)",
+        replaces=("--abundancia", "--abundancia-version", "--abundancia-md5"),
+    ),
+    Role(
+        role="transcriptoma",
+        filename="transcriptoma_3utr.fa",
+        what="carga de off-targets por seed (paso 10b)",
+        replaces=(
+            "--transcriptoma-3utr",
+            "--transcriptoma-version",
+            "--transcriptoma-md5",
+        ),
+    ),
+    Role(
+        role="expresion",
+        filename="expresion_cerebro.tsv",
+        what="ponderacion de la carga de seed",
+        replaces=("--expresion",),
+    ),
+    Role(
+        role="rmsk",
+        filename="rmsk_mouse.out",
+        what="elementos repetitivos (paso 2)",
+        replaces=("--rmsk", "--rmsk-version", "--rmsk-md5"),
+    ),
+    Role(
+        role="transgen",
+        filename="aav_casete.fa",
+        what="filtro del transgen (paso 12b)",
+        replaces=("--transgen", "--transgen-name", "--transgen-version", "--transgen-md5"),
+    ),
+    Role(
+        role="apa",
+        filename="apa_medido.tsv",
+        what="APA medido en vez de predicho",
+        replaces=("--apa-medido", "--apa-version", "--apa-md5"),
+    ),
+)
+
+
+def role_of(filename: str) -> Role | None:
+    """El rol de un fichero, o `None` si no tiene ninguno. No adivina."""
+    for rol in ROLES:
+        if rol.filename == filename:
+            return rol
+    return None
+
+
+@dataclass(frozen=True)
 class ManifestEntry:
     name: str
     filter_name: str
@@ -297,6 +378,23 @@ class DirectoryStatus:
                 + ", ".join(self.unlisted)
             )
         return "\n".join(lineas)
+
+
+def roles_available(status: DirectoryStatus) -> tuple[Role, ...]:
+    """Roles que se pueden conectar solos: fichero presente y comprobado.
+
+    Solo `OK`. `SIN_REGISTRAR` no vale aunque el fichero este: sin md5 no hay version,
+    y sin version no hay procedencia que poner en el informe — que es justo lo que este
+    atajo tiene que preservar.
+    """
+    disponibles = []
+    for resultado in status.results:
+        if resultado.status is not EntryStatus.OK:
+            continue
+        rol = role_of(resultado.entry.name)
+        if rol is not None:
+            disponibles.append(rol)
+    return tuple(disponibles)
 
 
 def check_directory(directory: Path | str) -> DirectoryStatus:
