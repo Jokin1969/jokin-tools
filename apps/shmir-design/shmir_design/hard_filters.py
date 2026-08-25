@@ -181,6 +181,22 @@ def evaluate_window(
             f"{WINDOW_SIZE} nt; se aborta la evaluacion en vez de aplicar umbrales "
             f"que no le corresponden."
         )
+    desconocida = cleaned.find("N")
+    if desconocida != -1:
+        motivo = (
+            f"La ventana tiene una base desconocida (N) en la posicion "
+            f"{desconocida + 1}: no es evaluable. NOT_RUN no es PASS."
+        )
+        return WindowEvaluation(
+            sequence=cleaned,
+            guide=guide_from_target(cleaned),
+            filters=tuple(
+                FilterResult(name=name, state=FilterState.NOT_RUN, reason=motivo)
+                for name in ("GC", "homopolimero", "G4_diana", "G4_guia", "asimetria")
+            ),
+            offset=offset,
+        )
+
     guide = guide_from_target(cleaned)
     return WindowEvaluation(
         sequence=cleaned,

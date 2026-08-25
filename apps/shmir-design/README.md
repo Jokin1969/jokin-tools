@@ -13,7 +13,9 @@ Las reglas del proyecto están en [`CLAUDE.md`](./CLAUDE.md) y son vinculantes.
 | 0 | Carga de fixtures + verificación de checksum (longitud, extremos, md5) y extracción de los 3'UTR | `shmir_design/reference.py`, `tools/reference_data.py` |
 | 4, 5, 6, 8 | Filtros duros de ventana: GC, homopolímeros, motivo G4, guía con U forzada | `shmir_design/hard_filters.py` |
 | 7 | Asimetría de la guía (Turner 2004, proxy heurístico) | `shmir_design/thermo.py` |
+| 3, 15 | Tiling de 22-meros, contadores `biofisicos_ok` / `aptas` y agrupación en sitios | `shmir_design/tiling.py`, `tools/tiling_report.py` |
 | 9 | Guardarrailes de poliadenilación: señales, zonas prohibidas ±10 nt, aviso de APA, tercios | `shmir_design/polya.py` |
+| 10 | Seed de la guía (posiciones 2–8) contra familias de miRNA — **mecánica**, falta `mature.fa` | `shmir_design/seeds.py` |
 | 14 | Bloques conservados entre dos 3'UTR, con todas sus ventanas evaluadas | `shmir_design/conservation.py`, `tools/conservation_report.py` |
 | — | Estados de filtro `PASS`/`FAIL`/`NOT_RUN` y su agregación | `shmir_design/filters.py` |
 | — | Verificador de la regla 2 sobre el AST | `tools/check_rules.py` |
@@ -43,6 +45,23 @@ print(report.format_text())
 
 Coordenadas 1-based; `distance_to_3p` cuenta los nucleótidos entre el último del motivo
 y el extremo 3'.
+
+## Los dos contadores
+
+```bash
+python3 apps/shmir-design/tools/tiling_report.py --tsv /tmp/salida
+```
+
+- **`biofisicos_ok`** — ventanas que superan los seis filtros biofísicos: GC,
+  homopolímero, asimetría, G4 diana, G4 guía y zona prohibida de poliadenilación. No
+  depende de ningún recurso externo: es el contador comprobable sin red.
+- **`aptas`** — ventanas con veredicto `PASS`, que además superan los externos. Con
+  miRBase ausente esto es **0**, porque la seed queda en `NOT_RUN` y `NOT_RUN` no es
+  `PASS`. Debe ser así.
+
+`--bootstrap-seeds` carga una lista de 12 seeds que sirve para probar la mecánica y
+**no** para cribar candidatos; el informe lo dice en cada ejecución. Una ventana con una
+`N` no es evaluable: sus filtros salen en `NOT_RUN` con el motivo, nunca en `PASS`.
 
 ## Bloques conservados
 

@@ -174,6 +174,17 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   que ningún test de consistencia interna habría detectado; por eso hay dos tests de
   cordura biológica que fijan los signos. No los borres ni los "arregles" para que pase
   un valor nuevo: si fallan, la especificación es lo que hay que revisar.
-- Implementado: pasos 0 (fixtures + checksum), 4-8 (filtros duros de ventana, incluida
-  la asimetría), 9 (guardarrailes de poliadenilación) y 14 (bloques conservados). El
-  resto del pipeline, en `docs/pipeline.md`.
+- **Dos contadores, nunca uno**: `biofisicos_ok` (los seis filtros biofísicos, sin
+  recursos externos) y `aptas` (veredicto `PASS`). Mezclarlos es lo que hace que un
+  candidato incompleto parezca aprobado. Ver `docs/pipeline.md`.
+- La lista de 12 seeds de `seeds.py` es un **arranque para probar la mecánica**, no un
+  filtro real: el filtro real necesita `mature.fa` de miRBase completo. El aviso va en
+  el código y en cada informe; no lo quites.
+- Una ventana con `N` no es evaluable: sus filtros de secuencia salen en `NOT_RUN`, no
+  en `PASS` ni en `FAIL`.
+- El límite del riesgo de APA es la **señal**, no el sitio de corte (10-30 nt aguas
+  abajo): sobre-marca a propósito y no es una predicción del extremo de la isoforma
+  corta.
+- Implementado: pasos 0 (fixtures + checksum), 3 y 15 parcial (tiling y sitios), 4-8
+  (filtros de ventana, incluida la asimetría), 9 (poliadenilación), 10 (mecánica de
+  seeds) y 14 (bloques conservados). El resto, en `docs/pipeline.md`.

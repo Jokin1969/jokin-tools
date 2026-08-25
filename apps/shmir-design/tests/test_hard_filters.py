@@ -183,6 +183,16 @@ class TestEvaluacionDeVentana(unittest.TestCase):
         self.assertIs(asimetria.state, FilterState.FAIL)
         self.assertIn("-1.2", asimetria.reason)
 
+    def test_una_ventana_con_N_no_es_evaluable(self):
+        """Base desconocida: los filtros no corren, y NOT_RUN no es PASS (regla 3)."""
+        con_n = "GCGTCAGTACGATCGAATTNCT"
+        evaluacion = evaluate_window(con_n)
+        self.assertTrue(
+            all(r.state is FilterState.NOT_RUN for r in evaluacion.filters)
+        )
+        self.assertIn("20", evaluacion.filters[0].reason)
+        self.assertIs(evaluacion.verdict, Verdict.INCOMPLETE)
+
     def test_una_ventana_de_longitud_distinta_es_error_explicito(self):
         with self.assertRaises(ValueError):
             evaluate_window(BLOCK)

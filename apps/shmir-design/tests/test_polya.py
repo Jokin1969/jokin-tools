@@ -259,6 +259,12 @@ class TestRiesgoAPA(unittest.TestCase):
         self.assertEqual(aviso.position_range, (500, 621))
         self.assertAlmostEqual(aviso.affected_pct, 100.0)
 
+    def test_el_aviso_dice_que_el_limite_es_la_senal_y_no_el_corte(self):
+        """El sitio de corte cae 10-30 nt aguas abajo: esto sobre-marca, a proposito."""
+        aviso = self.mouse_report([Window(500, 22, label="abajo")]).avisos[0]
+        self.assertIn("corte", aviso.message.lower())
+        self.assertIn("conservador", aviso.message.lower())
+
     def test_sin_ventanas_afectadas_el_aviso_lo_dice_sin_rango(self):
         aviso = self.mouse_report([Window(100, 22, label="arriba")]).avisos[0]
         self.assertEqual(aviso.affected_count, 0)

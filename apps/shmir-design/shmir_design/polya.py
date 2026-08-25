@@ -8,7 +8,10 @@ A. Localiza la señal canonica AATAAA y sus variantes principales, con posicion 
    mas de 100 nt del final). Toda ventana que solape una señal ±10 nt queda EXCLUIDA.
 B. Si aparece un APA proximal, emite un AVISO destacado: los candidatos corriente
    abajo podrian no capturar la isoforma corta. No se excluyen; se anotan con
-   `riesgo_APA=True`.
+   `riesgo_APA=True`. El limite del riesgo es la SEÑAL, no el sitio de corte —que cae
+   10-30 nt aguas abajo—, asi que sobre-marca del orden de 25 ventanas. Es conservador
+   a proposito, y no debe leerse como una prediccion del extremo de la isoforma corta:
+   para eso harian falta datos de un atlas de poliadenilacion, no un motivo.
 C. Anota cada ventana con el tercio del 3'UTR en que cae (proximal / medio / distal),
    para las cuotas de seleccion posteriores.
 
@@ -535,7 +538,10 @@ def _avisos_apa(
                     f"{signal.position} (a {signal.distance_to_3p} nt del extremo 3'). "
                     f"{alcance}. Podrian no capturar la isoforma corta. NO se excluyen: "
                     f"quedan anotadas con riesgo_APA=True y la lista completa esta en "
-                    f"el TSV. La decision es del responsable."
+                    f"el TSV. La decision es del responsable. El limite de riesgo es la "
+                    f"SEÑAL ({signal.position}), no el sitio de corte, que cae 10-30 nt "
+                    f"aguas abajo: el marcado es conservador a proposito y NO es una "
+                    f"prediccion del extremo de la isoforma corta."
                 ),
                 affected=tuple(a.name for a in afectadas),
                 affected_count=count,

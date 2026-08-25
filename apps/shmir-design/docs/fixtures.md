@@ -9,7 +9,7 @@ Aplica a todo lo que sea dato de referencia:
 | Recurso | Fichero | Paso que lo usa | Estado |
 |---|---|---|---|
 | Transcritos NCBI | `data/reference/NM_*.fa` | 0, 1 | implementado; fixtures pendientes de añadir |
-| miRBase `mature.fa` | `data/reference/mature.fa` | 10 (seed vs miRNA) | pendiente |
+| miRBase `mature.fa` | `data/reference/mature.fa` | 10 (seed vs miRNA) | mecánica lista (`seeds.py`); falta el fichero y su checksum |
 | Export de gnomAD | `data/reference/gnomad_*.tsv` | 11 (AF > 0.001) | pendiente |
 | Track `rmsk` de UCSC | `data/reference/rmsk_*.bed` | 2 (enmascarado) | pendiente |
 

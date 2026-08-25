@@ -15,22 +15,56 @@ la columna de estado dice qué se comprueba ya.
 | 3'UTR | 950–2191 (**1242 nt**) | 830–2435 (**1606 nt**) | en `reference.py`, con test |
 | GC 3'UTR | 43.2% | 37.4% | pendiente (paso 4) |
 
-## Tiling y filtros duros
+## Tiling y contadores de referencia
 
-Ventanas de 22 nt sobre el 3'UTR, con umbrales GC 0.30–0.52, homopolímero máx 3,
-asimetría ≥ +0.5 kcal/mol, sin motivo G4, U forzada en posición 1 de la guía:
+El contador de referencia es **`biofisicos_ok`**: ventanas que superan TODOS los filtros
+biofísicos, que son y solo son GC, homopolímero, asimetría, G4 diana, G4 guía y zona
+prohibida de poliadenilación. **No incluye la seed ni ningún filtro externo**, así que
+es comprobable hoy, sin miRBase y sin red. Es distinto del veredicto final.
 
-| | ventanas | PASS | sitios independientes |
+| | ventanas | `biofisicos_ok` | sitios |
 |---|---:|---:|---:|
 | ratón | 1221 | **302** | 96 |
-| humano | 1585 | **322** | 96 |
+| humano | 1585 | **323** | 97 |
 
-"Sitios independientes" = bloques de posiciones contiguas entre las que pasan.
-Estado: pendiente (pasos 3 y 15; los filtros 4–8 ya están).
+"Sitios" = bloques de posiciones de inicio contiguas entre las que pasan.
 
-> Cifras **corregidas** tras el error de signo en la especificación de la asimetría.
-> Las anteriores (181 / 231, 93 / 90 sitios) correspondían al signo invertido y no
-> valen para nada: no las uses como comparación histórica.
+Estado: implementado (`tiling.py`). Los conteos se comprueban con los 3'UTR reales, así
+que **el test está escrito y saltado** hasta que los fixtures estén en el repositorio.
+Lo que sí está verificado hoy: la aritmética del tiling (1242 → 1221 ventanas,
+1606 → 1585) y la agrupación en sitios.
+
+> Dos erratas previas, para que nadie use las cifras viejas: 181/231 correspondían al
+> signo invertido de la asimetría, y 302/**322** mezclaban un filtro de seeds que solo
+> afectaba al humano. Las de la tabla de arriba son homogéneas: solo biofísicos.
+
+## Filtro de seeds — test secundario
+
+Con la lista de arranque de 12 seeds cargada como si viniera de un fichero:
+
+| | aptas | sitios |
+|---|---:|---:|
+| ratón | 302 | 96 (no cambia) |
+| humano | **322** | 96 |
+
+La única ventana humana que cae es la de la posición **1237**:
+
+```
+diana  GTTATTATTGGCTTGCACTTTG
+guia   UAAAGUGCAAGCCAAUAAUAAC
+seed   AAAGTGC  →  familia miR-17/20/93/106
+GC 0.364, asimetria +1.76  (pasa todos los biofisicos)
+```
+
+Ese "exactamente una" es una comprobación más fuerte que el conteo absoluto: verifica a
+la vez que el filtro funciona y que no toca nada más.
+
+Estado: la ventana 1237 está **verificada hoy** (guía, GC, asimetría, seed y que pasa
+los seis biofísicos). Los conteos globales esperan a los fixtures.
+
+**La lista de 12 no es un filtro real** — es un arranque para probar la mecánica. Cribar
+candidatos con ella daría una falsa sensación de haber filtrado. El filtro real necesita
+`mature.fa` de miRBase completo, y está escrito así en `seeds.py`.
 
 ## Señales de poliadenilación — **cubierto**
 
