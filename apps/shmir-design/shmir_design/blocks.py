@@ -25,9 +25,14 @@ eso se pliega dos veces:
 
 Si falla (1), la horquilla en si no es estandar. Si falla (2), **el modulo NheI-SacI no
 es seguro para ese candidato**: el intron de destino deshace la horquilla, y como ese
-mismo intron esta dentro del cassette, el cassette con estos espaciadores tampoco sirve.
-La salida lo dice y no emite bloque. Reoptimizar los espaciadores significa generar
-secuencia de novo, que la regla 1 prohibe sin autorizacion escrita.
+mismo intron esta dentro del cassette, el cassette con los espaciadores estandar tampoco
+sirve.
+
+Para ese caso hay una salida, y esta AUTORIZADA explicitamente:
+`--reoptimizar-espaciadores` genera espaciadores de novo para esa guia con
+`shmir_design/spacers.py`. Va apagado por defecto, porque genera secuencia. Cuando se
+usa, el cassette resultante lleva un intron distinto y **deja de ser intercambiable con
+el modulo NheI-SacI estandar**; la salida lo dice en cada sitio donde aparece.
 
 Python 3.11+, solo libreria estandar salvo ViennaRNA, que es opcional (regla 6).
 """
@@ -118,6 +123,12 @@ class Block:
     checks: tuple[FilterResult, ...]
     structure_in_intron: str = ""
     structure_alone: str = ""
+    #: Espaciadores usados. `standard=False` significa generados de novo para esta guia.
+    spacers: object | None = None
+
+    @property
+    def custom_spacers(self) -> bool:
+        return self.spacers is not None and not self.spacers.standard
 
     def check(self, name: str) -> FilterResult:
         for resultado in self.checks:
@@ -338,15 +349,54 @@ def _check_transgene(transgene) -> FilterResult:
     )
 
 
+def _check_spacers(eleccion, pedido: bool, en_intron: FilterResult) -> FilterResult:
+    """Que espaciadores lleva el bloque. Los de novo se marcan en toda la salida."""
+    if eleccion is not None:
+        return FilterResult(
+            name="espaciadores",
+            state=FilterState.PASS,
+            reason=(
+                f"GENERADOS DE NOVO para esta guia (5' {eleccion.spacer5}, 3' "
+                f"{eleccion.spacer3}). Los estandar no conservaban la estructura del "
+                f"97-mero dentro del intron. El cassette NO es intercambiable con el "
+                f"modulo NheI-SacI estandar."
+            ),
+        )
+    if en_intron.state is FilterState.FAIL and not pedido:
+        return FilterResult(
+            name="espaciadores",
+            state=FilterState.NOT_RUN,
+            reason=(
+                "Los espaciadores estandar no valen para esta guia y no se pidio "
+                "reoptimizarlos. Con --reoptimizar-espaciadores se generan de novo para "
+                "esta guia; hasta entonces no hay bloque valido. NOT_RUN no es PASS."
+            ),
+        )
+    return FilterResult(
+        name="espaciadores",
+        state=FilterState.PASS,
+        reason="Los espaciadores ESTANDAR del proyecto, sin tocar.",
+    )
+
+
 def build_block(
     guide: str,
     *,
     scaffold: ScaffoldSpec | None = None,
     recipient: str | None = None,
     transgene=None,
+    reoptimize_spacers: bool = False,
     available: bool | None = None,
 ) -> Block:
-    """Monta el modulo y el cassette de una guia, y los comprueba."""
+    """Monta el modulo y el cassette de una guia, y los comprueba.
+
+    `reoptimize_spacers` solo entra en juego si el 97-mero NO conserva su estructura
+    dentro del intron con los espaciadores estandar. Genera secuencia de novo, asi que
+    va apagado por defecto y lo que produce se marca en toda la salida.
+    """
+    # Import diferido a proposito: `spacers` necesita PIECES de este modulo, asi que
+    # importarlo arriba seria un ciclo.
+    from .spacers import STANDARD_3, STANDARD_5, choose_spacers  # noqa: PLC0415
     from .folding import VIENNA_AVAILABLE  # noqa: PLC0415
 
     usable = VIENNA_AVAILABLE if available is None else available
@@ -355,9 +405,45 @@ def build_block(
     module = (
         _s("NheI") + _s("contexto5") + hairpin.sequence + _s("contexto3") + _s("SacI")
     )
-    intron = (
-        _s("MVM5") + _s("espaciador5") + module + _s("espaciador3") + _s("MVM3")
+
+    def montar(espaciador5: str, espaciador3: str) -> str:
+        return _s("MVM5") + espaciador5 + module + espaciador3 + _s("MVM3")
+
+    espaciador5, espaciador3 = STANDARD_5, STANDARD_3
+    eleccion = None
+    intron = montar(espaciador5, espaciador3)
+
+    aislado, en_intron, estructura_intron, estructura_sola = _check_folding(
+        hairpin.sequence, intron, available=usable
     )
+
+    if (
+        reoptimize_spacers
+        and usable
+        and en_intron.state is FilterState.FAIL
+    ):
+        busqueda = choose_spacers(
+            hairpin=hairpin.sequence,
+            structure_alone=estructura_sola,
+            assemble=montar,
+        )
+        if busqueda.choice is not None:
+            eleccion = busqueda.choice
+            espaciador5, espaciador3 = eleccion.spacer5, eleccion.spacer3
+            intron = montar(espaciador5, espaciador3)
+            aislado, en_intron, estructura_intron, estructura_sola = _check_folding(
+                hairpin.sequence, intron, available=usable
+            )
+            en_intron = FilterResult(
+                name=en_intron.name,
+                state=en_intron.state,
+                reason=(
+                    f"{en_intron.reason} CON ESPACIADORES GENERADOS DE NOVO para esta "
+                    f"guia: los estandar no conservaban la estructura. El cassette "
+                    f"resultante NO es intercambiable con el modulo NheI-SacI estandar."
+                ),
+            )
+
     cassette = _s("MluI") + _s("exon5") + intron + _s("exon3") + _s("AgeI")
 
     inicio = cassette.index(module)
@@ -382,9 +468,6 @@ def build_block(
             posicion - GIBSON_ARM : posicion + len(cassette) + GIBSON_ARM
         ]
 
-    aislado, en_intron, estructura_intron, estructura_sola = _check_folding(
-        hairpin.sequence, intron, available=usable
-    )
 
     gibson_cassette = (
         FilterResult(
@@ -413,6 +496,7 @@ def build_block(
         en_intron,
         _check_transgene(transgene),
         gibson_cassette,
+        _check_spacers(eleccion, reoptimize_spacers, en_intron),
     )
 
     return Block(
@@ -427,6 +511,7 @@ def build_block(
         checks=checks,
         structure_in_intron=estructura_intron,
         structure_alone=estructura_sola,
+        spacers=eleccion,
     )
 
 
@@ -436,6 +521,7 @@ FASTA_WRAP = 60
 
 CHECK_ORDER = (
     "longitudes",
+    "espaciadores",
     "sitios_unicos",
     "sin_MluI_AgeI",
     "homopolimeros",
@@ -466,6 +552,11 @@ def blocks_fasta(blocks: list[Block], *, species: str) -> str:
     for block in blocks:
         estado = "modulo_seguro" if block.module_safe else "MODULO_NO_VERIFICADO"
         fallos = ",".join(r.name for r in block.failed) or "ninguno"
+        espaciadores = (
+            "ESPACIADORES_DE_NOVO_NO_INTERCAMBIABLE"
+            if block.custom_spacers
+            else "espaciadores_estandar"
+        )
         for sufijo, secuencia, nota in (
             ("modulo_NheI_SacI", block.module, f"{MODULE_LENGTH} nt"),
             (
@@ -476,7 +567,8 @@ def blocks_fasta(blocks: list[Block], *, species: str) -> str:
             ("cassette_MluI_AgeI", block.cassette, f"{CASSETTE_LENGTH} pb"),
         ):
             partes.append(
-                f">{_label(block, species, sufijo)} {nota} | {estado} | fallos={fallos}\n"
+                f">{_label(block, species, sufijo)} {nota} | {estado} | "
+                f"{espaciadores} | fallos={fallos}\n"
                 + _wrap(secuencia)
             )
         if block.cassette_gibson is not None:
@@ -494,7 +586,7 @@ def blocks_tsv(blocks: list[Block], *, species: str) -> str:
         "especie", "guia", "pasajera",
         "modulo_149", "cassette_318", "modulo_gibson", "cassette_gibson",
         "longitud_modulo", "longitud_cassette", "longitud_intron",
-        "modulo_seguro",
+        "modulo_seguro", "espaciadores", "espaciador5", "espaciador3",
         *(f"check:{n}" for n in CHECK_ORDER),
         "motivos",
     ]
@@ -519,6 +611,9 @@ def blocks_tsv(blocks: list[Block], *, species: str) -> str:
                 str(len(block.cassette)),
                 str(len(block.intron)),
                 "si" if block.module_safe else "no",
+                "de_novo" if block.custom_spacers else "estandar",
+                block.spacers.spacer5 if block.spacers else "",
+                block.spacers.spacer3 if block.spacers else "",
                 *(estados.get(n, "") for n in CHECK_ORDER),
                 motivos,
             ]
@@ -553,6 +648,12 @@ def order_sheet(blocks: list[Block], *, species: str) -> str:
     for numero, block in enumerate(blocks, start=1):
         lineas.append(f"── Candidato {numero} — guia {block.guide} ──")
         lineas.append(f"  pasajera {block.passenger}")
+        if block.custom_spacers:
+            lineas.append("")
+            lineas.extend(
+                f"  {t}" for t in block.spacers.format_text().splitlines()
+            )
+            lineas.append("")
         if not block.module_safe:
             lineas.append(
                 "  ⚠  MODULO NO VERIFICADO: no se ha podido confirmar que la horquilla "

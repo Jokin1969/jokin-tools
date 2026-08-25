@@ -385,6 +385,12 @@ def main(argv: list[str]) -> int:
              "brazos de Gibson y hoja de pedido.",
     )
     parser.add_argument(
+        "--reoptimizar-espaciadores", action="store_true",
+        help="Con --bloques: genera espaciadores de novo para las guias cuyo 97-mero "
+             "no sobreviva dentro del intron estandar. Genera secuencia, va apagado "
+             "por defecto y lo que produce se marca en toda la salida.",
+    )
+    parser.add_argument(
         "--reparto-rango", action="store_true",
         help="Reparte los candidatos por los extremos de los parametros dudosos (GC "
              "alto y bajo, accesibilidad alta y baja, delante y detras del APA, con y "
@@ -750,6 +756,7 @@ def main(argv: list[str]) -> int:
                         seleccion.window_of(c).evaluation.guide.replace("U", "T"),
                         scaffold=scaffold,
                         transgene=seleccion.window_of(c).transgen_detalle,
+                        reoptimize_spacers=args.reoptimizar_espaciadores,
                     )
                     for c in seleccion.selection.chosen
                 ]

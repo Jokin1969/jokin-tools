@@ -118,6 +118,13 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--especie", default="candidato")
     parser.add_argument(
+        "--reoptimizar-espaciadores", action="store_true",
+        help="Si el 97-mero no conserva su estructura dentro del intron con los "
+             "espaciadores estandar, genera unos nuevos PARA ESA GUIA. Genera "
+             "secuencia de novo, asi que va apagado por defecto; el cassette "
+             "resultante deja de ser intercambiable con el modulo NheI-SacI estandar.",
+    )
+    parser.add_argument(
         "--receptor", type=Path,
         help="FASTA del plasmido receptor. Sin el, los brazos de Gibson del cassette "
              "quedan en NOT_RUN: caen fuera del cassette y no se inventan.",
@@ -154,7 +161,12 @@ def main(argv: list[str]) -> int:
 
         receptor = read_fasta_sequence(args.receptor) if args.receptor else None
         bloques = [
-            build_block(guia, recipient=receptor) for _, guia in candidatos
+            build_block(
+                guia,
+                recipient=receptor,
+                reoptimize_spacers=args.reoptimizar_espaciadores,
+            )
+            for _, guia in candidatos
         ]
 
         args.out.mkdir(parents=True, exist_ok=True)

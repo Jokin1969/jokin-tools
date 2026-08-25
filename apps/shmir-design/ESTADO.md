@@ -299,6 +299,7 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 | `shmir_design/accessibility.py` | Accesibilidad de la diana; desempate, nunca filtro |
 | `shmir_design/comparative.py` | Tabla comparativa y columna `knockdown_medido` |
 | `shmir_design/blocks.py` | Bloques listos para pedir y sus comprobaciones |
+| `shmir_design/spacers.py` | Espaciadores del intrón; generación de novo AUTORIZADA y acotada |
 | `shmir_design/manifest.py` | Manifiesto de `data/reference/`: qué hay, qué falta, qué se usó |
 | `shmir_design/masking.py` | Enmascarado de repeticiones |
 | `shmir_design/tiling.py` | Tiling, contadores, sitios |

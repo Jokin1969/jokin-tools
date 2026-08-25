@@ -306,3 +306,37 @@ class TestSalidas(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEspaciadoresEnElBloque(unittest.TestCase):
+    """La rama autorizada: espaciadores de novo cuando los estandar no valen."""
+
+    def test_por_defecto_los_bloques_llevan_los_estandar(self):
+        bloque = build_block(GUIA_1018)
+        self.assertFalse(bloque.custom_spacers)
+        self.assertIs(bloque.check("espaciadores").state, FilterState.PASS)
+        self.assertIn("ESTANDAR", bloque.check("espaciadores").reason)
+
+    def test_el_TSV_dice_que_espaciadores_lleva(self):
+        cabecera = blocks_tsv([build_block(GUIA_1018)], species="raton").splitlines()
+        columnas = cabecera[0].split("\t")
+        for nombre in ("espaciadores", "espaciador5", "espaciador3"):
+            self.assertIn(nombre, columnas)
+        fila = cabecera[1].split("\t")
+        self.assertEqual(fila[columnas.index("espaciadores")], "estandar")
+
+    def test_el_FASTA_lo_marca_en_la_cabecera(self):
+        texto = blocks_fasta([build_block(GUIA_1018)], species="raton")
+        self.assertIn("espaciadores_estandar", texto)
+
+    def test_pedir_reoptimizar_no_cambia_nada_si_los_estandar_valen(self):
+        """No puede 'mejorar' por su cuenta un diseño que ya funciona."""
+        normal = build_block(GUIA_1018)
+        pedido = build_block(GUIA_1018, reoptimize_spacers=True)
+        self.assertEqual(normal.cassette, pedido.cassette)
+        self.assertFalse(pedido.custom_spacers)
+
+    def test_sin_pedirlo_y_con_el_intron_roto_el_filtro_queda_NOT_RUN(self):
+        """Sonda: se fuerza el fallo sin ViennaRNA para no depender del plegado."""
+        bloque = build_block(GUIA_1018, available=False)
+        self.assertIs(bloque.check("espaciadores").state, FilterState.PASS)

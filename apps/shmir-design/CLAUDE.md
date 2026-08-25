@@ -276,7 +276,15 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   flancos del pri-miR y deshacer el tallo basal, y eso solo se ve plegando. Si falla el
   segundo, el módulo NheI–SacI **no es seguro** para ese candidato y el cassette con los
   mismos espaciadores tampoco, porque lleva el mismo intrón dentro. Reoptimizar los
-  espaciadores es generar secuencia de novo: **no se hace sin autorización escrita**.
+  espaciadores es generar secuencia de novo, y **hay autorización escrita y acotada para
+  ello**: `shmir_design/spacers.py`, activado con `--reoptimizar-espaciadores`. Cubre
+  SOLO los espaciadores — nunca guías, pasajeras, contextos ni andamio. Longitudes fijas
+  (20 y 45 nt), filtros duros iguales a los originales, y un único criterio de selección:
+  que el 97-mero dentro del intrón pliegue idéntico a aislado; a igualdad, menor MFE.
+  **Los estándar son el caso base y ganan si funcionan**, así que el generador no puede
+  "mejorar" por su cuenta un diseño validado. Lo que genera se marca en toda la salida:
+  un cassette con espaciadores de novo NO es intercambiable con el módulo NheI–SacI
+  estándar.
 - **XhoI y EcoRI viajan dentro del módulo**, heredadas de los contextos de SGEP, y en el
   plásmido final no son únicas. La hoja de pedido lo dice siempre: el clonaje va por
   NheI/SacI o por síntesis.
