@@ -11,10 +11,12 @@ sección "Estructura" está desactualizada, la de abajo no).
 | `server.js`, `src/`, `public/`, `lib/`, `test/` | Hub principal (Node/Express) | Las de este fichero |
 | `apps/asignacion/`, `apps/auth/`, `apps/bitacora/`, `apps/datamatrix/`, `apps/feep/`, `apps/imprimir/`, `apps/qr-tis/`, `apps/re-memory/` | Micro-apps del hub (Node/Express) | Las de este fichero |
 | `apps/batchwork/` | Operaciones por lotes sobre ficheros (Node + scripts Python auxiliares) | Las de este fichero |
-| `apps/shmir-design/` | Proyecto Python 3.11+ independiente, CLI + interfaz Streamlit | **`apps/shmir-design/CLAUDE.md`** |
+| `apps/shmir-design/` | Proyecto Python 3.11+ independiente: CLI, interfaz Streamlit y una operación en el sidebar de Batchwork | **`apps/shmir-design/CLAUDE.md`** |
 
-`apps/batchwork/` y `apps/shmir-design/` son cosas distintas y no comparten nada:
-el primero es la app de lotes del hub, el segundo es el diseñador de shmiRs.
+`apps/batchwork/` y `apps/shmir-design/` son cosas distintas: el primero es la app de
+lotes del hub, el segundo el diseñador de shmiRs. Lo único que comparten es un puente:
+`apps/batchwork/python/shmir_design_run.py` llama al CLI de shmir-design para la
+operación «Diseñar shmiRs» del sidebar. Ese puente no debe contener lógica.
 
 ## `apps/shmir-design/` tiene reglas propias y vinculantes
 

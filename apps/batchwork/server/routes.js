@@ -213,6 +213,7 @@ router.post('/api/session/:id/execute', express.json(), async (req, res) => {
     'merge-pdfs': () => require('./operations/merge-pdfs'),
     'split-pdfs': () => require('./operations/split-pdfs'),
     'watermark': () => require('./operations/watermark'),
+    'shmir-design': () => require('./operations/shmir-design'),
   };
 
   const opFactory = OPERATIONS[operation];

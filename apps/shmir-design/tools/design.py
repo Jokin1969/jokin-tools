@@ -31,8 +31,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shmir_design.conservation import Utr3, build_conservation_report  # noqa: E402
+from shmir_design.conservation import (  # noqa: E402
+    MIN_BLOCK_LENGTH,
+    Utr3,
+    build_conservation_report,
+)
 from shmir_design.errors import ShmirDesignError  # noqa: E402
+from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
 from shmir_design.masking import load_mask_file  # noqa: E402
 from shmir_design.outputs import (  # noqa: E402
     fasta_guides,
@@ -68,12 +73,28 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--out", type=Path, help="Directorio de salida (obligatorio)")
     parser.add_argument("--fasta", type=Path, help="3'UTR suelto en FASTA")
     parser.add_argument("--name", default="3utr", help="Nombre de especie para --fasta")
+    parser.add_argument(
+        "--fasta-b", type=Path, help="Segundo 3'UTR: compara las dos especies"
+    )
+    parser.add_argument("--name-b", default="especie_b", help="Nombre para --fasta-b")
     parser.add_argument("--candidates", type=int, default=SelectionConfig().n_candidates)
     parser.add_argument("--min-spacing", type=int, default=SelectionConfig().min_spacing)
     parser.add_argument("--scaffold", type=Path, help="Andamio en TOML")
     parser.add_argument("--seeds", type=Path, help="Tabla de seeds `seed familia`")
     parser.add_argument("--bootstrap-seeds", action="store_true")
     parser.add_argument("--repeats", type=Path, help="Intervalos repetitivos `inicio fin`")
+    parser.add_argument("--min-block", type=int, default=MIN_BLOCK_LENGTH)
+    parser.add_argument("--gc-min", type=float, default=DEFAULT_THRESHOLDS.gc_min)
+    parser.add_argument("--gc-max", type=float, default=DEFAULT_THRESHOLDS.gc_max)
+    parser.add_argument(
+        "--max-homopolymer", type=int, default=DEFAULT_THRESHOLDS.max_homopolymer
+    )
+    parser.add_argument(
+        "--min-asymmetry", type=float, default=DEFAULT_THRESHOLDS.min_asymmetry
+    )
+    parser.add_argument(
+        "--polya-flank", type=int, default=DEFAULT_THRESHOLDS.polya_flank
+    )
     args = parser.parse_args(argv)
 
     if args.out is None:
@@ -81,6 +102,12 @@ def main(argv: list[str]) -> int:
         return 2
     if args.seeds and args.bootstrap_seeds:
         print("design: --seeds y --bootstrap-seeds son excluyentes.", file=sys.stderr)
+        return 2
+    if args.fasta_b and not args.fasta:
+        print(
+            "design: --fasta-b necesita --fasta; son las dos especies que se comparan.",
+            file=sys.stderr,
+        )
         return 2
 
     try:
@@ -92,10 +119,25 @@ def main(argv: list[str]) -> int:
         config = SelectionConfig(
             n_candidates=args.candidates, min_spacing=args.min_spacing
         )
+        thresholds = Thresholds(
+            gc_min=args.gc_min,
+            gc_max=args.gc_max,
+            max_homopolymer=args.max_homopolymer,
+            min_asymmetry=args.min_asymmetry,
+            polya_flank=args.polya_flank,
+        )
 
         if args.fasta:
             secuencias = {args.name: read_fasta_sequence(args.fasta)}
             transcripts = {args.name: None}
+            if args.fasta_b:
+                if args.name_b == args.name:
+                    raise ValueError(
+                        f"Las dos especies se llaman igual ({args.name!r}); se aborta "
+                        f"para no mezclar sus salidas."
+                    )
+                secuencias[args.name_b] = read_fasta_sequence(args.fasta_b)
+                transcripts[args.name_b] = None
         else:
             secuencias = {
                 nombre: load_3utr(REFERENCES[accession])
@@ -110,12 +152,17 @@ def main(argv: list[str]) -> int:
         if len(secuencias) == 2:
             (nombre_a, seq_a), (nombre_b, seq_b) = secuencias.items()
             conservation = build_conservation_report(
-                Utr3(nombre_a, seq_a), Utr3(nombre_b, seq_b)
+                Utr3(nombre_a, seq_a),
+                Utr3(nombre_b, seq_b),
+                min_length=args.min_block,
+                thresholds=thresholds,
             )
 
         args.out.mkdir(parents=True, exist_ok=True)
         for especie, secuencia in secuencias.items():
-            tiling = tile_utr(secuencia, seeds=seeds, mask=mask)
+            tiling = tile_utr(
+                secuencia, seeds=seeds, mask=mask, thresholds=thresholds
+            )
             seleccion = select_from_report(tiling, config)
             informe = text_report(
                 species=especie,

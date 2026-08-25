@@ -35,6 +35,103 @@ class TestArgumentos(unittest.TestCase):
             )
 
 
+class TestDosEspecies(unittest.TestCase):
+    """Dos FASTA en la misma ejecucion, con bloques conservados entre ellos."""
+
+    def preparar(self):
+        directorio = Path(tempfile.mkdtemp())
+        bloque = "TTTTCTATATTTGTAACTTTGCATGT"
+        a = directorio / "modelo.fa"
+        b = directorio / "diana.fa"
+        a.write_text(">modelo\n" + "GCGTCAGTACGATCGAATTACT" * 10 + bloque + "\n")
+        b.write_text(">diana\n" + "ACGTCAGTACGATCGAATTAGT" * 8 + bloque + "\n")
+        return directorio, a, b
+
+    def correr(self, extra=None):
+        directorio, a, b = self.preparar()
+        salida = directorio / "salida"
+        codigo = main(
+            ["--fasta", str(a), "--name", "modelo",
+             "--fasta-b", str(b), "--name-b", "diana",
+             "--out", str(salida)] + (extra or [])
+        )
+        return codigo, salida
+
+    def test_escribe_las_cinco_salidas_de_cada_especie(self):
+        codigo, salida = self.correr()
+        self.assertEqual(codigo, 0)
+        for especie in ("modelo", "diana"):
+            for sufijo in ("ventanas.tsv", "seleccionados.tsv", "guias.fasta",
+                           "oligos.tsv", "informe.txt"):
+                with self.subTest(f"{especie}_{sufijo}"):
+                    self.assertTrue((salida / f"{especie}_{sufijo}").is_file())
+
+    def test_el_informe_trae_los_bloques_conservados(self):
+        _, salida = self.correr()
+        informe = (salida / "modelo_informe.txt").read_text(encoding="utf-8")
+        self.assertIn("TTTTCTATATTTGTAACTTTGCATGT", informe)
+
+    def test_fasta_b_sin_fasta_es_error(self):
+        directorio, a, b = self.preparar()
+        self.assertEqual(main(["--fasta-b", str(b), "--out", str(directorio / "x")]), 2)
+
+
+class TestUmbralesPorLineaDeComandos(unittest.TestCase):
+
+    def correr(self, extra, secuencia=None):
+        directorio = Path(tempfile.mkdtemp())
+        fasta = directorio / "sonda.fa"
+        fasta.write_text(secuencia or SONDA)
+        salida = directorio / "salida"
+        codigo = main(["--fasta", str(fasta), "--name", "sonda", "--out", str(salida)] + extra)
+        return codigo, salida
+
+    def test_el_GC_minimo_se_puede_mover(self):
+        """Bajando el minimo, las ventanas que fallaban por GC dejan de fallar."""
+        # Sonda pobre en GC: el bloque conservado real, repetido.
+        pobre = ">sonda\n" + "TTTTCTATATTTGTAACTTTGCATGT" * 20 + "\n"
+        _, salida_defecto = self.correr([], secuencia=pobre)
+        self.assertIn("GC=FAIL", (salida_defecto / "sonda_ventanas.tsv").read_text())
+
+        codigo, salida = self.correr(["--gc-min", "0.10"], secuencia=pobre)
+        self.assertEqual(codigo, 0)
+        self.assertNotIn("GC=FAIL", (salida / "sonda_ventanas.tsv").read_text())
+
+    def test_un_rango_de_GC_imposible_aborta(self):
+        codigo, _ = self.correr(["--gc-min", "0.9", "--gc-max", "0.1"])
+        self.assertEqual(codigo, 2)
+
+    def test_el_flanco_de_polyA_se_puede_mover(self):
+        # Sonda con una señal AATAAA en 81, para que la zona prohibida exista.
+        con_senal = ">sonda\n" + "ACGT" * 20 + "AATAAA" + "ACGT" * 20 + "\n"
+        codigo, salida = self.correr(["--polya-flank", "40"], secuencia=con_senal)
+        self.assertEqual(codigo, 0)
+        tsv = (salida / "sonda_ventanas.tsv").read_text()
+        self.assertIn("±40 nt", tsv)
+
+        _, salida_defecto = self.correr([], secuencia=con_senal)
+        por_defecto = (salida_defecto / "sonda_ventanas.tsv").read_text()
+        self.assertIn("±10 nt", por_defecto)
+        self.assertGreater(tsv.count("zona_prohibida_polyA=FAIL"),
+                           por_defecto.count("zona_prohibida_polyA=FAIL"))
+
+    def test_el_numero_de_candidatos_llega_al_TSV(self):
+        codigo, salida = self.correr(["--candidates", "2"])
+        self.assertEqual(codigo, 0)
+        lineas = (salida / "sonda_seleccionados.tsv").read_text().splitlines()
+        self.assertLessEqual(len(lineas) - 1, 2)
+
+    def test_el_umbral_de_asimetria_se_puede_mover(self):
+        """Con el umbral por los suelos, ninguna ventana falla por asimetria."""
+        por_defecto, salida_defecto = self.correr([])
+        self.assertEqual(por_defecto, 0)
+        self.assertIn("asimetria=FAIL", (salida_defecto / "sonda_ventanas.tsv").read_text())
+
+        codigo, salida = self.correr(["--min-asymmetry", "-99"])
+        self.assertEqual(codigo, 0)
+        self.assertNotIn("asimetria=FAIL", (salida / "sonda_ventanas.tsv").read_text())
+
+
 class TestEjecucionCompleta(unittest.TestCase):
 
     def correr(self, extra=None):

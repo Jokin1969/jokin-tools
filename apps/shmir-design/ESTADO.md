@@ -22,7 +22,12 @@ python3 apps/shmir-design/tools/design.py --out salida/     # pipeline completo
 streamlit run apps/shmir-design/ui/streamlit_app.py         # interfaz (opcional)
 ```
 
-No confundir con `apps/batchwork/`, que es otra app del hub y no tiene nada que ver.
+Además está enchufado al hub: **Batchwork → Laboratory tools → «Diseñar shmiRs
+(3′UTR → oligos)»** ejecuta el mismo CLI a través de un puente de 30 líneas
+(`apps/batchwork/python/shmir_design_run.py`) y devuelve un ZIP con las cinco salidas.
+
+No confundir el proyecto con `apps/batchwork/` en sí, que es la app de operaciones por
+lotes del hub: aquí solo la usamos como puerta de entrada.
 
 ---
 
@@ -51,6 +56,7 @@ El orden de operaciones es **no negociable** y está en [`docs/pipeline.md`](./d
 | — | Horquilla miR-E de 97 nt | **hecho** | `scaffold.py`, `tools/oligo.py` |
 | — | Cinco salidas (TSV completo, seleccionados, FASTA, oligos, informe) | **hecho** | `outputs.py`, `tools/design.py` |
 | — | Interfaz Streamlit | **hecho** | `presentation.py` + `ui/streamlit_app.py` |
+| — | Operación en el sidebar de Batchwork | **hecho** | `apps/batchwork/server/operations/shmir-design.js`, `apps/batchwork/python/shmir_design_run.py` |
 
 ---
 

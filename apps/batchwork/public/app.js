@@ -176,6 +176,30 @@ const OPERATIONS = [
         params: [],
       },
       {
+        id: 'shmir-design',
+        label: 'Diseñar shmiRs (3′UTR → oligos)',
+        desc: 'Sube el 3′UTR de una especie, o el de dos para compararlas (el nombre de cada '
+            + 'fichero da el nombre de la especie). Trocea en ventanas de 22 nt, aplica los '
+            + 'filtros biofísicos, excluye las zonas de poliadenilación, busca bloques '
+            + 'idénticos entre las dos especies y selecciona candidatos con espaciado mínimo '
+            + 'y cuota por tercio. Devuelve un ZIP con: TSV de todas las ventanas (un estado '
+            + 'por filtro), TSV de seleccionados, FASTA de guías para BLAST, TSV de oligos de '
+            + '97 nt con el andamio miR-E, e informe de texto. Mientras falten miRBase, '
+            + 'gnomAD, BLAST y rmsk, los candidatos salen como INCOMPLETE: el informe dice '
+            + 'qué filtros no se ejecutaron.',
+        params: [
+          { id: 'candidates', type: 'number', label: 'Candidatos por especie (por defecto: 6)', default: 6, min: 1, max: 100 },
+          { id: 'minSpacing', type: 'number', label: 'Espaciado mínimo entre sitios, nt (por defecto: 50)', default: 50, min: 0 },
+          { id: 'minBlock', type: 'number', label: 'Longitud mínima de bloque conservado, nt (por defecto: 15)', default: 15, min: 4 },
+          { id: 'gcMin', type: 'number', label: 'GC mínimo (por defecto: 0.30)', default: 0.30, min: 0, max: 1, step: 0.01 },
+          { id: 'gcMax', type: 'number', label: 'GC máximo (por defecto: 0.52)', default: 0.52, min: 0, max: 1, step: 0.01 },
+          { id: 'maxHomopolymer', type: 'number', label: 'Homopolímero máximo (por defecto: 3)', default: 3, min: 1, max: 22 },
+          { id: 'minAsymmetry', type: 'number', label: 'Asimetría mínima, kcal/mol (por defecto: 0.5)', default: 0.5, step: 0.1 },
+          { id: 'polyaFlank', type: 'number', label: 'Flanco prohibido junto a la señal polyA, nt (por defecto: 10)', default: 10, min: 0, max: 200 },
+          { id: 'bootstrapSeeds', type: 'checkbox', label: 'Filtrar seeds con la lista de arranque de 12 miRNAs (mecánica, NO filtro real)', default: false },
+        ],
+      },
+      {
         id: 'dna-gb-compare',
         label: 'Comparar secuencias .dna vs .gb (verificar proveedor)',
         desc: 'Verifica que el plásmido que te fabrica el proveedor (GenScript, .gb) coincide exactamente con el que diseñaste en SnapGene (.dna), nucleótido a nucleótido. Dos modos: emparejar por nombre muchos ficheros a la vez, o comparar una sola pareja (un .dna y un .gb) aunque tengan nombres distintos.',
@@ -887,6 +911,8 @@ function buildParamField(opId, p) {
     input.id = `param-${opId}-${p.id}`;
     input.value = getParam(opId, p.id) ?? p.default ?? '';
     if (p.min !== undefined) input.min = p.min;
+    if (p.max !== undefined) input.max = p.max;
+    if (p.step !== undefined) input.step = p.step;
     input.addEventListener('input', () => {
       setParam(opId, p.id, input.value === '' ? '' : parseFloat(input.value));
       updateExecuteBtn();

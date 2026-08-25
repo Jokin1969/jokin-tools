@@ -52,6 +52,17 @@ print(report.format_text())
 Coordenadas 1-based; `distance_to_3p` cuenta los nucleótidos entre el último del motivo
 y el extremo 3'.
 
+## Desde el hub: Batchwork → Laboratory tools
+
+La operación **«Diseñar shmiRs (3′UTR → oligos)»** del sidebar de Batchwork ejecuta este
+mismo CLI: subes uno o dos FASTA de 3'UTR (el nombre del fichero da el nombre de la
+especie), ajustas los umbrales en el panel de parámetros y descargas un ZIP con las cinco
+salidas de cada especie.
+
+No duplica nada: `apps/batchwork/python/shmir_design_run.py` es un puente de 30 líneas
+que llama a `tools/design.py`. El deploy ya trae Python 3.11 (`nixpacks.toml`) y este
+proyecto es stdlib pura, así que no hay dependencias que instalar.
+
 ## Interfaz web (opcional)
 
 ```bash
