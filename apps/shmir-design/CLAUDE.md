@@ -190,6 +190,15 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   como `REGLA_NO_CONFIRMADA`, el aviso sale en cada salida de oligos, y con A o G no se
   aplica ninguna transición. No la des por buena ni quites el aviso hasta que esté
   verificada contra un segundo plásmido (#111177).
-- Implementado: pasos 0 (fixtures + checksum), 3 y 15 parcial (tiling y sitios), 4-8
+- **El orden de operaciones del paso 15 no se cambia**: enmascarar y RETILAR, filtros
+  duros, ordenar por asimetría, agrupar en sitios, selección voraz. Enmascarar después
+  de tilar produce un ranking contaminado que parece correcto.
+- El aviso `ANDAMIO_NO_VERIFICADO` **no se puede silenciar**: no hay parámetro para ello
+  en ninguna función ni en ningún CLI, y no lo añadas. `verificado` es false por defecto
+  en todo andamio cargado de fichero.
+- Elegible no es aprobado: mientras haya filtros en `NOT_RUN`, la selección es
+  provisional y los candidatos salen `INCOMPLETE`.
+- Implementado: pasos 0 (fixtures + checksum), 1-2 (enmascarado), 3 y 15 (tiling,
+  sitios y selección), 4-8
   (filtros de ventana, incluida la asimetría), 9 (poliadenilación), 10 (mecánica de
   seeds) y 14 (bloques conservados). El resto, en `docs/pipeline.md`.

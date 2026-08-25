@@ -16,6 +16,7 @@ y la ventana humana en 1237, que es un dato real verificado.
 import unittest
 
 from shmir_design.filters import FilterState, Verdict
+from shmir_design.masking import RepeatMask
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 from shmir_design.seeds import BOOTSTRAP_SEEDS
 from shmir_design.tiling import (
@@ -101,6 +102,48 @@ class TestVentanaHumana1237(unittest.TestCase):
         ventana = self.tiled(seeds=BOOTSTRAP_SEEDS)
         self.assertTrue(ventana.biofisicos_ok)
         self.assertIs(ventana.verdict, Verdict.FAIL)
+
+
+class TestEnmascarado(unittest.TestCase):
+    """Paso 1: enmascarar y RETILAR, nunca tachar a posteriori."""
+
+    def secuencia(self):
+        return "N" * 1236 + DIANA_1237 + "N" * 348
+
+    def test_sin_mascara_el_filtro_queda_en_not_run(self):
+        report = tile_utr(self.secuencia())
+        estados = {w.filter("repeticiones").state for w in report.windows}
+        self.assertEqual(estados, {FilterState.NOT_RUN})
+
+    def test_el_filtro_de_repeticiones_no_es_biofisico(self):
+        """Si contara, el contador biofisico dependeria de un recurso externo."""
+        ventana = next(
+            w for w in tile_utr(self.secuencia()).windows if w.window.start == 1237
+        )
+        self.assertIs(ventana.filter("repeticiones").state, FilterState.NOT_RUN)
+        self.assertTrue(ventana.biofisicos_ok)
+
+    def test_una_ventana_sobre_una_repeticion_falla_y_no_es_evaluable(self):
+        mask = RepeatMask(intervals=((1240, 1260),), source="rmsk de prueba")
+        report = tile_utr(self.secuencia(), mask=mask)
+        ventana = next(w for w in report.windows if w.window.start == 1237)
+        self.assertIs(ventana.filter("repeticiones").state, FilterState.FAIL)
+        self.assertIs(ventana.filter("GC").state, FilterState.NOT_RUN)
+        self.assertFalse(ventana.biofisicos_ok)
+
+    def test_se_retila_sobre_la_secuencia_enmascarada(self):
+        """La ventana enmascarada trae N en su secuencia: se reevaluo, no se tacho."""
+        mask = RepeatMask(intervals=((1250, 1252),), source="rmsk de prueba")
+        report = tile_utr(self.secuencia(), mask=mask)
+        ventana = next(w for w in report.windows if w.window.start == 1237)
+        self.assertIn("N", ventana.evaluation.sequence)
+
+    def test_las_señales_de_polyA_se_buscan_sin_enmascarar(self):
+        """Una señal dentro de un repetitivo sigue siendo una señal."""
+        secuencia = "ACGT" * 20 + "AATAAA" + "ACGT" * 20
+        mask = RepeatMask(intervals=((81, 86),), source="rmsk de prueba")
+        report = tile_utr(secuencia, mask=mask)
+        self.assertEqual([s.position for s in report.signals], [81])
 
 
 class TestInforme(unittest.TestCase):

@@ -29,6 +29,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
+from .masking import RepeatMask, apply_mask, filter_repeats
 from .hard_filters import (
     WINDOW_SIZE,
     AsymmetryModel,
@@ -84,13 +85,18 @@ class TiledWindow:
     evaluation: WindowEvaluation
     zona_prohibida: FilterResult
     seed: FilterResult
+    repeticiones: FilterResult
     tercio: Tercio
     riesgo_APA: bool
     apa_upstream: tuple[PolyASignal, ...] = ()
 
     @property
     def filters(self) -> tuple[FilterResult, ...]:
-        return self.evaluation.filters + (self.zona_prohibida, self.seed)
+        return self.evaluation.filters + (
+            self.zona_prohibida,
+            self.repeticiones,
+            self.seed,
+        )
 
     def filter(self, name: str) -> FilterResult:
         for result in self.filters:
@@ -126,6 +132,7 @@ class TilingReport:
     signals: tuple[PolyASignal, ...]
     avisos: tuple[Aviso, ...]
     seeds: SeedSet | None
+    mask: RepeatMask | None = None
 
     def biofisicos_ok(self) -> int:
         return sum(1 for w in self.windows if w.biofisicos_ok)
@@ -161,6 +168,17 @@ class TilingReport:
             f"  aptas (PASS):    {self.aptas()} "
             f"({len(self.sites_aptas())} sitio(s) independiente(s))",
         ]
+
+        if self.mask is None:
+            lines.append(
+                "  repeticiones:    NOT_RUN — sin mascara de rmsk cargada (paso 1 sin "
+                "ejecutar)."
+            )
+        else:
+            lines.append(
+                f"  repeticiones:    {len(self.mask.intervals)} intervalo(s) de "
+                f"{self.mask.source}; se retilo sobre la secuencia enmascarada."
+            )
 
         if self.seeds is None:
             lines.append(
@@ -232,11 +250,18 @@ def tile_utr(
     *,
     window_size: int = WINDOW_SIZE,
     seeds: SeedSet | None = None,
+    mask: RepeatMask | None = None,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
 ) -> TilingReport:
-    """Trocea el 3'UTR y evalua todas las ventanas. Ninguna se omite del informe."""
-    cleaned = normalize_sequence(sequence, name="3'UTR")
-    signals = find_polya_signals(cleaned)
+    """Enmascara, RETILA y evalua todas las ventanas. Ninguna se omite del informe.
+
+    El orden importa: primero se enmascara y despues se trocea, para que una ventana
+    parcialmente repetitiva se reevalue entera en vez de tacharse de una lista ya hecha.
+    Las señales de poliadenilacion se buscan sobre la secuencia SIN enmascarar.
+    """
+    original = normalize_sequence(sequence, name="3'UTR")
+    signals = find_polya_signals(original)
+    cleaned = apply_mask(original, mask)
     windows = [
         Window(start, window_size, label=f"w{start}")
         for start in tile_positions(len(cleaned), window_size)
@@ -257,6 +282,7 @@ def tile_utr(
                 evaluation=evaluation,
                 zona_prohibida=anotada.zona_prohibida,
                 seed=filter_seed(evaluation.guide, seeds),
+                repeticiones=filter_repeats(start, anotada.window.end, mask),
                 tercio=anotada.tercio,
                 riesgo_APA=anotada.riesgo_APA,
                 apa_upstream=anotada.apa_upstream,
@@ -270,4 +296,5 @@ def tile_utr(
         signals=tuple(signals),
         avisos=annotated.avisos,
         seeds=seeds,
+        mask=mask,
     )

@@ -26,7 +26,9 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import MappingProxyType
 
 from .errors import InvalidSequenceError
@@ -34,6 +36,114 @@ from .errors import InvalidSequenceError
 ARM_LENGTH = 22
 DNA_BASES = frozenset("ACGT")
 COMPLEMENT = str.maketrans("ACGT", "TGCA")
+
+UNVERIFIED_TAG = "ANDAMIO_NO_VERIFICADO"
+UNVERIFIED_WARNING = (
+    f"{UNVERIFIED_TAG}: las secuencias flanqueantes de este andamio NO han sido "
+    f"contrastadas contra la publicacion original. Un flanco equivocado da una "
+    f"horquilla que se sintetiza igual de bien y no procesa. Contrastalas antes de "
+    f"pedir nada."
+)
+
+REQUIRED_KEYS = ("nombre", "flanco5", "loop", "flanco3")
+OPTIONAL_KEYS = ("guide_arm", "verificado", "fuente", "notas")
+
+
+@dataclass(frozen=True)
+class ScaffoldSpec:
+    """Andamio parametrizable.
+
+    `verified` es False por defecto **a proposito**: un andamio que nadie ha
+    contrastado contra su publicacion no puede pasar por verificado por omision. Con
+    False, toda salida de oligos lleva el aviso `ANDAMIO_NO_VERIFICADO`, y no hay forma
+    de silenciarlo: no existe parametro para ello en ninguna funcion de este modulo.
+    """
+
+    name: str
+    flank5: str
+    loop: str
+    flank3: str
+    guide_arm: str = "3p"
+    verified: bool = False
+    source: str = ""
+    notes: str = ""
+
+    def __post_init__(self) -> None:
+        for nombre, pieza in (
+            ("flanco5", self.flank5),
+            ("loop", self.loop),
+            ("flanco3", self.flank3),
+        ):
+            if not pieza:
+                raise ValueError(
+                    f"El andamio {self.name!r} no tiene {nombre}; se aborta el montaje."
+                )
+            for index, base in enumerate(pieza.upper(), start=1):
+                if base not in DNA_BASES:
+                    raise InvalidSequenceError(
+                        f"Andamio {self.name!r}, {nombre}: caracter {base!r} no valido "
+                        f"en la posicion {index}; se aborta el montaje."
+                    )
+        if self.guide_arm not in ("3p", "5p"):
+            raise ValueError(
+                f"Andamio {self.name!r}: guide_arm={self.guide_arm!r}; solo 3p o 5p."
+            )
+
+    @property
+    def length(self) -> int:
+        return len(self.flank5) + len(self.loop) + len(self.flank3) + 2 * ARM_LENGTH
+
+    @property
+    def warnings(self) -> tuple[str, ...]:
+        return () if self.verified else (UNVERIFIED_WARNING,)
+
+
+def load_scaffold(path: Path | str) -> ScaffoldSpec:
+    """Lee un andamio de un fichero TOML. `verificado` es False si no se declara."""
+    path = Path(path)
+    try:
+        raw = path.read_bytes()
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"No existe el fichero de andamio {path}; se aborta el montaje de oligos."
+        ) from exc
+    except OSError as exc:
+        raise OSError(
+            f"No se pudo leer el fichero de andamio {path} ({exc}); se aborta el "
+            f"montaje de oligos."
+        ) from exc
+
+    try:
+        data = tomllib.loads(raw.decode("utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError(
+            f"{path} no es TOML valido ({exc}); se aborta el montaje de oligos."
+        ) from exc
+
+    faltan = [key for key in REQUIRED_KEYS if key not in data]
+    if faltan:
+        raise ValueError(
+            f"{path}: faltan las claves {', '.join(faltan)}; se aborta el montaje en "
+            f"vez de completar el andamio con nada."
+        )
+    sobran = [key for key in data if key not in REQUIRED_KEYS + OPTIONAL_KEYS]
+    if sobran:
+        raise ValueError(
+            f"{path}: claves desconocidas {', '.join(sobran)}. Se aborta: una clave mal "
+            f"escrita que se ignora en silencio es un andamio equivocado."
+        )
+
+    return ScaffoldSpec(
+        name=str(data["nombre"]),
+        flank5=str(data["flanco5"]).upper(),
+        loop=str(data["loop"]).upper(),
+        flank3=str(data["flanco3"]).upper(),
+        guide_arm=str(data.get("guide_arm", "3p")),
+        verified=bool(data.get("verificado", False)),
+        source=str(data.get("fuente", f"fichero {path}")),
+        notes=str(data.get("notas", "")),
+    )
+
 
 SCAFFOLD = MappingProxyType(
     {
@@ -68,6 +178,18 @@ EXTENDED_FLANKS_STATUS = (
 
 #: Transicion observada. A y G no aparecen en el unico ejemplo disponible.
 TRANSITION = MappingProxyType({"T": "C", "C": "T"})
+
+#: Andamio verificado contra SGEP #111170. Es el unico con `verified=True`.
+SGEP_SCAFFOLD = ScaffoldSpec(
+    name=SCAFFOLD["name"],
+    flank5=SCAFFOLD["flank5"],
+    loop=SCAFFOLD["loop"],
+    flank3=SCAFFOLD["flank3"],
+    guide_arm=SCAFFOLD["guide_arm"],
+    verified=True,
+    source=SCAFFOLD["source"],
+    notes="Verificado el 97-mero. NO los flancos extendidos del pri-miR.",
+)
 
 
 def _validate_arm(sequence: str, *, name: str = "guia") -> str:
@@ -141,11 +263,20 @@ class Hairpin:
     sequence: str
     guide: str
     passenger: Passenger
-    scaffold_name: str
+    scaffold: ScaffoldSpec
+
+    @property
+    def scaffold_name(self) -> str:
+        return self.scaffold.name
 
     @property
     def warnings(self) -> tuple[str, ...]:
-        return self.passenger.warnings
+        """Avisos del oligo. No hay forma de silenciarlos: no es un parametro."""
+        return self.scaffold.warnings + self.passenger.warnings
+
+    @property
+    def _sello(self) -> str:
+        return "verificado" if self.scaffold.verified else "SIN VERIFICAR"
 
     def format_text(self) -> str:
         lines = [
@@ -154,11 +285,15 @@ class Hairpin:
             f"  {self.sequence}",
             "",
             "  Piezas (5'→3'):",
-            f"    flanco 5'  {SCAFFOLD['flank5']}  ({len(SCAFFOLD['flank5'])} nt, verificado)",
+            f"    flanco 5'  {self.scaffold.flank5}  "
+            f"({len(self.scaffold.flank5)} nt, {self._sello})",
             f"    pasajera   {self.passenger.sequence}  ({ARM_LENGTH} nt)",
-            f"    loop       {SCAFFOLD['loop']}  ({len(SCAFFOLD['loop'])} nt, verificado)",
-            f"    guia       {self.guide}  ({ARM_LENGTH} nt, brazo {SCAFFOLD['guide_arm']})",
-            f"    flanco 3'  {SCAFFOLD['flank3']}  ({len(SCAFFOLD['flank3'])} nt, verificado)",
+            f"    loop       {self.scaffold.loop}  "
+            f"({len(self.scaffold.loop)} nt, {self._sello})",
+            f"    guia       {self.guide}  ({ARM_LENGTH} nt, brazo "
+            f"{self.scaffold.guide_arm})",
+            f"    flanco 3'  {self.scaffold.flank3}  "
+            f"({len(self.scaffold.flank3)} nt, {self._sello})",
             "",
             f"  Pasajera: complementario reverso {self.passenger.reverse_complement}",
         ]
@@ -177,28 +312,33 @@ class Hairpin:
         return "\n".join(lines)
 
 
-def build_hairpin(guide: str) -> Hairpin:
-    """Monta el 97-mero listo para pedir. La guia va en el brazo 3p."""
+def build_hairpin(guide: str, scaffold: ScaffoldSpec = SGEP_SCAFFOLD) -> Hairpin:
+    """Monta la horquilla lista para pedir. La guia va en el brazo indicado.
+
+    No hay parametro para silenciar los avisos, y no lo habra: el aviso de andamio sin
+    contrastar y el de la regla no confirmada viajan con el oligo.
+    """
     cleaned = _validate_arm(guide)
     passenger = passenger_from_guide(cleaned)
-    sequence = (
-        SCAFFOLD["flank5"]
-        + passenger.sequence
-        + SCAFFOLD["loop"]
-        + cleaned
-        + SCAFFOLD["flank3"]
+    brazos = (
+        (passenger.sequence, cleaned)
+        if scaffold.guide_arm == "3p"
+        else (cleaned, passenger.sequence)
     )
-    if len(sequence) != SCAFFOLD["length"]:
+    sequence = (
+        scaffold.flank5 + brazos[0] + scaffold.loop + brazos[1] + scaffold.flank3
+    )
+    if len(sequence) != scaffold.length:
         raise ValueError(
-            f"La horquilla montada mide {len(sequence)} nt y el andamio verificado son "
-            f"{SCAFFOLD['length']}; se aborta en vez de entregar un oligo que no "
-            f"corresponde al andamio."
+            f"La horquilla montada mide {len(sequence)} nt y el andamio "
+            f"{scaffold.name!r} declara {scaffold.length}; se aborta en vez de entregar "
+            f"un oligo que no corresponde al andamio."
         )
     return Hairpin(
         sequence=sequence,
         guide=cleaned,
         passenger=passenger,
-        scaffold_name=SCAFFOLD["name"],
+        scaffold=scaffold,
     )
 
 

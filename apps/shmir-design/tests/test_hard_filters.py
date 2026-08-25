@@ -183,6 +183,11 @@ class TestEvaluacionDeVentana(unittest.TestCase):
         self.assertIs(asimetria.state, FilterState.FAIL)
         self.assertIn("-1.2", asimetria.reason)
 
+    def test_la_evaluacion_guarda_el_valor_de_la_asimetria(self):
+        """El numero, no solo el texto: la seleccion ordena por el."""
+        self.assertAlmostEqual(evaluate_window(W1).asymmetry, -2.98, places=2)
+        self.assertIsNone(evaluate_window(W1, asymmetry_model=None).asymmetry)
+
     def test_una_ventana_con_N_no_es_evaluable(self):
         """Base desconocida: los filtros no corren, y NOT_RUN no es PASS (regla 3)."""
         con_n = "GCGTCAGTACGATCGAATTNCT"

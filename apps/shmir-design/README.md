@@ -17,7 +17,10 @@ Las reglas del proyecto están en [`CLAUDE.md`](./CLAUDE.md) y son vinculantes.
 | 9 | Guardarrailes de poliadenilación: señales, zonas prohibidas ±10 nt, aviso de APA, tercios | `shmir_design/polya.py` |
 | 10 | Seed de la guía (posiciones 2–8) contra familias de miRNA — **mecánica**, falta `mature.fa` | `shmir_design/seeds.py` |
 | 14 | Bloques conservados entre dos 3'UTR, con todas sus ventanas evaluadas | `shmir_design/conservation.py`, `tools/conservation_report.py` |
-| — | Horquilla miR-E de 97 nt lista para pedir (andamio SGEP verificado) | `shmir_design/scaffold.py`, `tools/oligo.py` |
+| 1, 2 | Enmascarado de repeticiones y retilado | `shmir_design/masking.py` |
+| 15 | Selección voraz: espaciado de 50 nt, cuota por tercio, N configurable | `shmir_design/selection.py` |
+| — | Horquilla miR-E de 97 nt lista para pedir (andamio parametrizable) | `shmir_design/scaffold.py`, `tools/oligo.py` |
+| — | Diseño completo con las cinco salidas | `shmir_design/outputs.py`, `tools/design.py` |
 | — | Estados de filtro `PASS`/`FAIL`/`NOT_RUN` y su agregación | `shmir_design/filters.py` |
 | — | Verificador de la regla 2 sobre el AST | `tools/check_rules.py` |
 
@@ -46,6 +49,28 @@ print(report.format_text())
 
 Coordenadas 1-based; `distance_to_3p` cuenta los nucleótidos entre el último del motivo
 y el extremo 3'.
+
+## Diseño completo
+
+```bash
+python3 apps/shmir-design/tools/design.py --out salida/
+```
+
+Ejecuta el orden de operaciones entero —enmascarar y **retilar**, filtros duros, ordenar
+por asimetría, agrupar en sitios, selección voraz— y escribe por especie: TSV de todas
+las ventanas con el estado de cada filtro, TSV de seleccionados, FASTA de guías para
+BLAST, TSV de oligos ensamblados e informe de texto con la anatomía, las señales de
+poliadenilación, los bloques conservados, los avisos y **qué filtros no se ejecutaron**.
+
+Selección: 6 candidatos por especie (`--candidates`), espaciado mínimo de 50 nt entre
+posiciones de inicio (`--min-spacing`) y al menos uno por tercio del 3'UTR. Mientras
+haya filtros en `NOT_RUN`, la selección es **provisional** y todos los candidatos salen
+como `INCOMPLETE`.
+
+El andamio se parametriza con `--scaffold andamio.toml` (ver
+[`config/andamio.example.toml`](./config/andamio.example.toml)). Su campo `verificado`
+es **false por defecto**, y mientras lo sea, cada oligo —en el TSV y en el informe—
+lleva el aviso `ANDAMIO_NO_VERIFICADO`. No hay forma de silenciarlo.
 
 ## Los dos contadores
 

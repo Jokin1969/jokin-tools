@@ -146,6 +146,9 @@ class WindowEvaluation:
     guide: str
     filters: tuple[FilterResult, ...]
     offset: int = 0
+    #: Valor de la asimetria en kcal/mol, o None si el filtro no llego a correr.
+    #: La seleccion ordena por este numero, no por el texto del motivo.
+    asymmetry: float | None = None
 
     @property
     def verdict(self) -> Verdict:
@@ -209,4 +212,5 @@ def evaluate_window(
             filter_asymmetry(guide, asymmetry_model),
         ),
         offset=offset,
+        asymmetry=None if asymmetry_model is None else asymmetry_model(guide),
     )

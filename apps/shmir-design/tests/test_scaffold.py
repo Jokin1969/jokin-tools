@@ -11,14 +11,22 @@ La regla de la pasajera (transicion en la posicion 1) esta derivada de UN SOLO e
 siempre, tambien en la salida de oligos.
 """
 
+import inspect
+import tempfile
 import unittest
+from pathlib import Path
 
 from shmir_design.errors import InvalidSequenceError
 from shmir_design.scaffold import (
     EXTENDED_FLANKS_STATUS,
+    SGEP_SCAFFOLD,
+    UNVERIFIED_TAG,
+    ScaffoldSpec,
+    load_scaffold,
     PASSENGER_RULE_CONFIRMED,
     PASSENGER_RULE_TAG,
     SCAFFOLD,
+    Hairpin,
     build_hairpin,
     extended_cassette,
     passenger_from_guide,
@@ -161,6 +169,93 @@ class TestFlancosExtendidos(unittest.TestCase):
         with self.assertRaises(NotImplementedError) as ctx:
             extended_cassette(GUIA_REF)
         self.assertIn("sin decidir", str(ctx.exception).lower())
+
+
+class TestAndamioConfigurable(unittest.TestCase):
+    """El andamio se puede parametrizar; `verificado` es False por defecto."""
+
+    TOML = (
+        'nombre = "andamio de prueba"\n'
+        'flanco5 = "TGCTGTTGACAGTGAGCG"\n'
+        'loop = "TAGTGAAGCCACAGATGTA"\n'
+        'flanco3 = "TGCCTACTGCCTCGGA"\n'
+    )
+
+    def escribir(self, texto, nombre="andamio.toml"):
+        directorio = tempfile.mkdtemp()
+        ruta = Path(directorio) / nombre
+        ruta.write_text(texto, encoding="utf-8")
+        return ruta
+
+    def test_verificado_es_False_por_defecto(self):
+        andamio = load_scaffold(self.escribir(self.TOML))
+        self.assertFalse(andamio.verified)
+
+    def test_verificado_se_puede_declarar_en_el_fichero(self):
+        andamio = load_scaffold(self.escribir(self.TOML + "verificado = true\n"))
+        self.assertTrue(andamio.verified)
+
+    def test_falta_una_pieza_y_aborta(self):
+        sin_loop = 'nombre = "x"\nflanco5 = "ACGT"\nflanco3 = "ACGT"\n'
+        with self.assertRaises(ValueError) as ctx:
+            load_scaffold(self.escribir(sin_loop))
+        self.assertIn("loop", str(ctx.exception))
+
+    def test_una_clave_desconocida_aborta(self):
+        with self.assertRaises(ValueError) as ctx:
+            load_scaffold(self.escribir(self.TOML + 'flanco4 = "ACGT"\n'))
+        self.assertIn("flanco4", str(ctx.exception))
+
+    def test_una_base_invalida_aborta(self):
+        malo = self.TOML.replace('loop = "TAGTGAAGCCACAGATGTA"', 'loop = "TAGTXAAGC"')
+        with self.assertRaises(InvalidSequenceError):
+            load_scaffold(self.escribir(malo))
+
+    def test_un_fichero_que_no_existe_aborta(self):
+        with self.assertRaises(FileNotFoundError):
+            load_scaffold(Path("/no/existe/andamio.toml"))
+
+
+class TestAvisoDeAndamioNoVerificado(unittest.TestCase):
+    """Si `verificado` es False, el aviso sale en TODA salida de oligos."""
+
+    def andamio(self):
+        return ScaffoldSpec(
+            name="andamio sin contrastar",
+            flank5="TGCTGTTGACAGTGAGCG",
+            loop="TAGTGAAGCCACAGATGTA",
+            flank3="TGCCTACTGCCTCGGA",
+        )
+
+    def test_por_defecto_un_andamio_nuevo_no_esta_verificado(self):
+        self.assertFalse(self.andamio().verified)
+
+    def test_el_aviso_esta_en_los_warnings(self):
+        hairpin = build_hairpin(GUIA_REF, scaffold=self.andamio())
+        self.assertTrue(any(UNVERIFIED_TAG in w for w in hairpin.warnings))
+        self.assertTrue(any("publicacion original" in w.lower() for w in hairpin.warnings))
+
+    def test_el_aviso_sale_en_la_salida_de_texto(self):
+        texto = build_hairpin(GUIA_REF, scaffold=self.andamio()).format_text()
+        self.assertIn(UNVERIFIED_TAG, texto)
+
+    def test_el_andamio_verificado_no_lleva_ese_aviso(self):
+        hairpin = build_hairpin(GUIA_REF, scaffold=SGEP_SCAFFOLD)
+        self.assertFalse(any(UNVERIFIED_TAG in w for w in hairpin.warnings))
+
+    def test_no_hay_manera_de_silenciarlo(self):
+        """Ni parametro para callarlo, ni formateador que lo omita."""
+        parametros = set(inspect.signature(build_hairpin).parameters)
+        self.assertEqual(parametros, {"guide", "scaffold"})
+        parametros_texto = set(inspect.signature(Hairpin.format_text).parameters)
+        self.assertEqual(parametros_texto, {"self"})
+
+    def test_un_andamio_con_otras_piezas_da_otra_longitud(self):
+        andamio = ScaffoldSpec(
+            name="corto", flank5="ACGT", loop="TAGTGAAGCCACAGATGTA", flank3="ACGT"
+        )
+        hairpin = build_hairpin(GUIA_REF, scaffold=andamio)
+        self.assertEqual(len(hairpin.sequence), 4 + 22 + 19 + 22 + 4)
 
 
 if __name__ == "__main__":

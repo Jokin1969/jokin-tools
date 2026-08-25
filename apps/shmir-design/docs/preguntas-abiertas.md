@@ -39,6 +39,14 @@ aborta en vez de inventarlos. Lo verificado es el 97-mero y solo el 97-mero.
 - miRBase `mature.fa` (paso 10), export de gnomAD (paso 11), track `rmsk` (paso 2):
   cada uno necesita fichero **y** checksum registrado antes de usarse.
 
+### 3. Definición del espaciado de 50 nt — decisión tomada, confírmala
+
+Implementado como distancia **entre las posiciones de inicio** de los candidatos
+elegidos: dos candidatos a 50 nt exactos valen, a 49 no. La alternativa sería medir el
+hueco entre las ventanas (que con ventanas de 22 nt daría 28 nt de separación real para
+el mismo umbral). Si querías la segunda, es un cambio de una línea en
+`selection._respects_spacing`.
+
 ## Resueltas
 
 ### Definición de la asimetría — resuelta 2026-08-25

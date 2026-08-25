@@ -7,7 +7,7 @@ parece correcto.
 |---:|---|---|---|---|---|
 | 0 | Carga + verificación de checksum | previo | ninguno: fixture versionado | **ABORTAR** | **implementado** (`reference.py`, `tools/reference_data.py`); descarga opcional con `--fetch` |
 | 1 | Extracción de anatomía (ORF, UTRs) | duro | ninguno | — | parcial: coordenadas verificadas en `reference.py`; sin detección de ORF |
-| 2 | Enmascarado de repeticiones → **RETILAR** | duro | fixture `rmsk` (descarga manual) | `NOT_RUN` | pendiente |
+| 2 | Enmascarado de repeticiones → **RETILAR** | duro | fixture `rmsk` (descarga manual) | `NOT_RUN` | **implementado** (`masking.py`); falta el fichero de intervalos |
 | 3 | Tiling de 22-meros | — | ninguno | — | **implementado** (`tiling.py`, `tools/tiling_report.py`) |
 | 4 | GC 0.30–0.52 | duro | ninguno | — | **implementado** (`hard_filters.filter_gc`) |
 | 5 | Sin homopolímeros ≥4 | duro | ninguno | — | **implementado** (`hard_filters.filter_homopolymer`) |
@@ -20,7 +20,7 @@ parece correcto.
 | 12 | Especificidad (BLAST) | duro | **manual en la v1** | `NOT_RUN` | pendiente |
 | 13 | Accesibilidad (RNAplfold) | **ranking** | ViennaRNA (pip) | omitir, sin penalización | pendiente; la dependencia necesita autorización escrita (regla 6) |
 | 14 | Detección de bloques conservados | informativo | ninguno | — | **implementado** (`conservation.py`, `tools/conservation_report.py`) |
-| 15 | Agrupación en sitios + selección voraz | selección | ninguno | — | agrupación en sitios **implementada** (`tiling.independent_sites`); selección voraz (50 nt + cuota por tercio) pendiente |
+| 15 | Agrupación en sitios + selección voraz | selección | ninguno | — | **implementado** (`selection.py`, `tools/design.py`) |
 
 ## Los datos de referencia son fixtures, no descargas
 
@@ -100,3 +100,49 @@ Lo que **no** está verificado, y sale avisado en cada oligo:
   `extended_cassette()` aborta en vez de rellenarlos.
 
 `SCAFFOLD["verified"] = True` se refiere solo al 97-mero.
+
+## Selección de los candidatos finales
+
+Orden de operaciones, y no se cambia:
+
+1. **enmascarar repeticiones y RETILAR** (`masking.apply_mask` + `tiling.tile_utr`). Se
+   enmascara antes de trocear: una ventana parcialmente repetitiva se reevalúa entera,
+   no se tacha de una lista ya hecha. Las posiciones enmascaradas pasan a `N`, y una
+   ventana con `N` no es evaluable.
+2. **todos los filtros duros** (`tiling.tile_utr`).
+3. **ordenar los supervivientes por asimetría** — por el número guardado en
+   `WindowEvaluation.asymmetry`, no por el texto del motivo.
+4. **agrupar ventanas contiguas en sitios** (`selection.group_choices`).
+5. **selección voraz** (`selection.choose`).
+
+### Restricciones
+
+- **Espaciado mínimo de 50 nt entre sitios elegidos.** Es la regla que convierte N
+  apuestas correlacionadas en N apuestas independientes: las causas de fallo —estructura
+  local, RBPs, repeticiones no anotadas, APA— son regionales, no puntuales. Se mide
+  **entre las posiciones de inicio** de los candidatos elegidos: 50 nt exactos valen, 49
+  no. Configurable con `--min-spacing`.
+- **Cuota por tercio**: primero se cubre un candidato de cada tercio, aunque el medio
+  puntúe peor; el resto de plazas van por asimetría. Si un tercio no se puede cubrir, el
+  informe dice por qué (sin sitios elegibles, o todos demasiado cerca de uno ya
+  elegido). No se rellena con nada ni se calla.
+- **Número de candidatos** configurable, 6 por especie por defecto.
+
+### Elegible no es aprobado
+
+Elegible = supera los seis biofísicos y no falla ningún filtro conocido. Un filtro en
+`NOT_RUN` no descarta la ventana, pero tampoco la aprueba: su veredicto sigue siendo
+`INCOMPLETE` y **la selección entera es provisional**. El informe lo dice en su propia
+sección, y el TSV de seleccionados lo lleva en una columna.
+
+## Salidas
+
+`tools/design.py --out DIR` escribe, por especie:
+
+| Fichero | Qué |
+|---|---|
+| `{especie}_ventanas.tsv` | TODAS las ventanas, una columna por filtro con `PASS`/`FAIL`/`NOT_RUN` por separado |
+| `{especie}_seleccionados.tsv` | los candidatos, con rango por asimetría, tercio, veredicto y filtros sin correr |
+| `{especie}_guias.fasta` | las guías en ADN, para BLAST (paso 12, manual en la v1) |
+| `{especie}_oligos.tsv` | la horquilla ensamblada de cada candidato, con sus avisos en cada fila |
+| `{especie}_informe.txt` | anatomía, señales de poliadenilación, bloques conservados, avisos y **qué filtros no se ejecutaron** |
