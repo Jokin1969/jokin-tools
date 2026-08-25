@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 from shmir_design.filters import FilterState
+from shmir_design.errors import ShmirDesignError
 from shmir_design.masking import RepeatMask, apply_mask, filter_repeats, load_mask_file
 
 SECUENCIA = "ACGT" * 10  # sonda de 40 nt, no es un dato biologico
@@ -53,9 +54,16 @@ class TestAplicarMascara(unittest.TestCase):
 
     def test_un_intervalo_fuera_de_la_secuencia_aborta(self):
         mask = RepeatMask(intervals=((38, 45),), source="x")
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(ShmirDesignError) as ctx:
             apply_mask(SECUENCIA, mask)
         self.assertIn("45", str(ctx.exception))
+
+    def test_el_error_apunta_a_las_coordenadas_genomicas(self):
+        """El caso real: un rmsk de UCSC sin convertir trae numeros enormes."""
+        mask = RepeatMask(intervals=((38, 45),), source="x")
+        with self.assertRaises(ShmirDesignError) as ctx:
+            apply_mask(SECUENCIA, mask)
+        self.assertIn("genomicas", str(ctx.exception))
 
     def test_sin_mascara_la_secuencia_no_cambia(self):
         self.assertEqual(apply_mask(SECUENCIA, None), SECUENCIA)

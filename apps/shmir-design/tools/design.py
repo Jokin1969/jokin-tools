@@ -47,7 +47,7 @@ from shmir_design.conservation import (  # noqa: E402
 )
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
-from shmir_design.masking import load_mask_file  # noqa: E402
+from shmir_design.masking import load_mask_file, load_rmsk  # noqa: E402
 from shmir_design.outputs import (  # noqa: E402
     fasta_guides,
     text_report,
@@ -208,6 +208,13 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--seeds", type=Path, help="Tabla de seeds `seed familia`")
     parser.add_argument("--bootstrap-seeds", action="store_true")
     parser.add_argument("--repeats", type=Path, help="Intervalos repetitivos `inicio fin`")
+    parser.add_argument(
+        "--rmsk", type=Path,
+        help="Salida de RepeatMasker (.out) o tabla rmsk de UCSC, en coordenadas de la "
+             "secuencia consultada. En raton el riesgo son los SINE B1/B2.",
+    )
+    parser.add_argument("--rmsk-version", help="Version del rmsk; obligatoria")
+    parser.add_argument("--rmsk-md5", help="md5 esperado; si no cuadra, PARA")
     parser.add_argument("--min-block", type=int, default=MIN_BLOCK_LENGTH)
     parser.add_argument("--refseq", type=Path, help="FASTA local de RefSeq RNA")
     parser.add_argument("--refseq-name", default="RefSeq RNA")
@@ -351,7 +358,22 @@ def main(argv: list[str]) -> int:
         seeds = BOOTSTRAP_SEEDS if args.bootstrap_seeds else None
         if args.seeds:
             seeds = load_seeds(args.seeds)
-        mask = load_mask_file(args.repeats) if args.repeats else None
+        if args.repeats and args.rmsk:
+            raise ValueError(
+                "--repeats y --rmsk declaran los dos la mascara de repeticiones. Elige "
+                "uno: si no coinciden, no hay forma de saber cual vale."
+            )
+        if args.rmsk and not args.rmsk_version:
+            raise ValueError(
+                "--rmsk necesita --rmsk-version: sin procedencia el enmascarado no es "
+                "auditable. Se aborta."
+            )
+        if args.rmsk:
+            mask = load_rmsk(
+                args.rmsk, version=args.rmsk_version, expected_md5=args.rmsk_md5
+            )
+        else:
+            mask = load_mask_file(args.repeats) if args.repeats else None
 
         maduros = None
         if args.mirbase:

@@ -349,6 +349,20 @@ def text_report(
         )
     lines.append(f"  ⚠  {SEED_CAVEAT}")
 
+    lines.extend(["", "── Elementos repetitivos ──"])
+    if tiling.mask is None:
+        lines.append(
+            "  NOT_RUN: no hay mascara de repeticiones cargada. Una guia derivada de un "
+            "elemento repetitivo tiene miles de sitios perfectos: no es un off-target, "
+            "es una guia inservible. NOT_RUN no es PASS."
+        )
+    else:
+        lines.append(f"  Mascara: {tiling.mask.provenance}")
+        lines.append(
+            "  El enmascarado va ANTES de tilar y se RETILA: una ventana parcialmente "
+            "repetitiva se reevalua entera, no se tacha de una lista ya hecha."
+        )
+
     lines.extend(["", "── Colision de seed con miARN endogeno ──"])
     if tiling.mature is None:
         lines.append(
