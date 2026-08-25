@@ -13,8 +13,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from html import escape
 
+from .anatomy import Anatomy, RegionSource
 from .blocks import blocks_fasta, blocks_tsv, build_block, order_sheet
 from .comparative import comparative_tsv
+from .cost import estimate_cost
 from .conservation import (
     MIN_BLOCK_LENGTH,
     ConservationReport,
@@ -26,8 +28,9 @@ from .hard_filters import DEFAULT_THRESHOLDS, Thresholds
 from .filters import FilterState
 from .outputs import fasta_guides, text_report, tsv_all_windows, tsv_oligos, tsv_selected
 from .reference import ReferenceTranscript
+from .resources import ResourceSet
 from .scaffold import ScaffoldSpec
-from .polya import POLYA_COLUMNS
+from .polya import POLYA_COLUMNS, normalize_sequence
 from .selection import ReportSelection
 from .tiling import TiledWindow, TilingReport
 
@@ -456,3 +459,61 @@ def block_rows(
             }
         )
     return filas
+
+
+# ─── Estimacion de coste ─────────────────────────────────────────────────────
+#: Lo unico de `ResourceSet` que `estimate_cost` sabe cronometrar. Los demas campos
+#: (`mask`, `expression`, `apa_sites`) no tienen una partida propia: el enmascarado
+#: pasa antes de tilar y los otros dos son baratos. Splatear `as_kwargs()` entero
+#: reventaria con TypeError, asi que la lista es explicita y hay test.
+COST_FIELDS = (
+    "specificity_db",
+    "specificity_target",
+    "transgene_db",
+    "mature",
+    "abundance",
+    "utr3_set",
+)
+
+
+def cost_text(
+    sequence: str,
+    *,
+    resources: ResourceSet | None = None,
+    accessibility: bool = False,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
+) -> str:
+    """Cuanto va a costar esta corrida, sin lanzarla.
+
+    Recibe un 3'UTR, que es lo que la pagina tiene a mano, y declara esa anatomia por
+    su nombre —el mismo contrato que `tile_utr` con una secuencia suelta—: aqui no se
+    adivina ningun marco de lectura.
+
+    La mascara no se aplica al estimar: reduce las ventanas elegibles, asi que el
+    numero sale POR ENCIMA del tiempo real. Se dice, no se deja implicito.
+    """
+    original = normalize_sequence(sequence, name="3'UTR")
+    campos = {}
+    if resources is not None:
+        completo = resources.as_kwargs()
+        campos = {clave: completo[clave] for clave in COST_FIELDS}
+    estimacion = estimate_cost(
+        sequence=original,
+        anatomy=Anatomy.whole_is_utr3(
+            len(original), source=RegionSource.TODO_3UTR_DECLARADO
+        ),
+        thresholds=thresholds,
+        accessibility=accessibility,
+        **campos,
+    )
+    lineas = [estimacion.format_text()]
+    if resources is not None and resources.mask is not None:
+        lineas.append(
+            "  Hay una mascara de repeticiones cargada y la estimacion NO la aplica: "
+            "enmascarar deja"
+        )
+        lineas.append(
+            "  menos ventanas elegibles, asi que el total de arriba es un techo, no "
+            "una prediccion."
+        )
+    return "\n".join(lineas)

@@ -185,6 +185,17 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   correspondencia fichero→filtro vive en `manifest.ROLES`, **en código**: como séptima
   columna del manifiesto se podría reasignar un fichero a otro filtro sin que se viera
   en el diff. Una flag explícita sigue mandando, pero se dice en la consola.
+- **La interfaz llega a los mismos ficheros que el CLI.** La casilla «Usar los de
+  `data/reference/`» llama a `resources.load_from_manifest`, que devuelve los objetos ya
+  cargados con la version y el md5 del manifiesto. Antes la pagina pasaba tres de los
+  catorce parametros de `tile_utr`, asi que **el semaforo verde era estructuralmente
+  inalcanzable desde el navegador**: todos los filtros con fichero salian NOT_RUN
+  pasara lo que pasara. El gen diana va aparte porque es un accession, no un fichero, y
+  el manifiesto no lo sabe.
+- **La pagina no lanza nada sola**: hay dos botones, «Estimar coste» y «Diseñar». La
+  estimacion (`presentation.cost_text`) no diseña nada y no aplica la mascara, asi que
+  su total es un techo y lo dice. Antes el diseño arrancaba al subir el FASTA, asi que
+  una corrida de minutos empezaba sin avisar y la estimacion habria llegado tarde.
 - **`data/reference/manifest.tsv` se versiona en git; los ficheros de datos NO.** Un
   RefSeq RNA completo no entra en el repositorio; lo que entra es la línea que dice cuál
   era y cómo comprobarlo. Cada informe copia las líneas de los ficheros que usó: sin eso

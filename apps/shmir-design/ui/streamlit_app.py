@@ -31,6 +31,7 @@ from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     anatomy_rows,
     candidate_rows,
+    cost_text,
     map_svg,
     block_rows,
     conservation_for,
@@ -38,7 +39,13 @@ from shmir_design.presentation import (  # noqa: E402
     status_light,
     window_rows,
 )
-from shmir_design.reference import REFERENCES, extract_3utr, sequence_md5  # noqa: E402
+from shmir_design.reference import (  # noqa: E402
+    PACKAGE_REFERENCE_DIR,
+    REFERENCES,
+    extract_3utr,
+    sequence_md5,
+)
+from shmir_design.resources import load_from_manifest  # noqa: E402
 from shmir_design.scaffold import SGEP_SCAFFOLD, load_scaffold  # noqa: E402
 from shmir_design.seeds import BOOTSTRAP_SEEDS, parse_seed_table  # noqa: E402
 from shmir_design.selection import (  # noqa: E402
@@ -162,9 +169,14 @@ def semaforo(luz) -> None:
 
 
 def bloque_especie(nombre, transcrito, utr3, umbrales, config, seeds, mask, scaffold,
-                   conservacion) -> dict[str, str]:
+                   conservacion, recursos, accesibilidad) -> dict[str, str]:
     st.subheader(f"{nombre}")
-    tiling = tile_utr(utr3, seeds=seeds, mask=mask, thresholds=umbrales)
+    extra = dict(recursos.as_kwargs()) if recursos is not None else {}
+    if mask is not None:
+        extra["mask"] = mask  # la mascara subida a mano manda sobre la del manifiesto
+    tiling = tile_utr(
+        utr3, seeds=seeds, thresholds=umbrales, accessibility=accesibilidad, **extra
+    )
     seleccion = select_from_report(tiling, config)
 
     semaforo(status_light(seleccion))
@@ -223,6 +235,25 @@ def main() -> None:
 
     umbrales, config, min_bloque = panel_umbrales()
 
+    st.sidebar.header("Ficheros de referencia")
+    usar_manifiesto = st.sidebar.checkbox(
+        "Usar los de data/reference/",
+        help=(
+            "Conecta cada fichero que este en OK con el filtro que le toca, con la "
+            "version y el md5 del manifiesto. Sin esto, todos esos filtros quedan en "
+            "NOT_RUN y el semaforo no puede llegar a verde."
+        ),
+    )
+    gen_diana = st.sidebar.text_input(
+        "Gen diana (accession)", "",
+        help="Hace falta para la especificidad: es un accession, no un fichero, y el "
+             "manifiesto no lo sabe.",
+    )
+    accesibilidad = st.sidebar.checkbox(
+        "Calcular accesibilidad (lento)",
+        help="Criterio de desempate, nunca filtro. Añade dos plegados por candidato.",
+    )
+
     st.sidebar.header("Recursos externos (opcionales)")
     seeds_file = st.sidebar.file_uploader("Tabla de seeds `seed familia`", type=["txt", "tsv"])
     usar_arranque = st.sidebar.checkbox(
@@ -275,6 +306,14 @@ def main() -> None:
             ruta.write_bytes(scaffold_file.getvalue())
             scaffold = load_scaffold(ruta)
 
+        # El cableado fichero->filtro vive en `manifest.ROLES` y la carga en
+        # `resources.py`, las dos con tests. Aqui solo se pide y se enseña.
+        recursos = None
+        if usar_manifiesto:
+            recursos = load_from_manifest(
+                PACKAGE_REFERENCE_DIR, target=gen_diana.strip() or None
+            )
+
         secuencias = {nombre_modelo: _fasta_sequence(modelo)}
         if diana:
             secuencias[nombre_diana] = _fasta_sequence(diana)
@@ -284,12 +323,45 @@ def main() -> None:
         st.error(f"**PARA** — {exc}")
         return
 
+    if recursos is not None:
+        with st.expander(
+            f"Ficheros de referencia conectados ({len(recursos.connected)})",
+            expanded=not recursos.connected,
+        ):
+            st.code(recursos.format_text(), language=None)
+
     if not scaffold.verified:
         st.warning(
             "**ANDAMIO_NO_VERIFICADO** — las secuencias flanqueantes de este andamio no "
             "han sido contrastadas contra la publicación original. El aviso viaja "
             "también en cada fila del TSV de oligos y no se puede silenciar."
         )
+
+    # Dos botones, y ninguno de los dos calcula nada por su cuenta: fijan que se pidio.
+    # Sin esto la pagina lanzaba el diseño entero en cuanto se subia un FASTA, asi que
+    # una corrida de minutos —manifiesto conectado y accesibilidad— empezaba sin avisar
+    # y la estimacion no habria servido de nada: llegaba cuando ya estaba corriendo.
+    acciones = st.columns([1, 1, 4])
+    with acciones[0]:
+        if st.button(
+            "Estimar coste",
+            help=(
+                "Mide una invocacion real de cada filtro caro y multiplica. No diseña "
+                "nada: sirve para saber si esto son segundos o minutos."
+            ),
+        ):
+            st.session_state["accion"] = "estimar"
+    with acciones[1]:
+        if st.button("Diseñar", type="primary"):
+            st.session_state["accion"] = "diseñar"
+
+    accion = st.session_state.get("accion")
+    if accion is None:
+        st.info(
+            "Todo listo. **Estimar coste** dice cuanto va a tardar sin diseñar nada; "
+            "**Diseñar** lanza la corrida."
+        )
+        return
 
     try:
         # La anatomia se resuelve UNA vez por especie: si el mRNA no coincide con una
@@ -298,6 +370,19 @@ def main() -> None:
             nombre: anatomia_y_utr3(secuencia, nombre)
             for nombre, secuencia in secuencias.items()
         }
+        if accion == "estimar":
+            for nombre, (_, utr3) in anatomias.items():
+                st.subheader(f"{nombre} — estimacion")
+                st.code(
+                    cost_text(
+                        utr3,
+                        resources=recursos,
+                        accessibility=accesibilidad,
+                        thresholds=umbrales,
+                    ),
+                    language=None,
+                )
+            return
         # La decision de si hay algo que comparar vive en presentation.py, con test:
         # la pagina no decide nada.
         conservacion = conservation_for(
@@ -316,7 +401,7 @@ def main() -> None:
             ficheros.update(
                 bloque_especie(
                     nombre, transcrito, utr3, umbrales, config, seeds, mask, scaffold,
-                    conservacion,
+                    conservacion, recursos, accesibilidad,
                 )
             )
     except (ShmirDesignError, ValueError, OSError) as exc:
