@@ -209,6 +209,14 @@ def main(argv: list[str]) -> int:
         "--target", help="Accession del gen diana, para no contarlo como off-target"
     )
     parser.add_argument(
+        "--transgen", type=Path,
+        help="FASTA del casete AAV completo (ITR a ITR). Los candidatos que lo tocan "
+             "apagarian la propia construccion terapeutica.",
+    )
+    parser.add_argument("--transgen-name", default="casete del transgen")
+    parser.add_argument("--transgen-version", help="Version del vector; obligatoria")
+    parser.add_argument("--transgen-md5", help="md5 esperado; si no cuadra, PARA")
+    parser.add_argument(
         "--cds", nargs=2, type=int, metavar=("INICIO", "FIN"),
         help="Coordenadas 1-based del CDS en la secuencia de --fasta. Con esto se "
              "etiqueta cada ventana (5'UTR/CDS/3'UTR) y los tercios se calculan sobre "
@@ -299,6 +307,20 @@ def main(argv: list[str]) -> int:
         if args.seeds:
             seeds = load_seeds(args.seeds)
         mask = load_mask_file(args.repeats) if args.repeats else None
+
+        transgen_db = None
+        if args.transgen:
+            if not args.transgen_version:
+                raise ValueError(
+                    "--transgen necesita --transgen-version: sin procedencia el "
+                    "veredicto no es auditable. Se aborta."
+                )
+            transgen_db = load_database(
+                args.transgen,
+                name=args.transgen_name,
+                version=args.transgen_version,
+                expected_md5=args.transgen_md5,
+            )
 
         refseq = None
         if args.refseq:
@@ -431,6 +453,7 @@ def main(argv: list[str]) -> int:
                 anatomy=anatomias[especie],
                 tile_range=rangos[especie],
                 specificity_db=refseq,
+                transgene_db=transgen_db,
                 specificity_target=args.target,
                 thresholds=thresholds,
             )

@@ -446,3 +446,162 @@ def load_database(
     return SpecificityDatabase(
         name=name, version=version, checksum=checksum, records=records
     )
+
+
+# ─── El transgen terapeutico como segunda base (bloque 10) ───────────────────
+
+TRANSGENE_FILTER_NAME = "transgen"
+
+TRANSGENE_CAVEAT = (
+    "En el casete no hay gen diana que excluir: cualquier sitio es malo. Un candidato "
+    "que silencia el transgen produce un fallo silencioso — knockdown global bonito y "
+    "ningun beneficio en el ratio — porque apaga la misma proteina que se quiere "
+    "expresar."
+)
+
+TRANSGENE_ORIENTATION_NOTE = (
+    "El FASTA del casete se lee como la hebra sentido de lo que se transcribe, asi que "
+    "el sitio que cuenta es el ANTISENTIDO, igual que contra el transcriptoma. Los hits "
+    "en sentido se cuentan y se listan, pero no condenan. En los tramos no transcritos "
+    "(ITR, promotor) la orientacion no significa lo mismo: ahi el hit es una "
+    "coincidencia que hay que mirar a mano, no un veredicto."
+)
+
+
+@dataclass(frozen=True)
+class TransgeneResult:
+    """Resultado del filtro contra el casete AAV completo."""
+
+    state: FilterState
+    reason: str
+    hits: tuple[Hit, ...] = ()
+    sense_hits: tuple[Hit, ...] = ()
+    warnings: tuple[str, ...] = ()
+    database: SpecificityDatabase | None = None
+    query_length: int = 0
+
+    def as_filter(self) -> FilterResult:
+        return FilterResult(
+            name=TRANSGENE_FILTER_NAME, state=self.state, reason=self.reason
+        )
+
+    def format_text(self) -> str:
+        lines = [f"Transgen — {self.state.value}", f"  {self.reason}", ""]
+        if self.database is not None:
+            lines.extend(
+                [
+                    "  Procedencia y parametros:",
+                    f"    casete          {self.database.provenance}",
+                    f"    sonda           {self.query_length} nt "
+                    f"(guia y pasajera por separado)",
+                    f"    desapareamientos hasta {MAX_MISMATCHES}, escaneo exhaustivo "
+                    f"local (principio del palomar, {BLOCKS} bloques)",
+                    f"    veredicto       FAIL con 0 o 1; con 2, aviso y lista",
+                    "",
+                ]
+            )
+        if self.hits:
+            lines.append("  Sitios antisentido en el casete:")
+            lines.extend(f"    {h.describe()}" for h in self.hits)
+            lines.append("")
+        if self.sense_hits:
+            lines.append(
+                f"  Descartados por orientacion (misma hebra que la sonda): "
+                f"{len(self.sense_hits)}"
+            )
+            lines.extend(f"    {h.describe()}" for h in self.sense_hits)
+            lines.append("")
+        lines.append(f"  ⚠  {TRANSGENE_CAVEAT}")
+        lines.append(f"  ⚠  {TRANSGENE_ORIENTATION_NOTE}")
+        return "\n".join(lines)
+
+
+def filter_transgene(
+    guide: str,
+    passenger: str | None,
+    cassette: SpecificityDatabase | None,
+) -> TransgeneResult:
+    """¿La guia o la pasajera apagan el propio transgen? Sin casete: NOT_RUN.
+
+    Misma maquinaria que `filter_specificity` —mismo escaneo exhaustivo, misma
+    deduplicacion, mismo chequeo de orientacion— con dos diferencias: aqui no hay gen
+    diana que excluir, y el umbral es mas duro, porque un solo desapareamiento basta
+    para silenciar el transgen casi igual que la diana perfecta.
+    """
+    if cassette is None:
+        return TransgeneResult(
+            state=FilterState.NOT_RUN,
+            reason=(
+                "No hay casete del transgen cargado, asi que el filtro contra el "
+                "transgen no se ejecuta y queda sin comprobar si el candidato apaga la "
+                "propia construccion terapeutica. NOT_RUN no es PASS: una base ausente "
+                "nunca se convierte en PASS."
+            ),
+        )
+
+    for nombre, sonda in (("guia", guide), ("pasajera", passenger)):
+        if sonda is None:
+            continue
+        if not sonda.strip():
+            raise ValueError(
+                f"La {nombre} esta vacia: no se puede escanear el casete con una sonda "
+                f"que no existe. Se aborta en vez de dar el filtro por superado."
+            )
+
+    crudos: list[tuple[str, Hit]] = []
+    for origen, sonda in (("guia", guide), ("pasajera", passenger)):
+        if sonda:
+            crudos.extend((origen, hit) for hit in scan_database(sonda, cassette))
+
+    todos = _dedupe(crudos)
+    antisentido = [h for h in todos if h.strand is Strand.ANTISENSE]
+    sentido = [h for h in todos if h.strand is Strand.SENSE]
+    graves = [h for h in antisentido if h.mismatches <= 1]
+    leves = [h for h in antisentido if h.mismatches == 2]
+
+    avisos = tuple(
+        f"{h.describe()} — 2 desapareamiento(s) contra el casete: mirar a mano."
+        for h in leves
+    )
+    orientacion = (
+        f" Descartados {len(sentido)} hit(s) en orientacion SENTIDO."
+        if sentido
+        else ""
+    )
+    procedencia = f" Casete: {cassette.provenance}."
+
+    if graves:
+        detalle = "; ".join(h.describe() for h in graves)
+        return TransgeneResult(
+            state=FilterState.FAIL,
+            reason=(
+                f"{len(graves)} sitio(s) de 0 o 1 desapareamiento en el casete del "
+                f"transgen: {detalle}. Este candidato apagaria la construccion que se "
+                f"quiere expresar.{orientacion}{procedencia}"
+            ),
+            hits=tuple(antisentido),
+            sense_hits=tuple(sentido),
+            warnings=avisos,
+            database=cassette,
+            query_length=len(guide),
+        )
+
+    aviso = (
+        f" AVISO: {len(leves)} sitio(s) con 2 desapareamientos en el casete: "
+        + "; ".join(h.describe() for h in leves)
+        + "."
+        if leves
+        else ""
+    )
+    return TransgeneResult(
+        state=FilterState.PASS,
+        reason=(
+            f"Sin sitios de 0 ni 1 desapareamiento en el casete del transgen."
+            f"{aviso}{orientacion}{procedencia}"
+        ),
+        hits=tuple(antisentido),
+        sense_hits=tuple(sentido),
+        warnings=avisos,
+        database=cassette,
+        query_length=len(guide),
+    )

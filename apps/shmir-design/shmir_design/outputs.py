@@ -18,12 +18,17 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 from .conservation import ConservationReport
-from .filters import Verdict
+from .filters import FilterState, Verdict
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
 from .selection import ReportSelection, penalty_sensitivity
-from .specificity import SEED_CAVEAT, TAXIDS, blast_command
+from .specificity import (
+    SEED_CAVEAT,
+    TAXIDS,
+    TRANSGENE_ORIENTATION_NOTE,
+    blast_command,
+)
 from .tiling import TilingReport
 
 FASTA_WRAP = 60
@@ -338,6 +343,35 @@ def text_report(
             f"declarado (conocidos: {', '.join(sorted(TAXIDS))}). No se inventa."
         )
     lines.append(f"  ⚠  {SEED_CAVEAT}")
+
+    lines.extend(["", "── Transgen terapeutico ──"])
+    if tiling.transgene_db is None:
+        lines.append(
+            "  NOT_RUN: no hay casete del transgen cargado, asi que queda sin comprobar "
+            "si algun candidato apaga la propia construccion terapeutica. NOT_RUN no es "
+            "PASS."
+        )
+        lines.append(
+            "  Por que importa: una guia a 1 desapareamiento del ORF del transgen lo "
+            "silencia casi igual que a su diana perfecta. El fallo seria silencioso — "
+            "knockdown global bonito y ningun beneficio en el ratio."
+        )
+    else:
+        lines.append(f"  Casete: {tiling.transgene_db.provenance}")
+        lines.append(
+            "  Parametros: mismo motor que la especificidad (escaneo exhaustivo local, "
+            "hasta 2 desapareamientos, guia y pasajera por separado). Aqui no hay gen "
+            "diana que excluir: FAIL con 0 o 1 desapareamiento, aviso con 2."
+        )
+        tocados = [
+            w for w in tiling.windows
+            if w.filter("transgen").state is FilterState.FAIL
+        ]
+        lines.append(
+            f"  Ventanas que tocan el casete (FAIL): {len(tocados)} de "
+            f"{len(tiling.windows)}."
+        )
+        lines.append(f"  ⚠  {TRANSGENE_ORIENTATION_NOTE}")
 
     sensibilidad = penalty_sensitivity(tiling, selection.selection.config)
     lines.extend(

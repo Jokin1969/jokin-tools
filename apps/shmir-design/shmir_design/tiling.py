@@ -50,7 +50,11 @@ from .polya import (
 )
 from .scaffold import passenger_from_guide
 from .seeds import SeedSet, filter_seed
-from .specificity import SpecificityDatabase, filter_specificity
+from .specificity import (
+    SpecificityDatabase,
+    filter_specificity,
+    filter_transgene,
+)
 from .thermo import turner_asymmetry
 
 
@@ -61,6 +65,17 @@ _ESPECIFICIDAD_SIN_BASE = FilterResult(
     reason=(
         "No hay base de RefSeq RNA cargada, asi que el filtro de especificidad no se "
         "ejecuta. NOT_RUN no es PASS."
+    ),
+)
+
+
+#: Estado por defecto del filtro del transgen: sin casete, NOT_RUN.
+_TRANSGEN_SIN_BASE = FilterResult(
+    name="transgen",
+    state=FilterState.NOT_RUN,
+    reason=(
+        "No hay casete del transgen cargado, asi que queda sin comprobar si el "
+        "candidato apaga la propia construccion terapeutica. NOT_RUN no es PASS."
     ),
 )
 
@@ -113,6 +128,7 @@ class TiledWindow:
     senales_debiles: tuple[PolyASignal, ...] = ()
     estricto_ok: bool = True
     especificidad: FilterResult | None = None
+    transgen: FilterResult | None = None
 
     @property
     def bandera_polyA_debil(self) -> bool:
@@ -126,6 +142,7 @@ class TiledWindow:
             self.repeticiones,
             self.seed,
             self.especificidad or _ESPECIFICIDAD_SIN_BASE,
+            self.transgen or _TRANSGEN_SIN_BASE,
         )
 
     def filter(self, name: str) -> FilterResult:
@@ -167,6 +184,7 @@ class TilingReport:
     mask: RepeatMask | None = None
     thresholds: Thresholds = DEFAULT_THRESHOLDS
     tile_range: TileRange | None = None
+    transgene_db: SpecificityDatabase | None = None
 
     def biofisicos_ok(self) -> int:
         return sum(1 for w in self.windows if w.biofisicos_ok)
@@ -292,6 +310,7 @@ def tile_utr(
     tile_range: TileRange | None = None,
     specificity_db: SpecificityDatabase | None = None,
     specificity_target: str | None = None,
+    transgene_db: SpecificityDatabase | None = None,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
     thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> TilingReport:
@@ -346,28 +365,6 @@ def tile_utr(
             offset=start,
             thresholds=thresholds,
         )
-        especificidad = None
-        if specificity_db is not None:
-            if evaluation.asymmetry is None or not biophysical_ok(
-                list(evaluation.filters) + [anotada.zona_prohibida]
-            ):
-                especificidad = FilterResult(
-                    name="especificidad",
-                    state=FilterState.NOT_RUN,
-                    reason=(
-                        "No evaluada: por coste, la especificidad solo se escanea en "
-                        "las ventanas que superan los filtros biofisicos. NOT_RUN no "
-                        "es PASS."
-                    ),
-                )
-            else:
-                especificidad = filter_specificity(
-                    evaluation.guide.replace("U", "T"),
-                    passenger_from_guide(evaluation.guide).sequence,
-                    specificity_db,
-                    target=specificity_target,
-                ).as_filter()
-
         region = anatomy.region_of(
             (anotada.window.start + anotada.window.end) // 2
         )
@@ -386,6 +383,52 @@ def tile_utr(
                 ),
             )
 
+        # Una ventana con N no tiene guia valida, y una que no supera los biofisicos no
+        # se va a pedir: escanear bases de datos por ellas es tiempo tirado. Las dos
+        # quedan NOT_RUN con el motivo escrito, que no es PASS.
+        escaneable = evaluation.asymmetry is not None and biophysical_ok(
+            list(evaluation.filters) + [zona_prohibida]
+        )
+
+        transgen = None
+        if transgene_db is not None:
+            if not escaneable:
+                transgen = FilterResult(
+                    name="transgen",
+                    state=FilterState.NOT_RUN,
+                    reason=(
+                        "No evaluada: por coste, el casete del transgen solo se escanea "
+                        "en las ventanas que superan los filtros biofisicos. NOT_RUN no "
+                        "es PASS."
+                    ),
+                )
+            else:
+                transgen = filter_transgene(
+                    evaluation.guide.replace("U", "T"),
+                    passenger_from_guide(evaluation.guide).sequence,
+                    transgene_db,
+                ).as_filter()
+
+        especificidad = None
+        if specificity_db is not None:
+            if not escaneable:
+                especificidad = FilterResult(
+                    name="especificidad",
+                    state=FilterState.NOT_RUN,
+                    reason=(
+                        "No evaluada: por coste, la especificidad solo se escanea en "
+                        "las ventanas que superan los filtros biofisicos. NOT_RUN no "
+                        "es PASS."
+                    ),
+                )
+            else:
+                especificidad = filter_specificity(
+                    evaluation.guide.replace("U", "T"),
+                    passenger_from_guide(evaluation.guide).sequence,
+                    specificity_db,
+                    target=specificity_target,
+                ).as_filter()
+
         tiled.append(
             TiledWindow(
                 window=anotada.window,
@@ -394,6 +437,7 @@ def tile_utr(
                 seed=filter_seed(evaluation.guide, seeds),
                 repeticiones=filter_repeats(start, anotada.window.end, mask),
                 especificidad=especificidad,
+                transgen=transgen,
                 tercio=anotada.tercio,
                 riesgo_APA=anotada.riesgo_APA and region is Region.UTR3,
                 apa_aplica=region is Region.UTR3,
@@ -421,4 +465,5 @@ def tile_utr(
         mask=mask,
         thresholds=thresholds,
         tile_range=tile_range,
+        transgene_db=transgene_db,
     )

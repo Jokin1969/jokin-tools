@@ -29,8 +29,13 @@ SONDA = "GCGTCAGTACGATCGAATTACT" * 30
 BLOQUE = "TTTTCTATATTTGTAACTTTGCATGT"
 
 
-def piezas(seeds=None, mask=None, specificity=False):
-    """`specificity=True` carga una base minima donde la unica diana es la sonda."""
+def piezas(seeds=None, mask=None, specificity=False, transgene=False):
+    """`specificity=True` carga una base minima donde la unica diana es la sonda.
+
+    `transgene=True` carga un casete de prueba SIN ningun sitio de la sonda: es lo que
+    pasa con los candidatos del 3'UTR contra el casete real, que no lleva ni una base
+    del 3'UTR nativo.
+    """
     base = (
         SpecificityDatabase(
             name="base de prueba",
@@ -41,12 +46,23 @@ def piezas(seeds=None, mask=None, specificity=False):
         if specificity
         else None
     )
+    casete = (
+        SpecificityDatabase(
+            name="casete de prueba",
+            version="2026-08-25",
+            checksum="0" * 32,
+            records={"casete": "GGCCATACTAGCATCGGATCAG" * 8},
+        )
+        if transgene
+        else None
+    )
     tiling = tile_utr(
         SONDA,
         seeds=seeds,
         mask=mask,
         specificity_db=base,
         specificity_target="diana" if base else None,
+        transgene_db=casete,
     )
     return tiling, select_from_report(tiling, SelectionConfig(n_candidates=3))
 
@@ -74,7 +90,7 @@ class TestSemaforo(unittest.TestCase):
 
     def test_verde_solo_si_corrieron_todos(self):
         mask = RepeatMask(intervals=((1, 5),), source="prueba")
-        _, seleccion = piezas(seeds=BOOTSTRAP_SEEDS, mask=mask, specificity=True)
+        _, seleccion = piezas(seeds=BOOTSTRAP_SEEDS, mask=mask, specificity=True, transgene=True)
         luz = status_light(seleccion)
         self.assertEqual(luz.color, "verde")
         self.assertEqual(luz.pending, ())
@@ -86,7 +102,7 @@ class TestSemaforo(unittest.TestCase):
     def test_las_ventanas_no_evaluables_se_cuentan_aparte_del_semaforo(self):
         """Enmascarar deja ventanas con N sin evaluar; eso no es un filtro sin correr."""
         mask = RepeatMask(intervals=((1, 5),), source="prueba")
-        _, seleccion = piezas(seeds=BOOTSTRAP_SEEDS, mask=mask, specificity=True)
+        _, seleccion = piezas(seeds=BOOTSTRAP_SEEDS, mask=mask, specificity=True, transgene=True)
         luz = status_light(seleccion)
         self.assertEqual(luz.color, "verde")
         self.assertIn("no evaluable", luz.detail.lower())
