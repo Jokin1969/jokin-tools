@@ -38,7 +38,7 @@ SALTAR = f"falta {FIXTURE_NAME}; la regresion de las 24 guias no corre"
 #: Sonda de FORMATO, no de biologia: la guia y los valores son los de SGEP, que ya
 #: estan en el repositorio. Sirve para probar el parseo de la cabecera.
 SONDA = """\
->sgep_shRen713 bases_ok=C,A,G elegida=C
+>sgep_shRen713 guia=TAGATAAGCATTATAATTCCTA bases_ok=ACG elegida=C
 TAGATAAGCATTATAATTCCTA
 """
 
@@ -53,7 +53,11 @@ class TestFormatoDeLaCabecera(unittest.TestCase):
         self.assertEqual(parse_guide_fasta(SONDA, source="s")[0].chosen, "C")
 
     def test_lee_las_bases_que_valen(self):
-        self.assertEqual(parse_guide_fasta(SONDA, source="s")[0].ok, ("C", "A", "G"))
+        self.assertEqual(parse_guide_fasta(SONDA, source="s")[0].ok, ("A", "C", "G"))
+
+    def test_acepta_tambien_la_forma_con_comas(self):
+        con_comas = SONDA.replace("bases_ok=ACG", "bases_ok=A,C,G")
+        self.assertEqual(parse_guide_fasta(con_comas, source="s")[0].ok, ("A", "C", "G"))
 
     def test_guarda_el_nombre(self):
         self.assertEqual(parse_guide_fasta(SONDA, source="s")[0].name, "sgep_shRen713")
@@ -69,7 +73,7 @@ class TestFormatoDeLaCabecera(unittest.TestCase):
     def test_una_cabecera_sin_bases_ok_aborta(self):
         from shmir_design.errors import ShmirDesignError
 
-        malo = SONDA.replace("bases_ok=C,A,G ", "")
+        malo = SONDA.replace("bases_ok=ACG ", "")
         with self.assertRaises(ShmirDesignError) as ctx:
             parse_guide_fasta(malo, source="s")
         self.assertIn("bases_ok", str(ctx.exception))
@@ -186,15 +190,74 @@ class TestRegresionDeLaPasajera(unittest.TestCase):
                 horquilla = build_hairpin(entrada.guide)
                 self.assertEqual(dot_bracket(horquilla.sequence)[0], referencia)
 
-    def test_ninguna_guia_acabada_en_G_elige_A(self):
-        """La errata que motivo el criterio estructural, fijada sobre las 20."""
+    def test_la_terminacion_de_la_guia_NO_determina_la_respuesta(self):
+        """El test que de verdad protege contra volver a una tabla por terminacion.
+
+        Un intento anterior de este mismo test afirmaba "ninguna guia acabada en G elige
+        A". Eso es FALSO y es, otra vez, una tabla: mm221, mm900 y hs612 acaban en G y
+        eligen A porque la A si reproduce la estructura con ellas, mientras que con
+        TAATTGAAAGAGCTACAGGTGG y TAAAGGAATGCCACATATAGGG solo funciona la G.
+
+        Cinco guias acabadas en G, dos comportamientos distintos. Lo unico que los
+        distingue es plegar. Este test lo fija: si alguien reintroduce una tabla, falla.
+        """
+        conocidas = [e.guide for e in load_guide_fixture()] + [
+            "TAGATAAGCATTATAATTCCTA",
+            "TAATTGAAAGAGCTACAGGTGG",
+            "TAAAGGAATGCCACATATAGGG",
+            "TTTAGTACTGGATGGAACGGCC",
+        ]
+        por_terminacion: dict[str, set[frozenset]] = {}
+        for guia in conocidas:
+            candidatas = frozenset(passenger_from_guide(guia).candidates)
+            por_terminacion.setdefault(guia[-1], set()).add(candidatas)
+
+        self.assertGreater(
+            len(por_terminacion["G"]),
+            1,
+            "Todas las guias acabadas en G dan el mismo conjunto de bases validas: "
+            "eso haria que una tabla por terminacion funcionase, y el dato dice que no.",
+        )
+
+    def test_las_acabadas_en_G_del_fixture_eligen_A_y_es_correcto(self):
+        """Contrapunto explicito del test anterior, con los nombres delante."""
+        acabadas_en_G = [e for e in load_guide_fixture() if e.guide.endswith("G")]
+        self.assertEqual(
+            {e.name for e in acabadas_en_G}, {"mm221", "mm900", "hs612"}
+        )
+        for entrada in acabadas_en_G:
+            with self.subTest(guia=entrada.name):
+                self.assertEqual(entrada.chosen, "A")
+                self.assertEqual(
+                    passenger_from_guide(entrada.guide).chosen_base, "A"
+                )
+
+    def test_hay_cuatro_conjuntos_distintos_de_bases_validas(self):
+        """15 de las 20 tienen TRES opciones, no una sola como podria parecer.
+
+        El reparto real: ACT 13 (guias acabadas en C), ACG 2 (acabadas en A), AG 3
+        (acabadas en G) y CT 2 (acabadas en T). Que haya varias validas es lo normal;
+        lo que hace la preferencia C > A > G > T es solo desempatar.
+        """
+        from collections import Counter
+
+        reparto = Counter("".join(sorted(e.ok)) for e in load_guide_fixture())
+        self.assertEqual(dict(reparto), {"ACT": 13, "CT": 2, "AG": 3, "ACG": 2})
+        self.assertEqual(sum(v for k, v in reparto.items() if len(k) == 3), 15)
+
+    def test_las_guias_con_la_G_entre_las_validas(self):
+        """Las cinco donde la G es una opcion, que son las que una tabla confundiria."""
+        con_G = {e.name for e in load_guide_fixture() if "G" in e.ok}
+        self.assertEqual(con_G, {"mm221", "mm900", "hs612", "hs111", "mp10"})
         for entrada in load_guide_fixture():
-            if entrada.guide.endswith("G"):
+            if entrada.name in {"hs111", "mp10"}:
                 with self.subTest(guia=entrada.name):
-                    self.assertNotEqual(entrada.chosen, "A")
-                    self.assertEqual(
-                        passenger_from_guide(entrada.guide).chosen_base, entrada.chosen
-                    )
+                    #: Acaban en A: la T esta prohibida por Watson-Crick y no hay wobble,
+                    #: asi que valen A, C y G. Se elige C por preferencia, pero la G
+                    #: seria igual de valida estructuralmente.
+                    self.assertTrue(entrada.guide.endswith("A"))
+                    self.assertEqual(set(entrada.ok), {"A", "C", "G"})
+                    self.assertEqual(entrada.chosen, "C")
 
 
 if __name__ == "__main__":

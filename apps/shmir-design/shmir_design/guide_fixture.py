@@ -3,7 +3,7 @@
 `data/reference/guias_pasajera.fa` lleva en la cabecera de cada entrada lo que la regla
 debe devolver:
 
-    >nombre bases_ok=C,A,G elegida=C
+    >nombre guia=TAGATAAGCATTATAATTCCTA bases_ok=ACG elegida=C
     TAGATAAGCATTATAATTCCTA
 
   - `bases_ok`: las bases que reproducen la estructura de SGEP en la posicion 1 de la
@@ -56,6 +56,14 @@ class GuideExpectation:
     chosen: str
 
 
+def _bases(raw: str) -> tuple[str, ...]:
+    """`ACT` y `A,C,T` son la misma cosa. Se aceptan las dos formas."""
+    limpio = raw.strip().upper()
+    if "," in limpio:
+        return tuple(b.strip() for b in limpio.split(",") if b.strip())
+    return tuple(limpio)
+
+
 def _qualifiers(header: str, *, source: str, name: str) -> dict[str, str]:
     campos: dict[str, str] = {}
     for trozo in header.split()[1:]:
@@ -67,7 +75,7 @@ def _qualifiers(header: str, *, source: str, name: str) -> dict[str, str]:
         if obligatorio not in campos:
             raise ShmirDesignError(
                 f"{source}: la cabecera de {name!r} no trae {obligatorio!r}. Se "
-                f"esperaba `>nombre bases_ok=C,A,G elegida=C`; se aborta en vez de "
+                f"esperaba `>nombre bases_ok=ACG elegida=C`; se aborta en vez de "
                 f"adivinar el valor esperado de una regresion."
             )
     return campos
@@ -104,7 +112,7 @@ def parse_guide_fasta(text: str, *, source: str) -> tuple[GuideExpectation, ...]
         vistas.add(guia)
 
         campos = _qualifiers(cabecera, source=source, name=nombre)
-        ok = tuple(b.strip().upper() for b in campos["bases_ok"].split(",") if b.strip())
+        ok = _bases(campos["bases_ok"])
         elegida = campos["elegida"].upper()
         for base in (*ok, elegida):
             if base not in VALID_BASES:

@@ -5,3 +5,9 @@
 !.gitignore
 !manifest.tsv
 !PROCEDENCIA.md
+# Excepcion deliberada: `guias_pasajera.fa` son 1,5 kB de FIXTURE DE TEST, no una base
+# de referencia. La regla "los datos fuera de git" existe por el tamaño (un RefSeq RNA
+# completo), y esto no lo es. Si se queda fuera, los 9 tests de la regresion de la
+# pasajera no corren para nadie que clone el repositorio, y una regresion que no corre
+# no protege de nada. Si prefieres sacarlo igualmente, borra esta linea.
+!guias_pasajera.fa

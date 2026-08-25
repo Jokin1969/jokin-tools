@@ -23,4 +23,4 @@ expresion_cerebro.tsv	ponderacion de la carga de seed				Tabla transcrito<TAB>va
 rmsk_mouse.out	elementos repetitivos (paso 2)				RepeatMasker sobre el FASTA del transcrito, o tabla rmsk de UCSC; se pasa con --rmsk
 aav_casete.fa	filtro del transgen (paso 12b)				Casete AAV completo, ITR a ITR, generado por el laboratorio; se pasa con --transgen
 apa_medido.tsv	APA medido en vez de predicho				PolyA_DB o PolyASite, convertido a posicion<TAB>fraccion<TAB>nombre; se pasa con --apa-medido
-guias_pasajera.fa	regresion de la regla de la pasajera (24 guias)		6281e37478453f03a34ad0856d8c83f7		Aportado con el encargo; el valor esperado (bases_ok, elegida) va en la cabecera de cada entrada. md5 registrado ademas en guide_fixture.EXPECTED_MD5
+guias_pasajera.fa	regresion de la regla de la pasajera (24 guias)	1617	6281e37478453f03a34ad0856d8c83f7	2026-08-25	Aportado con el encargo; el valor esperado (bases_ok, elegida) va en la cabecera de cada entrada. md5 registrado ademas en guide_fixture.EXPECTED_MD5
