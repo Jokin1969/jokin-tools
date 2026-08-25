@@ -35,6 +35,11 @@ class StatusLight:
     headline: str
     detail: str
     pending: tuple[str, ...] = field(default=())
+    #: Cuantos filtros tiene un candidato en total, y cuantos llegaron a correr. El
+    #: ambar sin grados deja de informar cuando siempre esta ambar: "faltan 2 de 9" y
+    #: "faltan 8 de 9" son situaciones muy distintas.
+    total: int = 0
+    ran: int = 0
 
 
 def status_light(selection: ReportSelection) -> StatusLight:
@@ -56,6 +61,12 @@ def status_light(selection: ReportSelection) -> StatusLight:
         f"o enmascaradas); no son candidatas."
         if no_evaluables
         else ""
+    )
+
+    total = (
+        len(selection.window_of(selection.selection.chosen[0]).filters)
+        if selection.selection.chosen
+        else 0
     )
 
     if not selection.selection.chosen:
@@ -80,7 +91,9 @@ def status_light(selection: ReportSelection) -> StatusLight:
     if not pendientes:
         return StatusLight(
             color=VERDE,
-            headline="Todos los filtros corrieron para los candidatos",
+            headline=f"Corrieron los {total} filtros para los candidatos",
+            total=total,
+            ran=total,
             detail=(
                 f"Ninguno de los {len(selection.selection.chosen)} candidatos tiene "
                 f"filtros en NOT_RUN: sus veredictos son completos." + nota_no_evaluables
@@ -89,13 +102,18 @@ def status_light(selection: ReportSelection) -> StatusLight:
 
     return StatusLight(
         color=AMBAR,
-        headline=f"Filtros sin ejecutar: {', '.join(pendientes)}",
+        headline=(
+            f"Faltan {len(pendientes)} de {total} filtros: "
+            f"{', '.join(pendientes)}"
+        ),
         detail=(
-            f"NOT_RUN no es PASS. Estos filtros no corrieron para los candidatos "
-            f"seleccionados: {', '.join(pendientes)}. Ningun candidato esta aprobado y "
-            f"la seleccion es PROVISIONAL." + nota_no_evaluables
+            f"NOT_RUN no es PASS. Corrieron {total - len(pendientes)} de {total} "
+            f"filtros; no corrieron {', '.join(pendientes)}. Ningun candidato esta "
+            f"aprobado y la seleccion es PROVISIONAL." + nota_no_evaluables
         ),
         pending=tuple(pendientes),
+        total=total,
+        ran=total - len(pendientes),
     )
 
 

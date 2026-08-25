@@ -87,6 +87,23 @@ COMPLEMENT = str.maketrans("ACGTN", "UGCAN")
 AsymmetryModel = Callable[[str], float]
 
 
+def longest_homopolymer(sequence: str) -> tuple[str, int]:
+    """Base y longitud del tramo mas largo de bases iguales seguidas.
+
+    Es la MISMA propiedad que mira `homopolymer_pattern`, expresada de otra forma:
+    la regex responde "¿pasa del umbral?" y esto responde "¿de cuanto y de que base?",
+    que es lo que hace falta para escribir el motivo del rechazo. Hay un test que exige
+    que las dos coincidan para cualquier umbral; si alguien cambia una, salta.
+    """
+    peor, actual, base, ganadora = 0, 0, "", ""
+    for i, letra in enumerate(sequence):
+        actual = actual + 1 if i and letra == base else 1
+        base = letra
+        if actual > peor:
+            peor, ganadora = actual, letra
+    return ganadora, peor
+
+
 def gc_fraction(sequence: str) -> float:
     cleaned = normalize_sequence(sequence)
     return (cleaned.count("G") + cleaned.count("C")) / len(cleaned)

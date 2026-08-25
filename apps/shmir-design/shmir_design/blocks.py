@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from .errors import ShmirDesignError
+from .hard_filters import longest_homopolymer as _longest_homopolymer
 from .filters import FilterResult, FilterState
 from .scaffold import (
     REFERENCE_HAIRPIN,
@@ -154,17 +155,6 @@ class Block:
         return tuple(r for r in self.checks if r.state is FilterState.NOT_RUN)
 
 
-def _homopolymer_run(sequence: str) -> tuple[str, int]:
-    peor, actual, base = 0, 0, ""
-    ganadora = ""
-    for i, letra in enumerate(sequence):
-        actual = actual + 1 if i and letra == base else 1
-        base = letra
-        if actual > peor:
-            peor, ganadora = actual, letra
-    return ganadora, peor
-
-
 def _check_lengths(module: str, cassette: str, intron: str) -> FilterResult:
     esperado = {
         "modulo": (len(module), MODULE_LENGTH),
@@ -233,7 +223,7 @@ def _check_homopolymers(guide: str, passenger: str) -> FilterResult:
     variable = f"{passenger}|{guide}"
     peor_base, peor = "", 0
     for tramo in (passenger, guide):
-        base, largo = _homopolymer_run(tramo)
+        base, largo = _longest_homopolymer(tramo)
         if largo > peor:
             peor_base, peor = base, largo
     if peor > MAX_HOMOPOLYMER:

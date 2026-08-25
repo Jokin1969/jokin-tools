@@ -33,8 +33,8 @@ streamlit run apps/shmir-design/ui/streamlit_app.py
 Comprobaciones:
 
 ```bash
-npm run test:shmir     # 882 tests, 15 saltados (los saltados esperan fixtures)
-npm run check:shmir    # verificador de la regla 2 sobre el AST, 74 ficheros
+npm run test:shmir     # 1162 tests, 15 saltados (los saltados esperan fixtures)
+npm run check:shmir    # verificador de la regla 2 sobre el AST, 88 ficheros
 npm test               # suite del hub Node, 257 tests (no la rompe nada de aquí)
 ```
 
@@ -301,6 +301,7 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 | `shmir_design/blocks.py` | Bloques listos para pedir y sus comprobaciones |
 | `shmir_design/spacers.py` | Espaciadores del intrón; generación de novo AUTORIZADA y acotada |
 | `shmir_design/manifest.py` | Manifiesto de `data/reference/`: qué hay, qué falta, qué se usó |
+| `shmir_design/cost.py` | Estimación de coste antes de correr (`design.py --estimar`) |
 | `shmir_design/masking.py` | Enmascarado de repeticiones |
 | `shmir_design/tiling.py` | Tiling, contadores, sitios |
 | `shmir_design/conservation.py` | Bloques idénticos entre dos 3'UTR |

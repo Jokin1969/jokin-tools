@@ -53,6 +53,7 @@ from shmir_design.blocks import (  # noqa: E402
     order_sheet,
 )
 from shmir_design.comparative import comparative_tsv  # noqa: E402
+from shmir_design.cost import estimate_cost  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.manifest import (  # noqa: E402
     MANIFEST_NAME,
@@ -325,6 +326,12 @@ def main(argv: list[str]) -> int:
         help="En que coordenadas estan las posiciones de --apa-medido.",
     )
     parser.add_argument(
+        "--estimar", action="store_true",
+        help="No diseña nada: tila, cuenta cuantas ventanas pasarian por cada filtro "
+             "caro, mide UNA invocacion real de cada uno y dice cuanto va a tardar. "
+             "Para saber en unos segundos si merece la pena lanzarlo.",
+    )
+    parser.add_argument(
         "--accesibilidad", action="store_true",
         help="Calcula la accesibilidad de cada diana con ViennaRNA (ventanas de "
              "contexto ±80 y ±150 nt). Es un criterio de DESEMPATE, nunca un filtro, y "
@@ -438,7 +445,7 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    if args.out is None:
+    if args.out is None and not args.estimar:
         print("design: falta --out con el directorio de salida.", file=sys.stderr)
         return 2
     if args.seeds and args.bootstrap_seeds:
@@ -699,6 +706,27 @@ def main(argv: list[str]) -> int:
                 fixture_filename(REFERENCES[accession])
                 for accession in DEFAULT_PAIR.values()
             )
+
+        if args.estimar:
+            for especie, secuencia in secuencias.items():
+                print(f"\n═══ {especie} ═══")
+                print(
+                    estimate_cost(
+                        sequence=secuencia,
+                        anatomy=anatomias[especie],
+                        tile_range=rangos[especie],
+                        thresholds=thresholds,
+                        specificity_db=refseq,
+                        specificity_target=args.target,
+                        transgene_db=transgen_db,
+                        mature=maduros,
+                        abundance=abundantes,
+                        utr3_set=transcriptoma,
+                        accessibility=args.accesibilidad,
+                    ).format_text()
+                )
+            print()
+            return 0
 
         args.out.mkdir(parents=True, exist_ok=True)
         for especie, secuencia in secuencias.items():

@@ -363,3 +363,55 @@ class TestColumnasNuevasEnLaTabla(unittest.TestCase):
     def test_el_riesgo_APA_dice_si_es_prediccion(self):
         _, seleccion = piezas()
         self.assertIn("prediccion", str(candidate_rows(seleccion)[0]["riesgo_APA"]))
+
+
+class TestAmbarGraduado(unittest.TestCase):
+    """El ambar sin grados deja de informar cuando siempre esta ambar.
+
+    Con nueve filtros que dependen de un fichero, "faltan 2 de 9" y "faltan 8 de 9" son
+    situaciones muy distintas y antes se veian igual. Ahora el titular lleva la cuenta.
+    """
+
+    def test_el_titular_dice_cuantos_faltan_de_cuantos(self):
+        _, seleccion = piezas()
+        luz = status_light(seleccion)
+        self.assertEqual(luz.color, "ambar")
+        self.assertIn(f"{len(luz.pending)} de {luz.total}", luz.headline)
+
+    def test_el_total_es_el_numero_de_filtros_de_un_candidato(self):
+        tiling, seleccion = piezas()
+        self.assertEqual(status_light(seleccion).total, len(tiling.windows[0].filters))
+
+    def test_cuantos_corrieron_es_el_complemento(self):
+        _, seleccion = piezas()
+        luz = status_light(seleccion)
+        self.assertEqual(luz.ran, luz.total - len(luz.pending))
+
+    def test_menos_pendientes_da_un_titular_distinto(self):
+        """Regresion del problema: dos situaciones distintas no pueden leerse igual."""
+        _, pocos = piezas(seeds=BOOTSTRAP_SEEDS, specificity=True)
+        _, muchos = piezas()
+        self.assertNotEqual(
+            status_light(pocos).headline, status_light(muchos).headline
+        )
+        self.assertLess(
+            len(status_light(pocos).pending), len(status_light(muchos).pending)
+        )
+
+    def test_el_verde_sigue_diciendo_que_corrieron_todos(self):
+        mask = RepeatMask(intervals=((1, 5),), source="prueba")
+        _, seleccion = piezas(
+            seeds=BOOTSTRAP_SEEDS, mask=mask, specificity=True,
+            transgene=True, mirna=True,
+        )
+        luz = status_light(seleccion)
+        self.assertEqual(luz.color, "verde")
+        self.assertEqual(luz.pending, ())
+        self.assertEqual(luz.ran, luz.total)
+
+    def test_sin_candidatos_no_finge_una_cuenta(self):
+        tiling = tile_utr("N" * 200)
+        seleccion = select_from_report(tiling, SelectionConfig(n_candidates=3))
+        luz = status_light(seleccion)
+        self.assertEqual(luz.total, 0)
+        self.assertEqual(luz.ran, 0)

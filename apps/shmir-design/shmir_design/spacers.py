@@ -52,6 +52,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .blocks import PIECES
+from .hard_filters import gc_fraction
+from .hard_filters import longest_homopolymer as _longest_homopolymer
 
 SPACER5_LENGTH = 20
 SPACER3_LENGTH = 45
@@ -78,22 +80,6 @@ DEFAULT_BUDGET = 300
 _BASE_WEIGHTS = (("A", 32), ("T", 32), ("G", 18), ("C", 18))
 
 
-def _homopolymer_run(sequence: str) -> tuple[str, int]:
-    peor, actual, base, ganadora = 0, 0, "", ""
-    for i, letra in enumerate(sequence):
-        actual = actual + 1 if i and letra == base else 1
-        base = letra
-        if actual > peor:
-            peor, ganadora = actual, letra
-    return ganadora, peor
-
-
-def gc_fraction(sequence: str) -> float:
-    if not sequence:
-        raise ValueError("No se puede calcular el GC de una secuencia vacia.")
-    return sum(1 for b in sequence.upper() if b in "GC") / len(sequence)
-
-
 def spacer_rejections(sequence: str) -> tuple[str, ...]:
     """Motivos por los que un espaciador NO vale. Vacio = pasa todos los filtros."""
     limpia = "".join(str(sequence).split()).upper()
@@ -113,7 +99,7 @@ def spacer_rejections(sequence: str) -> tuple[str, ...]:
                 f"Lleva la señal de poliadenilacion {señal}: podria cortar el "
                 f"transcrito antes de tiempo."
             )
-    base, largo = _homopolymer_run(limpia)
+    base, largo = _longest_homopolymer(limpia)
     if largo > MAX_HOMOPOLYMER:
         motivos.append(
             f"Homopolimero de {largo} {base}: el limite es {MAX_HOMOPOLYMER}."
