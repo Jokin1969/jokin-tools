@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "check:batchwork": "python3 apps/batchwork/tools/check_rules.py",
-    "test:batchwork": "cd apps/batchwork && python3 -m unittest discover -s tests -t ."
+    "check:shmir": "python3 apps/shmir-design/tools/check_rules.py",
+    "test:shmir": "cd apps/shmir-design && python3 -m unittest discover -s tests -t ."
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",
