@@ -211,3 +211,65 @@ FEATURES             Location/Qualifiers
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRangoDeTilado(unittest.TestCase):
+    """Bloque 8: --tile-desde / --tile-hasta, y el informe lo dice siempre."""
+
+    def _correr(self, extra: list[str]):
+        tmp = Path(tempfile.mkdtemp())
+        fa = _fasta(tmp)
+        codigo, salida = _correr(
+            ["--fasta", str(fa), "--out", str(tmp), "--cds", *CDS_COORDS] + extra
+        )
+        return codigo, salida, tmp
+
+    def _informe(self, extra: list[str]) -> str:
+        codigo, salida, tmp = self._correr(extra)
+        self.assertEqual(codigo, 0, salida)
+        return list(tmp.glob("*informe*.txt"))[0].read_text(encoding="utf-8")
+
+    def test_sin_rango_el_informe_dice_que_se_tilo_todo(self):
+        self.assertIn("transcrito completo", self._informe([]))
+
+    def test_un_rango_de_transcrito_sale_impreso(self):
+        texto = self._informe(["--tile-desde", "200", "--tile-hasta", "400"])
+        self.assertIn("200-400 del transcrito", texto)
+
+    def test_un_rango_en_coordenadas_de_3utr_imprime_las_dos(self):
+        texto = self._informe(
+            ["--tile-desde", "1", "--tile-hasta", "200", "--tile-coords", "3utr"]
+        )
+        self.assertIn("147-346 del transcrito", texto)
+        self.assertIn("1-200 del 3'UTR", texto)
+
+    def test_el_informe_dice_que_regiones_cubre(self):
+        texto = self._informe(["--tile-desde", "50", "--tile-hasta", "140"])
+        self.assertIn("cubre CDS", texto)
+
+    def test_el_informe_avisa_de_que_fuera_del_rango_no_se_evaluo_nada(self):
+        texto = self._informe(["--tile-desde", "200", "--tile-hasta", "400"])
+        self.assertIn("no se ha evaluado NADA", texto)
+
+    def test_solo_se_tilan_las_ventanas_del_rango(self):
+        codigo, salida, tmp = self._correr(
+            ["--tile-desde", "200", "--tile-hasta", "400"]
+        )
+        self.assertEqual(codigo, 0, salida)
+        filas = (
+            list(tmp.glob("*ventanas.tsv"))[0]
+            .read_text(encoding="utf-8")
+            .strip()
+            .splitlines()
+        )
+        self.assertEqual(len(filas) - 1, 400 - 200 + 1 - 22 + 1)
+
+    def test_un_rango_mas_corto_que_la_ventana_aborta(self):
+        codigo, salida, _ = self._correr(["--tile-desde", "200", "--tile-hasta", "210"])
+        self.assertEqual(codigo, 2)
+        self.assertIn("22", salida)
+
+    def test_un_rango_fuera_del_transcrito_aborta(self):
+        codigo, salida, _ = self._correr(["--tile-desde", "1", "--tile-hasta", "99999"])
+        self.assertEqual(codigo, 2)
+        self.assertIn("586", salida)

@@ -274,3 +274,120 @@ def cds_stop_codon_ok(sequence: str, anatomy: Anatomy) -> bool | None:
     if anatomy.cds is None:
         return None
     return sequence.upper()[anatomy.cds[1] - 3 : anatomy.cds[1]] in STOP_CODONS
+
+
+@dataclass(frozen=True)
+class TileRange:
+    """Tramo del transcrito que se va a tilar (bloque 8).
+
+    `--cds` dice que es cada posicion; esto dice DONDE buscar, que es otra pregunta.
+    Los casos que hacen falta: la cobertura proximal del 3'UTR por si el APA resulta
+    funcional, un bloque conservado entre especies, o un tramo concreto del ORF.
+
+    Las coordenadas internas (`start`, `end`) son SIEMPRE de transcrito. Se guarda
+    ademas lo que se declaro y en que sistema, porque el informe tiene que poder
+    imprimir las dos: quien pide "1-400 del 3'UTR" quiere leer eso, no "950-1349".
+    """
+
+    start: int
+    end: int
+    declared_as: str
+    declared_start: int
+    declared_end: int
+
+    @property
+    def length(self) -> int:
+        return self.end - self.start + 1
+
+    @classmethod
+    def resolve(
+        cls,
+        anatomy: Anatomy,
+        *,
+        start: int | None = None,
+        end: int | None = None,
+        coords: str = "transcrito",
+        window_size: int = 22,
+    ) -> TileRange:
+        if coords not in ("transcrito", "3utr"):
+            raise ValueError(
+                f"Sistema de coordenadas {coords!r} desconocido; se esperaba "
+                f"'transcrito' o '3utr'. Se aborta en vez de suponer cual es."
+            )
+
+        if coords == "3utr":
+            limite = anatomy.utr3_length
+            declarado_inicio = 1 if start is None else start
+            declarado_fin = limite if end is None else end
+            for nombre, valor in (("inicio", declarado_inicio), ("fin", declarado_fin)):
+                if valor < 1 or valor > limite:
+                    raise ValueError(
+                        f"El {nombre} del rango de tilado ({valor}) esta fuera del "
+                        f"3'UTR, que va de 1 a {limite} en sus propias coordenadas; "
+                        f"se aborta en vez de recortarlo por nuestra cuenta."
+                    )
+            real_inicio = anatomy.transcript_position(declarado_inicio)
+            real_fin = anatomy.transcript_position(declarado_fin)
+        else:
+            declarado_inicio = 1 if start is None else start
+            declarado_fin = anatomy.length if end is None else end
+            for nombre, valor in (("inicio", declarado_inicio), ("fin", declarado_fin)):
+                if valor < 1 or valor > anatomy.length:
+                    raise ValueError(
+                        f"El {nombre} del rango de tilado ({valor}) esta fuera del "
+                        f"transcrito, que va de 1 a {anatomy.length}; se aborta en vez "
+                        f"de recortarlo por nuestra cuenta."
+                    )
+            real_inicio, real_fin = declarado_inicio, declarado_fin
+
+        if real_fin < real_inicio:
+            raise ValueError(
+                f"El rango de tilado {declarado_inicio}-{declarado_fin} esta invertido; "
+                f"se aborta."
+            )
+        if real_fin - real_inicio + 1 < window_size:
+            raise ValueError(
+                f"El rango de tilado {declarado_inicio}-{declarado_fin} mide "
+                f"{real_fin - real_inicio + 1} nt y la ventana {window_size}: no cabe "
+                f"ni una ventana entera. Se aborta en vez de devolver una lista vacia "
+                f"que pareceria 'no hay candidatos'."
+            )
+
+        return cls(
+            start=real_inicio,
+            end=real_fin,
+            declared_as=coords,
+            declared_start=declarado_inicio,
+            declared_end=declarado_fin,
+        )
+
+    def is_whole(self, anatomy: Anatomy) -> bool:
+        return self.start == 1 and self.end == anatomy.length
+
+    def contains_window(self, start: int, end: int) -> bool:
+        """Solo entran las ventanas que caben ENTERAS: media ventana no se evalua."""
+        return self.start <= start and end <= self.end
+
+    def regions_covered(self, anatomy: Anatomy) -> tuple[Region, ...]:
+        orden = (Region.UTR5, Region.CDS, Region.UTR3)
+        tocadas = {anatomy.region_of(self.start), anatomy.region_of(self.end)}
+        for region, tramo in (
+            (Region.UTR5, anatomy.utr5),
+            (Region.CDS, anatomy.cds),
+            (Region.UTR3, anatomy.utr3),
+        ):
+            if tramo is not None and self.start <= tramo[1] and tramo[0] <= self.end:
+                tocadas.add(region)
+        return tuple(r for r in orden if r in tocadas)
+
+    def describe(self, anatomy: Anatomy) -> str:
+        regiones = ", ".join(str(r) for r in self.regions_covered(anatomy))
+        if self.is_whole(anatomy):
+            return (
+                f"transcrito completo, {self.start}-{self.end} ({self.length} nt) "
+                f"— cubre {regiones}"
+            )
+        texto = f"{self.start}-{self.end} del transcrito ({self.length} nt)"
+        if self.declared_as == "3utr":
+            texto += f", declarado como {self.declared_start}-{self.declared_end} del 3'UTR"
+        return f"{texto} — cubre {regiones}"

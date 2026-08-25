@@ -239,6 +239,15 @@ def text_report(
 
     if anatomia is not None:
         lines.append(f"  Procedencia de la anatomia: {anatomia.source.describe()}")
+        if tiling.tile_range is not None:
+            lines.append(
+                f"  Rango tilado: {tiling.tile_range.describe(anatomia)}"
+            )
+            if not tiling.tile_range.is_whole(anatomia):
+                lines.append(
+                    "  Fuera de ese rango no se ha evaluado NADA: las ventanas que no "
+                    "caben enteras dentro no aparecen en ninguna salida."
+                )
     lines.extend(f"  ⚠  {w}" for w in anatomy_warnings)
 
     lines.extend(["", "── Señales de poliadenilacion ──"])

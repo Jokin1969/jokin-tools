@@ -28,7 +28,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from .anatomy import Anatomy, Region, RegionSource
+from .anatomy import Anatomy, Region, RegionSource, TileRange
 from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
 from .masking import RepeatMask, apply_mask, filter_repeats
 from .hard_filters import (
@@ -165,6 +165,7 @@ class TilingReport:
     seeds: SeedSet | None = None
     mask: RepeatMask | None = None
     thresholds: Thresholds = DEFAULT_THRESHOLDS
+    tile_range: TileRange | None = None
 
     def biofisicos_ok(self) -> int:
         return sum(1 for w in self.windows if w.biofisicos_ok)
@@ -287,6 +288,7 @@ def tile_utr(
     seeds: SeedSet | None = None,
     mask: RepeatMask | None = None,
     anatomy: Anatomy | None = None,
+    tile_range: TileRange | None = None,
     specificity_db: SpecificityDatabase | None = None,
     specificity_target: str | None = None,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
@@ -314,10 +316,18 @@ def tile_utr(
         )
     signals = find_polya_signals(original, flank=thresholds.polya_flank)
     cleaned = apply_mask(original, mask)
+    tile_range = tile_range or TileRange.resolve(anatomy, window_size=window_size)
     windows = [
         Window(start, window_size, label=f"w{start}")
         for start in tile_positions(len(cleaned), window_size)
+        if tile_range.contains_window(start, start + window_size - 1)
     ]
+    if not windows:
+        raise ValueError(
+            f"El rango de tilado {tile_range.describe(anatomy)} no contiene ni una "
+            f"ventana entera de {window_size} nt; se aborta en vez de devolver un "
+            f"informe vacio que pareceria 'no hay candidatos'."
+        )
     annotated = annotate_3utr(windows, signals, len(cleaned), anatomy=anatomy)
 
     if specificity_db is not None and not specificity_target:
@@ -392,4 +402,5 @@ def tile_utr(
         seeds=seeds,
         mask=mask,
         thresholds=thresholds,
+        tile_range=tile_range,
     )

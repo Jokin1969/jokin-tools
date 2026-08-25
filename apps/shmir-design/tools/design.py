@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shmir_design.anatomy import (  # noqa: E402
     Anatomy,
+    TileRange,
     RegionSource,
     check_cds_boundaries,
     cds_stop_codon_ok,
@@ -210,6 +211,20 @@ def main(argv: list[str]) -> int:
              "coordenadas que corre todo el 3'UTR sin avisar.",
     )
     parser.add_argument(
+        "--tile-desde", type=int, metavar="POS",
+        help="Primera posicion a tilar. Por defecto, el principio de la secuencia.",
+    )
+    parser.add_argument(
+        "--tile-hasta", type=int, metavar="POS",
+        help="Ultima posicion a tilar. Por defecto, el final de la secuencia.",
+    )
+    parser.add_argument(
+        "--tile-coords", choices=("transcrito", "3utr"), default="transcrito",
+        help="En que coordenadas van --tile-desde/--tile-hasta. '3utr' permite pedir "
+             "p.ej. la cobertura proximal 1-400 tal y como se piensa, sin sumar a mano "
+             "el desplazamiento del 3'UTR.",
+    )
+    parser.add_argument(
         "--region", choices=("transcrito", "3utr"), default="transcrito",
         help="'3utr' declara que la secuencia dada YA es el 3'UTR. No hay valor por "
              "defecto que resuelva la anatomia: sin --cds, sin --genbank y sin "
@@ -329,7 +344,7 @@ def main(argv: list[str]) -> int:
                 for nombre, accession in DEFAULT_PAIR.items()
             }
 
-        anatomias, avisos_anatomia = {}, {}
+        anatomias, avisos_anatomia, rangos = {}, {}, {}
         for nombre, secuencia in secuencias.items():
             es_a = nombre == args.name
             anatomias[nombre] = resolver_anatomia(
@@ -340,6 +355,12 @@ def main(argv: list[str]) -> int:
                 genbank_md5=args.genbank_md5 if es_a else args.genbank_b_md5,
                 region=args.region,
                 desde_fixture=transcripts[nombre] is not None,
+            )
+            rangos[nombre] = TileRange.resolve(
+                anatomias[nombre],
+                start=args.tile_desde,
+                end=args.tile_hasta,
+                coords=args.tile_coords,
             )
             avisos_anatomia[nombre] = comprobar_fronteras(
                 secuencia,
@@ -367,6 +388,7 @@ def main(argv: list[str]) -> int:
                 seeds=seeds,
                 mask=mask,
                 anatomy=anatomias[especie],
+                tile_range=rangos[especie],
                 specificity_db=refseq,
                 specificity_target=args.target,
                 thresholds=thresholds,
