@@ -311,3 +311,70 @@ def select_from_report(
         not_run_filters=report.not_run_counts(),
         eligible_strict=sum(1 for w in report.windows if is_eligible_strict(w)),
     )
+
+
+# ─── Sensibilidad de la penalizacion ─────────────────────────────────────────
+DEFAULT_PENALTY_SWEEP = (0.5, 1.0, 1.5, 2.0)
+
+
+@dataclass(frozen=True)
+class PenaltySensitivity:
+    """¿Importa el valor de la penalizacion, o da igual?
+
+    La penalizacion por solapar una variante rara de poliadenilacion no tiene un valor
+    con base biologica. En vez de fijarla a ciegas, se barre un rango y se mira si
+    cambia QUIEN entra. Si no cambia, el valor es irrelevante y se documenta asi; si
+    cambia, es una decision con consecuencias y hay que tomarla a proposito.
+    """
+
+    values: tuple[float, ...]
+    selections: dict[float, tuple[int, ...]]
+    flagged: int
+    stable: bool
+
+    def describe(self) -> str:
+        if self.flagged == 0:
+            return (
+                "Ninguna ventana lleva bandera de poliadenilacion debil: la "
+                "penalizacion no afecta a nada en este 3'UTR."
+            )
+        if self.stable:
+            return (
+                f"Los seleccionados NO cambian entre {min(self.values)} y "
+                f"{max(self.values)} kcal/mol: el valor exacto es irrelevante aqui."
+            )
+        return (
+            f"Los seleccionados CAMBIAN dentro del rango {min(self.values)}–"
+            f"{max(self.values)} kcal/mol: el valor no es inocuo, decidelo a proposito."
+        )
+
+
+def penalty_sensitivity(
+    report: TilingReport,
+    config: SelectionConfig | None = None,
+    values: tuple[float, ...] = DEFAULT_PENALTY_SWEEP,
+) -> PenaltySensitivity:
+    """Repite la seleccion con varias penalizaciones y compara quien sale elegido."""
+    if not values:
+        raise ValueError(
+            "No hay ningun valor de penalizacion que barrer; se aborta en vez de "
+            "devolver un analisis vacio que parezca concluyente."
+        )
+    base = config or SelectionConfig()
+    selections: dict[float, tuple[int, ...]] = {}
+    for value in values:
+        variante = SelectionConfig(
+            n_candidates=base.n_candidates,
+            min_spacing=base.min_spacing,
+            require_one_per_tercio=base.require_one_per_tercio,
+            weak_polya_penalty=value,
+        )
+        seleccion = select_from_report(report, variante)
+        selections[value] = tuple(c.start for c in seleccion.selection.chosen)
+
+    return PenaltySensitivity(
+        values=tuple(values),
+        selections=selections,
+        flagged=sum(1 for w in report.windows if w.bandera_polyA_debil),
+        stable=len(set(selections.values())) == 1,
+    )

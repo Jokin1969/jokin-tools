@@ -25,6 +25,15 @@ llevan la misma horquilla shRen.713 con la misma pasajera, lo que confirma que e
 desapareamiento es deliberado pero no discrimina entre lecturas; lo resuelve el plegado
 del 97-mero completo, comprobado con ViennaRNA.
 
+**Otra lectura del mismo hecho, y es la mejor explicacion:** el flanco 5' del andamio
+seria `TGCTGTTGACAGTGAGCGC` —19 nt, con una C fija de scaffold— y la pasajera 21 nt.
+Eso explica SGEP y LT3GEPIR sin necesidad de regla ninguna, y monta exactamente el
+mismo 97-mero que este modulo... **salvo cuando la guia acaba en G**. Ahi la C fija
+seria justo el complemento Watson-Crick de la posicion 22, cerraria el tallo y borraria
+el bulge (comprobado plegando). Por eso la regla mantiene la excepcion: con la guia
+acabada en G se pone A. Si alguien "simplifica" esto dejando la C siempre porque "es
+scaffold", rompe esas guias en silencio.
+
 Python 3.11+, solo libreria estandar (regla 6).
 """
 

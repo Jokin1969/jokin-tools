@@ -22,7 +22,7 @@ from .filters import Verdict
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
-from .selection import ReportSelection
+from .selection import ReportSelection, penalty_sensitivity
 from .tiling import TilingReport
 
 FASTA_WRAP = 60
@@ -284,6 +284,21 @@ def text_report(
             f"asim {choice.asymmetry:+.2f}  {window.verdict.value}"
             + ("  riesgo_APA" if window.riesgo_APA else "")
         )
+
+    sensibilidad = penalty_sensitivity(tiling, selection.selection.config)
+    lines.extend(
+        [
+            "",
+            "── Sensibilidad de la penalizacion por poliadenilacion debil ──",
+            f"  ventanas con bandera: {sensibilidad.flagged}",
+        ]
+    )
+    if sensibilidad.flagged:
+        lines.extend(
+            f"    {valor:.1f} kcal/mol → {', '.join(str(p) for p in posiciones) or '—'}"
+            for valor, posiciones in sensibilidad.selections.items()
+        )
+    lines.append(f"  {sensibilidad.describe()}")
 
     lines.extend(["", "── FILTROS QUE NO SE EJECUTARON ──"])
     if not selection.not_run_filters:

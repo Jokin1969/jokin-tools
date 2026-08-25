@@ -20,6 +20,7 @@ from shmir_design.selection import (
     eligible_choices,
     is_eligible,
     group_choices,
+    penalty_sensitivity,
     select_from_report,
 )
 from shmir_design.tiling import tile_utr
@@ -305,6 +306,45 @@ class TestDosCifrasDeElegibles(unittest.TestCase):
             1 for w in report.windows if is_eligible(w) and w.bandera_polyA_debil
         )
         self.assertEqual(seleccion.eligible - seleccion.eligible_strict, con_bandera)
+
+
+class TestSensibilidadDeLaPenalizacion(unittest.TestCase):
+    """No fijar el valor a ciegas: mirar si mueve a quien entra."""
+
+    def report(self):
+        secuencia = (
+            "GCGTCAGTACGATCGAATTACT" * 5
+            + "ACTAAA"
+            + "GCGTCAGTACGATCGAATTACT" * 5
+        )
+        return tile_utr(secuencia)
+
+    def test_prueba_todos_los_valores_pedidos(self):
+        s = penalty_sensitivity(self.report(), SelectionConfig(n_candidates=3))
+        self.assertEqual(s.values, (0.5, 1.0, 1.5, 2.0))
+        self.assertEqual(sorted(s.selections), sorted(s.values))
+
+    def test_dice_cuantas_ventanas_llevan_bandera(self):
+        report = self.report()
+        s = penalty_sensitivity(report, SelectionConfig(n_candidates=3))
+        self.assertEqual(
+            s.flagged, sum(1 for w in report.windows if w.bandera_polyA_debil)
+        )
+
+    def test_si_no_cambia_nadie_se_marca_estable(self):
+        s = penalty_sensitivity(self.report(), SelectionConfig(n_candidates=3))
+        elegidos = set(s.selections.values())
+        self.assertEqual(s.stable, len(elegidos) == 1)
+
+    def test_sin_ventanas_con_bandera_es_estable_por_definicion(self):
+        report = tile_utr("GCGTCAGTACGATCGAATTACT" * 10)
+        s = penalty_sensitivity(report, SelectionConfig(n_candidates=2))
+        self.assertEqual(s.flagged, 0)
+        self.assertTrue(s.stable)
+
+    def test_un_rango_vacio_de_valores_es_error(self):
+        with self.assertRaises(ValueError):
+            penalty_sensitivity(self.report(), SelectionConfig(), values=())
 
 
 if __name__ == "__main__":

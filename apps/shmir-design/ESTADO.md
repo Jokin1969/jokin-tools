@@ -57,6 +57,10 @@ El orden de operaciones es **no negociable** y está en [`docs/pipeline.md`](./d
 | 5 | Sin homopolímeros ≥4 | **hecho** | `hard_filters.py` |
 | 6 | U forzada en la posición 1 de la guía | **hecho** | `hard_filters.guide_from_target` |
 | 7 | Asimetría ≥ +0.5 kcal/mol | **hecho** (proxy heurístico, ver §5) | `thermo.py` |
+| 9b | Filtro de poliadenilación escalonado + sensibilidad de la penalización | **hecho** | `polya.py`, `selection.penalty_sensitivity` |
+| — | Anatomía declarada: región y dobles coordenadas | **hecho** | `anatomy.py` |
+| — | Plegado del 97-mero (ViennaRNA, opcional) | **hecho** | `folding.py` |
+| — | Módulo NheI–SacI de 149 nt | **hecho** | `gblock.py` |
 | 8 | Sin motivo G-cuádruplex | **hecho**, sobre diana **y** guía | `hard_filters.py` |
 | 9 | Exclusión de señales de poliadenilación ±10 nt | **hecho** | `polya.py` |
 | 10 | Seed sin colisión con miRNA | **mecánica hecha**; falta `mature.fa` de miRBase | `seeds.py` |
@@ -197,7 +201,8 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 | 181 / 231 PASS | especificación de la asimetría con el signo invertido | — |
 | 302 / **322** | mezclaban un filtro de seeds que solo afectaba al humano | **302 / 96** y **323 / 97**, solo biofísicos |
 | «el mejor del bloque es el offset 1» | mismo error de signo | el mejor es el **offset 3** (+0.77) |
-| «pasajera = revcomp exacto» | lleva un desapareamiento deliberado en la posición 1 | transición T↔C, sin confirmar |
+| «pasajera = revcomp exacto» | lleva un desapareamiento deliberado en la posición 1 | **resuelto**: la posición 1 nunca es el complemento Watson-Crick de la posición 22 de la guía |
+| «transición T↔C» / «por defecto A» | regla trasplantada del diseño de miR-451, que es otra geometría; se generalizó desde una sola guía acabada en C sin volver a mirar el ejemplo de referencia | **por defecto C, y A cuando la C sería la prohibida** (guía acabada en G) |
 
 ---
 

@@ -187,6 +187,11 @@ class TestInformeDeTexto(unittest.TestCase):
         self.assertIn("escalonado", texto.lower())
         self.assertIn("estricto", texto.lower())
 
+    def test_saca_la_sensibilidad_de_la_penalizacion(self):
+        texto = self.informe()
+        self.assertIn("sensibilidad", texto.lower())
+        self.assertIn("penalizacion", texto.lower())
+
     def test_avisa_de_que_la_seleccion_es_provisional(self):
         self.assertIn("provisional", self.informe().lower())
 

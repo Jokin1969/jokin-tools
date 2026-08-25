@@ -52,6 +52,11 @@ El filtro escalonado penaliza 1.0 kcal/mol a la ventana que solapa una variante 
 en vez de excluirla. El mecanismo viene de la instrucción; **el valor es una convención
 mía**, configurable en `SelectionConfig.weak_polya_penalty`.
 
+No hay que fijarlo a ciegas: cada informe trae ahora un barrido de 0.5 a 2.0 kcal/mol
+(`selection.penalty_sensitivity`) que dice si cambia **quién entra**. Si no cambia, el
+valor es irrelevante para ese 3'UTR y queda documentado como insensible; si cambia, es
+una decisión con consecuencias y hay que tomarla a propósito.
+
 ### 4. El `GGGG` del contexto 3' del gBlock
 
 La instrucción pide «sin homopolímeros ≥4» y el contexto 3' nativo de SGEP lleva un
