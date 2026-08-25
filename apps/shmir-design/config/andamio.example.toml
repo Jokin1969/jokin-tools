@@ -1,0 +1,21 @@
+# Andamio de la horquilla, parametrizable.
+#
+# `verificado` es FALSE por defecto, y se queda en false mientras no hayas contrastado
+# estas tres secuencias contra la publicacion original del andamio. Con false, TODA
+# salida de oligos lleva el aviso ANDAMIO_NO_VERIFICADO. No se puede silenciar: no hay
+# ningun parametro, ni de linea de comandos ni de fichero, que lo quite.
+#
+# Un flanco equivocado da una horquilla que se sintetiza igual de bien y no procesa.
+
+nombre  = "miR-E / SGEP"
+flanco5 = "TGCTGTTGACAGTGAGCG"
+loop    = "TAGTGAAGCCACAGATGTA"
+flanco3 = "TGCCTACTGCCTCGGA"
+
+# Brazo en el que va la guia: "3p" o "5p".
+guide_arm = "3p"
+
+# Ponlo a true SOLO cuando lo hayas contrastado tu, y di contra que.
+verificado = false
+fuente = "pendiente de contrastar"
+notas  = "El andamio SGEP de Addgene #111170 esta verificado en el codigo (SGEP_SCAFFOLD); este fichero es para andamios propios."
