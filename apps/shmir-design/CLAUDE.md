@@ -202,11 +202,15 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   corta.
 - El andamio miR-E (`scaffold.py`) está verificado en el 97-mero y **solo** ahí; los
   flancos extendidos del pri-miR siguen sin decidir.
-- **La regla de la pasajera está resuelta**: la posición 1 nunca puede ser el
-  complemento Watson-Crick de la posición 22 de la guía, porque cierra el tallo y borra
-  el bulge basal. Convención: C, y A cuando la C es la prohibida. Hay un test que pliega
-  el 97-mero y exige la misma notación punto-paréntesis que SGEP; si falla, es que
-  alguien ha tocado la regla.
+- **La regla de la pasajera es ESTRUCTURAL, no una tabla.** Se pliegan las cuatro bases
+  posibles para la posición 1 y se elige una cuyo 97-mero reproduzca la notación
+  punto-paréntesis de SGEP; `C > A > G > T` sólo desempata cuando hay varias, y si no
+  hay ninguna se aborta enseñando las cuatro estructuras. **No la sustituyas por una
+  tabla por terminación**: eso es lo que había antes y falló — le faltaba el
+  apareamiento tambaleante `G:U`, así que con guía acabada en G la T también está
+  prohibida y la A, que no aparea con nada, deja un bulge de 2 nt en vez de 1. Sin
+  ViennaRNA el criterio no se puede aplicar: la pasajera sale con `structural_check =
+  NOT_RUN` y un aviso que dice que esa elección está comprobada como incorrecta.
 - **El filtro de poliadenilación es escalonado**: FAIL duro solo para la señal terminal
   y para `AATAAA`/`ATTAAA` en `APA_POSIBLE`; las variantes raras dejan bandera y
   penalización de ranking. El informe saca las dos cifras de elegibles.

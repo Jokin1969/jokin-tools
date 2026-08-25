@@ -26,7 +26,10 @@ ViennaRNA: A, C y G dan la misma notación punto-paréntesis y el mismo ΔG (−
 —la WC— cierra el tallo (−49.10).
 
 Convención para elegir entre las tres válidas: **C, y A cuando la C es justo la
-prohibida** (guía acabada en G). Elimina el caso de la G que antes quedaba sin decidir.
+prohibida** (guía acabada en G). **Superada**: esa tabla fallaba con guías acabadas en
+G, porque le faltaba el apareamiento tambaleante G:U. La regla vigente es estructural —
+se pliegan las cuatro bases y se elige una que reproduzca la notación punto-paréntesis
+de SGEP, con preferencia C > A > G > T sólo para desempatar.
 
 > **Discrepancia en la especificación, resuelta a favor del plásmido.** La instrucción
 > decía «por defecto A; si la guía termina en T, entonces C», pero con «por defecto A»

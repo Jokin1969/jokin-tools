@@ -14,6 +14,8 @@ Python 3.11+ (regla 6).
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from .errors import InvalidSequenceError, ShmirDesignError
 from .filters import FilterResult, FilterState
 
@@ -60,9 +62,19 @@ def _fold_with(vienna, sequence: str) -> tuple[str, float]:
     return structure, float(energy)
 
 
+@lru_cache(maxsize=8192)
+def _fold_cached(rna: str) -> tuple[str, float]:
+    return _fold_with(_import_vienna(), rna)
+
+
 def dot_bracket(sequence: str) -> tuple[str, float]:
-    """Estructura en notacion punto-parentesis y su ΔG, en kcal/mol."""
-    return _fold_with(_import_vienna(), _to_rna(sequence))
+    """Estructura en notacion punto-parentesis y su ΔG, en kcal/mol.
+
+    Cacheado por secuencia: el plegado es determinista y puro, y la eleccion de la
+    posicion 1 de la pasajera pliega cinco 97-meros por candidato — sin cache, tilar un
+    3'UTR entero se va de minutos.
+    """
+    return _fold_cached(_to_rna(sequence))
 
 
 def reference_structure(reference_hairpin: str) -> str:

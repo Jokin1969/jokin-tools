@@ -14,11 +14,24 @@ decidir y este modulo se niega a inventarlos.
 La pasajera no es el complementario reverso exacto de la guia: lleva un desapareamiento
 deliberado en su posicion 1, que es la que aparearia con la posicion 22 de la guia.
 
-**Regla: la posicion 1 de la pasajera nunca puede ser el complemento Watson-Crick de la
-posicion 22 de la guia.** Si lo es, el tallo se cierra y desaparece el bulge basal.
-Cualquiera de las otras tres bases da una estructura identica base a base a la de SGEP,
-con el mismo ΔG, asi que la eleccion entre ellas es una convencion: se usa C, y A cuando
-la C es justo la prohibida (guia acabada en G).
+**Regla: entre las cuatro bases, se elige una cuyo 97-mero pliegue con notacion
+punto-parentesis IDENTICA a la del 97-mero de SGEP.** Si hay varias, manda el orden de
+preferencia C > A > G > T para que la salida sea determinista. Si ninguna la reproduce,
+se aborta enseñando las cuatro estructuras: no se elige por defecto.
+
+### Por que un criterio estructural y NO una tabla por terminacion
+
+Porque una tabla por terminacion es exactamente lo que fallo. La regla anterior era
+"C por defecto, A cuando la C es la prohibida por Watson-Crick", y le faltaba el
+apareamiento tambaleante: **G:U aparea en ARN**. Con guia acabada en G, la C esta
+prohibida por Watson-Crick y la T tambien lo esta por wobble; la tabla elegia A, que no
+aparea con nada — y aun asi la estructura sale distinta, con un bulge de 2 nt en vez de
+1. Comprobado plegando las guias del proyecto: con `TAATTGAAAGAGCTACAGGTGG` y
+`TAAAGGAATGCCACATATAGGG` solo la G reproduce la estructura de referencia.
+
+El criterio estructural subsume Watson-Crick y wobble sin enumerarlos, y no depende de
+que hayamos previsto todos los casos. **No lo sustituyas por una tabla, por rapida que
+parezca**: la lista de restricciones que hay que prever es justo lo que no sabemos.
 
 Evidencia: dos vectores publicados independientes (SGEP #111170 y LT3GEPIR #111177)
 llevan la misma horquilla shRen.713 con la misma pasajera, lo que confirma que el
@@ -30,9 +43,10 @@ seria `TGCTGTTGACAGTGAGCGC` —19 nt, con una C fija de scaffold— y la pasajer
 Eso explica SGEP y LT3GEPIR sin necesidad de regla ninguna, y monta exactamente el
 mismo 97-mero que este modulo... **salvo cuando la guia acaba en G**. Ahi la C fija
 seria justo el complemento Watson-Crick de la posicion 22, cerraria el tallo y borraria
-el bulge (comprobado plegando). Por eso la regla mantiene la excepcion: con la guia
-acabada en G se pone A. Si alguien "simplifica" esto dejando la C siempre porque "es
-scaffold", rompe esas guias en silencio.
+el bulge (comprobado plegando). El criterio estructural resuelve ese caso solo, sin
+excepciones escritas: pliega las cuatro y se queda con la que funciona, que ahi es la G.
+Si alguien "simplifica" esto dejando la C siempre porque "es scaffold", rompe esas guias
+en silencio.
 
 Python 3.11+, solo libreria estandar (regla 6).
 """
@@ -41,10 +55,12 @@ from __future__ import annotations
 
 import tomllib
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
 
-from .errors import InvalidSequenceError
+from .errors import InvalidSequenceError, ShmirDesignError
+from .filters import FilterState
 
 ARM_LENGTH = 22
 DNA_BASES = frozenset("ACGT")
@@ -179,13 +195,21 @@ PASSENGER_RULE_CONFIRMED = True
 PASSENGER_RULE_SOURCE = (
     "SGEP #111170 y LT3GEPIR #111177 llevan la misma horquilla shRen.713 con la misma "
     "pasajera; el plegado del 97-mero completo (ViennaRNA) confirma que aparear la "
-    "posicion 1 en Watson-Crick cierra el tallo y borra el bulge basal, y que las otras "
-    "tres bases dan una estructura identica base a base"
+    "posicion 1 en Watson-Crick cierra el tallo y borra el bulge basal. Cuantas bases "
+    "reproducen la estructura depende de la guia: con guia acabada en A o en C hay "
+    "tres, y con guia acabada en G solo la G — la C aparea en Watson-Crick, la T por "
+    "wobble G:U, y la A deja un bulge de 2 nt en vez de 1. Por eso la eleccion es "
+    "estructural y no una tabla por terminacion"
 )
 
-#: Base preferida para el desapareamiento, y la alternativa cuando esa es la prohibida.
-DEFAULT_MISMATCH_BASE = "C"
-FALLBACK_MISMATCH_BASE = "A"
+#: Orden de preferencia entre las bases que SI reproducen la estructura de referencia.
+#: Solo desempata; no decide. Quien decide es el plegado.
+MISMATCH_PREFERENCE = ("C", "A", "G", "T")
+
+#: Apareamientos tambaleantes que hay que tener en cuenta en la posicion 1. Estan aqui
+#: solo para el camino SIN ViennaRNA y para poder explicarlo en los avisos: el criterio
+#: de verdad es estructural y no consulta esta tabla.
+WOBBLE_PAIRS = {"G": "T", "T": "G"}
 
 #: 97-mero real de SGEP con la guia shRen.713. Es la estructura de referencia contra la
 #: que se compara el plegado de cualquier horquilla nueva.
@@ -246,35 +270,103 @@ class Passenger:
     forbidden_base: str
     chosen_base: str
     mismatch_applied: bool
+    #: Todas las bases que reproducen la estructura de referencia. La elegida es la
+    #: primera segun `MISMATCH_PREFERENCE`; el resto se guardan para poder auditarlo.
+    candidates: tuple[str, ...] = ()
+    #: ¿Se pudo aplicar el criterio estructural? Sin ViennaRNA, NOT_RUN — que no es PASS.
+    structural_check: FilterState = FilterState.NOT_RUN
     warnings: tuple[str, ...] = field(default=())
 
 
-def passenger_from_guide(guide: str) -> Passenger:
+def _hairpin_sequence(guide: str, passenger: str, scaffold: ScaffoldSpec) -> str:
+    return scaffold.flank5 + passenger + scaffold.loop + guide + scaffold.flank3
+
+
+@lru_cache(maxsize=8192)
+def passenger_from_guide(
+    guide: str,
+    *,
+    scaffold: ScaffoldSpec | None = None,
+    available: bool | None = None,
+) -> Passenger:
     """Pasajera del andamio: revcomp de la guia con la posicion 1 desapareada.
 
-    La posicion 1 nunca es el complemento Watson-Crick de la posicion 22 de la guia.
+    La base de la posicion 1 se elige PLEGANDO las cuatro y quedandose con una que
+    reproduzca la estructura de SGEP. Ver el docstring del modulo para por que no vale
+    una tabla por terminacion.
+
+    `available=False` fuerza el camino sin ViennaRNA (util para probarlo).
     """
+    from .folding import VIENNA_AVAILABLE, dot_bracket  # noqa: PLC0415
+
     cleaned = _validate_arm(guide)
     revcomp = reverse_complement(cleaned)
     forbidden = revcomp[0]
-    chosen = (
-        FALLBACK_MISMATCH_BASE
-        if DEFAULT_MISMATCH_BASE == forbidden
-        else DEFAULT_MISMATCH_BASE
-    )
-    if chosen == forbidden:  # imposible por construccion; si pasa, es un fallo nuestro
-        raise ValueError(
-            f"La base elegida para la posicion 1 de la pasajera ({chosen}) es la "
-            f"prohibida: aparearia en Watson-Crick con la posicion 22 de la guia y "
-            f"cerraria el tallo. Se aborta el montaje."
+    wobble = WOBBLE_PAIRS.get(cleaned[-1])
+    andamio = scaffold or SGEP_SCAFFOLD
+
+    usable = VIENNA_AVAILABLE if available is None else available
+    if not usable:
+        # Sin plegado no se puede aplicar el criterio. Se excluye lo que se sabe que
+        # aparea (Watson-Crick y wobble) y se deja constancia de que NO esta verificado:
+        # esa eleccion esta COMPROBADA como incorrecta para guias acabadas en G.
+        posibles = [
+            b for b in MISMATCH_PREFERENCE if b != forbidden and b != wobble
+        ]
+        if not posibles:
+            raise ShmirDesignError(
+                f"Sin ViennaRNA no queda ninguna base para la posicion 1 de la pasajera "
+                f"que no aparee con la posicion 22 de la guia ({cleaned[-1]}); se "
+                f"aborta el montaje."
+            )
+        elegida = posibles[0]
+        return Passenger(
+            sequence=elegida + revcomp[1:],
+            reverse_complement=revcomp,
+            forbidden_base=forbidden,
+            chosen_base=elegida,
+            mismatch_applied=True,
+            candidates=tuple(posibles),
+            structural_check=FilterState.NOT_RUN,
+            warnings=(
+                "ViennaRNA no esta instalado, asi que la posicion 1 de la pasajera NO "
+                "se ha elegido por el criterio estructural: solo se han excluido las "
+                "bases que aparean en Watson-Crick y por wobble. Eso esta COMPROBADO "
+                "como insuficiente — con guia acabada en G la eleccion por exclusion "
+                "da un bulge de 2 nt en vez de 1 y la horquilla no es la de SGEP. "
+                "NOT_RUN no es PASS: no pidas este bloque sin instalar ViennaRNA.",
+            ),
         )
 
+    referencia = dot_bracket(REFERENCE_HAIRPIN)[0]
+    estructuras: dict[str, str] = {}
+    validas: list[str] = []
+    for base in MISMATCH_PREFERENCE:
+        estructura = dot_bracket(
+            _hairpin_sequence(cleaned, base + revcomp[1:], andamio)
+        )[0]
+        estructuras[base] = estructura
+        if estructura == referencia:
+            validas.append(base)
+
+    if not validas:
+        detalle = "\n".join(f"    {b}: {estructuras[b]}" for b in MISMATCH_PREFERENCE)
+        raise ShmirDesignError(
+            f"Ninguna de las cuatro bases reproduce la estructura de la horquilla de "
+            f"referencia para la guia {cleaned}. No se elige por defecto: una pasajera "
+            f"que no pliega como SGEP monta otra horquilla.\n"
+            f"  referencia:\n    {referencia}\n  obtenidas:\n{detalle}"
+        )
+
+    elegida = validas[0]
     return Passenger(
-        sequence=chosen + revcomp[1:],
+        sequence=elegida + revcomp[1:],
         reverse_complement=revcomp,
         forbidden_base=forbidden,
-        chosen_base=chosen,
+        chosen_base=elegida,
         mismatch_applied=True,
+        candidates=tuple(validas),
+        structural_check=FilterState.PASS,
     )
 
 
