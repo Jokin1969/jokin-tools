@@ -25,7 +25,9 @@ from .mirna import SEED_SPACE
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
+from .comparative import comparative_text, comparative_tsv
 from .selection import (
+    coverage_report,
     ReportSelection,
     penalty_sensitivity,
     polya_mode_comparison,
@@ -350,6 +352,19 @@ def text_report(
             f"declarado (conocidos: {', '.join(sorted(TAXIDS))}). No se inventa."
         )
     lines.append(f"  ⚠  {SEED_CAVEAT}")
+
+    lines.extend(["", "── Tabla comparativa de los candidatos ──"])
+    lines.append(comparative_text(selection, scaffold))
+
+    lines.extend(["", "── Rango que cubre la seleccion ──"])
+    lines.append(coverage_report(selection.selection).format_text())
+    if not selection.selection.config.spread_coverage:
+        lines.append(
+            "  La seleccion se hizo por asimetria, no repartiendo. La asimetria predice "
+            "SELECCION DE HEBRA, no potencia: si lo que se quiere es correlacionar "
+            "parametros contra el knockdown medido, --reparto-rango reparte los "
+            "candidatos por los extremos de los parametros dudosos."
+        )
 
     lines.extend(["", "── Poliadenilacion alternativa (APA) ──"])
     if tiling.apa_sites is None:

@@ -46,6 +46,7 @@ from shmir_design.conservation import (  # noqa: E402
     Utr3,
     build_conservation_report,
 )
+from shmir_design.comparative import comparative_tsv  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
 from shmir_design.masking import load_mask_file, load_rmsk  # noqa: E402
@@ -320,6 +321,14 @@ def main(argv: list[str]) -> int:
              "El informe saca el top-N bajo los tres, siempre.",
     )
     parser.add_argument(
+        "--reparto-rango", action="store_true",
+        help="Reparte los candidatos por los extremos de los parametros dudosos (GC "
+             "alto y bajo, accesibilidad alta y baja, delante y detras del APA, con y "
+             "sin bandera de polyA) en vez de coger los mejores por asimetria. Si el "
+             "objetivo es correlacionar parametros contra el knockdown medido, los "
+             "puntos tienen que estar repartidos.",
+    )
+    parser.add_argument(
         "--cuota-region", metavar="REGION=N[,REGION=N]",
         help="Reparto de los candidatos por region, p.ej. '3utr=7,cds=3'. Sin esto "
              "solo entran candidatos del 3'UTR: una ventana del ORF puede ser diana "
@@ -502,6 +511,7 @@ def main(argv: list[str]) -> int:
             region_quota=(
                 parse_cuota_region(args.cuota_region) if args.cuota_region else None
             ),
+            spread_coverage=args.reparto_rango,
         )
         thresholds = Thresholds(
             gc_min=args.gc_min,
@@ -636,6 +646,9 @@ def main(argv: list[str]) -> int:
                 f"{especie}_guias.fasta": fasta_guides(seleccion, species=especie),
                 f"{especie}_oligos.tsv": tsv_oligos(
                     seleccion, scaffold, species=especie
+                ),
+                f"{especie}_comparativa.tsv": comparative_tsv(
+                    seleccion, scaffold, with_header=True
                 ),
                 f"{especie}_informe.txt": informe,
             }

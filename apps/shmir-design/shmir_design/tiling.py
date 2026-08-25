@@ -60,6 +60,8 @@ from .seed_load import SeedLoad, Utr3Set, seed_load
 from .seeds import SeedSet, filter_seed
 from .specificity import (
     SpecificityDatabase,
+    SpecificityResult,
+    TransgeneResult,
     filter_specificity,
     filter_transgene,
 )
@@ -177,6 +179,10 @@ class TiledWindow:
     carga_seed: SeedLoad | None = None
     accesibilidad: Accessibility | None = None
     apa: ApaAssessment | None = None
+    #: Resultados completos, para que la tabla comparativa pueda dar los recuentos de
+    #: hits por numero de desapareamientos y no solo el estado del filtro.
+    especificidad_detalle: SpecificityResult | None = None
+    transgen_detalle: TransgeneResult | None = None
 
     @property
     def bandera_polyA_debil(self) -> bool:
@@ -511,6 +517,7 @@ def tile_utr(
             carga = seed_load(guia_adn, utr3_set, expression)
 
         transgen = None
+        transgen_detalle = None
         if transgene_db is not None:
             if not escaneable:
                 transgen = FilterResult(
@@ -523,13 +530,15 @@ def tile_utr(
                     ),
                 )
             else:
-                transgen = filter_transgene(
+                transgen_detalle = filter_transgene(
                     evaluation.guide.replace("U", "T"),
                     passenger_from_guide(evaluation.guide).sequence,
                     transgene_db,
-                ).as_filter()
+                )
+                transgen = transgen_detalle.as_filter()
 
         especificidad = None
+        especificidad_detalle = None
         if specificity_db is not None:
             if not escaneable:
                 especificidad = FilterResult(
@@ -542,12 +551,13 @@ def tile_utr(
                     ),
                 )
             else:
-                especificidad = filter_specificity(
+                especificidad_detalle = filter_specificity(
                     evaluation.guide.replace("U", "T"),
                     passenger_from_guide(evaluation.guide).sequence,
                     specificity_db,
                     target=specificity_target,
-                ).as_filter()
+                )
+                especificidad = especificidad_detalle.as_filter()
 
         tiled.append(
             TiledWindow(
@@ -557,7 +567,9 @@ def tile_utr(
                 seed=_seed_bootstrap(evaluation.guide, seeds, mature),
                 repeticiones=filter_repeats(start, anotada.window.end, mask),
                 especificidad=especificidad,
+                especificidad_detalle=especificidad_detalle,
                 transgen=transgen,
+                transgen_detalle=transgen_detalle,
                 polya=anotacion_polya,
                 seed_colision=colision,
                 carga_seed=carga,

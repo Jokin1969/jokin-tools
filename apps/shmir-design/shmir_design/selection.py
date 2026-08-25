@@ -33,8 +33,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .accessibility import CONTEXT_WINDOWS as _CTX
 from .anatomy import Region
 from .filters import FilterState, Verdict
+from .hard_filters import gc_fraction
 from .polya import Tercio
 from .tiling import TiledWindow, TilingReport
 
@@ -56,6 +58,9 @@ class SelectionConfig:
     #: entran candidatos del 3'UTR: una ventana del ORF nunca se cuela por accidente,
     #: solo si alguien la pide. La suma tiene que ser exactamente `n_candidates`.
     region_quota: tuple[tuple[Region, int], ...] | None = None
+    #: Reparte los elegidos por los extremos de los parametros dudosos en vez de coger
+    #: los N mejores por asimetria. Ver `COVERAGE_AXES`.
+    spread_coverage: bool = False
 
     def __post_init__(self) -> None:
         if self.n_candidates < 1:
@@ -108,6 +113,11 @@ class Choice:
     asymmetry_raw: float = 0.0
     penalty: float = 0.0
     region: Region = Region.UTR3
+    #: Parametros DUDOSOS, los que se reparten cuando se pide cobertura de rango.
+    gc: float | None = None
+    accessibility: float | None = None
+    apa_risk: bool = False
+    weak_polya: bool = False
 
 
 @dataclass(frozen=True)
@@ -264,7 +274,8 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
                     config=config,
                     quota_unfilled=quota_unfilled,
                 )
-            _rellenar(
+            rellenar = _spread if config.spread_coverage else _rellenar
+            rellenar(
                 de_region, antes + plazas,
                 chosen=chosen, usados=usados, config=config,
             )
@@ -334,15 +345,16 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
             chosen.append(elegido.best)
             usados.add(id(elegido))
 
-    for site in ordenados:
-        if len(chosen) >= config.n_candidates:
-            break
-        if id(site) in usados:
-            continue
-        if not _respects_spacing(site.best, chosen, config.min_spacing):
-            continue
-        chosen.append(site.best)
-        usados.add(id(site))
+    if config.spread_coverage:
+        _spread(
+            ordenados, config.n_candidates,
+            chosen=chosen, usados=usados, config=config,
+        )
+    else:
+        _rellenar(
+            ordenados, config.n_candidates,
+            chosen=chosen, usados=usados, config=config,
+        )
 
     if sites and len(chosen) < config.n_candidates:
         notes.append(
@@ -445,6 +457,16 @@ def eligible_choices(
                 asymmetry_raw=asymmetry,
                 penalty=penalty,
                 region=window.region,
+                gc=gc_fraction(window.evaluation.sequence),
+                accessibility=(
+                    window.accesibilidad.unpaired_fraction.get(
+                        ACCESSIBILITY_COLUMN_WINDOW
+                    )
+                    if window.accesibilidad is not None
+                    else None
+                ),
+                apa_risk=window.riesgo_APA,
+                weak_polya=window.bandera_polyA_debil,
             )
         )
     return choices
@@ -615,3 +637,142 @@ def polya_mode_comparison(
         eligible=elegibles,
         stable=len(set(selections.values())) == 1,
     )
+
+
+# ─── Cobertura de rango (bloque 6) ───────────────────────────────────────────
+#
+# Por que no los N mejores por asimetria: la asimetria predice SELECCION DE HEBRA, no
+# potencia. Si el objetivo de llevar diez candidatos es correlacionar cada parametro
+# contra el knockdown medido y averiguar cuales predicen algo, los puntos tienen que
+# estar repartidos. Diez candidatos todos con GC 0,50 no dicen nada sobre el GC.
+#
+# Los ejes son los parametros DUDOSOS. Los que ya se sabe que hay que respetar (la
+# especificidad, el transgen, la colision de seed) no se reparten: se cumplen.
+
+ACCESSIBILITY_COLUMN_WINDOW = _CTX[0]
+
+COVERAGE_AXES = ("GC", "accesibilidad", "APA", "polyA_debil")
+
+#: Corte de los ejes continuos. Es una convencion nuestra, y por eso el informe imprime
+#: el rango REAL que cubre la seleccion y no solo la etiqueta del bin.
+GC_SPLIT = 0.45
+ACCESSIBILITY_SPLIT = 0.50
+
+
+def _bins(choice: Choice) -> dict[str, str | None]:
+    """Celda de cada eje. `None` cuando no hay dato: un eje sin dato no se reparte."""
+    return {
+        "GC": None if choice.gc is None else ("bajo" if choice.gc < GC_SPLIT else "alto"),
+        "accesibilidad": (
+            None
+            if choice.accessibility is None
+            else ("baja" if choice.accessibility < ACCESSIBILITY_SPLIT else "alta")
+        ),
+        "APA": "detras" if choice.apa_risk else "delante",
+        "polyA_debil": "con_bandera" if choice.weak_polya else "sin_bandera",
+    }
+
+
+def _spread(
+    disponibles: list[Site],
+    tope: int,
+    *,
+    chosen: list[Choice],
+    usados: set[int],
+    config: SelectionConfig,
+) -> None:
+    """Voraz por COBERTURA: en cada paso, el que cubre mas celdas todavia vacias.
+
+    A igualdad de celdas nuevas manda la asimetria, asi que cuando ya no queda nada que
+    cubrir el comportamiento vuelve a ser el de siempre.
+    """
+    cubiertas: set[tuple[str, str]] = set()
+    for elegido in chosen:
+        for eje, celda in _bins(elegido).items():
+            if celda is not None:
+                cubiertas.add((eje, celda))
+
+    while len(chosen) < tope:
+        mejor, mejor_clave = None, None
+        for site in disponibles:
+            if id(site) in usados:
+                continue
+            if not _respects_spacing(site.best, chosen, config.min_spacing):
+                continue
+            nuevas = sum(
+                1
+                for eje, celda in _bins(site.best).items()
+                if celda is not None and (eje, celda) not in cubiertas
+            )
+            clave = (nuevas, site.best.asymmetry, -site.best.start)
+            if mejor_clave is None or clave > mejor_clave:
+                mejor, mejor_clave = site, clave
+        if mejor is None:
+            break
+        chosen.append(mejor.best)
+        usados.add(id(mejor))
+        for eje, celda in _bins(mejor.best).items():
+            if celda is not None:
+                cubiertas.add((eje, celda))
+
+
+@dataclass(frozen=True)
+class CoverageReport:
+    """Que rango cubre la seleccion en cada eje dudoso."""
+
+    axes: dict[str, dict[str, object]]
+
+    def format_text(self) -> str:
+        lines = []
+        for eje, datos in self.axes.items():
+            if datos["sin_dato"]:
+                lines.append(
+                    f"  {eje:<14} sin dato en {datos['sin_dato']} de "
+                    f"{datos['total']} candidato(s): ese eje no se pudo repartir."
+                )
+                continue
+            celdas = datos["celdas"]
+            if len(celdas) < 2:
+                unica = next(iter(celdas)) if celdas else "?"
+                lines.append(
+                    f"  {eje:<14} NO SE CUBRE el rango: los {datos['total']} "
+                    f"candidato(s) caen todos en {unica!r}, asi que este parametro no "
+                    f"podra correlacionarse contra el knockdown."
+                )
+                continue
+            rango = datos.get("rango")
+            detalle = f" (de {rango[0]:.2f} a {rango[1]:.2f})" if rango else ""
+            lines.append(
+                f"  {eje:<14} cubre {', '.join(sorted(celdas))}{detalle}"
+            )
+        return "\n".join(lines)
+
+
+def coverage_report(selection: Selection) -> CoverageReport:
+    """Rango cubierto por los elegidos, eje por eje. Se imprime siempre."""
+    elegidos = list(selection.chosen)
+    ejes: dict[str, dict[str, object]] = {}
+    valores = {
+        "GC": [c.gc for c in elegidos],
+        "accesibilidad": [c.accessibility for c in elegidos],
+    }
+    for eje in COVERAGE_AXES:
+        celdas = set()
+        sin_dato = 0
+        for choice in elegidos:
+            celda = _bins(choice)[eje]
+            if celda is None:
+                sin_dato += 1
+            else:
+                celdas.add(celda)
+        datos: dict[str, object] = {
+            "celdas": celdas,
+            "sin_dato": sin_dato,
+            "total": len(elegidos),
+        }
+        if eje in valores:
+            presentes = [v for v in valores[eje] if v is not None]
+            if presentes:
+                datos["rango"] = (min(presentes), max(presentes))
+        ejes[eje] = datos
+    return CoverageReport(axes=ejes)

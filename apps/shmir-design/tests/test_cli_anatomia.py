@@ -360,3 +360,51 @@ class TestCuotaPorRegion(unittest.TestCase):
         col_apa = cabecera.index("riesgo_APA")
         del_cds = [f.split("\t") for f in filas[1:] if f.split("\t")[col_region] == "CDS"]
         self.assertTrue(all(f[col_apa] == "NO_APLICA" for f in del_cds))
+
+
+class TestTablaComparativa(unittest.TestCase):
+    """Bloque 6: la sexta salida y la columna que vuelve del laboratorio."""
+
+    def _correr(self, extra=None):
+        tmp = Path(tempfile.mkdtemp())
+        fa = _fasta(tmp)
+        codigo, salida = _correr(
+            ["--fasta", str(fa), "--out", str(tmp), "--region", "3utr"] + (extra or [])
+        )
+        return codigo, salida, tmp
+
+    def test_se_escribe_el_TSV_comparativo(self):
+        codigo, salida, tmp = self._correr()
+        self.assertEqual(codigo, 0, salida)
+        self.assertTrue(list(tmp.glob("*comparativa.tsv")))
+
+    def test_lleva_la_columna_vacia_de_knockdown(self):
+        _, _, tmp = self._correr()
+        texto = list(tmp.glob("*comparativa.tsv"))[0].read_text(encoding="utf-8")
+        cabecera = [l for l in texto.splitlines() if not l.startswith("#")][0]
+        self.assertEqual(cabecera.split("\t")[-1], "knockdown_medido")
+
+    def test_la_cabecera_explica_para_que_es(self):
+        _, _, tmp = self._correr()
+        texto = list(tmp.glob("*comparativa.tsv"))[0].read_text(encoding="utf-8")
+        self.assertTrue(texto.startswith("#"))
+        self.assertIn("NUNCA cero", texto)
+
+    def test_el_informe_trae_el_bloque_legible(self):
+        _, _, tmp = self._correr()
+        texto = list(tmp.glob("*informe*.txt"))[0].read_text(encoding="utf-8")
+        self.assertIn("Tabla comparativa de los candidatos", texto)
+
+    def test_el_informe_dice_que_rango_cubre(self):
+        _, _, tmp = self._correr()
+        texto = list(tmp.glob("*informe*.txt"))[0].read_text(encoding="utf-8")
+        self.assertIn("Rango que cubre la seleccion", texto)
+
+    def test_sin_reparto_el_informe_lo_recuerda(self):
+        _, _, tmp = self._correr()
+        texto = list(tmp.glob("*informe*.txt"))[0].read_text(encoding="utf-8")
+        self.assertIn("--reparto-rango", texto)
+
+    def test_con_reparto_corre_igual(self):
+        codigo, salida, _ = self._correr(["--reparto-rango"])
+        self.assertEqual(codigo, 0, salida)
