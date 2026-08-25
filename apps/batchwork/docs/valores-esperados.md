@@ -58,4 +58,14 @@ De sus 5 ventanas de 22 nt, la del offset 1 (`TTTCTATATTTGTAACTTTGCA`) debe fall
 homopolímero o asimetría negativa.
 
 El bloque se reporta **siempre**, aunque ninguna ventana pase: la decisión de usarlo es
-del usuario. Estado: pendiente (paso 14).
+del usuario.
+
+Estado: **implementado y con tests** (`conservation.py`). Cubierto sobre un andamio de
+`N` con el bloque real en sus coordenadas reales: 26 nt, GC 23.1%, humano 1507–1532 (74
+nt del extremo), ratón 1138–1163 (79 nt), 5 ventanas de 22 nt, y la del offset 1
+fallando por GC 0.227 con homopolímero y G4 en `PASS`. El test sobre los 3'UTR completos
+—que ese bloque sea el **único** de ≥22 nt— está escrito y se salta hasta que existan
+los FASTA.
+
+Lo único que falta de ese caso es la asimetría (2.98 kcal/mol): el filtro está en
+`NOT_RUN` porque falta su definición verificada, ver `preguntas-abiertas.md`.

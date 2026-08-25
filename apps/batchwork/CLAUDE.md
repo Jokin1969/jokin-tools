@@ -165,5 +165,10 @@ Pásalos antes de cada commit que toque `apps/batchwork/`.
   contiene ninguna URL y `tools/fetch_data.py` exige `--efetch-url`. Lo que el
   responsable ha verificado por su cuenta está anotado como contexto, no como
   autorización, en `docs/endpoints-verificados.md`.
-- Implementado: paso 0 (descarga + checksum) y paso 9 (guardarrailes de
-  poliadenilación). El resto del pipeline, en `docs/pipeline.md`.
+- **La asimetría (paso 7) no está implementada**: falta su definición verificada, así
+  que el filtro devuelve `NOT_RUN` y ninguna ventana puede salir `PASS`. Las cuatro
+  preguntas que la desbloquean están en `docs/preguntas-abiertas.md`. No se deduce
+  probando tablas de parámetros hasta que salga el número esperado.
+- Implementado: pasos 0 (descarga + checksum), 4-6 y 8 (filtros duros de ventana),
+  9 (guardarrailes de poliadenilación) y 14 (bloques conservados). El resto del
+  pipeline, en `docs/pipeline.md`.

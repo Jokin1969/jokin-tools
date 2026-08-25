@@ -11,7 +11,10 @@ Las reglas del proyecto están en [`CLAUDE.md`](./CLAUDE.md) y son vinculantes.
 | Paso | Qué | Dónde |
 |---|---|---|
 | 0 | Descarga + verificación de checksum (longitud, extremos, md5) y extracción de los 3'UTR | `batchwork/fetch.py`, `batchwork/reference.py`, `tools/fetch_data.py` |
+| 4, 5, 6, 8 | Filtros duros de ventana: GC, homopolímeros, motivo G4, guía con U forzada | `batchwork/hard_filters.py` |
+| 7 | Asimetría — **`NOT_RUN`**: falta su definición verificada ([`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md)) | `batchwork/hard_filters.py` |
 | 9 | Guardarrailes de poliadenilación: señales, zonas prohibidas ±10 nt, aviso de APA, tercios | `batchwork/polya.py` |
+| 14 | Bloques conservados entre dos 3'UTR, con todas sus ventanas evaluadas | `batchwork/conservation.py`, `tools/conservation_report.py` |
 | — | Estados de filtro `PASS`/`FAIL`/`NOT_RUN` y su agregación | `batchwork/filters.py` |
 | — | Verificador de la regla 2 sobre el AST | `tools/check_rules.py` |
 
@@ -40,6 +43,22 @@ print(report.format_text())
 
 Coordenadas 1-based; `distance_to_3p` cuenta los nucleótidos entre el último del motivo
 y el extremo 3'.
+
+## Bloques conservados
+
+```bash
+python3 apps/batchwork/tools/conservation_report.py \
+    tests/data/mouse_3utr.fasta tests/data/human_3utr.fasta \
+    --name-a raton --name-b humano
+```
+
+Busca todos los bloques de identidad exacta ≥15 nt ya extendidos al máximo por ambos
+lados, da longitud, posición y distancia al extremo 3' en cada especie y %GC, y para
+cada bloque ≥22 nt enumera **todas** sus ventanas de 22 nt con el estado y el motivo de
+cada filtro, no solo el fallo. La `N` nunca cuenta como identidad.
+
+Los bloques se reportan **siempre**, aunque ninguna ventana pase: la decisión de usarlos
+es del usuario, no del software.
 
 ## Estado: dos bloqueantes
 
