@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from .conservation import ConservationReport
 from .filters import FilterState, Verdict
+from .mirna import SEED_SPACE
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
@@ -347,6 +348,47 @@ def text_report(
             f"declarado (conocidos: {', '.join(sorted(TAXIDS))}). No se inventa."
         )
     lines.append(f"  ⚠  {SEED_CAVEAT}")
+
+    lines.extend(["", "── Colision de seed con miARN endogeno ──"])
+    if tiling.mature is None:
+        lines.append(
+            "  NOT_RUN: no hay tabla de maduros de miRBase cargada. Compartir seed con "
+            "un miARN abundante no produce off-targets dispersos: reprime su red de "
+            "dianas entera. NOT_RUN no es PASS."
+        )
+    else:
+        lines.append(f"  Maduros: {tiling.mature.provenance}")
+        if tiling.abundance is None:
+            lines.append(
+                "  Lista de abundancia en cerebro: AUSENTE. El nivel FAIL queda en "
+                "NOT_RUN; el nivel de aviso si ha corrido y las colisiones se listan "
+                "por candidato."
+            )
+        else:
+            lines.append(f"  Abundancia: {tiling.abundance.provenance}")
+        lines.append(
+            f"  Dos niveles porque hay {SEED_SPACE} 7-meros posibles: una colision por "
+            f"azar no es rara, asi que el FAIL solo lo da la lista curada."
+        )
+
+    lines.extend(["", "── Carga de off-targets por seed ──"])
+    if tiling.utr3_set is None:
+        lines.append(
+            "  NOT_RUN: no hay FASTA de 3'UTR del transcriptoma cargado. Esto NO es un "
+            "cero: no saber cuantos sitios de seed hay no es lo mismo que no haber "
+            "ninguno."
+        )
+        lines.append(
+            "  Ningun alineador devuelve estos sitios — la especificidad compara la "
+            "guia entera — asi que un veredicto de especificidad limpio no dice nada "
+            "sobre esto."
+        )
+    else:
+        lines.append(f"  3'UTR: {tiling.utr3_set.provenance}")
+        lines.append(
+            "  Numero comparativo entre candidatos, nunca veredicto: sale en la tabla "
+            "como criterio de desempate."
+        )
 
     lines.extend(["", "── Transgen terapeutico ──"])
     if tiling.transgene_db is None:

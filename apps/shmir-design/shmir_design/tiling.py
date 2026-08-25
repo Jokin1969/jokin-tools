@@ -52,7 +52,9 @@ from .polya import (
     find_polya_signals,
     normalize_sequence,
 )
+from .mirna import AbundanceList, MatureSet, filter_seed_collision
 from .scaffold import passenger_from_guide
+from .seed_load import SeedLoad, Utr3Set, seed_load
 from .seeds import SeedSet, filter_seed
 from .specificity import (
     SpecificityDatabase,
@@ -73,6 +75,17 @@ _ESPECIFICIDAD_SIN_BASE = FilterResult(
 )
 
 
+#: Estado por defecto de la colision de seed: sin miRBase, NOT_RUN.
+_SEED_COLISION_SIN_BASE = FilterResult(
+    name="seed_colision",
+    state=FilterState.NOT_RUN,
+    reason=(
+        "No hay tabla de maduros de miRBase cargada, asi que no se puede saber si la "
+        "seed de esta guia coincide con la de un miARN endogeno. NOT_RUN no es PASS."
+    ),
+)
+
+
 #: Estado por defecto del filtro del transgen: sin casete, NOT_RUN.
 _TRANSGEN_SIN_BASE = FilterResult(
     name="transgen",
@@ -82,6 +95,29 @@ _TRANSGEN_SIN_BASE = FilterResult(
         "candidato apaga la propia construccion terapeutica. NOT_RUN no es PASS."
     ),
 )
+
+
+def _seed_bootstrap(
+    guide: str, seeds: SeedSet | None, mature: MatureSet | None
+) -> FilterResult:
+    """El filtro `seed` de la lista de arranque, o NO_APLICA si esta el de verdad.
+
+    `seed` y `seed_colision` responden a la MISMA pregunta con distinta profundidad. Si
+    hay tabla de maduros de miRBase cargada, dejar los dos daria dos columnas que pueden
+    contradecirse, y la peor de las dos —la de doce seeds— parece igual de autorizada.
+    Asi que cuando esta el filtro real, este se retira diciendolo.
+    """
+    if mature is not None:
+        return FilterResult(
+            name="seed",
+            state=FilterState.NO_APLICA,
+            reason=(
+                "Sustituido por `seed_colision`, que usa la tabla de maduros completa y "
+                "distingue colision abundante (FAIL) de colision anotada (aviso). "
+                "NO_APLICA no es PASS: mira la columna seed_colision."
+            ),
+        )
+    return filter_seed(guide, seeds)
 
 
 def tile_positions(utr_length: int, window_size: int = WINDOW_SIZE) -> list[int]:
@@ -134,6 +170,9 @@ class TiledWindow:
     especificidad: FilterResult | None = None
     transgen: FilterResult | None = None
     polya: PolyAAnnotation | None = None
+    seed_colision: FilterResult | None = None
+    #: Numero comparativo, nunca veredicto: por eso NO entra en `filters`.
+    carga_seed: SeedLoad | None = None
 
     @property
     def bandera_polyA_debil(self) -> bool:
@@ -148,6 +187,7 @@ class TiledWindow:
             self.seed,
             self.especificidad or _ESPECIFICIDAD_SIN_BASE,
             self.transgen or _TRANSGEN_SIN_BASE,
+            self.seed_colision or _SEED_COLISION_SIN_BASE,
         )
 
     def filter(self, name: str) -> FilterResult:
@@ -190,6 +230,9 @@ class TilingReport:
     thresholds: Thresholds = DEFAULT_THRESHOLDS
     tile_range: TileRange | None = None
     transgene_db: SpecificityDatabase | None = None
+    mature: MatureSet | None = None
+    abundance: AbundanceList | None = None
+    utr3_set: Utr3Set | None = None
     polya_mode: PolyAMode = PolyAMode.ESCALONADO
 
     def biofisicos_ok(self) -> int:
@@ -323,6 +366,10 @@ def tile_utr(
     specificity_db: SpecificityDatabase | None = None,
     specificity_target: str | None = None,
     transgene_db: SpecificityDatabase | None = None,
+    mature: MatureSet | None = None,
+    abundance: AbundanceList | None = None,
+    utr3_set: Utr3Set | None = None,
+    expression: dict[str, float] | None = None,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
     thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> TilingReport:
@@ -409,6 +456,33 @@ def tile_utr(
             list(evaluation.filters) + [zona_prohibida]
         )
 
+        guia_adn = evaluation.guide.replace("U", "T")
+
+        colision = None
+        if mature is not None:
+            colision = (
+                filter_seed_collision(
+                    guia_adn,
+                    mature,
+                    abundance,
+                    passenger=passenger_from_guide(evaluation.guide).sequence,
+                ).as_filter()
+                if escaneable
+                else FilterResult(
+                    name="seed_colision",
+                    state=FilterState.NOT_RUN,
+                    reason=(
+                        "No evaluada: por coste, la colision de seed solo se mira en "
+                        "las ventanas que superan los filtros biofisicos. NOT_RUN no "
+                        "es PASS."
+                    ),
+                )
+            )
+
+        carga = None
+        if utr3_set is not None and escaneable:
+            carga = seed_load(guia_adn, utr3_set, expression)
+
         transgen = None
         if transgene_db is not None:
             if not escaneable:
@@ -453,11 +527,13 @@ def tile_utr(
                 window=anotada.window,
                 evaluation=evaluation,
                 zona_prohibida=zona_prohibida,
-                seed=filter_seed(evaluation.guide, seeds),
+                seed=_seed_bootstrap(evaluation.guide, seeds, mature),
                 repeticiones=filter_repeats(start, anotada.window.end, mask),
                 especificidad=especificidad,
                 transgen=transgen,
                 polya=anotacion_polya,
+                seed_colision=colision,
+                carga_seed=carga,
                 tercio=anotada.tercio,
                 riesgo_APA=anotada.riesgo_APA and region is Region.UTR3,
                 apa_aplica=region is Region.UTR3,
@@ -486,5 +562,8 @@ def tile_utr(
         thresholds=thresholds,
         tile_range=tile_range,
         transgene_db=transgene_db,
+        mature=mature,
+        abundance=abundance,
+        utr3_set=utr3_set,
         polya_mode=polya_mode,
     )

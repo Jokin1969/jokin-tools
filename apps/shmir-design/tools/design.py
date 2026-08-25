@@ -63,6 +63,14 @@ from shmir_design.orf import (  # noqa: E402
 from shmir_design.polya import PolyAMode, read_fasta_sequence  # noqa: E402
 from shmir_design.reference import REFERENCES, load_3utr  # noqa: E402
 from shmir_design.scaffold import SGEP_SCAFFOLD, load_scaffold  # noqa: E402
+from shmir_design.mirna import (  # noqa: E402
+    load_abundance_list,
+    load_mature_fa,
+)
+from shmir_design.seed_load import (  # noqa: E402
+    load_expression_table,
+    load_utr3_set,
+)
 from shmir_design.seeds import BOOTSTRAP_SEEDS, parse_seed_table  # noqa: E402
 from shmir_design.selection import SelectionConfig, select_from_report  # noqa: E402
 from shmir_design.specificity import load_database  # noqa: E402
@@ -209,6 +217,35 @@ def main(argv: list[str]) -> int:
         "--target", help="Accession del gen diana, para no contarlo como off-target"
     )
     parser.add_argument(
+        "--mirbase", type=Path,
+        help="mature.fa de miRBase. Con el corre `seed_colision` en sus dos niveles y "
+             "se retira el filtro `seed` de la lista de arranque.",
+    )
+    parser.add_argument("--mirbase-version", help="Version de miRBase; obligatoria")
+    parser.add_argument("--mirbase-md5", help="md5 esperado; si no cuadra, PARA")
+    parser.add_argument(
+        "--mirbase-especies", default="mmu-,hsa-",
+        help="Prefijos de especie que se leen de mature.fa (por defecto mmu-,hsa-).",
+    )
+    parser.add_argument(
+        "--abundancia", type=Path,
+        help="Lista curada de miARN abundantes en el tejido (MirGeneDB). Es la UNICA "
+             "fuente del nivel FAIL; sin ella ese nivel queda en NOT_RUN.",
+    )
+    parser.add_argument("--abundancia-version", help="Version de la lista; obligatoria")
+    parser.add_argument("--abundancia-md5", help="md5 esperado; si no cuadra, PARA")
+    parser.add_argument(
+        "--transcriptoma-3utr", type=Path,
+        help="FASTA de los 3'UTR del transcriptoma, para contar la carga de "
+             "off-targets por seed. Es un numero comparativo, no un filtro.",
+    )
+    parser.add_argument("--transcriptoma-version", help="Version; obligatoria")
+    parser.add_argument("--transcriptoma-md5", help="md5 esperado; si no cuadra, PARA")
+    parser.add_argument(
+        "--expresion", type=Path,
+        help="Tabla `transcrito<TAB>valor` para ponderar la carga de seed.",
+    )
+    parser.add_argument(
         "--transgen", type=Path,
         help="FASTA del casete AAV completo (ITR a ITR). Los candidatos que lo tocan "
              "apagarian la propia construccion terapeutica.",
@@ -315,6 +352,62 @@ def main(argv: list[str]) -> int:
         if args.seeds:
             seeds = load_seeds(args.seeds)
         mask = load_mask_file(args.repeats) if args.repeats else None
+
+        maduros = None
+        if args.mirbase:
+            if not args.mirbase_version:
+                raise ValueError(
+                    "--mirbase necesita --mirbase-version: sin procedencia el veredicto "
+                    "no es auditable. Se aborta."
+                )
+            maduros = load_mature_fa(
+                args.mirbase,
+                version=args.mirbase_version,
+                expected_md5=args.mirbase_md5,
+                prefixes=tuple(
+                    p.strip() for p in args.mirbase_especies.split(",") if p.strip()
+                ),
+            )
+
+        abundantes = None
+        if args.abundancia:
+            if not args.mirbase:
+                raise ValueError(
+                    "--abundancia sin --mirbase no sirve de nada: la lista de "
+                    "abundantes decide cuales de las colisiones importan, y sin la "
+                    "tabla de maduros no hay colisiones que clasificar."
+                )
+            if not args.abundancia_version:
+                raise ValueError(
+                    "--abundancia necesita --abundancia-version: el nivel FAIL se "
+                    "apoya en esta lista y sin procedencia no es auditable."
+                )
+            abundantes = load_abundance_list(
+                args.abundancia,
+                version=args.abundancia_version,
+                expected_md5=args.abundancia_md5,
+            )
+
+        transcriptoma = None
+        if args.transcriptoma_3utr:
+            if not args.transcriptoma_version:
+                raise ValueError(
+                    "--transcriptoma-3utr necesita --transcriptoma-version. Se aborta."
+                )
+            transcriptoma = load_utr3_set(
+                args.transcriptoma_3utr,
+                version=args.transcriptoma_version,
+                expected_md5=args.transcriptoma_md5,
+            )
+
+        expresion = None
+        if args.expresion:
+            if not args.transcriptoma_3utr:
+                raise ValueError(
+                    "--expresion sin --transcriptoma-3utr no sirve de nada: no hay "
+                    "sitios que ponderar."
+                )
+            expresion = load_expression_table(args.expresion)
 
         transgen_db = None
         if args.transgen:
@@ -463,6 +556,10 @@ def main(argv: list[str]) -> int:
                 polya_mode=PolyAMode(args.polyA_modo),
                 specificity_db=refseq,
                 transgene_db=transgen_db,
+                mature=maduros,
+                abundance=abundantes,
+                utr3_set=transcriptoma,
+                expression=expresion,
                 specificity_target=args.target,
                 thresholds=thresholds,
             )
