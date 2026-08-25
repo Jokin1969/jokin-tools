@@ -23,6 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.hard_filters import evaluate_window, guide_from_target  # noqa: E402
+from shmir_design.folding import check_fold  # noqa: E402
+from shmir_design.gblock import build_gblock  # noqa: E402
 from shmir_design.scaffold import build_hairpin  # noqa: E402
 
 
@@ -68,6 +70,11 @@ def main(argv: list[str]) -> int:
         print()
 
     print(hairpin.format_text())
+    print()
+    plegado = check_fold(hairpin)
+    print(f"  plegado        {plegado.state.value:<7} {plegado.reason}")
+    print()
+    print(build_gblock(hairpin).format_text())
     return 0
 
 

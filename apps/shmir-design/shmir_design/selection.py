@@ -39,6 +39,9 @@ from .tiling import TiledWindow, TilingReport
 
 DEFAULT_CANDIDATES = 6
 DEFAULT_MIN_SPACING = 50
+#: Penalizacion de ranking, en kcal/mol, para una ventana que solapa una variante rara
+#: de poliadenilacion. No excluye: la baja en la lista. El valor es una convencion.
+DEFAULT_WEAK_POLYA_PENALTY = 1.0
 TERCIOS = (Tercio.PROXIMAL, Tercio.MEDIO, Tercio.DISTAL)
 
 
@@ -47,6 +50,7 @@ class SelectionConfig:
     n_candidates: int = DEFAULT_CANDIDATES
     min_spacing: int = DEFAULT_MIN_SPACING
     require_one_per_tercio: bool = True
+    weak_polya_penalty: float = DEFAULT_WEAK_POLYA_PENALTY
 
     def __post_init__(self) -> None:
         if self.n_candidates < 1:
@@ -58,6 +62,11 @@ class SelectionConfig:
             raise ValueError(
                 f"min_spacing={self.min_spacing} invalido; se aborta la seleccion."
             )
+        if self.weak_polya_penalty < 0:
+            raise ValueError(
+                f"weak_polya_penalty={self.weak_polya_penalty}: una penalizacion "
+                f"negativa premiaria a la ventana marcada; se aborta."
+            )
 
 
 @dataclass(frozen=True)
@@ -67,8 +76,11 @@ class Choice:
     start: int
     end: int
     tercio: Tercio
+    #: Puntuacion con la que se ordena: asimetria menos la penalizacion.
     asymmetry: float
     label: str
+    asymmetry_raw: float = 0.0
+    penalty: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -216,6 +228,8 @@ class ReportSelection:
     eligible: int
     total: int
     not_run_filters: dict[str, int]
+    #: Elegibles con el criterio ESTRICTO, para poder comparar las dos cifras.
+    eligible_strict: int = 0
 
     def window_of(self, choice: Choice) -> TiledWindow:
         return self.windows[choice.label]
@@ -232,13 +246,28 @@ def is_eligible(window: TiledWindow) -> bool:
     Un filtro en NOT_RUN no descarta la ventana, pero tampoco la aprueba: su veredicto
     seguira siendo INCOMPLETE y la seleccion entera sera provisional.
     """
+    if window.tercio is None:
+        return False  # fuera del 3'UTR: no es diana de este diseño
     if not window.biofisicos_ok:
         return False
     return all(r.state is not FilterState.FAIL for r in window.filters)
 
 
-def eligible_choices(report: TilingReport) -> list[Choice]:
-    """Paso 3: supervivientes, con su asimetria, listos para ordenar."""
+def is_eligible_strict(window: TiledWindow) -> bool:
+    """Elegible con el criterio ESTRICTO: ±flanco para los doce hexameros por igual."""
+    return is_eligible(window) and window.estricto_ok
+
+
+def eligible_choices(
+    report: TilingReport, config: SelectionConfig | None = None
+) -> list[Choice]:
+    """Paso 3: supervivientes, con su puntuacion, listos para ordenar.
+
+    La puntuacion es la asimetria menos la penalizacion por solapar una variante rara
+    de poliadenilacion. Se guardan las dos cifras para que el informe pueda enseñar
+    cuanto se ha penalizado y por que.
+    """
+    config = config or SelectionConfig()
     choices: list[Choice] = []
     for window in report.windows:
         if not is_eligible(window):
@@ -250,13 +279,16 @@ def eligible_choices(report: TilingReport) -> list[Choice]:
                 f"asimetria: no se puede ordenar por un numero que no existe. Se aborta "
                 f"la seleccion en vez de inventar un orden."
             )
+        penalty = config.weak_polya_penalty if window.bandera_polyA_debil else 0.0
         choices.append(
             Choice(
                 start=window.window.start,
                 end=window.window.end,
                 tercio=window.tercio,
-                asymmetry=asymmetry,
+                asymmetry=asymmetry - penalty,
                 label=window.window.name,
+                asymmetry_raw=asymmetry,
+                penalty=penalty,
             )
         )
     return choices
@@ -268,7 +300,7 @@ def select_from_report(
 ) -> ReportSelection:
     """Pasos 3, 4 y 5 sobre un informe de tiling ya filtrado."""
     config = config or SelectionConfig()
-    choices = eligible_choices(report)
+    choices = eligible_choices(report, config)
     sites = group_choices(choices)
     selection = choose(sites, config)
     return ReportSelection(
@@ -277,4 +309,5 @@ def select_from_report(
         eligible=len(choices),
         total=len(report.windows),
         not_run_filters=report.not_run_counts(),
+        eligible_strict=sum(1 for w in report.windows if is_eligible_strict(w)),
     )

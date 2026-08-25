@@ -18,6 +18,7 @@ from shmir_design.selection import (
     SelectionConfig,
     choose,
     eligible_choices,
+    is_eligible,
     group_choices,
     select_from_report,
 )
@@ -231,6 +232,79 @@ class TestSeleccionSobreUnInforme(unittest.TestCase):
         ]
         self.assertTrue(con_fallo)
         self.assertTrue(elegibles.isdisjoint(con_fallo))
+
+
+class TestPenalizacionPorPolyADebil(unittest.TestCase):
+    """Una variante rara solapada no excluye: baja el candidato en el ranking."""
+
+    def report(self):
+        # AATAAA terminal al final (FAIL duro) y un ACTAAA raro en medio (bandera).
+        secuencia = (
+            "GCGTCAGTACGATCGAATTACT" * 5
+            + "ACTAAA"
+            + "GCGTCAGTACGATCGAATTACT" * 5
+        )
+        return tile_utr(secuencia)
+
+    def test_la_ventana_con_bandera_no_queda_excluida(self):
+        report = self.report()
+        con_bandera = [w for w in report.windows if w.bandera_polyA_debil]
+        self.assertTrue(con_bandera)
+        for ventana in con_bandera:
+            with self.subTest(ventana.window.start):
+                self.assertIs(ventana.zona_prohibida.state, FilterState.PASS)
+
+    def test_la_penalizacion_baja_su_puntuacion(self):
+        report = self.report()
+        config = SelectionConfig(weak_polya_penalty=2.0)
+        elecciones = {c.label: c for c in eligible_choices(report, config)}
+        con_bandera = [
+            w for w in report.windows
+            if w.bandera_polyA_debil and w.window.name in elecciones
+        ]
+        self.assertTrue(con_bandera)
+        eleccion = elecciones[con_bandera[0].window.name]
+        self.assertAlmostEqual(eleccion.penalty, 2.0)
+        self.assertAlmostEqual(eleccion.asymmetry, eleccion.asymmetry_raw - 2.0)
+
+    def test_sin_bandera_no_hay_penalizacion(self):
+        report = self.report()
+        elecciones = {c.label: c for c in eligible_choices(report, SelectionConfig())}
+        limpias = [
+            w for w in report.windows
+            if not w.bandera_polyA_debil and w.window.name in elecciones
+        ]
+        eleccion = elecciones[limpias[0].window.name]
+        self.assertEqual(eleccion.penalty, 0.0)
+        self.assertEqual(eleccion.asymmetry, eleccion.asymmetry_raw)
+
+    def test_la_penalizacion_no_puede_ser_negativa(self):
+        with self.assertRaises(ValueError):
+            SelectionConfig(weak_polya_penalty=-1)
+
+
+class TestDosCifrasDeElegibles(unittest.TestCase):
+    """La decision tiene que ser visible: cuantas con criterio estricto y cuantas no."""
+
+    def report(self):
+        secuencia = (
+            "GCGTCAGTACGATCGAATTACT" * 5
+            + "ACTAAA"
+            + "GCGTCAGTACGATCGAATTACT" * 5
+        )
+        return tile_utr(secuencia)
+
+    def test_el_estricto_es_menor_o_igual_que_el_escalonado(self):
+        seleccion = select_from_report(self.report(), SelectionConfig())
+        self.assertLessEqual(seleccion.eligible_strict, seleccion.eligible)
+
+    def test_la_diferencia_son_las_ventanas_con_bandera(self):
+        report = self.report()
+        seleccion = select_from_report(report, SelectionConfig())
+        con_bandera = sum(
+            1 for w in report.windows if is_eligible(w) and w.bandera_polyA_debil
+        )
+        self.assertEqual(seleccion.eligible - seleccion.eligible_strict, con_bandera)
 
 
 if __name__ == "__main__":

@@ -56,6 +56,17 @@ async function run(session, params) {
     '--polya-flank',     String(numeric(params.polyaFlank, 10)),
   ];
 
+  const cdsInicio = Number(params.cdsInicio);
+  const cdsFin = Number(params.cdsFin);
+  if (Number.isFinite(cdsInicio) && Number.isFinite(cdsFin) && cdsInicio > 0 && cdsFin > 0) {
+    args.push('--cds', String(cdsInicio), String(cdsFin));
+    if (files.length === 2) args.push('--cds-b', String(cdsInicio), String(cdsFin));
+  } else if (params.cdsInicio || params.cdsFin) {
+    throw new Error(
+      'El CDS necesita inicio Y fin, los dos. Déjalos vacíos si la secuencia ya es el 3′UTR.'
+    );
+  }
+
   if (files.length === 2) {
     args.push('--fasta-b', path.join(session.inputDir, files[1]), '--name-b', names[1]);
   } else {

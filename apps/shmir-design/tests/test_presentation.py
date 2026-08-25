@@ -95,8 +95,8 @@ class TestFilasDeTabla(unittest.TestCase):
     def test_la_fila_lleva_posicion_tercio_veredicto_y_secuencias(self):
         _, seleccion = piezas()
         fila = candidate_rows(seleccion)[0]
-        for columna in ("rango", "inicio", "fin", "tercio", "asimetria", "diana",
-                        "guia", "veredicto"):
+        for columna in ("rango", "inicio", "fin", "region", "inicio_3utr", "tercio",
+                        "asimetria", "diana", "guia", "veredicto"):
             with self.subTest(columna):
                 self.assertIn(columna, fila)
 
@@ -123,7 +123,8 @@ class TestFilasDeTabla(unittest.TestCase):
         """Guardia contra futuras colisiones de nombres al fusionar diccionarios."""
         tiling, seleccion = piezas()
         nombres_filtro = {r.name for r in tiling.windows[0].filters}
-        otras = {"rango", "inicio", "fin", "tercio", "asimetria_kcal",
+        otras = {"rango", "inicio", "fin", "region", "inicio_3utr", "fin_3utr",
+                 "tercio", "asimetria_kcal", "bandera_polyA_debil",
                  "biofisicos_ok", "riesgo_APA", "veredicto", "diana", "guia"}
         self.assertEqual(nombres_filtro & otras, set())
         self.assertEqual(

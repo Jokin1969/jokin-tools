@@ -19,13 +19,13 @@ from pathlib import Path
 from shmir_design.errors import InvalidSequenceError
 from shmir_design.scaffold import (
     EXTENDED_FLANKS_STATUS,
+    PASSENGER_RULE_CONFIRMED,
+    PASSENGER_RULE_SOURCE,
+    SCAFFOLD,
     SGEP_SCAFFOLD,
     UNVERIFIED_TAG,
     ScaffoldSpec,
     load_scaffold,
-    PASSENGER_RULE_CONFIRMED,
-    PASSENGER_RULE_TAG,
-    SCAFFOLD,
     Hairpin,
     build_hairpin,
     extended_cassette,
@@ -79,40 +79,37 @@ class TestPasajera(unittest.TestCase):
         self.assertEqual(pasajera.sequence[1:], pasajera.reverse_complement[1:])
         self.assertNotEqual(pasajera.sequence[0], pasajera.reverse_complement[0])
 
-    def test_transicion_T_a_C(self):
-        pasajera = passenger_from_guide(GUIA_REF)
-        self.assertEqual((pasajera.base_original, pasajera.base_final), ("T", "C"))
-        self.assertTrue(pasajera.transition_applied)
+    def test_nunca_es_el_complemento_watson_crick(self):
+        """La regla: la posicion 1 de la pasajera nunca aparea WC con la 22 de la guia.
 
-    def test_transicion_C_a_T(self):
-        """Una guia acabada en G da un revcomp que empieza por C."""
-        guia = "TAGATAAGCATTATAATTCCTG"
-        pasajera = passenger_from_guide(guia)
-        self.assertEqual(pasajera.reverse_complement[0], "C")
-        self.assertEqual(pasajera.sequence[0], "T")
-        self.assertTrue(pasajera.transition_applied)
+        Si aparea, el tallo se cierra y desaparece el bulge basal (verificado plegando).
+        """
+        for ultima in "ACGT":
+            guia = GUIA_REF[:-1] + ultima
+            with self.subTest(f"guia acaba en {ultima}"):
+                pasajera = passenger_from_guide(guia)
+                prohibida = pasajera.reverse_complement[0]
+                self.assertNotEqual(pasajera.sequence[0], prohibida)
+                self.assertEqual(pasajera.forbidden_base, prohibida)
+                self.assertTrue(pasajera.mismatch_applied)
 
-    def test_si_es_A_no_se_toca_pero_se_avisa(self):
-        guia = "TAGATAAGCATTATAATTCCTT"   # revcomp empieza por A
-        pasajera = passenger_from_guide(guia)
-        self.assertEqual(pasajera.reverse_complement[0], "A")
-        self.assertEqual(pasajera.sequence, pasajera.reverse_complement)
-        self.assertFalse(pasajera.transition_applied)
-        self.assertTrue(any("A" in w and "transicion" in w.lower() for w in pasajera.warnings))
+    def test_el_resto_de_la_pasajera_es_el_complementario_inverso(self):
+        for ultima in "ACGT":
+            guia = GUIA_REF[:-1] + ultima
+            with self.subTest(f"guia acaba en {ultima}"):
+                pasajera = passenger_from_guide(guia)
+                self.assertEqual(pasajera.sequence[1:], pasajera.reverse_complement[1:])
 
-    def test_si_es_G_no_se_toca_pero_se_avisa(self):
-        guia = "TAGATAAGCATTATAATTCCTC"   # revcomp empieza por G
-        pasajera = passenger_from_guide(guia)
-        self.assertEqual(pasajera.reverse_complement[0], "G")
-        self.assertFalse(pasajera.transition_applied)
-        self.assertTrue(pasajera.warnings)
+    def test_el_caso_de_la_G_ya_no_queda_sin_decidir(self):
+        """Guia acabada en C → la prohibida es G → se elige otra, no se deja la G."""
+        pasajera = passenger_from_guide(GUIA_REF[:-1] + "C")
+        self.assertEqual(pasajera.forbidden_base, "G")
+        self.assertNotEqual(pasajera.sequence[0], "G")
 
-    def test_la_regla_va_marcada_como_no_confirmada(self):
-        self.assertFalse(PASSENGER_RULE_CONFIRMED)
-        self.assertEqual(PASSENGER_RULE_TAG, "REGLA_NO_CONFIRMADA")
-        avisos = " ".join(passenger_from_guide(GUIA_REF).warnings)
-        self.assertIn(PASSENGER_RULE_TAG, avisos)
-        self.assertIn("111177", avisos)
+    def test_la_regla_ya_no_lleva_aviso(self):
+        self.assertTrue(PASSENGER_RULE_CONFIRMED)
+        self.assertEqual(passenger_from_guide(GUIA_REF).warnings, ())
+        self.assertIn("111177", PASSENGER_RULE_SOURCE)
 
     def test_acepta_la_guia_en_ARN(self):
         rna = GUIA_REF.replace("T", "U")
@@ -142,11 +139,14 @@ class TestHorquilla(unittest.TestCase):
         self.assertEqual(hairpin.sequence[40:59], SCAFFOLD["loop"])
         self.assertEqual(hairpin.sequence[59:81], GUIA_REF)
 
-    def test_la_salida_de_oligos_lleva_el_aviso(self):
+    def test_la_salida_de_oligos_ya_no_lleva_el_aviso_de_la_pasajera(self):
         texto = build_hairpin(GUIA_REF).format_text()
-        self.assertIn(PASSENGER_RULE_TAG, texto)
-        self.assertIn("111177", texto)
+        self.assertNotIn("REGLA_NO_CONFIRMADA", texto)
         self.assertIn(HORQUILLA_REF, texto)
+
+    def test_la_salida_dice_por_que_la_posicion_1_no_aparea(self):
+        texto = build_hairpin(GUIA_REF).format_text()
+        self.assertIn("Watson-Crick", texto)
 
     def test_la_salida_dice_que_pieza_es_cada_cosa(self):
         texto = build_hairpin(GUIA_REF).format_text()

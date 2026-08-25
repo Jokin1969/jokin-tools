@@ -28,6 +28,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from .anatomy import Anatomy, Region
 from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
 from .masking import RepeatMask, apply_mask, filter_repeats
 from .hard_filters import (
@@ -88,9 +89,20 @@ class TiledWindow:
     zona_prohibida: FilterResult
     seed: FilterResult
     repeticiones: FilterResult
-    tercio: Tercio
+    tercio: Tercio | None
     riesgo_APA: bool
+    region: Region = Region.UTR3
+    inicio_3utr: int | None = None
+    fin_3utr: int | None = None
+    cruza_frontera: bool = False
     apa_upstream: tuple[PolyASignal, ...] = ()
+    senales_debiles: tuple[PolyASignal, ...] = ()
+    estricto_ok: bool = True
+
+    @property
+    def bandera_polyA_debil(self) -> bool:
+        """Solapa una variante rara: no excluye, penaliza el ranking."""
+        return bool(self.senales_debiles)
 
     @property
     def filters(self) -> tuple[FilterResult, ...]:
@@ -132,8 +144,9 @@ class TilingReport:
     window_size: int
     windows: tuple[TiledWindow, ...]
     signals: tuple[PolyASignal, ...]
-    avisos: tuple[Aviso, ...]
-    seeds: SeedSet | None
+    anatomy: Anatomy | None = None
+    avisos: tuple[Aviso, ...] = ()
+    seeds: SeedSet | None = None
     mask: RepeatMask | None = None
     thresholds: Thresholds = DEFAULT_THRESHOLDS
 
@@ -217,7 +230,7 @@ class TilingReport:
     def format_tsv(self) -> str:
         filtros = [r.name for r in self.windows[0].filters] if self.windows else []
         columns = (
-            ["inicio", "fin", "diana", "guia", "tercio"]
+            ["inicio", "fin", "region", "inicio_3utr", "fin_3utr", "diana", "guia", "tercio"]
             + filtros
             + ["biofisicos_ok", "riesgo_APA", "veredicto", "motivos"]
         )
@@ -227,9 +240,12 @@ class TilingReport:
                 [
                     str(tiled.window.start),
                     str(tiled.window.end),
+                    tiled.region.value,
+                    "" if tiled.inicio_3utr is None else str(tiled.inicio_3utr),
+                    "" if tiled.fin_3utr is None else str(tiled.fin_3utr),
                     tiled.evaluation.sequence,
                     tiled.evaluation.guide,
-                    tiled.tercio.value,
+                    tiled.tercio.value if tiled.tercio else "",
                 ]
                 + [r.state.value for r in tiled.filters]
                 + [
@@ -254,6 +270,7 @@ def tile_utr(
     window_size: int = WINDOW_SIZE,
     seeds: SeedSet | None = None,
     mask: RepeatMask | None = None,
+    anatomy: Anatomy | None = None,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
     thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> TilingReport:
@@ -263,14 +280,21 @@ def tile_utr(
     parcialmente repetitiva se reevalue entera en vez de tacharse de una lista ya hecha.
     Las señales de poliadenilacion se buscan sobre la secuencia SIN enmascarar.
     """
-    original = normalize_sequence(sequence, name="3'UTR")
+    original = normalize_sequence(sequence, name="secuencia")
+    anatomy = anatomy or Anatomy.whole_is_utr3(len(original))
+    if anatomy.length != len(original):
+        raise ValueError(
+            f"La anatomia declara {anatomy.length} nt y la secuencia mide "
+            f"{len(original)}; se aborta antes de etiquetar ninguna ventana con "
+            f"coordenadas que no son las suyas."
+        )
     signals = find_polya_signals(original, flank=thresholds.polya_flank)
     cleaned = apply_mask(original, mask)
     windows = [
         Window(start, window_size, label=f"w{start}")
         for start in tile_positions(len(cleaned), window_size)
     ]
-    annotated = annotate_3utr(windows, signals, len(cleaned))
+    annotated = annotate_3utr(windows, signals, len(cleaned), anatomy=anatomy)
 
     tiled: list[TiledWindow] = []
     for anotada in annotated.windows:
@@ -291,6 +315,16 @@ def tile_utr(
                 tercio=anotada.tercio,
                 riesgo_APA=anotada.riesgo_APA,
                 apa_upstream=anotada.apa_upstream,
+                senales_debiles=anotada.senales_debiles,
+                estricto_ok=anotada.estricto_ok,
+                region=anatomy.region_of(
+                    (anotada.window.start + anotada.window.end) // 2
+                ),
+                inicio_3utr=anatomy.utr3_position(anotada.window.start),
+                fin_3utr=anatomy.utr3_position(anotada.window.end),
+                cruza_frontera=anatomy.crosses_boundary(
+                    anotada.window.start, anotada.window.end
+                ),
             )
         )
 
@@ -299,6 +333,7 @@ def tile_utr(
         window_size=window_size,
         windows=tuple(tiled),
         signals=tuple(signals),
+        anatomy=anatomy,
         avisos=annotated.avisos,
         seeds=seeds,
         mask=mask,

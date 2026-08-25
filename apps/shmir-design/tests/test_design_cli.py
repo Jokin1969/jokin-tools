@@ -103,7 +103,9 @@ class TestUmbralesPorLineaDeComandos(unittest.TestCase):
 
     def test_el_flanco_de_polyA_se_puede_mover(self):
         # Sonda con una señal AATAAA en 81, para que la zona prohibida exista.
-        con_senal = ">sonda\n" + "ACGT" * 20 + "AATAAA" + "ACGT" * 20 + "\n"
+        # AATAAA TERMINAL (a 20 nt del extremo): el filtro escalonado solo hace FAIL
+        # duro con las señales fuertes, asi que la señal tiene que serlo.
+        con_senal = ">sonda\n" + "ACGT" * 20 + "AATAAA" + "ACGT" * 5 + "\n"
         codigo, salida = self.correr(["--polya-flank", "40"], secuencia=con_senal)
         self.assertEqual(codigo, 0)
         tsv = (salida / "sonda_ventanas.tsv").read_text()
@@ -169,10 +171,11 @@ class TestEjecucionCompleta(unittest.TestCase):
         lineas = (salida / "sonda_seleccionados.tsv").read_text().splitlines()
         self.assertLessEqual(len(lineas) - 1, 2)
 
-    def test_los_oligos_llevan_el_aviso_del_andamio(self):
+    def test_los_oligos_traen_la_horquilla_y_el_modulo(self):
         _, salida = self.correr()
         oligos = (salida / "sonda_oligos.tsv").read_text(encoding="utf-8")
-        self.assertIn("REGLA_NO_CONFIRMADA", oligos)
+        self.assertNotIn("REGLA_NO_CONFIRMADA", oligos)   # regla ya resuelta
+        self.assertIn("oligo", oligos.splitlines()[0].split("\t"))
 
     def test_con_un_andamio_sin_verificar_el_aviso_va_en_cada_fila(self):
         directorio = tempfile.mkdtemp()

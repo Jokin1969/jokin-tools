@@ -14,19 +14,26 @@ Desde que los datos de referencia son fixtures versionados
 ([`fixtures.md`](./fixtures.md)), esto ha dejado de ser un bloqueante del análisis: solo
 limita el camino opcional `--fetch`.
 
-### 2. Regla del desapareamiento de la pasajera — **no confirmada**
+### (resuelta 2026-08-25) Regla del desapareamiento de la pasajera
 
-La pasajera del andamio miR-E lleva un desapareamiento en su posición 1: C donde el
-complementario reverso daría T. La regla implementada es la transición T↔C, y está
-derivada de **un solo ejemplo** (SGEP #111170).
+**Regla: la posición 1 de la pasajera nunca puede ser el complemento Watson-Crick de la
+posición 22 de la guía.** Si aparea, el tallo se cierra y desaparece el bulge basal.
 
-Para fijarla hace falta: la secuencia de un segundo plásmido miR-E con una guía distinta
-—LT3GEPIR (Addgene #111177) sirve— y comprobar que su pasajera cumple la misma
-transición. Si el complementario reverso de esa guía empieza por A o por G, mejor: ese
-es justamente el caso que hoy no está cubierto.
+Evidencia: SGEP #111170 y LT3GEPIR #111177 llevan la misma horquilla shRen.713 con la
+misma pasajera —lo que confirma que el desapareamiento es deliberado pero no discrimina
+entre lecturas—, y el plegado del 97-mero completo lo resuelve. Comprobado aquí con
+ViennaRNA: A, C y G dan la misma notación punto-paréntesis y el mismo ΔG (−44.50); la T
+—la WC— cierra el tallo (−49.10).
 
-Hasta entonces `scaffold.py` la marca como `REGLA_NO_CONFIRMADA` y el aviso sale en cada
-salida de oligos. Con A o G no se aplica ninguna transición y se avisa.
+Convención para elegir entre las tres válidas: **C, y A cuando la C es justo la
+prohibida** (guía acabada en G). Elimina el caso de la G que antes quedaba sin decidir.
+
+> **Discrepancia en la especificación, resuelta a favor del plásmido.** La instrucción
+> decía «por defecto A; si la guía termina en T, entonces C», pero con «por defecto A»
+> la guía de SGEP daría `AAGGAATT…` y la pasajera real del plásmido es `CAGGAATT…`. Se
+> ha implementado la lectura que reproduce el plásmido y que satisface el resto de la
+> instrucción. Si «por defecto A» era lo correcto, es un cambio de una línea — pero
+> entonces el test de regresión contra SGEP falla.
 
 ### 3. Flancos extendidos del pri-miR — sin decidir
 
@@ -39,7 +46,20 @@ aborta en vez de inventarlos. Lo verificado es el 97-mero y solo el 97-mero.
 - miRBase `mature.fa` (paso 10), export de gnomAD (paso 11), track `rmsk` (paso 2):
   cada uno necesita fichero **y** checksum registrado antes de usarse.
 
-### 3. Definición del espaciado de 50 nt — decisión tomada, confírmala
+### 3. Penalización por variante rara de poliadenilación — valor por confirmar
+
+El filtro escalonado penaliza 1.0 kcal/mol a la ventana que solapa una variante `OTRA`,
+en vez de excluirla. El mecanismo viene de la instrucción; **el valor es una convención
+mía**, configurable en `SelectionConfig.weak_polya_penalty`.
+
+### 4. El `GGGG` del contexto 3' del gBlock
+
+La instrucción pide «sin homopolímeros ≥4» y el contexto 3' nativo de SGEP lleva un
+`GGGG`. Aplicar la comprobación al módulo entero haría fallar todos los módulos,
+incluido el de referencia, así que se aplica **solo a la parte variable**. Queda dicho
+en el motivo del propio check.
+
+### 5. Definición del espaciado de 50 nt — decisión tomada, confírmala
 
 Implementado como distancia **entre las posiciones de inicio** de los candidatos
 elegidos: dos candidatos a 50 nt exactos valen, a 49 no. La alternativa sería medir el

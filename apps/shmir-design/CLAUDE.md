@@ -136,8 +136,9 @@ Reglas de agregación:
   añadiendo más código a la página.
 - El núcleo y los CLI tienen que seguir funcionando sin Streamlit instalado.
 - Cada dependencia externa requiere autorización explícita y queda anotada en
-  `docs/dependencias-autorizadas.md` con quién la autorizó y para qué.
-  **Ese registro está hoy vacío: la v1 es stdlib pura.**
+  `docs/dependencias-autorizadas.md` con quién la autorizó y para qué. Hoy hay dos, las
+  dos OPCIONALES y ninguna en el núcleo: `streamlit` (interfaz) y `ViennaRNA` (plegado).
+  Sin ellas, el núcleo y los CLI funcionan igual.
 
 ---
 
@@ -191,11 +192,22 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - El límite del riesgo de APA es la **señal**, no el sitio de corte (10-30 nt aguas
   abajo): sobre-marca a propósito y no es una predicción del extremo de la isoforma
   corta.
-- El andamio miR-E (`scaffold.py`) está verificado en el 97-mero y **solo** ahí. La
-  regla del desapareamiento de la pasajera está derivada de un solo ejemplo: va marcada
-  como `REGLA_NO_CONFIRMADA`, el aviso sale en cada salida de oligos, y con A o G no se
-  aplica ninguna transición. No la des por buena ni quites el aviso hasta que esté
-  verificada contra un segundo plásmido (#111177).
+- El andamio miR-E (`scaffold.py`) está verificado en el 97-mero y **solo** ahí; los
+  flancos extendidos del pri-miR siguen sin decidir.
+- **La regla de la pasajera está resuelta**: la posición 1 nunca puede ser el
+  complemento Watson-Crick de la posición 22 de la guía, porque cierra el tallo y borra
+  el bulge basal. Convención: C, y A cuando la C es la prohibida. Hay un test que pliega
+  el 97-mero y exige la misma notación punto-paréntesis que SGEP; si falla, es que
+  alguien ha tocado la regla.
+- **El filtro de poliadenilación es escalonado**: FAIL duro solo para la señal terminal
+  y para `AATAAA`/`ATTAAA` en `APA_POSIBLE`; las variantes raras dejan bandera y
+  penalización de ranking. El informe saca las dos cifras de elegibles.
+- **Las coordenadas van siempre por partida doble**: transcrito y 3'UTR. Los tercios se
+  calculan sobre el 3'UTR. No hay detección de ORF: o se declara el CDS, o se declara
+  que la secuencia ya es el 3'UTR.
+- El módulo NheI–SacI de 149 nt (`gblock.py`) lleva contextos nativos de SGEP que **no
+  se recortan ni se sustituyen**: llevan el CNNC de SRSF3. El `GGGG` del contexto 3' es
+  nativo, por eso la comprobación de homopolímeros mira solo la parte variable.
 - **El orden de operaciones del paso 15 no se cambia**: enmascarar y RETILAR, filtros
   duros, ordenar por asimetría, agrupar en sitios, selección voraz. Enmascarar después
   de tilar produce un ranking contaminado que parece correcto.
@@ -207,7 +219,7 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
   verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
   nunca leerlo de la UI.
-- Implementado: pasos 0 (fixtures + checksum), 1-2 (enmascarado), 3 y 15 (tiling,
-  sitios y selección), 4-8
-  (filtros de ventana, incluida la asimetría), 9 (poliadenilación), 10 (mecánica de
-  seeds) y 14 (bloques conservados). El resto, en `docs/pipeline.md`.
+- Implementado: pasos 0 (fixtures + checksum), 1 (anatomía declarada), 2 (enmascarado),
+  3 y 15 (tiling, sitios y selección), 4-8 (filtros de ventana, incluida la asimetría),
+  9 (poliadenilación escalonada), 10 (mecánica de seeds) y 14 (bloques conservados),
+  más la horquilla y el módulo de 149 nt. El resto, en `docs/pipeline.md`.

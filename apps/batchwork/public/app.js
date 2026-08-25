@@ -196,6 +196,8 @@ const OPERATIONS = [
           { id: 'maxHomopolymer', type: 'number', label: 'Homopolímero máximo (por defecto: 3)', default: 3, min: 1, max: 22 },
           { id: 'minAsymmetry', type: 'number', label: 'Asimetría mínima, kcal/mol (por defecto: 0.5)', default: 0.5, step: 0.1 },
           { id: 'polyaFlank', type: 'number', label: 'Flanco prohibido junto a la señal polyA, nt (por defecto: 10)', default: 10, min: 0, max: 200 },
+          { id: 'cdsInicio', type: 'number', label: 'CDS: inicio en el transcrito (vacío = la secuencia ya es el 3′UTR)', default: '', min: 1 },
+          { id: 'cdsFin', type: 'number', label: 'CDS: fin en el transcrito', default: '', min: 1 },
           { id: 'bootstrapSeeds', type: 'checkbox', label: 'Filtrar seeds con la lista de arranque de 12 miRNAs (mecánica, NO filtro real)', default: false },
         ],
       },

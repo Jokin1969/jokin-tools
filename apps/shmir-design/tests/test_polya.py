@@ -94,10 +94,21 @@ class TestClasificacionPorCoordenadas(unittest.TestCase):
         self.assertEqual(signal.distance_to_3p, 19)
         self.assertIs(signal.classification, SignalClass.TERMINAL_PROBABLE)
 
-    def test_variante_no_canonica_lejos_del_extremo_no_es_apa(self):
-        """Solo la AATAAA canonica a >100 nt cuenta como APA posible."""
+    def test_la_ATTAAA_lejos_del_extremo_tambien_es_apa(self):
+        """Las dos fuertes (AATAAA y ATTAAA) cuentan como APA posible."""
         signal = classify_signal("ATTAAA", 288, MOUSE_UTR_LENGTH)
+        self.assertIs(signal.classification, SignalClass.APA_POSSIBLE)
+        self.assertTrue(signal.is_strong)
+
+    def test_una_variante_rara_lejos_del_extremo_no_es_apa(self):
+        """ACTAAA y compañia no: son las que el filtro escalonado deja en bandera."""
+        signal = classify_signal("ACTAAA", 288, MOUSE_UTR_LENGTH)
         self.assertIs(signal.classification, SignalClass.OTHER)
+        self.assertFalse(signal.is_strong)
+
+    def test_is_canonical_sigue_siendo_solo_AATAAA(self):
+        self.assertTrue(classify_signal("AATAAA", 288, MOUSE_UTR_LENGTH).is_canonical)
+        self.assertFalse(classify_signal("ATTAAA", 288, MOUSE_UTR_LENGTH).is_canonical)
 
     def test_limites_de_la_ventana_terminal(self):
         length = 1000
@@ -119,6 +130,60 @@ class TestClasificacionPorCoordenadas(unittest.TestCase):
     def test_motivo_desconocido_se_rechaza(self):
         with self.assertRaises(ValueError):
             classify_signal("GGGGGG", 100, 1000)
+
+
+class TestFiltroEscalonado(unittest.TestCase):
+    """FAIL duro solo para señal terminal y APA; las variantes raras van en bandera.
+
+    Aplicar ±10 nt a los doce hexameros por igual tumbaba ventanas por un ACTAAA a 203
+    nt del extremo, que el propio informe etiqueta OTRA.
+    """
+
+    def test_la_señal_terminal_sigue_siendo_FAIL_duro(self):
+        signals = [classify_signal("ATTAAA", 1582, HUMAN_UTR_LENGTH)]
+        report = annotate_3utr([Window(1581, 22, "w")], signals, HUMAN_UTR_LENGTH)
+        self.assertIs(report.windows[0].zona_prohibida.state, FilterState.FAIL)
+
+    def test_una_APA_posible_es_FAIL_duro(self):
+        signals = [classify_signal("AATAAA", 288, MOUSE_UTR_LENGTH)]
+        report = annotate_3utr([Window(285, 22, "w")], signals, MOUSE_UTR_LENGTH)
+        self.assertIs(report.windows[0].zona_prohibida.state, FilterState.FAIL)
+
+    def test_una_variante_rara_no_tumba_la_ventana(self):
+        """El caso del ACTAAA en 1983 del raton: bandera, no FAIL."""
+        signals = [classify_signal("ACTAAA", 1983, 2191)]
+        report = annotate_3utr([Window(1967, 22, "w1967")], signals, 2191)
+        ventana = report.windows[0]
+        self.assertIs(ventana.zona_prohibida.state, FilterState.PASS)
+        self.assertTrue(ventana.bandera_polyA_debil)
+        self.assertIn("ACTAAA", ventana.zona_prohibida.reason)
+
+    def test_la_bandera_dice_que_es_penalizacion_y_no_exclusion(self):
+        signals = [classify_signal("ACTAAA", 1983, 2191)]
+        report = annotate_3utr([Window(1967, 22, "w")], signals, 2191)
+        motivo = report.windows[0].zona_prohibida.reason.lower()
+        self.assertIn("penaliza", motivo)
+
+    def test_si_hay_fuerte_y_debil_manda_la_fuerte(self):
+        signals = [
+            classify_signal("ACTAAA", 1983, 2191),
+            classify_signal("ATTAAA", 1990, 2191),
+        ]
+        report = annotate_3utr([Window(1980, 22, "w")], signals, 2191)
+        self.assertIs(report.windows[0].zona_prohibida.state, FilterState.FAIL)
+
+    def test_el_criterio_estricto_se_conserva_para_comparar(self):
+        signals = [classify_signal("ACTAAA", 1983, 2191)]
+        report = annotate_3utr([Window(1967, 22, "w")], signals, 2191)
+        ventana = report.windows[0]
+        self.assertFalse(ventana.estricto_ok)      # con ±10 a todos, caeria
+        self.assertTrue(ventana.zona_prohibida.state is FilterState.PASS)
+
+    def test_una_ventana_limpia_pasa_los_dos_criterios(self):
+        signals = [classify_signal("ACTAAA", 1983, 2191)]
+        report = annotate_3utr([Window(100, 22, "w")], signals, 2191)
+        self.assertTrue(report.windows[0].estricto_ok)
+        self.assertFalse(report.windows[0].bandera_polyA_debil)
 
 
 class TestZonasProhibidas(unittest.TestCase):
@@ -214,7 +279,7 @@ class TestRiesgoAPA(unittest.TestCase):
         report = self.mouse_report([Window(100, 22, label="arriba")])
         self.assertFalse(report.windows[0].riesgo_APA)
 
-    def test_ventana_que_solapa_el_apa_se_excluye_por_zona_prohibida(self):
+    def test_ventana_que_solapa_el_apa_se_excluye_por_zona_prohibida(self):  # noqa: D401
         report = self.mouse_report([Window(285, 22, label="sobre_apa")])
         self.assertIs(report.windows[0].zona_prohibida.state, FilterState.FAIL)
 

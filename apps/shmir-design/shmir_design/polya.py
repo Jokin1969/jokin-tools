@@ -49,6 +49,11 @@ VARIANT_SIGNALS = (
 )
 ALL_SIGNALS = (CANONICAL_SIGNAL,) + VARIANT_SIGNALS
 
+#: Señales FUERTES: la canonica y su variante mas frecuente. Son las unicas que pueden
+#: clasificarse como APA posible y las unicas que producen FAIL duro lejos del extremo.
+#: El resto de variantes son raras y solo generan bandera y penalizacion de ranking.
+STRONG_SIGNALS = frozenset({CANONICAL_SIGNAL, "ATTAAA"})
+
 SIGNAL_FLANK = 10           # nt a cada lado de la señal que quedan prohibidos
 TERMINAL_MIN_DISTANCE = 10  # señal terminal probable: 10-40 nt del extremo 3'
 TERMINAL_MAX_DISTANCE = 40
@@ -154,7 +159,21 @@ class PolyASignal:
 
     @property
     def is_canonical(self) -> bool:
+        """Solo el hexamero canonico AATAAA."""
         return self.motif == CANONICAL_SIGNAL
+
+    @property
+    def is_strong(self) -> bool:
+        """AATAAA o ATTAAA: las dos que tumban una ventana lejos del extremo."""
+        return self.motif in STRONG_SIGNALS
+
+    @property
+    def is_hard_block(self) -> bool:
+        """¿Esta señal excluye por si sola una ventana que la solape?"""
+        return self.classification in (
+            SignalClass.TERMINAL_PROBABLE,
+            SignalClass.APA_POSSIBLE,
+        )
 
     @property
     def forbidden_start(self) -> int:
@@ -205,7 +224,7 @@ def classify_signal(
     distance = utr_length - end
     if TERMINAL_MIN_DISTANCE <= distance <= TERMINAL_MAX_DISTANCE:
         classification = SignalClass.TERMINAL_PROBABLE
-    elif motif == CANONICAL_SIGNAL and distance > APA_MIN_DISTANCE:
+    elif motif in STRONG_SIGNALS and distance > APA_MIN_DISTANCE:
         classification = SignalClass.APA_POSSIBLE
     else:
         classification = SignalClass.OTHER
@@ -284,9 +303,19 @@ class Window:
 class AnnotatedWindow:
     window: Window
     zona_prohibida: FilterResult
-    tercio: Tercio
+    #: None si la ventana no cae en el 3'UTR (los tercios se calculan sobre el 3'UTR).
+    tercio: Tercio | None
     riesgo_APA: bool
     apa_upstream: tuple[PolyASignal, ...] = ()
+    #: Variantes raras solapadas: no excluyen, penalizan y dejan bandera.
+    senales_debiles: tuple[PolyASignal, ...] = ()
+    #: ¿Pasaria el criterio ESTRICTO (±flanco para los doce hexameros por igual)?
+    #: Se conserva para poder enseñar las dos cifras y que la decision sea visible.
+    estricto_ok: bool = True
+
+    @property
+    def bandera_polyA_debil(self) -> bool:
+        return bool(self.senales_debiles)
 
     @property
     def name(self) -> str:
@@ -351,7 +380,7 @@ class Report:
             riesgo = " riesgo_APA=True" if annotated.riesgo_APA else ""
             lines.append(
                 f"  {window.name} [{window.start}-{window.end}] "
-                f"{annotated.tercio.value:<8} "
+                f"{(annotated.tercio.value if annotated.tercio else '—'):<8} "
                 f"{FILTER_NAME}={annotated.zona_prohibida.state.value:<7} "
                 f"veredicto={annotated.verdict.value}{riesgo}"
             )
@@ -379,7 +408,7 @@ class Report:
                     window.name,
                     str(window.start),
                     str(window.end),
-                    annotated.tercio.value,
+                    annotated.tercio.value if annotated.tercio else "",
                     annotated.zona_prohibida.state.value,
                     annotated.zona_prohibida.reason,
                     str(annotated.riesgo_APA),
@@ -421,30 +450,67 @@ def _validate_window(window: Window, utr_length: int) -> None:
         )
 
 
-def _zona_prohibida(window: Window, signals: list[PolyASignal]) -> FilterResult:
+def _zona_prohibida(
+    window: Window, signals: list[PolyASignal]
+) -> tuple[FilterResult, tuple[PolyASignal, ...], tuple[PolyASignal, ...]]:
+    """Filtro escalonado. Devuelve (resultado, señales fuertes, señales debiles).
+
+    FAIL duro solo para la señal terminal y para las APA posibles (AATAAA y ATTAAA).
+    Las variantes raras —las que se clasifican OTRA— no tumban la ventana: dejan
+    bandera y penalizacion de ranking, porque un ACTAAA a 200 nt del extremo no es
+    motivo para descartar un candidato.
+    """
     flank = signals[0].flank if signals else SIGNAL_FLANK
-    solapadas = [
+    solapadas = tuple(
         s for s in signals
         if window.start <= s.forbidden_end and window.end >= s.forbidden_start
-    ]
-    if solapadas:
+    )
+    fuertes = tuple(s for s in solapadas if s.is_hard_block)
+    debiles = tuple(s for s in solapadas if not s.is_hard_block)
+
+    if fuertes:
         detalle = "; ".join(
-            f"{s.motif} en {s.position} (zona prohibida "
+            f"{s.motif} en {s.position} ({s.classification.value}, zona prohibida "
             f"{s.forbidden_start}-{s.forbidden_end})"
-            for s in solapadas
+            for s in fuertes
         )
-        return FilterResult(
+        return (
+            FilterResult(
+                name=FILTER_NAME,
+                state=FilterState.FAIL,
+                reason=f"Solapa señal fuerte de poliadenilacion ±{flank} nt: {detalle}.",
+            ),
+            fuertes,
+            debiles,
+        )
+
+    if debiles:
+        detalle = "; ".join(f"{s.motif} en {s.position}" for s in debiles)
+        return (
+            FilterResult(
+                name=FILTER_NAME,
+                state=FilterState.PASS,
+                reason=(
+                    f"Solapa variante(s) rara(s) de poliadenilacion ±{flank} nt "
+                    f"({detalle}), clasificadas {SignalClass.OTHER.value}: no excluye, "
+                    f"se penaliza en el ranking y queda con bandera."
+                ),
+            ),
+            (),
+            debiles,
+        )
+
+    return (
+        FilterResult(
             name=FILTER_NAME,
-            state=FilterState.FAIL,
-            reason=f"Solapa señal de poliadenilacion ±{flank} nt: {detalle}.",
-        )
-    return FilterResult(
-        name=FILTER_NAME,
-        state=FilterState.PASS,
-        reason=(
-            f"Sin solape con ninguna de las {len(signals)} señal(es) detectadas "
-            f"(±{flank} nt)."
+            state=FilterState.PASS,
+            reason=(
+                f"Sin solape con ninguna de las {len(signals)} señal(es) detectadas "
+                f"(±{flank} nt)."
+            ),
         ),
+        (),
+        (),
     )
 
 
@@ -452,6 +518,7 @@ def annotate_3utr(
     windows: list[Window],
     signals: list[PolyASignal] | None,
     utr_length: int,
+    anatomy=None,
 ) -> Report:
     """Anota las ventanas con zona prohibida, tercio y riesgo de APA.
 
@@ -475,7 +542,11 @@ def annotate_3utr(
     annotated: list[AnnotatedWindow] = []
     for window in windows:
         _validate_window(window, utr_length)
-        tercio = tercio_of(window, utr_length)
+        tercio = (
+            tercio_of(window, utr_length)
+            if anatomy is None
+            else anatomy.tercio_of(window.start, window.end)
+        )
 
         if signals is None:
             annotated.append(
@@ -499,13 +570,16 @@ def annotate_3utr(
             s for s in signals
             if s.classification is SignalClass.APA_POSSIBLE and window.start > s.end
         )
+        resultado, fuertes, debiles = _zona_prohibida(window, signals)
         annotated.append(
             AnnotatedWindow(
                 window=window,
-                zona_prohibida=_zona_prohibida(window, signals),
+                zona_prohibida=resultado,
                 tercio=tercio,
                 riesgo_APA=bool(apa_upstream),
                 apa_upstream=apa_upstream,
+                senales_debiles=debiles,
+                estricto_ok=not (fuertes or debiles),
             )
         )
 

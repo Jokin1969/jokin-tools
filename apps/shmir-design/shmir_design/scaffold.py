@@ -9,17 +9,21 @@ La guia va en el brazo 3p. `SCAFFOLD["verified"] = True` se refiere **solo** al 
 los flancos extendidos del pri-miR que hacen falta para el cassette AAV siguen sin
 decidir y este modulo se niega a inventarlos.
 
-## La regla de la pasajera NO esta confirmada
+## La regla de la pasajera (resuelta)
 
 La pasajera no es el complementario reverso exacto de la guia: lleva un desapareamiento
-deliberado en su posicion 1, que en el plasmido de referencia es C donde el
-complementario reverso daria T. La regla implementada es la transicion T↔C.
+deliberado en su posicion 1, que es la que aparearia con la posicion 22 de la guia.
 
-**Esa regla esta derivada de UN SOLO ejemplo.** Hasta verificarla contra un segundo
-plasmido miR-E con una guia distinta (LT3GEPIR, Addgene #111177), va marcada como
-`REGLA_NO_CONFIRMADA` y el aviso sale en toda salida de oligos. Si el revcomp empieza
-por A o por G, el caso no esta cubierto por el ejemplo: no se toca la base y se avisa,
-en vez de inventar una transicion que nadie ha visto.
+**Regla: la posicion 1 de la pasajera nunca puede ser el complemento Watson-Crick de la
+posicion 22 de la guia.** Si lo es, el tallo se cierra y desaparece el bulge basal.
+Cualquiera de las otras tres bases da una estructura identica base a base a la de SGEP,
+con el mismo ΔG, asi que la eleccion entre ellas es una convencion: se usa C, y A cuando
+la C es justo la prohibida (guia acabada en G).
+
+Evidencia: dos vectores publicados independientes (SGEP #111170 y LT3GEPIR #111177)
+llevan la misma horquilla shRen.713 con la misma pasajera, lo que confirma que el
+desapareamiento es deliberado pero no discrimina entre lecturas; lo resuelve el plegado
+del 97-mero completo, comprobado con ViennaRNA.
 
 Python 3.11+, solo libreria estandar (regla 6).
 """
@@ -162,13 +166,24 @@ SCAFFOLD = MappingProxyType(
     }
 )
 
-PASSENGER_RULE_CONFIRMED = False
-PASSENGER_RULE_TAG = "REGLA_NO_CONFIRMADA"
-PASSENGER_RULE_WARNING = (
-    f"{PASSENGER_RULE_TAG}: el desapareamiento de la posicion 1 de la pasajera "
-    f"(transicion T↔C) esta derivado de UN SOLO ejemplo (SGEP #111170). Antes de "
-    f"fijarlo hay que verificarlo contra un segundo plasmido miR-E con otra guia "
-    f"(LT3GEPIR #111177). No pidas estos oligos dando la regla por buena."
+PASSENGER_RULE_CONFIRMED = True
+PASSENGER_RULE_SOURCE = (
+    "SGEP #111170 y LT3GEPIR #111177 llevan la misma horquilla shRen.713 con la misma "
+    "pasajera; el plegado del 97-mero completo (ViennaRNA) confirma que aparear la "
+    "posicion 1 en Watson-Crick cierra el tallo y borra el bulge basal, y que las otras "
+    "tres bases dan una estructura identica base a base"
+)
+
+#: Base preferida para el desapareamiento, y la alternativa cuando esa es la prohibida.
+DEFAULT_MISMATCH_BASE = "C"
+FALLBACK_MISMATCH_BASE = "A"
+
+#: 97-mero real de SGEP con la guia shRen.713. Es la estructura de referencia contra la
+#: que se compara el plegado de cualquier horquilla nueva.
+REFERENCE_GUIDE = "TAGATAAGCATTATAATTCCTA"
+REFERENCE_HAIRPIN = (
+    "TGCTGTTGACAGTGAGCGCAGGAATTATAATGCTTATCTATAGTGAAGCCACAGATGTA"
+    "TAGATAAGCATTATAATTCCTATGCCTACTGCCTCGGA"
 )
 
 EXTENDED_FLANKS_STATUS = (
@@ -176,8 +191,7 @@ EXTENDED_FLANKS_STATUS = (
     "no para el clonaje en SGEP) todavia no estan verificados"
 )
 
-#: Transicion observada. A y G no aparecen en el unico ejemplo disponible.
-TRANSITION = MappingProxyType({"T": "C", "C": "T"})
+
 
 #: Andamio verificado contra SGEP #111170. Es el unico con `verified=True`.
 SGEP_SCAFFOLD = ScaffoldSpec(
@@ -218,43 +232,40 @@ def reverse_complement(sequence: str) -> str:
 class Passenger:
     sequence: str
     reverse_complement: str
-    base_original: str
-    base_final: str
-    transition_applied: bool
+    #: La base que apareceria en el complementario reverso: el complemento Watson-Crick
+    #: de la posicion 22 de la guia. Es justo la que NO puede ir en la posicion 1.
+    forbidden_base: str
+    chosen_base: str
+    mismatch_applied: bool
     warnings: tuple[str, ...] = field(default=())
 
 
 def passenger_from_guide(guide: str) -> Passenger:
-    """Pasajera del andamio: revcomp de la guia con la transicion en la posicion 1."""
+    """Pasajera del andamio: revcomp de la guia con la posicion 1 desapareada.
+
+    La posicion 1 nunca es el complemento Watson-Crick de la posicion 22 de la guia.
+    """
     cleaned = _validate_arm(guide)
     revcomp = reverse_complement(cleaned)
-    original = revcomp[0]
-    warnings = [PASSENGER_RULE_WARNING]
-
-    final = TRANSITION.get(original)
-    if final is None:
-        warnings.append(
-            f"La posicion 1 del complementario reverso es {original}: la transicion NO "
-            f"se ha aplicado. El unico ejemplo verificado (SGEP #111170) tiene T→C, y "
-            f"no hay ninguno con {original}. Decide tu que base va ahi antes de pedir "
-            f"el oligo."
-        )
-        return Passenger(
-            sequence=revcomp,
-            reverse_complement=revcomp,
-            base_original=original,
-            base_final=original,
-            transition_applied=False,
-            warnings=tuple(warnings),
+    forbidden = revcomp[0]
+    chosen = (
+        FALLBACK_MISMATCH_BASE
+        if DEFAULT_MISMATCH_BASE == forbidden
+        else DEFAULT_MISMATCH_BASE
+    )
+    if chosen == forbidden:  # imposible por construccion; si pasa, es un fallo nuestro
+        raise ValueError(
+            f"La base elegida para la posicion 1 de la pasajera ({chosen}) es la "
+            f"prohibida: aparearia en Watson-Crick con la posicion 22 de la guia y "
+            f"cerraria el tallo. Se aborta el montaje."
         )
 
     return Passenger(
-        sequence=final + revcomp[1:],
+        sequence=chosen + revcomp[1:],
         reverse_complement=revcomp,
-        base_original=original,
-        base_final=final,
-        transition_applied=True,
-        warnings=tuple(warnings),
+        forbidden_base=forbidden,
+        chosen_base=chosen,
+        mismatch_applied=True,
     )
 
 
@@ -297,14 +308,11 @@ class Hairpin:
             "",
             f"  Pasajera: complementario reverso {self.passenger.reverse_complement}",
         ]
-        if self.passenger.transition_applied:
-            lines.append(
-                f"            con la posicion 1 cambiada "
-                f"{self.passenger.base_original}→{self.passenger.base_final} "
-                f"(desapareamiento deliberado del andamio)"
-            )
-        else:
-            lines.append("            SIN cambiar la posicion 1 (ver aviso)")
+        lines.append(
+            f"            con la posicion 1 en {self.passenger.chosen_base} y no en "
+            f"{self.passenger.forbidden_base}: apareada en Watson-Crick con la posicion "
+            f"22 de la guia, el tallo se cierra y desaparece el bulge basal"
+        )
 
         lines.append("")
         for warning in self.warnings:

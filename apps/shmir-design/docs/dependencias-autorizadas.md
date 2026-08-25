@@ -7,6 +7,7 @@ usarse.
 | Paquete | Versión | Para qué | Autorizado por | Fecha |
 |---|---|---|---|---|
 | `streamlit` | >= 1.30 (probado con 1.62.0) | Interfaz web, **solo** `ui/streamlit_app.py` | responsable del proyecto, por escrito | 2026-08-25 |
+| `ViennaRNA` | >= 2.6 (probado con 2.7.2) | Plegado del 97-mero: comprobar que la horquilla mantiene la estructura de SGEP | responsable del proyecto, por escrito | 2026-08-25 |
 
 ## El núcleo sigue siendo stdlib pura
 
@@ -18,7 +19,15 @@ usarse.
 - Los tests del núcleo corren sin ella; solo `test_streamlit_app.py` se salta de forma
   visible si no está instalada.
 
-Se instala aparte: `pip install -r apps/shmir-design/requirements-ui.txt`.
+Se instalan aparte y por separado:
+
+```bash
+pip install -r apps/shmir-design/requirements-ui.txt        # interfaz
+pip install -r apps/shmir-design/requirements-folding.txt   # plegado (ViennaRNA)
+```
+
+Sin ViennaRNA, `check_fold` devuelve `NOT_RUN` —nunca `PASS`— y el resto del pipeline
+funciona igual.
 
 ## Sobre "sin frameworks web en la v1"
 
@@ -34,4 +43,4 @@ un umbral— eso es una violación de esta condición, no una mejora de la UI.
 
 | Paquete | Para qué | Estado |
 |---|---|---|
-| `ViennaRNA` | Paso 13, accesibilidad (RNAplfold), solo ranking | autorizada de palabra, **sin integrar**: falta hacer la prueba y enseñarla |
+| `ViennaRNA` para el paso 13 (accesibilidad, RNAplfold) | ranking | ya instalable; el paso 13 sigue **sin integrar** |

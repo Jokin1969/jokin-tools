@@ -20,6 +20,7 @@ from __future__ import annotations
 from .conservation import ConservationReport
 from .filters import Verdict
 from .reference import ReferenceTranscript
+from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
 from .selection import ReportSelection
 from .tiling import TilingReport
@@ -64,11 +65,16 @@ def tsv_selected(selection: ReportSelection, *, species: str) -> str:
             "rango_asimetria",
             "inicio",
             "fin",
+            "region",
+            "inicio_3utr",
+            "fin_3utr",
             "tercio",
             "asimetria_kcal",
+            "penalizacion",
         ]
         + filtros
         + [
+            "bandera_polyA_debil",
             "biofisicos_ok",
             "riesgo_APA",
             "veredicto",
@@ -87,11 +93,16 @@ def tsv_selected(selection: ReportSelection, *, species: str) -> str:
                 str(selection.selection.rank_of(choice.start)),
                 str(choice.start),
                 str(choice.end),
-                choice.tercio.value,
-                f"{choice.asymmetry:+.2f}",
+                window.region.value,
+                "" if window.inicio_3utr is None else str(window.inicio_3utr),
+                "" if window.fin_3utr is None else str(window.fin_3utr),
+                choice.tercio.value if choice.tercio else "",
+                f"{choice.asymmetry_raw:+.2f}",
+                f"{choice.penalty:.2f}",
             ]
             + [estados[name] for name in filtros]
             + [
+                str(window.bandera_polyA_debil),
                 str(window.biofisicos_ok),
                 str(window.riesgo_APA),
                 window.verdict.value,
@@ -138,12 +149,16 @@ def tsv_oligos(
             "guia",
             "pasajera",
             "oligo",
+            "gblock_149",
+            "gblock_veredicto",
+            "gblock_motivos",
             "avisos",
         ]
     ]
     for choice in selection.selection.chosen:
         window = selection.window_of(choice)
         hairpin = build_hairpin(window.evaluation.guide, scaffold=scaffold)
+        gblock = build_gblock(hairpin)
         rows.append(
             [
                 species,
@@ -154,6 +169,9 @@ def tsv_oligos(
                 hairpin.guide,
                 hairpin.passenger.sequence,
                 hairpin.sequence,
+                gblock.sequence,
+                gblock.verdict.value,
+                "; ".join(f"{c.name}: {c.reason}" for c in gblock.failures) or "—",
                 " | ".join(hairpin.warnings),
             ]
         )
@@ -174,9 +192,34 @@ def text_report(
         "",
         "── Anatomia del transcrito ──",
     ]
-    if transcript is None:
+    anatomia = tiling.anatomy
+    if transcript is None and anatomia is not None and anatomia.declared:
         lines.append(
-            "  Sin transcrito de referencia: solo se analizo la secuencia dada."
+            "  Declarada por quien lanzo el analisis (no hay transcrito verificado):"
+        )
+        lines.append(f"  total {anatomia.length} nt")
+        if anatomia.utr5:
+            lines.append(
+                f"  5'UTR {anatomia.utr5[0]}-{anatomia.utr5[1]} "
+                f"({anatomia.utr5[1] - anatomia.utr5[0] + 1} nt)"
+            )
+        lines.append(
+            f"  CDS   {anatomia.cds[0]}-{anatomia.cds[1]} "
+            f"({anatomia.cds[1] - anatomia.cds[0] + 1} nt)"
+        )
+        lines.append(
+            f"  3'UTR {anatomia.utr3[0]}-{anatomia.utr3[1]} "
+            f"({anatomia.utr3_length} nt)"
+        )
+        lines.extend(f"  ⚠  {w}" for w in anatomia.warnings)
+        lines.append(
+            "  Las ventanas llevan sus dos coordenadas: la del transcrito y la del "
+            "3'UTR. Los tercios se calculan sobre el 3'UTR."
+        )
+    elif transcript is None:
+        lines.append(
+            "  Sin transcrito verificado y sin CDS declarado: se ha tratado TODA la "
+            "secuencia como 3'UTR. Si has dado un mRNA completo, pasa --cds INICIO FIN."
         )
     else:
         lines.extend(
@@ -222,8 +265,10 @@ def text_report(
             "── Tiling y seleccion ──",
             f"  ventanas:        {selection.total}",
             f"  biofisicos_ok:   {tiling.biofisicos_ok()}",
-            f"  elegibles:       {selection.eligible} "
-            f"(biofisicos_ok y sin ningun FAIL)",
+            f"  elegibles:       {selection.eligible} con criterio ESCALONADO "
+            f"(la variante rara de poliadenilacion penaliza, no excluye)",
+            f"                   {selection.eligible_strict} con criterio ESTRICTO "
+            f"(±flanco para los doce hexameros por igual)",
             f"  sitios:          {len(selection.selection.sites)}",
             f"  seleccionados:   {len(selection.selection.chosen)} de "
             f"{selection.selection.config.n_candidates} pedidos "

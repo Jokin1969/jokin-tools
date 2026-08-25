@@ -31,6 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from shmir_design.anatomy import Anatomy  # noqa: E402
 from shmir_design.conservation import (  # noqa: E402
     MIN_BLOCK_LENGTH,
     Utr3,
@@ -84,6 +85,21 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--bootstrap-seeds", action="store_true")
     parser.add_argument("--repeats", type=Path, help="Intervalos repetitivos `inicio fin`")
     parser.add_argument("--min-block", type=int, default=MIN_BLOCK_LENGTH)
+    parser.add_argument(
+        "--cds", nargs=2, type=int, metavar=("INICIO", "FIN"),
+        help="Coordenadas 1-based del CDS en la secuencia de --fasta. Con esto se "
+             "etiqueta cada ventana (5'UTR/CDS/3'UTR) y los tercios se calculan sobre "
+             "el 3'UTR.",
+    )
+    parser.add_argument(
+        "--cds-b", nargs=2, type=int, metavar=("INICIO", "FIN"),
+        help="Lo mismo para --fasta-b.",
+    )
+    parser.add_argument(
+        "--region", choices=("transcrito", "3utr"), default="transcrito",
+        help="'3utr' declara que la secuencia dada YA es el 3'UTR (por defecto se "
+             "asume eso mismo si no pasas --cds).",
+    )
     parser.add_argument("--gc-min", type=float, default=DEFAULT_THRESHOLDS.gc_min)
     parser.add_argument("--gc-max", type=float, default=DEFAULT_THRESHOLDS.gc_max)
     parser.add_argument(
@@ -127,6 +143,12 @@ def main(argv: list[str]) -> int:
             polya_flank=args.polya_flank,
         )
 
+        if args.cds and args.region == "3utr":
+            raise ValueError(
+                "--cds y --region 3utr son incompatibles: o la secuencia es el "
+                "transcrito con su CDS, o ya es el 3'UTR."
+            )
+
         if args.fasta:
             secuencias = {args.name: read_fasta_sequence(args.fasta)}
             transcripts = {args.name: None}
@@ -148,12 +170,24 @@ def main(argv: list[str]) -> int:
                 for nombre, accession in DEFAULT_PAIR.items()
             }
 
+        anatomias = {}
+        for nombre, secuencia in secuencias.items():
+            coords = args.cds if nombre == args.name else args.cds_b
+            anatomias[nombre] = (
+                Anatomy.from_cds(cds=(coords[0], coords[1]), length=len(secuencia))
+                if coords
+                else Anatomy.whole_is_utr3(len(secuencia))
+            )
+
         conservation = None
         if len(secuencias) == 2:
             (nombre_a, seq_a), (nombre_b, seq_b) = secuencias.items()
+            # Los bloques conservados se buscan entre los 3'UTR, no entre transcritos.
+            utr3_a = seq_a[anatomias[nombre_a].utr3[0] - 1 : anatomias[nombre_a].utr3[1]]
+            utr3_b = seq_b[anatomias[nombre_b].utr3[0] - 1 : anatomias[nombre_b].utr3[1]]
             conservation = build_conservation_report(
-                Utr3(nombre_a, seq_a),
-                Utr3(nombre_b, seq_b),
+                Utr3(nombre_a, utr3_a),
+                Utr3(nombre_b, utr3_b),
                 min_length=args.min_block,
                 thresholds=thresholds,
             )
@@ -161,7 +195,11 @@ def main(argv: list[str]) -> int:
         args.out.mkdir(parents=True, exist_ok=True)
         for especie, secuencia in secuencias.items():
             tiling = tile_utr(
-                secuencia, seeds=seeds, mask=mask, thresholds=thresholds
+                secuencia,
+                seeds=seeds,
+                mask=mask,
+                anatomy=anatomias[especie],
+                thresholds=thresholds,
             )
             seleccion = select_from_report(tiling, config)
             informe = text_report(

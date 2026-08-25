@@ -13,7 +13,7 @@ from shmir_design.outputs import (
     tsv_selected,
 )
 from shmir_design.reference import REFERENCES
-from shmir_design.scaffold import UNVERIFIED_TAG, PASSENGER_RULE_TAG, ScaffoldSpec
+from shmir_design.scaffold import UNVERIFIED_TAG, ScaffoldSpec
 from shmir_design.selection import SelectionConfig, select_from_report
 from shmir_design.tiling import tile_utr
 
@@ -112,13 +112,47 @@ class TestTsvDeOligos(unittest.TestCase):
         fila = dict(zip(lineas[0].split("\t"), lineas[1].split("\t")))
         self.assertEqual(len(fila["oligo"]), 97)
 
-    def test_cada_fila_lleva_los_avisos(self):
+    def test_cada_fila_lleva_el_aviso_del_andamio_sin_verificar(self):
         _, seleccion = piezas()
         lineas = tsv_oligos(seleccion, ANDAMIO_SIN_VERIFICAR, species="sonda").splitlines()
         for linea in lineas[1:]:
             with self.subTest(linea[:30]):
                 self.assertIn(UNVERIFIED_TAG, linea)
-                self.assertIn(PASSENGER_RULE_TAG, linea)
+
+    def test_con_el_andamio_verificado_no_hay_avisos_de_regla(self):
+        """La regla de la pasajera esta resuelta: ya no se avisa de ella."""
+        from shmir_design.scaffold import SGEP_SCAFFOLD
+
+        _, seleccion = piezas()
+        texto = tsv_oligos(seleccion, SGEP_SCAFFOLD, species="sonda")
+        self.assertNotIn("REGLA_NO_CONFIRMADA", texto)
+
+
+class TestColumnasNuevas(unittest.TestCase):
+
+    def test_los_seleccionados_traen_region_y_doble_coordenada(self):
+        from shmir_design.anatomy import Anatomy
+
+        anatomia = Anatomy.from_cds(cds=(1, 240), length=len(SONDA))
+        report = tile_utr(SONDA, anatomy=anatomia)
+        seleccion = select_from_report(report, SelectionConfig(n_candidates=2))
+        lineas = tsv_selected(seleccion, species="sonda").splitlines()
+        cabecera = lineas[0].split("\t")
+        for columna in ("region", "inicio_3utr", "fin_3utr", "bandera_polyA_debil"):
+            with self.subTest(columna):
+                self.assertIn(columna, cabecera)
+        fila = dict(zip(cabecera, lineas[1].split("\t")))
+        self.assertEqual(fila["region"], "3'UTR")
+        self.assertEqual(int(fila["inicio_3utr"]), int(fila["inicio"]) - 240)
+
+    def test_los_oligos_traen_el_modulo_de_149(self):
+        _, seleccion = piezas()
+        lineas = tsv_oligos(seleccion, ANDAMIO_SIN_VERIFICAR, species="sonda").splitlines()
+        cabecera = lineas[0].split("\t")
+        self.assertIn("gblock_149", cabecera)
+        fila = dict(zip(cabecera, lineas[1].split("\t")))
+        self.assertEqual(len(fila["gblock_149"]), 149)
+        self.assertIn(fila["gblock_veredicto"], ("PASS", "FAIL", "INCOMPLETE"))
 
 
 class TestInformeDeTexto(unittest.TestCase):
@@ -147,6 +181,11 @@ class TestInformeDeTexto(unittest.TestCase):
         self.assertIn("NO SE EJECUTARON", texto.upper())
         self.assertIn("seed", texto)
         self.assertIn("repeticiones", texto)
+
+    def test_enseña_las_dos_cifras_de_elegibles(self):
+        texto = self.informe()
+        self.assertIn("escalonado", texto.lower())
+        self.assertIn("estricto", texto.lower())
 
     def test_avisa_de_que_la_seleccion_es_provisional(self):
         self.assertIn("provisional", self.informe().lower())

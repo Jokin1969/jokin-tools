@@ -6,7 +6,7 @@ parece correcto.
 | # | Filtro | Tipo | Recurso externo | Si falla el recurso | Estado |
 |---:|---|---|---|---|---|
 | 0 | Carga + verificación de checksum | previo | ninguno: fixture versionado | **ABORTAR** | **implementado** (`reference.py`, `tools/reference_data.py`); descarga opcional con `--fetch` |
-| 1 | Extracción de anatomía (ORF, UTRs) | duro | ninguno | — | parcial: coordenadas verificadas en `reference.py`; sin detección de ORF |
+| 1 | Extracción de anatomía (ORF, UTRs) | duro | ninguno | — | **implementado** por coordenadas declaradas (`anatomy.py`); sigue sin haber detección de ORF |
 | 2 | Enmascarado de repeticiones → **RETILAR** | duro | fixture `rmsk` (descarga manual) | `NOT_RUN` | **implementado** (`masking.py`); falta el fichero de intervalos |
 | 3 | Tiling de 22-meros | — | ninguno | — | **implementado** (`tiling.py`, `tools/tiling_report.py`) |
 | 4 | GC 0.30–0.52 | duro | ninguno | — | **implementado** (`hard_filters.filter_gc`) |
@@ -14,7 +14,7 @@ parece correcto.
 | 6 | Forzar U en posición 1 de la guía | transformación | ninguno | — | **implementado** (`hard_filters.guide_from_target`) |
 | 7 | Asimetría ≥ +0.5 kcal/mol | duro | ninguno | — | **implementado** (`thermo.py`), sobre la guía transformada |
 | 8 | Sin motivo G-cuádruplex | duro | ninguno | — | **implementado** sobre la diana **y** sobre la guía (`G4_diana`, `G4_guia`) |
-| 9 | Exclusión de señales de poliadenilación ±10 nt | duro | ninguno | — | **implementado** (`polya.py`) |
+| 9 | Exclusión de señales de poliadenilación ±10 nt | duro/escalonado | ninguno | — | **implementado** (`polya.py`), con dos niveles: ver abajo |
 | 10 | Seed sin colisión con miRNA | duro | fixture `mature.fa` (descarga manual) | `NOT_RUN` | mecánica **implementada** (`seeds.py`); falta `mature.fa`: la lista de 12 es un arranque, no un filtro |
 | 11 | Sin variante con AF > 0.001 (solo humano) | duro | fixture del export de gnomAD | `NOT_RUN` | pendiente |
 | 12 | Especificidad (BLAST) | duro | **manual en la v1** | `NOT_RUN` | pendiente |
@@ -163,3 +163,52 @@ máximo, asimetría mínima y flanco prohibido alrededor de la señal de poliade
 más el número de candidatos, el espaciado mínimo y la longitud mínima de bloque
 conservado. Los valores por defecto son los verificados y salen escritos en la etiqueta
 de cada control.
+
+## El filtro de poliadenilación es escalonado
+
+Aplicar ±10 nt a los doce hexámeros por igual es demasiado grueso: en el 3'UTR de ratón
+tumbaba 313 ventanas, 51 de ellas **solo** por este filtro, incluida una por un `ACTAAA`
+—de los más raros del repertorio— a 203 nt del extremo 3'.
+
+| Señal | Efecto |
+|---|---|
+| Señal terminal (10–40 nt del extremo), cualquier hexámero | **FAIL duro** |
+| `AATAAA` o `ATTAAA` clasificadas `APA_POSIBLE` (>100 nt del extremo) | **FAIL duro** |
+| Cualquier variante clasificada `OTRA` | **bandera + penalización de ranking**, no FAIL |
+
+La penalización es de 1.0 kcal/mol por defecto (`SelectionConfig.weak_polya_penalty`);
+el valor es una convención, el mecanismo no. El informe saca **las dos cifras** de
+elegibles —criterio escalonado y criterio estricto— para que la decisión sea visible y
+no quede escondida en el código.
+
+## Regiones y dobles coordenadas
+
+`anatomy.py` acepta o bien las coordenadas del CDS (`--cds INICIO FIN`) o bien que la
+secuencia ya sea el 3'UTR (`--region 3utr`). Con eso:
+
+- cada ventana sale etiquetada como `5'UTR` / `CDS` / `3'UTR`, y marcada si cruza una
+  frontera;
+- los tercios se calculan **sobre el 3'UTR**, no sobre el transcrito entero;
+- cada ventana lleva sus dos coordenadas: `inicio`/`fin` en el transcrito y
+  `inicio_3utr`/`fin_3utr` en el 3'UTR. Restar el desplazamiento a mano era justo donde
+  se colaban los errores;
+- solo las ventanas del 3'UTR entran como candidatas.
+
+No hay detección de ORF: adivinar el marco y equivocarse de isoforma desplazaría todas
+las coordenadas sin que nada avise.
+
+## Módulo NheI–SacI de 149 nt
+
+`gblock.py` monta, además del 97-mero, el módulo listo para pedir como gBlock:
+
+```
+GCTAGC + GAAGGCTCGAGAAGGTATAT + [97-mero] + CTTCAAGGGGCTAGAATTCG + GAGCTC
+ NheI      contexto 5' (20)                   contexto 3' (20)      SacI
+```
+
+Los contextos son secuencia nativa de SGEP (#111170), posiciones 1739–1758 y 1856–1875,
+y llevan el motivo CNNC que reconoce SRSF3. **No se recortan ni se sustituyen.**
+Comprobaciones por módulo: longitud 149; `GCTAGC` y `GAGCTC` una sola vez cada uno (un
+segundo sitio rompería el clonaje y es FAIL); sin `ACGCGT` (MluI) ni `ACCGGT` (AgeI); y
+sin homopolímeros ≥4 **en la parte variable** — el `GGGG` del contexto 3' es nativo y va
+por diseño.
