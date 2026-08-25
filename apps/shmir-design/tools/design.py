@@ -46,6 +46,12 @@ from shmir_design.conservation import (  # noqa: E402
     Utr3,
     build_conservation_report,
 )
+from shmir_design.blocks import (  # noqa: E402
+    blocks_fasta,
+    blocks_tsv,
+    build_block,
+    order_sheet,
+)
 from shmir_design.comparative import comparative_tsv  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
@@ -319,6 +325,12 @@ def main(argv: list[str]) -> int:
              "cualquier hexamero; 'escalonado' solo las señales fuertes; 'permisivo' "
              "solo las que quedan por detras del sitio de corte de la señal terminal. "
              "El informe saca el top-N bajo los tres, siempre.",
+    )
+    parser.add_argument(
+        "--bloques", action="store_true",
+        help="Emite ademas los bloques listos para pedir de los candidatos elegidos: "
+             "modulo NheI-SacI de 149 nt, cassette MluI-AgeI de 318 pb, versiones con "
+             "brazos de Gibson y hoja de pedido.",
     )
     parser.add_argument(
         "--reparto-rango", action="store_true",
@@ -652,6 +664,24 @@ def main(argv: list[str]) -> int:
                 ),
                 f"{especie}_informe.txt": informe,
             }
+            if args.bloques:
+                bloques = [
+                    build_block(
+                        seleccion.window_of(c).evaluation.guide.replace("U", "T"),
+                        scaffold=scaffold,
+                        transgene=seleccion.window_of(c).transgen_detalle,
+                    )
+                    for c in seleccion.selection.chosen
+                ]
+                salidas[f"{especie}_bloques.fasta"] = blocks_fasta(
+                    bloques, species=especie
+                )
+                salidas[f"{especie}_bloques.tsv"] = blocks_tsv(
+                    bloques, species=especie
+                )
+                salidas[f"{especie}_hoja_de_pedido.txt"] = order_sheet(
+                    bloques, species=especie
+                )
             for nombre, contenido in salidas.items():
                 (args.out / nombre).write_text(contenido + "\n", encoding="utf-8")
             print(informe)

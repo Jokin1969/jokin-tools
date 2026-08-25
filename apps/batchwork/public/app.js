@@ -199,6 +199,7 @@ const OPERATIONS = [
           { id: 'cdsInicio', type: 'number', label: 'CDS: inicio en el transcrito (vacío = la secuencia ya es el 3′UTR)', default: '', min: 1 },
           { id: 'cdsFin', type: 'number', label: 'CDS: fin en el transcrito', default: '', min: 1 },
           { id: 'bootstrapSeeds', type: 'checkbox', label: 'Filtrar seeds con la lista de arranque de 12 miRNAs (mecánica, NO filtro real)', default: false },
+          { id: 'bloques', type: 'checkbox', label: 'Generar los bloques listos para pedir (módulo NheI–SacI de 149 nt y cassette MluI–AgeI de 318 pb, con hoja de pedido)', default: false },
         ],
       },
       {

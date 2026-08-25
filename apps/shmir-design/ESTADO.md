@@ -62,6 +62,7 @@ El orden de operaciones es **no negociable** y está en [`docs/pipeline.md`](./d
 | — | Anatomía declarada: región y dobles coordenadas | **hecho** | `anatomy.py` |
 | — | Plegado del 97-mero (ViennaRNA, opcional) | **hecho** | `folding.py` |
 | — | Módulo NheI–SacI de 149 nt | **hecho** | `gblock.py` |
+| — | Generador de bloques: módulo 149 + cassette 318 + Gibson + hoja de pedido | **hecho** | `blocks.py`, `tools/blocks.py` |
 | 8 | Sin motivo G-cuádruplex | **hecho**, sobre diana **y** guía | `hard_filters.py` |
 | 9 | polyA como **anotación** de cinco campos + tres modos | **hecho** | `polya.py` |
 | 10a | Colisión de seed con miARN endógeno (dos niveles) | **hecho**; falta `mature.fa` y la lista de MirGeneDB | `mirna.py` |
@@ -297,6 +298,7 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 | `shmir_design/specificity.py` | Especificidad y transgén, mismo motor |
 | `shmir_design/accessibility.py` | Accesibilidad de la diana; desempate, nunca filtro |
 | `shmir_design/comparative.py` | Tabla comparativa y columna `knockdown_medido` |
+| `shmir_design/blocks.py` | Bloques listos para pedir y sus comprobaciones |
 | `shmir_design/masking.py` | Enmascarado de repeticiones |
 | `shmir_design/tiling.py` | Tiling, contadores, sitios |
 | `shmir_design/conservation.py` | Bloques idénticos entre dos 3'UTR |
@@ -304,7 +306,7 @@ Están en [`docs/preguntas-abiertas.md`](./docs/preguntas-abiertas.md). Las que 
 | `shmir_design/scaffold.py` | Andamio miR-E parametrizable y horquilla |
 | `shmir_design/outputs.py` | Las seis salidas |
 | `shmir_design/presentation.py` | Semáforo, tablas, mapa SVG, descargas |
-| `tools/` | CLIs: `design`, `tiling_report`, `conservation_report`, `oligo`, `reference_data`, `check_rules` |
+| `tools/` | CLIs: `design`, `blocks`, `tiling_report`, `conservation_report`, `oligo`, `reference_data`, `check_rules` |
 | `ui/streamlit_app.py` | Interfaz, sin lógica |
 | `config/andamio.example.toml` | Andamio parametrizable, `verificado = false` por defecto |
 | `docs/` | pipeline, fixtures, valores esperados, preguntas abiertas, endpoints, dependencias |

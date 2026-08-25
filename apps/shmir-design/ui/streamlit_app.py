@@ -33,6 +33,7 @@ from shmir_design.presentation import (  # noqa: E402
     anatomy_rows,
     candidate_rows,
     map_svg,
+    block_rows,
     output_bundle,
     status_light,
     window_rows,
@@ -184,6 +185,23 @@ def bloque_especie(nombre, transcrito, utr3, umbrales, config, seeds, mask, scaf
     with st.expander(f"Todas las ventanas de {nombre} ({len(tiling.windows)})"):
         st.dataframe(window_rows(tiling), hide_index=True)
 
+    bloques = st.checkbox(
+        f"Generar los bloques listos para pedir de {nombre}",
+        key=f"bloques_{nombre}",
+        help=(
+            "Modulo NheI-SacI de 149 nt y cassette MluI-AgeI de 318 pb, con y sin "
+            "brazos de homologia, mas la hoja de pedido."
+        ),
+    )
+    if bloques and seleccion.selection.chosen:
+        st.dataframe(block_rows(seleccion, scaffold), hide_index=True)
+        st.caption(
+            "XhoI y EcoRI van DENTRO del modulo, heredadas de SGEP, y en el plasmido "
+            "final no son unicas: el clonaje va por NheI/SacI o por sintesis. "
+            "`modulo_seguro = no` significa que no se ha confirmado que la horquilla "
+            "sobreviva dentro del intron."
+        )
+
     return output_bundle(
         species=nombre,
         tiling=tiling,
@@ -191,6 +209,7 @@ def bloque_especie(nombre, transcrito, utr3, umbrales, config, seeds, mask, scaf
         scaffold=scaffold,
         transcript=transcrito,
         conservation=conservacion,
+        blocks=bloques,
     )
 
 

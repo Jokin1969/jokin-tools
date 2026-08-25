@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from html import escape
 
+from .blocks import blocks_fasta, blocks_tsv, build_block, order_sheet
+from .comparative import comparative_tsv
 from .conservation import ConservationReport
 from .filters import FilterState
 from .outputs import fasta_guides, text_report, tsv_all_windows, tsv_oligos, tsv_selected
@@ -330,9 +332,10 @@ def output_bundle(
     scaffold: ScaffoldSpec,
     transcript: ReferenceTranscript | None = None,
     conservation: ConservationReport | None = None,
+    blocks: bool = False,
 ) -> dict[str, str]:
-    """Las cinco salidas, con los mismos nombres y contenido que el CLI."""
-    return {
+    """Las salidas, con los mismos nombres y contenido que el CLI."""
+    salidas = {
         f"{species}_ventanas.tsv": tsv_all_windows(tiling),
         f"{species}_seleccionados.tsv": tsv_selected(selection, species=species),
         f"{species}_guias.fasta": fasta_guides(selection, species=species),
@@ -345,4 +348,58 @@ def output_bundle(
             transcript=transcript,
             conservation=conservation,
         ),
+        f"{species}_comparativa.tsv": comparative_tsv(
+            selection, scaffold, with_header=True
+        ),
     }
+    if blocks:
+        salidas.update(block_bundle(selection, scaffold, species=species))
+    return salidas
+
+
+def block_bundle(
+    selection: ReportSelection, scaffold: ScaffoldSpec, *, species: str
+) -> dict[str, str]:
+    """Bloques listos para pedir de los candidatos elegidos.
+
+    Toda la decision vive aqui, no en la pagina: la UI solo enseña lo que devuelve.
+    """
+    bloques = [
+        build_block(
+            selection.window_of(choice).evaluation.guide.replace("U", "T"),
+            scaffold=scaffold,
+            transgene=selection.window_of(choice).transgen_detalle,
+        )
+        for choice in selection.selection.chosen
+    ]
+    return {
+        f"{species}_bloques.fasta": blocks_fasta(bloques, species=species),
+        f"{species}_bloques.tsv": blocks_tsv(bloques, species=species),
+        f"{species}_hoja_de_pedido.txt": order_sheet(bloques, species=species),
+    }
+
+
+def block_rows(
+    selection: ReportSelection, scaffold: ScaffoldSpec
+) -> list[dict[str, object]]:
+    """Una fila por bloque, con el estado de CADA comprobacion en su columna."""
+    filas: list[dict[str, object]] = []
+    for choice in selection.selection.chosen:
+        window = selection.window_of(choice)
+        bloque = build_block(
+            window.evaluation.guide.replace("U", "T"),
+            scaffold=scaffold,
+            transgene=window.transgen_detalle,
+        )
+        filas.append(
+            {
+                "inicio": choice.start,
+                "guia": bloque.guide,
+                "pasajera": bloque.passenger,
+                "modulo_149": bloque.module,
+                "cassette_318": bloque.cassette,
+                "modulo_seguro": "si" if bloque.module_safe else "no",
+                **{f"check:{r.name}": r.state.value for r in bloque.checks},
+            }
+        )
+    return filas

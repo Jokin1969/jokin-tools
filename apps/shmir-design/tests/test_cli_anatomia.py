@@ -408,3 +408,39 @@ class TestTablaComparativa(unittest.TestCase):
     def test_con_reparto_corre_igual(self):
         codigo, salida, _ = self._correr(["--reparto-rango"])
         self.assertEqual(codigo, 0, salida)
+
+
+class TestBloques(unittest.TestCase):
+    """--bloques emite los dos niveles de cada candidato elegido."""
+
+    def _correr(self, extra=None):
+        tmp = Path(tempfile.mkdtemp())
+        fa = _fasta(tmp)
+        codigo, salida = _correr(
+            ["--fasta", str(fa), "--out", str(tmp), "--region", "3utr"] + (extra or [])
+        )
+        return codigo, salida, tmp
+
+    def test_sin_el_flag_no_se_emiten(self):
+        _, _, tmp = self._correr()
+        self.assertEqual(list(tmp.glob("*bloques*")), [])
+
+    def test_con_el_flag_salen_las_tres_salidas(self):
+        codigo, salida, tmp = self._correr(["--bloques"])
+        self.assertEqual(codigo, 0, salida)
+        for patron in ("*bloques.fasta", "*bloques.tsv", "*hoja_de_pedido.txt"):
+            self.assertTrue(list(tmp.glob(patron)), patron)
+
+    def test_el_modulo_mide_149(self):
+        _, _, tmp = self._correr(["--bloques"])
+        filas = list(tmp.glob("*bloques.tsv"))[0].read_text(encoding="utf-8").splitlines()
+        cabecera = filas[0].split("\t")
+        columna = cabecera.index("modulo_149")
+        for fila in filas[1:]:
+            self.assertEqual(len(fila.split("\t")[columna]), 149)
+
+    def test_la_hoja_de_pedido_avisa_de_las_enzimas_heredadas(self):
+        _, _, tmp = self._correr(["--bloques"])
+        texto = list(tmp.glob("*hoja_de_pedido.txt"))[0].read_text(encoding="utf-8")
+        self.assertIn("XhoI", texto)
+        self.assertIn("EcoRI", texto)

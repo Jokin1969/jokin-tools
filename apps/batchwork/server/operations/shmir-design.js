@@ -65,6 +65,15 @@ async function run(session, params) {
     throw new Error(
       'El CDS necesita inicio Y fin, los dos. Déjalos vacíos si la secuencia ya es el 3′UTR.'
     );
+  } else {
+    // Sin CDS declarado hay que decir explícitamente que la secuencia YA es el 3′UTR:
+    // el diseñador no adivina la anatomía, y sin esto abortaría. El contrato de esta
+    // operación es «sube uno o dos 3′UTR», así que la declaración es correcta aquí.
+    args.push('--region', '3utr');
+  }
+
+  if (params.bloques === true || params.bloques === 'true') {
+    args.push('--bloques');
   }
 
   if (files.length === 2) {

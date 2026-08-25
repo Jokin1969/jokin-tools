@@ -273,7 +273,8 @@ class TestMapa(unittest.TestCase):
 
 class TestDescargas(unittest.TestCase):
 
-    def test_el_paquete_trae_las_cinco_salidas(self):
+    def test_el_paquete_trae_las_seis_salidas(self):
+        """La UI tiene que entregar lo MISMO que el CLI, no un subconjunto."""
         tiling, seleccion = piezas()
         bundle = output_bundle(
             species="sonda",
@@ -284,6 +285,7 @@ class TestDescargas(unittest.TestCase):
         self.assertEqual(
             sorted(bundle),
             [
+                "sonda_comparativa.tsv",
                 "sonda_guias.fasta",
                 "sonda_informe.txt",
                 "sonda_oligos.tsv",
@@ -291,6 +293,36 @@ class TestDescargas(unittest.TestCase):
                 "sonda_ventanas.tsv",
             ],
         )
+
+    def test_con_bloques_se_añaden_las_tres_salidas_de_pedido(self):
+        tiling, seleccion = piezas()
+        bundle = output_bundle(
+            species="sonda",
+            tiling=tiling,
+            selection=seleccion,
+            scaffold=SGEP_SCAFFOLD,
+            blocks=True,
+        )
+        for nombre in (
+            "sonda_bloques.fasta", "sonda_bloques.tsv", "sonda_hoja_de_pedido.txt"
+        ):
+            self.assertIn(nombre, bundle)
+
+    def test_las_filas_de_bloque_llevan_una_columna_por_comprobacion(self):
+        from shmir_design.presentation import block_rows
+
+        _, seleccion = piezas()
+        filas = block_rows(seleccion, SGEP_SCAFFOLD)
+        self.assertTrue(filas)
+        for nombre in ("longitudes", "sitios_unicos", "plegado_en_intron"):
+            self.assertIn(f"check:{nombre}", filas[0])
+
+    def test_el_modulo_de_cada_fila_mide_149(self):
+        from shmir_design.presentation import block_rows
+
+        _, seleccion = piezas()
+        for fila in block_rows(seleccion, SGEP_SCAFFOLD):
+            self.assertEqual(len(fila["modulo_149"]), 149)
 
     def test_todo_el_contenido_es_texto_no_vacio(self):
         tiling, seleccion = piezas()

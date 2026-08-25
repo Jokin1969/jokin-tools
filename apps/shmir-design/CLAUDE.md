@@ -251,9 +251,20 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - **La tabla comparativa lleva una columna `knockdown_medido` vacía** para que vuelva
   rellena del laboratorio. No la rellenes ni la quites: es el instrumento con el que se
   sabrá qué parámetros predicen potencia y cuáles son decoración.
-- El módulo NheI–SacI de 149 nt (`gblock.py`) lleva contextos nativos de SGEP que **no
-  se recortan ni se sustituyen**: llevan el CNNC de SRSF3. El `GGGG` del contexto 3' es
-  nativo, por eso la comprobación de homopolímeros mira solo la parte variable.
+- El módulo NheI–SacI de 149 nt (`gblock.py`, `blocks.py`) lleva contextos nativos de
+  SGEP que **no se recortan ni se sustituyen**: llevan el CNNC de SRSF3. El `GGGG` del
+  contexto 3' es nativo, por eso la comprobación de homopolímeros mira solo la parte
+  variable.
+- **El generador de bloques (`blocks.py`) pliega dos veces, y la segunda no es opcional**:
+  el 97-mero aislado, y el 97-mero **dentro del intrón de 296 nt**. Los espaciadores se
+  optimizaron para la horquilla de 1018; con otra guía el contexto puede capturar los
+  flancos del pri-miR y deshacer el tallo basal, y eso solo se ve plegando. Si falla el
+  segundo, el módulo NheI–SacI **no es seguro** para ese candidato y el cassette con los
+  mismos espaciadores tampoco, porque lleva el mismo intrón dentro. Reoptimizar los
+  espaciadores es generar secuencia de novo: **no se hace sin autorización escrita**.
+- **XhoI y EcoRI viajan dentro del módulo**, heredadas de los contextos de SGEP, y en el
+  plásmido final no son únicas. La hoja de pedido lo dice siempre: el clonaje va por
+  NheI/SacI o por síntesis.
 - **La especificidad no cubre los off-targets por seed** y el informe lo dice en cada
   ejecución. No lo quites ni lo suavices: es el hueco más grande que queda, y un
   veredicto de especificidad "limpio" sin esa frase invita a creer que la guía está
