@@ -154,6 +154,27 @@
     descarta.
     Consecuencia: el techo es un problema del MODELO murino, no del candidato.
 
+  ── Fraccion de isoforma larga ──
+  FRACCION DE ISOFORMA LARGA — MEDIDA. PolyA_DB v4.1 (2025-09-15), mm10, Prnp (Gene ID 19122).
+    15 PAS en el gen, 5 con datos de expresion; los demas por debajo de deteccion en 3'READS+ —incluidos los intermedios del 3'UTR—, asi que no introducen techos.
+    Representativo de la base: NM_001278256.1 (NO es nuestro NM_011170.3).
+  
+    Sitios con expresion:
+      chr2:+:131937444  Other   PSE 21.1%  AvgRPM 0.55  proximal  ← segundo PAS proximal, NO estaba en nuestro modelo
+      chr2:+:131937504  AAUAAA  PSE 23.5%  AvgRPM 0.34  proximal  ← candidato a ser nuestro AATAAA proximal
+      chr2:+:131938392  Other   PSE 70.5%  AvgRPM 1.65  DISTAL  ← racimo terminal
+  
+    ponderada    Σ(AvgRPM × PSE) distal / Σ total = 0.86   ← VALOR DE TRABAJO
+    sin ponderar Σ(AvgRPM) distal / Σ total        = 0.65
+    La ponderada es la de trabajo porque AvgRPM esta condicionado a muestras CON expresion: sin ponderar por PSE se cuenta como si todas expresaran.
+  
+    TEJIDO: TODOS LOS TEJIDOS, no cerebro. Las neuronas ALARGAN los 3'UTR, asi que la fraccion larga en cerebro sera probablemente MAYOR. El 0.86 es un LIMITE INFERIOR conservador para nuestro tejido — y por eso la RT-qPCR de los dos amplicones deja de ser solo confirmacion: puede MEJORAR el numero.
+  
+    PENDIENTE ANTES DE USARLO. El dato NO entra al pipeline todavia:
+      1. La conversion genomico↔transcrito, contra la anotacion real. AQUI NO SE PUEDE HACER: el .gb de NM_011170.3 no trae coordenadas genomicas — su bloque PRIMARY referencia cDNA y EST, no un cromosoma. Hace falta la anotacion genomica del transcrito (exones sobre mm10) o el registro de NM_001278256.1 para ver si comparten 3'UTR. Con la aritmetica sola salen DOS mapeos y no se elige: si 131937504 es el HEXAMERO, 131937444 cae en 3utr:228 y 131938392 en 3utr:1176; si es el SITIO DE CORTE (banda 303-323), 131937444 cae en 3utr:243-263 y 131938392 en 3utr:1191-1211.
+      2. El segundo PAS proximal 131937444, que no estaba en nuestro modelo. Bajo el primer mapeo cae en 3utr:228 y quedaria POR DELANTE del candidato 3utr:221 — que dejaria de ser inmune y pasaria a tener riesgo esterico por solapar el hexamero. Bajo el segundo mapeo cae detras y no le afecta. Los cuatro inmunes dependen de cual sea: 3utr:10, 60, 143 y 221.
+      3. El PAS terminal 131938427 (fuerza 99,9 %, conservado en humano y rata) no tiene datos de expresion; el que los tiene es 131938392, 35 nt aguas arriba. Probablemente el mismo racimo, pero se anotan como DOS y no se fusionan sin comprobarlo: fusionarlos suma su expresion y sube la fraccion larga sin dato.
+
   ANTES DEL BANCO — mirar si la fraccion ya esta medida y publicada:
     1. PolyA_DB / PolyASite: ¿hay sitio anotado en este 3'UTR, y con que fraccion de
        lecturas? Si lo hay, entra por --apa-medido y el techo deja de estar indeterminado.
@@ -363,10 +384,13 @@
     meter cuatro, que son los 4 que ya estan. POR QUE BLOQUEA: si la fraccion de isoforma
     corta es alta, esos 6 candidatos entran al cribado con un TECHO INDISTINGUIBLE DE UN
     shmiR MALO — un techo de 0,3 y una guia que no funciona dan la misma lectura en la
-    placa, y el experimento se gasta en no poder separarlos. COMO SE CIERRA, en este
-    orden: PolyA_DB / PolyASite y 3'-end seq de cerebro murino primero; si la fraccion
-    esta publicada, la RT-qPCR de los dos amplicones es una CONFIRMACION y no un
-    descubrimiento.
+    placa, y el experimento se gasta en no poder separarlos. ESTADO: HAY UNA MEDIDA
+    —PolyA_DB v4.1, fraccion larga 0.86 ponderada / 0.65 sin ponderar— PERO NO ENTRA
+    TODAVIA: quedan 3 comprobacion(es) sin hacer, y la primera es la conversion
+    genomico↔transcrito, que NO se puede hacer con lo que hay en este repositorio. Ver el
+    bloque «Fraccion de isoforma larga» del informe. Mientras tanto el techo sigue
+    INDETERMINADO y este frente sigue bloqueando: un numero que depende de una conversion
+    sin comprobar no es un techo medido.
   NO SE PIDE OLIGO hasta que los 6 tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
   y otro necesite una base entera no cambia nada: los dos bloquean igual, y llamar «unico
   bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin correr.

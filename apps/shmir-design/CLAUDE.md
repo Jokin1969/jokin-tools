@@ -535,6 +535,20 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     `_seed_of_mature`): un desajuste de alfabeto daría cero colisiones y parecería una
     buena noticia. Hay un test que compara la misma tabla en ARN y en ADN y exige el mismo
     veredicto.
+- **El `.out` de RepeatMasker declara la especie de la BIBLIOTECA, y se comprueba**
+  (`masking.declared_species`, `expected_species` **obligatorio**). Fallo real del
+  2026-08-26: un transcrito humano corrido contra la biblioteca murina dio un fichero con
+  formato correcto, cifras plausibles y **Alu 0 %** —imposible en humano— y lo único que lo
+  delataba era la línea «The query species was assumed to be mus musculus». **Un cero
+  obtenido sin buscar no puede pasar como veredicto.** Si el fichero no declara especie,
+  también aborta: no haber podido comprobar no es «coincide».
+- **Un `.out` sin filas necesita el RESUMEN** (`.tbl`). Sin él, cero no distingue «no había
+  repetitivos» de «la corrida no llegó a correr» — y esa diferencia es la de `PASS` contra
+  `NOT_RUN`. Con resumen, una máscara vacía es un resultado legítimo; sin él, se aborta.
+- **El manifiesto registra la BIBLIOTECA además de la versión del binario** (columna
+  `biblioteca`): RepeatMasker 4.0.9 con Dfam_3.0 y con otra biblioteca dan resultados
+  distintos, así que la versión a solas no identifica la corrida. La cabecera de 9 columnas
+  se sigue aceptando (`PREVIOUS_COLUMNS`) y la columna sale vacía, que es la verdad.
 - **El casete que se pasa tiene que ser lo que la célula MADURA** (`transgene.py`). Si el
   casete lleva el módulo del shmiR y se pasa el **genoma con el intrón dentro**, toda guía
   da impacto contra **su propia horquilla**: el filtro tumba el panel entero por un
@@ -772,6 +786,25 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   en todo andamio cargado de fichero.
 - Elegible no es aprobado: mientras haya filtros en `NOT_RUN`, la selección es
   provisional y los candidatos salen `INCOMPLETE`.
+- **La fracción de isoforma larga tiene MEDIDA, y todavía NO entra** (`apa.POLYA_DB_PRNP`).
+  PolyA_DB v4.1 (2025-09-15), mm10, Prnp (Gene ID 19122): 15 PAS, 5 con expresión. Las dos
+  cifras con su fórmula, porque no miden lo mismo:
+  - **ponderada** `Σ(AvgRPM × PSE) distal / Σ total` = **0,86** ← valor de trabajo
+  - sin ponderar `Σ(AvgRPM) distal / Σ total` = **0,65**
+  La ponderada manda porque `AvgRPM` está condicionado a muestras **con** expresión.
+  - **El dato es de TODOS los tejidos, no de cerebro.** Las neuronas alargan los 3'UTR, así
+    que 0,86 es un **límite inferior conservador** para el nuestro — y por eso la RT-qPCR de
+    los dos amplicones deja de ser solo confirmación: **puede mejorar el número**.
+  - **Tres comprobaciones pendientes, y la primera no se puede hacer aquí**: el `.gb` de
+    NM_011170.3 **no trae coordenadas genómicas** (su bloque `PRIMARY` referencia cDNA y
+    EST, no un cromosoma). Con la aritmética sola salen **dos mapeos y no se elige**: si
+    `131937504` es el hexámero, `131937444` cae en `3utr:228`; si es el sitio de corte, cae
+    en `3utr:243-263`. **De eso depende que `3utr:221` siga siendo inmune**, así que uno de
+    los cuatro inmunes está en el aire. Hace falta la anotación genómica del transcrito o
+    el registro de `NM_001278256.1`.
+  - El PAS terminal `131938427` y el que tiene expresión (`131938392`, 35 nt aguas arriba)
+    **se anotan como dos y no se fusionan** sin comprobarlo: fusionarlos suma su expresión
+    y sube la fracción larga sin dato.
 - **El APA es un FRENTE BLOQUEANTE, el cuarto. DECIDIDO (2026-08-26)**
   (`selection.blocking_fronts`). No es un filtro de ventana y bloquea igual. La cuenta que
   lo decide: sitios inmunes por tramo **20/0/0** —todos en el proximal— y tope de **cuatro**
@@ -781,7 +814,9 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   shmiR MALO** — un techo de 0,3 y una guía que no funciona dan la misma lectura en la
   placa, y el experimento se gasta en no poder separarlos. Se cierra en este orden:
   **PolyA_DB / PolyASite y 3'-end seq primero**; si la fracción está publicada, la RT-qPCR
-  es **confirmación**, no descubrimiento.
+  es **confirmación**, no descubrimiento. Con la medida encima de la mesa el frente **sigue
+  bloqueando** hasta que la conversión de coordenadas esté comprobada: un número que
+  depende de una conversión sin comprobar no es un techo medido.
 - **Los tercios se cuentan sobre el 3'UTR, no sobre lo tilado.** Con un mRNA completo
   `report.utr_length` es la longitud tilada (2191) y los límites salían del transcrito: el
   reparto decía «medio 20» de unos sitios que están todos en el tercio **proximal** del

@@ -37,6 +37,8 @@ score   div. del. ins.  sequence  begin end   (left)   repeat  class/family
 
   256   12.3  0.0  0.0  NM_011170    120   240  (1951) +  B1_Mus1  SINE/Alu
   198   18.1  1.2  0.4  NM_011170    900   1010  (1181) C  B2_Mm1a  SINE/B2
+
+The query species was assumed to be mus musculus
 """
 
 #: Tabla rmsk de UCSC: genoStart es 0-based y genoEnd exclusivo.
@@ -50,35 +52,61 @@ RMSK_TABLE = """\
 class TestLecturaDelOut(unittest.TestCase):
 
     def test_saca_los_dos_elementos(self):
-        mask = parse_rmsk_out(RMSK_OUT, source="sonda", version="v", checksum="0" * 32)
+        mask = parse_rmsk_out(
+            RMSK_OUT, source="sonda", version="v", checksum="0" * 32,
+            expected_species="mus musculus",
+        )
         self.assertEqual(len(mask.elements), 2)
 
     def test_las_coordenadas_son_1_based_inclusivas(self):
-        mask = parse_rmsk_out(RMSK_OUT, source="sonda", version="v", checksum="0" * 32)
+        mask = parse_rmsk_out(
+            RMSK_OUT, source="sonda", version="v", checksum="0" * 32,
+            expected_species="mus musculus",
+        )
         self.assertEqual(mask.intervals[0], (120, 240))
 
     def test_guarda_el_nombre_y_la_familia(self):
-        mask = parse_rmsk_out(RMSK_OUT, source="sonda", version="v", checksum="0" * 32)
+        mask = parse_rmsk_out(
+            RMSK_OUT, source="sonda", version="v", checksum="0" * 32,
+            expected_species="mus musculus",
+        )
         self.assertEqual(mask.elements[0].name, "B1_Mus1")
         self.assertEqual(mask.elements[1].family, "SINE/B2")
 
     def test_reconoce_los_SINE_de_raton(self):
-        mask = parse_rmsk_out(RMSK_OUT, source="sonda", version="v", checksum="0" * 32)
+        mask = parse_rmsk_out(
+            RMSK_OUT, source="sonda", version="v", checksum="0" * 32,
+            expected_species="mus musculus",
+        )
         self.assertTrue(all(e.is_sine for e in mask.elements))
 
     def test_ignora_la_cabecera_y_las_lineas_vacias(self):
-        mask = parse_rmsk_out(RMSK_OUT, source="sonda", version="v", checksum="0" * 32)
+        mask = parse_rmsk_out(
+            RMSK_OUT, source="sonda", version="v", checksum="0" * 32,
+            expected_species="mus musculus",
+        )
         self.assertEqual(len(mask.intervals), 2)
 
     def test_una_linea_con_pocos_campos_aborta(self):
         malo = RMSK_OUT + "  100  1.0\n"
         with self.assertRaises(ShmirDesignError):
-            parse_rmsk_out(malo, source="sonda", version="v", checksum="0" * 32)
+            parse_rmsk_out(
+                malo, source="sonda", version="v", checksum="0" * 32,
+                expected_species="mus musculus",
+            )
 
     def test_un_fichero_sin_ningun_elemento_aborta(self):
-        solo_cabecera = "\n".join(RMSK_OUT.splitlines()[:2])
+        # Con la linea de especie: si no, aborta antes y por otra razon (la especie se
+        # comprueba primero). Lo que este test fija es el cero SIN resumen.
+        solo_cabecera = (
+            "\n".join(RMSK_OUT.splitlines()[:2])
+            + "\n\nThe query species was assumed to be mus musculus\n"
+        )
         with self.assertRaises(ShmirDesignError) as ctx:
-            parse_rmsk_out(solo_cabecera, source="sonda", version="v", checksum="0" * 32)
+            parse_rmsk_out(
+                solo_cabecera, source="sonda", version="v", checksum="0" * 32,
+                expected_species="mus musculus",
+            )
         self.assertIn("ningun", str(ctx.exception).lower())
 
 
@@ -90,7 +118,10 @@ class TestLecturaDeLaTablaUCSC(unittest.TestCase):
         self.assertEqual(mask.intervals[0], (120, 240))
 
     def test_las_dos_lecturas_dan_lo_mismo(self):
-        a = parse_rmsk_out(RMSK_OUT, source="s", version="v", checksum="0" * 32)
+        a = parse_rmsk_out(
+                RMSK_OUT, source="s", version="v", checksum="0" * 32,
+                expected_species="mus musculus",
+            )
         b = parse_rmsk_table(RMSK_TABLE, source="s", version="v", checksum="0" * 32)
         self.assertEqual(a.intervals, b.intervals)
 
@@ -103,29 +134,41 @@ class TestProcedencia(unittest.TestCase):
 
     def test_la_version_y_el_checksum_son_obligatorios(self):
         for campo in ("version", "checksum"):
-            kwargs = dict(source="s", version="v", checksum="0" * 32)
+            kwargs = dict(
+                source="s", version="v", checksum="0" * 32,
+                expected_species="mus musculus",
+            )
             kwargs[campo] = ""
             with self.assertRaises(ValueError):
                 parse_rmsk_out(RMSK_OUT, **kwargs)
 
     def test_la_procedencia_sale_en_el_texto(self):
         mask = parse_rmsk_out(
-            RMSK_OUT, source="rmsk mm39", version="2026-01", checksum="0" * 32
+            RMSK_OUT, source="rmsk mm39", version="2026-01", checksum="0" * 32,
+            expected_species="mus musculus", library="Dfam_3.0",
         )
         self.assertIn("mm39", mask.provenance)
         self.assertIn("2026-01", mask.provenance)
+        # La BIBLIOTECA va pegada a la version: el veredicto depende de las dos.
+        self.assertIn("Dfam_3.0", mask.provenance)
 
 
 class TestCoordenadasQueNoCuadran(unittest.TestCase):
 
     def test_una_mascara_que_se_sale_de_la_secuencia_aborta(self):
-        mask = parse_rmsk_out(RMSK_OUT, source="s", version="v", checksum="0" * 32)
+        mask = parse_rmsk_out(
+                RMSK_OUT, source="s", version="v", checksum="0" * 32,
+                expected_species="mus musculus",
+            )
         with self.assertRaises(ShmirDesignError) as ctx:
             apply_mask("A" * 500, mask)
         self.assertIn("500", str(ctx.exception))
 
     def test_el_error_sugiere_que_el_fichero_es_genomico(self):
-        mask = parse_rmsk_out(RMSK_OUT, source="s", version="v", checksum="0" * 32)
+        mask = parse_rmsk_out(
+                RMSK_OUT, source="s", version="v", checksum="0" * 32,
+                expected_species="mus musculus",
+            )
         with self.assertRaises(ShmirDesignError) as ctx:
             apply_mask("A" * 500, mask)
         self.assertIn("genomic", str(ctx.exception).lower())
@@ -133,7 +176,10 @@ class TestCoordenadasQueNoCuadran(unittest.TestCase):
     def test_una_mascara_que_cabe_enmascara(self):
         enmascarada = apply_mask(
             "A" * 1200,
-            parse_rmsk_out(RMSK_OUT, source="s", version="v", checksum="0" * 32),
+            parse_rmsk_out(
+                RMSK_OUT, source="s", version="v", checksum="0" * 32,
+                expected_species="mus musculus",
+            ),
         )
         self.assertEqual(enmascarada[119], "N")
         self.assertEqual(enmascarada[118], "A")
@@ -141,7 +187,10 @@ class TestCoordenadasQueNoCuadran(unittest.TestCase):
 
 class TestElMotivoDelFAIL(unittest.TestCase):
 
-    MASK = parse_rmsk_out(RMSK_OUT, source="rmsk", version="v", checksum="0" * 32)
+    MASK = parse_rmsk_out(
+        RMSK_OUT, source="rmsk", version="v", checksum="0" * 32,
+        expected_species="mus musculus",
+    )
 
     def test_el_FAIL_nombra_la_familia(self):
         r = filter_repeats(125, 146, self.MASK)
@@ -167,24 +216,30 @@ class TestCargaDesdeDisco(unittest.TestCase):
         with TemporaryDirectory() as d:
             p = Path(d) / "raton.out"
             p.write_text(RMSK_OUT, encoding="utf-8")
-            self.assertEqual(load_rmsk(p, version="v").intervals[0], (120, 240))
+            self.assertEqual(load_rmsk(p, version="v", expected_species="mus musculus").intervals[0], (120, 240))
 
     def test_detecta_la_tabla_de_UCSC(self):
         with TemporaryDirectory() as d:
             p = Path(d) / "rmsk.txt"
             p.write_text(RMSK_TABLE, encoding="utf-8")
-            self.assertEqual(load_rmsk(p, version="v").intervals[0], (120, 240))
+            self.assertEqual(load_rmsk(p, version="v", expected_species="mus musculus").intervals[0], (120, 240))
 
     def test_un_md5_que_no_cuadra_aborta(self):
         with TemporaryDirectory() as d:
             p = Path(d) / "raton.out"
             p.write_text(RMSK_OUT, encoding="utf-8")
             with self.assertRaises(ChecksumMismatchError):
-                load_rmsk(p, version="v", expected_md5="0" * 32)
+                load_rmsk(
+                    p, version="v", expected_species="mus musculus",
+                    expected_md5="0" * 32,
+                )
 
     def test_un_fichero_ausente_aborta_diciendo_cual(self):
         with self.assertRaises((ShmirDesignError, OSError)) as ctx:
-            load_rmsk(Path("/no/existe/raton.out"), version="v")
+            load_rmsk(
+                Path("/no/existe/raton.out"), version="v",
+                expected_species="mus musculus",
+            )
         self.assertIn("raton.out", str(ctx.exception))
 
 

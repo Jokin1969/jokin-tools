@@ -24,6 +24,7 @@ from .folding import VIENNA_AVAILABLE
 from .coords import Frame, frame_of, label, span
 from .transgene import carries_scaffold_module
 from .mirna import SEED_SPACE
+from .apa import POLYA_DB_PRNP
 from .polya import rtqpcr_amplicons
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
@@ -700,6 +701,8 @@ def text_report(
                 for c in selection.selection.chosen
             ],
         )
+        lines.extend(["", "  ── Fraccion de isoforma larga ──"])
+        lines.extend(f"  {l}" for l in POLYA_DB_PRNP.describe())
         lines.append("")
         lines.append(
             "  ANTES DEL BANCO — mirar si la fraccion ya esta medida y publicada:"

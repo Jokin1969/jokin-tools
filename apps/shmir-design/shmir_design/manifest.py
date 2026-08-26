@@ -48,10 +48,19 @@ MANIFEST_COLUMNS = (
     "accession",
     "longitud",
     "url",
+    # La BIBLIOTECA con la que se corrio la herramienta, cuando el fichero es la salida
+    # de una: RepeatMasker con Dfam_3.0 y con otra biblioteca dan resultados distintos
+    # con la misma version del binario, asi que «RepeatMasker open-4.0.9» a solas NO
+    # identifica la corrida. Vacia para los ficheros que no son salida de herramienta.
+    "biblioteca",
 )
 
 #: El ancho de antes de las columnas de procedencia. Se sigue leyendo.
 LEGACY_COLUMNS = MANIFEST_COLUMNS[:6]
+#: La cabecera de antes de que existiera `biblioteca` (2026-08-26). Se sigue aceptando:
+#: un manifiesto viejo se lee igual y la columna nueva sale vacia, que es la verdad —
+#: no se sabe con que biblioteca se corrio.
+PREVIOUS_COLUMNS = MANIFEST_COLUMNS[:9]
 
 #: Ficheros del directorio que no son datos y no cuentan como sobrantes.
 _NO_SON_DATOS = frozenset({MANIFEST_NAME, ".gitignore"})
@@ -161,6 +170,9 @@ class ManifestEntry:
     length: int | None = None
     #: De donde se descargo. No la llama ningun codigo: es procedencia, no un endpoint.
     url: str = ""
+    #: Biblioteca de la herramienta que genero el fichero (p. ej. Dfam_3.0). Vacia si no
+    #: aplica. El veredicto depende de ella tanto como de la version del binario.
+    library: str = ""
 
     def usable(self, status: EntryStatus) -> bool:
         """¿Se puede correr el filtro que depende de este fichero?
@@ -251,7 +263,7 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
     # existieran las columnas de procedencia. Un manifiesto corto NO es un error —los
     # ficheros que no son transcritos no tienen accession— pero deja esas columnas
     # vacias, y vacio significa "no registrado", nunca un valor por defecto.
-    if cabecera not in (MANIFEST_COLUMNS, LEGACY_COLUMNS):
+    if cabecera not in (MANIFEST_COLUMNS, PREVIOUS_COLUMNS, LEGACY_COLUMNS):
         raise ShmirDesignError(
             f"{source}: la cabecera del manifiesto es {cabecera} y se esperaba "
             f"{MANIFEST_COLUMNS}; se aborta en vez de leer las columnas por posicion."
@@ -274,7 +286,7 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
             )
         rellenos = [*(c.strip() for c in campos), *([""] * (len(MANIFEST_COLUMNS) - ancho))]
         (nombre, filtro, tamaño, md5, fecha, origen,
-         accession, longitud, url) = rellenos
+         accession, longitud, url, biblioteca) = rellenos
         if not nombre:
             raise ShmirDesignError(f"{source}, fila {numero}: sin nombre de fichero.")
         if nombre in vistos:
@@ -302,6 +314,7 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
                 name=nombre, filter_name=filtro, size=talla, md5=md5,
                 date=fecha, origin=origen, accession=accession,
                 length=_longitud(longitud, source=source, fila=numero), url=url,
+                library=biblioteca,
             )
         )
     return Manifest(entries=tuple(entradas), source=source)

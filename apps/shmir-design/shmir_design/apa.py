@@ -264,3 +264,171 @@ def apa_assessment(
         lost_fraction=perdida,
         upstream=arriba,
     )
+
+
+# ─── La fraccion de isoforma larga, MEDIDA ───────────────────────────────────
+#
+# Aportada el 2026-08-26 desde PolyA_DB v4.1. Es lo que convierte el TECHO de
+# «indeterminado» en un numero — pero solo cuando la conversion de coordenadas este
+# hecha, y esa NO se puede hacer con lo que hay en este repositorio.
+
+
+@dataclass(frozen=True)
+class MeasuredSite:
+    """Un PAS con datos de expresion en 3'READS+."""
+
+    locus: str
+    hexamer: str
+    pse: float          # Poly(A) Site Expression, fraccion 0-1
+    avg_rpm: float
+    distal: bool
+    note: str = ""
+
+    @property
+    def weighted(self) -> float:
+        return self.avg_rpm * self.pse
+
+
+def long_isoform_fraction(sites, *, weighted: bool) -> float:
+    """Fraccion de isoforma LARGA a partir de los PAS medidos.
+
+    `weighted=True`  → Σ(AvgRPM × PSE) del distal / Σ de todos. Es la buena: `AvgRPM`
+                       esta condicionado a las muestras CON expresion, asi que sin
+                       ponderar por PSE se cuenta como si todas expresaran.
+    `weighted=False` → Σ(AvgRPM) del distal / Σ de todos. Se registra para poder ver
+                       cuanto mueve la ponderacion, no para usarla.
+    """
+    if not sites:
+        raise ValueError(
+            "No hay ningun PAS medido: la fraccion de isoforma larga no se calcula "
+            "sobre una lista vacia. Se aborta."
+        )
+    valor = (lambda s: s.weighted) if weighted else (lambda s: s.avg_rpm)
+    total = sum(valor(s) for s in sites)
+    distal = sum(valor(s) for s in sites if s.distal)
+    if not distal:
+        raise ValueError(
+            "Ningun PAS medido es distal, asi que la fraccion de isoforma larga saldria "
+            "0 por construccion y no por medida. Se aborta."
+        )
+    return distal / total
+
+
+@dataclass(frozen=True)
+class MeasuredFraction:
+    source: str
+    version: str
+    date: str
+    assembly: str
+    gene: str
+    gene_id: str
+    representative: str
+    total_pas: int
+    with_expression: int
+    sites: tuple[MeasuredSite, ...]
+    pending: tuple[str, ...]
+    tissue: str
+
+    @property
+    def working_value(self) -> float:
+        return long_isoform_fraction(self.sites, weighted=True)
+
+    @property
+    def unweighted_value(self) -> float:
+        return long_isoform_fraction(self.sites, weighted=False)
+
+    @property
+    def why_weighted(self) -> str:
+        return (
+            "La ponderada es la de trabajo porque AvgRPM esta condicionado a muestras "
+            "CON expresion: sin ponderar por PSE se cuenta como si todas expresaran."
+        )
+
+    @property
+    def usable(self) -> bool:
+        """Mientras queden comprobaciones pendientes, el dato NO entra al pipeline."""
+        return not self.pending
+
+    def describe(self) -> list[str]:
+        lineas = [
+            f"FRACCION DE ISOFORMA LARGA — MEDIDA. {self.source} {self.version} "
+            f"({self.date}), {self.assembly}, {self.gene} (Gene ID {self.gene_id}).",
+            f"  {self.total_pas} PAS en el gen, {self.with_expression} con datos de "
+            f"expresion; los demas por debajo de deteccion en 3'READS+ —incluidos los "
+            f"intermedios del 3'UTR—, asi que no introducen techos.",
+            f"  Representativo de la base: {self.representative} (NO es nuestro "
+            f"NM_011170.3).",
+            "",
+            "  Sitios con expresion:",
+        ]
+        for sitio in self.sites:
+            lineas.append(
+                f"    {sitio.locus}  {sitio.hexamer:<7} PSE {sitio.pse:.1%}  "
+                f"AvgRPM {sitio.avg_rpm:.2f}  "
+                f"{'DISTAL' if sitio.distal else 'proximal'}"
+                + (f"  ← {sitio.note}" if sitio.note else "")
+            )
+        lineas.extend(
+            [
+                "",
+                f"  ponderada    Σ(AvgRPM × PSE) distal / Σ total = "
+                f"{self.working_value:.2f}   ← VALOR DE TRABAJO",
+                f"  sin ponderar Σ(AvgRPM) distal / Σ total        = "
+                f"{self.unweighted_value:.2f}",
+                f"  {self.why_weighted}",
+                "",
+                f"  TEJIDO: {self.tissue}. Las neuronas ALARGAN los 3'UTR, asi que la "
+                f"fraccion larga en cerebro sera probablemente MAYOR. El "
+                f"{self.working_value:.2f} es un LIMITE INFERIOR conservador para "
+                f"nuestro tejido — y por eso la RT-qPCR de los dos amplicones deja de "
+                f"ser solo confirmacion: puede MEJORAR el numero.",
+                "",
+                "  PENDIENTE ANTES DE USARLO. El dato NO entra al pipeline todavia:",
+            ]
+        )
+        lineas.extend(f"    {i}. {p}" for i, p in enumerate(self.pending, start=1))
+        return lineas
+
+
+#: La conversion no se puede hacer aqui, y el motivo es concreto: el `.gb` de
+#: NM_011170.3 no trae coordenadas genomicas — su bloque PRIMARY referencia cDNA y EST
+#: (CK622972.1, AK148061.1, AK158908.1, AV361844.1), no un cromosoma.
+POLYA_DB_PRNP = MeasuredFraction(
+    source="PolyA_DB",
+    version="v4.1",
+    date="2025-09-15",
+    assembly="mm10",
+    gene="Prnp",
+    gene_id="19122",
+    representative="NM_001278256.1",
+    total_pas=15,
+    with_expression=5,
+    sites=(
+        MeasuredSite("chr2:+:131937444", "Other", 0.211, 0.55, distal=False,
+                     note="segundo PAS proximal, NO estaba en nuestro modelo"),
+        MeasuredSite("chr2:+:131937504", "AAUAAA", 0.235, 0.34, distal=False,
+                     note="candidato a ser nuestro AATAAA proximal"),
+        MeasuredSite("chr2:+:131938392", "Other", 0.705, 1.65, distal=True,
+                     note="racimo terminal"),
+    ),
+    tissue="TODOS LOS TEJIDOS, no cerebro",
+    pending=(
+        "La conversion genomico↔transcrito, contra la anotacion real. AQUI NO SE PUEDE "
+        "HACER: el .gb de NM_011170.3 no trae coordenadas genomicas — su bloque PRIMARY "
+        "referencia cDNA y EST, no un cromosoma. Hace falta la anotacion genomica del "
+        "transcrito (exones sobre mm10) o el registro de NM_001278256.1 para ver si "
+        "comparten 3'UTR. Con la aritmetica sola salen DOS mapeos y no se elige: si "
+        "131937504 es el HEXAMERO, 131937444 cae en 3utr:228 y 131938392 en 3utr:1176; "
+        "si es el SITIO DE CORTE (banda 303-323), 131937444 cae en 3utr:243-263 y "
+        "131938392 en 3utr:1191-1211.",
+        "El segundo PAS proximal 131937444, que no estaba en nuestro modelo. Bajo el "
+        "primer mapeo cae en 3utr:228 y quedaria POR DELANTE del candidato 3utr:221 — "
+        "que dejaria de ser inmune y pasaria a tener riesgo esterico por solapar el "
+        "hexamero. Bajo el segundo mapeo cae detras y no le afecta. Los cuatro inmunes "
+        "dependen de cual sea: 3utr:10, 60, 143 y 221.",
+        "El PAS terminal 131938427 (fuerza 99,9 %, conservado en humano y rata) no "
+        "tiene datos de expresion; el que los tiene es 131938392, 35 nt aguas arriba. "
+        "Probablemente el mismo racimo, pero se anotan como DOS y no se fusionan sin "
+        "comprobarlo: fusionarlos suma su expresion y sube la fraccion larga sin dato.",
+    ),
+)

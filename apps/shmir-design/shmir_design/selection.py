@@ -1284,6 +1284,28 @@ def tercio_counts(
 # experimento en no poder distinguirlos.
 
 
+def _estado_medida() -> str:
+    """Que se sabe hoy de la fraccion, y por que sigue (o no) bloqueando."""
+    from .apa import POLYA_DB_PRNP
+
+    if POLYA_DB_PRNP.usable:
+        return (
+            f"MEDIDA = {POLYA_DB_PRNP.working_value:.2f} "
+            f"({POLYA_DB_PRNP.source} {POLYA_DB_PRNP.version}). El techo esta "
+            f"cuantificado y este frente deja de bloquear."
+        )
+    return (
+        f"HAY UNA MEDIDA —{POLYA_DB_PRNP.source} {POLYA_DB_PRNP.version}, fraccion "
+        f"larga {POLYA_DB_PRNP.working_value:.2f} ponderada / "
+        f"{POLYA_DB_PRNP.unweighted_value:.2f} sin ponderar— PERO NO ENTRA TODAVIA: "
+        f"quedan {len(POLYA_DB_PRNP.pending)} comprobacion(es) sin hacer, y la primera "
+        f"es la conversion genomico↔transcrito, que NO se puede hacer con lo que hay en "
+        f"este repositorio. Ver el bloque «Fraccion de isoforma larga» del informe. "
+        f"Mientras tanto el techo sigue INDETERMINADO y este frente sigue bloqueando: "
+        f"un numero que depende de una conversion sin comprobar no es un techo medido."
+    )
+
+
 @dataclass(frozen=True)
 class BlockingFront:
     name: str
@@ -1344,9 +1366,7 @@ def blocking_fronts(
                 f"INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guia que no "
                 f"funciona dan la misma lectura en la placa, y el experimento se gasta "
                 f"en no poder separarlos. "
-                f"COMO SE CIERRA, en este orden: PolyA_DB / PolyASite y 3'-end seq de "
-                f"cerebro murino primero; si la fraccion esta publicada, la RT-qPCR de "
-                f"los dos amplicones es una CONFIRMACION y no un descubrimiento."
+                f"ESTADO: {_estado_medida()}"
             ),
         )
     )
