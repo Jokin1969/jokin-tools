@@ -378,6 +378,21 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - **El obstáculo clásico de la vía ORF no existe en este backbone**: el ORF del casete
     AAV está **codón-optimizado**, así que ya es resistente a una guía contra el ORF nativo
     **sin recodificar nada**. No se da por supuesto — el filtro del transgén corre igual.
+  - **Propiedad clave de alcance, y va escrita en el informe**: una guía contra esa ventana
+    **alcanza PRNP humano** —y por tanto Tg650 y las líneas humanizadas— y **no alcanza el
+    transgén** del casete. Es exactamente el reparto que hace falta.
+  - **El codón se calcula; la anotación estructural se declara.** `OrfCandidate.codon_a`
+    sale de la aritmética del ORF: la ventana empieza en el **codón 175** (ratón) / **176**
+    (humano), en marco, y cubre los codones 175-182. La anotación —segundo puente
+    disulfuro, inicio de hélice B, selección purificadora— va como **DECLARADA por el
+    responsable y sin comprobar aquí**: este repositorio no tiene estructura ni
+    alineamiento de proteína. **Y el desajuste se dice en vez de taparse**: se declaró
+    «codón 143 en adelante» y el cálculo da 175/176; la diferencia tampoco es el convenio
+    del péptido señal (sería 152/153). Hay que reconciliarlo antes de citar la numeración.
+  - **«Región conservada» NO exime de mirar variación.** La selección purificadora
+    restringe los **no sinónimos**, no los **sinónimos** — y son los sinónimos los que
+    rompen el apareamiento sin tocar la proteína. **gnomAD sobre esa ventana es
+    obligatorio**, y hoy está en `NOT_RUN`.
 - **Un candidato «nuevo» de una fuente externa puede ser un sitio ya cogido**
   (`spacing.compare_sites`). 223 y 221 son dos ventanas corridas 2 nt: bajo el espaciado
   de 50 nt son el mismo sitio del panel. Se **avisa**, no se descarta — puede interesar
@@ -489,10 +504,32 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   el corte, no la que contiene la señal: la zona prohibida es asimétrica. `--polyA-modo`
   tiene tres criterios y el informe saca el top-N bajo los tres; el defecto sigue siendo
   `escalonado`, así que ninguna corrida anterior cambia de resultado.
-- **La seed son dos preguntas**: colisión con un miARN endógeno (`mirna.py`, dos niveles
-  — FAIL solo contra la lista curada de abundantes, aviso contra el resto) y carga de
-  off-targets por seed (`seed_load.py`, un número comparativo, nunca un veredicto). No
-  hay ninguna lista de miARN escrita en el código y un test lo comprueba.
+- **La seed son dos preguntas**: colisión con un miARN endógeno (`mirna.py`) y carga de
+  off-targets por seed (`seed_load.py`, un número comparativo, nunca un veredicto).
+- **La abundancia en cerebro son DOS CAPAS. DECIDIDO (2026-08-26)**:
+  - **Núcleo, `FAIL` duro, EN CÓDIGO y sin cita** (`mirna.CORE_ABUNDANT`): miR-124-3p,
+    miR-9-5p, familia let-7, miR-128-3p, miR-181a-5p, miR-125b-5p, familia miR-30,
+    miR-26a-5p, miR-99a-5p, miR-138-5p. Motivo escrito en cada FAIL: compartir seed con
+    uno de estos **no da off-targets dispersos, secuestra un programa regulador neuronal
+    completo**. Corre **siempre**: no necesita fichero.
+    **Esto REVIERTE la regla anterior** («no hay ninguna lista de miARN escrita en el
+    código»), de forma acotada y con la autorización escrita en `CORE_AUTHORIZATION`, con
+    fecha y motivo — consenso del campo. El test cambió de forma en consecuencia: ahora
+    comprueba que la única lista es esa y que **sigue sin haber ninguna SECUENCIA** en el
+    código (las seeds salen de `mature.fa`).
+  - **Capa ampliada, `AVISO`, de fichero**: el resto de `mmu-` por encima de un umbral de
+    un dataset publicado de small RNA-seq de cerebro murino. El fichero lleva en cabecera
+    la **referencia** y el **umbral**; sin ellos la capa queda `NOT_RUN` y no avisa de
+    nada — un aviso sin umbral parece un veredicto y no lo es.
+  - **La familia miR-30 se señala APARTE**: el andamio es miR-E, derivado de miR-30a, así
+    que una colisión ahí no es solo competencia por su red de dianas — la horquilla que se
+    construye se parece a un miARN endógeno abundante del mismo tejido. Lectura distinta y
+    peor.
+  - **Guía y pasajera se resuelven por separado**, y el origen queda escrito en cada
+    colisión. **U→T se normaliza en los dos lados antes de comparar** (`_seed_of` y
+    `_seed_of_mature`): un desajuste de alfabeto daría cero colisiones y parecería una
+    buena noticia. Hay un test que compara la misma tabla en ARN y en ADN y exige el mismo
+    veredicto.
 - **El casete que se pasa tiene que ser lo que la célula MADURA** (`transgene.py`). Si el
   casete lleva el módulo del shmiR y se pasa el **genoma con el intrón dentro**, toda guía
   da impacto contra **su propia horquilla**: el filtro tumba el panel entero por un
@@ -599,6 +636,10 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   inicio 32/42/16. Para pedir una plaza en un tramo concreto está
   `SelectionConfig.start_window_quota`, en coordenadas explícitas y por inicio, que no
   depende de ninguna definición de tercio.
+  - Y la cuenta que dice si el panel **se puede rebalancear**: sitios elegibles por tramo
+    que quedan **por delante** del corte de `3utr:288`. Son **20, todos en el tercio
+    proximal**; medio y distal tienen **cero**. Si el APA resulta funcional, el rebalanceo
+    solo puede ir hacia el proximal — y solo hasta donde deje el espaciado (cuatro).
 - **La asimetría sale con las DOS cifras cuando hay penalización**: cruda, penalización
   y neta (`+5,15 − 1,00 penal. = +4,15`). Una sola columna con la neta, al lado de
   candidatos sin penalizar, mezcla dos magnitudes distintas sin decirlo: el 221 salía
@@ -750,7 +791,7 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | Fichero | Qué desbloquea | Flag |
 |---|---|---|
 | RefSeq RNA versionado | especificidad | `--refseq` |
-| lista de MirGeneDB | colisión de seed, nivel FAIL | `--abundancia` |
+| lista ampliada de abundancia (con referencia y umbral) | colisión de seed, nivel AVISO | `--abundancia` |
 | 3'UTR del transcriptoma | carga de off-targets por seed | `--transcriptoma-3utr` |
 | máscara rmsk de ratón | elementos repetitivos | `--rmsk` |
 | PolyA_DB / PolyASite | APA medido en vez de predicho | `--apa-medido` |

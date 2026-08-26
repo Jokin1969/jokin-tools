@@ -1162,6 +1162,11 @@ class TercioCounts:
     by_midpoint: dict[str, int]
     by_start: dict[str, int]
     sites_by_start: dict[str, int]
+    #: Sitios elegibles por tramo que quedan POR DELANTE del corte mas temprano de la
+    #: señal proximal — los unicos hacia los que se puede rebalancear el panel si el
+    #: APA resulta funcional.
+    sites_immune: dict[str, int] = field(default_factory=dict)
+    immune_cut: int | None = None
 
     def describe(self) -> list[str]:
         from .coords import Frame, span
@@ -1183,6 +1188,23 @@ class TercioCounts:
             lineas.append(
                 f"  {titulo}: "
                 + ", ".join(f"{k} {v}" for k, v in cuenta.items())
+            )
+        if self.immune_cut is not None:
+            lineas.append(
+                f"  SITIOS INMUNES por tramo (empiezan por delante de "
+                f"{label(self.immune_cut, Frame.UTR3)}, el corte mas temprano de la "
+                f"señal proximal):"
+            )
+            lineas.append(
+                "    "
+                + ", ".join(f"{k} {v}" for k, v in self.sites_immune.items())
+            )
+            lineas.append(
+                "    Es hacia donde se puede REBALANCEAR el panel si el APA resulta "
+                "funcional. Un tramo con"
+            )
+            lineas.append(
+                "    cero no admite rebalanceo: ahi no hay nada que no lleve techo."
             )
         return lineas
 
@@ -1213,6 +1235,19 @@ def tercio_counts(
         if ventana.tercio is not None:
             medio[ventana.tercio.value] += 1
         inicio[por_inicio(ventana.window.start)] += 1
+    inmunes: dict[str, int] = {n: 0 for n in nombres}
+    corte = None
+    from .polya import CLEAVAGE_MIN, SignalClass
+
+    apa = [
+        s for s in report.signals if s.classification is SignalClass.APA_POSSIBLE
+    ]
+    if apa:
+        corte = min(s.end for s in apa) + CLEAVAGE_MIN
+        for posicion in sitios:
+            if posicion <= corte:
+                inmunes[por_inicio(posicion)] += 1
+
     return TercioCounts(
         utr_length=largo,
         bounds=limites,
@@ -1221,4 +1256,6 @@ def tercio_counts(
         sites_by_start={
             n: sum(1 for p in sitios if por_inicio(p) == n) for n in nombres
         },
+        sites_immune=inmunes,
+        immune_cut=corte,
     )

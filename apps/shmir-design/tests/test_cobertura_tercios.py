@@ -119,3 +119,39 @@ class TestLaPlazaExtraEnElTramoDistal(unittest.TestCase):
         avisos = " ".join(seleccion.selection.quota_unfilled)
         self.assertIn("1200", avisos)
         self.assertIn("3", avisos)
+
+
+@unittest.skipUnless(RATON.is_file(), "NOT_RUN: falta data/reference/NM_011170.3.fa")
+class TestSitiosPorTramoQueQuedanConTecho(unittest.TestCase):
+    """¿Se puede rebalancear el panel hacia proximales si el APA resulta funcional?
+
+    Esa pregunta se contesta con una cuenta y no con una impresion: cuantos sitios
+    elegibles hay por tramo POR DELANTE del corte de 3utr:288 —que son los que
+    sobrevivirian— y cuantos por detras.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cuenta = tercio_counts(_tiling())
+
+    def test_da_la_cuenta_por_tramo(self):
+        self.assertEqual(
+            set(self.cuenta.sites_immune), {"proximal", "medio", "distal"}
+        )
+
+    def test_todos_los_inmunes_estan_en_el_tercio_proximal(self):
+        # El corte de 3utr:288 cae dentro del primer tercio (1-414), asi que ni el medio
+        # ni el distal tienen ni un sitio inmune. El rebalanceo solo puede ir hacia el
+        # proximal, y ademas solo hasta donde deje el espaciado.
+        self.assertEqual(self.cuenta.sites_immune["medio"], 0)
+        self.assertEqual(self.cuenta.sites_immune["distal"], 0)
+        self.assertGreater(self.cuenta.sites_immune["proximal"], 0)
+
+    def test_la_cifra_proximal_cuadra_con_los_20_sitios_conocidos(self):
+        self.assertEqual(self.cuenta.sites_immune["proximal"], 20)
+
+    def test_y_la_salida_lo_dice_con_el_corte_nombrado(self):
+        texto = "\n".join(self.cuenta.describe())
+        self.assertIn("3utr:303", texto)
+        self.assertIn("20", texto)
+        self.assertIn("rebalancear", texto.lower())

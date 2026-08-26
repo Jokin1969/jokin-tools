@@ -56,6 +56,48 @@ ORF_PENDING = {
 MIN_BLOCK = 22
 
 
+def _envolver(texto: str, ancho: int) -> list[str]:
+    palabras, lineas, actual = texto.split(), [], ""
+    for palabra in palabras:
+        if actual and len(actual) + 1 + len(palabra) > ancho:
+            lineas.append(actual)
+            actual = palabra
+        else:
+            actual = f"{actual} {palabra}".strip()
+    if actual:
+        lineas.append(actual)
+    return lineas
+
+
+#: Anotacion estructural de la ventana, DECLARADA por el responsable del proyecto el
+#: 2026-08-26 y SIN COMPROBAR aqui: este repositorio no tiene estructura ni alineamiento
+#: de proteina, y darla por propia seria inventar la fuente que la respalda.
+STRUCTURAL_NOTE = (
+    "Contexto DECLARADO por el responsable del proyecto, sin comprobar aqui: la ventana "
+    "cae en el segundo puente disulfuro y el inicio de la helice B — nucleo estructural "
+    "bajo fuerte seleccion purificadora. OJO CON LA NUMERACION: se declaro «codon 143 en "
+    "adelante» y el calculo sobre el ORF da codon 175 (raton) / 176 (humano) — no cuadra, "
+    "y la diferencia no es de convenio de peptido señal (seria 152/153). Hay que "
+    "reconciliarlo antes de citar la numeracion en ningun sitio."
+)
+
+#: La consecuencia que NO es intuitiva y por eso va escrita.
+GNOMAD_NOTE = (
+    "Que la region este bajo seleccion purificadora restringe los NO SINONIMOS, no los "
+    "SINONIMOS — y son los sinonimos los que rompen el apareamiento de la guia sin tocar "
+    "la proteina. Asi que «region conservada» NO exime de mirar variacion: gnomAD sobre "
+    "esta ventana es OBLIGATORIO, y hoy esta en NOT_RUN. NOT_RUN no es PASS."
+)
+
+#: La propiedad de alcance de una guia contra el ORF conservado.
+REACH_NOTE = (
+    "PROPIEDAD CLAVE DE ALCANCE: una guia contra esta ventana alcanza PRNP humano —y por "
+    "tanto Tg650 y las lineas humanizadas— y NO alcanza el transgen del casete, porque su "
+    "ORF esta codon-optimizado. Es exactamente el reparto que hace falta: silencia lo "
+    "endogeno de las dos especies y respeta la construccion terapeutica."
+)
+
+
 @dataclass(frozen=True)
 class OrfCandidate:
     orf_start_a: int
@@ -66,6 +108,23 @@ class OrfCandidate:
     target_b: str
     guide: str
     filters: tuple[FilterResult, ...]
+
+    @property
+    def codon_a(self) -> int:
+        """Codon del ORF en que empieza la ventana, 1-based. Derivado, no escrito."""
+        return (self.orf_start_a - 1) // 3 + 1
+
+    @property
+    def codon_b(self) -> int:
+        return (self.orf_start_b - 1) // 3 + 1
+
+    @property
+    def codon_span_a(self) -> tuple[int, int]:
+        return (self.codon_a, (self.orf_start_a + 21 - 1) // 3 + 1)
+
+    @property
+    def in_frame(self) -> bool:
+        return (self.orf_start_a - 1) % 3 == 0
 
     @property
     def not_applicable(self) -> tuple[FilterResult, ...]:
@@ -117,11 +176,22 @@ class OrfSweep:
                 f"ORF {b} {candidato.orf_start_b} "
                 f"({label(candidato.tx_start_b, Frame.TX)})  {candidato.target_a}"
             )
+            lineas.append(
+                f"      codon {candidato.codon_a} ({a}) / {candidato.codon_b} ({b}); "
+                f"la ventana cubre los codones "
+                f"{candidato.codon_span_a[0]}-{candidato.codon_span_a[1]} y "
+                f"{'empieza en marco' if candidato.in_frame else 'NO empieza en marco'}."
+            )
         if not self.passing:
             lineas.append(
                 "    Ninguna. Por esta via tampoco hay shmiR unico, y con eso se cierran "
                 "las dos."
             )
+        if self.passing:
+            for nota in (STRUCTURAL_NOTE, GNOMAD_NOTE, REACH_NOTE):
+                lineas.append("")
+                lineas.extend(f"  {l}" for l in _envolver(nota, 86))
+        lineas.append("")
         lineas.extend(
             [
                 "  polyA, APA y tercios salen NO_APLICA en estas ventanas: son "

@@ -135,3 +135,56 @@ class TestLoQueNoAplicaFueraDel3UTR(unittest.TestCase):
         texto = "\n".join(self.barrido.describe())
         self.assertIn("NOT_RUN", texto)
         self.assertNotIn("APROBADO", texto)
+
+
+@unittest.skipUnless(
+    fixture_available(RATON) and fixture_available(HUMANO),
+    "NOT_RUN: faltan los fixtures de los dos transcritos",
+)
+class TestElContextoDeLaVentana(unittest.TestCase):
+    """El codon se CALCULA; la anotacion estructural se declara y se marca como tal."""
+
+    @classmethod
+    def setUpClass(cls):
+        orf_a, orf_b = _orfs()
+        cls.barrido = orf_sweep(
+            orf_a, orf_b,
+            species=("raton", "humano"),
+            cds_start=(RATON.cds[0], HUMANO.cds[0]),
+        )
+        cls.primero = min(cls.barrido.passing, key=lambda c: c.orf_start_a)
+
+    def test_la_ventana_empieza_en_el_primer_nucleotido_de_un_codon(self):
+        self.assertEqual((self.primero.orf_start_a - 1) % 3, 0)
+
+    def test_el_codon_calculado_es_el_175_en_raton(self):
+        self.assertEqual(self.primero.codon_a, 175)
+
+    def test_y_el_176_en_humano_porque_el_ORF_humano_es_3_nt_mas_corto(self):
+        self.assertEqual(self.primero.codon_b, 176)
+
+    def test_la_ventana_cubre_ocho_codones(self):
+        self.assertEqual(self.primero.codon_span_a, (175, 182))
+
+    def test_la_anotacion_estructural_va_marcada_como_DECLARADA(self):
+        texto = "\n".join(self.barrido.describe())
+        self.assertIn("DECLARADO por el responsable", texto)
+        self.assertIn("sin comprobar aqui", texto)
+
+    def test_y_el_desajuste_de_numeracion_se_DICE_en_vez_de_taparse(self):
+        texto = "\n".join(self.barrido.describe())
+        self.assertIn("143", texto)     # la numeracion declarada
+        self.assertIn("175", texto)     # la calculada
+        self.assertIn("no cuadra", texto.lower())
+
+    def test_gnomAD_queda_como_OBLIGATORIO_y_con_el_motivo(self):
+        texto = "\n".join(self.barrido.describe())
+        self.assertIn("gnomAD", texto)
+        self.assertIn("sinonimo", texto.lower())
+        self.assertIn("NOT_RUN", texto)
+
+    def test_la_propiedad_clave_de_alcance_esta_escrita(self):
+        texto = "\n".join(self.barrido.describe())
+        self.assertIn("PRNP humano", texto)
+        self.assertIn("Tg650", texto)
+        self.assertIn("NO alcanza el transgen", texto)

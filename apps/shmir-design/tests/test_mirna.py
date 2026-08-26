@@ -119,8 +119,12 @@ class TestLecturaDeMaduros(unittest.TestCase):
 
 class TestListaDeAbundancia(unittest.TestCase):
 
+    #: La capa AMPLIADA necesita referencia y umbral en la cabecera desde el
+    #: 2026-08-26: sin ellos no se usa (ver tests/test_abundancia_dos_capas.py).
     LISTA = """\
 # MirGeneDB, miARN abundantes en cerebro de raton
+# referencia: dataset publicado de small RNA-seq de cerebro murino
+# umbral: 100 RPM
 mmu-sonda-124
 mmu-sonda-9
 """
@@ -133,29 +137,49 @@ mmu-sonda-9
 
     def test_ignora_comentarios_y_lineas_vacias(self):
         lista = parse_abundance_list(
-            "# c\n\nmmu-sonda-124\n\n", source="s", version="v", checksum="0" * 32
+            "# referencia: r\n# umbral: 100 RPM\n\nmmu-sonda-124\n\n",
+            source="s", version="v", checksum="0" * 32
         )
         self.assertEqual(len(lista.names), 1)
 
     def test_una_lista_vacia_aborta(self):
         with self.assertRaises(ShmirDesignError):
             parse_abundance_list(
-                "# solo comentarios\n", source="s", version="v", checksum="0" * 32
+                "# referencia: r\n# umbral: 100 RPM\n# y nada mas\n",
+                source="s", version="v", checksum="0" * 32,
             )
 
     def test_la_procedencia_es_obligatoria(self):
         with self.assertRaises(ValueError):
             parse_abundance_list(self.LISTA, source="", version="v", checksum="0" * 32)
 
-    def test_no_hay_ninguna_lista_por_defecto_en_el_codigo(self):
-        """Regla del bloque: la lista corta viene de un fichero, no del codigo."""
+    def test_la_UNICA_lista_en_codigo_es_el_nucleo_autorizado(self):
+        """REVERTIDO el 2026-08-26, y por eso este test cambio de forma.
+
+        La regla era «no hay ninguna lista de miARN escrita en el codigo». El
+        responsable del proyecto autorizo el NUCLEO —diez familias, consenso del campo,
+        sin cita— para que el nivel FAIL no dependa de un fichero que no existe. La
+        reversion es ACOTADA: la capa ampliada sigue viniendo de fichero con referencia
+        y umbral, y ninguna SECUENCIA entra en el codigo.
+        """
         import inspect
 
         import shmir_design.mirna as modulo
+        from shmir_design.mirna import CORE_ABUNDANT, CORE_AUTHORIZATION
 
         fuente = inspect.getsource(modulo)
-        self.assertNotIn("miR-124", fuente)
-        self.assertNotIn("miR-9-5p", fuente)
+        # Los nombres del nucleo SI estan, y su autorizacion tambien.
+        self.assertIn("miR-124-3p", fuente)
+        # Fragmento contiguo: la constante va partida en varias lineas en el fuente.
+        self.assertIn("autorizado por el responsable del proyecto ", fuente)
+        self.assertIn("2026-08-26", CORE_AUTHORIZATION)
+        self.assertEqual(len(CORE_ABUNDANT), 10)
+        # Lo que sigue sin haber es una SECUENCIA: la seed de cada uno sale de
+        # `mature.fa`, no de aqui. Rastro tipico de una seed escrita a mano.
+        for palabra in fuente.split():
+            limpia = palabra.strip('"\',.()[]')
+            if len(limpia) >= 7 and set(limpia) <= set("ACGTU"):
+                self.fail(f"parece una secuencia escrita en el codigo: {limpia!r}")
 
 
 class TestDosNiveles(unittest.TestCase):
@@ -165,6 +189,8 @@ class TestDosNiveles(unittest.TestCase):
         source="sonda de MirGeneDB",
         version="sonda",
         checksum="0" * 32,
+        reference="dataset de sonda",
+        threshold="100 RPM",
     )
 
     def test_sin_maduros_todo_el_filtro_es_NOT_RUN(self):

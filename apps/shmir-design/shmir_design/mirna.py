@@ -15,10 +15,18 @@ expresan en cerebro. Por eso:
         un miARN real y para un FAIL duro hace falta la fuente curada.
   WARN  colision con cualquier otro anotado en miRBase: se lista, no se descarta.
 
-Sin fichero de abundancia el nivel FAIL queda NOT_RUN y el WARN corre igual. **No hay
-ninguna lista escrita en el codigo**, ni de maduros ni de abundancia: inventarla seria
-la regla 1 por otra puerta, y ademas un FAIL duro apoyado en una lista sin procedencia
-no es auditable. Un test comprueba sobre el propio fuente que aqui no hay nombres.
+**Y la abundancia son DOS CAPAS desde el 2026-08-26**, no una lista:
+
+  NUCLEO    diez familias de consenso del campo, EN CODIGO y sin cita, con FAIL duro.
+            Autorizado por el responsable del proyecto (`CORE_AUTHORIZATION`): revierte
+            de forma acotada la regla anterior de que ninguna lista de miARN se escribe
+            aqui. Corre SIEMPRE, porque no necesita fichero.
+  AMPLIADA  el resto de mmu- por encima de un umbral, de FICHERO, con nivel de aviso. El
+            fichero lleva en cabecera la REFERENCIA y el UMBRAL; sin ellos la capa queda
+            NOT_RUN — un aviso sin umbral parece un veredicto y no lo es.
+
+Lo que sigue sin escribirse en el codigo es una SECUENCIA: las seeds salen de
+`mature.fa`, y un test lo comprueba sobre el propio fuente.
 
 Regla 4: ninguna URL. Los ficheros se descargan a mano y se versionan con checksum.
 
@@ -81,19 +89,135 @@ class MatureSet:
 
 @dataclass(frozen=True)
 class AbundanceList:
-    """miARN abundantes en el tejido. Es la unica fuente del nivel FAIL."""
+    """Capa AMPLIADA de abundancia: nivel AVISO, y de fichero.
+
+    El nivel FAIL ya no depende de ella: eso es el NUCLEO (`CORE_ABUNDANT`), que va en
+    codigo. Esta capa es «el resto de mmu- por encima de un umbral», y por eso necesita
+    saber DE DONDE sale el umbral: sin referencia y sin umbral en la cabecera, la capa
+    no se usa y queda NOT_RUN. Un aviso sin umbral parece un veredicto y no lo es.
+    """
 
     names: frozenset[str]
     source: str
     version: str
     checksum: str
+    reference: str = ""
+    threshold: str = ""
+    missing_reason: str = ""
+
+    @property
+    def usable(self) -> bool:
+        return not self.missing_reason
 
     @property
     def provenance(self) -> str:
+        if not self.usable:
+            return (
+                f"{self.source}, version {self.version}, checksum {self.checksum} — "
+                f"NO UTILIZABLE: {self.missing_reason}"
+            )
         return (
             f"{self.source}, version {self.version}, checksum {self.checksum}, "
-            f"{len(self.names)} miARN"
+            f"{len(self.names)} miARN por encima de {self.threshold}; "
+            f"referencia: {self.reference}"
         )
+
+
+# ─── Capa 1: el NUCLEO, en codigo y con FAIL duro ────────────────────────────
+#
+# AUTORIZACION EXPLICITA. Este proyecto tenia la regla contraria —«no hay ninguna lista
+# de miARN escrita en el codigo, y un test lo comprueba»— y se REVIERTE aqui, acotada a
+# esta lista y con el motivo escrito. Lo que NO cambia: la capa ampliada sigue
+# necesitando su fichero con referencia y umbral.
+
+CORE_AUTHORIZATION = (
+    "Nucleo de miARN abundantes en cerebro, autorizado por el responsable del proyecto "
+    "el 2026-08-26 para ir EN CODIGO y SIN CITA, por ser consenso del campo. Revierte "
+    "de forma acotada la regla anterior de que ninguna lista de miARN se escribe en el "
+    "codigo. La capa AMPLIADA no entra en esta autorizacion: sigue viniendo de fichero "
+    "con referencia y umbral."
+)
+
+CORE_REASON = (
+    "Compartir seed con uno de estos no produce off-targets dispersos: SECUESTRA UN "
+    "PROGRAMA REGULADOR NEURONAL COMPLETO."
+)
+
+#: La familia del andamio. Una colision aqui se lee distinto y peor.
+MIR30_FAMILY = "miR-30"
+LET7_FAMILY = "let-7"
+
+MIR30_REASON = (
+    "Y ademas es de la familia miR-30, que es de donde sale NUESTRO ANDAMIO: miR-E "
+    "deriva de miR-30a. Una colision aqui no es solo competencia por la red de dianas "
+    "de ese miARN — es que la horquilla que se construye se parece a un miARN endogeno "
+    "abundante en el mismo tejido. Lectura distinta y peor: revisala aparte."
+)
+
+
+@dataclass(frozen=True)
+class CoreMember:
+    """Una entrada del nucleo. `family` no vacio = casa con toda la familia."""
+
+    label: str
+    exact: str = ""
+    family: str = ""
+
+    def matches(self, name: str) -> bool:
+        """`name` viene de miRBase con prefijo de especie: `mmu-miR-124-3p`."""
+        sin_prefijo = name.split("-", 1)[1] if "-" in name else name
+        bajo = sin_prefijo.lower()
+        if self.exact:
+            return bajo == self.exact.lower()
+        # Familia: `let-7a-5p`, `miR-30c-5p`. Detras del nombre de familia tiene que
+        # venir una LETRA de miembro, para que `miR-30` no se coma a `miR-300` ni
+        # `let-7` a `miR-7`.
+        prefijo = self.family.lower()
+        if not bajo.startswith(prefijo):
+            return False
+        resto = bajo[len(prefijo) :]
+        return bool(resto) and resto[0].isalpha()
+
+
+CORE_ABUNDANT: tuple[CoreMember, ...] = (
+    CoreMember("miR-124-3p", exact="miR-124-3p"),
+    CoreMember("miR-9-5p", exact="miR-9-5p"),
+    CoreMember("let-7 (familia)", family=LET7_FAMILY),
+    CoreMember("miR-128-3p", exact="miR-128-3p"),
+    CoreMember("miR-181a-5p", exact="miR-181a-5p"),
+    CoreMember("miR-125b-5p", exact="miR-125b-5p"),
+    CoreMember("miR-30 (familia)", family=MIR30_FAMILY),
+    CoreMember("miR-26a-5p", exact="miR-26a-5p"),
+    CoreMember("miR-99a-5p", exact="miR-99a-5p"),
+    CoreMember("miR-138-5p", exact="miR-138-5p"),
+)
+
+
+@dataclass(frozen=True)
+class CoreHit:
+    name: str
+    member: CoreMember
+
+    @property
+    def family(self) -> str:
+        return self.member.family
+
+    @property
+    def reason(self) -> str:
+        texto = f"{self.name} casa con {self.member.label} del nucleo. {CORE_REASON}"
+        if self.member.family == MIR30_FAMILY:
+            texto += f" {MIR30_REASON}"
+        return texto
+
+
+def core_hits(names) -> tuple[CoreHit, ...]:
+    """Que nombres de la lista caen en el nucleo. Sin fichero: no lo necesita."""
+    return tuple(
+        CoreHit(name=nombre, member=miembro)
+        for nombre in names
+        for miembro in CORE_ABUNDANT
+        if miembro.matches(nombre)
+    )
 
 
 def _seed_of_mature(sequence: str, *, name: str, source: str) -> str:
@@ -167,6 +291,38 @@ def parse_abundance_list(
 ) -> AbundanceList:
     """Lee la lista curada de miARN abundantes. Un nombre por linea, `#` es comentario."""
     _require_provenance(source, version, checksum, what="La lista de abundancia")
+    referencia = umbral = ""
+    for linea in text.splitlines():
+        limpia = linea.strip()
+        if not limpia.startswith("#"):
+            continue
+        etiqueta, _, valor = limpia.lstrip("#").strip().partition(":")
+        if etiqueta.strip().lower() == "referencia":
+            referencia = valor.strip()
+        elif etiqueta.strip().lower() == "umbral":
+            umbral = valor.strip()
+
+    faltan = [
+        nombre
+        for nombre, valor in (("referencia", referencia), ("umbral", umbral))
+        if not valor
+    ]
+    if faltan:
+        return AbundanceList(
+            names=frozenset(),
+            source=source,
+            version=version,
+            checksum=checksum,
+            reference=referencia,
+            threshold=umbral,
+            missing_reason=(
+                f"a la cabecera le falta {' y '.join(faltan)}. La capa ampliada dice "
+                f"«el resto de mmu- por encima de un umbral»: sin saber que umbral ni "
+                f"de que dataset sale, un aviso de esta capa parece un veredicto y no "
+                f"lo es. La capa queda NOT_RUN; el NUCLEO sigue corriendo."
+            ),
+        )
+
     nombres = frozenset(
         linea.strip()
         for linea in text.splitlines()
@@ -175,10 +331,15 @@ def parse_abundance_list(
     if not nombres:
         raise ShmirDesignError(
             f"{source}: la lista de abundancia no tiene ningun nombre. Se aborta: una "
-            f"lista vacia convertiria el nivel FAIL en un PASS silencioso."
+            f"lista vacia convertiria el nivel de aviso en un PASS silencioso."
         )
     return AbundanceList(
-        names=nombres, source=source, version=version, checksum=checksum
+        names=nombres,
+        source=source,
+        version=version,
+        checksum=checksum,
+        reference=referencia,
+        threshold=umbral,
     )
 
 
@@ -321,15 +482,48 @@ def filter_seed_collision(
     )
     procedencia = f" Maduros: {mature.provenance}."
 
-    if abundance is None:
+    # CAPA 1 — el nucleo va en codigo y no necesita fichero: corre siempre.
+    nucleo = core_hits(colisiones)
+    if nucleo:
+        de_30 = [h for h in nucleo if h.family == MIR30_FAMILY]
+        aparte = (
+            f" AVISO APARTE: {', '.join(h.name for h in de_30)} es de la familia del "
+            f"ANDAMIO. {MIR30_REASON}"
+            if de_30
+            else ""
+        )
+        return SeedCollisionResult(
+            state=FilterState.FAIL,
+            reason=(
+                f"Colision con el NUCLEO de abundantes en cerebro: "
+                + "; ".join(f"{etiqueta(h.name)} → {h.member.label}" for h in nucleo)
+                + f". {CORE_REASON}{aparte} {CORE_AUTHORIZATION}{procedencia}"
+            ),
+            warnings=tuple(
+                etiqueta(n) for n in colisiones
+                if n not in {h.name for h in nucleo}
+            ),
+            hits=colisiones,
+            abundant_hits=tuple(h.name for h in nucleo),
+            mature=mature,
+            abundance=abundance,
+        )
+
+    # CAPA 2 — la ampliada, de fichero. Sin ella (o sin su cabecera) queda NOT_RUN.
+    if abundance is None or not abundance.usable:
+        detalle = (
+            "No hay lista ampliada de abundancia cargada"
+            if abundance is None
+            else f"La lista ampliada no es utilizable: {abundance.missing_reason}"
+        )
         avisos = tuple(etiqueta(n) for n in colisiones)
         return SeedCollisionResult(
             state=FilterState.NOT_RUN,
             reason=(
-                f"No hay lista de abundancia en cerebro cargada, asi que el nivel FAIL "
-                f"del filtro no se puede ejecutar: sin ella no se sabe cuales de las "
-                f"{len(colisiones)} colision(es) importan. El nivel de aviso si ha "
-                f"corrido y las lista. NOT_RUN no es PASS.{procedencia}"
+                f"{detalle}, asi que la capa AMPLIADA del filtro no se puede ejecutar: "
+                f"sin ella no se sabe cuales de las {len(colisiones)} colision(es) "
+                f"restantes estan por encima del umbral. El NUCLEO si ha corrido y no "
+                f"hay ninguna colision con el. NOT_RUN no es PASS.{procedencia}"
             ),
             warnings=avisos,
             hits=colisiones,
