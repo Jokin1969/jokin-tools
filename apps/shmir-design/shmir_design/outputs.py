@@ -17,7 +17,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-from .conservation import ConservationReport
+from .conservation import ConservationReport, single_shmir_verdict
 from .accessibility import CONTEXT_WINDOWS, DISCREPANCY
 from .filters import FilterState, Verdict
 from .folding import VIENNA_AVAILABLE
@@ -32,6 +32,8 @@ from .comparative import CONVENTION_NOTE, comparative_text, comparative_tsv
 from .external_score import manual_instructions
 from .selection import (
     apa_ceiling_table,
+    is_eligible,
+    tercio_counts,
     coverage_report,
     ReportSelection,
     penalty_sensitivity,
@@ -229,6 +231,7 @@ def text_report(
     provenance: tuple[str, ...] = (),
     convergence=None,
     polya_conservation=None,
+    orf_sweep=None,
 ) -> str:
     lines = [
         f"═══ Diseño de shmiR — {species} ═══",
@@ -330,6 +333,11 @@ def text_report(
                 + "; ".join(hit.describe() for hit in block.hits)
             )
             lines.append(f"    {block.sequence}")
+        lines.append("")
+        lines.extend(
+            f"  {l}"
+            for l in _envolver(single_shmir_verdict(conservation).describe(), 86)
+        )
 
     lines.extend(
         [
@@ -429,6 +437,9 @@ def text_report(
             lines.append("  hace falta.")
         for fallo in selection.selection.quota_unfilled:
             lines.append(f"    ⚠  {fallo}")
+
+    lines.extend(["", "── Cobertura por tercios ──"])
+    lines.extend(f"  {l}" for l in tercio_counts(tiling).describe())
 
     lines.extend(["", "── Especificidad ──"])
     if tiling.specificity_db is None:
@@ -719,6 +730,10 @@ def text_report(
         lines.append("")
         lines.extend(f"  {l}" for l in plan.describe(offset=desfase))
 
+    if orf_sweep is not None:
+        lines.extend(["", "── La otra via: ORF conservado ──"])
+        lines.extend(f"  {l}" for l in orf_sweep.describe())
+
     if convergence is not None:
         lines.extend(["", "── Convergencia con la fuente externa ──"])
         lines.extend(f"  {l}" for l in convergence.describe(offset=desfase))
@@ -955,6 +970,28 @@ def text_report(
         lines.append(
             "  NOT_RUN no es PASS. Mientras haya filtros sin correr, la seleccion es "
             "PROVISIONAL y ningun candidato esta aprobado: su veredicto es INCOMPLETE."
+        )
+        # Y con nombre y apellidos: cuantos FRENTES quedan abiertos, no «un
+        # bloqueante». Un fichero pequeño que falta y una base de datos que falta
+        # bloquean igual, y decir «solo falta uno» invita a pedir oligo.
+        frentes = sorted(selection.not_run_filters)
+        lines.append(
+            f"  EL PANEL ES PROVISIONAL EN {len(frentes)} FRENTE(S): "
+            + ", ".join(frentes)
+            + "."
+        )
+        lines.append(
+            "  NO SE PIDE OLIGO hasta que los "
+            + ("tres" if len(frentes) == 3 else str(len(frentes)))
+            + " tengan veredicto. Que uno de ellos se arregle con un fichero pequeño"
+        )
+        lines.append(
+            "  y otro necesite una base entera no cambia nada: los dos bloquean igual, "
+            "y llamar «unico"
+        )
+        lines.append(
+            "  bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros "
+            "sin correr."
         )
 
     lines.extend(["", "── Avisos ──"])

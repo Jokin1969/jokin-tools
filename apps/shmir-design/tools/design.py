@@ -255,6 +255,30 @@ def _conservacion_polya(especie: str, secuencias: dict, anatomias: dict):
     return signal_conservation(CANONICAL_SIGNAL, utr3, other_name=otra)
 
 
+def _barrido_orf(especie: str, secuencias: dict, anatomias: dict):
+    """Identidad exacta >= 22 nt entre los DOS ORF, con la cascada aplicada.
+
+    Solo si hay dos especies y las dos traen CDS. Con una sola no hay nada que comparar
+    y se devuelve None: el informe no imprime el bloque en vez de imprimir un cero.
+    """
+    from shmir_design.orf_sweep import orf_sweep
+
+    otras = [n for n in secuencias if n != especie]
+    if len(otras) != 1:
+        return None
+    otra = otras[0]
+    if anatomias[especie].cds is None or anatomias[otra].cds is None:
+        return None
+    def orf(nombre: str) -> str:
+        inicio, fin = anatomias[nombre].cds
+        return secuencias[nombre][inicio - 1 : fin]
+    return orf_sweep(
+        orf(especie), orf(otra),
+        species=(especie, otra),
+        cds_start=(anatomias[especie].cds[0], anatomias[otra].cds[0]),
+    )
+
+
 def _convergencia(ruta: Path, *, tiling, seleccion):
     """Cruza el export externo con NUESTROS sitios elegibles, por secuencia.
 
@@ -892,6 +916,7 @@ def main(argv: list[str]) -> int:
                 polya_conservation=_conservacion_polya(
                     especie, secuencias, anatomias
                 ),
+                orf_sweep=_barrido_orf(especie, secuencias, anatomias),
                 transcript=transcripts[especie],
                 conservation=conservation,
                 anatomy_warnings=avisos_anatomia[especie],

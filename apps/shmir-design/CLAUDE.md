@@ -339,6 +339,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     que la murina se use. **NO LA DESCARTA**: puede ser diferencia real de especie. Las
     dos cláusulas van juntas y ninguna sobra — el informe termina con «rebaja, no
     descarta».
+  - **Inmunes: 60, 143 y 221**, no solo 60. 60 es el único del panel elegido, pero la
+    piscina de elegibles tiene 19 sitios más por delante de la señal y el informe saca
+    los mejores por asimetría — `3utr:143` (+5,08) y `3utr:221` (+5,15 − 1,00 penal. =
+    +4,15) entre ellos. Con un solo inmune el panel entero depende de un supuesto; con
+    tres, no.
 - **El 3'UTR humano trae sus DOS señales de APA desde el principio**, con la misma
   maquinaria: `ATTAAA` en `3utr:955` y `3utr:1167`, las dos `APA_POSIBLE`, `TECHO` y
   `fraccion_isoforma_larga = None`. Condicionan la mitad distal, y `apa_ceiling_table`
@@ -349,16 +354,30 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - El informe saca **todas** las señales `APA_POSIBLE`, no solo la dominante: con dos,
     enseñar una esconde justo la que condiciona la mitad distal. La banda de corte va
     aparte de lo que está detrás — `PENALIZADO` no es `TECHO`, y sumarlas sería inventar.
-  - **El bloque conservado `3utr:1507-1532` queda por detrás de las DOS**, pero hoy la
-    pregunta es académica: de las **47 ventanas que lo solapan, ninguna es elegible**, y
-    no por polyA — caen por GC (40), homopolímero (32) y asimetría (26). Es un tramo de
-    baja complejidad. Si algún día se relajan esos umbrales, esas ventanas nacen con dos
-    techos encima.
-  - **Inmunes: 60, 143 y 221**, no solo 60. 60 es el único del panel elegido, pero la
-    piscina de elegibles tiene 19 sitios más por delante de la señal y el informe saca
-    los mejores por asimetría — `3utr:143` (+5,08) y `3utr:221` (+5,15 − 1,00 penal. =
-    +4,15) entre ellos. Con un solo inmune el panel entero depende de un supuesto; con
-    tres, no.
+  - **El bloque conservado queda por detrás de las DOS.** Es el único de ≥22 nt entre los
+    dos 3'UTR: 26 nt, `TTTTCTATATTTGTAACTTTGCATGT`, en ratón `3utr:1138-1163` y humano
+    `3utr:1507-1532`. De las **5 ventanas de 22 nt que caben DENTRO, ninguna** supera los
+    filtros de secuencia, y con los **mismos motivos en las dos especies** porque la diana
+    es la misma: GC en las cinco, asimetría en cuatro, homopolímero en una.
+    - **Se miran las CONTENIDAS, no las que SOLAPAN.** Una ventana que solapa el bloque se
+      sale de él, y fuera del bloque las dos especies difieren: son ventanas distintas con
+      dianas distintas. Contarlas dio un «sí hay ventanas elegibles» **falso** en el
+      informe del ratón mientras el del humano decía lo contrario.
+    - **CONSECUENCIA, y va escrita así en el informe: NO EXISTE un shmiR único válido para
+      ratón, Tg650 y clínica por la vía del 3'UTR.** Eso cambia la **arquitectura del
+      programa**, no dos plazas del panel (`conservation.single_shmir_verdict`).
+- **La otra vía: el ORF conservado** (`orf_sweep.py`, en el informe cuando hay dos
+  especies con CDS). Identidad exacta ≥22 nt entre los dos ORF: **4 bloques**, 16 ventanas
+  que caben dentro, y **2 superan los filtros de secuencia** — ORF ratón 523/524
+  (`tx:707`/`tx:708`), ORF humano 526/527, misma diana `GTGCACGACTGCGTCAATATCA`.
+  - Aplican GC, homopolímeros, asimetría, G4, **seed, repetitivos y especificidad**. NO
+    aplican polyA, APA ni tercios: son heurísticas del 3'UTR y salen `NO_APLICA`, nunca
+    `PASS`.
+  - Esas dos ventanas **no están aprobadas, están preseleccionadas**: seed, repetitivos y
+    especificidad siguen en `NOT_RUN`.
+  - **El obstáculo clásico de la vía ORF no existe en este backbone**: el ORF del casete
+    AAV está **codón-optimizado**, así que ya es resistente a una guía contra el ORF nativo
+    **sin recodificar nada**. No se da por supuesto — el filtro del transgén corre igual.
 - **Un candidato «nuevo» de una fuente externa puede ser un sitio ya cogido**
   (`spacing.compare_sites`). 223 y 221 son dos ventanas corridas 2 nt: bajo el espaciado
   de 50 nt son el mismo sitio del panel. Se **avisa**, no se descarta — puede interesar
@@ -564,6 +583,22 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   `polyA_veredicto` sigue siendo el del modo con el que se corrió. Ojo con el marco:
   `polyA_hexamero_pos` va en coordenadas de LO TILADO, como `inicio_transcrito`, y la
   cabecera lo dice.
+- **El informe ENTERO está fijado contra un golden versionado**
+  (`tests/golden/raton_informe.txt`, `tools/regenerar_golden.py`,
+  `tests/test_informe_golden.py`). Los tests de presencia comprueban que aparezca lo que
+  cada uno espera; **no detectan lo que falta**. En esta sesión se borraron 127 líneas del
+  informe —el bloque del `TECHO` y los inmunes enteros— al reordenar un bloque, y los 1700
+  tests siguieron en verde. El golden compara la salida completa y ese borrado lo hace
+  fallar: está comprobado a propósito. Se regenera **a mano** y el diff entra en la
+  revisión.
+- **Los tercios tienen DOS definiciones y hay que decir cuál** (`selection.tercio_counts`,
+  bloque «Cobertura por tercios»). `Tercio` etiqueta por el **punto medio** de la ventana;
+  la partición simple (`3utr:1-414 / 415-828 / 829-1242`) va por **inicio**. Discrepan en
+  el borde: `3utr:819-840` empieza en el segundo tercio y su punto medio (829,5) cae en el
+  tercero. Elegibles por punto medio 105/128/54; por inicio 105/137/45; **sitios** por
+  inicio 32/42/16. Para pedir una plaza en un tramo concreto está
+  `SelectionConfig.start_window_quota`, en coordenadas explícitas y por inicio, que no
+  depende de ninguna definición de tercio.
 - **La asimetría sale con las DOS cifras cuando hay penalización**: cruda, penalización
   y neta (`+5,15 − 1,00 penal. = +4,15`). Una sola columna con la neta, al lado de
   candidatos sin penalizar, mezcla dos magnitudes distintas sin decirlo: el 221 salía
@@ -691,6 +726,12 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   en todo andamio cargado de fichero.
 - Elegible no es aprobado: mientras haya filtros en `NOT_RUN`, la selección es
   provisional y los candidatos salen `INCOMPLETE`.
+- **El informe cuenta los FRENTES abiertos, no «el bloqueante».** Con el casete y
+  `mature.fa` cargados quedan **tres**: especificidad, repetitivos y colisión de seed a
+  nivel FAIL. Y lo dice con esas palabras: **no se pide oligo hasta que los tres tengan
+  veredicto**. Que uno se arregle con un fichero de kilobytes y otro necesite una base
+  entera no cambia nada — los dos bloquean igual, y llamar «único bloqueante» al pequeño
+  es lo que hace que se pida oligo con dos filtros sin correr.
 - Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
   verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
   nunca leerlo de la UI.
@@ -709,7 +750,6 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | Fichero | Qué desbloquea | Flag |
 |---|---|---|
 | RefSeq RNA versionado | especificidad | `--refseq` |
-| `mature.fa` de miRBase | colisión de seed, nivel aviso | `--mirbase` |
 | lista de MirGeneDB | colisión de seed, nivel FAIL | `--abundancia` |
 | 3'UTR del transcriptoma | carga de off-targets por seed | `--transcriptoma-3utr` |
 | máscara rmsk de ratón | elementos repetitivos | `--rmsk` |

@@ -284,3 +284,73 @@ def build_conservation_report(
         window_size=window_size,
         evaluations=evaluations,
     )
+
+
+# ─── La consecuencia de que un bloque conservado no de candidatos ────────────
+#
+# Ojo con QUE ventanas se miran. Las que SOLAPAN un bloque conservado se salen de el, y
+# fuera del bloque las dos especies difieren: son ventanas distintas con dianas
+# distintas, y contarlas dio un «SI hay ventanas elegibles» falso. Las que valen son las
+# CONTENIDAS en el bloque, que por construccion tienen la MISMA diana en las dos
+# especies — y son exactamente las que `ConservationReport.evaluations` ya evalua.
+
+
+@dataclass(frozen=True)
+class SingleShmirVerdict:
+    """¿Cabe UN shmiR que sirva para las tres cosas por la via del 3'UTR?
+
+    `possible` es `None` cuando no se ha comparado: no haber mirado y haber mirado sin
+    encontrar nada son cosas distintas, y aqui la diferencia decide un programa.
+    """
+
+    possible: bool | None
+    passing: int
+    windows: int
+    blocks: int
+    long_enough: int
+    window_size: int
+
+    def describe(self) -> str:
+        if self.possible is None:
+            return (
+                "Un shmiR unico para raton, Tg650 y clinica por la via del 3'UTR: "
+                "NOT_RUN. No se ha comparado con otra especie, asi que no hay bloques "
+                "conservados que mirar. NOT_RUN no es «no existe»."
+            )
+        if self.possible:
+            return (
+                f"SI hay ventanas de {self.window_size} nt CONTENIDAS en un bloque "
+                f"conservado que superan los filtros de secuencia: {self.passing} de "
+                f"{self.windows}. Un shmiR unico para raton, Tg650 y clinica por la via "
+                f"del 3'UTR es POSIBLE por ahi, y esas son las ventanas por las que "
+                f"pasa. Falta comprobarlas con los filtros que dependen de recurso."
+            )
+        return (
+            f"CONSECUENCIA: NO EXISTE un shmiR unico valido para raton, Tg650 y clinica "
+            f"por la via del 3'UTR. De los {self.blocks} bloque(s) conservado(s), "
+            f"{self.long_enough} son lo bastante largos para alojar una guia de "
+            f"{self.window_size} nt, y de las {self.windows} ventanas que caben DENTRO "
+            f"de ellos NINGUNA supera los filtros de secuencia — con los mismos motivos "
+            f"en las dos especies, porque la diana es la misma. No hay donde poner una "
+            f"guia que sirva para las tres cosas a la vez. Esto cambia la ARQUITECTURA "
+            f"DEL PROGRAMA —haria falta otra via, por ejemplo el ORF conservado— y no "
+            f"dos plazas del panel."
+        )
+
+
+def single_shmir_verdict(report: "ConservationReport | None") -> SingleShmirVerdict:
+    """Deriva el veredicto del informe de conservacion. Sin informe, `None`."""
+    if report is None or not report.blocks:
+        return SingleShmirVerdict(
+            possible=None, passing=0, windows=0, blocks=0, long_enough=0,
+            window_size=report.window_size if report is not None else WINDOW_SIZE,
+        )
+    ventanas = [w for lista in report.evaluations.values() for w in lista]
+    return SingleShmirVerdict(
+        possible=bool(report.passing_windows()),
+        passing=report.passing_windows(),
+        windows=len(ventanas),
+        blocks=len(report.blocks),
+        long_enough=sum(1 for b in report.blocks if b.length >= report.window_size),
+        window_size=report.window_size,
+    )

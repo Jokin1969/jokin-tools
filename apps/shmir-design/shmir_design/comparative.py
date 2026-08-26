@@ -51,6 +51,7 @@ COMPARATIVE_COLUMNS = (
     "gblock_149",
     "GC",
     "asimetria",
+    "penalizacion",
     "asimetria_penalizada",
     *POLYA_COLUMNS,
     "riesgo_APA",
@@ -111,6 +112,14 @@ def coordinate_note(anatomy: Anatomy | None) -> str:
         "inicio_3utr/fin_3utr van sobre el 3'UTR y empiezan en 1; "
         "inicio_transcrito/fin_transcrito,",
         "sobre la secuencia que se tilo.",
+        "Las TRES columnas de asimetria son cantidades distintas y no se mezclan: "
+        "`asimetria` es la CRUDA,",
+        "`penalizacion` lo que resta la variante rara de poliadenilacion (0.00 si no la "
+        "hay), y",
+        "`asimetria_penalizada` la NETA con la que se ordena. Darlas en una sola columna "
+        "hizo que 3utr:221",
+        "saliera +4.15 al lado de candidatos sin penalizar, y pareciera una discrepancia "
+        "de calculo.",
         "polyA_hexamero_pos y polyA_dist_extremo3 van en el marco de LO TILADO, igual "
         "que",
         "inicio_transcrito: un hexamero en 1983 con el CDS declarado es el 1034 del "
@@ -205,6 +214,7 @@ def comparative_rows(
             "asimetria": (
                 "" if choice.asymmetry_raw is None else f"{choice.asymmetry_raw:+.2f}"
             ),
+            "penalizacion": f"{choice.penalty:.2f}",
             "asimetria_penalizada": f"{choice.asymmetry:+.2f}",
             **polya,
             "riesgo_APA": (
@@ -296,6 +306,8 @@ RESUMEN_COLUMNS = (
     "tercio",
     "GC",
     "asimetria",
+    "penalizacion",
+    "asimetria_penalizada",
     "polyA_solapa_seed",
     "riesgo_APA",
     "carga_seed",

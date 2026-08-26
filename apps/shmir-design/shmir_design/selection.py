@@ -79,6 +79,12 @@ class SelectionConfig:
     #: concreto y que quede escrito cual y por que, en vez de que el reparto salga de
     #: la asimetria y parezca deliberado.
     tercio_quota: tuple[tuple[Tercio, int], ...] | None = None
+    #: Cuota por TRAMO DE INICIO, en coordenadas explicitas del 3'UTR:
+    #: ((829, 1242, 2),) = «al menos 2 candidatos que EMPIECEN en 3utr:829-1242».
+    #: No depende de ninguna definicion de tercio, que es justo el problema que
+    #: resuelve: `Tercio` etiqueta por punto MEDIO de la ventana y la particion simple
+    #: va por INICIO, asi que 3utr:819 sale «distal» etiquetado y «medio» por inicio.
+    start_window_quota: tuple[tuple[int, int, int], ...] | None = None
 
     def __post_init__(self) -> None:
         if self.n_candidates < 1:
@@ -128,6 +134,16 @@ class SelectionConfig:
                     f"La cuota por tercio suma {total} y el panel es de "
                     f"{self.n_candidates}. Se aborta en vez de recortarla por nuestra "
                     f"cuenta: que tercio pierde la plaza es una decision de diseño."
+                )
+        for inicio, fin, plazas in self.start_window_quota or ():
+            if fin < inicio:
+                raise ValueError(
+                    f"Tramo {inicio}-{fin} invertido en start_window_quota; se aborta."
+                )
+            if plazas < 0 or plazas > self.n_candidates:
+                raise ValueError(
+                    f"start_window_quota pide {plazas} candidato(s) en {inicio}-{fin} y "
+                    f"el panel es de {self.n_candidates}; se aborta."
                 )
         if self.apa_immune_quota < 0:
             raise ValueError(
@@ -417,6 +433,28 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
                 f"No se rellena con candidatos de mas abajo: serian otro riesgo, no el "
                 f"que la cuota compra."
             )
+
+    for inicio, fin, plazas in config.start_window_quota or ():
+        ya = sum(1 for c in chosen if inicio <= c.start <= fin)
+        for _ in range(max(0, plazas - ya)):
+            elegido = next(
+                (
+                    s for s in ordenados
+                    if inicio <= s.best.start <= fin and id(s) not in usados
+                    and _respects_spacing(s.best, chosen, config.min_spacing)
+                ),
+                None,
+            )
+            if elegido is None or len(chosen) >= config.n_candidates:
+                quota_unfilled.append(
+                    f"tramo de inicio {inicio}-{fin}: se pedian {plazas} candidato(s) y "
+                    f"salen {sum(1 for c in chosen if inicio <= c.start <= fin)}. "
+                    f"O no quedan plazas del panel, o los sitios que faltan no cumplen "
+                    f"el espaciado de {config.min_spacing} nt."
+                )
+                break
+            chosen.append(elegido.best)
+            usados.add(id(elegido))
 
     if config.tercio_quota is not None:
         for tercio, plazas in config.tercio_quota:
@@ -1107,3 +1145,80 @@ def apa_ceiling_table(
             )
         )
     return filas
+
+
+# ─── Los tercios: dos definiciones, y hay que decir cual ─────────────────────
+#
+# `Tercio` etiqueta por el PUNTO MEDIO de la ventana. La particion simple del 3'UTR va
+# por la POSICION DE INICIO. Con ventanas de 22 nt las dos discrepan en el borde: en el
+# raton, 3utr:819-840 empieza en el segundo tercio (819 <= 828) y su punto medio (829,5)
+# cae en el tercero. Ninguna es incorrecta; lo que no vale es no decir cual se usa.
+
+
+@dataclass(frozen=True)
+class TercioCounts:
+    utr_length: int
+    bounds: tuple[tuple[int, int], ...]
+    by_midpoint: dict[str, int]
+    by_start: dict[str, int]
+    sites_by_start: dict[str, int]
+
+    def describe(self) -> list[str]:
+        from .coords import Frame, span
+
+        lineas = [
+            "Tercios del 3'UTR: "
+            + ", ".join(span(a, b, Frame.UTR3) for a, b in self.bounds)
+            + ".",
+            "  La columna `tercio` etiqueta por el PUNTO MEDIO de la ventana; la "
+            "particion de arriba va",
+            "  por POSICION DE INICIO. Con ventanas de 22 nt discrepan en el borde, asi "
+            "que se dan las dos.",
+        ]
+        for titulo, cuenta in (
+            ("ventanas elegibles, por punto medio (asi se etiqueta)", self.by_midpoint),
+            ("ventanas elegibles, por inicio", self.by_start),
+            ("SITIOS elegibles, por inicio", self.sites_by_start),
+        ):
+            lineas.append(
+                f"  {titulo}: "
+                + ", ".join(f"{k} {v}" for k, v in cuenta.items())
+            )
+        return lineas
+
+
+def tercio_counts(
+    report: TilingReport, config: SelectionConfig | None = None
+) -> TercioCounts:
+    """Cuantos elegibles hay por tercio, con las dos definiciones y los sitios."""
+    largo = report.utr_length
+    limites = (
+        (1, largo // 3),
+        (largo // 3 + 1, 2 * largo // 3),
+        (2 * largo // 3 + 1, largo),
+    )
+    nombres = ("proximal", "medio", "distal")
+
+    def por_inicio(posicion: int) -> str:
+        for nombre, (a, b) in zip(nombres, limites):
+            if a <= posicion <= b:
+                return nombre
+        return nombres[-1]
+
+    elegibles = [w for w in report.windows if is_eligible(w, config)]
+    sitios = [s.best.start for s in group_choices(eligible_choices(report, config))]
+    medio: dict[str, int] = {n: 0 for n in nombres}
+    inicio: dict[str, int] = {n: 0 for n in nombres}
+    for ventana in elegibles:
+        if ventana.tercio is not None:
+            medio[ventana.tercio.value] += 1
+        inicio[por_inicio(ventana.window.start)] += 1
+    return TercioCounts(
+        utr_length=largo,
+        bounds=limites,
+        by_midpoint=medio,
+        by_start=inicio,
+        sites_by_start={
+            n: sum(1 for p in sitios if por_inicio(p) == n) for n in nombres
+        },
+    )
