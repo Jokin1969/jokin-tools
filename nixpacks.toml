@@ -8,6 +8,17 @@ cmds = [
   "which pip3 && pip3 --version",
   "pip3 install --target=/app/python_libs --no-cache-dir 'Pillow>=10.0.0' 'pypdf>=4.0.0' 'svglib>=1.5.1,<1.6' 'reportlab>=4.0.0'",
   "pip3 install --target=/app/python_libs --no-cache-dir 'pdf2docx>=0.5.8' || echo 'WARN: pdf2docx no instalado (operación pdf-to-docx no estará disponible)'",
+  # Streamlit es la interfaz de shmir-design, y SOLO la interfaz: el núcleo y los CLI de
+  # ese proyecto son stdlib pura y siguen funcionando sin ella. Se instala aquí porque el
+  # hub sirve esa interfaz en /shmir como un proceso hijo.
+  #
+  # Se lo lleva por delante: pandas, pyarrow, numpy, altair, tornado y protobuf. Son un
+  # par de cientos de MB de imagen. Si algún día eso pesa demasiado, la alternativa NO es
+  # quitarle dependencias a Streamlit: es desplegar esa interfaz como un servicio aparte.
+  "pip3 install --target=/app/python_libs --no-cache-dir 'streamlit>=1.30'",
+  # La comprobación va en el BUILD a propósito: un fallo de instalación tiene que verse
+  # al desplegar y no la primera vez que alguien abre la app.
+  "PYTHONPATH=/app/python_libs python3 -c 'import streamlit; print(\"Streamlit OK\", streamlit.__version__)'",
   "PYTHONPATH=/app/python_libs python3 -c 'import PIL, pypdf, svglib, reportlab; print(\"Core Python deps OK; PIL\", PIL.__version__)'"
 ]
 

@@ -93,12 +93,16 @@ from shmir_design.presentation import (  # noqa: E402
 )
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
 from shmir_design.reference import (  # noqa: E402
-    PACKAGE_REFERENCE_DIR,
     REFERENCES,
     extract_3utr,
     sequence_md5,
 )
 from shmir_design.resources import load_from_manifest  # noqa: E402
+from shmir_design.trabajo import (  # noqa: E402
+    WHY_A_WORKING_DIR,
+    is_declared,
+    reference_dir,
+)
 from shmir_design.species import resolve as resolve_species  # noqa: E402
 from shmir_design.resolve import check_boundaries, resolve_anatomy  # noqa: E402
 from shmir_design.scaffold import SGEP_SCAFFOLD, load_scaffold  # noqa: E402
@@ -414,11 +418,16 @@ def _panel_referencias(especie: str) -> None:
         )
         return
 
-    resumen = reference_panel_summary(especie, directory=PACKAGE_REFERENCE_DIR)
+    resumen = reference_panel_summary(especie, directory=reference_dir())
     st.sidebar.caption(
         f"{resumen['cerrables']} de {resumen['total']} frentes cerrables con lo que hay."
     )
-    for fila in reference_panel_rows(especie, directory=PACKAGE_REFERENCE_DIR):
+    # Donde van a parar los ficheros. Solo cuando NO es el del paquete: en local, decirlo
+    # seria ruido; en un servidor, no decirlo deja al usuario sin saber si lo que sube
+    # sobrevive a un redespliegue.
+    if is_declared():
+        st.sidebar.caption(f"Se guardan en `{reference_dir()}`. {WHY_A_WORKING_DIR}")
+    for fila in reference_panel_rows(especie, directory=reference_dir()):
         marca = "✅" if fila["presente"] else ("⬜" if fila["obligatorio"] else "▫️")
         with st.sidebar.expander(f"{marca} {fila['nombre']}", expanded=False):
             st.caption(fila["que_desbloquea"])
@@ -441,7 +450,7 @@ def _panel_referencias(especie: str) -> None:
                 try:
                     hecho = accept_reference_upload(
                         especie,
-                        directory=PACKAGE_REFERENCE_DIR,
+                        directory=reference_dir(),
                         filename=fila["nombre"],
                         payload=subido.getvalue(),
                         date=fecha,
@@ -596,11 +605,11 @@ def main() -> None:
     pasos = steps_rows(
         species=nombre_modelo,
         sequence_loaded=modelo is not None,
-        directory=PACKAGE_REFERENCE_DIR,
+        directory=reference_dir(),
     )
     tercero = pasos[2]
     st.info(tercero["detalle"])
-    resumen = reference_panel_summary(nombre_modelo, directory=PACKAGE_REFERENCE_DIR)
+    resumen = reference_panel_summary(nombre_modelo, directory=reference_dir())
     with st.expander(f"Frentes que quedan abiertos ({len(resumen['abiertos'])})"):
         for fila in resumen["abiertos"]:
             st.write(f"· **{fila['frente']}** — falta {fila['falta']}")
@@ -649,7 +658,7 @@ def main() -> None:
         # en un transcrito humano sin salirse de rango. Es el mismo agujero que cierra
         # `RepeatMask.query_length` un nivel mas abajo.
         recursos = load_from_manifest(
-            PACKAGE_REFERENCE_DIR,
+            reference_dir(),
             target=gen_diana.strip() or None,
             species=resolve_species(nombre_modelo),
         )
