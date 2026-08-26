@@ -476,6 +476,12 @@ Todas las columnas, con un estado POR FILTRO. No se colapsan ni se omiten los qu
 | 2 | 819 | 840 | 3'UTR | 819 | 840 | distal | 5.96 | CATAAA | OTRA | aguas abajo, 66 nt | 907 | 330 | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 568 |  |  |  | PASS | PASS | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCTCCATTCCAAAGTGGGAAAG | UUUUCCCACUUUGGAAUGGAGC |
 | 1 | 1018 | 1039 | 3'UTR | 1018 | 1039 | distal | 6.65 | ACTAAA | OTRA | dentro | 1034 | 203 | si | PASS | FAIL | PASS | TECHO | NO_APLICA | PENALIZADO | 767 |  |  |  | PASS | PASS | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | True | True | prediccion:si | INCOMPLETE | GGCCGTTCCATCCAGTACTAAA | UUUAGUACUGGAUGGAACGGCC |
 
+> **MULTIPLEXADO: hay candidatos que comparten nucleo.**
+
+- 3utr:449 y 3utr:1018 comparten el nucleo TACTAA con heptameros DISTINTOS (TTAGTAA y TTAGTAC): difieren solo en la posicion 8, asi que la colision de seed no los empareja y este eje si.
+
+CONSECUENCIA PARA EL MULTIPLEXADO. Dos candidatos que comparten el NUCLEO de 6 nt no son dos apuestas independientes en el eje de off-targets, aunque su heptamero difiera y aunque el espaciado los de por buenos: las cuatro clases de sitio se construyen sobre ese nucleo, asi que casi toda su red de dianas accesorias es la misma. Y el espaciado no lo ve — mide DISTANCIA en el 3'UTR, no parecido de seed. El caso murino es exactamente ese: `3utr:449` y `3utr:1018` son la pareja que el espaciado sugeriria —extremos opuestos del 3'UTR y los dos con buena asimetria— y en este eje serian la PEOR eleccion posible.
+
 ## 5. Fichas de los seleccionados
 
 Una ficha por candidato seleccionado, con el veredicto de CADA frente, su procedencia y su fecha.
@@ -509,6 +515,12 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
 
 ── Techo de APA ──
   sin techo — 3utr:1-251  sin techo            por delante de todos los cortes medidos: la diana esta en TODAS las isoformas. INMUNE.
+
+── Sitios de esta seed en la PROPIA diana (esperado: 1) ──
+  3utr:215 7mer-m8 (el suyo)
+
+── Multiplexado: nucleo de seed compartido ──
+  Con ningun otro candidato del panel. En este eje es independiente.
 
 ── Hexameros cercanos ──
   AATATA  3utr:236  APA_POSIBLE/medida a 15 nt por delante

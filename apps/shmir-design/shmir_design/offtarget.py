@@ -803,6 +803,53 @@ def controls_from_mature(mature, index: KmerIndex, *, prefix: str,
 
 
 @dataclass(frozen=True)
+class SelfSite:
+    """UN sitio en la propia diana, con su CLASE. Sin clase no se puede interpretar.
+
+    Un 8mer en la propia diana da cooperatividad real —dos sitios fuertes en el mismo
+    mensajero— y explicaria un rendimiento por encima de lo esperado. Un 6mer es
+    marginal. Dar solo el nucleo y el conteo deja al lector sin poder distinguirlos.
+    """
+
+    position: int
+    site_class: str
+    own_window: bool
+
+    def describe(self) -> str:
+        marca = "el suyo" if self.own_window else "SEGUNDO SITIO"
+        return f"3utr:{self.position} {self.site_class} ({marca})"
+
+
+def self_sites(strand: str, *, target: str, window=None) -> tuple[SelfSite, ...]:
+    """Los sitios de esta hebra en su propia diana, con posicion y CLASE.
+
+    `window` es el intervalo (inicio, fin) de la ventana del candidato, para poder decir
+    cual de los sitios es EL SUYO. Sin ella no se marca ninguno: inventar cual es el
+    propio a partir del orden seria un supuesto.
+    """
+    patrones = site_patterns(strand)
+    seq = _normalize(target)
+    core = patrones.core
+    largo = len(core)
+    sitios = []
+    i = seq.find(core)
+    while i != -1:
+        anterior = seq[i - 1] if i > 0 else PAD
+        siguiente = seq[i + largo] if i + largo < len(seq) else PAD
+        if anterior == patrones.m8_base:
+            clase = "8mer" if siguiente == "A" else "7mer-m8"
+        else:
+            clase = "7mer-A1" if siguiente == "A" else "6mer"
+        posicion = i + 1
+        propio = bool(window) and window[0] <= posicion <= window[1]
+        sitios.append(
+            SelfSite(position=posicion, site_class=clase, own_window=propio)
+        )
+        i = seq.find(core, i + 1)
+    return tuple(sitios)
+
+
+@dataclass(frozen=True)
 class SelfCount:
     """Cuantos sitios tiene la hebra en su PROPIA diana. Deberia ser 1."""
 
@@ -810,6 +857,7 @@ class SelfCount:
     target_label: str
     occurrences: int
     sites: dict[str, int]
+    detail: tuple[SelfSite, ...] = ()
     expected: int = 1
 
     @property
@@ -829,22 +877,178 @@ class SelfCount:
                 f"NO sale de esa diana. Comprueba que la secuencia analizada es la que "
                 f"se cree."
             )
+        detalle = "; ".join(s.describe() for s in self.detail)
         return (
-            f"{self.query}: {self.occurrences} sitios en {self.target_label}. ANOMALO: "
-            f"hay MULTIPLES DIANAS en el mismo mensajero, asi que la cinetica de "
-            f"knockdown no se lee igual — el efecto no es de un solo sitio."
+            f"{self.query}: {self.occurrences} sitios en {self.target_label} "
+            f"[{detalle}]. ANOMALO: hay MULTIPLES DIANAS en el mismo mensajero, asi que "
+            f"la cinetica de knockdown no se lee igual — el efecto no es de un solo "
+            f"sitio. La CLASE de cada uno decide como se lee: un 8mer o un 7mer-m8 de "
+            f"mas dan cooperatividad real; un 6mer es marginal."
         )
 
 
 def self_count(strand: str, *, target: str, target_label: str,
-               query: str = "") -> SelfCount:
+               query: str = "", window=None) -> SelfCount:
     patrones = site_patterns(strand)
     return SelfCount(
         query=query or patrones.heptamer,
         target_label=target_label,
         occurrences=core_occurrences(target, patrones),
         sites=count_in(target, patrones),
+        detail=self_sites(strand, target=target, window=window),
     )
+
+
+@dataclass(frozen=True)
+class SharedNetwork:
+    """Cuanto se solapan las redes de off-target de DOS hebras, por clase.
+
+    Dos candidatos con el MISMO NUCLEO de 6 nt no son independientes en este eje aunque
+    su heptamero difiera: comparten el nucleo, asi que comparten sitios. Lo que decide
+    cuanto es la CLASE en que cae cada sitio compartido, y eso depende de la posicion 8,
+    que es justo lo que los distingue.
+
+    `positions_shared` cuenta POSICIONES, no clases: la misma posicion puede ser 8mer
+    para uno y 6mer para el otro, y eso es informacion, no un empate.
+    """
+
+    a: str
+    b: str
+    same_core: bool
+    positions_shared: int
+    positions_a: int
+    positions_b: int
+    #: (clase en A, clase en B) → cuantas posiciones compartidas caen asi.
+    by_class: dict[tuple[str, str], int]
+    source: str
+
+    @property
+    def jaccard(self) -> float:
+        union = self.positions_a + self.positions_b - self.positions_shared
+        return self.positions_shared / union if union else 0.0
+
+    def describe(self) -> list[str]:
+        lineas = [
+            f"{self.a} vs {self.b}: nucleo {'COMPARTIDO' if self.same_core else 'distinto'}",
+            f"  posiciones con sitio: {self.positions_a} y {self.positions_b}; "
+            f"COMPARTIDAS {self.positions_shared} (Jaccard {self.jaccard:.2f})",
+            f"  fuente: {self.source}",
+        ]
+        for (clase_a, clase_b), n in sorted(self.by_class.items()):
+            lineas.append(f"    {n} posicion(es): {clase_a} en {self.a} / {clase_b} en {self.b}")
+        return lineas
+
+
+def shared_network(strand_a: str, strand_b: str, *, catalog: "Catalog | None",
+                   label_a: str = "A", label_b: str = "B") -> SharedNetwork | None:
+    """La interseccion REAL de las dos listas de sitios, por clase. Sin catalogo: None.
+
+    `None` significa NO CALCULADO, y quien lo reciba tiene que decirlo con esas palabras:
+    no es cero, y dos redes que no se han comparado no son dos redes independientes.
+    """
+    if catalog is None:
+        return None
+    patrones_a = site_patterns(strand_a)
+    patrones_b = site_patterns(strand_b)
+
+    def posiciones(hebra: str) -> dict[tuple[str, int], str]:
+        """(registro, posicion) → clase. La CLAVE es la posicion, no la clase."""
+        tabla: dict[tuple[str, int], str] = {}
+        for nombre, secuencia in catalog.records:
+            for sitio in self_sites(hebra, target=secuencia):
+                tabla[(nombre, sitio.position)] = sitio.site_class
+        return tabla
+
+    posiciones_a = posiciones(strand_a)
+    posiciones_b = posiciones(strand_b)
+    compartidas = set(posiciones_a) & set(posiciones_b)
+    por_clase: dict[tuple[str, str], int] = {}
+    for clave in compartidas:
+        par = (posiciones_a[clave], posiciones_b[clave])
+        por_clase[par] = por_clase.get(par, 0) + 1
+    return SharedNetwork(
+        a=label_a, b=label_b,
+        same_core=patrones_a.core == patrones_b.core,
+        positions_shared=len(compartidas),
+        positions_a=len(posiciones_a),
+        positions_b=len(posiciones_b),
+        by_class=por_clase,
+        source=f"{catalog.provenance.source} ({catalog.provenance.assembly})",
+    )
+
+
+# ─────────────────────── consecuencia para el MULTIPLEXADO ────────────────────────
+
+MULTIPLEX_NOTE = (
+    "CONSECUENCIA PARA EL MULTIPLEXADO. Dos candidatos que comparten el NUCLEO de 6 nt "
+    "no son dos apuestas independientes en el eje de off-targets, aunque su heptamero "
+    "difiera y aunque el espaciado los de por buenos: las cuatro clases de sitio se "
+    "construyen sobre ese nucleo, asi que casi toda su red de dianas accesorias es la "
+    "misma. Y el espaciado no lo ve — mide DISTANCIA en el 3'UTR, no parecido de seed. "
+    "El caso murino es exactamente ese: `3utr:449` y `3utr:1018` son la pareja que el "
+    "espaciado sugeriria —extremos opuestos del 3'UTR y los dos con buena asimetria— y "
+    "en este eje serian la PEOR eleccion posible."
+)
+
+
+@dataclass(frozen=True)
+class CoreConflict:
+    """Dos candidatos SELECCIONADOS que comparten nucleo. Aviso, no veto."""
+
+    a: int
+    b: int
+    core: str
+    heptamer_a: str
+    heptamer_b: str
+
+    @property
+    def same_heptamer(self) -> bool:
+        return self.heptamer_a == self.heptamer_b
+
+    def describe(self, *, label_a: str, label_b: str) -> str:
+        """Las DOS etiquetas se reciben ya hechas, y no hay valor por defecto.
+
+        Poner `3utr:` aqui dentro es exactamente el fallo que este proyecto lleva
+        cazando: sobre un informe del transcrito completo salio `3utr:1398` y `3utr:1967`
+        —posiciones validas del transcrito etiquetadas como 3'UTR— sin dar ningun error.
+        El marco se RECIBE, sacado de la anatomia por quien escribe.
+        """
+        eje = (
+            "y ademas el mismo heptamero, asi que tampoco son independientes en la "
+            "colision con miARN endogeno"
+            if self.same_heptamer
+            else f"con heptameros DISTINTOS ({self.heptamer_a} y {self.heptamer_b}): "
+                 f"difieren solo en la posicion 8, asi que la colision de seed no los "
+                 f"empareja y este eje si"
+        )
+        return f"{label_a} y {label_b} comparten el nucleo {self.core} {eje}."
+
+
+def core_conflicts(selection) -> tuple[CoreConflict, ...]:
+    """Pares de candidatos ELEGIDOS que comparten nucleo de 6 nt.
+
+    Mismo papel que el aviso de espaciado, en otro eje: no descarta a nadie — dice que
+    esos dos no compran la independencia que el panel cree estar comprando.
+    """
+    elegidos = list(selection.selection.chosen)
+    por_inicio = {}
+    for elegido in elegidos:
+        guia = selection.window_of(elegido).evaluation.guide
+        patrones = site_patterns(guia)
+        por_inicio[elegido.start] = patrones
+    conflictos = []
+    inicios = sorted(por_inicio)
+    for i, uno in enumerate(inicios):
+        for otro in inicios[i + 1 :]:
+            if por_inicio[uno].core == por_inicio[otro].core:
+                conflictos.append(
+                    CoreConflict(
+                        a=uno, b=otro, core=por_inicio[uno].core,
+                        heptamer_a=por_inicio[uno].heptamer,
+                        heptamer_b=por_inicio[otro].heptamer,
+                    )
+                )
+    return tuple(conflictos)
 
 
 # ────────────────────────────────── la corrida ────────────────────────────────────
@@ -1020,6 +1224,15 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
     # acabaria divergiendo de la del otro modal sin que nadie lo notara.
     from .seed_scan import _strands
 
+    # La ventana de cada candidato EN COORDENADAS DE 3'UTR, que es el marco de `target`.
+    # Es lo unico que permite decir cual de los sitios de la propia diana es EL SUYO; sin
+    # ella no se marca ninguno, porque deducirlo del orden seria un supuesto.
+    ventanas = {
+        c.start: (
+            selection.window_of(c).inicio_3utr, selection.window_of(c).fin_3utr
+        )
+        for c in selection.selection.chosen
+    }
     nulas: dict[str, Null] = {}
     resultados: list[LoadResult] = []
     autoconteos: dict[str, SelfCount] = {}
@@ -1051,6 +1264,7 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
         )
         autoconteos[consulta] = self_count(
             secuencia, target=target, target_label=target_label, query=consulta,
+            window=ventanas.get(inicio),
         )
         crudas.append(
             "\t".join(

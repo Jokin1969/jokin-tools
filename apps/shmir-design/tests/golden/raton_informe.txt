@@ -604,6 +604,24 @@
   banco, con las tres lecturas de su bloque. Ademas es el unico BINARIO — los demas degradan el
   resultado, este lo anula: sin empalme no hay proteina DN en absoluto.
 
+── Multiplexado: nucleos de seed compartidos ──
+  ⚠  tx:1398 y tx:1967 comparten el nucleo TACTAA con heptameros DISTINTOS (TTAGTAA y
+     TTAGTAC): difieren solo en la posicion 8, asi que la colision de seed no los empareja
+     y este eje si.
+  CONSECUENCIA PARA EL MULTIPLEXADO. Dos candidatos que comparten el NUCLEO de 6 nt no
+  son dos apuestas independientes en el eje de off-targets, aunque su heptamero difiera
+  y aunque el espaciado los de por buenos: las cuatro clases de sitio se construyen
+  sobre ese nucleo, asi que casi toda su red de dianas accesorias es la misma. Y el
+  espaciado no lo ve — mide DISTANCIA en el 3'UTR, no parecido de seed. El caso murino
+  es exactamente ese: `3utr:449` y `3utr:1018` son la pareja que el espaciado sugeriria
+  —extremos opuestos del 3'UTR y los dos con buena asimetria— y en este eje serian la
+  PEOR eleccion posible.
+
+── Triple motivo: repetitivo + polimorfico + TECHO ──
+  NOT_RUN: hace falta la mascara de repeticiones y un tilado SIN enmascarar. Con la
+  mascara puesta el paso 15 retila, asi que esas ventanas ya no estan en la piscina y una
+  lista por ventana saldria VACIA — que no es lo mismo que limpia.
+
 ── Avisos ──
   ⚠  [APA_PROXIMAL] Posible poliadenilacion alternativa: AATATA (medida) en tx:1185 (a 1001 nt del extremo 3'). Afecta a 980 de 2170 ventana(s) corriente abajo (45.2%), posiciones tx:1191-2191. Podrian no capturar la isoforma corta. NO se excluyen: quedan anotadas con riesgo_APA=True y la lista completa esta en el TSV. La decision es del responsable. El limite de riesgo es la SEÑAL (tx:1185), no el sitio de corte, que cae 10-30 nt aguas abajo: el marcado es conservador a proposito y NO es una prediccion del extremo de la isoforma corta.
   ⚠  [APA_PROXIMAL] Posible poliadenilacion alternativa: AATAAA canonica en tx:1237 (a 949 nt del extremo 3'). Afecta a 928 de 2170 ventana(s) corriente abajo (42.8%), posiciones tx:1243-2191. Podrian no capturar la isoforma corta. NO se excluyen: quedan anotadas con riesgo_APA=True y la lista completa esta en el TSV. La decision es del responsable. El limite de riesgo es la SEÑAL (tx:1237), no el sitio de corte, que cae 10-30 nt aguas abajo: el marcado es conservador a proposito y NO es una prediccion del extremo de la isoforma corta.

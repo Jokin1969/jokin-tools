@@ -76,6 +76,12 @@ class Dossier:
     cassette: str
     blast_history: tuple
     module_note: str = ""
+    #: Otros candidatos ELEGIDOS que comparten el nucleo de seed de 6 nt con este. No
+    #: es un veredicto del candidato: es una propiedad de la PAREJA, y por eso va en su
+    #: propia fila y no mezclada con los frentes.
+    core_shared_with: tuple[str, ...] = ()
+    #: Sitios de ESTA hebra en su propia diana, con su clase.
+    self_sites: tuple = ()
 
     def render(self) -> str:
         lineas = [
@@ -104,6 +110,32 @@ class Dossier:
             lineas.append(f"  sin techo — {self.ceiling_layer}")
         else:
             lineas.append(f"  {self.ceiling:.2f} — {self.ceiling_layer}")
+        lineas.extend(["", "── Sitios de esta seed en la PROPIA diana (esperado: 1) ──"])
+        if not self.self_sites:
+            lineas.append(
+                "  NO CALCULADO en esta ficha. No es cero: no se ha contado."
+            )
+        else:
+            lineas.extend(f"  {s.describe()}" for s in self.self_sites)
+            if len(self.self_sites) > 1:
+                lineas.append(
+                    "  ⚠  MAS DE UNO: hay varias dianas en el mismo mensajero, asi que "
+                    "la cinetica no se lee"
+                )
+                lineas.append(
+                    "     igual. La CLASE decide cuanto importa — un 8mer o un 7mer-m8 "
+                    "de mas dan cooperatividad"
+                )
+                lineas.append("     real; un 6mer es marginal.")
+
+        lineas.extend(["", "── Multiplexado: nucleo de seed compartido ──"])
+        if self.core_shared_with:
+            lineas.extend(f"  ⚠  {c}" for c in self.core_shared_with)
+        else:
+            lineas.append(
+                "  Con ningun otro candidato del panel. En este eje es independiente."
+            )
+
         lineas.extend(["", "── Hexameros cercanos ──"])
         if self.hexamers:
             lineas.extend(f"  {h.describe()}" for h in self.hexamers)
@@ -165,7 +197,7 @@ def _hexamers_near(tiling, start: int, end: int, *, offset: int, window: int = 6
 
 def build_dossier(
     *, species: str, tiling, selection, start: int, store=None, seed_store=None,
-    offtarget_store=None,
+    offtarget_store=None, target: str | None = None,
 ) -> Dossier:
     """Reune la ficha de UN candidato. Aborta si ese sitio no esta en el panel."""
     from .blocks import build_block
@@ -267,6 +299,29 @@ def build_dossier(
 
     capa = tiling.measured_apa.layer_for(ventana.window.start) if tiling.measured_apa else None
     bloque = build_block(ventana.evaluation.guide, scaffold=SGEP_SCAFFOLD)
+
+    # Nucleo compartido con otros ELEGIDOS, y sitios de esta seed en la propia diana.
+    # Los dos salen del mismo sitio (`offtarget`) y contestan dos preguntas distintas:
+    # con quien NO es independiente, y cuantas dianas tiene en su propio mensajero.
+    from .offtarget import core_conflicts, self_sites
+
+    from .coords import Frame, frame_of, label as etiqueta
+
+    marco_ficha = (
+        frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
+    )
+    compartido = tuple(
+        c.describe(
+            label_a=etiqueta(c.a, marco_ficha), label_b=etiqueta(c.b, marco_ficha)
+        )
+        for c in core_conflicts(selection)
+        if start in (c.a, c.b)
+    )
+    propios = self_sites(
+        ventana.evaluation.guide,
+        target=target if target is not None else "",
+        window=(ventana.inicio_3utr, ventana.fin_3utr),
+    ) if target is not None else ()
     return Dossier(
         species=species, start=start, end=elegido.end - desfase,
         guide=ventana.evaluation.guide.replace("U", "T"),
@@ -284,6 +339,8 @@ def build_dossier(
         hexamers=_hexamers_near(
             tiling, ventana.window.start, ventana.window.end, offset=0
         ),
+        core_shared_with=compartido,
+        self_sites=propios,
         module=bloque.module,
         cassette=bloque.cassette,
         blast_history=almacen.history(consulta),

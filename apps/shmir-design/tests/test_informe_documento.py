@@ -43,7 +43,10 @@ def _documento():
     return informe_doc.build_document(
         species="mouse", tiling=informe, selection=seleccion, generated=FECHA,
         anatomy_source="lo tilado ES el 3'UTR (fixture verificado por md5)",
-        dossier_starts=(200,),
+        # `target` igual que en `tools/regenerar_golden.py`: el documento se construye
+        # AQUI exactamente como se genera el golden, o el golden deja de comparar lo
+        # que se entrega.
+        dossier_starts=(200,), target=utr3,
     )
 
 
@@ -269,6 +272,46 @@ class TestElGolden(unittest.TestCase):
                 "`python3 tools/regenerar_golden.py` y que el diff entre en la "
                 f"revision:\n{diff[:4000]}"
             )
+
+
+    def test_lo_UNICO_fijado_es_la_FECHA_no_la_procedencia_de_la_entrada(self):
+        """La fecha es ruido; el md5 de la entrada, no.
+
+        El generador del golden fija la fecha para que el diff siga significando algo.
+        Lo que NO se fija es la secuencia: su longitud y su md5 salen del informe, asi
+        que un documento generado sobre OTRA secuencia hace fallar el golden. Se
+        comprueba construyendolo sobre el 3'UTR humano.
+        """
+        from shmir_design.selection import SelectionConfig, select_from_report
+        from shmir_design.tiling import tile_utr
+
+        humano = REFERENCES["NM_000311.5"]
+        if not fixture_available(humano):
+            self.skipTest("NOT_RUN: falta el fixture humano")
+        utr3 = load_3utr(humano)
+        informe = tile_utr(utr3)
+        otro = informe_doc.build_document(
+            species="human", tiling=informe,
+            selection=select_from_report(informe, SelectionConfig(n_candidates=10)),
+            generated=FECHA,  # MISMA fecha: el unico campo que el golden fija
+            anatomy_source="lo tilado ES el 3'UTR (fixture verificado por md5)",
+            dossier_starts=(),
+        ).markdown()
+        golden = GOLDEN.read_text(encoding="utf-8")
+        self.assertNotEqual(
+            otro, golden,
+            "Con la fecha igualada, el golden TIENE que seguir distinguiendo dos "
+            "secuencias distintas: si no, no fija la procedencia de la entrada.",
+        )
+        self.assertIn("1242 nt / 19f5fa2a", golden)
+        self.assertNotIn("1242 nt / 19f5fa2a", otro)
+
+    def test_y_el_md5_del_documento_es_el_de_la_secuencia_ANALIZADA(self):
+        from shmir_design.reference import sequence_md5
+
+        doc = _documento()
+        texto = "\n".join(_markdown_of(doc.section(1)))
+        self.assertIn(sequence_md5(load_3utr(RATON)), texto)
 
     def test_el_golden_de_hoy_es_el_PARCIAL_y_lo_dice(self):
         self.assertIn("Estado del informe: PARCIAL", GOLDEN.read_text(encoding="utf-8"))

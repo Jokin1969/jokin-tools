@@ -25,6 +25,12 @@
 ── Techo de APA ──
   sin techo — 3utr:1-251  sin techo            por delante de todos los cortes medidos: la diana esta en TODAS las isoformas. INMUNE.
 
+── Sitios de esta seed en la PROPIA diana (esperado: 1) ──
+  3utr:215 7mer-m8 (el suyo)
+
+── Multiplexado: nucleo de seed compartido ──
+  Con ningun otro candidato del panel. En este eje es independiente.
+
 ── Hexameros cercanos ──
   AATATA  3utr:236  APA_POSIBLE/medida a 15 nt por delante
 

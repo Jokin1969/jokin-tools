@@ -31,6 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from shmir_design import masking  # noqa: E402
 from shmir_design.apa import POLYA_DB_PRNP, load_apa_sites, resolve_measured  # noqa: E402
 from shmir_design.splicing import intronless_control, plan_from_records  # noqa: E402
 from shmir_design.anatomy import (  # noqa: E402
@@ -968,11 +969,41 @@ def main(argv: list[str]) -> int:
                 convergencias[especie] = _convergencia(
                     args.convergencia, tiling=tiling, seleccion=seleccion
                 )
+            # El detalle POR VENTANA del triple motivo necesita un informe tilado SIN
+            # mascara: con ella el paso 15 retila y esas ventanas ya no estan en la
+            # piscina, asi que la lista saldria vacia — que no es lo mismo que limpia.
+            # Y los DOS desfases van explicitos y por nombre (masking.triple_motive_rows
+            # no admite omitir ninguno): el de busqueda en la mascara y el de etiquetado.
+            triple = None
+            if mask is not None:
+                sin_mascara = tile_utr(
+                    secuencia,
+                    measured_apa=medido,
+                    seeds=seeds,
+                    anatomy=anatomias[especie],
+                    tile_range=rangos[especie],
+                    polya_mode=PolyAMode(args.polyA_modo),
+                    thresholds=umbrales,
+                )
+                inicio_utr3 = anatomias[especie].utr3[0]
+                triple = masking.triple_motive_rows(
+                    sin_mascara,
+                    mask,
+                    # El informe tila el MISMO transcrito sobre el que se corrio
+                    # RepeatMasker, asi que para BUSCAR en la mascara no hay desfase...
+                    mask_offset=0,
+                    # ...y para ETIQUETAR hay que pasar de transcrito a 3'UTR, que es
+                    # RESTAR el inicio del 3'UTR menos uno. El signo importa y no es
+                    # cosmetico: con el contrario salio `3utr:2613` sobre un transcrito
+                    # de 2435 nt, y lo cazo el invariante de rango en el acto.
+                    label_offset=inicio_utr3 - 1,
+                )
             informe = text_report(
                 species=especie,
                 tiling=tiling,
                 selection=seleccion,
                 scaffold=scaffold,
+                triple_motive=triple,
                 convergence=convergencias.get(especie),
                 polya_conservation=_conservacion_polya(
                     especie, secuencias, anatomias

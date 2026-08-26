@@ -142,6 +142,13 @@ class PreviewRow:
     sequence: str
     heptamer: str
     shared_with: tuple[int, ...] = ()
+    #: Los que comparten el NUCLEO de 6 nt sin compartir heptamero. Es otro eje: dos
+    #: candidatos que difieren solo en la posicion 8 tienen heptameros distintos —asi
+    #: que la colision con miARN no los empareja— y sin embargo comparten casi toda su
+    #: red de off-targets, porque las cuatro clases de sitio se construyen sobre ese
+    #: nucleo. Hasta hoy eso no se veia en ninguna parte.
+    shared_core_with: tuple[int, ...] = ()
+    core: str = ""
     checked: bool = True
 
     def describe(self) -> str:
@@ -150,6 +157,11 @@ class PreviewRow:
             + ", 3utr:".join(str(s) for s in self.shared_with)
             if self.shared_with else ""
         )
+        if self.shared_core_with:
+            compartido += (
+                "  ⚠ COMPARTE NUCLEO de 6 nt con 3utr:"
+                + ", 3utr:".join(str(s) for s in self.shared_core_with)
+            )
         return (
             f"3utr:{self.start:<6} {self.strand:<10} {self.sequence:<24} "
             f"{self.heptamer}{compartido}"
@@ -186,23 +198,35 @@ def preview_rows(selection, *, species: str, params: SeedParams = DEFAULTS, star
     """
     if starts is None:
         starts = tuple(c.start for c in selection.selection.chosen)
+    from .offtarget import site_patterns
+
     crudas = [
-        (inicio, hebra, secuencia, params.seed_of(secuencia))
+        (
+            inicio, hebra, secuencia, params.seed_of(secuencia),
+            site_patterns(secuencia).core,
+        )
         for inicio, hebra, secuencia in _strands(
             selection, species, starts, guides, passengers
         )
     ]
     por_hepta: dict[str, list[int]] = {}
-    for inicio, _, _, hepta in crudas:
+    por_nucleo: dict[str, list[int]] = {}
+    for inicio, _, _, hepta, nucleo in crudas:
         por_hepta.setdefault(hepta, []).append(inicio)
+        por_nucleo.setdefault(nucleo, []).append(inicio)
     return tuple(
         PreviewRow(
             start=inicio, strand=hebra, sequence=secuencia, heptamer=hepta,
-            shared_with=tuple(
-                sorted(set(por_hepta[hepta]) - {inicio})
+            core=nucleo,
+            shared_with=tuple(sorted(set(por_hepta[hepta]) - {inicio})),
+            # Solo los que comparten NUCLEO y NO heptamero: si comparten heptamero ya
+            # sale en la otra columna, y repetirlo haria que la nueva pareciera
+            # redundante justo cuando dice algo distinto.
+            shared_core_with=tuple(
+                sorted(set(por_nucleo[nucleo]) - set(por_hepta[hepta]))
             ),
         )
-        for inicio, hebra, secuencia, hepta in crudas
+        for inicio, hebra, secuencia, hepta, nucleo in crudas
     )
 
 

@@ -653,7 +653,7 @@ class TripleMotive:
 
 
 def triple_motive_rows(
-    report, mask: RepeatMask, *, mask_offset: int = 0, label_offset: int = 0
+    report, mask: RepeatMask, *, mask_offset: int, label_offset: int
 ):
     """Ventanas elegibles que caen por repetitivo, por polimorfico Y por techo de APA.
 
@@ -677,6 +677,12 @@ def triple_motive_rows(
 
     En un informe del transcrito completo son `0` y `desfase`; en uno del 3'UTR solo,
     `desfase` y `0`. Nunca los dos iguales salvo que los dos sean cero.
+
+    **Los dos son OBLIGATORIOS y van por nombre, sin valor por defecto**, para que
+    llamar a esto con uno solo sea IMPOSIBLE y no meramente improbable. Es la leccion de
+    la errata nº 6 aplicada a la firma: una constante que sirve para dos preguntas son
+    DOS constantes, y un valor por defecto de cero habria dejado que el fallo volviera
+    exactamente igual — sin dar ningun error, porque las dos coordenadas son validas.
     """
     from .polya import CLEAVAGE_MAX, SignalClass
     from .selection import is_eligible

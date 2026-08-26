@@ -237,6 +237,7 @@ def text_report(
     convergence=None,
     polya_conservation=None,
     orf_sweep=None,
+    triple_motive=None,
 ) -> str:
     lines = [
         f"═══ Diseño de shmiR — {species} ═══",
@@ -1166,6 +1167,67 @@ def text_report(
             lines.append(
                 "  resultado, este lo anula: sin empalme no hay proteina DN en absoluto."
             )
+
+    # ── Multiplexado: nucleos de seed compartidos ──────────────────────────────
+    # Va SIEMPRE, no solo cuando hay conflicto: «ninguno» es informacion y su ausencia
+    # se leeria como que nadie lo miro. Es el mismo papel que el aviso de espaciado, en
+    # otro eje — y este el espaciado no lo ve, porque mide distancia y no parecido.
+    from .offtarget import MULTIPLEX_NOTE, core_conflicts
+
+    conflictos = core_conflicts(selection)
+    lines.extend(["", "── Multiplexado: nucleos de seed compartidos ──"])
+    if conflictos:
+        for conflicto in conflictos:
+            # Las dos etiquetas salen del MARCO del informe, no de un prefijo escrito
+            # dentro de `describe()`: sobre un informe del transcrito completo eso
+            # imprimia `3utr:` para coordenadas de transcrito, sin dar ningun error.
+            texto = conflicto.describe(
+                label_a=label(conflicto.a, marco),
+                label_b=label(conflicto.b, marco),
+            )
+            envueltas = _envolver(texto, 86)
+            lines.append(f"  ⚠  {envueltas[0]}")
+            lines.extend(f"     {l}" for l in envueltas[1:])
+        lines.extend(f"  {l}" for l in _envolver(MULTIPLEX_NOTE, 86))
+    else:
+        lines.append(
+            "  Ninguna pareja del panel comparte el nucleo de 6 nt: en este eje los "
+            "candidatos son"
+        )
+        lines.append(
+            "  independientes. Se dice aunque salga limpio — su ausencia se leeria como "
+            "que nadie lo miro."
+        )
+
+    # ── Triple motivo por ventana ──────────────────────────────────────────────
+    # Estaba calculado y no salia en ninguna parte: era el unico analisis del proyecto
+    # que existia solo porque alguien lo corria a mano. Las filas se calculan fuera
+    # —hace falta un informe tilado SIN mascara— y entran por parametro, como la
+    # convergencia.
+    lines.extend(["", "── Triple motivo: repetitivo + polimorfico + TECHO ──"])
+    if triple_motive is None:
+        lines.append(
+            "  NOT_RUN: hace falta la mascara de repeticiones y un tilado SIN "
+            "enmascarar. Con la"
+        )
+        lines.append(
+            "  mascara puesta el paso 15 retila, asi que esas ventanas ya no estan en la "
+            "piscina y una"
+        )
+        lines.append("  lista por ventana saldria VACIA — que no es lo mismo que limpia.")
+    elif not triple_motive:
+        lines.append(
+            "  Ninguna ventana elegible cae por los tres ejes a la vez sobre esta "
+            "secuencia."
+        )
+    else:
+        lines.append(
+            f"  {len(triple_motive)} ventana(s) caen por TRES razones INDEPENDIENTES. No "
+            f"se recuperan"
+        )
+        lines.append("  arreglando una:")
+        for fila in triple_motive:
+            lines.extend(f"    {l}" for l in _envolver(fila.describe(), 84))
 
     lines.extend(["", "── Avisos ──"])
     avisos: list[str] = []

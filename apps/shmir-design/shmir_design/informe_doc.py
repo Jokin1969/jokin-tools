@@ -416,22 +416,44 @@ def _section_4(selection) -> Section:
                 ),
             ),
         )
+    from .offtarget import MULTIPLEX_NOTE, core_conflicts
+
     cabeceras = tuple(filas[0])
-    return Section(
-        number=4,
-        title="Tabla de candidatos",
-        blocks=(
-            para(
-                "Todas las columnas, con un estado POR FILTRO. No se colapsan ni se "
-                "omiten los que no corrieron: un filtro ausente de la tabla es "
-                "indistinguible de uno superado."
-            ),
-            table(cabeceras, [tuple(str(f[c]) for c in cabeceras) for f in filas]),
+    bloques = [
+        para(
+            "Todas las columnas, con un estado POR FILTRO. No se colapsan ni se "
+            "omiten los que no corrieron: un filtro ausente de la tabla es "
+            "indistinguible de uno superado."
         ),
-    )
+        table(cabeceras, [tuple(str(f[c]) for c in cabeceras) for f in filas]),
+    ]
+    from .coords import Frame, frame_of, label as etiqueta
+
+    marco = frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
+    conflictos = core_conflicts(selection)
+    if conflictos:
+        bloques.append(warning("MULTIPLEXADO: hay candidatos que comparten nucleo."))
+        bloques.append(
+            bullets([
+                c.describe(
+                    label_a=etiqueta(c.a, marco), label_b=etiqueta(c.b, marco)
+                )
+                for c in conflictos
+            ])
+        )
+        bloques.append(para(MULTIPLEX_NOTE))
+    else:
+        bloques.append(
+            para(
+                "MULTIPLEXADO: ninguna pareja del panel comparte el nucleo de seed de "
+                "6 nt. Se dice aunque salga limpio — su ausencia se leeria como que "
+                "nadie lo miro."
+            )
+        )
+    return Section(number=4, title="Tabla de candidatos", blocks=tuple(bloques))
 
 
-def _section_5(*, species, tiling, selection, starts) -> Section:
+def _section_5(*, species, tiling, selection, starts, target=None) -> Section:
     from .dossier import build_dossier
 
     bloques = [
@@ -442,7 +464,8 @@ def _section_5(*, species, tiling, selection, starts) -> Section:
     ]
     for inicio in starts:
         ficha = build_dossier(
-            species=species, tiling=tiling, selection=selection, start=inicio
+            species=species, tiling=tiling, selection=selection, start=inicio,
+            target=target,
         )
         bloques.append(heading(f"3utr:{inicio}", level=3))
         bloques.append(pre(ficha.render()))
@@ -533,6 +556,7 @@ def build_document(
     *, species: str, tiling, selection, generated: str,
     anatomy_source: str = "no declarada en esta corrida",
     dossier_starts=None, extra_provenance=(), title: str | None = None,
+    target: str | None = None,
 ) -> Document:
     """El informe entero. Parcial o completo segun los frentes, nunca dos documentos."""
     from .selection import blocking_fronts
@@ -556,7 +580,7 @@ def build_document(
             _section_4(selection),
             _section_5(
                 species=species, tiling=tiling, selection=selection,
-                starts=tuple(dossier_starts),
+                starts=tuple(dossier_starts), target=target,
             ),
             _section_6(),
             _section_7(tiling, extra=extra_provenance),

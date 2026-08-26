@@ -768,6 +768,12 @@ def seed_preview_rows(selection, *, species: str, params=None, starts=None,
             "secuencia": f.sequence,
             "heptamero": f.heptamer,
             "comparte": ", ".join(f"3utr:{s}" for s in f.shared_with),
+            "nucleo": f.core,
+            # Columna PROPIA: compartir nucleo sin compartir heptamero es otro eje, y
+            # meterlo en «comparte» lo habria escondido debajo de la colision de seed.
+            "comparte_nucleo": ", ".join(
+                f"3utr:{s}" for s in f.shared_core_with
+            ),
             "marcada": f.checked,
         }
         for f in filas

@@ -85,7 +85,10 @@ def generar_ficha() -> str:
         informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
     )
     return build_dossier(
-        species="raton", tiling=informe, selection=seleccion, start=200
+        species="raton", tiling=informe, selection=seleccion, start=200,
+        # Con `target` la ficha puede contar los sitios de esta seed en su PROPIA diana,
+        # que es lo que descubrio que cuatro del panel tienen un segundo sitio.
+        target=utr3,
     ).render()
 
 
@@ -113,7 +116,7 @@ def generar_documento() -> str:
         species="mouse", tiling=informe, selection=seleccion,
         generated=FECHA_GOLDEN,
         anatomy_source="lo tilado ES el 3'UTR (fixture verificado por md5)",
-        dossier_starts=(200,),
+        dossier_starts=(200,), target=utr3,
     ).markdown()
 
 
