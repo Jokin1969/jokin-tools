@@ -36,6 +36,7 @@ from shmir_design.presentation import (  # noqa: E402
     BLAST_MODAL_NOTE,
     blast_candidate_rows,
     blast_command_text,
+    blast_defaults_for,
     front_help_rows,
     informe_documento,
     informe_files,
@@ -55,6 +56,7 @@ from shmir_design.presentation import (  # noqa: E402
     offtarget_upload_rows,
     offtarget_upper_bound,
     seed_highlights,
+    vector_note,
     seed_load_placeholder,
     seed_preview_rows,
     seed_setting_rows,
@@ -264,7 +266,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     # 3'UTR. Que ventanas entran lo decide `TileRange`, en el nucleo.
     tiling = tile_utr(
         secuencia, anatomy=anat, seeds=seeds, thresholds=umbrales,
-        accessibility=accesibilidad, **extra
+        accessibility=accesibilidad, species=nombre, **extra
     )
     seleccion = select_from_report(tiling, config)
     utr3 = _utr3(secuencia, anat)
@@ -313,7 +315,12 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         ),
     )
     if bloques and seleccion.selection.chosen:
-        st.dataframe(block_rows(seleccion, scaffold), hide_index=True)
+        aviso_vector = vector_note(nombre)
+        if not aviso_vector["aplica"]:
+            st.error(aviso_vector["texto"])
+        else:
+            st.caption(aviso_vector["texto"])
+        st.dataframe(block_rows(seleccion, scaffold, species=nombre), hide_index=True)
         st.caption(
             "XhoI y EcoRI van DENTRO del modulo, heredadas de SGEP, y en el plasmido "
             "final no son unicas: el clonaje va por NheI/SacI o por sintesis. "
@@ -635,7 +642,7 @@ def _modal_blast(seleccion, nombre: str) -> None:
 
     st.subheader("Ajustes")
     valores = {}
-    for ajuste in blast_setting_rows(DEFAULT_BLAST):
+    for ajuste in blast_setting_rows(blast_defaults_for(nombre)):
         etiqueta = ajuste["ajuste"]
         if ajuste["modificado"]:
             etiqueta = f":red[{etiqueta}]"

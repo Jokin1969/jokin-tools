@@ -8,6 +8,12 @@ decide algo vive en `presentation.py` y tiene tests. Si la pagina empieza a deci
 import unittest
 
 from shmir_design import blast, presentation
+
+#: Los parametros de partida del modal para el raton. El taxid ya NO es un valor por
+#: defecto de `BlastParams`: sale de `species`, asi que el modal parte de
+#: `blast_defaults_for(especie)` y una especie sin taxid declarado deja el campo vacio
+#: y saca un aviso que BLOQUEA.
+PARAMS_RATON = presentation.blast_defaults_for("raton")
 from shmir_design.errors import ShmirDesignError
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 
@@ -107,12 +113,12 @@ class TestLaConsultaQueSeConstruye(unittest.TestCase):
 class TestLosAjustesYElROJO(unittest.TestCase):
 
     def test_por_defecto_ninguna_fila_va_marcada(self):
-        filas = presentation.blast_setting_rows(blast.DEFAULTS)
+        filas = presentation.blast_setting_rows(PARAMS_RATON)
         self.assertTrue(all(not f["modificado"] for f in filas))
 
     def test_cambiar_uno_marca_SOLO_ese(self):
         filas = presentation.blast_setting_rows(
-            blast.DEFAULTS.with_changes(word_size=11)
+            PARAMS_RATON.with_changes(word_size=11)
         )
         marcadas = [f["ajuste"] for f in filas if f["modificado"]]
         self.assertEqual(marcadas, ["word_size"])
@@ -120,14 +126,14 @@ class TestLosAjustesYElROJO(unittest.TestCase):
     def test_cada_fila_trae_el_valor_y_el_POR_DEFECTO(self):
         fila = next(
             f for f in presentation.blast_setting_rows(
-                blast.DEFAULTS.with_changes(word_size=11)
+                PARAMS_RATON.with_changes(word_size=11)
             ) if f["ajuste"] == "word_size"
         )
         self.assertEqual(fila["valor"], "11")
         self.assertEqual(fila["por_defecto"], "7")
 
     def test_estan_TODOS_los_ajustes_no_solo_los_cambiados(self):
-        filas = presentation.blast_setting_rows(blast.DEFAULTS)
+        filas = presentation.blast_setting_rows(PARAMS_RATON)
         nombres = {f["ajuste"] for f in filas}
         for esperado in (
             "task", "word_size", "evalue", "dust", "outfmt", "db", "entrez_query",
@@ -139,29 +145,29 @@ class TestLosAjustesYElROJO(unittest.TestCase):
 class TestLosAvisosDelModal(unittest.TestCase):
 
     def test_con_los_valores_por_defecto_NO_hay_aviso_bloqueante(self):
-        avisos = presentation.blast_warnings(blast.DEFAULTS)
+        avisos = presentation.blast_warnings(PARAMS_RATON)
         self.assertEqual([a for a in avisos if a["bloquea"]], [])
 
     def test_remote_da_aviso_que_BLOQUEA(self):
-        avisos = presentation.blast_warnings(blast.DEFAULTS.with_changes(remote=True))
+        avisos = presentation.blast_warnings(PARAMS_RATON.with_changes(remote=True))
         bloqueantes = [a for a in avisos if a["bloquea"]]
         self.assertTrue(bloqueantes)
         self.assertIn("exploracion", bloqueantes[0]["texto"].lower())
 
     def test_un_ajuste_cambiado_tambien(self):
         avisos = presentation.blast_warnings(
-            blast.DEFAULTS.with_changes(word_size=11)
+            PARAMS_RATON.with_changes(word_size=11)
         )
         self.assertTrue([a for a in avisos if a["bloquea"]])
 
     def test_el_aviso_del_seed_sale_SIEMPRE_y_no_bloquea_este_modal(self):
-        avisos = presentation.blast_warnings(blast.DEFAULTS)
+        avisos = presentation.blast_warnings(PARAMS_RATON)
         seed = [a for a in avisos if "seed" in a["texto"].lower()]
         self.assertTrue(seed)
         self.assertIn("7 nt", seed[0]["texto"])
 
     def test_ese_aviso_dice_que_es_OTRO_frente(self):
-        avisos = presentation.blast_warnings(blast.DEFAULTS)
+        avisos = presentation.blast_warnings(PARAMS_RATON)
         seed = next(a for a in avisos if "seed" in a["texto"].lower())
         self.assertIn("offtarget_seed", seed["texto"])
 
@@ -170,13 +176,13 @@ class TestLaOrdenQueSeCopia(unittest.TestCase):
 
     def test_lleva_la_ruta_del_FASTA_que_genera_el_modal(self):
         orden = presentation.blast_command_text(
-            blast.DEFAULTS, query_path="raton_consulta.fasta"
+            PARAMS_RATON, query_path="raton_consulta.fasta"
         )
         self.assertIn("raton_consulta.fasta", orden)
 
     def test_y_el_fichero_de_salida_sugerido(self):
         orden = presentation.blast_command_text(
-            blast.DEFAULTS, query_path="q.fasta", out_path="r.tsv"
+            PARAMS_RATON, query_path="q.fasta", out_path="r.tsv"
         )
         self.assertIn("-out r.tsv", orden)
 
@@ -199,8 +205,12 @@ class TestLaPaginaNoCONVIERTE_nada(unittest.TestCase):
         "include_predicted": "SI", "remote": "no",
     }
 
-    def test_los_valores_por_defecto_dan_los_DEFAULTS(self):
-        self.assertEqual(presentation.blast_params_from_form(dict(self.BASE)), blast.DEFAULTS)
+    def test_el_formulario_del_raton_da_los_parametros_del_raton(self):
+        """El taxid ya no viene de `DEFAULTS`: viene de la especie, por el formulario."""
+        self.assertEqual(presentation.blast_params_from_form(dict(self.BASE)), PARAMS_RATON)
+
+    def test_y_DEFAULTS_no_trae_organismo_a_proposito(self):
+        self.assertEqual(blast.DEFAULTS.entrez_query, "")
 
     def test_si_en_minusculas_TAMBIEN_es_si(self):
         datos = dict(self.BASE, remote="si")

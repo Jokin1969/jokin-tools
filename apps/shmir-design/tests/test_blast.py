@@ -30,8 +30,33 @@ class TestLosParametrosPorDefecto(unittest.TestCase):
         self.assertEqual(d.dust, "no")
         self.assertEqual(d.outfmt, "6")
         self.assertEqual(d.db, "refseq_rna")
-        self.assertEqual(d.entrez_query, "txid10090")
+        # El ORGANISMO ya no es un valor por defecto: sale de `species`, y sin especie
+        # va VACIO. Un `txid10090` por defecto sobre una secuencia que no es de raton
+        # devolvia los aciertos de OTRO organismo con la forma correcta.
+        self.assertEqual(d.entrez_query, "")
+        self.assertEqual(
+            blast.BlastParams.for_species("raton").entrez_query, "txid10090"
+        )
         self.assertTrue(d.include_predicted)
+
+    def test_sin_organismo_declarado_la_ORDEN_no_se_puede_generar(self):
+        from shmir_design.errors import ShmirDesignError
+
+        with self.assertRaises(ShmirDesignError) as caja:
+            blast.DEFAULTS.command(query_path="q.fasta")
+        self.assertIn("species.taxid", str(caja.exception))
+
+    def test_una_especie_sin_taxid_declarado_ABORTA_al_pedirlo(self):
+        from shmir_design.errors import ShmirDesignError
+
+        with self.assertRaises(ShmirDesignError):
+            blast.BlastParams.for_species("Oryctolagus cuniculus")
+
+    def test_el_organismo_NO_cuenta_como_ajuste_modificado(self):
+        """Es la identidad de la corrida, no un ajuste que alguien haya tocado."""
+        humano = blast.BlastParams.for_species("humano")
+        self.assertEqual(humano.modified(), ())
+        self.assertTrue(humano.is_standard)
 
     def test_por_defecto_NO_hay_nada_modificado(self):
         self.assertEqual(blast.DEFAULTS.modified(), ())
@@ -43,7 +68,7 @@ class TestLosParametrosPorDefecto(unittest.TestCase):
         self.assertFalse(otros.is_standard)
 
     def test_la_orden_lleva_TODOS_los_parametros_no_solo_los_cambiados(self):
-        orden = blast.DEFAULTS.command(query_path="q.fasta")
+        orden = blast.BlastParams.for_species('raton').command(query_path="q.fasta")
         for trozo in (
             "-task blastn-short", "-word_size 7", "-evalue 1000", "-dust no",
             "-outfmt 6", "-db refseq_rna", "txid10090", "-query q.fasta",
@@ -51,14 +76,14 @@ class TestLosParametrosPorDefecto(unittest.TestCase):
             self.assertIn(trozo, orden)
 
     def test_excluir_predichos_se_ve_en_la_orden(self):
-        sin = blast.DEFAULTS.with_changes(include_predicted=False)
+        sin = blast.BlastParams.for_species("raton", include_predicted=False)
         self.assertIn("NOT", sin.command(query_path="q.fasta"))
         self.assertIn("biomol_mrna", sin.command(query_path="q.fasta").lower() + "biomol_mrna")
 
     def test_remote_se_ve_en_la_orden(self):
-        con = blast.DEFAULTS.with_changes(remote=True)
+        con = blast.BlastParams.for_species("raton", remote=True)
         self.assertIn("-remote", con.command(query_path="q.fasta"))
-        self.assertNotIn("-remote", blast.DEFAULTS.command(query_path="q.fasta"))
+        self.assertNotIn("-remote", blast.BlastParams.for_species('raton').command(query_path="q.fasta"))
 
     def test_un_word_size_imposible_ABORTA(self):
         with self.assertRaises(ValueError):
@@ -162,7 +187,8 @@ class TestElEjecutorEstaDetrasDeUnaINTERFAZ(unittest.TestCase):
         ejecutor = blast.LocalCommand()
         self.assertFalse(ejecutor.runs_here)
         orden = ejecutor.prepare(
-            blast.DEFAULTS, blast.QueryFasta.from_records((("x", "ACGTACGTACGT"),)),
+            blast.BlastParams.for_species("raton"),
+            blast.QueryFasta.from_records((("x", "ACGTACGTACGT"),)),
             query_path="consulta.fasta",
         )
         self.assertIn("blastn", orden)

@@ -1558,6 +1558,58 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     informe que se entrega no sería el que se revisa. Y no hay opción para pedir «el
     completo»: el estado lo deciden los frentes, y viaja **en el nombre del fichero**
     además de dentro.
+- **Fuera de ratón: los valores por defecto que nadie avisaba dejan de existir.
+  DECIDIDO (2026-08-26)**. Era el mismo patrón que `rmsk_mouse.out` conectado por rol —
+  un valor que funciona callado y que sobre otra especie produce un resultado con la
+  **forma correcta**. Un `txid10090` sobre una secuencia de conejo tiene que ser
+  **imposible**, no improbable.
+  - **`species.resolve()` es el ÚNICO origen** de los tres, con `species.mirbase_prefix()`
+    y `species.taxid()`. Una especie sin el valor declarado **aborta** diciendo dónde se
+    declara y qué pasaría si se dedujera: para conejo, `ocu-`, `oc-` y `ory-` son todos
+    plausibles y sólo uno existe — filtrar con el equivocado da **cero colisiones**, que
+    parece una buena noticia.
+  - `blast.BlastParams.entrez_query` ya no vale `txid10090`: vale **vacío**, y generar la
+    orden sin organismo **aborta**. `BlastParams.for_species(nombre)` es la vía.
+  - `seed_scan.SeedParams.species_prefix` ya no vale `mmu-`: vale `None`, y `None` **no
+    es** `""` — el primero es «nadie lo ha dicho» y el segundo «todas las especies del
+    fichero, elegido a propósito». Son dos valores porque son dos cosas. `run_scan`
+    resuelve el prefijo con la especie de **la corrida**, que ya venía por parámetro.
+  - **La especie NO cuenta como «ajuste modificado»** en ninguno de los dos: es la
+    identidad de la corrida. Si contara, toda corrida que no fuera de ratón saldría en
+    rojo y el rojo dejaría de significar «alguien tocó esto».
+  - `mirna.DEFAULT_PREFIXES` pasa a `()` = **indexar todo el fichero**. `("mmu-","hsa-")`
+    dejaba fuera del índice a cualquier otra especie **sin avisar**, así que una guía de
+    conejo salía limpia por no haber contra qué compararla. El filtro por especie es de
+    quien **pregunta**, no de quien carga. Las cifras murinas no se mueven (1988 maduros,
+    1593 seeds, 9,7 %); `HISTORICAL_PREFIXES` conserva el par con el que se calculó el
+    19,1 %. Y «TODAS» ahora significa de verdad todas: **75 %** sobre 69.020 maduros, que
+    es la mejor demostración de por qué el filtro de especie no es cosmético.
+  - **Los alias van DECLARADOS** (`species.ALIASES`): `raton`/`ratón`/`Mus musculus` →
+    `mouse`, `humano`/`Homo sapiens` → `human`. Sin ellos, la corrida murina se habría
+    marcado a sí misma como lista de otra especie.
+- **`CORE_ABUNDANT` fuera de ratón: el veredicto SALE, marcado. DECIDIDO (2026-08-26),
+  opción (a)**. `CoreMember.matches` quita el prefijo, así que la lista casa igual y el
+  filtro corre — pero eso no la convierte en una lista de esa especie. **Excluir por una
+  lista prestada es defendible; no decirlo, no.**
+  - Tres estados, no dos: la especie del diseño **coincide** con la de la autorización
+    (limpio), es **otra declarada** (`LISTA_DE_OTRA_ESPECIE`, con el aviso en el motivo
+    del FAIL y diciendo que **puede acertar** — let-7, miR-124 y miR-9 son abundantes en
+    cerebro de casi cualquier mamífero), o **no está declarada**
+    (`ESPECIE_NO_DECLARADA`: no se ha podido comprobar, y eso no es que coincida).
+  - `tile_utr` gana `species`, **vacía por defecto y no «raton»**: poner ratón por defecto
+    es exactamente el patrón que se está quitando.
+- **`specificity.TAXIDS` deja de ser una LISTA BLANCA** (`specificity.taxid_for`). La
+  validación pasa a ser «esta especie tiene taxid **declarado**», no «está en una lista de
+  dos» — que cerraba el frente a ratón y humano por una razón que no es del frente.
+  Añadir una especie a `species.SPECIES` la habilita sin tocar `specificity`, y hay un
+  test que lo comprueba añadiendo una y quitándola.
+- **`blocks.PIECES` no se parametriza — y la app lo DICE** (`blocks.vector_applies_to`,
+  `presentation.vector_note`). Las 12 piezas son el plásmido concreto de PrP murino, no
+  un valor por defecto. Con otra especie, `block_rows` devuelve la lista **vacía** y la
+  página saca en rojo qué NO se emite y por qué: **módulo NheI-SacI, cassette MluI-AgeI,
+  hoja de pedido y control sin intrón**. Emitirlos con las piezas murinas daría fragmentos
+  con la forma correcta y la secuencia equivocada, que es **peor** que no darlos. Para
+  otra especie hace falta OTRO plásmido, y entonces se sustituye.
 - Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
   verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
   nunca leerlo de la UI.

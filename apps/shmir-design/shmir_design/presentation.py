@@ -462,10 +462,32 @@ def block_bundle(
     }
 
 
+def vector_note(species: str) -> dict[str, object]:
+    """¿Aplica el vector del proyecto a esta especie? La app lo DICE, no lo supone."""
+    from .blocks import vector_applies_to
+
+    aplicabilidad = vector_applies_to(species)
+    return {
+        "aplica": aplicabilidad.applies,
+        "estado": aplicabilidad.state,
+        "texto": aplicabilidad.note,
+    }
+
+
 def block_rows(
-    selection: ReportSelection, scaffold: ScaffoldSpec
+    selection: ReportSelection, scaffold: ScaffoldSpec, *, species: str = ""
 ) -> list[dict[str, object]]:
-    """Una fila por bloque, con el estado de CADA comprobacion en su columna."""
+    """Una fila por bloque, con el estado de CADA comprobacion en su columna.
+
+    Con una especie que NO es la del vector devuelve la lista VACIA: el modulo y el
+    cassette se construyen con las 12 piezas del plasmido murino, y emitirlos para otra
+    especie daria fragmentos con la forma correcta y la secuencia equivocada. Quien
+    llama tiene que enseñar `vector_note(species)` al lado — que es donde se explica.
+    """
+    from .blocks import vector_applies_to
+
+    if species and not vector_applies_to(species).applies:
+        return []
     filas: list[dict[str, object]] = []
     for choice in selection.selection.chosen:
         window = selection.window_of(choice)
@@ -637,6 +659,20 @@ _SETTING_FIELDS = (
 )
 
 
+def blast_defaults_for(species: str):
+    """Los parametros de partida del modal, con el organismo de ESTA especie.
+
+    Se PREGUNTA por el taxid en vez de capturar el abort: una especie sin taxid
+    declarado devuelve el campo vacio, y entonces `blast_warnings` saca un aviso que
+    BLOQUEA. Asi el hueco se ve en la interfaz en vez de reventar la pagina — y sigue
+    siendo imposible que salga una orden con el taxid de otra especie.
+    """
+    from .blast import BlastParams
+    from .species import resolve
+
+    return BlastParams(entrez_query=resolve(species).taxid)
+
+
 def blast_setting_rows(params) -> list[dict[str, object]]:
     """Una fila por ajuste, con `modificado` para que la pagina lo pinte en rojo.
 
@@ -644,8 +680,11 @@ def blast_setting_rows(params) -> list[dict[str, object]]:
     `.out` sin especie — un veredicto con ajustes cambiados no puede ser indistinguible
     de uno estandar, y para eso hay que verlo.
     """
-    from .blast import DEFAULTS
+    from .blast import BlastParams
 
+    # La referencia de «por defecto» lleva el MISMO organismo: el taxid no es un ajuste
+    # que alguien haya tocado, es la identidad de la corrida.
+    base = BlastParams(entrez_query=params.entrez_query)
     tocados = set(params.modified())
 
     def _fmt(valor):
@@ -659,7 +698,7 @@ def blast_setting_rows(params) -> list[dict[str, object]]:
         {
             "ajuste": campo,
             "valor": _fmt(getattr(params, campo)),
-            "por_defecto": _fmt(getattr(DEFAULTS, campo)),
+            "por_defecto": _fmt(getattr(base, campo)),
             "modificado": campo in tocados,
         }
         for campo in _SETTING_FIELDS
@@ -671,6 +710,17 @@ def blast_warnings(params) -> list[dict[str, object]]:
     from .seed_load import WHY_NOT_BLAST
 
     avisos = []
+    if not params.entrez_query:
+        avisos.append({
+            "bloquea": True,
+            "texto": (
+                "SIN ORGANISMO DECLARADO: esta especie no tiene taxid en "
+                "`species.SPECIES`, asi que la orden no se puede generar. No se pone "
+                "uno por defecto — un `txid10090` sobre una secuencia que no es de "
+                "raton devuelve los aciertos de OTRO organismo, y el resultado tiene la "
+                "forma correcta. Se mira en el Taxonomy Browser del NCBI y se declara."
+            ),
+        })
     if not params.can_give_verdict:
         avisos.append({"bloquea": True, "texto": params.why_no_verdict})
     # Este sale SIEMPRE, con o sin ajustes tocados: no bloquea ESTE modal, pero deja

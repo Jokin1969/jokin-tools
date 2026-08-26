@@ -45,7 +45,11 @@ class BlastParams:
     dust: str = "no"
     outfmt: str = "6"
     db: str = "refseq_rna"
-    entrez_query: str = "txid10090"
+    #: Filtro por organismo. VACIO = NO DECLARADO, que no es «todas»: el unico origen
+    #: es `species.taxid()`, y `command()` aborta sin el. Antes valia `txid10090` por
+    #: defecto, asi que una consulta de conejo salia filtrada a raton sin que nadie
+    #: avisara — y el resultado tenia la forma correcta.
+    entrez_query: str = ""
     include_predicted: bool = True
     remote: bool = False
 
@@ -71,9 +75,22 @@ class BlastParams:
     def with_changes(self, **cambios) -> "BlastParams":
         return replace(self, **cambios)
 
+    @classmethod
+    def for_species(cls, name: str, **cambios) -> "BlastParams":
+        """Los parametros de UNA especie. El taxid sale de `species`, no se teclea."""
+        from .species import taxid
+
+        return cls(entrez_query=taxid(name), **cambios)
+
     def modified(self) -> tuple[str, ...]:
-        """Que campos difieren de los valores por defecto. En orden estable."""
-        base = DEFAULTS if "DEFAULTS" in globals() else BlastParams()
+        """Que campos difieren de los valores por defecto. En orden estable.
+
+        El ORGANISMO no cuenta como «ajuste modificado»: es parte de la IDENTIDAD de la
+        corrida, no un ajuste que alguien haya tocado. Marcarlo en rojo por no ser raton
+        haria que toda corrida de otra especie pareciera no estandar, y entonces el rojo
+        dejaria de significar lo que significa.
+        """
+        base = BlastParams(entrez_query=self.entrez_query)
         return tuple(
             campo
             for campo in (
@@ -116,6 +133,14 @@ class BlastParams:
 
     def entrez_expression(self) -> str:
         """La expresion de Entrez completa, con los predichos dentro o fuera."""
+        if not self.entrez_query:
+            raise ShmirDesignError(
+                "No hay organismo declarado para esta consulta, asi que la orden de "
+                "BLAST saldria SIN filtro de especie o —peor— con el de otra. El taxid "
+                "no se teclea ni se hereda de un valor por defecto: sale de "
+                "`species.taxid(nombre)`, que aborta si esa especie no lo tiene "
+                "declarado. Usa `BlastParams.for_species(nombre)`."
+            )
         partes = [f"{self.entrez_query}[ORGN]"]
         if not self.include_predicted:
             # Excluir los modelos predichos es EXCLUIRLOS, y se ve en la orden.

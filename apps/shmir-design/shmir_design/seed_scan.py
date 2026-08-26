@@ -58,7 +58,11 @@ WHAT_THIS_DOES_NOT_ANSWER = (
 @dataclass(frozen=True)
 class SeedParams:
     window: str = "2-8"
-    species_prefix: str = "mmu-"
+    #: Prefijo de miRBase. `None` = NO DECLARADO, que NO es lo mismo que `""` = todas
+    #: las especies del fichero, y por eso son dos valores y no uno. El unico origen es
+    #: `species.mirbase_prefix()`: un `mmu-` por defecto sobre una guia de conejo daba
+    #: CERO colisiones, que parece una buena noticia.
+    species_prefix: str | None = None
     level: str = "ambos"
     normalize_u_t: bool = True
 
@@ -79,8 +83,32 @@ class SeedParams:
                 f"La normalizacion U↔T no se puede apagar. {NORMALIZATION_NOTE}"
             )
 
+    @classmethod
+    def for_species(cls, name: str, **cambios) -> "SeedParams":
+        """Los parametros de UNA especie. El prefijo sale de `species`, no se teclea."""
+        from .species import mirbase_prefix
+
+        return cls(species_prefix=mirbase_prefix(name), **cambios)
+
     def with_changes(self, **cambios) -> "SeedParams":
         return replace(self, **cambios)
+
+    @property
+    def declared(self) -> bool:
+        return self.species_prefix is not None
+
+    def require_prefix(self) -> str:
+        if self.species_prefix is None:
+            raise ShmirDesignError(
+                "No hay prefijo de especie declarado para esta corrida de colision de "
+                "seed. NO se pone `mmu-` por defecto: con el prefijo equivocado la "
+                "comparacion da CERO colisiones y eso parece una buena noticia. El "
+                "prefijo sale de `species.mirbase_prefix(nombre)`, que aborta si esa "
+                "especie no lo tiene declarado. Usa `SeedParams.for_species(nombre)`. "
+                "Si lo que quieres es NO filtrar por especie, eso se dice con `\"\"`, "
+                "que es otro valor y significa otra cosa."
+            )
+        return self.species_prefix
 
     @property
     def length(self) -> int:
@@ -92,9 +120,12 @@ class SeedParams:
         return 4 ** self.length
 
     def modified(self) -> tuple[str, ...]:
-        base = SeedParams()
+        # La ESPECIE no cuenta como ajuste modificado: es la identidad de la corrida.
+        # Si contara, toda corrida que no fuera de raton saldria marcada en rojo y el
+        # rojo dejaria de significar «alguien toco esto».
+        base = SeedParams(species_prefix=self.species_prefix)
         return tuple(
-            campo for campo in ("window", "species_prefix", "level")
+            campo for campo in ("window", "level")
             if getattr(self, campo) != getattr(base, campo)
         )
 
@@ -115,7 +146,12 @@ class SeedParams:
     def describe(self) -> list[str]:
         lineas = [
             f"window={self.window} ({self.length} nt, espacio {self.space})  "
-            f"especie={self.species_prefix or 'TODAS'}  nivel={self.level}",
+            f"especie="
+            + (
+                "SIN DECLARAR" if self.species_prefix is None
+                else (self.species_prefix or "TODAS")
+            )
+            + f"  nivel={self.level}",
             f"U↔T: siempre. {NORMALIZATION_NOTE}",
         ]
         tocados = self.modified()
@@ -196,6 +232,10 @@ def preview_rows(selection, *, species: str, params: SeedParams = DEFAULTS, star
     Dos candidatos con la misma seed no son dos apuestas independientes en este eje, y
     eso tiene que verse ANTES de correr, no despues.
     """
+    if not params.declared:
+        params = SeedParams.for_species(
+            species, window=params.window, level=params.level
+        )
     if starts is None:
         starts = tuple(c.start for c in selection.selection.chosen)
     from .offtarget import site_patterns
@@ -257,7 +297,7 @@ class BaseRate:
 
 
 def base_rate(mature, params: SeedParams = DEFAULTS) -> BaseRate:
-    prefijo = params.species_prefix
+    prefijo = params.require_prefix()
     largo = params.length
     nombres = 0
     seeds = set()
@@ -379,7 +419,15 @@ def run_scan(
             "vacia que parezca haber corrido."
         )
 
-    prefijo = params.species_prefix
+    # Si los parametros no traen especie declarada, se resuelve con la de la CORRIDA —
+    # que ya viene por parametro— pasando por `species`. Asi no hay ningun camino que
+    # acabe usando `mmu-` sin haber preguntado, y una especie sin prefijo declarado
+    # aborta aqui en vez de dar cero colisiones.
+    if not params.declared:
+        params = SeedParams.for_species(
+            species, window=params.window, level=params.level
+        )
+    prefijo = params.require_prefix()
     largo = params.length
     # Indice por la ventana pedida: con 2-7 una colision es cualquier maduro cuya seed
     # 2-8 EMPIECE por esas 6 bases. No se re-parsea el fichero: se agrupa el indice.

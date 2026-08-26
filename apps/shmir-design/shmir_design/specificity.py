@@ -70,6 +70,12 @@ DNA_BASES = frozenset("ACGT")
 COMPLEMENT = str.maketrans("ACGTN", "TGCAN")
 
 #: Taxones para el BLAST remoto de inspeccion.
+#:
+#: **NO es una lista blanca.** Lo era, y con ella el frente estaba cerrado a raton y
+#: humano por una razon que no es del frente: cualquier especie con taxid DECLARADO
+#: puede correr. El unico origen de estos valores es `species.resolve()`, que no los
+#: deduce del nombre; este diccionario queda como ATAJO de compatibilidad para los dos
+#: nombres castellanos que el proyecto ya usaba, y `taxid_for()` es lo que manda.
 TAXIDS = {"raton": "txid10090", "humano": "txid9606"}
 NCBI_SUBMISSION_INTERVAL_S = 10
 NCBI_POLL_INTERVAL_S = 60
@@ -363,16 +369,33 @@ def filter_specificity(
     )
 
 
+def taxid_for(species: str) -> str:
+    """El taxid de una especie. UNICO origen: `species.resolve()`.
+
+    La validacion NO es «esta en una lista blanca» sino «esta especie tiene taxid
+    DECLARADO»: son dos cosas distintas y la primera cerraba el frente a dos especies
+    por una razon que no es del frente. Una especie sin taxid declarado aborta diciendo
+    donde se declara — que es lo contrario de deducirlo del nombre.
+    """
+    from .species import resolve
+
+    resuelta = resolve(species)
+    if resuelta.taxid:
+        return resuelta.taxid
+    raise ShmirDesignError(
+        f"La especie {species!r} ({resuelta.scientific}) NO tiene taxid declarado en "
+        f"este proyecto, asi que no se puede filtrar el BLAST por organismo. Se mira en "
+        f"el Taxonomy Browser del NCBI y se AÑADE a `species.SPECIES` — no se deduce "
+        f"del nombre ni se toma el de otra especie: un taxid equivocado devuelve los "
+        f"aciertos de OTRO organismo y el resultado tiene la forma correcta."
+    )
+
+
 def blast_command(query_fasta: str, species: str) -> str:
     """Orden exacta del BLAST remoto de inspeccion. Este modulo NO la lanza."""
-    if species not in TAXIDS:
-        raise ValueError(
-            f"Especie {species!r} sin taxid declarado; conocidas: "
-            f"{', '.join(sorted(TAXIDS))}. Se aborta en vez de inventar un taxid."
-        )
     return (
         f'blastn -task blastn-short -db refseq_rna -remote '
-        f'-entrez_query "{TAXIDS[species]}[ORGN]" -query {query_fasta}'
+        f'-entrez_query "{taxid_for(species)}[ORGN]" -query {query_fasta}'
     )
 
 

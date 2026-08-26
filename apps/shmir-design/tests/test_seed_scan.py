@@ -19,6 +19,10 @@ import unittest
 from pathlib import Path
 
 from shmir_design import seed_scan
+
+#: Los parametros del raton. `seed_scan.DEFAULTS` ya NO trae `mmu-`: el prefijo sale de
+#: `species`, y sin declarar especie va `None` — que no es lo mismo que `""` (todas).
+PARAMS_RATON = seed_scan.SeedParams.for_species("raton")
 from shmir_design.errors import ShmirDesignError
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 
@@ -41,39 +45,54 @@ def _piezas():
 class TestLosParametros(unittest.TestCase):
 
     def test_la_ventana_por_defecto_es_2_8(self):
-        self.assertEqual(seed_scan.DEFAULTS.window, "2-8")
+        self.assertEqual(PARAMS_RATON.window, "2-8")
 
     def test_las_alternativas_son_2_7_y_2_8_y_nada_mas(self):
         self.assertEqual(sorted(seed_scan.SEED_WINDOWS), ["2-7", "2-8"])
 
     def test_una_ventana_desconocida_ABORTA(self):
         with self.assertRaises(ValueError):
-            seed_scan.DEFAULTS.with_changes(window="2-9")
+            PARAMS_RATON.with_changes(window="2-9")
 
-    def test_la_especie_por_defecto_es_mmu(self):
-        self.assertEqual(seed_scan.DEFAULTS.species_prefix, "mmu-")
+    def test_la_especie_NO_es_un_valor_por_defecto(self):
+        """`mmu-` por defecto sobre una guia de conejo daba CERO colisiones."""
+        self.assertIsNone(seed_scan.SeedParams().species_prefix)
+        self.assertEqual(PARAMS_RATON.species_prefix, "mmu-")
+
+    def test_sin_prefijo_declarado_la_corrida_ABORTA(self):
+        with self.assertRaises(ShmirDesignError) as caja:
+            seed_scan.SeedParams().require_prefix()
+        self.assertIn("species.mirbase_prefix", str(caja.exception))
+
+    def test_y_VACIO_no_es_lo_mismo_que_SIN_DECLARAR(self):
+        """`""` = todas las especies del fichero, elegido a proposito. Son dos valores."""
+        self.assertEqual(seed_scan.SeedParams(species_prefix="").require_prefix(), "")
+
+    def test_una_especie_sin_prefijo_declarado_ABORTA_al_pedirlo(self):
+        with self.assertRaises(ShmirDesignError):
+            seed_scan.SeedParams.for_species("Oryctolagus cuniculus")
 
     def test_el_nivel_por_defecto_son_LOS_DOS(self):
-        self.assertEqual(seed_scan.DEFAULTS.level, "ambos")
+        self.assertEqual(PARAMS_RATON.level, "ambos")
 
     def test_un_nivel_desconocido_ABORTA(self):
         with self.assertRaises(ValueError):
-            seed_scan.DEFAULTS.with_changes(level="solo_los_buenos")
+            PARAMS_RATON.with_changes(level="solo_los_buenos")
 
     def test_cambiar_uno_lo_marca_y_solo_a_ese(self):
         self.assertEqual(
-            seed_scan.DEFAULTS.with_changes(window="2-7").modified(), ("window",)
+            PARAMS_RATON.with_changes(window="2-7").modified(), ("window",)
         )
 
     def test_la_normalizacion_U_T_es_SIEMPRE_y_va_declarada(self):
-        self.assertTrue(seed_scan.DEFAULTS.normalize_u_t)
+        self.assertTrue(PARAMS_RATON.normalize_u_t)
         texto = seed_scan.NORMALIZATION_NOTE
         self.assertIn("U", texto)
         self.assertIn("cero colisiones", texto.lower())
 
     def test_y_no_se_puede_apagar(self):
         with self.assertRaises(ValueError):
-            seed_scan.DEFAULTS.with_changes(normalize_u_t=False)
+            PARAMS_RATON.with_changes(normalize_u_t=False)
 
 
 @unittest.skipUnless(HAY, "NOT_RUN: falta mature.fa o el fixture del raton")
@@ -83,7 +102,7 @@ class TestLaTablaDeLoQueSeVaAComparar(unittest.TestCase):
     def setUpClass(cls):
         cls.maduros, cls.tiling, cls.seleccion = _piezas()
         cls.filas = seed_scan.preview_rows(
-            cls.seleccion, species="raton", params=seed_scan.DEFAULTS
+            cls.seleccion, species="raton", params=PARAMS_RATON
         )
 
     def test_hay_DOS_filas_por_candidato_guia_y_pasajera(self):
@@ -121,7 +140,7 @@ class TestLaTablaDeLoQueSeVaAComparar(unittest.TestCase):
     def test_con_ventana_2_7_el_heptamero_mide_SEIS(self):
         filas = seed_scan.preview_rows(
             self.seleccion, species="raton",
-            params=seed_scan.DEFAULTS.with_changes(window="2-7"),
+            params=PARAMS_RATON.with_changes(window="2-7"),
         )
         self.assertEqual(len(filas[0].heptamer), 6)
 
@@ -134,18 +153,18 @@ class TestLaTasaBaseSeDERIVA(unittest.TestCase):
         self.maduros, _, _ = _piezas()
 
     def test_con_mmu_solo_es_del_orden_del_10_por_ciento(self):
-        tasa = seed_scan.base_rate(self.maduros, seed_scan.DEFAULTS)
+        tasa = seed_scan.base_rate(self.maduros, PARAMS_RATON)
         self.assertEqual(tasa.matures, 1988)
         self.assertEqual(tasa.distinct, 1593)
         self.assertAlmostEqual(tasa.fraction, 1593 / 16384, places=6)
         self.assertTrue(0.09 <= tasa.fraction <= 0.12)
 
     def test_el_espacio_es_4_elevado_a_7(self):
-        self.assertEqual(seed_scan.base_rate(self.maduros, seed_scan.DEFAULTS).space, 16384)
+        self.assertEqual(seed_scan.base_rate(self.maduros, PARAMS_RATON).space, 16384)
 
     def test_con_2_7_la_tasa_SUBE_mucho_y_se_ve(self):
         tasa = seed_scan.base_rate(
-            self.maduros, seed_scan.DEFAULTS.with_changes(window="2-7")
+            self.maduros, PARAMS_RATON.with_changes(window="2-7")
         )
         self.assertEqual(tasa.space, 4096)
         self.assertGreater(tasa.fraction, 0.25)
@@ -153,12 +172,12 @@ class TestLaTasaBaseSeDERIVA(unittest.TestCase):
     def test_dejando_hsa_dentro_la_tasa_casi_se_DOBLA(self):
         # El filtro de especie no es cosmetico: cambia como se lee un AVISO.
         tasa = seed_scan.base_rate(
-            self.maduros, seed_scan.DEFAULTS.with_changes(species_prefix="")
+            self.maduros, PARAMS_RATON.with_changes(species_prefix="")
         )
         self.assertGreater(tasa.fraction, 0.18)
 
     def test_el_texto_dice_de_DONDE_sale(self):
-        texto = seed_scan.base_rate(self.maduros, seed_scan.DEFAULTS).describe()
+        texto = seed_scan.base_rate(self.maduros, PARAMS_RATON).describe()
         self.assertIn("1988", texto)
         self.assertIn("16384", texto)
         self.assertIn("azar", texto.lower())
@@ -171,7 +190,7 @@ class TestLaCorrida(unittest.TestCase):
     def setUpClass(cls):
         cls.maduros, cls.tiling, cls.seleccion = _piezas()
         cls.corrida = seed_scan.run_scan(
-            cls.seleccion, mature=cls.maduros, params=seed_scan.DEFAULTS,
+            cls.seleccion, mature=cls.maduros, params=PARAMS_RATON,
             species="raton",
             starts=tuple(c.start for c in cls.seleccion.selection.chosen),
             guides=True, passengers=True,
@@ -223,14 +242,14 @@ class TestLaCorrida(unittest.TestCase):
     def test_sin_candidatos_ABORTA(self):
         with self.assertRaises(ShmirDesignError):
             seed_scan.run_scan(
-                self.seleccion, mature=self.maduros, params=seed_scan.DEFAULTS,
+                self.seleccion, mature=self.maduros, params=PARAMS_RATON,
                 species="raton", starts=(), guides=True, passengers=True,
             )
 
     def test_sin_hebras_ABORTA(self):
         with self.assertRaises(ShmirDesignError):
             seed_scan.run_scan(
-                self.seleccion, mature=self.maduros, params=seed_scan.DEFAULTS,
+                self.seleccion, mature=self.maduros, params=PARAMS_RATON,
                 species="raton", starts=(10,), guides=False, passengers=False,
             )
 
@@ -245,7 +264,7 @@ class TestCriterio_2_7_NoEs_2_8(unittest.TestCase):
     def _corrida(self, ventana):
         return seed_scan.run_scan(
             cls_sel := self.seleccion, mature=self.maduros,
-            params=seed_scan.DEFAULTS.with_changes(window=ventana),
+            params=PARAMS_RATON.with_changes(window=ventana),
             species="raton", starts=(10,), guides=True, passengers=False,
         )
 
@@ -277,7 +296,7 @@ class TestElBloqueExportable(unittest.TestCase):
     def setUpClass(cls):
         cls.maduros, _, cls.seleccion = _piezas()
         cls.corrida = seed_scan.run_scan(
-            cls.seleccion, mature=cls.maduros, params=seed_scan.DEFAULTS,
+            cls.seleccion, mature=cls.maduros, params=PARAMS_RATON,
             species="raton", starts=(10, 60), guides=True, passengers=True,
         )
 

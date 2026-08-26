@@ -420,6 +420,12 @@ def tile_utr(
     utr3_set: Utr3Set | None = None,
     expression: dict[str, float] | None = None,
     accessibility: bool = False,
+    #: Especie del DISEÑO. VACIA = no declarada, y eso es un estado propio: el nucleo de
+    #: abundancia esta autorizado para cerebro MURINO, asi que sobre otra especie el FAIL
+    #: sale marcado `LISTA_DE_OTRA_ESPECIE` y sin declararla, `ESPECIE_NO_DECLARADA`.
+    #: Por defecto NO es raton: poner raton por defecto es justo el patron que se esta
+    #: quitando.
+    species: str = "",
     apa_sites: ApaSites | None = None,
     measured_apa: "MeasuredApa | None" = None,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
@@ -553,6 +559,7 @@ def tile_utr(
                     mature,
                     abundance,
                     passenger=passenger_from_guide(evaluation.guide).sequence,
+                    species=species,
                 ).as_filter()
                 if escaneable
                 else FilterResult(

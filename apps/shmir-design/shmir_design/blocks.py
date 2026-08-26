@@ -85,6 +85,63 @@ _PLASMIDO = "plasmido receptor"
 _SGEP = "SGEP #111170"
 _NOVO = "diseño de novo"
 
+#: La especie del VECTOR. Las 12 piezas de `PIECES` no son valores por defecto ni
+#: parametros: son el plasmido CONCRETO de PrP murino. Para otra especie no se
+#: parametrizan — se sustituyen — y hasta que alguien traiga otro plasmido, todo lo que
+#: se construye con ellas (modulo de 149, cassette de 318, hoja de pedido y control sin
+#: intron) NO APLICA. Emitirlos con las piezas equivocadas seria peor que no emitirlos:
+#: saldrian con la forma correcta.
+VECTOR_SPECIES = "mouse"
+
+VECTOR_DESCRIPTION = "pAAV_G130E_W144Y_mouse_PrP_4xmiR-183T (PrP murino)"
+
+
+@dataclass(frozen=True)
+class VectorApplicability:
+    """¿Aplica el vector de este proyecto a la especie que se esta diseñando?"""
+
+    species: str
+    applies: bool
+    note: str
+
+    @property
+    def state(self):
+        from .filters import FilterState
+
+        return FilterState.PASS if self.applies else FilterState.NO_APLICA
+
+
+def vector_applies_to(species: str) -> VectorApplicability:
+    """Lo dice la app, en vez de emitir el modulo con las piezas de otra especie."""
+    from .species import resolve
+
+    resuelta = resolve(species) if species else None
+    slug = resuelta.slug if resuelta is not None else ""
+    if slug == VECTOR_SPECIES:
+        return VectorApplicability(
+            species=slug, applies=True,
+            note=(
+                f"El vector de este proyecto es {VECTOR_DESCRIPTION} y la especie del "
+                f"diseño es la suya: modulo, cassette, hoja de pedido y control sin "
+                f"intron aplican."
+            ),
+        )
+    quien = resuelta.scientific if resuelta is not None else "una especie sin declarar"
+    return VectorApplicability(
+        species=slug, applies=False,
+        note=(
+            f"NO_APLICA: el vector de este proyecto es {VECTOR_DESCRIPTION}, y esta "
+            f"corrida es de {quien}. Las 12 piezas del plasmido NO son un parametro con "
+            f"valor por defecto: son ese vector concreto, asi que el MODULO NheI-SacI, "
+            f"el CASSETTE MluI-AgeI, la HOJA DE PEDIDO y el CONTROL SIN INTRON no se "
+            f"emiten. Emitirlos con las piezas murinas daria fragmentos con la forma "
+            f"correcta y la secuencia equivocada, que es peor que no darlos. Para otra "
+            f"especie hace falta OTRO plasmido, y entonces se sustituye `blocks.PIECES` "
+            f"— no se parametriza."
+        ),
+    )
+
+
 PIECES: MappingProxyType[str, Piece] = MappingProxyType(
     {
         "MluI": Piece("ACGCGT", _PLASMIDO),

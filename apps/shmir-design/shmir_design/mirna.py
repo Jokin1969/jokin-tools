@@ -49,7 +49,16 @@ SEED_START = 2
 SEED_END = 8
 
 #: Prefijos de especie de miRBase que interesan a este proyecto.
-DEFAULT_PREFIXES = ("mmu-", "hsa-")
+#: Que prefijos se INDEXAN al leer `mature.fa`. `()` = TODOS los del fichero, y ese es
+#: el defecto a proposito: `("mmu-", "hsa-")` dejaba fuera del indice a cualquier otra
+#: especie SIN AVISAR, asi que una guia de conejo salia limpia por no haber contra que
+#: compararla. El filtro por especie es cosa de quien PREGUNTA (`seed_scan`, via
+#: `species.mirbase_prefix`), no de quien carga el fichero.
+DEFAULT_PREFIXES: tuple[str, ...] = ()
+
+#: Los dos que el proyecto tenia indexados. Se conserva con nombre propio porque el
+#: manifiesto y las cifras de tasa base publicadas se calcularon con ellos.
+HISTORICAL_PREFIXES = ("mmu-", "hsa-")
 
 #: Cuantos 7-meros hay. Se usa para explicar en el informe por que hay dos niveles.
 SEED_SPACE = 4 ** (SEED_END - SEED_START + 1)
@@ -193,27 +202,78 @@ CORE_ABUNDANT: tuple[CoreMember, ...] = (
 )
 
 
+#: La especie de la que habla la autorizacion escrita de `CORE_ABUNDANT`. La lista es de
+#: consenso del campo en cerebro MURINO, y eso acota lo que puede afirmar.
+CORE_SPECIES = "mouse"
+
+BORROWED_LIST_MARK = "LISTA_DE_OTRA_ESPECIE"
+
+UNDECLARED_SPECIES_MARK = "ESPECIE_NO_DECLARADA"
+
+UNDECLARED_SPECIES_WARNING = (
+    f"{UNDECLARED_SPECIES_MARK}: esta corrida no declara especie, asi que NO SE HA "
+    f"PODIDO COMPROBAR si el nucleo de abundancia —autorizado para cerebro murino— es "
+    f"el de esta. No haber podido comprobarlo no es que coincida."
+)
+
+BORROWED_LIST_WARNING = (
+    f"{BORROWED_LIST_MARK}: el nucleo de abundancia que ha producido este FAIL esta "
+    f"autorizado para CEREBRO MURINO, y la especie de este diseño es otra. "
+    f"`CoreMember.matches` compara SIN el prefijo, asi que la lista casa igual y el "
+    f"filtro corre — pero eso no la convierte en una lista de esta especie. "
+    f"Puede que acierte: let-7, miR-124 y miR-9 son abundantes en cerebro de "
+    f"practicamente cualquier mamifero. Excluir por una lista PRESTADA es defendible; "
+    f"no decirlo, no. Para cerrarlo bien hace falta la lista de abundancia de ESTA "
+    f"especie, con su referencia y su umbral."
+)
+
+
 @dataclass(frozen=True)
 class CoreHit:
     name: str
     member: CoreMember
+    #: Especie del DISEÑO (no la del maduro). Vacio = NO DECLARADA, que es un tercer
+    #: estado y no un sinonimo de «coincide».
+    species: str = ""
 
     @property
     def family(self) -> str:
         return self.member.family
 
     @property
+    def declared(self) -> bool:
+        return bool(self.species)
+
+    @property
+    def borrowed(self) -> bool:
+        """La lista es de OTRA especie declarada. El FAIL sigue siendo FAIL — y lo dice."""
+        return self.declared and self.species != CORE_SPECIES
+
+    @property
     def reason(self) -> str:
         texto = f"{self.name} casa con {self.member.label} del nucleo. {CORE_REASON}"
         if self.member.family == MIR30_FAMILY:
             texto += f" {MIR30_REASON}"
+        if self.borrowed:
+            texto += f" {BORROWED_LIST_WARNING}"
+        elif not self.declared:
+            texto += f" {UNDECLARED_SPECIES_WARNING}"
         return texto
 
 
-def core_hits(names) -> tuple[CoreHit, ...]:
-    """Que nombres de la lista caen en el nucleo. Sin fichero: no lo necesita."""
+def core_hits(names, *, species: str = "") -> tuple[CoreHit, ...]:
+    """Que nombres de la lista caen en el nucleo. Sin fichero: no lo necesita.
+
+    `species` es la especie del DISEÑO, no la del nombre del maduro. Si no es aquella
+    para la que la lista esta autorizada, el veredicto sale igual —excluir por una lista
+    prestada es defendible— pero MARCADO `LISTA_DE_OTRA_ESPECIE`: lo que no es
+    defendible es no decirlo.
+    """
+    from .species import resolve
+
+    slug = resolve(species).slug if species else species
     return tuple(
-        CoreHit(name=nombre, member=miembro)
+        CoreHit(name=nombre, member=miembro, species=slug)
         for nombre in names
         for miembro in CORE_ABUNDANT
         if miembro.matches(nombre)
@@ -256,7 +316,10 @@ def parse_mature_fa(
         nonlocal nombre, partes, total
         if nombre is None:
             return
-        if any(nombre.startswith(p) for p in prefixes):
+        # Sin prefijos declarados se indexa TODO el fichero: filtrar por especie es
+        # cosa de quien pregunta, y un filtro aqui dejaria fuera del indice —sin
+        # avisar— a las especies que no estuvieran en la lista.
+        if not prefixes or any(nombre.startswith(p) for p in prefixes):
             seed = _seed_of_mature("".join(partes), name=nombre, source=source)
             seeds.setdefault(seed, []).append(nombre)
             total += 1
@@ -272,9 +335,10 @@ def parse_mature_fa(
     cerrar()
 
     if not seeds:
+        cuales = "/".join(prefixes) if prefixes else "ninguna especie"
         raise ShmirDesignError(
-            f"{source}: no hay ni un maduro de {'/'.join(prefixes)} en el fichero. Se "
-            f"aborta en vez de dar por limpia una guia contra una tabla vacia."
+            f"{source}: no hay ni un maduro de {cuales} en el fichero. Se aborta en vez "
+            f"de dar por limpia una guia contra una tabla vacia."
         )
 
     return MatureSet(
@@ -432,6 +496,8 @@ def filter_seed_collision(
     mature: MatureSet | None,
     abundance: AbundanceList | None,
     passenger: str | None = None,
+    *,
+    species: str = "",
 ) -> SeedCollisionResult:
     """Colision de seed, en dos niveles. Sin maduros: NOT_RUN entero.
 
@@ -483,7 +549,7 @@ def filter_seed_collision(
     procedencia = f" Maduros: {mature.provenance}."
 
     # CAPA 1 — el nucleo va en codigo y no necesita fichero: corre siempre.
-    nucleo = core_hits(colisiones)
+    nucleo = core_hits(colisiones, species=species)
     if nucleo:
         de_30 = [h for h in nucleo if h.family == MIR30_FAMILY]
         aparte = (

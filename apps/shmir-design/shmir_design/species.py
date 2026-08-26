@@ -51,6 +51,14 @@ SPECIES: dict[str, Species] = {
     "human": Species("Homo sapiens", "human", "hsa-", "txid9606", "hg38"),
 }
 
+#: Como se llama cada especie EN ESTE PROYECTO, ademas de por su nombre cientifico.
+#: Van DECLARADOS, no deducidos: sin esto, `raton` no seria `mouse` y el nucleo de
+#: abundancia saldria marcado como lista de otra especie en la corrida murina.
+ALIASES: dict[str, str] = {
+    "raton": "mouse", "ratón": "mouse", "mus musculus": "mouse", "mouse": "mouse",
+    "humano": "human", "homo sapiens": "human", "human": "human",
+}
+
 _BY_NAME = {s.scientific.lower(): s for s in SPECIES.values()}
 
 
@@ -68,7 +76,11 @@ def resolve(name: str) -> Species:
             "suponer raton, que es lo que este proyecto lleva dentro por historia."
         )
     limpio = str(name).strip()
-    conocida = _BY_NAME.get(limpio.lower()) or SPECIES.get(limpio.lower())
+    alias = ALIASES.get(limpio.lower())
+    conocida = (
+        SPECIES.get(alias) if alias
+        else _BY_NAME.get(limpio.lower()) or SPECIES.get(limpio.lower())
+    )
     if conocida is not None:
         return conocida
     return Species(scientific=limpio, slug=_slugify(limpio))
@@ -233,3 +245,34 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
         ),
     ]
     return FixtureReport(species=species, rows=tuple(filas))
+
+
+# ─────────── el UNICO origen de los tres valores que estaban por defecto ───────────
+#
+# `mirna.DEFAULT_PREFIXES`, el `mmu-` de `seed_scan` y el `txid10090` de `blast` eran
+# valores por defecto que NADIE avisaba si no se cambiaban: el mismo patron que
+# `rmsk_mouse.out` conectado por rol. Un `txid10090` sobre una secuencia de conejo tiene
+# que ser IMPOSIBLE, no improbable, asi que ahora esos tres salen de aqui — y una
+# especie sin el valor declarado ABORTA diciendo donde se declara.
+
+
+def mirbase_prefix(name: str) -> str:
+    """El prefijo de miRBase de una especie. No se deduce del nombre."""
+    especie = resolve(name)
+    if especie.mirbase_prefix:
+        return especie.mirbase_prefix
+    raise ShmirDesignError(
+        f"La especie {name!r} ({especie.scientific}) NO tiene prefijo de miRBase "
+        f"declarado en este proyecto. Se mira en mirbase.org —la especie va en el "
+        f"nombre de cada maduro— y se AÑADE a `species.SPECIES`. No se deduce del "
+        f"nombre: para Oryctolagus cuniculus, `ocu-`, `oc-` y `ory-` son todos "
+        f"plausibles y solo uno existe. Filtrar con el prefijo equivocado da CERO "
+        f"colisiones, que parece una buena noticia."
+    )
+
+
+def taxid(name: str) -> str:
+    """El taxid de una especie. No se deduce del nombre."""
+    from .specificity import taxid_for
+
+    return taxid_for(name)

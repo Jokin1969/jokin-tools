@@ -946,6 +946,9 @@ def main(argv: list[str]) -> int:
             )
             tiling = tile_utr(
                 secuencia,
+                # La especie del diseño VIAJA: sin ella el nucleo de abundancia no puede
+                # decir si la lista que usa es la de esta especie o una prestada.
+                species=especie,
                 measured_apa=medido,
                 seeds=seeds,
                 mask=mask,
