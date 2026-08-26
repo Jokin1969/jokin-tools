@@ -88,6 +88,16 @@ CABECERA = (
 )
 
 
+#: Las dos posiciones que NO son dato. Van en el informe y en la cabecera del TSV.
+CONVENTION_NOTE = (
+    "Posiciones de CONVENIO, excluidas de toda comparacion de identidad:\n"
+    "  · posicion 1 de la guia: se fuerza una T/U para que AGO2 cargue la hebra; no "
+    "viene de la diana.\n"
+    "  · posicion 1 de la pasajera: desapareamiento deliberado que mantiene el bulge "
+    "basal; tampoco viene de la diana."
+)
+
+
 def coordinate_note(anatomy: Anatomy | None) -> str:
     """En que marco va cada pareja de coordenadas, y de donde salio la anatomia.
 
@@ -251,7 +261,10 @@ def comparative_tsv(
     )
     if not with_header:
         return cuerpo
-    nota = "".join(f"# {l}\n" for l in coordinate_note(anatomy).splitlines())
+    nota = "".join(
+        f"# {l}\n"
+        for l in (coordinate_note(anatomy) + "\n" + CONVENTION_NOTE).splitlines()
+    )
     return CABECERA + nota + cuerpo
 
 

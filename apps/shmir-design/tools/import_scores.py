@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.external_score import ScoreSource, merge_scores  # noqa: E402
+from shmir_design.scaffold import SGEP_SCAFFOLD  # noqa: E402
 
 #: Lo que se puede importar y con que etiqueta queda. Solo hay puntuaciones HECHAS A
 #: MANO en un servicio externo: no existe ninguna opcion que escriba `splashrna_features`
@@ -57,6 +58,12 @@ def main(argv: list[str]) -> int:
         help="La tabla comparativa de la corrida (`<especie>_comparativa.tsv`).",
     )
     parser.add_argument(
+        "--andamio", required=True,
+        help="Con que andamio se puntuo el fichero (p. ej. miR-30a). Obligatorio: un "
+             "score de procesamiento medido sobre otro andamio no ordena estos "
+             "candidatos, y suponer que coincide es lo que no se puede hacer.",
+    )
+    parser.add_argument(
         "--offset", type=int,
         help="Cuanto hay que sumar a las coordenadas de la fuente para llevarlas a las "
              "del transcrito (p. ej. 949 si la fuente numera sobre el 3'UTR). NO se "
@@ -78,6 +85,8 @@ def main(argv: list[str]) -> int:
             source=FUENTES[args.fuente],
             source_name=str(args.tsv),
             offset=args.offset,
+            file_scaffold=args.andamio,
+            design_scaffold=SGEP_SCAFFOLD.name,
         )
     except (ShmirDesignError, OSError, UnicodeDecodeError) as exc:
         # rule2-ok: frontera CLI. No se escribe NADA si algo falla: media tabla

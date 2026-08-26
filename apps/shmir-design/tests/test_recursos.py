@@ -16,7 +16,12 @@ import unittest
 from pathlib import Path
 
 from shmir_design.errors import ShmirDesignError
-from shmir_design.manifest import MANIFEST_COLUMNS, MANIFEST_NAME, ROLES
+from shmir_design.manifest import (
+    LEGACY_COLUMNS,
+    MANIFEST_COLUMNS,
+    MANIFEST_NAME,
+    ROLES,
+)
 from shmir_design.resources import LOADERS, ResourceSet, load_from_manifest
 
 SONDA = "GCGTCAGTACGATCGAATTACT" * 20
@@ -48,7 +53,7 @@ class TestCarga(unittest.TestCase):
                 f"{nombre}\tprueba\t{len(datos)}\t{md5}\t2026-08-25\tpuesto por el test\n"
             )
         (d / MANIFEST_NAME).write_text(
-            "\t".join(MANIFEST_COLUMNS) + "\n" + "".join(filas), encoding="utf-8"
+            "\t".join(LEGACY_COLUMNS) + "\n" + "".join(filas), encoding="utf-8"
         )
         return d
 
@@ -58,7 +63,7 @@ class TestCarga(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         d = Path(tmp.name)
         (d / MANIFEST_NAME).write_text(
-            "\t".join(MANIFEST_COLUMNS) + "\n"
+            "\t".join(LEGACY_COLUMNS) + "\n"
             "aav_casete.fa\ttransgen\t\t\t\tno descargado todavia\n",
             encoding="utf-8",
         )
@@ -94,7 +99,7 @@ class TestCarga(unittest.TestCase):
         d = Path(tmp.name)
         (d / "aav_casete.fa").write_text(">c\n" + CASETE + "\n", encoding="utf-8")
         (d / MANIFEST_NAME).write_text(
-            "\t".join(MANIFEST_COLUMNS) + "\naav_casete.fa\tt\t\t\t\tsin registrar\n",
+            "\t".join(LEGACY_COLUMNS) + "\naav_casete.fa\tt\t\t\t\tsin registrar\n",
             encoding="utf-8",
         )
         recursos = load_from_manifest(d)

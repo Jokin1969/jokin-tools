@@ -65,6 +65,7 @@ from .specificity import (
     filter_specificity,
     filter_transgene,
 )
+from .reference import sequence_md5
 from .thermo import turner_asymmetry
 
 
@@ -246,6 +247,11 @@ class TilingReport:
     accessibility: bool = False
     apa_sites: ApaSites | None = None
     polya_mode: PolyAMode = PolyAMode.ESCALONADO
+    #: Longitud y md5 CANONICO de la secuencia que se analizo. Sin esto no hay forma de
+    #: saber que se analizo: la errata del 3'UTR fabricado se detecto por longitud
+    #: contra las coordenadas declaradas.
+    sequence_length: int = 0
+    sequence_md5: str = ""
 
     def biofisicos_ok(self) -> int:
         return sum(1 for w in self.windows if w.biofisicos_ok)
@@ -621,4 +627,6 @@ def tile_utr(
         accessibility=accessibility,
         apa_sites=apa_sites,
         polya_mode=polya_mode,
+        sequence_length=len(original),
+        sequence_md5=sequence_md5(original),
     )

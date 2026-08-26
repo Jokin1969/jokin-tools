@@ -41,7 +41,17 @@ MANIFEST_COLUMNS = (
     "md5",
     "fecha_descarga",
     "origen",
+    # Las tres de abajo son la contramedida a la errata del 3'UTR fabricado: aquella se
+    # detecto por LONGITUD contra las coordenadas declaradas. Con accession CON VERSION
+    # y longitud registradas, esa comprobacion se puede hacer sin abrir el fichero, y
+    # hay un test que la hace. Van vacias en las entradas que no son un transcrito.
+    "accession",
+    "longitud",
+    "url",
 )
+
+#: El ancho de antes de las columnas de procedencia. Se sigue leyendo.
+LEGACY_COLUMNS = MANIFEST_COLUMNS[:6]
 
 #: Ficheros del directorio que no son datos y no cuentan como sobrantes.
 _NO_SON_DATOS = frozenset({MANIFEST_NAME, ".gitignore"})
@@ -145,6 +155,12 @@ class ManifestEntry:
     md5: str
     date: str
     origin: str
+    #: Accession CON version (`NM_011170.3`), vacio si el fichero no es un transcrito.
+    accession: str = ""
+    #: Longitud declarada en nt. `None` si no aplica o no se registro.
+    length: int | None = None
+    #: De donde se descargo. No la llama ningun codigo: es procedencia, no un endpoint.
+    url: str = ""
 
     def usable(self, status: EntryStatus) -> bool:
         """¿Se puede correr el filtro que depende de este fichero?
@@ -209,6 +225,20 @@ class Manifest:
         return tuple(lineas)
 
 
+def _longitud(bruto: str, *, source: str, fila: int) -> int | None:
+    """La longitud declarada, o `None` si no se registro. Nunca 0 por defecto."""
+    if not bruto:
+        return None
+    try:
+        return int(bruto)
+    except ValueError as exc:
+        raise ShmirDesignError(
+            f"{source}, fila {fila}: la longitud {bruto!r} no es un numero. Se aborta: "
+            f"esa columna existe para comprobar ficheros, y una que no se puede leer no "
+            f"comprueba nada."
+        ) from exc
+
+
 def parse_manifest(text: str, *, source: str) -> Manifest:
     filas = [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
     if not filas:
@@ -217,11 +247,16 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
             f"por vacio el directorio de referencias."
         )
     cabecera = tuple(filas[0].split("\t"))
-    if cabecera != MANIFEST_COLUMNS:
+    # Se aceptan dos anchos: el completo y el corto, que es el de antes de que
+    # existieran las columnas de procedencia. Un manifiesto corto NO es un error —los
+    # ficheros que no son transcritos no tienen accession— pero deja esas columnas
+    # vacias, y vacio significa "no registrado", nunca un valor por defecto.
+    if cabecera not in (MANIFEST_COLUMNS, LEGACY_COLUMNS):
         raise ShmirDesignError(
             f"{source}: la cabecera del manifiesto es {cabecera} y se esperaba "
             f"{MANIFEST_COLUMNS}; se aborta en vez de leer las columnas por posicion."
         )
+    ancho = len(cabecera)
     if len(filas) == 1:
         raise ShmirDesignError(
             f"{source}: el manifiesto solo tiene cabecera. Se aborta: un manifiesto "
@@ -232,12 +267,14 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
     vistos: set[str] = set()
     for numero, fila in enumerate(filas[1:], start=2):
         campos = fila.split("\t")
-        if len(campos) != len(MANIFEST_COLUMNS):
+        if len(campos) != ancho:
             raise ShmirDesignError(
-                f"{source}, fila {numero}: tiene {len(campos)} campo(s) y hacen falta "
-                f"{len(MANIFEST_COLUMNS)}; se aborta en vez de saltarse la fila."
+                f"{source}, fila {numero}: tiene {len(campos)} campo(s) y la cabecera "
+                f"declara {ancho}; se aborta en vez de saltarse la fila."
             )
-        nombre, filtro, tamaño, md5, fecha, origen = (c.strip() for c in campos)
+        rellenos = [*(c.strip() for c in campos), *([""] * (len(MANIFEST_COLUMNS) - ancho))]
+        (nombre, filtro, tamaño, md5, fecha, origen,
+         accession, longitud, url) = rellenos
         if not nombre:
             raise ShmirDesignError(f"{source}, fila {numero}: sin nombre de fichero.")
         if nombre in vistos:
@@ -263,7 +300,8 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
         entradas.append(
             ManifestEntry(
                 name=nombre, filter_name=filtro, size=talla, md5=md5,
-                date=fecha, origin=origen,
+                date=fecha, origin=origen, accession=accession,
+                length=_longitud(longitud, source=source, fila=numero), url=url,
             )
         )
     return Manifest(entries=tuple(entradas), source=source)

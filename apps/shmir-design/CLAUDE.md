@@ -248,6 +248,17 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - **El filtro de poliadenilación es escalonado**: FAIL duro solo para la señal terminal
   y para `AATAAA`/`ATTAAA` en `APA_POSIBLE`; las variantes raras dejan bandera y
   penalización de ranking. El informe saca las dos cifras de elegibles.
+- **Cada informe dice QUÉ se analizó**: longitud y md5 canónico de la secuencia de
+  entrada (`TilingReport.sequence_length` / `.sequence_md5`). Sin esas dos cifras no hay
+  forma de saber a posteriori qué se pasó — y la errata del 3'UTR fabricado se detectó
+  precisamente por longitud contra las coordenadas declaradas. El manifiesto registra lo
+  mismo por fichero: `accession` con versión, `longitud` y `url`, con un test que ata las
+  dos parejas del ratón (2191 nt / `44fb8cd8…` y 3'UTR 1242 nt / `19f5fa2a…`).
+- **Dos posiciones son CONVENIO y no dato** (`comparative.CONVENTION_NOTE`, en el informe
+  y en la cabecera del TSV): la posición 1 de la guía, donde se fuerza una T/U para que
+  AGO2 cargue la hebra, y la posición 1 de la pasajera, el desapareamiento deliberado del
+  bulge basal. Ninguna viene de la diana, así que ninguna entra en una comparación de
+  identidad.
 - **Las coordenadas van siempre por partida doble**: transcrito y 3'UTR. Los tercios se
   calculan sobre el 3'UTR. Cuando lo que se tila YA es un 3'UTR no hay offset y las dos
   parejas coinciden; los números están bien, pero `inicio_transcrito = 21` leído dentro
@@ -305,11 +316,21 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   desapareamiento sobre 19 nt de solapamiento idéntico. Una ventana corrida hasta 15 nt
   se asigna al candidato más cercano con la distancia escrita en `mirarch_shift_nt`; más
   allá, no se asigna.
-- **La escala de miRarchitect está INVERTIDA: menor es mejor.** Vive en
-  `external_score._LOWER_IS_BETTER` y `lower_is_better()` **aborta** para una fuente no
-  registrada, en vez de suponer una dirección: ordenar por un score cuya dirección no se
-  conoce lleva a síntesis justo los peores candidatos. El resumen del importador lo dice
-  en cada corrida.
+- **La dirección de la escala se DERIVA del dato, no se supone.** `EVIDENCE` registra
+  la dirección de cada fuente **con los pares (puesto, score) de los que salió**, y
+  `file_order_direction()` la vuelve a derivar en cada importación del orden de las filas
+  del fichero: si ese orden no es monótono en el score, no es un ranking y se aborta.
+  Si la derivada no coincide con la registrada, también se aborta — uno de los dos está
+  mal y no se elige por nuestra cuenta. `lower_is_better()` sigue abortando para una
+  fuente no registrada. Ojo: el fichero de la corrida manual **no trae columna de rank**;
+  el puesto sale del ORDEN DE SUS FILAS, que es lo único no circular que hay.
+- **Un score de otro andamio no ordena.** `check_orderable()` compara el andamio del
+  fichero con el del diseño y, si no coinciden, el score se degrada a **convergencia de
+  sitio**: sigue diciendo que otro método señaló la misma región, pero no ordena nada.
+  Va escrito en cada fila (`fuente_score` acaba en `_NO_ORDENAR`) y el resumen empieza
+  por ahí. `--andamio` es obligatorio en `tools/import_scores.py`: suponer que coincide
+  es justo lo que no se puede hacer, porque miR-E existe porque procesa distinto de
+  miR-30a y el sesgo cae sobre lo que el score dice medir.
 - **`score_externo` va vacía y no se rellena aquí.** Se comprobó si miRarchitect
   (`mirarchitect.cs.put.poznan.pl`), SplashRNA (`splashrna.mskcc.org`) y el GPP Web
   Portal (`portals.broadinstitute.org`) responden: las tres dan 403 en el CONNECT del

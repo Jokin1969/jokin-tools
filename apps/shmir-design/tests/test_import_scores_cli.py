@@ -39,13 +39,14 @@ class TestImportScores(unittest.TestCase):
         self.tabla = Path(self.dir.name) / "raton_comparativa.tsv"
         self.tabla.write_text(TABLA, encoding="utf-8")
         self.resultados = Path(self.dir.name) / "resultados.tsv"
-        self.resultados.write_text(f"{GUIA}\t0.91\n", encoding="utf-8")
+        self.resultados.write_text(f"{GUIA}\t0.91\n{OTRA}\t7.20\n", encoding="utf-8")
 
     def corre(self, *extra):
         salida = io.StringIO()
         with redirect_stdout(salida):
             codigo = main([
                 "--fuente", "mirarchitect",
+                "--andamio", "miR-E / SGEP",
                 "--tsv", str(self.resultados),
                 "--comparativa", str(self.tabla),
                 *extra,
@@ -69,7 +70,9 @@ class TestImportScores(unittest.TestCase):
         self.assertIn("manual_mirarchitect", salida)
 
     def test_una_guia_que_no_esta_en_la_tabla_falla_sin_escribir_nada(self):
-        self.resultados.write_text("UAAAAAAAAAAAAAAAAAAAAA\t0.5\n", encoding="utf-8")
+        self.resultados.write_text(
+            "UAAAAAAAAAAAAAAAAAAAAA\t0.5\nUCCCCCCCCCCCCCCCCCCCCC\t0.9\n", encoding="utf-8"
+        )
         destino = Path(self.dir.name) / "con_scores.tsv"
         codigo, _ = self.corre("--out", str(destino))
         self.assertEqual(codigo, 2)
@@ -84,8 +87,8 @@ class TestImportScores(unittest.TestCase):
         # `splashrna_features` no es una fuente importable: seria etiquetar de
         # SplashRNA un numero calculado aqui, que es justo lo prohibido.
         with self.assertRaises(SystemExit):
-            main(["--fuente", "splashrna_features", "--tsv", str(self.resultados),
-                  "--comparativa", str(self.tabla)])
+            main(["--fuente", "splashrna_features", "--andamio", "miR-E",
+                  "--tsv", str(self.resultados), "--comparativa", str(self.tabla)])
 
 
 if __name__ == "__main__":

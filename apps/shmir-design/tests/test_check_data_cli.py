@@ -13,10 +13,10 @@ from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from shmir_design.manifest import MANIFEST_COLUMNS, MANIFEST_NAME
+from shmir_design.manifest import LEGACY_COLUMNS, MANIFEST_COLUMNS, MANIFEST_NAME
 from tools.check_data import main
 
-CABECERA = "\t".join(MANIFEST_COLUMNS)
+CABECERA = "\t".join(LEGACY_COLUMNS)
 TABLA = f"""\
 {CABECERA}
 presente.fa\tespecificidad\t\t\t\tdescarga manual

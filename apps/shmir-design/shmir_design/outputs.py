@@ -25,7 +25,7 @@ from .mirna import SEED_SPACE
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
-from .comparative import comparative_text, comparative_tsv
+from .comparative import CONVENTION_NOTE, comparative_text, comparative_tsv
 from .external_score import manual_instructions
 from .selection import (
     coverage_report,
@@ -370,6 +370,19 @@ def text_report(
 
     lines.extend(["", "── Tabla comparativa de los candidatos ──"])
     lines.append(comparative_text(selection, scaffold, anatomy=tiling.anatomy))
+
+    lines.extend(["", "── Que se ha analizado ──"])
+    lines.append(
+        f"  {tiling.sequence_length} nt, md5 canonico {tiling.sequence_md5}"
+    )
+    lines.append(
+        "  Sin estas dos cifras no hay forma de saber que secuencia se analizo. El md5 "
+        "es el de la"
+    )
+    lines.append(
+        "  secuencia canonica (mayusculas, sin cabecera, sin saltos), no el del fichero."
+    )
+    lines.extend(f"  {l}" for l in CONVENTION_NOTE.splitlines())
 
     lines.extend(["", "── Score externo (columna vacia) ──"])
     lines.append(

@@ -12,17 +12,17 @@
 #
 # Una entrada con el md5 vacio significa "todavia no se ha descargado ni registrado".
 # `tools/check_data.py` calcula el md5 del fichero que haya y te dice que apuntar aqui.
-nombre	filtro	tamaño	md5	fecha_descarga	origen
-NM_011170.3.fa	transcrito de referencia (raton, Prnp)	2299	854bc7aff87e17b3ecfbe425a74db3a2	2026-08-26	NCBI efetch, descarga manual; la secuencia se verifica ademas contra el md5 canonico 44fb8cd80883844cde5e53bbc367b176 registrado en reference.py
-NM_000311.5.fa	transcrito de referencia (humano, PRNP)				NCBI efetch, descarga manual; la secuencia se verifica ademas contra el md5 canonico e28a945d24ce53e0d1d93ba5b55a532a registrado en reference.py
-refseq_rna.fa	especificidad (paso 12)				RefSeq RNA versionado, descarga manual; se pasa con --refseq y --refseq-version
-mature.fa	colision de seed, nivel aviso (paso 10a)				miRBase, descarga manual; se pasa con --mirbase y --mirbase-version
-mirgenedb_cerebro.txt	colision de seed, nivel FAIL (paso 10a)				MirGeneDB, lista curada de miARN abundantes en cerebro; se pasa con --abundancia
-transcriptoma_3utr.fa	carga de off-targets por seed (paso 10b)				3'UTR del transcriptoma, descarga manual; se pasa con --transcriptoma-3utr
-expresion_cerebro.tsv	ponderacion de la carga de seed				Tabla transcrito<TAB>valor; se pasa con --expresion
-rmsk_mouse.out	elementos repetitivos (paso 2)				RepeatMasker sobre el FASTA del transcrito, o tabla rmsk de UCSC; se pasa con --rmsk
-aav_casete.fa	filtro del transgen (paso 12b)				Casete AAV completo, ITR a ITR, generado por el laboratorio; se pasa con --transgen
-apa_medido.tsv	APA medido en vez de predicho				PolyA_DB o PolyASite, convertido a posicion<TAB>fraccion<TAB>nombre; se pasa con --apa-medido
-guias_pasajera.fa	regresion de la regla de la pasajera (24 guias)	1617	6281e37478453f03a34ad0856d8c83f7	2026-08-25	Aportado con el encargo; el valor esperado (bases_ok, elegida) va en la cabecera de cada entrada. md5 registrado ademas en guide_fixture.EXPECTED_MD5
-NM_011170.3.gb	anatomia del transcrito de raton (CDS 185..949)	15224	d8ad1a73ae90f29b4e98b60382231d6a	2026-08-26	NCBI, registro GenBank completo aportado por el responsable del proyecto; se pasa con --genbank. Es la via mas fiable de resolver la anatomia: el CDS lo declara la anotacion, no nosotros
-mirarchitect_prnp_raton.tsv	score externo, puntuado a mano	772	d43cc78e13ca3a4b4ff9de0d9a5dfe3c	2026-08-26	Corrida MANUAL de miRarchitect sobre el 3'UTR de Prnp murino (1242 nt) hecha por el responsable del proyecto. OJO: la corrida uso el andamio miR-30a, NO miR-E, que es el del diseño. ESCALA INVERTIDA: menor es mejor. Se importa con tools/import_scores.py --fuente mirarchitect
+nombre	filtro	tamaño	md5	fecha_descarga	origen	accession	longitud	url
+NM_011170.3.fa	transcrito de referencia (raton, Prnp)	2299	854bc7aff87e17b3ecfbe425a74db3a2	2026-08-26	NCBI efetch, descarga manual; la secuencia se verifica ademas contra el md5 canonico 44fb8cd80883844cde5e53bbc367b176 registrado en reference.py	NM_011170.3	2191	https://www.ncbi.nlm.nih.gov/nuccore/NM_011170.3
+NM_000311.5.fa	transcrito de referencia (humano, PRNP)				NCBI efetch, descarga manual; la secuencia se verifica ademas contra el md5 canonico e28a945d24ce53e0d1d93ba5b55a532a registrado en reference.py	NM_000311.5	2435	https://www.ncbi.nlm.nih.gov/nuccore/NM_000311.5
+refseq_rna.fa	especificidad (paso 12)				RefSeq RNA versionado, descarga manual; se pasa con --refseq y --refseq-version			
+mature.fa	colision de seed, nivel aviso (paso 10a)				miRBase, descarga manual; se pasa con --mirbase y --mirbase-version			
+mirgenedb_cerebro.txt	colision de seed, nivel FAIL (paso 10a)				MirGeneDB, lista curada de miARN abundantes en cerebro; se pasa con --abundancia			
+transcriptoma_3utr.fa	carga de off-targets por seed (paso 10b)				3'UTR del transcriptoma, descarga manual; se pasa con --transcriptoma-3utr			
+expresion_cerebro.tsv	ponderacion de la carga de seed				Tabla transcrito<TAB>valor; se pasa con --expresion			
+rmsk_mouse.out	elementos repetitivos (paso 2)				RepeatMasker sobre el FASTA del transcrito, o tabla rmsk de UCSC; se pasa con --rmsk			
+aav_casete.fa	filtro del transgen (paso 12b)				Casete AAV completo, ITR a ITR, generado por el laboratorio; se pasa con --transgen			
+apa_medido.tsv	APA medido en vez de predicho				PolyA_DB o PolyASite, convertido a posicion<TAB>fraccion<TAB>nombre; se pasa con --apa-medido			
+guias_pasajera.fa	regresion de la regla de la pasajera (24 guias)	1617	6281e37478453f03a34ad0856d8c83f7	2026-08-25	Aportado con el encargo; el valor esperado (bases_ok, elegida) va en la cabecera de cada entrada. md5 registrado ademas en guide_fixture.EXPECTED_MD5			
+NM_011170.3.gb	anatomia del transcrito de raton (CDS 185..949)	15224	d8ad1a73ae90f29b4e98b60382231d6a	2026-08-26	NCBI, registro GenBank completo aportado por el responsable del proyecto; se pasa con --genbank. Es la via mas fiable de resolver la anatomia: el CDS lo declara la anotacion, no nosotros	NM_011170.3	2191	https://www.ncbi.nlm.nih.gov/nuccore/NM_011170.3
+mirarchitect_prnp_raton.tsv	score externo, puntuado a mano	772	d43cc78e13ca3a4b4ff9de0d9a5dfe3c	2026-08-26	Corrida MANUAL de miRarchitect sobre el 3'UTR de Prnp murino (1242 nt) hecha por el responsable del proyecto. OJO: la corrida uso el andamio miR-30a, NO miR-E, que es el del diseño. ESCALA INVERTIDA: menor es mejor. Se importa con tools/import_scores.py --fuente mirarchitect			

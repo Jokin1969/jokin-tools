@@ -223,6 +223,16 @@ if __name__ == "__main__":
     unittest.main()
 
 
+OTRA = "UAGAUAAGCAUUAUAAUUCCUG"
+#: Dos filas, en el orden de ranking de la fuente: con una sola no se puede derivar la
+#: direccion de la escala, y derivarla es obligatorio.
+#: Guia real del fixture (mm221), que NO esta en TABLA: sirve de segunda
+#: fila sin robarle el hueco vacio al segundo candidato.
+AJENA = "UUAUAUUCUUAUUGGCCCGGUG"
+RESULTADOS = f"{SGEP_GUIDE}\t0.91\n{AJENA}\t7.20\n"
+OTRA_FILA = f"{AJENA}\t7.20\n"
+ANDAMIO = "miR-E"
+
 TABLA = (
     "# comentario que hay que conservar\n"
     "guia\tveredicto\tscore_externo\tfuente_score\tmirarch_confirmado\t"
@@ -242,8 +252,9 @@ class TestMergeScores(unittest.TestCase):
 
     def test_rellena_la_fila_de_su_guia(self):
         resultado = merge_scores(
-            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
-        )
+            TABLA, RESULTADOS, source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         filas = [l.split("\t") for l in resultado.text.splitlines() if not l.startswith("#")]
         cabecera = filas[0]
         fila = next(f for f in filas[1:] if f[cabecera.index("guia")] == SGEP_GUIDE)
@@ -252,8 +263,9 @@ class TestMergeScores(unittest.TestCase):
 
     def test_las_guias_sin_score_siguen_vacias(self):
         resultado = merge_scores(
-            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
-        )
+            TABLA, RESULTADOS, source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         filas = [l.split("\t") for l in resultado.text.splitlines() if not l.startswith("#")]
         otra = next(f for f in filas[1:] if f[0] != SGEP_GUIDE)
         self.assertEqual(otra[filas[0].index("score_externo")], "")
@@ -261,31 +273,35 @@ class TestMergeScores(unittest.TestCase):
 
     def test_dice_cuantas_relleno_y_cuantas_no(self):
         resultado = merge_scores(
-            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
-        )
+            TABLA, RESULTADOS, source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         self.assertEqual(resultado.filled, (SGEP_GUIDE,))
         self.assertEqual(len(resultado.untouched), 1)
         self.assertIn("1 de 2", resultado.format_text())
 
     def test_conserva_los_comentarios_de_la_tabla(self):
         resultado = merge_scores(
-            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
-        )
+            TABLA, RESULTADOS, source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         self.assertIn("# comentario que hay que conservar", resultado.text)
 
     def test_acepta_la_guia_del_formulario_en_ADN(self):
         resultado = merge_scores(
             TABLA,
-            f"{SGEP_GUIDE.replace('U', 'T')}\t0.91\n",
+            f"{SGEP_GUIDE.replace('U', 'T')}\t0.91\n" + OTRA_FILA,
             source=ScoreSource.MANUAL_MIRARCHITECT,
-        )
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         self.assertEqual(resultado.filled, (SGEP_GUIDE,))
 
     def test_salta_la_cabecera_del_fichero_de_resultados(self):
         resultado = merge_scores(
-            TABLA, f"guia\tscore\n{SGEP_GUIDE}\t0.91\n",
+            TABLA, "guia\tscore\n" + RESULTADOS,
             source=ScoreSource.MANUAL_MIRARCHITECT,
-        )
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         self.assertEqual(resultado.filled, (SGEP_GUIDE,))
 
     def test_si_NINGUNA_guia_cuadra_se_aborta(self):
@@ -294,37 +310,41 @@ class TestMergeScores(unittest.TestCase):
         # 3'UTR entero— pero que no cuadre ninguna, no.
         with self.assertRaises(ShmirDesignError) as caja:
             merge_scores(
-                TABLA, "UAAAAAAAAAAAAAAAAAAAAA\t0.5\n",
+                TABLA, "UAAAAAAAAAAAAAAAAAAAAA\t0.5\nUCCCCCCCCCCCCCCCCCCCCC\t0.9\n",
                 source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
             )
         self.assertIn("no son de la misma corrida", str(caja.exception))
 
     def test_que_sobren_guias_de_la_fuente_NO_aborta(self):
         resultado = merge_scores(
             TABLA,
-            f"{SGEP_GUIDE}\t0.91\nUAAAAAAAAAAAAAAAAAAAAA\t0.5\n",
+            f"UAAAAAAAAAAAAAAAAAAAAA\t0.50\n{SGEP_GUIDE}\t0.91\n",
             source=ScoreSource.MANUAL_MIRARCHITECT,
-        )
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         self.assertEqual(len(resultado.unmatched), 1)
         self.assertIn("no corresponden a ningun candidato", resultado.format_text())
 
     def test_el_offset_queda_escrito_en_la_fuente(self):
         resultado = merge_scores(
-            TABLA, f"{SGEP_GUIDE}\t0.91\n",
+            TABLA, RESULTADOS,
             source=ScoreSource.MANUAL_MIRARCHITECT, offset=949,
         )
         self.assertIn("manual_mirarchitect_offset+949", resultado.text)
 
     def test_sin_offset_no_se_inventa_ninguno(self):
         resultado = merge_scores(
-            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
-        )
+            TABLA, RESULTADOS, source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         self.assertNotIn("offset", resultado.text)
 
     def test_las_banderas_se_rellenan(self):
         resultado = merge_scores(
-            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
-        )
+            TABLA, RESULTADOS, source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         filas = [l.split("\t") for l in resultado.text.splitlines() if not l.startswith("#")]
         fila = next(f for f in filas[1:] if f[0] == SGEP_GUIDE)
         self.assertEqual(fila[filas[0].index("mirarch_confirmado")], "si")
@@ -334,8 +354,9 @@ class TestMergeScores(unittest.TestCase):
     def test_un_candidato_sin_match_no_lleva_rank_cero(self):
         # Vacio, no cero: no haber aparecido y ser el primero son cosas opuestas.
         resultado = merge_scores(
-            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
-        )
+            TABLA, RESULTADOS, source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         filas = [l.split("\t") for l in resultado.text.splitlines() if not l.startswith("#")]
         otra = next(f for f in filas[1:] if f[0] != SGEP_GUIDE)
         self.assertEqual(otra[filas[0].index("mirarch_rank")], "")
@@ -343,30 +364,34 @@ class TestMergeScores(unittest.TestCase):
 
     def test_el_resumen_dice_la_direccion_de_la_escala(self):
         resultado = merge_scores(
-            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
-        )
+            TABLA, RESULTADOS, source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         self.assertIn("menor es mejor", resultado.format_text())
 
     def test_un_score_que_no_es_un_numero_aborta(self):
         with self.assertRaises(ShmirDesignError) as caja:
             merge_scores(
-                TABLA, f"{SGEP_GUIDE}\talto\n", source=ScoreSource.MANUAL_MIRARCHITECT
+                TABLA, f"{SGEP_GUIDE}\talto\n{AJENA}\t0.99\n", source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
             )
         self.assertIn("alto", str(caja.exception))
 
     def test_una_guia_repetida_aborta(self):
         with self.assertRaises(ShmirDesignError):
             merge_scores(
-                TABLA, f"{SGEP_GUIDE}\t0.9\n{SGEP_GUIDE}\t0.4\n",
+                TABLA, f"{SGEP_GUIDE}\t0.4\n{SGEP_GUIDE}\t0.9\n",
                 source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
             )
 
     def test_una_tabla_sin_las_columnas_del_score_aborta(self):
         with self.assertRaises(ShmirDesignError) as caja:
             merge_scores(
                 "guia\tveredicto\nUAGAUAAGCAUUAUAAUUCCUA\tPASS\n",
-                f"{SGEP_GUIDE}\t0.9\n",
+                RESULTADOS,
                 source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
             )
         self.assertIn("score_externo", str(caja.exception))
 
@@ -374,18 +399,22 @@ class TestMergeScores(unittest.TestCase):
         # Importar nada y decir que fue bien es el peor resultado posible: el usuario
         # se quedaria creyendo que la tabla lleva scores.
         with self.assertRaises(ShmirDesignError):
-            merge_scores(TABLA, "", source=ScoreSource.MANUAL_MIRARCHITECT)
+            merge_scores(TABLA, "", source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
 
     def test_una_linea_con_una_sola_columna_aborta(self):
         with self.assertRaises(ShmirDesignError):
             merge_scores(
-                TABLA, f"{SGEP_GUIDE}\n", source=ScoreSource.MANUAL_MIRARCHITECT
+                TABLA, f"{SGEP_GUIDE}\n{AJENA}\t0.99\n", source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
             )
 
     def test_no_toca_ninguna_otra_columna(self):
         resultado = merge_scores(
-            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
-        )
+            TABLA, RESULTADOS, source=ScoreSource.MANUAL_MIRARCHITECT,
+                file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
+            )
         original = [l.split("\t") for l in TABLA.splitlines() if not l.startswith("#")]
         nuevas = [l.split("\t") for l in resultado.text.splitlines() if not l.startswith("#")]
         for antes, despues in zip(original, nuevas):

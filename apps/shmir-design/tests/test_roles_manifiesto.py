@@ -18,7 +18,7 @@ from pathlib import Path
 
 from shmir_design.guide_fixture import fixture_path
 from shmir_design.manifest import (
-    MANIFEST_COLUMNS,
+    LEGACY_COLUMNS,
     MANIFEST_NAME,
     ROLES,
     EntryStatus,
@@ -75,7 +75,7 @@ class TestQueSePuedeUsarDelDirectorio(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         d = Path(tmp.name)
         (d / MANIFEST_NAME).write_text(
-            "\t".join(MANIFEST_COLUMNS) + "\n" + filas, encoding="utf-8"
+            "\t".join(LEGACY_COLUMNS) + "\n" + filas, encoding="utf-8"
         )
         return d
 

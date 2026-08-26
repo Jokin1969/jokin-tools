@@ -173,23 +173,141 @@ class ScoreSource(StrEnum):
     MANUAL_MIRARCHITECT = "manual_mirarchitect"
 
 
-#: Que direccion tiene la escala de cada fuente. Perder esto es leer el ranking al
-#: reves y llevarse a sintesis justo las peores.
-_LOWER_IS_BETTER = {
-    ScoreSource.MANUAL_MIRARCHITECT: True,
-    ScoreSource.MIRARCHITECT_API: True,
+@dataclass(frozen=True)
+class ScoreEvidence:
+    """La direccion de una escala, con el dato del que se saco. No es una opinion."""
+
+    lower_is_better: bool
+    #: Pares (puesto, score) observados. Si la escala fuera de mayor-es-mejor, el
+    #: puesto 3 no podria tener un score menor que el puesto 22.
+    pairs: tuple[tuple[int, float], ...]
+    note: str
+
+
+#: Direccion de cada escala CON su evidencia. Perder esto es leer el ranking al reves y
+#: llevarse a sintesis justo las peores.
+EVIDENCE = {
+    ScoreSource.MANUAL_MIRARCHITECT: ScoreEvidence(
+        lower_is_better=True,
+        pairs=((3, 10.01), (7, 10.89), (12, 12.99), (13, 13.09), (22, 62.59)),
+        note=(
+            "Corrida manual sobre el 3'UTR de Prnp murino (2026-08-26). El fichero NO "
+            "trae columna de rank: los puestos son los del ORDEN DE SUS FILAS, que es "
+            "estrictamente creciente en el score a lo largo de las 25 lineas. Que 25 "
+            "filas salgan ordenadas por score no es casualidad, asi que el orden del "
+            "fichero es el ranking de la fuente y menor es mejor."
+        ),
+    ),
+    ScoreSource.MIRARCHITECT_API: ScoreEvidence(
+        lower_is_better=True,
+        pairs=(),
+        note=(
+            "Se hereda de la corrida manual: es el mismo servicio. Sin endpoint "
+            "verificado no hay evidencia propia."
+        ),
+    ),
 }
 
 
 def lower_is_better(source: ScoreSource) -> bool:
     """¿Menor es mejor en esta escala? Se aborta antes que suponerlo."""
-    if source not in _LOWER_IS_BETTER:
+    if source not in EVIDENCE:
         raise ShmirDesignError(
             f"No esta registrado si la escala de {source.value} es de menor-es-mejor o "
             f"de mayor-es-mejor. Se aborta: ordenar por un score cuya direccion no se "
             f"conoce llevaria a sintesis justo los peores candidatos."
         )
-    return _LOWER_IS_BETTER[source]
+    return EVIDENCE[source].lower_is_better
+
+
+def file_order_direction(scores: list[tuple[str, float]]) -> bool:
+    """Deriva la direccion del ORDEN DE LAS FILAS del fichero, o aborta.
+
+    No hay ninguna columna que declare si menor es mejor. Lo que si se puede comprobar
+    es que las filas vengan ordenadas por score: si lo estan, el fichero viene en el
+    orden de ranking de la fuente y ese orden fija la direccion. Si no lo estan, el
+    orden de las filas no es un ranking y sacar un puesto de el seria inventarselo.
+    """
+    valores = [s for _, s in scores]
+    if len(valores) < 2:
+        raise ShmirDesignError(
+            "Con una sola fila no se puede derivar la direccion de la escala del orden "
+            "del fichero. Se aborta en vez de suponerla."
+        )
+    sube = all(a <= b for a, b in zip(valores, valores[1:]))
+    baja = all(a >= b for a, b in zip(valores, valores[1:]))
+    if not sube and not baja:
+        raise ShmirDesignError(
+            "El orden de las filas del fichero no es monotono en el score, asi que no "
+            "es un ranking: no se puede derivar de el ni la direccion de la escala ni "
+            "el puesto de cada guia. Se aborta en vez de ordenar a ciegas."
+        )
+    if sube and baja:
+        raise ShmirDesignError(
+            "Todos los scores del fichero son iguales: el orden de las filas no dice "
+            "nada sobre la direccion de la escala. Se aborta."
+        )
+    return sube
+
+
+def _same_scaffold(a: str, b: str) -> bool:
+    """¿Son el mismo andamio? `miR-E` y `miR-E / SGEP` lo son; `miR-30a` no.
+
+    Se comparan los tokens, no la cadena: el nombre del andamio del proyecto lleva
+    ademas el del plasmido. Un nombre que no sea un subconjunto del otro es OTRO
+    andamio, y ahi no se acerca nada por parecido.
+    """
+    import re  # noqa: PLC0415
+
+    def tokens(x: str) -> set[str]:
+        return {t for t in re.split(r"[^0-9a-z]+", x.lower()) if t}
+
+    ta, tb = tokens(a), tokens(b)
+    return bool(ta) and bool(tb) and (ta <= tb or tb <= ta)
+
+
+def check_orderable(
+    source: ScoreSource,
+    *,
+    derived_lower_is_better: bool,
+    file_scaffold: str | None,
+    design_scaffold: str,
+) -> None:
+    """¿Se puede ORDENAR candidatos por este score? Aborta si no, diciendo por que.
+
+    Dos motivos para que no:
+
+    - La direccion derivada del fichero no coincide con la registrada. Uno de los dos
+      esta mal y no se elige por nuestra cuenta.
+    - El andamio del fichero no es el del diseño. Un score de PROCESAMIENTO medido
+      sobre miR-30a no ordena candidatos de miR-E: miR-E existe precisamente porque
+      procesa distinto (Fellmann 2013), asi que el sesgo cae justo sobre lo que el
+      score dice medir. El numero sigue sirviendo como convergencia de sitio —dos
+      metodos independientes señalan la misma region— pero no para ordenar.
+    """
+    registrada = lower_is_better(source)
+    if registrada != derived_lower_is_better:
+        raise ShmirDesignError(
+            f"La direccion de la escala derivada del fichero "
+            f"({'menor' if derived_lower_is_better else 'mayor'} es mejor) no coincide "
+            f"con la registrada para {source.value} "
+            f"({'menor' if registrada else 'mayor'} es mejor). Uno de los dos esta mal; "
+            f"se aborta en vez de elegir por nuestra cuenta."
+        )
+    if file_scaffold is None:
+        raise ShmirDesignError(
+            f"No se ha declarado con que andamio se puntuo el fichero. Se aborta en vez "
+            f"de suponer que es el del diseño ({design_scaffold}): un score de "
+            f"procesamiento medido sobre otro andamio no ordena estos candidatos."
+        )
+    if not _same_scaffold(file_scaffold, design_scaffold):
+        raise ShmirDesignError(
+            f"El fichero se puntuo con el andamio {file_scaffold} y el diseño usa "
+            f"{design_scaffold}. Este score es de PROCESAMIENTO, y {design_scaffold} "
+            f"existe porque procesa distinto de {file_scaffold} (Fellmann 2013): el "
+            f"sesgo cae justo sobre lo que el score dice medir. Vale como convergencia "
+            f"de sitio, NO para ordenar."
+        )
 
 
 @dataclass(frozen=True)
@@ -382,6 +500,10 @@ class MergeResult:
     #: de todo el 3'UTR esto es lo NORMAL, no un fallo.
     unmatched: tuple[str, ...] = ()
     offset: int | None = None
+    #: ¿Se puede ORDENAR candidatos por este score? Falso cuando el andamio del fichero
+    #: no es el del diseño: el numero vale como convergencia de sitio, no como ranking.
+    orderable: bool = True
+    not_orderable_reason: str = ""
 
     def format_text(self) -> str:
         total = len(self.filled) + len(self.untouched)
@@ -391,6 +513,12 @@ class MergeResult:
             f"fuente {self.source.value}.",
             f"ESCALA: {direccion}. No la inviertas al ordenar.",
         ]
+        if not self.orderable:
+            lineas.append("NO ORDENAR POR ESTA COLUMNA. " + self.not_orderable_reason)
+            lineas.append(
+                "El numero se queda como CONVERGENCIA DE SITIO: dice que otro metodo "
+                "señalo la misma region, no que un candidato sea mejor que otro."
+            )
         if self.offset is not None:
             lineas.append(
                 f"Las coordenadas de la fuente van con offset {self.offset:+d} respecto "
@@ -496,6 +624,8 @@ def merge_scores(
     source: ScoreSource,
     source_name: str = "el TSV de scores",
     offset: int | None = None,
+    file_scaffold: str | None = None,
+    design_scaffold: str = "",
 ) -> MergeResult:
     """Cruza los scores de una fuente externa con la tabla comparativa, POR SECUENCIA.
 
@@ -507,9 +637,33 @@ def merge_scores(
     distancia queda escrita. Mas alla, no se asigna: la columna se queda vacia.
     """
     scores = _parse_results(results, source_name=source_name)
+    # La direccion NO se supone: se deriva del orden de las filas y se contrasta con la
+    # registrada. Si el fichero no viene ordenado, `file_order_direction` aborta.
+    derivada = file_order_direction(scores)
     lower_better = lower_is_better(source)
-    ranks = _ranked(scores, lower_better=lower_better)
+    ordenable, motivo = True, ""
+    try:
+        check_orderable(
+            source,
+            derived_lower_is_better=derivada,
+            file_scaffold=file_scaffold,
+            design_scaffold=design_scaffold,
+        )
+    except ShmirDesignError as exc:
+        # rule2-ok: no es un fallo del proceso, es un VEREDICTO sobre el dato. No se
+        # traga: se propaga entero a la salida y a la columna `fuente_score`, y el
+        # resumen empieza diciendo NO ORDENAR.
+        if "direccion" in str(exc).lower():
+            raise
+        ordenable, motivo = False, str(exc)
+    # El puesto sale del ORDEN DEL FICHERO, que es el de la fuente. Reordenarlo por
+    # nuestra cuenta seria fabricar un ranking que la fuente no dio.
+    ranks = {guia: puesto for puesto, (guia, _) in enumerate(scores, start=1)}
     anotacion = "" if offset is None else f"_offset{offset:+d}"
+    if not ordenable:
+        # Viaja en CADA fila: quien abra el TSV dentro de un año tiene que verlo sin
+        # leer ningun informe.
+        anotacion += f"_andamio_{file_scaffold or 'SIN_DECLARAR'}_NO_ORDENAR"
 
     lineas = table.splitlines()
     comentarios = [l for l in lineas if l.startswith("#")]
@@ -569,6 +723,8 @@ def merge_scores(
         untouched=tuple(intactas),
         source=source,
         matches=tuple(encontrados),
+        orderable=ordenable,
+        not_orderable_reason=motivo,
         unmatched=tuple(g for g, _ in scores if g not in usadas),
         offset=offset,
     )

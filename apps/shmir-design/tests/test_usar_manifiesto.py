@@ -12,7 +12,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from shmir_design.manifest import MANIFEST_COLUMNS, MANIFEST_NAME
+from shmir_design.manifest import LEGACY_COLUMNS, MANIFEST_NAME
 from tools.design import main
 
 SONDA = "GCGTCAGTACGATCGAATTACT" * 20
@@ -49,7 +49,7 @@ class _Base(unittest.TestCase):
 
     def _manifiesto(self, *filas: str) -> None:
         (self.datos / MANIFEST_NAME).write_text(
-            "\t".join(MANIFEST_COLUMNS) + "\n" + "".join(filas), encoding="utf-8"
+            "\t".join(LEGACY_COLUMNS) + "\n" + "".join(filas), encoding="utf-8"
         )
 
     def _correr(self, extra=None):

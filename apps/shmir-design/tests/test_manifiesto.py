@@ -17,6 +17,7 @@ from tempfile import TemporaryDirectory
 
 from shmir_design.errors import ShmirDesignError
 from shmir_design.manifest import (
+    LEGACY_COLUMNS,
     MANIFEST_COLUMNS,
     MANIFEST_NAME,
     EntryStatus,
@@ -27,7 +28,7 @@ from shmir_design.manifest import (
     parse_manifest,
 )
 
-CABECERA = "\t".join(MANIFEST_COLUMNS)
+CABECERA = "\t".join(LEGACY_COLUMNS)
 
 TABLA = f"""\
 # Manifiesto de data/reference/. Versionado en git; los ficheros NO.
