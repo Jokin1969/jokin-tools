@@ -344,6 +344,21 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   miR-30a —dos nucleótidos borrados tras la posición 9 y `GC` terminal, verificado
   26/26— y la nuestra cambia solo la posición 1 y se elige plegando. De miRarchitect se
   toma la guía y nada más.
+- **Una puntuación externa es transferible entre entradas si y solo si la ventana no
+  solapa ninguna diferencia entre ellas, y eso se COMPRUEBA, no se supone**
+  (`transfer.py`). Sale del caso de referencia: dos corridas de miRarchitect sobre Prnp,
+  misma herramienta y mismo andamio, entradas que difieren en 18 sucesos sobre 1242 nt —
+  los **21 sitios con ventana idéntica salieron con score idéntico**, luego el score es
+  función local de la ventana de 22 nt. `divergent_positions=None` significa «nadie lo
+  ha mirado» y **no** se transfiere; un `frozenset()` vacío sí es una comprobación hecha.
+  **El puesto NO se transfiere**: 20 de esos 21 cambiaron de puesto con el score
+  idéntico, porque el puesto depende del tamaño de la lista y no del sitio.
+- **Dos criterios de «misma ventana», y manda el directo.** El posicional —¿el intervalo
+  de referencia contiene alguna posición divergente?— es conservador: cuando el indel cae
+  dentro de una carrera de bases iguales, su posición exacta es ambigua y el alineamiento
+  la coloca en un punto cualquiera, así que sobre-marca. El directo —¿las dos corridas
+  emitieron la misma diana?— es exacto, pero solo se puede aplicar a sitios que las dos
+  reportan. El informe da los dos y dice dónde discrepan y por qué.
 - **El perfil de diferencias dice de QUÉ investigación se trata** (`alignment.py`). Un
   trasvase —copiar de una pantalla— solo puede PERDER caracteres: si el perfil trae
   inserciones, sustituciones o transposiciones, la secuencia no se copió mal, se generó.

@@ -69,8 +69,8 @@ class TestConsigoMismo(unittest.TestCase):
         # porcentaje global mezcla los dos estratos y con eso no se decide nada.
         texto = self.comparacion.format_text()
         self.assertNotIn("100.0%", texto)
-        self.assertIn("ESTRATO (a)", texto)
-        self.assertIn("ESTRATO (b)", texto)
+        self.assertIn("CRITERIO DIRECTO", texto)
+        self.assertIn("CRITERIO POSICIONAL", texto)
 
 
 @unittest.skipUnless(CSV.is_file() and RATON.is_file(), "NOT_RUN: faltan los fixtures")
@@ -146,12 +146,21 @@ class TestLoQueNoDecideLaHerramienta(unittest.TestCase):
         with self.assertRaises(TypeError):
             compare_exports(export, export, _utr3())
 
-    def test_el_informe_no_dice_si_es_robusto_o_no(self):
-        # El umbral de "alto" o "bajo" no lo pone el codigo: lo pone quien lee. El
-        # informe da la cifra y dice que decision cuelga de ella.
+    def test_el_informe_nunca_dice_robusto(self):
+        # El umbral de "alto" o "bajo" no lo pone el codigo: lo pone quien lee.
         export = parse_export(CSV.read_text(encoding="utf-8-sig"), source=str(CSV))
         texto = compare_exports(export, export, _utr3(), axis="x").format_text()
         self.assertNotIn("robusto", texto.lower())
+
+    def test_pero_si_el_test_binario_falla_dice_DEGRADAR(self):
+        from dataclasses import replace
+
+        export = parse_export(CSV.read_text(encoding="utf-8-sig"), source=str(CSV))
+        filas = list(export.rows)
+        filas[0] = replace(filas[0], score=filas[0].score + 1.0)
+        texto = compare_exports(
+            export, replace(export, rows=tuple(filas)), _utr3(), axis="x"
+        ).format_text()
         self.assertIn("degradar", texto.lower())
 
 
@@ -229,9 +238,84 @@ class TestEstratificacion(unittest.TestCase):
 
     def test_los_dos_estratos_se_reportan_por_separado(self):
         texto = self._comparar(self.export, frozenset({1210})).format_text()
-        self.assertIn("sin ninguna diferencia dentro", texto.lower())
-        self.assertIn("solapan al menos una", texto.lower())
+        self.assertIn("estrato (a) limpio", texto.lower())
+        self.assertIn("estrato (b) tocado", texto.lower())
 
     def test_sigue_sin_decir_robusto(self):
         texto = self._comparar(self.export, frozenset({1210})).format_text()
         self.assertNotIn("robusto", texto.lower())
+
+
+BUENA = DIR / "mirarchitect_prnp_export_buena.csv"
+FABRICADO = DIR / "prnp_3utr_fabricado_1246nt.txt"
+
+
+@unittest.skipUnless(
+    CSV.is_file() and BUENA.is_file() and FABRICADO.is_file() and RATON.is_file(),
+    "NOT_RUN: faltan los fixtures de las dos corridas",
+)
+class TestCasoDeReferencia(unittest.TestCase):
+    """Las dos corridas de verdad. Este es EL caso de referencia del proyecto.
+
+    Misma herramienta, mismo andamio, mismo gen; dos entradas que difieren en 18
+    sucesos sobre 1242 nt. Es una caracterizacion de miRarchitect, no un subproducto de
+    una errata: contesta si el score es funcion local de la ventana de 22 nt.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from shmir_design.alignment import align
+
+        utr3 = _utr3()
+        fabricado = FABRICADO.read_text(encoding="ascii").strip()
+        cls.comparacion = compare_exports(
+            parse_export(CSV.read_text(encoding="utf-8-sig"), source="fabricada"),
+            parse_export(BUENA.read_text(encoding="utf-8-sig"), source="buena"),
+            utr3,
+            axis="secuencia de entrada",
+            divergent_positions=align(utr3, fabricado).ref_positions,
+        )
+
+    def test_veintiun_sitios_compartidos(self):
+        self.assertEqual(len(self.comparacion.shared), 21)
+
+    def test_ninguno_exclusivo_de_la_corrida_fabricada(self):
+        self.assertEqual(len(self.comparacion.only_a), 0)
+
+    def test_tres_exclusivos_de_la_buena(self):
+        self.assertEqual(len(self.comparacion.only_b), 3)
+
+    def test_la_estratificacion_posicional_da_veinte_limpios(self):
+        self.assertEqual(len(self.comparacion.clean), 20)
+        self.assertEqual(len(self.comparacion.dirty), 1)
+
+    def test_pero_los_21_vieron_LITERALMENTE_la_misma_ventana(self):
+        # El criterio directo: si las dos corridas emitieron la MISMA diana, vieron la
+        # misma ventana, y eso no admite discusion. El posicional marca 221 como sucio
+        # porque una posicion divergente cae en su intervalo — pero ese indel esta
+        # dentro de una carrera de A y su posicion exacta es ambigua: la ventana real
+        # no lo contiene.
+        self.assertEqual(len(self.comparacion.identical_window), 21)
+
+    def test_y_los_21_tienen_score_IDENTICO(self):
+        self.assertTrue(self.comparacion.window_scores_match)
+        self.assertEqual(self.comparacion.window_mismatches, ())
+
+    def test_luego_el_score_ES_funcion_local_de_la_ventana(self):
+        self.assertIn("es funcion local", self.comparacion.format_text().lower())
+
+    def test_el_informe_dice_que_los_dos_criterios_discrepan_y_por_que(self):
+        texto = self.comparacion.format_text()
+        self.assertIn("carrera", texto.lower())
+        self.assertIn("221", texto)
+
+    def test_el_PUESTO_en_cambio_NO_es_transferible(self):
+        # 20 de 21 cambian de puesto teniendo el score identico: el rank depende del
+        # tamaño de la lista, no del sitio. Confundirlo seria transferir un ranking.
+        self.assertEqual(len(self.comparacion.moved), 20)
+        for sitio in self.comparacion.moved:
+            with self.subTest(sitio.start):
+                self.assertEqual(sitio.score_delta, 0.0)
+
+    def test_y_el_informe_lo_dice(self):
+        self.assertIn("el puesto no", self.comparacion.format_text().lower())

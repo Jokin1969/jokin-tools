@@ -223,6 +223,10 @@ class SiteComparison:
     score_b: float | None = None
     rank_a: int | None = None
     rank_b: int | None = None
+    #: Las dos corridas emitieron la MISMA diana para este sitio. Es el criterio
+    #: directo y exacto: si la diana es la misma, la ventana fue la misma, y eso no
+    #: admite discusion. El posicional es una aproximacion conservadora a esto.
+    same_target: bool = False
 
     @property
     def rank_shift(self) -> int | None:
@@ -266,6 +270,31 @@ class ExportComparison:
         return len(self.shared) / total if total else 0.0
 
     @property
+    def identical_window(self) -> tuple[SiteComparison, ...]:
+        """Sitios donde las dos corridas emitieron LITERALMENTE la misma diana.
+
+        Es el criterio que manda cuando se puede aplicar. El posicional marca sucia
+        cualquier ventana cuyo intervalo de referencia contenga una posicion divergente,
+        y eso sobra cuando el indel cae dentro de una carrera: ahi su posicion exacta es
+        ambigua y el alineamiento la coloca en un sitio cualquiera de la carrera.
+        """
+        return tuple(s for s in self.shared if s.same_target)
+
+    @property
+    def window_mismatches(self) -> tuple[SiteComparison, ...]:
+        """Sitios de ventana identica cuyo score NO coincide. Deberian ser cero."""
+        return tuple(
+            s for s in self.identical_window
+            if s.score_a is not None and s.score_b is not None
+            and s.score_a != s.score_b
+        )
+
+    @property
+    def window_scores_match(self) -> bool:
+        """EL test binario, sobre el criterio exacto. Sin umbral."""
+        return bool(self.identical_window) and not self.window_mismatches
+
+    @property
     def clean_mismatches(self) -> tuple[SiteComparison, ...]:
         """Sitios del estrato limpio cuyo score NO coincide. Deberian ser cero."""
         return tuple(
@@ -288,83 +317,116 @@ class ExportComparison:
             "── Comparacion de dos corridas de miRarchitect ──",
             f"  Lo que cambia entre las dos: {self.axis}",
             "",
-            "  ESTRATO (a) — ventanas sin ninguna diferencia dentro de sus 22 nt",
-            f"    sitios: {len(self.clean)}",
+            "  DISEÑO. Dos corridas de la misma herramienta, con el mismo andamio y "
+            "sobre el mismo",
+            "  gen, alimentadas con dos secuencias distintas. Los sitios se cruzan por "
+            "su posicion",
+            "  sobre la referencia —no por la coordenada que declara cada fichero— y se "
+            "separan en",
+            "  dos estratos segun si su ventana de 22 nt solapa alguna de las "
+            "diferencias entre las",
+            "  dos entradas. Para las ventanas que las dos corridas vieron IGUALES la "
+            "expectativa es",
+            "  score identico: es un test binario, no un umbral.",
+            "",
+            f"  sitios compartidos: {len(self.shared)}   "
+            f"solo en la primera: {len(self.only_a)}   "
+            f"solo en la segunda: {len(self.only_b)}",
+            "",
+            "  CRITERIO DIRECTO — las dos corridas emitieron la misma diana",
+            f"    sitios: {len(self.identical_window)} de {len(self.shared)}",
         ]
-        if self.clean:
-            lineas.append(
-                "    Las dos corridas vieron EXACTAMENTE la misma ventana, asi que la "
-                "expectativa"
-            )
-            lineas.append(
-                "    es score identico. Es un test binario, no un umbral."
-            )
-            if self.clean_scores_match:
-                lineas.append("    RESULTADO: coinciden todos.")
+        if self.identical_window:
+            if self.window_scores_match:
+                lineas.append(
+                    f"    RESULTADO: los {len(self.identical_window)} tienen score "
+                    f"IDENTICO."
+                )
+                lineas.append(
+                    "    El score ES funcion local de la ventana de 22 nt: no arrastra "
+                    "contexto."
+                )
+                lineas.append(
+                    "    Consecuencia: una puntuacion es TRANSFERIBLE entre entradas "
+                    "distintas si y solo"
+                )
+                lineas.append(
+                    "    si la ventana es la misma — y eso se comprueba, no se supone."
+                )
+                lineas.append(
+                    "    EL PUESTO NO se transfiere: depende del tamaño de la lista, no "
+                    "del sitio."
+                )
             else:
                 lineas.append(
-                    f"    RESULTADO: NO coinciden {len(self.clean_mismatches)} de "
-                    f"{len(self.clean)}."
+                    f"    RESULTADO: NO coinciden {len(self.window_mismatches)} de "
+                    f"{len(self.identical_window)}."
                 )
-                for sitio in self.clean_mismatches:
+                for sitio in self.window_mismatches:
                     lineas.append(
                         f"      {sitio.start:<6} {sitio.guide}  "
                         f"{sitio.score_a:.2f} → {sitio.score_b:.2f}"
                     )
-                lineas.append("")
                 lineas.append(
-                    "    LO QUE ESO SIGNIFICA: el score NO es funcion local de la "
-                    "ventana. Arrastra"
+                    "    El score NO es funcion local de la ventana: arrastra contexto "
+                    "global, luego"
                 )
                 lineas.append(
-                    "    contexto global, luego NINGUNA puntuacion calculada sobre una "
-                    "entrada imperfecta"
+                    "    NINGUNA puntuacion calculada sobre una entrada imperfecta es "
+                    "utilizable — tampoco"
                 )
                 lineas.append(
-                    "    es utilizable — tampoco las de sitios que existen en la "
-                    "referencia. Se descartan"
+                    "    las de ventanas intactas. Se descartan todas, y hay que "
+                    "DEGRADAR la confianza"
                 )
-                lineas.append("    todas, no solo las de ventanas tocadas.")
+                lineas.append(
+                    "    que se le da a esta fuente diciendolo en el informe con esas "
+                    "palabras."
+                )
         else:
             lineas.append(
-                "    Ninguno. Sin estrato limpio no hay test binario que correr: con "
-                "esta pareja"
-            )
-            lineas.append(
-                "    de corridas no se puede saber si el score es local o no."
+                "    Ninguno. Sin ventanas identicas no hay test binario que correr."
             )
 
         lineas.extend([
             "",
-            "  ESTRATO (b) — ventanas que solapan al menos una diferencia",
-            f"    sitios: {len(self.dirty)}",
-            "    Aqui una diferencia de score no dice nada: las dos corridas vieron "
-            "ventanas",
-            "    distintas. No se interpreta.",
+            "  CRITERIO POSICIONAL — ventanas sin ninguna diferencia en sus 22 nt",
+            f"    estrato (a) limpio: {len(self.clean)}   "
+            f"estrato (b) tocado: {len(self.dirty)}",
         ])
-        if self.only_a or self.only_b:
-            lineas.extend([
-                "",
-                f"  sitios solo en la primera: {len(self.only_a)}   "
-                f"solo en la segunda: {len(self.only_b)}",
-            ])
+        discrepan = tuple(s for s in self.dirty if s.same_target)
+        if discrepan:
+            lineas.append(
+                f"    Los dos criterios DISCREPAN en "
+                f"{', '.join(str(s.start) for s in discrepan)}: el posicional los marca "
+                f"sucios"
+            )
+            lineas.append(
+                "    y la diana dice que la ventana fue la misma. Manda la diana. Pasa "
+                "cuando el indel"
+            )
+            lineas.append(
+                "    cae dentro de una carrera de bases iguales: ahi su posicion exacta "
+                "es ambigua y el"
+            )
+            lineas.append(
+                "    alineamiento la coloca en un punto cualquiera de la carrera, asi "
+                "que el posicional"
+            )
+            lineas.append("    sobra-marca. Es conservador, no incorrecto.")
+
         if self.moved:
             mayor = max(abs(s.rank_shift) for s in self.moved)
+            iguales = sum(1 for s in self.moved if s.score_delta == 0)
             lineas.extend([
                 "",
                 f"  cambian de puesto: {len(self.moved)} de {len(self.shared)}   "
                 f"mayor salto: {mayor}",
-                "  estrato  sitio   guia                       puesto        score",
+                f"  de ellos con score IDENTICO: {iguales}. El puesto es una propiedad "
+                f"de la LISTA,",
+                "  no del sitio: dos listas de distinto tamaño dan puestos distintos "
+                "para el mismo score.",
             ])
-            limpios = {s.start for s in self.clean}
-            for sitio in sorted(self.moved, key=lambda s: -abs(s.rank_shift)):
-                estrato = "(a)" if sitio.start in limpios else "(b)"
-                lineas.append(
-                    f"  {estrato:<8} {sitio.start:<7} {sitio.guide:<24} "
-                    f"{sitio.rank_a}→{sitio.rank_b} ({sitio.rank_shift:+d})   "
-                    f"{sitio.score_a:.2f}→{sitio.score_b:.2f} "
-                    f"({sitio.score_delta:+.2f})"
-                )
         if self.without_site_a or self.without_site_b:
             lineas.append(
                 f"\n  filas sin sitio en la referencia: {self.without_site_a} en la "
@@ -374,13 +436,7 @@ class ExportComparison:
             "",
             "  No se da una cifra agregada a proposito: un porcentaje global mezcla los "
             "dos",
-            "  estratos y con eso no se decide nada. El umbral de lo que es aceptable no "
-            "lo pone",
-            "  este programa; lo que si pone es el test binario del estrato (a), que no "
-            "tiene",
-            "  umbral. Un resultado que obligue a DEGRADAR la confianza en la "
-            "puntuacion se dice",
-            "  en el informe con esas palabras.",
+            "  estratos y con eso no se decide nada.",
         ])
         return "\n".join(lineas)
 
@@ -441,6 +497,7 @@ def compare_exports(
             score_b=sitios_b[inicio][0].score,
             rank_a=sitios_a[inicio][1],
             rank_b=sitios_b[inicio][1],
+            same_target=sitios_a[inicio][0].target == sitios_b[inicio][0].target,
         )
         for inicio in sorted(set(sitios_a) & set(sitios_b))
     )
