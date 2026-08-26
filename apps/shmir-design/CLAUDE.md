@@ -1246,6 +1246,58 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   tendría test, y el día que alguien escriba «si» en minúsculas el ajuste se leería como
   `False` sin que nadie se enterara. Hay un test que lee el fuente del modal y comprueba
   que no hay ni un `int(`, `float(`, `.upper()` ni `sorted(`.
+- **El segundo modal, colisión de seed, SÍ EJECUTA** (`seed_scan.py`, `seed_store.py`).
+  Mismo patrón que el de BLAST y una diferencia que lo cambia todo: aquí no hay red ni
+  orden que copiar — el cálculo es **búsqueda de subcadena** contra `mature.fa`, ya
+  cargado y verificado por md5. Botón → resultado.
+  - **La tabla previa es la mitad del valor**: antes de correr nada se enseña candidato,
+    hebra, **secuencia completa** y heptámero, con casillas por candidato y por hebra
+    (las dos marcadas por defecto). Y **marca las filas que comparten heptámero**: dos
+    candidatos con la misma seed **no son dos apuestas independientes** en este eje, y eso
+    tiene que verse antes de correr, no después.
+  - **Ajustes**: ventana `2-8` (alternativa `2-7`), especie `mmu-`, nivel
+    núcleo/ampliado/ambos. Cualquiera cambiado se marca y **viaja con el resultado**.
+    - **La ventana viaja en CADA resultado** (`SeedResult.window`): una corrida de `2-7`
+      no puede presentarse como una de `2-8`, y sus tasas base ni se parecen.
+    - **`normalize_u_t` no es editable y se declara a la vista.** Apagarla daría **cero
+      colisiones** en todas y eso parece una buena noticia: es un desajuste de alfabeto
+      disfrazado de resultado limpio. Se enseña, no se ofrece.
+  - **La TASA BASE se DERIVA del fichero cargado, no se teclea** (`seed_scan.base_rate`),
+    y va **siempre** junto al resultado — también en los `LIMPIO`, para no dar una falsa
+    calma. Comprobada contra el fichero real:
+
+    | filtro | maduros | seeds distintas | espacio | tasa |
+    |---|---|---|---|---|
+    | `mmu-`, ventana 2-8 | 1988 | 1593 | 16384 | **9,7 %** |
+    | `mmu-`, ventana 2-7 | 1988 | 1274 | 4096 | **31,1 %** |
+    | `mmu-` + `hsa-`, 2-8 | 4777 | 3127 | 16384 | **19,1 %** |
+
+    Las dos últimas filas son la razón de que la tasa base no se pueda teclear: con `2-7`
+    un tercio de las guías colisiona por azar, y dejar `hsa-` dentro **casi dobla** la
+    tasa. El filtro de especie y la ventana no son cosméticos — cambian cómo se lee un
+    `AVISO`.
+  - **Tres cosas van DESTACADAS, no enterradas en la tabla** (`presentation.seed_highlights`):
+    la colisión con la familia **miR-30** con su razón escrita (el andamio es miR-E,
+    derivado de miR-30a: lectura distinta y peor), las colisiones de **pasajera**
+    separadas de las de guía, y la **tasa base**.
+  - **Guía y pasajera NUNCA se funden**: `SeedStore.verdict_for` es por **hebra** y no
+    existe un `verdict_for_candidate` — a propósito, y hay un test que lo comprueba. En la
+    ficha son **dos filas**, `seed_colision:guia` y `seed_colision:pasajera`.
+  - **El almacén es inmutable**, igual que el de BLAST: fecha, quién la corrió, parámetros
+    completos, release y md5 de `mature.fa`, crudo y parseado. Nada se sobrescribe.
+  - **Lo que este modal NO cierra, escrito en la propia interfaz**
+    (`seed_scan.WHAT_THIS_DOES_NOT_ANSWER`): contesta «¿mi seed es la de un miARN
+    conocido?»; **no** contesta «¿cuántos mensajeros llevan mi seed?», que es la carga de
+    off-targets y necesita `transcriptoma_3utr.fa`. El hueco queda preparado en la misma
+    página, en `NOT_RUN` **visible** (`presentation.seed_load_placeholder`).
+  - **Bloque exportable** (`SeedScan.export_block`) con pregunta, fuente y versión,
+    parámetros, resultado por candidato **y por hebra**, y la tasa base. Se lee sin la app
+    delante: es material para defender la selección.
+  - **Resultado de la corrida murina de referencia**: 20 consultas, **cero FAIL** de
+    núcleo, **cero miR-30**, y **tres AVISO** —`3utr:143` (`mmu-miR-7653-3p`), `3utr:359`
+    (`mmu-miR-5615-5p`) y la pasajera de `3utr:819` (`mmu-miR-136-5p`)—. Tres de veinte es
+    el 15 % contra una tasa base del 10 %: **es lo que predice el azar**, y por eso la
+    cifra va al lado.
 - Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
   verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
   nunca leerlo de la UI.

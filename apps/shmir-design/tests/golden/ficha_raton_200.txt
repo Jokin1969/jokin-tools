@@ -5,7 +5,7 @@
   pasajera   CCTGTCATCAGCCAGTGCTAAA
   veredicto  INCOMPLETE
 
-── Frentes (9) ──
+── Frentes (10) ──
   frente                   estado    fecha        procedencia
   empalme_intron           NOT_RUN   —            frente abierto del informe
   especificidad            NOT_RUN   —            sin corrida en el almacen
@@ -14,7 +14,8 @@
   repeticion_polimorfica   NOT_RUN   —            frente abierto del informe
   repeticiones             NOT_RUN   —            frente abierto del informe
   seed                     NOT_RUN   —            frente abierto del informe
-  seed_colision            NOT_RUN   —            frente abierto del informe
+  seed_colision:guia       NOT_RUN   —            sin corrida en el almacen
+  seed_colision:pasajera   NOT_RUN   —            sin corrida en el almacen
   transgen                 NOT_RUN   —            frente abierto del informe
 
 ── Asimetria — las TRES cifras, que son magnitudes distintas ──

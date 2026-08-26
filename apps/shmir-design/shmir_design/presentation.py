@@ -742,3 +742,173 @@ def blast_params_from_form(valores: dict) -> "object":
         include_predicted=_si("include_predicted"),
         remote=_si("remote"),
     )
+
+
+# ─── El modal de colision de seed (este SI ejecuta) ──────────────────────────
+#
+# Mismo patron que el de BLAST y la misma regla 6: la pagina no decide nada. La
+# diferencia es que aqui no hay orden que copiar — el calculo es subcadena contra
+# `mature.fa`, ya cargado y verificado.
+
+
+def seed_preview_rows(selection, *, species: str, params=None, starts=None,
+                      guides: bool = True, passengers: bool = True):
+    """La tabla de lo que se va a comparar, con el heptamero COMPARTIDO ya marcado."""
+    from .seed_scan import DEFAULTS, preview_rows
+
+    filas = preview_rows(
+        selection, species=species, params=params or DEFAULTS, starts=starts,
+        guides=guides, passengers=passengers,
+    )
+    return [
+        {
+            "candidato": f"3utr:{f.start}",
+            "start": f.start,
+            "hebra": f.strand,
+            "secuencia": f.sequence,
+            "heptamero": f.heptamer,
+            "comparte": ", ".join(f"3utr:{s}" for s in f.shared_with),
+            "marcada": f.checked,
+        }
+        for f in filas
+    ]
+
+
+_SEED_SETTINGS = ("window", "species_prefix", "level", "normalize_u_t")
+
+
+def seed_setting_rows(params):
+    """Un ajuste por fila, con `modificado` y `fijo`. La pagina solo pinta."""
+    from .seed_scan import LEVELS, SEED_WINDOWS, SeedParams
+
+    base = SeedParams()
+    tocados = set(params.modified())
+    opciones = {
+        "window": tuple(sorted(SEED_WINDOWS)),
+        "level": LEVELS,
+        "species_prefix": ("mmu-", ""),
+        "normalize_u_t": ("SI",),
+    }
+    return [
+        {
+            "ajuste": campo,
+            "valor": (
+                "SI" if getattr(params, campo) is True
+                else str(getattr(params, campo) or "TODAS")
+            ),
+            "por_defecto": (
+                "SI" if getattr(base, campo) is True
+                else str(getattr(base, campo) or "TODAS")
+            ),
+            "modificado": campo in tocados,
+            # La normalizacion no es editable: apagarla daria cero colisiones y
+            # parecerian buenas noticias. Se enseña, no se ofrece.
+            "fijo": campo == "normalize_u_t",
+            "opciones": opciones[campo],
+        }
+        for campo in _SEED_SETTINGS
+    ]
+
+
+def seed_source_text(mature) -> str:
+    """Release y md5 de `mature.fa` A LA VISTA, no escondidos en un tooltip."""
+    if mature is None:
+        return (
+            "NOT_RUN: no hay `mature.fa` cargado, asi que no hay contra que comparar. "
+            "NOT_RUN no es PASS."
+        )
+    return f"Fuente: {mature.provenance}"
+
+
+def seed_highlights(scan):
+    """Los tres bloques que van DESTACADOS, no enterrados en la tabla."""
+    from .seed_scan import MIR30_NOTE
+
+    con_mir30 = scan.mir30_results
+    pasajeras = scan.for_strand("pasajera")
+    return {
+        "mir30": {
+            "activo": bool(con_mir30),
+            "texto": (
+                (
+                    "Colision con la familia miR-30 en: "
+                    + ", ".join(f"3utr:{r.start} ({r.strand})" for r in con_mir30)
+                    + ". " if con_mir30 else "Sin colisiones con la familia miR-30. "
+                )
+                + MIR30_NOTE
+            ),
+        },
+        "pasajeras": {
+            "activo": bool(pasajeras),
+            "texto": (
+                f"{len(pasajeras)} consulta(s) de PASAJERA, separadas de las de guia y "
+                f"NUNCA sumadas en un veredicto unico: la pasajera se carga a RISC en "
+                f"alguna proporcion, asi que sus off-targets son igual de reales — pero "
+                f"son otra consulta."
+            ),
+        },
+        "tasa_base": {"activo": True, "texto": scan.base_rate.describe()},
+    }
+
+
+def seed_load_placeholder(utr3_set):
+    """El hueco del OTRO frente, preparado en la misma interfaz y en NOT_RUN visible."""
+    from .filters import FilterState
+    from .seed_scan import WHAT_THIS_DOES_NOT_ANSWER
+
+    if utr3_set is None:
+        return {
+            "state": FilterState.NOT_RUN,
+            "texto": (
+                f"CARGA DE OFF-TARGETS POR SEED — NOT_RUN. Falta "
+                f"`transcriptoma_3utr.fa`. {WHAT_THIS_DOES_NOT_ANSWER}"
+            ),
+        }
+    return {
+        "state": FilterState.PASS,
+        "texto": (
+            f"CARGA DE OFF-TARGETS POR SEED — hay transcriptoma cargado "
+            f"({utr3_set.provenance}). Sigue siendo un numero comparativo, nunca un "
+            f"veredicto."
+        ),
+    }
+
+
+def seed_params_from_form(valores: dict):
+    """Lo elegido en el modal → `SeedParams`. Fuera de la pagina, como en BLAST."""
+    from .seed_scan import SeedParams
+
+    return SeedParams(
+        window=str(valores.get("window", "2-8")),
+        species_prefix=(
+            "" if str(valores.get("species_prefix", "mmu-")) == "TODAS"
+            else str(valores.get("species_prefix", "mmu-"))
+        ),
+        level=str(valores.get("level", "ambos")),
+    )
+
+
+def seed_run(selection, *, mature, params, species: str, starts, guides, passengers):
+    """Atajo con nombre estable para la pagina. La logica esta en `seed_scan`."""
+    from .seed_scan import run_scan
+
+    return run_scan(
+        selection, mature=mature, params=params, species=species, starts=starts,
+        guides=guides, passengers=passengers,
+    )
+
+
+def seed_result_rows(scan):
+    """Una fila por consulta. La hebra va en su columna: no se funden."""
+    return [
+        {
+            "candidato": f"3utr:{r.start}",
+            "hebra": r.strand,
+            "heptamero": r.heptamer,
+            "ventana": r.window,
+            "nivel": r.level,
+            "miR-30": "SI" if r.mir30 else "",
+            "colisiones": ", ".join(c.name for c in r.collisions),
+        }
+        for r in scan.results
+    ]

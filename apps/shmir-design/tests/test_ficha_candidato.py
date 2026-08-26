@@ -67,6 +67,10 @@ class TestLaFicha(unittest.TestCase):
         from shmir_design.selection import blocking_fronts
 
         esperados = {f.name for f in blocking_fronts(self.tiling, self.seleccion)}
+        # `seed_colision` se PARTE en dos —guia y pasajera— porque son dos consultas y
+        # fundirlas escondería la mitad. Los demas van uno a uno.
+        esperados.discard("seed_colision")
+        esperados |= {"seed_colision:guia", "seed_colision:pasajera"}
         self.assertEqual({f.name for f in self.ficha.fronts}, esperados)
 
     def test_cada_frente_lleva_estado_procedencia_y_fecha(self):

@@ -28,12 +28,21 @@ from shmir_design.external_score import EXTERNAL_TOOLS  # noqa: E402
 from shmir_design.fetch import parse_fasta_payload  # noqa: E402
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
 from shmir_design.blast import DEFAULTS as DEFAULT_BLAST  # noqa: E402
+from shmir_design.seed_scan import DEFAULTS as SEED_DEFAULTS  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     BLAST_MODAL_NOTE,
     blast_candidate_rows,
     blast_command_text,
+    seed_highlights,
+    seed_load_placeholder,
+    seed_preview_rows,
+    seed_setting_rows,
+    seed_source_text,
+    seed_params_from_form,
+    seed_result_rows,
+    seed_run,
     blast_params_from_form,
     blast_executor_text,
     blast_query,
@@ -259,6 +268,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         st.info("Ningún candidato con estos umbrales.")
 
     _modal_blast(seleccion, nombre)
+    _modal_seed(seleccion, nombre, tiling.mature)
 
     with st.expander(f"Todas las ventanas de {nombre} ({len(tiling.windows)})"):
         st.dataframe(window_rows(tiling), hide_index=True)
@@ -625,3 +635,75 @@ def _modal_blast(seleccion, nombre: str) -> None:
         st.info(
             "Marca al menos un candidato y guía o pasajera para generar la consulta."
         )
+
+
+def _modal_seed(seleccion, nombre: str, maduros) -> None:
+    """Colision de seed. Este SI ejecuta: es subcadena contra `mature.fa`.
+
+    Como el de BLAST, la pagina no decide nada: recibe filas con `modificado`, `fijo` y
+    `comparte`, y bloques con `activo`. Toda la logica esta en `presentation.py`.
+    """
+    if not st.checkbox(
+        f"Colisión de seed — {nombre}",
+        key=f"seed_{nombre}",
+        help=(
+            "Búsqueda de subcadena contra mature.fa, que ya está cargado y verificado. "
+            "No hay red de por medio ni comando que copiar."
+        ),
+    ):
+        return
+
+    st.caption(seed_source_text(maduros))
+
+    st.subheader("Lo que se va a comparar")
+    st.dataframe(
+        seed_preview_rows(seleccion, species=nombre, params=SEED_DEFAULTS),
+        hide_index=True,
+    )
+    st.caption(
+        "Las filas con algo en «comparte» tienen el mismo heptámero: no son dos "
+        "apuestas independientes en este eje."
+    )
+
+    valores = {}
+    st.subheader("Ajustes")
+    for ajuste in seed_setting_rows(SEED_DEFAULTS):
+        if ajuste["fijo"]:
+            st.caption(f"{ajuste['ajuste']} = {ajuste['valor']} (fijo)")
+            continue
+        valores[ajuste["ajuste"]] = st.selectbox(
+            ajuste["ajuste"],
+            options=ajuste["opciones"],
+            key=f"seed_s_{nombre}_{ajuste['ajuste']}",
+            help=f"por defecto: {ajuste['por_defecto']}",
+        )
+
+    params = seed_params_from_form(valores)
+    for fila in seed_setting_rows(params):
+        if fila["modificado"]:
+            st.markdown(
+                f":red[**{fila['ajuste']} = {fila['valor']}**] "
+                f"(por defecto {fila['por_defecto']})"
+            )
+
+    starts = [c.start for c in seleccion.selection.chosen]
+    if st.button(f"Buscar colisiones — {nombre}", key=f"seed_go_{nombre}"):
+        scan = seed_run(
+            seleccion, mature=maduros, params=params, species=nombre,
+            starts=tuple(starts), guides=True, passengers=True,
+        )
+        destacados = seed_highlights(scan)
+        st.warning(destacados["tasa_base"]["texto"])
+        if destacados["mir30"]["activo"]:
+            st.error(destacados["mir30"]["texto"])
+        st.info(destacados["pasajeras"]["texto"])
+        st.dataframe(seed_result_rows(scan), hide_index=True)
+        st.download_button(
+            "Descargar el bloque para el documento",
+            data=scan.export_block(),
+            file_name=f"{nombre}_colision_seed.txt",
+            key=f"seed_dl_{nombre}",
+        )
+
+    hueco = seed_load_placeholder(None)
+    st.warning(hueco["texto"])

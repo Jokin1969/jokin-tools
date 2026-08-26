@@ -163,7 +163,9 @@ def _hexamers_near(tiling, start: int, end: int, *, offset: int, window: int = 6
     return tuple(sorted(salida, key=lambda h: h.position))
 
 
-def build_dossier(*, species: str, tiling, selection, start: int, store=None) -> Dossier:
+def build_dossier(
+    *, species: str, tiling, selection, start: int, store=None, seed_store=None
+) -> Dossier:
     """Reune la ficha de UN candidato. Aborta si ese sitio no esta en el panel."""
     from .blocks import build_block
     from .blast_store import BlastStore
@@ -211,6 +213,26 @@ def build_dossier(*, species: str, tiling, selection, start: int, store=None) ->
         else "sin corrida en el almacen"
     )
     fecha_de["especificidad"] = ultima.date if ultima else SIN_FECHA
+
+    # `seed_colision` se PARTE en dos: guia y pasajera son dos consultas y fundirlas en
+    # una sola fila esconderia la mitad. Nunca se suman.
+    from .seed_store import SeedStore
+
+    seeds = seed_store or SeedStore()
+    estados.pop("seed_colision", None)
+    procedencia_de.pop("seed_colision", None)
+    fecha_de.pop("seed_colision", None)
+    for hebra in ("guia", "pasajera"):
+        nombre = f"seed_colision:{hebra}"
+        consulta_hebra = f"{species}_pos{start}_{hebra}"
+        resultado_hebra = seeds.verdict_for(consulta_hebra)
+        corrida = seeds.latest(consulta_hebra)
+        estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)
+        procedencia_de[nombre] = (
+            f"corrida {corrida.run_id} ({corrida.source.split(',')[0]})" if corrida
+            else "sin corrida en el almacen"
+        )
+        fecha_de[nombre] = corrida.date if corrida else SIN_FECHA
 
     frentes = tuple(
         FrontVerdict(
