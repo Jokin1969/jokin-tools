@@ -381,14 +381,19 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - **Propiedad clave de alcance, y va escrita en el informe**: una guía contra esa ventana
     **alcanza PRNP humano** —y por tanto Tg650 y las líneas humanizadas— y **no alcanza el
     transgén** del casete. Es exactamente el reparto que hace falta.
-  - **El codón se calcula; la anotación estructural se declara.** `OrfCandidate.codon_a`
-    sale de la aritmética del ORF: la ventana empieza en el **codón 175** (ratón) / **176**
-    (humano), en marco, y cubre los codones 175-182. La anotación —segundo puente
-    disulfuro, inicio de hélice B, selección purificadora— va como **DECLARADA por el
-    responsable y sin comprobar aquí**: este repositorio no tiene estructura ni
-    alineamiento de proteína. **Y el desajuste se dice en vez de taparse**: se declaró
-    «codón 143 en adelante» y el cálculo da 175/176; la diferencia tampoco es el convenio
-    del péptido señal (sería 152/153). Hay que reconciliarlo antes de citar la numeración.
+  - **VERIFICADO traduciendo los ORF del repositorio** (`orf_sweep.translate`): la ventana
+    empieza en el **codón 175** (ratón) / **176** (humano), en marco, y codifica
+    **`VHDCVNIT`** — el mismo péptido en las dos especies. Su **posición 4 es una
+    cisteína**: **C178** (ratón) / **C179** (humano).
+    - **PrP tiene UN solo puente disulfuro** —C178-C213 en ratón, C179-C214 en humano—, y
+      eso también se sostiene aquí **sin estructura**: en el ORF murino solo hay tres
+      cisteínas (22, 178, 213) y la 22 está en el péptido señal, así que **no hay un
+      segundo par posible**. En humano, 6/22/179/214.
+    - La numeración «codón 143» de la primera anotación era **contaminación con el W144Y
+      del plásmido**, y el «segundo puente disulfuro» no existe. Las dos quedan
+      corregidas; el registro de por qué, aquí.
+    - Lo único que sigue **DECLARADO por el responsable y sin comprobar aquí**: la hélice
+      B (H2) va de ~173 a 194, así que la ventana cae en su **extremo N-terminal**.
   - **«Región conservada» NO exime de mirar variación.** La selección purificadora
     restringe los **no sinónimos**, no los **sinónimos** — y son los sinónimos los que
     rompen el apareamiento sin tocar la proteína. **gnomAD sobre esa ventana es
@@ -767,6 +772,21 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   en todo andamio cargado de fichero.
 - Elegible no es aprobado: mientras haya filtros en `NOT_RUN`, la selección es
   provisional y los candidatos salen `INCOMPLETE`.
+- **El APA es un FRENTE BLOQUEANTE, el cuarto. DECIDIDO (2026-08-26)**
+  (`selection.blocking_fronts`). No es un filtro de ventana y bloquea igual. La cuenta que
+  lo decide: sitios inmunes por tramo **20/0/0** —todos en el proximal— y tope de **cuatro**
+  por espaciado, así que en un panel de diez **seis candidatos comparten un único modo de
+  fallo**. Y la razón por la que bloquea no es que sea importante: **si la fracción de
+  isoforma corta es alta, esos seis entran al cribado con un techo INDISTINGUIBLE DE UN
+  shmiR MALO** — un techo de 0,3 y una guía que no funciona dan la misma lectura en la
+  placa, y el experimento se gasta en no poder separarlos. Se cierra en este orden:
+  **PolyA_DB / PolyASite y 3'-end seq primero**; si la fracción está publicada, la RT-qPCR
+  es **confirmación**, no descubrimiento.
+- **Los tercios se cuentan sobre el 3'UTR, no sobre lo tilado.** Con un mRNA completo
+  `report.utr_length` es la longitud tilada (2191) y los límites salían del transcrito: el
+  reparto decía «medio 20» de unos sitios que están todos en el tercio **proximal** del
+  3'UTR, y la frase del informe decía «proximal» al lado. Las posiciones se convierten
+  antes de contar, y el tramo de la frase se **deriva** en vez de escribirse.
 - **El informe cuenta los FRENTES abiertos, no «el bloqueante».** Con el casete y
   `mature.fa` cargados quedan **tres**: especificidad, repetitivos y colisión de seed a
   nivel FAIL. Y lo dice con esas palabras: **no se pide oligo hasta que los tres tengan

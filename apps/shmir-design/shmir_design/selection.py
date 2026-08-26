@@ -1213,7 +1213,17 @@ def tercio_counts(
     report: TilingReport, config: SelectionConfig | None = None
 ) -> TercioCounts:
     """Cuantos elegibles hay por tercio, con las dos definiciones y los sitios."""
-    largo = report.utr_length
+    # Los tercios se cuentan SOBRE EL 3'UTR, no sobre lo tilado. Con un mRNA completo
+    # `report.utr_length` es la longitud tilada (2191 en el raton) y los limites salian
+    # del transcrito: el reparto decia «medio 20» de unos sitios que estan todos en el
+    # tercio PROXIMAL del 3'UTR. Las posiciones se convierten antes de contar.
+    anatomia = report.anatomy
+    desfase = anatomia.utr3[0] - 1 if anatomia is not None and anatomia.utr3 else 0
+    largo = (
+        anatomia.utr3_length
+        if anatomia is not None and anatomia.utr3
+        else report.utr_length
+    )
     limites = (
         (1, largo // 3),
         (largo // 3 + 1, 2 * largo // 3),
@@ -1234,7 +1244,7 @@ def tercio_counts(
     for ventana in elegibles:
         if ventana.tercio is not None:
             medio[ventana.tercio.value] += 1
-        inicio[por_inicio(ventana.window.start)] += 1
+        inicio[por_inicio(ventana.window.start - desfase)] += 1
     inmunes: dict[str, int] = {n: 0 for n in nombres}
     corte = None
     from .polya import CLEAVAGE_MIN, SignalClass
@@ -1246,7 +1256,8 @@ def tercio_counts(
         corte = min(s.end for s in apa) + CLEAVAGE_MIN
         for posicion in sitios:
             if posicion <= corte:
-                inmunes[por_inicio(posicion)] += 1
+                inmunes[por_inicio(posicion - desfase)] += 1
+        corte -= desfase
 
     return TercioCounts(
         utr_length=largo,
@@ -1254,8 +1265,89 @@ def tercio_counts(
         by_midpoint=medio,
         by_start=inicio,
         sites_by_start={
-            n: sum(1 for p in sitios if por_inicio(p) == n) for n in nombres
+            n: sum(1 for p in sitios if por_inicio(p - desfase) == n) for n in nombres
         },
         sites_immune=inmunes,
         immune_cut=corte,
     )
+
+
+# ─── Los frentes que bloquean el pedido de oligo ─────────────────────────────
+#
+# No son «los filtros en NOT_RUN». Hay uno mas que no es un filtro de ventana y bloquea
+# igual: la fraccion de isoforma larga. DECIDIDO el 2026-08-26 con la cuenta delante —
+# sitios inmunes por tramo 20/0/0 y tope de cuatro por espaciado—, porque con un panel
+# de diez eso deja SEIS candidatos compartiendo un unico modo de fallo.
+#
+# Y la razon por la que bloquea no es que sea importante: es que un techo alto y un
+# shmiR que no funciona dan LA MISMA LECTURA en la placa. Cribar sin medirlo gasta el
+# experimento en no poder distinguirlos.
+
+
+@dataclass(frozen=True)
+class BlockingFront:
+    name: str
+    reason: str
+
+
+def blocking_fronts(
+    report: TilingReport, selection: ReportSelection
+) -> list[BlockingFront]:
+    """Los frentes abiertos: los filtros en NOT_RUN, mas el APA cuando aplica."""
+    from .coords import Frame, frame_of, label
+    from .polya import CLEAVAGE_MIN, SignalClass
+
+    frentes = [
+        BlockingFront(
+            name=nombre,
+            reason=(
+                f"NOT_RUN en {cuenta} de {selection.total} ventanas: falta el recurso. "
+                f"NOT_RUN no es PASS."
+            ),
+        )
+        for nombre, cuenta in selection.not_run_filters.items()
+    ]
+
+    apa = [s for s in report.signals if s.classification is SignalClass.APA_POSSIBLE]
+    if not apa or not selection.selection.chosen:
+        return frentes
+    corte = min(s.end for s in apa) + CLEAVAGE_MIN
+    con_techo = [c for c in selection.selection.chosen if c.start > corte]
+    if not con_techo:
+        return frentes
+
+    cuenta = tercio_counts(report)
+    tramos = ("proximal", "medio", "distal")
+    reparto = "/".join(str(cuenta.sites_immune[n]) for n in tramos)
+    con_inmunes = [n for n in tramos if cuenta.sites_immune[n]]
+    donde = (
+        f"todos en el {con_inmunes[0]}"
+        if len(con_inmunes) == 1
+        else f"repartidos entre {', '.join(con_inmunes)}"
+        if con_inmunes
+        else "ninguno en ningun tramo"
+    )
+    marco = frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3
+    inmunes = len(selection.selection.chosen) - len(con_techo)
+    frentes.append(
+        BlockingFront(
+            name="fraccion_isoforma_larga",
+            reason=(
+                f"NO MEDIDA, y bloquea. {len(con_techo)} de "
+                f"{len(selection.selection.chosen)} candidatos quedan por detras del "
+                f"corte de {label(min(s.position for s in apa), marco)}: comparten "
+                f"UN UNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes "
+                f"por tramo son {reparto} —{donde}— y el espaciado deja "
+                f"meter cuatro, que son los {inmunes} que ya estan. "
+                f"POR QUE BLOQUEA: si la fraccion de isoforma corta es alta, esos "
+                f"{len(con_techo)} candidatos entran al cribado con un TECHO "
+                f"INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guia que no "
+                f"funciona dan la misma lectura en la placa, y el experimento se gasta "
+                f"en no poder separarlos. "
+                f"COMO SE CIERRA, en este orden: PolyA_DB / PolyASite y 3'-end seq de "
+                f"cerebro murino primero; si la fraccion esta publicada, la RT-qPCR de "
+                f"los dos amplicones es una CONFIRMACION y no un descubrimiento."
+            ),
+        )
+    )
+    return frentes

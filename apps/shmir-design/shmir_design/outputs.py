@@ -32,6 +32,7 @@ from .comparative import CONVENTION_NOTE, comparative_text, comparative_tsv
 from .external_score import manual_instructions
 from .selection import (
     apa_ceiling_table,
+    blocking_fronts,
     is_eligible,
     tercio_counts,
     coverage_report,
@@ -974,15 +975,20 @@ def text_report(
         # Y con nombre y apellidos: cuantos FRENTES quedan abiertos, no «un
         # bloqueante». Un fichero pequeño que falta y una base de datos que falta
         # bloquean igual, y decir «solo falta uno» invita a pedir oligo.
-        frentes = sorted(selection.not_run_filters)
+        frentes = blocking_fronts(tiling, selection)
         lines.append(
             f"  EL PANEL ES PROVISIONAL EN {len(frentes)} FRENTE(S): "
-            + ", ".join(frentes)
+            + ", ".join(sorted(f.name for f in frentes))
             + "."
         )
+        for frente in frentes:
+            if frente.name not in selection.not_run_filters:
+                lines.extend(
+                    f"    {l}" for l in _envolver(f"{frente.name}: {frente.reason}", 86)
+                )
         lines.append(
             "  NO SE PIDE OLIGO hasta que los "
-            + ("tres" if len(frentes) == 3 else str(len(frentes)))
+            + {3: "tres", 4: "cuatro", 5: "cinco"}.get(len(frentes), str(len(frentes)))
             + " tengan veredicto. Que uno de ellos se arregle con un fichero pequeño"
         )
         lines.append(

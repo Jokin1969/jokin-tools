@@ -65,14 +65,14 @@
   compartiendo modo de fallo.
 
 ── Cobertura por tercios ──
-  Tercios del 3'UTR: 3utr:1-730, 3utr:731-1460, 3utr:1461-2191.
+  Tercios del 3'UTR: 3utr:1-414, 3utr:415-828, 3utr:829-1242.
     La columna `tercio` etiqueta por el PUNTO MEDIO de la ventana; la particion de arriba va
     por POSICION DE INICIO. Con ventanas de 22 nt discrepan en el borde, asi que se dan las dos.
     ventanas elegibles, por punto medio (asi se etiqueta): proximal 105, medio 128, distal 54
-    ventanas elegibles, por inicio: proximal 0, medio 128, distal 159
-    SITIOS elegibles, por inicio: proximal 0, medio 38, distal 52
-    SITIOS INMUNES por tramo (empiezan por delante de 3utr:1252, el corte mas temprano de la señal proximal):
-      proximal 0, medio 20, distal 0
+    ventanas elegibles, por inicio: proximal 105, medio 137, distal 45
+    SITIOS elegibles, por inicio: proximal 32, medio 42, distal 16
+    SITIOS INMUNES por tramo (empiezan por delante de 3utr:303, el corte mas temprano de la señal proximal):
+      proximal 20, medio 0, distal 0
       Es hacia donde se puede REBALANCEAR el panel si el APA resulta funcional. Un tramo con
       cero no admite rebalanceo: ahi no hay nada que no lleve techo.
 
@@ -197,16 +197,22 @@
     ORF: 765 nt (raton) y 762 nt (humano). 4 bloque(s) conservado(s), 16 ventana(s) de 22 nt que caben dentro.
     Superan los filtros de SECUENCIA: 2.
       · ORF raton 523 (tx:707) / ORF humano 526 (tx:593)  GTGCACGACTGCGTCAATATCA
-        codon 175 (raton) / 176 (humano); la ventana cubre los codones 175-182 y empieza en marco.
+        codon 175 (raton) / 176 (humano); la ventana cubre los codones 175-182, empieza en marco y codifica VHDCVNIT.
       · ORF raton 524 (tx:708) / ORF humano 527 (tx:594)  TGCACGACTGCGTCAATATCAC
-        codon 175 (raton) / 176 (humano); la ventana cubre los codones 175-182 y NO empieza en marco.
+        codon 175 (raton) / 176 (humano); NO empieza en marco (arranca en la 2ª o 3ª base de su codon), asi que no se traduce: dar un peptido desde ahi seria una cadena que no existe.
   
-    Contexto DECLARADO por el responsable del proyecto, sin comprobar aqui: la ventana cae
-    en el segundo puente disulfuro y el inicio de la helice B — nucleo estructural bajo
-    fuerte seleccion purificadora. OJO CON LA NUMERACION: se declaro «codon 143 en
-    adelante» y el calculo sobre el ORF da codon 175 (raton) / 176 (humano) — no cuadra, y
-    la diferencia no es de convenio de peptido señal (seria 152/153). Hay que
-    reconciliarlo antes de citar la numeracion en ningun sitio.
+    VERIFICADO aqui traduciendo los ORF del repositorio: la ventana empieza en el codon
+    175 (raton) / 176 (humano), en marco, y codifica el peptido VHDCVNIT — el MISMO en las
+    dos especies. Su posicion 4 es una CISTEINA: C178 (raton) / C179 (humano). PrP tiene
+    UN solo puente disulfuro, C178-C213 en raton y C179-C214 en humano, y eso tambien se
+    sostiene aqui sin estructura: en el ORF murino solo hay tres cisteinas (22, 178, 213)
+    y la primera esta en el peptido señal, asi que no hay un segundo par posible. En
+    humano, 6, 22, 179, 214.
+  
+    DECLARADO por el responsable del proyecto y sin comprobar aqui —este repositorio no
+    tiene estructura ni alineamiento de proteina—: la helice B (H2) va de ~173 a 194, asi
+    que la ventana cae en su EXTREMO N-TERMINAL. Nucleo estructural bajo fuerte seleccion
+    purificadora.
   
     Que la region este bajo seleccion purificadora restringe los NO SINONIMOS, no los
     SINONIMOS — y son los sinonimos los que rompen el apareamiento de la guia sin tocar la
@@ -350,8 +356,18 @@
   seed_colision: NOT_RUN en 2170 de 2170 ventanas
   transgen: NOT_RUN en 2170 de 2170 ventanas
   NOT_RUN no es PASS. Mientras haya filtros sin correr, la seleccion es PROVISIONAL y ningun candidato esta aprobado: su veredicto es INCOMPLETE.
-  EL PANEL ES PROVISIONAL EN 5 FRENTE(S): especificidad, repeticiones, seed, seed_colision, transgen.
-  NO SE PIDE OLIGO hasta que los 5 tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
+  EL PANEL ES PROVISIONAL EN 6 FRENTE(S): especificidad, fraccion_isoforma_larga, repeticiones, seed, seed_colision, transgen.
+    fraccion_isoforma_larga: NO MEDIDA, y bloquea. 6 de 10 candidatos quedan por detras
+    del corte de tx:1237: comparten UN UNICO MODO DE FALLO. Y el rebalanceo tiene tope:
+    los sitios inmunes por tramo son 20/0/0 —todos en el proximal— y el espaciado deja
+    meter cuatro, que son los 4 que ya estan. POR QUE BLOQUEA: si la fraccion de isoforma
+    corta es alta, esos 6 candidatos entran al cribado con un TECHO INDISTINGUIBLE DE UN
+    shmiR MALO — un techo de 0,3 y una guia que no funciona dan la misma lectura en la
+    placa, y el experimento se gasta en no poder separarlos. COMO SE CIERRA, en este
+    orden: PolyA_DB / PolyASite y 3'-end seq de cerebro murino primero; si la fraccion
+    esta publicada, la RT-qPCR de los dos amplicones es una CONFIRMACION y no un
+    descubrimiento.
+  NO SE PIDE OLIGO hasta que los 6 tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
   y otro necesite una base entera no cambia nada: los dos bloquean igual, y llamar «unico
   bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin correr.
 

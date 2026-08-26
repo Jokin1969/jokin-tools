@@ -166,16 +166,14 @@ class TestElContextoDeLaVentana(unittest.TestCase):
     def test_la_ventana_cubre_ocho_codones(self):
         self.assertEqual(self.primero.codon_span_a, (175, 182))
 
-    def test_la_anotacion_estructural_va_marcada_como_DECLARADA(self):
+    def test_la_parte_declarada_va_marcada_como_DECLARADA(self):
+        # ACTUALIZADO 2026-08-26: el desajuste de numeracion se RESOLVIO —el «143» era
+        # contaminacion con el W144Y del plasmido— y el codon, el peptido y las
+        # cisteinas pasaron a VERIFICADOS. Lo unico que sigue declarado es la helice.
         texto = "\n".join(self.barrido.describe())
         self.assertIn("DECLARADO por el responsable", texto)
         self.assertIn("sin comprobar aqui", texto)
-
-    def test_y_el_desajuste_de_numeracion_se_DICE_en_vez_de_taparse(self):
-        texto = "\n".join(self.barrido.describe())
-        self.assertIn("143", texto)     # la numeracion declarada
-        self.assertIn("175", texto)     # la calculada
-        self.assertIn("no cuadra", texto.lower())
+        self.assertIn("VERIFICADO aqui traduciendo", texto)
 
     def test_gnomAD_queda_como_OBLIGATORIO_y_con_el_motivo(self):
         texto = "\n".join(self.barrido.describe())
@@ -188,3 +186,64 @@ class TestElContextoDeLaVentana(unittest.TestCase):
         self.assertIn("PRNP humano", texto)
         self.assertIn("Tg650", texto)
         self.assertIn("NO alcanza el transgen", texto)
+
+
+@unittest.skipUnless(
+    fixture_available(RATON) and fixture_available(HUMANO),
+    "NOT_RUN: faltan los fixtures de los dos transcritos",
+)
+class TestLaNotaCorregida(unittest.TestCase):
+    """Codon, peptido y cisteinas: VERIFICADOS traduciendo los ORF del repositorio.
+
+    La asignacion de helice sigue siendo declarada. Separar las dos cosas es el punto:
+    la nota anterior mezclaba una numeracion equivocada (codon 143, contaminacion con el
+    W144Y del plasmido) y un «segundo puente disulfuro» que no existe.
+
+    PrP tiene UN solo puente. Y eso se puede comprobar aqui sin estructura: en el ORF
+    murino solo hay TRES cisteinas —22, 178 y 213— y la 22 esta en el peptido señal, asi
+    que 178-213 es el unico par posible. En humano, 6/22/179/214.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        orf_a, orf_b = _orfs()
+        cls.barrido = orf_sweep(
+            orf_a, orf_b,
+            species=("raton", "humano"),
+            cds_start=(RATON.cds[0], HUMANO.cds[0]),
+        )
+        cls.primero = min(cls.barrido.passing, key=lambda c: c.orf_start_a)
+        cls.texto = "\n".join(cls.barrido.describe())
+
+    def test_el_peptido_se_traduce_y_es_VHDCVNIT(self):
+        self.assertEqual(self.primero.peptide, "VHDCVNIT")
+
+    def test_es_el_MISMO_peptido_en_las_dos_especies(self):
+        self.assertEqual(self.primero.peptide, self.primero.peptide_b)
+
+    def test_la_cisteina_esta_en_la_POSICION_4_de_la_ventana(self):
+        self.assertEqual(self.primero.peptide[3], "C")
+        self.assertEqual(self.primero.cysteine_codon_a, 178)
+        self.assertEqual(self.primero.cysteine_codon_b, 179)
+
+    def test_solo_hay_UN_par_de_cisteinas_posible_fuera_del_peptido_señal(self):
+        # Es lo que sostiene «un solo puente disulfuro» sin necesitar estructura.
+        self.assertEqual(self.barrido.cysteines_a, (22, 178, 213))
+        self.assertEqual(self.barrido.cysteines_b, (6, 22, 179, 214))
+
+    def test_la_nota_dice_UN_puente_y_no_dos(self):
+        self.assertIn("UN solo puente disulfuro", self.texto)
+        self.assertIn("C178-C213", self.texto)
+        self.assertIn("C179-C214", self.texto)
+
+    def test_lo_verificado_va_marcado_como_VERIFICADO_y_como(self):
+        self.assertIn("VERIFICADO aqui traduciendo", self.texto)
+
+    def test_la_helice_sigue_siendo_DECLARADA(self):
+        self.assertIn("helice B", self.texto)
+        self.assertIn("DECLARADO por el responsable", self.texto)
+        self.assertIn("173", self.texto)
+
+    def test_ya_no_queda_rastro_del_143_ni_del_segundo_puente(self):
+        self.assertNotIn("143", self.texto)
+        self.assertNotIn("segundo puente", self.texto)

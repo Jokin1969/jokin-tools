@@ -55,6 +55,40 @@ ORF_PENDING = {
 
 MIN_BLOCK = 22
 
+#: El codigo genetico ESTANDAR. No es un dato del proyecto ni una secuencia: es la tabla
+#: de correspondencia codon→aminoacido, la misma para todo el mundo. Se genera en vez de
+#: escribirse a mano para que no haya erratas de transcripcion.
+_BASES = "TCAG"
+_AMINOACIDOS = (
+    "FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG"
+)
+GENETIC_CODE = {
+    b1 + b2 + b3: _AMINOACIDOS[i]
+    for i, (b1, b2, b3) in enumerate(
+        (x, y, z) for x in _BASES for y in _BASES for z in _BASES
+    )
+}
+
+
+def translate(sequence: str) -> str:
+    """Traduce una secuencia YA EXISTENTE. No completa el ultimo codon incompleto."""
+    limpia = sequence.upper().replace("U", "T")
+    codones = [limpia[i : i + 3] for i in range(0, len(limpia) - 2, 3)]
+    for codon in codones:
+        if codon not in GENETIC_CODE:
+            raise ValueError(
+                f"Codon {codon!r} no esta en el codigo genetico estandar (¿una N?); se "
+                f"aborta la traduccion en vez de inventar el aminoacido."
+            )
+    return "".join(GENETIC_CODE[c] for c in codones)
+
+
+def cysteine_codons(orf: str) -> tuple[int, ...]:
+    """Posiciones (1-based, en codones) de las cisteinas del ORF."""
+    return tuple(
+        i + 1 for i, residuo in enumerate(translate(orf)) if residuo == "C"
+    )
+
 
 def _envolver(texto: str, ancho: int) -> list[str]:
     palabras, lineas, actual = texto.split(), [], ""
@@ -72,13 +106,22 @@ def _envolver(texto: str, ancho: int) -> list[str]:
 #: Anotacion estructural de la ventana, DECLARADA por el responsable del proyecto el
 #: 2026-08-26 y SIN COMPROBAR aqui: este repositorio no tiene estructura ni alineamiento
 #: de proteina, y darla por propia seria inventar la fuente que la respalda.
-STRUCTURAL_NOTE = (
-    "Contexto DECLARADO por el responsable del proyecto, sin comprobar aqui: la ventana "
-    "cae en el segundo puente disulfuro y el inicio de la helice B — nucleo estructural "
-    "bajo fuerte seleccion purificadora. OJO CON LA NUMERACION: se declaro «codon 143 en "
-    "adelante» y el calculo sobre el ORF da codon 175 (raton) / 176 (humano) — no cuadra, "
-    "y la diferencia no es de convenio de peptido señal (seria 152/153). Hay que "
-    "reconciliarlo antes de citar la numeracion en ningun sitio."
+STRUCTURAL_NOTE_VERIFIED = (
+    "VERIFICADO aqui traduciendo los ORF del repositorio: la ventana empieza en el codon "
+    "{codon_a} ({especie_a}) / {codon_b} ({especie_b}), en marco, y codifica el peptido "
+    "{peptido} — el MISMO en las dos especies. Su posicion 4 es una CISTEINA: "
+    "{cis_a} ({especie_a}) / {cis_b} ({especie_b}). "
+    "PrP tiene UN solo puente disulfuro, C178-C213 en raton y C179-C214 en humano, y eso "
+    "tambien se sostiene aqui sin estructura: en el ORF murino solo hay tres cisteinas "
+    "({cisteinas_a}) y la primera esta en el peptido señal, asi que no hay un segundo par "
+    "posible. En humano, {cisteinas_b}."
+)
+
+STRUCTURAL_NOTE_DECLARED = (
+    "DECLARADO por el responsable del proyecto y sin comprobar aqui —este repositorio no "
+    "tiene estructura ni alineamiento de proteina—: la helice B (H2) va de ~173 a 194, "
+    "asi que la ventana cae en su EXTREMO N-TERMINAL. Nucleo estructural bajo fuerte "
+    "seleccion purificadora."
 )
 
 #: La consecuencia que NO es intuitiva y por eso va escrita.
@@ -108,6 +151,9 @@ class OrfCandidate:
     target_b: str
     guide: str
     filters: tuple[FilterResult, ...]
+    #: Los ORF completos, para poder traducir el tramo de 24 nt que completa los codones.
+    _orf_a: str = ""
+    _orf_b: str = ""
 
     @property
     def codon_a(self) -> int:
@@ -121,6 +167,35 @@ class OrfCandidate:
     @property
     def codon_span_a(self) -> tuple[int, int]:
         return (self.codon_a, (self.orf_start_a + 21 - 1) // 3 + 1)
+
+    def _peptido(self, orf: str, inicio: int) -> str:
+        """Traduce los 24 nt que completan los 8 codones de la ventana.
+
+        Vacio si la ventana NO empieza en marco: traducir desde la posicion 2 de un
+        codon da una cadena de aminoacidos que no existe en ninguna proteina, y eso es
+        peor que no dar nada.
+        """
+        if not self.in_frame:
+            return ""
+        return translate(orf[inicio - 1 : inicio - 1 + 24])
+
+    @property
+    def peptide(self) -> str:
+        return self._peptido(self._orf_a, self.orf_start_a)
+
+    @property
+    def peptide_b(self) -> str:
+        return self._peptido(self._orf_b, self.orf_start_b)
+
+    @property
+    def cysteine_codon_a(self) -> int | None:
+        indice = self.peptide.find("C") if self.peptide else -1
+        return None if indice < 0 else self.codon_a + indice
+
+    @property
+    def cysteine_codon_b(self) -> int | None:
+        indice = self.peptide_b.find("C") if self.peptide_b else -1
+        return None if indice < 0 else self.codon_b + indice
 
     @property
     def in_frame(self) -> bool:
@@ -156,6 +231,8 @@ class OrfSweep:
     windows: int
     passing: tuple[OrfCandidate, ...]
     min_block: int
+    cysteines_a: tuple[int, ...] = ()
+    cysteines_b: tuple[int, ...] = ()
 
     def describe(self) -> list[str]:
         from .coords import Frame, label
@@ -178,9 +255,15 @@ class OrfSweep:
             )
             lineas.append(
                 f"      codon {candidato.codon_a} ({a}) / {candidato.codon_b} ({b}); "
-                f"la ventana cubre los codones "
-                f"{candidato.codon_span_a[0]}-{candidato.codon_span_a[1]} y "
-                f"{'empieza en marco' if candidato.in_frame else 'NO empieza en marco'}."
+                + (
+                    f"la ventana cubre los codones "
+                    f"{candidato.codon_span_a[0]}-{candidato.codon_span_a[1]}, empieza "
+                    f"en marco y codifica {candidato.peptide}."
+                    if candidato.in_frame
+                    else "NO empieza en marco (arranca en la 2ª o 3ª base de su codon), "
+                    "asi que no se traduce: dar un peptido desde ahi seria una cadena "
+                    "que no existe."
+                )
             )
         if not self.passing:
             lineas.append(
@@ -188,7 +271,20 @@ class OrfSweep:
                 "las dos."
             )
         if self.passing:
-            for nota in (STRUCTURAL_NOTE, GNOMAD_NOTE, REACH_NOTE):
+            en_marco = [c for c in self.passing if c.in_frame]
+            candidato = min(en_marco or self.passing, key=lambda c: c.orf_start_a)
+            verificada = STRUCTURAL_NOTE_VERIFIED.format(
+                codon_a=candidato.codon_a,
+                codon_b=candidato.codon_b,
+                especie_a=a,
+                especie_b=b,
+                peptido=candidato.peptide,
+                cis_a=f"C{candidato.cysteine_codon_a}",
+                cis_b=f"C{candidato.cysteine_codon_b}",
+                cisteinas_a=", ".join(str(c) for c in self.cysteines_a),
+                cisteinas_b=", ".join(str(c) for c in self.cysteines_b),
+            )
+            for nota in (verificada, STRUCTURAL_NOTE_DECLARED, GNOMAD_NOTE, REACH_NOTE):
                 lineas.append("")
                 lineas.extend(f"  {l}" for l in _envolver(nota, 86))
         lineas.append("")
@@ -254,6 +350,8 @@ def orf_sweep(
                     target_b=orf_b[inicio_b - 1 : inicio_b - 1 + 22],
                     guide=evaluacion.guide,
                     filters=tuple(evaluacion.filters),
+                    _orf_a=orf_a,
+                    _orf_b=orf_b,
                 )
             )
     return OrfSweep(
@@ -263,4 +361,6 @@ def orf_sweep(
         windows=ventanas,
         passing=tuple(candidatos),
         min_block=min_block,
+        cysteines_a=cysteine_codons(orf_a),
+        cysteines_b=cysteine_codons(orf_b),
     )
