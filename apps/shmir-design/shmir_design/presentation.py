@@ -1333,3 +1333,203 @@ def informe_state_text(documento) -> str:
             f"{', '.join(documento.open_fronts)}."
         )
     return WHAT_COMPLETE_MEANS
+
+
+# ───────────────── fiabilidad de la frontera del 3'UTR: `.gb` o NO_FIABLE ──────────
+#
+# La entrada preferente es el `.gb`. Un FASTA con el CDS tecleado se acepta —hay que
+# poder trabajar— pero entonces TODO lo que cuelga de donde empieza el 3'UTR queda
+# NO_FIABLE, y eso se ve. Sin frontera fiable, «tercio medio» no significa nada: no es
+# un matiz, es que la etiqueta no se refiere a nada.
+
+#: Las procedencias de anatomia en las que la frontera la declara una ANOTACION, no una
+#: persona. Son las dos unicas que hacen fiables los tercios y las zonas de polyA.
+RELIABLE_SOURCES = ("anotacion_genbank", "fixture_verificado")
+
+#: Que deja de ser fiable sin `.gb`. Va nombrado uno a uno: «algunas cosas» no sirve.
+UNRELIABLE_OUTPUTS = (
+    "tercios (proximal / medio / distal)",
+    "la etiqueta de region de cada ventana",
+    "las cuotas por tercio de la seleccion",
+    "la distancia de cada señal de polyA al extremo 3'",
+    "que señales cuentan como TERMINALES",
+)
+
+
+def anatomy_reliability(anatomy) -> dict[str, object]:
+    """¿La frontera del 3'UTR viene de una ANOTACION o la declaro alguien?
+
+    No es lo mismo y la salida no puede tratarlo igual. Con `.gb` (o con un fixture
+    verificado por md5) la frontera la dice la anotacion; con el CDS tecleado o con «lo
+    que subo YA es el 3'UTR», la dice quien lo teclea — y un off-by-one ahi corre el
+    3'UTR entero y con el todos los tercios, sin dar ningun error.
+    """
+    from .filters import FilterState
+
+    if anatomy is None:
+        return {
+            "fiable": False,
+            "estado": FilterState.NOT_RUN,
+            "procedencia": "sin resolver",
+            "afectados": list(UNRELIABLE_OUTPUTS),
+            "texto": (
+                "SIN ANATOMIA RESUELTA: no hay frontera de 3'UTR, asi que no se puede "
+                "tilar nada. Sube el `.gb`, declara el CDS o marca que lo subido YA es "
+                "el 3'UTR."
+            ),
+        }
+    procedencia = getattr(anatomy.source, "value", str(anatomy.source))
+    if procedencia in RELIABLE_SOURCES:
+        return {
+            "fiable": True,
+            "estado": FilterState.PASS,
+            "procedencia": procedencia,
+            "afectados": [],
+            "texto": (
+                f"Frontera del 3'UTR tomada de {anatomy.source.describe()}. Los tercios "
+                f"y las zonas de polyA se apoyan en una ANOTACION, no en una "
+                f"declaracion."
+            ),
+        }
+    return {
+        "fiable": False,
+        "estado": FilterState.NOT_RUN,
+        "procedencia": procedencia,
+        "afectados": list(UNRELIABLE_OUTPUTS),
+        "texto": (
+            f"NO_FIABLE: la frontera del 3'UTR sale de {anatomy.source.describe()}, o "
+            f"sea de una DECLARACION y no de una anotacion. Se acepta —hay que poder "
+            f"trabajar— pero lo que cuelga de esa frontera queda NO_FIABLE: "
+            + "; ".join(UNRELIABLE_OUTPUTS)
+            + ". Un off-by-one ahi corre el 3'UTR entero y con el todos los tercios, "
+            "sin dar ningun error. Con el `.gb` del RefSeq lo declara la anotacion y "
+            "esto desaparece."
+        ),
+    }
+
+
+# ─────────────── la tabla de sitios: UNA COLUMNA POR FRENTE, y todos ──────────────
+#
+# Es la vista que impide que vuelva a pasar lo de `offtarget_seed`. Un frente que no
+# tiene columna no se ve, y lo que no se ve no existe: `carga_seed` era un numero y no
+# un veredicto, asi que nunca estuvo en `not_run_filters` y el frente entero fue
+# invisible durante semanas. Aqui la lista de columnas se DERIVA de los frentes que el
+# informe conoce, asi que un frente nuevo aparece solo.
+
+#: Cuanto espaciado hace falta entre dos SELECCIONADOS para que sean dos apuestas.
+#: Sale de la configuracion de la seleccion, no se teclea aqui.
+MIN_SPACING_WARNING = (
+    "Dos candidatos a menos del espaciado minimo NO son dos apuestas independientes: "
+    "las causas de fallo son REGIONALES —un APA, un repetitivo, un tramo estructurado "
+    "afectan a una region entera— asi que fallan juntos."
+)
+
+
+def front_columns(tiling, selection) -> list[str]:
+    """Los frentes que van a ser columna. Se DERIVAN, no se listan a mano."""
+    from .selection import blocking_fronts
+
+    nombres = [f.name for f in blocking_fronts(tiling, selection)]
+    # `seed_colision` y `offtarget_seed` son por HEBRA en la ficha, pero en la tabla de
+    # sitios la fila es el sitio: aqui va el estado del filtro de la ventana, que es lo
+    # que la tabla puede decir. La ficha sigue siendo quien parte las dos hebras.
+    return sorted(dict.fromkeys(nombres))
+
+
+def site_table_rows(tiling, selection, *, species: str = "",
+                    selected=None) -> list[dict[str, object]]:
+    """TODOS los sitios elegibles, con UNA COLUMNA POR FRENTE.
+
+    No solo los elegidos: la piscina entera. Un candidato que no esta en el panel sigue
+    siendo un sitio con veredictos, y esconderlo deja al lector sin poder discutir la
+    seleccion.
+
+    `selected` son los inicios marcados a mano; si es `None`, se marcan los del panel.
+    """
+    from .selection import is_eligible
+
+    columnas = front_columns(tiling, selection)
+    elegidos = (
+        {c.start for c in selection.selection.chosen} if selected is None
+        else {int(s) for s in selected}
+    )
+    fiable = anatomy_reliability(tiling.anatomy)["fiable"]
+    por_inicio = {c.start: c for c in selection.selection.chosen}
+
+    filas = []
+    for ventana in tiling.windows:
+        if not is_eligible(ventana):
+            continue
+        estados = {r.name: r.state.value for r in ventana.filters}
+        elegido = por_inicio.get(ventana.window.start)
+        filas.append(
+            {
+                "elegido": ventana.window.start in elegidos,
+                "sitio": f"3utr:{ventana.inicio_3utr}",
+                "inicio": ventana.window.start,
+                # Sin frontera fiable, «tercio medio» no se refiere a nada. No se
+                # imprime un valor que parece un dato: se imprime que no es fiable.
+                "tercio": (
+                    (ventana.tercio.value if ventana.tercio else "—") if fiable
+                    else "NO_FIABLE"
+                ),
+                "asimetria": (
+                    None if ventana.evaluation.asymmetry is None
+                    else round(ventana.evaluation.asymmetry, 2)
+                ),
+                "rango": (
+                    selection.selection.rank_of(ventana.window.start)
+                    if elegido is not None else ""
+                ),
+                **{
+                    nombre: estados.get(nombre, "NOT_RUN") for nombre in columnas
+                },
+                "veredicto": ventana.verdict.value,
+                "guia": ventana.evaluation.guide,
+            }
+        )
+    return filas
+
+
+def selection_warnings(tiling, selection, *, selected=None,
+                       min_spacing: int | None = None) -> list[dict[str, object]]:
+    """Los avisos de la seleccion a mano, con `rojo` ya decidido fuera de la pagina.
+
+    Dos ejes distintos y ninguno cubre al otro: la DISTANCIA en el 3'UTR (espaciado) y
+    el PARECIDO de seed (nucleo compartido). El espaciado no ve el segundo — mide
+    nucleotidos, no seeds — y por eso los dos avisos van separados.
+    """
+    from .offtarget import MULTIPLEX_NOTE, core_conflicts
+
+    marcados = sorted(
+        {c.start for c in selection.selection.chosen} if selected is None
+        else {int(s) for s in selected}
+    )
+    espaciado = (
+        min_spacing if min_spacing is not None
+        else getattr(selection.selection, "min_spacing", 50)
+    )
+    avisos: list[dict[str, object]] = []
+    for i, uno in enumerate(marcados):
+        for otro in marcados[i + 1 :]:
+            if abs(otro - uno) < espaciado:
+                avisos.append({
+                    "rojo": True,
+                    "texto": (
+                        f"3utr:{uno} y 3utr:{otro} estan a {abs(otro - uno)} nt, por "
+                        f"debajo del espaciado minimo de {espaciado} nt. "
+                        f"{MIN_SPACING_WARNING}"
+                    ),
+                })
+    for conflicto in core_conflicts(selection):
+        if conflicto.a in marcados and conflicto.b in marcados:
+            avisos.append({
+                "rojo": True,
+                "texto": (
+                    conflicto.describe(
+                        label_a=f"3utr:{conflicto.a}", label_b=f"3utr:{conflicto.b}"
+                    )
+                    + " " + MULTIPLEX_NOTE
+                ),
+            })
+    return avisos

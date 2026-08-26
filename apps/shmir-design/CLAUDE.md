@@ -1610,6 +1610,34 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   hoja de pedido y control sin intrón**. Emitirlos con las piezas murinas daría fragmentos
   con la forma correcta y la secuencia equivocada, que es **peor** que no darlos. Para
   otra especie hace falta OTRO plásmido, y entonces se sustituye.
+- **La tabla de sitios con UNA COLUMNA POR FRENTE** (`presentation.site_table_rows`,
+  `front_columns`). Es la vista que impide que vuelva a pasar lo de `offtarget_seed`: un
+  frente sin columna no se ve, y **lo que no se ve no existe**.
+  - **Las columnas se DERIVAN de `blocking_fronts`, no se listan a mano**, así que un
+    frente nuevo aparece solo. Listarlas habría reproducido el fallo original un nivel más
+    arriba.
+  - Salen **todos los sitios elegibles**, no sólo los diez del panel: un sitio que no está
+    en la selección sigue teniendo veredictos, y esconderlo deja al lector sin poder
+    discutir la selección.
+  - Un frente sin correr sale **`NOT_RUN` en su celda**, nunca vacío.
+  - La selección se puede cambiar a mano y los avisos se recalculan con lo marcado.
+- **Dos avisos rojos, y son DOS EJES que no se cubren** (`presentation.selection_warnings`):
+  la **distancia** en el 3'UTR (por debajo del espaciado mínimo) y el **parecido de seed**
+  (núcleo de 6 nt compartido). El espaciado **no ve** el segundo — mide nucleótidos, no
+  seeds — y por eso `3utr:449` y `3utr:1018`, que están en extremos opuestos del 3'UTR y
+  pasan el espaciado holgadamente, avisan igual.
+- **El `.gb` es la entrada preferente, y sin él lo que cuelga de la frontera sale
+  `NO_FIABLE`** (`presentation.anatomy_reliability`). Con `.gb` —o con un fixture
+  verificado por md5— la frontera la declara una **anotación**; con el CDS tecleado o con
+  «lo que subo YA es el 3'UTR», la declara una **persona**. No es lo mismo:
+  - **Se acepta igual** —hay que poder trabajar— pero lo que deja de ser fiable va
+    **nombrado uno a uno**, no como «algunas cosas»: tercios, la etiqueta de región de
+    cada ventana, las cuotas por tercio, la distancia de cada señal de polyA al extremo 3'
+    y qué señales cuentan como terminales.
+  - En la tabla, la columna `tercio` sale literalmente **`NO_FIABLE`** en vez de un valor
+    que parece un dato. Sin frontera fiable, «tercio medio» no se refiere a nada.
+  - El motivo dice **qué pasaría**: un off-by-one ahí corre el 3'UTR entero y con él todos
+    los tercios, **sin dar ningún error**.
 - Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
   verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
   nunca leerlo de la UI.

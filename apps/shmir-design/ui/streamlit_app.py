@@ -56,6 +56,8 @@ from shmir_design.presentation import (  # noqa: E402
     offtarget_upload_rows,
     offtarget_upper_bound,
     seed_highlights,
+    selection_warnings,
+    site_table_rows,
     vector_note,
     seed_load_placeholder,
     seed_preview_rows,
@@ -69,6 +71,7 @@ from shmir_design.presentation import (  # noqa: E402
     blast_query,
     blast_setting_rows,
     blast_warnings,
+    anatomy_reliability,
     anatomy_rows,
     candidate_rows,
     cost_text,
@@ -281,12 +284,38 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     st.markdown("**Mapa del 3'UTR**")
     st.html(map_svg(tiling, seleccion, conservation=conservacion, species=nombre))
 
+    # La frontera del 3'UTR: de una ANOTACION o de una declaracion. No es lo mismo, y
+    # lo que cuelga de ella no puede salir igual en los dos casos.
+    fiabilidad = anatomy_reliability(anat)
+    (st.success if fiabilidad["fiable"] else st.warning)(fiabilidad["texto"])
+
     st.markdown("**Candidatos** — un estado por filtro, en columnas separadas")
     filas = candidate_rows(seleccion)
     if filas:
         st.dataframe(filas, hide_index=True)
     else:
         st.info("Ningún candidato con estos umbrales.")
+
+    # ── Todos los sitios elegibles, con UNA COLUMNA POR FRENTE ───────────────────
+    # Es la vista que impide que vuelva a pasar lo de `offtarget_seed`: un frente sin
+    # columna no se ve, y lo que no se ve no existe. Las columnas se derivan de los
+    # frentes que el informe conoce, asi que uno nuevo aparece solo.
+    with st.expander(
+        f"Todos los sitios elegibles, con una columna por frente — {nombre}",
+        expanded=False,
+    ):
+        clave = f"marcados_{nombre}"
+        marcados = st.session_state.get(clave)
+        st.caption(
+            "La selección de la app viene marcada. Se puede cambiar a mano: los avisos "
+            "de abajo se recalculan con lo que esté marcado."
+        )
+        st.dataframe(
+            site_table_rows(tiling, seleccion, species=nombre, selected=marcados),
+            hide_index=True,
+        )
+        for aviso in selection_warnings(tiling, seleccion, selected=marcados):
+            (st.error if aviso["rojo"] else st.warning)(aviso["texto"])
 
     st.markdown("**Frentes** — y cómo cerrar los que están en NOT_RUN")
     for fila in front_help_rows(tiling, seleccion, species=nombre):
