@@ -12,6 +12,7 @@ sección "Estructura" está desactualizada, la de abajo no).
 | `apps/asignacion/`, `apps/auth/`, `apps/bitacora/`, `apps/datamatrix/`, `apps/feep/`, `apps/imprimir/`, `apps/qr-tis/`, `apps/re-memory/` | Micro-apps del hub (Node/Express) | Las de este fichero |
 | `apps/batchwork/` | Operaciones por lotes sobre ficheros (Node + scripts Python auxiliares) | Las de este fichero |
 | `apps/shmir-design/` | Proyecto Python 3.11+ independiente: CLI, interfaz Streamlit y una operación en el sidebar de Batchwork | **`apps/shmir-design/CLAUDE.md`** |
+| `apps/shmir/` | El hub sirviendo esa interfaz Streamlit en `/shmir` (proceso hijo + proxy) | Las de este fichero |
 
 `apps/batchwork/` y `apps/shmir-design/` son cosas distintas: el primero es la app de
 lotes del hub, el segundo el diseñador de shmiRs. Lo único que comparten es un puente:
@@ -29,6 +30,55 @@ estándar sin autorización escrita.
 
 Esas reglas **no** aplican al resto del hub, que es Node y tiene sus dependencias ya
 instaladas. Y al revés: los patrones del hub Node no se importan a `apps/shmir-design/`.
+
+## `apps/shmir/` sirve la interfaz de shmir-design dentro del hub
+
+Son **dos frentes distintos** para el mismo diseñador y conviene no confundirlos:
+
+- **`apps/batchwork/` → «Diseñar shmiRs»** llama al **CLI** (`tools/design.py`) por el
+  puente `apps/batchwork/python/shmir_design_run.py`. Es por lotes: subes uno o dos
+  FASTA, sale un ZIP. La especie sale del **nombre del fichero**, no hay ficheros de
+  referencia y no hay modales.
+- **`apps/shmir/` → `/shmir`** arranca la **interfaz Streamlit** como proceso hijo en
+  `127.0.0.1` y la sirve por un proxy inverso. Es la interactiva: desplegable de
+  especies, panel de ficheros de referencia con subida, los tres modales e informe.
+
+Lo que hay que saber para tocarlo:
+
+- **El proceso arranca PEREZOSO**, en la primera petición a `/shmir`, no al bootear el
+  hub: Streamlit tarda segundos, ocupa memoria y la mayoría de quien entra al hub no
+  abre esta app. Si no arranca, la respuesta es un **503 con el motivo** —la salida del
+  proceso— y no un 502 mudo: «no disponible» a secas no distingue «falta Streamlit» de
+  «el puerto está cogido».
+- **Escucha SÓLO en `127.0.0.1`.** En `0.0.0.0` quedaría accesible por su puerto
+  saltándose el login del hub. La única puerta es el proxy.
+- **El `upgrade` a WebSocket NO pasa por los middlewares de Express**, así que
+  `app.use('/shmir', requireApp(…))` protege la página y **no** protege el socket — y
+  Streamlit hace todo por él (`/_stcore/stream`). La sesión y el permiso se comprueban a
+  mano en `proxy.upgradeAllowed`, enganchada en `server.on('upgrade')`, y tiene tests
+  propios. Si alguien mueve ese handler, la app queda abierta sin login.
+- **Express QUITA el prefijo del montaje**: dentro del router, `/shmir/` llega como `/`.
+  Streamlit sirve bajo `--server.baseUrlPath=/shmir`, así que reenviar `req.url` da un
+  404 **sin ningún error en ningún log**: la app simplemente no aparece. Se reenvía
+  `req.originalUrl`. Lo cazó una prueba de punta a punta, no un test unitario; hay
+  regresión escrita.
+- **Los ficheros de referencia viven en el VOLUMEN, no en la imagen**
+  (`SHMIR_REFERENCE_DIR`, por defecto `/data/shmir/reference` en producción). El sistema
+  de ficheros de la imagen es efímero: dentro de ella, todo lo subido por el panel
+  desaparecería en el siguiente redespliegue y el único síntoma sería un frente que
+  vuelve a salir NOT_RUN. Lo versionado se **siembra** ahí la primera vez y **no se
+  vuelve a pisar** — ni los ficheros ni el `manifest.tsv`, que es el que lleva los md5 de
+  lo subido. Sin la variable, todo apunta al directorio del paquete y en local no cambia
+  nada.
+- **Streamlit se instala en el build** (`nixpacks.toml`) y se arranca como
+  `python3 -m streamlit`, no por el ejecutable de la consola: `pip install --target` lo
+  deja en un `bin` que no está en el PATH. La comprobación de importación va en el build
+  a propósito, para que un fallo se vea al desplegar y no al abrir la app. Se lleva por
+  delante pandas, pyarrow, numpy, altair y tornado: un par de cientos de MB. Si eso
+  llegara a pesar demasiado, la salida **no** es quitarle dependencias a Streamlit, es
+  desplegar esa interfaz como servicio aparte.
+- **Sin dependencias nuevas en el hub**: el proxy son ~130 líneas sobre `node:http`
+  porque hay un único upstream, es nuestro y está en `127.0.0.1`.
 
 ## Comprobaciones
 

@@ -1730,6 +1730,38 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     cada rerun de Streamlit. La pantalla no promete nada que no vaya a cumplir: dice que
     frentes se pueden cerrar, no que ya esten cerrados.
 
+- **LA INTERFAZ SE SIRVE DESDE EL HUB, EN `/shmir`. DECIDIDO (2026-08-26)**
+  (`apps/shmir/` en el hub — proceso hijo + proxy inverso). Hasta ahora esta interfaz
+  **no estaba montada en ningún sitio**: había que arrancarla a mano con `streamlit run`,
+  y lo que sí estaba desplegado era la operación «Diseñar shmiRs» de Batchwork, que llama
+  al **CLI** y es otra cosa —por lotes, sin ficheros de referencia y sin modales—.
+  - **Los dos frentes se quedan, y no hacen lo mismo**: Batchwork sigue siendo el atajo
+    por lotes (subes FASTA, sale un ZIP); `/shmir` es el interactivo. Lo que NO se hace es
+    duplicar la lógica en los dos: esa es la trampa que obligó a crear `resolve.py`, con
+    la anatomía teniendo una versión en el CLI y otra en la interfaz que daban resultados
+    distintos sobre el mismo mRNA.
+  - **`SHMIR_REFERENCE_DIR`: el directorio de referencia de TRABAJO se declara**
+    (`trabajo.py`). Son dos sitios que hasta ahora eran uno — el **origen versionado**,
+    que llega con el código, y el **directorio de trabajo**, donde el panel escribe lo que
+    se sube y el manifiesto se actualiza. En local coinciden y está bien. En un servidor
+    no pueden: el sistema de ficheros de la imagen es efímero, así que todo lo subido
+    desaparecería en el siguiente despliegue y el único síntoma sería un frente volviendo
+    a salir NOT_RUN. Y `manifest.tsv` está versionado, así que escribirlo dentro de la
+    imagen deja el árbol de trabajo sucio contra el siguiente despliegue.
+    - Sin declarar, es **el del paquete**: en local no cambia nada, que es la condición
+      para que esto sea aceptable. Una ruta **relativa aborta** — dependería de desde
+      dónde se arranque el proceso.
+    - **La siembra no pisa nada**, y va en los dos sentidos: un fichero subido manda sobre
+      la copia que trae la imagen (al revés, un redespliegue borraría el bueno), y el
+      `manifest.tsv` de trabajo lleva los md5 de lo subido, así que pisarlo con el
+      versionado es perder justo la procedencia que el manifiesto existe para conservar.
+    - Cuando el de trabajo NO es el del paquete, **la interfaz lo dice** con la ruta
+      delante: quien sube un fichero tiene que saber dónde ha ido a parar.
+  - **Streamlit sigue siendo una dependencia SOLO de la interfaz.** El núcleo y los CLI
+    son stdlib pura y funcionan sin ella; lo que cambia es que ahora el hub la instala en
+    su imagen porque sirve esa interfaz. La autorización escrita de `docs/dependencias-autorizadas.md`
+    no se toca: sigue siendo opcional y sigue sin estar en el núcleo.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

@@ -98,6 +98,13 @@ app.use('/re-memory', requireApp('re-memory'), reMemoryRouter);
 const batchworkRouter = require('./apps/batchwork/server/routes');
 app.use('/batchwork', requireApp('batchwork'), batchworkRouter);
 
+// shmir-design: su interfaz es un proceso de Streamlit propio que corre en 127.0.0.1;
+// esto lo sirve como una ruta mas del hub, con el mismo login y los mismos permisos.
+// El proceso se arranca la PRIMERA vez que alguien entra, no al bootear: tarda segundos,
+// ocupa memoria, y la mayoria de quien entra al hub no abre esta app.
+const shmirRouter = require('./apps/shmir/routes');
+app.use('/shmir', requireApp('shmir-design'), shmirRouter);
+
 // ─── Bitácora micro-app (requires access to 'bitacora') ─────────────────────────
 const bitacoraDb = require('./apps/bitacora/db');
 const bitacoraRouter = require('./apps/bitacora/routes');
@@ -264,6 +271,9 @@ function shutdown(server, signal) {
   try { require('./apps/re-memory/cron').stopCron(); } catch { /* ignore */ }
   try { require('./apps/imprimir/poller').stopPolling(); } catch { /* ignore */ }
   try { require('./apps/asignacion/cron').stopCron(); } catch { /* ignore */ }
+  // El proceso de Streamlit es hijo de este: sin esto sobrevive al apagado y se
+  // queda con el puerto cogido, asi que el siguiente arranque no puede lanzarlo.
+  try { require('./apps/shmir/process').stop(); } catch { /* ignore */ }
   server.close(() => {
     try { authStore.db.close(); } catch { /* ignore */ }
     try { reMemoryDb.db.close(); } catch { /* ignore */ }
@@ -299,6 +309,28 @@ if (require.main === module) {
     console.log(`[server] Jokin's Tools running on port ${PORT}`);
     console.log(`[server] DB path: ${process.env.DB_PATH || '/data/jokin_tools.db'}`);
     console.log(`[server] NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+  });
+
+  // ── WebSocket de shmir-design ───────────────────────────────────────────────
+  //
+  // OJO: el evento `upgrade` NO pasa por los middlewares de Express, asi que el
+  // `requireApp('shmir-design')` de arriba protege la pagina y NO protege este socket.
+  // Streamlit hace TODO por el (`/_stcore/stream`), asi que sin comprobar aqui la sesion
+  // la app quedaria accesible sin login. La comprobacion vive en `upgradeAllowed`, con
+  // sus tests.
+  const { upgradeAllowed, proxyUpgrade, denySocket } = require('./apps/shmir/proxy');
+  const shmirProcess = require('./apps/shmir/process');
+  server.on('upgrade', (req, socket, head) => {
+    if (!req.url || !req.url.startsWith('/shmir')) {
+      socket.destroy();
+      return;
+    }
+    const veredicto = upgradeAllowed(req, { store: authStore, appId: 'shmir-design' });
+    if (!veredicto.allowed) {
+      denySocket(socket, 401, `shmir-design: ${veredicto.reason}`);
+      return;
+    }
+    proxyUpgrade(req, socket, head, { port: shmirProcess.PORT });
   });
 
   process.on('SIGTERM', () => shutdown(server, 'SIGTERM'));

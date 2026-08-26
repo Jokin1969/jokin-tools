@@ -20,6 +20,18 @@ const APPS = [
     </svg>`,
   },
   {
+    id: 'shmir-design',
+    name: 'shmiR Design',
+    path: '/shmir',
+    desc: 'Diseñador de shmiRs sobre un 3\u2032UTR: trocea en ventanas de 22 nt, aplica los filtros biofísicos y de poliadenilación, cruza colisión de seed, carga de off-targets, repetitivos y especificidad, y emite el panel de candidatos con su informe en docx y pdf. Cada frente sin cerrar sale como NOT_RUN y dice qué fichero falta y de dónde se saca.',
+    tags: ['ARNi', 'shmiR', 'Streamlit'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <path d="M22 10c0 10 20 12 20 22s-20 12-20 22" stroke="#1B6CB0" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M42 10c0 10-20 12-20 22s20 12 20 22" stroke="#009B8D" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M25 18h14M23 26h18M23 38h18M25 46h14" stroke="#00B8D4" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+    </svg>`,
+  },
+  {
     id: 'batchwork',
     name: 'Batchwork',
     path: '/batchwork',
