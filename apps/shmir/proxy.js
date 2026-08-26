@@ -48,6 +48,24 @@ function upgradeAllowed(req, { store, appId }) {
   return { allowed: true, user };
 }
 
+// Una redirección del upstream apunta a SU dirección, que es interna.
+//
+// Fallo real: `/shmir` sin barra final hace que Streamlit conteste 307 con
+// `Location: http://127.0.0.1:8501/shmir/`. El navegador la sigue, fuera del contenedor
+// no hay nada escuchando ahí, y lo que ve el usuario es que «no hace nada» — sin ningún
+// error en ningún log, que es el peor tipo de fallo.
+//
+// Se reescribe SOLO lo que apunta al upstream: una redirección a otro sitio es legítima
+// y reescribirla la rompería.
+function rewriteLocation(location, { port }) {
+  if (!location) return location;
+  const prefijos = [`http://${HOST}:${port}`, `https://${HOST}:${port}`];
+  for (const prefijo of prefijos) {
+    if (location.startsWith(prefijo)) return location.slice(prefijo.length) || '/';
+  }
+  return location;
+}
+
 // Reenvía una petición HTTP al upstream y devuelve su respuesta tal cual.
 //
 // OJO CON LA RUTA. Montado con `app.use('/shmir', …)`, Express le QUITA el prefijo a
@@ -66,7 +84,11 @@ function proxyRequest(req, res, { port, timeoutMs = 120000, path = null }) {
       headers: { ...req.headers, host: `${HOST}:${port}` },
     },
     upRes => {
-      res.writeHead(upRes.statusCode || 502, upRes.headers);
+      const cabeceras = { ...upRes.headers };
+      if (cabeceras.location) {
+        cabeceras.location = rewriteLocation(cabeceras.location, { port });
+      }
+      res.writeHead(upRes.statusCode || 502, cabeceras);
       upRes.pipe(res);
     }
   );
@@ -142,4 +164,6 @@ function denySocket(socket, status, reason) {
   socket.destroy();
 }
 
-module.exports = { upgradeAllowed, proxyRequest, proxyUpgrade, denySocket, COOKIE_NAME };
+module.exports = {
+  upgradeAllowed, proxyRequest, proxyUpgrade, denySocket, rewriteLocation, COOKIE_NAME,
+};

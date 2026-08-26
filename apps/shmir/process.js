@@ -55,6 +55,14 @@ function buildArgs({ port = PORT, basePath = BASE_PATH } = {}) {
     '--server.headless=true',
     '--server.fileWatcherType=none',
     '--browser.gatherUsageStats=false',
+    // OBLIGATORIO aquí, y sólo se ve en el despliegue. Streamlit decide si está en modo
+    // desarrollo con `"site-packages" not in __file__`, y `pip install --target=` deja
+    // la ruta SIN `site-packages` — que es justo como lo instala el build del hub. En
+    // modo desarrollo, `--server.port` es un conflicto y el proceso ABORTA con
+    // `RuntimeError: server.port does not work when global.developmentMode is true`.
+    // En local Streamlit vive en site-packages, así que esto pasaba en desarrollo y
+    // reventaba en producción.
+    '--global.developmentMode=false',
     // Subidas: el transcriptoma de 3'UTR y un RefSeq son grandes. El límite de Streamlit
     // por defecto (200 MB) se deja como está; lo que se quita es el recolector de
     // estadísticas y el vigilante de ficheros, que en un servidor no pintan nada.
