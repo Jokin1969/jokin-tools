@@ -375,6 +375,93 @@ def text_report(
     for nota in notes:
         lines.extend(["", *nota.splitlines()])
 
+    lines.extend(["", "── Riesgo de polyA: los DOS riesgos, separados ──"])
+    lines.append(
+        "  La regla de ±flanco mezclaba dos cosas distintas, y esto las separa:"
+    )
+    lines.append(
+        "    TRUNCAMIENTO  la ventana esta POR DETRAS del corte que dirige un hexamero "
+        "funcional."
+    )
+    lines.append(
+        "                  El corte cae 10-30 nt aguas abajo. Es un riesgo sobre la "
+        "EXISTENCIA de"
+    )
+    lines.append("                  la diana: si esa isoforma se usa, el tramo no esta.")
+    lines.append(
+        "    ESTERICO      la ventana SOLAPA el hexamero y compite con CPSF/CstF por "
+        "ese tramo."
+    )
+    lines.append(
+        "                  Es un riesgo sobre la ACCESIBILIDAD, y solo existe si el "
+        "hexamero se usa."
+    )
+    lines.append(
+        "  Un mismo hexamero NUNCA produce los dos en la misma ventana: o estas encima "
+        "de la"
+    )
+    lines.append("  señal, o estas por detras de su corte.")
+    lines.append("")
+    canonicas = [
+        s
+        for s in tiling.signals
+        if s.motif in ("AATAAA", "ATTAAA")
+        and s.classification.value == "APA_POSIBLE"
+    ]
+    if canonicas:
+        dominante = min(canonicas, key=lambda s: s.position)
+        corte = f"{dominante.end + 10}-{dominante.end + 30}"
+        # Las dos coordenadas, como en todo lo demas: un 1237 no dice por si solo si es
+        # del transcrito o del 3'UTR.
+        desfase = (
+            tiling.anatomy.utr3[0] - 1
+            if tiling.anatomy is not None and tiling.anatomy.utr3
+            else 0
+        )
+        en_utr3 = (
+            f" (3'UTR {dominante.position - desfase}-{dominante.end - desfase})"
+            if desfase
+            else ""
+        )
+        lines.append(
+            f"  RIESGO DE TRUNCAMIENTO DOMINANTE DEL PANEL: {dominante.motif} en "
+            f"{dominante.position}-{dominante.end}{en_utr3}."
+        )
+        lines.append(
+            f"  Es una canonica clasificada APA_POSIBLE, asi que se da por funcional. "
+            f"Su corte cae en"
+        )
+        lines.append(
+            f"  {corte}: todo candidato que empiece por detras de ahi desaparece de la "
+            f"isoforma corta."
+        )
+        detras, inmunes = [], []
+        for choice in selection.selection.chosen:
+            ventana = selection.window_of(choice)
+            inicio = ventana.inicio_3utr if ventana.inicio_3utr else ventana.window.start
+            (detras if ventana.window.start > dominante.end + 10 else inmunes).append(
+                inicio
+            )
+        if detras:
+            lines.append(
+                f"    por detras del corte (con riesgo): "
+                f"{', '.join(str(p) for p in sorted(detras))}"
+            )
+        lines.append(
+            f"    INMUNES por ser proximales a esa señal: "
+            + (", ".join(str(p) for p in sorted(inmunes)) if inmunes else "ninguno")
+        )
+        if not inmunes:
+            lines.append(
+                "    Ningun candidato del panel esta por delante de esa señal. Un panel "
+                "entero por"
+            )
+            lines.append(
+                "    detras del mismo corte comparte un unico modo de fallo: si esa "
+                "isoforma domina,"
+            )
+            lines.append("    fallan todos a la vez.")
+
     lines.extend(["", "── Que se ha analizado ──"])
     lines.append(
         f"  {tiling.sequence_length} nt, md5 canonico {tiling.sequence_md5}"

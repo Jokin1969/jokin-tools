@@ -796,6 +796,13 @@ POLYA_COLUMNS = (
     # modo antes de ver los datos.
     "polyA_estricto",
     "polyA_escalonado",
+    # Los DOS riesgos, separados. La regla de ±flanco los mezclaba y son distintos:
+    # el truncamiento es sobre la EXISTENCIA de la diana, el esterico sobre su
+    # ACCESIBILIDAD, y un mismo hexamero nunca produce los dos en la misma ventana.
+    "polyA_truncamiento",
+    "polyA_truncamiento_propio",
+    "polyA_esterico",
+    "polyA_dist_corte",
 )
 
 
@@ -818,6 +825,7 @@ class PolyAAnnotation:
     #: rellena siempre porque salen de la misma funcion pura y cuestan lo mismo.
     por_regla: dict[str, FilterState] = field(default_factory=dict)
     utr_length: int = 0
+    riesgo: "PolyARisk | None" = None
 
     def as_columns(self) -> dict[str, str]:
         if self.posicion_rel is None:
@@ -846,6 +854,16 @@ class PolyAAnnotation:
             "polyA_escalonado": self.por_regla.get(
                 PolyAMode.ESCALONADO.value, FilterState.NOT_RUN
             ).value,
+            **(
+                self.riesgo.as_columns()
+                if self.riesgo is not None
+                else {
+                    "polyA_truncamiento": FilterState.NOT_RUN.value,
+                    "polyA_truncamiento_propio": FilterState.NOT_RUN.value,
+                    "polyA_esterico": FilterState.NOT_RUN.value,
+                    "polyA_dist_corte": "",
+                }
+            ),
         }
 
 
@@ -855,6 +873,179 @@ _GRAVEDAD = {
     SignalClass.APA_POSSIBLE: 1,
     SignalClass.OTHER: 2,
 }
+
+
+class RiskState(StrEnum):
+    """Los cuatro estados de un riesgo de polyA. `PENALIZADO` no es `FAIL`.
+
+    Hace falta el intermedio porque la banda de corte tiene 20 nt de ancho: entre 10 y
+    30 nt aguas abajo del hexamero no se sabe si el corte cae antes o despues de la
+    ventana. Colapsarlo a PASS o a FAIL seria inventarse una precision que no hay.
+    """
+
+    NO_APLICA = "NO_APLICA"
+    PASS = "PASS"
+    PENALIZADO = "PENALIZADO"
+    FAIL = "FAIL"
+
+
+@dataclass(frozen=True)
+class PolyARisk:
+    """Los DOS riesgos que la regla de ±flanco mezclaba, cada uno con su motivo.
+
+    Nunca los produce el mismo hexamero sobre la misma ventana: o la ventana esta
+    ENCIMA de la señal —y entonces hay riesgo esterico y no de truncamiento, porque se
+    conserva en las dos isoformas— o esta POR DETRAS del corte, y entonces es al reves.
+    """
+
+    #: El riesgo de truncamiento que de verdad corre la ventana, mirando TODAS las
+    #: señales funcionales que quedan por delante. Es el que manda.
+    truncamiento: RiskState
+    truncamiento_motivo: str
+    esterico: RiskState
+    esterico_motivo: str
+    #: El riesgo de truncamiento RESPECTO DEL HEXAMERO QUE LA VENTANA SOLAPA, que es
+    #: siempre NO_APLICA por construccion: si estas encima de la señal, estas aguas
+    #: arriba de su corte y te conservas en las dos isoformas. Se emite aparte porque
+    #: es la afirmacion que hay que poder leer sin que se confunda con la de arriba —
+    #: y sobre todo para que NO se confunda: un candidato puede no tener truncamiento
+    #: por su propio hexamero y tenerlo por otro que quede mas arriba.
+    truncamiento_propio: RiskState = RiskState.NO_APLICA
+    truncamiento_propio_motivo: str = ""
+    #: Cuantos nt hay de la ventana al corte MAS TEMPRANO que dirigiria la señal que
+    #: manda en el truncamiento. `None` si no aplica.
+    distancia_corte: int | None = None
+    truncamiento_signal: PolyASignal | None = None
+    esterico_signal: PolyASignal | None = None
+
+    def as_columns(self) -> dict[str, str]:
+        return {
+            "polyA_truncamiento": self.truncamiento.value,
+            "polyA_truncamiento_propio": self.truncamiento_propio.value,
+            "polyA_esterico": self.esterico.value,
+            "polyA_dist_corte": (
+                "" if self.distancia_corte is None else str(self.distancia_corte)
+            ),
+        }
+
+
+#: Clases de señal que se dan por funcionales a efectos de truncamiento. Una variante
+#: rara no se supone que corte: penaliza, no elimina.
+_FUNCIONALES = (SignalClass.TERMINAL_PROBABLE, SignalClass.APA_POSSIBLE)
+
+
+def polya_risk(
+    window: Window, signals: list[PolyASignal], *, utr_length: int
+) -> PolyARisk:
+    """Evalua los dos riesgos por separado. No aplica ninguna regla de ±flanco.
+
+    Truncamiento: la ventana esta por detras del corte que dirigiria una señal
+    funcional. Con el corte entre +10 y +30 nt del hexamero, hay tres tramos —delante
+    del corte mas temprano, dentro de la banda, y detras del corte mas tardio— y tres
+    estados.
+
+    Esterico: la ventana solapa el hexamero, asi que compite con CPSF/CstF por el mismo
+    tramo. Una canonica en `APA_POSIBLE` es FAIL; una variante `OTRA`, penalizacion.
+    """
+    solapadas = [
+        s for s in signals if s.position <= window.end and s.end >= window.start
+    ]
+    esterico, esterico_motivo, esterico_signal = RiskState.NO_APLICA, (
+        "La ventana no solapa ningun hexamero, asi que no compite con la maquinaria de "
+        "corte por ningun tramo."
+    ), None
+    if solapadas:
+        principal = min(solapadas, key=lambda s: _GRAVEDAD[s.classification])
+        esterico_signal = principal
+        if principal.classification in _FUNCIONALES:
+            esterico = RiskState.FAIL
+            esterico_motivo = (
+                f"La ventana solapa {principal.motif} en "
+                f"{principal.position}-{principal.end}, clase "
+                f"{principal.classification.value}: es una señal que se da por "
+                f"funcional, asi que la horquilla competiria con CPSF/CstF por ese "
+                f"tramo."
+            )
+        else:
+            esterico = RiskState.PENALIZADO
+            esterico_motivo = (
+                f"La ventana solapa {principal.motif} en "
+                f"{principal.position}-{principal.end}, clase "
+                f"{principal.classification.value}: es una variante rara, asi que el "
+                f"riesgo esterico solo existe si esa señal se usa. Penaliza el ranking, "
+                f"no elimina."
+            )
+
+    propio_motivo = (
+        "La ventana no solapa ningun hexamero: no hay «hexamero propio» del que hablar."
+    )
+    if esterico_signal is not None:
+        propio_motivo = (
+            f"Respecto de {esterico_signal.motif} en {esterico_signal.position}-"
+            f"{esterico_signal.end}, que es el hexamero que la ventana SOLAPA: no hay "
+            f"riesgo de truncamiento. Solaparlo la deja aguas ARRIBA de su corte "
+            f"({esterico_signal.end + CLEAVAGE_MIN}-{esterico_signal.end + CLEAVAGE_MAX}), "
+            f"asi que se conserva en las dos isoformas. OJO: esto NO dice nada sobre "
+            f"otras señales que queden mas arriba."
+        )
+
+    #: Solo las funcionales dirigen un corte. Se toma la que deje la ventana MAS lejos
+    #: por detras, que es la que manda.
+    detras = [
+        s for s in signals
+        if s.classification in _FUNCIONALES and window.start > s.end + CLEAVAGE_MIN
+    ]
+    if not detras:
+        candidatas = [
+            s for s in signals
+            if s.classification in _FUNCIONALES and s.end < window.start
+        ]
+        motivo = (
+            "La ventana esta aguas arriba del corte mas temprano de toda señal "
+            "funcional (o lo solapa), asi que se conserva en las dos isoformas: no hay "
+            "riesgo de truncamiento."
+            if candidatas or not signals
+            else "No hay ninguna señal funcional por delante de la ventana."
+        )
+        return PolyARisk(
+            truncamiento=RiskState.NO_APLICA,
+            truncamiento_motivo=motivo,
+            esterico=esterico,
+            esterico_motivo=esterico_motivo,
+            esterico_signal=esterico_signal,
+            truncamiento_propio_motivo=propio_motivo,
+        )
+
+    manda = max(detras, key=lambda s: window.start - s.end)
+    distancia = window.start - (manda.end + CLEAVAGE_MIN)
+    if window.start > manda.end + CLEAVAGE_MAX:
+        estado = RiskState.FAIL
+        detalle = (
+            f"a {window.start - (manda.end + CLEAVAGE_MAX)} nt POR DETRAS del corte mas "
+            f"tardio ({manda.end + CLEAVAGE_MAX}): si esa señal se usa, este tramo no "
+            f"esta en el ARNm y la diana no existe"
+        )
+    else:
+        estado = RiskState.PENALIZADO
+        detalle = (
+            f"dentro de la banda de corte ({manda.end + CLEAVAGE_MIN}-"
+            f"{manda.end + CLEAVAGE_MAX}): no se sabe si el corte cae antes o despues "
+            f"de la ventana"
+        )
+    return PolyARisk(
+        truncamiento=estado,
+        truncamiento_motivo=(
+            f"{manda.motif} en {manda.position}-{manda.end} "
+            f"({manda.classification.value}) dirige un corte 10-30 nt aguas abajo; la "
+            f"ventana empieza en {window.start}, {detalle}."
+        ),
+        esterico=esterico,
+        esterico_motivo=esterico_motivo,
+        distancia_corte=distancia,
+        truncamiento_signal=manda,
+        esterico_signal=esterico_signal,
+        truncamiento_propio_motivo=propio_motivo,
+    )
 
 
 def annotate_polya(
@@ -914,6 +1105,8 @@ def annotate_polya(
         terminales=terminales,
     )
 
+    riesgo = polya_risk(window, signals, utr_length=utr_length)
+
     por_regla = {
         otro.value: _veredicto_polya(
             window, signals, mode=otro, tras_seguro=tras_seguro,
@@ -935,6 +1128,7 @@ def annotate_polya(
         tras_corte_seguro=tras_seguro,
         por_regla=por_regla,
         utr_length=utr_length,
+        riesgo=riesgo,
     )
 
 

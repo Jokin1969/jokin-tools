@@ -245,9 +245,42 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   prohibida y la A, que no aparea con nada, deja un bulge de 2 nt en vez de 1. Sin
   ViennaRNA el criterio no se puede aplicar: la pasajera sale con `structural_check =
   NOT_RUN` y un aviso que dice que esa elección está comprobada como incorrecta.
-- **El filtro de poliadenilación es escalonado**: FAIL duro solo para la señal terminal
-  y para `AATAAA`/`ATTAAA` en `APA_POSIBLE`; las variantes raras dejan bandera y
-  penalización de ranking. El informe saca las dos cifras de elegibles.
+- **El filtro de poliadenilación es escalonado. DECIDIDO (2026-08-26)**, con la tabla de
+  los seis candidatos delante y no antes: FAIL duro solo para la señal terminal y para
+  `AATAAA`/`ATTAAA` en `APA_POSIBLE`; las variantes raras dejan bandera y penalización de
+  ranking. 1018 entra con penalización. El informe saca las dos cifras de elegibles, y la
+  tabla emite `polyA_estricto` y `polyA_escalonado` en columnas separadas para que la
+  decisión siga siendo auditable.
+- **Truncamiento y estérico son DOS riesgos, no uno** (`polya.polya_risk`). La regla de
+  ±flanco los mezclaba:
+  - **truncamiento** — la ventana está POR DETRÁS del corte que dirige un hexámero
+    funcional (10–30 nt aguas abajo). Es un riesgo sobre la **existencia** de la diana.
+  - **estérico** — la ventana **solapa** el hexámero y compite con CPSF/CstF. Es un
+    riesgo sobre la **accesibilidad**, y solo existe si ese hexámero se usa.
+
+  Un mismo hexámero nunca produce los dos en la misma ventana: o estás encima de la
+  señal, o estás por detrás de su corte. Hay tres estados y no dos (`RiskState`):
+  `PENALIZADO` es obligatorio porque la banda de corte tiene 20 nt de ancho y colapsarla
+  a PASS o FAIL inventa una precisión que no hay.
+
+  **Y `truncamiento_propio` va aparte de `truncamiento` a propósito.** Una ventana que
+  solapa un hexámero no tiene truncamiento *por ése*, pero puede tenerlo por otro que
+  quede más arriba: 1018 solapa `ACTAAA` (sin truncamiento propio, estérico penalizado)
+  y a la vez está por detrás del corte del `AATAAA` de 288, igual que los otros cuatro.
+  Emitir solo «truncamiento NO_APLICA» lo dejaría como una excepción a su favor.
+- **El `AATAAA` de 3'UTR 288 es el riesgo de truncamiento dominante del panel** y el
+  informe lo declara así, con qué candidatos quedan por detrás de su corte y cuáles son
+  inmunes por ser proximales. Si ninguno lo es, lo dice: un panel entero por detrás del
+  mismo corte comparte un único modo de fallo.
+- **Un candidato «nuevo» de una fuente externa puede ser un sitio ya cogido**
+  (`spacing.site_conflicts`). 223 y 221 son dos ventanas corridas 2 nt: bajo el espaciado
+  de 50 nt son el mismo sitio del panel. Se **avisa**, no se descarta — puede interesar
+  cambiar uno por otro, y para eso hay que ver que compiten.
+- **El sesgo de baja complejidad está DESCARTADO** como explicación del score de
+  miRarchitect: correlación carrera máxima / score `r = +0,154` sobre las 24, y
+  homopolímeros de 4 o más repartidos 5/15 entre los mejores y 3/9 entre los peores — el
+  mismo 33 %. Queda anotado porque era la hipótesis que había que descartar **antes** de
+  acusar a su puntuación de nada, y descartarla es lo que permite usarla.
 - **Cada informe dice QUÉ se analizó**: longitud y md5 canónico de la secuencia de
   entrada (`TilingReport.sequence_length` / `.sequence_md5`). Sin esas dos cifras no hay
   forma de saber a posteriori qué se pasó — y la errata del 3'UTR fabricado se detectó
