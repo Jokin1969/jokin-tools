@@ -83,23 +83,45 @@ def main(argv: list[str]) -> int:
         utr3 = secuencia[args.utr3_desde - 1 :]
         divergentes = frozenset()
         perfil = ""
+        alineado = None
         if (args.entrada_a is None) != (args.entrada_b is None):
             raise ShmirDesignError(
                 "Hacen falta las DOS entradas o ninguna: con una sola no hay nada que "
                 "alinear y no se puede estratificar."
             )
         if args.entrada_a is not None:
-            alineamiento = align(
-                _secuencia(args.entrada_a), _secuencia(args.entrada_b)
+            # Cada entrada se alinea contra la REFERENCIA, no una contra otra: los
+            # sitios se cruzan por su posicion sobre la referencia, asi que las
+            # posiciones divergentes tienen que estar en ESE sistema de coordenadas.
+            # Alinear las dos entradas entre si las daria en el de una de ellas.
+            alineados = [
+                align(utr3, _secuencia(ruta))
+                for ruta in (args.entrada_a, args.entrada_b)
+            ]
+            divergentes = frozenset().union(*(a.ref_positions for a in alineados))
+            # Para los tres estados hace falta UN alineamiento con sus carreras. Se usa
+            # el de la entrada que difiera de la referencia; si difieren las dos, se
+            # avisa de que la clasificacion se hace con la primera.
+            con_diferencias = [a for a in alineados if a.differences]
+            alineado = con_diferencias[0] if con_diferencias else alineados[0]
+            perfil = "\n\n".join(
+                f"── Entrada {letra} contra la referencia ──\n" + a.format_text()
+                for letra, a in zip("AB", alineados)
+                if a.differences
             )
-            divergentes = alineamiento.ref_positions
-            perfil = alineamiento.format_text()
+            if len(con_diferencias) > 1:
+                perfil += (
+                    "\n\n  OJO: las DOS entradas difieren de la referencia. Los tres "
+                    "estados se calculan\n  con el alineamiento de la primera; las "
+                    "posiciones divergentes son la union de las dos."
+                )
         comparacion = compare_exports(
             parse_export(args.a.read_text(encoding="utf-8-sig"), source=str(args.a)),
             parse_export(args.b.read_text(encoding="utf-8-sig"), source=str(args.b)),
             utr3,
             axis=args.eje,
             divergent_positions=divergentes,
+            alignment=alineado,
         )
     except (ShmirDesignError, OSError, UnicodeDecodeError) as exc:
         # rule2-ok: frontera CLI.

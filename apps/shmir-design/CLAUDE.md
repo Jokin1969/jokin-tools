@@ -353,6 +353,19 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   ha mirado» y **no** se transfiere; un `frozenset()` vacío sí es una comprobación hecha.
   **El puesto NO se transfiere**: 20 de esos 21 cambiaron de puesto con el score
   idéntico, porque el puesto depende del tamaño de la lista y no del sitio.
+- **El PUESTO de una fuente externa no se usa en la selección.** Es propiedad de la
+  LISTA, no del sitio: 20 de los 21 sitios compartidos entre las dos corridas de
+  miRarchitect cambian de puesto con el score **idéntico**, solo porque una lista tiene
+  26 filas y la otra 24. Se importa el score, y solo donde la ventana coincide.
+- **El criterio posicional tiene TRES estados, no dos** (`transfer.WindowState`):
+  `LIMPIA`, `TOCADA` e `INDETERMINADA`. El tercero es para un indel dentro de una carrera
+  de bases iguales cuya carrera cruza el borde de la ventana: ahí el alineador coloca el
+  indel en un punto cualquiera y la pregunta «¿cae dentro?» no tiene respuesta a priori.
+  `LIMPIA` transfiere, `TOCADA` no, `INDETERMINADA` transfiere **solo** si existe la
+  comprobación directa y las dos cadenas coinciden. Ojo con los dos vecindarios: una
+  deleción borra una posición de la carrera, pero una inserción se mete en una JUNTURA, y
+  la juntura de detrás de la carrera cae fuera de una ventana que acaba en ella. Tratar
+  los dos igual marcaba TOCADA la ventana 221, que las dos corridas vieron idéntica.
 - **Dos criterios de «misma ventana», y manda el directo.** El posicional —¿el intervalo
   de referencia contiene alguna posición divergente?— es conservador: cuando el indel cae
   dentro de una carrera de bases iguales, su posición exacta es ambigua y el alineamiento

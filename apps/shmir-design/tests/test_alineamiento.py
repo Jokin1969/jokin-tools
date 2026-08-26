@@ -83,7 +83,21 @@ class TestReglaDeLectura(unittest.TestCase):
 @unittest.skipUnless(
     RATON.is_file() and FABRICADO.is_file(), "NOT_RUN: faltan los fixtures"
 )
-class TestSobreElFabricadoReal(unittest.TestCase):
+class TestRegresionDelAlineadorSobreEsteParDeFicheros(unittest.TestCase):
+    """REGRESION DE ESTE ALINEADOR sobre un par de ficheros concreto.
+
+    Lo que fija NO es una propiedad de las dos secuencias. **El recuento por clase
+    depende del alineador**: el reparto de huecos lo decide la penalizacion de gap y no
+    hay descomposicion canonica. `difflib` alinea las mismas dos cadenas y da 7
+    deleciones, 10 inserciones y 1 sustitucion — otras 18 operaciones, tambien +4 nt
+    netos, igual de validas.
+
+    Si alguien toca `alignment.MATCH/MISMATCH/GAP` o el algoritmo, estos numeros cambian
+    y este test falla. Eso es lo que tiene que pasar, y por eso el nombre dice
+    «regresion del alineador» y no «perfil de las secuencias»: un fallo aqui significa
+    que ha cambiado el alineador, NO que hayan cambiado los ficheros. Para eso estan los
+    md5, que se comprueban en `tests/test_fixture_negativo.py`.
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -91,15 +105,37 @@ class TestSobreElFabricadoReal(unittest.TestCase):
             _utr3(), FABRICADO.read_text(encoding="ascii").strip()
         )
 
-    def test_el_perfil_es_el_registrado(self):
-        # OJO: 20 operaciones crudas (5 del + 9 ins + 6 sust) son 18 SUCESOS, porque
-        # cuatro de esas sustituciones se agrupan en dos transposiciones. Sumar las
-        # seis y las dos por separado seria contar cuatro cambios dos veces.
+    def test_este_alineador_da_este_reparto(self):
+        # 20 operaciones crudas (5 del + 9 ins + 6 sust) son 18 SUCESOS, porque cuatro
+        # de esas sustituciones se agrupan en dos transposiciones. Sumar las seis y las
+        # dos por separado seria contar cuatro cambios dos veces.
         perfil = self.alineamiento.profile
         self.assertEqual(perfil[DiffClass.DELECION], 5)
         self.assertEqual(perfil[DiffClass.INSERCION], 9)
         self.assertEqual(perfil[DiffClass.SUSTITUCION], 2)
         self.assertEqual(perfil[DiffClass.TRANSPOSICION], 2)
+
+    def test_difflib_reparte_los_huecos_de_otra_forma(self):
+        """El contraejemplo, en el test: dos descomposiciones validas del mismo cambio."""
+        import difflib
+        from collections import Counter
+
+        recuento = Counter(
+            tag
+            for tag, *_ in difflib.SequenceMatcher(
+                None, _utr3(), FABRICADO.read_text(encoding="ascii").strip(),
+                autojunk=False,
+            ).get_opcodes()
+            if tag != "equal"
+        )
+        self.assertEqual(dict(recuento), {"delete": 7, "insert": 10, "replace": 1})
+        self.assertEqual(sum(recuento.values()), len(self.alineamiento.differences))
+
+    def test_pero_la_REGLA_DE_LECTURA_no_depende_del_alineador(self):
+        # Se apoya en las CLASES PRESENTES, no en las frecuencias. Con el reparto de
+        # difflib —inserciones y una sustitucion— la lectura es la misma: se genero.
+        self.assertIn("genero", self.alineamiento.reading.lower())
+        self.assertFalse(self.alineamiento.only_deletions)
 
     def test_y_suman_18_sucesos_no_20(self):
         self.assertEqual(len(self.alineamiento.differences), 18)

@@ -78,6 +78,19 @@ transposiciones**; +4 nt netos.
 > agrupan de dos en dos en las transposiciones. Sumar «6 sustituciones + 2
 > transposiciones» contaría cuatro cambios dos veces.
 
+> **El recuento por clase depende del alineador.** No hay descomposición canónica: el
+> reparto de huecos lo decide la penalización de gap. `difflib.SequenceMatcher` alinea
+> las mismas dos cadenas y da **7 deleciones, 10 inserciones y 1 sustitución** — otras 18
+> operaciones, también +4 nt netos, igual de válidas; renderiza las dos transposiciones
+> como parejas inserción+deleción. Los dos repartos describen el mismo cambio.
+>
+> Por eso **la regla de lectura se apoya solo en las clases PRESENTES, no en las
+> frecuencias**: bajo los dos repartos hay inserciones, luego bajo los dos la lectura es
+> «se generó». Y por eso el test que fija estas cifras se llama *regresión del
+> alineador*: si alguien toca `alignment.MATCH/MISMATCH/GAP` o el algoritmo, ese test
+> falla y lo que significa es que ha cambiado el alineador, **no** que hayan cambiado los
+> ficheros. Para eso están los md5.
+
 | tipo | ref | fabricado | cambio |
 |---|---|---|---|
 | deleción | 56 | 55 | `T` → – |

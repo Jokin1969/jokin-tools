@@ -31,6 +31,7 @@ from io import StringIO
 from .errors import ShmirDesignError
 from .hard_filters import reverse_complement_rna
 from .scaffold import ScaffoldSpec
+from .transfer import classify_window
 
 #: Las ventanas de miRarchitect miden 22 nt, confirmado en las tres columnas del
 #: export. La estratificacion necesita ese numero para saber que posiciones toca
@@ -257,6 +258,10 @@ class ExportComparison:
     clean: tuple[SiteComparison, ...]
     #: Estrato (b): la ventana solapa al menos una diferencia entre las dos entradas.
     dirty: tuple[SiteComparison, ...]
+    #: Tercer estado: la carrera de un indel ambiguo cruza el borde de la ventana, asi
+    #: que no se puede afirmar si la diferencia cae dentro o fuera. No transfiere a
+    #: priori; transfiere si la comprobacion directa dice que la cadena es la misma.
+    undetermined: tuple[SiteComparison, ...]
     only_a: tuple[SiteComparison, ...]
     only_b: tuple[SiteComparison, ...]
     without_site_a: int
@@ -329,6 +334,14 @@ class ExportComparison:
             "expectativa es",
             "  score identico: es un test binario, no un umbral.",
             "",
+            "  REGLA DE USO DEL PANEL. El PUESTO de miRarchitect no se usa para nada en "
+            "la seleccion",
+            "  de candidatos. El puesto es propiedad de la LISTA, no del sitio: dos "
+            "corridas de",
+            "  distinto tamaño dan puestos distintos al mismo score. Lo que se importa "
+            "es el score,",
+            "  y solo donde la ventana coincide.",
+            "",
             f"  sitios compartidos: {len(self.shared)}   "
             f"solo en la primera: {len(self.only_a)}   "
             f"solo en la segunda: {len(self.only_b)}",
@@ -390,11 +403,37 @@ class ExportComparison:
 
         lineas.extend([
             "",
-            "  CRITERIO POSICIONAL — ventanas sin ninguna diferencia en sus 22 nt",
-            f"    estrato (a) limpio: {len(self.clean)}   "
-            f"estrato (b) tocado: {len(self.dirty)}",
+            "  CRITERIO POSICIONAL — a priori, solo con el alineamiento de las entradas",
+            f"    LIMPIA: {len(self.clean)}   TOCADA: {len(self.dirty)}   "
+            f"INDETERMINADA: {len(self.undetermined)}",
         ])
-        discrepan = tuple(s for s in self.dirty if s.same_target)
+        if self.undetermined:
+            lineas.append(
+                "    INDETERMINADA no es un estrato sucio: es que la pregunta no tiene "
+                "respuesta a"
+            )
+            lineas.append(
+                "    priori. El indel cae dentro de una carrera de bases iguales y el "
+                "alineador lo"
+            )
+            lineas.append(
+                "    coloca en un punto cualquiera de ella; si la carrera cruza el "
+                "borde de la ventana,"
+            )
+            lineas.append(
+                "    no se puede afirmar si esta dentro o fuera. Con las dos salidas "
+                "delante SI se puede:"
+            )
+            lineas.append(
+                "    la identidad de la cadena es observacion, no inferencia."
+            )
+            for sitio in self.undetermined:
+                resuelto = (
+                    "resuelta: misma cadena, transfiere" if sitio.same_target
+                    else "sin resolver: las cadenas difieren, no transfiere"
+                )
+                lineas.append(f"      {sitio.start:<6} {sitio.guide}  → {resuelto}")
+        discrepan = ()
         if discrepan:
             lineas.append(
                 f"    Los dos criterios DISCREPAN en "
@@ -454,6 +493,7 @@ def compare_exports(
     *,
     axis: str,
     divergent_positions: frozenset[int] = frozenset(),
+    alignment=None,
 ) -> ExportComparison:
     """Cruza dos exports por sitio. `axis` declara QUE cambia entre los dos.
 
@@ -483,11 +523,21 @@ def compare_exports(
     sitios_a, sin_a = indexar(a)
     sitios_b, sin_b = indexar(b)
 
-    def limpia(inicio: int) -> bool:
-        """¿La ventana de 22 nt que empieza ahi esta libre de posiciones divergentes?"""
-        return not any(
+    def estado(inicio: int) -> str:
+        """LIMPIA / TOCADA / INDETERMINADA para la ventana que empieza ahi.
+
+        Con `alignment` se usan los tres estados. Sin el —solo un conjunto de
+        posiciones— no hay forma de saber cuales son ambiguas, asi que se cae al
+        criterio de dos estados de siempre.
+        """
+        if alignment is not None:
+            return classify_window(
+                start=inicio, window=WINDOW, alignment=alignment
+            ).state.value
+        tocada = any(
             inicio <= p <= inicio + WINDOW - 1 for p in divergent_positions
         )
+        return "tocada" if tocada else "limpia"
 
     compartidos = tuple(
         SiteComparison(
@@ -518,8 +568,11 @@ def compare_exports(
     return ExportComparison(
         axis=axis,
         shared=compartidos,
-        clean=tuple(s for s in compartidos if limpia(s.start)),
-        dirty=tuple(s for s in compartidos if not limpia(s.start)),
+        clean=tuple(s for s in compartidos if estado(s.start) == "limpia"),
+        dirty=tuple(s for s in compartidos if estado(s.start) == "tocada"),
+        undetermined=tuple(
+            s for s in compartidos if estado(s.start) == "indeterminada"
+        ),
         only_a=solo_a, only_b=solo_b,
         without_site_a=sin_a, without_site_b=sin_b,
     )

@@ -238,8 +238,9 @@ class TestEstratificacion(unittest.TestCase):
 
     def test_los_dos_estratos_se_reportan_por_separado(self):
         texto = self._comparar(self.export, frozenset({1210})).format_text()
-        self.assertIn("estrato (a) limpio", texto.lower())
-        self.assertIn("estrato (b) tocado", texto.lower())
+        self.assertIn("limpia:", texto.lower())
+        self.assertIn("tocada:", texto.lower())
+        self.assertIn("indeterminada:", texto.lower())
 
     def test_sigue_sin_decir_robusto(self):
         texto = self._comparar(self.export, frozenset({1210})).format_text()
@@ -268,12 +269,14 @@ class TestCasoDeReferencia(unittest.TestCase):
 
         utr3 = _utr3()
         fabricado = FABRICADO.read_text(encoding="ascii").strip()
+        alineamiento = align(utr3, fabricado)
         cls.comparacion = compare_exports(
             parse_export(CSV.read_text(encoding="utf-8-sig"), source="fabricada"),
             parse_export(BUENA.read_text(encoding="utf-8-sig"), source="buena"),
             utr3,
             axis="secuencia de entrada",
-            divergent_positions=align(utr3, fabricado).ref_positions,
+            divergent_positions=alineamiento.ref_positions,
+            alignment=alineamiento,
         )
 
     def test_veintiun_sitios_compartidos(self):
@@ -285,9 +288,13 @@ class TestCasoDeReferencia(unittest.TestCase):
     def test_tres_exclusivos_de_la_buena(self):
         self.assertEqual(len(self.comparacion.only_b), 3)
 
-    def test_la_estratificacion_posicional_da_veinte_limpios(self):
+    def test_a_priori_hay_20_limpias_0_tocadas_y_1_indeterminada(self):
+        # El 221 no esta "sucio": es que a priori la pregunta no tiene respuesta. El
+        # indel de esa zona cae en una carrera que cruza el borde de la ventana.
         self.assertEqual(len(self.comparacion.clean), 20)
-        self.assertEqual(len(self.comparacion.dirty), 1)
+        self.assertEqual(len(self.comparacion.dirty), 0)
+        self.assertEqual(len(self.comparacion.undetermined), 1)
+        self.assertEqual(self.comparacion.undetermined[0].start, 221)
 
     def test_pero_los_21_vieron_LITERALMENTE_la_misma_ventana(self):
         # El criterio directo: si las dos corridas emitieron la MISMA diana, vieron la
@@ -304,10 +311,12 @@ class TestCasoDeReferencia(unittest.TestCase):
     def test_luego_el_score_ES_funcion_local_de_la_ventana(self):
         self.assertIn("es funcion local", self.comparacion.format_text().lower())
 
-    def test_el_informe_dice_que_los_dos_criterios_discrepan_y_por_que(self):
+    def test_el_informe_explica_la_indeterminacion_y_como_se_resuelve(self):
         texto = self.comparacion.format_text()
         self.assertIn("carrera", texto.lower())
         self.assertIn("221", texto)
+        self.assertIn("observacion, no inferencia", texto.lower())
+        self.assertIn("resuelta: misma cadena, transfiere", texto.lower())
 
     def test_el_PUESTO_en_cambio_NO_es_transferible(self):
         # 20 de 21 cambian de puesto teniendo el score identico: el rank depende del

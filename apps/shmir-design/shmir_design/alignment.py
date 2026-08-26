@@ -42,6 +42,24 @@ class Difference:
     other_start: int
     ref: str
     other: str
+    #: Carrera de bases identicas de la REFERENCIA dentro de la cual la posicion de
+    #: este cambio es indistinguible. Para una sustitucion, o para un indel de base
+    #: unica, es una sola posicion y `ambiguous` es falso.
+    run_start: int = 0
+    run_end: int = 0
+
+    @property
+    def ambiguous(self) -> bool:
+        """¿Da igual donde se ponga dentro de su carrera?
+
+        `AAA` → `AAAA` es la misma pareja de cadenas se meta la A donde se meta, asi que
+        preguntar en que posicion esta el indel no tiene respuesta. Solo pasa con
+        indels: una sustitucion cambia una base concreta.
+        """
+        return (
+            self.kind in (DiffClass.DELECION, DiffClass.INSERCION)
+            and self.run_end > self.run_start
+        )
 
     def __str__(self) -> str:
         return (
@@ -137,6 +155,52 @@ def _traceback(ref: str, other: str, punt: list[list[int]]) -> list[Difference]:
     return crudas
 
 
+def _expandir(secuencia: str, indice: int) -> tuple[int, int]:
+    """La carrera de bases iguales que contiene ese indice 0-based, en 1-based."""
+    base = secuencia[indice]
+    inicio = fin = indice
+    while inicio > 0 and secuencia[inicio - 1] == base:
+        inicio -= 1
+    while fin + 1 < len(secuencia) and secuencia[fin + 1] == base:
+        fin += 1
+    return inicio + 1, fin + 1
+
+
+def _marcar_carreras(ref: str, diferencias: list[Difference]) -> list[Difference]:
+    """Cada indel se anota con la carrera donde su posicion es indistinguible.
+
+    Los dos tipos miran vecindarios distintos, y confundirlos deja indels ambiguos sin
+    marcar:
+
+    - una DELECION en la posicion `i` borra `ref[i]`, asi que su carrera es la que
+      contiene esa base;
+    - una INSERCION en `i` se coloca ENTRE `ref[i]` y `ref[i+1]`, asi que puede
+      pertenecer a la carrera de cualquiera de las dos.
+    """
+    from dataclasses import replace  # noqa: PLC0415
+
+    salida = []
+    for d in diferencias:
+        if d.kind is DiffClass.DELECION:
+            inicio, fin = _expandir(ref, d.ref_start - 1)
+        elif d.kind is DiffClass.INSERCION:
+            base = d.other[0]
+            tramos = [
+                _expandir(ref, indice)
+                for indice in (d.ref_start - 1, d.ref_start)
+                if 0 <= indice < len(ref) and ref[indice] == base
+            ]
+            if tramos:
+                inicio = min(t[0] for t in tramos)
+                fin = max(t[1] for t in tramos)
+            else:
+                inicio = fin = d.ref_start
+        else:
+            inicio = fin = d.ref_start
+        salida.append(replace(d, run_start=inicio, run_end=fin))
+    return salida
+
+
 def _fundir_transposiciones(crudas: list[Difference]) -> list[Difference]:
     """Dos sustituciones adyacentes que intercambian sus bases son UNA transposicion."""
     salida: list[Difference] = []
@@ -202,7 +266,7 @@ def align(ref: str, other: str) -> Alignment:
                 actual[j - 1] + GAP,
             )
 
-    diferencias = _fundir_transposiciones(_traceback(a, b, punt))
+    diferencias = _marcar_carreras(a, _fundir_transposiciones(_traceback(a, b, punt)))
     tocadas: set[int] = set()
     for d in diferencias:
         if d.kind is DiffClass.INSERCION:
