@@ -316,6 +316,21 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   desapareamiento sobre 19 nt de solapamiento idéntico. Una ventana corrida hasta 15 nt
   se asigna al candidato más cercano con la distancia escrita en `mirarch_shift_nt`; más
   allá, no se asigna.
+- **Ningún intervalo se escribe a mano**: `audit.Span` se deriva de la secuencia que
+  describe y `Span.check()` **aborta** si `fin - inicio + 1 != len(secuencia)`. No es
+  teórico: la errata del desplazamiento de 3 nt y unas ventanas `269-291`/`222-242`
+  emitidas para guías de 22 nt son el mismo fallo, coordenadas transcritas en vez de
+  derivadas. `tests/test_intervalos.py` comprueba el invariante sobre las salidas de
+  verdad, en las dos parejas de coordenadas. Ese invariante ya cazó algo real: cuando el
+  emparejamiento sale de `guia[1:]`, la ventana mide un nt MENOS que la guía, porque la
+  posición 1 es la T de convenio y no forma parte de la ventana.
+- **La auditoría de un fichero de scores es código, no un análisis a mano**
+  (`shmir_design/audit.py`, `tools/audit_scores.py`). Tabula longitudes, dice qué guías
+  no mapean y cómo se restauran, marca las filas que son prefijo de otra, y avisa de
+  sitios de restricción presentes en la guía y **ausentes del 3'UTR** — señal de que se
+  ha colado contexto de clonaje donde debería haber guía. En la corrida murina: 25 filas
+  (no 26), longitudes 21×4 / 22×20 / 23×1, 8 sin mapear, y un `TCTAGA` (XbaI) que no
+  está en ninguna parte del 3'UTR.
 - **La dirección de la escala se DERIVA del dato, no se supone.** `EVIDENCE` registra
   la dirección de cada fuente **con los pares (puesto, score) de los que salió**, y
   `file_order_direction()` la vuelve a derivar en cada importación del orden de las filas
@@ -323,7 +338,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   Si la derivada no coincide con la registrada, también se aborta — uno de los dos está
   mal y no se elige por nuestra cuenta. `lower_is_better()` sigue abortando para una
   fuente no registrada. Ojo: el fichero de la corrida manual **no trae columna de rank**;
-  el puesto sale del ORDEN DE SUS FILAS, que es lo único no circular que hay.
+  el puesto sale del ORDEN DE SUS FILAS, que es lo único no circular que hay. Y el
+  alcance de esa prueba es limitado: que 25 filas salgan ordenadas demuestra que el
+  fichero **está** ordenado, no en qué dirección. Que la primera sea la mejor sigue
+  siendo un supuesto sobre el convenio de la fuente, anotado como tal en `EVIDENCE` y
+  pendiente de confirmar leyendo el puesto en su interfaz.
 - **Un score de otro andamio no ordena.** `check_orderable()` compara el andamio del
   fichero con el del diseño y, si no coinciden, el score se degrada a **convergencia de
   sitio**: sigue diciendo que otro método señaló la misma región, pero no ordena nada.

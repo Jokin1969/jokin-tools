@@ -193,9 +193,13 @@ EVIDENCE = {
         note=(
             "Corrida manual sobre el 3'UTR de Prnp murino (2026-08-26). El fichero NO "
             "trae columna de rank: los puestos son los del ORDEN DE SUS FILAS, que es "
-            "estrictamente creciente en el score a lo largo de las 25 lineas. Que 25 "
-            "filas salgan ordenadas por score no es casualidad, asi que el orden del "
-            "fichero es el ranking de la fuente y menor es mejor."
+            "estrictamente creciente en el score a lo largo de las 25 lineas.\n"
+            "OJO CON EL ALCANCE DE ESA PRUEBA: que 25 filas salgan ordenadas demuestra "
+            "que el fichero ESTA ordenado, no en que direccion. Que la primera fila sea "
+            "la MEJOR sigue siendo un SUPUESTO sobre el convenio de la fuente. Se "
+            "confirma leyendo el puesto que muestra la propia interfaz de miRarchitect "
+            "en el re-export; hasta entonces, esto es una hipotesis de trabajo con la "
+            "que se ha decidido operar, no un hecho comprobado."
         ),
     ),
     ScoreSource.MIRARCHITECT_API: ScoreEvidence(

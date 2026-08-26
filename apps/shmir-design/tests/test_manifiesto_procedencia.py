@@ -21,6 +21,7 @@ from shmir_design.reference import REFERENCES, extract_3utr, load_3utr, sequence
 DIR = Path(__file__).resolve().parent.parent / "data" / "reference"
 MANIFIESTO = DIR / "manifest.tsv"
 RATON = DIR / "NM_011170.3.fa"
+HUMANO = DIR / "NM_000311.5.fa"
 
 
 class TestEsquema(unittest.TestCase):
@@ -103,3 +104,54 @@ class TestInvariantesDelRaton(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _canonica(ruta):
+    from shmir_design.fetch import parse_fasta_payload
+    from shmir_design.polya import normalize_sequence
+
+    _, bruta = parse_fasta_payload(ruta.read_text(encoding="utf-8"), source=str(ruta))
+    return normalize_sequence(bruta, name=ruta.name)
+
+
+@unittest.skipUnless(HUMANO.is_file(), "NOT_RUN: falta data/reference/NM_000311.5.fa")
+class TestInvariantesDelHumano(unittest.TestCase):
+    """NM_000311.5: 2435 nt, 3'UTR 830-2435 de 1606 nt, y sus dos md5.
+
+    El test se autovalida: si el fichero que llega no da esos md5, aborta. Es la
+    contramedida directa al 3'UTR fabricado — aquel se detecto por longitud contra las
+    coordenadas declaradas, y estos numeros los fija el encargo, no el fichero.
+    """
+
+    def test_el_transcrito_mide_2435_nt(self):
+        self.assertEqual(len(_canonica(HUMANO)), 2435)
+        self.assertEqual(REFERENCES["NM_000311.5"].length, 2435)
+
+    def test_el_md5_canonico_del_transcrito(self):
+        self.assertEqual(
+            sequence_md5(_canonica(HUMANO)), "e28a945d24ce53e0d1d93ba5b55a532a"
+        )
+
+    def test_el_3utr_va_de_830_a_2435_y_mide_1606(self):
+        referencia = REFERENCES["NM_000311.5"]
+        self.assertEqual(referencia.utr3, (830, 2435))
+        self.assertEqual(referencia.utr3[1] - referencia.utr3[0] + 1, 1606)
+
+    def test_el_md5_canonico_del_3utr(self):
+        utr3 = extract_3utr(_canonica(HUMANO), REFERENCES["NM_000311.5"])
+        self.assertEqual(len(utr3), 1606)
+        self.assertEqual(sequence_md5(utr3), "f7fdb4a88d4834dbbf9a23edf9ec85dc")
+
+
+class TestLosNumerosDelHumanoEstanEnElCodigo(unittest.TestCase):
+    """Estos SI corren sin el fichero: fijan lo que se espera de el cuando llegue."""
+
+    def test_longitud_y_md5_del_transcrito(self):
+        referencia = REFERENCES["NM_000311.5"]
+        self.assertEqual(referencia.length, 2435)
+        self.assertEqual(referencia.md5, "e28a945d24ce53e0d1d93ba5b55a532a")
+
+    def test_coordenadas_y_md5_del_3utr(self):
+        referencia = REFERENCES["NM_000311.5"]
+        self.assertEqual(referencia.utr3, (830, 2435))
+        self.assertEqual(referencia.utr3_md5, "f7fdb4a88d4834dbbf9a23edf9ec85dc")
