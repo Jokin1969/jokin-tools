@@ -912,3 +912,243 @@ def seed_result_rows(scan):
         }
         for r in scan.results
     ]
+
+
+# ─────────────── tercer modal: carga de off-targets mediada por seed ───────────────
+#
+# El fichero que lo cierra —`transcriptoma_3utr.fa`— NO esta, asi que este modal tiene
+# una pieza que los otros dos no necesitan: la SUBIDA, con su procedencia. Un fichero sin
+# ensamblaje y sin fecha de la tabla no es reproducible, asi que la subida los exige y
+# `Provenance` aborta si falta alguno.
+
+_OFFTARGET_SETTINGS = ("null_draws", "null_seed", "species_prefix", "normalize_u_t")
+
+
+def offtarget_placeholder(catalog):
+    """El frente, en NOT_RUN VISIBLE mientras falte el fichero."""
+    from .filters import FilterState
+    from .offtarget import MISSING_FILE, USE_NOTE
+
+    if catalog is None:
+        return {
+            "state": FilterState.NOT_RUN,
+            "texto": (
+                f"CARGA DE OFF-TARGETS POR SEED — NOT_RUN. Falta `{MISSING_FILE}`. "
+                f"NOT_RUN no es PASS, y sobre todo NO ES CERO: no haber contado cuantos "
+                f"mensajeros llevan esta seed no es lo mismo que no llevarla ninguno."
+            ),
+        }
+    return {
+        "state": FilterState.PASS,
+        "texto": (
+            f"CARGA DE OFF-TARGETS POR SEED — hay catalogo cargado "
+            f"({catalog.provenance.assembly}, {catalog.provenance.table_date}, "
+            f"{len(catalog.records)} registro(s)). {USE_NOTE}"
+        ),
+    }
+
+
+def offtarget_route_text() -> str:
+    from .offtarget import UCSC_ROUTE
+
+    return UCSC_ROUTE
+
+
+def offtarget_provenance_from_form(form: dict, *, md5: str):
+    """El formulario de procedencia → `Provenance`. Aborta si falta un campo."""
+    from .offtarget import Provenance
+
+    return Provenance(
+        source=str(form.get("source", "")),
+        assembly=str(form.get("assembly", "")),
+        table=str(form.get("table", "")),
+        table_date=str(form.get("table_date", "")),
+        representative=str(form.get("representative", "")),
+        version=str(form.get("version", "")),
+        md5=md5,
+    )
+
+
+def offtarget_upload_rows(raw, *, declared_md5=None, gene_map=None):
+    """Lo que se comprueba al recibir el fichero, en filas con `avisa`."""
+    from .offtarget import validate_upload
+
+    informe = validate_upload(raw, declared_md5=declared_md5, gene_map=gene_map)
+    return [
+        {"campo": "secuencias", "valor": f"{informe.records}", "avisa": False},
+        {"campo": "longitud total", "valor": f"{informe.total_nt} nt", "avisa": False},
+        {"campo": "md5", "valor": informe.md5, "avisa": False},
+        {
+            "campo": "identificadores distintos",
+            "valor": f"{informe.audit.distinct_ids}",
+            "avisa": bool(informe.audit.repeated_ids),
+        },
+        {
+            "campo": "isoformas por gen",
+            "valor": informe.audit.warning(),
+            "avisa": informe.audit.inflated or not informe.audit.checked_by_gene,
+        },
+    ]
+
+
+def offtarget_catalog_from_upload(raw, *, form: dict, declared_md5=None, gene_map=None):
+    """Del fichero subido al catalogo, con su procedencia y su indice."""
+    from .offtarget import build_catalog, validate_upload
+
+    informe = validate_upload(raw, declared_md5=declared_md5, gene_map=gene_map)
+    return build_catalog(
+        informe.parsed,
+        provenance=offtarget_provenance_from_form(form, md5=informe.md5),
+        gene_map=gene_map,
+    )
+
+
+def offtarget_setting_rows(params):
+    """Un ajuste por fila, con `modificado` y `fijo`. La pagina solo pinta."""
+    from .offtarget import OfftargetParams
+
+    base = OfftargetParams()
+    tocados = set(params.modified())
+    opciones = {
+        "null_draws": ("10000", "20000", "50000"),
+        "null_seed": ("0", "1", "2", "3"),
+        "species_prefix": ("mmu-", "hsa-"),
+        "normalize_u_t": ("SI",),
+    }
+    return [
+        {
+            "ajuste": campo,
+            "valor": (
+                "SI" if getattr(params, campo) is True
+                else str(getattr(params, campo) or "TODAS")
+            ),
+            "por_defecto": (
+                "SI" if getattr(base, campo) is True
+                else str(getattr(base, campo) or "TODAS")
+            ),
+            "modificado": campo in tocados,
+            # La normalizacion no es editable: sin ella una guia en ADN contra un 3'UTR
+            # en ARN daria CERO sitios, y cero parece una buena noticia.
+            "fijo": campo == "normalize_u_t",
+            "opciones": opciones[campo],
+        }
+        for campo in _OFFTARGET_SETTINGS
+    ]
+
+
+def offtarget_params_from_form(valores: dict):
+    """Lo elegido en el modal → `OfftargetParams`. La conversion vive AQUI."""
+    from .offtarget import DEFAULTS, OfftargetParams
+
+    return OfftargetParams(
+        null_draws=int(valores.get("null_draws", DEFAULTS.null_draws)),
+        null_seed=int(valores.get("null_seed", DEFAULTS.null_seed)),
+        species_prefix=str(valores.get("species_prefix", DEFAULTS.species_prefix)),
+    )
+
+
+def offtarget_limitation_rows():
+    """Las tres limitaciones, para pintarlas JUNTO al resultado y no en un pie."""
+    from .offtarget import LIMITATIONS
+
+    return [
+        {
+            "clave": lim.key,
+            "titulo": lim.title,
+            "texto": lim.text,
+            "direccion": lim.direction,
+        }
+        for lim in LIMITATIONS
+    ]
+
+
+def offtarget_upper_bound():
+    from .offtarget import UPPER_BOUND_NOTE
+
+    return {"activo": True, "texto": UPPER_BOUND_NOTE}
+
+
+def offtarget_run(selection, *, catalog, mature, params, species, starts, guides,
+                  passengers, target, target_label):
+    """Atajo con nombre estable para la pagina. La logica esta en `offtarget`."""
+    from .offtarget import run_scan
+
+    return run_scan(
+        selection, catalog=catalog, mature=mature, params=params, species=species,
+        starts=starts, guides=guides, passengers=passengers, target=target,
+        target_label=target_label,
+    )
+
+
+def offtarget_result_rows(scan):
+    """Una fila por consulta y UNA COLUMNA POR CLASE. Sin ningun total."""
+    from .offtarget import SITE_CLASSES
+
+    filas = []
+    for r in scan.results:
+        fila = {
+            "candidato": f"3utr:{r.start}",
+            "hebra": r.strand,
+            "seed": r.patterns.heptamer,
+        }
+        for clase in SITE_CLASSES:
+            fila[clase] = r.counts.sites[clase]
+            fila[f"{clase} percentil"] = round(r.percentiles[clase], 1)
+        filas.append(fila)
+    return filas
+
+
+def offtarget_control_rows(scan):
+    """Los controles biologicos: conteo, no percentil. Ver `CONTROLS_NOTE`."""
+    from .offtarget import SITE_CLASSES
+
+    return [
+        {
+            "control": c.name,
+            "seed": c.heptamer,
+            **{clase: c.sites[clase] for clase in SITE_CLASSES},
+        }
+        for c in scan.controls
+    ]
+
+
+def offtarget_self_count_rows(scan):
+    """El autoconteo sobre la propia diana, con `anomalo` ya resuelto."""
+    return [
+        {
+            "consulta": consulta,
+            "diana": propio.target_label,
+            "sitios": propio.occurrences,
+            "esperado": propio.expected,
+            "anomalo": propio.anomalous,
+            "lectura": propio.describe(),
+        }
+        for consulta, propio in scan.self_counts.items()
+    ]
+
+
+def offtarget_highlights(scan):
+    """Los bloques que van DESTACADOS, con `activo` ya decidido fuera de la pagina."""
+    from .offtarget import CONTROLS_NOTE, UPPER_BOUND_NOTE, USE_NOTE
+
+    raros = scan.anomalous_self_counts
+    lineas_nula = []
+    for clave, nula in scan.nulls.items():
+        lineas_nula.append(f"[{clave}] " + " · ".join(nula.describe()))
+    return {
+        "limite_superior": {"activo": True, "texto": UPPER_BOUND_NOTE},
+        "uso": {"activo": True, "texto": USE_NOTE},
+        "nula": {"activo": True, "texto": "\n".join(lineas_nula)},
+        "controles": {"activo": bool(scan.controls), "texto": CONTROLS_NOTE},
+        "isoformas": {
+            "activo": scan.audit.inflated or not scan.audit.checked_by_gene,
+            "texto": scan.audit.warning(),
+        },
+        "autoconteo": {
+            "activo": bool(raros),
+            "texto": (
+                " ".join(s.describe() for s in raros) if raros
+                else "Todas las hebras tienen UN solo sitio en su propia diana."
+            ),
+        },
+    }

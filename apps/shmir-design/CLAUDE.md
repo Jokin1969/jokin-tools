@@ -1382,6 +1382,99 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   hoy no tiene **ningún** caller fuera de sus tests: el detalle por ventana del triple
   motivo se calculó y no se emite en ninguna salida. Mientras siga así, es un análisis que
   se corre a mano aunque el código esté en la librería.
+- **El TERCER modal, carga de off-targets por seed, cierra `offtarget_seed`**
+  (`offtarget.py`, `offtarget_store.py`). Es el frente que estuvo **invisible**, y ahora
+  se ve en la ficha partido en dos filas. Necesita `transcriptoma_3utr.fa`, que no está.
+  - **CUATRO clases, y NUNCA un total** (`SITE_CLASSES`, `WHY_NOT_SUMMED`): `8mer`,
+    `7mer-m8`, `7mer-A1`, `6mer`. La represión esperada de un 8mer y la de un 6mer no se
+    parecen en nada, así que sumarlas **mezcla señal con ruido**. `Counts` **no tiene**
+    ningún atributo que las sume y hay un test que lo comprueba: si existiera, alguien
+    acabaría imprimiéndolo.
+    - Las cuatro comparten un **núcleo de 6 nt**; lo que las separa es la base de delante
+      (la que aparea con la posición 8) y la de detrás (la A de la posición 1 de la
+      diana). Se busca el núcleo **una vez** y se mira el contexto, así que son
+      **excluyentes por construcción** y no hay que descontar unas de otras. Test: la
+      suma de las cuatro es exactamente el número de apariciones del núcleo.
+  - **Un conteo a secas no es interpretable**, y por eso van con él tres cosas:
+    - **PERCENTIL contra una nula de composición equivalente** (`null_distribution`),
+      ≥10.000 sorteos —`MIN_NULL_DRAWS`, y pedir menos **aborta**—. La nula son
+      **permutaciones del propio heptámero**, no heptámeros uniformes: una nula uniforme
+      mide sobre todo el contenido de A/T y declararía «cargada» a cualquier seed rica en
+      A/T por pura composición. El criterio va **declarado, no citado**, la **semilla
+      viaja con el resultado**, y la regla del percentil (empates a medias) va escrita.
+      - Se calcula contra un **índice de 8-meros** construido en una pasada. Hay un test
+        que exige que el índice y el barrido directo den **lo mismo**: si discreparan, el
+        percentil no sería comparable con el conteo.
+    - **CONTROLES biológicos en la misma corrida**: `miR-124-3p`, `miR-9-5p`, `let-7a-5p`,
+      con sus seeds sacadas de `mature.fa` y **nunca escritas en el código** (regla 1, con
+      un test que barre el fuente buscando literales de ADN). Su conteo es la referencia
+      de qué significa «muchos sitios» — el valor esperado viene de la biología.
+      **No se les da percentil**, y el motivo va escrito: un percentil se calcula contra
+      la nula de **su propia composición**, así que el de un control contra nuestra nula
+      no querría decir nada. Aportan **magnitud**, no posición.
+    - **AUTOCONTEO sobre la propia diana** (`self_count`), esperado **1**.
+  - **HALLAZGO del autoconteo, y no es un detalle**: **4 de los 10** del panel murino
+    tienen un **segundo sitio de seed en el propio 3'UTR de Prnp** — `3utr:449` (núcleo en
+    `3utr:464` y `1033`), `553` (`460`, `568`), `819` (`148`, `834`) y `1018` (`464`,
+    `1033`). No es un fallo: es información que hay que tener **antes** de leer una
+    cinética, porque el efecto de esas cuatro sobre su mensajero no es el de un solo
+    sitio. Y **`449` y `1018` comparten el núcleo**, así que en este eje no son dos
+    apuestas independientes. Los otros seis tienen uno solo. Está fijado con un test.
+    - Un autoconteo de **CERO** también es anómalo, y hacia el otro lado: significa que
+      esa hebra **no sale de esa diana**. Se dice con esas palabras.
+  - **LAS TRES LIMITACIONES VAN EN EL RESULTADO, no al pie** (`LIMITATIONS`), y las tres
+    llevan `direction = "sobrestima"`: sin ponderación por **conservación** (no tenemos
+    alineamientos multiespecie, TargetScan sí: contamos sitios, no sitios probablemente
+    funcionales), sin ponderación por **APA** (un sitio distal no está en todos los
+    mensajeros de ese gen — lo sabemos por Prnp, con la fracción larga en 0,86, y aplica a
+    los demás igual), y sin ponderación por **expresión** (un sitio en un gen que la
+    neurona no expresa no cuenta; `expresion_cerebro.tsv` lo refinaría y hoy no existe).
+    **Empujan todas en la misma dirección**, así que la conclusión es una sola y va
+    pegada: **el número es un LÍMITE SUPERIOR** (`UPPER_BOUND_NOTE`). No se corrige con
+    un factor: se dice.
+  - **USO: DESEMPATE, NUNCA FILTRO** (`USE_NOTE`). Un percentil alto es motivo para
+    preferir a otro entre dos que empatan, jamás para excluir a nadie — la **potencia**
+    sobre la diana sigue mandando y esto no la predice. `OfftargetStore.verdict_for`
+    **no puede devolver FAIL**: solo NOT_RUN o PASS, con un test que lo fija.
+  - **El fichero se SUBE por el modal, y con su procedencia** (`Provenance`,
+    `validate_upload`). Los seis campos —fuente, ensamblaje, tabla, **fecha de la tabla**,
+    criterio de representante y versión— son **obligatorios** y su ausencia aborta: sin
+    ensamblaje y sin fecha el conteo no es reproducible, que es la misma regla de la
+    versión de miRBase y de la biblioteca de Dfam. La ruta de descarga (Table Browser de
+    UCSC, mm39, NCBI RefSeq, «3' UTR Exons») va **en la interfaz** (`UCSC_ROUTE`), no en
+    una conversación.
+  - **Validación al recibirlo, y rechaza**: que sea FASTA, que el alfabeto sea de ADN, el
+    md5 declarado si lo hay, más número de secuencias y longitud total. Y la **auditoría
+    de isoformas** (`IsoformAudit`), que son tres preguntas y no una:
+    - **identificadores repetidos** — la salida de «3' UTR Exons» da un registro **por
+      exón**, así que un 3'UTR troceado aparece varias veces: el conteo está inflado y se
+      dice. Por eso este módulo tiene su **propio** parser de FASTA en vez de reusar el de
+      `seed_load`, que **aborta** con un identificador repetido: aquí repetirse es un caso
+      legítimo y esperado, y abortar escondería justo lo que hay que auditar.
+    - **secuencias idénticas** — dos isoformas que comparten 3'UTR aportan sus sitios dos
+      veces.
+    - **varios transcritos por gen**, que es la pregunta de verdad y que **no se puede
+      contestar sin un mapa transcrito→gen**: de un accession no se deduce el gen y aquí
+      no se adivina. Sin mapa queda **NO COMPROBADO**, con esas palabras — y no haber
+      podido comprobarlo **no es «no las hay»**. Es la misma lección del `.out` sin
+      resumen.
+  - **Almacén inmutable y ficha**, como los otros dos: nada se sobrescribe, repetir un
+    `run_id` aborta, y el veredicto va **por hebra** — `offtarget_seed:guia` y
+    `offtarget_seed:pasajera` son **dos filas** de la ficha y no existe un
+    `verdict_for_candidate`. Con el veredicto viajan el percentil de las cuatro clases,
+    el ensamblaje y la fecha de la tabla, el estado de la auditoría de isoformas y el
+    aviso de límite superior.
+  - **Persiste en el mismo log que los otros dos** (`store.corrida_offtarget`). La nula se
+    guarda como **histograma**, no como 40.000 enteros: es exacto —el percentil se
+    recalcula igual— y deja el `registro.jsonl` legible con `cat`, que es la razón por la
+    que se eligió JSONL.
+  - **Y hay DOS contadores del mismo suceso, atados con un test.** `seed_load.seed_load`
+    sigue siendo el número comparativo de la **tabla** (tres clases, sin 6mer y sin
+    percentil) y `offtarget` es el **frente**. Que convivan es útil —la tabla no quiere
+    cuatro columnas más— pero dos contadores que discrepasen serían un fallo silencioso:
+    la ficha diría una cosa y la tabla otra, las dos con pinta de medida. Hay un test que
+    exige que **las tres clases compartidas den lo mismo** en los diez del panel; el
+    `6mer` es exactamente lo que el contador viejo no veía.
 - Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
   verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
   nunca leerlo de la UI.
@@ -1401,7 +1494,7 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 |---|---|---|
 | RefSeq RNA versionado | especificidad | `--refseq` |
 | lista ampliada de abundancia (con referencia y umbral) | colisión de seed, nivel AVISO | `--abundancia` |
-| 3'UTR del transcriptoma | carga de off-targets por seed | `--transcriptoma-3utr` |
+| 3'UTR del transcriptoma (UCSC Table Browser, mm39, NCBI RefSeq, «3' UTR Exons»; hay que apuntar ensamblaje, fecha de la tabla y criterio de representante) | carga de off-targets por seed — el TERCER modal, `offtarget_seed` | `--transcriptoma-3utr` o el modal |
 | máscara rmsk de ratón | elementos repetitivos | `--rmsk` |
 | 3'-end seq de cerebro murino | fracción de isoforma larga en NUESTRO tejido (hoy hay la de todos los tejidos: 0,86, límite inferior) | `--apa-medido` |
 | parental SIN INTRÓN (donante y aceptor fuera) | techo de expresión para el empalme; `aav_casete.fa` NO vale, lleva el intrón vacío de 82 nt | — |

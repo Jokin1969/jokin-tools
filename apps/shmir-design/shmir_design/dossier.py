@@ -164,7 +164,8 @@ def _hexamers_near(tiling, start: int, end: int, *, offset: int, window: int = 6
 
 
 def build_dossier(
-    *, species: str, tiling, selection, start: int, store=None, seed_store=None
+    *, species: str, tiling, selection, start: int, store=None, seed_store=None,
+    offtarget_store=None,
 ) -> Dossier:
     """Reune la ficha de UN candidato. Aborta si ese sitio no esta en el panel."""
     from .blocks import build_block
@@ -230,6 +231,28 @@ def build_dossier(
         estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)
         procedencia_de[nombre] = (
             f"corrida {corrida.run_id} ({corrida.source.split(',')[0]})" if corrida
+            else "sin corrida en el almacen"
+        )
+        fecha_de[nombre] = corrida.date if corrida else SIN_FECHA
+
+    # `offtarget_seed` se PARTE igual, y por el mismo motivo. Ademas es el frente que
+    # estuvo invisible: si la ficha lo enseñara como una sola fila por candidato, la
+    # mitad de las consultas volveria a no verse.
+    from .offtarget_store import OfftargetStore
+
+    cargas = offtarget_store or OfftargetStore()
+    estados.pop("offtarget_seed", None)
+    procedencia_de.pop("offtarget_seed", None)
+    fecha_de.pop("offtarget_seed", None)
+    for hebra in ("guia", "pasajera"):
+        nombre = f"offtarget_seed:{hebra}"
+        consulta_hebra = f"{species}_pos{start}_{hebra}"
+        resultado_hebra = cargas.verdict_for(consulta_hebra)
+        corrida = cargas.latest(consulta_hebra)
+        estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)
+        procedencia_de[nombre] = (
+            f"corrida {corrida.run_id} ({corrida.scan.provenance.assembly}, "
+            f"{corrida.scan.provenance.table_date})" if corrida
             else "sin corrida en el almacen"
         )
         fecha_de[nombre] = corrida.date if corrida else SIN_FECHA

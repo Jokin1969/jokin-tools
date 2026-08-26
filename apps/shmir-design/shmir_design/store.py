@@ -42,6 +42,7 @@ LOG_FILE = "registro.jsonl"
 RECORD_KINDS = (
     "corrida_blast",      # modal de especificidad
     "corrida_seed",       # modal de colision de seed
+    "corrida_offtarget",  # modal de carga de off-targets por seed
     "seleccion",          # candidatos elegidos a mano
     "descarte",           # candidatos descartados a mano
     "veredicto",          # un frente cerrado con su procedencia
@@ -432,6 +433,174 @@ def load_seed_store(store: ProjectStore):
         )
         almacen.add(
             SeedRun(
+                run_id=datos["run_id"], date=registro.date, ran_by=datos["ran_by"],
+                source=datos["source"], result_md5=datos["result_md5"], scan=scan,
+            )
+        )
+    return almacen
+
+
+def _null_to_json(null) -> dict:
+    """La nula va como HISTOGRAMA, no como 10.000 numeros por clase.
+
+    Es exacto —el percentil se recalcula igual— y deja el log legible con `cat`, que es
+    la razon por la que se eligio JSONL y no un `.db`. Guardar los sorteos uno a uno
+    harian 40.000 enteros por corrida y el fichero dejaria de poder leerse.
+    """
+    from collections import Counter
+
+    return {
+        "draws": null.draws,
+        "seed": null.seed,
+        "criterion": null.criterion,
+        "distinct_heptamers": list(null.distinct_heptamers),
+        "histograms": {
+            clase: {str(v): n for v, n in sorted(Counter(valores).items())}
+            for clase, valores in null.by_class.items()
+        },
+    }
+
+
+def _null_from_json(datos: dict):
+    from .offtarget import Null
+
+    por_clase = {}
+    for clase, histograma in datos["histograms"].items():
+        valores: list[int] = []
+        for texto, n in histograma.items():
+            valores.extend([int(texto)] * int(n))
+        por_clase[clase] = tuple(sorted(valores))
+    return Null(
+        draws=datos["draws"], seed=datos["seed"], criterion=datos["criterion"],
+        by_class=por_clase,
+        distinct_heptamers=tuple(datos["distinct_heptamers"]),
+    )
+
+
+def save_offtarget_run(store: ProjectStore, run) -> Record:
+    """Persiste una corrida de carga de off-targets por seed."""
+    scan = run.scan
+    return store.append(
+        "corrida_offtarget",
+        {
+            "run_id": run.run_id,
+            "ran_by": run.ran_by,
+            "source": run.source,
+            "result_md5": run.result_md5,
+            "params": {
+                "null_draws": scan.params.null_draws,
+                "null_seed": scan.params.null_seed,
+                "species_prefix": scan.params.species_prefix,
+            },
+            "provenance": {
+                "source": scan.provenance.source,
+                "assembly": scan.provenance.assembly,
+                "table": scan.provenance.table,
+                "table_date": scan.provenance.table_date,
+                "representative": scan.provenance.representative,
+                "version": scan.provenance.version,
+                "md5": scan.provenance.md5,
+            },
+            "audit": {
+                "records": scan.audit.records,
+                "distinct_ids": scan.audit.distinct_ids,
+                "repeated_ids": [list(x) for x in scan.audit.repeated_ids],
+                "duplicate_sequence_groups": scan.audit.duplicate_sequence_groups,
+                "records_in_duplicates": scan.audit.records_in_duplicates,
+                "genes": scan.audit.genes,
+                "multi_isoform_genes": [
+                    list(x) for x in scan.audit.multi_isoform_genes
+                ],
+            },
+            "results": [
+                {
+                    "start": r.start, "strand": r.strand, "query": r.query,
+                    "sequence": r.sequence, "heptamer": r.patterns.heptamer,
+                    "sites": r.counts.sites, "transcripts": r.counts.transcripts,
+                    "percentiles": r.percentiles,
+                }
+                for r in scan.results
+            ],
+            "controls": [
+                {"name": c.name, "heptamer": c.heptamer, "sites": c.sites}
+                for c in scan.controls
+            ],
+            "self_counts": {
+                consulta: {
+                    "target_label": s.target_label,
+                    "occurrences": s.occurrences,
+                    "sites": s.sites,
+                }
+                for consulta, s in scan.self_counts.items()
+            },
+            "nulls": {
+                clave: _null_to_json(nula) for clave, nula in scan.nulls.items()
+            },
+            "raw": scan.raw,
+        },
+        date=run.date,
+    )
+
+
+def load_offtarget_store(store: ProjectStore):
+    """Reconstruye el `OfftargetStore` desde el log, percentiles incluidos."""
+    from .offtarget import (
+        Control,
+        Counts,
+        IsoformAudit,
+        LoadResult,
+        OfftargetParams,
+        OfftargetScan,
+        Provenance,
+        SelfCount,
+        patterns_from_heptamer,
+    )
+    from .offtarget_store import OfftargetRun, OfftargetStore
+
+    almacen = OfftargetStore()
+    for registro in store.records("corrida_offtarget"):
+        datos = registro.payload
+        auditoria = dict(datos["audit"])
+        auditoria["repeated_ids"] = tuple(
+            tuple(x) for x in auditoria["repeated_ids"]
+        )
+        auditoria["multi_isoform_genes"] = tuple(
+            tuple(x) for x in auditoria["multi_isoform_genes"]
+        )
+        scan = OfftargetScan(
+            params=OfftargetParams(**datos["params"]),
+            source=datos["source"],
+            provenance=Provenance(**datos["provenance"]),
+            audit=IsoformAudit(**auditoria),
+            results=tuple(
+                LoadResult(
+                    start=r["start"], strand=r["strand"], query=r["query"],
+                    sequence=r["sequence"],
+                    patterns=patterns_from_heptamer(r["heptamer"]),
+                    counts=Counts(sites=r["sites"], transcripts=r["transcripts"]),
+                    percentiles=r["percentiles"],
+                )
+                for r in datos["results"]
+            ),
+            nulls={
+                clave: _null_from_json(valor)
+                for clave, valor in datos["nulls"].items()
+            },
+            controls=tuple(
+                Control(name=c["name"], heptamer=c["heptamer"], sites=c["sites"])
+                for c in datos["controls"]
+            ),
+            self_counts={
+                consulta: SelfCount(
+                    query=consulta, target_label=s["target_label"],
+                    occurrences=s["occurrences"], sites=s["sites"],
+                )
+                for consulta, s in datos["self_counts"].items()
+            },
+            raw=datos["raw"],
+        )
+        almacen.add(
+            OfftargetRun(
                 run_id=datos["run_id"], date=registro.date, ran_by=datos["ran_by"],
                 source=datos["source"], result_md5=datos["result_md5"], scan=scan,
             )

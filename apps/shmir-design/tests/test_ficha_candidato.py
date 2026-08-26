@@ -71,6 +71,10 @@ class TestLaFicha(unittest.TestCase):
         # fundirlas escondería la mitad. Los demas van uno a uno.
         esperados.discard("seed_colision")
         esperados |= {"seed_colision:guia", "seed_colision:pasajera"}
+        # `offtarget_seed` se PARTE por lo mismo, y ademas es el frente que llego a
+        # estar invisible: una sola fila por candidato volveria a esconder la mitad.
+        esperados.discard("offtarget_seed")
+        esperados |= {"offtarget_seed:guia", "offtarget_seed:pasajera"}
         self.assertEqual({f.name for f in self.ficha.fronts}, esperados)
 
     def test_cada_frente_lleva_estado_procedencia_y_fecha(self):
@@ -82,7 +86,8 @@ class TestLaFicha(unittest.TestCase):
     def test_los_dos_frentes_de_off_target_van_SEPARADOS(self):
         nombres = [f.name for f in self.ficha.fronts]
         self.assertIn("especificidad", nombres)
-        self.assertIn("offtarget_seed", nombres)
+        self.assertIn("offtarget_seed:guia", nombres)
+        self.assertIn("offtarget_seed:pasajera", nombres)
 
     def test_sin_corrida_de_BLAST_la_especificidad_es_NOT_RUN_VISIBLE(self):
         frente = next(f for f in self.ficha.fronts if f.name == "especificidad")
@@ -178,8 +183,11 @@ class TestLaFichaConCorridaDeBLAST(unittest.TestCase):
 
     def test_el_otro_frente_SIGUE_en_NOT_RUN(self):
         # Una corrida de BLAST no cubre el off-target por seed. Nunca.
-        frente = next(f for f in self.ficha.fronts if f.name == "offtarget_seed")
-        self.assertIs(frente.state, FilterState.NOT_RUN)
+        for hebra in ("guia", "pasajera"):
+            frente = next(
+                f for f in self.ficha.fronts if f.name == f"offtarget_seed:{hebra}"
+            )
+            self.assertIs(frente.state, FilterState.NOT_RUN)
 
 
 if __name__ == "__main__":
@@ -214,4 +222,5 @@ class TestUnFrenteCERRADONoSaleComoNOT_RUN(unittest.TestCase):
     def test_los_demas_siguen_abiertos(self):
         abiertos = [f.name for f in self.ficha.fronts if f.state is FilterState.NOT_RUN]
         self.assertIn("especificidad", abiertos)
-        self.assertIn("offtarget_seed", abiertos)
+        self.assertIn("offtarget_seed:guia", abiertos)
+        self.assertIn("offtarget_seed:pasajera", abiertos)

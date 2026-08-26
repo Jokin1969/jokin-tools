@@ -29,12 +29,26 @@ from shmir_design.fetch import parse_fasta_payload  # noqa: E402
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
 from shmir_design.blast import DEFAULTS as DEFAULT_BLAST  # noqa: E402
 from shmir_design.seed_scan import DEFAULTS as SEED_DEFAULTS  # noqa: E402
+from shmir_design.offtarget import DEFAULTS as OFFTARGET_DEFAULTS  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     BLAST_MODAL_NOTE,
     blast_candidate_rows,
     blast_command_text,
+    offtarget_catalog_from_upload,
+    offtarget_control_rows,
+    offtarget_highlights,
+    offtarget_limitation_rows,
+    offtarget_params_from_form,
+    offtarget_placeholder,
+    offtarget_result_rows,
+    offtarget_route_text,
+    offtarget_run,
+    offtarget_self_count_rows,
+    offtarget_setting_rows,
+    offtarget_upload_rows,
+    offtarget_upper_bound,
     seed_highlights,
     seed_load_placeholder,
     seed_preview_rows,
@@ -269,6 +283,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
 
     _modal_blast(seleccion, nombre)
     _modal_seed(seleccion, nombre, tiling.mature)
+    _modal_offtarget(seleccion, nombre, tiling.mature, utr3)
 
     with st.expander(f"Todas las ventanas de {nombre} ({len(tiling.windows)})"):
         st.dataframe(window_rows(tiling), hide_index=True)
@@ -707,3 +722,128 @@ def _modal_seed(seleccion, nombre: str, maduros) -> None:
 
     hueco = seed_load_placeholder(None)
     st.warning(hueco["texto"])
+
+
+def _modal_offtarget(seleccion, nombre: str, maduros, diana: str) -> None:
+    """Carga de off-targets por seed. El fichero NO lo tenemos: se sube aquí.
+
+    Es el tercer modal y el que cierra `offtarget_seed`. Como los otros dos, la página
+    no decide nada: recibe filas con `avisa`, `modificado` y `anomalo`, y bloques con
+    `activo`. Lo que sí tiene de propio es la SUBIDA con su procedencia — sin ensamblaje
+    y sin fecha de la tabla el conteo no es reproducible, y `Provenance` aborta.
+    """
+    if not st.checkbox(
+        f"Carga de off-targets por seed — {nombre}",
+        key=f"ot_{nombre}",
+        help=(
+            "Cuenta cuántos 3'UTR del transcriptoma llevan un sitio para esta seed. "
+            "Cuatro clases separadas, con percentil contra una nula de la misma "
+            "composición. Es DESEMPATE, nunca filtro."
+        ),
+    ):
+        return
+
+    st.caption(offtarget_route_text())
+
+    st.subheader("Procedencia del fichero")
+    st.caption(
+        "Los seis campos son obligatorios: sin ensamblaje, tabla y fecha, el conteo no "
+        "es reproducible — la misma regla que la versión de miRBase y la biblioteca de "
+        "Dfam."
+    )
+    formulario = {}
+    for campo, ayuda in (
+        ("source", "de dónde se descargó"),
+        ("assembly", "mm39, mm10…"),
+        ("table", "NCBI RefSeq / RefSeq All"),
+        ("table_date", "fecha de la tabla, no la de hoy"),
+        ("representative", "criterio de representante por gen"),
+        ("version", "cómo se llama esta versión en el manifiesto"),
+    ):
+        formulario[campo] = st.text_input(
+            campo, key=f"ot_p_{nombre}_{campo}", help=ayuda
+        )
+
+    subido = st.file_uploader(
+        "Soltar aquí `transcriptoma_3utr.fa`",
+        key=f"ot_up_{nombre}",
+        help=(
+            "Se valida al recibirlo: que sea FASTA, cuántas secuencias, longitud total, "
+            "md5 y si hay varias isoformas por gen. Si algo no cuadra, se rechaza."
+        ),
+    )
+    if subido is None:
+        st.warning(offtarget_placeholder(None)["texto"])
+        return
+
+    crudo = _read_upload(subido)
+    for fila in offtarget_upload_rows(crudo):
+        if fila["avisa"]:
+            st.warning(f"{fila['campo']}: {fila['valor']}")
+        else:
+            st.caption(f"{fila['campo']}: {fila['valor']}")
+
+    catalogo = offtarget_catalog_from_upload(crudo, form=formulario)
+    st.success(offtarget_placeholder(catalogo)["texto"])
+
+    st.subheader("Ajustes")
+    valores = {}
+    for ajuste in offtarget_setting_rows(OFFTARGET_DEFAULTS):
+        if ajuste["fijo"]:
+            st.caption(f"{ajuste['ajuste']} = {ajuste['valor']} (fijo)")
+            continue
+        valores[ajuste["ajuste"]] = st.selectbox(
+            ajuste["ajuste"],
+            options=ajuste["opciones"],
+            key=f"ot_s_{nombre}_{ajuste['ajuste']}",
+            help=f"por defecto: {ajuste['por_defecto']}",
+        )
+
+    params = offtarget_params_from_form(valores)
+    for fila in offtarget_setting_rows(params):
+        if fila["modificado"]:
+            st.markdown(
+                f":red[**{fila['ajuste']} = {fila['valor']}**] "
+                f"(por defecto {fila['por_defecto']})"
+            )
+
+    st.subheader("Lo que este número NO es")
+    for limitacion in offtarget_limitation_rows():
+        st.warning(
+            f"**{limitacion['titulo']}** [{limitacion['direccion']}] — "
+            f"{limitacion['texto']}"
+        )
+    st.error(offtarget_upper_bound()["texto"])
+
+    starts = [c.start for c in seleccion.selection.chosen]
+    if st.button(f"Contar off-targets — {nombre}", key=f"ot_go_{nombre}"):
+        scan = offtarget_run(
+            seleccion, catalog=catalogo, mature=maduros, params=params,
+            species=nombre, starts=tuple(starts), guides=True, passengers=True,
+            target=diana, target_label=f"3'UTR de {nombre}",
+        )
+        destacados = offtarget_highlights(scan)
+        st.error(destacados["limite_superior"]["texto"])
+        st.warning(destacados["uso"]["texto"])
+        if destacados["isoformas"]["activo"]:
+            st.warning(destacados["isoformas"]["texto"])
+
+        st.markdown("**Una columna por clase — nunca sumadas**")
+        st.dataframe(offtarget_result_rows(scan), hide_index=True)
+        st.caption(destacados["nula"]["texto"])
+
+        st.markdown("**Controles biológicos** — referencia de magnitud")
+        st.dataframe(offtarget_control_rows(scan), hide_index=True)
+        st.caption(destacados["controles"]["texto"])
+
+        st.markdown("**Autoconteo sobre la propia diana** — esperado: 1")
+        st.dataframe(offtarget_self_count_rows(scan), hide_index=True)
+        if destacados["autoconteo"]["activo"]:
+            st.error(destacados["autoconteo"]["texto"])
+
+        st.download_button(
+            "Descargar el bloque para el documento",
+            data=scan.export_block(),
+            file_name=f"{nombre}_carga_offtarget.txt",
+            key=f"ot_dl_{nombre}",
+        )

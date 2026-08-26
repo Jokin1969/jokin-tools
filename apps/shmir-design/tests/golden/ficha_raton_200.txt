@@ -5,12 +5,13 @@
   pasajera   CCTGTCATCAGCCAGTGCTAAA
   veredicto  INCOMPLETE
 
-── Frentes (10) ──
+── Frentes (11) ──
   frente                   estado    fecha        procedencia
   empalme_intron           NOT_RUN   —            frente abierto del informe
   especificidad            NOT_RUN   —            sin corrida en el almacen
   fraccion_isoforma_larga  PASS      —            frente CERRADO del informe
-  offtarget_seed           NOT_RUN   —            frente abierto del informe
+  offtarget_seed:guia      NOT_RUN   —            sin corrida en el almacen
+  offtarget_seed:pasajera  NOT_RUN   —            sin corrida en el almacen
   repeticion_polimorfica   NOT_RUN   —            frente abierto del informe
   repeticiones             NOT_RUN   —            frente abierto del informe
   seed                     NOT_RUN   —            frente abierto del informe
