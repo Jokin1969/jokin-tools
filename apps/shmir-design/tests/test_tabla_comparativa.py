@@ -409,3 +409,30 @@ class TestNotaDeCoordenadas(unittest.TestCase):
         con = comparative_rows(seleccion, SGEP_SCAFFOLD, anatomy=self._sin_marco())[0]
         sin = comparative_rows(seleccion, SGEP_SCAFFOLD)[0]
         self.assertEqual(con, sin)
+
+
+class TestMarcoDeLasColumnasDePolyA(unittest.TestCase):
+    """La posicion del hexamero va en el marco de lo tilado, y se dice cual es.
+
+    Es el mismo cuidado que con las dos parejas de coordenadas: un `1983` leido dentro
+    de un año no dice por si solo si es del transcrito o del 3'UTR.
+    """
+
+    def test_la_cabecera_nombra_las_dos_columnas_de_polyA(self):
+        from shmir_design.anatomy import Anatomy, RegionSource
+        from shmir_design.comparative import coordinate_note
+
+        nota = coordinate_note(
+            Anatomy.from_cds(cds=(45, 146), length=586, source=RegionSource.CDS_DECLARADA)
+        )
+        self.assertIn("polyA_hexamero_pos", nota)
+        self.assertIn("polyA_dist_extremo3", nota)
+
+    def test_y_dice_en_que_marco_van(self):
+        from shmir_design.anatomy import Anatomy, RegionSource
+        from shmir_design.comparative import coordinate_note
+
+        nota = coordinate_note(
+            Anatomy.from_cds(cds=(45, 146), length=586, source=RegionSource.CDS_DECLARADA)
+        )
+        self.assertIn("marco de LO TILADO", nota)

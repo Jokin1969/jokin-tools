@@ -783,8 +783,19 @@ POLYA_COLUMNS = (
     "polyA_hexamero",
     "polyA_clase",
     "polyA_posicion_rel",
+    # Donde esta el hexamero sobre el 3'UTR y cuanto le queda al extremo 3'. Con la
+    # posicion relativa sola no se puede juzgar una señal: `detras, 40 nt` no dice si
+    # eso pasa a 100 nt del final o a 900.
+    "polyA_hexamero_pos",
+    "polyA_dist_extremo3",
     "polyA_solapa_seed",
+    # El veredicto del modo con el que se CORRIO...
     "polyA_veredicto",
+    # ...y el de las DOS reglas siempre, se haya corrido con la que se haya corrido.
+    # Se emiten las dos y la decision se toma con la tabla delante, no eligiendo un
+    # modo antes de ver los datos.
+    "polyA_estricto",
+    "polyA_escalonado",
 )
 
 
@@ -802,6 +813,11 @@ class PolyAAnnotation:
     contexto_gu_rico: bool | None = None
     tras_corte_posible: bool = False
     tras_corte_seguro: bool = False
+    #: El veredicto bajo CADA regla, con independencia del modo con el que se corrio.
+    #: Vacio solo si nadie las calculo, que no deberia pasar: `annotate_polya` las
+    #: rellena siempre porque salen de la misma funcion pura y cuestan lo mismo.
+    por_regla: dict[str, FilterState] = field(default_factory=dict)
+    utr_length: int = 0
 
     def as_columns(self) -> dict[str, str]:
         if self.posicion_rel is None:
@@ -814,8 +830,22 @@ class PolyAAnnotation:
             "polyA_hexamero": self.hexamero,
             "polyA_clase": self.clase,
             "polyA_posicion_rel": posicion,
+            # Vacio, no cero: no haber encontrado hexamero y encontrarlo en la posicion
+            # 0 son cosas distintas.
+            "polyA_hexamero_pos": str(self.signal.position) if self.signal else "",
+            "polyA_dist_extremo3": (
+                str(self.utr_length - self.signal.end)
+                if self.signal and self.utr_length
+                else ""
+            ),
             "polyA_solapa_seed": "si" if self.solapa_seed else "no",
             "polyA_veredicto": self.veredicto.state.value,
+            "polyA_estricto": self.por_regla.get(
+                PolyAMode.ESTRICTO.value, FilterState.NOT_RUN
+            ).value,
+            "polyA_escalonado": self.por_regla.get(
+                PolyAMode.ESCALONADO.value, FilterState.NOT_RUN
+            ).value,
         }
 
 
@@ -884,6 +914,14 @@ def annotate_polya(
         terminales=terminales,
     )
 
+    por_regla = {
+        otro.value: _veredicto_polya(
+            window, signals, mode=otro, tras_seguro=tras_seguro,
+            tras_posible=tras_posible, terminales=terminales,
+        ).state
+        for otro in (PolyAMode.ESTRICTO, PolyAMode.ESCALONADO)
+    }
+
     return PolyAAnnotation(
         hexamero=principal.motif if principal else "",
         clase=principal.classification.value if principal else "",
@@ -895,6 +933,8 @@ def annotate_polya(
         contexto_gu_rico=_dse_context(principal, sequence) if principal else None,
         tras_corte_posible=tras_posible,
         tras_corte_seguro=tras_seguro,
+        por_regla=por_regla,
+        utr_length=utr_length,
     )
 
 

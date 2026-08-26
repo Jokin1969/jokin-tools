@@ -353,6 +353,18 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   ha mirado» y **no** se transfiere; un `frozenset()` vacío sí es una comprobación hecha.
   **El puesto NO se transfiere**: 20 de esos 21 cambiaron de puesto con el score
   idéntico, porque el puesto depende del tamaño de la lista y no del sitio.
+- **Toda salida que nombre una referencia imprime longitud y md5 JUNTOS**
+  (`reference.describe_sequence`): `referencia 1242 nt / 19f5fa2a`. Contramedida a un
+  fallo que fue invisible porque «referencia 1246 nt» parece razonable; pegado al md5 no
+  hay forma de leerlo sin ver que lo que se llama referencia es el bloque fabricado.
+  Separarlas en dos campos no vale: el fallo consiste justo en que la longitud sola no
+  identifica nada.
+- **El polyA sale bajo las DOS reglas, en columnas separadas** (`polyA_estricto`,
+  `polyA_escalonado`), con el hexámero, su posición, su distancia al extremo 3' y su
+  clase. No se aplica ninguna al emitirlas: la decisión se toma con la tabla delante.
+  `polyA_veredicto` sigue siendo el del modo con el que se corrió. Ojo con el marco:
+  `polyA_hexamero_pos` va en coordenadas de LO TILADO, como `inicio_transcrito`, y la
+  cabecera lo dice.
 - **El PUESTO de una fuente externa no se usa en la selección.** Es propiedad de la
   LISTA, no del sitio: 20 de los 21 sitios compartidos entre las dos corridas de
   miRarchitect cambian de puesto con el score **idéntico**, solo porque una lista tiene

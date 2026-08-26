@@ -70,6 +70,12 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--fasta", type=Path, required=True, help="FASTA del transcrito.")
     parser.add_argument(
+        "--evaluar", action="store_true",
+        help="Para cada guia que exista en la referencia, pasa su ventana por nuestros "
+             "filtros duros y da su ASIMETRIA termodinamica. Sin ese numero no se "
+             "pueden elegir plazas en el eje de la seleccion de hebra.",
+    )
+    parser.add_argument(
         "--guardar-sitios", type=Path,
         help="Escribe un TSV con las guias que SI existen en la referencia y la "
              "coordenada de su match (no la que declara el fichero). Sirve para "
@@ -116,6 +122,28 @@ def main(argv: list[str]) -> int:
         return 2
 
     print(auditoria.format_text())
+    if args.evaluar:
+        from shmir_design.hard_filters import evaluate_window  # noqa: PLC0415
+        from shmir_design.thermo import turner_asymmetry  # noqa: PLC0415
+
+        print()
+        print("── Nuestros filtros duros sobre cada ventana que existe en la referencia ──")
+        print("  La asimetria es un PROXY heuristico, no una energia libre de duplex")
+        print("  (ver la advertencia de thermo.py). Positivo = extremo 5' menos estable.")
+        print(
+            f"  {'3utr':>5} {'guia':<24} {'asimetria':>10} {'GC':>5} {'homopol':>8} "
+            f"{'G4_diana':>9} {'G4_guia':>8} {'biofisicos_ok'}"
+        )
+        for guia, ventana in sorted(sitios, key=lambda x: x[1].start):
+            evaluacion = evaluate_window(utr3[ventana.start - 1 : ventana.end])
+            estados = {r.name: r.state.value for r in evaluacion.filters}
+            print(
+                f"  {ventana.start:>5} {guia:<24} "
+                f"{turner_asymmetry(evaluacion.guide):>+10.2f} "
+                f"{estados.get('GC', '—'):>5} {estados.get('homopolimero', '—'):>8} "
+                f"{estados.get('G4_diana', '—'):>9} {estados.get('G4_guia', '—'):>8} "
+                f"{'SI' if all(v == 'PASS' for v in estados.values()) else 'no'}"
+            )
     if args.guardar_sitios is not None:
         filas = ["guia\tinicio_3utr\tfin_3utr\tlongitud"]
         filas += [

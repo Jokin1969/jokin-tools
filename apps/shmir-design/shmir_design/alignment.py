@@ -74,6 +74,10 @@ class Alignment:
     other_length: int
     identities: int
     differences: tuple[Difference, ...]
+    #: Etiquetas `N nt / md5` de las dos cadenas. Van JUNTAS a proposito: una cabecera
+    #: que solo diga la longitud no delata que se han confundido dos secuencias.
+    ref_label: str = ""
+    other_label: str = ""
     #: Posiciones de la REFERENCIA tocadas por alguna diferencia. Las inserciones no
     #: ocupan posicion en la referencia, asi que marcan la posicion donde se insertan.
     ref_positions: frozenset[int] = field(default_factory=frozenset)
@@ -113,7 +117,8 @@ class Alignment:
     def format_text(self) -> str:
         lineas = [
             "── Perfil de diferencias ──",
-            f"  referencia {self.ref_length} nt   otra {self.other_length} nt   "
+            f"  {self.ref_label or f'referencia {self.ref_length} nt'}",
+            f"  {self.other_label or f'otra {self.other_length} nt'}   "
             f"({self.other_length - self.ref_length:+d})",
             f"  identidades {self.identities}   diferencias {len(self.differences)}",
         ]
@@ -274,9 +279,13 @@ def align(ref: str, other: str) -> Alignment:
         else:
             tocadas.update(range(d.ref_start, d.ref_start + max(1, len(d.ref))))
     consumidas = sum(len(d.ref) for d in diferencias if d.kind is not DiffClass.INSERCION)
+    from .reference import describe_sequence  # noqa: PLC0415
+
     return Alignment(
         ref_length=len(a),
         other_length=len(b),
+        ref_label=describe_sequence(a, name="referencia"),
+        other_label=describe_sequence(b, name="otra"),
         identities=len(a) - consumidas,
         differences=tuple(diferencias),
         ref_positions=frozenset(tocadas),

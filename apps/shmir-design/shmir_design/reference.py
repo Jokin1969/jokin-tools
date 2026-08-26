@@ -378,3 +378,29 @@ def read_sequence_file(path: Path | str) -> str:
             f"El fichero se ha tocado desde que se escribio; se aborta."
         )
     return limpia
+
+
+#: Cuantos caracteres del md5 bastan para delatar una confusion de secuencias. Ocho
+#: distinguen cualquier par que vayamos a manejar y caben en una linea.
+MD5_SHORT = 8
+
+
+def describe_sequence(sequence: str, *, name: str, full: bool = False) -> str:
+    """`nombre N nt / md5`, con las dos cifras JUNTAS. Nunca una sin la otra.
+
+    Contramedida a un fallo que fue invisible: una cabecera que decia «referencia 1246
+    nt» cuando la referencia mide 1242. La longitud sola PARECE razonable; pegada al
+    md5, no hay forma de leer `referencia 1246 nt / 328cfa07…` sin ver que lo que se
+    esta llamando referencia es otra cosa.
+
+    Separarlas en dos campos no vale: el fallo consiste justamente en que una de las dos
+    cifras, por si sola, no identifica nada.
+    """
+    limpia = _normalizada(sequence, name=name)
+    if not limpia:
+        raise ShmirDesignError(
+            f"{name}: no se etiqueta una secuencia vacia; se aborta en vez de imprimir "
+            f"una etiqueta que no describe nada."
+        )
+    checksum = sequence_md5(limpia)
+    return f"{name} {len(limpia)} nt / {checksum if full else checksum[:MD5_SHORT]}"

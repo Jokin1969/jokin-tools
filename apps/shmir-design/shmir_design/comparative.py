@@ -110,6 +110,10 @@ def coordinate_note(anatomy: Anatomy | None) -> str:
         "inicio_3utr/fin_3utr van sobre el 3'UTR y empiezan en 1; "
         "inicio_transcrito/fin_transcrito,",
         "sobre la secuencia que se tilo.",
+        "polyA_hexamero_pos y polyA_dist_extremo3 van en el marco de LO TILADO, igual "
+        "que",
+        "inicio_transcrito: un hexamero en 1983 con el CDS declarado es el 1034 del "
+        "3'UTR.",
     ]
     if anatomy is None:
         lineas.append(
