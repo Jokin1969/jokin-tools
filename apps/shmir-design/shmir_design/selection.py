@@ -1227,6 +1227,152 @@ def measured_promotion_cost(report: TilingReport) -> PromotionCost:
     )
 
 
+# ─── Lo que SE SALVA, y por cuanto ───────────────────────────────────────────
+#
+# `measured_promotion_cost` dice a quien tumba la promocion. Falta lo otro: quien pasa
+# CERCA y sobrevive. `3utr:200` ocupa la plaza que perdio `3utr:221` y su ventana
+# 200-221 no contiene el hexamero — pero para saberlo hay que hacer una resta, y el
+# lector no tiene por que hacerla. El veredicto se emite, con la holgura y con el flanco
+# al que cambiaria: sin la sensibilidad, un «PASA» parece mas solido de lo que es.
+
+#: Hasta que distancia de la zona prohibida se considera que un candidato pasa CERCA.
+#: Mas alla es ruido: `3utr:1018` no tiene nada que ver con una señal de `3utr:236`.
+CLEARANCE_WINDOW = 30
+
+
+@dataclass(frozen=True)
+class ClearanceRow:
+    """Todas las coordenadas van YA en el 3'UTR, convertidas una vez y no aqui.
+
+    Guardar la señal entera y etiquetar `Frame.UTR3` su `position` es lo que produjo
+    `3utr:1185` sobre un 3'UTR de 1242 nt en la primera version de este bloque: la
+    ventana venia convertida y la señal no. El techo global de `coords` no lo caza
+    —1185 cabe en el 3'UTR humano— y por eso la fila lleva `utr3_length` y se comprueba
+    contra ella.
+    """
+
+    start: int
+    end: int
+    motif: str
+    signal_start: int
+    flank: int
+    forbidden: tuple[int, int]
+    clearance: int
+    distance_to_hexamer: int
+    flip_flank: int | None
+    utr3_length: int | None = None
+
+    @property
+    def passes(self) -> bool:
+        return self.clearance > 0
+
+    @property
+    def signal(self):
+        """Compatibilidad: `fila.signal.position` sigue funcionando en el 3'UTR."""
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            motif=self.motif, position=self.signal_start, flank=self.flank,
+            forbidden_start=self.forbidden[0], forbidden_end=self.forbidden[1],
+        )
+
+    def describe(self) -> str:
+        from .coords import Frame, label, span
+
+        tope = self.utr3_length
+        cambio = (
+            f"con un flanco de {self.flip_flank} en vez de {self.flank} tambien caeria"
+            if self.flip_flank is not None
+            else "ningun flanco razonable lo tumbaria"
+        )
+        return (
+            f"{label(self.start, Frame.UTR3, limit=tope)} "
+            f"({span(self.start, self.end, Frame.UTR3, limit=tope)}): "
+            f"PASA. No contiene el {self.motif} de "
+            f"{label(self.signal_start, Frame.UTR3, limit=tope)} —acaba "
+            f"{self.distance_to_hexamer} nt antes— y queda {self.clearance} nt por "
+            f"delante de su zona prohibida "
+            f"({span(*self.forbidden, Frame.UTR3, limit=tope)}); {cambio}."
+        )
+
+
+@dataclass(frozen=True)
+class Clearance:
+    rows: tuple[ClearanceRow, ...] = ()
+
+    def describe(self) -> str:
+        if not self.rows:
+            return ""
+        return (
+            "LO QUE SE SALVA, Y POR CUANTO. Son los candidatos elegidos que pasan a "
+            "menos de "
+            f"{CLEARANCE_WINDOW} nt de una señal que la medida acaba de subir a "
+            "APA_POSIBLE. Se declara el veredicto en vez de "
+            "dejarlo deducir de una resta: "
+            + " ".join(f.describe() for f in self.rows)
+        )
+
+
+def promotion_clearance(
+    report: TilingReport, selection: ReportSelection, *, window: int = CLEARANCE_WINDOW
+) -> Clearance:
+    """Los elegidos que sobreviven CERCA de una señal promovida por medida."""
+    from .coords import bound_of
+    from .polya import SignalClass, classify_signal
+
+    promovidas = [
+        s for s in report.signals
+        if s.evidence == "medida"
+        and s.classification is SignalClass.APA_POSSIBLE
+        and classify_signal(
+            s.motif, s.position, s.utr_length, flank=s.flank
+        ).classification is not SignalClass.APA_POSSIBLE
+    ]
+    if not promovidas or not selection.selection.chosen:
+        return Clearance()
+
+    desfase = 0
+    if report.anatomy is not None and report.anatomy.utr3:
+        desfase = report.anatomy.utr3[0] - 1
+
+    filas: list[ClearanceRow] = []
+    for eleccion in selection.selection.chosen:
+        ventana = selection.window_of(eleccion)
+        inicio, fin = ventana.window.start, ventana.window.end
+        for señal in promovidas:
+            holgura = señal.forbidden_start - fin - 1
+            if not 0 < holgura <= window:
+                continue
+            # A partir de que flanco la zona prohibida alcanzaria a esta ventana. Se
+            # BUSCA, no se calcula a mano: es el mismo `classify_signal` que decide.
+            salto = None
+            for flanco in range(señal.flank, señal.flank + window + 1):
+                otra = classify_signal(
+                    señal.motif, señal.position, señal.utr_length, flank=flanco
+                )
+                if inicio <= otra.forbidden_end and fin >= otra.forbidden_start:
+                    salto = flanco
+                    break
+            filas.append(
+                ClearanceRow(
+                    start=inicio - desfase,
+                    end=fin - desfase,
+                    motif=señal.motif,
+                    signal_start=señal.position - desfase,
+                    flank=señal.flank,
+                    forbidden=(
+                        señal.forbidden_start - desfase, señal.forbidden_end - desfase
+                    ),
+                    clearance=holgura,
+                    distance_to_hexamer=señal.position - fin - 1,
+                    flip_flank=salto,
+                    utr3_length=bound_of(report.anatomy),
+                )
+            )
+    filas.sort(key=lambda f: f.start)
+    return Clearance(rows=tuple(filas))
+
+
 @dataclass(frozen=True)
 class ApaCeilingRow:
     signal: "PolyASignal"

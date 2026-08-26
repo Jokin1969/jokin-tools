@@ -21,11 +21,11 @@ from .conservation import ConservationReport, single_shmir_verdict
 from .accessibility import CONTEXT_WINDOWS, DISCREPANCY
 from .filters import FilterState, Verdict
 from .folding import VIENNA_AVAILABLE
-from .coords import Frame, frame_of, label, span
+from .coords import bound_of, Frame, frame_of, label, span
 from .transgene import carries_scaffold_module
 from .mirna import SEED_SPACE
 from . import splicing
-from .apa import POLYA_DB_PRNP
+from .apa import CLUSTER_READING, POLYA_DB_PRNP
 from .polya import rtqpcr_amplicons
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
@@ -36,6 +36,7 @@ from .selection import (
     apa_ceiling_table,
     blocking_fronts,
     measured_promotion_cost,
+    promotion_clearance,
     is_eligible,
     tercio_counts,
     coverage_report,
@@ -248,6 +249,10 @@ def text_report(
     # distingue cual es.
     marco = frame_of(anatomia) if anatomia is not None else Frame.UTR3
     desfase = anatomia.utr3[0] - 1 if anatomia is not None and anatomia.utr3 else 0
+    # La longitud REAL del 3'UTR de esta especie. Afina el techo global de `coords`:
+    # cualquier posicion que se emita en `3utr` y no quepa aqui es un desfase mal
+    # aplicado, y aborta en vez de imprimirse.
+    tope_utr3 = bound_of(anatomia)
     if transcript is None and anatomia is not None and anatomia.declared:
         lines.append(
             "  Declarada por quien lanzo el analisis (no hay transcrito verificado):"
@@ -545,12 +550,16 @@ def text_report(
     if coste.windows:
         lines.extend(f"  {l}" for l in _envolver(coste.describe(), 86))
         lines.append("")
+    holguras = promotion_clearance(tiling, selection)
+    if holguras.rows:
+        lines.extend(f"  {l}" for l in _envolver(holguras.describe(), 86))
+        lines.append("")
     if canonicas:
         dominante = min(canonicas, key=lambda s: s.position)
         corte = span(dominante.end + 10, dominante.end + 30, marco)
         # Las dos parejas, como en todo lo demas, y cada una con su espacio pegado.
         en_utr3 = (
-            f" ({span(dominante.position - desfase, dominante.end - desfase, Frame.UTR3)})"
+            f" ({span(dominante.position - desfase, dominante.end - desfase, Frame.UTR3, limit=tope_utr3)})"
             if desfase
             else ""
         )
@@ -688,7 +697,8 @@ def text_report(
             lines.append(
                 "        "
                 + "; ".join(
-                    f"{label(_en_3utr(c), Frame.UTR3)} ({_asimetria(c)})" for c in top
+                    f"{label(_en_3utr(c), Frame.UTR3, limit=tope_utr3)} ({_asimetria(c)})"
+                    for c in top
                 )
                 + "  ← inmunes tambien"
             )
@@ -768,6 +778,9 @@ def text_report(
             lines.extend(f"  {l}" for l in tiling.measured_apa.describe())
             lines.append("")
         lines.extend(f"  {l}" for l in POLYA_DB_PRNP.describe())
+        if tiling.measured_apa is not None:
+            lines.append("")
+            lines.extend(f"  {l}" for l in CLUSTER_READING.describe())
         lines.append("")
         lines.append(
             "  ANTES DEL BANCO — mirar si la fraccion ya esta medida y publicada:"

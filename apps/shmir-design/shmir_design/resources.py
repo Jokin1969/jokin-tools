@@ -25,6 +25,7 @@ from .masking import load_rmsk
 from .mirna import load_abundance_list, load_mature_fa
 from .seed_load import load_expression_table, load_utr3_set
 from .specificity import load_database
+from .errors import ShmirDesignError
 
 
 def _refseq(path, entry, contexto):
@@ -70,6 +71,45 @@ def _expresion(path, entry, contexto):
 
 
 def _rmsk(path, entry, contexto):
+    """La mascara, con la especie y el resumen DERIVADOS del manifiesto.
+
+    Nada de esto se teclea. La especie sale del organismo de la referencia que el
+    manifiesto declara en `accession`; el resumen, del `.tbl` hermano. Si falta
+    cualquiera de los dos se aborta: un `.out` a solas no se puede validar — los tres
+    `.out` reales del 2026-08-26 ni siquiera declaran la especie, que vive en el `.tbl`.
+    """
+    from .reference import REFERENCES
+
+    ruta = Path(path)
+    if ruta.suffix.lower() == ".out":
+        if not entry.accession:
+            raise ShmirDesignError(
+                f"{ruta.name}: el manifiesto no dice sobre que accession se corrio, asi "
+                f"que no se puede saber que especie esperar ni comprobar que la mascara "
+                f"es de esta secuencia. Se aborta."
+            )
+        referencia = REFERENCES.get(entry.accession)
+        if referencia is None:
+            raise ShmirDesignError(
+                f"{ruta.name}: el manifiesto declara accession {entry.accession!r}, que "
+                f"no esta en REFERENCES, asi que no hay de donde sacar la especie "
+                f"esperada. Se aborta en vez de saltarse la comprobacion."
+            )
+        resumen = ruta.with_suffix(".tbl")
+        if not resumen.is_file():
+            raise ShmirDesignError(
+                f"{ruta.name}: falta su resumen ({resumen.name}). Sin el no se sabe "
+                f"contra que biblioteca se corrio —la linea de la especie vive ahi, no "
+                f"en el .out— ni cuantos nt se analizaron. Se aborta."
+            )
+        return load_rmsk(
+            path,
+            version=entry.date or entry.md5,
+            expected_md5=entry.md5,
+            expected_species=referencia.organism.lower(),
+            library=entry.library or None,
+            summary_path=resumen,
+        )
     return load_rmsk(path, version=entry.date or entry.md5, expected_md5=entry.md5)
 
 

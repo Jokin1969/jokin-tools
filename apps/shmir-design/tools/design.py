@@ -228,6 +228,21 @@ def conectar_desde_manifiesto(args, estado) -> None:
             setattr(args, version, entrada.date or entrada.md5)
         if md5 is not None:
             setattr(args, md5, entrada.md5)
+        if rol.role == "rmsk":
+            # Ni la especie ni el resumen se teclean: la primera sale del organismo de
+            # la referencia que el manifiesto declara en `accession`, el segundo del
+            # `.tbl` hermano. Si falta cualquiera de los dos, la carga aborta despues —
+            # aqui no se rellena con nada por defecto.
+            from shmir_design.reference import REFERENCES
+
+            referencia = REFERENCES.get(entrada.accession)
+            if referencia is not None and not args.rmsk_especie:
+                args.rmsk_especie = referencia.organism.lower()
+            if not args.rmsk_biblioteca:
+                args.rmsk_biblioteca = entrada.library or None
+            resumen = (args.datos / rol.filename).with_suffix(".tbl")
+            if args.rmsk_resumen is None and resumen.is_file():
+                args.rmsk_resumen = resumen
         print(
             f"    {rol.filename:<24} → {rol.what}  ({entrada.date or 'sin fecha'}, "
             f"md5 {entrada.md5[:8]}…)"
@@ -409,6 +424,23 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--rmsk-version", help="Version del rmsk; obligatoria")
     parser.add_argument("--rmsk-md5", help="md5 esperado; si no cuadra, PARA")
+    parser.add_argument(
+        "--rmsk-especie",
+        help=(
+            "Especie de la BIBLIOTECA que se esperaba (p. ej. «mus musculus»). "
+            "Obligatoria con un .out: es lo unico que distingue una corrida buena de "
+            "una contra otra especie, que sale con formato correcto y cifras plausibles."
+        ),
+    )
+    parser.add_argument(
+        "--rmsk-resumen", type=Path,
+        help=(
+            "El .tbl de la corrida. Obligatorio con un .out: la linea de la especie "
+            "vive ahi y no en el .out, y sin los ceros por familia un fichero sin filas "
+            "no distingue «no habia repetitivos» de «la corrida no llego a correr»."
+        ),
+    )
+    parser.add_argument("--rmsk-biblioteca", help="Biblioteca usada (p. ej. Dfam_3.0)")
     parser.add_argument("--min-block", type=int, default=MIN_BLOCK_LENGTH)
     parser.add_argument("--refseq", type=Path, help="FASTA local de RefSeq RNA")
     parser.add_argument("--refseq-name", default="RefSeq RNA")
@@ -626,8 +658,28 @@ def main(argv: list[str]) -> int:
                 "auditable. Se aborta."
             )
         if args.rmsk:
+            es_out = Path(args.rmsk).suffix.lower() == ".out"
+            if es_out and not args.rmsk_especie:
+                raise ValueError(
+                    "--rmsk apunta a un .out y falta --rmsk-especie. Es lo unico que "
+                    "distingue una corrida contra la biblioteca correcta de una contra "
+                    "otra especie: la equivocada sale con formato correcto y cifras "
+                    "plausibles. Se aborta."
+                )
+            if es_out and not args.rmsk_resumen:
+                raise ValueError(
+                    "--rmsk apunta a un .out y falta --rmsk-resumen (.tbl). La linea de "
+                    "la especie vive en el resumen, no en el .out —ninguno la trae— y "
+                    "sin los ceros por familia un fichero sin filas no distingue «no "
+                    "habia repetitivos» de «la corrida no llego a correr». Se aborta."
+                )
             mask = load_rmsk(
-                args.rmsk, version=args.rmsk_version, expected_md5=args.rmsk_md5
+                args.rmsk,
+                version=args.rmsk_version,
+                expected_md5=args.rmsk_md5,
+                expected_species=args.rmsk_especie,
+                library=args.rmsk_biblioteca,
+                summary_path=args.rmsk_resumen,
             )
         else:
             mask = load_mask_file(args.repeats) if args.repeats else None

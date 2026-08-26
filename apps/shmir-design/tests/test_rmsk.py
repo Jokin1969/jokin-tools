@@ -246,16 +246,34 @@ class TestCargaDesdeDisco(unittest.TestCase):
 class TestPlausibilidad(unittest.TestCase):
     """La guia 1018 da un unico hit en raton por BLAST: no puede ser repetitiva."""
 
-    RMSK = Path(__file__).resolve().parent.parent / "data" / "reference" / "rmsk_mouse.out"
+    DIR = Path(__file__).resolve().parent.parent / "data" / "reference"
+    RMSK = DIR / "rmsk_mouse.out"
+    TBL = DIR / "rmsk_mouse.tbl"
 
     @unittest.skipUnless(
-        RMSK.is_file(),
-        "falta data/reference/rmsk_mouse.out; el chequeo de plausibilidad no corre",
+        RMSK.is_file() and TBL.is_file(),
+        "faltan data/reference/rmsk_mouse.{out,tbl}; el chequeo no corre",
     )
     def test_la_ventana_1018_no_cae_en_un_repetitivo(self):
         """Si este test falla, el filtro esta mal montado, no la guia."""
-        mask = load_rmsk(self.RMSK, version="fixture")
+        mask = load_rmsk(
+            self.RMSK, version="4.0.9", expected_species="mus musculus",
+            library="Dfam_3.0", summary_path=self.TBL,
+        )
         self.assertIs(filter_repeats(1018, 1039, mask).state, FilterState.PASS)
+
+    @unittest.skipUnless(
+        RMSK.is_file() and TBL.is_file(), "faltan los ficheros rmsk_mouse"
+    )
+    def test_la_UNICA_repeticion_murina_esta_en_el_CDS_y_no_toca_el_3UTR(self):
+        # Con la corrida real: (CTC)n en tx:892-936, dentro del CDS (185-949). El 3'UTR
+        # empieza en 950, asi que NINGUNA ventana del barrido cae en un repetitivo.
+        mask = load_rmsk(
+            self.RMSK, version="4.0.9", expected_species="mus musculus",
+            library="Dfam_3.0", summary_path=self.TBL,
+        )
+        self.assertEqual([(e.start, e.end) for e in mask.elements], [(892, 936)])
+        self.assertIs(filter_repeats(950, 2191, mask).state, FilterState.PASS)
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 from .anatomy import Anatomy
-from .coords import Frame, frame_of, label
+from .coords import Frame, bound_of, frame_of, label
 from .external_score import (
     FEATURE_COLUMNS,
     MIRARCH_COLUMNS,
@@ -173,6 +173,9 @@ def comparative_rows(
     """
     anatomy = anatomy or selection.anatomy
     marco = frame_of(anatomy) if anatomy is not None else Frame.UTR3
+    # Cada fila convierte a 3'UTR restando el desfase. Con el tope real,
+    # una resta mal hecha aborta en la fila en vez de salir en el TSV.
+    tope_utr3 = bound_of(anatomy)
     elegidos = list(selection.selection.chosen)
     filtros: list[str] = []
     if elegidos:
@@ -200,8 +203,8 @@ def comparative_rows(
         especificidad = _mismatch_counts(window.especificidad_detalle)
 
         fila = {
-            "inicio_3utr": label(window.inicio_3utr, Frame.UTR3),
-            "fin_3utr": label(window.fin_3utr, Frame.UTR3),
+            "inicio_3utr": label(window.inicio_3utr, Frame.UTR3, limit=tope_utr3),
+            "fin_3utr": label(window.fin_3utr, Frame.UTR3, limit=tope_utr3),
             "inicio_transcrito": label(window.window.start, marco),
             "fin_transcrito": label(window.window.end, marco),
             "region": window.region.value,

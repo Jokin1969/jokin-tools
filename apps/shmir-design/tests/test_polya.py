@@ -132,6 +132,24 @@ class TestClasificacionPorCoordenadas(unittest.TestCase):
             classify_signal("GGGGGG", 100, 1000)
 
 
+def _anatomia_raton():
+    """Anatomia del transcrito murino.
+
+    Estas pruebas usan coordenadas del TRANSCRITO (el `ACTAAA` de 1983 es tx:1983, que
+    es 3utr:1034). Sin anatomia, `annotate_3utr` etiquetaria `3utr:` un numero que no
+    cabe en ningun 3'UTR del proyecto — y desde que `coords` comprueba el rango, eso
+    aborta en vez de imprimirse. Es el invariante haciendo su trabajo sobre un fixture
+    mal etiquetado, asi que se etiqueta bien.
+    """
+    from shmir_design.anatomy import Anatomy, RegionSource
+
+    r = REFERENCES["NM_011170.3"]
+    return Anatomy(
+        length=r.length, utr5=r.utr5, cds=r.cds, utr3=r.utr3,
+        source=RegionSource.ANOTACION_GENBANK,
+    )
+
+
 class TestFiltroEscalonado(unittest.TestCase):
     """FAIL duro solo para señal terminal y APA; las variantes raras van en bandera.
 
@@ -169,7 +187,9 @@ class TestFiltroEscalonado(unittest.TestCase):
             classify_signal("ACTAAA", 1983, 2191),
             classify_signal("ATTAAA", 1990, 2191),
         ]
-        report = annotate_3utr([Window(1980, 22, "w")], signals, 2191)
+        report = annotate_3utr(
+            [Window(1980, 22, "w")], signals, 2191, _anatomia_raton()
+        )
         self.assertIs(report.windows[0].zona_prohibida.state, FilterState.FAIL)
 
     def test_el_criterio_estricto_se_conserva_para_comparar(self):

@@ -145,6 +145,12 @@
   Mientras la señal era una variante rara sin datos, el solape valia una penalizacion de
   ranking; con uso medido, no. Es una decision, y esta es su factura.
 
+  LO QUE SE SALVA, Y POR CUANTO. Son los candidatos elegidos que pasan a menos de 30 nt
+  de una señal que la medida acaba de subir a APA_POSIBLE. Se declara el veredicto en
+  vez de dejarlo deducir de una resta: 3utr:200 (3utr:200-221): PASA. No contiene el
+  AATATA de 3utr:236 —acaba 14 nt antes— y queda 4 nt por delante de su zona prohibida
+  (3utr:226-251); con un flanco de 15 en vez de 10 tambien caeria.
+
   RIESGO DE TRUNCAMIENTO DOMINANTE DEL PANEL: AATATA en tx:1185-1190 (3utr:236-241).
   Clasificada APA_POSIBLE POR MEDIDA DE USO, no por canonicidad — y es el caso INVERSO
   al del hexamero canonico: aqui el hexamero es una VARIANTE RARA (AATATA), que por nuestra
@@ -228,6 +234,31 @@
   
     RESERVAS ANOTADAS. No bloquean porque no mueven el valor, y por eso mismo no se omiten:
       1. El PAS terminal 131938427 y el que tiene expresion (131938392, 35 nt aguas arriba) se anotan como DOS y no se fusionan sin comprobarlo: fusionarlos suma su expresion y sube la fraccion larga sin dato. El anclaje los coloca sobre hexameros DISTINTOS —ATTAAA en 3utr:1214 el uno; TATAAA en 3utr:1178 o en 3utr:1189 el otro, que ademas no distingue entre los dos—, asi que tampoco por ahi hay motivo para fusionarlos. NO MUEVE EL VALOR: 131938427 no tiene expresion, luego no suma nada a ninguna de las dos formulas.
+
+  CABO SUELTO — NO RESUELTO: chr2:+:131938392. Es el PAS con MAS expresion de los tres (PSE 70,5 %,
+    AvgRPM 1,65) y es el NUMERADOR de la fraccion larga, asi que de su lectura depende lo que
+    significa el 0.86. Hay DOS, con consecuencias distintas:
+      (a) es el racimo del PAS terminal chr2:+:131938427 → los dos son el mismo sitio de corte
+          y la fraccion larga 0.86 es exactamente lo que dice ser.
+      (b) es un corte PROPIO en 3utr:1199-1207 → hay un TERCER corte por delante del terminal, y todo
+          lo que quede detras lleva un techo adicional. Peor: por detras de esa banda ya no queda
+          ningun PAS CON EXPRESION MEDIDA, asi que ahi la medida no acota nada — no es un techo
+          bajo, es un techo del que esta tabla no sabe nada.
+    El anclaje de cuatro puntos ESTRECHA la banda a 3utr:1199-1207 (antes se estimaba mas ancha) pero NO
+    desempata: los dos hexameros de su clase que caben ahi son TATAAA en 3utr:1178, TATAAA en 3utr:1189,
+    y por eso el sitio ancla pero no entra al modelo con banda propia.
+    QUE HAY HOY EN ESA ZONA, para saber cuanto cuesta no resolverlo:
+      · el bloque conservado de 3utr:1138-1163 queda POR DELANTE de la banda: no le afecta.
+      · 3utr:1200 de la lista externa cae DENTRO de la banda — indeterminado,
+        ni detras ni delante. Ya fallaba nuestro propio filtro duro de polyA, asi que no cambia nada hoy.
+      · CERO ventanas elegibles por detras de la banda, y cero dentro. Ninguno de los diez esta ahi.
+    POR QUE EL FRENTE SIGUE CERRADO IGUAL, y no por conveniencia: bajo las DOS lecturas el techo
+    del panel es >= 0.86. Bajo (a) es 0.86 exacto; bajo (b) los diez siguen por delante de la banda,
+    asi que conservan su diana en la isoforma de este corte Y en la terminal, cuya expresion no
+    esta medida — o sea 0.86 MAS lo que no se ha contado. La ambiguedad no mueve el numero DEL PANEL;
+    moveria el de cualquier candidato que se pusiera por detras de 3utr:1199-1207, y hoy no hay ninguno.
+    QUE LO RESOLVERIA: 3'-end seq de cerebro murino, o la regla de agrupamiento que use la propia
+    base para decidir si estos dos PAS son un racimo. Ninguna de las dos esta aqui.
 
   ANTES DEL BANCO — mirar si la fraccion ya esta medida y publicada:
     1. PolyA_DB / PolyASite: ¿hay sitio anotado en este 3'UTR, y con que fraccion de

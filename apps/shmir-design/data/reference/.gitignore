@@ -37,3 +37,15 @@
 # El casete AAV NO entra: es material de laboratorio sin publicar, y la regla de que los
 # datos no se versionan existe tambien para eso. Queda registrado en el manifiesto con
 # su md5, que es lo que hace auditable el veredicto sin publicar la secuencia.
+
+# Las tres corridas de RepeatMasker, con el mismo criterio de tamaño: 317 B de `.out` y
+# 2 kB de `.tbl` no son una base de datos. Y dos de ellas son el FIXTURE NEGATIVO —la
+# corrida humana contra la biblioteca murina—, que es evidencia y no material de
+# laboratorio: si se queda fuera, el test que comprueba que el parser la rechaza no
+# corre para nadie que clone el repositorio.
+!rmsk_mouse.out
+!rmsk_mouse.tbl
+!rmsk_human.out
+!rmsk_human.tbl
+!rmsk_human_WRONG_SPECIES_mouse_lib.out
+!rmsk_human_WRONG_SPECIES_mouse_lib.tbl

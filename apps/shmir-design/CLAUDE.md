@@ -539,20 +539,61 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     `_seed_of_mature`): un desajuste de alfabeto daría cero colisiones y parecería una
     buena noticia. Hay un test que compara la misma tabla en ARN y en ADN y exige el mismo
     veredicto.
-- **El `.out` de RepeatMasker declara la especie de la BIBLIOTECA, y se comprueba**
-  (`masking.declared_species`, `expected_species` **obligatorio**). Fallo real del
-  2026-08-26: un transcrito humano corrido contra la biblioteca murina dio un fichero con
-  formato correcto, cifras plausibles y **Alu 0 %** —imposible en humano— y lo único que lo
-  delataba era la línea «The query species was assumed to be mus musculus». **Un cero
-  obtenido sin buscar no puede pasar como veredicto.** Si el fichero no declara especie,
-  también aborta: no haber podido comprobar no es «coincide».
-- **Un `.out` sin filas necesita el RESUMEN** (`.tbl`). Sin él, cero no distingue «no había
-  repetitivos» de «la corrida no llegó a correr» — y esa diferencia es la de `PASS` contra
-  `NOT_RUN`. Con resumen, una máscara vacía es un resultado legítimo; sin él, se aborta.
+- **La especie de la biblioteca vive en el `.tbl`, NO en el `.out`. COMPROBADO
+  (2026-08-26)** (`masking.declared_species`, `expected_species` **obligatorio**).
+  Llegaron las tres corridas reales —RepeatMasker open-4.0.9 · rmblastn 2.17.1+ ·
+  Dfam_3.0— y **ninguno de los tres `.out` declara la especie**. Se busca primero en el
+  resumen; sin resumen no hay nada que comprobar, y no haber podido comprobar no es
+  «coincide».
+  - **LA DEMOSTRACIÓN, y va al registro con sus md5 como evidencia**
+    (`masking.INDISTINGUISHABLE_OUTS`):
+
+    | fichero | md5 |
+    |---|---|
+    | `rmsk_human.out` | `bcc33dbc7a65e74690f5f9d1fb270035` |
+    | `rmsk_human_WRONG_SPECIES_mouse_lib.out` | `bcc33dbc7a65e74690f5f9d1fb270035` |
+
+    **Son el mismo fichero byte a byte.** Una corrida válida y una contra la biblioteca
+    equivocada producen `.out` **indistinguibles**, porque lo único presente es un
+    microsatélite `(TA)n` y las repeticiones simples se detectan por **composición**, no
+    por biblioteca. La diferencia vive **sólo** en el `.tbl`: uno dice «homo sapiens» y
+    lista ALUs/MIRs, el otro dice «mus musculus» y lista Alu/B1 y B2-B4 **sobre una
+    consulta de 2435 bp que es humana**. Exigir el resumen no es una precaución: es un
+    **requisito**, y esto lo demuestra con datos en vez de argumentarlo.
+  - **Los dos ficheros de la corrida mala se quedan** como fixture negativo, igual que
+    el 3'UTR fabricado, con un test que comprueba que el parser los rechaza. No se
+    borran: son evidencia.
+- **Una máscara no se puede aplicar a otra secuencia** (`RepeatMask.query_length`, de la
+  línea `total length:` del resumen). Es la misma trampa un nivel más arriba:
+  `--usar-manifiesto` carga `rmsk_mouse.out` **por su rol**, sin mirar qué especie se
+  está diseñando, y el intervalo murino `tx:892-936` **cabe de sobra** en los 2435 nt del
+  humano — no se sale de rango, así que no salta ninguna otra alarma y taparía un tramo
+  que ahí no es repetitivo. Se compara lo que el resumen declara haber analizado con lo
+  que se le da, y si no coinciden se aborta.
+  - `resources._rmsk` y `--usar-manifiesto` **derivan** la especie (del organismo de la
+    referencia que el manifiesto declara en `accession`) y el resumen (del `.tbl`
+    hermano). No se teclean. Por la línea de órdenes son `--rmsk-especie` y
+    `--rmsk-resumen`, las dos **obligatorias** con un `.out`.
+- **Resultados de las dos corridas buenas, y una predicción que sale MAL.**
+  - **Ratón**: una repetición, `(CTC)n` en `tx:892-936`, **dentro del CDS** (185-949).
+    No toca el 3'UTR ni la ventana del ORF conservado (`tx:707-728`). O sea: **el 3'UTR
+    murino no tiene ni un elemento repetitivo**, y el `.tbl` lo respalda con los ceros
+    explícitos por familia (SINEs 0, Alu/B1 0, B2-B4 0, LINEs 0, LTR 0).
+  - **Humano**: una repetición, `(TA)n` en `tx:2097-2130` = **`3utr:1268-1301`**, que
+    **sí** cae en el 3'UTR y **solapa 5 ventanas elegibles**: `3utr:1247`, `1249`,
+    `1250`, `1251`, `1252`. La conversión va por `coords.Position.to_utr3`, no por una
+    resta.
+  - **La hipótesis de la carrera de A queda REFUTADA.** Se predijo que los 45 pb serían
+    la carrera de A de `3utr:480-500`, y que de cumplirse sería convergencia de dos
+    criterios independientes sobre el mismo tramo. **No lo es**: es un `(CTC)n` en el
+    CDS, y la carrera más larga del 3'UTR murino son 10 A que acaban en `3utr:507`, donde
+    RepeatMasker no marcó nada. **No hay convergencia.** Queda anotado igual que se
+    habría anotado el acierto — si no, sólo se registran las predicciones que salen bien.
 - **El manifiesto registra la BIBLIOTECA además de la versión del binario** (columna
   `biblioteca`): RepeatMasker 4.0.9 con Dfam_3.0 y con otra biblioteca dan resultados
-  distintos, así que la versión a solas no identifica la corrida. La cabecera de 9 columnas
-  se sigue aceptando (`PREVIOUS_COLUMNS`) y la columna sale vacía, que es la verdad.
+  distintos, así que la versión a solas no identifica la corrida. La cabecera de 9
+  columnas se sigue aceptando (`PREVIOUS_COLUMNS`) y la columna sale vacía, que es la
+  verdad.
 - **El casete que se pasa tiene que ser lo que la célula MADURA** (`transgene.py`). Si el
   casete lleva el módulo del shmiR y se pasa el **genoma con el intrón dentro**, toda guía
   da impacto contra **su propia horquilla**: el filtro tumba el panel entero por un
@@ -631,12 +672,30 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     (`ReportSelection.anatomy`) para que todos los escritores usen el mismo.
   - `coords.parse` lee de vuelta una celda etiquetada y **rechaza el entero desnudo**, así
     que la etiqueta no es decoración: los tests del invariante de intervalos pasan por ahí.
-  - **El fallo REAPARECE cada vez que se escribe un bloque nuevo**, y ha vuelto dos veces
+  - **INVARIANTE DE RANGO. AÑADIDO (2026-08-26)** (`coords.max_utr3`,
+    `coords.check_utr3_range`). La clase impedía construir una posición **sin** marco,
+    pero no impedía declarar el marco **equivocado**. Ahora una `Position` en `3utr` que
+    no quepa en el 3'UTR más largo que conoce el proyecto **aborta**, y el mensaje dice
+    que casi seguro es una coordenada del transcrito. El techo se **deriva** de
+    `reference.REFERENCES` (hoy 1606, lo pone el humano): si entra una referencia con un
+    3'UTR más largo, sube solo. `label` y `span` aceptan además `limit` —la longitud real
+    de la especie que se está analizando— y `coords.bound_of(anatomy)` la saca; `tx` no
+    se comprueba, porque ponerle un techo sería inventarse un límite.
+  - **Y lo que este invariante NO puede hacer, dicho aquí para que nadie lo suponga**:
+    caza lo **imposible**, no lo **equivocado**. `3utr:1784` sobre 1606 nt y
+    `3utr:1273-2191` sobre 1242 los caza; `3utr:1185` sobre un 3'UTR murino de 1242 **no**,
+    porque 1185 es una posición perfectamente válida — sólo que de otra señal. Ese
+    tercer caso (el bloque de holguras, con la ventana convertida y la señal sin
+    convertir) lo cazó el **golden**, al leer el diff. Por eso el golden no es un test
+    más: es el único que ve la salida entera.
+  - **El fallo REAPARECE cada vez que se escribe un bloque nuevo**, y ha vuelto tres veces
     más: `apa_ceiling_table` imprimía `3utr:1784` para una coordenada del transcrito humano
     —en el informe que ya se estaba entregando— y los tramos de techo salían como
-    `3utr:1-1200` sobre un 3'UTR de 1242 nt. Los dos llevaban `Frame.UTR3` a pelo. La regla
-    para un bloque nuevo es: el marco **se recibe**, sacado de la anatomía, y nunca se pone
-    a `UTR3` porque «suele serlo».
+    `3utr:1-1200` sobre un 3'UTR de 1242 nt, y el bloque de holguras imprimió `3utr:1185`
+    para la señal mientras la ventana sí venía convertida. Los tres llevaban `Frame.UTR3`
+    a pelo o una conversión a medias. La regla para un bloque nuevo es: el marco **se
+    recibe**, sacado de la anatomía, las coordenadas se convierten **todas a la vez o
+    ninguna**, y nunca se pone `UTR3` porque «suele serlo».
 - **Toda salida que nombre una referencia imprime longitud y md5 JUNTOS**
   (`reference.describe_sequence`): `referencia 1242 nt / 19f5fa2a`. Contramedida a un
   fallo que fue invisible porque «referencia 1246 nt» parece razonable; pegado al md5 no
@@ -815,10 +874,30 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **bloquea** el uso del dato (hoy vacío); `caveats` para lo que se anota y no mueve el
     valor. Meter una reserva en `pending` haría parecer inutilizable un dato por algo que no
     cambia ninguna cifra, y eso engaña tanto como omitirla.
-  - Reserva que se mantiene: el PAS terminal `131938427` y el que tiene expresión
-    (`131938392`, 35 nt aguas arriba) **se anotan como dos y no se fusionan** sin
-    comprobarlo. **No mueve el valor**: `131938427` no tiene expresión, así que no suma en
-    ninguna de las dos fórmulas. El anclaje además los coloca sobre hexámeros **distintos**.
+  - **CABO SUELTO, NO RESUELTO: `131938392`** (`apa.CLUSTER_READING`). Es el PAS con
+    **más expresión** de los tres (PSE 70,5 %, AvgRPM 1,65) y es el **numerador** de la
+    fracción larga, así que de su lectura depende lo que significa el 0,86. Hay dos:
+    - **(a)** es el racimo del terminal `131938427` → 0,86 es exactamente lo que dice.
+    - **(b)** es un corte **propio** en `3utr:1199-1207` → hay un tercer corte por
+      delante del terminal. Y peor de lo que parece: por detrás de esa banda **ya no
+      queda ningún PAS con expresión medida**, así que ahí la medida no acota nada — no
+      es un techo bajo, es un techo del que esta tabla no sabe nada.
+    El anclaje de cuatro puntos **estrecha** la banda a `3utr:1199-1207` pero **no
+    desempata**: los dos `TATAAA` de su clase que caben ahí son `3utr:1178` y `3utr:1189`.
+    - **No se cierra hacia (a) por conveniencia**, que es justo lo que sería cerrarlo
+      porque es la lectura que sostiene el número que ya tenemos.
+    - **Cuánto cuesta hoy no resolverlo**: el bloque conservado de `3utr:1138-1163` queda
+      **por delante** de la banda; `3utr:1200` de la lista externa cae **dentro** (y ya
+      fallaba nuestro propio filtro duro de polyA); **cero** ventanas elegibles por
+      detrás y cero dentro.
+    - **Por qué el frente sigue cerrado igual, y no por conveniencia**: bajo **las dos**
+      lecturas el techo del panel es **≥ 0,86**. Bajo (a) es 0,86 exacto; bajo (b) los
+      diez siguen por delante de la banda, así que conservan su diana en la isoforma de
+      ese corte **y** en la terminal, cuya expresión no está medida — o sea 0,86 más lo
+      que no se ha contado. La ambigüedad no mueve el número **del panel**; movería el de
+      cualquier candidato que se pusiera por detrás de `3utr:1207`, y hoy no hay ninguno.
+    - **Qué lo resolvería**: 3'-end seq de cerebro murino, o la regla de agrupamiento que
+      use la propia base. Ninguna de las dos está aquí.
 - **El mapeo genómico↔transcrito está RESUELTO, y sin coordenadas genómicas**
   (`apa.anchor_polyadb`, `polya.PAS_IS_CLEAVAGE_SITE`). El `.gb` de NM_011170.3 sigue sin
   traerlas —su bloque `PRIMARY` referencia cDNA y EST, no un cromosoma— y ya no hacen falta.
@@ -865,6 +944,20 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     que tiene un candidato de desaparecer sin que nadie lo vea. **Solo se cobran las
     ventanas que caen POR ESTO**: una que ya fallaba GC no la tumba la promoción, y a la
     canónica de 288 no se le cobra nada porque ya era `APA_POSIBLE` por predicción.
+- **`3utr:200` PASA, y por 4 nt. Se DECLARA, no se deduce**
+  (`selection.promotion_clearance`, bloque «Lo que se salva, y por cuánto»). La ventana
+  `3utr:200-221` **no contiene** el `AATATA` de `3utr:236` —acaba 14 nt antes— y queda
+  **4 nt** por delante de su zona prohibida (`3utr:226-251`). Y con la sensibilidad al
+  lado, porque sin ella un «PASA» parece más sólido de lo que es: **con un flanco de 15
+  en vez de 10 también caería**, y entonces no habría cuarto inmune. El flanco al que
+  cambia se **busca** con el mismo `classify_signal` que decide, no se calcula a mano.
+- **REGISTRO DE DECISIONES: el criterio escalonado no es un colador, y hay evidencia.**
+  El criterio se decidió con la tabla de los seis candidatos delante, y quien lo defendió
+  tenía interés en el resultado. El 2026-08-26 ese mismo criterio **tumbó `3utr:221`**,
+  que era uno de los cuatro inmunes del panel y uno de los mejores por asimetría. Un
+  criterio que sólo aprueba nunca demuestra nada; éste ha quitado algo que su autor
+  quería conservar, y por eso vale. Se anota la **decisión**, no sólo el resultado: si
+  más adelante alguien propone relajarlo, este caso es el que hay que discutir.
 - **El TECHO ya no es UNO: va POR TRAMOS** (`apa.CeilingLayer`, `MeasuredApa.layer_for`).
   Un solo número contesta «cuánta isoforma larga hay»; la pregunta de un candidato es otra,
   «qué fracción de transcritos conserva MI diana», y eso depende de por detrás de **cuántos**

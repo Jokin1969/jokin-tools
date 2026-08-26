@@ -1,0 +1,4 @@
+   SW   perc perc perc  query        position in query    matching repeat          position in repeat
+score   div. del. ins.  sequence     begin end   (left)   repeat   class/family  begin  end    (left)  ID
+
+   17   12.6  6.7  2.1  NM_011170.3    892   936 (1255) + (CTC)n   Simple_repeat      1     47    (0)   1  

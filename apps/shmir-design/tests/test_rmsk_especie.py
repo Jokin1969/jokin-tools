@@ -80,7 +80,12 @@ class TestLaEspecieSeComprueba(unittest.TestCase):
         # No haber podido comprobar no es «coincide».
         with self.assertRaises(ShmirDesignError) as ctx:
             _leer(SIN_ESPECIE, "mus musculus")
-        self.assertIn("no declara", str(ctx.exception).lower())
+        # La linea de la especie vive en el RESUMEN, no en el .out: los tres
+        # .out reales del 2026-08-26 no la traen. Sin resumen no hay nada que
+        # comprobar, y eso no es «coincide».
+        motivo = str(ctx.exception).lower()
+        self.assertIn("no hay forma de saber", motivo)
+        self.assertIn("resumen", motivo)
 
     def test_expected_species_es_OBLIGATORIO(self):
         with self.assertRaises(TypeError):

@@ -24,6 +24,52 @@ from enum import StrEnum
 
 SEPARATOR = ":"
 
+#: Techo del espacio `3utr`, DERIVADO de las referencias del proyecto. No se teclea: si
+#: entra una referencia con un 3'UTR mas largo, el techo sube solo.
+#:
+#: Existe porque `Position` impedia construir una posicion SIN marco pero no impedia
+#: declarar el marco EQUIVOCADO, y eso ha pasado tres veces: `3utr:1784` sobre un 3'UTR
+#: humano de 1606 nt —en un informe que ya se estaba entregando— y los tramos de techo
+#: como `3utr:1-1200` … `3utr:1273-2191` sobre uno murino de 1242. Los dos eran
+#: coordenadas del TRANSCRITO etiquetadas como 3'UTR, y ninguno dio error.
+#:
+#: Lo que NO hace: garantizar que el marco sea el correcto. Eso necesita un contexto que
+#: esta clase no tiene. Lo que si hace es convertir el caso IMPOSIBLE —una posicion que
+#: no cabe en ningun 3'UTR conocido— en un aborto en vez de en una linea que se lee sin
+#: sospechar nada. Para afinar por especie esta `limit`.
+_MAX_UTR3: int | None = None
+
+
+def max_utr3() -> int:
+    """La longitud del 3'UTR mas largo que conoce el proyecto."""
+    global _MAX_UTR3
+    if _MAX_UTR3 is None:
+        # Import perezoso: `coords` es el modulo mas bajo del paquete y `reference`
+        # arrastra fetch y errores. Se resuelve una vez y se cachea.
+        from .reference import REFERENCES
+
+        _MAX_UTR3 = max(r.utr3_length for r in REFERENCES.values())
+    return _MAX_UTR3
+
+
+def check_utr3_range(value: int, limit: int | None = None) -> None:
+    """Aborta si `value` no cabe en un 3'UTR. `limit` afina; nunca relaja el techo."""
+    techo = max_utr3()
+    if value > techo:
+        raise ValueError(
+            f"3utr:{value} no cabe en ningun 3'UTR conocido del proyecto: el mas largo "
+            f"mide {techo} nt. Casi seguro es una coordenada del TRANSCRITO etiquetada "
+            f"como 3'UTR (seria tx:{value}); el marco se saca de la anatomia con "
+            f"coords.frame_of(), no se pone a mano. Se aborta en vez de imprimir una "
+            f"posicion que no existe."
+        )
+    if limit is not None and value > limit:
+        raise ValueError(
+            f"3utr:{value} se sale del 3'UTR que se esta analizando, que mide {limit} "
+            f"nt. Se aborta: o el marco es otro (seria tx:{value}) o la conversion tiene "
+            f"un desfase."
+        )
+
 
 class Frame(StrEnum):
     """Los dos espacios en los que el proyecto cuenta posiciones.
@@ -67,6 +113,11 @@ class Position:
                 f"{', '.join(f.value for f in Frame)}. Se aborta: una posicion sin "
                 f"espacio no identifica ningun sitio."
             )
+        if self.frame is Frame.UTR3:
+            check_utr3_range(self.value)
+        # `tx` NO se comprueba: el marco del transcrito no tiene techo conocido —lo
+        # tilado puede ser cualquier cosa— y ponerle uno seria inventarse un limite. Lo
+        # que se caza es lo imposible, no lo sospechoso.
 
     def __str__(self) -> str:
         return f"{self.frame.value}{SEPARATOR}{self.value}"
@@ -95,14 +146,21 @@ class Position:
         return Position(self.value - offset, Frame.UTR3)
 
 
-def label(value: int | None, frame: Frame) -> str:
-    """Atajo para una posicion suelta. `None` va VACIO, nunca `3utr:0`."""
+def label(value: int | None, frame: Frame, *, limit: int | None = None) -> str:
+    """Atajo para una posicion suelta. `None` va VACIO, nunca `3utr:0`.
+
+    `limit` es la longitud del 3'UTR que se esta analizando, cuando el que llama la
+    tiene: afina el techo global a la especie concreta. Nunca lo relaja.
+    """
     if value is None:
         return ""
-    return str(Position(value, frame))
+    posicion = Position(value, frame)
+    if frame is Frame.UTR3:
+        check_utr3_range(value, limit)
+    return str(posicion)
 
 
-def span(start: int, end: int, frame: Frame) -> str:
+def span(start: int, end: int, frame: Frame, *, limit: int | None = None) -> str:
     """Intervalo etiquetado UNA vez: `3utr:158-277`.
 
     Repetir la etiqueta en los dos extremos se lee peor y ocupa el doble, y el riesgo
@@ -111,6 +169,9 @@ def span(start: int, end: int, frame: Frame) -> str:
     """
     inicio = Position(start, frame)
     fin = Position(end, frame)
+    if frame is Frame.UTR3:
+        check_utr3_range(start, limit)
+        check_utr3_range(end, limit)
     if fin.value < inicio.value:
         raise ValueError(
             f"Intervalo {start}-{end} invertido en el espacio {frame.value}; se aborta "
@@ -177,3 +238,11 @@ def offset_of(anatomy) -> int:
     if anatomy is None or not getattr(anatomy, "utr3", None):
         return 0
     return anatomy.utr3[0] - 1
+
+
+def bound_of(anatomy) -> int | None:
+    """La longitud del 3'UTR de esta anatomia, para afinar el techo. `None` si no hay."""
+    if anatomy is None or not getattr(anatomy, "utr3", None):
+        return None
+    inicio, fin = anatomy.utr3
+    return fin - inicio + 1

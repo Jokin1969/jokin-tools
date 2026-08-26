@@ -974,3 +974,85 @@ def resolve_measured(
         layers=_build_layers(ancla, table, len(utr3) + offset, offset, marco),
         frame=marco,
     )
+
+
+# ─── El cabo suelto: 131938392 ───────────────────────────────────────────────
+#
+# Es el PAS con MAS expresion de los tres (PSE 70,5 %, AvgRPM 1,65) y es el NUMERADOR de
+# la fraccion larga. Su lectura no esta resuelta y no se cierra por conveniencia hacia la
+# que sostiene el numero que ya tenemos.
+
+
+@dataclass(frozen=True)
+class ClusterReading:
+    locus: str
+    resolved: bool
+    band: tuple[int, int]
+    hexamers: tuple[tuple[int, str], ...]
+    terminal_locus: str
+    conserved_block: tuple[int, int]
+    external_site: int
+
+    def describe(self) -> list[str]:
+        from .coords import Frame, label, span
+
+        banda = span(*self.band, Frame.UTR3)
+        return [
+            f"CABO SUELTO — NO RESUELTO: {self.locus}. Es el PAS con MAS expresion de "
+            f"los tres (PSE 70,5 %,",
+            "  AvgRPM 1,65) y es el NUMERADOR de la fraccion larga, asi que de su "
+            "lectura depende lo que",
+            "  significa el 0.86. Hay DOS, con consecuencias distintas:",
+            f"    (a) es el racimo del PAS terminal {self.terminal_locus} → los dos son "
+            f"el mismo sitio de corte",
+            "        y la fraccion larga 0.86 es exactamente lo que dice ser.",
+            f"    (b) es un corte PROPIO en {banda} → hay un TERCER corte por delante "
+            f"del terminal, y todo",
+            "        lo que quede detras lleva un techo adicional. Peor: por detras de "
+            "esa banda ya no queda",
+            "        ningun PAS CON EXPRESION MEDIDA, asi que ahi la medida no acota "
+            "nada — no es un techo",
+            "        bajo, es un techo del que esta tabla no sabe nada.",
+            "  El anclaje de cuatro puntos ESTRECHA la banda a "
+            f"{banda} (antes se estimaba mas ancha) pero NO",
+            "  desempata: los dos hexameros de su clase que caben ahi son "
+            + ", ".join(
+                f"{m} en {label(p, Frame.UTR3)}" for p, m in self.hexamers
+            )
+            + ",",
+            "  y por eso el sitio ancla pero no entra al modelo con banda propia.",
+            "  QUE HAY HOY EN ESA ZONA, para saber cuanto cuesta no resolverlo:",
+            f"    · el bloque conservado de {span(*self.conserved_block, Frame.UTR3)} "
+            f"queda POR DELANTE de la banda: no le afecta.",
+            f"    · {label(self.external_site, Frame.UTR3)} de la lista externa cae "
+            f"DENTRO de la banda — indeterminado,",
+            "      ni detras ni delante. Ya fallaba nuestro propio filtro duro de "
+            "polyA, asi que no cambia nada hoy.",
+            "    · CERO ventanas elegibles por detras de la banda, y cero dentro. "
+            "Ninguno de los diez esta ahi.",
+            "  POR QUE EL FRENTE SIGUE CERRADO IGUAL, y no por conveniencia: bajo las "
+            "DOS lecturas el techo",
+            "  del panel es >= 0.86. Bajo (a) es 0.86 exacto; bajo (b) los diez siguen "
+            "por delante de la banda,",
+            "  asi que conservan su diana en la isoforma de este corte Y en la "
+            "terminal, cuya expresion no",
+            "  esta medida — o sea 0.86 MAS lo que no se ha contado. La ambiguedad no "
+            "mueve el numero DEL PANEL;",
+            "  moveria el de cualquier candidato que se pusiera por detras de "
+            f"{banda}, y hoy no hay ninguno.",
+            "  QUE LO RESOLVERIA: 3'-end seq de cerebro murino, o la regla de "
+            "agrupamiento que use la propia",
+            "  base para decidir si estos dos PAS son un racimo. Ninguna de las dos "
+            "esta aqui.",
+        ]
+
+
+CLUSTER_READING = ClusterReading(
+    locus="chr2:+:131938392",
+    resolved=False,
+    band=(1199, 1207),
+    hexamers=((1178, "TATAAA"), (1189, "TATAAA")),
+    terminal_locus="chr2:+:131938427",
+    conserved_block=(1138, 1163),
+    external_site=1200,
+)

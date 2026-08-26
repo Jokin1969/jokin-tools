@@ -71,6 +71,26 @@ class RepeatMask:
     summary: str | None = None
 
     @property
+    def query_length(self) -> int | None:
+        """Cuantos nt analizo la corrida, sacado del resumen. `None` si no hay resumen.
+
+        Es lo que impide aplicar la mascara de una especie al transcrito de la otra:
+        `--usar-manifiesto` carga el `.out` por su ROL, sin mirar que se esta diseñando,
+        y el intervalo murino tx:892-936 CABE de sobra en los 2435 nt del humano. No
+        daria ningun error — es la trampa de la biblioteca equivocada un nivel mas
+        arriba.
+        """
+        if not self.summary:
+            return None
+        for linea in self.summary.splitlines():
+            bajo = linea.strip().lower()
+            if bajo.startswith("total length:"):
+                trozo = bajo[len("total length:") :].strip().split()
+                if trozo and trozo[0].isdigit():
+                    return int(trozo[0])
+        return None
+
+    @property
     def conclusive(self) -> bool:
         """¿Se puede leer un CERO de este fichero como resultado?
 
@@ -141,6 +161,17 @@ def apply_mask(sequence: str, mask: RepeatMask | None) -> str:
     """Sustituye por N los tramos repetitivos. Sin mascara, devuelve la secuencia igual."""
     if mask is None:
         return sequence
+    analizada = mask.query_length
+    if analizada is not None and analizada != len(sequence):
+        raise ShmirDesignError(
+            f"{mask.source!r} se corrio sobre {analizada} nt y se le esta dando una "
+            f"secuencia de {len(sequence)} nt: no son la misma. Se aborta el "
+            f"enmascarado. POR QUE IMPORTA: el intervalo repetitivo CABE en la otra "
+            f"secuencia, asi que no se sale de rango y no salta ninguna otra alarma — "
+            f"taparia un tramo que ahi no es repetitivo y el barrido saldria con "
+            f"formato correcto. Es el fallo de la biblioteca equivocada un nivel mas "
+            f"arriba: la mascara de una especie aplicada al transcrito de la otra."
+        )
     bases = list(sequence)
     for start, end in mask.intervals:
         if end > len(sequence):
@@ -306,6 +337,19 @@ def _build(
 #: fichero sale con formato correcto y cifras plausibles.
 _SPECIES_MARK = "the query species was assumed to be"
 
+#: Por que el resumen es un REQUISITO y no una precaucion. Demostrado con datos, no
+#: argumentado: las dos corridas humanas del 2026-08-26 —una valida y una contra la
+#: biblioteca murina— dieron `.out` con el MISMO md5, `bcc33dbc7a65e74690f5f9d1fb270035`.
+#: Son el mismo fichero byte a byte, porque lo unico que aparece es un microsatelite
+#: `(TA)n` y las repeticiones simples se detectan por COMPOSICION, no por biblioteca.
+INDISTINGUISHABLE_OUTS = (
+    "Y esto no es una precaucion teorica: las dos corridas humanas del 2026-08-26 —la "
+    "valida y la de biblioteca equivocada— produjeron .out con el MISMO md5 "
+    "(bcc33dbc7a65e74690f5f9d1fb270035), byte a byte el mismo fichero. Lo unico que "
+    "aparecia era un microsatelite (TA)n, y las repeticiones simples se detectan por "
+    "COMPOSICION y no por biblioteca. La diferencia vivia SOLO en el .tbl."
+)
+
 
 def declared_species(text: str) -> str | None:
     """La especie declarada en el resumen, en minusculas. `None` si no la declara."""
@@ -342,13 +386,18 @@ def parse_rmsk_out(
             "pasaria como veredicto. Se aborta."
         )
     esperada = expected_species.strip().lower()
-    declarada = declared_species(text)
+    # La especie se busca PRIMERO en el resumen, que es donde RepeatMasker la escribe.
+    # Los `.out` de verdad NO la traen — comprobado sobre las tres corridas reales del
+    # 2026-08-26—, asi que un `.out` a solas no se puede validar y punto.
+    declarada = declared_species(summary or "") or declared_species(text)
     if declarada is None:
         raise ShmirDesignError(
-            f"{source}: el fichero no declara la especie de la biblioteca (falta la "
-            f"linea «The query species was assumed to be ...» del resumen), asi que no "
-            f"se puede comprobar contra la esperada ({esperada}). NO HABER PODIDO "
-            f"COMPROBAR NO ES «COINCIDE»: se aborta el enmascarado."
+            f"{source}: no hay forma de saber contra que biblioteca se corrio. La linea "
+            f"«The query species was assumed to be ...» vive en el RESUMEN (.tbl) y "
+            f"aqui no hay resumen, o no la trae; el .out no la lleva nunca. Se esperaba "
+            f"«{esperada}». NO HABER PODIDO COMPROBAR NO ES «COINCIDE»: se aborta el "
+            f"enmascarado. "
+            f"{INDISTINGUISHABLE_OUTS}"
         )
     if declarada != esperada:
         raise ShmirDesignError(
@@ -356,7 +405,8 @@ def parse_rmsk_out(
             f"esperaba «{esperada}». Se aborta el enmascarado. Por que importa: una "
             f"corrida contra la especie equivocada sale con formato correcto y cifras "
             f"plausibles — un «Alu: 0 %» obtenido SIN BUSCAR Alu es indistinguible de "
-            f"un «Alu: 0 %» real, y lo unico que lo delata es esta linea."
+            f"un «Alu: 0 %» real, y lo unico que lo delata es esta linea. "
+            f"{INDISTINGUISHABLE_OUTS}"
         )
     elementos: list[RepeatElement] = []
     for numero, linea in enumerate(text.splitlines(), start=1):
