@@ -39,7 +39,7 @@ from .anatomy import Anatomy, Region
 from .coords import Frame, frame_of, label
 from .filters import FilterState, Verdict
 from .hard_filters import gc_fraction
-from .polya import Tercio
+from .polya import CLEAVAGE_MAX, CLEAVAGE_MIN, PolyASignal, Tercio
 from .tiling import TiledWindow, TilingReport
 
 DEFAULT_CANDIDATES = 6
@@ -74,6 +74,11 @@ class SelectionConfig:
     #: decir inmunes A QUE no significa nada.
     apa_immune_quota: int = 0
     apa_immune_before: int | None = None
+    #: Cuota EXPLICITA por tercio, del tipo ((PROXIMAL, 4), (MEDIO, 3), (DISTAL, 2)).
+    #: Manda sobre `min_per_tercio`. Existe para poder REASIGNAR una plaza a un tercio
+    #: concreto y que quede escrito cual y por que, en vez de que el reparto salga de
+    #: la asimetria y parezca deliberado.
+    tercio_quota: tuple[tuple[Tercio, int], ...] | None = None
 
     def __post_init__(self) -> None:
         if self.n_candidates < 1:
@@ -105,6 +110,25 @@ class SelectionConfig:
                 f"{self.n_candidates}. Se aborta en vez de recortar la cuota en "
                 f"silencio: cuantos candidatos por tercio es una decision de diseño."
             )
+        if self.tercio_quota is not None:
+            tercios = [t for t, _ in self.tercio_quota]
+            if len(set(tercios)) != len(tercios):
+                raise ValueError(
+                    f"La cuota por tercio repite alguno ({tercios}); se aborta en vez "
+                    f"de quedarse con una de las dos cifras."
+                )
+            if any(n < 0 for _, n in self.tercio_quota):
+                raise ValueError(
+                    f"La cuota por tercio {self.tercio_quota} tiene alguna cifra "
+                    f"negativa; se aborta."
+                )
+            total = sum(n for _, n in self.tercio_quota)
+            if total > self.n_candidates:
+                raise ValueError(
+                    f"La cuota por tercio suma {total} y el panel es de "
+                    f"{self.n_candidates}. Se aborta en vez de recortarla por nuestra "
+                    f"cuenta: que tercio pierde la plaza es una decision de diseño."
+                )
         if self.apa_immune_quota < 0:
             raise ValueError(
                 f"apa_immune_quota={self.apa_immune_quota} invalida; se aborta."
@@ -394,7 +418,33 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
                 f"que la cuota compra."
             )
 
-    if config.require_one_per_tercio:
+    if config.tercio_quota is not None:
+        for tercio, plazas in config.tercio_quota:
+            ya = sum(1 for c in chosen if c.tercio is tercio)
+            for _ in range(max(0, plazas - ya)):
+                if len(chosen) >= config.n_candidates:
+                    quota_unfilled.append(
+                        f"tercio {tercio.value}: no quedaban plazas "
+                        f"({config.n_candidates} pedidas)."
+                    )
+                    break
+                elegido = next(
+                    (
+                        s for s in ordenados
+                        if s.best.tercio is tercio and id(s) not in usados
+                        and _respects_spacing(s.best, chosen, config.min_spacing)
+                    ),
+                    None,
+                )
+                if elegido is None:
+                    quota_unfilled.append(
+                        f"tercio {tercio.value}: se pedian {plazas} y no hay mas sitios "
+                        f"elegibles que cumplan el espaciado de {config.min_spacing} nt."
+                    )
+                    break
+                chosen.append(elegido.best)
+                usados.add(id(elegido))
+    elif config.require_one_per_tercio:
         if config.n_candidates < len(TERCIOS):
             notes.append(
                 f"Se piden {config.n_candidates} candidatos y los tercios son "
@@ -994,3 +1044,66 @@ def coverage_report(
                 datos["rango_piscina"] = rango_piscina
         ejes[eje] = datos
     return CoverageReport(axes=ejes)
+
+
+# ─── Cuanto panel condiciona cada señal de APA ───────────────────────────────
+#
+# Una señal `APA_POSIBLE` no tumba nada: pone un TECHO a lo que quede por detras de su
+# corte. La pregunta util no es «¿hay APA?» sino QUE FRACCION DEL PANEL POSIBLE queda
+# condicionada por cada una — y se cuenta sobre las ventanas ELEGIBLES, no sobre las
+# 1585 del tilado, porque las que no pasan los filtros no eran candidatos de todas
+# formas.
+
+
+@dataclass(frozen=True)
+class ApaCeilingRow:
+    signal: "PolyASignal"
+    eligible_total: int
+    behind: int
+    in_band: int
+    ahead: int
+
+    @property
+    def fraction(self) -> float:
+        return self.behind / self.eligible_total if self.eligible_total else 0.0
+
+    def describe(self) -> str:
+        from .coords import Frame, label, span
+
+        return (
+            f"{self.signal.motif} en {label(self.signal.position, Frame.UTR3)} "
+            f"(corte {span(self.signal.end + CLEAVAGE_MIN, self.signal.end + CLEAVAGE_MAX, Frame.UTR3)}): "
+            f"TECHO sobre {self.behind} de {self.eligible_total} ventanas elegibles "
+            f"({self.fraction:.1%}); {self.in_band} en la banda de corte "
+            f"(PENALIZADO, no se sabe de que lado caen); {self.ahead} por delante, "
+            f"inmunes. Techo INDETERMINADO en las tres: fraccion_isoforma_larga sin "
+            f"medir."
+        )
+
+
+def apa_ceiling_table(
+    report: TilingReport, config: SelectionConfig | None = None
+) -> list[ApaCeilingRow]:
+    """Una fila por señal `APA_POSIBLE`, con cuanto panel condiciona.
+
+    Las coordenadas de las señales van en el marco de LO TILADO, igual que las ventanas,
+    asi que la cuenta es directa y no hay conversion que equivocar.
+    """
+    from .polya import SignalClass
+
+    elegibles = [w.window.start for w in report.windows if is_eligible(w, config)]
+    filas: list[ApaCeilingRow] = []
+    for señal in report.signals:
+        if señal.classification is not SignalClass.APA_POSSIBLE:
+            continue
+        pronto, tarde = señal.end + CLEAVAGE_MIN, señal.end + CLEAVAGE_MAX
+        filas.append(
+            ApaCeilingRow(
+                signal=señal,
+                eligible_total=len(elegibles),
+                behind=sum(1 for p in elegibles if p > tarde),
+                in_band=sum(1 for p in elegibles if pronto < p <= tarde),
+                ahead=sum(1 for p in elegibles if p <= pronto),
+            )
+        )
+    return filas

@@ -31,6 +31,7 @@ from .scaffold import ScaffoldSpec, build_hairpin
 from .comparative import CONVENTION_NOTE, comparative_text, comparative_tsv
 from .external_score import manual_instructions
 from .selection import (
+    apa_ceiling_table,
     coverage_report,
     ReportSelection,
     penalty_sensitivity,
@@ -358,10 +359,15 @@ def text_report(
         )
 
     config = selection.selection.config
-    if config.apa_immune_quota or config.min_per_tercio > 1:
+    if config.apa_immune_quota or config.min_per_tercio > 1 or config.tercio_quota:
         lines.extend(["", "── Reparto de plazas ──"])
         cuotas = []
-        if config.require_one_per_tercio:
+        if config.tercio_quota:
+            cuotas.append(
+                "por tercio del 3'UTR "
+                + ", ".join(f"{t.value} {n}" for t, n in config.tercio_quota)
+            )
+        elif config.require_one_per_tercio:
             cuotas.append(f"{config.min_per_tercio} por tercio del 3'UTR")
         if config.apa_immune_quota:
             cuotas.append(
@@ -399,6 +405,28 @@ def text_report(
             "siguen"
         )
         lines.append("  compartiendo modo de fallo.")
+        if config.apa_immune_quota and config.tercio_quota:
+            lines.append(
+                "  El espaciado NO se baja para meter un inmune mas: el espaciado "
+                "compra INDEPENDENCIA"
+            )
+            lines.append(
+                "  entre apuestas, no NUMERO de apuestas. Dos candidatos a 30 nt fallan "
+                "juntos, asi que"
+            )
+            lines.append(
+                "  un quinto inmune pegado a otro no compraria nada. La plaza que la "
+                "cuota de inmunes no"
+            )
+            lines.append(
+                "  puede llenar se reasigna al TERCIO MEDIO, que es donde el panel "
+                "queda mas flojo:"
+            )
+            lines.append(
+                "  si el APA resulta funcional se pierde un candidato; si no, se gana "
+                "cobertura donde"
+            )
+            lines.append("  hace falta.")
         for fallo in selection.selection.quota_unfilled:
             lines.append(f"    ⚠  {fallo}")
 
@@ -480,6 +508,18 @@ def text_report(
         if s.motif in ("AATAAA", "ATTAAA")
         and s.classification.value == "APA_POSIBLE"
     ]
+    # TODAS las señales de APA, con cuanto panel condiciona cada una. Enseñar solo la
+    # dominante esconde el resto: el 3'UTR humano tiene DOS y la segunda condiciona la
+    # mitad distal, que es justo donde cae su bloque conservado.
+    techos = apa_ceiling_table(tiling)
+    if len(techos) > 1:
+        lines.append(
+            f"  SEÑALES DE APA POSIBLE: {len(techos)}. Cada una pone su propio techo, y "
+            f"se cuentan aparte:"
+        )
+        for fila in techos:
+            lines.extend(f"    · {l}" for l in _envolver(fila.describe(), 86))
+        lines.append("")
     if canonicas:
         dominante = min(canonicas, key=lambda s: s.position)
         corte = span(dominante.end + 10, dominante.end + 30, marco)
@@ -505,26 +545,6 @@ def text_report(
             "  no una medida. Con una tabla de PolyA_DB o PolyASite (--apa-medido) "
             "dejaria de serlo."
         )
-        if polya_conservation is not None:
-            lines.append("  Conservacion de esta señal en la otra especie:")
-            lines.extend(
-                f"    {l}"
-                for l in _envolver(polya_conservation.describe(), 84)
-            )
-            if not polya_conservation.conserved:
-                lines.append(
-                    "    Consecuencia: el techo es un problema del MODELO murino, no "
-                    "del candidato."
-                )
-        else:
-            lines.append(
-                "  Sobre si esta conservada en otra especie: NOT_RUN. No se ha pasado "
-                "ningun 3'UTR"
-            )
-            lines.append(
-                "  con el que comparar (--fasta-b), asi que este informe no lo "
-                "confirma ni lo desmiente."
-            )
         lines.append(
             f"  Su corte cae en {corte}. Un candidato que empiece por detras pierde su "
             f"diana en la"
@@ -626,6 +646,29 @@ def text_report(
             )
             lines.append("    todos quedan con el mismo techo a la vez.")
 
+        if polya_conservation is not None:
+            lines.append("  Conservacion de esta señal en la otra especie:")
+            lines.extend(
+                f"    {l}"
+                for l in _envolver(polya_conservation.describe(), 84)
+            )
+            if not polya_conservation.conserved:
+                lines.extend(
+                    f"    {l}" for l in _envolver(polya_conservation.prior_note(), 84)
+                )
+                lines.append(
+                    "    Consecuencia: el techo es un problema del MODELO murino, no "
+                    "del candidato."
+                )
+        else:
+            lines.append(
+                "  Sobre si esta conservada en otra especie: NOT_RUN. No se ha pasado "
+                "ningun 3'UTR"
+            )
+            lines.append(
+                "  con el que comparar (--fasta-b), asi que este informe no lo "
+                "confirma ni lo desmiente."
+            )
         # El experimento que convierte el techo en un numero. Coordenadas derivadas,
         # esquivando las dianas del panel: en muestras tratadas un amplicon que solape
         # una diana mide corte por RNAi, no isoformas.

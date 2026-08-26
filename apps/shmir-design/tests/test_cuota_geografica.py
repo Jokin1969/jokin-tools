@@ -209,3 +209,81 @@ class TestLoQueDiceElInforme(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(RATON.is_file(), "NOT_RUN: falta data/reference/NM_011170.3.fa")
+class TestLaQuintaPlazaVaAlTercioMEDIO(unittest.TestCase):
+    """La plaza que la cuota de inmunes no puede llenar se reasigna al tercio medio.
+
+    Razon, que va escrita en el informe: si el APA resulta funcional se pierde un
+    candidato; si no, se gana cobertura donde el panel queda mas flojo.
+
+    El espaciado NO se baja para meter un quinto inmune: el espaciado compra
+    INDEPENDENCIA entre apuestas, no numero de apuestas. Dos candidatos a 30 nt fallan
+    juntos, asi que un quinto inmune pegado a otro no compra nada.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from shmir_design.polya import Tercio
+
+        cls.tiling = _tiling()
+        cls.seleccion = select_from_report(
+            cls.tiling,
+            SelectionConfig(
+                n_candidates=10,
+                apa_immune_quota=4,
+                apa_immune_before=CORTE_ESTRICTO,
+                tercio_quota=((Tercio.PROXIMAL, 4), (Tercio.MEDIO, 3), (Tercio.DISTAL, 2)),
+            ),
+        )
+        cls.tercios = [
+            cls.seleccion.window_of(c).tercio for c in cls.seleccion.selection.chosen
+        ]
+
+    def test_el_espaciado_sigue_intacto(self):
+        inicios = sorted(c.start for c in self.seleccion.selection.chosen)
+        for a, b in zip(inicios, inicios[1:]):
+            with self.subTest((a, b)):
+                self.assertGreaterEqual(b - a, 50)
+
+    def test_cuatro_inmunes_ni_uno_mas(self):
+        inicios = [c.start for c in self.seleccion.selection.chosen]
+        self.assertEqual(
+            sorted(p for p in inicios if p <= CORTE_ESTRICTO), [10, 60, 143, 221]
+        )
+
+    def test_el_medio_se_lleva_tres(self):
+        from shmir_design.polya import Tercio
+
+        self.assertGreaterEqual(self.tercios.count(Tercio.MEDIO), 3)
+
+    def test_una_cuota_por_tercio_que_no_suma_no_se_acepta_a_ciegas(self):
+        from shmir_design.polya import Tercio
+
+        with self.assertRaises(ValueError):
+            SelectionConfig(
+                n_candidates=10,
+                tercio_quota=((Tercio.MEDIO, 8), (Tercio.DISTAL, 8)),
+            )
+
+    def test_una_cuota_que_repite_tercio_aborta(self):
+        from shmir_design.polya import Tercio
+
+        with self.assertRaises(ValueError):
+            SelectionConfig(
+                n_candidates=10,
+                tercio_quota=((Tercio.MEDIO, 2), (Tercio.MEDIO, 3)),
+            )
+
+    def test_el_informe_escribe_la_razon_de_la_reasignacion(self):
+        from shmir_design.outputs import text_report
+        from shmir_design.scaffold import SGEP_SCAFFOLD
+
+        texto = text_report(
+            species="raton", tiling=self.tiling, selection=self.seleccion,
+            scaffold=SGEP_SCAFFOLD,
+        ).lower()
+        self.assertIn("tercio medio", texto)
+        self.assertIn("si el apa resulta funcional se pierde un candidato", texto)
+        self.assertIn("se gana cobertura", texto)

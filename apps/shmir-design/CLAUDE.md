@@ -331,6 +331,29 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     Tiene dos `ATTAAA` en `3utr:955` y `3utr:1167` clasificadas `APA_POSIBLE`. El riesgo no
     está conservado **como ese hexámero**, que es otra cosa.
     Sin `--fasta-b` la pregunta sale **`NOT_RUN`**, nunca «no está conservada».
+  - **Y el dato humano SUBE a la evaluación del riesgo murino**, pegado al `TECHO` de los
+    distales y no en una sección aparte (`SignalConservation.prior_note`). No es solo
+    ausencia de homólogo: el gen humano ha **prescindido del hexámero canónico por
+    completo**. Un APA proximal funcional es un elemento regulador, y los elementos
+    reguladores tienden a conservarse, así que eso **REBAJA la probabilidad a priori** de
+    que la murina se use. **NO LA DESCARTA**: puede ser diferencia real de especie. Las
+    dos cláusulas van juntas y ninguna sobra — el informe termina con «rebaja, no
+    descarta».
+- **El 3'UTR humano trae sus DOS señales de APA desde el principio**, con la misma
+  maquinaria: `ATTAAA` en `3utr:955` y `3utr:1167`, las dos `APA_POSIBLE`, `TECHO` y
+  `fraccion_isoforma_larga = None`. Condicionan la mitad distal, y `apa_ceiling_table`
+  emite cuánto panel condiciona cada una sobre las **309 ventanas elegibles**:
+  - `3utr:955` (corte `3utr:970-990`): **100 de 309 = 32,4 %** con techo, 6 en la banda.
+  - `3utr:1167` (corte `3utr:1182-1202`): **74 de 309 = 23,9 %**, 6 en la banda. Es
+    subconjunto de la anterior: 74 candidatos llevarían **dos** techos.
+  - El informe saca **todas** las señales `APA_POSIBLE`, no solo la dominante: con dos,
+    enseñar una esconde justo la que condiciona la mitad distal. La banda de corte va
+    aparte de lo que está detrás — `PENALIZADO` no es `TECHO`, y sumarlas sería inventar.
+  - **El bloque conservado `3utr:1507-1532` queda por detrás de las DOS**, pero hoy la
+    pregunta es académica: de las **47 ventanas que lo solapan, ninguna es elegible**, y
+    no por polyA — caen por GC (40), homopolímero (32) y asimetría (26). Es un tramo de
+    baja complejidad. Si algún día se relajan esos umbrales, esas ventanas nacen con dos
+    techos encima.
   - **Inmunes: 60, 143 y 221**, no solo 60. 60 es el único del panel elegido, pero la
     piscina de elegibles tiene 19 sitios más por delante de la señal y el informe saca
     los mejores por asimetría — `3utr:143` (+5,08) y `3utr:221` (+5,15 − 1,00 penal. =
@@ -384,11 +407,19 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     más tardío (`3utr:323`) admite ventanas **de dentro de la banda de 20 nt**, que
     `polya_risk` clasifica `PENALIZADO`, no `NO_APLICA`. Llamar inmune a una de la banda
     es inventarse una precisión que no hay.
-  - **Con el criterio estricto y 50 nt de espaciado caben CUATRO inmunes, no cinco**:
-    `3utr:10`, `60`, `143` y `221`. Es un hecho geométrico del 3'UTR —los 20 sitios
-    elegibles por delante de 303 se apelotonan—, no una limitación del código, y hay un
-    test que lo fija. La quinta plaza **se declara sin llenar** en vez de rellenarse con
-    un candidato de más abajo, que sería otro riesgo y no el que la cuota compra.
+  - **Con el criterio estricto y 50 nt de espaciado caben CUATRO inmunes, no cinco.
+    DECIDIDO (2026-08-26)**: `3utr:10`, `60`, `143` y `221`. Es un hecho geométrico del
+    3'UTR —los 20 sitios elegibles por delante de 303 se apelotonan—, no una limitación
+    del código, y hay un test que lo fija.
+  - **El espaciado NO se baja para meter un quinto inmune.** El espaciado compra
+    **independencia entre apuestas, no número de apuestas**: las causas de fallo son
+    regionales y dos candidatos a 30 nt fallan juntos, así que un quinto inmune pegado a
+    otro no compraría nada.
+  - **La quinta plaza va al TERCIO MEDIO** (`SelectionConfig.tercio_quota`), que es donde
+    el panel queda más flojo, y el informe escribe la razón: **si el APA resulta funcional
+    se pierde un candidato; si no, se gana cobertura donde hace falta.** El panel de 10
+    queda proximal 4 / medio 4 / distal 2 — la cuota pide 3 en el medio y la asimetría
+    pone el cuarto.
 - **El sesgo de baja complejidad está DESCARTADO** como explicación del score de
   miRarchitect: correlación carrera máxima / score `r = +0,154` sobre las 24, y
   homopolímeros de 4 o más repartidos 5/15 entre los mejores y 3/9 entre los peores — el

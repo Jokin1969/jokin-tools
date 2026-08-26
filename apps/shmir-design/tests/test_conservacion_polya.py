@@ -111,3 +111,76 @@ class TestLaFuncionSeNiegaALoQueNoPuedeHacer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(
+    fixture_available(HUMANO) and fixture_available(RATON),
+    "NOT_RUN: faltan los fixtures de los dos 3'UTR",
+)
+class TestElDatoHumanoRebajaLaProbabilidadAPriori(unittest.TestCase):
+    """No es solo ausencia de homologo: el gen humano ha PRESCINDIDO del hexamero.
+
+    Un APA proximal funcional es un elemento regulador, y los elementos reguladores
+    tienden a conservarse. Que el 3'UTR humano no tenga NI UNA `AATAAA` en 1606 nt
+    rebaja la probabilidad a priori de que la murina sea funcional. Las dos clausulas
+    van juntas y ninguna sobra: REBAJA, NO DESCARTA — puede ser diferencia real de
+    especie.
+
+    Y va pegado al TECHO de los candidatos distales, no en una seccion aparte: quien
+    lee «techo indeterminado» tiene que leer ahi mismo lo que se sabe del a priori.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from shmir_design.polya import signal_conservation
+
+        cls.resultado = signal_conservation(
+            "AATAAA", load_3utr(HUMANO), other_name="humano"
+        )
+
+    def test_hay_una_nota_de_probabilidad_a_priori(self):
+        self.assertTrue(self.resultado.prior_note())
+
+    def test_dice_que_REBAJA(self):
+        self.assertIn("rebaja", self.resultado.prior_note().lower())
+
+    def test_y_dice_que_NO_DESCARTA(self):
+        nota = self.resultado.prior_note().lower()
+        self.assertIn("no lo descarta", nota)
+        self.assertIn("diferencia real de especie", nota)
+
+    def test_da_el_argumento_y_no_solo_la_conclusion(self):
+        nota = self.resultado.prior_note().lower()
+        self.assertIn("elemento regulador", nota)
+        self.assertIn("tienden a conservarse", nota)
+
+    def test_no_es_ausencia_de_homologo_a_secas(self):
+        self.assertIn("prescindido", self.resultado.prior_note().lower())
+
+    def test_si_la_señal_SI_estuviera_conservada_no_hay_nota(self):
+        from shmir_design.polya import signal_conservation
+
+        # Con el propio 3'UTR de raton como «otra especie», la AATAAA aparece: entonces
+        # no hay nada que rebajar y la nota va vacia en vez de inventar un argumento.
+        conservada = signal_conservation(
+            "AATAAA", load_3utr(RATON), other_name="raton (control)"
+        )
+        self.assertTrue(conservada.conserved)
+        self.assertEqual(conservada.prior_note(), "")
+
+    def test_el_informe_lo_pone_PEGADO_al_techo(self):
+        from shmir_design.outputs import text_report
+        from shmir_design.scaffold import SGEP_SCAFFOLD
+        from shmir_design.selection import SelectionConfig, select_from_report
+        from shmir_design.tiling import tile_utr
+
+        tiling = tile_utr(load_3utr(RATON))
+        seleccion = select_from_report(tiling, SelectionConfig(n_candidates=6))
+        texto = text_report(
+            species="raton", tiling=tiling, selection=seleccion,
+            scaffold=SGEP_SCAFFOLD, polya_conservation=self.resultado,
+        )
+        bloque = texto.split("── Riesgo de polyA")[1].split("── Que se ha")[0]
+        self.assertIn("rebaja", bloque.lower())
+        # En el MISMO bloque que el techo, y despues de el.
+        self.assertLess(bloque.index("techo indeterminado"), bloque.lower().index("rebaja"))

@@ -1603,6 +1603,24 @@ class SignalConservation:
         """¿Aparece el hexamero, aunque sea una vez, en la otra especie?"""
         return bool(self.occurrences)
 
+    def prior_note(self) -> str:
+        """Que dice la AUSENCIA sobre la probabilidad a priori. Vacia si aparece.
+
+        Las dos clausulas van juntas y ninguna sobra: rebaja, no descarta.
+        """
+        if self.conserved:
+            return ""
+        return (
+            f"Y esto no es solo ausencia de homologo: el gen de {self.other_name} ha "
+            f"PRESCINDIDO del hexamero canonico por completo — ni una {self.motif} en "
+            f"{self.other_length} nt de 3'UTR. Un APA proximal FUNCIONAL es un elemento "
+            f"regulador, y los elementos reguladores tienden a conservarse. Eso REBAJA "
+            f"la probabilidad a priori de que la señal de esta especie se use. NO LO "
+            f"DESCARTA: puede ser una diferencia real de especie, y mientras "
+            f"fraccion_isoforma_larga siga sin medir el techo sigue indeterminado. "
+            f"Rebaja, no descarta."
+        )
+
     def describe(self) -> str:
         cabecera = (
             f"COMPROBADO sobre {self.other_name}, {self.other_length} nt: "
