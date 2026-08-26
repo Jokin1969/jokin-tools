@@ -225,9 +225,10 @@ if __name__ == "__main__":
 
 TABLA = (
     "# comentario que hay que conservar\n"
-    "guia\tveredicto\tscore_externo\tfuente_score\tknockdown_medido\n"
-    f"{SGEP_GUIDE}\tINCOMPLETE\t\t\t\n"
-    "UAGAUAAGCAUUAUAAUUCCUG\tINCOMPLETE\t\t\t\n"
+    "guia\tveredicto\tscore_externo\tfuente_score\tmirarch_confirmado\t"
+    "mirarch_rank\tmirarch_shift_nt\tknockdown_medido\n"
+    f"{SGEP_GUIDE}\tINCOMPLETE\t\t\t\t\t\t\n"
+    "UAGAUAAGCAUUAUAAUUCCUG\tINCOMPLETE\t\t\t\t\t\t\n"
 )
 
 
@@ -287,15 +288,64 @@ class TestMergeScores(unittest.TestCase):
         )
         self.assertEqual(resultado.filled, (SGEP_GUIDE,))
 
-    def test_una_guia_que_no_esta_en_la_tabla_aborta(self):
-        # Un score para una guia que nadie diseño significa que el fichero no es de
-        # esta corrida. Meterlo igual seria pegar numeros a ciegas.
+    def test_si_NINGUNA_guia_cuadra_se_aborta(self):
+        # Un fichero de scores en el que ninguna guia corresponde a ningun candidato
+        # no es de esta corrida. Que sobren guias es normal —miRarchitect barre el
+        # 3'UTR entero— pero que no cuadre ninguna, no.
         with self.assertRaises(ShmirDesignError) as caja:
             merge_scores(
                 TABLA, "UAAAAAAAAAAAAAAAAAAAAA\t0.5\n",
                 source=ScoreSource.MANUAL_MIRARCHITECT,
             )
-        self.assertIn("UAAAAAAAAAAAAAAAAAAAAA", str(caja.exception))
+        self.assertIn("no son de la misma corrida", str(caja.exception))
+
+    def test_que_sobren_guias_de_la_fuente_NO_aborta(self):
+        resultado = merge_scores(
+            TABLA,
+            f"{SGEP_GUIDE}\t0.91\nUAAAAAAAAAAAAAAAAAAAAA\t0.5\n",
+            source=ScoreSource.MANUAL_MIRARCHITECT,
+        )
+        self.assertEqual(len(resultado.unmatched), 1)
+        self.assertIn("no corresponden a ningun candidato", resultado.format_text())
+
+    def test_el_offset_queda_escrito_en_la_fuente(self):
+        resultado = merge_scores(
+            TABLA, f"{SGEP_GUIDE}\t0.91\n",
+            source=ScoreSource.MANUAL_MIRARCHITECT, offset=949,
+        )
+        self.assertIn("manual_mirarchitect_offset+949", resultado.text)
+
+    def test_sin_offset_no_se_inventa_ninguno(self):
+        resultado = merge_scores(
+            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
+        )
+        self.assertNotIn("offset", resultado.text)
+
+    def test_las_banderas_se_rellenan(self):
+        resultado = merge_scores(
+            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
+        )
+        filas = [l.split("\t") for l in resultado.text.splitlines() if not l.startswith("#")]
+        fila = next(f for f in filas[1:] if f[0] == SGEP_GUIDE)
+        self.assertEqual(fila[filas[0].index("mirarch_confirmado")], "si")
+        self.assertEqual(fila[filas[0].index("mirarch_rank")], "1")
+        self.assertEqual(fila[filas[0].index("mirarch_shift_nt")], "0")
+
+    def test_un_candidato_sin_match_no_lleva_rank_cero(self):
+        # Vacio, no cero: no haber aparecido y ser el primero son cosas opuestas.
+        resultado = merge_scores(
+            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
+        )
+        filas = [l.split("\t") for l in resultado.text.splitlines() if not l.startswith("#")]
+        otra = next(f for f in filas[1:] if f[0] != SGEP_GUIDE)
+        self.assertEqual(otra[filas[0].index("mirarch_rank")], "")
+        self.assertEqual(otra[filas[0].index("mirarch_confirmado")], "no")
+
+    def test_el_resumen_dice_la_direccion_de_la_escala(self):
+        resultado = merge_scores(
+            TABLA, f"{SGEP_GUIDE}\t0.91\n", source=ScoreSource.MANUAL_MIRARCHITECT
+        )
+        self.assertIn("menor es mejor", resultado.format_text())
 
     def test_un_score_que_no_es_un_numero_aborta(self):
         with self.assertRaises(ShmirDesignError) as caja:
@@ -339,8 +389,8 @@ class TestMergeScores(unittest.TestCase):
         original = [l.split("\t") for l in TABLA.splitlines() if not l.startswith("#")]
         nuevas = [l.split("\t") for l in resultado.text.splitlines() if not l.startswith("#")]
         for antes, despues in zip(original, nuevas):
-            self.assertEqual(antes[:2], despues[:2])
-            self.assertEqual(antes[4], despues[4])
+            self.assertEqual(antes[:2], despues[:2])       # guia y veredicto
+            self.assertEqual(antes[-1], despues[-1])       # knockdown_medido
 
 
 class TestEnlacesExternos(unittest.TestCase):

@@ -23,7 +23,12 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 from .anatomy import Anatomy
-from .external_score import FEATURE_COLUMNS, ExternalScore, splashrna_features
+from .external_score import (
+    FEATURE_COLUMNS,
+    MIRARCH_COLUMNS,
+    ExternalScore,
+    splashrna_features,
+)
 from .gblock import build_gblock
 from .polya import POLYA_COLUMNS
 from .scaffold import ScaffoldSpec, build_hairpin
@@ -61,11 +66,12 @@ COMPARATIVE_COLUMNS = (
     "veredicto",
     "score_externo",
     "fuente_score",
+    *MIRARCH_COLUMNS,
     "knockdown_medido",
 )
 
 #: Las que se rellenan desde fuera y por eso van al final, juntas y vacias.
-PENDIENTES = ("score_externo", "fuente_score", "knockdown_medido")
+PENDIENTES = ("score_externo", "fuente_score", *MIRARCH_COLUMNS, "knockdown_medido")
 
 CABECERA = (
     "# Tabla comparativa de shmir-design. Las columnas knockdown_medido y "
@@ -200,6 +206,10 @@ def comparative_rows(
             # argumentos es la forma de decirlo, y no hay ninguna rama que rellene
             # esto con una cuenta local (ver `external_score.py`).
             **ExternalScore().as_columns(),
+            # Vacias hasta que `tools/import_scores.py` cruce una fuente externa. Aqui
+            # no se calcula ninguna: no hay forma de saber que dice miRarchitect sin
+            # preguntarselo a miRarchitect.
+            **dict.fromkeys(MIRARCH_COLUMNS, ""),
             "knockdown_medido": "",
         }
         for resultado in window.filters:

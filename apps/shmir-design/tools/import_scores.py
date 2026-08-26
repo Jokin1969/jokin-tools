@@ -57,6 +57,14 @@ def main(argv: list[str]) -> int:
         help="La tabla comparativa de la corrida (`<especie>_comparativa.tsv`).",
     )
     parser.add_argument(
+        "--offset", type=int,
+        help="Cuanto hay que sumar a las coordenadas de la fuente para llevarlas a las "
+             "del transcrito (p. ej. 949 si la fuente numera sobre el 3'UTR). NO se "
+             "usa para cruzar —el cruce va por secuencia— pero queda escrito en "
+             "fuente_score, porque un score cruzado con offset y otro sin el no son el "
+             "mismo dato.",
+    )
+    parser.add_argument(
         "--out", type=Path,
         help="Donde escribir la tabla con los scores. Sin esto va a stdout y el "
              "fichero de entrada no se toca.",
@@ -69,6 +77,7 @@ def main(argv: list[str]) -> int:
             args.tsv.read_text(encoding="utf-8"),
             source=FUENTES[args.fuente],
             source_name=str(args.tsv),
+            offset=args.offset,
         )
     except (ShmirDesignError, OSError, UnicodeDecodeError) as exc:
         # rule2-ok: frontera CLI. No se escribe NADA si algo falla: media tabla

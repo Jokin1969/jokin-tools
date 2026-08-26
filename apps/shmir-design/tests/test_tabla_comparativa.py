@@ -227,11 +227,20 @@ class TestScoreExterno(unittest.TestCase):
         _, seleccion = _piezas()
         return comparative_rows(seleccion, SGEP_SCAFFOLD)[0]
 
-    def test_las_tres_ultimas_son_score_fuente_y_knockdown(self):
+    def test_las_ultimas_son_las_que_esperan_dato_de_fuera(self):
         self.assertEqual(
-            COMPARATIVE_COLUMNS[-3:],
-            ("score_externo", "fuente_score", "knockdown_medido"),
+            COMPARATIVE_COLUMNS[-6:],
+            ("score_externo", "fuente_score", "mirarch_confirmado", "mirarch_rank",
+             "mirarch_shift_nt", "knockdown_medido"),
         )
+
+    def test_las_banderas_de_miRarchitect_nacen_vacias(self):
+        _, seleccion = _piezas()
+        filas = comparative_rows(seleccion, SGEP_SCAFFOLD)
+        for fila in filas[1:]:
+            for columna in ("mirarch_confirmado", "mirarch_rank", "mirarch_shift_nt"):
+                with self.subTest(columna):
+                    self.assertEqual(fila[filas[0].index(columna)], "")
 
     def test_las_dos_columnas_del_score_van_vacias(self):
         _, seleccion = _piezas()

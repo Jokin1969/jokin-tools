@@ -24,9 +24,10 @@ GUIA = "UAGAUAAGCAUUAUAAUUCCUA"
 OTRA = "UAGAUAAGCAUUAUAAUUCCUG"
 TABLA = (
     "# cabecera de comentario\n"
-    "guia\tveredicto\tscore_externo\tfuente_score\tknockdown_medido\n"
-    f"{GUIA}\tINCOMPLETE\t\t\t\n"
-    f"{OTRA}\tINCOMPLETE\t\t\t\n"
+    "guia\tveredicto\tscore_externo\tfuente_score\tmirarch_confirmado\t"
+    "mirarch_rank\tmirarch_shift_nt\tknockdown_medido\n"
+    f"{GUIA}\tINCOMPLETE\t\t\t\t\t\t\n"
+    f"{OTRA}\tINCOMPLETE\t\t\t\t\t\t\n"
 )
 
 

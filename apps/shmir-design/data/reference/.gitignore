@@ -11,3 +11,13 @@
 # pasajera no corren para nadie que clone el repositorio, y una regresion que no corre
 # no protege de nada. Si prefieres sacarlo igualmente, borra esta linea.
 !guias_pasajera.fa
+
+# Segunda excepcion deliberada, con el mismo criterio de tamaño que la de arriba:
+# 2,3 kB de FASTA, 15 kB de GenBank y 772 B de scores no son "un RefSeq RNA completo".
+# Con ellos dentro, la corrida murina de referencia es reproducible clonando el
+# repositorio, la anatomia sale del CDS anotado y los tests del cruce con miRarchitect
+# corren para todo el mundo. Si prefieres sacarlos, borra estas tres lineas: los tests
+# que dependen de ellos se saltaran de forma visible, no fallaran en silencio.
+!NM_011170.3.fa
+!NM_011170.3.gb
+!mirarchitect_prnp_raton.tsv

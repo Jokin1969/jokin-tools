@@ -296,6 +296,20 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - **`riesgo_APA` es una PREDICCIÓN mientras no haya `--apa-medido`**, y el informe lo
   dice con esa palabra. Con sitios medidos el dato sustituye a la predicción y sale el
   techo de knockdown.
+- **El cruce con una fuente externa va por SECUENCIA, nunca por coordenada.**
+  miRarchitect numera sus ventanas con un convenio que no es el nuestro —para la misma
+  guía da a veces una posición y a veces otra— así que cruzar por número pega un score
+  en la fila del candidato de al lado. Y **la posición 1 de la guía no se compara**: los
+  dos lados fuerzan ahí una T (la U que quiere AGO2), así que esa base es un convenio y
+  no un dato; comparándola, la ventana 3'UTR 819 quedaba sin cruzar por un único
+  desapareamiento sobre 19 nt de solapamiento idéntico. Una ventana corrida hasta 15 nt
+  se asigna al candidato más cercano con la distancia escrita en `mirarch_shift_nt`; más
+  allá, no se asigna.
+- **La escala de miRarchitect está INVERTIDA: menor es mejor.** Vive en
+  `external_score._LOWER_IS_BETTER` y `lower_is_better()` **aborta** para una fuente no
+  registrada, en vez de suponer una dirección: ordenar por un score cuya dirección no se
+  conoce lleva a síntesis justo los peores candidatos. El resumen del importador lo dice
+  en cada corrida.
 - **`score_externo` va vacía y no se rellena aquí.** Se comprobó si miRarchitect
   (`mirarchitect.cs.put.poznan.pl`), SplashRNA (`splashrna.mskcc.org`) y el GPP Web
   Portal (`portals.broadinstitute.org`) responden: las tres dan 403 en el CONNECT del

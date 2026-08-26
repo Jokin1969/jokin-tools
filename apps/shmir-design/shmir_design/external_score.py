@@ -112,6 +112,53 @@ EXTERNAL_TOOLS = (
 #: Las dos columnas que viajan en la tabla comparativa, al lado de `knockdown_medido`.
 SCORE_COLUMNS = ("score_externo", "fuente_score")
 
+#: Banderas del cruce con miRarchitect. La tercera no la pidio el encargo —pedia dos—
+#: pero la distancia de desplazamiento es un NUMERO y meterlo dentro de una etiqueta
+#: (`ventana_desplazada_9nt`) la haria imposible de filtrar. Va en su columna.
+MIRARCH_COLUMNS = ("mirarch_confirmado", "mirarch_rank", "mirarch_shift_nt")
+
+#: Mas alla de esto no se asigna score: no es la misma ventana. Con guias de 22 nt, 15
+#: de desplazamiento dejan 7 nt de solapamiento.
+MAX_SHIFT = 15
+#: Minimo solapamiento exacto para dar dos ventanas por la misma. Sale del limite
+#: de arriba: 22 nt de guia menos 15 de desplazamiento.
+MIN_OVERLAP = 7
+#: Hasta aqui la ventana se considera la misma; por encima, `ventana_desplazada`.
+DISPLACED_SHIFT = 5
+#: Por DEBAJO de esto miRarchitect da la guia por buena. Ojo: su escala esta INVERTIDA.
+CONFIRMED_BELOW = 20.0
+
+def guide_shift(ours: str, theirs: str, *, max_shift: int = MAX_SHIFT) -> int | None:
+    """Cuantos nt esta corrida una ventana respecto de la otra, o `None`.
+
+    Se cruza por SECUENCIA y no por coordenada a proposito: miRarchitect numera sus
+    ventanas con un convenio que no es el nuestro —para la misma guia da a veces una
+    posicion y a veces otra— asi que cruzar por numero pegaria un score en la fila del
+    candidato de al lado.
+
+    **La posicion 1 no se compara.** Los dos lados fuerzan ahi una T —la U de la
+    posicion 1 que quiere AGO2— asi que esa base es un convenio, no un dato: en la
+    ventana 3'UTR 819 la base real es una C en los dos casos y la T forzada era el
+    unico desapareamiento de un solapamiento de 19 nt. Compararla dejaba sin cruzar
+    ventanas que son la misma.
+
+    El solapamiento tiene que ser EXACTO y de al menos `MIN_OVERLAP` nt: sin ese minimo,
+    tres bases sueltas emparejan con cualquier cosa.
+    """
+    a = "".join(ours.split()).upper().replace("U", "T")[1:]
+    b = "".join(theirs.split()).upper().replace("U", "T")[1:]
+    if not a or not b:
+        return None
+    for desplazamiento in sorted(range(-max_shift, max_shift + 1), key=abs):
+        ia = max(0, desplazamiento)
+        ib = max(0, -desplazamiento)
+        solape = min(len(a) - ia, len(b) - ib)
+        if solape < MIN_OVERLAP:
+            continue
+        if a[ia : ia + solape] == b[ib : ib + solape]:
+            return desplazamiento
+    return None
+
 
 class ScoreSource(StrEnum):
     """De donde salio el numero. Nunca se deduce: se declara al construir el score."""
@@ -126,12 +173,34 @@ class ScoreSource(StrEnum):
     MANUAL_MIRARCHITECT = "manual_mirarchitect"
 
 
+#: Que direccion tiene la escala de cada fuente. Perder esto es leer el ranking al
+#: reves y llevarse a sintesis justo las peores.
+_LOWER_IS_BETTER = {
+    ScoreSource.MANUAL_MIRARCHITECT: True,
+    ScoreSource.MIRARCHITECT_API: True,
+}
+
+
+def lower_is_better(source: ScoreSource) -> bool:
+    """¿Menor es mejor en esta escala? Se aborta antes que suponerlo."""
+    if source not in _LOWER_IS_BETTER:
+        raise ShmirDesignError(
+            f"No esta registrado si la escala de {source.value} es de menor-es-mejor o "
+            f"de mayor-es-mejor. Se aborta: ordenar por un score cuya direccion no se "
+            f"conoce llevaria a sintesis justo los peores candidatos."
+        )
+    return _LOWER_IS_BETTER[source]
+
+
 @dataclass(frozen=True)
 class ExternalScore:
     """Un score ajeno con su procedencia, o nada en absoluto."""
 
     value: float | None = None
     source: ScoreSource | None = None
+    #: Se pega detras de la fuente en `fuente_score`. Aqui viaja el offset de
+    #: coordenadas: un score cruzado con +949 y otro sin cruzar NO son el mismo dato.
+    annotation: str = ""
 
     def __post_init__(self) -> None:
         if (self.value is None) != (self.source is None):
@@ -148,7 +217,7 @@ class ExternalScore:
             return {"score_externo": "", "fuente_score": ""}
         return {
             "score_externo": f"{self.value:.3f}",
-            "fuente_score": str(self.source.value),
+            "fuente_score": f"{self.source.value}{self.annotation}",
         }
 
 
@@ -267,6 +336,40 @@ def manual_instructions(guides: list[str] | tuple[str, ...]) -> str:
 
 
 @dataclass(frozen=True)
+class GuideMatch:
+    """Que guia de la fuente externa le toca a un candidato nuestro, y a que distancia."""
+
+    ours: str
+    theirs: str
+    score: float
+    rank: int
+    shift: int
+
+    @property
+    def displaced(self) -> bool:
+        return abs(self.shift) > DISPLACED_SHIFT
+
+    def flags(self, *, lower_better: bool) -> dict[str, str]:
+        """Las tres banderas. Ninguna es un veredicto: no dan PASS ni FAIL."""
+        buena = self.score < CONFIRMED_BELOW if lower_better else self.score > CONFIRMED_BELOW
+        if self.displaced:
+            estado = "ventana_desplazada"
+        else:
+            estado = "si" if buena else "no"
+        return {
+            "mirarch_confirmado": estado,
+            "mirarch_rank": str(self.rank),
+            "mirarch_shift_nt": str(self.shift),
+        }
+
+
+#: Lo que se escribe cuando la fuente externa no encontro nada para ese candidato. El
+#: rank y la distancia van VACIOS, no a cero: no haber aparecido y aparecer el primero
+#: a distancia cero son cosas opuestas (regla 3).
+SIN_MATCH = {"mirarch_confirmado": "no", "mirarch_rank": "", "mirarch_shift_nt": ""}
+
+
+@dataclass(frozen=True)
 class MergeResult:
     """La tabla con los scores dentro, y que filas se quedaron sin uno."""
 
@@ -274,19 +377,43 @@ class MergeResult:
     filled: tuple[str, ...]
     untouched: tuple[str, ...]
     source: ScoreSource
+    matches: tuple[GuideMatch, ...] = ()
+    #: Guias de la fuente que no corresponden a ningun candidato nuestro. Con un barrido
+    #: de todo el 3'UTR esto es lo NORMAL, no un fallo.
+    unmatched: tuple[str, ...] = ()
+    offset: int | None = None
 
     def format_text(self) -> str:
         total = len(self.filled) + len(self.untouched)
+        direccion = "menor es mejor" if lower_is_better(self.source) else "mayor es mejor"
         lineas = [
             f"Scores importados: {len(self.filled)} de {total} candidato(s), "
-            f"fuente {self.source.value}."
+            f"fuente {self.source.value}.",
+            f"ESCALA: {direccion}. No la inviertas al ordenar.",
         ]
+        if self.offset is not None:
+            lineas.append(
+                f"Las coordenadas de la fuente van con offset {self.offset:+d} respecto "
+                f"de las del transcrito; queda escrito en fuente_score."
+            )
+        for m in sorted(self.matches, key=lambda x: x.rank):
+            marca = f" — VENTANA DESPLAZADA {m.shift:+d} nt" if m.displaced else (
+                "" if m.shift == 0 else f" — corrida {m.shift:+d} nt"
+            )
+            lineas.append(
+                f"  · {m.ours}  score {m.score:.2f}  rank {m.rank}{marca}"
+            )
         if self.untouched:
             lineas.append(
                 f"Siguen sin score {len(self.untouched)}: su columna se queda VACIA, "
                 f"no a cero."
             )
             lineas.extend(f"  · {guia}" for guia in self.untouched)
+        if self.unmatched:
+            lineas.append(
+                f"{len(self.unmatched)} guia(s) de la fuente no corresponden a ningun "
+                f"candidato nuestro. Con un barrido de todo el 3'UTR eso es lo normal."
+            )
         lineas.append(
             "El score es informativo: no cambia ningun veredicto ni descarta a nadie."
         )
@@ -297,8 +424,10 @@ def _rna(guide: str) -> str:
     return "".join(guide.split()).upper().replace("T", "U")
 
 
-def _parse_results(results: str, *, source_name: str) -> dict[str, float]:
-    scores: dict[str, float] = {}
+def _parse_results(results: str, *, source_name: str) -> list[tuple[str, float]]:
+    """`guia<TAB>score`, en el orden del fichero. Se aborta ante cualquier rareza."""
+    scores: list[tuple[str, float]] = []
+    vistas: set[str] = set()
     for numero, cruda in enumerate(results.splitlines(), start=1):
         linea = cruda.strip()
         if not linea or linea.startswith("#"):
@@ -310,9 +439,10 @@ def _parse_results(results: str, *, source_name: str) -> dict[str, float]:
                 f"`guia<TAB>score` y llego {linea!r}. Se aborta la importacion entera "
                 f"en vez de dejar la tabla a medias."
             )
-        guia, bruto = _rna(campos[0]), campos[1].strip()
-        if guia in ("GUIA", "GUIDE"):
+        crudo, bruto = "".join(campos[0].split()).upper(), campos[1].strip()
+        if crudo in ("GUIA", "GUIDE", "GUIA_DNA", "GUIDE_DNA"):
             continue
+        guia = crudo.replace("U", "T")
         try:
             valor = float(bruto)
         except ValueError as exc:
@@ -321,12 +451,13 @@ def _parse_results(results: str, *, source_name: str) -> dict[str, float]:
                 f"numero. Se aborta: un score que no se ha podido leer no se convierte "
                 f"en un hueco silencioso."
             ) from exc
-        if guia in scores:
+        if guia in vistas:
             raise ShmirDesignError(
-                f"{source_name}, linea {numero}: la guia {guia} aparece dos veces "
-                f"({scores[guia]} y {valor}). Se aborta en vez de elegir uno."
+                f"{source_name}, linea {numero}: la guia {guia} aparece dos veces. "
+                f"Se aborta en vez de elegir uno."
             )
-        scores[guia] = valor
+        vistas.add(guia)
+        scores.append((guia, valor))
     if not scores:
         raise ShmirDesignError(
             f"{source_name} no trae ningun score legible. Se aborta: importar nada y "
@@ -335,16 +466,50 @@ def _parse_results(results: str, *, source_name: str) -> dict[str, float]:
     return scores
 
 
-def merge_scores(
-    table: str, results: str, *, source: ScoreSource, source_name: str = "el TSV de scores"
-) -> MergeResult:
-    """Mete los scores puntuados fuera en la tabla comparativa, por guia.
+def _ranked(scores: list[tuple[str, float]], *, lower_better: bool) -> dict[str, int]:
+    """Puesto de cada guia, 1 = mejor. La direccion de la escala manda."""
+    orden = sorted(scores, key=lambda par: par[1], reverse=not lower_better)
+    return {guia: puesto for puesto, (guia, _) in enumerate(orden, start=1)}
 
-    Aborta ante cualquier cosa que huela a fichero equivocado —una guia que no esta en
-    la tabla, un score ilegible, una guia repetida— porque un score en la fila de otro
-    candidato es peor que no tener score.
+
+def _best_match(
+    ours: str, scores: list[tuple[str, float]], ranks: dict[str, int]
+) -> GuideMatch | None:
+    """La ventana de la fuente mas cercana a la nuestra, o `None` si ninguna lo esta."""
+    mejor: GuideMatch | None = None
+    for guia, valor in scores:
+        desplazamiento = guide_shift(ours, guia)
+        if desplazamiento is None:
+            continue
+        if mejor is None or abs(desplazamiento) < abs(mejor.shift):
+            mejor = GuideMatch(
+                ours=ours, theirs=guia, score=valor,
+                rank=ranks[guia], shift=desplazamiento,
+            )
+    return mejor
+
+
+def merge_scores(
+    table: str,
+    results: str,
+    *,
+    source: ScoreSource,
+    source_name: str = "el TSV de scores",
+    offset: int | None = None,
+) -> MergeResult:
+    """Cruza los scores de una fuente externa con la tabla comparativa, POR SECUENCIA.
+
+    No por coordenada: los convenios de numeracion no coinciden y un score en la fila
+    del candidato de al lado es peor que no tener score. `offset` no se usa para cruzar
+    —solo se anota en `fuente_score`— precisamente por eso.
+
+    Una ventana corrida hasta `MAX_SHIFT` nt se asigna al candidato mas cercano y la
+    distancia queda escrita. Mas alla, no se asigna: la columna se queda vacia.
     """
     scores = _parse_results(results, source_name=source_name)
+    lower_better = lower_is_better(source)
+    ranks = _ranked(scores, lower_better=lower_better)
+    anotacion = "" if offset is None else f"_offset{offset:+d}"
 
     lineas = table.splitlines()
     comentarios = [l for l in lineas if l.startswith("#")]
@@ -354,40 +519,48 @@ def merge_scores(
             "La tabla comparativa no tiene ninguna fila; no hay donde meter los scores."
         )
     cabecera = cuerpo[0].split("\t")
-    faltan = [c for c in ("guia", *SCORE_COLUMNS) if c not in cabecera]
+    faltan = [
+        c for c in ("guia", *SCORE_COLUMNS, *MIRARCH_COLUMNS) if c not in cabecera
+    ]
     if faltan:
         raise ShmirDesignError(
-            f"A la tabla comparativa le faltan las columnas {faltan}: no es una tabla "
-            f"de shmir-design, o es de una version anterior a la columna "
-            f"`score_externo`. Se aborta sin escribir nada."
+            f"A la tabla comparativa le faltan las columnas {faltan}: es de una version "
+            f"anterior al cruce con miRarchitect. Relanza el diseño y vuelve a "
+            f"importar; no se escribe una tabla a medias."
         )
-    i_guia = cabecera.index("guia")
-    i_score = cabecera.index("score_externo")
-    i_fuente = cabecera.index("fuente_score")
+    indices = {nombre: cabecera.index(nombre) for nombre in cabecera}
 
     salida = [cuerpo[0]]
     rellenas: list[str] = []
     intactas: list[str] = []
-    presentes: set[str] = set()
+    encontrados: list[GuideMatch] = []
+    usadas: set[str] = set()
     for fila_cruda in cuerpo[1:]:
         campos = fila_cruda.split("\t")
-        guia = _rna(campos[i_guia])
-        presentes.add(guia)
-        if guia in scores:
-            columnas = ExternalScore(scores[guia], source).as_columns()
-            campos[i_score] = columnas["score_externo"]
-            campos[i_fuente] = columnas["fuente_score"]
-            rellenas.append(campos[i_guia])
+        guia = _rna(campos[indices["guia"]]).replace("U", "T")
+        emparejada = _best_match(guia, scores, ranks)
+        if emparejada is None:
+            columnas = {**ExternalScore().as_columns(), **SIN_MATCH}
+            intactas.append(campos[indices["guia"]])
         else:
-            intactas.append(campos[i_guia])
+            columnas = {
+                **ExternalScore(
+                    emparejada.score, source, annotation=anotacion
+                ).as_columns(),
+                **emparejada.flags(lower_better=lower_better),
+            }
+            encontrados.append(emparejada)
+            usadas.add(emparejada.theirs)
+            rellenas.append(campos[indices["guia"]])
+        for nombre, valor in columnas.items():
+            campos[indices[nombre]] = valor
         salida.append("\t".join(campos))
 
-    sobran = sorted(set(scores) - presentes)
-    if sobran:
+    if not rellenas:
         raise ShmirDesignError(
-            f"{source_name} trae scores de guias que no estan en la tabla "
-            f"comparativa: {', '.join(sobran)}. Eso significa que los dos ficheros no "
-            f"son de la misma corrida; se aborta en vez de pegar numeros a ciegas."
+            f"Ninguna de las {len(cuerpo) - 1} guias de la tabla aparece en "
+            f"{source_name}, ni siquiera con la ventana corrida. Los dos ficheros no "
+            f"son de la misma corrida; se aborta en vez de escribir una tabla vacia."
         )
 
     return MergeResult(
@@ -395,4 +568,7 @@ def merge_scores(
         filled=tuple(rellenas),
         untouched=tuple(intactas),
         source=source,
+        matches=tuple(encontrados),
+        unmatched=tuple(g for g, _ in scores if g not in usadas),
+        offset=offset,
     )

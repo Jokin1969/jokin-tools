@@ -1,0 +1,276 @@
+LOCUS       NM_011170               2191 bp    mRNA    linear   ROD 18-AUG-2026
+DEFINITION  Mus musculus prion protein (Prnp), transcript variant 1, mRNA.
+ACCESSION   NM_011170
+VERSION     NM_011170.3
+KEYWORDS    RefSeq; RefSeq Select.
+SOURCE      Mus musculus (house mouse)
+  ORGANISM  Mus musculus
+            Eukaryota; Metazoa; Chordata; Craniata; Vertebrata; Euteleostomi;
+            Mammalia; Eutheria; Euarchontoglires; Glires; Rodentia; Myomorpha;
+            Muroidea; Muridae; Murinae; Mus; Mus.
+REFERENCE   1  (bases 1 to 2191)
+  AUTHORS   Zhao,T., Wang,W., Wang,Q., Fan,W., Zhang,X., Jin,L., Gong,C.,
+            Zhang,X., Jiang,B., Ma,J., Yuan,C., Ma,J. and Zhao,Y.
+  TITLE     Cellular prion protein suppresses colitis and colorectal
+            carcinogenesis via modulating inflammatory responses
+  JOURNAL   Biochim Biophys Acta Mol Basis Dis 1872 (7), 168334 (2026)
+   PUBMED   42364787
+REFERENCE   2  (bases 1 to 2191)
+  AUTHORS   Ojeda-Juarez,D., Funk,G., McClatchy,D.B., Richards,E., Rajic,A.J.,
+            Soldau,K., Geschwind,M.D., Chen,X., Yates,J.R. 3rd, Gonias,S.L. and
+            Sigurdson,C.J.
+  TITLE     PrPC-facilitated cell signaling activates phospholipase C1 and
+            triggers an Arc/Arg3.1 response in mouse and iPSC-derived human
+            neurons
+  JOURNAL   Stem Cell Reports 21 (6), 102924 (2026)
+   PUBMED   42140197
+REFERENCE   3  (bases 1 to 2191)
+  AUTHORS   Gentile,J.E., Corridon,T.L., Serack,F.E., Echeverria,D.,
+            Kennedy,Z.C., Gallant-Behm,C.L., Hassler,M.R., Kinberger,G.A.,
+            Kelemen,M.N., Kamath,N.G., Lian,Y., Gross,K.Y., Miller,R.,
+            DeSouza-Lenz,K., Howard,M., Guzman,K., Chan,N., Laversenne,V.,
+            Curtis,D., Fettes,K., Lemaitre,M., Jackson,A.L., Yamada,K.,
+            Alterman,J.F., Coffey,A.A., Minikel,E.V., Khvorova,A. and
+            Vallabh,S.M.
+  TITLE     Divalent siRNA for prion disease
+  JOURNAL   Nucleic Acids Res 54 (8) (2026)
+   PUBMED   42033217
+REFERENCE   4  (bases 1 to 2191)
+  AUTHORS   Kieu,T.T.T., Sim,H.J., Bhattarai,G., So,H.S., Lee,J.C. and
+            Kook,S.H.
+  TITLE     PrPC Glycoprotein Modulates Atmospherically Relevant Artificial
+            Particulate Matter-Induced Development of Lung Cancer in Mice
+  JOURNAL   Environ Sci Technol 60 (13), 9843-9856 (2026)
+   PUBMED   41877597
+REFERENCE   5  (bases 1 to 2191)
+  AUTHORS   Masone,A., Grasso,A., Comerio,L., Bruno,R., Lavigna,G., Vanni,I.,
+            D'Agostino,C., Orru,C.D., Caughey,B., Altmeppen,H.C., Castilla,J.,
+            Giaccone,G., Tagliavini,F., Di Bari,M.A., Nonno,R. and Chiesa,R.
+  TITLE     D178N prion protein mutation endows RML prions with new strain
+            properties that do not mimic human genetic prion diseases
+  JOURNAL   Acta Neuropathol 151 (1), 14 (2026)
+   PUBMED   41665793
+REFERENCE   6  (bases 1 to 2191)
+  AUTHORS   Manson,J., West,J.D., Thomson,V., McBride,P., Kaufman,M.H. and
+            Hope,J.
+  TITLE     The prion protein gene: a role in mouse embryogenesis?
+  JOURNAL   Development 115 (1), 117-122 (1992)
+   PUBMED   1353438
+REFERENCE   7  (bases 1 to 2191)
+  AUTHORS   Bueler,H., Fischer,M., Lang,Y., Bluethmann,H., Lipp,H.P.,
+            DeArmond,S.J., Prusiner,S.B., Aguet,M. and Weissmann,C.
+  TITLE     Normal development and behaviour of mice lacking the neuronal
+            cell-surface PrP protein
+  JOURNAL   Nature 356 (6370), 577-582 (1992)
+   PUBMED   1373228
+REFERENCE   8  (bases 1 to 2191)
+  AUTHORS   Westaway,D., Mirenda,C.A., Foster,D., Zebarjadian,Y., Scott,M.,
+            Torchia,M., Yang,S.L., Serban,H., DeArmond,S.J., Ebeling,C. et al.
+  TITLE     Paradoxical shortening of scrapie incubation times by expression of
+            prion protein transgenes derived from long incubation period mice
+  JOURNAL   Neuron 7 (1), 59-68 (1991)
+   PUBMED   1676894
+REFERENCE   9  (bases 1 to 2191)
+  AUTHORS   Kaelbling,M., Eddy,R., Shows,T.B., Copeland,N.G., Gilbert,D.J.,
+            Jenkins,N.A., Klinger,H.P. and O'Hara,B.
+  TITLE     Localization of the human gene allowing infection by gibbon ape
+            leukemia virus to human chromosome region 2q11-q14 and to the
+            homologous region on mouse chromosome 2
+  JOURNAL   J Virol 65 (4), 1743-1747 (1991)
+   PUBMED   1672162
+REFERENCE   10 (bases 1 to 2191)
+  AUTHORS   Prusiner,S.B.
+  TITLE     Prion biology and diseases
+  JOURNAL   Harvey Lect 87, 85-114 (1991)
+   PUBMED   1670551
+  REMARK    Review article
+COMMENT     VALIDATED REFSEQ: This record has undergone validation or
+            preliminary review. The reference sequence was derived from
+            CK622972.1, AK148061.1, AK158908.1 and AV361844.1.
+            
+            On May 21, 2013 this sequence version replaced NM_011170.2.
+            
+            Transcript Variant: This variant (1) represents the shorter
+            transcript. Variants 1 and 2 encode the same protein.
+            
+            Publication Note:  This RefSeq record includes a subset of the
+            publications that are available for this gene. Please see the Gene
+            record to access additional publications.
+            
+            ##Evidence-Data-START##
+            Transcript exon combination :: CK622972.1, AK148061.1 [ECO:0000332]
+            RNAseq introns              :: single sample supports all introns
+                                           SAMN00849374, SAMN00849375
+                                           [ECO:0000348]
+            ##Evidence-Data-END##
+            
+            ##RefSeq-Attributes-START##
+            RefSeq Select criteria :: based on conservation, expression,
+                                      longest protein
+            ##RefSeq-Attributes-END##
+            COMPLETENESS: complete on the 3' end.
+PRIMARY     REFSEQ_SPAN         PRIMARY_IDENTIFIER PRIMARY_SPAN        COMP
+            1-10                CK622972.1         1-10
+            11-595              AK148061.1         3-587
+            596-2182            AK158908.1         573-2159
+            2183-2191           AV361844.1         262-270
+FEATURES             Location/Qualifiers
+     source          1..2191
+                     /organism="Mus musculus"
+                     /mol_type="mRNA"
+                     /strain="C57BL/6"
+                     /db_xref="taxon:10090"
+                     /chromosome="2"
+                     /map="2 64.07 cM"
+     gene            1..2191
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="prion protein"
+                     /db_xref="GeneID:19122"
+                     /db_xref="MGI:MGI:97769"
+     exon            1..76
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /inference="alignment:Splign:2.1.0"
+     exon            77..174
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /inference="alignment:Splign:2.1.0"
+     misc_feature    137..139
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="upstream in-frame stop codon"
+     exon            175..2191
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /inference="alignment:Splign:2.1.0"
+     CDS             185..949
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="major prion protein"
+                     /codon_start=1
+                     /product="major prion protein precursor"
+                     /protein_id="NP_035300.1"
+                     /db_xref="CCDS:CCDS16766.1"
+                     /db_xref="GeneID:19122"
+                     /db_xref="MGI:MGI:97769"
+                     /translation="MANLGYWLLALFVTMWTDVGLCKKRPKPGGWNTGGSRYPGQGSP
+                     GGNRYPPQGGTWGQPHGGGWGQPHGGSWGQPHGGSWGQPHGGGWGQGGGTHNQWNKPS
+                     KPKTNLKHVAGAAAAGAVVGGLGGYMLGSAMSRPMIHFGNDWEDRYYRENMYRYPNQV
+                     YYRPVDQYSNQNNFVHDCVNITIKQHTVTTTTKGENFTETDVKMMERVVEQMCVTQYQ
+                     KESQAYYDGRRSSSTVLFSSPPVILLISFLIFLIVG"
+     sig_peptide     185..250
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /inference="COORDINATES: ab initio prediction:SignalP:6.0"
+     misc_feature    251..877
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="propagated from UniProtKB/Swiss-Prot (P04925.2);
+                     Region: Interaction with GRB2, ERI3 and SYN1.
+                     /evidence=ECO:0000269|PubMed:11571277"
+     mat_peptide     251..874
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /product="Major prion protein. /id=PRO_0000025697"
+                     /note="propagated from UniProtKB/Swiss-Prot (P04925.2)"
+     misc_feature    251..298
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="propagated from UniProtKB/Swiss-Prot (P04925.2);
+                     Region: Interaction with ADGRG6.
+                     /evidence=ECO:0000269|PubMed:27501152"
+     misc_feature    257..496
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="propagated from UniProtKB/Swiss-Prot (P04925.2);
+                     Region: Disordered. /evidence=ECO:0000256|SAM:MobiDB-lite"
+     misc_feature    314..316
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="Hydroxyproline.
+                     /evidence=ECO:0000269|PubMed:11032800; propagated from
+                     UniProtKB/Swiss-Prot (P04925.2); hydroxylation site"
+     misc_feature    335..454
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="propagated from UniProtKB/Swiss-Prot (P04925.2);
+                     Region: 5 X 8 AA tandem repeats of P-H-G-G-G-W-G-Q"
+     misc_feature    722..724
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="N-linked (GlcNAc...) asparagine.
+                     /evidence=ECO:0000305; propagated from
+                     UniProtKB/Swiss-Prot (P04925.2); glycosylation site"
+     misc_feature    770..772
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="N-linked (GlcNAc...) asparagine.
+                     /evidence=ECO:0000269|PubMed:19349973; propagated from
+                     UniProtKB/Swiss-Prot (P04925.2); glycosylation site"
+     regulatory      2167..2172
+                     /regulatory_class="polyA_signal_sequence"
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="hexamer: AATAGA"
+     polyA_site      2184
+                     /gene="Prnp"
+                     /gene_synonym="CD230; Prn-i; Prn-p; PrP; prP27-30;
+                     prP33-35C; PrP<C>; PrPC; PrPSc; Sinc"
+                     /note="major polyA site"
+ORIGIN      
+        1 cccctttcca ctcccggctc ccccgcgttg tcggatcagc agaccgattc tgggcgctgc
+       61 gtcgcatcgg tggcaggact cctgagtata tttcagaact gaaccatttc aaccgagctg
+      121 aagcattctg ccttcctagt ggtaccagtc caatttagga gagccaagca gactatcagt
+      181 catcatggcg aaccttggct actggctgct ggccctcttt gtgactatgt ggactgatgt
+      241 cggcctctgc aaaaagcggc caaagcctgg agggtggaac accggtggaa gccggtatcc
+      301 cgggcaggga agccctggag gcaaccgtta cccacctcag ggtggcacct gggggcagcc
+      361 ccacggtggt ggctggggac aaccccatgg gggcagctgg ggacaacctc atggtggtag
+      421 ttggggtcag ccccatggcg gtggatgggg ccaaggaggg ggtacccata atcagtggaa
+      481 caagcccagc aaaccaaaaa ccaacctcaa gcatgtggca ggggctgcgg cagctggggc
+      541 agtagtgggg ggccttggtg gctacatgct ggggagcgcc atgagcaggc ccatgatcca
+      601 ttttggcaac gactgggagg accgctacta ccgtgaaaac atgtaccgct accctaacca
+      661 agtgtactac aggccagtgg atcagtacag caaccagaac aacttcgtgc acgactgcgt
+      721 caatatcacc atcaagcagc acacggtcac caccaccacc aagggggaga acttcaccga
+      781 gaccgatgtg aagatgatgg agcgcgtggt ggagcagatg tgcgtcaccc agtaccagaa
+      841 ggagtcccag gcctattacg acgggagaag atccagcagc accgtgcttt tctcctcccc
+      901 tcctgtcatc ctcctcatct ccttcctcat cttcctgatc gtgggatgag ggaggccttc
+      961 ctgcttgttc cttcgcattc tcgtggtcta ggctggggga ggggttatcc acctgtagct
+     1021 ctttcaattg aggtggttct cattcttgct tctctgtgtc ccccataggc taatacccct
+     1081 ggcactgatg ggccctggga aatgtacagt agaccagttg ctctttgctt caggtccctt
+     1141 tgatggagtc tgtcatcagc cagtgctaac accgggccaa taagaatata acaccaaata
+     1201 actgctggct agttggggct ttgttttggt ctagtgaata aatactggtg tatcccctga
+     1261 cttgtaccca gagtacaagg tgacagtgac acatgtaact tagcataggc aaagggttct
+     1321 acaaccaaag aagccactgt ttggggatgg cgccctggaa aacagcctcc cacctgggat
+     1381 agctagagca tccacacgtg gaattctttc tttactaaca aacgatagct gattgaaggc
+     1441 aacaggaaaa aaaaaatcaa attgtcctac tgacgttgaa agcaaacctt tgttcattcc
+     1501 cagggcacta gaatgatctt tagccttgct tggattgaac taggagatct tgactctgag
+     1561 gagagccagc cctgtaaaaa gcttggtcct cctgtgacgg gagggatggt taaggtacaa
+     1621 aggctagaaa cttgagtttc ttcatttctg tctcacaatt atcaaaagct agaattagct
+     1681 tctgccctat gtttctgtac ttctatttga actggataac agagagacaa tctaaacatt
+     1741 ctcttaggct gcagataaga gaagtaggct ccattccaaa gtgggaaaga aattctgcta
+     1801 gcattgttta aatcaggcaa aatttgttcc tgaagttgct ttttacccca gcagacataa
+     1861 actgcgatag cttcagcttg cactgtggat tttctgtata gaatatataa aacataactt
+     1921 caagcttatg tcttcttttt aaaacatctg aagtatggga cgccctggcc gttccatcca
+     1981 gtactaaatg cttaccgtgt gacccttggg ctttcagcgt gcactcagtt ccgtaggatt
+     2041 ccaaagcaga cccctagctg gtctttgaat ctgcatgtac ttcacgtttt ctatatttgt
+     2101 aactttgcat gtattttgtt ttgtcatata aaaagtttat aaatgtttgc tatcagactg
+     2161 acattaaata gaagctatga tgaacacctg g
+//
+
