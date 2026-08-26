@@ -236,13 +236,18 @@ class TestLasTresLecturas(unittest.TestCase):
     def setUp(self):
         self.lecturas = {l.name: l for l in splicing.splicing_readouts()}
 
-    def test_son_TRES(self):
-        self.assertEqual(len(self.lecturas), 3)
+    def test_son_CUATRO(self):
+        # La cuarta —secuenciar la union— es la que de verdad cierra el frente: sin
+        # ella, la presencia de la banda corta no descarta el donante criptico.
+        self.assertEqual(len(self.lecturas), 4)
 
     def test_y_se_llaman_asi(self):
         self.assertEqual(
             sorted(self.lecturas),
-            ["parental_sin_intron", "rtpcr_empalme", "western_L42_por_vg"],
+            [
+                "parental_sin_intron", "rtpcr_empalme", "secuencia_union_exon_exon",
+                "western_L42_por_vg",
+            ],
         )
 
     def test_TODAS_salen_NOT_RUN_porque_ninguna_la_corre_el_software(self):

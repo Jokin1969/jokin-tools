@@ -48,6 +48,26 @@ JUNCTION_MARGIN = 10
 DONOR_DINUCLEOTIDE = "GT"
 ACCEPTOR_DINUCLEOTIDE = "AG"
 
+#: El orden de las piezas del intron terapeutico, con su LONGITUD. Se deriva de
+#: `blocks.PIECES`, no se teclea: si una pieza cambia de tamaño, esto cambia con ella.
+#: La horquilla mide siempre 97 nt pero su SECUENCIA depende de la guia, y por eso los
+#: uAUG que aporta se cuentan por candidato.
+INTRON_LAYOUT: tuple[tuple[str, int], ...] = (
+    ("MVM5", len(blocks.PIECES["MVM5"].sequence)),
+    ("espaciador5", len(blocks.PIECES["espaciador5"].sequence)),
+    ("NheI", len(blocks.PIECES["NheI"].sequence)),
+    ("contexto5", len(blocks.PIECES["contexto5"].sequence)),
+    ("horquilla", blocks.HAIRPIN_LENGTH),
+    ("contexto3", len(blocks.PIECES["contexto3"].sequence)),
+    ("SacI", len(blocks.PIECES["SacI"].sequence)),
+    ("espaciador3", len(blocks.PIECES["espaciador3"].sequence)),
+    ("MVM3", len(blocks.PIECES["MVM3"].sequence)),
+)
+
+#: El donante criptico del flanco 5' de miR-E. No se busca «un GT cualquiera»: es ESTE,
+#: y esta DENTRO del andamio, asi que viaja con cualquier candidato.
+CRYPTIC_DONOR = "GTGAGCG"
+
 BINARY_NOT_GRADUAL = (
     "RIESGO BINARIO. NO ES UN PARAMETRO DE CALIDAD y no se lee como tal: o el intron se "
     "escinde o no. Si no se escinde, la horquilla se queda en el 5'UTR del mRNA maduro y "
@@ -423,8 +443,15 @@ class SplicingReadout:
         return FilterResult(name=self.name, state=self.state, reason=self.requirement)
 
 
+#: Cuanto intron quedaria dentro si el donante criptico del andamio empalma al aceptor
+#: legitimo. Es la longitud del intron por delante de ese donante, y no depende de la
+#: guia: el donante esta en el flanco 5' del andamio, que es fijo.
+CRYPTIC_RETAINED = 97
+
+
 def splicing_readouts(plan: SplicingRtPcr | None = None) -> tuple[SplicingReadout, ...]:
-    """Las TRES lecturas que cierran el frente. Todas `NOT_RUN`, y por eso bloquea."""
+    """Las CUATRO lecturas que cierran el frente. Todas `NOT_RUN`, y por eso bloquea."""
+    crypticos = CRYPTIC_RETAINED
     coordenadas = (
         f"Coordenadas emitidas: ventanas casete:{plan.upstream.start}-"
         f"{plan.upstream.end} y casete:{plan.downstream.start}-{plan.downstream.end}; "
@@ -450,6 +477,20 @@ def splicing_readouts(plan: SplicingRtPcr | None = None) -> tuple[SplicingReadou
                 "no se distingue de «no llego el vector»: los dos dan una membrana "
                 "vacia, y solo uno de los dos culpa al empalme. La vg-qPCR es la que "
                 "separa las dos hipotesis."
+            ),
+        ),
+        SplicingReadout(
+            name="secuencia_union_exon_exon",
+            state=FilterState.NOT_RUN,
+            requirement=(
+                "SECUENCIAR la banda corta, no solo verla. Es LA QUE CIERRA el frente: "
+                "la lectura de exito es la SECUENCIA de la union exon-exon, NO LA "
+                f"ALTURA de la banda. Sirve para descartar el donante criptico "
+                f"{CRYPTIC_DONOR} del flanco 5' del andamio: un empalme por ahi al "
+                f"aceptor legitimo dejaria {crypticos} nt de intron dentro y daria una "
+                f"banda INTERMEDIA —empalmada + {crypticos} pb— que en un gel se puede "
+                f"confundir con la correcta. Con la union secuenciada, o pone "
+                f"exon5|exon3 o no lo pone."
             ),
         ),
         SplicingReadout(
@@ -533,4 +574,466 @@ def plan_from_records(records, *, therapeutic_intron_length: int = blocks.INTRON
         f"de las piezas MVM5 y MVM3 del intron, asi que no se puede localizar la union y "
         f"no se emiten coordenadas. O no es el casete intronico, o lleva el intron "
         f"repetido; en los dos casos hay que mirarlo antes de pedir nada."
+    )
+
+
+# ─── Los DOS modos de fallo de la retencion ──────────────────────────────────
+#
+# No es uno con un detalle. Si el intron se queda dentro pasan dos cosas independientes,
+# y la segunda actua aunque la primera no estorbara nada.
+
+RETENTION_MODES = (
+    "SI EL INTRON SE RETIENE FALLAN DOS COSAS DISTINTAS, no una: "
+    "(a) la horquilla se queda dentro del mRNA maduro, en el 5'UTR, con lo que eso haga "
+    "al transito del ribosoma y a la estabilidad; y "
+    "(b) el ribosoma escanea desde el extremo 5' y se encuentra varios AUG antes del "
+    "legitimo. El (b) actua AUNQUE la horquilla no estorbara nada: son mecanismos "
+    "distintos y se cuentan aparte."
+)
+
+#: El criterio de Kozak que se usa aqui, DECLARADO como parametro de este analisis.
+#: No es una cita: es la regla que se aplica, escrita para que se pueda discutir.
+KOZAK_CRITERION = (
+    "Kozak, criterio declarado (no citado): se miran dos posiciones, -3 (purina A o G) "
+    "y +4 (G). Las dos → FUERTE; una → adecuado; ninguna → debil. Es el criterio de "
+    "este analisis y se escribe para que se pueda discutir, no para dar por buena una "
+    "referencia que aqui no se ha comprobado."
+)
+
+#: Cuanto contexto se imprime a cada lado del AUG.
+KOZAK_CONTEXT = 6
+
+
+@dataclass(frozen=True)
+class UpstreamAtg:
+    """Un AUG por delante del legitimo, con lo que decide su consecuencia."""
+
+    offset: int              # 1-based dentro del intron
+    piece: str
+    context: str
+    minus3: str
+    plus4: str
+    strength: str
+    distance_to_orf: int
+    in_frame: bool
+    stop_after_codons: int | None
+
+    @property
+    def outcome(self) -> str:
+        """`EXTENSION_N_TERMINAL` es el caso PEOR; el resto son uORF.
+
+        En marco y SIN codon de parada por delante del ATG legitimo, la traduccion
+        entra en PrP y sale una proteina con extension N-terminal: algo que SE PRODUCE
+        y que un Western podria confundir con la DN. Peor que no traducir, porque da
+        señal.
+        """
+        if self.stop_after_codons is None:
+            # Sin parada por delante del ATG legitimo hay dos casos, y no son el mismo.
+            # EN MARCO: la traduccion entra en PrP y sale con cola → el caso peor.
+            # FUERA DE MARCO: el ribosoma sigue ELONGANDO cuando pasa por el ATG
+            # legitimo, asi que no puede iniciar ahi — un uORF que SOLAPA el inicio es
+            # peor que uno que termina antes, porque el que termina antes deja
+            # reiniciar.
+            return "EXTENSION_N_TERMINAL" if self.in_frame else "uORF_SOLAPANTE"
+        return "uORF"
+
+    def describe(self) -> str:
+        marco = "EN MARCO" if self.in_frame else "fuera de marco"
+        parada = (
+            f"para a los {self.stop_after_codons} codones"
+            if self.stop_after_codons is not None
+            else "SIN codon de parada antes del ATG legitimo"
+        )
+        return (
+            f"+{self.offset:<3} ({self.piece:<12}) {self.context:<14} "
+            f"-3={self.minus3} +4={self.plus4} Kozak {self.strength:<9} "
+            f"a {self.distance_to_orf} nt del ATG legitimo, {marco}, {parada} "
+            f"→ {self.outcome}"
+        )
+
+
+def kozak_strength(minus3: str, plus4: str) -> str:
+    """El criterio de `KOZAK_CRITERION`, en una funcion y no repartido por el texto."""
+    puntos = (minus3 in "AG") + (plus4 == "G")
+    return {2: "FUERTE", 1: "adecuado", 0: "debil"}[puntos]
+
+
+def scan_upstream_atgs(
+    intron: str,
+    *,
+    tail: int = 37,
+    layout: tuple[tuple[str, int], ...] | None = None,
+    downstream: str = "",
+) -> tuple[UpstreamAtg, ...]:
+    """Los AUG del intron retenido, con Kozak, marco y si llegan al ORF sin parada.
+
+    `tail` son los nt de 5'UTR que quedan entre el aceptor y el ATG legitimo (37 en este
+    casete, comprobado sobre la secuencia). `downstream` es lo que va detras del intron
+    cuando se quiere leer de verdad hasta el ORF; sin el, la parada solo se busca dentro
+    del intron y eso se nota en el resultado.
+    """
+    limpio = "".join(str(intron).split()).upper()
+    if not limpio:
+        return ()
+    piezas = layout or INTRON_LAYOUT
+
+    def de_que_pieza(k: int) -> str:
+        acumulado = 0
+        for nombre, largo in piezas:
+            if acumulado < k <= acumulado + largo:
+                return nombre
+            acumulado += largo
+        return "?"
+
+    completo = limpio + downstream
+    encontrados: list[UpstreamAtg] = []
+    for k in range(1, len(limpio) - 1):
+        if limpio[k - 1:k + 2] != "ATG":
+            continue
+        menos3 = limpio[k - 4] if k - 4 >= 0 else "-"
+        mas4 = limpio[k + 2] if k + 2 < len(limpio) else "-"
+        # Distancia entre la A del uAUG y la A del ATG legitimo, contada sobre
+        # posiciones absolutas y no «cuantos nt hay en medio»: el off-by-one de aqui
+        # cambia el MARCO, que es justo lo que decide si hay extension N-terminal.
+        distancia = len(limpio) + tail + 1 - k
+        parada = None
+        for j in range(k - 1, len(completo) - 2, 3):
+            if j - (k - 1) >= distancia:
+                break
+            if GENETIC_CODE.get(completo[j:j + 3]) == "*":
+                parada = (j - (k - 1)) // 3
+                break
+        encontrados.append(
+            UpstreamAtg(
+                offset=k,
+                piece=de_que_pieza(k),
+                context=limpio[max(0, k - 1 - KOZAK_CONTEXT):k + 2],
+                minus3=menos3,
+                plus4=mas4,
+                strength=kozak_strength(menos3, mas4),
+                distance_to_orf=distancia,
+                in_frame=distancia % 3 == 0,
+                stop_after_codons=parada,
+            )
+        )
+    return tuple(encontrados)
+
+
+def describe_upstream_atgs(uatgs: tuple[UpstreamAtg, ...]) -> str:
+    if not uatgs:
+        return ""
+    extensiones = [u for u in uatgs if u.outcome == "EXTENSION_N_TERMINAL"]
+    if extensiones:
+        veredicto = (
+            "HAY EXTENSION N-TERMINAL: "
+            + ", ".join(f"+{u.offset}" for u in extensiones)
+            + " estan EN MARCO y llegan al ATG legitimo SIN codon de parada. Eso "
+            "produce PrP con una cola por delante — algo que SE DETECTA en un Western y "
+            "que podria pasar por la DN. Es el caso peor y no se puede cribar a ciegas."
+        )
+    else:
+        veredicto = (
+            "EXTENSION N-TERMINAL: ninguno. Se comprueba, no se supone: de los "
+            f"{len(uatgs)} uAUG, "
+            + (
+                ", ".join(f"+{u.offset}" for u in uatgs if u.in_frame)
+                + " esta(n) en marco pero para(n) antes del ATG legitimo"
+                if any(u.in_frame for u in uatgs)
+                else "ninguno esta en marco"
+            )
+            + ". Asi que ninguno produce una proteina que un Western pueda confundir "
+            "con la DN."
+        )
+    solapantes = [u for u in uatgs if u.outcome == "uORF_SOLAPANTE"]
+    if solapantes:
+        veredicto += (
+            " PERO NO TODOS SON IGUALES: "
+            + ", ".join(f"+{u.offset}" for u in solapantes)
+            + " no llega(n) a codon de parada antes del ATG legitimo, asi que el "
+            "ribosoma SIGUE ELONGANDO al pasar por el — un uORF que SOLAPA el inicio no "
+            "deja reiniciar ahi, y eso es peor que uno que termina antes."
+        )
+    return (
+        f"ESCANEO DEL RIBOSOMA — {len(uatgs)} AUG por delante del legitimo. {veredicto} "
+        f"{KOZAK_CRITERION} "
+        f"OJO: la cuenta cambia POR CANDIDATO — la horquilla aporta parte de estos AUG y "
+        f"otra guia da otros. Lo que no cambia son los del andamio y los espaciadores."
+    )
+
+
+# ─── El donante criptico del andamio, y lo que se puede cerrar HOY ───────────
+#
+# El flanco 5' de miR-E lleva `GTGAGCG`, que se parece al consenso de sitio donante
+# (`GTRAGT`). Si se usara, el empalme saldria del andamio en vez de la señal del MVM y
+# la banda tendria un tamaño INTERMEDIO — confundible con la correcta en un gel.
+#
+# La pregunta que se puede contestar sin ningun fichero es si entre ese donante y el
+# aceptor legitimo del MVM hay un ACEPTOR utilizable. Y hay que decir lo que esa
+# respuesta cierra y lo que no.
+
+SPLICE_SITE_CRITERION = (
+    "Criterio de sitio 3' declarado como PARAMETRO de este analisis; NO ES UNA CITA. Se "
+    "miden dos cosas sobre cada AG: (1) el tracto de pirimidinas CONTIGUAS inmediatamente "
+    "aguas arriba —contiguas, no el porcentaje en una ventana, que diluye—, y (2) si hay "
+    "algun YURAY entre 18 y 40 nt aguas arriba, como punto de ramificacion candidato. Los "
+    "dos numeros salen tal cual y la comparacion se hace CONTRA EL ACEPTOR LEGITIMO del "
+    "mismo intron, que es la referencia interna: asi el veredicto no depende de ningun "
+    "umbral tomado de fuera."
+)
+
+BRANCH_POINT_WINDOW = (18, 40)
+
+
+@dataclass(frozen=True)
+class AcceptorCandidate:
+    offset: int
+    tract: int
+    branch_points: tuple[str, ...]
+
+    def describe(self) -> str:
+        ramas = ", ".join(self.branch_points) if self.branch_points else "ninguno"
+        return (
+            f"AG en +{self.offset}: tracto de {self.tract} pirimidina(s) contiguas, "
+            f"YURAY candidato(s): {ramas}"
+        )
+
+
+@dataclass(frozen=True)
+class CrypticDonor:
+    donor_offset: int
+    donor_motif: str
+    acceptor_offset: int
+    acceptor_tract: int
+    candidates: tuple[AcceptorCandidate, ...]
+    intron_length: int
+
+    @property
+    def best_cryptic_tract(self) -> int:
+        return max((c.tract for c in self.candidates), default=0)
+
+    @property
+    def usable_cryptic_acceptor(self) -> bool:
+        """¿Hay algun AG criptico con un tracto comparable al del legitimo?"""
+        return self.best_cryptic_tract >= self.acceptor_tract
+
+    @property
+    def retained_if_cryptic(self) -> int:
+        """Cuanto intron quedaria en el mRNA si el donante criptico empalma al legitimo."""
+        return self.donor_offset - 1
+
+    def describe(self) -> list[str]:
+        return [
+            f"DONANTE CRIPTICO {self.donor_motif} en +{self.donor_offset} del intron "
+            f"(flanco 5' de miR-E, dentro del ANDAMIO:",
+            "  viaja con cualquier candidato, no depende de la guia).",
+            f"  ¿Hay un ACEPTOR utilizable entre el (+{self.donor_offset}) y el legitimo "
+            f"(+{self.acceptor_offset})? Se han mirado los",
+            f"  {len(self.candidates)} AG del intervalo. El aceptor LEGITIMO tiene un "
+            f"tracto de {self.acceptor_tract} pirimidinas contiguas;",
+            f"  el mejor criptico llega a {self.best_cryptic_tract}. "
+            + (
+                "NO hay ninguno comparable."
+                if not self.usable_cryptic_acceptor
+                else "HAY al menos uno comparable — mirarlo."
+            ),
+            f"  {SPLICE_SITE_CRITERION}",
+            "",
+            "  LO QUE ESO CIERRA: los productos que necesitarian un aceptor criptico en "
+            "ese intervalo. No hay",
+            "  ninguno con un sitio 3' comparable al legitimo, asi que esa familia de "
+            "productos se descarta POR SECUENCIA.",
+            "",
+            "  LO QUE NO CIERRA, y es lo importante: el riesgo del donante criptico NO "
+            "se cierra por aqui, porque",
+            "  ese donante NO NECESITA un aceptor criptico — el aceptor LEGITIMO del MVM "
+            f"esta aguas abajo (+{self.acceptor_offset})",
+            "  y es perfectamente utilizable. Un empalme "
+            f"+{self.donor_offset} → +{self.acceptor_offset} quita "
+            f"{self.acceptor_offset + 1 - self.donor_offset} nt y deja",
+            f"  los {self.retained_if_cryptic} primeros nt del intron dentro del mRNA: "
+            f"banda = empalmada + {self.retained_if_cryptic} pb, frente a +0 (correcta) "
+            f"y",
+            f"  +{self.intron_length} (retenida). Es una banda INTERMEDIA, que es "
+            f"exactamente la que se puede confundir en un gel,",
+            "  y por eso la lectura 4 —secuenciar la union— no es opcional. Los dos "
+            "donantes compiten por el MISMO",
+            "  aceptor, y cual gana no lo dice la secuencia.",
+        ]
+
+
+def cryptic_donor_scan(
+    intron: str,
+    *,
+    donor: str = CRYPTIC_DONOR,
+    window: tuple[int, int] = BRANCH_POINT_WINDOW,
+) -> CrypticDonor:
+    """Los AG entre el donante criptico y el aceptor legitimo, medidos."""
+    limpio = "".join(str(intron).split()).upper()
+    inicio = limpio.find(donor)
+    if inicio < 0:
+        raise ShmirDesignError(
+            f"El intron no contiene el donante criptico {donor!r}, que es parte del "
+            f"flanco 5' del andamio miR-E. O el andamio no es ese, o el intron no es "
+            f"este; se aborta en vez de dar el riesgo por ausente."
+        )
+    aceptor = len(limpio) - 1          # 1-based de la A del AG final
+
+    def tracto(pos: int) -> int:
+        n, i = 0, pos - 2
+        while i >= 0 and limpio[i] in "CT":
+            n += 1
+            i -= 1
+        return n
+
+    def ramas(pos: int) -> tuple[str, ...]:
+        salida = []
+        for d in range(window[0], window[1] + 1):
+            j = pos - 1 - d
+            if j < 0 or j + 5 > len(limpio):
+                continue
+            m = limpio[j:j + 5]
+            if m[0] in "CT" and m[1] in "AG" and m[2] == "A" and m[4] in "CT":
+                salida.append(m)
+        return tuple(salida)
+
+    candidatos = tuple(
+        AcceptorCandidate(offset=p, tract=tracto(p), branch_points=ramas(p))
+        for p in range(inicio + len(donor) + 1, aceptor)
+        if limpio[p - 1:p + 1] == "AG"
+    )
+    return CrypticDonor(
+        donor_offset=inicio + 1,
+        donor_motif=donor,
+        acceptor_offset=aceptor,
+        acceptor_tract=tracto(aceptor),
+        candidates=candidatos,
+        intron_length=len(limpio),
+    )
+
+
+# ─── El control SIN INTRON: se especifica, no se pide ────────────────────────
+#
+# La lectura 3 no existe sin la construccion, asi que pedirla sin especificarla es
+# pedir que alguien la diseñe a ojo. Aqui sale su secuencia EXACTA.
+#
+# Y no es generar secuencia (regla 1): es BORRAR dos piezas literales de una secuencia
+# que ya esta en el repositorio. Nada se rellena, nada se reconstruye, y el test
+# comprueba que reinsertando lo borrado se recupera el original base a base.
+
+
+@dataclass(frozen=True)
+class IntronlessControl:
+    """El casete con donante y aceptor fuera. Un gBlock y una digestion."""
+
+    source: str
+    sequence: str
+    fragment_start: int
+    fragment_end: int
+    deletion_start: int
+    deleted_sequence: str
+    arm: int
+    left_arm: str
+    right_arm: str
+
+    @property
+    def deleted(self) -> int:
+        return len(self.deleted_sequence)
+
+    @property
+    def md5(self) -> str:
+        import hashlib
+
+        return hashlib.md5(self.sequence.encode("ascii")).hexdigest()
+
+    def describe(self) -> list[str]:
+        return [
+            f"CONTROL SIN INTRON — {len(self.sequence)} pb / md5 {self.md5}",
+            f"  Sale de {self.source}, tramo casete:{self.fragment_start}-"
+            f"{self.fragment_end}, con el donante y el aceptor ELIMINADOS: fuera los "
+            f"{self.deleted} nt",
+            f"  del intron (MVM5 + MVM3, las dos piezas literales) y todo lo demas "
+            f"conservado base a base.",
+            f"  Lleva {self.arm} nt de homologia a cada lado y conserva MluI y AgeI, "
+            f"asi que entra por digestion.",
+            f"  LONGITUD: {len(self.sequence)} pb tal cual. Si el proveedor pide un "
+            f"minimo mayor, se alargan los brazos",
+            f"  —`intronless_control(..., arm=N)`—, y salen del PROPIO plasmido, no de "
+            f"ningun sitio mas. Aqui no se",
+            "  inventa un minimo de sintesis: ese numero lo pone el catalogo, no este "
+            "programa.",
+            "  PARA QUE ES: es la LECTURA 3 del frente del empalme —el techo de "
+            "expresion—, y sin ella esa",
+            "  lectura no existe. Aqui NO HAY EMPALME QUE MEDIR: sin donante ni "
+            "aceptor, lo que expresa esta",
+            "  construccion es todo lo que la arquitectura puede dar. Se corre en la "
+            "MISMA TANDA que las otras.",
+            f"  OJO: no confundir con {self.source}, que es el parental sin MODULO pero "
+            f"CON el intron vacio",
+            "  de 82 nt — ese arrastra el mismo problema de empalme que se quiere medir.",
+        ]
+
+
+def intronless_control(
+    sequence: str, *, name: str, arm: int = blocks.GIBSON_ARM
+) -> IntronlessControl:
+    """El casete sin donante ni aceptor, con brazos sacados del propio plasmido."""
+    limpia = "".join(str(sequence).split()).upper()
+    sitio = locate_intron(limpia, name=name)
+    if not sitio.empty:
+        raise ShmirDesignError(
+            f"{name}: el intron mide {sitio.length} nt y no son las dos mitades MVM "
+            f"solas, asi que quitarlas dejaria dentro lo que hubiera en medio —el "
+            f"modulo del shmiR— y eso NO es un control sin intron, es el modo de fallo "
+            f"que se quiere medir. El control se hace sobre el PARENTAL. Se aborta."
+        )
+
+    mlui = limpia.rfind(blocks.PIECES["MluI"].sequence, 0, sitio.donor_start)
+    agei = limpia.find(blocks.PIECES["AgeI"].sequence, sitio.acceptor_end)
+    if mlui < 0 or agei < 0:
+        raise ShmirDesignError(
+            f"{name}: no se encuentran MluI por delante del donante y AgeI por detras "
+            f"del aceptor, asi que el fragmento no se podria clonar por digestion. "
+            f"Se aborta en vez de emitir un fragmento que no entra."
+        )
+    fin_agei = agei + len(blocks.PIECES["AgeI"].sequence)
+    inicio = mlui + 1 - arm
+    fin = fin_agei + arm
+    if inicio < 1 or fin > len(limpia):
+        raise ShmirDesignError(
+            f"{name}: no caben {arm} nt de homologia a los dos lados dentro de las "
+            f"{len(limpia)} pb del plasmido; se aborta en vez de emitir un brazo corto "
+            f"sin decirlo."
+        )
+
+    borrado = limpia[sitio.donor_start - 1:sitio.acceptor_end]
+    fragmento = limpia[inicio - 1:sitio.donor_start - 1] + limpia[sitio.acceptor_end:fin]
+    return IntronlessControl(
+        source=name,
+        sequence=fragmento,
+        fragment_start=inicio,
+        fragment_end=fin,
+        deletion_start=sitio.donor_start,
+        deleted_sequence=borrado,
+        arm=arm,
+        left_arm=limpia[inicio - 1:mlui],
+        right_arm=limpia[fin_agei:fin],
+    )
+
+
+def reference_intron() -> str:
+    """El intron con la horquilla de REFERENCIA, para el analisis que no depende de guia.
+
+    La horquilla de un candidato cualquiera cambia tres de los uAUG, asi que la cuenta
+    exacta es POR CANDIDATO; lo que no cambia son el andamio y los espaciadores. Se usa
+    la horquilla de referencia —que es una secuencia REAL del repositorio, no un
+    relleno— para poder dar el analisis antes de elegir candidato.
+    """
+    from .scaffold import REFERENCE_HAIRPIN
+
+    def s(n: str) -> str:
+        return blocks.PIECES[n].sequence
+
+    return (
+        s("MVM5") + s("espaciador5") + s("NheI") + s("contexto5") + REFERENCE_HAIRPIN
+        + s("contexto3") + s("SacI") + s("espaciador3") + s("MVM3")
     )

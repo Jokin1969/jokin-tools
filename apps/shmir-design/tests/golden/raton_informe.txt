@@ -451,7 +451,53 @@
   No hay casete cargado (--transgen), asi que no se emiten coordenadas de cebador. NOT_RUN
   no es PASS: el frente sigue igual de abierto.
 
-  LAS TRES LECTURAS QUE LO CIERRAN. Ninguna la corre este software:
+  SI EL INTRON SE RETIENE FALLAN DOS COSAS DISTINTAS, no una: (a) la horquilla se queda
+  dentro del mRNA maduro, en el 5'UTR, con lo que eso haga al transito del ribosoma y a la
+  estabilidad; y (b) el ribosoma escanea desde el extremo 5' y se encuentra varios AUG
+  antes del legitimo. El (b) actua AUNQUE la horquilla no estorbara nada: son mecanismos
+  distintos y se cuentan aparte.
+
+  (b) EL SEGUNDO MODO — el escaneo del ribosoma:
+      +16  (MVM5        ) TAAGGGATG      -3=G +4=G Kozak FUERTE    a 318 nt del ATG legitimo, EN MARCO, para a los 10 codones → uORF
+      +38  (MVM5        ) GTATTAATG      -3=T +4=T Kozak debil     a 296 nt del ATG legitimo, fuera de marco, para a los 36 codones → uORF
+      +45  (espaciador5 ) TGTACAATG      -3=A +4=A Kozak adecuado  a 289 nt del ATG legitimo, fuera de marco, para a los 6 codones → uORF
+      +116 (horquilla   ) ATTATAATG      -3=A +4=C Kozak adecuado  a 218 nt del ATG legitimo, fuera de marco, para a los 10 codones → uORF
+      +141 (horquilla   ) CCACAGATG      -3=C +4=T Kozak debil     a 193 nt del ATG legitimo, fuera de marco, para a los 3 codones → uORF
+      +167 (horquilla   ) ATTCCTATG      -3=C +4=C Kozak debil     a 167 nt del ATG legitimo, fuera de marco, para a los 18 codones → uORF
+      +210 (espaciador3 ) GAGCTCATG      -3=C +4=G Kozak adecuado  a 124 nt del ATG legitimo, fuera de marco, SIN codon de parada antes del ATG legitimo → uORF_SOLAPANTE
+      +237 (espaciador3 ) GTGCCTATG      -3=C +4=T Kozak debil     a 97 nt del ATG legitimo, fuera de marco, SIN codon de parada antes del ATG legitimo → uORF_SOLAPANTE
+    ESCANEO DEL RIBOSOMA — 8 AUG por delante del legitimo. EXTENSION N-TERMINAL: ninguno.
+    Se comprueba, no se supone: de los 8 uAUG, +16 esta(n) en marco pero para(n) antes del
+    ATG legitimo. Asi que ninguno produce una proteina que un Western pueda confundir con
+    la DN. PERO NO TODOS SON IGUALES: +210, +237 no llega(n) a codon de parada antes del
+    ATG legitimo, asi que el ribosoma SIGUE ELONGANDO al pasar por el — un uORF que SOLAPA
+    el inicio no deja reiniciar ahi, y eso es peor que uno que termina antes. Kozak,
+    criterio declarado (no citado): se miran dos posiciones, -3 (purina A o G) y +4 (G).
+    Las dos → FUERTE; una → adecuado; ninguna → debil. Es el criterio de este analisis y
+    se escribe para que se pueda discutir, no para dar por buena una referencia que aqui
+    no se ha comprobado. OJO: la cuenta cambia POR CANDIDATO — la horquilla aporta parte
+    de estos AUG y otra guia da otros. Lo que no cambia son los del andamio y los
+    espaciadores.
+
+  DONANTE CRIPTICO GTGAGCG en +98 del intron (flanco 5' de miR-E, dentro del ANDAMIO:
+    viaja con cualquier candidato, no depende de la guia).
+    ¿Hay un ACEPTOR utilizable entre el (+98) y el legitimo (+295)? Se han mirado los
+    13 AG del intervalo. El aceptor LEGITIMO tiene un tracto de 9 pirimidinas contiguas;
+    el mejor criptico llega a 3. NO hay ninguno comparable.
+    Criterio de sitio 3' declarado como PARAMETRO de este analisis; NO ES UNA CITA. Se miden dos cosas sobre cada AG: (1) el tracto de pirimidinas CONTIGUAS inmediatamente aguas arriba —contiguas, no el porcentaje en una ventana, que diluye—, y (2) si hay algun YURAY entre 18 y 40 nt aguas arriba, como punto de ramificacion candidato. Los dos numeros salen tal cual y la comparacion se hace CONTRA EL ACEPTOR LEGITIMO del mismo intron, que es la referencia interna: asi el veredicto no depende de ningun umbral tomado de fuera.
+  
+    LO QUE ESO CIERRA: los productos que necesitarian un aceptor criptico en ese intervalo. No hay
+    ninguno con un sitio 3' comparable al legitimo, asi que esa familia de productos se descarta POR SECUENCIA.
+  
+    LO QUE NO CIERRA, y es lo importante: el riesgo del donante criptico NO se cierra por aqui, porque
+    ese donante NO NECESITA un aceptor criptico — el aceptor LEGITIMO del MVM esta aguas abajo (+295)
+    y es perfectamente utilizable. Un empalme +98 → +295 quita 198 nt y deja
+    los 97 primeros nt del intron dentro del mRNA: banda = empalmada + 97 pb, frente a +0 (correcta) y
+    +296 (retenida). Es una banda INTERMEDIA, que es exactamente la que se puede confundir en un gel,
+    y por eso la lectura 4 —secuenciar la union— no es opcional. Los dos donantes compiten por el MISMO
+    aceptor, y cual gana no lo dice la secuencia.
+
+  LAS CUATRO LECTURAS QUE LO CIERRAN. Ninguna la corre este software:
     · rtpcr_empalme [NOT_RUN]: RT-PCR con cebadores en los exones que flanquean el intron
       MVM. Banda CORTA = empalmado, banda LARGA = retenido, y la PROPORCION es la
       eficiencia. Coordenadas NO emitidas: falta el casete (--transgen).
@@ -459,6 +505,13 @@
       «no hay proteina» no se distingue de «no llego el vector»: los dos dan una membrana
       vacia, y solo uno de los dos culpa al empalme. La vg-qPCR es la que separa las dos
       hipotesis.
+    · secuencia_union_exon_exon [NOT_RUN]: SECUENCIAR la banda corta, no solo verla. Es LA
+      QUE CIERRA el frente: la lectura de exito es la SECUENCIA de la union exon-exon, NO
+      LA ALTURA de la banda. Sirve para descartar el donante criptico GTGAGCG del flanco
+      5' del andamio: un empalme por ahi al aceptor legitimo dejaria 97 nt de intron
+      dentro y daria una banda INTERMEDIA —empalmada + 97 pb— que en un gel se puede
+      confundir con la correcta. Con la union secuenciada, o pone exon5|exon3 o no lo
+      pone.
     · parental_sin_intron [NOT_RUN]: Parental SIN INTRON en la MISMA TANDA, como TECHO de
       expresion. Sin techo, un western flojo no dice si el empalme va mal o si la
       construccion expresa poco de por si. OJO: el casete que hay (aav_casete.fa) NO es

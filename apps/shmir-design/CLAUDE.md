@@ -1013,8 +1013,29 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **antes** del splicing: la horquilla se corta igual esté el intrón escindido o no.
     **Un shmiR correcto no es evidencia de que haya proteína.** Son dos sucesos en orden
     y esa lectura solo mide el primero.
-  - **No se cierra con ningún fichero**, y el informe lo separa de los otros: sus tres
-    lecturas son de banco, las tres `NOT_RUN`, y este software no corre ninguna.
+  - **SON DOS MODOS DE FALLO, no uno con un detalle** (`splicing.RETENTION_MODES`). Si
+    el intrón se retiene: **(a)** la horquilla se queda en el 5'UTR del mRNA maduro, y
+    **(b)** el ribosoma escanea desde el extremo 5' y se encuentra varios AUG antes del
+    legítimo. **El (b) actúa aunque la horquilla no estorbara nada**, así que van
+    separados y contados aparte en el informe.
+  - **Los uAUG, con posición, Kozak y marco** (`splicing.scan_upstream_atgs`). Con la
+    horquilla de referencia son **ocho**, y el análisis da tres categorías, no una:
+    - **`EXTENSION_N_TERMINAL`** — en marco **y** sin codón de parada antes del ATG
+      legítimo. Es el caso **peor**: produce PrP con una cola por delante, o sea **algo
+      que un Western podría confundir con la DN**. **Con este casete no hay ninguno, y
+      se comprueba en vez de suponerse**: el único en marco es `+16` (MVM5,
+      `TAAGGGATG`, Kozak **FUERTE**, a 318 nt) y **para a los 10 codones**.
+    - **`uORF_SOLAPANTE`** — fuera de marco y **sin** parada antes del ATG legítimo:
+      `+210` y `+237`. El ribosoma **sigue elongando** al pasar por el inicio, así que no
+      puede reiniciar ahí. Es peor que un uORF que termina antes, y meterlo en el mismo
+      saco lo escondía.
+    - **`uORF`** — el resto.
+    El criterio de Kozak (**−3** purina, **+4** G) va **declarado como parámetro de este
+    análisis, no citado** (`splicing.KOZAK_CRITERION`). Y **la cuenta cambia por
+    candidato**: tres de los ocho los aporta la horquilla.
+  - **No se cierra con ningún fichero**, y el informe lo separa de los otros: sus
+    **cuatro** lecturas son de banco, las cuatro `NOT_RUN`, y este software no corre
+    ninguna.
     1. **RT-PCR de empalme** con cebadores en los exones que flanquean el intrón MVM.
        Banda **corta** = empalmado, banda **larga** = retenido, y la **proporción** es la
        eficiencia.
@@ -1023,6 +1044,9 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
        al empalme.
     3. **Parental SIN INTRÓN en la misma tanda**, como techo de expresión. Sin techo, un
        western flojo no dice si el empalme va mal o si la construcción expresa poco.
+    4. **SECUENCIAR la banda corta, y es LA QUE CIERRA el frente.** La lectura de éxito
+       es la **secuencia de la unión exón-exón**, **no la altura de la banda**. Sin ella,
+       ver una banda corta no descarta el donante críptico.
   - **El casete que hay NO es el parental sin intrón, y confundirlos daría un techo que
     no lo es.** `aav_casete.fa` es el parental sin **módulo** pero **con el intrón vacío
     de 82 nt** (MVM5 40 + MVM3 42 pegadas, comprobado por secuencia), así que arrastra el
@@ -1050,6 +1074,41 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     - **La especificidad del par la da el cebador de aguas ARRIBA.** La ventana de aguas
       abajo entra en el ORF de PrP, así que un par con los dos cebadores ahí amplificaría
       también el **Prnp endógeno** del tejido y la banda no sería del vector.
+- **El donante críptico `GTGAGCG` del andamio: lo que la secuencia cierra y lo que NO**
+  (`splicing.cryptic_donor_scan`). Está en el flanco 5' de miR-E, **dentro del andamio**,
+  así que viaja con cualquier candidato: intrón `+98`.
+  - **La pregunta que se podía contestar hoy, contestada**: entre ese donante y el aceptor
+    legítimo (`+295`) hay **13 AG**, y **ninguno es un aceptor utilizable**. El legítimo
+    tiene un tracto de **9 pirimidinas contiguas**; el mejor críptico llega a **3**. El
+    criterio va **declarado como parámetro y no como cita** (`SPLICE_SITE_CRITERION`), y
+    la comparación se hace **contra el aceptor legítimo del mismo intrón** — referencia
+    interna, así que el veredicto no depende de ningún umbral traído de fuera.
+  - **Eso cierra** la familia de productos que necesitaría un aceptor críptico ahí.
+  - **PERO NO CIERRA el riesgo del donante críptico, y ese es el punto**: ese donante
+    **no necesita** un aceptor críptico — el **legítimo** del MVM está aguas abajo y es
+    perfectamente utilizable. Un empalme `+98 → +295` quita 198 nt y deja **97 nt** de
+    intrón dentro: banda = **empalmada + 97 pb**, frente a +0 (correcta) y +296
+    (retenida). Es la banda **intermedia**, exactamente la confundible en un gel. Los dos
+    donantes compiten por el **mismo** aceptor y cuál gana no lo dice la secuencia — por
+    eso la lectura 4 no es opcional.
+- **El control SIN INTRÓN se ESPECIFICA, no se pide** (`splicing.intronless_control`, y
+  sale en la hoja de pedido como un fragmento más). Es el casete con **donante y aceptor
+  eliminados** y todo lo demás conservado base a base: 82 pb con 30 nt de homología a cada
+  lado, `md5 d72c574d…`, y conserva MluI y AgeI para la digestión.
+  - **No viola la regla 1**: no genera secuencia, **borra dos piezas literales** de una
+    que está en el repositorio. Hay un test que reinserta lo borrado y comprueba que
+    recupera el original **base a base**.
+  - Se **niega** a construirlo sobre un casete cuyo intrón no sea el vacío: quitar donante
+    y aceptor de un casete **con módulo** dejaría la horquilla dentro del mRNA, que es el
+    modo de fallo que se quiere medir, no su control.
+  - La longitud sale tal cual y **no se inventa un mínimo de síntesis**: si el proveedor
+    pide más, `arm=N` alarga los brazos, y salen del propio plásmido.
+- **El aviso del cebador va en NEGRITA en la hoja** (`blocks.PRIMER_WARNING`): **la
+  especificidad de vector la da el cebador de aguas ARRIBA, y solo ese**. La ventana de
+  aguas abajo entra en el ORF de PrP, así que un par con los dos cebadores ahí
+  amplificaría también el **Prnp endógeno** del tejido — saldría banda, del tamaño
+  esperado, y no sería del vector. **Es el error que arruinaría el ensayo sin dar ninguna
+  señal**, y por eso no va en un párrafo cualquiera.
   - **Que el intrón cae en el 5'UTR se COMPRUEBA, no se declara**: el ATG se busca por
     detrás del aceptor y se traduce. Está en `casete:3253`, a **37 nt** del aceptor, y el
     ORF da **254 aa** que empiezan por `MANLGYWLLALFVTMW` con **G130E** y **W144Y** — o

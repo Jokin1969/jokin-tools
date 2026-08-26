@@ -32,6 +32,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shmir_design.apa import POLYA_DB_PRNP, load_apa_sites, resolve_measured  # noqa: E402
+from shmir_design.splicing import intronless_control, plan_from_records  # noqa: E402
 from shmir_design.anatomy import (  # noqa: E402
     Anatomy,
     Region,
@@ -1019,8 +1020,20 @@ def main(argv: list[str]) -> int:
                 salidas[f"{especie}_bloques.tsv"] = blocks_tsv(
                     bloques, species=especie
                 )
+                # El control sin intron y las ventanas de cebador salen del CASETE, que
+                # ya viaja en la base del transgen: no hace falta pasarlos aparte.
+                plan_empalme, _ = plan_from_records(
+                    transgen_db.records if transgen_db is not None else None
+                )
+                control = None
+                if plan_empalme is not None and plan_empalme.location.empty:
+                    control = intronless_control(
+                        transgen_db.records[plan_empalme.location.plasmid_name],
+                        name=plan_empalme.location.plasmid_name,
+                    )
                 salidas[f"{especie}_hoja_de_pedido.txt"] = order_sheet(
-                    bloques, species=especie
+                    bloques, species=especie,
+                    intronless=control, rtpcr=plan_empalme,
                 )
             for nombre, contenido in salidas.items():
                 (args.out / nombre).write_text(contenido + "\n", encoding="utf-8")

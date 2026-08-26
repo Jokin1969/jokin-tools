@@ -1025,7 +1025,21 @@ def text_report(
     else:
         lines.extend(f"  {l}" for l in plan_empalme.describe())
     lines.append("")
-    lines.append("  LAS TRES LECTURAS QUE LO CIERRAN. Ninguna la corre este software:")
+    # (a) y (b) van separados: son mecanismos distintos y el segundo actua aunque el
+    # primero no estorbara nada.
+    lines.extend(f"  {l}" for l in _envolver(splicing.RETENTION_MODES, 88))
+    lines.append("")
+    intron_teorico = splicing.reference_intron()
+    uatgs = splicing.scan_upstream_atgs(intron_teorico)
+    lines.append("  (b) EL SEGUNDO MODO — el escaneo del ribosoma:")
+    for u in uatgs:
+        lines.append(f"      {u.describe()}")
+    lines.extend(f"    {l}" for l in _envolver(splicing.describe_upstream_atgs(uatgs), 86))
+    lines.append("")
+    criptico = splicing.cryptic_donor_scan(intron_teorico)
+    lines.extend(f"  {l}" for l in criptico.describe())
+    lines.append("")
+    lines.append("  LAS CUATRO LECTURAS QUE LO CIERRAN. Ninguna la corre este software:")
     for lectura in splicing.splicing_readouts(plan_empalme):
         trozos = _envolver(f"{lectura.name} [{lectura.state.value}]: {lectura.requirement}", 84)
         lines.append(f"    · {trozos[0]}")

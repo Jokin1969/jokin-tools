@@ -614,13 +614,41 @@ def blocks_tsv(blocks: list[Block], *, species: str) -> str:
     )
 
 
-def order_sheet(blocks: list[Block], *, species: str) -> str:
-    """Hoja de pedido legible: secuencias en bloques de 60 y que enzimas usar."""
-    if not blocks:
+#: El error que arruinaria la RT-qPCR de empalme SIN DAR NINGUNA SEÑAL: los dos
+#: cebadores dentro del ORF de PrP amplifican tambien el endogeno del tejido, asi que
+#: sale banda, sale del tamaño esperado, y no es del vector. Va destacado en la hoja
+#: porque un fallo que produce el resultado correcto-en-apariencia no se ve leyendo.
+PRIMER_WARNING = (
+    "**La especificidad de vector la da el cebador de AGUAS ARRIBA, y solo ese.** La "
+    "ventana de aguas abajo entra en el ORF de PrP, asi que un par con los DOS cebadores "
+    "ahi amplificaria tambien el Prnp ENDOGENO del tejido: saldria banda, del tamaño "
+    "esperado, y no seria del vector. **Es el error que arruinaria el ensayo sin dar "
+    "ninguna señal.**"
+)
+
+
+def order_sheet(
+    blocks: list[Block],
+    *,
+    species: str,
+    intronless=None,
+    rtpcr=None,
+) -> str:
+    """Hoja de pedido legible: secuencias en bloques de 60 y que enzimas usar.
+
+    `intronless` es el control SIN INTRON (`splicing.IntronlessControl`): un fragmento
+    mas que se pide igual que los demas, y sin el la lectura 3 del frente del empalme no
+    existe. `rtpcr` es el plan de la RT-PCR de empalme, que trae el aviso del cebador.
+    """
+    if not blocks and intronless is None and rtpcr is None:
         return (
             "No hay ningun bloque que pedir: la seleccion esta vacia. No se emite hoja "
             "de pedido en blanco."
         )
+    if not blocks:
+        lineas = [f"═══ Hoja de pedido — {species} ═══", ""]
+        _extras(lineas, intronless, rtpcr)
+        return "\n".join(lineas)
 
     lineas = [
         f"═══ Hoja de pedido — {species} ═══",
@@ -673,4 +701,19 @@ def order_sheet(blocks: list[Block], *, species: str) -> str:
 
     lineas.append("  Clonaje: NheI + SacI para el modulo; MluI + AgeI para el cassette.")
     lineas.append(f"  {AVISO_ENZIMAS}")
+    _extras(lineas, intronless, rtpcr)
     return "\n".join(lineas)
+
+
+def _extras(lineas: list[str], intronless, rtpcr) -> None:
+    """El control sin intron y el aviso del cebador, al final y con su titulo."""
+    if intronless is not None:
+        lineas.extend(["", "── Fragmento CONTROL SIN INTRON ──"])
+        lineas.extend(f"  {t}" for t in intronless.describe())
+        lineas.append("  secuencia:")
+        lineas.extend(f"    {t}" for t in _wrap(intronless.sequence).splitlines())
+    if rtpcr is not None:
+        lineas.extend(["", "── RT-PCR de empalme: ventanas de cebador ──"])
+        lineas.append(f"  {rtpcr.upstream.describe()}")
+        lineas.append(f"  {rtpcr.downstream.describe()}")
+        lineas.append(f"  ⚠  {PRIMER_WARNING}")
