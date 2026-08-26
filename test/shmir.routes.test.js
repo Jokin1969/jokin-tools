@@ -37,6 +37,19 @@ test('server.js monta /shmir detrás de requireApp y engancha el upgrade', () =>
   assert.match(fuente, /upgradeAllowed/);
 });
 
+test('un upgrade de OTRA app se cierra DICIENDO por qué', () => {
+  // Este es el único handler de `upgrade` del hub, así que cierra todo lo que no sea
+  // /shmir. Hoy ninguna otra app usa WebSocket. El día que una lo use, un socket que se
+  // cierra sin motivo se lee como «no conecta» y cuesta horas; el mensaje dice dónde
+  // está el reparto que hay que tocar.
+  const fuente = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'server.js'), 'utf8'
+  );
+  assert.match(fuente, /repartir por prefijo/);
+  assert.ok(!/startsWith\('\/shmir'\)\) \{\s*socket\.destroy\(\)/.test(fuente),
+    'sigue cerrando a la brava sin decir por qué');
+});
+
 test('el proceso se para al apagar el hub', () => {
   const fuente = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'server.js'), 'utf8'

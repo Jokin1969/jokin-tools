@@ -44,6 +44,16 @@ test('se invoca como módulo, no por el ejecutable de la consola', () => {
   assert.ok(args[3].endsWith(path.join('ui', 'streamlit_app.py')), args[3]);
 });
 
+test('el modo desarrollo se apaga EXPLÍCITAMENTE, o el proceso no arranca', () => {
+  // Fallo real del primer despliegue, y sólo puede pasar ahí. Streamlit decide si está
+  // en modo desarrollo con `"site-packages" not in __file__`, y
+  // `pip install --target=/app/python_libs` deja la ruta SIN `site-packages`. En local
+  // está en site-packages, así que esto pasaba en desarrollo y reventaba en producción
+  // con `RuntimeError: server.port does not work when global.developmentMode is true`.
+  const texto = proceso.buildArgs({ port: 8501, basePath: '/shmir' }).join(' ');
+  assert.match(texto, /--global\.developmentMode[= ]false/);
+});
+
 test('la telemetría de Streamlit se apaga explícitamente', () => {
   const texto = proceso.buildArgs({ port: 8501, basePath: '/shmir' }).join(' ');
   assert.match(texto, /gatherUsageStats[= ]false/);
