@@ -488,3 +488,113 @@ def check_directory(directory: Path | str) -> DirectoryStatus:
     return DirectoryStatus(
         results=tuple(resultados), unlisted=sobrantes, directory=str(directory)
     )
+
+
+# ─────────────────────── escribir en el manifiesto ───────────────────────
+#
+# Hasta ahora el manifiesto solo se LEIA: las lineas se escribian a mano, asi que subir
+# un fichero de referencia obligaba a abrir una terminal y editar un `.tsv`. Eso es
+# justo lo que rompe la autosuficiencia de la app — quien no conoce el arbol del
+# repositorio no puede hacerlo, y quien lo conoce se equivoca al teclear un md5.
+#
+# Lo que NO cambia: el manifiesto sigue siendo texto y sigue versionado. Escribirlo
+# desde la interfaz se ve en el `git diff` igual que escribirlo a mano.
+
+
+def _campo(valor: object) -> str:
+    """Un valor en su celda. Un tabulador dentro rompe el fichero, asi que ABORTA."""
+    texto = "" if valor is None else str(valor)
+    if "\t" in texto or "\n" in texto:
+        raise ShmirDesignError(
+            f"El valor {texto!r} lleva un tabulador o un salto de linea dentro, asi que "
+            f"partiria la fila en dos y el manifiesto pasaria a decir otra cosa. Se "
+            f"aborta en vez de escribirlo."
+        )
+    return texto
+
+
+def entry_row(entry: ManifestEntry) -> str:
+    """La linea de una entrada, con las diez columnas en el orden de la cabecera."""
+    return "\t".join(
+        _campo(v)
+        for v in (
+            entry.name, entry.filter_name, entry.size, entry.md5, entry.date,
+            entry.origin, entry.accession, entry.length, entry.url, entry.library,
+        )
+    )
+
+
+@dataclass(frozen=True)
+class ManifestUpdate:
+    """El texto nuevo, y que paso al escribirlo. Se devuelve para poder DECIRLO."""
+
+    text: str
+    #: `True` si la entrada ya estaba y se ha sustituido; `False` si se ha añadido.
+    replaced: bool
+    #: `True` si la cabecera era de las cortas y se ha ensanchado a las diez columnas.
+    widened: bool
+
+
+def update_manifest_text(text: str, entry: ManifestEntry) -> ManifestUpdate:
+    """Mete (o sustituye) una entrada en el texto del manifiesto.
+
+    Funcion PURA: recibe texto y devuelve texto, para que la escritura en disco sea una
+    sola linea sin logica. Los comentarios de cabecera se conservan tal cual — explican
+    los dos checksums, y perderlos al subir un fichero seria borrar la unica advertencia
+    que evita copiar un md5 en el sitio del otro.
+
+    Una cabecera corta se ENSANCHA a las diez columnas rellenando las nuevas en vacio,
+    que es la verdad: nadie las registro. Abortar seria dejar sin subir ficheros a quien
+    tenga un manifiesto viejo, y esa persona es exactamente la que no puede editarlo.
+    """
+    # `parse_manifest` valida; si el manifiesto no se puede leer, no se escribe encima.
+    parse_manifest(text, source="<manifiesto a actualizar>")
+
+    lineas = text.splitlines()
+    fila_cabecera = next(
+        i for i, l in enumerate(lineas) if l.strip() and not l.startswith("#")
+    )
+    cabecera = tuple(lineas[fila_cabecera].split("\t"))
+    ensanchada = cabecera != MANIFEST_COLUMNS
+    if ensanchada:
+        faltan = len(MANIFEST_COLUMNS) - len(cabecera)
+        lineas[fila_cabecera] = "\t".join(MANIFEST_COLUMNS)
+        for i in range(fila_cabecera + 1, len(lineas)):
+            if lineas[i].strip() and not lineas[i].startswith("#"):
+                lineas[i] = lineas[i] + "\t" * faltan
+
+    nueva = entry_row(entry)
+    sustituida = False
+    for i in range(fila_cabecera + 1, len(lineas)):
+        if not lineas[i].strip() or lineas[i].startswith("#"):
+            continue
+        if lineas[i].split("\t")[0].strip() == entry.name:
+            lineas[i] = nueva
+            sustituida = True
+            break
+    if not sustituida:
+        lineas.append(nueva)
+    return ManifestUpdate(
+        text="\n".join(lineas) + "\n", replaced=sustituida, widened=ensanchada
+    )
+
+
+def register_entry(directory: Path | str, entry: ManifestEntry) -> ManifestUpdate:
+    """Escribe la entrada en el manifiesto de ese directorio. No toca el fichero."""
+    ruta = Path(directory) / MANIFEST_NAME
+    try:
+        texto = ruta.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ShmirDesignError(
+            f"No se pudo leer {ruta} para registrar {entry.name!r} ({exc}); sin "
+            f"manifiesto el fichero no seria auditable y no se usa."
+        ) from exc
+    actualizado = update_manifest_text(texto, entry)
+    try:
+        ruta.write_text(actualizado.text, encoding="utf-8")
+    except OSError as exc:
+        raise ShmirDesignError(
+            f"No se pudo escribir {ruta} tras validar {entry.name!r} ({exc}); el fichero "
+            f"queda SIN registrar y por tanto sin usar."
+        ) from exc
+    return actualizado

@@ -38,8 +38,19 @@ class TestArranque(unittest.TestCase):
         app = self.run_app()
         self.assertEqual(list(app.exception), [])
 
-    def test_pide_los_dos_fasta_antes_de_calcular_nada(self):
+    def test_lo_PRIMERO_que_pide_es_la_especie(self):
+        """Antes pedia el FASTA y la especie iba en una caja de texto con «modelo».
+
+        El orden importa: sin especie no se sabe que ficheros hacen falta ni se puede
+        comprobar que los que hay son de esta especie.
+        """
         app = self.run_app()
+        textos = " ".join(info.value for info in app.info)
+        self.assertIn("Elige una especie", textos)
+
+    def test_y_el_FASTA_se_pide_DESPUES_de_elegirla(self):
+        app = self.run_app()
+        app.selectbox[0].set_value("Mus musculus").run()
         textos = " ".join(info.value for info in app.info)
         self.assertIn("FASTA", textos)
 
@@ -65,30 +76,37 @@ class TestArranque(unittest.TestCase):
 
 @unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no esta instalado (pip install -r requirements-ui.txt)")
 class TestFicherosDeReferencia(unittest.TestCase):
-    """El semaforo verde era inalcanzable desde el navegador antes de esto.
+    """El panel de la barra lateral, y la casilla global que ya no existe.
 
-    La pagina pasaba tres de los catorce parametros de `tile_utr`, asi que todos los
-    filtros que dependen de un fichero de `data/reference/` quedaban en NOT_RUN pasara
-    lo que pasara. Estos tests fijan que los tres controles existen y arrancan apagados:
-    conectar ficheros es una decision de quien corre, no un defecto.
+    La casilla «Usar los de `data/reference/`» era una TRAMPA: su unico efecto posible al
+    desmarcarla era dejar todos los filtros con fichero en NOT_RUN sin decir por que. Y
+    la mitad de los ficheros no se podian subir por la interfaz — habia que depositarlos
+    a mano en un directorio del repositorio, que es justo lo que quien usa esta app no
+    conoce. Estos tests fijan las dos cosas.
     """
 
-    def run_app(self):
-        return AppTest.from_file(str(APP), default_timeout=60).run()
+    def run_app(self, especie="Mus musculus"):
+        app = AppTest.from_file(str(APP), default_timeout=60).run()
+        if especie is not None:
+            app.selectbox[0].set_value(especie).run()
+        return app
 
-    def test_estan_los_tres_controles(self):
+    def test_la_casilla_GLOBAL_ya_no_existe(self):
+        app = self.run_app()
+        etiquetas = [w.label for w in app.sidebar.checkbox]
+        self.assertNotIn("Usar los de data/reference/", etiquetas)
+
+    def test_siguen_los_dos_controles_que_SI_son_decisiones(self):
         app = self.run_app()
         etiquetas = [w.label for w in app.sidebar.checkbox]
         etiquetas += [w.label for w in app.sidebar.text_input]
-        for esperado in ("Usar los de data/reference/", "Gen diana (accession)",
-                         "Calcular accesibilidad (lento)"):
+        for esperado in ("Gen diana (accession)", "Calcular accesibilidad (lento)"):
             with self.subTest(esperado):
                 self.assertIn(esperado, etiquetas)
 
-    def test_arrancan_apagados(self):
+    def test_la_accesibilidad_arranca_apagada(self):
         app = self.run_app()
         valores = {w.label: w.value for w in app.sidebar.checkbox}
-        self.assertFalse(valores["Usar los de data/reference/"])
         self.assertFalse(valores["Calcular accesibilidad (lento)"])
 
     def test_el_gen_diana_arranca_vacio(self):
@@ -98,10 +116,36 @@ class TestFicherosDeReferencia(unittest.TestCase):
         valores = {w.label: w.value for w in app.sidebar.text_input}
         self.assertEqual(valores["Gen diana (accession)"], "")
 
-    def test_el_aviso_de_la_casilla_dice_que_sin_ella_todo_queda_en_not_run(self):
+    def test_sin_especie_el_panel_dice_que_hay_que_elegirla(self):
+        app = self.run_app(especie=None)
+        textos = " ".join(c.value for c in app.sidebar.caption)
+        self.assertIn("Elige una especie", textos)
+
+    def test_con_especie_sale_un_HUECO_DE_SUBIDA_por_fichero(self):
         app = self.run_app()
-        ayuda = " ".join(w.help or "" for w in app.sidebar.checkbox)
-        self.assertIn("NOT_RUN", ayuda)
+        etiquetas = [w.label for w in app.sidebar.get("file_uploader")]
+        for esperado in ("Subir rmsk_mouse.out", "Subir rmsk_mouse.tbl",
+                         "Subir mature.fa", "Subir refseq_rna.fa",
+                         "Subir transcriptoma_3utr.fa"):
+            with self.subTest(esperado):
+                self.assertIn(esperado, etiquetas)
+
+    def test_elegir_OTRA_ESPECIE_explica_los_frentes_ANTES_de_teclear_el_nombre(self):
+        """La pregunta que se contesta es «¿me sirve esta app para mi especie?».
+
+        Contestarla despues de teclear el nombre es no contestarla.
+        """
+        app = self.run_app(especie="otra especie (no declarada)")
+        avisos = " ".join(w.value for w in app.warning)
+        self.assertIn("NO esta declarada", avisos)
+        pies = " ".join(c.value for c in app.main.caption)
+        self.assertIn("colision de seed", pies)
+        self.assertIn("species.SPECIES", pies)
+
+    def test_y_el_recuento_de_frentes_sale_ANTES_de_ejecutar_nada(self):
+        app = self.run_app()
+        textos = " ".join(c.value for c in app.sidebar.caption)
+        self.assertIn("frentes cerrables", textos)
 
 
 @unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no esta instalado (pip install -r requirements-ui.txt)")
@@ -147,12 +191,14 @@ class TestAnatomiaEnLaInterfaz(unittest.TestCase):
     """
 
     def run_app(self):
-        return AppTest.from_file(str(APP), default_timeout=60).run()
+        app = AppTest.from_file(str(APP), default_timeout=60).run()
+        # Los huecos de secuencia son el PASO 2: salen despues de elegir la especie.
+        return app.selectbox[0].set_value("Mus musculus").run()
 
     def test_hay_un_hueco_para_el_genbank_de_cada_especie(self):
         app = self.run_app()
         etiquetas = [w.label for w in app.main.get("file_uploader")]
-        self.assertIn("GenBank de la especie modelo (.gb, opcional)", etiquetas)
+        self.assertIn("GenBank de la especie del diseño (.gb, PREFERENTE)", etiquetas)
         self.assertIn("GenBank de la segunda especie (.gb, opcional)", etiquetas)
 
     def test_el_genbank_acepta_las_extensiones_de_genbank(self):

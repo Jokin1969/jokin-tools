@@ -207,12 +207,55 @@ class ResourceSet:
         return "\n".join(lineas)
 
 
+def roles_for_species(estado: DirectoryStatus, especie) -> dict:
+    """Los roles conectables PARA ESTA ESPECIE: rol -> `species.RequiredFile`.
+
+    `manifest.roles_available` empareja por el NOMBRE contra `manifest.ROLES`, que trae
+    `rmsk_mouse.out` escrito. Con otra especie eso conectaba el fichero del raton por su
+    rol sin mirar que se estaba diseñando — el intervalo murino tx:892-936 cabe de sobra
+    en los 2435 nt del humano y no salta ninguna alarma. Aqui el nombre lo pone
+    `species.required_files`, asi que un fichero de otra especie sencillamente no aparece.
+    """
+    from .manifest import EntryStatus
+    from .species import required_files
+
+    por_nombre = {f.filename: f for f in required_files(especie)}
+    disponibles = {}
+    for resultado in estado.results:
+        if resultado.status is not EntryStatus.OK:
+            continue
+        fila = por_nombre.get(resultado.entry.name)
+        if fila is not None:
+            disponibles[fila.role] = fila
+    return disponibles
+
+
 def load_from_manifest(
-    directory: Path | str, *, target: str | None = None
+    directory: Path | str, *, target: str | None = None, ignore=(), species=None
 ) -> ResourceSet:
-    """Carga todo lo que este en OK en ese directorio. Lo que no, se anota."""
+    """Carga todo lo que este en OK en ese directorio. Lo que no, se anota.
+
+    `ignore` son `deposito.Ignored`: ficheros que ESTAN y son validos y que aun asi no
+    se quieren usar. No hay ninguna casilla global para esto —su unico efecto posible al
+    desmarcarla era dejarlo todo en NOT_RUN sin decir por que— asi que se hace por
+    fichero y con el MOTIVO escrito, y ese motivo se anota en `notes` para que llegue al
+    veredicto. Sin eso, «se decidio no usarlo» y «no estaba» serian el mismo NOT_RUN.
+    """
     estado = check_directory(directory)
-    disponibles = {r.role: r for r in roles_available(estado)}
+    disponibles = (
+        {r.role: r for r in roles_available(estado)}
+        if species is None
+        else roles_for_species(estado, species)
+    )
+
+    ignorados = {i.filename: i for i in ignore}
+    sobran = set(ignorados) - {r.filename for r in disponibles.values()}
+    if sobran:
+        raise ShmirDesignError(
+            f"Se ha pedido ignorar {sorted(sobran)}, y esos ficheros no estaban "
+            f"conectados de todas formas. Se aborta: un motivo escrito para un fichero "
+            f"que no se iba a usar deja en el informe una decision que nadie tomo."
+        )
 
     cargado: dict[str, object] = {}
     conectados: list[str] = []
@@ -222,6 +265,10 @@ def load_from_manifest(
     for role, destino in DESTINOS:
         rol = disponibles.get(role)
         if rol is None:
+            continue
+        ignorado = ignorados.get(rol.filename)
+        if ignorado is not None:
+            notas.append(ignorado.note)
             continue
         entrada = estado.result_of(rol.filename).entry
         try:

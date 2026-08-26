@@ -360,6 +360,81 @@ def declared_species(text: str) -> str | None:
     return None
 
 
+def check_out_shape(text: str, *, source: str) -> int:
+    """Comprueba que un `.out` de RepeatMasker TIENE LA FORMA de uno. Nada mas.
+
+    Existe para la subida por la interfaz, donde los dos ficheros de una corrida llegan
+    de uno en uno y hay que poder aceptar el primero. Devuelve cuantas filas de
+    repeticion trae.
+
+    **Lo que esta comprobacion NO hace, y hay que decirlo**: no comprueba la ESPECIE de
+    la biblioteca —vive en el `.tbl` y el `.out` no la lleva nunca— ni la longitud de la
+    consulta. Asi que pasar por aqui NO valida la corrida: mientras falte el resumen, el
+    frente de repetitivos sigue cerrado, que es lo que `species.fixture_report` exige.
+    """
+    filas = 0
+    for numero, linea in enumerate(text.splitlines(), start=1):
+        if not linea.strip():
+            continue
+        campos = linea.split()
+        if not campos[0].lstrip("-").isdigit():
+            continue  # cabecera
+        if len(campos) < _OUT_MIN_FIELDS:
+            raise ShmirDesignError(
+                f"{source}:{numero}: una fila de RepeatMasker tiene {len(campos)} "
+                f"campo(s) y hacen falta al menos {_OUT_MIN_FIELDS}. Esto no parece la "
+                f"salida `.out` de RepeatMasker; se rechaza el fichero."
+            )
+        filas += 1
+    # Sin filas hay que reconocer la CABECERA. Un `.out` sin repeticiones es legitimo
+    # —«se busco y no hay»— pero un fichero cualquiera tampoco tiene filas, y aceptar los
+    # dos por igual dejaria entrar cualquier cosa con el nombre correcto. La cabecera de
+    # RepeatMasker es «SW score / perc div. / query sequence …».
+    if filas == 0:
+        cabecera = "\n".join(text.splitlines()[:4]).lower()
+        if not ("score" in cabecera and "query" in cabecera):
+            raise ShmirDesignError(
+                f"{source}: esto no parece la salida `.out` de RepeatMasker — no trae ni "
+                f"una fila de repeticion ni su cabecera («SW score … query sequence …»). "
+                f"Un `.out` SIN filas es legitimo cuando no hay repetitivos, pero "
+                f"entonces trae la cabecera y su resumen; un fichero cualquiera no es "
+                f"ninguna de las dos cosas. Se rechaza."
+            )
+    return filas
+
+
+def check_summary(text: str, *, source: str, expected_species: str) -> str:
+    """Comprueba que un `.tbl` es el resumen de una corrida de ESTA especie.
+
+    Es la comprobacion que da valor al `.tbl`: la especie de la biblioteca y la longitud
+    de la consulta viven aqui y en ningun otro sitio.
+    """
+    declarada = declared_species(text)
+    esperada = expected_species.strip().lower()
+    if declarada is None:
+        raise ShmirDesignError(
+            f"{source}: este resumen no declara la especie de la biblioteca (la linea "
+            f"«The query species was assumed to be ...»), asi que no sirve para lo unico "
+            f"para lo que hace falta. Se esperaba «{esperada}». NO HABER PODIDO "
+            f"COMPROBAR NO ES «COINCIDE». {INDISTINGUISHABLE_OUTS}"
+        )
+    if declarada != esperada:
+        raise ShmirDesignError(
+            f"{source}: la corrida se hizo contra la biblioteca de «{declarada}» y esta "
+            f"es una corrida de «{esperada}». Se rechaza el fichero. "
+            f"{INDISTINGUISHABLE_OUTS}"
+        )
+    if not any(
+        l.strip().lower().startswith("total length:") for l in text.splitlines()
+    ):
+        raise ShmirDesignError(
+            f"{source}: el resumen no trae la linea «total length:», asi que no se sabe "
+            f"cuantos nt analizo la corrida y no hay forma de impedir aplicar esta "
+            f"mascara a otra secuencia. Se rechaza."
+        )
+    return declarada
+
+
 def parse_rmsk_out(
     text: str,
     *,

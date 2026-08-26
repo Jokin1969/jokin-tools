@@ -99,10 +99,25 @@ class TestElInformeDeFixtures(unittest.TestCase):
     def test_con_el_raton_y_sus_ficheros_hay_frentes_DISPONIBLES(self):
         raton = sp.fixture_report(
             sp.resolve("Mus musculus"),
-            have=("rmsk_mouse.out", "mature.fa", "aav_casete.fa"),
+            have=("rmsk_mouse.out", "rmsk_mouse.tbl", "mature.fa", "aav_casete.fa"),
         )
         disponibles = [f.front for f in raton.rows if f.available]
         self.assertTrue(any("repetitivos" in f for f in disponibles))
+
+    def test_el_OUT_A_SOLAS_no_abre_el_frente_de_repetitivos(self):
+        """Esta tabla decia «disponible» con solo el `.out`, y no lo esta.
+
+        La especie de la biblioteca vive en el `.tbl`, y esta DEMOSTRADO con md5 que una
+        corrida buena y una contra la biblioteca equivocada producen `.out` identicos
+        byte a byte (`masking.INDISTINGUISHABLE_OUTS`). `resources._rmsk` ya abortaba sin
+        resumen; esta tabla prometia lo contrario.
+        """
+        solo_out = sp.fixture_report(
+            sp.resolve("Mus musculus"), have=("rmsk_mouse.out",)
+        )
+        fila = next(f for f in solo_out.rows if f.front.startswith("repetitivos"))
+        self.assertFalse(fila.available)
+        self.assertEqual(fila.missing, "rmsk_mouse.tbl")
 
     def test_pero_el_rmsk_del_RATON_no_cuenta_para_el_conejo(self):
         conejo = sp.fixture_report(
