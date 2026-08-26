@@ -204,6 +204,7 @@ def text_report(
     transcript: ReferenceTranscript | None = None,
     conservation: ConservationReport | None = None,
     anatomy_warnings: tuple[str, ...] = (),
+    notes: tuple[str, ...] = (),
     provenance: tuple[str, ...] = (),
 ) -> str:
     lines = [
@@ -370,6 +371,9 @@ def text_report(
 
     lines.extend(["", "── Tabla comparativa de los candidatos ──"])
     lines.append(comparative_text(selection, scaffold, anatomy=tiling.anatomy))
+
+    for nota in notes:
+        lines.extend(["", *nota.splitlines()])
 
     lines.extend(["", "── Que se ha analizado ──"])
     lines.append(

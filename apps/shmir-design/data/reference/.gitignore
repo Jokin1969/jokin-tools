@@ -21,3 +21,9 @@
 !NM_011170.3.fa
 !NM_011170.3.gb
 !mirarchitect_prnp_raton.tsv
+
+# Y el fixture NEGATIVO: 1,2 kB. Es la prueba material de la errata nº 5 y lo que hace
+# que su test pueda correr. Sin el, el test se salta y la errata deja de estar cubierta.
+!prnp_3utr_fabricado_1246nt.txt
+!mirarchitect_prnp_export.csv
+

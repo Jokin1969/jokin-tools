@@ -344,6 +344,15 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   miR-30a —dos nucleótidos borrados tras la posición 9 y `GC` terminal, verificado
   26/26— y la nuestra cambia solo la posición 1 y se elige plegando. De miRarchitect se
   toma la guía y nada más.
+- **Dos corridas de miRarchitect se cruzan por SITIO sobre la referencia**
+  (`mirarchitect.compare_exports`, `tools/compare_exports.py`), nunca por guía ni por la
+  coordenada que declara el fichero: una ventana corrida da otra guía, y una entrada
+  distinta corre las coordenadas. `axis` es **obligatorio** porque la misma aritmética
+  contesta dos preguntas distintas — cuánto mueve la puntuación un cambio de la entrada
+  (sensibilidad) y cuánto la mueve un cambio de andamio (la magnitud que convierte el
+  `NO_ORDENAR` en un número). El programa da la cifra y **no** dice si es alta o baja:
+  ese umbral lo pone quien lee, y el informe dice qué decisión cuelga de él. El bloque
+  entra en el documento con `design.py --nota`, no se queda en el log.
 - **La auditoría de un fichero de scores es código, no un análisis a mano**
   (`shmir_design/audit.py`, `tools/audit_scores.py`). Tabula longitudes, dice qué guías
   no mapean y cómo se restauran, marca las filas que son prefijo de otra, y avisa de

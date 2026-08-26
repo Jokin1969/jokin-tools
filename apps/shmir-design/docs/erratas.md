@@ -66,6 +66,36 @@ retirados como línea de investigación:
   la herramienta: el export limpio trae guía de 22 nt, diana de 22 y `End−Start+1 = 22`
   en las 26 filas. Longitud nominal 22, confirmada, dicotomía cerrada.
 
+**El fichero está archivado**, no destruido: `data/reference/prnp_3utr_fabricado_1246nt.txt`,
+md5 `328cfa074a9b002f9614fcce3f19e21f`, con `tests/test_fixture_negativo.py` reproduciendo
+la errata sobre el dato de verdad. No entra a ningún diseño; su único uso es ese test.
+
+Alineamiento global contra el 3'UTR de referencia: **1231 identidades, 20 diferencias**
+(5 deleciones, 9 inserciones, 6 sustituciones; +4 nt netos).
+
+| tipo | ref | fabricado | cambio |
+|---|---|---|---|
+| deleción | 56 | 55 | `T` → – |
+| inserción | 240 | 240 | – → `A` |
+| deleción | 275 | 274 | `T` → – |
+| deleción | 431 | 429 | `T` → – |
+| sustitución | 433 | 431 | `G` → `T` |
+| deleción | 722 | 719 | `A` → – |
+| inserción | 768 | 766 | – → `A` |
+| inserción | 807 | 806 | – → `A` |
+| deleción | 941 | 939 | `T` → – |
+| inserción | 950 | 949 | – → `A` |
+| inserción | 959–960 | 959–962 | – → `A`, `T`, `C` |
+| inserción | 986 | 989 | – → `T` |
+| **transposición** | **1142–1143** | **1145–1146** | **`CT` → `TC`** |
+| **transposición** | **1169–1170** | **1172–1173** | **`GT` → `TG`** |
+| inserción | 1189 | 1193 | – → `A` |
+| sustitución | 1240 | 1244 | `T` → `A` |
+
+La divergencia de 420–440 que introduce el `TCTAGA` inexistente en la referencia son la
+deleción de 431 y la sustitución de 433 juntas. Y hay **dos** transposiciones, no una: la
+`CT`↔`TC` de 1142 y una `GT`↔`TG` en 1169 que no se había previsto.
+
 **Contramedidas nuevas:**
 
 1. Ninguna secuencia entra al pipeline sin su md5 en el manifiesto. Ni pegada, ni

@@ -206,3 +206,161 @@ def parse_export(text: str, *, source: str = "el export de miRarchitect") -> Exp
         contained=contenidas,
         source=source,
     )
+
+
+@dataclass(frozen=True)
+class SiteComparison:
+    """Un sitio de la referencia, con lo que dice cada uno de los dos exports."""
+
+    start: int
+    guide: str
+    score_a: float | None = None
+    score_b: float | None = None
+    rank_a: int | None = None
+    rank_b: int | None = None
+
+    @property
+    def rank_shift(self) -> int | None:
+        if self.rank_a is None or self.rank_b is None:
+            return None
+        return self.rank_b - self.rank_a
+
+    @property
+    def score_delta(self) -> float | None:
+        if self.score_a is None or self.score_b is None:
+            return None
+        return self.score_b - self.score_a
+
+
+@dataclass(frozen=True)
+class ExportComparison:
+    """Dos exports cruzados POR SITIO sobre la referencia.
+
+    El cruce no va por guia ni por coordenada declarada: una ventana corrida da otra
+    guia, y una entrada distinta corre las coordenadas. Lo unico estable entre las dos
+    corridas es donde cae la ventana sobre el 3'UTR de referencia.
+    """
+
+    axis: str
+    shared: tuple[SiteComparison, ...]
+    only_a: tuple[SiteComparison, ...]
+    only_b: tuple[SiteComparison, ...]
+    without_site_a: int
+    without_site_b: int
+
+    @property
+    def overlap(self) -> float:
+        total = len(self.shared) + len(self.only_a) + len(self.only_b)
+        return len(self.shared) / total if total else 0.0
+
+    @property
+    def moved(self) -> tuple[SiteComparison, ...]:
+        return tuple(s for s in self.shared if s.rank_shift)
+
+    def format_text(self) -> str:
+        lineas = [
+            "── Comparacion de dos corridas de miRarchitect ──",
+            f"  Lo que cambia entre las dos: {self.axis}",
+            f"  sitios en las dos:      {len(self.shared)}",
+            f"  solo en la primera:     {len(self.only_a)}",
+            f"  solo en la segunda:     {len(self.only_b)}",
+            f"  SOLAPAMIENTO DE SITIOS: {self.overlap:.1%}",
+            f"  cambian de puesto:      {len(self.moved)} de {len(self.shared)}",
+        ]
+        if self.moved:
+            mayor = max(abs(s.rank_shift) for s in self.moved)
+            lineas.append(f"  mayor salto de puesto:  {mayor}")
+            lineas.append("  sitio      guia                       puesto      score")
+            for sitio in sorted(self.moved, key=lambda s: -abs(s.rank_shift)):
+                lineas.append(
+                    f"  {sitio.start:<10} {sitio.guide:<24} "
+                    f"{sitio.rank_a}→{sitio.rank_b} ({sitio.rank_shift:+d})   "
+                    f"{sitio.score_a:.2f}→{sitio.score_b:.2f} "
+                    f"({sitio.score_delta:+.2f})"
+                )
+        if self.without_site_a or self.without_site_b:
+            lineas.append(
+                f"  filas sin sitio en la referencia: {self.without_site_a} en la "
+                f"primera, {self.without_site_b} en la segunda. No se cruzan: no hay "
+                f"con que."
+            )
+        lineas.extend(
+            [
+                "",
+                "  Que hacer con esta cifra: el umbral no lo pone este programa. Un "
+                "solapamiento",
+                "  bajo obliga a DEGRADAR la confianza que se le da a la puntuacion, y "
+                "a decirlo",
+                "  en el informe; uno alto no la valida, solo deja de ser un motivo "
+                "para bajarla.",
+            ]
+        )
+        return "\n".join(lineas)
+
+
+def _site_of(row: ExportRow, utr3: str) -> int | None:
+    """Donde cae la ventana sobre la REFERENCIA, o `None` si no cae en ningun sitio."""
+    posicion = utr3.find(row.target)
+    return posicion + 1 if posicion >= 0 else None
+
+
+def compare_exports(
+    a: Export, b: Export, utr3: str, *, axis: str
+) -> ExportComparison:
+    """Cruza dos exports por sitio. `axis` declara QUE cambia entre los dos.
+
+    Se exige declararlo porque las dos preguntas que contesta esta funcion —cuanto
+    mueve la puntuacion un cambio de la entrada, y cuanto la mueve un cambio de
+    andamio— se responden con la misma aritmetica y significan cosas distintas. Un
+    numero sin saber de que es no dice nada.
+    """
+    if not axis:
+        raise ShmirDesignError(
+            "Hay que declarar que cambia entre los dos exports (`axis`): la misma cifra "
+            "significa una cosa si lo que cambio fue la secuencia de entrada y otra si "
+            "fue el andamio."
+        )
+
+    def indexar(export: Export) -> tuple[dict[int, tuple[ExportRow, int]], int]:
+        sitios: dict[int, tuple[ExportRow, int]] = {}
+        sin_sitio = 0
+        for puesto, fila in enumerate(export.rows, start=1):
+            inicio = _site_of(fila, utr3)
+            if inicio is None:
+                sin_sitio += 1
+            else:
+                sitios[inicio] = (fila, puesto)
+        return sitios, sin_sitio
+
+    sitios_a, sin_a = indexar(a)
+    sitios_b, sin_b = indexar(b)
+
+    compartidos = tuple(
+        SiteComparison(
+            start=inicio,
+            guide=sitios_a[inicio][0].guide,
+            score_a=sitios_a[inicio][0].score,
+            score_b=sitios_b[inicio][0].score,
+            rank_a=sitios_a[inicio][1],
+            rank_b=sitios_b[inicio][1],
+        )
+        for inicio in sorted(set(sitios_a) & set(sitios_b))
+    )
+    solo_a = tuple(
+        SiteComparison(
+            start=i, guide=sitios_a[i][0].guide,
+            score_a=sitios_a[i][0].score, rank_a=sitios_a[i][1],
+        )
+        for i in sorted(set(sitios_a) - set(sitios_b))
+    )
+    solo_b = tuple(
+        SiteComparison(
+            start=i, guide=sitios_b[i][0].guide,
+            score_b=sitios_b[i][0].score, rank_b=sitios_b[i][1],
+        )
+        for i in sorted(set(sitios_b) - set(sitios_a))
+    )
+    return ExportComparison(
+        axis=axis, shared=compartidos, only_a=solo_a, only_b=solo_b,
+        without_site_a=sin_a, without_site_b=sin_b,
+    )

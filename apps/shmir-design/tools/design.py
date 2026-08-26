@@ -371,6 +371,12 @@ def main(argv: list[str]) -> int:
              "anatomia: eso lo decide una persona.",
     )
     parser.add_argument(
+        "--nota", type=Path, action="append", default=[],
+        help="Fichero de texto que se copia TAL CUAL dentro del informe. Para que un "
+             "resultado que se calculo aparte —una comparacion de dos corridas, por "
+             "ejemplo— viaje en el documento y no solo en el log. Se puede repetir.",
+    )
+    parser.add_argument(
         "--permitir-cds-sin-codon-parada", action="store_true",
         help="Sigue adelante aunque el CDS declarado no termine en codon de parada. "
              "Por defecto eso aborta, porque casi siempre es un desplazamiento de "
@@ -736,6 +742,9 @@ def main(argv: list[str]) -> int:
             print()
             return 0
 
+        notas = tuple(
+            Path(ruta).read_text(encoding="utf-8").rstrip("\n") for ruta in args.nota
+        )
         args.out.mkdir(parents=True, exist_ok=True)
         for especie, secuencia in secuencias.items():
             tiling = tile_utr(
@@ -765,6 +774,7 @@ def main(argv: list[str]) -> int:
                 transcript=transcripts[especie],
                 conservation=conservation,
                 anatomy_warnings=avisos_anatomia[especie],
+                notes=notas,
                 provenance=(
                     manifiesto.provenance_lines(usados)
                     if manifiesto is not None

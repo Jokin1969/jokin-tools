@@ -27,7 +27,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shmir_design.audit import audit_scores  # noqa: E402
+from shmir_design.audit import Span, audit_scores  # noqa: E402
+from shmir_design.mirarchitect import parse_export  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.fetch import parse_fasta_payload  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
@@ -60,8 +61,20 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--tsv", type=Path, required=True, help="Fichero de scores.")
+    fuente = parser.add_mutually_exclusive_group(required=True)
+    fuente.add_argument("--tsv", type=Path, help="Fichero de scores de dos columnas.")
+    fuente.add_argument(
+        "--csv", type=Path,
+        help="Export limpio de miRarchitect. Trae la diana, asi que el sitio se toma "
+             "de ella y el match es EXACTO sobre 22 nt, sin descartar la posicion 1.",
+    )
     parser.add_argument("--fasta", type=Path, required=True, help="FASTA del transcrito.")
+    parser.add_argument(
+        "--guardar-sitios", type=Path,
+        help="Escribe un TSV con las guias que SI existen en la referencia y la "
+             "coordenada de su match (no la que declara el fichero). Sirve para "
+             "cruzarlas despues contra otra corrida.",
+    )
     parser.add_argument(
         "--utr3-desde", type=int, required=True,
         help="Primera posicion del 3'UTR sobre el transcrito, 1-based. No se adivina.",
@@ -78,16 +91,40 @@ def main(argv: list[str]) -> int:
                 f"--utr3-desde {args.utr3_desde} cae fuera de una secuencia de "
                 f"{len(secuencia)} nt."
             )
-        auditoria = audit_scores(
-            _scores(args.tsv.read_text(encoding="utf-8"), source=str(args.tsv)),
-            secuencia[args.utr3_desde - 1 :],
-        )
+        utr3 = secuencia[args.utr3_desde - 1 :]
+        if args.csv is not None:
+            export = parse_export(
+                args.csv.read_text(encoding="utf-8-sig"), source=str(args.csv)
+            )
+            filas = [(f.guide, f.score) for f in export.rows]
+            # Con la diana en el fichero, el sitio se toma de ella: match exacto de los
+            # 22 nt, sin el atajo de descartar la posicion 1.
+            sitios = [
+                (f.guide, Span.of(utr3.find(f.target) + 1, f.target))
+                for f in export.rows
+                if utr3.find(f.target) >= 0
+            ]
+        else:
+            filas = _scores(args.tsv.read_text(encoding="utf-8"), source=str(args.tsv))
+            sitios = None
+        auditoria = audit_scores(filas, utr3)
+        if sitios is None:
+            sitios = [(e.guide, e.span) for e in auditoria.entries if e.span is not None]
     except (ShmirDesignError, OSError, UnicodeDecodeError) as exc:
         # rule2-ok: frontera CLI. Sin poder leer, no se audita nada.
         print(f"PARA — {exc}", file=sys.stderr)
         return 2
 
     print(auditoria.format_text())
+    if args.guardar_sitios is not None:
+        filas = ["guia\tinicio_3utr\tfin_3utr\tlongitud"]
+        filas += [
+            f"{guia}\t{v.start}\t{v.end}\t{v.length}" for guia, v in sitios
+        ]
+        args.guardar_sitios.write_text("\n".join(filas) + "\n", encoding="utf-8")
+        print(f"\nEscrito {args.guardar_sitios} con {len(filas) - 1} sitio(s).")
+        print("  La coordenada es la del MATCH sobre la referencia, no la que declara")
+        print("  el fichero. Esa es la unica que sirve para cruzar dos corridas.")
     problemas = (
         any(not e.maps for e in auditoria.entries)
         or any(e.prefix_of for e in auditoria.entries)
