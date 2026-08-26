@@ -26,11 +26,17 @@ DIRECTORIO = Path(__file__).resolve().parent.parent / "data" / "obtencion"
 
 
 def _frentes_de_verdad() -> set[str]:
-    """Los nombres que emite el nucleo, en dos configuraciones distintas.
+    """Lo que una ficha de obtencion puede documentar. Son DOS familias, no una.
 
-    Dos y no una: `fraccion_isoforma_larga` solo aparece con tabla de APA medido, asi
-    que con una sola corrida la lista saldria corta y un frente podria colarse sin
-    ficha.
+    La primera son los FRENTES que emite el nucleo, en dos configuraciones distintas —dos
+    y no una: `fraccion_isoforma_larga` solo aparece con tabla de APA medido, asi que con
+    una sola corrida la lista saldria corta y un frente podria colarse sin ficha—.
+
+    La segunda son los INTRONES que faltan del registro (`introns.INTRONS`). Se añadieron
+    con el cuarto modal, cuya unidad de analisis es el par candidato x intron: un intron
+    que no tenemos es un `NOT_RUN` como cualquier otro, y tiene que decir como se resuelve
+    igual que un fichero de referencia. Meterlos aqui es lo que hace que un intron nuevo
+    sin ficha rompa la suite, que es de lo que va este test.
     """
     from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
     from shmir_design.selection import (
@@ -48,6 +54,13 @@ def _frentes_de_verdad() -> set[str]:
             informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
         )
         nombres |= {f.name for f in blocking_fronts(informe, seleccion)}
+
+    # Y los intrones que faltan: un intron que no tenemos es un NOT_RUN como cualquier
+    # otro y tiene que decir como se resuelve. Se toman los que DECLARAN ficha, no todos:
+    # `mvm_actual` esta disponible y no necesita ninguna.
+    from shmir_design.introns import INTRONS
+
+    nombres |= {i.ficha for i in INTRONS.values() if i.ficha}
     return nombres
 
 
@@ -118,8 +131,9 @@ class TestTodoFrenteTieneFicha(unittest.TestCase):
             f"que no esta engaña igual que la ausencia.",
         )
 
-    def test_hay_una_por_cada_uno_de_los_nueve_de_hoy(self):
-        self.assertEqual(len(obtencion.load_all()), 9)
+    def test_hay_una_por_cada_uno_de_los_ONCE_de_hoy(self):
+        """Nueve frentes mas los DOS intrones que faltan del registro."""
+        self.assertEqual(len(obtencion.load_all()), 11)
 
 
 class TestElContenidoDeCadaFicha(unittest.TestCase):
