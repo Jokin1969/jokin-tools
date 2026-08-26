@@ -282,10 +282,13 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - **`riesgo_APA` es una PREDICCIÓN mientras no haya `--apa-medido`**, y el informe lo
   dice con esa palabra. Con sitios medidos el dato sustituye a la predicción y sale el
   techo de knockdown.
-- **`score_externo` va vacía y no se rellena aquí.** Se comprobó el 2026-08-25 si
-  miRarchitect y SplashRNA tienen API: las cuatro direcciones dan 403 en el CONNECT del
+- **`score_externo` va vacía y no se rellena aquí.** Se comprobó si miRarchitect
+  (`mirarchitect.cs.put.poznan.pl`), SplashRNA (`splashrna.mskcc.org`) y el GPP Web
+  Portal (`portals.broadinstitute.org`) responden: las tres dan 403 en el CONNECT del
   proxy de este entorno, que es una denegación de política de red y **no una respuesta
   del servicio** — o sea, no se ha podido comprobar, que no es lo mismo que no existir.
+  Las tres viven en `external_score.EXTERNAL_TOOLS` como **enlaces**, en la cabecera de
+  la interfaz y en el informe; ningún código las llama.
   Por eso `external_score.MIRARCHITECT_API` y `SPLASHRNA_API` valen `None` y ninguna URL
   se usa como endpoint. Las features de SplashRNA (asimetría, GC, posición 1, posiciones
   2-7, composición de la seed, GC del bucle) **sí** se calculan y salen en columnas

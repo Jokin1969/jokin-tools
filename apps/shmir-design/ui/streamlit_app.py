@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import streamlit as st  # noqa: E402
 
 from shmir_design.errors import ShmirDesignError  # noqa: E402
+from shmir_design.external_score import EXTERNAL_TOOLS  # noqa: E402
 from shmir_design.fetch import parse_fasta_payload  # noqa: E402
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
@@ -232,6 +233,24 @@ def main() -> None:
         "Interfaz sobre el núcleo ya testado. Ninguna decisión se toma aquí: esta "
         "página solo llama a funciones con tests."
     )
+
+    # Los tres servicios externos a los que se contrasta un diseño, arriba y visibles
+    # antes de subir nada. Las direcciones y sus textos viven en
+    # `external_score.EXTERNAL_TOOLS`: la pagina no tiene datos propios (regla 6).
+    enlaces = st.columns(len(EXTERNAL_TOOLS) + 2)
+    for columna, herramienta in zip(enlaces, EXTERNAL_TOOLS):
+        with columna:
+            st.link_button(
+                f"↗ {herramienta.name}", herramienta.url, help=herramienta.tooltip,
+                width="stretch",
+            )
+    st.caption(
+        "Servicios externos, para contrastar. Sus direcciones no se han podido "
+        "comprobar desde este entorno y **ningun codigo las llama**: se abren a mano. "
+        "El score que devuelva miRarchitect entra por `tools/import_scores.py`, nunca "
+        "calculado aqui."
+    )
+    st.divider()
 
     umbrales, config, min_bloque = panel_umbrales()
 

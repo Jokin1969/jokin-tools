@@ -52,26 +52,35 @@ Para desbloquearlo: ampliar la política de red del entorno remoto
 (https://code.claude.com/docs/en/claude-code-on-the-web) o ejecutar el script desde una
 máquina con salida a internet.
 
-## Intentos de verificación de los servicios de score (2026-08-25)
+## Intentos de verificación de los servicios de score (2026-08-25 / 26)
 
 Se pidió comprobar si miRarchitect (preprint de febrero de 2026) o SplashRNA exponen una
-API pública antes de escribir nada contra ellas. **No se ha podido comprobar.** Las
-cuatro direcciones dan 403 en el CONNECT del proxy de este entorno, que es una
-denegación de política de red y no una respuesta del servicio: no dice nada sobre si la
-API existe.
+API pública antes de escribir nada contra ellas. **No se ha podido comprobar.** Todas las
+direcciones dan 403 en el CONNECT del proxy de este entorno, que es una denegación de
+política de red y no una respuesta del servicio: no dice nada sobre si la API existe.
 
 ```
-$ curl -sS -o /dev/null -w "http=%{http_code}\n" --max-time 20 https://mirarchitect.org
+$ curl -sS -o /dev/null -w "http=%{http_code}\n" --max-time 25 https://mirarchitect.cs.put.poznan.pl/
 curl: (56) CONNECT tunnel failed, response 403
 http=000
 ```
 
 | Host | Resultado | Fecha |
 |---|---|---|
-| `mirarchitect.org` | `connect_rejected` — 403 al CONNECT | 2026-08-25 |
-| `www.mirarchitect.org` | `connect_rejected` — 403 al CONNECT | 2026-08-25 |
-| `splashrna.mskcc.org` | `connect_rejected` — 403 al CONNECT | 2026-08-25 |
-| `splashrna.org` | `connect_rejected` — 403 al CONNECT | 2026-08-25 |
+| `mirarchitect.cs.put.poznan.pl` | `connect_rejected` — 403 al CONNECT | 2026-08-26 |
+| `splashrna.mskcc.org` | 403 del proxy (también por `http://`) | 2026-08-25 / 26 |
+| `portals.broadinstitute.org` | `connect_rejected` — 403 al CONNECT | 2026-08-26 |
+| `mirarchitect.org`, `www.mirarchitect.org`, `splashrna.org` | 403 al CONNECT (dominios tanteados el 25; **no son los buenos**) | 2026-08-25 |
+
+Las direcciones buenas las dio el responsable del proyecto el 2026-08-26 y son las que
+están en `external_score.EXTERNAL_TOOLS`, como **enlaces para abrir a mano** desde la
+cabecera de la interfaz y desde el informe. Ninguna la llama código:
+
+| Servicio | URL | Para qué |
+|---|---|---|
+| miRarchitect | `https://mirarchitect.cs.put.poznan.pl/` | fuente de `score_externo` (importar con `tools/import_scores.py`) |
+| SplashRNA | `http://splashrna.mskcc.org/` | contraste; sus features salen aquí en columnas `feat_*`. Ojo: va por `http://`, sin cifrar |
+| GPP Web Portal | `https://portals.broadinstitute.org/gpp/public/` | contraste. **No** alimenta `score_externo` |
 
 Consecuencias, todas visibles en `shmir_design/external_score.py`:
 

@@ -52,13 +52,62 @@ VERIFICACION = "2026-08-25"
 MIRARCHITECT_API = None
 SPLASHRNA_API = None
 
-#: La direccion que el informe le da a una PERSONA para que la abra a mano. No la llama
-#: ningun codigo. Es la que aparece en el preprint de febrero de 2026 segun quien pidio
-#: esta columna; desde este entorno no se ha podido comprobar que responda.
-MANUAL_URL = "https://mirarchitect.org"
+#: Las direcciones de los dos servicios, dadas por el responsable del proyecto. Son
+#: para que las abra una PERSONA: no las llama ningun codigo y no son endpoints
+#: verificados (ver `docs/endpoints-verificados.md` — desde aqui las dos dan 403 del
+#: proxy). Si algun dia se llaman desde el codigo, se verifican antes (regla 4).
+MIRARCHITECT_URL = "https://mirarchitect.cs.put.poznan.pl/"
+#: Ojo, esta va por `http://`, sin cifrar: el navegador avisara. Es la que hay.
+SPLASHRNA_URL = "http://splashrna.mskcc.org/"
+#: Portal de la Genetic Perturbation Platform del Broad. No da `score_externo`: es
+#: contraste, no una fuente de la columna.
+GPP_URL = "https://portals.broadinstitute.org/gpp/public/"
+
+#: La de las instrucciones de puntuacion manual, que son las de miRarchitect.
+MANUAL_URL = MIRARCHITECT_URL
 
 #: El andamio que hay que seleccionar en el formulario. Es el del proyecto.
 MANUAL_SCAFFOLD = "miR-E"
+
+
+@dataclass(frozen=True)
+class ExternalTool:
+    """Un servicio externo al que se manda a una persona, con que pegarle."""
+
+    name: str
+    url: str
+    what: str
+    paste: str
+
+    @property
+    def tooltip(self) -> str:
+        """El texto de ayuda ya montado: la pagina no compone nada (regla 6)."""
+        return f"{self.what}. Que pegar: {self.paste}."
+
+
+EXTERNAL_TOOLS = (
+    ExternalTool(
+        name="miRarchitect",
+        url=MIRARCHITECT_URL,
+        what="puntua el diseño de la horquilla; es la fuente de `score_externo`",
+        paste="la guia de 22 nt en ADN y el andamio miR-E",
+    ),
+    ExternalTool(
+        name="SplashRNA",
+        url=SPLASHRNA_URL,
+        what="predice potencia de shRNA; sus features salen aqui en columnas feat_*",
+        paste="la guia de 22 nt en ADN",
+    ),
+    ExternalTool(
+        name="GPP Web Portal",
+        url=GPP_URL,
+        what=(
+            "portal de la Genetic Perturbation Platform del Broad, con sus "
+            "herramientas de diseño; sirve para contrastar, NO alimenta score_externo"
+        ),
+        paste="el gen diana",
+    ),
+)
 
 #: Las dos columnas que viajan en la tabla comparativa, al lado de `knockdown_medido`.
 SCORE_COLUMNS = ("score_externo", "fuente_score")
@@ -189,8 +238,13 @@ def manual_instructions(guides: list[str] | tuple[str, ...]) -> str:
         "servicio.",
         "  Puede que existan; desde aqui no se sabe, asi que no se cablea ninguna URL.",
         "",
+        "  Los dos servicios (direcciones dadas por el responsable del proyecto, no",
+        "  verificadas desde aqui):",
+        *(f"    · {h.name:<13} {h.url}\n      {h.what}; pegar {h.paste}"
+          for h in EXTERNAL_TOOLS),
+        "",
         "  Para puntuarlas a mano:",
-        f"    1. Abre {MANUAL_URL} (direccion del preprint, no verificada desde aqui).",
+        f"    1. Abre {MANUAL_URL}.",
         f"    2. Pega la guia de 22 nt y elige el andamio {MANUAL_SCAFFOLD}.",
         "    3. Copia del resultado el score y su escala (el rango posible), una linea",
         "       por guia, en un TSV de dos columnas: `guia<TAB>score`.",

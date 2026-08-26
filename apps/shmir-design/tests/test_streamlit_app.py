@@ -7,8 +7,13 @@ que sin ficheros no se pinta ningun resultado.
 Se salta de forma visible si Streamlit no esta instalado: el nucleo no depende de el.
 """
 
+import sys
 import unittest
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from shmir_design.external_score import EXTERNAL_TOOLS  # noqa: E402
 
 try:
     from streamlit.testing.v1 import AppTest
@@ -97,6 +102,38 @@ class TestFicherosDeReferencia(unittest.TestCase):
         app = self.run_app()
         ayuda = " ".join(w.help or "" for w in app.sidebar.checkbox)
         self.assertIn("NOT_RUN", ayuda)
+
+
+@unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no esta instalado (pip install -r requirements-ui.txt)")
+class TestEnlacesExternos(unittest.TestCase):
+    """Los tres enlaces, arriba y visibles desde el primer momento.
+
+    Antes de subir nada: son sitios a los que se va a contrastar un diseño, y estaban
+    solo en el informe, o sea al final de la corrida. Las direcciones vienen de
+    `external_score.EXTERNAL_TOOLS`, no de la pagina: la interfaz no tiene datos propios.
+    """
+
+    def run_app(self):
+        return AppTest.from_file(str(APP), default_timeout=60).run()
+
+    def test_estan_los_tres_antes_de_subir_ningun_fichero(self):
+        app = self.run_app()
+        etiquetas = [b.label for b in app.get("link_button")]
+        for herramienta in EXTERNAL_TOOLS:
+            with self.subTest(herramienta.name):
+                self.assertIn(herramienta.name, " ".join(etiquetas))
+
+    def test_apuntan_a_las_direcciones_del_nucleo(self):
+        app = self.run_app()
+        urls = {b.url for b in app.get("link_button")}
+        for herramienta in EXTERNAL_TOOLS:
+            with self.subTest(herramienta.name):
+                self.assertIn(herramienta.url, urls)
+
+    def test_cada_uno_lleva_su_ayuda(self):
+        app = self.run_app()
+        ayudas = " ".join(b.help or "" for b in app.get("link_button"))
+        self.assertIn("score_externo", ayudas)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ from pathlib import Path
 
 from shmir_design.errors import ShmirDesignError
 from shmir_design.external_score import (
+    EXTERNAL_TOOLS,
     FEATURE_COLUMNS,
     MIRARCHITECT_API,
     SPLASHRNA_API,
@@ -340,3 +341,57 @@ class TestMergeScores(unittest.TestCase):
         for antes, despues in zip(original, nuevas):
             self.assertEqual(antes[:2], despues[:2])
             self.assertEqual(antes[4], despues[4])
+
+
+class TestEnlacesExternos(unittest.TestCase):
+    """Las direcciones de los dos servicios, para que una persona las abra.
+
+    No las llama ningun codigo: son enlaces. Aun asi viven en el nucleo y no en la
+    pagina, porque la interfaz no puede tener datos propios (regla 6).
+    """
+
+    def test_son_los_tres_servicios(self):
+        self.assertEqual(
+            tuple(h.name for h in EXTERNAL_TOOLS),
+            ("miRarchitect", "SplashRNA", "GPP Web Portal"),
+        )
+
+    def test_las_urls_son_las_que_dio_el_responsable(self):
+        urls = {h.name: h.url for h in EXTERNAL_TOOLS}
+        self.assertEqual(urls["miRarchitect"], "https://mirarchitect.cs.put.poznan.pl/")
+        self.assertEqual(urls["SplashRNA"], "http://splashrna.mskcc.org/")
+        self.assertEqual(
+            urls["GPP Web Portal"], "https://portals.broadinstitute.org/gpp/public/"
+        )
+
+    def test_miRarchitect_es_la_url_de_las_instrucciones(self):
+        self.assertEqual(MANUAL_URL, "https://mirarchitect.cs.put.poznan.pl/")
+
+    def test_cada_uno_dice_que_hay_que_pegarle(self):
+        for herramienta in EXTERNAL_TOOLS:
+            with self.subTest(herramienta.name):
+                self.assertTrue(herramienta.paste.strip())
+                self.assertTrue(herramienta.what.strip())
+
+    def test_ninguna_se_usa_como_endpoint(self):
+        # La comprobacion de la regla 4 sigue valiendo: son enlaces para una persona,
+        # no APIs verificadas. Si algun dia se llaman, se verifican antes.
+        self.assertIsNone(MIRARCHITECT_API)
+        self.assertIsNone(SPLASHRNA_API)
+
+    def test_cada_uno_trae_su_texto_de_ayuda_ya_montado(self):
+        # La pagina no compone textos: pinta lo que le den (regla 6).
+        for herramienta in EXTERNAL_TOOLS:
+            with self.subTest(herramienta.name):
+                self.assertIn(herramienta.what, herramienta.tooltip)
+                self.assertIn(herramienta.paste, herramienta.tooltip)
+
+    def test_el_de_GPP_avisa_de_que_no_alimenta_la_columna(self):
+        gpp = next(h for h in EXTERNAL_TOOLS if h.name == "GPP Web Portal")
+        self.assertIn("NO alimenta score_externo", gpp.tooltip)
+
+    def test_las_instrucciones_nombran_a_los_dos(self):
+        texto = manual_instructions([SGEP_GUIDE])
+        for herramienta in EXTERNAL_TOOLS:
+            with self.subTest(herramienta.name):
+                self.assertIn(herramienta.url, texto)
