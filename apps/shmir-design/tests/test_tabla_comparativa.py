@@ -16,6 +16,7 @@ import unittest
 
 from shmir_design.comparative import COMPARATIVE_COLUMNS, comparative_rows, comparative_tsv
 from shmir_design.external_score import FEATURE_COLUMNS, splashrna_features
+from shmir_design.outputs import tsv_oligos
 from shmir_design.scaffold import SGEP_SCAFFOLD
 from shmir_design.selection import SelectionConfig, select_from_report
 from shmir_design.specificity import SpecificityDatabase
@@ -277,3 +278,53 @@ class TestScoreExterno(unittest.TestCase):
         fuente = filas[0].index("fuente_score")
         for fila in filas[1:]:
             self.assertNotIn(fila[fuente], ("splashrna_features", "local", "shmir"))
+
+
+class TestColumnaPasajera(unittest.TestCase):
+    """La columna `pasajera` tiene que ser la SECUENCIA, no el objeto que la lleva.
+
+    Llevaba el `repr` del dataclass `Passenger` entero —`Passenger(sequence='ATG...',
+    reverse_complement='CTG...', ...)`— porque se escribia `hairpin.passenger` en vez de
+    `hairpin.passenger.sequence`. La columna no iba vacia, asi que parecia buena: es
+    exactamente el tipo de fallo que solo se ve mirando el fichero. Nadie puede pegar
+    eso en un pedido.
+    """
+
+    def filas(self):
+        _, seleccion = _piezas()
+        return comparative_rows(seleccion, SGEP_SCAFFOLD)
+
+    def test_es_una_secuencia_de_22_nt(self):
+        filas = self.filas()
+        indice = filas[0].index("pasajera")
+        for fila in filas[1:]:
+            with self.subTest(fila[indice]):
+                self.assertEqual(len(fila[indice]), 22)
+
+    def test_solo_lleva_bases(self):
+        filas = self.filas()
+        indice = filas[0].index("pasajera")
+        for fila in filas[1:]:
+            with self.subTest(fila[indice]):
+                self.assertLessEqual(set(fila[indice]), set("ACGTU"))
+
+    def test_no_lleva_el_repr_de_ningun_objeto(self):
+        # Guarda generica: ninguna celda de la tabla puede ser un `repr`. Si alguien
+        # olvida un `.sequence` o un `.value` en otra columna, salta aqui.
+        filas = self.filas()
+        for fila in filas[1:]:
+            for columna, celda in zip(filas[0], fila):
+                with self.subTest(columna=columna):
+                    self.assertNotIn("=", celda.split("(")[0] + "(")
+                    self.assertNotRegex(celda, r"^[A-Z][A-Za-z]+\(.*=")
+
+    def test_coincide_con_la_pasajera_del_TSV_de_oligos(self):
+        # Las dos salidas describen el mismo oligo: si no coinciden, una miente.
+        _, seleccion = _piezas()
+        filas = comparative_rows(seleccion, SGEP_SCAFFOLD)
+        indice = filas[0].index("pasajera")
+        oligos = tsv_oligos(seleccion, SGEP_SCAFFOLD, species="sonda").splitlines()
+        cabecera = oligos[0].split("\t")
+        col = cabecera.index("pasajera")
+        de_oligos = [l.split("\t")[col] for l in oligos[1:]]
+        self.assertEqual([f[indice] for f in filas[1:]], de_oligos)

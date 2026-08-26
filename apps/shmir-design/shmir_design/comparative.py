@@ -124,7 +124,7 @@ def comparative_rows(
             "tercio": window.tercio.value if window.tercio else "",
             "diana": window.evaluation.sequence,
             "guia": window.evaluation.guide,
-            "pasajera": hairpin.passenger,
+            "pasajera": hairpin.passenger.sequence,
             "gblock_149": gblock.sequence,
             "GC": f"{_gc(window.evaluation.sequence):.3f}",
             "asimetria": (
