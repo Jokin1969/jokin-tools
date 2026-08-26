@@ -1328,6 +1328,7 @@ function planRowFull(m, closed) {
       ${bcInline}
       <div class="az-plan-actions">
         <span class="az-plan-qty">×<input type="number" class="az-qty" data-plan="${m.id}" value="${m.qty}" min="1" max="99" ${closed ? 'disabled' : ''}></span>
+        ${doseChip(m)}
         ${(!noDm && m.barcode) ? `<button class="qt-iconbtn" data-precinto="${m.id}" title="Ver el código de barras (precinto)">🏷️</button>` : ''}
         ${m.foto_pastilla ? `<button class="qt-iconbtn" data-pill="${m.id}" title="Ver la pastilla (AEMPS)">💊</button>` : ''}
         ${canPrecinto ? `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assignprec="${m.id}" title="Marcar como asignada en Salud (por precinto, sin caja)">✅ Asignar</button>` : ''}
@@ -1359,6 +1360,46 @@ function planReleaseChip(m) {
   const when = m.effective_days === 0 ? 'hoy' : m.effective_days === 1 ? 'mañana' : 'faltan ' + m.effective_days + ' días';
   return `<button type="button" class="az-rel az-rel-soon az-rel-click" data-planrel="${m.id}" title="Cambiar fecha o días de anticipación">🗓 Disponible ${eff} · ${when}${sub}</button>`;
 }
+// Compact "pauta" chip for a plan row: what's set for the Pastillero (residencias).
+// Grey/dashed "Definir pauta" when nothing's configured yet (a clear call to action);
+// once set, shows the 4 franjas as short letters so it stays scannable in the list.
+const DOSE_SLOTS = [['desayuno', 'D'], ['comida', 'C'], ['cena', 'Ce'], ['noche', 'N']];
+function doseChip(m) {
+  if (!m.dose) return `<button class="qt-btn qt-btn-sm az-dose-chip is-unset" data-dose="${m.id}" title="Aún no tiene pauta por franja para el Pastillero de las residencias">🕐 Definir pauta</button>`;
+  const parts = DOSE_SLOTS.filter(([k]) => m.dose[k] > 0).map(([k, l]) => `${l}${m.dose[k]}`).join('·');
+  return `<button class="qt-btn qt-btn-sm az-dose-chip" data-dose="${m.id}" title="Pauta vigente desde ${esc(fmtDate(m.dose.effective_from))} — pulsa para cambiarla">🕐 ${parts || 'sin dosis'}</button>`;
+}
+// The pauta editor: 4 franjas (0–9) + the date from which it applies (default
+// today, never retroactive), plus a compact history of previous changes.
+async function openDosePicker(med) {
+  openTool(`<div class="qt-modal-h"><h3>🕐 Pauta por franja (Pastillero)</h3><button class="qt-x" id="dp-close">×</button></div>
+    <p class="qt-tool-note">Cuántas unidades de <b>${esc(med.nombre || 'este medicamento')}</b> toma en cada franja del día. Lo ve el <b>Pastillero</b> de las residencias. Un cambio se aplica <b>desde la fecha que elijas en adelante</b>; nunca reescribe el pasado.</p>
+    <div class="az-dose-grid" id="dp-grid">
+      ${DOSE_SLOTS.map(([k, l]) => `<div class="az-dose-field"><label>${{ desayuno: '🌅 Desayuno', comida: '🍽️ Comida', cena: '🌆 Cena', noche: '🌙 Noche' }[k]}</label><input type="number" class="qt-input" id="dp-${k}" min="0" max="9" value="${(med.dose && med.dose[k]) || 0}"></div>`).join('')}
+    </div>
+    <div class="qt-field"><label>Aplicar desde</label><input type="date" class="qt-input" id="dp-from" value="${todayIsoLocal()}"><small class="az-field-hint">Por defecto hoy. Si el mes empieza sin cambios, se sigue usando la última pauta guardada — no hay que repetirla.</small></div>
+    <div id="dp-hist"></div>
+    <div class="qt-modal-actions">
+      <button class="qt-btn qt-btn-ghost" id="dp-cancel">Cancelar</button>
+      <button class="qt-btn qt-btn-primary" id="dp-save">Guardar</button>
+    </div>`);
+  $('dp-close').onclick = closeTool; $('dp-cancel').onclick = closeTool;
+  $('dp-save').onclick = async () => {
+    const body = { effective_from: $('dp-from').value };
+    for (const [k] of DOSE_SLOTS) body[k] = Number($('dp-' + k).value) || 0;
+    try {
+      const r = await api('/plan/' + med.id + '/dose', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      S.ficha.plan = mergePlan(S.ficha.plan, r.plan); renderFicha(); closeTool(); toast('Pauta guardada.');
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  try {
+    const { history } = await api('/plan/' + med.id + '/dose');
+    const box = $('dp-hist'); if (!box) return;
+    if (!history.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="az-dose-hist-h">Historial de cambios</div>` + history.slice().reverse().map(h =>
+      `<div class="az-dose-hist-row">Desde <b>${esc(fmtDate(h.effective_from))}</b>: ${DOSE_SLOTS.map(([k, l]) => `${l}${h[k]}`).join(' · ')}</div>`).join('');
+  } catch { /* history is a nicety; the form still works without it */ }
+}
 function wirePlan(closed) {
   main().querySelectorAll('[data-delplan]').forEach(b => b.addEventListener('click', async () => {
     if (!(await confirmBox('Quitar del plan', '¿Quitar este medicamento del plan de la persona? No afecta a las cajas ya asignadas.', 'Quitar'))) return;
@@ -1381,6 +1422,7 @@ function wirePlan(closed) {
   main().querySelectorAll('[data-pill]').forEach(b => b.addEventListener('click', () => { const m = findMed(b.dataset.pill); if (m) openImageModal(m, 'pastilla', 'Imagen de la forma farmacéutica', '💊'); }));
   main().querySelectorAll('[data-precinto]').forEach(b => b.addEventListener('click', () => { const m = findMed(b.dataset.precinto); if (m) openPrecinto(m); }));
   main().querySelectorAll('[data-assignprec]').forEach(b => b.addEventListener('click', () => { const m = findMed(b.dataset.assignprec); if (m) openPrecintoAssign(m); }));
+  main().querySelectorAll('[data-dose]').forEach(b => b.addEventListener('click', () => { const m = findMed(b.dataset.dose); if (m) openDosePicker(m); }));
 }
 // Manually mark a medication as "assigned in Salud" by its precinto (no box). Also
 // captures the medication's NEXT release date (prefilled: same day next month).
@@ -1901,6 +1943,7 @@ function renderStkLog() {
     : '<div class="az-scan-empty">Esperando lecturas…</div>';
 }
 // Same day next month (clamped to the last day of that month).
+function todayIsoLocal() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function sameDayNextMonth(iso) {
   const base = /^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? new Date(iso + 'T00:00:00') : new Date();
   const day = base.getDate();
@@ -2243,6 +2286,8 @@ function viewHelp() {
       <div class="qt-note tip"><b>Puedes añadir un medicamento de dos formas:</b><ul><li><b>Del catálogo</b>: si ya está en Data Matrix, búscalo por nombre, GTIN o CN y añádelo.</li><li><b>Por Código Nacional</b> (novedad): si la información llega <b>antes de tener el Data Matrix</b>, añádelo solo con su <b>Código Nacional</b> + nombre (y opcionalmente el código de barras). Queda en el plan como <b>«pendiente de caja»</b> (borde discontinuo ámbar), sin caja todavía. Es el paso <b>previo a la pre-asignación</b>.</li></ul>Más adelante le asocias una caja real (ver el paso siguiente) y deja de estar pendiente.</div>
       <div class="qt-note tip"><b>🔎 CIMA (AEMPS).</b> Al añadir por Código Nacional, pulsa <b>«🔎 CIMA»</b> junto al CN para <b>traer el nombre y el código de barras</b> desde la base de datos oficial de medicamentos (AEMPS), o usa <b>«🔎 Buscar en CIMA»</b> para buscar por nombre y elegir. Al traerlo, muestra además la <b>foto de la caja y de la pastilla</b> (fuente: AEMPS). Es una comodidad: si CIMA no está disponible, puedes escribir los datos a mano igual que siempre. La app <b>comprueba que el Código Nacional y el código de barras cuadren</b> (y rellena uno desde el otro), para evitar altas con datos incoherentes. Cada consulta correcta se <b>guarda en local</b> (datos + imágenes), así que ese medicamento sigue funcionando aunque luego CIMA no esté disponible. Y con el botón <b>✏️</b> de un medicamento «pendiente de caja» puedes <b>editar su nombre, CN o código de barras</b> sin tener que borrarlo. (Requiere que el servidor tenga salida a Internet hacia <i>cima.aemps.es</i>.)</div>
       <div class="qt-note tip">En cada medicamento del plan verás, si están disponibles: la <b>foto de la caja</b> (en vez del icono de color), un botón <b>💊</b> para ver la <b>pastilla</b>, y —<b>solo cuando aún no tiene Data Matrix</b>— un botón <b>🏷️ Precinto</b> que muestra el <b>código de barras grande y escaneable</b> para asignarlo en la <b>app de Salud</b>. Si la caja ya tiene Data Matrix, escanéalo mejor (el DM es preferible al precinto).</div>` },
+    { id: 'pauta', icon: '🕐', title: 'Pauta por franja (para el Pastillero de las residencias)', html: `<p>Cada medicamento del plan tiene un botón <b>«🕐 Definir pauta»</b> (gris mientras no está configurada; en verde con las franjas una vez guardada, p. ej. <b>D1·Ce1</b> = 1 en desayuno, 1 en cena). Ahí indicas <b>cuántas unidades</b> toma la persona en cada una de las <b>4 franjas del día</b> (desayuno, comida, cena, noche) — puede ser más de una en la misma franja, y una pastilla puede repartirse entre varias.</p>
+      <div class="qt-note tip">Es lo que ve el <b>Pastillero</b>, el portal para el personal de las residencias (ficha del Pastillero de cada persona, con «qué le toca ahora»). Un cambio de pauta se aplica <b>desde la fecha que elijas en adelante</b> — nunca reescribe el pasado, así que el historial queda intacto. Si no cambias nada al empezar un mes nuevo, <b>se sigue usando la última pauta guardada</b> automáticamente, sin tener que repetirla.</div>` },
     { id: 'preasignar', icon: '🔗', title: '3) Asociar cajas (DM) a la persona', html: `<p>La asociación se basa en el <b>Código Nacional (CN)</b>: reservas una caja del inventario a esta persona y a un medicamento de su plan. Hay <b>dos botones «🔗 Asociar DM»</b>:</p>
       <ul>
         <li><b>Dentro de cada medicamento del plan</b>: muestra <b>solo las cajas del inventario con ese CN</b> (puede que no haya ninguna). Lo más rápido y seguro.</li>

@@ -1032,6 +1032,18 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-abgrp-boxes { border-top: 1px solid var(--line); background: #fbfdff; padding: 4px; }
 .az-abgrp-boxes .az-abbox { margin: 2px 0; }
 
+/* Pauta por franja (Pastillero) — chip in the plan row + the editor modal */
+.az-dose-chip { background: #f2fbf6; color: #14603f; border: 1px solid #cdeede; font-weight: 700; font-family: var(--mono); }
+.az-dose-chip:hover { border-color: #14603f; }
+.az-dose-chip.is-unset { background: #fff; color: var(--muted); border: 1px dashed var(--line); font-family: inherit; font-weight: 600; }
+.az-dose-chip.is-unset:hover { border-color: var(--brand); color: var(--brand); }
+.az-dose-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 14px; }
+.az-dose-field label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
+.az-dose-field .qt-input { text-align: center; font-weight: 700; }
+.az-dose-hist-h { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 10px 0 6px; }
+.az-dose-hist-row { font-size: 0.82rem; color: var(--ink); padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.az-dose-hist-row:last-child { border-bottom: none; }
+
 /* Plan medication → association state button (per month) */
 .az-plan-assoc { background: #fff; color: var(--ink); border: 1px solid var(--line); }
 .az-plan-assoc:hover { border-color: var(--brand); color: var(--brand); }

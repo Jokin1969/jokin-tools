@@ -133,6 +133,26 @@ db.exec(`
     seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (note_id, user_id)
   );
+
+  -- ── Pauta por franja horaria (Pastillero) ──────────────────────────────────
+  -- Reparto de un medicamento del plan en las 4 franjas del día, CON VIGENCIA:
+  -- cada cambio de pauta inserta una fila nueva con la fecha desde la que aplica
+  -- (nunca se sobreescribe), así el histórico queda intacto y el mes siguiente
+  -- hereda solo la última pauta sin ningún reseteo. Engancha a asig_plan.id (la
+  -- medicación recurrente), no al periodo mensual.
+  CREATE TABLE IF NOT EXISTS asig_dose_schedule (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id        INTEGER NOT NULL,
+    effective_from TEXT NOT NULL,             -- 'YYYY-MM-DD', vigente desde este día en adelante
+    desayuno       INTEGER NOT NULL DEFAULT 0,
+    comida         INTEGER NOT NULL DEFAULT 0,
+    cena           INTEGER NOT NULL DEFAULT 0,
+    noche          INTEGER NOT NULL DEFAULT 0,
+    created_by     INTEGER,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(plan_id, effective_from)
+  );
+  CREATE INDEX IF NOT EXISTS idx_asig_dose_plan ON asig_dose_schedule(plan_id, effective_from);
 `);
 
 // Lightweight migration for DBs created before the release date existed.
@@ -286,6 +306,40 @@ function createEmptyPlan(personId, userId) {
   return true;
 }
 function getPlanLine(id) { return db.prepare('SELECT * FROM asig_plan WHERE id = ?').get(id) || null; }
+
+// ── Pauta por franja (Pastillero) ─────────────────────────────────────────────
+const SLOTS = ['desayuno', 'comida', 'cena', 'noche'];
+const cleanSlotQty = v => Math.max(0, Math.min(9, Math.round(Number(v)) || 0));
+const todayIso = () => new Date().toISOString().slice(0, 10);
+// Set (or replace) the dose distribution effective FROM this date onward. Never
+// overwrites a past change — a new effective_from is a new row, so history stays
+// intact; re-saving the SAME date updates that day's row instead of duplicating it.
+function setDoseSchedule(planId, effectiveFrom, doses, userId) {
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(effectiveFrom || '')) ? effectiveFrom : todayIso();
+  const row = { plan_id: planId, effective_from: from, created_by: userId != null ? userId : null };
+  for (const s of SLOTS) row[s] = cleanSlotQty(doses && doses[s]);
+  db.prepare(
+    `INSERT INTO asig_dose_schedule (plan_id, effective_from, desayuno, comida, cena, noche, created_by)
+     VALUES (@plan_id, @effective_from, @desayuno, @comida, @cena, @noche, @created_by)
+     ON CONFLICT(plan_id, effective_from) DO UPDATE SET
+       desayuno = excluded.desayuno, comida = excluded.comida, cena = excluded.cena, noche = excluded.noche,
+       created_by = excluded.created_by`
+  ).run(row);
+  return getDoseHistory(planId);
+}
+// The schedule in effect on a given date: the most recent row with
+// effective_from ≤ date. Null when nothing has been set yet (pauta sin definir).
+function getDoseScheduleForDate(planId, date) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? date : todayIso();
+  return db.prepare(
+    `SELECT * FROM asig_dose_schedule WHERE plan_id = ? AND effective_from <= ?
+       ORDER BY effective_from DESC LIMIT 1`
+  ).get(planId, d) || null;
+}
+// Full history of pauta changes for a medication, oldest first.
+function getDoseHistory(planId) {
+  return db.prepare('SELECT * FROM asig_dose_schedule WHERE plan_id = ? ORDER BY effective_from').all(planId);
+}
 function planByGtin(personId, gtin) {
   return db.prepare('SELECT * FROM asig_plan WHERE person_id = ? AND gtin = ?').get(personId, gtin) || null;
 }
@@ -807,6 +861,7 @@ function saveSettings(data, userId) {
 module.exports = {
   db, DEFAULT_SETTINGS,
   listPlan, plansByCnOrGtin, distinctCnCount, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, clearPlanGtin, deletePlanLine, planPersonIds,
+  SLOTS, setDoseSchedule, getDoseScheduleForDate, getDoseHistory,
   createEmptyPlan, personsWithPlanSet,
   setPlanRelease, setPlanAdvance, plansForRelease, planForItem, findPendingLineForMed,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,

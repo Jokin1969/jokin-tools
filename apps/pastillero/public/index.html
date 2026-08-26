@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Pastillero · Jokin's Tools</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon-jk.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/pastillero/assets/styles.css?v=1" />
+</head>
+<body>
+
+<header class="pt-header">
+  <div class="pt-header-in">
+    <span class="pt-logo">
+      <span class="pt-logo-badge">💊</span>
+      <span class="pt-logo-txt">
+        <span class="t">Pastillero</span>
+        <span class="s" id="res-name">&nbsp;</span>
+      </span>
+    </span>
+    <button class="pt-logout" id="btn-logout" hidden>Salir</button>
+  </div>
+</header>
+
+<main class="pt-main" id="pt-main"><!-- views injected here --></main>
+
+<div class="pt-toast" id="toast" hidden></div>
+
+<script src="/pastillero/assets/app.js?v=1"></script>
+</body>
+</html>

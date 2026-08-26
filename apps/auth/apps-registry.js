@@ -107,6 +107,23 @@ const APPS = [
     </svg>`,
   },
   {
+    id: 'pastillero',
+    group: 'farmacia',
+    name: 'Pastillero',
+    path: '/pastillero/admin',
+    desc: 'Portal para las residencias: cada cuidador/a ve, por persona, la medicación repartida en las 4 franjas del día (desayuno, comida, cena, noche). Aquí gestionas el código de acceso de cada residencia.',
+    tags: ['Residencias', 'Pastillero', 'Franjas'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <rect x="12" y="20" width="40" height="30" rx="6" stroke="#1B6CB0" stroke-width="2"/>
+      <path d="M20 20v-4a4 4 0 0 1 4-4h16a4 4 0 0 1 4 4v4" stroke="#0097B2" stroke-width="2"/>
+      <circle cx="24" cy="34" r="3" fill="#00B8D4"/>
+      <circle cx="34" cy="34" r="3" fill="#009B8D"/>
+      <circle cx="44" cy="34" r="3" fill="#1B6CB0"/>
+      <circle cx="24" cy="43" r="3" fill="#1B6CB0"/>
+      <circle cx="34" cy="43" r="3" fill="#00B8D4"/>
+    </svg>`,
+  },
+  {
     id: 'feep',
     name: 'FEEP',
     path: '/feep',

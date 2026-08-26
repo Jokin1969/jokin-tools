@@ -918,3 +918,36 @@ test('preassign por escaneo pasa por CIMA y completa el nombre de la caja', asyn
   assert.ok(prod, 'la caja creó su producto en Data Matrix');
   assert.equal(prod.nombre, 'FROVATRIPTAN PRUEBA 2,5 mg', 'el nombre se completa desde CIMA al asociar');
 });
+
+test('pauta por franja: vigencia hacia el futuro, sin sobreescribir el histórico', async () => {
+  const asigDb = require('../apps/asignacion/db');
+  const pid = qrDb.createPerson({ pharmacy_no: '80920', nombre: 'Pau', apellidos: 'Tas', tis: '00080920' }, 1).id;
+  const med = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Med Pauta', barcode: '8470007150008' })).data.plan.find(m => m.cn === '715000');
+
+  // Sin pauta definida: getDoseScheduleForDate devuelve null.
+  assert.equal(asigDb.getDoseScheduleForDate(med.id, '2026-08-01'), null);
+
+  // Pauta inicial: 1 en desayuno, vigente desde el 1 de agosto.
+  asigDb.setDoseSchedule(med.id, '2026-08-01', { desayuno: 1, comida: 0, cena: 0, noche: 0 }, 1);
+  let d = asigDb.getDoseScheduleForDate(med.id, '2026-08-15');
+  assert.equal(d.desayuno, 1);
+
+  // Nueva pauta desde el 20 de agosto: no toca lo anterior a esa fecha.
+  asigDb.setDoseSchedule(med.id, '2026-08-20', { desayuno: 1, comida: 1, cena: 0, noche: 1 }, 1);
+  assert.equal(asigDb.getDoseScheduleForDate(med.id, '2026-08-19').comida, 0, 'antes del cambio sigue la pauta vieja');
+  assert.equal(asigDb.getDoseScheduleForDate(med.id, '2026-08-20').comida, 1, 'el mismo día del cambio ya aplica la nueva');
+  assert.equal(asigDb.getDoseScheduleForDate(med.id, '2026-09-05').comida, 1, 'el mes siguiente hereda la última pauta, sin reseteo');
+
+  const hist = asigDb.getDoseHistory(med.id);
+  assert.equal(hist.length, 2, 'el histórico conserva ambos cambios');
+
+  // Re-guardar la MISMA fecha actualiza esa fila en vez de duplicarla.
+  asigDb.setDoseSchedule(med.id, '2026-08-20', { desayuno: 2, comida: 1, cena: 0, noche: 1 }, 1);
+  assert.equal(asigDb.getDoseHistory(med.id).length, 2, 'no duplica al re-guardar la misma fecha de vigencia');
+  assert.equal(asigDb.getDoseScheduleForDate(med.id, '2026-08-20').desayuno, 2);
+
+  // Vía HTTP: el endpoint PUT hace lo mismo y planView expone la pauta de hoy.
+  const r = await call('PUT', `/plan/${med.id}/dose`, { effective_from: '2026-08-20', desayuno: 2, comida: 1, cena: 0, noche: 1 });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.data.history));
+});

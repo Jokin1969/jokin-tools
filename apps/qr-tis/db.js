@@ -104,6 +104,14 @@ function listPeople() {
        FROM tis_people ORDER BY apellidos COLLATE NOCASE, nombre COLLATE NOCASE, id`
   ).all();
 }
+// Every distinct group ("residencia") in use, across active people, alphabetical.
+// A person's groups are newline-joined in group_name (see parseGroups in routes.js).
+function distinctGroups() {
+  const rows = db.prepare("SELECT DISTINCT group_name FROM tis_people WHERE active = 1 AND group_name IS NOT NULL AND group_name <> ''").all();
+  const set = new Set();
+  for (const r of rows) for (const g of String(r.group_name).split('\n').map(s => s.trim()).filter(Boolean)) set.add(g);
+  return [...set].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+}
 
 function getPerson(id) {
   return db.prepare('SELECT * FROM tis_people WHERE id = ?').get(id) || null;
@@ -295,7 +303,7 @@ function cartClear(userId) {
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listPeople, getPerson, createPerson, createManyPeople, updatePerson, deletePerson, setDeceased,
+  listPeople, distinctGroups, getPerson, createPerson, createManyPeople, updatePerson, deletePerson, setDeceased,
   setQrCode, setQrCodesByPharmacy,
   pharmacyTaken, tisTaken, touchPerson, recentPeople,
   getSettings, saveSettings,

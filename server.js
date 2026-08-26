@@ -140,6 +140,14 @@ const asigDb = require('./apps/asignacion/db');
 const asigRouter = require('./apps/asignacion/routes');
 app.use('/asignacion', requireApp('asignacion'), asigRouter);
 
+// ─── Pastillero (residencias) ────────────────────────────────────────────────────
+// NOT gated at the top level: caregivers have no farmacia account, they log in
+// with a shared per-residencia code (their own session, see apps/pastillero/db.js).
+// The router gates its own /admin* (farmacia staff, requireApp('pastillero')) and
+// its caregiver API (requireResidencia) internally.
+const pastilleroRouter = require('./apps/pastillero/routes');
+app.use('/pastillero', pastilleroRouter);
+
 // ─── Hub root (requires login) ──────────────────────────────────────────────────
 app.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));

@@ -348,12 +348,14 @@ function planView(personId) {
     const barcode = l.barcode || (l.cn ? cima.barcodeFromCn(l.cn) : null) || (l.gtin ? eanFromGtin(l.gtin) : null);
     // Cached CIMA photos (by Código Nacional) for this medication.
     const cc = l.cn ? dmDb.cimaCacheGet(l.cn) : null;
+    const dose = db.getDoseScheduleForDate(l.id);   // pauta vigente hoy (Pastillero); null = sin definir
     return {
       id: l.id, gtin: l.gtin || null, cn: l.cn || null, barcode,
       qty: l.qty, notes: l.notes || null, active: l.active,
       nombre, color, shape, available, cn_only: !hasGtin,
       release_at: l.release_at || null, advance_days, effective_at, effective_days, release_state,
       foto_caja: !!(cc && cc.has_caja), foto_pastilla: !!(cc && cc.has_pastilla),
+      dose: dose ? { desayuno: dose.desayuno, comida: dose.comida, cena: dose.cena, noche: dose.noche, effective_from: dose.effective_from } : null,
     };
   });
 }
@@ -442,6 +444,29 @@ router.put('/api/plan/:id(\\d+)/release', json, (req, res) => {
       db.setPlanAdvance(line.id, n);
     }
     res.json({ plan: planView(line.person_id) });
+  } catch (err) { fail(res, err); }
+});
+
+// ── Pauta por franja (Pastillero) ─────────────────────────────────────────────
+// Change the dose distribution FROM a given date onward (default today). Never
+// retroactive: a new row, the old ones stay for history. Next month automatically
+// keeps the last one in effect — nothing to "carry over" by hand.
+router.put('/api/plan/:id(\\d+)/dose', json, (req, res) => {
+  try {
+    const line = db.getPlanLine(Number(req.params.id));
+    if (!line) return res.status(404).json({ error: 'Línea de plan no encontrada.' });
+    const b = req.body || {};
+    const from = String(b.effective_from == null ? '' : b.effective_from).trim();
+    if (from && !/^\d{4}-\d{2}-\d{2}$/.test(from)) throw bad('Fecha no válida (AAAA-MM-DD).');
+    const history = db.setDoseSchedule(line.id, from || undefined, b, req.user.id);
+    res.json({ history, plan: planView(line.person_id) });
+  } catch (err) { fail(res, err); }
+});
+router.get('/api/plan/:id(\\d+)/dose', (req, res) => {
+  try {
+    const line = db.getPlanLine(Number(req.params.id));
+    if (!line) return res.status(404).json({ error: 'Línea de plan no encontrada.' });
+    res.json({ history: db.getDoseHistory(line.id), today: db.getDoseScheduleForDate(line.id, req.query.date) });
   } catch (err) { fail(res, err); }
 });
 
