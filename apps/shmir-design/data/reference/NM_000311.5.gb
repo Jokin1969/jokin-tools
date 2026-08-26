@@ -1,0 +1,348 @@
+LOCUS       NM_000311               2435 bp    mRNA    linear   PRI 01-FEB-2026
+DEFINITION  Homo sapiens prion protein (Kanno blood group) (PRNP), transcript
+            variant 1, mRNA.
+ACCESSION   NM_000311
+VERSION     NM_000311.5
+KEYWORDS    RefSeq; MANE Select.
+SOURCE      Homo sapiens (human)
+  ORGANISM  Homo sapiens
+            Eukaryota; Metazoa; Chordata; Craniata; Vertebrata; Euteleostomi;
+            Mammalia; Eutheria; Euarchontoglires; Primates; Haplorrhini;
+            Catarrhini; Hominidae; Homo.
+REFERENCE   1  (bases 1 to 2435)
+  AUTHORS   Sridharan,V., George,T., Conroy,D.W., Shaffer,Z., Surewicz,W.K. and
+            Jaroniec,C.P.
+  TITLE     Copper binding alters the core structure of amyloid fibrils formed
+            by Y145Stop human prion protein
+  JOURNAL   Phys Chem Chem Phys 26 (41), 26489-26496 (2024)
+   PUBMED   39392708
+  REMARK    GeneRIF: Copper binding alters the core structure of amyloid
+            fibrils formed by Y145Stop human prion protein.
+REFERENCE   2  (bases 1 to 2435)
+  AUTHORS   da Silva Correia,A., Schmitz,M., Fischer,A.L., da Silva Correia,S.,
+            Simonetti,F.L., Saher,G., Goya-Maldonado,R., Arora,A.S.,
+            Fischer,A., Outeiro,T.F. and Zerr,I.
+  TITLE     Cellular prion protein acts as mediator of amyloid beta uptake by
+            caveolin-1 causing cellular dysfunctions in vitro and in vivo
+  JOURNAL   Alzheimers Dement 20 (10), 6776-6792 (2024)
+   PUBMED   39212313
+  REMARK    GeneRIF: Cellular prion protein acts as mediator of amyloid beta
+            uptake by caveolin-1 causing cellular dysfunctions in vitro and in
+            vivo.
+REFERENCE   3  (bases 1 to 2435)
+  AUTHORS   Lailler,C., Didelot,A., Garinet,S., Berthou,H., Sroussi,M., de
+            Reynies,A., Dedhar,S., Martin-Lanneree,S., Fabre,E., Le
+            Pimpec-Barthes,F., Perrier,A., Poindessous,V., Mansuet-Lupo,A.,
+            Djouadi,F., Launay,J.M., Laurent-Puig,P., Blons,H. and
+            Mouillet-Richard,S.
+  TITLE     PrPC controls epithelial-to-mesenchymal transition in EGFR-mutated
+            NSCLC: implications for TKI resistance and patient follow-up
+  JOURNAL   Oncogene 43 (37), 2781-2794 (2024)
+   PUBMED   39147880
+  REMARK    GeneRIF: PrP[C] controls epithelial-to-mesenchymal transition in
+            EGFR-mutated NSCLC: implications for TKI resistance and patient
+            follow-up.
+REFERENCE   4  (bases 1 to 2435)
+  AUTHORS   Vanderperre,B., Staskevicius,A.B., Tremblay,G., McCoy,M.,
+            O'Neill,M.A., Cashman,N.R. and Roucou,X.
+  TITLE     An overlapping reading frame in the PRNP gene encodes a novel
+            polypeptide distinct from the prion protein
+  JOURNAL   FASEB J 25 (7), 2373-2386 (2011)
+   PUBMED   21478263
+  REMARK    GeneRIF: Results demonstrate an unexpected function for PRNP,
+            which, in addition to plasma membrane-anchored PrP, also encodes a
+            second polypeptide termed AltPrP.
+REFERENCE   5  (bases 1 to 2435)
+  AUTHORS   Li,B., Qing,L., Yan,J. and Kong,Q.
+  TITLE     Instability of the octarepeat region of the human prion protein
+            gene
+  JOURNAL   PLoS One 6 (10), e26635 (2011)
+   PUBMED   22028931
+  REMARK    GeneRIF: instability of the octarepeat region of the human prion
+            protein gene
+REFERENCE   6  (bases 1 to 2435)
+  AUTHORS   Zerr,I. and Schmitz,M.
+  TITLE     Genetic Prion Disease
+  JOURNAL   (in) Adam MP, Bick S, Mirzaa GM, Pagon RA, Wallace SE and Amemiya A
+            (Eds.);
+            GENEREVIEWS(R);
+            (1993)
+   PUBMED   20301407
+REFERENCE   7  (bases 1 to 2435)
+  AUTHORS   Muller,W.E., Pfeifer,K., Forrest,J., Rytik,P.G., Eremin,V.F.,
+            Popov,S.A. and Schroder,H.C.
+  TITLE     Accumulation of transcripts coding for prion protein in human
+            astrocytes during infection with human immunodeficiency virus
+  JOURNAL   Biochim Biophys Acta 1139 (1-2), 32-40 (1992)
+   PUBMED   1351748
+REFERENCE   8  (bases 1 to 2435)
+  AUTHORS   Medori,R., Montagna,P., Tritschler,H.J., LeBlanc,A., Cortelli,P.,
+            Tinuper,P., Lugaresi,E. and Gambetti,P.
+  TITLE     Fatal familial insomnia: a second kindred with mutation of prion
+            protein gene at codon 178
+  JOURNAL   Neurology 42 (3 Pt 1), 669-670 (1992)
+   PUBMED   1347910
+REFERENCE   9  (bases 1 to 2435)
+  AUTHORS   Medori,R., Tritschler,H.J., LeBlanc,A., Villare,F., Manetto,V.,
+            Chen,H.Y., Xue,R., Leal,S., Montagna,P., Cortelli,P. et al.
+  TITLE     Fatal familial insomnia, a prion disease with a mutation at codon
+            178 of the prion protein gene
+  JOURNAL   N Engl J Med 326 (7), 444-449 (1992)
+   PUBMED   1346338
+REFERENCE   10 (bases 1 to 2435)
+  AUTHORS   Goldfarb,L.G., Brown,P., McCombie,W.R., Goldgaber,D.,
+            Swergold,G.D., Wills,P.R., Cervenakova,L., Baron,H., Gibbs,C.J. Jr.
+            and Gajdusek,D.C.
+  TITLE     Transmissible familial Creutzfeldt-Jakob disease associated with
+            five, seven, and eight extra octapeptide coding repeats in the PRNP
+            gene
+  JOURNAL   Proc Natl Acad Sci U S A 88 (23), 10926-10930 (1991)
+   PUBMED   1683708
+COMMENT     REVIEWED REFSEQ: This record has been curated by NCBI staff. The
+            reference sequence was derived from DC325819.1, M13899.1 and
+            AI131269.1.
+            This sequence is a reference standard in the RefSeqGene project.
+            
+            On May 17, 2019 this sequence version replaced NM_000311.4.
+            
+            Summary: The protein encoded by this gene is a membrane
+            glycosylphosphatidylinositol-anchored glycoprotein that tends to
+            aggregate into rod-like structures. The encoded protein contains a
+            highly unstable region of five tandem octapeptide repeats. This
+            gene is found on chromosome 20, approximately 20 kbp upstream of a
+            gene which encodes a biochemically and structurally similar protein
+            to the one encoded by this gene. Mutations in the repeat region as
+            well as elsewhere in this gene have been associated with
+            Creutzfeldt-Jakob disease, fatal familial insomnia,
+            Gerstmann-Straussler disease, Huntington disease-like 1, and kuru.
+            An overlapping open reading frame has been found for this gene that
+            encodes a smaller, structurally unrelated protein, AltPrp.
+            Alternative splicing results in multiple transcript variants.
+            [provided by RefSeq, Nov 2014].
+            
+            Transcript Variant: This variant (1) represents the longest
+            transcript. Variants 1-5 can all encode the same isoform (Prp).
+            
+            Publication Note:  This RefSeq record includes a subset of the
+            publications that are available for this gene. Please see the Gene
+            record to access additional publications.
+            
+            ##Evidence-Data-START##
+            Transcript exon combination :: SRR1660805.111164.1,
+                                           SRR1660809.259593.1 [ECO:0000332]
+            RNAseq introns              :: single sample supports all introns
+                                           SAMEA1965299, SAMEA1966682
+                                           [ECO:0000348]
+            ##Evidence-Data-END##
+            
+            ##RefSeq-Attributes-START##
+            MANE Ensembl match     :: ENST00000379440.9/ ENSP00000368752.4
+            RefSeq Select criteria :: based on conservation, expression,
+                                      longest protein
+            ##RefSeq-Attributes-END##
+            COMPLETENESS: complete on the 3' end.
+PRIMARY     REFSEQ_SPAN         PRIMARY_IDENTIFIER PRIMARY_SPAN        COMP
+            1-18                DC325819.1         363-380
+            19-2094             M13899.1           1-2076
+            2095-2435           AI131269.1         12-352              c
+FEATURES             Location/Qualifiers
+     source          1..2435
+                     /organism="Homo sapiens"
+                     /mol_type="mRNA"
+                     /db_xref="taxon:9606"
+                     /chromosome="20"
+                     /map="20p13"
+     gene            1..2435
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /note="prion protein (Kanno blood group)"
+                     /db_xref="GeneID:5621"
+                     /db_xref="HGNC:HGNC:9449"
+                     /db_xref="MIM:176640"
+     exon            1..57
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /inference="alignment:Splign:2.1.0"
+     exon            58..2435
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /inference="alignment:Splign:2.1.0"
+     CDS             68..829
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /note="preproprotein Prp precursor isoform precursor is
+                     encoded by transcript variant 1; prion-related protein;
+                     alternative prion protein; major prion protein; CD230
+                     antigen"
+                     /codon_start=1
+                     /product="major prion protein preproprotein Prp precursor
+                     isoform precursor"
+                     /protein_id="NP_000302.1"
+                     /db_xref="CCDS:CCDS13080.1"
+                     /db_xref="GeneID:5621"
+                     /db_xref="HGNC:HGNC:9449"
+                     /db_xref="MIM:176640"
+                     /translation="MANLGCWMLVLFVATWSDLGLCKKRPKPGGWNTGGSRYPGQGSP
+                     GGNRYPPQGGGGWGQPHGGGWGQPHGGGWGQPHGGGWGQPHGGGWGQGGGTHSQWNKP
+                     SKPKTNMKHMAGAAAAGAVVGGLGGYMLGSAMSRPIIHFGSDYEDRYYRENMHRYPNQ
+                     VYYRPMDEYSNQNNFVHDCVNITIKQHTVTTTTKGENFTETDVKMMERVVEQMCITQY
+                     ERESQAYYQRGSSMVLFSSPPVILLISFLIFLIVG"
+     sig_peptide     68..133
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /inference="COORDINATES: ab initio prediction:SignalP:6.0"
+     mat_peptide     134..757
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /product="Major prion protein. /id=PRO_0000025675"
+                     /note="propagated from UniProtKB/Swiss-Prot (P04156.1)"
+     misc_feature    134..757
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /note="propagated from UniProtKB/Swiss-Prot (P04156.1);
+                     Region: Interaction with GRB2, ERI3 and SYN1.
+                     /evidence=ECO:0000250|UniProtKB:P04925"
+     misc_feature    134..181
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /note="propagated from UniProtKB/Swiss-Prot (P04156.1);
+                     Region: Interaction with ADGRG6.
+                     /evidence=ECO:0000250|UniProtKB:P04925"
+     misc_feature    143..391
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /note="propagated from UniProtKB/Swiss-Prot (P04156.1);
+                     Region: Disordered. /evidence=ECO:0000256|SAM:MobiDB-lite"
+     misc_feature    218..340
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /note="propagated from UniProtKB/Swiss-Prot (P04156.1);
+                     Region: 5 X 8 AA tandem repeats of P-H-G-G-G-W-G-Q"
+     misc_feature    218..244
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /experiment="COORDINATES:manual assertion
+                     [ECO:0000218][PMID:1683708]"
+                     /note="peptide; nonapeptide PQGGGGWGQ encoded by the R1
+                     nucleotide motif"
+     misc_feature    245..268
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /experiment="COORDINATES:manual assertion
+                     [ECO:0000218][PMID:1683708]"
+                     /note="peptide; octapeptide PHGGGWGQ encoded by the R2
+                     nucleotide motif"
+     misc_feature    269..292
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /experiment="COORDINATES:manual assertion
+                     [ECO:0000218][PMID:1683708]"
+                     /note="peptide; octapeptide PHGGGWGQ encoded by the R2
+                     nucleotide motif"
+     misc_feature    293..316
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /experiment="COORDINATES:manual assertion
+                     [ECO:0000218][PMID:1683708]"
+                     /note="peptide; octapeptide PHGGGWGQ encoded by the R3
+                     nucleotide motif"
+     misc_feature    317..340
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /experiment="COORDINATES:manual assertion
+                     [ECO:0000218][PMID:1683708]"
+                     /note="peptide; octapeptide PHGGGWGQ encoded by the R4
+                     nucleotide motif"
+     misc_feature    608..610
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /note="N-linked (GlcNAc...) asparagine.
+                     /evidence=ECO:0000269|PubMed:12214108; propagated from
+                     UniProtKB/Swiss-Prot (P04156.1); glycosylation site"
+     misc_feature    656..658
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /note="N-linked (GlcNAc...) asparagine.
+                     /evidence=ECO:0000269|PubMed:19349973; propagated from
+                     UniProtKB/Swiss-Prot (P04156.1); glycosylation site"
+     misc_feature    218..340
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /experiment="EXISTENCE:polymerase chain reaction evidence
+                     [ECO:0000082][PMID:1683708, PMID:22028931]"
+                     /note="sequence feature; octapeptide repeat region that is
+                     prone to alterations in copy number and sequence, some of
+                     which can result in Creutzfeldt-Jakob disease"
+     regulatory      2411..2416
+                     /regulatory_class="polyA_signal_sequence"
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /note="hexamer: ATTAAA"
+     polyA_site      2435
+                     /gene="PRNP"
+                     /gene_synonym="AltPrP; ASCR; CD230; CJD; GSS; KURU;
+                     p27-30; PRIP; PrP; PrP27-30; PrP33-35C; PrPc"
+                     /note="major polyA site"
+ORIGIN      
+        1 gccagtcgct gacagccgcg gcgccgcgag cttctcctct cctcacgacc gaggcagagc
+       61 agtcattatg gcgaaccttg gctgctggat gctggttctc tttgtggcca catggagtga
+      121 cctgggcctc tgcaagaagc gcccgaagcc tggaggatgg aacactgggg gcagccgata
+      181 cccggggcag ggcagccctg gaggcaaccg ctacccacct cagggcggtg gtggctgggg
+      241 gcagcctcat ggtggtggct gggggcagcc tcatggtggt ggctgggggc agccccatgg
+      301 tggtggctgg ggacagcctc atggtggtgg ctggggtcaa ggaggtggca cccacagtca
+      361 gtggaacaag ccgagtaagc caaaaaccaa catgaagcac atggctggtg ctgcagcagc
+      421 tggggcagtg gtggggggcc ttggcggcta catgctggga agtgccatga gcaggcccat
+      481 catacatttc ggcagtgact atgaggaccg ttactatcgt gaaaacatgc accgttaccc
+      541 caaccaagtg tactacaggc ccatggatga gtacagcaac cagaacaact ttgtgcacga
+      601 ctgcgtcaat atcacaatca agcagcacac ggtcaccaca accaccaagg gggagaactt
+      661 caccgagacc gacgttaaga tgatggagcg cgtggttgag cagatgtgta tcacccagta
+      721 cgagagggaa tctcaggcct attaccagag aggatcgagc atggtcctct tctcctctcc
+      781 acctgtgatc ctcctgatct ctttcctcat cttcctgata gtgggatgag gaaggtcttc
+      841 ctgttttcac catctttcta atctttttcc agcttgaggg aggcggtatc cacctgcagc
+      901 ccttttagtg gtggtgtctc actctttctt ctctctttgt cccggatagg ctaatcaata
+      961 cccttggcac tgatgggcac tggaaaacat agagtagacc tgagatgctg gtcaagcccc
+     1021 ctttgattga gttcatcatg agccgttgct aatgccaggc cagtaaaagt ataacagcaa
+     1081 ataaccattg gttaatctgg acttattttt ggacttagtg caacaggttg aggctaaaac
+     1141 aaatctcaga acagtctgaa atacctttgc ctggatacct ctggctcctt cagcagctag
+     1201 agctcagtat actaatgccc tatcttagta gagatttcat agctatttag agatattttc
+     1261 cattttaaga aaacccgaca acatttctgc caggtttgtt aggaggccac atgatactta
+     1321 ttcaaaaaaa tcctagagat tcttagctct tgggatgcag gctcagcccg ctggagcatg
+     1381 agctctgtgt gtaccgagaa ctggggtgat gttttacttt tcacagtatg ggctacacag
+     1441 cagctgttca acaagagtaa atattgtcac aacactgaac ctctggctag aggacatatt
+     1501 cacagtgaac ataactgtaa catatatgaa aggcttctgg gacttgaaat caaatgtttg
+     1561 ggaatggtgc ccttggaggc aacctcccat tttagatgtt taaaggaccc tatatgtggc
+     1621 attcctttct ttaaactata ggtaattaag gcagctgaaa agtaaattgc cttctagaca
+     1681 ctgaaggcaa atctcctttg tccatttacc tggaaaccag aatgattttg acatacagga
+     1741 gagctgcagt tgtgaaagca ccatcatcat agaggatgat gtaattaaaa aatggtcagt
+     1801 gtgcaaagaa aagaactgct tgcatttctt tatttctgtc tcataattgt caaaaaccag
+     1861 aattaggtca agttcatagt ttctgtaatt ggcttttgaa tcaaagaata gggagacaat
+     1921 ctaaaaaata tcttaggttg gagatgacag aaatatgatt gatttgaagt ggaaaaagaa
+     1981 attctgttaa tgttaattaa agtaaaatta ttccctgaat tgtttgatat tgtcacctag
+     2041 cagatatgta ttacttttct gcaatgttat tattggcttg cactttgtga gtattctatg
+     2101 taaaaatata tatgtatata aaatatatat tgcataggac agacttagga gttttgttta
+     2161 gagcagttaa catctgaagt gtctaatgca ttaacttttg taaggtactg aatacttaat
+     2221 atgtgggaaa cccttttgcg tggtccttag gcttacaatg tgcactgaat cgtttcatgt
+     2281 aagaatccaa agtggacacc attaacaggt ctttgaaata tgcatgtact ttatattttc
+     2341 tatatttgta actttgcatg ttcttgtttt gttatataaa aaaattgtaa atgtttaata
+     2401 tctgactgaa attaaacgag cgaagatgag cacca
+//
+

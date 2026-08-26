@@ -1,0 +1,51 @@
+# Los datos de referencia NO entran en git: un RefSeq RNA completo o un mature.fa no
+# tienen por que estar en el repositorio. Lo que si entra es el manifiesto, que dice
+# cual era cada fichero y como comprobarlo.
+*
+!.gitignore
+!manifest.tsv
+!PROCEDENCIA.md
+# Excepcion deliberada: `guias_pasajera.fa` son 1,5 kB de FIXTURE DE TEST, no una base
+# de referencia. La regla "los datos fuera de git" existe por el tamaño (un RefSeq RNA
+# completo), y esto no lo es. Si se queda fuera, los 9 tests de la regresion de la
+# pasajera no corren para nadie que clone el repositorio, y una regresion que no corre
+# no protege de nada. Si prefieres sacarlo igualmente, borra esta linea.
+!guias_pasajera.fa
+
+# Segunda excepcion deliberada, con el mismo criterio de tamaño que la de arriba:
+# 2,3 kB de FASTA, 15 kB de GenBank y 772 B de scores no son "un RefSeq RNA completo".
+# Con ellos dentro, la corrida murina de referencia es reproducible clonando el
+# repositorio, la anatomia sale del CDS anotado y los tests del cruce con miRarchitect
+# corren para todo el mundo. Si prefieres sacarlos, borra estas tres lineas: los tests
+# que dependen de ellos se saltaran de forma visible, no fallaran en silencio.
+!NM_011170.3.fa
+!NM_011170.3.gb
+!mirarchitect_prnp_raton.tsv
+
+# Y los dos del humano, con el mismo criterio: 2,5 kB de FASTA y 19 kB de GenBank son
+# registros publicos de NCBI, no una base de datos. Con ellos dentro dejan de saltarse
+# los tests del fixture humano para quien clone el repositorio.
+!NM_000311.5.fa
+!NM_000311.5.gb
+
+# Y el fixture NEGATIVO: 1,2 kB. Es la prueba material de la errata nº 5 y lo que hace
+# que su test pueda correr. Sin el, el test se salta y la errata deja de estar cubierta.
+!prnp_3utr_fabricado_1246nt.txt
+!mirarchitect_prnp_export.csv
+!mirarchitect_prnp_export_buena.csv
+
+# El casete AAV NO entra: es material de laboratorio sin publicar, y la regla de que los
+# datos no se versionan existe tambien para eso. Queda registrado en el manifiesto con
+# su md5, que es lo que hace auditable el veredicto sin publicar la secuencia.
+
+# Las tres corridas de RepeatMasker, con el mismo criterio de tamaño: 317 B de `.out` y
+# 2 kB de `.tbl` no son una base de datos. Y dos de ellas son el FIXTURE NEGATIVO —la
+# corrida humana contra la biblioteca murina—, que es evidencia y no material de
+# laboratorio: si se queda fuera, el test que comprueba que el parser la rechaza no
+# corre para nadie que clone el repositorio.
+!rmsk_mouse.out
+!rmsk_mouse.tbl
+!rmsk_human.out
+!rmsk_human.tbl
+!rmsk_human_WRONG_SPECIES_mouse_lib.out
+!rmsk_human_WRONG_SPECIES_mouse_lib.tbl

@@ -6,7 +6,8 @@ __pycache__/
 *.db
 *.db-shm
 *.db-wal
-data/
+/data/*
+!/data/reference/
 public/favicon-jk.png.placeholder
 *.placeholder
 .DS_Store

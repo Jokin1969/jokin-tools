@@ -1,0 +1,1746 @@
+# shmir-design — reglas del proyecto
+
+> **Ámbito.** Este fichero es vinculante para todo lo que hay bajo `apps/shmir-design/`.
+> El resto del hub (`server.js`, `apps/re-memory/`, `src/`) es Node/Express y NO se rige
+> por estas reglas. shmir-design es un proyecto Python independiente que vive dentro del
+> mismo repositorio.
+>
+> Si una petición choca con una de estas reglas, la regla gana. No se negocian, no se
+> relajan "solo para esta vez" y no se saltan porque el resultado parezca razonable.
+
+---
+
+## Reglas innegociables
+
+**1. NUNCA generes, completes ni "reconstruyas" secuencias biológicas.** Si falta una
+secuencia, aborta con un error explícito. Una secuencia inventada que parece plausible
+es el peor resultado posible de este software.
+
+**2. PROHIBIDO `except: pass` y `except Exception: return None`.** Todo fallo de red,
+de parseo o de fichero debe propagarse con un mensaje que diga QUÉ falló y QUÉ paso
+queda sin ejecutar.
+
+**3. Todo filtro que dependa de un recurso externo debe registrar en la salida si se
+ejecutó, si se saltó, y por qué.** Un candidato nunca puede aparecer como "PASS" si un
+filtro no llegó a correr. Usa tres estados: `PASS` / `FAIL` / `NOT_RUN`.
+
+**4. Antes de usar cualquier endpoint o URL externa, verifica que responde y que el
+formato es el esperado.** Si no lo has verificado, no lo escribas: pregunta. No inventes
+URLs de API a partir de patrones.
+
+**5. Escribe los tests ANTES de la funcionalidad.** Los tests usan datos reales
+proporcionados, no datos sintéticos.
+
+**6. Python 3.11+, solo librería estándar** salvo donde se autorice explícitamente una
+dependencia. Sin frameworks web en la v1.
+
+---
+
+## Cómo se aplica cada regla
+
+### Regla 1 — Secuencias
+
+Queda prohibido, sin excepción:
+
+- rellenar huecos/gaps con cualquier base o residuo;
+- retro-traducir proteína a nucleótido para "recuperar" una secuencia ausente;
+- reconstruir una secuencia por consenso, por homología o por el modelo;
+- sustituir una secuencia ausente por una placeholder (`"NNNN..."`, `""`, cadena de
+  ejemplo) que luego pueda circular como si fuera dato;
+- usar secuencias inventadas en tests, fixtures, docstrings o ejemplos del README.
+
+Si falta una secuencia, el flujo aborta:
+
+```python
+raise MissingSequenceError(
+    f"No hay secuencia para {accession!r} en {source}; "
+    f"se aborta el paso 'alineamiento de candidatos' (0 de {n} candidatos procesados)."
+)
+```
+
+El error debe nombrar el identificador, de dónde se esperaba obtenerlo y qué paso queda
+sin ejecutar. Nunca se degrada a warning.
+
+### Regla 2 — Errores
+
+- Prohibidos: `except:`, `except Exception: pass`, `except Exception: return None`,
+  `contextlib.suppress(Exception)` y cualquier variante que borre el fallo.
+- Capturar solo excepciones concretas y solo para **añadir contexto y relanzar**:
+
+```python
+try:
+    payload = json.loads(raw)
+except json.JSONDecodeError as exc:
+    raise ParseError(
+        f"Respuesta de {url} no es JSON válido ({exc}); "
+        f"se aborta el filtro 'conservación' para {accession}."
+    ) from exc
+```
+
+- `raise ... from exc` siempre: la causa original no se pierde.
+- Un `except` con `pass` solo es admisible si la excepción es concreta, el caso está
+  documentado en el propio bloque y no oculta ningún fallo de red, parseo o fichero.
+  Ante la duda: propagar.
+
+### Regla 3 — Estado de los filtros
+
+Todo filtro devuelve uno de tres estados, nunca un booleano:
+
+| Estado | Significado |
+|---|---|
+| `PASS` | El filtro corrió con todos sus recursos y el candidato lo supera. |
+| `FAIL` | El filtro corrió con todos sus recursos y el candidato no lo supera. |
+| `NOT_RUN` | El filtro no llegó a ejecutarse (recurso externo caído, dato ausente, sin autorización). |
+| `NO_APLICA` | La pregunta no va con ese candidato (p. ej. polyA sobre una ventana del ORF). |
+
+Reglas de agregación:
+
+- Un candidato con **cualquier** filtro en `NOT_RUN` no puede reportarse como aprobado.
+  Su veredicto global es `INCOMPLETE`, nunca `PASS`.
+- `NO_APLICA` **no** es una cuarta forma de `NOT_RUN`. `NOT_RUN` dice "no pude
+  comprobarlo": es una laguna, y una laguna impide aprobar. `NO_APLICA` dice "esa
+  pregunta no se le hace a este candidato". No estorba al veredicto — pero si TODO sale
+  `NO_APLICA` el veredicto es `INCOMPLETE`, porque no se llegó a preguntar nada. Nunca
+  se usa para esquivar un filtro que sí aplicaba.
+- Un número comparativo (carga de seed, accesibilidad) que no se calculó va **vacío** en
+  la tabla, nunca a cero: no haber contado y contar cero son cosas distintas.
+- Todo `NOT_RUN` y todo `FAIL` llevan un `reason` legible que dice qué recurso faltó.
+- La salida (CSV, JSON o texto) incluye una columna/campo por filtro con su estado. No
+  se colapsan filtros ni se omiten los que no corrieron: un filtro ausente de la salida
+  es indistinguible de un filtro superado, y eso es exactamente lo que la regla prohíbe.
+- El resumen final indica cuántos candidatos son `INCOMPLETE` y por qué filtro.
+
+### Regla 4 — Endpoints externos
+
+- Ninguna URL externa se escribe en el código sin haber sido verificada antes
+  (responde, y el formato es el esperado).
+- Las URLs verificadas se registran en `docs/endpoints-verificados.md` con fecha,
+  petición exacta y forma de la respuesta. **Ese registro está hoy vacío.** Y desde que
+  los datos de referencia son fixtures, ningún paso del análisis depende de la red:
+  si necesitas un recurso externo nuevo, se descarga a mano y se versiona con checksum,
+  no se llama en tiempo de ejecución.
+- Prohibido deducir una URL "por patrón" a partir de otra que sí existe, o de memoria
+  sobre cómo suele ser la API de un servicio.
+- Sin verificación no se escribe: se pregunta.
+
+### Regla 5 — Tests primero, con datos reales
+
+- El commit que añade funcionalidad llega con sus tests ya escritos y fallando antes.
+- Los datos de referencia viven en `data/reference/` como fixtures versionados y cada
+  uno lleva su procedencia y su md5 en `data/reference/PROCEDENCIA.md`. Se cargan
+  siempre por una funcion que verifica el checksum y aborta si no cuadra; nunca se lee
+  el fichero directamente desde un filtro. Ver `docs/fixtures.md`.
+- Prohibido fabricar secuencias de ejemplo para un test (es la regla 1 por otra puerta).
+  Si no hay dato real para cubrir un caso, el test no se inventa: se pide el dato.
+
+### Regla 6 — Entorno
+
+- Python 3.11+ (`match`, `tomllib`, `ExceptionGroup` disponibles), solo `stdlib` en
+  **todo** `shmir_design/` y en los `tools/`.
+- La interfaz Streamlit (`ui/streamlit_app.py`) es la única excepción autorizada, y con
+  una condición: **no contiene lógica**. Lo que decide algo vive en
+  `shmir_design/presentation.py`, con tests. Si la UI empieza a decidir —ordenar,
+  filtrar, elegir un color según un umbral— eso se arregla moviéndolo al núcleo, no
+  añadiendo más código a la página.
+- El núcleo y los CLI tienen que seguir funcionando sin Streamlit instalado.
+- Cada dependencia externa requiere autorización explícita y queda anotada en
+  `docs/dependencias-autorizadas.md` con quién la autorizó y para qué. Hoy hay dos, las
+  dos OPCIONALES y ninguna en el núcleo: `streamlit` (interfaz) y `ViennaRNA` (plegado).
+  Sin ellas, el núcleo y los CLI funcionan igual.
+
+---
+
+## Verificación
+
+`tools/check_rules.py` analiza el AST de los ficheros Python de `apps/shmir-design/` y
+falla si encuentra manejo de errores prohibido por la regla 2:
+
+```bash
+npm run check:shmir   # o: python3 apps/shmir-design/tools/check_rules.py [ruta ...]
+npm run test:shmir    # o: cd apps/shmir-design && python3 -m unittest discover -s tests -t .
+```
+
+Pásalos antes de cada commit que toque `apps/shmir-design/`.
+
+---
+
+## Antes de dar por terminado cualquier cambio aquí
+
+1. ¿Alguna ruta del código puede producir una secuencia que no venga íntegra de la
+   entrada? → arréglalo o aborta.
+2. ¿Algún `except` se traga un fallo de red, parseo o fichero? → `check_rules.py`.
+3. ¿Cada filtro emite `PASS`/`FAIL`/`NOT_RUN` con motivo, y ningún `NOT_RUN` acaba
+   reportado como aprobado?
+4. ¿Toda URL nueva está en `docs/endpoints-verificados.md` con su verificación?
+5. ¿Los tests se escribieron antes y usan datos reales con procedencia registrada?
+6. ¿Sigue siendo stdlib pura, o hay una autorización escrita para la dependencia nueva?
+
+## Estado actual (bloqueantes)
+
+- **`--usar-manifiesto` es la forma normal de correr.** Conecta cada fichero de
+  `data/reference/` que esté en `OK` con el filtro que su rol declara, tomando la
+  versión y el md5 del propio manifiesto. Sustituye a 31 flags de fontanería, y cierra
+  un fallo real: antes se podía teclear `--refseq-version 2024` apuntando a un fichero
+  de 2026 y nadie se enteraba, porque el fichero y su versión iban por separado. La
+  correspondencia fichero→filtro vive en `manifest.ROLES`, **en código**: como séptima
+  columna del manifiesto se podría reasignar un fichero a otro filtro sin que se viera
+  en el diff. Una flag explícita sigue mandando, pero se dice en la consola.
+- **La interfaz llega a los mismos ficheros que el CLI.** La casilla «Usar los de
+  `data/reference/`» llama a `resources.load_from_manifest`, que devuelve los objetos ya
+  cargados con la version y el md5 del manifiesto. Antes la pagina pasaba tres de los
+  catorce parametros de `tile_utr`, asi que **el semaforo verde era estructuralmente
+  inalcanzable desde el navegador**: todos los filtros con fichero salian NOT_RUN
+  pasara lo que pasara. El gen diana va aparte porque es un accession, no un fichero, y
+  el manifiesto no lo sabe.
+- **La pagina no lanza nada sola**: hay dos botones, «Estimar coste» y «Diseñar». La
+  estimacion (`presentation.cost_text`) no diseña nada y no aplica la mascara, asi que
+  su total es un techo y lo dice. Antes el diseño arrancaba al subir el FASTA, asi que
+  una corrida de minutos empezaba sin avisar y la estimacion habria llegado tarde.
+- **`data/reference/manifest.tsv` se versiona en git; los ficheros de datos NO.** Un
+  RefSeq RNA completo no entra en el repositorio; lo que entra es la línea que dice cuál
+  era y cómo comprobarlo. Cada informe copia las líneas de los ficheros que usó: sin eso
+  un veredicto no es auditable dentro de un año. `tools/check_data.py` valida el
+  directorio y dice qué filtros pueden correr, sin lanzar ningún diseño.
+- **Ojo con los dos checksums**: el md5 del manifiesto es el del FICHERO en disco; el que
+  `reference.py` verifica es el de la SECUENCIA canónica (mayúsculas, sin cabecera, sin
+  saltos). Son cantidades distintas y copiar una en la otra haría que el fichero bueno se
+  rechazara. Hay un test que comprueba que no se confunden.
+- **Un eje que la selección no cubre puede significar dos cosas** y el informe las
+  distingue: que la piscina de elegibles sí tenía los dos extremos y la selección no los
+  cogió (se arregla con `--reparto-rango`), o que la piscina entera está apretada. Lo
+  segundo **no es un fallo**: es información, y el informe dice con esas palabras que ese
+  eje no se puede estudiar con ese 3'UTR y hay que dejar de tratarlo como variable. Para
+  los ejes continuos no basta con tocar dos bins: hace falta recorrido (`MIN_SPAN`).
+- **Los datos de referencia son fixtures versionados**, no descargas: `data/reference/`,
+  verificados por checksum en cada carga (`docs/fixtures.md`). Nada del análisis depende
+  de la red. Los dos `.fa` todavía no están en el repositorio, así que 7 tests se saltan
+  de forma visible; no se rellenan con secuencia sintética.
+- **No hay endpoints verificados desde este proyecto.** Por eso `shmir_design/fetch.py`
+  no contiene ninguna URL y `tools/reference_data.py --fetch` exige `--efetch-url`. Eso
+  solo afecta al camino opcional de descarga.
+- La asimetría (paso 7) usa un **proxy heurístico**, no una energía libre de dúplex: ver
+  la advertencia en `thermo.py` y mantenerla. Su especificación tuvo un error de signo
+  que ningún test de consistencia interna habría detectado; por eso hay dos tests de
+  cordura biológica que fijan los signos. No los borres ni los "arregles" para que pase
+  un valor nuevo: si fallan, la especificación es lo que hay que revisar.
+- **Dos contadores, nunca uno**: `biofisicos_ok` (los seis filtros biofísicos, sin
+  recursos externos) y `aptas` (veredicto `PASS`). Mezclarlos es lo que hace que un
+  candidato incompleto parezca aprobado. Ver `docs/pipeline.md`.
+- La lista de 12 seeds de `seeds.py` es un **arranque para probar la mecánica**, no un
+  filtro real: el filtro real necesita `mature.fa` de miRBase completo. El aviso va en
+  el código y en cada informe; no lo quites.
+- Una ventana con `N` no es evaluable: sus filtros de secuencia salen en `NOT_RUN`, no
+  en `PASS` ni en `FAIL`.
+- El límite del riesgo de APA es la **señal**, no el sitio de corte (10-30 nt aguas
+  abajo): sobre-marca a propósito y no es una predicción del extremo de la isoforma
+  corta.
+- El andamio miR-E (`scaffold.py`) está verificado en el 97-mero y **solo** ahí; los
+  flancos extendidos del pri-miR siguen sin decidir.
+- **La regla de la pasajera es ESTRUCTURAL, no una tabla.** Se pliegan las cuatro bases
+  posibles para la posición 1 y se elige una cuyo 97-mero reproduzca la notación
+  punto-paréntesis de SGEP; `C > A > G > T` sólo desempata cuando hay varias, y si no
+  hay ninguna se aborta enseñando las cuatro estructuras. **No la sustituyas por una
+  tabla por terminación**: eso es lo que había antes y falló — le faltaba el
+  apareamiento tambaleante `G:U`, así que con guía acabada en G la T también está
+  prohibida y la A, que no aparea con nada, deja un bulge de 2 nt en vez de 1. Sin
+  ViennaRNA el criterio no se puede aplicar: la pasajera sale con `structural_check =
+  NOT_RUN` y un aviso que dice que esa elección está comprobada como incorrecta.
+- **El filtro de poliadenilación es escalonado. DECIDIDO (2026-08-26)**, con la tabla de
+  los seis candidatos delante y no antes: FAIL duro solo para la señal terminal y para
+  `AATAAA`/`ATTAAA` en `APA_POSIBLE`; las variantes raras dejan bandera y penalización de
+  ranking. 1018 entra con penalización. El informe saca las dos cifras de elegibles, y la
+  tabla emite `polyA_estricto` y `polyA_escalonado` en columnas separadas para que la
+  decisión siga siendo auditable.
+- **Truncamiento y estérico son DOS riesgos, no uno** (`polya.polya_risk`). La regla de
+  ±flanco los mezclaba:
+  - **truncamiento** — la ventana está POR DETRÁS del corte que dirige un hexámero
+    funcional (10–30 nt aguas abajo). Es un riesgo sobre la **existencia** de la diana.
+  - **estérico** — la ventana **solapa** el hexámero y compite con CPSF/CstF. Es un
+    riesgo sobre la **accesibilidad**, y solo existe si ese hexámero se usa.
+
+  Un mismo hexámero nunca produce los dos en la misma ventana: o estás encima de la
+  señal, o estás por detrás de su corte. Hay cinco estados y no dos (`RiskState`):
+  `PENALIZADO` es obligatorio porque la banda de corte tiene 20 nt de ancho y colapsarla
+  a PASS o FAIL inventa una precisión que no hay, y `TECHO` porque el APA no veta.
+
+  **Y `truncamiento_propio` va aparte de `truncamiento` a propósito.** Una ventana que
+  solapa un hexámero no tiene truncamiento *por ése*, pero puede tenerlo por otro que
+  quede más arriba: 1018 solapa `ACTAAA` (sin truncamiento propio, estérico penalizado)
+  y a la vez está por detrás del corte del `AATAAA` de 288, igual que los otros cuatro.
+  Emitir solo «truncamiento NO_APLICA» lo dejaría como una excepción a su favor.
+- **El truncamiento por APA es un `TECHO`, no un `FAIL`. DECIDIDO (2026-08-26).** El APA
+  produce una **mezcla de isoformas**, no un corte binario: un candidato por detrás de un
+  sitio proximal usado en una fracción f conserva su diana en el (1 − f) de isoforma
+  larga. Lo que corre es un techo de knockdown de (1 − f), y eso no es un veto. `FAIL`
+  queda reservado a la señal **terminal**, donde no hay isoforma que conserve la diana.
+  (Con el 3'UTR murino esa rama no la alcanza ninguna ventana de 22 nt: una terminal está
+  a ≤ 40 nt del extremo y su corte más tardío cae +30, así que detrás no cabe nada. Hay
+  un test que fija ese hecho geométrico.)
+  - `PolyARisk.fraccion_isoforma_larga` es **obligatorio y sin valor por defecto**:
+    ningún camino puede omitirlo y dejar el techo mudo. `None` significa **no medida**,
+    igual que `divergent_positions=None`, y **no es 0** (todo isoforma corta, techo cero)
+    **ni 1** (todo larga, sin techo). La columna `polyA_fraccion_isoforma_larga` va
+    **vacía**, nunca a cero, y el informe imprime «techo indeterminado» — no un veredicto.
+  - Es el **mismo número** que `apa.ApaAssessment.knockdown_ceiling`, así que cuando hay
+    tabla de sitios medidos (`--apa-medido`) el techo viaja a la anotación de polyA y las
+    dos columnas dicen lo mismo. Se adjunta **solo** donde hay truncamiento por APA: dar
+    un techo a una ventana inmune sería emitir un número que no se refiere a nada, y
+    `PolyARisk.__post_init__` aborta si se intenta.
+  - El experimento que lo convierte en un número está **en el informe**
+    (`polya.rtqpcr_amplicons`): RT-qPCR de dos amplicones sobre el 3'UTR murino, uno
+    entero por delante del hexámero y otro entero por detrás de la banda de corte,
+    cuantificados contra una **curva estándar común**; la razón distal/proximal *es*
+    `fraccion_isoforma_larga`. Con la señal de 288 salen 3'UTR **158-277** y **684-803**
+    (120 nt cada uno, holgura de 10 nt y esquivando las dianas del panel). Se emiten
+    **coordenadas**: no se emiten cebadores — eso necesita Tm, especificidad y horquillas,
+    y no se improvisa. Se mide sobre tejido **sin tratar**: en muestras tratadas un
+    amplicón que solape una diana mide corte por RNAi, no isoformas.
+  - **Primero lo publicado, luego el banco**, y el informe lo imprime en ese orden:
+    PolyA_DB / PolyASite y datos públicos de **3'-end seq de cerebro murino** sobre Prnp.
+    Si la fracción está publicada, el experimento es **confirmación**, no descubrimiento.
+  - **RT con hexámeros aleatorios, nunca oligo-dT**, y el sesgo tiene dirección conocida:
+    el oligo-dT ceba en la cola y la RT avanza 3'→5', así que una RT incompleta pierde lo
+    que está lejos de la cola. En la isoforma larga el proximal queda a **965 nt** de la
+    cola y el distal a **439**, así que la larga se subrepresenta más en el proximal y la
+    razón sale sesgada **hacia más isoforma larga** — justo el resultado que se busca.
+    RNA con **RIN documentado**: la degradación produce el mismo sesgo por la misma razón.
+  - **Control positivo de ensayo, obligatorio y hoy `NOT_RUN`**: un gen con APA
+    caracterizado en cerebro murino, en las **mismas muestras** y con la **misma
+    arquitectura de amplicones**. Sin él, un «casi todo isoforma larga» no se distingue de
+    un ensayo **ciego** a las isoformas cortas: los dos dan la misma cifra. Ese gen se
+    elige **con su cita**; el informe no propone ninguno, porque nombrarlo de memoria
+    sería inventar la referencia, y emite `control_positivo_ensayo: NOT_RUN` hasta que
+    alguien lo aporte con referencia.
+
+- **El `AATAAA` de 3'UTR 288 es el riesgo de truncamiento dominante del panel** y el
+  informe lo declara así, con qué candidatos quedan con techo por detrás de su corte y
+  cuáles son inmunes por ser proximales. Si ninguno lo es, lo dice: un panel entero por
+  detrás del mismo corte comparte un único modo de fallo.
+  - Está clasificada `APA_POSIBLE` **por ser canónica** y estar a más de 100 nt del
+    extremo 3', **no por evidencia de uso**: aquí no hay ni un dato de uso de ese sitio.
+    Es un **supuesto**, y el informe lo dice con esa palabra. Con PolyA_DB o PolyASite
+    (`--apa-medido`) dejaría de serlo.
+  - **No está conservada en humano — COMPROBADO (2026-08-26)**, ya no declarado. Llegó
+    `NM_000311.5.fa` y `polya.signal_conservation` lo mide: el 3'UTR humano (1606 nt) no
+    contiene `AATAAA` **ni una sola vez** en sus 1606 nt, así que la señal murina no tiene
+    homólogo posible. No hace falta alinear para decirlo — y **no se alinea**: `alignment.py`
+    es difflib sobre dos versiones casi idénticas de la MISMA secuencia, y entre especies
+    daría un alineamiento sin sentido con pinta de resultado. Consecuencia: el techo es un
+    problema del **modelo murino**, no del candidato.
+    **Matiz que no se omite**: eso no significa que el 3'UTR humano esté libre de APA.
+    Tiene dos `ATTAAA` en `3utr:955` y `3utr:1167` clasificadas `APA_POSIBLE`. El riesgo no
+    está conservado **como ese hexámero**, que es otra cosa.
+    Sin `--fasta-b` la pregunta sale **`NOT_RUN`**, nunca «no está conservada».
+  - **Y el dato humano SUBE a la evaluación del riesgo murino**, pegado al `TECHO` de los
+    distales y no en una sección aparte (`SignalConservation.prior_note`). No es solo
+    ausencia de homólogo: el gen humano ha **prescindido del hexámero canónico por
+    completo**. Un APA proximal funcional es un elemento regulador, y los elementos
+    reguladores tienden a conservarse, así que eso **REBAJA la probabilidad a priori** de
+    que la murina se use. **NO LA DESCARTA**: puede ser diferencia real de especie. Las
+    dos cláusulas van juntas y ninguna sobra — el informe termina con «rebaja, no
+    descarta».
+  - **Inmunes: 60, 143 y 200**, no solo 60. 60 es el único que salía por asimetría, pero
+    la piscina de elegibles tiene 15 sitios más por delante del corte y el informe saca los
+    mejores — `3utr:143` (+5,08) y `3utr:200` (+3,80) entre ellos. Con un solo inmune el
+    panel entero depende de un supuesto; con tres, no.
+    **`3utr:221` era el tercero y ya no está**: el `AATATA` de `3utr:236` pasó a
+    `APA_POSIBLE` por medida y la ventana `221-242` lo **solapa**, así que cae por riesgo
+    ESTÉRICO. Su inmunidad al TRUNCAMIENTO no se ha tocado — empieza por delante del corte.
+- **El 3'UTR humano trae sus DOS señales de APA desde el principio**, con la misma
+  maquinaria: `ATTAAA` en `3utr:955` y `3utr:1167`, las dos `APA_POSIBLE`, `TECHO` y
+  `fraccion_isoforma_larga = None`. Condicionan la mitad distal, y `apa_ceiling_table`
+  emite cuánto panel condiciona cada una sobre las **311 ventanas elegibles**:
+  - `3utr:955` (corte `3utr:970-990`): **100 de 311 = 32,2 %** con techo, 6 en la banda.
+  - `3utr:1167` (corte `3utr:1182-1202`): **74 de 311 = 23,8 %**, 6 en la banda. Es
+    subconjunto de la anterior: 74 candidatos llevarían **dos** techos.
+  - El informe saca **todas** las señales `APA_POSIBLE`, no solo la dominante: con dos,
+    enseñar una esconde justo la que condiciona la mitad distal. La banda de corte va
+    aparte de lo que está detrás — `PENALIZADO` no es `TECHO`, y sumarlas sería inventar.
+  - **El bloque conservado queda por detrás de las DOS.** Es el único de ≥22 nt entre los
+    dos 3'UTR: 26 nt, `TTTTCTATATTTGTAACTTTGCATGT`, en ratón `3utr:1138-1163` y humano
+    `3utr:1507-1532`. De las **5 ventanas de 22 nt que caben DENTRO, ninguna** supera los
+    filtros de secuencia, y con los **mismos motivos en las dos especies** porque la diana
+    es la misma: GC en las cinco, asimetría en cuatro, homopolímero en una.
+    - **Se miran las CONTENIDAS, no las que SOLAPAN.** Una ventana que solapa el bloque se
+      sale de él, y fuera del bloque las dos especies difieren: son ventanas distintas con
+      dianas distintas. Contarlas dio un «sí hay ventanas elegibles» **falso** en el
+      informe del ratón mientras el del humano decía lo contrario.
+    - **CONSECUENCIA, y va escrita así en el informe: NO EXISTE un shmiR único válido para
+      ratón, Tg650 y clínica por la vía del 3'UTR.** Eso cambia la **arquitectura del
+      programa**, no dos plazas del panel (`conservation.single_shmir_verdict`).
+- **La otra vía: el ORF conservado** (`orf_sweep.py`, en el informe cuando hay dos
+  especies con CDS). Identidad exacta ≥22 nt entre los dos ORF: **4 bloques**, 16 ventanas
+  que caben dentro, y **2 superan los filtros de secuencia** — ORF ratón 523/524
+  (`tx:707`/`tx:708`), ORF humano 526/527, misma diana `GTGCACGACTGCGTCAATATCA`.
+  - Aplican GC, homopolímeros, asimetría, G4, **seed, repetitivos y especificidad**. NO
+    aplican polyA, APA ni tercios: son heurísticas del 3'UTR y salen `NO_APLICA`, nunca
+    `PASS`.
+  - Esas dos ventanas **no están aprobadas, están preseleccionadas**: seed, repetitivos y
+    especificidad siguen en `NOT_RUN`.
+  - **El obstáculo clásico de la vía ORF no existe en este backbone**: el ORF del casete
+    AAV está **codón-optimizado**, así que ya es resistente a una guía contra el ORF nativo
+    **sin recodificar nada**. No se da por supuesto — el filtro del transgén corre igual.
+  - **Propiedad clave de alcance, y va escrita en el informe**: una guía contra esa ventana
+    **alcanza PRNP humano** —y por tanto Tg650 y las líneas humanizadas— y **no alcanza el
+    transgén** del casete. Es exactamente el reparto que hace falta.
+  - **VERIFICADO traduciendo los ORF del repositorio** (`orf_sweep.translate`): la ventana
+    empieza en el **codón 175** (ratón) / **176** (humano), en marco, y codifica
+    **`VHDCVNIT`** — el mismo péptido en las dos especies. Su **posición 4 es una
+    cisteína**: **C178** (ratón) / **C179** (humano).
+    - **PrP tiene UN solo puente disulfuro** —C178-C213 en ratón, C179-C214 en humano—, y
+      eso también se sostiene aquí **sin estructura**: en el ORF murino solo hay tres
+      cisteínas (22, 178, 213) y la 22 está en el péptido señal, así que **no hay un
+      segundo par posible**. En humano, 6/22/179/214.
+    - La numeración «codón 143» de la primera anotación era **contaminación con el W144Y
+      del plásmido**, y el «segundo puente disulfuro» no existe. Las dos quedan
+      corregidas; el registro de por qué, aquí.
+    - Lo único que sigue **DECLARADO por el responsable y sin comprobar aquí**: la hélice
+      B (H2) va de ~173 a 194, así que la ventana cae en su **extremo N-terminal**.
+  - **«Región conservada» NO exime de mirar variación.** La selección purificadora
+    restringe los **no sinónimos**, no los **sinónimos** — y son los sinónimos los que
+    rompen el apareamiento sin tocar la proteína. **gnomAD sobre esa ventana es
+    obligatorio**, y hoy está en `NOT_RUN`.
+- **Un candidato «nuevo» de una fuente externa puede ser un sitio ya cogido**
+  (`spacing.compare_sites`). 223 y 221 son dos ventanas corridas 2 nt: bajo el espaciado
+  de 50 nt son el mismo sitio del panel. Se **avisa**, no se descarta — puede interesar
+  cambiar uno por otro, y para eso hay que ver que compiten.
+- **La referencia del espaciado es LOS 90 SITIOS ELEGIBLES. DECIDIDO (2026-08-26)** y no
+  se cambia: el top 10 del plan es un subconjunto, no el conjunto. `ReferenceSet` es
+  obligatorio, lleva **etiqueta**, y `SiteComparison.describe()` nombra el conjunto y su
+  tamaño. Con los mismos 24 sitios de miRarchitect:
+  - contra **los 6 elegidos** → 9 filas sin choque, que agrupadas entre ellas son
+    **7 plazas** (337, 394, 735, 765, 930, 1075, 1200). Es la cifra que di, y estaba
+    medida contra seis posiciones sobre 1242 nt: casi todo parece nuevo.
+  - contra **los 90 sitios elegibles** (la tabla completa) → **ninguna**, salvo 1200. Y
+    1200 no es utilizable: falla nuestro propio filtro duro de polyA, que es justo por lo
+    que no hay ninguna ventana elegible cerca.
+  - **735 no está cerca de una ventana nuestra: ES nuestra ventana 735**, base a base
+    (`GCCCTATGTTTCTGTACTTCTA`). 337 choca con 329 a 8 nt y 765 con 735 a 30 nt.
+  Los supervivientes se agrupan **entre ellos** además de contra la referencia: dos
+  externos a menos del espaciado son una plaza, no dos. Y «plaza nueva» no es «plaza
+  utilizable»: son dos preguntas, y el espaciado solo contesta la primera.
+- **`same_site` y el criterio de la selección son la MISMA regla**, negada
+  (`selection.respects_spacing`). Estaban por separado y discrepaban en el borde: un par
+  a exactamente 50 nt era «dos candidatos» para la selección y «el mismo sitio» para el
+  análisis de espaciado. El espaciado es el mínimo **exigido**, así que 50 lo cumple. Hay
+  un test que barre 0-120 nt y ata las dos definiciones.
+- **HALLAZGO: el espacio de ventanas viables está SATURADO** (`spacing.convergence`, en el
+  informe con `--convergencia`). Dos métodos independientes con criterios distintos sobre
+  el mismo 3'UTR verificado — nuestra cascada de filtros duros y miRarchitect —, 24 sitios
+  externos contra los 90 elegibles: **0 sitios exclusivos de la fuente externa** que
+  superen nuestros filtros duros, **4 coincidencias exactas** (`3utr:221`, `735`, `810`,
+  `1018`; la de 735 es la misma ventana base a base) y **6 a 1 nt** (`337↔338`,
+  `516↔517`, `552↔553`, `1017↔1018`, `1024↔1025`, `1075↔1076`). El único externo sin
+  choque es `3utr:1200`, y falla nuestro propio filtro de polyA.
+  **Lectura, y va escrita con esas palabras: NO es una validación cruzada** — donde solo
+  cabe coincidir, coincidir no demuestra nada. La convergencia externa **no discrimina
+  entre candidatos y no puede usarse para elegir**: no ordena, no desempata y no aporta
+  plazas. Es un dato de **calibración de nuestra propia cascada**, y va al
+  **suplementario**.
+- **Las 3 plazas del bloque «solo de fuente externa» se reasignan a COBERTURA.** El bloque
+  desapareció por vacío. Dos cuotas duras nuevas (`SelectionConfig.min_per_tercio`,
+  `apa_immune_quota` + `apa_immune_before`), y el informe escribe la justificación: las
+  causas de fallo son **regionales, no puntuales** —un APA, un repetitivo, un tramo
+  estructurado afectan a una región entera—, así que con la predicción **saturada** la
+  única variable que sigue comprando **independencia entre apuestas** es el espaciado.
+  - **Inmune tiene dos definiciones y solo una vale**: por delante del corte más
+    **temprano** (hoy `3utr:251`, el del tercer sitio medido; era `3utr:303`) la ventana se
+    conserva en las dos isoformas; por delante del más tardío admite ventanas **de dentro
+    de la banda de 20 nt**, que `polya_risk` clasifica `PENALIZADO`, no `NO_APLICA`. Llamar
+    inmune a una de la banda es inventarse una precisión que no hay. El corte **se deriva**
+    del informe (`selection.derive_immune_cut`), no se teclea.
+  - **Con el criterio estricto y 50 nt de espaciado caben CUATRO inmunes, no cinco.
+    DECIDIDO (2026-08-26)**: `3utr:10`, `60`, `143` y `200` (era `221` hasta que la medida
+    subió el `AATATA` de 236). Es un hecho geométrico del 3'UTR —los sitios elegibles por
+    delante del corte se apelotonan—, no una limitación del código, y hay un test que lo
+    fija. La cuota de cuatro se cumple igual: lo que cambia es quién la ocupa.
+  - **El espaciado NO se baja para meter un quinto inmune.** El espaciado compra
+    **independencia entre apuestas, no número de apuestas**: las causas de fallo son
+    regionales y dos candidatos a 30 nt fallan juntos, así que un quinto inmune pegado a
+    otro no compraría nada.
+  - **La quinta plaza va al TERCIO MEDIO** (`SelectionConfig.tercio_quota`), que es donde
+    el panel queda más flojo, y el informe escribe la razón: **si el APA resulta funcional
+    se pierde un candidato; si no, se gana cobertura donde hace falta.** El panel de 10
+    queda proximal 4 / medio 4 / distal 2 — la cuota pide 3 en el medio y la asimetría
+    pone el cuarto.
+- **El sesgo de baja complejidad está DESCARTADO** como explicación del score de
+  miRarchitect: correlación carrera máxima / score `r = +0,154` sobre las 24, y
+  homopolímeros de 4 o más repartidos 5/15 entre los mejores y 3/9 entre los peores — el
+  mismo 33 %. Queda anotado porque era la hipótesis que había que descartar **antes** de
+  acusar a su puntuación de nada, y descartarla es lo que permite usarla.
+- **Cada informe dice QUÉ se analizó**: longitud y md5 canónico de la secuencia de
+  entrada (`TilingReport.sequence_length` / `.sequence_md5`). Sin esas dos cifras no hay
+  forma de saber a posteriori qué se pasó — y la errata del 3'UTR fabricado se detectó
+  precisamente por longitud contra las coordenadas declaradas. El manifiesto registra lo
+  mismo por fichero: `accession` con versión, `longitud` y `url`, con un test que ata las
+  dos parejas del ratón (2191 nt / `44fb8cd8…` y 3'UTR 1242 nt / `19f5fa2a…`).
+- **Dos posiciones son CONVENIO y no dato** (`comparative.CONVENTION_NOTE`, en el informe
+  y en la cabecera del TSV): la posición 1 de la guía, donde se fuerza una T/U para que
+  AGO2 cargue la hebra, y la posición 1 de la pasajera, el desapareamiento deliberado del
+  bulge basal. Ninguna viene de la diana, así que ninguna entra en una comparación de
+  identidad.
+- **Las coordenadas van siempre por partida doble**: transcrito y 3'UTR. Los tercios se
+  calculan sobre el 3'UTR. Cuando lo que se tila YA es un 3'UTR no hay offset y las dos
+  parejas coinciden; los números están bien, pero `inicio_transcrito = 21` leído dentro
+  de un año parece la posición 21 de un RefSeq. Por eso la cabecera del TSV comparativo
+  y el bloque del informe llevan `comparative.coordinate_note`, que dice en qué marco va
+  cada pareja, de dónde salió la anatomía, y —si no hay marco de transcrito— que esas
+  columnas **no son coordenadas de ningún transcrito**. Los nombres de las columnas no
+  cambian: el esquema es estable, lo que cambia es lo que se explica de él.
+- **La anatomía se resuelve en `resolve.py`, y la usan los DOS frontales.** Vivía dentro
+  de `tools/design.py`, así que la interfaz no podía llamarla y acabó teniendo su propia
+  versión — con el `else: todo es 3'UTR` que el CLI había cerrado, escondido en un
+  `value=1 … value=len(secuencia)` por defecto. El mismo mRNA daba una anatomía por
+  consola y otra por navegador, y la del navegador corría los tercios. La interfaz tiene
+  ahora las tres vías (subir el `.gb`, declarar el CDS, o marcar que lo subido ya es el
+  3'UTR), tila la secuencia ENTERA con su anatomía como el CLI, y pasa por
+  `check_boundaries`. No añadas un valor por defecto a esos controles.
+- **La anatomía nunca se adivina.** Hay tres vías (`--genbank`, `--cds`, `--region
+  3utr`) y la que se usó sale impresa en el informe (`RegionSource`). No existe ningún
+  camino que convierta un "no sé" en un "todo es 3'UTR": `Anatomy.whole_is_utr3` exige
+  declarar la procedencia por nombre. `orf.py` puede PROPONER un marco e imprimir el
+  `--cds` para pegar, pero no importa el módulo de anatomía y un test lo comprueba
+  sobre el propio fuente.
+- **El codón de parada es aviso duro**: un CDS declarado que no termina en TAA/TAG/TGA
+  aborta el diseño salvo `--permitir-cds-sin-codon-parada`. Es el chequeo que pilla el
+  off-by-one y el lío 0-based/1-based, que corren el 3'UTR entero sin avisar.
+- **Fuera del 3'UTR no se cuela nadie por accidente**: una ventana del ORF solo entra si
+  se pidió su región con `--cuota-region`. Y allí polyA, APA y los tercios salen
+  `NO_APLICA`, no `PASS`.
+- **polyA es anotación, no veredicto**: los campos base son cinco (`polyA_hexamero`, `polyA_clase`,
+  `polyA_posicion_rel`, `polyA_solapa_seed`, `polyA_veredicto`). El corte ocurre 10-30 nt
+  **aguas abajo** del hexámero, así que la ventana que desaparece es la que empieza tras
+  el corte, no la que contiene la señal: la zona prohibida es asimétrica. `--polyA-modo`
+  tiene tres criterios y el informe saca el top-N bajo los tres; el defecto sigue siendo
+  `escalonado`, así que ninguna corrida anterior cambia de resultado.
+- **La seed son dos preguntas**: colisión con un miARN endógeno (`mirna.py`) y carga de
+  off-targets por seed (`seed_load.py`, un número comparativo, nunca un veredicto).
+- **La abundancia en cerebro son DOS CAPAS. DECIDIDO (2026-08-26)**:
+  - **Núcleo, `FAIL` duro, EN CÓDIGO y sin cita** (`mirna.CORE_ABUNDANT`): miR-124-3p,
+    miR-9-5p, familia let-7, miR-128-3p, miR-181a-5p, miR-125b-5p, familia miR-30,
+    miR-26a-5p, miR-99a-5p, miR-138-5p. Motivo escrito en cada FAIL: compartir seed con
+    uno de estos **no da off-targets dispersos, secuestra un programa regulador neuronal
+    completo**. Corre **siempre**: no necesita fichero.
+    **Esto REVIERTE la regla anterior** («no hay ninguna lista de miARN escrita en el
+    código»), de forma acotada y con la autorización escrita en `CORE_AUTHORIZATION`, con
+    fecha y motivo — consenso del campo. El test cambió de forma en consecuencia: ahora
+    comprueba que la única lista es esa y que **sigue sin haber ninguna SECUENCIA** en el
+    código (las seeds salen de `mature.fa`).
+  - **Capa ampliada, `AVISO`, de fichero**: el resto de `mmu-` por encima de un umbral de
+    un dataset publicado de small RNA-seq de cerebro murino. El fichero lleva en cabecera
+    la **referencia** y el **umbral**; sin ellos la capa queda `NOT_RUN` y no avisa de
+    nada — un aviso sin umbral parece un veredicto y no lo es.
+  - **La familia miR-30 se señala APARTE**: el andamio es miR-E, derivado de miR-30a, así
+    que una colisión ahí no es solo competencia por su red de dianas — la horquilla que se
+    construye se parece a un miARN endógeno abundante del mismo tejido. Lectura distinta y
+    peor.
+  - **Guía y pasajera se resuelven por separado**, y el origen queda escrito en cada
+    colisión. **U→T se normaliza en los dos lados antes de comparar** (`_seed_of` y
+    `_seed_of_mature`): un desajuste de alfabeto daría cero colisiones y parecería una
+    buena noticia. Hay un test que compara la misma tabla en ARN y en ADN y exige el mismo
+    veredicto.
+- **La especie de la biblioteca vive en el `.tbl`, NO en el `.out`. COMPROBADO
+  (2026-08-26)** (`masking.declared_species`, `expected_species` **obligatorio**).
+  Llegaron las tres corridas reales —RepeatMasker open-4.0.9 · rmblastn 2.17.1+ ·
+  Dfam_3.0— y **ninguno de los tres `.out` declara la especie**. Se busca primero en el
+  resumen; sin resumen no hay nada que comprobar, y no haber podido comprobar no es
+  «coincide».
+  - **LA DEMOSTRACIÓN, y va al registro con sus md5 como evidencia**
+    (`masking.INDISTINGUISHABLE_OUTS`):
+
+    | fichero | md5 |
+    |---|---|
+    | `rmsk_human.out` | `bcc33dbc7a65e74690f5f9d1fb270035` |
+    | `rmsk_human_WRONG_SPECIES_mouse_lib.out` | `bcc33dbc7a65e74690f5f9d1fb270035` |
+
+    **Son el mismo fichero byte a byte.** Una corrida válida y una contra la biblioteca
+    equivocada producen `.out` **indistinguibles**, porque lo único presente es un
+    microsatélite `(TA)n` y las repeticiones simples se detectan por **composición**, no
+    por biblioteca. La diferencia vive **sólo** en el `.tbl`: uno dice «homo sapiens» y
+    lista ALUs/MIRs, el otro dice «mus musculus» y lista Alu/B1 y B2-B4 **sobre una
+    consulta de 2435 bp que es humana**. Exigir el resumen no es una precaución: es un
+    **requisito**, y esto lo demuestra con datos en vez de argumentarlo.
+  - **Los dos ficheros de la corrida mala se quedan** como fixture negativo, igual que
+    el 3'UTR fabricado, con un test que comprueba que el parser los rechaza. No se
+    borran: son evidencia.
+- **Una máscara no se puede aplicar a otra secuencia** (`RepeatMask.query_length`, de la
+  línea `total length:` del resumen). Es la misma trampa un nivel más arriba:
+  `--usar-manifiesto` carga `rmsk_mouse.out` **por su rol**, sin mirar qué especie se
+  está diseñando, y el intervalo murino `tx:892-936` **cabe de sobra** en los 2435 nt del
+  humano — no se sale de rango, así que no salta ninguna otra alarma y taparía un tramo
+  que ahí no es repetitivo. Se compara lo que el resumen declara haber analizado con lo
+  que se le da, y si no coinciden se aborta.
+  - `resources._rmsk` y `--usar-manifiesto` **derivan** la especie (del organismo de la
+    referencia que el manifiesto declara en `accession`) y el resumen (del `.tbl`
+    hermano). No se teclean. Por la línea de órdenes son `--rmsk-especie` y
+    `--rmsk-resumen`, las dos **obligatorias** con un `.out`.
+- **Resultados de las dos corridas buenas, y una predicción que sale MAL.**
+  - **Ratón**: una repetición, `(CTC)n` en `tx:892-936`, **dentro del CDS** (185-949).
+    No toca el 3'UTR ni la ventana del ORF conservado (`tx:707-728`). O sea: **el 3'UTR
+    murino no tiene ni un elemento repetitivo**, y el `.tbl` lo respalda con los ceros
+    explícitos por familia (SINEs 0, Alu/B1 0, B2-B4 0, LINEs 0, LTR 0).
+  - **Humano**: una repetición, `(TA)n` en `tx:2097-2130` = **`3utr:1268-1301`**, que
+    **sí** cae en el 3'UTR y **solapa 5 ventanas elegibles**: `3utr:1247`, `1249`,
+    `1250`, `1251`, `1252`. La conversión va por `coords.Position.to_utr3`, no por una
+    resta.
+  - **La hipótesis de la carrera de A queda REFUTADA — predicción de Joaquín Castilla,
+    2026-08-26, anotada con su nombre a petición suya y porque el acierto se habría
+    anotado igual.** Se predijo que los 45 pb serían la carrera de A de `3utr:480-500`, y
+    que de cumplirse sería convergencia de dos criterios independientes sobre el mismo
+    tramo. **No lo es**: es un `(CTC)n` en el **CDS**, y la carrera más larga del 3'UTR
+    murino son 10 A que acaban en `3utr:507`, donde RepeatMasker no marcó nada. **No hay
+    convergencia.** Registro completo en
+    [`docs/erratas.md`](./docs/erratas.md) nº 7. Si sólo se anotan las predicciones que
+    salen bien, el registro deja de ser un registro y pasa a ser un argumento.
+- **`repeticion_polimorfica` es OTRO motivo, no una etiqueta del mismo** (`masking`,
+  columna propia en la tabla). Salen del mismo hallazgo y apuntan a cosas distintas:
+  - **`repeticiones`** → **estabilidad del genoma AAV** (un tramo repetitivo dentro del
+    casete es sustrato de recombinación) y, sobre la diana, una guía con miles de sitios
+    perfectos.
+  - **`repeticion_polimorfica`** → **viabilidad clínica**, que es otra cosa. Un
+    microsatélite varía en **número de repeticiones** entre individuos, así que una guía
+    ahí tendría **respondedores y no respondedores por variación de LONGITUD**, no de
+    secuencia.
+  - **Y hay un hueco que no cubre nadie: gnomAD anota SUSTITUCIONES y capta mal la
+    variación de longitud**, así que el filtro de variación **no** cubre este riesgo.
+    Decirlo importa: un «gnomAD limpio» invita a creer que la ventana está comprobada.
+  - El criterio de qué familias son polimórficas (`Simple_repeat`, `Satellite`,
+    `Low_complexity`) va **declarado como parámetro y no citado**: un SINE es repetitivo
+    pero **disperso**, no varía de longitud, así que no entra.
+  - **El caso real, con TRIPLE motivo**: el `(TA)n` humano de `3utr:1268-1301` solapa
+    **5 ventanas** (`3utr:1247`, `1249`, `1250`, `1251`, `1252`) que caen por los **tres**
+    ejes a la vez — repetitivo, polimórfico, y con **TECHO** por quedar por detrás de las
+    **dos** `ATTAAA` humanas (`3utr:955` y `3utr:1167`). Tres razones independientes: no
+    se recuperan arreglando una.
+  - **Dónde se ve y dónde no**: el paso 15 enmascara y **retila**, así que con la máscara
+    puesta esas ventanas ya no están en la piscina y una lista por ventana saldría vacía.
+    El informe emite los **dos ejes** con su motivo; el detalle por ventana es
+    `masking.triple_motive_rows` sobre un informe tilado **sin** máscara.
+- **El manifiesto registra la BIBLIOTECA además de la versión del binario** (columna
+  `biblioteca`): RepeatMasker 4.0.9 con Dfam_3.0 y con otra biblioteca dan resultados
+  distintos, así que la versión a solas no identifica la corrida. La cabecera de 9
+  columnas se sigue aceptando (`PREVIOUS_COLUMNS`) y la columna sale vacía, que es la
+  verdad.
+- **El casete que se pasa tiene que ser lo que la célula MADURA** (`transgene.py`). Si el
+  casete lleva el módulo del shmiR y se pasa el **genoma con el intrón dentro**, toda guía
+  da impacto contra **su propia horquilla**: el filtro tumba el panel entero por un
+  artefacto, con un motivo que además es literalmente cierto, así que no se ve. Se detecta
+  **por secuencia** —el loop de los andamios conocidos— y se avisa en el informe. El
+  casete de hoy (`aav_casete.fa`, pAAV_G130E_W144Y_mouse_PrP_4xmiR-183T, 5282 pb) es el
+  **parental sin módulo**, comprobado, y el informe también lo dice: por eso su veredicto
+  se puede leer tal cual.
+- **El transgén es una segunda base de especificidad**: `filter_transgene` con el casete
+  AAV. FAIL con 0 o 1 desapareamiento, porque una guía a un solo desapareamiento apaga
+  la construcción terapéutica casi igual que a su diana — y eso sería un fallo
+  silencioso.
+- **La accesibilidad es DESEMPATE, nunca filtro**: es el criterio peor predicho del
+  pipeline. Se calculan dos ventanas de contexto (±80 y ±150) y si discrepan el informe
+  dice que el número no sirve para desempatar.
+- **`riesgo_APA` es una PREDICCIÓN mientras no haya `--apa-medido`**, y el informe lo
+  dice con esa palabra. Con sitios medidos el dato sustituye a la predicción y sale el
+  techo de knockdown.
+- **El cruce con una fuente externa va por SECUENCIA, nunca por coordenada.**
+  miRarchitect numera sus ventanas con un convenio que no es el nuestro —para la misma
+  guía da a veces una posición y a veces otra— así que cruzar por número pega un score
+  en la fila del candidato de al lado. Y **la posición 1 de la guía no se compara**: los
+  dos lados fuerzan ahí una T (la U que quiere AGO2), así que esa base es un convenio y
+  no un dato; comparándola, la ventana 3'UTR 819 quedaba sin cruzar por un único
+  desapareamiento sobre 19 nt de solapamiento idéntico. Una ventana corrida hasta 15 nt
+  se asigna al candidato más cercano con la distancia escrita en `mirarch_shift_nt`; más
+  allá, no se asigna.
+- **Ningún intervalo se escribe a mano**: `audit.Span` se deriva de la secuencia que
+  describe y `Span.check()` **aborta** si `fin - inicio + 1 != len(secuencia)`. No es
+  teórico: la errata del desplazamiento de 3 nt y unas ventanas `269-291`/`222-242`
+  emitidas para guías de 22 nt son el mismo fallo, coordenadas transcritas en vez de
+  derivadas. `tests/test_intervalos.py` comprueba el invariante sobre las salidas de
+  verdad, en las dos parejas de coordenadas. Ese invariante ya cazó algo real: cuando el
+  emparejamiento sale de `guia[1:]`, la ventana mide un nt MENOS que la guía, porque la
+  posición 1 es la T de convenio y no forma parte de la ventana.
+- **Ninguna secuencia entra al pipeline sin su md5 en el manifiesto.** Ni pegada, ni
+  transcrita, ni copiada de una conversación. Y una longitud que se anuncia se cuenta
+  sobre la cadena **entregada**, no sobre la que se pretendía entregar
+  (`reference.check_declared_length`). Es la errata nº 5 del registro: un 3'UTR
+  anunciado como «1242 nt verificados» que traía 1246 dejó inservible una corrida entera
+  de miRarchitect y varias tandas persiguiendo hipótesis falsas.
+- **Un 3'UTR para una herramienta externa se escribe a FICHERO, nunca a stdout**
+  (`tools/export_utr3.py`): el nombre lleva la longitud y el md5, y el programa **no
+  imprime la secuencia**. Lo que se pierde al copiar de una pantalla son las carreras de
+  homopolímero, y eso no se ve. Lo que se sube es el fichero.
+- **Mapear exacto no demuestra estar intacta.** Una guía que sea prefijo o sufijo de otra
+  fila del mismo fichero es la misma predicción mutilada, y puede mapear exacta si la
+  pérdida cae en un homopolímero. Se comprueba y se avisa (`mirarchitect.Export.contained`,
+  `audit`).
+- **El andamio se decide por SECUENCIA, no por etiqueta** (`mirarchitect.Export.check_scaffold`):
+  se compara el loop del fichero contra el del andamio. Y la pasajera de la fuente se
+  **descarta con el motivo escrito** (`PASSENGER_REJECTED`): sigue la convención de
+  miR-30a —dos nucleótidos borrados tras la posición 9 y `GC` terminal, verificado
+  26/26— y la nuestra cambia solo la posición 1 y se elige plegando. De miRarchitect se
+  toma la guía y nada más.
+- **Una puntuación externa es transferible entre entradas si y solo si la ventana no
+  solapa ninguna diferencia entre ellas, y eso se COMPRUEBA, no se supone**
+  (`transfer.py`). Sale del caso de referencia: dos corridas de miRarchitect sobre Prnp,
+  misma herramienta y mismo andamio, entradas que difieren en 18 sucesos sobre 1242 nt —
+  los **21 sitios con ventana idéntica salieron con score idéntico**, luego el score es
+  función local de la ventana de 22 nt. `divergent_positions=None` significa «nadie lo
+  ha mirado» y **no** se transfiere; un `frozenset()` vacío sí es una comprobación hecha.
+  **El puesto NO se transfiere**: 20 de esos 21 cambiaron de puesto con el score
+  idéntico, porque el puesto depende del tamaño de la lista y no del sitio.
+- **Toda posición impresa lleva su ESPACIO DE COORDENADAS pegado** (`coords.py`):
+  `3utr:1018`, `tx:1967`. En cualquier salida —informe, avisos, motivos de filtro y
+  celdas del TSV—, **no en la cabecera de la columna**: quien copia una celda a un correo,
+  o lee una línea suelta, se lleva el número sin la cabecera. Es la contramedida del md5
+  generalizada, y el fallo que la motiva **no dio ningún error**: la línea de inmunes
+  elegibles imprimió un `1018` que era el 69 del 3'UTR, justo al lado de un candidato
+  elegido que se llama 1018. Habría dado una conversación equivocada, no una excepción.
+  - `Position` no se puede construir sin `Frame`, y `str()`/`format()` devuelven siempre
+    la etiqueta: no hay forma de imprimir el entero desnudo por descuido.
+  - El marco **sale de la anatomía** (`coords.frame_of`), no se elige: si el 3'UTR empieza
+    en la posición 1 de lo tilado, lo tilado ES el 3'UTR. Y viaja con la selección
+    (`ReportSelection.anatomy`) para que todos los escritores usen el mismo.
+  - `coords.parse` lee de vuelta una celda etiquetada y **rechaza el entero desnudo**, así
+    que la etiqueta no es decoración: los tests del invariante de intervalos pasan por ahí.
+  - **INVARIANTE DE RANGO. AÑADIDO (2026-08-26)** (`coords.max_utr3`,
+    `coords.check_utr3_range`). La clase impedía construir una posición **sin** marco,
+    pero no impedía declarar el marco **equivocado**. Ahora una `Position` en `3utr` que
+    no quepa en el 3'UTR más largo que conoce el proyecto **aborta**, y el mensaje dice
+    que casi seguro es una coordenada del transcrito. El techo se **deriva** de
+    `reference.REFERENCES` (hoy 1606, lo pone el humano): si entra una referencia con un
+    3'UTR más largo, sube solo. `label` y `span` aceptan además `limit` —la longitud real
+    de la especie que se está analizando— y `coords.bound_of(anatomy)` la saca; `tx` no
+    se comprueba, porque ponerle un techo sería inventarse un límite.
+  - **Y lo que este invariante NO puede hacer es un PRINCIPIO del proyecto, no una nota
+    de `coords.py`**: está en [`docs/principios.md`](./docs/principios.md) porque aplica a
+    todo. En corto: **el invariante caza lo imposible, no lo equivocado; el golden es lo
+    único que lee la salida entera.** `3utr:1784` sobre 1606 nt y `3utr:1273-2191` sobre
+    1242 los caza; `3utr:1185` sobre un 3'UTR murino de 1242 **no**, porque 1185 es una
+    posición válida — sólo que de otra señal. Ese caso lo cazó el golden, al leer el diff.
+    - **Corolario operativo, y va aplicado a toda magnitud derivada nueva**: pregúntate si
+      puede salir un valor **equivocado pero dentro de rango**. Si puede —y casi siempre
+      puede: una conversión de marco, una resta de desfase, un denominador cambiado—
+      **no hay invariante que lo cubra**, el bloque entra en el golden antes de darlo por
+      bueno, se lee el diff, y el test fija el **valor con su procedencia**, no su forma.
+    - Ya ha vuelto a pasar dos veces desde que se escribió: el bloque de holguras y los
+      **dos desfases** de `triple_motive_rows` (con uno solo, `3utr:1275` salía marcada
+      por un elemento que está a 800 nt; posición válida, ningún error). Los dos los cazó
+      leer la salida.
+  - **El fallo REAPARECE cada vez que se escribe un bloque nuevo**, y ha vuelto tres veces
+    más: `apa_ceiling_table` imprimía `3utr:1784` para una coordenada del transcrito humano
+    —en el informe que ya se estaba entregando— y los tramos de techo salían como
+    `3utr:1-1200` sobre un 3'UTR de 1242 nt, y el bloque de holguras imprimió `3utr:1185`
+    para la señal mientras la ventana sí venía convertida. Los tres llevaban `Frame.UTR3`
+    a pelo o una conversión a medias. La regla para un bloque nuevo es: el marco **se
+    recibe**, sacado de la anatomía, las coordenadas se convierten **todas a la vez o
+    ninguna**, y nunca se pone `UTR3` porque «suele serlo».
+- **Toda salida que nombre una referencia imprime longitud y md5 JUNTOS**
+  (`reference.describe_sequence`): `referencia 1242 nt / 19f5fa2a`. Contramedida a un
+  fallo que fue invisible porque «referencia 1246 nt» parece razonable; pegado al md5 no
+  hay forma de leerlo sin ver que lo que se llama referencia es el bloque fabricado.
+  Separarlas en dos campos no vale: el fallo consiste justo en que la longitud sola no
+  identifica nada.
+- **El polyA sale bajo las DOS reglas, en columnas separadas** (`polyA_estricto`,
+  `polyA_escalonado`), con el hexámero, su posición, su distancia al extremo 3' y su
+  clase. No se aplica ninguna al emitirlas: la decisión se toma con la tabla delante.
+  `polyA_veredicto` sigue siendo el del modo con el que se corrió. Ojo con el marco:
+  `polyA_hexamero_pos` va en coordenadas de LO TILADO, como `inicio_transcrito`, y la
+  cabecera lo dice.
+- **El informe ENTERO está fijado contra un golden versionado**
+  (`tests/golden/raton_informe.txt`, `tools/regenerar_golden.py`,
+  `tests/test_informe_golden.py`). Los tests de presencia comprueban que aparezca lo que
+  cada uno espera; **no detectan lo que falta**. En esta sesión se borraron 127 líneas del
+  informe —el bloque del `TECHO` y los inmunes enteros— al reordenar un bloque, y los 1700
+  tests siguieron en verde. El golden compara la salida completa y ese borrado lo hace
+  fallar: está comprobado a propósito. Se regenera **a mano** y el diff entra en la
+  revisión.
+- **Los tercios tienen DOS definiciones y hay que decir cuál** (`selection.tercio_counts`,
+  bloque «Cobertura por tercios»). `Tercio` etiqueta por el **punto medio** de la ventana;
+  la partición simple (`3utr:1-414 / 415-828 / 829-1242`) va por **inicio**. Discrepan en
+  el borde: `3utr:819-840` empieza en el segundo tercio y su punto medio (829,5) cae en el
+  tercero. Con el tercer sitio de APA medido dentro: elegibles por punto medio 88/128/54;
+  por inicio 88/137/45; **sitios** por inicio 28/42/16. (Sin él eran 105/128/54,
+  105/137/45 y 32/42/16.) Para pedir una plaza en un tramo concreto está
+  `SelectionConfig.start_window_quota`, en coordenadas explícitas y por inicio, que no
+  depende de ninguna definición de tercio.
+  - Y la cuenta que dice si el panel **se puede rebalancear**: sitios elegibles por tramo
+    que quedan **por delante del corte más temprano**, que con el tercer sitio medido es
+    `3utr:251` y no `3utr:303`. Son **16, todos en el tercio proximal**; medio y distal
+    tienen **cero**. Si el APA resulta funcional, el rebalanceo solo puede ir hacia el
+    proximal — y solo hasta donde deje el espaciado (cuatro). El corte **se deriva**
+    (`selection.derive_immune_cut`); antes iba tecleado y no se enteró de que se adelantara.
+- **La asimetría sale con las DOS cifras cuando hay penalización**: cruda, penalización
+  y neta (`+5,15 − 1,00 penal. = +4,15`). Una sola columna con la neta, al lado de
+  candidatos sin penalizar, mezcla dos magnitudes distintas sin decirlo: el 221 salía
+  `+4,15` frente a un `+5,15` de la tabla y parecía una discrepancia de cálculo cuando era
+  la penalización por solapar el `AATATA` de 236 (variante rara, clase `OTRA`). Ese
+  `AATATA` es hoy `APA_POSIBLE` por medida, así que `3utr:221` ya no llega a la tabla: la
+  penalización se convirtió en FAIL. El caso sigue anotado porque el fallo que enseña —una
+  columna que mezcla cruda y neta— es el mismo con cualquier candidato penalizado.
+- **El PUESTO de una fuente externa no se usa en la selección.** Es propiedad de la
+  LISTA, no del sitio: 20 de los 21 sitios compartidos entre las dos corridas de
+  miRarchitect cambian de puesto con el score **idéntico**, solo porque una lista tiene
+  26 filas y la otra 24. Se importa el score, y solo donde la ventana coincide.
+- **El criterio posicional tiene TRES estados, no dos** (`transfer.WindowState`):
+  `LIMPIA`, `TOCADA` e `INDETERMINADA`. El tercero es para un indel dentro de una carrera
+  de bases iguales cuya carrera cruza el borde de la ventana: ahí el alineador coloca el
+  indel en un punto cualquiera y la pregunta «¿cae dentro?» no tiene respuesta a priori.
+  `LIMPIA` transfiere, `TOCADA` no, `INDETERMINADA` transfiere **solo** si existe la
+  comprobación directa y las dos cadenas coinciden. Ojo con los dos vecindarios: una
+  deleción borra una posición de la carrera, pero una inserción se mete en una JUNTURA, y
+  la juntura de detrás de la carrera cae fuera de una ventana que acaba en ella. Tratar
+  los dos igual marcaba TOCADA la ventana 221, que las dos corridas vieron idéntica.
+- **Dos criterios de «misma ventana», y manda el directo.** El posicional —¿el intervalo
+  de referencia contiene alguna posición divergente?— es conservador: cuando el indel cae
+  dentro de una carrera de bases iguales, su posición exacta es ambigua y el alineamiento
+  la coloca en un punto cualquiera, así que sobre-marca. El directo —¿las dos corridas
+  emitieron la misma diana?— es exacto, pero solo se puede aplicar a sitios que las dos
+  reportan. El informe da los dos y dice dónde discrepan y por qué.
+- **El perfil de diferencias dice de QUÉ investigación se trata** (`alignment.py`). Un
+  trasvase —copiar de una pantalla— solo puede PERDER caracteres: si el perfil trae
+  inserciones, sustituciones o transposiciones, la secuencia no se copió mal, se generó.
+  Son dos culpables y dos remedios. Las transposiciones se cuentan aparte de las
+  sustituciones: `CT`→`TC` son dos bases pero UN suceso.
+- **La comparación de dos corridas va ESTRATIFICADA, sin cifra agregada.** Un porcentaje
+  global de solapamiento mezcla ventanas que las dos corridas vieron idénticas con
+  ventanas que vieron distintas, y con eso no se decide nada. Los estratos son: (a)
+  ventana sin ninguna diferencia dentro de sus 22 nt, (b) ventana que solapa al menos
+  una. Para el estrato (a) la expectativa es **score idéntico**, y eso es un test
+  binario, no un umbral. Si falla, el score no es función local de la ventana: arrastra
+  contexto global, y entonces **ninguna** puntuación calculada sobre una entrada
+  imperfecta sirve — tampoco las de ventanas intactas. El informe lo dice con esas
+  palabras y no dice «robusto».
+- **Dos corridas de miRarchitect se cruzan por SITIO sobre la referencia**
+  (`mirarchitect.compare_exports`, `tools/compare_exports.py`), nunca por guía ni por la
+  coordenada que declara el fichero: una ventana corrida da otra guía, y una entrada
+  distinta corre las coordenadas. `axis` es **obligatorio** porque la misma aritmética
+  contesta dos preguntas distintas — cuánto mueve la puntuación un cambio de la entrada
+  (sensibilidad) y cuánto la mueve un cambio de andamio (la magnitud que convierte el
+  `NO_ORDENAR` en un número). El programa da la cifra y **no** dice si es alta o baja:
+  ese umbral lo pone quien lee, y el informe dice qué decisión cuelga de él. El bloque
+  entra en el documento con `design.py --nota`, no se queda en el log.
+- **La auditoría de un fichero de scores es código, no un análisis a mano**
+  (`shmir_design/audit.py`, `tools/audit_scores.py`). Tabula longitudes, dice qué guías
+  no mapean y cómo se restauran, marca las filas que son prefijo de otra, y avisa de
+  sitios de restricción presentes en la guía y **ausentes del 3'UTR** — señal de que se
+  ha colado contexto de clonaje donde debería haber guía. En la corrida murina: 25 filas
+  (no 26), longitudes 21×4 / 22×20 / 23×1, 8 sin mapear, y un `TCTAGA` (XbaI) que no
+  está en ninguna parte del 3'UTR.
+- **La dirección de la escala se DERIVA del dato, no se supone.** `EVIDENCE` registra
+  la dirección de cada fuente **con los pares (puesto, score) de los que salió**, y
+  `file_order_direction()` la vuelve a derivar en cada importación del orden de las filas
+  del fichero: si ese orden no es monótono en el score, no es un ranking y se aborta.
+  Si la derivada no coincide con la registrada, también se aborta — uno de los dos está
+  mal y no se elige por nuestra cuenta. `lower_is_better()` sigue abortando para una
+  fuente no registrada. Ojo: el fichero de la corrida manual **no trae columna de rank**;
+  el puesto sale del ORDEN DE SUS FILAS, que es lo único no circular que hay. Y el
+  alcance de esa prueba es limitado: que 25 filas salgan ordenadas demuestra que el
+  fichero **está** ordenado, no en qué dirección. Que la primera sea la mejor sigue
+  siendo un supuesto sobre el convenio de la fuente, anotado como tal en `EVIDENCE` y
+  pendiente de confirmar leyendo el puesto en su interfaz.
+- **Un score de otro andamio no ordena.** `check_orderable()` compara el andamio del
+  fichero con el del diseño y, si no coinciden, el score se degrada a **convergencia de
+  sitio**: sigue diciendo que otro método señaló la misma región, pero no ordena nada.
+  Va escrito en cada fila (`fuente_score` acaba en `_NO_ORDENAR`) y el resumen empieza
+  por ahí. `--andamio` es obligatorio en `tools/import_scores.py`: suponer que coincide
+  es justo lo que no se puede hacer, porque miR-E existe porque procesa distinto de
+  miR-30a y el sesgo cae sobre lo que el score dice medir.
+- **`score_externo` va vacía y no se rellena aquí.** Se comprobó si miRarchitect
+  (`mirarchitect.cs.put.poznan.pl`), SplashRNA (`splashrna.mskcc.org`) y el GPP Web
+  Portal (`portals.broadinstitute.org`) responden: las tres dan 403 en el CONNECT del
+  proxy de este entorno, que es una denegación de política de red y **no una respuesta
+  del servicio** — o sea, no se ha podido comprobar, que no es lo mismo que no existir.
+  Las tres viven en `external_score.EXTERNAL_TOOLS` como **enlaces**, en la cabecera de
+  la interfaz y en el informe; ningún código las llama.
+  Por eso `external_score.MIRARCHITECT_API` y `SPLASHRNA_API` valen `None` y ninguna URL
+  se usa como endpoint. Las features de SplashRNA (asimetría, GC, posición 1, posiciones
+  2-7, composición de la seed, GC del bucle) **sí** se calculan y salen en columnas
+  `feat_*` separadas y sin combinar: una feature no es un score, y aquí no se entrena
+  ningún modelo ni se etiqueta de miRarchitect un número calculado por nosotros. El
+  informe imprime cómo puntuar a mano y `tools/import_scores.py` mete el resultado en la
+  tabla, con `fuente_score = manual_mirarchitect`. El score es informativo: nunca FAIL,
+  nunca PASS. El test de plausibilidad de la guía de SGEP está escrito y se salta de
+  forma visible mientras no haya endpoint. Ver `docs/endpoints-verificados.md`.
+- **La tabla comparativa lleva una columna `knockdown_medido` vacía** para que vuelva
+  rellena del laboratorio. No la rellenes ni la quites: es el instrumento con el que se
+  sabrá qué parámetros predicen potencia y cuáles son decoración.
+- El módulo NheI–SacI de 149 nt (`gblock.py`, `blocks.py`) lleva contextos nativos de
+  SGEP que **no se recortan ni se sustituyen**: llevan el CNNC de SRSF3. El `GGGG` del
+  contexto 3' es nativo, por eso la comprobación de homopolímeros mira solo la parte
+  variable.
+- **El generador de bloques (`blocks.py`) pliega dos veces, y la segunda no es opcional**:
+  el 97-mero aislado, y el 97-mero **dentro del intrón de 296 nt**. Los espaciadores se
+  optimizaron para la horquilla de 1018; con otra guía el contexto puede capturar los
+  flancos del pri-miR y deshacer el tallo basal, y eso solo se ve plegando. Si falla el
+  segundo, el módulo NheI–SacI **no es seguro** para ese candidato y el cassette con los
+  mismos espaciadores tampoco, porque lleva el mismo intrón dentro. Reoptimizar los
+  espaciadores es generar secuencia de novo, y **hay autorización escrita y acotada para
+  ello**: `shmir_design/spacers.py`, activado con `--reoptimizar-espaciadores`. Cubre
+  SOLO los espaciadores — nunca guías, pasajeras, contextos ni andamio. Longitudes fijas
+  (20 y 45 nt), filtros duros iguales a los originales, y un único criterio de selección:
+  que el 97-mero dentro del intrón pliegue idéntico a aislado; a igualdad, menor MFE.
+  **Los estándar son el caso base y ganan si funcionan**, así que el generador no puede
+  "mejorar" por su cuenta un diseño validado. Lo que genera se marca en toda la salida:
+  un cassette con espaciadores de novo NO es intercambiable con el módulo NheI–SacI
+  estándar.
+- **XhoI y EcoRI viajan dentro del módulo**, heredadas de los contextos de SGEP, y en el
+  plásmido final no son únicas. La hoja de pedido lo dice siempre: el clonaje va por
+  NheI/SacI o por síntesis.
+- **La especificidad no cubre los off-targets por seed** y el informe lo dice en cada
+  ejecución. No lo quites ni lo suavices: es el hueco más grande que queda, y un
+  veredicto de especificidad "limpio" sin esa frase invita a creer que la guía está
+  comprobada cuando lo que se ha comprobado son los alineamientos, no las seeds.
+- El BLAST remoto es **inspección, nunca veredicto**, y solo para los supervivientes.
+- **El orden de operaciones del paso 15 no se cambia**: enmascarar y RETILAR, filtros
+  duros, ordenar por asimetría, agrupar en sitios, selección voraz. Enmascarar después
+  de tilar produce un ranking contaminado que parece correcto.
+- El aviso `ANDAMIO_NO_VERIFICADO` **no se puede silenciar**: no hay parámetro para ello
+  en ninguna función ni en ningún CLI, y no lo añadas. `verificado` es false por defecto
+  en todo andamio cargado de fichero.
+- Elegible no es aprobado: mientras haya filtros en `NOT_RUN`, la selección es
+  provisional y los candidatos salen `INCOMPLETE`.
+- **La fracción de isoforma larga está MEDIDA y YA ENTRA** (`apa.POLYA_DB_PRNP`).
+  PolyA_DB v4.1 (2025-09-15), mm10, Prnp (Gene ID 19122): 15 PAS, 5 con expresión. Las dos
+  cifras con su fórmula, porque no miden lo mismo:
+  - **ponderada** `Σ(AvgRPM × PSE) distal / Σ total` = **0,86** ← valor de trabajo
+  - sin ponderar `Σ(AvgRPM) distal / Σ total` = **0,65**
+  La ponderada manda porque `AvgRPM` está condicionado a muestras **con** expresión.
+  - **El dato es de TODOS los tejidos, no de cerebro.** Las neuronas alargan los 3'UTR, así
+    que 0,86 es un **límite inferior conservador** para el nuestro — y por eso la RT-qPCR de
+    los dos amplicones deja de ser solo confirmación: **puede mejorar el número**.
+  - **`pending` y `caveats` son cosas distintas y no se mezclan.** `pending` para lo que
+    **bloquea** el uso del dato (hoy vacío); `caveats` para lo que se anota y no mueve el
+    valor. Meter una reserva en `pending` haría parecer inutilizable un dato por algo que no
+    cambia ninguna cifra, y eso engaña tanto como omitirla.
+  - **CABO SUELTO, NO RESUELTO: `131938392`** (`apa.CLUSTER_READING`). Es el PAS con
+    **más expresión** de los tres (PSE 70,5 %, AvgRPM 1,65) y es el **numerador** de la
+    fracción larga, así que de su lectura depende lo que significa el 0,86. Hay dos:
+    - **(a)** es el racimo del terminal `131938427` → 0,86 es exactamente lo que dice.
+    - **(b)** es un corte **propio** en `3utr:1199-1207` → hay un tercer corte por
+      delante del terminal. Y peor de lo que parece: por detrás de esa banda **ya no
+      queda ningún PAS con expresión medida**, así que ahí la medida no acota nada — no
+      es un techo bajo, es un techo del que esta tabla no sabe nada.
+    El anclaje de cuatro puntos **estrecha** la banda a `3utr:1199-1207` pero **no
+    desempata**: los dos `TATAAA` de su clase que caben ahí son `3utr:1178` y `3utr:1189`.
+    - **No se cierra hacia (a) por conveniencia**, que es justo lo que sería cerrarlo
+      porque es la lectura que sostiene el número que ya tenemos.
+    - **Cuánto cuesta hoy no resolverlo**: el bloque conservado de `3utr:1138-1163` queda
+      **por delante** de la banda; `3utr:1200` de la lista externa cae **dentro** (y ya
+      fallaba nuestro propio filtro duro de polyA); **cero** ventanas elegibles por
+      detrás y cero dentro.
+    - **Por qué el frente sigue cerrado igual, y no por conveniencia**: bajo **las dos**
+      lecturas el techo del panel es **≥ 0,86**. Bajo (a) es 0,86 exacto; bajo (b) los
+      diez siguen por delante de la banda, así que conservan su diana en la isoforma de
+      ese corte **y** en la terminal, cuya expresión no está medida — o sea 0,86 más lo
+      que no se ha contado. La ambigüedad no mueve el número **del panel**; movería el de
+      cualquier candidato que se pusiera por detrás de `3utr:1207`, y hoy no hay ninguno.
+    - **Qué lo resolvería**: 3'-end seq de cerebro murino, o la regla de agrupamiento que
+      use la propia base. Ninguna de las dos está aquí.
+    - **RATIFICADO (2026-08-26)**: el razonamiento de por qué la ambigüedad no mueve el
+      techo del panel queda aceptado tal cual, y **el cabo queda abierto**. No se cierra.
+- **El mapeo genómico↔transcrito está RESUELTO, y sin coordenadas genómicas**
+  (`apa.anchor_polyadb`, `polya.PAS_IS_CLEAVAGE_SITE`). El `.gb` de NM_011170.3 sigue sin
+  traerlas —su bloque `PRIMARY` referencia cDNA y EST, no un cromosoma— y ya no hacen falta.
+  - **El desempate lo da la propia leyenda de PolyA_DB**: «A[A/U]UAAA motif within 40-nt
+    upstream from the PAS». Si el hexámero se **busca aguas arriba** del PAS, el PAS no puede
+    ser el hexámero: **es el sitio de corte**. La otra lectura queda descartada.
+  - **Y no se elige por una resta**, que es un solo punto de apoyo y siempre cuadra. Se
+    exige que las **cuatro** coordenadas publicadas aterricen a la vez, con el **mismo
+    desfase**, sobre un hexámero de la **clase que la propia base declara** para cada una
+    (`AAUAAA` / `AUUAAA` / `Other`). Bajo «PAS = corte» aterrizan las cuatro; bajo «PAS =
+    hexámero» —donde el aterrizaje tiene que ser **exacto**, porque un hexámero es un punto
+    y no una banda— no hay ningún desfase que haga aterrizar **más de una**.
+  - Resultado: `131937444` → corte `3utr:251-271`, hexámero **`AATATA` en `3utr:236`**;
+    `131937504` → corte `3utr:303-323`, hexámero `AATAAA` en `3utr:288`; `131938427` →
+    corte `3utr:1229-1249`, hexámero `ATTAAA` en `3utr:1214`. Desfase 3'UTR→mm10 acotado a
+    **131937185-131937193**, y se deja como **intervalo**: la banda de corte mide 20 nt y
+    fijarlo en un entero sería inventarse precisión.
+  - **`131938392` sale AMBIGUO** —dos `TATAAA` de su clase caben en su banda, `3utr:1178` y
+    `3utr:1189`— y eso **no invalida el anclaje**, pero ese sitio **no entra al modelo con
+    banda propia**: no identifica un hexámero y no se elige por nuestra cuenta.
+  - **La tabla se aplica por md5 del 3'UTR** (`MeasuredFraction.utr3_md5`,
+    `apa.resolve_measured`), no por el nombre del gen. Sobre cualquier otra secuencia
+    devuelve `None` y no se promueve nada: unas coordenadas de Prnp murino ancladas sobre
+    otro 3'UTR anclarían ruido, y el ruido ancla si se le deja sitio.
+- **`131937444` es un TERCER sitio de corte y entra como `APA_POSIBLE` POR MEDIDA, no por
+  canonicidad. DECIDIDO (2026-08-26)** (`polya.promote_by_measurement`). Es el caso
+  **inverso** al del `AATAAA` de 288: allí hay canonicidad y ni un dato de uso; aquí hay uso
+  medido —**el proximal más usado de los tres**, PSE 21,1 % y AvgRPM 0,55 frente a 23,5 % /
+  0,34— y el hexámero es una **variante rara** (`AATATA`) que por la cascada de predicción
+  saldría `OTRA`. La medida **sustituye** a la predicción, que es lo que dice `apa.py` desde
+  su primera línea. `PolyASignal.evidence` dice por cuál de las dos vías entró cada señal y
+  el informe lo imprime; las dos vías no se confunden nunca en la salida.
+  - Su corte es **más temprano** (`3utr:251-271` frente a `3utr:303-323`), así que la
+    frontera de la inmunidad se **adelanta de `3utr:303` a `3utr:251`**.
+  - **`3utr:221` conserva su inmunidad al TRUNCAMIENTO** —empieza en 221, por delante de
+    251— **y pierde la plaza por el otro riesgo, el ESTÉRICO**: `3utr:221-242` **contiene**
+    el hexámero y compite con CPSF/CstF por un sitio del que ahora se sabe que se usa. Son
+    dos ejes y el informe no los mezcla. Su plaza proximal la ocupa **`3utr:200`** (+3,80
+    frente al +4,15 neto de 221): la cuota de cuatro inmunes se cumple igual.
+  - **Lo que cuesta la promoción va NOMBRADO** (`selection.measured_promotion_cost`): 17
+    ventanas que superaban todos los demás filtros pasan a FAIL, elegibles 287 → 270,
+    sitios 90 → 86, sitios inmunes 20 → 16 (todos siguen en el proximal). Sin esa cuenta la
+    única huella de la decisión sería una piscina más pequeña, que es exactamente la forma
+    que tiene un candidato de desaparecer sin que nadie lo vea. **Solo se cobran las
+    ventanas que caen POR ESTO**: una que ya fallaba GC no la tumba la promoción, y a la
+    canónica de 288 no se le cobra nada porque ya era `APA_POSIBLE` por predicción.
+- **`3utr:200` conserva la plaza, pero NUNCA sale como «inmune» a secas. DECIDIDO
+  (2026-08-26)** (`selection.promotion_clearance`, bloque «Lo que se salva, y por
+  cuánto»). Se emite en **los dos ejes**, siempre:
+
+  `inmune_truncamiento = SI` / `esterico = PENALIZADO`
+
+  - **El eje de truncamiento es GEOMÉTRICO** y no depende de ninguna convención: empieza
+    en `200` y el corte más temprano está en `251`. O empiezas antes o no.
+  - **El eje estérico es un GRADIENTE, no una frontera** (`polya.STERIC_IS_A_GRADIENT`).
+    El flanco de ±10 nt **no tiene base medida**: es un umbral operativo, y la huella real
+    de CPSF/CstF sobre el pre-mRNA es **mayor**, así que los 14 nt que separan
+    `3utr:200-221` del hexámero están **probablemente dentro de la zona de competencia**
+    aunque el filtro lo deje pasar. Cualquier umbral en nucleótidos le atribuye a este eje
+    una precisión que la biología no tiene.
+  - **Por eso la sensibilidad al flanco va SIEMPRE pegada al veredicto**, no en una nota:
+    la ventana queda **4 nt** por delante de la zona prohibida (`3utr:226-251`) y **con un
+    flanco de 15 en vez de 10 también caería**. Sin esa cifra, un `PASS` parece una medida
+    y es una convención. El flanco de cambio se **busca** con el mismo `classify_signal`
+    que decide, no se calcula a mano.
+  - En la lista de inmunes del informe, `3utr:200` sale con `[esterico PENALIZADO]` al
+    lado; `3utr:10`, `60` y `143` no llevan marca porque no la necesitan. Poner la marca
+    en todos la haría invisible.
+- **REGISTRO DE DECISIONES: el criterio escalonado no es un colador, y hay evidencia.**
+  El criterio se decidió con la tabla de los seis candidatos delante, y quien lo defendió
+  tenía interés en el resultado. El 2026-08-26 ese mismo criterio **tumbó `3utr:221`**,
+  que era uno de los cuatro inmunes del panel y uno de los mejores por asimetría. Un
+  criterio que sólo aprueba nunca demuestra nada; éste ha quitado algo que su autor
+  quería conservar, y por eso vale. Se anota la **decisión**, no sólo el resultado: si
+  más adelante alguien propone relajarlo, este caso es el que hay que discutir.
+- **El TECHO ya no es UNO: va POR TRAMOS** (`apa.CeilingLayer`, `MeasuredApa.layer_for`).
+  Un solo número contesta «cuánta isoforma larga hay»; la pregunta de un candidato es otra,
+  «qué fracción de transcritos conserva MI diana», y eso depende de por detrás de **cuántos**
+  cortes está. Con los tres sitios medidos:
+
+  | tramo (3'UTR) | techo | por qué |
+  |---|---|---|
+  | `1-251` | — | por delante de todos los cortes: inmune |
+  | `252-271` | INDETERMINADO | dentro de la banda de `131937444` (PENALIZADO, no TECHO) |
+  | `272-303` | **0,91** | por detrás de `131937444` |
+  | `304-323` | INDETERMINADO | dentro de la banda de `131937504` |
+  | `324-1242` | **0,86** | por detrás de los dos proximales |
+
+  Colapsarlo a 0,86 para todos castigaría al tramo intermedio con un techo que no es el
+  suyo; dejarlo en 1,00 por delante del corte de 288 —que es lo que había— se saltaba un
+  sitio de corte entero. Los seis candidatos con techo del panel están todos en el último
+  tramo: **0,86**.
+- **El APA fue el cuarto FRENTE BLOQUEANTE y hoy está CERRADO. DECIDIDO (2026-08-26)**
+  (`selection.blocking_fronts`, `BlockingFront.blocking`). La cuenta que lo abrió sigue
+  siendo cierta —sitios inmunes por tramo 16/0/0, tope de cuatro por espaciado, seis de diez
+  candidatos con el mismo modo de fallo—, pero **la razón por la que bloqueaba era que un
+  techo alto y un shmiR malo dan la misma lectura en la placa**, y con el techo cuantificado
+  en **0,86** eso deja de cumplirse: 0,86 no es indistinguible de una guía que no funciona.
+  - **Un frente cerrado NO desaparece del informe**: sale como `FRENTE CERRADO` con el
+    motivo. Borrarlo dejaría el informe sin memoria de por qué se cerró, y el siguiente
+    lector no sabría si se resolvió o si nadie lo miró.
+  - **La reserva del tejido se mantiene** y va escrita: el dato es de todos los tejidos, así
+    que 0,86 es un límite inferior. La RT-qPCR de los dos amplicones sigue en pie y puede
+    **mejorar** el número.
+  - Sin tabla aplicable (p. ej. el 3'UTR humano) el frente **sigue bloqueando**, y el motivo
+    dice que la tabla no entra en esa corrida **por md5**, no que no exista.
+- **`--inmunes-antes` se DERIVA, no se teclea** (`selection.derive_immune_cut`). Estaba
+  puesto a mano (`--inmunes-antes 1252`, o sea `3utr:303`) y cuando el tercer sitio medido
+  adelantó la frontera a `3utr:251` la cifra tecleada siguió ahí **sin dar ningún error**.
+  Ahora `apa_immune_before=None` con cuota significa «sácalo del informe»; lo que sigue
+  abortando es llegar a `choose()` sin resolverlo, que es la garantía que importa.
+- **Los tercios se cuentan sobre el 3'UTR, no sobre lo tilado.** Con un mRNA completo
+  `report.utr_length` es la longitud tilada (2191) y los límites salían del transcrito: el
+  reparto decía «medio 20» de unos sitios que están todos en el tercio **proximal** del
+  3'UTR, y la frase del informe decía «proximal» al lado. Las posiciones se convierten
+  antes de contar, y el tramo de la frase se **deriva** en vez de escribirse.
+- **El EMPALME DEL INTRÓN es el quinto frente, y el ÚNICO BINARIO. AÑADIDO
+  (2026-08-26)** (`splicing.py`). Los otros cuatro son graduales: una especificidad
+  regular da off-targets, un techo de APA baja el knockdown, una colisión de seed
+  secuestra una red. Se miden, se ordenan y se comparan. Este no: **si el intrón no se
+  escinde, la horquilla se queda en el 5'UTR del mRNA maduro y no hay proteína DN en
+  absoluto**. No hay «un poco de proteína» que optimizar, así que va como **frente y no
+  como columna**, y lo que decide no es un candidato — decide si la **arquitectura
+  intrónica** sigue viva.
+  - **Por qué no estaba en la lista, y es la parte importante**: la lectura que se hace
+    por defecto **no lo coge**. Un `small RNA-seq` puede salir **perfecto** con el
+    empalme fallando, porque Drosha procesa el pri-miR **cotranscripcionalmente**, o sea
+    **antes** del splicing: la horquilla se corta igual esté el intrón escindido o no.
+    **Un shmiR correcto no es evidencia de que haya proteína.** Son dos sucesos en orden
+    y esa lectura solo mide el primero.
+  - **SON DOS MODOS DE FALLO, no uno con un detalle** (`splicing.RETENTION_MODES`). Si
+    el intrón se retiene: **(a)** la horquilla se queda en el 5'UTR del mRNA maduro, y
+    **(b)** el ribosoma escanea desde el extremo 5' y se encuentra varios AUG antes del
+    legítimo. **El (b) actúa aunque la horquilla no estorbara nada**, así que van
+    separados y contados aparte en el informe.
+  - **Los uAUG, con posición, Kozak y marco** (`splicing.scan_upstream_atgs`). Con la
+    horquilla de referencia son **ocho**, y el análisis da tres categorías, no una:
+    - **`EXTENSION_N_TERMINAL`** — en marco **y** sin codón de parada antes del ATG
+      legítimo. Es el caso **peor**: produce PrP con una cola por delante, o sea **algo
+      que un Western podría confundir con la DN**. **Con este casete no hay ninguno, y
+      se comprueba en vez de suponerse**: el único en marco es `+16` (MVM5,
+      `TAAGGGATG`, Kozak **FUERTE**, a 318 nt) y **para a los 10 codones**.
+    - **`uORF_SOLAPANTE`** — fuera de marco y **sin** parada antes del ATG legítimo:
+      `+210` y `+237`. El ribosoma **sigue elongando** al pasar por el inicio, así que no
+      puede reiniciar ahí. Es peor que un uORF que termina antes, y meterlo en el mismo
+      saco lo escondía.
+    - **`uORF`** — el resto.
+    El criterio de Kozak (**−3** purina, **+4** G) va **declarado como parámetro de este
+    análisis, no citado** (`splicing.KOZAK_CRITERION`). Y **la cuenta cambia por
+    candidato**: tres de los ocho los aporta la horquilla.
+  - **No se cierra con ningún fichero**, y el informe lo separa de los otros: sus
+    **cuatro** lecturas son de banco, las cuatro `NOT_RUN`, y este software no corre
+    ninguna.
+    1. **RT-PCR de empalme** con cebadores en los exones que flanquean el intrón MVM.
+       Banda **corta** = empalmado, banda **larga** = retenido, y la **proporción** es la
+       eficiencia.
+    2. **Western L42 normalizado por vg-qPCR.** Sin normalizar, «no hay proteína» no se
+       distingue de «no llegó el vector»: los dos dan una membrana vacía y solo uno culpa
+       al empalme.
+    3. **Parental SIN INTRÓN en la misma tanda**, como techo de expresión. Sin techo, un
+       western flojo no dice si el empalme va mal o si la construcción expresa poco.
+    4. **SECUENCIAR la banda corta, y es LA QUE CIERRA el frente.** La lectura de éxito
+       es la **secuencia de la unión exón-exón**, **no la altura de la banda**. Sin ella,
+       ver una banda corta no descarta el donante críptico.
+  - **El casete que hay NO es el parental sin intrón, y confundirlos daría un techo que
+    no lo es.** `aav_casete.fa` es el parental sin **módulo** pero **con el intrón vacío
+    de 82 nt** (MVM5 40 + MVM3 42 pegadas, comprobado por secuencia), así que arrastra el
+    mismo problema de empalme que se quiere medir. Hace falta la construcción **sin
+    donante ni aceptor**. Y el intrón del terapéutico son **296 nt**, no 82: no son el
+    mismo intrón y la eficiencia de uno no dice nada del otro.
+  - **Las coordenadas se DERIVAN del casete, no se teclean** (`splicing.locate_intron`).
+    Se buscan las piezas `MVM5`/`MVM3` de `blocks.PIECES` —una sola copia de cada una— y
+    los dinucleótidos `GT`/`AG` se **leen** de la secuencia y se comprueban; si no cuadran,
+    se aborta. Sobre `aav_casete.fa`: donante `casete:3134`, aceptor `casete:3215`.
+    - Ventanas donde **buscar** los cebadores: `casete:3064-3123` (aguas arriba) y
+      `casete:3226-3285` (aguas abajo), 60 nt cada una, a 10 nt de la unión, y se
+      comprueba que sean **únicas** en el plásmido — un cebador que aparece dos veces no
+      mide nada.
+    - **No se emiten cebadores**, igual que en `polya.rtqpcr_amplicons`: Tm, especificidad
+      y horquillas no se improvisan. Se emite dónde buscarlos.
+    - **Ningún cebador puede cruzar la unión exón-exón**: uno que la cruce solo amplifica
+      la forma empalmada, así que da presencia y **no proporción** — y la proporción es
+      justo lo que se busca.
+    - **La banda no se da como un número falso.** El extremo bajo del rango es solo los
+      dos márgenes (20 pb); la banda real es `20 + F + R` con F y R las longitudes de los
+      cebadores, que aquí no se fijan. Darlo tal cual emitía «banda corta ~22 pb», que es
+      geométricamente imposible. **La cifra que no depende de nada de eso es la
+      DIFERENCIA**: 296 pb en el terapéutico, 82 en el parental. Esa es la lectura.
+    - **La especificidad del par la da el cebador de aguas ARRIBA.** La ventana de aguas
+      abajo entra en el ORF de PrP, así que un par con los dos cebadores ahí amplificaría
+      también el **Prnp endógeno** del tejido y la banda no sería del vector.
+- **El donante críptico `GTGAGCG` del andamio: lo que la secuencia cierra y lo que NO**
+  (`splicing.cryptic_donor_scan`). Está en el flanco 5' de miR-E, **dentro del andamio**,
+  así que viaja con cualquier candidato: intrón `+98`.
+  - **La pregunta que se podía contestar hoy, contestada**: entre ese donante y el aceptor
+    legítimo (`+295`) hay **13 AG**, y **ninguno es un aceptor utilizable**. El legítimo
+    tiene un tracto de **9 pirimidinas contiguas**; el mejor críptico llega a **3**. El
+    criterio va **declarado como parámetro y no como cita** (`SPLICE_SITE_CRITERION`), y
+    la comparación se hace **contra el aceptor legítimo del mismo intrón** — referencia
+    interna, así que el veredicto no depende de ningún umbral traído de fuera.
+  - **Eso cierra** la familia de productos que necesitaría un aceptor críptico ahí.
+  - **PERO NO CIERRA el riesgo del donante críptico, y ese es el punto**: ese donante
+    **no necesita** un aceptor críptico — el **legítimo** del MVM está aguas abajo y es
+    perfectamente utilizable. Un empalme `+98 → +295` quita 198 nt y deja **97 nt** de
+    intrón dentro: banda = **empalmada + 97 pb**, frente a +0 (correcta) y +296
+    (retenida). Es la banda **intermedia**, exactamente la confundible en un gel. Los dos
+    donantes compiten por el **mismo** aceptor y cuál gana no lo dice la secuencia — por
+    eso la lectura 4 no es opcional.
+- **El control SIN INTRÓN se ESPECIFICA, no se pide** (`splicing.intronless_control`, y
+  sale en la hoja de pedido como un fragmento más). Es el casete con **donante y aceptor
+  eliminados** y todo lo demás conservado base a base: 82 pb con 30 nt de homología a cada
+  lado, `md5 d72c574d…`, y conserva MluI y AgeI para la digestión.
+  - **No viola la regla 1**: no genera secuencia, **borra dos piezas literales** de una
+    que está en el repositorio. Hay un test que reinserta lo borrado y comprueba que
+    recupera el original **base a base**.
+  - Se **niega** a construirlo sobre un casete cuyo intrón no sea el vacío: quitar donante
+    y aceptor de un casete **con módulo** dejaría la horquilla dentro del mRNA, que es el
+    modo de fallo que se quiere medir, no su control.
+  - La longitud sale tal cual y **no se inventa un mínimo de síntesis**: si el proveedor
+    pide más, `arm=N` alarga los brazos, y salen del propio plásmido.
+- **El aviso del cebador va en NEGRITA en la hoja** (`blocks.PRIMER_WARNING`): **la
+  especificidad de vector la da el cebador de aguas ARRIBA, y solo ese**. La ventana de
+  aguas abajo entra en el ORF de PrP, así que un par con los dos cebadores ahí
+  amplificaría también el **Prnp endógeno** del tejido — saldría banda, del tamaño
+  esperado, y no sería del vector. **Es el error que arruinaría el ensayo sin dar ninguna
+  señal**, y por eso no va en un párrafo cualquiera.
+  - **Que el intrón cae en el 5'UTR se COMPRUEBA, no se declara**: el ATG se busca por
+    detrás del aceptor y se traduce. Está en `casete:3253`, a **37 nt** del aceptor, y el
+    ORF da **254 aa** que empiezan por `MANLGYWLLALFVTMW` con **G130E** y **W144Y** — o
+    sea, es PrP y es el que anuncia el nombre del plásmido, **comprobado por traducción y
+    no por el nombre del fichero**. Retenido, el intrón mete 296 nt por delante del codón
+    de inicio, con al menos **5 uATG** en sus piezas fijas.
+- **El informe cuenta los FRENTES abiertos, no «el bloqueante».** Con el casete y
+  `mature.fa` cargados quedan **cuatro**: especificidad, repetitivos, colisión de seed a
+  nivel FAIL y el **empalme del intrón**. Y lo dice con esas palabras: **no se pide oligo
+  hasta que los cuatro tengan veredicto**. Que uno se arregle con un fichero de kilobytes
+  y otro necesite una base entera no cambia nada — los dos bloquean igual, y llamar
+  «único bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin
+  correr. Y hay una tercera categoría desde el empalme: **un frente que no se cierra con
+  ningún fichero**, solo en el banco. El informe lo dice aparte para que no parezca que
+  basta con conseguir datos.
+- **El frente de especificidad es FUNCIONALIDAD, no un script suelto**
+  (`blast.py`, `blast_store.py`, el modal en `presentation.py` + la página).
+  - **ARQUITECTURA, y es lo primero**: este software **no lanza el BLAST y no puede** —
+    el navegador no puede llamar a NCBI (CORS) y el backend no tiene red saliente. El
+    modal **prepara** (FASTA de consulta con md5 + la orden completa), se **entrega** para
+    ejecutar fuera, y se **recoge** el `-outfmt 6`. No es una limitación escondida: es la
+    arquitectura, y `Disabled.why` la dice.
+  - **El ejecutor va detrás de una interfaz con TRES implementaciones** para que el día
+    que haya red no haya que tocar la interfaz: `Disabled` (la de hoy), `LocalCommand`
+    (da la orden, es la única vía que puede dar **veredicto** porque una base local tiene
+    md5) y `RemoteApi`. **`RemoteApi` no trae ninguna URL escrita** (regla 4): se le pasa
+    un endpoint verificado o aborta, y hay un test que lee el fuente del módulo y
+    comprueba que no hay ni un `http`.
+  - **Ajustes por defecto**: `-task blastn-short`, `-word_size 7`, `-evalue 1000`,
+    `-dust no`, `-outfmt 6`, `refseq_rna`, `txid10090`, predichos `XM_`/`XR_` **sí**.
+    Editables, y **cualquiera modificado se marca en rojo y VIAJA con el resultado**: un
+    veredicto obtenido con parámetros no estándar no puede ser indistinguible de uno
+    estándar. Es la misma lección del `.out` sin especie.
+  - **`-remote` es EXPLORACIÓN, nunca veredicto**, con el motivo visible: la base de NCBI
+    **cambia entre corridas**, así que no es reproducible. Sólo una base **local con md5**
+    cierra el frente.
+  - **`-outfmt` distinto de 6 aborta al ELEGIRLO**, no al subir el fichero: aceptar un
+    formato que el almacén no sabe leer dejaría entrar algo que luego se rechaza sin poder
+    decir por qué.
+  - **Un `-outfmt 6` vacío ABORTA**: cero hits y «la corrida no llegó a correr» son cosas
+    distintas y ese fichero no las distingue. Misma lección que el `.out` sin resumen.
+- **El almacén de corridas es INMUTABLE y nada se sobrescribe** (`blast_store.py`). Cada
+  corrida guarda id, fecha, quién la subió, **md5 de la consulta y del resultado**, los
+  parámetros **completos** (no sólo los cambiados), la base con nombre/versión/md5 —o
+  marcada `no reproducible` con esas palabras si fue `-remote`— y el **crudo sin tocar**
+  además del parseado. Una corrida nueva se **añade**; la ficha enseña la última y enlaza
+  el historial. Repetir un `run_id` aborta.
+  - **Validación al subir, y las dos rechazan**: que el md5 del FASTA de consulta sea el
+    que generó la app, y que toda `query` del resultado esté en el panel. **Es el fallo
+    del CSV de miRarchitect** —un fichero de otra corrida pegado por error, que entra,
+    cuadra de forma y produce un análisis entero sobre el dato equivocado— y el mensaje lo
+    nombra.
+  - **Un candidato sin corrida sigue en `NOT_RUN`, y visible.** El almacén **no relaja la
+    regla 3**: no haber corrido y haber corrido limpio no se parecen en nada.
+- **`offtarget_seed` es un frente PROPIO y no se funde con `especificidad`**
+  (`seed_load.WHY_NOT_BLAST`). El BLAST busca **complementariedad extensa**; el
+  off-target mediado por seed **no se busca con BLAST y no se puede**: **7 nt contiguos no
+  dan un alineamiento puntuable**, así que un blastn no los devuelve por mucho que se le
+  baje el `word_size`. Es coincidencia **exacta** del heptámero 2-8 sobre los 3'UTR del
+  transcriptoma murino —**búsqueda de subcadena, no alineamiento**— y necesita
+  `transcriptoma_3utr.fa`.
+  - **Fundirlos en un «especificidad: PASS» daría por cubierto el modo de off-target más
+    frecuente de RNAi con una herramienta que no lo detecta.** Por eso son dos frentes,
+    el informe los cuenta aparte, y el motivo de `especificidad` avisa de que **no** cubre
+    al otro.
+  - Antes este frente era **invisible**: `carga_seed` es un número comparativo, así que
+    nunca estuvo en `not_run_filters` y no salía en la lista de frentes. Se contaba
+    «especificidad» y parecía que la pregunta estaba cubierta.
+- **La ficha de un candidato reúne todo lo que se sabe de un sitio** (`dossier.py`), y se
+  compara **ENTERA** contra `tests/golden/ficha_raton_200.txt`, con la misma disciplina
+  que el informe: veredicto de **cada** frente con procedencia y fecha, asimetría en sus
+  tres columnas, techo de APA **con el tramo del que sale**, hexámeros cercanos con clase
+  y distancia, el módulo de 149 nt, el cassette de 318 y el historial de BLAST.
+  - **Emite TODOS los frentes que el informe conoce, no un número fijo.** Hoy son nueve.
+    Fijar «seis» en el código haría que el décimo entrara sin que la ficha lo enseñara.
+  - **Un frente CERRADO no sale como `NOT_RUN`**: decir que falta algo resuelto engaña
+    tanto como lo contrario. Sale con su estado y con «frente CERRADO» en la procedencia.
+  - Un sitio que no está en el panel de esa corrida **aborta**: no se emite la ficha de
+    un candidato que no existe ahí.
+- **El modal no decide nada; `presentation.py` sí** (regla 6). La página recibe filas con
+  un booleano `modificado` —para pintar en rojo— y avisos con un booleano `bloquea`.
+  Hasta la conversión de «SI»/«no» a booleano vive fuera: si la hiciera la página no
+  tendría test, y el día que alguien escriba «si» en minúsculas el ajuste se leería como
+  `False` sin que nadie se enterara. Hay un test que lee el fuente del modal y comprueba
+  que no hay ni un `int(`, `float(`, `.upper()` ni `sorted(`.
+- **El segundo modal, colisión de seed, SÍ EJECUTA** (`seed_scan.py`, `seed_store.py`).
+  Mismo patrón que el de BLAST y una diferencia que lo cambia todo: aquí no hay red ni
+  orden que copiar — el cálculo es **búsqueda de subcadena** contra `mature.fa`, ya
+  cargado y verificado por md5. Botón → resultado.
+  - **La tabla previa es la mitad del valor**: antes de correr nada se enseña candidato,
+    hebra, **secuencia completa** y heptámero, con casillas por candidato y por hebra
+    (las dos marcadas por defecto). Y **marca las filas que comparten heptámero**: dos
+    candidatos con la misma seed **no son dos apuestas independientes** en este eje, y eso
+    tiene que verse antes de correr, no después.
+  - **Ajustes**: ventana `2-8` (alternativa `2-7`), especie `mmu-`, nivel
+    núcleo/ampliado/ambos. Cualquiera cambiado se marca y **viaja con el resultado**.
+    - **La ventana viaja en CADA resultado** (`SeedResult.window`): una corrida de `2-7`
+      no puede presentarse como una de `2-8`, y sus tasas base ni se parecen.
+    - **`normalize_u_t` no es editable y se declara a la vista.** Apagarla daría **cero
+      colisiones** en todas y eso parece una buena noticia: es un desajuste de alfabeto
+      disfrazado de resultado limpio. Se enseña, no se ofrece.
+  - **La TASA BASE se DERIVA del fichero cargado, no se teclea** (`seed_scan.base_rate`),
+    y va **siempre** junto al resultado — también en los `LIMPIO`, para no dar una falsa
+    calma. Comprobada contra el fichero real:
+
+    | filtro | maduros | seeds distintas | espacio | tasa |
+    |---|---|---|---|---|
+    | `mmu-`, ventana 2-8 | 1988 | 1593 | 16384 | **9,7 %** |
+    | `mmu-`, ventana 2-7 | 1988 | 1274 | 4096 | **31,1 %** |
+    | `mmu-` + `hsa-`, 2-8 | 4777 | 3127 | 16384 | **19,1 %** |
+
+    Las dos últimas filas son la razón de que la tasa base no se pueda teclear: con `2-7`
+    un tercio de las guías colisiona por azar, y dejar `hsa-` dentro **casi dobla** la
+    tasa. El filtro de especie y la ventana no son cosméticos — cambian cómo se lee un
+    `AVISO`.
+  - **Tres cosas van DESTACADAS, no enterradas en la tabla** (`presentation.seed_highlights`):
+    la colisión con la familia **miR-30** con su razón escrita (el andamio es miR-E,
+    derivado de miR-30a: lectura distinta y peor), las colisiones de **pasajera**
+    separadas de las de guía, y la **tasa base**.
+  - **Guía y pasajera NUNCA se funden**: `SeedStore.verdict_for` es por **hebra** y no
+    existe un `verdict_for_candidate` — a propósito, y hay un test que lo comprueba. En la
+    ficha son **dos filas**, `seed_colision:guia` y `seed_colision:pasajera`.
+  - **El almacén es inmutable**, igual que el de BLAST: fecha, quién la corrió, parámetros
+    completos, release y md5 de `mature.fa`, crudo y parseado. Nada se sobrescribe.
+  - **Lo que este modal NO cierra, escrito en la propia interfaz**
+    (`seed_scan.WHAT_THIS_DOES_NOT_ANSWER`): contesta «¿mi seed es la de un miARN
+    conocido?»; **no** contesta «¿cuántos mensajeros llevan mi seed?», que es la carga de
+    off-targets y necesita `transcriptoma_3utr.fa`. El hueco queda preparado en la misma
+    página, en `NOT_RUN` **visible** (`presentation.seed_load_placeholder`).
+  - **Bloque exportable** (`SeedScan.export_block`) con pregunta, fuente y versión,
+    parámetros, resultado por candidato **y por hebra**, y la tasa base. Se lee sin la app
+    delante: es material para defender la selección.
+  - **Resultado de la corrida murina de referencia**: 20 consultas, **cero FAIL** de
+    núcleo, **cero miR-30**, y **tres AVISO** —`3utr:143` (`mmu-miR-7653-3p`), `3utr:359`
+    (`mmu-miR-5615-5p`) y la pasajera de `3utr:819` (`mmu-miR-136-5p`)—. Tres de veinte es
+    el 15 % contra una tasa base del 10 %: **es lo que predice el azar**, y por eso la
+    cifra va al lado.
+- **PERSISTENCIA: JSONL append-only por proyecto, NO SQLite. DECIDIDO (2026-08-26)**
+  (`store.py`). Se decide **antes** que nada de lo que guarda, para que los tres modales
+  escriban en el mismo sitio y no cada uno en el suyo:
+
+  ```
+  data/proyectos/<slug>/proyecto.json    la entrada: md5, longitud, especie, anatomia
+  data/proyectos/<slug>/registro.jsonl   el log APPEND-ONLY de todo lo demas
+  ```
+
+  - **Por qué no SQLite**, que también es stdlib y también sobrevive a la sesión: este
+    proyecto ya decidió que el manifiesto va en **texto y versionado** porque «un
+    veredicto no es auditable dentro de un año» si no se puede leer con `cat`. Un `.db`
+    binario no se diffea, no se grepea y no se lee sin la app — y el registro de un
+    veredicto tiene que sobrevivir **a la app que lo escribió**. Si algún día hacen falta
+    consultas de verdad, SQLite se construye DESDE este log; al revés no.
+  - **Un solo directorio y un solo log por proyecto.** Si cada modal abriera el suyo, la
+    ficha tendría que buscar en tres sitios y el día que se añada un cuarto se quedaría
+    fuera sin que nadie lo note. Es la misma lección de `offtarget_seed`: **un frente que
+    no se ve no existe.**
+  - **«Nada se sobrescribe» deja de ser una convención**: cada línea lleva el md5 de la
+    anterior, así que editar o borrar una vieja rompe la cadena y `verify()` lo dice
+    **con el número de línea**. Y lo que la cadena NO hace va escrito
+    (`WHAT_THE_CHAIN_DOES_NOT_DO`): no impide editar el fichero —nada lo impide, es un
+    fichero—, lo vuelve **visible**. Misma disciplina que el md5 del manifiesto.
+  - `RECORD_KINDS` está **cerrado** (`corrida_blast`, `corrida_seed`, `seleccion`,
+    `descarte`, `veredicto`, `nota`): si cada modal se inventa su etiqueta, el log deja de
+    poder leerse sin saber quién lo escribió.
+  - **La entrada preferente es el `.gb`, no la secuencia pelada.** Un FASTA se acepta,
+    pero entonces `Project.reliable` es falso y `why_unreliable` dice qué deja de valer:
+    **tercios, proximal/medio/distal y zonas de polyA** salen `NO_FIABLE`, porque todos
+    cuelgan de dónde empieza el 3'UTR. No es un aviso decorativo — sin frontera, «tercio
+    medio» no significa nada.
+- **Los fixtures por especie se DECLARAN, nunca se suponen** (`species.py`). `resolve()`
+  **no infiere** el prefijo de miRBase ni el taxid de un nombre: una especie que no está
+  declarada aborta en vez de fabricar `ory-` o un `txid` por patrón (regla 4 aplicada a
+  algo que no es una URL). `fixture_report(especie)` lista **frente por frente** si se
+  puede cerrar y, si no, **nombra el fichero concreto** que falta.
+  - **El fixture de una especie no vale para otra**, y eso ya está demostrado con datos:
+    es exactamente el caso de `rmsk_human` con biblioteca de ratón. `_WRONG_SPECIES_NOTE`
+    lo dice pegado al informe de disponibilidad, no en una nota aparte.
+  - Con conejo, hoy: **1 de 7** frentes cerrable. Los seis restantes nombran
+    `rmsk_oryctolagus_cuniculus.out`, `mature.fa` filtrado a su prefijo —**que no está
+    declarado**—, `transcriptoma_3utr_oryctolagus_cuniculus.fa`, datos de PolyA_DB para
+    esa especie y una base de RefSeq de *Oryctolagus cuniculus*.
+- **Lo que hoy tiene la anatomía del RATÓN metida por dentro** (auditoría 2026-08-26).
+  No son los ficheros —esos ya se sabe que faltan por especie— sino **constantes,
+  supuestos y valores por defecto**. Es la lista de lo que hay que tocar para correr otra
+  especie, y por tanto la lista de lo que aún no es una app:
+  - `coords.max_utr3()` valía 1606 **derivado de `reference.REFERENCES`**, o sea de las
+    dos especies que hay. Un 3'UTR de conejo de 1900 nt **abortaba**: el invariante de
+    rango, que existe para cazar coordenadas de transcrito, tumbaba una coordenada
+    legítima. Cerrado con `coords.declare_utr3_length(longitud, species=…)`: la longitud
+    real **se declara**, no se adivina ni se sube el techo a ojo.
+  - `manifest.ROLES` trae `rmsk_mouse.out` **escrito**: con otra especie el manifiesto
+    conectaba el fichero equivocado por su rol. Es el mismo agujero que cierra
+    `RepeatMask.query_length` un nivel más abajo. **CERRADO (2026-08-26)**: el nombre por
+    especie lo pone `species.required_files` y el rol viaja con él
+    (`resources.roles_for_species`, `deposito.role_for`). `ROLES` conserva el nombre
+    murino como el caso base del manifiesto que ya existe, no como el único posible.
+  - **Prefijos y taxids por defecto**: `mirna.DEFAULT_PREFIXES = ("mmu-", "hsa-")`,
+    `seed_scan.SeedParams.species_prefix = "mmu-"`, `blast.BlastParams.entrez_query =
+    "txid10090"`. Y `specificity.TAXIDS` solo conoce ratón y humano — **aborta** con
+    cualquier otra, que es el comportamiento correcto, pero deja el frente cerrado a dos
+    especies.
+  - `mirna.CORE_ABUNDANT` son **diez miARN de cerebro murino**. Matiz que importa:
+    `CoreMember.matches` **quita el prefijo** antes de comparar, así que casa igual con
+    `ocu-let-7a-5p`. O sea, no está roto para otra especie — está **sin justificar**: la
+    autorización escrita habla de consenso del campo en cerebro **murino**.
+  - `blocks.PIECES` son **12 piezas literales** del plásmido de PrP murino
+    (`MluI`, `exon5`, `MVM5`, `espaciador5`, `NheI`, `contexto5`, `contexto3`, `SacI`,
+    `espaciador3`, `MVM3`, `exon3`, `AgeI`), y con ellas el módulo, el cassette, la hoja
+    de pedido, el control sin intrón y `splicing.locate_intron`. **Esto no es un valor por
+    defecto: es el vector concreto**, y para otra especie no se parametriza — se sustituye.
+  - `apa.POLYA_DB_PRNP` **no** está en esta lista: se aplica por md5 del 3'UTR
+    (`resolve_measured`), así que sobre otra secuencia devuelve `None` y no promueve nada.
+  - **Y lo que NO está metido, para no tocarlo**: `polya.ALL_SIGNALS` (los diez
+    hexámeros), `CLEAVAGE_MIN/MAX` (10-30 nt), `SIGNAL_FLANK` y los umbrales terminales
+    son **mamífero**, no murino. Los números 949 / 1242 / 2191 aparecen solo en
+    `reference.REFERENCES` —que es **dato**— y en docstrings; **en ninguna rama de código**.
+- **Dónde vive cada análisis de estos días** (auditoría 2026-08-26): el cruce con
+  miRarchitect (`spacing.compare_sites` + `convergence`), el anclaje de PolyA_DB
+  (`apa.anchor_polyadb`, `resolve_measured`) y el enmascarado con las corridas reales de
+  RepeatMasker (`masking.apply_mask` vía `tiling`) **están dentro**, con caller en
+  `tools/design.py` y en el informe. **La excepción es `masking.triple_motive_rows`**, que
+  hoy no tiene **ningún** caller fuera de sus tests: el detalle por ventana del triple
+  motivo se calculó y no se emite en ninguna salida. Mientras siga así, es un análisis que
+  se corre a mano aunque el código esté en la librería.
+- **El TERCER modal, carga de off-targets por seed, cierra `offtarget_seed`**
+  (`offtarget.py`, `offtarget_store.py`). Es el frente que estuvo **invisible**, y ahora
+  se ve en la ficha partido en dos filas. Necesita `transcriptoma_3utr.fa`, que no está.
+  - **CUATRO clases, y NUNCA un total** (`SITE_CLASSES`, `WHY_NOT_SUMMED`): `8mer`,
+    `7mer-m8`, `7mer-A1`, `6mer`. La represión esperada de un 8mer y la de un 6mer no se
+    parecen en nada, así que sumarlas **mezcla señal con ruido**. `Counts` **no tiene**
+    ningún atributo que las sume y hay un test que lo comprueba: si existiera, alguien
+    acabaría imprimiéndolo.
+    - Las cuatro comparten un **núcleo de 6 nt**; lo que las separa es la base de delante
+      (la que aparea con la posición 8) y la de detrás (la A de la posición 1 de la
+      diana). Se busca el núcleo **una vez** y se mira el contexto, así que son
+      **excluyentes por construcción** y no hay que descontar unas de otras. Test: la
+      suma de las cuatro es exactamente el número de apariciones del núcleo.
+  - **Un conteo a secas no es interpretable**, y por eso van con él tres cosas:
+    - **PERCENTIL contra una nula de composición equivalente** (`null_distribution`),
+      ≥10.000 sorteos —`MIN_NULL_DRAWS`, y pedir menos **aborta**—. La nula son
+      **permutaciones del propio heptámero**, no heptámeros uniformes: una nula uniforme
+      mide sobre todo el contenido de A/T y declararía «cargada» a cualquier seed rica en
+      A/T por pura composición. El criterio va **declarado, no citado**, la **semilla
+      viaja con el resultado**, y la regla del percentil (empates a medias) va escrita.
+      - Se calcula contra un **índice de 8-meros** construido en una pasada. Hay un test
+        que exige que el índice y el barrido directo den **lo mismo**: si discreparan, el
+        percentil no sería comparable con el conteo.
+    - **CONTROLES biológicos en la misma corrida**: `miR-124-3p`, `miR-9-5p`, `let-7a-5p`,
+      con sus seeds sacadas de `mature.fa` y **nunca escritas en el código** (regla 1, con
+      un test que barre el fuente buscando literales de ADN). Su conteo es la referencia
+      de qué significa «muchos sitios» — el valor esperado viene de la biología.
+      **No se les da percentil**, y el motivo va escrito: un percentil se calcula contra
+      la nula de **su propia composición**, así que el de un control contra nuestra nula
+      no querría decir nada. Aportan **magnitud**, no posición.
+    - **AUTOCONTEO sobre la propia diana** (`self_count`), esperado **1**.
+  - **HALLAZGO del autoconteo, y no es un detalle**: **4 de los 10** del panel murino
+    tienen un **segundo sitio de seed en el propio 3'UTR de Prnp** — `3utr:449` (núcleo en
+    `3utr:464` y `1033`), `553` (`460`, `568`), `819` (`148`, `834`) y `1018` (`464`,
+    `1033`). No es un fallo: es información que hay que tener **antes** de leer una
+    cinética, porque el efecto de esas cuatro sobre su mensajero no es el de un solo
+    sitio. Y **`449` y `1018` comparten el núcleo**, así que en este eje no son dos
+    apuestas independientes. Los otros seis tienen uno solo. Está fijado con un test.
+    - Un autoconteo de **CERO** también es anómalo, y hacia el otro lado: significa que
+      esa hebra **no sale de esa diana**. Se dice con esas palabras.
+  - **LAS TRES LIMITACIONES VAN EN EL RESULTADO, no al pie** (`LIMITATIONS`), y las tres
+    llevan `direction = "sobrestima"`: sin ponderación por **conservación** (no tenemos
+    alineamientos multiespecie, TargetScan sí: contamos sitios, no sitios probablemente
+    funcionales), sin ponderación por **APA** (un sitio distal no está en todos los
+    mensajeros de ese gen — lo sabemos por Prnp, con la fracción larga en 0,86, y aplica a
+    los demás igual), y sin ponderación por **expresión** (un sitio en un gen que la
+    neurona no expresa no cuenta; `expresion_cerebro.tsv` lo refinaría y hoy no existe).
+    **Empujan todas en la misma dirección**, así que la conclusión es una sola y va
+    pegada: **el número es un LÍMITE SUPERIOR** (`UPPER_BOUND_NOTE`). No se corrige con
+    un factor: se dice.
+  - **USO: DESEMPATE, NUNCA FILTRO** (`USE_NOTE`). Un percentil alto es motivo para
+    preferir a otro entre dos que empatan, jamás para excluir a nadie — la **potencia**
+    sobre la diana sigue mandando y esto no la predice. `OfftargetStore.verdict_for`
+    **no puede devolver FAIL**: solo NOT_RUN o PASS, con un test que lo fija.
+  - **El fichero se SUBE por el modal, y con su procedencia** (`Provenance`,
+    `validate_upload`). Los seis campos —fuente, ensamblaje, tabla, **fecha de la tabla**,
+    criterio de representante y versión— son **obligatorios** y su ausencia aborta: sin
+    ensamblaje y sin fecha el conteo no es reproducible, que es la misma regla de la
+    versión de miRBase y de la biblioteca de Dfam. La ruta de descarga (Table Browser de
+    UCSC, mm39, NCBI RefSeq, «3' UTR Exons») va **en la interfaz** (`UCSC_ROUTE`), no en
+    una conversación.
+  - **Validación al recibirlo, y rechaza**: que sea FASTA, que el alfabeto sea de ADN, el
+    md5 declarado si lo hay, más número de secuencias y longitud total. Y la **auditoría
+    de isoformas** (`IsoformAudit`), que son tres preguntas y no una:
+    - **identificadores repetidos** — la salida de «3' UTR Exons» da un registro **por
+      exón**, así que un 3'UTR troceado aparece varias veces: el conteo está inflado y se
+      dice. Por eso este módulo tiene su **propio** parser de FASTA en vez de reusar el de
+      `seed_load`, que **aborta** con un identificador repetido: aquí repetirse es un caso
+      legítimo y esperado, y abortar escondería justo lo que hay que auditar.
+    - **secuencias idénticas** — dos isoformas que comparten 3'UTR aportan sus sitios dos
+      veces.
+    - **varios transcritos por gen**, que es la pregunta de verdad y que **no se puede
+      contestar sin un mapa transcrito→gen**: de un accession no se deduce el gen y aquí
+      no se adivina. Sin mapa queda **NO COMPROBADO**, con esas palabras — y no haber
+      podido comprobarlo **no es «no las hay»**. Es la misma lección del `.out` sin
+      resumen.
+  - **Almacén inmutable y ficha**, como los otros dos: nada se sobrescribe, repetir un
+    `run_id` aborta, y el veredicto va **por hebra** — `offtarget_seed:guia` y
+    `offtarget_seed:pasajera` son **dos filas** de la ficha y no existe un
+    `verdict_for_candidate`. Con el veredicto viajan el percentil de las cuatro clases,
+    el ensamblaje y la fecha de la tabla, el estado de la auditoría de isoformas y el
+    aviso de límite superior.
+  - **Persiste en el mismo log que los otros dos** (`store.corrida_offtarget`). La nula se
+    guarda como **histograma**, no como 40.000 enteros: es exacto —el percentil se
+    recalcula igual— y deja el `registro.jsonl` legible con `cat`, que es la razón por la
+    que se eligió JSONL.
+  - **Y hay DOS contadores del mismo suceso, atados con un test.** `seed_load.seed_load`
+    sigue siendo el número comparativo de la **tabla** (tres clases, sin 6mer y sin
+    percentil) y `offtarget` es el **frente**. Que convivan es útil —la tabla no quiere
+    cuatro columnas más— pero dos contadores que discrepasen serían un fallo silencioso:
+    la ficha diría una cosa y la tabla otra, las dos con pinta de medida. Hay un test que
+    exige que **las tres clases compartidas den lo mismo** en los diez del panel; el
+    `6mer` es exactamente lo que el contador viejo no veía.
+- **Cada `NOT_RUN` dice CÓMO SE RESUELVE** (`obtencion.py`, `data/obtencion/*.toml`).
+  La app decía qué fichero falta y no de dónde sale, así que el usuario lo preguntaba
+  **fuera de la app**. Esa es la dependencia que esto rompe.
+  - **Una ficha por frente, y es un FICHERO DE DATOS versionado**, no texto en el código:
+    misma razón que el manifiesto — se lee con `cat`, se diffea, y no hace falta la app
+    para consultarla. Nueve fichas con: qué pregunta responde el frente, el fichero
+    exacto con el nombre que se espera, la fuente con URL, los **pasos concretos** con la
+    opción de cada menú, qué metadatos anotar **y por qué**, el tamaño aproximado y cómo
+    se valida al subirlo.
+  - **Dos tests, en las dos direcciones**: un frente sin ficha hace fallar la suite, y una
+    ficha **huérfana** también — documentación de algo que ya no existe engaña igual que
+    la ausencia.
+  - **Y la ficha SE ADAPTA A LA ESPECIE.** No vale decir «miRBase» cuando quien lee ha
+    cargado conejo. Los marcadores se resuelven contra `species.Species`, y lo que esa
+    especie **no tiene declarado** sale diciendo que no está declarado **y dónde se
+    declara** — nunca deducido del nombre: `ocu-`, `oc-` y `ory-` son todos plausibles y
+    sólo uno existe. Ese hueco sale **además como AVISO**, no enterrado en un paso, porque
+    un paso largo se lee en diagonal. `Species` gana `ucsc_assembly` (mm39 / hg38),
+    declarado como todo lo demás.
+  - **Una ficha sin resolver NO se puede renderizar** y aborta: con marcadores dentro el
+    texto miente a medias —`rmsk_{slug}.out` no es un nombre de fichero— y esos textos se
+    copian.
+  - Contenido de hoy: RepeatMasker (`Services → RepeatMasking`, DNA source con la especie,
+    `tar file`, `email`) con el **`.tbl` obligatorio** y la demostración de por qué;
+    miRBase (`Downloads` → `mature.fa`) con el **release**, porque renumera entre
+    versiones; UCSC Table Browser con «3' UTR Exons» y la orden de **no filtrar isoformas
+    a mano**; el BLAST que corre el usuario con el FASTA y el comando que da la app;
+    **PolyA_DB v4** con las tablas `PAS Summary` y `PAS Expression`, las columnas
+    `PSE_3'READS` y `AvgRPM_3READS` por su nombre, y el aviso de que **las coordenadas son
+    GENÓMICAS y no se convierten con una resta**. El empalme del intrón declara
+    `sin_fichero = true`: sus cuatro lecturas son de banco y conseguir más datos no lo
+    cierra.
+- **El informe es un DOCUMENTO, parcial o completo, en markdown + docx + pdf**
+  (`informe_doc.py`, `docx_writer.py`, `pdf_writer.py`, `tools/informe.py`, botón en la
+  página). **No son dos productos**: es el mismo documento en distintos grados de
+  completitud, con `state` `PARCIAL`/`COMPLETO` derivado de los frentes. `Document`
+  **aborta** si se declara completo con frentes abiertos — presentarlo así sería decir
+  que se comprobó algo que no se comprobó.
+  - **Escritos a mano con stdlib, y es una decisión, no una limitación.** `python-docx` y
+    `reportlab` habrían necesitado autorización escrita (regla 6) y un informe no justifica
+    una dependencia: un `.docx` es un ZIP con cuatro XML (`zipfile`) y un PDF de texto con
+    las base-14 no incrusta nada (`zlib`). Lo que se gana es que el informe se genera
+    donde corra el núcleo, sin instalar nada — que es justo lo que pide «autosuficiente».
+  - **Siete secciones**: qué se analizó (longitud y md5 **juntos**), estado de los frentes
+    con **qué falta y dónde conseguirlo**, frente por frente (qué mide, por qué importa,
+    criterio y umbrales con su origen, fuente de datos con versión y md5, resultado, **y
+    la ficha de obtención íntegra si está abierto**), tabla de candidatos con todas las
+    columnas, fichas de los seleccionados, **limitaciones en sección propia** y
+    procedencia.
+  - **Las tres reglas de redacción son TESTS, no intenciones**:
+    - **Ningún umbral sin justificar** (`justificacion.py`): cada uno declara `literatura`
+      / `convencion` / `nuestro`, y hay un test que exige que **todo campo de
+      `hard_filters.Thresholds`** tenga entrada — un umbral nuevo sin justificar hace
+      fallar la suite. Los que **no tienen base medida** lo dicen expresamente y salen
+      **juntos** en Limitaciones. El caso que obliga a la distinción es el flanco de
+      **±10 nt** del eje estérico: no tiene base medida, la huella de CPSF/CstF es mayor,
+      y ponerlo al lado de un GC 30-55 % sin distinguirlo le atribuye una precisión que la
+      biología no tiene.
+    - **Toda cifra comparativa con su referencia**: la tasa base junto a las colisiones de
+      seed, el percentil junto a la carga de off-targets.
+    - **`NOT_RUN` visible en el CUERPO**: hay un test que comprueba que aparece **antes**
+      de la sección de limitaciones. Un `NOT_RUN` que sólo sale en un anexo se lee después
+      de haber creído la tabla.
+  - **El documento entero entra en el golden** (`tests/golden/informe_documento.md`, 588
+    líneas), con la misma disciplina que el informe de texto y la ficha: se compara
+    **entero**. La fecha va **fijada** en el generador — con la de hoy, el golden cambiaría
+    cada día y el diff dejaría de significar nada. Hoy el golden es el **PARCIAL**, y eso
+    también lo fija: el día que se cierre un frente, el diff lo enseña.
+  - **Una tabla descuadrada ABORTA** (`Block.__post_init__`): una fila con menos celdas
+    que cabeceras desplaza los valores a la columna de al lado, y eso no da ningún error
+    — sólo un informe equivocado. Es el mismo tipo de fallo que el invariante de rango.
+  - **Detalles de los dos escritores que importan al leerlos**: en el `.docx` las tablas
+    son **tablas de verdad con bordes**; en el `.pdf` salen en monoespaciada con las
+    columnas recortadas para caber, **y el recorte se marca con `...`** —un valor cortado
+    sin marca es peor que uno que no cabe—. Lo que WinAnsi no tiene se sustituye por su
+    equivalente ASCII con una tabla **declarada**, y el markdown y el `.docx` conservan el
+    texto original. Hay un test que recorre la **tabla xref** del PDF y comprueba que cada
+    desplazamiento apunta a su objeto: si uno está mal, el lector abre un PDF vacío y **no
+    da ningún error**.
+  - La página y `tools/informe.py` llaman a **la misma** función: si divergieran, el
+    informe que se entrega no sería el que se revisa. Y no hay opción para pedir «el
+    completo»: el estado lo deciden los frentes, y viaja **en el nombre del fichero**
+    además de dentro.
+- **Fuera de ratón: los valores por defecto que nadie avisaba dejan de existir.
+  DECIDIDO (2026-08-26)**. Era el mismo patrón que `rmsk_mouse.out` conectado por rol —
+  un valor que funciona callado y que sobre otra especie produce un resultado con la
+  **forma correcta**. Un `txid10090` sobre una secuencia de conejo tiene que ser
+  **imposible**, no improbable.
+  - **`species.resolve()` es el ÚNICO origen** de los tres, con `species.mirbase_prefix()`
+    y `species.taxid()`. Una especie sin el valor declarado **aborta** diciendo dónde se
+    declara y qué pasaría si se dedujera: para conejo, `ocu-`, `oc-` y `ory-` son todos
+    plausibles y sólo uno existe — filtrar con el equivocado da **cero colisiones**, que
+    parece una buena noticia.
+  - `blast.BlastParams.entrez_query` ya no vale `txid10090`: vale **vacío**, y generar la
+    orden sin organismo **aborta**. `BlastParams.for_species(nombre)` es la vía.
+  - `seed_scan.SeedParams.species_prefix` ya no vale `mmu-`: vale `None`, y `None` **no
+    es** `""` — el primero es «nadie lo ha dicho» y el segundo «todas las especies del
+    fichero, elegido a propósito». Son dos valores porque son dos cosas. `run_scan`
+    resuelve el prefijo con la especie de **la corrida**, que ya venía por parámetro.
+  - **La especie NO cuenta como «ajuste modificado»** en ninguno de los dos: es la
+    identidad de la corrida. Si contara, toda corrida que no fuera de ratón saldría en
+    rojo y el rojo dejaría de significar «alguien tocó esto».
+  - `mirna.DEFAULT_PREFIXES` pasa a `()` = **indexar todo el fichero**. `("mmu-","hsa-")`
+    dejaba fuera del índice a cualquier otra especie **sin avisar**, así que una guía de
+    conejo salía limpia por no haber contra qué compararla. El filtro por especie es de
+    quien **pregunta**, no de quien carga. Las cifras murinas no se mueven (1988 maduros,
+    1593 seeds, 9,7 %); `HISTORICAL_PREFIXES` conserva el par con el que se calculó el
+    19,1 %. Y «TODAS» ahora significa de verdad todas: **75 %** sobre 69.020 maduros, que
+    es la mejor demostración de por qué el filtro de especie no es cosmético.
+  - **Los alias van DECLARADOS** (`species.ALIASES`): `raton`/`ratón`/`Mus musculus` →
+    `mouse`, `humano`/`Homo sapiens` → `human`. Sin ellos, la corrida murina se habría
+    marcado a sí misma como lista de otra especie.
+- **`CORE_ABUNDANT` fuera de ratón: el veredicto SALE, marcado. DECIDIDO (2026-08-26),
+  opción (a)**. `CoreMember.matches` quita el prefijo, así que la lista casa igual y el
+  filtro corre — pero eso no la convierte en una lista de esa especie. **Excluir por una
+  lista prestada es defendible; no decirlo, no.**
+  - Tres estados, no dos: la especie del diseño **coincide** con la de la autorización
+    (limpio), es **otra declarada** (`LISTA_DE_OTRA_ESPECIE`, con el aviso en el motivo
+    del FAIL y diciendo que **puede acertar** — let-7, miR-124 y miR-9 son abundantes en
+    cerebro de casi cualquier mamífero), o **no está declarada**
+    (`ESPECIE_NO_DECLARADA`: no se ha podido comprobar, y eso no es que coincida).
+  - `tile_utr` gana `species`, **vacía por defecto y no «raton»**: poner ratón por defecto
+    es exactamente el patrón que se está quitando.
+- **`specificity.TAXIDS` deja de ser una LISTA BLANCA** (`specificity.taxid_for`). La
+  validación pasa a ser «esta especie tiene taxid **declarado**», no «está en una lista de
+  dos» — que cerraba el frente a ratón y humano por una razón que no es del frente.
+  Añadir una especie a `species.SPECIES` la habilita sin tocar `specificity`, y hay un
+  test que lo comprueba añadiendo una y quitándola.
+- **`blocks.PIECES` no se parametriza — y la app lo DICE** (`blocks.vector_applies_to`,
+  `presentation.vector_note`). Las 12 piezas son el plásmido concreto de PrP murino, no
+  un valor por defecto. Con otra especie, `block_rows` devuelve la lista **vacía** y la
+  página saca en rojo qué NO se emite y por qué: **módulo NheI-SacI, cassette MluI-AgeI,
+  hoja de pedido y control sin intrón**. Emitirlos con las piezas murinas daría fragmentos
+  con la forma correcta y la secuencia equivocada, que es **peor** que no darlos. Para
+  otra especie hace falta OTRO plásmido, y entonces se sustituye.
+- **La tabla de sitios con UNA COLUMNA POR FRENTE** (`presentation.site_table_rows`,
+  `front_columns`). Es la vista que impide que vuelva a pasar lo de `offtarget_seed`: un
+  frente sin columna no se ve, y **lo que no se ve no existe**.
+  - **Las columnas se DERIVAN de `blocking_fronts`, no se listan a mano**, así que un
+    frente nuevo aparece solo. Listarlas habría reproducido el fallo original un nivel más
+    arriba.
+  - Salen **todos los sitios elegibles**, no sólo los diez del panel: un sitio que no está
+    en la selección sigue teniendo veredictos, y esconderlo deja al lector sin poder
+    discutir la selección.
+  - Un frente sin correr sale **`NOT_RUN` en su celda**, nunca vacío.
+  - La selección se puede cambiar a mano y los avisos se recalculan con lo marcado.
+- **Dos avisos rojos, y son DOS EJES que no se cubren** (`presentation.selection_warnings`):
+  la **distancia** en el 3'UTR (por debajo del espaciado mínimo) y el **parecido de seed**
+  (núcleo de 6 nt compartido). El espaciado **no ve** el segundo — mide nucleótidos, no
+  seeds — y por eso `3utr:449` y `3utr:1018`, que están en extremos opuestos del 3'UTR y
+  pasan el espaciado holgadamente, avisan igual.
+- **El `.gb` es la entrada preferente, y sin él lo que cuelga de la frontera sale
+  `NO_FIABLE`** (`presentation.anatomy_reliability`). Con `.gb` —o con un fixture
+  verificado por md5— la frontera la declara una **anotación**; con el CDS tecleado o con
+  «lo que subo YA es el 3'UTR», la declara una **persona**. No es lo mismo:
+  - **Se acepta igual** —hay que poder trabajar— pero lo que deja de ser fiable va
+    **nombrado uno a uno**, no como «algunas cosas»: tercios, la etiqueta de región de
+    cada ventana, las cuotas por tercio, la distancia de cada señal de polyA al extremo 3'
+    y qué señales cuentan como terminales.
+  - En la tabla, la columna `tercio` sale literalmente **`NO_FIABLE`** en vez de un valor
+    que parece un dato. Sin frontera fiable, «tercio medio» no se refiere a nada.
+  - El motivo dice **qué pasaría**: un off-by-one ahí corre el 3'UTR entero y con él todos
+    los tercios, **sin dar ningún error**.
+- Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
+  verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
+  nunca leerlo de la UI.
+- Implementado: pasos 0 (fixtures + checksum), 1 (anatomía resuelta por tres vías),
+  2 (enmascarado con rmsk real), 3 y 15 (tiling, sitios y selección), 4-8 (filtros de
+  ventana, incluida la asimetría), 9 (polyA como anotación de cinco campos), 10 (seed en
+  dos preguntas: colisión y carga), 12 (especificidad + transgén), 13 (accesibilidad) y
+  14 (bloques conservados), más la horquilla, el módulo de 149 nt, el APA con dato
+  medido y la tabla comparativa. El resto, en `docs/pipeline.md`.
+
+- **LA PRIMERA PANTALLA GUIA, Y TODO SE SUBE POR ELLA. DECIDIDO (2026-08-26)**
+  (`deposito.py`, `species.required_files`, `presentation.steps_rows`). El criterio de
+  aceptacion es el de siempre: **alguien que no haya estado en estas conversaciones tiene
+  que poder abrir la app y llegar a un informe sin abrir una terminal ni conocer el arbol
+  de directorios.** Cuatro cosas lo rompian y las cuatro se arreglan en la interfaz.
+  - **1. Desplegable de especies, y SIN valor por defecto** (`presentation.species_options`,
+    `species_default` devuelve `None`). Solo las declaradas en `species.SPECIES`, con su
+    nombre cientifico completo — «raton» es un alias del proyecto y no identifica nada
+    fuera de el. `modelo` como valor inicial era **peor que vacio**: parecia configurado y
+    dejaba la colision de seed y la especificidad rotas sin decir por que.
+    - Hay una opcion **explicita** «otra especie (no declarada)», y explica **que frentes
+      quedan cerrados y como se declara** (`HOW_TO_DECLARE`: los tres identificadores, en
+      `species.SPECIES`, verificados y nunca deducidos del nombre). Se explica **al elegir
+      la opcion**, antes de teclear ningun nombre: la pregunta que se contesta es «¿me
+      sirve esta app para mi especie?», y contestarla despues es no contestarla.
+  - **2. `species.required_files` es la vista POR FICHERO, y la UNICA fuente de los
+    nombres.** `fixture_report` —la vista por FRENTE— se **deriva** de ella. Tenerlas
+    como dos listas independientes seria el patron de los dos contadores que discrepan:
+    la barra lateral diria que falta un fichero y la tabla de frentes diria que no, las
+    dos con pinta de medida. Cada fila trae rol, nombre ya resuelto para la especie, que
+    frentes cierra, el **hermano obligatorio** (el `.tbl` de un `.out`) y la ficha de
+    obtencion que dice de donde sale.
+    - **El nombre lleva la especie donde importa**, y el raton conserva los que ya estan
+      en el manifiesto (`mature.fa`, `rmsk_mouse.out`, `aav_casete.fa`): el sufijo empieza
+      donde empieza el problema, no antes, porque renombrarlos dejaria de detectar los que
+      hay.
+    - **`aav_casete.fa` pasa a llevar especie fuera del raton.** Es pAAV con PrP
+      **murino**, y `blocks.vector_applies_to` ya decia que para otra especie no se
+      parametriza — se SUSTITUYE. Sin sufijo, el casete murino contaba como presente para
+      un conejo y su frente salia cerrado con el vector equivocado.
+    - **Y el `.out` a solas deja de abrir el frente de repetitivos.** Esa tabla decia
+      «disponible» con solo el `.out`, y `resources._rmsk` abortaba sin resumen: dos
+      contadores que discrepaban. Manda el estricto, con la demostracion de md5 detras.
+  - **3. Todos los ficheros se suben por la interfaz** (`deposito.accept_upload`, panel en
+    la barra lateral). Antes unos se subian y otros habia que **depositar** en
+    `data/reference/`, que es un directorio del repositorio: quien no conoce ese arbol
+    —que es exactamente el usuario para el que se escribe esto— no podia usar la app. Los
+    que ya esten ahi se **detectan solos** y salen como presentes; depositarlos deja de
+    ser necesario.
+    - **La validacion la hace el cargador de verdad**, el mismo que usa el filtro. Un
+      fichero que pasara una validacion «ligera» y fallara despues seria peor que no
+      validarlo: la barra lateral diria «presente» y el frente saldria NOT_RUN sin motivo.
+    - **Si la validacion falla no se escribe nada**: ni el fichero ni la linea del
+      manifiesto. Se escribe a un provisional al lado, se valida, y solo entonces se
+      renombra — hay test de las dos cosas.
+    - **El md5 se calcula del fichero, nunca se declara**, y la entrada va al manifiesto
+      (`manifest.update_manifest_text` / `register_entry`). El manifiesto sigue siendo
+      texto y sigue versionado: subir por la interfaz se ve en el `git diff` igual que
+      editarlo a mano, y los **comentarios de cabecera sobreviven** —explican los dos
+      checksums, y perderlos al subir un fichero borraria la unica advertencia que evita
+      copiar un md5 en el sitio del otro—. Una cabecera corta se **ensancha** rellenando
+      en vacio, que es la verdad; abortar dejaria sin subir ficheros justo a quien no
+      puede editarlo.
+    - **Un `.out` y su `.tbl` llegan de uno en uno**, asi que del `.out` a solas solo se
+      comprueba la FORMA (`masking.check_out_shape`, que dice expresamente que **no**
+      comprueba la especie de la biblioteca) y del `.tbl` la especie y la longitud de la
+      consulta (`masking.check_summary`), que es para lo que existe. Con los dos delante
+      se valida la corrida entera. Mientras falte uno, el frente **no se abre** y el
+      resultado de la subida **nombra** lo que sigue faltando.
+  - **4. La casilla «Usar los de `data/reference/`» DESAPARECE**
+    (`deposito.WHY_NO_GLOBAL_TOGGLE`). Una opcion cuyo unico efecto posible al desmarcarla
+    era dejarlo todo en NOT_RUN sin decir por que no es una opcion: es una trampa. Si un
+    fichero esta y es valido, **se usa**.
+    - Ignorar uno a proposito sigue siendo posible, pero **por fichero y con el motivo
+      escrito** (`deposito.Ignored`, motivo obligatorio, y `load_from_manifest(ignore=…)`).
+      El motivo **viaja al veredicto**: sin el, «se decidio no usarlo» y «no estaba» serian
+      el mismo NOT_RUN mudo. Pedir ignorar un fichero que no se iba a usar **aborta** — un
+      motivo escrito para una decision que nadie tomo ensucia el informe.
+  - **5. La pantalla va en cuatro pasos numerados**: **1) especie · 2) secuencia ·
+    3) ficheros de referencia · 4) diseñar**. El paso 3 dice **cuantos frentes se van a
+    poder cerrar ANTES de ejecutar nada** —con el raton y lo que hay, 4 de 7; con un
+    conejo, 1 de 7— que es lo que permite decidir si se sigue o se va a buscar un fichero
+    primero. **No bloquea**: un frente abierto deja los candidatos en `INCOMPLETE`, que es
+    informacion, no un veto, y el paso 4 lo dice con esas palabras.
+  - **El manifiesto se carga cuando se diseña, no al pintar la pantalla.** La presencia de
+    un fichero es un listado de directorio y es barato; conectar `mature.fa` son 5,6 MB en
+    cada rerun de Streamlit. La pantalla no promete nada que no vaya a cumplir: dice que
+    frentes se pueden cerrar, no que ya esten cerrados.
+
+## Ficheros que faltan (por eso hay filtros en NOT_RUN)
+
+Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
+filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
+
+| Fichero | Qué desbloquea | Flag |
+|---|---|---|
+| RefSeq RNA versionado | especificidad | `--refseq` |
+| lista ampliada de abundancia (con referencia y umbral) | colisión de seed, nivel AVISO | `--abundancia` |
+| 3'UTR del transcriptoma (UCSC Table Browser, mm39, NCBI RefSeq, «3' UTR Exons»; hay que apuntar ensamblaje, fecha de la tabla y criterio de representante) | carga de off-targets por seed — el TERCER modal, `offtarget_seed` | `--transcriptoma-3utr` o el modal |
+| máscara rmsk de ratón | elementos repetitivos | `--rmsk` |
+| 3'-end seq de cerebro murino | fracción de isoforma larga en NUESTRO tejido (hoy hay la de todos los tejidos: 0,86, límite inferior) | `--apa-medido` |
+| parental SIN INTRÓN (donante y aceptor fuera) | techo de expresión para el empalme; `aav_casete.fa` NO vale, lleva el intrón vacío de 82 nt | — |
+| tabla de expresión | ponderar la carga de seed | `--expresion` |

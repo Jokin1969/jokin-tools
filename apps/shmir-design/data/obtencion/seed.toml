@@ -1,0 +1,32 @@
+frente = "seed"
+pregunta = """\
+¿La seed de la guia coincide con la de alguna familia de miARN de la tabla de seeds que \
+se le haya pasado al diseño? Es el filtro de ventana, previo y mas grueso que \
+`seed_colision`: aquel compara contra los maduros de miRBase uno a uno."""
+fuente = "miRBase (el mismo `mature.fa`), o una tabla propia `seed<TAB>familia`"
+url = "https://www.mirbase.org/"
+tamano = "unos 5,6 MB si se usa `mature.fa`; unos KB si es una tabla propia"
+validacion = """\
+La tabla se lee como `seed<TAB>familia` y una fila mal formada aborta. Con `mature.fa` \
+la app verifica el md5 contra el manifiesto. En los dos casos se normaliza U↔T antes de \
+comparar."""
+
+pasos = [
+  "Lo normal es NO pasar tabla propia: sube `mature.fa` de miRBase (pestaña Downloads) y deja que la app derive las seeds.",
+  "Si aun asi quieres una tabla propia, escribela como `seed<TAB>familia`, una por linea, con la seed en ADN.",
+  "Apunta de donde sale la tabla y con que criterio se hizo: una lista de seeds sin procedencia no es auditable.",
+  "El prefijo de especie que corresponde aqui es {prefijo}",
+]
+
+avisos = [
+  "La lista de 12 seeds que trae el proyecto (`seeds.BOOTSTRAP_SEEDS`) es un ARRANQUE PARA PROBAR LA MECANICA, no un filtro real. El aviso va en el codigo y en cada informe y no se quita: con ella el frente NO esta cerrado.",
+]
+
+[[ficheros]]
+nombre = "mature.fa"
+por_que = "La fuente normal de las seeds. Es el mismo fichero que cierra `seed_colision`, asi que subiendolo una vez se cierran los dos."
+obligatorio = true
+
+[[metadatos]]
+nombre = "release de miRBase (o procedencia de la tabla propia)"
+por_que = "Igual que en `seed_colision`: sin version, una coincidencia no se puede volver a comprobar."

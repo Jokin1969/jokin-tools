@@ -1,0 +1,49 @@
+frente = "offtarget_seed"
+pregunta = """\
+¿Cuantos mensajeros del transcriptoma llevan un sitio para la seed de esta hebra? Es la \
+CARGA de off-targets, y es otra pregunta que la colision con un miARN conocido. No la \
+contesta ningun alineador: 7 nt contiguos no dan un alineamiento puntuable, asi que \
+ningun BLAST los devuelve por mucho que se le baje el word_size."""
+fuente = "UCSC Table Browser"
+url = "https://genome.ucsc.edu/cgi-bin/hgTables"
+tamano = "unas decenas de MB"
+validacion = """\
+Al subirlo la app comprueba que sea FASTA, que el alfabeto sea de ADN, cuenta secuencias \
+y longitud total, calcula el md5 y AUDITA LAS ISOFORMAS: identificadores repetidos, \
+secuencias identicas y —si le das un mapa transcrito→gen— cuantos genes traen mas de un \
+transcrito. Sin ese mapa, esa tercera pregunta queda NO COMPROBADO, que no es «no las \
+hay»."""
+
+pasos = [
+  "Abre el Table Browser de UCSC.",
+  "En «assembly» elige {ensamblaje}",
+  "En «group» elige «Genes and Gene Predictions».",
+  "En «track» elige «NCBI RefSeq».",
+  "En «table» elige «RefSeq All» o «RefSeq Curated».",
+  "En «output format» elige «sequence».",
+  "Dale a «get output». Entonces pregunta que region quieres: marca SOLO «3' UTR Exons» y desmarca todo lo demas.",
+  "Descarga el fichero y subelo tal cual.",
+]
+
+avisos = [
+  "NO FILTRES LAS ISOFORMAS A MANO. Que lo haga la app: ella cuenta cuanto infla el conteo y lo dice al lado del resultado. Un filtrado manual no deja rastro y el numero acaba siendo incomparable entre corridas.",
+  "La salida de «3' UTR Exons» da un registro POR EXON, asi que un 3'UTR troceado aparece varias veces. No es un error del fichero: es como es, y por eso la app lo audita en vez de rechazarlo.",
+  "El fichero NO va a git — son decenas de MB. En el manifiesto quedan solo nombre, tamaño y md5, igual que con `refseq_rna.fa`.",
+]
+
+[[ficheros]]
+nombre = "transcriptoma_3utr_{slug}.fa"
+por_que = "Los 3'UTR sobre los que se cuentan los sitios de seed. Un transcrito representativo por gen; si trae varias isoformas, la app lo detecta y avisa de que el conteo esta inflado."
+obligatorio = true
+
+[[metadatos]]
+nombre = "ensamblaje"
+por_que = "Dos ensamblajes dan coordenadas y contenidos distintos. Va en la procedencia del catalogo y viaja con cada veredicto."
+
+[[metadatos]]
+nombre = "fecha de la tabla"
+por_que = "RefSeq cambia. Sin la fecha, el conteo no es reproducible — la misma regla que el release de miRBase y la biblioteca de Dfam."
+
+[[metadatos]]
+nombre = "criterio de representante por gen"
+por_que = "«Un transcrito por gen» se puede decidir de varias formas (el mas largo, el curado, el canonico). El numero depende de cual se use, asi que se declara."

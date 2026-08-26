@@ -1,0 +1,45 @@
+frente = "fraccion_isoforma_larga"
+pregunta = """\
+¿Que fraccion de los transcritos conserva la diana? Un sitio de poliadenilacion \
+alternativa proximal corta el 3'UTR, asi que un candidato por detras de ese corte solo \
+tiene diana en la isoforma larga. Eso no es un veto: es un TECHO de knockdown."""
+fuente = "PolyA_DB v4 (Wistar Institute)"
+url = "https://exon.apps.wistar.org/polya_db/v4/"
+tamano = "unos KB: son unas pocas filas por gen, copiadas a un TSV"
+validacion = """\
+La app aplica la tabla POR md5 DEL 3'UTR, no por el nombre del gen: sobre cualquier otra \
+secuencia devuelve `None` y no promueve nada. Unas coordenadas de un gen ancladas sobre \
+otro 3'UTR anclarian ruido, y el ruido ancla si se le deja sitio. Ademas exige que las \
+coordenadas aterricen TODAS a la vez con el mismo desfase sobre un hexamero de la clase \
+que la propia base declara."""
+
+pasos = [
+  "Entra en exon.apps.wistar.org/polya_db/v4/ y busca el gen por nombre, eligiendo {cientifico} en el selector de especie.",
+  "Abre la tabla «PAS Summary» y copia, de cada sitio: las coordenadas y el hexamero que declara.",
+  "Abre la tabla «PAS Expression» y copia, de cada sitio: `PSE_3'READS` y `AvgRPM_3READS`.",
+  "Pasalo a un TSV con una fila por sitio y subelo.",
+  "Apunta la version de la base y el ensamblaje con el que estan dadas las coordenadas.",
+]
+
+avisos = [
+  "LAS COORDENADAS SON GENOMICAS, no del transcrito. Hay que convertirlas contra la anotacion real —el `.gb` del RefSeq, con sus exones— y NUNCA con una resta: una resta es un solo punto de apoyo y SIEMPRE cuadra, asi que no demuestra nada. En este proyecto el mapeo se resolvio exigiendo que las CUATRO coordenadas publicadas aterrizaran a la vez con el mismo desfase sobre hexameros de la clase declarada.",
+  "El PAS que publica PolyA_DB es el SITIO DE CORTE, no el hexamero. Lo dice su propia leyenda: «A[A/U]UAAA motif within 40-nt upstream from the PAS» — si el hexamero se busca aguas ARRIBA del PAS, el PAS no puede ser el hexamero.",
+  "Si el dato que consigues es de TODOS LOS TEJIDOS y no del tuyo, dilo al subirlo. Las neuronas alargan los 3'UTR, asi que una fraccion de todos los tejidos es un LIMITE INFERIOR conservador para cerebro — util, pero no es lo mismo.",
+]
+
+[[ficheros]]
+nombre = "apa_medido_{slug}.tsv"
+por_que = "Una fila por sitio con coordenada, hexamero, PSE y AvgRPM. De ahi sale el techo de knockdown por tramos y la promocion de senales por MEDIDA en vez de por canonicidad."
+obligatorio = true
+
+[[metadatos]]
+nombre = "version de PolyA_DB"
+por_que = "Las cifras cambian entre versiones de la base y el techo del panel cuelga de ellas."
+
+[[metadatos]]
+nombre = "ensamblaje de las coordenadas"
+por_que = "Las coordenadas son genomicas: sin saber de que ensamblaje son, la conversion al transcrito no se puede comprobar."
+
+[[metadatos]]
+nombre = "tejido de la medida"
+por_que = "Un dato de todos los tejidos y uno de cerebro no se leen igual. El primero es un limite inferior para el nuestro y hay que decirlo."
