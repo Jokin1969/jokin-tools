@@ -1261,10 +1261,27 @@ class ClearanceRow:
     distance_to_hexamer: int
     flip_flank: int | None
     utr3_length: int | None = None
+    #: El corte MAS TEMPRANO de las señales medidas, en el marco del 3'UTR. Es lo que
+    #: decide el eje geometrico, y va guardado para no recalcularlo al imprimir.
+    earliest_cut: int | None = None
 
     @property
     def passes(self) -> bool:
         return self.clearance > 0
+
+    @property
+    def immune_truncation(self) -> bool:
+        """Eje GEOMETRICO: por delante del corte mas temprano, la diana se conserva.
+
+        No depende de ninguna convencion — ni del flanco, ni de un umbral. O empiezas
+        antes del corte o no.
+        """
+        return self.earliest_cut is not None and self.start <= self.earliest_cut
+
+    @property
+    def steric(self) -> str:
+        """Eje ESTERICO: nunca `INMUNE`. Es un gradiente y el umbral es convencional."""
+        return "PASS" if self.clearance > self.flank else "PENALIZADO"
 
     @property
     def signal(self):
@@ -1285,14 +1302,28 @@ class ClearanceRow:
             if self.flip_flank is not None
             else "ningun flanco razonable lo tumbaria"
         )
+        # Los DOS ejes, siempre, y nunca «inmune» a secas: uno es geometrico y el otro
+        # es un gradiente con un umbral convencional. Colapsarlos en una palabra es
+        # exactamente lo que hace que un PASS parezca una medida.
         return (
             f"{label(self.start, Frame.UTR3, limit=tope)} "
             f"({span(self.start, self.end, Frame.UTR3, limit=tope)}): "
-            f"PASA. No contiene el {self.motif} de "
+            f"inmune_truncamiento = "
+            + ("SI" if self.immune_truncation else "NO")
+            + (
+                f" (empieza en {self.start}, el corte mas temprano esta en "
+                f"{self.earliest_cut}; es GEOMETRICO y no depende de ninguna convencion)"
+                if self.earliest_cut is not None
+                else " (sin corte medido con el que compararlo)"
+            )
+            + f" | esterico = {self.steric}. No contiene el {self.motif} de "
             f"{label(self.signal_start, Frame.UTR3, limit=tope)} —acaba "
             f"{self.distance_to_hexamer} nt antes— y queda {self.clearance} nt por "
             f"delante de su zona prohibida "
-            f"({span(*self.forbidden, Frame.UTR3, limit=tope)}); {cambio}."
+            f"({span(*self.forbidden, Frame.UTR3, limit=tope)}); {cambio}. "
+            f"OJO: el flanco de ±{self.flank} nt no tiene base medida y la huella real "
+            f"de CPSF/CstF es mayor, asi que estos {self.distance_to_hexamer} nt estan "
+            f"probablemente DENTRO de la zona de competencia."
         )
 
 
@@ -1301,6 +1332,8 @@ class Clearance:
     rows: tuple[ClearanceRow, ...] = ()
 
     def describe(self) -> str:
+        from .polya import STERIC_IS_A_GRADIENT
+
         if not self.rows:
             return ""
         return (
@@ -1308,8 +1341,10 @@ class Clearance:
             "menos de "
             f"{CLEARANCE_WINDOW} nt de una señal que la medida acaba de subir a "
             "APA_POSIBLE. Se declara el veredicto en vez de "
-            "dejarlo deducir de una resta: "
+            "dejarlo deducir de una resta, y en LOS DOS EJES: "
             + " ".join(f.describe() for f in self.rows)
+            + " "
+            + STERIC_IS_A_GRADIENT
         )
 
 
@@ -1318,7 +1353,7 @@ def promotion_clearance(
 ) -> Clearance:
     """Los elegidos que sobreviven CERCA de una señal promovida por medida."""
     from .coords import bound_of
-    from .polya import SignalClass, classify_signal
+    from .polya import STERIC_IS_A_GRADIENT, SignalClass, classify_signal
 
     promovidas = [
         s for s in report.signals
@@ -1367,6 +1402,9 @@ def promotion_clearance(
                     distance_to_hexamer=señal.position - fin - 1,
                     flip_flank=salto,
                     utr3_length=bound_of(report.anatomy),
+                    earliest_cut=(
+                        min(s2.end + CLEAVAGE_MIN for s2 in promovidas) - desfase
+                    ),
                 )
             )
     filas.sort(key=lambda f: f.start)

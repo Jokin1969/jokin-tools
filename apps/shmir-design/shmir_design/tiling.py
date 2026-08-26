@@ -33,7 +33,7 @@ from .anatomy import Anatomy, Region, RegionSource, TileRange
 from .coords import Frame, frame_of, label
 from .apa import ApaAssessment, ApaSites, MeasuredApa, apa_assessment
 from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
-from .masking import RepeatMask, apply_mask, filter_repeats
+from .masking import RepeatMask, apply_mask, filter_polymorphic, filter_repeats
 from .hard_filters import (
     DEFAULT_THRESHOLDS,
     WINDOW_SIZE,
@@ -186,6 +186,11 @@ class TiledWindow:
     #: hits por numero de desapareamientos y no solo el estado del filtro.
     especificidad_detalle: SpecificityResult | None = None
     transgen_detalle: TransgeneResult | None = None
+    #: Eje de VIABILIDAD CLINICA, aparte de `repeticiones`: una repeticion polimorfica
+    #: en longitud da respondedores y no respondedores por variacion de LONGITUD, y
+    #: gnomAD —que anota sustituciones— capta mal esa variacion. Son dos ejes y por eso
+    #: son dos columnas.
+    repeticion_polimorfica: FilterResult | None = None
 
     @property
     def bandera_polyA_debil(self) -> bool:
@@ -197,6 +202,8 @@ class TiledWindow:
         return self.evaluation.filters + (
             self.zona_prohibida,
             self.repeticiones,
+            *( (self.repeticion_polimorfica,)
+               if self.repeticion_polimorfica is not None else () ),
             self.seed,
             self.especificidad or _ESPECIFICIDAD_SIN_BASE,
             self.transgen or _TRANSGEN_SIN_BASE,
@@ -619,6 +626,9 @@ def tile_utr(
                 zona_prohibida=zona_prohibida,
                 seed=_seed_bootstrap(evaluation.guide, seeds, mature),
                 repeticiones=filter_repeats(start, anotada.window.end, mask),
+                repeticion_polimorfica=filter_polymorphic(
+                    start, anotada.window.end, mask
+                ),
                 especificidad=especificidad,
                 especificidad_detalle=especificidad_detalle,
                 transgen=transgen,

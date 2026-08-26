@@ -548,3 +548,179 @@ def load_rmsk(
         library=library,
         summary=resumen,
     )
+
+
+# ─── `repeticion_polimorfica`: OTRO motivo, no una etiqueta del mismo ────────
+#
+# Los dos salen del mismo hallazgo y apuntan a cosas distintas, asi que van en columnas
+# distintas. Colapsarlos en «repetitivo» esconde el que decide la viabilidad clinica.
+
+WHY_REPEAT = (
+    "`repetitivo` aplica a la ESTABILIDAD DEL GENOMA AAV —un tramo repetitivo dentro del "
+    "casete es sustrato de recombinacion— y, sobre la diana, a que una guia derivada de "
+    "un elemento repetitivo tiene miles de sitios perfectos: no es un off-target, es una "
+    "guia inservible."
+)
+
+WHY_POLYMORPHIC = (
+    "`repeticion_polimorfica` aplica a la VIABILIDAD CLINICA, que es otra cosa. Un "
+    "microsatelite varia en NUMERO DE REPETICIONES entre individuos, asi que una guia "
+    "sobre el tendria RESPONDEDORES Y NO RESPONDEDORES por variacion de LONGITUD, no de "
+    "secuencia. Y hay un hueco que no cubre nadie: gnomAD anota SUSTITUCIONES y capta "
+    "mal la variacion de longitud, asi que el filtro de variacion NO cubre este riesgo. "
+    "Decirlo importa: un «gnomAD limpio» invita a creer que la ventana esta comprobada."
+)
+
+#: Las familias de RepeatMasker que varian en LONGITUD entre individuos. Criterio
+#: DECLARADO como parametro de este analisis: no toda repeticion es polimorfica —un SINE
+#: es disperso pero no varia de longitud— y lo que se marca aqui son los tandem cortos.
+POLYMORPHIC_FAMILIES = ("Simple_repeat", "Satellite", "Low_complexity")
+
+POLYMORPHIC_CRITERION = (
+    "Criterio declarado (no citado): se marcan como polimorficas en longitud las "
+    "familias de repeticion en TANDEM corto que RepeatMasker etiqueta "
+    + ", ".join(POLYMORPHIC_FAMILIES)
+    + ". Un elemento DISPERSO (SINE, LINE, LTR) es repetitivo pero no varia en numero de "
+    "copias dentro de un alelo, asi que no entra aqui. El criterio se escribe para que "
+    "se pueda discutir."
+)
+
+POLYMORPHIC_FILTER_NAME = "repeticion_polimorfica"
+
+
+def is_polymorphic(element: RepeatElement) -> bool:
+    """¿Es una repeticion que varia en LONGITUD entre individuos?"""
+    familia = (element.family or "").split("/")[0]
+    return familia in POLYMORPHIC_FAMILIES
+
+
+def filter_polymorphic(
+    start: int, end: int, mask: RepeatMask | None
+) -> FilterResult:
+    """Eje de VIABILIDAD CLINICA. Va aparte de `repeticiones` a proposito."""
+    if mask is None:
+        return FilterResult(
+            name=POLYMORPHIC_FILTER_NAME,
+            state=FilterState.NOT_RUN,
+            reason=(
+                "No hay mascara de repeticiones cargada, asi que no se sabe si la "
+                "ventana cae en una repeticion polimorfica. NOT_RUN no es PASS — y "
+                "ojo, este NO lo cubre gnomAD."
+            ),
+        )
+    tocados = [
+        e for e in mask.elements_overlapping(start, end) if is_polymorphic(e)
+    ]
+    if tocados:
+        return FilterResult(
+            name=POLYMORPHIC_FILTER_NAME,
+            state=FilterState.FAIL,
+            reason=(
+                f"Solapa repeticion(es) POLIMORFICA(S) en longitud: "
+                + ", ".join(e.describe() for e in tocados)
+                + f". {WHY_POLYMORPHIC} {POLYMORPHIC_CRITERION}"
+            ),
+        )
+    return FilterResult(
+        name=POLYMORPHIC_FILTER_NAME,
+        state=FilterState.PASS,
+        reason=(
+            f"Sin solape con ninguna repeticion polimorfica de {mask.source}. "
+            f"{POLYMORPHIC_CRITERION}"
+        ),
+    )
+
+
+@dataclass(frozen=True)
+class TripleMotive:
+    """Una ventana que cae por MAS DE UN eje, con los ejes nombrados."""
+
+    start: int
+    end: int
+    motives: tuple[str, ...]
+    element: str
+    behind: tuple[int, ...]
+
+    def describe(self) -> str:
+        from .coords import Frame, label, span
+
+        detras = ", ".join(label(p, Frame.UTR3) for p in self.behind)
+        return (
+            f"{span(self.start, self.end, Frame.UTR3)}: "
+            f"{len(self.motives)} motivos — repetitivo y polimorfico por {self.element}, "
+            f"y con TECHO por quedar detras de {detras}."
+        )
+
+
+def triple_motive_rows(
+    report, mask: RepeatMask, *, mask_offset: int = 0, label_offset: int = 0
+):
+    """Ventanas elegibles que caen por repetitivo, por polimorfico Y por techo de APA.
+
+    Se emiten juntas porque el numero que importa no es «cuantas caen», es «por cuantas
+    razones distintas». Una ventana con tres motivos independientes no se recupera
+    arreglando uno.
+
+    IMPORTANTE — sobre QUE informe se llama. Tiene que ser uno tilado SIN aplicar la
+    mascara. Con la mascara puesta, el paso 15 enmascara y RETILA, asi que esas ventanas
+    ya no estan en la piscina de elegibles y la cuenta sale VACIA: lo que se quiere ver
+    aqui es justamente lo que se pierde, igual que en `measured_promotion_cost`.
+
+    DOS desfases, y NO son el mismo — meterlos en uno fue un fallo real: con un unico
+    `offset=829` se marcaban ventanas de `tx:2104` como si solaparan un elemento de
+    `tx:2097-2130` que esta a 800 nt.
+
+    - `mask_offset`: de las coordenadas del informe a las de la MASCARA. Cero cuando el
+      informe tila el mismo transcrito sobre el que se corrio RepeatMasker.
+    - `label_offset`: de las coordenadas del informe a las del 3'UTR, para ETIQUETAR.
+      Cero cuando el informe ya tila el 3'UTR.
+
+    En un informe del transcrito completo son `0` y `desfase`; en uno del 3'UTR solo,
+    `desfase` y `0`. Nunca los dos iguales salvo que los dos sean cero.
+    """
+    from .polya import CLEAVAGE_MAX, SignalClass
+    from .selection import is_eligible
+
+    cortes = [
+        (s.position, s.end + CLEAVAGE_MAX)
+        for s in report.signals
+        if s.classification is SignalClass.APA_POSSIBLE
+    ]
+    filas = []
+    for ventana in report.windows:
+        if not is_eligible(ventana):
+            continue
+        inicio, fin = ventana.window.start, ventana.window.end
+        tocados = list(
+            mask.elements_overlapping(inicio + mask_offset, fin + mask_offset)
+        )
+        if not tocados:
+            continue
+        motivos = [FILTER_NAME]
+        if any(is_polymorphic(e) for e in tocados):
+            motivos.append(POLYMORPHIC_FILTER_NAME)
+        detras = tuple(p - label_offset for p, tarde in cortes if inicio > tarde)
+        if detras:
+            motivos.append("techo_apa")
+        filas.append(
+            TripleMotive(
+                start=inicio - label_offset, end=fin - label_offset,
+                motives=tuple(sorted(motivos)),
+                element=", ".join(e.describe() for e in tocados),
+                behind=detras,
+            )
+        )
+    return tuple(filas)
+
+
+def describe_triple(filas) -> str:
+    if not filas:
+        return ""
+    cuantos = max(len(f.motives) for f in filas)
+    palabra = {2: "DOS", 3: "TRES", 4: "CUATRO"}.get(cuantos, str(cuantos))
+    return (
+        f"MOTIVOS ACUMULADOS — {len(filas)} ventana(s) elegible(s) caen por {palabra} "
+        f"ejes INDEPENDIENTES a la vez, y por eso no se recuperan arreglando uno: "
+        + " ".join(f.describe() for f in filas)
+        + f" {WHY_REPEAT} {WHY_POLYMORPHIC}"
+    )

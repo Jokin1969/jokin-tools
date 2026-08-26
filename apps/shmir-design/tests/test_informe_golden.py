@@ -84,7 +84,7 @@ class TestElInformeEntero(unittest.TestCase):
         for bloque in (
             "── Riesgo de polyA",
             "con TECHO (por detras del corte)",
-            "INMUNES por ser proximales",
+            "INMUNES al TRUNCAMIENTO por ser proximales",
             "EXPERIMENTO QUE RESUELVE EL TECHO",
             "── Cobertura por tercios ──",
             "── FILTROS QUE NO SE EJECUTARON ──",

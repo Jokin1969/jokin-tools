@@ -84,7 +84,10 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
             sorted(pendientes | aparte),
             [
                 "empalme_intron", "especificidad", "fraccion_isoforma_larga",
-                "repeticiones", "seed_colision",
+                # Dos ejes distintos con el mismo fichero detras: `repeticiones` mira la
+                # estabilidad del genoma AAV, `repeticion_polimorfica` la viabilidad
+                # clinica. Cuentan como dos frentes porque son dos preguntas.
+                "repeticion_polimorfica", "repeticiones", "seed_colision",
             ],
         )
 
@@ -144,7 +147,7 @@ class TestLoQueDiceElInforme(unittest.TestCase):
         )
 
     def test_el_informe_cuenta_los_frentes_e_incluye_el_APA(self):
-        self.assertIn("PROVISIONAL EN 7 FRENTE(S)", self.texto)
+        self.assertIn("PROVISIONAL EN 8 FRENTE(S)", self.texto)
         self.assertIn("fraccion_isoforma_larga:", self.texto)
 
     def test_y_el_APA_esta_entre_ellos_con_su_cifra(self):

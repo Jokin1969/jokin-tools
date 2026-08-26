@@ -1,0 +1,91 @@
+# Principios del proyecto
+
+Reglas que no son de estilo ni de código: son cosas que aprendimos al equivocarnos y que
+aplican a **todo** lo que se escriba aquí. Van en `docs/` y no dentro de un módulo
+concreto precisamente porque no son de ningún módulo.
+
+El registro de los errores concretos está en [`erratas.md`](erratas.md). Esto es lo que
+se sacó de ellos.
+
+---
+
+## 1 — El invariante caza lo imposible, no lo equivocado
+
+> **Un invariante de rango sólo detecta valores que no pueden existir. Un valor
+> equivocado pero dentro de rango pasa limpio, y lo único que lee la salida entera es el
+> golden.**
+
+Sale de tres apariciones del mismo fallo en una semana, todas con `Frame.UTR3` puesto a
+mano donde el marco tenía que recibirse:
+
+| Caso | Qué se imprimió | ¿Lo caza un invariante de rango? |
+|---|---|---|
+| `apa_ceiling_table` sobre el humano | `3utr:1784` en un 3'UTR de 1606 nt | **Sí** — no cabe en ningún 3'UTR conocido |
+| tramos de techo sobre el ratón | `3utr:1273-2191` en un 3'UTR de 1242 nt | **Sí** — 2191 tampoco cabe |
+| bloque de holguras | `3utr:1185` en un 3'UTR de 1242 nt | **No** — 1185 es una posición perfectamente válida |
+
+Los dos primeros los caza `coords.check_utr3_range`. El tercero **no**, y no por un fallo
+del invariante: `3utr:1185` existe, sólo que era de otra señal. La ventana venía
+convertida al 3'UTR y la señal no, así que el número era plausible, estaba en rango, y se
+leía sin sospechar nada.
+
+Lo cazó el **golden**, al regenerarlo y leer el diff. Ese es el punto: los tests de
+presencia comprueban que aparezca lo que cada uno espera y **no ven lo que sobra ni lo
+que está mal escrito**; el golden compara la salida completa contra una referencia
+versionada, así que un número cambiado salta aunque nadie supiera que había que mirarlo.
+
+### Corolario operativo
+
+**Para toda magnitud derivada nueva —una coordenada convertida, una fracción, un recuento,
+un tamaño de banda— hazte esta pregunta antes de emitirla:**
+
+> ¿Puede salir un valor **equivocado pero dentro de rango**?
+
+- **Si la respuesta es no** (el valor imposible es el único modo de fallo), un invariante
+  lo cubre. Escríbelo y sigue.
+- **Si la respuesta es sí**, asume que **no hay invariante que lo cubra** y que el golden
+  es la única red. Entonces:
+  1. el bloque nuevo entra en el golden **antes** de darlo por bueno;
+  2. se regenera y **se lee el diff**, no se acepta a ciegas;
+  3. y se añade un test que fije el valor **con su procedencia**, no sólo su forma
+     (`self.assertIn("3utr:236", texto)`, no `assertRegex(texto, r"3utr:\d+")`).
+
+Casi siempre la respuesta es **sí**. Una conversión de marco, una resta de desfase, un
+índice 0-based colado en una salida 1-based y un porcentaje con el denominador cambiado
+producen todos números que caben.
+
+### Y una consecuencia sobre el golden
+
+El golden **no es un test más**. Es el único que ve la salida entera, así que:
+
+- no se regenera automáticamente en CI ni en un hook;
+- se regenera **a mano** y el diff entra en la revisión;
+- si el diff es grande, se lee igual: un diff largo es exactamente donde se esconde la
+  línea que nadie esperaba.
+
+---
+
+## 2 — Un umbral en nucleótidos no convierte un gradiente en una frontera
+
+El eje **estérico** del riesgo de poliadenilación tiene un umbral operativo de ±10 nt
+(`polya.SIGNAL_FLANK`) que **no tiene base medida**, y la huella real de CPSF/CstF sobre
+el pre-mRNA es mayor. Un `PASS` a 14 nt del hexámero no dice «fuera de la zona de
+competencia»: dice «fuera del umbral que hemos escrito».
+
+Por eso, siempre que se emite un veredicto sobre un eje así:
+
+- **nunca sale la palabra sola.** `3utr:200` se emite como
+  `inmune_truncamiento = SI | esterico = PENALIZADO`, jamás como «inmune»;
+- **la sensibilidad al umbral va pegada al veredicto**, no en una nota al pie: «con un
+  flanco de 15 en vez de 10 también caería» es parte del resultado;
+- y se distingue el eje **geométrico** —por delante del corte, la diana se conserva; eso
+  no depende de ninguna convención— del eje de **gradiente**.
+
+`polya.STERIC_IS_A_GRADIENT` lleva el texto y se imprime con la tabla.
+
+---
+
+## 3 — Una predicción refutada se anota igual que un acierto
+
+Si sólo se registran las predicciones que salen bien, el registro deja de medir nada. Ver
+la entrada correspondiente en [`erratas.md`](erratas.md#8--la-hipótesis-de-la-carrera-de-a).

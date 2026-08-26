@@ -661,10 +661,20 @@ def text_report(
             and sitio.best.start not in {c.start for c in selection.selection.chosen}
         ]
         alternativas.sort(key=lambda c: -c.asymmetry)
+        # «Inmune» a secas no vale: el que ademas queda MARCADO en el eje esterico se
+        # dice ahi mismo, porque leer «3utr:200» en la misma lista que 3utr:10 da a
+        # entender que estan igual de limpios y no lo estan.
+        marcados = {
+            f.start: f.steric for f in promotion_clearance(tiling, selection).rows
+        }
         lines.append(
-            "    INMUNES por ser proximales a esa señal: "
+            "    INMUNES al TRUNCAMIENTO por ser proximales a esa señal: "
             + (
-                ", ".join(label(p, Frame.UTR3) for p in sorted(inmunes))
+                ", ".join(
+                    label(p, Frame.UTR3, limit=tope_utr3)
+                    + (f" [esterico {marcados[p]}]" if p in marcados else "")
+                    for p in sorted(inmunes)
+                )
                 + " (del panel)"
                 if inmunes
                 else "ninguno del panel"
@@ -924,6 +934,22 @@ def text_report(
         )
 
     lines.extend(["", "── Elementos repetitivos ──"])
+    if tiling.mask is not None:
+        from .masking import WHY_POLYMORPHIC, WHY_REPEAT, is_polymorphic
+
+        polimorficos = [e for e in tiling.mask.elements if is_polymorphic(e)]
+        if polimorficos:
+            # Aqui NO se lista ventana por ventana: el paso 15 enmascara y RETILA, asi
+            # que las ventanas afectadas ya no estan en la piscina y una lista saldria
+            # vacia. Lo que si se dice es que son DOS ejes con un solo hallazgo detras.
+            lines.append(
+                "  ⚠  DOS EJES, no uno: "
+                + ", ".join(e.describe() for e in polimorficos)
+                + " es una repeticion POLIMORFICA en longitud."
+            )
+            lines.extend(f"     {l}" for l in _envolver(WHY_REPEAT, 85))
+            lines.extend(f"     {l}" for l in _envolver(WHY_POLYMORPHIC, 85))
+            lines.append("")
     if tiling.mask is None:
         lines.append(
             "  NOT_RUN: no hay mascara de repeticiones cargada. Una guia derivada de un "

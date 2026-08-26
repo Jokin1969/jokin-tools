@@ -147,9 +147,19 @@
 
   LO QUE SE SALVA, Y POR CUANTO. Son los candidatos elegidos que pasan a menos de 30 nt
   de una señal que la medida acaba de subir a APA_POSIBLE. Se declara el veredicto en
-  vez de dejarlo deducir de una resta: 3utr:200 (3utr:200-221): PASA. No contiene el
+  vez de dejarlo deducir de una resta, y en LOS DOS EJES: 3utr:200 (3utr:200-221):
+  inmune_truncamiento = SI (empieza en 200, el corte mas temprano esta en 251; es
+  GEOMETRICO y no depende de ninguna convencion) | esterico = PENALIZADO. No contiene el
   AATATA de 3utr:236 —acaba 14 nt antes— y queda 4 nt por delante de su zona prohibida
-  (3utr:226-251); con un flanco de 15 en vez de 10 tambien caeria.
+  (3utr:226-251); con un flanco de 15 en vez de 10 tambien caeria. OJO: el flanco de ±10
+  nt no tiene base medida y la huella real de CPSF/CstF es mayor, asi que estos 14 nt
+  estan probablemente DENTRO de la zona de competencia. EL RIESGO ESTERICO ES UN
+  GRADIENTE, no una frontera. El flanco de ±10 nt NO TIENE BASE MEDIDA: es un umbral
+  operativo, y la huella real de CPSF/CstF sobre el pre-mRNA es MAYOR que eso, asi que
+  ~15 nt aguas arriba del hexamero esta probablemente DENTRO de la zona de competencia
+  aunque el filtro lo deje pasar. Cualquier umbral en nucleotidos le atribuye a este eje
+  una precision que la biologia no tiene, asi que la SENSIBILIDAD AL FLANCO se reporta
+  SIEMPRE junto al veredicto: sin ella, un PASS parece una medida y es una convencion.
 
   RIESGO DE TRUNCAMIENTO DOMINANTE DEL PANEL: AATATA en tx:1185-1190 (3utr:236-241).
   Clasificada APA_POSIBLE POR MEDIDA DE USO, no por canonicidad — y es el caso INVERSO
@@ -170,7 +180,7 @@
         3utr:735: 0.86
         3utr:819: 0.86
         3utr:1018: 0.86
-    INMUNES por ser proximales a esa señal: 3utr:10, 3utr:60, 3utr:143, 3utr:200 (del panel)
+    INMUNES al TRUNCAMIENTO por ser proximales a esa señal: 3utr:10, 3utr:60, 3utr:143, 3utr:200 [esterico PENALIZADO] (del panel)
       INMUNES elegibles NO elegidos: 12 sitio(s). Los mejores por asimetria:
         3utr:187 (+4.06); 3utr:171 (+3.96); 3utr:69 (+3.80); 3utr:157 (+3.69); 3utr:53 (+3.45); 3utr:163 (+3.36)  ← inmunes tambien
       Son las plazas con las que se cambia un candidato con techo por uno inmune.
@@ -540,12 +550,13 @@
 
 ── FILTROS QUE NO SE EJECUTARON ──
   especificidad: NOT_RUN en 2170 de 2170 ventanas
+  repeticion_polimorfica: NOT_RUN en 2170 de 2170 ventanas
   repeticiones: NOT_RUN en 2170 de 2170 ventanas
   seed: NOT_RUN en 2170 de 2170 ventanas
   seed_colision: NOT_RUN en 2170 de 2170 ventanas
   transgen: NOT_RUN en 2170 de 2170 ventanas
   NOT_RUN no es PASS. Mientras haya filtros sin correr, la seleccion es PROVISIONAL y ningun candidato esta aprobado: su veredicto es INCOMPLETE.
-  EL PANEL ES PROVISIONAL EN 6 FRENTE(S): empalme_intron, especificidad, repeticiones, seed, seed_colision, transgen.
+  EL PANEL ES PROVISIONAL EN 7 FRENTE(S): empalme_intron, especificidad, repeticion_polimorfica, repeticiones, seed, seed_colision, transgen.
     empalme_intron: RIESGO BINARIO. NO ES UN PARAMETRO DE CALIDAD y no se lee como tal: o
     el intron se escinde o no. Si no se escinde, la horquilla se queda en el 5'UTR del
     mRNA maduro y no hay proteina DN EN ABSOLUTO — no hay «un poco de proteina» que
@@ -577,7 +588,7 @@
     dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, asi que
     estas cifras son un LIMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos
     amplicones sigue en pie y puede MEJORARLAS.
-  NO SE PIDE OLIGO hasta que los seis tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
+  NO SE PIDE OLIGO hasta que los siete tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
   y otro necesite una base entera no cambia nada: los dos bloquean igual, y llamar «unico
   bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin correr.
   Y uno de ellos NO SE CIERRA CON NINGUN FICHERO: el empalme del intron solo se cierra en el

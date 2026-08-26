@@ -583,12 +583,39 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **sí** cae en el 3'UTR y **solapa 5 ventanas elegibles**: `3utr:1247`, `1249`,
     `1250`, `1251`, `1252`. La conversión va por `coords.Position.to_utr3`, no por una
     resta.
-  - **La hipótesis de la carrera de A queda REFUTADA.** Se predijo que los 45 pb serían
-    la carrera de A de `3utr:480-500`, y que de cumplirse sería convergencia de dos
-    criterios independientes sobre el mismo tramo. **No lo es**: es un `(CTC)n` en el
-    CDS, y la carrera más larga del 3'UTR murino son 10 A que acaban en `3utr:507`, donde
-    RepeatMasker no marcó nada. **No hay convergencia.** Queda anotado igual que se
-    habría anotado el acierto — si no, sólo se registran las predicciones que salen bien.
+  - **La hipótesis de la carrera de A queda REFUTADA — predicción de Joaquín Castilla,
+    2026-08-26, anotada con su nombre a petición suya y porque el acierto se habría
+    anotado igual.** Se predijo que los 45 pb serían la carrera de A de `3utr:480-500`, y
+    que de cumplirse sería convergencia de dos criterios independientes sobre el mismo
+    tramo. **No lo es**: es un `(CTC)n` en el **CDS**, y la carrera más larga del 3'UTR
+    murino son 10 A que acaban en `3utr:507`, donde RepeatMasker no marcó nada. **No hay
+    convergencia.** Registro completo en
+    [`docs/erratas.md`](./docs/erratas.md) nº 7. Si sólo se anotan las predicciones que
+    salen bien, el registro deja de ser un registro y pasa a ser un argumento.
+- **`repeticion_polimorfica` es OTRO motivo, no una etiqueta del mismo** (`masking`,
+  columna propia en la tabla). Salen del mismo hallazgo y apuntan a cosas distintas:
+  - **`repeticiones`** → **estabilidad del genoma AAV** (un tramo repetitivo dentro del
+    casete es sustrato de recombinación) y, sobre la diana, una guía con miles de sitios
+    perfectos.
+  - **`repeticion_polimorfica`** → **viabilidad clínica**, que es otra cosa. Un
+    microsatélite varía en **número de repeticiones** entre individuos, así que una guía
+    ahí tendría **respondedores y no respondedores por variación de LONGITUD**, no de
+    secuencia.
+  - **Y hay un hueco que no cubre nadie: gnomAD anota SUSTITUCIONES y capta mal la
+    variación de longitud**, así que el filtro de variación **no** cubre este riesgo.
+    Decirlo importa: un «gnomAD limpio» invita a creer que la ventana está comprobada.
+  - El criterio de qué familias son polimórficas (`Simple_repeat`, `Satellite`,
+    `Low_complexity`) va **declarado como parámetro y no citado**: un SINE es repetitivo
+    pero **disperso**, no varía de longitud, así que no entra.
+  - **El caso real, con TRIPLE motivo**: el `(TA)n` humano de `3utr:1268-1301` solapa
+    **5 ventanas** (`3utr:1247`, `1249`, `1250`, `1251`, `1252`) que caen por los **tres**
+    ejes a la vez — repetitivo, polimórfico, y con **TECHO** por quedar por detrás de las
+    **dos** `ATTAAA` humanas (`3utr:955` y `3utr:1167`). Tres razones independientes: no
+    se recuperan arreglando una.
+  - **Dónde se ve y dónde no**: el paso 15 enmascara y **retila**, así que con la máscara
+    puesta esas ventanas ya no están en la piscina y una lista por ventana saldría vacía.
+    El informe emite los **dos ejes** con su motivo; el detalle por ventana es
+    `masking.triple_motive_rows` sobre un informe tilado **sin** máscara.
 - **El manifiesto registra la BIBLIOTECA además de la versión del binario** (columna
   `biblioteca`): RepeatMasker 4.0.9 con Dfam_3.0 y con otra biblioteca dan resultados
   distintos, así que la versión a solas no identifica la corrida. La cabecera de 9
@@ -681,13 +708,21 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     3'UTR más largo, sube solo. `label` y `span` aceptan además `limit` —la longitud real
     de la especie que se está analizando— y `coords.bound_of(anatomy)` la saca; `tx` no
     se comprueba, porque ponerle un techo sería inventarse un límite.
-  - **Y lo que este invariante NO puede hacer, dicho aquí para que nadie lo suponga**:
-    caza lo **imposible**, no lo **equivocado**. `3utr:1784` sobre 1606 nt y
-    `3utr:1273-2191` sobre 1242 los caza; `3utr:1185` sobre un 3'UTR murino de 1242 **no**,
-    porque 1185 es una posición perfectamente válida — sólo que de otra señal. Ese
-    tercer caso (el bloque de holguras, con la ventana convertida y la señal sin
-    convertir) lo cazó el **golden**, al leer el diff. Por eso el golden no es un test
-    más: es el único que ve la salida entera.
+  - **Y lo que este invariante NO puede hacer es un PRINCIPIO del proyecto, no una nota
+    de `coords.py`**: está en [`docs/principios.md`](./docs/principios.md) porque aplica a
+    todo. En corto: **el invariante caza lo imposible, no lo equivocado; el golden es lo
+    único que lee la salida entera.** `3utr:1784` sobre 1606 nt y `3utr:1273-2191` sobre
+    1242 los caza; `3utr:1185` sobre un 3'UTR murino de 1242 **no**, porque 1185 es una
+    posición válida — sólo que de otra señal. Ese caso lo cazó el golden, al leer el diff.
+    - **Corolario operativo, y va aplicado a toda magnitud derivada nueva**: pregúntate si
+      puede salir un valor **equivocado pero dentro de rango**. Si puede —y casi siempre
+      puede: una conversión de marco, una resta de desfase, un denominador cambiado—
+      **no hay invariante que lo cubra**, el bloque entra en el golden antes de darlo por
+      bueno, se lee el diff, y el test fija el **valor con su procedencia**, no su forma.
+    - Ya ha vuelto a pasar dos veces desde que se escribió: el bloque de holguras y los
+      **dos desfases** de `triple_motive_rows` (con uno solo, `3utr:1275` salía marcada
+      por un elemento que está a 800 nt; posición válida, ningún error). Los dos los cazó
+      leer la salida.
   - **El fallo REAPARECE cada vez que se escribe un bloque nuevo**, y ha vuelto tres veces
     más: `apa_ceiling_table` imprimía `3utr:1784` para una coordenada del transcrito humano
     —en el informe que ya se estaba entregando— y los tramos de techo salían como
@@ -898,6 +933,8 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
       cualquier candidato que se pusiera por detrás de `3utr:1207`, y hoy no hay ninguno.
     - **Qué lo resolvería**: 3'-end seq de cerebro murino, o la regla de agrupamiento que
       use la propia base. Ninguna de las dos está aquí.
+    - **RATIFICADO (2026-08-26)**: el razonamiento de por qué la ambigüedad no mueve el
+      techo del panel queda aceptado tal cual, y **el cabo queda abierto**. No se cierra.
 - **El mapeo genómico↔transcrito está RESUELTO, y sin coordenadas genómicas**
   (`apa.anchor_polyadb`, `polya.PAS_IS_CLEAVAGE_SITE`). El `.gb` de NM_011170.3 sigue sin
   traerlas —su bloque `PRIMARY` referencia cDNA y EST, no un cromosoma— y ya no hacen falta.
@@ -944,13 +981,28 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     que tiene un candidato de desaparecer sin que nadie lo vea. **Solo se cobran las
     ventanas que caen POR ESTO**: una que ya fallaba GC no la tumba la promoción, y a la
     canónica de 288 no se le cobra nada porque ya era `APA_POSIBLE` por predicción.
-- **`3utr:200` PASA, y por 4 nt. Se DECLARA, no se deduce**
-  (`selection.promotion_clearance`, bloque «Lo que se salva, y por cuánto»). La ventana
-  `3utr:200-221` **no contiene** el `AATATA` de `3utr:236` —acaba 14 nt antes— y queda
-  **4 nt** por delante de su zona prohibida (`3utr:226-251`). Y con la sensibilidad al
-  lado, porque sin ella un «PASA» parece más sólido de lo que es: **con un flanco de 15
-  en vez de 10 también caería**, y entonces no habría cuarto inmune. El flanco al que
-  cambia se **busca** con el mismo `classify_signal` que decide, no se calcula a mano.
+- **`3utr:200` conserva la plaza, pero NUNCA sale como «inmune» a secas. DECIDIDO
+  (2026-08-26)** (`selection.promotion_clearance`, bloque «Lo que se salva, y por
+  cuánto»). Se emite en **los dos ejes**, siempre:
+
+  `inmune_truncamiento = SI` / `esterico = PENALIZADO`
+
+  - **El eje de truncamiento es GEOMÉTRICO** y no depende de ninguna convención: empieza
+    en `200` y el corte más temprano está en `251`. O empiezas antes o no.
+  - **El eje estérico es un GRADIENTE, no una frontera** (`polya.STERIC_IS_A_GRADIENT`).
+    El flanco de ±10 nt **no tiene base medida**: es un umbral operativo, y la huella real
+    de CPSF/CstF sobre el pre-mRNA es **mayor**, así que los 14 nt que separan
+    `3utr:200-221` del hexámero están **probablemente dentro de la zona de competencia**
+    aunque el filtro lo deje pasar. Cualquier umbral en nucleótidos le atribuye a este eje
+    una precisión que la biología no tiene.
+  - **Por eso la sensibilidad al flanco va SIEMPRE pegada al veredicto**, no en una nota:
+    la ventana queda **4 nt** por delante de la zona prohibida (`3utr:226-251`) y **con un
+    flanco de 15 en vez de 10 también caería**. Sin esa cifra, un `PASS` parece una medida
+    y es una convención. El flanco de cambio se **busca** con el mismo `classify_signal`
+    que decide, no se calcula a mano.
+  - En la lista de inmunes del informe, `3utr:200` sale con `[esterico PENALIZADO]` al
+    lado; `3utr:10`, `60` y `143` no llevan marca porque no la necesitan. Poner la marca
+    en todos la haría invisible.
 - **REGISTRO DE DECISIONES: el criterio escalonado no es un colador, y hay evidencia.**
   El criterio se decidió con la tabla de los seis candidatos delante, y quien lo defendió
   tenía interés en el resultado. El 2026-08-26 ese mismo criterio **tumbó `3utr:221`**,

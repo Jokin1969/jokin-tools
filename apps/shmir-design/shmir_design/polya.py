@@ -55,6 +55,18 @@ ALL_SIGNALS = (CANONICAL_SIGNAL,) + VARIANT_SIGNALS
 #: El resto de variantes son raras y solo generan bandera y penalizacion de ranking.
 STRONG_SIGNALS = frozenset({CANONICAL_SIGNAL, "ATTAAA"})
 
+#: EL EJE ESTERICO ES UN GRADIENTE, NO UNA FRONTERA. Se escribe aqui, pegado al umbral,
+#: porque es la unica forma de que nadie lea `SIGNAL_FLANK = 10` como un hecho.
+STERIC_IS_A_GRADIENT = (
+    "EL RIESGO ESTERICO ES UN GRADIENTE, no una frontera. El flanco de ±10 nt NO TIENE "
+    "BASE MEDIDA: es un umbral operativo, y la huella real de CPSF/CstF sobre el "
+    "pre-mRNA es MAYOR que eso, asi que ~15 nt aguas arriba del hexamero esta "
+    "probablemente DENTRO de la zona de competencia aunque el filtro lo deje pasar. "
+    "Cualquier umbral en nucleotidos le atribuye a este eje una precision que la "
+    "biologia no tiene, asi que la SENSIBILIDAD AL FLANCO se reporta SIEMPRE junto al "
+    "veredicto: sin ella, un PASS parece una medida y es una convencion."
+)
+
 SIGNAL_FLANK = 10           # nt a cada lado de la señal que quedan prohibidos
 TERMINAL_MIN_DISTANCE = 10  # señal terminal probable: 10-40 nt del extremo 3'
 TERMINAL_MAX_DISTANCE = 40

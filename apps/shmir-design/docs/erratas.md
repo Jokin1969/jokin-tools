@@ -148,3 +148,36 @@ en cualquier sitio donde se imprima un perfil. Con la errata nº 5 la lectura co
    misma predicción mutilada, no una ventana más corta. En el fichero viejo la había y
    **mapeaba exacta**, porque el homopolímero se lo permitía — mapear exacto no
    demuestra estar intacta.
+
+## 6 — El marco equivocado dentro de rango
+
+`3utr:1185` impreso sobre un 3'UTR murino de 1242 nt: la ventana venía convertida al
+3'UTR y la señal no. El número **cabe**, así que ningún invariante de rango lo caza — ni
+el techo global de `coords.max_utr3()` ni el límite por especie. Lo cazó el **golden**,
+al leer el diff de la regeneración.
+
+Es el tercero de la misma familia en una semana. Los otros dos —`3utr:1784` sobre 1606 nt
+y `3utr:1273-2191` sobre 1242— sí eran imposibles y sí los caza `coords.check_utr3_range`.
+
+**Contramedida:** el invariante de rango, que cubre los imposibles, más el principio y su
+corolario operativo en [`principios.md`](principios.md#1--el-invariante-caza-lo-imposible-no-lo-equivocado):
+para toda magnitud derivada nueva, decidir si un valor equivocado pero dentro de rango es
+posible; si lo es, no hay invariante y sólo el golden lo detecta.
+
+## 7 — La hipótesis de la carrera de A
+
+**Predicción de Joaquín Castilla (2026-08-26)**, anotada con su nombre porque el acierto
+se habría anotado igual: los 45 pb de repetición simple que RepeatMasker daba sobre el
+transcrito murino serían la **carrera de A de `3utr:480-500`**, y de cumplirse habría sido
+**convergencia de dos criterios independientes** —nuestro filtro de homopolímeros y
+RepeatMasker— sobre el mismo tramo.
+
+**Refutada por el dato.** Llegó el `.out` real y la repetición es un **`(CTC)n` en
+`tx:892-936`**, dentro del **CDS** (185-949). No toca el 3'UTR. La carrera más larga del
+3'UTR murino son **10 A que acaban en `3utr:507`** (`tx:1456`), y ahí RepeatMasker no marcó
+nada. **No hay convergencia de dos criterios.**
+
+**Contramedida:** ninguna, porque no hubo error de código — hubo una hipótesis razonable
+que el dato tumbó. Queda en el registro para que el registro siga midiendo algo: si sólo
+se anotan las predicciones que salen bien, deja de ser un registro y pasa a ser un
+argumento. Ver [`principios.md`](principios.md#3--una-predicción-refutada-se-anota-igual-que-un-acierto).
