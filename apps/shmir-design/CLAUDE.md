@@ -324,6 +324,26 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   verdad, en las dos parejas de coordenadas. Ese invariante ya cazó algo real: cuando el
   emparejamiento sale de `guia[1:]`, la ventana mide un nt MENOS que la guía, porque la
   posición 1 es la T de convenio y no forma parte de la ventana.
+- **Ninguna secuencia entra al pipeline sin su md5 en el manifiesto.** Ni pegada, ni
+  transcrita, ni copiada de una conversación. Y una longitud que se anuncia se cuenta
+  sobre la cadena **entregada**, no sobre la que se pretendía entregar
+  (`reference.check_declared_length`). Es la errata nº 5 del registro: un 3'UTR
+  anunciado como «1242 nt verificados» que traía 1246 dejó inservible una corrida entera
+  de miRarchitect y varias tandas persiguiendo hipótesis falsas.
+- **Un 3'UTR para una herramienta externa se escribe a FICHERO, nunca a stdout**
+  (`tools/export_utr3.py`): el nombre lleva la longitud y el md5, y el programa **no
+  imprime la secuencia**. Lo que se pierde al copiar de una pantalla son las carreras de
+  homopolímero, y eso no se ve. Lo que se sube es el fichero.
+- **Mapear exacto no demuestra estar intacta.** Una guía que sea prefijo o sufijo de otra
+  fila del mismo fichero es la misma predicción mutilada, y puede mapear exacta si la
+  pérdida cae en un homopolímero. Se comprueba y se avisa (`mirarchitect.Export.contained`,
+  `audit`).
+- **El andamio se decide por SECUENCIA, no por etiqueta** (`mirarchitect.Export.check_scaffold`):
+  se compara el loop del fichero contra el del andamio. Y la pasajera de la fuente se
+  **descarta con el motivo escrito** (`PASSENGER_REJECTED`): sigue la convención de
+  miR-30a —dos nucleótidos borrados tras la posición 9 y `GC` terminal, verificado
+  26/26— y la nuestra cambia solo la posición 1 y se elige plegando. De miRarchitect se
+  toma la guía y nada más.
 - **La auditoría de un fichero de scores es código, no un análisis a mano**
   (`shmir_design/audit.py`, `tools/audit_scores.py`). Tabula longitudes, dice qué guías
   no mapean y cómo se restauran, marca las filas que son prefijo de otra, y avisa de

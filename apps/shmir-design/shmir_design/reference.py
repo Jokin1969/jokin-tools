@@ -16,7 +16,12 @@ import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
-from .errors import ChecksumMismatchError, FetchError, MissingSequenceError
+from .errors import (
+    ChecksumMismatchError,
+    FetchError,
+    MissingSequenceError,
+    ShmirDesignError,
+)
 from .fetch import parse_fasta_payload
 
 #: Los datos de referencia son fixtures versionados, no descargas en tiempo de
@@ -286,3 +291,56 @@ def load_3utr(
 ) -> str:
     """3'UTR verificado del transcrito, extraido del fixture por sus coordenadas."""
     return extract_3utr(load_reference(reference, data_dir=data_dir), reference)
+
+
+def _normalizada(sequence: str, *, name: str) -> str:
+    """Mayusculas, sin espacios ni saltos. Importado aqui para no crear un ciclo."""
+    from .polya import normalize_sequence  # noqa: PLC0415
+
+    return normalize_sequence(sequence, name=name)
+
+
+def check_declared_length(sequence: str, declared: int, *, name: str) -> None:
+    """La longitud anunciada se cuenta sobre la cadena ENTREGADA, no sobre la prevista.
+
+    Esta es la comprobacion de una linea que no existia y que habria parado la errata
+    nº 4 del registro: un 3'UTR anunciado como «1242 nt verificados» que en realidad
+    traia 1246. Contar lo que se pretendia entregar en vez de lo entregado es el fallo,
+    y no lo caza ningun test de consistencia interna.
+    """
+    if declared < 0:
+        raise ShmirDesignError(
+            f"{name}: se ha anunciado una longitud negativa ({declared}). Se aborta."
+        )
+    if len(sequence) != declared:
+        raise ShmirDesignError(
+            f"{name}: se anuncia una longitud de {declared} nt y la cadena ENTREGADA "
+            f"mide {len(sequence)}. Se aborta: la longitud se cuenta sobre lo que de "
+            f"verdad se entrega, no sobre lo que se pretendia entregar, y esa "
+            f"diferencia ya ha corrido un 3'UTR entero una vez."
+        )
+
+
+def write_sequence_file(
+    sequence: str, *, directory: Path | str, stem: str, note: str = ""
+) -> Path:
+    """Escribe una secuencia a fichero CON su md5, para pegarla en una herramienta.
+
+    Nunca a stdout: lo que se copia de una pantalla pierde caracteres, y lo que pierde
+    caracteres son las carreras de homopolimero. Lo que se usa es el fichero, y su
+    nombre lleva el md5 para que no se pueda confundir con otra version.
+    """
+    limpia = _normalizada(sequence, name=stem)
+    checksum = sequence_md5(limpia)
+    destino = Path(directory) / f"{stem}_{len(limpia)}nt_{checksum[:12]}.txt"
+    lineas = [
+        f"# {stem} — {len(limpia)} nt — md5 canonico {checksum}",
+        "# Este fichero es lo que se pega en la herramienta externa. No copies de una",
+        "# pantalla: lo que se pierde al copiar son las carreras de homopolimero, y eso",
+        "# no se ve. Si la herramienta pide texto plano, pega el cuerpo de aqui abajo.",
+    ]
+    if note:
+        lineas.append(f"# {note}")
+    lineas.extend(limpia[i : i + 60] for i in range(0, len(limpia), 60))
+    destino.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+    return destino
