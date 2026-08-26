@@ -1267,6 +1267,7 @@ function planRowSimple(m) {
     <span class="az-plan-scn">${m.cn ? 'CN ' + esc(m.cn) : (m.gtin ? esc(m.gtin) : '—')}</span>
     <span class="az-plan-sqty">×${m.qty}</span>
     <span class="az-plan-sprog ${ok ? 'is-ok' : 'is-short'}">${done}/${need}</span>
+    ${doseChip(m)}
   </div>`;
 }
 // Compact small card (view: Tarjetas).
@@ -1276,7 +1277,8 @@ function planCardSimple(m) {
   return `<div class="az-plan-scard" data-dupkey="${esc(planDupKey(m))}">
     <div class="az-plan-scard-ico">${icon}</div>
     <div class="az-plan-scard-body"><b>${esc(m.nombre || 'Sin nombre')}</b><small>${m.cn ? 'CN ' + esc(m.cn) : (m.gtin ? esc(m.gtin) : '')}</small>
-      <span class="az-plan-sprog ${ok ? 'is-ok' : 'is-short'}">×${m.qty} · ${done}/${need}</span></div>
+      <span class="az-plan-sprog ${ok ? 'is-ok' : 'is-short'}">×${m.qty} · ${done}/${need}</span>
+      <div class="az-plan-scard-dose">${doseChip(m)}</div></div>
   </div>`;
 }
 // State-aware association button for a plan medication (this month):

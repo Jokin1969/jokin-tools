@@ -940,7 +940,8 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-plan .is-dup { outline: 2px solid var(--danger); outline-offset: -2px; border-radius: 10px; background: #fff1f1; }
 /* Compact list */
 .az-plan-simple-list { display: flex; flex-direction: column; gap: 3px; }
-.az-plan-srow { display: grid; grid-template-columns: 22px 1fr auto auto auto; align-items: center; gap: 10px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; font-size: 0.86rem; }
+.az-plan-srow { display: grid; grid-template-columns: 22px 1fr auto auto auto auto; align-items: center; gap: 10px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; font-size: 0.86rem; }
+.az-plan-srow .az-dose-chip { padding: 3px 9px; font-size: 0.74rem; }
 .az-plan-sicon { display: inline-flex; align-items: center; justify-content: center; }
 .az-plan-sfoto { width: 20px; height: 20px; object-fit: contain; border-radius: 4px; }
 .az-plan-sname { font-weight: 700; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -958,6 +959,8 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-plan-scard-body b { font-size: 0.85rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .az-plan-scard-body small { color: var(--muted); font-family: var(--mono, monospace); font-size: 0.72rem; }
 .az-plan-scard-body .az-plan-sprog { align-self: flex-start; margin-top: 2px; }
+.az-plan-scard-dose { margin-top: 3px; }
+.az-plan-scard-dose .az-dose-chip { padding: 3px 8px; font-size: 0.7rem; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 
 /* Person name / QR link to QR (TIS) */
 .az-person-link { text-decoration: none; color: inherit; cursor: pointer; }
