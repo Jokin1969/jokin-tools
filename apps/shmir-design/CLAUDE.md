@@ -339,17 +339,19 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     que la murina se use. **NO LA DESCARTA**: puede ser diferencia real de especie. Las
     dos cláusulas van juntas y ninguna sobra — el informe termina con «rebaja, no
     descarta».
-  - **Inmunes: 60, 143 y 221**, no solo 60. 60 es el único del panel elegido, pero la
-    piscina de elegibles tiene 19 sitios más por delante de la señal y el informe saca
-    los mejores por asimetría — `3utr:143` (+5,08) y `3utr:221` (+5,15 − 1,00 penal. =
-    +4,15) entre ellos. Con un solo inmune el panel entero depende de un supuesto; con
-    tres, no.
+  - **Inmunes: 60, 143 y 200**, no solo 60. 60 es el único que salía por asimetría, pero
+    la piscina de elegibles tiene 15 sitios más por delante del corte y el informe saca los
+    mejores — `3utr:143` (+5,08) y `3utr:200` (+3,80) entre ellos. Con un solo inmune el
+    panel entero depende de un supuesto; con tres, no.
+    **`3utr:221` era el tercero y ya no está**: el `AATATA` de `3utr:236` pasó a
+    `APA_POSIBLE` por medida y la ventana `221-242` lo **solapa**, así que cae por riesgo
+    ESTÉRICO. Su inmunidad al TRUNCAMIENTO no se ha tocado — empieza por delante del corte.
 - **El 3'UTR humano trae sus DOS señales de APA desde el principio**, con la misma
   maquinaria: `ATTAAA` en `3utr:955` y `3utr:1167`, las dos `APA_POSIBLE`, `TECHO` y
   `fraccion_isoforma_larga = None`. Condicionan la mitad distal, y `apa_ceiling_table`
-  emite cuánto panel condiciona cada una sobre las **309 ventanas elegibles**:
-  - `3utr:955` (corte `3utr:970-990`): **100 de 309 = 32,4 %** con techo, 6 en la banda.
-  - `3utr:1167` (corte `3utr:1182-1202`): **74 de 309 = 23,9 %**, 6 en la banda. Es
+  emite cuánto panel condiciona cada una sobre las **311 ventanas elegibles**:
+  - `3utr:955` (corte `3utr:970-990`): **100 de 311 = 32,2 %** con techo, 6 en la banda.
+  - `3utr:1167` (corte `3utr:1182-1202`): **74 de 311 = 23,8 %**, 6 en la banda. Es
     subconjunto de la anterior: 74 candidatos llevarían **dos** techos.
   - El informe saca **todas** las señales `APA_POSIBLE`, no solo la dominante: con dos,
     enseñar una esconde justo la que condiciona la mitad distal. La banda de corte va
@@ -442,14 +444,16 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   estructurado afectan a una región entera—, así que con la predicción **saturada** la
   única variable que sigue comprando **independencia entre apuestas** es el espaciado.
   - **Inmune tiene dos definiciones y solo una vale**: por delante del corte más
-    **temprano** (`3utr:303`) la ventana se conserva en las dos isoformas; por delante del
-    más tardío (`3utr:323`) admite ventanas **de dentro de la banda de 20 nt**, que
-    `polya_risk` clasifica `PENALIZADO`, no `NO_APLICA`. Llamar inmune a una de la banda
-    es inventarse una precisión que no hay.
+    **temprano** (hoy `3utr:251`, el del tercer sitio medido; era `3utr:303`) la ventana se
+    conserva en las dos isoformas; por delante del más tardío admite ventanas **de dentro
+    de la banda de 20 nt**, que `polya_risk` clasifica `PENALIZADO`, no `NO_APLICA`. Llamar
+    inmune a una de la banda es inventarse una precisión que no hay. El corte **se deriva**
+    del informe (`selection.derive_immune_cut`), no se teclea.
   - **Con el criterio estricto y 50 nt de espaciado caben CUATRO inmunes, no cinco.
-    DECIDIDO (2026-08-26)**: `3utr:10`, `60`, `143` y `221`. Es un hecho geométrico del
-    3'UTR —los 20 sitios elegibles por delante de 303 se apelotonan—, no una limitación
-    del código, y hay un test que lo fija.
+    DECIDIDO (2026-08-26)**: `3utr:10`, `60`, `143` y `200` (era `221` hasta que la medida
+    subió el `AATATA` de 236). Es un hecho geométrico del 3'UTR —los sitios elegibles por
+    delante del corte se apelotonan—, no una limitación del código, y hay un test que lo
+    fija. La cuota de cuatro se cumple igual: lo que cambia es quién la ocupa.
   - **El espaciado NO se baja para meter un quinto inmune.** El espaciado compra
     **independencia entre apuestas, no número de apuestas**: las causas de fallo son
     regionales y dos candidatos a 30 nt fallan juntos, así que un quinto inmune pegado a
@@ -627,6 +631,12 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     (`ReportSelection.anatomy`) para que todos los escritores usen el mismo.
   - `coords.parse` lee de vuelta una celda etiquetada y **rechaza el entero desnudo**, así
     que la etiqueta no es decoración: los tests del invariante de intervalos pasan por ahí.
+  - **El fallo REAPARECE cada vez que se escribe un bloque nuevo**, y ha vuelto dos veces
+    más: `apa_ceiling_table` imprimía `3utr:1784` para una coordenada del transcrito humano
+    —en el informe que ya se estaba entregando— y los tramos de techo salían como
+    `3utr:1-1200` sobre un 3'UTR de 1242 nt. Los dos llevaban `Frame.UTR3` a pelo. La regla
+    para un bloque nuevo es: el marco **se recibe**, sacado de la anatomía, y nunca se pone
+    a `UTR3` porque «suele serlo».
 - **Toda salida que nombre una referencia imprime longitud y md5 JUNTOS**
   (`reference.describe_sequence`): `referencia 1242 nt / 19f5fa2a`. Contramedida a un
   fallo que fue invisible porque «referencia 1246 nt» parece razonable; pegado al md5 no
@@ -651,19 +661,25 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   bloque «Cobertura por tercios»). `Tercio` etiqueta por el **punto medio** de la ventana;
   la partición simple (`3utr:1-414 / 415-828 / 829-1242`) va por **inicio**. Discrepan en
   el borde: `3utr:819-840` empieza en el segundo tercio y su punto medio (829,5) cae en el
-  tercero. Elegibles por punto medio 105/128/54; por inicio 105/137/45; **sitios** por
-  inicio 32/42/16. Para pedir una plaza en un tramo concreto está
+  tercero. Con el tercer sitio de APA medido dentro: elegibles por punto medio 88/128/54;
+  por inicio 88/137/45; **sitios** por inicio 28/42/16. (Sin él eran 105/128/54,
+  105/137/45 y 32/42/16.) Para pedir una plaza en un tramo concreto está
   `SelectionConfig.start_window_quota`, en coordenadas explícitas y por inicio, que no
   depende de ninguna definición de tercio.
   - Y la cuenta que dice si el panel **se puede rebalancear**: sitios elegibles por tramo
-    que quedan **por delante** del corte de `3utr:288`. Son **20, todos en el tercio
-    proximal**; medio y distal tienen **cero**. Si el APA resulta funcional, el rebalanceo
-    solo puede ir hacia el proximal — y solo hasta donde deje el espaciado (cuatro).
+    que quedan **por delante del corte más temprano**, que con el tercer sitio medido es
+    `3utr:251` y no `3utr:303`. Son **16, todos en el tercio proximal**; medio y distal
+    tienen **cero**. Si el APA resulta funcional, el rebalanceo solo puede ir hacia el
+    proximal — y solo hasta donde deje el espaciado (cuatro). El corte **se deriva**
+    (`selection.derive_immune_cut`); antes iba tecleado y no se enteró de que se adelantara.
 - **La asimetría sale con las DOS cifras cuando hay penalización**: cruda, penalización
   y neta (`+5,15 − 1,00 penal. = +4,15`). Una sola columna con la neta, al lado de
   candidatos sin penalizar, mezcla dos magnitudes distintas sin decirlo: el 221 salía
   `+4,15` frente a un `+5,15` de la tabla y parecía una discrepancia de cálculo cuando era
-  la penalización por solapar el `AATATA` de 236 (variante rara, clase `OTRA`).
+  la penalización por solapar el `AATATA` de 236 (variante rara, clase `OTRA`). Ese
+  `AATATA` es hoy `APA_POSIBLE` por medida, así que `3utr:221` ya no llega a la tabla: la
+  penalización se convirtió en FAIL. El caso sigue anotado porque el fallo que enseña —una
+  columna que mezcla cruda y neta— es el mismo con cualquier candidato penalizado.
 - **El PUESTO de una fuente externa no se usa en la selección.** Es propiedad de la
   LISTA, no del sitio: 20 de los 21 sitios compartidos entre las dos corridas de
   miRarchitect cambian de puesto con el score **idéntico**, solo porque una lista tiene
@@ -786,7 +802,7 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   en todo andamio cargado de fichero.
 - Elegible no es aprobado: mientras haya filtros en `NOT_RUN`, la selección es
   provisional y los candidatos salen `INCOMPLETE`.
-- **La fracción de isoforma larga tiene MEDIDA, y todavía NO entra** (`apa.POLYA_DB_PRNP`).
+- **La fracción de isoforma larga está MEDIDA y YA ENTRA** (`apa.POLYA_DB_PRNP`).
   PolyA_DB v4.1 (2025-09-15), mm10, Prnp (Gene ID 19122): 15 PAS, 5 con expresión. Las dos
   cifras con su fórmula, porque no miden lo mismo:
   - **ponderada** `Σ(AvgRPM × PSE) distal / Σ total` = **0,86** ← valor de trabajo
@@ -795,28 +811,96 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - **El dato es de TODOS los tejidos, no de cerebro.** Las neuronas alargan los 3'UTR, así
     que 0,86 es un **límite inferior conservador** para el nuestro — y por eso la RT-qPCR de
     los dos amplicones deja de ser solo confirmación: **puede mejorar el número**.
-  - **Tres comprobaciones pendientes, y la primera no se puede hacer aquí**: el `.gb` de
-    NM_011170.3 **no trae coordenadas genómicas** (su bloque `PRIMARY` referencia cDNA y
-    EST, no un cromosoma). Con la aritmética sola salen **dos mapeos y no se elige**: si
-    `131937504` es el hexámero, `131937444` cae en `3utr:228`; si es el sitio de corte, cae
-    en `3utr:243-263`. **De eso depende que `3utr:221` siga siendo inmune**, así que uno de
-    los cuatro inmunes está en el aire. Hace falta la anotación genómica del transcrito o
-    el registro de `NM_001278256.1`.
-  - El PAS terminal `131938427` y el que tiene expresión (`131938392`, 35 nt aguas arriba)
-    **se anotan como dos y no se fusionan** sin comprobarlo: fusionarlos suma su expresión
-    y sube la fracción larga sin dato.
-- **El APA es un FRENTE BLOQUEANTE, el cuarto. DECIDIDO (2026-08-26)**
-  (`selection.blocking_fronts`). No es un filtro de ventana y bloquea igual. La cuenta que
-  lo decide: sitios inmunes por tramo **20/0/0** —todos en el proximal— y tope de **cuatro**
-  por espaciado, así que en un panel de diez **seis candidatos comparten un único modo de
-  fallo**. Y la razón por la que bloquea no es que sea importante: **si la fracción de
-  isoforma corta es alta, esos seis entran al cribado con un techo INDISTINGUIBLE DE UN
-  shmiR MALO** — un techo de 0,3 y una guía que no funciona dan la misma lectura en la
-  placa, y el experimento se gasta en no poder separarlos. Se cierra en este orden:
-  **PolyA_DB / PolyASite y 3'-end seq primero**; si la fracción está publicada, la RT-qPCR
-  es **confirmación**, no descubrimiento. Con la medida encima de la mesa el frente **sigue
-  bloqueando** hasta que la conversión de coordenadas esté comprobada: un número que
-  depende de una conversión sin comprobar no es un techo medido.
+  - **`pending` y `caveats` son cosas distintas y no se mezclan.** `pending` para lo que
+    **bloquea** el uso del dato (hoy vacío); `caveats` para lo que se anota y no mueve el
+    valor. Meter una reserva en `pending` haría parecer inutilizable un dato por algo que no
+    cambia ninguna cifra, y eso engaña tanto como omitirla.
+  - Reserva que se mantiene: el PAS terminal `131938427` y el que tiene expresión
+    (`131938392`, 35 nt aguas arriba) **se anotan como dos y no se fusionan** sin
+    comprobarlo. **No mueve el valor**: `131938427` no tiene expresión, así que no suma en
+    ninguna de las dos fórmulas. El anclaje además los coloca sobre hexámeros **distintos**.
+- **El mapeo genómico↔transcrito está RESUELTO, y sin coordenadas genómicas**
+  (`apa.anchor_polyadb`, `polya.PAS_IS_CLEAVAGE_SITE`). El `.gb` de NM_011170.3 sigue sin
+  traerlas —su bloque `PRIMARY` referencia cDNA y EST, no un cromosoma— y ya no hacen falta.
+  - **El desempate lo da la propia leyenda de PolyA_DB**: «A[A/U]UAAA motif within 40-nt
+    upstream from the PAS». Si el hexámero se **busca aguas arriba** del PAS, el PAS no puede
+    ser el hexámero: **es el sitio de corte**. La otra lectura queda descartada.
+  - **Y no se elige por una resta**, que es un solo punto de apoyo y siempre cuadra. Se
+    exige que las **cuatro** coordenadas publicadas aterricen a la vez, con el **mismo
+    desfase**, sobre un hexámero de la **clase que la propia base declara** para cada una
+    (`AAUAAA` / `AUUAAA` / `Other`). Bajo «PAS = corte» aterrizan las cuatro; bajo «PAS =
+    hexámero» —donde el aterrizaje tiene que ser **exacto**, porque un hexámero es un punto
+    y no una banda— no hay ningún desfase que haga aterrizar **más de una**.
+  - Resultado: `131937444` → corte `3utr:251-271`, hexámero **`AATATA` en `3utr:236`**;
+    `131937504` → corte `3utr:303-323`, hexámero `AATAAA` en `3utr:288`; `131938427` →
+    corte `3utr:1229-1249`, hexámero `ATTAAA` en `3utr:1214`. Desfase 3'UTR→mm10 acotado a
+    **131937185-131937193**, y se deja como **intervalo**: la banda de corte mide 20 nt y
+    fijarlo en un entero sería inventarse precisión.
+  - **`131938392` sale AMBIGUO** —dos `TATAAA` de su clase caben en su banda, `3utr:1178` y
+    `3utr:1189`— y eso **no invalida el anclaje**, pero ese sitio **no entra al modelo con
+    banda propia**: no identifica un hexámero y no se elige por nuestra cuenta.
+  - **La tabla se aplica por md5 del 3'UTR** (`MeasuredFraction.utr3_md5`,
+    `apa.resolve_measured`), no por el nombre del gen. Sobre cualquier otra secuencia
+    devuelve `None` y no se promueve nada: unas coordenadas de Prnp murino ancladas sobre
+    otro 3'UTR anclarían ruido, y el ruido ancla si se le deja sitio.
+- **`131937444` es un TERCER sitio de corte y entra como `APA_POSIBLE` POR MEDIDA, no por
+  canonicidad. DECIDIDO (2026-08-26)** (`polya.promote_by_measurement`). Es el caso
+  **inverso** al del `AATAAA` de 288: allí hay canonicidad y ni un dato de uso; aquí hay uso
+  medido —**el proximal más usado de los tres**, PSE 21,1 % y AvgRPM 0,55 frente a 23,5 % /
+  0,34— y el hexámero es una **variante rara** (`AATATA`) que por la cascada de predicción
+  saldría `OTRA`. La medida **sustituye** a la predicción, que es lo que dice `apa.py` desde
+  su primera línea. `PolyASignal.evidence` dice por cuál de las dos vías entró cada señal y
+  el informe lo imprime; las dos vías no se confunden nunca en la salida.
+  - Su corte es **más temprano** (`3utr:251-271` frente a `3utr:303-323`), así que la
+    frontera de la inmunidad se **adelanta de `3utr:303` a `3utr:251`**.
+  - **`3utr:221` conserva su inmunidad al TRUNCAMIENTO** —empieza en 221, por delante de
+    251— **y pierde la plaza por el otro riesgo, el ESTÉRICO**: `3utr:221-242` **contiene**
+    el hexámero y compite con CPSF/CstF por un sitio del que ahora se sabe que se usa. Son
+    dos ejes y el informe no los mezcla. Su plaza proximal la ocupa **`3utr:200`** (+3,80
+    frente al +4,15 neto de 221): la cuota de cuatro inmunes se cumple igual.
+  - **Lo que cuesta la promoción va NOMBRADO** (`selection.measured_promotion_cost`): 17
+    ventanas que superaban todos los demás filtros pasan a FAIL, elegibles 287 → 270,
+    sitios 90 → 86, sitios inmunes 20 → 16 (todos siguen en el proximal). Sin esa cuenta la
+    única huella de la decisión sería una piscina más pequeña, que es exactamente la forma
+    que tiene un candidato de desaparecer sin que nadie lo vea. **Solo se cobran las
+    ventanas que caen POR ESTO**: una que ya fallaba GC no la tumba la promoción, y a la
+    canónica de 288 no se le cobra nada porque ya era `APA_POSIBLE` por predicción.
+- **El TECHO ya no es UNO: va POR TRAMOS** (`apa.CeilingLayer`, `MeasuredApa.layer_for`).
+  Un solo número contesta «cuánta isoforma larga hay»; la pregunta de un candidato es otra,
+  «qué fracción de transcritos conserva MI diana», y eso depende de por detrás de **cuántos**
+  cortes está. Con los tres sitios medidos:
+
+  | tramo (3'UTR) | techo | por qué |
+  |---|---|---|
+  | `1-251` | — | por delante de todos los cortes: inmune |
+  | `252-271` | INDETERMINADO | dentro de la banda de `131937444` (PENALIZADO, no TECHO) |
+  | `272-303` | **0,91** | por detrás de `131937444` |
+  | `304-323` | INDETERMINADO | dentro de la banda de `131937504` |
+  | `324-1242` | **0,86** | por detrás de los dos proximales |
+
+  Colapsarlo a 0,86 para todos castigaría al tramo intermedio con un techo que no es el
+  suyo; dejarlo en 1,00 por delante del corte de 288 —que es lo que había— se saltaba un
+  sitio de corte entero. Los seis candidatos con techo del panel están todos en el último
+  tramo: **0,86**.
+- **El APA fue el cuarto FRENTE BLOQUEANTE y hoy está CERRADO. DECIDIDO (2026-08-26)**
+  (`selection.blocking_fronts`, `BlockingFront.blocking`). La cuenta que lo abrió sigue
+  siendo cierta —sitios inmunes por tramo 16/0/0, tope de cuatro por espaciado, seis de diez
+  candidatos con el mismo modo de fallo—, pero **la razón por la que bloqueaba era que un
+  techo alto y un shmiR malo dan la misma lectura en la placa**, y con el techo cuantificado
+  en **0,86** eso deja de cumplirse: 0,86 no es indistinguible de una guía que no funciona.
+  - **Un frente cerrado NO desaparece del informe**: sale como `FRENTE CERRADO` con el
+    motivo. Borrarlo dejaría el informe sin memoria de por qué se cerró, y el siguiente
+    lector no sabría si se resolvió o si nadie lo miró.
+  - **La reserva del tejido se mantiene** y va escrita: el dato es de todos los tejidos, así
+    que 0,86 es un límite inferior. La RT-qPCR de los dos amplicones sigue en pie y puede
+    **mejorar** el número.
+  - Sin tabla aplicable (p. ej. el 3'UTR humano) el frente **sigue bloqueando**, y el motivo
+    dice que la tabla no entra en esa corrida **por md5**, no que no exista.
+- **`--inmunes-antes` se DERIVA, no se teclea** (`selection.derive_immune_cut`). Estaba
+  puesto a mano (`--inmunes-antes 1252`, o sea `3utr:303`) y cuando el tercer sitio medido
+  adelantó la frontera a `3utr:251` la cifra tecleada siguió ahí **sin dar ningún error**.
+  Ahora `apa_immune_before=None` con cuota significa «sácalo del informe»; lo que sigue
+  abortando es llegar a `choose()` sin resolverlo, que es la garantía que importa.
 - **Los tercios se cuentan sobre el 3'UTR, no sobre lo tilado.** Con un mRNA completo
   `report.utr_length` es la longitud tilada (2191) y los límites salían del transcrito: el
   reparto decía «medio 20» de unos sitios que están todos en el tercio **proximal** del
@@ -849,5 +933,5 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | lista ampliada de abundancia (con referencia y umbral) | colisión de seed, nivel AVISO | `--abundancia` |
 | 3'UTR del transcriptoma | carga de off-targets por seed | `--transcriptoma-3utr` |
 | máscara rmsk de ratón | elementos repetitivos | `--rmsk` |
-| PolyA_DB / PolyASite | APA medido en vez de predicho | `--apa-medido` |
+| 3'-end seq de cerebro murino | fracción de isoforma larga en NUESTRO tejido (hoy hay la de todos los tejidos: 0,86, límite inferior) | `--apa-medido` |
 | tabla de expresión | ponderar la carga de seed | `--expresion` |

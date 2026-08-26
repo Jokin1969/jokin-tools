@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from .accessibility import Accessibility, accessibility_of
 from .anatomy import Anatomy, Region, RegionSource, TileRange
 from .coords import Frame, frame_of, label
-from .apa import ApaAssessment, ApaSites, apa_assessment
+from .apa import ApaAssessment, ApaSites, MeasuredApa, apa_assessment
 from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
 from .masking import RepeatMask, apply_mask, filter_repeats
 from .hard_filters import (
@@ -53,6 +53,7 @@ from .polya import (
     Window,
     annotate_3utr,
     find_polya_signals,
+    promote_by_measurement,
     normalize_sequence,
 )
 from .mirna import AbundanceList, MatureSet, filter_seed_collision
@@ -247,6 +248,11 @@ class TilingReport:
     utr3_set: Utr3Set | None = None
     accessibility: bool = False
     apa_sites: ApaSites | None = None
+    #: La tabla de APA MEDIDO ya colocada sobre esta secuencia, si la hay. Es lo
+    #: que promueve a APA_POSIBLE las señales con uso medido y lo que da el techo
+    #: por tramos; `None` significa que no hay medida para esta secuencia y que
+    #: `riesgo_APA` sigue siendo una PREDICCION.
+    measured_apa: "MeasuredApa | None" = None
     polya_mode: PolyAMode = PolyAMode.ESCALONADO
     #: Longitud y md5 CANONICO de la secuencia que se analizo. Sin esto no hay forma de
     #: saber que se analizo: la errata del 3'UTR fabricado se detecto por longitud
@@ -408,6 +414,7 @@ def tile_utr(
     expression: dict[str, float] | None = None,
     accessibility: bool = False,
     apa_sites: ApaSites | None = None,
+    measured_apa: "MeasuredApa | None" = None,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
     thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> TilingReport:
@@ -432,6 +439,13 @@ def tile_utr(
             f"coordenadas que no son las suyas."
         )
     signals = find_polya_signals(original, flank=thresholds.polya_flank)
+    if measured_apa is not None:
+        # La medida SUSTITUYE a la prediccion: una variante rara con uso medido
+        # pesa mas que una canonica sin medir. La promocion va antes de anotar
+        # ninguna ventana, para que ni un solo filtro vea la clasificacion vieja.
+        signals = promote_by_measurement(
+            signals, measured_apa.signal_starts, source=measured_apa.source
+        )
     cleaned = apply_mask(original, mask)
     tile_range = tile_range or TileRange.resolve(anatomy, window_size=window_size)
     windows = [
@@ -637,6 +651,7 @@ def tile_utr(
         window_size=window_size,
         windows=tuple(tiled),
         signals=tuple(signals),
+        measured_apa=measured_apa,
         anatomy=anatomy,
         specificity_db=specificity_db,
         avisos=annotated.avisos,

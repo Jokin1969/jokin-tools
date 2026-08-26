@@ -11,7 +11,7 @@
   Rango tilado: transcrito completo, 1-2191 (2191 nt) — cubre 5'UTR, CDS, 3'UTR
 
 ── Señales de poliadenilacion ──
-  · AATATA en tx:1185-1190 (a 1001 nt del extremo 3') → OTRA
+  · AATATA en tx:1185-1190 (a 1001 nt del extremo 3') → APA_POSIBLE
   · AATAAA en tx:1237-1242 (a 949 nt del extremo 3') → APA_POSIBLE
   · CATAAA en tx:1856-1861 (a 330 nt del extremo 3') → OTRA
   · AATATA en tx:1902-1907 (a 284 nt del extremo 3') → OTRA
@@ -36,15 +36,15 @@
 
 ── Tiling y seleccion ──
   ventanas:        2170
-  biofisicos_ok:   407
-  elegibles:       287 con criterio ESCALONADO (la variante rara de poliadenilacion penaliza, no excluye)
+  biofisicos_ok:   390
+  elegibles:       270 con criterio ESCALONADO (la variante rara de poliadenilacion penaliza, no excluye)
                    251 con criterio ESTRICTO (±flanco para los doce hexameros por igual)
-  sitios:          90
+  sitios:          86
   seleccionados:   10 de 10 pedidos (espaciado minimo 50 nt entre posiciones de inicio)
     #9 pos tx:959-980 proximal asim +4.33  INCOMPLETE
     #6 pos tx:1009-1030 proximal asim +5.15  INCOMPLETE
     #7 pos tx:1092-1113 proximal asim +5.08  INCOMPLETE
-    #10 pos tx:1170-1191 proximal asim +4.15  INCOMPLETE
+    #10 pos tx:1149-1170 proximal asim +3.80  INCOMPLETE
     #5 pos tx:1398-1419 medio    asim +5.32  INCOMPLETE  riesgo_APA
     #3 pos tx:1502-1523 medio    asim +5.86  INCOMPLETE  riesgo_APA
     #4 pos tx:1601-1622 medio    asim +5.80  INCOMPLETE  riesgo_APA
@@ -53,7 +53,7 @@
     #1 pos tx:1967-1988 distal   asim +6.65  INCOMPLETE  riesgo_APA
 
 ── Reparto de plazas ──
-  Cuotas DURAS de este panel: 1 por tercio del 3'UTR; 4 inmunes al corte de la señal proximal (empiezan por delante de tx:1252).
+  Cuotas DURAS de este panel: 1 por tercio del 3'UTR; 4 inmunes al corte de la señal proximal (empiezan por delante de tx:1200).
   De donde salen esas plazas: el bloque «solo de fuente externa» desaparecio por VACIO.
   Contra el conjunto completo de sitios elegibles no queda ni un sitio exclusivo de la
   fuente externa que supere nuestros filtros duros, asi que sus plazas se reasignan a
@@ -68,11 +68,11 @@
   Tercios del 3'UTR: 3utr:1-414, 3utr:415-828, 3utr:829-1242.
     La columna `tercio` etiqueta por el PUNTO MEDIO de la ventana; la particion de arriba va
     por POSICION DE INICIO. Con ventanas de 22 nt discrepan en el borde, asi que se dan las dos.
-    ventanas elegibles, por punto medio (asi se etiqueta): proximal 105, medio 128, distal 54
-    ventanas elegibles, por inicio: proximal 105, medio 137, distal 45
-    SITIOS elegibles, por inicio: proximal 32, medio 42, distal 16
-    SITIOS INMUNES por tramo (empiezan por delante de 3utr:303, el corte mas temprano de la señal proximal):
-      proximal 20, medio 0, distal 0
+    ventanas elegibles, por punto medio (asi se etiqueta): proximal 88, medio 128, distal 54
+    ventanas elegibles, por inicio: proximal 88, medio 137, distal 45
+    SITIOS elegibles, por inicio: proximal 28, medio 42, distal 16
+    SITIOS INMUNES por tramo (empiezan por delante de 3utr:251, el corte mas temprano de la señal proximal):
+      proximal 16, medio 0, distal 0
       Es hacia donde se puede REBALANCEAR el panel si el APA resulta funcional. Un tramo con
       cero no admite rebalanceo: ahi no hay nada que no lleve techo.
 
@@ -94,7 +94,7 @@
   tx:959             3utr:10      3'UTR   proximal  0.500  +4.33      0.00          +4.33                 no                 prediccion:no                             INCOMPLETE
   tx:1009            3utr:60      3'UTR   proximal  0.455  +5.15      0.00          +5.15                 no                 prediccion:no                             INCOMPLETE
   tx:1092            3utr:143     3'UTR   proximal  0.500  +5.08      0.00          +5.08                 no                 prediccion:no                             INCOMPLETE
-  tx:1170            3utr:221     3'UTR   proximal  0.409  +5.15      1.00          +4.15                 si                 prediccion:no                             INCOMPLETE
+  tx:1149            3utr:200     3'UTR   proximal  0.500  +3.80      0.00          +3.80                 no                 prediccion:no                             INCOMPLETE
   tx:1398            3utr:449     3'UTR   medio     0.318  +5.32      0.00          +5.32                 no                 prediccion:si                             INCOMPLETE
   tx:1502            3utr:553     3'UTR   medio     0.409  +5.86      0.00          +5.86                 no                 prediccion:si                             INCOMPLETE
   tx:1601            3utr:652     3'UTR   medio     0.455  +5.80      0.00          +5.80                 no                 prediccion:si                             INCOMPLETE
@@ -124,19 +124,49 @@
   Un mismo hexamero NUNCA produce los dos en la misma ventana: o estas encima de la
   señal, o estas por detras de su corte.
 
-  RIESGO DE TRUNCAMIENTO DOMINANTE DEL PANEL: AATAAA en tx:1237-1242 (3utr:288-293).
-  Clasificada APA_POSIBLE POR SER CANONICA y estar a mas de 100 nt del extremo 3',
-  NO POR EVIDENCIA DE USO: aqui no hay ni un dato de uso de este sitio. Es un SUPUESTO,
-  no una medida. Con una tabla de PolyA_DB o PolyASite (--apa-medido) dejaria de serlo.
-  Su corte cae en tx:1252-1272. Un candidato que empiece por detras pierde su diana en la
+  SEÑALES DE APA POSIBLE: 2. Cada una pone su propio techo, y se cuentan aparte:
+    · AATATA en tx:1185 (SUBIDA aqui por MEDIDA de uso: por prediccion saldria OTRA) (corte
+      tx:1200-1220): TECHO sobre 217 de 270 ventanas elegibles (80.4%); 0 en la banda de
+      corte (PENALIZADO, no se sabe de que lado caen); 53 por delante, inmunes. Techo del
+      tramo de detras: 0.91.
+    · AATAAA en tx:1237 (por canonicidad, CONFIRMADA por medida de uso) (corte
+      tx:1252-1272): TECHO sobre 208 de 270 ventanas elegibles (77.0%); 9 en la banda de
+      corte (PENALIZADO, no se sabe de que lado caen); 53 por delante, inmunes. Techo del
+      tramo de detras: 0.86.
+
+  LO QUE CUESTA LA PROMOCION: 17 ventana(s) que superaban todos los demas filtros pasan
+  a FAIL por SOLAPAR una señal que la medida acaba de subir a APA_POSIBLE (AATATA en
+  tx:1185). En 3'UTR: 3utr:213, 3utr:215, 3utr:216, 3utr:218, 3utr:219, 3utr:220,
+  3utr:221, 3utr:222, 3utr:223, 3utr:224, 3utr:225, 3utr:226, 3utr:227, 3utr:242,
+  3utr:243, 3utr:244, 3utr:245. OJO CON EL EJE: esas ventanas NO pierden su inmunidad al
+  TRUNCAMIENTO —empiezan por delante del corte, asi que su diana se conserva en las dos
+  isoformas—, la pierden por el riesgo ESTERICO, que es el otro: la ventana contiene el
+  hexamero y compite con CPSF/CstF por un sitio del que ahora se sabe que SE USA.
+  Mientras la señal era una variante rara sin datos, el solape valia una penalizacion de
+  ranking; con uso medido, no. Es una decision, y esta es su factura.
+
+  RIESGO DE TRUNCAMIENTO DOMINANTE DEL PANEL: AATATA en tx:1185-1190 (3utr:236-241).
+  Clasificada APA_POSIBLE POR MEDIDA DE USO, no por canonicidad — y es el caso INVERSO
+  al del hexamero canonico: aqui el hexamero es una VARIANTE RARA (AATATA), que por nuestra
+  cascada de prediccion saldria OTRA y valdria solo una penalizacion de ranking. Lo que la
+  sube es que hay dato de uso, y la medida SUSTITUYE a la prediccion: una variante rara
+  MEDIDA vale mas que una canonica sin medir. Procedencia del dato:
+    PolyA_DB v4.1: sitio de corte con datos de expresion. La clasificacion viene de la
+    MEDIDA, no de la canonicidad del hexamero.
+  Su corte cae en tx:1200-1220. Un candidato que empiece por detras pierde su diana en la
   isoforma CORTA y la conserva en la LARGA: el APA reparte los transcritos en una
   MEZCLA DE ISOFORMAS, asi que lo que corre es un TECHO de knockdown — NO ES UN VETO.
     con TECHO (por detras del corte): 3utr:449, 3utr:553, 3utr:652, 3utr:735, 3utr:819, 3utr:1018
-      techo indeterminado: fraccion_isoforma_larga NO MEDIDA. No es 0 ni 1 — es que
-      nadie la ha medido, y hasta entonces el techo de estos candidatos no se escribe.
-    INMUNES por ser proximales a esa señal: 3utr:10, 3utr:60, 3utr:143, 3utr:221 (del panel)
-      INMUNES elegibles NO elegidos: 16 sitio(s). Los mejores por asimetria:
-        3utr:187 (+4.06); 3utr:171 (+3.96); 3utr:69 (+3.80); 3utr:200 (+3.80); 3utr:157 (+3.69); 3utr:53 (+3.45)  ← inmunes tambien
+      techo MEDIDO, y no es el mismo para todos:
+        3utr:449: 0.86
+        3utr:553: 0.86
+        3utr:652: 0.86
+        3utr:735: 0.86
+        3utr:819: 0.86
+        3utr:1018: 0.86
+    INMUNES por ser proximales a esa señal: 3utr:10, 3utr:60, 3utr:143, 3utr:200 (del panel)
+      INMUNES elegibles NO elegidos: 12 sitio(s). Los mejores por asimetria:
+        3utr:187 (+4.06); 3utr:171 (+3.96); 3utr:69 (+3.80); 3utr:157 (+3.69); 3utr:53 (+3.45); 3utr:163 (+3.36)  ← inmunes tambien
       Son las plazas con las que se cambia un candidato con techo por uno inmune.
   Conservacion de esta señal en la otra especie:
     COMPROBADO sobre humano, 1606 nt: 0 aparicion(es) de AATAAA. La señal NO esta
@@ -149,19 +179,42 @@
     canonico por completo — ni una AATAAA en 1606 nt de 3'UTR. Un APA proximal FUNCIONAL
     es un elemento regulador, y los elementos reguladores tienden a conservarse. Eso
     REBAJA la probabilidad a priori de que la señal de esta especie se use. NO LO
-    DESCARTA: puede ser una diferencia real de especie, y mientras
-    fraccion_isoforma_larga siga sin medir el techo sigue indeterminado. Rebaja, no
-    descarta.
+    DESCARTA: puede ser una diferencia real de especie, y el techo YA esta medido (0.86
+    de isoforma larga), asi que esta nota no lo cambia: lo que hace es dar una razon MAS
+    para esperar que el real sea aun mas alto. Rebaja, no descarta.
     Consecuencia: el techo es un problema del MODELO murino, no del candidato.
 
   ── Fraccion de isoforma larga ──
+  MAPEO GENOMICO↔TRANSCRITO — RESUELTO SIN COORDENADAS GENOMICAS.
+    PolyA_DB publica el sitio de CORTE, NO EL HEXAMERO. Su leyenda: «A[A/U]UAAA motif within 40-nt upstream from the PAS» — el hexamero se busca AGUAS ARRIBA del PAS, luego la coordenada publicada es el corte. Con nuestra convencion el hexamero cae 10-30 nt por delante, dentro de esos 40 nt.
+    Hipotesis «PAS = hexamero»: DESCARTADA. Un hexamero es un punto, no una banda, asi que
+    bajo esa lectura el aterrizaje tiene que ser EXACTO — y no hay ningun desfase que haga
+    aterrizar mas de 1 de las 4 coordenadas. Bajo «PAS = corte» aterrizan las 4,
+    con el MISMO desfase y con la CLASE de hexamero que declara la propia base en cada una.
+    No es una resta: son 4 puntos de apoyo independientes. Desfase 3'UTR→mm10 acotado a 131937185-131937193 (9 valores); se deja como INTERVALO
+    porque la banda de corte mide 20 nt y fijarlo en un entero seria inventarse precision.
+  
+      chr2:+:131937444  Other   → corte 3utr:251-271, hexamero AATATA en 3utr:236  ← proximal mas usado: PSE 21,1 %, AvgRPM 0,55
+      chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexamero AATAAA en 3utr:288  ← PSE 23,5 %, AvgRPM 0,34
+      chr2:+:131938392  Other   → AMBIGUO: 2 hexameros de su clase en la banda (TATAAA en 3utr:1178, TATAAA en 3utr:1189). Ancla, pero NO entra al modelo con banda propia.
+      chr2:+:131938427  AUUAAA  → corte 3utr:1229-1249, hexamero ATTAAA en 3utr:1214  (sin datos de expresion)  ← fuerza 99,9 %, conservado en humano y rata; SIN expresion, asi que no entra en la fraccion — solo ancla
+  
+    TECHO POR TRAMOS. Con tres sitios de corte medidos el techo ya no es UNO: la pregunta
+    de un candidato no es cuanta isoforma larga hay, es que fraccion de transcritos conserva
+    SU diana — y eso depende de por detras de cuantos cortes esta.
+      tx:1-1200  sin techo            por delante de todos los cortes medidos: la diana esta en TODAS las isoformas. INMUNE.
+      tx:1201-1220  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937444: no se sabe de que lado cae, asi que el techo es INDETERMINADO (PENALIZADO, no TECHO)
+      tx:1221-1252  techo 0.91           por detras de chr2:+:131937444
+      tx:1253-1272  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937504: no se sabe de que lado cae, asi que el techo es INDETERMINADO (PENALIZADO, no TECHO)
+      tx:1273-2191  techo 0.86           por detras de chr2:+:131937444, chr2:+:131937504
+
   FRACCION DE ISOFORMA LARGA — MEDIDA. PolyA_DB v4.1 (2025-09-15), mm10, Prnp (Gene ID 19122).
     15 PAS en el gen, 5 con datos de expresion; los demas por debajo de deteccion en 3'READS+ —incluidos los intermedios del 3'UTR—, asi que no introducen techos.
     Representativo de la base: NM_001278256.1 (NO es nuestro NM_011170.3).
   
     Sitios con expresion:
-      chr2:+:131937444  Other   PSE 21.1%  AvgRPM 0.55  proximal  ← segundo PAS proximal, NO estaba en nuestro modelo
-      chr2:+:131937504  AAUAAA  PSE 23.5%  AvgRPM 0.34  proximal  ← candidato a ser nuestro AATAAA proximal
+      chr2:+:131937444  Other   PSE 21.1%  AvgRPM 0.55  proximal  ← TERCER sitio de corte, el proximal MAS USADO de los tres
+      chr2:+:131937504  AAUAAA  PSE 23.5%  AvgRPM 0.34  proximal  ← nuestro AATAAA de 3utr:288
       chr2:+:131938392  Other   PSE 70.5%  AvgRPM 1.65  DISTAL  ← racimo terminal
   
     ponderada    Σ(AvgRPM × PSE) distal / Σ total = 0.86   ← VALOR DE TRABAJO
@@ -170,10 +223,11 @@
   
     TEJIDO: TODOS LOS TEJIDOS, no cerebro. Las neuronas ALARGAN los 3'UTR, asi que la fraccion larga en cerebro sera probablemente MAYOR. El 0.86 es un LIMITE INFERIOR conservador para nuestro tejido — y por eso la RT-qPCR de los dos amplicones deja de ser solo confirmacion: puede MEJORAR el numero.
   
-    PENDIENTE ANTES DE USARLO. El dato NO entra al pipeline todavia:
-      1. La conversion genomico↔transcrito, contra la anotacion real. AQUI NO SE PUEDE HACER: el .gb de NM_011170.3 no trae coordenadas genomicas — su bloque PRIMARY referencia cDNA y EST, no un cromosoma. Hace falta la anotacion genomica del transcrito (exones sobre mm10) o el registro de NM_001278256.1 para ver si comparten 3'UTR. Con la aritmetica sola salen DOS mapeos y no se elige: si 131937504 es el HEXAMERO, 131937444 cae en 3utr:228 y 131938392 en 3utr:1176; si es el SITIO DE CORTE (banda 303-323), 131937444 cae en 3utr:243-263 y 131938392 en 3utr:1191-1211.
-      2. El segundo PAS proximal 131937444, que no estaba en nuestro modelo. Bajo el primer mapeo cae en 3utr:228 y quedaria POR DELANTE del candidato 3utr:221 — que dejaria de ser inmune y pasaria a tener riesgo esterico por solapar el hexamero. Bajo el segundo mapeo cae detras y no le afecta. Los cuatro inmunes dependen de cual sea: 3utr:10, 60, 143 y 221.
-      3. El PAS terminal 131938427 (fuerza 99,9 %, conservado en humano y rata) no tiene datos de expresion; el que los tiene es 131938392, 35 nt aguas arriba. Probablemente el mismo racimo, pero se anotan como DOS y no se fusionan sin comprobarlo: fusionarlos suma su expresion y sube la fraccion larga sin dato.
+    SIN COMPROBACIONES PENDIENTES: el dato ENTRA al pipeline. El mapeo genomico↔transcrito,
+    que era lo unico que lo bloqueaba, esta resuelto sobre cuatro puntos de apoyo (ver arriba).
+  
+    RESERVAS ANOTADAS. No bloquean porque no mueven el valor, y por eso mismo no se omiten:
+      1. El PAS terminal 131938427 y el que tiene expresion (131938392, 35 nt aguas arriba) se anotan como DOS y no se fusionan sin comprobarlo: fusionarlos suma su expresion y sube la fraccion larga sin dato. El anclaje los coloca sobre hexameros DISTINTOS —ATTAAA en 3utr:1214 el uno; TATAAA en 3utr:1178 o en 3utr:1189 el otro, que ademas no distingue entre los dos—, asi que tampoco por ahi hay motivo para fusionarlos. NO MUEVE EL VALOR: 131938427 no tiene expresion, luego no suma nada a ninguna de las dos formulas.
 
   ANTES DEL BANCO — mirar si la fraccion ya esta medida y publicada:
     1. PolyA_DB / PolyASite: ¿hay sitio anotado en este 3'UTR, y con que fraccion de
@@ -184,15 +238,15 @@
     descubrimiento — y entonces cuesta lo que cuesta comprobar dos amplicones, no una serie.
 
   EXPERIMENTO QUE RESUELVE EL TECHO — RT-qPCR de dos amplicones sobre el 3'UTR
-    Señal en cuestion: AATAAA en tx:1237-1242 (3utr:288-293); banda de corte tx:1252-1272.
-    proximal: tx:1107-1226 (3utr:158-277) (120 nt). entero por delante de AATAAA@tx:1237 (holgura 10 nt) y dentro de la region analizada: presente en las DOS isoformas, mide el total.  ⚠  solapa 1082-1123, 1160-1201
-    distal: tx:1800-1919 (3utr:851-970) (120 nt). entero por detras de la banda de corte tx:1252-1272 (holgura 10 nt): solo presente en la isoforma LARGA.
+    Señal en cuestion: AATATA en tx:1185-1190 (3utr:236-241); banda de corte tx:1200-1220.
+    proximal: tx:1055-1174 (3utr:106-225) (120 nt). entero por delante de AATATA@tx:1185 (holgura 10 nt) y dentro de la region analizada: presente en las DOS isoformas, mide el total.  ⚠  solapa 1082-1123, 1139-1180
+    distal: tx:1231-1350 (3utr:282-401) (120 nt). entero por detras de la banda de corte tx:1200-1220 (holgura 10 nt): solo presente en la isoforma LARGA.
     Los dos se cuantifican contra una CURVA ESTANDAR COMUN: sin ella las dos eficiencias
     no son comparables y la razon no significa nada.
     RETROTRANSCRIPCION CON HEXAMEROS ALEATORIOS. Con oligo-dT NO, y el sesgo tiene direccion
     conocida: el oligo-dT ceba en la cola de poli(A) y la RT avanza 3'→5', asi que una RT
     incompleta cubre lo que esta cerca de la cola y pierde lo de lejos. En la isoforma LARGA
-    el amplicon proximal queda a 965 nt de la cola y el distal a 272 nt:
+    el amplicon proximal queda a 1017 nt de la cola y el distal a 841 nt:
     la larga se subrepresenta MAS en el proximal que en el distal, y la razon distal/proximal
     sale sesgada HACIA MAS ISOFORMA LARGA — que es justo el resultado que se esta buscando.
     Con hexameros aleatorios el cebado no depende de la distancia a la cola.
@@ -257,12 +311,12 @@
 ── Convergencia con la fuente externa ──
   HALLAZGO — el espacio de ventanas viables esta SATURADO
     Dos metodos independientes con criterios distintos sobre el MISMO 3'UTR: nuestra cascada de filtros duros
-    y fuente externa (mirarchitect_prnp_export_buena.csv, 24 filas, 0 sin mapear). 24 sitio(s) de la fuente externa contra los 90 sitios elegibles (la tabla COMPLETA)
-    (90 posiciones), espaciado 50 nt:
+    y fuente externa (mirarchitect_prnp_export_buena.csv, 24 filas, 0 sin mapear). 24 sitio(s) de la fuente externa contra los 86 sitios elegibles (la tabla COMPLETA)
+    (86 posiciones), espaciado 50 nt:
       · 0 sitios exclusivos de la fuente externa que superen nuestros filtros duros.
         (tx:2149 (3utr:1200) no choca con ningun sitio nuestro, pero no pasa nuestros filtros duros:
         por eso no hay ninguna ventana elegible cerca, y por eso no es una plaza que nadie aporte.)
-      · 4 coincidencia(s) EXACTA(S), misma posicion de inicio y misma ventana base a base: tx:1170 (3utr:221), tx:1684 (3utr:735), tx:1759 (3utr:810), tx:1967 (3utr:1018)
+      · 3 coincidencia(s) EXACTA(S), misma posicion de inicio y misma ventana base a base: tx:1684 (3utr:735), tx:1759 (3utr:810), tx:1967 (3utr:1018)
       · 6 a 1 nt (la misma ventana corrida una base): tx:1286 (3utr:337)↔tx:1287 (3utr:338), tx:1465 (3utr:516)↔tx:1466 (3utr:517), tx:1501 (3utr:552)↔tx:1502 (3utr:553), tx:1966 (3utr:1017)↔tx:1967 (3utr:1018), tx:1973 (3utr:1024)↔tx:1974 (3utr:1025), tx:2024 (3utr:1075)↔tx:2025 (3utr:1076)
     LECTURA. Esto NO ES UNA VALIDACION cruzada: donde solo cabe coincidir, coincidir no
     demuestra nada. Lo que dice es que bajo los filtros duros quedan tan pocas ventanas
@@ -315,7 +369,7 @@
     TAATGCGAAGGAACAAGCAGGA
     TAATTGAAAGAGCTACAGGTGG
     TCTACTGTACATTTCCCAGGGC
-    TTATATTCTTATTGGCCCGGTG
+    TTTAGCACTGGCTGATGACAGA
     TTTAGTAAAGAAAGAATTCCAC
     TTAAAGATCATTCTAGTGCCCT
     TTTTGTACCTTAACCATCCCTC
@@ -331,7 +385,7 @@
   La seleccion se hizo por asimetria, no repartiendo. La asimetria predice SELECCION DE HEBRA, no potencia: si lo que se quiere es correlacionar parametros contra el knockdown medido, --reparto-rango reparte los candidatos por los extremos de los parametros dudosos.
 
 ── Poliadenilacion alternativa (APA) ──
-  riesgo_APA es una PREDICCION, no un dato: 928 de 2170 ventana(s) (42.8%) quedan por detras de una señal de APA posible.
+  riesgo_APA es una PREDICCION, no un dato: 980 de 2170 ventana(s) (45.2%) quedan por detras de una señal de APA posible.
   Que esa señal se use o no, esto no lo puede saber. Si se usa, esas ventanas tienen un techo de knockdown duro e invisible. Con una tabla de PolyA_DB o PolyASite (--apa-medido) el dato sustituiria a la prediccion.
 
 ── Accesibilidad de la diana ──
@@ -358,13 +412,13 @@
   asi que la zona prohibida por esa razon es asimetrica y esta desplazada aguas abajo.
   Modo        elegibles   candidatos elegidos
   estricto          251   tx:959, tx:1009, tx:1092, tx:1149, tx:1308, tx:1398, tx:1502, tx:1601, tx:1684, tx:1768
-  escalonado        287   tx:959, tx:1009, tx:1092, tx:1170, tx:1398, tx:1502, tx:1601, tx:1684, tx:1768, tx:1967
+  escalonado        270   tx:959, tx:1009, tx:1092, tx:1149, tx:1398, tx:1502, tx:1601, tx:1684, tx:1768, tx:1967
   permisivo         302   tx:959, tx:1009, tx:1092, tx:1170, tx:1398, tx:1502, tx:1601, tx:1684, tx:1768, tx:1967
   Los tres modos NO eligen lo mismo: aqui el criterio de polyA SI cambia quien entra, asi que la eleccion de modo es una decision de diseño y no un detalle.
 
 ── Sensibilidad de la penalizacion por poliadenilacion debil ──
-  ventanas con bandera: 249
-    0.5 kcal/mol → tx:1009, tx:1092, tx:1170, tx:1308, tx:1398, tx:1502, tx:1601, tx:1684, tx:1768, tx:1967
+  ventanas con bandera: 202
+    0.5 kcal/mol → tx:1009, tx:1092, tx:1308, tx:1398, tx:1502, tx:1601, tx:1684, tx:1768, tx:1849, tx:1967
     1.0 kcal/mol → tx:959, tx:1009, tx:1092, tx:1308, tx:1398, tx:1502, tx:1601, tx:1684, tx:1768, tx:1967
     1.5 kcal/mol → tx:959, tx:1009, tx:1092, tx:1308, tx:1398, tx:1502, tx:1601, tx:1684, tx:1768, tx:1967
     2.0 kcal/mol → tx:959, tx:1009, tx:1092, tx:1308, tx:1398, tx:1502, tx:1601, tx:1684, tx:1768, tx:1967
@@ -377,23 +431,27 @@
   seed_colision: NOT_RUN en 2170 de 2170 ventanas
   transgen: NOT_RUN en 2170 de 2170 ventanas
   NOT_RUN no es PASS. Mientras haya filtros sin correr, la seleccion es PROVISIONAL y ningun candidato esta aprobado: su veredicto es INCOMPLETE.
-  EL PANEL ES PROVISIONAL EN 6 FRENTE(S): especificidad, fraccion_isoforma_larga, repeticiones, seed, seed_colision, transgen.
-    fraccion_isoforma_larga: NO MEDIDA, y bloquea. 6 de 10 candidatos quedan por detras
-    del corte de tx:1237: comparten UN UNICO MODO DE FALLO. Y el rebalanceo tiene tope:
-    los sitios inmunes por tramo son 20/0/0 —todos en el proximal— y el espaciado deja
-    meter cuatro, que son los 4 que ya estan. POR QUE BLOQUEA: si la fraccion de isoforma
-    corta es alta, esos 6 candidatos entran al cribado con un TECHO INDISTINGUIBLE DE UN
-    shmiR MALO — un techo de 0,3 y una guia que no funciona dan la misma lectura en la
-    placa, y el experimento se gasta en no poder separarlos. ESTADO: HAY UNA MEDIDA
-    —PolyA_DB v4.1, fraccion larga 0.86 ponderada / 0.65 sin ponderar— PERO NO ENTRA
-    TODAVIA: quedan 3 comprobacion(es) sin hacer, y la primera es la conversion
-    genomico↔transcrito, que NO se puede hacer con lo que hay en este repositorio. Ver el
-    bloque «Fraccion de isoforma larga» del informe. Mientras tanto el techo sigue
-    INDETERMINADO y este frente sigue bloqueando: un numero que depende de una conversion
-    sin comprobar no es un techo medido.
-  NO SE PIDE OLIGO hasta que los 6 tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
+  EL PANEL ES PROVISIONAL EN 5 FRENTE(S): especificidad, repeticiones, seed, seed_colision, transgen.
+  FRENTE CERRADO — fraccion_isoforma_larga:
+    CERRADO. 6 de 10 candidatos quedan por detras del corte de tx:1185: comparten UN UNICO
+    MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes por tramo son 16/0/0
+    —todos en el proximal— y el espaciado deja meter cuatro, que son los 4 que ya estan.
+    POR QUE BLOQUEABA: si la fraccion de isoforma corta es alta, esos 6 candidatos entran
+    al cribado con un TECHO INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guia
+    que no funciona dan la misma lectura en la placa, y el experimento se gasta en no
+    poder separarlos. ESTADO: MEDIDO. PolyA_DB v4.1, fraccion larga 0.86 ponderada / 0.65
+    sin ponderar. El mapeo genomico↔transcrito que bloqueaba esta RESUELTO sin coordenadas
+    genomicas y sobre 4 puntos de apoyo, no sobre una resta. Y el techo no es uno: va POR
+    TRAMOS (0.91, 0.86), porque depende de por detras de cuantos cortes esta cada
+    candidato. Con eso deja de cumplirse lo que hacia bloquear a este frente: un techo de
+    0.86 NO es indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el
+    dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, asi que
+    estas cifras son un LIMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos
+    amplicones sigue en pie y puede MEJORARLAS.
+  NO SE PIDE OLIGO hasta que los cinco tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
   y otro necesite una base entera no cambia nada: los dos bloquean igual, y llamar «unico
   bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin correr.
 
 ── Avisos ──
+  ⚠  [APA_PROXIMAL] Posible poliadenilacion alternativa: AATATA canonica en tx:1185 (a 1001 nt del extremo 3'). Afecta a 980 de 2170 ventana(s) corriente abajo (45.2%), posiciones tx:1191-2191. Podrian no capturar la isoforma corta. NO se excluyen: quedan anotadas con riesgo_APA=True y la lista completa esta en el TSV. La decision es del responsable. El limite de riesgo es la SEÑAL (tx:1185), no el sitio de corte, que cae 10-30 nt aguas abajo: el marcado es conservador a proposito y NO es una prediccion del extremo de la isoforma corta.
   ⚠  [APA_PROXIMAL] Posible poliadenilacion alternativa: AATAAA canonica en tx:1237 (a 949 nt del extremo 3'). Afecta a 928 de 2170 ventana(s) corriente abajo (42.8%), posiciones tx:1243-2191. Podrian no capturar la isoforma corta. NO se excluyen: quedan anotadas con riesgo_APA=True y la lista completa esta en el TSV. La decision es del responsable. El limite de riesgo es la SEÑAL (tx:1237), no el sitio de corte, que cae 10-30 nt aguas abajo: el marcado es conservador a proposito y NO es una prediccion del extremo de la isoforma corta.

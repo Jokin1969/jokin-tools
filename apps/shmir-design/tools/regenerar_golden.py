@@ -38,7 +38,6 @@ ARGV = [
     "--min-block", "22",
     "--candidates", "10",
     "--inmunes", "4",
-    "--inmunes-antes", "1252",
     "--sin-manifiesto",
 ]
 

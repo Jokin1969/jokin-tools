@@ -89,15 +89,18 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
         apa = [f for f in self.frentes if f.name == "fraccion_isoforma_larga"][0]
         self.assertIn("INDISTINGUIBLE DE UN shmiR MALO", apa.reason)
 
-    def test_cita_la_medida_de_PolyA_DB_y_por_que_no_basta_todavia(self):
+    def test_cita_la_medida_de_PolyA_DB_y_por_que_no_basta_EN_ESTA_corrida(self):
         # ACTUALIZADO 2026-08-26: ya hay medida (PolyA_DB v4.1). El frente sigue
         # bloqueando porque la conversion genomico↔transcrito no esta comprobada, y un
         # numero que depende de una conversion sin comprobar no es un techo medido.
         apa = [f for f in self.frentes if f.name == "fraccion_isoforma_larga"][0]
         self.assertIn("PolyA_DB", apa.reason)
         self.assertIn("0.86", apa.reason)
-        self.assertIn("NO ENTRA TODAVIA", apa.reason)
-        self.assertIn("conversion genomico", apa.reason)
+        # Esta corrida se hace SIN pasar la tabla medida, asi que el techo sigue
+        # indeterminado aqui. Que la tabla exista no la aplica: se aplica por md5.
+        self.assertIn("NO ENTRA EN ESTA CORRIDA", apa.reason)
+        self.assertIn("md5", apa.reason)
+        self.assertTrue(apa.blocking)
 
     def test_sin_candidatos_con_techo_el_frente_NO_existe(self):
         # Si todos fueran inmunes, la fraccion no bloquearia nada. El frente sale del

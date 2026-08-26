@@ -34,6 +34,7 @@ from .external_score import manual_instructions
 from .selection import (
     apa_ceiling_table,
     blocking_fronts,
+    measured_promotion_cost,
     is_eligible,
     tercio_counts,
     coverage_report,
@@ -515,11 +516,12 @@ def text_report(
     )
     lines.append("  señal, o estas por detras de su corte.")
     lines.append("")
+    # El riesgo DOMINANTE es el del corte MAS TEMPRANO, y eso no es lo mismo que «la
+    # canonica». Con el tercer sitio medido de PolyA_DB el corte mas temprano lo pone un
+    # AATATA —variante rara— que entra por MEDIDA de uso, no por canonicidad. Filtrar
+    # por hexamero canonico aqui dejaria fuera justo la señal que manda.
     canonicas = [
-        s
-        for s in tiling.signals
-        if s.motif in ("AATAAA", "ATTAAA")
-        and s.classification.value == "APA_POSIBLE"
+        s for s in tiling.signals if s.classification.value == "APA_POSIBLE"
     ]
     # TODAS las señales de APA, con cuanto panel condiciona cada una. Enseñar solo la
     # dominante esconde el resto: el 3'UTR humano tiene DOS y la segunda condiciona la
@@ -531,7 +533,16 @@ def text_report(
             f"se cuentan aparte:"
         )
         for fila in techos:
-            lines.extend(f"    · {l}" for l in _envolver(fila.describe(), 86))
+            # La viñeta va SOLO en la primera linea: repetirla en las continuaciones
+            # hace que cada trozo parezca una señal distinta, y aqui la cuenta de
+            # señales es justo lo que se esta dando.
+            trozos = _envolver(fila.describe(), 86)
+            lines.append(f"    · {trozos[0]}")
+            lines.extend(f"      {l}" for l in trozos[1:])
+        lines.append("")
+    coste = measured_promotion_cost(tiling)
+    if coste.windows:
+        lines.extend(f"  {l}" for l in _envolver(coste.describe(), 86))
         lines.append("")
     if canonicas:
         dominante = min(canonicas, key=lambda s: s.position)
@@ -546,18 +557,44 @@ def text_report(
             f"  RIESGO DE TRUNCAMIENTO DOMINANTE DEL PANEL: {dominante.motif} en "
             f"{span(dominante.position, dominante.end, marco)}{en_utr3}."
         )
-        lines.append(
-            "  Clasificada APA_POSIBLE POR SER CANONICA y estar a mas de 100 nt del "
-            "extremo 3',"
-        )
-        lines.append(
-            "  NO POR EVIDENCIA DE USO: aqui no hay ni un dato de uso de este sitio. Es "
-            "un SUPUESTO,"
-        )
-        lines.append(
-            "  no una medida. Con una tabla de PolyA_DB o PolyASite (--apa-medido) "
-            "dejaria de serlo."
-        )
+        if dominante.evidence == "medida":
+            lines.append(
+                "  Clasificada APA_POSIBLE POR MEDIDA DE USO, no por canonicidad — y es "
+                "el caso INVERSO"
+            )
+            lines.append(
+                "  al del hexamero canonico: aqui el hexamero es una VARIANTE RARA "
+                "("
+                + dominante.motif
+                + "), que por nuestra"
+            )
+            lines.append(
+                "  cascada de prediccion saldria OTRA y valdria solo una penalizacion de "
+                "ranking. Lo que la"
+            )
+            lines.append(
+                "  sube es que hay dato de uso, y la medida SUSTITUYE a la prediccion: "
+                "una variante rara"
+            )
+            lines.append(
+                "  MEDIDA vale mas que una canonica sin medir. Procedencia del dato:"
+            )
+            lines.extend(
+                f"    {l}" for l in _envolver(dominante.measured_use, 84)
+            )
+        else:
+            lines.append(
+                "  Clasificada APA_POSIBLE POR SER CANONICA y estar a mas de 100 nt del "
+                "extremo 3',"
+            )
+            lines.append(
+                "  NO POR EVIDENCIA DE USO: aqui no hay ni un dato de uso de este sitio. "
+                "Es un SUPUESTO,"
+            )
+            lines.append(
+                "  no una medida. Con una tabla de PolyA_DB o PolyASite (--apa-medido) "
+                "dejaria de serlo."
+            )
         lines.append(
             f"  Su corte cae en {corte}. Un candidato que empiece por detras pierde su "
             f"diana en la"
@@ -582,14 +619,29 @@ def text_report(
                 f"    con TECHO (por detras del corte): "
                 f"{', '.join(label(p, Frame.UTR3) for p in sorted(detras))}"
             )
-            lines.append(
-                "      techo indeterminado: fraccion_isoforma_larga NO MEDIDA. No es 0 "
-                "ni 1 — es que"
-            )
-            lines.append(
-                "      nadie la ha medido, y hasta entonces el techo de estos "
-                "candidatos no se escribe."
-            )
+            if tiling.measured_apa is None:
+                lines.append(
+                    "      techo indeterminado: fraccion_isoforma_larga NO MEDIDA. No es "
+                    "0 ni 1 — es que"
+                )
+                lines.append(
+                    "      nadie la ha medido, y hasta entonces el techo de estos "
+                    "candidatos no se escribe."
+                )
+            else:
+                # Con varios sitios medidos el techo NO es uno: depende de por detras de
+                # cuantos cortes esta cada candidato. Se da el de cada uno.
+                lines.append("      techo MEDIDO, y no es el mismo para todos:")
+                for posicion in sorted(detras):
+                    capa = tiling.measured_apa.layer_for(posicion + desfase)
+                    lines.append(
+                        f"        {label(posicion, Frame.UTR3)}: "
+                        + (
+                            "INDETERMINADO (dentro de una banda de corte)"
+                            if capa.ceiling is None
+                            else f"{capa.ceiling:.2f}"
+                        )
+                    )
         # Los inmunes del panel, y los que la piscina de elegibles tiene ademas. Con un
         # solo inmune el panel entero depende de que el supuesto de arriba sea falso.
         alternativas = [
@@ -667,7 +719,16 @@ def text_report(
             )
             if not polya_conservation.conserved:
                 lines.extend(
-                    f"    {l}" for l in _envolver(polya_conservation.prior_note(), 84)
+                    f"    {l}"
+                    for l in _envolver(
+                        polya_conservation.prior_note(
+                            ceiling=(
+                                None if tiling.measured_apa is None
+                                else tiling.measured_apa.layers[-1].ceiling
+                            )
+                        ),
+                        84,
+                    )
                 )
                 lines.append(
                     "    Consecuencia: el techo es un problema del MODELO murino, no "
@@ -702,6 +763,9 @@ def text_report(
             ],
         )
         lines.extend(["", "  ── Fraccion de isoforma larga ──"])
+        if tiling.measured_apa is not None:
+            lines.extend(f"  {l}" for l in tiling.measured_apa.describe())
+            lines.append("")
         lines.extend(f"  {l}" for l in POLYA_DB_PRNP.describe())
         lines.append("")
         lines.append(
@@ -979,19 +1043,27 @@ def text_report(
         # bloqueante». Un fichero pequeño que falta y una base de datos que falta
         # bloquean igual, y decir «solo falta uno» invita a pedir oligo.
         frentes = blocking_fronts(tiling, selection)
+        abiertos = [f for f in frentes if f.blocking]
+        cerrados = [f for f in frentes if not f.blocking]
         lines.append(
-            f"  EL PANEL ES PROVISIONAL EN {len(frentes)} FRENTE(S): "
-            + ", ".join(sorted(f.name for f in frentes))
+            f"  EL PANEL ES PROVISIONAL EN {len(abiertos)} FRENTE(S): "
+            + ", ".join(sorted(f.name for f in abiertos))
             + "."
         )
-        for frente in frentes:
+        for frente in abiertos:
             if frente.name not in selection.not_run_filters:
                 lines.extend(
                     f"    {l}" for l in _envolver(f"{frente.name}: {frente.reason}", 86)
                 )
+        # Un frente CERRADO no se borra de la lista: se enseña cerrado. Borrarlo dejaria
+        # el informe sin memoria de por que se cerro, y el siguiente lector no sabria si
+        # se resolvio o si nadie lo miro.
+        for frente in cerrados:
+            lines.append(f"  FRENTE CERRADO — {frente.name}:")
+            lines.extend(f"    {l}" for l in _envolver(frente.reason, 86))
         lines.append(
             "  NO SE PIDE OLIGO hasta que los "
-            + {3: "tres", 4: "cuatro", 5: "cinco"}.get(len(frentes), str(len(frentes)))
+            + {3: "tres", 4: "cuatro", 5: "cinco"}.get(len(abiertos), str(len(abiertos)))
             + " tengan veredicto. Que uno de ellos se arregle con un fichero pequeño"
         )
         lines.append(

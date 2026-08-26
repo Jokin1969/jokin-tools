@@ -31,7 +31,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 
 from .accessibility import CONTEXT_WINDOWS as _CTX
@@ -149,12 +149,9 @@ class SelectionConfig:
             raise ValueError(
                 f"apa_immune_quota={self.apa_immune_quota} invalida; se aborta."
             )
-        if self.apa_immune_quota and self.apa_immune_before is None:
-            raise ValueError(
-                f"Se piden {self.apa_immune_quota} candidatos inmunes pero no se dice "
-                f"inmunes A QUE: falta apa_immune_before, la posicion del corte mas "
-                f"tardio de la señal proximal. Se aborta."
-            )
+        # `apa_immune_before=None` con cuota NO es «sin decir a que»: es «sacalo del
+        # informe» (`derive_immune_cut`), que ademas es mejor que teclearlo. Lo que no
+        # puede pasar es llegar a `choose()` sin resolverlo, y eso lo comprueba `choose`.
         if self.apa_immune_quota > self.n_candidates:
             raise ValueError(
                 f"Se piden {self.apa_immune_quota} inmunes en un panel de "
@@ -411,6 +408,12 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
     # concreto del 3'UTR— y dejarla para el final la haria imposible de llenar en
     # cuanto el espaciado se hubiera gastado en otra parte.
     if config.apa_immune_quota:
+        if config.apa_immune_before is None:
+            raise ValueError(
+                f"Se piden {config.apa_immune_quota} candidatos inmunes pero no se dice "
+                f"inmunes A QUE: `apa_immune_before` sigue en None y aqui ya no hay "
+                f"informe del que sacarlo. Se aborta antes de elegir a ciegas."
+            )
         inmunes = [
             s for s in ordenados
             if s.best.start <= config.apa_immune_before and id(s) not in usados
@@ -664,6 +667,18 @@ def select_from_report(
 ) -> ReportSelection:
     """Pasos 3, 4 y 5 sobre un informe de tiling ya filtrado."""
     config = config or SelectionConfig()
+    if config.apa_immune_quota and config.apa_immune_before is None:
+        # De donde sale la frontera: del informe, no de un numero tecleado. Un corte
+        # escrito a mano no se entera de que un sitio de corte medido lo adelante.
+        derivado = derive_immune_cut(report)
+        if derivado is None:
+            raise ValueError(
+                f"Se piden {config.apa_immune_quota} candidatos inmunes al truncamiento "
+                f"por APA, pero este informe no tiene ninguna señal APA_POSIBLE: no hay "
+                f"corte al que ser inmune. Se aborta en vez de dar la cuota por "
+                f"cumplida con cualquiera."
+            )
+        config = replace(config, apa_immune_before=derivado)
     choices = eligible_choices(report, config)
     sites = group_choices(choices)
     selection = choose(sites, config)
@@ -1093,6 +1108,125 @@ def coverage_report(
 # formas.
 
 
+def derive_immune_cut(report: TilingReport) -> int | None:
+    """El corte MAS TEMPRANO de las señales `APA_POSIBLE`, en el marco de lo tilado.
+
+    Es la frontera de la inmunidad bajo el criterio ESTRICTO —el unico que vale: por
+    delante de aqui la ventana se conserva en las dos isoformas; por delante del corte
+    mas TARDIO entrarian ventanas de dentro de la banda de 20 nt, que `polya_risk`
+    clasifica `PENALIZADO` y llamarlas inmunes seria inventarse precision.
+
+    Existe para que ese numero no se teclee. Estaba puesto a mano (`--inmunes-antes
+    1252`) y cuando un tercer sitio de corte medido adelanto la frontera de 3utr:303 a
+    3utr:251, la cifra tecleada siguio ahi sin dar ningun error.
+    """
+    from .polya import CLEAVAGE_MIN, SignalClass
+
+    posibles = [
+        s for s in report.signals if s.classification is SignalClass.APA_POSSIBLE
+    ]
+    if not posibles:
+        return None
+    return min(s.end for s in posibles) + CLEAVAGE_MIN
+
+
+# ─── Lo que CUESTA promover una señal por medida ─────────────────────────────
+#
+# Subir un hexamero a APA_POSIBLE no es solo poner un techo: `is_hard_block` se vuelve
+# cierto, y bajo el criterio escalonado toda ventana que lo SOLAPE pasa a FAIL. Eso
+# tumba candidatos.
+#
+# En el raton tumba `3utr:221`, que era uno de los cuatro inmunes del panel. Y el modo
+# en que lo tumba importa: `3utr:221` NO pierde su inmunidad al truncamiento —empieza en
+# 221 y el corte mas temprano cae en 251, asi que se conserva en las dos isoformas—, la
+# pierde por el OTRO riesgo, el ESTERICO: su ventana contiene el hexamero y compite con
+# CPSF/CstF por un sitio del que ahora se sabe que SE USA. Son dos ejes distintos y el
+# informe no los mezcla.
+#
+# Sin esta cuenta, la unica huella de la decision seria que la piscina de elegibles es
+# mas pequeña, que es exactamente la forma que tiene un candidato de desaparecer sin que
+# nadie lo vea.
+
+
+@dataclass(frozen=True)
+class PromotionCost:
+    windows: tuple = ()
+    signals: tuple = ()
+    frame: object = None
+
+    @property
+    def window_starts(self) -> tuple[int, ...]:
+        return tuple(w.window.start for w in self.windows)
+
+    def describe(self) -> str:
+        from .coords import Frame, label
+
+        if not self.windows:
+            return ""
+        marco = self.frame or Frame.UTR3
+        cuales = ", ".join(
+            f"{s.motif} en {label(s.position, marco)}" for s in self.signals
+        )
+        posiciones = ", ".join(
+            label(w.inicio_3utr or w.window.start, Frame.UTR3) for w in self.windows
+        )
+        return (
+            f"LO QUE CUESTA LA PROMOCION: {len(self.windows)} ventana(s) que superaban "
+            f"todos los demas filtros pasan a FAIL por SOLAPAR una señal que la medida "
+            f"acaba de subir a APA_POSIBLE ({cuales}). En 3'UTR: {posiciones}. "
+            f"OJO CON EL EJE: esas ventanas NO pierden su inmunidad al TRUNCAMIENTO "
+            f"—empiezan por delante del corte, asi que su diana se conserva en las dos "
+            f"isoformas—, la pierden por el riesgo ESTERICO, que es el otro: la ventana "
+            f"contiene el hexamero y compite con CPSF/CstF por un sitio del que ahora se "
+            f"sabe que SE USA. Mientras la señal era una variante rara sin datos, el "
+            f"solape valia una penalizacion de ranking; con uso medido, no. Es una "
+            f"decision, y esta es su factura."
+        )
+
+
+def measured_promotion_cost(report: TilingReport) -> PromotionCost:
+    """Las ventanas que tumba la promocion por medida, y solo esas.
+
+    Solo cuentan las que fallan UNICAMENTE el filtro de polyA: una ventana que ya fallaba
+    GC no la tumba la promocion, y contarla inflaria la factura.
+    """
+    from .coords import Frame, frame_of
+    from .polya import SignalClass
+
+    # Solo las que la medida SUBIO. Una señal canonica ya era APA_POSIBLE por la
+    # cascada de prediccion, asi que las ventanas que la solapan ya fallaban: la medida
+    # solo le cambia la evidencia. Cobrarle esas ventanas a la promocion seria pasar una
+    # factura por algo que ya estaba pagado.
+    from .polya import classify_signal
+
+    promovidas = tuple(
+        s for s in report.signals
+        if s.evidence == "medida"
+        and s.classification is SignalClass.APA_POSSIBLE
+        and classify_signal(
+            s.motif, s.position, s.utr_length, flank=s.flank
+        ).classification is not SignalClass.APA_POSSIBLE
+    )
+    if not promovidas:
+        return PromotionCost()
+
+    marco = frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3
+    caidas = []
+    for ventana in report.windows:
+        fallos = [f for f in ventana.filters if f.state is FilterState.FAIL]
+        if len(fallos) != 1 or fallos[0].name != "zona_prohibida_polyA":
+            continue
+        if not any(
+            s.motif in fallos[0].reason and str(s.position) in fallos[0].reason
+            for s in promovidas
+        ):
+            continue
+        caidas.append(ventana)
+    return PromotionCost(
+        windows=tuple(caidas), signals=promovidas, frame=marco
+    )
+
+
 @dataclass(frozen=True)
 class ApaCeilingRow:
     signal: "PolyASignal"
@@ -1100,6 +1234,12 @@ class ApaCeilingRow:
     behind: int
     in_band: int
     ahead: int
+    #: El techo del tramo que hay JUSTO detras de esta señal, cuando esta medido.
+    #: `None` = sin medir, y entonces se dice «indeterminado», no un numero.
+    ceiling: float | None = None
+    #: El espacio de `signal.position`: el de LO TILADO. Con un mRNA completo NO es el
+    #: del 3'UTR, y etiquetarlo `3utr:` da un numero que no existe en ese espacio.
+    frame: object = None
 
     @property
     def fraction(self) -> float:
@@ -1108,14 +1248,37 @@ class ApaCeilingRow:
     def describe(self) -> str:
         from .coords import Frame, label, span
 
+        from .polya import SignalClass, classify_signal
+
+        marco = self.frame or Frame.UTR3
+        # TRES casos, no dos. Una canonica MEDIDA no es lo mismo que una variante rara
+        # que solo esta aqui por la medida: la primera ya estaba, la segunda entro. Y
+        # ninguna de las dos es una canonica sin ningun dato de uso, que es un SUPUESTO.
+        predicha = classify_signal(
+            self.signal.motif, self.signal.position, self.signal.utr_length,
+            flank=self.signal.flank,
+        ).classification is SignalClass.APA_POSSIBLE
+        if self.signal.evidence == "medida":
+            via = (
+                "por canonicidad, CONFIRMADA por medida de uso"
+                if predicha
+                else "SUBIDA aqui por MEDIDA de uso: por prediccion saldria OTRA"
+            )
+        else:
+            via = "por CANONICIDAD, sin dato de uso"
+        techo = (
+            f"Techo INDETERMINADO en las tres: fraccion_isoforma_larga sin medir."
+            if self.ceiling is None
+            else f"Techo del tramo de detras: {self.ceiling:.2f}."
+        )
         return (
-            f"{self.signal.motif} en {label(self.signal.position, Frame.UTR3)} "
-            f"(corte {span(self.signal.end + CLEAVAGE_MIN, self.signal.end + CLEAVAGE_MAX, Frame.UTR3)}): "
+            f"{self.signal.motif} en {label(self.signal.position, marco)} "
+            f"({via}) "
+            f"(corte {span(self.signal.end + CLEAVAGE_MIN, self.signal.end + CLEAVAGE_MAX, marco)}): "
             f"TECHO sobre {self.behind} de {self.eligible_total} ventanas elegibles "
             f"({self.fraction:.1%}); {self.in_band} en la banda de corte "
             f"(PENALIZADO, no se sabe de que lado caen); {self.ahead} por delante, "
-            f"inmunes. Techo INDETERMINADO en las tres: fraccion_isoforma_larga sin "
-            f"medir."
+            f"inmunes. {techo}"
         )
 
 
@@ -1129,12 +1292,19 @@ def apa_ceiling_table(
     """
     from .polya import SignalClass
 
+    from .coords import Frame, frame_of
+
     elegibles = [w.window.start for w in report.windows if is_eligible(w, config)]
+    medido = getattr(report, "measured_apa", None)
+    marco = frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3
     filas: list[ApaCeilingRow] = []
     for señal in report.signals:
         if señal.classification is not SignalClass.APA_POSSIBLE:
             continue
         pronto, tarde = señal.end + CLEAVAGE_MIN, señal.end + CLEAVAGE_MAX
+        techo = None
+        if medido is not None and tarde < report.utr_length:
+            techo = medido.layer_for(tarde + 1).ceiling
         filas.append(
             ApaCeilingRow(
                 signal=señal,
@@ -1142,6 +1312,8 @@ def apa_ceiling_table(
                 behind=sum(1 for p in elegibles if p > tarde),
                 in_band=sum(1 for p in elegibles if pronto < p <= tarde),
                 ahead=sum(1 for p in elegibles if p <= pronto),
+                ceiling=techo,
+                frame=marco,
             )
         )
     return filas
@@ -1246,14 +1418,8 @@ def tercio_counts(
             medio[ventana.tercio.value] += 1
         inicio[por_inicio(ventana.window.start - desfase)] += 1
     inmunes: dict[str, int] = {n: 0 for n in nombres}
-    corte = None
-    from .polya import CLEAVAGE_MIN, SignalClass
-
-    apa = [
-        s for s in report.signals if s.classification is SignalClass.APA_POSSIBLE
-    ]
-    if apa:
-        corte = min(s.end for s in apa) + CLEAVAGE_MIN
+    corte = derive_immune_cut(report)
+    if corte is not None:
         for posicion in sitios:
             if posicion <= corte:
                 inmunes[por_inicio(posicion - desfase)] += 1
@@ -1284,25 +1450,34 @@ def tercio_counts(
 # experimento en no poder distinguirlos.
 
 
-def _estado_medida() -> str:
+def _estado_medida(measured=None) -> str:
     """Que se sabe hoy de la fraccion, y por que sigue (o no) bloqueando."""
     from .apa import POLYA_DB_PRNP
 
-    if POLYA_DB_PRNP.usable:
+    if measured is None:
         return (
-            f"MEDIDA = {POLYA_DB_PRNP.working_value:.2f} "
-            f"({POLYA_DB_PRNP.source} {POLYA_DB_PRNP.version}). El techo esta "
-            f"cuantificado y este frente deja de bloquear."
+            f"HAY UNA MEDIDA —{POLYA_DB_PRNP.source} {POLYA_DB_PRNP.version}, fraccion "
+            f"larga {POLYA_DB_PRNP.working_value:.2f} ponderada / "
+            f"{POLYA_DB_PRNP.unweighted_value:.2f} sin ponderar— PERO NO ENTRA EN ESTA "
+            f"CORRIDA: la tabla es de Prnp murino y se aplica por md5 del 3'UTR, asi que "
+            f"sobre otra secuencia no se ancla nada. Aqui el techo sigue INDETERMINADO y "
+            f"este frente sigue bloqueando."
         )
+    tramos = [c for c in measured.layers if c.ceiling is not None]
+    cifras = ", ".join(f"{c.ceiling:.2f}" for c in tramos)
     return (
-        f"HAY UNA MEDIDA —{POLYA_DB_PRNP.source} {POLYA_DB_PRNP.version}, fraccion "
-        f"larga {POLYA_DB_PRNP.working_value:.2f} ponderada / "
-        f"{POLYA_DB_PRNP.unweighted_value:.2f} sin ponderar— PERO NO ENTRA TODAVIA: "
-        f"quedan {len(POLYA_DB_PRNP.pending)} comprobacion(es) sin hacer, y la primera "
-        f"es la conversion genomico↔transcrito, que NO se puede hacer con lo que hay en "
-        f"este repositorio. Ver el bloque «Fraccion de isoforma larga» del informe. "
-        f"Mientras tanto el techo sigue INDETERMINADO y este frente sigue bloqueando: "
-        f"un numero que depende de una conversion sin comprobar no es un techo medido."
+        f"MEDIDO. {measured.source}, fraccion larga "
+        f"{POLYA_DB_PRNP.working_value:.2f} ponderada / "
+        f"{POLYA_DB_PRNP.unweighted_value:.2f} sin ponderar. El mapeo "
+        f"genomico↔transcrito que bloqueaba esta RESUELTO sin coordenadas genomicas y "
+        f"sobre {measured.anchor.total} puntos de apoyo, no sobre una resta. Y el techo "
+        f"no es uno: va POR TRAMOS ({cifras}), porque depende de por detras de cuantos "
+        f"cortes esta cada candidato. Con eso deja de cumplirse lo que hacia bloquear a "
+        f"este frente: un techo de {min(c.ceiling for c in tramos):.2f} NO es "
+        f"indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el dato "
+        f"es de {POLYA_DB_PRNP.tissue}, y las neuronas alargan los 3'UTR, asi que estas "
+        f"cifras son un LIMITE INFERIOR conservador para el nuestro. La RT-qPCR de los "
+        f"dos amplicones sigue en pie y puede MEJORARLAS."
     )
 
 
@@ -1310,6 +1485,10 @@ def _estado_medida() -> str:
 class BlockingFront:
     name: str
     reason: str
+    #: Un frente CERRADO no desaparece de la lista: quien lea el informe tiene que
+    #: ver que existio y por que se cerro. Lo que cambia es que no cuenta para el
+    #: «no se pide oligo hasta que los N tengan veredicto».
+    blocking: bool = True
 
 
 def blocking_fronts(
@@ -1351,22 +1530,27 @@ def blocking_fronts(
     )
     marco = frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3
     inmunes = len(selection.selection.chosen) - len(con_techo)
+    medido = getattr(report, "measured_apa", None)
     frentes.append(
         BlockingFront(
             name="fraccion_isoforma_larga",
+            blocking=medido is None,
             reason=(
-                f"NO MEDIDA, y bloquea. {len(con_techo)} de "
+                (
+                    "CERRADO. " if medido is not None else "NO MEDIDA, y bloquea. "
+                )
+                + f"{len(con_techo)} de "
                 f"{len(selection.selection.chosen)} candidatos quedan por detras del "
                 f"corte de {label(min(s.position for s in apa), marco)}: comparten "
                 f"UN UNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes "
                 f"por tramo son {reparto} —{donde}— y el espaciado deja "
                 f"meter cuatro, que son los {inmunes} que ya estan. "
-                f"POR QUE BLOQUEA: si la fraccion de isoforma corta es alta, esos "
+                f"POR QUE BLOQUEABA: si la fraccion de isoforma corta es alta, esos "
                 f"{len(con_techo)} candidatos entran al cribado con un TECHO "
                 f"INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guia que no "
                 f"funciona dan la misma lectura en la placa, y el experimento se gasta "
                 f"en no poder separarlos. "
-                f"ESTADO: {_estado_medida()}"
+                f"ESTADO: {_estado_medida(medido)}"
             ),
         )
     )

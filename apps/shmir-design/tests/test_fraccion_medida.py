@@ -70,38 +70,43 @@ class TestLasDosCifras(unittest.TestCase):
 
 
 class TestLoQueNoSeDaPorBueno(unittest.TestCase):
+    """Lo que bloqueaba ya no bloquea; lo que era una reserva sigue siendolo.
 
-    def test_el_dato_NO_es_utilizable_todavia(self):
-        self.assertFalse(POLYA_DB_PRNP.usable)
+    Las tres comprobaciones de la primera version eran: la conversion
+    genomico↔transcrito, el segundo PAS proximal y el racimo terminal. Las dos primeras
+    se cerraron con el desempate de la leyenda de PolyA_DB (`test_anclaje_polyadb`) y
+    el anclaje sobre cuatro puntos. La tercera NO se cierra — pero tampoco bloquea, y
+    la diferencia entre las dos cosas va escrita.
+    """
 
-    def test_y_las_tres_comprobaciones_estan_listadas(self):
-        pendientes = " ".join(POLYA_DB_PRNP.pending)
-        self.assertIn("conversion", pendientes.lower())
-        self.assertIn("131937444", pendientes)
-        self.assertIn("131938427", pendientes)
+    def test_el_dato_YA_es_utilizable(self):
+        self.assertTrue(POLYA_DB_PRNP.usable)
 
-    def test_la_conversion_NO_se_puede_hacer_aqui_y_se_dice_por_que(self):
+    def test_no_queda_ninguna_comprobacion_BLOQUEANTE(self):
+        self.assertEqual(POLYA_DB_PRNP.pending, ())
+
+    def test_la_conversion_ya_no_figura_como_imposible(self):
         texto = "\n".join(POLYA_DB_PRNP.describe())
-        # El .gb de NM_011170.3 no trae coordenadas genomicas: su bloque PRIMARY
-        # referencia cDNA y EST, no un cromosoma.
-        self.assertIn("no trae coordenadas genomicas", texto)
-        self.assertIn("PRIMARY", texto)
+        self.assertNotIn("NO SE PUEDE HACER", texto.upper())
+        self.assertIn("resuelto", texto.lower())
 
-    def test_las_DOS_hipotesis_de_mapeo_se_dan_y_no_se_elige(self):
+    def test_y_el_informe_dice_que_ENTRA_al_pipeline(self):
         texto = "\n".join(POLYA_DB_PRNP.describe())
-        self.assertIn("3utr:228", texto)   # si 131937504 es el hexamero
-        self.assertIn("3utr:243", texto)   # si es el sitio de corte
-        self.assertIn("no se elige", texto.lower())
+        self.assertIn("ENTRA al pipeline", texto)
 
-    def test_dice_que_el_221_depende_de_esa_conversion(self):
-        texto = "\n".join(POLYA_DB_PRNP.describe())
-        self.assertIn("3utr:221", texto)
-        self.assertIn("inmune", texto.lower())
+    def test_el_racimo_terminal_sigue_como_RESERVA_y_no_como_pendiente(self):
+        self.assertEqual(len(POLYA_DB_PRNP.caveats), 1)
+        reserva = POLYA_DB_PRNP.caveats[0]
+        self.assertIn("131938427", reserva)
+        self.assertIn("no se fusionan", reserva.lower())
 
-    def test_el_racimo_terminal_no_se_fusiona_sin_comprobar(self):
+    def test_y_se_dice_POR_QUE_no_bloquea(self):
+        self.assertIn("NO MUEVE EL VALOR", POLYA_DB_PRNP.caveats[0])
+
+    def test_una_reserva_no_se_omite_por_no_bloquear(self):
         texto = "\n".join(POLYA_DB_PRNP.describe())
+        self.assertIn("RESERVAS ANOTADAS", texto)
         self.assertIn("35 nt", texto)
-        self.assertIn("no se fusionan", texto.lower())
 
 
 class TestElTejido(unittest.TestCase):

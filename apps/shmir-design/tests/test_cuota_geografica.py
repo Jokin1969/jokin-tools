@@ -55,10 +55,27 @@ def _tiling():
 
 class TestLaConfiguracionSeValida(unittest.TestCase):
 
-    def test_una_cuota_de_inmunes_sin_corte_aborta(self):
-        # Pedir «cinco inmunes» sin decir inmunes A QUE no significa nada.
-        with self.assertRaises(ValueError):
-            SelectionConfig(n_candidates=10, apa_immune_quota=5)
+    @classmethod
+    def setUpClass(cls):
+        cls.tiling = _tiling()
+
+    def test_una_cuota_de_inmunes_sin_corte_se_DERIVA_del_informe(self):
+        # Antes esto abortaba al construir la config. Ahora `None` significa «sacalo del
+        # informe», que es mejor que teclearlo: un corte escrito a mano no se entera de
+        # que un sitio de corte MEDIDO adelante la frontera de la inmunidad.
+        from shmir_design.selection import derive_immune_cut
+
+        config = SelectionConfig(n_candidates=6, apa_immune_quota=2)
+        self.assertIsNone(config.apa_immune_before)
+        self.assertEqual(derive_immune_cut(self.tiling), 303)
+
+    def test_pero_elegir_sin_resolverlo_SIGUE_abortando(self):
+        from shmir_design.selection import choose, eligible_choices, group_choices
+
+        sitios = group_choices(eligible_choices(self.tiling))
+        with self.assertRaises(ValueError) as ctx:
+            choose(sitios, SelectionConfig(n_candidates=6, apa_immune_quota=2))
+        self.assertIn("inmunes A QUE", str(ctx.exception))
 
     def test_una_cuota_de_inmunes_mayor_que_el_panel_aborta(self):
         with self.assertRaises(ValueError):

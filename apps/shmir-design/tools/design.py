@@ -31,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shmir_design.apa import load_apa_sites  # noqa: E402
+from shmir_design.apa import POLYA_DB_PRNP, load_apa_sites, resolve_measured  # noqa: E402
 from shmir_design.anatomy import (  # noqa: E402
     Anatomy,
     Region,
@@ -381,9 +381,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--inmunes-antes", type=int, default=None,
         help=(
-            "Posicion (en el marco de lo tilado) del corte mas tardio de la señal "
+            "Posicion (en el marco de lo tilado) del corte mas TEMPRANO de la señal "
             "proximal. Un candidato que empiece por delante se conserva en las dos "
-            "isoformas."
+            "isoformas. Por defecto se DERIVA del informe: teclearlo es lo que hace que "
+            "la cifra no se entere de que un sitio de corte medido adelante la frontera."
         ),
     )
     parser.add_argument(
@@ -883,8 +884,15 @@ def main(argv: list[str]) -> int:
         )
         args.out.mkdir(parents=True, exist_ok=True)
         for especie, secuencia in secuencias.items():
+            # La tabla de PolyA_DB se coloca sola sobre la secuencia que le corresponde
+            # y solo sobre esa: la condicion es el md5 canonico del 3'UTR, asi que
+            # sobre cualquier otra devuelve None y no se promueve ninguna señal.
+            medido = resolve_measured(
+                secuencia, POLYA_DB_PRNP, anatomy=anatomias[especie]
+            )
             tiling = tile_utr(
                 secuencia,
+                measured_apa=medido,
                 seeds=seeds,
                 mask=mask,
                 anatomy=anatomias[especie],

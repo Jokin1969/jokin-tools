@@ -153,6 +153,17 @@ class PolyASignal:
     classification: SignalClass
     #: nt prohibidos a cada lado de la señal. Umbral ajustable, no constante escondida.
     flank: int = SIGNAL_FLANK
+    #: Procedencia del USO de esta señal, cuando lo hay. Vacio = nadie lo ha medido, y
+    #: entonces la clasificacion es una PREDICCION por canonicidad y posicion. Las dos
+    #: vias no se confunden en la salida: el `AATAAA` de 3utr:288 es APA_POSIBLE por
+    #: canonicidad y sin un solo dato de uso; el `AATATA` de 3utr:236 lo es por lo
+    #: contrario — hay uso medido y no hay canonicidad.
+    measured_use: str = ""
+
+    @property
+    def evidence(self) -> str:
+        """Por que via esta clasificada asi: `medida` o `canonicidad`."""
+        return "medida" if self.measured_use else "canonicidad"
 
     @property
     def end(self) -> int:
@@ -289,6 +300,55 @@ def find_polya_signals(
 
     signals.sort(key=lambda s: (s.position, s.motif))
     return signals
+
+
+def promote_by_measurement(signals, positions, *, source: str):
+    """Sube a `APA_POSIBLE` las señales de las que hay MEDIDA de uso.
+
+    La cascada de prediccion solo deja llegar a `APA_POSIBLE` a las señales FUERTES
+    (`AATAAA`, `ATTAAA`), y con razon: sin datos de uso, la canonicidad es el unico
+    proxy que hay de «este sitio se usa». Cuando hay datos, el proxy sobra —es lo que
+    dice `apa.py` desde su primera linea: el dato SUSTITUYE a la prediccion— y una
+    variante rara MEDIDA vale mas que una canonica sin medir.
+
+    `positions` son inicios de hexamero en el marco de LO TILADO, y cada una tiene que
+    corresponder a una señal encontrada: si el dato dice que hay un sitio donde no hay
+    hexamero, eso es una incoherencia entre el dato y la secuencia y se aborta. Es el
+    mismo criterio que `Span.check()`.
+    """
+    if not source or not source.strip():
+        raise ValueError(
+            "Una promocion por medida necesita decir de DONDE sale la medida: sin "
+            "procedencia, un APA_POSIBLE medido no se distingue de uno predicho. "
+            "Se aborta."
+        )
+    posiciones = set(positions)
+    encontradas = {s.position for s in signals}
+    huerfanas = sorted(posiciones - encontradas)
+    if huerfanas:
+        raise ValueError(
+            f"{source} declara sitio(s) de corte en {huerfanas} y ahi no hay ningun "
+            f"hexamero en la secuencia analizada; se aborta en vez de anotar un sitio "
+            f"que la secuencia no respalda."
+        )
+
+    promovidas = []
+    for señal in signals:
+        if señal.position not in posiciones:
+            promovidas.append(señal)
+            continue
+        nota = (
+            f"{source}: sitio de corte con datos de expresion. La clasificacion viene "
+            f"de la MEDIDA, no de la canonicidad del hexamero."
+        )
+        clasificacion = señal.classification
+        if clasificacion is not SignalClass.TERMINAL_PROBABLE:
+            clasificacion = SignalClass.APA_POSSIBLE
+        promovidas.append(
+            replace(señal, classification=clasificacion, measured_use=nota)
+        )
+    return promovidas
+
 
 
 # ─── B y C. Anotacion de ventanas ────────────────────────────────────────────
@@ -696,6 +756,16 @@ def analyze_3utr(
 
 CLEAVAGE_MIN = 10   # nt aguas abajo del final del hexamero
 CLEAVAGE_MAX = 30
+
+#: Lo que publica PolyA_DB como «PAS» es el SITIO DE CORTE, NO EL HEXAMERO, y lo dice su
+#: propia leyenda. No es una interpretacion nuestra: si el hexamero se BUSCA aguas arriba
+#: del PAS, el PAS no puede ser el hexamero.
+PAS_IS_CLEAVAGE_SITE = (
+    "PolyA_DB publica el sitio de CORTE, NO EL HEXAMERO. Su leyenda: «A[A/U]UAAA motif "
+    f"within 40-nt upstream from the PAS» — el hexamero se busca AGUAS ARRIBA del PAS, "
+    f"luego la coordenada publicada es el corte. Con nuestra convencion el hexamero cae "
+    f"{CLEAVAGE_MIN}-{CLEAVAGE_MAX} nt por delante, dentro de esos 40 nt."
+)
 
 #: Hasta que distancia se ANOTA una señal en los campos descriptivos de la ventana.
 #: Es una convencion de presentacion, no un umbral de decision: el veredicto mira todas
@@ -1603,22 +1673,35 @@ class SignalConservation:
         """¿Aparece el hexamero, aunque sea una vez, en la otra especie?"""
         return bool(self.occurrences)
 
-    def prior_note(self) -> str:
+    def prior_note(self, *, ceiling: float | None = None) -> str:
         """Que dice la AUSENCIA sobre la probabilidad a priori. Vacia si aparece.
 
         Las dos clausulas van juntas y ninguna sobra: rebaja, no descarta.
+
+        `ceiling` es la fraccion de isoforma larga MEDIDA, si la hay. Cambia el cierre
+        de la nota y nada mas: con medida, la ausencia de homologo deja de ser el unico
+        argumento y pasa a ser una razon para esperar que el techo real sea aun mas alto
+        que el medido. La rebaja sigue sin descartar nada.
         """
         if self.conserved:
             return ""
+        cierre = (
+            f"y el techo sigue indeterminado mientras fraccion_isoforma_larga siga sin "
+            f"medir. "
+            if ceiling is None
+            else f"y el techo YA esta medido ({ceiling:.2f} de isoforma larga), asi que "
+                 f"esta nota no lo cambia: lo que hace es dar una razon MAS para "
+                 f"esperar que el real sea aun mas alto. "
+        )
         return (
             f"Y esto no es solo ausencia de homologo: el gen de {self.other_name} ha "
             f"PRESCINDIDO del hexamero canonico por completo — ni una {self.motif} en "
             f"{self.other_length} nt de 3'UTR. Un APA proximal FUNCIONAL es un elemento "
             f"regulador, y los elementos reguladores tienden a conservarse. Eso REBAJA "
             f"la probabilidad a priori de que la señal de esta especie se use. NO LO "
-            f"DESCARTA: puede ser una diferencia real de especie, y mientras "
-            f"fraccion_isoforma_larga siga sin medir el techo sigue indeterminado. "
-            f"Rebaja, no descarta."
+            f"DESCARTA: puede ser una diferencia real de especie, "
+            + cierre
+            + "Rebaja, no descarta."
         )
 
     def describe(self) -> str:

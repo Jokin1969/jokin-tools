@@ -30,8 +30,10 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
+from . import coords, polya, reference
 from .errors import ChecksumMismatchError, ShmirDesignError
 
 COORD_SYSTEMS = ("3utr", "transcrito")
@@ -266,11 +268,304 @@ def apa_assessment(
     )
 
 
+# ─── El mapeo genomico↔transcrito, resuelto SIN coordenadas genomicas ────────
+#
+# El `.gb` de NM_011170.3 no trae coordenadas genomicas, asi que durante un tiempo aqui
+# habia DOS mapeos posibles y ninguna forma de elegir: si la coordenada que publica
+# PolyA_DB era el hexamero, `131937444` caia en 3utr:228 y el candidato `3utr:221`
+# dejaba de ser inmune; si era el sitio de corte, caia detras y no le afectaba.
+#
+# El desempate no necesita ningun dato externo: lo da la propia leyenda de la base
+# (`polya.PAS_IS_CLEAVAGE_SITE`). Y una vez resuelta la semantica, la comprobacion NO se
+# hace con una resta —un solo punto de apoyo siempre cuadra—, sino exigiendo que las
+# CUATRO coordenadas publicadas aterricen a la vez, con el MISMO desfase, sobre un
+# hexamero de la CLASE que la propia base declara para cada una.
+
+_POLYADB_CLASSES = ("AAUAAA", "AUUAAA", "Other")
+
+
+def polyadb_class(motif: str) -> str:
+    """La etiqueta que PolyA_DB pondria a nuestro hexamero (ADN → ARN).
+
+    La base etiqueta en ARN y nosotros buscamos en ADN; sin traducir, `AATAAA` no
+    coincidiria con `AAUAAA` y la comprobacion daria cero aciertos, que parece un
+    resultado y es un desajuste de alfabeto — el mismo fallo que `mirna._seed_of`.
+    """
+    motif = motif.upper()
+    if motif not in polya.ALL_SIGNALS:
+        raise ValueError(
+            f"{motif!r} no es una señal de poliadenilacion conocida, asi que no se le "
+            f"puede asignar la clase que usaria PolyA_DB; se aborta el anclaje."
+        )
+    return {"AATAAA": "AAUAAA", "ATTAAA": "AUUAAA"}.get(motif, "Other")
+
+
+class MappingHypothesis(StrEnum):
+    CORTE = "PAS = sitio de corte"
+    HEXAMERO = "PAS = hexamero"
+    SIN_RESOLVER = "sin resolver"
+
+
+@dataclass(frozen=True)
+class PasAnchor:
+    """Una coordenada publicada por PolyA_DB, con la clase de hexamero que declara."""
+
+    locus: str
+    genomic: int
+    declared_class: str
+    expression: bool = True
+    note: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.locus.strip():
+            raise ValueError(
+                "Un anclaje necesita su locus: sin el, una coordenada suelta no se "
+                "puede volver a comprobar contra la base. Se aborta."
+            )
+        if self.declared_class not in _POLYADB_CLASSES:
+            raise ValueError(
+                f"Clase de hexamero {self.declared_class!r} desconocida; PolyA_DB usa "
+                f"{', '.join(_POLYADB_CLASSES)}. Se aborta en vez de comparar contra "
+                f"una etiqueta inventada."
+            )
+
+
+@dataclass(frozen=True)
+class AnchoredSite:
+    """Un PAS ya colocado sobre el 3'UTR: su hexamero y su banda de corte.
+
+    `candidates` puede traer MAS DE UNO. Que un PAS admita dos hexameros de su clase
+    dentro de la banda no invalida el anclaje —el desfase sigue acotado igual—, pero
+    ese sitio concreto no identifica un hexamero y no puede entrar al modelo con banda
+    de corte propia. Se dice, no se elige por nuestra cuenta.
+    """
+
+    locus: str
+    genomic: int
+    declared_class: str
+    candidates: tuple[tuple[int, str], ...]
+    expression: bool
+    note: str = ""
+
+    @property
+    def ambiguous(self) -> bool:
+        return len(self.candidates) > 1
+
+    @property
+    def motif(self) -> str:
+        return self._unico()[1]
+
+    @property
+    def hexamer_start(self) -> int:
+        return self._unico()[0]
+
+    @property
+    def hexamer_end(self) -> int:
+        pos, motivo = self._unico()
+        return pos + len(motivo) - 1
+
+    @property
+    def cleavage_band(self) -> tuple[int, int]:
+        fin = self.hexamer_end
+        return (fin + polya.CLEAVAGE_MIN, fin + polya.CLEAVAGE_MAX)
+
+    def _unico(self) -> tuple[int, str]:
+        if len(self.candidates) != 1:
+            raise ValueError(
+                f"{self.locus} admite {len(self.candidates)} hexameros de clase "
+                f"{self.declared_class} dentro de su banda "
+                f"({', '.join(f'{m} en 3utr:{p}' for p, m in self.candidates)}); no "
+                f"identifica uno solo, asi que no se le asigna ninguno. Se aborta en "
+                f"vez de elegir por nuestra cuenta."
+            )
+        return self.candidates[0]
+
+    def describe(self) -> str:
+        from .coords import Frame, label, span
+
+        if self.ambiguous:
+            cuales = ", ".join(
+                f"{m} en {label(p, Frame.UTR3)}" for p, m in self.candidates
+            )
+            return (
+                f"{self.locus}  {self.declared_class:<7} → AMBIGUO: {len(self.candidates)} "
+                f"hexameros de su clase en la banda ({cuales}). Ancla, pero NO entra al "
+                f"modelo con banda propia."
+            )
+        return (
+            f"{self.locus}  {self.declared_class:<7} → corte "
+            f"{span(*self.cleavage_band, Frame.UTR3)}, hexamero {self.motif} en "
+            f"{label(self.hexamer_start, Frame.UTR3)}"
+            + ("" if self.expression else "  (sin datos de expresion)")
+            + (f"  ← {self.note}" if self.note else "")
+        )
+
+
+@dataclass(frozen=True)
+class AnchorResult:
+    hypothesis: MappingHypothesis
+    anchors: tuple[AnchoredSite, ...]
+    offsets: tuple[int, ...]
+    cleavage_anchored: int
+    hexamer_best: int
+    total: int
+    sequence_md5: str
+
+    def by_locus(self, locus: str) -> AnchoredSite:
+        for sitio in self.anchors:
+            if sitio.locus == locus:
+                return sitio
+        raise KeyError(
+            f"{locus!r} no quedo anclado sobre esta secuencia; se aborta en vez de "
+            f"devolver el sitio de al lado."
+        )
+
+    def describe(self) -> list[str]:
+        if self.hypothesis is not MappingHypothesis.CORTE:
+            return [
+                f"MAPEO GENOMICO↔TRANSCRITO: SIN RESOLVER sobre esta secuencia "
+                f"({self.cleavage_anchored} de {self.total} coordenadas anclan). No se "
+                f"usa: un techo que depende de una conversion sin comprobar no es un "
+                f"techo medido.",
+            ]
+        lineas = [
+            "MAPEO GENOMICO↔TRANSCRITO — RESUELTO SIN COORDENADAS GENOMICAS.",
+            f"  {polya.PAS_IS_CLEAVAGE_SITE}",
+            "  Hipotesis «PAS = hexamero»: DESCARTADA. Un hexamero es un punto, no una "
+            "banda, asi que",
+            f"  bajo esa lectura el aterrizaje tiene que ser EXACTO — y no hay ningun "
+            f"desfase que haga",
+            f"  aterrizar mas de {self.hexamer_best} de las {self.total} coordenadas. "
+            f"Bajo «PAS = corte» aterrizan las {self.cleavage_anchored},",
+            "  con el MISMO desfase y con la CLASE de hexamero que declara la propia "
+            "base en cada una.",
+            f"  No es una resta: son {self.total} puntos de apoyo independientes. "
+            f"Desfase 3'UTR→mm10 acotado a "
+            f"{self.offsets[0]}-{self.offsets[-1]} ({len(self.offsets)} valores); se "
+            f"deja como INTERVALO",
+            "  porque la banda de corte mide 20 nt y fijarlo en un entero seria "
+            "inventarse precision.",
+            "",
+        ]
+        for sitio in self.anchors:
+            lineas.append(f"    {sitio.describe()}")
+        return lineas
+
+
+def anchor_polyadb(
+    utr3: str,
+    anchors,
+    *,
+    cleavage_min: int = polya.CLEAVAGE_MIN,
+    cleavage_max: int = polya.CLEAVAGE_MAX,
+) -> AnchorResult:
+    """Coloca las coordenadas de PolyA_DB sobre el 3'UTR, y dice bajo que lectura.
+
+    Se prueban las dos hipotesis contra la MISMA secuencia:
+
+    - **corte** — la coordenada es el sitio de corte, asi que su hexamero cae en una
+      BANDA `[p - cleavage_max, p - cleavage_min]`. Cuadra si en esa banda hay un
+      hexamero de la clase que la base declara.
+    - **hexamero** — la coordenada es el hexamero, asi que el aterrizaje es EXACTO.
+
+    Solo se da por resuelta si TODAS las coordenadas anclan bajo la hipotesis del corte
+    con un mismo desfase. Con una sola no se resuelve nada: una resta siempre cuadra.
+    """
+    secuencia = reference.canonical_form(utr3, name="3'UTR")
+    anchors = tuple(anchors)
+    if not anchors:
+        raise ValueError(
+            "No hay ninguna coordenada que anclar; se aborta en vez de dar por resuelto "
+            "un mapeo que nadie ha comprobado."
+        )
+
+    hexameros: list[tuple[int, str]] = []
+    for pos in range(1, len(secuencia) - 4):
+        motivo = secuencia[pos - 1:pos + 5]
+        if motivo in polya.ALL_SIGNALS:
+            hexameros.append((pos, motivo))
+
+    genomicas = [a.genomic for a in anchors]
+    minimo, maximo = min(genomicas), max(genomicas)
+    # El desfase posible esta acotado por la propia secuencia: toda coordenada tiene que
+    # caer dentro del 3'UTR. Se barre ese intervalo y nada mas.
+    inferior, superior = maximo - len(secuencia), minimo - 1
+
+    def bajo_corte(desfase: int):
+        colocados = []
+        for ancla in anchors:
+            corte = ancla.genomic - desfase
+            if not 1 <= corte <= len(secuencia):
+                return None
+            elegidos = [
+                (pos, motivo) for pos, motivo in hexameros
+                if corte - cleavage_max <= pos + 5 <= corte - cleavage_min
+                and polyadb_class(motivo) == ancla.declared_class
+            ]
+            if not elegidos:
+                return None
+            colocados.append((ancla, elegidos))
+        return colocados
+
+    validos = [d for d in range(inferior, superior + 1) if bajo_corte(d) is not None]
+
+    inicios = {pos: motivo for pos, motivo in hexameros}
+    mejor_hexamero = 0
+    for desfase in range(inferior, superior + 1):
+        aciertos = sum(
+            1 for a in anchors
+            if (a.genomic - desfase) in inicios
+            and polyadb_class(inicios[a.genomic - desfase]) == a.declared_class
+        )
+        mejor_hexamero = max(mejor_hexamero, aciertos)
+
+    if not validos:
+        return AnchorResult(
+            hypothesis=MappingHypothesis.SIN_RESOLVER,
+            anchors=(),
+            offsets=(),
+            cleavage_anchored=0,
+            hexamer_best=mejor_hexamero,
+            total=len(anchors),
+            sequence_md5=reference.sequence_md5(secuencia),
+        )
+
+    # Con varios desfases validos, el hexamero asignado a cada PAS tiene que ser el
+    # MISMO en todos: si no lo es, el anclaje no identifica un sitio y no se usa.
+    colocados: list[AnchoredSite] = []
+    for indice, ancla in enumerate(anchors):
+        opciones = set()
+        for desfase in validos:
+            for pos, motivo in bajo_corte(desfase)[indice][1]:
+                opciones.add((pos, motivo))
+        colocados.append(
+            AnchoredSite(
+                locus=ancla.locus,
+                genomic=ancla.genomic,
+                declared_class=ancla.declared_class,
+                candidates=tuple(sorted(opciones)),
+                expression=ancla.expression,
+                note=ancla.note,
+            )
+        )
+
+    colocados.sort(key=lambda s: s.candidates[0][0])
+    return AnchorResult(
+        hypothesis=MappingHypothesis.CORTE,
+        anchors=tuple(colocados),
+        offsets=tuple(validos),
+        cleavage_anchored=len(colocados),
+        hexamer_best=mejor_hexamero,
+        total=len(anchors),
+        sequence_md5=reference.sequence_md5(secuencia),
+    )
+
+
 # ─── La fraccion de isoforma larga, MEDIDA ───────────────────────────────────
 #
 # Aportada el 2026-08-26 desde PolyA_DB v4.1. Es lo que convierte el TECHO de
-# «indeterminado» en un numero — pero solo cuando la conversion de coordenadas este
-# hecha, y esa NO se puede hacer con lo que hay en este repositorio.
+# «indeterminado» en un numero. La conversion de coordenadas que la bloqueaba esta
+# resuelta arriba (`anchor_polyadb`), sin coordenadas genomicas y sobre cuatro puntos.
 
 
 @dataclass(frozen=True)
@@ -326,8 +621,23 @@ class MeasuredFraction:
     total_pas: int
     with_expression: int
     sites: tuple[MeasuredSite, ...]
+    #: Comprobaciones que BLOQUEAN el uso del dato. Mientras haya una, el dato no
+    #: entra al pipeline. No es lo mismo que una reserva: una reserva se anota y se
+    #: sigue, una comprobacion pendiente para el paso.
     pending: tuple[str, ...]
     tissue: str
+    #: Reservas que se anotan y NO bloquean, porque no mueven el valor. Meterlas en
+    #: `pending` haria que el dato pareciera inutilizable por algo que no cambia
+    #: ninguna cifra, y eso es tan engañoso como omitirlas.
+    caveats: tuple[str, ...] = ()
+    #: A QUE secuencia se refieren estas coordenadas. La tabla no se aplica a
+    #: ninguna otra: anclar unas coordenadas de Prnp murino sobre otro 3'UTR seria
+    #: anclar ruido, y el ruido ancla si se le deja bastante sitio.
+    utr3_md5: str = ""
+    #: Las coordenadas publicadas, con la clase de hexamero que declara la base.
+    #: Incluye las que NO tienen expresion: no cuentan para la fraccion, pero son
+    #: puntos de apoyo del anclaje, y el anclaje se sostiene sobre su numero.
+    anchors: tuple[PasAnchor, ...] = ()
 
     @property
     def working_value(self) -> float:
@@ -383,16 +693,36 @@ class MeasuredFraction:
                 f"nuestro tejido — y por eso la RT-qPCR de los dos amplicones deja de "
                 f"ser solo confirmacion: puede MEJORAR el numero.",
                 "",
-                "  PENDIENTE ANTES DE USARLO. El dato NO entra al pipeline todavia:",
             ]
         )
-        lineas.extend(f"    {i}. {p}" for i, p in enumerate(self.pending, start=1))
+        if self.pending:
+            lineas.append(
+                "  PENDIENTE ANTES DE USARLO. El dato NO entra al pipeline todavia:"
+            )
+            lineas.extend(f"    {i}. {p}" for i, p in enumerate(self.pending, start=1))
+        else:
+            lineas.append(
+                "  SIN COMPROBACIONES PENDIENTES: el dato ENTRA al pipeline. El mapeo "
+                "genomico↔transcrito,"
+            )
+            lineas.append(
+                "  que era lo unico que lo bloqueaba, esta resuelto sobre cuatro puntos "
+                "de apoyo (ver arriba)."
+            )
+        if self.caveats:
+            lineas.append("")
+            lineas.append(
+                "  RESERVAS ANOTADAS. No bloquean porque no mueven el valor, y por eso "
+                "mismo no se omiten:"
+            )
+            lineas.extend(f"    {i}. {c}" for i, c in enumerate(self.caveats, start=1))
         return lineas
 
 
-#: La conversion no se puede hacer aqui, y el motivo es concreto: el `.gb` de
-#: NM_011170.3 no trae coordenadas genomicas — su bloque PRIMARY referencia cDNA y EST
-#: (CK622972.1, AK148061.1, AK158908.1, AV361844.1), no un cromosoma.
+#: El `.gb` de NM_011170.3 sigue sin traer coordenadas genomicas —su bloque PRIMARY
+#: referencia cDNA y EST (CK622972.1, AK148061.1, AK158908.1, AV361844.1), no un
+#: cromosoma— y ya no hace falta: el mapeo se resuelve con `anchor_polyadb` sobre la
+#: secuencia que ya esta en el repositorio. Ver `polya.PAS_IS_CLEAVAGE_SITE`.
 POLYA_DB_PRNP = MeasuredFraction(
     source="PolyA_DB",
     version="v4.1",
@@ -403,32 +733,244 @@ POLYA_DB_PRNP = MeasuredFraction(
     representative="NM_001278256.1",
     total_pas=15,
     with_expression=5,
+    utr3_md5="19f5fa2a77a87892770e2affdc90e0e4",
     sites=(
         MeasuredSite("chr2:+:131937444", "Other", 0.211, 0.55, distal=False,
-                     note="segundo PAS proximal, NO estaba en nuestro modelo"),
+                     note="TERCER sitio de corte, el proximal MAS USADO de los tres"),
         MeasuredSite("chr2:+:131937504", "AAUAAA", 0.235, 0.34, distal=False,
-                     note="candidato a ser nuestro AATAAA proximal"),
+                     note="nuestro AATAAA de 3utr:288"),
         MeasuredSite("chr2:+:131938392", "Other", 0.705, 1.65, distal=True,
                      note="racimo terminal"),
     ),
+    anchors=(
+        PasAnchor("chr2:+:131937444", 131937444, "Other",
+                  note="proximal mas usado: PSE 21,1 %, AvgRPM 0,55"),
+        PasAnchor("chr2:+:131937504", 131937504, "AAUAAA",
+                  note="PSE 23,5 %, AvgRPM 0,34"),
+        PasAnchor("chr2:+:131938392", 131938392, "Other",
+                  note="PSE 70,5 %, AvgRPM 1,65"),
+        PasAnchor("chr2:+:131938427", 131938427, "AUUAAA", expression=False,
+                  note="fuerza 99,9 %, conservado en humano y rata; SIN expresion, "
+                       "asi que no entra en la fraccion — solo ancla"),
+    ),
     tissue="TODOS LOS TEJIDOS, no cerebro",
-    pending=(
-        "La conversion genomico↔transcrito, contra la anotacion real. AQUI NO SE PUEDE "
-        "HACER: el .gb de NM_011170.3 no trae coordenadas genomicas — su bloque PRIMARY "
-        "referencia cDNA y EST, no un cromosoma. Hace falta la anotacion genomica del "
-        "transcrito (exones sobre mm10) o el registro de NM_001278256.1 para ver si "
-        "comparten 3'UTR. Con la aritmetica sola salen DOS mapeos y no se elige: si "
-        "131937504 es el HEXAMERO, 131937444 cae en 3utr:228 y 131938392 en 3utr:1176; "
-        "si es el SITIO DE CORTE (banda 303-323), 131937444 cae en 3utr:243-263 y "
-        "131938392 en 3utr:1191-1211.",
-        "El segundo PAS proximal 131937444, que no estaba en nuestro modelo. Bajo el "
-        "primer mapeo cae en 3utr:228 y quedaria POR DELANTE del candidato 3utr:221 — "
-        "que dejaria de ser inmune y pasaria a tener riesgo esterico por solapar el "
-        "hexamero. Bajo el segundo mapeo cae detras y no le afecta. Los cuatro inmunes "
-        "dependen de cual sea: 3utr:10, 60, 143 y 221.",
-        "El PAS terminal 131938427 (fuerza 99,9 %, conservado en humano y rata) no "
-        "tiene datos de expresion; el que los tiene es 131938392, 35 nt aguas arriba. "
-        "Probablemente el mismo racimo, pero se anotan como DOS y no se fusionan sin "
-        "comprobarlo: fusionarlos suma su expresion y sube la fraccion larga sin dato.",
+    pending=(),
+    caveats=(
+        "El PAS terminal 131938427 y el que tiene expresion (131938392, 35 nt aguas "
+        "arriba) se anotan como DOS y no se fusionan sin comprobarlo: fusionarlos suma "
+        "su expresion y sube la fraccion larga sin dato. El anclaje los coloca sobre "
+        "hexameros DISTINTOS —ATTAAA en 3utr:1214 el uno; TATAAA en 3utr:1178 o en "
+        "3utr:1189 el otro, que ademas no distingue entre los dos—, asi que tampoco por "
+        "ahi hay motivo para fusionarlos. NO MUEVE EL VALOR: 131938427 no tiene "
+        "expresion, luego no suma nada a ninguna de las dos formulas.",
     ),
 )
+
+
+# ─── El techo deja de ser UNO: con tres sitios va POR TRAMOS ─────────────────
+#
+# Un solo numero (0,86) responde a «cuanta isoforma larga hay», que es la pregunta del
+# extremo distal. La pregunta de un candidato es otra: «que fraccion de transcritos
+# conserva MI diana». Y eso depende de por detras de CUANTOS cortes esta.
+#
+# Con los tres sitios medidos hay tres respuestas y no una:
+#
+#   por delante de 3utr:251  → la diana esta en todas las isoformas: sin techo
+#   entre 3utr:271 y 3utr:303 → falta solo en la del corte proximal mas usado: 0,91
+#   por detras de 3utr:323   → falta en las dos proximales: 0,86
+#
+# Colapsarlo a 0,86 para todos castigaria a las ventanas del tramo intermedio con un
+# techo que no es el suyo. Y colapsarlo a 1,00 para las de delante del corte de 288
+# —que es lo que habia— se saltaba un sitio de corte entero.
+
+
+@dataclass(frozen=True)
+class CeilingLayer:
+    """Un tramo del 3'UTR con el mismo techo, y de que sitios lo hereda."""
+
+    start_range: tuple[int, int]
+    ceiling: float | None
+    lost: tuple[MeasuredSite, ...]
+    in_band: bool
+    reason: str
+    #: El espacio en que van `start_range`: el de LO TILADO, que con un mRNA completo
+    #: NO es el del 3'UTR. Sin esto los tramos salian etiquetados `3utr:` con numeros
+    #: del transcrito — el mismo fallo que motivo `coords.py`.
+    frame: "coords.Frame" = None
+
+    def describe(self) -> str:
+        from .coords import span
+
+        techo = "sin techo" if self.ceiling is None and not self.in_band else (
+            "TECHO INDETERMINADO" if self.ceiling is None
+            else f"techo {self.ceiling:.2f}"
+        )
+        return f"{span(*self.start_range, self.frame)}  {techo:<20} {self.reason}"
+
+
+@dataclass(frozen=True)
+class MeasuredApa:
+    """La tabla medida, ya colocada sobre la secuencia que se esta analizando."""
+
+    source: str
+    table: MeasuredFraction
+    anchor: AnchorResult
+    #: Inicios de hexamero en el marco de LO TILADO.
+    signal_starts: tuple[int, ...]
+    offset: int
+    layers: tuple[CeilingLayer, ...]
+    #: El espacio de `signal_starts`, `earliest_cut` y los tramos.
+    frame: "coords.Frame" = None
+
+    @property
+    def earliest_cut(self) -> int:
+        """El corte mas temprano de todos los sitios medidos, en el marco de lo tilado.
+
+        Es la frontera de la INMUNIDAD, y es la definicion estricta: por delante de
+        aqui la ventana se conserva en TODAS las isoformas. Con el tercer sitio esta
+        frontera se adelanta, asi que la lista de inmunes se recalcula — no se hereda.
+        """
+        return min(
+            s.cleavage_band[0] + self.offset
+            for s in self.anchor.anchors
+            if not s.ambiguous
+        )
+
+    def layer_for(self, start: int) -> CeilingLayer:
+        for capa in self.layers:
+            if capa.start_range[0] <= start <= capa.start_range[1]:
+                return capa
+        raise ValueError(
+            f"La posicion {start} cae fuera de los tramos de techo "
+            f"({self.layers[0].start_range[0]}-{self.layers[-1].start_range[1]}); "
+            f"se aborta en vez de devolver el techo del tramo de al lado."
+        )
+
+    def describe(self) -> list[str]:
+        lineas = list(self.anchor.describe())
+        lineas.extend(
+            [
+                "",
+                "  TECHO POR TRAMOS. Con tres sitios de corte medidos el techo ya no es "
+                "UNO: la pregunta",
+                "  de un candidato no es cuanta isoforma larga hay, es que fraccion de "
+                "transcritos conserva",
+                "  SU diana — y eso depende de por detras de cuantos cortes esta.",
+            ]
+        )
+        lineas.extend(f"    {c.describe()}" for c in self.layers)
+        return lineas
+
+
+def ceiling_layers(measured: "MeasuredApa") -> tuple[CeilingLayer, ...]:
+    """Los tramos de techo de una tabla ya anclada. Cubren el 3'UTR entero, sin huecos."""
+    return measured.layers
+
+
+def _build_layers(
+    anchor: AnchorResult, table: MeasuredFraction, length: int, offset: int, frame
+):
+    por_locus = {s.locus: s for s in table.sites}
+    utiles = [
+        s for s in anchor.anchors
+        if not s.ambiguous and s.locus in por_locus and not por_locus[s.locus].distal
+    ]
+    if not utiles:
+        raise ValueError(
+            "Ningun sitio PROXIMAL medido quedo anclado sin ambiguedad, asi que no hay "
+            "con que construir los tramos de techo. Se aborta en vez de emitir un techo "
+            "unico que no se sabe de donde sale."
+        )
+    total = sum(s.weighted for s in table.sites)
+
+    bordes = sorted({1, length + 1}
+                    | {s.cleavage_band[0] + offset + 1 for s in utiles}
+                    | {s.cleavage_band[1] + offset + 1 for s in utiles})
+    capas: list[CeilingLayer] = []
+    for inicio, siguiente in zip(bordes, bordes[1:]):
+        fin = siguiente - 1
+        detras = [s for s in utiles if inicio > s.cleavage_band[1] + offset]
+        banda = [
+            s for s in utiles
+            if s.cleavage_band[0] + offset < inicio <= s.cleavage_band[1] + offset
+        ]
+        perdidos = tuple(por_locus[s.locus] for s in detras)
+        if banda:
+            capas.append(CeilingLayer(
+                start_range=(inicio, fin), ceiling=None, lost=perdidos, in_band=True,
+                frame=frame,
+                reason=(
+                    "dentro de la banda de corte de "
+                    + ", ".join(s.locus for s in banda)
+                    + ": no se sabe de que lado cae, asi que el techo es INDETERMINADO "
+                      "(PENALIZADO, no TECHO)"
+                ),
+            ))
+            continue
+        if not detras:
+            capas.append(CeilingLayer(
+                start_range=(inicio, fin), ceiling=None, lost=(), in_band=False,
+                frame=frame,
+                reason="por delante de todos los cortes medidos: la diana esta en TODAS "
+                       "las isoformas. INMUNE.",
+            ))
+            continue
+        conservado = total - sum(s.weighted for s in perdidos)
+        capas.append(CeilingLayer(
+            start_range=(inicio, fin), ceiling=conservado / total, lost=perdidos,
+            in_band=False, frame=frame,
+            reason="por detras de " + ", ".join(s.locus for s in detras),
+        ))
+    return tuple(capas)
+
+
+def resolve_measured(
+    sequence: str,
+    table: MeasuredFraction,
+    *,
+    anatomy=None,
+) -> "MeasuredApa | None":
+    """Coloca la tabla medida sobre la secuencia que se va a tilar, o devuelve `None`.
+
+    `None` significa **esta tabla no habla de esta secuencia**, y es lo que tiene que
+    pasar con cualquier otro 3'UTR: unas coordenadas de Prnp murino ancladas sobre otra
+    secuencia anclarian ruido. La condicion es el md5 canonico del 3'UTR, igual que en
+    el manifiesto — no el nombre del gen, que se puede teclear mal.
+
+    Si hay anatomia, la tabla se ancla sobre el 3'UTR y las posiciones se devuelven en
+    el marco de LO TILADO, que es el que usan las ventanas y las señales.
+    """
+    secuencia = reference.canonical_form(sequence, name="secuencia")
+    if anatomy is not None and getattr(anatomy, "utr3", None):
+        inicio, fin = anatomy.utr3
+        utr3 = secuencia[inicio - 1:fin]
+        offset = inicio - 1
+        marco = coords.frame_of(anatomy)
+    else:
+        utr3 = secuencia
+        offset = 0
+        marco = coords.Frame.UTR3
+
+    if not table.utr3_md5:
+        raise ValueError(
+            f"La tabla de {table.source} {table.version} no declara a que 3'UTR se "
+            f"refiere, asi que no hay forma de comprobar que habla de esta secuencia; "
+            f"se aborta en vez de anclarla sobre lo que haya."
+        )
+    if reference.sequence_md5(utr3) != table.utr3_md5:
+        return None
+
+    ancla = anchor_polyadb(utr3, table.anchors)
+    if ancla.hypothesis is not MappingHypothesis.CORTE:
+        return None
+    return MeasuredApa(
+        source=f"{table.source} {table.version}",
+        table=table,
+        anchor=ancla,
+        signal_starts=tuple(
+            sorted(s.hexamer_start + offset for s in ancla.anchors if not s.ambiguous)
+        ),
+        offset=offset,
+        layers=_build_layers(ancla, table, len(utr3) + offset, offset, marco),
+        frame=marco,
+    )
