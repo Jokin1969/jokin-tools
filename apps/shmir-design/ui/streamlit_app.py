@@ -36,6 +36,8 @@ from shmir_design.presentation import (  # noqa: E402
     BLAST_MODAL_NOTE,
     blast_candidate_rows,
     blast_command_text,
+    front_help_rows,
+    obtencion_rows,
     offtarget_catalog_from_upload,
     offtarget_control_rows,
     offtarget_highlights,
@@ -280,6 +282,17 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         st.dataframe(filas, hide_index=True)
     else:
         st.info("Ningún candidato con estos umbrales.")
+
+    st.markdown("**Frentes** — y cómo cerrar los que están en NOT_RUN")
+    for fila in front_help_rows(tiling, seleccion, species=nombre):
+        etiqueta = "NOT_RUN" if fila["abierto"] else "CERRADO"
+        with st.expander(f"{etiqueta} · {fila['frente']}", expanded=False):
+            st.caption(fila["motivo"])
+            st.code(fila["ficha"]["texto"], language=None)
+            st.link_button(
+                f"↗ {fila['ficha']['fuente']}", fila["ficha"]["url"],
+                disabled=not fila["ficha"]["url"].startswith("http"),
+            )
 
     _modal_blast(seleccion, nombre)
     _modal_seed(seleccion, nombre, tiling.mature)

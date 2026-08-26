@@ -1152,3 +1152,67 @@ def offtarget_highlights(scan):
             ),
         },
     }
+
+
+# ─────────────── fichas de obtencion: como se resuelve cada NOT_RUN ───────────────
+
+
+def obtencion_rows(front: str, *, species: str):
+    """La ficha de un frente, ya resuelta contra la especie y lista para pintar.
+
+    La pagina no resuelve nada: recibe listas y textos. Si la especie no tiene declarado
+    algo que la ficha necesita —el prefijo de miRBase, el ensamblaje de UCSC—, eso sale
+    en `avisos` ademas de dentro del paso, porque un paso largo se lee en diagonal.
+    """
+    from .obtencion import resolve_ficha
+    from .species import resolve
+
+    ficha = resolve_ficha(front, species=resolve(species))
+    return {
+        "frente": ficha.front,
+        "pregunta": ficha.question,
+        "fuente": ficha.source,
+        "url": ficha.url,
+        "tamano": ficha.size,
+        "validacion": ficha.validation,
+        "pasos": list(ficha.steps),
+        "ficheros": [
+            {
+                "nombre": f.name,
+                "por_que": f.why,
+                "obligatorio": f.required,
+            }
+            for f in ficha.files
+        ],
+        "metadatos": [{"nombre": m.name, "por_que": m.why} for m in ficha.metadata],
+        "avisos": list(ficha.warnings),
+        "sin_fichero": ficha.no_file,
+        "por_que_sin_fichero": ficha.why_no_file,
+        "sin_declarar": list(ficha.undeclared),
+        "texto": ficha.render(),
+    }
+
+
+def front_help_rows(tiling, selection, *, species: str):
+    """Los frentes de esta corrida, con su estado y CON su ficha de obtencion.
+
+    Es lo que convierte «falta el recurso» en algo accionable. Sale para TODOS los
+    frentes, tambien los cerrados: un frente cerrado con su ficha delante deja ver con
+    que se cerro.
+    """
+    from .filters import FilterState
+    from .selection import blocking_fronts
+
+    filas = []
+    for frente in blocking_fronts(tiling, selection):
+        ficha = obtencion_rows(frente.name, species=species)
+        filas.append(
+            {
+                "frente": frente.name,
+                "abierto": frente.blocking,
+                "estado": FilterState.NOT_RUN if frente.blocking else FilterState.PASS,
+                "motivo": frente.reason,
+                "ficha": ficha,
+            }
+        )
+    return filas

@@ -1,0 +1,35 @@
+frente = "seed_colision"
+pregunta = """\
+¿La seed de esta hebra es la de un miARN maduro conocido y abundante? Compartir seed con \
+uno del nucleo no da off-targets dispersos: secuestra un programa regulador neuronal \
+entero."""
+fuente = "miRBase"
+url = "https://www.mirbase.org/"
+tamano = "unos 5,6 MB (todas las especies, ~69.000 maduros)"
+validacion = """\
+La app comprueba el md5 del fichero contra el manifiesto y filtra por el prefijo de \
+especie. Ademas normaliza U↔T en los DOS lados antes de comparar: sin eso la comparacion \
+daria CERO colisiones en todas, que es un desajuste de alfabeto disfrazado de resultado \
+limpio."""
+
+pasos = [
+  "Entra en mirbase.org y abre la pestaña «Downloads».",
+  "Descarga `mature.fa` — el de TODAS las especies vale: el filtro por especie lo hace la app.",
+  "Apunta el RELEASE de miRBase que aparece en la pagina de descargas; el fichero no lo lleva dentro.",
+  "Subelo tal cual, sin recortarlo ni filtrarlo a mano.",
+  "Al configurar el modal, el prefijo de especie que hay que usar es {prefijo}",
+]
+
+avisos = [
+  "ANOTA EL RELEASE. miRBase RENUMERA entre versiones: un maduro puede cambiar de nombre o de numero entre releases, y una colision anotada sin release no se puede volver a comprobar. El fichero no trae la version dentro, asi que si no la apuntas se pierde.",
+  "No recortes el fichero a la especie antes de subirlo: la TASA BASE se deriva del fichero cargado y del filtro que se aplique, y con `hsa-` dentro casi se dobla. Que el filtro lo haga la app es lo que mantiene la tasa comparable entre corridas.",
+]
+
+[[ficheros]]
+nombre = "mature.fa"
+por_que = "Los maduros de miRBase. De aqui salen las seeds contra las que se compara, y tambien las de los controles biologicos del frente de carga de off-targets — nunca escritas en el codigo."
+obligatorio = true
+
+[[metadatos]]
+nombre = "release de miRBase"
+por_que = "El fichero NO la trae dentro y miRBase renumera entre versiones. Sin release, una colision no se puede volver a comprobar dentro de un año."

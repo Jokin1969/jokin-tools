@@ -1,0 +1,40 @@
+frente = "transgen"
+pregunta = """\
+¿Esta guia impacta contra el TRANSGEN del casete terapeutico? Es una segunda base de \
+especificidad, y falla duro con cero o un desapareamiento: una guia a un solo \
+desapareamiento apaga la construccion terapeutica casi igual que a su diana, y eso seria \
+un fallo silencioso."""
+fuente = "El laboratorio: el fichero del plasmido del casete AAV"
+url = "—"
+tamano = "unos KB (un plasmido de ~5 kb en FASTA)"
+validacion = """\
+La app comprueba POR SECUENCIA si el casete lleva el modulo del shmiR dentro —busca el \
+loop de los andamios conocidos— y avisa. Si le pasas el GENOMA CON EL INTRON DENTRO en \
+vez del transcrito maduro, toda guia da impacto contra SU PROPIA HORQUILLA y el filtro \
+tumba el panel entero por un artefacto, con un motivo que ademas es literalmente cierto: \
+por eso no se ve si nadie lo comprueba."""
+
+pasos = [
+  "Pide al laboratorio el FASTA del casete que se va a usar.",
+  "Asegurate de que es LO QUE LA CELULA MADURA, no el genoma con el intron dentro.",
+  "Comprueba con quien te lo da si lleva ya el modulo del shmiR o es el parental sin modulo: no es lo mismo y la lectura del veredicto cambia.",
+  "Subelo y apunta su nombre completo y su md5.",
+]
+
+avisos = [
+  "El casete que hay hoy en el proyecto (`aav_casete.fa`) es el PARENTAL, sin el modulo del shmiR, y esta comprobado por secuencia. Por eso su veredicto se puede leer tal cual. Cuando se sustituya por el terapeutico hay que dar el TRANSCRITO MADURO.",
+  "XhoI y EcoRI viajan dentro del modulo, heredadas de los contextos de SGEP, y en el plasmido final NO son unicas. El clonaje va por NheI/SacI o por sintesis.",
+]
+
+[[ficheros]]
+nombre = "aav_casete.fa"
+por_que = "La secuencia del casete terapeutico. Es la segunda base de especificidad y la unica forma de saber si una guia apagaria la propia construccion."
+obligatorio = true
+
+[[metadatos]]
+nombre = "nombre completo del plasmido y su md5"
+por_que = "Un casete distinto da un veredicto distinto, y el nombre del fichero no identifica la construccion."
+
+[[metadatos]]
+nombre = "si lleva el modulo del shmiR o es el parental"
+por_que = "Con modulo dentro, toda guia impacta contra su propia horquilla. El dato cambia como se lee TODO el frente."

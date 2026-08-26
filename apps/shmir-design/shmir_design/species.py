@@ -35,17 +35,20 @@ class Species:
     mirbase_prefix: str = ""
     #: Taxid para Entrez. Vacio si no se conoce.
     taxid: str = ""
+    #: Ensamblaje de UCSC (`mm39`). Vacio si no se conoce: dos ensamblajes distintos dan
+    #: coordenadas distintas, asi que este NO se adivina tampoco.
+    ucsc_assembly: str = ""
 
     @property
     def known(self) -> bool:
-        return bool(self.mirbase_prefix or self.taxid)
+        return bool(self.mirbase_prefix or self.taxid or self.ucsc_assembly)
 
 
 #: Las que este proyecto conoce. Añadir una especie es añadir una linea AQUI con sus
 #: identificadores verificados, no deducirlos del nombre.
 SPECIES: dict[str, Species] = {
-    "mouse": Species("Mus musculus", "mouse", "mmu-", "txid10090"),
-    "human": Species("Homo sapiens", "human", "hsa-", "txid9606"),
+    "mouse": Species("Mus musculus", "mouse", "mmu-", "txid10090", "mm39"),
+    "human": Species("Homo sapiens", "human", "hsa-", "txid9606", "hg38"),
 }
 
 _BY_NAME = {s.scientific.lower(): s for s in SPECIES.values()}

@@ -1,0 +1,53 @@
+# Ficha de obtencion — se versiona en git. Es documentacion, no un fichero de datos
+# grande: se lee con `cat` y no hace falta la app para consultarla.
+frente = "repeticion_polimorfica"
+pregunta = """\
+¿La ventana cae dentro de una repeticion POLIMORFICA — un microsatelite, un satelite, \
+un tramo de baja complejidad? Es otra pregunta que la de `repeticiones`, aunque salga \
+del mismo fichero: aquella va de estabilidad del genoma AAV y esta de VIABILIDAD \
+CLINICA. Un microsatelite varia en NUMERO DE REPETICIONES entre individuos, asi que una \
+guia ahi tendria respondedores y no respondedores por variacion de LONGITUD, no de \
+secuencia."""
+fuente = "RepeatMasker Web Server"
+url = "https://www.repeatmasker.org/"
+tamano = "unos pocos KB por corrida (el .out y el .tbl juntos no llegan a 10 KB)"
+validacion = """\
+La app comprueba que el `.tbl` declare la MISMA especie que se esta diseñando, y que la \
+longitud de la consulta que declara el resumen (`total length:`) coincida con la de la \
+secuencia cargada. Si no cuadran, se rechaza: una mascara de otra secuencia taparia un \
+tramo que ahi no es repetitivo, y el intervalo cabria sin salirse de rango."""
+
+pasos = [
+  "Entra en repeatmasker.org y ve a Services → RepeatMasking.",
+  "Sube el FASTA del transcrito que vas a analizar (el mismo que le das a la app).",
+  "En «DNA source» elige {cientifico}. NO lo dejes en el valor por defecto: es el unico sitio donde se elige la biblioteca, y con la equivocada el resultado es indistinguible de uno bueno.",
+  "En «Return format» elige «tar file».",
+  "En «Return method» elige «email».",
+  "Del `.tar.gz` que llega por correo saca DOS ficheros: el `.out` y el `.tbl`.",
+  "Renombralos a {slug} tal y como los pide la app y subelos juntos.",
+]
+
+avisos = [
+  "El `.tbl` NO es opcional. Una corrida valida y una contra la biblioteca equivocada producen un `.out` INDISTINGUIBLE byte a byte cuando lo unico presente es una repeticion simple, porque esas se detectan por composicion y no por biblioteca. Esta demostrado con datos en el propio proyecto (`masking.INDISTINGUISHABLE_OUTS`): dos ficheros con el mismo md5, uno bueno y otro con biblioteca murina sobre una consulta humana. La unica diferencia vive en el `.tbl`.",
+  "El `.out` NO declara la especie. Ninguno lo hace. Por eso sin resumen no hay nada que comprobar — y no haber podido comprobar no es «coincide».",
+  "ESTE HUECO NO LO CUBRE gnomAD. gnomAD anota SUSTITUCIONES y capta mal la variacion de longitud, asi que un «gnomAD limpio» invita a creer que la ventana esta comprobada y no lo esta. Son dos filtros y ninguno sustituye al otro.",
+  "Que familias cuentan como polimorficas va DECLARADO como parametro y no citado: `Simple_repeat`, `Satellite` y `Low_complexity`. Un SINE es repetitivo pero DISPERSO — no varia de longitud — asi que no entra.",
+]
+
+[[ficheros]]
+nombre = "rmsk_{slug}.out"
+por_que = "Las filas con los intervalos enmascarados. Es lo que se aplica a la secuencia."
+obligatorio = true
+
+[[ficheros]]
+nombre = "rmsk_{slug}.tbl"
+por_que = "El resumen. Es el UNICO sitio donde se declara la especie de la biblioteca y la longitud de la consulta, asi que es lo unico que permite validar la corrida. Sin el, un `.out` sin filas no distingue «no habia repetitivos» de «la corrida no llego a correr»."
+obligatorio = true
+
+[[metadatos]]
+nombre = "version de RepeatMasker"
+por_que = "Sale en la cabecera del `.out` y del `.tbl`. Dos versiones dan resultados distintos sobre la misma secuencia."
+
+[[metadatos]]
+nombre = "biblioteca Dfam (con su version)"
+por_que = "RepeatMasker con Dfam_3.0 y con otra biblioteca dan resultados distintos, asi que la version del binario a solas NO identifica la corrida. Va en su propia columna del manifiesto."
