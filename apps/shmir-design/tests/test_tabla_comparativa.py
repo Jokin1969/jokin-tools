@@ -14,7 +14,13 @@ sabra que parametros predicen algo y cuales son decoracion.
 
 import unittest
 
-from shmir_design.comparative import COMPARATIVE_COLUMNS, comparative_rows, comparative_tsv
+from shmir_design.anatomy import Anatomy, RegionSource
+from shmir_design.comparative import (
+    COMPARATIVE_COLUMNS,
+    comparative_rows,
+    comparative_text,
+    comparative_tsv,
+)
 from shmir_design.external_score import FEATURE_COLUMNS, splashrna_features
 from shmir_design.outputs import tsv_oligos
 from shmir_design.scaffold import SGEP_SCAFFOLD
@@ -328,3 +334,69 @@ class TestColumnaPasajera(unittest.TestCase):
         col = cabecera.index("pasajera")
         de_oligos = [l.split("\t")[col] for l in oligos[1:]]
         self.assertEqual([f[indice] for f in filas[1:]], de_oligos)
+
+
+class TestNotaDeCoordenadas(unittest.TestCase):
+    """La cabecera tiene que decir en que marco va cada pareja de coordenadas.
+
+    Cuando lo que se tila YA es un 3'UTR no hay offset, asi que `inicio_transcrito`
+    sale igual que `inicio_3utr`. Los numeros son correctos; lo que no puede pasar es
+    que alguien lea `inicio_transcrito = 21` dentro de seis meses y entienda que es la
+    posicion 21 de NM_011170.3. La cabecera lo dice con todas las letras, y dice ademas
+    de donde salio la anatomia.
+    """
+
+    def tsv(self, anatomia):
+        _, seleccion = _piezas()
+        return comparative_tsv(
+            seleccion, SGEP_SCAFFOLD, with_header=True, anatomy=anatomia
+        )
+
+    def _sin_marco(self):
+        return Anatomy.whole_is_utr3(
+            len(SONDA), source=RegionSource.TODO_3UTR_DECLARADO
+        )
+
+    def _con_cds(self):
+        return Anatomy.from_cds(
+            cds=(45, 146), length=len(SONDA), source=RegionSource.CDS_DECLARADA
+        )
+
+    def cabecera(self, anatomia):
+        return "\n".join(
+            l for l in self.tsv(anatomia).splitlines() if l.startswith("#")
+        )
+
+    def test_sin_marco_de_transcrito_lo_dice(self):
+        cabecera = self.cabecera(self._sin_marco())
+        self.assertIn("no son coordenadas de ningun transcrito", cabecera)
+
+    def test_sin_marco_avisa_de_que_las_dos_parejas_coinciden(self):
+        self.assertIn("coinciden", self.cabecera(self._sin_marco()))
+
+    def test_con_CDS_declarado_NO_dice_que_coincidan(self):
+        # Ahi si hay offset y las dos parejas son cosas distintas.
+        self.assertNotIn("coinciden", self.cabecera(self._con_cds()))
+
+    def test_siempre_dice_de_donde_salio_la_anatomia(self):
+        for anatomia in (self._sin_marco(), self._con_cds()):
+            with self.subTest(anatomia.source.value):
+                self.assertIn(anatomia.source.describe(), self.cabecera(anatomia))
+
+    def test_sin_anatomia_dice_que_no_se_declaro(self):
+        # Nadie deberia llamar asi, pero si pasa, el fichero no puede quedarse mudo.
+        _, seleccion = _piezas()
+        cabecera = comparative_tsv(seleccion, SGEP_SCAFFOLD, with_header=True)
+        self.assertIn("no se declaro", cabecera)
+
+    def test_el_bloque_del_informe_tambien_lo_dice(self):
+        _, seleccion = _piezas()
+        texto = comparative_text(seleccion, SGEP_SCAFFOLD, anatomy=self._sin_marco())
+        self.assertIn("no son coordenadas de ningun transcrito", texto)
+
+    def test_las_columnas_no_cambian_de_nombre_ni_de_sitio(self):
+        # El esquema es estable: lo que cambia es lo que se explica de el.
+        _, seleccion = _piezas()
+        con = comparative_rows(seleccion, SGEP_SCAFFOLD, anatomy=self._sin_marco())[0]
+        sin = comparative_rows(seleccion, SGEP_SCAFFOLD)[0]
+        self.assertEqual(con, sin)

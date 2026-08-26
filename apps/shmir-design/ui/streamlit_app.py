@@ -40,6 +40,7 @@ from shmir_design.presentation import (  # noqa: E402
     status_light,
     window_rows,
 )
+from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
 from shmir_design.reference import (  # noqa: E402
     PACKAGE_REFERENCE_DIR,
     REFERENCES,
@@ -47,6 +48,7 @@ from shmir_design.reference import (  # noqa: E402
     sequence_md5,
 )
 from shmir_design.resources import load_from_manifest  # noqa: E402
+from shmir_design.resolve import check_boundaries, resolve_anatomy  # noqa: E402
 from shmir_design.scaffold import SGEP_SCAFFOLD, load_scaffold  # noqa: E402
 from shmir_design.seeds import BOOTSTRAP_SEEDS, parse_seed_table  # noqa: E402
 from shmir_design.selection import (  # noqa: E402
@@ -70,37 +72,76 @@ def _fasta_sequence(upload) -> str:
     return normalize_sequence(secuencia, name=f"secuencia de {upload.name}")
 
 
-def anatomia_y_utr3(sequence: str, etiqueta: str):
-    """Si el mRNA coincide con una referencia verificada, usa SU anatomia.
+PISTA_UI = (
+    "\nEn esta pagina: sube el `.gb` del RefSeq junto al FASTA, o declara las "
+    "coordenadas\ndel CDS, o marca la casilla que dice que lo que has subido YA es el "
+    "3'UTR."
+)
 
-    Si no coincide, NO se adivina el ORF: las coordenadas las declara quien sube el
-    fichero, y quedan marcadas como no verificadas.
+
+def anatomia(sequence: str, etiqueta: str, genbank_file):
+    """Resuelve la anatomia por las mismas tres vias que el CLI, o aborta.
+
+    Aqui NO hay ningun valor por defecto que convierta un "no se" en un "todo es
+    3'UTR": esa era la version anterior, y por eso un mRNA completo se tilaba entero
+    como si fuera 3'UTR sin que nadie lo hubiera declarado. La decision la toma
+    `resolve.resolve_anatomy`, que es la misma funcion que usa la consola.
     """
     md5 = sequence_md5(sequence)
     for reference in REFERENCES.values():
         if reference.md5 == md5:
-            return reference, extract_3utr(sequence, reference)
+            return reference, Anatomy.from_cds(
+                cds=reference.cds,
+                length=len(sequence),
+                source=RegionSource.FIXTURE_VERIFICADO,
+            )
 
     st.warning(
         f"**{etiqueta}**: el mRNA no coincide con ninguna referencia verificada "
-        f"(md5 `{md5}`). No hay deteccion de ORF en el nucleo, asi que las coordenadas "
-        f"del 3'UTR las declaras tu y salen marcadas como no verificadas."
+        f"(md5 `{md5}`). No hay deteccion de ORF en el nucleo, asi que la anatomia la "
+        f"declaras tu — y hasta que la declares no se tila nada."
     )
+    if genbank_file is not None:
+        ruta = Path(tempfile.mkdtemp()) / genbank_file.name
+        ruta.write_bytes(genbank_file.getvalue())
+        return None, resolve_anatomy(
+            name=etiqueta, sequence=sequence, genbank=ruta, hint=PISTA_UI
+        )
+
+    ya_es_utr3 = st.checkbox(
+        f"{etiqueta} — lo que he subido YA es el 3'UTR entero",
+        key=f"{etiqueta}_ya_utr3",
+        help="Marca esto solo si el FASTA no lleva ni 5'UTR ni CDS.",
+    )
+    if ya_es_utr3:
+        return None, resolve_anatomy(
+            name=etiqueta, sequence=sequence, whole_is_utr3=True, hint=PISTA_UI
+        )
+
+    declarar = st.checkbox(
+        f"{etiqueta} — declarar las coordenadas del CDS a mano",
+        key=f"{etiqueta}_declarar_cds",
+        help="1-based e inclusivas, como las escribe GenBank. El codon de parada se "
+             "comprueba: es lo que caza el off-by-one.",
+    )
+    if not declarar:
+        # Sin via elegida no se sigue. El mensaje es el del nucleo, con las tres vias.
+        return None, resolve_anatomy(
+            name=etiqueta, sequence=sequence, hint=PISTA_UI
+        )
     inicio = st.number_input(
-        f"{etiqueta} — inicio del 3'UTR (1-based)",
-        min_value=1,
-        max_value=len(sequence),
-        value=1,
-        key=f"{etiqueta}_inicio",
+        f"{etiqueta} — inicio del CDS (1-based)",
+        min_value=1, max_value=len(sequence), value=1,
+        key=f"{etiqueta}_cds_inicio",
     )
     fin = st.number_input(
-        f"{etiqueta} — fin del 3'UTR",
-        min_value=int(inicio),
-        max_value=len(sequence),
-        value=len(sequence),
-        key=f"{etiqueta}_fin",
+        f"{etiqueta} — fin del CDS (incluye el codon de parada)",
+        min_value=int(inicio), max_value=len(sequence), value=len(sequence),
+        key=f"{etiqueta}_cds_fin",
     )
-    return None, sequence[int(inicio) - 1 : int(fin)]
+    return None, resolve_anatomy(
+        name=etiqueta, sequence=sequence, cds=(int(inicio), int(fin)), hint=PISTA_UI
+    )
 
 
 def panel_umbrales() -> tuple[Thresholds, SelectionConfig, int]:
@@ -169,21 +210,34 @@ def semaforo(luz) -> None:
     )
 
 
-def bloque_especie(nombre, transcrito, utr3, umbrales, config, seeds, mask, scaffold,
-                   conservacion, recursos, accesibilidad) -> dict[str, str]:
+def _utr3(secuencia: str, anat) -> str:
+    """El tramo 3'UTR de la secuencia, segun la anatomia ya resuelta."""
+    inicio, fin = anat.utr3
+    return secuencia[inicio - 1 : fin]
+
+
+def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds, mask,
+                   scaffold, conservacion, recursos, accesibilidad) -> dict[str, str]:
     st.subheader(f"{nombre}")
     extra = dict(recursos.as_kwargs()) if recursos is not None else {}
     if mask is not None:
         extra["mask"] = mask  # la mascara subida a mano manda sobre la del manifiesto
+    # Se tila la secuencia ENTERA con su anatomia, como el CLI: asi las coordenadas de
+    # transcrito son coordenadas de transcrito de verdad y no una copia de las del
+    # 3'UTR. Que ventanas entran lo decide `TileRange`, en el nucleo.
     tiling = tile_utr(
-        utr3, seeds=seeds, thresholds=umbrales, accessibility=accesibilidad, **extra
+        secuencia, anatomy=anat, seeds=seeds, thresholds=umbrales,
+        accessibility=accesibilidad, **extra
     )
     seleccion = select_from_report(tiling, config)
+    utr3 = _utr3(secuencia, anat)
 
     semaforo(status_light(seleccion))
 
     st.markdown("**Anatomía del transcrito**")
-    st.dataframe(anatomy_rows(transcrito, utr3_length=len(utr3)), hide_index=True)
+    st.dataframe(
+        anatomy_rows(transcrito, utr3_length=len(utr3), anatomy=anat), hide_index=True
+    )
 
     st.markdown("**Mapa del 3'UTR**")
     st.html(map_svg(tiling, seleccion, conservation=conservacion, species=nombre))
@@ -285,11 +339,21 @@ def main() -> None:
     with columnas[0]:
         modelo = st.file_uploader("mRNA — especie modelo", type=["fa", "fasta", "txt"])
         nombre_modelo = st.text_input("Nombre de la especie modelo", "modelo")
+        gb_modelo = st.file_uploader(
+            "GenBank de la especie modelo (.gb, opcional)", type=["gb", "gbk", "genbank"],
+            help="El CDS anotado del RefSeq. Es la via mas fiable de resolver la "
+                 "anatomia: sin el, las coordenadas del CDS las tecleas tu.",
+        )
     with columnas[1]:
         diana = st.file_uploader(
             "mRNA — segunda especie (opcional)", type=["fa", "fasta", "txt"]
         )
         nombre_diana = st.text_input("Nombre de la segunda especie", "diana")
+        gb_diana = st.file_uploader(
+            "GenBank de la segunda especie (.gb, opcional)",
+            type=["gb", "gbk", "genbank"],
+            help="Lo mismo para la segunda especie.",
+        )
 
     if not modelo:
         st.info(
@@ -334,8 +398,10 @@ def main() -> None:
             )
 
         secuencias = {nombre_modelo: _fasta_sequence(modelo)}
+        genbanks = {nombre_modelo: gb_modelo}
         if diana:
             secuencias[nombre_diana] = _fasta_sequence(diana)
+            genbanks[nombre_diana] = gb_diana
     except (ShmirDesignError, ValueError, OSError) as exc:
         # rule2-ok: frontera de la interfaz. El fallo se enseña entero al usuario y no
         # se pinta ningun resultado: no hay degradado silencioso.
@@ -386,15 +452,25 @@ def main() -> None:
         # La anatomia se resuelve UNA vez por especie: si el mRNA no coincide con una
         # referencia verificada, aqui es donde se piden las coordenadas del 3'UTR.
         anatomias = {
-            nombre: anatomia_y_utr3(secuencia, nombre)
+            nombre: anatomia(secuencia, nombre, genbanks[nombre])
             for nombre, secuencia in secuencias.items()
         }
+        # El codon de parada es aviso duro, igual que en el CLI: un CDS corrido corre
+        # tambien el 3'UTR y con el todos los tercios.
+        avisos_anatomia = {
+            nombre: check_boundaries(secuencias[nombre], anat)
+            for nombre, (_, anat) in anatomias.items()
+        }
+        for nombre, avisos in avisos_anatomia.items():
+            for aviso in avisos:
+                st.warning(f"**{nombre}** — {aviso}")
+
         if accion == "estimar":
-            for nombre, (_, utr3) in anatomias.items():
+            for nombre, (_, anat) in anatomias.items():
                 st.subheader(f"{nombre} — estimacion")
                 st.code(
                     cost_text(
-                        utr3,
+                        _utr3(secuencias[nombre], anat),
                         resources=recursos,
                         accessibility=accesibilidad,
                         thresholds=umbrales,
@@ -405,7 +481,10 @@ def main() -> None:
         # La decision de si hay algo que comparar vive en presentation.py, con test:
         # la pagina no decide nada.
         conservacion = conservation_for(
-            {nombre: utr3 for nombre, (_, utr3) in anatomias.items()},
+            {
+                nombre: _utr3(secuencias[nombre], anat)
+                for nombre, (_, anat) in anatomias.items()
+            },
             min_length=min_bloque,
             thresholds=umbrales,
         )
@@ -416,11 +495,11 @@ def main() -> None:
             )
 
         ficheros: dict[str, str] = {}
-        for nombre, (transcrito, utr3) in anatomias.items():
+        for nombre, (transcrito, anat) in anatomias.items():
             ficheros.update(
                 bloque_especie(
-                    nombre, transcrito, utr3, umbrales, config, seeds, mask, scaffold,
-                    conservacion, recursos, accesibilidad,
+                    nombre, transcrito, secuencias[nombre], anat, umbrales, config,
+                    seeds, mask, scaffold, conservacion, recursos, accesibilidad,
                 )
             )
     except (ShmirDesignError, ValueError, OSError) as exc:

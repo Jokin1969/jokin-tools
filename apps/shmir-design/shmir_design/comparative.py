@@ -22,6 +22,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
+from .anatomy import Anatomy
 from .external_score import FEATURE_COLUMNS, ExternalScore, splashrna_features
 from .gblock import build_gblock
 from .polya import POLYA_COLUMNS
@@ -81,6 +82,42 @@ CABECERA = (
 )
 
 
+def coordinate_note(anatomy: Anatomy | None) -> str:
+    """En que marco va cada pareja de coordenadas, y de donde salio la anatomia.
+
+    Cuando lo que se tilo YA era un 3'UTR no hay offset, asi que `inicio_transcrito`
+    sale igual que `inicio_3utr`. Los numeros estan bien; lo que no puede pasar es que
+    dentro de seis meses alguien lea `inicio_transcrito = 21` y entienda que es la
+    posicion 21 de un RefSeq. Aqui se dice.
+    """
+    lineas = [
+        "inicio_3utr/fin_3utr van sobre el 3'UTR y empiezan en 1; "
+        "inicio_transcrito/fin_transcrito,",
+        "sobre la secuencia que se tilo.",
+    ]
+    if anatomy is None:
+        lineas.append(
+            "La anatomia no se declaro al escribir esta tabla, asi que no se puede "
+            "decir que marco"
+        )
+        lineas.append("es el de las columnas de transcrito. Trata los dos con cuidado.")
+        return "\n".join(lineas)
+    lineas.append(f"Anatomia: {anatomy.source.describe()}.")
+    if anatomy.cds is None:
+        lineas.append(
+            "AQUI NO HAY MARCO DE TRANSCRITO: la secuencia tilada era el 3'UTR entero, "
+            "asi que las"
+        )
+        lineas.append(
+            "dos parejas coinciden y **no son coordenadas de ningun transcrito**. Para "
+            "tenerlas hay"
+        )
+        lineas.append(
+            "que resolver la anatomia con el GenBank o con las coordenadas del CDS."
+        )
+    return "\n".join(lineas)
+
+
 def _mismatch_counts(detalle) -> dict[int, str]:
     """Hits antisentido por numero de desapareamientos. Vacio si no se conto."""
     if detalle is None:
@@ -93,7 +130,10 @@ def _mismatch_counts(detalle) -> dict[int, str]:
 
 
 def comparative_rows(
-    selection: ReportSelection, scaffold: ScaffoldSpec
+    selection: ReportSelection,
+    scaffold: ScaffoldSpec,
+    *,
+    anatomy: Anatomy | None = None,
 ) -> list[list[str]]:
     """Cabecera y una fila por candidato elegido."""
     elegidos = list(selection.selection.chosen)
@@ -189,13 +229,20 @@ def _limpio(campo: str) -> str:
 
 
 def comparative_tsv(
-    selection: ReportSelection, scaffold: ScaffoldSpec, *, with_header: bool = False
+    selection: ReportSelection,
+    scaffold: ScaffoldSpec,
+    *,
+    with_header: bool = False,
+    anatomy: Anatomy | None = None,
 ) -> str:
-    """La tabla en TSV. `with_header` añade el comentario que explica la columna vacia."""
+    """La tabla en TSV. `with_header` añade los comentarios que la explican."""
     cuerpo = "\n".join(
         "\t".join(fila) for fila in comparative_rows(selection, scaffold)
     )
-    return (CABECERA + cuerpo) if with_header else cuerpo
+    if not with_header:
+        return cuerpo
+    nota = "".join(f"# {l}\n" for l in coordinate_note(anatomy).splitlines())
+    return CABECERA + nota + cuerpo
 
 
 #: Columnas que se enseñan en el bloque legible del informe. La tabla entera no cabe en
@@ -215,7 +262,12 @@ RESUMEN_COLUMNS = (
 )
 
 
-def comparative_text(selection: ReportSelection, scaffold: ScaffoldSpec) -> str:
+def comparative_text(
+    selection: ReportSelection,
+    scaffold: ScaffoldSpec,
+    *,
+    anatomy: Anatomy | None = None,
+) -> str:
     """Bloque legible: las columnas que sirven para decidir, alineadas."""
     filas = comparative_rows(selection, scaffold)
     if len(filas) < 2:
@@ -244,4 +296,5 @@ def comparative_text(selection: ReportSelection, scaffold: ScaffoldSpec) -> str:
         "  con la columna knockdown_medido vacia para que vuelva rellena del "
         "laboratorio."
     )
+    lineas.extend(f"  {l}" for l in coordinate_note(anatomy).splitlines())
     return "\n".join(lineas)

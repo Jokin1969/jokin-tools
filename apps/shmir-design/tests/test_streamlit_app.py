@@ -136,5 +136,41 @@ class TestEnlacesExternos(unittest.TestCase):
         self.assertIn("score_externo", ayudas)
 
 
+@unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no esta instalado (pip install -r requirements-ui.txt)")
+class TestAnatomiaEnLaInterfaz(unittest.TestCase):
+    """La pagina tiene que poder resolver la anatomia por las mismas tres vias.
+
+    No las tenia: no habia forma de subir un `.gb`, asi que el lector de GenBank era
+    inalcanzable desde el navegador. Y las coordenadas del 3'UTR venian con 1..longitud
+    por defecto, o sea que «todo es 3'UTR» era lo que pasaba si no tocabas nada — el
+    mismo agujero que se cerro en el CLI, reabierto por la puerta de atras.
+    """
+
+    def run_app(self):
+        return AppTest.from_file(str(APP), default_timeout=60).run()
+
+    def test_hay_un_hueco_para_el_genbank_de_cada_especie(self):
+        app = self.run_app()
+        etiquetas = [w.label for w in app.main.get("file_uploader")]
+        self.assertIn("GenBank de la especie modelo (.gb, opcional)", etiquetas)
+        self.assertIn("GenBank de la segunda especie (.gb, opcional)", etiquetas)
+
+    def test_el_genbank_acepta_las_extensiones_de_genbank(self):
+        app = self.run_app()
+        for widget in app.main.get("file_uploader"):
+            if "GenBank" in widget.label:
+                with self.subTest(widget.label):
+                    self.assertIn(".gb", list(widget.proto.type))
+
+    def test_el_fasta_no_acepta_un_gb(self):
+        # Si alguien arrastra el .gb al hueco del mRNA, el navegador lo rechaza: no se
+        # queda a medias leyendolo como si fuera FASTA.
+        app = self.run_app()
+        for widget in app.main.get("file_uploader"):
+            if widget.label.startswith("mRNA"):
+                with self.subTest(widget.label):
+                    self.assertNotIn(".gb", list(widget.proto.type))
+
+
 if __name__ == "__main__":
     unittest.main()

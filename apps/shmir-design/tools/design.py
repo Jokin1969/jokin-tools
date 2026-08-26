@@ -40,7 +40,11 @@ from shmir_design.anatomy import (  # noqa: E402
     check_cds_boundaries,
     cds_stop_codon_ok,
 )
-from shmir_design.genbank import load_genbank_cds  # noqa: E402
+from shmir_design.resolve import (  # noqa: E402
+    SIN_ANATOMIA,
+    check_boundaries,
+    resolve_anatomy,
+)
 from shmir_design.conservation import (  # noqa: E402
     MIN_BLOCK_LENGTH,
     Utr3,
@@ -141,19 +145,11 @@ def load_seeds(path: Path):
     return parse_seed_table(text, source=str(path))
 
 
-SIN_ANATOMIA = (
-    "no se ha resuelto donde acaba el CDS, asi que no se sabe que tramo del "
-    "transcrito es cada posicion y la anatomia queda SIN RESOLVER. Tilar de todos "
-    "modos trataria el 5'UTR y el CDS como si fueran 3'UTR: los tercios saldrian "
-    "corridos y habria candidatos del ORF presentados como candidatos del 3'UTR. "
-    "Hay tres formas de resolverlo, por orden de fiabilidad:\n"
-    "  1. --genbank FICHERO.gb  — el CDS anotado del RefSeq (lo mas fiable)\n"
-    "  2. --cds INICIO FIN      — las coordenadas a mano\n"
-    "  3. --region 3utr         — declarar que la secuencia YA es el 3'UTR\n"
+PISTA_CLI = (
+    "\nEn este CLI: --genbank FICHERO.gb, --cds INICIO FIN, o --region 3utr.\n"
     "Si no sabes cuales son, --proponer-cds calcula el marco mas largo y te enseña "
     "el comando; la propuesta no decide por ti."
 )
-
 
 REGIONES_CLI = {"5utr": Region.UTR5, "cds": Region.CDS, "3utr": Region.UTR3}
 
@@ -237,65 +233,6 @@ def conectar_desde_manifiesto(args, estado) -> None:
             f"md5 {entrada.md5[:8]}…)"
         )
     print()
-
-
-def resolver_anatomia(
-    *,
-    nombre: str,
-    secuencia: str,
-    coords,
-    genbank,
-    genbank_md5,
-    region: str,
-    desde_fixture: bool,
-) -> Anatomy:
-    """Fija la anatomia por una de las tres vias, o aborta. Nunca adivina.
-
-    Antes habia aqui un `else: whole_is_utr3(...)` que convertia el "no se" en un
-    "todo es 3'UTR" silencioso. Ese camino ya no existe.
-    """
-    if desde_fixture:
-        # Los fixtures de REFERENCES ya son 3'UTR extraidos y comprobados por md5.
-        return Anatomy.whole_is_utr3(
-            len(secuencia), source=RegionSource.FIXTURE_VERIFICADO
-        )
-    if genbank is not None:
-        anotacion = load_genbank_cds(genbank, expected_md5=genbank_md5)
-        anotacion.check_against_sequence_length(len(secuencia))
-        return Anatomy.from_cds(
-            cds=anotacion.cds,
-            length=len(secuencia),
-            source=RegionSource.ANOTACION_GENBANK,
-        )
-    if coords:
-        return Anatomy.from_cds(
-            cds=(coords[0], coords[1]),
-            length=len(secuencia),
-            source=RegionSource.CDS_DECLARADA,
-        )
-    if region == "3utr":
-        return Anatomy.whole_is_utr3(
-            len(secuencia), source=RegionSource.TODO_3UTR_DECLARADO
-        )
-    raise ShmirDesignError(f"{nombre}: {SIN_ANATOMIA}")
-
-
-def comprobar_fronteras(
-    secuencia: str, anatomia: Anatomy, *, permitir_sin_parada: bool
-) -> tuple[str, ...]:
-    """Comprueba el CDS declarado contra las bases. El codon de parada es aviso duro."""
-    if anatomia.cds is None:
-        return tuple(anatomia.warnings)
-    avisos = tuple(anatomia.warnings) + check_cds_boundaries(secuencia, anatomia)
-    if cds_stop_codon_ok(secuencia, anatomia) is False and not permitir_sin_parada:
-        detalle = next((a for a in avisos if "codon de parada" in a), "")
-        raise ShmirDesignError(
-            f"{detalle} Se aborta el diseño: un CDS corrido corre tambien el 3'UTR, y "
-            f"con el todas las posiciones y los tercios. Comprueba las coordenadas, o "
-            f"pasa --genbank, o repite con --permitir-cds-sin-codon-parada si sabes "
-            f"que este CDS es asi a proposito."
-        )
-    return avisos
 
 
 def main(argv: list[str]) -> int:
@@ -728,14 +665,15 @@ def main(argv: list[str]) -> int:
         anatomias, avisos_anatomia, rangos = {}, {}, {}
         for nombre, secuencia in secuencias.items():
             es_a = nombre == args.name
-            anatomias[nombre] = resolver_anatomia(
-                nombre=nombre,
-                secuencia=secuencia,
-                coords=args.cds if es_a else args.cds_b,
+            anatomias[nombre] = resolve_anatomy(
+                name=nombre,
+                sequence=secuencia,
+                cds=args.cds if es_a else args.cds_b,
                 genbank=args.genbank if es_a else args.genbank_b,
                 genbank_md5=args.genbank_md5 if es_a else args.genbank_b_md5,
-                region=args.region,
-                desde_fixture=transcripts[nombre] is not None,
+                whole_is_utr3=args.region == "3utr",
+                from_fixture=transcripts[nombre] is not None,
+                hint=PISTA_CLI,
             )
             rangos[nombre] = TileRange.resolve(
                 anatomias[nombre],
@@ -743,10 +681,10 @@ def main(argv: list[str]) -> int:
                 end=args.tile_hasta,
                 coords=args.tile_coords,
             )
-            avisos_anatomia[nombre] = comprobar_fronteras(
+            avisos_anatomia[nombre] = check_boundaries(
                 secuencia,
                 anatomias[nombre],
-                permitir_sin_parada=args.permitir_cds_sin_codon_parada,
+                allow_no_stop=args.permitir_cds_sin_codon_parada,
             )
 
         conservation = None
@@ -844,7 +782,8 @@ def main(argv: list[str]) -> int:
                     seleccion, scaffold, species=especie
                 ),
                 f"{especie}_comparativa.tsv": comparative_tsv(
-                    seleccion, scaffold, with_header=True
+                    seleccion, scaffold, with_header=True,
+                    anatomy=anatomias[especie],
                 ),
                 f"{especie}_informe.txt": informe,
             }

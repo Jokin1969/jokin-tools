@@ -8,6 +8,7 @@ tabla, el mapa— vive aqui y se prueba aqui, sin Streamlit de por medio.
 
 import unittest
 
+from shmir_design.anatomy import Anatomy, RegionSource
 from shmir_design.conservation import Utr3, build_conservation_report
 from shmir_design.masking import RepeatMask
 from shmir_design.polya import POLYA_COLUMNS
@@ -463,3 +464,46 @@ class TestUnaSolaEspecie(unittest.TestCase):
         )
         texto = bundle["sonda_informe.txt"]
         self.assertIn("No se comparo con otra especie", texto)
+
+
+class TestFilasDeAnatomiaResuelta(unittest.TestCase):
+    """Con una anatomia resuelta, la tabla enseña los tres tramos y su procedencia.
+
+    Antes, sin transcrito verificado, solo se podia enseñar una fila «3'UTR 1..n,
+    declarado por ti». Ahora la interfaz resuelve la anatomia igual que el CLI —por
+    GenBank o por coordenadas— asi que hay 5'UTR y CDS que enseñar, y de donde salieron.
+    """
+
+    def _anatomia(self):
+        return Anatomy.from_cds(
+            cds=(45, 146), length=586, source=RegionSource.ANOTACION_GENBANK
+        )
+
+    def test_salen_los_tres_tramos(self):
+        filas = anatomy_rows(None, anatomy=self._anatomia())
+        self.assertEqual([f["tramo"] for f in filas], ["5'UTR", "CDS", "3'UTR"])
+
+    def test_las_coordenadas_son_las_de_la_anatomia(self):
+        filas = {f["tramo"]: (f["inicio"], f["fin"]) for f in anatomy_rows(None, anatomy=self._anatomia())}
+        self.assertEqual(filas["CDS"], (45, 146))
+        self.assertEqual(filas["3'UTR"], (147, 586))
+
+    def test_cada_fila_dice_de_donde_salio(self):
+        for fila in anatomy_rows(None, anatomy=self._anatomia()):
+            with self.subTest(fila["tramo"]):
+                self.assertIn("GenBank", fila["origen"])
+
+    def test_un_3utr_declarado_entero_sale_como_tal(self):
+        anatomia = Anatomy.whole_is_utr3(
+            440, source=RegionSource.TODO_3UTR_DECLARADO
+        )
+        filas = anatomy_rows(None, anatomy=anatomia)
+        self.assertEqual([f["tramo"] for f in filas], ["3'UTR"])
+        self.assertIn("3'UTR", filas[0]["origen"])
+
+    def test_el_transcrito_verificado_sigue_mandando(self):
+        # Si hay referencia verificada, es la que se enseña: no se sustituye por una
+        # anatomia declarada.
+        referencia = REFERENCES["NM_011170.3"]
+        filas = anatomy_rows(referencia, anatomy=self._anatomia())
+        self.assertEqual([f["origen"] for f in filas], ["verificado"] * 3)

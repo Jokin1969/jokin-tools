@@ -206,8 +206,35 @@ def window_rows(report: TilingReport) -> list[dict[str, object]]:
 def anatomy_rows(
     transcript: ReferenceTranscript | None,
     utr3_length: int | None = None,
+    *,
+    anatomy: Anatomy | None = None,
 ) -> list[dict[str, object]]:
-    """Anatomia del transcrito. Sin transcrito verificado no se adivina ningun ORF."""
+    """Anatomia del transcrito. Sin transcrito verificado no se adivina ningun ORF.
+
+    Con una `Anatomy` resuelta —por GenBank o por coordenadas declaradas— se enseñan
+    los tramos que esa anatomia tenga, cada uno con la procedencia que dice
+    `RegionSource`. El transcrito verificado manda sobre lo declarado.
+    """
+    if transcript is None and anatomy is not None:
+        tramos = [
+            (nombre, tramo)
+            for nombre, tramo in (
+                ("5'UTR", anatomy.utr5),
+                ("CDS", anatomy.cds),
+                ("3'UTR", anatomy.utr3),
+            )
+            if tramo is not None
+        ]
+        return [
+            {
+                "tramo": nombre,
+                "inicio": inicio,
+                "fin": fin,
+                "longitud": fin - inicio + 1,
+                "origen": anatomy.source.describe(),
+            }
+            for nombre, (inicio, fin) in tramos
+        ]
     if transcript is None:
         return [
             {
@@ -377,7 +404,7 @@ def output_bundle(
             conservation=conservation,
         ),
         f"{species}_comparativa.tsv": comparative_tsv(
-            selection, scaffold, with_header=True
+            selection, scaffold, with_header=True, anatomy=tiling.anatomy
         ),
     }
     if blocks:

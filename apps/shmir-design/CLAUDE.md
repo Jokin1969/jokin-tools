@@ -249,7 +249,21 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   y para `AATAAA`/`ATTAAA` en `APA_POSIBLE`; las variantes raras dejan bandera y
   penalización de ranking. El informe saca las dos cifras de elegibles.
 - **Las coordenadas van siempre por partida doble**: transcrito y 3'UTR. Los tercios se
-  calculan sobre el 3'UTR.
+  calculan sobre el 3'UTR. Cuando lo que se tila YA es un 3'UTR no hay offset y las dos
+  parejas coinciden; los números están bien, pero `inicio_transcrito = 21` leído dentro
+  de un año parece la posición 21 de un RefSeq. Por eso la cabecera del TSV comparativo
+  y el bloque del informe llevan `comparative.coordinate_note`, que dice en qué marco va
+  cada pareja, de dónde salió la anatomía, y —si no hay marco de transcrito— que esas
+  columnas **no son coordenadas de ningún transcrito**. Los nombres de las columnas no
+  cambian: el esquema es estable, lo que cambia es lo que se explica de él.
+- **La anatomía se resuelve en `resolve.py`, y la usan los DOS frontales.** Vivía dentro
+  de `tools/design.py`, así que la interfaz no podía llamarla y acabó teniendo su propia
+  versión — con el `else: todo es 3'UTR` que el CLI había cerrado, escondido en un
+  `value=1 … value=len(secuencia)` por defecto. El mismo mRNA daba una anatomía por
+  consola y otra por navegador, y la del navegador corría los tercios. La interfaz tiene
+  ahora las tres vías (subir el `.gb`, declarar el CDS, o marcar que lo subido ya es el
+  3'UTR), tila la secuencia ENTERA con su anatomía como el CLI, y pasa por
+  `check_boundaries`. No añadas un valor por defecto a esos controles.
 - **La anatomía nunca se adivina.** Hay tres vías (`--genbank`, `--cds`, `--region
   3utr`) y la que se usó sale impresa en el informe (`RegionSource`). No existe ningún
   camino que convierta un "no sé" en un "todo es 3'UTR": `Anatomy.whole_is_utr3` exige

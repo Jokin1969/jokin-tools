@@ -369,7 +369,7 @@ def text_report(
         lines.extend(f"    {l}" for l in provenance)
 
     lines.extend(["", "── Tabla comparativa de los candidatos ──"])
-    lines.append(comparative_text(selection, scaffold))
+    lines.append(comparative_text(selection, scaffold, anatomy=tiling.anatomy))
 
     lines.extend(["", "── Score externo (columna vacia) ──"])
     lines.append(
