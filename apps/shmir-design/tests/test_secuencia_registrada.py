@@ -19,6 +19,7 @@ from tempfile import TemporaryDirectory
 from shmir_design.errors import ShmirDesignError
 from shmir_design.reference import (
     check_declared_length,
+    read_sequence_file,
     sequence_md5,
     write_sequence_file,
 )
@@ -119,3 +120,28 @@ class TestSobreElTranscritoReal(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRelectura(unittest.TestCase):
+    """Lo que se escribio con su checksum se relee comprobandolo."""
+
+    def test_ida_y_vuelta(self):
+        with TemporaryDirectory() as tmp:
+            ruta = write_sequence_file("ACGT" * 300, directory=tmp, stem="s")
+            self.assertEqual(read_sequence_file(ruta), "ACGT" * 300)
+
+    def test_un_fichero_tocado_a_mano_no_pasa(self):
+        with TemporaryDirectory() as tmp:
+            ruta = write_sequence_file("ACGT" * 300, directory=tmp, stem="s")
+            ruta.write_text(ruta.read_text(encoding="utf-8") + "ACGT\n", encoding="utf-8")
+            with self.assertRaises(ShmirDesignError) as caja:
+                read_sequence_file(ruta)
+            self.assertIn("se ha tocado", str(caja.exception))
+
+    def test_un_fichero_sin_md5_en_la_cabecera_tampoco(self):
+        with TemporaryDirectory() as tmp:
+            ruta = Path(tmp) / "suelta.txt"
+            ruta.write_text("# sin checksum\nACGTACGT\n", encoding="utf-8")
+            with self.assertRaises(ShmirDesignError) as caja:
+                read_sequence_file(ruta)
+            self.assertIn("sin checksum", str(caja.exception).lower())

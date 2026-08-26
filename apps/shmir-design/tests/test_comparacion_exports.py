@@ -64,8 +64,13 @@ class TestConsigoMismo(unittest.TestCase):
     def test_el_informe_nombra_el_eje(self):
         self.assertIn("ninguno (control)", self.comparacion.format_text())
 
-    def test_el_informe_da_el_solapamiento(self):
-        self.assertIn("100", self.comparacion.format_text())
+    def test_el_informe_NO_da_una_cifra_agregada(self):
+        # `overlap` se sigue calculando para quien lo pida, pero no se imprime: un
+        # porcentaje global mezcla los dos estratos y con eso no se decide nada.
+        texto = self.comparacion.format_text()
+        self.assertNotIn("100.0%", texto)
+        self.assertIn("ESTRATO (a)", texto)
+        self.assertIn("ESTRATO (b)", texto)
 
 
 @unittest.skipUnless(CSV.is_file() and RATON.is_file(), "NOT_RUN: faltan los fixtures")
@@ -152,3 +157,81 @@ class TestLoQueNoDecideLaHerramienta(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(CSV.is_file() and RATON.is_file(), "NOT_RUN: faltan los fixtures")
+class TestEstratificacion(unittest.TestCase):
+    """Un porcentaje global de solapamiento es debil. Los dos estratos no lo son.
+
+    Con las posiciones divergentes localizadas, cada sitio cae en uno de dos:
+
+    (a) su ventana de 22 nt NO contiene ninguna diferencia — las dos corridas vieron
+        exactamente la misma ventana;
+    (b) su ventana solapa al menos una.
+
+    Para los sitios del estrato (a) presentes en las dos listas la expectativa es score
+    IDENTICO, y eso es un test binario, no un umbral. Si alguno difiere, el score no es
+    funcion local de la ventana: arrastra contexto global, y entonces NINGUNA puntuacion
+    calculada sobre una entrada imperfecta sirve — incluidas las 21 del grupo 2.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.export = parse_export(CSV.read_text(encoding="utf-8-sig"), source=str(CSV))
+        cls.utr3 = _utr3()
+
+    def _comparar(self, otro, divergentes):
+        return compare_exports(
+            self.export, otro, self.utr3, axis="prueba",
+            divergent_positions=divergentes,
+        )
+
+    def test_sin_posiciones_divergentes_todo_cae_en_el_estrato_limpio(self):
+        c = self._comparar(self.export, frozenset())
+        self.assertEqual(len(c.clean), len(c.shared))
+        self.assertEqual(c.dirty, ())
+
+    def test_una_posicion_divergente_ensucia_solo_las_ventanas_que_la_tocan(self):
+        # La ventana 1200-1221 contiene la posicion 1210; ninguna otra del fichero.
+        c = self._comparar(self.export, frozenset({1210}))
+        sucias = {s.start for s in c.dirty}
+        self.assertEqual(sucias, {1200})
+
+    def test_el_estrato_limpio_con_scores_identicos_pasa_el_test_binario(self):
+        c = self._comparar(self.export, frozenset({1210}))
+        self.assertTrue(c.clean_scores_match)
+        self.assertEqual(c.clean_mismatches, ())
+
+    def test_si_un_sitio_limpio_cambia_de_score_el_test_binario_falla(self):
+        from dataclasses import replace
+
+        filas = list(self.export.rows)
+        filas[0] = replace(filas[0], score=filas[0].score + 1.0)
+        c = self._comparar(replace(self.export, rows=tuple(filas)), frozenset())
+        self.assertFalse(c.clean_scores_match)
+        self.assertEqual(len(c.clean_mismatches), 1)
+
+    def test_y_entonces_el_informe_dice_que_NADA_es_utilizable(self):
+        from dataclasses import replace
+
+        filas = list(self.export.rows)
+        filas[0] = replace(filas[0], score=filas[0].score + 1.0)
+        texto = self._comparar(
+            replace(self.export, rows=tuple(filas)), frozenset()
+        ).format_text()
+        self.assertIn("contexto global", texto.lower())
+        self.assertIn("ninguna puntuacion", texto.lower())
+
+    def test_no_se_da_ninguna_cifra_agregada_de_solapamiento(self):
+        # Estratificado significa estratificado: el porcentaje global desaparece.
+        texto = self._comparar(self.export, frozenset({1210})).format_text()
+        self.assertNotIn("SOLAPAMIENTO DE SITIOS", texto)
+
+    def test_los_dos_estratos_se_reportan_por_separado(self):
+        texto = self._comparar(self.export, frozenset({1210})).format_text()
+        self.assertIn("sin ninguna diferencia dentro", texto.lower())
+        self.assertIn("solapan al menos una", texto.lower())
+
+    def test_sigue_sin_decir_robusto(self):
+        texto = self._comparar(self.export, frozenset({1210})).format_text()
+        self.assertNotIn("robusto", texto.lower())

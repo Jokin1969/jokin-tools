@@ -70,8 +70,13 @@ retirados como línea de investigación:
 md5 `328cfa074a9b002f9614fcce3f19e21f`, con `tests/test_fixture_negativo.py` reproduciendo
 la errata sobre el dato de verdad. No entra a ningún diseño; su único uso es ese test.
 
-Alineamiento global contra el 3'UTR de referencia: **1231 identidades, 20 diferencias**
-(5 deleciones, 9 inserciones, 6 sustituciones; +4 nt netos).
+Alineamiento global contra el 3'UTR de referencia (`shmir_design/alignment.py`):
+**1231 identidades, 18 sucesos** — 5 deleciones, 9 inserciones, 2 sustituciones y **2
+transposiciones**; +4 nt netos.
+
+> Son 20 operaciones crudas pero **18 sucesos**: cuatro de las seis sustituciones se
+> agrupan de dos en dos en las transposiciones. Sumar «6 sustituciones + 2
+> transposiciones» contaría cuatro cambios dos veces.
 
 | tipo | ref | fabricado | cambio |
 |---|---|---|---|
@@ -95,6 +100,27 @@ Alineamiento global contra el 3'UTR de referencia: **1231 identidades, 20 difere
 La divergencia de 420–440 que introduce el `TCTAGA` inexistente en la referencia son la
 deleción de 431 y la sustitución de 433 juntas. Y hay **dos** transposiciones, no una: la
 `CT`↔`TC` de 1142 y una `GT`↔`TG` en 1169 que no se había previsto.
+
+**Dónde caen las dos transposiciones.** La de 1142–1143 está **dentro** del bloque
+conservado ratón/humano 1138–1163; la de 1169–1170, a 6 nt de su extremo. Ese bloque
+tiene **GC 23,1 %** (comprobado: `TTTTCTATATTTGTAACTTTGCATGT`) frente al 43,2 % del 3'UTR
+entero: es la región de menor complejidad del transcrito, y ahí es donde se equivocó lo
+que fuera que generó el bloque. **Cuando se diseñen los dos candidatos de ese bloque,
+verificación reforzada.**
+
+## Regla de lectura del perfil
+
+El perfil de diferencias **distingue dos investigaciones distintas**, y esa sola línea
+habría acortado varias tandas:
+
+| perfil | qué pasó | dónde investigar |
+|---|---|---|
+| solo deleciones | **trasvase** — copiar de una pantalla pierde caracteres, y lo que pierde son las carreras de homopolímero | por dónde pasó el texto |
+| hay inserciones, sustituciones o transposiciones | **generación** — un trasvase no puede añadir ni cambiar caracteres | de dónde salió la secuencia |
+
+`alignment.Alignment.reading` la emite sola, y viaja en `format_text()`, así que aparece
+en cualquier sitio donde se imprima un perfil. Con la errata nº 5 la lectura correcta era
+«se generó» desde el primer alineamiento.
 
 **Contramedidas nuevas:**
 

@@ -344,3 +344,37 @@ def write_sequence_file(
     lineas.extend(limpia[i : i + 60] for i in range(0, len(limpia), 60))
     destino.write_text("\n".join(lineas) + "\n", encoding="utf-8")
     return destino
+
+
+def read_sequence_file(path: Path | str) -> str:
+    """Relee un fichero escrito por `write_sequence_file` COMPROBANDO su md5.
+
+    La simetria es el punto: lo que se escribio con su checksum se vuelve a leer
+    verificandolo. Un fichero que se haya editado a mano por el camino no pasa de aqui.
+    """
+    ruta = Path(path)
+    texto = ruta.read_text(encoding="utf-8")
+    cabeceras = [l for l in texto.splitlines() if l.startswith("#")]
+    cuerpo = "".join(
+        l.strip() for l in texto.splitlines() if not l.startswith(("#", ">"))
+    )
+    limpia = _normalizada(cuerpo, name=ruta.name)
+    declarados = [
+        palabra
+        for linea in cabeceras
+        for palabra in linea.split()
+        if len(palabra) == 32 and all(c in "0123456789abcdef" for c in palabra)
+    ]
+    if not declarados:
+        raise ShmirDesignError(
+            f"{ruta}: no trae ningun md5 en su cabecera, asi que no se puede comprobar "
+            f"que sea lo que dice ser. Se aborta: un fichero de secuencia sin checksum "
+            f"es exactamente lo que hay que dejar de aceptar."
+        )
+    real = sequence_md5(limpia)
+    if real not in declarados:
+        raise ShmirDesignError(
+            f"{ruta}: la cabecera declara md5 {declarados[0]} y el contenido da {real}. "
+            f"El fichero se ha tocado desde que se escribio; se aborta."
+        )
+    return limpia

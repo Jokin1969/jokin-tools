@@ -33,10 +33,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from shmir_design.alignment import align  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.fetch import parse_fasta_payload  # noqa: E402
 from shmir_design.mirarchitect import compare_exports, parse_export  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
+from shmir_design.reference import read_sequence_file  # noqa: E402
+
+
+def _secuencia(ruta: Path) -> str:
+    """Un FASTA, un fichero de `export_utr3.py` (y se le comprueba el md5), o texto."""
+    crudo = ruta.read_text(encoding="utf-8")
+    if crudo.lstrip().startswith(">"):
+        _, crudo = parse_fasta_payload(crudo, source=str(ruta))
+        return normalize_sequence(crudo, name=str(ruta))
+    if any(l.startswith("#") for l in crudo.splitlines()):
+        return read_sequence_file(ruta)
+    return normalize_sequence(crudo, name=str(ruta))
 
 
 def main(argv: list[str]) -> int:
@@ -52,6 +65,13 @@ def main(argv: list[str]) -> int:
         help="QUE cambia entre las dos corridas. Obligatorio: la misma cifra significa "
              "una cosa si cambio la entrada y otra si cambio el andamio.",
     )
+    parser.add_argument(
+        "--entrada-a", type=Path,
+        help="La secuencia que se le paso a la PRIMERA corrida. Con las dos entradas se "
+             "calculan las posiciones divergentes y la comparacion sale ESTRATIFICADA: "
+             "sin ellas no hay estratos y el resultado vale mucho menos.",
+    )
+    parser.add_argument("--entrada-b", type=Path, help="Lo mismo para la segunda.")
     parser.add_argument("--out", type=Path, help="Escribe el bloque a fichero.")
     args = parser.parse_args(argv)
 
@@ -61,18 +81,32 @@ def main(argv: list[str]) -> int:
         )
         secuencia = normalize_sequence(bruta, name=str(args.fasta))
         utr3 = secuencia[args.utr3_desde - 1 :]
+        divergentes = frozenset()
+        perfil = ""
+        if (args.entrada_a is None) != (args.entrada_b is None):
+            raise ShmirDesignError(
+                "Hacen falta las DOS entradas o ninguna: con una sola no hay nada que "
+                "alinear y no se puede estratificar."
+            )
+        if args.entrada_a is not None:
+            alineamiento = align(
+                _secuencia(args.entrada_a), _secuencia(args.entrada_b)
+            )
+            divergentes = alineamiento.ref_positions
+            perfil = alineamiento.format_text()
         comparacion = compare_exports(
             parse_export(args.a.read_text(encoding="utf-8-sig"), source=str(args.a)),
             parse_export(args.b.read_text(encoding="utf-8-sig"), source=str(args.b)),
             utr3,
             axis=args.eje,
+            divergent_positions=divergentes,
         )
     except (ShmirDesignError, OSError, UnicodeDecodeError) as exc:
         # rule2-ok: frontera CLI.
         print(f"PARA — {exc}", file=sys.stderr)
         return 2
 
-    texto = comparacion.format_text()
+    texto = (perfil + "\n\n" if perfil else "") + comparacion.format_text()
     print(texto)
     if args.out is not None:
         args.out.write_text(texto + "\n", encoding="utf-8")

@@ -344,6 +344,20 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   miR-30a —dos nucleótidos borrados tras la posición 9 y `GC` terminal, verificado
   26/26— y la nuestra cambia solo la posición 1 y se elige plegando. De miRarchitect se
   toma la guía y nada más.
+- **El perfil de diferencias dice de QUÉ investigación se trata** (`alignment.py`). Un
+  trasvase —copiar de una pantalla— solo puede PERDER caracteres: si el perfil trae
+  inserciones, sustituciones o transposiciones, la secuencia no se copió mal, se generó.
+  Son dos culpables y dos remedios. Las transposiciones se cuentan aparte de las
+  sustituciones: `CT`→`TC` son dos bases pero UN suceso.
+- **La comparación de dos corridas va ESTRATIFICADA, sin cifra agregada.** Un porcentaje
+  global de solapamiento mezcla ventanas que las dos corridas vieron idénticas con
+  ventanas que vieron distintas, y con eso no se decide nada. Los estratos son: (a)
+  ventana sin ninguna diferencia dentro de sus 22 nt, (b) ventana que solapa al menos
+  una. Para el estrato (a) la expectativa es **score idéntico**, y eso es un test
+  binario, no un umbral. Si falla, el score no es función local de la ventana: arrastra
+  contexto global, y entonces **ninguna** puntuación calculada sobre una entrada
+  imperfecta sirve — tampoco las de ventanas intactas. El informe lo dice con esas
+  palabras y no dice «robusto».
 - **Dos corridas de miRarchitect se cruzan por SITIO sobre la referencia**
   (`mirarchitect.compare_exports`, `tools/compare_exports.py`), nunca por guía ni por la
   coordenada que declara el fichero: una ventana corrida da otra guía, y una entrada

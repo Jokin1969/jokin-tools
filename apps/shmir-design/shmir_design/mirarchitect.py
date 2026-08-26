@@ -32,6 +32,11 @@ from .errors import ShmirDesignError
 from .hard_filters import reverse_complement_rna
 from .scaffold import ScaffoldSpec
 
+#: Las ventanas de miRarchitect miden 22 nt, confirmado en las tres columnas del
+#: export. La estratificacion necesita ese numero para saber que posiciones toca
+#: cada ventana.
+WINDOW = 22
+
 #: El loop que trae el export de la corrida murina. Es el de miR-30a, no el nuestro.
 SOURCE_LOOP = "CTGTGAAGCCACAGATGGG"
 
@@ -243,6 +248,11 @@ class ExportComparison:
 
     axis: str
     shared: tuple[SiteComparison, ...]
+    #: Estrato (a): la ventana de 22 nt NO contiene ninguna posicion divergente, asi que
+    #: las dos corridas vieron EXACTAMENTE la misma ventana.
+    clean: tuple[SiteComparison, ...]
+    #: Estrato (b): la ventana solapa al menos una diferencia entre las dos entradas.
+    dirty: tuple[SiteComparison, ...]
     only_a: tuple[SiteComparison, ...]
     only_b: tuple[SiteComparison, ...]
     without_site_a: int
@@ -250,8 +260,24 @@ class ExportComparison:
 
     @property
     def overlap(self) -> float:
+        """Solapamiento global. Se calcula, pero NO se imprime: un porcentaje agregado
+        mezcla los dos estratos y por eso es debil. Queda para quien lo pida a mano."""
         total = len(self.shared) + len(self.only_a) + len(self.only_b)
         return len(self.shared) / total if total else 0.0
+
+    @property
+    def clean_mismatches(self) -> tuple[SiteComparison, ...]:
+        """Sitios del estrato limpio cuyo score NO coincide. Deberian ser cero."""
+        return tuple(
+            s for s in self.clean
+            if s.score_a is not None and s.score_b is not None
+            and s.score_a != s.score_b
+        )
+
+    @property
+    def clean_scores_match(self) -> bool:
+        """El test BINARIO. No hay umbral: o coinciden todos, o no coinciden."""
+        return not self.clean_mismatches
 
     @property
     def moved(self) -> tuple[SiteComparison, ...]:
@@ -261,40 +287,101 @@ class ExportComparison:
         lineas = [
             "── Comparacion de dos corridas de miRarchitect ──",
             f"  Lo que cambia entre las dos: {self.axis}",
-            f"  sitios en las dos:      {len(self.shared)}",
-            f"  solo en la primera:     {len(self.only_a)}",
-            f"  solo en la segunda:     {len(self.only_b)}",
-            f"  SOLAPAMIENTO DE SITIOS: {self.overlap:.1%}",
-            f"  cambian de puesto:      {len(self.moved)} de {len(self.shared)}",
+            "",
+            "  ESTRATO (a) — ventanas sin ninguna diferencia dentro de sus 22 nt",
+            f"    sitios: {len(self.clean)}",
         ]
+        if self.clean:
+            lineas.append(
+                "    Las dos corridas vieron EXACTAMENTE la misma ventana, asi que la "
+                "expectativa"
+            )
+            lineas.append(
+                "    es score identico. Es un test binario, no un umbral."
+            )
+            if self.clean_scores_match:
+                lineas.append("    RESULTADO: coinciden todos.")
+            else:
+                lineas.append(
+                    f"    RESULTADO: NO coinciden {len(self.clean_mismatches)} de "
+                    f"{len(self.clean)}."
+                )
+                for sitio in self.clean_mismatches:
+                    lineas.append(
+                        f"      {sitio.start:<6} {sitio.guide}  "
+                        f"{sitio.score_a:.2f} → {sitio.score_b:.2f}"
+                    )
+                lineas.append("")
+                lineas.append(
+                    "    LO QUE ESO SIGNIFICA: el score NO es funcion local de la "
+                    "ventana. Arrastra"
+                )
+                lineas.append(
+                    "    contexto global, luego NINGUNA puntuacion calculada sobre una "
+                    "entrada imperfecta"
+                )
+                lineas.append(
+                    "    es utilizable — tampoco las de sitios que existen en la "
+                    "referencia. Se descartan"
+                )
+                lineas.append("    todas, no solo las de ventanas tocadas.")
+        else:
+            lineas.append(
+                "    Ninguno. Sin estrato limpio no hay test binario que correr: con "
+                "esta pareja"
+            )
+            lineas.append(
+                "    de corridas no se puede saber si el score es local o no."
+            )
+
+        lineas.extend([
+            "",
+            "  ESTRATO (b) — ventanas que solapan al menos una diferencia",
+            f"    sitios: {len(self.dirty)}",
+            "    Aqui una diferencia de score no dice nada: las dos corridas vieron "
+            "ventanas",
+            "    distintas. No se interpreta.",
+        ])
+        if self.only_a or self.only_b:
+            lineas.extend([
+                "",
+                f"  sitios solo en la primera: {len(self.only_a)}   "
+                f"solo en la segunda: {len(self.only_b)}",
+            ])
         if self.moved:
             mayor = max(abs(s.rank_shift) for s in self.moved)
-            lineas.append(f"  mayor salto de puesto:  {mayor}")
-            lineas.append("  sitio      guia                       puesto      score")
+            lineas.extend([
+                "",
+                f"  cambian de puesto: {len(self.moved)} de {len(self.shared)}   "
+                f"mayor salto: {mayor}",
+                "  estrato  sitio   guia                       puesto        score",
+            ])
+            limpios = {s.start for s in self.clean}
             for sitio in sorted(self.moved, key=lambda s: -abs(s.rank_shift)):
+                estrato = "(a)" if sitio.start in limpios else "(b)"
                 lineas.append(
-                    f"  {sitio.start:<10} {sitio.guide:<24} "
+                    f"  {estrato:<8} {sitio.start:<7} {sitio.guide:<24} "
                     f"{sitio.rank_a}→{sitio.rank_b} ({sitio.rank_shift:+d})   "
                     f"{sitio.score_a:.2f}→{sitio.score_b:.2f} "
                     f"({sitio.score_delta:+.2f})"
                 )
         if self.without_site_a or self.without_site_b:
             lineas.append(
-                f"  filas sin sitio en la referencia: {self.without_site_a} en la "
-                f"primera, {self.without_site_b} en la segunda. No se cruzan: no hay "
-                f"con que."
+                f"\n  filas sin sitio en la referencia: {self.without_site_a} en la "
+                f"primera, {self.without_site_b} en la segunda. No se cruzan."
             )
-        lineas.extend(
-            [
-                "",
-                "  Que hacer con esta cifra: el umbral no lo pone este programa. Un "
-                "solapamiento",
-                "  bajo obliga a DEGRADAR la confianza que se le da a la puntuacion, y "
-                "a decirlo",
-                "  en el informe; uno alto no la valida, solo deja de ser un motivo "
-                "para bajarla.",
-            ]
-        )
+        lineas.extend([
+            "",
+            "  No se da una cifra agregada a proposito: un porcentaje global mezcla los "
+            "dos",
+            "  estratos y con eso no se decide nada. El umbral de lo que es aceptable no "
+            "lo pone",
+            "  este programa; lo que si pone es el test binario del estrato (a), que no "
+            "tiene",
+            "  umbral. Un resultado que obligue a DEGRADAR la confianza en la "
+            "puntuacion se dice",
+            "  en el informe con esas palabras.",
+        ])
         return "\n".join(lineas)
 
 
@@ -305,7 +392,12 @@ def _site_of(row: ExportRow, utr3: str) -> int | None:
 
 
 def compare_exports(
-    a: Export, b: Export, utr3: str, *, axis: str
+    a: Export,
+    b: Export,
+    utr3: str,
+    *,
+    axis: str,
+    divergent_positions: frozenset[int] = frozenset(),
 ) -> ExportComparison:
     """Cruza dos exports por sitio. `axis` declara QUE cambia entre los dos.
 
@@ -335,6 +427,12 @@ def compare_exports(
     sitios_a, sin_a = indexar(a)
     sitios_b, sin_b = indexar(b)
 
+    def limpia(inicio: int) -> bool:
+        """¿La ventana de 22 nt que empieza ahi esta libre de posiciones divergentes?"""
+        return not any(
+            inicio <= p <= inicio + WINDOW - 1 for p in divergent_positions
+        )
+
     compartidos = tuple(
         SiteComparison(
             start=inicio,
@@ -361,6 +459,10 @@ def compare_exports(
         for i in sorted(set(sitios_b) - set(sitios_a))
     )
     return ExportComparison(
-        axis=axis, shared=compartidos, only_a=solo_a, only_b=solo_b,
+        axis=axis,
+        shared=compartidos,
+        clean=tuple(s for s in compartidos if limpia(s.start)),
+        dirty=tuple(s for s in compartidos if not limpia(s.start)),
+        only_a=solo_a, only_b=solo_b,
         without_site_a=sin_a, without_site_b=sin_b,
     )
