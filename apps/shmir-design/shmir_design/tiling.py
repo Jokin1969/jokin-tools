@@ -30,6 +30,7 @@ from dataclasses import dataclass
 
 from .accessibility import Accessibility, accessibility_of
 from .anatomy import Anatomy, Region, RegionSource, TileRange
+from .coords import Frame, frame_of, label
 from .apa import ApaAssessment, ApaSites, apa_assessment
 from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
 from .masking import RepeatMask, apply_mask, filter_repeats
@@ -331,6 +332,9 @@ class TilingReport:
         return "\n".join(lines)
 
     def format_tsv(self) -> str:
+        # Toda coordenada, etiquetada con su espacio: `3utr:449` o `tx:1398`. La
+        # cabecera de la columna no viaja con la celda.
+        marco = frame_of(self.anatomy) if self.anatomy is not None else Frame.UTR3
         filtros = [r.name for r in self.windows[0].filters] if self.windows else []
         columns = (
             ["inicio", "fin", "region", "inicio_3utr", "fin_3utr", "diana", "guia", "tercio"]
@@ -342,17 +346,19 @@ class TilingReport:
         for tiled in self.windows:
             rows.append(
                 [
-                    str(tiled.window.start),
-                    str(tiled.window.end),
+                    label(tiled.window.start, marco),
+                    label(tiled.window.end, marco),
                     tiled.region.value,
-                    "" if tiled.inicio_3utr is None else str(tiled.inicio_3utr),
-                    "" if tiled.fin_3utr is None else str(tiled.fin_3utr),
+                    label(tiled.inicio_3utr, Frame.UTR3),
+                    label(tiled.fin_3utr, Frame.UTR3),
                     tiled.evaluation.sequence,
                     tiled.evaluation.guide,
                     tiled.tercio.value if tiled.tercio else "",
                 ]
                 + [
-                    (tiled.polya.as_columns()[c] if tiled.polya else "")
+                    _con_marco(tiled.polya.as_columns(), c, marco)
+                    if tiled.polya
+                    else ""
                     for c in POLYA_COLUMNS
                 ]
                 + [r.state.value for r in tiled.filters]
@@ -366,6 +372,18 @@ class TilingReport:
         return "\n".join(
             "\t".join(_tsv_safe(field) for field in row) for row in rows
         )
+
+
+def _con_marco(columnas: dict[str, str], nombre: str, marco: Frame) -> str:
+    """La posicion del hexamero va en el marco de LO TILADO, y se dice en la celda.
+
+    `PolyAAnnotation.as_columns` no conoce la anatomia, asi que la etiqueta se pone
+    aqui, que es donde se sabe.
+    """
+    valor = columnas[nombre]
+    if nombre == "polyA_hexamero_pos" and valor:
+        return label(int(valor), marco)
+    return valor
 
 
 def _tsv_safe(field: str) -> str:

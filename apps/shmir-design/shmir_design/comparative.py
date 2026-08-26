@@ -23,6 +23,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 from .anatomy import Anatomy
+from .coords import Frame, frame_of, label
 from .external_score import (
     FEATURE_COLUMNS,
     MIRARCH_COLUMNS,
@@ -155,7 +156,14 @@ def comparative_rows(
     *,
     anatomy: Anatomy | None = None,
 ) -> list[list[str]]:
-    """Cabecera y una fila por candidato elegido."""
+    """Cabecera y una fila por candidato elegido.
+
+    Toda coordenada sale ETIQUETADA con su espacio (`3utr:449`, `tx:1398`). En la
+    cabecera de la columna no basta: quien copia una celda a un correo se lleva el
+    numero sin la cabecera, y `1018` en dos espacios son dos sitios distintos.
+    """
+    anatomy = anatomy or selection.anatomy
+    marco = frame_of(anatomy) if anatomy is not None else Frame.UTR3
     elegidos = list(selection.selection.chosen)
     filtros: list[str] = []
     if elegidos:
@@ -173,13 +181,20 @@ def comparative_rows(
         hairpin = build_hairpin(window.evaluation.guide, scaffold=scaffold)
         gblock = build_gblock(hairpin)
         polya = window.polya.as_columns() if window.polya else dict.fromkeys(POLYA_COLUMNS, "")
+        # `as_columns` no conoce la anatomia: la posicion del hexamero se etiqueta aqui,
+        # que es donde se sabe en que espacio van las coordenadas de lo tilado.
+        if polya.get("polyA_hexamero_pos"):
+            polya = {
+                **polya,
+                "polyA_hexamero_pos": label(int(polya["polyA_hexamero_pos"]), marco),
+            }
         especificidad = _mismatch_counts(window.especificidad_detalle)
 
         fila = {
-            "inicio_3utr": "" if window.inicio_3utr is None else str(window.inicio_3utr),
-            "fin_3utr": "" if window.fin_3utr is None else str(window.fin_3utr),
-            "inicio_transcrito": str(window.window.start),
-            "fin_transcrito": str(window.window.end),
+            "inicio_3utr": label(window.inicio_3utr, Frame.UTR3),
+            "fin_3utr": label(window.fin_3utr, Frame.UTR3),
+            "inicio_transcrito": label(window.window.start, marco),
+            "fin_transcrito": label(window.window.end, marco),
             "region": window.region.value,
             "tercio": window.tercio.value if window.tercio else "",
             "diana": window.evaluation.sequence,
@@ -296,7 +311,7 @@ def comparative_text(
     anatomy: Anatomy | None = None,
 ) -> str:
     """Bloque legible: las columnas que sirven para decidir, alineadas."""
-    filas = comparative_rows(selection, scaffold)
+    filas = comparative_rows(selection, scaffold, anatomy=anatomy)
     if len(filas) < 2:
         return "  (no hay candidatos seleccionados)"
     indices = [filas[0].index(c) for c in RESUMEN_COLUMNS]

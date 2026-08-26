@@ -71,16 +71,26 @@ class TestTablaComparativa(unittest.TestCase):
         def valor(fila, nombre):
             return fila[cabecera.index(nombre)]
 
+        def posicion(fila, nombre):
+            """Las celdas van ETIQUETADAS (`3utr:449`): se leen por coords.parse.
+
+            Un `int()` a pelo aqui volveria a aceptar el entero desnudo, que es justo
+            lo que la contramedida cierra.
+            """
+            from shmir_design.coords import parse
+
+            return parse(valor(fila, nombre)).value
+
         for fila in filas[1:]:
             diana = valor(fila, "diana")
             with self.subTest(valor(fila, "inicio_transcrito")):
                 self.assertEqual(
-                    int(valor(fila, "fin_transcrito"))
-                    - int(valor(fila, "inicio_transcrito")) + 1,
+                    posicion(fila, "fin_transcrito")
+                    - posicion(fila, "inicio_transcrito") + 1,
                     len(diana),
                 )
                 self.assertEqual(
-                    int(valor(fila, "fin_3utr")) - int(valor(fila, "inicio_3utr")) + 1,
+                    posicion(fila, "fin_3utr") - posicion(fila, "inicio_3utr") + 1,
                     len(diana),
                 )
 

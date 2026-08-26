@@ -170,7 +170,8 @@ class TestBloqueLegible(unittest.TestCase):
         )
         texto = comparative_text(seleccion, SGEP_SCAFFOLD)
         for linea in texto.splitlines()[1:3]:
-            self.assertTrue(linea.strip().split()[0].isdigit(), linea)
+            # Etiquetada, no un entero desnudo: `tx:44` o `3utr:21`.
+            self.assertRegex(linea.strip().split()[0], r"^(3utr|tx):\d+$")
 
     def test_el_bloque_dice_la_region_de_cada_candidato(self):
         from shmir_design.comparative import comparative_text

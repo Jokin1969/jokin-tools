@@ -366,11 +366,12 @@ class TestSalidaTSV(unittest.TestCase):
         cabecera = lineas[0].split("\t")
         fila = dict(zip(cabecera, lineas[3].split("\t")))
         self.assertEqual(fila["ventana"], "abajo")
-        self.assertEqual(fila["inicio"], "500")
+        # Etiquetada con su espacio: un `500` desnudo no dice de que marco es.
+        self.assertEqual(fila["inicio"], "3utr:500")
         self.assertEqual(fila["tercio"], "medio")
         self.assertEqual(fila["zona_prohibida_polyA"], "PASS")
         self.assertEqual(fila["riesgo_APA"], "True")
-        self.assertEqual(fila["apa_upstream"], "288")
+        self.assertEqual(fila["apa_upstream"], "3utr:288")
         self.assertTrue(fila["motivo"])
 
     def test_la_ventana_excluida_sale_con_su_motivo(self):

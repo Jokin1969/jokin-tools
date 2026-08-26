@@ -295,6 +295,20 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **coordenadas**: no se emiten cebadores — eso necesita Tm, especificidad y horquillas,
     y no se improvisa. Se mide sobre tejido **sin tratar**: en muestras tratadas un
     amplicón que solape una diana mide corte por RNAi, no isoformas.
+  - **Primero lo publicado, luego el banco**, y el informe lo imprime en ese orden:
+    PolyA_DB / PolyASite y datos públicos de **3'-end seq de cerebro murino** sobre Prnp.
+    Si la fracción está publicada, el experimento es **confirmación**, no descubrimiento.
+  - **RT con hexámeros aleatorios, nunca oligo-dT**, y el sesgo tiene dirección conocida:
+    el oligo-dT ceba en la cola y la RT avanza 3'→5', así que una RT incompleta pierde lo
+    que está lejos de la cola. En la isoforma larga el proximal queda a **965 nt** de la
+    cola y el distal a **439**, así que la larga se subrepresenta más en el proximal y la
+    razón sale sesgada **hacia más isoforma larga** — justo el resultado que se busca.
+    RNA con **RIN documentado**: la degradación produce el mismo sesgo por la misma razón.
+  - **Control positivo de ensayo, obligatorio**: un gen con APA caracterizado en el mismo
+    tejido, en las **mismas muestras** y con la **misma arquitectura de amplicones**. Sin
+    él, un «casi todo isoforma larga» no se distingue de un ensayo **ciego** a las
+    isoformas cortas: los dos dan la misma cifra. Ese gen se elige **con su cita**; el
+    informe no propone ninguno, porque nombrarlo de memoria sería inventar la referencia.
 
 - **El `AATAAA` de 3'UTR 288 es el riesgo de truncamiento dominante del panel** y el
   informe lo declara así, con qué candidatos quedan con techo por detrás de su corte y
@@ -311,16 +325,28 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     candidato.
   - **Inmunes: 60, 143 y 221**, no solo 60. 60 es el único del panel elegido, pero la
     piscina de elegibles tiene 19 sitios más por delante de la señal y el informe saca
-    los mejores por asimetría — 143 (+5,08) y 221 (+4,15) entre ellos. Con un solo inmune
-    el panel entero depende de un supuesto; con tres, no.
+    los mejores por asimetría — `3utr:143` (+5,08) y `3utr:221` (+5,15 − 1,00 penal. =
+    +4,15) entre ellos. Con un solo inmune el panel entero depende de un supuesto; con
+    tres, no.
 - **Un candidato «nuevo» de una fuente externa puede ser un sitio ya cogido**
-  (`spacing.site_conflicts`). 223 y 221 son dos ventanas corridas 2 nt: bajo el espaciado
+  (`spacing.compare_sites`). 223 y 221 son dos ventanas corridas 2 nt: bajo el espaciado
   de 50 nt son el mismo sitio del panel. Se **avisa**, no se descarta — puede interesar
   cambiar uno por otro, y para eso hay que ver que compiten.
-  De las **7 plazas nuevas** que quedaban tras el espaciado (337, 394, 735, 765, 930,
-  1075, 1200), tras los **filtros duros** sobreviven **337, 735, 765 y 1075**. Caen 394
-  (GC y homopolímero), 930 (homopolímero) y 1200 (zona prohibida de polyA). O sea: la
-  lista externa aporta cuatro sitios utilizables, no siete.
+- **La cifra de plazas nuevas no significa nada sin decir CONTRA QUÉ se ha medido**, así
+  que `ReferenceSet` es obligatorio, lleva **etiqueta**, y `SiteComparison.describe()`
+  nombra el conjunto y su tamaño. La referencia es el **conjunto completo de candidatos**,
+  nunca el subconjunto seleccionado. Con los mismos 24 sitios de miRarchitect:
+  - contra **los 6 elegidos** → 9 filas sin choque, que agrupadas entre ellas son
+    **7 plazas** (337, 394, 735, 765, 930, 1075, 1200). Es la cifra que di, y estaba
+    medida contra seis posiciones sobre 1242 nt: casi todo parece nuevo.
+  - contra **los 90 sitios elegibles** (la tabla completa) → **ninguna**, salvo 1200. Y
+    1200 no es utilizable: falla nuestro propio filtro duro de polyA, que es justo por lo
+    que no hay ninguna ventana elegible cerca.
+  - **735 no está cerca de una ventana nuestra: ES nuestra ventana 735**, base a base
+    (`GCCCTATGTTTCTGTACTTCTA`). 337 choca con 329 a 8 nt y 765 con 735 a 30 nt.
+  Los supervivientes se agrupan **entre ellos** además de contra la referencia: dos
+  externos a menos del espaciado son una plaza, no dos. Y «plaza nueva» no es «plaza
+  utilizable»: son dos preguntas, y el espaciado solo contesta la primera.
 - **El sesgo de baja complejidad está DESCARTADO** como explicación del score de
   miRarchitect: correlación carrera máxima / score `r = +0,154` sobre las 24, y
   homopolímeros de 4 o más repartidos 5/15 entre los mejores y 3/9 entre los peores — el
@@ -431,6 +457,20 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   ha mirado» y **no** se transfiere; un `frozenset()` vacío sí es una comprobación hecha.
   **El puesto NO se transfiere**: 20 de esos 21 cambiaron de puesto con el score
   idéntico, porque el puesto depende del tamaño de la lista y no del sitio.
+- **Toda posición impresa lleva su ESPACIO DE COORDENADAS pegado** (`coords.py`):
+  `3utr:1018`, `tx:1967`. En cualquier salida —informe, avisos, motivos de filtro y
+  celdas del TSV—, **no en la cabecera de la columna**: quien copia una celda a un correo,
+  o lee una línea suelta, se lleva el número sin la cabecera. Es la contramedida del md5
+  generalizada, y el fallo que la motiva **no dio ningún error**: la línea de inmunes
+  elegibles imprimió un `1018` que era el 69 del 3'UTR, justo al lado de un candidato
+  elegido que se llama 1018. Habría dado una conversación equivocada, no una excepción.
+  - `Position` no se puede construir sin `Frame`, y `str()`/`format()` devuelven siempre
+    la etiqueta: no hay forma de imprimir el entero desnudo por descuido.
+  - El marco **sale de la anatomía** (`coords.frame_of`), no se elige: si el 3'UTR empieza
+    en la posición 1 de lo tilado, lo tilado ES el 3'UTR. Y viaja con la selección
+    (`ReportSelection.anatomy`) para que todos los escritores usen el mismo.
+  - `coords.parse` lee de vuelta una celda etiquetada y **rechaza el entero desnudo**, así
+    que la etiqueta no es decoración: los tests del invariante de intervalos pasan por ahí.
 - **Toda salida que nombre una referencia imprime longitud y md5 JUNTOS**
   (`reference.describe_sequence`): `referencia 1242 nt / 19f5fa2a`. Contramedida a un
   fallo que fue invisible porque «referencia 1246 nt» parece razonable; pegado al md5 no
@@ -443,6 +483,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   `polyA_veredicto` sigue siendo el del modo con el que se corrió. Ojo con el marco:
   `polyA_hexamero_pos` va en coordenadas de LO TILADO, como `inicio_transcrito`, y la
   cabecera lo dice.
+- **La asimetría sale con las DOS cifras cuando hay penalización**: cruda, penalización
+  y neta (`+5,15 − 1,00 penal. = +4,15`). Una sola columna con la neta, al lado de
+  candidatos sin penalizar, mezcla dos magnitudes distintas sin decirlo: el 221 salía
+  `+4,15` frente a un `+5,15` de la tabla y parecía una discrepancia de cálculo cuando era
+  la penalización por solapar el `AATATA` de 236 (variante rara, clase `OTRA`).
 - **El PUESTO de una fuente externa no se usa en la selección.** Es propiedad de la
   LISTA, no del sitio: 20 de los 21 sitios compartidos entre las dos corridas de
   miRarchitect cambian de puesto con el score **idéntico**, solo porque una lista tiene

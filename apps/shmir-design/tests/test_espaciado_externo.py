@@ -14,7 +14,18 @@ interese cambiar 221 por 223, y para eso hay que ver que compiten.
 import unittest
 from pathlib import Path
 
-from shmir_design.spacing import SITE_SPACING, same_site, site_conflicts
+from shmir_design.coords import Frame
+from shmir_design.spacing import (
+    SITE_SPACING,
+    ReferenceSet,
+    same_site,
+    site_conflicts,
+)
+
+
+def _ref(starts, label="los candidatos ya seleccionados"):
+    """La referencia es obligatoria y va etiquetada: ver test_espaciado_referencia."""
+    return ReferenceSet(label=label, starts=starts, frame=Frame.UTR3)
 
 DIR = Path(__file__).resolve().parent.parent / "data" / "reference"
 
@@ -43,35 +54,35 @@ class TestConflictos(unittest.TestCase):
     def test_detecta_el_choque_de_223_con_221(self):
         conflictos = site_conflicts(
             candidates={223: "TGTTATATTCTTATTGGCCCGG"},
-            selected={221: "TTATATTCTTATTGGCCCGGTG"},
+            reference=_ref({221: "TTATATTCTTATTGGCCCGGTG"}),
         )
         self.assertEqual(len(conflictos), 1)
         self.assertEqual(conflictos[0].candidate_start, 223)
-        self.assertEqual(conflictos[0].selected_start, 221)
+        self.assertEqual(conflictos[0].reference_start, 221)
         self.assertEqual(conflictos[0].distance, 2)
 
     def test_no_inventa_conflictos_donde_no_los_hay(self):
         self.assertEqual(
-            site_conflicts(candidates={765: "x"}, selected={221: "y"}), ()
+            site_conflicts(candidates={765: "x"}, reference=_ref({221: "y"})), ()
         )
 
     def test_un_candidato_puede_chocar_con_varios(self):
         conflictos = site_conflicts(
-            candidates={230: "x"}, selected={221: "a", 260: "b"}
+            candidates={230: "x"}, reference=_ref({221: "a", 260: "b"})
         )
         self.assertEqual(len(conflictos), 2)
 
     def test_el_aviso_dice_que_NO_es_un_descarte(self):
         conflicto = site_conflicts(
             candidates={223: "TGTTATATTCTTATTGGCCCGG"},
-            selected={221: "TTATATTCTTATTGGCCCGGTG"},
+            reference=_ref({221: "TTATATTCTTATTGGCCCGGTG"}),
         )[0]
         self.assertIn("no se descarta", conflicto.message.lower())
 
     def test_y_dice_las_dos_guias_para_poder_elegir(self):
         conflicto = site_conflicts(
             candidates={223: "TGTTATATTCTTATTGGCCCGG"},
-            selected={221: "TTATATTCTTATTGGCCCGGTG"},
+            reference=_ref({221: "TTATATTCTTATTGGCCCGGTG"}),
         )[0]
         self.assertIn("TGTTATATTCTTATTGGCCCGG", conflicto.message)
         self.assertIn("TTATATTCTTATTGGCCCGGTG", conflicto.message)
@@ -101,7 +112,7 @@ class TestSobreLaCorridaReal(unittest.TestCase):
             for f in export.rows
             if utr3.find(f.target) >= 0
         }
-        conflictos = site_conflicts(candidates=sitios, selected={221: sitios[221]})
+        conflictos = site_conflicts(candidates=sitios, reference=_ref({221: sitios[221]}))
         chocan = {c.candidate_start for c in conflictos}
         self.assertIn(223, chocan)
         self.assertNotIn(765, chocan)

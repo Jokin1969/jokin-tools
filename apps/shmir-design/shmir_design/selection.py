@@ -35,7 +35,8 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from .accessibility import CONTEXT_WINDOWS as _CTX
-from .anatomy import Region
+from .anatomy import Anatomy, Region
+from .coords import Frame, frame_of, label
 from .filters import FilterState, Verdict
 from .hard_filters import gc_fraction
 from .polya import Tercio
@@ -385,6 +386,12 @@ class ReportSelection:
     not_run_filters: dict[str, int]
     #: Elegibles con el criterio ESTRICTO, para poder comparar las dos cifras.
     eligible_strict: int = 0
+    #: La anatomia del informe del que salio esta seleccion. Viaja con ella porque de
+    #: ella sale el ESPACIO DE COORDENADAS de todo lo que se imprima: sin anatomia, un
+    #: `1018` no dice si es del transcrito o del 3'UTR. Antes cada escritor la recibia
+    #: por su cuenta —o no la recibia— y `comparative_text` llamaba a
+    #: `comparative_rows` sin ella.
+    anatomy: "Anatomy | None" = None
 
     def window_of(self, choice: Choice) -> TiledWindow:
         return self.windows[choice.label]
@@ -489,6 +496,7 @@ def select_from_report(
         total=len(report.windows),
         not_run_filters=report.not_run_counts(),
         eligible_strict=sum(1 for w in report.windows if is_eligible_strict(w)),
+        anatomy=report.anatomy,
     )
 
 
@@ -570,13 +578,17 @@ class PolyAModeComparison:
     selections: dict[str, tuple[int, ...]]
     eligible: dict[str, int]
     stable: bool
+    #: Espacio de las posiciones de `selections`: el de LO TILADO.
+    frame: Frame = Frame.UTR3
 
     def format_text(self) -> str:
         lines = [
             "  Modo        elegibles   candidatos elegidos",
         ]
         for modo, elegidos in self.selections.items():
-            posiciones = ", ".join(str(p) for p in elegidos) or "ninguno"
+            posiciones = (
+                ", ".join(label(p, self.frame) for p in elegidos) or "ninguno"
+            )
             lines.append(f"  {modo:<11} {self.eligible[modo]:>9}   {posiciones}")
         if self.stable:
             lines.append(
@@ -637,6 +649,7 @@ def polya_mode_comparison(
         selections=selections,
         eligible=elegibles,
         stable=len(set(selections.values())) == 1,
+        frame=frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3,
     )
 
 

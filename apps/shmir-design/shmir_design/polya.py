@@ -31,6 +31,7 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 
+from .coords import Frame, frame_of, label, span
 from .errors import InvalidSequenceError, MissingSequenceError
 from .filters import FilterResult, FilterState, Verdict, overall_verdict
 
@@ -183,9 +184,16 @@ class PolyASignal:
     def forbidden_end(self) -> int:
         return min(self.utr_length, self.end + self.flank)
 
-    def describe(self) -> str:
+    def describe(self, *, frame: Frame = Frame.UTR3) -> str:
+        """`frame` es el espacio de `position`: el de LO TILADO.
+
+        Por defecto `3utr` porque las coordenadas de una señal son 1-based sobre el
+        3'UTR cuando nadie dice otra cosa —es el contrato de este modulo—, pero el
+        camino de produccion (`tile_utr` → informe) pasa siempre el marco real sacado
+        de la anatomia. Sin etiqueta, un `1237` no dice de que espacio es.
+        """
         return (
-            f"{self.motif} en {self.position}-{self.end} "
+            f"{self.motif} en {span(self.position, self.end, frame)} "
             f"(a {self.distance_to_3p} nt del extremo 3') → {self.classification}"
         )
 
@@ -352,6 +360,8 @@ class Report:
     windows: tuple[AnnotatedWindow, ...]
     avisos: tuple[Aviso, ...] = field(default=())
     signals_available: bool = True
+    #: Espacio de coordenadas de las posiciones de este informe.
+    frame: Frame = Frame.UTR3
 
     def format_text(self) -> str:
         lines = [f"3'UTR de {self.utr_length} nt"]
@@ -364,7 +374,7 @@ class Report:
             )
         elif self.signals:
             lines.append(f"Señales de poliadenilacion ({len(self.signals)}):")
-            lines.extend(f"  · {s.describe()}" for s in self.signals)
+            lines.extend(f"  · {s.describe(frame=self.frame)}" for s in self.signals)
         else:
             lines.append("Señales de poliadenilacion: ninguna encontrada.")
 
@@ -379,7 +389,7 @@ class Report:
             window = annotated.window
             riesgo = " riesgo_APA=True" if annotated.riesgo_APA else ""
             lines.append(
-                f"  {window.name} [{window.start}-{window.end}] "
+                f"  {window.name} [{span(window.start, window.end, self.frame)}] "
                 f"{(annotated.tercio.value if annotated.tercio else '—'):<8} "
                 f"{FILTER_NAME}={annotated.zona_prohibida.state.value:<7} "
                 f"veredicto={annotated.verdict.value}{riesgo}"
@@ -406,13 +416,15 @@ class Report:
             rows.append(
                 (
                     window.name,
-                    str(window.start),
-                    str(window.end),
+                    label(window.start, self.frame),
+                    label(window.end, self.frame),
                     annotated.tercio.value if annotated.tercio else "",
                     annotated.zona_prohibida.state.value,
                     annotated.zona_prohibida.reason,
                     str(annotated.riesgo_APA),
-                    ",".join(str(s.position) for s in annotated.apa_upstream),
+                    ",".join(
+                        label(s.position, self.frame) for s in annotated.apa_upstream
+                    ),
                     annotated.verdict.value,
                 )
             )
@@ -583,18 +595,24 @@ def annotate_3utr(
             )
         )
 
+    # Sin anatomia, quien llama ha declarado que lo que analiza ES un 3'UTR: es el
+    # contrato de este modulo (`utr_length`, posiciones 1-based sobre el 3'UTR). Con
+    # anatomia, el marco sale de ella.
+    marco = Frame.UTR3 if anatomy is None else frame_of(anatomy)
     return Report(
         utr_length=utr_length,
         signals=tuple(signals or ()),
         windows=tuple(annotated),
-        avisos=tuple(_avisos_apa(signals, annotated)),
+        avisos=tuple(_avisos_apa(signals, annotated, marco)),
         signals_available=signals is not None,
+        frame=marco,
     )
 
 
 def _avisos_apa(
     signals: list[PolyASignal] | None,
     annotated: list[AnnotatedWindow],
+    frame: Frame = Frame.UTR3,
 ) -> list[Aviso]:
     """Un AVISO destacado por cada APA proximal detectado (apartado B).
 
@@ -619,18 +637,20 @@ def _avisos_apa(
         )
         alcance = f"Afecta a {count} de {total} ventana(s) corriente abajo ({pct:.1f}%)"
         if rango is not None:
-            alcance += f", posiciones {rango[0]}-{rango[1]}"
+            alcance += f", posiciones {span(rango[0], rango[1], frame)}"
 
         avisos.append(
             Aviso(
                 code="APA_PROXIMAL",
                 message=(
                     f"Posible poliadenilacion alternativa: {signal.motif} canonica en "
-                    f"{signal.position} (a {signal.distance_to_3p} nt del extremo 3'). "
+                    f"{label(signal.position, frame)} (a {signal.distance_to_3p} nt del "
+                    f"extremo 3'). "
                     f"{alcance}. Podrian no capturar la isoforma corta. NO se excluyen: "
                     f"quedan anotadas con riesgo_APA=True y la lista completa esta en "
                     f"el TSV. La decision es del responsable. El limite de riesgo es la "
-                    f"SEÑAL ({signal.position}), no el sitio de corte, que cae 10-30 nt "
+                    f"SEÑAL ({label(signal.position, frame)}), no el sitio de corte, que "
+                    f"cae 10-30 nt "
                     f"aguas abajo: el marcado es conservador a proposito y NO es una "
                     f"prediccion del extremo de la isoforma corta."
                 ),
@@ -1361,14 +1381,16 @@ class Amplicon:
                 f"emitir unas coordenadas que no cuadran."
             )
 
-    def describe(self, *, frame: str, offset: int = 0) -> str:
-        """Una linea con el marco de coordenadas DICHO, y las dos parejas si hay dos."""
+    def describe(self, *, frame: Frame, offset: int = 0) -> str:
+        """Una linea con el espacio de coordenadas PEGADO, y las dos parejas si hay dos."""
         aviso = f"  ⚠  solapa {', '.join(self.overlaps)}" if self.overlaps else ""
         doble = (
-            f" (3'UTR {self.start - offset}-{self.end - offset})" if offset else ""
+            f" ({span(self.start - offset, self.end - offset, Frame.UTR3)})"
+            if offset
+            else ""
         )
         return (
-            f"{self.role}: {frame} {self.start}-{self.end}{doble} "
+            f"{self.role}: {span(self.start, self.end, frame)}{doble} "
             f"({self.length} nt). {self.rationale}{aviso}"
         )
 
@@ -1380,29 +1402,55 @@ class AmpliconPlan:
     distal: Amplicon
     cut_band: tuple[int, int]
     utr_length: int
-    #: Marco en que van TODAS las coordenadas de este plan. Obligatorio: un 334 no dice
-    #: por si solo si es del transcrito o del 3'UTR, y esa confusion ya costo una tanda.
-    frame: str = "3'UTR"
+    #: Espacio en que van TODAS las coordenadas de este plan. Un 334 no dice por si
+    #: solo si es del transcrito o del 3'UTR, y esa confusion ya costo una tanda.
+    frame: Frame = Frame.UTR3
 
     def describe(self, *, offset: int = 0) -> list[str]:
         """`offset` = primera posicion del 3'UTR menos 1, para dar las dos parejas."""
         doble = (
-            f" (3'UTR {self.signal.position - offset}-{self.signal.end - offset})"
+            f" ({span(self.signal.position - offset, self.signal.end - offset, Frame.UTR3)})"
             if offset
             else ""
         )
         return [
             f"EXPERIMENTO QUE RESUELVE EL TECHO — RT-qPCR de dos amplicones sobre el "
             f"3'UTR",
-            f"  Coordenadas en el marco: {self.frame}.",
-            f"  Señal en cuestion: {self.signal.motif} en {self.signal.position}-"
-            f"{self.signal.end}{doble}; banda de corte "
-            f"{self.cut_band[0]}-{self.cut_band[1]}.",
+            f"  Señal en cuestion: {self.signal.motif} en "
+            f"{span(self.signal.position, self.signal.end, self.frame)}{doble}; "
+            f"banda de corte {span(self.cut_band[0], self.cut_band[1], self.frame)}.",
             f"  {self.proximal.describe(frame=self.frame, offset=offset)}",
             f"  {self.distal.describe(frame=self.frame, offset=offset)}",
             "  Los dos se cuantifican contra una CURVA ESTANDAR COMUN: sin ella las dos "
             "eficiencias",
             "  no son comparables y la razon no significa nada.",
+            "  RETROTRANSCRIPCION CON HEXAMEROS ALEATORIOS. Con oligo-dT NO, y el sesgo "
+            "tiene direccion",
+            f"  conocida: el oligo-dT ceba en la cola de poli(A) y la RT avanza 3'→5', "
+            f"asi que una RT",
+            f"  incompleta cubre lo que esta cerca de la cola y pierde lo de lejos. En "
+            f"la isoforma LARGA",
+            f"  el amplicon proximal queda a {self.utr_length - self.proximal.end} nt "
+            f"de la cola y el distal a "
+            f"{self.utr_length - self.distal.end} nt:",
+            "  la larga se subrepresenta MAS en el proximal que en el distal, y la "
+            "razon distal/proximal",
+            "  sale sesgada HACIA MAS ISOFORMA LARGA — que es justo el resultado que se "
+            "esta buscando.",
+            "  Con hexameros aleatorios el cebado no depende de la distancia a la cola.",
+            "  RNA con RIN DOCUMENTADO: la degradacion produce el mismo sesgo por la "
+            "misma razon.",
+            "  CONTROL POSITIVO DE ENSAYO, obligatorio: un gen con APA caracterizado en "
+            "el mismo tejido,",
+            "  medido en las MISMAS muestras y con la MISMA arquitectura de amplicones "
+            "(uno delante de su",
+            "  señal proximal, otro detras de su banda de corte). Sin el, un «casi todo "
+            "isoforma larga» no",
+            "  se distingue de un ensayo CIEGO a las isoformas cortas: los dos dan la "
+            "misma cifra.",
+            "  Ese gen se elige con su cita — aqui no se propone ninguno, porque "
+            "nombrarlo de memoria",
+            "  seria inventarse la referencia que lo respalda.",
             "  fraccion_isoforma_larga = razon distal/proximal. Ese numero ES el techo "
             "de knockdown",
             "  de los candidatos que quedan por detras del corte.",
@@ -1461,7 +1509,7 @@ def rtqpcr_amplicons(
     signal: PolyASignal,
     *,
     utr_length: int,
-    frame: str = "3'UTR",
+    frame: Frame = Frame.UTR3,
     avoid: list[tuple[int, int]] | tuple[tuple[int, int], ...] = (),
     length: int = RTQPCR_AMPLICON_LENGTH,
     margin: int = RTQPCR_MARGIN,
@@ -1488,8 +1536,8 @@ def rtqpcr_amplicons(
         downstream=False,
         avoid=evitar,
         rationale=(
-            f"entero por delante de {signal.motif}@{signal.position} (holgura {margin} "
-            f"nt): presente en las DOS isoformas, mide el total."
+            f"entero por delante de {signal.motif}@{label(signal.position, frame)} "
+            f"(holgura {margin} nt): presente en las DOS isoformas, mide el total."
         ),
     )
     distal = _place_amplicon(
@@ -1500,8 +1548,9 @@ def rtqpcr_amplicons(
         downstream=True,
         avoid=evitar,
         rationale=(
-            f"entero por detras de la banda de corte {banda[0]}-{banda[1]} (holgura "
-            f"{margin} nt): solo presente en la isoforma LARGA."
+            f"entero por detras de la banda de corte "
+            f"{span(banda[0], banda[1], frame)} (holgura {margin} nt): solo presente en "
+            f"la isoforma LARGA."
         ),
     )
     return AmpliconPlan(

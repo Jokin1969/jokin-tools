@@ -439,7 +439,97 @@ class TestElBloqueNoMezclaMarcosDeCoordenadas(unittest.TestCase):
     def test_el_experimento_da_las_DOS_parejas(self):
         # Con desfase, cada amplicon lleva su coordenada de lo tilado y la del 3'UTR.
         bloque = self.texto.split("EXPERIMENTO QUE RESUELVE")[1]
-        self.assertIn("1107-1226", bloque)
-        self.assertIn("(3'UTR 158-277)", bloque)
-        self.assertIn("1633-1752", bloque)
-        self.assertIn("(3'UTR 684-803)", bloque)
+        self.assertIn("tx:1107-1226", bloque)
+        self.assertIn("(3utr:158-277)", bloque)
+        self.assertIn("tx:1633-1752", bloque)
+        self.assertIn("(3utr:684-803)", bloque)
+
+
+@unittest.skipUnless(RATON.is_file(), "NOT_RUN: falta data/reference/NM_011170.3.fa")
+class TestElCebadoDelEnsayo(unittest.TestCase):
+    """Con oligo-dT la razon sale sesgada, y el sesgo tiene direccion conocida.
+
+    La RT con oligo-dT ceba en la cola de poli(A) y avanza 3'→5'. Una RT incompleta
+    cubre lo que esta CERCA de la cola y pierde lo que esta lejos. En la isoforma LARGA
+    el amplicon proximal queda a ~1.000 nt de la cola y el distal a ~440, asi que la
+    larga se subrepresenta MAS en el proximal que en el distal — y la razon
+    distal/proximal, que es la fraccion de isoforma larga, sale inflada.
+
+    Con hexameros aleatorios el cebado no depende de la distancia a la cola.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.utr3 = _utr3()
+        cls.signals = find_polya_signals(cls.utr3)
+        cls.señal = [s for s in cls.signals if s.position == 288][0]
+        cls.plan = rtqpcr_amplicons(cls.señal, utr_length=len(cls.utr3))
+        cls.texto = "\n".join(cls.plan.describe())
+
+    def test_pide_hexameros_aleatorios_y_descarta_oligo_dT(self):
+        bajo = self.texto.lower()
+        self.assertIn("hexameros aleatorios", bajo)
+        self.assertIn("oligo-dt", bajo)
+        self.assertIn("no", bajo)
+
+    def test_dice_la_DIRECCION_del_sesgo_no_solo_que_lo_hay(self):
+        # Un «puede sesgar» no sirve: hay que saber hacia donde, porque el resultado
+        # esperado —«casi todo larga»— es justo el que produciria el sesgo.
+        bajo = self.texto.lower()
+        self.assertIn("hacia mas isoforma larga", bajo)
+
+    def test_da_las_dos_distancias_a_la_cola_calculadas(self):
+        # ~1.000 nt el proximal y ~440 el distal, sobre la isoforma larga.
+        larga_prox = len(self.utr3) - self.plan.proximal.end
+        larga_dist = len(self.utr3) - self.plan.distal.end
+        self.assertIn(str(larga_prox), self.texto)
+        self.assertIn(str(larga_dist), self.texto)
+
+    def test_exige_RIN_documentado(self):
+        self.assertIn("RIN", self.texto)
+
+    def test_exige_control_positivo_de_ensayo(self):
+        bajo = self.texto.lower()
+        self.assertIn("control positivo", bajo)
+        self.assertIn("misma", bajo)
+
+    def test_dice_QUE_pasa_sin_el_control_positivo(self):
+        bajo = self.texto.lower()
+        self.assertIn("ciego", bajo)
+
+    def test_no_nombra_ningun_gen_de_control(self):
+        # Nombrar aqui un gen «con APA caracterizado» de memoria seria inventarse una
+        # referencia. Se pide el gen con su cita; no se propone uno.
+        self.assertIn("con su cita", self.texto)
+
+
+@unittest.skipUnless(RATON.is_file(), "NOT_RUN: falta data/reference/NM_011170.3.fa")
+class TestPrimeroLoPublicadoYLuegoElBanco(unittest.TestCase):
+    """Si la fraccion esta publicada, el experimento es CONFIRMACION, no descubrimiento."""
+
+    @classmethod
+    def setUpClass(cls):
+        from shmir_design.outputs import text_report
+        from shmir_design.scaffold import SGEP_SCAFFOLD
+        from shmir_design.selection import SelectionConfig, select_from_report
+        from shmir_design.tiling import tile_utr
+
+        tiling = tile_utr(_utr3())
+        seleccion = select_from_report(tiling, SelectionConfig(n_candidates=6))
+        cls.texto = text_report(
+            species="raton", tiling=tiling, selection=seleccion,
+            scaffold=SGEP_SCAFFOLD,
+        )
+
+    def test_el_informe_manda_mirar_PolyA_DB_antes_que_el_banco(self):
+        bloque = self.texto.split("── Riesgo de polyA")[1]
+        antes = bloque.index("PolyA_DB")
+        banco = bloque.index("RT-qPCR")
+        self.assertLess(antes, banco, "lo publicado va ANTES del experimento")
+
+    def test_nombra_los_datos_de_3_end_seq_de_cerebro_murino(self):
+        self.assertIn("3'-end seq", self.texto)
+        self.assertIn("cerebro", self.texto.lower())
+
+    def test_dice_que_entonces_el_experimento_seria_CONFIRMACION(self):
+        self.assertIn("confirmacion", self.texto.lower())

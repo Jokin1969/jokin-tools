@@ -21,6 +21,7 @@ from .conservation import ConservationReport
 from .accessibility import CONTEXT_WINDOWS, DISCREPANCY
 from .filters import FilterState, Verdict
 from .folding import VIENNA_AVAILABLE
+from .coords import Frame, frame_of, label, span
 from .mirna import SEED_SPACE
 from .polya import rtqpcr_amplicons
 from .reference import ReferenceTranscript
@@ -73,6 +74,9 @@ def tsv_selected(selection: ReportSelection, *, species: str) -> str:
     `INCOMPLETE` a secas invita a decidir sin saber que le falta al candidato.
     """
     chosen = list(selection.selection.chosen)
+    marco = (
+        frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
+    )
     filtros = (
         [r.name for r in selection.window_of(chosen[0]).filters] if chosen else []
     )
@@ -108,11 +112,11 @@ def tsv_selected(selection: ReportSelection, *, species: str) -> str:
             [
                 species,
                 str(selection.selection.rank_of(choice.start)),
-                str(choice.start),
-                str(choice.end),
+                label(choice.start, marco),
+                label(choice.end, marco),
                 window.region.value,
-                "" if window.inicio_3utr is None else str(window.inicio_3utr),
-                "" if window.fin_3utr is None else str(window.fin_3utr),
+                label(window.inicio_3utr, Frame.UTR3),
+                label(window.fin_3utr, Frame.UTR3),
                 choice.tercio.value if choice.tercio else "",
                 f"{choice.asymmetry_raw:+.2f}",
                 f"{choice.penalty:.2f}",
@@ -214,6 +218,11 @@ def text_report(
         "── Anatomia del transcrito ──",
     ]
     anatomia = tiling.anatomy
+    # El espacio de coordenadas de TODO lo que se imprima aqui. Sale de la anatomia, no
+    # se elige: `tx:1018` y `3utr:1018` son dos sitios distintos y el entero solo no
+    # distingue cual es.
+    marco = frame_of(anatomia) if anatomia is not None else Frame.UTR3
+    desfase = anatomia.utr3[0] - 1 if anatomia is not None and anatomia.utr3 else 0
     if transcript is None and anatomia is not None and anatomia.declared:
         lines.append(
             "  Declarada por quien lanzo el analisis (no hay transcrito verificado):"
@@ -282,7 +291,7 @@ def text_report(
 
     lines.extend(["", "── Señales de poliadenilacion ──"])
     if tiling.signals:
-        lines.extend(f"  · {s.describe()}" for s in tiling.signals)
+        lines.extend(f"  · {s.describe(frame=marco)}" for s in tiling.signals)
     else:
         lines.append("  Ninguna encontrada.")
 
@@ -325,7 +334,7 @@ def text_report(
         window = selection.window_of(choice)
         lines.append(
             f"    #{selection.selection.rank_of(choice.start)} "
-            f"pos {choice.start}-{choice.end} "
+            f"pos {span(choice.start, choice.end, marco)} "
             f"{(choice.tercio.value if choice.tercio else choice.region.value):<8} "
             f"asim {choice.asymmetry:+.2f}  {window.verdict.value}"
             + ("  riesgo_APA" if window.riesgo_APA else "")
@@ -411,22 +420,16 @@ def text_report(
     ]
     if canonicas:
         dominante = min(canonicas, key=lambda s: s.position)
-        corte = f"{dominante.end + 10}-{dominante.end + 30}"
-        # Las dos coordenadas, como en todo lo demas: un 1237 no dice por si solo si es
-        # del transcrito o del 3'UTR.
-        desfase = (
-            tiling.anatomy.utr3[0] - 1
-            if tiling.anatomy is not None and tiling.anatomy.utr3
-            else 0
-        )
+        corte = span(dominante.end + 10, dominante.end + 30, marco)
+        # Las dos parejas, como en todo lo demas, y cada una con su espacio pegado.
         en_utr3 = (
-            f" (3'UTR {dominante.position - desfase}-{dominante.end - desfase})"
+            f" ({span(dominante.position - desfase, dominante.end - desfase, Frame.UTR3)})"
             if desfase
             else ""
         )
         lines.append(
             f"  RIESGO DE TRUNCAMIENTO DOMINANTE DEL PANEL: {dominante.motif} en "
-            f"{dominante.position}-{dominante.end}{en_utr3}."
+            f"{span(dominante.position, dominante.end, marco)}{en_utr3}."
         )
         lines.append(
             "  Clasificada APA_POSIBLE POR SER CANONICA y estar a mas de 100 nt del "
@@ -475,7 +478,7 @@ def text_report(
         if detras:
             lines.append(
                 f"    con TECHO (por detras del corte): "
-                f"{', '.join(str(p) for p in sorted(detras))}"
+                f"{', '.join(label(p, Frame.UTR3) for p in sorted(detras))}"
             )
             lines.append(
                 "      techo indeterminado: fraccion_isoforma_larga NO MEDIDA. No es 0 "
@@ -497,7 +500,8 @@ def text_report(
         lines.append(
             "    INMUNES por ser proximales a esa señal: "
             + (
-                ", ".join(str(p) for p in sorted(inmunes)) + " (del panel)"
+                ", ".join(label(p, Frame.UTR3) for p in sorted(inmunes))
+                + " (del panel)"
                 if inmunes
                 else "ninguno del panel"
             )
@@ -515,10 +519,21 @@ def text_report(
                 ventana = selection.windows[choice.label]
                 return ventana.inicio_3utr or ventana.window.start
 
+            # Las DOS cifras cuando hay penalizacion: la asimetria cruda y la neta.
+            # Dar una sola columna con la neta hizo que el 221 saliera +4.15 al lado de
+            # candidatos sin penalizar — misma columna, dos magnitudes distintas.
+            def _asimetria(choice) -> str:
+                if choice.penalty:
+                    return (
+                        f"{choice.asymmetry_raw:+.2f} − {choice.penalty:.2f} penal. "
+                        f"= {choice.asymmetry:+.2f}"
+                    )
+                return f"{choice.asymmetry_raw:+.2f}"
+
             lines.append(
                 "        "
-                + ", ".join(
-                    f"{_en_3utr(c)} ({c.asymmetry:+.2f})" for c in top
+                + "; ".join(
+                    f"{label(_en_3utr(c), Frame.UTR3)} ({_asimetria(c)})" for c in top
                 )
                 + "  ← inmunes tambien"
             )
@@ -548,7 +563,7 @@ def text_report(
         plan = rtqpcr_amplicons(
             dominante,
             utr_length=tiling.sequence_length,
-            frame=("3'UTR" if not desfase else "lo tilado (transcrito)"),
+            frame=marco,
             avoid=[
                 (
                     selection.window_of(c).window.start,
@@ -556,6 +571,34 @@ def text_report(
                 )
                 for c in selection.selection.chosen
             ],
+        )
+        lines.append("")
+        lines.append(
+            "  ANTES DEL BANCO — mirar si la fraccion ya esta medida y publicada:"
+        )
+        lines.append(
+            "    1. PolyA_DB / PolyASite: ¿hay sitio anotado en este 3'UTR, y con que "
+            "fraccion de"
+        )
+        lines.append(
+            "       lecturas? Si lo hay, entra por --apa-medido y el techo deja de "
+            "estar indeterminado."
+        )
+        lines.append(
+            "    2. Datos publicos de 3'-end seq (3'-seq / PAS-seq / QuantSeq REV) de "
+            "CEREBRO murino"
+        )
+        lines.append(
+            "       sobre Prnp: la fraccion de uso del sitio proximal se lee "
+            "directamente de ahi."
+        )
+        lines.append(
+            "    Si la fraccion esta publicada, el experimento de abajo es una "
+            "CONFIRMACION, no un"
+        )
+        lines.append(
+            "    descubrimiento — y entonces cuesta lo que cuesta comprobar dos "
+            "amplicones, no una serie."
         )
         lines.append("")
         lines.extend(f"  {l}" for l in plan.describe(offset=desfase))
@@ -772,7 +815,8 @@ def text_report(
     )
     if sensibilidad.flagged:
         lines.extend(
-            f"    {valor:.1f} kcal/mol → {', '.join(str(p) for p in posiciones) or '—'}"
+            f"    {valor:.1f} kcal/mol → "
+            f"{', '.join(label(p, marco) for p in posiciones) or '—'}"
             for valor, posiciones in sensibilidad.selections.items()
         )
     lines.append(f"  {sensibilidad.describe()}")

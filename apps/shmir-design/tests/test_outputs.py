@@ -144,7 +144,14 @@ class TestColumnasNuevas(unittest.TestCase):
                 self.assertIn(columna, cabecera)
         fila = dict(zip(cabecera, lineas[1].split("\t")))
         self.assertEqual(fila["region"], "3'UTR")
-        self.assertEqual(int(fila["inicio_3utr"]), int(fila["inicio"]) - 240)
+        from shmir_design.coords import Frame, parse
+
+        # Las dos celdas van etiquetadas con su espacio, y el espacio importa: el
+        # inicio va en el marco de lo tilado y el otro en el del 3'UTR.
+        inicio_3utr = parse(fila["inicio_3utr"])
+        inicio = parse(fila["inicio"])
+        self.assertIs(inicio_3utr.frame, Frame.UTR3)
+        self.assertEqual(inicio_3utr.value, inicio.value - 240)
 
     def test_los_oligos_traen_el_modulo_de_149(self):
         _, seleccion = piezas()
