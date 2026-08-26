@@ -259,23 +259,68 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     riesgo sobre la **accesibilidad**, y solo existe si ese hexámero se usa.
 
   Un mismo hexámero nunca produce los dos en la misma ventana: o estás encima de la
-  señal, o estás por detrás de su corte. Hay tres estados y no dos (`RiskState`):
+  señal, o estás por detrás de su corte. Hay cinco estados y no dos (`RiskState`):
   `PENALIZADO` es obligatorio porque la banda de corte tiene 20 nt de ancho y colapsarla
-  a PASS o FAIL inventa una precisión que no hay.
+  a PASS o FAIL inventa una precisión que no hay, y `TECHO` porque el APA no veta.
 
   **Y `truncamiento_propio` va aparte de `truncamiento` a propósito.** Una ventana que
   solapa un hexámero no tiene truncamiento *por ése*, pero puede tenerlo por otro que
   quede más arriba: 1018 solapa `ACTAAA` (sin truncamiento propio, estérico penalizado)
   y a la vez está por detrás del corte del `AATAAA` de 288, igual que los otros cuatro.
   Emitir solo «truncamiento NO_APLICA» lo dejaría como una excepción a su favor.
+- **El truncamiento por APA es un `TECHO`, no un `FAIL`. DECIDIDO (2026-08-26).** El APA
+  produce una **mezcla de isoformas**, no un corte binario: un candidato por detrás de un
+  sitio proximal usado en una fracción f conserva su diana en el (1 − f) de isoforma
+  larga. Lo que corre es un techo de knockdown de (1 − f), y eso no es un veto. `FAIL`
+  queda reservado a la señal **terminal**, donde no hay isoforma que conserve la diana.
+  (Con el 3'UTR murino esa rama no la alcanza ninguna ventana de 22 nt: una terminal está
+  a ≤ 40 nt del extremo y su corte más tardío cae +30, así que detrás no cabe nada. Hay
+  un test que fija ese hecho geométrico.)
+  - `PolyARisk.fraccion_isoforma_larga` es **obligatorio y sin valor por defecto**:
+    ningún camino puede omitirlo y dejar el techo mudo. `None` significa **no medida**,
+    igual que `divergent_positions=None`, y **no es 0** (todo isoforma corta, techo cero)
+    **ni 1** (todo larga, sin techo). La columna `polyA_fraccion_isoforma_larga` va
+    **vacía**, nunca a cero, y el informe imprime «techo indeterminado» — no un veredicto.
+  - Es el **mismo número** que `apa.ApaAssessment.knockdown_ceiling`, así que cuando hay
+    tabla de sitios medidos (`--apa-medido`) el techo viaja a la anotación de polyA y las
+    dos columnas dicen lo mismo. Se adjunta **solo** donde hay truncamiento por APA: dar
+    un techo a una ventana inmune sería emitir un número que no se refiere a nada, y
+    `PolyARisk.__post_init__` aborta si se intenta.
+  - El experimento que lo convierte en un número está **en el informe**
+    (`polya.rtqpcr_amplicons`): RT-qPCR de dos amplicones sobre el 3'UTR murino, uno
+    entero por delante del hexámero y otro entero por detrás de la banda de corte,
+    cuantificados contra una **curva estándar común**; la razón distal/proximal *es*
+    `fraccion_isoforma_larga`. Con la señal de 288 salen 3'UTR **158-277** y **684-803**
+    (120 nt cada uno, holgura de 10 nt y esquivando las dianas del panel). Se emiten
+    **coordenadas**: no se emiten cebadores — eso necesita Tm, especificidad y horquillas,
+    y no se improvisa. Se mide sobre tejido **sin tratar**: en muestras tratadas un
+    amplicón que solape una diana mide corte por RNAi, no isoformas.
+
 - **El `AATAAA` de 3'UTR 288 es el riesgo de truncamiento dominante del panel** y el
-  informe lo declara así, con qué candidatos quedan por detrás de su corte y cuáles son
-  inmunes por ser proximales. Si ninguno lo es, lo dice: un panel entero por detrás del
-  mismo corte comparte un único modo de fallo.
+  informe lo declara así, con qué candidatos quedan con techo por detrás de su corte y
+  cuáles son inmunes por ser proximales. Si ninguno lo es, lo dice: un panel entero por
+  detrás del mismo corte comparte un único modo de fallo.
+  - Está clasificada `APA_POSIBLE` **por ser canónica** y estar a más de 100 nt del
+    extremo 3', **no por evidencia de uso**: aquí no hay ni un dato de uso de ese sitio.
+    Es un **supuesto**, y el informe lo dice con esa palabra. Con PolyA_DB o PolyASite
+    (`--apa-medido`) dejaría de serlo.
+  - **No está conservada en humano** — declarado por quien lleva el proyecto y **sin
+    comprobar aquí**: no hay 3'UTR humano cargado en `data/reference/`, así que este
+    repositorio no puede confirmarlo ni desmentirlo, y decirlo como hallazgo propio sería
+    inventarlo. Si se confirma, el techo es un problema del modelo murino, no del
+    candidato.
+  - **Inmunes: 60, 143 y 221**, no solo 60. 60 es el único del panel elegido, pero la
+    piscina de elegibles tiene 19 sitios más por delante de la señal y el informe saca
+    los mejores por asimetría — 143 (+5,08) y 221 (+4,15) entre ellos. Con un solo inmune
+    el panel entero depende de un supuesto; con tres, no.
 - **Un candidato «nuevo» de una fuente externa puede ser un sitio ya cogido**
   (`spacing.site_conflicts`). 223 y 221 son dos ventanas corridas 2 nt: bajo el espaciado
   de 50 nt son el mismo sitio del panel. Se **avisa**, no se descarta — puede interesar
   cambiar uno por otro, y para eso hay que ver que compiten.
+  De las **7 plazas nuevas** que quedaban tras el espaciado (337, 394, 735, 765, 930,
+  1075, 1200), tras los **filtros duros** sobreviven **337, 735, 765 y 1075**. Caen 394
+  (GC y homopolímero), 930 (homopolímero) y 1200 (zona prohibida de polyA). O sea: la
+  lista externa aporta cuatro sitios utilizables, no siete.
 - **El sesgo de baja complejidad está DESCARTADO** como explicación del score de
   miRarchitect: correlación carrera máxima / score `r = +0,154` sobre las 24, y
   homopolímeros de 4 o más repartidos 5/15 entre los mejores y 3/9 entre los peores — el
@@ -320,7 +365,7 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - **Fuera del 3'UTR no se cuela nadie por accidente**: una ventana del ORF solo entra si
   se pidió su región con `--cuota-region`. Y allí polyA, APA y los tercios salen
   `NO_APLICA`, no `PASS`.
-- **polyA es anotación, no veredicto**: cinco campos (`polyA_hexamero`, `polyA_clase`,
+- **polyA es anotación, no veredicto**: los campos base son cinco (`polyA_hexamero`, `polyA_clase`,
   `polyA_posicion_rel`, `polyA_solapa_seed`, `polyA_veredicto`). El corte ocurre 10-30 nt
   **aguas abajo** del hexámero, así que la ventana que desaparece es la que empieza tras
   el corte, no la que contiene la señal: la zona prohibida es asimétrica. `--polyA-modo`

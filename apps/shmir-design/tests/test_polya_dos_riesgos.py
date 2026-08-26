@@ -69,7 +69,9 @@ class TestLosDosRiesgosSonDistintos(unittest.TestCase):
         # 1018 como una excepcion a su favor cuando corre el MISMO riesgo dominante que
         # los otros cuatro.
         riesgo = self._riesgo(1018)
-        self.assertIs(riesgo.truncamiento, RiskState.FAIL)
+        # TECHO, no FAIL: el APA produce una mezcla de isoformas y 1018 conserva su
+        # diana en la larga. Ver tests/test_techo_truncamiento.py.
+        self.assertIs(riesgo.truncamiento, RiskState.TECHO)
         self.assertIn("288", riesgo.truncamiento_motivo)
 
     def test_aislando_su_propio_hexamero_el_truncamiento_es_NO_APLICA(self):
@@ -103,10 +105,12 @@ class TestLosDosRiesgosSonDistintos(unittest.TestCase):
                         riesgo.truncamiento_signal, riesgo.esterico_signal
                     )
 
-    def test_una_ventana_muy_por_detras_es_FAIL_de_truncamiento(self):
+    def test_una_ventana_muy_por_detras_de_un_APA_es_TECHO(self):
+        # Era FAIL. Un APA no veta: reparte los transcritos entre dos isoformas y deja
+        # un techo de knockdown. El FAIL se reserva para la señal terminal.
         señal = self._solo(288)[0]
         riesgo = self._riesgo(señal.end + CLEAVAGE_MAX + 5, self._solo(288))
-        self.assertIs(riesgo.truncamiento, RiskState.FAIL)
+        self.assertIs(riesgo.truncamiento, RiskState.TECHO)
 
     def test_en_la_banda_de_incertidumbre_es_PENALIZADO_no_FAIL(self):
         # Entre 10 y 30 nt aguas abajo no se sabe si el corte cae antes o despues. Se

@@ -450,12 +450,40 @@ def tile_utr(
         # Bloque 9: polyA y APA son heuristicas del 3'UTR. Sobre una ventana del ORF o
         # del 5'UTR no dan ni PASS ni FAIL — la pregunta no va con ese candidato — y
         # tampoco es NOT_RUN, porque no hay ninguna laguna que tapar.
+        # Bloque 5: con sitios medidos, el dato sustituye a la prediccion.
+        apa = None
+        if region is Region.UTR3:
+            if apa_sites is not None and apa_sites.coords == "3utr":
+                posicion = anatomy.utr3_position(anotada.window.start)
+                if posicion is None:
+                    # La ventana empieza ANTES del 3'UTR: cuenta como 3'UTR porque su
+                    # punto medio cae ahi, pero su inicio no tiene coordenada de 3'UTR.
+                    # Se ancla al principio del 3'UTR, que es la respuesta correcta a la
+                    # pregunta del APA: una ventana que empieza en el CDS no puede estar
+                    # por detras de ningun sitio de corte del 3'UTR. Antes se caia en la
+                    # coordenada de TRANSCRITO y se comparaba contra sitios dados en
+                    # coordenadas de 3'UTR — mezcla silenciosa de sistemas.
+                    posicion = 1
+            else:
+                posicion = anotada.window.start
+            apa = apa_assessment(
+                window_start=posicion,
+                sites=apa_sites,
+                predicted_risk=anotada.riesgo_APA,
+            )
+
+        # El techo medido, si lo hay, viaja con la anotacion de polyA: es el MISMO
+        # numero que `apa.knockdown_ceiling` y no puede salir relleno en una columna y
+        # vacio en la otra.
         anotacion_polya = annotate_polya(
             anotada.window,
             list(signals),
             utr_length=len(cleaned),
             sequence=original,
             mode=polya_mode,
+            fraccion_isoforma_larga=(
+                apa.knockdown_ceiling if apa is not None else None
+            ),
         )
         zona_prohibida = anotacion_polya.veredicto
         if region is not Region.UTR3:
@@ -497,28 +525,6 @@ def tile_utr(
                         "es PASS."
                     ),
                 )
-            )
-
-        # Bloque 5: con sitios medidos, el dato sustituye a la prediccion.
-        apa = None
-        if region is Region.UTR3:
-            if apa_sites is not None and apa_sites.coords == "3utr":
-                posicion = anatomy.utr3_position(anotada.window.start)
-                if posicion is None:
-                    # La ventana empieza ANTES del 3'UTR: cuenta como 3'UTR porque su
-                    # punto medio cae ahi, pero su inicio no tiene coordenada de 3'UTR.
-                    # Se ancla al principio del 3'UTR, que es la respuesta correcta a la
-                    # pregunta del APA: una ventana que empieza en el CDS no puede estar
-                    # por detras de ningun sitio de corte del 3'UTR. Antes se caia en la
-                    # coordenada de TRANSCRITO y se comparaba contra sitios dados en
-                    # coordenadas de 3'UTR — mezcla silenciosa de sistemas.
-                    posicion = 1
-            else:
-                posicion = anotada.window.start
-            apa = apa_assessment(
-                window_start=posicion,
-                sites=apa_sites,
-                predicted_risk=anotada.riesgo_APA,
             )
 
         acceso = None

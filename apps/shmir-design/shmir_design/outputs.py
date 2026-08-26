@@ -22,6 +22,7 @@ from .accessibility import CONTEXT_WINDOWS, DISCREPANCY
 from .filters import FilterState, Verdict
 from .folding import VIENNA_AVAILABLE
 from .mirna import SEED_SPACE
+from .polya import rtqpcr_amplicons
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
@@ -428,12 +429,41 @@ def text_report(
             f"{dominante.position}-{dominante.end}{en_utr3}."
         )
         lines.append(
-            f"  Es una canonica clasificada APA_POSIBLE, asi que se da por funcional. "
-            f"Su corte cae en"
+            "  Clasificada APA_POSIBLE POR SER CANONICA y estar a mas de 100 nt del "
+            "extremo 3',"
         )
         lines.append(
-            f"  {corte}: todo candidato que empiece por detras de ahi desaparece de la "
-            f"isoforma corta."
+            "  NO POR EVIDENCIA DE USO: aqui no hay ni un dato de uso de este sitio. Es "
+            "un SUPUESTO,"
+        )
+        lines.append(
+            "  no una medida. Con una tabla de PolyA_DB o PolyASite (--apa-medido) "
+            "dejaria de serlo."
+        )
+        lines.append(
+            "  Ademas, esta señal NO ESTA CONSERVADA EN HUMANO — declarado por quien "
+            "lleva el"
+        )
+        lines.append(
+            "  proyecto y SIN COMPROBAR AQUI: no hay 3'UTR humano cargado en "
+            "data/reference/, asi"
+        )
+        lines.append(
+            "  que este informe no puede confirmarlo ni desmentirlo. Si se confirma, el "
+            "techo es un"
+        )
+        lines.append("  problema del modelo murino y no del candidato.")
+        lines.append(
+            f"  Su corte cae en {corte}. Un candidato que empiece por detras pierde su "
+            f"diana en la"
+        )
+        lines.append(
+            "  isoforma CORTA y la conserva en la LARGA: el APA reparte los transcritos "
+            "en una"
+        )
+        lines.append(
+            "  MEZCLA DE ISOFORMAS, asi que lo que corre es un TECHO de knockdown — "
+            "NO ES UN VETO."
         )
         detras, inmunes = [], []
         for choice in selection.selection.chosen:
@@ -444,13 +474,63 @@ def text_report(
             )
         if detras:
             lines.append(
-                f"    por detras del corte (con riesgo): "
+                f"    con TECHO (por detras del corte): "
                 f"{', '.join(str(p) for p in sorted(detras))}"
             )
+            lines.append(
+                "      techo indeterminado: fraccion_isoforma_larga NO MEDIDA. No es 0 "
+                "ni 1 — es que"
+            )
+            lines.append(
+                "      nadie la ha medido, y hasta entonces el techo de estos "
+                "candidatos no se escribe."
+            )
+        # Los inmunes del panel, y los que la piscina de elegibles tiene ademas. Con un
+        # solo inmune el panel entero depende de que el supuesto de arriba sea falso.
+        alternativas = [
+            sitio.best
+            for sitio in selection.selection.sites
+            if sitio.best.start <= dominante.end + 10
+            and sitio.best.start not in {c.start for c in selection.selection.chosen}
+        ]
+        alternativas.sort(key=lambda c: -c.asymmetry)
         lines.append(
-            f"    INMUNES por ser proximales a esa señal: "
-            + (", ".join(str(p) for p in sorted(inmunes)) if inmunes else "ninguno")
+            "    INMUNES por ser proximales a esa señal: "
+            + (
+                ", ".join(str(p) for p in sorted(inmunes)) + " (del panel)"
+                if inmunes
+                else "ninguno del panel"
+            )
         )
+        if alternativas:
+            top = alternativas[:6]
+            lines.append(
+                f"      INMUNES elegibles NO elegidos: {len(alternativas)} sitio(s). "
+                f"Los mejores por asimetria:"
+            )
+            # En la MISMA pareja de coordenadas que las lineas de arriba: mezclar el
+            # marco del transcrito con el del 3'UTR aqui daria un «1018» que no es el
+            # 1018 de dos lineas mas arriba.
+            def _en_3utr(choice) -> int:
+                ventana = selection.windows[choice.label]
+                return ventana.inicio_3utr or ventana.window.start
+
+            lines.append(
+                "        "
+                + ", ".join(
+                    f"{_en_3utr(c)} ({c.asymmetry:+.2f})" for c in top
+                )
+                + "  ← inmunes tambien"
+            )
+            lines.append(
+                "      Son las plazas con las que se cambia un candidato con techo por "
+                "uno inmune."
+            )
+        if len(inmunes) + len(alternativas) < 3:
+            lines.append(
+                "    Con uno o dos inmunes el panel depende de un supuesto que aqui no "
+                "se ha medido."
+            )
         if not inmunes:
             lines.append(
                 "    Ningun candidato del panel esta por delante de esa señal. Un panel "
@@ -460,7 +540,25 @@ def text_report(
                 "    detras del mismo corte comparte un unico modo de fallo: si esa "
                 "isoforma domina,"
             )
-            lines.append("    fallan todos a la vez.")
+            lines.append("    todos quedan con el mismo techo a la vez.")
+
+        # El experimento que convierte el techo en un numero. Coordenadas derivadas,
+        # esquivando las dianas del panel: en muestras tratadas un amplicon que solape
+        # una diana mide corte por RNAi, no isoformas.
+        plan = rtqpcr_amplicons(
+            dominante,
+            utr_length=tiling.sequence_length,
+            frame=("3'UTR" if not desfase else "lo tilado (transcrito)"),
+            avoid=[
+                (
+                    selection.window_of(c).window.start,
+                    selection.window_of(c).window.end,
+                )
+                for c in selection.selection.chosen
+            ],
+        )
+        lines.append("")
+        lines.extend(f"  {l}" for l in plan.describe(offset=desfase))
 
     lines.extend(["", "── Que se ha analizado ──"])
     lines.append(

@@ -27,7 +27,7 @@ Este modulo no toca la red: no depende de ningun recurso externo (regla 4). Pyth
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 
@@ -803,6 +803,9 @@ POLYA_COLUMNS = (
     "polyA_truncamiento_propio",
     "polyA_esterico",
     "polyA_dist_corte",
+    # El techo de knockdown que impone el APA, o vacio mientras no se mida. Vacio no es
+    # cero: es que nadie lo ha medido.
+    "polyA_fraccion_isoforma_larga",
 )
 
 
@@ -862,6 +865,7 @@ class PolyAAnnotation:
                     "polyA_truncamiento_propio": FilterState.NOT_RUN.value,
                     "polyA_esterico": FilterState.NOT_RUN.value,
                     "polyA_dist_corte": "",
+                    "polyA_fraccion_isoforma_larga": "",
                 }
             ),
         }
@@ -876,16 +880,26 @@ _GRAVEDAD = {
 
 
 class RiskState(StrEnum):
-    """Los cuatro estados de un riesgo de polyA. `PENALIZADO` no es `FAIL`.
+    """Los cinco estados de un riesgo de polyA. Ni `PENALIZADO` ni `TECHO` son `FAIL`.
 
-    Hace falta el intermedio porque la banda de corte tiene 20 nt de ancho: entre 10 y
+    `PENALIZADO` hace falta porque la banda de corte tiene 20 nt de ancho: entre 10 y
     30 nt aguas abajo del hexamero no se sabe si el corte cae antes o despues de la
     ventana. Colapsarlo a PASS o a FAIL seria inventarse una precision que no hay.
+
+    `TECHO` hace falta porque el APA no corta el transcrito en dos: produce una MEZCLA
+    de isoformas. Un candidato por detras del corte de un sitio proximal usado en una
+    fraccion f sigue teniendo diana en la isoforma larga —el (1 - f) restante—, asi que
+    lo que corre es un TECHO de knockdown de (1 - f), no un veto. Y ese techo no se
+    puede escribir mientras no se mida: ver `PolyARisk.fraccion_isoforma_larga`.
+
+    `FAIL` queda para la señal TERMINAL: por detras de SU corte no hay transcrito en
+    ninguna isoforma, no hay mezcla de la que hablar y la diana no existe.
     """
 
     NO_APLICA = "NO_APLICA"
     PASS = "PASS"
     PENALIZADO = "PENALIZADO"
+    TECHO = "TECHO"
     FAIL = "FAIL"
 
 
@@ -904,6 +918,16 @@ class PolyARisk:
     truncamiento_motivo: str
     esterico: RiskState
     esterico_motivo: str
+    #: Fraccion de transcritos que conservan el 3'UTR completo, o sea la isoforma
+    #: LARGA. Es el techo de knockdown de un candidato por detras del corte proximal:
+    #: si el sitio proximal se usa en una fraccion f, queda (1 - f) de diana.
+    #:
+    #: OBLIGATORIO y sin valor por defecto a proposito: ningun camino puede omitirlo y
+    #: dejar el techo mudo. `None` significa NO MEDIDA —igual que
+    #: `transfer.divergent_positions=None` significa que nadie miro—, y no es 0 (todo
+    #: isoforma corta, techo cero) ni 1 (todo isoforma larga, sin techo). Son tres
+    #: cosas distintas y la salida tiene que poder distinguirlas.
+    fraccion_isoforma_larga: float | None
     #: El riesgo de truncamiento RESPECTO DEL HEXAMERO QUE LA VENTANA SOLAPA, que es
     #: siempre NO_APLICA por construccion: si estas encima de la señal, estas aguas
     #: arriba de su corte y te conservas en las dos isoformas. Se emite aparte porque
@@ -918,6 +942,54 @@ class PolyARisk:
     truncamiento_signal: PolyASignal | None = None
     esterico_signal: PolyASignal | None = None
 
+    def __post_init__(self) -> None:
+        fraccion = self.fraccion_isoforma_larga
+        if fraccion is None:
+            return
+        if not isinstance(fraccion, (int, float)) or isinstance(fraccion, bool):
+            raise TypeError(
+                f"fraccion_isoforma_larga debe ser un numero o None (no medida), no "
+                f"{type(fraccion).__name__}; se aborta la anotacion de polyA."
+            )
+        if not 0.0 <= float(fraccion) <= 1.0:
+            raise ValueError(
+                f"fraccion_isoforma_larga={fraccion} fuera de [0, 1]: es una fraccion "
+                f"de transcritos, no un recuento; se aborta la anotacion de polyA."
+            )
+        if self.truncamiento not in (RiskState.TECHO, RiskState.PENALIZADO):
+            raise ValueError(
+                f"Se ha dado fraccion_isoforma_larga={fraccion} a una ventana con "
+                f"truncamiento={self.truncamiento.value}: el techo solo significa algo "
+                f"donde hay riesgo de truncamiento por APA. Se aborta en vez de emitir "
+                f"un techo que no se refiere a nada."
+            )
+
+    @property
+    def techo_knockdown(self) -> float | None:
+        """Techo de knockdown alcanzable, o `None` si no se ha medido.
+
+        Es la MISMA cantidad que `fraccion_isoforma_larga`: si el sitio proximal se usa
+        en una fraccion f, la diana solo existe en el (1 - f) de isoforma larga, y por
+        mucho que la horquilla funcione al 100 % sobre lo que alcanza, el descenso
+        total no puede pasar de ahi. `None` es no medido, no cero.
+        """
+        return self.fraccion_isoforma_larga
+
+    def describe_techo(self) -> str:
+        """Una linea para el informe. Sin medida no se emite veredicto, se dice que no."""
+        if self.truncamiento not in (RiskState.TECHO, RiskState.PENALIZADO):
+            return "sin riesgo de truncamiento por APA: no hay techo del que hablar."
+        if self.fraccion_isoforma_larga is None:
+            return (
+                "techo indeterminado: fraccion_isoforma_larga NO MEDIDA. No es 0 ni 1; "
+                "es que nadie la ha medido, y hasta que se mida el techo de knockdown "
+                "de este candidato no se puede escribir."
+            )
+        return (
+            f"techo de knockdown ≤ {self.fraccion_isoforma_larga:.2f} "
+            f"(fraccion_isoforma_larga = {self.fraccion_isoforma_larga:.2f}, medida)."
+        )
+
     def as_columns(self) -> dict[str, str]:
         return {
             "polyA_truncamiento": self.truncamiento.value,
@@ -925,6 +997,11 @@ class PolyARisk:
             "polyA_esterico": self.esterico.value,
             "polyA_dist_corte": (
                 "" if self.distancia_corte is None else str(self.distancia_corte)
+            ),
+            # Vacia, nunca "0": no haber medido y haber medido cero son cosas distintas.
+            "polyA_fraccion_isoforma_larga": (
+                "" if self.fraccion_isoforma_larga is None
+                else f"{self.fraccion_isoforma_larga:.2f}"
             ),
         }
 
@@ -935,14 +1012,23 @@ _FUNCIONALES = (SignalClass.TERMINAL_PROBABLE, SignalClass.APA_POSSIBLE)
 
 
 def polya_risk(
-    window: Window, signals: list[PolyASignal], *, utr_length: int
+    window: Window,
+    signals: list[PolyASignal],
+    *,
+    utr_length: int,
+    fraccion_isoforma_larga: float | None = None,
 ) -> PolyARisk:
     """Evalua los dos riesgos por separado. No aplica ninguna regla de ±flanco.
 
     Truncamiento: la ventana esta por detras del corte que dirigiria una señal
     funcional. Con el corte entre +10 y +30 nt del hexamero, hay tres tramos —delante
     del corte mas temprano, dentro de la banda, y detras del corte mas tardio— y tres
-    estados.
+    estados. Por detras del corte de un APA el estado es `TECHO`, no `FAIL`: el APA
+    produce una mezcla de isoformas y la diana sigue existiendo en la larga. Por detras
+    del corte de la señal TERMINAL si es `FAIL`: ahi no hay isoforma que la conserve.
+
+    `fraccion_isoforma_larga` es la medida que convierte el techo en un numero. Va a
+    `None` mientras no se mida, y darla donde no hay truncamiento por APA aborta.
 
     Esterico: la ventana solapa el hexamero, asi que compite con CPSF/CstF por el mismo
     tramo. Una canonica en `APA_POSIBLE` es FAIL; una variante `OTRA`, penalizacion.
@@ -1010,6 +1096,7 @@ def polya_risk(
         return PolyARisk(
             truncamiento=RiskState.NO_APLICA,
             truncamiento_motivo=motivo,
+            fraccion_isoforma_larga=fraccion_isoforma_larga,
             esterico=esterico,
             esterico_motivo=esterico_motivo,
             esterico_signal=esterico_signal,
@@ -1019,11 +1106,23 @@ def polya_risk(
     manda = max(detras, key=lambda s: window.start - s.end)
     distancia = window.start - (manda.end + CLEAVAGE_MIN)
     if window.start > manda.end + CLEAVAGE_MAX:
-        estado = RiskState.FAIL
+        # TECHO para un APA, FAIL para la terminal. La diferencia no es de grado: por
+        # detras de un APA la diana sigue existiendo en la isoforma larga y lo que hay
+        # es un limite al knockdown alcanzable; por detras de la terminal no hay
+        # isoforma que la conserve.
+        terminal = manda.classification is SignalClass.TERMINAL_PROBABLE
+        estado = RiskState.FAIL if terminal else RiskState.TECHO
         detalle = (
             f"a {window.start - (manda.end + CLEAVAGE_MAX)} nt POR DETRAS del corte mas "
-            f"tardio ({manda.end + CLEAVAGE_MAX}): si esa señal se usa, este tramo no "
-            f"esta en el ARNm y la diana no existe"
+            f"tardio ({manda.end + CLEAVAGE_MAX}): "
+            + (
+                "ese tramo no esta en el ARNm maduro en ninguna isoforma, asi que la "
+                "diana no existe"
+                if terminal
+                else "en la isoforma corta este tramo no esta, pero en la larga si. El "
+                "APA reparte los transcritos entre las dos, asi que esto es un TECHO de "
+                "knockdown —la fraccion de isoforma larga—, no un veto"
+            )
         )
     else:
         estado = RiskState.PENALIZADO
@@ -1034,6 +1133,7 @@ def polya_risk(
         )
     return PolyARisk(
         truncamiento=estado,
+        fraccion_isoforma_larga=fraccion_isoforma_larga,
         truncamiento_motivo=(
             f"{manda.motif} en {manda.position}-{manda.end} "
             f"({manda.classification.value}) dirige un corte 10-30 nt aguas abajo; la "
@@ -1055,8 +1155,17 @@ def annotate_polya(
     utr_length: int,
     sequence: str | None = None,
     mode: PolyAMode = PolyAMode.ESCALONADO,
+    fraccion_isoforma_larga: float | None = None,
 ) -> PolyAAnnotation:
-    """Anota una ventana: cinco campos, y solo uno es un veredicto."""
+    """Anota una ventana: cinco campos, y solo uno es un veredicto.
+
+    `fraccion_isoforma_larga` es el techo MEDIDO, que en el pipeline viene de
+    `apa.ApaAssessment.knockdown_ceiling` cuando hay tabla de sitios (`--apa-medido`).
+    Se adjunta solo donde significa algo —donde hay riesgo de truncamiento por APA—:
+    los dos analisis son independientes (uno mira hexameros predichos, el otro sitios
+    medidos) y pueden no coincidir. Donde no coinciden, la columna se queda vacia en
+    vez de pegar un techo a una ventana que este analisis considera inmune.
+    """
     terminales = [
         s for s in signals if s.classification is SignalClass.TERMINAL_PROBABLE
     ]
@@ -1106,6 +1215,11 @@ def annotate_polya(
     )
 
     riesgo = polya_risk(window, signals, utr_length=utr_length)
+    if fraccion_isoforma_larga is not None and riesgo.truncamiento in (
+        RiskState.TECHO,
+        RiskState.PENALIZADO,
+    ):
+        riesgo = replace(riesgo, fraccion_isoforma_larga=fraccion_isoforma_larga)
 
     por_regla = {
         otro.value: _veredicto_polya(
@@ -1199,4 +1313,202 @@ def _veredicto_polya(
         FilterState.PASS,
         " ".join(avisos)
         or f"Sin solape con ninguna de las {len(signals)} señal(es) detectadas.",
+    )
+
+
+# ─── El experimento que convierte el techo en un numero ──────────────────────
+#
+# `fraccion_isoforma_larga` no se deduce de un motivo: se mide. El experimento minimo es
+# una RT-qPCR de dos amplicones sobre el mismo 3'UTR, normalizados contra una CURVA
+# ESTANDAR COMUN (el mismo amplicon clonado o un gBlock de la region, diluido en serie),
+# porque sin curva comun las dos eficiencias no son comparables y la razon no significa
+# nada:
+#
+#   · amplicon PROXIMAL, entero por delante del hexamero. Esta en las DOS isoformas, asi
+#     que mide el total de transcritos.
+#   · amplicon DISTAL, entero por detras de la banda de corte. Solo esta en la isoforma
+#     larga.
+#
+# La razon distal/proximal es la fraccion de isoforma larga, y esa fraccion es el techo.
+#
+# Aqui se emiten COORDENADAS y nada mas. Los cebadores se diseñan aparte, con Tm,
+# especificidad y comprobacion de horquillas; escribirlos aqui seria generar secuencia
+# (regla 1) y ademas sin ninguna de esas comprobaciones.
+
+RTQPCR_AMPLICON_LENGTH = 120   # nt; rango habitual de qPCR (70-150)
+RTQPCR_MARGIN = 10             # nt de holgura entre el amplicon y lo que debe esquivar
+
+
+@dataclass(frozen=True)
+class Amplicon:
+    """Un amplicon propuesto. Las coordenadas se derivan; el invariante se comprueba."""
+
+    role: str
+    start: int
+    end: int
+    length: int
+    rationale: str
+    #: Tramos con los que solapa pese a todo, cuando no cabia en ningun otro sitio.
+    overlaps: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        # El mismo invariante de `audit.Span`: un intervalo escrito a mano es la errata
+        # del desplazamiento de 3 nt otra vez.
+        if self.end - self.start + 1 != self.length:
+            raise ValueError(
+                f"Amplicon {self.role}: {self.start}-{self.end} no mide {self.length} "
+                f"nt sino {self.end - self.start + 1}; se aborta la propuesta en vez de "
+                f"emitir unas coordenadas que no cuadran."
+            )
+
+    def describe(self, *, frame: str, offset: int = 0) -> str:
+        """Una linea con el marco de coordenadas DICHO, y las dos parejas si hay dos."""
+        aviso = f"  ⚠  solapa {', '.join(self.overlaps)}" if self.overlaps else ""
+        doble = (
+            f" (3'UTR {self.start - offset}-{self.end - offset})" if offset else ""
+        )
+        return (
+            f"{self.role}: {frame} {self.start}-{self.end}{doble} "
+            f"({self.length} nt). {self.rationale}{aviso}"
+        )
+
+
+@dataclass(frozen=True)
+class AmpliconPlan:
+    signal: PolyASignal
+    proximal: Amplicon
+    distal: Amplicon
+    cut_band: tuple[int, int]
+    utr_length: int
+    #: Marco en que van TODAS las coordenadas de este plan. Obligatorio: un 334 no dice
+    #: por si solo si es del transcrito o del 3'UTR, y esa confusion ya costo una tanda.
+    frame: str = "3'UTR"
+
+    def describe(self, *, offset: int = 0) -> list[str]:
+        """`offset` = primera posicion del 3'UTR menos 1, para dar las dos parejas."""
+        doble = (
+            f" (3'UTR {self.signal.position - offset}-{self.signal.end - offset})"
+            if offset
+            else ""
+        )
+        return [
+            f"EXPERIMENTO QUE RESUELVE EL TECHO — RT-qPCR de dos amplicones sobre el "
+            f"3'UTR",
+            f"  Coordenadas en el marco: {self.frame}.",
+            f"  Señal en cuestion: {self.signal.motif} en {self.signal.position}-"
+            f"{self.signal.end}{doble}; banda de corte "
+            f"{self.cut_band[0]}-{self.cut_band[1]}.",
+            f"  {self.proximal.describe(frame=self.frame, offset=offset)}",
+            f"  {self.distal.describe(frame=self.frame, offset=offset)}",
+            "  Los dos se cuantifican contra una CURVA ESTANDAR COMUN: sin ella las dos "
+            "eficiencias",
+            "  no son comparables y la razon no significa nada.",
+            "  fraccion_isoforma_larga = razon distal/proximal. Ese numero ES el techo "
+            "de knockdown",
+            "  de los candidatos que quedan por detras del corte.",
+            "  Se mide sobre tejido SIN tratar: en muestras tratadas un amplicon que "
+            "solape una diana",
+            "  mide corte por RNAi, no isoformas.",
+            "  Se emiten COORDENADAS: no se emiten cebadores. El diseño de cebadores "
+            "necesita Tm,",
+            "  especificidad y comprobacion de horquillas, y eso no se improvisa aqui.",
+        ]
+
+
+def _place_amplicon(
+    *,
+    role: str,
+    earliest: int,
+    latest: int,
+    length: int,
+    downstream: bool,
+    avoid: tuple[tuple[int, int], ...],
+    rationale: str,
+) -> Amplicon:
+    """Coloca un amplicon de `length` nt entre `earliest` y `latest`, esquivando `avoid`.
+
+    Recorre las posiciones de inicio posibles —alejandose de la señal— y devuelve la
+    primera que no solapa nada. Si no hay ninguna, devuelve la primera posicion legal
+    y ANOTA con que solapa: callarlo dejaria una propuesta que mide otra cosa.
+    """
+    if latest < earliest:
+        raise ValueError(
+            f"No cabe un amplicon {role} de {length} nt entre {earliest} y {latest} "
+            f"dentro del 3'UTR; se aborta en vez de proponer coordenadas fuera de la "
+            f"secuencia."
+        )
+    posiciones = range(earliest, latest + 1) if downstream else range(latest, earliest - 1, -1)
+    for start in posiciones:
+        end = start + length - 1
+        choques = [f"{a}-{b}" for a, b in avoid if start <= b and end >= a]
+        if not choques:
+            return Amplicon(
+                role=role, start=start, end=end, length=length, rationale=rationale
+            )
+    start = earliest if downstream else latest
+    end = start + length - 1
+    return Amplicon(
+        role=role,
+        start=start,
+        end=end,
+        length=length,
+        rationale=rationale,
+        overlaps=tuple(f"{a}-{b}" for a, b in avoid if start <= b and end >= a),
+    )
+
+
+def rtqpcr_amplicons(
+    signal: PolyASignal,
+    *,
+    utr_length: int,
+    frame: str = "3'UTR",
+    avoid: list[tuple[int, int]] | tuple[tuple[int, int], ...] = (),
+    length: int = RTQPCR_AMPLICON_LENGTH,
+    margin: int = RTQPCR_MARGIN,
+) -> AmpliconPlan:
+    """Propone las coordenadas de los dos amplicones. Solo coordenadas.
+
+    `avoid` son tramos que conviene no tocar —tipicamente las ventanas diana de los
+    candidatos—; si no cabe fuera de ellos, la propuesta sale con el solape ESCRITO.
+    """
+    if length < 1:
+        raise ValueError(f"length={length} invalido para un amplicon; se aborta.")
+    if margin < 0:
+        raise ValueError(f"margin={margin} invalido; se aborta.")
+    banda = (signal.end + CLEAVAGE_MIN, signal.end + CLEAVAGE_MAX)
+    # La holgura vale tambien para lo que hay que esquivar: un amplicon que empieza a 1
+    # nt de una diana no deja sitio ni para el cebador.
+    evitar = tuple((int(a) - margin, int(b) + margin) for a, b in avoid)
+
+    proximal = _place_amplicon(
+        role="proximal",
+        earliest=1,
+        latest=signal.position - margin - length,
+        length=length,
+        downstream=False,
+        avoid=evitar,
+        rationale=(
+            f"entero por delante de {signal.motif}@{signal.position} (holgura {margin} "
+            f"nt): presente en las DOS isoformas, mide el total."
+        ),
+    )
+    distal = _place_amplicon(
+        role="distal",
+        earliest=banda[1] + margin + 1,
+        latest=utr_length - length + 1,
+        length=length,
+        downstream=True,
+        avoid=evitar,
+        rationale=(
+            f"entero por detras de la banda de corte {banda[0]}-{banda[1]} (holgura "
+            f"{margin} nt): solo presente en la isoforma LARGA."
+        ),
+    )
+    return AmpliconPlan(
+        signal=signal,
+        proximal=proximal,
+        distal=distal,
+        cut_band=banda,
+        utr_length=utr_length,
+        frame=frame,
     )
