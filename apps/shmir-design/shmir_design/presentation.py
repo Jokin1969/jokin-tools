@@ -1533,3 +1533,302 @@ def selection_warnings(tiling, selection, *, selected=None,
                 ),
             })
     return avisos
+
+
+# ═══════════ los cuatro pasos: especie, secuencia, ficheros, diseñar ═══════════
+#
+# Lo que esto arregla: la pagina pedia la especie en una CAJA DE TEXTO LIBRE con
+# «modelo» de valor inicial, unos ficheros se subian y otros habia que depositar a mano
+# en un directorio del repositorio, y una casilla global decidia si se usaban. Las tres
+# cosas juntas hacian falsa la promesa de la app: que alguien que no ha estado en estas
+# conversaciones pueda abrirla y llegar a un informe sin abrir una terminal.
+
+#: El valor del desplegable que significa «una especie que no esta declarada».
+OTHER_SPECIES = "otra especie (no declarada)"
+
+#: Por que no hay casilla global de «usar los ficheros de referencia». Se reexporta
+#: desde `deposito` para que la pagina no tenga que importar dos modulos del nucleo.
+from .deposito import WHY_NO_GLOBAL_TOGGLE  # noqa: E402
+
+#: Como se declara una especie. Va en la interfaz porque es la unica salida real.
+HOW_TO_DECLARE = (
+    "Se añade una linea a `species.SPECIES` (en `shmir_design/species.py`) con sus "
+    "identificadores VERIFICADOS: `mirbase_prefix` (el de tres letras que miRBase pone "
+    "delante de cada maduro), `taxid` (el de NCBI Taxonomy Browser) y `ucsc_assembly` "
+    "(el ensamblaje del Genome Browser). Ninguno de los tres se deduce del nombre: para "
+    "Oryctolagus cuniculus, «ocu-», «oc-» y «ory-» son los tres plausibles y solo uno "
+    "existe — filtrar con el equivocado da CERO colisiones, que parece una buena noticia."
+)
+
+
+def species_options() -> list[dict[str, object]]:
+    """Las opciones del desplegable. Salen de `species.SPECIES` y de ningun otro sitio.
+
+    Con su nombre cientifico completo: «raton» es un alias del proyecto y no identifica
+    nada fuera de el. Y con una opcion EXPLICITA para lo que no esta declarado, porque
+    esconderla no hace que el caso desaparezca — hace que llegue sin aviso.
+    """
+    from .species import SPECIES
+
+    filas = []
+    for especie in sorted(SPECIES.values(), key=lambda e: e.scientific):
+        filas.append(
+            {
+                "valor": especie.scientific,
+                "cientifico": especie.scientific,
+                "etiqueta": f"{especie.scientific} ({especie.slug})",
+                "declarada": True,
+                "prefijo": especie.mirbase_prefix,
+                "taxid": especie.taxid,
+                "ensamblaje": especie.ucsc_assembly,
+            }
+        )
+    filas.append(
+        {
+            "valor": OTHER_SPECIES,
+            "cientifico": "",
+            "etiqueta": OTHER_SPECIES,
+            "declarada": False,
+            "prefijo": "",
+            "taxid": "",
+            "ensamblaje": "",
+        }
+    )
+    return filas
+
+
+def species_default() -> None:
+    """No hay valor por defecto: hay que elegir.
+
+    `modelo` como valor inicial era PEOR que vacio. Parecia configurado, y con el la
+    colision de seed y la especificidad salian rotas —sin prefijo de miRBase y sin
+    taxid— sin que la pagina dijera por que.
+    """
+    return None
+
+
+def species_needs_name(choice: str) -> bool:
+    """¿Hay que teclear un nombre? Solo al elegir «otra especie»."""
+    return str(choice).strip() == OTHER_SPECIES
+
+
+def species_choice_note(choice: str) -> dict[str, object]:
+    """Que frentes quedan cerrados con esta eleccion, y como se declara la especie."""
+    from .species import fixture_report, resolve
+
+    nombre = str(choice).strip()
+    if not nombre or nombre == OTHER_SPECIES:
+        if not nombre:
+            raise ShmirDesignError(
+                "No hay especie elegida. Sin ella no se sabe que ficheros hacen falta ni "
+                "se puede comprobar que los que hay son de esta especie, asi que se "
+                "aborta en vez de suponer raton — que es lo que este proyecto lleva "
+                "dentro por historia."
+            )
+        # «Otra especie» sin nombre todavia: se responde por el caso general, que es una
+        # especie sin identificadores declarados.
+        especie = resolve("Oryctolagus cuniculus")
+        generico = True
+    else:
+        especie = resolve(nombre)
+        generico = False
+
+    informe = fixture_report(especie, have=())
+    cerrados = [
+        f"{f.front}: falta {f.missing}"
+        for f in informe.rows
+        if not f.available and (not especie.known or not f.available)
+    ]
+    if especie.known:
+        cerrados = []
+    return {
+        "especie": especie.scientific if not generico else "",
+        "declarada": especie.known,
+        "bloquea": not especie.known,
+        "cerrados": cerrados,
+        "como_declararla": HOW_TO_DECLARE,
+        "texto": (
+            f"{especie.scientific} esta declarada: prefijo de miRBase "
+            f"«{especie.mirbase_prefix}», taxid {especie.taxid}, ensamblaje "
+            f"{especie.ucsc_assembly}."
+            if especie.known
+            else (
+                "Esta especie NO esta declarada en el proyecto, asi que se queda sin "
+                "prefijo de miRBase, sin taxid y sin ensamblaje. Los frentes que "
+                "dependen de esos tres valores ABORTAN en vez de correr con los del "
+                "raton: un resultado con la forma correcta y la especie equivocada es "
+                "peor que ninguno."
+            )
+        ),
+    }
+
+
+# ─────────────── el panel de ficheros de referencia de la barra lateral ───────────────
+
+
+def reference_panel_rows(species: str, *, directory) -> list[dict[str, object]]:
+    """Una fila por FICHERO que esta especie necesita: cual es, si esta, y su ficha.
+
+    Se detecta solo lo que ya haya en el directorio —depositarlo ahi sigue funcionando—
+    pero deja de ser necesario: cada fila trae su boton de subida.
+    """
+    from pathlib import Path
+
+    from .species import required_files, resolve
+
+    ruta = Path(directory)
+    presentes = (
+        {p.name for p in ruta.iterdir() if p.is_file()} if ruta.is_dir() else set()
+    )
+    especie = resolve(species)
+
+    filas: list[dict[str, object]] = []
+    for fila in required_files(especie):
+        ficha = obtencion_rows(fila.ficha, species=species)
+        for nombre in fila.filenames:
+            filas.append(
+                {
+                    "nombre": nombre,
+                    "role": fila.role,
+                    "que_desbloquea": fila.what,
+                    "frentes": list(fila.fronts),
+                    "presente": nombre in presentes,
+                    "obligatorio": fila.required,
+                    "hermano": nombre != fila.filename,
+                    "extensiones": list(fila.extensions),
+                    "ficha": ficha,
+                }
+            )
+    return filas
+
+
+def reference_panel_summary(species: str, *, directory) -> dict[str, object]:
+    """Cuantos frentes se pueden cerrar con lo que hay, ANTES de ejecutar nada.
+
+    Se cuentan FRENTES, no ficheros: es lo que el usuario decide —seguir, o ir a buscar
+    un fichero primero— y un fichero que cierra dos frentes no vale lo mismo que uno que
+    no cierra ninguno.
+    """
+    from pathlib import Path
+
+    from .species import fixture_report, resolve
+
+    ruta = Path(directory)
+    presentes = (
+        tuple(p.name for p in ruta.iterdir() if p.is_file()) if ruta.is_dir() else ()
+    )
+    informe = fixture_report(resolve(species), have=presentes)
+    faltan = [f for f in informe.rows if not f.available]
+    return {
+        "cerrables": informe.closable,
+        "total": len(informe.rows),
+        "abiertos": [{"frente": f.front, "falta": f.missing} for f in faltan],
+        "texto": informe.render(),
+    }
+
+
+def accept_reference_upload(
+    species: str, *, directory, filename: str, payload: bytes, date: str,
+    origin: str = "subido por la interfaz", **procedencia,
+) -> dict[str, object]:
+    """Recibe un fichero por la barra lateral. La pagina no valida, no calcula md5 y no
+    escribe el manifiesto: llama aqui y pinta lo que vuelva."""
+    from .deposito import accept_upload
+    from .species import resolve
+
+    resultado = accept_upload(
+        directory,
+        filename=filename,
+        payload=payload,
+        species=resolve(species),
+        origin=origin,
+        date=date,
+        **procedencia,
+    )
+    return {
+        "nombre": resultado.filename,
+        "role": resultado.role,
+        "md5": resultado.md5,
+        "tamano": resultado.size,
+        "frentes_cerrados": list(resultado.fronts_opened),
+        "sigue_faltando": list(resultado.still_missing),
+        "sustituida": resultado.replaced,
+        "texto": resultado.render(),
+    }
+
+
+# ───────────────────────── la primera pantalla, en cuatro pasos ─────────────────────────
+
+
+def steps_rows(*, species: str, sequence_loaded: bool, directory) -> list[dict[str, object]]:
+    """Los cuatro pasos, en orden, con lo que falta en cada uno.
+
+    El paso 3 dice cuantos frentes se van a poder cerrar ANTES de ejecutar nada: es lo
+    que permite decidir si se sigue o se va a buscar un fichero primero. Y NO bloquea —
+    un frente abierto deja los candidatos en INCOMPLETE, que es informacion, no un veto.
+    """
+    elegida = bool(str(species).strip()) and str(species).strip() != OTHER_SPECIES
+    resumen = (
+        reference_panel_summary(species, directory=directory) if elegida else None
+    )
+    return [
+        {
+            "numero": 1,
+            "titulo": "Especie",
+            "hecho": elegida,
+            "abierto": not elegida,
+            "cerrables": None,
+            "total_frentes": None,
+            "detalle": (
+                species_choice_note(species)["texto"]
+                if elegida
+                else (
+                    "Elige una de las especies declaradas. No hay valor por defecto a "
+                    "proposito: uno preseleccionado parece configurado y deja dos frentes "
+                    "rotos sin decir por que."
+                )
+            ),
+        },
+        {
+            "numero": 2,
+            "titulo": "Secuencia",
+            "hecho": bool(sequence_loaded),
+            "abierto": elegida and not sequence_loaded,
+            "cerrables": None,
+            "total_frentes": None,
+            "detalle": (
+                "El mRNA en FASTA, y con el su `.gb` si lo tienes: la anotacion del CDS "
+                "es la via fiable de resolver la anatomia. Sin ella, los tercios y las "
+                "zonas de polyA salen NO_FIABLE."
+            ),
+        },
+        {
+            "numero": 3,
+            "titulo": "Ficheros de referencia",
+            "hecho": bool(resumen and not resumen["abiertos"]),
+            "abierto": elegida,
+            "cerrables": resumen["cerrables"] if resumen else None,
+            "total_frentes": resumen["total"] if resumen else None,
+            "detalle": (
+                f"Con lo que hay se pueden cerrar {resumen['cerrables']} de "
+                f"{resumen['total']} frentes. Los demas quedan en NOT_RUN, VISIBLE en la "
+                f"tabla de candidatos. Sube lo que falte en el panel de la barra lateral: "
+                f"cada fichero trae la ficha que dice de donde sale."
+                if resumen
+                else "Elige la especie primero: los ficheros que hacen falta dependen de ella."
+            ),
+        },
+        {
+            "numero": 4,
+            "titulo": "Diseñar",
+            "hecho": False,
+            "abierto": elegida and bool(sequence_loaded),
+            "cerrables": None,
+            "total_frentes": None,
+            "detalle": (
+                "Se puede diseñar con frentes abiertos: los candidatos saldran "
+                "INCOMPLETE y cada frente sin correr sale NOT_RUN en su columna. NOT_RUN "
+                "no es PASS, y no haber contado no es contar cero."
+            ),
+        },
+    ]

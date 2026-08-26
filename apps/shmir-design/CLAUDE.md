@@ -1352,8 +1352,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     legítima. Cerrado con `coords.declare_utr3_length(longitud, species=…)`: la longitud
     real **se declara**, no se adivina ni se sube el techo a ojo.
   - `manifest.ROLES` trae `rmsk_mouse.out` **escrito**: con otra especie el manifiesto
-    conecta el fichero equivocado por su rol. Es el mismo agujero que cierra
-    `RepeatMask.query_length` un nivel más abajo.
+    conectaba el fichero equivocado por su rol. Es el mismo agujero que cierra
+    `RepeatMask.query_length` un nivel más abajo. **CERRADO (2026-08-26)**: el nombre por
+    especie lo pone `species.required_files` y el rol viaja con él
+    (`resources.roles_for_species`, `deposito.role_for`). `ROLES` conserva el nombre
+    murino como el caso base del manifiesto que ya existe, no como el único posible.
   - **Prefijos y taxids por defecto**: `mirna.DEFAULT_PREFIXES = ("mmu-", "hsa-")`,
     `seed_scan.SeedParams.species_prefix = "mmu-"`, `blast.BlastParams.entrez_query =
     "txid10090"`. Y `specificity.TAXIDS` solo conoce ratón y humano — **aborta** con
@@ -1647,6 +1650,85 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   dos preguntas: colisión y carga), 12 (especificidad + transgén), 13 (accesibilidad) y
   14 (bloques conservados), más la horquilla, el módulo de 149 nt, el APA con dato
   medido y la tabla comparativa. El resto, en `docs/pipeline.md`.
+
+- **LA PRIMERA PANTALLA GUIA, Y TODO SE SUBE POR ELLA. DECIDIDO (2026-08-26)**
+  (`deposito.py`, `species.required_files`, `presentation.steps_rows`). El criterio de
+  aceptacion es el de siempre: **alguien que no haya estado en estas conversaciones tiene
+  que poder abrir la app y llegar a un informe sin abrir una terminal ni conocer el arbol
+  de directorios.** Cuatro cosas lo rompian y las cuatro se arreglan en la interfaz.
+  - **1. Desplegable de especies, y SIN valor por defecto** (`presentation.species_options`,
+    `species_default` devuelve `None`). Solo las declaradas en `species.SPECIES`, con su
+    nombre cientifico completo — «raton» es un alias del proyecto y no identifica nada
+    fuera de el. `modelo` como valor inicial era **peor que vacio**: parecia configurado y
+    dejaba la colision de seed y la especificidad rotas sin decir por que.
+    - Hay una opcion **explicita** «otra especie (no declarada)», y explica **que frentes
+      quedan cerrados y como se declara** (`HOW_TO_DECLARE`: los tres identificadores, en
+      `species.SPECIES`, verificados y nunca deducidos del nombre). Se explica **al elegir
+      la opcion**, antes de teclear ningun nombre: la pregunta que se contesta es «¿me
+      sirve esta app para mi especie?», y contestarla despues es no contestarla.
+  - **2. `species.required_files` es la vista POR FICHERO, y la UNICA fuente de los
+    nombres.** `fixture_report` —la vista por FRENTE— se **deriva** de ella. Tenerlas
+    como dos listas independientes seria el patron de los dos contadores que discrepan:
+    la barra lateral diria que falta un fichero y la tabla de frentes diria que no, las
+    dos con pinta de medida. Cada fila trae rol, nombre ya resuelto para la especie, que
+    frentes cierra, el **hermano obligatorio** (el `.tbl` de un `.out`) y la ficha de
+    obtencion que dice de donde sale.
+    - **El nombre lleva la especie donde importa**, y el raton conserva los que ya estan
+      en el manifiesto (`mature.fa`, `rmsk_mouse.out`, `aav_casete.fa`): el sufijo empieza
+      donde empieza el problema, no antes, porque renombrarlos dejaria de detectar los que
+      hay.
+    - **`aav_casete.fa` pasa a llevar especie fuera del raton.** Es pAAV con PrP
+      **murino**, y `blocks.vector_applies_to` ya decia que para otra especie no se
+      parametriza — se SUSTITUYE. Sin sufijo, el casete murino contaba como presente para
+      un conejo y su frente salia cerrado con el vector equivocado.
+    - **Y el `.out` a solas deja de abrir el frente de repetitivos.** Esa tabla decia
+      «disponible» con solo el `.out`, y `resources._rmsk` abortaba sin resumen: dos
+      contadores que discrepaban. Manda el estricto, con la demostracion de md5 detras.
+  - **3. Todos los ficheros se suben por la interfaz** (`deposito.accept_upload`, panel en
+    la barra lateral). Antes unos se subian y otros habia que **depositar** en
+    `data/reference/`, que es un directorio del repositorio: quien no conoce ese arbol
+    —que es exactamente el usuario para el que se escribe esto— no podia usar la app. Los
+    que ya esten ahi se **detectan solos** y salen como presentes; depositarlos deja de
+    ser necesario.
+    - **La validacion la hace el cargador de verdad**, el mismo que usa el filtro. Un
+      fichero que pasara una validacion «ligera» y fallara despues seria peor que no
+      validarlo: la barra lateral diria «presente» y el frente saldria NOT_RUN sin motivo.
+    - **Si la validacion falla no se escribe nada**: ni el fichero ni la linea del
+      manifiesto. Se escribe a un provisional al lado, se valida, y solo entonces se
+      renombra — hay test de las dos cosas.
+    - **El md5 se calcula del fichero, nunca se declara**, y la entrada va al manifiesto
+      (`manifest.update_manifest_text` / `register_entry`). El manifiesto sigue siendo
+      texto y sigue versionado: subir por la interfaz se ve en el `git diff` igual que
+      editarlo a mano, y los **comentarios de cabecera sobreviven** —explican los dos
+      checksums, y perderlos al subir un fichero borraria la unica advertencia que evita
+      copiar un md5 en el sitio del otro—. Una cabecera corta se **ensancha** rellenando
+      en vacio, que es la verdad; abortar dejaria sin subir ficheros justo a quien no
+      puede editarlo.
+    - **Un `.out` y su `.tbl` llegan de uno en uno**, asi que del `.out` a solas solo se
+      comprueba la FORMA (`masking.check_out_shape`, que dice expresamente que **no**
+      comprueba la especie de la biblioteca) y del `.tbl` la especie y la longitud de la
+      consulta (`masking.check_summary`), que es para lo que existe. Con los dos delante
+      se valida la corrida entera. Mientras falte uno, el frente **no se abre** y el
+      resultado de la subida **nombra** lo que sigue faltando.
+  - **4. La casilla «Usar los de `data/reference/`» DESAPARECE**
+    (`deposito.WHY_NO_GLOBAL_TOGGLE`). Una opcion cuyo unico efecto posible al desmarcarla
+    era dejarlo todo en NOT_RUN sin decir por que no es una opcion: es una trampa. Si un
+    fichero esta y es valido, **se usa**.
+    - Ignorar uno a proposito sigue siendo posible, pero **por fichero y con el motivo
+      escrito** (`deposito.Ignored`, motivo obligatorio, y `load_from_manifest(ignore=…)`).
+      El motivo **viaja al veredicto**: sin el, «se decidio no usarlo» y «no estaba» serian
+      el mismo NOT_RUN mudo. Pedir ignorar un fichero que no se iba a usar **aborta** — un
+      motivo escrito para una decision que nadie tomo ensucia el informe.
+  - **5. La pantalla va en cuatro pasos numerados**: **1) especie · 2) secuencia ·
+    3) ficheros de referencia · 4) diseñar**. El paso 3 dice **cuantos frentes se van a
+    poder cerrar ANTES de ejecutar nada** —con el raton y lo que hay, 4 de 7; con un
+    conejo, 1 de 7— que es lo que permite decidir si se sigue o se va a buscar un fichero
+    primero. **No bloquea**: un frente abierto deja los candidatos en `INCOMPLETE`, que es
+    informacion, no un veto, y el paso 4 lo dice con esas palabras.
+  - **El manifiesto se carga cuando se diseña, no al pintar la pantalla.** La presencia de
+    un fichero es un listado de directorio y es barato; conectar `mature.fa` son 5,6 MB en
+    cada rerun de Streamlit. La pantalla no promete nada que no vaya a cumplir: dice que
+    frentes se pueden cerrar, no que ya esten cerrados.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

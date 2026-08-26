@@ -34,6 +34,15 @@ from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     BLAST_MODAL_NOTE,
+    WHY_NO_GLOBAL_TOGGLE,
+    accept_reference_upload,
+    reference_panel_rows,
+    reference_panel_summary,
+    species_choice_note,
+    species_default,
+    species_needs_name,
+    species_options,
+    steps_rows,
     blast_candidate_rows,
     blast_command_text,
     blast_defaults_for,
@@ -90,6 +99,7 @@ from shmir_design.reference import (  # noqa: E402
     sequence_md5,
 )
 from shmir_design.resources import load_from_manifest  # noqa: E402
+from shmir_design.species import resolve as resolve_species  # noqa: E402
 from shmir_design.resolve import check_boundaries, resolve_anatomy  # noqa: E402
 from shmir_design.scaffold import SGEP_SCAFFOLD, load_scaffold  # noqa: E402
 from shmir_design.seeds import BOOTSTRAP_SEEDS, parse_seed_table  # noqa: E402
@@ -386,6 +396,66 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     )
 
 
+def _panel_referencias(especie: str) -> None:
+    """El panel de ficheros de referencia de la barra lateral.
+
+    Lo que arregla: unos ficheros se subian por aqui y otros habia que DEPOSITAR en
+    `data/reference/`, que es un directorio del repositorio. Quien no conoce ese arbol
+    —que es exactamente el usuario para el que se escribe esta app— no podia usarla.
+
+    La pagina no valida, no calcula ningun md5 y no escribe el manifiesto: todo eso pasa
+    en `presentation.accept_reference_upload` y en `deposito.py`, con tests.
+    """
+    st.sidebar.header("Ficheros de referencia")
+    if not especie:
+        st.sidebar.caption(
+            "Elige una especie: los ficheros que hacen falta —y como se llaman— "
+            "dependen de ella."
+        )
+        return
+
+    resumen = reference_panel_summary(especie, directory=PACKAGE_REFERENCE_DIR)
+    st.sidebar.caption(
+        f"{resumen['cerrables']} de {resumen['total']} frentes cerrables con lo que hay."
+    )
+    for fila in reference_panel_rows(especie, directory=PACKAGE_REFERENCE_DIR):
+        marca = "✅" if fila["presente"] else ("⬜" if fila["obligatorio"] else "▫️")
+        with st.sidebar.expander(f"{marca} {fila['nombre']}", expanded=False):
+            st.caption(fila["que_desbloquea"])
+            subido = st.file_uploader(
+                f"Subir {fila['nombre']}",
+                type=fila["extensiones"],
+                key=f"ref_{fila['nombre']}",
+            )
+            fecha = st.text_input(
+                "Fecha de descarga (AAAA-MM-DD)", "", key=f"fecha_{fila['nombre']}",
+                help="Sin fecha el fichero no es reproducible; va al manifiesto.",
+            )
+            origen = st.text_input(
+                "De donde salio", "", key=f"origen_{fila['nombre']}",
+                help="La fuente y su version. Es lo que se copia al informe.",
+            )
+            if subido is not None and st.button(
+                "Validar y registrar", key=f"btn_{fila['nombre']}"
+            ):
+                try:
+                    hecho = accept_reference_upload(
+                        especie,
+                        directory=PACKAGE_REFERENCE_DIR,
+                        filename=fila["nombre"],
+                        payload=subido.getvalue(),
+                        date=fecha,
+                        origin=origen or "subido por la interfaz",
+                    )
+                except (ShmirDesignError, ValueError, OSError) as exc:
+                    # rule2-ok: frontera de la interfaz. El fichero NO se ha escrito y el
+                    # motivo se enseña entero; no hay degradado silencioso.
+                    st.error(f"**RECHAZADO** — {exc}")
+                else:
+                    st.success(hecho["texto"])
+            st.caption(fila["ficha"]["texto"])
+
+
 def main() -> None:
     st.set_page_config(page_title="shmir-design", layout="wide")
     st.title("shmir-design")
@@ -414,15 +484,53 @@ def main() -> None:
 
     umbrales, config, min_bloque = panel_umbrales()
 
-    st.sidebar.header("Ficheros de referencia")
-    usar_manifiesto = st.sidebar.checkbox(
-        "Usar los de data/reference/",
+    # ── PASO 1 · ESPECIE ────────────────────────────────────────────────────────
+    #
+    # Desplegable, no caja de texto. Y SIN valor por defecto: uno preseleccionado
+    # —«modelo»— parece configurado y deja la colision de seed y la especificidad rotas
+    # sin decir por que. Las opciones salen de `species.SPECIES`; la pagina no tiene
+    # ninguna lista propia.
+    st.subheader("1) Especie")
+    opciones = species_options()
+    elegida = st.selectbox(
+        "Especie del diseño",
+        [o["valor"] for o in opciones],
+        index=species_default(),
+        placeholder="elige una — no hay valor por defecto",
+        format_func=lambda v: next(o["etiqueta"] for o in opciones if o["valor"] == v),
         help=(
-            "Conecta cada fichero que este en OK con el filtro que le toca, con la "
-            "version y el md5 del manifiesto. Sin esto, todos esos filtros quedan en "
-            "NOT_RUN y el semaforo no puede llegar a verde."
+            "Determina el prefijo de miRBase, el taxid y el ensamblaje. Ninguno de los "
+            "tres se deduce del nombre."
         ),
     )
+    nombre_modelo = elegida or ""
+    if elegida is not None and species_needs_name(elegida):
+        # Que frentes quedan cerrados se dice AL ELEGIR la opcion, no despues de
+        # teclear un nombre: la pregunta que se esta contestando es «¿me sirve esta app
+        # para mi especie?», y contestarla tarde es no contestarla.
+        generico = species_choice_note(elegida)
+        st.warning(generico["texto"])
+        for cerrado in generico["cerrados"]:
+            st.caption(f"· {cerrado}")
+        st.caption(f"**Como declararla:** {generico['como_declararla']}")
+        nombre_modelo = st.text_input(
+            "Nombre cientifico de la especie",
+            "",
+            help="Se usa para nombrar sus ficheros. No la declara: eso se hace en species.py.",
+        )
+    if nombre_modelo and not species_needs_name(elegida or ""):
+        nota = species_choice_note(nombre_modelo)
+        if nota["bloquea"]:
+            st.warning(nota["texto"])
+            for cerrado in nota["cerrados"]:
+                st.caption(f"· {cerrado}")
+            st.caption(f"**Como declararla:** {nota['como_declararla']}")
+        else:
+            st.success(nota["texto"])
+
+    _panel_referencias(nombre_modelo)
+
+    st.sidebar.header("Otros ajustes")
     gen_diana = st.sidebar.text_input(
         "Gen diana (accession)", "",
         help="Hace falta para la especificidad: es un accession, no un fichero, y el "
@@ -441,36 +549,73 @@ def main() -> None:
     repeats_file = st.sidebar.file_uploader("Repeticiones `inicio fin`", type=["txt", "tsv", "bed"])
     scaffold_file = st.sidebar.file_uploader("Andamio (TOML)", type=["toml"])
 
+    if not nombre_modelo:
+        st.info(
+            "Elige una especie para seguir. Sin ella no se sabe que ficheros hacen falta "
+            "ni se puede comprobar que los que hay son de esta especie."
+        )
+        return
+
+    # ── PASO 2 · SECUENCIA ──────────────────────────────────────────────────────
+    st.subheader("2) Secuencia")
     columnas = st.columns(2)
     with columnas[0]:
-        modelo = st.file_uploader("mRNA — especie modelo", type=["fa", "fasta", "txt"])
-        nombre_modelo = st.text_input("Nombre de la especie modelo", "modelo")
+        modelo = st.file_uploader("mRNA — especie del diseño", type=["fa", "fasta", "txt"])
         gb_modelo = st.file_uploader(
-            "GenBank de la especie modelo (.gb, opcional)", type=["gb", "gbk", "genbank"],
+            "GenBank de la especie del diseño (.gb, PREFERENTE)",
+            type=["gb", "gbk", "genbank"],
             help="El CDS anotado del RefSeq. Es la via mas fiable de resolver la "
-                 "anatomia: sin el, las coordenadas del CDS las tecleas tu.",
+                 "anatomia: sin el, las coordenadas del CDS las tecleas tu y los tercios "
+                 "salen NO_FIABLE.",
         )
     with columnas[1]:
+        opciones_diana = [o for o in opciones if o["valor"] != nombre_modelo]
+        nombre_diana = st.selectbox(
+            "Segunda especie (opcional, para bloques conservados)",
+            [o["valor"] for o in opciones_diana],
+            index=None,
+            placeholder="ninguna",
+            format_func=lambda v: next(
+                o["etiqueta"] for o in opciones_diana if o["valor"] == v
+            ),
+        )
         diana = st.file_uploader(
             "mRNA — segunda especie (opcional)", type=["fa", "fasta", "txt"]
         )
-        nombre_diana = st.text_input("Nombre de la segunda especie", "diana")
         gb_diana = st.file_uploader(
             "GenBank de la segunda especie (.gb, opcional)",
             type=["gb", "gbk", "genbank"],
             help="Lo mismo para la segunda especie.",
         )
 
+    # ── PASO 3 · FICHEROS DE REFERENCIA ─────────────────────────────────────────
+    #
+    # El recuento va AQUI, antes de ejecutar nada: es lo que permite decidir si se sigue
+    # o se va a buscar un fichero primero.
+    st.subheader("3) Ficheros de referencia")
+    pasos = steps_rows(
+        species=nombre_modelo,
+        sequence_loaded=modelo is not None,
+        directory=PACKAGE_REFERENCE_DIR,
+    )
+    tercero = pasos[2]
+    st.info(tercero["detalle"])
+    resumen = reference_panel_summary(nombre_modelo, directory=PACKAGE_REFERENCE_DIR)
+    with st.expander(f"Frentes que quedan abiertos ({len(resumen['abiertos'])})"):
+        for fila in resumen["abiertos"]:
+            st.write(f"· **{fila['frente']}** — falta {fila['falta']}")
+        st.caption(WHY_NO_GLOBAL_TOGGLE)
+
     if not modelo:
         st.info(
-            "Sube al menos un FASTA de mRNA para empezar. Con dos se buscan ademas los "
+            "Sube al menos un FASTA de mRNA para seguir. Con dos se buscan ademas los "
             "bloques conservados entre ellos."
         )
         return
-    if diana and nombre_diana == nombre_modelo:
+    if diana and not nombre_diana:
         st.error(
-            f"**PARA** — las dos especies se llaman igual ({nombre_modelo!r}); "
-            f"renombra una para no mezclar sus salidas."
+            "**PARA** — has subido una segunda secuencia sin decir de que especie es. "
+            "Sin especie no se puede comprobar que sus ficheros sean los suyos."
         )
         return
 
@@ -496,12 +641,18 @@ def main() -> None:
             scaffold = load_scaffold(ruta)
 
         # El cableado fichero->filtro vive en `manifest.ROLES` y la carga en
-        # `resources.py`, las dos con tests. Aqui solo se pide y se enseña.
-        recursos = None
-        if usar_manifiesto:
-            recursos = load_from_manifest(
-                PACKAGE_REFERENCE_DIR, target=gen_diana.strip() or None
-            )
+        # `resources.py`, las dos con tests. Ya no hay casilla que lo active: si un
+        # fichero esta y es valido, se usa. Ignorar uno se hace POR FICHERO y con el
+        # motivo escrito (`deposito.Ignored`), que viaja al veredicto.
+        # `species=` no es cosmetico: sin el, el manifiesto conecta cada fichero por su
+        # ROL sin mirar que especie se esta diseñando, y `rmsk_mouse.out` cabe de sobra
+        # en un transcrito humano sin salirse de rango. Es el mismo agujero que cierra
+        # `RepeatMask.query_length` un nivel mas abajo.
+        recursos = load_from_manifest(
+            PACKAGE_REFERENCE_DIR,
+            target=gen_diana.strip() or None,
+            species=resolve_species(nombre_modelo),
+        )
 
         secuencias = {nombre_modelo: _fasta_sequence(modelo)}
         genbanks = {nombre_modelo: gb_modelo}
@@ -528,10 +679,14 @@ def main() -> None:
             "también en cada fila del TSV de oligos y no se puede silenciar."
         )
 
+    # ── PASO 4 · DISEÑAR ────────────────────────────────────────────────────────
+    #
     # Dos botones, y ninguno de los dos calcula nada por su cuenta: fijan que se pidio.
     # Sin esto la pagina lanzaba el diseño entero en cuanto se subia un FASTA, asi que
     # una corrida de minutos —manifiesto conectado y accesibilidad— empezaba sin avisar
     # y la estimacion no habria servido de nada: llegaba cuando ya estaba corriendo.
+    st.subheader("4) Diseñar")
+    st.caption(pasos[3]["detalle"])
     acciones = st.columns([1, 1, 4])
     with acciones[0]:
         if st.button(
