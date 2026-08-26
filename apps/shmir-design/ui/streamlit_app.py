@@ -37,6 +37,9 @@ from shmir_design.presentation import (  # noqa: E402
     blast_candidate_rows,
     blast_command_text,
     front_help_rows,
+    informe_documento,
+    informe_files,
+    informe_state_text,
     obtencion_rows,
     offtarget_catalog_from_upload,
     offtarget_control_rows,
@@ -316,6 +319,24 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "final no son unicas: el clonaje va por NheI/SacI o por sintesis. "
             "`modulo_seguro = no` significa que no se ha confirmado que la horquilla "
             "sobreviva dentro del intron."
+        )
+
+    st.markdown("**Informe** — parcial o completo, en cualquier momento")
+    documento = informe_documento(
+        seleccion, tiling, species=nombre,
+        generated=st.session_state.get("fecha_informe", "sin fecha declarada"),
+        anatomy_source=anat.source.value if hasattr(anat, "source") else str(anat),
+    )
+    (st.warning if documento.state == "PARCIAL" else st.success)(
+        informe_state_text(documento)
+    )
+    for entregable in informe_files(documento, stem=nombre):
+        st.download_button(
+            entregable["nombre"],
+            data=entregable["datos"],
+            file_name=entregable["nombre"],
+            mime=entregable["mime"],
+            key=f"inf_{nombre}_{entregable['nombre']}",
         )
 
     return output_bundle(

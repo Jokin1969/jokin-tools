@@ -25,6 +25,11 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 GOLDEN = RAIZ / "tests" / "golden" / "raton_informe.txt"
 FICHA = RAIZ / "tests" / "golden" / "ficha_raton_200.txt"
+DOCUMENTO = RAIZ / "tests" / "golden" / "informe_documento.md"
+
+#: La fecha del documento va FIJADA: si saliera la de hoy, el golden
+#: cambiaria cada dia y el diff dejaria de significar nada.
+FECHA_GOLDEN = "2026-08-26"
 
 #: La corrida que se fija. Solo ficheros VERSIONADOS: el golden tiene que poder
 #: regenerarse con un clon limpio del repositorio, sin pedirle nada a nadie.
@@ -84,6 +89,34 @@ def generar_ficha() -> str:
     ).render()
 
 
+def generar_documento() -> str:
+    """El informe-documento entero, en su fuente markdown.
+
+    Hoy sale PARCIAL porque hay frentes abiertos, y eso es parte de lo que fija: el dia
+    que se cierre uno, el golden lo enseñara en el diff.
+    """
+    import sys as _sys
+
+    _sys.path.insert(0, str(RAIZ))
+    from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+    from shmir_design.informe_doc import build_document
+    from shmir_design.reference import REFERENCES, load_3utr
+    from shmir_design.selection import SelectionConfig, select_from_report
+    from shmir_design.tiling import tile_utr
+
+    utr3 = load_3utr(REFERENCES["NM_011170.3"])
+    informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
+    seleccion = select_from_report(
+        informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
+    )
+    return build_document(
+        species="mouse", tiling=informe, selection=seleccion,
+        generated=FECHA_GOLDEN,
+        anatomy_source="lo tilado ES el 3'UTR (fixture verificado por md5)",
+        dossier_starts=(200,),
+    ).markdown()
+
+
 def main() -> int:
     informe = generar(GOLDEN)
     antes = GOLDEN.read_text(encoding="utf-8") if GOLDEN.is_file() else ""
@@ -104,6 +137,15 @@ def main() -> int:
     else:
         print(f"Regenerada {FICHA}: {len(ficha.splitlines())} lineas.")
         print("Revisa tambien ese diff: la ficha se compara ENTERA.")
+
+    documento = generar_documento()
+    anterior = DOCUMENTO.read_text(encoding="utf-8") if DOCUMENTO.is_file() else ""
+    DOCUMENTO.write_text(documento, encoding="utf-8")
+    if anterior == documento:
+        print(f"Sin cambios: {DOCUMENTO} ({len(documento.splitlines())} lineas).")
+    else:
+        print(f"Regenerado {DOCUMENTO}: {len(documento.splitlines())} lineas.")
+        print("Y ese tambien entero: es el informe que se entrega.")
     return 0
 
 

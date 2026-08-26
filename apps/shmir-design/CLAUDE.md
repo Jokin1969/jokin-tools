@@ -1475,6 +1475,89 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     la ficha diría una cosa y la tabla otra, las dos con pinta de medida. Hay un test que
     exige que **las tres clases compartidas den lo mismo** en los diez del panel; el
     `6mer` es exactamente lo que el contador viejo no veía.
+- **Cada `NOT_RUN` dice CÓMO SE RESUELVE** (`obtencion.py`, `data/obtencion/*.toml`).
+  La app decía qué fichero falta y no de dónde sale, así que el usuario lo preguntaba
+  **fuera de la app**. Esa es la dependencia que esto rompe.
+  - **Una ficha por frente, y es un FICHERO DE DATOS versionado**, no texto en el código:
+    misma razón que el manifiesto — se lee con `cat`, se diffea, y no hace falta la app
+    para consultarla. Nueve fichas con: qué pregunta responde el frente, el fichero
+    exacto con el nombre que se espera, la fuente con URL, los **pasos concretos** con la
+    opción de cada menú, qué metadatos anotar **y por qué**, el tamaño aproximado y cómo
+    se valida al subirlo.
+  - **Dos tests, en las dos direcciones**: un frente sin ficha hace fallar la suite, y una
+    ficha **huérfana** también — documentación de algo que ya no existe engaña igual que
+    la ausencia.
+  - **Y la ficha SE ADAPTA A LA ESPECIE.** No vale decir «miRBase» cuando quien lee ha
+    cargado conejo. Los marcadores se resuelven contra `species.Species`, y lo que esa
+    especie **no tiene declarado** sale diciendo que no está declarado **y dónde se
+    declara** — nunca deducido del nombre: `ocu-`, `oc-` y `ory-` son todos plausibles y
+    sólo uno existe. Ese hueco sale **además como AVISO**, no enterrado en un paso, porque
+    un paso largo se lee en diagonal. `Species` gana `ucsc_assembly` (mm39 / hg38),
+    declarado como todo lo demás.
+  - **Una ficha sin resolver NO se puede renderizar** y aborta: con marcadores dentro el
+    texto miente a medias —`rmsk_{slug}.out` no es un nombre de fichero— y esos textos se
+    copian.
+  - Contenido de hoy: RepeatMasker (`Services → RepeatMasking`, DNA source con la especie,
+    `tar file`, `email`) con el **`.tbl` obligatorio** y la demostración de por qué;
+    miRBase (`Downloads` → `mature.fa`) con el **release**, porque renumera entre
+    versiones; UCSC Table Browser con «3' UTR Exons» y la orden de **no filtrar isoformas
+    a mano**; el BLAST que corre el usuario con el FASTA y el comando que da la app;
+    **PolyA_DB v4** con las tablas `PAS Summary` y `PAS Expression`, las columnas
+    `PSE_3'READS` y `AvgRPM_3READS` por su nombre, y el aviso de que **las coordenadas son
+    GENÓMICAS y no se convierten con una resta**. El empalme del intrón declara
+    `sin_fichero = true`: sus cuatro lecturas son de banco y conseguir más datos no lo
+    cierra.
+- **El informe es un DOCUMENTO, parcial o completo, en markdown + docx + pdf**
+  (`informe_doc.py`, `docx_writer.py`, `pdf_writer.py`, `tools/informe.py`, botón en la
+  página). **No son dos productos**: es el mismo documento en distintos grados de
+  completitud, con `state` `PARCIAL`/`COMPLETO` derivado de los frentes. `Document`
+  **aborta** si se declara completo con frentes abiertos — presentarlo así sería decir
+  que se comprobó algo que no se comprobó.
+  - **Escritos a mano con stdlib, y es una decisión, no una limitación.** `python-docx` y
+    `reportlab` habrían necesitado autorización escrita (regla 6) y un informe no justifica
+    una dependencia: un `.docx` es un ZIP con cuatro XML (`zipfile`) y un PDF de texto con
+    las base-14 no incrusta nada (`zlib`). Lo que se gana es que el informe se genera
+    donde corra el núcleo, sin instalar nada — que es justo lo que pide «autosuficiente».
+  - **Siete secciones**: qué se analizó (longitud y md5 **juntos**), estado de los frentes
+    con **qué falta y dónde conseguirlo**, frente por frente (qué mide, por qué importa,
+    criterio y umbrales con su origen, fuente de datos con versión y md5, resultado, **y
+    la ficha de obtención íntegra si está abierto**), tabla de candidatos con todas las
+    columnas, fichas de los seleccionados, **limitaciones en sección propia** y
+    procedencia.
+  - **Las tres reglas de redacción son TESTS, no intenciones**:
+    - **Ningún umbral sin justificar** (`justificacion.py`): cada uno declara `literatura`
+      / `convencion` / `nuestro`, y hay un test que exige que **todo campo de
+      `hard_filters.Thresholds`** tenga entrada — un umbral nuevo sin justificar hace
+      fallar la suite. Los que **no tienen base medida** lo dicen expresamente y salen
+      **juntos** en Limitaciones. El caso que obliga a la distinción es el flanco de
+      **±10 nt** del eje estérico: no tiene base medida, la huella de CPSF/CstF es mayor,
+      y ponerlo al lado de un GC 30-55 % sin distinguirlo le atribuye una precisión que la
+      biología no tiene.
+    - **Toda cifra comparativa con su referencia**: la tasa base junto a las colisiones de
+      seed, el percentil junto a la carga de off-targets.
+    - **`NOT_RUN` visible en el CUERPO**: hay un test que comprueba que aparece **antes**
+      de la sección de limitaciones. Un `NOT_RUN` que sólo sale en un anexo se lee después
+      de haber creído la tabla.
+  - **El documento entero entra en el golden** (`tests/golden/informe_documento.md`, 588
+    líneas), con la misma disciplina que el informe de texto y la ficha: se compara
+    **entero**. La fecha va **fijada** en el generador — con la de hoy, el golden cambiaría
+    cada día y el diff dejaría de significar nada. Hoy el golden es el **PARCIAL**, y eso
+    también lo fija: el día que se cierre un frente, el diff lo enseña.
+  - **Una tabla descuadrada ABORTA** (`Block.__post_init__`): una fila con menos celdas
+    que cabeceras desplaza los valores a la columna de al lado, y eso no da ningún error
+    — sólo un informe equivocado. Es el mismo tipo de fallo que el invariante de rango.
+  - **Detalles de los dos escritores que importan al leerlos**: en el `.docx` las tablas
+    son **tablas de verdad con bordes**; en el `.pdf` salen en monoespaciada con las
+    columnas recortadas para caber, **y el recorte se marca con `...`** —un valor cortado
+    sin marca es peor que uno que no cabe—. Lo que WinAnsi no tiene se sustituye por su
+    equivalente ASCII con una tabla **declarada**, y el markdown y el `.docx` conservan el
+    texto original. Hay un test que recorre la **tabla xref** del PDF y comprueba que cada
+    desplazamiento apunta a su objeto: si uno está mal, el lector abre un PDF vacío y **no
+    da ningún error**.
+  - La página y `tools/informe.py` llaman a **la misma** función: si divergieran, el
+    informe que se entrega no sería el que se revisa. Y no hay opción para pedir «el
+    completo»: el estado lo deciden los frentes, y viaja **en el nombre del fichero**
+    además de dentro.
 - Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
   verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
   nunca leerlo de la UI.

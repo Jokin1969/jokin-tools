@@ -1216,3 +1216,64 @@ def front_help_rows(tiling, selection, *, species: str):
             }
         )
     return filas
+
+
+# ─────────────────── el informe como documento: parcial o completo ────────────────
+
+
+def informe_documento(selection, tiling, *, species: str, generated: str,
+                      anatomy_source: str = "no declarada en esta corrida",
+                      dossier_starts=None):
+    """El documento entero. Parcial o completo segun los frentes, nunca dos productos."""
+    from .informe_doc import build_document
+
+    return build_document(
+        species=species, tiling=tiling, selection=selection, generated=generated,
+        anatomy_source=anatomy_source, dossier_starts=dossier_starts,
+    )
+
+
+def informe_files(documento, *, stem: str):
+    """Los tres entregables, ya con nombre: markdown (fuente), `.docx` y `.pdf`.
+
+    La pagina no decide el nombre ni el formato: recibe `nombre`, `datos` y `mime`. El
+    markdown va tambien porque es la FUENTE de los otros dos — si alguien discute una
+    frase del pdf, ahi esta el texto sin maquetar.
+    """
+    from .docx_writer import to_docx
+    from .pdf_writer import to_pdf
+
+    marca = "parcial" if documento.state == "PARCIAL" else "completo"
+    base = f"{stem}_informe_{marca}"
+    return [
+        {
+            "nombre": f"{base}.md",
+            "datos": documento.markdown().encode("utf-8"),
+            "mime": "text/markdown",
+        },
+        {
+            "nombre": f"{base}.docx",
+            "datos": to_docx(documento),
+            "mime": (
+                "application/vnd.openxmlformats-officedocument."
+                "wordprocessingml.document"
+            ),
+        },
+        {
+            "nombre": f"{base}.pdf",
+            "datos": to_pdf(documento),
+            "mime": "application/pdf",
+        },
+    ]
+
+
+def informe_state_text(documento) -> str:
+    """Que significa el estado, para pintarlo junto al boton."""
+    from .informe_doc import WHAT_COMPLETE_MEANS, WHAT_PARTIAL_MEANS
+
+    if documento.state == "PARCIAL":
+        return (
+            f"{WHAT_PARTIAL_MEANS} Frentes abiertos: "
+            f"{', '.join(documento.open_fronts)}."
+        )
+    return WHAT_COMPLETE_MEANS
