@@ -24,6 +24,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 GOLDEN = RAIZ / "tests" / "golden" / "raton_informe.txt"
+FICHA = RAIZ / "tests" / "golden" / "ficha_raton_200.txt"
 
 #: La corrida que se fija. Solo ficheros VERSIONADOS: el golden tiene que poder
 #: regenerarse con un clon limpio del repositorio, sin pedirle nada a nadie.
@@ -57,6 +58,32 @@ def generar(destino: Path) -> str:
         return (Path(tmp) / "raton_informe.txt").read_text(encoding="utf-8")
 
 
+def generar_ficha() -> str:
+    """La ficha de `3utr:200`, con la misma disciplina que el informe: entera.
+
+    Se fija la del `200` porque es el candidato que mas cosas reune a la vez: inmune al
+    truncamiento, marcado en el esterico, sin techo, con un hexamero promovido por medida
+    a 14 nt y sin ninguna corrida de BLAST — o sea, con `NOT_RUN` visible.
+    """
+    import sys as _sys
+
+    _sys.path.insert(0, str(RAIZ))
+    from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+    from shmir_design.dossier import build_dossier
+    from shmir_design.reference import REFERENCES, load_3utr
+    from shmir_design.selection import SelectionConfig, select_from_report
+    from shmir_design.tiling import tile_utr
+
+    utr3 = load_3utr(REFERENCES["NM_011170.3"])
+    informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
+    seleccion = select_from_report(
+        informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
+    )
+    return build_dossier(
+        species="raton", tiling=informe, selection=seleccion, start=200
+    ).render()
+
+
 def main() -> int:
     informe = generar(GOLDEN)
     antes = GOLDEN.read_text(encoding="utf-8") if GOLDEN.is_file() else ""
@@ -68,6 +95,15 @@ def main() -> int:
     else:
         print(f"Regenerado {GOLDEN}: {lineas} lineas (antes {len(antes.splitlines())}).")
         print("Revisa el diff ANTES de commitear: es la salida entera del informe.")
+
+    ficha = generar_ficha()
+    previa = FICHA.read_text(encoding="utf-8") if FICHA.is_file() else ""
+    FICHA.write_text(ficha, encoding="utf-8")
+    if previa == ficha:
+        print(f"Sin cambios: {FICHA} ({len(ficha.splitlines())} lineas).")
+    else:
+        print(f"Regenerada {FICHA}: {len(ficha.splitlines())} lineas.")
+        print("Revisa tambien ese diff: la ficha se compara ENTERA.")
     return 0
 
 

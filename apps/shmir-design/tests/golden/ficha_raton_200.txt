@@ -1,0 +1,43 @@
+═══ Ficha del candidato — raton 3utr:200 ═══
+
+  sitio      3utr:200-221
+  guia       TTTAGCACTGGCTGATGACAGA
+  pasajera   CCTGTCATCAGCCAGTGCTAAA
+  veredicto  INCOMPLETE
+
+── Frentes (9) ──
+  frente                   estado    fecha        procedencia
+  empalme_intron           NOT_RUN   —            frente abierto del informe
+  especificidad            NOT_RUN   —            sin corrida en el almacen
+  fraccion_isoforma_larga  PASS      —            frente CERRADO del informe
+  offtarget_seed           NOT_RUN   —            frente abierto del informe
+  repeticion_polimorfica   NOT_RUN   —            frente abierto del informe
+  repeticiones             NOT_RUN   —            frente abierto del informe
+  seed                     NOT_RUN   —            frente abierto del informe
+  seed_colision            NOT_RUN   —            frente abierto del informe
+  transgen                 NOT_RUN   —            frente abierto del informe
+
+── Asimetria — las TRES cifras, que son magnitudes distintas ──
+  cruda +3.80   penalizacion 0.00   neta +3.80
+
+── Techo de APA ──
+  sin techo — 3utr:1-251  sin techo            por delante de todos los cortes medidos: la diana esta en TODAS las isoformas. INMUNE.
+
+── Hexameros cercanos ──
+  AATATA  3utr:236  APA_POSIBLE/medida a 15 nt por delante
+
+── Bloques ──
+  modulo NheI-SacI (149 nt):
+    GCTAGCGAAGGCTCGAGAAGGTATATTGCTGTTGACAGTGAGCGCCTGTCATCAGCCAGT
+    GCTAAATAGTGAAGCCACAGATGTATTTAGCACTGGCTGATGACAGATGCCTACTGCCTC
+    GGACTTCAAGGGGCTAGAATTCGGAGCTC
+  cassette MluI-AgeI (318 pb):
+    ACGCGTAAGAGGTAAGGGTTTAAGGGATGGTTGGTTGGTGGGGTATTAATGTACAATGAT
+    CCAAATCAAGAGCTAGCGAAGGCTCGAGAAGGTATATTGCTGTTGACAGTGAGCGCCTGT
+    CATCAGCCAGTGCTAAATAGTGAAGCCACAGATGTATTTAGCACTGGCTGATGACAGATG
+    CCTACTGCCTCGGACTTCAAGGGGCTAGAATTCGGAGCTCATGGATTTGTGTAAAGATCC
+    AGTGCCTATGTATTGTTGGAAAGTATTTAATTACCTGGAGCACCTGCCTGAAATCACTTT
+    TTTTCAGGTTGGACCGGT
+
+── Historial de BLAST ──
+  SIN CORRIDAS. El frente de especificidad sigue en NOT_RUN, y NOT_RUN no es PASS.

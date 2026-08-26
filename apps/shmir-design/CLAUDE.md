@@ -1176,6 +1176,76 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   correr. Y hay una tercera categoría desde el empalme: **un frente que no se cierra con
   ningún fichero**, solo en el banco. El informe lo dice aparte para que no parezca que
   basta con conseguir datos.
+- **El frente de especificidad es FUNCIONALIDAD, no un script suelto**
+  (`blast.py`, `blast_store.py`, el modal en `presentation.py` + la página).
+  - **ARQUITECTURA, y es lo primero**: este software **no lanza el BLAST y no puede** —
+    el navegador no puede llamar a NCBI (CORS) y el backend no tiene red saliente. El
+    modal **prepara** (FASTA de consulta con md5 + la orden completa), se **entrega** para
+    ejecutar fuera, y se **recoge** el `-outfmt 6`. No es una limitación escondida: es la
+    arquitectura, y `Disabled.why` la dice.
+  - **El ejecutor va detrás de una interfaz con TRES implementaciones** para que el día
+    que haya red no haya que tocar la interfaz: `Disabled` (la de hoy), `LocalCommand`
+    (da la orden, es la única vía que puede dar **veredicto** porque una base local tiene
+    md5) y `RemoteApi`. **`RemoteApi` no trae ninguna URL escrita** (regla 4): se le pasa
+    un endpoint verificado o aborta, y hay un test que lee el fuente del módulo y
+    comprueba que no hay ni un `http`.
+  - **Ajustes por defecto**: `-task blastn-short`, `-word_size 7`, `-evalue 1000`,
+    `-dust no`, `-outfmt 6`, `refseq_rna`, `txid10090`, predichos `XM_`/`XR_` **sí**.
+    Editables, y **cualquiera modificado se marca en rojo y VIAJA con el resultado**: un
+    veredicto obtenido con parámetros no estándar no puede ser indistinguible de uno
+    estándar. Es la misma lección del `.out` sin especie.
+  - **`-remote` es EXPLORACIÓN, nunca veredicto**, con el motivo visible: la base de NCBI
+    **cambia entre corridas**, así que no es reproducible. Sólo una base **local con md5**
+    cierra el frente.
+  - **`-outfmt` distinto de 6 aborta al ELEGIRLO**, no al subir el fichero: aceptar un
+    formato que el almacén no sabe leer dejaría entrar algo que luego se rechaza sin poder
+    decir por qué.
+  - **Un `-outfmt 6` vacío ABORTA**: cero hits y «la corrida no llegó a correr» son cosas
+    distintas y ese fichero no las distingue. Misma lección que el `.out` sin resumen.
+- **El almacén de corridas es INMUTABLE y nada se sobrescribe** (`blast_store.py`). Cada
+  corrida guarda id, fecha, quién la subió, **md5 de la consulta y del resultado**, los
+  parámetros **completos** (no sólo los cambiados), la base con nombre/versión/md5 —o
+  marcada `no reproducible` con esas palabras si fue `-remote`— y el **crudo sin tocar**
+  además del parseado. Una corrida nueva se **añade**; la ficha enseña la última y enlaza
+  el historial. Repetir un `run_id` aborta.
+  - **Validación al subir, y las dos rechazan**: que el md5 del FASTA de consulta sea el
+    que generó la app, y que toda `query` del resultado esté en el panel. **Es el fallo
+    del CSV de miRarchitect** —un fichero de otra corrida pegado por error, que entra,
+    cuadra de forma y produce un análisis entero sobre el dato equivocado— y el mensaje lo
+    nombra.
+  - **Un candidato sin corrida sigue en `NOT_RUN`, y visible.** El almacén **no relaja la
+    regla 3**: no haber corrido y haber corrido limpio no se parecen en nada.
+- **`offtarget_seed` es un frente PROPIO y no se funde con `especificidad`**
+  (`seed_load.WHY_NOT_BLAST`). El BLAST busca **complementariedad extensa**; el
+  off-target mediado por seed **no se busca con BLAST y no se puede**: **7 nt contiguos no
+  dan un alineamiento puntuable**, así que un blastn no los devuelve por mucho que se le
+  baje el `word_size`. Es coincidencia **exacta** del heptámero 2-8 sobre los 3'UTR del
+  transcriptoma murino —**búsqueda de subcadena, no alineamiento**— y necesita
+  `transcriptoma_3utr.fa`.
+  - **Fundirlos en un «especificidad: PASS» daría por cubierto el modo de off-target más
+    frecuente de RNAi con una herramienta que no lo detecta.** Por eso son dos frentes,
+    el informe los cuenta aparte, y el motivo de `especificidad` avisa de que **no** cubre
+    al otro.
+  - Antes este frente era **invisible**: `carga_seed` es un número comparativo, así que
+    nunca estuvo en `not_run_filters` y no salía en la lista de frentes. Se contaba
+    «especificidad» y parecía que la pregunta estaba cubierta.
+- **La ficha de un candidato reúne todo lo que se sabe de un sitio** (`dossier.py`), y se
+  compara **ENTERA** contra `tests/golden/ficha_raton_200.txt`, con la misma disciplina
+  que el informe: veredicto de **cada** frente con procedencia y fecha, asimetría en sus
+  tres columnas, techo de APA **con el tramo del que sale**, hexámeros cercanos con clase
+  y distancia, el módulo de 149 nt, el cassette de 318 y el historial de BLAST.
+  - **Emite TODOS los frentes que el informe conoce, no un número fijo.** Hoy son nueve.
+    Fijar «seis» en el código haría que el décimo entrara sin que la ficha lo enseñara.
+  - **Un frente CERRADO no sale como `NOT_RUN`**: decir que falta algo resuelto engaña
+    tanto como lo contrario. Sale con su estado y con «frente CERRADO» en la procedencia.
+  - Un sitio que no está en el panel de esa corrida **aborta**: no se emite la ficha de
+    un candidato que no existe ahí.
+- **El modal no decide nada; `presentation.py` sí** (regla 6). La página recibe filas con
+  un booleano `modificado` —para pintar en rojo— y avisos con un booleano `bloquea`.
+  Hasta la conversión de «SI»/«no» a booleano vive fuera: si la hiciera la página no
+  tendría test, y el día que alguien escriba «si» en minúsculas el ajuste se leería como
+  `False` sin que nadie se enterara. Hay un test que lee el fuente del modal y comprueba
+  que no hay ni un `int(`, `float(`, `.upper()` ni `sorted(`.
 - Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
   verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
   nunca leerlo de la UI.

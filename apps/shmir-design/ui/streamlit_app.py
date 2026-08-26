@@ -27,9 +27,18 @@ from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.external_score import EXTERNAL_TOOLS  # noqa: E402
 from shmir_design.fetch import parse_fasta_payload  # noqa: E402
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
+from shmir_design.blast import DEFAULTS as DEFAULT_BLAST  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
+    BLAST_MODAL_NOTE,
+    blast_candidate_rows,
+    blast_command_text,
+    blast_params_from_form,
+    blast_executor_text,
+    blast_query,
+    blast_setting_rows,
+    blast_warnings,
     anatomy_rows,
     candidate_rows,
     cost_text,
@@ -248,6 +257,8 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         st.dataframe(filas, hide_index=True)
     else:
         st.info("Ningún candidato con estos umbrales.")
+
+    _modal_blast(seleccion, nombre)
 
     with st.expander(f"Todas las ventanas de {nombre} ({len(tiling.windows)})"):
         st.dataframe(window_rows(tiling), hide_index=True)
@@ -521,3 +532,96 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def _modal_blast(seleccion, nombre: str) -> None:
+    """El modal de especificidad. NO decide nada: todo viene de `presentation`.
+
+    La pagina no ordena, no marca en rojo y no elige ningun estado — recibe filas con un
+    booleano `modificado` y avisos con un booleano `bloquea`. Si aqui empieza a haber una
+    condicion sobre datos, se mueve a `presentation.py` (regla 6).
+    """
+    if not st.checkbox(
+        f"Especificidad (BLAST) — {nombre}",
+        key=f"blast_{nombre}",
+        help=(
+            "Prepara la consulta y recoge el resultado. Este software NO lanza el "
+            "BLAST: el navegador no puede llamar a NCBI (CORS) y el backend no tiene "
+            "red saliente."
+        ),
+    ):
+        return
+
+    st.caption(blast_executor_text())
+    st.caption(BLAST_MODAL_NOTE)
+
+    filas = blast_candidate_rows(seleccion, species=nombre)
+    todos = st.checkbox("Todos", key=f"blast_todos_{nombre}", value=True)
+    solo_panel = st.checkbox(
+        "Sólo los del panel", key=f"blast_panel_{nombre}", value=False
+    )
+    guias = st.checkbox("Guías", key=f"blast_guias_{nombre}", value=True)
+    pasajeras = st.checkbox("Pasajeras", key=f"blast_pas_{nombre}", value=True)
+
+    marcados = []
+    for fila in filas:
+        if solo_panel and not fila["panel"]:
+            continue
+        if st.checkbox(
+            f"3utr:{fila['start']}  asim {fila['asimetria']}  {fila['veredicto']}",
+            key=f"blast_c_{nombre}_{fila['start']}",
+            value=todos,
+        ):
+            marcados.append(fila["start"])
+
+    st.subheader("Ajustes")
+    valores = {}
+    for ajuste in blast_setting_rows(DEFAULT_BLAST):
+        etiqueta = ajuste["ajuste"]
+        if ajuste["modificado"]:
+            etiqueta = f":red[{etiqueta}]"
+        valores[ajuste["ajuste"]] = st.text_input(
+            etiqueta,
+            value=ajuste["valor"],
+            key=f"blast_s_{nombre}_{ajuste['ajuste']}",
+            help=f"por defecto: {ajuste['por_defecto']}",
+        )
+
+    params = blast_params_from_form(valores)
+    for fila in blast_setting_rows(params):
+        if fila["modificado"]:
+            st.markdown(
+                f":red[**{fila['ajuste']} = {fila['valor']}**] "
+                f"(por defecto {fila['por_defecto']})"
+            )
+
+    for aviso in blast_warnings(params):
+        (st.error if aviso["bloquea"] else st.warning)(aviso["texto"])
+
+    ruta = f"{nombre}_consulta.fasta"
+    st.code(blast_command_text(params, query_path=ruta, out_path=f"{nombre}_blast.tsv"))
+
+    if marcados and (guias or pasajeras):
+        consulta = blast_query(
+            seleccion, species=nombre, starts=tuple(marcados),
+            guides=guias, passengers=pasajeras,
+        )
+        st.caption(consulta.describe())
+        st.download_button(
+            "Descargar el FASTA de consulta",
+            data=consulta.text,
+            file_name=ruta,
+            key=f"blast_dl_{nombre}",
+        )
+        st.file_uploader(
+            "Soltar aquí el resultado (-outfmt 6)",
+            key=f"blast_up_{nombre}",
+            help=(
+                "Se valida contra el md5 del FASTA de consulta y contra los nombres del "
+                "panel antes de almacenarse. Un resultado de otra corrida se rechaza."
+            ),
+        )
+    else:
+        st.info(
+            "Marca al menos un candidato y guía o pasajera para generar la consulta."
+        )

@@ -56,10 +56,11 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
 
     def test_el_APA_se_SUMA_a_los_filtros_en_NOT_RUN(self):
         # Cuantos frentes de recurso haya depende de que ficheros se hayan cargado; lo
-        # que fija este test es que el APA es UNO MAS, no uno de ellos. El empalme del
-        # intron es otro que tampoco sale de ningun filtro de ventana.
+        # que fija este test es que el APA es UNO MAS, no uno de ellos. Hay otros dos
+        # que tampoco salen de un filtro de ventana: el empalme del intron y el
+        # off-target por seed.
         self.assertEqual(
-            len(self.frentes), len(self.seleccion.not_run_filters) + 2
+            len(self.frentes), len(self.seleccion.not_run_filters) + 3
         )
 
     def test_y_uno_de_ellos_es_el_APA(self):
@@ -67,7 +68,7 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
 
     def test_los_demas_son_los_filtros_en_NOT_RUN(self):
         de_recurso = {f.name for f in self.frentes} - {
-            "fraccion_isoforma_larga", "empalme_intron"
+            "fraccion_isoforma_larga", "empalme_intron", "offtarget_seed"
         }
         self.assertEqual(de_recurso, set(self.seleccion.not_run_filters))
 
@@ -77,13 +78,17 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
         # mature.fa y el casete, que no se versionan; por eso la cuenta se comprueba asi
         # y no con un numero clavado. El empalme NO se cierra con ningun fichero: sus
         # tres lecturas son de banco.
-        aparte = {"fraccion_isoforma_larga", "empalme_intron"}
+        aparte = {"fraccion_isoforma_larga", "empalme_intron", "offtarget_seed"}
         de_recurso = {f.name for f in self.frentes} - aparte
         pendientes = de_recurso - {"seed", "transgen"}
         self.assertEqual(
             sorted(pendientes | aparte),
             [
                 "empalme_intron", "especificidad", "fraccion_isoforma_larga",
+                # `offtarget_seed` NO es parte de `especificidad`: 7 nt contiguos no dan
+                # alineamiento y ningun BLAST los devuelve. Fundirlos daria por cubierto
+                # el modo de off-target mas frecuente de RNAi.
+                "offtarget_seed",
                 # Dos ejes distintos con el mismo fichero detras: `repeticiones` mira la
                 # estabilidad del genoma AAV, `repeticion_polimorfica` la viabilidad
                 # clinica. Cuentan como dos frentes porque son dos preguntas.
@@ -147,7 +152,7 @@ class TestLoQueDiceElInforme(unittest.TestCase):
         )
 
     def test_el_informe_cuenta_los_frentes_e_incluye_el_APA(self):
-        self.assertIn("PROVISIONAL EN 8 FRENTE(S)", self.texto)
+        self.assertIn("PROVISIONAL EN 9 FRENTE(S)", self.texto)
         self.assertIn("fraccion_isoforma_larga:", self.texto)
 
     def test_y_el_APA_esta_entre_ellos_con_su_cifra(self):

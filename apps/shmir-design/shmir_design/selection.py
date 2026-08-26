@@ -1688,10 +1688,35 @@ def blocking_fronts(
             reason=(
                 f"NOT_RUN en {cuenta} de {selection.total} ventanas: falta el recurso. "
                 f"NOT_RUN no es PASS."
+                + (
+                    " Y OJO: este frente NO cubre los off-targets mediados por seed. "
+                    "Eso es `offtarget_seed`, un frente APARTE, porque 7 nt contiguos no "
+                    "dan alineamiento y ningun BLAST los devuelve."
+                    if nombre == "especificidad"
+                    else ""
+                )
             ),
         )
         for nombre, cuenta in selection.not_run_filters.items()
     ]
+
+    # El off-target por SEED es un frente PROPIO, no una parte de `especificidad`.
+    # `carga_seed` es un numero comparativo y por eso nunca estuvo en `not_run_filters`,
+    # asi que este frente era INVISIBLE: se contaba «especificidad» y parecia que la
+    # pregunta estaba cubierta. No lo esta — ningun alineador la contesta.
+    from .seed_load import FRONT_NAME as _SEED_FRONT, WHY_NOT_BLAST
+
+    carga = getattr(report, "utr3_set", None)
+    if carga is None:
+        frentes.append(
+            BlockingFront(
+                name=_SEED_FRONT,
+                reason=(
+                    f"NOT_RUN: falta `transcriptoma_3utr.fa`, asi que los sitios de seed "
+                    f"no se han contado. NOT_RUN no es PASS. {WHY_NOT_BLAST}"
+                ),
+            )
+        )
 
     # El QUINTO frente, y va SIEMPRE: no depende de ningun fichero ni de ningun
     # candidato. Es un riesgo de la ARQUITECTURA —si el intron no se escinde no hay

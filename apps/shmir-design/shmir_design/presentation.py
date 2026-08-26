@@ -544,3 +544,201 @@ def cost_text(
             "una prediccion."
         )
     return "\n".join(lineas)
+
+
+# ─── El modal de especificidad (BLAST) ───────────────────────────────────────
+#
+# TODA la logica del modal vive aqui (regla 6): la pagina no decide nada — ni ordena, ni
+# marca en rojo, ni elige un estado. Si empieza a hacerlo, se mueve aqui.
+#
+# Y el modal NO ejecuta el BLAST: prepara la peticion, la entrega y recoge el resultado.
+# Ver `blast.py` para por que (CORS + sin red saliente) y `blast_store.py` para que pasa
+# al subirlo.
+
+BLAST_MODAL_NOTE = (
+    "Guia y pasajera son DOS CONSULTAS distintas y las dos hacen falta: la pasajera "
+    "tambien se carga en AGO2 en alguna fraccion, asi que sus off-targets son reales. "
+    "Se marcan por separado a proposito."
+)
+
+
+def blast_candidate_rows(selection, *, species: str) -> list[dict[str, object]]:
+    """Una fila por candidato, con los dos nombres de consulta ya construidos."""
+    filas = []
+    for choice in selection.selection.chosen:
+        ventana = selection.window_of(choice)
+        bloque = None
+        filas.append(
+            {
+                "start": choice.start,
+                "guia_id": f"{species}_pos{choice.start}_guia",
+                "pasajera_id": f"{species}_pos{choice.start}_pasajera",
+                "guia": ventana.evaluation.guide.replace("U", "T"),
+                "pasajera": _passenger_dna(ventana.evaluation.guide),
+                "asimetria": f"{choice.asymmetry:+.2f}",
+                "veredicto": ventana.verdict.value,
+                # Todo lo que sale del panel de esta corrida ES del panel. La casilla
+                # «solo los del panel» existe para cuando se listan mas.
+                "panel": True,
+            }
+        )
+    return filas
+
+
+def _passenger_dna(guide: str) -> str:
+    from .blocks import build_block
+    from .scaffold import SGEP_SCAFFOLD
+
+    return build_block(guide, scaffold=SGEP_SCAFFOLD).passenger.replace("U", "T")
+
+
+def blast_query(selection, *, species: str, starts, guides: bool, passengers: bool):
+    """El FASTA de consulta de lo marcado. Aborta si no queda nada que consultar."""
+    from .blast import QueryFasta
+    from .errors import ShmirDesignError
+
+    if not guides and not passengers:
+        raise ShmirDesignError(
+            "No se ha marcado ni guia ni pasajera: no hay nada que consultar. Son dos "
+            "preguntas distintas y hace falta al menos una. Se aborta."
+        )
+    pedidos = list(dict.fromkeys(int(s) for s in starts))
+    if not pedidos:
+        raise ShmirDesignError(
+            "No se ha marcado ningun candidato: no se genera un FASTA vacio. Se aborta."
+        )
+    por_inicio = {c.start: c for c in selection.selection.chosen}
+    fuera = [s for s in pedidos if s not in por_inicio]
+    if fuera:
+        raise ShmirDesignError(
+            f"Estos sitios no estan en el panel de esta corrida: "
+            f"{', '.join(str(s) for s in fuera)}. Se aborta en vez de consultar una "
+            f"guia que no existe aqui."
+        )
+    registros = []
+    for inicio in pedidos:
+        ventana = selection.window_of(por_inicio[inicio])
+        guia = ventana.evaluation.guide.replace("U", "T")
+        if guides:
+            registros.append((f"{species}_pos{inicio}_guia", guia))
+        if passengers:
+            registros.append(
+                (f"{species}_pos{inicio}_pasajera", _passenger_dna(
+                    ventana.evaluation.guide
+                ))
+            )
+    return QueryFasta.from_records(registros)
+
+
+#: Que ajustes se enseñan y en que orden. Los TODOS, no solo los cambiados.
+_SETTING_FIELDS = (
+    "task", "word_size", "evalue", "dust", "outfmt", "db", "entrez_query",
+    "include_predicted", "remote",
+)
+
+
+def blast_setting_rows(params) -> list[dict[str, object]]:
+    """Una fila por ajuste, con `modificado` para que la pagina lo pinte en rojo.
+
+    La pagina NO decide cual va en rojo: recibe el booleano. Es la misma leccion del
+    `.out` sin especie — un veredicto con ajustes cambiados no puede ser indistinguible
+    de uno estandar, y para eso hay que verlo.
+    """
+    from .blast import DEFAULTS
+
+    tocados = set(params.modified())
+
+    def _fmt(valor):
+        if isinstance(valor, bool):
+            return "SI" if valor else "no"
+        if isinstance(valor, float):
+            return f"{valor:g}"
+        return str(valor)
+
+    return [
+        {
+            "ajuste": campo,
+            "valor": _fmt(getattr(params, campo)),
+            "por_defecto": _fmt(getattr(DEFAULTS, campo)),
+            "modificado": campo in tocados,
+        }
+        for campo in _SETTING_FIELDS
+    ]
+
+
+def blast_warnings(params) -> list[dict[str, object]]:
+    """Los avisos del modal. `bloquea` = esta corrida no puede cerrar el frente."""
+    from .seed_load import WHY_NOT_BLAST
+
+    avisos = []
+    if not params.can_give_verdict:
+        avisos.append({"bloquea": True, "texto": params.why_no_verdict})
+    # Este sale SIEMPRE, con o sin ajustes tocados: no bloquea ESTE modal, pero deja
+    # claro que un PASS aqui no cubre el otro frente.
+    avisos.append(
+        {
+            "bloquea": False,
+            "texto": (
+                "Este modal es para COMPLEMENTARIEDAD EXTENSA. El off-target mediado por "
+                f"seed es OTRO frente (`offtarget_seed`) y no se busca aqui. "
+                f"{WHY_NOT_BLAST}"
+            ),
+        }
+    )
+    return avisos
+
+
+def blast_command_text(params, *, query_path: str, out_path: str | None = None) -> str:
+    """La orden lista para copiar, con TODOS los parametros."""
+    return params.command(query_path=query_path, out_path=out_path)
+
+
+def blast_executor_text() -> str:
+    """Que ejecutor hay hoy y por que. La pagina lo imprime tal cual."""
+    from .blast import default_executor
+
+    ejecutor = default_executor()
+    return f"Ejecutor: {ejecutor.name}. {ejecutor.why}"
+
+
+def blast_params_from_form(valores: dict) -> "object":
+    """Lo tecleado en el modal → `BlastParams`. Tambien esto vive fuera de la pagina.
+
+    Convertir «SI»/«no» a booleano y un texto a entero es una DECISION, por poca que
+    parezca: si la hace la pagina, no tiene test y el dia que alguien escriba «si» en
+    minusculas el ajuste se lee como `False` sin que nadie se entere. La validacion de
+    rango la hace `BlastParams.__post_init__`, que es donde estaba ya.
+    """
+    from .blast import BlastParams
+    from .errors import ShmirDesignError
+
+    def _si(clave: str) -> bool:
+        crudo = str(valores.get(clave, "")).strip().lower()
+        if crudo in ("si", "sí", "s", "true", "1"):
+            return True
+        if crudo in ("no", "n", "false", "0", ""):
+            return False
+        raise ShmirDesignError(
+            f"El ajuste {clave!r} vale {valores.get(clave)!r} y solo entiende SI o no; "
+            f"se aborta en vez de leerlo como «no» por descarte."
+        )
+
+    try:
+        palabra = int(str(valores["word_size"]).strip())
+        evalor = float(str(valores["evalue"]).strip())
+    except (KeyError, ValueError) as exc:
+        raise ShmirDesignError(
+            f"No se pudo leer un ajuste numerico del modal ({exc}); se aborta en vez de "
+            f"caer al valor por defecto sin decirlo."
+        ) from exc
+    return BlastParams(
+        task=str(valores["task"]).strip(),
+        word_size=palabra,
+        evalue=evalor,
+        dust=str(valores["dust"]).strip(),
+        outfmt=str(valores["outfmt"]).strip(),
+        db=str(valores["db"]).strip(),
+        entrez_query=str(valores["entrez_query"]).strip(),
+        include_predicted=_si("include_predicted"),
+        remote=_si("remote"),
+    )

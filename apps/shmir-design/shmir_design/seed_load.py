@@ -46,6 +46,22 @@ def _revcomp(sequence: str) -> str:
     return sequence.translate(_COMPLEMENT)[::-1]
 
 
+#: El frente propio. NO es `especificidad` y no se funde con el.
+FRONT_NAME = "offtarget_seed"
+
+#: Por que este frente va APARTE del BLAST, escrito donde se decide.
+WHY_NOT_BLAST = (
+    "EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON BLAST, y no es una preferencia: "
+    "7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, asi que un blastn no los "
+    "devuelve por mucho que se le baje el word_size. Esto es coincidencia EXACTA del "
+    "heptamero 2-8 sobre los 3'UTR del transcriptoma murino — busqueda de SUBCADENA, no "
+    "alineamiento— y necesita `transcriptoma_3utr.fa`. "
+    "Fundirlo con la especificidad en un solo «PASS» daria por cubierto EL MODO DE "
+    "OFF-TARGET MAS FRECUENTE DE RNAi con una herramienta que no lo detecta. Por eso "
+    "son DOS frentes y se cuentan aparte."
+)
+
+
 def site_patterns(guide: str) -> dict[str, str]:
     """Los tres patrones que hay que buscar en los 3'UTR, en coordenadas de diana."""
     limpia = "".join(str(guide).split()).upper().replace("U", "T")

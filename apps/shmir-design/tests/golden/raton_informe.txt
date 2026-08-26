@@ -556,7 +556,16 @@
   seed_colision: NOT_RUN en 2170 de 2170 ventanas
   transgen: NOT_RUN en 2170 de 2170 ventanas
   NOT_RUN no es PASS. Mientras haya filtros sin correr, la seleccion es PROVISIONAL y ningun candidato esta aprobado: su veredicto es INCOMPLETE.
-  EL PANEL ES PROVISIONAL EN 7 FRENTE(S): empalme_intron, especificidad, repeticion_polimorfica, repeticiones, seed, seed_colision, transgen.
+  EL PANEL ES PROVISIONAL EN 8 FRENTE(S): empalme_intron, especificidad, offtarget_seed, repeticion_polimorfica, repeticiones, seed, seed_colision, transgen.
+    offtarget_seed: NOT_RUN: falta `transcriptoma_3utr.fa`, asi que los sitios de seed no
+    se han contado. NOT_RUN no es PASS. EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON
+    BLAST, y no es una preferencia: 7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, asi
+    que un blastn no los devuelve por mucho que se le baje el word_size. Esto es
+    coincidencia EXACTA del heptamero 2-8 sobre los 3'UTR del transcriptoma murino —
+    busqueda de SUBCADENA, no alineamiento— y necesita `transcriptoma_3utr.fa`. Fundirlo
+    con la especificidad en un solo «PASS» daria por cubierto EL MODO DE OFF-TARGET MAS
+    FRECUENTE DE RNAi con una herramienta que no lo detecta. Por eso son DOS frentes y se
+    cuentan aparte.
     empalme_intron: RIESGO BINARIO. NO ES UN PARAMETRO DE CALIDAD y no se lee como tal: o
     el intron se escinde o no. Si no se escinde, la horquilla se queda en el 5'UTR del
     mRNA maduro y no hay proteina DN EN ABSOLUTO — no hay «un poco de proteina» que
@@ -588,7 +597,7 @@
     dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, asi que
     estas cifras son un LIMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos
     amplicones sigue en pie y puede MEJORARLAS.
-  NO SE PIDE OLIGO hasta que los siete tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
+  NO SE PIDE OLIGO hasta que los ocho tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
   y otro necesite una base entera no cambia nada: los dos bloquean igual, y llamar «unico
   bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin correr.
   Y uno de ellos NO SE CIERRA CON NINGUN FICHERO: el empalme del intron solo se cierra en el
