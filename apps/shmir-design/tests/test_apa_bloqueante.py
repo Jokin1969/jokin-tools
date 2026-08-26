@@ -56,27 +56,36 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
 
     def test_el_APA_se_SUMA_a_los_filtros_en_NOT_RUN(self):
         # Cuantos frentes de recurso haya depende de que ficheros se hayan cargado; lo
-        # que fija este test es que el APA es UNO MAS, no uno de ellos.
+        # que fija este test es que el APA es UNO MAS, no uno de ellos. El empalme del
+        # intron es otro que tampoco sale de ningun filtro de ventana.
         self.assertEqual(
-            len(self.frentes), len(self.seleccion.not_run_filters) + 1
+            len(self.frentes), len(self.seleccion.not_run_filters) + 2
         )
 
     def test_y_uno_de_ellos_es_el_APA(self):
         self.assertIn("fraccion_isoforma_larga", [f.name for f in self.frentes])
 
     def test_los_demas_son_los_filtros_en_NOT_RUN(self):
-        de_recurso = {f.name for f in self.frentes} - {"fraccion_isoforma_larga"}
+        de_recurso = {f.name for f in self.frentes} - {
+            "fraccion_isoforma_larga", "empalme_intron"
+        }
         self.assertEqual(de_recurso, set(self.seleccion.not_run_filters))
 
-    def test_con_los_tres_ficheros_cargados_quedarian_CUATRO(self):
-        # especificidad, repeticiones, seed_colision y el APA. Los otros dos frentes de
-        # esta corrida (seed y transgen) se cierran con mature.fa y el casete, que no se
-        # versionan; por eso la cuenta se comprueba asi y no con un 4 clavado.
-        de_recurso = {f.name for f in self.frentes} - {"fraccion_isoforma_larga"}
+    def test_con_los_tres_ficheros_cargados_quedarian_CINCO(self):
+        # especificidad, repeticiones, seed_colision, el APA y el empalme del intron.
+        # Los otros dos frentes de esta corrida (seed y transgen) se cierran con
+        # mature.fa y el casete, que no se versionan; por eso la cuenta se comprueba asi
+        # y no con un numero clavado. El empalme NO se cierra con ningun fichero: sus
+        # tres lecturas son de banco.
+        aparte = {"fraccion_isoforma_larga", "empalme_intron"}
+        de_recurso = {f.name for f in self.frentes} - aparte
         pendientes = de_recurso - {"seed", "transgen"}
         self.assertEqual(
-            sorted(pendientes | {"fraccion_isoforma_larga"}),
-            ["especificidad", "fraccion_isoforma_larga", "repeticiones", "seed_colision"],
+            sorted(pendientes | aparte),
+            [
+                "empalme_intron", "especificidad", "fraccion_isoforma_larga",
+                "repeticiones", "seed_colision",
+            ],
         )
 
     def test_el_frente_del_APA_trae_la_cuenta_que_lo_justifica(self):
@@ -135,7 +144,7 @@ class TestLoQueDiceElInforme(unittest.TestCase):
         )
 
     def test_el_informe_cuenta_los_frentes_e_incluye_el_APA(self):
-        self.assertIn("PROVISIONAL EN 6 FRENTE(S)", self.texto)
+        self.assertIn("PROVISIONAL EN 7 FRENTE(S)", self.texto)
         self.assertIn("fraccion_isoforma_larga:", self.texto)
 
     def test_y_el_APA_esta_entre_ellos_con_su_cifra(self):

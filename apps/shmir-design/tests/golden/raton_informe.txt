@@ -405,6 +405,36 @@
   NOT_RUN: no hay casete del transgen cargado, asi que queda sin comprobar si algun candidato apaga la propia construccion terapeutica. NOT_RUN no es PASS.
   Por que importa: una guia a 1 desapareamiento del ORF del transgen lo silencia casi igual que a su diana perfecta. El fallo seria silencioso — knockdown global bonito y ningun beneficio en el ratio.
 
+── Empalme del intron ──
+  RIESGO BINARIO. NO ES UN PARAMETRO DE CALIDAD y no se lee como tal: o el intron se
+  escinde o no. Si no se escinde, la horquilla se queda en el 5'UTR del mRNA maduro y no
+  hay proteina DN EN ABSOLUTO — no hay «un poco de proteina» que optimizar. Lo que decide
+  no es un candidato ni una plaza del panel: decide si la ARQUITECTURA INTRONICA sigue
+  viva. Por eso va como frente y no como columna.
+  Y la lectura que se hace por defecto NO lo coge: un small RNA-seq puede salir PERFECTO
+  con el empalme fallando. Drosha procesa el pri-miR COTRANSCRIPCIONALMENTE, o sea ANTES
+  del splicing, asi que la horquilla se corta igual este el intron escindido o no. Un
+  shmiR correcto NO ES EVIDENCIA de que haya proteina: son dos sucesos en orden y esa
+  lectura solo mide el primero.
+
+  No hay casete cargado (--transgen), asi que no se emiten coordenadas de cebador. NOT_RUN
+  no es PASS: el frente sigue igual de abierto.
+
+  LAS TRES LECTURAS QUE LO CIERRAN. Ninguna la corre este software:
+    · rtpcr_empalme [NOT_RUN]: RT-PCR con cebadores en los exones que flanquean el intron
+      MVM. Banda CORTA = empalmado, banda LARGA = retenido, y la PROPORCION es la
+      eficiencia. Coordenadas NO emitidas: falta el casete (--transgen).
+    · western_L42_por_vg [NOT_RUN]: Western L42 NORMALIZADO por vg-qPCR. Sin normalizar,
+      «no hay proteina» no se distingue de «no llego el vector»: los dos dan una membrana
+      vacia, y solo uno de los dos culpa al empalme. La vg-qPCR es la que separa las dos
+      hipotesis.
+    · parental_sin_intron [NOT_RUN]: Parental SIN INTRON en la MISMA TANDA, como TECHO de
+      expresion. Sin techo, un western flojo no dice si el empalme va mal o si la
+      construccion expresa poco de por si. OJO: el casete que hay (aav_casete.fa) NO es
+      ese. Es el parental sin MODULO pero CON el intron vacio de 82 nt, asi que tiene el
+      mismo problema de empalme que se quiere medir y no sirve de techo. Hace falta la
+      construccion sin donante ni aceptor.
+
 ── Criterio de poliadenilacion: los tres modos lado a lado ──
   Modo usado en esta corrida: escalonado
   El corte no ocurre en el hexamero, ocurre 10-30 nt aguas abajo: el hexamero se queda
@@ -431,7 +461,22 @@
   seed_colision: NOT_RUN en 2170 de 2170 ventanas
   transgen: NOT_RUN en 2170 de 2170 ventanas
   NOT_RUN no es PASS. Mientras haya filtros sin correr, la seleccion es PROVISIONAL y ningun candidato esta aprobado: su veredicto es INCOMPLETE.
-  EL PANEL ES PROVISIONAL EN 5 FRENTE(S): especificidad, repeticiones, seed, seed_colision, transgen.
+  EL PANEL ES PROVISIONAL EN 6 FRENTE(S): empalme_intron, especificidad, repeticiones, seed, seed_colision, transgen.
+    empalme_intron: RIESGO BINARIO. NO ES UN PARAMETRO DE CALIDAD y no se lee como tal: o
+    el intron se escinde o no. Si no se escinde, la horquilla se queda en el 5'UTR del
+    mRNA maduro y no hay proteina DN EN ABSOLUTO — no hay «un poco de proteina» que
+    optimizar. Lo que decide no es un candidato ni una plaza del panel: decide si la
+    ARQUITECTURA INTRONICA sigue viva. Por eso va como frente y no como columna. Y la
+    lectura que se hace por defecto NO lo coge: un small RNA-seq puede salir PERFECTO con
+    el empalme fallando. Drosha procesa el pri-miR COTRANSCRIPCIONALMENTE, o sea ANTES del
+    splicing, asi que la horquilla se corta igual este el intron escindido o no. Un shmiR
+    correcto NO ES EVIDENCIA de que haya proteina: son dos sucesos en orden y esa lectura
+    solo mide el primero. SE CIERRA CON TRES LECTURAS DE BANCO, las tres NOT_RUN y ninguna
+    la corre este software: (1) RT-PCR de empalme con cebadores en los exones que
+    flanquean el intron MVM; (2) Western L42 normalizado por vg-qPCR, que es lo que separa
+    «no empalmo» de «no llego el vector»; (3) parental SIN INTRON en la misma tanda, como
+    techo de expresion. Coordenadas NO emitidas en esta corrida: falta el casete
+    (--transgen). El detalle, en el bloque «Empalme del intron».
   FRENTE CERRADO — fraccion_isoforma_larga:
     CERRADO. 6 de 10 candidatos quedan por detras del corte de tx:1185: comparten UN UNICO
     MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes por tramo son 16/0/0
@@ -448,10 +493,13 @@
     dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, asi que
     estas cifras son un LIMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos
     amplicones sigue en pie y puede MEJORARLAS.
-  NO SE PIDE OLIGO hasta que los cinco tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
+  NO SE PIDE OLIGO hasta que los seis tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
   y otro necesite una base entera no cambia nada: los dos bloquean igual, y llamar «unico
   bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin correr.
+  Y uno de ellos NO SE CIERRA CON NINGUN FICHERO: el empalme del intron solo se cierra en el
+  banco, con las tres lecturas de su bloque. Ademas es el unico BINARIO — los demas degradan el
+  resultado, este lo anula: sin empalme no hay proteina DN en absoluto.
 
 ── Avisos ──
-  ⚠  [APA_PROXIMAL] Posible poliadenilacion alternativa: AATATA canonica en tx:1185 (a 1001 nt del extremo 3'). Afecta a 980 de 2170 ventana(s) corriente abajo (45.2%), posiciones tx:1191-2191. Podrian no capturar la isoforma corta. NO se excluyen: quedan anotadas con riesgo_APA=True y la lista completa esta en el TSV. La decision es del responsable. El limite de riesgo es la SEÑAL (tx:1185), no el sitio de corte, que cae 10-30 nt aguas abajo: el marcado es conservador a proposito y NO es una prediccion del extremo de la isoforma corta.
+  ⚠  [APA_PROXIMAL] Posible poliadenilacion alternativa: AATATA (medida) en tx:1185 (a 1001 nt del extremo 3'). Afecta a 980 de 2170 ventana(s) corriente abajo (45.2%), posiciones tx:1191-2191. Podrian no capturar la isoforma corta. NO se excluyen: quedan anotadas con riesgo_APA=True y la lista completa esta en el TSV. La decision es del responsable. El limite de riesgo es la SEÑAL (tx:1185), no el sitio de corte, que cae 10-30 nt aguas abajo: el marcado es conservador a proposito y NO es una prediccion del extremo de la isoforma corta.
   ⚠  [APA_PROXIMAL] Posible poliadenilacion alternativa: AATAAA canonica en tx:1237 (a 949 nt del extremo 3'). Afecta a 928 de 2170 ventana(s) corriente abajo (42.8%), posiciones tx:1243-2191. Podrian no capturar la isoforma corta. NO se excluyen: quedan anotadas con riesgo_APA=True y la lista completa esta en el TSV. La decision es del responsable. El limite de riesgo es la SEÑAL (tx:1237), no el sitio de corte, que cae 10-30 nt aguas abajo: el marcado es conservador a proposito y NO es una prediccion del extremo de la isoforma corta.

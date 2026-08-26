@@ -906,12 +906,72 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   reparto decía «medio 20» de unos sitios que están todos en el tercio **proximal** del
   3'UTR, y la frase del informe decía «proximal» al lado. Las posiciones se convierten
   antes de contar, y el tramo de la frase se **deriva** en vez de escribirse.
+- **El EMPALME DEL INTRÓN es el quinto frente, y el ÚNICO BINARIO. AÑADIDO
+  (2026-08-26)** (`splicing.py`). Los otros cuatro son graduales: una especificidad
+  regular da off-targets, un techo de APA baja el knockdown, una colisión de seed
+  secuestra una red. Se miden, se ordenan y se comparan. Este no: **si el intrón no se
+  escinde, la horquilla se queda en el 5'UTR del mRNA maduro y no hay proteína DN en
+  absoluto**. No hay «un poco de proteína» que optimizar, así que va como **frente y no
+  como columna**, y lo que decide no es un candidato — decide si la **arquitectura
+  intrónica** sigue viva.
+  - **Por qué no estaba en la lista, y es la parte importante**: la lectura que se hace
+    por defecto **no lo coge**. Un `small RNA-seq` puede salir **perfecto** con el
+    empalme fallando, porque Drosha procesa el pri-miR **cotranscripcionalmente**, o sea
+    **antes** del splicing: la horquilla se corta igual esté el intrón escindido o no.
+    **Un shmiR correcto no es evidencia de que haya proteína.** Son dos sucesos en orden
+    y esa lectura solo mide el primero.
+  - **No se cierra con ningún fichero**, y el informe lo separa de los otros: sus tres
+    lecturas son de banco, las tres `NOT_RUN`, y este software no corre ninguna.
+    1. **RT-PCR de empalme** con cebadores en los exones que flanquean el intrón MVM.
+       Banda **corta** = empalmado, banda **larga** = retenido, y la **proporción** es la
+       eficiencia.
+    2. **Western L42 normalizado por vg-qPCR.** Sin normalizar, «no hay proteína» no se
+       distingue de «no llegó el vector»: los dos dan una membrana vacía y solo uno culpa
+       al empalme.
+    3. **Parental SIN INTRÓN en la misma tanda**, como techo de expresión. Sin techo, un
+       western flojo no dice si el empalme va mal o si la construcción expresa poco.
+  - **El casete que hay NO es el parental sin intrón, y confundirlos daría un techo que
+    no lo es.** `aav_casete.fa` es el parental sin **módulo** pero **con el intrón vacío
+    de 82 nt** (MVM5 40 + MVM3 42 pegadas, comprobado por secuencia), así que arrastra el
+    mismo problema de empalme que se quiere medir. Hace falta la construcción **sin
+    donante ni aceptor**. Y el intrón del terapéutico son **296 nt**, no 82: no son el
+    mismo intrón y la eficiencia de uno no dice nada del otro.
+  - **Las coordenadas se DERIVAN del casete, no se teclean** (`splicing.locate_intron`).
+    Se buscan las piezas `MVM5`/`MVM3` de `blocks.PIECES` —una sola copia de cada una— y
+    los dinucleótidos `GT`/`AG` se **leen** de la secuencia y se comprueban; si no cuadran,
+    se aborta. Sobre `aav_casete.fa`: donante `casete:3134`, aceptor `casete:3215`.
+    - Ventanas donde **buscar** los cebadores: `casete:3064-3123` (aguas arriba) y
+      `casete:3226-3285` (aguas abajo), 60 nt cada una, a 10 nt de la unión, y se
+      comprueba que sean **únicas** en el plásmido — un cebador que aparece dos veces no
+      mide nada.
+    - **No se emiten cebadores**, igual que en `polya.rtqpcr_amplicons`: Tm, especificidad
+      y horquillas no se improvisan. Se emite dónde buscarlos.
+    - **Ningún cebador puede cruzar la unión exón-exón**: uno que la cruce solo amplifica
+      la forma empalmada, así que da presencia y **no proporción** — y la proporción es
+      justo lo que se busca.
+    - **La banda no se da como un número falso.** El extremo bajo del rango es solo los
+      dos márgenes (20 pb); la banda real es `20 + F + R` con F y R las longitudes de los
+      cebadores, que aquí no se fijan. Darlo tal cual emitía «banda corta ~22 pb», que es
+      geométricamente imposible. **La cifra que no depende de nada de eso es la
+      DIFERENCIA**: 296 pb en el terapéutico, 82 en el parental. Esa es la lectura.
+    - **La especificidad del par la da el cebador de aguas ARRIBA.** La ventana de aguas
+      abajo entra en el ORF de PrP, así que un par con los dos cebadores ahí amplificaría
+      también el **Prnp endógeno** del tejido y la banda no sería del vector.
+  - **Que el intrón cae en el 5'UTR se COMPRUEBA, no se declara**: el ATG se busca por
+    detrás del aceptor y se traduce. Está en `casete:3253`, a **37 nt** del aceptor, y el
+    ORF da **254 aa** que empiezan por `MANLGYWLLALFVTMW` con **G130E** y **W144Y** — o
+    sea, es PrP y es el que anuncia el nombre del plásmido, **comprobado por traducción y
+    no por el nombre del fichero**. Retenido, el intrón mete 296 nt por delante del codón
+    de inicio, con al menos **5 uATG** en sus piezas fijas.
 - **El informe cuenta los FRENTES abiertos, no «el bloqueante».** Con el casete y
-  `mature.fa` cargados quedan **tres**: especificidad, repetitivos y colisión de seed a
-  nivel FAIL. Y lo dice con esas palabras: **no se pide oligo hasta que los tres tengan
-  veredicto**. Que uno se arregle con un fichero de kilobytes y otro necesite una base
-  entera no cambia nada — los dos bloquean igual, y llamar «único bloqueante» al pequeño
-  es lo que hace que se pida oligo con dos filtros sin correr.
+  `mature.fa` cargados quedan **cuatro**: especificidad, repetitivos, colisión de seed a
+  nivel FAIL y el **empalme del intrón**. Y lo dice con esas palabras: **no se pide oligo
+  hasta que los cuatro tengan veredicto**. Que uno se arregle con un fichero de kilobytes
+  y otro necesite una base entera no cambia nada — los dos bloquean igual, y llamar
+  «único bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin
+  correr. Y hay una tercera categoría desde el empalme: **un frente que no se cierra con
+  ningún fichero**, solo en el banco. El informe lo dice aparte para que no parezca que
+  basta con conseguir datos.
 - Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
   verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
   nunca leerlo de la UI.
@@ -934,4 +994,5 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | 3'UTR del transcriptoma | carga de off-targets por seed | `--transcriptoma-3utr` |
 | máscara rmsk de ratón | elementos repetitivos | `--rmsk` |
 | 3'-end seq de cerebro murino | fracción de isoforma larga en NUESTRO tejido (hoy hay la de todos los tejidos: 0,86, límite inferior) | `--apa-medido` |
+| parental SIN INTRÓN (donante y aceptor fuera) | techo de expresión para el empalme; `aav_casete.fa` NO vale, lleva el intrón vacío de 82 nt | — |
 | tabla de expresión | ponderar la carga de seed | `--expresion` |

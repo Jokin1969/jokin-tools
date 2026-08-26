@@ -1509,6 +1509,20 @@ def blocking_fronts(
         for nombre, cuenta in selection.not_run_filters.items()
     ]
 
+    # El QUINTO frente, y va SIEMPRE: no depende de ningun fichero ni de ningun
+    # candidato. Es un riesgo de la ARQUITECTURA —si el intron no se escinde no hay
+    # proteina DN en absoluto— y aparecer solo cuando alguien pasa --transgen lo
+    # convertiria en un detalle de la linea de ordenes.
+    from .splicing import plan_from_records, splicing_front
+
+    plan, _ = plan_from_records(
+        report.transgene_db.records if report.transgene_db is not None else None
+    )
+    empalme = splicing_front(plan)
+    frentes.append(
+        BlockingFront(name=empalme.name, reason=empalme.reason, blocking=True)
+    )
+
     apa = [s for s in report.signals if s.classification is SignalClass.APA_POSSIBLE]
     if not apa or not selection.selection.chosen:
         return frentes

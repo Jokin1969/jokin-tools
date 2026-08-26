@@ -24,6 +24,7 @@ from .folding import VIENNA_AVAILABLE
 from .coords import Frame, frame_of, label, span
 from .transgene import carries_scaffold_module
 from .mirna import SEED_SPACE
+from . import splicing
 from .apa import POLYA_DB_PRNP
 from .polya import rtqpcr_amplicons
 from .reference import ReferenceTranscript
@@ -996,6 +997,27 @@ def text_report(
         lines.extend(f"  {'⚠  ' if modulo.carries else ''}{l}"
                      for l in _envolver(modulo.describe(), 88))
 
+    # ── El quinto frente. Va DESPUES del transgen porque comparte fichero, y ANTES de
+    # los criterios de polyA porque no es un criterio: es un riesgo binario que decide
+    # si la arquitectura sigue viva.
+    lines.extend(["", "── Empalme del intron ──"])
+    lines.extend(f"  {l}" for l in _envolver(splicing.BINARY_NOT_GRADUAL, 88))
+    lines.extend(f"  {l}" for l in _envolver(splicing.WHY_SMALL_RNA_SEQ_MISSES_IT, 88))
+    plan_empalme, motivo_empalme = splicing.plan_from_records(
+        tiling.transgene_db.records if tiling.transgene_db is not None else None
+    )
+    lines.append("")
+    if plan_empalme is None:
+        lines.extend(f"  {l}" for l in _envolver(motivo_empalme, 88))
+    else:
+        lines.extend(f"  {l}" for l in plan_empalme.describe())
+    lines.append("")
+    lines.append("  LAS TRES LECTURAS QUE LO CIERRAN. Ninguna la corre este software:")
+    for lectura in splicing.splicing_readouts(plan_empalme):
+        trozos = _envolver(f"{lectura.name} [{lectura.state.value}]: {lectura.requirement}", 84)
+        lines.append(f"    · {trozos[0]}")
+        lines.extend(f"      {l}" for l in trozos[1:])
+
     lines.extend(
         [
             "",
@@ -1063,7 +1085,9 @@ def text_report(
             lines.extend(f"    {l}" for l in _envolver(frente.reason, 86))
         lines.append(
             "  NO SE PIDE OLIGO hasta que los "
-            + {3: "tres", 4: "cuatro", 5: "cinco"}.get(len(abiertos), str(len(abiertos)))
+            + {3: "tres", 4: "cuatro", 5: "cinco", 6: "seis", 7: "siete", 8: "ocho"}.get(
+                len(abiertos), str(len(abiertos))
+            )
             + " tengan veredicto. Que uno de ellos se arregle con un fichero pequeño"
         )
         lines.append(
@@ -1074,6 +1098,21 @@ def text_report(
             "  bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros "
             "sin correr."
         )
+        # Y hay una tercera categoria desde que esta el empalme: un frente que NO se
+        # cierra con ningun fichero. Meterlo en el mismo saco que los de recurso haria
+        # pensar que basta con conseguir datos.
+        if any(f.name == "empalme_intron" for f in abiertos):
+            lines.append(
+                "  Y uno de ellos NO SE CIERRA CON NINGUN FICHERO: el empalme del intron "
+                "solo se cierra en el"
+            )
+            lines.append(
+                "  banco, con las tres lecturas de su bloque. Ademas es el unico BINARIO "
+                "— los demas degradan el"
+            )
+            lines.append(
+                "  resultado, este lo anula: sin empalme no hay proteina DN en absoluto."
+            )
 
     lines.extend(["", "── Avisos ──"])
     avisos: list[str] = []

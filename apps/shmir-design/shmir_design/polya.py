@@ -703,9 +703,14 @@ def _avisos_apa(
             Aviso(
                 code="APA_PROXIMAL",
                 message=(
-                    f"Posible poliadenilacion alternativa: {signal.motif} canonica en "
-                    f"{label(signal.position, frame)} (a {signal.distance_to_3p} nt del "
-                    f"extremo 3'). "
+                    f"Posible poliadenilacion alternativa: {signal.motif} "
+                    + (
+                        "canonica"
+                        if signal.is_canonical
+                        else f"({signal.evidence})"
+                    )
+                    + f" en {label(signal.position, frame)} "
+                    f"(a {signal.distance_to_3p} nt del extremo 3'). "
                     f"{alcance}. Podrian no capturar la isoforma corta. NO se excluyen: "
                     f"quedan anotadas con riesgo_APA=True y la lista completa esta en "
                     f"el TSV. La decision es del responsable. El limite de riesgo es la "
