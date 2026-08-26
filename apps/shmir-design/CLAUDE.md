@@ -304,11 +304,13 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     cola y el distal a **439**, así que la larga se subrepresenta más en el proximal y la
     razón sale sesgada **hacia más isoforma larga** — justo el resultado que se busca.
     RNA con **RIN documentado**: la degradación produce el mismo sesgo por la misma razón.
-  - **Control positivo de ensayo, obligatorio**: un gen con APA caracterizado en el mismo
-    tejido, en las **mismas muestras** y con la **misma arquitectura de amplicones**. Sin
-    él, un «casi todo isoforma larga» no se distingue de un ensayo **ciego** a las
-    isoformas cortas: los dos dan la misma cifra. Ese gen se elige **con su cita**; el
-    informe no propone ninguno, porque nombrarlo de memoria sería inventar la referencia.
+  - **Control positivo de ensayo, obligatorio y hoy `NOT_RUN`**: un gen con APA
+    caracterizado en cerebro murino, en las **mismas muestras** y con la **misma
+    arquitectura de amplicones**. Sin él, un «casi todo isoforma larga» no se distingue de
+    un ensayo **ciego** a las isoformas cortas: los dos dan la misma cifra. Ese gen se
+    elige **con su cita**; el informe no propone ninguno, porque nombrarlo de memoria
+    sería inventar la referencia, y emite `control_positivo_ensayo: NOT_RUN` hasta que
+    alguien lo aporte con referencia.
 
 - **El `AATAAA` de 3'UTR 288 es el riesgo de truncamiento dominante del panel** y el
   informe lo declara así, con qué candidatos quedan con techo por detrás de su corte y
@@ -318,11 +320,17 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     extremo 3', **no por evidencia de uso**: aquí no hay ni un dato de uso de ese sitio.
     Es un **supuesto**, y el informe lo dice con esa palabra. Con PolyA_DB o PolyASite
     (`--apa-medido`) dejaría de serlo.
-  - **No está conservada en humano** — declarado por quien lleva el proyecto y **sin
-    comprobar aquí**: no hay 3'UTR humano cargado en `data/reference/`, así que este
-    repositorio no puede confirmarlo ni desmentirlo, y decirlo como hallazgo propio sería
-    inventarlo. Si se confirma, el techo es un problema del modelo murino, no del
-    candidato.
+  - **No está conservada en humano — COMPROBADO (2026-08-26)**, ya no declarado. Llegó
+    `NM_000311.5.fa` y `polya.signal_conservation` lo mide: el 3'UTR humano (1606 nt) no
+    contiene `AATAAA` **ni una sola vez** en sus 1606 nt, así que la señal murina no tiene
+    homólogo posible. No hace falta alinear para decirlo — y **no se alinea**: `alignment.py`
+    es difflib sobre dos versiones casi idénticas de la MISMA secuencia, y entre especies
+    daría un alineamiento sin sentido con pinta de resultado. Consecuencia: el techo es un
+    problema del **modelo murino**, no del candidato.
+    **Matiz que no se omite**: eso no significa que el 3'UTR humano esté libre de APA.
+    Tiene dos `ATTAAA` en `3utr:955` y `3utr:1167` clasificadas `APA_POSIBLE`. El riesgo no
+    está conservado **como ese hexámero**, que es otra cosa.
+    Sin `--fasta-b` la pregunta sale **`NOT_RUN`**, nunca «no está conservada».
   - **Inmunes: 60, 143 y 221**, no solo 60. 60 es el único del panel elegido, pero la
     piscina de elegibles tiene 19 sitios más por delante de la señal y el informe saca
     los mejores por asimetría — `3utr:143` (+5,08) y `3utr:221` (+5,15 − 1,00 penal. =
@@ -332,10 +340,10 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   (`spacing.compare_sites`). 223 y 221 son dos ventanas corridas 2 nt: bajo el espaciado
   de 50 nt son el mismo sitio del panel. Se **avisa**, no se descarta — puede interesar
   cambiar uno por otro, y para eso hay que ver que compiten.
-- **La cifra de plazas nuevas no significa nada sin decir CONTRA QUÉ se ha medido**, así
-  que `ReferenceSet` es obligatorio, lleva **etiqueta**, y `SiteComparison.describe()`
-  nombra el conjunto y su tamaño. La referencia es el **conjunto completo de candidatos**,
-  nunca el subconjunto seleccionado. Con los mismos 24 sitios de miRarchitect:
+- **La referencia del espaciado es LOS 90 SITIOS ELEGIBLES. DECIDIDO (2026-08-26)** y no
+  se cambia: el top 10 del plan es un subconjunto, no el conjunto. `ReferenceSet` es
+  obligatorio, lleva **etiqueta**, y `SiteComparison.describe()` nombra el conjunto y su
+  tamaño. Con los mismos 24 sitios de miRarchitect:
   - contra **los 6 elegidos** → 9 filas sin choque, que agrupadas entre ellas son
     **7 plazas** (337, 394, 735, 765, 930, 1075, 1200). Es la cifra que di, y estaba
     medida contra seis posiciones sobre 1242 nt: casi todo parece nuevo.
@@ -347,6 +355,40 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   Los supervivientes se agrupan **entre ellos** además de contra la referencia: dos
   externos a menos del espaciado son una plaza, no dos. Y «plaza nueva» no es «plaza
   utilizable»: son dos preguntas, y el espaciado solo contesta la primera.
+- **`same_site` y el criterio de la selección son la MISMA regla**, negada
+  (`selection.respects_spacing`). Estaban por separado y discrepaban en el borde: un par
+  a exactamente 50 nt era «dos candidatos» para la selección y «el mismo sitio» para el
+  análisis de espaciado. El espaciado es el mínimo **exigido**, así que 50 lo cumple. Hay
+  un test que barre 0-120 nt y ata las dos definiciones.
+- **HALLAZGO: el espacio de ventanas viables está SATURADO** (`spacing.convergence`, en el
+  informe con `--convergencia`). Dos métodos independientes con criterios distintos sobre
+  el mismo 3'UTR verificado — nuestra cascada de filtros duros y miRarchitect —, 24 sitios
+  externos contra los 90 elegibles: **0 sitios exclusivos de la fuente externa** que
+  superen nuestros filtros duros, **4 coincidencias exactas** (`3utr:221`, `735`, `810`,
+  `1018`; la de 735 es la misma ventana base a base) y **6 a 1 nt** (`337↔338`,
+  `516↔517`, `552↔553`, `1017↔1018`, `1024↔1025`, `1075↔1076`). El único externo sin
+  choque es `3utr:1200`, y falla nuestro propio filtro de polyA.
+  **Lectura, y va escrita con esas palabras: NO es una validación cruzada** — donde solo
+  cabe coincidir, coincidir no demuestra nada. La convergencia externa **no discrimina
+  entre candidatos y no puede usarse para elegir**: no ordena, no desempata y no aporta
+  plazas. Es un dato de **calibración de nuestra propia cascada**, y va al
+  **suplementario**.
+- **Las 3 plazas del bloque «solo de fuente externa» se reasignan a COBERTURA.** El bloque
+  desapareció por vacío. Dos cuotas duras nuevas (`SelectionConfig.min_per_tercio`,
+  `apa_immune_quota` + `apa_immune_before`), y el informe escribe la justificación: las
+  causas de fallo son **regionales, no puntuales** —un APA, un repetitivo, un tramo
+  estructurado afectan a una región entera—, así que con la predicción **saturada** la
+  única variable que sigue comprando **independencia entre apuestas** es el espaciado.
+  - **Inmune tiene dos definiciones y solo una vale**: por delante del corte más
+    **temprano** (`3utr:303`) la ventana se conserva en las dos isoformas; por delante del
+    más tardío (`3utr:323`) admite ventanas **de dentro de la banda de 20 nt**, que
+    `polya_risk` clasifica `PENALIZADO`, no `NO_APLICA`. Llamar inmune a una de la banda
+    es inventarse una precisión que no hay.
+  - **Con el criterio estricto y 50 nt de espaciado caben CUATRO inmunes, no cinco**:
+    `3utr:10`, `60`, `143` y `221`. Es un hecho geométrico del 3'UTR —los 20 sitios
+    elegibles por delante de 303 se apelotonan—, no una limitación del código, y hay un
+    test que lo fija. La quinta plaza **se declara sin llenar** en vez de rellenarse con
+    un candidato de más abajo, que sería otro riesgo y no el que la cuota compra.
 - **El sesgo de baja complejidad está DESCARTADO** como explicación del score de
   miRarchitect: correlación carrera máxima / score `r = +0,154` sobre las 24, y
   homopolímeros de 4 o más repartidos 5/15 entre los mejores y 3/9 entre los peores — el
@@ -401,6 +443,14 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   — FAIL solo contra la lista curada de abundantes, aviso contra el resto) y carga de
   off-targets por seed (`seed_load.py`, un número comparativo, nunca un veredicto). No
   hay ninguna lista de miARN escrita en el código y un test lo comprueba.
+- **El casete que se pasa tiene que ser lo que la célula MADURA** (`transgene.py`). Si el
+  casete lleva el módulo del shmiR y se pasa el **genoma con el intrón dentro**, toda guía
+  da impacto contra **su propia horquilla**: el filtro tumba el panel entero por un
+  artefacto, con un motivo que además es literalmente cierto, así que no se ve. Se detecta
+  **por secuencia** —el loop de los andamios conocidos— y se avisa en el informe. El
+  casete de hoy (`aav_casete.fa`, pAAV_G130E_W144Y_mouse_PrP_4xmiR-183T, 5282 pb) es el
+  **parental sin módulo**, comprobado, y el informe también lo dice: por eso su veredicto
+  se puede leer tal cual.
 - **El transgén es una segunda base de especificidad**: `filter_transgene` con el casete
   AAV. FAIL con 0 o 1 desapareamiento, porque una guía a un solo desapareamiento apaga
   la construcción terapéutica casi igual que a su diana — y eso sería un fallo
@@ -627,12 +677,10 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 
 | Fichero | Qué desbloquea | Flag |
 |---|---|---|
-| `data/reference/*.fa` | los dos 3'UTR de referencia (15 tests saltados) | — |
 | RefSeq RNA versionado | especificidad | `--refseq` |
 | `mature.fa` de miRBase | colisión de seed, nivel aviso | `--mirbase` |
 | lista de MirGeneDB | colisión de seed, nivel FAIL | `--abundancia` |
 | 3'UTR del transcriptoma | carga de off-targets por seed | `--transcriptoma-3utr` |
 | máscara rmsk de ratón | elementos repetitivos | `--rmsk` |
-| casete AAV completo | filtro del transgén | `--transgen` |
 | PolyA_DB / PolyASite | APA medido en vez de predicho | `--apa-medido` |
 | tabla de expresión | ponderar la carga de seed | `--expresion` |

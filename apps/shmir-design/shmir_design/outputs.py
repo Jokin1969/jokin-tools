@@ -22,6 +22,7 @@ from .accessibility import CONTEXT_WINDOWS, DISCREPANCY
 from .filters import FilterState, Verdict
 from .folding import VIENNA_AVAILABLE
 from .coords import Frame, frame_of, label, span
+from .transgene import carries_scaffold_module
 from .mirna import SEED_SPACE
 from .polya import rtqpcr_amplicons
 from .reference import ReferenceTranscript
@@ -44,6 +45,20 @@ from .specificity import (
 from .tiling import TilingReport
 
 FASTA_WRAP = 60
+
+
+def _envolver(texto: str, ancho: int) -> list[str]:
+    """Parte un parrafo largo en lineas, sin cortar palabras."""
+    palabras, lineas, actual = texto.split(), [], ""
+    for palabra in palabras:
+        if actual and len(actual) + 1 + len(palabra) > ancho:
+            lineas.append(actual)
+            actual = palabra
+        else:
+            actual = f"{actual} {palabra}".strip()
+    if actual:
+        lineas.append(actual)
+    return lineas
 
 
 def _tsv(rows: list[list[str]]) -> str:
@@ -211,6 +226,8 @@ def text_report(
     anatomy_warnings: tuple[str, ...] = (),
     notes: tuple[str, ...] = (),
     provenance: tuple[str, ...] = (),
+    convergence=None,
+    polya_conservation=None,
 ) -> str:
     lines = [
         f"═══ Diseño de shmiR — {species} ═══",
@@ -340,6 +357,51 @@ def text_report(
             + ("  riesgo_APA" if window.riesgo_APA else "")
         )
 
+    config = selection.selection.config
+    if config.apa_immune_quota or config.min_per_tercio > 1:
+        lines.extend(["", "── Reparto de plazas ──"])
+        cuotas = []
+        if config.require_one_per_tercio:
+            cuotas.append(f"{config.min_per_tercio} por tercio del 3'UTR")
+        if config.apa_immune_quota:
+            cuotas.append(
+                f"{config.apa_immune_quota} inmunes al corte de la señal proximal "
+                f"(empiezan por delante de {label(config.apa_immune_before, marco)})"
+            )
+        lines.append("  Cuotas DURAS de este panel: " + "; ".join(cuotas) + ".")
+        lines.append(
+            "  De donde salen esas plazas: el bloque «solo de fuente externa» "
+            "desaparecio por VACIO."
+        )
+        lines.append(
+            "  Contra el conjunto completo de sitios elegibles no queda ni un sitio "
+            "exclusivo de la"
+        )
+        lines.append(
+            "  fuente externa que supere nuestros filtros duros, asi que sus plazas se "
+            "reasignan a"
+        )
+        lines.append("  COBERTURA GEOGRAFICA.")
+        lines.append(
+            "  Por que a cobertura y no por asimetria: las causas de fallo son "
+            "regionales, no puntuales"
+        )
+        lines.append(
+            "  —un APA, un elemento repetitivo, un tramo estructurado afectan a una "
+            "REGION entera—, asi"
+        )
+        lines.append(
+            "  que con la prediccion SATURADA la unica variable que sigue comprando "
+            "independencia entre apuestas"
+        )
+        lines.append(
+            "  es el espaciado. Dos candidatos del mismo tramo con asimetrias distintas "
+            "siguen"
+        )
+        lines.append("  compartiendo modo de fallo.")
+        for fallo in selection.selection.quota_unfilled:
+            lines.append(f"    ⚠  {fallo}")
+
     lines.extend(["", "── Especificidad ──"])
     if tiling.specificity_db is None:
         lines.append(
@@ -443,19 +505,26 @@ def text_report(
             "  no una medida. Con una tabla de PolyA_DB o PolyASite (--apa-medido) "
             "dejaria de serlo."
         )
-        lines.append(
-            "  Ademas, esta señal NO ESTA CONSERVADA EN HUMANO — declarado por quien "
-            "lleva el"
-        )
-        lines.append(
-            "  proyecto y SIN COMPROBAR AQUI: no hay 3'UTR humano cargado en "
-            "data/reference/, asi"
-        )
-        lines.append(
-            "  que este informe no puede confirmarlo ni desmentirlo. Si se confirma, el "
-            "techo es un"
-        )
-        lines.append("  problema del modelo murino y no del candidato.")
+        if polya_conservation is not None:
+            lines.append("  Conservacion de esta señal en la otra especie:")
+            lines.extend(
+                f"    {l}"
+                for l in _envolver(polya_conservation.describe(), 84)
+            )
+            if not polya_conservation.conserved:
+                lines.append(
+                    "    Consecuencia: el techo es un problema del MODELO murino, no "
+                    "del candidato."
+                )
+        else:
+            lines.append(
+                "  Sobre si esta conservada en otra especie: NOT_RUN. No se ha pasado "
+                "ningun 3'UTR"
+            )
+            lines.append(
+                "  con el que comparar (--fasta-b), asi que este informe no lo "
+                "confirma ni lo desmiente."
+            )
         lines.append(
             f"  Su corte cae en {corte}. Un candidato que empiece por detras pierde su "
             f"diana en la"
@@ -564,6 +633,10 @@ def text_report(
             dominante,
             utr_length=tiling.sequence_length,
             frame=marco,
+            # Los amplicones se quedan DENTRO de lo que se ha analizado como 3'UTR: sin
+            # este limite, esquivar las dianas del panel empujaba el proximal hasta el
+            # CDS, y ahi ya no hay coordenada de 3'UTR que emitir.
+            first_position=desfase + 1,
             avoid=[
                 (
                     selection.window_of(c).window.start,
@@ -602,6 +675,10 @@ def text_report(
         )
         lines.append("")
         lines.extend(f"  {l}" for l in plan.describe(offset=desfase))
+
+    if convergence is not None:
+        lines.extend(["", "── Convergencia con la fuente externa ──"])
+        lines.extend(f"  {l}" for l in convergence.describe(offset=desfase))
 
     lines.extend(["", "── Que se ha analizado ──"])
     lines.append(
@@ -789,6 +866,9 @@ def text_report(
             f"{len(tiling.windows)}."
         )
         lines.append(f"  ⚠  {TRANSGENE_ORIENTATION_NOTE}")
+        modulo = carries_scaffold_module(tiling.transgene_db)
+        lines.extend(f"  {'⚠  ' if modulo.carries else ''}{l}"
+                     for l in _envolver(modulo.describe(), 88))
 
     lines.extend(
         [

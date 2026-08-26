@@ -305,13 +305,26 @@ class TestLoQueDiceElInforme(unittest.TestCase):
         self.assertIn("por ser canonica", bloque)
         self.assertIn("no por evidencia de uso", bloque)
 
-    def test_dice_que_no_esta_conservada_en_humano_y_quien_lo_declara(self):
+    def test_sin_otra_especie_la_conservacion_va_NOT_RUN(self):
+        # ACTUALIZADO 2026-08-26: dejo de ser «declarado y sin comprobar aqui» cuando
+        # llego el 3'UTR humano. Ahora hay dos estados y ninguno es una declaracion:
+        # sin --fasta-b, NOT_RUN; con el, COMPROBADO. Esta corrida es de una sola
+        # especie, asi que NOT_RUN — y NOT_RUN no dice que no este conservada.
         bloque = self.texto.lower()
-        self.assertIn("no esta conservada en humano", bloque)
-        # Declarado por quien lleva el proyecto, NO comprobado en este repositorio: no
-        # hay fixture humano cargado, y decirlo como hecho propio seria inventarlo.
-        self.assertIn("declarado", bloque)
-        self.assertIn("sin comprobar aqui", bloque)
+        self.assertIn("conservada en otra especie: not_run", bloque)
+        self.assertNotIn("no esta conservada", bloque)
+
+    def test_y_con_la_otra_especie_lo_COMPRUEBA(self):
+        from shmir_design.polya import signal_conservation
+        from shmir_design.reference import REFERENCES, fixture_available, load_3utr
+
+        if not fixture_available(REFERENCES["NM_000311.5"]):
+            self.skipTest("NOT_RUN: falta el fixture humano")
+        resultado = signal_conservation(
+            "AATAAA", load_3utr(REFERENCES["NM_000311.5"]), other_name="humano"
+        )
+        self.assertFalse(resultado.conserved)
+        self.assertIn("COMPROBADO", resultado.describe())
 
     def test_los_tres_inmunes_salen_nombrados(self):
         # Con un solo inmune el panel depende de un supuesto; con tres, no.
@@ -533,3 +546,55 @@ class TestPrimeroLoPublicadoYLuegoElBanco(unittest.TestCase):
 
     def test_dice_que_entonces_el_experimento_seria_CONFIRMACION(self):
         self.assertIn("confirmacion", self.texto.lower())
+
+
+@unittest.skipUnless(RATON.is_file(), "NOT_RUN: falta data/reference/NM_011170.3.fa")
+class TestElAmpliconNoSeSaleDeLaRegionAnalizada(unittest.TestCase):
+    """Regresion: esquivar las dianas empujaba el proximal fuera del 3'UTR.
+
+    Con un panel de 10 y cinco inmunes, la region proximal se llena de dianas y el
+    amplicon proximal se iba deslizando aguas arriba hasta meterse en el CDS. Ahi ya no
+    hay coordenada de 3'UTR: restar el desfase daba `-120`. Lo cazo el invariante de
+    `coords.Position` (1-based), no un test.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.utr3 = _utr3()
+        cls.signals = find_polya_signals(cls.utr3)
+        cls.señal = [s for s in cls.signals if s.position == 288][0]
+
+    def test_con_la_region_llena_el_amplicon_se_queda_dentro(self):
+        estorbo = [(p, p + 21) for p in range(1, 288, 25)]
+        plan = rtqpcr_amplicons(
+            self.señal, utr_length=len(self.utr3), avoid=estorbo, first_position=1
+        )
+        self.assertGreaterEqual(plan.proximal.start, 1)
+
+    def test_y_lo_dice_cuando_no_puede_esquivar(self):
+        estorbo = [(p, p + 21) for p in range(1, 288, 25)]
+        plan = rtqpcr_amplicons(
+            self.señal, utr_length=len(self.utr3), avoid=estorbo, first_position=1
+        )
+        self.assertTrue(plan.proximal.overlaps)
+
+    def test_first_position_corre_el_limite(self):
+        plan = rtqpcr_amplicons(
+            self.señal, utr_length=len(self.utr3), first_position=30
+        )
+        self.assertGreaterEqual(plan.proximal.start, 30)
+
+    def test_si_el_limite_no_deja_sitio_ABORTA(self):
+        # Con first_position=200 el amplicon de 120 nt tendria que acabar en 319, y el
+        # hexamero esta en 288: no cabe. Se aborta en vez de proponer un tramo que pisa
+        # la señal.
+        with self.assertRaises(ValueError):
+            rtqpcr_amplicons(
+                self.señal, utr_length=len(self.utr3), first_position=200
+            )
+
+    def test_un_first_position_invalido_aborta(self):
+        with self.assertRaises(ValueError):
+            rtqpcr_amplicons(
+                self.señal, utr_length=len(self.utr3), first_position=0
+            )

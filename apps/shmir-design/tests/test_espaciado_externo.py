@@ -35,18 +35,36 @@ class TestMismoSitio(unittest.TestCase):
     def test_dos_ventanas_a_2_nt_son_el_mismo_sitio(self):
         self.assertTrue(same_site(221, 223, spacing=SITE_SPACING))
 
-    def test_dos_ventanas_a_50_nt_todavia_lo_son(self):
-        # El espaciado es el MINIMO exigido: a exactamente 50 no se cumple.
-        self.assertTrue(same_site(221, 271, spacing=50))
+    def test_a_exactamente_50_nt_ya_son_sitios_distintos(self):
+        # CORREGIDO: el espaciado es el minimo EXIGIDO, asi que a exactamente 50 SI se
+        # cumple — es lo que hace la seleccion desde siempre (`respects_spacing`). Este
+        # modulo decia lo contrario, y el mismo par salia «dos candidatos» para la
+        # seleccion y «el mismo sitio» para el analisis de espaciado. Ahora `same_site`
+        # es la negacion exacta de aquel criterio y no pueden separarse.
+        self.assertFalse(same_site(221, 271, spacing=50))
 
-    def test_a_51_nt_ya_son_sitios_distintos(self):
-        self.assertFalse(same_site(221, 272, spacing=50))
+    def test_a_49_nt_son_el_mismo_sitio(self):
+        self.assertTrue(same_site(221, 270, spacing=50))
 
     def test_da_igual_el_orden(self):
         self.assertEqual(same_site(221, 223, spacing=50), same_site(223, 221, spacing=50))
 
     def test_el_espaciado_por_defecto_es_el_del_proyecto(self):
         self.assertEqual(SITE_SPACING, 50)
+
+
+class TestLasDosDefinicionesNoPuedenSepararse(unittest.TestCase):
+    """`same_site` y el criterio de la seleccion son la misma regla, negada."""
+
+    def test_son_negacion_exacta_en_todo_el_rango(self):
+        from shmir_design.selection import respects_spacing
+
+        for distancia in range(0, 120):
+            with self.subTest(distancia):
+                self.assertEqual(
+                    same_site(100, 100 + distancia, spacing=50),
+                    not respects_spacing(100, 100 + distancia, spacing=50),
+                )
 
 
 class TestConflictos(unittest.TestCase):

@@ -1384,11 +1384,15 @@ class Amplicon:
     def describe(self, *, frame: Frame, offset: int = 0) -> str:
         """Una linea con el espacio de coordenadas PEGADO, y las dos parejas si hay dos."""
         aviso = f"  ⚠  solapa {', '.join(self.overlaps)}" if self.overlaps else ""
-        doble = (
-            f" ({span(self.start - offset, self.end - offset, Frame.UTR3)})"
-            if offset
-            else ""
-        )
+        # Un amplicon puede caer POR DELANTE del 3'UTR —es una diana valida para medir
+        # el total, esta en las dos isoformas— y entonces NO tiene coordenada de 3'UTR:
+        # restarle el desfase daria un numero negativo, que es una posicion inventada.
+        if offset and self.start - offset < 1:
+            doble = " (POR DELANTE del 3'UTR: no tiene coordenada de 3'UTR)"
+        elif offset:
+            doble = f" ({span(self.start - offset, self.end - offset, Frame.UTR3)})"
+        else:
+            doble = ""
         return (
             f"{self.role}: {span(self.start, self.end, frame)}{doble} "
             f"({self.length} nt). {self.rationale}{aviso}"
@@ -1451,6 +1455,11 @@ class AmpliconPlan:
             "  Ese gen se elige con su cita — aqui no se propone ninguno, porque "
             "nombrarlo de memoria",
             "  seria inventarse la referencia que lo respalda.",
+            "    control_positivo_ensayo: NOT_RUN — falta el gen de control con su "
+            "cita. NOT_RUN no es",
+            "    PASS: mientras no lo aporte alguien, el ensayo no se puede leer, "
+            "porque su resultado",
+            "    esperado y el de un ensayo averiado son el mismo.",
             "  fraccion_isoforma_larga = razon distal/proximal. Ese numero ES el techo "
             "de knockdown",
             "  de los candidatos que quedan por detras del corte.",
@@ -1510,6 +1519,7 @@ def rtqpcr_amplicons(
     *,
     utr_length: int,
     frame: Frame = Frame.UTR3,
+    first_position: int = 1,
     avoid: list[tuple[int, int]] | tuple[tuple[int, int], ...] = (),
     length: int = RTQPCR_AMPLICON_LENGTH,
     margin: int = RTQPCR_MARGIN,
@@ -1528,16 +1538,22 @@ def rtqpcr_amplicons(
     # nt de una diana no deja sitio ni para el cebador.
     evitar = tuple((int(a) - margin, int(b) + margin) for a, b in avoid)
 
+    if first_position < 1:
+        raise ValueError(
+            f"first_position={first_position} invalido: es la primera posicion de la "
+            f"region en la que se puede poner un amplicon, 1-based; se aborta."
+        )
     proximal = _place_amplicon(
         role="proximal",
-        earliest=1,
+        earliest=first_position,
         latest=signal.position - margin - length,
         length=length,
         downstream=False,
         avoid=evitar,
         rationale=(
             f"entero por delante de {signal.motif}@{label(signal.position, frame)} "
-            f"(holgura {margin} nt): presente en las DOS isoformas, mide el total."
+            f"(holgura {margin} nt) y dentro de la region analizada: presente en las "
+            f"DOS isoformas, mide el total."
         ),
     )
     distal = _place_amplicon(
@@ -1560,4 +1576,88 @@ def rtqpcr_amplicons(
         cut_band=banda,
         utr_length=utr_length,
         frame=frame,
+    )
+
+
+# ─── ¿Esta conservada la señal en la otra especie? ───────────────────────────
+#
+# La pregunta se contesta con lo que se PUEDE contestar sin alinear dos especies: si el
+# 3'UTR de la otra especie no contiene NI UNA vez el hexamero, la señal no tiene homologo
+# posible. Es mas fuerte que un alineamiento y no depende de donde caiga.
+#
+# Lo que no se hace es alinear raton contra humano con `alignment.py`: ese modulo usa
+# difflib sobre dos versiones casi identicas de la MISMA secuencia. Entre especies daria
+# un alineamiento sin sentido con pinta de resultado.
+
+
+@dataclass(frozen=True)
+class SignalConservation:
+    motif: str
+    other_name: str
+    other_length: int
+    occurrences: tuple[PolyASignal, ...]
+    apa_elsewhere: tuple[PolyASignal, ...]
+
+    @property
+    def conserved(self) -> bool:
+        """¿Aparece el hexamero, aunque sea una vez, en la otra especie?"""
+        return bool(self.occurrences)
+
+    def describe(self) -> str:
+        cabecera = (
+            f"COMPROBADO sobre {self.other_name}, {self.other_length} nt: "
+            f"{len(self.occurrences)} aparicion(es) de {self.motif}."
+        )
+        if self.conserved:
+            cuerpo = (
+                " La señal SI aparece en la otra especie: "
+                + ", ".join(label(s.position, Frame.UTR3) for s in self.occurrences)
+                + ". Que aparezca no dice que sea la MISMA señal —eso necesitaria un"
+                " alineamiento— pero descarta que no exista."
+            )
+        else:
+            cuerpo = (
+                f" La señal NO esta conservada: el 3'UTR de {self.other_name} no "
+                f"contiene {self.motif} ni una sola vez, asi que no hay homologo "
+                f"posible. No hace falta alinear para decirlo."
+            )
+        matiz = ""
+        if self.apa_elsewhere:
+            matiz = (
+                " OJO: eso NO SIGNIFICA QUE la otra especie este libre de "
+                "poliadenilacion alternativa. Tiene "
+                + ", ".join(
+                    f"{s.motif} en {label(s.position, Frame.UTR3)}"
+                    for s in self.apa_elsewhere
+                )
+                + f" clasificada(s) {SignalClass.APA_POSSIBLE.value}: el riesgo no esta "
+                f"conservado COMO ESE HEXAMERO, que es otra cosa."
+            )
+        return cabecera + cuerpo + matiz
+
+
+def signal_conservation(
+    motif: str, other_utr3: str | None, *, other_name: str
+) -> SignalConservation:
+    """¿Aparece `motif` en el 3'UTR de la otra especie? Y que APA tiene ella."""
+    if motif.upper() not in ALL_SIGNALS:
+        raise ValueError(
+            f"{motif!r} no es una señal de poliadenilacion conocida; se aborta la "
+            f"comprobacion de conservacion."
+        )
+    if not other_name or not other_name.strip():
+        raise ValueError(
+            "Hay que decir en QUE secuencia se comprueba la conservacion: «no esta "
+            "conservada» sin nombrar la otra especie no es un resultado. Se aborta."
+        )
+    limpia = normalize_sequence(other_utr3, name=f"3'UTR de {other_name}")
+    señales = find_polya_signals(limpia)
+    return SignalConservation(
+        motif=motif.upper(),
+        other_name=other_name,
+        other_length=len(limpia),
+        occurrences=tuple(s for s in señales if s.motif == motif.upper()),
+        apa_elsewhere=tuple(
+            s for s in señales if s.classification is SignalClass.APA_POSSIBLE
+        ),
     )

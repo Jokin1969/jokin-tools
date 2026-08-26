@@ -235,6 +235,83 @@ def conectar_desde_manifiesto(args, estado) -> None:
     print()
 
 
+def _conservacion_polya(especie: str, secuencias: dict, anatomias: dict):
+    """¿Esta la señal canonica en el 3'UTR de la OTRA especie de esta corrida?
+
+    Solo se puede contestar si hay dos especies (--fasta-b). Con una sola devuelve None
+    y el informe lo dice como NOT_RUN, no como «no esta conservada»: no haber comparado
+    y haber comparado sin encontrarla son cosas distintas.
+    """
+    from shmir_design.polya import CANONICAL_SIGNAL, signal_conservation
+
+    otras = [n for n in secuencias if n != especie]
+    if len(otras) != 1:
+        return None
+    otra = otras[0]
+    anatomia = anatomias[otra]
+    if not anatomia.utr3:
+        return None
+    utr3 = secuencias[otra][anatomia.utr3[0] - 1 : anatomia.utr3[1]]
+    return signal_conservation(CANONICAL_SIGNAL, utr3, other_name=otra)
+
+
+def _convergencia(ruta: Path, *, tiling, seleccion):
+    """Cruza el export externo con NUESTROS sitios elegibles, por secuencia.
+
+    La referencia es el conjunto COMPLETO de sitios elegibles, no los elegidos: contra
+    un subconjunto casi todo parece nuevo. Va escrita en la salida.
+    """
+    from shmir_design.coords import Frame, frame_of
+    from shmir_design.mirarchitect import parse_export
+    from shmir_design.selection import is_eligible
+    from shmir_design.spacing import ReferenceSet, compare_sites, convergence
+
+    export = parse_export(ruta.read_text(encoding="utf-8"), source=str(ruta))
+    # El cruce va por SECUENCIA, nunca por la coordenada que declara el fichero: las
+    # ventanas tiladas ya traen su diana, asi que la diana externa se busca entre ellas.
+    por_diana: dict[str, int] = {}
+    for ventana in tiling.windows:
+        por_diana.setdefault(ventana.evaluation.sequence, ventana.window.start)
+    tabla = str.maketrans("ACGT", "TGCA")
+    externos: dict[int, str] = {}
+    sin_mapear = 0
+    for fila in export.rows:
+        diana = fila.guide.translate(tabla)[::-1]
+        inicio = por_diana.get(diana)
+        if inicio is None:
+            sin_mapear += 1
+            continue
+        externos[inicio] = fila.guide
+    if not externos:
+        raise ShmirDesignError(
+            f"Ninguna de las {len(export.rows)} guias de {ruta} mapea sobre la "
+            f"secuencia analizada; se aborta el bloque de convergencia en vez de "
+            f"declarar «cero sitios exclusivos» sobre un cruce vacio."
+        )
+    sitios = {
+        sitio.best.start: seleccion.windows[sitio.best.label].evaluation.guide
+        for sitio in seleccion.selection.sites
+    }
+    marco = frame_of(tiling.anatomy) if tiling.anatomy is not None else Frame.UTR3
+    comparacion = compare_sites(
+        candidates=externos,
+        reference=ReferenceSet(
+            label=f"los {len(sitios)} sitios elegibles (la tabla COMPLETA)",
+            starts=sitios,
+            frame=marco,
+        ),
+    )
+    return convergence(
+        comparacion,
+        eligible={w.window.start for w in tiling.windows if is_eligible(w)},
+        method_a="nuestra cascada de filtros duros",
+        method_b=(
+            f"fuente externa ({ruta.name}, {len(export.rows)} filas, "
+            f"{sin_mapear} sin mapear)"
+        ),
+    )
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -263,6 +340,38 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--name-b", default="especie_b", help="Nombre para --fasta-b")
     parser.add_argument("--candidates", type=int, default=SelectionConfig().n_candidates)
+    parser.add_argument(
+        "--min-por-tercio", type=int, default=SelectionConfig().min_per_tercio,
+        help=(
+            "Minimo de candidatos por tercio del 3'UTR. Las causas de fallo son "
+            "regionales, no puntuales."
+        ),
+    )
+    parser.add_argument(
+        "--inmunes", type=int, default=0,
+        help=(
+            "Minimo de candidatos INMUNES al truncamiento: los que empiezan por delante "
+            "del corte de la señal proximal. Necesita --inmunes-antes."
+        ),
+    )
+    parser.add_argument(
+        "--inmunes-antes", type=int, default=None,
+        help=(
+            "Posicion (en el marco de lo tilado) del corte mas tardio de la señal "
+            "proximal. Un candidato que empiece por delante se conserva en las dos "
+            "isoformas."
+        ),
+    )
+    parser.add_argument(
+        "--convergencia", type=Path, default=None,
+        help=(
+            "Export de la fuente externa (CSV de miRarchitect) para declarar en el "
+            "informe la convergencia con nuestra cascada. Se cruza por SECUENCIA, y "
+            "SOLO contra la especie de --name: un export de raton no mapea sobre el "
+            "3'UTR humano, y cruzarlo daria un «cero sitios exclusivos» sobre un cruce "
+            "vacio. Para la segunda especie hace falta su propio export."
+        ),
+    )
     parser.add_argument("--min-spacing", type=int, default=SelectionConfig().min_spacing)
     parser.add_argument("--scaffold", type=Path, help="Andamio en TOML")
     parser.add_argument("--seeds", type=Path, help="Tabla de seeds `seed familia`")
@@ -603,6 +712,9 @@ def main(argv: list[str]) -> int:
         config = SelectionConfig(
             n_candidates=args.candidates,
             min_spacing=args.min_spacing,
+            min_per_tercio=args.min_por_tercio,
+            apa_immune_quota=args.inmunes,
+            apa_immune_before=args.inmunes_antes,
             region_quota=(
                 parse_cuota_region(args.cuota_region) if args.cuota_region else None
             ),
@@ -766,11 +878,20 @@ def main(argv: list[str]) -> int:
                 thresholds=thresholds,
             )
             seleccion = select_from_report(tiling, config)
+            convergencias = {}
+            if args.convergencia is not None and especie == args.name:
+                convergencias[especie] = _convergencia(
+                    args.convergencia, tiling=tiling, seleccion=seleccion
+                )
             informe = text_report(
                 species=especie,
                 tiling=tiling,
                 selection=seleccion,
                 scaffold=scaffold,
+                convergence=convergencias.get(especie),
+                polya_conservation=_conservacion_polya(
+                    especie, secuencias, anatomias
+                ),
                 transcript=transcripts[especie],
                 conservation=conservation,
                 anatomy_warnings=avisos_anatomia[especie],

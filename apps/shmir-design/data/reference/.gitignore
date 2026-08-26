@@ -22,8 +22,18 @@
 !NM_011170.3.gb
 !mirarchitect_prnp_raton.tsv
 
+# Y los dos del humano, con el mismo criterio: 2,5 kB de FASTA y 19 kB de GenBank son
+# registros publicos de NCBI, no una base de datos. Con ellos dentro dejan de saltarse
+# los tests del fixture humano para quien clone el repositorio.
+!NM_000311.5.fa
+!NM_000311.5.gb
+
 # Y el fixture NEGATIVO: 1,2 kB. Es la prueba material de la errata nº 5 y lo que hace
 # que su test pueda correr. Sin el, el test se salta y la errata deja de estar cubierta.
 !prnp_3utr_fabricado_1246nt.txt
 !mirarchitect_prnp_export.csv
 !mirarchitect_prnp_export_buena.csv
+
+# El casete AAV NO entra: es material de laboratorio sin publicar, y la regla de que los
+# datos no se versionan existe tambien para eso. Queda registrado en el manifiesto con
+# su md5, que es lo que hace auditable el veredicto sin publicar la secuencia.

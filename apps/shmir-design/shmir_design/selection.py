@@ -63,6 +63,17 @@ class SelectionConfig:
     #: Reparte los elegidos por los extremos de los parametros dudosos en vez de coger
     #: los N mejores por asimetria. Ver `COVERAGE_AXES`.
     spread_coverage: bool = False
+    #: Minimo de candidatos POR TERCIO del 3'UTR. Generaliza `require_one_per_tercio`,
+    #: que sigue mandando: con `require_one_per_tercio=False` no hay cuota por tercio.
+    #: Existe porque las causas de fallo son REGIONALES, no puntuales: cinco candidatos
+    #: en el mismo tramo comparten modo de fallo aunque tengan asimetrias distintas.
+    min_per_tercio: int = 1
+    #: Minimo de candidatos INMUNES al truncamiento por la señal proximal, y la posicion
+    #: por delante de la cual hay que empezar para serlo (el corte mas tardio de esa
+    #: señal, en el marco de LO TILADO). Las dos van juntas: pedir «cinco inmunes» sin
+    #: decir inmunes A QUE no significa nada.
+    apa_immune_quota: int = 0
+    apa_immune_before: int | None = None
 
     def __post_init__(self) -> None:
         if self.n_candidates < 1:
@@ -73,6 +84,41 @@ class SelectionConfig:
         if self.min_spacing < 0:
             raise ValueError(
                 f"min_spacing={self.min_spacing} invalido; se aborta la seleccion."
+            )
+        if self.min_per_tercio < 0:
+            raise ValueError(
+                f"min_per_tercio={self.min_per_tercio}: una cuota negativa no significa "
+                f"nada; se aborta la seleccion."
+            )
+        # Solo cuando alguien PIDE mas de uno por tercio. Con el valor por defecto (1)
+        # y un panel de menos de tres, el comportamiento de siempre se mantiene: nota y
+        # `quota_unfilled`, no abortar — hay tests que dependen de que un panel de 2
+        # salga con su aviso.
+        if (
+            self.require_one_per_tercio
+            and self.min_per_tercio > 1
+            and self.min_per_tercio * len(TERCIOS) > self.n_candidates
+        ):
+            raise ValueError(
+                f"min_per_tercio={self.min_per_tercio} sobre {len(TERCIOS)} tercios "
+                f"pide {self.min_per_tercio * len(TERCIOS)} candidatos y el panel es de "
+                f"{self.n_candidates}. Se aborta en vez de recortar la cuota en "
+                f"silencio: cuantos candidatos por tercio es una decision de diseño."
+            )
+        if self.apa_immune_quota < 0:
+            raise ValueError(
+                f"apa_immune_quota={self.apa_immune_quota} invalida; se aborta."
+            )
+        if self.apa_immune_quota and self.apa_immune_before is None:
+            raise ValueError(
+                f"Se piden {self.apa_immune_quota} candidatos inmunes pero no se dice "
+                f"inmunes A QUE: falta apa_immune_before, la posicion del corte mas "
+                f"tardio de la señal proximal. Se aborta."
+            )
+        if self.apa_immune_quota > self.n_candidates:
+            raise ValueError(
+                f"Se piden {self.apa_immune_quota} inmunes en un panel de "
+                f"{self.n_candidates}; se aborta."
             )
         if self.weak_polya_penalty < 0:
             raise ValueError(
@@ -174,8 +220,21 @@ def group_choices(choices: list[Choice]) -> list[Site]:
     return sites
 
 
+def respects_spacing(a: int, b: int, *, spacing: int) -> bool:
+    """El criterio del espaciado, en UN solo sitio.
+
+    `spacing` es el minimo EXIGIDO entre dos posiciones de inicio, asi que exactamente
+    esa distancia lo cumple. `spacing.same_site` es su negacion exacta y lo importa de
+    aqui: tener las dos definiciones por separado ya hizo que un par a 50 nt fuera dos
+    candidatos para la seleccion y el mismo sitio para el analisis de espaciado.
+    """
+    return abs(a - b) >= spacing
+
+
 def _respects_spacing(candidate: Choice, chosen: list[Choice], min_spacing: int) -> bool:
-    return all(abs(candidate.start - c.start) >= min_spacing for c in chosen)
+    return all(
+        respects_spacing(candidate.start, c.start, spacing=min_spacing) for c in chosen
+    )
 
 
 def _cuota_por_tercio(
@@ -308,6 +367,33 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
 
     ordenados = [s for s in ordenados if s.best.region is Region.UTR3]
 
+    # La cuota de INMUNES va primero: es la mas restrictiva —solo la cumple un tramo
+    # concreto del 3'UTR— y dejarla para el final la haria imposible de llenar en
+    # cuanto el espaciado se hubiera gastado en otra parte.
+    if config.apa_immune_quota:
+        inmunes = [
+            s for s in ordenados
+            if s.best.start <= config.apa_immune_before and id(s) not in usados
+        ]
+        puestos = 0
+        for sitio in inmunes:
+            if puestos >= config.apa_immune_quota:
+                break
+            if not _respects_spacing(sitio.best, chosen, config.min_spacing):
+                continue
+            chosen.append(sitio.best)
+            usados.add(id(sitio))
+            puestos += 1
+        if puestos < config.apa_immune_quota:
+            quota_unfilled.append(
+                f"inmunes al corte: se pedian {config.apa_immune_quota} candidato(s) "
+                f"que empezaran por delante de {config.apa_immune_before} y solo salen "
+                f"{puestos}. Habia {len(inmunes)} sitio(s) elegible(s) en ese tramo; "
+                f"los que faltan no cumplen el espaciado de {config.min_spacing} nt. "
+                f"No se rellena con candidatos de mas abajo: serian otro riesgo, no el "
+                f"que la cuota compra."
+            )
+
     if config.require_one_per_tercio:
         if config.n_candidates < len(TERCIOS):
             notes.append(
@@ -315,37 +401,41 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
                 f"{len(TERCIOS)}: la cuota de uno por tercio no cabe entera."
             )
         for tercio in TERCIOS:
-            if len(chosen) >= config.n_candidates:
-                quota_unfilled.append(
-                    f"tercio {tercio.value}: no quedaban plazas "
-                    f"({config.n_candidates} pedidas)."
+            ya = sum(1 for c in chosen if c.tercio is tercio)
+            for _ in range(max(0, config.min_per_tercio - ya)):
+                if len(chosen) >= config.n_candidates:
+                    quota_unfilled.append(
+                        f"tercio {tercio.value}: no quedaban plazas "
+                        f"({config.n_candidates} pedidas)."
+                    )
+                    break
+                del_tercio = [
+                    s for s in ordenados
+                    if s.best.tercio is tercio and id(s) not in usados
+                ]
+                if not del_tercio:
+                    quota_unfilled.append(
+                        f"tercio {tercio.value}: no hay ningun sitio elegible en ese "
+                        f"tercio."
+                    )
+                    break
+                elegido = next(
+                    (
+                        s for s in del_tercio
+                        if _respects_spacing(s.best, chosen, config.min_spacing)
+                    ),
+                    None,
                 )
-                continue
-            del_tercio = [
-                s for s in ordenados
-                if s.best.tercio is tercio and id(s) not in usados
-            ]
-            if not del_tercio:
-                quota_unfilled.append(
-                    f"tercio {tercio.value}: no hay ningun sitio elegible en ese tercio."
-                )
-                continue
-            elegido = next(
-                (
-                    s for s in del_tercio
-                    if _respects_spacing(s.best, chosen, config.min_spacing)
-                ),
-                None,
-            )
-            if elegido is None:
-                quota_unfilled.append(
-                    f"tercio {tercio.value}: hay {len(del_tercio)} sitio(s) elegible(s), "
-                    f"pero todos quedan a menos de {config.min_spacing} nt de un "
-                    f"candidato ya elegido (espaciado)."
-                )
-                continue
-            chosen.append(elegido.best)
-            usados.add(id(elegido))
+                if elegido is None:
+                    quota_unfilled.append(
+                        f"tercio {tercio.value}: hay {len(del_tercio)} sitio(s) "
+                        f"elegible(s), pero todos quedan a menos de "
+                        f"{config.min_spacing} nt de un candidato ya elegido "
+                        f"(espaciado)."
+                    )
+                    break
+                chosen.append(elegido.best)
+                usados.add(id(elegido))
 
     if config.spread_coverage:
         _spread(

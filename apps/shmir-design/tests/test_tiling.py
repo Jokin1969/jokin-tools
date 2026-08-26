@@ -19,6 +19,7 @@ from shmir_design.filters import FilterState, Verdict
 from shmir_design.masking import RepeatMask
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 from shmir_design.seeds import BOOTSTRAP_SEEDS
+from shmir_design.polya import PolyAMode
 from shmir_design.tiling import (
     independent_sites,
     tile_positions,
@@ -195,35 +196,95 @@ class TestInforme(unittest.TestCase):
 class TestConteosDeReferencia(unittest.TestCase):
     """Contadores sobre los 3'UTR reales, verificados por el responsable."""
 
-    def raton(self, seeds=None):
-        return tile_utr(load_3utr(REFERENCES["NM_011170.3"]), seeds=seeds)
+    #: Los conteos que verifico el responsable —302/96 en raton y 323/97 en humano—
+    #: salen con el criterio de polyA PERMISIVO, que es el que habia cuando se
+    #: verificaron: FAIL solo por detras del corte de la señal terminal, sin zona
+    #: prohibida de ±flanco. Coinciden EXACTAMENTE con la columna `permisivo` de la
+    #: tabla de los tres modos, en las dos especies, asi que no hay ninguna duda de con
+    #: que se calcularon.
+    #:
+    #: El defecto del proyecto es ESCALONADO desde el 2026-08-26, y con el salen 287/90
+    #: y 309/95. Los dos juegos de cifras se fijan aqui: el de referencia con su
+    #: criterio escrito, y el vigente. Cambiar los numeros de referencia para que pasen
+    #: con el criterio nuevo habria borrado la unica prueba de que el cambio de criterio
+    #: es lo que los mueve.
+    #: Estos tests no corrian: la clase se salta si falta CUALQUIER fixture, y el humano
+    #: no estaba. Llegaron los dos el 2026-08-26 y aparecio el desajuste.
+    def raton(self, seeds=None, modo=None):
+        return tile_utr(
+            load_3utr(REFERENCES["NM_011170.3"]), seeds=seeds,
+            **({"polya_mode": modo} if modo else {}),
+        )
 
-    def humano(self, seeds=None):
-        return tile_utr(load_3utr(REFERENCES["NM_000311.5"]), seeds=seeds)
+    def humano(self, seeds=None, modo=None):
+        return tile_utr(
+            load_3utr(REFERENCES["NM_000311.5"]), seeds=seeds,
+            **({"polya_mode": modo} if modo else {}),
+        )
 
-    def test_raton_solo_biofisicos(self):
-        report = self.raton()
+    def test_raton_solo_biofisicos_criterio_de_referencia(self):
+        report = self.raton(modo=PolyAMode.PERMISIVO)
         self.assertEqual(len(report.windows), 1221)
         self.assertEqual(report.biofisicos_ok(), 302)
         self.assertEqual(len(report.sites_biofisicos()), 96)
 
-    def test_humano_solo_biofisicos(self):
-        report = self.humano()
+    def test_humano_solo_biofisicos_criterio_de_referencia(self):
+        report = self.humano(modo=PolyAMode.PERMISIVO)
         self.assertEqual(len(report.windows), 1585)
         self.assertEqual(report.biofisicos_ok(), 323)
         self.assertEqual(len(report.sites_biofisicos()), 97)
 
+    def test_con_el_criterio_VIGENTE_las_cifras_son_otras(self):
+        raton, humano = self.raton(), self.humano()
+        self.assertEqual((raton.biofisicos_ok(), len(raton.sites_biofisicos())), (287, 90))
+        self.assertEqual((humano.biofisicos_ok(), len(humano.sites_biofisicos())), (309, 95))
+
+    def test_lo_que_separa_los_dos_juegos_es_SOLO_el_criterio_de_polyA(self):
+        # Si esto falla, el cambio de cifras NO es el criterio de polyA y hay que buscar
+        # una regresion de verdad en los otros cinco filtros biofisicos.
+        for especie in (self.raton, self.humano):
+            with self.subTest(especie.__name__):
+                permisivo = {
+                    w.window.start for w in especie(modo=PolyAMode.PERMISIVO).windows
+                    if w.biofisicos_ok
+                }
+                escalonado = {
+                    w.window.start for w in especie().windows if w.biofisicos_ok
+                }
+                self.assertTrue(escalonado < permisivo)
+                for inicio in permisivo - escalonado:
+                    ventana = [
+                        w for w in especie().windows if w.window.start == inicio
+                    ][0]
+                    fallan = [
+                        r.name for r in ventana.filters
+                        if r.state is FilterState.FAIL
+                    ]
+                    self.assertEqual(fallan, ["zona_prohibida_polyA"])
+
+    #: OJO con `aptas()`: hoy vale 0 en las dos especies, y ESO ES LA REGLA 3
+    #: funcionando, no una regresion. `aptas` cuenta veredicto PASS, y con
+    #: especificidad, repeticiones, colision de seed y transgen en NOT_RUN ningun
+    #: candidato puede aprobar. Cuando estos conteos se verificaron, el pipeline tenia
+    #: menos filtros externos. Lo que aquellas cifras querian fijar —cuantas ventanas
+    #: sobreviven a la lista de arranque de seeds— se mide sobre el contador biofisico
+    #: y el filtro de seed, que es lo que de verdad estaban contando.
+    def _pasan_seed(self, report) -> int:
+        return sum(
+            1 for w in report.windows
+            if w.biofisicos_ok and w.filter("seed").state is not FilterState.FAIL
+        )
+
     def test_el_raton_no_cambia_con_la_lista_de_arranque(self):
-        report = self.raton(seeds=BOOTSTRAP_SEEDS)
-        self.assertEqual(report.aptas(), 302)
-        self.assertEqual(len(report.sites_aptas()), 96)
+        report = self.raton(seeds=BOOTSTRAP_SEEDS, modo=PolyAMode.PERMISIVO)
+        self.assertEqual(self._pasan_seed(report), 302)
+        self.assertEqual(report.aptas(), 0)   # regla 3: hay filtros en NOT_RUN
 
     def test_el_humano_pierde_exactamente_una_ventana(self):
-        sin_seeds = self.humano()
-        con_seeds = self.humano(seeds=BOOTSTRAP_SEEDS)
-        self.assertEqual(con_seeds.aptas(), 322)
-        self.assertEqual(len(con_seeds.sites_aptas()), 96)
-        self.assertEqual(sin_seeds.biofisicos_ok() - con_seeds.aptas(), 1)
+        sin_seeds = self.humano(modo=PolyAMode.PERMISIVO)
+        con_seeds = self.humano(seeds=BOOTSTRAP_SEEDS, modo=PolyAMode.PERMISIVO)
+        self.assertEqual(self._pasan_seed(con_seeds), 322)
+        self.assertEqual(sin_seeds.biofisicos_ok() - self._pasan_seed(con_seeds), 1)
 
     def test_la_ventana_que_cae_es_la_de_1237(self):
         report = self.humano(seeds=BOOTSTRAP_SEEDS)
