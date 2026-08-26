@@ -4,6 +4,23 @@ Hub de utilidades. Node.js + Express, SQLite (`better-sqlite3`), frontend vanill
 deploy en Railway. Detalles de stack y variables de entorno en el `README.md` (ojo: su
 sección "Estructura" está desactualizada, la de abajo no).
 
+## Puede haber otro agente trabajando en este repo a la vez
+
+Este repo tiene varias sesiones/agentes trabajando en paralelo, normalmente en zonas
+distintas del Mapa de abajo. Para que las fusiones a `main` sigan siendo automáticas:
+
+- **Sincroniza con `origin/main` a menudo durante una rama larga**, no solo justo antes
+  de fusionar (`git fetch origin main && git merge origin/main` en tu rama de trabajo).
+  Cuanto más tiempo pase una rama sin tocar `main`, más grande es el diff a reconciliar
+  y más probable un choque de verdad. Si `git merge --ff-only` falla porque `main` avanzó,
+  NO es necesariamente un conflicto: mergea `origin/main` en tu rama, corre los tests, y
+  si no hay marcas `<<<<<<<` vuelve a intentar el fast-forward — no fuerces nada.
+- Los ficheros "columna vertebral" que cualquier app nueva toca —`server.js` (el mount) y
+  `apps/auth/apps-registry.js` (el array `APPS`)— son el único punto real de choque entre
+  agentes distintos. Añade tu entrada **al final del bloque que corresponda, sin reordenar
+  ni tocar entradas ajenas**: eso es lo que permite que Git fusione solo aunque otra
+  sesión edite el mismo fichero en paralelo.
+
 ## Mapa
 
 | Ruta | Qué es | Reglas |
