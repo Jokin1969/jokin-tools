@@ -40,15 +40,53 @@ SEPARATOR = ":"
 _MAX_UTR3: int | None = None
 
 
+#: Longitudes DECLARADAS para especies que no estan en `REFERENCES`. El techo global
+#: sale de las referencias del proyecto —hoy raton y humano—, asi que un 3'UTR de conejo
+#: mas largo que el humano ABORTABA. Eso no era un error del conejo: era la app con la
+#: anatomia del raton dentro. Se amplia DECLARANDO, con la especie, no adivinando.
+_DECLARED: dict[str, int] = {}
+
+
+def declare_utr3_length(length: int, *, species: str) -> None:
+    """Declara que la especie `species` tiene un 3'UTR de hasta `length` nt.
+
+    No es un parche del invariante: es lo que lo hace utilizable fuera del raton. El
+    techo sigue existiendo —una posicion que no cabe en NINGUN 3'UTR conocido sigue
+    abortando— pero ahora «conocido» incluye lo que se declara, con nombre.
+    """
+    if not isinstance(length, int) or isinstance(length, bool) or length < 1:
+        raise ValueError(
+            f"Longitud de 3'UTR {length!r} invalida: se aborta en vez de subir el techo "
+            f"con un numero que no lo es."
+        )
+    if not str(species).strip():
+        raise ValueError(
+            "Declarar una longitud sin decir DE QUE ESPECIE deja el techo subido y a "
+            "nadie a quien preguntarle por que. Se aborta."
+        )
+    global _MAX_UTR3
+    _DECLARED[str(species).strip()] = length
+    _MAX_UTR3 = None
+
+
+def reset_declared_lengths() -> None:
+    """Olvida las declaraciones. Existe para los tests y para empezar otro proyecto."""
+    global _MAX_UTR3
+    _DECLARED.clear()
+    _MAX_UTR3 = None
+
+
 def max_utr3() -> int:
-    """La longitud del 3'UTR mas largo que conoce el proyecto."""
+    """La longitud del 3'UTR mas largo que conoce el proyecto, referencias + declarado."""
     global _MAX_UTR3
     if _MAX_UTR3 is None:
         # Import perezoso: `coords` es el modulo mas bajo del paquete y `reference`
         # arrastra fetch y errores. Se resuelve una vez y se cachea.
         from .reference import REFERENCES
 
-        _MAX_UTR3 = max(r.utr3_length for r in REFERENCES.values())
+        _MAX_UTR3 = max(
+            [r.utr3_length for r in REFERENCES.values()] + list(_DECLARED.values())
+        )
     return _MAX_UTR3
 
 
@@ -58,8 +96,10 @@ def check_utr3_range(value: int, limit: int | None = None) -> None:
     if value > techo:
         raise ValueError(
             f"3utr:{value} no cabe en ningun 3'UTR conocido del proyecto: el mas largo "
-            f"mide {techo} nt. Casi seguro es una coordenada del TRANSCRITO etiquetada "
-            f"como 3'UTR (seria tx:{value}); el marco se saca de la anatomia con "
+            f"mide {techo} nt. Si estas con otra especie, declaralo con "
+            f"`coords.declare_utr3_length(n, species=...)`. Si no, casi seguro es una "
+            f"coordenada del TRANSCRITO etiquetada como 3'UTR (seria tx:{value}); el "
+            f"marco se saca de la anatomia con "
             f"coords.frame_of(), no se pone a mano. Se aborta en vez de imprimir una "
             f"posicion que no existe."
         )

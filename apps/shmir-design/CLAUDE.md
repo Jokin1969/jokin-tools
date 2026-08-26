@@ -1298,6 +1298,90 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     (`mmu-miR-5615-5p`) y la pasajera de `3utr:819` (`mmu-miR-136-5p`)—. Tres de veinte es
     el 15 % contra una tasa base del 10 %: **es lo que predice el azar**, y por eso la
     cifra va al lado.
+- **PERSISTENCIA: JSONL append-only por proyecto, NO SQLite. DECIDIDO (2026-08-26)**
+  (`store.py`). Se decide **antes** que nada de lo que guarda, para que los tres modales
+  escriban en el mismo sitio y no cada uno en el suyo:
+
+  ```
+  data/proyectos/<slug>/proyecto.json    la entrada: md5, longitud, especie, anatomia
+  data/proyectos/<slug>/registro.jsonl   el log APPEND-ONLY de todo lo demas
+  ```
+
+  - **Por qué no SQLite**, que también es stdlib y también sobrevive a la sesión: este
+    proyecto ya decidió que el manifiesto va en **texto y versionado** porque «un
+    veredicto no es auditable dentro de un año» si no se puede leer con `cat`. Un `.db`
+    binario no se diffea, no se grepea y no se lee sin la app — y el registro de un
+    veredicto tiene que sobrevivir **a la app que lo escribió**. Si algún día hacen falta
+    consultas de verdad, SQLite se construye DESDE este log; al revés no.
+  - **Un solo directorio y un solo log por proyecto.** Si cada modal abriera el suyo, la
+    ficha tendría que buscar en tres sitios y el día que se añada un cuarto se quedaría
+    fuera sin que nadie lo note. Es la misma lección de `offtarget_seed`: **un frente que
+    no se ve no existe.**
+  - **«Nada se sobrescribe» deja de ser una convención**: cada línea lleva el md5 de la
+    anterior, así que editar o borrar una vieja rompe la cadena y `verify()` lo dice
+    **con el número de línea**. Y lo que la cadena NO hace va escrito
+    (`WHAT_THE_CHAIN_DOES_NOT_DO`): no impide editar el fichero —nada lo impide, es un
+    fichero—, lo vuelve **visible**. Misma disciplina que el md5 del manifiesto.
+  - `RECORD_KINDS` está **cerrado** (`corrida_blast`, `corrida_seed`, `seleccion`,
+    `descarte`, `veredicto`, `nota`): si cada modal se inventa su etiqueta, el log deja de
+    poder leerse sin saber quién lo escribió.
+  - **La entrada preferente es el `.gb`, no la secuencia pelada.** Un FASTA se acepta,
+    pero entonces `Project.reliable` es falso y `why_unreliable` dice qué deja de valer:
+    **tercios, proximal/medio/distal y zonas de polyA** salen `NO_FIABLE`, porque todos
+    cuelgan de dónde empieza el 3'UTR. No es un aviso decorativo — sin frontera, «tercio
+    medio» no significa nada.
+- **Los fixtures por especie se DECLARAN, nunca se suponen** (`species.py`). `resolve()`
+  **no infiere** el prefijo de miRBase ni el taxid de un nombre: una especie que no está
+  declarada aborta en vez de fabricar `ory-` o un `txid` por patrón (regla 4 aplicada a
+  algo que no es una URL). `fixture_report(especie)` lista **frente por frente** si se
+  puede cerrar y, si no, **nombra el fichero concreto** que falta.
+  - **El fixture de una especie no vale para otra**, y eso ya está demostrado con datos:
+    es exactamente el caso de `rmsk_human` con biblioteca de ratón. `_WRONG_SPECIES_NOTE`
+    lo dice pegado al informe de disponibilidad, no en una nota aparte.
+  - Con conejo, hoy: **1 de 7** frentes cerrable. Los seis restantes nombran
+    `rmsk_oryctolagus_cuniculus.out`, `mature.fa` filtrado a su prefijo —**que no está
+    declarado**—, `transcriptoma_3utr_oryctolagus_cuniculus.fa`, datos de PolyA_DB para
+    esa especie y una base de RefSeq de *Oryctolagus cuniculus*.
+- **Lo que hoy tiene la anatomía del RATÓN metida por dentro** (auditoría 2026-08-26).
+  No son los ficheros —esos ya se sabe que faltan por especie— sino **constantes,
+  supuestos y valores por defecto**. Es la lista de lo que hay que tocar para correr otra
+  especie, y por tanto la lista de lo que aún no es una app:
+  - `coords.max_utr3()` valía 1606 **derivado de `reference.REFERENCES`**, o sea de las
+    dos especies que hay. Un 3'UTR de conejo de 1900 nt **abortaba**: el invariante de
+    rango, que existe para cazar coordenadas de transcrito, tumbaba una coordenada
+    legítima. Cerrado con `coords.declare_utr3_length(longitud, species=…)`: la longitud
+    real **se declara**, no se adivina ni se sube el techo a ojo.
+  - `manifest.ROLES` trae `rmsk_mouse.out` **escrito**: con otra especie el manifiesto
+    conecta el fichero equivocado por su rol. Es el mismo agujero que cierra
+    `RepeatMask.query_length` un nivel más abajo.
+  - **Prefijos y taxids por defecto**: `mirna.DEFAULT_PREFIXES = ("mmu-", "hsa-")`,
+    `seed_scan.SeedParams.species_prefix = "mmu-"`, `blast.BlastParams.entrez_query =
+    "txid10090"`. Y `specificity.TAXIDS` solo conoce ratón y humano — **aborta** con
+    cualquier otra, que es el comportamiento correcto, pero deja el frente cerrado a dos
+    especies.
+  - `mirna.CORE_ABUNDANT` son **diez miARN de cerebro murino**. Matiz que importa:
+    `CoreMember.matches` **quita el prefijo** antes de comparar, así que casa igual con
+    `ocu-let-7a-5p`. O sea, no está roto para otra especie — está **sin justificar**: la
+    autorización escrita habla de consenso del campo en cerebro **murino**.
+  - `blocks.PIECES` son **12 piezas literales** del plásmido de PrP murino
+    (`MluI`, `exon5`, `MVM5`, `espaciador5`, `NheI`, `contexto5`, `contexto3`, `SacI`,
+    `espaciador3`, `MVM3`, `exon3`, `AgeI`), y con ellas el módulo, el cassette, la hoja
+    de pedido, el control sin intrón y `splicing.locate_intron`. **Esto no es un valor por
+    defecto: es el vector concreto**, y para otra especie no se parametriza — se sustituye.
+  - `apa.POLYA_DB_PRNP` **no** está en esta lista: se aplica por md5 del 3'UTR
+    (`resolve_measured`), así que sobre otra secuencia devuelve `None` y no promueve nada.
+  - **Y lo que NO está metido, para no tocarlo**: `polya.ALL_SIGNALS` (los diez
+    hexámeros), `CLEAVAGE_MIN/MAX` (10-30 nt), `SIGNAL_FLANK` y los umbrales terminales
+    son **mamífero**, no murino. Los números 949 / 1242 / 2191 aparecen solo en
+    `reference.REFERENCES` —que es **dato**— y en docstrings; **en ninguna rama de código**.
+- **Dónde vive cada análisis de estos días** (auditoría 2026-08-26): el cruce con
+  miRarchitect (`spacing.compare_sites` + `convergence`), el anclaje de PolyA_DB
+  (`apa.anchor_polyadb`, `resolve_measured`) y el enmascarado con las corridas reales de
+  RepeatMasker (`masking.apply_mask` vía `tiling`) **están dentro**, con caller en
+  `tools/design.py` y en el informe. **La excepción es `masking.triple_motive_rows`**, que
+  hoy no tiene **ningún** caller fuera de sus tests: el detalle por ventana del triple
+  motivo se calculó y no se emite en ninguna salida. Mientras siga así, es un análisis que
+  se corre a mano aunque el código esté en la librería.
 - Los umbrales ajustables viven en `hard_filters.Thresholds`, con los valores
   verificados como defecto. Añadir un umbral nuevo significa añadirlo ahí y pasarlo,
   nunca leerlo de la UI.
