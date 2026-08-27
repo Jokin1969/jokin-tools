@@ -33,40 +33,28 @@ MAX_HOMOPOLYMER = 3
 MIN_ASYMMETRY = 0.5  # kcal/mol
 
 #: Motivo G-cuadruplex canonico: cuatro tramos de >=3 G separados por 1-7 nt.
-G4_PATTERN = re.compile(r"G{3,}[ACGUTN]{1,7}G{3,}[ACGUTN]{1,7}G{3,}[ACGUTN]{1,7}G{3,}")
 
-#: DE DONDE SALE ESTE FILTRO, porque preguntarlo era legitimo y la respuesta no estaba
-#: en ninguna conversacion.
+#: G4 SE RETIRÓ el 2026-08-27. Un regex de tres guaninas NO es un predictor de G-
+#: cuadruplex: la estructura es real y sí bloquea el acceso de RISC, pero formarla depende
+#: de ESTABILIDAD, no de coincidencia de motivo, y la mayoría de secuencias que casan el
+#: patrón no forman nada. La pregunta que contestaba es legítima; el criterio con el que
+#: la contestaba, no.
 #:
-#: `G4_diana`/`G4_guia` son el **paso 8 de `docs/pipeline.md`**, declarado «duro» desde
-#: el commit fundacional del proyecto (`ccb344a`). No es un filtro que se colara despues:
-#: viene en la tabla del pipeline con los demas. Lo que NO tiene —y eso si es un hueco—
-#: es una entrada en `justificacion.py`, y no por descuido del que la escribio: el test
-#: que exige justificacion recorre los campos de `Thresholds`, y el criterio de G4 no es
-#: un umbral sino una **expresion regular escrita a mano**, asi que se colo por debajo de
-#: la comprobacion.
+#: La arqueología entera está en `docs/procedencia-g4.md` y la errata en `docs/erratas.md`
+#: nº 9 — incluido el dato de que NUNCA excluyó a nadie (cero FAIL en 1221 ventanas de
+#: ratón y 1585 de humano) y por qué eso es PEOR: un filtro que rechaza se audita solo,
+#: uno que siempre aprueba no lo mira nadie.
 #:
-#: MEDIDO (2026-08-27) sobre el 3'UTR murino: **PASA las 2170 ventanas**, las dos
-#: variantes. Nunca ha excluido a nadie aqui, que es por lo que nadie lo miro.
-G4_PROVENANCE = (
-    "G4_diana/G4_guia son el paso 8 de docs/pipeline.md, declarado «duro» desde el "
-    "commit fundacional. Su criterio es una expresión regular escrita a mano y NO tiene "
-    "entrada en justificacion.py: el test que la exige recorre los campos de Thresholds "
-    "y esto no es un umbral, así que se colo por debajo. Sobre el 3'UTR murino pasa las "
-    "2170 ventanas: no ha excluido a nadie nunca."
+#: PARA VOLVER A ENTRAR hacen falta tres cosas por escrito: predictor con CITA, umbral con
+#: JUSTIFICACIÓN en `justificacion.py`, y decisión explícita de si es filtro duro o
+#: desempate. Voto de partida del responsable: desempate, nunca filtro.
+G4_WITHDRAWN = (
+    "El filtro G4 se retiró: un regex de tres guaninas no es un predictor de "
+    "G-cuadruplex. Para volver hace falta predictor con cita, umbral justificado y "
+    "decisión explícita de duro o desempate. Ver `docs/procedencia-g4.md`."
 )
 
-#: Que hay que decidir antes de que vuelva a emitir veredicto. La pregunta que contesta
-#: es LEGITIMA —una diana dentro de un G4 esta plegada y es inaccesible para RISC— pero
-#: eso no autoriza el criterio con el que se contesta hoy.
-G4_PENDING = (
-    "PENDIENTE DE DECISIÓN ESCRITA: hay que decidir (1) si es FILTRO DURO o DESEMPATE, "
-    "(2) que PREDICTOR se usa —esta expresión regular es el motivo canónico G3+N1-7 x4, "
-    "no un predictor de plegado: no mide estabilidad, no distingue paralelo de "
-    "antiparalelo y no mira el contexto—, y (3) con que justificacion de umbral, anotada "
-    "en justificacion.py como todos los demas. Hasta entonces NO emite veredicto: el "
-    "hallazgo se dice y no excluye a nadie."
-)
+
 @lru_cache(maxsize=None)
 def homopolymer_pattern(max_run: int) -> re.Pattern[str]:
     """Tramos de mas de `max_run` bases iguales seguidas."""
@@ -195,34 +183,6 @@ def filter_homopolymer(
     )
 
 
-def filter_g4(sequence: str, *, name: str = "G4_diana") -> FilterResult:
-    """Motivo G-cuadruplex. **NO emite veredicto**: ver `G4_PENDING`.
-
-    Sigue BUSCANDO y sigue DICIENDO lo que encuentra — dejar de mirar seria perder el
-    dato— pero sale `NOT_RUN`, que es lo que significa de verdad: el filtro no ha
-    llegado a correr como filtro porque su criterio no esta autorizado.
-
-    `PASS` habria sido peor que `FAIL`: diria que el filtro corrio y aprobo, y aqui no
-    ha decidido nadie. Es la misma distincion de la regla 3 entre «no lo supera» y «no
-    he podido comprobarlo».
-    """
-    cleaned = "".join(str(sequence).split()).upper()
-    match = G4_PATTERN.search(cleaned)
-    hallazgo = (
-        "Sin motivo G-cuadruplex canónico (4 tramos de >=3 G separados por 1-7 nt)."
-        if match is None
-        else (
-            f"Motivo G-cuadruplex canónico {match.group(0)} en la posición "
-            f"{match.start() + 1}."
-        )
-    )
-    return FilterResult(
-        name=name,
-        state=FilterState.NOT_RUN,
-        reason=f"{hallazgo} {G4_PENDING} {G4_PROVENANCE}",
-    )
-
-
 def filter_asymmetry(
     guide: str,
     model: AsymmetryModel | None = turner_asymmetry,
@@ -318,7 +278,7 @@ def evaluate_window(
                 # TSV descuadrado no da ningún error — sólo un fichero equivocado, que es
                 # el mismo fallo que aborta `Block.__post_init__` en el informe.
                 for name in (
-                    "GC", "homopolimero", "G4_diana", "G4_guia", "asimetria",
+                    "GC", "homopolimero", "asimetria",
                 )
             ),
             offset=offset,
@@ -331,8 +291,6 @@ def evaluate_window(
         filters=(
             filter_gc(cleaned, thresholds),
             filter_homopolymer(cleaned, thresholds),
-            filter_g4(cleaned, name="G4_diana"),
-            filter_g4(guide, name="G4_guia"),
             filter_asymmetry(guide, asymmetry_model, thresholds),
         ),
         offset=offset,

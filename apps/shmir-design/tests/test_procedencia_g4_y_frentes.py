@@ -1,4 +1,7 @@
-"""Procedencia de G4, frentes que no lo son, y las dos reglas de la selección.
+"""Frentes que no lo son, las dos reglas de la selección, y el marco de las columnas.
+
+(La parte de G4 vivió aquí; el filtro se retiró el 2026-08-27 — ver `test_g4_fuera.py`,
+`docs/procedencia-g4.md` y la errata nº 9.)
 
 Regla 5: escritos antes.
 
@@ -42,54 +45,6 @@ def _entrada():
     )
 
 
-class TestG4NoEmiteVeredictoSinDECISION(unittest.TestCase):
-    """Un filtro duro con criterio sin justificar no puede excluir a nadie."""
-
-    def test_G4_sale_NOT_RUN_y_NUNCA_FAIL(self):
-        from shmir_design.hard_filters import filter_g4
-
-        # Una secuencia CON motivo G4 evidente. No es una diana inventada: es el patrón
-        # que la propia expresión regular describe, usado como sonda del filtro.
-        con_motivo = "GGGTTGGGTTGGGTTGGG"
-        resultado = filter_g4(con_motivo)
-        self.assertIs(resultado.state, FilterState.NOT_RUN)
-        self.assertIsNot(resultado.state, FilterState.FAIL)
-
-    def test_y_el_motivo_dice_QUE_FALTA_DECIDIR(self):
-        from shmir_design.hard_filters import G4_PENDING, filter_g4
-
-        self.assertIn("filtro duro", G4_PENDING.lower())
-        self.assertIn("desempate", G4_PENDING.lower())
-        self.assertIn("predictor", G4_PENDING.lower())
-        self.assertIn(G4_PENDING, filter_g4("GGGTTGGGTTGGGTTGGG").reason)
-
-    def test_el_hallazgo_SE_SIGUE_DICIENDO(self):
-        """No emitir veredicto no es dejar de mirar: el motivo nombra el motivo hallado."""
-        from shmir_design.hard_filters import filter_g4
-
-        self.assertIn("GGGTTGGGTTGGGTTGGG", filter_g4("GGGTTGGGTTGGGTTGGG").reason)
-
-    def test_sin_motivo_tambien_es_NOT_RUN_no_PASS(self):
-        """`PASS` diría que el filtro corrió y aprobó, y no ha corrido nadie."""
-        from shmir_design.hard_filters import filter_g4
-
-        self.assertIs(filter_g4("ACGTACGTACGTACGTACGTAC").state, FilterState.NOT_RUN)
-
-    def test_la_PROCEDENCIA_va_escrita(self):
-        from shmir_design.hard_filters import G4_PROVENANCE
-
-        self.assertIn("pipeline", G4_PROVENANCE.lower())
-        self.assertIn("justificacion", G4_PROVENANCE.lower())
-
-    def test_G4_ya_NO_cuenta_como_biofisico(self):
-        """Si contara, `biofisicos_ok` sería NOT_RUN para todas las ventanas."""
-        from shmir_design.filters import BIOPHYSICAL_FILTERS
-
-        self.assertNotIn("G4_diana", BIOPHYSICAL_FILTERS)
-        self.assertNotIn("G4_guia", BIOPHYSICAL_FILTERS)
-
-
-@unittest.skipUnless(HAY, "falta data/reference/NM_011170.3.fa")
 class TestUnFiltroBIOFISICO_NO_ES_UN_FRENTE(unittest.TestCase):
 
     @classmethod

@@ -158,7 +158,7 @@ class TestFilasDeTabla(unittest.TestCase):
         _, seleccion = piezas()
         filas = candidate_rows(seleccion)
         self.assertEqual(len(filas), len(seleccion.selection.chosen))
-        for filtro in ("GC", "homopolimero", "asimetria", "G4_diana", "G4_guia",
+        for filtro in ("GC", "homopolimero", "asimetria",
                        "zona_prohibida_polyA", "repeticiones", "seed"):
             with self.subTest(filtro):
                 self.assertIn(filtro, filas[0])

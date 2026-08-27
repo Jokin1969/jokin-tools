@@ -61,7 +61,7 @@ class TestBiofisicos(unittest.TestCase):
     def test_son_CUATRO_y_no_incluyen_la_seed_ni_los_G4(self):
         # CUATRO desde que los dos G4 dejaron de emitir veredicto: su criterio está
         # pendiente de decisión escrita, así que no pueden decidir si una ventana es
-        # elegible. Ver `hard_filters.G4_PENDING`.
+        # elegible. (G4 se retiró; ver `hard_filters.G4_WITHDRAWN`.)
         self.assertEqual(len(BIOPHYSICAL_FILTERS), 4)
         self.assertNotIn("seed", BIOPHYSICAL_FILTERS)
         self.assertIn("zona_prohibida_polyA", BIOPHYSICAL_FILTERS)

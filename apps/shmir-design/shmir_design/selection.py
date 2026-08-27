@@ -1743,7 +1743,7 @@ def blocking_fronts(
     de banco. Lo demas se cuenta en el semaforo, con las ventanas tiladas.
     """
     from .coords import Frame, frame_of, label
-    from .filters import BIOPHYSICAL_FILTERS, UNDECIDED_FILTERS
+    from .filters import BIOPHYSICAL_FILTERS
     from .polya import CLEAVAGE_MIN, SignalClass
 
     # Lo que NO abre frente, y por que cada uno:
@@ -1752,7 +1752,7 @@ def blocking_fronts(
     #   - los que estan PENDIENTES DE DECISION (`G4_*`): tampoco se cierran con un
     #     fichero. Lo que les falta es que alguien decida su criterio, y eso no tiene
     #     ficha de obtencion — tiene una entrada en `justificacion.py`.
-    sin_frente = BIOPHYSICAL_FILTERS | UNDECIDED_FILTERS
+    sin_frente = BIOPHYSICAL_FILTERS
     frentes = [
         BlockingFront(
             name=nombre,

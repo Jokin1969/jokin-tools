@@ -122,25 +122,14 @@ def status_light(selection: ReportSelection) -> StatusLight:
     # mismo fallo que tuvo la interfaz con sus tres parámetros.
     #
     # Y NO se esconden: salen aparte, con su nombre, en `undecided`.
-    from .filters import UNDECIDED_FILTERS
-
-    sin_decidir = sorted(
-        {
-            r.name
-            for choice in selection.selection.chosen
-            for r in selection.window_of(choice).filters
-            if r.name in UNDECIDED_FILTERS
-        }
-    )
-    nota_sin_decidir = (
-        f" Y {len(sin_decidir)} filtro(s) con el CRITERIO SIN DECIDIR "
-        f"({', '.join(sin_decidir)}): calculan y no emiten veredicto, así que no "
-        f"excluyen a nadie ni bloquean la aprobacion. Se decide por escrito, no se "
-        f"consigue un fichero."
-        if sin_decidir
-        else ""
-    )
-    conteos = {**conteos, "undecided": tuple(sin_decidir)}
+    #
+    # HOY NO HAY NINGUNO. El estado existió para G4 y se retiró con él (ver `filters.py`
+    # y `docs/procedencia-g4.md`). El campo `undecided` se queda —vacío— porque es parte
+    # del contrato de `StatusLight` y quien lo lee tiene que poder seguir leyéndolo; lo
+    # que se fue es el conjunto que lo llenaba.
+    sin_decidir: list[str] = []
+    nota_sin_decidir = ""
+    conteos = {**conteos, "undecided": ()}
     total = (
         len(selection.window_of(selection.selection.chosen[0]).filters)
         if selection.selection.chosen
@@ -164,7 +153,7 @@ def status_light(selection: ReportSelection) -> StatusLight:
             r.name
             for choice in selection.selection.chosen
             for r in selection.window_of(choice).filters
-            if r.state is FilterState.NOT_RUN and r.name not in UNDECIDED_FILTERS
+            if r.state is FilterState.NOT_RUN
         }
     )
     if not pendientes:
