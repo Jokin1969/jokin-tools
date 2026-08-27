@@ -591,6 +591,7 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
     CCTACTGCCTCGGACTTCAAGGGGCTAGAATTCGGAGCTCATGGATTTGTGTAAAGATCC
     AGTGCCTATGTATTGTTGGAAAGTATTTAATTACCTGGAGCACCTGCCTGAAATCACTTT
     TTTTCAGGTTGGACCGGT
+  ⚠  No está el plásmido SGEP depositado, así que los contextos del módulo (5' GAAGGCTCGAGAAGGTATAT en 1739-1758, 3' CTTCAAGGGGCTAGAATTCG en 1856-1875) NO se han contrastado con el vector real. NO pidas el gBlock con esto sin resolver.
 
 ── Historial de BLAST ──
   SIN CORRIDAS. El frente de especificidad sigue en NOT_RUN, y NOT_RUN no es PASS.

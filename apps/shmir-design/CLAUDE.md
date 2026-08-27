@@ -2083,12 +2083,18 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   divergencias.** El mapa ya dibujaba; lo que salió esta vez es de otra familia — algo
   que emite un veredicto sin que nadie haya decidido que deba emitirlo.
   - **`G4_diana` emitía FAIL con un criterio SIN JUSTIFICAR** (`hard_filters.G4_PENDING`,
-    `G4_PROVENANCE`). De dónde sale, porque preguntarlo era legítimo: es el **paso 8 de
-    `docs/pipeline.md`**, declarado «duro» desde el commit fundacional (`ccb344a`). No se
-    coló después. Lo que no tiene —y ese sí es el hueco— es entrada en
+    `G4_PROVENANCE`). Lo que no tiene —y ese sí es el hueco— es entrada en
     `justificacion.py`, y no por descuido: **el test que exige justificación recorre los
     campos de `Thresholds`**, y el criterio de G4 es una **expresión regular escrita a
     mano**, no un umbral. Se coló por debajo de la comprobación.
+    - **CORRECCIÓN (2026-08-27).** Aquí decía que G4 venía «del commit fundacional
+      (`ccb344a`)». **Es falso y va corregido en `docs/procedencia-g4.md`**, con la
+      arqueología entera. `ccb344a` es el commit del RENOMBRADO —batchwork a
+      shmir-design— y su propio mensaje dice «G4 **se comprueba ahora** sobre la diana Y
+      sobre la guía», o sea que ya existía y ese commit lo PARTIÓ en dos. Dar por buena
+      la primera aparición que sale al buscar es exactamente el principio nº 3 —un
+      diagnóstico plausible sin comprobar— aplicado a la respuesta que se dio sobre otro
+      diagnóstico plausible sin comprobar.
     - **Qué mide**: el motivo G-cuadruplex canónico `G{3,}N{1-7}` × 4, sobre la diana
       (ADN) y sobre la guía (ARN). **No es un predictor de plegado**: no mide
       estabilidad, no distingue paralelo de antiparalelo y no mira el contexto.
@@ -2218,6 +2224,64 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     definiciones de un número y nada garantiza que coincidan**.
   - **La revisión de seguridad no encontró nada** que emitiera veredicto. Lo único
     señalado —el nombre del fichero subido— es lo de arriba, y ya está cerrado.
+
+- **LA COMPROBACIÓN DEL PLÁSMIDO, CABLEADA (2026-08-27).** `verify_contexts_against_plasmid`
+  llevaba desde el generador de bloques abortando si los contextos del módulo no
+  coinciden con el vector real — escrita, probada, y **sin correr nunca donde habría
+  servido de algo**. Es el patrón de `store.save_*` sobre algo más grave: lo que no se
+  contrastaba son secuencias que se van a PEDIR. Principio nº 6 de `docs/principios.md`,
+  y sus tres mitades:
+  - **Corre donde se genera, y hay DOS generadores.** `gblock.build_gblock` monta el
+    módulo de 149 nt para los oligos y `blocks.build_block` monta ese mismo módulo más
+    el cassette para la ficha. Cablear sólo el primero habría dejado la comprobación
+    fuera justo del camino que se lee.
+  - **Sin el plásmido sale `NOT_RUN`, no `PASS`,** y el módulo entero `INCOMPLETE`. El
+    plásmido SGEP **no está en el repositorio** y no vale el que hay:
+    `data/reference/aav_casete.fa` es pAAV con PrP murino, otro vector, y **no contiene
+    ninguno de los dos contextos** —comprobado, con test, para que nadie apunte la
+    comprobación ahí creyendo que sirve—.
+  - **Se ve.** El motivo se pinta en la ficha y en el informe que se entrega. La primera
+    versión corría y no salía en ningún golden: una comprobación que corre y no llega a
+    la pantalla es la mitad del arreglo, y **el diff del golden es la prueba**.
+- **LOS TRES PARES DUPLICADOS, CRUZADOS EN VEZ DE BORRADOS**
+  (`tests/test_cruce_de_pares_duplicados.py`, principio nº 5). La que no se usa es la
+  única que puede contradecir a la que sí. Y al cruzarlos, los tres resultaron ser cosas
+  distintas de lo que parecían:
+  - **`spliceai.verdict_state` vs `SpliceRun.verdict`: par de verdad, y NO COINCIDEN.**
+    La primera mira la corrida ENTERA («¿tiene pares?»), el almacén mira **el par
+    candidato × intrón**, que es la unidad que este frente tiene decidida. Para un
+    candidato que nadie consultó, `verdict_state` dice `PASS` donde el almacén dice
+    `NOT_RUN`. **La que no tenía llamador no era una copia redundante: era la
+    equivocada** — y estaba ahí para que alguien la cableara. La discrepancia queda fija
+    en un test.
+  - **`ceiling_layers` vs `layer_for`: no son dos implementaciones.** `ceiling_layers(m)`
+    es literalmente `return m.layers`. Lo que sí se puede exigir es lo que su docstring
+    AFIRMA —tramos sin huecos ni solapes—, comprobado sobre posiciones reales del ratón.
+  - **`analyze_3utr` vs `annotate_polya`: dos GENERACIONES con reglas deliberadamente
+    distintas** (el umbral simétrico ±10 que «no sale de ningún artículo» frente a la
+    ventana de corte asimétrica). Exigirles que coincidan sería exigir que el bloque 3 no
+    hubiera pasado. Lo que sí comparten es `find_polya_signals`, y ése es el número que
+    se cruza.
+  - **Y UN CUARTO PAR que la alcanzabilidad NO PUEDE VER**, porque los dos lados tienen
+    llamador: `blocks.py` monta el módulo con SUS piezas y `gblock.py` con SUS
+    constantes. Hoy coinciden —comprobado sobre el módulo entero, no sobre los trozos—,
+    pero nada lo obligaba, y lo que divergiría es **ADN que se manda a sintetizar**.
+    Además la comprobación del plásmido usa las de `gblock`: sin este cruce, validaría un
+    módulo que la ficha no monta.
+- **LA PROCEDENCIA DE G4, HECHA DE VERDAD** (`docs/procedencia-g4.md`). Lo que se dijo
+  aquí —que venía «del commit fundacional `ccb344a`»— **era falso**: `ccb344a` es el
+  renombrado, y su mensaje dice «G4 se comprueba AHORA sobre la diana Y sobre la guía»,
+  o sea que ya existía y ese commit lo partió en dos. Se dio por buena la primera
+  aparición que salió al buscar. La cadena real son 33 minutos del 25 de agosto:
+  `8211734` (sólo las reglas, sin pipeline) → `61741c4` (nace la tabla de 15 pasos, con
+  el paso 8 «Sin motivo G-cuádruplex, duro, pendiente») → `b544dd2` (la implementación,
+  empaquetada con GC y homopolímero y **sin ninguna cita**, al lado de una asimetría que
+  sí cita Turner 2004) → `ccb344a` (se parte en dos). Quién lo pidió: `61741c4` separa
+  «apartados A, B y C **del encargo**» de «**además**: docs/pipeline.md…», y G4 está en
+  el además; pero `docs/valores-esperados.md`, del mismo commit, se titula «verificados
+  por el responsable del proyecto» y lista «sin motivo G4» junto a un 181 PASS que este
+  código no pudo calcular —los pasos 3-8 estaban «pendiente»—. **El repositorio no puede
+  decidir cuál de las dos, así que no se decide.**
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

@@ -170,3 +170,55 @@ La tentación de ayudar es la que escribe la causa.
 Si sólo se registran las predicciones que salen bien, el registro deja de medir nada. Ver
 las entradas nº 7 (la carrera de A) y nº 8 (las 1773 «enmascaradas») de
 [`erratas.md`](erratas.md).
+
+---
+
+## 5 — Dos implementaciones del mismo número se CRUZAN, no se borra una
+
+Cuando aparecen dos formas de calcular lo mismo y una no tiene llamador, el reflejo es
+borrar la que sobra. Es el movimiento equivocado, y por una razón concreta: **la que no
+se usa es la única que puede contradecir a la que sí**, y esa contradicción es
+información que no se consigue de ninguna otra manera. Un test que exija que coinciden
+sobre casos reales —los diez del panel, no un ejemplo de juguete— tiene dos salidas y
+las dos valen:
+
+- **coinciden** → verificación cruzada gratis, sobre un número del que antes sólo había
+  una opinión;
+- **no coinciden** → un fallo que nadie habría visto, porque el camino vivo no tiene con
+  qué compararse.
+
+Borrar primero cierra las dos puertas y deja la impresión de haber limpiado algo.
+
+**Y el cruce hay que hacerlo antes de clasificar.** Al cruzar los tres pares que sacó la
+alcanzabilidad, los tres resultaron ser cosas distintas de lo que parecían: uno era un
+par de verdad y **no coincidía** (`spliceai.verdict_state` mira la corrida entera y el
+almacén mira el par candidato × intrón: para un candidato que nadie consultó, la primera
+dice `PASS` donde la segunda dice `NOT_RUN` — la que no tenía llamador no era redundante,
+era la equivocada); otro era un **alias** de una línea, que no puede discrepar consigo
+mismo; y el tercero eran **dos generaciones con reglas deliberadamente distintas**, donde
+exigir que coincidan habría sido exigir que la corrección nunca hubiera pasado. Lo que se
+cruza ahí es lo que de verdad comparten, no lo que se parece.
+
+El cruce además **encuentra pares que la alcanzabilidad no ve**: si los dos lados tienen
+llamador, no salen en el informe. `blocks.py` y `gblock.py` montan el mismo módulo de 149
+nt desde dos juegos de constantes, y hoy coinciden — pero nada lo obligaba, y lo que
+divergiría es ADN que se manda a sintetizar.
+
+---
+
+## 6 — Una comprobación que existe y no corre no es una comprobación
+
+Es el mismo modo de fallo que el código sin llamador, un escalón más arriba y más grave:
+no es que sobre, es que **tranquiliza**. `verify_contexts_against_plasmid` llevaba desde
+el generador de bloques abortando si los contextos del módulo no coinciden con el vector
+real, escrita, probada, y sin correr nunca donde habría servido de algo.
+
+Tres consecuencias, y hay que cumplir las tres:
+
+1. **Corre donde se genera**, y si hay dos generadores, en los dos. Cablear sólo uno deja
+   la comprobación fuera justo del camino que se lee.
+2. **Sin su recurso sale `NOT_RUN`, no `PASS`.** Es la regla 3 en su forma literal, y
+   aquí lo que se pide con un apto falso es ADN.
+3. **Se ve.** Una comprobación que corre y cuyo resultado no llega a la pantalla es la
+   mitad del arreglo. El diff del golden es la prueba de que llegó: si el golden no se
+   mueve, no se ve.
