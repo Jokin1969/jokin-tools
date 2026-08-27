@@ -2079,6 +2079,97 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     distingue una referencia de una llamada, y **no dice que el código sobre** — dice que
     nadie lo llama, que es un hecho y no un veredicto.
 
+- **LA SEGUNDA EJECUCIÓN REAL (2026-08-27): un problema de PROCEDENCIA y tres
+  divergencias.** El mapa ya dibujaba; lo que salió esta vez es de otra familia — algo
+  que emite un veredicto sin que nadie haya decidido que deba emitirlo.
+  - **`G4_diana` emitía FAIL con un criterio SIN JUSTIFICAR** (`hard_filters.G4_PENDING`,
+    `G4_PROVENANCE`). De dónde sale, porque preguntarlo era legítimo: es el **paso 8 de
+    `docs/pipeline.md`**, declarado «duro» desde el commit fundacional (`ccb344a`). No se
+    coló después. Lo que no tiene —y ese sí es el hueco— es entrada en
+    `justificacion.py`, y no por descuido: **el test que exige justificación recorre los
+    campos de `Thresholds`**, y el criterio de G4 es una **expresión regular escrita a
+    mano**, no un umbral. Se coló por debajo de la comprobación.
+    - **Qué mide**: el motivo G-cuadruplex canónico `G{3,}N{1-7}` × 4, sobre la diana
+      (ADN) y sobre la guía (ARN). **No es un predictor de plegado**: no mide
+      estabilidad, no distingue paralelo de antiparalelo y no mira el contexto.
+    - **MEDIDO (2026-08-27)**: pasa **las 2170 ventanas** del 3'UTR murino, las dos
+      variantes. **No ha excluido a nadie nunca**, que es por lo que nadie lo miró.
+    - **Hasta que se decida por escrito NO EMITE VEREDICTO.** Sigue buscando y sigue
+      diciendo lo que encuentra —dejar de mirar sería perder el dato— pero sale
+      `NOT_RUN` y **no cuenta para el veredicto del candidato** (`UNDECIDED_FILTERS`,
+      excluido en `overall_verdict` y en el semáforo). Dejarlo dentro habría hecho que
+      TODA ventana saliera `INCOMPLETE` por un criterio que nadie autorizó — o sea `PASS`
+      estructuralmente inalcanzable, que es el fallo que la interfaz ya tuvo. **Bloquear
+      una aprobación también es decidir.** Y no se esconde: sale nombrado en el semáforo.
+    - Lo que hay que decidir: **(1)** filtro duro o desempate, **(2)** qué predictor, y
+      **(3)** con qué justificación de umbral, anotada en `justificacion.py`.
+  - **UN FILTRO BIOFÍSICO NO PUEDE SER UN FRENTE** (`selection.blocking_fronts`). Con la
+    máscara puesta, 66 ventanas quedan con `N` y sus filtros de secuencia salen
+    `NOT_RUN` —correcto, regla 3— pero `blocking_fronts` construía un frente por cada
+    `NOT_RUN`, así que `GC` y `G4_diana` salían como frentes y la app pedía su **ficha de
+    obtención**: aborto. Una ventana enmascarada no es un frente.
+    - Y el motivo decía **«falta el recurso»** de un filtro que no tiene recurso ninguno.
+      **Tercera de esa familia**, y por eso hay ya un principio escrito sobre ella
+      ([`docs/principios.md`](./docs/principios.md) nº 3): un mensaje que explica una
+      causa tiene que haberla comprobado.
+    - Un frente es un filtro que **se cierra consiguiendo algo**. Lo demás se cuenta en
+      el semáforo, con las ventanas tiladas.
+  - **LA PÁGINA NO APLICABA LA TABLA DE APA MEDIDO y el CLI sí.** Cuarta divergencia
+    entre los dos frontales, la misma clase que obligó a crear `resolve.py`. Sin ella el
+    tercer sitio de corte no promociona, la frontera de inmunidad se queda en `3utr:303`
+    en vez de adelantarse a `3utr:251`, y **`3utr:221` volvía al panel** porque su riesgo
+    estérico no llegaba a existir. Ahora `page_run` llama a `resolve_measured` como el
+    CLI, y el diff del golden lo enseña entero: `AATATA` pasa de `OTRA` a `APA_POSIBLE`,
+    entran 17 ventanas más a FAIL —exactamente `measured_promotion_cost`— y `3utr:221`
+    sale del panel.
+  - **CUOTA DE INMUNES EXPLÍCITA Y PANEL DE 10** (`selection.default_config`,
+    `DEFAULT_CANDIDATES = 10`, `DEFAULT_IMMUNE_QUOTA = 4`). La página sólo tenía cuota
+    **por tercio**, así que `3utr:359` (+4,82) desplazaba a `3utr:200` (+3,80) por
+    asimetría y el panel quedaba con **tres** inmunes en vez de cuatro — sin que nada lo
+    dijera, porque los dos son proximales y la cuota de tercios se cumplía igual.
+    - **Por qué es una cuota y no una preferencia**: los inmunes son la ÚNICA reserva si
+      el APA de `3utr:288` resulta funcional, y los sitios elegibles por delante del
+      corte están **20/0/0** por tercio. Si se pierden, no hay de dónde rebalancear.
+    - **La cuota NO va en `SelectionConfig`**, y eso lo enseñó el intento: la pareja
+      (cuota, frontera) va junta por invariante —«pedir cinco inmunes sin decir inmunes A
+      QUÉ no significa nada»— y `apa_immune_before` sólo se DERIVA de un informe. Ponerla
+      en el dataclass hacía abortar a todo el que construyera un `SelectionConfig()` a
+      mano, que es justo quien no tiene informe. Va en `default_config()`, **acotada al
+      tamaño del panel**: pedir cuatro inmunes en un panel de tres es imposible y abortar
+      por un defecto que nadie pidió sería peor que no tenerlo.
+    - `presentation.selection_rules_report` emite el panel **bajo las dos reglas**, para
+      poder compararlas. No elige: da las dos y dice cuántos inmunes deja cada una.
+  - **TODA COLUMNA DE POSICIÓN LLEVA SU MARCO, y la etiqueta la pone UNA sola pieza**
+    (`PolyAAnnotation.frame`). `polyA_hexamero_pos = 1185` es `tx:1185`, o sea
+    `3utr:236` — bien calculado y mal etiquetado. Y había **TRES** sitios poniendo (o no)
+    esa etiqueta: el TSV la ponía, la tabla comparativa la ponía **volviendo a parsear el
+    entero con `int()`**, y la tabla de la página no la ponía. Ahora la pone
+    `as_columns`, que es quien sabe de qué posición habla. Una **distancia** no lleva
+    marco: lleva unidad (`949 nt`), y la lleva porque se lee pegada a una posición.
+
+- **`page_run` ERA EL TERCER `store.save_*`, y lo cazó la ALCANZABILIDAD.** Se escribió
+  justo para que la página no rehiciera el camino y pudiera divergir del CLI. Se
+  documentó como «la página llama ahora a `page_run`». **Y la página no lo llamaba**:
+  seguía tilando a mano, así que el APA medido recién cableado en `page_run` no llegaba a
+  la pantalla. Ni los tests ni el golden lo veían —los tests llaman a `page_run` ellos
+  mismos y el golden se genera desde `page_snapshot`, que también lo llama—: lo que
+  faltaba era justo lo que este análisis mira, **quién lo llama en el camino de verdad**.
+  Hay regresión escrita que comprueba que la página no vuelve a llamar a `tile_utr`.
+  - **Y el análisis necesitó una vuelta más para verlo: el CIERRE TRANSITIVO.**
+    `filter_gc` no la llama nadie de fuera de `hard_filters`, pero la llama
+    `evaluate_window`, que sí: es una pieza de algo vivo, no código muerto. Sin esa
+    vuelta el informe tenía **94** filas y ~78 eran ese caso; con ella son **23**, y `page_run`
+    aparecía entre ellas. Un informe de 94 filas donde tres cuartas partes son ruido no lo
+    lee nadie — que es exactamente el fallo que el análisis viene a evitar.
+  - **Clasificadas en tres** (`data/alcanzabilidad.toml`): **útiles sin cablear** (lo
+    urgente: `splice_variant_rows` —el cuarto modal calcula la propuesta de
+    `mvm_sin_criptico` y no la enseña, cero llamadores y cero tests—, `describe_triple`,
+    `ceiling_layers` —que además duplica `measured_apa.layer_for`—), **legítimas**
+    (justificadas por escrito: `fixture_available`, que usan 80 ficheros de test como
+    `skipUnless`; `declare_utr3_length`, API documentada) y **muertas**, que se borran en
+    su propia tanda: borrar en la misma tanda que arregla otra cosa esconde el borrado
+    dentro de un diff que se lee por otro motivo.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

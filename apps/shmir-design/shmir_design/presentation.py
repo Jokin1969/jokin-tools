@@ -60,6 +60,10 @@ class StatusLight:
     #: distinto con el mismo nombre.
     not_eligible: int = 0
     tiled: int = 0
+    #: Filtros que calculan y NO emiten veredicto porque su criterio esta pendiente de
+    #: decision escrita. No son frentes —no se cierran consiguiendo nada— y no cuentan
+    #: para el color, pero salen NOMBRADOS: un filtro que no se ve no existe.
+    undecided: tuple[str, ...] = ()
 
 
 def status_light(selection: ReportSelection) -> StatusLight:
@@ -111,6 +115,31 @@ def status_light(selection: ReportSelection) -> StatusLight:
     )
     conteos = {"not_eligible": no_elegibles, "tiled": tiladas}
 
+    # Los PENDIENTES DE DECISION no cuentan como filtros sin correr: su NOT_RUN no dice
+    # «falta un recurso», dice «nadie ha decidido su criterio». Contarlos dejaba el verde
+    # estructuralmente inalcanzable por algo que no se arregla consiguiendo nada — el
+    # mismo fallo que tuvo la interfaz con sus tres parámetros.
+    #
+    # Y NO se esconden: salen aparte, con su nombre, en `undecided`.
+    from .filters import UNDECIDED_FILTERS
+
+    sin_decidir = sorted(
+        {
+            r.name
+            for choice in selection.selection.chosen
+            for r in selection.window_of(choice).filters
+            if r.name in UNDECIDED_FILTERS
+        }
+    )
+    nota_sin_decidir = (
+        f" Y {len(sin_decidir)} filtro(s) con el CRITERIO SIN DECIDIR "
+        f"({', '.join(sin_decidir)}): calculan y no emiten veredicto, así que no "
+        f"excluyen a nadie ni bloquean la aprobacion. Se decide por escrito, no se "
+        f"consigue un fichero."
+        if sin_decidir
+        else ""
+    )
+    conteos = {**conteos, "undecided": tuple(sin_decidir)}
     total = (
         len(selection.window_of(selection.selection.chosen[0]).filters)
         if selection.selection.chosen
@@ -124,7 +153,7 @@ def status_light(selection: ReportSelection) -> StatusLight:
             detail=(
                 "No hay ningún candidato que evaluar, así que no hay nada que aprobar. "
                 "Revisa los umbrales y cuántas ventanas superan los filtros."
-                + nota_no_evaluables
+                + nota_no_evaluables + nota_sin_decidir
             ),
             **conteos,
         )
@@ -134,7 +163,7 @@ def status_light(selection: ReportSelection) -> StatusLight:
             r.name
             for choice in selection.selection.chosen
             for r in selection.window_of(choice).filters
-            if r.state is FilterState.NOT_RUN
+            if r.state is FilterState.NOT_RUN and r.name not in UNDECIDED_FILTERS
         }
     )
     if not pendientes:
@@ -145,7 +174,8 @@ def status_light(selection: ReportSelection) -> StatusLight:
             ran=total,
             detail=(
                 f"Ninguno de los {len(selection.selection.chosen)} candidatos tiene "
-                f"filtros en NOT_RUN: sus veredictos son completos." + nota_no_evaluables
+                f"filtros en NOT_RUN: sus veredictos son completos."
+                + nota_no_evaluables + nota_sin_decidir + nota_sin_decidir
             ),
             **conteos,
         )
@@ -159,7 +189,8 @@ def status_light(selection: ReportSelection) -> StatusLight:
         detail=(
             f"NOT_RUN no es PASS. Corrieron {total - len(pendientes)} de {total} "
             f"{FILTER_COUNT_NAME}; no corrieron {', '.join(pendientes)}. Ningún candidato esta "
-            f"aprobado y la selección es PROVISIONAL." + nota_no_evaluables
+            f"aprobado y la selección es PROVISIONAL."
+            + nota_no_evaluables + nota_sin_decidir
         ),
         pending=tuple(pendientes),
         total=total,
@@ -2507,7 +2538,8 @@ def page_run(
     de transcrito son coordenadas de transcrito de verdad y no una copia de las del
     3'UTR. Que ventanas entran lo decide `tile_range`, en el nucleo.
     """
-    from .selection import SelectionConfig, select_from_report
+    from .apa import POLYA_DB_PRNP, resolve_measured
+    from .selection import default_config, select_from_report
     from .tiling import tile_utr
 
     if anatomy is None:
@@ -2520,12 +2552,28 @@ def page_run(
     extra = dict(resources.as_kwargs()) if resources is not None else {}
     if mask is not None:
         extra["mask"] = mask  # la mascara subida a mano manda sobre la del manifiesto
+    # La tabla de APA MEDIDO se coloca sola sobre la secuencia que le corresponde y solo
+    # sobre esa: la condicion es el md5 canonico del 3'UTR, asi que sobre cualquier otra
+    # devuelve `None` y no se promueve ninguna señal.
+    #
+    # POR QUE ESTABA AQUI EL FALLO: el CLI la aplicaba y la pagina no. Sin ella el tercer
+    # sitio de corte —`131937444`, el proximal MAS USADO de los tres— no promociona, la
+    # frontera de la inmunidad se queda en `3utr:303` en vez de adelantarse a `3utr:251`,
+    # y `3utr:221` vuelve al panel porque su riesgo ESTERICO no llega a existir. O sea:
+    # el mismo mRNA daba un panel por consola y otro por navegador. Es la CUARTA
+    # divergencia entre los dos frontales y exactamente el fallo que obligo a crear
+    # `resolve.py` con la anatomia.
+    medido = resolve_measured(sequence, POLYA_DB_PRNP, anatomy=anatomy)
     tiling = tile_utr(
         sequence, anatomy=anatomy, seeds=seeds, thresholds=thresholds,
-        accessibility=accessibility, species=species, tile_range=tile_range, **extra,
+        accessibility=accessibility, species=species, tile_range=tile_range,
+        measured_apa=medido, **extra,
     )
+    # `default_config()` es la configuracion DEL PROYECTO: panel de 10 y cuota de
+    # inmunes emparejada con su frontera. `SelectionConfig()` a secas no la lleva, y
+    # usarlo aqui dejaba el panel con tres inmunes sin decirlo.
     seleccion = select_from_report(
-        tiling, config if config is not None else SelectionConfig()
+        tiling, config if config is not None else default_config()
     )
     inicio, fin = anatomy.utr3
     return PageRun(
@@ -2694,3 +2742,80 @@ def page_snapshot(
         "",
     ]
     return "\n".join(lineas) + "\n"
+
+
+# ═════════════ LAS DOS REGLAS DE LA SELECCION, LADO A LADO ═════════════
+#
+# La cuota por tercio y la cuota de INMUNES no compiten: hacen cosas distintas y las dos
+# hacen falta. Con solo la de tercios, `3utr:359` (+4,82) desplaza a `3utr:200` (+3,80)
+# por asimetria y el panel se queda con TRES inmunes en vez de cuatro — sin que nada lo
+# diga, porque los dos son del tercio proximal y la cuota de tercios se cumple igual.
+#
+# Y eso importa porque los inmunes son la UNICA reserva si el APA de `3utr:288` resulta
+# funcional: los sitios elegibles por delante del corte estan **20/0/0** por tercio, asi
+# que no hay de donde rebalancear. Un panel con tres inmunes no es «casi» el de cuatro.
+
+
+def immune_count(tiling, selection) -> int:
+    """Cuantos candidatos del panel son INMUNES al truncamiento por la señal proximal.
+
+    Inmune = empieza POR DELANTE del corte mas temprano, que se DERIVA del informe
+    (`selection.derive_immune_cut`) y no se teclea. Ver la entrada de `CLAUDE.md` sobre
+    por que la definicion estricta es la unica que vale.
+    """
+    from .selection import derive_immune_cut
+
+    corte = derive_immune_cut(tiling)
+    if corte is None:
+        return 0
+    return sum(1 for c in selection.selection.chosen if c.start < corte)
+
+
+def selection_rules_report(*, species: str, sequence, anatomy, thresholds=None) -> str:
+    """El panel bajo LAS DOS reglas, para poder compararlas.
+
+    No elige: emite las dos y dice cuantos inmunes deja cada una, que es la cifra de la
+    que cuelga la decision. La misma disciplina que `--polyA-modo`, que saca el top-N
+    bajo los tres criterios y deja decidir con la tabla delante.
+    """
+    from .hard_filters import DEFAULT_THRESHOLDS
+    from .selection import DEFAULT_CANDIDATES, DEFAULT_IMMUNE_QUOTA, SelectionConfig
+
+    umbrales = DEFAULT_THRESHOLDS if thresholds is None else thresholds
+    reglas = (
+        (
+            "solo cuota por tercio",
+            SelectionConfig(n_candidates=DEFAULT_CANDIDATES, apa_immune_quota=0),
+        ),
+        (
+            f"cuota por tercio + cuota de inmunes = {DEFAULT_IMMUNE_QUOTA}",
+            SelectionConfig(n_candidates=DEFAULT_CANDIDATES),
+        ),
+    )
+    lineas = [
+        "── El panel bajo las DOS reglas ──",
+        "",
+        "  Los inmunes son la ÚNICA reserva si el APA proximal resulta funcional: los",
+        "  sitios elegibles por delante del corte están 20/0/0 por tercio, así que si se",
+        "  pierden no hay de donde rebalancear. Por eso la cuota de inmunes es una CUOTA",
+        "  y no una preferencia.",
+    ]
+    for etiqueta, config in reglas:
+        corrida = page_run(
+            species=species, sequence=sequence, anatomy=anatomy,
+            thresholds=umbrales, config=config,
+        )
+        inmunes = immune_count(corrida.tiling, corrida.selection)
+        lineas.extend(["", f"  {etiqueta} — {inmunes} inmunes de "
+                       f"{len(corrida.selection.selection.chosen)}"])
+        for choice in sorted(corrida.selection.selection.chosen, key=lambda c: c.start):
+            u = corrida.anatomy.utr3_position(choice.start)
+            marca = " [inmune]" if choice.start < (
+                __import__("shmir_design.selection", fromlist=["derive_immune_cut"])
+                .derive_immune_cut(corrida.tiling) or 0
+            ) else ""
+            lineas.append(
+                f"    3utr:{u:<5} {choice.asymmetry:+.2f}  "
+                f"{choice.tercio.value if choice.tercio else '—'}{marca}"
+            )
+    return "\n".join(lineas)

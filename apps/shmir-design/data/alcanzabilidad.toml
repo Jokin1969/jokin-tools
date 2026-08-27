@@ -21,3 +21,39 @@
 
 # ── Se llama desde FUERA de Python ──
 seed_reference_dir = "La invoca el hub, no Python: `apps/shmir/routes.js` la ejecuta con `python3 -c` al arrancar la interfaz, para sembrar el directorio de trabajo. El análisis solo lee ficheros .py, así que este llamador le es invisible por construcción — no por descuido."
+
+# ── CLASIFICACIÓN DE 2026-08-27 ──
+#
+# Revisadas las 28 que quedan tras el cierre transitivo. Tres categorías, y sólo la
+# primera es urgente:
+#
+#   1. ÚTILES SIN CABLEAR — calculan algo que debería salir y no sale. Es el caso de
+#      `store.save_*`. NO se justifican aquí: se quedan en el informe hasta que se
+#      cableen o se decida que no van.
+#   2. LEGÍTIMAS — se llaman desde fuera de Python, desde los tests como herramienta, o
+#      son API pública del paquete. Van justificadas abajo.
+#   3. MUERTAS — nadie las llama y no aportan nada que no esté ya. Se borrarán en su
+#      propia tanda, con su diff: borrar código en la misma tanda que arregla otra cosa
+#      esconde el borrado dentro de un diff que se lee por otro motivo.
+#
+# LO URGENTE, y va sin justificar a propósito para que siga saliendo:
+#
+#   · splice_variant_rows  — las variantes de `mvm_sin_criptico` para la página. CERO
+#     llamadores y CERO tests: el cuarto modal calcula la propuesta y no la enseña.
+#   · selection_rules_report / immune_count — recién escritas; la página todavía no
+#     enseña la comparación de las dos reglas.
+#   · describe_triple — el detalle del TRIPLE MOTIVO. Es el caso que CLAUDE.md ya
+#     declaraba pendiente; sigue sin emitirse.
+#   · ceiling_layers — el techo POR TRAMOS. `outputs.py` usa el método
+#     `measured_apa.layer_for`, así que hay DOS formas de calcular lo mismo y una no se
+#     usa: o se unifican o sobra una.
+#   · analyze_3utr, shared_network, site_conflicts, verdict_state, can_transfer,
+#     extended_cassette, passenger_of, limitation — pendientes de revisar una a una.
+
+
+# ── Categoría 2: LEGÍTIMAS ──
+fixture_available = "La usan 80 ficheros de tests como `skipUnless`: es la que hace que un test se salte de forma VISIBLE cuando falta un fixture, en vez de fallar. Vive en el paquete y no en los tests porque la comparten los tests y `tools/check_data.py`."
+declare_utr3_length = "API pública documentada en CLAUDE.md: la llama quien trabaja con una especie no declarada, desde una consola o un cuaderno. Es la contramedida que hace utilizable el invariante de rango fuera del ratón; sin ella, un 3'UTR de conejo aborta."
+reset_declared_lengths = "Compañera de `declare_utr3_length`, y la usan los tests para no dejar el techo subido entre casos. Borrarla dejaría el estado global sin forma de limpiarse."
+fixture_path = "Herramienta de `guide_fixture` para localizar el FASTA de guías. La usan los tests de la regresión de la pasajera; su par `load_guide_fixture` es la puerta de entrada."
+parse_guide_fasta = "Parser público del fixture de guías: se prueba por separado del cargador a propósito, porque el fallo que cubre es de formato y no de carga."

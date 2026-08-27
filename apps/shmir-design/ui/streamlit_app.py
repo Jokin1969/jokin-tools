@@ -115,6 +115,7 @@ from shmir_design.presentation import (  # noqa: E402
     candidate_rows,
     cost_text,
     map_svg,
+    page_run,
     block_rows,
     conservation_for,
     output_bundle,
@@ -142,9 +143,7 @@ from shmir_design.selection import (  # noqa: E402
     DEFAULT_CANDIDATES,
     DEFAULT_MIN_SPACING,
     SelectionConfig,
-    select_from_report,
 )
-from shmir_design.tiling import tile_utr  # noqa: E402
 
 COLORES = {"verde": ("#2f7d5d", "🟢"), "ambar": ("#b58900", "🟠")}
 
@@ -307,18 +306,17 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
                    scaffold, conservacion, recursos, accesibilidad,
                    proyecto=None) -> dict[str, str]:
     st.subheader(f"{nombre}")
-    extra = dict(recursos.as_kwargs()) if recursos is not None else {}
-    if mask is not None:
-        extra["mask"] = mask  # la mascara subida a mano manda sobre la del manifiesto
-    # Se tila la secuencia ENTERA con su anatomia, como el CLI: asi las coordenadas de
-    # transcrito son coordenadas de transcrito de verdad y no una copia de las del
-    # 3'UTR. Que ventanas entran lo decide `TileRange`, en el nucleo.
-    tiling = tile_utr(
-        secuencia, anatomy=anat, seeds=seeds, thresholds=umbrales,
-        accessibility=accesibilidad, species=nombre, **extra
+    # El camino de la corrida vive en `presentation.page_run`, no aquí. Esta página lo
+    # rehacía a mano —tilaba y seleccionaba por su cuenta— y por eso se quedó sin la
+    # tabla de APA medido que el CLI sí aplica: el mismo mRNA daba un panel por consola y
+    # otro por navegador. Es la lección de `resolve.py`, y la cazó el análisis de
+    # ALCANZABILIDAD: `page_run` existía, estaba testado y **nadie lo llamaba**.
+    corrida = page_run(
+        species=nombre, sequence=secuencia, anatomy=anat, thresholds=umbrales,
+        config=config, seeds=seeds, mask=mask, accessibility=accesibilidad,
+        resources=recursos,
     )
-    seleccion = select_from_report(tiling, config)
-    utr3 = _utr3(secuencia, anat)
+    tiling, seleccion, utr3 = corrida.tiling, corrida.selection, corrida.utr3
 
     semaforo(status_light(seleccion))
 

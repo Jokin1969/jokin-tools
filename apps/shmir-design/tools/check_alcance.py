@@ -193,6 +193,31 @@ def _definiciones(fichero: Path) -> list[Symbol]:
     return salida
 
 
+def _referencias_por_funcion(fichero: Path) -> dict[str, set[str]]:
+    """Qué nombra CADA función de nivel superior de un módulo.
+
+    Hace falta para el cierre TRANSITIVO: `filter_gc` no la llama nadie de fuera de
+    `hard_filters`, pero la llama `evaluate_window`, que sí se llama desde `tiling`. No
+    está muerta — es una pieza de algo vivo.
+    """
+    arbol = ast.parse(fichero.read_text(encoding="utf-8"), filename=str(fichero))
+    salida: dict[str, set[str]] = {}
+    for nodo in arbol.body:
+        if not isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        nombres: set[str] = set()
+        for hijo in ast.walk(nodo):
+            if isinstance(hijo, ast.Name):
+                nombres.add(hijo.id)
+            elif isinstance(hijo, ast.Attribute):
+                nombres.add(hijo.attr)
+            elif isinstance(hijo, (ast.Import, ast.ImportFrom)):
+                for alias in hijo.names:
+                    nombres.add(alias.name.split(".")[-1])
+        salida[nodo.name] = nombres
+    return salida
+
+
 def _referencias(fichero: Path) -> set[str]:
     """Todo nombre referenciado en un módulo: `Name`, atributos e imports."""
     arbol = ast.parse(fichero.read_text(encoding="utf-8"), filename=str(fichero))
@@ -237,17 +262,35 @@ def analizar(raiz: Path | str = RAIZ, *, fuentes=None, excepciones=None) -> Repo
     por_modulo = {f.stem: _referencias(f) for f in llamadores}
     declaradas = cargar_excepciones(raiz, ruta=excepciones)
 
-    sin_llamador: list[Symbol] = []
-    for simbolo in definidos:
-        # Un llamador vale si NO es el módulo que lo define: usarse a sí mismo no saca
-        # nada del módulo, y el frente de la persistencia era exactamente eso.
-        alcanzado = any(
-            simbolo.name in nombres
+    # PASO 1 — la SEMILLA: lo que se nombra desde OTRO módulo. Usarse a sí mismo no
+    # saca nada del módulo, y el frente de la persistencia era exactamente eso.
+    vivos = {
+        s.name
+        for s in definidos
+        if any(
+            s.name in nombres
             for modulo, nombres in por_modulo.items()
-            if modulo != simbolo.module
+            if modulo != s.module
         )
-        if not alcanzado:
-            sin_llamador.append(simbolo)
+    }
+
+    # PASO 2 — el CIERRE TRANSITIVO. Lo que nombra una función viva, también vive.
+    # `filter_gc` no la llama nadie de fuera de `hard_filters`, pero la llama
+    # `evaluate_window`, que sí: es una pieza de algo vivo, no código muerto. Sin esta
+    # vuelta el informe tenía 94 filas y casi todas eran ese caso — y un informe de 94
+    # filas donde 78 son ruido no lo lee nadie, que es el fallo que esto viene a evitar.
+    dentro: dict[str, set[str]] = {}
+    for fichero in modulos:
+        dentro.update(_referencias_por_funcion(fichero))
+    pendientes = list(vivos)
+    while pendientes:
+        actual = pendientes.pop()
+        for referido in dentro.get(actual, ()):
+            if referido in dentro and referido not in vivos:
+                vivos.add(referido)
+                pendientes.append(referido)
+
+    sin_llamador = [s for s in definidos if s.name not in vivos]
 
     muertos = {s.name for s in sin_llamador}
     definidos_todos = {s.name for s in definidos}

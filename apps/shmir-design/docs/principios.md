@@ -126,7 +126,47 @@ Por eso, siempre que se emite un veredicto sobre un eje así:
 
 ---
 
-## 3 — Una predicción refutada se anota igual que un acierto
+## 3 — Un mensaje que explica una causa tiene que haberla comprobado
+
+Y si no la ha comprobado, **describe el síntoma y calla la causa**.
+
+Es la tercera vez que el mismo fallo sale en esta app, siempre igual: un texto plausible,
+escrito a mano junto a un dato, que nombra una causa que nadie ha mirado.
+
+| mensaje | lo que decía | lo que era |
+|---|---|---|
+| `/shmir` no arranca | «comprueba que Streamlit está instalado» | Streamlit estaba instalado y corriendo: era un conflicto de configuración |
+| máscara de RepeatMasker | «Alu 0 %» | 0 % obtenido **sin buscar Alu**: la corrida era contra otra biblioteca |
+| 1773 ventanas descartadas | «bases desconocidas o enmascaradas» | ninguna tenía `N` ni estaba enmascarada: fallaban GC y homopolímero |
+
+**Un diagnóstico plausible y falso cuesta más que ninguno.** Manda a mirar al sitio
+equivocado, y quien lo lee gasta el tiempo ahí antes de sospechar del mensaje — que es
+justo lo último de lo que se sospecha. Sin diagnóstico, se mira el dato; con uno
+equivocado, se mira lo que dice el diagnóstico.
+
+En la práctica, para cualquier texto que acompañe a un número o a un fallo:
+
+- **el síntoma siempre**: qué se observó, con sus cifras y su procedencia. Eso es un
+  hecho y no depende de ninguna hipótesis;
+- **la causa sólo si el código la ha comprobado en ESA ejecución.** No vale «suele ser
+  esto», ni «esto lo explicaría»: si la comprobación no está en el camino que produjo el
+  mensaje, la causa no se nombra;
+- **una pista condicionada a evidencia sí vale**, y así está hecho `process.diagnose`:
+  sólo sugiere «falta Streamlit» cuando la salida del proceso trae un
+  `ModuleNotFoundError`. La condición es que la evidencia esté delante, no que el caso
+  sea frecuente;
+- y cuando el número admite descomposición, **se emite entera** en vez de resumirla en
+  una causa. «De las 2170 tiladas, 949 caen fuera del 3'UTR y 1221 dentro; pasan los
+  biofísicos 407» no explica nada y no se equivoca; «1773 enmascaradas» explicaba y era
+  falso.
+
+El corolario incómodo: **un mensaje más corto y menos servicial suele ser mejor mensaje.**
+La tentación de ayudar es la que escribe la causa.
+
+---
+
+## 4 — Una predicción refutada se anota igual que un acierto
 
 Si sólo se registran las predicciones que salen bien, el registro deja de medir nada. Ver
-la entrada correspondiente en [`erratas.md`](erratas.md#8--la-hipótesis-de-la-carrera-de-a).
+las entradas nº 7 (la carrera de A) y nº 8 (las 1773 «enmascaradas») de
+[`erratas.md`](erratas.md).

@@ -181,3 +181,42 @@ nada. **No hay convergencia de dos criterios.**
 que el dato tumbó. Queda en el registro para que el registro siga midiendo algo: si sólo
 se anotan las predicciones que salen bien, deja de ser un registro y pasa a ser un
 argumento. Ver [`principios.md`](principios.md#3--una-predicción-refutada-se-anota-igual-que-un-acierto).
+
+---
+
+## 8 — Las 1773 ventanas «enmascaradas» que no lo estaban
+
+**Predicción de Joaquín Castilla, 2026-08-27**, anotada con su nombre a petición suya y
+con el mismo criterio que la nº 7: si sólo se anotan las predicciones que salen bien, el
+registro deja de ser un registro y pasa a ser un argumento.
+
+**Lo que se dijo.** Al ver «ventanas a tilar: 1221» arriba y «1773 ventana(s) no
+evaluable(s) (bases desconocidas o enmascaradas)» abajo:
+
+> «Si el enmascarado de repetitivos se aplica en coordenadas de transcrito sobre un
+> tilado de 3'UTR, es el mismo fallo de marco del punto 1 — y estaría enmascarando 1773
+> ventanas por un (CTC)n de 45 pb que está en el CDS.»
+
+La hipótesis era razonable: el fallo de marco acababa de aparecer por cuarta vez en la
+misma corrida, y una máscara aplicada en el marco equivocado es exactamente la clase de
+cosa que produce un número absurdo sin dar ningún error.
+
+**Lo que había, medido.** **Ninguna** de las 1773 estaba enmascarada, y ninguna tenía una
+`N`. La corrida ni siquiera llevaba máscara cargada. Las 1773 eran las ventanas que **no
+pasan los filtros biofísicos** —fallaban GC y homopolímero— y el recuento las llamaba «no
+evaluables (bases desconocidas o enmascaradas)» porque ese texto estaba escrito a mano
+junto al número, sin comprobar nada.
+
+O sea: **la hipótesis del marco queda REFUTADA**, y lo que había debajo era el mismo fallo
+por otra puerta — un texto que explica una causa que nadie ha comprobado.
+
+**Lo que sí era cierto del diagnóstico**: los dos números venían de conjuntos distintos.
+Pero no por la máscara: la estimación tilaba el 3'UTR (1242 nt → 1221 ventanas) y la
+corrida el transcrito entero (2191 → 2170).
+
+**Y una comprobación que la hipótesis habría dejado en pie**: el `(CTC)n` murino de
+`tx:892-936` **sí** está entero en el CDS, así que sobre un mapa del 3'UTR no tiene sitio.
+Eso se arregló aparte —no se dibuja y se cuenta— y no tiene nada que ver con las 1773.
+
+**Contramedida**: el principio nº 4 de [`principios.md`](principios.md), y la
+descomposición del recuento se emite entera en vez de por diferencias.

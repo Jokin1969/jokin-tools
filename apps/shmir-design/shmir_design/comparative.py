@@ -192,14 +192,13 @@ def comparative_rows(
         window = selection.window_of(choice)
         hairpin = build_hairpin(window.evaluation.guide, scaffold=scaffold)
         gblock = build_gblock(hairpin)
+        # `as_columns` YA etiqueta la posicion del hexamero con el marco de lo tilado.
+        # Aqui habia una tercera copia de esa etiqueta —TSV, tabla comparativa y nadie en
+        # la tabla de la pagina—, y las dos que existian volvian a parsear el entero con
+        # `int()`. Tres sitios haciendo lo mismo: uno se olvidaba y los otros dos se
+        # rompen en cuanto el primero deja de emitir un entero desnudo, que es
+        # exactamente lo que paso.
         polya = window.polya.as_columns() if window.polya else dict.fromkeys(POLYA_COLUMNS, "")
-        # `as_columns` no conoce la anatomia: la posicion del hexamero se etiqueta aqui,
-        # que es donde se sabe en que espacio van las coordenadas de lo tilado.
-        if polya.get("polyA_hexamero_pos"):
-            polya = {
-                **polya,
-                "polyA_hexamero_pos": label(int(polya["polyA_hexamero_pos"]), marco),
-            }
         especificidad = _mismatch_counts(window.especificidad_detalle)
 
         fila = {
