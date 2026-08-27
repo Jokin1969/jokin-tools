@@ -75,6 +75,15 @@ class TestLaFicha(unittest.TestCase):
         # estar invisible: una sola fila por candidato volveria a esconder la mitad.
         esperados.discard("offtarget_seed")
         esperados |= {"offtarget_seed:guia", "offtarget_seed:pasajera"}
+        # `empalme_sitios` se PARTE POR INTRON, no por hebra: la unidad de ese frente es
+        # el par candidato x intron, y colapsarlo por candidato perderia justo lo que se
+        # quiere comparar — el mismo modulo dentro de dos intrones distintos. Salen los
+        # TRES del registro, tambien los que no tenemos: un intron que no se ve no
+        # existe, y esa es la leccion de `offtarget_seed`.
+        from shmir_design.introns import INTRONS
+
+        esperados.discard("empalme_sitios")
+        esperados |= {f"empalme_sitios:{i}" for i in INTRONS}
         self.assertEqual({f.name for f in self.ficha.fronts}, esperados)
 
     def test_cada_frente_lleva_estado_procedencia_y_fecha(self):

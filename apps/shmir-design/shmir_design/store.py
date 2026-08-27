@@ -43,6 +43,7 @@ RECORD_KINDS = (
     "corrida_blast",      # modal de especificidad
     "corrida_seed",       # modal de colision de seed
     "corrida_offtarget",  # modal de carga de off-targets por seed
+    "corrida_empalme",    # modal de prediccion de sitios de splicing (el cuarto)
     "seleccion",          # candidatos elegidos a mano
     "descarte",           # candidatos descartados a mano
     "veredicto",          # un frente cerrado con su procedencia
@@ -621,3 +622,105 @@ def selected_starts(store: ProjectStore) -> tuple[int, ...]:
     """La seleccion VIGENTE: la ultima registrada. Las anteriores siguen en el log."""
     registros = store.records("seleccion")
     return tuple(registros[-1].payload["starts"]) if registros else ()
+
+
+# ─────────────────── el cuarto modal ───────────────────
+#
+# Se guarda el CRUDO del resultado ademas de lo interpretado. Es lo mismo que hacen los
+# otros tres y por la misma razon: lo interpretado depende de como interprete esta
+# version del codigo, y el crudo no. Si mañana cambia la forma de comparar contra el
+# referente, el crudo sigue permitiendo recalcularlo; al reves no.
+
+
+def save_splice_run(store: ProjectStore, run) -> Record:
+    """Persiste una corrida de prediccion de sitios de splicing."""
+    return store.append(
+        "corrida_empalme",
+        {
+            "run_id": run.run_id,
+            "ran_by": run.ran_by,
+            "executor": run.executor,
+            "result_md5": run.result_md5,
+            "pairs": [
+                {
+                    "construction": p.construction,
+                    "candidate_start": p.candidate_start,
+                    "intron": p.intron,
+                    "legit_donor": p.legit_donor,
+                    "legit_acceptor": p.legit_acceptor,
+                    "context_5": p.context_5,
+                    "context_3": p.context_3,
+                    "cryptics": [
+                        {
+                            "position": c.position, "kind": c.kind,
+                            "score": c.score, "fraction": c.fraction, "note": c.note,
+                        }
+                        for c in p.cryptics
+                    ],
+                    "known_cryptic": (
+                        None if p.known_cryptic is None
+                        else {
+                            "position": p.known_cryptic.position,
+                            "kind": p.known_cryptic.kind,
+                            "score": p.known_cryptic.score,
+                            "fraction": p.known_cryptic.fraction,
+                            "note": p.known_cryptic.note,
+                        }
+                    ),
+                }
+                for p in run.scan.pairs
+            ],
+            # La accesibilidad estructural va en la MISMA corrida y SEPARADA del resto:
+            # son dos preguntas y mezclarlas seria dar por medido lo que se ha predicho.
+            "folding": {
+                f"{inicio}|{intron}": valores
+                for (inicio, intron), valores in run.folding.items()
+            },
+            "raw": run.raw,
+        },
+        date=run.date,
+    )
+
+
+def load_splice_store(store: ProjectStore):
+    """Reconstruye el `SpliceStore` desde el log."""
+    from .splice_store import SpliceRun, SpliceStore
+    from .spliceai import Cryptic, PairResult, SpliceScan
+
+    almacen = SpliceStore()
+    for registro in store.records("corrida_empalme"):
+        datos = registro.payload
+
+        def _criptico(bruto):
+            return None if bruto is None else Cryptic(
+                position=bruto["position"], kind=bruto["kind"],
+                score=bruto["score"], fraction=bruto["fraction"],
+                note=bruto.get("note", ""),
+            )
+
+        pares = tuple(
+            PairResult(
+                construction=p["construction"],
+                candidate_start=p["candidate_start"],
+                intron=p["intron"],
+                legit_donor=p["legit_donor"],
+                legit_acceptor=p["legit_acceptor"],
+                cryptics=tuple(_criptico(c) for c in p["cryptics"]),
+                known_cryptic=_criptico(p["known_cryptic"]),
+                context_5=p["context_5"],
+                context_3=p["context_3"],
+            )
+            for p in datos["pairs"]
+        )
+        plegado = {}
+        for clave, valores in datos.get("folding", {}).items():
+            inicio, _, intron = clave.partition("|")
+            plegado[(int(inicio), intron)] = valores
+        almacen.add(
+            SpliceRun(
+                run_id=datos["run_id"], date=registro.date, ran_by=datos["ran_by"],
+                executor=datos["executor"], result_md5=datos["result_md5"],
+                scan=SpliceScan(pairs=pares), raw=datos["raw"], folding=plegado,
+            )
+        )
+    return almacen

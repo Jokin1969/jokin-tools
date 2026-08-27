@@ -71,6 +71,8 @@ Configura todas las variables en **Railway → Project → Variables**:
 | `DROPBOX_REFRESH_TOKEN` | Refresh token (obtener con el flujo OAuth2 — ver abajo) |
 | `DROPBOX_FOLDER` | Carpeta en Dropbox, ej. `/JokinTools/ReMemory/exports/` |
 | `DEACTIVATION_SECRET` | Clave HMAC para links de desactivación en emails (string aleatorio largo) |
+| `SHMIR_REFERENCE_DIR` | Ficheros de referencia de shmiR design. En producción tiene que caer en el volumen (por defecto `/data/shmir/reference`); lo subido por el panel desaparece si no. Vacío = el directorio del paquete |
+| `SHMIR_PROJECT_DIR` | Proyectos de shmiR design: el registro append-only de lo que se decidió. También en el volumen (por defecto `/data/shmir/proyectos`). Vacío = junto al paquete. Ruta relativa = aborta |
 
 ---
 

@@ -2059,3 +2059,246 @@ def splice_variant_rows(scaffold, *, guide, available=None):
         "marca_andamio": SCAFFOLD_MODIFIED_MARK,
         "texto": "\n".join(eleccion.describe()),
     }
+
+
+# ═════════════════ PERSISTENCIA: que lo calculado sobreviva a la pestaña ═════════════════
+#
+# El hueco mas grande que quedaba, y era del tipo que este proyecto ya conoce: la capa
+# entera —`store.py`, JSONL append-only, la cadena de md5— estaba construida y testada, y
+# **`store.save_*` no se llamaba desde ningun sitio**. Los cuatro modales calculaban,
+# pintaban, y al cerrar la pestaña no quedaba nada.
+#
+# La pagina no toca `store.py` directamente: llama aqui, como con todo lo demas.
+
+
+def projects_root():
+    """Donde viven los proyectos. En un despliegue, en el volumen."""
+    from .trabajo import projects_dir
+
+    return projects_dir()
+
+
+def project_list(base) -> list[dict[str, object]]:
+    """Los proyectos que hay, con lo que hace falta para ELEGIR uno.
+
+    Sin ninguno devuelve la lista vacia y NO aborta: no haber creado todavia ninguno es
+    lo normal el primer dia, no un fallo.
+    """
+    from pathlib import Path
+
+    from .store import LOG_FILE, PROJECT_FILE, ProjectStore
+
+    raiz = Path(base)
+    if not raiz.is_dir():
+        return []
+    filas = []
+    for directorio in sorted(p for p in raiz.iterdir() if p.is_dir()):
+        if not (directorio / PROJECT_FILE).is_file():
+            continue
+        almacen = ProjectStore.open(raiz, directorio.name)
+        filas.append({
+            "slug": almacen.project.slug,
+            "creado": almacen.project.created,
+            "md5": almacen.project.sequence_md5,
+            "longitud": almacen.project.sequence_length,
+            "especie": almacen.project.species,
+            "fiable": almacen.project.reliable,
+            "por_que_no_fiable": almacen.project.why_unreliable,
+            "corridas": len(almacen.records()),
+            "log": str(directorio / LOG_FILE),
+        })
+    return filas
+
+
+def anatomy_payload(anatomy) -> tuple[dict | None, str]:
+    """La anatomia como la guarda el proyecto, y de donde salio. La pagina no la modela.
+
+    `None` significa que no se resolvio, y entonces el proyecto sale marcado NO_FIABLE —
+    que es informacion, no un fallo: sin frontera del 3'UTR, los tercios y las zonas de
+    polyA no se refieren a nada.
+    """
+    if anatomy is None:
+        return None, "sin_resolver"
+    utr3 = getattr(anatomy, "utr3", None)
+    cds = getattr(anatomy, "cds", None)
+    fuente = getattr(anatomy, "source", None)
+    return (
+        {
+            "length": getattr(anatomy, "length", None),
+            "utr3": list(utr3) if utr3 else None,
+            "cds": list(cds) if cds else None,
+        },
+        getattr(fuente, "value", str(fuente or "sin_resolver")),
+    )
+
+
+def blast_run_from_upload(*, raw: str, query, params, declared_query_md5: str,
+                          panel_names, database: dict, date: str, uploaded_by: str,
+                          run_id: str):
+    """Valida el `-outfmt 6` y construye la corrida. La pagina no valida nada.
+
+    Las DOS comprobaciones de `blast_store.validate_upload` abortan: el md5 del FASTA de
+    consulta declarado tiene que ser el que genero la app, y toda `query` del resultado
+    tiene que estar en el panel. Es el fallo del CSV de miRarchitect.
+    """
+    from .blast_store import BlastDatabase, BlastRun, validate_upload
+
+    validate_upload(
+        raw=raw, query=query, declared_query_md5=declared_query_md5,
+        panel_names=panel_names,
+    )
+    base = BlastDatabase(
+        name=str(database.get("nombre", "")).strip(),
+        version=str(database.get("version", "")).strip(),
+        md5=(str(database.get("md5", "")).strip() or None),
+        remote=bool(database.get("remota", False)),
+    )
+    return BlastRun.create(
+        run_id=run_id, date=date, uploaded_by=uploaded_by, params=params,
+        database=base, query=query, raw=raw,
+    )
+
+
+def seed_run_from_scan(scan, *, date: str, ran_by: str, run_id: str):
+    """La corrida de colision de seed, lista para guardar."""
+    from .seed_store import SeedRun
+
+    return SeedRun.create(run_id=run_id, date=date, ran_by=ran_by, scan=scan)
+
+
+def offtarget_run_from_scan(scan, *, date: str, ran_by: str, run_id: str):
+    """La corrida de carga de off-targets, lista para guardar."""
+    from .offtarget_store import OfftargetRun
+
+    return OfftargetRun.create(run_id=run_id, date=date, ran_by=ran_by, scan=scan)
+
+
+def splice_run_from_scan(scan, *, raw: str, date: str, ran_by: str, run_id: str,
+                         executor: str, folding=None):
+    """La corrida del cuarto modal, lista para guardar. La pagina no construye objetos."""
+    from .splice_store import SpliceRun
+
+    return SpliceRun.create(
+        run_id=run_id, date=date, ran_by=ran_by, executor=executor,
+        scan=scan, raw=raw, folding=folding,
+    )
+
+
+def project_create(base, *, slug: str, date: str, sequence: str, species: str,
+                   anatomy, anatomy_source: str):
+    """Crea el proyecto en disco. Repetir un slug ABORTA: nada se pisa.
+
+    Se pasa la SECUENCIA, no su md5: el md5 lo deriva `ProjectStore.create` de lo que
+    recibe. Un md5 que viene por parametro se puede teclear mal y entonces el proyecto
+    identificaria una entrada que no es la suya — que es exactamente lo que este campo
+    existe para impedir.
+    """
+    from .store import ProjectStore
+
+    return ProjectStore.create(
+        base, slug=str(slug), sequence=sequence, species=str(species),
+        anatomy=anatomy, anatomy_source=str(anatomy_source), created=str(date),
+    )
+
+
+def project_open(base, slug: str, *, expect_md5: str | None = None):
+    """Abre un proyecto. Si se declara `expect_md5` y NO cuadra, se RECHAZA.
+
+    Es el fallo del CSV de miRarchitect por la puerta de la persistencia: seguir
+    apuntando corridas de OTRA secuencia en el log de esta. El log quedaria coherente de
+    forma, la cadena de md5 no se romperia, y el resultado seria un proyecto que mezcla
+    dos entradas sin que nada lo delate.
+    """
+    from .store import ProjectStore
+
+    almacen = ProjectStore.open(base, slug)
+    if expect_md5 and almacen.project.sequence_md5 != str(expect_md5):
+        raise ShmirDesignError(
+            f"El proyecto {slug!r} se creo sobre una secuencia de md5 "
+            f"{almacen.project.sequence_md5!r} y la que hay cargada es "
+            f"{str(expect_md5)!r}. Se RECHAZA: seguir apuntando corridas de OTRA "
+            f"SECUENCIA en este log lo dejaria coherente de forma —la cadena de md5 ni "
+            f"se enteraria— y el proyecto mezclaria dos entradas sin que nada lo delate. "
+            f"Crea otro proyecto para esta secuencia."
+        )
+    return almacen
+
+
+def load_stores(store) -> dict[str, object]:
+    """Los CUATRO almacenes reconstruidos desde el log. Un solo sitio, no cuatro."""
+    from .store import (
+        load_blast_store,
+        load_offtarget_store,
+        load_seed_store,
+        load_splice_store,
+    )
+
+    return {
+        "blast": load_blast_store(store),
+        "seed": load_seed_store(store),
+        "offtarget": load_offtarget_store(store),
+        "splice": load_splice_store(store),
+    }
+
+
+def save_blast_run(store, run):
+    from .store import save_blast_run as _guardar
+
+    return _guardar(store, run)
+
+
+def save_seed_run(store, run):
+    from .store import save_seed_run as _guardar
+
+    return _guardar(store, run)
+
+
+def save_offtarget_run(store, run):
+    from .store import save_offtarget_run as _guardar
+
+    return _guardar(store, run)
+
+
+def save_splice_run(store, run):
+    from .store import save_splice_run as _guardar
+
+    return _guardar(store, run)
+
+
+def save_selection(store, *, starts, date: str, by: str):
+    """La seleccion manual. Una nueva NO pisa la vieja: la SUCEDE."""
+    from .store import save_selection as _guardar
+
+    return _guardar(store, starts=starts, date=date, by=by)
+
+
+def selected_starts(store):
+    from .store import selected_starts as _leer
+
+    return _leer(store)
+
+
+def project_rows(store) -> list[dict[str, object]]:
+    """El historial del proyecto, para pintarlo. Una fila por registro."""
+    return [
+        {
+            "n": r.seq,
+            "tipo": r.kind,
+            "fecha": r.date,
+            "resumen": _resumen_registro(r),
+        }
+        for r in store.records()
+    ]
+
+
+def _resumen_registro(record) -> str:
+    """Una linea por registro. No interpreta: saca lo que el propio registro trae."""
+    datos = record.payload
+    if record.kind == "seleccion":
+        return f"{len(datos.get('starts', []))} candidato(s) — {datos.get('by', '')}"
+    if record.kind.startswith("corrida_"):
+        return (
+            f"{datos.get('run_id', 'sin id')} — {datos.get('ran_by', '')} "
+            f"(resultado md5 {str(datos.get('result_md5', ''))[:8]})"
+        )
+    return str(datos.get("texto", ""))[:80]
