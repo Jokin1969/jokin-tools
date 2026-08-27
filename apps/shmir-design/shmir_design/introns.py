@@ -476,6 +476,83 @@ def intron_breakdown(intron: str, *, module_length: int) -> IntronBreakdown:
 #: aceptor»— porque nadie lo ha autorizado: un criterio que aparece sin haberse
 #: discutido acaba emitiendo veredictos que nadie pidió (ver `docs/procedencia-g4.md`).
 #: Lo que se emite son DISTANCIAS, que son un hecho; la decisión se toma mirándolas.
+#: RANGO TIPICO de donante→punto de ramificacion en intrones de mamifero. Es CONTEXTO,
+#: NO un filtro: no excluye a nadie y no emite veredicto. Se declara como convencion —
+#: igual que el motivo— y esta aqui porque es un limite que NINGUNO de los otros dos
+#: numeros captura: la ventana de insercion dice que el modulo CABE, y punto→aceptor dice
+#: que esa separacion se conserva, pero ninguno de los dos ve que el modulo empuja el
+#: punto de ramificacion a cientos de nucleotidos del donante.
+TYPICAL_DONOR_TO_BRANCH = (18, 100)
+
+DONOR_TO_BRANCH_CONTEXT = (
+    "Que quepa geométricamente NO significa que empalme. Con el módulo y los "
+    "espaciadores intercalados, la separación donante→punto de ramificación queda muy "
+    "por encima del rango habitual en intrones de mamífero. Es una geometría ATÍPICA, y "
+    "esto NO es un filtro: es contexto que hay que tener delante al leer el resultado, "
+    "porque si las tres opciones fallan, ésta puede ser la razón común. Sólo el gel lo "
+    "resuelve."
+)
+
+#: LINEA ABIERTA, anotada para que no se pierda: si donante→punto ES el problema, la
+#: solucion NO es otro intron. Es (a) un MODULO MAS CORTO, o (b) insertar la horquilla en
+#: un intron cuyo punto de ramificacion este MAS LEJOS DEL DONANTE de partida — que es
+#: justo lo contrario de lo que parece: el quimerico tiene el punto a 100-104 del donante
+#: frente a los 42 del MVM, asi que en este eje es PEOR, no mejor. Buscar «un intron mas
+#: largo» empeora este numero si la longitud de mas esta antes del punto.
+OPEN_QUESTION_DONOR_TO_BRANCH = (
+    "Si donante→punto resulta ser el problema, la salida no es cambiar de intrón sino "
+    "acortar el módulo o buscar un intrón cuyo punto de ramificación esté más cerca del "
+    "donante de partida. Un intrón más largo NO ayuda si la longitud de más está aguas "
+    "arriba del punto: el quimérico tiene el punto a 100-104 nt del donante y el MVM a "
+    "42, así que en este eje el quimérico es peor."
+)
+
+
+@dataclass(frozen=True)
+class DonorToBranch:
+    """La separacion donante→punto con el modulo dentro, y si esta fuera de rango."""
+
+    intron: str
+    empty: tuple[int, int]
+    assembled: tuple[int, int]
+    inserted: int
+
+    @property
+    def atypical(self) -> bool:
+        return self.assembled[0] > TYPICAL_DONOR_TO_BRANCH[1]
+
+    def describe(self) -> list[str]:
+        def rango(par):
+            return f"{par[0]} nt" if par[0] == par[1] else f"{par[0]}-{par[1]} nt"
+
+        marca = "  ⚠ FUERA DEL RANGO TÍPICO" if self.atypical else ""
+        return [
+            f"{self.intron}: donante→punto {rango(self.empty)} en el intrón vacío, "
+            f"{rango(self.assembled)} con los {self.inserted} nt intercalados{marca}",
+            f"    rango habitual en mamífero: {TYPICAL_DONOR_TO_BRANCH[0]}-"
+            f"{TYPICAL_DONOR_TO_BRANCH[1]} nt (convención declarada, no cita)",
+        ]
+
+
+def donor_to_branch(
+    elements: IntronElements, *, name: str, inserted: int
+) -> DonorToBranch | None:
+    """Donante→punto con el modulo dentro. `None` sin candidatos: no se inventa."""
+    distancias = [
+        c.branch_a - elements.donor.end - 1
+        for c in elements.branch_candidates
+        if c.branch_a is not None
+    ]
+    if not distancias:
+        return None
+    vacio = (min(distancias), max(distancias))
+    return DonorToBranch(
+        intron=name, empty=vacio,
+        assembled=(vacio[0] + inserted, vacio[1] + inserted),
+        inserted=int(inserted),
+    )
+
+
 INSERTION_RULE = (
     "El módulo va entre el DONANTE y el TRACTO DE POLIPIRIMIDINAS, no invade ningún "
     "candidato a punto de ramificación, y va SIEMPRE aguas arriba del punto. Son las "
