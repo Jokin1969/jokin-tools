@@ -34,6 +34,20 @@ from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     BLAST_MODAL_NOTE,
+    anatomy_payload,
+    load_stores,
+    project_create,
+    project_list,
+    project_open,
+    project_rows,
+    projects_root,
+    save_blast_run,
+    save_offtarget_run,
+    save_seed_run,
+    save_selection,
+    save_splice_run,
+    splice_run_from_scan,
+    selected_starts,
     splice_construction_rows,
     splice_context_note,
     splice_constructions,
@@ -73,6 +87,7 @@ from shmir_design.presentation import (  # noqa: E402
     offtarget_result_rows,
     offtarget_route_text,
     offtarget_run,
+    offtarget_run_from_scan,
     offtarget_self_count_rows,
     offtarget_setting_rows,
     offtarget_upload_rows,
@@ -88,7 +103,9 @@ from shmir_design.presentation import (  # noqa: E402
     seed_params_from_form,
     seed_result_rows,
     seed_run,
+    seed_run_from_scan,
     blast_params_from_form,
+    blast_run_from_upload,
     blast_executor_text,
     blast_query,
     blast_setting_rows,
@@ -287,7 +304,8 @@ def _utr3(secuencia: str, anat) -> str:
 
 
 def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds, mask,
-                   scaffold, conservacion, recursos, accesibilidad) -> dict[str, str]:
+                   scaffold, conservacion, recursos, accesibilidad,
+                   proyecto=None) -> dict[str, str]:
     st.subheader(f"{nombre}")
     extra = dict(recursos.as_kwargs()) if recursos is not None else {}
     if mask is not None:
@@ -356,10 +374,11 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
                 disabled=not fila["ficha"]["url"].startswith("http"),
             )
 
-    _modal_blast(seleccion, nombre)
-    _modal_seed(seleccion, nombre, tiling.mature)
-    _modal_offtarget(seleccion, nombre, tiling.mature, utr3)
-    _modal_empalme(seleccion, nombre, utr3, _casete_de(tiling))
+    _modal_blast(seleccion, nombre, proyecto)
+    _modal_seed(seleccion, nombre, tiling.mature, proyecto)
+    _modal_offtarget(seleccion, nombre, tiling.mature, utr3, proyecto)
+    _modal_empalme(seleccion, nombre, utr3, _casete_de(tiling), proyecto)
+    _guardar_seleccion(proyecto, seleccion, nombre)
 
     with st.expander(f"Todas las ventanas de {nombre} ({len(tiling.windows)})"):
         st.dataframe(window_rows(tiling), hide_index=True)
@@ -413,6 +432,69 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         conservation=conservacion,
         blocks=bloques,
     )
+
+
+
+def _panel_proyecto(especie: str, secuencia: str, anat):
+    """El proyecto: crear uno nuevo o abrir el de antes. Devuelve el almacén o `None`.
+
+    Sin esto, los cuatro modales calculaban, pintaban y **al cerrar la pestaña no quedaba
+    nada**: la capa de persistencia estaba entera y nadie escribía en ella. Un veredicto
+    tiene que sobrevivir a la app que lo escribió.
+
+    La página no decide nada: `presentation` crea, abre, lista y comprueba el md5.
+    """
+    st.sidebar.header("Proyecto")
+    raiz = projects_root()
+    existentes = project_list(raiz)
+
+    if st.sidebar.checkbox(
+        "Guardar esta corrida en un proyecto",
+        key="pr_activo",
+        help="Las corridas de los modales y la selección quedan en un log de texto que "
+             "se lee con `cat` y sobrevive a cerrar la pestaña.",
+    ) is False:
+        st.sidebar.caption(
+            "Sin proyecto, lo que calculen los modales se pierde al cerrar la pestaña."
+        )
+        return None
+
+    opciones = ["— crear uno nuevo —"] + [f["slug"] for f in existentes]
+    elegido = st.sidebar.selectbox("Proyecto", opciones, key="pr_slug")
+    fecha = st.sidebar.text_input(
+        "Fecha (AAAA-MM-DD)", "", key="pr_fecha",
+        help="Va en cada registro del log. Sin ella no es auditable.",
+    )
+    try:
+        if elegido == opciones[0]:
+            nombre = st.sidebar.text_input("Nombre del proyecto nuevo", "", key="pr_nuevo")
+            if not nombre or not fecha:
+                st.sidebar.caption("Hace falta un nombre y una fecha para crearlo.")
+                return None
+            if not st.sidebar.button("Crear proyecto", key="pr_crear"):
+                return None
+            payload, fuente = anatomy_payload(anat)
+            almacen = project_create(
+                raiz, slug=nombre, date=fecha, sequence=secuencia, species=especie,
+                anatomy=payload, anatomy_source=fuente,
+            )
+        else:
+            # El md5 se comprueba: seguir apuntando corridas de OTRA secuencia en este
+            # log lo dejaría coherente de forma y nada lo delataría.
+            almacen = project_open(raiz, elegido, expect_md5=sequence_md5(secuencia))
+    except (ShmirDesignError, ValueError, OSError) as exc:
+        # rule2-ok: frontera de la interfaz. El fallo se enseña entero.
+        st.sidebar.error(f"**PARA** — {exc}")
+        return None
+
+    st.sidebar.success(f"Proyecto **{almacen.project.slug}** — {len(almacen.records())} registro(s)")
+    if not almacen.project.reliable:
+        st.sidebar.warning(almacen.project.why_unreliable)
+    with st.sidebar.expander("Historial"):
+        for fila in project_rows(almacen):
+            st.write(f"{fila['n']}. `{fila['tipo']}` {fila['fecha']} — {fila['resumen']}")
+    return almacen
+
 
 
 def _panel_referencias(especie: str) -> None:
@@ -779,12 +861,21 @@ def main() -> None:
                 "segunda para compararlas."
             )
 
+        # El proyecto: uno por especie analizada. Se abre AQUI, con la anatomia ya
+        # resuelta, porque el proyecto la guarda — y sin ella el propio proyecto sale
+        # marcado NO_FIABLE, que es informacion y no un fallo.
+        proyectos = {
+            nombre: _panel_proyecto(nombre, secuencias[nombre], anat)
+            for nombre, (_, anat) in anatomias.items()
+        }
+
         ficheros: dict[str, str] = {}
         for nombre, (transcrito, anat) in anatomias.items():
             ficheros.update(
                 bloque_especie(
                     nombre, transcrito, secuencias[nombre], anat, umbrales, config,
                     seeds, mask, scaffold, conservacion, recursos, accesibilidad,
+                    proyectos.get(nombre),
                 )
             )
     except (ShmirDesignError, ValueError, OSError) as exc:
@@ -808,7 +899,67 @@ if __name__ == "__main__":
     main()
 
 
-def _modal_blast(seleccion, nombre: str) -> None:
+
+
+def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str) -> None:
+    """Guarda la corrida de un modal en el log del proyecto.
+
+    Es el mismo formulario para los cuatro: sin fecha y sin quién la corrió el registro
+    no es auditable, así que los dos son obligatorios y el núcleo aborta sin ellos.
+    """
+    if proyecto is None:
+        st.caption(
+            "Sin proyecto abierto esta corrida NO se guarda: al cerrar la pestaña se "
+            "pierde. Actívalo en la barra lateral."
+        )
+        return
+    columnas = st.columns([2, 2, 3])
+    with columnas[0]:
+        fecha = st.text_input("Fecha", "", key=f"{clave}_gf_{nombre}")
+    with columnas[1]:
+        quien = st.text_input("Quién la corrió", "", key=f"{clave}_gq_{nombre}")
+    with columnas[2]:
+        if st.button("Guardar en el proyecto", key=f"{clave}_gb_{nombre}"):
+            try:
+                guardar(proyecto, construir(fecha, quien))
+            except (ShmirDesignError, ValueError, OSError) as exc:
+                # rule2-ok: frontera de la interfaz. Nada se guarda y se dice por qué.
+                st.error(f"**PARA** — {exc}")
+            else:
+                st.success("Guardada en el log del proyecto.")
+
+
+
+def _guardar_seleccion(proyecto, seleccion, nombre: str) -> None:
+    """La selección manual, al log. Antes se recalculaba en pantalla y se perdía."""
+    if proyecto is None:
+        return
+    st.markdown("**Guardar la selección en el proyecto**")
+    guardada = selected_starts(proyecto)
+    if guardada:
+        st.caption(f"Última selección guardada: {', '.join(str(s) for s in guardada)}")
+    columnas = st.columns([2, 2, 3])
+    with columnas[0]:
+        fecha = st.text_input("Fecha", "", key=f"sel_fecha_{nombre}")
+    with columnas[1]:
+        quien = st.text_input("Quién", "", key=f"sel_quien_{nombre}")
+    with columnas[2]:
+        if st.button("Guardar selección", key=f"sel_btn_{nombre}"):
+            try:
+                save_selection(
+                    proyecto,
+                    starts=[c.start for c in seleccion.selection.chosen],
+                    date=fecha, by=quien,
+                )
+            except (ShmirDesignError, ValueError, OSError) as exc:
+                # rule2-ok: frontera de la interfaz, el motivo se enseña entero.
+                st.error(f"**PARA** — {exc}")
+            else:
+                st.success("Guardada. Una nueva no pisa la vieja: la sucede.")
+
+
+
+def _modal_blast(seleccion, nombre: str, proyecto=None) -> None:
     """El modal de especificidad. NO decide nada: todo viene de `presentation`.
 
     La pagina no ordena, no marca en rojo y no elige ningun estado — recibe filas con un
@@ -887,7 +1038,7 @@ def _modal_blast(seleccion, nombre: str) -> None:
             file_name=ruta,
             key=f"blast_dl_{nombre}",
         )
-        st.file_uploader(
+        subido = st.file_uploader(
             "Soltar aquí el resultado (-outfmt 6)",
             key=f"blast_up_{nombre}",
             help=(
@@ -895,13 +1046,46 @@ def _modal_blast(seleccion, nombre: str) -> None:
                 "panel antes de almacenarse. Un resultado de otra corrida se rechaza."
             ),
         )
+        if subido is not None:
+            st.markdown("**Procedencia de la corrida** — sin ella no hay veredicto")
+            campos = st.columns(4)
+            with campos[0]:
+                md5_declarado = st.text_input(
+                    "md5 del FASTA de consulta", "", key=f"blast_md5_{nombre}"
+                )
+            with campos[1]:
+                base_nombre = st.text_input("Base", "", key=f"blast_bn_{nombre}")
+            with campos[2]:
+                base_version = st.text_input("Versión", "", key=f"blast_bv_{nombre}")
+            with campos[3]:
+                base_md5 = st.text_input("md5 de la base", "", key=f"blast_bm_{nombre}")
+            remota = st.checkbox(
+                "Fue `-remote` (exploración, NUNCA veredicto)", key=f"blast_rm_{nombre}",
+                help="La base de NCBI cambia entre corridas, así que un resultado remoto "
+                     "no es reproducible y no cierra el frente.",
+            )
+            _guardar_corrida(
+                proyecto, nombre,
+                construir=lambda fecha, quien: blast_run_from_upload(
+                    raw=_read_upload(subido), query=consulta, params=params,
+                    declared_query_md5=md5_declarado,
+                    panel_names=consulta.names,
+                    database={
+                        "nombre": base_nombre, "version": base_version,
+                        "md5": base_md5, "remota": remota,
+                    },
+                    date=fecha, uploaded_by=quien,
+                    run_id=f"{nombre}-blast-{fecha}",
+                ),
+                guardar=save_blast_run, clave="blast",
+            )
     else:
         st.info(
             "Marca al menos un candidato y guía o pasajera para generar la consulta."
         )
 
 
-def _modal_seed(seleccion, nombre: str, maduros) -> None:
+def _modal_seed(seleccion, nombre: str, maduros, proyecto=None) -> None:
     """Colision de seed. Este SI ejecuta: es subcadena contra `mature.fa`.
 
     Como el de BLAST, la pagina no decide nada: recibe filas con `modificado`, `fijo` y
@@ -952,10 +1136,14 @@ def _modal_seed(seleccion, nombre: str, maduros) -> None:
 
     starts = [c.start for c in seleccion.selection.chosen]
     if st.button(f"Buscar colisiones — {nombre}", key=f"seed_go_{nombre}"):
-        scan = seed_run(
+        # El scan se guarda en `session_state` para que sobreviva al rerun que provoca
+        # el boton de guardar. Es ESTADO, no una decision: la pagina sigue sin decidir.
+        st.session_state[f"seed_scan_{nombre}"] = seed_run(
             seleccion, mature=maduros, params=params, species=nombre,
             starts=tuple(starts), guides=True, passengers=True,
         )
+    scan = st.session_state.get(f"seed_scan_{nombre}")
+    if scan is not None:
         destacados = seed_highlights(scan)
         st.warning(destacados["tasa_base"]["texto"])
         if destacados["mir30"]["activo"]:
@@ -967,6 +1155,13 @@ def _modal_seed(seleccion, nombre: str, maduros) -> None:
             data=scan.export_block(),
             file_name=f"{nombre}_colision_seed.txt",
             key=f"seed_dl_{nombre}",
+        )
+        _guardar_corrida(
+            proyecto, nombre,
+            construir=lambda fecha, quien: seed_run_from_scan(
+                scan, date=fecha, ran_by=quien, run_id=f"{nombre}-seed-{fecha}"
+            ),
+            guardar=save_seed_run, clave="seed",
         )
 
     hueco = seed_load_placeholder(None)
@@ -981,7 +1176,7 @@ def _casete_de(tiling):
     return registros[0].sequence if registros else None
 
 
-def _modal_empalme(seleccion, nombre: str, diana: str, casete) -> None:
+def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None) -> None:
     """CUARTO modal: predicción de sitios de splicing sobre el cassette montado.
 
     Es distinto de los otros tres en dos cosas, y las dos se pintan aquí arriba:
@@ -1100,8 +1295,18 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete) -> None:
     st.subheader("Qué guías introducen crípticos que las otras no")
     st.dataframe(splice_exclusive_rows(scan), width="stretch")
 
+    _guardar_corrida(
+        proyecto, nombre,
+        construir=lambda fecha, quien: splice_run_from_scan(
+            scan, raw=_read_upload(subido), date=fecha, ran_by=quien,
+            run_id=f"{nombre}-{fecha}", executor=splice_executor_text(),
+        ),
+        guardar=save_splice_run, clave="sp",
+    )
 
-def _modal_offtarget(seleccion, nombre: str, maduros, diana: str) -> None:
+
+def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
+                     proyecto=None) -> None:
     """Carga de off-targets por seed. El fichero NO lo tenemos: se sube aquí.
 
     Es el tercer modal y el que cierra `offtarget_seed`. Como los otros dos, la página
@@ -1194,11 +1399,14 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str) -> None:
 
     starts = [c.start for c in seleccion.selection.chosen]
     if st.button(f"Contar off-targets — {nombre}", key=f"ot_go_{nombre}"):
-        scan = offtarget_run(
+        # Mismo motivo que en el modal de seed: el scan tiene que sobrevivir al rerun.
+        st.session_state[f"ot_scan_{nombre}"] = offtarget_run(
             seleccion, catalog=catalogo, mature=maduros, params=params,
             species=nombre, starts=tuple(starts), guides=True, passengers=True,
             target=diana, target_label=f"3'UTR de {nombre}",
         )
+    scan = st.session_state.get(f"ot_scan_{nombre}")
+    if scan is not None:
         destacados = offtarget_highlights(scan)
         st.error(destacados["limite_superior"]["texto"])
         st.warning(destacados["uso"]["texto"])
@@ -1223,4 +1431,11 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str) -> None:
             data=scan.export_block(),
             file_name=f"{nombre}_carga_offtarget.txt",
             key=f"ot_dl_{nombre}",
+        )
+        _guardar_corrida(
+            proyecto, nombre,
+            construir=lambda fecha, quien: offtarget_run_from_scan(
+                scan, date=fecha, ran_by=quien, run_id=f"{nombre}-ot-{fecha}"
+            ),
+            guardar=save_offtarget_run, clave="ot",
         )

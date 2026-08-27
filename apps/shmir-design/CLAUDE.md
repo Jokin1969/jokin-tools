@@ -1322,9 +1322,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **con el número de línea**. Y lo que la cadena NO hace va escrito
     (`WHAT_THE_CHAIN_DOES_NOT_DO`): no impide editar el fichero —nada lo impide, es un
     fichero—, lo vuelve **visible**. Misma disciplina que el md5 del manifiesto.
-  - `RECORD_KINDS` está **cerrado** (`corrida_blast`, `corrida_seed`, `seleccion`,
-    `descarte`, `veredicto`, `nota`): si cada modal se inventa su etiqueta, el log deja de
-    poder leerse sin saber quién lo escribió.
+  - `RECORD_KINDS` está **cerrado** (`corrida_blast`, `corrida_seed`,
+    `corrida_offtarget`, `corrida_empalme`, `seleccion`, `descarte`, `veredicto`,
+    `nota`): si cada modal se inventa su etiqueta, el log deja de poder leerse sin saber
+    quién lo escribió. Cada modal nuevo añade **su** etiqueta aquí y su par
+    `save_*`/`load_*`; hay un test que comprueba que no falta ninguno de los cuatro.
   - **La entrada preferente es el `.gb`, no la secuencia pelada.** Un FASTA se acepta,
     pero entonces `Project.reliable` es falso y `why_unreliable` dice qué deja de valer:
     **tercios, proximal/medio/distal y zonas de polyA** salen `NO_FIABLE`, porque todos
@@ -1919,6 +1921,41 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     mentia a medias: decia «no tiene umbral numerico» de un frente que si tiene uno,
     **relativo** — que es todo el punto. Los dos textos los cazo LEER EL DIFF, que es
     para lo que el golden existe.
+
+- **LA PERSISTENCIA, CONECTADA (2026-08-27)** (`trabajo.projects_dir`, `store.py`,
+  la sección de persistencia de `presentation.py`, `_panel_proyecto` en la página).
+  - **El hueco era el mismo patrón que este proyecto ya ha tenido dos veces**
+    (`triple_motive_rows`, `intron_folding`), un nivel más arriba: la capa entera —JSONL
+    append-only, cadena de md5, `verify()`— estaba **construida y testada**, y
+    **`store.save_*` no se llamaba desde ningún sitio**. Los cuatro modales calculaban,
+    pintaban, y al cerrar la pestaña no quedaba nada. Un test verde de una función que
+    nadie invoca no prueba que la app haga eso.
+  - **`SHMIR_PROJECT_DIR`: los proyectos también salen de la imagen.** Misma indirección
+    que `SHMIR_REFERENCE_DIR` y aquí el motivo pesa más: lo que se guarda es el registro
+    de lo que se decidió, y el sistema de ficheros de la imagen es efímero. Sin declarar,
+    van junto al paquete y en local no cambia nada. Una ruta **relativa ABORTA**: el log
+    acabaría en un sitio distinto según desde dónde se lance el proceso, que es lo
+    contrario de para lo que existe.
+  - **Abrir un proyecto con OTRA SECUENCIA se RECHAZA** (`presentation.project_open`,
+    `expect_md5`). Es el fallo del CSV de miRarchitect por la puerta de la persistencia:
+    el log quedaría coherente de forma, la cadena de md5 **ni se enteraría**, y el
+    proyecto mezclaría dos entradas sin que nada lo delate.
+  - **Se guarda el CRUDO además de lo interpretado**, en los cuatro. Lo interpretado
+    depende de cómo interprete **esta** versión del código; el crudo no. Si mañana cambia
+    la forma de comparar contra el referente, del crudo se recalcula; al revés no.
+  - **Una selección nueva no pisa la vieja: la SUCEDE.** `selected_starts` lee la última;
+    las anteriores siguen en el log, que es donde se ve que alguien cambió de opinión.
+  - **`presentation` expone los cuatro `save_*` y un solo `load_stores`.** La página no
+    importa `store.py`: si cada panel abriera el almacén por su cuenta, el quinto modal
+    se quedaría fuera del log sin que nadie lo note — la lección de `offtarget_seed`.
+  - **Ciclo comprobado de punta a punta**, no por partes: crear → guardar selección y
+    corrida de empalme → cerrar → reabrir → `verify()` → vuelven la selección
+    `(60, 553, 819, 1018)` y el veredicto `PASS`, y el log se lee con `cat`.
+  - **El ancho de la tabla de frentes sale del nombre más largo QUE HAY**, no de un
+    número escrito a mano (`dossier.py`). Al partirse `empalme_sitios` por intrón, los
+    nombres llegaron a 36 caracteres y el `<24` fijo se comía la columna de al lado: el
+    estado dejaba de leerse en vertical, que es justo para lo que sirve la tabla. Lo cazó
+    **leer el diff del golden**, otra vez.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

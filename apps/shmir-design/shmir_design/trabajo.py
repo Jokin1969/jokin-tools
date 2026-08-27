@@ -32,6 +32,11 @@ from .reference import PACKAGE_REFERENCE_DIR
 #: La variable que declara el directorio de trabajo. Vacia = el del paquete.
 ENV_VAR = "SHMIR_REFERENCE_DIR"
 
+#: Lo mismo para los PROYECTOS. Y por el mismo motivo, que aqui pesa mas todavia: el
+#: registro de un veredicto tiene que sobrevivir a la app que lo escribio, y dentro de la
+#: imagen de un despliegue se pierde en el siguiente redespliegue.
+PROJECT_ENV_VAR = "SHMIR_PROJECT_DIR"
+
 #: Por que existe. Va a la interfaz cuando el de trabajo no es el del paquete, para que
 #: quien sube un fichero sepa DONDE ha ido a parar.
 WHY_A_WORKING_DIR = (
@@ -56,6 +61,29 @@ def reference_dir(env=None) -> Path:
             f"de trabajo relativo depende de desde donde se arranque el proceso, asi que "
             f"los ficheros acabarian en un sitio distinto segun quien lo lance y la "
             f"mitad de los frentes saldrian NOT_RUN sin motivo visible."
+        )
+    return ruta
+
+
+def projects_dir(env=None) -> Path:
+    """Donde viven los proyectos. Sin declarar, junto al paquete.
+
+    Misma indireccion que `reference_dir`, y el motivo aqui es MAS fuerte: lo que se
+    guarda es el registro de lo que se decidio, y ese registro tiene que sobrevivir a la
+    app que lo escribio. Dentro de la imagen de un despliegue no sobrevive a nada.
+    """
+    entorno = os.environ if env is None else env
+    declarado = str(entorno.get(PROJECT_ENV_VAR, "") or "").strip()
+    if not declarado:
+        return PACKAGE_REFERENCE_DIR.parent / "proyectos"
+    ruta = Path(declarado)
+    if not ruta.is_absolute():
+        raise ShmirDesignError(
+            f"{PROJECT_ENV_VAR}={declarado!r} no es una ruta absoluta. Se aborta: un "
+            f"directorio de proyectos relativo depende de desde donde se arranque el "
+            f"proceso, asi que el log de un proyecto acabaria en un sitio distinto segun "
+            f"quien lo lance — y entonces no sobrevive a nada, que es justo lo contrario "
+            f"de para lo que existe."
         )
     return ruta
 

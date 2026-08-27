@@ -21,8 +21,20 @@ const REFERENCE_DIR = process.env.SHMIR_REFERENCE_DIR
     ? path.join(path.dirname(process.env.DB_PATH || '/data/jokin_tools.db'), 'shmir', 'reference')
     : '');
 
+// Los PROYECTOS. Mismo motivo que la referencia y más fuerte: ahí va el registro de lo
+// que se decidió, y un veredicto tiene que sobrevivir a la app que lo escribió. Va a un
+// directorio distinto del de referencia porque la referencia se siembra y esto no.
+const PROJECT_DIR = process.env.SHMIR_PROJECT_DIR
+  || (process.env.NODE_ENV === 'production'
+    ? path.join(path.dirname(process.env.DB_PATH || '/data/jokin_tools.db'), 'shmir', 'proyectos')
+    : '');
+
 function referenceDir() {
   return REFERENCE_DIR;
+}
+
+function projectDir() {
+  return PROJECT_DIR;
 }
 
 // Siembra: lo versionado se copia al directorio de trabajo la PRIMERA vez y no se
@@ -89,7 +101,9 @@ router.use(async (req, res) => {
       + 'se para aquí en vez de arrancar y perderlo después.'
     );
   }
-  const arranque = await proceso.ensureRunning({ referenceDir: REFERENCE_DIR });
+  const arranque = await proceso.ensureRunning({
+    referenceDir: REFERENCE_DIR, projectDir: PROJECT_DIR,
+  });
   if (!arranque.ok) {
     res.status(503).type('text/plain; charset=utf-8');
     return res.send(
@@ -107,3 +121,4 @@ router.use(async (req, res) => {
 
 module.exports = router;
 module.exports.referenceDir = referenceDir;
+module.exports.projectDir = projectDir;
