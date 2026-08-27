@@ -1814,6 +1814,90 @@ def species_choice_note(choice: str) -> dict[str, object]:
 # ─────────────── el panel de ficheros de referencia de la barra lateral ───────────────
 
 
+# ── El gestor de ficheros de referencia ──────────────────────────────────────────
+#
+# La pagina no importa `gestor.py`: pasa por aqui. Si lo importara acabaria decidiendo
+# que botones pinta y que invalida que, y eso es la regla 6.
+
+
+def reference_manager_rows(species: str, *, directory) -> list[dict]:
+    """Las filas del gestor, con la marca y el resumen YA montados."""
+    from .gestor import manager_rows  # noqa: PLC0415
+
+    filas = []
+    for fila in manager_rows(species, directory=directory):
+        presente = fila["estado"] == "presente"
+        marca = "✅" if presente else ("⬜" if fila["obligatorio"] else "▫️")
+        if presente:
+            trozos = [f"{fila['bytes']} bytes", f"md5 {fila['md5'][:8]}"]
+            if fila["fecha"]:
+                trozos.append(fila["fecha"])
+            if fila["origen"]:
+                trozos.append(fila["origen"])
+            resumen = " · ".join(trozos)
+        else:
+            resumen = (
+                f"FALTA{'' if fila['obligatorio'] else ' (opcional)'} — "
+                f"{fila['que_desbloquea']}"
+            )
+        filas.append({**fila, "especie": species, "marca": marca, "resumen": resumen})
+    return filas
+
+
+def reference_preview(name: str, *, directory, lines: int = 10) -> dict:
+    """La vista de las primeras lineas, con su cabecera ya escrita."""
+    from .gestor import preview  # noqa: PLC0415
+
+    vista = preview(name, directory=directory, lines=lines)
+    if not vista.is_text:
+        cabecera = f"{name}: binario"
+    elif vista.truncated:
+        cabecera = (
+            f"{name}: primeras {vista.shown} de {vista.total_lines} líneas"
+        )
+    else:
+        cabecera = f"{name}: {vista.total_lines} línea(s), entero"
+    return {"cabecera": cabecera, "texto": vista.text, "es_texto": vista.is_text}
+
+
+def reference_download(name: str, *, directory) -> bytes:
+    """Los bytes tal como se subieron. Ver `gestor.WHY_DOWNLOAD`."""
+    from .gestor import download  # noqa: PLC0415
+
+    return download(name, directory=directory)
+
+
+def reference_replace_plan(name: str, *, directory, payload: bytes, species=None) -> dict:
+    """Que cambia y que deja de valer, ANTES de confirmar."""
+    from .gestor import plan_replace  # noqa: PLC0415
+
+    plan = plan_replace(
+        name, directory=directory, payload=payload, species=species
+    )
+    return {
+        "texto": plan.describe(),
+        "invalida": list(plan.invalidates),
+        "mismo": plan.same_file,
+        "md5_viejo": plan.old_md5,
+        "md5_nuevo": plan.new_md5,
+    }
+
+
+def reference_delete_plan(name: str, *, directory, species=None) -> dict:
+    """Que frente vuelve a NOT_RUN. NO borra."""
+    from .gestor import plan_delete  # noqa: PLC0415
+
+    plan = plan_delete(name, directory=directory, species=species)
+    return {"texto": plan.describe(), "frentes": list(plan.fronts)}
+
+
+def reference_delete(name: str, *, directory) -> str:
+    """Borra y devuelve el texto de lo que se fue, con su md5."""
+    from .gestor import delete  # noqa: PLC0415
+
+    return f"Borrado {name} (md5 {delete(name, directory=directory)})."
+
+
 def reference_panel_rows(species: str, *, directory) -> list[dict[str, object]]:
     """Una fila por FICHERO que esta especie necesita: cual es, si esta, y su ficha.
 
