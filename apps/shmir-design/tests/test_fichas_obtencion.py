@@ -131,9 +131,10 @@ class TestTodoFrenteTieneFicha(unittest.TestCase):
             f"que no esta engaña igual que la ausencia.",
         )
 
-    def test_hay_una_por_cada_uno_de_los_ONCE_de_hoy(self):
-        """Nueve frentes mas los DOS intrones que faltan del registro."""
-        self.assertEqual(len(obtencion.load_all()), 11)
+    def test_hay_una_por_cada_uno_de_los_DOCE_de_hoy(self):
+        """Diez frentes —el cuarto modal añadio `empalme_sitios`— mas los DOS intrones
+        que faltan del registro."""
+        self.assertEqual(len(obtencion.load_all()), 12)
 
 
 class TestElContenidoDeCadaFicha(unittest.TestCase):

@@ -1,0 +1,47 @@
+frente = "empalme_sitios"
+pregunta = """\
+¿El modulo de esta guia introduce un sitio de splicing criptico dentro del intron? La \
+unidad no es la guia: es el CASSETTE MONTADO —intron completo, modulo dentro, guia y \
+pasajera de ese candidato, y contexto exonico a los dos lados—. Un criptico que compita \
+con el donante legitimo produce una banda intermedia que en un gel se confunde con la \
+buena."""
+fuente = "SpliceAI, ejecutado por ti. La app prepara las construcciones y recoge el resultado."
+url = "—"
+tamano = "el FASTA de construcciones son unos KB; el resultado, unos KB"
+validacion = """\
+Al subir el resultado la app comprueba que CADA construccion sea una de las que ella \
+genero y que su md5 CUADRE. Un resultado de otra corrida NO puede entrar, aunque encaje \
+de forma: es el fallo del CSV de miRarchitect, un fichero de otra corrida pegado por \
+error que produce un analisis entero sobre el dato equivocado. Un resultado con solo \
+cabecera tambien se rechaza: cero sitios y «la corrida no llego a correr» son cosas \
+distintas y ese fichero no las distingue."""
+
+pasos = [
+  "Abre el cuarto modal y elige los candidatos y los intrones que quieras consultar. Recuerda que la unidad es el PAR: diez candidatos por tres intrones son treinta consultas.",
+  "LEE LOS AVISOS DE ARRIBA ANTES DE NADA. SpliceAI no fue entrenado para esto y sus puntuaciones absolutas no son interpretables sobre un cassette de AAV.",
+  "Descarga el FASTA de construcciones. Cada cabecera lleva su md5, la ventana de contexto y las posiciones del donante y el aceptor legitimos: no la edites.",
+  "Pasa el FASTA por SpliceAI en tu maquina. La app NO da la orden: esa invocacion no se ha verificado desde este proyecto y no se inventa (regla 4). Si nos dices cual usas, se añade.",
+  "Pasa su salida al formato que la app acepta: un TSV con las columnas `construccion`, `md5`, `posicion`, `tipo` (donante o aceptor) y `puntuacion`. La posicion es 1-based DENTRO de la construccion.",
+  "Sube el TSV. La app compara cada sitio contra el DONANTE LEGITIMO del mismo intron en la misma corrida, que es el unico referente que vale.",
+]
+
+avisos = [
+  "SpliceAI NO FUE ENTRENADO PARA ESTO. Se entreno sobre secuencia genomica humana con ventana de 10.000 nt para predecir el efecto de VARIANTES. Un cassette de AAV no se le parece: no hay contexto genomico, las longitudes son atipicas y la composicion tambien.",
+  "NO HAY UMBRAL ABSOLUTO Y NO SE PUEDE INVENTAR UNO. Un 0,8 aqui no significa lo que significa un 0,8 en el genoma humano. Lo unico que vale es la comparacion RELATIVA contra el donante legitimo del mismo intron en la MISMA corrida — el mismo criterio con el que ya se descartaron los aceptores cripticos, comparando su tracto de pirimidinas contra las nueve del legitimo.",
+  "LA VENTANA DE CONTEXTO CAMBIA EL RESULTADO. Va declarada y viaja con cada consulta: dos corridas con contextos distintos no son comparables.",
+  "DESEMPATE Y ALERTA, NUNCA FILTRO. Este frente no puede excluir a ningun candidato: su veredicto solo puede ser NOT_RUN o PASS. Lo accionable es que guias introducen cripticos que las otras NO — si nueve dan un perfil limpio y una no, esa se cambia.",
+  "LA ACCESIBILIDAD ESTRUCTURAL VA EN EL MISMO MODAL Y APARTE EN EL RESULTADO. Esa si corre entera aqui (ViennaRNA) y da un numero PROPIO, no prestado de un modelo entrenado para otra cosa. Son dos preguntas y no se mezclan.",
+]
+
+[[ficheros]]
+nombre = "resultado de SpliceAI sobre las construcciones (TSV)"
+por_que = "Las puntuaciones por posicion de cada cassette montado. La app no las calcula: no tiene red y la invocacion no esta verificada."
+obligatorio = true
+
+[[metadatos]]
+nombre = "version de SpliceAI y del modelo"
+por_que = "Dos versiones dan numeros distintos, y como aqui todo es comparacion relativa dentro de una corrida, mezclar versiones entre corridas invalidaria la comparacion."
+
+[[metadatos]]
+nombre = "la ventana de contexto con la que se corrio"
+por_que = "Cambia el resultado. La app declara la que puso en la construccion; si tu herramienta añade o recorta contexto, hay que saberlo."

@@ -55,6 +55,14 @@ from .tiling import TilingReport
 FASTA_WRAP = 60
 
 
+#: Numeros en letra para las frases del informe. Llegaba hasta ocho y el noveno frente
+#: salio en cifra en medio de una frase en letra; lo cazo el diff del golden.
+_CARDINALES = {
+    2: "dos", 3: "tres", 4: "cuatro", 5: "cinco", 6: "seis", 7: "siete", 8: "ocho",
+    9: "nueve", 10: "diez", 11: "once", 12: "doce",
+}
+
+
 def _envolver(texto: str, ancho: int) -> list[str]:
     """Parte un parrafo largo en lineas, sin cortar palabras."""
     palabras, lineas, actual = texto.split(), [], ""
@@ -1139,9 +1147,10 @@ def text_report(
             lines.extend(f"    {l}" for l in _envolver(frente.reason, 86))
         lines.append(
             "  NO SE PIDE OLIGO hasta que los "
-            + {3: "tres", 4: "cuatro", 5: "cinco", 6: "seis", 7: "siete", 8: "ocho"}.get(
-                len(abiertos), str(len(abiertos))
-            )
+            # La tabla llegaba hasta ocho y el noveno frente salio en cifra en medio de
+            # una frase escrita en letra. Lo cazo leer el diff del golden, que es para lo
+            # que existe. Se alarga en vez de quitarla: la frase se lee mejor asi.
+            + _CARDINALES.get(len(abiertos), str(len(abiertos)))
             + " tengan veredicto. Que uno de ellos se arregle con un fichero pequeño"
         )
         lines.append(

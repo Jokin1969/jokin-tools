@@ -56,11 +56,11 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
 
     def test_el_APA_se_SUMA_a_los_filtros_en_NOT_RUN(self):
         # Cuantos frentes de recurso haya depende de que ficheros se hayan cargado; lo
-        # que fija este test es que el APA es UNO MAS, no uno de ellos. Hay otros dos
-        # que tampoco salen de un filtro de ventana: el empalme del intron y el
-        # off-target por seed.
+        # que fija este test es que el APA es UNO MAS, no uno de ellos. Hay otros TRES
+        # que tampoco salen de un filtro de ventana: el empalme del intron, el
+        # off-target por seed y la prediccion de sitios de splicing (el cuarto modal).
         self.assertEqual(
-            len(self.frentes), len(self.seleccion.not_run_filters) + 3
+            len(self.frentes), len(self.seleccion.not_run_filters) + 4
         )
 
     def test_y_uno_de_ellos_es_el_APA(self):
@@ -68,23 +68,31 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
 
     def test_los_demas_son_los_filtros_en_NOT_RUN(self):
         de_recurso = {f.name for f in self.frentes} - {
-            "fraccion_isoforma_larga", "empalme_intron", "offtarget_seed"
+            "fraccion_isoforma_larga", "empalme_intron", "offtarget_seed",
+            "empalme_sitios",
         }
         self.assertEqual(de_recurso, set(self.seleccion.not_run_filters))
 
-    def test_con_los_tres_ficheros_cargados_quedarian_CINCO(self):
+    def test_con_los_tres_ficheros_cargados_quedarian_SEIS(self):
         # especificidad, repeticiones, seed_colision, el APA y el empalme del intron.
         # Los otros dos frentes de esta corrida (seed y transgen) se cierran con
         # mature.fa y el casete, que no se versionan; por eso la cuenta se comprueba asi
         # y no con un numero clavado. El empalme NO se cierra con ningun fichero: sus
         # tres lecturas son de banco.
-        aparte = {"fraccion_isoforma_larga", "empalme_intron", "offtarget_seed"}
+        aparte = {
+            "fraccion_isoforma_larga", "empalme_intron", "offtarget_seed",
+            # El CUARTO modal. Va siempre: su unidad es el par candidato x intron, asi
+            # que existe en cuanto hay candidatos, y no se cierra con ningun fichero de
+            # referencia — se cierra subiendo el resultado de SpliceAI.
+            "empalme_sitios",
+        }
         de_recurso = {f.name for f in self.frentes} - aparte
         pendientes = de_recurso - {"seed", "transgen"}
         self.assertEqual(
             sorted(pendientes | aparte),
             [
-                "empalme_intron", "especificidad", "fraccion_isoforma_larga",
+                "empalme_intron", "empalme_sitios", "especificidad",
+                "fraccion_isoforma_larga",
                 # `offtarget_seed` NO es parte de `especificidad`: 7 nt contiguos no dan
                 # alineamiento y ningun BLAST los devuelve. Fundirlos daria por cubierto
                 # el modo de off-target mas frecuente de RNAi.
@@ -152,7 +160,7 @@ class TestLoQueDiceElInforme(unittest.TestCase):
         )
 
     def test_el_informe_cuenta_los_frentes_e_incluye_el_APA(self):
-        self.assertIn("PROVISIONAL EN 9 FRENTE(S)", self.texto)
+        self.assertIn("PROVISIONAL EN 10 FRENTE(S)", self.texto)
         self.assertIn("fraccion_isoforma_larga:", self.texto)
 
     def test_y_el_APA_esta_entre_ellos_con_su_cifra(self):
