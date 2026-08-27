@@ -53,6 +53,10 @@ ROLE_INVALIDATES = MappingProxyType(
         # Se recalculan enteros en cada corrida: no hay corrida guardada que dependa.
         "rmsk": (),
         "apa": (),
+        # Tampoco: la promocion por medida se recalcula al tilar, no queda guardada en
+        # ninguna corrida del log. Lo que SI cambia al reemplazarla es el panel entero
+        # —y eso se ve al volver a diseñar, no en una corrida vieja.
+        "polyadb": (),
     }
 )
 

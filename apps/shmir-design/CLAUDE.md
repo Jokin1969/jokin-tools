@@ -50,6 +50,24 @@ este par es el **0,91 del tramo intermedio**.
 el evento de 236 con esta arquitectura. El informe lo emite pegado al plan
 (`AmpliconPlan.distal_crosses`, `gap_between`), no en una nota.
 
+**EL ENSAYO NO SE REDISEÑA: se queda con ALCANCE DECLARADO. DECIDIDO (2026-08-27).**
+Mide lo que el panel necesita —el **0,86** que hay detrás de las dos bandas—, y el plan
+lo dice con **dos frases y no con una limitación al pie** (`_lineas_de_cruce`):
+
+> **QUÉ MIDE** — la fracción de transcritos que sobrevive a las dos bandas de corte, o
+> sea el techo de los candidatos que quedan por detrás de todas ellas.
+> **QUÉ NO MIDE** — no separa una señal de la otra y no confirma el techo del tramo
+> **intermedio**.
+
+Van las dos o ninguna: sólo la segunda deja el ensayo pareciendo defectuoso, y sólo la
+primera lo deja pareciendo completo.
+
+**Y la salida, por si algún día hace falta** (`polya.WAY_OUT_IF_EVER_NEEDED`): el tramo
+intermedio **no se alcanza moviendo amplicones** —eso ya está demostrado imposible— sino
+con **3'RACE o secuenciación de extremos**, donde la resolución no depende de que quepa
+un amplicón entre dos cortes. Es **línea abierta, no tarea**: hoy no hay ningún candidato
+ahí, así que no confirmarlo no cuesta nada.
+
 ### Y una frase que era falsa, también de los viejos
 
 Aquí ponía «esquivando las dianas del panel». **Ni los nuevos ni los viejos lo
@@ -57,6 +75,15 @@ consiguen**: el proximal solapa `3utr:143-164` y `3utr:200-221` (los viejos sola
 `143-164` y `221-242`). El código sí lo decía —lo marca con `⚠ solapa`— y era la prosa de
 este fichero la que no. Por eso se mide sobre **tejido sin tratar**: en muestras tratadas
 un amplicón que solape una diana mide corte por RNAi, no isoformas.
+
+Va al registro como **errata propia nº 26**, y deja **principio nº 11**: *cuando el
+código y la prosa discrepan sobre el mismo hecho, la que se ha quedado atrás es la
+prosa, y es la que alguien va a leer.* No basta con corregir la frase — el mecanismo
+sigue ahí. La regla operativa es que **la frase la emita el generador**, o que **un test
+la contraste** contra lo que el código emite: `tests/test_prosa_contra_codigo.py`
+comprueba que este fichero no vuelve a **afirmar** esa frase (puede citarla entre «» como
+lo que fue), que los amplicones que declara son los que emite `rtqpcr_amplicons`, y que
+el panel declarado es el de una corrida real.
 
 ### Por qué esto está en el registro y no sólo en un commit
 
@@ -689,9 +716,36 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     `masking.triple_motive_rows` sobre un informe tilado **sin** máscara.
 - **El manifiesto registra la BIBLIOTECA además de la versión del binario** (columna
   `biblioteca`): RepeatMasker 4.0.9 con Dfam_3.0 y con otra biblioteca dan resultados
-  distintos, así que la versión a solas no identifica la corrida. La cabecera de 9
-  columnas se sigue aceptando (`PREVIOUS_COLUMNS`) y la columna sale vacía, que es la
-  verdad.
+  distintos, así que la versión a solas no identifica la corrida. Las cabeceras cortas se
+  siguen aceptando (`LEGACY_COLUMNS`, `PREVIOUS_COLUMNS`, `BEFORE_ANATOMY_COLUMNS`) y las
+  columnas nuevas salen vacías, que es la verdad — nadie las registró.
+- **Y REGISTRA LA ANATOMÍA, no sólo los ficheros. AÑADIDO (2026-08-27)**: tres columnas
+  más, `cds` (en la notación `185..949` del propio GenBank, para poder cotejarla con el
+  `.gb` sin traducir nada), `md5_secuencia` y `md5_utr3`. Hasta aquí registraba nombre,
+  tamaño, md5, accession y longitud, y **la frontera del 3'UTR no tenía ninguna línea**:
+  vivía sólo en `reference.REFERENCES`, así que añadir una especie era editar código y un
+  veredicto de hace tres meses no se podía auditar sin la versión del código con la que
+  salió. De esa frontera cuelgan los tercios, la región de cada ventana y la distancia de
+  cada señal de polyA al extremo.
+  - **Sigue habiendo DOS definiciones** —la del manifiesto y la de `REFERENCES`— y eso
+    sólo es admisible porque algo obliga a que coincidan:
+    `tests/test_anatomia_en_el_manifiesto.py` las cruza **en las dos direcciones**, así
+    que una especie nueva sin su línea hace fallar la suite. Es el principio nº 5
+    aplicado antes de que el par diverja, en vez de después.
+  - **Vacío significa NO REGISTRADO**, nunca «todo es 3'UTR»: un `0..0` o un md5 de
+    relleno serían un dato. Un CDS que no se puede leer **aborta** — leer mal esa
+    frontera corre los tercios enteros sin dar ningún error.
+  - **AHORA SON TRES CHECKSUMS EN LA MISMA FILA**, y son cantidades distintas: `md5` es
+    el del FICHERO en disco, `md5_secuencia` el de la SECUENCIA canónica (mayúsculas, sin
+    cabecera, sin saltos) y `md5_utr3` el del 3'UTR — que es el que decide si la tabla de
+    APA medido se aplica. Copiar uno en el sitio de otro hace que el fichero **bueno** se
+    rechace; hay test de que los tres son distintos.
+  - **La fila la monta `entry_row` y su ancho se DERIVA de `MANIFEST_COLUMNS`**, con un
+    aborto si no cuadra. No es teórico: al entrar estas tres columnas, un test que
+    escribía la fila con tabuladores contados a mano se quedó en diez campos y el
+    manifiesto dejó de parsearse. Una columna que no se escribe corre los valores a la de
+    al lado, y eso no da ningún error — es la tabla descuadrada de `Block.__post_init__`
+    un nivel más abajo.
 - **El casete que se pasa tiene que ser lo que la célula MADURA** (`transgene.py`). Si el
   casete lleva el módulo del shmiR y se pasa el **genoma con el intrón dentro**, toda guía
   da impacto contra **su propia horquilla**: el filtro tumba el panel entero por un
@@ -994,7 +1048,9 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   en todo andamio cargado de fichero.
 - Elegible no es aprobado: mientras haya filtros en `NOT_RUN`, la selección es
   provisional y los candidatos salen `INCOMPLETE`.
-- **La fracción de isoforma larga está MEDIDA y YA ENTRA** (`apa.POLYA_DB_PRNP`).
+- **La fracción de isoforma larga está MEDIDA y YA ENTRA**
+  (`data/reference/polya_db_mouse.tsv`, cargada con `apa.find_polyadb`; estuvo
+  cableada en `apa.POLYA_DB_PRNP` hasta 2026-08-27 y la constante ya no existe).
   PolyA_DB v4.1 (2025-09-15), mm10, Prnp (Gene ID 19122): 15 PAS, 5 con expresión. Las dos
   cifras con su fórmula, porque no miden lo mismo:
   - **ponderada** `Σ(AvgRPM × PSE) distal / Σ total` = **0,86** ← valor de trabajo
@@ -1471,8 +1527,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     `espaciador3`, `MVM3`, `exon3`, `AgeI`), y con ellas el módulo, el cassette, la hoja
     de pedido, el control sin intrón y `splicing.locate_intron`. **Esto no es un valor por
     defecto: es el vector concreto**, y para otra especie no se parametriza — se sustituye.
-  - `apa.POLYA_DB_PRNP` **no** está en esta lista: se aplica por md5 del 3'UTR
-    (`resolve_measured`), así que sobre otra secuencia devuelve `None` y no promueve nada.
+  - La tabla de PolyA_DB **no** está en esta lista, y por dos razones distintas: se
+    aplica por md5 del 3'UTR (`resolve_measured`), así que sobre otra secuencia
+    devuelve `None` y no promueve nada — y desde 2026-08-27 **ya no está en el
+    código**: es `polya_db_mouse.tsv`, un fichero del gestor con su md5 en el
+    manifiesto, así que otra especie es otro fichero y no otro commit.
   - **Y lo que NO está metido, para no tocarlo**: `polya.ALL_SIGNALS` (los diez
     hexámeros), `CLEAVAGE_MIN/MAX` (10-30 nt), `SIGNAL_FLANK` y los umbrales terminales
     son **mamífero**, no murino. Los números 949 / 1242 / 2191 aparecen solo en
@@ -1544,8 +1603,12 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     criterio de representante y versión— son **obligatorios** y su ausencia aborta: sin
     ensamblaje y sin fecha el conteo no es reproducible, que es la misma regla de la
     versión de miRBase y de la biblioteca de Dfam. La ruta de descarga (Table Browser de
-    UCSC, mm39, NCBI RefSeq, «3' UTR Exons») va **en la interfaz** (`UCSC_ROUTE`), no en
-    una conversación.
+    UCSC, **el ensamblaje de la especie que se esté analizando**, NCBI RefSeq, «3' UTR
+    Exons») va **en la interfaz** (`ucsc_route(especie)` sobre `UCSC_ROUTE_TEMPLATE`),
+    no en una conversación. El ensamblaje **se resuelve** contra
+    `species.ucsc_assembly` y no va escrito dentro del texto: con `mm39` dentro, quien
+    cargara conejo leía una instrucción correcta de principio a fin con el ensamblaje
+    del ratón, y **no daba ningún error**.
   - **Validación al recibirlo, y rechaza**: que sea FASTA, que el alfabeto sea de ADN, el
     md5 declarado si lo hay, más número de secuencias y longitud total. Y la **auditoría
     de isoformas** (`IsoformAudit`), que son tres preguntas y no una:
@@ -2382,33 +2445,69 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   dato de UNA especie escrito en el código **funciona callado** y sobre otra produce un
   resultado con la **forma correcta**. Tres categorías, y la distinción es lo único que
   hace útil el informe:
-  - **DATO (5)** — debería estar en un fichero del gestor, con md5 y procedencia:
-    - `apa.POLYA_DB_PRNP` → **`apa_medido.tsv`**. **La más importante**: 15 PAS con PSE y
-      AvgRPM, y de ella cuelgan el techo por tramos, la promoción del `AATATA` y el panel
-      de diez. **El rol `apa` YA EXISTE en el gestor**: lo que falta no es
-      infraestructura, es mover la tabla. Mientras siga en código, cambiar de versión de
-      PolyA_DB es tocar código y su md5 no está en el manifiesto.
-    - `offtarget.CONTROL_NAMES` → **no existe el fichero todavía**. Los tres controles
-      biológicos son de **cerebro** y su elección viene de la biología, no del código.
-      Sus secuencias sí salen de `mature.fa` (regla 1); lo que está escrito son los
-      **nombres**, y hoy no hay forma de cambiarlos sin editar el módulo.
-    - `external_score.EVIDENCE` → los pares (puesto, score) de una corrida concreta de
-      miRarchitect. **El fichero de esa corrida ya está versionado**, así que hay **dos
-      definiciones del mismo dato** — el cuarto par duplicado otra vez, y esta vez con el
-      código como la copia.
-    - `seeds.BOOTSTRAP_SEED_TABLE` → doce seeds murinas a mano. Ya está declarado como
-      lista de arranque y sale avisado en cada informe; lo que le falta es **fecha de
-      caducidad**: se borra cuando `mature.fa` sea obligatorio para correr.
-    - `reference.REFERENCES` → los dos transcritos con su anatomía. Es dato **declarado y
-      con checksum**, así que no es el caso peligroso — pero añadir una tercera especie
-      sigue siendo editar código. El manifiesto registra los ficheros; **la anatomía no**.
-  - **DECLARACIÓN (7)** — van en código **a propósito**: `mirna.CORE_ABUNDANT` (con
-    autorización escrita y fechada: en un fichero se podría cambiar sin que se viera en
-    el diff, que es lo contrario de lo que su autorización pide), `species.SPECIES`,
-    `ALIASES`, `TAXIDS`, `HISTORICAL_PREFIXES`, `LET7_FAMILY`, `VECTOR_DESCRIPTION`.
-  - **PROSA (9)** — razonamiento y avisos, pegados a lo que explican. Con **una tarea
-    pendiente**: `offtarget.UCSC_ROUTE` nombra `mm39` **dentro del texto** en vez de
-    resolverlo contra `species.ucsc_assembly`, que ya existe y ya lo usan las fichas.
+  - **DE LAS CINCO DE «DATO», TRES SE HAN MOVIDO. DECIDIDO (2026-08-27)**, con el
+    criterio dicho en una frase por el responsable y que es lo que ordena la lista:
+    **si cambiaría al cambiar de especie o de gen, es dato y va al gestor; si es una
+    regla sobre cómo tratar el dato, va al código.**
+    - ~~`apa.POLYA_DB_PRNP`~~ → **`data/reference/polya_db_mouse.tsv`**, con su línea en
+      el manifiesto y su md5. Era la más importante: 15 PAS con PSE y AvgRPM, y de ella
+      cuelgan el techo por tramos, la promoción del `AATATA` y el panel de diez. **La
+      constante se quitó ENTERA**, no se dejó «por si acaso»: mientras existieran las
+      dos habría dos definiciones del mismo dato sin nada que las atara — y ya habían
+      empezado a separarse, con las notas de los anclajes diciendo `PSE 21,1 %` en el
+      código y la lectura del racimo en el fichero. Los tests la cargan del fichero
+      (`tests/tabla_medida.py`), que es el camino que corre la app.
+      **No es el rol `apa_medido.tsv`**: ése ya existe y carga OTRO formato —posición,
+      fracción, nombre—, así que se le dio rol propio (`polyadb`) en vez de fundir dos
+      formatos vivos. La ficha de obtención de `apa_medido.tsv` describía PolyA_DB, que
+      es lo que hacía parecer que era el mismo hueco.
+    - ~~`external_score.EVIDENCE`~~ → los pares se **leen** de
+      `mirarchitect_prnp_export_buena.csv` (`read_evidence_pairs`). Y al cruzarlos salió
+      lo que un par duplicado siempre acaba enseñando: **los cinco pares transcritos no
+      eran de ese fichero**. Cuadran con `mirarchitect_prnp_raton.tsv`, el que el
+      manifiesto marca **«NO USAR»** por haberse puntuado sobre el 3'UTR fabricado de
+      1246 nt (errata nº 5). La **dirección** no se mueve —los tres ficheros vienen
+      crecientes— pero eso es suerte: si la corrida retirada hubiera venido al revés, la
+      constante habría registrado la dirección contraria **con cinco pares de aval**.
+    - ~~`reference.REFERENCES`~~ → la **anatomía** entra en el manifiesto: tres columnas
+      nuevas (`cds`, `md5_secuencia`, `md5_utr3`). Registraba los FICHEROS y no la
+      frontera de la que cuelgan los tercios, la región de cada ventana y la distancia
+      de cada señal de polyA al extremo. **Sigue habiendo dos definiciones**, y eso solo
+      es admisible porque algo obliga a que coincidan:
+      `tests/test_anatomia_en_el_manifiesto.py` las cruza **en las dos direcciones**.
+      Queda pendiente el paso siguiente —que `REFERENCES` se **lea** del manifiesto—,
+      que es un cambio de fuente única y no un registro.
+    - **OJO CON LOS TRES CHECKSUMS**, que ahora conviven en la misma fila: `md5` es el
+      del FICHERO en disco, `md5_secuencia` el de la SECUENCIA canónica y `md5_utr3` el
+      del 3'UTR. Copiar uno en el sitio de otro hace que el fichero **bueno** se
+      rechace. Hay test de que los tres son distintos.
+  - **LAS DOS QUE SE QUEDAN, y por qué no es incoherencia**:
+    - `offtarget.CONTROL_NAMES` **se reclasifica como DECLARACIÓN**
+      (`WHY_THE_CONTROLS_STAY_IN_CODE`). Estaba como DATO con el motivo «su elección
+      viene de la biología, no del código»: la frase es cierta y **no es el criterio**.
+      Los tres nombres son el **patrón** de qué significa «muchos sitios», y cambiarlos
+      cambia la lectura de todos los informes a la vez; en un fichero se cambiarían
+      **sin que se viera en el diff**, que es exactamente la razón de `CORE_ABUNDANT`. Y
+      con la misma consecuencia: fuera de cerebro murino la elección no está
+      justificada, y eso se arregla **marcándola**, no sacándola a un fichero. Sus
+      **secuencias** sí son dato y ya salen de `mature.fa`.
+    - `seeds.BOOTSTRAP_SEED_TABLE` **se queda, con FECHA DE CADUCIDAD explícita**
+      (`seeds.bootstrap_expiry_note`). El aviso de siempre salía **igual** con
+      `mature.fa` en el depósito y sin él, así que no distinguía «no lo tenemos» —una
+      limitación que se declara y con la que se convive— de «lo tenemos y no se está
+      usando», que es la tabla equivocada. Ahora el segundo caso sale aparte y dice qué
+      hacer. Se borra cuando el fichero de maduros sea obligatorio para correr.
+  - **PROSA: la tarea pendiente está CERRADA.** `offtarget.UCSC_ROUTE` nombraba `mm39`
+    **dentro del texto**; ahora es `UCSC_ROUTE_TEMPLATE` con marcador y `ucsc_route(especie)`
+    lo resuelve contra `species.ucsc_assembly`. Si la especie no lo tiene declarado, el
+    texto **lo dice y dice dónde se declara**, con la misma redacción que las fichas
+    (`obtencion.undeclared_note`). Era el caso peligroso de siempre: la instrucción se
+    leía correcta de principio a fin y mandaba a bajar el transcriptoma del organismo
+    equivocado, **sin dar ningún error**.
+  - **Y una constante que se muda deja DIRECCIÓN** (`apa.WHERE_THE_MOUSE_TABLE_LIVES`):
+    sin una frase que diga a dónde se fue, el siguiente que busque `POLYA_DB_PRNP` y no
+    la encuentre pensará que el dato se perdió o que nunca estuvo. Mismo criterio que un
+    frente CERRADO que sigue saliendo en el informe.
   - La tabla la ata un test en las dos direcciones, como `alcanzabilidad.toml`: una
     constante sospechosa **sin clasificar** hace fallar la suite, y una entrada **muerta**
     también.

@@ -128,6 +128,14 @@ def _apa(path, entry, contexto):
     )
 
 
+def _polyadb(path, entry, contexto):
+    """La tabla de PolyA_DB. Su version y su ensamblaje van DENTRO del fichero, no en el
+    manifiesto: son parte del dato, no de como se guardo."""
+    from .apa import load_polyadb  # noqa: PLC0415
+
+    return load_polyadb(path, expected_md5=entry.md5)
+
+
 class _Omitir(Exception):
     """Este recurso no se puede cargar todavia, y el motivo no es un fallo."""
 
@@ -143,6 +151,7 @@ LOADERS = {
     "rmsk": _rmsk,
     "transgen": _transgen,
     "apa": _apa,
+    "polyadb": _polyadb,
 }
 
 #: Donde acaba cada rol dentro de `ResourceSet`. El orden importa: la abundancia
@@ -157,6 +166,7 @@ DESTINOS = (
     ("transgen", "transgene_db"),
     ("rmsk", "mask"),
     ("apa", "apa_sites"),
+    ("polyadb", "polyadb"),
 )
 
 
@@ -173,6 +183,9 @@ class ResourceSet:
     expression: object | None = None
     mask: object | None = None
     apa_sites: object | None = None
+    #: La tabla de PolyA_DB, si esta. `tile_utr` la resuelve por su cuenta del
+    #: directorio de referencia, asi que esto es para quien quiera pasarla explicita.
+    polyadb: object | None = None
     connected: tuple[str, ...] = ()
     notes: tuple[str, ...] = field(default=())
     status: DirectoryStatus | None = None

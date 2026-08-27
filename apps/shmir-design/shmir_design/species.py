@@ -218,6 +218,22 @@ def required_files(species: Species) -> tuple[RequiredFile, ...]:
             fronts=("fraccion_isoforma_larga",),
             extensions=("tsv", "txt"),
         ),
+        # La tabla de PolyA_DB. Es DATO y entra por aqui; la REGLA sobre que hacer con
+        # ella —que un hexamero con uso medido se trate como funcional— vive en el
+        # codigo y no lleva bandera. Lleva sufijo de especie SIEMPRE, tambien en raton:
+        # sin el, la tabla murina contaria como presente para un humano y su frente
+        # saldria cerrado con los datos del gen equivocado.
+        RequiredFile(
+            role="polyadb",
+            filename=f"polya_db_{slug}.tsv",
+            what=(
+                "los PAS medidos de PolyA_DB con su clase, PSE y AvgRPM: de ahi sale la "
+                "promocion de señales por MEDIDA y el techo por tramos"
+            ),
+            ficha="fraccion_isoforma_larga",
+            fronts=("fraccion_isoforma_larga",),
+            extensions=("tsv", "txt"),
+        ),
     )
 
 

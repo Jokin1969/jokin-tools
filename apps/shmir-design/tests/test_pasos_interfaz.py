@@ -337,7 +337,7 @@ class TestLaSubidaPorLaInterfaz(_ConDirectorio):
             species=species.resolve("raton"), origin="subido", date="2026-08-26",
         )
         texto = (self.dir / manifest.MANIFEST_NAME).read_text(encoding="utf-8")
-        self.assertIn("OJO CON LOS DOS CHECKSUMS", texto)
+        self.assertIn("OJO CON LOS TRES CHECKSUMS", texto)
 
     def test_el_hermano_que_falta_se_NOMBRA_en_el_resultado(self):
         crudo = (DATOS / "rmsk_mouse.out").read_bytes()

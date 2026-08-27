@@ -1,0 +1,37 @@
+# Sitios de poliadenilación MEDIDOS — tabla de PolyA_DB para una especie.
+#
+# Este fichero es DATO y entra por el gestor. La REGLA sobre que hacer con el —que
+# un hexamero con uso medido se trate como funcional— vive en el codigo y no lleva
+# bandera. Las dos cosas van separadas a proposito.
+#
+# Sale de PolyA_DB v4: tabla «PAS Summary» (coordenadas y clase) y tabla «PAS
+# Expression» (PSE_3'READS y AvgRPM_3READS). Una fila por PAS. Los que NO tienen
+# expresion se incluyen igual, con `pse` y `avgrpm` vacios: sirven de ANCLA aunque
+# no sumen a ninguna fraccion.
+#
+# LAS CIFRAS NO SE REPITEN EN LA NOTA. `pse` y `avgrpm` van en sus columnas y el
+# informe las IMPRIME de ahi (`PasAnchor.pse`/`avgrpm`). Escribirlas ademas en
+# `nota` era tener el mismo numero en dos sitios sin nada que obligara a que
+# coincidieran — y ya habian empezado a discrepar. La nota lleva la LECTURA, no la
+# cifra.
+#
+# OJO: las coordenadas son GENOMICAS. La app las ancla contra la secuencia exigiendo
+# que TODAS aterricen a la vez con el mismo desfase sobre un hexamero de la clase
+# declarada — nunca con una resta, que es un solo punto de apoyo y siempre cuadra.
+# fuente	PolyA_DB
+# version	v4.1
+# fecha	2025-09-15
+# ensamblaje	mm10
+# gen	Prnp
+# gen_id	19122
+# representante	NM_001278256.1
+# pas_totales	15
+# pas_con_expresion	5
+# utr3_md5	19f5fa2a77a87892770e2affdc90e0e4
+# tejido	TODOS LOS TEJIDOS, no cerebro
+# reserva	El PAS terminal 131938427 y el que tiene expresión (131938392, 35 nt aguas arriba) se anotan como DOS y no se fusionan sin comprobarlo: fusionarlos suma su expresión y sube la fracción larga sin dato. El anclaje los coloca sobre hexámeros DISTINTOS —ATTAAA en 3utr:1214 el uno; TATAAA en 3utr:1178 o en 3utr:1189 el otro, que además no distingue entre los dos—, así que tampoco por ahi hay motivo para fusionarlos. NO MUEVE EL VALOR: 131938427 no tiene expresión, luego no suma nada a ninguna de las dos formulas.
+pas_id	coordenada	clase	pse	avgrpm	distal	nota
+chr2:+:131937444	131937444	Other	0.211	0.55	no	TERCER sitio de corte, el proximal MÁS USADO de los tres
+chr2:+:131937504	131937504	AAUAAA	0.235	0.34	no	nuestro AATAAA de 3utr:288
+chr2:+:131938392	131938392	Other	0.705	1.65	si	racimo terminal
+chr2:+:131938427	131938427	AUUAAA				fuerza 99,9 %, conservado en humano y rata; SIN expresión, así que no entra en la fracción — solo ancla

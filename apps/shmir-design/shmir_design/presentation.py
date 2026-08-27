@@ -1152,10 +1152,16 @@ def offtarget_placeholder(catalog):
     }
 
 
-def offtarget_route_text() -> str:
-    from .offtarget import UCSC_ROUTE
+def offtarget_route_text(species) -> str:
+    """La ruta de descarga de UCSC para ESTA especie. La especie es obligatoria.
 
-    return UCSC_ROUTE
+    Sin ella el texto salia con `mm39` escrito dentro, o sea con el ensamblaje del
+    raton para cualquiera que abriera el modal — una instruccion correcta de principio
+    a fin y del organismo equivocado.
+    """
+    from .offtarget import ucsc_route
+
+    return ucsc_route(species)
 
 
 def offtarget_provenance_from_form(form: dict, *, md5: str):
@@ -3006,7 +3012,6 @@ def page_run(
     de transcrito son coordenadas de transcrito de verdad y no una copia de las del
     3'UTR. Que ventanas entran lo decide `tile_range`, en el nucleo.
     """
-    from .apa import POLYA_DB_PRNP, resolve_measured
     from .selection import default_config, select_from_report
     from .tiling import tile_utr
 
@@ -3020,22 +3025,14 @@ def page_run(
     extra = dict(resources.as_kwargs()) if resources is not None else {}
     if mask is not None:
         extra["mask"] = mask  # la mascara subida a mano manda sobre la del manifiesto
-    # La tabla de APA MEDIDO se coloca sola sobre la secuencia que le corresponde y solo
-    # sobre esa: la condicion es el md5 canonico del 3'UTR, asi que sobre cualquier otra
-    # devuelve `None` y no se promueve ninguna señal.
-    #
-    # POR QUE ESTABA AQUI EL FALLO: el CLI la aplicaba y la pagina no. Sin ella el tercer
-    # sitio de corte —`131937444`, el proximal MAS USADO de los tres— no promociona, la
-    # frontera de la inmunidad se queda en `3utr:303` en vez de adelantarse a `3utr:251`,
-    # y `3utr:221` vuelve al panel porque su riesgo ESTERICO no llega a existir. O sea:
-    # el mismo mRNA daba un panel por consola y otro por navegador. Es la CUARTA
-    # divergencia entre los dos frontales y exactamente el fallo que obligo a crear
-    # `resolve.py` con la anatomia.
-    medido = resolve_measured(sequence, POLYA_DB_PRNP, anatomy=anatomy)
+    # LA TABLA DE APA MEDIDO LA RESUELVE `tile_utr`, del FICHERO del gestor. Aqui no
+    # se pasa nada: la regla entra sola y el dato sale del deposito. Antes esto llamaba
+    # a `resolve_measured` con la constante `apa.POLYA_DB_PRNP`, asi que la pagina
+    # tenia que acordarse —y en otra especie no habia forma de meter los numeros—.
     tiling = tile_utr(
         sequence, anatomy=anatomy, seeds=seeds, thresholds=thresholds,
         accessibility=accessibility, species=species, tile_range=tile_range,
-        measured_apa=medido, **extra,
+        **extra,
     )
     # `default_config()` es la configuracion DEL PROYECTO: panel de 10 y cuota de
     # inmunes emparejada con su frontera. `SelectionConfig()` a secas no la lleva, y

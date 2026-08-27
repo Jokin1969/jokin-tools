@@ -19,6 +19,9 @@
 
 [justificados]
 
+# ── El llamador es un MÉTODO, y el análisis solo camina funciones de módulo ──
+read_evidence_pairs = "La llama `ScoreEvidence.pairs`, una PROPIEDAD de la dataclass del mismo módulo, y esa propiedad sí la lee quien pinta la evidencia. El cierre transitivo solo recorre funciones de nivel de módulo, así que un llamador que es método de una clase le es invisible — el mismo hueco que declara el propio informe cuando dice que no sigue `getattr` ni despachos por cadena. Se deja pública ADEMÁS porque es la puerta por la que un test comprueba que un fichero ausente ABORTA en vez de devolver cero pares, y esa comprobación no se puede hacer a través de la propiedad sin tocar el fichero versionado."
+
 # ── Se llama desde FUERA de Python ──
 seed_reference_dir = "La invoca el hub, no Python: `apps/shmir/routes.js` la ejecuta con `python3 -c` al arrancar la interfaz, para sembrar el directorio de trabajo. El análisis solo lee ficheros .py, así que este llamador le es invisible por construcción — no por descuido."
 

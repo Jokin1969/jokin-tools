@@ -44,7 +44,7 @@ class TestElHuecoMientrasFaltaElFichero(unittest.TestCase):
         self.assertIn("no es cero", texto)
 
     def test_la_ruta_de_descarga_esta_EN_LA_INTERFAZ(self):
-        texto = presentation.offtarget_route_text()
+        texto = presentation.offtarget_route_text("raton")
         self.assertIn("Table Browser", texto)
         self.assertIn("mm39", texto)
         self.assertIn("3' UTR Exons", texto)

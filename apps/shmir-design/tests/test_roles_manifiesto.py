@@ -33,11 +33,23 @@ DIRECTORIO = fixture_path().parent
 
 class TestLaTablaDeRoles(unittest.TestCase):
 
+    #: El unico rol cuyo `replaces` esta VACIO, y con motivo: la tabla de PolyA_DB
+    #: nunca fue alcanzable por una flag — estaba CABLEADA en `apa.POLYA_DB_PRNP`. No
+    #: sustituye a ninguna opcion porque no habia ninguna: sustituye a una constante.
+    #: Se declara aqui en vez de inventarle una flag que no existio.
+    SIN_FLAG_PREVIA = {"polyadb"}
+
     def test_cada_rol_declara_fichero_y_para_que_sirve(self):
         for rol in ROLES:
             self.assertTrue(rol.filename, rol)
             self.assertTrue(rol.what, rol.filename)
-            self.assertTrue(rol.replaces, rol.filename)
+            if rol.role not in self.SIN_FLAG_PREVIA:
+                self.assertTrue(rol.replaces, rol.filename)
+
+    def test_el_rol_SIN_flag_previa_es_el_declarado_y_no_otro(self):
+        # Una excepcion que crece sin que nadie la mire deja de ser una excepcion.
+        vacios = {r.role for r in ROLES if not r.replaces}
+        self.assertEqual(vacios, self.SIN_FLAG_PREVIA)
 
     def test_los_identificadores_no_se_repiten(self):
         ids = [r.role for r in ROLES]

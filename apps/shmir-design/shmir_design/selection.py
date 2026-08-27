@@ -1691,32 +1691,34 @@ def tercio_counts(
 # experimento en no poder distinguirlos.
 
 
-def _estado_medida(measured=None) -> str:
-    """Que se sabe hoy de la fraccion, y por que sigue (o no) bloqueando."""
-    from .apa import POLYA_DB_PRNP
+def _estado_medida(measured=None, *, missing_reason: str = "") -> str:
+    """Que se sabe hoy de la fraccion, y por que sigue (o no) bloqueando.
 
+    TODAS las cifras salen de la tabla QUE SE APLICO, no de una constante del codigo:
+    imprimir las murinas pasara lo que pasara daria las de Prnp para cualquier especie,
+    que es el mismo fallo que `rmsk_mouse.out` conectado por rol.
+    """
     if measured is None:
         return (
-            f"HAY UNA MEDIDA —{POLYA_DB_PRNP.source} {POLYA_DB_PRNP.version}, fracción "
-            f"larga {POLYA_DB_PRNP.working_value:.2f} ponderada / "
-            f"{POLYA_DB_PRNP.unweighted_value:.2f} sin ponderar— PERO NO ENTRA EN ESTA "
-            f"CORRIDA: la tabla es de Prnp murino y se aplica por md5 del 3'UTR, así que "
-            f"sobre otra secuencia no se ancla nada. Aquí el techo sigue INDETERMINADO y "
-            f"este frente sigue bloqueando."
+            "NO HAY MEDIDA EN ESTA CORRIDA, así que el techo sigue INDETERMINADO y este "
+            "frente sigue bloqueando. "
+            + (missing_reason or
+               "No se ha resuelto ninguna tabla de PolyA_DB para esta secuencia.")
         )
+    tabla = measured.table
     tramos = [c for c in measured.layers if c.ceiling is not None]
     cifras = ", ".join(f"{c.ceiling:.2f}" for c in tramos)
     return (
         f"MEDIDO. {measured.source}, fracción larga "
-        f"{POLYA_DB_PRNP.working_value:.2f} ponderada / "
-        f"{POLYA_DB_PRNP.unweighted_value:.2f} sin ponderar. El mapeo "
+        f"{tabla.working_value:.2f} ponderada / "
+        f"{tabla.unweighted_value:.2f} sin ponderar. El mapeo "
         f"genomico↔transcrito que bloqueaba está RESUELTO sin coordenadas genomicas y "
         f"sobre {measured.anchor.total} puntos de apoyo, no sobre una resta. Y el techo "
         f"no es uno: va POR TRAMOS ({cifras}), porque depende de por detrás de cuántos "
         f"cortes está cada candidato. Con eso deja de cumplirse lo que hacia bloquear a "
         f"este frente: un techo de {min(c.ceiling for c in tramos):.2f} NO es "
         f"indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el dato "
-        f"es de {POLYA_DB_PRNP.tissue}, y las neuronas alargan los 3'UTR, así que estas "
+        f"es de {tabla.tissue}, y las neuronas alargan los 3'UTR, así que estas "
         f"cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los "
         f"dos amplicones sigue en pie y puede MEJORARLAS."
     )
@@ -1873,7 +1875,7 @@ def blocking_fronts(
                 f"INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no "
                 f"funciona dan la misma lectura en la placa, y el experimento se gasta "
                 f"en no poder separarlos. "
-                f"ESTADO: {_estado_medida(medido)}"
+                f"ESTADO: {_estado_medida(medido, missing_reason=getattr(report, 'apa_missing_reason', '') or getattr(report, 'apa_excluded_reason', ''))}"
             ),
         )
     )

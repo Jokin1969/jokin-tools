@@ -280,6 +280,17 @@ _UNDECLARED = {
 }
 
 
+def undeclared_note(clave: str, *, cientifico: str) -> str:
+    """El texto de «esto NO ESTA DECLARADO» para un marcador, ya resuelto.
+
+    Publico porque hay mas de un sitio que necesita decirlo —las fichas y la ruta de
+    descarga de UCSC— y dos redacciones del mismo hueco acaban discrepando: una diria
+    donde se declara y la otra no.
+    """
+    plantilla = _UNDECLARED.get(clave, f"{clave} no está declarado para esta especie")
+    return plantilla.format(cientifico=cientifico)
+
+
 def _substitute(texto: str, valores: dict[str, str], huecos: set[str]) -> str:
     def cambia(match: re.Match) -> str:
         clave = match.group(1)
@@ -293,10 +304,7 @@ def _substitute(texto: str, valores: dict[str, str], huecos: set[str]) -> str:
         if valor:
             return valor
         huecos.add(clave)
-        plantilla = _UNDECLARED.get(
-            clave, f"{clave} no está declarado para esta especie"
-        )
-        return plantilla.format(cientifico=valores["cientifico"])
+        return undeclared_note(clave, cientifico=valores["cientifico"])
 
     return _PLACEHOLDER.sub(cambia, texto)
 

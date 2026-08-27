@@ -13,7 +13,7 @@ comprueban lo que cada uno espera y no ven lo que falta.
 
 import unittest
 
-from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+from shmir_design.apa import resolve_measured
 from shmir_design.filters import FilterState
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 

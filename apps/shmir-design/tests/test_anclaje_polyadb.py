@@ -23,13 +23,13 @@ import unittest
 
 from shmir_design import polya
 from shmir_design.apa import (
-    POLYA_DB_PRNP,
     MappingHypothesis,
     PasAnchor,
     anchor_polyadb,
     polyadb_class,
 )
 from shmir_design.reference import REFERENCES, load_3utr, fixture_available
+from tests.tabla_medida import TABLA
 
 
 def _utr3():
@@ -74,7 +74,7 @@ class TestElAnclaje(unittest.TestCase):
 
     def setUp(self):
         self.utr3 = _utr3()
-        self.resultado = anchor_polyadb(self.utr3, POLYA_DB_PRNP.anchors)
+        self.resultado = anchor_polyadb(self.utr3, TABLA.anchors)
 
     def test_gana_la_hipotesis_del_CORTE(self):
         self.assertIs(self.resultado.hypothesis, MappingHypothesis.CORTE)
@@ -157,7 +157,7 @@ class TestElAnclaje(unittest.TestCase):
         humano = REFERENCES["NM_000311.5"]
         if not fixture_available(humano):
             self.skipTest("falta data/reference/NM_000311.5.fa")
-        otro = anchor_polyadb(load_3utr(humano), POLYA_DB_PRNP.anchors)
+        otro = anchor_polyadb(load_3utr(humano), TABLA.anchors)
         self.assertIs(otro.hypothesis, MappingHypothesis.SIN_RESOLVER)
         self.assertLess(otro.cleavage_anchored, 4)
 
@@ -175,17 +175,17 @@ class TestElAnclaje(unittest.TestCase):
 class TestLoQueDejaDeEstarPendiente(unittest.TestCase):
 
     def test_la_conversion_YA_NO_esta_pendiente(self):
-        for p in POLYA_DB_PRNP.pending:
+        for p in TABLA.pending:
             self.assertNotIn("AQUÍ NO SE PUEDE HACER", p)
 
     def test_el_racimo_terminal_SIGUE_anotado_como_RESERVA(self):
         # Deja de ser una comprobacion BLOQUEANTE porque no mueve el valor, pero no
         # desaparece: una reserva que no bloquea sigue siendo una reserva.
-        self.assertTrue(any("fusionan" in c for c in POLYA_DB_PRNP.caveats))
+        self.assertTrue(any("fusionan" in c for c in TABLA.caveats))
 
     def test_la_tabla_declara_a_QUE_secuencia_se_refiere(self):
         self.assertEqual(
-            POLYA_DB_PRNP.utr3_md5, REFERENCES["NM_011170.3"].utr3_md5
+            TABLA.utr3_md5, REFERENCES["NM_011170.3"].utr3_md5
         )
 
 

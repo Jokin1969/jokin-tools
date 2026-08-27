@@ -16,7 +16,7 @@ Regla 5: escritos antes.
 
 import unittest
 
-from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+from shmir_design.apa import resolve_measured
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 
 RATON = REFERENCES["NM_011170.3"]

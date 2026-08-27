@@ -24,7 +24,7 @@ HAY = fixture_available(RATON)
 
 
 def _piezas(anatomy=None):
-    from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+    from shmir_design.apa import resolve_measured
     from shmir_design.selection import SelectionConfig, select_from_report
     from shmir_design.tiling import tile_utr
 

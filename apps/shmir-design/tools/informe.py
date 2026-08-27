@@ -24,7 +24,6 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
-from shmir_design.apa import POLYA_DB_PRNP, resolve_measured  # noqa: E402
 from shmir_design.presentation import informe_documento, informe_files  # noqa: E402
 from shmir_design.fetch import parse_fasta_payload  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
@@ -75,7 +74,7 @@ def main(argv=None) -> int:
     # que este proyecto lleva cazando desde el principio.
     informe = tile_utr(
         secuencia, anatomy=anat,
-        measured_apa=resolve_measured(secuencia, POLYA_DB_PRNP, anatomy=anat),
+        # La tabla la resuelve `tile_utr` del FICHERO del gestor: aqui no se pasa.
     )
     seleccion = select_from_report(
         informe, SelectionConfig(n_candidates=args.candidatos, apa_immune_quota=4)

@@ -443,7 +443,7 @@ class TestElAvisoNoLlamaCanonicaAUnaVarianteRara(unittest.TestCase):
     """Desde que una variante rara puede ser APA_POSIBLE por medida, «canonica» miente."""
 
     def test_una_variante_rara_promovida_NO_sale_como_canonica(self):
-        from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+        from shmir_design.apa import resolve_measured
         from shmir_design.reference import REFERENCES, load_3utr, fixture_available
         from shmir_design.tiling import tile_utr
 

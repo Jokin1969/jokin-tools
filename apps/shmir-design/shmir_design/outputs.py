@@ -25,13 +25,14 @@ from .coords import bound_of, Frame, frame_of, label, span
 from .transgene import carries_scaffold_module
 from .mirna import SEED_SPACE
 from . import splicing
-from .apa import CLUSTER_READING, POLYA_DB_PRNP
+from .apa import CLUSTER_READING
 from .polya import rtqpcr_amplicons
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
 from .comparative import CONVENTION_NOTE, comparative_text, comparative_tsv
 from .external_score import manual_instructions
+from . import seeds as seeds_module
 from .selection import (
     apa_ceiling_table,
     blocking_fronts,
@@ -813,7 +814,13 @@ def text_report(
         if tiling.measured_apa is not None:
             lines.extend(f"  {l}" for l in tiling.measured_apa.describe())
             lines.append("")
-        lines.extend(f"  {l}" for l in POLYA_DB_PRNP.describe())
+            # La tabla QUE SE USO, no una constante del codigo. Imprimir la murina
+            # pasara lo que pasara daria las cifras de Prnp para cualquier especie.
+            lines.extend(f"  {l}" for l in tiling.measured_apa.table.describe())
+        else:
+            lines.append(
+                f"  NOT_RUN — {tiling.apa_missing_reason or tiling.apa_excluded_reason}"
+            )
         if tiling.measured_apa is not None:
             lines.append("")
             lines.extend(f"  {l}" for l in CLUSTER_READING.describe())
@@ -1270,6 +1277,9 @@ def text_report(
             "  ⚠  El filtro de seed corrió con una lista de arranque, NO con miRBase "
             "completo: sirve para probar la mecanica, no para cribar."
         )
+        caducada = seeds_module.bootstrap_expiry_note()
+        if caducada is not None:
+            avisos.append(f"  ⚠  {caducada}")
     lines.extend(avisos or ["  Ninguno."])
 
     if any(w.verdict is Verdict.PASS for w in tiling.windows):

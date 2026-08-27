@@ -74,14 +74,17 @@ def generar_ficha() -> str:
     import sys as _sys
 
     _sys.path.insert(0, str(RAIZ))
-    from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
     from shmir_design.dossier import build_dossier
     from shmir_design.reference import REFERENCES, load_3utr
     from shmir_design.selection import SelectionConfig, select_from_report
     from shmir_design.tiling import tile_utr
 
     utr3 = load_3utr(REFERENCES["NM_011170.3"])
-    informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
+    # La tabla de PolyA_DB la resuelve `tile_utr` del FICHERO del gestor: aqui no se
+    # pasa nada. Pasarla a mano era lo que hacia que el golden se generara con la
+    # constante mientras la app leia el fichero — dos caminos, y el golden dejaba
+    # de comprobar el de verdad.
+    informe = tile_utr(utr3)
     seleccion = select_from_report(
         informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
     )
@@ -102,14 +105,17 @@ def generar_documento() -> str:
     import sys as _sys
 
     _sys.path.insert(0, str(RAIZ))
-    from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
     from shmir_design.informe_doc import build_document
     from shmir_design.reference import REFERENCES, load_3utr
     from shmir_design.selection import SelectionConfig, select_from_report
     from shmir_design.tiling import tile_utr
 
     utr3 = load_3utr(REFERENCES["NM_011170.3"])
-    informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
+    # La tabla de PolyA_DB la resuelve `tile_utr` del FICHERO del gestor: aqui no se
+    # pasa nada. Pasarla a mano era lo que hacia que el golden se generara con la
+    # constante mientras la app leia el fichero — dos caminos, y el golden dejaba
+    # de comprobar el de verdad.
+    informe = tile_utr(utr3)
     seleccion = select_from_report(
         informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
     )

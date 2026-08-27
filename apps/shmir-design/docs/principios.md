@@ -371,3 +371,46 @@ silencioso; para excluir hay que escribir el objeto con su motivo. La prueba de 
 sobraba está en el diff: **doce ficheros de test** pasaban la tabla a mano y dejaron de
 necesitarlo. Doce sitios acordándose de lo mismo son doce sitios donde uno puede
 olvidarse.
+
+---
+
+## 11 — Cuando código y prosa discrepan, la prosa es la que se ha quedado atrás
+
+Corolario del nº 3, y de la misma familia que el nº 5: **dos definiciones del mismo hecho
+que nada obliga a coincidir acaban discrepando**, y aquí una de las dos no es código.
+
+El caso: `CLAUDE.md` afirmaba que los amplicones de la RT-qPCR quedaban «esquivando las
+dianas del panel». `polya.rtqpcr_amplicons` marcaba los solapes con `⚠ solapa` desde el
+principio. **Los dos textos hablaban del mismo hecho y decían cosas contrarias**, y no
+saltó nada: una frase no tiene invariante.
+
+Y la asimetría es lo que lo hace un principio y no una anécdota:
+
+- **el código se ejecuta**, así que un error suyo acaba dando un resultado raro;
+- **la prosa se lee**, y un error suyo se cree — sobre todo el que va en el fichero que
+  gobierna el proyecto, que es el que alguien abre para saber qué hacer;
+- y la prosa **no se regenera**: sobrevive intacta al cambio que la deja falsa.
+
+### La regla operativa: que la frase la EMITA el generador, o que un test la contraste
+
+No basta con corregirla. Toda afirmación de prosa sobre un hecho que el código calcula
+tiene que estar atada de una de estas dos formas:
+
+1. **Que el generador la emita.** Es lo que ya se hace con las coordenadas de los
+   amplicones, con el techo por tramos y con la descomposición del recuento: el texto
+   sale de la magnitud, así que no puede contradecirla.
+2. **Que un test la contraste.** Cuando la frase vive en un documento —`CLAUDE.md`,
+   `docs/`— el test lee el documento y lo compara con lo que el código emite.
+   `tests/test_prosa_contra_codigo.py` hace eso con los amplicones declarados y con el
+   panel de diez.
+
+Lo que **no** vale es corregir la frase y seguir. Eso deja el mismo mecanismo intacto, y
+el mecanismo es lo que produjo las otras dos de esta misma familia: el «comprueba que
+Streamlit está instalado» pegado a todo fallo, y el «Alu 0 %» obtenido sin buscar Alu.
+
+### Un aviso: no todo lo que parece discrepar lo es
+
+La prosa dice además cosas que el código **no** calcula —por qué se decidió algo, qué
+queda abierto, qué cuesta no resolverlo— y eso no tiene con qué contrastarse ni falta.
+El corolario aplica a **afirmaciones sobre hechos que el código sabe**; lo demás es el
+registro, y el registro se defiende leyéndolo, no con un test.

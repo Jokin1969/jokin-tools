@@ -741,3 +741,39 @@ fichero más.
 ratón y `PRNP` en humano son dato declarado. En otro organismo el símbolo puede no seguir
 ninguna de las dos convenciones — el mismo criterio que impide deducir `ocu-` del nombre
 de la especie.
+
+---
+
+## 26 — «Esquivando las dianas del panel», que era falso de los dos pares
+
+**Errata propia, y del tipo que este proyecto tiene ya catalogado**: una frase de prosa
+que afirma un hecho que el código nunca dijo.
+
+En `CLAUDE.md`, junto a los amplicones de la RT-qPCR, ponía que el par quedaba
+«esquivando las dianas del panel». **No lo consigue ninguno de los dos pares.** El
+proximal nuevo (`3utr:106-225`) solapa `3utr:143-164` y `3utr:200-221`; el proximal viejo
+(`3utr:158-277`) solapaba `3utr:143-164` y `3utr:221-242`. No es que la frase envejeciera
+al cambiar los amplicones: era falsa de los viejos también.
+
+**El código sí lo decía.** `polya.rtqpcr_amplicons` marca cada solape con `⚠ solapa` y lo
+emite pegado al plan. Quien leyera el informe lo veía; quien leyera el fichero que
+gobierna el proyecto, no.
+
+### Por qué importa más que una errata de redacción
+
+Las dos consecuencias reales van en direcciones distintas:
+
+- **Sobre tejido sin tratar** —que es como se mide, y está escrito— un solape es
+  inofensivo: no hay corte por RNAi que confundir con isoformas.
+- **Sobre tejido tratado** el mismo amplicón mediría **corte por RNAi**, no isoformas. La
+  frase falsa era justo la que hacía parecer innecesaria esa precaución.
+
+### Qué se ha hecho
+
+La frase se ha sustituido por lo que el código emite, con los solapes nombrados uno a
+uno, y hay un test (`tests/test_prosa_contra_codigo.py`) que comprueba que el registro no
+vuelve a **afirmar** «esquivando las dianas del panel» — puede citarla entre comillas
+como lo que fue, que es distinto.
+
+Ver el corolario del principio nº 3: **cuando el código y la prosa discrepan sobre el
+mismo hecho, la que se ha quedado atrás es la prosa, y es la que alguien va a leer.**

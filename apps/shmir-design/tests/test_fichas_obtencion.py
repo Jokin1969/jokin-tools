@@ -19,6 +19,7 @@ from pathlib import Path
 from shmir_design import obtencion, species as species_mod
 from shmir_design.errors import ShmirDesignError
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
+from tests.tabla_medida import TABLA
 
 RATON = REFERENCES["NM_011170.3"]
 HAY = fixture_available(RATON)
@@ -38,7 +39,7 @@ def _frentes_de_verdad() -> set[str]:
     igual que un fichero de referencia. Meterlos aqui es lo que hace que un intron nuevo
     sin ficha rompa la suite, que es de lo que va este test.
     """
-    from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+    from shmir_design.apa import resolve_measured
     from shmir_design.selection import (
         SelectionConfig,
         blocking_fronts,
@@ -48,7 +49,7 @@ def _frentes_de_verdad() -> set[str]:
 
     utr3 = load_3utr(RATON)
     nombres: set[str] = set()
-    for medido in (resolve_measured(utr3, POLYA_DB_PRNP), None):
+    for medido in (resolve_measured(utr3, TABLA), None):
         informe = tile_utr(utr3)
         seleccion = select_from_report(
             informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)

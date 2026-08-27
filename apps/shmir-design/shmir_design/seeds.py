@@ -18,6 +18,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from .errors import InvalidSequenceError
 from .filters import FilterResult, FilterState
@@ -45,10 +46,61 @@ GTAAACA miR-30
 AAAGTGC miR-17/20/93/106
 """
 
+#: Cuantas seeds trae. Se DERIVA de la tabla: escribir «doce» a mano en los avisos es
+#: lo que deja un mensaje diciendo doce cuando alguien añade la trece.
+BOOTSTRAP_COUNT = sum(
+    1 for l in BOOTSTRAP_SEED_TABLE.splitlines() if l.strip() and not l.startswith("#")
+)
+
 BOOTSTRAP_SOURCE = (
     "lista de arranque de 12 seeds para probar la mecanica; NO es un filtro real, "
     "el filtro real necesita mature.fa de miRBase completo"
 )
+
+#: El fichero que jubila a la lista de arranque. Se nombra aqui porque la caducidad de
+#: esta tabla es exactamente «ya esta el de verdad».
+REPLACED_BY = "mature.fa"
+
+#: POR QUE LA LISTA DE ARRANQUE TIENE FECHA DE CADUCIDAD, y no basta con el aviso de
+#: siempre.
+#:
+#: El aviso que ya sale —«es una lista de arranque, NO un filtro real»— dice lo que ES,
+#: y con eso se convive: mientras `mature.fa` no este, correr con doce seeds es lo unico
+#: que hay y el informe lo declara. Lo que NO dice es que el fichero de verdad ya este
+#: ahi al lado sin usarse, que es otra cosa: entonces no se esta conviviendo con una
+#: limitacion, se esta corriendo con la tabla equivocada teniendo la buena en el
+#: deposito. Los dos casos daban el MISMO aviso, asi que el segundo era invisible.
+WHY_AN_EXPIRY = (
+    "Un aviso que sale igual con el fichero bueno delante y sin el no distingue «no lo "
+    "tenemos» de «lo tenemos y no se está usando». Son dos situaciones distintas y la "
+    "segunda es un fallo, no una limitación."
+)
+
+
+def bootstrap_expiry_note(directory=None) -> str | None:
+    """¿Está ya `mature.fa` mientras se corre con la lista de arranque?
+
+    Devuelve el aviso de CADUCIDAD, o `None` si el fichero de verdad no está — que es
+    el caso en que la lista de arranque sigue siendo lo unico que hay.
+
+    No lee el fichero ni lo valida: eso es del cargador de `mirna.py`, que es quien
+    sabe. Aqui solo se contesta «¿está y tiene algo dentro?» (`presencia.hay_fichero`,
+    principio nº 9: existir no es contener).
+    """
+    from .presencia import hay_fichero  # noqa: PLC0415
+    from .trabajo import reference_dir  # noqa: PLC0415
+
+    carpeta = Path(directory) if directory is not None else reference_dir()
+    ruta = carpeta / REPLACED_BY
+    if not hay_fichero(ruta):
+        return None
+    return (
+        f"CADUCADA: se está corriendo con la lista de ARRANQUE de {BOOTSTRAP_COUNT} "
+        f"seeds teniendo {REPLACED_BY} en {carpeta}. El fichero de verdad está y no se "
+        f"está usando: esto ya no es una limitación, es la tabla equivocada. Conecta "
+        f"miRBase (`--usar-manifiesto` o el panel de ficheros) o di por escrito por qué "
+        f"no se usa."
+    )
 
 
 @dataclass(frozen=True)

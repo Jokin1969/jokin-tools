@@ -1567,16 +1567,20 @@ class AmpliconPlan:
             f"{s.motif}@{label(s.position, self.frame)}" for s in self.distal_crosses
         )
         lineas = [
-            f"  ATENCIÓN — el amplicón distal ATRAVIESA la banda de corte de {cuales}. "
-            f"Un amplicón",
-            "  partido por un corte no da producto en la isoforma cortada, así que la "
-            "razón",
-            "  distal/proximal NO mide la fracción que sobrevive a ESTE corte: mide la "
-            "que sobrevive",
-            "  a LAS DOS. Para el panel eso es lo que hace falta —sus candidatos con "
-            "techo están",
-            "  detrás de las dos bandas— pero el tramo intermedio NO se puede confirmar "
-            "con este par.",
+            # LAS DOS FRASES, y en este orden: primero QUE MIDE y despues que no. Un
+            # plan que solo enumera sus limitaciones se lee como un plan malo; el
+            # alcance declarado es lo que lo hace utilizable. Decision del responsable
+            # (2026-08-27): el ensayo NO se rediseña, se declara.
+            f"  QUÉ MIDE ESTE PAR: la fracción de transcritos que sobrevive a las "
+            f"bandas de corte de",
+            f"  esta señal Y de {cuales} — o sea el techo de los candidatos que quedan "
+            f"por detrás de",
+            "  TODAS ellas, que es exactamente el que necesita el panel.",
+            f"  QUÉ NO MIDE: no separa esta señal de {cuales} y no confirma el techo "
+            f"del tramo",
+            "  INTERMEDIO. El amplicón distal atraviesa esa otra banda, y un amplicón "
+            "partido por un",
+            "  corte no da producto en la isoforma cortada.",
         ]
         if self.gap_between is not None:
             bajo, alto = self.gap_between
@@ -1588,6 +1592,7 @@ class AmpliconPlan:
                 f"{span(bajo, alto, self.frame) if cabe > 0 else 'nada'}"
                 f" — {max(cabe, 0)} nt para un amplicón de {largo}. NO CABE."
             )
+            lineas.append(f"  {WAY_OUT_IF_EVER_NEEDED}")
         return lineas
 
     def describe(self, *, offset: int = 0) -> list[str]:
@@ -1693,6 +1698,18 @@ def _place_amplicon(
         rationale=rationale,
         overlaps=tuple(f"{a}-{b}" for a, b in avoid if start <= b and end >= a),
     )
+
+
+#: LA SALIDA, POR SI ALGUN DIA HACE FALTA. Es una LINEA ABIERTA, no una tarea: hoy no
+#: hay ni un candidato en el tramo intermedio, asi que no poder confirmarlo cuesta CERO.
+#: Se escribe para que el dia que haga falta no se pierda media hora redescubriendo que
+#: mover amplicones no lleva a ninguna parte.
+WAY_OUT_IF_EVER_NEEDED = (
+    "SI ALGÚN DÍA HICIERA FALTA el tramo intermedio: no se alcanza moviendo amplicones "
+    "—es geométricamente imposible— sino con 3'RACE o secuenciación de extremos, donde "
+    "la resolución no depende de que quepa un amplicón entre dos cortes. Línea abierta: "
+    "hoy no hay ningún candidato ahí, así que no confirmarlo no cuesta nada."
+)
 
 
 def rtqpcr_amplicons(
