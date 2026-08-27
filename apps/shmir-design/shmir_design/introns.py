@@ -499,6 +499,24 @@ DONOR_TO_BRANCH_CONTEXT = (
 #: justo lo contrario de lo que parece: el quimerico tiene el punto a 100-104 del donante
 #: frente a los 42 del MVM, asi que en este eje es PEOR, no mejor. Buscar «un intron mas
 #: largo» empeora este numero si la longitud de mas esta antes del punto.
+#: LA INVERSION, con las palabras del responsable del proyecto (2026-08-27): «sus 51 pb
+#: de mas estan donde estorban y el argumento que le di era falso». El quimerico se
+#: propuso, entre otras cosas, por ser mas largo — y en el eje donante→punto ser mas largo
+#: es PEOR, porque su punto de ramificacion ya esta de partida a 100-104 nt del donante
+#: frente a los 42 del MVM.
+#:
+#: NO LO DESCARTA, y eso es igual de importante: mejor donante (GTAAGT, consenso
+#: perfecto), mejor tracto (11 pirimidinas frente a 9) y 97 posiciones de insercion frente
+#: a 39. Lo que significa es que LOS TRES SON MEJORES EN EJES DISTINTOS y que NINGUNO DE
+#: LOS TRES NUMEROS PREDICE EL EMPALME. Las tres opciones van a sintesis; el gel decide.
+THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES = (
+    "Los 51 pb de más del quimérico están donde estorban: en el eje donante→punto es "
+    "PEOR que el MVM, no mejor. No lo descarta —mejor donante, mejor tracto, 97 "
+    "posiciones de inserción frente a 39— pero significa que los tres son mejores en "
+    "ejes distintos y que ninguno de los tres números predice el empalme. Las tres "
+    "opciones van a síntesis; el gel decide."
+)
+
 OPEN_QUESTION_DONOR_TO_BRANCH = (
     "Si donante→punto resulta ser el problema, la salida no es cambiar de intrón sino "
     "acortar el módulo o buscar un intrón cuyo punto de ramificación esté más cerca del "

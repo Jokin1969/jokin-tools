@@ -304,3 +304,39 @@ estaba calibrado sobre un solo intrón también. `YURAY` funcionaba en el MVM y 
 `CTGAC` —el canónico de mamífero— en el quimérico. Recalibrado contra los dos casos
 conocidos en `tests/test_calibracion_ramificacion.py`, que **es** la justificación:
 `YTNAY` es el único de los cuatro probados que recupera los dos sin dejar de discriminar.
+
+---
+
+## 11 — «6 de 12» cuando eran «4 de 10»
+
+**El fallo**: el semáforo decía *«Corrieron 6 de 12 filtros por candidato»*. Al retirar
+G4 pasó a decir *«4 de 10»*. **Bajaron los dos números, no sólo el total.**
+
+La cuenta estaba mal por los dos lados a la vez. `G4_diana` y `G4_guia` estaban en
+`UNDECIDED_FILTERS`, así que se **excluían de los pendientes** —correctamente: su criterio
+no estaba decidido y no debían bloquear la aprobación—, pero seguían **contando en el
+total**. Y como los corridos se derivaban de `total − pendientes`, los dos acababan
+sumando como **CORRIDOS**. Dos filtros que no habían corrido, que ni siquiera emitían
+veredicto, inflaban la cuenta de los que sí.
+
+**Sólo se vio al quitarlos.** No lo cazó ningún test —los tests comprobaban que G4 no
+bloqueaba, que es lo que sí hacía bien—, ni el golden, que llevaba «6 de 12» congelado
+como si fuera correcto desde el día que se escribió. Lo que lo destapó fue que al
+eliminar el filtro los dos números bajaran, cuando sólo debía bajar el total.
+
+**Tercera instancia del patrón de la errata nº 9**, y la más incómoda de las tres: **un
+elemento que nunca dice que no puede pasar años inflando una cuenta sin que nadie lo
+note.** No genera ninguna queja —no tumba candidatos—, no aparece en ningún informe de
+fallo, y el número que altera es precisamente el que la gente usa para decidir si el
+análisis está completo. Las tres instancias:
+
+| | qué pasaba | por qué sobrevivió |
+|---|---|---|
+| nº 9 | G4 emitía veredictos sin procedencia | nunca excluyó a nadie |
+| — | la cuenta del semáforo inflada en 2 | el filtro que la inflaba nunca fallaba |
+| — | `DONORS_FORBIDDEN_IN_SPACERS` contiene donantes legítimos | sólo se aplicaba a espaciadores |
+
+**Contramedida**: la del tercer caso, que es la única que se puede automatizar hoy —
+`spacer_rejections` **aborta** si lo que recibe no es un espaciador, y la lista se llama
+por su alcance. Para la cuenta, la única defensa real es la que ya funcionó aquí: **al
+retirar algo, mirar qué números se mueven y comprobar que se mueven los que deben.**

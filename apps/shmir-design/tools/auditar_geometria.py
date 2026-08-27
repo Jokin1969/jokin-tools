@@ -93,9 +93,20 @@ def main() -> int:
          {n: "sí" if spacers.GC_MIN <= gc_fraction(s) <= spacers.GC_MAX else "NO"
           for n, s in vivos.items()},
          "esa ventana es de ESPACIADORES, no de intrones")
-    fila("su donante está en CRYPTIC_DONORS",
-         {n: "sí" if s[:6] in spacers.CRYPTIC_DONORS else "no" for n, s in vivos.items()},
-         "la lista incluye donantes CANÓNICOS")
+    fila("su donante está en la lista de prohibidos",
+         {n: "sí" if s[:6] in spacers.DONORS_FORBIDDEN_IN_SPACERS else "no"
+          for n, s in vivos.items()},
+         "RIESGO — ver abajo")
+
+    print("\n  RIESGOS (no son observaciones: son reglas que hoy aciertan por dónde se")
+    print("  aplican y no por lo que dicen — el patrón del `.out` conectado por rol):")
+    print("    · La lista de donantes prohibidos contiene GTAAGT y GTAAGG, que son los")
+    print("      donantes LEGÍTIMOS del quimérico y del MVM. Sobre un espaciador es")
+    print("      correcta; sobre secuencia de intrón daría el veredicto invertido.")
+    print("      DESACTIVADO 2026-08-27: se llama `DONORS_FORBIDDEN_IN_SPACERS` y")
+    print("      `spacer_rejections` ABORTA si lo que recibe no es un espaciador.")
+    print("    · La ventana GC 0.28-0.45 es de ESPACIADORES. Que los dos intrones caigan")
+    print("      dentro es casualidad, no validación: nadie la calibró sobre intrones.")
 
     print(f"\n  DONANTE→PUNTO con los {INSERTADO} nt intercalados "
           f"(rango típico {TYPICAL_DONOR_TO_BRANCH[0]}-{TYPICAL_DONOR_TO_BRANCH[1]}):")
@@ -106,6 +117,10 @@ def main() -> int:
             continue
         for linea in d.describe():
             print(f"    {linea}")
+
+    from shmir_design.introns import THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES
+
+    print(f"\n  LECTURA: {THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES}")
     return 0
 
 

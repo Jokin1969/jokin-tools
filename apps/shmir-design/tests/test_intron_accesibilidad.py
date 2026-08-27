@@ -48,7 +48,10 @@ class TestElPlegadoDeVerdad(unittest.TestCase):
             introns.INTRONS["mvm_actual"], module=MODULO
         )
 
-    def test_corre_y_da_los_TRES_elementos(self):
+    def test_corre_y_da_los_CUATRO_elementos(self):
+        # Eran tres —donante, punto y ACEPTOR— y el tracto faltaba. Los TRES FRÁGILES
+        # son donante, punto y tracto; el aceptor es la frontera. Sin el tracto no se
+        # podía evaluar el criterio de aceptación de los espaciadores.
         self.assertIs(self.resultado.state, FilterState.PASS)
         self.assertEqual(
             set(self.resultado.unpaired), set(intron_folding.ELEMENTS)

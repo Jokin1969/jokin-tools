@@ -52,6 +52,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .blocks import PIECES
+from .errors import ShmirDesignError
 from .hard_filters import gc_fraction
 from .hard_filters import longest_homopolymer as _longest_homopolymer
 
@@ -61,8 +62,26 @@ SPACER3_LENGTH = 45
 STANDARD_5 = PIECES["espaciador5"].sequence
 STANDARD_3 = PIECES["espaciador3"].sequence
 
-#: GTRAGT son dos: R es A o G. Mas las dos variantes que se vigilan aparte.
-CRYPTIC_DONORS = ("GTAAGT", "GTGAGT", "GTAAGG", "GTGAGG")
+#: DONANTES PROHIBIDOS EN UN ESPACIADOR. El nombre declara el ALCANCE, y no es cosmetico:
+#: la lista contiene `GTAAGT` y `GTAAGG`, que son los donantes LEGITIMOS del intron
+#: quimerico y del MVM. Aplicada a secuencia de INTRON marcaria el donante real como
+#: criptico; sobre un espaciador es correcta, porque ahi un GT canonico no tiene nada que
+#: hacer. Se llamaba `CRYPTIC_DONORS` y era correcta POR ACCIDENTE DE CONTEXTO —por donde
+#: se aplicaba, no por lo que decia—, que es el mismo patron que un `rmsk_mouse.out`
+#: conectado por rol. La auditoria de geometria lo lista como RIESGO.
+DONORS_FORBIDDEN_IN_SPACERS = ("GTAAGT", "GTGAGT", "GTAAGG", "GTGAGG")
+
+#: Tope de longitud de un espaciador. NO es un criterio de diseño: es la frontera que
+#: hace COMPROBABLE que lo que llega sea un espaciador. El barrido explora 0-45 y el
+#: punto de partida es 20/45, asi que 60 deja margen de sobra y sigue estando lejisimos
+#: de cualquier intron.
+MAX_SPACER_LENGTH = 60
+
+SPACER_SCOPE = (
+    "Esta lista vale SOLO para espaciadores. Contiene donantes canónicos, que en un "
+    "intrón son los legítimos: aplicada a secuencia de intrón marcaría el donante real "
+    "como críptico."
+)
 POLYA_SIGNALS = ("AATAAA", "ATTAAA")
 CASSETTE_SITES = ("GCTAGC", "GAGCTC", "ACGCGT", "ACCGGT", "CTCGAG", "GAATTC")
 FORBIDDEN_RUNS = ("GGGG", "CCCC")
@@ -81,13 +100,33 @@ _BASE_WEIGHTS = (("A", 32), ("T", 32), ("G", 18), ("C", 18))
 
 
 def spacer_rejections(sequence: str) -> tuple[str, ...]:
-    """Motivos por los que un espaciador NO vale. Vacio = pasa todos los filtros."""
+    """Motivos por los que un espaciador NO vale. Vacio = pasa todos los filtros.
+
+    ABORTA si lo que se le pasa NO ES UN ESPACIADOR. Ver `SPACER_SCOPE`: la lista de
+    donantes prohibidos contiene los canonicos, que en un intron son los LEGITIMOS, asi
+    que aplicarla a otra cosa da un veredicto invertido y con muy buena pinta. Antes esto
+    era correcto por accidente de contexto —por donde se llamaba, no por lo que decia— y
+    eso es lo que se desactiva aqui.
+
+    El guardia es LA LONGITUD y nada mas. Se probo tambien «empieza por GT y acaba en
+    AG», y tiene FALSOS POSITIVOS: un espaciador generado al azar da eso una vez de cada
+    256, y la busqueda empezo a abortar sobre candidatos legitimos. Un guardia que salta
+    donde no hay nada que guardar se acaba apagando —es la leccion del guardia de la
+    regla 6— asi que se queda solo el que no se equivoca: por debajo de
+    `MIN_INTRON_LENGTH` (80) no hay ningun intron, y 60 deja margen.
+    """
     limpia = "".join(str(sequence).split()).upper()
     if not limpia:
         return ("El espaciador está vacío.",)
+    if len(limpia) > MAX_SPACER_LENGTH:
+        raise ShmirDesignError(
+            f"Se han pasado {len(limpia)} nt a `spacer_rejections`, y un espaciador no "
+            f"pasa de {MAX_SPACER_LENGTH}. Esto NO es un espaciador. {SPACER_SCOPE} Se "
+            f"aborta en vez de devolver un veredicto invertido con buena pinta."
+        )
 
     motivos: list[str] = []
-    for donante in CRYPTIC_DONORS:
+    for donante in DONORS_FORBIDDEN_IN_SPACERS:
         if donante in limpia:
             motivos.append(
                 f"Lleva el donante críptico de splicing {donante}: podría abrir un 5'SS "
