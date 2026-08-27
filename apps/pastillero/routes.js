@@ -88,23 +88,9 @@ router.use('/api/person', requireResidencia);
 
 function norm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
 
-// People of THIS residencia only (never the whole QR-TIS directory).
-router.get('/api/people', (req, res) => {
-  try {
-    const q = norm(req.query.q || '');
-    const group = req.residencia.group_name;
-    let people = qrDb.listPeople().filter(p => p.active && !p.deceased && parseGroups(p.group_name).includes(group));
-    if (q) {
-      const tokens = q.split(/\s+/).filter(Boolean);
-      people = people.filter(p => { const hay = norm(`${p.nombre} ${p.apellidos}`); return tokens.every(t => hay.includes(t)); });
-    }
-    people.sort((a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es'));
-    res.json({ items: people.slice(0, 200).map(p => ({ id: p.id, nombre: p.nombre, apellidos: p.apellidos })) });
-  } catch (err) { fail(res, err); }
-});
-
 // ── The daily "now" clock (server-side, so every device agrees) ─────────────────
 const SLOT_LABELS = { desayuno: 'Desayuno', comida: 'Comida', cena: 'Cena', noche: 'Noche' };
+const SLOT_ORDER = ['desayuno', 'comida', 'cena', 'noche'];
 // Hour boundaries (24h, local server time) — same for every residencia for now.
 function slotForHour(h) {
   if (h >= 6 && h < 12) return 'desayuno';
@@ -118,6 +104,45 @@ function nowInfo() {
   const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   return { date, time, slot: slotForHour(d.getHours()) };
 }
+function shiftDateStr(iso, days) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// How many active medications a person has, and when their next dose is due
+// (from "now" onward, looking up to 3 days ahead) — for the residency overview.
+function personSummary(personId, now) {
+  const plans = asigDb.listPlan(personId).filter(pl => pl.active);
+  let next_dose = null;
+  for (let dayOffset = 0; dayOffset <= 3 && !next_dose; dayOffset++) {
+    const date = shiftDateStr(now.date, dayOffset);
+    const fromIdx = dayOffset === 0 ? SLOT_ORDER.indexOf(now.slot) : 0;
+    for (let i = fromIdx; i < SLOT_ORDER.length; i++) {
+      const slot = SLOT_ORDER[i];
+      const has = plans.some(pl => { const d = asigDb.getDoseScheduleForDate(pl.id, date); return d && d[slot] > 0; });
+      if (has) { next_dose = { date, slot, is_today: dayOffset === 0, is_now: dayOffset === 0 && i === fromIdx }; break; }
+    }
+  }
+  return { med_count: plans.length, next_dose };
+}
+
+// People of THIS residencia only (never the whole QR-TIS directory). Empty `q`
+// returns everyone — the caregiver overview, not just search results.
+router.get('/api/people', (req, res) => {
+  try {
+    const q = norm(req.query.q || '');
+    const group = req.residencia.group_name;
+    let people = qrDb.listPeople().filter(p => p.active && !p.deceased && parseGroups(p.group_name).includes(group));
+    if (q) {
+      const tokens = q.split(/\s+/).filter(Boolean);
+      people = people.filter(p => { const hay = norm(`${p.nombre} ${p.apellidos}`); return tokens.every(t => hay.includes(t)); });
+    }
+    people.sort((a, b) => `${a.apellidos} ${a.nombre}`.localeCompare(`${b.apellidos} ${b.nombre}`, 'es'));
+    const now = nowInfo();
+    const items = people.slice(0, 200).map(p => ({ id: p.id, nombre: p.nombre, apellidos: p.apellidos, ...personSummary(p.id, now) }));
+    res.json({ items, now });
+  } catch (err) { fail(res, err); }
+});
 
 // Aggregated Pastillero for one person on one date: every active medication's
 // dose (if any is defined for that date) grouped into the 4 franjas.
@@ -139,7 +164,7 @@ router.get('/api/person/:id(\\d+)/pastillero', (req, res) => {
       const nombre = (prod && prod.nombre) || pl.nombre || 'Medicamento';
       const color = dmVisual.resolveColor(pl.gtin, prod && prod.color);
       const shape = dmVisual.resolveShape(pl.gtin, prod && prod.shape);
-      for (const slot of ['desayuno', 'comida', 'cena', 'noche']) {
+      for (const slot of SLOT_ORDER) {
         const qty = dose[slot] || 0;
         if (qty > 0) { anyDoseDefined = true; slots[slot].push({ plan_id: pl.id, nombre, color, shape, qty }); }
       }

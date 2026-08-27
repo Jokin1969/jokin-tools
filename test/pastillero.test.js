@@ -154,3 +154,28 @@ test('admin sin permiso de "pastillero" recibe 403', async () => {
     assert.equal(r.status, 403);
   } finally { s2.close(); }
 });
+
+test('listado de personas: incluye número de medicamentos y la próxima toma', async () => {
+  const r = ptDb.rotateCode('Residencia Overview');
+  const pWith = qrDb.createPerson({ pharmacy_no: '90030', nombre: 'Con', apellidos: 'Pauta', tis: '00090030', group_name: 'Residencia Overview' }, 1);
+  const pNone = qrDb.createPerson({ pharmacy_no: '90031', nombre: 'Sin', apellidos: 'Pauta', tis: '00090031', group_name: 'Residencia Overview' }, 1);
+  const med1 = asigDb.addPlanMed(pWith.id, { cn: '715000', nombre: 'Ibuprofeno 600', barcode: '8470007150008', qty: 1 });
+  asigDb.addPlanMed(pWith.id, { cn: '885442', nombre: 'Ixia', barcode: '8470008854424', qty: 1 });
+  // Vigente desde ayer, con dosis en TODAS las franjas: siempre habrá "próxima toma".
+  asigDb.setDoseSchedule(med1.id, '2000-01-01', { desayuno: 1, comida: 1, cena: 1, noche: 1 }, 1);
+
+  const login = await call('POST', '/login', { code: r.access_code });
+  const cookie = cookieFrom(login.res);
+  const list = await call('GET', '/people?q=', undefined, cookie);
+  assert.equal(list.status, 200);
+  assert.ok(list.data.now && list.data.now.date, 'devuelve el reloj "ahora" del servidor');
+
+  const withRow = list.data.items.find(x => x.id === pWith.id);
+  const noneRow = list.data.items.find(x => x.id === pNone.id);
+  assert.equal(withRow.med_count, 2, 'cuenta los medicamentos activos del plan');
+  assert.ok(withRow.next_dose, 'con dosis en todas las franjas siempre hay próxima toma');
+  assert.ok(['desayuno', 'comida', 'cena', 'noche'].includes(withRow.next_dose.slot));
+
+  assert.equal(noneRow.med_count, 0);
+  assert.equal(noneRow.next_dose, null, 'sin plan, no hay próxima toma');
+});
