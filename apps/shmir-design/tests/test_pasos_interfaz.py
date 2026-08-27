@@ -23,6 +23,7 @@ from pathlib import Path
 
 from shmir_design import deposito, manifest, presentation, species
 from shmir_design.errors import ShmirDesignError
+from tests.sin_logica import comprobar_sin_logica
 
 RAIZ = Path(__file__).resolve().parent.parent
 DATOS = RAIZ / "data" / "reference"
@@ -533,8 +534,7 @@ class TestLaPaginaSigueSinLOGICA(unittest.TestCase):
         inicio = PAGINA.index("def _panel_referencias(")
         fin = PAGINA.index("def ", inicio + 10)
         panel = PAGINA[inicio:fin]
-        for prohibido in ("int(", "float(", ".upper()", ".lower()", "sorted("):
-            self.assertFalse(prohibido in panel, f"el panel usa {prohibido}")
+        comprobar_sin_logica(self, panel)
 
 
 if __name__ == "__main__":

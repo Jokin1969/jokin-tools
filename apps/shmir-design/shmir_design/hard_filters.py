@@ -312,7 +312,14 @@ def evaluate_window(
             guide=guide_from_target(cleaned),
             filters=tuple(
                 FilterResult(name=name, state=FilterState.NOT_RUN, reason=motivo)
-                for name in ("GC", "homopolimero", "asimetria")
+                # LOS MISMOS que la rama normal, sin excepción. Quitar los dos G4
+                # de aquí dejó 66 filas de 36 columnas bajo una cabecera de 38: todo lo
+                # que va detrás se corre y `veredicto` acaba debajo de `G4_diana`. Un
+                # TSV descuadrado no da ningún error — sólo un fichero equivocado, que es
+                # el mismo fallo que aborta `Block.__post_init__` en el informe.
+                for name in (
+                    "GC", "homopolimero", "G4_diana", "G4_guia", "asimetria",
+                )
             ),
             offset=offset,
         )

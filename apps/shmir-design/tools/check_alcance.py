@@ -279,18 +279,42 @@ def analizar(raiz: Path | str = RAIZ, *, fuentes=None, excepciones=None) -> Repo
     # `evaluate_window`, que sí: es una pieza de algo vivo, no código muerto. Sin esta
     # vuelta el informe tenía 94 filas y casi todas eran ese caso — y un informe de 94
     # filas donde 78 son ruido no lo lee nadie, que es el fallo que esto viene a evitar.
-    dentro: dict[str, set[str]] = {}
+    # La clave es (MODULO, nombre), no el nombre pelado. `presentation` tiene
+    # envoltorios HOMONIMOS de `store.save_blast_run` y compañía: con el nombre a secas,
+    # el envoltorio vivo mantenia «vivo» al original — o sea, la herramienta habria
+    # dejado de ver EXACTAMENTE el caso que la motivo. Y `dict.update` con nombres
+    # pelados machacaba ademas las funciones homonimas de otro modulo, asi que el cierre
+    # propagaba referencias del modulo equivocado.
+    dentro: dict[tuple[str, str], set[str]] = {}
     for fichero in modulos:
-        dentro.update(_referencias_por_funcion(fichero))
-    pendientes = list(vivos)
-    while pendientes:
-        actual = pendientes.pop()
-        for referido in dentro.get(actual, ()):
-            if referido in dentro and referido not in vivos:
-                vivos.add(referido)
-                pendientes.append(referido)
+        for nombre, nombres in _referencias_por_funcion(fichero).items():
+            dentro[(fichero.stem, nombre)] = nombres
+    #: De un nombre a los modulos que lo definen. Una referencia sin cualificar puede
+    #: apuntar a cualquiera de ellos y no se resuelve mas: se mantienen todos vivos, que
+    #: es el lado conservador — preferimos NO denunciar a denunciar de mas.
+    por_nombre: dict[str, list[str]] = {}
+    for modulo, nombre in dentro:
+        por_nombre.setdefault(nombre, []).append(modulo)
 
-    sin_llamador = [s for s in definidos if s.name not in vivos]
+    vivos_clave = {
+        (s.module, s.name) for s in definidos if s.name in vivos
+    }
+    pendientes = list(vivos_clave)
+    while pendientes:
+        modulo_actual, nombre_actual = pendientes.pop()
+        for referido in dentro.get((modulo_actual, nombre_actual), ()):
+            # Una referencia dentro de un modulo se resuelve PRIMERO en ese modulo.
+            destinos = (
+                [modulo_actual]
+                if (modulo_actual, referido) in dentro
+                else por_nombre.get(referido, [])
+            )
+            for destino in destinos:
+                if (destino, referido) not in vivos_clave:
+                    vivos_clave.add((destino, referido))
+                    pendientes.append((destino, referido))
+
+    sin_llamador = [s for s in definidos if (s.module, s.name) not in vivos_clave]
 
     muertos = {s.name for s in sin_llamador}
     definidos_todos = {s.name for s in definidos}

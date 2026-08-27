@@ -175,7 +175,7 @@ def status_light(selection: ReportSelection) -> StatusLight:
             detail=(
                 f"Ninguno de los {len(selection.selection.chosen)} candidatos tiene "
                 f"filtros en NOT_RUN: sus veredictos son completos."
-                + nota_no_evaluables + nota_sin_decidir + nota_sin_decidir
+                + nota_no_evaluables + nota_sin_decidir
             ),
             **conteos,
         )
@@ -2363,6 +2363,30 @@ def splice_run_from_scan(scan, *, raw: str, date: str, ran_by: str, run_id: str,
     )
 
 
+#: Qué puede ser el nombre de un proyecto. Va aquí y no en la página (regla 6).
+#:
+#: El nombre lo teclea una persona y se convierte en un DIRECTORIO. Sin comprobarlo,
+#: «Prnp raton 2026/08/27» crea un anidado que `project_list` no lista nunca —el
+#: proyecto existe y no aparece— y `..` o una ruta absoluta escriben FUERA del directorio
+#: de proyectos, que es el volumen donde vive el registro de lo que se decidió.
+PROJECT_SLUG_RULE = (
+    "El nombre de un proyecto es UN nombre de carpeta: letras, dígitos, guion, guion "
+    "bajo y punto. Ni barras, ni `..`, ni rutas absolutas — se convierte en un "
+    "directorio, y con una barra dentro el proyecto se crea donde nadie lo busca."
+)
+_SLUG_OK = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def check_project_slug(slug: str) -> str:
+    """Valida el nombre de un proyecto o ABORTA. Ver `PROJECT_SLUG_RULE`."""
+    limpio = str(slug).strip()
+    if not limpio or limpio in (".", "..") or not _SLUG_OK.match(limpio):
+        raise ShmirDesignError(
+            f"Nombre de proyecto {slug!r} no válido. {PROJECT_SLUG_RULE}"
+        )
+    return limpio
+
+
 def project_create(base, *, slug: str, date: str, sequence: str, species: str,
                    anatomy, anatomy_source: str):
     """Crea el proyecto en disco. Repetir un slug ABORTA: nada se pisa.
@@ -2375,7 +2399,7 @@ def project_create(base, *, slug: str, date: str, sequence: str, species: str,
     from .store import ProjectStore
 
     return ProjectStore.create(
-        base, slug=str(slug), sequence=sequence, species=str(species),
+        base, slug=check_project_slug(slug), sequence=sequence, species=str(species),
         anatomy=anatomy, anatomy_source=str(anatomy_source), created=str(date),
     )
 
@@ -2390,7 +2414,7 @@ def project_open(base, slug: str, *, expect_md5: str | None = None):
     """
     from .store import ProjectStore
 
-    almacen = ProjectStore.open(base, slug)
+    almacen = ProjectStore.open(base, check_project_slug(slug))
     if expect_md5 and almacen.project.sequence_md5 != str(expect_md5):
         raise ShmirDesignError(
             f"El proyecto {slug!r} se creo sobre una secuencia de md5 "
@@ -2819,3 +2843,54 @@ def selection_rules_report(*, species: str, sequence, anatomy, thresholds=None) 
                 f"{choice.tercio.value if choice.tercio else '—'}{marca}"
             )
     return "\n".join(lineas)
+
+
+def stored_runs_note(stores) -> str:
+    """Qué corridas trae el proyecto ya guardadas, por frente.
+
+    Existe porque `load_stores` estaba importado en la página y **no se llamaba**: al
+    reabrir un proyecto volvía la selección y los cuatro frentes salían otra vez
+    `NOT_RUN`, así que la persistencia servía para la mitad de lo que dice servir. Es el
+    mismo patrón que `store.save_*` y que `page_run` — tercera vez.
+
+    Y el texto se construye AQUÍ y no en la página (regla 6): contar corridas y decidir
+    qué se enseña es lógica, y en la página no tendría test.
+    """
+    partes = []
+    for clave, almacen in sorted(stores.items()):
+        corridas = getattr(almacen, "runs", None)
+        partes.append(f"{clave}: {len(corridas) if corridas is not None else 0}")
+    total = sum(
+        len(getattr(a, "runs", None) or ()) for a in stores.values()
+    )
+    if not total:
+        return (
+            "El proyecto no tiene ninguna corrida guardada todavía. Los frentes salen "
+            "NOT_RUN porque nadie los ha cerrado, no porque no se hayan releído."
+        )
+    return (
+        "Corridas RECUPERADAS del proyecto — " + ", ".join(partes) + ". "
+        "Vuelven del log, no se han vuelto a calcular."
+    )
+
+
+#: Por qué una corrida cacheada lleva HUELLA.
+#:
+#: El resultado de un modal se guarda en el estado de la página para que sobreviva al
+#: rerun del botón de guardar. Pero el panel y los ajustes se pueden cambiar DESPUÉS, y
+#: el resultado viejo se seguía pintando y ofreciendo para guardar: se persistía en el
+#: log una corrida cuya procedencia no era la de pantalla. Es el fallo del CSV de
+#: miRarchitect otra vez — un resultado que encaja de forma y es de otra cosa.
+WHY_A_RUN_FINGERPRINT = (
+    "Una corrida cacheada lleva la huella del panel y los ajustes con los que se hizo. "
+    "Si cambian, se descarta: pintar un resultado viejo bajo unos ajustes nuevos es "
+    "presentar una procedencia que no es la suya."
+)
+
+
+def run_fingerprint(*partes) -> str:
+    """Huella de lo que produjo una corrida. Ver `WHY_A_RUN_FINGERPRINT`."""
+    import hashlib
+
+    crudo = "|".join(repr(p) for p in partes)
+    return hashlib.md5(crudo.encode("utf-8")).hexdigest()
