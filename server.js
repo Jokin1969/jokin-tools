@@ -215,6 +215,15 @@ function runStartupMigrations() {
   // Ensure there's a working admin (from ADMIN_EMAIL / ADMIN_PASSWORD).
   authStore.seedAdminFromEnv();
 
+  // Pill images: mirror what's committed in the repo (delivered via GitHub) onto
+  // the volume that's actually served — see apps/pastillero/pill-images.js.
+  try {
+    const r = require('./apps/pastillero/pill-images').syncFromRepo();
+    if (r.copied || r.removed) console.log(`[pastillero] Pill images synced: ${r.copied} copiada(s), ${r.removed} eliminada(s) (${r.total} en el repo).`);
+  } catch (e) {
+    console.error('[pastillero] Pill image sync skipped:', e.message);
+  }
+
   // Seed the team's accounts (idempotent): default password + forced change.
   try {
     require('./apps/auth/seed-users').seedInitialUsers();
