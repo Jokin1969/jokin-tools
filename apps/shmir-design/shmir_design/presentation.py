@@ -2463,6 +2463,92 @@ def check_project_slug(slug: str) -> str:
     return limpio
 
 
+# ── Biblioteca del paso 2 ────────────────────────────────────────────────────────
+#
+# La pagina no toca `biblioteca.py`: pasa por aqui, como con todo lo demas. Si empezara a
+# importarlo directamente, acabaria decidiendo sobre el almacen —que ordenar, que
+# etiqueta poner, que hacer si falta— y eso es la regla 6.
+
+
+@dataclass(frozen=True)
+class LibraryFile:
+    """Un fichero de la biblioteca con la MISMA forma que uno subido.
+
+    La pagina usa exactamente dos cosas de un `UploadedFile`: `.name` y `.getvalue()`.
+    Con esto, todo lo que hay aguas abajo —`_fasta_sequence`, `resolve_anatomy`— no se
+    entera de si vino del navegador o del volumen. Distinguirlos aguas abajo serian dos
+    caminos que divergen, y este proyecto ya lleva cuatro divergencias entre frontales.
+    """
+
+    name: str
+    _data: bytes
+
+    def getvalue(self) -> bytes:
+        return self._data
+
+
+def library_note() -> str:
+    """Donde vive la biblioteca y por que sobrevive. Va a la vista, no en un comentario."""
+    from .biblioteca import WHY_THE_VOLUME  # noqa: PLC0415
+
+    return (
+        f"{WHY_THE_VOLUME} Lo guardado aquí NO cierra ningún frente y no entra en el "
+        f"manifiesto: es sólo para no volver a buscar el mismo fichero en cada sesión."
+    )
+
+
+def library_rows(slot: str, *, base=None) -> list[dict]:
+    """Una fila por fichero guardado, con la etiqueta YA montada."""
+    from .biblioteca import listar  # noqa: PLC0415
+
+    return [
+        {
+            "id": e.id,
+            "nombre": e.name,
+            "guardado": e.date,
+            "bytes": e.size,
+            "etiqueta": f"{e.name} — {e.size} bytes, {e.date}, md5 {e.id[:8]}",
+        }
+        for e in listar(slot, base=base)
+    ]
+
+
+def library_file(slot: str, ident: str, *, base=None) -> LibraryFile:
+    """Un fichero guardado, con la forma de uno subido. ABORTA si no cuadra el md5."""
+    from .biblioteca import leer, listar  # noqa: PLC0415
+
+    entrada = next((e for e in listar(slot, base=base) if e.id == ident), None)
+    if entrada is None:
+        raise ShmirDesignError(
+            f"No hay ningún fichero {ident} guardado en la ranura {slot!r}; se aborta "
+            f"en vez de seguir sin él."
+        )
+    return LibraryFile(name=entrada.name, _data=leer(slot, ident, base=base))
+
+
+def library_save(slot: str, upload, *, date: str, base=None) -> dict:
+    """Guarda lo que hay en el hueco. Devuelve la fila de lo guardado."""
+    from .biblioteca import guardar  # noqa: PLC0415
+
+    entrada = guardar(
+        slot, nombre=upload.name, data=upload.getvalue(), date=str(date), base=base
+    )
+    return {
+        "id": entrada.id,
+        "nombre": entrada.name,
+        "guardado": entrada.date,
+        "bytes": entrada.size,
+        "etiqueta": entrada.describe(),
+    }
+
+
+def library_delete(slot: str, ident: str, *, base=None) -> str:
+    """Borra una entrada y devuelve el texto de lo que se fue."""
+    from .biblioteca import borrar  # noqa: PLC0415
+
+    return borrar(slot, ident, base=base).describe()
+
+
 UPLOAD_NAME_RULE = (
     "El nombre de un fichero subido lo pone el NAVEGADOR, no el servidor: se escribe "
     "en disco, así que se queda con el nombre a secas y se comprueba que la ruta cae "

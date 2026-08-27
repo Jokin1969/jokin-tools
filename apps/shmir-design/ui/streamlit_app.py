@@ -13,6 +13,7 @@ El nucleo sigue siendo stdlib pura: Streamlit es una dependencia SOLO de esta in
 
 from __future__ import annotations
 
+import datetime
 import io
 import sys
 import tempfile
@@ -41,6 +42,11 @@ from shmir_design.presentation import (  # noqa: E402
     intron_geometry_text,
     stored_runs_note,
     upload_path,
+    library_delete,
+    library_file,
+    library_note,
+    library_rows,
+    library_save,
     project_create,
     project_list,
     project_open,
@@ -152,6 +158,73 @@ from shmir_design.selection import (  # noqa: E402
 )
 
 COLORES = {"verde": ("#2f7d5d", "🟢"), "ambar": ("#b58900", "🟠")}
+
+
+def _hoy() -> str:
+    """La fecha de hoy como valor POR DEFECTO del campo, no como dato.
+
+    La biblioteca no es procedencia: es una comodidad para no volver a buscar el mismo
+    fichero. La fecha sirve para reconocerlo en la lista y se puede cambiar. Donde la
+    fecha SI es procedencia —las corridas de los cuatro modales— se teclea, y ahi no hay
+    ningun valor por defecto a proposito.
+    """
+    return datetime.date.today().isoformat()
+
+
+def _panel_biblioteca(ranura: str, subido, *, ayuda: str = ""):
+    """Un hueco del paso 2 con su biblioteca: guardar, elegir uno guardado, borrar.
+
+    Devuelve LO QUE HAY QUE USAR: lo subido si se subió algo, y si no el elegido de la
+    biblioteca. La página no decide nada aquí — las filas vienen montadas de
+    `presentation` y el fichero guardado llega con la MISMA forma que uno subido, así
+    que aguas abajo nadie se entera de por dónde vino.
+    """
+    filas = library_rows(ranura)
+    with st.expander(f"📁 Guardados ({len(filas)})", expanded=False):
+        st.caption(library_note())
+        if subido is not None:
+            fecha = st.text_input(
+                "Fecha", value=_hoy(), key=f"bib_fecha_{ranura}",
+                help="La que queda registrada junto al fichero.",
+            )
+            if st.button(f"Guardar «{subido.name}»", key=f"bib_add_{ranura}"):
+                try:
+                    fila = library_save(ranura, subido, date=fecha)
+                except (ShmirDesignError, ValueError) as exc:
+                    # rule2-ok: frontera de la interfaz. El motivo se enseña entero.
+                    st.error(f"**NO se guardó** — {exc}")
+                else:
+                    st.success(f"Guardado: {fila['etiqueta']}")
+                    st.rerun()
+        if not filas:
+            st.info("Nada guardado todavía en este hueco.")
+            return subido
+
+        elegido = st.selectbox(
+            "Usar uno guardado",
+            [f["id"] for f in filas],
+            index=None,
+            placeholder="ninguno",
+            format_func=lambda i: next(f["etiqueta"] for f in filas if f["id"] == i),
+            key=f"bib_pick_{ranura}",
+            help=ayuda or None,
+        )
+        for fila in filas:
+            if st.button(f"Borrar {fila['nombre']}", key=f"bib_del_{ranura}_{fila['id']}"):
+                try:
+                    ido = library_delete(ranura, fila["id"])
+                except ShmirDesignError as exc:
+                    # rule2-ok: frontera de la interfaz.
+                    st.error(f"**NO se borró** — {exc}")
+                else:
+                    st.warning(f"Borrado: {ido}")
+                    st.rerun()
+
+    if subido is not None:
+        return subido
+    if elegido:
+        return library_file(ranura, elegido)
+    return None
 
 
 def _read_upload(upload) -> str:
@@ -684,13 +757,19 @@ def main() -> None:
     st.subheader("2) Secuencia")
     columnas = st.columns(2)
     with columnas[0]:
-        modelo = st.file_uploader("mRNA — especie del diseño", type=["fa", "fasta", "txt"])
-        gb_modelo = st.file_uploader(
-            "GenBank de la especie del diseño (.gb, PREFERENTE)",
-            type=["gb", "gbk", "genbank"],
-            help="El CDS anotado del RefSeq. Es la via más fiable de resolver la "
-                 "anatomía: sin el, las coordenadas del CDS las tecleas tu y los tercios "
-                 "salen NO_FIABLE.",
+        modelo = _panel_biblioteca(
+            "mrna_diseno",
+            st.file_uploader("mRNA — especie del diseño", type=["fa", "fasta", "txt"]),
+        )
+        gb_modelo = _panel_biblioteca(
+            "genbank_diseno",
+            st.file_uploader(
+                "GenBank de la especie del diseño (.gb, PREFERENTE)",
+                type=["gb", "gbk", "genbank"],
+                help="El CDS anotado del RefSeq. Es la via más fiable de resolver la "
+                     "anatomía: sin el, las coordenadas del CDS las tecleas tu y los "
+                     "tercios salen NO_FIABLE.",
+            ),
         )
     with columnas[1]:
         opciones_diana = [o for o in opciones if o["valor"] != nombre_modelo]
@@ -703,13 +782,19 @@ def main() -> None:
                 o["etiqueta"] for o in opciones_diana if o["valor"] == v
             ),
         )
-        diana = st.file_uploader(
-            "mRNA — segunda especie (opcional)", type=["fa", "fasta", "txt"]
+        diana = _panel_biblioteca(
+            "mrna_segunda",
+            st.file_uploader(
+                "mRNA — segunda especie (opcional)", type=["fa", "fasta", "txt"]
+            ),
         )
-        gb_diana = st.file_uploader(
-            "GenBank de la segunda especie (.gb, opcional)",
-            type=["gb", "gbk", "genbank"],
-            help="Lo mismo para la segunda especie.",
+        gb_diana = _panel_biblioteca(
+            "genbank_segunda",
+            st.file_uploader(
+                "GenBank de la segunda especie (.gb, opcional)",
+                type=["gb", "gbk", "genbank"],
+                help="Lo mismo para la segunda especie.",
+            ),
         )
 
     # ── PASO 3 · FICHEROS DE REFERENCIA ─────────────────────────────────────────
