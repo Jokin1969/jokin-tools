@@ -1735,11 +1735,32 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   **no estaba montada en ningún sitio**: había que arrancarla a mano con `streamlit run`,
   y lo que sí estaba desplegado era la operación «Diseñar shmiRs» de Batchwork, que llama
   al **CLI** y es otra cosa —por lotes, sin ficheros de referencia y sin modales—.
-  - **Los dos frentes se quedan, y no hacen lo mismo**: Batchwork sigue siendo el atajo
-    por lotes (subes FASTA, sale un ZIP); `/shmir` es el interactivo. Lo que NO se hace es
+  - **TODO VA EN shmir-design; BATCHWORK NO SE TOCA. DECIDIDO (2026-08-26).** Lo nuevo
+    —el cuarto modal incluido— entra **sólo aquí**. La operación «Diseñar shmiRs» de
+    Batchwork se queda como está y se **desmantelará** más adelante, cuando esta interfaz
+    cubra de verdad lo que aquella hace; hasta entonces no se le añade nada ni se duplica
+    nada en ella. Eso cierra la pregunta de si había que integrar el modal en los dos
+    sitios: no.
+  - **Los dos frentes conviven MIENTRAS TANTO, y no hacen lo mismo**: Batchwork es el
+    atajo por lotes (subes FASTA, sale un ZIP); `/shmir` es el interactivo. Lo que NO se hace es
     duplicar la lógica en los dos: esa es la trampa que obligó a crear `resolve.py`, con
     la anatomía teniendo una versión en el CLI y otra en la interfaz que daban resultados
     distintos sobre el mismo mRNA.
+  - **El mensaje de fallo NO interpreta.** Enseña las últimas líneas de la salida del
+    proceso **tal cual**, y una pista sólo cuando la propia salida la nombra
+    (`process.diagnose`). Antes se pegaba «comprueba que Streamlit está instalado» a TODO
+    fallo, y el primero de producción fue un conflicto de configuración con Streamlit ya
+    importado y corriendo: la página mandaba a mirar el sitio equivocado. Un diagnóstico
+    **equivocado** cuesta más que ninguno — la misma lección que el «Alu 0 %» obtenido sin
+    buscar Alu.
+  - **Hay un TEST DE HUMO que levanta la interfaz de verdad**
+    (`test/shmir.smoke.test.js`, en el hub): arranca el proceso, pide la página por el
+    proxy y **abre el WebSocket CON cabecera `Origin`**. Existe porque hubo 2.767 tests en
+    verde y la app no abría — se miraban los argumentos y las funciones del proxy, no el
+    resultado. Y la cabecera no es un detalle: la comprobación anterior usaba una petición
+    cruda, que NO manda `Origin`, así que pasaba mientras el navegador recibía un 403.
+    **Un cliente que no se parece al real no prueba nada.** Comprobado que el test falla
+    si se quita la reescritura del Origin.
   - **`SHMIR_REFERENCE_DIR`: el directorio de referencia de TRABAJO se declara**
     (`trabajo.py`). Son dos sitios que hasta ahora eran uno — el **origen versionado**,
     que llega con el código, y el **directorio de trabajo**, donde el panel escribe lo que

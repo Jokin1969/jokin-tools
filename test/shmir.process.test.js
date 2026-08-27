@@ -90,8 +90,51 @@ test('el motivo del último fallo se guarda para poder ENSEÑARLO', () => {
   assert.match(proceso.status().lastError, /No module named/);
 });
 
-test('un fallo de arranque nombra qué instalar', () => {
-  const texto = proceso.installHint();
-  assert.match(texto, /streamlit/);
-  assert.match(texto, /requirements-ui\.txt/);
+// ─── El mensaje de error NO diagnostica por su cuenta ────────────────────────
+//
+// Fallo real y caro. Al primer despliegue, la página dijo «comprueba que Streamlit está
+// instalado» — y Streamlit estaba instalado, importado y corriendo: era un conflicto de
+// configuración (`server.port` con `global.developmentMode`). La traza llegaba hasta
+// `streamlit/config.py`, o sea que un `ModuleNotFoundError` habría fallado mucho antes.
+//
+// Un diagnóstico EQUIVOCADO en un mensaje de error hace perder más tiempo que no tener
+// mensaje: es la misma lección que el «Alu 0 %» obtenido sin buscar Alu — un texto
+// plausible pero incorrecto es peor que ninguno.
+
+test('la pista de instalación solo sale cuando la salida nombra un módulo que falta', () => {
+  const pista = proceso.diagnose('ModuleNotFoundError: No module named \'streamlit\'');
+  assert.match(pista, /falta un módulo/i);
+  assert.match(pista, /requirements-ui\.txt/);
+});
+
+test('y un fallo de CONFIGURACIÓN no manda a mirar la instalación', () => {
+  // Es el fallo que costó una vuelta entera: la página decía «comprueba que Streamlit
+  // está instalado» y Streamlit estaba importado y corriendo.
+  const pista = proceso.diagnose(
+    'RuntimeError: server.port does not work when global.developmentMode is true.'
+  );
+  assert.ok(!/instala|requirements-ui/i.test(pista), pista);
+  // Sí puede haber una pista, PERO sólo porque la propia salida nombra el ajuste.
+  assert.match(pista, /developmentMode/);
+});
+
+test('un fallo que no encaja con ninguna huella NO se interpreta', () => {
+  assert.equal(proceso.diagnose('RuntimeError: algo que nadie ha visto antes'), '');
+});
+
+test('un fallo sin salida tampoco se diagnostica', () => {
+  assert.equal(proceso.diagnose(''), '');
+  assert.equal(proceso.diagnose(undefined), '');
+});
+
+test('el motivo que ve el usuario lleva la traza TAL CUAL', () => {
+  const traza = 'File "/app/python_libs/streamlit/config.py", line 3073\n'
+    + 'RuntimeError: server.port does not work when global.developmentMode is true.';
+  const texto = proceso.failureText(traza);
+  assert.ok(texto.includes(traza), 'la traza no viaja entera');
+});
+
+test('y no le pega ninguna interpretación cuando no la hay', () => {
+  const texto = proceso.failureText('RuntimeError: lo que sea');
+  assert.ok(!/instalad/i.test(texto), texto);
 });
