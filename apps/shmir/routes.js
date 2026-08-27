@@ -93,11 +93,13 @@ router.use(async (req, res) => {
   if (!arranque.ok) {
     res.status(503).type('text/plain; charset=utf-8');
     return res.send(
+      // `arranque.reason` YA trae la salida del proceso sin interpretar, y una pista
+      // sólo si la propia salida la nombra (`process.failureText`). Aquí no se añade
+      // ningún diagnóstico más: un texto plausible pero incorrecto en un mensaje de
+      // error hace perder más tiempo que no tener mensaje.
       'shmir-design no está disponible ahora mismo.\n\n'
       + `${arranque.reason}\n\n`
-      + 'El resto del hub no se ve afectado, y el núcleo de shmir-design sigue '
-      + 'funcionando por línea de órdenes: la interfaz es la única parte que necesita '
-      + 'Streamlit.'
+      + 'El resto del hub no se ve afectado.'
     );
   }
   return proxyRequest(req, res, { port: proceso.PORT });

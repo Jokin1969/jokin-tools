@@ -86,6 +86,20 @@ Lo que hay que saber para tocarlo:
   decide con `"site-packages" not in __file__`, y `pip install --target=` deja la ruta sin
   él, así que `--server.port` pasa a ser un conflicto y el proceso aborta. En local vive
   en site-packages: esto pasa en desarrollo y revienta en producción.
+- **El mensaje de fallo NO interpreta.** Enseña las últimas líneas de la salida del
+  proceso **tal cual**, y una pista sólo cuando la propia salida la nombra
+  (`process.diagnose`). Antes se pegaba «comprueba que Streamlit está instalado» a TODO
+  fallo, y el primero de producción fue un conflicto de configuración con Streamlit ya
+  importado y corriendo: la página mandaba a mirar el sitio equivocado. Un diagnóstico
+  **equivocado** cuesta más que ninguno — la misma lección que el «Alu 0 %» obtenido sin
+  buscar Alu.
+- **Hay un TEST DE HUMO que levanta la interfaz de verdad** (`test/shmir.smoke.test.js`):
+  arranca el proceso, pide la página por el proxy y **abre el WebSocket CON cabecera
+  `Origin`**. Existe porque hubo 2.767 tests en verde y la app no abría: se miraban los
+  argumentos y las funciones del proxy, no el resultado. Y la cabecera no es un detalle —
+  la comprobación anterior usaba una petición cruda, que NO manda `Origin`, así que pasaba
+  mientras el navegador recibía un 403. **Un cliente que no se parece al real no prueba
+  nada.** Comprobado que el test falla si se quita la reescritura del Origin.
 - **Express QUITA el prefijo del montaje**: dentro del router, `/shmir/` llega como `/`.
   Streamlit sirve bajo `--server.baseUrlPath=/shmir`, así que reenviar `req.url` da un
   404 **sin ningún error en ningún log**: la app simplemente no aparece. Se reenvía
