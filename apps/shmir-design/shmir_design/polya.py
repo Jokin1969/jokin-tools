@@ -178,6 +178,27 @@ class PolyASignal:
         return "medida" if self.measured_use else "canonicidad"
 
     @property
+    def classification_label(self) -> str:
+        """La clase CON su procedencia pegada. Es lo que se imprime.
+
+        `APA_POSIBLE` a secas dice lo mismo de dos cosas que no se parecen: el `AATAAA`
+        de `3utr:288`, que lo es por canonicidad y SIN UN SOLO DATO DE USO —un supuesto—,
+        y el `AATATA` de `3utr:236`, que lo es por lo contrario: hay uso medido y no hay
+        canonicidad. El campo `evidence` ya las distinguia; lo que faltaba es que la
+        distincion VIAJE PEGADA a la clase, que es lo que alguien copia a un correo.
+        Misma regla que el md5 junto a la longitud: en dos campos, el de al lado no se lee.
+
+        Solo lleva coletilla `APA_POSIBLE`: en las demas clases la via no cambia como se
+        lee el veredicto, y ponerla en todas la haria invisible.
+        """
+        if self.classification is not SignalClass.APA_POSSIBLE:
+            return self.classification.value
+        if self.measured_use:
+            fuente = self.measured_use.split(":", 1)[0].strip()
+            return f"{self.classification.value} (medido, {fuente})"
+        return f"{self.classification.value} (canónico, asumido)"
+
+    @property
     def end(self) -> int:
         return self.position + len(self.motif) - 1
 

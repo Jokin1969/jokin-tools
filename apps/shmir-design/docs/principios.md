@@ -272,3 +272,102 @@ forma. Dos casos reales, con meses de diferencia y el mismo mecanismo:
 
 Contar widgets, contar elementos o contar filas no distingue una salida correcta de una
 que tiene el mismo tamaño y dice otra cosa. **Contar no es comprobar.**
+
+## 8 — La página no accede a atributos del modelo. Ninguno.
+
+La regla 6 dice que la interfaz no contiene lógica. Este principio dice algo más
+concreto y más operativo, y sale de la errata nº 17:
+
+> **Cada `a.b.c` que la página escribe sobre un objeto del modelo es una suposición
+> sobre la forma de ese modelo que ningún test comprueba.**
+
+El `AttributeError` del modal de empalme no fue mala suerte. `variant_proposal_text`
+recibía `seleccion.selection.chosen[0].guide` y `Choice` no tiene `guide`: la guía se
+alcanza por `window_of(choice).evaluation.guide`. El error estaba a un `.` de distancia
+del código correcto, y sobrevivió a 3.169 tests en verde porque vivía en el único sitio
+donde no lo mira nadie.
+
+La contramedida no es revisar mejor: es que la página **pida funciones**, no atributos.
+Una función de `presentation` tiene test; una cadena de atributos en la página, no.
+
+### No todas cuestan lo mismo: primero las que están detrás de un clic
+
+Un acceso dentro de `if st.button(...)` **no lo recorre ninguna suite**. No lo recorre el
+golden de la corrida, que pinta la página sin pulsar nada. No lo recorre el test de humo,
+que sólo comprueba que responde. Su primer lector es el usuario, y lo que ve es una traza.
+
+Los que se pintan en cada rerun son otra cosa: el golden los cubre en parte, y un
+`AttributeError` ahí lo encuentra el primero que abra la app en vez del primero que
+pulse el botón que nadie pulsa.
+
+`tools/auditar_navegacion.py` los cuenta y los separa en esas dos listas. Al escribirlo
+había **nueve**, uno de ellos bajo clic; quedan **uno** y **cero**, y el que queda es
+`upload.getvalue().decode`, que es la API de Streamlit para un fichero subido — contrato
+de otra gente, no modelo nuestro. `tests/test_navegacion_de_la_pagina.py` mantiene la
+segunda cifra en cero.
+
+## 9 — Existir no es contener
+
+> **Existir no es contener.** Un estado se deriva de que algo TENGA ALGO DENTRO, nunca
+> de que la clave, la entrada o el fichero estén.
+
+Sale de la errata nº 15 y aplica a todo. `provided` era `True` porque la **entrada
+estaba en el registro**, no porque hubiera secuencia: fichero fuera de git,
+`raw_sequence=""`, y aun así PASS — y el guardia de la regla 1 no llegaba a saltar
+porque moría antes con un `KeyError('')`, que ningún `except` del proyecto recoge.
+
+La forma general es ésta, y en este proyecto vive sobre todo en `Path.is_file()`:
+
+> **Un fichero de 0 bytes existe.** Pasa `is_file()`. Y no contiene nada.
+
+La descarga cortada a medias, el `touch` de una prueba, el volumen que se llenó a mitad
+de escritura: los tres dejan exactamente eso, y los tres se leían como «lo tenemos» — en
+el panel de ficheros, en `fixture_available` (de donde cuelga que ~80 ficheros de test se
+salten de forma visible o corran contra nada) y en la cuenta de frentes cerrables del
+paso 3.
+
+`presencia.hay_fichero` es la única puerta, y el test que la exige es **de
+comportamiento**, no de forma: comprueba que los tres sitios que deciden dicen AUSENTE
+ante un fichero vacío, no que ninguno escriba `is_file()`. Buscar la llamada en el fuente
+habría marcado además los sitios donde existir SÍ es la pregunta —abrir, borrar,
+comprobar la pareja de un `.out`— que es el corolario B otra vez.
+
+### Corolario — cerrar por derivación, no por test
+
+Un test comprueba que no ha pasado; una **definición única** impide que pase. `provided`
+dejó de ser un campo y pasó a ser una propiedad calculada, que es el mismo cierre que se
+le dio al cuarto par duplicado. Cuando dos cosas tienen que coincidir y una se declara a
+mano, la pregunta no es cómo comprobarlo: es cuál de las dos se deriva de la otra.
+
+## 10 — Si el dato está y es válido, se usa
+
+Un veredicto no puede depender de que alguien se acuerde de una bandera.
+
+Este proyecto ya cerró esa puerta una vez, con la casilla «Usar los de
+`data/reference/`»: una opción cuyo único efecto posible al desmarcarla era dejarlo todo
+en `NOT_RUN` sin decir por qué no es una opción, es una trampa. La errata nº 22 es la
+misma forma un nivel más adentro — la promoción por medida entraba sólo si el llamador
+la resolvía y la pasaba, y **eso decidía un FAIL**.
+
+### El modo sin el dato no es el modo neutro
+
+Es la mitad que más cuesta ver. Omitir una medida no deja el análisis «sin opinión»:
+le hace adoptar **la opinión contraria**. Sin la tabla de PolyA_DB, el `AATATA` de
+`3utr:236` se trata como **no funcional** — que es la hipótesis **menos conservadora**, y
+además la **falsa** según lo que está medido. El defecto favorecía al candidato
+equivocado por omisión, y sin que nada lo dijera.
+
+### Excluirlo es posible, pero es una decisión y se escribe
+
+Hay que poder trabajar, así que la exclusión existe — **por fichero y con el motivo
+escrito** (`deposito.Ignored`, `apa.ApaExcluded`), y el motivo **viaja al veredicto**.
+Sin él, «se decidió no usarlo» y «nadie se acordó» son el mismo resultado mudo.
+
+### El cierre es un centinela, no una nota
+
+Que el valor por defecto haga lo correcto no basta: hay que quitar la forma de
+equivocarse. `measured_apa=None` **aborta**, porque `None` era justo el salto
+silencioso; para excluir hay que escribir el objeto con su motivo. La prueba de que
+sobraba está en el diff: **doce ficheros de test** pasaban la tabla a mano y dejaron de
+necesitarlo. Doce sitios acordándose de lo mismo son doce sitios donde uno puede
+olvidarse.

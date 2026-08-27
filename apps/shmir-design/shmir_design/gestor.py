@@ -32,6 +32,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from .errors import ShmirDesignError
+from .presencia import hay_fichero
 
 #: QUE CORRIDAS INVALIDA CAMBIAR CADA FICHERO. Declarado en UN SOLO SITIO y con test de
 #: que estan TODOS los roles y de que cada corrida existe en `store.RECORD_KINDS`
@@ -312,7 +313,9 @@ def manager_rows(species: str, *, directory) -> list[dict]:
         ficha = obtencion_rows(fila.ficha, species=species)
         for nombre in fila.filenames:
             ruta = raiz / nombre
-            presente = ruta.is_file()
+            # Presencia = hay algo dentro. Un fichero de 0 bytes saldria PRESENTE con
+            # sus cuatro acciones y la de «Ver» enseñaria nada. Errata nº 15.
+            presente = hay_fichero(ruta)
             estado = "presente" if presente else "ausente"
             entrada = registrado.get(nombre)
             filas.append(

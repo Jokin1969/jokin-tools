@@ -14,7 +14,7 @@
 ── 2. Estimación de coste, sobre LO MISMO que se tila ──
   ── Estimación de coste (no se ha diseñado nada) ──
     ventanas a tilar:        2170
-    ventanas elegibles:      407  (son las que pasan por los filtros caros)
+    ventanas elegibles:      390  (son las que pasan por los filtros caros)
   
     partida                 por ventana  ventanas      total
     tilado y filtros duros                            <tiempo medido>

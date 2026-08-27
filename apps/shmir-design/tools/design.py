@@ -32,7 +32,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shmir_design import masking  # noqa: E402
-from shmir_design.apa import POLYA_DB_PRNP, load_apa_sites, resolve_measured  # noqa: E402
+from shmir_design.apa import ApaExcluded, load_apa_sites  # noqa: E402
 from shmir_design.splicing import intronless_control, plan_from_records  # noqa: E402
 from shmir_design.anatomy import (  # noqa: E402
     Anatomy,
@@ -99,7 +99,7 @@ from shmir_design.seed_load import (  # noqa: E402
 from shmir_design.seeds import BOOTSTRAP_SEEDS, parse_seed_table  # noqa: E402
 from shmir_design.selection import SelectionConfig, select_from_report  # noqa: E402
 from shmir_design.specificity import load_database  # noqa: E402
-from shmir_design.tiling import tile_utr  # noqa: E402
+from shmir_design.tiling import RESOLVER_MEDIDA, tile_utr  # noqa: E402
 
 DEFAULT_PAIR = {"raton": "NM_011170.3", "humano": "NM_000311.5"}
 
@@ -483,8 +483,17 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--apa-medido", type=Path,
         help="Tabla `posicion<TAB>fraccion<TAB>nombre` de sitios de poliadenilación "
-             "MEDIDOS (PolyA_DB, PolyASite). Con ella, el dato sustituye a la "
-             "predicción de riesgo_APA y se puede dar el techo de knockdown.",
+             "MEDIDOS (PolyA_DB, PolyASite) ADICIONAL. NO es un interruptor: la tabla "
+             "de PolyA_DB que el proyecto ya tiene se aplica SIEMPRE que hable de la "
+             "secuencia analizada, sin pedirla. Esto añade otra.",
+    )
+    parser.add_argument(
+        "--ignorar-apa-medido", metavar="MOTIVO",
+        help="Excluir A PROPÓSITO la tabla de APA medido, con el motivo escrito. Es la "
+             "única forma de que no entre: sin ella una señal con uso medido se trata "
+             "como no funcional, que es la hipotesis MENOS conservadora. El motivo viaja "
+             "al veredicto — sin el, «se decidio no usarla» y «nadie se acordo» son el "
+             "mismo resultado mudo. Mismo criterio que ignorar un fichero del deposito.",
     )
     parser.add_argument("--apa-version", help="Versión de la tabla; obligatoria")
     parser.add_argument("--apa-md5", help="md5 esperado; si no cuadra, PARA")
@@ -941,8 +950,14 @@ def main(argv: list[str]) -> int:
             # La tabla de PolyA_DB se coloca sola sobre la secuencia que le corresponde
             # y solo sobre esa: la condicion es el md5 canonico del 3'UTR, asi que
             # sobre cualquier otra devuelve None y no se promueve ninguna señal.
-            medido = resolve_measured(
-                secuencia, POLYA_DB_PRNP, anatomy=anatomias[especie]
+            # La medida ENTRA SOLA: `tile_utr` la resuelve por su cuenta contra el
+            # md5 del 3'UTR. Aqui solo se recoge la EXCLUSION deliberada, que es la
+            # unica forma de que no entre y exige motivo escrito. Ver
+            # `apa.WHY_MEASURE_IS_NOT_A_FLAG`: es un veredicto, no una ordenacion.
+            medido = (
+                ApaExcluded(reason=args.ignorar_apa_medido)
+                if args.ignorar_apa_medido
+                else RESOLVER_MEDIDA
             )
             tiling = tile_utr(
                 secuencia,

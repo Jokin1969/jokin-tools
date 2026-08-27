@@ -1908,10 +1908,11 @@ def reference_panel_rows(species: str, *, directory) -> list[dict[str, object]]:
 
     from .species import required_files, resolve
 
+    from .presencia import ficheros_con_contenido
+
     ruta = Path(directory)
-    presentes = (
-        {p.name for p in ruta.iterdir() if p.is_file()} if ruta.is_dir() else set()
-    )
+    # No `is_file()`: un fichero de 0 bytes existe y no tiene nada dentro. Errata nº 15.
+    presentes = ficheros_con_contenido(ruta)
     especie = resolve(species)
 
     filas: list[dict[str, object]] = []
@@ -1965,10 +1966,10 @@ def reference_panel_summary(species: str, *, directory) -> dict[str, object]:
 
     from .species import fixture_report, resolve
 
+    from .presencia import ficheros_con_contenido
+
     ruta = Path(directory)
-    presentes = (
-        tuple(p.name for p in ruta.iterdir() if p.is_file()) if ruta.is_dir() else ()
-    )
+    presentes = tuple(sorted(ficheros_con_contenido(ruta)))
     informe = fixture_report(resolve(species), have=presentes)
     faltan = [f for f in informe.rows if not f.available]
     return {
@@ -2127,6 +2128,118 @@ def variant_proposal_text(guide: str, *, available=None) -> str:
     except ShmirDesignError as exc:
         # rule2-ok: frontera de presentacion. El motivo entero se enseña.
         return f"NO se pudo diseñar la variante — {exc}"
+
+
+def reference_md5s(directory) -> dict[str, str]:
+    """Fichero → md5 de lo que HAY hoy en el directorio de referencia.
+
+    Se calcula del fichero, nunca se declara: es la misma regla del depósito. Un fichero
+    vacío no entra —`presencia.hay_fichero`—, así que un `touch` no puede hacer que una
+    corrida parezca obsoleta contra la nada.
+    """
+    import hashlib  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    from .presencia import ficheros_con_contenido  # noqa: PLC0415
+
+    raiz = Path(directory)
+    salida = {}
+    for nombre in sorted(ficheros_con_contenido(raiz)):
+        salida[nombre] = hashlib.md5(
+            (raiz / nombre).read_bytes(), usedforsecurity=False
+        ).hexdigest()
+    return salida
+
+
+def run_freshness(kind: str, payload, *, actuales: dict[str, str]) -> dict[str, object]:
+    """¿Sigue valiendo esta corrida? PASS / OBSOLETO / NOT_RUN, DERIVADO de los md5.
+
+    La tabla de `insumos.CONSUMIDOS` dice qué consume cada tipo de corrida y dónde vive
+    el md5 de cada insumo dentro del registro; aquí sólo se traduce el resultado a un
+    estado. Los tres casos, y ninguno sobra: los ficheros son los mismos (PASS), alguno
+    cambió (OBSOLETO), o no se ha podido comprobar (NOT_RUN) — que no es que coincida.
+    """
+    from .filters import FilterState  # noqa: PLC0415
+    from .insumos import obsoleta  # noqa: PLC0415
+
+    motivos = list(obsoleta(kind, payload, actuales=actuales))
+    if not motivos:
+        return {"estado": FilterState.PASS, "motivos": []}
+    if all("no se ha podido comprobar" in m for m in motivos):
+        return {"estado": FilterState.NOT_RUN, "motivos": motivos}
+    return {"estado": FilterState.OBSOLETO, "motivos": motivos}
+
+
+def obsolete_rows(store, *, directory) -> list[dict[str, object]]:
+    """Una fila por corrida guardada, con su frescura. Es lo que pinta la página.
+
+    Existe para que `insumos.obsoleta` no se quede como `store.save_*`: escrita, probada
+    y sin llegar nunca a una pantalla. La comprobación que corre y no se ve es media
+    comprobación.
+    """
+    from .insumos import CONSUMIDOS, md5s_de_corrida  # noqa: PLC0415
+
+    hoy = reference_md5s(directory)
+    filas = []
+    for registro in store.records():
+        if registro.kind not in CONSUMIDOS:
+            continue
+        frescura = run_freshness(registro.kind, registro.payload, actuales=hoy)
+        filas.append(
+            {
+                "tipo": registro.kind,
+                "fecha": registro.date,
+                "estado": frescura["estado"],
+                "motivos": frescura["motivos"],
+                "insumos": md5s_de_corrida(registro.kind, registro.payload),
+            }
+        )
+    return filas
+
+
+def project_banner(store) -> dict[str, object]:
+    """Lo que la barra lateral enseña de un proyecto abierto, ya resuelto.
+
+    La página leía `almacen.project.slug`, `.reliable` y `.why_unreliable` — tres
+    cadenas de atributos y tres suposiciones sin test. Corolario de la errata nº 17.
+    """
+    proyecto = store.project
+    return {
+        "titulo": f"Proyecto **{proyecto.slug}** — {len(store.records())} registro(s)",
+        "fiable": bool(proyecto.reliable),
+        "aviso": "" if proyecto.reliable else proyecto.why_unreliable,
+    }
+
+
+def anatomy_source_label(anatomy) -> str:
+    """Cómo se resolvió la anatomía, en una palabra, para el informe.
+
+    Antes era `anat.source.value if hasattr(anat, "source") else str(anat)` EN LA
+    PÁGINA: una navegación y un `hasattr` de rescate, o sea dos suposiciones.
+    """
+    fuente = getattr(anatomy, "source", None)
+    return getattr(fuente, "value", None) or str(anatomy)
+
+
+def chosen_starts(selection) -> list[int]:
+    """Los inicios de los candidatos elegidos, en el orden en que los eligió la app.
+
+    Existe para que la página deje de escribir `[c.start for c in
+    selection.selection.chosen]`, que estaba copiado en tres modales y en el botón de
+    guardar. Cada una de esas copias es una suposición sobre la forma del modelo que
+    ningún test comprueba — el corolario de la errata nº 17 — y las cuatro tendrían que
+    cambiar a la vez el día que `Choice` cambie.
+
+    OJO con el nombre: `selected_starts` es OTRA cosa y ya existía — lee del ALMACÉN la
+    última selección guardada. Ésta lee la selección VIVA de esta corrida. Se llaman
+    distinto porque son distintas, y confundirlas daría el panel de ayer.
+    """
+    return [c.start for c in selection.selection.chosen]
+
+
+def has_selection(selection) -> bool:
+    """¿Hay algún candidato elegido? Misma razón que arriba."""
+    return bool(selection.selection.chosen)
 
 
 def variant_proposal_for(selection, *, available=None) -> str:

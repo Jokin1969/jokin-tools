@@ -178,7 +178,7 @@ class TestLaFichaSeparaLasDosHEBRAS(unittest.TestCase):
         utr3 = load_3utr(RATON)
         maduros = load_mature_fa(MATURE, version="23")
         tiling = tile_utr(
-            utr3, mature=maduros, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP)
+            utr3, mature=maduros
         )
         seleccion = select_from_report(
             tiling, SelectionConfig(n_candidates=10, apa_immune_quota=4)
@@ -234,7 +234,6 @@ class TestLaFichaSeparaLasDosHEBRAS(unittest.TestCase):
         utr3 = load_3utr(RATON)
         return tile_utr(
             utr3, mature=load_mature_fa(MATURE, version="23"),
-            measured_apa=resolve_measured(utr3, POLYA_DB_PRNP),
         )
 
     @classmethod

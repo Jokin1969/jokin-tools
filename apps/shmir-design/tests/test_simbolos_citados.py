@@ -10,6 +10,13 @@ del registro de intrones como si existiera, y NO existía. Y ésa es la peor de 
 Esto recorre los textos que ve el usuario —`why_missing` del registro de intrones, las
 fichas de obtención y las constantes de mensajes— y comprueba que todo `modulo.simbolo`
 que citen exista de verdad.
+
+**Y la segunda mitad, que es la variante que esto NO cazaba (añadida tras la errata
+nº 15):** un símbolo puede EXISTIR y estar vacío. `intron_quimerico` estaba en el
+registro, se importaba, tenía todos sus campos — y su secuencia era `""`, porque el
+plásmido del que sale quedaba fuera de git. Citado y existente, y aun así un PASS falso.
+Que exista el nombre no basta: si lo que se anuncia es contenido, el contenido tiene que
+estar.
 """
 
 import ast
@@ -111,6 +118,54 @@ class TestLosTEXTOS_del_registro(unittest.TestCase):
                 with self.subTest(f"{nombre}: {modulo}.{simbolo}"):
                     objeto = importlib.import_module(f"shmir_design.{modulo}")
                     self.assertTrue(hasattr(objeto, simbolo), f"{modulo}.{simbolo}")
+
+
+class TestExistirNoBastaSiLoQueSeANUNCIAEsCONTENIDO(unittest.TestCase):
+    """La variante de la errata nº 15: el símbolo existe y está vacío.
+
+    El guardia de arriba comprueba que un nombre citado se pueda resolver. Eso no dice
+    nada de si tiene algo dentro, y un registro que anuncia una secuencia disponible con
+    la secuencia vacía es exactamente el fallo que la regla 1 existe para impedir.
+    """
+
+    def test_todo_intron_PROVISTO_tiene_secuencia_de_verdad(self):
+        from shmir_design import introns
+
+        vacios = [
+            i.name for i in introns.INTRONS.values()
+            if i.provided and not i.empty_sequence.strip()
+        ]
+        self.assertEqual(
+            vacios, [],
+            f"Intrones anunciados como disponibles y SIN secuencia: {vacios}. "
+            f"Es la errata nº 15: existir en el registro no es tenerlo.",
+        )
+
+    def test_y_el_que_NO_esta_provisto_dice_POR_QUE(self):
+        from shmir_design import introns
+
+        mudos = [
+            i.name for i in introns.INTRONS.values()
+            if not i.provided and not i.why_missing.strip()
+        ]
+        self.assertEqual(
+            mudos, [],
+            f"Intrones en NOT_RUN sin `why_missing`: {mudos}. Un NOT_RUN mudo no se "
+            f"distingue de uno que nadie miró.",
+        )
+
+    def test_toda_pieza_que_un_intron_NOMBRA_existe_en_PIECES(self):
+        # La otra mitad del `KeyError('')`: `five_piece` con un nombre que no esta en
+        # `blocks.PIECES` moriria con un KeyError que ningun `except ShmirDesignError`
+        # recoge. Que las piezas nombradas existan se comprueba aqui, no en caliente.
+        from shmir_design import blocks, introns
+
+        for intron in introns.INTRONS.values():
+            for campo in ("five_piece", "three_piece", "exon5_piece", "exon3_piece"):
+                nombre = getattr(intron, campo)
+                if nombre:
+                    with self.subTest(f"{intron.name}.{campo}"):
+                        self.assertIn(nombre, blocks.PIECES)
 
 
 if __name__ == "__main__":

@@ -409,37 +409,45 @@ def _es_prosa(texto: str) -> bool:
     """
     if "\n" in texto:
         return False
-    if _es_ingles(texto):
+    if _es_etiqueta_ajena(texto):
         return False
     return (" " in texto.strip()) if SOLO_PROSA else bool(texto.strip())
 
 
-#: Palabras que sólo aparecen en literales que NO son prosa castellana: etiquetas de
-#: ficheros ajenos, claves de formato, nombres de features. Si una de éstas está en el
-#: literal, el literal no es prosa nuestra y no se toca.
-_MARCAS_INGLESAS = frozenset(
-    """chimeric heavy chain beta globin immunoglobulin between from human genes
-    intron exon feature label note color source organism mol_type translation
-    product codon_start gene direction sequence forward primer reverse""".split()
-)
+#: Literales EXACTOS que son etiquetas de un formato ajeno y no prosa nuestra. Es una
+#: lista de CADENAS COMPLETAS, no de palabras sueltas, y ésa es la corrección: la versión
+#: anterior eximía cualquier literal cuyas palabras estuvieran TODAS en un vocabulario
+#: inglés, y `intron` y `primer` existen en los dos idiomas. Con eso, «primer intron»
+#: —prosa castellana, con dos faltas— salía eximido entero. Un guardia que deja pasar
+#: justo lo que tenía que cazar es peor que no tenerlo, porque además tranquiliza.
+#:
+#: Para entrar aquí hace falta que el literal se USE como clave o etiqueta de un fichero
+#: que no es nuestro. `"chimeric intron"` es el `label` con el que se busca la feature en
+#: el GenBank del plásmido: tildarlo lo convierte en una etiqueta que no existe y la
+#: extracción deja de encontrar nada. Misma familia que `--guia` → `--guía` y que
+#: `VERSION` → `VERSIÓN`: ortografía correcta, dato roto.
+#:
+#: Los literales de UNA sola palabra no necesitan estar aquí: `SOLO_PROSA` ya exige un
+#: espacio, así que `"intron"`, `"exon5"` o `"source"` no se tocan de todos modos.
+ETIQUETAS_AJENAS = frozenset({
+    "chimeric intron",
+})
 
 
-def _es_ingles(texto: str) -> bool:
-    """¿Es un literal en inglés —una etiqueta de un fichero ajeno— y no prosa nuestra?
+def _es_etiqueta_ajena(texto: str) -> bool:
+    """¿Es un literal que se usa como etiqueta de un fichero ajeno?
 
-    Existe por `"chimeric intron"`, que es el `label` con el que se busca la feature en
-    el GenBank del plásmido: tildarlo lo convierte en una etiqueta que no existe y la
-    extracción deja de encontrar nada. Misma familia que `--guia` → `--guía` y que
-    `VERSION` → `VERSIÓN`: ortografía correcta, dato roto.
+    Comparación EXACTA contra `ETIQUETAS_AJENAS`. No hay regla que deduzca esto: una
+    etiqueta lo es por DÓNDE SE USA, no por cómo está escrita, y cualquier heurística
+    sobre las palabras vuelve a abrir el agujero de «primer intron».
 
-    La condición es que TODAS las palabras del literal sean inglesas o neutras. Una sola
-    palabra castellana de verdad —con eñe, con tilde ya puesta, o fuera de la lista— y
-    vuelve a tratarse como prosa: no se usa esto para eximir párrafos enteros.
+    Lo único que se normaliza son las COMILLAS y los espacios de los extremos, porque
+    esta función recibe las dos cosas: `corregir()` le pasa el valor de la cadena y el
+    barrido del fichero le pasa el TOKEN, que trae las comillas pegadas. Sin quitarlas,
+    la excepción funcionaba desde una y no desde el otro — la etiqueta del GenBank salía
+    exenta al probarla a mano y acentuada al pasar el guardia sobre el fichero.
     """
-    palabras = [p for p in re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ_]+", texto) if p]
-    if not palabras:
-        return False
-    return all(p.lower() in _MARCAS_INGLESAS for p in palabras)
+    return texto.strip().strip("'\"").strip() in ETIQUETAS_AJENAS
 
 
 def _palabras_de(texto: str):

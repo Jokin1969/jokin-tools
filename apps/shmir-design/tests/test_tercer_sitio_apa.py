@@ -29,6 +29,7 @@ import unittest
 from shmir_design import polya
 from shmir_design.apa import (
     POLYA_DB_PRNP,
+    ApaExcluded,
     anchor_polyadb,
     ceiling_layers,
     resolve_measured,
@@ -238,8 +239,10 @@ class TestLoQueCUESTALaPromocion(unittest.TestCase):
 
         utr3 = load_3utr(RATON)
         cls.medido = resolve_measured(utr3, POLYA_DB_PRNP)
-        cls.sin = tile_utr(utr3)
-        cls.con = tile_utr(utr3, measured_apa=cls.medido)
+        # La medida entra SOLA desde 2026-08-27; el control «sin» hay que pedirlo
+        # a proposito y con motivo escrito. Ver `apa.WHY_MEASURE_IS_NOT_A_FLAG`.
+        cls.sin = tile_utr(utr3, measured_apa=ApaExcluded(reason="control de esta comparación: se quiere el resultado SIN la promoción por medida, para poder enseñar qué cambia"))
+        cls.con = tile_utr(utr3)
 
     def _sitios(self, informe):
         from shmir_design.selection import eligible_choices, group_choices
@@ -321,7 +324,7 @@ class TestElCuartoFrenteSeCIERRA(unittest.TestCase):
 
         utr3 = load_3utr(RATON)
         cls.informe = tile_utr(
-            utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP)
+            utr3
         )
         cls.seleccion = select_from_report(
             cls.informe,
@@ -360,7 +363,7 @@ class TestElCuartoFrenteSeCIERRA(unittest.TestCase):
         from shmir_design.selection import blocking_fronts
         from shmir_design.tiling import tile_utr
 
-        sin = tile_utr(load_3utr(RATON))
+        sin = tile_utr(load_3utr(RATON), measured_apa=ApaExcluded(reason="control: se pide el resultado SIN promoción para poder enseñar qué cambia con ella"))
         frentes = blocking_fronts(sin, self.seleccion)
         apa = next(f for f in frentes if f.name == "fraccion_isoforma_larga")
         self.assertTrue(apa.blocking)
@@ -429,7 +432,7 @@ class TestElInformeDiceLoQueCuesta(unittest.TestCase):
 
         utr3 = load_3utr(RATON)
         cls.informe = tile_utr(
-            utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP)
+            utr3
         )
         cls.coste = measured_promotion_cost(cls.informe)
 
@@ -461,7 +464,9 @@ class TestElInformeDiceLoQueCuesta(unittest.TestCase):
         from shmir_design.selection import measured_promotion_cost
         from shmir_design.tiling import tile_utr
 
-        coste = measured_promotion_cost(tile_utr(load_3utr(RATON)))
+        coste = measured_promotion_cost(
+            tile_utr(load_3utr(RATON), measured_apa=ApaExcluded(reason="control: se pide el resultado SIN promoción para poder enseñar qué cambia con ella"))
+        )
         self.assertEqual(coste.windows, ())
         self.assertEqual(coste.describe(), "")
 
@@ -482,13 +487,7 @@ class TestLaTablaDeTechosLlevaSuMARCO(unittest.TestCase):
         from shmir_design.tiling import tile_utr
 
         return apa_ceiling_table(
-            tile_utr(
-                secuencia,
-                anatomy=anatomy,
-                measured_apa=resolve_measured(
-                    secuencia, POLYA_DB_PRNP, anatomy=anatomy
-                ),
-            )
+            tile_utr(secuencia, anatomy=anatomy)
         )
 
     def test_sobre_el_3UTR_va_en_3utr(self):
@@ -514,5 +513,7 @@ class TestLaTablaDeTechosLlevaSuMARCO(unittest.TestCase):
         from shmir_design.selection import apa_ceiling_table
         from shmir_design.tiling import tile_utr
 
-        filas = apa_ceiling_table(tile_utr(load_3utr(RATON)))
+        filas = apa_ceiling_table(
+            tile_utr(load_3utr(RATON), measured_apa=ApaExcluded(reason="control: se pide el resultado SIN promoción para poder enseñar qué cambia con ella"))
+        )
         self.assertIn("sin dato de uso", filas[0].describe())

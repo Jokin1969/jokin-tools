@@ -60,7 +60,7 @@ class TestLosDosEjesDe3utr200(unittest.TestCase):
         from shmir_design.tiling import tile_utr
 
         utr3 = load_3utr(RATON)
-        cls.informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
+        cls.informe = tile_utr(utr3)
         cls.seleccion = select_from_report(
             cls.informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
         )
@@ -109,7 +109,7 @@ class TestLaListaDeInmunesNoDiceInmuneASecas(unittest.TestCase):
         from shmir_design.tiling import tile_utr
 
         utr3 = load_3utr(RATON)
-        informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
+        informe = tile_utr(utr3)
         cls.texto = text_report(
             species="raton", tiling=informe,
             selection=select_from_report(

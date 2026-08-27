@@ -30,7 +30,7 @@ def _piezas(anatomy=None):
 
     utr3 = load_3utr(RATON)
     informe = tile_utr(
-        utr3, anatomy=anatomy, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP)
+        utr3, anatomy=anatomy
     )
     seleccion = select_from_report(
         informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)

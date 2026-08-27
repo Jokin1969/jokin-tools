@@ -229,9 +229,16 @@ def fixture_available(
     *,
     data_dir: Path | str | None = None,
 ) -> bool:
-    """¿Esta el fixture en disco? Pregunta, no intento fallido: no lanza."""
+    """¿Esta el fixture en disco Y tiene contenido? Pregunta, no intento fallido.
+
+    No basta con que exista: de esto cuelga que ~80 ficheros de test se SALTEN de forma
+    visible o corran de verdad, y un fixture de 0 bytes los haria correr contra nada —
+    fallando por dentro en vez de saltarse. Errata nº 15.
+    """
+    from .presencia import hay_fichero  # noqa: PLC0415
+
     return any(
-        (directory / fixture_filename(reference)).is_file()
+        hay_fichero(directory / fixture_filename(reference))
         for directory in reference_dirs(data_dir)
     )
 

@@ -25,7 +25,7 @@ def _piezas():
     from shmir_design.tiling import tile_utr
 
     utr3 = load_3utr(RATON)
-    informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
+    informe = tile_utr(utr3)
     seleccion = select_from_report(
         informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
     )

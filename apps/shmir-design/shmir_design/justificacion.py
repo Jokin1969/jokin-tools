@@ -168,13 +168,17 @@ OTHER_THRESHOLDS: tuple[ThresholdSource, ...] = (
         ),
         no_measured_basis=(
             "NO HAY NÚMERO QUE JUSTIFICAR, y no por no haberlo buscado: el barrido se "
-            "hizo (`tools/barrer_espaciadores.py`, 0-45 nt en los dos lados, con "
-            "réplicas) y NO DISCRIMINÓ. En ningún elemento el recorrido entre longitudes "
-            "supera la dispersión entre secuencias de la MISMA longitud: lo que mueve la "
-            "accesibilidad es la secuencia del espaciador, no su longitud. Optimizar por "
-            "un criterio que no discrimina es elegir ruido, y elegir el ruido favorable "
-            "es peor que no elegir. Misma categoría que el flanco de ±10 nt: nuestro, "
-            "sin base medida"
+            "hizo (`tools/barrer_espaciadores.py`, 0-45 nt en los dos lados, 5 réplicas "
+            "por longitud) y en LOS DOS LADOS el único largo admisible es el punto de "
+            "partida — ninguna longitud más corta queda no peor en los tres elementos "
+            "frágiles. Lo que el barrido NO da es un número que justifique 20 y 45 en "
+            "vez de otros: en el lado 5' el criterio ni siquiera discrimina (recorrido "
+            "entre longitudes por debajo de la dispersión entre secuencias de la misma "
+            "longitud, en los tres elementos), y en el 3' discrimina por un margen del "
+            "7-11 %, que no sostiene una optimización fina. Optimizar por un criterio "
+            "que apenas distingue es elegir ruido, y elegir el ruido favorable es peor "
+            "que no elegir. Misma categoría que el flanco de ±10 nt: nuestro, sin base "
+            "medida"
         ),
     ),
     ThresholdSource(

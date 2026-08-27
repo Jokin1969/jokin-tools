@@ -296,8 +296,12 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     (`polya.rtqpcr_amplicons`): RT-qPCR de dos amplicones sobre el 3'UTR murino, uno
     entero por delante del hexámero y otro entero por detrás de la banda de corte,
     cuantificados contra una **curva estándar común**; la razón distal/proximal *es*
-    `fraccion_isoforma_larga`. Con la señal de 288 salen 3'UTR **158-277** y **684-803**
-    (120 nt cada uno, holgura de 10 nt y esquivando las dianas del panel). Se emiten
+    `fraccion_isoforma_larga`. **ACTUALIZADO (2026-08-27)**: el experimento se diseña
+    contra el corte **más temprano**, y con la medida aplicada siempre ése pasó a ser el
+    `AATATA` de `3utr:236`, no el `AATAAA` de `3utr:288`. Los amplicones se mueven en
+    consecuencia: **3'UTR 106-225** y **282-401** (`tx:1055-1174` y `tx:1231-1350`), 120
+    nt cada uno, holgura de 10 nt y esquivando las dianas del panel. Los de la señal de
+    288 eran `3utr:158-277` y `684-803`; **quien vaya al banco usa los nuevos**. Se emiten
     **coordenadas**: no se emiten cebadores — eso necesita Tm, especificidad y horquillas,
     y no se improvisa. Se mide sobre tejido **sin tratar**: en muestras tratadas un
     amplicón que solape una diana mide corte por RNAi, no isoformas.
@@ -345,6 +349,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     que la murina se use. **NO LA DESCARTA**: puede ser diferencia real de especie. Las
     dos cláusulas van juntas y ninguna sobra — el informe termina con «rebaja, no
     descarta».
+  - **PANEL CONFIRMADO (2026-08-27)**: con la promoción por medida aplicada siempre, la
+    corrida real por defecto da `3utr:` **10, 60, 143, 200, 449, 553, 652, 735, 819,
+    1018** — los diez, con los **cuatro inmunes**. Coincide con el panel del responsable,
+    así que la app reproduce lo que se sabía antes de construirla y la validación queda
+    **cerrada**. Fijado en `tests/test_promocion_por_defecto.py`.
   - **Inmunes: 60, 143 y 200**, no solo 60. 60 es el único que salía por asimetría, pero
     la piscina de elegibles tiene 15 sitios más por delante del corte y el informe saca los
     mejores — `3utr:143` (+5,08) y `3utr:200` (+3,80) entre ellos. Con un solo inmune el
@@ -642,9 +651,36 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - **La accesibilidad es DESEMPATE, nunca filtro**: es el criterio peor predicho del
   pipeline. Se calculan dos ventanas de contexto (±80 y ±150) y si discrepan el informe
   dice que el número no sirve para desempatar.
-- **`riesgo_APA` es una PREDICCIÓN mientras no haya `--apa-medido`**, y el informe lo
-  dice con esa palabra. Con sitios medidos el dato sustituye a la predicción y sale el
-  techo de knockdown.
+- **`riesgo_APA` es una PREDICCIÓN mientras no haya medida**, y el informe lo dice con
+  esa palabra. Con sitios medidos el dato sustituye a la predicción y sale el techo de
+  knockdown.
+- **LA MEDIDA ENTRA SIEMPRE QUE HAYA MEDIDA. DECIDIDO (2026-08-27)**
+  (`apa.WHY_MEASURE_IS_NOT_A_FLAG`, `tiling.RESOLVER_MEDIDA`, `apa.ApaExcluded`). No es
+  una preferencia de ordenación: **son dos veredictos**. Sin la medida `3utr:221` lleva
+  una penalización de −1,00 por hexámero variante y **sigue en el panel**; con ella, el
+  `AATATA` de `3utr:236` es `APA_POSIBLE` y `3utr:221` es **FAIL duro** por solape
+  estérico. Y el dato existe: PSE 21,1 %, AvgRPM 0,55, el proximal **más usado** de los
+  tres.
+  - **`tile_utr` la resuelve por su cuenta**: nadie tiene que acordarse. Antes dependía de
+    que el llamador llamara a `resolve_measured` y pasara el resultado — tres sitios
+    acordándose de lo mismo, y ya había fallado una vez (la cuarta divergencia entre la
+    página y el CLI). Doce ficheros de test la pasaban a mano y dejaron de necesitarlo.
+  - **`measured_apa=None` ABORTA.** Era el salto silencioso. Para excluirla hay que
+    escribir `apa.ApaExcluded(reason=…)`, el motivo es **obligatorio** y **viaja al
+    informe** (`TilingReport.apa_excluded_reason`): sin él, «se decidió no usarla» y
+    «nadie se acordó» dan el mismo resultado mudo. Mismo criterio que `deposito.Ignored`.
+  - **El modo sin medida NO es el modo neutro**: trata el hexámero como **no funcional**,
+    que es la hipótesis menos conservadora y la falsa según lo medido. El defecto
+    favorecía al candidato equivocado **por omisión**. Principio nº 10.
+  - `--apa-medido` deja de ser un interruptor y pasa a ser una tabla **adicional**; la
+    exclusión deliberada es `--ignorar-apa-medido MOTIVO`.
+- **`APA_POSIBLE` no dice lo mismo de dos cosas distintas**
+  (`PolyASignal.classification_label`). Se emite `APA_POSIBLE (medido, PolyA_DB v4.1)` y
+  `APA_POSIBLE (canónico, asumido)`, con la procedencia **pegada a la clase**: `evidence`
+  ya las distinguía, pero quedaba cinco palabras más allá, donde no lo lee quien copia la
+  línea a un correo. Misma regla que el md5 junto a la longitud. Sólo en esa clase:
+  ponerla en todas la haría invisible. **Con el ratón las DOS están medidas** —288 es uno
+  de los tres sitios anclados—, así que el caso «canónico, asumido» es el **humano**.
 - **El cruce con una fuente externa va por SECUENCIA, nunca por coordenada.**
   miRarchitect numera sus ventanas con un convenio que no es el nuestro —para la misma
   guía da a veces una posición y a veces otra— así que cruzar por número pega un score

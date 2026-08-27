@@ -32,6 +32,7 @@ from .accessibility import Accessibility, accessibility_of
 from .anatomy import Anatomy, Region, RegionSource, TileRange
 from .coords import Frame, frame_of, label
 from .apa import ApaAssessment, ApaSites, MeasuredApa, apa_assessment
+from .errors import ShmirDesignError
 from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
 from .masking import RepeatMask, apply_mask, filter_polymorphic, filter_repeats
 from .hard_filters import (
@@ -260,6 +261,10 @@ class TilingReport:
     #: por tramos; `None` significa que no hay medida para esta secuencia y que
     #: `riesgo_APA` sigue siendo una PREDICCION.
     measured_apa: "MeasuredApa | None" = None
+    #: Si la medida se EXCLUYO a proposito, el motivo escrito. Vacio = no se excluyo.
+    #: Va aqui y no en una nota aparte porque tiene que viajar al veredicto: sin el,
+    #: «se decidio no usarla» y «no habia» son el mismo `measured_apa=None`.
+    apa_excluded_reason: str = ""
     polya_mode: PolyAMode = PolyAMode.ESCALONADO
     #: Longitud y md5 CANONICO de la secuencia que se analizo. Sin esto no hay forma de
     #: saber que se analizo: la errata del 3'UTR fabricado se detecto por longitud
@@ -421,6 +426,17 @@ def _tsv_safe(field: str) -> str:
     return field.replace("\t", " ").replace("\r", " ").replace("\n", " ")
 
 
+#: Centinela de «resuelvela tu». No es `None` a proposito: `None` significaba «no hay
+#: medida» y era indistinguible de «nadie se acordo de pasarla», que es el fallo que esto
+#: cierra. Un centinela que se confunde con un dato legitimo no es un centinela — misma
+#: leccion que el espaciador vacio (errata nº 16).
+#:
+#: Es PUBLICO porque un llamador que quiera decir explicitamente «resuelvela tu» tiene
+#: que poder escribirlo — sin un nombre, la unica forma seria omitir el argumento, y
+#: entonces no hay manera de distinguir «lo decidi» de «no me acorde».
+RESOLVER_MEDIDA = object()
+
+
 def tile_utr(
     sequence: str,
     *,
@@ -445,7 +461,12 @@ def tile_utr(
     #: quitando.
     species: str = "",
     apa_sites: ApaSites | None = None,
-    measured_apa: "MeasuredApa | None" = None,
+    #: LA MEDIDA ENTRA SOLA. Sin pasar nada, `tile_utr` resuelve la tabla de APA medido
+    #: contra la secuencia (por md5 del 3'UTR) y la aplica si habla de ella. Ver
+    #: `apa.WHY_MEASURE_IS_NOT_A_FLAG`: es un VEREDICTO, no una ordenacion, y hacerlo
+    #: depender de que el llamador se acuerde es lo que dejaba a `3utr:221` en el panel.
+    #: `None` ABORTA: era el salto silencioso. Para excluirla, `apa.ApaExcluded(motivo)`.
+    measured_apa: "MeasuredApa | ApaExcluded | None" = RESOLVER_MEDIDA,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
     thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> TilingReport:
@@ -469,6 +490,26 @@ def tile_utr(
             f"{len(original)}; se aborta antes de etiquetar ninguna ventana con "
             f"coordenadas que no son las suyas."
         )
+    from .apa import POLYA_DB_PRNP, ApaExcluded, resolve_measured  # noqa: PLC0415
+
+    motivo_exclusion = ""
+    if measured_apa is None:
+        raise ShmirDesignError(
+            "`measured_apa=None` ya no vale: era el salto SILENCIOSO de la tabla de APA "
+            "medido, y de eso dependen veredictos —con la medida, `3utr:221` es FAIL "
+            "duro por solape estérico; sin ella, sólo lleva una penalización—. No pases "
+            "nada para que entre sola, o pasa `apa.ApaExcluded(reason=…)` con el motivo "
+            "escrito para excluirla a propósito."
+        )
+    if isinstance(measured_apa, ApaExcluded):
+        motivo_exclusion = measured_apa.reason
+        measured_apa = None
+    elif measured_apa is RESOLVER_MEDIDA:
+        # Se coloca sola sobre la secuencia que le corresponde y SOLO sobre esa: la
+        # condicion es el md5 canonico del 3'UTR, asi que sobre cualquier otra devuelve
+        # `None` y no se promueve ninguna señal.
+        measured_apa = resolve_measured(original, POLYA_DB_PRNP, anatomy=anatomy)
+
     signals = find_polya_signals(original, flank=thresholds.polya_flank)
     if measured_apa is not None:
         # La medida SUSTITUYE a la prediccion: una variante rara con uso medido
@@ -690,6 +731,7 @@ def tile_utr(
         windows=tuple(tiled),
         signals=tuple(signals),
         measured_apa=measured_apa,
+        apa_excluded_reason=motivo_exclusion,
         anatomy=anatomy,
         specificity_db=specificity_db,
         avisos=annotated.avisos,

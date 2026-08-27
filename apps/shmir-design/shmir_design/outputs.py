@@ -699,8 +699,20 @@ def text_report(
             # marco del transcrito con el del 3'UTR aqui daria un «1018» que no es el
             # 1018 de dos lineas mas arriba.
             def _en_3utr(choice) -> int:
+                # NADA de `inicio_3utr or window.start`. `None` no es una posicion que
+                # falte: es que esa ventana NO CAE en el 3'UTR —una del ORF entra con
+                # `--cuota-region`— y rellenarla con la coordenada de LO TILADO para
+                # etiquetarla `Frame.UTR3` acto seguido es la quinta vez de esta
+                # familia. Errata nº 18.
                 ventana = selection.windows[choice.label]
-                return ventana.inicio_3utr or ventana.window.start
+                if ventana.inicio_3utr is None:
+                    raise ValueError(
+                        f"La ventana {choice.label} no cae en el 3'UTR, así que no "
+                        f"tiene coordenada de 3'UTR que imprimir en esta línea. Se "
+                        f"aborta en vez de poner la de lo tilado con una etiqueta "
+                        f"`3utr:` delante."
+                    )
+                return ventana.inicio_3utr
 
             # Las DOS cifras cuando hay penalizacion: la asimetria cruda y la neta.
             # Dar una sola columna con la neta hizo que el 221 saliera +4.15 al lado de

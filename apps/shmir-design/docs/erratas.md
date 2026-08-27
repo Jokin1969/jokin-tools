@@ -465,6 +465,18 @@ hubiera espaciador?», montaba el intrón con los 65 nt estándar dentro y salí
 lógicamente — indistinguible del de referencia. Nada falló, nada avisó, y la curva
 publicada tenía un punto que no medía lo que su etiqueta decía.
 
+**CORREGIDO por el responsable (2026-08-27)**, y la corrección es suya: *«el barrido sí
+discrimina en el lado 3', mi frase era de la corrida mal medida»*. Al medir el 0 de
+verdad, el lado 3' **sí** discrimina en dos de los tres elementos (donante 0,58 contra
+0,54; punto de ramificación 0,40 contra 0,36). La decisión no cambia —en los dos lados
+el único largo admisible sigue siendo el punto de partida— pero el motivo sí, y ya no
+puede decirse «el barrido no discriminó» a secas.
+
+**Y el corolario queda MEDIDO, no estimado**, también por corrección suya: quitando los
+**65 nt** de espaciador enteros, donante→punto baja de 256 a **191 nt** — sigue fuera del
+rango típico (18-100). O sea que recortar espaciadores no alcanza, y **la palanca es el
+módulo**: 149 de los 214 nt intercalados.
+
 **La lección**: `""` y «no me lo digas» son **dos peticiones distintas** y se escribían
 igual. Un centinela que se confunde con un dato legítimo no es un centinela. Ahora
 `None` es el estándar y `""` es ninguno.
@@ -488,3 +500,159 @@ Movida a `presentation.variant_proposal_for()`, la cubre un test como todo lo de
 
 **Corolario**: la regla 6 no es de estilo. Cada `a.b.c` en la página es una suposición
 sobre el modelo que ningún test comprueba.
+
+## 18 — `or` borra el valor que significaba algo
+
+**El fallo, en tres sitios y con la misma forma**: `x or defecto` trata la cadena vacía,
+el cero y el `None` como si fueran la misma cosa. Cuando el valor falso **significa
+algo**, el `or` lo borra.
+
+De los 73 usos de `x or defecto` del paquete, la mayoría son correctos —rellenar un md5
+vacío con «SIN REGISTRAR» es exactamente lo que se quiere—. Los tres que muerden:
+
+1. **`inicio_3utr or window.start`**, en `outputs.py` y en `selection.py`. `None` no es
+   una posición que falte: es que la ventana **no cae en el 3'UTR** —una del ORF entra
+   con `--cuota-region`— y el `or` la sustituía por la coordenada de **lo tilado**, que
+   dos caracteres después se etiquetaba `Frame.UTR3`. Es la familia que este proyecto ya
+   había cazado cuatro veces, por quinta vez, y esta vez **entrando por la puerta del
+   `or`** en vez de por un `Frame.UTR3` escrito a mano.
+2. **`species_prefix or 'de todas las especies del fichero'`**, en la **tasa base**.
+   `None` es «nadie declaró la especie» y `""` es «todas, a propósito». Está escrito en
+   `CLAUDE.md` que son dos cosas. Salían las dos como la segunda — en el número que el
+   proyecto obliga a imprimir al lado de cada AVISO.
+3. Lo mismo en los controles de la carga de off-targets.
+
+**Lo que hace este caso distinto de un descuido**: el proyecto ya había hecho bien esa
+distinción dos veces, con `divergent_positions=None` frente a `frozenset()` y con
+`species_prefix` frente a `""`. No falló el concepto — la distinción está hecha **en el
+dato** y se deshace **al imprimirlo**. Un dato que distingue y una salida que no, es una
+salida que no distingue.
+
+**La regla**: un centinela que se confunde con un dato legítimo no es un centinela.
+`None` para «no hay valor», y el valor falso —`""`, `0`, `frozenset()`— reservado para
+lo que de verdad significa. Al escribir `or`, la pregunta es: ¿puede el lado izquierdo
+ser legítimamente vacío o cero? Si puede, hace falta `is None`.
+
+## 19 — El tracto medido dentro de una ventana, y el borde
+
+**No es un fallo de hoy: es una sospecha declarada.** `_ppt_span` busca la racha de
+pirimidinas más larga en los 40 nt de delante del aceptor. Si la racha **empieza en el
+borde** de esa ventana y la base anterior sigue siendo pirimidina, lo que se emite no es
+la racha: es el trozo que cabía.
+
+Ninguno de los dos intrones del registro lo toca —9 y 11 pirimidinas, muy dentro—, y ése
+es justamente el motivo de **declararlo en vez de subir la ventana por si acaso**: la
+auditoría de geometría existe para vigilar lo que hoy no muerde. Un tercer intrón con un
+tracto largo lo tocaría, y el aviso ya está escrito.
+
+Importa porque el tracto es la **referencia interna** contra la que se compara todo
+sitio críptico: un tracto más corto de lo que es hace parecer más débil al aceptor
+legítimo, y con él más fuerte a cualquier críptico.
+
+**Del tipo que ningún invariante caza**: el valor es perfectamente posible y equivocado
+—principio nº 7—, así que lo único que se puede hacer es decirlo, y sale en el informe
+de geometría con o sin recorte.
+
+## 20 — El guardia de las tildes con un agujero del tamaño de «intron»
+
+**El fallo**: `_es_ingles` eximía un literal si **todas** sus palabras estaban en un
+vocabulario inglés. Ese vocabulario existía por `"chimeric intron"` —el `label` con el
+que se busca la feature en el GenBank del plásmido, que tildado deja de encontrarse—, y
+para eximirlo entraron `intron` y `primer`. Las dos existen en los dos idiomas.
+
+Resultado: **«primer intron»**, que es castellano con dos faltas, salía eximido entero.
+
+**Un guardia que deja pasar justo lo que tenía que cazar es peor que no tenerlo**,
+porque además tranquiliza: el contador decía «90 ficheros sin prosa sin tildes» y la
+prosa estaba sin tildes.
+
+**El arreglo es de clase, no de lista**: la excepción pasa a ser **por contexto** —una
+lista de literales **exactos** que se usan como etiqueta de un fichero ajeno— en vez de
+por vocabulario. Una etiqueta lo es por **dónde se usa**, no por cómo está escrita, y
+cualquier heurística sobre las palabras vuelve a abrir el agujero.
+
+**Y la segunda mitad, que casi se escapa**: la excepción funcionaba desde `corregir()`,
+que recibe el **valor** de la cadena, y no desde el barrido del fichero, que pasa el
+**token** con las comillas pegadas. O sea que la etiqueta salía exenta al probarla a
+mano y acentuada al pasar el guardia sobre el fichero. Media excepción es peor que
+ninguna: la prueba a mano decía que estaba cerrada.
+
+## 21 — Cuatro corridas, dos sin el md5 de lo que consumieron
+
+**El fallo**: `SeedScan` guardaba la procedencia del fichero de maduros como **prosa**
+—`mature.provenance`, con el md5 en medio de una frase— mientras BLAST guardaba
+`database.md5` y off-target `provenance.md5` como **campo**. Un md5 dentro de una frase
+se lee; no se compara. Y OBSOLETO se deriva **comparando**.
+
+**Y al mirarlo salió lo que el primer vistazo tapaba**: off-target consume **dos**
+ficheros —el catálogo de 3'UTR y el de maduros— y sólo llevaba el md5 del primero. No
+era «un campo que falta en uno de cuatro»: faltaba en **dos**, y en el segundo lo
+escondía que el primero sí estuviera. Misma forma que la errata nº 12, la comprobación
+que se llamaba «los TRES elementos» y contaba en vez de identificar.
+
+**Se cierra con una tabla y no con cuatro `if`** (`insumos.CONSUMIDOS`): qué consume
+cada tipo de corrida y en qué campo del registro vive su md5. Un quinto modal que no
+declare sus insumos falla en la suite, no el día que alguien busque por qué su corrida
+no se marcó obsoleta. Y la entrada de `corrida_empalme` está **vacía a propósito**, que
+dice «se miró y no hay» — ausente diría «nadie lo miró».
+
+## 22 — El veredicto que dependía de acordarse de una bandera
+
+**El fallo**: la promoción por medida —el `AATATA` de `3utr:236` subiendo a
+`APA_POSIBLE` porque PolyA_DB v4.1 mide su uso— sólo entraba si **el llamador se
+acordaba** de resolverla y pasarla. `tile_utr(...)` a secas la omitía en silencio.
+
+Los dos frentes de la app **sí** la resolvían, así que en la app el número estaba bien.
+Lo que estaba mal es que **eso dependiera de tres sitios acordándose de lo mismo**, y ya
+había fallado una vez: la cuarta divergencia entre la página y el CLI fue exactamente
+ésta. Y hay una huella medible de que seguía costando: **doce ficheros de test** —y
+cualquier análisis que alguien escribiera— corrían sin la promoción sin decirlo.
+
+**No son dos ordenaciones, son dos veredictos**, y es lo que obliga a decidirlo así:
+
+| | `3utr:221` |
+|---|---|
+| **sin** la medida | penalización de −1,00 por hexámero variante — **sigue en el panel** |
+| **con** la medida | `AATATA` es `APA_POSIBLE` medido y 221 lo **solapa**: **FAIL duro** por riesgo estérico |
+
+Y el dato existe: PSE 21,1 %, AvgRPM 0,55 — **el proximal más usado de los tres**. El
+modo sin medida trata ese hexámero como no funcional, que es **la hipótesis menos
+conservadora y además la falsa según lo medido**: el defecto favorecía al candidato
+equivocado **por omisión**.
+
+**Mismo criterio que el `.out` de RepeatMasker y que la casilla global que se quitó**: si
+el dato está en el depósito y es válido, se usa. Una opción cuyo único efecto es
+empeorar el veredicto en silencio no es una opción, es una trampa.
+
+**El cierre no es una nota, es un centinela**: `tile_utr` resuelve la tabla por su cuenta,
+`measured_apa=None` **aborta** —era el salto silencioso— y excluirla exige
+`apa.ApaExcluded(reason=…)` con el motivo escrito, que **viaja al informe**. Sin él, «se
+decidió no usarla» y «nadie se acordó» dan el mismo resultado mudo, que es la lección de
+`deposito.Ignored`.
+
+**Y la prueba de que sobraba**: los doce ficheros de test que pasaban la tabla a mano
+dejaron de necesitar el argumento. Doce sitios acordándose de lo mismo son doce sitios
+donde uno puede olvidarse.
+
+## 23 — `APA_POSIBLE` decía lo mismo de dos cosas que no se parecen
+
+**El fallo**: la clase no distingue **por qué** una señal es `APA_POSIBLE`, y las dos
+vías son opuestas:
+
+- el `AATAAA` de `3utr:288` lo es **por canonicidad** —y, cuando no hay tabla, **sin un
+  solo dato de uso**: un supuesto, y el informe ya usaba esa palabra;
+- el `AATATA` de `3utr:236` lo es **por uso medido** y **sin** canonicidad — por la
+  cascada de predicción saldría `OTRA`.
+
+El campo `evidence` ya las separaba. Lo que faltaba es que la distinción **viaje pegada a
+la clase**: `evidence` quedaba cinco palabras más allá, donde no lo lee quien copia la
+línea a un correo. Es la misma regla que el md5 junto a la longitud — separadas en dos
+campos, la de al lado no se lee.
+
+Ahora se emite `APA_POSIBLE (medido, PolyA_DB v4.1)` y `APA_POSIBLE (canónico, asumido)`,
+y sólo en esa clase: ponerla en todas la haría invisible.
+
+**Un detalle que corrigió el propio test**: con el ratón las **dos** señales están
+medidas —288 también es uno de los tres sitios anclados—, así que el caso «canónico,
+asumido» hay que buscarlo en el **humano**, donde la tabla no aplica por md5. La primera
+versión del test daba por hecho que 288 era el caso asumido, y no lo es.

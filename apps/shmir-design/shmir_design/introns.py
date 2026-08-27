@@ -125,6 +125,10 @@ class SpliceElement:
     #: pierden — y donde se recalculan con el marco equivocado.
     branch_a: int | None = None
     to_acceptor: int | None = None
+    #: Solo para el tracto: `True` si la racha EMPIEZA en el borde de la ventana de
+    #: `PPT_WINDOW` nt y la base de delante sigue siendo pirimidina — o sea, la racha
+    #: continua fuera y lo que se emite es el trozo que cupo. Ver `WHY_THE_WINDOW_CAN_CLIP`.
+    clipped_by_window: bool = False
 
     def __post_init__(self) -> None:
         # El invariante de intervalos del proyecto, aqui tambien: una coordenada que no
@@ -182,9 +186,21 @@ class IntronElements:
         lineas = [
             f"Elementos del intrón ({self.length} nt), DERIVADOS de la secuencia:",
             f"  {self.donor.describe()}",
-            f"  {self.ppt.describe()}   ({len(self.ppt.sequence)} pirimidinas contiguas)",
+            f"  {self.ppt.describe()}   ({len(self.ppt.sequence)} pirimidinas contiguas)"
+            + ("  ⚠ RECORTADO POR LA VENTANA" if self.ppt.clipped_by_window else ""),
             f"  {self.acceptor.describe()}",
         ]
+        # La sospecha va SIEMPRE, muerda o no. Emitirla solo cuando muerde la
+        # convertiria en una alarma, y lo que hace falta es que quien lea la geometria
+        # sepa que este numero tiene un techo antes de necesitarlo.
+        if self.ppt.clipped_by_window:
+            lineas.append(f"  ⚠ {WHY_THE_WINDOW_CAN_CLIP}")
+        else:
+            lineas.append(
+                f"  Tracto: ninguno de los dos intrones del registro toca el borde de "
+                f"la ventana de {PPT_WINDOW} nt en la que se busca, así que el número "
+                f"de arriba es la racha entera. {WHY_THE_WINDOW_CAN_CLIP}"
+            )
         if self.branch_point is None:
             lineas.append(
                 "  punto_de_ramificacion: NINGÚN candidato en la ventana. No es «no lo "
@@ -254,6 +270,30 @@ WHY_LONGEST_RUN = (
 )
 
 
+#: LO QUE ESTA MEDIDA NO PUEDE VER, declarado en vez de arreglado por si acaso. El
+#: tracto se busca en los `PPT_WINDOW` nt de delante del aceptor. Si la racha mas larga
+#: EMPIEZA justo en el borde de esa ventana y la base anterior tambien es pirimidina, lo
+#: que se emite no es la racha: es la parte que cabia. El numero sale MAS PEQUEÑO que el
+#: real, y un tracto mas corto de lo que es hace parecer mas debil al aceptor legitimo —
+#: que es la referencia interna contra la que se compara todo sitio criptico.
+#:
+#: Ninguno de los dos intrones del registro lo toca (9 y 11 pirimidinas, muy dentro de
+#: los 40), y ese es el motivo de DECLARARLO en vez de subir la ventana a ojo: la
+#: auditoria de geometria existe para vigilar lo que hoy no muerde. Un tercer intron con
+#: un tracto largo lo tocaria, y entonces el aviso ya esta escrito.
+#:
+#: Es del tipo que ningun invariante caza —el valor es perfectamente posible, solo que
+#: equivocado—, asi que lo unico que se puede hacer es decirlo. Principio nº 7.
+WHY_THE_WINDOW_CAN_CLIP = (
+    f"El tracto se busca en los {PPT_WINDOW} nt de delante del aceptor. Si la racha "
+    f"empieza en el borde de esa ventana y sigue habiendo pirimidinas por delante, lo "
+    f"que se emite es el trozo que cabe y el tracto sale MÁS CORTO de lo que es. Un "
+    f"tracto corto hace parecer más débil al aceptor legítimo, que es la referencia "
+    f"contra la que se compara todo sitio críptico. Ninguno de los intrones de hoy lo "
+    f"toca; sale marcado el día que uno lo haga."
+)
+
+
 def _ppt_span(sequence: str, acceptor_start: int) -> tuple[int, int]:
     """La racha de pirimidinas mas larga de la ventana. Devuelve (inicio, fin) 1-based.
 
@@ -278,6 +318,14 @@ def _ppt_span(sequence: str, acceptor_start: int) -> tuple[int, int]:
     if mejor[0] == 0:
         return (acceptor_start - 1, acceptor_start - 2)   # vacio
     return (mejor[1] + 1, mejor[2])
+
+
+def _ppt_clipped(sequence: str, acceptor_start: int, ppt_start: int) -> bool:
+    """¿La racha toca el borde de la ventana y sigue por delante? Ver la regla arriba."""
+    borde = max(0, (acceptor_start - 1) - PPT_WINDOW)      # 0-based
+    if ppt_start - 1 != borde or borde == 0:
+        return False
+    return sequence[borde - 1] in _PYRIMIDINES
 
 
 def _branch_candidates(sequence: str) -> list[tuple[int, str]]:
@@ -357,6 +405,7 @@ def locate_elements(sequence: str, *, name: str) -> IntronElements:
             end=ppt_fin,
             sequence=limpio[ppt_ini - 1:ppt_fin],
             origin=ElementOrigin.DERIVADO,
+            clipped_by_window=_ppt_clipped(limpio, aceptor_inicio, ppt_ini),
         ),
         acceptor=SpliceElement(
             name="aceptor", start=aceptor_inicio, end=len(limpio),
