@@ -65,6 +65,15 @@ function mapFotos(med) {
   };
   return { caja: pick('materialas'), pastilla: pick('formafarmac') };
 }
+// Pharmaceutical form ("comprimido", "cápsula", "solución oral"…) — NOT verified
+// against a live response yet (this environment has cima.aemps.es blocked); the
+// field name matches AEMPS's published CIMA schema, but confirm with a real call
+// (GET .../api/cima/cn/:cn?debug=1 already returns the raw payload for this) the
+// first time this matters, and fix the accessor here if it doesn't match.
+function mapForma(med) {
+  const f = med && med.formaFarmaceutica;
+  return (f && (f.nombre || f.nombreCorto)) || null;
+}
 function mapMedicamento(med, cn) {
   if (!med || (!med.nombre && !med.nregistro)) return null;
   const pres = Array.isArray(med.presentaciones) ? med.presentaciones : [];
@@ -77,6 +86,7 @@ function mapMedicamento(med, cn) {
     nregistro: med.nregistro || null,
     pactivos: med.pactivos || null,
     labtitular: med.labtitular || null,
+    forma: mapForma(med),
     comercializado: med.comerc === undefined ? null : !!med.comerc,
     barcode: barcodeFromCn(theCn),
     gtin: gtinFromCn(theCn),
@@ -120,6 +130,7 @@ async function searchByName(text, opts = {}) {
       out.push({
         cn, nombre: p.nombre || med.nombre || null,
         nregistro: med.nregistro || null, pactivos: med.pactivos || null, labtitular: med.labtitular || null,
+        forma: mapForma(med),
         barcode: barcodeFromCn(cn), gtin: gtinFromCn(cn), fotos, source: 'cima',
       });
       if (out.length >= limit) return out;

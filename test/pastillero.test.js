@@ -190,7 +190,9 @@ test('imagen de pastilla por CN: 404 si no existe el fichero, 200 (PNG) si exist
   const missing = await fetch(`${assetsBase}/pill/999999.png`);
   assert.equal(missing.status, 404, 'sin fichero en el repositorio, 404 (el frontend cae al icono genérico)');
 
-  // Escribe un PNG mínimo (1x1) en el repositorio y comprueba que se sirve.
+  // Escribe un PNG mínimo (1x1) directamente en el volumen servido y comprueba
+  // que se sirve (llegar hasta ahí desde el repo es lo que prueba syncFromRepo,
+  // más abajo).
   const png1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
   fs2.writeFileSync(path2.join(pillImages.DIR, '711234.png'), png1x1);
   const ok = await fetch(`${assetsBase}/pill/711234.png`);
@@ -201,4 +203,33 @@ test('imagen de pastilla por CN: 404 si no existe el fichero, 200 (PNG) si exist
   // Rechaza cualquier cosa que no sean dígitos (traversal, extensiones raras…).
   const bad = await fetch(`${assetsBase}/pill/../../etc.png`);
   assert.notEqual(bad.status, 200);
+});
+
+test('syncFromRepo: copia lo nuevo/cambiado del repo al volumen, y borra del volumen lo que ya no está en el repo', async () => {
+  const fs2 = require('fs');
+  const path2 = require('path');
+  const os2 = require('os');
+  const pillImages = require('../apps/pastillero/pill-images');
+
+  const fakeRepo = fs2.mkdtempSync(path2.join(os2.tmpdir(), 'pill-repo-'));
+  const png1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  fs2.writeFileSync(path2.join(fakeRepo, '800001.png'), png1x1);
+  fs2.writeFileSync(path2.join(fakeRepo, 'README.md'), '# no es una imagen, no debe copiarse');
+
+  // Un fichero que YA existe en el volumen (subido en un despliegue anterior)
+  // pero que ya no está en el repo: debe desaparecer al sincronizar.
+  fs2.writeFileSync(path2.join(pillImages.DIR, '800099.png'), png1x1);
+
+  const r1 = pillImages.syncFromRepo(fakeRepo);
+  assert.equal(r1.copied, 1, 'copia el único PNG del repo (ignora el README)');
+  assert.ok(r1.removed >= 1, 'borra del volumen al menos el CN que ya no está en el repo (puede haber más de otros tests compartiendo el volumen)');
+  assert.ok(pillImages.hasPillImage('800001'));
+  assert.ok(!pillImages.hasPillImage('800099'));
+
+  // Segunda pasada sin cambios: no reescribe nada.
+  const r2 = pillImages.syncFromRepo(fakeRepo);
+  assert.equal(r2.copied, 0, 'sin cambios en el repo, no vuelve a copiar');
+  assert.equal(r2.removed, 0);
+
+  fs2.rmSync(fakeRepo, { recursive: true, force: true });
 });

@@ -97,16 +97,24 @@ function shapeSvg(shape, color, px) {
   return `<svg class="dm-shape" width="${px}" height="${px}" viewBox="0 0 24 24" aria-hidden="true">${s}</svg>`;
 }
 // Real pill photo when curated (by Código Nacional) — same file/URL shared with
-// Pastillero and Asignación — the colour/shape icon otherwise.
-function pillImgHtml(cn, shape, color, px) {
+// Pastillero, Asignación and Galénica — the colour/shape icon otherwise. Clicking
+// a real photo opens it big, same style as "Ver la caja en grande".
+function pillImgHtml(cn, shape, color, px, nombre) {
   px = px || 20;
   if (!cn) return shapeSvg(shape, color, px);
-  return `<img class="dm-pill-img" src="/pastillero/assets/pill/${esc(cn)}.png" width="${px}" height="${px}" alt="" onerror="pillImgFail(this,'${esc(shape)}','${esc(color)}',${px})">`;
+  return `<img class="dm-pill-img" src="/pastillero/assets/pill/${esc(cn)}.png" width="${px}" height="${px}" alt="" style="cursor:pointer" data-nombre="${esc(nombre || '')}" onclick="openPillPhotoModal(this)" onerror="pillImgFail(this,'${esc(shape)}','${esc(color)}',${px})">`;
 }
 function pillImgFail(img, shape, color, px) {
   const span = document.createElement('span');
   span.innerHTML = shapeSvg(shape, color, px);
   img.replaceWith(span.firstElementChild);
+}
+// Same modal, same style as openImageModal (caja/pastilla de CIMA) — just for
+// the curated photo, which has no `tipo`/CN-cache lookup, only its own URL.
+function openPillPhotoModal(img) {
+  openModal(`<div class="qt-modal-h"><h3>💊 ${esc(img.dataset.nombre || 'Medicamento')}</h3><button class="qt-x" data-close>×</button></div>
+    <div class="dm-img-modal"><img src="${img.src}" alt="Pastilla"></div>
+    <div class="dm-note" style="text-align:center">Pastilla</div>`, { wide: true });
 }
 
 // A small badge for boxes reserved/dispensed via the Asignación app.
@@ -285,7 +293,7 @@ function viewFicha(id, opts) {
     `<div class="qt-ficha-top"><button class="qt-back" id="back">← ${opts.justScanned ? 'Escanear' : 'Volver'}</button>${navBar}</div>
      <div class="qt-panel qt-ficha">
        <div class="qt-qr-stage">
-         <div class="qt-qr-name">${pillImgHtml(it.cn, it.shape, it.color, 26)} ${esc(it.nombre || 'Medicamento sin nombre')}</div>
+         <div class="qt-qr-name">${pillImgHtml(it.cn, it.shape, it.color, 26, it.nombre)} ${esc(it.nombre || 'Medicamento sin nombre')}</div>
          ${dmHtml}
          <div class="qt-qr-cn">${it.cn ? 'CN ' + esc(it.cn) : 'Sin Código Nacional'}</div>
          <div class="qt-qr-tis" style="font-size:.92rem;letter-spacing:.04em;color:var(--muted)">${it.caducidad ? 'Cad ' + fmtDate(it.caducidad) : ''}${it.serial ? (it.caducidad ? ' · ' : '') + 'Nº ' + esc(it.serial) : ''}</div>

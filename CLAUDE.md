@@ -26,7 +26,7 @@ distintas del Mapa de abajo. Para que las fusiones a `main` sigan siendo automá
 | Ruta | Qué es | Reglas |
 |---|---|---|
 | `server.js`, `src/`, `public/`, `lib/`, `test/` | Hub principal (Node/Express) | Las de este fichero |
-| `apps/asignacion/`, `apps/auth/`, `apps/bitacora/`, `apps/datamatrix/`, `apps/feep/`, `apps/imprimir/`, `apps/pastillero/`, `apps/qr-tis/`, `apps/re-memory/` | Micro-apps del hub (Node/Express) | Las de este fichero |
+| `apps/asignacion/`, `apps/auth/`, `apps/bitacora/`, `apps/datamatrix/`, `apps/feep/`, `apps/galenica/`, `apps/imprimir/`, `apps/pastillero/`, `apps/qr-tis/`, `apps/re-memory/` | Micro-apps del hub (Node/Express) | Las de este fichero |
 | `apps/batchwork/` | Operaciones por lotes sobre ficheros (Node + scripts Python auxiliares) | Las de este fichero |
 | `apps/shmir-design/` | Proyecto Python 3.11+ independiente: CLI, interfaz Streamlit y una operación en el sidebar de Batchwork | **`apps/shmir-design/CLAUDE.md`** |
 | `apps/shmir/` | El hub sirviendo esa interfaz Streamlit en `/shmir` (proceso hijo + proxy) | Las de este fichero |
@@ -38,10 +38,15 @@ operación «Diseñar shmiRs» del sidebar. Ese puente no debe contener lógica.
 
 `apps/pastillero/pill-images/` (fotos de pastilla por Código Nacional, `<CN>.png`)
 vive **dentro del repo a propósito**, no en un volumen: se sube por GitHub, no por
-acceso al servidor. No lo confundas con el patrón de `SHMIR_REFERENCE_DIR` (ese sí
-en volumen, porque ahí la sube el propio panel de la app). Servida en
-`GET /pastillero/assets/pill/<CN>.png`, compartida tal cual por Pastillero, Data
-Matrix y Asignación.
+acceso al servidor. Lo que se SIRVE de verdad es otra cosa: al arrancar,
+`pill-images.js` copia esa carpeta al volumen (`PASTILLERO_PILL_IMAGES_DIR`, por
+defecto `/data/pastillero/pills` en producción) — mismo motivo que
+`SHMIR_REFERENCE_DIR` (filesystem del contenedor efímero), pero el mecanismo es el
+opuesto: aquí Git es la ÚNICA fuente (nadie sube nada desde un panel en marcha), así
+que la sincronización es un espejo completo en cada arranque —copia lo nuevo,
+borra del volumen lo que ya no esté en el repo—, no una siembra de una sola vez.
+Servida en `GET /pastillero/assets/pill/<CN>.png`, compartida tal cual por
+Pastillero, Data Matrix, Asignación y Galénica.
 
 ## `apps/shmir-design/` tiene reglas propias y vinculantes
 

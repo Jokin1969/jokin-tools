@@ -32,7 +32,7 @@ function fromCache(row) {
   if (!row) return null;
   return {
     cn: row.cn, nombre: row.nombre || null, barcode: row.barcode || null, gtin: row.gtin || null,
-    nregistro: row.nregistro || null, pactivos: row.pactivos || null, labtitular: row.labtitular || null,
+    nregistro: row.nregistro || null, pactivos: row.pactivos || null, labtitular: row.labtitular || null, forma: row.forma || null,
     fotos: {
       caja: row.has_caja ? { full: row.foto_caja_url || null } : null,
       pastilla: row.has_pastilla ? { full: row.foto_pastilla_url || null } : null,
@@ -52,7 +52,7 @@ async function lookupByCnCached(cn, opts = {}) {
       const [caja, pastilla] = await Promise.all([fetchBest(fc.caja), fetchBest(fc.pastilla)]);
       db.cimaCachePut(item.cn || cn, {
         nombre: item.nombre, barcode: item.barcode, gtin: item.gtin, nregistro: item.nregistro,
-        pactivos: item.pactivos, labtitular: item.labtitular,
+        pactivos: item.pactivos, labtitular: item.labtitular, forma: item.forma,
         foto_caja: caja, foto_pastilla: pastilla,
         foto_caja_url: fc.caja && (fc.caja.full || fc.caja.thumb),
         foto_pastilla_url: fc.pastilla && (fc.pastilla.full || fc.pastilla.thumb),
