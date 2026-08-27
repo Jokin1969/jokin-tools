@@ -220,3 +220,50 @@ Eso se arregló aparte —no se dibuja y se cuenta— y no tiene nada que ver co
 
 **Contramedida**: el principio nº 4 de [`principios.md`](principios.md), y la
 descomposición del recuento se emite entera en vez de por diferencias.
+
+---
+
+## 9 — El filtro que nunca dijo que no
+
+**Predicción, de Joaquín Castilla, 2026-08-27**: `G4_diana` «ha estado excluyendo
+candidatos sin que nadie lo supiera y hay que ver a quién».
+
+**Refutada, y por el lado que no se esperaba.** Medido antes de tocar nada, sobre las dos
+especies del proyecto:
+
+| | ventanas de 22 nt | `G4_diana` FAIL | `G4_guia` FAIL |
+|---|---:|---:|---:|
+| ratón `NM_011170.3` | 1221 | **0** | **0** |
+| humano `NM_000311.5` | 1585 | **0** | **0** |
+
+**No excluyó a nadie nunca.** Ninguna ventana pasa a elegible al quitarlo, y ninguno de
+los diez del panel entra ni sale. Lo que hacía no era excluir: era emitir **veredictos
+`PASS` que nadie había autorizado**.
+
+**Y eso es PEOR, no mejor.** El filtro sobrevivió sin procedencia desde el 25 de agosto
+—implementado en `b544dd2`, empaquetado con GC y homopolímero, sin una sola cita frente a
+una asimetría que citaba Turner 2004 y reproducía cinco valores— **precisamente porque
+nunca decía que no**. Un filtro que rechaza se audita solo: alguien pregunta por qué cayó
+su candidato y hay que enseñarle el criterio. Uno que siempre aprueba no lo mira nadie: no
+genera ninguna pregunta, no aparece en ninguna queja, y su justificación no se pide jamás.
+La ausencia de rechazos no es evidencia de que un criterio sea bueno; es la condición que
+lo protege de ser revisado.
+
+**Corolario, y es el que cambia cómo se trabaja**: **la revisión de procedencia no puede
+priorizarse por impacto observado.** Ordenar la cola de auditoría por «cuántos candidatos
+ha tumbado esto» pone al final exactamente los criterios que llevan más tiempo sin que
+nadie los mire. El orden tiene que salir de la calidad de la ficha —qué cita, qué umbral,
+quién lo autorizó— y no de las consecuencias visibles.
+
+**Y una asimetría de rigor que sí es señal**: un filtro cuya justificación no está a la
+altura de la de sus vecinos **en el mismo fichero** es sospechoso por esa sola razón, sin
+necesidad de mirar lo que hace. `justificacion.py` existe justo para esto y a G4 se le
+escapó por una grieta concreta: **el test que exige justificación recorre los campos de
+`Thresholds`**, y G4 nunca llegó a tener un umbral que justificar — su criterio era una
+expresión regular escrita a mano. Cualquier criterio futuro que no sea un número entra por
+el mismo agujero.
+
+**Contramedida**: `docs/procedencia-g4.md` con la arqueología entera, y el filtro fuera.
+Para volver a entrar hacen falta tres cosas y las tres por escrito: **predictor con cita**,
+**umbral con justificación**, y **decisión explícita de si es duro o desempate** — con el
+voto de partida del responsable en «desempate, nunca filtro».

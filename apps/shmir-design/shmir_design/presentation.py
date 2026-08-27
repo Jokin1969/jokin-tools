@@ -2052,7 +2052,13 @@ def intron_geometry_rows(names=None, *, module_length: int = 149):
     motivo en `nota` y sin inventarse nada: es la regla 3 sobre geometría en vez de
     sobre filtros.
     """
-    from .introns import INTRONS, insertion_window, intron_breakdown, locate_elements
+    from .introns import (
+        INTRONS,
+        check_module_upstream,
+        insertion_window,
+        intron_breakdown,
+        locate_elements,
+    )
 
     filas = []
     for nombre in (names if names is not None else tuple(INTRONS)):
@@ -2067,6 +2073,7 @@ def intron_geometry_rows(names=None, *, module_length: int = 149):
             "desglose": None,
             "insercion": None,
             "elementos": None,
+            "aguas_arriba": None,
             "nota": "",
         }
         try:
@@ -2083,7 +2090,14 @@ def intron_geometry_rows(names=None, *, module_length: int = 149):
             continue
         elementos = locate_elements(secuencia, name=nombre)
         fila["elementos"] = elementos
-        fila["insercion"] = insertion_window(elementos, module_length=module_length)
+        ventana = insertion_window(elementos, module_length=module_length)
+        fila["insercion"] = ventana
+        # La TERCERA restricción, comprobada sobre el primer sitio admisible. Sin
+        # candidato a punto de ramificación sale NOT_RUN y no PASS — no haber podido
+        # comprobarlo no es que se cumpla.
+        fila["aguas_arriba"] = check_module_upstream(
+            elementos, after=ventana.ranges[0][0]
+        )
         filas.append(fila)
     return filas
 
@@ -2099,6 +2113,12 @@ def intron_geometry_text(names=None, *, module_length: int = 149) -> str:
             lineas.extend(fila["elementos"].describe())
         if fila["insercion"] is not None:
             lineas.extend(fila["insercion"].describe())
+        if fila["aguas_arriba"] is not None:
+            estado = fila["aguas_arriba"]
+            marca = "OK" if estado.state is FilterState.PASS else "⬜"
+            lineas.append(
+                f"  {marca} {estado.name}: {estado.state.value} — {estado.reason}"
+            )
         if fila["nota"]:
             lineas.append(f"  ⬜ {fila['nota']}")
         lineas.append("")

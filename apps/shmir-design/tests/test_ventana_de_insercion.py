@@ -35,16 +35,17 @@ class TestSobreElMVMDeVerdad(unittest.TestCase):
         self.assertEqual(self.elementos.ppt.start, 72)
         self.assertEqual(self.elementos.acceptor.start, 81)
 
-    def test_los_tramos_empiezan_TRAS_el_donante_y_acaban_ANTES_del_tracto(self):
-        primero = self.ventana.ranges[0]
-        ultimo = self.ventana.ranges[-1]
-        self.assertEqual(primero[0], self.elementos.donor.end + 1)
-        self.assertEqual(ultimo[1], self.elementos.ppt.start - 1)
+    def test_empieza_TRAS_el_donante(self):
+        self.assertEqual(self.ventana.ranges[0][0], self.elementos.donor.end + 1)
 
-    def test_el_punto_de_ramificacion_PARTE_la_ventana_en_dos(self):
-        # 43-47 es el candidato del MVM. Un tramo antes y otro después.
-        self.assertEqual(len(self.ventana.ranges), 2)
-        self.assertEqual(self.ventana.ranges, ((3, 42), (48, 71)))
+    def test_y_acaba_ANTES_del_punto__no_antes_del_tracto(self):
+        # La TERCERA restricción: el módulo va siempre aguas arriba del punto de
+        # ramificación. El tramo 48-71, que cabía entre el punto y el tracto, YA NO ES
+        # ADMISIBLE — insertar ahí estiraría punto→aceptor de 33 a 182 nt.
+        candidato = self.elementos.branch_candidates[0]
+        self.assertEqual(self.ventana.ranges, ((3, candidato.start - 1),))
+        self.assertEqual(self.ventana.ranges, ((3, 42),))
+        self.assertLess(self.ventana.ranges[-1][1], self.elementos.ppt.start - 1)
 
     def test_ninguna_opcion_cae_DENTRO_de_un_candidato(self):
         prohibidas = {
@@ -98,24 +99,33 @@ class TestSobreElMVMDeVerdad(unittest.TestCase):
             self.elementos.acceptor.start - candidato.end - 1,
         )
 
-    def test_insertar_DESPUES_alarga_LA_OTRA_separacion(self):
-        despues = next(o for o in self.ventana.options if o.after == 60)
+    def test_NINGUNA_opcion_queda_aguas_abajo_del_punto(self):
+        # La regla, comprobada sobre todas las opciones y no sólo sobre los extremos.
+        for opcion in self.ventana.options:
+            with self.subTest(after=opcion.after):
+                self.assertTrue(
+                    all(d.side == "aguas arriba" for d in opcion.to_branch)
+                )
+
+    def test_y_por_eso_punto_ACEPTOR_se_conserva_en_todas(self):
+        # Los 33 nt del MVM, intactos en cualquier opción admisible. Es lo que la regla
+        # protege: esa separación no se puede estirar.
         candidato = self.elementos.branch_candidates[0]
-        self.assertEqual(despues.to_branch[0].side, "aguas abajo")
-        # Ahora el módulo cruza punto→aceptor, y donante→punto se queda como estaba.
-        self.assertEqual(
-            despues.to_branch[0].donor_to_branch,
-            candidato.start - self.elementos.donor.end - 1,
-        )
-        self.assertEqual(
-            despues.to_branch[0].branch_to_acceptor,
-            self.elementos.acceptor.start - candidato.end - 1 + MODULO,
-        )
+        original = self.elementos.acceptor.start - candidato.end - 1
+        self.assertEqual(original, 33)
+        for opcion in self.ventana.options:
+            self.assertEqual(opcion.to_branch[0].branch_to_acceptor, original)
+
+    def test_insertar_aguas_abajo_a_mano_ABORTA(self):
+        from shmir_design.introns import check_module_upstream
+
+        with self.assertRaises(ShmirDesignError) as ctx:
+            check_module_upstream(self.elementos, after=60)
+        self.assertIn("AGUAS ABAJO", str(ctx.exception))
 
     def test_el_resumen_dice_los_tramos_y_NO_elige(self):
         texto = "\n".join(self.ventana.describe())
         self.assertIn("3-42", texto)
-        self.assertIn("48-71", texto)
         self.assertIn("no se elige", texto.lower())
 
 

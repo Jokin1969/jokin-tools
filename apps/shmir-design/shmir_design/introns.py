@@ -20,7 +20,7 @@ sin resumen: no haber podido comprobarlo no es que coincida.
 ## Los tres estados son distintos y aqui se distinguen
 
   - `mvm_actual` — **disponible**, ensamblado de piezas versionadas. Nadie lo teclea.
-  - `quimerico_cmv_globina` — **no aportado**. Se extrae de un plasmido del laboratorio y
+  - `intron_quimerico` — **aportado**. Se EXTRAE por su anotacion del plasmido y
     no se reconstruye de memoria: eso es la errata nº 5 esperando a repetirse, y una
     secuencia plausible es el peor resultado posible de este software (regla 1).
   - `mvm_sin_criptico` — lo **diseña la app**, derivado del primero, con dos criterios
@@ -37,7 +37,7 @@ from enum import StrEnum
 
 from .blocks import MODULE_LENGTH, PIECES
 from .errors import ShmirDesignError
-from .filters import FilterState
+from .filters import FilterResult, FilterState
 
 #: Por debajo de esto el espliceosoma no ensambla bien. Se aplica a los TRES intrones.
 MIN_INTRON_LENGTH = 80
@@ -57,9 +57,35 @@ WHY_MIN_LENGTH = (
 #: `splicing.SPLICE_SITE_CRITERION`, del que sale.
 BRANCH_CRITERION = (
     "Punto de ramificacion: motivo YURAY (pirimidina, purina, A, cualquiera, pirimidina) "
-    "entre 18 y 40 nt aguas arriba de la A del aceptor. Es un criterio DECLARADO como "
-    "parámetro de este análisis y NO una cita. Por eso sale como CANDIDATO y nunca como "
-    "dato: si caben varios, salen todos y no se elige por nuestra cuenta."
+    "entre 18 y 40 nt aguas arriba de la A del aceptor. Es una CONVENCIÓN DECLARADA de "
+    "este análisis y NO una cita: nadie la ha respaldado con literatura y hasta que "
+    "alguien lo haga se usa por ser la única implementada y probada. Por eso sale como "
+    "CANDIDATO y nunca como dato, y salen TODOS los que caben: el punto de ramificación "
+    "real puede no ser el que más se parece al consenso."
+)
+
+#: UN SOLO CRITERIO PARA LOS TRES INTRONES (2026-08-27), y es `YURAY` 18-40. Se consideró
+#: `YTNAY` 20-40 y se descartó: no tenía más respaldo que la memoria de quien lo propuso,
+#: y `YURAY` al menos está implementado y probado. Lo que decide no es cuál acierta más
+#: —no hay con qué medir eso— sino que los TRES se midan con el MISMO, que es el motivo
+#: entero de tener un segundo intrón.
+#:
+#: LO QUE ESTO CUESTA, medido y no supuesto:
+#:
+#:   · MVM (82 nt)        YURAY → TAATT en 43 (38 nt del aceptor)
+#:   · quimérico (133 pb) YURAY → NINGUNO       ·  YTNAY habría dado CTGAC en 104 y CTTAC en 100
+#:
+#: `CTGAC` es el consenso de mamífero de manual y `YURAY` no lo casa, porque su segunda
+#: base es T. Así que el quimérico se queda SIN candidato, y eso NO es «no lo hay»: es
+#: «esta convención no señala ninguno». La consecuencia práctica está en
+#: `MODULE_UPSTREAM_RULE`: sin candidato no se puede comprobar que el módulo va aguas
+#: arriba del punto, y esa comprobación queda en NOT_RUN para este intrón — no en PASS.
+WHY_ONE_CRITERION = (
+    "Los tres intrones se miden con la MISMA convención (YURAY 18-40) aunque no sea la "
+    "que más candidatos encuentra: comparar dos intrones medidos con criterios distintos "
+    "no compara nada. Es convención declarada, no literatura. Coste medido: el quimérico "
+    "se queda sin candidato, así que la regla del módulo aguas arriba no se puede "
+    "comprobar en él y sale NOT_RUN."
 )
 
 BRANCH_WINDOW = (18, 40)
@@ -155,14 +181,57 @@ def check_length(sequence: str, *, name: str) -> int:
     return len(limpio)
 
 
-def _ppt_length(sequence: str, acceptor_start: int) -> int:
-    """Pirimidinas CONTIGUAS aguas arriba del aceptor. Contiguas, no un porcentaje: un
-    porcentaje en una ventana diluye y da tractos donde no los hay."""
-    n, i = 0, acceptor_start - 2
-    while i >= 0 and sequence[i] in _PYRIMIDINES:
-        n += 1
-        i -= 1
-    return n
+#: Hasta donde se busca el tracto, aguas arriba de la A del aceptor.
+PPT_WINDOW = 40
+
+PPT_CRITERION = (
+    "Tracto de polipirimidinas: la racha de pirimidinas CONTIGUAS más larga en los "
+    f"{PPT_WINDOW} nt de delante de la A del aceptor. Contiguas y no un porcentaje: un "
+    "porcentaje en una ventana diluye y da tractos donde no los hay. El HUECO hasta el "
+    "aceptor se emite: no tiene por qué ser cero."
+)
+
+#: POR QUÉ LA RACHA MÁS LARGA Y NO LA QUE PEGA CON EL ACEPTOR (2026-08-27). La regla
+#: anterior contaba pirimidinas hacia atrás DESDE el aceptor y paraba en la primera
+#: purina. Funciona en el MVM, donde el tracto pega con el AG, y se rompe en el
+#: quimérico, donde hay un `AC` en medio: devolvía un tracto de UNA base.
+#:
+#:   · MVM (82 nt)        racha 72-80,  9 nt, hueco 0 al aceptor
+#:   · quimérico (133 pb) racha 119-129, 11 nt, hueco 2 al aceptor
+#:
+#: Las dos coinciden con lo declarado. La regla vieja no estaba «casi bien»: daba un
+#: tracto de 1 nt sin ningún error, y un tracto de 1 nt es un intrón que no empalma.
+WHY_LONGEST_RUN = (
+    "El tracto es la racha contigua más larga de la ventana, no la que toca el aceptor: "
+    "en el intrón quimérico hay un AC entre el tracto y el AG, y la regla anterior "
+    "devolvía un tracto de UNA base sin dar ningún error. Medido en los dos intrones."
+)
+
+
+def _ppt_span(sequence: str, acceptor_start: int) -> tuple[int, int]:
+    """La racha de pirimidinas mas larga de la ventana. Devuelve (inicio, fin) 1-based.
+
+    Ver `PPT_CRITERION` y `WHY_LONGEST_RUN`. Ante empate gana la MAS CERCANA al
+    aceptor, que es la que un espliceosoma usaria: elegir la primera por orden de
+    lectura seria elegir por el orden del bucle.
+    """
+    fin_ventana = acceptor_start - 1              # 0-based, exclusivo
+    inicio_ventana = max(0, fin_ventana - PPT_WINDOW)
+    mejor = (0, 0, 0)                              # (largo, inicio, fin) 0-based
+    i = inicio_ventana
+    while i < fin_ventana:
+        if sequence[i] not in _PYRIMIDINES:
+            i += 1
+            continue
+        j = i
+        while j < fin_ventana and sequence[j] in _PYRIMIDINES:
+            j += 1
+        if j - i >= mejor[0]:                      # >= : ante empate, la mas cercana
+            mejor = (j - i, i, j)
+        i = j
+    if mejor[0] == 0:
+        return (acceptor_start - 1, acceptor_start - 2)   # vacio
+    return (mejor[1] + 1, mejor[2])
 
 
 def _branch_candidates(sequence: str) -> list[tuple[int, str]]:
@@ -173,6 +242,8 @@ def _branch_candidates(sequence: str) -> list[tuple[int, str]]:
         if j < 0 or j + 5 > len(sequence):
             continue
         motivo = sequence[j:j + 5]
+        # YURAY: pirimidina, purina, A, cualquiera, pirimidina. CONVENCION DECLARADA de
+        # este analisis, no una cita: ver `BRANCH_CRITERION` y `WHY_ONE_CRITERION`.
         if (
             motivo[0] in _PYRIMIDINES
             and motivo[1] in "AG"
@@ -204,8 +275,9 @@ def locate_elements(sequence: str, *, name: str) -> IntronElements:
         )
 
     aceptor_inicio = len(limpio) - 1           # 1-based de la A del AG
-    tracto = _ppt_length(limpio, aceptor_inicio)
-    if tracto == 0:
+    ppt_ini, ppt_fin = _ppt_span(limpio, aceptor_inicio)
+    tracto = ppt_fin - ppt_ini + 1
+    if tracto <= 0:
         raise ShmirDesignError(
             f"{name}: no hay ni una pirimidina contigua aguas arriba del aceptor, así "
             f"que no hay tracto de polipirimidinas. Se aborta: es el elemento contra el "
@@ -226,9 +298,9 @@ def locate_elements(sequence: str, *, name: str) -> IntronElements:
         ),
         ppt=SpliceElement(
             name="tracto_polipirimidinas",
-            start=aceptor_inicio - tracto,
-            end=aceptor_inicio - 1,
-            sequence=limpio[aceptor_inicio - 1 - tracto:aceptor_inicio - 1],
+            start=ppt_ini,
+            end=ppt_fin,
+            sequence=limpio[ppt_ini - 1:ppt_fin],
             origin=ElementOrigin.DERIVADO,
         ),
         acceptor=SpliceElement(
@@ -350,10 +422,60 @@ def intron_breakdown(intron: str, *, module_length: int) -> IntronBreakdown:
 #: discutido acaba emitiendo veredictos que nadie pidió (ver `docs/procedencia-g4.md`).
 #: Lo que se emite son DISTANCIAS, que son un hecho; la decisión se toma mirándolas.
 INSERTION_RULE = (
-    "El módulo va entre el DONANTE y el TRACTO DE POLIPIRIMIDINAS, y no invade ningún "
-    "candidato a punto de ramificación. Son las dos únicas restricciones declaradas: "
-    "las distancias se emiten para decidir, no se convierten en umbral por su cuenta."
+    "El módulo va entre el DONANTE y el TRACTO DE POLIPIRIMIDINAS, no invade ningún "
+    "candidato a punto de ramificación, y va SIEMPRE aguas arriba del punto. Son las "
+    "tres restricciones declaradas: las distancias se emiten para decidir, no se "
+    "convierten en umbral por su cuenta."
 )
+
+#: LA TERCERA RESTRICCION, y por que es una regla y no una observacion. Insertar aguas
+#: ABAJO del punto de ramificacion mete el modulo entre el punto y el aceptor, y esa
+#: separacion es la que NO se puede estirar: en el MVM son 33 nt y pasarian a 182. Hoy la
+#: construccion inserta aguas arriba, asi que se cumplia — pero por donde cae el corte,
+#: no porque nada lo impidiera. Una consecuencia no impide nada.
+MODULE_UPSTREAM_RULE = (
+    "El módulo va SIEMPRE aguas arriba del punto de ramificación. Aguas abajo quedaría "
+    "entre el punto y el aceptor, que es la separación que no se puede estirar."
+)
+
+#: Y lo que pasa cuando NO HAY candidato: la regla no se puede comprobar. No es que se
+#: cumpla — es que no se sabe, y eso es `NOT_RUN` y no `PASS`. Le pasa hoy al intrón
+#: quimérico con la convención `YURAY` (ver `WHY_ONE_CRITERION`).
+MODULE_UPSTREAM_UNCHECKABLE = (
+    "Sin ningún candidato a punto de ramificación, NO se puede comprobar que el módulo "
+    "vaya aguas arriba de él. NOT_RUN, no PASS: la regla queda sin verificar y el sitio "
+    "de inserción se elige a ciegas en ese eje."
+)
+
+
+def check_module_upstream(elements: IntronElements, *, after: int) -> FilterResult:
+    """¿Va el módulo aguas arriba del punto? ABORTA si no. Ver `MODULE_UPSTREAM_RULE`.
+
+    Sin candidatos devuelve `NOT_RUN` en vez de `PASS`: no haber podido comprobarlo no
+    es que se cumpla, que es la regla 3 aplicada a la geometría en vez de a un filtro.
+    """
+    if not elements.branch_candidates:
+        return FilterResult(
+            name="modulo_aguas_arriba",
+            state=FilterState.NOT_RUN,
+            reason=MODULE_UPSTREAM_UNCHECKABLE,
+        )
+    primero = min(c.start for c in elements.branch_candidates)
+    if after >= primero:
+        raise ShmirDesignError(
+            f"El módulo se insertaría tras intrón:{after}, y el primer candidato a "
+            f"punto de ramificación empieza en intrón:{primero}: quedaría AGUAS ABAJO. "
+            f"{MODULE_UPSTREAM_RULE} Se aborta en vez de montar una construcción que "
+            f"estira la separación punto→aceptor."
+        )
+    return FilterResult(
+        name="modulo_aguas_arriba",
+        state=FilterState.PASS,
+        reason=(
+            f"El módulo va tras intrón:{after} y el primer candidato empieza en "
+            f"intrón:{primero}: aguas arriba, como exige la regla."
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -470,6 +592,12 @@ def insertion_window(
         for p in range(c.start, c.end + 1)
     }
     admisibles = [p for p in range(primera, ultima + 1) if p not in prohibidas]
+    # TERCERA RESTRICCION, declarada: el modulo va SIEMPRE aguas arriba del punto de
+    # ramificacion. Hasta hoy era una CONSECUENCIA de donde se insertaba, no una regla —
+    # y una consecuencia no impide nada. Ver `MODULE_UPSTREAM_RULE`.
+    if elements.branch_candidates:
+        primer_candidato = min(c.start for c in elements.branch_candidates)
+        admisibles = [p for p in admisibles if p < primer_candidato]
     if not admisibles:
         raise ShmirDesignError(
             f"Entre el donante (intrón:{elements.donor.end}) y el tracto "
@@ -620,6 +748,46 @@ _ERRATA = (
     "ramificacion, tracto de polipirimidinas y aceptor POR SECUENCIA y los declara."
 )
 
+#: El intron quimerico se EXTRAE del plasmido depositado por su anotacion, y se
+#: comprueba contra la longitud y el md5 declarados. No se teclea: si el fichero no esta,
+#: la entrada queda sin secuencia y lo dice — que es la regla 3 sobre una secuencia en
+#: vez de sobre un filtro.
+QUIMERICO_PLASMID = "addgene_198131.gb"
+QUIMERICO_FEATURE = ("intron", "chimeric intron")
+QUIMERICO_MD5 = "5cd85dcf763f8e7df6f4e84ada503be0"
+QUIMERICO_SPAN = (1216, 1348)
+QUIMERICO_CONTEXT_NT = 15
+
+
+def _cargar_quimerico() -> str:
+    """Lo extrae del plasmido. Cadena vacia si el fichero no esta: NO se inventa."""
+    from pathlib import Path  # noqa: PLC0415
+
+    from .genbank import load_plasmid_feature  # noqa: PLC0415
+    from .reference import reference_dirs  # noqa: PLC0415
+
+    clave, etiqueta = QUIMERICO_FEATURE
+    for directorio in reference_dirs(None):
+        ruta = Path(directorio) / QUIMERICO_PLASMID
+        if not ruta.is_file():
+            continue
+        feature = load_plasmid_feature(
+            ruta, key=clave, label=etiqueta, expected_md5=QUIMERICO_MD5
+        )
+        if (feature.start, feature.end) != QUIMERICO_SPAN:
+            raise ShmirDesignError(
+                f"{ruta}: la feature «{etiqueta}» está en "
+                f"{feature.start}-{feature.end} y se declaró en "
+                f"{QUIMERICO_SPAN[0]}-{QUIMERICO_SPAN[1]}. Se aborta: una feature "
+                f"corrida un nucleótido corre todas las coordenadas sin dar error."
+            )
+        return feature.sequence
+    return ""
+
+
+_QUIMERICO = _cargar_quimerico()
+
+
 INTRONS: dict[str, Intron] = {
     "mvm_actual": Intron(
         name="mvm_actual",
@@ -634,15 +802,23 @@ INTRONS: dict[str, Intron] = {
         exon3_piece="exon3",
         provided=True,
     ),
-    "quimerico_cmv_globina": Intron(
-        name="quimerico_cmv_globina",
+    "intron_quimerico": Intron(
+        name="intron_quimerico",
+        # NOMBRE CORREGIDO (2026-08-27). Se llamaba `quimerico_cmv_globina` y la
+        # descripcion decia «CMV / beta-globina»: las dos cosas estaban mal, y salieron
+        # a la luz al llegar el fichero. La nota de la propia anotacion dice «chimera
+        # between introns from human beta-globin and immunoglobulin heavy chain genes».
+        # El donante GTAAGT viene de la beta-globina y el aceptor de la Ig. CMV es el
+        # PROMOTOR del plasmido (497-1080), no parte del intron: por eso se colo.
         description=(
-            "Intrón quimérico CMV / beta-globina, el de la familia pAAV-MCS. NO lo "
-            "tenemos."
+            "Intrón quimérico de β-globina humana e inmunoglobulina de cadena pesada, "
+            "133 pb. Donante GTAAGT (consenso perfecto), tracto de 11 pirimidinas "
+            "frente a las 9 del MVM, y sin GTGAGCG: no aporta un segundo donante "
+            "críptico."
         ),
-        source="plásmido comercial del laboratorio",
-        provided=False,
-        why_missing=_ERRATA,
+        source="Addgene #198131 (pCI_mini-mAgrin-AviTag), feature `intron` 1216-1348",
+        provided=True,
+        raw_sequence=_QUIMERICO,
         ficha="intron_quimerico",
     ),
     "mvm_sin_criptico": Intron(

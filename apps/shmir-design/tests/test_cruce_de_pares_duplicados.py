@@ -44,8 +44,8 @@ class TestElParQueNOCoincide(unittest.TestCase):
         from shmir_design.spliceai import PairResult, SpliceScan
 
         par = PairResult(
-            construction="3utr200_x_quimerico_cmv_globina",
-            candidate_start=200, intron="quimerico_cmv_globina",
+            construction="3utr200_x_intron_quimerico",
+            candidate_start=200, intron="intron_quimerico",
             legit_donor=0.90, legit_acceptor=0.85, cryptics=(),
             known_cryptic=None, context_5=0, context_3=0,
         )
@@ -88,7 +88,7 @@ class TestElParQueNOCoincide(unittest.TestCase):
             scan=scan, raw="crudo", date="2026-08-27", ran_by="test",
             run_id="cruce-1", executor="test",
         )
-        return corrida.verdict(start, "quimerico_cmv_globina")
+        return corrida.verdict(start, "intron_quimerico")
 
 
 class TestElInvarianteDeLosTramos(unittest.TestCase):

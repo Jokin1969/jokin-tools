@@ -11,9 +11,11 @@ clase en vez de una constante escondida en `blocks.PIECES`.
 Los tres estados son distintos y el registro los distingue:
 
   - `mvm_actual` — DISPONIBLE. Se ensambla de piezas versionadas; nadie lo teclea.
-  - `quimerico_cmv_globina` — NO APORTADO. Hueco con `NOT_RUN` visible y ficha de
-    obtencion. Se extrae de un plasmido del laboratorio, y **no se reconstruye de
-    memoria**: eso es la errata nº 5 esperando a repetirse.
+  - `intron_quimerico` — APORTADO desde 2026-08-27. Se EXTRAE por su anotacion del
+    plasmido de Addgene #198131 y se comprueba contra la longitud y el md5 declarados;
+    no se teclea. Antes se llamaba `quimerico_cmv_globina` y se describia como «CMV /
+    beta-globina»: las dos cosas estaban mal —CMV es el PROMOTOR del plasmido, no parte
+    del intron— y salieron a la luz al llegar el fichero.
   - `mvm_sin_criptico` — lo DISEÑA la app, derivado del primero, con dos criterios
     computables. Es una PROPUESTA, no una construccion aprobada.
 """
@@ -30,25 +32,35 @@ class TestLosTresEstadosSonDISTINTOS(unittest.TestCase):
     def test_estan_los_tres_declarados(self):
         self.assertEqual(
             set(introns.INTRONS),
-            {"mvm_actual", "quimerico_cmv_globina", "mvm_sin_criptico"},
+            {"mvm_actual", "intron_quimerico", "mvm_sin_criptico"},
         )
+
+    def test_la_clave_VIEJA_ya_no_existe(self):
+        # `quimerico_cmv_globina` describia mal el intron. No se conserva por
+        # compatibilidad: no hay ningun dato guardado con esa clave, y una clave que
+        # miente es peor que una rota.
+        self.assertNotIn("quimerico_cmv_globina", introns.INTRONS)
 
     def test_el_MVM_esta_DISPONIBLE(self):
         self.assertTrue(introns.INTRONS["mvm_actual"].provided)
 
-    def test_el_quimerico_NO_esta_y_lo_dice(self):
-        quimerico = introns.INTRONS["quimerico_cmv_globina"]
-        self.assertFalse(quimerico.provided)
-        self.assertIs(quimerico.state, FilterState.NOT_RUN)
+    def test_el_quimerico_YA_ESTA_y_sale_del_fichero(self):
+        quimerico = introns.INTRONS["intron_quimerico"]
+        self.assertTrue(quimerico.provided)
+        self.assertIn("198131", quimerico.source)
+        self.assertIn("1216-1348", quimerico.source)
 
-    def test_y_pedirle_la_secuencia_ABORTA_en_vez_de_devolver_vacio(self):
-        with self.assertRaises(ShmirDesignError) as caja:
-            introns.INTRONS["quimerico_cmv_globina"].require_sequence()
-        self.assertIn("no se reconstruye", str(caja.exception).lower())
+    def test_y_su_secuencia_mide_133_pb(self):
+        self.assertEqual(len(introns.INTRONS["intron_quimerico"].require_sequence()), 133)
 
-    def test_el_motivo_nombra_la_ERRATA_que_se_esta_evitando(self):
-        quimerico = introns.INTRONS["quimerico_cmv_globina"]
-        self.assertIn("errata", quimerico.why_missing.lower())
+    def test_la_descripcion_ya_NO_dice_CMV(self):
+        # CMV es el promotor del plásmido (497-1080), no parte del intrón. La quimera es
+        # de beta-globina humana e inmunoglobulina de cadena pesada, y lo dice la nota de
+        # la propia anotación.
+        descripcion = introns.INTRONS["intron_quimerico"].description
+        self.assertNotIn("CMV", descripcion)
+        self.assertIn("globina", descripcion.lower())
+        self.assertIn("inmunoglobulina", descripcion.lower())
 
     def test_el_de_sin_criptico_es_DERIVADO_no_aportado_ni_tecleado(self):
         variante = introns.INTRONS["mvm_sin_criptico"]
@@ -188,7 +200,7 @@ class TestLaFichaDelQueFALTA(unittest.TestCase):
         from shmir_design import obtencion
 
         self.assertTrue(
-            introns.INTRONS["quimerico_cmv_globina"].ficha in obtencion.load_all(),
+            introns.INTRONS["intron_quimerico"].ficha in obtencion.load_all(),
             "el quimérico no tiene ficha de obtencion",
         )
 
@@ -196,7 +208,7 @@ class TestLaFichaDelQueFALTA(unittest.TestCase):
         from shmir_design import obtencion, species
 
         ficha = obtencion.resolve_ficha(
-            introns.INTRONS["quimerico_cmv_globina"].ficha,
+            introns.INTRONS["intron_quimerico"].ficha,
             species=species.resolve("raton"),
         )
         texto = ficha.render()
@@ -208,7 +220,7 @@ class TestLaFichaDelQueFALTA(unittest.TestCase):
         from shmir_design import obtencion, species
 
         ficha = obtencion.resolve_ficha(
-            introns.INTRONS["quimerico_cmv_globina"].ficha,
+            introns.INTRONS["intron_quimerico"].ficha,
             species=species.resolve("raton"),
         )
         self.assertIn("localiza", ficha.render().lower())

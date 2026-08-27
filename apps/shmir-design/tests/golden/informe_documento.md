@@ -548,21 +548,21 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
   veredicto  INCOMPLETE
 
 ── Frentes (14) ──
-  frente                               estado    fecha        procedencia
-  empalme_intron                       NOT_RUN   —            frente abierto del informe
-  empalme_sitios:mvm_actual            NOT_RUN   —            sin corrida en el almacen
-  empalme_sitios:mvm_sin_criptico      NOT_RUN   —            sin corrida en el almacen
-  empalme_sitios:quimerico_cmv_globina NOT_RUN   —            sin corrida en el almacen
-  especificidad                        NOT_RUN   —            sin corrida en el almacen
-  fraccion_isoforma_larga              PASS      —            frente CERRADO del informe
-  offtarget_seed:guia                  NOT_RUN   —            sin corrida en el almacen
-  offtarget_seed:pasajera              NOT_RUN   —            sin corrida en el almacen
-  repeticion_polimorfica               NOT_RUN   —            frente abierto del informe
-  repeticiones                         NOT_RUN   —            frente abierto del informe
-  seed                                 NOT_RUN   —            frente abierto del informe
-  seed_colision:guia                   NOT_RUN   —            sin corrida en el almacen
-  seed_colision:pasajera               NOT_RUN   —            sin corrida en el almacen
-  transgen                             NOT_RUN   —            frente abierto del informe
+  frente                          estado    fecha        procedencia
+  empalme_intron                  NOT_RUN   —            frente abierto del informe
+  empalme_sitios:intron_quimerico NOT_RUN   —            sin corrida en el almacen
+  empalme_sitios:mvm_actual       NOT_RUN   —            sin corrida en el almacen
+  empalme_sitios:mvm_sin_criptico NOT_RUN   —            sin corrida en el almacen
+  especificidad                   NOT_RUN   —            sin corrida en el almacen
+  fraccion_isoforma_larga         PASS      —            frente CERRADO del informe
+  offtarget_seed:guia             NOT_RUN   —            sin corrida en el almacen
+  offtarget_seed:pasajera         NOT_RUN   —            sin corrida en el almacen
+  repeticion_polimorfica          NOT_RUN   —            frente abierto del informe
+  repeticiones                    NOT_RUN   —            frente abierto del informe
+  seed                            NOT_RUN   —            frente abierto del informe
+  seed_colision:guia              NOT_RUN   —            sin corrida en el almacen
+  seed_colision:pasajera          NOT_RUN   —            sin corrida en el almacen
+  transgen                        NOT_RUN   —            frente abierto del informe
 
 ── Asimetría — las TRES cifras, que son magnitudes distintas ──
   cruda +3.80   penalizacion 0.00   neta +3.80

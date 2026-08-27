@@ -409,7 +409,37 @@ def _es_prosa(texto: str) -> bool:
     """
     if "\n" in texto:
         return False
+    if _es_ingles(texto):
+        return False
     return (" " in texto.strip()) if SOLO_PROSA else bool(texto.strip())
+
+
+#: Palabras que sólo aparecen en literales que NO son prosa castellana: etiquetas de
+#: ficheros ajenos, claves de formato, nombres de features. Si una de éstas está en el
+#: literal, el literal no es prosa nuestra y no se toca.
+_MARCAS_INGLESAS = frozenset(
+    """chimeric heavy chain beta globin immunoglobulin between from human genes
+    intron exon feature label note color source organism mol_type translation
+    product codon_start gene direction sequence forward primer reverse""".split()
+)
+
+
+def _es_ingles(texto: str) -> bool:
+    """¿Es un literal en inglés —una etiqueta de un fichero ajeno— y no prosa nuestra?
+
+    Existe por `"chimeric intron"`, que es el `label` con el que se busca la feature en
+    el GenBank del plásmido: tildarlo lo convierte en una etiqueta que no existe y la
+    extracción deja de encontrar nada. Misma familia que `--guia` → `--guía` y que
+    `VERSION` → `VERSIÓN`: ortografía correcta, dato roto.
+
+    La condición es que TODAS las palabras del literal sean inglesas o neutras. Una sola
+    palabra castellana de verdad —con eñe, con tilde ya puesta, o fuera de la lista— y
+    vuelve a tratarse como prosa: no se usa esto para eximir párrafos enteros.
+    """
+    palabras = [p for p in re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ_]+", texto) if p]
+    if not palabras:
+        return False
+    return all(p.lower() in _MARCAS_INGLESAS for p in palabras)
 
 
 def _palabras_de(texto: str):
