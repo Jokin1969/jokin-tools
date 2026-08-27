@@ -1732,6 +1732,24 @@ def blocking_fronts(
         BlockingFront(name=empalme.name, reason=empalme.reason, blocking=True)
     )
 
+    # El CUARTO modal. Va SIEMPRE y no depende de ningun fichero de referencia: su
+    # unidad es el par candidato x intron, asi que existe en cuanto hay candidatos. Sin
+    # corrida sale NOT_RUN, que es lo que es — no haber consultado no es salir limpio.
+    from .splice_store import FILTER_NAME as _EMPALME_SITIOS
+
+    frentes.append(
+        BlockingFront(
+            name=_EMPALME_SITIOS,
+            reason=(
+                "NOT_RUN: no se ha consultado la prediccion de sitios de splicing sobre "
+                "ningun cassette montado. La unidad de este frente es el PAR candidato x "
+                "intron, no el candidato. Es DESEMPATE Y ALERTA, nunca filtro: no puede "
+                "excluir a nadie, y por eso su veredicto solo puede ser NOT_RUN o PASS. "
+                "Lo accionable es que guias introducen cripticos que las otras no."
+            ),
+        )
+    )
+
     apa = [s for s in report.signals if s.classification is SignalClass.APA_POSSIBLE]
     if not apa or not selection.selection.chosen:
         return frentes

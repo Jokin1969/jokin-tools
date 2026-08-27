@@ -34,6 +34,19 @@ from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     BLAST_MODAL_NOTE,
+    splice_construction_rows,
+    splice_context_note,
+    splice_constructions,
+    splice_exclusive_rows,
+    splice_executor_text,
+    splice_folding_rows,
+    splice_highlights,
+    splice_intron_rows,
+    splice_module_of,
+    splice_query_text,
+    splice_result_rows,
+    splice_scan_from_result,
+    splice_warning_rows,
     WHY_NO_GLOBAL_TOGGLE,
     accept_reference_upload,
     reference_panel_rows,
@@ -92,6 +105,7 @@ from shmir_design.presentation import (  # noqa: E402
     window_rows,
 )
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
+from shmir_design.filters import FilterState  # noqa: E402
 from shmir_design.reference import (  # noqa: E402
     REFERENCES,
     extract_3utr,
@@ -345,6 +359,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     _modal_blast(seleccion, nombre)
     _modal_seed(seleccion, nombre, tiling.mature)
     _modal_offtarget(seleccion, nombre, tiling.mature, utr3)
+    _modal_empalme(seleccion, nombre, utr3, _casete_de(tiling))
 
     with st.expander(f"Todas las ventanas de {nombre} ({len(tiling.windows)})"):
         st.dataframe(window_rows(tiling), hide_index=True)
@@ -956,6 +971,134 @@ def _modal_seed(seleccion, nombre: str, maduros) -> None:
 
     hueco = seed_load_placeholder(None)
     st.warning(hueco["texto"])
+
+
+
+def _casete_de(tiling):
+    """La secuencia del casete, si se cargó. `None` si no: no se inventa contexto."""
+    base = getattr(tiling, "transgene_db", None)
+    registros = getattr(base, "records", None) if base is not None else None
+    return registros[0].sequence if registros else None
+
+
+def _modal_empalme(seleccion, nombre: str, diana: str, casete) -> None:
+    """CUARTO modal: predicción de sitios de splicing sobre el cassette montado.
+
+    Es distinto de los otros tres en dos cosas, y las dos se pintan aquí arriba:
+
+    1. **La unidad no es el candidato**: es el par candidato × intrón. Diez candidatos y
+       tres intrones son treinta consultas.
+    2. **SpliceAI no fue entrenado para esto**, así que sus puntuaciones absolutas no son
+       interpretables y lo único que vale es la comparación relativa contra el donante
+       legítimo del mismo intrón. Eso va ANTES del botón, no al pie.
+
+    La página sigue sin decidir nada: recibe filas con `avisa`, bloques con `activo` y
+    textos ya montados.
+    """
+    if not st.checkbox(
+        f"Predicción de sitios de splicing — {nombre}",
+        key=f"sp_{nombre}",
+        help=(
+            "Sobre el cassette montado, no sobre la guía. Desempate y alerta, nunca "
+            "filtro: no puede excluir a ningún candidato."
+        ),
+    ):
+        return
+
+    # Los avisos van ARRIBA. Ninguno es opcional.
+    for aviso in splice_warning_rows():
+        st.warning(aviso["texto"])
+
+    st.caption("**Intrones del registro.** La unidad de este modal es el par candidato × intrón.")
+    for fila in splice_intron_rows():
+        if fila["estado"] is FilterState.PASS:
+            st.write(f"✅ **{fila['intron']}** — {fila['descripcion']}")
+        else:
+            st.write(f"⬜ **{fila['intron']}** — NOT_RUN. {fila['motivo']}")
+            with st.expander(f"Cómo se resuelve «{fila['intron']}»"):
+                st.caption(obtencion_rows(fila["ficha"], species=nombre)["texto"])
+
+    disponibles = [f["intron"] for f in splice_intron_rows() if f["estado"] is FilterState.PASS]
+    elegidos = st.multiselect(
+        "Intrones a consultar", disponibles, default=disponibles,
+        key=f"sp_intrones_{nombre}",
+    )
+    if not elegidos:
+        st.info("Elige al menos un intrón: sin intrón no hay cassette que montar.")
+        return
+
+    # El contexto exónico sale del CASETE si está cargado; si no, de las dos piezas de
+    # 5 nt, que para un modelo entrenado con ventana de 10.000 es casi nada. La app lo
+    # dice en vez de rellenarlo.
+    contexto = st.number_input(
+        "Contexto exónico a cada lado (nt)", min_value=0, max_value=5000, value=0,
+        step=50, key=f"sp_ctx_{nombre}",
+        help="Del casete, si está cargado. Cambia el resultado, así que viaja con la "
+             "consulta. 0 = lo que dan las piezas del plásmido.",
+    )
+    try:
+        construcciones = splice_constructions(
+            seleccion, target=diana, intron_names=elegidos, scaffold=SGEP_SCAFFOLD,
+            cassette=casete, context_nt=contexto,
+        )
+    except (ShmirDesignError, ValueError) as exc:
+        # rule2-ok: frontera de la interfaz. El fallo se enseña entero.
+        st.error(f"**PARA** — {exc}")
+        return
+
+    st.caption(
+        f"**{len(construcciones)} consulta(s)** = {len(construcciones) // len(elegidos)} "
+        f"candidato(s) × {len(elegidos)} intrón(es)."
+    )
+    st.caption(splice_context_note(construcciones))
+    st.dataframe(splice_construction_rows(construcciones), width="stretch")
+
+    st.download_button(
+        "Descargar el FASTA de construcciones",
+        splice_query_text(construcciones),
+        f"construcciones_{nombre}.fa",
+        "text/plain",
+        key=f"sp_fasta_{nombre}",
+    )
+    st.caption(splice_executor_text())
+
+    st.subheader("Accesibilidad estructural del intrón")
+    st.caption(
+        "Análisis APARTE: da un número propio, no prestado de un modelo entrenado para "
+        "otra cosa. Corre entero aquí."
+    )
+    st.dataframe(
+        splice_folding_rows(
+            construcciones,
+            module_of=lambda c: splice_module_of(
+                c, target=diana, scaffold=SGEP_SCAFFOLD
+            ),
+        ),
+        width="stretch",
+    )
+
+    st.subheader("Subir el resultado de SpliceAI")
+    subido = st.file_uploader(
+        "Resultado (TSV)", type=["tsv", "txt"], key=f"sp_res_{nombre}"
+    )
+    if subido is None:
+        return
+    try:
+        scan = splice_scan_from_result(
+            _read_upload(subido), constructions=construcciones
+        )
+    except (ShmirDesignError, ValueError) as exc:
+        # rule2-ok: el resultado se RECHAZA entero y se dice por qué.
+        st.error(f"**RECHAZADO** — {exc}")
+        return
+
+    for bloque in splice_highlights(scan).values():
+        if bloque["activo"]:
+            st.info(bloque["texto"])
+    st.dataframe(splice_result_rows(scan), width="stretch")
+
+    st.subheader("Qué guías introducen crípticos que las otras no")
+    st.dataframe(splice_exclusive_rows(scan), width="stretch")
 
 
 def _modal_offtarget(seleccion, nombre: str, maduros, diana: str) -> None:

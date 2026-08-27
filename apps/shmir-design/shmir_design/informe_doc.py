@@ -205,6 +205,35 @@ _FRONT_THRESHOLDS = {
     "offtarget_seed": ("seed_window", "null_draws"),
     "fraccion_isoforma_larga": ("cleavage_band", "polya_flank"),
     "empalme_intron": ("kozak", "splice_acceptor"),
+    "empalme_sitios": (),
+}
+
+#: Frentes cuyo criterio es RELATIVO y no absoluto. Decir de ellos que «no tienen
+#: umbral numerico» seria otra media verdad: lo tienen, y lo que no existe es el
+#: absoluto — que en el cuarto modal es justo el punto.
+RELATIVE_CRITERION = {
+    "empalme_sitios": (
+        "Este frente NO tiene umbral ABSOLUTO, y no se puede inventar uno: SpliceAI se "
+        "entreno sobre secuencia genomica humana con ventana de 10.000 nt para predecir "
+        "el efecto de variantes, y un cassette de AAV no se le parece. Lo que si tiene es "
+        "un umbral RELATIVO declarado: solo se listan los sitios que llegan al 5 % de la "
+        "puntuacion del DONANTE LEGITIMO del mismo intron en la MISMA corrida. Ese "
+        "referente interno es lo unico que hace interpretable el numero — el mismo "
+        "criterio con el que ya se descartaron los aceptores cripticos, comparando su "
+        "tracto de pirimidinas contra las nueve del legitimo."
+    ),
+}
+
+#: Frentes que NO se contestan con un fichero: se contestan en el banco.
+BENCH_FRONTS = frozenset({"empalme_intron"})
+
+#: Frentes cuyo dato se SUBE en su modal en vez de venir del informe de tilado.
+UPLOADED_FRONTS = {
+    "empalme_sitios": (
+        "el resultado de SpliceAI sobre las construcciones, subido por su modal. No sale "
+        "del informe de tilado porque la unidad de ese frente es el par candidato x "
+        "intron, no la ventana"
+    ),
 }
 
 #: De donde sale el dato de cada frente, dentro del informe de tilado.
@@ -371,12 +400,27 @@ def _section_3(fronts, *, species, tiling) -> Section:
     for frente in fronts:
         ficha = resolve_ficha(frente.name, species=especie)
         estado = "NOT_RUN" if frente.blocking else "CERRADO"
-        atributo = _FRONT_SOURCE_ATTR.get(frente.name)
-        fuente = (
-            "ninguna: este frente no se contesta con datos, sino en el banco"
-            if atributo is None
-            else _describe_source(getattr(tiling, atributo, None))
-        )
+        # OJO: `.get()` devolvia `None` para un frente DESCONOCIDO, y `None` ya
+        # significaba «de banco». Asi que un frente nuevo heredaba en silencio el texto
+        # «no se contesta con datos, sino en el banco» — plausible y FALSO. Lo cazo el
+        # diff del golden al añadir el cuarto modal. Ahora un frente sin declarar ABORTA.
+        if frente.name in BENCH_FRONTS:
+            fuente = "ninguna: este frente no se contesta con datos, sino en el banco"
+        elif frente.name in UPLOADED_FRONTS:
+            fuente = UPLOADED_FRONTS[frente.name]
+        elif frente.name in _FRONT_SOURCE_ATTR:
+            fuente = _describe_source(
+                getattr(tiling, _FRONT_SOURCE_ATTR[frente.name], None)
+            )
+        else:
+            raise ShmirDesignError(
+                f"El frente {frente.name!r} no esta declarado en `informe_doc`: no se "
+                f"sabe de donde sale su dato. Se aborta en vez de escribir el texto de "
+                f"otro frente — un «no se contesta con datos, sino en el banco» sobre un "
+                f"frente que SI se cierra con un fichero es plausible y falso, y eso "
+                f"cuesta mas que no decir nada. Añadelo a `BENCH_FRONTS`, a "
+                f"`UPLOADED_FRONTS` o a `_FRONT_SOURCE_ATTR`."
+            )
         claves = _FRONT_THRESHOLDS.get(frente.name, ())
         bloques.extend([
             heading(f"{frente.name} — {estado}", level=3),
@@ -386,6 +430,11 @@ def _section_3(fronts, *, species, tiling) -> Section:
         ])
         if claves:
             bloques.append(table(_THRESHOLD_HEADERS, _threshold_rows(claves)))
+        elif frente.name in RELATIVE_CRITERION:
+            # Decir «no tiene umbral numerico» de un frente que SI tiene uno, solo que
+            # relativo, es otra media verdad. Y en este caso la distincion es todo el
+            # frente: lo que NO existe es el umbral ABSOLUTO.
+            bloques.append(para(f"**Criterio.** {RELATIVE_CRITERION[frente.name]}"))
         else:
             bloques.append(
                 para(

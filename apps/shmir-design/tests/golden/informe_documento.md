@@ -4,7 +4,7 @@
 
 ESTE INFORME ES PARCIAL. No es un borrador ni una version reducida: es el mismo documento con frentes todavia abiertos, y cada uno sale marcado con lo que le falta y donde conseguirlo. Un candidato con cualquier frente en NOT_RUN es INCOMPLETE, nunca aprobado — no haber comprobado algo no es haberlo comprobado y que salga bien.
 
-Frentes abiertos: especificidad, repeticion_polimorfica, repeticiones, seed, seed_colision, transgen, offtarget_seed, empalme_intron.
+Frentes abiertos: especificidad, repeticion_polimorfica, repeticiones, seed, seed_colision, transgen, offtarget_seed, empalme_intron, empalme_sitios.
 
 COMO SE LEE ESTO. Cada filtro emite uno de cuatro estados: PASS (corrio y el candidato lo supera), FAIL (corrio y no lo supera), NOT_RUN (NO LLEGO A CORRER — es una laguna, no un aprobado) y NO_APLICA (esa pregunta no se le hace a ese candidato). Un numero comparativo que no se calculo va VACIO, nunca a cero: no haber contado y contar cero son cosas distintas.
 
@@ -35,9 +35,10 @@ Un frente es una pregunta que hay que contestar antes de pedir oligo. Los cerrad
 | transgen | NOT_RUN | aav_casete.fa | El laboratorio: el fichero del plasmido del casete AAV (—) |
 | offtarget_seed | NOT_RUN | transcriptoma_3utr_mouse.fa | UCSC Table Browser (https://genome.ucsc.edu/cgi-bin/hgTables) |
 | empalme_intron | NOT_RUN | no se cierra con ningun fichero (banco) | Banco: RT-PCR, Western y secuenciacion. No hay descarga que valga. (—) |
+| empalme_sitios | NOT_RUN | resultado de SpliceAI sobre las construcciones (TSV) | SpliceAI, ejecutado por ti. La app prepara las construcciones y recoge el resultado. (—) |
 | fraccion_isoforma_larga | CERRADO | — | — |
 
-> **8 frente(s) en NOT_RUN. No se pide oligo hasta que todos tengan veredicto. Que uno se arregle con un fichero de kilobytes y otro necesite ir al banco no cambia nada: los dos bloquean igual.**
+> **9 frente(s) en NOT_RUN. No se pide oligo hasta que todos tengan veredicto. Que uno se arregle con un fichero de kilobytes y otro necesite ir al banco no cambia nada: los dos bloquean igual.**
 
 Y hay una categoria aparte: empalme_intron NO se cierra con ningun fichero. Conseguir mas datos no lo resuelve; hay que ir al laboratorio. Se dice aparte para que no parezca que basta con descargar algo.
 
@@ -446,6 +447,56 @@ COMO CERRAR EL FRENTE «empalme_intron»
     ⚠ El casete que hay (`aav_casete.fa`) NO sirve como parental sin intron: es el parental sin MODULO pero CON el intron vacio de 82 nt, asi que arrastra el mismo problema que se quiere medir. Y el intron del terapeutico son 296 nt, no 82: la eficiencia de uno no dice nada del otro. La app especifica el control sin intron —donante y aceptor eliminados, todo lo demas conservado base a base— y sale en la hoja de pedido.
 ```
 
+### empalme_sitios — NOT_RUN
+
+**Que mide.** ¿El modulo de esta guia introduce un sitio de splicing criptico dentro del intron? La unidad no es la guia: es el CASSETTE MONTADO —intron completo, modulo dentro, guia y pasajera de ese candidato, y contexto exonico a los dos lados—. Un criptico que compita con el donante legitimo produce una banda intermedia que en un gel se confunde con la buena.
+
+**Por que importa / resultado.** NOT_RUN: no se ha consultado la prediccion de sitios de splicing sobre ningun cassette montado. La unidad de este frente es el PAR candidato x intron, no el candidato. Es DESEMPATE Y ALERTA, nunca filtro: no puede excluir a nadie, y por eso su veredicto solo puede ser NOT_RUN o PASS. Lo accionable es que guias introducen cripticos que las otras no.
+
+**Fuente de datos.** el resultado de SpliceAI sobre las construcciones, subido por su modal. No sale del informe de tilado porque la unidad de ese frente es el par candidato x intron, no la ventana
+
+**Criterio.** Este frente NO tiene umbral ABSOLUTO, y no se puede inventar uno: SpliceAI se entreno sobre secuencia genomica humana con ventana de 10.000 nt para predecir el efecto de variantes, y un cassette de AAV no se le parece. Lo que si tiene es un umbral RELATIVO declarado: solo se listan los sitios que llegan al 5 % de la puntuacion del DONANTE LEGITIMO del mismo intron en la MISMA corrida. Ese referente interno es lo unico que hace interpretable el numero — el mismo criterio con el que ya se descartaron los aceptores cripticos, comparando su tracto de pirimidinas contra las nueve del legitimo.
+
+**Como se cierra.** (ficha de obtencion, integra)
+
+```
+COMO CERRAR EL FRENTE «empalme_sitios»
+
+  QUE PREGUNTA RESPONDE: ¿El modulo de esta guia introduce un sitio de splicing criptico dentro del intron? La unidad no es la guia: es el CASSETTE MONTADO —intron completo, modulo dentro, guia y pasajera de ese candidato, y contexto exonico a los dos lados—. Un criptico que compita con el donante legitimo produce una banda intermedia que en un gel se confunde con la buena.
+
+  FICHERO(S) QUE HACEN FALTA:
+    · resultado de SpliceAI sobre las construcciones (TSV)  [OBLIGATORIO]
+      Las puntuaciones por posicion de cada cassette montado. La app no las calcula: no tiene red y la invocacion no esta verificada.
+
+  FUENTE: SpliceAI, ejecutado por ti. La app prepara las construcciones y recoge el resultado.
+  URL: —
+
+  PASOS:
+    1. Abre el cuarto modal y elige los candidatos y los intrones que quieras consultar. Recuerda que la unidad es el PAR: diez candidatos por tres intrones son treinta consultas.
+    2. LEE LOS AVISOS DE ARRIBA ANTES DE NADA. SpliceAI no fue entrenado para esto y sus puntuaciones absolutas no son interpretables sobre un cassette de AAV.
+    3. Descarga el FASTA de construcciones. Cada cabecera lleva su md5, la ventana de contexto y las posiciones del donante y el aceptor legitimos: no la edites.
+    4. Pasa el FASTA por SpliceAI en tu maquina. La app NO da la orden: esa invocacion no se ha verificado desde este proyecto y no se inventa (regla 4). Si nos dices cual usas, se añade.
+    5. Pasa su salida al formato que la app acepta: un TSV con las columnas `construccion`, `md5`, `posicion`, `tipo` (donante o aceptor) y `puntuacion`. La posicion es 1-based DENTRO de la construccion.
+    6. Sube el TSV. La app compara cada sitio contra el DONANTE LEGITIMO del mismo intron en la misma corrida, que es el unico referente que vale.
+
+  QUE ANOTAR AL DESCARGARLO (sin esto no es reproducible):
+    · version de SpliceAI y del modelo
+      Dos versiones dan numeros distintos, y como aqui todo es comparacion relativa dentro de una corrida, mezclar versiones entre corridas invalidaria la comparacion.
+    · la ventana de contexto con la que se corrio
+      Cambia el resultado. La app declara la que puso en la construccion; si tu herramienta añade o recorta contexto, hay que saberlo.
+
+  TAMAÑO APROXIMADO: el FASTA de construcciones son unos KB; el resultado, unos KB
+
+  COMO SE VALIDA AL SUBIRLO: Al subir el resultado la app comprueba que CADA construccion sea una de las que ella genero y que su md5 CUADRE. Un resultado de otra corrida NO puede entrar, aunque encaje de forma: es el fallo del CSV de miRarchitect, un fichero de otra corrida pegado por error que produce un analisis entero sobre el dato equivocado. Un resultado con solo cabecera tambien se rechaza: cero sitios y «la corrida no llego a correr» son cosas distintas y ese fichero no las distingue.
+
+  AVISOS:
+    ⚠ SpliceAI NO FUE ENTRENADO PARA ESTO. Se entreno sobre secuencia genomica humana con ventana de 10.000 nt para predecir el efecto de VARIANTES. Un cassette de AAV no se le parece: no hay contexto genomico, las longitudes son atipicas y la composicion tambien.
+    ⚠ NO HAY UMBRAL ABSOLUTO Y NO SE PUEDE INVENTAR UNO. Un 0,8 aqui no significa lo que significa un 0,8 en el genoma humano. Lo unico que vale es la comparacion RELATIVA contra el donante legitimo del mismo intron en la MISMA corrida — el mismo criterio con el que ya se descartaron los aceptores cripticos, comparando su tracto de pirimidinas contra las nueve del legitimo.
+    ⚠ LA VENTANA DE CONTEXTO CAMBIA EL RESULTADO. Va declarada y viaja con cada consulta: dos corridas con contextos distintos no son comparables.
+    ⚠ DESEMPATE Y ALERTA, NUNCA FILTRO. Este frente no puede excluir a ningun candidato: su veredicto solo puede ser NOT_RUN o PASS. Lo accionable es que guias introducen cripticos que las otras NO — si nueve dan un perfil limpio y una no, esa se cambia.
+    ⚠ LA ACCESIBILIDAD ESTRUCTURAL VA EN EL MISMO MODAL Y APARTE EN EL RESULTADO. Esa si corre entera aqui (ViennaRNA) y da un numero PROPIO, no prestado de un modelo entrenado para otra cosa. Son dos preguntas y no se mezclan.
+```
+
 ### fraccion_isoforma_larga — CERRADO
 
 **Que mide.** ¿Que fraccion de los transcritos conserva la diana? Un sitio de poliadenilacion alternativa proximal corta el 3'UTR, asi que un candidato por detras de ese corte solo tiene diana en la isoforma larga. Eso no es un veto: es un TECHO de knockdown.
@@ -496,9 +547,10 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
   pasajera   CCTGTCATCAGCCAGTGCTAAA
   veredicto  INCOMPLETE
 
-── Frentes (11) ──
+── Frentes (12) ──
   frente                   estado    fecha        procedencia
   empalme_intron           NOT_RUN   —            frente abierto del informe
+  empalme_sitios           NOT_RUN   —            frente abierto del informe
   especificidad            NOT_RUN   —            sin corrida en el almacen
   fraccion_isoforma_larga  PASS      —            frente CERRADO del informe
   offtarget_seed:guia      NOT_RUN   —            sin corrida en el almacen
