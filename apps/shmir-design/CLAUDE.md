@@ -1842,6 +1842,84 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     tiene que decir como se resuelve. Los dos tests —ninguno sin ficha, ninguna ficha
     huerfana— cubren las dos.
 
+- **EL CUARTO MODAL: prediccion de sitios de splicing** (`spliceai.py`,
+  `splice_store.py`, `intron_design.py`, modal en la pagina). Cierra el frente
+  `empalme_sitios`, que ahora son **diez** frentes.
+  - **SpliceAI NO fue entrenado para esto, y eso manda sobre todo lo demas.** Se entreno
+    sobre secuencia genomica **humana** con ventana de **10.000 nt** para predecir el
+    efecto de **variantes**; un cassette de AAV no se le parece. Consecuencias, y van
+    **ANTES del boton**, no al pie:
+    - las puntuaciones **absolutas no son interpretables** y **no hay umbral que
+      aplicar**. Cualquier corte que se pusiera seria inventado;
+    - solo vale la comparacion **RELATIVA contra un referente INTERNO**: el donante
+      legitimo del mismo intron **en la misma corrida**. Es el mismo criterio con el que
+      ya se descartaron los aceptores cripticos —su tracto de pirimidinas contra las
+      nueve del legitimo— y funciona por la misma razon: el veredicto no depende de
+      ningun umbral traido de fuera;
+    - **un legitimo de cero ABORTA** en vez de dividir: sin referente no hay nada.
+  - **El umbral relativo (5 %) va DECLARADO como parametro y no citado.** No decide
+    nada: solo evita que la tabla se llene de ruido. El absoluto sigue sin existir.
+  - **LA ORDEN DE SpliceAI NO SE INVENTA.** Este proyecto no ha verificado su
+    invocacion, asi que `LocalCommand` la **recibe** y aborta sin ella — igual que
+    `blast.RemoteApi` con su endpoint. Hay un test que lee el fuente y comprueba que no
+    hay ni un `http`. Lo que si define este modulo es el **formato del resultado que
+    acepta**, que es nuestro.
+  - **Validacion al subir, POR md5 y por nombre**: cada construccion tiene que ser una de
+    las que genero esta corrida y su md5 tiene que cuadrar. Un resultado de otra corrida
+    NO entra aunque encaje de forma — es el fallo del CSV de miRarchitect. Un fichero con
+    solo cabecera tambien se rechaza: cero sitios y «no llego a correr» son cosas
+    distintas y ese fichero no las distingue.
+  - **El `GTGAGCG` sale POR SU NOMBRE**, aunque no sea el mejor criptico: es el conocido
+    y el motivo por el que existe este modal. Y si el resultado no trae ninguna fila para
+    su posicion, se dice **«sin puntuar»** — que no es «no puntua».
+  - **LA COLUMNA COMPARATIVA es lo accionable** (`exclusive_rows`): que guias introducen
+    cripticos que las **otras no**. Si nueve dan un perfil limpio y una no, esa se
+    cambia. Se compara **entre construcciones del mismo intron**: mezclar intrones daria
+    «exclusivos» que solo dicen que los intrones son distintos, que ya se sabe.
+  - **LA VENTANA DE CONTEXTO viaja con cada consulta, y si es poca SE DICE.** Sin casete
+    lo unico que hay son las piezas `exon5`/`exon3`: **5 nt por lado**, que para un
+    modelo entrenado con 10.000 es esencialmente ninguno — y `context_note()` lo dice con
+    esas palabras. Con `aav_casete.fa` cargado el contexto sale de **secuencia real**
+    (hasta 3178/2069 nt) y **pedir mas del que hay no lo inventa**: se da lo que hay
+    (regla 1). Dos corridas con contextos distintos **no son comparables**, y
+    `context_note` aborta si las construcciones de una misma corrida no lo comparten.
+  - **`verdict_for` solo puede dar NOT_RUN o PASS**, como la carga de off-targets, y el
+    veredicto va **por PAR candidato x intron** — colapsarlo por candidato perderia justo
+    lo que se quiere comparar: el mismo modulo dentro de dos intrones distintos.
+  - **`mvm_sin_criptico` lo DISEÑA la app** (`intron_design.py`), con **autorizacion
+    escrita y acotada** que cubre **dos cosas**: una sola base del `GTGAGCG` y los
+    espaciadores de 20-30 nt. Nada mas.
+    - **OJO: `GTGAGCG` esta en el ANDAMIO.** Son los ultimos 7 nt de
+      `SGEP_SCAFFOLD.flank5`, asi que romperlo **muta el andamio verificado contra la
+      publicacion** — no es lo mismo que generar un espaciador. Toda construccion que
+      salga de ahi sale **MARCADA** en toda la salida.
+    - **Dos metricas y ninguna sola basta**: cuanto degrada el contexto de donante (un
+      conteo **declarado**, y se dice expresamente que **NO es SpliceAI** — el numero de
+      verdad sale del modal) y si el 97-mero **sigue plegando como en SGEP**.
+    - **MEDIDO (2026-08-26)** sobre el andamio real y la guia de `3utr:60`: de las **21**
+      alternativas, solo **4** conservan el plegado; de esas, **DOS EMPATAN**
+      (`GTGCGCG` y `GTGTGCG`) y **la app NO elige** — lo decide quien lee, igual que la
+      posicion 1 de la pasajera. Y `GTAAGCG` pliega bien y **aun asi no es elegible**
+      porque hace el contexto **mas** canonico: romper el motivo no es degradarlo, y sin
+      la primera metrica esa se colaria.
+    - **Sin ViennaRNA no se propone ninguna** y sale `NOT_RUN`: elegir «por lo que baja
+      el criptico» sin comprobar el plegado es exactamente el fallo de la tabla por
+      terminacion que este proyecto ya cometio con la pasajera.
+    - **Los filtros de los espaciadores son SATISFACIBLES**, y hay un test que lo mide:
+      pasan cerca del **2 %** de 200.000 sorteos. Un filtro que no puede pasar nadie es
+      PEOR que no tener filtro — parece que comprueba algo y lo que hace es vaciar la
+      piscina. Los que mas rechazan son los propios de este intron (`GT` y `AG` en
+      contexto utilizable), que es lo esperado.
+  - **UN FALLO QUE CAZO EL DIFF DEL GOLDEN, y es del tipo peor**: `informe_doc` sacaba la
+    fuente de cada frente con `.get(nombre)`, y `None` **ya significaba «de banco»**. Asi
+    que el frente nuevo heredo en silencio el texto «este frente no se contesta con
+    datos, sino en el banco» — **plausible y falso**, sobre un frente que si se cierra con
+    un fichero. Ahora un frente sin declarar **ABORTA** diciendo donde añadirlo
+    (`BENCH_FRONTS`, `UPLOADED_FRONTS` o `_FRONT_SOURCE_ATTR`). Y su criterio tambien
+    mentia a medias: decia «no tiene umbral numerico» de un frente que si tiene uno,
+    **relativo** — que es todo el punto. Los dos textos los cazo LEER EL DIFF, que es
+    para lo que el golden existe.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

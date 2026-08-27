@@ -1832,3 +1832,230 @@ def steps_rows(*, species: str, sequence_loaded: bool, directory) -> list[dict[s
             ),
         },
     ]
+
+
+# ═══════════════ el CUARTO modal: prediccion de sitios de splicing ═══════════════
+#
+# La pagina no decide nada aqui tampoco. Recibe filas, textos y booleanos.
+#
+# Y una diferencia con los otros tres que la pagina TIENE que pintar antes del boton:
+# SpliceAI no fue entrenado para esto, asi que sus puntuaciones absolutas no son
+# interpretables y lo unico que vale es la comparacion relativa contra el legitimo del
+# mismo intron. Eso va ARRIBA, no al pie.
+
+
+def splice_warning_rows():
+    """Los avisos que van ANTES del boton. Todos activos: ninguno es opcional."""
+    from .spliceai import warning_blocks
+
+    return warning_blocks()
+
+
+def splice_intron_rows(names=None):
+    """Estado de cada intron del registro. Los que faltan salen VISIBLES."""
+    from .introns import INTRONS
+    from .spliceai import intron_report
+
+    return intron_report(names if names is not None else tuple(INTRONS))
+
+
+def splice_constructions(selection, *, target, intron_names, scaffold, starts=None,
+                         cassette=None, context_nt=0):
+    """Los pares candidato x intron, montados. La pagina no monta nada."""
+    from .spliceai import build_constructions
+
+    return build_constructions(
+        selection, target=target, intron_names=tuple(intron_names),
+        scaffold=scaffold, starts=starts, cassette=cassette,
+        context_nt=int(context_nt),
+    )
+
+
+def splice_context_note(constructions) -> str:
+    """Que contexto se ha dado, y si es poco lo dice. La pagina no lo juzga."""
+    from .spliceai import context_note
+
+    return context_note(constructions)
+
+
+def splice_construction_rows(constructions):
+    """Una fila por PAR. Es lo que se enseña antes de descargar el FASTA."""
+    return [
+        {
+            "construccion": c.name,
+            "candidato": c.candidate_start,
+            "intron": c.intron,
+            "longitud": len(c.sequence),
+            "md5": c.md5,
+            "contexto5": c.context_5,
+            "contexto3": c.context_3,
+            "donante": c.donor_position,
+            "aceptor": c.acceptor_position,
+            "criptico_conocido": c.cryptic_position or None,
+            "andamio_modificado": c.scaffold_modified,
+        }
+        for c in constructions
+    ]
+
+
+def splice_query_text(constructions):
+    from .spliceai import constructions_fasta
+
+    return constructions_fasta(constructions)
+
+
+def splice_executor_text():
+    from .spliceai import Disabled
+
+    ejecutor = Disabled()
+    return f"{ejecutor.name}: {ejecutor.why}"
+
+
+def splice_scan_from_result(raw, *, constructions):
+    """Del TSV crudo al analisis. La pagina no parsea ni valida: llama aqui."""
+    from .spliceai import scan_from_result
+
+    return scan_from_result(raw, constructions=constructions)
+
+
+def splice_result_rows(scan):
+    """Una fila por par, YA comparada contra su propio referente interno."""
+    from .spliceai import RELATIVE_THRESHOLD
+
+    filas = []
+    for par in scan.pairs:
+        mejor = par.best_cryptic
+        filas.append({
+            "construccion": par.construction,
+            "candidato": par.candidate_start,
+            "intron": par.intron,
+            "donante_legitimo": par.legit_donor,
+            "aceptor_legitimo": par.legit_acceptor,
+            "mejor_criptico_pos": mejor.position if mejor else None,
+            "mejor_criptico_tipo": mejor.kind if mejor else "",
+            "mejor_criptico_fraccion": mejor.fraction if mejor else None,
+            "gtgagcg_fraccion": (
+                par.known_cryptic.fraction if par.known_cryptic else None
+            ),
+            "cripticos": len(par.cryptics),
+            "contexto": f"{par.context_5}/{par.context_3}",
+            # Rojo cuando el mejor criptico se ACERCA al legitimo. No es un veredicto:
+            # es lo que el propio criterio dice que hay que mirar.
+            "avisa": bool(mejor and mejor.fraction >= 0.5),
+            "umbral_relativo": RELATIVE_THRESHOLD,
+        })
+    return filas
+
+
+def splice_exclusive_rows(scan):
+    """Que guias introducen cripticos que las otras NO. Lo accionable."""
+    from .spliceai import exclusive_rows
+
+    return exclusive_rows(scan)
+
+
+def splice_module_of(construction, *, target, scaffold):
+    """El modulo de 149 nt de una construccion. Se DERIVA de su candidato.
+
+    No se guarda dentro de `Construction` a proposito: seria la misma secuencia en dos
+    sitios, y dos copias de lo mismo acaban discrepando.
+    """
+    from .blocks import build_block
+
+    guia = target[construction.candidate_start - 1:
+                  construction.candidate_start - 1 + 22]
+    return build_block(guia, scaffold=scaffold).module
+
+
+def splice_folding_rows(constructions, *, module_of, available=None):
+    """La accesibilidad estructural, SEPARADA de la prediccion de sitios.
+
+    Son dos preguntas y no se mezclan: una la contesta un modelo entrenado para otra
+    cosa y la otra la contesta plegar la construccion real.
+    """
+    from .intron_folding import ELEMENTS, fold_intron
+    from .introns import get as get_intron
+
+    filas = []
+    for construccion in constructions:
+        resultado = fold_intron(
+            get_intron(construccion.intron),
+            module=module_of(construccion),
+            available=available,
+        )
+        fila = {
+            "construccion": construccion.name,
+            "candidato": construccion.candidate_start,
+            "intron": construccion.intron,
+            "estado": resultado.state,
+            "energia": resultado.energy,
+            "motivo": resultado.reason,
+        }
+        for elemento in ELEMENTS:
+            fila[elemento] = resultado.unpaired.get(elemento)
+        filas.append(fila)
+    return filas
+
+
+def splice_highlights(scan):
+    """Lo que va DESTACADO y no enterrado en la tabla."""
+    from .spliceai import (
+        CONTEXT_MATTERS,
+        NO_ABSOLUTE_THRESHOLD,
+        NOT_TRAINED_FOR_THIS,
+        RELATIVE_ONLY,
+        RELATIVE_THRESHOLD_NOTE,
+        USE_NOTE,
+        WHAT_IS_ACTIONABLE,
+    )
+
+    exclusivos = [f for f in splice_exclusive_rows(scan) if f["exclusivos"]]
+    return {
+        "entrenamiento": {"texto": NOT_TRAINED_FOR_THIS, "activo": True},
+        "sin_umbral": {"texto": NO_ABSOLUTE_THRESHOLD, "activo": True},
+        "relativo": {"texto": RELATIVE_ONLY, "activo": True},
+        "contexto": {"texto": CONTEXT_MATTERS, "activo": True},
+        "umbral_relativo": {"texto": RELATIVE_THRESHOLD_NOTE, "activo": True},
+        "uso": {"texto": USE_NOTE, "activo": True},
+        "accionable": {
+            "texto": (
+                f"{WHAT_IS_ACTIONABLE} En esta corrida hay {len(exclusivos)} "
+                f"construccion(es) con cripticos que sus hermanas no tienen."
+            ),
+            "activo": bool(exclusivos),
+        },
+    }
+
+
+def splice_variant_rows(scaffold, *, guide, available=None):
+    """Las alternativas para romper el criptico, con sus DOS metricas.
+
+    La pagina no elige: si empatan, se le dice que empatan y lo decide quien lee.
+    """
+    from .intron_design import (
+        AUTHORIZATION,
+        SCAFFOLD_MODIFIED_MARK,
+        TIE_NOTE,
+        choose_break,
+    )
+
+    eleccion = choose_break(scaffold, guide=guide, available=available)
+    return {
+        "estado": eleccion.state,
+        "motivo": eleccion.reason,
+        "filas": eleccion.rows(),
+        "empate": eleccion.tie,
+        "elegida": (
+            None if eleccion.chosen is None
+            else {
+                "posicion": eleccion.chosen.position,
+                "cambio": f"{eleccion.chosen.original}->{eleccion.chosen.replacement}",
+                "motivo": eleccion.chosen.motif,
+            }
+        ),
+        "empatadas": [c.motif for c in eleccion.tied],
+        "nota_empate": TIE_NOTE,
+        "autorizacion": AUTHORIZATION,
+        "marca_andamio": SCAFFOLD_MODIFIED_MARK,
+        "texto": "\n".join(eleccion.describe()),
+    }

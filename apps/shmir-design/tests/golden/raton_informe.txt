@@ -556,7 +556,7 @@
   seed_colision: NOT_RUN en 2170 de 2170 ventanas
   transgen: NOT_RUN en 2170 de 2170 ventanas
   NOT_RUN no es PASS. Mientras haya filtros sin correr, la seleccion es PROVISIONAL y ningun candidato esta aprobado: su veredicto es INCOMPLETE.
-  EL PANEL ES PROVISIONAL EN 8 FRENTE(S): empalme_intron, especificidad, offtarget_seed, repeticion_polimorfica, repeticiones, seed, seed_colision, transgen.
+  EL PANEL ES PROVISIONAL EN 9 FRENTE(S): empalme_intron, empalme_sitios, especificidad, offtarget_seed, repeticion_polimorfica, repeticiones, seed, seed_colision, transgen.
     offtarget_seed: NOT_RUN: falta `transcriptoma_3utr.fa`, asi que los sitios de seed no
     se han contado. NOT_RUN no es PASS. EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON
     BLAST, y no es una preferencia: 7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, asi
@@ -581,6 +581,11 @@
     «no empalmo» de «no llego el vector»; (3) parental SIN INTRON en la misma tanda, como
     techo de expresion. Coordenadas NO emitidas en esta corrida: falta el casete
     (--transgen). El detalle, en el bloque «Empalme del intron».
+    empalme_sitios: NOT_RUN: no se ha consultado la prediccion de sitios de splicing sobre
+    ningun cassette montado. La unidad de este frente es el PAR candidato x intron, no el
+    candidato. Es DESEMPATE Y ALERTA, nunca filtro: no puede excluir a nadie, y por eso su
+    veredicto solo puede ser NOT_RUN o PASS. Lo accionable es que guias introducen
+    cripticos que las otras no.
   FRENTE CERRADO — fraccion_isoforma_larga:
     CERRADO. 6 de 10 candidatos quedan por detras del corte de tx:1185: comparten UN UNICO
     MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes por tramo son 16/0/0
@@ -597,7 +602,7 @@
     dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, asi que
     estas cifras son un LIMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos
     amplicones sigue en pie y puede MEJORARLAS.
-  NO SE PIDE OLIGO hasta que los ocho tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
+  NO SE PIDE OLIGO hasta que los nueve tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
   y otro necesite una base entera no cambia nada: los dos bloquean igual, y llamar «unico
   bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin correr.
   Y uno de ellos NO SE CIERRA CON NINGUN FICHERO: el empalme del intron solo se cierra en el
