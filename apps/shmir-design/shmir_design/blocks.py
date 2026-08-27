@@ -72,10 +72,22 @@ INHERITED_SITES = MappingProxyType({"XhoI": "CTCGAG", "EcoRI": "GAATTC"})
 
 @dataclass(frozen=True)
 class Piece:
-    """Una pieza fija, con su procedencia. Se copia literal, no se reconstruye."""
+    """Una pieza fija, con su procedencia. Se copia literal, no se reconstruye.
+
+    `PIECES` es el ORIGEN ÚNICO de estas secuencias: `gblock.py` deriva de aquí sus
+    constantes en vez de repetirlas. Tenerlas dos veces significaba que corregir un
+    contexto en un sitio y no en el otro hacía que la ficha y los oligos describieran
+    dos módulos distintos, sin que saltase nada — y lo que divergiría es ADN que se
+    manda a sintetizar. Un test comprueba que no ha pasado; una definición única impide
+    que pase.
+    """
 
     sequence: str
     source: str
+    #: Posiciones en el plásmido de origen (1-based, inclusivas), cuando se conocen. Es
+    #: un DATO, no una frase dentro de `source`: la comprobación contra el plásmido las
+    #: necesita, y sacarlas de un texto con una expresión regular es otra copia más.
+    span: tuple[int, int] | None = None
 
     def __len__(self) -> int:
         return len(self.sequence)
@@ -149,8 +161,12 @@ PIECES: MappingProxyType[str, Piece] = MappingProxyType(
         "MVM5": Piece("GTAAGGGTTTAAGGGATGGTTGGTTGGTGGGGTATTAATG", _PLASMIDO),
         "espaciador5": Piece("TACAATGATCCAAATCAAGA", _NOVO),
         "NheI": Piece("GCTAGC", _PLASMIDO),
-        "contexto5": Piece("GAAGGCTCGAGAAGGTATAT", f"{_SGEP} posiciones 1739-1758"),
-        "contexto3": Piece("CTTCAAGGGGCTAGAATTCG", f"{_SGEP} posiciones 1856-1875"),
+        "contexto5": Piece(
+            "GAAGGCTCGAGAAGGTATAT", f"{_SGEP} posiciones 1739-1758", span=(1739, 1758)
+        ),
+        "contexto3": Piece(
+            "CTTCAAGGGGCTAGAATTCG", f"{_SGEP} posiciones 1856-1875", span=(1856, 1875)
+        ),
         "SacI": Piece("GAGCTC", _PLASMIDO),
         "espaciador3": Piece(
             "ATGGATTTGTGTAAAGATCCAGTGCCTATGTATTGTTGGAAAGTA", _NOVO

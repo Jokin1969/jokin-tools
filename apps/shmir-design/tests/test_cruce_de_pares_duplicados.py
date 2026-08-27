@@ -66,8 +66,15 @@ class TestElParQueNOCoincide(unittest.TestCase):
         self.assertIs(verdict_state(scan), FilterState.PASS)
         # ...y el candidato 359 no está en ella, así que el almacén dice NOT_RUN.
         self.assertIs(self._verdict(scan, 359).state, FilterState.NOT_RUN)
-        # Esta es la discrepancia. El test la FIJA para que borrar `verdict_state` sin
-        # entenderla, o cablearla, tenga que pasar por aquí.
+        # LA FRASE, porque es el hallazgo y no una nota al pie:
+        #
+        #   `verdict_state` NO ERA REDUNDANTE, ERA LA EQUIVOCADA — dice PASS donde el
+        #   almacén dice NOT_RUN, y eso es sobre el principio CENTRAL del proyecto.
+        #
+        # No es un detalle de granularidad: «NOT_RUN no es PASS» es la regla 3, la que
+        # sostiene todo lo demás. Una función que la incumple, sin llamador y esperando a
+        # que alguien la cablee, es peor que código muerto. El test fija la discrepancia
+        # para que borrarla, o cablearla, tenga que pasar por aquí.
 
     def test_la_del_ALMACEN_es_la_que_manda_y_se_dice_por_que(self):
         motivo = self._verdict(self._scan_con_un_solo_par(), 359).reason

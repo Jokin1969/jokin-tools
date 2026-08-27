@@ -247,6 +247,301 @@ def locate_elements(sequence: str, *, name: str) -> IntronElements:
 
 
 @dataclass(frozen=True)
+class IntronPiece:
+    """Una pieza del intrón montado, con su longitud y de dónde sale."""
+
+    name: str
+    length: int
+    origin: str
+    #: `True` si la generamos nosotros. En el total pesa igual que una del plásmido, y
+    #: no vale lo mismo: por eso va marcada.
+    de_novo: bool = False
+
+    def describe(self) -> str:
+        marca = "  ← DE NOVO" if self.de_novo else ""
+        return f"{self.name:<14} {self.length:>4} nt   {self.origin}{marca}"
+
+
+@dataclass(frozen=True)
+class IntronBreakdown:
+    """El intrón montado descompuesto. Un total que nadie puede descomponer no vale."""
+
+    intron: str
+    pieces: tuple[IntronPiece, ...]
+    empty_length: int
+    module_length: int
+
+    @property
+    def total(self) -> int:
+        return sum(p.length for p in self.pieces)
+
+    @property
+    def de_novo_length(self) -> int:
+        return sum(p.length for p in self.pieces if p.de_novo)
+
+    def describe(self) -> list[str]:
+        lineas = [
+            f"Intrón «{self.intron}» montado, del donante al aceptor:",
+            *(f"  {p.describe()}" for p in self.pieces),
+            f"  {'TOTAL':<14} {self.total:>4} nt",
+            "",
+            "La resta que no cuadraba:",
+            f"  intrón vacío                {self.empty_length:>4} nt",
+            f"  módulo                      {self.module_length:>4} nt",
+            f"  vacío + módulo              {self.empty_length + self.module_length:>4} nt",
+            f"  espaciadores DE NOVO        {self.de_novo_length:>4} nt   ← la diferencia",
+            f"  total                       {self.total:>4} nt",
+        ]
+        if self.de_novo_length:
+            lineas.append(
+                "  Los espaciadores YA ESTÁN en la construcción de hoy y son diseño de "
+                "novo. Unos nuevos los SUSTITUYEN (`spacers.choose_spacers` reemplaza "
+                "los estándar), no se suman a ellos."
+            )
+        return lineas
+
+
+def intron_breakdown(intron: str, *, module_length: int) -> IntronBreakdown:
+    """Descompone el intrón montado pieza a pieza. Ver `IntronBreakdown`."""
+    from . import blocks  # noqa: PLC0415
+
+    entrada = INTRONS.get(intron)
+    if entrada is None:
+        raise ShmirDesignError(
+            f"No hay ningún intrón {intron!r} en el registro; los que hay son "
+            f"{', '.join(sorted(INTRONS))}. Se aborta en vez de descomponer otro."
+        )
+    if not entrada.five_piece or not entrada.three_piece:
+        raise ShmirDesignError(
+            f"El intrón {intron!r} no se ensambla de piezas versionadas "
+            f"({entrada.source}), así que no hay desglose que emitir: lo que se puede "
+            f"decir de él sale de su SECUENCIA, no de un inventario de trozos."
+        )
+
+    piezas = blocks.PIECES
+
+    def _pieza(nombre: str, *, de_novo: bool = False) -> IntronPiece:
+        pieza = piezas[nombre]
+        return IntronPiece(
+            name=nombre, length=len(pieza.sequence),
+            origin=pieza.source, de_novo=de_novo,
+        )
+
+    lista = (
+        _pieza(entrada.five_piece),
+        _pieza("espaciador5", de_novo=True),
+        IntronPiece(
+            name="módulo", length=int(module_length),
+            origin="NheI + contexto5 + 97-mero + contexto3 + SacI",
+        ),
+        _pieza("espaciador3", de_novo=True),
+        _pieza(entrada.three_piece),
+    )
+    return IntronBreakdown(
+        intron=intron, pieces=lista,
+        empty_length=len(entrada.empty_sequence),
+        module_length=int(module_length),
+    )
+
+
+#: Las DOS restricciones declaradas para el sitio de inserción, y no hay más. No se
+#: añade ningún mínimo de distancia —«el punto de ramificación a más de N nt del
+#: aceptor»— porque nadie lo ha autorizado: un criterio que aparece sin haberse
+#: discutido acaba emitiendo veredictos que nadie pidió (ver `docs/procedencia-g4.md`).
+#: Lo que se emite son DISTANCIAS, que son un hecho; la decisión se toma mirándolas.
+INSERTION_RULE = (
+    "El módulo va entre el DONANTE y el TRACTO DE POLIPIRIMIDINAS, y no invade ningún "
+    "candidato a punto de ramificación. Son las dos únicas restricciones declaradas: "
+    "las distancias se emiten para decidir, no se convierten en umbral por su cuenta."
+)
+
+
+@dataclass(frozen=True)
+class BranchDistance:
+    """Distancia a UN candidato a punto de ramificación, con su lado.
+
+    Hay que separar DOS cosas que es facil confundir, y confundirlas da un numero que
+    parece razonable y no lo es:
+
+    - `nt` es el hueco entre EL MODULO y el candidato. El modulo se intercala en ese
+      hueco y lo parte; no lo alarga. Este numero NO cambia al insertar.
+    - `donor_to_branch` es la separacion DONANTE → CANDIDATO en el intron YA MONTADO.
+      Ese si crece con la longitud del modulo, y solo si el modulo cae en medio. Es el
+      que importa: un punto de ramificacion empujado 149 nt lejos del donante es otra
+      geometria de empalme.
+    """
+
+    candidate: str
+    start: int
+    side: str
+    #: Hueco entre el modulo y el candidato. No cambia al insertar: el modulo lo parte.
+    nt: int
+    #: Separacion donante → candidato en el intron montado, con el modulo dentro.
+    donor_to_branch: int
+    #: Separacion candidato → aceptor en el intron montado.
+    branch_to_acceptor: int
+
+    def describe(self) -> str:
+        return (
+            f"{self.candidate} (intrón:{self.start}) {self.side} a {self.nt} nt del "
+            f"módulo; montado: donante→punto {self.donor_to_branch} nt, "
+            f"punto→aceptor {self.branch_to_acceptor} nt"
+        )
+
+
+@dataclass(frozen=True)
+class InsertionOption:
+    """Insertar TRAS esta posición del intrón vacío, y lo que queda a cada lado."""
+
+    after: int
+    to_donor: int
+    to_ppt: int
+    to_acceptor: int
+    to_branch: tuple[BranchDistance, ...]
+
+    def describe(self) -> str:
+        ramas = "; ".join(d.describe() for d in self.to_branch) or "sin candidatos"
+        return (
+            f"tras intrón:{self.after} — donante a {self.to_donor} nt, tracto a "
+            f"{self.to_ppt} nt, aceptor a {self.to_acceptor} nt · {ramas}"
+        )
+
+
+@dataclass(frozen=True)
+class InsertionWindow:
+    """Los tramos admisibles y cada opción con sus distancias."""
+
+    ranges: tuple[tuple[int, int], ...]
+    options: tuple[InsertionOption, ...]
+    module_length: int
+    blocked_by_branch: tuple[tuple[int, int], ...]
+
+    def describe(self) -> list[str]:
+        lineas = [
+            f"Sitios de inserción admisibles para un módulo de {self.module_length} nt:",
+        ]
+        for inicio, fin in self.ranges:
+            cuantas = fin - inicio + 1
+            lineas.append(f"  intrón:{inicio}-{fin}  ({cuantas} posición(es))")
+            for extremo in (inicio, fin) if inicio != fin else (inicio,):
+                opcion = next(o for o in self.options if o.after == extremo)
+                lineas.append(f"    {opcion.describe()}")
+        for inicio, fin in self.blocked_by_branch:
+            lineas.append(
+                f"  EXCLUIDO intrón:{inicio}-{fin} — candidato a punto de ramificación."
+            )
+        lineas.append(f"  {INSERTION_RULE}")
+        lineas.append(
+            "  Los extremos de cada tramo van arriba; el resto de posiciones están en "
+            "`options`. Si hay varios candidatos a punto de ramificación, la distancia "
+            "sale POR CANDIDATO y no se elige uno."
+        )
+        return lineas
+
+
+def insertion_window(
+    elements: IntronElements, *, module_length: int
+) -> InsertionWindow:
+    """Dónde cabe el módulo dentro del intrón. Ver `INSERTION_RULE`.
+
+    `after` es la posición del intrón VACÍO tras la cual se intercala el módulo, en
+    coordenadas del intrón (1-based). Las distancias se dan en el intrón vacío y, para
+    el punto de ramificación, también con el módulo dentro: intercalar 149 nt entre el
+    donante y el punto los separa 149 nt más, y eso es lo que hay que poder mirar.
+    """
+    if module_length < 1:
+        raise ShmirDesignError(
+            f"Un módulo de {module_length} nt no se inserta en ningún sitio; se aborta "
+            f"en vez de calcular una ventana sobre una longitud que no existe."
+        )
+
+    primera = elements.donor.end + 1
+    ultima = elements.ppt.start - 1
+    if ultima < primera:
+        raise ShmirDesignError(
+            f"Entre el donante (acaba en intrón:{elements.donor.end}) y el tracto de "
+            f"polipirimidinas (empieza en intrón:{elements.ppt.start}) no queda ni una "
+            f"posición para el módulo. {INSERTION_RULE}"
+        )
+
+    prohibidas = {
+        p
+        for c in elements.branch_candidates
+        for p in range(c.start, c.end + 1)
+    }
+    admisibles = [p for p in range(primera, ultima + 1) if p not in prohibidas]
+    if not admisibles:
+        raise ShmirDesignError(
+            f"Entre el donante (intrón:{elements.donor.end}) y el tracto "
+            f"(intrón:{elements.ppt.start}) todas las posiciones caen dentro de un "
+            f"candidato a punto de ramificación. {INSERTION_RULE}"
+        )
+
+    tramos: list[tuple[int, int]] = []
+    for posicion in admisibles:
+        if tramos and posicion == tramos[-1][1] + 1:
+            tramos[-1] = (tramos[-1][0], posicion)
+        else:
+            tramos.append((posicion, posicion))
+
+    bloqueados = tuple(
+        (c.start, c.end)
+        for c in elements.branch_candidates
+        if primera <= c.end and c.start <= ultima
+    )
+
+    opciones = tuple(
+        InsertionOption(
+            after=posicion,
+            to_donor=posicion - elements.donor.end,
+            to_ppt=elements.ppt.start - 1 - posicion,
+            to_acceptor=elements.acceptor.start - 1 - posicion,
+            to_branch=tuple(
+                _branch_distance(posicion, c, module_length, elements)
+                for c in elements.branch_candidates
+            ),
+        )
+        for posicion in admisibles
+    )
+
+    return InsertionWindow(
+        ranges=tuple(tramos),
+        options=opciones,
+        module_length=int(module_length),
+        blocked_by_branch=bloqueados,
+    )
+
+
+def _branch_distance(
+    after: int, candidate, module_length: int, elements: IntronElements
+) -> BranchDistance:
+    """La distancia a UN candidato, con la geometria del intron YA MONTADO.
+
+    El modulo NO alarga el hueco en el que cae: lo parte. Lo que alarga son las
+    separaciones ELEMENTO A ELEMENTO que lo cruzan. Confundir las dos da un numero
+    plausible y equivocado — pasó al escribir el primer test de esto.
+    """
+    donante_a_punto = candidate.start - elements.donor.end - 1
+    punto_a_aceptor = elements.acceptor.start - candidate.end - 1
+
+    if after < candidate.start:
+        # El modulo queda ENTRE el donante y el candidato: alarga esa separacion.
+        return BranchDistance(
+            candidate=candidate.sequence, start=candidate.start, side="aguas arriba",
+            nt=candidate.start - after - 1,
+            donor_to_branch=donante_a_punto + module_length,
+            branch_to_acceptor=punto_a_aceptor,
+        )
+    # El modulo queda entre el candidato y el aceptor: alarga LA OTRA.
+    return BranchDistance(
+        candidate=candidate.sequence, start=candidate.start, side="aguas abajo",
+        nt=after - candidate.end,
+        donor_to_branch=donante_a_punto,
+        branch_to_acceptor=punto_a_aceptor + module_length,
+    )
+
+
+@dataclass(frozen=True)
 class Intron:
     """Un intron del registro. `provided=False` = no lo tenemos, y se dice."""
 

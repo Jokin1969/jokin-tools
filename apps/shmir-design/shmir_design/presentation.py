@@ -2039,6 +2039,72 @@ def splice_intron_rows(names=None):
     return intron_report(names if names is not None else tuple(INTRONS))
 
 
+def intron_geometry_rows(names=None, *, module_length: int = 149):
+    """Por intrón: el desglose pieza a pieza y dónde cabe el módulo.
+
+    Son las dos preguntas que hay que poder mirar ANTES de montar nada, y las dos
+    salieron de la misma grieta: un total de 296 nt que nadie podía descomponer escondía
+    65 nt de espaciadores de novo, y el sitio de inserción no se emitía en ninguna
+    parte. Un número que no se puede descomponer y una restricción que no se ve son la
+    misma clase de problema.
+
+    Los intrones que NO se ensamblan de piezas —o que todavía no tenemos— salen con su
+    motivo en `nota` y sin inventarse nada: es la regla 3 sobre geometría en vez de
+    sobre filtros.
+    """
+    from .introns import INTRONS, insertion_window, intron_breakdown, locate_elements
+
+    filas = []
+    for nombre in (names if names is not None else tuple(INTRONS)):
+        entrada = INTRONS.get(nombre)
+        if entrada is None:
+            raise ShmirDesignError(
+                f"No hay ningún intrón {nombre!r} en el registro; los que hay son "
+                f"{', '.join(sorted(INTRONS))}."
+            )
+        fila = {
+            "intron": nombre,
+            "desglose": None,
+            "insercion": None,
+            "elementos": None,
+            "nota": "",
+        }
+        try:
+            fila["desglose"] = intron_breakdown(nombre, module_length=module_length)
+        except ShmirDesignError as exc:
+            # rule2-ok: no es un fallo, es la ausencia dicha con su motivo.
+            fila["nota"] = str(exc)
+        try:
+            secuencia = entrada.require_sequence()
+        except ShmirDesignError as exc:
+            # rule2-ok: el intrón no está. Se dice, y no se calcula geometría de nada.
+            fila["nota"] = (fila["nota"] + " " + str(exc)).strip()
+            filas.append(fila)
+            continue
+        elementos = locate_elements(secuencia, name=nombre)
+        fila["elementos"] = elementos
+        fila["insercion"] = insertion_window(elementos, module_length=module_length)
+        filas.append(fila)
+    return filas
+
+
+def intron_geometry_text(names=None, *, module_length: int = 149) -> str:
+    """El bloque de texto de lo anterior, ya montado. La página no formatea."""
+    lineas: list[str] = []
+    for fila in intron_geometry_rows(names, module_length=module_length):
+        lineas.append(f"── {fila['intron']} ──")
+        if fila["desglose"] is not None:
+            lineas.extend(fila["desglose"].describe())
+        if fila["elementos"] is not None:
+            lineas.extend(fila["elementos"].describe())
+        if fila["insercion"] is not None:
+            lineas.extend(fila["insercion"].describe())
+        if fila["nota"]:
+            lineas.append(f"  ⬜ {fila['nota']}")
+        lineas.append("")
+    return "\n".join(lineas).rstrip()
+
+
 def splice_constructions(selection, *, target, intron_names, scaffold, starts=None,
                          cassette=None, context_nt=0):
     """Los pares candidato x intron, montados. La pagina no monta nada."""

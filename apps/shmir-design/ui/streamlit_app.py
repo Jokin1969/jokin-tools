@@ -38,6 +38,7 @@ from shmir_design.presentation import (  # noqa: E402
     anatomy_payload,
     load_stores,
     run_fingerprint,
+    intron_geometry_text,
     stored_runs_note,
     upload_path,
     project_create,
@@ -1241,6 +1242,13 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None) ->
             st.write(f"⬜ **{fila['intron']}** — NOT_RUN. {fila['motivo']}")
             with st.expander(f"Cómo se resuelve «{fila['intron']}»"):
                 st.caption(obtencion_rows(fila["ficha"], species=nombre)["texto"])
+
+    # La GEOMETRIA de cada intron: el desglose pieza a pieza y donde cabe el modulo.
+    # Va aqui porque es lo que hay que mirar ANTES de montar nada — un total que nadie
+    # puede descomponer escondia 65 nt de espaciadores de novo, y el sitio de insercion
+    # no se emitia en ninguna parte. La pagina no calcula: pide el texto ya montado.
+    with st.expander("Geometría de los intrones — desglose y sitio de inserción"):
+        st.code(intron_geometry_text(), language=None)
 
     disponibles = [f["intron"] for f in splice_intron_rows() if f["estado"] is FilterState.PASS]
     elegidos = st.multiselect(
