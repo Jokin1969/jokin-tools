@@ -132,13 +132,17 @@ def fold_intron(
     intron: Intron,
     *,
     module: str,
-    spacer5: str = "",
-    spacer3: str = "",
+    spacer5: str | None = None,
+    spacer3: str | None = None,
     available: bool | None = None,
 ) -> IntronFolding:
-    """Pliega el intron CON el modulo dentro y mide los tres elementos.
+    """Pliega el intron CON el modulo dentro y mide los cuatro elementos.
 
     `available=False` fuerza el camino sin ViennaRNA, para poder probarlo.
+
+    Los espaciadores siguen el centinela de `Intron.with_module`: `None` es el
+    ESTANDAR y `""` es NINGUNO. No son lo mismo, y confundirlos hizo que el punto 0
+    del barrido midiera el estandar creyendo medir la ausencia.
     """
     usable = VIENNA_AVAILABLE if available is None else available
     if not usable:

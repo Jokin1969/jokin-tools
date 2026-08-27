@@ -422,3 +422,69 @@ y contaba en vez de identificar: salían tres y faltaba uno de los que importaba
 está mal.** El valor esperado tiene que ser **lo que se dice**, no cuántas cosas se dicen
 ni con qué forma. Contar widgets, contar elementos o contar filas no distingue una salida
 correcta de una que tiene el mismo tamaño y dice otra cosa.
+
+## 15 — El intrón que decía PASS con la secuencia vacía
+
+**El fallo**: `intron_quimerico` declaraba `provided=True` en el registro y sacaba su
+secuencia del plásmido de Addgene #198131. Ese fichero lo dejaba fuera de git el `*` del
+`.gitignore` de `data/reference/`. Para cualquiera que clonara el repositorio:
+
+```
+provided=True   state=PASS   len(raw_sequence)=0
+```
+
+Y el guardia que existe justo para esto **no saltaba**: `require_sequence()` no llegaba
+a su `ShmirDesignError` de la regla 1 porque `empty_sequence` caía primero en
+`PIECES[""]` y moría con un `KeyError('')` — un error que ningún `except
+ShmirDesignError` recoge y que ningún mensaje explica.
+
+**Por qué era el peor de los tres**: no es una función que falta ni un texto equivocado.
+Es un **PASS falso sobre una secuencia**, que es el principio central del proyecto. Un
+intrón vacío anunciado como disponible es exactamente lo que la regla 1 existe para
+impedir.
+
+**Cómo se cierra**: no con un test que compruebe que `provided` y la secuencia coinciden
+—eso comprueba que no ha pasado—, sino quitando la posibilidad de que diverjan.
+`provided` **deja de ser un campo y pasa a ser una propiedad derivada**: hay secuencia si
+hay piezas versionadas, o si llegó entera, y nunca si el intrón es `derived`. Es el mismo
+cierre que se le dio al cuarto par duplicado, y por la misma razón.
+
+Y el fichero entra en git: 22 kB de un depósito **público** no son «una base de datos»,
+que es el criterio que ese `.gitignore` ya tenía escrito para las otras cinco
+excepciones. Sin él dentro el intrón queda en NOT_RUN —correcto y **visible**— pero
+nadie que clone puede reproducir la corrida.
+
+## 16 — El punto 0 que medía el estándar
+
+**El fallo**: `Intron.with_module` resolvía los espaciadores con
+`spacer5 or PIECES["espaciador5"].sequence`. Una cadena vacía es falsa, así que pedir
+**cero espaciador** devolvía silenciosamente los **20 nt estándar**.
+
+El barrido de `barrido.py` empieza su curva en 0. Su punto 0, el que responde «¿y si no
+hubiera espaciador?», montaba el intrón con los 65 nt estándar dentro y salía —
+lógicamente — indistinguible del de referencia. Nada falló, nada avisó, y la curva
+publicada tenía un punto que no medía lo que su etiqueta decía.
+
+**La lección**: `""` y «no me lo digas» son **dos peticiones distintas** y se escribían
+igual. Un centinela que se confunde con un dato legítimo no es un centinela. Ahora
+`None` es el estándar y `""` es ninguno.
+
+Suerte en la forma de descubrirlo: el resultado del barrido fue **negativo** —el criterio
+no discrimina— y por eso su punto 0 no se usó para decidir nada. Con un resultado
+positivo, esa habría sido la primera fila de la tabla.
+
+## 17 — La página navegando el modelo
+
+**El fallo**: el modal de empalme hacía
+`variant_proposal_text(seleccion.selection.chosen[0].guide)`, y `selection.Choice` **no
+tiene** `guide`. La guía se alcanza por `window_of(choice).evaluation.guide`, que es como
+lo hace `block_bundle`. Resultado: `AttributeError` en cuanto alguien abriera el modal
+con un candidato elegido.
+
+Son dos fallos, y el segundo explica el primero: la página estaba **encadenando
+atributos del modelo**, que es justo lo que prohíbe la regla 6. La navegación no se
+equivocó por descuido — se equivocó porque estaba en el sitio donde nadie la prueba.
+Movida a `presentation.variant_proposal_for()`, la cubre un test como todo lo demás.
+
+**Corolario**: la regla 6 no es de estilo. Cada `a.b.c` en la página es una suposición
+sobre el modelo que ningún test comprueba.

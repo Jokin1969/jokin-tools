@@ -2129,6 +2129,22 @@ def variant_proposal_text(guide: str, *, available=None) -> str:
         return f"NO se pudo diseñar la variante — {exc}"
 
 
+def variant_proposal_for(selection, *, available=None) -> str:
+    """La propuesta de variante para el PRIMER candidato elegido de esta selección.
+
+    La página pedía el texto leyendo `guide` del primer elegido, y `Choice` no tiene
+    ese campo: la guía se alcanza por `window_of(choice).evaluation.guide`, como hace
+    `block_bundle`. Eran dos fallos en uno —un `AttributeError` en cuanto alguien
+    abriera el modal, y una página NAVEGANDO el modelo, que es lo que la regla 6
+    prohíbe—, y el segundo es el que produjo el primero. La navegación vive aquí.
+    """
+    elegidos = selection.selection.chosen
+    if not elegidos:
+        return variant_proposal_text("", available=available)
+    guia = selection.window_of(elegidos[0]).evaluation.guide.replace("U", "T")
+    return variant_proposal_text(guia, available=available)
+
+
 def splice_intron_rows(names=None):
     """Estado de cada intron del registro. Los que faltan salen VISIBLES."""
     from .introns import INTRONS

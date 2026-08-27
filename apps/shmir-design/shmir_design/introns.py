@@ -826,7 +826,7 @@ def _branch_distance(
 
 @dataclass(frozen=True)
 class Intron:
-    """Un intron del registro. `provided=False` = no lo tenemos, y se dice."""
+    """Un intron del registro. `provided` se DERIVA de si hay secuencia, y se dice."""
 
     name: str
     description: str
@@ -837,7 +837,6 @@ class Intron:
     three_piece: str = ""
     #: La secuencia entera, para los aportados. Vacia si no se ha aportado.
     raw_sequence: str = ""
-    provided: bool = True
     #: `True` si lo DISEÑA la app en vez de venir de fuera.
     derived: bool = False
     derived_from: str = ""
@@ -846,6 +845,28 @@ class Intron:
     #: Contexto exonico declarado a los dos lados, tambien de piezas versionadas.
     exon5_piece: str = ""
     exon3_piece: str = ""
+
+    @property
+    def provided(self) -> bool:
+        """¿Tenemos su secuencia? Se DERIVA; no se declara.
+
+        Fue un campo declarado y eso produjo un PASS FALSO: `intron_quimerico` ponia
+        `provided=True` mientras su plasmido quedaba fuera de git, asi que para quien
+        clonara el repositorio la entrada salia PASS con la secuencia VACIA. Es el
+        mismo cierre que el del cuarto par duplicado, y por la misma razon: un test
+        comprueba que no ha pasado, una definicion unica IMPIDE que pase.
+
+        Tres formas de tener secuencia, y solo tres:
+          - se ensambla de piezas versionadas (`five_piece`/`three_piece`);
+          - llego entera de fuera (`raw_sequence`);
+          - lo DISEÑA la app por candidato (`derived`), y entonces NO existe hasta
+            que se diseña: el registro no puede darlo por hecho.
+        """
+        if self.derived:
+            return False
+        if self.five_piece and self.three_piece:
+            return True
+        return bool(_clean(self.raw_sequence))
 
     @property
     def state(self) -> FilterState:
@@ -863,14 +884,28 @@ class Intron:
     def require_sequence(self) -> str:
         if self.provided:
             return self.empty_sequence
+        motivo = self.why_missing or (
+            "No hay ni piezas versionadas ni secuencia aportada para él."
+        )
         raise ShmirDesignError(
-            f"El intrón {self.name!r} no se ha aportado. {self.why_missing} "
+            f"El intrón {self.name!r} no se ha aportado. {motivo} "
             f"NO se reconstruye ni se teclea de memoria (regla 1): una secuencia "
             f"plausible es el peor resultado posible de este software."
         )
 
-    def with_module(self, module: str, *, spacer5: str = "", spacer3: str = "") -> str:
-        """El intron con el modulo dentro. Es lo que se pliega y lo que se consulta."""
+    def with_module(
+        self, module: str, *, spacer5: str | None = None, spacer3: str | None = None
+    ) -> str:
+        """El intron con el modulo dentro. Es lo que se pliega y lo que se consulta.
+
+        `None` = pon el espaciador ESTANDAR; `""` = no pongas NINGUNO. Son dos
+        peticiones distintas y antes se escribian igual: la resolucion era
+        `spacer5 or PIECES["espaciador5"]`, y una cadena vacia es falsa, asi que pedir
+        cero espaciador devolvia silenciosamente los 20 nt estandar. El barrido de
+        `barrido.py` empieza su curva en 0, de modo que su punto 0 media el ESTANDAR
+        creyendo medir la ausencia — y salia igual que la referencia sin que fallara
+        nada. Un valor centinela que se confunde con un dato real no es un centinela.
+        """
         if not self.provided:
             self.require_sequence()
         if self.raw_sequence:
@@ -881,9 +916,9 @@ class Intron:
             )
         montado = (
             PIECES[self.five_piece].sequence
-            + (spacer5 or PIECES["espaciador5"].sequence)
+            + (PIECES["espaciador5"].sequence if spacer5 is None else _clean(spacer5))
             + _clean(module)
-            + (spacer3 or PIECES["espaciador3"].sequence)
+            + (PIECES["espaciador3"].sequence if spacer3 is None else _clean(spacer3))
             + PIECES[self.three_piece].sequence
         )
         check_length(montado, name=self.name)
@@ -955,7 +990,6 @@ INTRONS: dict[str, Intron] = {
         three_piece="MVM3",
         exon5_piece="exon5",
         exon3_piece="exon3",
-        provided=True,
     ),
     "intron_quimerico": Intron(
         name="intron_quimerico",
@@ -972,8 +1006,13 @@ INTRONS: dict[str, Intron] = {
             "críptico."
         ),
         source="Addgene #198131 (pCI_mini-mAgrin-AviTag), feature `intron` 1216-1348",
-        provided=True,
         raw_sequence=_QUIMERICO,
+        why_missing=(
+            f"No está {QUIMERICO_PLASMID} en el directorio de referencia, y este "
+            f"intrón SALE de él: se extrae de su feature «{QUIMERICO_FEATURE[1]}» "
+            f"comprobando md5 y coordenadas. Sin el fichero no hay secuencia y no se "
+            f"teclea (regla 1). Se sube por el gestor de referencia del paso 2."
+        ),
         ficha="intron_quimerico",
     ),
     "mvm_sin_criptico": Intron(
@@ -989,7 +1028,6 @@ INTRONS: dict[str, Intron] = {
         three_piece="MVM3",
         exon5_piece="exon5",
         exon3_piece="exon3",
-        provided=False,
         derived=True,
         derived_from="mvm_actual",
         why_missing=(

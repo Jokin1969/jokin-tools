@@ -42,7 +42,7 @@ from shmir_design.presentation import (  # noqa: E402
     intron_geometry_text,
     stored_runs_note,
     upload_path,
-    variant_proposal_text,
+    variant_proposal_for,
     reference_delete,
     reference_delete_plan,
     reference_download,
@@ -1415,8 +1415,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None) ->
     # La variante que la app DISEÑA, para esta guía. Se enseña aquí porque es donde se
     # decide con qué intrón se consulta: uno que se propone y nadie ve no existe.
     with st.expander("Variante propuesta — mvm_sin_criptico", expanded=False):
-        st.text(variant_proposal_text(seleccion.selection.chosen[0].guide
-                                      if seleccion.selection.chosen else ""))
+        st.text(variant_proposal_for(seleccion))
 
     disponibles = [f["intron"] for f in splice_intron_rows() if f["estado"] is FilterState.PASS]
     elegidos = st.multiselect(
