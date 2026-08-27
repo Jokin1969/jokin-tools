@@ -155,6 +155,10 @@ app.use('/asignacion', requireApp('asignacion'), asigRouter);
 const pastilleroRouter = require('./apps/pastillero/routes');
 app.use('/pastillero', pastilleroRouter);
 
+// ─── Galénica (catálogo de medicamentos: nombre, forma, color, foto) ────────────
+const galenicaRouter = require('./apps/galenica/routes');
+app.use('/galenica', requireApp('galenica'), galenicaRouter);
+
 // ─── Hub root (requires login) ──────────────────────────────────────────────────
 app.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));

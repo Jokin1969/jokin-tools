@@ -136,6 +136,19 @@ const APPS = [
     </svg>`,
   },
   {
+    id: 'galenica',
+    group: 'farmacia',
+    name: 'Galénica',
+    path: '/galenica',
+    desc: 'Catálogo de medicamentos para reconocerlos de un vistazo: nombre, principio activo, forma farmacéutica y color, junto a su foto. Búsqueda potente por cualquiera de esos campos, con selección, ocultar y exportación.',
+    tags: ['Catálogo', 'CIMA', 'Fotos'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <ellipse cx="26" cy="38" rx="18" ry="10" stroke="#1B6CB0" stroke-width="2"/>
+      <path d="M14 30c5-5 9-7 12-7s7 2 12 7" stroke="#009B8D" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.6"/>
+      <circle cx="46" cy="18" r="6" fill="#00B8D4"/>
+    </svg>`,
+  },
+  {
     id: 'feep',
     name: 'FEEP',
     path: '/feep',

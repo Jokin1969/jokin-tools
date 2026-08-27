@@ -91,6 +91,8 @@ try { db.prepare('ALTER TABLE dm_items ADD COLUMN archived INTEGER NOT NULL DEFA
 try { db.prepare('ALTER TABLE dm_items ADD COLUMN archived_at DATETIME').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE dm_items ADD COLUMN archived_manual INTEGER NOT NULL DEFAULT 0').run(); } catch { /* already present */ }
 try { db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_items_assignee ON dm_items(assignee_id)').run(); } catch { /* ignore */ }
+// Forma farmacéutica (comprimido, cápsula…) — added for Galénica; also useful here.
+try { db.prepare('ALTER TABLE cima_cache ADD COLUMN forma TEXT').run(); } catch { /* already present */ }
 
 // ── CIMA (AEMPS) local cache ─────────────────────────────────────────────────────
 // Every successful lookup is stored here (data + downloaded thumbnails) so the app
@@ -104,6 +106,7 @@ db.exec(`
     nregistro     TEXT,
     pactivos      TEXT,
     labtitular    TEXT,
+    forma         TEXT,
     foto_caja     BLOB,
     foto_pastilla BLOB,
     foto_caja_url     TEXT,
@@ -316,7 +319,7 @@ function cartClear(userId) { db.prepare('DELETE FROM dm_cart WHERE user_id = ?')
 function cimaCacheGet(cn) {
   if (!cn) return null;
   return db.prepare(
-    `SELECT cn, nombre, barcode, gtin, nregistro, pactivos, labtitular,
+    `SELECT cn, nombre, barcode, gtin, nregistro, pactivos, labtitular, forma,
             foto_caja_url, foto_pastilla_url,
             (foto_caja IS NOT NULL) AS has_caja, (foto_pastilla IS NOT NULL) AS has_pastilla, updated_at
        FROM cima_cache WHERE cn = ?`
@@ -326,8 +329,8 @@ function cimaCacheGet(cn) {
 function cimaCachePut(cn, d = {}) {
   if (!cn) return;
   db.prepare(
-    `INSERT INTO cima_cache (cn, nombre, barcode, gtin, nregistro, pactivos, labtitular, foto_caja, foto_pastilla, foto_caja_url, foto_pastilla_url, updated_at)
-     VALUES (@cn, @nombre, @barcode, @gtin, @nregistro, @pactivos, @labtitular, @foto_caja, @foto_pastilla, @foto_caja_url, @foto_pastilla_url, CURRENT_TIMESTAMP)
+    `INSERT INTO cima_cache (cn, nombre, barcode, gtin, nregistro, pactivos, labtitular, forma, foto_caja, foto_pastilla, foto_caja_url, foto_pastilla_url, updated_at)
+     VALUES (@cn, @nombre, @barcode, @gtin, @nregistro, @pactivos, @labtitular, @forma, @foto_caja, @foto_pastilla, @foto_caja_url, @foto_pastilla_url, CURRENT_TIMESTAMP)
      ON CONFLICT(cn) DO UPDATE SET
        nombre = COALESCE(excluded.nombre, cima_cache.nombre),
        barcode = COALESCE(excluded.barcode, cima_cache.barcode),
@@ -335,6 +338,7 @@ function cimaCachePut(cn, d = {}) {
        nregistro = COALESCE(excluded.nregistro, cima_cache.nregistro),
        pactivos = COALESCE(excluded.pactivos, cima_cache.pactivos),
        labtitular = COALESCE(excluded.labtitular, cima_cache.labtitular),
+       forma = COALESCE(excluded.forma, cima_cache.forma),
        foto_caja = COALESCE(excluded.foto_caja, cima_cache.foto_caja),
        foto_pastilla = COALESCE(excluded.foto_pastilla, cima_cache.foto_pastilla),
        foto_caja_url = COALESCE(excluded.foto_caja_url, cima_cache.foto_caja_url),
@@ -342,7 +346,7 @@ function cimaCachePut(cn, d = {}) {
        updated_at = CURRENT_TIMESTAMP`
   ).run({
     cn: String(cn), nombre: d.nombre || null, barcode: d.barcode || null, gtin: d.gtin || null,
-    nregistro: d.nregistro || null, pactivos: d.pactivos || null, labtitular: d.labtitular || null,
+    nregistro: d.nregistro || null, pactivos: d.pactivos || null, labtitular: d.labtitular || null, forma: d.forma || null,
     foto_caja: d.foto_caja || null, foto_pastilla: d.foto_pastilla || null,
     foto_caja_url: d.foto_caja_url || null, foto_pastilla_url: d.foto_pastilla_url || null,
   });

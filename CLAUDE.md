@@ -26,7 +26,7 @@ distintas del Mapa de abajo. Para que las fusiones a `main` sigan siendo automá
 | Ruta | Qué es | Reglas |
 |---|---|---|
 | `server.js`, `src/`, `public/`, `lib/`, `test/` | Hub principal (Node/Express) | Las de este fichero |
-| `apps/asignacion/`, `apps/auth/`, `apps/bitacora/`, `apps/datamatrix/`, `apps/feep/`, `apps/imprimir/`, `apps/pastillero/`, `apps/qr-tis/`, `apps/re-memory/` | Micro-apps del hub (Node/Express) | Las de este fichero |
+| `apps/asignacion/`, `apps/auth/`, `apps/bitacora/`, `apps/datamatrix/`, `apps/feep/`, `apps/galenica/`, `apps/imprimir/`, `apps/pastillero/`, `apps/qr-tis/`, `apps/re-memory/` | Micro-apps del hub (Node/Express) | Las de este fichero |
 | `apps/batchwork/` | Operaciones por lotes sobre ficheros (Node + scripts Python auxiliares) | Las de este fichero |
 | `apps/shmir-design/` | Proyecto Python 3.11+ independiente: CLI, interfaz Streamlit y una operación en el sidebar de Batchwork | **`apps/shmir-design/CLAUDE.md`** |
 | `apps/shmir/` | El hub sirviendo esa interfaz Streamlit en `/shmir` (proceso hijo + proxy) | Las de este fichero |
