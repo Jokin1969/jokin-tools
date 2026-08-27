@@ -52,6 +52,7 @@ from .errors import ShmirDesignError
 from .filters import FilterState
 from .hard_filters import gc_fraction
 from .hard_filters import longest_homopolymer as _longest_homopolymer
+from .spacers import WHY_FIXED_LENGTHS
 from .spacers import spacer_rejections as _spacer_rejections
 from .splicing import CRYPTIC_DONOR
 
@@ -323,6 +324,84 @@ def spacer_rejections(sequence: str) -> tuple[str, ...]:
 def is_acceptable(sequence: str) -> bool:
     return not spacer_rejections(sequence)
 
+# ──────────────────────── el desempate, que NO lo mide la app ────────────────────────
+#
+# Las dos alternativas que quedaron empatadas —`C` y `T` en la posicion 4— bajan el
+# donante igual y las dos conservan el plegado del 97-mero. La app NO puede desempatarlas:
+# con lo que mide, empatan de verdad.
+#
+# EL DESEMPATE ES UNA DECISION DEL RESPONSABLE DEL PROYECTO, con un criterio que ESTA APP
+# NO MIDE, y por eso se registra aparte de todo lo que sale de un calculo. Distinguirlas
+# no es cosmetico: una decision tomada con datos se revisa cambiando los datos, y una
+# tomada por criterio se revisa discutiendo el criterio.
+
+TIEBREAK_DECISION = "T"
+TIEBREAK_POSITION = 4
+TIEBREAK_MOTIF = "GTGTGCG"
+
+#: El criterio, con las palabras de quien lo decidio (2026-08-27).
+TIEBREAK_RATIONALE = (
+    "Decisión del responsable del proyecto, con un criterio que esta app NO MIDE. "
+    "`GTGCGCG` sube el GC de un flanco basal de miR-E, que es justo donde Drosha ancla "
+    "el corte, y el GC local influye en el PROCESAMIENTO además de en el plegado — que "
+    "es lo único que la app comprueba. `GTGTGCG` conserva la composición AT del "
+    "original. Y el argumento de fondo: `GTGAGCG` es la secuencia NATIVA del flanco de "
+    "miR-30a, así que cualquier cambio se aleja de lo que hay en la naturaleza; con dos "
+    "alternativas que empatan en lo medido, gana la que menos se aleja en lo NO medido. "
+    "A→T conserva composición; A→C añade un par G-C."
+)
+
+#: La DESCARTADA, registrada con su motivo. Si `GTGTGCG` da problemas, esta esta a un
+#: gBlock de distancia y no hay que volver a razonarla.
+TIEBREAK_REJECTED = "GTGCGCG"
+TIEBREAK_REJECTED_WHY = (
+    "`GTGCGCG` (C en la posición 4) queda DESCARTADA, no eliminada: empata con la "
+    "elegida en todo lo que la app mide —baja el donante igual y conserva el plegado— y "
+    "pierde sólo en el criterio no medido (sube el GC de un flanco basal donde Drosha "
+    "ancla, y añade un par G-C donde el original tiene AT). Si `GTGTGCG` da problemas, "
+    "ésta está a un gBlock de distancia."
+)
+
+
+def tiebreak_note() -> str:
+    """El desempate entero, para que viaje con la propuesta."""
+    return (
+        f"DESEMPATE (no lo mide la app): {TIEBREAK_DECISION} en la posición "
+        f"{TIEBREAK_POSITION} → {TIEBREAK_MOTIF}. {TIEBREAK_RATIONALE} "
+        f"{TIEBREAK_REJECTED_WHY}"
+    )
+
+
+def apply_tiebreak(choice: "BreakChoice") -> "BreakCandidate | None":
+    """La alternativa elegida por el desempate, si esta entre las que empatan.
+
+    ABORTA si el desempate ya no aplica: si las que empatan cambian —otra guia, otro
+    andamio— la decision de hoy puede no estar entre ellas, y aplicarla a ciegas seria
+    imponer una eleccion sobre un conjunto distinto del que se decidio.
+    """
+    if choice.chosen is not None:
+        return choice.chosen
+    if not choice.tied:
+        return None
+    elegida = next(
+        (
+            c for c in choice.tied
+            if c.position == TIEBREAK_POSITION and c.replacement == TIEBREAK_DECISION
+        ),
+        None,
+    )
+    if elegida is None:
+        raise ShmirDesignError(
+            f"El desempate registrado ({TIEBREAK_DECISION} en {TIEBREAK_POSITION} → "
+            f"{TIEBREAK_MOTIF}) NO está entre las {len(choice.tied)} alternativas que "
+            f"empatan aquí: "
+            + ", ".join(f"{c.replacement}@{c.position}" for c in choice.tied)
+            + ". Se aborta: la decisión se tomó sobre otro conjunto y aplicarla a éste "
+            "sería imponerla sobre alternativas que nadie ha comparado."
+        )
+    return elegida
+
+
 # ─────────────────── la variante entera: las dos decisiones ───────────────────
 
 
@@ -347,12 +426,23 @@ class IntronVariant:
         if self.break_choice is not None:
             lineas.append("")
             lineas.append("  1) Romper el donante críptico GTGAGCG")
-            if self.break_choice.chosen is not None:
-                elegido = self.break_choice.chosen
+            elegida = self.break_choice.chosen or next(
+                (
+                    c for c in self.break_choice.tied
+                    if c.position == TIEBREAK_POSITION
+                    and c.replacement == TIEBREAK_DECISION
+                ),
+                None,
+            )
+            if elegida is not None:
                 lineas.append(
-                    f"     ELEGIDA: {elegido.replacement} en la posición "
-                    f"{elegido.position} del flanco 5'"
+                    f"     ELEGIDA: {elegida.replacement} en la posición "
+                    f"{elegida.position} del flanco 5' → {elegida.motif}"
                 )
+                if self.break_choice.chosen is None:
+                    # Salio de un EMPATE que la app no puede desempatar. Que se vea de
+                    # donde viene la eleccion: no la calculo nadie.
+                    lineas.append(f"     {tiebreak_note()}")
             elif self.break_choice.tied:
                 lineas.append(
                     f"     EMPATAN {len(self.break_choice.tied)} alternativas y NO se "
@@ -409,7 +499,9 @@ def design_variant(
         )
 
     corte = choose_break(scaffold, guide=guide, motif=CRYPTIC_DONOR, available=usable)
-    if corte.chosen is None:
+    # El desempate del responsable, que la app NO mide. Aborta si ya no aplica.
+    elegida = apply_tiebreak(corte)
+    if elegida is None:
         return IntronVariant(
             state=FilterState.NOT_RUN,
             break_choice=corte,
@@ -420,7 +512,7 @@ def design_variant(
             ),
         )
 
-    derivado = replace(scaffold, flank5=corte.chosen.flank5, verified=False)
+    derivado = replace(scaffold, flank5=elegida.flank5, verified=False)
     horquilla = build_hairpin(guide, scaffold=derivado)
     estructura_sola, _ = dot_bracket(horquilla.sequence)
 

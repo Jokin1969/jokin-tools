@@ -50,36 +50,62 @@ class TestLasDosDECISIONES(unittest.TestCase):
     def test_trae_el_corte_SIEMPRE(self):
         self.assertIsNotNone(self.variante.break_choice)
 
-    def test_y_los_espaciadores_SOLO_si_el_corte_quedo_resuelto(self):
-        # Con el corte sin decidir NO se pasa al segundo paso, y eso es correcto: unos
-        # espaciadores elegidos sobre un andamio que aún no está decidido no valen para
-        # el andamio que salga. Lo que no vale es callarlo.
-        if self.variante.break_choice.chosen is None:
-            self.assertIsNone(self.variante.spacer_search)
-            self.assertIn("no se pasa al segundo", self.variante.reason)
-        else:
-            self.assertIsNotNone(self.variante.spacer_search)
+    def test_y_los_espaciadores_se_eligen_sobre_el_andamio_YA_decidido(self):
+        # El orden importa: unos espaciadores elegidos sobre un andamio sin decidir no
+        # valen para el andamio que salga.
+        self.assertIsNotNone(self.variante.spacer_search)
+        self.assertIsNotNone(self.variante.scaffold)
 
-    def test_el_estado_es_PASS_solo_si_las_DOS_se_resolvieron(self):
-        resuelta = (
-            self.variante.break_choice.chosen is not None
-            and self.variante.spacer_search.choice is not None
-        )
-        self.assertIs(
-            self.variante.state,
-            FilterState.PASS if resuelta else FilterState.NOT_RUN,
+    def test_el_estado_es_PASS_porque_las_DOS_se_resolvieron(self):
+        # El corte EMPATA y lo resuelve el DESEMPATE del responsable, que la app no mide;
+        # los espaciadores estándar conservan la estructura. Las dos decisiones cerradas.
+        self.assertIs(self.variante.state, FilterState.PASS)
+        self.assertIsNotNone(self.variante.spacer_search.choice)
+
+    def test_el_corte_EMPATA_y_lo_resuelve_el_DESEMPATE__no_un_calculo(self):
+        # La app sigue sin poder elegir: `chosen` es None y las dos siguen empatadas. Lo
+        # que decide es una decisión REGISTRADA, y el texto lo dice — para que nadie lea
+        # `GTGTGCG` como si lo hubiera calculado algo.
+        from shmir_design.intron_design import (
+            TIEBREAK_DECISION, TIEBREAK_MOTIF, TIEBREAK_POSITION, TIEBREAK_REJECTED,
         )
 
-    def test_si_el_corte_EMPATA_no_se_elige_y_SALEN_TODAS(self):
-        if self.variante.break_choice.tied:
-            self.assertIsNone(self.variante.break_choice.chosen)
-            texto = self.variante.describe_text()
-            self.assertIn("EMPATAN", texto)
-            for candidato in self.variante.break_choice.tied:
-                self.assertIn(candidato.replacement, texto)
-                self.assertIn(str(candidato.position), texto)
-                # Y el motivo resultante, que es lo que hay que mirar para decidir.
-                self.assertIn(candidato.motif, texto)
+        self.assertIsNone(self.variante.break_choice.chosen)
+        self.assertEqual(len(self.variante.break_choice.tied), 2)
+        texto = self.variante.describe_text()
+        self.assertIn(f"{TIEBREAK_DECISION} en la posición {TIEBREAK_POSITION}", texto)
+        self.assertIn(TIEBREAK_MOTIF, texto)
+        self.assertIn("no lo mide la app", texto)
+        self.assertIn("responsable del proyecto", texto)
+
+    def test_y_la_DESCARTADA_queda_registrada_con_su_motivo(self):
+        # «Descartada, no eliminada»: si la elegida da problemas, la segunda está a un
+        # gBlock de distancia y no hay que volver a razonarla.
+        from shmir_design.intron_design import TIEBREAK_REJECTED
+
+        texto = self.variante.describe_text()
+        self.assertIn(TIEBREAK_REJECTED, texto)
+        self.assertIn("DESCARTADA, no eliminada", texto)
+        self.assertIn("gBlock de distancia", texto)
+
+    def test_el_desempate_ABORTA_si_ya_no_aplica(self):
+        # Si las que empatan cambian —otra guía, otro andamio— la decisión de hoy puede
+        # no estar entre ellas. Aplicarla a ciegas sería imponerla sobre alternativas que
+        # nadie ha comparado.
+        from dataclasses import replace as _replace
+
+        from shmir_design.intron_design import BreakChoice, apply_tiebreak
+
+        otras = _replace(
+            self.variante.break_choice,
+            chosen=None,
+            tied=tuple(
+                c for c in self.variante.break_choice.tied if c.replacement != "T"
+            ),
+        )
+        with self.assertRaises(ShmirDesignError) as ctx:
+            apply_tiebreak(otras)
+        self.assertIn("NO está entre", str(ctx.exception))
 
     def test_hoy_con_la_guia_de_referencia_EMPATAN_DOS(self):
         # El resultado real, fijado: de 21 alternativas, seis conservan el plegado, y de

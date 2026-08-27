@@ -373,3 +373,52 @@ test en vez de en un descubrimiento a los meses.
 cuatro, y el test contrasta contra ella por identidad y no por cantidad. `barrido.FRAGILE`
 declara aparte cuáles de esos cuatro son los frágiles, que es una pregunta distinta y por
 eso es otra lista.
+
+---
+
+## 13 — La función citada como si existiera
+
+**El fallo**: el registro de intrones decía, en el `why_missing` de `mvm_sin_criptico`,
+que la variante «se genera con `intron_design.design_variant()`». **Esa función no
+existía.**
+
+**Y ésa es la peor de la familia**, que ya lleva tres esta semana:
+
+| | qué es | cómo se lee |
+|---|---|---|
+| una función que falta y **se dice** | un `NOT_RUN` | «no está, y sé qué me falta» |
+| una función **citada como existente** | un **`PASS` falso** | «hay un camino» — y no lo hay |
+
+Un `NOT_RUN` manda a buscar algo. Un `PASS` falso manda a usar algo que no está, y el
+descubrimiento llega cuando ya se contaba con ello. La diferencia no es de grado.
+
+**Contramedida**: `tests/test_simbolos_citados.py` recorre **todos los literales de
+cadena del paquete** —los `why_missing`, las fichas de obtención, los mensajes de error—
+y comprueba que todo `modulo.simbolo` que citen exista de verdad. Un texto que nombra algo
+inexistente hace fallar la suite.
+
+Y el guardia tuvo que afinarse en su primera corrida, que dio **tres falsos positivos**:
+`store.save_*` y `polya.CLEAVAGE_*` son FAMILIAS —el `*` se refiere a varios y ninguno se
+llama así— y `mirarchitect.cs.put.poznan.pl` es un DOMINIO. Un guardia con falsos
+positivos se acaba apagando; es la misma lección que el de la regla 6 y la del `GT…AG`.
+
+---
+
+## 14 — El test que comprobaba la forma y no el contenido
+
+**El fallo**: `test_con_especie_sale_un_HUECO_DE_SUBIDA_por_fichero` exigía un hueco de
+subida para `rmsk_mouse.out`, `mature.fa` y `aav_casete.fa` — **tres ficheros que ESTÁN**
+en el directorio de referencia del paquete.
+
+Pasaba porque el panel de entonces **pintaba el hueco estuviera el fichero o no**. El test
+comprobaba que el panel tuviera la forma esperada, no que dijera la verdad sobre lo que
+había. Sólo saltó al convertir el panel en gestor, cuando un fichero presente pasó a salir
+con sus cuatro acciones en vez de con un hueco de subida.
+
+**Misma familia que el del tracto** (errata nº 12), que se llamaba «da los TRES elementos»
+y contaba en vez de identificar: salían tres y faltaba uno de los que importaban.
+
+**Corolario, y va al principio nº 7**: **un test de estructura pasa cuando el contenido
+está mal.** El valor esperado tiene que ser **lo que se dice**, no cuántas cosas se dicen
+ni con qué forma. Contar widgets, contar elementos o contar filas no distingue una salida
+correcta de una que tiene el mismo tamaño y dice otra cosa.

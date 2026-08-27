@@ -248,3 +248,27 @@ misma lista obliga a elegir cuál de las dos se rompe.
 Es la misma familia que el `.out` sin su `.tbl`: allí un frente parecía cerrado con un
 fichero de dos porque nadie había listado los dos. La diferencia entre «faltó una pieza»
 como fallo de test y como descubrimiento a los meses es exactamente la declaración.
+
+### Corolario A — qué se mide y qué decide son dos preguntas, y por tanto dos listas
+
+`intron_folding.ELEMENTS` declara **qué se mide**: donante, punto de ramificación, tracto
+y aceptor, los cuatro. `barrido.FRAGILE` declara **qué decide**: donante, punto y tracto —
+el aceptor es la frontera, no lo que el espliceosoma lee.
+
+Son **dos listas porque son dos preguntas**. Meterlas en una obliga a elegir cuál de las
+dos se rompe: o se mide de menos para que la lista sirva de criterio, o se decide de más
+porque el criterio arrastra todo lo que se mide. Las dos salidas son peores que tener dos
+constantes.
+
+### Corolario B — un test de estructura pasa cuando el contenido está mal
+
+El valor esperado tiene que ser **lo que se dice**, no cuántas cosas se dicen ni con qué
+forma. Dos casos reales, con meses de diferencia y el mismo mecanismo:
+
+- «da los **TRES** elementos» pasaba mientras faltaba el tracto, porque salían tres
+  (errata nº 12);
+- «sale un hueco de subida por fichero» pasaba pidiendo hueco para tres ficheros que
+  estaban, porque el panel pintaba el hueco a ciegas (errata nº 14).
+
+Contar widgets, contar elementos o contar filas no distingue una salida correcta de una
+que tiene el mismo tamaño y dice otra cosa. **Contar no es comprobar.**
