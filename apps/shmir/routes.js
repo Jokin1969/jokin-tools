@@ -51,7 +51,34 @@ function sembrar() {
   return { ok: true, skipped: false };
 }
 
+// La CSP del hub es global y estricta, y Streamlit no cabe en ella: su fuente de iconos
+// viaja como `data:` y sus trabajadores se crean desde `blob:`. Se le pone una politica
+// PROPIA a esta ruta en vez de relajar la del hub entero — el resto de las apps no tiene
+// por que pagar lo que necesita esta.
+//
+// Lo que se añade sobre la del hub, y por que cada cosa:
+//   font-src   data:   la fuente de iconos de Streamlit va incrustada
+//   img-src    blob:   los graficos se pintan a un blob antes de mostrarse
+//   worker-src blob:   Streamlit crea sus workers desde un blob
+//   connect-src ws: wss:  el WebSocket del estado; en produccion va por TLS
+// `script-src` NO se relaja con 'unsafe-eval': se comprobo con un navegador de verdad
+// que la app renderiza sin el, y añadirlo «por si acaso» seria abrir un agujero para
+// nada.
+const CSP_SHMIR = [
+  "default-src 'self'",
+  "img-src 'self' data: blob:",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
+  "script-src 'self' 'unsafe-inline'",
+  "connect-src 'self' ws: wss:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'self'",
+].join('; ');
+
 router.use(async (req, res) => {
+  res.set('Content-Security-Policy', CSP_SHMIR);
   const siembra = sembrar();
   if (!siembra.ok) {
     res.status(503).type('text/plain; charset=utf-8');
