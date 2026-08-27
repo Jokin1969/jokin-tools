@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from html import escape
+from pathlib import Path, PurePosixPath
 
 from . import coords
 from .anatomy import Anatomy
@@ -2385,6 +2386,50 @@ def check_project_slug(slug: str) -> str:
             f"Nombre de proyecto {slug!r} no válido. {PROJECT_SLUG_RULE}"
         )
     return limpio
+
+
+UPLOAD_NAME_RULE = (
+    "El nombre de un fichero subido lo pone el NAVEGADOR, no el servidor: se escribe "
+    "en disco, así que se queda con el nombre a secas y se comprueba que la ruta cae "
+    "dentro del directorio de destino. Con `..` dentro, la escritura saldría del "
+    "directorio temporal que se creó justo para contenerla."
+)
+
+
+def upload_path(directorio, nombre: str):
+    """Ruta DENTRO de `directorio` para un fichero subido, o ABORTA.
+
+    La regla es UNA: sobrevive el NOMBRE, se cae todo lo que va delante. `..` no es un
+    caso especial —es ruta—, y por eso no hay que acertar con la lista de formas de
+    escribirlo (`..%2f`, `....//`): no se limpia la ruta, se descarta entera. Si no
+    queda nombre (`.`, `..`, vacío), se aborta en vez de inventarse uno.
+
+    La extensión sobrevive —`resolve_anatomy` y `load_scaffold` deciden el formato por
+    ella, así que comérsela rompería la carga sin decir por qué—. Y la comprobación
+    final es sobre la ruta RESUELTA, que es la que acaba en `write_bytes`: comprobar el
+    texto y escribir otra cosa es la mitad de una comprobación.
+
+    Es la hermana pequeña de `check_project_slug`: allí el nombre lo teclea el usuario,
+    aquí lo manda el navegador. Ver `UPLOAD_NAME_RULE`.
+    """
+    base = Path(directorio)
+    crudo = str(nombre)
+    if "\x00" in crudo or "\\" in crudo:
+        raise ShmirDesignError(
+            f"Nombre de fichero {nombre!r} no válido. {UPLOAD_NAME_RULE}"
+        )
+    limpio = PurePosixPath(crudo).name.strip()
+    if not limpio or limpio in (".", ".."):
+        raise ShmirDesignError(
+            f"Nombre de fichero {nombre!r} no válido. {UPLOAD_NAME_RULE}"
+        )
+    ruta = base / limpio
+    if not ruta.resolve().is_relative_to(base.resolve()):
+        raise ShmirDesignError(
+            f"El fichero {nombre!r} acabaría en {ruta.resolve()}, fuera de {base}. "
+            f"{UPLOAD_NAME_RULE}"
+        )
+    return ruta
 
 
 def project_create(base, *, slug: str, date: str, sequence: str, species: str,

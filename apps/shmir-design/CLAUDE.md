@@ -2170,6 +2170,55 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     su propia tanda: borrar en la misma tanda que arregla otra cosa esconde el borrado
     dentro de un diff que se lee por otro motivo.
 
+- **LA REVISIÓN DE CÓDIGO Y LA DE SEGURIDAD (2026-08-27).** Ocho hallazgos y uno más.
+  Los que dejan regla:
+  - **Un guardia con falsos positivos se acaba apagando.** El test de la regla 6 buscaba
+    `"int("` como **subcadena**, así que saltaba sobre `run_fingerprint(` —que no
+    convierte nada— y el arreglo obvio habría sido quitar la comprobación. Se busca la
+    **llamada como token** (`\bint\(`). Estaba copiado en tres tests con el mismo fallo;
+    ahora vive en `tests/sin_logica.py` **con un test propio de las dos mitades**: que
+    muerde donde hay lógica y que calla donde sólo hay un nombre parecido. Un guardia sin
+    test de que muerde se queda sin morder y nadie se entera.
+  - **Una corrida vieja en pantalla es una PROCEDENCIA FALSA.** Los modales de seed y
+    off-target guardaban el scan en `session_state` para sobrevivir al rerun, y al
+    cambiar el panel o un ajuste seguían enseñando el resultado anterior **y
+    ofreciéndolo para guardar**. Se guarda con la **huella** del panel y los ajustes
+    (`run_fingerprint`, `WHY_A_RUN_FINGERPRINT`): si no coincide, no se enseña y se dice
+    por qué. Un resultado que no es de la corrida que se ve es peor que no tener ninguno.
+  - **Las claves de los widgets llevan la especie.** Sin ella, con dos especies abiertas
+    el segundo panel reusaba el estado del primero: `key=f"pr_activo_{especie}"`.
+  - **El nombre de un fichero subido lo pone el NAVEGADOR** (`presentation.upload_path`,
+    `UPLOAD_NAME_RULE`). Se escribía `Path(tempfile.mkdtemp()) / subido.name` con el
+    nombre tal cual, y con `../` dentro la escritura sale del directorio temporal que se
+    acababa de crear para contenerla. Que Streamlit lo limpie o no es una **suposición
+    sobre código ajeno**, y aquí una causa no comprobada no se da por buena. La regla es
+    **una**: sobrevive el nombre, se cae toda la ruta —`..` no es un caso especial, es
+    ruta—, así que **no hay que acertar con la lista de formas de escribirlo**
+    (`..%2f`, `....//`, `..\`). La extensión sí sobrevive: `resolve_anatomy` y
+    `load_scaffold` deciden el formato por ella. Y la comprobación final es sobre la ruta
+    **resuelta**, que es la que llega a `write_bytes`: comprobar el texto y escribir otra
+    cosa es media comprobación. Es la hermana pequeña de `check_project_slug`, un nivel
+    más abajo: allí el nombre lo teclea el usuario, aquí lo manda el navegador.
+  - **La alcanzabilidad se medía a sí misma mal.** La clave era el **nombre pelado**, así
+    que un envoltorio homónimo vivo mantenía «vivo» al original: `presentation` envuelve
+    `store.save_blast_run` y compañía, o sea que **la herramienta había dejado de ver
+    exactamente el caso que la motivó**. Con clave `(módulo, nombre)` el informe pasó de
+    23 a 17 — y las cuatro que salieron a la luz (`offset_of`,
+    `verify_contexts_against_plasmid`, `load_guide_fixture`, `can_transfer_window`)
+    estaban tapadas. Un análisis que se equivoca **hacia el silencio** es peor que no
+    tenerlo: no avisa y además tranquiliza.
+  - **Las 17, revisadas una a una** (`data/alcanzabilidad.toml`). Lo que aparece y no
+    estaba: `verify_contexts_against_plasmid` **aborta si los contextos del módulo no
+    coinciden con el plásmido depositado** y sólo lo corren sus tests —la comprobación
+    existe y no corre cuando serviría—; `shared_network`, cuyo propio docstring exige
+    decir «NO CALCULADO» con esas palabras y no hay nadie que lo diga. Y **tres casos de
+    dos formas de calcular lo mismo** con una sin usar (`ceiling_layers` frente a
+    `measured_apa.layer_for`, `verdict_state` frente a `splice_store`/`dossier`,
+    `analyze_3utr` frente a `annotate_polya`): no es que sobre código, es que **hay dos
+    definiciones de un número y nada garantiza que coincidan**.
+  - **La revisión de seguridad no encontró nada** que emitiera veredicto. Lo único
+    señalado —el nombre del fichero subido— es lo de arriba, y ya está cerrado.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

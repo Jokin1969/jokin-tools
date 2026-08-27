@@ -39,6 +39,7 @@ from shmir_design.presentation import (  # noqa: E402
     load_stores,
     run_fingerprint,
     stored_runs_note,
+    upload_path,
     project_create,
     project_list,
     project_open,
@@ -192,7 +193,7 @@ def anatomia(sequence: str, etiqueta: str, genbank_file):
         f"declaras tu — y hasta que la declares no se tila nada."
     )
     if genbank_file is not None:
-        ruta = Path(tempfile.mkdtemp()) / genbank_file.name
+        ruta = upload_path(tempfile.mkdtemp(), genbank_file.name)
         ruta.write_bytes(genbank_file.getvalue())
         return None, resolve_anatomy(
             name=etiqueta, sequence=sequence, genbank=ruta, hint=PISTA_UI
@@ -758,7 +759,7 @@ def main() -> None:
             mask = RepeatMask(intervals=intervalos, source=repeats_file.name)
         scaffold = SGEP_SCAFFOLD
         if scaffold_file is not None:
-            ruta = Path(tempfile.mkdtemp()) / scaffold_file.name
+            ruta = upload_path(tempfile.mkdtemp(), scaffold_file.name)
             ruta.write_bytes(scaffold_file.getvalue())
             scaffold = load_scaffold(ruta)
 
