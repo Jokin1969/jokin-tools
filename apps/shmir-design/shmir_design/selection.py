@@ -42,7 +42,24 @@ from .hard_filters import gc_fraction
 from .polya import CLEAVAGE_MAX, CLEAVAGE_MIN, PolyASignal, Tercio
 from .tiling import TiledWindow, TilingReport
 
-DEFAULT_CANDIDATES = 6
+#: El panel del proyecto son DIEZ, no seis. El 6 venia de antes de que se fijaran las
+#: cuotas y ya no coincidia con nada: con 6 se quedan fuera `3utr:10`, `143`, `200` y
+#: `735` — tres de los cuatro inmunes—, asi que el valor por defecto de la interfaz
+#: producia un panel que contradecia lo decidido sin que nadie lo dijera.
+DEFAULT_CANDIDATES = 10
+
+#: Minimo de candidatos INMUNES al truncamiento por la señal proximal. Valia 0, o sea
+#: que por defecto NO habia cuota de inmunes y solo mandaba la de tercios — y entonces
+#: `3utr:359` (+4,82) desplazaba a `3utr:200` (+3,80) por asimetria, dejando el panel con
+#: TRES inmunes en vez de cuatro.
+#:
+#: Por que cuatro y por que es una cuota y no una preferencia: los inmunes son la UNICA
+#: reserva si el APA de `3utr:288` resulta funcional, y los sitios elegibles por delante
+#: del corte estan **20/0/0** por tercio —todos en el proximal—, asi que si se pierden no
+#: hay de donde rebalancear. Cuatro es lo que cabe con el espaciado de 50 nt, medido, no
+#: elegido. Ver la entrada de `CLAUDE.md` sobre por que el espaciado no se baja para
+#: meter un quinto.
+DEFAULT_IMMUNE_QUOTA = 4
 DEFAULT_MIN_SPACING = 50
 #: Penalizacion de ranking, en kcal/mol, para una ventana que solapa una variante rara
 #: de poliadenilacion. No excluye: la baja en la lista. El valor es una convencion.
@@ -661,11 +678,41 @@ def eligible_choices(
     return choices
 
 
+def default_config(n_candidates: int = DEFAULT_CANDIDATES, **extra) -> SelectionConfig:
+    """La configuracion DEL PROYECTO: panel de 10 y cuota de inmunes.
+
+    Las dos cuotas no compiten, hacen cosas distintas y las dos hacen falta. Con solo la
+    de tercios, `3utr:359` (+4,82) desplaza a `3utr:200` (+3,80) por asimetria y el panel
+    se queda con TRES inmunes en vez de cuatro — sin que nada lo diga, porque los dos son
+    del tercio proximal y la cuota de tercios se cumple igual.
+
+    Y eso importa porque los inmunes son la UNICA reserva si el APA de `3utr:288` resulta
+    funcional: los sitios elegibles por delante del corte estan **20/0/0** por tercio, asi
+    que si se pierden no hay de donde rebalancear.
+
+    La cuota se ACOTA al tamaño del panel: pedir cuatro inmunes en un panel de tres es
+    imposible, y abortar por un defecto que el que llama no ha pedido seria peor que no
+    tenerlo. Con un panel pequeño se pide lo que cabe y se sigue diciendo cuantos son.
+    """
+    return SelectionConfig(
+        n_candidates=n_candidates,
+        apa_immune_quota=min(DEFAULT_IMMUNE_QUOTA, n_candidates),
+        **extra,
+    )
+
+
 def select_from_report(
     report: TilingReport,
     config: SelectionConfig | None = None,
 ) -> ReportSelection:
-    """Pasos 3, 4 y 5 sobre un informe de tiling ya filtrado."""
+    """Pasos 3, 4 y 5 sobre un informe de tiling ya filtrado.
+
+    NO inventa cuotas. La de inmunes se pide con `default_config()`, que es donde se
+    empareja con su frontera: meterla aqui por defecto hacia abortar a cualquiera que
+    pidiera un panel de tres —«se piden 4 inmunes en un panel de 3»—, y un valor por
+    defecto implicito que revienta segun el tamaño del panel es una trampa, no un
+    defecto.
+    """
     config = config or SelectionConfig()
     if config.apa_immune_quota and config.apa_immune_before is None:
         # De donde sale la frontera: del informe, no de un numero tecleado. Un corte
@@ -1678,10 +1725,34 @@ class BlockingFront:
 def blocking_fronts(
     report: TilingReport, selection: ReportSelection
 ) -> list[BlockingFront]:
-    """Los frentes abiertos: los filtros en NOT_RUN, mas el APA cuando aplica."""
+    """Los frentes abiertos: los filtros que no han corrido POR FALTA DE RECURSO.
+
+    NO todo `NOT_RUN` es un frente, y confundirlos costo un aborto en la segunda corrida
+    real de la pagina. Con la mascara puesta, 66 ventanas quedan con `N` y sus filtros de
+    secuencia salen `NOT_RUN` — correcto, regla 3: una ventana con `N` no es evaluable.
+    Pero eso no abre ningun frente: `GC` no se cierra con ningun fichero, asi que
+    ponerlo en la lista de frentes hacia que la app pidiera su **ficha de obtencion** y
+    abortara al no encontrarla.
+
+    Y el motivo era peor que el aborto: decia **«falta el recurso»** de un filtro que no
+    tiene recurso ninguno. Es la tercera vez que un mensaje de esta app explica una causa
+    que nadie ha comprobado —despues del «comprueba que Streamlit esta instalado» y del
+    «Alu 0 %» obtenido sin buscar Alu—, y por eso hay un principio escrito sobre ello.
+
+    Un frente es un filtro que **se cierra consiguiendo algo**: un fichero, o una lectura
+    de banco. Lo demas se cuenta en el semaforo, con las ventanas tiladas.
+    """
     from .coords import Frame, frame_of, label
+    from .filters import BIOPHYSICAL_FILTERS, UNDECIDED_FILTERS
     from .polya import CLEAVAGE_MIN, SignalClass
 
+    # Lo que NO abre frente, y por que cada uno:
+    #   - los BIOFISICOS: no dependen de ningun recurso. Si salen NOT_RUN es porque la
+    #     ventana tiene `N`, y eso es una propiedad de la ventana, no un frente;
+    #   - los que estan PENDIENTES DE DECISION (`G4_*`): tampoco se cierran con un
+    #     fichero. Lo que les falta es que alguien decida su criterio, y eso no tiene
+    #     ficha de obtencion — tiene una entrada en `justificacion.py`.
+    sin_frente = BIOPHYSICAL_FILTERS | UNDECIDED_FILTERS
     frentes = [
         BlockingFront(
             name=nombre,
@@ -1698,6 +1769,7 @@ def blocking_fronts(
             ),
         )
         for nombre, cuenta in selection.not_run_filters.items()
+        if nombre not in sin_frente
     ]
 
     # El off-target por SEED es un frente PROPIO, no una parte de `especificidad`.

@@ -59,9 +59,13 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
         # que fija este test es que el APA es UNO MAS, no uno de ellos. Hay otros TRES
         # que tampoco salen de un filtro de ventana: el empalme del intron, el
         # off-target por seed y la prediccion de sitios de splicing (el cuarto modal).
-        self.assertEqual(
-            len(self.frentes), len(self.seleccion.not_run_filters) + 4
-        )
+        # Y se descuentan los PENDIENTES DE DECISION (`G4_*`): salen en
+        # `not_run_filters` porque su estado es NOT_RUN, pero no son frentes — no se
+        # cierran consiguiendo nada, se cierran decidiendo su criterio por escrito.
+        from shmir_design.filters import UNDECIDED_FILTERS
+
+        de_recurso = set(self.seleccion.not_run_filters) - UNDECIDED_FILTERS
+        self.assertEqual(len(self.frentes), len(de_recurso) + 4)
 
     def test_y_uno_de_ellos_es_el_APA(self):
         self.assertIn("fraccion_isoforma_larga", [f.name for f in self.frentes])
@@ -71,7 +75,11 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
             "fraccion_isoforma_larga", "empalme_intron", "offtarget_seed",
             "empalme_sitios",
         }
-        self.assertEqual(de_recurso, set(self.seleccion.not_run_filters))
+        from shmir_design.filters import UNDECIDED_FILTERS
+
+        self.assertEqual(
+            de_recurso, set(self.seleccion.not_run_filters) - UNDECIDED_FILTERS
+        )
 
     def test_con_los_tres_ficheros_cargados_quedarian_SEIS(self):
         # especificidad, repeticiones, seed_colision, el APA y el empalme del intron.

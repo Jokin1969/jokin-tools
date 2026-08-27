@@ -918,7 +918,13 @@ POLYA_COLUMNS = (
 
 @dataclass(frozen=True)
 class PolyAAnnotation:
-    """Los cinco campos, mas el contexto y la banda de incertidumbre del corte."""
+    """Los cinco campos, mas el contexto y la banda de incertidumbre del corte.
+
+    `polyA_hexamero_pos` sale ETIQUETADA con el marco de lo tilado (`tx:1185`, no
+    `1185`), y `polyA_dist_extremo3` con su unidad (`949 nt`). Van juntas en la tabla y
+    un numero al lado de otro se lee como lo mismo: `1185` desnudo se leyo como una
+    posicion del 3'UTR y es `3utr:236`.
+    """
 
     hexamero: str
     clase: str
@@ -936,6 +942,13 @@ class PolyAAnnotation:
     por_regla: dict[str, FilterState] = field(default_factory=dict)
     utr_length: int = 0
     riesgo: "PolyARisk | None" = None
+    #: El marco de `signal.position`, o sea el de LO TILADO. Va AQUI y no en quien pinta:
+    #: `polyA_hexamero_pos` salia como un entero desnudo —`1185`, que es `tx:1185` y por
+    #: tanto `3utr:236`— y el TSV lo etiquetaba por su cuenta mientras la tabla de la
+    #: pagina no. Dos sitios que hacen lo mismo y uno se olvida: el patron de los dos
+    #: contadores que discrepan. Ahora la etiqueta la pone la anotacion, que es quien
+    #: sabe de que posicion habla.
+    frame: Frame = Frame.UTR3
 
     def as_columns(self) -> dict[str, str]:
         if self.posicion_rel is None:
@@ -950,9 +963,13 @@ class PolyAAnnotation:
             "polyA_posicion_rel": posicion,
             # Vacio, no cero: no haber encontrado hexamero y encontrarlo en la posicion
             # 0 son cosas distintas.
-            "polyA_hexamero_pos": str(self.signal.position) if self.signal else "",
+            "polyA_hexamero_pos": (
+                label(self.signal.position, self.frame) if self.signal else ""
+            ),
+            # Una DISTANCIA no lleva marco: lleva unidad. Y la lleva porque se lee
+            # pegada a una posicion, y un numero al lado de otro se lee como lo mismo.
             "polyA_dist_extremo3": (
-                str(self.utr_length - self.signal.end)
+                f"{self.utr_length - self.signal.end} nt"
                 if self.signal and self.utr_length
                 else ""
             ),
@@ -1263,6 +1280,7 @@ def annotate_polya(
     sequence: str | None = None,
     mode: PolyAMode = PolyAMode.ESCALONADO,
     fraccion_isoforma_larga: float | None = None,
+    frame: Frame = Frame.UTR3,
 ) -> PolyAAnnotation:
     """Anota una ventana: cinco campos, y solo uno es un veredicto.
 
@@ -1350,6 +1368,7 @@ def annotate_polya(
         por_regla=por_regla,
         utr_length=utr_length,
         riesgo=riesgo,
+        frame=frame,
     )
 
 

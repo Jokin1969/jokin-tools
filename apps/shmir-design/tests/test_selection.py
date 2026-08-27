@@ -38,11 +38,11 @@ def choice(start, asymmetry, tercio=Tercio.PROXIMAL, label=None):
 
 class TestValoresPorDefecto(unittest.TestCase):
 
-    def test_seis_candidatos_y_50_nt(self):
-        self.assertEqual(DEFAULT_CANDIDATES, 6)
+    def test_diez_candidatos_y_50_nt(self):
+        self.assertEqual(DEFAULT_CANDIDATES, 10)
         self.assertEqual(DEFAULT_MIN_SPACING, 50)
         config = SelectionConfig()
-        self.assertEqual(config.n_candidates, 6)
+        self.assertEqual(config.n_candidates, 10)  # el panel del proyecto son diez
         self.assertEqual(config.min_spacing, 50)
         self.assertTrue(config.require_one_per_tercio)
 

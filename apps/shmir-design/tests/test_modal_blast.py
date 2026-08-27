@@ -16,6 +16,7 @@ from shmir_design import blast, presentation
 PARAMS_RATON = presentation.blast_defaults_for("raton")
 from shmir_design.errors import ShmirDesignError
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
+from tests.sin_logica import comprobar_sin_logica
 
 RATON = REFERENCES["NM_011170.3"]
 
@@ -245,5 +246,4 @@ class TestLaPaginaNoTieneLOGICA(unittest.TestCase):
         ).read_text(encoding="utf-8")
         inicio = fuente.index("def _modal_blast(")
         modal = fuente[inicio:]
-        for prohibido in ("int(", "float(", ".upper()", ".lower()", "sorted("):
-            self.assertNotIn(prohibido, modal, prohibido)
+        comprobar_sin_logica(self, modal)

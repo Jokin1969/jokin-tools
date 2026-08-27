@@ -59,7 +59,7 @@ class TestArranque(unittest.TestCase):
         etiquetas = " ".join(widget.label for widget in app.sidebar.number_input)
         for esperado in ("GC mínimo (por defecto: 0.3", "Homopolímero máximo (por defecto: 3)",
                          "Asimetría mínima, kcal/mol (por defecto: 0.5)",
-                         "Candidatos por especie (por defecto: 6)",
+                         "Candidatos por especie (por defecto: 10)",
                          "Espaciado mínimo entre sitios, nt (por defecto: 50)"):
             with self.subTest(esperado):
                 self.assertIn(esperado, etiquetas)
@@ -70,7 +70,7 @@ class TestArranque(unittest.TestCase):
         self.assertAlmostEqual(valores["GC mínimo"], 0.30)
         self.assertAlmostEqual(valores["GC máximo"], 0.52)
         self.assertEqual(valores["Homopolímero máximo"], 3)
-        self.assertEqual(valores["Candidatos por especie"], 6)
+        self.assertEqual(valores["Candidatos por especie"], 10)
         self.assertEqual(valores["Espaciado mínimo entre sitios, nt"], 50)
 
 

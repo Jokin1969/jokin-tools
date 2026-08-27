@@ -33,9 +33,13 @@ from shmir_design.offtarget import DEFAULTS as OFFTARGET_DEFAULTS  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
+    WHY_A_RUN_FINGERPRINT,
     BLAST_MODAL_NOTE,
     anatomy_payload,
     load_stores,
+    run_fingerprint,
+    stored_runs_note,
+    upload_path,
     project_create,
     project_list,
     project_open,
@@ -115,6 +119,7 @@ from shmir_design.presentation import (  # noqa: E402
     candidate_rows,
     cost_text,
     map_svg,
+    page_run,
     block_rows,
     conservation_for,
     output_bundle,
@@ -142,9 +147,8 @@ from shmir_design.selection import (  # noqa: E402
     DEFAULT_CANDIDATES,
     DEFAULT_MIN_SPACING,
     SelectionConfig,
-    select_from_report,
+    default_config,
 )
-from shmir_design.tiling import tile_utr  # noqa: E402
 
 COLORES = {"verde": ("#2f7d5d", "🟢"), "ambar": ("#b58900", "🟠")}
 
@@ -189,7 +193,7 @@ def anatomia(sequence: str, etiqueta: str, genbank_file):
         f"declaras tu — y hasta que la declares no se tila nada."
     )
     if genbank_file is not None:
-        ruta = Path(tempfile.mkdtemp()) / genbank_file.name
+        ruta = upload_path(tempfile.mkdtemp(), genbank_file.name)
         ruta.write_bytes(genbank_file.getvalue())
         return None, resolve_anatomy(
             name=etiqueta, sequence=sequence, genbank=ruta, hint=PISTA_UI
@@ -280,7 +284,11 @@ def panel_umbrales() -> tuple[Thresholds, SelectionConfig, int]:
             min_asymmetry=float(asimetria),
             polya_flank=int(flanco),
         ),
-        SelectionConfig(n_candidates=int(candidatos), min_spacing=int(espaciado)),
+        # `default_config` y no `SelectionConfig`: la cuota de inmunes va emparejada
+        # con su frontera y `SelectionConfig` a secas no la lleva. Sin esto, la página
+        # daba un panel con TRES inmunes mientras el golden daba cuatro — o sea, lo que
+        # se revisa y lo que se ve dejaban de ser lo mismo.
+        default_config(n_candidates=int(candidatos), min_spacing=int(espaciado)),
         int(bloque),
     )
 
@@ -307,18 +315,17 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
                    scaffold, conservacion, recursos, accesibilidad,
                    proyecto=None) -> dict[str, str]:
     st.subheader(f"{nombre}")
-    extra = dict(recursos.as_kwargs()) if recursos is not None else {}
-    if mask is not None:
-        extra["mask"] = mask  # la mascara subida a mano manda sobre la del manifiesto
-    # Se tila la secuencia ENTERA con su anatomia, como el CLI: asi las coordenadas de
-    # transcrito son coordenadas de transcrito de verdad y no una copia de las del
-    # 3'UTR. Que ventanas entran lo decide `TileRange`, en el nucleo.
-    tiling = tile_utr(
-        secuencia, anatomy=anat, seeds=seeds, thresholds=umbrales,
-        accessibility=accesibilidad, species=nombre, **extra
+    # El camino de la corrida vive en `presentation.page_run`, no aquí. Esta página lo
+    # rehacía a mano —tilaba y seleccionaba por su cuenta— y por eso se quedó sin la
+    # tabla de APA medido que el CLI sí aplica: el mismo mRNA daba un panel por consola y
+    # otro por navegador. Es la lección de `resolve.py`, y la cazó el análisis de
+    # ALCANZABILIDAD: `page_run` existía, estaba testado y **nadie lo llamaba**.
+    corrida = page_run(
+        species=nombre, sequence=secuencia, anatomy=anat, thresholds=umbrales,
+        config=config, seeds=seeds, mask=mask, accessibility=accesibilidad,
+        resources=recursos,
     )
-    seleccion = select_from_report(tiling, config)
-    utr3 = _utr3(secuencia, anat)
+    tiling, seleccion, utr3 = corrida.tiling, corrida.selection, corrida.utr3
 
     semaforo(status_light(seleccion))
 
@@ -373,6 +380,13 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
                 f"↗ {fila['ficha']['fuente']}", fila["ficha"]["url"],
                 disabled=not fila["ficha"]["url"].startswith("http"),
             )
+
+    # LO GUARDADO SE RELEE. `load_stores` estaba importado y no se llamaba desde ningún
+    # sitio: al reabrir un proyecto volvía la selección y **los cuatro frentes salían de
+    # nuevo NOT_RUN**, así que la persistencia servía para la mitad de lo que dice servir.
+    # Es el mismo patrón que `store.save_*` y que `page_run`, tercera vez en dos días.
+    if proyecto is not None:
+        st.caption(stored_runs_note(load_stores(proyecto)))
 
     _modal_blast(seleccion, nombre, proyecto)
     _modal_seed(seleccion, nombre, tiling.mature, proyecto)
@@ -444,13 +458,16 @@ def _panel_proyecto(especie: str, secuencia: str, anat):
 
     La página no decide nada: `presentation` crea, abre, lista y comprueba el md5.
     """
-    st.sidebar.header("Proyecto")
+    # Las claves llevan la ESPECIE: `main()` llama a este panel una vez por especie, y
+    # con dos, Streamlit aborta la página entera con `StreamlitDuplicateElementKey` —
+    # que el `except` de `main()` no captura, porque no es un error nuestro.
+    st.sidebar.header(f"Proyecto — {especie}")
     raiz = projects_root()
     existentes = project_list(raiz)
 
     if st.sidebar.checkbox(
         "Guardar esta corrida en un proyecto",
-        key="pr_activo",
+        key=f"pr_activo_{especie}",
         help="Las corridas de los modales y la selección quedan en un log de texto que "
              "se lee con `cat` y sobrevive a cerrar la pestaña.",
     ) is False:
@@ -460,18 +477,18 @@ def _panel_proyecto(especie: str, secuencia: str, anat):
         return None
 
     opciones = ["— crear uno nuevo —"] + [f["slug"] for f in existentes]
-    elegido = st.sidebar.selectbox("Proyecto", opciones, key="pr_slug")
+    elegido = st.sidebar.selectbox("Proyecto", opciones, key=f"pr_slug_{especie}")
     fecha = st.sidebar.text_input(
-        "Fecha (AAAA-MM-DD)", "", key="pr_fecha",
+        "Fecha (AAAA-MM-DD)", "", key=f"pr_fecha_{especie}",
         help="Va en cada registro del log. Sin ella no es auditable.",
     )
     try:
         if elegido == opciones[0]:
-            nombre = st.sidebar.text_input("Nombre del proyecto nuevo", "", key="pr_nuevo")
+            nombre = st.sidebar.text_input("Nombre del proyecto nuevo", "", key=f"pr_nuevo_{especie}")
             if not nombre or not fecha:
                 st.sidebar.caption("Hace falta un nombre y una fecha para crearlo.")
                 return None
-            if not st.sidebar.button("Crear proyecto", key="pr_crear"):
+            if not st.sidebar.button("Crear proyecto", key=f"pr_crear_{especie}"):
                 return None
             payload, fuente = anatomy_payload(anat)
             almacen = project_create(
@@ -742,7 +759,7 @@ def main() -> None:
             mask = RepeatMask(intervals=intervalos, source=repeats_file.name)
         scaffold = SGEP_SCAFFOLD
         if scaffold_file is not None:
-            ruta = Path(tempfile.mkdtemp()) / scaffold_file.name
+            ruta = upload_path(tempfile.mkdtemp(), scaffold_file.name)
             ruta.write_bytes(scaffold_file.getvalue())
             scaffold = load_scaffold(ruta)
 
@@ -1140,14 +1157,21 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None) -> None:
             )
 
     starts = [c.start for c in seleccion.selection.chosen]
+    # La HUELLA del panel y los ajustes. Ver `WHY_A_RUN_FINGERPRINT`: sin ella, cambiar
+    # la selección o un ajuste dejaba en pantalla el resultado viejo y lo ofrecía para
+    # guardar — una corrida con una procedencia que no era la suya.
+    huella = run_fingerprint(tuple(starts), params)
     if st.button(f"Buscar colisiones — {nombre}", key=f"seed_go_{nombre}"):
         # El scan se guarda en `session_state` para que sobreviva al rerun que provoca
         # el boton de guardar. Es ESTADO, no una decision: la pagina sigue sin decidir.
-        st.session_state[f"seed_scan_{nombre}"] = seed_run(
+        st.session_state[f"seed_scan_{nombre}"] = (huella, seed_run(
             seleccion, mature=maduros, params=params, species=nombre,
             starts=tuple(starts), guides=True, passengers=True,
-        )
-    scan = st.session_state.get(f"seed_scan_{nombre}")
+        ))
+    guardado = st.session_state.get(f"seed_scan_{nombre}")
+    scan = guardado[1] if guardado and guardado[0] == huella else None
+    if guardado and guardado[0] != huella:
+        st.info(WHY_A_RUN_FINGERPRINT)
     if scan is not None:
         destacados = seed_highlights(scan)
         st.warning(destacados["tasa_base"]["texto"])
@@ -1403,14 +1427,19 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
     st.error(offtarget_upper_bound()["texto"])
 
     starts = [c.start for c in seleccion.selection.chosen]
+    huella = run_fingerprint(tuple(starts), params)
     if st.button(f"Contar off-targets — {nombre}", key=f"ot_go_{nombre}"):
         # Mismo motivo que en el modal de seed: el scan tiene que sobrevivir al rerun.
-        st.session_state[f"ot_scan_{nombre}"] = offtarget_run(
+        # Y con la misma HUELLA, por el mismo motivo: ver `WHY_A_RUN_FINGERPRINT`.
+        st.session_state[f"ot_scan_{nombre}"] = (huella, offtarget_run(
             seleccion, catalog=catalogo, mature=maduros, params=params,
             species=nombre, starts=tuple(starts), guides=True, passengers=True,
             target=diana, target_label=f"3'UTR de {nombre}",
-        )
-    scan = st.session_state.get(f"ot_scan_{nombre}")
+        ))
+    guardado = st.session_state.get(f"ot_scan_{nombre}")
+    scan = guardado[1] if guardado and guardado[0] == huella else None
+    if guardado and guardado[0] != huella:
+        st.info(WHY_A_RUN_FINGERPRINT)
     if scan is not None:
         destacados = offtarget_highlights(scan)
         st.error(destacados["limite_superior"]["texto"])

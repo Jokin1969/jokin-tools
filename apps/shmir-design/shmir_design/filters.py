@@ -36,11 +36,19 @@ BIOPHYSICAL_FILTERS = frozenset(
         "GC",
         "homopolimero",
         "asimetria",
-        "G4_diana",
-        "G4_guia",
         "zona_prohibida_polyA",
     }
 )
+
+#: Filtros que existen, se calculan y **no emiten veredicto** mientras no se decida su
+#: criterio por escrito. No es lo mismo que no estar: se siguen viendo en su columna, en
+#: `NOT_RUN`, con el hallazgo dentro del motivo. Hoy: los dos G-cuadruplex — ver
+#: `hard_filters.G4_PENDING`.
+#:
+#: Estan FUERA de `BIOPHYSICAL_FILTERS` a proposito: si contaran, `biofisicos_ok` seria
+#: falso para las 2170 ventanas y la piscina de elegibles se vaciaria entera por una
+#: decision que esta pendiente, no por un criterio.
+UNDECIDED_FILTERS = frozenset({"G4_diana", "G4_guia"})
 
 
 class FilterState(StrEnum):
@@ -77,7 +85,19 @@ class FilterResult:
 
 
 def overall_verdict(results: list[FilterResult]) -> Verdict:
-    """Agrega varios filtros. Un solo NOT_RUN impide dar el candidato por aprobado."""
+    """Agrega varios filtros. Un solo NOT_RUN impide dar el candidato por aprobado.
+
+    Los de `UNDECIDED_FILTERS` **no cuentan**, y es lo que significa «no emite
+    veredicto». Dejarlos dentro habria hecho que TODA ventana saliera `INCOMPLETE` por
+    un criterio que nadie ha autorizado — o sea, `PASS` estructuralmente inalcanzable,
+    que es exactamente el fallo que este proyecto ya tuvo con la interfaz y sus tres
+    parametros. Bloquear una aprobacion tambien es decidir.
+
+    Lo que NO se hace es esconderlos: siguen en su columna con el hallazgo dentro, y
+    salen en la lista de pendientes de decision. La misma forma que `polyA` cuando paso
+    de veredicto a anotacion, y que `carga_seed`, que es un numero y nunca un veredicto.
+    """
+    results = [r for r in results if r.name not in UNDECIDED_FILTERS]
     if not results:
         raise ValueError(
             "No se puede emitir veredicto sin ningún filtro evaluado; "
