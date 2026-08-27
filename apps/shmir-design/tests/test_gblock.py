@@ -59,12 +59,25 @@ class TestComprobaciones(unittest.TestCase):
     def checks(self, guia):
         return {c.name: c for c in build_gblock(build_hairpin(guia)).checks}
 
-    def test_el_modulo_de_referencia_pasa_todo(self):
+    def test_los_cuatro_del_modulo_pasan(self):
+        # Los CUATRO que se calculan sobre la secuencia. El quinto —contrastar los
+        # contextos con el plásmido— depende de un fichero que no está, así que va en
+        # su propio test y en `test_contextos_vs_plasmido.py`.
         gblock = build_gblock(build_hairpin(GUIA_REF))
-        self.assertTrue(gblock.ok)
         for check in gblock.checks:
+            if check.name == "contextos_vs_plasmido":
+                continue
             with self.subTest(check.name):
                 self.assertIs(check.state, FilterState.PASS)
+
+    def test_pero_el_modulo_NO_es_apto_sin_contrastar_los_contextos(self):
+        # Antes esto era `assertTrue(gblock.ok)`. Cambia a propósito: un módulo cuyos
+        # contextos nadie ha contrastado con el vector real no puede salir apto, y lo
+        # que se pide con un apto falso es ADN. Con el plásmido delante, sí lo es.
+        from tests.test_contextos_vs_plasmido import plasmido
+
+        self.assertFalse(build_gblock(build_hairpin(GUIA_REF)).ok)
+        self.assertTrue(build_gblock(build_hairpin(GUIA_REF), plasmid=plasmido()).ok)
 
     def test_longitud(self):
         self.assertIs(self.checks(GUIA_REF)["longitud"].state, FilterState.PASS)

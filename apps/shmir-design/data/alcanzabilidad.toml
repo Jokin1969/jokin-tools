@@ -50,20 +50,48 @@ seed_reference_dir = "La invoca el hub, no Python: `apps/shmir/routes.js` la eje
 #     selección, que se pidió para poder compararlas. La página todavía no la enseña.
 #   · describe_triple — el detalle del TRIPLE MOTIVO. CLAUDE.md ya lo declaraba
 #     pendiente; sigue sin emitirse.
-#   · verify_contexts_against_plasmid — ABORTA si los contextos del módulo no coinciden
-#     con el plásmido depositado, y eso es justo lo que hay que comprobar ANTES de pedir
-#     un gBlock. Hoy sólo lo corren sus tests: la comprobación existe y no corre cuando
-#     serviría de algo.
 #   · shared_network — la intersección REAL de las dos redes de off-target al
 #     multiplexar. Su propio docstring dice que `None` significa NO CALCULADO y que hay
 #     que decirlo con esas palabras — y no hay nadie que lo diga, porque no se llama.
 #
-#   Y tres casos de DOS FORMAS DE CALCULAR LO MISMO, una de ellas sin usar. No es que
-#   sobre código: es que hay dos definiciones de un número y nada garantiza que
-#   coincidan. O se unifican o se borra una, y las dos salidas se deciden por escrito:
-#   · ceiling_layers   — `outputs.py` usa el método `measured_apa.layer_for`.
-#   · verdict_state    — el estado del frente de empalme sale de `splice_store`/`dossier`.
-#   · analyze_3utr     — el tilado y la selección usan `annotate_polya`.
+# RESUELTO — verify_contexts_against_plasmid YA ESTÁ CABLEADA (2026-08-27). Corre en los
+# DOS generadores de módulo, `gblock.build_gblock` y `blocks.build_block`, como
+# `_check_contexts`. Sin el plásmido SGEP —que NO está en el repositorio: el casete AAV
+# es otro vector y no contiene los contextos, comprobado con test— sale NOT_RUN, el
+# módulo entero INCOMPLETE, y el motivo se pinta en la ficha. Que corriera sin verse
+# habría sido la mitad del arreglo.
+#
+# LOS TRES PARES DUPLICADOS, CRUZADOS (`tests/test_cruce_de_pares_duplicados.py`). No se
+# borró ninguno: se cruzaron. Y al cruzarlos resultaron ser tres cosas distintas.
+#
+#   · verdict_state / SpliceRun.verdict — PAR DE VERDAD, y NO COINCIDEN. `verdict_state`
+#     mira la corrida ENTERA («¿tiene pares?»); el almacén mira EL PAR candidato x
+#     intrón, que es la unidad que este frente tiene decidida. Para un candidato que
+#     nadie consultó, `verdict_state` dice PASS donde el almacén dice NOT_RUN. O sea que
+#     la que no tenía llamador no era una copia redundante: era la EQUIVOCADA, y estaba
+#     ahí para que alguien la cableara. La discrepancia queda FIJADA en un test. Pasa a
+#     categoría 3 —se borra en su tanda—, pero con el motivo escrito, que es lo que
+#     faltaba: no sobra, está mal.
+#   · ceiling_layers / MeasuredApa.layer_for — NO son dos implementaciones.
+#     `ceiling_layers(m)` es literalmente `return m.layers`, y `layer_for` busca DENTRO
+#     de esa misma lista: no pueden discrepar, así que no hay nada que cruzar. Lo que sí
+#     se puede exigir es lo que su docstring AFIRMA —que los tramos cubren el 3'UTR sin
+#     huecos ni solapes—, y eso ya está comprobado sobre posiciones reales del ratón.
+#     Categoría 3: es un alias.
+#   · analyze_3utr / annotate_polya — dos GENERACIONES, no dos implementaciones, y con
+#     reglas deliberadamente distintas: la vieja usa el umbral simétrico ±10 que «no
+#     sale de ningún artículo», la nueva la ventana de corte asimétrica aguas abajo.
+#     Exigirles que coincidan sería exigir que el bloque 3 no hubiera pasado. Lo que SÍ
+#     comparten es `find_polya_signals`, y ESE es el número que se cruza — mismo conjunto
+#     de hexámeros por los dos caminos, con el AATATA de 3utr:236 dentro. Categoría 3.
+#
+# Y UN CUARTO PAR que el cruce sacó y que no estaba en la lista, porque los dos lados
+# tienen llamador y por eso la alcanzabilidad no los ve: `blocks.py` monta el módulo con
+# SUS piezas y `gblock.py` con SUS constantes. Hoy coinciden —comprobado—, pero nada lo
+# obligaba: corregir un contexto en un sitio y no en el otro haría que la ficha y los
+# oligos describieran dos módulos distintos sin que saltase nada. Y la comprobación
+# contra el plásmido usa las de `gblock`, así que validaría un módulo que la ficha no
+# monta. Cruzado con un test sobre el módulo ENTERO, no sobre las piezas.
 #
 # CATEGORÍA 3 — MUERTAS, para su propia tanda de borrado:
 #   · offset_of (coords) — CERO referencias en todo el repo, ni siquiera un test. Lo que

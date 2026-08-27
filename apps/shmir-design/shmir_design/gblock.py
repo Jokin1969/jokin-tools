@@ -177,8 +177,60 @@ def _check_homopolymer(variable: str) -> FilterResult:
     )
 
 
-def build_gblock(hairpin: Hairpin) -> GBlock:
-    """Monta el modulo NheI–SacI y lo comprueba. No silencia ningun fallo."""
+WHY_THE_PLASMID_IS_A_CHECK = (
+    "Los contextos del módulo son CONSTANTES de este código, y lo que se pide a "
+    "sintetizar tiene que encajar en el plásmido REAL. Contrastarlos es una "
+    "comprobación como las otras cuatro, no un extra: por eso corre en cada "
+    "generación de módulo y por eso su ausencia sale NOT_RUN y no PASS."
+)
+
+#: Lo que haría falta para que la comprobación corra de verdad. NO está en el
+#: repositorio: `data/reference/aav_casete.fa` es pAAV con PrP murino, otro vector, y no
+#: contiene ninguno de los dos contextos —comprobado, con test—.
+SGEP_PLASMID_MISSING = (
+    "No está el plásmido SGEP depositado, así que los contextos del módulo "
+    f"(5' {CONTEXT_5} en {CONTEXT_POSITIONS['contexto_5'][0]}-"
+    f"{CONTEXT_POSITIONS['contexto_5'][1]}, 3' {CONTEXT_3} en "
+    f"{CONTEXT_POSITIONS['contexto_3'][0]}-{CONTEXT_POSITIONS['contexto_3'][1]}) NO se "
+    "han contrastado con el vector real. NO pidas el gBlock con esto sin resolver."
+)
+
+
+def _check_contexts(plasmid: str | None) -> FilterResult:
+    """La comprobación de los contextos, como quinto `FilterResult` del módulo.
+
+    Un desajuste NO sale como FAIL de este candidato: `verify_contexts_against_plasmid`
+    ABORTA, y está bien que aborte. Si los contextos no son los del vector, están mal
+    TODOS los módulos y no éste — un veredicto por candidato lo disfrazaría de problema
+    de la ventana, que es de lo que uno se fía para descartarla y seguir con la
+    siguiente.
+    """
+    if plasmid is None:
+        return FilterResult(
+            name="contextos_vs_plasmido",
+            state=FilterState.NOT_RUN,
+            reason=SGEP_PLASMID_MISSING,
+        )
+    verify_contexts_against_plasmid(plasmid)
+    return FilterResult(
+        name="contextos_vs_plasmido",
+        state=FilterState.PASS,
+        reason=(
+            f"Los dos contextos coinciden con el plásmido en las posiciones "
+            f"declaradas ({CONTEXT_POSITIONS['contexto_5'][0]}-"
+            f"{CONTEXT_POSITIONS['contexto_5'][1]} y "
+            f"{CONTEXT_POSITIONS['contexto_3'][0]}-"
+            f"{CONTEXT_POSITIONS['contexto_3'][1]})."
+        ),
+    )
+
+
+def build_gblock(hairpin: Hairpin, *, plasmid: str | None = None) -> GBlock:
+    """Monta el modulo NheI–SacI y lo comprueba. No silencia ningun fallo.
+
+    `plasmid` es el vector depositado. Sin él la comprobación de contextos sale
+    `NOT_RUN` y el módulo entero `INCOMPLETE`: ver `WHY_THE_PLASMID_IS_A_CHECK`.
+    """
     sequence = NHEI_SITE + CONTEXT_5 + hairpin.sequence + CONTEXT_3 + SACI_SITE
     return GBlock(
         sequence=sequence,
@@ -188,6 +240,7 @@ def build_gblock(hairpin: Hairpin) -> GBlock:
             _check_unique_sites(sequence),
             _check_intron_sites(sequence),
             _check_homopolymer(hairpin.sequence),
+            _check_contexts(plasmid),
         ),
     )
 

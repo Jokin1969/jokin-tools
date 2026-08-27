@@ -377,9 +377,19 @@ def build_dossier(
         module=bloque.module,
         cassette=bloque.cassette,
         blast_history=almacen.history(consulta),
-        module_note=(
-            "" if bloque.module_safe
-            else "MÓDULO NO VERIFICADO: no se ha podido confirmar que la horquilla "
-                 "sobreviva dentro del intrón."
+        module_note=" ".join(
+            aviso for aviso in (
+                (
+                    "" if bloque.module_safe
+                    else "MÓDULO NO VERIFICADO: no se ha podido confirmar que la "
+                         "horquilla sobreviva dentro del intrón."
+                ),
+                # La comprobación de contextos CORRE en cada generación de módulo; que
+                # corra y no se vea sería la mitad del arreglo. Sale aquí porque ésta es
+                # la pantalla desde la que se pide sintetizar.
+                bloque.check("contextos_vs_plasmido").reason
+                if bloque.check("contextos_vs_plasmido").state is FilterState.NOT_RUN
+                else "",
+            ) if aviso
         ),
     )

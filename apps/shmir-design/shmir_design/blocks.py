@@ -434,6 +434,7 @@ def build_block(
     transgene=None,
     reoptimize_spacers: bool = False,
     available: bool | None = None,
+    plasmid: str | None = None,
 ) -> Block:
     """Monta el modulo y el cassette de una guia, y los comprueba.
 
@@ -534,6 +535,11 @@ def build_block(
         )
     )
 
+    # Los contextos de ESTE modulo contra el plasmido depositado. Va aqui ademas de en
+    # `gblock.build_gblock` porque son DOS generadores del mismo modulo y «en cada
+    # generacion» son los dos: este es el que alimenta la ficha, o sea el que se lee.
+    from .gblock import _check_contexts  # noqa: PLC0415
+
     checks = (
         _check_lengths(module, cassette, intron),
         _check_unique_sites(cassette),
@@ -544,6 +550,7 @@ def build_block(
         _check_transgene(transgene),
         gibson_cassette,
         _check_spacers(eleccion, reoptimize_spacers, en_intron),
+        _check_contexts(plasmid),
     )
 
     return Block(
