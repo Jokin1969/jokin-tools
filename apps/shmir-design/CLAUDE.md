@@ -10,6 +10,65 @@
 
 ---
 
+## ⚠ SI VAS AL BANCO: los amplicones de la RT-qPCR son ÉSTOS
+
+Va arriba del todo porque es lo único de este fichero que puede llegar tarde: un
+cuaderno con las coordenadas viejas ya está escrito.
+
+| | 3'UTR | transcrito |
+|---|---|---|
+| **proximal** | **`3utr:106-225`** | `tx:1055-1174` |
+| **distal** | **`3utr:282-401`** | `tx:1231-1350` |
+
+120 nt cada uno, holgura de 10 nt. Emitidos por `polya.rtqpcr_amplicons` sobre el corte
+más temprano, que es el del `AATATA` de `3utr:236`.
+
+### ~~Los viejos: `3utr:158-277` y `3utr:684-803`~~ — NO VALEN
+
+Se diseñaron contra `3utr:288`, cuyo corte cae en `3utr:303-323`. Eso era el corte más
+temprano **antes** de que la promoción por medida subiera el `AATATA` de `3utr:236` a
+`APA_POSIBLE`. Con ese sitio dentro, el corte más temprano pasa a `3utr:251-271` — y ese
+tramo cae **entero dentro del amplicón proximal viejo**.
+
+No queda a caballo: queda **partido en dos por el propio suceso que se quería medir**. Un
+amplicón partido por un corte no da producto en la isoforma cortada, así que el proximal
+dejaría de medir «el total» y **la razón distal/proximal no mediría nada**. El distal
+viejo sí estaba bien colocado; el que invalida el par es el proximal.
+
+### Lo que este par SÍ mide y lo que NO
+
+El amplicón distal nuevo (`3utr:282-401`) queda entero detrás de `251-271` **y atraviesa
+`303-323`**, la banda del `AATAAA` de 288. Así que la razón **no** mide la fracción que
+sobrevive al corte de 236: mide **la que sobrevive a los dos**.
+
+**Para el panel eso es justo lo que hace falta** —sus seis candidatos con techo están
+detrás de las dos bandas, o sea el tramo de 0,86—. Lo que **no** se puede confirmar con
+este par es el **0,91 del tramo intermedio**.
+
+**Y no se arregla moviéndolo**: entre las dos bandas, con la misma holgura, quedan
+`3utr:282-292` — **11 nt** para un amplicón de 120. Es geométricamente imposible aislar
+el evento de 236 con esta arquitectura. El informe lo emite pegado al plan
+(`AmpliconPlan.distal_crosses`, `gap_between`), no en una nota.
+
+### Y una frase que era falsa, también de los viejos
+
+Aquí ponía «esquivando las dianas del panel». **Ni los nuevos ni los viejos lo
+consiguen**: el proximal solapa `3utr:143-164` y `3utr:200-221` (los viejos solapaban
+`143-164` y `221-242`). El código sí lo decía —lo marca con `⚠ solapa`— y era la prosa de
+este fichero la que no. Por eso se mide sobre **tejido sin tratar**: en muestras tratadas
+un amplicón que solape una diana mide corte por RNAi, no isoformas.
+
+### Por qué esto está en el registro y no sólo en un commit
+
+**Es el primer caso en el que el trabajo computacional corrige un experimento de banco
+ANTES de hacerlo.** Hasta ahora el pipeline emitía veredictos sobre candidatos; aquí un
+cambio de regla —la promoción por medida deja de depender de una bandera— ha invalidado
+un diseño experimental que ya estaba escrito y ha emitido el que lo sustituye. El coste
+evitado no es una plaza del panel: es una tanda de RT-qPCR cuya razón no habría
+significado nada, y que habría parecido un resultado.
+
+---
+
 ## Reglas innegociables
 
 **1. NUNCA generes, completes ni "reconstruyas" secuencias biológicas.** Si falta una
@@ -296,12 +355,9 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     (`polya.rtqpcr_amplicons`): RT-qPCR de dos amplicones sobre el 3'UTR murino, uno
     entero por delante del hexámero y otro entero por detrás de la banda de corte,
     cuantificados contra una **curva estándar común**; la razón distal/proximal *es*
-    `fraccion_isoforma_larga`. **ACTUALIZADO (2026-08-27)**: el experimento se diseña
-    contra el corte **más temprano**, y con la medida aplicada siempre ése pasó a ser el
-    `AATATA` de `3utr:236`, no el `AATAAA` de `3utr:288`. Los amplicones se mueven en
-    consecuencia: **3'UTR 106-225** y **282-401** (`tx:1055-1174` y `tx:1231-1350`), 120
-    nt cada uno, holgura de 10 nt y esquivando las dianas del panel. Los de la señal de
-    288 eran `3utr:158-277` y `684-803`; **quien vaya al banco usa los nuevos**. Se emiten
+    `fraccion_isoforma_larga`. **Las coordenadas están arriba del todo**, en «SI VAS AL
+    BANCO», con las viejas tachadas y el motivo: se diseña contra el corte MÁS TEMPRANO,
+    que con la medida aplicada siempre pasó a ser el `AATATA` de `3utr:236`. Se emiten
     **coordenadas**: no se emiten cebadores — eso necesita Tm, especificidad y horquillas,
     y no se improvisa. Se mide sobre tejido **sin tratar**: en muestras tratadas un
     amplicón que solape una diana mide corte por RNAi, no isoformas.
@@ -2319,6 +2375,44 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   código no pudo calcular —los pasos 3-8 estaban «pendiente»—. **El repositorio no puede
   decidir cuál de las dos, así que no se decide.**
 
+- **QUÉ DATOS DE UNA ESPECIE SIGUEN EN EL CÓDIGO (2026-08-27)**
+  (`tools/auditar_datos.py`, `data/datos_en_codigo.toml`, dentro de
+  `npm run check:shmir`). Es la generalización de lo que ya pasó tres veces —
+  `rmsk_mouse.out` conectado por rol, `txid10090` por defecto, `mmu-` por defecto—: un
+  dato de UNA especie escrito en el código **funciona callado** y sobre otra produce un
+  resultado con la **forma correcta**. Tres categorías, y la distinción es lo único que
+  hace útil el informe:
+  - **DATO (5)** — debería estar en un fichero del gestor, con md5 y procedencia:
+    - `apa.POLYA_DB_PRNP` → **`apa_medido.tsv`**. **La más importante**: 15 PAS con PSE y
+      AvgRPM, y de ella cuelgan el techo por tramos, la promoción del `AATATA` y el panel
+      de diez. **El rol `apa` YA EXISTE en el gestor**: lo que falta no es
+      infraestructura, es mover la tabla. Mientras siga en código, cambiar de versión de
+      PolyA_DB es tocar código y su md5 no está en el manifiesto.
+    - `offtarget.CONTROL_NAMES` → **no existe el fichero todavía**. Los tres controles
+      biológicos son de **cerebro** y su elección viene de la biología, no del código.
+      Sus secuencias sí salen de `mature.fa` (regla 1); lo que está escrito son los
+      **nombres**, y hoy no hay forma de cambiarlos sin editar el módulo.
+    - `external_score.EVIDENCE` → los pares (puesto, score) de una corrida concreta de
+      miRarchitect. **El fichero de esa corrida ya está versionado**, así que hay **dos
+      definiciones del mismo dato** — el cuarto par duplicado otra vez, y esta vez con el
+      código como la copia.
+    - `seeds.BOOTSTRAP_SEED_TABLE` → doce seeds murinas a mano. Ya está declarado como
+      lista de arranque y sale avisado en cada informe; lo que le falta es **fecha de
+      caducidad**: se borra cuando `mature.fa` sea obligatorio para correr.
+    - `reference.REFERENCES` → los dos transcritos con su anatomía. Es dato **declarado y
+      con checksum**, así que no es el caso peligroso — pero añadir una tercera especie
+      sigue siendo editar código. El manifiesto registra los ficheros; **la anatomía no**.
+  - **DECLARACIÓN (7)** — van en código **a propósito**: `mirna.CORE_ABUNDANT` (con
+    autorización escrita y fechada: en un fichero se podría cambiar sin que se viera en
+    el diff, que es lo contrario de lo que su autorización pide), `species.SPECIES`,
+    `ALIASES`, `TAXIDS`, `HISTORICAL_PREFIXES`, `LET7_FAMILY`, `VECTOR_DESCRIPTION`.
+  - **PROSA (9)** — razonamiento y avisos, pegados a lo que explican. Con **una tarea
+    pendiente**: `offtarget.UCSC_ROUTE` nombra `mm39` **dentro del texto** en vez de
+    resolverlo contra `species.ucsc_assembly`, que ya existe y ya lo usan las fichas.
+  - La tabla la ata un test en las dos direcciones, como `alcanzabilidad.toml`: una
+    constante sospechosa **sin clasificar** hace fallar la suite, y una entrada **muerta**
+    también.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
@@ -2330,6 +2424,7 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | lista ampliada de abundancia (con referencia y umbral) | colisión de seed, nivel AVISO | `--abundancia` |
 | 3'UTR del transcriptoma (UCSC Table Browser, mm39, NCBI RefSeq, «3' UTR Exons»; hay que apuntar ensamblaje, fecha de la tabla y criterio de representante) | carga de off-targets por seed — el TERCER modal, `offtarget_seed` | `--transcriptoma-3utr` o el modal |
 | máscara rmsk de ratón | elementos repetitivos | `--rmsk` |
-| 3'-end seq de cerebro murino | fracción de isoforma larga en NUESTRO tejido (hoy hay la de todos los tejidos: 0,86, límite inferior) | `--apa-medido` |
+| 3'-end seq de cerebro murino | fracción de isoforma larga en NUESTRO tejido (hoy hay la de todos los tejidos: 0,86, límite inferior) | se sube por el gestor |
+| **`apa_medido_human.tsv`** — PolyA_DB v4 para **PRNP / hg38** | que el humano deje de estar en **MODO ASUMIDO**. La tabla murina se aplica por md5 del 3'UTR, así que sobre el humano devuelve `None` y sus dos `ATTAAA` (`3utr:955` y `3utr:1167`) siguen clasificadas por **canonicidad y sin un solo dato de uso**. Es exactamente donde estaba el ratón antes de mirar PolyA_DB — y allí el modo sin medida resultó ser el **equivocado**. **La entrada existe y quedó pendiente** desde que se miró la murina: es la misma consulta cambiando la especie en el selector | se sube por el gestor |
 | parental SIN INTRÓN (donante y aceptor fuera) | techo de expresión para el empalme; `aav_casete.fa` NO vale, lleva el intrón vacío de 82 nt | — |
 | tabla de expresión | ponderar la carga de seed | `--expresion` |

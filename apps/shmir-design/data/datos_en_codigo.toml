@@ -1,0 +1,189 @@
+# Que datos concretos de una especie o de un gen viven en el CODIGO, y cuales de ellos
+# deberian estar en un fichero del gestor.
+#
+# Lo genera y lo comprueba `tools/auditar_datos.py`, con `tests/test_datos_en_codigo.py`
+# atando la tabla a lo que hay: una constante sospechosa sin clasificar hace fallar la
+# suite, y una entrada muerta tambien. Misma disciplina que `alcanzabilidad.toml`, y por
+# la misma razon: una lista que se pudre deja de leerse, y el siguiente hallazgo se
+# pierde dentro.
+#
+# TRES categorias, y la distincion es lo unico que hace util el informe:
+#
+#   dato        una medida, una tabla o una lista de una especie concreta. En codigo no
+#               es auditable dentro de un año y no se puede cambiar sin tocar el codigo.
+#               Toda entrada `dato` dice A QUE FICHERO iria: sin eso, «deberia estar en
+#               un fichero» es una queja y no una tarea.
+#   declaracion un valor que el proyecto DECIDE y que no sale de ninguna medida. Va en
+#               codigo A PROPOSITO: es la fuente unica, y en un fichero se podria
+#               cambiar sin que se viera en el diff.
+#   prosa       razonamiento, avisos y motivos. Van pegados a lo que explican.
+
+# ─────────────────────────── DATO ───────────────────────────
+
+[[constante]]
+simbolo = "apa.POLYA_DB_PRNP"
+categoria = "dato"
+fichero = "apa_medido.tsv"
+motivo = """\
+LA MAS IMPORTANTE DE LA LISTA. Son 15 PAS de PolyA_DB v4.1 para Prnp murino con su PSE y \
+su AvgRPM, y de ella cuelgan el techo por tramos, la promocion del AATATA de 3utr:236 y, \
+desde 2026-08-27, el panel de diez. El rol `apa` YA EXISTE en el gestor y su fichero es \
+`apa_medido.tsv`: lo que falta no es infraestructura, es mover la tabla. Mientras siga \
+aqui, cambiar de version de PolyA_DB es tocar codigo, y el md5 del dato no esta en el \
+manifiesto — que es exactamente lo que el manifiesto existe para impedir."""
+
+[[constante]]
+simbolo = "seeds.BOOTSTRAP_SEED_TABLE"
+categoria = "dato"
+fichero = "mature.fa (ya existe; esto es su sustituto de arranque)"
+motivo = """\
+Doce seeds de miARN murinos escritas a mano. El propio modulo ya dice que es una lista de \
+ARRANQUE y no un filtro real, y el aviso sale en cada informe — asi que esto no esta \
+escondido. Lo que le falta es fecha de caducidad: con `mature.fa` cargado no la usa nadie, \
+y mientras exista alguien puede correr con ella sin darse cuenta de que el resultado no \
+vale. Se borra cuando el fichero de maduros sea obligatorio para correr."""
+
+[[constante]]
+simbolo = "offtarget.CONTROL_NAMES"
+categoria = "dato"
+fichero = "controles_offtarget.tsv (no existe todavia)"
+motivo = """\
+miR-124-3p, miR-9-5p y let-7a-5p: los tres controles biologicos cuyo conteo es la \
+REFERENCIA de que significa «muchos sitios». Son de CEREBRO y su eleccion viene de la \
+biologia de ese tejido, no del codigo — o sea que es un dato, no una decision nuestra. \
+Sus SECUENCIAS si salen de `mature.fa` y eso esta bien (regla 1); lo que esta en codigo \
+son los NOMBRES. Sobre otra especie o otro tejido harian falta otros, y hoy no hay forma \
+de cambiarlos sin editar el modulo."""
+
+[[constante]]
+simbolo = "external_score.EVIDENCE"
+categoria = "dato"
+fichero = "mirarchitect_prnp_export.csv (ya existe; esto es su resumen)"
+motivo = """\
+Los pares (puesto, score) de la corrida manual de miRarchitect sobre el 3'UTR murino. Es \
+el REGISTRO DE UNA CORRIDA CONCRETA metido en el codigo, y de el depende leer el ranking \
+en la direccion correcta. El fichero de esa corrida ya esta versionado: estos cinco pares \
+se DERIVAN de el, asi que hoy hay dos definiciones del mismo dato — el cuarto par \
+duplicado otra vez, y esta vez con el codigo como la copia."""
+
+[[constante]]
+simbolo = "reference.REFERENCES"
+categoria = "dato"
+fichero = "manifest.tsv (ya lleva sus md5; esto es la anatomia)"
+motivo = """\
+Los dos transcritos con su accession, longitud, md5 canonico y los tramos utr5/cds/utr3. \
+Es dato declarado y con checksum, asi que no es el caso peligroso — pero es dato: añadir \
+una tercera especie es editar codigo. El manifiesto ya registra los ficheros; lo que no \
+registra es la ANATOMIA, que es lo que esta aqui."""
+
+# ────────────────────────── DECLARACION ──────────────────────────
+
+[[constante]]
+simbolo = "mirna.CORE_ABUNDANT"
+categoria = "declaracion"
+motivo = """\
+Los diez miARN de cerebro murino que dan FAIL duro. Tiene AUTORIZACION ESCRITA Y FECHADA \
+(`CORE_AUTHORIZATION`) y es una DECISION del proyecto sobre consenso del campo, no una \
+medida. Sacarla a un fichero permitiria cambiarla sin que se viera en el diff, que es lo \
+contrario de lo que su autorizacion pide. Fuera de raton el veredicto SALE MARCADO \
+(`LISTA_DE_OTRA_ESPECIE`), que es lo que la hace defendible."""
+
+[[constante]]
+simbolo = "mirna.LET7_FAMILY"
+categoria = "declaracion"
+motivo = "Parte de `CORE_ABUNDANT`, con su misma autorizacion."
+
+[[constante]]
+simbolo = "species.SPECIES"
+categoria = "declaracion"
+motivo = """\
+Prefijo de miRBase, taxid y ensamblaje por especie. Es LA fuente unica y existe \
+precisamente para que no se deduzcan del nombre: `ocu-`, `oc-` y `ory-` son todos \
+plausibles y solo uno existe. En un fichero, un prefijo equivocado daria cero colisiones \
+—que parece una buena noticia— sin pasar por ninguna revision."""
+
+[[constante]]
+simbolo = "species.ALIASES"
+categoria = "declaracion"
+motivo = """\
+`raton`/`ratón`/`Mus musculus` → `mouse`. Convenio interno del proyecto: sin el, la \
+corrida murina se marcaria a si misma como lista de otra especie."""
+
+[[constante]]
+simbolo = "specificity.TAXIDS"
+categoria = "declaracion"
+motivo = """\
+Ya no es una lista blanca: `taxid_for` valida que la especie TENGA taxid declarado, y \
+`species.SPECIES` es quien lo dice. Queda como el caso base."""
+
+[[constante]]
+simbolo = "mirna.HISTORICAL_PREFIXES"
+categoria = "declaracion"
+motivo = """\
+El par `("mmu-","hsa-")` con el que se calculo el 19,1 % historico. Es un REGISTRO de con \
+que se midio una cifra publicada, no un valor por defecto — el defecto es `()` desde que \
+se quitaron los valores callados."""
+
+[[constante]]
+simbolo = "blocks.VECTOR_DESCRIPTION"
+categoria = "declaracion"
+motivo = """\
+El nombre del plasmido de las 12 piezas. Va con `blocks.PIECES`, que el proyecto ya \
+declara como EL VECTOR CONCRETO y no un valor por defecto: para otra especie no se \
+parametriza, se sustituye — y entonces se sustituye esto tambien."""
+
+# ─────────────────────────── PROSA ───────────────────────────
+
+[[constante]]
+simbolo = "apa.CLUSTER_READING"
+categoria = "prosa"
+motivo = "El cabo suelto de `131938392`: dos lecturas y por que no se cierra ninguna."
+
+[[constante]]
+simbolo = "blocks.PRIMER_WARNING"
+categoria = "prosa"
+motivo = """\
+El aviso de que la especificidad de vector la da SOLO el cebador de aguas arriba. Es el \
+error que arruinaria el ensayo sin dar ninguna señal, y va pegado a la hoja de pedido."""
+
+[[constante]]
+simbolo = "introns._ERRATA"
+categoria = "prosa"
+motivo = "Como se consigue un intron y por que no se teclea. Errata nº 5 por escrito."
+
+[[constante]]
+simbolo = "mirna.BORROWED_LIST_WARNING"
+categoria = "prosa"
+motivo = "Que significa usar la lista murina en otra especie, en el motivo del FAIL."
+
+[[constante]]
+simbolo = "offtarget.UCSC_ROUTE"
+categoria = "prosa"
+motivo = """\
+La ruta de descarga del transcriptoma. Es prosa, pero nombra `mm39` DENTRO del texto en \
+vez de resolverlo contra `species.ucsc_assembly`, que ya existe y ya lo usan las fichas de \
+obtencion. Es el unico de esta categoria con una tarea pendiente."""
+
+[[constante]]
+simbolo = "offtarget.LIMITATIONS"
+categoria = "prosa"
+motivo = """\
+Las tres limitaciones del conteo. Cita el 0,86 de Prnp como EJEMPLO de por que un sitio \
+distal no esta en todos los mensajeros; el argumento es general."""
+
+[[constante]]
+simbolo = "orf_sweep.STRUCTURAL_NOTE_VERIFIED"
+categoria = "prosa"
+motivo = "Lo verificado traduciendo los dos ORF, y lo que sigue declarado sin comprobar."
+
+[[constante]]
+simbolo = "orf_sweep.REACH_NOTE"
+categoria = "prosa"
+motivo = "El reparto de alcance: llega a PRNP humano y no al transgen del casete."
+
+[[constante]]
+simbolo = "polya.PAS_IS_CLEAVAGE_SITE"
+categoria = "prosa"
+motivo = """\
+El desempate de la lectura del PAS, con la leyenda de PolyA_DB como argumento. Es el \
+razonamiento que hace utilizable la tabla; sacarlo lo alejaria de donde hace falta."""

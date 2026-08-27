@@ -792,6 +792,11 @@ def text_report(
             dominante,
             utr_length=tiling.sequence_length,
             frame=marco,
+            # LAS OTRAS señales APA_POSIBLE. Sin ellas el plan no puede saber que su
+            # amplicon distal atraviesa la banda de corte de otra —y un amplicon partido
+            # por un corte no da producto en la isoforma cortada—, asi que la razon
+            # distal/proximal mediria otra cosa de la que dice. Errata nº 24.
+            others=tuple(s for s in canonicas if s is not dominante),
             # Los amplicones se quedan DENTRO de lo que se ha analizado como 3'UTR: sin
             # este limite, esquivar las dianas del panel empujaba el proximal hasta el
             # CDS, y ahi ya no hay coordenada de 3'UTR que emitir.

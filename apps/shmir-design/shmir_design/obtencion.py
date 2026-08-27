@@ -236,7 +236,22 @@ def _values(species) -> dict[str, str]:
         "prefijo": species.mirbase_prefix,
         "taxid": species.taxid,
         "ensamblaje": getattr(species, "ucsc_assembly", ""),
+        # El gen diana de esta especie. Sale de `reference.REFERENCES`, que es DATO
+        # declarado —`Prnp` en raton, `PRNP` en humano—, no del nombre de la especie ni
+        # de una regla de mayusculas: en otro organismo el simbolo puede no seguir
+        # ninguna de las dos convenciones.
+        "gen": _gen_de(species),
     }
+
+
+def _gen_de(species) -> str:
+    """El simbolo del gen diana declarado para esta especie, o vacio si no lo hay."""
+    from .reference import REFERENCES  # noqa: PLC0415
+
+    for referencia in REFERENCES.values():
+        if referencia.slug == species.slug:
+            return referencia.gene
+    return ""
 
 
 #: Como se lee un hueco. Cada uno dice DONDE se declara, para que quien lo lea pueda
@@ -256,6 +271,11 @@ _UNDECLARED = {
         "el ensamblaje de UCSC de {cientifico} NO ESTÁ DECLARADO en este proyecto. Se "
         "elige en el propio Table Browser y se añade a `species.SPECIES` — anotandolo, "
         "porque dos ensamblajes distintos dan coordenadas distintas."
+    ),
+    "gen": (
+        "el gen diana de {cientifico} NO ESTÁ DECLARADO en este proyecto. Sale de la "
+        "referencia de esa especie en `reference.REFERENCES`, y no se deduce del "
+        "simbolo de otra: las convenciones de mayusculas cambian entre organismos."
     ),
 }
 

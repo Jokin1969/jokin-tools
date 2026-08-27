@@ -282,6 +282,12 @@
     Señal en cuestion: AATATA en tx:1185-1190 (3utr:236-241); banda de corte tx:1200-1220.
     proximal: tx:1055-1174 (3utr:106-225) (120 nt). entero por delante de AATATA@tx:1185 (holgura 10 nt) y dentro de la región analizada: presente en las DOS isoformas, mide el total.  ⚠  solapa 1082-1123, 1139-1180
     distal: tx:1231-1350 (3utr:282-401) (120 nt). entero por detrás de la banda de corte tx:1200-1220 (holgura 10 nt): solo presente en la isoforma LARGA.
+    ATENCIÓN — el amplicón distal ATRAVIESA la banda de corte de AATAAA@tx:1237. Un amplicón
+    partido por un corte no da producto en la isoforma cortada, así que la razón
+    distal/proximal NO mide la fracción que sobrevive a ESTE corte: mide la que sobrevive
+    a LAS DOS. Para el panel eso es lo que hace falta —sus candidatos con techo están
+    detrás de las dos bandas— pero el tramo intermedio NO se puede confirmar con este par.
+    Y NO se arregla moviéndolo: entre las dos bandas, con la misma holgura, queda tx:1231-1241 — 11 nt para un amplicón de 120. NO CABE.
     Los dos se cuantifican contra una CURVA ESTÁNDAR COMUN: sin ella las dos eficiencias
     no son comparables y la razón no significa nada.
     RETROTRANSCRIPCION CON HEXÁMEROS ALEATORIOS. Con oligo-dT NO, y el sesgo tiene dirección
