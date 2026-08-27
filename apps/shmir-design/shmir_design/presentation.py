@@ -122,25 +122,14 @@ def status_light(selection: ReportSelection) -> StatusLight:
     # mismo fallo que tuvo la interfaz con sus tres parámetros.
     #
     # Y NO se esconden: salen aparte, con su nombre, en `undecided`.
-    from .filters import UNDECIDED_FILTERS
-
-    sin_decidir = sorted(
-        {
-            r.name
-            for choice in selection.selection.chosen
-            for r in selection.window_of(choice).filters
-            if r.name in UNDECIDED_FILTERS
-        }
-    )
-    nota_sin_decidir = (
-        f" Y {len(sin_decidir)} filtro(s) con el CRITERIO SIN DECIDIR "
-        f"({', '.join(sin_decidir)}): calculan y no emiten veredicto, así que no "
-        f"excluyen a nadie ni bloquean la aprobacion. Se decide por escrito, no se "
-        f"consigue un fichero."
-        if sin_decidir
-        else ""
-    )
-    conteos = {**conteos, "undecided": tuple(sin_decidir)}
+    #
+    # HOY NO HAY NINGUNO. El estado existió para G4 y se retiró con él (ver `filters.py`
+    # y `docs/procedencia-g4.md`). El campo `undecided` se queda —vacío— porque es parte
+    # del contrato de `StatusLight` y quien lo lee tiene que poder seguir leyéndolo; lo
+    # que se fue es el conjunto que lo llenaba.
+    sin_decidir: list[str] = []
+    nota_sin_decidir = ""
+    conteos = {**conteos, "undecided": ()}
     total = (
         len(selection.window_of(selection.selection.chosen[0]).filters)
         if selection.selection.chosen
@@ -164,7 +153,7 @@ def status_light(selection: ReportSelection) -> StatusLight:
             r.name
             for choice in selection.selection.chosen
             for r in selection.window_of(choice).filters
-            if r.state is FilterState.NOT_RUN and r.name not in UNDECIDED_FILTERS
+            if r.state is FilterState.NOT_RUN
         }
     )
     if not pendientes:
@@ -1825,6 +1814,90 @@ def species_choice_note(choice: str) -> dict[str, object]:
 # ─────────────── el panel de ficheros de referencia de la barra lateral ───────────────
 
 
+# ── El gestor de ficheros de referencia ──────────────────────────────────────────
+#
+# La pagina no importa `gestor.py`: pasa por aqui. Si lo importara acabaria decidiendo
+# que botones pinta y que invalida que, y eso es la regla 6.
+
+
+def reference_manager_rows(species: str, *, directory) -> list[dict]:
+    """Las filas del gestor, con la marca y el resumen YA montados."""
+    from .gestor import manager_rows  # noqa: PLC0415
+
+    filas = []
+    for fila in manager_rows(species, directory=directory):
+        presente = fila["estado"] == "presente"
+        marca = "✅" if presente else ("⬜" if fila["obligatorio"] else "▫️")
+        if presente:
+            trozos = [f"{fila['bytes']} bytes", f"md5 {fila['md5'][:8]}"]
+            if fila["fecha"]:
+                trozos.append(fila["fecha"])
+            if fila["origen"]:
+                trozos.append(fila["origen"])
+            resumen = " · ".join(trozos)
+        else:
+            resumen = (
+                f"FALTA{'' if fila['obligatorio'] else ' (opcional)'} — "
+                f"{fila['que_desbloquea']}"
+            )
+        filas.append({**fila, "especie": species, "marca": marca, "resumen": resumen})
+    return filas
+
+
+def reference_preview(name: str, *, directory, lines: int = 10) -> dict:
+    """La vista de las primeras lineas, con su cabecera ya escrita."""
+    from .gestor import preview  # noqa: PLC0415
+
+    vista = preview(name, directory=directory, lines=lines)
+    if not vista.is_text:
+        cabecera = f"{name}: binario"
+    elif vista.truncated:
+        cabecera = (
+            f"{name}: primeras {vista.shown} de {vista.total_lines} líneas"
+        )
+    else:
+        cabecera = f"{name}: {vista.total_lines} línea(s), entero"
+    return {"cabecera": cabecera, "texto": vista.text, "es_texto": vista.is_text}
+
+
+def reference_download(name: str, *, directory) -> bytes:
+    """Los bytes tal como se subieron. Ver `gestor.WHY_DOWNLOAD`."""
+    from .gestor import download  # noqa: PLC0415
+
+    return download(name, directory=directory)
+
+
+def reference_replace_plan(name: str, *, directory, payload: bytes, species=None) -> dict:
+    """Que cambia y que deja de valer, ANTES de confirmar."""
+    from .gestor import plan_replace  # noqa: PLC0415
+
+    plan = plan_replace(
+        name, directory=directory, payload=payload, species=species
+    )
+    return {
+        "texto": plan.describe(),
+        "invalida": list(plan.invalidates),
+        "mismo": plan.same_file,
+        "md5_viejo": plan.old_md5,
+        "md5_nuevo": plan.new_md5,
+    }
+
+
+def reference_delete_plan(name: str, *, directory, species=None) -> dict:
+    """Que frente vuelve a NOT_RUN. NO borra."""
+    from .gestor import plan_delete  # noqa: PLC0415
+
+    plan = plan_delete(name, directory=directory, species=species)
+    return {"texto": plan.describe(), "frentes": list(plan.fronts)}
+
+
+def reference_delete(name: str, *, directory) -> str:
+    """Borra y devuelve el texto de lo que se fue, con su md5."""
+    from .gestor import delete  # noqa: PLC0415
+
+    return f"Borrado {name} (md5 {delete(name, directory=directory)})."
+
+
 def reference_panel_rows(species: str, *, directory) -> list[dict[str, object]]:
     """Una fila por FICHERO que esta especie necesita: cual es, si esta, y su ficha.
 
@@ -2031,12 +2104,139 @@ def splice_warning_rows():
     return warning_blocks()
 
 
+def variant_proposal_text(guide: str, *, available=None) -> str:
+    """La propuesta de `mvm_sin_criptico` para ESTA guía, o por qué no la hay.
+
+    Va en el modal de empalme, junto a la lista de intrones, porque es donde se decide
+    con qué intrón se consulta: un intrón que la app propone y que nadie ve es un intrón
+    que no existe. Las dos decisiones son estructurales, así que hay una propuesta POR
+    CANDIDATO y no una «del proyecto».
+    """
+    from .intron_design import design_variant  # noqa: PLC0415
+    from .scaffold import SGEP_SCAFFOLD  # noqa: PLC0415
+
+    if not str(guide).strip():
+        return (
+            "Sin guía no hay 97-mero y las dos decisiones de la variante son "
+            "estructurales: no se propone nada."
+        )
+    try:
+        return design_variant(
+            guide=guide, scaffold=SGEP_SCAFFOLD, available=available
+        ).describe_text()
+    except ShmirDesignError as exc:
+        # rule2-ok: frontera de presentacion. El motivo entero se enseña.
+        return f"NO se pudo diseñar la variante — {exc}"
+
+
+def variant_proposal_for(selection, *, available=None) -> str:
+    """La propuesta de variante para el PRIMER candidato elegido de esta selección.
+
+    La página pedía el texto leyendo `guide` del primer elegido, y `Choice` no tiene
+    ese campo: la guía se alcanza por `window_of(choice).evaluation.guide`, como hace
+    `block_bundle`. Eran dos fallos en uno —un `AttributeError` en cuanto alguien
+    abriera el modal, y una página NAVEGANDO el modelo, que es lo que la regla 6
+    prohíbe—, y el segundo es el que produjo el primero. La navegación vive aquí.
+    """
+    elegidos = selection.selection.chosen
+    if not elegidos:
+        return variant_proposal_text("", available=available)
+    guia = selection.window_of(elegidos[0]).evaluation.guide.replace("U", "T")
+    return variant_proposal_text(guia, available=available)
+
+
 def splice_intron_rows(names=None):
     """Estado de cada intron del registro. Los que faltan salen VISIBLES."""
     from .introns import INTRONS
     from .spliceai import intron_report
 
     return intron_report(names if names is not None else tuple(INTRONS))
+
+
+def intron_geometry_rows(names=None, *, module_length: int = 149):
+    """Por intrón: el desglose pieza a pieza y dónde cabe el módulo.
+
+    Son las dos preguntas que hay que poder mirar ANTES de montar nada, y las dos
+    salieron de la misma grieta: un total de 296 nt que nadie podía descomponer escondía
+    65 nt de espaciadores de novo, y el sitio de inserción no se emitía en ninguna
+    parte. Un número que no se puede descomponer y una restricción que no se ve son la
+    misma clase de problema.
+
+    Los intrones que NO se ensamblan de piezas —o que todavía no tenemos— salen con su
+    motivo en `nota` y sin inventarse nada: es la regla 3 sobre geometría en vez de
+    sobre filtros.
+    """
+    from .introns import (
+        INTRONS,
+        check_module_upstream,
+        insertion_window,
+        intron_breakdown,
+        locate_elements,
+    )
+
+    filas = []
+    for nombre in (names if names is not None else tuple(INTRONS)):
+        entrada = INTRONS.get(nombre)
+        if entrada is None:
+            raise ShmirDesignError(
+                f"No hay ningún intrón {nombre!r} en el registro; los que hay son "
+                f"{', '.join(sorted(INTRONS))}."
+            )
+        fila = {
+            "intron": nombre,
+            "desglose": None,
+            "insercion": None,
+            "elementos": None,
+            "aguas_arriba": None,
+            "nota": "",
+        }
+        try:
+            fila["desglose"] = intron_breakdown(nombre, module_length=module_length)
+        except ShmirDesignError as exc:
+            # rule2-ok: no es un fallo, es la ausencia dicha con su motivo.
+            fila["nota"] = str(exc)
+        try:
+            secuencia = entrada.require_sequence()
+        except ShmirDesignError as exc:
+            # rule2-ok: el intrón no está. Se dice, y no se calcula geometría de nada.
+            fila["nota"] = (fila["nota"] + " " + str(exc)).strip()
+            filas.append(fila)
+            continue
+        elementos = locate_elements(secuencia, name=nombre)
+        fila["elementos"] = elementos
+        ventana = insertion_window(elementos, module_length=module_length)
+        fila["insercion"] = ventana
+        # La TERCERA restricción, comprobada sobre el primer sitio admisible. Sin
+        # candidato a punto de ramificación sale NOT_RUN y no PASS — no haber podido
+        # comprobarlo no es que se cumpla.
+        fila["aguas_arriba"] = check_module_upstream(
+            elementos, after=ventana.ranges[0][0]
+        )
+        filas.append(fila)
+    return filas
+
+
+def intron_geometry_text(names=None, *, module_length: int = 149) -> str:
+    """El bloque de texto de lo anterior, ya montado. La página no formatea."""
+    lineas: list[str] = []
+    for fila in intron_geometry_rows(names, module_length=module_length):
+        lineas.append(f"── {fila['intron']} ──")
+        if fila["desglose"] is not None:
+            lineas.extend(fila["desglose"].describe())
+        if fila["elementos"] is not None:
+            lineas.extend(fila["elementos"].describe())
+        if fila["insercion"] is not None:
+            lineas.extend(fila["insercion"].describe())
+        if fila["aguas_arriba"] is not None:
+            estado = fila["aguas_arriba"]
+            marca = "OK" if estado.state is FilterState.PASS else "⬜"
+            lineas.append(
+                f"  {marca} {estado.name}: {estado.state.value} — {estado.reason}"
+            )
+        if fila["nota"]:
+            lineas.append(f"  ⬜ {fila['nota']}")
+        lineas.append("")
+    return "\n".join(lineas).rstrip()
 
 
 def splice_constructions(selection, *, target, intron_names, scaffold, starts=None,
@@ -2386,6 +2586,92 @@ def check_project_slug(slug: str) -> str:
             f"Nombre de proyecto {slug!r} no válido. {PROJECT_SLUG_RULE}"
         )
     return limpio
+
+
+# ── Biblioteca del paso 2 ────────────────────────────────────────────────────────
+#
+# La pagina no toca `biblioteca.py`: pasa por aqui, como con todo lo demas. Si empezara a
+# importarlo directamente, acabaria decidiendo sobre el almacen —que ordenar, que
+# etiqueta poner, que hacer si falta— y eso es la regla 6.
+
+
+@dataclass(frozen=True)
+class LibraryFile:
+    """Un fichero de la biblioteca con la MISMA forma que uno subido.
+
+    La pagina usa exactamente dos cosas de un `UploadedFile`: `.name` y `.getvalue()`.
+    Con esto, todo lo que hay aguas abajo —`_fasta_sequence`, `resolve_anatomy`— no se
+    entera de si vino del navegador o del volumen. Distinguirlos aguas abajo serian dos
+    caminos que divergen, y este proyecto ya lleva cuatro divergencias entre frontales.
+    """
+
+    name: str
+    _data: bytes
+
+    def getvalue(self) -> bytes:
+        return self._data
+
+
+def library_note() -> str:
+    """Donde vive la biblioteca y por que sobrevive. Va a la vista, no en un comentario."""
+    from .biblioteca import WHY_THE_VOLUME  # noqa: PLC0415
+
+    return (
+        f"{WHY_THE_VOLUME} Lo guardado aquí NO cierra ningún frente y no entra en el "
+        f"manifiesto: es sólo para no volver a buscar el mismo fichero en cada sesión."
+    )
+
+
+def library_rows(slot: str, *, base=None) -> list[dict]:
+    """Una fila por fichero guardado, con la etiqueta YA montada."""
+    from .biblioteca import listar  # noqa: PLC0415
+
+    return [
+        {
+            "id": e.id,
+            "nombre": e.name,
+            "guardado": e.date,
+            "bytes": e.size,
+            "etiqueta": f"{e.name} — {e.size} bytes, {e.date}, md5 {e.id[:8]}",
+        }
+        for e in listar(slot, base=base)
+    ]
+
+
+def library_file(slot: str, ident: str, *, base=None) -> LibraryFile:
+    """Un fichero guardado, con la forma de uno subido. ABORTA si no cuadra el md5."""
+    from .biblioteca import leer, listar  # noqa: PLC0415
+
+    entrada = next((e for e in listar(slot, base=base) if e.id == ident), None)
+    if entrada is None:
+        raise ShmirDesignError(
+            f"No hay ningún fichero {ident} guardado en la ranura {slot!r}; se aborta "
+            f"en vez de seguir sin él."
+        )
+    return LibraryFile(name=entrada.name, _data=leer(slot, ident, base=base))
+
+
+def library_save(slot: str, upload, *, date: str, base=None) -> dict:
+    """Guarda lo que hay en el hueco. Devuelve la fila de lo guardado."""
+    from .biblioteca import guardar  # noqa: PLC0415
+
+    entrada = guardar(
+        slot, nombre=upload.name, data=upload.getvalue(), date=str(date), base=base
+    )
+    return {
+        "id": entrada.id,
+        "nombre": entrada.name,
+        "guardado": entrada.date,
+        "bytes": entrada.size,
+        "etiqueta": entrada.describe(),
+    }
+
+
+def library_delete(slot: str, ident: str, *, base=None) -> str:
+    """Borra una entrada y devuelve el texto de lo que se fue."""
+    from .biblioteca import borrar  # noqa: PLC0415
+
+    return borrar(slot, ident, base=base).describe()
 
 
 UPLOAD_NAME_RULE = (

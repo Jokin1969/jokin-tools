@@ -220,3 +220,271 @@ Eso se arregló aparte —no se dibuja y se cuenta— y no tiene nada que ver co
 
 **Contramedida**: el principio nº 4 de [`principios.md`](principios.md), y la
 descomposición del recuento se emite entera en vez de por diferencias.
+
+---
+
+## 9 — El filtro que nunca dijo que no
+
+**Predicción, de Joaquín Castilla, 2026-08-27**: `G4_diana` «ha estado excluyendo
+candidatos sin que nadie lo supiera y hay que ver a quién».
+
+**Refutada, y por el lado que no se esperaba.** Medido antes de tocar nada, sobre las dos
+especies del proyecto:
+
+| | ventanas de 22 nt | `G4_diana` FAIL | `G4_guia` FAIL |
+|---|---:|---:|---:|
+| ratón `NM_011170.3` | 1221 | **0** | **0** |
+| humano `NM_000311.5` | 1585 | **0** | **0** |
+
+**No excluyó a nadie nunca.** Ninguna ventana pasa a elegible al quitarlo, y ninguno de
+los diez del panel entra ni sale. Lo que hacía no era excluir: era emitir **veredictos
+`PASS` que nadie había autorizado**.
+
+**Y eso es PEOR, no mejor.** El filtro sobrevivió sin procedencia desde el 25 de agosto
+—implementado en `b544dd2`, empaquetado con GC y homopolímero, sin una sola cita frente a
+una asimetría que citaba Turner 2004 y reproducía cinco valores— **precisamente porque
+nunca decía que no**. Un filtro que rechaza se audita solo: alguien pregunta por qué cayó
+su candidato y hay que enseñarle el criterio. Uno que siempre aprueba no lo mira nadie: no
+genera ninguna pregunta, no aparece en ninguna queja, y su justificación no se pide jamás.
+La ausencia de rechazos no es evidencia de que un criterio sea bueno; es la condición que
+lo protege de ser revisado.
+
+**Corolario, y es el que cambia cómo se trabaja**: **la revisión de procedencia no puede
+priorizarse por impacto observado.** Ordenar la cola de auditoría por «cuántos candidatos
+ha tumbado esto» pone al final exactamente los criterios que llevan más tiempo sin que
+nadie los mire. El orden tiene que salir de la calidad de la ficha —qué cita, qué umbral,
+quién lo autorizó— y no de las consecuencias visibles.
+
+**Y una asimetría de rigor que sí es señal**: un filtro cuya justificación no está a la
+altura de la de sus vecinos **en el mismo fichero** es sospechoso por esa sola razón, sin
+necesidad de mirar lo que hace. `justificacion.py` existe justo para esto y a G4 se le
+escapó por una grieta concreta: **el test que exige justificación recorre los campos de
+`Thresholds`**, y G4 nunca llegó a tener un umbral que justificar — su criterio era una
+expresión regular escrita a mano. Cualquier criterio futuro que no sea un número entra por
+el mismo agujero.
+
+**Contramedida**: `docs/procedencia-g4.md` con la arqueología entera, y el filtro fuera.
+Para volver a entrar hacen falta tres cosas y las tres por escrito: **predictor con cita**,
+**umbral con justificación**, y **decisión explícita de si es duro o desempate** — con el
+voto de partida del responsable en «desempate, nunca filtro».
+
+---
+
+## 10 — El tracto de una sola base
+
+**El fallo**: el tracto de polipirimidinas se calculaba contando pirimidinas hacia atrás
+**desde el `AG` del aceptor** y parando en la primera purina. Sobre el intrón quimérico
+—que tiene **once** pirimidinas contiguas en 119-129— devolvía **1 nt**, porque entre el
+tracto y el aceptor hay un `AC` en medio.
+
+**Y no daba ningún error.** Un tracto de 1 nt es un intrón que no empalma, y la app lo
+habría emitido como dato, con su posición y su longitud, exactamente igual que uno bueno.
+Es la misma familia que el mapa que se dibujaba mudo sobre 2191 nt rotulados «3'UTR»: el
+cálculo estaba mal, la salida tenía la forma correcta, y nada se quejó.
+
+**Lo que lo cazó**: el segundo intrón. No un test, no una revisión, no leer el código —
+**meter un caso más**. Con el MVM, donde el tracto sí pega con el `AG`, la regla acierta
+y no hay forma de ver que acierta por casualidad.
+
+**Corolario, y es el que importa**: **un cálculo sólo se puede validar sobre más de un
+caso.** Con un solo ejemplo no se distingue una regla correcta de una que coincide con
+ese ejemplo, y ninguna cantidad de tests sobre ese único caso resuelve la diferencia —
+todos comparten la misma ceguera. Aplica a los intrones igual que a las guías, y de la
+misma forma: el `mvm_actual` fue durante meses el único intrón del registro, así que
+**cualquier** regla de geometría escrita en ese periodo está calibrada sobre un caso y
+hay que volver a mirarla al llegar el segundo.
+
+**La regla nueva**: la racha de pirimidinas contiguas **más larga** en los 40 nt de
+delante de la A del aceptor, con el **hueco** al aceptor emitido — no tiene por qué ser
+cero. Medida en los dos: MVM 72-80 (9 nt, hueco 0), quimérico 119-129 (11 nt, hueco 2).
+Las dos coinciden con lo declarado.
+
+**Y una segunda cosa que salió por el mismo sitio**: el motivo del punto de ramificación
+estaba calibrado sobre un solo intrón también. `YURAY` funcionaba en el MVM y perdía
+`CTGAC` —el canónico de mamífero— en el quimérico. Recalibrado contra los dos casos
+conocidos en `tests/test_calibracion_ramificacion.py`, que **es** la justificación:
+`YTNAY` es el único de los cuatro probados que recupera los dos sin dejar de discriminar.
+
+---
+
+## 11 — «6 de 12» cuando eran «4 de 10»
+
+**El fallo**: el semáforo decía *«Corrieron 6 de 12 filtros por candidato»*. Al retirar
+G4 pasó a decir *«4 de 10»*. **Bajaron los dos números, no sólo el total.**
+
+La cuenta estaba mal por los dos lados a la vez. `G4_diana` y `G4_guia` estaban en
+`UNDECIDED_FILTERS`, así que se **excluían de los pendientes** —correctamente: su criterio
+no estaba decidido y no debían bloquear la aprobación—, pero seguían **contando en el
+total**. Y como los corridos se derivaban de `total − pendientes`, los dos acababan
+sumando como **CORRIDOS**. Dos filtros que no habían corrido, que ni siquiera emitían
+veredicto, inflaban la cuenta de los que sí.
+
+**Sólo se vio al quitarlos.** No lo cazó ningún test —los tests comprobaban que G4 no
+bloqueaba, que es lo que sí hacía bien—, ni el golden, que llevaba «6 de 12» congelado
+como si fuera correcto desde el día que se escribió. Lo que lo destapó fue que al
+eliminar el filtro los dos números bajaran, cuando sólo debía bajar el total.
+
+**Tercera instancia del patrón de la errata nº 9**, y la más incómoda de las tres: **un
+elemento que nunca dice que no puede pasar años inflando una cuenta sin que nadie lo
+note.** No genera ninguna queja —no tumba candidatos—, no aparece en ningún informe de
+fallo, y el número que altera es precisamente el que la gente usa para decidir si el
+análisis está completo. Las tres instancias:
+
+| | qué pasaba | por qué sobrevivió |
+|---|---|---|
+| nº 9 | G4 emitía veredictos sin procedencia | nunca excluyó a nadie |
+| — | la cuenta del semáforo inflada en 2 | el filtro que la inflaba nunca fallaba |
+| — | `DONORS_FORBIDDEN_IN_SPACERS` contiene donantes legítimos | sólo se aplicaba a espaciadores |
+
+**Contramedida**: la del tercer caso, que es la única que se puede automatizar hoy —
+`spacer_rejections` **aborta** si lo que recibe no es un espaciador, y la lista se llama
+por su alcance. Para la cuenta, la única defensa real es la que ya funcionó aquí: **al
+retirar algo, mirar qué números se mueven y comprobar que se mueven los que deben.**
+
+---
+
+## 12 — La comprobación a la que le faltaba una pieza
+
+**El fallo**: `intron_folding` medía la accesibilidad de **donante, punto de ramificación
+y ACEPTOR**. El **tracto de polipirimidinas no estaba**.
+
+Los tres elementos frágiles son **donante, punto y TRACTO**; el aceptor es la frontera,
+no lo que el espliceosoma lee para decidir. Así que cuando se pidió como criterio de
+aceptación de los espaciadores «que los tres sigan desapareados», ese criterio **no se
+podía evaluar** — y lo que había medido hasta entonces era otra cosa, con tres números,
+con nombres correctos y con toda la pinta de estar completa.
+
+**Nadie lo vio porque nadie había enumerado las piezas.** El test se llamaba
+`test_corre_y_da_los_TRES_elementos` y pasaba: comprobaba que salieran tres, y salían
+tres. Comprobaba la cantidad, no la identidad. Una comprobación compuesta parece completa
+cuando sus componentes no están declarados en ningún sitio, porque no hay contra qué
+contrastarla.
+
+**Misma familia que el `.out` sin `.tbl`**: allí un frente parecía cerrado con un fichero
+de dos porque nadie había listado los dos. Aquí una medida parecía completa con tres de
+cuatro por la misma razón.
+
+**Corolario**: **toda comprobación compuesta declara sus componentes en UN SOLO SITIO, y
+lleva un test de que los evalúa todos.** No basta con contar cuántos salen — hay que
+comprobar cuáles. La declaración es lo que convierte «faltó una pieza» en un fallo de
+test en vez de en un descubrimiento a los meses.
+
+**Contramedida aplicada**: `intron_folding.ELEMENTS` es la declaración, ahora con los
+cuatro, y el test contrasta contra ella por identidad y no por cantidad. `barrido.FRAGILE`
+declara aparte cuáles de esos cuatro son los frágiles, que es una pregunta distinta y por
+eso es otra lista.
+
+---
+
+## 13 — La función citada como si existiera
+
+**El fallo**: el registro de intrones decía, en el `why_missing` de `mvm_sin_criptico`,
+que la variante «se genera con `intron_design.design_variant()`». **Esa función no
+existía.**
+
+**Y ésa es la peor de la familia**, que ya lleva tres esta semana:
+
+| | qué es | cómo se lee |
+|---|---|---|
+| una función que falta y **se dice** | un `NOT_RUN` | «no está, y sé qué me falta» |
+| una función **citada como existente** | un **`PASS` falso** | «hay un camino» — y no lo hay |
+
+Un `NOT_RUN` manda a buscar algo. Un `PASS` falso manda a usar algo que no está, y el
+descubrimiento llega cuando ya se contaba con ello. La diferencia no es de grado.
+
+**Contramedida**: `tests/test_simbolos_citados.py` recorre **todos los literales de
+cadena del paquete** —los `why_missing`, las fichas de obtención, los mensajes de error—
+y comprueba que todo `modulo.simbolo` que citen exista de verdad. Un texto que nombra algo
+inexistente hace fallar la suite.
+
+Y el guardia tuvo que afinarse en su primera corrida, que dio **tres falsos positivos**:
+`store.save_*` y `polya.CLEAVAGE_*` son FAMILIAS —el `*` se refiere a varios y ninguno se
+llama así— y `mirarchitect.cs.put.poznan.pl` es un DOMINIO. Un guardia con falsos
+positivos se acaba apagando; es la misma lección que el de la regla 6 y la del `GT…AG`.
+
+---
+
+## 14 — El test que comprobaba la forma y no el contenido
+
+**El fallo**: `test_con_especie_sale_un_HUECO_DE_SUBIDA_por_fichero` exigía un hueco de
+subida para `rmsk_mouse.out`, `mature.fa` y `aav_casete.fa` — **tres ficheros que ESTÁN**
+en el directorio de referencia del paquete.
+
+Pasaba porque el panel de entonces **pintaba el hueco estuviera el fichero o no**. El test
+comprobaba que el panel tuviera la forma esperada, no que dijera la verdad sobre lo que
+había. Sólo saltó al convertir el panel en gestor, cuando un fichero presente pasó a salir
+con sus cuatro acciones en vez de con un hueco de subida.
+
+**Misma familia que el del tracto** (errata nº 12), que se llamaba «da los TRES elementos»
+y contaba en vez de identificar: salían tres y faltaba uno de los que importaban.
+
+**Corolario, y va al principio nº 7**: **un test de estructura pasa cuando el contenido
+está mal.** El valor esperado tiene que ser **lo que se dice**, no cuántas cosas se dicen
+ni con qué forma. Contar widgets, contar elementos o contar filas no distingue una salida
+correcta de una que tiene el mismo tamaño y dice otra cosa.
+
+## 15 — El intrón que decía PASS con la secuencia vacía
+
+**El fallo**: `intron_quimerico` declaraba `provided=True` en el registro y sacaba su
+secuencia del plásmido de Addgene #198131. Ese fichero lo dejaba fuera de git el `*` del
+`.gitignore` de `data/reference/`. Para cualquiera que clonara el repositorio:
+
+```
+provided=True   state=PASS   len(raw_sequence)=0
+```
+
+Y el guardia que existe justo para esto **no saltaba**: `require_sequence()` no llegaba
+a su `ShmirDesignError` de la regla 1 porque `empty_sequence` caía primero en
+`PIECES[""]` y moría con un `KeyError('')` — un error que ningún `except
+ShmirDesignError` recoge y que ningún mensaje explica.
+
+**Por qué era el peor de los tres**: no es una función que falta ni un texto equivocado.
+Es un **PASS falso sobre una secuencia**, que es el principio central del proyecto. Un
+intrón vacío anunciado como disponible es exactamente lo que la regla 1 existe para
+impedir.
+
+**Cómo se cierra**: no con un test que compruebe que `provided` y la secuencia coinciden
+—eso comprueba que no ha pasado—, sino quitando la posibilidad de que diverjan.
+`provided` **deja de ser un campo y pasa a ser una propiedad derivada**: hay secuencia si
+hay piezas versionadas, o si llegó entera, y nunca si el intrón es `derived`. Es el mismo
+cierre que se le dio al cuarto par duplicado, y por la misma razón.
+
+Y el fichero entra en git: 22 kB de un depósito **público** no son «una base de datos»,
+que es el criterio que ese `.gitignore` ya tenía escrito para las otras cinco
+excepciones. Sin él dentro el intrón queda en NOT_RUN —correcto y **visible**— pero
+nadie que clone puede reproducir la corrida.
+
+## 16 — El punto 0 que medía el estándar
+
+**El fallo**: `Intron.with_module` resolvía los espaciadores con
+`spacer5 or PIECES["espaciador5"].sequence`. Una cadena vacía es falsa, así que pedir
+**cero espaciador** devolvía silenciosamente los **20 nt estándar**.
+
+El barrido de `barrido.py` empieza su curva en 0. Su punto 0, el que responde «¿y si no
+hubiera espaciador?», montaba el intrón con los 65 nt estándar dentro y salía —
+lógicamente — indistinguible del de referencia. Nada falló, nada avisó, y la curva
+publicada tenía un punto que no medía lo que su etiqueta decía.
+
+**La lección**: `""` y «no me lo digas» son **dos peticiones distintas** y se escribían
+igual. Un centinela que se confunde con un dato legítimo no es un centinela. Ahora
+`None` es el estándar y `""` es ninguno.
+
+Suerte en la forma de descubrirlo: el resultado del barrido fue **negativo** —el criterio
+no discrimina— y por eso su punto 0 no se usó para decidir nada. Con un resultado
+positivo, esa habría sido la primera fila de la tabla.
+
+## 17 — La página navegando el modelo
+
+**El fallo**: el modal de empalme hacía
+`variant_proposal_text(seleccion.selection.chosen[0].guide)`, y `selection.Choice` **no
+tiene** `guide`. La guía se alcanza por `window_of(choice).evaluation.guide`, que es como
+lo hace `block_bundle`. Resultado: `AttributeError` en cuanto alguien abriera el modal
+con un candidato elegido.
+
+Son dos fallos, y el segundo explica el primero: la página estaba **encadenando
+atributos del modelo**, que es justo lo que prohíbe la regla 6. La navegación no se
+equivocó por descuido — se equivocó porque estaba en el sitio donde nadie la prueba.
+Movida a `presentation.variant_proposal_for()`, la cubre un test como todo lo demás.
+
+**Corolario**: la regla 6 no es de estilo. Cada `a.b.c` en la página es una suposición
+sobre el modelo que ningún test comprueba.

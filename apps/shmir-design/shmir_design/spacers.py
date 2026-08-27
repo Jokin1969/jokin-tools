@@ -52,17 +52,70 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .blocks import PIECES
+from .errors import ShmirDesignError
 from .hard_filters import gc_fraction
 from .hard_filters import longest_homopolymer as _longest_homopolymer
 
 SPACER5_LENGTH = 20
 SPACER3_LENGTH = 45
 
+#: POR QUE LAS LONGITUDES ESTAN FIJAS Y NO SE EXPLORAN (2026-08-27). Tres razones, y la
+#: primera es la que sale de medir:
+#:
+#: 1. LA ACCESIBILIDAD NO VE LA LONGITUD. El barrido esta hecho
+#:    (`tools/barrer_espaciadores.py`, 0-45 en los dos lados, con replicas) y NO
+#:    DISCRIMINO: en ningun elemento el recorrido entre longitudes supera la dispersion
+#:    entre secuencias de la MISMA longitud. Optimizar por un criterio que no discrimina
+#:    es elegir RUIDO, y elegir el ruido favorable es peor que no elegir.
+#: 2. DISEÑO EXPERIMENTAL. Si cada intron lleva su longitud «optima», los tres dejan de
+#:    ser comparables. Espaciador CONSTANTE, intron VARIABLE: eso es lo que hace la
+#:    matriz interpretable.
+#: 3. 20/45 no tiene respaldo, pero cambiarlo por otro numero igual de arbitrario no
+#:    compra nada.
+#:
+#: LO QUE SI SE ELIGE es la SECUENCIA, que es donde la accesibilidad si discrimina.
+#:
+#: Y LA PALANCA, para cuando haya que atacar donante→punto: NO son los espaciadores. Es
+#: el MODULO — 149 de los 214 nt intercalados, contra 65 de los dos espaciadores juntos.
+#: Recortar espaciadores entero no llega ni a un tercio de lo que sobra.
+WHY_FIXED_LENGTHS = (
+    "Las longitudes 20/45 están FIJAS y no se exploran. El barrido se hizo y no "
+    "discriminó: lo que mueve la accesibilidad es la secuencia, no la longitud, así que "
+    "optimizar la longitud sería elegir ruido. Y con espaciador constante e intrón "
+    "variable los tres intrones son comparables, que es lo que hace la matriz "
+    "interpretable. La palanca de donante→punto no son los espaciadores: es el módulo, "
+    "149 de los 214 nt intercalados frente a los 65 de los dos espaciadores juntos."
+)
+
+WHY_THE_COUNT_IS_EMITTED = (
+    "La búsqueda dice sobre cuántos candidatos válidos descansa su elección. Si sólo uno "
+    "conserva la estructura, «el mejor» es el único, y un caso no distingue que funcione "
+    "de que acierte por suerte. Es la errata nº 10 aplicada a la elección de secuencia."
+)
+
 STANDARD_5 = PIECES["espaciador5"].sequence
 STANDARD_3 = PIECES["espaciador3"].sequence
 
-#: GTRAGT son dos: R es A o G. Mas las dos variantes que se vigilan aparte.
-CRYPTIC_DONORS = ("GTAAGT", "GTGAGT", "GTAAGG", "GTGAGG")
+#: DONANTES PROHIBIDOS EN UN ESPACIADOR. El nombre declara el ALCANCE, y no es cosmetico:
+#: la lista contiene `GTAAGT` y `GTAAGG`, que son los donantes LEGITIMOS del intron
+#: quimerico y del MVM. Aplicada a secuencia de INTRON marcaria el donante real como
+#: criptico; sobre un espaciador es correcta, porque ahi un GT canonico no tiene nada que
+#: hacer. Se llamaba `CRYPTIC_DONORS` y era correcta POR ACCIDENTE DE CONTEXTO —por donde
+#: se aplicaba, no por lo que decia—, que es el mismo patron que un `rmsk_mouse.out`
+#: conectado por rol. La auditoria de geometria lo lista como RIESGO.
+DONORS_FORBIDDEN_IN_SPACERS = ("GTAAGT", "GTGAGT", "GTAAGG", "GTGAGG")
+
+#: Tope de longitud de un espaciador. NO es un criterio de diseño: es la frontera que
+#: hace COMPROBABLE que lo que llega sea un espaciador. El barrido explora 0-45 y el
+#: punto de partida es 20/45, asi que 60 deja margen de sobra y sigue estando lejisimos
+#: de cualquier intron.
+MAX_SPACER_LENGTH = 60
+
+SPACER_SCOPE = (
+    "Esta lista vale SOLO para espaciadores. Contiene donantes canónicos, que en un "
+    "intrón son los legítimos: aplicada a secuencia de intrón marcaría el donante real "
+    "como críptico."
+)
 POLYA_SIGNALS = ("AATAAA", "ATTAAA")
 CASSETTE_SITES = ("GCTAGC", "GAGCTC", "ACGCGT", "ACCGGT", "CTCGAG", "GAATTC")
 FORBIDDEN_RUNS = ("GGGG", "CCCC")
@@ -81,13 +134,33 @@ _BASE_WEIGHTS = (("A", 32), ("T", 32), ("G", 18), ("C", 18))
 
 
 def spacer_rejections(sequence: str) -> tuple[str, ...]:
-    """Motivos por los que un espaciador NO vale. Vacio = pasa todos los filtros."""
+    """Motivos por los que un espaciador NO vale. Vacio = pasa todos los filtros.
+
+    ABORTA si lo que se le pasa NO ES UN ESPACIADOR. Ver `SPACER_SCOPE`: la lista de
+    donantes prohibidos contiene los canonicos, que en un intron son los LEGITIMOS, asi
+    que aplicarla a otra cosa da un veredicto invertido y con muy buena pinta. Antes esto
+    era correcto por accidente de contexto —por donde se llamaba, no por lo que decia— y
+    eso es lo que se desactiva aqui.
+
+    El guardia es LA LONGITUD y nada mas. Se probo tambien «empieza por GT y acaba en
+    AG», y tiene FALSOS POSITIVOS: un espaciador generado al azar da eso una vez de cada
+    256, y la busqueda empezo a abortar sobre candidatos legitimos. Un guardia que salta
+    donde no hay nada que guardar se acaba apagando —es la leccion del guardia de la
+    regla 6— asi que se queda solo el que no se equivoca: por debajo de
+    `MIN_INTRON_LENGTH` (80) no hay ningun intron, y 60 deja margen.
+    """
     limpia = "".join(str(sequence).split()).upper()
     if not limpia:
         return ("El espaciador está vacío.",)
+    if len(limpia) > MAX_SPACER_LENGTH:
+        raise ShmirDesignError(
+            f"Se han pasado {len(limpia)} nt a `spacer_rejections`, y un espaciador no "
+            f"pasa de {MAX_SPACER_LENGTH}. Esto NO es un espaciador. {SPACER_SCOPE} Se "
+            f"aborta en vez de devolver un veredicto invertido con buena pinta."
+        )
 
     motivos: list[str] = []
-    for donante in CRYPTIC_DONORS:
+    for donante in DONORS_FORBIDDEN_IN_SPACERS:
         if donante in limpia:
             motivos.append(
                 f"Lleva el donante críptico de splicing {donante}: podría abrir un 5'SS "
@@ -178,11 +251,32 @@ class SpacerSearch:
     #: Cuantos candidatos descarto el filtro duro ANTES de plegarlos.
     rejected: int
     note: str
+    #: Cuantos pares CONSERVARON la estructura. Cero si ganaron los estandar: ahi no se
+    #: busco nada, y confundir «no hizo falta buscar» con «apenas se encontro» seria
+    #: emitir un aviso donde no hay nada que avisar.
+    valid_count: int = 0
+
+    @property
+    def single_candidate(self) -> bool:
+        """¿La eleccion descansa en UN SOLO candidato valido?"""
+        return self.valid_count == 1
+
+    @property
+    def thinness_warning(self) -> str:
+        """El aviso, o cadena vacia. Ver `WHY_THE_COUNT_IS_EMITTED`."""
+        if not self.single_candidate:
+            return ""
+        return (
+            f"⚠ La elección descansa en UN solo candidato válido de {self.evaluated} "
+            f"plegado(s): con uno no se distingue «esto funciona» de «esto acierta por "
+            f"suerte». Sube el presupuesto o cambia de candidato antes de fiarte."
+        )
 
     def format_text(self) -> str:
+        aviso = f"\n  {self.thinness_warning}" if self.thinness_warning else ""
         if self.choice is None:
-            return f"Espaciadores — NO HAY\n  {self.note}"
-        return self.choice.format_text() + f"\n  {self.note}"
+            return f"Espaciadores — NO HAY\n  {self.note}{aviso}"
+        return self.choice.format_text() + f"\n  {self.note}{aviso}"
 
 
 def _random_spacer(rng: random.Random, length: int) -> str:
@@ -327,6 +421,7 @@ def choose_spacers(
         choice=mejor,
         evaluated=evaluados,
         rejected=descartados,
+        valid_count=len(validos),
         note=(
             f"Los estándar NO conservan la estructura con esta guía. De "
             f"{evaluados} candidato(s) plegados, {len(validos)} la conservan; se ha "

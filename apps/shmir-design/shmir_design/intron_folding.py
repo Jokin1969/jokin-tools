@@ -33,7 +33,14 @@ from .introns import Intron, locate_elements
 #: Los tres que decide el espliceosoma. El tracto de polipirimidinas NO entra aqui: es
 #: la referencia contra la que se compara un sitio criptico, no un elemento que se
 #: aparee o no por su cuenta.
-ELEMENTS = ("donante", "punto_de_ramificacion", "aceptor")
+#: Los CUATRO que se miden. El tracto entró el 2026-08-27: faltaba, y sin él el criterio
+#: de aceptación de los espaciadores —que donante, punto de ramificación y TRACTO sigan
+#: desapareados— no se podía evaluar. Se estaba midiendo el aceptor, que es la frontera,
+#: en vez del tracto, que es lo que el espliceosoma lee. El aceptor se queda: no sobra,
+#: sólo no era uno de los tres frágiles.
+ELEMENTS = (
+    "donante", "punto_de_ramificacion", "tracto_polipirimidinas", "aceptor",
+)
 
 WHY_IT_MATTERS = (
     "Un elemento de splicing secuestrado dentro de un TALLO no está disponible para el "
@@ -125,13 +132,17 @@ def fold_intron(
     intron: Intron,
     *,
     module: str,
-    spacer5: str = "",
-    spacer3: str = "",
+    spacer5: str | None = None,
+    spacer3: str | None = None,
     available: bool | None = None,
 ) -> IntronFolding:
-    """Pliega el intron CON el modulo dentro y mide los tres elementos.
+    """Pliega el intron CON el modulo dentro y mide los cuatro elementos.
 
     `available=False` fuerza el camino sin ViennaRNA, para poder probarlo.
+
+    Los espaciadores siguen el centinela de `Intron.with_module`: `None` es el
+    ESTANDAR y `""` es NINGUNO. No son lo mismo, y confundirlos hizo que el punto 0
+    del barrido midiera el estandar creyendo medir la ausencia.
     """
     usable = VIENNA_AVAILABLE if available is None else available
     if not usable:
@@ -156,6 +167,13 @@ def fold_intron(
         ),
         "aceptor": _unpaired(
             probabilidades, elementos.acceptor.start, elementos.acceptor.end
+        ),
+        # EL TRACTO, que faltaba. Es uno de los TRES elementos frágiles —donante, punto
+        # de ramificación y tracto— y sin él el criterio de aceptación de los
+        # espaciadores no se puede evaluar: se estaba midiendo el aceptor, que es la
+        # frontera, en vez del tracto, que es lo que el espliceosoma lee.
+        "tracto_polipirimidinas": _unpaired(
+            probabilidades, elementos.ppt.start, elementos.ppt.end
         ),
     }
     detalle = tuple(

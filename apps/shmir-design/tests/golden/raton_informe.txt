@@ -549,8 +549,6 @@
   Los seleccionados CAMBIAN dentro del rango 0.5–2.0 kcal/mol: el valor no es inocuo, decidelo a propósito.
 
 ── FILTROS QUE NO SE EJECUTARON ──
-  G4_diana: NOT_RUN en 2170 de 2170 ventanas
-  G4_guia: NOT_RUN en 2170 de 2170 ventanas
   especificidad: NOT_RUN en 2170 de 2170 ventanas
   repeticion_polimorfica: NOT_RUN en 2170 de 2170 ventanas
   repeticiones: NOT_RUN en 2170 de 2170 ventanas

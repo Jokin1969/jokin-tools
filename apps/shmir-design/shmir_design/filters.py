@@ -48,7 +48,13 @@ BIOPHYSICAL_FILTERS = frozenset(
 #: Estan FUERA de `BIOPHYSICAL_FILTERS` a proposito: si contaran, `biofisicos_ok` seria
 #: falso para las 2170 ventanas y la piscina de elegibles se vaciaria entera por una
 #: decision que esta pendiente, no por un criterio.
-UNDECIDED_FILTERS = frozenset({"G4_diana", "G4_guia"})
+#: `UNDECIDED_FILTERS` VIVIÓ AQUÍ y se retiró con G4 (2026-08-27), que era su único
+#: miembro. Era el estado «criterio sin autorizar»: un filtro que sigue midiendo y
+#: diciendo lo que encuentra pero NO cuenta para el veredicto, porque bloquear una
+#: aprobación también es decidir. El mecanismo funcionó y la forma está en el historial
+#: (`git log -S UNDECIDED_FILTERS`): si vuelve a aparecer un criterio que nadie autorizó,
+#: se resucita en vez de reinventarlo. No se deja vacío porque un conjunto sin miembros
+#: convierte en código muerto las tres ramas que lo consultan.
 
 
 class FilterState(StrEnum):
@@ -87,7 +93,7 @@ class FilterResult:
 def overall_verdict(results: list[FilterResult]) -> Verdict:
     """Agrega varios filtros. Un solo NOT_RUN impide dar el candidato por aprobado.
 
-    Los de `UNDECIDED_FILTERS` **no cuentan**, y es lo que significa «no emite
+    (Hubo un estado «sin decidir» cuyos filtros no contaban; se retiró con G4. Ver
     veredicto». Dejarlos dentro habria hecho que TODA ventana saliera `INCOMPLETE` por
     un criterio que nadie ha autorizado — o sea, `PASS` estructuralmente inalcanzable,
     que es exactamente el fallo que este proyecto ya tuvo con la interfaz y sus tres
@@ -97,7 +103,6 @@ def overall_verdict(results: list[FilterResult]) -> Verdict:
     salen en la lista de pendientes de decision. La misma forma que `polyA` cuando paso
     de veredicto a anotacion, y que `carga_seed`, que es un numero y nunca un veredicto.
     """
-    results = [r for r in results if r.name not in UNDECIDED_FILTERS]
     if not results:
         raise ValueError(
             "No se puede emitir veredicto sin ningún filtro evaluado; "

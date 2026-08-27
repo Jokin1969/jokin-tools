@@ -40,7 +40,7 @@ class FrontVerdict:
         """`width` lo fija quien imprime la tabla, no esta fila.
 
         Los nombres de frente crecieron al partirse por hebra y por intron
-        (`empalme_sitios:quimerico_cmv_globina` son 36 caracteres). Con un ancho fijo,
+        (`empalme_sitios:intron_quimerico` son 31 caracteres). Con un ancho fijo,
         los nombres largos se comen la columna de al lado y el estado deja de leerse en
         vertical — que es justo para lo que sirve la tabla: ver de un vistazo cuantos
         `NOT_RUN` quedan.

@@ -154,6 +154,40 @@ class TestLosDosGeneradoresUSANLASMISMASPIEZAS(unittest.TestCase):
             with self.subTest(nombre=nombre):
                 self.assertEqual(blocks._s(nombre), esperado)
 
+    def test_pero_ademas_hay_UN_SOLO_ORIGEN__no_dos_que_coinciden(self):
+        """Lo que de verdad cierra el par: `gblock` DERIVA de `blocks.PIECES`.
+
+        Un test de cruce comprueba que la divergencia no ha pasado todavía; una
+        definición única impide que pase. Con dos juegos de constantes, alguien corrige
+        un contexto en un sitio, el test salta, y hay que decidir cuál de los dos tiene
+        razón — y lo que se decide mal es ADN que se manda a sintetizar. Derivando, la
+        pregunta no llega a existir.
+        """
+        import shmir_design.gblock as g
+        from shmir_design import blocks
+
+        # No basta con que sean iguales: tienen que ser EL MISMO objeto de cadena, que
+        # es lo que sólo pasa si uno sale del otro y no de una segunda copia literal.
+        for constante, pieza in (
+            (g.CONTEXT_5, "contexto5"),
+            (g.CONTEXT_3, "contexto3"),
+            (g.NHEI_SITE, "NheI"),
+            (g.SACI_SITE, "SacI"),
+        ):
+            with self.subTest(pieza=pieza):
+                self.assertIs(constante, blocks.PIECES[pieza].sequence)
+
+    def test_y_las_POSICIONES_en_el_plasmido_tambien_salen_de_la_pieza(self):
+        # Estaban en un dict aparte de `gblock`, repitiendo lo que ya decía la
+        # procedencia de la pieza. Tercera copia del mismo dato.
+        from shmir_design import blocks
+
+        for clave, pieza in (("contexto_5", "contexto5"), ("contexto_3", "contexto3")):
+            with self.subTest(clave=clave):
+                self.assertEqual(
+                    CONTEXT_POSITIONS[clave], blocks.PIECES[pieza].span
+                )
+
     def test_y_los_dos_montan_EL_MISMO_modulo(self):
         # El cruce de verdad: no que las piezas coincidan, sino que el resultado
         # coincida. Es lo que se pide sintetizar.

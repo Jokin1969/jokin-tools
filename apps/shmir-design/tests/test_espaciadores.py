@@ -25,7 +25,7 @@ from shmir_design.blocks import PIECES, build_block
 from shmir_design.folding import VIENNA_AVAILABLE, dot_bracket
 from shmir_design.spacers import (
     CASSETTE_SITES,
-    CRYPTIC_DONORS,
+    DONORS_FORBIDDEN_IN_SPACERS,
     GC_MAX,
     GC_MIN,
     SPACER3_LENGTH,
@@ -62,15 +62,15 @@ class TestFiltrosDuros(unittest.TestCase):
         self.assertEqual(spacer_rejections(STANDARD_3), ())
 
     def test_un_donante_criptico_se_rechaza(self):
-        for donante in CRYPTIC_DONORS:
+        for donante in DONORS_FORBIDDEN_IN_SPACERS:
             sonda = donante + "TACAATGATCCAAATCA"[: SPACER5_LENGTH - 6]
             self.assertTrue(
                 any("donante" in m for m in spacer_rejections(sonda)), donante
             )
 
     def test_GTRAGT_cubre_las_dos_variantes(self):
-        self.assertIn("GTAAGT", CRYPTIC_DONORS)
-        self.assertIn("GTGAGT", CRYPTIC_DONORS)
+        self.assertIn("GTAAGT", DONORS_FORBIDDEN_IN_SPACERS)
+        self.assertIn("GTGAGT", DONORS_FORBIDDEN_IN_SPACERS)
 
     def test_una_señal_de_poliadenilacion_se_rechaza(self):
         for señal in ("AATAAA", "ATTAAA"):

@@ -44,8 +44,8 @@ class TestElParQueNOCoincide(unittest.TestCase):
         from shmir_design.spliceai import PairResult, SpliceScan
 
         par = PairResult(
-            construction="3utr200_x_quimerico_cmv_globina",
-            candidate_start=200, intron="quimerico_cmv_globina",
+            construction="3utr200_x_intron_quimerico",
+            candidate_start=200, intron="intron_quimerico",
             legit_donor=0.90, legit_acceptor=0.85, cryptics=(),
             known_cryptic=None, context_5=0, context_3=0,
         )
@@ -66,8 +66,15 @@ class TestElParQueNOCoincide(unittest.TestCase):
         self.assertIs(verdict_state(scan), FilterState.PASS)
         # ...y el candidato 359 no está en ella, así que el almacén dice NOT_RUN.
         self.assertIs(self._verdict(scan, 359).state, FilterState.NOT_RUN)
-        # Esta es la discrepancia. El test la FIJA para que borrar `verdict_state` sin
-        # entenderla, o cablearla, tenga que pasar por aquí.
+        # LA FRASE, porque es el hallazgo y no una nota al pie:
+        #
+        #   `verdict_state` NO ERA REDUNDANTE, ERA LA EQUIVOCADA — dice PASS donde el
+        #   almacén dice NOT_RUN, y eso es sobre el principio CENTRAL del proyecto.
+        #
+        # No es un detalle de granularidad: «NOT_RUN no es PASS» es la regla 3, la que
+        # sostiene todo lo demás. Una función que la incumple, sin llamador y esperando a
+        # que alguien la cablee, es peor que código muerto. El test fija la discrepancia
+        # para que borrarla, o cablearla, tenga que pasar por aquí.
 
     def test_la_del_ALMACEN_es_la_que_manda_y_se_dice_por_que(self):
         motivo = self._verdict(self._scan_con_un_solo_par(), 359).reason
@@ -81,7 +88,7 @@ class TestElParQueNOCoincide(unittest.TestCase):
             scan=scan, raw="crudo", date="2026-08-27", ran_by="test",
             run_id="cruce-1", executor="test",
         )
-        return corrida.verdict(start, "quimerico_cmv_globina")
+        return corrida.verdict(start, "intron_quimerico")
 
 
 class TestElInvarianteDeLosTramos(unittest.TestCase):

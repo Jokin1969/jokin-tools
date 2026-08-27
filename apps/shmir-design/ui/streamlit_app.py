@@ -13,6 +13,7 @@ El nucleo sigue siendo stdlib pura: Streamlit es una dependencia SOLO de esta in
 
 from __future__ import annotations
 
+import datetime
 import io
 import sys
 import tempfile
@@ -38,8 +39,21 @@ from shmir_design.presentation import (  # noqa: E402
     anatomy_payload,
     load_stores,
     run_fingerprint,
+    intron_geometry_text,
     stored_runs_note,
     upload_path,
+    variant_proposal_for,
+    reference_delete,
+    reference_delete_plan,
+    reference_download,
+    reference_manager_rows,
+    reference_preview,
+    reference_replace_plan,
+    library_delete,
+    library_file,
+    library_note,
+    library_rows,
+    library_save,
     project_create,
     project_list,
     project_open,
@@ -151,6 +165,73 @@ from shmir_design.selection import (  # noqa: E402
 )
 
 COLORES = {"verde": ("#2f7d5d", "🟢"), "ambar": ("#b58900", "🟠")}
+
+
+def _hoy() -> str:
+    """La fecha de hoy como valor POR DEFECTO del campo, no como dato.
+
+    La biblioteca no es procedencia: es una comodidad para no volver a buscar el mismo
+    fichero. La fecha sirve para reconocerlo en la lista y se puede cambiar. Donde la
+    fecha SI es procedencia —las corridas de los cuatro modales— se teclea, y ahi no hay
+    ningun valor por defecto a proposito.
+    """
+    return datetime.date.today().isoformat()
+
+
+def _panel_biblioteca(ranura: str, subido, *, ayuda: str = ""):
+    """Un hueco del paso 2 con su biblioteca: guardar, elegir uno guardado, borrar.
+
+    Devuelve LO QUE HAY QUE USAR: lo subido si se subió algo, y si no el elegido de la
+    biblioteca. La página no decide nada aquí — las filas vienen montadas de
+    `presentation` y el fichero guardado llega con la MISMA forma que uno subido, así
+    que aguas abajo nadie se entera de por dónde vino.
+    """
+    filas = library_rows(ranura)
+    with st.expander(f"📁 Guardados ({len(filas)})", expanded=False):
+        st.caption(library_note())
+        if subido is not None:
+            fecha = st.text_input(
+                "Fecha", value=_hoy(), key=f"bib_fecha_{ranura}",
+                help="La que queda registrada junto al fichero.",
+            )
+            if st.button(f"Guardar «{subido.name}»", key=f"bib_add_{ranura}"):
+                try:
+                    fila = library_save(ranura, subido, date=fecha)
+                except (ShmirDesignError, ValueError) as exc:
+                    # rule2-ok: frontera de la interfaz. El motivo se enseña entero.
+                    st.error(f"**NO se guardó** — {exc}")
+                else:
+                    st.success(f"Guardado: {fila['etiqueta']}")
+                    st.rerun()
+        if not filas:
+            st.info("Nada guardado todavía en este hueco.")
+            return subido
+
+        elegido = st.selectbox(
+            "Usar uno guardado",
+            [f["id"] for f in filas],
+            index=None,
+            placeholder="ninguno",
+            format_func=lambda i: next(f["etiqueta"] for f in filas if f["id"] == i),
+            key=f"bib_pick_{ranura}",
+            help=ayuda or None,
+        )
+        for fila in filas:
+            if st.button(f"Borrar {fila['nombre']}", key=f"bib_del_{ranura}_{fila['id']}"):
+                try:
+                    ido = library_delete(ranura, fila["id"])
+                except ShmirDesignError as exc:
+                    # rule2-ok: frontera de la interfaz.
+                    st.error(f"**NO se borró** — {exc}")
+                else:
+                    st.warning(f"Borrado: {ido}")
+                    st.rerun()
+
+    if subido is not None:
+        return subido
+    if elegido:
+        return library_file(ranura, elegido)
+    return None
 
 
 def _read_upload(upload) -> str:
@@ -514,69 +595,140 @@ def _panel_proyecto(especie: str, secuencia: str, anat):
 
 
 
+def _fila_presente(fila, directorio) -> None:
+    """Las CUATRO acciones de un fichero que está. Ninguna escondida tras un menú."""
+    nombre = fila["nombre"]
+    botones = st.columns(4)
+    with botones[0]:
+        ver = st.button("Ver", key=f"g_ver_{nombre}", width="stretch")
+    with botones[1]:
+        cambiar = st.toggle("Reemplazar", key=f"g_rep_{nombre}")
+    with botones[2]:
+        quitar = st.toggle("Borrar", key=f"g_del_{nombre}")
+    with botones[3]:
+        try:
+            st.download_button(
+                "Descargar", data=reference_download(nombre, directory=directorio),
+                file_name=nombre, key=f"g_dl_{nombre}", width="stretch",
+            )
+        except ShmirDesignError as exc:
+            # rule2-ok: frontera de la interfaz. El motivo entero, sin degradado.
+            st.error(f"{exc}")
+
+    if ver:
+        vista = reference_preview(nombre, directory=directorio)
+        st.caption(vista["cabecera"])
+        st.code(vista["texto"])
+
+    if cambiar:
+        subido = st.file_uploader(
+            f"Fichero nuevo para {nombre}", type=fila["extensiones"],
+            key=f"g_up_{nombre}",
+        )
+        if subido is not None:
+            plan = reference_replace_plan(
+                nombre, directory=directorio, payload=subido.getvalue(),
+                species=fila["especie"],
+            )
+            (st.warning if plan["invalida"] else st.info)(plan["texto"])
+            fecha = st.text_input("Fecha", "", key=f"g_fecha_{nombre}")
+            origen = st.text_input("De dónde salió", "", key=f"g_org_{nombre}")
+            if st.button(f"Confirmar reemplazo de {nombre}", key=f"g_ok_{nombre}"):
+                try:
+                    hecho = accept_reference_upload(
+                        fila["especie"], directory=directorio, filename=nombre,
+                        payload=subido.getvalue(), date=fecha,
+                        origin=origen or "reemplazado por la interfaz",
+                    )
+                except (ShmirDesignError, ValueError, OSError) as exc:
+                    # rule2-ok: no se ha escrito nada y el motivo se enseña entero.
+                    st.error(f"**RECHAZADO** — {exc}")
+                else:
+                    st.success(hecho["texto"])
+                    st.rerun()
+
+    if quitar:
+        plan = reference_delete_plan(
+            nombre, directory=directorio, species=fila["especie"]
+        )
+        st.warning(plan["texto"])
+        if st.button(f"Confirmar borrado de {nombre}", key=f"g_okdel_{nombre}"):
+            try:
+                ido = reference_delete(nombre, directory=directorio)
+            except (ShmirDesignError, OSError) as exc:
+                # rule2-ok: frontera de la interfaz.
+                st.error(f"**NO se borró** — {exc}")
+            else:
+                st.warning(ido)
+                st.rerun()
+
+
+def _fila_ausente(fila, directorio) -> None:
+    """Subir, con la ficha de obtención desplegable justo debajo."""
+    nombre = fila["nombre"]
+    subido = st.file_uploader(
+        f"Subir {nombre}", type=fila["extensiones"], key=f"g_new_{nombre}"
+    )
+    fecha = st.text_input("Fecha de descarga (AAAA-MM-DD)", "", key=f"g_nf_{nombre}")
+    origen = st.text_input("De dónde salió", "", key=f"g_no_{nombre}")
+    if subido is not None and st.button(f"Validar y registrar {nombre}", key=f"g_nb_{nombre}"):
+        try:
+            hecho = accept_reference_upload(
+                fila["especie"], directory=directorio, filename=nombre,
+                payload=subido.getvalue(), date=fecha,
+                origin=origen or "subido por la interfaz",
+            )
+        except (ShmirDesignError, ValueError, OSError) as exc:
+            # rule2-ok: el fichero NO se ha escrito y el motivo se enseña entero.
+            st.error(f"**RECHAZADO** — {exc}")
+        else:
+            st.success(hecho["texto"])
+            st.rerun()
+    with st.expander(f"Cómo se consigue {nombre}", expanded=False):
+        st.caption(fila["ficha"]["texto"])
+
+
 def _panel_referencias(especie: str) -> None:
-    """El panel de ficheros de referencia de la barra lateral.
+    """El GESTOR de ficheros de referencia. UNA tabla: presentes y ausentes juntos.
 
-    Lo que arregla: unos ficheros se subian por aqui y otros habia que DEPOSITAR en
-    `data/reference/`, que es un directorio del repositorio. Quien no conoce ese arbol
-    —que es exactamente el usuario para el que se escribe esta app— no podia usarla.
+    Antes eran dos listas en dos sitios y había que mirar dos veces para saber en qué
+    punto estabas. Y sobre lo que ya estaba no se podía hacer nada: el fichero entraba y
+    dejaba de ser tuyo.
 
-    La pagina no valida, no calcula ningun md5 y no escribe el manifiesto: todo eso pasa
-    en `presentation.accept_reference_upload` y en `deposito.py`, con tests.
+    La página no valida, no calcula ningún md5, no decide qué botones tocan y no sabe qué
+    invalida qué: todo eso está en `gestor.py`, con tests. Aquí sólo se pinta.
     """
-    st.sidebar.header("Ficheros de referencia")
+    st.header("Ficheros de referencia")
     if not especie:
-        st.sidebar.caption(
-            "Elige una especie: los ficheros que hacen falta —y como se llaman— "
+        st.caption(
+            "Elige una especie: los ficheros que hacen falta —y cómo se llaman— "
             "dependen de ella."
         )
         return
 
-    resumen = reference_panel_summary(especie, directory=reference_dir())
-    st.sidebar.caption(
+    directorio = reference_dir()
+    resumen = reference_panel_summary(especie, directory=directorio)
+    st.caption(
         f"{resumen['cerrables']} de {resumen['total']} frentes cerrables con lo que hay."
     )
-    # Donde van a parar los ficheros. Solo cuando NO es el del paquete: en local, decirlo
-    # seria ruido; en un servidor, no decirlo deja al usuario sin saber si lo que sube
-    # sobrevive a un redespliegue.
     if is_declared():
-        st.sidebar.caption(f"Se guardan en `{reference_dir()}`. {WHY_A_WORKING_DIR}")
-    for fila in reference_panel_rows(especie, directory=reference_dir()):
-        marca = "✅" if fila["presente"] else ("⬜" if fila["obligatorio"] else "▫️")
-        with st.sidebar.expander(f"{marca} {fila['nombre']}", expanded=False):
-            st.caption(fila["que_desbloquea"])
-            subido = st.file_uploader(
-                f"Subir {fila['nombre']}",
-                type=fila["extensiones"],
-                key=f"ref_{fila['nombre']}",
-            )
-            fecha = st.text_input(
-                "Fecha de descarga (AAAA-MM-DD)", "", key=f"fecha_{fila['nombre']}",
-                help="Sin fecha el fichero no es reproducible; va al manifiesto.",
-            )
-            origen = st.text_input(
-                "De donde salio", "", key=f"origen_{fila['nombre']}",
-                help="La fuente y su versión. Es lo que se copia al informe.",
-            )
-            if subido is not None and st.button(
-                "Validar y registrar", key=f"btn_{fila['nombre']}"
-            ):
-                try:
-                    hecho = accept_reference_upload(
-                        especie,
-                        directory=reference_dir(),
-                        filename=fila["nombre"],
-                        payload=subido.getvalue(),
-                        date=fecha,
-                        origin=origen or "subido por la interfaz",
-                    )
-                except (ShmirDesignError, ValueError, OSError) as exc:
-                    # rule2-ok: frontera de la interfaz. El fichero NO se ha escrito y el
-                    # motivo se enseña entero; no hay degradado silencioso.
-                    st.error(f"**RECHAZADO** — {exc}")
-                else:
-                    st.success(hecho["texto"])
-            st.caption(fila["ficha"]["texto"])
+        st.caption(f"Se guardan en `{directorio}`. {WHY_A_WORKING_DIR}")
+
+    filas = reference_manager_rows(especie, directory=directorio)
+    if filas and filas[0]["aviso_manifiesto"]:
+        st.error(f"**Manifiesto ilegible** — {filas[0]['aviso_manifiesto']}")
+
+    frente_actual = ""
+    for fila in filas:
+        if fila["frente"] != frente_actual:
+            frente_actual = fila["frente"]
+            st.subheader(frente_actual or "sin frente")
+        with st.container(border=True):
+            st.markdown(f"{fila['marca']} **{fila['nombre']}** — {fila['resumen']}")
+            if fila["estado"] == "presente":
+                _fila_presente(fila, directorio)
+            else:
+                _fila_ausente(fila, directorio)
 
 
 def main() -> None:
@@ -651,7 +803,6 @@ def main() -> None:
         else:
             st.success(nota["texto"])
 
-    _panel_referencias(nombre_modelo)
 
     st.sidebar.header("Otros ajustes")
     gen_diana = st.sidebar.text_input(
@@ -683,13 +834,19 @@ def main() -> None:
     st.subheader("2) Secuencia")
     columnas = st.columns(2)
     with columnas[0]:
-        modelo = st.file_uploader("mRNA — especie del diseño", type=["fa", "fasta", "txt"])
-        gb_modelo = st.file_uploader(
-            "GenBank de la especie del diseño (.gb, PREFERENTE)",
-            type=["gb", "gbk", "genbank"],
-            help="El CDS anotado del RefSeq. Es la via más fiable de resolver la "
-                 "anatomía: sin el, las coordenadas del CDS las tecleas tu y los tercios "
-                 "salen NO_FIABLE.",
+        modelo = _panel_biblioteca(
+            "mrna_diseno",
+            st.file_uploader("mRNA — especie del diseño", type=["fa", "fasta", "txt"]),
+        )
+        gb_modelo = _panel_biblioteca(
+            "genbank_diseno",
+            st.file_uploader(
+                "GenBank de la especie del diseño (.gb, PREFERENTE)",
+                type=["gb", "gbk", "genbank"],
+                help="El CDS anotado del RefSeq. Es la via más fiable de resolver la "
+                     "anatomía: sin el, las coordenadas del CDS las tecleas tu y los "
+                     "tercios salen NO_FIABLE.",
+            ),
         )
     with columnas[1]:
         opciones_diana = [o for o in opciones if o["valor"] != nombre_modelo]
@@ -702,13 +859,19 @@ def main() -> None:
                 o["etiqueta"] for o in opciones_diana if o["valor"] == v
             ),
         )
-        diana = st.file_uploader(
-            "mRNA — segunda especie (opcional)", type=["fa", "fasta", "txt"]
+        diana = _panel_biblioteca(
+            "mrna_segunda",
+            st.file_uploader(
+                "mRNA — segunda especie (opcional)", type=["fa", "fasta", "txt"]
+            ),
         )
-        gb_diana = st.file_uploader(
-            "GenBank de la segunda especie (.gb, opcional)",
-            type=["gb", "gbk", "genbank"],
-            help="Lo mismo para la segunda especie.",
+        gb_diana = _panel_biblioteca(
+            "genbank_segunda",
+            st.file_uploader(
+                "GenBank de la segunda especie (.gb, opcional)",
+                type=["gb", "gbk", "genbank"],
+                help="Lo mismo para la segunda especie.",
+            ),
         )
 
     # ── PASO 3 · FICHEROS DE REFERENCIA ─────────────────────────────────────────
@@ -721,13 +884,13 @@ def main() -> None:
         sequence_loaded=modelo is not None,
         directory=reference_dir(),
     )
-    tercero = pasos[2]
-    st.info(tercero["detalle"])
-    resumen = reference_panel_summary(nombre_modelo, directory=reference_dir())
-    with st.expander(f"Frentes que quedan abiertos ({len(resumen['abiertos'])})"):
-        for fila in resumen["abiertos"]:
-            st.write(f"· **{fila['frente']}** — falta {fila['falta']}")
-        st.caption(WHY_NO_GLOBAL_TOGGLE)
+    st.info(pasos[2]["detalle"])
+    # UNA sola tabla. Antes esto eran DOS sitios —la lista de frentes abiertos aquí y el
+    # panel de subida en la barra lateral— y había que mirar dos veces para saber en qué
+    # punto estabas. El gestor los junta: presentes y ausentes, ordenados por frente, con
+    # lo que se puede hacer con cada uno en su propia fila.
+    st.caption(WHY_NO_GLOBAL_TOGGLE)
+    _panel_referencias(nombre_modelo)
 
     if not modelo:
         st.info(
@@ -1241,6 +1404,18 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None) ->
             st.write(f"⬜ **{fila['intron']}** — NOT_RUN. {fila['motivo']}")
             with st.expander(f"Cómo se resuelve «{fila['intron']}»"):
                 st.caption(obtencion_rows(fila["ficha"], species=nombre)["texto"])
+
+    # La GEOMETRIA de cada intron: el desglose pieza a pieza y donde cabe el modulo.
+    # Va aqui porque es lo que hay que mirar ANTES de montar nada — un total que nadie
+    # puede descomponer escondia 65 nt de espaciadores de novo, y el sitio de insercion
+    # no se emitia en ninguna parte. La pagina no calcula: pide el texto ya montado.
+    with st.expander("Geometría de los intrones — desglose y sitio de inserción"):
+        st.code(intron_geometry_text(), language=None)
+
+    # La variante que la app DISEÑA, para esta guía. Se enseña aquí porque es donde se
+    # decide con qué intrón se consulta: uno que se propone y nadie ve no existe.
+    with st.expander("Variante propuesta — mvm_sin_criptico", expanded=False):
+        st.text(variant_proposal_for(seleccion))
 
     disponibles = [f["intron"] for f in splice_intron_rows() if f["estado"] is FilterState.PASS]
     elegidos = st.multiselect(

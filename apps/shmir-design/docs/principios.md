@@ -222,3 +222,53 @@ Tres consecuencias, y hay que cumplir las tres:
 3. **Se ve.** Una comprobación que corre y cuyo resultado no llega a la pantalla es la
    mitad del arreglo. El diff del golden es la prueba de que llegó: si el golden no se
    mueve, no se ve.
+
+---
+
+## 7 — Una comprobación compuesta declara sus componentes en un solo sitio
+
+Una comprobación con varias piezas parece completa cuando sus piezas no están enumeradas
+en ningún sitio, porque **no hay contra qué contrastarla**. `intron_folding` medía
+donante, punto de ramificación y aceptor, y el **tracto no estaba**: tres números, con
+nombres correctos, con toda la pinta de estar completos. Y el test que lo cubría se
+llamaba «da los TRES elementos» y pasaba — **comprobaba la cantidad, no la identidad**.
+
+Dos consecuencias, y hay que cumplir las dos:
+
+1. **Los componentes se declaran en una constante**, no se enumeran en cada sitio que
+   los usa. `intron_folding.ELEMENTS` es esa declaración.
+2. **El test contrasta por IDENTIDAD contra esa constante**, no por cantidad. Contar
+   cuántos salen no distingue «están los cuatro» de «están tres y uno de más».
+
+Y cuando un subconjunto responde a otra pregunta, **es otra lista**: `barrido.FRAGILE`
+declara cuáles de los cuatro son los frágiles —donante, punto y tracto; el aceptor es la
+frontera— porque «qué se mide» y «qué decide» no son la misma pregunta y meterlas en la
+misma lista obliga a elegir cuál de las dos se rompe.
+
+Es la misma familia que el `.out` sin su `.tbl`: allí un frente parecía cerrado con un
+fichero de dos porque nadie había listado los dos. La diferencia entre «faltó una pieza»
+como fallo de test y como descubrimiento a los meses es exactamente la declaración.
+
+### Corolario A — qué se mide y qué decide son dos preguntas, y por tanto dos listas
+
+`intron_folding.ELEMENTS` declara **qué se mide**: donante, punto de ramificación, tracto
+y aceptor, los cuatro. `barrido.FRAGILE` declara **qué decide**: donante, punto y tracto —
+el aceptor es la frontera, no lo que el espliceosoma lee.
+
+Son **dos listas porque son dos preguntas**. Meterlas en una obliga a elegir cuál de las
+dos se rompe: o se mide de menos para que la lista sirva de criterio, o se decide de más
+porque el criterio arrastra todo lo que se mide. Las dos salidas son peores que tener dos
+constantes.
+
+### Corolario B — un test de estructura pasa cuando el contenido está mal
+
+El valor esperado tiene que ser **lo que se dice**, no cuántas cosas se dicen ni con qué
+forma. Dos casos reales, con meses de diferencia y el mismo mecanismo:
+
+- «da los **TRES** elementos» pasaba mientras faltaba el tracto, porque salían tres
+  (errata nº 12);
+- «sale un hueco de subida por fichero» pasaba pidiendo hueco para tres ficheros que
+  estaban, porque el panel pintaba el hueco a ciegas (errata nº 14).
+
+Contar widgets, contar elementos o contar filas no distingue una salida correcta de una
+que tiene el mismo tamaño y dice otra cosa. **Contar no es comprobar.**

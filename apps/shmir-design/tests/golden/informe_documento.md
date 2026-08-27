@@ -514,18 +514,18 @@ COMO CERRAR EL FRENTE «empalme_sitios»
 
 Todas las columnas, con un estado POR FILTRO. No se colapsan ni se omiten los que no corrieron: un filtro ausente de la tabla es indistinguible de uno superado.
 
-| rango | inicio | fin | region | inicio_3utr | fin_3utr | tercio | asimetria_kcal | polyA_hexamero | polyA_clase | polyA_posicion_rel | polyA_hexamero_pos | polyA_dist_extremo3 | polyA_solapa_seed | polyA_veredicto | polyA_estricto | polyA_escalonado | polyA_truncamiento | polyA_truncamiento_propio | polyA_esterico | polyA_dist_corte | polyA_fraccion_isoforma_larga | carga_seed | accesibilidad | GC | homopolimero | G4_diana | G4_guia | asimetria | zona_prohibida_polyA | repeticiones | repeticion_polimorfica | seed | especificidad | transgen | seed_colision | bandera_polyA_debil | biofisicos_ok | riesgo_APA | veredicto | diana | guia |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 9 | 10 | 31 | 3'UTR | 10 | 31 | proximal | 4.33 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  | PASS | PASS | NOT_RUN | NOT_RUN | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCCTGCTTGTTCCTTCGCATTC | UAAUGCGAAGGAACAAGCAGGA |
-| 6 | 60 | 81 | 3'UTR | 60 | 81 | proximal | 5.15 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  | PASS | PASS | NOT_RUN | NOT_RUN | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | CCACCTGTAGCTCTTTCAATTG | UAAUUGAAAGAGCUACAGGUGG |
-| 7 | 143 | 164 | 3'UTR | 143 | 164 | proximal | 5.08 | AATATA | APA_POSIBLE | aguas abajo, 71 nt | 3utr:236 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  | PASS | PASS | NOT_RUN | NOT_RUN | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | GCCCTGGGAAATGTACAGTAGA | UCUACUGUACAUUUCCCAGGGC |
-| 10 | 200 | 221 | 3'UTR | 200 | 221 | proximal | 3.8 | AATATA | APA_POSIBLE | aguas abajo, 14 nt | 3utr:236 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  | PASS | PASS | NOT_RUN | NOT_RUN | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCTGTCATCAGCCAGTGCTAAC | UUUAGCACUGGCUGAUGACAGA |
-| 5 | 449 | 470 | 3'UTR | 449 | 470 | medio | 5.32 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 198 |  |  |  | PASS | PASS | NOT_RUN | NOT_RUN | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GTGGAATTCTTTCTTTACTAAC | UUUAGUAAAGAAAGAAUUCCAC |
-| 3 | 553 | 574 | 3'UTR | 553 | 574 | medio | 5.86 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 302 |  |  |  | PASS | PASS | NOT_RUN | NOT_RUN | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | AGGGCACTAGAATGATCTTTAG | UUAAAGAUCAUUCUAGUGCCCU |
-| 4 | 652 | 673 | 3'UTR | 652 | 673 | medio | 5.8 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 401 |  |  |  | PASS | PASS | NOT_RUN | NOT_RUN | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GAGGGATGGTTAAGGTACAAAG | UUUUGUACCUUAACCAUCCCUC |
-| 8 | 735 | 756 | 3'UTR | 735 | 756 | medio | 5.08 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 484 |  |  |  | PASS | PASS | NOT_RUN | NOT_RUN | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCCCTATGTTTCTGTACTTCTA | UAGAAGUACAGAAACAUAGGGC |
-| 2 | 819 | 840 | 3'UTR | 819 | 840 | distal | 5.96 | CATAAA | OTRA | aguas abajo, 66 nt | 3utr:907 | 330 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 568 |  |  |  | PASS | PASS | NOT_RUN | NOT_RUN | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCTCCATTCCAAAGTGGGAAAG | UUUUCCCACUUUGGAAUGGAGC |
-| 1 | 1018 | 1039 | 3'UTR | 1018 | 1039 | distal | 6.65 | ACTAAA | OTRA | dentro | 3utr:1034 | 203 nt | si | PASS | FAIL | PASS | TECHO | NO_APLICA | PENALIZADO | 767 |  |  |  | PASS | PASS | NOT_RUN | NOT_RUN | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | True | True | prediccion:si | INCOMPLETE | GGCCGTTCCATCCAGTACTAAA | UUUAGUACUGGAUGGAACGGCC |
+| rango | inicio | fin | region | inicio_3utr | fin_3utr | tercio | asimetria_kcal | polyA_hexamero | polyA_clase | polyA_posicion_rel | polyA_hexamero_pos | polyA_dist_extremo3 | polyA_solapa_seed | polyA_veredicto | polyA_estricto | polyA_escalonado | polyA_truncamiento | polyA_truncamiento_propio | polyA_esterico | polyA_dist_corte | polyA_fraccion_isoforma_larga | carga_seed | accesibilidad | GC | homopolimero | asimetria | zona_prohibida_polyA | repeticiones | repeticion_polimorfica | seed | especificidad | transgen | seed_colision | bandera_polyA_debil | biofisicos_ok | riesgo_APA | veredicto | diana | guia |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 9 | 10 | 31 | 3'UTR | 10 | 31 | proximal | 4.33 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCCTGCTTGTTCCTTCGCATTC | UAAUGCGAAGGAACAAGCAGGA |
+| 6 | 60 | 81 | 3'UTR | 60 | 81 | proximal | 5.15 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | CCACCTGTAGCTCTTTCAATTG | UAAUUGAAAGAGCUACAGGUGG |
+| 7 | 143 | 164 | 3'UTR | 143 | 164 | proximal | 5.08 | AATATA | APA_POSIBLE | aguas abajo, 71 nt | 3utr:236 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | GCCCTGGGAAATGTACAGTAGA | UCUACUGUACAUUUCCCAGGGC |
+| 10 | 200 | 221 | 3'UTR | 200 | 221 | proximal | 3.8 | AATATA | APA_POSIBLE | aguas abajo, 14 nt | 3utr:236 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCTGTCATCAGCCAGTGCTAAC | UUUAGCACUGGCUGAUGACAGA |
+| 5 | 449 | 470 | 3'UTR | 449 | 470 | medio | 5.32 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 198 |  |  |  | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GTGGAATTCTTTCTTTACTAAC | UUUAGUAAAGAAAGAAUUCCAC |
+| 3 | 553 | 574 | 3'UTR | 553 | 574 | medio | 5.86 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 302 |  |  |  | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | AGGGCACTAGAATGATCTTTAG | UUAAAGAUCAUUCUAGUGCCCU |
+| 4 | 652 | 673 | 3'UTR | 652 | 673 | medio | 5.8 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 401 |  |  |  | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GAGGGATGGTTAAGGTACAAAG | UUUUGUACCUUAACCAUCCCUC |
+| 8 | 735 | 756 | 3'UTR | 735 | 756 | medio | 5.08 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 484 |  |  |  | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCCCTATGTTTCTGTACTTCTA | UAGAAGUACAGAAACAUAGGGC |
+| 2 | 819 | 840 | 3'UTR | 819 | 840 | distal | 5.96 | CATAAA | OTRA | aguas abajo, 66 nt | 3utr:907 | 330 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 568 |  |  |  | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCTCCATTCCAAAGTGGGAAAG | UUUUCCCACUUUGGAAUGGAGC |
+| 1 | 1018 | 1039 | 3'UTR | 1018 | 1039 | distal | 6.65 | ACTAAA | OTRA | dentro | 3utr:1034 | 203 nt | si | PASS | FAIL | PASS | TECHO | NO_APLICA | PENALIZADO | 767 |  |  |  | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | True | True | prediccion:si | INCOMPLETE | GGCCGTTCCATCCAGTACTAAA | UUUAGUACUGGAUGGAACGGCC |
 
 > **MULTIPLEXADO: hay candidatos que comparten núcleo.**
 
@@ -548,21 +548,21 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
   veredicto  INCOMPLETE
 
 ── Frentes (14) ──
-  frente                               estado    fecha        procedencia
-  empalme_intron                       NOT_RUN   —            frente abierto del informe
-  empalme_sitios:mvm_actual            NOT_RUN   —            sin corrida en el almacen
-  empalme_sitios:mvm_sin_criptico      NOT_RUN   —            sin corrida en el almacen
-  empalme_sitios:quimerico_cmv_globina NOT_RUN   —            sin corrida en el almacen
-  especificidad                        NOT_RUN   —            sin corrida en el almacen
-  fraccion_isoforma_larga              PASS      —            frente CERRADO del informe
-  offtarget_seed:guia                  NOT_RUN   —            sin corrida en el almacen
-  offtarget_seed:pasajera              NOT_RUN   —            sin corrida en el almacen
-  repeticion_polimorfica               NOT_RUN   —            frente abierto del informe
-  repeticiones                         NOT_RUN   —            frente abierto del informe
-  seed                                 NOT_RUN   —            frente abierto del informe
-  seed_colision:guia                   NOT_RUN   —            sin corrida en el almacen
-  seed_colision:pasajera               NOT_RUN   —            sin corrida en el almacen
-  transgen                             NOT_RUN   —            frente abierto del informe
+  frente                          estado    fecha        procedencia
+  empalme_intron                  NOT_RUN   —            frente abierto del informe
+  empalme_sitios:intron_quimerico NOT_RUN   —            sin corrida en el almacen
+  empalme_sitios:mvm_actual       NOT_RUN   —            sin corrida en el almacen
+  empalme_sitios:mvm_sin_criptico NOT_RUN   —            sin corrida en el almacen
+  especificidad                   NOT_RUN   —            sin corrida en el almacen
+  fraccion_isoforma_larga         PASS      —            frente CERRADO del informe
+  offtarget_seed:guia             NOT_RUN   —            sin corrida en el almacen
+  offtarget_seed:pasajera         NOT_RUN   —            sin corrida en el almacen
+  repeticion_polimorfica          NOT_RUN   —            frente abierto del informe
+  repeticiones                    NOT_RUN   —            frente abierto del informe
+  seed                            NOT_RUN   —            frente abierto del informe
+  seed_colision:guia              NOT_RUN   —            sin corrida en el almacen
+  seed_colision:pasajera          NOT_RUN   —            sin corrida en el almacen
+  transgen                        NOT_RUN   —            frente abierto del informe
 
 ── Asimetría — las TRES cifras, que son magnitudes distintas ──
   cruda +3.80   penalizacion 0.00   neta +3.80
@@ -610,6 +610,7 @@ Estos no salen de ninguna medida. Se declaran como convenio o como decisión de 
 | homopolimero máximo | 4 nt | el corte en 4 es un redondeo operativo, no un punto medido: 5 no es cualitativamente distinto de 4 |
 | asimetría mínima (proxy) | +1,0 kcal/mol | el proxy no está calibrado contra energias medidas, así que el número ordena candidatos entre si pero no es una magnitud fisica |
 | flanco prohibido alrededor del hexámero (eje esterico) | ±10 nt | NO TIENE BASE MEDIDA, y es el caso que obliga a distinguir origenes. La huella real de CPSF/CstF sobre el pre-mRNA es MAYOR que 10 nt, así que una ventana que el filtro deja pasar por 4 nt está probablemente dentro de la zona de competencia. El eje esterico es un GRADIENTE, no una frontera: cualquier umbral en nucleótidos le atribuye una precisión que la biologia no tiene. Por eso el informe emite además la SENSIBILIDAD al flanco |
+| longitud de los espaciadores del intrón (5' y 3') | 20 nt en 5' y 45 nt en 3' | NO HAY NÚMERO QUE JUSTIFICAR, y no por no haberlo buscado: el barrido se hizo (`tools/barrer_espaciadores.py`, 0-45 nt en los dos lados, con réplicas) y NO DISCRIMINÓ. En ningún elemento el recorrido entre longitudes supera la dispersión entre secuencias de la MISMA longitud: lo que mueve la accesibilidad es la secuencia del espaciador, no su longitud. Optimizar por un criterio que no discrimina es elegir ruido, y elegir el ruido favorable es peor que no elegir. Misma categoría que el flanco de ±10 nt: nuestro, sin base medida |
 | espaciado mínimo entre candidatos elegidos | 50 nt | 50 nt no sale de ninguna medida de correlación espacial de fallos: sale de que sea claramente mayor que una ventana de 22 nt y de que deje sitio para el panel |
 | criterio de Kozak fuerte | purina en -3 y G en +4 | no se pondera la fuerza del contexto ni se usa ninguna matriz: es un corte binario sobre dos posiciones |
 

@@ -65,14 +65,14 @@ class TestLaUnidadEsElPar(unittest.TestCase):
 
     def test_un_intron_QUE_NO_TENEMOS_no_produce_consultas_pero_SE_VE(self):
         """NOT_RUN visible: un intron que no se ve no existe."""
-        informe = spliceai.intron_report(("mvm_actual", "quimerico_cmv_globina"))
+        informe = spliceai.intron_report(("mvm_actual", "mvm_sin_criptico"))
         estados = {f["intron"]: f["estado"] for f in informe}
         self.assertIs(estados["mvm_actual"], FilterState.PASS)
-        self.assertIs(estados["quimerico_cmv_globina"], FilterState.NOT_RUN)
+        self.assertIs(estados["mvm_sin_criptico"], FilterState.NOT_RUN)
 
     def test_y_pedir_construcciones_de_uno_que_falta_ABORTA(self):
         with self.assertRaises(ShmirDesignError):
-            self._construcciones(("quimerico_cmv_globina",))
+            self._construcciones(("mvm_sin_criptico",))
 
     def test_la_construccion_lleva_el_INTRON_ENTERO_con_el_modulo_dentro(self):
         c = self._construcciones()[0]
