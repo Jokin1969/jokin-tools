@@ -488,3 +488,98 @@ Movida a `presentation.variant_proposal_for()`, la cubre un test como todo lo de
 
 **Corolario**: la regla 6 no es de estilo. Cada `a.b.c` en la página es una suposición
 sobre el modelo que ningún test comprueba.
+
+## 18 — `or` borra el valor que significaba algo
+
+**El fallo, en tres sitios y con la misma forma**: `x or defecto` trata la cadena vacía,
+el cero y el `None` como si fueran la misma cosa. Cuando el valor falso **significa
+algo**, el `or` lo borra.
+
+De los 73 usos de `x or defecto` del paquete, la mayoría son correctos —rellenar un md5
+vacío con «SIN REGISTRAR» es exactamente lo que se quiere—. Los tres que muerden:
+
+1. **`inicio_3utr or window.start`**, en `outputs.py` y en `selection.py`. `None` no es
+   una posición que falte: es que la ventana **no cae en el 3'UTR** —una del ORF entra
+   con `--cuota-region`— y el `or` la sustituía por la coordenada de **lo tilado**, que
+   dos caracteres después se etiquetaba `Frame.UTR3`. Es la familia que este proyecto ya
+   había cazado cuatro veces, por quinta vez, y esta vez **entrando por la puerta del
+   `or`** en vez de por un `Frame.UTR3` escrito a mano.
+2. **`species_prefix or 'de todas las especies del fichero'`**, en la **tasa base**.
+   `None` es «nadie declaró la especie» y `""` es «todas, a propósito». Está escrito en
+   `CLAUDE.md` que son dos cosas. Salían las dos como la segunda — en el número que el
+   proyecto obliga a imprimir al lado de cada AVISO.
+3. Lo mismo en los controles de la carga de off-targets.
+
+**Lo que hace este caso distinto de un descuido**: el proyecto ya había hecho bien esa
+distinción dos veces, con `divergent_positions=None` frente a `frozenset()` y con
+`species_prefix` frente a `""`. No falló el concepto — la distinción está hecha **en el
+dato** y se deshace **al imprimirlo**. Un dato que distingue y una salida que no, es una
+salida que no distingue.
+
+**La regla**: un centinela que se confunde con un dato legítimo no es un centinela.
+`None` para «no hay valor», y el valor falso —`""`, `0`, `frozenset()`— reservado para
+lo que de verdad significa. Al escribir `or`, la pregunta es: ¿puede el lado izquierdo
+ser legítimamente vacío o cero? Si puede, hace falta `is None`.
+
+## 19 — El tracto medido dentro de una ventana, y el borde
+
+**No es un fallo de hoy: es una sospecha declarada.** `_ppt_span` busca la racha de
+pirimidinas más larga en los 40 nt de delante del aceptor. Si la racha **empieza en el
+borde** de esa ventana y la base anterior sigue siendo pirimidina, lo que se emite no es
+la racha: es el trozo que cabía.
+
+Ninguno de los dos intrones del registro lo toca —9 y 11 pirimidinas, muy dentro—, y ése
+es justamente el motivo de **declararlo en vez de subir la ventana por si acaso**: la
+auditoría de geometría existe para vigilar lo que hoy no muerde. Un tercer intrón con un
+tracto largo lo tocaría, y el aviso ya está escrito.
+
+Importa porque el tracto es la **referencia interna** contra la que se compara todo
+sitio críptico: un tracto más corto de lo que es hace parecer más débil al aceptor
+legítimo, y con él más fuerte a cualquier críptico.
+
+**Del tipo que ningún invariante caza**: el valor es perfectamente posible y equivocado
+—principio nº 7—, así que lo único que se puede hacer es decirlo, y sale en el informe
+de geometría con o sin recorte.
+
+## 20 — El guardia de las tildes con un agujero del tamaño de «intron»
+
+**El fallo**: `_es_ingles` eximía un literal si **todas** sus palabras estaban en un
+vocabulario inglés. Ese vocabulario existía por `"chimeric intron"` —el `label` con el
+que se busca la feature en el GenBank del plásmido, que tildado deja de encontrarse—, y
+para eximirlo entraron `intron` y `primer`. Las dos existen en los dos idiomas.
+
+Resultado: **«primer intron»**, que es castellano con dos faltas, salía eximido entero.
+
+**Un guardia que deja pasar justo lo que tenía que cazar es peor que no tenerlo**,
+porque además tranquiliza: el contador decía «90 ficheros sin prosa sin tildes» y la
+prosa estaba sin tildes.
+
+**El arreglo es de clase, no de lista**: la excepción pasa a ser **por contexto** —una
+lista de literales **exactos** que se usan como etiqueta de un fichero ajeno— en vez de
+por vocabulario. Una etiqueta lo es por **dónde se usa**, no por cómo está escrita, y
+cualquier heurística sobre las palabras vuelve a abrir el agujero.
+
+**Y la segunda mitad, que casi se escapa**: la excepción funcionaba desde `corregir()`,
+que recibe el **valor** de la cadena, y no desde el barrido del fichero, que pasa el
+**token** con las comillas pegadas. O sea que la etiqueta salía exenta al probarla a
+mano y acentuada al pasar el guardia sobre el fichero. Media excepción es peor que
+ninguna: la prueba a mano decía que estaba cerrada.
+
+## 21 — Cuatro corridas, dos sin el md5 de lo que consumieron
+
+**El fallo**: `SeedScan` guardaba la procedencia del fichero de maduros como **prosa**
+—`mature.provenance`, con el md5 en medio de una frase— mientras BLAST guardaba
+`database.md5` y off-target `provenance.md5` como **campo**. Un md5 dentro de una frase
+se lee; no se compara. Y OBSOLETO se deriva **comparando**.
+
+**Y al mirarlo salió lo que el primer vistazo tapaba**: off-target consume **dos**
+ficheros —el catálogo de 3'UTR y el de maduros— y sólo llevaba el md5 del primero. No
+era «un campo que falta en uno de cuatro»: faltaba en **dos**, y en el segundo lo
+escondía que el primero sí estuviera. Misma forma que la errata nº 12, la comprobación
+que se llamaba «los TRES elementos» y contaba en vez de identificar.
+
+**Se cierra con una tabla y no con cuatro `if`** (`insumos.CONSUMIDOS`): qué consume
+cada tipo de corrida y en qué campo del registro vive su md5. Un quinto modal que no
+declare sus insumos falla en la suite, no el día que alguien busque por qué su corrida
+no se marcó obsoleta. Y la entrada de `corrida_empalme` está **vacía a propósito**, que
+dice «se miró y no hay» — ausente diría «nadie lo miró».

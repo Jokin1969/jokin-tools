@@ -42,6 +42,11 @@ from shmir_design.presentation import (  # noqa: E402
     intron_geometry_text,
     stored_runs_note,
     upload_path,
+    anatomy_source_label,
+    chosen_starts,
+    obsolete_rows,
+    has_selection,
+    project_banner,
     variant_proposal_for,
     reference_delete,
     reference_delete_plan,
@@ -141,7 +146,7 @@ from shmir_design.presentation import (  # noqa: E402
     window_rows,
 )
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
-from shmir_design.filters import FilterState  # noqa: E402
+from shmir_design.filters import OBSOLETO_NOTE, FilterState  # noqa: E402
 from shmir_design.reference import (  # noqa: E402
     REFERENCES,
     extract_3utr,
@@ -486,7 +491,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "brazos de homologia, más la hoja de pedido."
         ),
     )
-    if bloques and seleccion.selection.chosen:
+    if bloques and has_selection(seleccion):
         aviso_vector = vector_note(nombre)
         if not aviso_vector["aplica"]:
             st.error(aviso_vector["texto"])
@@ -504,7 +509,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     documento = informe_documento(
         seleccion, tiling, species=nombre,
         generated=st.session_state.get("fecha_informe", "sin fecha declarada"),
-        anatomy_source=anat.source.value if hasattr(anat, "source") else str(anat),
+        anatomy_source=anatomy_source_label(anat),
     )
     (st.warning if documento.state == "PARCIAL" else st.success)(
         informe_state_text(documento)
@@ -585,12 +590,30 @@ def _panel_proyecto(especie: str, secuencia: str, anat):
         st.sidebar.error(f"**PARA** — {exc}")
         return None
 
-    st.sidebar.success(f"Proyecto **{almacen.project.slug}** — {len(almacen.records())} registro(s)")
-    if not almacen.project.reliable:
-        st.sidebar.warning(almacen.project.why_unreliable)
+    cartel = project_banner(almacen)
+    st.sidebar.success(cartel["titulo"])
+    if not cartel["fiable"]:
+        st.sidebar.warning(cartel["aviso"])
     with st.sidebar.expander("Historial"):
         for fila in project_rows(almacen):
             st.write(f"{fila['n']}. `{fila['tipo']}` {fila['fecha']} — {fila['resumen']}")
+
+    # ¿Siguen valiendo? Se DERIVA comparando el md5 que cada corrida guardó con el del
+    # fichero de hoy. La página no compara nada: pide las filas ya resueltas.
+    filas = obsolete_rows(almacen, directory=reference_dir())
+    caducadas = [f for f in filas if f["estado"] is FilterState.OBSOLETO]
+    if caducadas:
+        st.sidebar.error(
+            f"**{len(caducadas)} corrida(s) OBSOLETA(s)** — un fichero que consumieron "
+            f"ha cambiado debajo."
+        )
+    if filas:
+        with st.sidebar.expander("¿Siguen valiendo las corridas guardadas?"):
+            st.caption(OBSOLETO_NOTE)
+            for fila in filas:
+                st.write(f"`{fila['tipo']}` {fila['fecha']} — **{fila['estado']}**")
+                for motivo in fila["motivos"]:
+                    st.caption(f"  {motivo}")
     return almacen
 
 
@@ -1133,7 +1156,7 @@ def _guardar_seleccion(proyecto, seleccion, nombre: str) -> None:
             try:
                 save_selection(
                     proyecto,
-                    starts=[c.start for c in seleccion.selection.chosen],
+                    starts=chosen_starts(seleccion),
                     date=fecha, by=quien,
                 )
             except (ShmirDesignError, ValueError, OSError) as exc:
@@ -1319,7 +1342,7 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None) -> None:
                 f"(por defecto {fila['por_defecto']})"
             )
 
-    starts = [c.start for c in seleccion.selection.chosen]
+    starts = chosen_starts(seleccion)
     # La HUELLA del panel y los ajustes. Ver `WHY_A_RUN_FINGERPRINT`: sin ella, cambiar
     # la selección o un ajuste dejaba en pantalla el resultado viejo y lo ofrecía para
     # guardar — una corrida con una procedencia que no era la suya.
@@ -1601,7 +1624,7 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         )
     st.error(offtarget_upper_bound()["texto"])
 
-    starts = [c.start for c in seleccion.selection.chosen]
+    starts = chosen_starts(seleccion)
     huella = run_fingerprint(tuple(starts), params)
     if st.button(f"Contar off-targets — {nombre}", key=f"ot_go_{nombre}"):
         # Mismo motivo que en el modal de seed: el scan tiene que sobrevivir al rerun.

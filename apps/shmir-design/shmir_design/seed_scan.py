@@ -287,7 +287,18 @@ class BaseRate:
     def describe(self) -> str:
         return (
             f"TASA BASE: {self.matures} maduro(s) "
-            f"{self.species_prefix or 'de todas las especies del fichero'} dan "
+            # `None` y `""` NO son lo mismo y estaba escrito que no lo eran: el primero
+            # es «nadie declaro la especie» y el segundo «todas, a proposito». El `or`
+            # los daba los dos por el segundo. Errata nº 18.
+            + (
+                "con la especie SIN DECLARAR"
+                if self.species_prefix is None
+                else (
+                    self.species_prefix
+                    or "de todas las especies del fichero (elegido a propósito)"
+                )
+            )
+            + f" dan "
             f"{self.distinct} seed(s) distinta(s) de {self.window} sobre un espacio de "
             f"{self.space}, así que cerca del {self.fraction:.0%} de las guías colisiona "
             f"con alguna POR AZAR. Sin esta cifra al lado, un AVISO parece más grave de "
@@ -356,6 +367,13 @@ class SeedScan:
     results: tuple[SeedResult, ...]
     base_rate: BaseRate
     raw: str
+    #: md5 del fichero de maduros que se uso, como CAMPO y no dentro de `source`.
+    #: `source` es `MatureSet.provenance`, que lleva el checksum en medio de una frase:
+    #: se lee, pero no se compara. OBSOLETO se deriva comparando md5, asi que un md5 en
+    #: prosa no sirve — y este es el frente cuyo fichero mas se va a reemplazar, porque
+    #: miRBase publica versiones. Ver `insumos.CONSUMIDOS`.
+    mature_md5: str = ""
+    mature_version: str = ""
 
     def for_strand(self, strand: str) -> tuple[SeedResult, ...]:
         return tuple(r for r in self.results if r.strand == strand)
@@ -472,4 +490,5 @@ def run_scan(
     return SeedScan(
         params=params, source=mature.provenance, results=tuple(resultados),
         base_rate=base_rate(mature, params), raw="\n".join(crudas) + "\n",
+        mature_md5=mature.checksum, mature_version=mature.version,
     )

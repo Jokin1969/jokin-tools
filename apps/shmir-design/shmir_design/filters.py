@@ -62,6 +62,20 @@ class FilterState(StrEnum):
     FAIL = "FAIL"
     NOT_RUN = "NOT_RUN"
     NO_APLICA = "NO_APLICA"
+    #: La corrida SE HIZO y un fichero que consumio ha cambiado debajo. No es NOT_RUN
+    #: —hay resultado y se puede leer— y no es PASS: un veredicto no se defiende con un
+    #: fichero que ya no existe. Se DERIVA comparando md5 (`insumos.obsoleta`), no se
+    #: anota a mano. Ver `OBSOLETO_NOTE`.
+    OBSOLETO = "OBSOLETO"
+
+
+OBSOLETO_NOTE = (
+    "OBSOLETO no es NOT_RUN ni PASS. La corrida existe y su resultado se puede leer, "
+    "pero uno de los ficheros que consumió ya no es el mismo: el veredicto no se puede "
+    "defender con él. Se deriva comparando el md5 que la corrida guardó con el del "
+    "fichero de hoy; si la corrida no guardó md5, o no hay fichero con el que comparar, "
+    "el estado es NOT_RUN — no haber podido comprobarlo no es que coincida."
+)
 
 
 class Verdict(StrEnum):

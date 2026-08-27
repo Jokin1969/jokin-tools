@@ -81,12 +81,20 @@ class TestLaLONGITUD_NO_SE_EXPLORA(unittest.TestCase):
 
         entrada = next(x for x in OTHER_THRESHOLDS if x.key == "spacer_lengths")
         self.assertEqual(entrada.origin, "convencion")
-        self.assertIn("NO DISCRIMINÓ", entrada.no_measured_basis)
+        # ACTUALIZADO al medir el 0 de verdad (errata nº 16): decía «NO DISCRIMINÓ» a
+        # secas, y eso era cierto de la corrida en la que el punto 0 devolvía los
+        # espaciadores ESTÁNDAR. Con el 0 bien medido el lado 3' SÍ discrimina, por
+        # poco. Lo que el barrido sigue sin dar es un NÚMERO que justifique 20 y 45.
+        self.assertIn("NO da es un número", entrada.no_measured_basis)
         self.assertIn("comparable", entrada.rationale)
 
     def test_el_motivo_de_NO_explorar_esta_escrito(self):
         self.assertIn("comparable", spacers.WHY_FIXED_LENGTHS)
-        self.assertIn("ruido", spacers.WHY_FIXED_LENGTHS)
+        # Y el motivo va POR LADO, no en una frase única: son dos resultados distintos
+        # y colapsarlos es lo que hacía falsa la versión anterior. Ver errata nº 16.
+        self.assertIn("único largo admisible", spacers.WHY_FIXED_LENGTHS)
+        self.assertIn("5'", spacers.WHY_FIXED_LENGTHS)
+        self.assertIn("3'", spacers.WHY_FIXED_LENGTHS)
 
     def test_y_la_PALANCA_de_donante_punto_queda_anotada(self):
         # No son los espaciadores: es el módulo, 149 de los 214 nt intercalados.

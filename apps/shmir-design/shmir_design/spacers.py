@@ -59,14 +59,25 @@ from .hard_filters import longest_homopolymer as _longest_homopolymer
 SPACER5_LENGTH = 20
 SPACER3_LENGTH = 45
 
-#: POR QUE LAS LONGITUDES ESTAN FIJAS Y NO SE EXPLORAN (2026-08-27). Tres razones, y la
-#: primera es la que sale de medir:
+#: POR QUE LAS LONGITUDES ESTAN FIJAS Y NO SE EXPLORAN (2026-08-27, RECORRIDO tras
+#: arreglar el punto 0). Tres razones, y la primera es la que sale de medir:
 #:
-#: 1. LA ACCESIBILIDAD NO VE LA LONGITUD. El barrido esta hecho
-#:    (`tools/barrer_espaciadores.py`, 0-45 en los dos lados, con replicas) y NO
-#:    DISCRIMINO: en ningun elemento el recorrido entre longitudes supera la dispersion
-#:    entre secuencias de la MISMA longitud. Optimizar por un criterio que no discrimina
-#:    es elegir RUIDO, y elegir el ruido favorable es peor que no elegir.
+#: 1. NINGUNA LONGITUD MAS CORTA ES ADMISIBLE. El barrido esta hecho
+#:    (`tools/barrer_espaciadores.py`, 0-45 en los dos lados, 5 replicas, ViennaRNA
+#:    presente) y en LOS DOS LADOS el unico largo admisible es el punto de partida. El
+#:    criterio es relativo —«no peor que 20/45 en los tres elementos fragiles»—, asi que
+#:    eso dice literalmente que recortar no sale gratis en ninguno.
+#:    Y el POR QUE no es el mismo en los dos lados, que es lo que cambio al medir el 0
+#:    de verdad (hasta entonces la fila «0 nt» devolvia los ESTANDAR, errata nº 16):
+#:      - lado 5': el criterio NO DISCRIMINA. Recorridos entre longitudes 0,09 / 0,29 /
+#:        0,01 contra dispersiones dentro de una longitud de 0,21 / 0,46 / 0,02. Los
+#:        tres por debajo: lo que mueve la accesibilidad es la SECUENCIA.
+#:      - lado 3': SI discrimina en dos de los tres —donante 0,58 contra 0,54 y punto de
+#:        ramificacion 0,40 contra 0,36— y lo que dice es que 45 gana. Por poco (7 % y
+#:        11 % de margen con 5 replicas), asi que tampoco sostiene una optimizacion fina.
+#:    La frase anterior, «el barrido no discrimino» a secas, era cierta de la corrida con
+#:    el 0 mal medido y es FALSA de esta para el lado 3'. La decision no cambia; el
+#:    motivo, si.
 #: 2. DISEÑO EXPERIMENTAL. Si cada intron lleva su longitud «optima», los tres dejan de
 #:    ser comparables. Espaciador CONSTANTE, intron VARIABLE: eso es lo que hace la
 #:    matriz interpretable.
@@ -75,16 +86,21 @@ SPACER3_LENGTH = 45
 #:
 #: LO QUE SI SE ELIGE es la SECUENCIA, que es donde la accesibilidad si discrimina.
 #:
-#: Y LA PALANCA, para cuando haya que atacar donante→punto: NO son los espaciadores. Es
-#: el MODULO — 149 de los 214 nt intercalados, contra 65 de los dos espaciadores juntos.
-#: Recortar espaciadores entero no llega ni a un tercio de lo que sobra.
+#: Y LA PALANCA, para cuando haya que atacar donante→punto: NO son los espaciadores, y
+#: ahora esta MEDIDO en vez de estimado. Quitando los DOS espaciadores enteros la
+#: distancia baja de 256 a 191 nt — 65 nt, y sigue muy por encima del rango tipico
+#: (18-100). El MODULO son 149 de los 214 nt intercalados.
 WHY_FIXED_LENGTHS = (
-    "Las longitudes 20/45 están FIJAS y no se exploran. El barrido se hizo y no "
-    "discriminó: lo que mueve la accesibilidad es la secuencia, no la longitud, así que "
-    "optimizar la longitud sería elegir ruido. Y con espaciador constante e intrón "
-    "variable los tres intrones son comparables, que es lo que hace la matriz "
-    "interpretable. La palanca de donante→punto no son los espaciadores: es el módulo, "
-    "149 de los 214 nt intercalados frente a los 65 de los dos espaciadores juntos."
+    "Las longitudes 20/45 están FIJAS y no se exploran. El barrido se hizo (0-45 en los "
+    "dos lados, 5 réplicas) y en LOS DOS LADOS el único largo admisible es el punto de "
+    "partida: ninguna longitud más corta queda no peor en los tres elementos frágiles. "
+    "El motivo difiere por lado — en el 5' el criterio NO discrimina (lo que mueve la "
+    "accesibilidad es la secuencia, no la longitud), y en el 3' sí discrimina por poco "
+    "y lo que dice es que 45 gana. Con espaciador constante e intrón variable los tres "
+    "intrones son comparables, que es lo que hace la matriz interpretable. Y la palanca "
+    "de donante→punto no son los espaciadores: quitando los dos enteros la distancia "
+    "baja de 256 a 191 nt y sigue fuera del rango típico. Es el módulo, 149 de los 214 "
+    "nt intercalados."
 )
 
 WHY_THE_COUNT_IS_EMITTED = (

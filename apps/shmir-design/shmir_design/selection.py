@@ -1214,9 +1214,14 @@ class PromotionCost:
         cuales = ", ".join(
             f"{s.motif} en {label(s.position, marco)}" for s in self.signals
         )
+        # Solo las que TIENEN coordenada de 3'UTR. `None` es «no cae en el 3'UTR», y
+        # sustituirla por la de lo tilado la etiquetaria `3utr:` siendo del transcrito.
+        # Las que no la tienen se cuentan aparte en vez de desaparecer. Errata nº 18.
+        en_utr3 = [w for w in self.windows if w.inicio_3utr is not None]
+        fuera = len(self.windows) - len(en_utr3)
         posiciones = ", ".join(
-            label(w.inicio_3utr or w.window.start, Frame.UTR3) for w in self.windows
-        )
+            label(w.inicio_3utr, Frame.UTR3) for w in en_utr3
+        ) + (f" (y {fuera} fuera del 3'UTR)" if fuera else "")
         return (
             f"LO QUE CUESTA LA PROMOCION: {len(self.windows)} ventana(s) que superaban "
             f"todos los demas filtros pasan a FAIL por SOLAPAR una señal que la medida "

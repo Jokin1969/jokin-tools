@@ -377,6 +377,11 @@ def save_seed_run(store: ProjectStore, run) -> Record:
             "ran_by": run.ran_by,
             "source": run.source,
             "result_md5": run.result_md5,
+            # El md5 del fichero de maduros va como CAMPO, no dentro de `source`.
+            # Es lo que hace comparable una corrida vieja con el fichero de hoy; ver
+            # `insumos.CONSUMIDOS`.
+            "mature_md5": run.scan.mature_md5,
+            "mature_version": run.scan.mature_version,
             "params": {
                 "window": run.params.window,
                 "species_prefix": run.params.species_prefix,
@@ -431,6 +436,12 @@ def load_seed_store(store: ProjectStore):
             params=SeedParams(**datos["params"]), source=datos["source"],
             results=resultados, base_rate=BaseRate(**datos["base_rate"]),
             raw=datos["raw"],
+            # `.get` con "" para las corridas escritas ANTES de que este campo
+            # existiera: la cadena vacia se lee como «la corrida no lo guardo», que es
+            # lo que `insumos.obsoleta` distingue de «no coincide». Convertirla en un
+            # md5 inventado seria peor que no tenerla.
+            mature_md5=datos.get("mature_md5", ""),
+            mature_version=datos.get("mature_version", ""),
         )
         almacen.add(
             SeedRun(
@@ -488,6 +499,10 @@ def save_offtarget_run(store: ProjectStore, run) -> Record:
             "ran_by": run.ran_by,
             "source": run.source,
             "result_md5": run.result_md5,
+            # Esta corrida consume DOS ficheros: el catalogo (`provenance.md5`) y el
+            # de maduros. Ver `insumos.CONSUMIDOS`.
+            "mature_md5": scan.mature_md5,
+            "mature_version": scan.mature_version,
             "params": {
                 "null_draws": scan.params.null_draws,
                 "null_seed": scan.params.null_seed,
@@ -599,6 +614,9 @@ def load_offtarget_store(store: ProjectStore):
                 for consulta, s in datos["self_counts"].items()
             },
             raw=datos["raw"],
+            # Mismo criterio que en la corrida de seed: "" = la corrida no lo guardo.
+            mature_md5=datos.get("mature_md5", ""),
+            mature_version=datos.get("mature_version", ""),
         )
         almacen.add(
             OfftargetRun(

@@ -1091,7 +1091,12 @@ class OfftargetParams:
     def describe(self) -> list[str]:
         lineas = [
             f"sorteos de la nula={self.null_draws}  semilla={self.null_seed}  "
-            f"controles={self.species_prefix or 'TODAS'}",
+            # Misma distincion que en la tasa base: `None` no es `""`. Errata nº 18.
+            "  controles="
+            + (
+                "SIN DECLARAR" if self.species_prefix is None
+                else (self.species_prefix or "TODAS")
+            ),
             "U↔T: siempre, y no se puede apagar.",
         ]
         tocados = self.modified()
@@ -1138,6 +1143,12 @@ class OfftargetScan:
     controls: tuple[Control, ...]
     self_counts: dict[str, SelfCount]
     raw: str
+    #: Esta corrida consume DOS ficheros. `provenance.md5` es el del catalogo de 3'UTR;
+    #: este es el del fichero de MADUROS, del que salen los controles y la tasa base.
+    #: Faltaba, y lo tapaba que el del catalogo si estuviera — la misma forma de la
+    #: errata nº 12. Ver `insumos.CONSUMIDOS`.
+    mature_md5: str = ""
+    mature_version: str = ""
 
     def for_strand(self, strand: str) -> tuple[LoadResult, ...]:
         return tuple(r for r in self.results if r.strand == strand)
@@ -1288,4 +1299,5 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
         ),
         self_counts=autoconteos,
         raw="\n".join(crudas) + "\n",
+        mature_md5=mature.checksum, mature_version=mature.version,
     )
