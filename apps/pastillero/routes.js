@@ -19,6 +19,7 @@ const asigDb = require('../asignacion/db');
 const dmDb = require('../datamatrix/db');
 const dmVisual = require('../datamatrix/visual');
 const { requireApp } = require('../auth/middleware');
+const pillImages = require('./pill-images');
 
 const router = express.Router();
 const PUB = path.join(__dirname, 'public');
@@ -166,7 +167,7 @@ router.get('/api/person/:id(\\d+)/pastillero', (req, res) => {
       const shape = dmVisual.resolveShape(pl.gtin, prod && prod.shape);
       for (const slot of SLOT_ORDER) {
         const qty = dose[slot] || 0;
-        if (qty > 0) { anyDoseDefined = true; slots[slot].push({ plan_id: pl.id, nombre, color, shape, qty }); }
+        if (qty > 0) { anyDoseDefined = true; slots[slot].push({ plan_id: pl.id, nombre, color, shape, cn: pl.cn || null, qty }); }
       }
     }
     res.json({
@@ -207,6 +208,16 @@ router.post('/api/admin/residencias/active', requireApp('pastillero'), json, (re
 // ── UI ────────────────────────────────────────────────────────────────────────
 router.get('/', (req, res) => res.sendFile(path.join(PUB, 'index.html')));
 router.get('/admin', requireApp('pastillero'), (req, res) => res.sendFile(path.join(PUB, 'admin.html')));
+// Pill image by Código Nacional — shared by Pastillero, Data Matrix and Asignación
+// (all three just <img src> this URL). Public like the rest of /assets: it's a
+// medication's appearance keyed by a public drug code, not patient data. 404 when
+// the CN has no curated image yet — the frontend falls back to the colour/shape
+// icon on that error, same as everywhere else in the suite.
+router.get('/assets/pill/:cn([0-9]{4,8}).png', (req, res) => {
+  const p = pillImages.pillImagePath(req.params.cn);
+  if (!p || !pillImages.hasPillImage(req.params.cn)) return res.status(404).end();
+  res.sendFile(p);
+});
 router.use('/assets', express.static(PUB));
 
 module.exports = router;

@@ -143,6 +143,18 @@ function shapeSvg(shape, color, px) {
     pentagon: `<path d="M12 2l10 7.3-3.8 11.7H5.8L2 9.3z" fill="${c}"/>`, cross: `<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" fill="${c}"/>` }[shape] || `<circle cx="12" cy="12" r="9" fill="${c}"/>`;
   return `<svg class="dm-shape" width="${px}" height="${px}" viewBox="0 0 24 24" aria-hidden="true">${s}</svg>`;
 }
+// Real pill photo when curated (by Código Nacional) — same file/URL shared with
+// Pastillero and Data Matrix — the colour/shape icon otherwise.
+function pillImgHtml(cn, shape, color, px) {
+  px = px || 22;
+  if (!cn) return shapeSvg(shape, color, px);
+  return `<img class="az-pill-img" src="/pastillero/assets/pill/${esc(cn)}.png" width="${px}" height="${px}" alt="" onerror="pillImgFail(this,'${esc(shape)}','${esc(color)}',${px})">`;
+}
+function pillImgFail(img, shape, color, px) {
+  const span = document.createElement('span');
+  span.innerHTML = shapeSvg(shape, color, px);
+  img.replaceWith(span.firstElementChild);
+}
 
 // ── Scanner (camera → ZXing, decodes Data Matrix + QR) ───────────────────────────
 let _zxReader = null;
@@ -1329,6 +1341,7 @@ function planRowFull(m, closed) {
       <div class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small><div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${progTxt}</span></div></div>
       ${bcInline}
       <div class="az-plan-actions">
+        <span class="az-plan-pillimg" title="${esc(m.nombre || 'Medicamento')}">${pillImgHtml(m.cn, m.shape, m.color, 34)}</span>
         <span class="az-plan-qty">×<input type="number" class="az-qty" data-plan="${m.id}" value="${m.qty}" min="1" max="99" ${closed ? 'disabled' : ''}></span>
         ${doseChip(m)}
         ${(!noDm && m.barcode) ? `<button class="qt-iconbtn" data-precinto="${m.id}" title="Ver el código de barras (precinto)">🏷️</button>` : ''}

@@ -34,6 +34,20 @@ function shapeSvg(shape, color, px) {
   }[shape] || `<circle cx="12" cy="12" r="9" fill="${c}"/>`;
   return `<svg class="pt-shape" width="${px}" height="${px}" viewBox="0 0 24 24" aria-hidden="true">${s}</svg>`;
 }
+// Real pill photo when the pharmacy has curated one (by Código Nacional), the
+// colour/shape icon otherwise. Shared file, shared URL, with Data Matrix and
+// Asignación — see apps/pastillero/pill-images.js for where the files live.
+function pillImgHtml(cn, shape, color, px) {
+  px = px || 28;
+  if (!cn) return shapeSvg(shape, color, px);
+  return `<img class="pt-pill-img" src="/pastillero/assets/pill/${esc(cn)}.png" width="${px}" height="${px}" alt="" onerror="pillImgFail(this,'${esc(shape)}','${esc(color)}',${px})">`;
+}
+// Named (not arrow/const) so it's reachable from the inline onerror= above.
+function pillImgFail(img, shape, color, px) {
+  const span = document.createElement('span');
+  span.innerHTML = shapeSvg(shape, color, px);
+  img.replaceWith(span.firstElementChild);
+}
 function lget(k, d) { try { return localStorage.getItem(k) || d; } catch { return d; } }
 function lset(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } }
 
@@ -217,16 +231,16 @@ function pillGridHtml(meds, size) {
   if (size === 'lg') {
     const cell = `min(${zoomCellBase(pills.length)}px, ${zoomCellVwCap(pills.length)}vw)`;
     return `<div class="pt-pill-grid pt-pill-grid-lg" style="--cell:${cell}">${pills.map(m =>
-      `<div class="pt-pill-cell" title="${esc(m.nombre)}">${shapeSvg(m.shape, m.color, 60)}</div>`).join('')}</div>`;
+      `<div class="pt-pill-cell" title="${esc(m.nombre)}">${pillImgHtml(m.cn, m.shape, m.color, 60)}</div>`).join('')}</div>`;
   }
   return `<div class="pt-pill-grid pt-pill-grid-sm">${pills.map(m =>
-    `<div class="pt-pill-cell" title="${esc(m.nombre)}">${shapeSvg(m.shape, m.color, 22)}</div>`).join('')}</div>`;
+    `<div class="pt-pill-cell" title="${esc(m.nombre)}">${pillImgHtml(m.cn, m.shape, m.color, 22)}</div>`).join('')}</div>`;
 }
 function slotListHtml(meds) {
   if (!meds.length) return `<div class="pt-slot-empty">Sin medicación en esta franja.</div>`;
   return meds.map(m => `
     <div class="pt-med-row">
-      ${shapeSvg(m.shape, m.color, 30)}
+      ${pillImgHtml(m.cn, m.shape, m.color, 30)}
       <span class="pt-med-name">${esc(m.nombre)}</span>
       <span class="pt-med-qty">×${m.qty}</span>
     </div>`).join('');

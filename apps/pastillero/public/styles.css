@@ -118,6 +118,7 @@ button, input { font-family: inherit; }
 .pt-pill-grid { display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: 6px; padding: 8px 0 10px; }
 .pt-pill-cell { display: flex; align-items: center; justify-content: center; background: #f8fafc; border: 1px solid var(--line); border-radius: 9px; flex: 0 0 auto; }
 .pt-pill-cell .pt-shape { width: 62%; height: 62%; }
+.pt-pill-cell .pt-pill-img { width: 82%; height: 82%; object-fit: contain; }
 .pt-pill-grid-sm .pt-pill-cell { width: 34px; height: 34px; }
 /* --cell is set inline per franja: min(basePx, 20vw) so exactly ~4-5 fit per row
    on any device and a lone pill still gets to be genuinely large. */
@@ -126,6 +127,7 @@ button, input { font-family: inherit; }
 .pt-med-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px dashed var(--line); }
 .pt-med-row:last-child { border-bottom: none; }
 .pt-shape { flex: 0 0 auto; }
+.pt-pill-img { flex: 0 0 auto; object-fit: contain; border-radius: 6px; }
 .pt-med-name { flex: 1; font-weight: 600; font-size: .98rem; }
 .pt-med-qty { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--brand-dk); background: #eaf3fa; border-radius: 8px; padding: 3px 9px; font-size: .88rem; }
 

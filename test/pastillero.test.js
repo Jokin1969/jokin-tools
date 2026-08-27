@@ -10,6 +10,7 @@ process.env.QR_TIS_DB_PATH = path.join(dir, 'qr.db');
 process.env.DM_DB_PATH = path.join(dir, 'dm.db');
 process.env.ASIG_DB_PATH = path.join(dir, 'asig.db');
 process.env.PASTILLERO_DB_PATH = path.join(dir, 'pastillero.db');
+process.env.PASTILLERO_PILL_IMAGES_DIR = path.join(dir, 'pills');
 process.env.DB_PATH = path.join(dir, 'auth.db');
 
 const express = require('express');
@@ -178,4 +179,26 @@ test('listado de personas: incluye número de medicamentos y la próxima toma', 
 
   assert.equal(noneRow.med_count, 0);
   assert.equal(noneRow.next_dose, null, 'sin plan, no hay próxima toma');
+});
+
+test('imagen de pastilla por CN: 404 si no existe el fichero, 200 (PNG) si existe', async () => {
+  const fs2 = require('fs');
+  const path2 = require('path');
+  const pillImages = require('../apps/pastillero/pill-images');
+  const assetsBase = `http://127.0.0.1:${server.address().port}/pastillero/assets`;
+
+  const missing = await fetch(`${assetsBase}/pill/999999.png`);
+  assert.equal(missing.status, 404, 'sin fichero en el repositorio, 404 (el frontend cae al icono genérico)');
+
+  // Escribe un PNG mínimo (1x1) en el repositorio y comprueba que se sirve.
+  const png1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  fs2.writeFileSync(path2.join(pillImages.DIR, '711234.png'), png1x1);
+  const ok = await fetch(`${assetsBase}/pill/711234.png`);
+  assert.equal(ok.status, 200);
+  assert.match(ok.headers.get('content-type') || '', /image\/png/);
+  assert.ok(pillImages.hasPillImage('711234'));
+
+  // Rechaza cualquier cosa que no sean dígitos (traversal, extensiones raras…).
+  const bad = await fetch(`${assetsBase}/pill/../../etc.png`);
+  assert.notEqual(bad.status, 200);
 });
