@@ -1035,6 +1035,12 @@ body {
 .dnacmp-mode-d { font-size: 0.78rem; line-height: 1.55; color: var(--text-muted); }
 .dnacmp-mode-d code { font-family: var(--mono); font-size: 0.82em; background: var(--bg-hover); padding: 1px 4px; border-radius: 4px; }
 
+.dnacmp-flex-row { display: flex; flex-direction: column; gap: 6px; }
+.dnacmp-flex-toggle { display: flex; align-items: flex-start; gap: 8px; font-size: 0.82rem; color: var(--text); cursor: pointer; }
+.dnacmp-flex-toggle input { margin-top: 3px; accent-color: var(--blue); flex: none; }
+.dnacmp-flex-toggle small { display: block; color: var(--text-muted); font-size: 0.9em; margin-top: 2px; }
+.dnacmp-flex-err { font-family: var(--mono); font-size: 0.78rem; padding: 10px 14px; border-radius: var(--radius-sm); color: var(--red); background: rgba(184,50,50,0.07); border: 1px solid rgba(184,50,50,0.2); }
+
 .dnacmp-loaded { margin-top: 4px; }
 .dnacmp-loaded-head { font-family: var(--mono); font-size: 0.74rem; color: var(--text-muted); margin-bottom: 8px; }
 .dnacmp-chips { display: flex; flex-direction: column; gap: 6px; }
