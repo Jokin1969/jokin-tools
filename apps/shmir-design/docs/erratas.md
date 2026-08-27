@@ -465,6 +465,18 @@ hubiera espaciador?», montaba el intrón con los 65 nt estándar dentro y salí
 lógicamente — indistinguible del de referencia. Nada falló, nada avisó, y la curva
 publicada tenía un punto que no medía lo que su etiqueta decía.
 
+**CORREGIDO por el responsable (2026-08-27)**, y la corrección es suya: *«el barrido sí
+discrimina en el lado 3', mi frase era de la corrida mal medida»*. Al medir el 0 de
+verdad, el lado 3' **sí** discrimina en dos de los tres elementos (donante 0,58 contra
+0,54; punto de ramificación 0,40 contra 0,36). La decisión no cambia —en los dos lados
+el único largo admisible sigue siendo el punto de partida— pero el motivo sí, y ya no
+puede decirse «el barrido no discriminó» a secas.
+
+**Y el corolario queda MEDIDO, no estimado**, también por corrección suya: quitando los
+**65 nt** de espaciador enteros, donante→punto baja de 256 a **191 nt** — sigue fuera del
+rango típico (18-100). O sea que recortar espaciadores no alcanza, y **la palanca es el
+módulo**: 149 de los 214 nt intercalados.
+
 **La lección**: `""` y «no me lo digas» son **dos peticiones distintas** y se escribían
 igual. Un centinela que se confunde con un dato legítimo no es un centinela. Ahora
 `None` es el estándar y `""` es ninguno.
@@ -583,3 +595,64 @@ cada tipo de corrida y en qué campo del registro vive su md5. Un quinto modal q
 declare sus insumos falla en la suite, no el día que alguien busque por qué su corrida
 no se marcó obsoleta. Y la entrada de `corrida_empalme` está **vacía a propósito**, que
 dice «se miró y no hay» — ausente diría «nadie lo miró».
+
+## 22 — El veredicto que dependía de acordarse de una bandera
+
+**El fallo**: la promoción por medida —el `AATATA` de `3utr:236` subiendo a
+`APA_POSIBLE` porque PolyA_DB v4.1 mide su uso— sólo entraba si **el llamador se
+acordaba** de resolverla y pasarla. `tile_utr(...)` a secas la omitía en silencio.
+
+Los dos frentes de la app **sí** la resolvían, así que en la app el número estaba bien.
+Lo que estaba mal es que **eso dependiera de tres sitios acordándose de lo mismo**, y ya
+había fallado una vez: la cuarta divergencia entre la página y el CLI fue exactamente
+ésta. Y hay una huella medible de que seguía costando: **doce ficheros de test** —y
+cualquier análisis que alguien escribiera— corrían sin la promoción sin decirlo.
+
+**No son dos ordenaciones, son dos veredictos**, y es lo que obliga a decidirlo así:
+
+| | `3utr:221` |
+|---|---|
+| **sin** la medida | penalización de −1,00 por hexámero variante — **sigue en el panel** |
+| **con** la medida | `AATATA` es `APA_POSIBLE` medido y 221 lo **solapa**: **FAIL duro** por riesgo estérico |
+
+Y el dato existe: PSE 21,1 %, AvgRPM 0,55 — **el proximal más usado de los tres**. El
+modo sin medida trata ese hexámero como no funcional, que es **la hipótesis menos
+conservadora y además la falsa según lo medido**: el defecto favorecía al candidato
+equivocado **por omisión**.
+
+**Mismo criterio que el `.out` de RepeatMasker y que la casilla global que se quitó**: si
+el dato está en el depósito y es válido, se usa. Una opción cuyo único efecto es
+empeorar el veredicto en silencio no es una opción, es una trampa.
+
+**El cierre no es una nota, es un centinela**: `tile_utr` resuelve la tabla por su cuenta,
+`measured_apa=None` **aborta** —era el salto silencioso— y excluirla exige
+`apa.ApaExcluded(reason=…)` con el motivo escrito, que **viaja al informe**. Sin él, «se
+decidió no usarla» y «nadie se acordó» dan el mismo resultado mudo, que es la lección de
+`deposito.Ignored`.
+
+**Y la prueba de que sobraba**: los doce ficheros de test que pasaban la tabla a mano
+dejaron de necesitar el argumento. Doce sitios acordándose de lo mismo son doce sitios
+donde uno puede olvidarse.
+
+## 23 — `APA_POSIBLE` decía lo mismo de dos cosas que no se parecen
+
+**El fallo**: la clase no distingue **por qué** una señal es `APA_POSIBLE`, y las dos
+vías son opuestas:
+
+- el `AATAAA` de `3utr:288` lo es **por canonicidad** —y, cuando no hay tabla, **sin un
+  solo dato de uso**: un supuesto, y el informe ya usaba esa palabra;
+- el `AATATA` de `3utr:236` lo es **por uso medido** y **sin** canonicidad — por la
+  cascada de predicción saldría `OTRA`.
+
+El campo `evidence` ya las separaba. Lo que faltaba es que la distinción **viaje pegada a
+la clase**: `evidence` quedaba cinco palabras más allá, donde no lo lee quien copia la
+línea a un correo. Es la misma regla que el md5 junto a la longitud — separadas en dos
+campos, la de al lado no se lee.
+
+Ahora se emite `APA_POSIBLE (medido, PolyA_DB v4.1)` y `APA_POSIBLE (canónico, asumido)`,
+y sólo en esa clase: ponerla en todas la haría invisible.
+
+**Un detalle que corrigió el propio test**: con el ratón las **dos** señales están
+medidas —288 también es uno de los tres sitios anclados—, así que el caso «canónico,
+asumido» hay que buscarlo en el **humano**, donde la tabla no aplica por md5. La primera
+versión del test daba por hecho que 288 era el caso asumido, y no lo es.

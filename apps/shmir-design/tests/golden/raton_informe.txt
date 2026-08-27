@@ -125,14 +125,14 @@
   señal, o estas por detrás de su corte.
 
   SEÑALES DE APA POSIBLE: 2. Cada una pone su propio techo, y se cuentan aparte:
-    · AATATA en tx:1185 (SUBIDA aquí por MEDIDA de uso: por predicción saldria OTRA) (corte
-      tx:1200-1220): TECHO sobre 217 de 270 ventanas elegibles (80.4%); 0 en la banda de
-      corte (PENALIZADO, no se sabe de que lado caen); 53 por delante, inmunes. Techo del
-      tramo de detrás: 0.91.
-    · AATAAA en tx:1237 (por canonicidad, CONFIRMADA por medida de uso) (corte
-      tx:1252-1272): TECHO sobre 208 de 270 ventanas elegibles (77.0%); 9 en la banda de
-      corte (PENALIZADO, no se sabe de que lado caen); 53 por delante, inmunes. Techo del
-      tramo de detrás: 0.86.
+    · APA_POSIBLE (medido, PolyA_DB v4.1): AATATA en tx:1185 (SUBIDA aquí por MEDIDA de uso:
+      por predicción saldria OTRA) (corte tx:1200-1220): TECHO sobre 217 de 270 ventanas
+      elegibles (80.4%); 0 en la banda de corte (PENALIZADO, no se sabe de que lado caen);
+      53 por delante, inmunes. Techo del tramo de detrás: 0.91.
+    · APA_POSIBLE (medido, PolyA_DB v4.1): AATAAA en tx:1237 (por canonicidad, CONFIRMADA
+      por medida de uso) (corte tx:1252-1272): TECHO sobre 208 de 270 ventanas elegibles
+      (77.0%); 9 en la banda de corte (PENALIZADO, no se sabe de que lado caen); 53 por
+      delante, inmunes. Techo del tramo de detrás: 0.86.
 
   LO QUE CUESTA LA PROMOCION: 17 ventana(s) que superaban todos los demas filtros pasan
   a FAIL por SOLAPAR una señal que la medida acaba de subir a APA_POSIBLE (AATATA en

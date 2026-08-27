@@ -236,7 +236,10 @@ class TestConteosDeReferencia(unittest.TestCase):
 
     def test_con_el_criterio_VIGENTE_las_cifras_son_otras(self):
         raton, humano = self.raton(), self.humano()
-        self.assertEqual((raton.biofisicos_ok(), len(raton.sites_biofisicos())), (287, 90))
+        # 270/86, no 287/90: la promoción por medida entra SIEMPRE desde 2026-08-27 y
+        # eso cuesta 17 ventanas y 4 sitios — exactamente `measured_promotion_cost`, que
+        # `CLAUDE.md` ya registraba como «elegibles 287 → 270, sitios 90 → 86».
+        self.assertEqual((raton.biofisicos_ok(), len(raton.sites_biofisicos())), (270, 86))
         self.assertEqual((humano.biofisicos_ok(), len(humano.sites_biofisicos())), (309, 95))
 
     def test_lo_que_separa_los_dos_juegos_es_SOLO_el_criterio_de_polyA(self):

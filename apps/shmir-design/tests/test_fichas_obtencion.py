@@ -49,7 +49,7 @@ def _frentes_de_verdad() -> set[str]:
     utr3 = load_3utr(RATON)
     nombres: set[str] = set()
     for medido in (resolve_measured(utr3, POLYA_DB_PRNP), None):
-        informe = tile_utr(utr3, measured_apa=medido)
+        informe = tile_utr(utr3)
         seleccion = select_from_report(
             informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
         )

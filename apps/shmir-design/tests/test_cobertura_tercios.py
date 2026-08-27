@@ -52,13 +52,13 @@ class TestLasDosDefinicionesNoCoinciden(unittest.TestCase):
         )
 
     def test_por_punto_medio_que_es_como_se_etiqueta_hoy(self):
-        self.assertEqual(self.cuenta.by_midpoint, {"proximal": 105, "medio": 128, "distal": 54})
+        self.assertEqual(self.cuenta.by_midpoint, {"proximal": 88, "medio": 128, "distal": 54})
 
     def test_por_posicion_de_inicio(self):
-        self.assertEqual(self.cuenta.by_start, {"proximal": 105, "medio": 137, "distal": 45})
+        self.assertEqual(self.cuenta.by_start, {"proximal": 88, "medio": 137, "distal": 45})
 
     def test_y_los_SITIOS_por_inicio(self):
-        self.assertEqual(self.cuenta.sites_by_start, {"proximal": 32, "medio": 42, "distal": 16})
+        self.assertEqual(self.cuenta.sites_by_start, {"proximal": 28, "medio": 42, "distal": 16})
 
     def test_819_es_el_caso_que_las_separa(self):
         ventana = [w for w in self.tiling.windows if w.window.start == 819][0]
@@ -69,7 +69,7 @@ class TestLasDosDefinicionesNoCoinciden(unittest.TestCase):
         texto = "\n".join(self.cuenta.describe())
         self.assertIn("PUNTO MEDIO", texto)
         self.assertIn("3utr:829-1242", texto)
-        self.assertIn("105", texto)
+        self.assertIn("88", texto)
         self.assertIn("45", texto)
 
 
@@ -101,7 +101,7 @@ class TestLaPlazaExtraEnElTramoDistal(unittest.TestCase):
                 self.assertGreaterEqual(b - a, 50)
 
     def test_los_cuatro_inmunes_siguen(self):
-        self.assertEqual(sorted(p for p in self.inicios if p <= 303), [10, 60, 143, 221])
+        self.assertEqual(sorted(p for p in self.inicios if p <= 303), [10, 60, 143, 200])
 
     def test_una_cuota_de_tramo_invertida_aborta(self):
         with self.assertRaises(ValueError):
@@ -147,11 +147,11 @@ class TestSitiosPorTramoQueQuedanConTecho(unittest.TestCase):
         self.assertEqual(self.cuenta.sites_immune["distal"], 0)
         self.assertGreater(self.cuenta.sites_immune["proximal"], 0)
 
-    def test_la_cifra_proximal_cuadra_con_los_20_sitios_conocidos(self):
-        self.assertEqual(self.cuenta.sites_immune["proximal"], 20)
+    def test_la_cifra_proximal_cuadra_con_los_16_sitios_conocidos(self):
+        self.assertEqual(self.cuenta.sites_immune["proximal"], 16)
 
     def test_y_la_salida_lo_dice_con_el_corte_nombrado(self):
         texto = "\n".join(self.cuenta.describe())
-        self.assertIn("3utr:303", texto)
-        self.assertIn("20", texto)
+        self.assertIn("3utr:251", texto)
+        self.assertIn("16", texto)
         self.assertIn("rebalancear", texto.lower())

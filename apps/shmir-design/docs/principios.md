@@ -306,7 +306,10 @@ había **nueve**, uno de ellos bajo clic; quedan **uno** y **cero**, y el que qu
 de otra gente, no modelo nuestro. `tests/test_navegacion_de_la_pagina.py` mantiene la
 segunda cifra en cero.
 
-## 9 — Un estado se deriva del CONTENIDO, nunca de que algo exista
+## 9 — Existir no es contener
+
+> **Existir no es contener.** Un estado se deriva de que algo TENGA ALGO DENTRO, nunca
+> de que la clave, la entrada o el fichero estén.
 
 Sale de la errata nº 15 y aplica a todo. `provided` era `True` porque la **entrada
 estaba en el registro**, no porque hubiera secuencia: fichero fuera de git,
@@ -335,3 +338,36 @@ Un test comprueba que no ha pasado; una **definición única** impide que pase. 
 dejó de ser un campo y pasó a ser una propiedad calculada, que es el mismo cierre que se
 le dio al cuarto par duplicado. Cuando dos cosas tienen que coincidir y una se declara a
 mano, la pregunta no es cómo comprobarlo: es cuál de las dos se deriva de la otra.
+
+## 10 — Si el dato está y es válido, se usa
+
+Un veredicto no puede depender de que alguien se acuerde de una bandera.
+
+Este proyecto ya cerró esa puerta una vez, con la casilla «Usar los de
+`data/reference/`»: una opción cuyo único efecto posible al desmarcarla era dejarlo todo
+en `NOT_RUN` sin decir por qué no es una opción, es una trampa. La errata nº 22 es la
+misma forma un nivel más adentro — la promoción por medida entraba sólo si el llamador
+la resolvía y la pasaba, y **eso decidía un FAIL**.
+
+### El modo sin el dato no es el modo neutro
+
+Es la mitad que más cuesta ver. Omitir una medida no deja el análisis «sin opinión»:
+le hace adoptar **la opinión contraria**. Sin la tabla de PolyA_DB, el `AATATA` de
+`3utr:236` se trata como **no funcional** — que es la hipótesis **menos conservadora**, y
+además la **falsa** según lo que está medido. El defecto favorecía al candidato
+equivocado por omisión, y sin que nada lo dijera.
+
+### Excluirlo es posible, pero es una decisión y se escribe
+
+Hay que poder trabajar, así que la exclusión existe — **por fichero y con el motivo
+escrito** (`deposito.Ignored`, `apa.ApaExcluded`), y el motivo **viaja al veredicto**.
+Sin él, «se decidió no usarlo» y «nadie se acordó» son el mismo resultado mudo.
+
+### El cierre es un centinela, no una nota
+
+Que el valor por defecto haga lo correcto no basta: hay que quitar la forma de
+equivocarse. `measured_apa=None` **aborta**, porque `None` era justo el salto
+silencioso; para excluir hay que escribir el objeto con su motivo. La prueba de que
+sobraba está en el diff: **doce ficheros de test** pasaban la tabla a mano y dejaron de
+necesitarlo. Doce sitios acordándose de lo mismo son doce sitios donde uno puede
+olvidarse.

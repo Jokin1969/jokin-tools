@@ -67,7 +67,10 @@ class TestLaConfiguracionSeValida(unittest.TestCase):
 
         config = SelectionConfig(n_candidates=6, apa_immune_quota=2)
         self.assertIsNone(config.apa_immune_before)
-        self.assertEqual(derive_immune_cut(self.tiling), 303)
+        # 251, no 303: es exactamente lo que dice el comentario de arriba. El test fijaba
+        # 303 —el corte de ANTES de que la promoción por medida entrara sola—, así que
+        # contradecía su propia razón de existir.
+        self.assertEqual(derive_immune_cut(self.tiling), 251)
 
     def test_pero_elegir_sin_resolverlo_SIGUE_abortando(self):
         from shmir_design.selection import choose, eligible_choices, group_choices
@@ -154,7 +157,7 @@ class TestElPanelDeDiez(unittest.TestCase):
         self.assertEqual(quinta, [309])
 
     def test_los_tres_inmunes_conocidos_siguen_dentro(self):
-        for posicion in (60, 143, 221):
+        for posicion in (60, 143, 200):
             with self.subTest(posicion):
                 self.assertIn(posicion, self.inicios)
 
@@ -267,7 +270,7 @@ class TestLaQuintaPlazaVaAlTercioMEDIO(unittest.TestCase):
     def test_cuatro_inmunes_ni_uno_mas(self):
         inicios = [c.start for c in self.seleccion.selection.chosen]
         self.assertEqual(
-            sorted(p for p in inicios if p <= CORTE_ESTRICTO), [10, 60, 143, 221]
+            sorted(p for p in inicios if p <= CORTE_ESTRICTO), [10, 60, 143, 200]
         )
 
     def test_el_medio_se_lleva_tres(self):

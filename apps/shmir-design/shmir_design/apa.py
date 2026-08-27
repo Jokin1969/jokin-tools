@@ -924,6 +924,52 @@ def _build_layers(
     return tuple(capas)
 
 
+#: LA MEDIDA ENTRA SIEMPRE QUE HAYA MEDIDA. DECIDIDO (2026-08-27) por el responsable
+#: del proyecto, y el motivo es que son DOS VEREDICTOS y no dos ordenaciones:
+#:
+#:   - sin la medida, `3utr:221` lleva una PENALIZACION de -1,00 por solapar un hexamero
+#:     variante — sigue en el panel, solo que peor colocada;
+#:   - con la medida, el `AATATA` de `3utr:236` es `APA_POSIBLE` y `3utr:221` es FAIL
+#:     duro por solape esterico.
+#:
+#: Y el dato existe: PSE 21,1 %, AvgRPM 0,55, el proximal MAS usado de los tres. El modo
+#: sin medida trata ese hexamero como no funcional, que es la hipotesis MENOS
+#: conservadora y ademas la falsa segun lo medido: el defecto favorecia al candidato
+#: equivocado POR OMISION.
+#:
+#: Mismo criterio que el `.out` de RepeatMasker y que la casilla global que se quito: si
+#: el dato esta en el deposito y es valido, se usa. Que un veredicto dependa de
+#: acordarse de una bandera es la trampa que este proyecto ya cerro una vez.
+WHY_MEASURE_IS_NOT_A_FLAG = (
+    "La promoción por medida se aplica siempre que la tabla hable de esta secuencia. No "
+    "es una preferencia de ordenación: sin ella una señal medida se trata como no "
+    "funcional, que es la hipótesis menos conservadora y la falsa según el dato. "
+    "Excluirla es posible, pero con motivo escrito (`ApaExcluded`), y el motivo viaja al "
+    "veredicto: sin él, «se decidió no usarla» y «nadie se acordó» son el mismo "
+    "resultado mudo."
+)
+
+
+@dataclass(frozen=True)
+class ApaExcluded:
+    """Excluir la tabla medida A PROPOSITO, con el motivo escrito.
+
+    Es la unica forma de que la promocion no entre. `measured_apa=None` ya no vale y
+    aborta: `None` era exactamente el salto silencioso, y es lo que hacia que el panel
+    dependiera de que el llamador se acordara.
+    """
+
+    reason: str
+
+    def __post_init__(self) -> None:
+        if not str(self.reason).strip():
+            raise ShmirDesignError(
+                "Excluir la tabla de APA medido necesita un MOTIVO escrito. Sin él, "
+                "«se decidió no usarla» y «nadie se acordó» dan el mismo NOT_RUN mudo, "
+                "que es justo lo que la casilla global de ficheros dejó de permitir."
+            )
+
+
 def resolve_measured(
     sequence: str,
     table: MeasuredFraction,

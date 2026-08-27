@@ -182,5 +182,8 @@ class TestElDatoHumanoRebajaLaProbabilidadAPriori(unittest.TestCase):
         )
         bloque = texto.split("── Riesgo de polyA")[1].split("── Que se ha")[0]
         self.assertIn("rebaja", bloque.lower())
-        # En el MISMO bloque que el techo, y despues de el.
-        self.assertLess(bloque.index("techo indeterminado"), bloque.lower().index("rebaja"))
+        # En el MISMO bloque que el techo, y despues de el. Se ancla en «TECHO» y ya no
+        # en «techo indeterminado»: con la medida aplicada siempre, el techo del ratón
+        # SÍ está determinado (0,91 y 0,86 por tramos). Lo que este test protege es la
+        # colocación de la nota, no que el techo sea desconocido.
+        self.assertLess(bloque.index("TECHO"), bloque.lower().index("rebaja"))

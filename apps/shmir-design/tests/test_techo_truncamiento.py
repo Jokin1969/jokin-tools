@@ -301,9 +301,13 @@ class TestLoQueDiceElInforme(unittest.TestCase):
         self.assertIn("mezcla de isoformas", bloque)
 
     def test_distingue_canonicidad_de_evidencia_de_uso(self):
+        # La señal DOMINANTE pasó a ser el `AATATA` de 236, que entra por MEDIDA de uso
+        # y no por canonicidad — el caso inverso al del `AATAAA` de 288. Lo que este test
+        # protege sigue siendo lo mismo: que el informe diga por CUÁL de las dos vías
+        # entró, y no las confunda.
         bloque = self.texto.lower()
-        self.assertIn("por ser canónica", bloque)
-        self.assertIn("no por evidencia de uso", bloque)
+        self.assertIn("medida de uso", bloque)
+        self.assertIn("canonicidad", bloque)
 
     def test_sin_otra_especie_la_conservacion_va_NOT_RUN(self):
         # ACTUALIZADO 2026-08-26: dejo de ser «declarado y sin comprobar aqui» cuando
@@ -332,7 +336,9 @@ class TestLoQueDiceElInforme(unittest.TestCase):
             l for l in self.texto.splitlines() if "INMUNES" in l or "inmune" in l
         ]
         texto = " ".join(inmunes)
-        for posicion in ("60", "143", "221"):
+        # 200, no 221: con la medida aplicada `3utr:221` solapa el `AATATA` de 236 y
+        # cae por riesgo ESTÉRICO. Su plaza proximal la ocupa `3utr:200`.
+        for posicion in ("60", "143", "200"):
             with self.subTest(posicion):
                 self.assertIn(posicion, texto)
 
@@ -440,7 +446,7 @@ class TestElBloqueNoMezclaMarcosDeCoordenadas(unittest.TestCase):
         ][0]
 
     def test_los_inmunes_elegibles_van_en_coordenadas_de_3utr(self):
-        for posicion in ("143", "221"):
+        for posicion in ("143", "200"):
             with self.subTest(posicion):
                 self.assertIn(posicion, self.linea)
 
@@ -451,11 +457,16 @@ class TestElBloqueNoMezclaMarcosDeCoordenadas(unittest.TestCase):
 
     def test_el_experimento_da_las_DOS_parejas(self):
         # Con desfase, cada amplicon lleva su coordenada de lo tilado y la del 3'UTR.
+        # COORDENADAS NUEVAS (2026-08-27), y no es cosmético: el experimento se diseña
+        # contra la señal de corte MÁS TEMPRANA, y con la promoción por medida aplicada
+        # siempre ésa pasó a ser el `AATATA` de `3utr:236` en vez del `AATAAA` de
+        # `3utr:288`. Los amplicones se mueven en consecuencia. Quien vaya al banco tiene
+        # que usar ÉSTOS.
         bloque = self.texto.split("EXPERIMENTO QUE RESUELVE")[1]
-        self.assertIn("tx:1107-1226", bloque)
-        self.assertIn("(3utr:158-277)", bloque)
-        self.assertIn("tx:1633-1752", bloque)
-        self.assertIn("(3utr:684-803)", bloque)
+        self.assertIn("tx:1055-1174", bloque)
+        self.assertIn("(3utr:106-225)", bloque)
+        self.assertIn("tx:1231-1350", bloque)
+        self.assertIn("(3utr:282-401)", bloque)
 
 
 @unittest.skipUnless(RATON.is_file(), "NOT_RUN: falta data/reference/NM_011170.3.fa")

@@ -1508,6 +1508,11 @@ class ApaCeilingRow:
             else f"Techo del tramo de detrás: {self.ceiling:.2f}."
         )
         return (
+            # La etiqueta lleva la PROCEDENCIA pegada: `APA_POSIBLE (medido, PolyA_DB
+            # v4.1)` frente a `APA_POSIBLE (canónico, asumido)`. Sin ella las dos se
+            # llaman igual, y `via` —que ya distinguia— queda cinco palabras mas alla,
+            # donde no la lee quien copia la linea a un correo.
+            f"{self.signal.classification_label}: "
             f"{self.signal.motif} en {label(self.signal.position, marco)} "
             f"({via}) "
             f"(corte {span(self.signal.end + CLEAVAGE_MIN, self.signal.end + CLEAVAGE_MAX, marco)}): "
