@@ -1735,11 +1735,32 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   **no estaba montada en ningún sitio**: había que arrancarla a mano con `streamlit run`,
   y lo que sí estaba desplegado era la operación «Diseñar shmiRs» de Batchwork, que llama
   al **CLI** y es otra cosa —por lotes, sin ficheros de referencia y sin modales—.
-  - **Los dos frentes se quedan, y no hacen lo mismo**: Batchwork sigue siendo el atajo
-    por lotes (subes FASTA, sale un ZIP); `/shmir` es el interactivo. Lo que NO se hace es
+  - **TODO VA EN shmir-design; BATCHWORK NO SE TOCA. DECIDIDO (2026-08-26).** Lo nuevo
+    —el cuarto modal incluido— entra **sólo aquí**. La operación «Diseñar shmiRs» de
+    Batchwork se queda como está y se **desmantelará** más adelante, cuando esta interfaz
+    cubra de verdad lo que aquella hace; hasta entonces no se le añade nada ni se duplica
+    nada en ella. Eso cierra la pregunta de si había que integrar el modal en los dos
+    sitios: no.
+  - **Los dos frentes conviven MIENTRAS TANTO, y no hacen lo mismo**: Batchwork es el
+    atajo por lotes (subes FASTA, sale un ZIP); `/shmir` es el interactivo. Lo que NO se hace es
     duplicar la lógica en los dos: esa es la trampa que obligó a crear `resolve.py`, con
     la anatomía teniendo una versión en el CLI y otra en la interfaz que daban resultados
     distintos sobre el mismo mRNA.
+  - **El mensaje de fallo NO interpreta.** Enseña las últimas líneas de la salida del
+    proceso **tal cual**, y una pista sólo cuando la propia salida la nombra
+    (`process.diagnose`). Antes se pegaba «comprueba que Streamlit está instalado» a TODO
+    fallo, y el primero de producción fue un conflicto de configuración con Streamlit ya
+    importado y corriendo: la página mandaba a mirar el sitio equivocado. Un diagnóstico
+    **equivocado** cuesta más que ninguno — la misma lección que el «Alu 0 %» obtenido sin
+    buscar Alu.
+  - **Hay un TEST DE HUMO que levanta la interfaz de verdad**
+    (`test/shmir.smoke.test.js`, en el hub): arranca el proceso, pide la página por el
+    proxy y **abre el WebSocket CON cabecera `Origin`**. Existe porque hubo 2.767 tests en
+    verde y la app no abría — se miraban los argumentos y las funciones del proxy, no el
+    resultado. Y la cabecera no es un detalle: la comprobación anterior usaba una petición
+    cruda, que NO manda `Origin`, así que pasaba mientras el navegador recibía un 403.
+    **Un cliente que no se parece al real no prueba nada.** Comprobado que el test falla
+    si se quita la reescritura del Origin.
   - **`SHMIR_REFERENCE_DIR`: el directorio de referencia de TRABAJO se declara**
     (`trabajo.py`). Son dos sitios que hasta ahora eran uno — el **origen versionado**,
     que llega con el código, y el **directorio de trabajo**, donde el panel escribe lo que
@@ -1761,6 +1782,65 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     son stdlib pura y funcionan sin ella; lo que cambia es que ahora el hub la instala en
     su imagen porque sirve esa interfaz. La autorización escrita de `docs/dependencias-autorizadas.md`
     no se toca: sigue siendo opcional y sigue sin estar en el núcleo.
+
+- **EL CUARTO MODAL: la unidad de analisis NO es el candidato** (`introns.py`,
+  `intron_folding.py`). Los otros tres preguntan sobre una guia de 22 nt; este pregunta
+  sobre el **cassette montado** —intron completo, con su modulo dentro, con la guia y la
+  pasajera de ESE candidato, y con contexto exonico a los dos lados—. Asi que la unidad
+  es el par **candidato x intron**: diez candidatos y tres intrones son **treinta
+  consultas**, no una lista de diez.
+  - **El registro de intrones es de primera clase**, y eso es una consecuencia de diseño
+    de que este modal exista, no un adorno. Tres entradas con tres estados DISTINTOS:
+    - `mvm_actual` — **disponible**. Se ensambla de `blocks.PIECES`; nadie lo teclea. El
+      intron VACIO —el del parental— mide **82 nt**.
+    - `quimerico_cmv_globina` — **no aportado**, `NOT_RUN` visible y con ficha. Se extrae
+      de un plasmido comercial del laboratorio (familia pAAV-MCS), de un `.dna` o un
+      `.gb`, y **no se reconstruye de memoria**: es la errata nº 5 esperando a repetirse.
+      Al cargarlo, la app localiza los cuatro elementos POR SECUENCIA y los declara.
+    - `mvm_sin_criptico` — lo **diseña la app**, derivado del primero. Es una **PROPUESTA**
+      y pasa por el mismo modal que las demas antes de ir a sintesis.
+  - **Los cuatro elementos se DERIVAN; el punto de ramificacion NO es un dato.** Donante
+    (`GT`), aceptor (`AG`) y tracto de polipirimidinas **contiguas** salen de la secuencia
+    sin ambiguedad y, si no estan, se aborta. El punto de ramificacion sale como
+    `CANDIDATO`: `YURAY` es un criterio **declarado como parametro, no una cita**, y
+    pueden caber varios — si caben, salen todos y no se elige por nuestra cuenta. Ninguno
+    o varios NO es «no lo hay».
+    - Sobre el MVM: donante `GT` en 1-2, aceptor `AG` al final, **9 pirimidinas
+      contiguas** (`CTTTTTTTC`) y **UN solo** YURAY (`TAATT`). El punto de ramificacion
+      vive dentro de `MVM3`, asi que viaja con el cuando se mete el modulo.
+  - **El suelo de 80 nt aborta, y se dice DONDE MUERDE.** Con el modulo de 149 nt dentro
+    ese limite es **inalcanzable**, asi que sobre el intron terapeutico no protege de
+    nada: vale para el vacio (82, pasa por dos) y para los intrones que vengan, que
+    pueden ser mucho mas cortos. Decir que protege algo que no puede pasar seria peor que
+    no ponerlo.
+  - **La accesibilidad estructural va por FUNCION DE PARTICION, no por la estructura de
+    MFE** (`folding.unpaired_probabilities`). No es un detalle: la de MFE es **una**
+    estructura, asi que cada posicion sale apareada o no y el resultado es un 0 o un 1
+    **disfrazado de probabilidad**. Con MFE los seis candidatos del panel daban donante
+    1,00 y aceptor 0,00 los seis — un numero que no distingue nada, que es exactamente lo
+    contrario de lo que este analisis existe para hacer.
+  - **HALLAZGO, y las dos mitades van juntas o ninguna** (medido 2026-08-26):
+    - Sobre el panel murino, los **seis** candidatos dan **el mismo** perfil —donante
+      **0,89**, ramificacion **0,29**, aceptor **0,84**— y solo cambia la energia. O sea:
+      **en el intron MVM la guia NO mueve la accesibilidad de los tres elementos**; la
+      deciden los extremos del propio intron. Este eje **no discrimina** entre estos seis,
+      y venderlo como desempate seria dar por criterio algo que da el mismo numero a todos.
+    - **Pero eso no es que sea ciego**, y hay que poder distinguirlo: un modulo
+      COMPLEMENTARIO al extremo 5' del intron lleva el donante de **0,89 a 0,00**. El
+      analisis cazaria una guia que secuestrara un elemento; lo que dice el primer hecho
+      es que ninguna de estas seis lo hace.
+    - Los dos estan fijados con test. **Sin el control adversario, «todos iguales» y «no
+      mide nada» serian el mismo resultado**, y es la misma leccion que el `.out` sin
+      resumen.
+  - **`GTGAGCG` esta en el ANDAMIO, no en los contextos**: son los ultimos 7 nt de
+    `SGEP_SCAFFOLD.flank5` (`TGCTGTTGACA|GTGAGCG`). Romperlo **no es tocar un espaciador**
+    — muta el andamio verificado contra la publicacion — asi que toda construccion con
+    `mvm_sin_criptico` deja de llevar miR-E verificado y sale MARCADA en toda la salida,
+    igual que un cassette con espaciadores de novo.
+  - **Las fichas de obtencion documentan DOS familias, no una**: los frentes y los
+    intrones que faltan. Un intron que no tenemos es un `NOT_RUN` como cualquier otro y
+    tiene que decir como se resuelve. Los dos tests —ninguno sin ficha, ninguna ficha
+    huerfana— cubren las dos.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

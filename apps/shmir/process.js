@@ -55,6 +55,14 @@ function buildArgs({ port = PORT, basePath = BASE_PATH } = {}) {
     '--server.headless=true',
     '--server.fileWatcherType=none',
     '--browser.gatherUsageStats=false',
+    // OBLIGATORIO aquí, y sólo se ve en el despliegue. Streamlit decide si está en modo
+    // desarrollo con `"site-packages" not in __file__`, y `pip install --target=` deja
+    // la ruta SIN `site-packages` — que es justo como lo instala el build del hub. En
+    // modo desarrollo, `--server.port` es un conflicto y el proceso ABORTA con
+    // `RuntimeError: server.port does not work when global.developmentMode is true`.
+    // En local Streamlit vive en site-packages, así que esto pasaba en desarrollo y
+    // reventaba en producción.
+    '--global.developmentMode=false',
     // Subidas: el transcriptoma de 3'UTR y un RefSeq son grandes. El límite de Streamlit
     // por defecto (200 MB) se deja como está; lo que se quita es el recolector de
     // estadísticas y el vigilante de ficheros, que en un servidor no pintan nada.
@@ -79,14 +87,67 @@ function buildEnv({ referenceDir = '', base = process.env } = {}) {
   return env;
 }
 
-function installHint() {
-  return (
-    'El proceso de shmir-design no arrancó. Comprueba que Streamlit está instalado en '
-    + `la imagen: es la única dependencia de la interfaz (${path.join('apps', 'shmir-design', 'requirements-ui.txt')}, `
-    + '`streamlit>=1.30`) y se instala con `pip3 install --target=/app/python_libs '
-    + 'streamlit`. El núcleo y los CLI de shmir-design NO la necesitan y siguen '
-    + 'funcionando sin ella.'
-  );
+// ─── Diagnóstico: sólo cuando la evidencia lo señala ─────────────────────────
+//
+// Aquí había un fallo caro. Se pegaba una pista de instalación a TODOS los fallos
+// —«comprueba que Streamlit está instalado»— y el primer fallo real de producción fue un
+// conflicto de configuración con Streamlit ya importado y corriendo: la traza llegaba
+// hasta `streamlit/config.py`, así que un `ModuleNotFoundError` habría fallado mucho
+// antes. La página mandaba a mirar el sitio equivocado.
+//
+// Un diagnóstico EQUIVOCADO en un mensaje de error hace perder más tiempo que no tener
+// mensaje. Es la misma lección que el «Alu 0 %» obtenido sin buscar Alu: un texto
+// plausible pero incorrecto es peor que ninguno. Así que lo que se enseña es la SALIDA
+// TAL CUAL, y una interpretación sólo cuando la propia salida la nombra.
+
+//: Fallo → pista. Sólo se añade la pista cuya huella aparece en la salida del proceso.
+const PISTAS = [
+  {
+    huella: /ModuleNotFoundError|No module named|ImportError/i,
+    texto:
+      'La salida dice que falta un módulo de Python. Streamlit es la única dependencia '
+      + `de la interfaz (${path.join('apps', 'shmir-design', 'requirements-ui.txt')}, `
+      + '`streamlit>=1.30`) y se instala con `pip3 install --target=/app/python_libs '
+      + 'streamlit`. El núcleo y los CLI de shmir-design NO la necesitan.',
+  },
+  {
+    huella: /developmentMode/i,
+    texto:
+      'La salida nombra `global.developmentMode`. Streamlit lo infiere de si su propia '
+      + 'ruta lleva `site-packages`, y `pip install --target=` la deja sin él; en modo '
+      + 'desarrollo, `--server.port` es un conflicto. Se fija con '
+      + '`--global.developmentMode=false`, que este arranque ya pasa: si sigue saliendo, '
+      + 'algo lo está sobreescribiendo (variable de entorno o `config.toml`).',
+  },
+  {
+    huella: /Address already in use|EADDRINUSE/i,
+    texto:
+      `La salida dice que el puerto ${PORT} está cogido. Puede quedar un proceso de una `
+      + 'ejecución anterior; el hub lo para al apagarse, pero un cierre a la brava no.',
+  },
+];
+
+// Devuelve la pista que corresponda a esta salida, o cadena vacía. NUNCA adivina.
+function diagnose(output) {
+  const texto = String(output || '');
+  if (!texto.trim()) return '';
+  for (const pista of PISTAS) {
+    if (pista.huella.test(texto)) return pista.texto;
+  }
+  return '';
+}
+
+// El texto que ve el usuario: la salida TAL CUAL y, sólo si procede, la pista.
+function failureText(output, encabezado = '') {
+  const crudo = String(output || '').trim() || '(el proceso no escribió nada)';
+  const pista = diagnose(crudo);
+  return [
+    encabezado,
+    'ÚLTIMAS LÍNEAS DE LA SALIDA DEL PROCESO, SIN INTERPRETAR:',
+    '',
+    crudo,
+    ...(pista ? ['', `PISTA (sale porque la propia salida la nombra): ${pista}`] : []),
+  ].filter(Boolean).join('\n');
 }
 
 function _recordFailure(message) {
@@ -169,11 +230,12 @@ async function ensureRunning({ referenceDir = '' } = {}) {
     if (restarts >= MAX_RESTARTS) {
       return {
         ok: false,
-        reason:
+        reason: failureText(
+          lastError,
           `El proceso de shmir-design ha fallado ${restarts} veces seguidas y no se `
           + `vuelve a intentar automáticamente: reintentar en bucle llenaría los logs y `
-          + `no arreglaría nada. Último motivo:\n${lastError || '(sin salida)'}\n\n`
-          + installHint(),
+          + `no arreglaría nada.`
+        ),
       };
     }
     lastOutput = '';
@@ -182,7 +244,10 @@ async function ensureRunning({ referenceDir = '' } = {}) {
     } catch (err) {
       restarts += 1;
       _recordFailure(err.message);
-      return { ok: false, reason: `No se pudo lanzar ${PYTHON_BIN}: ${err.message}\n\n${installHint()}` };
+      return {
+        ok: false,
+        reason: failureText(err.message, `No se pudo lanzar ${PYTHON_BIN}.`),
+      };
     }
     startedAt = new Date().toISOString();
     const listo = await waitUntilReady();
@@ -191,9 +256,10 @@ async function ensureRunning({ referenceDir = '' } = {}) {
       if (child) child.kill('SIGTERM');
       return {
         ok: false,
-        reason:
-          `El proceso de shmir-design no llegó a contestar en ${READY_TIMEOUT_MS} ms.\n`
-          + `${lastError || '(no escribió nada)'}\n\n${installHint()}`,
+        reason: failureText(
+          lastOutput || lastError,
+          `El proceso de shmir-design no llegó a contestar en ${READY_TIMEOUT_MS} ms.`
+        ),
       };
     }
     restarts = 0;
@@ -215,6 +281,6 @@ function stop() {
 
 module.exports = {
   ensureRunning, stop, status, probe, waitUntilReady,
-  buildArgs, buildEnv, installHint, _recordFailure,
+  buildArgs, buildEnv, diagnose, failureText, _recordFailure,
   PORT, BASE_PATH, SHMIR_ROOT, APP_FILE, PYTHON_BIN,
 };

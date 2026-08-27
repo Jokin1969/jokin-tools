@@ -77,6 +77,46 @@ def dot_bracket(sequence: str) -> tuple[str, float]:
     return _fold_cached(_to_rna(sequence))
 
 
+@lru_cache(maxsize=2048)
+def _unpaired_cached(rna: str) -> tuple[float, ...]:
+    vienna = _import_vienna()
+    if vienna is None:
+        raise FoldingUnavailableError(
+            "ViennaRNA no esta instalado, asi que no hay funcion de particion que "
+            "calcular: `pip install ViennaRNA`. Se aborta en vez de dar por buena una "
+            "probabilidad que nadie ha calculado."
+        )
+    fc = vienna.fold_compound(rna)
+    fc.mfe()          # hace falta antes de `pf()` para reescalar las energias
+    fc.pf()
+    bpp = fc.bpp()
+    n = len(rna)
+    salida = []
+    for i in range(1, n + 1):
+        emparejada = 0.0
+        for j in range(1, n + 1):
+            if i < j:
+                emparejada += bpp[i][j]
+            elif j < i:
+                emparejada += bpp[j][i]
+        # Se acota a [0, 1]: la suma puede pasarse de 1 por redondeo del propio ViennaRNA,
+        # y una «probabilidad» de -0,0001 en una salida se lee como un fallo de calculo.
+        salida.append(min(1.0, max(0.0, 1.0 - emparejada)))
+    return tuple(salida)
+
+
+def unpaired_probabilities(sequence: str) -> tuple[float, ...]:
+    """Probabilidad de estar SIN APAREAR de cada posicion, por funcion de particion.
+
+    No es lo mismo que mirar la estructura de MFE, y la diferencia importa: la de MFE es
+    **una** estructura, asi que cada posicion sale apareada o no y el resultado es un 0 o
+    un 1 disfrazado de probabilidad. La funcion de particion promedia sobre el conjunto
+    de estructuras, que es lo que se quiere decir cuando se dice «probabilidad de estar
+    desapareado».
+    """
+    return _unpaired_cached(_to_rna(sequence))
+
+
 def reference_structure(reference_hairpin: str) -> str:
     return dot_bracket(reference_hairpin)[0]
 

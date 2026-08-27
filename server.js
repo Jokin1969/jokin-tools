@@ -320,9 +320,17 @@ if (require.main === module) {
   // sus tests.
   const { upgradeAllowed, proxyUpgrade, denySocket } = require('./apps/shmir/proxy');
   const shmirProcess = require('./apps/shmir/process');
+  //
+  // Y OJO CON LO DE ABAJO SI AÑADES UN WEBSOCKET A OTRA APP: este handler es el UNICO
+  // que hay, asi que todo upgrade que no sea de /shmir se cierra aqui. Hoy ninguna otra
+  // app usa WebSocket, asi que no estorba a nadie; el dia que una lo use, esto tiene que
+  // repartir por prefijo en vez de cerrar. Si no, su socket se cerraria sin motivo y sin
+  // dar ningun error — solo «no conecta».
   server.on('upgrade', (req, socket, head) => {
     if (!req.url || !req.url.startsWith('/shmir')) {
-      socket.destroy();
+      denySocket(socket, 404, 'Este hub solo sirve WebSocket en /shmir. Si acabas de '
+        + 'añadir uno a otra app, el handler de `upgrade` de server.js tiene que '
+        + 'repartir por prefijo en vez de cerrar todo lo que no sea /shmir.');
       return;
     }
     const veredicto = upgradeAllowed(req, { store: authStore, appId: 'shmir-design' });

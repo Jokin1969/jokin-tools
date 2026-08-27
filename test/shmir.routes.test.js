@@ -37,9 +37,46 @@ test('server.js monta /shmir detrás de requireApp y engancha el upgrade', () =>
   assert.match(fuente, /upgradeAllowed/);
 });
 
+test('un upgrade de OTRA app se cierra DICIENDO por qué', () => {
+  // Este es el único handler de `upgrade` del hub, así que cierra todo lo que no sea
+  // /shmir. Hoy ninguna otra app usa WebSocket. El día que una lo use, un socket que se
+  // cierra sin motivo se lee como «no conecta» y cuesta horas; el mensaje dice dónde
+  // está el reparto que hay que tocar.
+  const fuente = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'server.js'), 'utf8'
+  );
+  assert.match(fuente, /repartir por prefijo/);
+  assert.ok(!/startsWith\('\/shmir'\)\) \{\s*socket\.destroy\(\)/.test(fuente),
+    'sigue cerrando a la brava sin decir por qué');
+});
+
 test('el proceso se para al apagar el hub', () => {
   const fuente = require('node:fs').readFileSync(
     require('node:path').join(__dirname, '..', 'server.js'), 'utf8'
   );
   assert.match(fuente, /shmir\/process'\)\.stop\(\)/);
+});
+
+test('/shmir lleva su PROPIA CSP: la del hub no deja pasar a Streamlit', () => {
+  // La del hub es global y estricta: `font-src 'self' https://fonts.gstatic.com` bloquea
+  // la fuente de iconos de Streamlit, que viaja como `data:`. Se le da una política a
+  // esta ruta en vez de relajar la del hub entero — las demás apps no tienen por qué
+  // pagar lo que necesita ésta.
+  const fuente = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'apps', 'shmir', 'routes.js'), 'utf8'
+  );
+  assert.match(fuente, /Content-Security-Policy/);
+  assert.match(fuente, /font-src 'self' data:/);
+  assert.match(fuente, /worker-src 'self' blob:/);
+  assert.match(fuente, /connect-src 'self' ws: wss:/);
+});
+
+test("y NO se relaja con 'unsafe-eval'", () => {
+  // Se comprobó con un navegador de verdad que la app renderiza sin él. Añadirlo «por si
+  // acaso» sería abrir un agujero para nada.
+  const fuente = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'apps', 'shmir', 'routes.js'), 'utf8'
+  );
+  assert.ok(!/'unsafe-eval'/.test(fuente.split('const CSP_SHMIR')[1].split(']')[0]),
+    "la CSP de /shmir lleva 'unsafe-eval'");
 });

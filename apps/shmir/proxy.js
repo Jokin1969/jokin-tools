@@ -48,6 +48,40 @@ function upgradeAllowed(req, { store, appId }) {
   return { allowed: true, user };
 }
 
+// Una redirección del upstream apunta a SU dirección, que es interna.
+//
+// Fallo real: `/shmir` sin barra final hace que Streamlit conteste 307 con
+// `Location: http://127.0.0.1:8501/shmir/`. El navegador la sigue, fuera del contenedor
+// no hay nada escuchando ahí, y lo que ve el usuario es que «no hace nada» — sin ningún
+// error en ningún log, que es el peor tipo de fallo.
+//
+// Se reescribe SOLO lo que apunta al upstream: una redirección a otro sitio es legítima
+// y reescribirla la rompería.
+// El `Origin` que manda el navegador es el del HUB, y Streamlit solo admite localhost y
+// las IPs de su propia maquina (`server.enableCORS`). Detras de un proxy eso rechaza el
+// WebSocket con un 403 — y el sintoma es de los peores: el HTML y los estaticos cargan,
+// asi que se ve el ESQUELETO de la pagina, pero como todo el estado viaja por
+// `/_stcore/stream` no se rellena nunca. Ningun error visible.
+//
+// Se reescribe el Origin al del propio upstream en vez de apagarle el CORS a Streamlit.
+// Es mas estrecho y conserva la propiedad: lo unico que llega a Streamlit con un Origin
+// aceptable es lo que pasa por ESTE proxy, que ya comprueba sesion y permiso en
+// `upgradeAllowed`. Si algun dia el puerto quedara expuesto, la comprobacion de Streamlit
+// seguiria ahi; con `--server.enableCORS=false` no quedaria ninguna.
+function rewriteOrigin(headers, { port }) {
+  if (!headers.origin) return headers;
+  return { ...headers, origin: `http://${HOST}:${port}` };
+}
+
+function rewriteLocation(location, { port }) {
+  if (!location) return location;
+  const prefijos = [`http://${HOST}:${port}`, `https://${HOST}:${port}`];
+  for (const prefijo of prefijos) {
+    if (location.startsWith(prefijo)) return location.slice(prefijo.length) || '/';
+  }
+  return location;
+}
+
 // Reenvía una petición HTTP al upstream y devuelve su respuesta tal cual.
 //
 // OJO CON LA RUTA. Montado con `app.use('/shmir', …)`, Express le QUITA el prefijo a
@@ -63,10 +97,14 @@ function proxyRequest(req, res, { port, timeoutMs = 120000, path = null }) {
       port,
       method: req.method,
       path: ruta,
-      headers: { ...req.headers, host: `${HOST}:${port}` },
+      headers: rewriteOrigin({ ...req.headers, host: `${HOST}:${port}` }, { port }),
     },
     upRes => {
-      res.writeHead(upRes.statusCode || 502, upRes.headers);
+      const cabeceras = { ...upRes.headers };
+      if (cabeceras.location) {
+        cabeceras.location = rewriteLocation(cabeceras.location, { port });
+      }
+      res.writeHead(upRes.statusCode || 502, cabeceras);
       upRes.pipe(res);
     }
   );
@@ -97,7 +135,7 @@ function proxyUpgrade(req, socket, head, { port }) {
     port,
     method: req.method,
     path: req.url,
-    headers: { ...req.headers, host: `${HOST}:${port}` },
+    headers: rewriteOrigin({ ...req.headers, host: `${HOST}:${port}` }, { port }),
   });
 
   upstream.on('upgrade', (upRes, upSocket, upHead) => {
@@ -142,4 +180,7 @@ function denySocket(socket, status, reason) {
   socket.destroy();
 }
 
-module.exports = { upgradeAllowed, proxyRequest, proxyUpgrade, denySocket, COOKIE_NAME };
+module.exports = {
+  upgradeAllowed, proxyRequest, proxyUpgrade, denySocket, rewriteLocation, rewriteOrigin,
+  COOKIE_NAME,
+};
