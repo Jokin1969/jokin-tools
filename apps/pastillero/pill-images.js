@@ -4,18 +4,20 @@
 // Not the CIMA cache (raw AEMPS photos, mixed quality/background): this is a
 // separate, deliberately-prepared repository — transparent PNG, same visual
 // treatment for every medication — shared by Pastillero, Data Matrix and
-// Asignación. Files are placed directly on disk by whoever curates them; there's
-// no upload endpoint (Fase 1 scope). Named "<CN>.png", exactly the Código
-// Nacional as stored (digits only, no check/prefix).
+// Asignación. Named "<CN>.png", exactly the Código Nacional as stored (digits
+// only, no check digit/prefix). See apps/pastillero/pill-images/README.md for
+// how to add one.
 //
-// Lives on a VOLUME, not in the image: same reasoning as SHMIR_REFERENCE_DIR in
-// apps/shmir (see root CLAUDE.md) — the container filesystem is ephemeral, so a
-// file dropped into the image's local path would vanish on the next redeploy.
+// Lives INSIDE THE REPO (apps/pastillero/pill-images/ by default), not on a
+// volume: these files are added via GitHub, so they need to travel with a
+// normal commit + deploy, not with server/SSH access to a Railway volume. The
+// env var below is only an escape hatch (e.g. to point at a volume later if
+// the collection ever grows large enough to warrant it); nothing depends on it.
 
 const fs = require('fs');
 const path = require('path');
 
-const DIR = process.env.PASTILLERO_PILL_IMAGES_DIR || '/data/pastillero/pills';
+const DIR = process.env.PASTILLERO_PILL_IMAGES_DIR || path.join(__dirname, 'pill-images');
 if (!fs.existsSync(DIR)) fs.mkdirSync(DIR, { recursive: true });
 
 const CN_RE = /^[0-9]{4,8}$/;
