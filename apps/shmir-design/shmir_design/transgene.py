@@ -36,9 +36,9 @@ class ScaffoldModuleWarning:
     def describe(self) -> str:
         if not self.carries:
             return (
-                "El casete NO lleva ningun loop de andamio conocido: es un PARENTAL, "
-                "sin modulo de shmiR. El filtro del transgen se puede leer tal cual — "
-                "un FAIL aqui es un impacto real contra la construccion, no contra la "
+                "El casete NO lleva ningún loop de andamio conocido: es un PARENTAL, "
+                "sin módulo de shmiR. El filtro del transgén se puede leer tal cual — "
+                "un FAIL aquí es un impacto real contra la construcción, no contra la "
                 "propia horquilla del candidato."
             )
         detalle = "; ".join(
@@ -46,12 +46,12 @@ class ScaffoldModuleWarning:
             for (nombre, loop), registro in zip(self.found, self.records)
         )
         return (
-            f"AVISO DURO — el casete YA LLEVA un modulo de shmiR: {detalle}. "
-            f"Si lo que se ha pasado es el GENOMA (con el intron dentro), toda guia da "
+            f"AVISO DURO — el casete YA LLEVA un módulo de shmiR: {detalle}. "
+            f"Si lo que se ha pasado es el GENOMA (con el intrón dentro), toda guía da "
             f"impacto contra SU PROPIA HORQUILLA y el filtro tumba el panel entero por "
-            f"un artefacto — con un motivo que ademas es literalmente cierto, asi que "
+            f"un artefacto — con un motivo que además es literalmente cierto, así que "
             f"no se ve. Lo que hay que pasar en ese caso es el TRANSCRITO MADURO, sin "
-            f"el intron. Revisa este veredicto antes de usarlo."
+            f"el intrón. Revisa este veredicto antes de usarlo."
         )
 
 
@@ -59,7 +59,7 @@ def carries_scaffold_module(database) -> ScaffoldModuleWarning:
     """¿El casete contiene el loop de algun andamio conocido?"""
     if database is None:
         raise ValueError(
-            "No hay casete que mirar; se aborta en vez de decir que no lleva modulo."
+            "No hay casete que mirar; se aborta en vez de decir que no lleva módulo."
         )
     encontrados: list[tuple[str, str]] = []
     registros: list[str] = []

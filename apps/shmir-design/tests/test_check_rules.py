@@ -112,8 +112,8 @@ class TestManejoPermitido(unittest.TestCase):
             "        return json.loads(raw)\n"
             "    except json.JSONDecodeError as exc:\n"
             "        raise ParseError(\n"
-            "            f'Respuesta de {url} no es JSON valido ({exc}); '\n"
-            "            'se aborta el filtro de conservacion.'\n"
+            "            f'Respuesta de {url} no es JSON válido ({exc}); '\n"
+            "            'se aborta el filtro de conservación.'\n"
             "        ) from exc\n"
         )
         self.assertEqual(codes(source), [])
@@ -137,7 +137,7 @@ class TestManejoPermitido(unittest.TestCase):
             "        os.mkdir(path)\n"
             "    except FileExistsError:\n"
             "        # rule2-ok: el directorio ya existe, que es el estado deseado;\n"
-            "        # no hay ningun paso que quede sin ejecutar.\n"
+            "        # no hay ningún paso que quede sin ejecutar.\n"
             "        pass\n"
         )
         self.assertEqual(codes(source), [])

@@ -61,12 +61,12 @@ class Thresholds:
         for nombre, valor in (("gc_min", self.gc_min), ("gc_max", self.gc_max)):
             if not 0.0 <= valor <= 1.0:
                 raise ValueError(
-                    f"{nombre}={valor}: el GC es una fraccion entre 0 y 1; se aborta."
+                    f"{nombre}={valor}: el GC es una fracción entre 0 y 1; se aborta."
                 )
         if self.gc_min > self.gc_max:
             raise ValueError(
                 f"gc_min={self.gc_min} es mayor que gc_max={self.gc_max}: ninguna "
-                f"ventana podria pasar; se aborta en vez de filtrarlo todo en silencio."
+                f"ventana podría pasar; se aborta en vez de filtrarlo todo en silencio."
             )
         if self.max_homopolymer < 1:
             raise ValueError(
@@ -115,7 +115,7 @@ def reverse_complement_rna(sequence: str) -> str:
 
 
 def guide_from_target(sequence: str) -> str:
-    """Guia de la diana, con U forzada en la posicion 1 (paso 6, transformacion)."""
+    """Guia de la diana, con U forzada en la posición 1 (paso 6, transformacion)."""
     guide = reverse_complement_rna(sequence)
     return "U" + guide[1:]
 
@@ -130,7 +130,7 @@ def filter_gc(sequence: str, thresholds: Thresholds = DEFAULT_THRESHOLDS) -> Fil
             reason=f"GC {value:.3f} dentro de {rango}.",
         )
     lado = (
-        "por debajo del minimo" if value < thresholds.gc_min else "por encima del maximo"
+        "por debajo del mínimo" if value < thresholds.gc_min else "por encima del máximo"
     )
     return FilterResult(
         name="GC",
@@ -149,15 +149,15 @@ def filter_homopolymer(
             name="homopolimero",
             state=FilterState.PASS,
             reason=(
-                f"Sin tramos de mas de {thresholds.max_homopolymer} nt iguales seguidos."
+                f"Sin tramos de más de {thresholds.max_homopolymer} nt iguales seguidos."
             ),
         )
     return FilterResult(
         name="homopolimero",
         state=FilterState.FAIL,
         reason=(
-            f"Homopolimero {match.group(0)} ({len(match.group(0))} nt) en la posicion "
-            f"{match.start() + 1}; el maximo es {thresholds.max_homopolymer}."
+            f"Homopolimero {match.group(0)} ({len(match.group(0))} nt) en la posición "
+            f"{match.start() + 1}; el máximo es {thresholds.max_homopolymer}."
         ),
     )
 
@@ -176,7 +176,7 @@ def filter_g4(sequence: str, *, name: str = "G4_diana") -> FilterResult:
         name=name,
         state=FilterState.FAIL,
         reason=(
-            f"Motivo G-cuadruplex {match.group(0)} en la posicion {match.start() + 1}."
+            f"Motivo G-cuadruplex {match.group(0)} en la posición {match.start() + 1}."
         ),
     )
 
@@ -192,7 +192,7 @@ def filter_asymmetry(
             name="asimetria",
             state=FilterState.NOT_RUN,
             reason=(
-                "No se paso ningun modelo de asimetria, asi que el filtro no se "
+                "No se paso ningún modelo de asimetría, así que el filtro no se "
                 f"ejecuta. Umbral sin aplicar: >= {MIN_ASYMMETRY} kcal/mol. "
                 "NOT_RUN no es PASS."
             ),
@@ -209,7 +209,7 @@ def filter_asymmetry(
         reason=(
             f"Asimetria {value:+.2f} kcal/mol {comparacion} "
             f"{thresholds.min_asymmetry}, "
-            f"sobre la guia {guide} (proxy heuristico, ver thermo.py)."
+            f"sobre la guía {guide} (proxy heuristico, ver thermo.py)."
         ),
     )
 
@@ -236,7 +236,7 @@ class WindowEvaluation:
         lines = [
             f"{indent}offset {self.offset}: {self.sequence}  "
             f"veredicto={self.verdict.value}",
-            f"{indent}  guia (5'→3', U forzada en 1): {self.guide}",
+            f"{indent}  guía (5'→3', U forzada en 1): {self.guide}",
         ]
         lines.extend(
             f"{indent}  {r.name:<13} {r.state.value:<7} {r.reason}" for r in self.filters
@@ -255,14 +255,14 @@ def evaluate_window(
     cleaned = normalize_sequence(sequence)
     if len(cleaned) != WINDOW_SIZE:
         raise ValueError(
-            f"La ventana mide {len(cleaned)} nt y los filtros estan definidos sobre "
-            f"{WINDOW_SIZE} nt; se aborta la evaluacion en vez de aplicar umbrales "
+            f"La ventana mide {len(cleaned)} nt y los filtros están definidos sobre "
+            f"{WINDOW_SIZE} nt; se aborta la evaluación en vez de aplicar umbrales "
             f"que no le corresponden."
         )
     desconocida = cleaned.find("N")
     if desconocida != -1:
         motivo = (
-            f"La ventana tiene una base desconocida (N) en la posicion "
+            f"La ventana tiene una base desconocida (N) en la posición "
             f"{desconocida + 1}: no es evaluable. NOT_RUN no es PASS."
         )
         return WindowEvaluation(

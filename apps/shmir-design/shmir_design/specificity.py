@@ -83,8 +83,8 @@ NCBI_POLL_INTERVAL_S = 60
 SEED_CAVEAT = (
     "Este filtro NO cubre los off-targets mediados por seed: un sitio complementario "
     "a las posiciones 2-8 aparece por azar cada ~16 kb, hay miles en el transcriptoma "
-    "y ningun alineador los devuelve. Eso se cuenta aparte (sitios 7mer-m8/8mer en "
-    "3'UTR ponderados por expresion cerebral, o siSPOTR/POTS) y es el hueco mas "
+    "y ningún alineador los devuelve. Eso se cuenta aparte (sitios 7mer-m8/8mer en "
+    "3'UTR ponderados por expresión cerebral, o siSPOTR/POTS) y es el hueco más "
     "importante que queda abierto."
 )
 
@@ -99,7 +99,7 @@ def reverse_complement(sequence: str) -> str:
     for index, base in enumerate(cleaned, start=1):
         if base not in DNA_BASES:
             raise InvalidSequenceError(
-                f"Caracter {base!r} no valido en la posicion {index} de la sonda "
+                f"Caracter {base!r} no válido en la posición {index} de la sonda "
                 f"(se esperaba A, C, G o T); se aborta el escaneo de especificidad."
             )
     return cleaned.translate(COMPLEMENT)[::-1]
@@ -144,14 +144,14 @@ class SpecificityDatabase:
                 )
         if not self.records:
             raise ShmirDesignError(
-                f"La base {self.name!r} no tiene ningun transcrito; se aborta en vez de "
-                f"dar por especifica una guia contra una base vacia."
+                f"La base {self.name!r} no tiene ningún transcrito; se aborta en vez de "
+                f"dar por específica una guía contra una base vacía."
             )
 
     @property
     def provenance(self) -> str:
         return (
-            f"{self.name}, version {self.version}, checksum {self.checksum}, "
+            f"{self.name}, versión {self.version}, checksum {self.checksum}, "
             f"{len(self.records)} transcrito(s)"
         )
 
@@ -245,10 +245,10 @@ class SpecificityResult:
         if self.database is not None:
             lines.extend(
                 [
-                    "  Procedencia y parametros:",
+                    "  Procedencia y parámetros:",
                     f"    base            {self.database.provenance}",
                     f"    sonda           {self.query_length} nt "
-                    f"(guia y pasajera por separado)",
+                    f"(guía y pasajera por separado)",
                     f"    desapareamientos hasta {MAX_MISMATCHES} desapareamientos, "
                     f"escaneo exhaustivo local",
                     f"    orientacion     solo cuentan los hits antisentido "
@@ -304,7 +304,7 @@ def filter_specificity(
         return SpecificityResult(
             state=FilterState.NOT_RUN,
             reason=(
-                "No hay base de RefSeq RNA cargada, asi que el filtro de especificidad "
+                "No hay base de RefSeq RNA cargada, así que el filtro de especificidad "
                 "no se ejecuta. NOT_RUN no es PASS: un fallo de red, un timeout o una "
                 f"base ausente nunca se convierten en PASS. {SEED_CAVEAT}"
             ),
@@ -329,7 +329,7 @@ def filter_specificity(
 
     orientacion = (
         f" Descartados {len(sentido)} hit(s) en orientacion SENTIDO (misma hebra que "
-        f"la sonda): no son off-targets de la guia."
+        f"la sonda): no son off-targets de la guía."
         if sentido
         else ""
     )
@@ -384,7 +384,7 @@ def taxid_for(species: str) -> str:
         return resuelta.taxid
     raise ShmirDesignError(
         f"La especie {species!r} ({resuelta.scientific}) NO tiene taxid declarado en "
-        f"este proyecto, asi que no se puede filtrar el BLAST por organismo. Se mira en "
+        f"este proyecto, así que no se puede filtrar el BLAST por organismo. Se mira en "
         f"el Taxonomy Browser del NCBI y se AÑADE a `species.SPECIES` — no se deduce "
         f"del nombre ni se toma el de otra especie: un taxid equivocado devuelve los "
         f"aciertos de OTRO organismo y el resultado tiene la forma correcta."
@@ -435,7 +435,7 @@ def load_database(
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ShmirDesignError(
-            f"{path} no es UTF-8 valido ({exc}); se aborta la carga."
+            f"{path} no es UTF-8 válido ({exc}); se aborta la carga."
         ) from exc
 
     records: dict[str, str] = {}
@@ -448,19 +448,19 @@ def load_database(
             identificador = linea[1:].split()[0] if linea[1:].split() else ""
             if not identificador:
                 raise ShmirDesignError(
-                    f"{path}, linea {numero}: cabecera sin identificador; se aborta."
+                    f"{path}, línea {numero}: cabecera sin identificador; se aborta."
                 )
             if identificador in records:
                 raise ShmirDesignError(
-                    f"{path}, linea {numero}: el identificador {identificador} esta "
+                    f"{path}, línea {numero}: el identificador {identificador} esta "
                     f"repetido; se aborta en vez de quedarse con uno de los dos."
                 )
             trozos = []
         elif linea.strip():
             if identificador is None:
                 raise ShmirDesignError(
-                    f"{path}, linea {numero}: secuencia antes de la primera cabecera; "
-                    f"no es un FASTA valido y se aborta."
+                    f"{path}, línea {numero}: secuencia antes de la primera cabecera; "
+                    f"no es un FASTA válido y se aborta."
                 )
             trozos.append(linea.strip().upper())
     if identificador is not None:
@@ -477,13 +477,13 @@ TRANSGENE_FILTER_NAME = "transgen"
 
 TRANSGENE_CAVEAT = (
     "En el casete no hay gen diana que excluir: cualquier sitio es malo. Un candidato "
-    "que silencia el transgen produce un fallo silencioso — knockdown global bonito y "
-    "ningun beneficio en el ratio — porque apaga la misma proteina que se quiere "
+    "que silencia el transgén produce un fallo silencioso — knockdown global bonito y "
+    "ningún beneficio en el ratio — porque apaga la misma proteina que se quiere "
     "expresar."
 )
 
 TRANSGENE_ORIENTATION_NOTE = (
-    "El FASTA del casete se lee como la hebra sentido de lo que se transcribe, asi que "
+    "El FASTA del casete se lee como la hebra sentido de lo que se transcribe, así que "
     "el sitio que cuenta es el ANTISENTIDO, igual que contra el transcriptoma. Los hits "
     "en sentido se cuentan y se listan, pero no condenan. En los tramos no transcritos "
     "(ITR, promotor) la orientacion no significa lo mismo: ahi el hit es una "
@@ -509,14 +509,14 @@ class TransgeneResult:
         )
 
     def format_text(self) -> str:
-        lines = [f"Transgen — {self.state.value}", f"  {self.reason}", ""]
+        lines = [f"Transgén — {self.state.value}", f"  {self.reason}", ""]
         if self.database is not None:
             lines.extend(
                 [
-                    "  Procedencia y parametros:",
+                    "  Procedencia y parámetros:",
                     f"    casete          {self.database.provenance}",
                     f"    sonda           {self.query_length} nt "
-                    f"(guia y pasajera por separado)",
+                    f"(guía y pasajera por separado)",
                     f"    desapareamientos hasta {MAX_MISMATCHES}, escaneo exhaustivo "
                     f"local (principio del palomar, {BLOCKS} bloques)",
                     f"    veredicto       FAIL con 0 o 1; con 2, aviso y lista",
@@ -555,9 +555,9 @@ def filter_transgene(
         return TransgeneResult(
             state=FilterState.NOT_RUN,
             reason=(
-                "No hay casete del transgen cargado, asi que el filtro contra el "
-                "transgen no se ejecuta y queda sin comprobar si el candidato apaga la "
-                "propia construccion terapeutica. NOT_RUN no es PASS: una base ausente "
+                "No hay casete del transgén cargado, así que el filtro contra el "
+                "transgén no se ejecuta y queda sin comprobar si el candidato apaga la "
+                "propia construcción terapeutica. NOT_RUN no es PASS: una base ausente "
                 "nunca se convierte en PASS."
             ),
         )
@@ -567,7 +567,7 @@ def filter_transgene(
             continue
         if not sonda.strip():
             raise ValueError(
-                f"La {nombre} esta vacia: no se puede escanear el casete con una sonda "
+                f"La {nombre} está vacía: no se puede escanear el casete con una sonda "
                 f"que no existe. Se aborta en vez de dar el filtro por superado."
             )
 
@@ -599,7 +599,7 @@ def filter_transgene(
             state=FilterState.FAIL,
             reason=(
                 f"{len(graves)} sitio(s) de 0 o 1 desapareamiento en el casete del "
-                f"transgen: {detalle}. Este candidato apagaria la construccion que se "
+                f"transgen: {detalle}. Este candidato apagaria la construcción que se "
                 f"quiere expresar.{orientacion}{procedencia}"
             ),
             hits=tuple(antisentido),
@@ -619,7 +619,7 @@ def filter_transgene(
     return TransgeneResult(
         state=FilterState.PASS,
         reason=(
-            f"Sin sitios de 0 ni 1 desapareamiento en el casete del transgen."
+            f"Sin sitios de 0 ni 1 desapareamiento en el casete del transgén."
             f"{aviso}{orientacion}{procedencia}"
         ),
         hits=tuple(antisentido),

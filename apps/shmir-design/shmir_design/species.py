@@ -144,7 +144,7 @@ def required_files(species: Species) -> tuple[RequiredFile, ...]:
             role="rmsk",
             filename=f"rmsk_{slug}.out",
             companion=f"rmsk_{slug}.tbl",
-            what="elementos repetitivos y repeticiones polimorficas (paso 2)",
+            what="elementos repetitivos y repeticiones polimórficas (paso 2)",
             ficha="repeticiones",
             fronts=("repeticiones", "repeticion_polimorfica"),
             extensions=("out", "tbl"),
@@ -152,7 +152,7 @@ def required_files(species: Species) -> tuple[RequiredFile, ...]:
         RequiredFile(
             role="mirbase",
             filename="mature.fa",
-            what="colision de seed con un miARN endogeno (paso 10a)",
+            what="colisión de seed con un miARN endogeno (paso 10a)",
             ficha="seed_colision",
             fronts=("seed", "seed_colision"),
             extensions=("fa", "fasta", "txt"),
@@ -162,7 +162,7 @@ def required_files(species: Species) -> tuple[RequiredFile, ...]:
             filename=_por_especie(
                 "mirgenedb_cerebro", ".txt", slug, sin_sufijo=("mouse",)
             ),
-            what="la capa AMPLIADA de la colision de seed, a nivel AVISO",
+            what="la capa AMPLIADA de la colisión de seed, a nivel AVISO",
             ficha="seed_colision",
             fronts=("seed_colision",),
             required=False,
@@ -183,7 +183,7 @@ def required_files(species: Species) -> tuple[RequiredFile, ...]:
             filename=_por_especie(
                 "expresion_cerebro", ".tsv", slug, sin_sufijo=("mouse",)
             ),
-            what="ponderar la carga de off-targets por expresion en el tejido",
+            what="ponderar la carga de off-targets por expresión en el tejido",
             ficha="offtarget_seed",
             fronts=("offtarget_seed",),
             required=False,
@@ -309,7 +309,7 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
     presentes = set(have)
     prefijo = (
         f"«{species.mirbase_prefix}»" if species.mirbase_prefix
-        else "su prefijo de miRBase, que para esta especie no esta declarado"
+        else "su prefijo de miRBase, que para esta especie no está declarado"
     )
 
     # Los nombres NO se escriben aqui: salen de `required_files`, que es la vista por
@@ -331,10 +331,10 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
 
     filas = [
         FrontAvailability(
-            front="barrido y filtros biofisicos", available=True, missing="",
+            front="barrido y filtros biofísicos", available=True, missing="",
             files=(), keys=("biofisicos",),
             note=(
-                "GC, homopolimero, asimetria y G4 no dependen de ningun fichero ni de "
+                "GC, homopolimero, asimetría y G4 no dependen de ningún fichero ni de "
                 "ninguna especie."
             ),
         ),
@@ -350,7 +350,7 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
             note=_nota_ajena("rmsk_"),
         ),
         FrontAvailability(
-            front="colision de seed",
+            front="colisión de seed",
             available=maduros in presentes and bool(species.mirbase_prefix),
             missing=(
                 f"{maduros} filtrado a {prefijo}"
@@ -364,7 +364,7 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
                 if species.mirbase_prefix
                 else (
                     "miRBase usa un prefijo de tres letras por especie y el de esta no "
-                    "esta declarado en `species.SPECIES`. Correr con «mmu-» compararia "
+                    "está declarado en `species.SPECIES`. Correr con «mmu-» compararia "
                     "contra miARN de RATON y daria un resultado plausible y equivocado."
                 )
             ),
@@ -387,7 +387,7 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
             files=(apa,),
             keys=("fraccion_isoforma_larga",),
             note=(
-                "La tabla que hay es de Prnp murino y se aplica por md5 del 3'UTR, asi "
+                "La tabla que hay es de Prnp murino y se aplica por md5 del 3'UTR, así "
                 "que sobre otra secuencia devuelve None y no promueve nada. Eso esta "
                 "bien: lo que falta es la tabla de esta especie."
             ),
@@ -402,7 +402,7 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
                 ""
                 if species.taxid
                 else (
-                    "Ademas no hay taxid declarado para esta especie, asi que la orden "
+                    "Además no hay taxid declarado para esta especie, así que la orden "
                     "de BLAST no se puede construir: `blast_command` aborta en vez de "
                     "inventarlo."
                 )
@@ -411,12 +411,12 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
         FrontAvailability(
             front="transgen",
             available=casete in presentes,
-            missing=f"casete del vector de esta construccion ({casete})",
+            missing=f"casete del vector de esta construcción ({casete})",
             files=(casete,),
             keys=("transgen",),
             note=(
                 "El casete de hoy es pAAV con PrP MURINO: para otra especie es otro "
-                "plasmido, y con el cambian el modulo de 149 nt y el cassette de 318."
+                "plásmido, y con el cambian el módulo de 149 nt y el cassette de 318."
             ),
         ),
     ]

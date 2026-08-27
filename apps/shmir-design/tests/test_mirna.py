@@ -145,7 +145,7 @@ mmu-sonda-9
     def test_una_lista_vacia_aborta(self):
         with self.assertRaises(ShmirDesignError):
             parse_abundance_list(
-                "# referencia: r\n# umbral: 100 RPM\n# y nada mas\n",
+                "# referencia: r\n# umbral: 100 RPM\n# y nada más\n",
                 source="s", version="v", checksum="0" * 32,
             )
 
@@ -179,7 +179,7 @@ mmu-sonda-9
         for palabra in fuente.split():
             limpia = palabra.strip('"\',.()[]')
             if len(limpia) >= 7 and set(limpia) <= set("ACGTU"):
-                self.fail(f"parece una secuencia escrita en el codigo: {limpia!r}")
+                self.fail(f"parece una secuencia escrita en el código: {limpia!r}")
 
 
 class TestDosNiveles(unittest.TestCase):

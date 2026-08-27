@@ -60,7 +60,7 @@ class SeedSet:
     def __post_init__(self) -> None:
         if not self.seeds:
             raise ValueError(
-                f"El conjunto de seeds de {self.source!r} esta vacio; se aborta en vez "
+                f"El conjunto de seeds de {self.source!r} está vacío; se aborta en vez "
                 f"de dejar correr un filtro que no puede descartar nada."
             )
 
@@ -76,10 +76,10 @@ def seed_of(guide: str) -> str:
     """
     cleaned = "".join(str(guide).split()).upper()
     if not cleaned:
-        raise ValueError("La guia esta vacia; se aborta el calculo de la seed.")
+        raise ValueError("La guía está vacía; se aborta el calculo de la seed.")
     if len(cleaned) < SEED_END:
         raise ValueError(
-            f"La guia mide {len(cleaned)} nt y la seed son las posiciones "
+            f"La guía mide {len(cleaned)} nt y la seed son las posiciones "
             f"{SEED_START}-{SEED_END}; se aborta el calculo de la seed."
         )
 
@@ -87,8 +87,8 @@ def seed_of(guide: str) -> str:
     for offset, base in enumerate(seed):
         if base not in RNA_BASES:
             raise InvalidSequenceError(
-                f"guia: caracter {base!r} no valido en la posicion "
-                f"{SEED_START + offset} (se esperaba A, C, G o U; la guia va en "
+                f"guía: carácter {base!r} no válido en la posición "
+                f"{SEED_START + offset} (se esperaba A, C, G o U; la guía va en "
                 f"notacion ARN); se aborta el calculo de la seed."
             )
     return seed.replace("U", "T")
@@ -104,24 +104,24 @@ def parse_seed_table(text: str, *, source: str, is_bootstrap: bool = False) -> S
         parts = line.split(None, 1)
         if len(parts) != 2:
             raise ValueError(
-                f"{source}, linea {number}: se esperaban 2 campos (seed y familia) y "
+                f"{source}, línea {number}: se esperaban 2 campos (seed y familia) y "
                 f"hay {len(parts)}; se aborta la carga de seeds."
             )
         seed, family = parts[0].upper().replace("U", "T"), parts[1].strip()
         if len(seed) != SEED_LENGTH:
             raise ValueError(
-                f"{source}, linea {number}: la seed {seed!r} mide {len(seed)} nt y "
+                f"{source}, línea {number}: la seed {seed!r} mide {len(seed)} nt y "
                 f"deben ser {SEED_LENGTH}; se aborta la carga de seeds."
             )
         for base in seed:
             if base not in DNA_BASES:
                 raise InvalidSequenceError(
-                    f"{source}, linea {number}: la seed {seed!r} tiene el caracter "
+                    f"{source}, línea {number}: la seed {seed!r} tiene el carácter "
                     f"{base!r}, que no es A, C, G, T ni U; se aborta la carga de seeds."
                 )
         if seed in seeds and seeds[seed] != family:
             raise ValueError(
-                f"{source}, linea {number}: la seed {seed} ya estaba asignada a "
+                f"{source}, línea {number}: la seed {seed} ya estaba asignada a "
                 f"{seeds[seed]!r} y ahora a {family!r}; se aborta la carga en vez de "
                 f"quedarse con una de las dos."
             )
@@ -130,7 +130,7 @@ def parse_seed_table(text: str, *, source: str, is_bootstrap: bool = False) -> S
     if not seeds:
         raise ValueError(
             f"{source}: no habia ninguna seed que cargar; se aborta en vez de dejar "
-            f"correr un filtro vacio."
+            f"correr un filtro vacío."
         )
     return SeedSet(seeds=seeds, source=source, is_bootstrap=is_bootstrap)
 
@@ -147,7 +147,7 @@ def filter_seed(guide: str, seeds: SeedSet | None = None) -> FilterResult:
             name="seed",
             state=FilterState.NOT_RUN,
             reason=(
-                "No hay lista de seeds cargada (miRBase ausente), asi que el filtro no "
+                "No hay lista de seeds cargada (miRBase ausente), así que el filtro no "
                 "se ejecuta. NOT_RUN no es PASS: la ventana no puede declararse apta."
             ),
         )
@@ -159,8 +159,8 @@ def filter_seed(guide: str, seeds: SeedSet | None = None) -> FilterResult:
             name="seed",
             state=FilterState.NOT_RUN,
             reason=(
-                f"La seed (posiciones {SEED_START}-{SEED_END} de la guia) tiene una "
-                f"base desconocida (N) en la posicion {SEED_START + desconocida}: no se "
+                f"La seed (posiciones {SEED_START}-{SEED_END} de la guía) tiene una "
+                f"base desconocida (N) en la posición {SEED_START + desconocida}: no se "
                 f"puede comparar con nada. NOT_RUN no es PASS."
             ),
         )
@@ -183,7 +183,7 @@ def filter_seed(guide: str, seeds: SeedSet | None = None) -> FilterResult:
         name="seed",
         state=FilterState.PASS,
         reason=(
-            f"La seed {seed} no esta entre las {len(seeds.seeds)} de "
+            f"La seed {seed} no está entre las {len(seeds.seeds)} de "
             f"{seeds.source}.{aviso}"
         ),
     )

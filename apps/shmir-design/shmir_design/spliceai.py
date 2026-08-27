@@ -50,44 +50,44 @@ NOT_TRAINED_FOR_THIS = (
     "SpliceAI NO fue entrenado para esto. Se entreno sobre secuencia GENOMICA HUMANA con "
     "una ventana de 10.000 nt, para predecir el efecto de VARIANTES. Un cassette de AAV "
     "no se le parece: no hay contexto genomico, las longitudes son atipicas y la "
-    "composicion tambien. Lo que devuelve aqui no es «lo mismo peor»: es un numero "
+    "composición también. Lo que devuelve aquí no es «lo mismo peor»: es un número "
     "calculado sobre una entrada de otra clase."
 )
 
 NO_ABSOLUTE_THRESHOLD = (
-    "LAS PUNTUACIONES ABSOLUTAS NO SON INTERPRETABLES, y no hay ningun umbral que "
-    "aplicar. Un 0,8 aqui no significa lo que significa un 0,8 en el genoma humano, y no "
+    "LAS PUNTUACIONES ABSOLUTAS NO SON INTERPRETABLES, y no hay ningún umbral que "
+    "aplicar. Un 0,8 aquí no significa lo que significa un 0,8 en el genoma humano, y no "
     "existe un valor por encima del cual algo sea «un sitio». Cualquier corte que se "
-    "pusiera seria inventado."
+    "pusiera sería inventado."
 )
 
 RELATIVE_ONLY = (
-    "Lo unico que vale es la comparacion RELATIVA contra un referente INTERNO: el donante "
-    "legitimo del mismo intron, en la misma corrida. Es el mismo criterio que ya se uso "
-    "para descartar los aceptores cripticos —el tracto de pirimidinas de cada uno "
-    "comparado contra las nueve del legitimo— y funciona por la misma razon: el veredicto "
-    "no depende de ningun umbral traido de fuera. Un modulo cuyo mejor criptico se ACERQUE "
-    "al legitimo es sospechoso; uno donde el legitimo DOMINE, no."
+    "Lo único que vale es la comparación RELATIVA contra un referente INTERNO: el donante "
+    "legítimo del mismo intrón, en la misma corrida. Es el mismo criterio que ya se uso "
+    "para descartar los aceptores crípticos —el tracto de pirimidinas de cada uno "
+    "comparado contra las nueve del legítimo— y funciona por la misma razón: el veredicto "
+    "no depende de ningún umbral traido de fuera. Un módulo cuyo mejor críptico se ACERQUE "
+    "al legítimo es sospechoso; uno donde el legítimo DOMINE, no."
 )
 
 CONTEXT_MATTERS = (
-    "LA VENTANA DE CONTEXTO CAMBIA EL RESULTADO, asi que va declarada y viaja con cada "
-    "consulta. SpliceAI mira miles de nucleotidos a cada lado; aqui hay lo que da el "
+    "LA VENTANA DE CONTEXTO CAMBIA EL RESULTADO, así que va declarada y viaja con cada "
+    "consulta. SpliceAI mira miles de nucleótidos a cada lado; aquí hay lo que da el "
     "casete. Dos corridas con contextos distintos no son comparables, y sin registrarlo "
-    "nadie podria saberlo."
+    "nadie podría saberlo."
 )
 
 USE_NOTE = (
     "USO: DESEMPATE Y ALERTA, NUNCA FILTRO. Ni esto ni la accesibilidad estructural "
     "pueden excluir un candidato — NO ES UN VEREDICTO. Lo que pueden hacer es señalar que "
-    "una construccion concreta tiene un perfil peor que sus hermanas, y eso es motivo "
+    "una construcción concreta tiene un perfil peor que sus hermanas, y eso es motivo "
     "para preferir otra o para llevar las dos."
 )
 
 WHAT_IS_ACTIONABLE = (
-    "LO ACCIONABLE es que guias introducen cripticos que las otras NO. Si nueve dan un "
-    "perfil limpio y una no, esa una se CAMBIA. Es una comparacion ENTRE CONSTRUCCIONES, "
-    "no contra un umbral absoluto — que es justo lo que aqui no se puede usar."
+    "LO ACCIONABLE es que guías introducen crípticos que las otras NO. Si nueve dan un "
+    "perfil limpio y una no, esa una se CAMBIA. Es una comparación ENTRE CONSTRUCCIONES, "
+    "no contra un umbral absoluto — que es justo lo que aquí no se puede usar."
 )
 
 #: Umbral RELATIVO por debajo del cual un sitio no se lista. DECLARADO como parametro de
@@ -96,9 +96,9 @@ WHAT_IS_ACTIONABLE = (
 RELATIVE_THRESHOLD = 0.05
 
 RELATIVE_THRESHOLD_NOTE = (
-    f"Solo se listan los sitios cuya puntuacion llega al {RELATIVE_THRESHOLD:.0%} de la "
-    f"del donante legitimo. Es un umbral RELATIVO y va DECLARADO como parametro de este "
-    f"analisis, no citado: no sale de ninguna publicacion y no decide nada — solo evita "
+    f"Solo se listan los sitios cuya puntuación llega al {RELATIVE_THRESHOLD:.0%} de la "
+    f"del donante legítimo. Es un umbral RELATIVO y va DECLARADO como parámetro de este "
+    f"análisis, no citado: no sale de ninguna publicacion y no decide nada — solo evita "
     f"que la tabla se llene de ruido. El absoluto sigue sin existir."
 )
 
@@ -149,20 +149,20 @@ class Construction:
     def describe(self) -> str:
         lineas = [
             f"{self.name}  ({len(self.sequence)} nt, md5 {self.md5})",
-            f"  candidato 3utr:{self.candidate_start} x intron {self.intron}",
+            f"  candidato 3utr:{self.candidate_start} x intrón {self.intron}",
             f"  contexto exonico declarado: {self.context_5} nt por el 5' y "
             f"{self.context_3} nt por el 3'",
-            f"  donante legitimo en construccion:{self.donor_position}, "
-            f"aceptor en construccion:{self.acceptor_position}",
+            f"  donante legítimo en construcción:{self.donor_position}, "
+            f"aceptor en construcción:{self.acceptor_position}",
         ]
         if self.cryptic_position:
             lineas.append(
-                f"  donante criptico conocido ({CRYPTIC_DONOR}) en "
+                f"  donante críptico conocido ({CRYPTIC_DONOR}) en "
                 f"construccion:{self.cryptic_position}"
             )
         if self.scaffold_modified:
             lineas.append(
-                "  ANDAMIO MODIFICADO: esta construccion NO lleva el miR-E verificado."
+                "  ANDAMIO MODIFICADO: esta construcción NO lleva el miR-E verificado."
             )
         return "\n".join(lineas)
 
@@ -195,7 +195,7 @@ def context_note(constructions) -> str:
     if len(anchos) > 1:
         raise ShmirDesignError(
             f"Las construcciones de esta corrida no comparten la misma ventana de "
-            f"contexto ({sorted(anchos)}), asi que sus puntuaciones NO son comparables "
+            f"contexto ({sorted(anchos)}), así que sus puntuaciones NO son comparables "
             f"entre si — y comparar entre construcciones es todo lo que este frente "
             f"puede hacer. Se aborta."
         )
@@ -206,8 +206,8 @@ def context_note(constructions) -> str:
     )
     if cinco <= len(PIECES["exon5"].sequence):
         base += (
-            " AVISO: eso es lo que dan las piezas del plasmido y es esencialmente NINGUN "
-            "contexto para un modelo entrenado con ventana de 10.000 nt. Para dar mas "
+            " AVISO: eso es lo que dan las piezas del plásmido y es esencialmente NINGÚN "
+            "contexto para un modelo entrenado con ventana de 10.000 nt. Para dar más "
             "hace falta el CASETE (`aav_casete.fa`): entonces el contexto sale de "
             "secuencia real y no se rellena con nada."
         )
@@ -236,8 +236,8 @@ def build_constructions(
     ]
     if not elegidos:
         raise ShmirDesignError(
-            "No hay ningun candidato seleccionado para consultar; se aborta en vez de "
-            "emitir un FASTA vacio que luego no se podria validar."
+            "No hay ningún candidato seleccionado para consultar; se aborta en vez de "
+            "emitir un FASTA vacío que luego no se podría validar."
         )
 
     construcciones: list[Construction] = []
@@ -245,9 +245,9 @@ def build_constructions(
         intron = get_intron(nombre)
         if not intron.provided:
             raise ShmirDesignError(
-                f"El intron {nombre!r} no esta disponible, asi que no hay cassette que "
+                f"El intrón {nombre!r} no está disponible, así que no hay cassette que "
                 f"montar. {intron.why_missing} Se aborta en vez de emitir consultas de "
-                f"un intron que no tenemos."
+                f"un intrón que no tenemos."
             )
         contexto5, contexto3 = _flancos(
             intron, cassette=cassette, context_nt=context_nt
@@ -352,7 +352,7 @@ class Disabled(Executor):
     runs_here = False
     why = (
         "Este software no ejecuta SpliceAI y no puede: este backend no tiene red saliente "
-        "y la invocacion de SpliceAI no se ha verificado desde este proyecto, asi que "
+        "y la invocación de SpliceAI no se ha verificado desde este proyecto, así que "
         "tampoco se escribe (regla 4). Lo que hace es PREPARAR el FASTA de las "
         "construcciones con su md5 y RECOGER el resultado. No es una limitacion "
         "escondida: es la arquitectura."
@@ -360,7 +360,7 @@ class Disabled(Executor):
 
     def prepare(self, *, fasta_path: str) -> str:
         return (
-            f"Descarga {fasta_path}, pasalo por SpliceAI en tu maquina y sube el "
+            f"Descarga {fasta_path}, pasalo por SpliceAI en tu máquina y sube el "
             f"resultado en el formato que describe la ficha. La orden concreta depende "
             f"de como lo tengas instalado y este proyecto NO la inventa."
         )
@@ -377,16 +377,16 @@ class LocalCommand(Executor):
     name = "orden_local"
     runs_here = False
     why = (
-        "La orden se ejecuta en la maquina de quien la copia. Este modulo no trae ninguna "
-        "escrita porque la invocacion de SpliceAI no se ha verificado desde este proyecto "
+        "La orden se ejecuta en la máquina de quien la copia. Este módulo no trae ninguna "
+        "escrita porque la invocación de SpliceAI no se ha verificado desde este proyecto "
         "(regla 4): se comprueba, se anota, y entonces se pasa."
     )
 
     def __init__(self, *, command: str | None):
         if not command or not str(command).strip():
             raise ValueError(
-                "LocalCommand necesita una orden VERIFICADA. Aqui no hay ninguna escrita "
-                "a proposito: la invocacion de SpliceAI no se ha comprobado desde este "
+                "LocalCommand necesita una orden VERIFICADA. Aquí no hay ninguna escrita "
+                "a propósito: la invocación de SpliceAI no se ha comprobado desde este "
                 "proyecto, y escribirla de memoria es lo mismo que inventar una URL de "
                 "API a partir de un patron. Se aborta."
             )
@@ -397,7 +397,7 @@ class LocalCommand(Executor):
 
     def run(self, *, constructions):
         raise ShmirDesignError(
-            f"El ejecutor «{self.name}» prepara la orden pero no la lanza desde aqui. "
+            f"El ejecutor «{self.name}» prepara la orden pero no la lanza desde aquí. "
             f"{self.why}"
         )
 
@@ -425,19 +425,19 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
     filas = [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
     if not filas:
         raise ShmirDesignError(
-            "El resultado esta vacio del todo: ni cabecera. Se aborta."
+            "El resultado está vacío del todo: ni cabecera. Se aborta."
         )
     cabecera = tuple(filas[0].split("\t"))
     if cabecera != RESULT_COLUMNS:
         raise ShmirDesignError(
             f"La cabecera del resultado es {cabecera} y se esperaba {RESULT_COLUMNS}; se "
-            f"aborta en vez de leer las columnas por posicion."
+            f"aborta en vez de leer las columnas por posición."
         )
     if len(filas) == 1:
         raise ShmirDesignError(
             "El resultado solo trae cabecera. Se aborta: CERO SITIOS y «la corrida no "
             "llego a correr» son cosas distintas y este fichero NO DISTINGUE entre las "
-            "dos. Es la misma razon por la que un `-outfmt 6` vacio tambien se rechaza."
+            "dos. Es la misma razón por la que un `-outfmt 6` vacío también se rechaza."
         )
 
     sitios: list[SiteScore] = []
@@ -452,15 +452,15 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
         construccion = por_nombre.get(nombre)
         if construccion is None:
             raise ShmirDesignError(
-                f"fila {numero}: la construccion {nombre!r} no es ninguna de las que "
+                f"fila {numero}: la construcción {nombre!r} no es ninguna de las que "
                 f"genero esta corrida ({', '.join(sorted(por_nombre))}). Se rechaza el "
                 f"fichero entero: es el fallo del CSV de miRarchitect —un fichero de "
                 f"OTRA CORRIDA pegado por error, que entra, cuadra de forma y produce un "
-                f"analisis entero sobre el dato equivocado."
+                f"análisis entero sobre el dato equivocado."
             )
         if md5 != construccion.md5:
             raise ShmirDesignError(
-                f"fila {numero}: {nombre} declara md5 {md5!r} y la construccion que se "
+                f"fila {numero}: {nombre} declara md5 {md5!r} y la construcción que se "
                 f"entrego tiene {construccion.md5!r}. Se rechaza: un resultado de OTRA "
                 f"CORRIDA no puede entrar, aunque encaje de forma."
             )
@@ -474,11 +474,11 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
             valor = float(puntuacion)
         except ValueError as exc:
             raise ShmirDesignError(
-                f"fila {numero}: posicion o puntuacion no numericas ({exc}); se aborta."
+                f"fila {numero}: posición o puntuación no numericas ({exc}); se aborta."
             ) from exc
         if not 1 <= entero <= len(construccion.sequence):
             raise ShmirDesignError(
-                f"fila {numero}: la posicion {entero} se sale de la construccion "
+                f"fila {numero}: la posición {entero} se sale de la construcción "
                 f"{nombre} ({len(construccion.sequence)} nt); se aborta."
             )
         sitios.append(
@@ -520,36 +520,36 @@ class PairResult:
     def describe(self) -> list[str]:
         lineas = [
             f"{self.construction}  (3utr:{self.candidate_start} x {self.intron})",
-            f"  REFERENTE INTERNO — donante legitimo {self.legit_donor:.3f}, "
-            f"aceptor legitimo {self.legit_acceptor:.3f}",
+            f"  REFERENTE INTERNO — donante legítimo {self.legit_donor:.3f}, "
+            f"aceptor legítimo {self.legit_acceptor:.3f}",
             f"  contexto declarado: {self.context_5} nt / {self.context_3} nt",
         ]
         if self.best_cryptic is None:
             lineas.append(
-                f"  Ningun sitio criptico llega al {RELATIVE_THRESHOLD:.0%} del legitimo."
+                f"  Ningún sitio críptico llega al {RELATIVE_THRESHOLD:.0%} del legítimo."
             )
         else:
             mejor = self.best_cryptic
             lineas.append(
-                f"  MEJOR CRIPTICO — construccion:{mejor.position} ({mejor.kind}) "
-                f"{mejor.score:.3f} = {mejor.fraction:.0%} del legitimo"
+                f"  MEJOR CRÍPTICO — construcción:{mejor.position} ({mejor.kind}) "
+                f"{mejor.score:.3f} = {mejor.fraction:.0%} del legítimo"
             )
             for otro in self.cryptics[1:]:
                 lineas.append(
-                    f"    construccion:{otro.position} ({otro.kind}) {otro.score:.3f} "
+                    f"    construcción:{otro.position} ({otro.kind}) {otro.score:.3f} "
                     f"= {otro.fraction:.0%}"
                 )
         if self.known_cryptic is not None:
             lineas.append(
-                f"  {CRYPTIC_DONOR} (el criptico CONOCIDO del andamio, y el motivo por "
-                f"el que existe este modal) — construccion:"
+                f"  {CRYPTIC_DONOR} (el críptico CONOCIDO del andamio, y el motivo por "
+                f"el que existe este modal) — construcción:"
                 f"{self.known_cryptic.position} {self.known_cryptic.score:.3f} "
-                f"= {self.known_cryptic.fraction:.0%} del legitimo"
+                f"= {self.known_cryptic.fraction:.0%} del legítimo"
             )
         else:
             lineas.append(
                 f"  {CRYPTIC_DONOR}: SIN PUNTUAR en este resultado. No es «no puntua»: "
-                f"es que el fichero no trae ninguna fila para esa posicion."
+                f"es que el fichero no trae ninguna fila para esa posición."
             )
         return lineas
 
@@ -590,9 +590,9 @@ def scan_from_result(text: str, *, constructions) -> SpliceScan:
         )
         if legitimo_donante <= 0:
             raise ShmirDesignError(
-                f"{construccion.name}: el donante legitimo "
+                f"{construccion.name}: el donante legítimo "
                 f"(construccion:{construccion.donor_position}) no viene puntuado o vale "
-                f"cero, asi que NO HAY REFERENTE interno contra el que comparar. Y sin "
+                f"cero, así que NO HAY REFERENTE interno contra el que comparar. Y sin "
                 f"referente no hay nada: las puntuaciones absolutas de este modelo no "
                 f"son interpretables sobre un cassette de AAV. Se aborta. "
                 f"{RELATIVE_ONLY}"
@@ -614,9 +614,9 @@ def scan_from_result(text: str, *, constructions) -> SpliceScan:
                 position=sitio.position, kind=sitio.kind, score=sitio.score,
                 fraction=fraccion,
                 note=(
-                    f"{CRYPTIC_DONOR}: donante criptico del flanco 5' de miR-E. Viaja "
-                    f"con CUALQUIER candidato porque esta dentro del andamio, y compite "
-                    f"por el aceptor legitimo del intron."
+                    f"{CRYPTIC_DONOR}: donante críptico del flanco 5' de miR-E. Viaja "
+                    f"con CUALQUIER candidato porque está dentro del andamio, y compite "
+                    f"por el aceptor legítimo del intrón."
                     if sitio.position == construccion.cryptic_position else ""
                 ),
             )

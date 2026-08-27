@@ -92,7 +92,7 @@ class TestLosDosRiesgosSonDistintos(unittest.TestCase):
         self.assertIn("aguas arriba", motivo)
 
     def test_y_avisa_de_que_eso_no_dice_nada_de_otras_señales(self):
-        self.assertIn("mas arriba", self._riesgo(1018).truncamiento_propio_motivo.lower())
+        self.assertIn("más arriba", self._riesgo(1018).truncamiento_propio_motivo.lower())
 
     def test_los_dos_riesgos_nunca_son_el_mismo_hexamero_en_la_misma_ventana(self):
         # O estas encima de la señal, o estas por detras del corte. Las dos cosas a la

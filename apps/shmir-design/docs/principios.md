@@ -63,6 +63,47 @@ El golden **no es un test más**. Es el único que ve la salida entera, así que
 - si el diff es grande, se lee igual: un diff largo es exactamente donde se esconde la
   línea que nadie esperaba.
 
+### Y el hueco que el golden NO puede cubrir
+
+El golden lee **lo que se emite**. Por construcción no puede ver lo que **nunca llega a
+emitirse**, y eso es un modo de fallo propio de este proyecto: ha aparecido **tres
+veces**, siempre igual — código escrito, con tests en verde, y sin ningún llamador.
+
+| caso | qué se calculaba | quién lo llamaba |
+|---|---|---|
+| `masking.triple_motive_rows` | el detalle por ventana del triple motivo | nadie |
+| `intron_folding` | la accesibilidad estructural del intrón | nadie |
+| `store.save_*` | la capa de persistencia **entera** | nadie |
+
+El tercero es el que lo convierte en principio: los cuatro modales calculaban, pintaban,
+y al cerrar la pestaña no quedaba nada. La capa estaba construida, testada y documentada.
+
+**Los dos análisis son complementarios y ninguno sustituye al otro:**
+
+> **el golden lee lo que se emite; la alcanzabilidad detecta lo que nunca llega a
+> emitirse.**
+
+Los tests tampoco lo cubren, y no por descuido: un test comprueba que la función hace lo
+que dice, y para eso la llama él. Un test verde de una función que nadie más invoca **no
+prueba que la app haga eso**.
+
+`tools/check_alcance.py` lista toda función pública sin llamador fuera de su propio
+módulo y de sus tests, y corre dentro de `npm run check:shmir`. Con dos reglas:
+
+- **no es un fallo automático.** Hay casos legítimos —una API que se usa desde la
+  consola, un símbolo alcanzado por nombre dinámico, una función que invoca el hub por
+  `python3 -c`—. Lo que hace es **obligar a decidir**: o se cablea, o se justifica por
+  escrito en `data/alcanzabilidad.toml`, o se borra;
+- **una excepción que ya no hace falta SÍ aborta.** Una lista de excepciones con
+  entradas muertas deja de leerse, y entonces el siguiente hallazgo se pierde dentro de
+  ella. Es la misma razón por la que un frente CERRADO sigue saliendo en el informe en
+  vez de desaparecer.
+
+Y el análisis declara **lo que no puede hacer**, porque un análisis que no declara sus
+límites se lee como si no los tuviera: no sigue `getattr` ni despachos por cadena, no
+distingue una referencia de una llamada, y **no dice que el código sobre** — dice que
+nadie lo llama, que es un hecho y no un veredicto.
+
 ---
 
 ## 2 — Un umbral en nucleótidos no convierte un gradiente en una frontera

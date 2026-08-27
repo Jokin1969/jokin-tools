@@ -114,7 +114,7 @@ class TestRemoteNoEsVeredicto(unittest.TestCase):
     def test_pero_solo_si_ademas_los_parametros_son_estandar(self):
         raro = blast.DEFAULTS.with_changes(word_size=11)
         self.assertFalse(raro.can_give_verdict)
-        self.assertIn("no estandar", raro.why_no_verdict.lower())
+        self.assertIn("no estándar", raro.why_no_verdict.lower())
 
 
 class TestElFASTADeConsulta(unittest.TestCase):
@@ -232,7 +232,7 @@ class TestElParseoDelOutfmt6(unittest.TestCase):
         # `.out` sin resumen.
         with self.assertRaises(ShmirDesignError) as ctx:
             blast.parse_outfmt6("")
-        self.assertIn("vacio", str(ctx.exception).lower())
+        self.assertIn("vacío", str(ctx.exception).lower())
 
     def test_los_comentarios_no_estorban(self):
         hits = blast.parse_outfmt6("# BLASTN 2.17.1+\n" + self.CRUDO)

@@ -53,7 +53,7 @@ class CostEstimate:
 
     def format_text(self) -> str:
         lineas = [
-            "── Estimacion de coste (no se ha diseñado nada) ──",
+            "── Estimación de coste (no se ha diseñado nada) ──",
             f"  ventanas a tilar:        {self.windows}",
             f"  ventanas elegibles:      {self.eligible}  "
             f"(son las que pasan por los filtros caros)",
@@ -61,7 +61,7 @@ class CostEstimate:
         ]
         if not self.eligible:
             lineas.append(
-                "  No hay ninguna ventana elegible con estos umbrales, asi que ningun "
+                "  No hay ninguna ventana elegible con estos umbrales, así que ningún "
                 "filtro caro"
             )
             lineas.append(
@@ -80,15 +80,15 @@ class CostEstimate:
         lineas.append(f"  {'':<22} {'':>12} {'TOTAL':>9} {_dur(self.total_seconds):>10}")
         lineas.append("")
         lineas.append(
-            "  Es una estimacion: el coste por ventana esta MEDIDO sobre una invocacion "
+            "  Es una estimación: el coste por ventana está MEDIDO sobre una invocación "
             "real de cada"
         )
         lineas.append(
             f"  filtro sobre {SAMPLES} ventanas repartidas por el tramo en esta "
-            f"maquina, no cableado. No incluye"
+            f"máquina, no cableado. No incluye"
         )
         lineas.append(
-            "  cargar las bases de datos, que ya se ha pagado antes de llegar aqui."
+            "  cargar las bases de datos, que ya se ha pagado antes de llegar aquí."
         )
         lineas.append(
             "  Sirve para distinguir segundos de minutos, no para cronometrar: en la "

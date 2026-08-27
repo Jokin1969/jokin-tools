@@ -113,7 +113,7 @@ class OfftargetRun:
         if not self.params.is_standard:
             motivo += (
                 f" AJUSTES MODIFICADOS ({', '.join(self.params.modified())}): esta "
-                f"corrida NO es la estandar y su percentil no es comparable con el de "
+                f"corrida NO es la estándar y su percentil no es comparable con el de "
                 f"una que si lo sea."
             )
         # PASS, nunca FAIL: este frente no excluye a nadie. Ver el docstring del modulo.
@@ -166,7 +166,7 @@ class OfftargetStore:
                 reason=(
                     f"No hay ninguna corrida de carga de off-targets para {query_name}. "
                     f"Falta `{MISSING_FILE}`. NOT_RUN no es PASS, y sobre todo NO ES "
-                    f"CERO: no haber contado cuantos mensajeros llevan esta seed no es "
+                    f"CERO: no haber contado cuántos mensajeros llevan esta seed no es "
                     f"lo mismo que no llevarla ninguno."
                 ),
             )

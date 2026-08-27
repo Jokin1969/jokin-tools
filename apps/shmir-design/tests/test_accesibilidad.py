@@ -59,7 +59,7 @@ class TestVentanaDeContexto(unittest.TestCase):
             context_slice(SONDA, start=len(SONDA), length=22, flank=80)
 
 
-@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
 class TestCalculo(unittest.TestCase):
 
     def test_devuelve_una_fraccion_entre_0_y_1(self):
@@ -130,23 +130,23 @@ class TestSalida(unittest.TestCase):
             accessibility_of(SONDA, start=200, length=22, available=False), Accessibility
         )
 
-    @unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+    @unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
     def test_la_columna_es_la_fraccion_de_la_ventana_principal(self):
         a = accessibility_of(SONDA, start=200, length=22)
         self.assertEqual(a.as_column(), f"{a.unpaired_fraction[CONTEXT_WINDOWS[0]]:.2f}")
 
-    @unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+    @unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
     def test_el_texto_saca_las_dos_ventanas(self):
         texto = accessibility_of(SONDA, start=200, length=22).format_text()
         for flanco in CONTEXT_WINDOWS:
             self.assertIn(str(flanco), texto)
 
-    @unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+    @unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
     def test_el_texto_avisa_de_que_es_desempate_y_no_filtro(self):
         texto = accessibility_of(SONDA, start=200, length=22).format_text()
         self.assertIn("desempate", texto.lower())
 
-    @unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+    @unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
     def test_el_texto_dice_si_las_dos_ventanas_discrepan(self):
         texto = accessibility_of(SONDA, start=200, length=22).format_text()
         self.assertIn("ventana", texto.lower())

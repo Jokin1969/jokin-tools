@@ -105,7 +105,7 @@ def _marked_lines(source: str) -> set[int]:
     except tokenize.TokenError as exc:
         raise RuleCheckError(
             f"No se pudo tokenizar el fuente ({exc}); "
-            f"se aborta la comprobacion de la regla 2 sobre este fichero."
+            f"se aborta la comprobación de la regla 2 sobre este fichero."
         ) from exc
     return marked
 
@@ -134,7 +134,7 @@ def scan_source(source: str, filename: str) -> list[Violation]:
                     line=node.lineno,
                     message=(
                         "`suppress(Exception)` descarta cualquier fallo sin dejar "
-                        "rastro; captura la excepcion concreta y propagala con "
+                        "rastro; captura la excepción concreta y propagala con "
                         "contexto (regla 2)."
                     ),
                 )
@@ -152,7 +152,7 @@ def scan_source(source: str, filename: str) -> list[Violation]:
                     line=node.lineno,
                     message=(
                         "`except:` sin tipo captura hasta lo que no esperabas; nombra "
-                        "la excepcion concreta y propaga el fallo (regla 2)."
+                        "la excepción concreta y propaga el fallo (regla 2)."
                     ),
                 )
             )
@@ -169,7 +169,7 @@ def scan_source(source: str, filename: str) -> list[Violation]:
             "`except Exception` que no relanza" if broad else "el `except` no relanza nada"
         )
         hint = (
-            "captura la excepcion concreta y relanzala con contexto"
+            "captura la excepción concreta y relanzala con contexto"
             if broad
             else (
                 "relanza con contexto (`raise ... from exc`) o justifica el bloque con "
@@ -197,12 +197,12 @@ def scan_file(path: Path) -> list[Violation]:
         source = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise RuleCheckError(
-            f"No se pudo leer {path} ({exc}); se aborta la comprobacion de la "
-            f"regla 2: el analisis quedaria incompleto."
+            f"No se pudo leer {path} ({exc}); se aborta la comprobación de la "
+            f"regla 2: el análisis quedaria incompleto."
         ) from exc
     except UnicodeDecodeError as exc:
         raise RuleCheckError(
-            f"{path} no es UTF-8 valido ({exc}); se aborta la comprobacion de la "
+            f"{path} no es UTF-8 válido ({exc}); se aborta la comprobación de la "
             f"regla 2 sobre este fichero."
         ) from exc
 
@@ -210,7 +210,7 @@ def scan_file(path: Path) -> list[Violation]:
         return scan_source(source, str(path))
     except SyntaxError as exc:
         raise RuleCheckError(
-            f"{path} no parsea como Python ({exc}); se aborta la comprobacion de la "
+            f"{path} no parsea como Python ({exc}); se aborta la comprobación de la "
             f"regla 2: un fichero no analizable no cuenta como limpio."
         ) from exc
 
@@ -256,13 +256,35 @@ def main(argv: list[str]) -> int:
         for violation in violations:
             print(violation.format())
         print(
-            f"\ncheck_rules: {len(violations)} violacion(es) de la regla 2 en "
+            f"\ncheck_rules: {len(violations)} violación(es) de la regla 2 en "
             f"{checked} fichero(s).",
             file=sys.stderr,
         )
         return 1
 
     print(f"check_rules: {checked} fichero(s) sin violaciones de la regla 2.")
+
+    # ── Alcanzabilidad ──────────────────────────────────────────────────────────
+    #
+    # Va aquí y no en su propio comando para que se vea SIEMPRE que se comprueban las
+    # reglas: un informe que hay que acordarse de pedir es un informe que nadie pide.
+    # No decide nada — ver `check_alcance.WHY_NOT_A_FAILURE`— salvo una cosa: una
+    # excepción declarada que ya no hace falta SÍ aborta, porque una lista con entradas
+    # muertas deja de leerse y tapa el siguiente hallazgo.
+    if argv:
+        return 0  # con rutas concretas se comprueba la regla 2 y nada más
+    from check_alcance import analizar as analizar_alcance
+
+    informe = analizar_alcance(project_root)
+    print()
+    print(informe.render())
+    if informe.stale:
+        print(
+            f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "
+            f"ya no hacen falta.",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

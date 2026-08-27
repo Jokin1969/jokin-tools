@@ -302,7 +302,7 @@ class TestLoQueDiceElInforme(unittest.TestCase):
 
     def test_distingue_canonicidad_de_evidencia_de_uso(self):
         bloque = self.texto.lower()
-        self.assertIn("por ser canonica", bloque)
+        self.assertIn("por ser canónica", bloque)
         self.assertIn("no por evidencia de uso", bloque)
 
     def test_sin_otra_especie_la_conservacion_va_NOT_RUN(self):
@@ -312,7 +312,7 @@ class TestLoQueDiceElInforme(unittest.TestCase):
         # especie, asi que NOT_RUN — y NOT_RUN no dice que no este conservada.
         bloque = self.texto.lower()
         self.assertIn("conservada en otra especie: not_run", bloque)
-        self.assertNotIn("no esta conservada", bloque)
+        self.assertNotIn("no está conservada", bloque)
 
     def test_y_con_la_otra_especie_lo_COMPRUEBA(self):
         from shmir_design.polya import signal_conservation
@@ -436,7 +436,7 @@ class TestElBloqueNoMezclaMarcosDeCoordenadas(unittest.TestCase):
             scaffold=SGEP_SCAFFOLD,
         )
         cls.linea = [
-            l for l in cls.texto.splitlines() if "inmunes tambien" in l
+            l for l in cls.texto.splitlines() if "inmunes también" in l
         ][0]
 
     def test_los_inmunes_elegibles_van_en_coordenadas_de_3utr(self):
@@ -481,7 +481,7 @@ class TestElCebadoDelEnsayo(unittest.TestCase):
 
     def test_pide_hexameros_aleatorios_y_descarta_oligo_dT(self):
         bajo = self.texto.lower()
-        self.assertIn("hexameros aleatorios", bajo)
+        self.assertIn("hexámeros aleatorios", bajo)
         self.assertIn("oligo-dt", bajo)
         self.assertIn("no", bajo)
 
@@ -489,7 +489,7 @@ class TestElCebadoDelEnsayo(unittest.TestCase):
         # Un «puede sesgar» no sirve: hay que saber hacia donde, porque el resultado
         # esperado —«casi todo larga»— es justo el que produciria el sesgo.
         bajo = self.texto.lower()
-        self.assertIn("hacia mas isoforma larga", bajo)
+        self.assertIn("hacia más isoforma larga", bajo)
 
     def test_da_las_dos_distancias_a_la_cola_calculadas(self):
         # ~1.000 nt el proximal y ~440 el distal, sobre la isoforma larga.
@@ -545,7 +545,7 @@ class TestPrimeroLoPublicadoYLuegoElBanco(unittest.TestCase):
         self.assertIn("cerebro", self.texto.lower())
 
     def test_dice_que_entonces_el_experimento_seria_CONFIRMACION(self):
-        self.assertIn("confirmacion", self.texto.lower())
+        self.assertIn("confirmación", self.texto.lower())
 
 
 @unittest.skipUnless(RATON.is_file(), "NOT_RUN: falta data/reference/NM_011170.3.fa")

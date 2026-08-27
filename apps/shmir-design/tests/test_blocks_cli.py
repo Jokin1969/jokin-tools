@@ -128,7 +128,7 @@ class TestDesdeLaTabla(unittest.TestCase):
         mala.write_text("inicio\tveredicto\n1\tPASS\n", encoding="utf-8")
         codigo, salida = _correr(["--out", str(tmp), "--tabla", str(mala)])
         self.assertEqual(codigo, 2)
-        self.assertIn("guia", salida)
+        self.assertIn("guía", salida)
 
     def test_una_tabla_vacia_aborta(self):
         tmp = Path(tempfile.mkdtemp())

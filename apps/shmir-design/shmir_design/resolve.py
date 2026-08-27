@@ -23,12 +23,12 @@ from .genbank import load_genbank_cds
 #: Por que se aborta. Cada frontal añade con `hint` como se resuelve EN EL: el CLI
 #: nombra sus flags, la interfaz nombra sus controles. El motivo es el mismo.
 SIN_ANATOMIA = (
-    "no se ha resuelto donde acaba el CDS, asi que no se sabe que tramo del "
-    "transcrito es cada posicion y la anatomia queda SIN RESOLVER. Tilar de todos "
+    "no se ha resuelto donde acaba el CDS, así que no se sabe que tramo del "
+    "transcrito es cada posición y la anatomía queda SIN RESOLVER. Tilar de todos "
     "modos trataria el 5'UTR y el CDS como si fueran 3'UTR: los tercios saldrian "
-    "corridos y habria candidatos del ORF presentados como candidatos del 3'UTR. "
+    "corridos y habría candidatos del ORF presentados como candidatos del 3'UTR. "
     "Hay tres formas de resolverlo, por orden de fiabilidad:\n"
-    "  1. la anotacion de un fichero GenBank (.gb) del RefSeq — lo mas fiable\n"
+    "  1. la anotación de un fichero GenBank (.gb) del RefSeq — lo más fiable\n"
     "  2. las coordenadas del CDS a mano\n"
     "  3. declarar que la secuencia YA es el 3'UTR"
 )
@@ -79,7 +79,7 @@ def resolve_anatomy(
 def check_boundaries(
     sequence: str, anatomy: Anatomy, *, allow_no_stop: bool = False
 ) -> tuple[str, ...]:
-    """Comprueba el CDS declarado contra las bases. El codon de parada es aviso duro.
+    """Comprueba el CDS declarado contra las bases. El codón de parada es aviso duro.
 
     Es el chequeo que pilla el off-by-one y el lio 0-based/1-based, que corren el 3'UTR
     entero sin avisar.
@@ -88,11 +88,11 @@ def check_boundaries(
         return tuple(anatomy.warnings)
     avisos = tuple(anatomy.warnings) + check_cds_boundaries(sequence, anatomy)
     if cds_stop_codon_ok(sequence, anatomy) is False and not allow_no_stop:
-        detalle = next((a for a in avisos if "codon de parada" in a), "")
+        detalle = next((a for a in avisos if "codón de parada" in a), "")
         raise ShmirDesignError(
-            f"{detalle} Se aborta el diseño: un CDS corrido corre tambien el 3'UTR, y "
+            f"{detalle} Se aborta el diseño: un CDS corrido corre también el 3'UTR, y "
             f"con el todas las posiciones y los tercios. Comprueba las coordenadas, o "
-            f"resuelve la anatomia con el GenBank, o repite diciendo a proposito que "
-            f"este CDS no acaba en codon de parada."
+            f"resuelve la anatomía con el GenBank, o repite diciendo a propósito que "
+            f"este CDS no acaba en codón de parada."
         )
     return avisos

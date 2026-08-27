@@ -92,7 +92,7 @@ class TestLaProcedenciaSaleEnElInforme(unittest.TestCase):
 
     def test_el_informe_nombra_la_procedencia_siempre(self):
         for extra in (["--cds", *CDS_COORDS], ["--region", "3utr"]):
-            self.assertIn("Procedencia de la anatomia", self._informe(extra))
+            self.assertIn("Procedencia de la anatomía", self._informe(extra))
 
 
 class TestCodonDeParada(unittest.TestCase):
@@ -104,7 +104,7 @@ class TestCodonDeParada(unittest.TestCase):
                 ["--fasta", str(fa), "--out", tmp, "--cds", *CDS_CORRIDO]
             )
         self.assertEqual(codigo, 2)
-        self.assertIn("codon de parada", salida)
+        self.assertIn("codón de parada", salida)
 
     def test_se_puede_seguir_adelante_a_proposito(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -128,7 +128,7 @@ class TestCodonDeParada(unittest.TestCase):
         )
         self.assertEqual(codigo, 0)
         texto = list(tmp.glob("*informe*.txt"))[0].read_text(encoding="utf-8")
-        self.assertIn("codon de parada", texto)
+        self.assertIn("codón de parada", texto)
 
 
 class TestProponerCds(unittest.TestCase):
@@ -309,7 +309,7 @@ class TestCuotaPorRegion(unittest.TestCase):
         )
         self.assertEqual(codigo, 0, salida)
         texto = list(tmp.glob("*informe*.txt"))[0].read_text(encoding="utf-8")
-        self.assertIn("Cuota por region pedida", texto)
+        self.assertIn("Cuota por región pedida", texto)
         self.assertIn("CDS: 1", texto)
 
     def test_las_ventanas_del_CDS_llevan_el_polyA_en_NO_APLICA(self):
@@ -398,7 +398,7 @@ class TestTablaComparativa(unittest.TestCase):
     def test_el_informe_dice_que_rango_cubre(self):
         _, _, tmp = self._correr()
         texto = list(tmp.glob("*informe*.txt"))[0].read_text(encoding="utf-8")
-        self.assertIn("Rango que cubre la seleccion", texto)
+        self.assertIn("Rango que cubre la selección", texto)
 
     def test_sin_reparto_el_informe_lo_recuerda(self):
         _, _, tmp = self._correr()

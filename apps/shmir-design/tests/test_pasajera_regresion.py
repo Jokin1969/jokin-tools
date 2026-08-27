@@ -33,7 +33,7 @@ from shmir_design.scaffold import (
 )
 
 DISPONIBLE = fixture_path().is_file()
-SALTAR = f"falta {FIXTURE_NAME}; la regresion de las 24 guias no corre"
+SALTAR = f"falta {FIXTURE_NAME}; la regresion de las 24 guías no corre"
 
 #: Sonda de FORMATO, no de biologia: la guia y los valores son los de SGEP, que ya
 #: estan en el repositorio. Sirve para probar el parseo de la cabecera.
@@ -152,7 +152,7 @@ class TestElFixture(unittest.TestCase):
 
 
 @unittest.skipUnless(DISPONIBLE, SALTAR)
-@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
 class TestRegresionDeLaPasajera(unittest.TestCase):
     """Lo que pide el encargo: la base elegida tiene que ser la anotada."""
 
@@ -215,8 +215,8 @@ class TestRegresionDeLaPasajera(unittest.TestCase):
         self.assertGreater(
             len(por_terminacion["G"]),
             1,
-            "Todas las guias acabadas en G dan el mismo conjunto de bases validas: "
-            "eso haria que una tabla por terminacion funcionase, y el dato dice que no.",
+            "Todas las guías acabadas en G dan el mismo conjunto de bases validas: "
+            "eso haría que una tabla por terminacion funcionase, y el dato dice que no.",
         )
 
     def test_las_acabadas_en_G_del_fixture_eligen_A_y_es_correcto(self):
@@ -301,7 +301,7 @@ class TestElCargadorFuncionaDeExtremoAExtremo(unittest.TestCase):
                 load_guide_fixture(vacio)
             self.assertIn(FIXTURE_NAME, str(ctx.exception))
 
-    @unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+    @unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
     def test_la_sonda_de_formato_pasa_la_regresion_de_verdad(self):
         """Con la guia de SGEP, que es real: el camino completo da el valor anotado."""
         directorio, md5 = self._fichero()

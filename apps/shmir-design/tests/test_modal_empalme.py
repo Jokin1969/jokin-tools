@@ -175,7 +175,7 @@ class TestLoQueSE_DICE_ANTES_DEL_BOTON(unittest.TestCase):
 
     def test_solo_vale_la_comparacion_RELATIVA_contra_el_LEGITIMO(self):
         texto = spliceai.RELATIVE_ONLY
-        self.assertIn("donante legitimo", texto.lower())
+        self.assertIn("donante legítimo", texto.lower())
         self.assertIn("misma corrida", texto.lower())
 
     def test_y_se_dice_que_es_el_MISMO_criterio_de_los_aceptores_cripticos(self):
@@ -236,7 +236,7 @@ class TestElEjecutor(unittest.TestCase):
             l for l in fuente.splitlines()
             if not l.strip().startswith("#") and "http" in l
         )
-        self.assertEqual(codigo, "", f"hay URLs en el codigo:\n{codigo}")
+        self.assertEqual(codigo, "", f"hay URLs en el código:\n{codigo}")
 
 
 # ─────────── validacion al subir: por md5, y rechaza ───────────

@@ -54,7 +54,7 @@ def leer_tabla(path: Path) -> list[tuple[str, str]]:
     cabecera = filas[0].split("\t")
     if "guia" not in cabecera:
         raise ShmirDesignError(
-            f"{path}: la tabla no tiene columna 'guia' (las que hay: "
+            f"{path}: la tabla no tiene columna 'guía' (las que hay: "
             f"{', '.join(cabecera)}); se aborta."
         )
     indice = cabecera.index("guia")
@@ -70,7 +70,7 @@ def leer_tabla(path: Path) -> list[tuple[str, str]]:
         if len(campos) <= indice:
             raise ShmirDesignError(
                 f"{path}, fila {numero}: tiene {len(campos)} campo(s) y la columna "
-                f"'guia' es la {indice + 1}; se aborta en vez de saltarse la fila."
+                f"'guía' es la {indice + 1}; se aborta en vez de saltarse la fila."
             )
         nombre = campos[etiqueta] if etiqueta is not None else str(numero)
         candidatos.append((nombre, campos[indice].strip()))
@@ -91,7 +91,7 @@ def aplicar_seleccion(
             numero = int(trozo)
         except ValueError as exc:
             raise ShmirDesignError(
-                f"--elegir: {trozo!r} no es un numero de fila ({exc})."
+                f"--elegir: {trozo!r} no es un número de fila ({exc})."
             ) from exc
         if not 1 <= numero <= len(candidatos):
             raise ShmirDesignError(
@@ -114,19 +114,19 @@ def main(argv: list[str]) -> int:
         "--elegir", help="Filas de la tabla, 1-based y separadas por comas: 1,3,5"
     )
     parser.add_argument(
-        "--guia", action="append", default=[], help="Guia suelta; se puede repetir"
+        "--guia", action="append", default=[], help="Guía suelta; se puede repetir"
     )
     parser.add_argument("--especie", default="candidato")
     parser.add_argument(
         "--reoptimizar-espaciadores", action="store_true",
-        help="Si el 97-mero no conserva su estructura dentro del intron con los "
-             "espaciadores estandar, genera unos nuevos PARA ESA GUIA. Genera "
-             "secuencia de novo, asi que va apagado por defecto; el cassette "
-             "resultante deja de ser intercambiable con el modulo NheI-SacI estandar.",
+        help="Si el 97-mero no conserva su estructura dentro del intrón con los "
+             "espaciadores estándar, genera unos nuevos PARA ESA GUÍA. Genera "
+             "secuencia de novo, así que va apagado por defecto; el cassette "
+             "resultante deja de ser intercambiable con el módulo NheI-SacI estándar.",
     )
     parser.add_argument(
         "--receptor", type=Path,
-        help="FASTA del plasmido receptor. Sin el, los brazos de Gibson del cassette "
+        help="FASTA del plásmido receptor. Sin el, los brazos de Gibson del cassette "
              "quedan en NOT_RUN: caen fuera del cassette y no se inventan.",
     )
 
@@ -142,7 +142,7 @@ def main(argv: list[str]) -> int:
         if args.guia and args.tabla:
             raise ShmirDesignError(
                 "--guia y --tabla son incompatibles: o se eligen filas de la tabla, o "
-                "se dan las guias a mano."
+                "se dan las guías a mano."
             )
 
         if args.guia:
@@ -154,7 +154,7 @@ def main(argv: list[str]) -> int:
         for _, guia in candidatos:
             if guia in vistas:
                 raise ShmirDesignError(
-                    f"La guia {guia} viene repetida; se aborta en vez de pedir dos "
+                    f"La guía {guia} viene repetida; se aborta en vez de pedir dos "
                     f"veces el mismo bloque."
                 )
             vistas.add(guia)

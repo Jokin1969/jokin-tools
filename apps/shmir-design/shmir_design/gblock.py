@@ -75,7 +75,7 @@ class GBlock:
 
     def format_text(self) -> str:
         lines = [
-            f"Modulo NheI–SacI — {len(self.sequence)} nt",
+            f"Módulo NheI–SacI — {len(self.sequence)} nt",
             "",
             f"  {self.sequence}",
             "",
@@ -110,7 +110,7 @@ def _check_length(sequence: str) -> FilterResult:
         state=FilterState.FAIL,
         reason=(
             f"{len(sequence)} nt y se esperaban {GBLOCK_LENGTH}. El andamio o los brazos "
-            f"no son los del modulo estandar; no lo pidas asi."
+            f"no son los del módulo estándar; no lo pidas así."
         ),
     )
 
@@ -132,7 +132,7 @@ def _check_unique_sites(sequence: str) -> FilterResult:
         state=FilterState.FAIL,
         reason=(
             f"{'; '.join(repetidos)}. Un segundo sitio rompe el clonaje NheI–SacI: "
-            f"la guia o la pasajera han generado uno."
+            f"la guía o la pasajera han generado uno."
         ),
     )
 
@@ -152,7 +152,7 @@ def _check_intron_sites(sequence: str) -> FilterResult:
     return FilterResult(
         name="sitios_intron",
         state=FilterState.FAIL,
-        reason=f"Contiene {', '.join(presentes)}, que son los sitios del intron externo.",
+        reason=f"Contiene {', '.join(presentes)}, que son los sitios del intrón externo.",
     )
 
 
@@ -163,7 +163,7 @@ def _check_homopolymer(variable: str) -> FilterResult:
             name="homopolimero",
             state=FilterState.PASS,
             reason=(
-                f"Sin tramos de mas de {MAX_HOMOPOLYMER} nt iguales en la parte variable. "
+                f"Sin tramos de más de {MAX_HOMOPOLYMER} nt iguales en la parte variable. "
                 f"El GGGG del contexto 3' es nativo de SGEP y no cuenta: va por diseño."
             ),
         )
@@ -172,7 +172,7 @@ def _check_homopolymer(variable: str) -> FilterResult:
         state=FilterState.FAIL,
         reason=(
             f"Homopolimero {match.group(0)} ({len(match.group(0))} nt) en la parte "
-            f"variable, posicion {match.start() + 1} del 97-mero."
+            f"variable, posición {match.start() + 1} del 97-mero."
         ),
     )
 
@@ -199,12 +199,12 @@ def verify_contexts_against_plasmid(plasmid: str) -> None:
         esperado = CONTEXT_5 if nombre == "contexto_5" else CONTEXT_3
         if len(cleaned) < fin:
             raise ShmirDesignError(
-                f"El plasmido mide {len(cleaned)} nt y {nombre} deberia estar en "
-                f"{inicio}-{fin}; se aborta la verificacion en vez de darla por buena."
+                f"El plásmido mide {len(cleaned)} nt y {nombre} deberia estar en "
+                f"{inicio}-{fin}; se aborta la verificación en vez de darla por buena."
             )
         encontrado = cleaned[inicio - 1 : fin]
         if encontrado != esperado:
             raise ShmirDesignError(
-                f"{nombre}: en {inicio}-{fin} del plasmido hay {encontrado!r} y el "
-                f"modulo usa {esperado!r}. PARA: no pidas el gBlock hasta aclararlo."
+                f"{nombre}: en {inicio}-{fin} del plásmido hay {encontrado!r} y el "
+                f"módulo usa {esperado!r}. PARA: no pidas el gBlock hasta aclararlo."
             )

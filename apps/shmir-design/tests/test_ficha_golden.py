@@ -43,7 +43,7 @@ class TestLaFichaEntera(unittest.TestCase):
                 )
             )
             self.fail(
-                "La ficha ha cambiado. Si el cambio es a proposito, regenerala con "
+                "La ficha ha cambiado. Si el cambio es a propósito, regenerala con "
                 "`python3 tools/regenerar_golden.py` y que el diff entre en la "
                 f"revision:\n{diff}"
             )
@@ -51,7 +51,7 @@ class TestLaFichaEntera(unittest.TestCase):
     def test_la_referencia_no_es_un_muñon(self):
         self.assertGreater(len(self.esperado.splitlines()), 30)
         for bloque in (
-            "── Frentes", "── Asimetria", "── Techo de APA", "── Hexameros cercanos",
+            "── Frentes", "── Asimetría", "── Techo de APA", "── Hexámeros cercanos",
             "── Bloques ──", "── Historial de BLAST ──",
         ):
             with self.subTest(bloque):

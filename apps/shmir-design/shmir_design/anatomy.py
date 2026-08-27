@@ -55,7 +55,7 @@ class RegionSource(StrEnum):
     def describe(self) -> str:
         return {
             RegionSource.CDS_DECLARADA: (
-                "coordenadas del CDS declaradas a mano en la linea de comandos"
+                "coordenadas del CDS declaradas a mano en la línea de comandos"
             ),
             RegionSource.ANOTACION_GENBANK: (
                 "feature CDS de un fichero GenBank suministrado y verificado"
@@ -67,8 +67,8 @@ class RegionSource(StrEnum):
                 "coordenadas del transcrito de referencia, comprobadas por checksum"
             ),
             RegionSource.SIN_RESOLVER: (
-                "SIN RESOLVER: no se declaro donde acaba el CDS, asi que no se sabe "
-                "que tramo es cada posicion"
+                "SIN RESOLVER: no se declaro donde acaba el CDS, así que no se sabe "
+                "que tramo es cada posición"
             ),
         }[self]
 
@@ -88,7 +88,7 @@ class Anatomy:
         if self.source is RegionSource.SIN_RESOLVER:
             raise ValueError(
                 "No se puede construir una Anatomy con source=SIN_RESOLVER: si la "
-                "frontera del 3'UTR no esta resuelta no hay anatomia que usar, y "
+                "frontera del 3'UTR no está resuelta no hay anatomía que usar, y "
                 "tilar con una inventada corre todas las coordenadas en silencio. "
                 "Declara --cds, pasa un GenBank, o declara que la secuencia ya es el "
                 "3'UTR. SIN_RESOLVER solo existe para decirlo en el informe."
@@ -114,7 +114,7 @@ class Anatomy:
             )
         if fin >= length:
             raise ValueError(
-                f"El CDS termina en {fin}, el ultimo nucleotido del transcrito: no "
+                f"El CDS termina en {fin}, el último nucleótido del transcrito: no "
                 f"queda 3'UTR que analizar; se aborta."
             )
 
@@ -122,7 +122,7 @@ class Anatomy:
         if (fin - inicio + 1) % 3 != 0:
             avisos.append(
                 f"El CDS {inicio}-{fin} mide {fin - inicio + 1} nt, que no es multiplo "
-                f"de 3. Revisa las coordenadas: el 3'UTR podria estar desplazado."
+                f"de 3. Revisa las coordenadas: el 3'UTR podría estar desplazado."
             )
         return cls(
             length=length,
@@ -158,7 +158,7 @@ class Anatomy:
     def _check(self, position: int) -> None:
         if position < 1 or position > self.length:
             raise ValueError(
-                f"La posicion {position} esta fuera del transcrito (1-{self.length}); "
+                f"La posición {position} está fuera del transcrito (1-{self.length}); "
                 f"se aborta en vez de devolver un tramo inventado."
             )
 
@@ -180,7 +180,7 @@ class Anatomy:
     def transcript_position(self, utr3_position: int) -> int:
         if not 1 <= utr3_position <= self.utr3_length:
             raise ValueError(
-                f"La posicion {utr3_position} esta fuera del 3'UTR "
+                f"La posición {utr3_position} está fuera del 3'UTR "
                 f"(1-{self.utr3_length}); se aborta."
             )
         return self.utr3[0] + utr3_position - 1
@@ -216,13 +216,13 @@ def check_cds_boundaries(sequence: str, anatomy: Anatomy) -> tuple[str, ...]:
     """
     if len(sequence) != anatomy.length:
         raise ValueError(
-            f"La secuencia mide {len(sequence)} nt y la anatomia dice {anatomy.length}; "
+            f"La secuencia mide {len(sequence)} nt y la anatomía dice {anatomy.length}; "
             f"se aborta el chequeo del CDS en vez de comprobar coordenadas contra otra "
             f"secuencia."
         )
     if anatomy.cds is None:
         return (
-            f"No hay CDS declarado ({anatomy.source.describe()}): el chequeo del codon "
+            f"No hay CDS declarado ({anatomy.source.describe()}): el chequeo del codón "
             f"de parada no se puede ejecutar.",
         )
 
@@ -234,7 +234,7 @@ def check_cds_boundaries(sequence: str, anatomy: Anatomy) -> tuple[str, ...]:
     if primero != "ATG":
         avisos.append(
             f"El CDS declarado empieza en {inicio} con {primero!r}, que no es ATG. "
-            f"Revisa las coordenadas: si estan corridas, todo el 3'UTR lo esta tambien."
+            f"Revisa las coordenadas: si están corridas, todo el 3'UTR lo está también."
         )
 
     ultimo = upper[fin - 3 : fin]
@@ -247,7 +247,7 @@ def check_cds_boundaries(sequence: str, anatomy: Anatomy) -> tuple[str, ...]:
             f"{d:+d} -> {c!r}" for d, c in vecinos.items() if c in STOP_CODONS
         ]
         aviso = (
-            f"El CDS declarado termina en {fin} con {ultimo!r}, que no es un codon de "
+            f"El CDS declarado termina en {fin} con {ultimo!r}, que no es un codón de "
             f"parada ({', '.join(sorted(STOP_CODONS))})."
         )
         if pistas:
@@ -257,7 +257,7 @@ def check_cds_boundaries(sequence: str, anatomy: Anatomy) -> tuple[str, ...]:
             )
         else:
             aviso += (
-                " No hay ninguno cerca tampoco, asi que puede ser un CDS parcial o una "
+                " No hay ninguno cerca tampoco, así que puede ser un CDS parcial o una "
                 "secuencia que no corresponde a estas coordenadas."
             )
         avisos.append(aviso)
@@ -322,7 +322,7 @@ class TileRange:
             for nombre, valor in (("inicio", declarado_inicio), ("fin", declarado_fin)):
                 if valor < 1 or valor > limite:
                     raise ValueError(
-                        f"El {nombre} del rango de tilado ({valor}) esta fuera del "
+                        f"El {nombre} del rango de tilado ({valor}) está fuera del "
                         f"3'UTR, que va de 1 a {limite} en sus propias coordenadas; "
                         f"se aborta en vez de recortarlo por nuestra cuenta."
                     )
@@ -334,7 +334,7 @@ class TileRange:
             for nombre, valor in (("inicio", declarado_inicio), ("fin", declarado_fin)):
                 if valor < 1 or valor > anatomy.length:
                     raise ValueError(
-                        f"El {nombre} del rango de tilado ({valor}) esta fuera del "
+                        f"El {nombre} del rango de tilado ({valor}) está fuera del "
                         f"transcrito, que va de 1 a {anatomy.length}; se aborta en vez "
                         f"de recortarlo por nuestra cuenta."
                     )
@@ -342,14 +342,14 @@ class TileRange:
 
         if real_fin < real_inicio:
             raise ValueError(
-                f"El rango de tilado {declarado_inicio}-{declarado_fin} esta invertido; "
+                f"El rango de tilado {declarado_inicio}-{declarado_fin} está invertido; "
                 f"se aborta."
             )
         if real_fin - real_inicio + 1 < window_size:
             raise ValueError(
                 f"El rango de tilado {declarado_inicio}-{declarado_fin} mide "
                 f"{real_fin - real_inicio + 1} nt y la ventana {window_size}: no cabe "
-                f"ni una ventana entera. Se aborta en vez de devolver una lista vacia "
+                f"ni una ventana entera. Se aborta en vez de devolver una lista vacía "
                 f"que pareceria 'no hay candidatos'."
             )
 

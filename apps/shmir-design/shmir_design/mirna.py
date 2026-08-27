@@ -87,7 +87,7 @@ class MatureSet:
     @property
     def provenance(self) -> str:
         return (
-            f"{self.source}, version {self.version}, checksum {self.checksum}, "
+            f"{self.source}, versión {self.version}, checksum {self.checksum}, "
             f"{sum(len(n) for n in self.seeds.values())} maduro(s) "
             f"({'/'.join(self.prefixes)}), {len(self.seeds)} seed(s) distintas"
         )
@@ -122,11 +122,11 @@ class AbundanceList:
     def provenance(self) -> str:
         if not self.usable:
             return (
-                f"{self.source}, version {self.version}, checksum {self.checksum} — "
+                f"{self.source}, versión {self.version}, checksum {self.checksum} — "
                 f"NO UTILIZABLE: {self.missing_reason}"
             )
         return (
-            f"{self.source}, version {self.version}, checksum {self.checksum}, "
+            f"{self.source}, versión {self.version}, checksum {self.checksum}, "
             f"{len(self.names)} miARN por encima de {self.threshold}; "
             f"referencia: {self.reference}"
         )
@@ -140,10 +140,10 @@ class AbundanceList:
 # necesitando su fichero con referencia y umbral.
 
 CORE_AUTHORIZATION = (
-    "Nucleo de miARN abundantes en cerebro, autorizado por el responsable del proyecto "
-    "el 2026-08-26 para ir EN CODIGO y SIN CITA, por ser consenso del campo. Revierte "
+    "Núcleo de miARN abundantes en cerebro, autorizado por el responsable del proyecto "
+    "el 2026-08-26 para ir EN CÓDIGO y SIN CITA, por ser consenso del campo. Revierte "
     "de forma acotada la regla anterior de que ninguna lista de miARN se escribe en el "
-    "codigo. La capa AMPLIADA no entra en esta autorizacion: sigue viniendo de fichero "
+    "código. La capa AMPLIADA no entra en esta autorización: sigue viniendo de fichero "
     "con referencia y umbral."
 )
 
@@ -157,8 +157,8 @@ MIR30_FAMILY = "miR-30"
 LET7_FAMILY = "let-7"
 
 MIR30_REASON = (
-    "Y ademas es de la familia miR-30, que es de donde sale NUESTRO ANDAMIO: miR-E "
-    "deriva de miR-30a. Una colision aqui no es solo competencia por la red de dianas "
+    "Y además es de la familia miR-30, que es de donde sale NUESTRO ANDAMIO: miR-E "
+    "deriva de miR-30a. Una colisión aquí no es solo competencia por la red de dianas "
     "de ese miARN — es que la horquilla que se construye se parece a un miARN endogeno "
     "abundante en el mismo tejido. Lectura distinta y peor: revisala aparte."
 )
@@ -211,15 +211,15 @@ BORROWED_LIST_MARK = "LISTA_DE_OTRA_ESPECIE"
 UNDECLARED_SPECIES_MARK = "ESPECIE_NO_DECLARADA"
 
 UNDECLARED_SPECIES_WARNING = (
-    f"{UNDECLARED_SPECIES_MARK}: esta corrida no declara especie, asi que NO SE HA "
-    f"PODIDO COMPROBAR si el nucleo de abundancia —autorizado para cerebro murino— es "
+    f"{UNDECLARED_SPECIES_MARK}: esta corrida no declara especie, así que NO SE HA "
+    f"PODIDO COMPROBAR si el núcleo de abundancia —autorizado para cerebro murino— es "
     f"el de esta. No haber podido comprobarlo no es que coincida."
 )
 
 BORROWED_LIST_WARNING = (
-    f"{BORROWED_LIST_MARK}: el nucleo de abundancia que ha producido este FAIL esta "
+    f"{BORROWED_LIST_MARK}: el núcleo de abundancia que ha producido este FAIL esta "
     f"autorizado para CEREBRO MURINO, y la especie de este diseño es otra. "
-    f"`CoreMember.matches` compara SIN el prefijo, asi que la lista casa igual y el "
+    f"`CoreMember.matches` compara SIN el prefijo, así que la lista casa igual y el "
     f"filtro corre — pero eso no la convierte en una lista de esta especie. "
     f"Puede que acierte: let-7, miR-124 y miR-9 son abundantes en cerebro de "
     f"practicamente cualquier mamifero. Excluir por una lista PRESTADA es defendible; "
@@ -251,7 +251,7 @@ class CoreHit:
 
     @property
     def reason(self) -> str:
-        texto = f"{self.name} casa con {self.member.label} del nucleo. {CORE_REASON}"
+        texto = f"{self.name} casa con {self.member.label} del núcleo. {CORE_REASON}"
         if self.member.family == MIR30_FAMILY:
             texto += f" {MIR30_REASON}"
         if self.borrowed:
@@ -303,7 +303,7 @@ def parse_mature_fa(
     _require_provenance(source, version, checksum, what="La tabla de maduros")
     if not text.strip():
         raise ShmirDesignError(
-            f"{source}: el fichero de maduros esta vacio; el filtro de colision de seed "
+            f"{source}: el fichero de maduros está vacío; el filtro de colisión de seed "
             f"queda sin ejecutar."
         )
 
@@ -338,7 +338,7 @@ def parse_mature_fa(
         cuales = "/".join(prefixes) if prefixes else "ninguna especie"
         raise ShmirDesignError(
             f"{source}: no hay ni un maduro de {cuales} en el fichero. Se aborta en vez "
-            f"de dar por limpia una guia contra una tabla vacia."
+            f"de dar por limpia una guía contra una tabla vacía."
         )
 
     return MatureSet(
@@ -383,7 +383,7 @@ def parse_abundance_list(
                 f"a la cabecera le falta {' y '.join(faltan)}. La capa ampliada dice "
                 f"«el resto de mmu- por encima de un umbral»: sin saber que umbral ni "
                 f"de que dataset sale, un aviso de esta capa parece un veredicto y no "
-                f"lo es. La capa queda NOT_RUN; el NUCLEO sigue corriendo."
+                f"lo es. La capa queda NOT_RUN; el NÚCLEO sigue corriendo."
             ),
         )
 
@@ -394,8 +394,8 @@ def parse_abundance_list(
     )
     if not nombres:
         raise ShmirDesignError(
-            f"{source}: la lista de abundancia no tiene ningun nombre. Se aborta: una "
-            f"lista vacia convertiria el nivel de aviso en un PASS silencioso."
+            f"{source}: la lista de abundancia no tiene ningún nombre. Se aborta: una "
+            f"lista vacía convertiria el nivel de aviso en un PASS silencioso."
         )
     return AbundanceList(
         names=nombres,
@@ -412,14 +412,14 @@ def _read(path: Path, *, what: str, expected_md5: str | None) -> tuple[str, str]
         raw = path.read_bytes()
     except OSError as exc:
         raise ShmirDesignError(
-            f"No se pudo leer {what} {path} ({exc}); el filtro de colision de seed queda "
+            f"No se pudo leer {what} {path} ({exc}); el filtro de colisión de seed queda "
             f"sin ejecutar."
         ) from exc
     md5 = hashlib.md5(raw, usedforsecurity=False).hexdigest()
     if expected_md5 is not None and md5 != expected_md5:
         raise ChecksumMismatchError(
             f"{path}: md5 {md5} y se esperaba {expected_md5}. El fichero NO es el que "
-            f"dice ser; se aborta antes de usarlo para ningun veredicto."
+            f"dice ser; se aborta antes de usarlo para ningún veredicto."
         )
     try:
         return raw.decode("utf-8"), md5
@@ -465,7 +465,7 @@ class SeedCollisionResult:
         return FilterResult(name=FILTER_NAME, state=self.state, reason=self.reason)
 
     def format_text(self) -> str:
-        lines = [f"Colision de seed — {self.state.value}", f"  {self.reason}", ""]
+        lines = [f"Colisión de seed — {self.state.value}", f"  {self.reason}", ""]
         lines.append("  Procedencia:")
         lines.append(
             f"    maduros     {self.mature.provenance if self.mature else 'ausente'}"
@@ -508,8 +508,8 @@ def filter_seed_collision(
         return SeedCollisionResult(
             state=FilterState.NOT_RUN,
             reason=(
-                "No hay tabla de maduros de miRBase cargada, asi que no se puede saber "
-                "si la seed de esta guia coincide con la de un miARN endogeno. NOT_RUN "
+                "No hay tabla de maduros de miRBase cargada, así que no se puede saber "
+                "si la seed de esta guía coincide con la de un miARN endogeno. NOT_RUN "
                 "no es PASS."
             ),
         )
@@ -542,8 +542,8 @@ def filter_seed_collision(
         return f"{nombre} (seed de la {'/'.join(origenes[nombre])})"
     contexto = (
         f" Contexto: hay {SEED_SPACE} 7-meros posibles y "
-        f"{sum(len(n) for n in mature.seeds.values())} maduro(s) en la tabla, asi que "
-        f"una colision por azar no es rara — por eso el FAIL solo lo da la lista curada "
+        f"{sum(len(n) for n in mature.seeds.values())} maduro(s) en la tabla, así que "
+        f"una colisión por azar no es rara — por eso el FAIL solo lo da la lista curada "
         f"de abundantes."
     )
     procedencia = f" Maduros: {mature.provenance}."
@@ -561,7 +561,7 @@ def filter_seed_collision(
         return SeedCollisionResult(
             state=FilterState.FAIL,
             reason=(
-                f"Colision con el NUCLEO de abundantes en cerebro: "
+                f"Colisión con el NÚCLEO de abundantes en cerebro: "
                 + "; ".join(f"{etiqueta(h.name)} → {h.member.label}" for h in nucleo)
                 + f". {CORE_REASON}{aparte} {CORE_AUTHORIZATION}{procedencia}"
             ),
@@ -586,10 +586,10 @@ def filter_seed_collision(
         return SeedCollisionResult(
             state=FilterState.NOT_RUN,
             reason=(
-                f"{detalle}, asi que la capa AMPLIADA del filtro no se puede ejecutar: "
-                f"sin ella no se sabe cuales de las {len(colisiones)} colision(es) "
-                f"restantes estan por encima del umbral. El NUCLEO si ha corrido y no "
-                f"hay ninguna colision con el. NOT_RUN no es PASS.{procedencia}"
+                f"{detalle}, así que la capa AMPLIADA del filtro no se puede ejecutar: "
+                f"sin ella no se sabe cuales de las {len(colisiones)} colisión(es) "
+                f"restantes están por encima del umbral. El NÚCLEO si ha corrido y no "
+                f"hay ninguna colisión con el. NOT_RUN no es PASS.{procedencia}"
             ),
             warnings=avisos,
             hits=colisiones,
@@ -604,7 +604,7 @@ def filter_seed_collision(
         return SeedCollisionResult(
             state=FilterState.FAIL,
             reason=(
-                f"Colision con {', '.join(etiqueta(n) for n in abundantes)}, "
+                f"Colisión con {', '.join(etiqueta(n) for n in abundantes)}, "
                 f"marcado(s) abundante(s) en cerebro. Eso no produce off-targets "
                 f"dispersos: reprime su red de dianas entera. Abundancia: "
                 f"{abundance.provenance}.{procedencia}"
@@ -620,8 +620,8 @@ def filter_seed_collision(
         return SeedCollisionResult(
             state=FilterState.PASS,
             reason=(
-                f"Colision con {len(otros)} miARN anotado(s) que no "
-                f"estan en la lista de abundantes en cerebro: se listan y no "
+                f"Colisión con {len(otros)} miARN anotado(s) que no "
+                f"están en la lista de abundantes en cerebro: se listan y no "
                 f"descartan.{contexto}{procedencia}"
             ),
             warnings=avisos,
@@ -633,10 +633,10 @@ def filter_seed_collision(
     return SeedCollisionResult(
         state=FilterState.PASS,
         reason=(
-            f"Ni la seed de la guia ({seed}) ni la de la pasajera coinciden con la de "
-            f"ningun maduro de la tabla."
+            f"Ni la seed de la guía ({seed}) ni la de la pasajera coinciden con la de "
+            f"ningún maduro de la tabla."
             if passenger
-            else f"La seed {seed} de la guia no coincide con la de ningun maduro de la "
+            else f"La seed {seed} de la guía no coincide con la de ningún maduro de la "
             f"tabla."
             f"{procedencia}"
         ),

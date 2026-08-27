@@ -256,7 +256,7 @@ class TestElContenidoQueYaEstaResuelto(unittest.TestCase):
         texto = self._ficha("fraccion_isoforma_larga").render()
         for columna in ("PSE_3'READS", "AvgRPM_3READS"):
             self.assertIn(columna, texto)
-        self.assertIn("hexamero", texto.lower())
+        self.assertIn("hexámero", texto.lower())
 
     def test_y_AVISA_de_que_las_coordenadas_son_GENOMICAS(self):
         texto = self._ficha("fraccion_isoforma_larga").render().lower()
@@ -290,7 +290,7 @@ class TestLaFichaSeADAPTA_A_LA_ESPECIE(unittest.TestCase):
     def test_con_conejo_dice_que_el_prefijo_NO_ESTA_DECLARADO(self):
         ficha = obtencion.resolve_ficha("seed_colision", species=self.conejo)
         texto = ficha.render()
-        self.assertIn("no esta declarado", texto.lower())
+        self.assertIn("no está declarado", texto.lower())
         self.assertNotIn("mmu-", texto)
 
     def test_y_ese_hueco_sale_como_AVISO_no_enterrado_en_un_paso(self):
@@ -302,7 +302,7 @@ class TestLaFichaSeADAPTA_A_LA_ESPECIE(unittest.TestCase):
         raton = obtencion.resolve_ficha("offtarget_seed", species=self.raton)
         conejo = obtencion.resolve_ficha("offtarget_seed", species=self.conejo)
         self.assertIn("mm39", raton.render())
-        self.assertIn("no esta declarado", conejo.render().lower())
+        self.assertIn("no está declarado", conejo.render().lower())
         self.assertTrue(conejo.undeclared)
 
     def test_una_ficha_sin_resolver_NO_se_puede_renderizar(self):

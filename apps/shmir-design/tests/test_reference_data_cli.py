@@ -31,7 +31,7 @@ class TestConservationCli(unittest.TestCase):
 
     def test_sin_fixtures_aborta_en_vez_de_informar_a_medias(self):
         if all(fixture_available(ref) for ref in REFERENCES.values()):
-            self.skipTest("los fixtures estan disponibles; este caso ya no aplica")
+            self.skipTest("los fixtures están disponibles; este caso ya no aplica")
         self.assertEqual(conservation_main([]), 2)
 
     def test_un_fasta_suelto_sin_el_otro_es_error(self):
@@ -42,7 +42,7 @@ class TestTilingCli(unittest.TestCase):
 
     def test_sin_fixtures_aborta(self):
         if all(fixture_available(ref) for ref in REFERENCES.values()):
-            self.skipTest("los fixtures estan disponibles; este caso ya no aplica")
+            self.skipTest("los fixtures están disponibles; este caso ya no aplica")
         self.assertEqual(tiling_main([]), 2)
 
     def test_un_fichero_de_seeds_inexistente_aborta(self):

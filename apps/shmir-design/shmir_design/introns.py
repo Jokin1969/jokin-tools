@@ -43,13 +43,13 @@ from .filters import FilterState
 MIN_INTRON_LENGTH = 80
 
 WHY_MIN_LENGTH = (
-    f"Un intron por debajo de {MIN_INTRON_LENGTH} nt no deja sitio a que el "
+    f"Un intrón por debajo de {MIN_INTRON_LENGTH} nt no deja sitio a que el "
     f"espliceosoma ensamble: el donante, el punto de ramificacion y el aceptor tienen "
-    f"que caber con separacion suficiente. DONDE MUERDE DE VERDAD: con el modulo de "
-    f"{MODULE_LENGTH} nt dentro este limite es inalcanzable, asi que sobre el intron "
-    f"terapeutico no protege de nada — vale para el intron VACIO (el del parental, que "
-    f"mide 82 y pasa por dos) y para los intrones que vengan, que pueden ser mucho mas "
-    f"cortos que el MVM. Decir que protege algo que no puede pasar seria peor que no "
+    f"que caber con separación suficiente. DONDE MUERDE DE VERDAD: con el módulo de "
+    f"{MODULE_LENGTH} nt dentro este límite es inalcanzable, así que sobre el intrón "
+    f"terapeutico no protege de nada — vale para el intrón VACÍO (el del parental, que "
+    f"mide 82 y pasa por dos) y para los intrones que vengan, que pueden ser mucho más "
+    f"cortos que el MVM. Decir que protege algo que no puede pasar sería peor que no "
     f"ponerlo."
 )
 
@@ -58,7 +58,7 @@ WHY_MIN_LENGTH = (
 BRANCH_CRITERION = (
     "Punto de ramificacion: motivo YURAY (pirimidina, purina, A, cualquiera, pirimidina) "
     "entre 18 y 40 nt aguas arriba de la A del aceptor. Es un criterio DECLARADO como "
-    "parametro de este analisis y NO una cita. Por eso sale como CANDIDATO y nunca como "
+    "parámetro de este análisis y NO una cita. Por eso sale como CANDIDATO y nunca como "
     "dato: si caben varios, salen todos y no se elige por nuestra cuenta."
 )
 
@@ -97,7 +97,7 @@ class SpliceElement:
 
     def describe(self) -> str:
         marca = "" if self.origin is ElementOrigin.DERIVADO else "  [CANDIDATO]"
-        return f"{self.name}: intron:{self.start}-{self.end}  {self.sequence}{marca}"
+        return f"{self.name}: intrón:{self.start}-{self.end}  {self.sequence}{marca}"
 
 
 @dataclass(frozen=True)
@@ -117,14 +117,14 @@ class IntronElements:
 
     def describe(self) -> list[str]:
         lineas = [
-            f"Elementos del intron ({self.length} nt), DERIVADOS de la secuencia:",
+            f"Elementos del intrón ({self.length} nt), DERIVADOS de la secuencia:",
             f"  {self.donor.describe()}",
             f"  {self.ppt.describe()}   ({len(self.ppt.sequence)} pirimidinas contiguas)",
             f"  {self.acceptor.describe()}",
         ]
         if self.branch_point is None:
             lineas.append(
-                "  punto_de_ramificacion: NINGUN candidato en la ventana. No es «no lo "
+                "  punto_de_ramificacion: NINGÚN candidato en la ventana. No es «no lo "
                 "hay»: es que no se ha podido señalar ninguno con este criterio."
             )
         else:
@@ -148,8 +148,8 @@ def check_length(sequence: str, *, name: str) -> int:
     limpio = _clean(sequence)
     if len(limpio) < MIN_INTRON_LENGTH:
         raise ShmirDesignError(
-            f"El intron {name!r} montado mide {len(limpio)} nt y el minimo es "
-            f"{MIN_INTRON_LENGTH}. Se aborta en vez de emitir una construccion que no se "
+            f"El intrón {name!r} montado mide {len(limpio)} nt y el mínimo es "
+            f"{MIN_INTRON_LENGTH}. Se aborta en vez de emitir una construcción que no se "
             f"puede empalmar. {WHY_MIN_LENGTH}"
         )
     return len(limpio)
@@ -192,24 +192,24 @@ def locate_elements(sequence: str, *, name: str) -> IntronElements:
         )
     if limpio[:2] != "GT":
         raise ShmirDesignError(
-            f"{name}: el intron empieza por {limpio[:2]!r} y un donante canonico es GT. "
+            f"{name}: el intrón empieza por {limpio[:2]!r} y un donante canónico es GT. "
             f"Se aborta en vez de buscar el donante en otro sitio: si esto no empieza por "
-            f"GT, o no es un intron o no empieza donde se cree que empieza, y las dos "
-            f"cosas invalidan todas las coordenadas de aqui en adelante."
+            f"GT, o no es un intrón o no empieza donde se cree que empieza, y las dos "
+            f"cosas invalidan todas las coordenadas de aquí en adelante."
         )
     if limpio[-2:] != "AG":
         raise ShmirDesignError(
-            f"{name}: el intron acaba en {limpio[-2:]!r} y un aceptor canonico es AG. "
-            f"Se aborta por la misma razon que con el donante."
+            f"{name}: el intrón acaba en {limpio[-2:]!r} y un aceptor canónico es AG. "
+            f"Se aborta por la misma razón que con el donante."
         )
 
     aceptor_inicio = len(limpio) - 1           # 1-based de la A del AG
     tracto = _ppt_length(limpio, aceptor_inicio)
     if tracto == 0:
         raise ShmirDesignError(
-            f"{name}: no hay ni una pirimidina contigua aguas arriba del aceptor, asi "
+            f"{name}: no hay ni una pirimidina contigua aguas arriba del aceptor, así "
             f"que no hay tracto de polipirimidinas. Se aborta: es el elemento contra el "
-            f"que se compara todo sitio criptico, y sin el no hay referencia interna."
+            f"que se compara todo sitio críptico, y sin el no hay referencia interna."
         )
 
     candidatos = tuple(
@@ -286,7 +286,7 @@ class Intron:
         if self.provided:
             return self.empty_sequence
         raise ShmirDesignError(
-            f"El intron {self.name!r} no se ha aportado. {self.why_missing} "
+            f"El intrón {self.name!r} no se ha aportado. {self.why_missing} "
             f"NO se reconstruye ni se teclea de memoria (regla 1): una secuencia "
             f"plausible es el peor resultado posible de este software."
         )
@@ -297,8 +297,8 @@ class Intron:
             self.require_sequence()
         if self.raw_sequence:
             raise ShmirDesignError(
-                f"El intron {self.name!r} llego entero, asi que no se sabe DONDE va el "
-                f"modulo dentro. Hace falta declarar sus puntos de insercion antes de "
+                f"El intrón {self.name!r} llego entero, así que no se sabe DONDE va el "
+                f"módulo dentro. Hace falta declarar sus puntos de inserción antes de "
                 f"montarlo; se aborta en vez de pegarlo en un sitio cualquiera."
             )
         montado = (
@@ -317,7 +317,7 @@ class Intron:
 
 
 _ERRATA = (
-    "Se extrae de un plasmido comercial que lo lleve (familia pAAV-MCS y equivalentes), "
+    "Se extrae de un plásmido comercial que lo lleve (familia pAAV-MCS y equivalentes), "
     "preferiblemente de un `.dna` de SnapGene o un `.gb` del laboratorio. NADIE lo teclea "
     "ni lo reconstruye de memoria: eso es la errata nº 5 del registro esperando a "
     "repetirse — un 3'UTR anunciado como «1242 nt verificados» que traia 1246 dejo "
@@ -329,10 +329,10 @@ INTRONS: dict[str, Intron] = {
     "mvm_actual": Intron(
         name="mvm_actual",
         description=(
-            "El intron MVM del casete de hoy. Se ensambla de piezas versionadas: nadie "
+            "El intrón MVM del casete de hoy. Se ensambla de piezas versionadas: nadie "
             "lo teclea."
         ),
-        source="blocks.PIECES (plasmido receptor)",
+        source="blocks.PIECES (plásmido receptor)",
         five_piece="MVM5",
         three_piece="MVM3",
         exon5_piece="exon5",
@@ -342,10 +342,10 @@ INTRONS: dict[str, Intron] = {
     "quimerico_cmv_globina": Intron(
         name="quimerico_cmv_globina",
         description=(
-            "Intron quimerico CMV / beta-globina, el de la familia pAAV-MCS. NO lo "
+            "Intrón quimérico CMV / beta-globina, el de la familia pAAV-MCS. NO lo "
             "tenemos."
         ),
-        source="plasmido comercial del laboratorio",
+        source="plásmido comercial del laboratorio",
         provided=False,
         why_missing=_ERRATA,
         ficha="intron_quimerico",
@@ -353,10 +353,10 @@ INTRONS: dict[str, Intron] = {
     "mvm_sin_criptico": Intron(
         name="mvm_sin_criptico",
         description=(
-            "Variante del MVM con el donante criptico del flanco 5' de miR-E roto y "
+            "Variante del MVM con el donante críptico del flanco 5' de miR-E roto y "
             "espaciadores nuevos de 20-30 nt. Lo DISEÑA la app derivandolo del actual, "
-            "con dos criterios computables. Es una PROPUESTA, no una construccion "
-            "aprobada: pasa por el mismo modal que las demas antes de ir a sintesis."
+            "con dos criterios computables. Es una PROPUESTA, no una construcción "
+            "aprobada: pasa por el mismo modal que las demas antes de ir a síntesis."
         ),
         source="derivado de mvm_actual por `intron_design.py`",
         five_piece="MVM5",
@@ -380,7 +380,7 @@ def get(name: str) -> Intron:
     intron = INTRONS.get(name)
     if intron is None:
         raise ShmirDesignError(
-            f"No hay ningun intron {name!r} en el registro; los que hay: "
+            f"No hay ningún intrón {name!r} en el registro; los que hay: "
             f"{', '.join(sorted(INTRONS))}."
         )
     return intron

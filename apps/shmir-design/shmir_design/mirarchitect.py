@@ -43,11 +43,11 @@ SOURCE_LOOP = "CTGTGAAGCCACAGATGGG"
 
 #: Por que no se usa la columna de pasajera de la fuente. Va escrito, no implicito.
 PASSENGER_REJECTED = (
-    "La pasajera del export sigue la convencion de miR-30a: "
-    "revcomp(guia)[0:9] + revcomp(guia)[11:22] + 'GC', o sea dos nucleotidos borrados "
-    "tras la posicion 9 y un GC terminal. La nuestra cambia SOLO la posicion 1 y se "
-    "elige plegando contra la estructura de SGEP. Son horquillas distintas, asi que la "
-    "columna se descarta: de miRarchitect se toma la guia y nada mas."
+    "La pasajera del export sigue la convención de miR-30a: "
+    "revcomp(guía)[0:9] + revcomp(guía)[11:22] + 'GC', o sea dos nucleótidos borrados "
+    "tras la posición 9 y un GC terminal. La nuestra cambia SOLO la posición 1 y se "
+    "elige plegando contra la estructura de SGEP. Son horquillas distintas, así que la "
+    "columna se descarta: de miRarchitect se toma la guía y nada más."
 )
 
 _COLUMNS = (
@@ -110,7 +110,7 @@ class Export:
     integrity_note: str = (
         "`guia == revcomp(diana)` se comprueba como control de integridad del fichero, "
         "pero NO prueba nada sobre el origen de una corrupcion: la columna de diana "
-        "esta derivada de la guia, no leida del transcrito."
+        "está derivada de la guía, no leida del transcrito."
     )
 
     @property
@@ -158,7 +158,7 @@ def parse_export(text: str, *, source: str = "el export de miRarchitect") -> Exp
             score = float(fila["Score"])
         except ValueError as exc:
             raise ShmirDesignError(
-                f"{source}, fila {numero}: Start/End/Score no son numeros "
+                f"{source}, fila {numero}: Start/End/Score no son números "
                 f"({fila['Start']!r}, {fila['End']!r}, {fila['Score']!r})."
             ) from exc
         entrada = ExportRow(
@@ -174,12 +174,12 @@ def parse_export(text: str, *, source: str = "el export de miRarchitect") -> Exp
         if not entrada.target_is_revcomp:
             raise ShmirDesignError(
                 f"{source}, fila {numero}: la diana no es el complementario reverso de "
-                f"la guia. El fichero esta dañado; se aborta antes de leer nada mas."
+                f"la guía. El fichero está dañado; se aborta antes de leer nada más."
             )
         if entrada.declared_length != len(entrada.guide):
             raise ShmirDesignError(
                 f"{source}, fila {numero}: End-Start+1 = {entrada.declared_length} y la "
-                f"guia mide {len(entrada.guide)}. Se aborta: unas coordenadas que no "
+                f"guía mide {len(entrada.guide)}. Se aborta: unas coordenadas que no "
                 f"cuadran con su secuencia son el fallo que hay que cazar."
             )
         leidas.append(entrada)
@@ -206,8 +206,8 @@ def parse_export(text: str, *, source: str = "el export de miRarchitect") -> Exp
     return Export(
         rows=tuple(leidas),
         loop=loops.pop(),
-        flank5=_dna(filas[0].get("sequence_5’ flanking region", "")),
-        flank3=_dna(filas[0].get("sequence_3’ flanking region", "")),
+        flank5=_dna(filas[0].get("sequence_5’ flanking región", "")),
+        flank3=_dna(filas[0].get("sequence_3’ flanking región", "")),
         declared_scaffold=", ".join(sorted(etiquetas)),
         contained=contenidas,
         source=source,
@@ -319,23 +319,23 @@ class ExportComparison:
 
     def format_text(self) -> str:
         lineas = [
-            "── Comparacion de dos corridas de miRarchitect ──",
+            "── Comparación de dos corridas de miRarchitect ──",
             f"  Lo que cambia entre las dos: {self.axis}",
             "",
             "  DISEÑO. Dos corridas de la misma herramienta, con el mismo andamio y "
             "sobre el mismo",
             "  gen, alimentadas con dos secuencias distintas. Los sitios se cruzan por "
-            "su posicion",
+            "su posición",
             "  sobre la referencia —no por la coordenada que declara cada fichero— y se "
             "separan en",
             "  dos estratos segun si su ventana de 22 nt solapa alguna de las "
             "diferencias entre las",
             "  dos entradas. Para las ventanas que las dos corridas vieron IGUALES la "
             "expectativa es",
-            "  score identico: es un test binario, no un umbral.",
+            "  score idéntico: es un test binario, no un umbral.",
             "",
             "  REGLA DE USO DEL PANEL. El PUESTO de miRarchitect no se usa para nada en "
-            "la seleccion",
+            "la selección",
             "  de candidatos. El puesto es propiedad de la LISTA, no del sitio: dos "
             "corridas de",
             "  distinto tamaño dan puestos distintos al mismo score. Lo que se importa "
@@ -356,11 +356,11 @@ class ExportComparison:
                     f"IDENTICO."
                 )
                 lineas.append(
-                    "    El score ES funcion local de la ventana de 22 nt: no arrastra "
+                    "    El score ES función local de la ventana de 22 nt: no arrastra "
                     "contexto."
                 )
                 lineas.append(
-                    "    Consecuencia: una puntuacion es TRANSFERIBLE entre entradas "
+                    "    Consecuencia: una puntuación es TRANSFERIBLE entre entradas "
                     "distintas si y solo"
                 )
                 lineas.append(
@@ -381,11 +381,11 @@ class ExportComparison:
                         f"{sitio.score_a:.2f} → {sitio.score_b:.2f}"
                     )
                 lineas.append(
-                    "    El score NO es funcion local de la ventana: arrastra contexto "
+                    "    El score NO es función local de la ventana: arrastra contexto "
                     "global, luego"
                 )
                 lineas.append(
-                    "    NINGUNA puntuacion calculada sobre una entrada imperfecta es "
+                    "    NINGUNA puntuación calculada sobre una entrada imperfecta es "
                     "utilizable — tampoco"
                 )
                 lineas.append(
@@ -398,7 +398,7 @@ class ExportComparison:
                 )
         else:
             lineas.append(
-                "    Ninguno. Sin ventanas identicas no hay test binario que correr."
+                "    Ninguno. Sin ventanas idénticas no hay test binario que correr."
             )
 
         lineas.extend([
@@ -421,7 +421,7 @@ class ExportComparison:
                 "borde de la ventana,"
             )
             lineas.append(
-                "    no se puede afirmar si esta dentro o fuera. Con las dos salidas "
+                "    no se puede afirmar si está dentro o fuera. Con las dos salidas "
                 "delante SI se puede:"
             )
             lineas.append(
@@ -445,11 +445,11 @@ class ExportComparison:
                 "cuando el indel"
             )
             lineas.append(
-                "    cae dentro de una carrera de bases iguales: ahi su posicion exacta "
+                "    cae dentro de una carrera de bases iguales: ahi su posición exacta "
                 "es ambigua y el"
             )
             lineas.append(
-                "    alineamiento la coloca en un punto cualquiera de la carrera, asi "
+                "    alineamiento la coloca en un punto cualquiera de la carrera, así "
                 "que el posicional"
             )
             lineas.append("    sobra-marca. Es conservador, no incorrecto.")
@@ -461,7 +461,7 @@ class ExportComparison:
                 "",
                 f"  cambian de puesto: {len(self.moved)} de {len(self.shared)}   "
                 f"mayor salto: {mayor}",
-                f"  de ellos con score IDENTICO: {iguales}. El puesto es una propiedad "
+                f"  de ellos con score IDÉNTICO: {iguales}. El puesto es una propiedad "
                 f"de la LISTA,",
                 "  no del sitio: dos listas de distinto tamaño dan puestos distintos "
                 "para el mismo score.",
@@ -473,7 +473,7 @@ class ExportComparison:
             )
         lineas.extend([
             "",
-            "  No se da una cifra agregada a proposito: un porcentaje global mezcla los "
+            "  No se da una cifra agregada a propósito: un porcentaje global mezcla los "
             "dos",
             "  estratos y con eso no se decide nada.",
         ])

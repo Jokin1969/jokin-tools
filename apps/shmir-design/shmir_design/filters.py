@@ -72,7 +72,7 @@ class FilterResult:
         if not self.reason:
             raise ValueError(
                 f"El filtro {self.name!r} devolvio estado {self.state} sin motivo; "
-                f"la regla 3 exige registrar por que, tambien en PASS."
+                f"la regla 3 exige registrar por que, también en PASS."
             )
 
 
@@ -80,7 +80,7 @@ def overall_verdict(results: list[FilterResult]) -> Verdict:
     """Agrega varios filtros. Un solo NOT_RUN impide dar el candidato por aprobado."""
     if not results:
         raise ValueError(
-            "No se puede emitir veredicto sin ningun filtro evaluado; "
+            "No se puede emitir veredicto sin ningún filtro evaluado; "
             "un candidato sin filtros no es un candidato aprobado."
         )
     if any(r.state is FilterState.FAIL for r in results):

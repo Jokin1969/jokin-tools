@@ -77,7 +77,7 @@ class Ficha:
         if not self.resolved:
             raise ShmirDesignError(
                 f"La ficha de {self.front!r} no se ha resuelto contra ninguna especie, "
-                f"asi que todavia lleva marcadores dentro. Renderizarla asi daria un "
+                f"así que todavia lleva marcadores dentro. Renderizarla así daria un "
                 f"texto que miente a medias —«rmsk_{{slug}}.out» no es un nombre de "
                 f"fichero— y esos textos se copian. Usa `resolve_ficha(frente, "
                 f"species=…)`."
@@ -90,7 +90,7 @@ class Ficha:
         ]
         if self.no_file:
             lineas.extend([
-                "  NO SE CIERRA CON NINGUN FICHERO.",
+                "  NO SE CIERRA CON NINGÚN FICHERO.",
                 f"  {self.why_no_file}",
                 "",
             ])
@@ -158,14 +158,14 @@ def load_ficha(path: Path | str) -> Ficha:
         datos = tomllib.loads(crudo.decode("utf-8"))
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise ShmirDesignError(
-            f"{path}: no es TOML valido ({exc}); se aborta en vez de cargar media ficha."
+            f"{path}: no es TOML válido ({exc}); se aborta en vez de cargar media ficha."
         ) from exc
 
     faltan = [c for c in REQUIRED if not str(datos.get(c, "")).strip()]
     if faltan:
         raise ShmirDesignError(
             f"{path}: a la ficha le falta(n) {', '.join(faltan)}. Una ficha a medias es "
-            f"peor que ninguna: parece que la pregunta esta contestada. Se aborta."
+            f"peor que ninguna: parece que la pregunta está contestada. Se aborta."
         )
     if datos["frente"] != path.stem:
         raise ShmirDesignError(
@@ -178,12 +178,12 @@ def load_ficha(path: Path | str) -> Ficha:
     ficheros = _rows(datos, "ficheros", FichaFile, _FILE_KEYS, source=str(path))
     if sin_fichero and ficheros:
         raise ShmirDesignError(
-            f"{path}: dice `sin_fichero` y ademas lista ficheros. Una de las dos cosas "
+            f"{path}: dice `sin_fichero` y además lista ficheros. Una de las dos cosas "
             f"es mentira; se aborta."
         )
     if not sin_fichero and not ficheros:
         raise ShmirDesignError(
-            f"{path}: no lista ningun fichero y no dice `sin_fichero = true`. Si el "
+            f"{path}: no lista ningún fichero y no dice `sin_fichero = true`. Si el "
             f"frente no se cierra descargando nada hay que decirlo con esas palabras."
         )
     if sin_fichero and not str(datos.get("por_que_sin_fichero", "")).strip():
@@ -243,17 +243,17 @@ def _values(species) -> dict[str, str]:
 #: cerrarlo en vez de quedarse mirando.
 _UNDECLARED = {
     "prefijo": (
-        "el prefijo de miRBase de {cientifico} NO ESTA DECLARADO en este proyecto. Se "
+        "el prefijo de miRBase de {cientifico} NO ESTÁ DECLARADO en este proyecto. Se "
         "mira en mirbase.org (la especie viene en el nombre de cada maduro) y se añade a "
         "`species.SPECIES`. NO se deduce del nombre: `ocu-`, `oc-` y `ory-` son todos "
         "plausibles y solo uno existe."
     ),
     "taxid": (
-        "el taxid de {cientifico} NO ESTA DECLARADO en este proyecto. Se mira en el "
+        "el taxid de {cientifico} NO ESTÁ DECLARADO en este proyecto. Se mira en el "
         "Taxonomy Browser del NCBI y se añade a `species.SPECIES`."
     ),
     "ensamblaje": (
-        "el ensamblaje de UCSC de {cientifico} NO ESTA DECLARADO en este proyecto. Se "
+        "el ensamblaje de UCSC de {cientifico} NO ESTÁ DECLARADO en este proyecto. Se "
         "elige en el propio Table Browser y se añade a `species.SPECIES` — anotandolo, "
         "porque dos ensamblajes distintos dan coordenadas distintas."
     ),
@@ -274,7 +274,7 @@ def _substitute(texto: str, valores: dict[str, str], huecos: set[str]) -> str:
             return valor
         huecos.add(clave)
         plantilla = _UNDECLARED.get(
-            clave, f"{clave} no esta declarado para esta especie"
+            clave, f"{clave} no está declarado para esta especie"
         )
         return plantilla.format(cientifico=valores["cientifico"])
 

@@ -182,7 +182,7 @@ class TestInformeDeTexto(unittest.TestCase):
         self.assertIn("184", texto)
 
     def test_lleva_las_señales_de_poliadenilacion(self):
-        self.assertIn("poliadenilacion", self.informe().lower())
+        self.assertIn("poliadenilación", self.informe().lower())
 
     def test_dice_que_filtros_no_se_ejecutaron(self):
         texto = self.informe()

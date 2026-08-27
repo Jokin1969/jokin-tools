@@ -153,11 +153,11 @@ class TestElHuecoDeLaCARGA(unittest.TestCase):
 
     def test_dice_que_es_OTRA_pregunta(self):
         texto = presentation.seed_load_placeholder(None)["texto"].lower()
-        self.assertIn("cuantos mensajeros", texto)
+        self.assertIn("cuántos mensajeros", texto)
 
     def test_con_el_fichero_dejaria_de_ser_un_hueco(self):
         class _Falso:
-            provenance = "transcriptoma_3utr.fa, version x"
+            provenance = "transcriptoma_3utr.fa, versión x"
 
         hueco = presentation.seed_load_placeholder(_Falso())
         self.assertIsNot(hueco["state"], FilterState.NOT_RUN)

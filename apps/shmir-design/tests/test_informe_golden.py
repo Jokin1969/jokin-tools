@@ -66,8 +66,8 @@ class TestElInformeEntero(unittest.TestCase):
         self.fail(
             "El informe ha cambiado respecto al de referencia.\n"
             "Si el cambio es deliberado: python3 tools/regenerar_golden.py, y el diff "
-            "entra en la revision.\n"
-            "Si no lo es, aqui esta lo que se ha movido:\n" + diff
+            "entra en la revisión.\n"
+            "Si no lo es, aquí esta lo que se ha movido:\n" + diff
         )
 
     def test_no_se_ha_encogido(self):
@@ -75,7 +75,7 @@ class TestElInformeEntero(unittest.TestCase):
         self.assertGreaterEqual(
             len(self.actual.splitlines()),
             len(self.esperado.splitlines()),
-            "El informe tiene MENOS lineas que el de referencia: se ha borrado algo.",
+            "El informe tiene MENOS líneas que el de referencia: se ha borrado algo.",
         )
 
     def test_la_referencia_no_esta_vacia_ni_es_un_muñon(self):
@@ -83,7 +83,7 @@ class TestElInformeEntero(unittest.TestCase):
         self.assertGreater(len(self.esperado.splitlines()), 150)
         for bloque in (
             "── Riesgo de polyA",
-            "con TECHO (por detras del corte)",
+            "con TECHO (por detrás del corte)",
             "INMUNES al TRUNCAMIENTO por ser proximales",
             "EXPERIMENTO QUE RESUELVE EL TECHO",
             "── Cobertura por tercios ──",

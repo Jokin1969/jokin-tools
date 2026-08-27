@@ -1,38 +1,38 @@
 frente = "empalme_intron"
 sin_fichero = true
 por_que_sin_fichero = """\
-Este frente NO SE CIERRA CON NINGUN FICHERO, y por eso va aparte de los demas: sus cuatro \
-lecturas son de BANCO y este software no corre ninguna. Conseguir mas datos no lo cierra: \
+Este frente NO SE CIERRA CON NINGÚN FICHERO, y por eso va aparte de los demas: sus cuatro \
+lecturas son de BANCO y este software no corre ninguna. Conseguir más datos no lo cierra: \
 hay que ir al laboratorio."""
 pregunta = """\
-¿Se escinde el intron? Es el UNICO frente BINARIO del proyecto: los otros son graduales \
-—una especificidad regular da off-targets, un techo de APA baja el knockdown— pero aqui, \
-si el intron no se escinde, la horquilla se queda en el 5'UTR del mRNA maduro y NO HAY \
+¿Se escinde el intrón? Es el ÚNICO frente BINARIO del proyecto: los otros son graduales \
+—una especificidad regular da off-targets, un techo de APA baja el knockdown— pero aquí, \
+si el intrón no se escinde, la horquilla se queda en el 5'UTR del mRNA maduro y NO HAY \
 PROTEINA DN EN ABSOLUTO. No hay «un poco de proteina» que optimizar."""
 fuente = "Banco: RT-PCR, Western y secuenciacion. No hay descarga que valga."
 url = "—"
 tamano = "—"
 validacion = """\
 Lo que cierra el frente es la SECUENCIA DE LA UNION EXON-EXON, no la altura de una banda \
-en un gel. Sin secuenciar, ver una banda corta no descarta el donante criptico."""
+en un gel. Sin secuenciar, ver una banda corta no descarta el donante críptico."""
 
 pasos = [
-  "RT-PCR de empalme con cebadores en los exones que flanquean el intron MVM. Banda CORTA = empalmado, banda LARGA = retenido, y la PROPORCION es la eficiencia. La app emite las VENTANAS donde buscar los cebadores, derivadas del casete, no los cebadores: Tm, especificidad y horquillas no se improvisan.",
-  "SECUENCIA LA BANDA CORTA. Es la lectura que cierra el frente: el donante criptico `GTGAGCG` del andamio compite por el aceptor legitimo del MVM y produce una banda INTERMEDIA (+97 pb) que en un gel se confunde con la buena.",
-  "Western con L42 NORMALIZADO POR vg-qPCR. Sin normalizar, «no hay proteina» no se distingue de «no llego el vector»: los dos dan una membrana vacia y solo uno culpa al empalme.",
-  "Corre en la MISMA TANDA el parental SIN INTRON, como techo de expresion. Sin techo, un western flojo no dice si el empalme va mal o si la construccion expresa poco.",
+  "RT-PCR de empalme con cebadores en los exones que flanquean el intrón MVM. Banda CORTA = empalmado, banda LARGA = retenido, y la PROPORCIÓN es la eficiencia. La app emite las VENTANAS donde buscar los cebadores, derivadas del casete, no los cebadores: Tm, especificidad y horquillas no se improvisan.",
+  "SECUENCIA LA BANDA CORTA. Es la lectura que cierra el frente: el donante críptico `GTGAGCG` del andamio compite por el aceptor legítimo del MVM y produce una banda INTERMEDIA (+97 pb) que en un gel se confunde con la buena.",
+  "Western con L42 NORMALIZADO POR vg-qPCR. Sin normalizar, «no hay proteina» no se distingue de «no llego el vector»: los dos dan una membrana vacía y solo uno culpa al empalme.",
+  "Corre en la MISMA TANDA el parental SIN INTRÓN, como techo de expresión. Sin techo, un western flojo no dice si el empalme va mal o si la construcción expresa poco.",
 ]
 
 avisos = [
-  "UN small RNA-seq PERFECTO NO ES EVIDENCIA DE QUE HAYA PROTEINA. Drosha procesa el pri-miR COTRANSCRIPCIONALMENTE, o sea ANTES del splicing: la horquilla se corta igual este el intron escindido o no. Son dos sucesos en orden y esa lectura solo mide el primero. Por eso este frente no estaba en la lista.",
-  "EL CEBADOR DE AGUAS ABAJO CAE DENTRO DEL ORF DE PrP. La especificidad de vector la da el cebador de aguas ARRIBA, y SOLO ese: un par con los dos cebadores aguas abajo amplificaria tambien el Prnp ENDOGENO del tejido — saldria banda, del tamaño esperado, y no seria del vector. Es el error que arruinaria el ensayo sin dar ninguna señal.",
-  "El casete que hay (`aav_casete.fa`) NO sirve como parental sin intron: es el parental sin MODULO pero CON el intron vacio de 82 nt, asi que arrastra el mismo problema que se quiere medir. Y el intron del terapeutico son 296 nt, no 82: la eficiencia de uno no dice nada del otro. La app especifica el control sin intron —donante y aceptor eliminados, todo lo demas conservado base a base— y sale en la hoja de pedido.",
+  "UN small RNA-seq PERFECTO NO ES EVIDENCIA DE QUE HAYA PROTEINA. Drosha procesa el pri-miR COTRANSCRIPCIONALMENTE, o sea ANTES del splicing: la horquilla se corta igual este el intrón escindido o no. Son dos sucesos en orden y esa lectura solo mide el primero. Por eso este frente no estaba en la lista.",
+  "EL CEBADOR DE AGUAS ABAJO CAE DENTRO DEL ORF DE PrP. La especificidad de vector la da el cebador de aguas ARRIBA, y SOLO ese: un par con los dos cebadores aguas abajo amplificaria también el Prnp ENDOGENO del tejido — saldria banda, del tamaño esperado, y no sería del vector. Es el error que arruinaria el ensayo sin dar ninguna señal.",
+  "El casete que hay (`aav_casete.fa`) NO sirve como parental sin intrón: es el parental sin MÓDULO pero CON el intrón vacío de 82 nt, así que arrastra el mismo problema que se quiere medir. Y el intrón del terapeutico son 296 nt, no 82: la eficiencia de uno no dice nada del otro. La app específica el control sin intrón —donante y aceptor eliminados, todo lo demas conservado base a base— y sale en la hoja de pedido.",
 ]
 
 [[metadatos]]
-nombre = "que construccion se midio, con su md5"
-por_que = "La eficiencia de empalme es de UNA construccion. Sin identificarla, el numero no se puede volver a comprobar ni comparar con otra."
+nombre = "que construcción se midio, con su md5"
+por_que = "La eficiencia de empalme es de UNA construcción. Sin identificarla, el número no se puede volver a comprobar ni comparar con otra."
 
 [[metadatos]]
 nombre = "la secuencia de la union exon-exon"
-por_que = "Es lo que cierra el frente. Una banda del tamaño esperado no descarta el donante criptico; su secuencia si."
+por_que = "Es lo que cierra el frente. Una banda del tamaño esperado no descarta el donante críptico; su secuencia si."

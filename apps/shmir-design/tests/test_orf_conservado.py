@@ -127,7 +127,7 @@ class TestLoQueNoAplicaFueraDel3UTR(unittest.TestCase):
 
     def test_el_texto_dice_lo_del_casete_codon_optimizado(self):
         texto = "\n".join(self.barrido.describe()).lower()
-        self.assertIn("codon-optimizado", texto)
+        self.assertIn("codón-optimizado", texto)
         self.assertIn("resistente", texto)
         self.assertIn("sin\n  recodificar", texto)
 
@@ -172,8 +172,8 @@ class TestElContextoDeLaVentana(unittest.TestCase):
         # cisteinas pasaron a VERIFICADOS. Lo unico que sigue declarado es la helice.
         texto = "\n".join(self.barrido.describe())
         self.assertIn("DECLARADO por el responsable", texto)
-        self.assertIn("sin comprobar aqui", texto)
-        self.assertIn("VERIFICADO aqui traduciendo", texto)
+        self.assertIn("sin comprobar aquí", texto)
+        self.assertIn("VERIFICADO aquí traduciendo", texto)
 
     def test_gnomAD_queda_como_OBLIGATORIO_y_con_el_motivo(self):
         texto = "\n".join(self.barrido.describe())
@@ -185,7 +185,7 @@ class TestElContextoDeLaVentana(unittest.TestCase):
         texto = "\n".join(self.barrido.describe())
         self.assertIn("PRNP humano", texto)
         self.assertIn("Tg650", texto)
-        self.assertIn("NO alcanza el transgen", texto)
+        self.assertIn("NO alcanza el transgén", texto)
 
 
 @unittest.skipUnless(
@@ -237,7 +237,7 @@ class TestLaNotaCorregida(unittest.TestCase):
         self.assertIn("C179-C214", self.texto)
 
     def test_lo_verificado_va_marcado_como_VERIFICADO_y_como(self):
-        self.assertIn("VERIFICADO aqui traduciendo", self.texto)
+        self.assertIn("VERIFICADO aquí traduciendo", self.texto)
 
     def test_la_helice_sigue_siendo_DECLARADA(self):
         self.assertIn("helice B", self.texto)

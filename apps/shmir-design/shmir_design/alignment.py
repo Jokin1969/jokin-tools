@@ -109,7 +109,7 @@ class Alignment:
             if self.profile.get(k)
         ]
         return (
-            f"Hay {', '.join(clases)}. Un trasvase solo puede PERDER caracteres, asi que "
+            f"Hay {', '.join(clases)}. Un trasvase solo puede PERDER caracteres, así que "
             f"esto no se copio mal: se genero. Investiga de donde salio la secuencia, no "
             f"por donde paso."
         )
@@ -248,7 +248,7 @@ def align(ref: str, other: str) -> Alignment:
     b = "".join(other.split()).upper()
     if not a or not b:
         raise ShmirDesignError(
-            "No se alinea una secuencia vacia: se aborta en vez de devolver un perfil "
+            "No se alinea una secuencia vacía: se aborta en vez de devolver un perfil "
             "que diria que todo es una diferencia."
         )
     if len(a) * len(b) > 25_000_000:

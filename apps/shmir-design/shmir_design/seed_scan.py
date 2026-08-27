@@ -33,22 +33,22 @@ SEED_WINDOWS = {"2-8": (2, 8), "2-7": (2, 7)}
 LEVELS = ("nucleo", "ampliado", "ambos")
 
 NORMALIZATION_NOTE = (
-    "Normalizacion U↔T: SIEMPRE, y no se puede apagar. miRBase da los maduros en ARN y "
-    "nuestras guias van en ADN; sin normalizar, la comparacion daria CERO COLISIONES en "
+    "Normalización U↔T: SIEMPRE, y no se puede apagar. miRBase da los maduros en ARN y "
+    "nuestras guías van en ADN; sin normalizar, la comparación daria CERO COLISIONES en "
     "todas — y cero colisiones parece una buena noticia. Es un desajuste de alfabeto "
     "disfrazado de resultado limpio."
 )
 
 MIR30_NOTE = (
-    "COLISION CON LA FAMILIA miR-30: lectura distinta y PEOR. Nuestro andamio es miR-E, "
-    "derivado de miR-30a, asi que aqui no se compite solo por la red de dianas de ese "
+    "COLISIÓN CON LA FAMILIA miR-30: lectura distinta y PEOR. Nuestro andamio es miR-E, "
+    "derivado de miR-30a, así que aquí no se compite solo por la red de dianas de ese "
     "miARN — la horquilla que se construye SE PARECE a un miARN endogeno abundante del "
-    "mismo tejido. Se marca aparte a proposito."
+    "mismo tejido. Se marca aparte a propósito."
 )
 
 WHAT_THIS_DOES_NOT_ANSWER = (
     "LO QUE ESTE MODAL NO CONTESTA. Contesta «¿mi seed es la de un miARN conocido?». NO "
-    "contesta «¿cuantos mensajeros llevan mi seed?», que es la CARGA de off-targets y "
+    "contesta «¿cuántos mensajeros llevan mi seed?», que es la CARGA de off-targets y "
     "necesita `transcriptoma_3utr.fa`. Son dos preguntas y DOS FRENTES: este cierra "
     "`seed_colision`, el otro es `offtarget_seed` y sigue en NOT_RUN mientras falte ese "
     "fichero."
@@ -80,7 +80,7 @@ class SeedParams:
             )
         if not self.normalize_u_t:
             raise ValueError(
-                f"La normalizacion U↔T no se puede apagar. {NORMALIZATION_NOTE}"
+                f"La normalización U↔T no se puede apagar. {NORMALIZATION_NOTE}"
             )
 
     @classmethod
@@ -100,9 +100,9 @@ class SeedParams:
     def require_prefix(self) -> str:
         if self.species_prefix is None:
             raise ShmirDesignError(
-                "No hay prefijo de especie declarado para esta corrida de colision de "
+                "No hay prefijo de especie declarado para esta corrida de colisión de "
                 "seed. NO se pone `mmu-` por defecto: con el prefijo equivocado la "
-                "comparacion da CERO colisiones y eso parece una buena noticia. El "
+                "comparación da CERO colisiones y eso parece una buena noticia. El "
                 "prefijo sale de `species.mirbase_prefix(nombre)`, que aborta si esa "
                 "especie no lo tiene declarado. Usa `SeedParams.for_species(nombre)`. "
                 "Si lo que quieres es NO filtrar por especie, eso se dice con `\"\"`, "
@@ -139,7 +139,7 @@ class SeedParams:
         if len(limpia) < fin:
             raise ShmirDesignError(
                 f"La hebra mide {len(limpia)} nt y la ventana {self.window} necesita "
-                f"llegar a la posicion {fin}; se aborta en vez de comparar media seed."
+                f"llegar a la posición {fin}; se aborta en vez de comparar media seed."
             )
         return limpia[inicio - 1:fin]
 
@@ -195,7 +195,7 @@ class PreviewRow:
         )
         if self.shared_core_with:
             compartido += (
-                "  ⚠ COMPARTE NUCLEO de 6 nt con 3utr:"
+                "  ⚠ COMPARTE NÚCLEO de 6 nt con 3utr:"
                 + ", 3utr:".join(str(s) for s in self.shared_core_with)
             )
         return (
@@ -212,8 +212,8 @@ def _strands(selection, species: str, starts, guides: bool, passengers: bool):
     for inicio in starts:
         if inicio not in por_inicio:
             raise ShmirDesignError(
-                f"3utr:{inicio} no esta en el panel de esta corrida; se aborta en vez "
-                f"de comparar una guia que no existe aqui."
+                f"3utr:{inicio} no está en el panel de esta corrida; se aborta en vez "
+                f"de comparar una guía que no existe aquí."
             )
         ventana = selection.window_of(por_inicio[inicio])
         guia = ventana.evaluation.guide
@@ -289,10 +289,10 @@ class BaseRate:
             f"TASA BASE: {self.matures} maduro(s) "
             f"{self.species_prefix or 'de todas las especies del fichero'} dan "
             f"{self.distinct} seed(s) distinta(s) de {self.window} sobre un espacio de "
-            f"{self.space}, asi que cerca del {self.fraction:.0%} de las guias colisiona "
-            f"con alguna POR AZAR. Sin esta cifra al lado, un AVISO parece mas grave de "
+            f"{self.space}, así que cerca del {self.fraction:.0%} de las guías colisiona "
+            f"con alguna POR AZAR. Sin esta cifra al lado, un AVISO parece más grave de "
             f"lo que es. Sale del fichero cargado y del filtro de especie que se use: no "
-            f"esta tecleada."
+            f"está tecleada."
         )
 
 
@@ -339,7 +339,7 @@ class SeedResult:
         if not self.collisions:
             return (
                 f"3utr:{self.start:<6} {self.strand:<10} {self.heptamer}  LIMPIO — "
-                f"ninguna colision entre los maduros del filtro."
+                f"ninguna colisión entre los maduros del filtro."
             )
         nombres = ", ".join(c.name for c in self.collisions)
         marca = "  ⚠ miR-30" if self.mir30 else ""
@@ -367,12 +367,12 @@ class SeedScan:
     def export_block(self) -> str:
         """Material para defender la seleccion. Se lee SIN la app delante."""
         lineas = [
-            "═══ Colision de seed con miARN endogeno ═══",
+            "═══ Colisión de seed con miARN endogeno ═══",
             "",
             "  PREGUNTA: ¿la seed de esta hebra es la de un miARN maduro conocido?",
             f"  FUENTE: {self.source}",
             "",
-            "  PARAMETROS EFECTIVOS:",
+            "  PARÁMETROS EFECTIVOS:",
         ]
         lineas.extend(f"    {l}" for l in self.params.describe())
         lineas.extend(["", f"  {self.base_rate.describe()}", ""])
@@ -384,11 +384,11 @@ class SeedScan:
             lineas.extend(f"    {r.describe()}" for r in filas)
             lineas.append("")
         lineas.append(
-            "  Guia y pasajera van SEPARADAS y no se suman en un veredicto: la pasajera "
+            "  Guía y pasajera van SEPARADAS y no se suman en un veredicto: la pasajera "
             "se carga a RISC"
         )
         lineas.append(
-            "  en alguna proporcion, asi que sus off-targets son igual de reales, pero "
+            "  en alguna proporción, así que sus off-targets son igual de reales, pero "
             "son otra consulta."
         )
         if self.mir30_results:
@@ -404,19 +404,19 @@ def run_scan(
     """Corre la busqueda. Esto SI ejecuta: es subcadena contra un fichero ya cargado."""
     if mature is None:
         raise ShmirDesignError(
-            "No hay tabla de maduros cargada (`mature.fa`), asi que no hay contra que "
+            "No hay tabla de maduros cargada (`mature.fa`), así que no hay contra que "
             "comparar. NOT_RUN no es PASS: se aborta en vez de devolver cero colisiones."
         )
     if not guides and not passengers:
         raise ShmirDesignError(
-            "No se ha marcado ni guia ni pasajera: son dos consultas y hace falta al "
+            "No se ha marcado ni guía ni pasajera: son dos consultas y hace falta al "
             "menos una. Se aborta."
         )
     pedidos = list(dict.fromkeys(int(s) for s in starts))
     if not pedidos:
         raise ShmirDesignError(
-            "No se ha marcado ningun candidato; se aborta en vez de emitir una corrida "
-            "vacia que parezca haber corrido."
+            "No se ha marcado ningún candidato; se aborta en vez de emitir una corrida "
+            "vacía que parezca haber corrido."
         )
 
     # Si los parametros no traen especie declarada, se resuelve con la de la CORRIDA —

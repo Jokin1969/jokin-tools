@@ -44,7 +44,7 @@ def _scores(texto: str, *, source: str) -> list[tuple[str, float]]:
         if len(campos) < 2 or campos[0].upper() in ("GUIA", "GUIA_DNA", "GUIDE"):
             if len(campos) < 2:
                 raise ShmirDesignError(
-                    f"{source}, linea {numero}: se esperaban dos columnas y llego "
+                    f"{source}, línea {numero}: se esperaban dos columnas y llego "
                     f"{linea!r}."
                 )
             continue
@@ -52,7 +52,7 @@ def _scores(texto: str, *, source: str) -> list[tuple[str, float]]:
             filas.append((campos[0], float(campos[1])))
         except ValueError as exc:
             raise ShmirDesignError(
-                f"{source}, linea {numero}: {campos[1]!r} no es un numero."
+                f"{source}, línea {numero}: {campos[1]!r} no es un número."
             ) from exc
     return filas
 
@@ -65,25 +65,25 @@ def main(argv: list[str]) -> int:
     fuente.add_argument("--tsv", type=Path, help="Fichero de scores de dos columnas.")
     fuente.add_argument(
         "--csv", type=Path,
-        help="Export limpio de miRarchitect. Trae la diana, asi que el sitio se toma "
-             "de ella y el match es EXACTO sobre 22 nt, sin descartar la posicion 1.",
+        help="Export limpio de miRarchitect. Trae la diana, así que el sitio se toma "
+             "de ella y el match es EXACTO sobre 22 nt, sin descartar la posición 1.",
     )
     parser.add_argument("--fasta", type=Path, required=True, help="FASTA del transcrito.")
     parser.add_argument(
         "--evaluar", action="store_true",
-        help="Para cada guia que exista en la referencia, pasa su ventana por nuestros "
-             "filtros duros y da su ASIMETRIA termodinamica. Sin ese numero no se "
-             "pueden elegir plazas en el eje de la seleccion de hebra.",
+        help="Para cada guía que exista en la referencia, pasa su ventana por nuestros "
+             "filtros duros y da su ASIMETRÍA termodinamica. Sin ese número no se "
+             "pueden elegir plazas en el eje de la selección de hebra.",
     )
     parser.add_argument(
         "--guardar-sitios", type=Path,
-        help="Escribe un TSV con las guias que SI existen en la referencia y la "
+        help="Escribe un TSV con las guías que SI existen en la referencia y la "
              "coordenada de su match (no la que declara el fichero). Sirve para "
-             "cruzarlas despues contra otra corrida.",
+             "cruzarlas después contra otra corrida.",
     )
     parser.add_argument(
         "--utr3-desde", type=int, required=True,
-        help="Primera posicion del 3'UTR sobre el transcrito, 1-based. No se adivina.",
+        help="Primera posición del 3'UTR sobre el transcrito, 1-based. No se adivina.",
     )
     args = parser.parse_args(argv)
 
@@ -128,7 +128,7 @@ def main(argv: list[str]) -> int:
 
         print()
         print("── Nuestros filtros duros sobre cada ventana que existe en la referencia ──")
-        print("  La asimetria es un PROXY heuristico, no una energia libre de duplex")
+        print("  La asimetría es un PROXY heuristico, no una energía libre de duplex")
         print("  (ver la advertencia de thermo.py). Positivo = extremo 5' menos estable.")
         print(
             f"  {'3utr':>5} {'guia':<24} {'asimetria':>10} {'GC':>5} {'homopol':>8} "
@@ -152,7 +152,7 @@ def main(argv: list[str]) -> int:
         args.guardar_sitios.write_text("\n".join(filas) + "\n", encoding="utf-8")
         print(f"\nEscrito {args.guardar_sitios} con {len(filas) - 1} sitio(s).")
         print("  La coordenada es la del MATCH sobre la referencia, no la que declara")
-        print("  el fichero. Esa es la unica que sirve para cruzar dos corridas.")
+        print("  el fichero. Esa es la única que sirve para cruzar dos corridas.")
     problemas = (
         any(not e.maps for e in auditoria.entries)
         or any(e.prefix_of for e in auditoria.entries)

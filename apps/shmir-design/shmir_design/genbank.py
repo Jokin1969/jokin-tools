@@ -62,7 +62,7 @@ class GenBankCds:
             raise ShmirDesignError(
                 f"{self.source}: el GenBank de {self.accession} declara {self.length} "
                 f"nt y la secuencia suministrada mide {length} nt. No son el mismo "
-                f"transcrito (o una de las dos esta recortada); se aborta antes de "
+                f"transcrito (o una de las dos está recortada); se aborta antes de "
                 f"aplicar el CDS {self.cds[0]}..{self.cds[1]} a una secuencia que no le "
                 f"corresponde."
             )
@@ -93,20 +93,20 @@ def _parse_location(raw: str, *, source: str) -> tuple[int, int]:
 
     if location.startswith("complement("):
         raise ShmirDesignError(
-            f"{source}: el CDS esta en complement({location[11:-1]}). En un registro de "
-            f"mRNA el CDS va en la hebra directa, asi que este registro no es lo que "
+            f"{source}: el CDS está en complement({location[11:-1]}). En un registro de "
+            f"mRNA el CDS va en la hebra directa, así que este registro no es lo que "
             f"esperabamos; se aborta sin leer coordenadas."
         )
     if location.startswith(("join(", "order(")):
         raise ShmirDesignError(
             f"{source}: el CDS viene troceado ({location}). Elegir uno de los tramos, o "
-            f"tomar sus extremos, seria inventarse la frontera del 3'UTR; se aborta y "
-            f"la anatomia queda sin resolver."
+            f"tomar sus extremos, sería inventarse la frontera del 3'UTR; se aborta y "
+            f"la anatomía queda sin resolver."
         )
     if "<" in location or ">" in location:
         raise ShmirDesignError(
-            f"{source}: el CDS esta anotado como parcial ({location}). Una frontera "
-            f"parcial no sirve para fijar el 3'UTR; se aborta y la anatomia queda sin "
+            f"{source}: el CDS está anotado como parcial ({location}). Una frontera "
+            f"parcial no sirve para fijar el 3'UTR; se aborta y la anatomía queda sin "
             f"resolver."
         )
 
@@ -176,8 +176,8 @@ def parse_genbank_cds(text: str, *, source: str = "GenBank") -> GenBankCds:
     """Saca el CDS de un registro GenBank. Aborta ante cualquier ambiguedad."""
     if not text.strip():
         raise ShmirDesignError(
-            f"{source}: el fichero GenBank esta vacio; no hay CDS que leer y la "
-            f"anatomia queda sin resolver."
+            f"{source}: el fichero GenBank está vacío; no hay CDS que leer y la "
+            f"anatomía queda sin resolver."
         )
 
     locus = next(
@@ -185,7 +185,7 @@ def parse_genbank_cds(text: str, *, source: str = "GenBank") -> GenBankCds:
     )
     if locus is None:
         raise ShmirDesignError(
-            f"{source}: no hay linea LOCUS, asi que esto no es un fichero GenBank "
+            f"{source}: no hay línea LOCUS, así que esto no es un fichero GenBank "
             f"(¿es el FASTA?). Se aborta sin leer coordenadas."
         )
     length = int(locus["length"])
@@ -212,14 +212,14 @@ def parse_genbank_cds(text: str, *, source: str = "GenBank") -> GenBankCds:
         raise ShmirDesignError(
             f"{source}: el registro de {accession} no tiene ninguna feature CDS "
             f"(las que hay: {', '.join(claves)}). Sin CDS no hay frontera del 3'UTR; "
-            f"se aborta y la anatomia queda sin resolver."
+            f"se aborta y la anatomía queda sin resolver."
         )
     if len(cds_features) > 1:
         localizaciones = ", ".join(f[1] for f in cds_features)
         raise ShmirDesignError(
             f"{source}: el registro de {accession} tiene {len(cds_features)} features "
-            f"CDS ({localizaciones}). Elegir una seria elegir isoforma por nuestra "
-            f"cuenta; se aborta y la anatomia queda sin resolver."
+            f"CDS ({localizaciones}). Elegir una sería elegir isoforma por nuestra "
+            f"cuenta; se aborta y la anatomía queda sin resolver."
         )
 
     _, localizacion, cualificadores = cds_features[0]
@@ -227,7 +227,7 @@ def parse_genbank_cds(text: str, *, source: str = "GenBank") -> GenBankCds:
     if end > length:
         raise ShmirDesignError(
             f"{source}: el CDS {start}..{end} de {accession} se sale del transcrito, "
-            f"que mide {length} nt segun su linea LOCUS. Se aborta en vez de recortar."
+            f"que mide {length} nt segun su línea LOCUS. Se aborta en vez de recortar."
         )
 
     organismo = next(
@@ -251,7 +251,7 @@ def load_genbank_cds(path: Path | str, *, expected_md5: str | None = None) -> Ge
         raw = path.read_bytes()
     except OSError as exc:
         raise ShmirDesignError(
-            f"No se pudo leer el GenBank {path} ({exc}); la anatomia queda sin resolver "
+            f"No se pudo leer el GenBank {path} ({exc}); la anatomía queda sin resolver "
             f"y el diseño no continua."
         ) from exc
 

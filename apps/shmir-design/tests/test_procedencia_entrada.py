@@ -56,7 +56,7 @@ class TestProcedenciaDeLaEntrada(unittest.TestCase):
 class TestPosicionesDeConvenio(unittest.TestCase):
 
     def test_la_nota_nombra_las_dos(self):
-        self.assertIn("guia", CONVENTION_NOTE.lower())
+        self.assertIn("guía", CONVENTION_NOTE.lower())
         self.assertIn("pasajera", CONVENTION_NOTE.lower())
 
     def test_dice_que_no_vienen_de_la_diana(self):

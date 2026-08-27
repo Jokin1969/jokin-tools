@@ -1,48 +1,48 @@
 frente = "intron_quimerico"
 pregunta = """\
-¿Como se comporta el modulo dentro de OTRO intron? El cuarto modal pregunta sobre el \
-cassette montado, no sobre la guia, asi que el intron es la mitad de la pregunta. Con uno \
-solo no hay con que comparar: un perfil «limpio» en el MVM no dice si el modulo es \
+¿Como se comporta el módulo dentro de OTRO intrón? El cuarto modal pregunta sobre el \
+cassette montado, no sobre la guía, así que el intrón es la mitad de la pregunta. Con uno \
+solo no hay con que comparar: un perfil «limpio» en el MVM no dice si el módulo es \
 limpio o si el MVM es tolerante."""
-fuente = "Un plasmido comercial del laboratorio que lo lleve (familia pAAV-MCS y equivalentes)"
+fuente = "Un plásmido comercial del laboratorio que lo lleve (familia pAAV-MCS y equivalentes)"
 url = "—"
-tamano = "unos KB (el intron son cientos de nt; el plasmido entero, unos 5-7 kb)"
+tamano = "unos KB (el intrón son cientos de nt; el plásmido entero, unos 5-7 kb)"
 validacion = """\
 Al cargarlo la app LOCALIZA los cuatro elementos por secuencia y los declara: donante \
 (GT del principio), aceptor (AG del final), tracto de polipirimidinas contiguas aguas \
 arriba del aceptor, y los candidatos a punto de ramificacion (motivo YURAY entre 18 y 40 \
-nt aguas arriba). Si no empieza por GT o no acaba en AG, se RECHAZA: o no es un intron o \
-no empieza donde se cree, y las dos cosas invalidan todas las coordenadas. Ademas se \
-comprueba el suelo de 80 nt con el modulo dentro."""
+nt aguas arriba). Si no empieza por GT o no acaba en AG, se RECHAZA: o no es un intrón o \
+no empieza donde se cree, y las dos cosas invalidan todas las coordenadas. Además se \
+comprueba el suelo de 80 nt con el módulo dentro."""
 
 pasos = [
-  "Busca en el laboratorio un plasmido de la familia pAAV-MCS (o equivalente) que lleve el intron quimerico CMV / beta-globina.",
-  "Saca el fichero del plasmido: preferiblemente el `.dna` de SnapGene o el `.gb`, que traen las features anotadas.",
-  "Localiza la feature del intron y exporta SOLO el intron, del GT inicial al AG final, ambos incluidos.",
+  "Busca en el laboratorio un plásmido de la familia pAAV-MCS (o equivalente) que lleve el intrón quimérico CMV / beta-globina.",
+  "Saca el fichero del plásmido: preferiblemente el `.dna` de SnapGene o el `.gb`, que traen las features anotadas.",
+  "Localiza la feature del intrón y exporta SOLO el intrón, del GT inicial al AG final, ambos incluidos.",
   "Exportalo a FASTA sin recortar ni retocar nada, y subelo.",
-  "Apunta de que plasmido salio, con su nombre completo, y las coordenadas de la feature dentro de el.",
-  "Declara tambien donde va INSERTADO el modulo dentro de ese intron: la app no lo adivina y sin eso no puede montar la construccion.",
+  "Apunta de que plásmido salio, con su nombre completo, y las coordenadas de la feature dentro de el.",
+  "Declara también donde va INSERTADO el módulo dentro de ese intrón: la app no lo adivina y sin eso no puede montar la construcción.",
 ]
 
 avisos = [
   "NADIE LO TECLEA NI LO RECONSTRUYE DE MEMORIA. Es la errata nº 5 del registro esperando a repetirse: un 3'UTR anunciado como «1242 nt verificados» que traia 1246 dejo inservible una corrida entera de miRarchitect y varias tandas persiguiendo hipotesis falsas. Una secuencia plausible es el peor resultado posible de este software (regla 1).",
-  "Que la feature del plasmido se llame «intron» no basta. Se comprueba por SECUENCIA que empiece por GT y acabe en AG: una feature mal anotada por un nucleotido corre los cuatro elementos y no da ningun error.",
-  "Los elementos NO se teclean, ni siquiera si el plasmido los trae anotados. Se derivan de la secuencia con el criterio declarado del proyecto, para que sean comparables con los del MVM en la misma corrida — que es todo el valor de tener un segundo intron.",
+  "Que la feature del plásmido se llame «intrón» no basta. Se comprueba por SECUENCIA que empiece por GT y acabe en AG: una feature mal anotada por un nucleótido corre los cuatro elementos y no da ningún error.",
+  "Los elementos NO se teclean, ni siquiera si el plásmido los trae anotados. Se derivan de la secuencia con el criterio declarado del proyecto, para que sean comparables con los del MVM en la misma corrida — que es todo el valor de tener un segundo intrón.",
 ]
 
 [[ficheros]]
 nombre = "intron_quimerico_cmv_globina.fa"
-por_que = "El intron entero, del GT al AG. Es la mitad de la unidad de analisis del cuarto modal: el par candidato x intron."
+por_que = "El intrón entero, del GT al AG. Es la mitad de la unidad de análisis del cuarto modal: el par candidato x intrón."
 obligatorio = true
 
 [[metadatos]]
-nombre = "plasmido de origen, con su nombre completo y md5"
-por_que = "Dos plasmidos «con el intron quimerico» pueden traer variantes distintas. Sin identificar el origen, el resultado no se puede volver a comprobar."
+nombre = "plásmido de origen, con su nombre completo y md5"
+por_que = "Dos plasmidos «con el intrón quimérico» pueden traer variantes distintas. Sin identificar el origen, el resultado no se puede volver a comprobar."
 
 [[metadatos]]
-nombre = "coordenadas de la feature dentro del plasmido"
-por_que = "Es lo que permite comprobar que lo exportado es lo que se creia exportar, sin volver a abrir el plasmido."
+nombre = "coordenadas de la feature dentro del plásmido"
+por_que = "Es lo que permite comprobar que lo exportado es lo que se creia exportar, sin volver a abrir el plásmido."
 
 [[metadatos]]
-nombre = "punto de insercion del modulo"
-por_que = "La app monta el intron CON el modulo dentro. Sin saber donde va, no se puede montar, y pegarlo en un sitio cualquiera daria una construccion con la forma correcta y la secuencia equivocada."
+nombre = "punto de inserción del módulo"
+por_que = "La app monta el intrón CON el módulo dentro. Sin saber donde va, no se puede montar, y pegarlo en un sitio cualquiera daria una construcción con la forma correcta y la secuencia equivocada."

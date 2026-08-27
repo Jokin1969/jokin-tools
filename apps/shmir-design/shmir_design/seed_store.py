@@ -94,7 +94,7 @@ class SeedRun:
         if not self.params.is_standard:
             motivo += (
                 f" AJUSTES MODIFICADOS ({', '.join(self.params.modified())}): esta "
-                f"corrida NO es la estandar y no puede leerse como tal."
+                f"corrida NO es la estándar y no puede leerse como tal."
             )
         return FilterResult(name=FILTER_NAME, state=estado, reason=motivo)
 
@@ -139,7 +139,7 @@ class SeedStore:
             return FilterResult(
                 name=FILTER_NAME, state=FilterState.NOT_RUN,
                 reason=(
-                    f"No hay ninguna corrida de colision de seed para {query_name}. "
+                    f"No hay ninguna corrida de colisión de seed para {query_name}. "
                     f"NOT_RUN no es PASS."
                 ),
             )

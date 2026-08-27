@@ -123,8 +123,15 @@ class TestSemaforo(unittest.TestCase):
         _, seleccion = piezas()
         self.assertIn("NOT_RUN", status_light(seleccion).detail)
 
-    def test_las_ventanas_no_evaluables_se_cuentan_aparte_del_semaforo(self):
-        """Enmascarar deja ventanas con N sin evaluar; eso no es un filtro sin correr."""
+    def test_las_ventanas_descartadas_se_cuentan_aparte_del_semaforo(self):
+        """Que una ventana no sea candidata no es que falte un filtro por correr.
+
+        El texto DECIA «no evaluables (bases desconocidas o enmascaradas)» y contaba
+        otra cosa: las que no pasan los filtros biofísicos. Sobre la corrida real eran
+        1763, y ni una tenía una N ni estaba enmascarada — fallaban GC y homopolímero.
+        Afirmar una causa que no se ha comprobado es el fallo del «comprueba que
+        Streamlit está instalado» y el del «Alu 0 %» obtenido sin buscar Alu.
+        """
         mask = RepeatMask(intervals=((1, 5),), source="prueba")
         _, seleccion = piezas(
             seeds=BOOTSTRAP_SEEDS, mask=mask, specificity=True,
@@ -132,14 +139,17 @@ class TestSemaforo(unittest.TestCase):
         )
         luz = status_light(seleccion)
         self.assertEqual(luz.color, "verde")
-        self.assertIn("no evaluable", luz.detail.lower())
+        # El número va CON su total: un descartado sin total no se puede leer.
+        self.assertIn(f"{luz.tiled} ventanas tiladas", luz.detail)
+        self.assertIn("filtros biofísicos", luz.detail)
+        self.assertNotIn("bases desconocidas", luz.detail)
 
     def test_sin_candidatos_no_hay_verde(self):
         tiling = tile_utr("N" * 200)
         seleccion = select_from_report(tiling, SelectionConfig(n_candidates=3))
         luz = status_light(seleccion)
         self.assertEqual(luz.color, "ambar")
-        self.assertIn("ningun candidato", luz.headline.lower())
+        self.assertIn("ningún candidato", luz.headline.lower())
 
 
 class TestFilasDeTabla(unittest.TestCase):
@@ -233,25 +243,28 @@ class TestMapa(unittest.TestCase):
         self.assertTrue(svg.strip().startswith("<svg"))
         self.assertTrue(svg.strip().endswith("</svg>"))
 
-    def test_marca_cada_candidato(self):
+    def test_marca_cada_candidato_CON_SU_MARCO(self):
+        # La posición va etiquetada, como en cualquier otra salida: el mapa RECIBE el
+        # marco de la anatomía (`report.frame`) en vez de suponer `3utr`. Aquí lo tilado
+        # ES el 3'UTR, así que el marco es `3utr` — y se dice, no se calla.
         tiling, seleccion = piezas()
         svg = map_svg(tiling, seleccion)
         for choice in seleccion.selection.chosen:
             with self.subTest(choice.start):
-                self.assertIn(f'data-candidato="{choice.start}"', svg)
+                self.assertIn(f'data-candidato="3utr:{choice.start}"', svg)
 
     def test_marca_las_señales_de_poliadenilacion(self):
         secuencia = "ACGT" * 20 + "AATAAA" + "ACGT" * 20
         tiling = tile_utr(secuencia)
         seleccion = select_from_report(tiling, SelectionConfig(n_candidates=1))
         svg = map_svg(tiling, seleccion)
-        self.assertIn('data-senal="81"', svg)
+        self.assertIn('data-senal="3utr:81"', svg)
 
     def test_marca_las_zonas_enmascaradas(self):
         mask = RepeatMask(intervals=((100, 200),), source="prueba")
         tiling, seleccion = piezas(mask=mask)
         svg = map_svg(tiling, seleccion)
-        self.assertIn('data-mascara="100-200"', svg)
+        self.assertIn('data-mascara="3utr:100-200"', svg)
 
     def test_marca_los_bloques_conservados(self):
         tiling, seleccion = piezas()

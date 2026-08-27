@@ -57,25 +57,25 @@ SITE_CLASSES = ("8mer", "7mer-m8", "7mer-A1", "6mer")
 #: sale todo lo demas y un lector tiene que poder comprobarlo sin abrir el codigo.
 CLASS_GEOMETRY = {
     "8mer": (
-        "complemento inverso de las posiciones 2-8 de la guia, mas una A en la posicion "
+        "complemento inverso de las posiciones 2-8 de la guía, más una A en la posición "
         "1 de la diana"
     ),
     "7mer-m8": (
-        "complemento inverso de las posiciones 2-8 de la guia, SIN la A"
+        "complemento inverso de las posiciones 2-8 de la guía, SIN la A"
     ),
     "7mer-A1": (
-        "complemento inverso de las posiciones 2-7 de la guia, mas la A"
+        "complemento inverso de las posiciones 2-7 de la guía, más la A"
     ),
     "6mer": (
-        "complemento inverso de las posiciones 2-7 de la guia, sola"
+        "complemento inverso de las posiciones 2-7 de la guía, sola"
     ),
 }
 
 WHY_NOT_SUMMED = (
     "LAS CUATRO CLASES NO SE SUMAN, y no es una preferencia de formato: la represion "
-    "esperada de un 8mer y la de un 6mer no se parecen en nada, asi que un total mezcla "
-    "SEÑAL CON RUIDO y el numero resultante no se refiere a nada. Van en columnas "
-    "separadas siempre. `Counts` no tiene ningun atributo que las sume: si existiera, "
+    "esperada de un 8mer y la de un 6mer no se parecen en nada, así que un total mezcla "
+    "SEÑAL CON RUIDO y el número resultante no se refiere a nada. Van en columnas "
+    "separadas siempre. `Counts` no tiene ningún atributo que las sume: si existiera, "
     "alguien acabaria imprimiendolo."
 )
 
@@ -86,11 +86,11 @@ MISSING_FILE = "transcriptoma_3utr.fa"
 UCSC_ROUTE = (
     "COMO CONSEGUIR EL FICHERO: Table Browser de UCSC, ensamblaje mm39, grupo «Genes "
     "and Gene Predictions», track «NCBI RefSeq», tabla «RefSeq All» o «RefSeq Curated», "
-    "y en «output format» se elige «sequence». Al dar a «get output» pregunta que region "
+    "y en «output format» se elige «sequence». Al dar a «get output» pregunta que región "
     "se quiere: ahi se marca «3' UTR Exons» y se desmarca TODO lo demas. "
     "APUNTA EL ENSAMBLAJE Y LA FECHA DE LA TABLA al descargarlo: sin esas dos cosas el "
-    "conteo no es reproducible, igual que pasa con la version de miRBase y la de Dfam. "
-    "Son unas decenas de megas, asi que NO va a git: en el manifiesto quedan solo "
+    "conteo no es reproducible, igual que pasa con la versión de miRBase y la de Dfam. "
+    "Son unas decenas de megas, así que NO va a git: en el manifiesto quedan solo "
     "nombre, tamaño y md5, como con `refseq_rna.fa`."
 )
 
@@ -99,26 +99,26 @@ CONTROL_NAMES = ("miR-124-3p", "miR-9-5p", "let-7a-5p")
 CONTROLS_NOTE = (
     "CONTROLES BIOLOGICOS, en la misma corrida y sobre el mismo fichero. Su conteo es la "
     "REFERENCIA de que significa «muchos sitios»: son miARN abundantes de cerebro con "
-    "redes de dianas caracterizadas, asi que el valor esperado viene de la BIOLOGIA y no "
-    "del codigo. Sus seeds salen de `mature.fa`, nunca escritas aqui. "
-    "NO se les da percentil: un percentil se calcula contra una nula de LA COMPOSICION "
-    "DE CADA UNO, asi que el de un control contra la nula de nuestra guia no querria "
-    "decir nada. Lo que aportan es MAGNITUD, no posicion."
+    "redes de dianas caracterizadas, así que el valor esperado viene de la BIOLOGIA y no "
+    "del código. Sus seeds salen de `mature.fa`, nunca escritas aquí. "
+    "NO se les da percentil: un percentil se calcula contra una nula de LA COMPOSICIÓN "
+    "DE CADA UNO, así que el de un control contra la nula de nuestra guía no querria "
+    "decir nada. Lo que aportan es MAGNITUD, no posición."
 )
 
 #: Como se sortea la nula. DECLARADO como parametro de este analisis, no citado.
 NULL_CRITERION = (
-    "DISTRIBUCION NULA: permutaciones de la composicion del propio heptamero, contadas "
-    "sobre EL MISMO fichero. Se sortea barajando las siete bases de la seed, asi que "
-    "cada sorteo tiene exactamente la misma composicion que la consulta. "
+    "DISTRIBUCIÓN NULA: permutaciones de la composición del propio heptamero, contadas "
+    "sobre EL MISMO fichero. Se sortea barajando las siete bases de la seed, así que "
+    "cada sorteo tiene exactamente la misma composición que la consulta. "
     "La alternativa —heptameros uniformes al azar— queda DESCARTADA con su motivo: una "
-    "nula uniforme mide sobre todo el contenido de A/T, asi que declararia «cargada» a "
-    "cualquier seed rica en A/T por pura composicion y no por sus sitios."
+    "nula uniforme mide sobre todo el contenido de A/T, así que declararia «cargada» a "
+    "cualquier seed rica en A/T por pura composición y no por sus sitios."
 )
 
 PERCENTILE_RULE = (
     "PERCENTIL = 100 × (sorteos por debajo + medio empate) / sorteos. Los empates van a "
-    "medias a proposito: con conteos enteros hay muchos, y contarlos todos por debajo o "
+    "medias a propósito: con conteos enteros hay muchos, y contarlos todos por debajo o "
     "todos por encima corre el percentil varios puntos segun cual se elija."
 )
 
@@ -132,8 +132,8 @@ USE_NOTE = (
 )
 
 UPPER_BOUND_NOTE = (
-    "LAS TRES LIMITACIONES EMPUJAN EN LA MISMA DIRECCION, asi que el numero es un "
-    "LIMITE SUPERIOR: cuenta SITIOS, no sitios probablemente funcionales. No se compensa "
+    "LAS TRES LIMITACIONES EMPUJAN EN LA MISMA DIRECCIÓN, así que el número es un "
+    "LÍMITE SUPERIOR: cuenta SITIOS, no sitios probablemente funcionales. No se compensa "
     "con un factor ni se corrige a ojo — se dice."
 )
 
@@ -149,30 +149,30 @@ class Limitation:
 LIMITATIONS = (
     Limitation(
         key="conservacion",
-        title="Sin ponderacion por conservacion",
+        title="Sin ponderación por conservación",
         text=(
-            "No tenemos alineamientos multiespecie; TargetScan si. Nuestro numero cuenta "
-            "SITIOS, no sitios probablemente funcionales: un sitio que no esta conservado "
-            "en ninguna otra especie pesa aqui lo mismo que uno conservado en todas. "
+            "No tenemos alineamientos multiespecie; TargetScan si. Nuestro número cuenta "
+            "SITIOS, no sitios probablemente funcionales: un sitio que no está conservado "
+            "en ninguna otra especie pesa aquí lo mismo que uno conservado en todas. "
             "Sobrestima."
         ),
     ),
     Limitation(
         key="apa",
-        title="Sin ponderacion por APA",
+        title="Sin ponderación por APA",
         text=(
-            "Un sitio en la parte DISTAL de un 3'UTR con poliadenilacion alternativa no "
-            "esta en todos los mensajeros de ese gen: la isoforma corta no lo lleva. Lo "
-            "sabemos por Prnp, donde la fraccion de isoforma larga esta medida en 0,86, y "
+            "Un sitio en la parte DISTAL de un 3'UTR con poliadenilación alternativa no "
+            "está en todos los mensajeros de ese gen: la isoforma corta no lo lleva. Lo "
+            "sabemos por Prnp, donde la fracción de isoforma larga está medida en 0,86, y "
             "aplica a los demas genes igual — solo que ahi no lo hemos medido. Sobrestima."
         ),
     ),
     Limitation(
         key="expresion",
-        title="Sin ponderacion por expresion",
+        title="Sin ponderación por expresión",
         text=(
             "Un sitio en un gen que la neurona no expresa no cuenta como off-target. Si "
-            "algun dia hay `expresion_cerebro.tsv` con su referencia y su umbral, esto se "
+            "algun día hay `expresion_cerebro.tsv` con su referencia y su umbral, esto se "
             "refina; hoy no lo hay y todos los genes del fichero pesan igual. Sobrestima."
         ),
     ),
@@ -251,8 +251,8 @@ class SitePatterns:
     def describe(self) -> str:
         piezas = ", ".join(f"{c}={self.sites[c]}" for c in SITE_CLASSES)
         aviso = (
-            "  ⚠ el nucleo se solapa consigo mismo: las apariciones contiguas se cuentan "
-            "todas y el numero puede estar inflado."
+            "  ⚠ el núcleo se solapa consigo mismo: las apariciones contiguas se cuentan "
+            "todas y el número puede estar inflado."
             if self.self_overlapping else ""
         )
         return f"seed {self.heptamer} → {piezas}{aviso}"
@@ -423,7 +423,7 @@ class Provenance:
                 raise ValueError(
                     f"El catalogo de 3'UTR necesita {campo}: sin ensamblaje, tabla, "
                     f"fecha y criterio de representante el conteo NO es reproducible — "
-                    f"es la misma leccion que la version de miRBase y la biblioteca de "
+                    f"es la misma lección que la versión de miRBase y la biblioteca de "
                     f"Dfam. Se aborta."
                 )
 
@@ -476,26 +476,26 @@ class IsoformAudit:
             total = sum(n for _, n in self.repeated_ids)
             piezas.append(
                 f"{len(self.repeated_ids)} identificador(es) repetido(s) en "
-                f"{total} registro(s): el conteo esta INFLADO. La salida de «3' UTR "
-                f"Exons» da un registro POR EXON, asi que un 3'UTR troceado aparece "
+                f"{total} registro(s): el conteo está INFLADO. La salida de «3' UTR "
+                f"Exons» da un registro POR EXON, así que un 3'UTR troceado aparece "
                 f"varias veces."
             )
         if self.duplicate_sequence_groups:
             piezas.append(
-                f"{self.duplicate_sequence_groups} grupo(s) de secuencia IDENTICA "
-                f"({self.records_in_duplicates} registro(s)): el conteo esta INFLADO. "
+                f"{self.duplicate_sequence_groups} grupo(s) de secuencia IDÉNTICA "
+                f"({self.records_in_duplicates} registro(s)): el conteo está INFLADO. "
                 f"Dos isoformas que comparten 3'UTR aportan sus sitios dos veces."
             )
         if self.multi_isoform_genes:
             extra = sum(n - 1 for _, n in self.multi_isoform_genes)
             piezas.append(
-                f"{len(self.multi_isoform_genes)} gen(es) con mas de un transcrito "
-                f"({extra} registro(s) de mas): el conteo esta INFLADO."
+                f"{len(self.multi_isoform_genes)} gen(es) con más de un transcrito "
+                f"({extra} registro(s) de más): el conteo está INFLADO."
             )
         if not self.checked_by_gene:
             piezas.append(
                 "VARIAS ISOFORMAS POR GEN: NO SE HA PODIDO COMPROBAR. De un accession no "
-                "se deduce el gen, y aqui no se adivina: hace falta un mapa "
+                "se deduce el gen, y aquí no se adivina: hace falta un mapa "
                 "transcrito→gen. No haber podido comprobarlo NO es «no las hay»."
             )
         elif not self.multi_isoform_genes:
@@ -570,8 +570,8 @@ def build_catalog(records, *, provenance: Provenance, gene_map=None) -> Catalog:
     registros = tuple((str(n), str(s).upper()) for n, s in records)
     if not registros:
         raise ShmirDesignError(
-            f"El catalogo de 3'UTR esta vacio; se aborta en vez de informar de una carga "
-            f"de cero, que pareceria una buena noticia y seria un fichero mal leido."
+            f"El catalogo de 3'UTR está vacío; se aborta en vez de informar de una carga "
+            f"de cero, que pareceria una buena noticia y sería un fichero mal leido."
         )
     return Catalog(
         records=registros,
@@ -613,14 +613,14 @@ def parse_fasta_pairs(text: str, *, source: str) -> tuple[tuple[str, str], ...]:
     if not pares:
         raise ShmirDesignError(
             f"{source}: no hay ninguna entrada FASTA; se RECHAZA en vez de contar sobre "
-            f"un conjunto vacio."
+            f"un conjunto vacío."
         )
     vacias = [n for n, s in pares if not s]
     if vacias:
         raise ShmirDesignError(
             f"{source}: {len(vacias)} entrada(s) con cabecera y SIN secuencia "
-            f"({', '.join(vacias[:5])}). Se RECHAZA: una entrada vacia cuenta como "
-            f"transcrito y aporta cero sitios, asi que baja la tasa sin que se vea."
+            f"({', '.join(vacias[:5])}). Se RECHAZA: una entrada vacía cuenta como "
+            f"transcrito y aporta cero sitios, así que baja la tasa sin que se vea."
         )
     return tuple(pares)
 
@@ -648,7 +648,7 @@ def validate_upload(raw: str, *, declared_md5: str | None = None,
     texto = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
     if not texto.strip():
         raise ShmirDesignError(
-            "El fichero subido esta vacio; se RECHAZA. Un fichero vacio y un "
+            "El fichero subido está vacío; se RECHAZA. Un fichero vacío y un "
             "transcriptoma sin sitios dan el mismo cero y no son lo mismo."
         )
     md5 = hashlib.md5(texto.encode("utf-8"), usedforsecurity=False).hexdigest()
@@ -657,7 +657,7 @@ def validate_upload(raw: str, *, declared_md5: str | None = None,
             f"El md5 del fichero subido es {md5} y se declaro "
             f"{str(declared_md5).strip().lower()}. Se RECHAZA: el fichero NO es el que "
             f"dice ser, y un conteo sobre otro fichero no es comparable con nada de lo "
-            f"que ya esta guardado."
+            f"que ya está guardado."
         )
     if not texto.lstrip().startswith(">"):
         raise ShmirDesignError(
@@ -672,7 +672,7 @@ def validate_upload(raw: str, *, declared_md5: str | None = None,
             raise ShmirDesignError(
                 f"La entrada {nombre!r} trae caracteres que no son A/C/G/T (ni N): "
                 f"{', '.join(letras)}. Se RECHAZA: esto no es una secuencia de 3'UTR — "
-                f"comprueba que no sea un FASTA de proteina o una salida con anotacion."
+                f"comprueba que no sea un FASTA de proteina o una salida con anotación."
             )
     return UploadReport(
         records=len(pares),
@@ -730,7 +730,7 @@ def null_distribution(index: KmerIndex, patterns: SitePatterns, *,
         raise ValueError(
             f"La nula pide al menos {MIN_NULL_DRAWS} sorteos y se han pedido {draws}; "
             f"con menos, el percentil de la cola —que es justo el que interesa— no tiene "
-            f"resolucion. Se aborta."
+            f"resolución. Se aborta."
         )
     rnd = random.Random(seed)
     bases = list(patterns.heptamer)
@@ -774,7 +774,7 @@ def controls_from_mature(mature, index: KmerIndex, *, prefix: str,
     """Las seeds de los controles salen de `mature.fa`. Aqui no se escribe ninguna."""
     if mature is None:
         raise ShmirDesignError(
-            "No hay `mature.fa` cargado, asi que las seeds de los controles biologicos "
+            "No hay `mature.fa` cargado, así que las seeds de los controles biologicos "
             "no se pueden resolver. NO se escriben a mano (regla 1): se aborta."
         )
     por_nombre: dict[str, str] = {}
@@ -788,9 +788,9 @@ def controls_from_mature(mature, index: KmerIndex, *, prefix: str,
         seed = por_nombre.get(completo)
         if seed is None:
             raise ShmirDesignError(
-                f"El control {completo!r} no esta en {mature.source}: no se puede sacar "
+                f"El control {completo!r} no está en {mature.source}: no se puede sacar "
                 f"su seed. NO se escribe a mano — el valor esperado de un control tiene "
-                f"que venir de la biologia, no del codigo. Se aborta."
+                f"que venir de la biologia, no del código. Se aborta."
             )
         controles.append(
             Control(
@@ -880,10 +880,10 @@ class SelfCount:
         detalle = "; ".join(s.describe() for s in self.detail)
         return (
             f"{self.query}: {self.occurrences} sitios en {self.target_label} "
-            f"[{detalle}]. ANOMALO: hay MULTIPLES DIANAS en el mismo mensajero, asi que "
+            f"[{detalle}]. ANOMALO: hay MULTIPLES DIANAS en el mismo mensajero, así que "
             f"la cinetica de knockdown no se lee igual — el efecto no es de un solo "
             f"sitio. La CLASE de cada uno decide como se lee: un 8mer o un 7mer-m8 de "
-            f"mas dan cooperatividad real; un 6mer es marginal."
+            f"más dan cooperatividad real; un 6mer es marginal."
         )
 
 
@@ -929,7 +929,7 @@ class SharedNetwork:
 
     def describe(self) -> list[str]:
         lineas = [
-            f"{self.a} vs {self.b}: nucleo {'COMPARTIDO' if self.same_core else 'distinto'}",
+            f"{self.a} vs {self.b}: núcleo {'COMPARTIDO' if self.same_core else 'distinto'}",
             f"  posiciones con sitio: {self.positions_a} y {self.positions_b}; "
             f"COMPARTIDAS {self.positions_shared} (Jaccard {self.jaccard:.2f})",
             f"  fuente: {self.source}",
@@ -980,14 +980,14 @@ def shared_network(strand_a: str, strand_b: str, *, catalog: "Catalog | None",
 # ─────────────────────── consecuencia para el MULTIPLEXADO ────────────────────────
 
 MULTIPLEX_NOTE = (
-    "CONSECUENCIA PARA EL MULTIPLEXADO. Dos candidatos que comparten el NUCLEO de 6 nt "
+    "CONSECUENCIA PARA EL MULTIPLEXADO. Dos candidatos que comparten el NÚCLEO de 6 nt "
     "no son dos apuestas independientes en el eje de off-targets, aunque su heptamero "
     "difiera y aunque el espaciado los de por buenos: las cuatro clases de sitio se "
-    "construyen sobre ese nucleo, asi que casi toda su red de dianas accesorias es la "
+    "construyen sobre ese núcleo, así que casi toda su red de dianas accesorias es la "
     "misma. Y el espaciado no lo ve — mide DISTANCIA en el 3'UTR, no parecido de seed. "
     "El caso murino es exactamente ese: `3utr:449` y `3utr:1018` son la pareja que el "
-    "espaciado sugeriria —extremos opuestos del 3'UTR y los dos con buena asimetria— y "
-    "en este eje serian la PEOR eleccion posible."
+    "espaciado sugeriria —extremos opuestos del 3'UTR y los dos con buena asimetría— y "
+    "en este eje serían la PEOR elección posible."
 )
 
 
@@ -1014,14 +1014,14 @@ class CoreConflict:
         El marco se RECIBE, sacado de la anatomia por quien escribe.
         """
         eje = (
-            "y ademas el mismo heptamero, asi que tampoco son independientes en la "
-            "colision con miARN endogeno"
+            "y además el mismo heptamero, así que tampoco son independientes en la "
+            "colisión con miARN endogeno"
             if self.same_heptamer
             else f"con heptameros DISTINTOS ({self.heptamer_a} y {self.heptamer_b}): "
-                 f"difieren solo en la posicion 8, asi que la colision de seed no los "
+                 f"difieren solo en la posición 8, así que la colisión de seed no los "
                  f"empareja y este eje si"
         )
-        return f"{label_a} y {label_b} comparten el nucleo {self.core} {eje}."
+        return f"{label_a} y {label_b} comparten el núcleo {self.core} {eje}."
 
 
 def core_conflicts(selection) -> tuple[CoreConflict, ...]:
@@ -1066,11 +1066,11 @@ class OfftargetParams:
             raise ValueError(
                 f"`null_draws` pide al menos {MIN_NULL_DRAWS} y se han pedido "
                 f"{self.null_draws}. Se aborta: con menos sorteos el percentil de la "
-                f"cola no tiene resolucion, y es el unico numero accionable."
+                f"cola no tiene resolución, y es el único número accionable."
             )
         if not self.normalize_u_t:
             raise ValueError(
-                "La normalizacion U↔T no se puede apagar: sin ella una guia en ADN y un "
+                "La normalización U↔T no se puede apagar: sin ella una guía en ADN y un "
                 "3'UTR en ARN darian CERO sitios, y cero parece una buena noticia."
             )
 
@@ -1099,7 +1099,7 @@ class OfftargetParams:
             lineas.append(
                 "AJUSTES MODIFICADOS: " + ", ".join(tocados)
                 + ". Viajan con el resultado: una nula con otra semilla o con otro "
-                "numero de sorteos NO es la misma nula."
+                "número de sorteos NO es la misma nula."
             )
         else:
             lineas.append("Todos los ajustes en su valor por defecto.")
@@ -1154,13 +1154,13 @@ class OfftargetScan:
         lineas = [
             "═══ Carga de off-targets mediada por seed ═══",
             "",
-            "  PREGUNTA: ¿cuantos mensajeros llevan un sitio para la seed de esta hebra?",
+            "  PREGUNTA: ¿cuántos mensajeros llevan un sitio para la seed de esta hebra?",
             "",
             "  FICHERO:",
         ]
         lineas.extend(f"    {l}" for l in self.provenance.describe())
         lineas.append(f"    {self.audit.warning()}")
-        lineas.extend(["", "  PARAMETROS EFECTIVOS:"])
+        lineas.extend(["", "  PARÁMETROS EFECTIVOS:"])
         lineas.extend(f"    {l}" for l in self.params.describe())
         lineas.extend(["", "  GEOMETRIA DE LAS CUATRO CLASES:"])
         lineas.extend(f"    {c}: {CLASS_GEOMETRY[c]}" for c in SITE_CLASSES)
@@ -1174,7 +1174,7 @@ class OfftargetScan:
             lineas.extend(f"    {r.describe()}" for r in filas)
             lineas.append("")
 
-        lineas.append("  LIMITACIONES — las tres van AQUI, no en un pie:")
+        lineas.append("  LIMITACIONES — las tres van AQUÍ, no en un pie:")
         for lim in LIMITATIONS:
             lineas.append(f"    · {lim.title} [{lim.direction}]")
             lineas.append(f"      {lim.text}")
@@ -1189,7 +1189,7 @@ class OfftargetScan:
         lineas.append("")
 
         for clave, nula in self.nulls.items():
-            lineas.append(f"  NULA para composicion {clave}:")
+            lineas.append(f"  NULA para composición {clave}:")
             lineas.extend(f"    {l}" for l in nula.describe())
         lineas.extend(["", f"  {USE_NOTE}", "", f"  {WHY_NOT_BLAST}"])
         return "\n".join(lineas) + "\n"
@@ -1202,21 +1202,21 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
     """Corre el conteo. Ejecuta: es subcadena contra un fichero ya cargado."""
     if catalog is None:
         raise ShmirDesignError(
-            f"No hay catalogo de 3'UTR cargado, asi que la carga de off-targets por seed "
+            f"No hay catalogo de 3'UTR cargado, así que la carga de off-targets por seed "
             f"no se puede contar. Falta `{MISSING_FILE}`. El frente queda NOT_RUN — que "
-            f"no es PASS y sobre todo NO ES CERO: no saber cuantos sitios hay no es lo "
+            f"no es PASS y sobre todo NO ES CERO: no saber cuántos sitios hay no es lo "
             f"mismo que no haber ninguno."
         )
     if not guides and not passengers:
         raise ShmirDesignError(
-            "No se ha marcado ni guia ni pasajera: son dos consultas y hace falta al "
+            "No se ha marcado ni guía ni pasajera: son dos consultas y hace falta al "
             "menos una. Se aborta."
         )
     pedidos = list(dict.fromkeys(int(s) for s in starts))
     if not pedidos:
         raise ShmirDesignError(
-            "No se ha marcado ningun candidato; se aborta en vez de emitir una corrida "
-            "vacia que parezca haber corrido."
+            "No se ha marcado ningún candidato; se aborta en vez de emitir una corrida "
+            "vacía que parezca haber corrido."
         )
 
     # Las hebras salen de `seed_scan` a proposito: los dos modales tienen que comparar

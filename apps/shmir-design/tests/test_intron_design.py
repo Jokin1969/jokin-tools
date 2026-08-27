@@ -54,7 +54,7 @@ class TestLaAutorizacionVA_ESCRITA(unittest.TestCase):
 
     def test_y_QUE_NO_cubre(self):
         texto = intron_design.AUTHORIZATION.lower()
-        for prohibido in ("guia", "pasajera"):
+        for prohibido in ("guía", "pasajera"):
             self.assertIn(prohibido, texto)
 
     def test_dice_que_el_criptico_esta_en_el_ANDAMIO_no_en_un_espaciador(self):
@@ -227,7 +227,7 @@ class TestLosEspaciadoresNuevos(unittest.TestCase):
 
     def test_y_se_dice_CONTRA_QUE_compite(self):
         motivos = intron_design.spacer_rejections("CTTTTTTTTTCTCTCTCTCTCT")
-        self.assertTrue(any("legitimo" in m.lower() for m in motivos), motivos)
+        self.assertTrue(any("legítimo" in m.lower() for m in motivos), motivos)
 
     def test_un_AG_en_contexto_utilizable_se_rechaza(self):
         motivos = intron_design.spacer_rejections("AG" * 11)
@@ -257,7 +257,7 @@ class TestLosEspaciadoresNuevos(unittest.TestCase):
             if intron_design.is_acceptable(candidato):
                 pasan += 1
         self.assertGreater(pasan, 100, "los filtros no dejan pasar practicamente nada")
-        self.assertLess(pasan, 20000 // 2, "los filtros no estan filtrando")
+        self.assertLess(pasan, 20000 // 2, "los filtros no están filtrando")
 
 
 class TestElSueloDE_80_SE_APLICA_TAMBIEN_AQUI(unittest.TestCase):

@@ -95,7 +95,7 @@ def fetch_one(accession: str, args: argparse.Namespace) -> None:
 
     payload = download_text(url, timeout=args.timeout)
     preview = "\n".join(payload.splitlines()[:PREVIEW_LINES])
-    print("Respuesta cruda (primeras lineas):")
+    print("Respuesta cruda (primeras líneas):")
     print("\n".join(f"  | {line}" for line in preview.splitlines()))
 
     header, sequence = parse_fasta_payload(payload, source=url)
@@ -131,19 +131,19 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--efetch-url",
-        help="Base VERIFICADA del endpoint efetch. Obligatoria con --fetch: el codigo "
+        help="Base VERIFICADA del endpoint efetch. Obligatoria con --fetch: el código "
         "no fija ninguna URL sin verificar (regla 4).",
     )
-    parser.add_argument("--api-key", help="Clave de API de NCBI (limite 10 req/s).")
-    parser.add_argument("--tool", default="shmir-design", help="Parametro de cortesia.")
-    parser.add_argument("--email", help="Parametro de cortesia recomendado por NCBI.")
+    parser.add_argument("--api-key", help="Clave de API de NCBI (límite 10 req/s).")
+    parser.add_argument("--tool", default="shmir-design", help="Parámetro de cortesia.")
+    parser.add_argument("--email", help="Parámetro de cortesia recomendado por NCBI.")
     parser.add_argument("--timeout", type=float, default=60.0)
     args = parser.parse_args(argv)
 
     if args.fetch and not args.efetch_url:
         print(
             "reference_data: --fetch necesita --efetch-url con una base verificada; "
-            "el codigo no fija ninguna URL sin verificar (regla 4).",
+            "el código no fija ninguna URL sin verificar (regla 4).",
             file=sys.stderr,
         )
         return 2
@@ -158,8 +158,8 @@ def main(argv: list[str]) -> int:
     interval = min_interval_seconds(has_api_key=bool(args.api_key))
     if args.fetch:
         print(
-            f"Descargando {len(accessions)} referencia(s), 1 peticion cada "
-            f"{interval:.2f} s como maximo (limite de NCBI, por IP)."
+            f"Descargando {len(accessions)} referencia(s), 1 petición cada "
+            f"{interval:.2f} s como máximo (límite de NCBI, por IP)."
         )
     else:
         print(f"Verificando {len(accessions)} referencia(s) desde fixtures (sin red).")

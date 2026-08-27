@@ -234,7 +234,7 @@ class TestLaDistribucionNula(unittest.TestCase):
 
     def test_el_criterio_de_la_nula_va_DECLARADO_no_citado(self):
         texto = offtarget.NULL_CRITERION.lower()
-        self.assertIn("composicion", texto)
+        self.assertIn("composición", texto)
         self.assertIn("permutaci", texto)
 
     def test_todos_los_sorteos_tienen_LA_MISMA_composicion(self):
@@ -361,7 +361,7 @@ class TestLasTresLimitaciones(unittest.TestCase):
         self.assertIn("expresion_cerebro.tsv", texto)
 
     def test_la_conclusion_es_LIMITE_SUPERIOR(self):
-        self.assertIn("limite superior", offtarget.UPPER_BOUND_NOTE.lower())
+        self.assertIn("límite superior", offtarget.UPPER_BOUND_NOTE.lower())
 
     def test_una_limitacion_que_no_existe_ABORTA(self):
         with self.assertRaises(KeyError):
@@ -384,7 +384,7 @@ class TestLaProcedenciaDelFichero(unittest.TestCase):
 
     def test_necesita_ensamblaje_y_fecha_de_la_tabla(self):
         for campo in ("assembly", "table_date", "representative", "md5", "version"):
-            with self.assertRaises(ValueError, msg=f"{campo} vacio tenia que abortar"):
+            with self.assertRaises(ValueError, msg=f"{campo} vacío tenia que abortar"):
                 offtarget.Provenance(
                     **{
                         **{
@@ -392,7 +392,7 @@ class TestLaProcedenciaDelFichero(unittest.TestCase):
                             "assembly": "mm39",
                             "table": "NCBI RefSeq / RefSeq All",
                             "table_date": "2026-08-26",
-                            "representative": "el mas largo por gen",
+                            "representative": "el más largo por gen",
                             "version": "v1",
                             "md5": "0" * 32,
                         },
@@ -663,7 +663,7 @@ class TestNoHayDosContadoresQueDISCREPEN(unittest.TestCase):
             self.assertEqual(
                 {t: nuevo[t] for t in viejo.SITE_TYPES}, anterior,
                 f"3utr:{elegido.start}: el contador de la tabla y el del frente "
-                f"discrepan. Uno de los dos esta mal y no se elige por nuestra cuenta.",
+                f"discrepan. Uno de los dos está mal y no se elige por nuestra cuenta.",
             )
 
     def test_y_el_6mer_es_lo_que_el_contador_viejo_NO_veia(self):

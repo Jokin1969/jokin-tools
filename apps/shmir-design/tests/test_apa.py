@@ -108,7 +108,7 @@ class TestSinDatoMedido(unittest.TestCase):
 
     def test_y_se_dice_con_esas_palabras(self):
         a = apa_assessment(window_start=500, sites=None, predicted_risk=True)
-        self.assertIn("prediccion", a.reason.lower())
+        self.assertIn("predicción", a.reason.lower())
 
     def test_sin_sitios_no_hay_fraccion_perdida(self):
         a = apa_assessment(window_start=500, sites=None, predicted_risk=True)
@@ -190,7 +190,7 @@ class TestSinFraccionDeLecturas(unittest.TestCase):
         a = apa_assessment(
             window_start=500, sites=self.SIN_FRACCION, predicted_risk=False
         )
-        self.assertIn("fraccion", a.reason.lower())
+        self.assertIn("fracción", a.reason.lower())
 
     def test_no_se_inventa_un_techo(self):
         a = apa_assessment(

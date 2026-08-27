@@ -50,7 +50,7 @@ def canonical_form(sequence: str | None, *, name: str = "secuencia") -> str:
     cleaned = "".join(sequence.split()).upper()
     if not cleaned:
         raise MissingSequenceError(
-            f"La {name} esta vacia; se aborta el paso 0 (descarga + checksum)."
+            f"La {name} está vacía; se aborta el paso 0 (descarga + checksum)."
         )
     return cleaned
 
@@ -86,18 +86,18 @@ class ReferenceTranscript:
             if start != esperado_inicio or end < start:
                 raise ValueError(
                     f"{self.accession}: el tramo {nombre} declarado {start}-{end} no "
-                    f"continua en {esperado_inicio}; anatomia incoherente, se aborta."
+                    f"continua en {esperado_inicio}; anatomía incoherente, se aborta."
                 )
             esperado_inicio = end + 1
         if self.utr3[1] != self.length:
             raise ValueError(
                 f"{self.accession}: el 3'UTR termina en {self.utr3[1]} pero el "
-                f"transcrito mide {self.length} nt; anatomia incoherente, se aborta."
+                f"transcrito mide {self.length} nt; anatomía incoherente, se aborta."
             )
         if self.cds_length % 3 != 0:
             raise ValueError(
                 f"{self.accession}: el CDS mide {self.cds_length} nt, que no es "
-                f"multiplo de 3; anatomia incoherente, se aborta."
+                f"multiplo de 3; anatomía incoherente, se aborta."
             )
         for nombre, valor in (("md5", self.md5), ("utr3_md5", self.utr3_md5)):
             if len(valor) != 32 or any(c not in "0123456789abcdef" for c in valor):
@@ -209,8 +209,8 @@ def extract_3utr(sequence: str | None, reference: ReferenceTranscript) -> str:
     if obtained != reference.utr3_md5:
         raise ChecksumMismatchError(
             f"{reference.accession}: el 3'UTR extraido ({start}-{end}) tiene md5 "
-            f"{obtained} y la referencia dice {reference.utr3_md5}. La extraccion no "
-            f"coincide con la anatomia verificada. {ABORT_HINT}"
+            f"{obtained} y la referencia dice {reference.utr3_md5}. La extracción no "
+            f"coincide con la anatomía verificada. {ABORT_HINT}"
         )
     return utr3
 
@@ -250,7 +250,7 @@ def find_fixture(
     raise MissingSequenceError(
         f"No se encontro el fixture {fixture_filename(reference)} de "
         f"{reference.accession}; se buscó en: {buscados}. Se aborta el paso 0: sin "
-        f"secuencia no hay analisis y no se genera ninguna. Anadelo al repositorio o "
+        f"secuencia no hay análisis y no se genera ninguna. Anadelo al repositorio o "
         f"descargalo con tools/reference_data.py --fetch --efetch-url <base verificada>."
     )
 
@@ -270,14 +270,14 @@ def load_reference(
         ) from exc
     except UnicodeDecodeError as exc:
         raise MissingSequenceError(
-            f"El fixture {path} no es UTF-8 valido ({exc}); se aborta el paso 0."
+            f"El fixture {path} no es UTF-8 válido ({exc}); se aborta el paso 0."
         ) from exc
 
     try:
         _, sequence = parse_fasta_payload(raw, source=str(path))
     except FetchError as exc:
         raise MissingSequenceError(
-            f"El fixture {path} no es un FASTA de un unico registro ({exc}); "
+            f"El fixture {path} no es un FASTA de un único registro ({exc}); "
             f"se aborta el paso 0."
         ) from exc
 
@@ -334,10 +334,10 @@ def write_sequence_file(
     checksum = sequence_md5(limpia)
     destino = Path(directory) / f"{stem}_{len(limpia)}nt_{checksum[:12]}.txt"
     lineas = [
-        f"# {stem} — {len(limpia)} nt — md5 canonico {checksum}",
+        f"# {stem} — {len(limpia)} nt — md5 canónico {checksum}",
         "# Este fichero es lo que se pega en la herramienta externa. No copies de una",
         "# pantalla: lo que se pierde al copiar son las carreras de homopolimero, y eso",
-        "# no se ve. Si la herramienta pide texto plano, pega el cuerpo de aqui abajo.",
+        "# no se ve. Si la herramienta pide texto plano, pega el cuerpo de aquí abajo.",
     ]
     if note:
         lineas.append(f"# {note}")
@@ -367,7 +367,7 @@ def read_sequence_file(path: Path | str) -> str:
     ]
     if not declarados:
         raise ShmirDesignError(
-            f"{ruta}: no trae ningun md5 en su cabecera, asi que no se puede comprobar "
+            f"{ruta}: no trae ningún md5 en su cabecera, así que no se puede comprobar "
             f"que sea lo que dice ser. Se aborta: un fichero de secuencia sin checksum "
             f"es exactamente lo que hay que dejar de aceptar."
         )
@@ -399,7 +399,7 @@ def describe_sequence(sequence: str, *, name: str, full: bool = False) -> str:
     limpia = _normalizada(sequence, name=name)
     if not limpia:
         raise ShmirDesignError(
-            f"{name}: no se etiqueta una secuencia vacia; se aborta en vez de imprimir "
+            f"{name}: no se etiqueta una secuencia vacía; se aborta en vez de imprimir "
             f"una etiqueta que no describe nada."
         )
     checksum = sequence_md5(limpia)

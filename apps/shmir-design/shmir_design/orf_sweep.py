@@ -33,23 +33,23 @@ from .hard_filters import DEFAULT_THRESHOLDS, Thresholds
 #: Lo que NO se le pregunta a una ventana del ORF, con el motivo que va escrito.
 ORF_NOT_APPLICABLE = {
     "zona_prohibida_polyA": (
-        "La ventana cae en el ORF, no en el 3'UTR. Las señales de poliadenilacion solo "
-        "tienen sentido sobre el 3'UTR: aqui la pregunta no aplica. NO_APLICA no es PASS."
+        "La ventana cae en el ORF, no en el 3'UTR. Las señales de poliadenilación solo "
+        "tienen sentido sobre el 3'UTR: aquí la pregunta no aplica. NO_APLICA no es PASS."
     ),
     "APA": (
-        "La poliadenilacion alternativa recorta el 3'UTR, no el ORF: una ventana del ORF "
-        "esta en todas las isoformas. La pregunta no aplica. NO_APLICA no es PASS."
+        "La poliadenilación alternativa recorta el 3'UTR, no el ORF: una ventana del ORF "
+        "está en todas las isoformas. La pregunta no aplica. NO_APLICA no es PASS."
     ),
     "tercio": (
         "Los tercios se cuentan sobre el 3'UTR. Una ventana del ORF no tiene tercio, y "
-        "asignarle uno seria inventarse una coordenada. NO_APLICA no es PASS."
+        "asignarle uno sería inventarse una coordenada. NO_APLICA no es PASS."
     ),
 }
 
 #: Los que SI aplican en el ORF pero necesitan un fichero. Sin el, NOT_RUN.
 ORF_PENDING = {
     "seed_colision": "no hay lista curada de miARN abundantes cargada",
-    "repeticiones": "no hay mascara de repeticiones cargada",
+    "repeticiones": "no hay máscara de repeticiones cargada",
     "especificidad": "no hay base de RefSeq RNA cargada",
 }
 
@@ -77,8 +77,8 @@ def translate(sequence: str) -> str:
     for codon in codones:
         if codon not in GENETIC_CODE:
             raise ValueError(
-                f"Codon {codon!r} no esta en el codigo genetico estandar (¿una N?); se "
-                f"aborta la traduccion en vez de inventar el aminoacido."
+                f"Codon {codon!r} no está en el código genetico estándar (¿una N?); se "
+                f"aborta la traducción en vez de inventar el aminoacido."
             )
     return "".join(GENETIC_CODE[c] for c in codones)
 
@@ -107,37 +107,37 @@ def _envolver(texto: str, ancho: int) -> list[str]:
 #: 2026-08-26 y SIN COMPROBAR aqui: este repositorio no tiene estructura ni alineamiento
 #: de proteina, y darla por propia seria inventar la fuente que la respalda.
 STRUCTURAL_NOTE_VERIFIED = (
-    "VERIFICADO aqui traduciendo los ORF del repositorio: la ventana empieza en el codon "
+    "VERIFICADO aquí traduciendo los ORF del repositorio: la ventana empieza en el codón "
     "{codon_a} ({especie_a}) / {codon_b} ({especie_b}), en marco, y codifica el peptido "
-    "{peptido} — el MISMO en las dos especies. Su posicion 4 es una CISTEINA: "
+    "{peptido} — el MISMO en las dos especies. Su posición 4 es una CISTEINA: "
     "{cis_a} ({especie_a}) / {cis_b} ({especie_b}). "
     "PrP tiene UN solo puente disulfuro, C178-C213 en raton y C179-C214 en humano, y eso "
-    "tambien se sostiene aqui sin estructura: en el ORF murino solo hay tres cisteinas "
-    "({cisteinas_a}) y la primera esta en el peptido señal, asi que no hay un segundo par "
+    "también se sostiene aquí sin estructura: en el ORF murino solo hay tres cisteinas "
+    "({cisteinas_a}) y la primera está en el peptido señal, así que no hay un segundo par "
     "posible. En humano, {cisteinas_b}."
 )
 
 STRUCTURAL_NOTE_DECLARED = (
-    "DECLARADO por el responsable del proyecto y sin comprobar aqui —este repositorio no "
+    "DECLARADO por el responsable del proyecto y sin comprobar aquí —este repositorio no "
     "tiene estructura ni alineamiento de proteina—: la helice B (H2) va de ~173 a 194, "
-    "asi que la ventana cae en su EXTREMO N-TERMINAL. Nucleo estructural bajo fuerte "
-    "seleccion purificadora."
+    "así que la ventana cae en su EXTREMO N-TERMINAL. Núcleo estructural bajo fuerte "
+    "selección purificadora."
 )
 
 #: La consecuencia que NO es intuitiva y por eso va escrita.
 GNOMAD_NOTE = (
-    "Que la region este bajo seleccion purificadora restringe los NO SINONIMOS, no los "
-    "SINONIMOS — y son los sinonimos los que rompen el apareamiento de la guia sin tocar "
-    "la proteina. Asi que «region conservada» NO exime de mirar variacion: gnomAD sobre "
-    "esta ventana es OBLIGATORIO, y hoy esta en NOT_RUN. NOT_RUN no es PASS."
+    "Que la región este bajo selección purificadora restringe los NO SINONIMOS, no los "
+    "SINONIMOS — y son los sinonimos los que rompen el apareamiento de la guía sin tocar "
+    "la proteina. Así que «región conservada» NO exime de mirar variación: gnomAD sobre "
+    "esta ventana es OBLIGATORIO, y hoy está en NOT_RUN. NOT_RUN no es PASS."
 )
 
 #: La propiedad de alcance de una guia contra el ORF conservado.
 REACH_NOTE = (
-    "PROPIEDAD CLAVE DE ALCANCE: una guia contra esta ventana alcanza PRNP humano —y por "
-    "tanto Tg650 y las lineas humanizadas— y NO alcanza el transgen del casete, porque su "
-    "ORF esta codon-optimizado. Es exactamente el reparto que hace falta: silencia lo "
-    "endogeno de las dos especies y respeta la construccion terapeutica."
+    "PROPIEDAD CLAVE DE ALCANCE: una guía contra esta ventana alcanza PRNP humano —y por "
+    "tanto Tg650 y las líneas humanizadas— y NO alcanza el transgén del casete, porque su "
+    "ORF está codón-optimizado. Es exactamente el reparto que hace falta: silencia lo "
+    "endogeno de las dos especies y respeta la construcción terapeutica."
 )
 
 
@@ -254,20 +254,20 @@ class OrfSweep:
                 f"({label(candidato.tx_start_b, Frame.TX)})  {candidato.target_a}"
             )
             lineas.append(
-                f"      codon {candidato.codon_a} ({a}) / {candidato.codon_b} ({b}); "
+                f"      codón {candidato.codon_a} ({a}) / {candidato.codon_b} ({b}); "
                 + (
                     f"la ventana cubre los codones "
                     f"{candidato.codon_span_a[0]}-{candidato.codon_span_a[1]}, empieza "
                     f"en marco y codifica {candidato.peptide}."
                     if candidato.in_frame
-                    else "NO empieza en marco (arranca en la 2ª o 3ª base de su codon), "
-                    "asi que no se traduce: dar un peptido desde ahi seria una cadena "
+                    else "NO empieza en marco (arranca en la 2ª o 3ª base de su codón), "
+                    "así que no se traduce: dar un peptido desde ahi sería una cadena "
                     "que no existe."
                 )
             )
         if not self.passing:
             lineas.append(
-                "    Ninguna. Por esta via tampoco hay shmiR unico, y con eso se cierran "
+                "    Ninguna. Por esta via tampoco hay shmiR único, y con eso se cierran "
                 "las dos."
             )
         if self.passing:
@@ -291,18 +291,18 @@ class OrfSweep:
         lineas.extend(
             [
                 "  polyA, APA y tercios salen NO_APLICA en estas ventanas: son "
-                "heuristicas del 3'UTR y",
+                "heurísticas del 3'UTR y",
                 "  sobre el ORF la pregunta no se hace. NO_APLICA no es PASS.",
-                "  seed, repetitivos y especificidad SI aplican aqui, y hoy estan en "
+                "  seed, repetitivos y especificidad SI aplican aquí, y hoy están en "
                 "NOT_RUN por falta de",
-                "  fichero: estas ventanas NO estan aprobadas, estan preseleccionadas.",
-                "  EL TRANSGEN NO ES UN OBSTACULO EN ESTE BACKBONE: el ORF del casete "
+                "  fichero: estas ventanas NO están aprobadas, están preseleccionadas.",
+                "  EL TRANSGÉN NO ES UN OBSTACULO EN ESTE BACKBONE: el ORF del casete "
                 "AAV esta",
-                "  CODON-OPTIMIZADO, asi que ya es RESISTENTE a una guia contra el ORF "
+                "  CODÓN-OPTIMIZADO, así que ya es RESISTENTE a una guía contra el ORF "
                 "nativo SIN",
-                "  RECODIFICAR nada. El obstaculo clasico de la via ORF no existe aqui. "
+                "  RECODIFICAR nada. El obstaculo clasico de la via ORF no existe aquí. "
                 "Se comprueba igual",
-                "  con el filtro del transgen: no se da por supuesto.",
+                "  con el filtro del transgén: no se da por supuesto.",
             ]
         )
         return lineas
@@ -320,8 +320,8 @@ def orf_sweep(
     """Tramos de identidad exacta entre los dos ORF, con la cascada aplicada."""
     if min_block < 22:
         raise ValueError(
-            f"min_block={min_block}: por debajo de 22 nt no cabe una guia entera dentro "
-            f"del tramo conservado, asi que el barrido no significa nada. Se aborta."
+            f"min_block={min_block}: por debajo de 22 nt no cabe una guía entera dentro "
+            f"del tramo conservado, así que el barrido no significa nada. Se aborta."
         )
     informe = build_conservation_report(
         Utr3(species[0], orf_a),

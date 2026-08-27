@@ -1,0 +1,23 @@
+# Alcanzabilidad: lo que NO tiene llamador y aun así se queda.
+#
+# `tools/check_alcance.py` lista toda función y clase pública de `shmir_design/` sin
+# ningún llamador fuera de su propio módulo y de sus tests. No es un fallo automático —
+# hay casos legítimos— pero aparecer ahí OBLIGA A DECIDIR: o se cablea, o se justifica
+# aquí por escrito, o se borra.
+#
+# Existe porque este proyecto ha llegado tres veces al mismo sitio: código con tests en
+# verde y sin ningún caller (`triple_motive_rows`, `intron_folding`, `store.save_*`).
+# Los tests prueban que la función hace lo que dice; el golden lee lo que se emite; lo
+# que nunca llega a emitirse no aparece en ninguno de los dos.
+#
+# REGLA DE LA LISTA: una excepción para un símbolo que ya tiene llamador, o que ya no
+# existe, ABORTA la comprobación. Una lista con entradas muertas deja de leerse, y
+# entonces el siguiente hallazgo se pierde dentro.
+#
+# El motivo se escribe entero. «Se usa» no es un motivo: hay que decir DÓNDE y POR QUÉ
+# el análisis no lo ve.
+
+[justificados]
+
+# ── Se llama desde FUERA de Python ──
+seed_reference_dir = "La invoca el hub, no Python: `apps/shmir/routes.js` la ejecuta con `python3 -c` al arrancar la interfaz, para sembrar el directorio de trabajo. El análisis solo lee ficheros .py, así que este llamador le es invisible por construcción — no por descuido."
