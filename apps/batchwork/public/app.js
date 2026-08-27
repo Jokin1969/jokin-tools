@@ -4958,7 +4958,7 @@ function cmpCompare(a, b) {
 const cmpFmt = n => Number(n).toLocaleString('es-ES');
 
 function renderDnaCompareUI(zone) {
-  const cmp = { items: [], mode: 'byname' }; // { name, base, kind, seq, circular, topologyKnown, error }
+  const cmp = { items: [], mode: 'byname', flexible: false }; // { name, base, kind, seq, circular, topologyKnown, error }
   const root = mk('div', 'bw-params');
 
   // ── Explanation ─────────────────────────────────────────────────────────────
@@ -4995,6 +4995,55 @@ function renderDnaCompareUI(zone) {
       </div>
     </label>`;
   root.appendChild(modes);
+
+  // ── Toggle "flexible" (solo aplica al modo "emparejar por nombre") ───────────
+  const flexRow = mk('div', 'dnacmp-flex-row');
+  flexRow.innerHTML = `
+    <label class="dnacmp-flex-toggle">
+      <input type="checkbox" id="dnacmp-flex-chk">
+      <span>Emparejado flexible — ignora el número inicial y los guiones "-" / "_" del nombre
+        <small>(p. ej. «11_pAAV…» y «pAAV…» se tratan como el mismo nombre)</small></span>
+    </label>
+    <div class="dnacmp-flex-err" hidden></div>`;
+  root.appendChild(flexRow);
+  const flexChk = flexRow.querySelector('#dnacmp-flex-chk');
+  const flexErr = flexRow.querySelector('.dnacmp-flex-err');
+
+  function showFlexError(collisions) {
+    const list = collisions.map(names => names.join(' = ')).join('; ');
+    flexErr.textContent = `No se puede activar el modo flexible: al ignorar el número inicial y los guiones, estos nombres quedarían repetidos → ${list}`;
+    flexErr.hidden = false;
+  }
+  function clearFlexError() { flexErr.hidden = true; flexErr.textContent = ''; }
+
+  // Revisa colisiones AHORA MISMO (con lo ya cargado) y solo activa el modo
+  // flexible si de verdad no genera nombres repetidos.
+  function tryEnableFlexible() {
+    const collisions = cmpFlexCollisions(cmp.items);
+    if (collisions.length) {
+      cmp.flexible = false;
+      flexChk.checked = false;
+      showFlexError(collisions);
+      return;
+    }
+    cmp.flexible = true;
+    clearFlexError();
+  }
+  flexChk.addEventListener('change', () => {
+    if (flexChk.checked) tryEnableFlexible();
+    else { cmp.flexible = false; clearFlexError(); }
+  });
+  // Si con el modo flexible ya activado se añaden/quitan ficheros y aparece una
+  // colisión nueva, se desactiva solo y se avisa — nunca se queda "a medias".
+  function revalidateFlexible() {
+    if (!cmp.flexible) return;
+    const collisions = cmpFlexCollisions(cmp.items);
+    if (collisions.length) {
+      cmp.flexible = false;
+      flexChk.checked = false;
+      showFlexError(collisions);
+    }
+  }
 
   // ── Drop zone ───────────────────────────────────────────────────────────────
   const drop = makeDropZone({
@@ -5055,6 +5104,9 @@ function renderDnaCompareUI(zone) {
   function setMode(m) {
     cmp.mode = m === 'pair' ? 'pair' : 'byname';
     modes.querySelectorAll('.dnacmp-mode').forEach(el => el.classList.toggle('is-sel', el.dataset.mode === cmp.mode));
+    // El modo flexible solo tiene sentido emparejando por nombre.
+    flexRow.style.display = cmp.mode === 'byname' ? '' : 'none';
+    if (cmp.mode !== 'byname') { cmp.flexible = false; flexChk.checked = false; clearFlexError(); }
     enforcePairLimit();
     results.innerHTML = '';
     renderLoaded();
@@ -5087,6 +5139,7 @@ function renderDnaCompareUI(zone) {
       }
     }
     enforcePairLimit();
+    revalidateFlexible();
     renderLoaded();
     updateEnabled();
   }
@@ -5107,7 +5160,7 @@ function renderDnaCompareUI(zone) {
                   : `<span class="dnacmp-chip-meta">${cmpFmt(it.seq.length)} nt</span>`);
       const x = mk('button', 'dnacmp-chip-x', '×');
       x.type = 'button';
-      x.addEventListener('click', () => { cmp.items.splice(i, 1); renderLoaded(); updateEnabled(); });
+      x.addEventListener('click', () => { cmp.items.splice(i, 1); revalidateFlexible(); renderLoaded(); updateEnabled(); });
       chip.appendChild(x);
       grid.appendChild(chip);
     });
@@ -5123,15 +5176,42 @@ function renderDnaCompareUI(zone) {
     if (txt) txt.textContent = dropLabel();
   });
 
-  btnCompare.addEventListener('click', () => runComparison(cmp.items, results, cmp.mode));
+  // El toggle empieza oculto/visible según el modo por defecto ('byname').
+  flexRow.style.display = cmp.mode === 'byname' ? '' : 'none';
+
+  btnCompare.addEventListener('click', () => runComparison(cmp.items, results, cmp.mode, cmp.flexible));
 }
 
-function runComparison(items, results, mode) {
+// "Modo flexible" del emparejamiento por nombre: ignora el número inicial (p. ej.
+// "11_", "2_"…) y cualquier guion "-" o guion bajo "_" del nombre base, como si no
+// estuvieran — solo esos dos separadores y solo el número del principio; el resto
+// del nombre (números en medio, espacios, paréntesis…) no se toca.
+function cmpFlexKey(base) {
+  return base.replace(/^\d+/, '').replace(/[-_]/g, '').toLowerCase();
+}
+
+// El modo flexible solo es un problema cuando hace que DOS ficheros de la MISMA
+// extensión (dos .dna, o dos .gb) colapsen a la misma clave: ahí el emparejamiento
+// ya no puede decidir cuál de los dos usar. Que un .dna y un .gb colapsen es
+// justo el objetivo (emparejarlos), así que eso no cuenta como colisión.
+function cmpFlexCollisions(items) {
+  const seen = new Map(); // "kind:key" -> [nombres]
+  for (const it of items) {
+    if (it.error || !it.kind) continue;
+    const key = `${it.kind}:${cmpFlexKey(it.base)}`;
+    if (!seen.has(key)) seen.set(key, []);
+    seen.get(key).push(it.name);
+  }
+  return [...seen.values()].filter(names => names.length > 1);
+}
+
+function runComparison(items, results, mode, flexible) {
   if (mode === 'pair') return runPairComparison(items, results);
-  // Group by base name (case-insensitive). Keep the first valid item per side.
+  // Group by base name (case-insensitive, or "flexible" — ver cmpFlexKey). Keep the
+  // first valid item per side.
   const groups = new Map(); // key -> { base, dna, gb, dnaErr, gbErr }
   for (const it of items) {
-    const key = it.base.toLowerCase();
+    const key = flexible ? cmpFlexKey(it.base) : it.base.toLowerCase();
     if (!groups.has(key)) groups.set(key, { base: it.base, dna: null, gb: null, dnaErr: null, gbErr: null });
     const g = groups.get(key);
     if (it.kind === 'dna') { if (it.error) g.dnaErr = g.dnaErr || it; else g.dna = g.dna || it; }
