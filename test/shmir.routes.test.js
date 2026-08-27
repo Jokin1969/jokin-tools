@@ -56,3 +56,27 @@ test('el proceso se para al apagar el hub', () => {
   );
   assert.match(fuente, /shmir\/process'\)\.stop\(\)/);
 });
+
+test('/shmir lleva su PROPIA CSP: la del hub no deja pasar a Streamlit', () => {
+  // La del hub es global y estricta: `font-src 'self' https://fonts.gstatic.com` bloquea
+  // la fuente de iconos de Streamlit, que viaja como `data:`. Se le da una política a
+  // esta ruta en vez de relajar la del hub entero — las demás apps no tienen por qué
+  // pagar lo que necesita ésta.
+  const fuente = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'apps', 'shmir', 'routes.js'), 'utf8'
+  );
+  assert.match(fuente, /Content-Security-Policy/);
+  assert.match(fuente, /font-src 'self' data:/);
+  assert.match(fuente, /worker-src 'self' blob:/);
+  assert.match(fuente, /connect-src 'self' ws: wss:/);
+});
+
+test("y NO se relaja con 'unsafe-eval'", () => {
+  // Se comprobó con un navegador de verdad que la app renderiza sin él. Añadirlo «por si
+  // acaso» sería abrir un agujero para nada.
+  const fuente = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'apps', 'shmir', 'routes.js'), 'utf8'
+  );
+  assert.ok(!/'unsafe-eval'/.test(fuente.split('const CSP_SHMIR')[1].split(']')[0]),
+    "la CSP de /shmir lleva 'unsafe-eval'");
+});

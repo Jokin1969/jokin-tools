@@ -57,6 +57,22 @@ function upgradeAllowed(req, { store, appId }) {
 //
 // Se reescribe SOLO lo que apunta al upstream: una redirección a otro sitio es legítima
 // y reescribirla la rompería.
+// El `Origin` que manda el navegador es el del HUB, y Streamlit solo admite localhost y
+// las IPs de su propia maquina (`server.enableCORS`). Detras de un proxy eso rechaza el
+// WebSocket con un 403 — y el sintoma es de los peores: el HTML y los estaticos cargan,
+// asi que se ve el ESQUELETO de la pagina, pero como todo el estado viaja por
+// `/_stcore/stream` no se rellena nunca. Ningun error visible.
+//
+// Se reescribe el Origin al del propio upstream en vez de apagarle el CORS a Streamlit.
+// Es mas estrecho y conserva la propiedad: lo unico que llega a Streamlit con un Origin
+// aceptable es lo que pasa por ESTE proxy, que ya comprueba sesion y permiso en
+// `upgradeAllowed`. Si algun dia el puerto quedara expuesto, la comprobacion de Streamlit
+// seguiria ahi; con `--server.enableCORS=false` no quedaria ninguna.
+function rewriteOrigin(headers, { port }) {
+  if (!headers.origin) return headers;
+  return { ...headers, origin: `http://${HOST}:${port}` };
+}
+
 function rewriteLocation(location, { port }) {
   if (!location) return location;
   const prefijos = [`http://${HOST}:${port}`, `https://${HOST}:${port}`];
@@ -81,7 +97,7 @@ function proxyRequest(req, res, { port, timeoutMs = 120000, path = null }) {
       port,
       method: req.method,
       path: ruta,
-      headers: { ...req.headers, host: `${HOST}:${port}` },
+      headers: rewriteOrigin({ ...req.headers, host: `${HOST}:${port}` }, { port }),
     },
     upRes => {
       const cabeceras = { ...upRes.headers };
@@ -119,7 +135,7 @@ function proxyUpgrade(req, socket, head, { port }) {
     port,
     method: req.method,
     path: req.url,
-    headers: { ...req.headers, host: `${HOST}:${port}` },
+    headers: rewriteOrigin({ ...req.headers, host: `${HOST}:${port}` }, { port }),
   });
 
   upstream.on('upgrade', (upRes, upSocket, upHead) => {
@@ -165,5 +181,6 @@ function denySocket(socket, status, reason) {
 }
 
 module.exports = {
-  upgradeAllowed, proxyRequest, proxyUpgrade, denySocket, rewriteLocation, COOKIE_NAME,
+  upgradeAllowed, proxyRequest, proxyUpgrade, denySocket, rewriteLocation, rewriteOrigin,
+  COOKIE_NAME,
 };

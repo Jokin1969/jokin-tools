@@ -74,6 +74,18 @@ Lo que hay que saber para tocarlo:
   Streamlit hace todo por él (`/_stcore/stream`). La sesión y el permiso se comprueban a
   mano en `proxy.upgradeAllowed`, enganchada en `server.on('upgrade')`, y tiene tests
   propios. Si alguien mueve ese handler, la app queda abierta sin login.
+- **El `Origin` se REESCRIBE al del upstream.** El navegador manda el del hub y Streamlit
+  sólo admite localhost (`server.enableCORS`), así que rechaza el WebSocket con un 403 y
+  la página se queda con el **esqueleto sin rellenar** — sin ningún error visible. Se
+  reescribe en vez de apagarle el CORS: así lo único con un Origin aceptable es lo que
+  pasa por el proxy, que ya comprueba sesión y permiso.
+- **`/shmir` lleva su propia CSP.** La del hub bloquea la fuente `data:` de Streamlit y
+  sus workers `blob:`. Se le da una política a esa ruta en vez de relajar la del hub; no
+  lleva `'unsafe-eval'`, comprobado con un navegador de verdad.
+- **Streamlit se apaga el modo desarrollo a mano** (`--global.developmentMode=false`): lo
+  decide con `"site-packages" not in __file__`, y `pip install --target=` deja la ruta sin
+  él, así que `--server.port` pasa a ser un conflicto y el proceso aborta. En local vive
+  en site-packages: esto pasa en desarrollo y revienta en producción.
 - **Express QUITA el prefijo del montaje**: dentro del router, `/shmir/` llega como `/`.
   Streamlit sirve bajo `--server.baseUrlPath=/shmir`, así que reenviar `req.url` da un
   404 **sin ningún error en ningún log**: la app simplemente no aparece. Se reenvía

@@ -172,6 +172,48 @@ test('y un Location que NO apunta al upstream se deja como está', () => {
   assert.equal(rewriteLocation(undefined, { port: 8501 }), undefined);
 });
 
+test('reescribe el Origin, o Streamlit rechaza el WebSocket con un 403', async () => {
+  // Fallo real, y el síntoma es de los peores: el HTML y los estáticos cargan, así que
+  // se ve el ESQUELETO de la página, pero como todo el estado viaja por
+  // `/_stcore/stream` no se rellena nunca. Ningún error visible en ningún sitio.
+  //
+  // La causa: el navegador manda el Origin del HUB, y Streamlit sólo admite localhost y
+  // las IPs de su propia máquina (`server.enableCORS`). Reproducido contra un Streamlit
+  // de verdad: con el Origin del hub devuelve 403; con el Origin reescrito, 101.
+  const { rewriteOrigin } = require('../apps/shmir/proxy');
+  const salida = rewriteOrigin(
+    { origin: 'https://jokins-tools-production.up.railway.app', host: 'x' },
+    { port: 8501 }
+  );
+  assert.equal(salida.origin, 'http://127.0.0.1:8501');
+});
+
+test('y una petición SIN Origin se deja como está: no se inventa uno', () => {
+  const { rewriteOrigin } = require('../apps/shmir/proxy');
+  const salida = rewriteOrigin({ host: 'x' }, { port: 8501 });
+  assert.ok(!('origin' in salida), JSON.stringify(salida));
+});
+
+test('el Origin reescrito llega al upstream en una petición normal', async () => {
+  let visto = null;
+  const { server, port } = await upstream((req, res) => {
+    visto = req.headers.origin;
+    res.writeHead(200); res.end('ok');
+  });
+  const frente = http.createServer((req, res) => proxyRequest(req, res, { port }));
+  await new Promise((resolve, reject) => {
+    frente.listen(0, '127.0.0.1', () => {
+      const p = http.request(
+        { port: frente.address().port, path: '/shmir/', headers: { origin: 'https://otra.org' } },
+        r => { r.resume(); r.on('end', () => { frente.close(); resolve(); }); }
+      );
+      p.on('error', reject); p.end();
+    });
+  });
+  server.close();
+  assert.equal(visto, `http://127.0.0.1:${port}`);
+});
+
 test('si el upstream no está, contesta 502 y NO deja la petición colgada', async () => {
   // Un puerto donde no escucha nadie. Sin esto, el navegador se queda esperando
   // para siempre y el usuario no sabe si tarda o si está roto.
