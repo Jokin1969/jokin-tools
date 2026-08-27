@@ -158,7 +158,11 @@ class TestLoQueMIDE_Y_LO_QUE_NO(unittest.TestCase):
         )
         perfil = self._perfil(bloque.module).unpaired
         self.assertAlmostEqual(perfil["donante"], 0.89, places=2)
-        self.assertAlmostEqual(perfil["punto_de_ramificacion"], 0.29, places=2)
+        # 0.26 y no 0.29: el punto de ramificación se movió un nucleótido al recalibrar
+        # el motivo (`YURAY` leía TAATT en 43-47, `YTNAY` lee TTAAT en 42-46 — la MISMA
+        # A, otro marco de lectura), y el perfil se mide sobre las posiciones del
+        # elemento. El número no se ajustó a mano: es lo que sale ahora.
+        self.assertAlmostEqual(perfil["punto_de_ramificacion"], 0.26, places=2)
         self.assertAlmostEqual(perfil["aceptor"], 0.84, places=2)
 
     def test_pero_un_modulo_ADVERSARIO_SI_lo_mueve(self):

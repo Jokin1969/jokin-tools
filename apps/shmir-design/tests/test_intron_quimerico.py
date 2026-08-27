@@ -5,13 +5,11 @@ sale de él. Lo que se declaró en el encargo entra aquí como VALOR ESPERADO co
 se comprueba lo extraído — que es lo contrario de copiarlo. Si algo no cuadra, el test
 falla y la carga aborta, que es lo que se pidió.
 
-El punto de ramificación se mide con la MISMA convención que el MVM —`YURAY` 18-40— y
-eso tiene un coste que se fija aquí para que nadie lo descubra por sorpresa: en este
-intrón NO señala ningún candidato. `CTGAC`, el consenso de mamífero de manual, no casa
-porque su segunda base es T. Se acepta a propósito: comparar dos intrones medidos con
-criterios distintos no compara nada, y comparar es el motivo entero de tener un segundo
-intrón. La consecuencia va a la vista, no escondida — sin candidato, la regla del módulo
-aguas arriba sale `NOT_RUN` y no `PASS`.
+El punto de ramificación se mide con la MISMA convención que el MVM, y esa convención
+está CALIBRADA contra los dos: `YTNAY` con la A de ramificación en la ventana 18-40. La
+prueba que la eligió vive en `test_calibracion_ramificacion.py` y es la justificación —
+el motivo anterior, `YURAY`, perdía `CTGAC`, el punto canónico de mamífero que este
+intrón lleva dentro.
 """
 
 import hashlib
@@ -108,20 +106,37 @@ class TestLosElementos(unittest.TestCase):
     def test_NO_lleva_GTGAGCG__no_aporta_segundo_donante_criptico(self):
         self.assertNotIn("GTGAGCG", self.secuencia)
 
-    def test_con_la_convencion_UNICA_no_sale_ningun_candidato(self):
-        # El coste declarado de medir los tres con el mismo criterio. Se fija aquí para
-        # que cambiarlo tenga que pasar por este test y no se descubra en una corrida.
-        self.assertEqual(self.elementos.branch_candidates, ())
-        self.assertIsNone(self.elementos.branch_point)
+    def test_salen_LOS_DOS_candidatos_y_no_se_elige(self):
+        self.assertEqual(
+            {(c.start, c.sequence) for c in self.elementos.branch_candidates},
+            {(100, "CTTAC"), (104, "CTGAC")},
+        )
+        self.assertTrue(self.elementos.branch_ambiguous)
 
-    def test_y_el_resumen_dice_que_NO_ES_que_no_lo_haya(self):
+    def test_el_CANONICO_de_mamifero_esta_dentro(self):
+        # `CTGAC`. Que aparezca es la prueba de que el motivo está bien calibrado: el
+        # anterior lo perdía y por eso se cambió.
+        self.assertIn("CTGAC", {c.sequence for c in self.elementos.branch_candidates})
+
+    def test_cada_uno_trae_su_A_y_su_distancia(self):
+        por_motivo = {c.sequence: c for c in self.elementos.branch_candidates}
+        self.assertEqual((por_motivo["CTGAC"].branch_a, por_motivo["CTGAC"].to_acceptor), (107, 25))
+        self.assertEqual((por_motivo["CTTAC"].branch_a, por_motivo["CTTAC"].to_acceptor), (103, 29))
+
+    def test_punto_ACEPTOR_es_un_INTERVALO(self):
+        # Con dos candidatos no hay «el» número. 25-29 nt, frente a los 36 del MVM.
+        self.assertEqual(self.elementos.branch_to_acceptor_range, (25, 29))
+
+    def test_y_el_resumen_saca_los_dos_y_el_intervalo(self):
         texto = "\n".join(self.elementos.describe())
-        self.assertIn("NINGÚN candidato", texto)
-        self.assertIn("no se ha podido señalar", texto)
+        self.assertIn("CTGAC", texto)
+        self.assertIn("CTTAC", texto)
+        self.assertIn("25-29 nt", texto)
+        self.assertIn("no se elige", texto.lower())
 
 
 class TestLaCONVENCIONUnica(unittest.TestCase):
-    """Un solo criterio para los tres, y su coste medido."""
+    """Un solo criterio para los tres, y CALIBRADO contra los dos casos conocidos."""
 
     def test_la_ventana_declarada_es_18_40(self):
         self.assertEqual(BRANCH_WINDOW, (18, 40))
@@ -131,32 +146,24 @@ class TestLaCONVENCIONUnica(unittest.TestCase):
             INTRONS["mvm_actual"].empty_sequence, name="mvm_actual"
         )
         self.assertEqual(len(elementos.branch_candidates), 1)
-        self.assertEqual(elementos.branch_candidates[0].sequence, "TAATT")
+        self.assertEqual(elementos.branch_candidates[0].sequence, "TTAAT")
 
-    def test_el_criterio_se_declara_como_CONVENCION_y_no_como_cita(self):
-        from shmir_design.introns import BRANCH_CRITERION, WHY_ONE_CRITERION
+    def test_el_criterio_se_declara_como_CONVENCION_y_dice_que_esta_calibrado(self):
+        from shmir_design.introns import BRANCH_CRITERION, WHY_YTNAY_CALIBRADO
 
         self.assertIn("CONVENCIÓN DECLARADA", BRANCH_CRITERION)
         self.assertIn("NO una cita", BRANCH_CRITERION)
-        self.assertIn("convención declarada", WHY_ONE_CRITERION.lower())
+        self.assertIn("CALIBRADA", BRANCH_CRITERION)
+        self.assertIn("calibración", WHY_YTNAY_CALIBRADO.lower())
+        self.assertIn("CTGAC", WHY_YTNAY_CALIBRADO)
 
-    @unittest.skipUnless(PLASMIDO.is_file(), f"falta {PLASMIDO}")
-    def test_el_COSTE_esta_medido_y_escrito(self):
-        # `YTNAY` habría dado dos candidatos aquí. Se descartó, y el número queda
-        # registrado para que la decisión se pueda revisar con datos y no de memoria.
-        secuencia = INTRONS["intron_quimerico"].require_sequence()
-        pirimidinas = set("CT")
-        a = len(secuencia) - 1
-        otros = [
-            (j, secuencia[j - 1:j + 4])
-            for d in range(20, 41)
-            if (j := a - d) >= 1 and j + 4 <= len(secuencia)
-            and secuencia[j - 1] in pirimidinas
-            and secuencia[j] == "T"
-            and secuencia[j + 2] == "A"
-            and secuencia[j + 4 - 1] in pirimidinas
-        ]
-        self.assertEqual(sorted(otros), [(100, "CTTAC"), (104, "CTGAC")])
+    def test_la_prueba_de_calibracion_EXISTE_y_es_la_justificacion(self):
+        # No basta con que el criterio esté escrito: tiene que estar la prueba que lo
+        # eligió, porque sin ella «YTNAY» es otra preferencia entre cadenas.
+        from pathlib import Path
+
+        prueba = Path(__file__).resolve().parent / "test_calibracion_ramificacion.py"
+        self.assertTrue(prueba.is_file())
 
 
 @unittest.skipUnless(PLASMIDO.is_file(), f"falta {PLASMIDO}")
@@ -168,20 +175,30 @@ class TestDondeCabeElModulo(unittest.TestCase):
         )
         self.ventana = insertion_window(self.elementos, module_length=149)
 
-    def test_empieza_tras_el_donante_y_acaba_antes_del_tracto(self):
+    def test_empieza_tras_el_donante_y_acaba_antes_del_PRIMER_candidato(self):
+        primero = min(c.start for c in self.elementos.branch_candidates)
         self.assertEqual(self.ventana.ranges[0][0], self.elementos.donor.end + 1)
-        self.assertEqual(self.ventana.ranges[-1][1], self.elementos.ppt.start - 1)
+        self.assertEqual(self.ventana.ranges[-1][1], primero - 1)
+        self.assertEqual(self.ventana.ranges, ((3, 99),))
 
-    def test_sin_candidato_la_regla_de_AGUAS_ARRIBA_no_se_puede_comprobar(self):
-        # NOT_RUN y no PASS: no haber podido comprobarlo no es que se cumpla.
+    def test_la_regla_de_AGUAS_ARRIBA_ahora_SI_se_puede_comprobar(self):
+        # Con el motivo recalibrado hay candidatos, así que la regla pasa de NOT_RUN a
+        # PASS. Era el coste que se pagaba por el motivo mal calibrado.
         from shmir_design.filters import FilterState
         from shmir_design.introns import check_module_upstream
 
         resultado = check_module_upstream(
             self.elementos, after=self.ventana.ranges[0][0]
         )
-        self.assertIs(resultado.state, FilterState.NOT_RUN)
-        self.assertIn("NOT_RUN, no PASS", resultado.reason)
+        self.assertIs(resultado.state, FilterState.PASS)
+
+    def test_y_ninguna_opcion_invade_a_los_candidatos(self):
+        prohibidas = {
+            p for c in self.elementos.branch_candidates
+            for p in range(c.start, c.end + 1)
+        }
+        for opcion in self.ventana.options:
+            self.assertNotIn(opcion.after, prohibidas)
 
     def test_hay_MAS_margen_que_en_el_MVM(self):
         # El número que decide si la opción 3 necesita espaciadores o un intrón más

@@ -56,39 +56,50 @@ WHY_MIN_LENGTH = (
 #: Criterio del punto de ramificacion. DECLARADO como parametro, no citado — igual que
 #: `splicing.SPLICE_SITE_CRITERION`, del que sale.
 BRANCH_CRITERION = (
-    "Punto de ramificacion: motivo YURAY (pirimidina, purina, A, cualquiera, pirimidina) "
-    "entre 18 y 40 nt aguas arriba de la A del aceptor. Es una CONVENCIÓN DECLARADA de "
-    "este análisis y NO una cita: nadie la ha respaldado con literatura y hasta que "
-    "alguien lo haga se usa por ser la única implementada y probada. Por eso sale como "
-    "CANDIDATO y nunca como dato, y salen TODOS los que caben: el punto de ramificación "
-    "real puede no ser el que más se parece al consenso."
+    "Punto de ramificacion: motivo YTNAY (pirimidina, T, cualquiera, A, pirimidina) con "
+    "la A DE RAMIFICACION entre 18 y 40 nt aguas arriba de la A del aceptor. Es una "
+    "CONVENCIÓN DECLARADA de este análisis y NO una cita, pero está CALIBRADA: se eligió "
+    "por recuperar los casos conocidos de los dos intrones del registro, no por "
+    "preferencia. Sale como CANDIDATO y nunca como dato, y salen TODOS los que caben con "
+    "su posición y su distancia: el punto real puede no ser el que más se parece al "
+    "consenso."
 )
 
-#: UN SOLO CRITERIO PARA LOS TRES INTRONES (2026-08-27), y es `YURAY` 18-40. Se consideró
-#: `YTNAY` 20-40 y se descartó: no tenía más respaldo que la memoria de quien lo propuso,
-#: y `YURAY` al menos está implementado y probado. Lo que decide no es cuál acierta más
-#: —no hay con qué medir eso— sino que los TRES se midan con el MISMO, que es el motivo
-#: entero de tener un segundo intrón.
+#: LA CALIBRACION, que es la justificacion (`tests/test_calibracion_ramificacion.py`).
+#: Ninguno de los motivos que se barajaron tiene literatura citada detras, asi que elegir
+#: «el que ya estaba» habria sido una preferencia entre cadenas que nadie puede citar. El
+#: criterio comprobable es que RECUPERE LOS CASOS CONOCIDOS y siga discriminando. Con la
+#: ventana 18-40 sobre la A DE RAMIFICACION —el ancla importa: la A esta en la posicion 3
+#: de YURAY, la 4 de YTNAY y la 6 de YNYURAY, asi que anclar en el inicio del motivo mide
+#: una cosa distinta en cada uno, que es el mismo fallo de marco del mapa del 3'UTR—:
 #:
-#: LO QUE ESTO CUESTA, medido y no supuesto:
+#:   motivo          MVM   quimerico   ¿recupera CTGAC?   ¿discrimina?
+#:   YURAY            1        0             NO           si, pero pierde el caso conocido
+#:   YTNAY            1        2             SI           SI          ← elegido
+#:   YNYURAY          0        1             SI           pierde el MVM entero
+#:   A+pirimidina     3        5             SI           NO, demasiado laxo
 #:
-#:   · MVM (82 nt)        YURAY → TAATT en 43 (38 nt del aceptor)
-#:   · quimérico (133 pb) YURAY → NINGUNO       ·  YTNAY habría dado CTGAC en 104 y CTTAC en 100
+#: `CTGAC` es el punto de ramificacion canonico de mamifero y esta en el quimerico: un
+#: motivo que lo pierde esta mal calibrado por definicion. Lo conservado de verdad es la A
+#: con una pirimidina detras; la posicion 2 varia, y exigir purina ahi —que es lo que hace
+#: YURAY— descarta el ejemplo de manual. Entre los que valen se coge el MAS LAXO: perder
+#: un punto real cuesta mas que emitir uno de mas, porque los de mas SE VEN.
 #:
-#: `CTGAC` es el consenso de mamífero de manual y `YURAY` no lo casa, porque su segunda
-#: base es T. Así que el quimérico se queda SIN candidato, y eso NO es «no lo hay»: es
-#: «esta convención no señala ninguno». La consecuencia práctica está en
-#: `MODULE_UPSTREAM_RULE`: sin candidato no se puede comprobar que el módulo va aguas
-#: arriba del punto, y esa comprobación queda en NOT_RUN para este intrón — no en PASS.
-WHY_ONE_CRITERION = (
-    "Los tres intrones se miden con la MISMA convención (YURAY 18-40) aunque no sea la "
-    "que más candidatos encuentra: comparar dos intrones medidos con criterios distintos "
-    "no compara nada. Es convención declarada, no literatura. Coste medido: el quimérico "
-    "se queda sin candidato, así que la regla del módulo aguas arriba no se puede "
-    "comprobar en él y sale NOT_RUN."
+#: Y una convergencia que da confianza en el 107: los TRES motivos que ven algo en el
+#: quimerico lo ponen en la misma A.
+WHY_YTNAY_CALIBRADO = (
+    "El motivo se eligió por CALIBRACIÓN y no por preferencia: de los cuatro probados "
+    "(YURAY, YTNAY, YNYURAY y el mínimo A+pirimidina), YTNAY es el único que recupera el "
+    "punto conocido de los DOS intrones —incluido CTGAC, el canónico de mamífero— sin "
+    "dejar de discriminar. YURAY pierde CTGAC; YNYURAY pierde el MVM entero; el mínimo "
+    "devuelve cinco candidatos en un intrón de 133 pb. La prueba entera corre en "
+    "`tests/test_calibracion_ramificacion.py`."
 )
 
 BRANCH_WINDOW = (18, 40)
+
+#: La A de ramificacion dentro del motivo YTNAY (0-based): Y-T-N-**A**-Y.
+BRANCH_A_OFFSET = 3
 
 _PYRIMIDINES = frozenset("CT")
 
@@ -109,6 +120,11 @@ class SpliceElement:
     end: int
     sequence: str
     origin: ElementOrigin
+    #: Solo para el punto de ramificacion: la A que ramifica y su distancia a la A
+    #: del aceptor. Van en el elemento y no se recalculan fuera, que es donde se
+    #: pierden — y donde se recalculan con el marco equivocado.
+    branch_a: int | None = None
+    to_acceptor: int | None = None
 
     def __post_init__(self) -> None:
         # El invariante de intervalos del proyecto, aqui tambien: una coordenada que no
@@ -123,7 +139,13 @@ class SpliceElement:
 
     def describe(self) -> str:
         marca = "" if self.origin is ElementOrigin.DERIVADO else "  [CANDIDATO]"
-        return f"{self.name}: intrón:{self.start}-{self.end}  {self.sequence}{marca}"
+        detalle = ""
+        if self.branch_a is not None:
+            detalle = f"  A en intrón:{self.branch_a}, a {self.to_acceptor} nt del aceptor"
+        return (
+            f"{self.name}: intrón:{self.start}-{self.end}  {self.sequence}{marca}"
+            f"{detalle}"
+        )
 
 
 @dataclass(frozen=True)
@@ -140,6 +162,21 @@ class IntronElements:
     @property
     def branch_ambiguous(self) -> bool:
         return len(self.branch_candidates) > 1
+
+    @property
+    def branch_to_acceptor_range(self) -> tuple[int, int] | None:
+        """Punto→aceptor como INTERVALO. `None` si no hay ningún candidato.
+
+        Con varios candidatos no hay «el» número: hay un rango, y darlo como número
+        sería elegir uno. Con uno solo el intervalo es de un punto, que también es la
+        respuesta honesta — no se colapsa a escalar para que parezca más firme.
+        """
+        distancias = [
+            c.to_acceptor for c in self.branch_candidates if c.to_acceptor is not None
+        ]
+        if not distancias:
+            return None
+        return (min(distancias), max(distancias))
 
     def describe(self) -> list[str]:
         lineas = [
@@ -161,6 +198,15 @@ class IntronElements:
                 f"elige por nuestra cuenta: "
                 + ", ".join(f"intron:{c.start} {c.sequence}" for c in self.branch_candidates)
             )
+        rango = self.branch_to_acceptor_range
+        if rango is not None:
+            if rango[0] == rango[1]:
+                lineas.append(f"  punto→aceptor: {rango[0]} nt")
+            else:
+                lineas.append(
+                    f"  punto→aceptor: {rango[0]}-{rango[1]} nt (INTERVALO: hay "
+                    f"{len(self.branch_candidates)} candidatos y no se elige uno)"
+                )
         lineas.append(f"  {BRANCH_CRITERION}")
         return lineas
 
@@ -235,22 +281,29 @@ def _ppt_span(sequence: str, acceptor_start: int) -> tuple[int, int]:
 
 
 def _branch_candidates(sequence: str) -> list[tuple[int, str]]:
+    """Todos los candidatos, con la ventana sobre la A DE RAMIFICACION.
+
+    Anclar en la A y no en el inicio del motivo no es un detalle: la A cae en una
+    posicion distinta en cada motivo, asi que una ventana sobre el inicio mide una cosa
+    distinta en cada uno y los hace incomparables. Ver `BRANCH_CRITERION`.
+    """
     salida = []
-    a = len(sequence) - 2                      # 0-based de la A del AG final
-    for distancia in range(BRANCH_WINDOW[0], BRANCH_WINDOW[1] + 1):
-        j = a - distancia
-        if j < 0 or j + 5 > len(sequence):
+    a_aceptor = len(sequence) - 1              # 1-based de la A del AG final
+    for inicio in range(1, len(sequence) - 4):
+        motivo = sequence[inicio - 1:inicio + 4]
+        if len(motivo) < 5:
             continue
-        motivo = sequence[j:j + 5]
-        # YURAY: pirimidina, purina, A, cualquiera, pirimidina. CONVENCION DECLARADA de
-        # este analisis, no una cita: ver `BRANCH_CRITERION` y `WHY_ONE_CRITERION`.
-        if (
+        # YTNAY: pirimidina, T, cualquiera, A, pirimidina. Ver `WHY_YTNAY_CALIBRADO`.
+        if not (
             motivo[0] in _PYRIMIDINES
-            and motivo[1] in "AG"
-            and motivo[2] == "A"
+            and motivo[1] == "T"
+            and motivo[3] == "A"
             and motivo[4] in _PYRIMIDINES
         ):
-            salida.append((j + 1, motivo))
+            continue
+        distancia = a_aceptor - (inicio + BRANCH_A_OFFSET)
+        if BRANCH_WINDOW[0] <= distancia <= BRANCH_WINDOW[1]:
+            salida.append((inicio, motivo))
     return salida
 
 
@@ -288,6 +341,8 @@ def locate_elements(sequence: str, *, name: str) -> IntronElements:
         SpliceElement(
             name="punto_de_ramificacion", start=inicio, end=inicio + 4,
             sequence=motivo, origin=ElementOrigin.CANDIDATO,
+            branch_a=inicio + BRANCH_A_OFFSET,
+            to_acceptor=aceptor_inicio - (inicio + BRANCH_A_OFFSET),
         )
         for inicio, motivo in _branch_candidates(limpio)
     )
@@ -649,8 +704,13 @@ def _branch_distance(
     separaciones ELEMENTO A ELEMENTO que lo cruzan. Confundir las dos da un numero
     plausible y equivocado — pasó al escribir el primer test de esto.
     """
-    donante_a_punto = candidate.start - elements.donor.end - 1
-    punto_a_aceptor = elements.acceptor.start - candidate.end - 1
+    # Las dos separaciones se miden SOBRE LA A DE RAMIFICACION, que es el punto que
+    # importa, y no sobre los extremos del motivo. Medir una sobre el inicio y otra
+    # sobre el final del motivo daba dos numeros que no se pueden sumar — la misma
+    # confusion de marco que el ancla de la ventana.
+    a = candidate.branch_a if candidate.branch_a is not None else candidate.start
+    donante_a_punto = a - elements.donor.end - 1
+    punto_a_aceptor = elements.acceptor.start - a
 
     if after < candidate.start:
         # El modulo queda ENTRE el donante y el candidato: alarga esa separacion.

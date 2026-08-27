@@ -267,3 +267,40 @@ el mismo agujero.
 Para volver a entrar hacen falta tres cosas y las tres por escrito: **predictor con cita**,
 **umbral con justificación**, y **decisión explícita de si es duro o desempate** — con el
 voto de partida del responsable en «desempate, nunca filtro».
+
+---
+
+## 10 — El tracto de una sola base
+
+**El fallo**: el tracto de polipirimidinas se calculaba contando pirimidinas hacia atrás
+**desde el `AG` del aceptor** y parando en la primera purina. Sobre el intrón quimérico
+—que tiene **once** pirimidinas contiguas en 119-129— devolvía **1 nt**, porque entre el
+tracto y el aceptor hay un `AC` en medio.
+
+**Y no daba ningún error.** Un tracto de 1 nt es un intrón que no empalma, y la app lo
+habría emitido como dato, con su posición y su longitud, exactamente igual que uno bueno.
+Es la misma familia que el mapa que se dibujaba mudo sobre 2191 nt rotulados «3'UTR»: el
+cálculo estaba mal, la salida tenía la forma correcta, y nada se quejó.
+
+**Lo que lo cazó**: el segundo intrón. No un test, no una revisión, no leer el código —
+**meter un caso más**. Con el MVM, donde el tracto sí pega con el `AG`, la regla acierta
+y no hay forma de ver que acierta por casualidad.
+
+**Corolario, y es el que importa**: **un cálculo sólo se puede validar sobre más de un
+caso.** Con un solo ejemplo no se distingue una regla correcta de una que coincide con
+ese ejemplo, y ninguna cantidad de tests sobre ese único caso resuelve la diferencia —
+todos comparten la misma ceguera. Aplica a los intrones igual que a las guías, y de la
+misma forma: el `mvm_actual` fue durante meses el único intrón del registro, así que
+**cualquier** regla de geometría escrita en ese periodo está calibrada sobre un caso y
+hay que volver a mirarla al llegar el segundo.
+
+**La regla nueva**: la racha de pirimidinas contiguas **más larga** en los 40 nt de
+delante de la A del aceptor, con el **hueco** al aceptor emitido — no tiene por qué ser
+cero. Medida en los dos: MVM 72-80 (9 nt, hueco 0), quimérico 119-129 (11 nt, hueco 2).
+Las dos coinciden con lo declarado.
+
+**Y una segunda cosa que salió por el mismo sitio**: el motivo del punto de ramificación
+estaba calibrado sobre un solo intrón también. `YURAY` funcionaba en el MVM y perdía
+`CTGAC` —el canónico de mamífero— en el quimérico. Recalibrado contra los dos casos
+conocidos en `tests/test_calibracion_ramificacion.py`, que **es** la justificación:
+`YTNAY` es el único de los cuatro probados que recupera los dos sin dejar de discriminar.

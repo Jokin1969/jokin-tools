@@ -136,7 +136,7 @@ class TestLosCuatroElementosSeDERIVAN(unittest.TestCase):
 
     def test_y_con_el_MVM_hay_exactamente_UNO(self):
         self.assertEqual(len(self.elementos.branch_candidates), 1)
-        self.assertEqual(self.elementos.branch_point.sequence, "TAATT")
+        self.assertEqual(self.elementos.branch_point.sequence, "TTAAT")
 
     def test_donante_y_aceptor_SI_son_derivados_sin_ambiguedad(self):
         self.assertIs(self.elementos.donor.origin, introns.ElementOrigin.DERIVADO)
@@ -161,7 +161,7 @@ class TestLosCuatroElementosSeDERIVAN(unittest.TestCase):
         """El punto de ramificacion vive en MVM3, asi que viaja con el."""
         montado = introns.INTRONS["mvm_actual"].with_module("A" * blocks.MODULE_LENGTH)
         elementos = introns.locate_elements(montado, name="mvm con módulo")
-        self.assertEqual(elementos.branch_point.sequence, "TAATT")
+        self.assertEqual(elementos.branch_point.sequence, "TTAAT")
         self.assertEqual(len(elementos.ppt.sequence), 9)
 
 

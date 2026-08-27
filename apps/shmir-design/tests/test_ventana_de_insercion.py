@@ -34,6 +34,12 @@ class TestSobreElMVMDeVerdad(unittest.TestCase):
         self.assertEqual(self.elementos.donor.end, 2)
         self.assertEqual(self.elementos.ppt.start, 72)
         self.assertEqual(self.elementos.acceptor.start, 81)
+        # Y el punto de ramificación con el motivo CALIBRADO: TTAAT en 42-46, con la A
+        # en 45 a 36 nt del aceptor. `YURAY` leía el mismo sitio corrido un nucleótido
+        # (TAATT en 43-47) — la misma A, otro marco de lectura.
+        self.assertEqual(self.elementos.branch_candidates[0].sequence, "TTAAT")
+        self.assertEqual(self.elementos.branch_candidates[0].branch_a, 45)
+        self.assertEqual(self.elementos.branch_to_acceptor_range, (36, 36))
 
     def test_empieza_TRAS_el_donante(self):
         self.assertEqual(self.ventana.ranges[0][0], self.elementos.donor.end + 1)
@@ -44,7 +50,7 @@ class TestSobreElMVMDeVerdad(unittest.TestCase):
         # ADMISIBLE — insertar ahí estiraría punto→aceptor de 33 a 182 nt.
         candidato = self.elementos.branch_candidates[0]
         self.assertEqual(self.ventana.ranges, ((3, candidato.start - 1),))
-        self.assertEqual(self.ventana.ranges, ((3, 42),))
+        self.assertEqual(self.ventana.ranges, ((3, 41),))
         self.assertLess(self.ventana.ranges[-1][1], self.elementos.ppt.start - 1)
 
     def test_ninguna_opcion_cae_DENTRO_de_un_candidato(self):
@@ -90,13 +96,13 @@ class TestSobreElMVMDeVerdad(unittest.TestCase):
         # 40 nt. Con el módulo intercalado en medio, 40 + 149.
         antes = next(o for o in self.ventana.options if o.after == 3)
         candidato = self.elementos.branch_candidates[0]
-        vacio = candidato.start - self.elementos.donor.end - 1
-        self.assertEqual(vacio, 40)
+        vacio = candidato.branch_a - self.elementos.donor.end - 1
+        self.assertEqual(vacio, 42)
         self.assertEqual(antes.to_branch[0].donor_to_branch, vacio + MODULO)
         # Y la de abajo NO cambia: el módulo no está en medio.
         self.assertEqual(
             antes.to_branch[0].branch_to_acceptor,
-            self.elementos.acceptor.start - candidato.end - 1,
+            self.elementos.acceptor.start - candidato.branch_a,
         )
 
     def test_NINGUNA_opcion_queda_aguas_abajo_del_punto(self):
@@ -111,8 +117,8 @@ class TestSobreElMVMDeVerdad(unittest.TestCase):
         # Los 33 nt del MVM, intactos en cualquier opción admisible. Es lo que la regla
         # protege: esa separación no se puede estirar.
         candidato = self.elementos.branch_candidates[0]
-        original = self.elementos.acceptor.start - candidato.end - 1
-        self.assertEqual(original, 33)
+        original = self.elementos.acceptor.start - candidato.branch_a
+        self.assertEqual(original, 36)
         for opcion in self.ventana.options:
             self.assertEqual(opcion.to_branch[0].branch_to_acceptor, original)
 
@@ -125,7 +131,7 @@ class TestSobreElMVMDeVerdad(unittest.TestCase):
 
     def test_el_resumen_dice_los_tramos_y_NO_elige(self):
         texto = "\n".join(self.ventana.describe())
-        self.assertIn("3-42", texto)
+        self.assertIn("3-41", texto)
         self.assertIn("no se elige", texto.lower())
 
 
