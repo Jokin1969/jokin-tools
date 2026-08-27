@@ -88,17 +88,29 @@ class TestHomopolimero(unittest.TestCase):
 
 
 class TestG4(unittest.TestCase):
+    """G4 NO EMITE VEREDICTO mientras su criterio no se decida por escrito.
+
+    Sigue buscando y sigue diciendo lo que encuentra —dejar de mirar seria perder el
+    dato— pero sale `NOT_RUN` y NO cuenta para el veredicto del candidato. Ver
+    `hard_filters.G4_PENDING` y `hard_filters.G4_PROVENANCE`.
+    """
 
     def test_las_ventanas_del_bloque_no_tienen_motivo_g4(self):
         for window in (W0, W1, W2):
             with self.subTest(window):
-                self.assertIs(filter_g4(window).state, FilterState.PASS)
+                resultado = filter_g4(window)
+                self.assertIs(resultado.state, FilterState.NOT_RUN)
+                self.assertIn("Sin motivo G-cuadruplex", resultado.reason)
 
-    def test_un_motivo_g4_canonico_falla(self):
-        self.assertIs(filter_g4("GGGTGGGTGGGTGGGTAAAAAA").state, FilterState.FAIL)
+    def test_un_motivo_g4_canonico_SE_DICE_pero_no_excluye(self):
+        resultado = filter_g4("GGGTGGGTGGGTGGGTAAAAAA")
+        self.assertIs(resultado.state, FilterState.NOT_RUN)
+        self.assertIsNot(resultado.state, FilterState.FAIL)
+        self.assertIn("GGGTGGGTGGGTGGG", resultado.reason)
 
-    def test_tres_tetradas_no_bastan(self):
-        self.assertIs(filter_g4("GGGTGGGTGGGTAAAAAAAAAA").state, FilterState.PASS)
+    def test_tres_tetradas_no_bastan_y_tambien_se_dice(self):
+        resultado = filter_g4("GGGTGGGTGGGTAAAAAAAAAA")
+        self.assertIn("Sin motivo G-cuadruplex", resultado.reason)
 
 
 class TestGuia(unittest.TestCase):
@@ -125,8 +137,9 @@ class TestEvaluacionDeVentana(unittest.TestCase):
         evaluacion = evaluate_window(W3)
         self.assertEqual(failures(evaluacion), {"GC"})
         self.assertIs(states(evaluacion)["homopolimero"], FilterState.PASS)
-        self.assertIs(states(evaluacion)["G4_diana"], FilterState.PASS)
-        self.assertIs(states(evaluacion)["G4_guia"], FilterState.PASS)
+        # G4 no emite veredicto: sale NOT_RUN y no cuenta para el del candidato.
+        self.assertIs(states(evaluacion)["G4_diana"], FilterState.NOT_RUN)
+        self.assertIs(states(evaluacion)["G4_guia"], FilterState.NOT_RUN)
         self.assertIs(states(evaluacion)["asimetria"], FilterState.PASS)
 
     def test_el_offset_1_falla_por_GC_y_por_asimetria(self):
@@ -166,11 +179,18 @@ class TestEvaluacionDeVentana(unittest.TestCase):
         self.assertIs(evaluacion.verdict, Verdict.INCOMPLETE)
 
     def test_el_G4_se_comprueba_tambien_sobre_la_guia(self):
-        """Una diana con tramos de C da una guia con tramos de G."""
+        """Una diana con tramos de C da una guia con tramos de G.
+
+        Los dos salen `NOT_RUN` —no emiten veredicto— pero el HALLAZGO sigue estando: la
+        guia tiene motivo y la diana no, y eso se lee en el motivo de cada uno.
+        """
         diana = "CCCACCCACCCACCCATTTTTT"
         evaluacion = evaluate_window(diana)
-        self.assertIs(states(evaluacion)["G4_diana"], FilterState.PASS)
-        self.assertIs(states(evaluacion)["G4_guia"], FilterState.FAIL)
+        motivos = {r.name: r.reason for r in evaluacion.filters}
+        self.assertIs(states(evaluacion)["G4_diana"], FilterState.NOT_RUN)
+        self.assertIs(states(evaluacion)["G4_guia"], FilterState.NOT_RUN)
+        self.assertIn("Sin motivo G-cuadruplex", motivos["G4_diana"])
+        self.assertIn("Motivo G-cuadruplex canónico", motivos["G4_guia"])
 
     def test_con_modelo_de_asimetria_el_filtro_corre(self):
         """Cuando llegue la definicion verificada, el filtro deja de ser NOT_RUN."""

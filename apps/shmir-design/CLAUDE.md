@@ -2079,6 +2079,210 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     distingue una referencia de una llamada, y **no dice que el código sobre** — dice que
     nadie lo llama, que es un hecho y no un veredicto.
 
+- **LA SEGUNDA EJECUCIÓN REAL (2026-08-27): un problema de PROCEDENCIA y tres
+  divergencias.** El mapa ya dibujaba; lo que salió esta vez es de otra familia — algo
+  que emite un veredicto sin que nadie haya decidido que deba emitirlo.
+  - **`G4_diana` emitía FAIL con un criterio SIN JUSTIFICAR** (`hard_filters.G4_PENDING`,
+    `G4_PROVENANCE`). Lo que no tiene —y ese sí es el hueco— es entrada en
+    `justificacion.py`, y no por descuido: **el test que exige justificación recorre los
+    campos de `Thresholds`**, y el criterio de G4 es una **expresión regular escrita a
+    mano**, no un umbral. Se coló por debajo de la comprobación.
+    - **CORRECCIÓN (2026-08-27).** Aquí decía que G4 venía «del commit fundacional
+      (`ccb344a`)». **Es falso y va corregido en `docs/procedencia-g4.md`**, con la
+      arqueología entera. `ccb344a` es el commit del RENOMBRADO —batchwork a
+      shmir-design— y su propio mensaje dice «G4 **se comprueba ahora** sobre la diana Y
+      sobre la guía», o sea que ya existía y ese commit lo PARTIÓ en dos. Dar por buena
+      la primera aparición que sale al buscar es exactamente el principio nº 3 —un
+      diagnóstico plausible sin comprobar— aplicado a la respuesta que se dio sobre otro
+      diagnóstico plausible sin comprobar.
+    - **Qué mide**: el motivo G-cuadruplex canónico `G{3,}N{1-7}` × 4, sobre la diana
+      (ADN) y sobre la guía (ARN). **No es un predictor de plegado**: no mide
+      estabilidad, no distingue paralelo de antiparalelo y no mira el contexto.
+    - **MEDIDO (2026-08-27)**: pasa **las 2170 ventanas** del 3'UTR murino, las dos
+      variantes. **No ha excluido a nadie nunca**, que es por lo que nadie lo miró.
+    - **Hasta que se decida por escrito NO EMITE VEREDICTO.** Sigue buscando y sigue
+      diciendo lo que encuentra —dejar de mirar sería perder el dato— pero sale
+      `NOT_RUN` y **no cuenta para el veredicto del candidato** (`UNDECIDED_FILTERS`,
+      excluido en `overall_verdict` y en el semáforo). Dejarlo dentro habría hecho que
+      TODA ventana saliera `INCOMPLETE` por un criterio que nadie autorizó — o sea `PASS`
+      estructuralmente inalcanzable, que es el fallo que la interfaz ya tuvo. **Bloquear
+      una aprobación también es decidir.** Y no se esconde: sale nombrado en el semáforo.
+    - Lo que hay que decidir: **(1)** filtro duro o desempate, **(2)** qué predictor, y
+      **(3)** con qué justificación de umbral, anotada en `justificacion.py`.
+  - **UN FILTRO BIOFÍSICO NO PUEDE SER UN FRENTE** (`selection.blocking_fronts`). Con la
+    máscara puesta, 66 ventanas quedan con `N` y sus filtros de secuencia salen
+    `NOT_RUN` —correcto, regla 3— pero `blocking_fronts` construía un frente por cada
+    `NOT_RUN`, así que `GC` y `G4_diana` salían como frentes y la app pedía su **ficha de
+    obtención**: aborto. Una ventana enmascarada no es un frente.
+    - Y el motivo decía **«falta el recurso»** de un filtro que no tiene recurso ninguno.
+      **Tercera de esa familia**, y por eso hay ya un principio escrito sobre ella
+      ([`docs/principios.md`](./docs/principios.md) nº 3): un mensaje que explica una
+      causa tiene que haberla comprobado.
+    - Un frente es un filtro que **se cierra consiguiendo algo**. Lo demás se cuenta en
+      el semáforo, con las ventanas tiladas.
+  - **LA PÁGINA NO APLICABA LA TABLA DE APA MEDIDO y el CLI sí.** Cuarta divergencia
+    entre los dos frontales, la misma clase que obligó a crear `resolve.py`. Sin ella el
+    tercer sitio de corte no promociona, la frontera de inmunidad se queda en `3utr:303`
+    en vez de adelantarse a `3utr:251`, y **`3utr:221` volvía al panel** porque su riesgo
+    estérico no llegaba a existir. Ahora `page_run` llama a `resolve_measured` como el
+    CLI, y el diff del golden lo enseña entero: `AATATA` pasa de `OTRA` a `APA_POSIBLE`,
+    entran 17 ventanas más a FAIL —exactamente `measured_promotion_cost`— y `3utr:221`
+    sale del panel.
+  - **CUOTA DE INMUNES EXPLÍCITA Y PANEL DE 10** (`selection.default_config`,
+    `DEFAULT_CANDIDATES = 10`, `DEFAULT_IMMUNE_QUOTA = 4`). La página sólo tenía cuota
+    **por tercio**, así que `3utr:359` (+4,82) desplazaba a `3utr:200` (+3,80) por
+    asimetría y el panel quedaba con **tres** inmunes en vez de cuatro — sin que nada lo
+    dijera, porque los dos son proximales y la cuota de tercios se cumplía igual.
+    - **Por qué es una cuota y no una preferencia**: los inmunes son la ÚNICA reserva si
+      el APA de `3utr:288` resulta funcional, y los sitios elegibles por delante del
+      corte están **20/0/0** por tercio. Si se pierden, no hay de dónde rebalancear.
+    - **La cuota NO va en `SelectionConfig`**, y eso lo enseñó el intento: la pareja
+      (cuota, frontera) va junta por invariante —«pedir cinco inmunes sin decir inmunes A
+      QUÉ no significa nada»— y `apa_immune_before` sólo se DERIVA de un informe. Ponerla
+      en el dataclass hacía abortar a todo el que construyera un `SelectionConfig()` a
+      mano, que es justo quien no tiene informe. Va en `default_config()`, **acotada al
+      tamaño del panel**: pedir cuatro inmunes en un panel de tres es imposible y abortar
+      por un defecto que nadie pidió sería peor que no tenerlo.
+    - `presentation.selection_rules_report` emite el panel **bajo las dos reglas**, para
+      poder compararlas. No elige: da las dos y dice cuántos inmunes deja cada una.
+  - **TODA COLUMNA DE POSICIÓN LLEVA SU MARCO, y la etiqueta la pone UNA sola pieza**
+    (`PolyAAnnotation.frame`). `polyA_hexamero_pos = 1185` es `tx:1185`, o sea
+    `3utr:236` — bien calculado y mal etiquetado. Y había **TRES** sitios poniendo (o no)
+    esa etiqueta: el TSV la ponía, la tabla comparativa la ponía **volviendo a parsear el
+    entero con `int()`**, y la tabla de la página no la ponía. Ahora la pone
+    `as_columns`, que es quien sabe de qué posición habla. Una **distancia** no lleva
+    marco: lleva unidad (`949 nt`), y la lleva porque se lee pegada a una posición.
+
+- **`page_run` ERA EL TERCER `store.save_*`, y lo cazó la ALCANZABILIDAD.** Se escribió
+  justo para que la página no rehiciera el camino y pudiera divergir del CLI. Se
+  documentó como «la página llama ahora a `page_run`». **Y la página no lo llamaba**:
+  seguía tilando a mano, así que el APA medido recién cableado en `page_run` no llegaba a
+  la pantalla. Ni los tests ni el golden lo veían —los tests llaman a `page_run` ellos
+  mismos y el golden se genera desde `page_snapshot`, que también lo llama—: lo que
+  faltaba era justo lo que este análisis mira, **quién lo llama en el camino de verdad**.
+  Hay regresión escrita que comprueba que la página no vuelve a llamar a `tile_utr`.
+  - **Y el análisis necesitó una vuelta más para verlo: el CIERRE TRANSITIVO.**
+    `filter_gc` no la llama nadie de fuera de `hard_filters`, pero la llama
+    `evaluate_window`, que sí: es una pieza de algo vivo, no código muerto. Sin esa
+    vuelta el informe tenía **94** filas y ~78 eran ese caso; con ella son **23**, y `page_run`
+    aparecía entre ellas. Un informe de 94 filas donde tres cuartas partes son ruido no lo
+    lee nadie — que es exactamente el fallo que el análisis viene a evitar.
+  - **Clasificadas en tres** (`data/alcanzabilidad.toml`): **útiles sin cablear** (lo
+    urgente: `splice_variant_rows` —el cuarto modal calcula la propuesta de
+    `mvm_sin_criptico` y no la enseña, cero llamadores y cero tests—, `describe_triple`,
+    `ceiling_layers` —que además duplica `measured_apa.layer_for`—), **legítimas**
+    (justificadas por escrito: `fixture_available`, que usan 80 ficheros de test como
+    `skipUnless`; `declare_utr3_length`, API documentada) y **muertas**, que se borran en
+    su propia tanda: borrar en la misma tanda que arregla otra cosa esconde el borrado
+    dentro de un diff que se lee por otro motivo.
+
+- **LA REVISIÓN DE CÓDIGO Y LA DE SEGURIDAD (2026-08-27).** Ocho hallazgos y uno más.
+  Los que dejan regla:
+  - **Un guardia con falsos positivos se acaba apagando.** El test de la regla 6 buscaba
+    `"int("` como **subcadena**, así que saltaba sobre `run_fingerprint(` —que no
+    convierte nada— y el arreglo obvio habría sido quitar la comprobación. Se busca la
+    **llamada como token** (`\bint\(`). Estaba copiado en tres tests con el mismo fallo;
+    ahora vive en `tests/sin_logica.py` **con un test propio de las dos mitades**: que
+    muerde donde hay lógica y que calla donde sólo hay un nombre parecido. Un guardia sin
+    test de que muerde se queda sin morder y nadie se entera.
+  - **Una corrida vieja en pantalla es una PROCEDENCIA FALSA.** Los modales de seed y
+    off-target guardaban el scan en `session_state` para sobrevivir al rerun, y al
+    cambiar el panel o un ajuste seguían enseñando el resultado anterior **y
+    ofreciéndolo para guardar**. Se guarda con la **huella** del panel y los ajustes
+    (`run_fingerprint`, `WHY_A_RUN_FINGERPRINT`): si no coincide, no se enseña y se dice
+    por qué. Un resultado que no es de la corrida que se ve es peor que no tener ninguno.
+  - **Las claves de los widgets llevan la especie.** Sin ella, con dos especies abiertas
+    el segundo panel reusaba el estado del primero: `key=f"pr_activo_{especie}"`.
+  - **El nombre de un fichero subido lo pone el NAVEGADOR** (`presentation.upload_path`,
+    `UPLOAD_NAME_RULE`). Se escribía `Path(tempfile.mkdtemp()) / subido.name` con el
+    nombre tal cual, y con `../` dentro la escritura sale del directorio temporal que se
+    acababa de crear para contenerla. Que Streamlit lo limpie o no es una **suposición
+    sobre código ajeno**, y aquí una causa no comprobada no se da por buena. La regla es
+    **una**: sobrevive el nombre, se cae toda la ruta —`..` no es un caso especial, es
+    ruta—, así que **no hay que acertar con la lista de formas de escribirlo**
+    (`..%2f`, `....//`, `..\`). La extensión sí sobrevive: `resolve_anatomy` y
+    `load_scaffold` deciden el formato por ella. Y la comprobación final es sobre la ruta
+    **resuelta**, que es la que llega a `write_bytes`: comprobar el texto y escribir otra
+    cosa es media comprobación. Es la hermana pequeña de `check_project_slug`, un nivel
+    más abajo: allí el nombre lo teclea el usuario, aquí lo manda el navegador.
+  - **La alcanzabilidad se medía a sí misma mal.** La clave era el **nombre pelado**, así
+    que un envoltorio homónimo vivo mantenía «vivo» al original: `presentation` envuelve
+    `store.save_blast_run` y compañía, o sea que **la herramienta había dejado de ver
+    exactamente el caso que la motivó**. Con clave `(módulo, nombre)` el informe pasó de
+    23 a 17 — y las cuatro que salieron a la luz (`offset_of`,
+    `verify_contexts_against_plasmid`, `load_guide_fixture`, `can_transfer_window`)
+    estaban tapadas. Un análisis que se equivoca **hacia el silencio** es peor que no
+    tenerlo: no avisa y además tranquiliza.
+  - **Las 17, revisadas una a una** (`data/alcanzabilidad.toml`). Lo que aparece y no
+    estaba: `verify_contexts_against_plasmid` **aborta si los contextos del módulo no
+    coinciden con el plásmido depositado** y sólo lo corren sus tests —la comprobación
+    existe y no corre cuando serviría—; `shared_network`, cuyo propio docstring exige
+    decir «NO CALCULADO» con esas palabras y no hay nadie que lo diga. Y **tres casos de
+    dos formas de calcular lo mismo** con una sin usar (`ceiling_layers` frente a
+    `measured_apa.layer_for`, `verdict_state` frente a `splice_store`/`dossier`,
+    `analyze_3utr` frente a `annotate_polya`): no es que sobre código, es que **hay dos
+    definiciones de un número y nada garantiza que coincidan**.
+  - **La revisión de seguridad no encontró nada** que emitiera veredicto. Lo único
+    señalado —el nombre del fichero subido— es lo de arriba, y ya está cerrado.
+
+- **LA COMPROBACIÓN DEL PLÁSMIDO, CABLEADA (2026-08-27).** `verify_contexts_against_plasmid`
+  llevaba desde el generador de bloques abortando si los contextos del módulo no
+  coinciden con el vector real — escrita, probada, y **sin correr nunca donde habría
+  servido de algo**. Es el patrón de `store.save_*` sobre algo más grave: lo que no se
+  contrastaba son secuencias que se van a PEDIR. Principio nº 6 de `docs/principios.md`,
+  y sus tres mitades:
+  - **Corre donde se genera, y hay DOS generadores.** `gblock.build_gblock` monta el
+    módulo de 149 nt para los oligos y `blocks.build_block` monta ese mismo módulo más
+    el cassette para la ficha. Cablear sólo el primero habría dejado la comprobación
+    fuera justo del camino que se lee.
+  - **Sin el plásmido sale `NOT_RUN`, no `PASS`,** y el módulo entero `INCOMPLETE`. El
+    plásmido SGEP **no está en el repositorio** y no vale el que hay:
+    `data/reference/aav_casete.fa` es pAAV con PrP murino, otro vector, y **no contiene
+    ninguno de los dos contextos** —comprobado, con test, para que nadie apunte la
+    comprobación ahí creyendo que sirve—.
+  - **Se ve.** El motivo se pinta en la ficha y en el informe que se entrega. La primera
+    versión corría y no salía en ningún golden: una comprobación que corre y no llega a
+    la pantalla es la mitad del arreglo, y **el diff del golden es la prueba**.
+- **LOS TRES PARES DUPLICADOS, CRUZADOS EN VEZ DE BORRADOS**
+  (`tests/test_cruce_de_pares_duplicados.py`, principio nº 5). La que no se usa es la
+  única que puede contradecir a la que sí. Y al cruzarlos, los tres resultaron ser cosas
+  distintas de lo que parecían:
+  - **`spliceai.verdict_state` vs `SpliceRun.verdict`: par de verdad, y NO COINCIDEN.**
+    La primera mira la corrida ENTERA («¿tiene pares?»), el almacén mira **el par
+    candidato × intrón**, que es la unidad que este frente tiene decidida. Para un
+    candidato que nadie consultó, `verdict_state` dice `PASS` donde el almacén dice
+    `NOT_RUN`. **La que no tenía llamador no era una copia redundante: era la
+    equivocada** — y estaba ahí para que alguien la cableara. La discrepancia queda fija
+    en un test.
+  - **`ceiling_layers` vs `layer_for`: no son dos implementaciones.** `ceiling_layers(m)`
+    es literalmente `return m.layers`. Lo que sí se puede exigir es lo que su docstring
+    AFIRMA —tramos sin huecos ni solapes—, comprobado sobre posiciones reales del ratón.
+  - **`analyze_3utr` vs `annotate_polya`: dos GENERACIONES con reglas deliberadamente
+    distintas** (el umbral simétrico ±10 que «no sale de ningún artículo» frente a la
+    ventana de corte asimétrica). Exigirles que coincidan sería exigir que el bloque 3 no
+    hubiera pasado. Lo que sí comparten es `find_polya_signals`, y ése es el número que
+    se cruza.
+  - **Y UN CUARTO PAR que la alcanzabilidad NO PUEDE VER**, porque los dos lados tienen
+    llamador: `blocks.py` monta el módulo con SUS piezas y `gblock.py` con SUS
+    constantes. Hoy coinciden —comprobado sobre el módulo entero, no sobre los trozos—,
+    pero nada lo obligaba, y lo que divergiría es **ADN que se manda a sintetizar**.
+    Además la comprobación del plásmido usa las de `gblock`: sin este cruce, validaría un
+    módulo que la ficha no monta.
+- **LA PROCEDENCIA DE G4, HECHA DE VERDAD** (`docs/procedencia-g4.md`). Lo que se dijo
+  aquí —que venía «del commit fundacional `ccb344a`»— **era falso**: `ccb344a` es el
+  renombrado, y su mensaje dice «G4 se comprueba AHORA sobre la diana Y sobre la guía»,
+  o sea que ya existía y ese commit lo partió en dos. Se dio por buena la primera
+  aparición que salió al buscar. La cadena real son 33 minutos del 25 de agosto:
+  `8211734` (sólo las reglas, sin pipeline) → `61741c4` (nace la tabla de 15 pasos, con
+  el paso 8 «Sin motivo G-cuádruplex, duro, pendiente») → `b544dd2` (la implementación,
+  empaquetada con GC y homopolímero y **sin ninguna cita**, al lado de una asimetría que
+  sí cita Turner 2004) → `ccb344a` (se parte en dos). Quién lo pidió: `61741c4` separa
+  «apartados A, B y C **del encargo**» de «**además**: docs/pipeline.md…», y G4 está en
+  el además; pero `docs/valores-esperados.md`, del mismo commit, se titula «verificados
+  por el responsable del proyecto» y lista «sin motivo G4» junto a un 181 PASS que este
+  código no pudo calcular —los pasos 3-8 estaban «pendiente»—. **El repositorio no puede
+  decidir cuál de las dos, así que no se decide.**
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

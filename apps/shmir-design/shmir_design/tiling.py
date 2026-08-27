@@ -397,9 +397,11 @@ class TilingReport:
                     tiled.tercio.value if tiled.tercio else "",
                 ]
                 + [
-                    _con_marco(tiled.polya.as_columns(), c, marco)
-                    if tiled.polya
-                    else ""
+                    # La etiqueta la pone `PolyAAnnotation.as_columns`, que es quien sabe
+                    # de que posicion habla. Aqui habia un `_con_marco` que la ponia solo
+                    # para el TSV, asi que la tabla de la pagina sacaba el entero desnudo:
+                    # dos sitios haciendo lo mismo y uno olvidandose.
+                    tiled.polya.as_columns()[c] if tiled.polya else ""
                     for c in POLYA_COLUMNS
                 ]
                 + [r.state.value for r in tiled.filters]
@@ -413,18 +415,6 @@ class TilingReport:
         return "\n".join(
             "\t".join(_tsv_safe(field) for field in row) for row in rows
         )
-
-
-def _con_marco(columnas: dict[str, str], nombre: str, marco: Frame) -> str:
-    """La posicion del hexamero va en el marco de LO TILADO, y se dice en la celda.
-
-    `PolyAAnnotation.as_columns` no conoce la anatomia, asi que la etiqueta se pone
-    aqui, que es donde se sabe.
-    """
-    valor = columnas[nombre]
-    if nombre == "polyA_hexamero_pos" and valor:
-        return label(int(valor), marco)
-    return valor
 
 
 def _tsv_safe(field: str) -> str:
@@ -557,6 +547,9 @@ def tile_utr(
             fraccion_isoforma_larga=(
                 apa.knockdown_ceiling if apa is not None else None
             ),
+            # El marco de LO TILADO. Sin esto, `polyA_hexamero_pos` salia como un entero
+            # desnudo en la tabla de la pagina: `1185` es `tx:1185`, o sea `3utr:236`.
+            frame=frame_of(anatomy) if anatomy is not None else Frame.UTR3,
         )
         zona_prohibida = anotacion_polya.veredicto
         if region is not Region.UTR3:

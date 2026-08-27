@@ -1,0 +1,167 @@
+"""La comprobación de los contextos contra el plásmido CORRE, y corre siempre.
+
+`verify_contexts_against_plasmid` existía desde el generador de bloques y sólo la
+llamaban sus propios tests: una comprobación que aborta si los contextos del módulo no
+coinciden con el vector real, escrita, probada, y sin correr nunca donde serviría de
+algo. Es el patrón de `store.save_*` sobre algo más grave — aquí lo que no se contrasta
+son secuencias que se van a PEDIR.
+
+Ahora es el quinto `FilterResult` de `build_gblock`, así que corre en cada generación de
+módulo. Y como depende de un recurso que HOY NO ESTÁ en el repositorio —el plásmido SGEP
+depositado; `data/reference/aav_casete.fa` es pAAV con PrP murino y no lo contiene,
+comprobado—, su estado sin él es `NOT_RUN` y no `PASS`: la regla 3 en su forma literal.
+"""
+
+import unittest
+
+from shmir_design.errors import ShmirDesignError
+from shmir_design.filters import FilterState, Verdict
+from shmir_design.gblock import (
+    CONTEXT_3,
+    CONTEXT_5,
+    CONTEXT_POSITIONS,
+    build_gblock,
+)
+from shmir_design.scaffold import build_hairpin
+
+GUIA = "TATTTAATGTCAGTCTGATAGC"
+
+
+def plasmido(ctx5: str = CONTEXT_5, ctx3: str = CONTEXT_3) -> str:
+    """Un plásmido de relleno con los dos contextos en sus posiciones declaradas."""
+    ini5, fin5 = CONTEXT_POSITIONS["contexto_5"]
+    ini3, fin3 = CONTEXT_POSITIONS["contexto_3"]
+    largo = max(fin5, fin3)
+    relleno = list("A" * largo)
+    relleno[ini5 - 1 : fin5] = list(ctx5)
+    relleno[ini3 - 1 : fin3] = list(ctx3)
+    return "".join(relleno)
+
+
+class TestElQuintoCheck(unittest.TestCase):
+
+    def test_el_modulo_lleva_la_comprobacion_de_contextos(self):
+        nombres = [c.name for c in build_gblock(build_hairpin(GUIA)).checks]
+        self.assertIn("contextos_vs_plasmido", nombres)
+
+    def test_sin_plasmido_es_NOT_RUN_y_dice_que_falta(self):
+        check = next(
+            c for c in build_gblock(build_hairpin(GUIA)).checks
+            if c.name == "contextos_vs_plasmido"
+        )
+        self.assertIs(check.state, FilterState.NOT_RUN)
+        self.assertIn("plásmido", check.reason)
+
+    def test_y_por_eso_el_modulo_sale_INCOMPLETE_no_PASS(self):
+        # La consecuencia buscada: un módulo cuyos contextos NADIE ha contrastado con el
+        # vector real no puede salir apto. Es la regla 3, y aquí lo que se pide con un
+        # PASS falso es ADN.
+        modulo = build_gblock(build_hairpin(GUIA))
+        self.assertIs(modulo.verdict, Verdict.INCOMPLETE)
+        self.assertFalse(modulo.ok)
+
+    def test_con_el_plasmido_bueno_PASA_y_el_modulo_es_apto(self):
+        modulo = build_gblock(build_hairpin(GUIA), plasmid=plasmido())
+        check = next(c for c in modulo.checks if c.name == "contextos_vs_plasmido")
+        self.assertIs(check.state, FilterState.PASS)
+        self.assertIs(modulo.verdict, Verdict.PASS)
+        self.assertTrue(modulo.ok)
+
+    def test_con_un_plasmido_que_NO_coincide_ABORTA(self):
+        # No es un FAIL de este candidato: si los contextos no son los del vector, TODOS
+        # los módulos están mal, no éste. Un veredicto por candidato lo haría pasar por
+        # un problema de la ventana.
+        with self.assertRaises(ShmirDesignError) as ctx:
+            build_gblock(build_hairpin(GUIA), plasmid=plasmido(ctx5="A" * 20))
+        self.assertIn("contexto_5", str(ctx.exception))
+
+    def test_y_un_plasmido_demasiado_corto_tambien(self):
+        with self.assertRaises(ShmirDesignError):
+            build_gblock(build_hairpin(GUIA), plasmid="ACGT" * 100)
+
+
+class TestElRecursoNOESTA(unittest.TestCase):
+
+    def test_el_casete_AAV_no_es_el_plasmido_SGEP(self):
+        # Comprobado, no supuesto: es el motivo por el que el estado por defecto es
+        # NOT_RUN y no PASS. Si algún día alguien apunta la comprobación a este fichero
+        # creyendo que vale, este test lo para.
+        from pathlib import Path
+
+        ruta = Path(__file__).resolve().parent.parent / "data" / "reference" / "aav_casete.fa"
+        if not ruta.exists():
+            self.skipTest(f"no está {ruta}")
+        seq = "".join(
+            l.strip() for l in ruta.read_text().splitlines() if not l.startswith(">")
+        ).upper()
+        self.assertNotIn(CONTEXT_5, seq)
+        self.assertNotIn(CONTEXT_3, seq)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestElOTROGeneradorDeModulos(unittest.TestCase):
+    """Hay DOS sitios que montan el módulo, y «en cada generación» son los dos.
+
+    `gblock.build_gblock` monta el de 149 nt para los oligos; `blocks.build_block` monta
+    ese MISMO módulo más el cassette y el intrón, y es el que alimenta la ficha. Cablear
+    sólo el primero habría dejado la comprobación fuera justo del camino que se lee.
+    """
+
+    def test_el_bloque_lleva_la_comprobacion_de_contextos(self):
+        from shmir_design.blocks import build_block
+
+        bloque = build_block(GUIA, available=False)
+        self.assertIn("contextos_vs_plasmido", [c.name for c in bloque.checks])
+
+    def test_sin_plasmido_sale_en_not_run(self):
+        from shmir_design.blocks import build_block
+
+        bloque = build_block(GUIA, available=False)
+        self.assertIn(
+            "contextos_vs_plasmido", [c.name for c in bloque.not_run]
+        )
+
+    def test_con_el_plasmido_bueno_pasa(self):
+        from shmir_design.blocks import build_block
+
+        bloque = build_block(GUIA, available=False, plasmid=plasmido())
+        self.assertIs(bloque.check("contextos_vs_plasmido").state, FilterState.PASS)
+
+
+class TestLosDosGeneradoresUSANLASMISMASPIEZAS(unittest.TestCase):
+    """El cuarto par duplicado, y éste es ADN.
+
+    `blocks.py` monta el módulo con SUS piezas (`PIECES`) y `gblock.py` con SUS
+    constantes. Hoy coinciden —comprobado aquí—, pero nada lo obligaba: si alguien
+    corrige un contexto en un sitio, la ficha y los oligos empiezan a describir dos
+    módulos distintos y no salta nada. Y la comprobación contra el plásmido usa las
+    constantes de `gblock`, así que validaría un módulo que la ficha no monta.
+    """
+
+    def test_los_cuatro_trozos_son_LOS_MISMOS(self):
+        from shmir_design import blocks
+        from shmir_design.gblock import NHEI_SITE, SACI_SITE
+
+        for nombre, esperado in (
+            ("contexto5", CONTEXT_5),
+            ("contexto3", CONTEXT_3),
+            ("NheI", NHEI_SITE),
+            ("SacI", SACI_SITE),
+        ):
+            with self.subTest(nombre=nombre):
+                self.assertEqual(blocks._s(nombre), esperado)
+
+    def test_y_los_dos_montan_EL_MISMO_modulo(self):
+        # El cruce de verdad: no que las piezas coincidan, sino que el resultado
+        # coincida. Es lo que se pide sintetizar.
+        from shmir_design.blocks import build_block
+        from shmir_design.gblock import build_gblock
+        from shmir_design.scaffold import build_hairpin
+
+        self.assertEqual(
+            build_block(GUIA, available=False).module,
+            build_gblock(build_hairpin(GUIA)).sequence,
+        )

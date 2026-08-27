@@ -14,6 +14,7 @@ from shmir_design import offtarget, presentation
 from shmir_design.errors import ShmirDesignError
 from shmir_design.filters import FilterState
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
+from tests.sin_logica import comprobar_sin_logica
 
 DATOS = Path(__file__).resolve().parent.parent / "data" / "reference"
 MATURE = DATOS / "mature.fa"
@@ -220,8 +221,7 @@ class TestLaPaginaSigueSinLOGICA(unittest.TestCase):
         ).read_text(encoding="utf-8")
         inicio = fuente.index("def _modal_offtarget(")
         modal = fuente[inicio:]
-        for prohibido in ("int(", "float(", ".upper()", ".lower()", "sorted("):
-            self.assertNotIn(prohibido, modal, prohibido)
+        comprobar_sin_logica(self, modal)
 
     def test_el_modal_existe_y_se_llama_desde_la_pagina(self):
         fuente = (

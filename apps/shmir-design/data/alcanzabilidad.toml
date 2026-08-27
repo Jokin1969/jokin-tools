@@ -21,3 +21,99 @@
 
 # ── Se llama desde FUERA de Python ──
 seed_reference_dir = "La invoca el hub, no Python: `apps/shmir/routes.js` la ejecuta con `python3 -c` al arrancar la interfaz, para sembrar el directorio de trabajo. El análisis solo lee ficheros .py, así que este llamador le es invisible por construcción — no por descuido."
+
+# ── CLASIFICACIÓN DE 2026-08-27, REVISADA UNA A UNA ──
+#
+# El informe pasó de 93 a 28 con el cierre transitivo, y de 28 a 17 al cambiar la clave
+# de `nombre` a `(módulo, nombre)`: un envoltorio homónimo vivo mantenía «vivo» al
+# original, o sea, la herramienta había dejado de ver EXACTAMENTE el caso que la motivó.
+# Ese cambio SACÓ A LA LUZ cuatro que estaban tapadas —`offset_of`,
+# `verify_contexts_against_plasmid`, `load_guide_fixture`, `can_transfer_window`—, así
+# que el informe de 28 no era bueno y esta revisión es sobre las 17 de verdad.
+#
+# Tres categorías, y sólo la primera es urgente:
+#
+#   1. ÚTILES SIN CABLEAR — calculan algo que debería salir y no sale, o son la SEGUNDA
+#      forma de calcular algo que ya se calcula de otra. NO se justifican aquí: se
+#      quedan en el informe hasta que se cableen o se decida por escrito que no van.
+#   2. LEGÍTIMAS — se llaman desde fuera de Python, son herramienta de los tests, o
+#      existen para NEGARSE. Van justificadas abajo y desaparecen del informe.
+#   3. MUERTAS — un atajo más estrecho de algo que ya se usa entero. Se borran en su
+#      propia tanda, con su diff: borrar código en la misma tanda que arregla otra cosa
+#      esconde el borrado dentro de un diff que se lee por otro motivo.
+#
+# CATEGORÍA 1 — LO URGENTE. Va sin justificar A PROPÓSITO, para que siga saliendo:
+#
+#   · splice_variant_rows — las variantes de `mvm_sin_criptico` para la página. CERO
+#     llamadores y CERO tests: el cuarto modal calcula la propuesta y no la enseña.
+#   · selection_rules_report / immune_count — la comparación de las dos reglas de
+#     selección, que se pidió para poder compararlas. La página todavía no la enseña.
+#   · describe_triple — el detalle del TRIPLE MOTIVO. CLAUDE.md ya lo declaraba
+#     pendiente; sigue sin emitirse.
+#   · shared_network — la intersección REAL de las dos redes de off-target al
+#     multiplexar. Su propio docstring dice que `None` significa NO CALCULADO y que hay
+#     que decirlo con esas palabras — y no hay nadie que lo diga, porque no se llama.
+#
+# RESUELTO — verify_contexts_against_plasmid YA ESTÁ CABLEADA (2026-08-27). Corre en los
+# DOS generadores de módulo, `gblock.build_gblock` y `blocks.build_block`, como
+# `_check_contexts`. Sin el plásmido SGEP —que NO está en el repositorio: el casete AAV
+# es otro vector y no contiene los contextos, comprobado con test— sale NOT_RUN, el
+# módulo entero INCOMPLETE, y el motivo se pinta en la ficha. Que corriera sin verse
+# habría sido la mitad del arreglo.
+#
+# LOS TRES PARES DUPLICADOS, CRUZADOS (`tests/test_cruce_de_pares_duplicados.py`). No se
+# borró ninguno: se cruzaron. Y al cruzarlos resultaron ser tres cosas distintas.
+#
+#   · verdict_state / SpliceRun.verdict — PAR DE VERDAD, y NO COINCIDEN. `verdict_state`
+#     mira la corrida ENTERA («¿tiene pares?»); el almacén mira EL PAR candidato x
+#     intrón, que es la unidad que este frente tiene decidida. Para un candidato que
+#     nadie consultó, `verdict_state` dice PASS donde el almacén dice NOT_RUN. O sea que
+#     la que no tenía llamador no era una copia redundante: era la EQUIVOCADA, y estaba
+#     ahí para que alguien la cableara. La discrepancia queda FIJADA en un test. Pasa a
+#     categoría 3 —se borra en su tanda—, pero con el motivo escrito, que es lo que
+#     faltaba: no sobra, está mal.
+#   · ceiling_layers / MeasuredApa.layer_for — NO son dos implementaciones.
+#     `ceiling_layers(m)` es literalmente `return m.layers`, y `layer_for` busca DENTRO
+#     de esa misma lista: no pueden discrepar, así que no hay nada que cruzar. Lo que sí
+#     se puede exigir es lo que su docstring AFIRMA —que los tramos cubren el 3'UTR sin
+#     huecos ni solapes—, y eso ya está comprobado sobre posiciones reales del ratón.
+#     Categoría 3: es un alias.
+#   · analyze_3utr / annotate_polya — dos GENERACIONES, no dos implementaciones, y con
+#     reglas deliberadamente distintas: la vieja usa el umbral simétrico ±10 que «no
+#     sale de ningún artículo», la nueva la ventana de corte asimétrica aguas abajo.
+#     Exigirles que coincidan sería exigir que el bloque 3 no hubiera pasado. Lo que SÍ
+#     comparten es `find_polya_signals`, y ESE es el número que se cruza — mismo conjunto
+#     de hexámeros por los dos caminos, con el AATATA de 3utr:236 dentro. Categoría 3.
+#
+# Y UN CUARTO PAR que el cruce sacó y que no estaba en la lista, porque los dos lados
+# tienen llamador y por eso la alcanzabilidad no los ve: `blocks.py` monta el módulo con
+# SUS piezas y `gblock.py` con SUS constantes. Hoy coinciden —comprobado—, pero nada lo
+# obligaba: corregir un contexto en un sitio y no en el otro haría que la ficha y los
+# oligos describieran dos módulos distintos sin que saltase nada. Y la comprobación
+# contra el plásmido usa las de `gblock`, así que validaría un módulo que la ficha no
+# monta. Cruzado con un test sobre el módulo ENTERO, no sobre las piezas.
+#
+# CATEGORÍA 3 — MUERTAS, para su propia tanda de borrado:
+#   · offset_of (coords) — CERO referencias en todo el repo, ni siquiera un test. Lo que
+#     se usa es `frame_of`/`bound_of`; ésta se quedó del arreglo del marco.
+#   · limitation (offtarget) — busca una limitación por clave, y quien las pinta itera
+#     `LIMITATIONS` entero. Sólo la llaman sus tests.
+#   · site_conflicts (spacing) — su propio docstring lo dice: «solo los choques;
+#     `compare_sites` da ADEMÁS las plazas nuevas y la referencia». Se usa la entera.
+#   · can_transfer (transfer) — la forma simple sobre un conjunto de posiciones.
+#     `can_transfer_window`, que recibe el alineamiento, es la que distingue lo ambiguo
+#     de lo cierto; pero OJO: tampoco ella tiene llamador, así que las dos se revisan
+#     JUNTAS y no se borra una dejando la otra colgando.
+
+
+# ── Categoría 2: LEGÍTIMAS ──
+fixture_available = "La usan 80 ficheros de tests como `skipUnless`: es la que hace que un test se salte de forma VISIBLE cuando falta un fixture, en vez de fallar. Vive en el paquete y no en los tests porque la comparten los tests y `tools/check_data.py`."
+declare_utr3_length = "API pública documentada en CLAUDE.md: la llama quien trabaja con una especie no declarada, desde una consola o un cuaderno. Es la contramedida que hace utilizable el invariante de rango fuera del ratón; sin ella, un 3'UTR de conejo aborta."
+reset_declared_lengths = "Compañera de `declare_utr3_length`, y la usan los tests para no dejar el techo subido entre casos. Borrarla dejaría el estado global sin forma de limpiarse."
+fixture_path = "Herramienta de `guide_fixture` para localizar el FASTA de guías. La usan los tests de la regresión de la pasajera; su par `load_guide_fixture` es la puerta de entrada."
+parse_guide_fasta = "Parser público del fixture de guías: se prueba por separado del cargador a propósito, porque el fallo que cubre es de formato y no de carga."
+
+# Añadidas en la revisión una a una de 2026-08-27:
+load_guide_fixture = "Puerta de entrada del fixture de guías, y comprueba su md5 antes de dejar fijar ninguna regresión con él. La usa `tests/test_pasajera_regresion.py`, que es para lo que existe; vive en el paquete y no en los tests por lo mismo que `fixture_available`. Salió al informe al cambiar la clave a `(módulo, nombre)`: antes la tapaba un homónimo."
+passenger_of = "La pasajera que emite MiRArchitect para una guía. Se calcula PARA PODER DESCARTARLA, no para diseñar: su único uso es la comprobación de que la nuestra, la del criterio estructural, no coincide con la suya. Sin ella esa comparación se haría a ojo, que es como se coló la primera vez."
+extended_cassette = "Existe para NEGARSE: levanta `NotImplementedError` diciendo que los flancos extendidos del pri-miR no están verificados y que no se inventan para completar un cassette AAV. Un símbolo que sólo sabe abortar no va a tener llamador nunca — y borrarlo dejaría el hueco sin nadie que lo custodie, que es justo lo contrario de lo que hace falta."

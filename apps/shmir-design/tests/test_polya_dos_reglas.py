@@ -105,7 +105,9 @@ class TestSobreElTranscritoReal(unittest.TestCase):
         if anotacion.signal is not None:
             self.assertEqual(
                 anotacion.as_columns()["polyA_hexamero_pos"],
-                str(anotacion.signal.position),
+                # ETIQUETADA con su marco. `1185` desnudo es `tx:1185`, o sea
+                # `3utr:236`: bien calculado y mal etiquetado.
+                f"3utr:{anotacion.signal.position}",
             )
 
     def test_la_distancia_al_extremo_3_cuadra_con_la_longitud(self):
@@ -113,7 +115,9 @@ class TestSobreElTranscritoReal(unittest.TestCase):
         if anotacion.signal is not None:
             esperada = len(self.utr3) - anotacion.signal.end
             self.assertEqual(
-                anotacion.as_columns()["polyA_dist_extremo3"], str(esperada)
+                # Una distancia no lleva marco: lleva UNIDAD. Y la lleva porque se lee
+                # pegada a una posición, y un número al lado de otro se lee como lo mismo.
+                anotacion.as_columns()["polyA_dist_extremo3"], f"{esperada} nt"
             )
 
     def test_sin_hexamero_cerca_los_dos_campos_van_VACIOS(self):

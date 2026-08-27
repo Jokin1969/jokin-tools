@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from html import escape
+from pathlib import Path, PurePosixPath
 
 from . import coords
 from .anatomy import Anatomy
@@ -60,6 +61,10 @@ class StatusLight:
     #: distinto con el mismo nombre.
     not_eligible: int = 0
     tiled: int = 0
+    #: Filtros que calculan y NO emiten veredicto porque su criterio esta pendiente de
+    #: decision escrita. No son frentes —no se cierran consiguiendo nada— y no cuentan
+    #: para el color, pero salen NOMBRADOS: un filtro que no se ve no existe.
+    undecided: tuple[str, ...] = ()
 
 
 def status_light(selection: ReportSelection) -> StatusLight:
@@ -111,6 +116,31 @@ def status_light(selection: ReportSelection) -> StatusLight:
     )
     conteos = {"not_eligible": no_elegibles, "tiled": tiladas}
 
+    # Los PENDIENTES DE DECISION no cuentan como filtros sin correr: su NOT_RUN no dice
+    # «falta un recurso», dice «nadie ha decidido su criterio». Contarlos dejaba el verde
+    # estructuralmente inalcanzable por algo que no se arregla consiguiendo nada — el
+    # mismo fallo que tuvo la interfaz con sus tres parámetros.
+    #
+    # Y NO se esconden: salen aparte, con su nombre, en `undecided`.
+    from .filters import UNDECIDED_FILTERS
+
+    sin_decidir = sorted(
+        {
+            r.name
+            for choice in selection.selection.chosen
+            for r in selection.window_of(choice).filters
+            if r.name in UNDECIDED_FILTERS
+        }
+    )
+    nota_sin_decidir = (
+        f" Y {len(sin_decidir)} filtro(s) con el CRITERIO SIN DECIDIR "
+        f"({', '.join(sin_decidir)}): calculan y no emiten veredicto, así que no "
+        f"excluyen a nadie ni bloquean la aprobacion. Se decide por escrito, no se "
+        f"consigue un fichero."
+        if sin_decidir
+        else ""
+    )
+    conteos = {**conteos, "undecided": tuple(sin_decidir)}
     total = (
         len(selection.window_of(selection.selection.chosen[0]).filters)
         if selection.selection.chosen
@@ -124,7 +154,7 @@ def status_light(selection: ReportSelection) -> StatusLight:
             detail=(
                 "No hay ningún candidato que evaluar, así que no hay nada que aprobar. "
                 "Revisa los umbrales y cuántas ventanas superan los filtros."
-                + nota_no_evaluables
+                + nota_no_evaluables + nota_sin_decidir
             ),
             **conteos,
         )
@@ -134,7 +164,7 @@ def status_light(selection: ReportSelection) -> StatusLight:
             r.name
             for choice in selection.selection.chosen
             for r in selection.window_of(choice).filters
-            if r.state is FilterState.NOT_RUN
+            if r.state is FilterState.NOT_RUN and r.name not in UNDECIDED_FILTERS
         }
     )
     if not pendientes:
@@ -145,7 +175,8 @@ def status_light(selection: ReportSelection) -> StatusLight:
             ran=total,
             detail=(
                 f"Ninguno de los {len(selection.selection.chosen)} candidatos tiene "
-                f"filtros en NOT_RUN: sus veredictos son completos." + nota_no_evaluables
+                f"filtros en NOT_RUN: sus veredictos son completos."
+                + nota_no_evaluables + nota_sin_decidir
             ),
             **conteos,
         )
@@ -159,7 +190,8 @@ def status_light(selection: ReportSelection) -> StatusLight:
         detail=(
             f"NOT_RUN no es PASS. Corrieron {total - len(pendientes)} de {total} "
             f"{FILTER_COUNT_NAME}; no corrieron {', '.join(pendientes)}. Ningún candidato esta "
-            f"aprobado y la selección es PROVISIONAL." + nota_no_evaluables
+            f"aprobado y la selección es PROVISIONAL."
+            + nota_no_evaluables + nota_sin_decidir
         ),
         pending=tuple(pendientes),
         total=total,
@@ -2332,6 +2364,74 @@ def splice_run_from_scan(scan, *, raw: str, date: str, ran_by: str, run_id: str,
     )
 
 
+#: Qué puede ser el nombre de un proyecto. Va aquí y no en la página (regla 6).
+#:
+#: El nombre lo teclea una persona y se convierte en un DIRECTORIO. Sin comprobarlo,
+#: «Prnp raton 2026/08/27» crea un anidado que `project_list` no lista nunca —el
+#: proyecto existe y no aparece— y `..` o una ruta absoluta escriben FUERA del directorio
+#: de proyectos, que es el volumen donde vive el registro de lo que se decidió.
+PROJECT_SLUG_RULE = (
+    "El nombre de un proyecto es UN nombre de carpeta: letras, dígitos, guion, guion "
+    "bajo y punto. Ni barras, ni `..`, ni rutas absolutas — se convierte en un "
+    "directorio, y con una barra dentro el proyecto se crea donde nadie lo busca."
+)
+_SLUG_OK = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def check_project_slug(slug: str) -> str:
+    """Valida el nombre de un proyecto o ABORTA. Ver `PROJECT_SLUG_RULE`."""
+    limpio = str(slug).strip()
+    if not limpio or limpio in (".", "..") or not _SLUG_OK.match(limpio):
+        raise ShmirDesignError(
+            f"Nombre de proyecto {slug!r} no válido. {PROJECT_SLUG_RULE}"
+        )
+    return limpio
+
+
+UPLOAD_NAME_RULE = (
+    "El nombre de un fichero subido lo pone el NAVEGADOR, no el servidor: se escribe "
+    "en disco, así que se queda con el nombre a secas y se comprueba que la ruta cae "
+    "dentro del directorio de destino. Con `..` dentro, la escritura saldría del "
+    "directorio temporal que se creó justo para contenerla."
+)
+
+
+def upload_path(directorio, nombre: str):
+    """Ruta DENTRO de `directorio` para un fichero subido, o ABORTA.
+
+    La regla es UNA: sobrevive el NOMBRE, se cae todo lo que va delante. `..` no es un
+    caso especial —es ruta—, y por eso no hay que acertar con la lista de formas de
+    escribirlo (`..%2f`, `....//`): no se limpia la ruta, se descarta entera. Si no
+    queda nombre (`.`, `..`, vacío), se aborta en vez de inventarse uno.
+
+    La extensión sobrevive —`resolve_anatomy` y `load_scaffold` deciden el formato por
+    ella, así que comérsela rompería la carga sin decir por qué—. Y la comprobación
+    final es sobre la ruta RESUELTA, que es la que acaba en `write_bytes`: comprobar el
+    texto y escribir otra cosa es la mitad de una comprobación.
+
+    Es la hermana pequeña de `check_project_slug`: allí el nombre lo teclea el usuario,
+    aquí lo manda el navegador. Ver `UPLOAD_NAME_RULE`.
+    """
+    base = Path(directorio)
+    crudo = str(nombre)
+    if "\x00" in crudo or "\\" in crudo:
+        raise ShmirDesignError(
+            f"Nombre de fichero {nombre!r} no válido. {UPLOAD_NAME_RULE}"
+        )
+    limpio = PurePosixPath(crudo).name.strip()
+    if not limpio or limpio in (".", ".."):
+        raise ShmirDesignError(
+            f"Nombre de fichero {nombre!r} no válido. {UPLOAD_NAME_RULE}"
+        )
+    ruta = base / limpio
+    if not ruta.resolve().is_relative_to(base.resolve()):
+        raise ShmirDesignError(
+            f"El fichero {nombre!r} acabaría en {ruta.resolve()}, fuera de {base}. "
+            f"{UPLOAD_NAME_RULE}"
+        )
+    return ruta
+
+
 def project_create(base, *, slug: str, date: str, sequence: str, species: str,
                    anatomy, anatomy_source: str):
     """Crea el proyecto en disco. Repetir un slug ABORTA: nada se pisa.
@@ -2344,7 +2444,7 @@ def project_create(base, *, slug: str, date: str, sequence: str, species: str,
     from .store import ProjectStore
 
     return ProjectStore.create(
-        base, slug=str(slug), sequence=sequence, species=str(species),
+        base, slug=check_project_slug(slug), sequence=sequence, species=str(species),
         anatomy=anatomy, anatomy_source=str(anatomy_source), created=str(date),
     )
 
@@ -2359,7 +2459,7 @@ def project_open(base, slug: str, *, expect_md5: str | None = None):
     """
     from .store import ProjectStore
 
-    almacen = ProjectStore.open(base, slug)
+    almacen = ProjectStore.open(base, check_project_slug(slug))
     if expect_md5 and almacen.project.sequence_md5 != str(expect_md5):
         raise ShmirDesignError(
             f"El proyecto {slug!r} se creo sobre una secuencia de md5 "
@@ -2507,7 +2607,8 @@ def page_run(
     de transcrito son coordenadas de transcrito de verdad y no una copia de las del
     3'UTR. Que ventanas entran lo decide `tile_range`, en el nucleo.
     """
-    from .selection import SelectionConfig, select_from_report
+    from .apa import POLYA_DB_PRNP, resolve_measured
+    from .selection import default_config, select_from_report
     from .tiling import tile_utr
 
     if anatomy is None:
@@ -2520,12 +2621,28 @@ def page_run(
     extra = dict(resources.as_kwargs()) if resources is not None else {}
     if mask is not None:
         extra["mask"] = mask  # la mascara subida a mano manda sobre la del manifiesto
+    # La tabla de APA MEDIDO se coloca sola sobre la secuencia que le corresponde y solo
+    # sobre esa: la condicion es el md5 canonico del 3'UTR, asi que sobre cualquier otra
+    # devuelve `None` y no se promueve ninguna señal.
+    #
+    # POR QUE ESTABA AQUI EL FALLO: el CLI la aplicaba y la pagina no. Sin ella el tercer
+    # sitio de corte —`131937444`, el proximal MAS USADO de los tres— no promociona, la
+    # frontera de la inmunidad se queda en `3utr:303` en vez de adelantarse a `3utr:251`,
+    # y `3utr:221` vuelve al panel porque su riesgo ESTERICO no llega a existir. O sea:
+    # el mismo mRNA daba un panel por consola y otro por navegador. Es la CUARTA
+    # divergencia entre los dos frontales y exactamente el fallo que obligo a crear
+    # `resolve.py` con la anatomia.
+    medido = resolve_measured(sequence, POLYA_DB_PRNP, anatomy=anatomy)
     tiling = tile_utr(
         sequence, anatomy=anatomy, seeds=seeds, thresholds=thresholds,
-        accessibility=accessibility, species=species, tile_range=tile_range, **extra,
+        accessibility=accessibility, species=species, tile_range=tile_range,
+        measured_apa=medido, **extra,
     )
+    # `default_config()` es la configuracion DEL PROYECTO: panel de 10 y cuota de
+    # inmunes emparejada con su frontera. `SelectionConfig()` a secas no la lleva, y
+    # usarlo aqui dejaba el panel con tres inmunes sin decirlo.
     seleccion = select_from_report(
-        tiling, config if config is not None else SelectionConfig()
+        tiling, config if config is not None else default_config()
     )
     inicio, fin = anatomy.utr3
     return PageRun(
@@ -2694,3 +2811,131 @@ def page_snapshot(
         "",
     ]
     return "\n".join(lineas) + "\n"
+
+
+# ═════════════ LAS DOS REGLAS DE LA SELECCION, LADO A LADO ═════════════
+#
+# La cuota por tercio y la cuota de INMUNES no compiten: hacen cosas distintas y las dos
+# hacen falta. Con solo la de tercios, `3utr:359` (+4,82) desplaza a `3utr:200` (+3,80)
+# por asimetria y el panel se queda con TRES inmunes en vez de cuatro — sin que nada lo
+# diga, porque los dos son del tercio proximal y la cuota de tercios se cumple igual.
+#
+# Y eso importa porque los inmunes son la UNICA reserva si el APA de `3utr:288` resulta
+# funcional: los sitios elegibles por delante del corte estan **20/0/0** por tercio, asi
+# que no hay de donde rebalancear. Un panel con tres inmunes no es «casi» el de cuatro.
+
+
+def immune_count(tiling, selection) -> int:
+    """Cuantos candidatos del panel son INMUNES al truncamiento por la señal proximal.
+
+    Inmune = empieza POR DELANTE del corte mas temprano, que se DERIVA del informe
+    (`selection.derive_immune_cut`) y no se teclea. Ver la entrada de `CLAUDE.md` sobre
+    por que la definicion estricta es la unica que vale.
+    """
+    from .selection import derive_immune_cut
+
+    corte = derive_immune_cut(tiling)
+    if corte is None:
+        return 0
+    return sum(1 for c in selection.selection.chosen if c.start < corte)
+
+
+def selection_rules_report(*, species: str, sequence, anatomy, thresholds=None) -> str:
+    """El panel bajo LAS DOS reglas, para poder compararlas.
+
+    No elige: emite las dos y dice cuantos inmunes deja cada una, que es la cifra de la
+    que cuelga la decision. La misma disciplina que `--polyA-modo`, que saca el top-N
+    bajo los tres criterios y deja decidir con la tabla delante.
+    """
+    from .hard_filters import DEFAULT_THRESHOLDS
+    from .selection import DEFAULT_CANDIDATES, DEFAULT_IMMUNE_QUOTA, SelectionConfig
+
+    umbrales = DEFAULT_THRESHOLDS if thresholds is None else thresholds
+    reglas = (
+        (
+            "solo cuota por tercio",
+            SelectionConfig(n_candidates=DEFAULT_CANDIDATES, apa_immune_quota=0),
+        ),
+        (
+            f"cuota por tercio + cuota de inmunes = {DEFAULT_IMMUNE_QUOTA}",
+            SelectionConfig(n_candidates=DEFAULT_CANDIDATES),
+        ),
+    )
+    lineas = [
+        "── El panel bajo las DOS reglas ──",
+        "",
+        "  Los inmunes son la ÚNICA reserva si el APA proximal resulta funcional: los",
+        "  sitios elegibles por delante del corte están 20/0/0 por tercio, así que si se",
+        "  pierden no hay de donde rebalancear. Por eso la cuota de inmunes es una CUOTA",
+        "  y no una preferencia.",
+    ]
+    for etiqueta, config in reglas:
+        corrida = page_run(
+            species=species, sequence=sequence, anatomy=anatomy,
+            thresholds=umbrales, config=config,
+        )
+        inmunes = immune_count(corrida.tiling, corrida.selection)
+        lineas.extend(["", f"  {etiqueta} — {inmunes} inmunes de "
+                       f"{len(corrida.selection.selection.chosen)}"])
+        for choice in sorted(corrida.selection.selection.chosen, key=lambda c: c.start):
+            u = corrida.anatomy.utr3_position(choice.start)
+            marca = " [inmune]" if choice.start < (
+                __import__("shmir_design.selection", fromlist=["derive_immune_cut"])
+                .derive_immune_cut(corrida.tiling) or 0
+            ) else ""
+            lineas.append(
+                f"    3utr:{u:<5} {choice.asymmetry:+.2f}  "
+                f"{choice.tercio.value if choice.tercio else '—'}{marca}"
+            )
+    return "\n".join(lineas)
+
+
+def stored_runs_note(stores) -> str:
+    """Qué corridas trae el proyecto ya guardadas, por frente.
+
+    Existe porque `load_stores` estaba importado en la página y **no se llamaba**: al
+    reabrir un proyecto volvía la selección y los cuatro frentes salían otra vez
+    `NOT_RUN`, así que la persistencia servía para la mitad de lo que dice servir. Es el
+    mismo patrón que `store.save_*` y que `page_run` — tercera vez.
+
+    Y el texto se construye AQUÍ y no en la página (regla 6): contar corridas y decidir
+    qué se enseña es lógica, y en la página no tendría test.
+    """
+    partes = []
+    for clave, almacen in sorted(stores.items()):
+        corridas = getattr(almacen, "runs", None)
+        partes.append(f"{clave}: {len(corridas) if corridas is not None else 0}")
+    total = sum(
+        len(getattr(a, "runs", None) or ()) for a in stores.values()
+    )
+    if not total:
+        return (
+            "El proyecto no tiene ninguna corrida guardada todavía. Los frentes salen "
+            "NOT_RUN porque nadie los ha cerrado, no porque no se hayan releído."
+        )
+    return (
+        "Corridas RECUPERADAS del proyecto — " + ", ".join(partes) + ". "
+        "Vuelven del log, no se han vuelto a calcular."
+    )
+
+
+#: Por qué una corrida cacheada lleva HUELLA.
+#:
+#: El resultado de un modal se guarda en el estado de la página para que sobreviva al
+#: rerun del botón de guardar. Pero el panel y los ajustes se pueden cambiar DESPUÉS, y
+#: el resultado viejo se seguía pintando y ofreciendo para guardar: se persistía en el
+#: log una corrida cuya procedencia no era la de pantalla. Es el fallo del CSV de
+#: miRarchitect otra vez — un resultado que encaja de forma y es de otra cosa.
+WHY_A_RUN_FINGERPRINT = (
+    "Una corrida cacheada lleva la huella del panel y los ajustes con los que se hizo. "
+    "Si cambian, se descarta: pintar un resultado viejo bajo unos ajustes nuevos es "
+    "presentar una procedencia que no es la suya."
+)
+
+
+def run_fingerprint(*partes) -> str:
+    """Huella de lo que produjo una corrida. Ver `WHY_A_RUN_FINGERPRINT`."""
+    import hashlib
+
+    crudo = "|".join(repr(p) for p in partes)
+    return hashlib.md5(crudo.encode("utf-8")).hexdigest()
