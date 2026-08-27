@@ -1,7 +1,7 @@
 ═══ Ficha del candidato — raton 3utr:200 ═══
 
   sitio      3utr:200-221
-  guia       TTTAGCACTGGCTGATGACAGA
+  guía       TTTAGCACTGGCTGATGACAGA
   pasajera   CCTGTCATCAGCCAGTGCTAAA
   veredicto  INCOMPLETE
 
@@ -22,23 +22,23 @@
   seed_colision:pasajera               NOT_RUN   —            sin corrida en el almacen
   transgen                             NOT_RUN   —            frente abierto del informe
 
-── Asimetria — las TRES cifras, que son magnitudes distintas ──
+── Asimetría — las TRES cifras, que son magnitudes distintas ──
   cruda +3.80   penalizacion 0.00   neta +3.80
 
 ── Techo de APA ──
-  sin techo — 3utr:1-251  sin techo            por delante de todos los cortes medidos: la diana esta en TODAS las isoformas. INMUNE.
+  sin techo — 3utr:1-251  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE.
 
 ── Sitios de esta seed en la PROPIA diana (esperado: 1) ──
   3utr:215 7mer-m8 (el suyo)
 
-── Multiplexado: nucleo de seed compartido ──
-  Con ningun otro candidato del panel. En este eje es independiente.
+── Multiplexado: núcleo de seed compartido ──
+  Con ningún otro candidato del panel. En este eje es independiente.
 
-── Hexameros cercanos ──
+── Hexámeros cercanos ──
   AATATA  3utr:236  APA_POSIBLE/medida a 15 nt por delante
 
 ── Bloques ──
-  modulo NheI-SacI (149 nt):
+  módulo NheI-SacI (149 nt):
     GCTAGCGAAGGCTCGAGAAGGTATATTGCTGTTGACAGTGAGCGCCTGTCATCAGCCAGT
     GCTAAATAGTGAAGCCACAGATGTATTTAGCACTGGCTGATGACAGATGCCTACTGCCTC
     GGACTTCAAGGGGCTAGAATTCGGAGCTC

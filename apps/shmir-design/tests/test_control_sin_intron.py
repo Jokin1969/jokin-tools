@@ -116,7 +116,7 @@ class TestSaleEnLaHojaDePedido(unittest.TestCase):
         from shmir_design.blocks import order_sheet
 
         hoja = order_sheet([], species="raton", intronless=self.control)
-        self.assertIn("SIN INTRON", hoja.upper())
+        self.assertIn("SIN INTRÓN", hoja.upper())
         self.assertIn(self.control.sequence[:30], hoja)
 
     def test_y_avisa_de_para_que_es(self):
@@ -128,7 +128,7 @@ class TestSaleEnLaHojaDePedido(unittest.TestCase):
     def test_sin_control_la_hoja_sigue_saliendo_igual(self):
         from shmir_design.blocks import order_sheet
 
-        self.assertNotIn("SIN INTRON", order_sheet([], species="raton").upper())
+        self.assertNotIn("SIN INTRÓN", order_sheet([], species="raton").upper())
 
 
 @unittest.skipUnless(CASETE.is_file(), "NOT_RUN: falta data/reference/aav_casete.fa")

@@ -56,37 +56,37 @@ from .spacers import spacer_rejections as _spacer_rejections
 from .splicing import CRYPTIC_DONOR
 
 AUTHORIZATION = (
-    "AUTORIZACION ESCRITA Y ACOTADA (2026-08-26). La regla 1 prohibe generar secuencia; "
-    "aqui se autoriza generar DOS cosas y nada mas: (1) UNA SOLA BASE del motivo "
+    "AUTORIZACIÓN ESCRITA Y ACOTADA (2026-08-26). La regla 1 prohibe generar secuencia; "
+    "aquí se autoriza generar DOS cosas y nada más: (1) UNA SOLA BASE del motivo "
     f"{CRYPTIC_DONOR}, para romperlo, y (2) los ESPACIADORES de 20-30 nt entre el donante "
-    "y el modulo y entre el modulo y el punto de ramificacion. NO cubre guias, ni "
+    "y el módulo y entre el módulo y el punto de ramificacion. NO cubre guías, ni "
     "pasajeras, ni el resto del andamio, ni los contextos de SGEP, ni ninguna otra pieza. "
-    f"OJO: {CRYPTIC_DONOR} son los ultimos 7 nt de `SGEP_SCAFFOLD.flank5`, o sea que esta "
+    f"OJO: {CRYPTIC_DONOR} son los últimos 7 nt de `SGEP_SCAFFOLD.flank5`, o sea que esta "
     "dentro del ANDAMIO y no en un espaciador — romperlo muta el andamio verificado "
     "contra la publicacion."
 )
 
 SCAFFOLD_MODIFIED_MARK = (
-    "ANDAMIO MODIFICADO: esta construccion NO lleva el miR-E verificado. Se le ha roto el "
-    f"donante criptico {CRYPTIC_DONOR} cambiando una base del flanco 5', asi que no es "
-    "intercambiable con el andamio estandar y su comportamiento de procesamiento no esta "
+    "ANDAMIO MODIFICADO: esta construcción NO lleva el miR-E verificado. Se le ha roto el "
+    f"donante críptico {CRYPTIC_DONOR} cambiando una base del flanco 5', así que no es "
+    "intercambiable con el andamio estándar y su comportamiento de procesamiento no esta "
     "contrastado contra la publicacion original."
 )
 
 TIE_NOTE = (
-    "Si varias alternativas empatan en las dos metricas, la app NO ELIGE: las emite "
-    "todas y lo decide QUIEN LEE. Es la misma regla que la posicion 1 de la pasajera."
+    "Si varias alternativas empatan en las dos métricas, la app NO ELIGE: las emite "
+    "todas y lo decide QUIEN LEE. Es la misma regla que la posición 1 de la pasajera."
 )
 
 #: Como se mide «cuanto degrada el contexto de donante». DECLARADO, no citado.
 DONOR_CONTEXT_CRITERION = (
-    "Cuanto degrada el contexto de donante se mide como el numero de posiciones que "
+    "Cuanto degrada el contexto de donante se mide como el número de posiciones que "
     "siguen coincidiendo con el consenso `GT[AG]AG` en las cinco primeras del motivo: "
-    "menos coincidencias, mas degradado. Es un criterio DECLARADO como parametro de este "
-    "analisis y NO ES UNA CITA — no sale de ninguna publicacion ni de ningun modelo. "
-    "SOBRE TODO: NO ES SpliceAI. La puntuacion de verdad del sitio criptico sale del "
-    "cuarto modal, sobre la construccion montada; esto solo sirve para GENERAR "
-    "candidatos que despues se puntuan como cualquier otra construccion."
+    "menos coincidencias, más degradado. Es un criterio DECLARADO como parámetro de este "
+    "análisis y NO ES UNA CITA — no sale de ninguna publicacion ni de ningún modelo. "
+    "SOBRE TODO: NO ES SpliceAI. La puntuación de verdad del sitio críptico sale del "
+    "cuarto modal, sobre la construcción montada; esto solo sirve para GENERAR "
+    "candidatos que después se puntuan como cualquier otra construcción."
 )
 
 #: Consenso de donante contra el que se cuenta. Va como parametro, no como cita.
@@ -117,7 +117,7 @@ def locate_cryptic(scaffold, *, motif: str = CRYPTIC_DONOR) -> CrypticSite:
         raise ShmirDesignError(
             f"El flanco 5' del andamio {scaffold.name!r} no contiene {motif!r}. Se "
             f"aborta en vez de dar el riesgo por ausente: o el andamio no es el que se "
-            f"cree, o el motivo esta en otro sitio, y las dos cosas invalidan este "
+            f"cree, o el motivo está en otro sitio, y las dos cosas invalidan este "
             f"diseño entero."
         )
     return CrypticSite(motif=motif, start=posicion + 1, end=posicion + len(motif))
@@ -250,11 +250,11 @@ def choose_break(scaffold, *, guide: str, motif: str = CRYPTIC_DONOR,
             candidates=candidatos,
             folding_ok=tuple(False for _ in candidatos),
             reason=(
-                "Sin ViennaRNA no se puede aplicar el criterio ESTRUCTURAL, asi que no "
+                "Sin ViennaRNA no se puede aplicar el criterio ESTRUCTURAL, así que no "
                 "se propone ninguna alternativa. Elegir la base «por lo que baja el "
-                "criptico» sin comprobar el plegado es exactamente el fallo de la tabla "
+                "críptico» sin comprobar el plegado es exactamente el fallo de la tabla "
                 "por terminacion que este proyecto ya cometio con la PASAJERA: la tabla "
-                "olvidaba el apareamiento G:U y elegia mal sin dar ningun error."
+                "olvidaba el apareamiento G:U y elegia mal sin dar ningún error."
             ),
         )
 
@@ -299,12 +299,12 @@ def spacer_rejections(sequence: str) -> tuple[str, ...]:
 
     if "GT" in limpia:
         motivos.append(
-            "Lleva un GT: en este intron el espaciador va pegado al donante legitimo, "
-            "asi que un GT suyo es un 5'SS alternativo en contexto utilizable."
+            "Lleva un GT: en este intrón el espaciador va pegado al donante legítimo, "
+            "así que un GT suyo es un 5'SS alternativo en contexto utilizable."
         )
     if "AG" in limpia:
         motivos.append(
-            "Lleva un AG: el espaciador 3' va pegado al punto de ramificacion, asi que "
+            "Lleva un AG: el espaciador 3' va pegado al punto de ramificacion, así que "
             "un AG suyo es un 3'SS alternativo en contexto utilizable."
         )
     carrera, mayor = 0, 0
@@ -314,8 +314,8 @@ def spacer_rejections(sequence: str) -> tuple[str, ...]:
     if mayor > MAX_PYRIMIDINE_RUN:
         motivos.append(
             f"Tracto de {mayor} pirimidinas contiguas: compite con el del aceptor "
-            f"LEGITIMO, que en el MVM tiene nueve. Un tracto propio de mas de "
-            f"{MAX_PYRIMIDINE_RUN} le da a un AG criptico un sitio 3' comparable."
+            f"LEGÍTIMO, que en el MVM tiene nueve. Un tracto propio de más de "
+            f"{MAX_PYRIMIDINE_RUN} le da a un AG críptico un sitio 3' comparable."
         )
     return tuple(motivos)
 

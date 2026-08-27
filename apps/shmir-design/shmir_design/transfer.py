@@ -31,8 +31,8 @@ from .alignment import DiffClass
 from .errors import ShmirDesignError
 
 TRANSFER_RULE = (
-    "Una puntuacion externa es transferible entre entradas si y solo si la ventana no "
-    "solapa ninguna diferencia entre ellas, y esa condicion se comprueba, no se supone. "
+    "Una puntuación externa es transferible entre entradas si y solo si la ventana no "
+    "solapa ninguna diferencia entre ellas, y esa condición se comprueba, no se supone. "
     "El puesto NO se transfiere: depende del tamaño de la lista, no del sitio."
 )
 
@@ -69,7 +69,7 @@ def classify_window(*, start: int, window: int, alignment) -> WindowVerdict:
     if window < 1:
         raise ShmirDesignError(
             f"Una ventana de {window} nt no describe nada; se aborta en vez de decidir "
-            f"sobre un intervalo vacio."
+            f"sobre un intervalo vacío."
         )
     fin = start + window - 1
     ciertas: list[int] = []
@@ -103,7 +103,7 @@ def classify_window(*, start: int, window: int, alignment) -> WindowVerdict:
         return WindowVerdict(
             WindowState.TOCADA,
             f"La ventana {start}-{fin} contiene {len(ciertas)} diferencia(s) de "
-            f"posicion cierta ({', '.join(map(str, sorted(ciertas)))}): las dos "
+            f"posición cierta ({', '.join(map(str, sorted(ciertas)))}): las dos "
             f"entradas no dicen lo mismo ahi.",
         )
     if dudosas:
@@ -111,8 +111,8 @@ def classify_window(*, start: int, window: int, alignment) -> WindowVerdict:
         return WindowVerdict(
             WindowState.INDETERMINADA,
             f"La ventana {start}-{fin} roza la carrera {tramos}, donde hay un indel "
-            f"cuya posicion es indistinguible: el alineador lo coloca en un punto "
-            f"cualquiera de la carrera, asi que NO SE PUEDE AFIRMAR si cae dentro o "
+            f"cuya posición es indistinguible: el alineador lo coloca en un punto "
+            f"cualquiera de la carrera, así que NO SE PUEDE AFIRMAR si cae dentro o "
             f"fuera de la ventana. A priori no se transfiere; con las dos salidas "
             f"delante, si las dos cadenas coinciden, si.",
         )
@@ -158,14 +158,14 @@ def can_transfer_window(
     if same_string is True:
         return TransferVerdict(
             Transferability.TRANSFERIBLE,
-            f"{veredicto.reason} COMPROBACION DIRECTA: las dos salidas traen la misma "
-            f"cadena para este sitio, asi que la ventana fue la misma. Eso es "
+            f"{veredicto.reason} COMPROBACIÓN DIRECTA: las dos salidas traen la misma "
+            f"cadena para este sitio, así que la ventana fue la misma. Eso es "
             f"observacion, no inferencia, y resuelve la indeterminacion.",
         )
     if same_string is False:
         return TransferVerdict(
             Transferability.NO_TRANSFERIBLE,
-            f"{veredicto.reason} COMPROBACION DIRECTA: las dos salidas traen cadenas "
+            f"{veredicto.reason} COMPROBACIÓN DIRECTA: las dos salidas traen cadenas "
             f"DISTINTAS para este sitio.",
         )
     return TransferVerdict(Transferability.SIN_COMPROBAR, veredicto.reason)
@@ -182,13 +182,13 @@ def can_transfer(
     if window < 1:
         raise ShmirDesignError(
             f"Una ventana de {window} nt no describe nada; se aborta en vez de decidir "
-            f"sobre un intervalo vacio."
+            f"sobre un intervalo vacío."
         )
     if divergent_positions is None:
         return TransferVerdict(
             Transferability.SIN_COMPROBAR,
-            "No se ha comprobado en que difieren las dos entradas, asi que no se sabe "
-            "si esta ventana esta tocada. La regla exige comprobarlo, no suponerlo: sin "
+            "No se ha comprobado en que difieren las dos entradas, así que no se sabe "
+            "si esta ventana está tocada. La regla exige comprobarlo, no suponerlo: sin "
             "el alineamiento de las dos entradas no se transfiere nada.",
         )
     fin = start + window - 1
@@ -196,13 +196,13 @@ def can_transfer(
     if tocadas:
         return TransferVerdict(
             Transferability.NO_TRANSFERIBLE,
-            f"La ventana {start}-{fin} solapa {len(tocadas)} posicion(es) que difieren "
+            f"La ventana {start}-{fin} solapa {len(tocadas)} posición(es) que difieren "
             f"entre las dos entradas ({', '.join(map(str, tocadas))}): las dos corridas "
-            f"no vieron lo mismo ahi, asi que la puntuacion no describe esta ventana.",
+            f"no vieron lo mismo ahi, así que la puntuación no describe esta ventana.",
         )
     return TransferVerdict(
         Transferability.TRANSFERIBLE,
         f"La ventana {start}-{fin} no solapa ninguna diferencia entre las dos entradas: "
-        f"las dos corridas vieron exactamente los mismos 22 nt. La puntuacion es "
+        f"las dos corridas vieron exactamente los mismos 22 nt. La puntuación es "
         f"transferible; el PUESTO no.",
     )

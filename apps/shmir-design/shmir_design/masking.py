@@ -119,7 +119,7 @@ class RepeatMask:
             partes.append(f"{sines} SINE")
         elif not self.summary:
             partes.append(
-                "SIN filas y SIN resumen: NO CONCLUYENTE — un cero asi no distingue "
+                "SIN filas y SIN resumen: NO CONCLUYENTE — un cero así no distingue "
                 "«no habia repetitivos» de «no llego a correr»"
             )
         return ", ".join(partes)
@@ -135,12 +135,12 @@ class RepeatMask:
         # entonces no se distingue de una corrida que no llego a correr.
         if not self.intervals and not self.summary:
             raise ValueError(
-                f"La mascara de {self.source!r} no tiene ningun intervalo; se aborta en "
+                f"La máscara de {self.source!r} no tiene ningún intervalo; se aborta en "
                 f"vez de dejar correr un enmascarado que no enmascara nada. Si no hay "
                 f"datos de repeticiones, pasa None y el filtro quedara en NOT_RUN."
             )
         if not self.source or not self.source.strip():
-            raise ValueError("La mascara necesita una procedencia identificable.")
+            raise ValueError("La máscara necesita una procedencia identificable.")
         for start, end in self.intervals:
             if start < 1 or end < start:
                 raise ValueError(
@@ -164,13 +164,13 @@ def apply_mask(sequence: str, mask: RepeatMask | None) -> str:
     analizada = mask.query_length
     if analizada is not None and analizada != len(sequence):
         raise ShmirDesignError(
-            f"{mask.source!r} se corrio sobre {analizada} nt y se le esta dando una "
+            f"{mask.source!r} se corrió sobre {analizada} nt y se le está dando una "
             f"secuencia de {len(sequence)} nt: no son la misma. Se aborta el "
             f"enmascarado. POR QUE IMPORTA: el intervalo repetitivo CABE en la otra "
-            f"secuencia, asi que no se sale de rango y no salta ninguna otra alarma — "
+            f"secuencia, así que no se sale de rango y no salta ninguna otra alarma — "
             f"taparia un tramo que ahi no es repetitivo y el barrido saldria con "
-            f"formato correcto. Es el fallo de la biblioteca equivocada un nivel mas "
-            f"arriba: la mascara de una especie aplicada al transcrito de la otra."
+            f"formato correcto. Es el fallo de la biblioteca equivocada un nivel más "
+            f"arriba: la máscara de una especie aplicada al transcrito de la otra."
         )
     bases = list(sequence)
     for start, end in mask.intervals:
@@ -178,8 +178,8 @@ def apply_mask(sequence: str, mask: RepeatMask | None) -> str:
             raise ShmirDesignError(
                 f"El intervalo repetitivo ({start}, {end}) de {mask.source!r} se sale de "
                 f"la secuencia, que mide {len(sequence)} nt. Se aborta el enmascarado: "
-                f"si el fichero de repeticiones esta en coordenadas genomicas, no sirve "
-                f"aqui — hay que correr RepeatMasker sobre el propio FASTA del "
+                f"si el fichero de repeticiones está en coordenadas genomicas, no sirve "
+                f"aquí — hay que correr RepeatMasker sobre el propio FASTA del "
                 f"transcrito, o convertir las coordenadas antes. Enmascarar con estas "
                 f"taparia el tramo equivocado sin avisar."
             )
@@ -195,8 +195,8 @@ def filter_repeats(start: int, end: int, mask: RepeatMask | None) -> FilterResul
             name=FILTER_NAME,
             state=FilterState.NOT_RUN,
             reason=(
-                "No hay mascara de repeticiones cargada (falta el fixture de rmsk), "
-                "asi que el filtro no se ejecuta. NOT_RUN no es PASS."
+                "No hay máscara de repeticiones cargada (falta el fixture de rmsk), "
+                "así que el filtro no se ejecuta. NOT_RUN no es PASS."
             ),
         )
 
@@ -213,8 +213,8 @@ def filter_repeats(start: int, end: int, mask: RepeatMask | None) -> FilterResul
             state=FilterState.FAIL,
             reason=(
                 f"Solapa elemento(s) repetitivo(s) de {mask.source}: {detalle}. Una "
-                f"guia derivada de un elemento repetitivo tiene miles de sitios "
-                f"perfectos: no es un off-target, es una guia inservible."
+                f"guía derivada de un elemento repetitivo tiene miles de sitios "
+                f"perfectos: no es un off-target, es una guía inservible."
             ),
         )
     return FilterResult(
@@ -252,22 +252,22 @@ def load_mask_file(path: Path | str) -> RepeatMask:
         parts = line.split()
         if len(parts) != 2:
             raise ValueError(
-                f"{path}, linea {number}: se esperaban 2 campos (inicio y fin) y hay "
+                f"{path}, línea {number}: se esperaban 2 campos (inicio y fin) y hay "
                 f"{len(parts)}; se aborta el enmascarado."
             )
         try:
             start, end = int(parts[0]), int(parts[1])
         except ValueError as exc:
             raise ValueError(
-                f"{path}, linea {number}: {parts!r} no son coordenadas enteras ({exc}); "
+                f"{path}, línea {number}: {parts!r} no son coordenadas enteras ({exc}); "
                 f"se aborta el enmascarado."
             ) from exc
         intervals.append((start, end))
 
     if not intervals:
         raise ValueError(
-            f"{path} no tiene ningun intervalo; se aborta en vez de correr un "
-            f"enmascarado vacio que parecería haber enmascarado algo."
+            f"{path} no tiene ningún intervalo; se aborta en vez de correr un "
+            f"enmascarado vacío que parecería haber enmascarado algo."
         )
     return RepeatMask(intervals=tuple(intervals), source=f"fichero {path}")
 
@@ -295,7 +295,7 @@ def _require_provenance(version: str, checksum: str) -> None:
     for campo, valor in (("version", version), ("checksum", checksum)):
         if not valor or not str(valor).strip():
             raise ValueError(
-                f"La mascara de repeticiones necesita {campo}: sin procedencia el "
+                f"La máscara de repeticiones necesita {campo}: sin procedencia el "
                 f"enmascarado no es auditable. Se aborta."
             )
 
@@ -316,8 +316,8 @@ def _build(
     """
     if not elementos and not summary:
         raise ShmirDesignError(
-            f"{source}: no se leyo ningun elemento repetitivo y NO vino el resumen. Se "
-            f"aborta en vez de dejar correr una mascara vacia: sin el resumen, un cero "
+            f"{source}: no se leyo ningún elemento repetitivo y NO vino el resumen. Se "
+            f"aborta en vez de dejar correr una máscara vacía: sin el resumen, un cero "
             f"no distingue «no habia repetitivos» de «la corrida no llego a correr», y "
             f"esa diferencia es la de PASS contra NOT_RUN."
         )
@@ -343,11 +343,11 @@ _SPECIES_MARK = "the query species was assumed to be"
 #: Son el mismo fichero byte a byte, porque lo unico que aparece es un microsatelite
 #: `(TA)n` y las repeticiones simples se detectan por COMPOSICION, no por biblioteca.
 INDISTINGUISHABLE_OUTS = (
-    "Y esto no es una precaucion teorica: las dos corridas humanas del 2026-08-26 —la "
+    "Y esto no es una precaucion teórica: las dos corridas humanas del 2026-08-26 —la "
     "valida y la de biblioteca equivocada— produjeron .out con el MISMO md5 "
-    "(bcc33dbc7a65e74690f5f9d1fb270035), byte a byte el mismo fichero. Lo unico que "
+    "(bcc33dbc7a65e74690f5f9d1fb270035), byte a byte el mismo fichero. Lo único que "
     "aparecia era un microsatelite (TA)n, y las repeticiones simples se detectan por "
-    "COMPOSICION y no por biblioteca. La diferencia vivia SOLO en el .tbl."
+    "COMPOSICIÓN y no por biblioteca. La diferencia vivia SOLO en el .tbl."
 )
 
 
@@ -395,8 +395,8 @@ def check_out_shape(text: str, *, source: str) -> int:
         if not ("score" in cabecera and "query" in cabecera):
             raise ShmirDesignError(
                 f"{source}: esto no parece la salida `.out` de RepeatMasker — no trae ni "
-                f"una fila de repeticion ni su cabecera («SW score … query sequence …»). "
-                f"Un `.out` SIN filas es legitimo cuando no hay repetitivos, pero "
+                f"una fila de repetición ni su cabecera («SW score … query sequence …»). "
+                f"Un `.out` SIN filas es legítimo cuando no hay repetitivos, pero "
                 f"entonces trae la cabecera y su resumen; un fichero cualquiera no es "
                 f"ninguna de las dos cosas. Se rechaza."
             )
@@ -413,8 +413,8 @@ def check_summary(text: str, *, source: str, expected_species: str) -> str:
     esperada = expected_species.strip().lower()
     if declarada is None:
         raise ShmirDesignError(
-            f"{source}: este resumen no declara la especie de la biblioteca (la linea "
-            f"«The query species was assumed to be ...»), asi que no sirve para lo unico "
+            f"{source}: este resumen no declara la especie de la biblioteca (la línea "
+            f"«The query species was assumed to be ...»), así que no sirve para lo único "
             f"para lo que hace falta. Se esperaba «{esperada}». NO HABER PODIDO "
             f"COMPROBAR NO ES «COINCIDE». {INDISTINGUISHABLE_OUTS}"
         )
@@ -428,9 +428,9 @@ def check_summary(text: str, *, source: str, expected_species: str) -> str:
         l.strip().lower().startswith("total length:") for l in text.splitlines()
     ):
         raise ShmirDesignError(
-            f"{source}: el resumen no trae la linea «total length:», asi que no se sabe "
-            f"cuantos nt analizo la corrida y no hay forma de impedir aplicar esta "
-            f"mascara a otra secuencia. Se rechaza."
+            f"{source}: el resumen no trae la línea «total length:», así que no se sabe "
+            f"cuántos nt analizo la corrida y no hay forma de impedir aplicar esta "
+            f"máscara a otra secuencia. Se rechaza."
         )
     return declarada
 
@@ -457,8 +457,8 @@ def parse_rmsk_out(
     if not expected_species or not expected_species.strip():
         raise ValueError(
             "expected_species es obligatorio: sin decir que especie se esperaba, la "
-            "comprobacion contra la biblioteca no se puede hacer y un cero sin buscar "
-            "pasaria como veredicto. Se aborta."
+            "comprobación contra la biblioteca no se puede hacer y un cero sin buscar "
+            "pasaría como veredicto. Se aborta."
         )
     esperada = expected_species.strip().lower()
     # La especie se busca PRIMERO en el resumen, que es donde RepeatMasker la escribe.
@@ -467,9 +467,9 @@ def parse_rmsk_out(
     declarada = declared_species(summary or "") or declared_species(text)
     if declarada is None:
         raise ShmirDesignError(
-            f"{source}: no hay forma de saber contra que biblioteca se corrio. La linea "
+            f"{source}: no hay forma de saber contra que biblioteca se corrió. La línea "
             f"«The query species was assumed to be ...» vive en el RESUMEN (.tbl) y "
-            f"aqui no hay resumen, o no la trae; el .out no la lleva nunca. Se esperaba "
+            f"aquí no hay resumen, o no la trae; el .out no la lleva nunca. Se esperaba "
             f"«{esperada}». NO HABER PODIDO COMPROBAR NO ES «COINCIDE»: se aborta el "
             f"enmascarado. "
             f"{INDISTINGUISHABLE_OUTS}"
@@ -480,7 +480,7 @@ def parse_rmsk_out(
             f"esperaba «{esperada}». Se aborta el enmascarado. Por que importa: una "
             f"corrida contra la especie equivocada sale con formato correcto y cifras "
             f"plausibles — un «Alu: 0 %» obtenido SIN BUSCAR Alu es indistinguible de "
-            f"un «Alu: 0 %» real, y lo unico que lo delata es esta linea. "
+            f"un «Alu: 0 %» real, y lo único que lo delata es esta línea. "
             f"{INDISTINGUISHABLE_OUTS}"
         )
     elementos: list[RepeatElement] = []
@@ -500,7 +500,7 @@ def parse_rmsk_out(
             inicio, fin = int(campos[_OUT_BEGIN]), int(campos[_OUT_END])
         except ValueError as exc:
             raise ShmirDesignError(
-                f"{source}:{numero}: las coordenadas no son numeros ({exc}); se aborta."
+                f"{source}:{numero}: las coordenadas no son números ({exc}); se aborta."
             ) from exc
         elementos.append(
             RepeatElement(
@@ -536,7 +536,7 @@ def parse_rmsk_table(
             fin = int(campos[_UCSC_GENO_END])
         except ValueError as exc:
             raise ShmirDesignError(
-                f"{source}:{numero}: las coordenadas no son numeros ({exc}); se aborta."
+                f"{source}:{numero}: las coordenadas no son números ({exc}); se aborta."
             ) from exc
         elementos.append(
             RepeatElement(
@@ -600,7 +600,7 @@ def load_rmsk(
     if not expected_species:
         raise ValueError(
             f"{path} es un `.out` de RepeatMasker y hace falta expected_species: es lo "
-            f"unico que distingue una corrida contra la biblioteca correcta de una "
+            f"único que distingue una corrida contra la biblioteca correcta de una "
             f"contra otra especie, que sale con formato correcto y cifras plausibles. "
             f"Se aborta."
         )
@@ -632,18 +632,18 @@ def load_rmsk(
 
 WHY_REPEAT = (
     "`repetitivo` aplica a la ESTABILIDAD DEL GENOMA AAV —un tramo repetitivo dentro del "
-    "casete es sustrato de recombinacion— y, sobre la diana, a que una guia derivada de "
+    "casete es sustrato de recombinación— y, sobre la diana, a que una guía derivada de "
     "un elemento repetitivo tiene miles de sitios perfectos: no es un off-target, es una "
-    "guia inservible."
+    "guía inservible."
 )
 
 WHY_POLYMORPHIC = (
     "`repeticion_polimorfica` aplica a la VIABILIDAD CLINICA, que es otra cosa. Un "
-    "microsatelite varia en NUMERO DE REPETICIONES entre individuos, asi que una guia "
-    "sobre el tendria RESPONDEDORES Y NO RESPONDEDORES por variacion de LONGITUD, no de "
+    "microsatelite varia en NÚMERO DE REPETICIONES entre individuos, así que una guía "
+    "sobre el tendría RESPONDEDORES Y NO RESPONDEDORES por variación de LONGITUD, no de "
     "secuencia. Y hay un hueco que no cubre nadie: gnomAD anota SUSTITUCIONES y capta "
-    "mal la variacion de longitud, asi que el filtro de variacion NO cubre este riesgo. "
-    "Decirlo importa: un «gnomAD limpio» invita a creer que la ventana esta comprobada."
+    "mal la variación de longitud, así que el filtro de variación NO cubre este riesgo. "
+    "Decirlo importa: un «gnomAD limpio» invita a creer que la ventana está comprobada."
 )
 
 #: Las familias de RepeatMasker que varian en LONGITUD entre individuos. Criterio
@@ -652,11 +652,11 @@ WHY_POLYMORPHIC = (
 POLYMORPHIC_FAMILIES = ("Simple_repeat", "Satellite", "Low_complexity")
 
 POLYMORPHIC_CRITERION = (
-    "Criterio declarado (no citado): se marcan como polimorficas en longitud las "
-    "familias de repeticion en TANDEM corto que RepeatMasker etiqueta "
+    "Criterio declarado (no citado): se marcan como polimórficas en longitud las "
+    "familias de repetición en TANDEM corto que RepeatMasker etiqueta "
     + ", ".join(POLYMORPHIC_FAMILIES)
-    + ". Un elemento DISPERSO (SINE, LINE, LTR) es repetitivo pero no varia en numero de "
-    "copias dentro de un alelo, asi que no entra aqui. El criterio se escribe para que "
+    + ". Un elemento DISPERSO (SINE, LINE, LTR) es repetitivo pero no varia en número de "
+    "copias dentro de un alelo, así que no entra aquí. El criterio se escribe para que "
     "se pueda discutir."
 )
 
@@ -678,8 +678,8 @@ def filter_polymorphic(
             name=POLYMORPHIC_FILTER_NAME,
             state=FilterState.NOT_RUN,
             reason=(
-                "No hay mascara de repeticiones cargada, asi que no se sabe si la "
-                "ventana cae en una repeticion polimorfica. NOT_RUN no es PASS — y "
+                "No hay máscara de repeticiones cargada, así que no se sabe si la "
+                "ventana cae en una repetición polimórfica. NOT_RUN no es PASS — y "
                 "ojo, este NO lo cubre gnomAD."
             ),
         )
@@ -691,7 +691,7 @@ def filter_polymorphic(
             name=POLYMORPHIC_FILTER_NAME,
             state=FilterState.FAIL,
             reason=(
-                f"Solapa repeticion(es) POLIMORFICA(S) en longitud: "
+                f"Solapa repetición(es) POLIMÓRFICA(S) en longitud: "
                 + ", ".join(e.describe() for e in tocados)
                 + f". {WHY_POLYMORPHIC} {POLYMORPHIC_CRITERION}"
             ),
@@ -700,7 +700,7 @@ def filter_polymorphic(
         name=POLYMORPHIC_FILTER_NAME,
         state=FilterState.PASS,
         reason=(
-            f"Sin solape con ninguna repeticion polimorfica de {mask.source}. "
+            f"Sin solape con ninguna repetición polimórfica de {mask.source}. "
             f"{POLYMORPHIC_CRITERION}"
         ),
     )
@@ -723,7 +723,7 @@ class TripleMotive:
         return (
             f"{span(self.start, self.end, Frame.UTR3)}: "
             f"{len(self.motives)} motivos — repetitivo y polimorfico por {self.element}, "
-            f"y con TECHO por quedar detras de {detras}."
+            f"y con TECHO por quedar detrás de {detras}."
         )
 
 

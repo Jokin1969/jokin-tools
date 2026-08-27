@@ -64,7 +64,7 @@ def _transcriptoma(path, entry, contexto):
 def _expresion(path, entry, contexto):
     if contexto.get("utr3_set") is None:
         raise _Omitir(
-            "la tabla de expresion sin los 3'UTR del transcriptoma no tiene sitios que "
+            "la tabla de expresión sin los 3'UTR del transcriptoma no tiene sitios que "
             "ponderar."
         )
     return load_expression_table(path)
@@ -84,23 +84,23 @@ def _rmsk(path, entry, contexto):
     if ruta.suffix.lower() == ".out":
         if not entry.accession:
             raise ShmirDesignError(
-                f"{ruta.name}: el manifiesto no dice sobre que accession se corrio, asi "
-                f"que no se puede saber que especie esperar ni comprobar que la mascara "
+                f"{ruta.name}: el manifiesto no dice sobre que accession se corrió, así "
+                f"que no se puede saber que especie esperar ni comprobar que la máscara "
                 f"es de esta secuencia. Se aborta."
             )
         referencia = REFERENCES.get(entry.accession)
         if referencia is None:
             raise ShmirDesignError(
                 f"{ruta.name}: el manifiesto declara accession {entry.accession!r}, que "
-                f"no esta en REFERENCES, asi que no hay de donde sacar la especie "
-                f"esperada. Se aborta en vez de saltarse la comprobacion."
+                f"no está en REFERENCES, así que no hay de donde sacar la especie "
+                f"esperada. Se aborta en vez de saltarse la comprobación."
             )
         resumen = ruta.with_suffix(".tbl")
         if not resumen.is_file():
             raise ShmirDesignError(
                 f"{ruta.name}: falta su resumen ({resumen.name}). Sin el no se sabe "
-                f"contra que biblioteca se corrio —la linea de la especie vive ahi, no "
-                f"en el .out— ni cuantos nt se analizaron. Se aborta."
+                f"contra que biblioteca se corrió —la línea de la especie vive ahi, no "
+                f"en el .out— ni cuántos nt se analizaron. Se aborta."
             )
         return load_rmsk(
             path,
@@ -116,7 +116,7 @@ def _rmsk(path, entry, contexto):
 def _transgen(path, entry, contexto):
     return load_database(
         path,
-        name="casete del transgen",
+        name="casete del transgén",
         version=entry.date or entry.md5,
         expected_md5=entry.md5,
     )
@@ -195,10 +195,10 @@ class ResourceSet:
         lineas = []
         if self.connected:
             lineas.append("Conectados desde el manifiesto:")
-            lineas.extend(f"  · {n}" for n in self.connected)
+            lineas.append(describe_connected(self.connected, indent="  "))
         else:
             lineas.append(
-                "No se ha conectado ningun fichero de referencia: los filtros que "
+                "No se ha conectado ningún fichero de referencia: los filtros que "
                 "dependen de uno quedaran en NOT_RUN."
             )
         if self.notes:
@@ -254,7 +254,7 @@ def load_from_manifest(
         raise ShmirDesignError(
             f"Se ha pedido ignorar {sorted(sobran)}, y esos ficheros no estaban "
             f"conectados de todas formas. Se aborta: un motivo escrito para un fichero "
-            f"que no se iba a usar deja en el informe una decision que nadie tomo."
+            f"que no se iba a usar deja en el informe una decisión que nadie tomo."
         )
 
     cargado: dict[str, object] = {}
@@ -289,3 +289,56 @@ def load_from_manifest(
         status=estado,
         **cargado,
     )
+
+
+# ─────────────── Los ficheros que NO tienen rol propio pero hacen falta ───────────────
+#
+# `connected` lista un fichero por ROL, y el resumen `.tbl` de RepeatMasker no es un rol:
+# es el compañero obligatorio del `.out`. Resultado en pantalla: «Ficheros de referencia
+# conectados (1) · rmsk_mouse.out» con el frente `repeticiones` cerrado — que se lee
+# exactamente como «un `.out` a solas ha cerrado el frente», que es justo lo que este
+# proyecto promete no hacer y NO estaba haciendo (sin el `.tbl`, `_rmsk` aborta; hay
+# test). Lo que fallaba era la pantalla, y una pantalla que contradice al codigo cuesta
+# lo mismo que el codigo equivocado: hay que ir a leer el fuente para saber cual manda.
+COMPANION_NOTE = (
+    "El `.tbl` es el resumen de la corrida y es OBLIGATORIO: la línea que declara contra "
+    "que biblioteca se corrió vive ahi, no en el `.out`. Sin el no se conecta la máscara."
+)
+
+#: Que compañero obligatorio lleva cada fichero. Se DERIVA de `species.required_files`
+#: cuando hay especie; el mapa de aqui es el mismo por extension, para los sitios que no
+#: tienen especie a mano.
+COMPANION_SUFFIX = {".out": ".tbl"}
+
+
+def companions_of(names) -> dict[str, tuple[str, ...]]:
+    """El compañero obligatorio de cada nombre, si lo tiene."""
+    from pathlib import Path as _Path
+
+    salida: dict[str, tuple[str, ...]] = {}
+    for nombre in names:
+        sufijo = COMPANION_SUFFIX.get(_Path(nombre).suffix.lower())
+        if sufijo:
+            salida[nombre] = (_Path(nombre).with_suffix(sufijo).name,)
+    return salida
+
+
+def describe_connected(names, *, companions=None, indent: str = "  ") -> str:
+    """La lista de conectados NOMBRANDO el compañero obligatorio de cada uno.
+
+    Ver `COMPANION_NOTE`: sin esto, la pantalla decia «1 fichero conectado» de algo que
+    necesita dos, y el frente cerrado al lado se leia como una contradiccion.
+    """
+    mapa = companions_of(names) if companions is None else dict(companions)
+    lineas = []
+    for nombre in names:
+        acompanantes = tuple(mapa.get(nombre, ()))
+        if acompanantes:
+            lineas.append(
+                f"{indent}· {nombre}  (+ {', '.join(acompanantes)}, obligatorio)"
+            )
+        else:
+            lineas.append(f"{indent}· {nombre}")
+    if any(mapa.get(n) for n in names):
+        lineas.append(f"{indent}  {COMPANION_NOTE}")
+    return "\n".join(lineas)

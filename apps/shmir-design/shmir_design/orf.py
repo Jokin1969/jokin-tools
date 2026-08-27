@@ -102,29 +102,29 @@ def format_cds_suggestion(orf: Orf | None, *, alternatives: int | None = None) -
     """Texto para el informe y la consola. Sugiere el comando; no lo ejecuta."""
     if orf is None:
         return (
-            "No se encontro ningun marco abierto de lectura suficientemente largo, asi "
-            "que no hay ni siquiera una propuesta que enseñar. La anatomia sigue SIN "
+            "No se encontro ningún marco abierto de lectura suficientemente largo, así "
+            "que no hay ni siquiera una propuesta que enseñar. La anatomía sigue SIN "
             "RESOLVER: declara --cds, o pasa el GenBank, o declara que la secuencia ya "
             "es el 3'UTR."
         )
 
     lineas = [
-        f"PROPUESTA NO CONFIRMADA: el marco mas largo es {orf.describe()}.",
+        f"PROPUESTA NO CONFIRMADA: el marco más largo es {orf.describe()}.",
         "",
-        "Esto es una prediccion, no una anotacion. NO se ha usado para nada: la",
-        "anatomia sigue sin resolver y los filtros que dependen de la region estan en",
+        "Esto es una predicción, no una anotación. NO se ha usado para nada: la",
+        "anatomía sigue sin resolver y los filtros que dependen de la región están en",
         "NOT_RUN. Si la das por buena, vuelve a lanzar el diseño añadiendo:",
         "",
         f"    --cds {orf.start} {orf.end}",
         "",
         "Antes de pegarlo, comprueba que la isoforma es la que quieres: el registro",
-        "GenBank del RefSeq lleva el CDS anotado y se lee con --genbank, que es mas",
-        "fiable que cualquier prediccion de este modulo.",
+        "GenBank del RefSeq lleva el CDS anotado y se lee con --genbank, que es más",
+        "fiable que cualquier predicción de este módulo.",
     ]
     if alternatives:
         lineas.insert(
             1,
-            f"Hay {alternatives} marco(s) alternativo(s) mas: si la eleccion no es "
-            f"obvia, no la haga el codigo.",
+            f"Hay {alternatives} marco(s) alternativo(s) más: si la elección no es "
+            f"obvia, no la haga el código.",
         )
     return "\n".join(lineas)

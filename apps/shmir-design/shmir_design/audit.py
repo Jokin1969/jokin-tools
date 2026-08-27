@@ -141,12 +141,12 @@ class ScoreAudit:
         ]
         if len(self.lengths) > 1:
             lineas.append(
-                "  La longitud NO es fija, asi que de ella sola no se puede concluir "
+                "  La longitud NO es fija, así que de ella sola no se puede concluir "
                 "donde se"
             )
             lineas.append(
-                "  perdio una base: un 21-mero puede ser una prediccion o una "
-                "prediccion mutilada."
+                "  perdio una base: un 21-mero puede ser una predicción o una "
+                "predicción mutilada."
             )
         sin_mapear = [e for e in self.entries if not e.maps]
         lineas.append(f"  no mapean sobre el 3'UTR: {len(sin_mapear)}")
@@ -154,7 +154,7 @@ class ScoreAudit:
             detalle = (
                 f"restaura con una {entrada.operation} en {entrada.restored_span}"
                 if entrada.operation
-                else "NO se restaura con una sola insercion ni delecion"
+                else "NO se restaura con una sola inserción ni delecion"
             )
             lineas.append(f"    · {entrada.guide} ({entrada.length} nt) — {detalle}")
             if entrada.ambiguity is not None:
@@ -175,7 +175,7 @@ class ScoreAudit:
             for entrada in duplicadas:
                 lineas.append(f"    · {entrada.guide} ⊂ {entrada.prefix_of}")
         if self.sites_absent_from_reference:
-            lineas.append("  sitios de restriccion presentes en la guia y AUSENTES del 3'UTR:")
+            lineas.append("  sitios de restricción presentes en la guía y AUSENTES del 3'UTR:")
             for nombre, guias in self.sites_absent_from_reference:
                 lineas.append(f"    · {nombre} ({RESTRICTION_SITES[nombre]}) en:")
                 lineas.extend(f"        {g}" for g in guias)
@@ -184,10 +184,10 @@ class ScoreAudit:
                 "la fuente"
             )
             lineas.append(
-                "    añade contexto de clonaje que estamos leyendo como guia."
+                "    añade contexto de clonaje que estamos leyendo como guía."
             )
         else:
-            lineas.append("  ningun sitio de restriccion ajeno al 3'UTR.")
+            lineas.append("  ningún sitio de restricción ajeno al 3'UTR.")
         return "\n".join(lineas)
 
 
@@ -265,7 +265,7 @@ def audit_scores(
         if hallazgo:
             inicio, diana, descartada = hallazgo
             ventana = Span.of(inicio, diana)
-            ventana.check(diana, name=f"la guia {guia}")
+            ventana.check(diana, name=f"la guía {guia}")
             entradas.append(
                 GuideAudit(
                     guide=guia, maps=True, span=ventana, mapped_sequence=diana,
@@ -287,7 +287,7 @@ def audit_scores(
             continue
 
         operacion, candidata, ventana, diana, descartada = restaurada
-        ventana.check(diana, name=f"la guia restaurada {candidata}")
+        ventana.check(diana, name=f"la guía restaurada {candidata}")
         referencia = utr3[ventana.start - 1 : ventana.end]
         implicada = _rc(guia) if len(_rc(guia)) == len(referencia) - 1 else _rc(guia[1:])
         ambigua = _zona_ambigua(implicada, referencia, ventana)

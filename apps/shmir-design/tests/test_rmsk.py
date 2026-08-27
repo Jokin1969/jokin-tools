@@ -107,7 +107,7 @@ class TestLecturaDelOut(unittest.TestCase):
                 solo_cabecera, source="sonda", version="v", checksum="0" * 32,
                 expected_species="mus musculus",
             )
-        self.assertIn("ningun", str(ctx.exception).lower())
+        self.assertIn("ningún", str(ctx.exception).lower())
 
 
 class TestLecturaDeLaTablaUCSC(unittest.TestCase):

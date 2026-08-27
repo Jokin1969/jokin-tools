@@ -86,7 +86,7 @@ class TestPasajera(unittest.TestCase):
         """
         for ultima in "ACGT":
             guia = GUIA_REF[:-1] + ultima
-            with self.subTest(f"guia acaba en {ultima}"):
+            with self.subTest(f"guía acaba en {ultima}"):
                 pasajera = passenger_from_guide(guia)
                 prohibida = pasajera.reverse_complement[0]
                 self.assertNotEqual(pasajera.sequence[0], prohibida)
@@ -96,7 +96,7 @@ class TestPasajera(unittest.TestCase):
     def test_el_resto_de_la_pasajera_es_el_complementario_inverso(self):
         for ultima in "ACGT":
             guia = GUIA_REF[:-1] + ultima
-            with self.subTest(f"guia acaba en {ultima}"):
+            with self.subTest(f"guía acaba en {ultima}"):
                 pasajera = passenger_from_guide(guia)
                 self.assertEqual(pasajera.sequence[1:], pasajera.reverse_complement[1:])
 
@@ -150,7 +150,7 @@ class TestHorquilla(unittest.TestCase):
 
     def test_la_salida_dice_que_pieza_es_cada_cosa(self):
         texto = build_hairpin(GUIA_REF).format_text()
-        for pieza in ("flanco 5'", "pasajera", "loop", "guia", "flanco 3'"):
+        for pieza in ("flanco 5'", "pasajera", "loop", "guía", "flanco 3'"):
             with self.subTest(pieza):
                 self.assertIn(pieza, texto)
 

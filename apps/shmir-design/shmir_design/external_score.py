@@ -90,13 +90,13 @@ EXTERNAL_TOOLS = (
         name="miRarchitect",
         url=MIRARCHITECT_URL,
         what="puntua el diseño de la horquilla; es la fuente de `score_externo`",
-        paste="la guia de 22 nt en ADN y el andamio miR-E",
+        paste="la guía de 22 nt en ADN y el andamio miR-E",
     ),
     ExternalTool(
         name="SplashRNA",
         url=SPLASHRNA_URL,
-        what="predice potencia de shRNA; sus features salen aqui en columnas feat_*",
-        paste="la guia de 22 nt en ADN",
+        what="predice potencia de shRNA; sus features salen aquí en columnas feat_*",
+        paste="la guía de 22 nt en ADN",
     ),
     ExternalTool(
         name="GPP Web Portal",
@@ -193,9 +193,9 @@ EVIDENCE = {
         note=(
             "Corrida manual sobre el 3'UTR de Prnp murino (2026-08-26). El fichero NO "
             "trae columna de rank: los puestos son los del ORDEN DE SUS FILAS, que es "
-            "estrictamente creciente en el score a lo largo de las 25 lineas.\n"
+            "estrictamente creciente en el score a lo largo de las 25 líneas.\n"
             "OJO CON EL ALCANCE DE ESA PRUEBA: que 25 filas salgan ordenadas demuestra "
-            "que el fichero ESTA ordenado, no en que direccion. Que la primera fila sea "
+            "que el fichero ESTÁ ordenado, no en que dirección. Que la primera fila sea "
             "la MEJOR sigue siendo un SUPUESTO sobre el convenio de la fuente. Se "
             "confirma leyendo el puesto que muestra la propia interfaz de miRarchitect "
             "en el re-export; hasta entonces, esto es una hipotesis de trabajo con la "
@@ -217,9 +217,9 @@ def lower_is_better(source: ScoreSource) -> bool:
     """¿Menor es mejor en esta escala? Se aborta antes que suponerlo."""
     if source not in EVIDENCE:
         raise ShmirDesignError(
-            f"No esta registrado si la escala de {source.value} es de menor-es-mejor o "
-            f"de mayor-es-mejor. Se aborta: ordenar por un score cuya direccion no se "
-            f"conoce llevaria a sintesis justo los peores candidatos."
+            f"No está registrado si la escala de {source.value} es de menor-es-mejor o "
+            f"de mayor-es-mejor. Se aborta: ordenar por un score cuya dirección no se "
+            f"conoce llevaria a síntesis justo los peores candidatos."
         )
     return EVIDENCE[source].lower_is_better
 
@@ -235,21 +235,21 @@ def file_order_direction(scores: list[tuple[str, float]]) -> bool:
     valores = [s for _, s in scores]
     if len(valores) < 2:
         raise ShmirDesignError(
-            "Con una sola fila no se puede derivar la direccion de la escala del orden "
+            "Con una sola fila no se puede derivar la dirección de la escala del orden "
             "del fichero. Se aborta en vez de suponerla."
         )
     sube = all(a <= b for a, b in zip(valores, valores[1:]))
     baja = all(a >= b for a, b in zip(valores, valores[1:]))
     if not sube and not baja:
         raise ShmirDesignError(
-            "El orden de las filas del fichero no es monotono en el score, asi que no "
-            "es un ranking: no se puede derivar de el ni la direccion de la escala ni "
-            "el puesto de cada guia. Se aborta en vez de ordenar a ciegas."
+            "El orden de las filas del fichero no es monótono en el score, así que no "
+            "es un ranking: no se puede derivar de el ni la dirección de la escala ni "
+            "el puesto de cada guía. Se aborta en vez de ordenar a ciegas."
         )
     if sube and baja:
         raise ShmirDesignError(
             "Todos los scores del fichero son iguales: el orden de las filas no dice "
-            "nada sobre la direccion de la escala. Se aborta."
+            "nada sobre la dirección de la escala. Se aborta."
         )
     return sube
 
@@ -292,10 +292,10 @@ def check_orderable(
     registrada = lower_is_better(source)
     if registrada != derived_lower_is_better:
         raise ShmirDesignError(
-            f"La direccion de la escala derivada del fichero "
+            f"La dirección de la escala derivada del fichero "
             f"({'menor' if derived_lower_is_better else 'mayor'} es mejor) no coincide "
             f"con la registrada para {source.value} "
-            f"({'menor' if registrada else 'mayor'} es mejor). Uno de los dos esta mal; "
+            f"({'menor' if registrada else 'mayor'} es mejor). Uno de los dos está mal; "
             f"se aborta en vez de elegir por nuestra cuenta."
         )
     if file_scaffold is None:
@@ -328,8 +328,8 @@ class ExternalScore:
         if (self.value is None) != (self.source is None):
             raise ShmirDesignError(
                 f"Un score externo se declara entero o no se declara: llego "
-                f"value={self.value!r} con source={self.source!r}. Un numero sin "
-                f"procedencia no es auditable y una procedencia sin numero no dice "
+                f"value={self.value!r} con source={self.source!r}. Un número sin "
+                f"procedencia no es auditable y una procedencia sin número no dice "
                 f"nada; se aborta en vez de escribir media columna."
             )
 
@@ -379,14 +379,14 @@ def splashrna_features(
     limpia = "".join(guide.split()).upper().replace("T", "U")
     if len(limpia) < SEED_END:
         raise ShmirDesignError(
-            f"La guia mide {len(limpia)} nt y las features de SplashRNA llegan hasta la "
+            f"La guía mide {len(limpia)} nt y las features de SplashRNA llegan hasta la "
             f"posicion {SEED_END}; se abortan las features en vez de rellenar las "
             f"posiciones que faltan o dejarlas a cero."
         )
     desconocidas = set(limpia) - set("ACGU")
     if desconocidas:
         raise ShmirDesignError(
-            f"La guia trae {sorted(desconocidas)}, que no son bases: no se calculan "
+            f"La guía trae {sorted(desconocidas)}, que no son bases: no se calculan "
             f"features sobre una secuencia que no se ha podido leer."
         )
     seed = limpia[SEED_START - 1 : SEED_END]
@@ -416,34 +416,34 @@ def manual_instructions(guides: list[str] | tuple[str, ...]) -> str:
     sigue vacia hasta que alguien la rellene con esto.
     """
     lineas = [
-        f"  No hay ninguna API de score externo verificada, asi que la columna "
+        f"  No hay ninguna API de score externo verificada, así que la columna "
         f"`score_externo`",
-        "  de la tabla comparativa va VACIA, igual que `knockdown_medido`. No se ha "
+        "  de la tabla comparativa va VACÍA, igual que `knockdown_medido`. No se ha "
         "puesto",
-        "  ningun numero calculado aqui: eso seria un score propio con etiqueta ajena.",
+        "  ningún número calculado aquí: eso sería un score propio con etiqueta ajena.",
         "",
         f"  Se comprobo el {VERIFICACION} y **no se ha podido comprobar** si "
         f"miRarchitect y",
         "  SplashRNA tienen API: las cuatro direcciones dieron 403 en el proxy de este",
         "  entorno, que es una denegacion de politica de red y no una respuesta del "
         "servicio.",
-        "  Puede que existan; desde aqui no se sabe, asi que no se cablea ninguna URL.",
+        "  Puede que existan; desde aquí no se sabe, así que no se cablea ninguna URL.",
         "",
         "  Los dos servicios (direcciones dadas por el responsable del proyecto, no",
-        "  verificadas desde aqui):",
+        "  verificadas desde aquí):",
         *(f"    · {h.name:<13} {h.url}\n      {h.what}; pegar {h.paste}"
           for h in EXTERNAL_TOOLS),
         "",
         "  Para puntuarlas a mano:",
         f"    1. Abre {MANUAL_URL}.",
-        f"    2. Pega la guia de 22 nt y elige el andamio {MANUAL_SCAFFOLD}.",
-        "    3. Copia del resultado el score y su escala (el rango posible), una linea",
-        "       por guia, en un TSV de dos columnas: `guia<TAB>score`.",
+        f"    2. Pega la guía de 22 nt y elige el andamio {MANUAL_SCAFFOLD}.",
+        "    3. Copia del resultado el score y su escala (el rango posible), una línea",
+        "       por guía, en un TSV de dos columnas: `guia<TAB>score`.",
         "    4. Importalo:",
         f"         {IMPORT_COMMAND}",
         "       La columna `fuente_score` quedara en `manual_mirarchitect`.",
         "",
-        "  El score es INFORMATIVO: no es un filtro, no da PASS y no da FAIL. Ningun",
+        "  El score es INFORMATIVO: no es un filtro, no da PASS y no da FAIL. Ningún",
         "  candidato se descarta ni se aprueba por el.",
     ]
     if guides:
@@ -451,7 +451,7 @@ def manual_instructions(guides: list[str] | tuple[str, ...]) -> str:
         # guia en un 3'UTR con repeticiones, y pegar la misma dos veces es tiempo de
         # alguien. No se ordenan: el orden es el de la seleccion.
         unicas = list(dict.fromkeys(g.upper().replace("U", "T") for g in guides))
-        lineas.extend(["", "  Guias que hay que pegar (en ADN, como las pide el "
+        lineas.extend(["", "  Guías que hay que pegar (en ADN, como las pide el "
                        "formulario):"])
         lineas.extend(f"    {guia}" for guia in unicas)
     return "\n".join(lineas)
@@ -520,8 +520,8 @@ class MergeResult:
         if not self.orderable:
             lineas.append("NO ORDENAR POR ESTA COLUMNA. " + self.not_orderable_reason)
             lineas.append(
-                "El numero se queda como CONVERGENCIA DE SITIO: dice que otro metodo "
-                "señalo la misma region, no que un candidato sea mejor que otro."
+                "El número se queda como CONVERGENCIA DE SITIO: dice que otro metodo "
+                "señaló la misma región, no que un candidato sea mejor que otro."
             )
         if self.offset is not None:
             lineas.append(
@@ -537,17 +537,17 @@ class MergeResult:
             )
         if self.untouched:
             lineas.append(
-                f"Siguen sin score {len(self.untouched)}: su columna se queda VACIA, "
+                f"Siguen sin score {len(self.untouched)}: su columna se queda VACÍA, "
                 f"no a cero."
             )
             lineas.extend(f"  · {guia}" for guia in self.untouched)
         if self.unmatched:
             lineas.append(
-                f"{len(self.unmatched)} guia(s) de la fuente no corresponden a ningun "
+                f"{len(self.unmatched)} guía(s) de la fuente no corresponden a ningún "
                 f"candidato nuestro. Con un barrido de todo el 3'UTR eso es lo normal."
             )
         lineas.append(
-            "El score es informativo: no cambia ningun veredicto ni descarta a nadie."
+            "El score es informativo: no cambia ningún veredicto ni descarta a nadie."
         )
         return "\n".join(lineas)
 
@@ -567,7 +567,7 @@ def _parse_results(results: str, *, source_name: str) -> list[tuple[str, float]]
         campos = linea.split("\t")
         if len(campos) < 2:
             raise ShmirDesignError(
-                f"{source_name}, linea {numero}: se esperaban dos columnas "
+                f"{source_name}, línea {numero}: se esperaban dos columnas "
                 f"`guia<TAB>score` y llego {linea!r}. Se aborta la importacion entera "
                 f"en vez de dejar la tabla a medias."
             )
@@ -579,20 +579,20 @@ def _parse_results(results: str, *, source_name: str) -> list[tuple[str, float]]
             valor = float(bruto)
         except ValueError as exc:
             raise ShmirDesignError(
-                f"{source_name}, linea {numero}: el score {bruto!r} de {guia} no es un "
-                f"numero. Se aborta: un score que no se ha podido leer no se convierte "
+                f"{source_name}, línea {numero}: el score {bruto!r} de {guia} no es un "
+                f"número. Se aborta: un score que no se ha podido leer no se convierte "
                 f"en un hueco silencioso."
             ) from exc
         if guia in vistas:
             raise ShmirDesignError(
-                f"{source_name}, linea {numero}: la guia {guia} aparece dos veces. "
+                f"{source_name}, línea {numero}: la guía {guia} aparece dos veces. "
                 f"Se aborta en vez de elegir uno."
             )
         vistas.add(guia)
         scores.append((guia, valor))
     if not scores:
         raise ShmirDesignError(
-            f"{source_name} no trae ningun score legible. Se aborta: importar nada y "
+            f"{source_name} no trae ningún score legible. Se aborta: importar nada y "
             f"decir que fue bien dejaria creer que la tabla lleva scores."
         )
     return scores
@@ -682,7 +682,7 @@ def merge_scores(
     ]
     if faltan:
         raise ShmirDesignError(
-            f"A la tabla comparativa le faltan las columnas {faltan}: es de una version "
+            f"A la tabla comparativa le faltan las columnas {faltan}: es de una versión "
             f"anterior al cruce con miRarchitect. Relanza el diseño y vuelve a "
             f"importar; no se escribe una tabla a medias."
         )
@@ -716,9 +716,9 @@ def merge_scores(
 
     if not rellenas:
         raise ShmirDesignError(
-            f"Ninguna de las {len(cuerpo) - 1} guias de la tabla aparece en "
+            f"Ninguna de las {len(cuerpo) - 1} guías de la tabla aparece en "
             f"{source_name}, ni siquiera con la ventana corrida. Los dos ficheros no "
-            f"son de la misma corrida; se aborta en vez de escribir una tabla vacia."
+            f"son de la misma corrida; se aborta en vez de escribir una tabla vacía."
         )
 
     return MergeResult(

@@ -26,7 +26,7 @@ FORMULARIO = {
     "assembly": "mm39",
     "table": "NCBI RefSeq / RefSeq All",
     "table_date": "2026-08-26",
-    "representative": "el transcrito mas largo por gen",
+    "representative": "el transcrito más largo por gen",
     "version": "2026-08-26",
 }
 
@@ -144,7 +144,7 @@ class TestLasLimitacionesEnLaInterfaz(unittest.TestCase):
     def test_y_la_conclusion_de_LIMITE_SUPERIOR_va_aparte_y_activa(self):
         bloque = presentation.offtarget_upper_bound()
         self.assertTrue(bloque["activo"])
-        self.assertIn("limite superior", bloque["texto"].lower())
+        self.assertIn("límite superior", bloque["texto"].lower())
 
 
 @unittest.skipUnless(HAY, "NOT_RUN: falta mature.fa o alguno de los dos fixtures")

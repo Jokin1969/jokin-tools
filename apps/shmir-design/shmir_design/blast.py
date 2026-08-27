@@ -70,7 +70,7 @@ class BlastParams:
                 f"sin poder decir por que. Se aborta al elegirlo, no al subirlo."
             )
         if not self.db.strip():
-            raise ValueError("La base no puede ir vacia; se aborta.")
+            raise ValueError("La base no puede ir vacía; se aborta.")
 
     def with_changes(self, **cambios) -> "BlastParams":
         return replace(self, **cambios)
@@ -118,16 +118,16 @@ class BlastParams:
         if self.remote:
             motivos.append(
                 "`-remote` es EXPLORACION, nunca veredicto: la base de NCBI CAMBIA "
-                "entre corridas, asi que el resultado no es reproducible y dentro de un "
+                "entre corridas, así que el resultado no es reproducible y dentro de un "
                 "año nadie puede repetirlo. Solo una base LOCAL con md5 en el "
                 "manifiesto da veredicto."
             )
         tocados = [c for c in self.modified() if c != "remote"]
         if tocados:
             motivos.append(
-                "parametros NO ESTANDAR (" + ", ".join(tocados) + "): un veredicto "
+                "parámetros NO ESTÁNDAR (" + ", ".join(tocados) + "): un veredicto "
                 "obtenido con ajustes cambiados no puede ser indistinguible de uno "
-                "estandar. Es la misma leccion del `.out` sin especie."
+                "estándar. Es la misma lección del `.out` sin especie."
             )
         return " ".join(motivos)
 
@@ -135,7 +135,7 @@ class BlastParams:
         """La expresion de Entrez completa, con los predichos dentro o fuera."""
         if not self.entrez_query:
             raise ShmirDesignError(
-                "No hay organismo declarado para esta consulta, asi que la orden de "
+                "No hay organismo declarado para esta consulta, así que la orden de "
                 "BLAST saldria SIN filtro de especie o —peor— con el de otra. El taxid "
                 "no se teclea ni se hereda de un valor por defecto: sale de "
                 "`species.taxid(nombre)`, que aborta si esa especie no lo tiene "
@@ -181,7 +181,7 @@ class BlastParams:
             lineas.append(
                 "AJUSTES MODIFICADOS: " + ", ".join(tocados)
                 + ". Viajan con el resultado y NO se pierden: un veredicto con "
-                "parametros cambiados no puede leerse como uno estandar."
+                "parámetros cambiados no puede leerse como uno estándar."
             )
         else:
             lineas.append("Todos los ajustes en su valor por defecto.")
@@ -205,7 +205,7 @@ class QueryFasta:
         registros = tuple((str(n), "".join(str(s).split()).upper()) for n, s in records)
         if not registros:
             raise ShmirDesignError(
-                "No hay ninguna consulta seleccionada: no se emite un FASTA vacio, que "
+                "No hay ninguna consulta seleccionada: no se emite un FASTA vacío, que "
                 "es exactamente lo que produce una corrida que parece haber corrido. "
                 "Se aborta."
             )
@@ -215,13 +215,13 @@ class QueryFasta:
             if not secuencia:
                 raise ShmirDesignError(
                     f"La consulta {nombre!r} no trae secuencia; se aborta en vez de "
-                    f"emitir un registro vacio (regla 1)."
+                    f"emitir un registro vacío (regla 1)."
                 )
             if nombre in vistos:
                 raise ShmirDesignError(
                     f"El nombre de consulta {nombre!r} aparece dos veces. El resultado "
-                    f"se cruza POR NOMBRE, asi que dos iguales asignarian un hit al "
-                    f"candidato equivocado sin dar ningun error. Se aborta."
+                    f"se cruza POR NOMBRE, así que dos iguales asignarian un hit al "
+                    f"candidato equivocado sin dar ningún error. Se aborta."
                 )
             vistos.add(nombre)
             lineas.append(f">{nombre}")
@@ -272,7 +272,7 @@ class Disabled(Executor):
     why = (
         "Este software no ejecuta el BLAST y no puede: el navegador no puede llamar a "
         "NCBI (CORS) y este backend no tiene red saliente. Lo que hace es PREPARAR la "
-        "peticion —FASTA de consulta con md5 y la orden completa— para ejecutarla fuera, "
+        "petición —FASTA de consulta con md5 y la orden completa— para ejecutarla fuera, "
         "y RECOGER el resultado. No es una limitacion escondida: es la arquitectura."
     )
 
@@ -289,14 +289,14 @@ class LocalCommand(Executor):
     name = "orden_local"
     runs_here = False
     why = (
-        "La orden se ejecuta en la maquina de quien la copia, contra una base LOCAL. Es "
-        "el unico camino que puede dar VEREDICTO, porque una base local tiene md5 y "
+        "La orden se ejecuta en la máquina de quien la copia, contra una base LOCAL. Es "
+        "el único camino que puede dar VEREDICTO, porque una base local tiene md5 y "
         "entra en el manifiesto."
     )
 
     def run(self, params: BlastParams, query: QueryFasta) -> str:
         raise ShmirDesignError(
-            f"El ejecutor «{self.name}» prepara la orden pero no la lanza desde aqui. "
+            f"El ejecutor «{self.name}» prepara la orden pero no la lanza desde aquí. "
             f"{self.why}"
         )
 
@@ -308,14 +308,14 @@ class RemoteApi(Executor):
     runs_here = True
     why = (
         "Lanza la consulta contra un endpoint. Hoy no hay ninguno verificado desde este "
-        "proyecto, asi que hay que pasarselo — y verificarlo antes (regla 4)."
+        "proyecto, así que hay que pasarselo — y verificarlo antes (regla 4)."
     )
 
     def __init__(self, *, endpoint: str | None):
         if not endpoint or not str(endpoint).strip():
             raise ValueError(
-                "RemoteApi necesita un endpoint VERIFICADO. Aqui no hay ninguna URL "
-                "escrita a proposito (regla 4): se comprueba que responde y que el "
+                "RemoteApi necesita un endpoint VERIFICADO. Aquí no hay ninguna URL "
+                "escrita a propósito (regla 4): se comprueba que responde y que el "
                 "formato es el esperado, se anota en docs/endpoints-verificados.md, y "
                 "entonces se pasa. Se aborta."
             )
@@ -324,7 +324,7 @@ class RemoteApi(Executor):
     def run(self, params: BlastParams, query: QueryFasta) -> str:
         raise ShmirDesignError(
             f"El endpoint {self.endpoint!r} no se ha verificado desde este proyecto y "
-            f"este modulo no llama a ninguna URL por su cuenta. Se aborta (regla 4)."
+            f"este módulo no llama a ninguna URL por su cuenta. Se aborta (regla 4)."
         )
 
 
@@ -371,9 +371,9 @@ def parse_outfmt6(text: str) -> tuple[BlastHit, ...]:
     ]
     if not lineas:
         raise ShmirDesignError(
-            "El fichero de resultados esta VACIO (ni una fila de datos). Cero hits y "
+            "El fichero de resultados está VACÍO (ni una fila de datos). Cero hits y "
             "«la corrida no llego a correr» son cosas distintas y este fichero no las "
-            "distingue — es la misma leccion del `.out` de RepeatMasker sin resumen. "
+            "distingue — es la misma lección del `.out` de RepeatMasker sin resumen. "
             "Se aborta: si de verdad no hubo hits, hace falta el log de la corrida."
         )
     hits = []
@@ -397,7 +397,7 @@ def parse_outfmt6(text: str) -> tuple[BlastHit, ...]:
             )
         except ValueError as exc:
             raise ShmirDesignError(
-                f"Fila {numero} del resultado: no se pudo leer un numero ({exc}); se "
+                f"Fila {numero} del resultado: no se pudo leer un número ({exc}); se "
                 f"aborta el parseo en vez de saltarse la fila."
             ) from exc
     return tuple(hits)

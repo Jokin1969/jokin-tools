@@ -108,7 +108,7 @@ class TestFiltrosDuros(unittest.TestCase):
         self.assertIn("GTAAGT", " ".join(motivos))
 
 
-@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
 class TestCasoBase(unittest.TestCase):
     """Los estandar son la PRIMERA opcion, no una mas del monton."""
 
@@ -157,7 +157,7 @@ class TestCasoBase(unittest.TestCase):
                 self.assertEqual(eleccion.spacer3, STANDARD_3)
 
 
-@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
 class TestBusqueda(unittest.TestCase):
     """Cuando el caso base NO vale. Sonda de mecanismo: un contexto que lo rompe."""
 
@@ -248,8 +248,8 @@ class TestSalidaObligatoria(unittest.TestCase):
 
     def test_avisa_de_que_son_especificos_de_esta_guia(self):
         texto = self.ELECCION.format_text().lower()
-        self.assertIn("especificos de esta guia", texto)
-        self.assertIn("no son los estandar", texto)
+        self.assertIn("específicos de esta guía", texto)
+        self.assertIn("no son los estándar", texto)
 
     def test_avisa_de_que_el_cassette_no_es_intercambiable(self):
         texto = self.ELECCION.format_text()
@@ -268,7 +268,7 @@ class TestSalidaObligatoria(unittest.TestCase):
             spacer5=STANDARD_5, spacer3=STANDARD_3, standard=True,
             structure="." * 296, mfe=-1.0,
         )
-        self.assertIn("estandar", estandar.format_text().lower())
+        self.assertIn("estándar", estandar.format_text().lower())
 
 
 class TestLaAutorizacionEsAcotada(unittest.TestCase):

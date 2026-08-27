@@ -52,12 +52,12 @@ FRONT_NAME = "offtarget_seed"
 #: Por que este frente va APARTE del BLAST, escrito donde se decide.
 WHY_NOT_BLAST = (
     "EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON BLAST, y no es una preferencia: "
-    "7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, asi que un blastn no los "
+    "7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, así que un blastn no los "
     "devuelve por mucho que se le baje el word_size. Esto es coincidencia EXACTA del "
     "heptamero 2-8 sobre los 3'UTR del transcriptoma murino — busqueda de SUBCADENA, no "
     "alineamiento— y necesita `transcriptoma_3utr.fa`. "
     "Fundirlo con la especificidad en un solo «PASS» daria por cubierto EL MODO DE "
-    "OFF-TARGET MAS FRECUENTE DE RNAi con una herramienta que no lo detecta. Por eso "
+    "OFF-TARGET MÁS FRECUENTE DE RNAi con una herramienta que no lo detecta. Por eso "
     "son DOS frentes y se cuentan aparte."
 )
 
@@ -67,7 +67,7 @@ def site_patterns(guide: str) -> dict[str, str]:
     limpia = "".join(str(guide).split()).upper().replace("U", "T")
     if len(limpia) < SEED_END:
         raise ValueError(
-            f"La guia mide {len(limpia)} nt y la seed son las posiciones {SEED_START}-"
+            f"La guía mide {len(limpia)} nt y la seed son las posiciones {SEED_START}-"
             f"{SEED_END}; se aborta en vez de buscar media seed."
         )
     seed_2_8 = limpia[SEED_START - 1 : SEED_END]
@@ -98,12 +98,12 @@ class Utr3Set:
         ):
             if not valor or not str(valor).strip():
                 raise ValueError(
-                    f"El conjunto de 3'UTR necesita {campo}: sin procedencia el numero "
+                    f"El conjunto de 3'UTR necesita {campo}: sin procedencia el número "
                     f"no es auditable. Se aborta."
                 )
         if not self.records:
             raise ShmirDesignError(
-                f"{self.source}: el conjunto de 3'UTR esta vacio; se aborta en vez de "
+                f"{self.source}: el conjunto de 3'UTR está vacío; se aborta en vez de "
                 f"informar de una carga de seed de cero que pareceria una buena noticia."
             )
 
@@ -111,7 +111,7 @@ class Utr3Set:
     def provenance(self) -> str:
         total = sum(len(s) for s in self.records.values())
         return (
-            f"{self.source}, version {self.version}, checksum {self.checksum}, "
+            f"{self.source}, versión {self.version}, checksum {self.checksum}, "
             f"{len(self.records)} 3'UTR ({total} nt)"
         )
 
@@ -173,17 +173,17 @@ class SeedLoad:
             f"  3'UTR: {self.utrs.provenance}",
         ]
         if self.weighted is not None:
-            lines.append(f"  Ponderado por expresion: {self.weighted:.1f}")
+            lines.append(f"  Ponderado por expresión: {self.weighted:.1f}")
         if self.sin_expresion:
             lines.append(
                 f"  {len(self.sin_expresion)} transcrito(s) con sitios pero sin dato de "
-                f"expresion: NO se les ha puesto un valor inventado, quedan fuera del "
-                f"numero ponderado."
+                f"expresión: NO se les ha puesto un valor inventado, quedan fuera del "
+                f"número ponderado."
             )
         lines.append(
-            "  Esto no lo ve ningun alineador: el filtro de especificidad compara la "
-            "guia entera, asi que estos sitios no salen en su informe. No es un "
-            "veredicto — es un numero para desempatar."
+            "  Esto no lo ve ningún alineador: el filtro de especificidad compara la "
+            "guía entera, así que estos sitios no salen en su informe. No es un "
+            "veredicto — es un número para desempatar."
         )
         return "\n".join(lines)
 
@@ -198,9 +198,9 @@ def seed_load(
         return SeedLoad(
             state=FilterState.NOT_RUN,
             reason=(
-                "No hay conjunto de 3'UTR del transcriptoma cargado, asi que la carga "
+                "No hay conjunto de 3'UTR del transcriptoma cargado, así que la carga "
                 "de off-targets por seed no se puede contar. NOT_RUN no es PASS, y "
-                "sobre todo no es un cero: no saber cuantos hay no es lo mismo que no "
+                "sobre todo no es un cero: no saber cuántos hay no es lo mismo que no "
                 "haber ninguno."
             ),
         )
@@ -236,7 +236,7 @@ def seed_load(
         utrs=utrs,
         reason=(
             f"{sum(totales.values())} sitio(s) de seed en {tocados} transcrito(s). "
-            f"Numero comparativo, no veredicto."
+            f"Número comparativo, no veredicto."
         ),
     )
 
@@ -270,7 +270,7 @@ def parse_fasta_records(text: str, *, source: str) -> dict[str, str]:
     if not records:
         raise ShmirDesignError(
             f"{source}: no hay ninguna entrada FASTA; se aborta en vez de contar sobre "
-            f"un conjunto vacio."
+            f"un conjunto vacío."
         )
     return records
 
@@ -319,7 +319,7 @@ def load_expression_table(path) -> dict[str, float]:
         texto = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise ShmirDesignError(
-            f"No se pudo leer la tabla de expresion {path} ({exc}); la carga de seed "
+            f"No se pudo leer la tabla de expresión {path} ({exc}); la carga de seed "
             f"quedaria sin ponderar y eso hay que decirlo, no suponerlo."
         ) from exc
 
@@ -337,11 +337,11 @@ def load_expression_table(path) -> dict[str, float]:
             tabla[campos[0]] = float(campos[1])
         except ValueError as exc:
             raise ShmirDesignError(
-                f"{path}:{numero}: {campos[1]!r} no es un numero ({exc}); se aborta en "
+                f"{path}:{numero}: {campos[1]!r} no es un número ({exc}); se aborta en "
                 f"vez de tratarlo como cero."
             ) from exc
     if not tabla:
         raise ShmirDesignError(
-            f"{path}: la tabla de expresion no tiene ninguna fila; se aborta."
+            f"{path}: la tabla de expresión no tiene ninguna fila; se aborta."
         )
     return tabla

@@ -35,7 +35,7 @@ STATES = ("PARCIAL", "COMPLETO")
 BLOCK_KINDS = ("heading", "para", "bullets", "table", "warning", "pre")
 
 WHAT_PARTIAL_MEANS = (
-    "ESTE INFORME ES PARCIAL. No es un borrador ni una version reducida: es el mismo "
+    "ESTE INFORME ES PARCIAL. No es un borrador ni una versión reducida: es el mismo "
     "documento con frentes todavia abiertos, y cada uno sale marcado con lo que le falta "
     "y donde conseguirlo. Un candidato con cualquier frente en NOT_RUN es INCOMPLETE, "
     "nunca aprobado — no haber comprobado algo no es haberlo comprobado y que salga bien."
@@ -47,10 +47,10 @@ WHAT_COMPLETE_MEANS = (
 )
 
 READING_NOTE = (
-    "COMO SE LEE ESTO. Cada filtro emite uno de cuatro estados: PASS (corrio y el "
-    "candidato lo supera), FAIL (corrio y no lo supera), NOT_RUN (NO LLEGO A CORRER — es "
+    "COMO SE LEE ESTO. Cada filtro emite uno de cuatro estados: PASS (corrió y el "
+    "candidato lo supera), FAIL (corrió y no lo supera), NOT_RUN (NO LLEGO A CORRER — es "
     "una laguna, no un aprobado) y NO_APLICA (esa pregunta no se le hace a ese "
-    "candidato). Un numero comparativo que no se calculo va VACIO, nunca a cero: no "
+    "candidato). Un número comparativo que no se calculo va VACÍO, nunca a cero: no "
     "haber contado y contar cero son cosas distintas."
 )
 
@@ -76,7 +76,7 @@ class Block:
                 raise ValueError(
                     f"Tabla con {len(self.headers)} cabecera(s) y filas de "
                     f"{sorted(anchos)} celda(s). Se aborta: una fila descuadrada "
-                    f"desplaza los valores a la columna de al lado y eso no da ningun "
+                    f"desplaza los valores a la columna de al lado y eso no da ningún "
                     f"error, solo un informe equivocado."
                 )
 
@@ -132,14 +132,14 @@ class Document:
             )
         if self.state == "PARCIAL" and not self.open_fronts:
             raise ValueError(
-                "Un informe PARCIAL sin ningun frente abierto no tiene sentido: o esta "
+                "Un informe PARCIAL sin ningún frente abierto no tiene sentido: o esta "
                 "completo o hay que decir cual falta. Se aborta."
             )
         if self.state == "COMPLETO" and self.open_fronts:
             raise ValueError(
                 f"Un informe COMPLETO no puede tener frentes abiertos y trae "
                 f"{', '.join(self.open_fronts)}. Se aborta: presentarlo como completo "
-                f"seria decir que se comprobo algo que no se comprobo."
+                f"sería decir que se comprobo algo que no se comprobo."
             )
 
     def section(self, number: int) -> Section:
@@ -217,10 +217,10 @@ RELATIVE_CRITERION = {
         "entreno sobre secuencia genomica humana con ventana de 10.000 nt para predecir "
         "el efecto de variantes, y un cassette de AAV no se le parece. Lo que si tiene es "
         "un umbral RELATIVO declarado: solo se listan los sitios que llegan al 5 % de la "
-        "puntuacion del DONANTE LEGITIMO del mismo intron en la MISMA corrida. Ese "
-        "referente interno es lo unico que hace interpretable el numero — el mismo "
-        "criterio con el que ya se descartaron los aceptores cripticos, comparando su "
-        "tracto de pirimidinas contra las nueve del legitimo."
+        "puntuación del DONANTE LEGÍTIMO del mismo intrón en la MISMA corrida. Ese "
+        "referente interno es lo único que hace interpretable el número — el mismo "
+        "criterio con el que ya se descartaron los aceptores crípticos, comparando su "
+        "tracto de pirimidinas contra las nueve del legítimo."
     ),
 }
 
@@ -232,7 +232,7 @@ UPLOADED_FRONTS = {
     "empalme_sitios": (
         "el resultado de SpliceAI sobre las construcciones, subido por su modal. No sale "
         "del informe de tilado porque la unidad de ese frente es el par candidato x "
-        "intron, no la ventana"
+        "intrón, no la ventana"
     ),
 }
 
@@ -250,7 +250,7 @@ _FRONT_SOURCE_ATTR = {
 }
 
 BIOPHYSICAL_NOTE = (
-    "Los seis filtros biofisicos de ventana NO dependen de ningun fichero ni de ninguna "
+    "Los seis filtros biofísicos de ventana NO dependen de ningún fichero ni de ninguna "
     "especie: corren siempre. Por eso no son un «frente» — no hay nada que conseguir "
     "para cerrarlos. Sus umbrales si necesitan justificarse igual que los demas."
 )
@@ -314,7 +314,7 @@ def _section_1(*, species, tiling, generated, anatomy_source) -> Section:
         title="Que se analizo",
         blocks=(
             para(
-                "Longitud y md5 van JUNTOS a proposito: «referencia 1246 nt» parece "
+                "Longitud y md5 van JUNTOS a propósito: «referencia 1246 nt» parece "
                 "razonable a solas, y pegado al md5 no hay forma de leerlo sin ver que "
                 "lo que se llama referencia no es lo que se cree. Es la contramedida de "
                 "una errata real."
@@ -333,7 +333,7 @@ def _section_2(fronts, *, species) -> Section:
     for frente in fronts:
         ficha = resolve_ficha(frente.name, species=especie)
         if ficha.no_file:
-            falta = "no se cierra con ningun fichero (banco)"
+            falta = "no se cierra con ningún fichero (banco)"
         else:
             falta = ", ".join(f.name for f in ficha.files if f.required)
         filas.append(
@@ -369,9 +369,9 @@ def _section_2(fronts, *, species) -> Section:
     if sin_fichero:
         bloques.append(
             para(
-                "Y hay una categoria aparte: "
+                "Y hay una categoría aparte: "
                 + ", ".join(f.name for f in sin_fichero)
-                + " NO se cierra con ningun fichero. Conseguir mas datos no lo resuelve;"
+                + " NO se cierra con ningún fichero. Conseguir más datos no lo resuelve;"
                 " hay que ir al laboratorio. Se dice aparte para que no parezca que "
                 "basta con descargar algo."
             )
@@ -390,7 +390,7 @@ def _section_3(fronts, *, species, tiling) -> Section:
             "Por cada frente: que mide, por que importa, con que criterio se decide y de "
             "donde sale cada umbral, con que datos se ha contestado, y el resultado."
         ),
-        heading("Filtros biofisicos de ventana (no son un frente)", level=3),
+        heading("Filtros biofísicos de ventana (no son un frente)", level=3),
         para(BIOPHYSICAL_NOTE),
         table(
             _THRESHOLD_HEADERS,
@@ -414,11 +414,11 @@ def _section_3(fronts, *, species, tiling) -> Section:
             )
         else:
             raise ShmirDesignError(
-                f"El frente {frente.name!r} no esta declarado en `informe_doc`: no se "
+                f"El frente {frente.name!r} no está declarado en `informe_doc`: no se "
                 f"sabe de donde sale su dato. Se aborta en vez de escribir el texto de "
                 f"otro frente — un «no se contesta con datos, sino en el banco» sobre un "
                 f"frente que SI se cierra con un fichero es plausible y falso, y eso "
-                f"cuesta mas que no decir nada. Añadelo a `BENCH_FRONTS`, a "
+                f"cuesta más que no decir nada. Añadelo a `BENCH_FRONTS`, a "
                 f"`UPLOADED_FRONTS` o a `_FRONT_SOURCE_ATTR`."
             )
         claves = _FRONT_THRESHOLDS.get(frente.name, ())
@@ -438,8 +438,8 @@ def _section_3(fronts, *, species, tiling) -> Section:
         else:
             bloques.append(
                 para(
-                    "**Criterio.** Este frente no tiene umbral numerico: su veredicto es "
-                    "una comprobacion, no una comparacion contra un corte."
+                    "**Criterio.** Este frente no tiene umbral numérico: su veredicto es "
+                    "una comprobación, no una comparación contra un corte."
                 )
             )
         if frente.blocking:
@@ -460,7 +460,7 @@ def _section_4(selection) -> Section:
             title="Tabla de candidatos",
             blocks=(
                 warning(
-                    "Ningun candidato con estos umbrales. No es un error del informe: "
+                    "Ningún candidato con estos umbrales. No es un error del informe: "
                     "es el resultado."
                 ),
             ),
@@ -481,7 +481,7 @@ def _section_4(selection) -> Section:
     marco = frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
     conflictos = core_conflicts(selection)
     if conflictos:
-        bloques.append(warning("MULTIPLEXADO: hay candidatos que comparten nucleo."))
+        bloques.append(warning("MULTIPLEXADO: hay candidatos que comparten núcleo."))
         bloques.append(
             bullets([
                 c.describe(
@@ -494,7 +494,7 @@ def _section_4(selection) -> Section:
     else:
         bloques.append(
             para(
-                "MULTIPLEXADO: ninguna pareja del panel comparte el nucleo de seed de "
+                "MULTIPLEXADO: ninguna pareja del panel comparte el núcleo de seed de "
                 "6 nt. Se dice aunque salga limpio — su ausencia se leeria como que "
                 "nadie lo miro."
             )
@@ -528,20 +528,20 @@ def _section_6() -> Section:
 
     bloques = [
         para(
-            "Seccion propia y no un pie: una limitacion al pie se lee despues de haber "
-            "creido el numero."
+            "Seccion propia y no un pie: una limitacion al pie se lee después de haber "
+            "creido el número."
         ),
         heading("Umbrales SIN base medida", level=3),
         para(
-            "Estos no salen de ninguna medida. Se declaran como convenio o como decision "
+            "Estos no salen de ninguna medida. Se declaran como convenio o como decisión "
             "de este proyecto, y presentarlos junto a los que si tienen base sin "
-            "distinguirlos les atribuiria una precision que no tienen."
+            "distinguirlos les atribuiria una precisión que no tienen."
         ),
         table(
             ("umbral", "valor", "por que no tiene base medida"),
             [(u.label, u.value, u.no_measured_basis) for u in unmeasured()],
         ),
-        heading("La carga de off-targets es un LIMITE SUPERIOR", level=3),
+        heading("La carga de off-targets es un LÍMITE SUPERIOR", level=3),
         table(
             ("limitacion", "direccion", "detalle"),
             [(l.title, l.direction, l.text) for l in LIMITATIONS],
@@ -552,18 +552,18 @@ def _section_6() -> Section:
         heading("La accesibilidad es DESEMPATE, nunca filtro", level=3),
         para(
             "Es el criterio peor predicho del pipeline. Se calculan dos ventanas de "
-            "contexto (±80 y ±150) y si discrepan, el numero no sirve ni para desempatar."
+            "contexto (±80 y ±150) y si discrepan, el número no sirve ni para desempatar."
         ),
-        heading("La asimetria usa un PROXY, no una energia libre de duplex", level=3),
+        heading("La asimetría usa un PROXY, no una energía libre de duplex", level=3),
         para(
             "Ordena candidatos entre si; no es una magnitud fisica y no se debe leer "
-            "como tal. Su especificacion tuvo un error de signo que ningun test de "
-            "consistencia interna habria detectado, asi que hay dos tests de cordura "
+            "como tal. Su especificación tuvo un error de signo que ningún test de "
+            "consistencia interna habría detectado, así que hay dos tests de cordura "
             "biologica que fijan los signos."
         ),
-        heading("Un frente que no se cierra con ningun fichero", level=3),
+        heading("Un frente que no se cierra con ningún fichero", level=3),
         para(
-            "El empalme del intron es BINARIO y solo se contesta en el banco. Y la "
+            "El empalme del intrón es BINARIO y solo se contesta en el banco. Y la "
             "lectura que se hace por defecto NO lo coge: un small RNA-seq puede salir "
             "perfecto con el empalme fallando, porque Drosha procesa el pri-miR "
             "cotranscripcionalmente — o sea ANTES del splicing. Un shmiR correcto no es "
@@ -576,11 +576,11 @@ def _section_6() -> Section:
 def _section_7(tiling, *, extra=()) -> Section:
     filas = []
     for etiqueta, atributo in (
-        ("mascara de repetitivos", "mask"),
+        ("máscara de repetitivos", "mask"),
         ("maduros de miRBase", "mature"),
         ("tabla de seeds", "seeds"),
         ("base de especificidad", "specificity_db"),
-        ("casete del transgen", "transgene_db"),
+        ("casete del transgén", "transgene_db"),
         ("3'UTR del transcriptoma", "utr3_set"),
         ("APA medido", "measured_apa"),
         ("lista ampliada de abundancia", "abundance"),
@@ -592,8 +592,8 @@ def _section_7(tiling, *, extra=()) -> Section:
         title="Procedencia",
         blocks=(
             para(
-                "Todos los ficheros que entraron, con version y md5. Sin esto un "
-                "veredicto no es auditable dentro de un año — que es la razon por la que "
+                "Todos los ficheros que entraron, con versión y md5. Sin esto un "
+                "veredicto no es auditable dentro de un año — que es la razón por la que "
                 "el manifiesto se versiona en texto."
             ),
             table(("recurso", "procedencia"), filas),

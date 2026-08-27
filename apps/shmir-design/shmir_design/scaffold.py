@@ -110,8 +110,8 @@ class ScaffoldSpec:
             for index, base in enumerate(pieza.upper(), start=1):
                 if base not in DNA_BASES:
                     raise InvalidSequenceError(
-                        f"Andamio {self.name!r}, {nombre}: caracter {base!r} no valido "
-                        f"en la posicion {index}; se aborta el montaje."
+                        f"Andamio {self.name!r}, {nombre}: carácter {base!r} no válido "
+                        f"en la posición {index}; se aborta el montaje."
                     )
         if self.guide_arm not in ("3p", "5p"):
             raise ValueError(
@@ -146,7 +146,7 @@ def load_scaffold(path: Path | str) -> ScaffoldSpec:
         data = tomllib.loads(raw.decode("utf-8"))
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise ValueError(
-            f"{path} no es TOML valido ({exc}); se aborta el montaje de oligos."
+            f"{path} no es TOML válido ({exc}); se aborta el montaje de oligos."
         ) from exc
 
     faltan = [key for key in REQUIRED_KEYS if key not in data]
@@ -195,10 +195,10 @@ PASSENGER_RULE_CONFIRMED = True
 PASSENGER_RULE_SOURCE = (
     "SGEP #111170 y LT3GEPIR #111177 llevan la misma horquilla shRen.713 con la misma "
     "pasajera; el plegado del 97-mero completo (ViennaRNA) confirma que aparear la "
-    "posicion 1 en Watson-Crick cierra el tallo y borra el bulge basal. Cuantas bases "
-    "reproducen la estructura depende de la guia: con guia acabada en A o en C hay "
-    "tres, y con guia acabada en G solo la G — la C aparea en Watson-Crick, la T por "
-    "wobble G:U, y la A deja un bulge de 2 nt en vez de 1. Por eso la eleccion es "
+    "posición 1 en Watson-Crick cierra el tallo y borra el bulge basal. Cuántas bases "
+    "reproducen la estructura depende de la guía: con guía acabada en A o en C hay "
+    "tres, y con guía acabada en G solo la G — la C aparea en Watson-Crick, la T por "
+    "wobble G:U, y la A deja un bulge de 2 nt en vez de 1. Por eso la elección es "
     "estructural y no una tabla por terminacion"
 )
 
@@ -221,7 +221,7 @@ REFERENCE_HAIRPIN = (
 
 EXTENDED_FLANKS_STATUS = (
     "sin decidir: los flancos extendidos del pri-miR (necesarios para el cassette AAV, "
-    "no para el clonaje en SGEP) todavia no estan verificados"
+    "no para el clonaje en SGEP) todavia no están verificados"
 )
 
 
@@ -250,7 +250,7 @@ def _validate_arm(sequence: str, *, name: str = "guia") -> str:
     for index, base in enumerate(cleaned, start=1):
         if base not in DNA_BASES:
             raise InvalidSequenceError(
-                f"{name}: caracter {base!r} no valido en la posicion {index} "
+                f"{name}: carácter {base!r} no válido en la posición {index} "
                 f"(se esperaba A, C, G o T/U). Un oligo no se puede sintetizar con una "
                 f"base desconocida; se aborta el montaje de la horquilla."
             )
@@ -315,8 +315,8 @@ def passenger_from_guide(
         ]
         if not posibles:
             raise ShmirDesignError(
-                f"Sin ViennaRNA no queda ninguna base para la posicion 1 de la pasajera "
-                f"que no aparee con la posicion 22 de la guia ({cleaned[-1]}); se "
+                f"Sin ViennaRNA no queda ninguna base para la posición 1 de la pasajera "
+                f"que no aparee con la posición 22 de la guía ({cleaned[-1]}); se "
                 f"aborta el montaje."
             )
         elegida = posibles[0]
@@ -329,10 +329,10 @@ def passenger_from_guide(
             candidates=tuple(posibles),
             structural_check=FilterState.NOT_RUN,
             warnings=(
-                "ViennaRNA no esta instalado, asi que la posicion 1 de la pasajera NO "
+                "ViennaRNA no está instalado, así que la posición 1 de la pasajera NO "
                 "se ha elegido por el criterio estructural: solo se han excluido las "
-                "bases que aparean en Watson-Crick y por wobble. Eso esta COMPROBADO "
-                "como insuficiente — con guia acabada en G la eleccion por exclusion "
+                "bases que aparean en Watson-Crick y por wobble. Eso está COMPROBADO "
+                "como insuficiente — con guía acabada en G la elección por exclusión "
                 "da un bulge de 2 nt en vez de 1 y la horquilla no es la de SGEP. "
                 "NOT_RUN no es PASS: no pidas este bloque sin instalar ViennaRNA.",
             ),
@@ -353,7 +353,7 @@ def passenger_from_guide(
         detalle = "\n".join(f"    {b}: {estructuras[b]}" for b in MISMATCH_PREFERENCE)
         raise ShmirDesignError(
             f"Ninguna de las cuatro bases reproduce la estructura de la horquilla de "
-            f"referencia para la guia {cleaned}. No se elige por defecto: una pasajera "
+            f"referencia para la guía {cleaned}. No se elige por defecto: una pasajera "
             f"que no pliega como SGEP monta otra horquilla.\n"
             f"  referencia:\n    {referencia}\n  obtenidas:\n{detalle}"
         )
@@ -402,7 +402,7 @@ class Hairpin:
             f"    pasajera   {self.passenger.sequence}  ({ARM_LENGTH} nt)",
             f"    loop       {self.scaffold.loop}  "
             f"({len(self.scaffold.loop)} nt, {self._sello})",
-            f"    guia       {self.guide}  ({ARM_LENGTH} nt, brazo "
+            f"    guía       {self.guide}  ({ARM_LENGTH} nt, brazo "
             f"{self.scaffold.guide_arm})",
             f"    flanco 3'  {self.scaffold.flank3}  "
             f"({len(self.scaffold.flank3)} nt, {self._sello})",
@@ -410,9 +410,9 @@ class Hairpin:
             f"  Pasajera: complementario reverso {self.passenger.reverse_complement}",
         ]
         lines.append(
-            f"            con la posicion 1 en {self.passenger.chosen_base} y no en "
-            f"{self.passenger.forbidden_base}: apareada en Watson-Crick con la posicion "
-            f"22 de la guia, el tallo se cierra y desaparece el bulge basal"
+            f"            con la posición 1 en {self.passenger.chosen_base} y no en "
+            f"{self.passenger.forbidden_base}: apareada en Watson-Crick con la posición "
+            f"22 de la guía, el tallo se cierra y desaparece el bulge basal"
         )
 
         lines.append("")
@@ -454,7 +454,7 @@ def build_hairpin(guide: str, scaffold: ScaffoldSpec = SGEP_SCAFFOLD) -> Hairpin
 def extended_cassette(guide: str) -> str:
     """Horquilla con los flancos extendidos del pri-miR. No disponible."""
     raise NotImplementedError(
-        f"Los flancos extendidos del pri-miR estan {EXTENDED_FLANKS_STATUS}. "
+        f"Los flancos extendidos del pri-miR están {EXTENDED_FLANKS_STATUS}. "
         f"Lo verificado es el 97-mero de SGEP y solo eso; no se inventan flancos para "
         f"completar un cassette AAV."
     )

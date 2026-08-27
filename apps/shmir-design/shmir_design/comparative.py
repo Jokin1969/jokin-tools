@@ -78,24 +78,24 @@ PENDIENTES = ("score_externo", "fuente_score", *MIRARCH_COLUMNS, "knockdown_medi
 CABECERA = (
     "# Tabla comparativa de shmir-design. Las columnas knockdown_medido y "
     "score_externo van\n"
-    "# VACIAS a proposito: la primera se rellena en el laboratorio, la segunda con "
+    "# VACÍAS a propósito: la primera se rellena en el laboratorio, la segunda con "
     "miRarchitect\n"
     "# (ver el bloque de instrucciones del informe, o tools/import_scores.py). Un "
     "campo vacio\n"
     "# significa 'no se midio', NUNCA cero.\n"
     "# El score externo es INFORMATIVO: no es un filtro, no da PASS y no da FAIL. Las\n"
-    "# columnas feat_* son las features de SplashRNA calculadas aqui, SIN combinar: "
+    "# columnas feat_* son las features de SplashRNA calculadas aquí, SIN combinar: "
     "una\n"
-    "# feature no es un score, y aqui no se entrena ningun modelo.\n"
+    "# feature no es un score, y aquí no se entrena ningún modelo.\n"
 )
 
 
 #: Las dos posiciones que NO son dato. Van en el informe y en la cabecera del TSV.
 CONVENTION_NOTE = (
-    "Posiciones de CONVENIO, excluidas de toda comparacion de identidad:\n"
-    "  · posicion 1 de la guia: se fuerza una T/U para que AGO2 cargue la hebra; no "
+    "Posiciones de CONVENIO, excluidas de toda comparación de identidad:\n"
+    "  · posición 1 de la guía: se fuerza una T/U para que AGO2 cargue la hebra; no "
     "viene de la diana.\n"
-    "  · posicion 1 de la pasajera: desapareamiento deliberado que mantiene el bulge "
+    "  · posición 1 de la pasajera: desapareamiento deliberado que mantiene el bulge "
     "basal; tampoco viene de la diana."
 )
 
@@ -112,9 +112,9 @@ def coordinate_note(anatomy: Anatomy | None) -> str:
         "inicio_3utr/fin_3utr van sobre el 3'UTR y empiezan en 1; "
         "inicio_transcrito/fin_transcrito,",
         "sobre la secuencia que se tilo.",
-        "Las TRES columnas de asimetria son cantidades distintas y no se mezclan: "
+        "Las TRES columnas de asimetría son cantidades distintas y no se mezclan: "
         "`asimetria` es la CRUDA,",
-        "`penalizacion` lo que resta la variante rara de poliadenilacion (0.00 si no la "
+        "`penalizacion` lo que resta la variante rara de poliadenilación (0.00 si no la "
         "hay), y",
         "`asimetria_penalizada` la NETA con la que se ordena. Darlas en una sola columna "
         "hizo que 3utr:221",
@@ -122,12 +122,12 @@ def coordinate_note(anatomy: Anatomy | None) -> str:
         "de calculo.",
         "polyA_hexamero_pos y polyA_dist_extremo3 van en el marco de LO TILADO, igual "
         "que",
-        "inicio_transcrito: un hexamero en 1983 con el CDS declarado es el 1034 del "
+        "inicio_transcrito: un hexámero en 1983 con el CDS declarado es el 1034 del "
         "3'UTR.",
     ]
     if anatomy is None:
         lineas.append(
-            "La anatomia no se declaro al escribir esta tabla, asi que no se puede "
+            "La anatomía no se declaro al escribir esta tabla, así que no se puede "
             "decir que marco"
         )
         lineas.append("es el de las columnas de transcrito. Trata los dos con cuidado.")
@@ -135,15 +135,15 @@ def coordinate_note(anatomy: Anatomy | None) -> str:
     lineas.append(f"Anatomia: {anatomy.source.describe()}.")
     if anatomy.cds is None:
         lineas.append(
-            "AQUI NO HAY MARCO DE TRANSCRITO: la secuencia tilada era el 3'UTR entero, "
-            "asi que las"
+            "AQUÍ NO HAY MARCO DE TRANSCRITO: la secuencia tilada era el 3'UTR entero, "
+            "así que las"
         )
         lineas.append(
-            "dos parejas coinciden y **no son coordenadas de ningun transcrito**. Para "
+            "dos parejas coinciden y **no son coordenadas de ningún transcrito**. Para "
             "tenerlas hay"
         )
         lineas.append(
-            "que resolver la anatomia con el GenBank o con las coordenadas del CDS."
+            "que resolver la anatomía con el GenBank o con las coordenadas del CDS."
         )
     return "\n".join(lineas)
 
@@ -343,14 +343,14 @@ def comparative_text(
             + "  ".join(fila[i].ljust(a) for i, a in zip(indices, anchos))
         )
     lineas.append(
-        "  La tabla COMPLETA —con la pasajera, el modulo de 149 nt, los cinco campos de"
+        "  La tabla COMPLETA —con la pasajera, el módulo de 149 nt, los cinco campos de"
     )
     lineas.append(
-        "  polyA, los recuentos de especificidad y una columna por filtro— esta en el "
+        "  polyA, los recuentos de especificidad y una columna por filtro— está en el "
         "TSV comparativo,"
     )
     lineas.append(
-        "  con la columna knockdown_medido vacia para que vuelva rellena del "
+        "  con la columna knockdown_medido vacía para que vuelva rellena del "
         "laboratorio."
     )
     lineas.extend(f"  {l}" for l in coordinate_note(anatomy).splitlines())

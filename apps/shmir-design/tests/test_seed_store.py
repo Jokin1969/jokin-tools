@@ -152,7 +152,7 @@ class TestCriterio4_LaTasaBaseVaSiempreConLosAvisos(unittest.TestCase):
             for r in self.almacen.runs[0].results if r.level == "AVISO"
         ]
         if not avisos:
-            self.skipTest("esta corrida no produjo ningun AVISO")
+            self.skipTest("esta corrida no produjo ningún AVISO")
         for resultado in avisos:
             self.assertIn("azar", resultado.reason.lower())
 

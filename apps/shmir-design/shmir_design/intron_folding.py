@@ -36,23 +36,23 @@ from .introns import Intron, locate_elements
 ELEMENTS = ("donante", "punto_de_ramificacion", "aceptor")
 
 WHY_IT_MATTERS = (
-    "Un elemento de splicing secuestrado dentro de un TALLO no esta disponible para el "
+    "Un elemento de splicing secuestrado dentro de un TALLO no está disponible para el "
     "espliceosoma. El sitio puede ser perfecto de secuencia y no servir: la secuencia "
     "dice que el sitio existe, el plegado dice si se puede usar. Son dos preguntas y "
     "esta es la segunda."
 )
 
 WHY_ITS_OURS = (
-    "Este numero es PROPIO: sale de plegar la construccion real con ViennaRNA, no de un "
+    "Este número es PROPIO: sale de plegar la construcción real con ViennaRNA, no de un "
     "modelo entrenado sobre otra cosa. Por eso, a diferencia de las puntuaciones de "
-    "prediccion de sitios, no hace falta compararlo contra un referente interno para que "
-    "signifique algo — aunque sigue siendo un numero comparativo entre construcciones y "
+    "predicción de sitios, no hace falta compararlo contra un referente interno para que "
+    "signifique algo — aunque sigue siendo un número comparativo entre construcciones y "
     "no un veredicto."
 )
 
 USE_NOTE = (
-    "DESEMPATE Y ALERTA, NUNCA FILTRO. Ninguno de los dos analisis de este modal puede "
-    "excluir un candidato. Lo que pueden hacer es señalar que una construccion concreta "
+    "DESEMPATE Y ALERTA, NUNCA FILTRO. Ninguno de los dos análisis de este modal puede "
+    "excluir un candidato. Lo que pueden hacer es señalar que una construcción concreta "
     "tiene un perfil peor que sus hermanas, y eso es motivo para preferir otra o para "
     "llevar las dos."
 )
@@ -95,11 +95,11 @@ class IntronFolding:
     def describe(self) -> str:
         if self.state is not FilterState.PASS:
             return (
-                f"Accesibilidad estructural del intron {self.intron!r} — NOT_RUN\n"
+                f"Accesibilidad estructural del intrón {self.intron!r} — NOT_RUN\n"
                 f"  {self.reason}"
             )
         lineas = [
-            f"Accesibilidad estructural del intron {self.intron!r} "
+            f"Accesibilidad estructural del intrón {self.intron!r} "
             f"({self.length} nt, dG {self.energy:+.2f} kcal/mol):"
         ]
         for nombre in ELEMENTS:
@@ -113,7 +113,7 @@ class IntronFolding:
             )
             for fila in self.branch_detail:
                 lineas.append(
-                    f"    intron:{fila['posicion']} {fila['motivo']} — "
+                    f"    intrón:{fila['posicion']} {fila['motivo']} — "
                     f"{fila['desapareado']:.2f} sin aparear"
                 )
         lineas.append(f"  {WHY_IT_MATTERS}")
@@ -139,9 +139,9 @@ def fold_intron(
             state=FilterState.NOT_RUN,
             intron=intron.name,
             reason=(
-                "ViennaRNA no esta instalado, asi que no se ha plegado nada. NOT_RUN no "
-                "es PASS y no haber plegado NO es «los elementos estan accesibles»: las "
-                "probabilidades van vacias, nunca a cero."
+                "ViennaRNA no está instalado, así que no se ha plegado nada. NOT_RUN no "
+                "es PASS y no haber plegado NO es «los elementos están accesibles»: las "
+                "probabilidades van vacías, nunca a cero."
             ),
         )
 
@@ -175,8 +175,8 @@ def fold_intron(
         )
     else:
         raise ShmirDesignError(
-            f"El intron {intron.name!r} montado no tiene ningun candidato a punto de "
-            f"ramificacion con el criterio declarado, asi que no hay nada que medir ahi. "
+            f"El intrón {intron.name!r} montado no tiene ningún candidato a punto de "
+            f"ramificacion con el criterio declarado, así que no hay nada que medir ahi. "
             f"Se aborta en vez de emitir dos elementos de tres como si fueran los tres."
         )
 

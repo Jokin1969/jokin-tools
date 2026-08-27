@@ -1,6 +1,6 @@
 frente = "especificidad"
 pregunta = """\
-¿Esta guia tiene complementariedad EXTENSA con algun otro transcrito? Es la pregunta de \
+¿Esta guía tiene complementariedad EXTENSA con algun otro transcrito? Es la pregunta de \
 los alineamientos, y la contesta un BLAST contra una base de transcritos."""
 fuente = "La app prepara la consulta; el BLAST lo corres tu. La base es RefSeq RNA del NCBI."
 url = "https://ftp.ncbi.nlm.nih.gov/blast/db/"
@@ -9,8 +9,8 @@ validacion = """\
 Al subir el resultado la app comprueba DOS cosas y las dos rechazan: que el md5 del FASTA \
 de consulta que declaras sea el del FASTA que ella genero, y que toda `query` del \
 resultado este en el panel. Es el fallo del CSV de miRarchitect —un fichero de otra \
-corrida que entra, cuadra de forma y produce un analisis entero sobre el dato \
-equivocado— y el mensaje lo nombra. Un `-outfmt 6` VACIO tambien se rechaza: cero hits y \
+corrida que entra, cuadra de forma y produce un análisis entero sobre el dato \
+equivocado— y el mensaje lo nombra. Un `-outfmt 6` VACÍO también se rechaza: cero hits y \
 «la corrida no llego a correr» son cosas distintas y ese fichero no las distingue."""
 
 pasos = [
@@ -24,19 +24,19 @@ pasos = [
 
 avisos = [
   "ESTA APP NO LANZA EL BLAST Y NO PUEDE: el navegador no puede llamar a NCBI (CORS) y el backend no tiene red saliente. No es una limitacion escondida: es la arquitectura, y el modal lo dice.",
-  "`-remote` es EXPLORACION, NUNCA VEREDICTO. La base de NCBI cambia entre corridas, asi que un resultado remoto no es reproducible. Solo una base LOCAL con md5 cierra el frente.",
-  "ESTE FRENTE NO CUBRE LOS OFF-TARGETS POR SEED. Son dos frentes y el otro es `offtarget_seed`: 7 nt contiguos no dan un alineamiento puntuable, asi que ningun BLAST los devuelve. Un «especificidad: PASS» sin esa frase invita a creer que la guia esta comprobada cuando lo comprobado son los alineamientos.",
+  "`-remote` es EXPLORACION, NUNCA VEREDICTO. La base de NCBI cambia entre corridas, así que un resultado remoto no es reproducible. Solo una base LOCAL con md5 cierra el frente.",
+  "ESTE FRENTE NO CUBRE LOS OFF-TARGETS POR SEED. Son dos frentes y el otro es `offtarget_seed`: 7 nt contiguos no dan un alineamiento puntuable, así que ningún BLAST los devuelve. Un «especificidad: PASS» sin esa frase invita a creer que la guía está comprobada cuando lo comprobado son los alineamientos.",
 ]
 
 [[ficheros]]
 nombre = "refseq_rna (base de BLAST) + el resultado en `-outfmt 6`"
-por_que = "La base es contra lo que se alinea; el `-outfmt 6` es lo que se sube. La app no necesita la base: necesita su nombre, su version y su md5 para poder decir contra que se comparo."
+por_que = "La base es contra lo que se alinea; el `-outfmt 6` es lo que se sube. La app no necesita la base: necesita su nombre, su versión y su md5 para poder decir contra que se comparo."
 obligatorio = true
 
 [[metadatos]]
-nombre = "nombre, version y md5 de la base"
+nombre = "nombre, versión y md5 de la base"
 por_que = "Sin ellos el veredicto no es reproducible, y el almacen marca la corrida como «no reproducible» con esas palabras."
 
 [[metadatos]]
 nombre = "los ajustes que hayas cambiado"
-por_que = "Cualquier ajuste distinto del estandar viaja con el resultado y se marca en rojo: un veredicto obtenido con parametros no estandar no puede ser indistinguible de uno estandar."
+por_que = "Cualquier ajuste distinto del estándar viaja con el resultado y se marca en rojo: un veredicto obtenido con parámetros no estándar no puede ser indistinguible de uno estándar."

@@ -32,7 +32,7 @@ class TestSonDosCosasDistintas(unittest.TestCase):
         self.assertIn("subcadena", seed_mod.WHY_NOT_BLAST.lower())
 
     def test_y_que_es_el_modo_MAS_FRECUENTE(self):
-        self.assertIn("mas frecuente", seed_mod.WHY_NOT_BLAST.lower())
+        self.assertIn("más frecuente", seed_mod.WHY_NOT_BLAST.lower())
 
     def test_nombra_el_fichero_que_hace_falta(self):
         self.assertIn("transcriptoma_3utr.fa", seed_mod.WHY_NOT_BLAST)

@@ -69,26 +69,26 @@ INTRON_LAYOUT: tuple[tuple[str, int], ...] = (
 CRYPTIC_DONOR = "GTGAGCG"
 
 BINARY_NOT_GRADUAL = (
-    "RIESGO BINARIO. NO ES UN PARAMETRO DE CALIDAD y no se lee como tal: o el intron se "
+    "RIESGO BINARIO. NO ES UN PARÁMETRO DE CALIDAD y no se lee como tal: o el intrón se "
     "escinde o no. Si no se escinde, la horquilla se queda en el 5'UTR del mRNA maduro y "
     "no hay proteina DN EN ABSOLUTO — no hay «un poco de proteina» que optimizar. Lo que "
     "decide no es un candidato ni una plaza del panel: decide si la ARQUITECTURA "
-    "INTRONICA sigue viva. Por eso va como frente y no como columna."
+    "INTRÓNICA sigue viva. Por eso va como frente y no como columna."
 )
 
 WHY_SMALL_RNA_SEQ_MISSES_IT = (
     "Y la lectura que se hace por defecto NO lo coge: un small RNA-seq puede salir "
     "PERFECTO con el empalme fallando. Drosha procesa el pri-miR "
-    "COTRANSCRIPCIONALMENTE, o sea ANTES del splicing, asi que la horquilla se corta "
-    "igual este el intron escindido o no. Un shmiR correcto NO ES EVIDENCIA de que haya "
+    "COTRANSCRIPCIONALMENTE, o sea ANTES del splicing, así que la horquilla se corta "
+    "igual este el intrón escindido o no. Un shmiR correcto NO ES EVIDENCIA de que haya "
     "proteina: son dos sucesos en orden y esa lectura solo mide el primero."
 )
 
 WHY_NOT_JUNCTION_SPANNING = (
-    "Ningun cebador puede cruzar la union exon-exon: uno que la cruce solo amplifica la "
-    "forma EMPALMADA, asi que da presencia y no PROPORCION — y la proporcion es la "
+    "Ningún cebador puede cruzar la union exon-exon: uno que la cruce solo amplifica la "
+    "forma EMPALMADA, así que da presencia y no PROPORCIÓN — y la proporción es la "
     "eficiencia, que es lo que se busca. Los dos van enteros dentro de exon, a "
-    f"{JUNCTION_MARGIN} nt de la union como minimo."
+    f"{JUNCTION_MARGIN} nt de la union como mínimo."
 )
 
 #: El codigo genetico estandar, generado y no tecleado (mismo criterio que `orf_sweep`).
@@ -128,12 +128,12 @@ class IntronLocation:
 
     def describe(self) -> str:
         que = (
-            f"VACIO (las dos mitades MVM pegadas, sin modulo)"
+            f"VACÍO (las dos mitades MVM pegadas, sin módulo)"
             if self.empty
-            else f"con modulo dentro"
+            else f"con módulo dentro"
         )
         return (
-            f"Intron MVM en {self.plasmid_name}: donante {self.donor} en "
+            f"Intrón MVM en {self.plasmid_name}: donante {self.donor} en "
             f"casete:{self.donor_start}, aceptor {self.acceptor} en "
             f"casete:{self.acceptor_end}, {self.length} nt, {que}."
         )
@@ -149,8 +149,8 @@ def locate_intron(sequence: str, *, name: str) -> IntronLocation:
     limpia = "".join(sequence.split()).upper()
     if not limpia:
         raise MissingSequenceError(
-            f"{name}: no hay secuencia del casete, asi que no se puede localizar el "
-            f"intron ni emitir ninguna coordenada de cebador. Se aborta (regla 1)."
+            f"{name}: no hay secuencia del casete, así que no se puede localizar el "
+            f"intrón ni emitir ninguna coordenada de cebador. Se aborta (regla 1)."
         )
 
     posiciones = {}
@@ -163,15 +163,15 @@ def locate_intron(sequence: str, *, name: str) -> IntronLocation:
             i = limpia.find(motivo, i + 1)
         if not encontradas:
             raise ShmirDesignError(
-                f"{name}: no contiene la pieza {pieza} del intron "
-                f"({len(motivo)} nt, procedencia «{blocks.PIECES[pieza].source}»), asi "
-                f"que no es el casete intronico y no se emite ninguna coordenada. "
-                f"Se aborta el paso «empalme del intron»."
+                f"{name}: no contiene la pieza {pieza} del intrón "
+                f"({len(motivo)} nt, procedencia «{blocks.PIECES[pieza].source}»), así "
+                f"que no es el casete intrónico y no se emite ninguna coordenada. "
+                f"Se aborta el paso «empalme del intrón»."
             )
         if len(encontradas) > 1:
             raise ShmirDesignError(
                 f"{name}: la pieza {pieza} aparece {len(encontradas)} veces "
-                f"({encontradas}); no identifica un intron y se aborta en vez de "
+                f"({encontradas}); no identifica un intrón y se aborta en vez de "
                 f"quedarse con la primera."
             )
         posiciones[pieza] = encontradas[0]
@@ -181,7 +181,7 @@ def locate_intron(sequence: str, *, name: str) -> IntronLocation:
     if aceptor <= donante:
         raise ShmirDesignError(
             f"{name}: el aceptor (casete:{aceptor}) queda por delante del donante "
-            f"(casete:{donante}); eso no es un intron y se aborta."
+            f"(casete:{donante}); eso no es un intrón y se aborta."
         )
 
     sitio = IntronLocation(
@@ -223,7 +223,7 @@ class PrimerWindow:
 
     def describe(self) -> str:
         estado = (
-            "unica en el casete"
+            "única en el casete"
             if self.usable
             else f"APARECE {self.occurrences} VECES — NO VALE"
         )
@@ -255,8 +255,8 @@ def translate(sequence: str) -> str:
         residuo = GENETIC_CODE.get(sequence[i:i + 3])
         if residuo is None:
             raise ShmirDesignError(
-                f"Codon {sequence[i:i + 3]!r} no reconocido en la posicion {i + 1} del "
-                f"ORF; se aborta la traduccion en vez de saltarselo."
+                f"Codon {sequence[i:i + 3]!r} no reconocido en la posición {i + 1} del "
+                f"ORF; se aborta la traducción en vez de saltarselo."
             )
         if residuo == "*":
             break
@@ -340,7 +340,7 @@ class SplicingRtPcr:
         palto = alto + self.parental_difference
         return [
             "LECTURA 1 — RT-PCR DE EMPALME. Cebadores en los exones que flanquean el "
-            "intron MVM.",
+            "intrón MVM.",
             f"  {self.location.describe()}",
             "  VENTANAS donde buscar los cebadores (no se emiten cebadores: Tm, "
             "especificidad y",
@@ -351,7 +351,7 @@ class SplicingRtPcr:
             f"  {WHY_NOT_JUNCTION_SPANNING}",
             "",
             "  LO QUE SE LEE EN EL GEL. F y R son las longitudes de los dos cebadores, "
-            "que no se fijan aqui:",
+            "que no se fijan aquí:",
             f"    banda CORTA = EMPALMADO   {bajo} + F + R pb  (los dos cebadores pegados "
             f"al margen)",
             f"                              hasta {alto} pb    (los dos en el extremo "
@@ -359,31 +359,31 @@ class SplicingRtPcr:
             f"    banda LARGA = RETENIDO    lo mismo + {self.difference} pb "
             f"→ {rbajo} + F + R .. {ralto} pb   (TERAPEUTICO)",
             f"                              lo mismo + {self.parental_difference} pb "
-            f"→ {pbajo} + F + R .. {palto} pb   (parental, otro intron)",
-            f"    La PROPORCION entre las dos es la EFICIENCIA de empalme. Los tamaños "
+            f"→ {pbajo} + F + R .. {palto} pb   (parental, otro intrón)",
+            f"    La PROPORCIÓN entre las dos es la EFICIENCIA de empalme. Los tamaños "
             f"absolutos dependen",
             f"    de donde se pongan los cebadores y de lo largos que sean; la "
             f"DIFERENCIA no depende de nada",
-            f"    de eso: es exactamente el intron ({self.difference} nt en el "
+            f"    de eso: es exactamente el intrón ({self.difference} nt en el "
             f"terapeutico). Esa es la lectura.",
             "",
             "  ESPECIFICIDAD DEL PAR — el cebador de aguas ARRIBA es el que la da. La "
             "ventana de aguas",
-            f"  abajo entra en el ORF de PrP (empieza en casete:{self.orf_start}), asi "
+            f"  abajo entra en el ORF de PrP (empieza en casete:{self.orf_start}), así "
             f"que un par con los DOS",
-            "  cebadores ahi amplificaria tambien el Prnp ENDOGENO del tejido y la "
-            "banda no seria del vector.",
+            "  cebadores ahi amplificaria también el Prnp ENDOGENO del tejido y la "
+            "banda no sería del vector.",
             "",
             f"  POR QUE IMPORTA, comprobado sobre esta secuencia: el ORF empieza en "
             f"casete:{self.orf_start},",
-            f"  a {self.utr5_after_acceptor} nt del aceptor, asi que el intron esta en el "
+            f"  a {self.utr5_after_acceptor} nt del aceptor, así que el intrón está en el "
             f"5'UTR. Retenido, mete",
-            f"  {self.retained_insert} nt por delante del codon de inicio, con al menos "
+            f"  {self.retained_insert} nt por delante del codón de inicio, con al menos "
             f"{self.upstream_atgs} uATG en sus piezas fijas.",
             f"  El ORF traduce {self.protein_length} aa que empiezan por "
             f"{self.protein[:16]} — es PrP, y lleva las dos",
-            "  mutaciones que anuncia el nombre del plasmido. Identidad comprobada por "
-            "traduccion, no por el nombre del fichero.",
+            "  mutaciones que anuncia el nombre del plásmido. Identidad comprobada por "
+            "traducción, no por el nombre del fichero.",
         ]
 
 
@@ -416,8 +416,8 @@ def splice_rtpcr_plan(
     inicio_orf = resto.find("ATG")
     if inicio_orf < 0:
         raise ShmirDesignError(
-            f"{name}: no hay ningun ATG por detras del aceptor, asi que no se puede "
-            f"comprobar que el intron caiga en el 5'UTR; se aborta en vez de darlo por "
+            f"{name}: no hay ningún ATG por detrás del aceptor, así que no se puede "
+            f"comprobar que el intrón caiga en el 5'UTR; se aborta en vez de darlo por "
             f"supuesto."
         )
     absoluto = sitio.acceptor_end + inicio_orf + 1
@@ -464,8 +464,8 @@ def splicing_readouts(plan: SplicingRtPcr | None = None) -> tuple[SplicingReadou
             name="rtpcr_empalme",
             state=FilterState.NOT_RUN,
             requirement=(
-                "RT-PCR con cebadores en los exones que flanquean el intron MVM. Banda "
-                "CORTA = empalmado, banda LARGA = retenido, y la PROPORCION es la "
+                "RT-PCR con cebadores en los exones que flanquean el intrón MVM. Banda "
+                "CORTA = empalmado, banda LARGA = retenido, y la PROPORCIÓN es la "
                 f"eficiencia. {coordenadas}"
             ),
         ),
@@ -475,7 +475,7 @@ def splicing_readouts(plan: SplicingRtPcr | None = None) -> tuple[SplicingReadou
             requirement=(
                 "Western L42 NORMALIZADO por vg-qPCR. Sin normalizar, «no hay proteina» "
                 "no se distingue de «no llego el vector»: los dos dan una membrana "
-                "vacia, y solo uno de los dos culpa al empalme. La vg-qPCR es la que "
+                "vacía, y solo uno de los dos culpa al empalme. La vg-qPCR es la que "
                 "separa las dos hipotesis."
             ),
         ),
@@ -485,9 +485,9 @@ def splicing_readouts(plan: SplicingRtPcr | None = None) -> tuple[SplicingReadou
             requirement=(
                 "SECUENCIAR la banda corta, no solo verla. Es LA QUE CIERRA el frente: "
                 "la lectura de exito es la SECUENCIA de la union exon-exon, NO LA "
-                f"ALTURA de la banda. Sirve para descartar el donante criptico "
+                f"ALTURA de la banda. Sirve para descartar el donante críptico "
                 f"{CRYPTIC_DONOR} del flanco 5' del andamio: un empalme por ahi al "
-                f"aceptor legitimo dejaria {crypticos} nt de intron dentro y daria una "
+                f"aceptor legítimo dejaria {crypticos} nt de intrón dentro y daria una "
                 f"banda INTERMEDIA —empalmada + {crypticos} pb— que en un gel se puede "
                 f"confundir con la correcta. Con la union secuenciada, o pone "
                 f"exon5|exon3 o no lo pone."
@@ -497,13 +497,13 @@ def splicing_readouts(plan: SplicingRtPcr | None = None) -> tuple[SplicingReadou
             name="parental_sin_intron",
             state=FilterState.NOT_RUN,
             requirement=(
-                "Parental SIN INTRON en la MISMA TANDA, como TECHO de expresion. Sin "
+                "Parental SIN INTRÓN en la MISMA TANDA, como TECHO de expresión. Sin "
                 "techo, un western flojo no dice si el empalme va mal o si la "
-                "construccion expresa poco de por si. "
+                "construcción expresa poco de por si. "
                 "OJO: el casete que hay (aav_casete.fa) NO es ese. Es el parental sin "
-                "MODULO pero CON el intron vacio de 82 nt, asi que tiene el mismo "
+                "MÓDULO pero CON el intrón vacío de 82 nt, así que tiene el mismo "
                 "problema de empalme que se quiere medir y no sirve de techo. Hace "
-                "falta la construccion sin donante ni aceptor."
+                "falta la construcción sin donante ni aceptor."
             ),
         ),
     )
@@ -536,10 +536,10 @@ def splicing_front(plan: SplicingRtPcr | None = None) -> SplicingFront:
             f"{BINARY_NOT_GRADUAL} {WHY_SMALL_RNA_SEQ_MISSES_IT} "
             f"SE CIERRA CON TRES LECTURAS DE BANCO, las tres NOT_RUN y ninguna la corre "
             f"este software: (1) RT-PCR de empalme con cebadores en los exones que "
-            f"flanquean el intron MVM; (2) Western L42 normalizado por vg-qPCR, que es "
+            f"flanquean el intrón MVM; (2) Western L42 normalizado por vg-qPCR, que es "
             f"lo que separa «no empalmo» de «no llego el vector»; (3) parental SIN "
-            f"INTRON en la misma tanda, como techo de expresion. {coordenadas} El "
-            f"detalle, en el bloque «Empalme del intron»."
+            f"INTRÓN en la misma tanda, como techo de expresión. {coordenadas} El "
+            f"detalle, en el bloque «Empalme del intrón»."
         ),
     )
 
@@ -553,7 +553,7 @@ def plan_from_records(records, *, therapeutic_intron_length: int = blocks.INTRON
     """
     if not records:
         return None, (
-            "No hay casete cargado (--transgen), asi que no se emiten coordenadas de "
+            "No hay casete cargado (--transgen), así que no se emiten coordenadas de "
             "cebador. NOT_RUN no es PASS: el frente sigue igual de abierto."
         )
     mvm5 = blocks.PIECES["MVM5"].sequence
@@ -571,8 +571,8 @@ def plan_from_records(records, *, therapeutic_intron_length: int = blocks.INTRON
             )
     return None, (
         f"El casete cargado ({', '.join(list(records)[:3])}) no contiene UNA sola copia "
-        f"de las piezas MVM5 y MVM3 del intron, asi que no se puede localizar la union y "
-        f"no se emiten coordenadas. O no es el casete intronico, o lleva el intron "
+        f"de las piezas MVM5 y MVM3 del intrón, así que no se puede localizar la union y "
+        f"no se emiten coordenadas. O no es el casete intrónico, o lleva el intrón "
         f"repetido; en los dos casos hay que mirarlo antes de pedir nada."
     )
 
@@ -583,11 +583,11 @@ def plan_from_records(records, *, therapeutic_intron_length: int = blocks.INTRON
 # y la segunda actua aunque la primera no estorbara nada.
 
 RETENTION_MODES = (
-    "SI EL INTRON SE RETIENE FALLAN DOS COSAS DISTINTAS, no una: "
+    "SI EL INTRÓN SE RETIENE FALLAN DOS COSAS DISTINTAS, no una: "
     "(a) la horquilla se queda dentro del mRNA maduro, en el 5'UTR, con lo que eso haga "
     "al transito del ribosoma y a la estabilidad; y "
     "(b) el ribosoma escanea desde el extremo 5' y se encuentra varios AUG antes del "
-    "legitimo. El (b) actua AUNQUE la horquilla no estorbara nada: son mecanismos "
+    "legítimo. El (b) actua AUNQUE la horquilla no estorbara nada: son mecanismos "
     "distintos y se cuentan aparte."
 )
 
@@ -596,8 +596,8 @@ RETENTION_MODES = (
 KOZAK_CRITERION = (
     "Kozak, criterio declarado (no citado): se miran dos posiciones, -3 (purina A o G) "
     "y +4 (G). Las dos → FUERTE; una → adecuado; ninguna → debil. Es el criterio de "
-    "este analisis y se escribe para que se pueda discutir, no para dar por buena una "
-    "referencia que aqui no se ha comprobado."
+    "este análisis y se escribe para que se pueda discutir, no para dar por buena una "
+    "referencia que aquí no se ha comprobado."
 )
 
 #: Cuanto contexto se imprime a cada lado del AUG.
@@ -642,12 +642,12 @@ class UpstreamAtg:
         parada = (
             f"para a los {self.stop_after_codons} codones"
             if self.stop_after_codons is not None
-            else "SIN codon de parada antes del ATG legitimo"
+            else "SIN codón de parada antes del ATG legítimo"
         )
         return (
             f"+{self.offset:<3} ({self.piece:<12}) {self.context:<14} "
             f"-3={self.minus3} +4={self.plus4} Kozak {self.strength:<9} "
-            f"a {self.distance_to_orf} nt del ATG legitimo, {marco}, {parada} "
+            f"a {self.distance_to_orf} nt del ATG legítimo, {marco}, {parada} "
             f"→ {self.outcome}"
         )
 
@@ -727,9 +727,9 @@ def describe_upstream_atgs(uatgs: tuple[UpstreamAtg, ...]) -> str:
         veredicto = (
             "HAY EXTENSION N-TERMINAL: "
             + ", ".join(f"+{u.offset}" for u in extensiones)
-            + " estan EN MARCO y llegan al ATG legitimo SIN codon de parada. Eso "
+            + " están EN MARCO y llegan al ATG legítimo SIN codón de parada. Eso "
             "produce PrP con una cola por delante — algo que SE DETECTA en un Western y "
-            "que podria pasar por la DN. Es el caso peor y no se puede cribar a ciegas."
+            "que podría pasar por la DN. Es el caso peor y no se puede cribar a ciegas."
         )
     else:
         veredicto = (
@@ -737,11 +737,11 @@ def describe_upstream_atgs(uatgs: tuple[UpstreamAtg, ...]) -> str:
             f"{len(uatgs)} uAUG, "
             + (
                 ", ".join(f"+{u.offset}" for u in uatgs if u.in_frame)
-                + " esta(n) en marco pero para(n) antes del ATG legitimo"
+                + " esta(n) en marco pero para(n) antes del ATG legítimo"
                 if any(u.in_frame for u in uatgs)
-                else "ninguno esta en marco"
+                else "ninguno está en marco"
             )
-            + ". Asi que ninguno produce una proteina que un Western pueda confundir "
+            + ". Así que ninguno produce una proteina que un Western pueda confundir "
             "con la DN."
         )
     solapantes = [u for u in uatgs if u.outcome == "uORF_SOLAPANTE"]
@@ -749,15 +749,15 @@ def describe_upstream_atgs(uatgs: tuple[UpstreamAtg, ...]) -> str:
         veredicto += (
             " PERO NO TODOS SON IGUALES: "
             + ", ".join(f"+{u.offset}" for u in solapantes)
-            + " no llega(n) a codon de parada antes del ATG legitimo, asi que el "
+            + " no llega(n) a codón de parada antes del ATG legítimo, así que el "
             "ribosoma SIGUE ELONGANDO al pasar por el — un uORF que SOLAPA el inicio no "
             "deja reiniciar ahi, y eso es peor que uno que termina antes."
         )
     return (
-        f"ESCANEO DEL RIBOSOMA — {len(uatgs)} AUG por delante del legitimo. {veredicto} "
+        f"ESCANEO DEL RIBOSOMA — {len(uatgs)} AUG por delante del legítimo. {veredicto} "
         f"{KOZAK_CRITERION} "
         f"OJO: la cuenta cambia POR CANDIDATO — la horquilla aporta parte de estos AUG y "
-        f"otra guia da otros. Lo que no cambia son los del andamio y los espaciadores."
+        f"otra guía da otros. Lo que no cambia son los del andamio y los espaciadores."
     )
 
 
@@ -772,12 +772,12 @@ def describe_upstream_atgs(uatgs: tuple[UpstreamAtg, ...]) -> str:
 # respuesta cierra y lo que no.
 
 SPLICE_SITE_CRITERION = (
-    "Criterio de sitio 3' declarado como PARAMETRO de este analisis; NO ES UNA CITA. Se "
+    "Criterio de sitio 3' declarado como PARÁMETRO de este análisis; NO ES UNA CITA. Se "
     "miden dos cosas sobre cada AG: (1) el tracto de pirimidinas CONTIGUAS inmediatamente "
     "aguas arriba —contiguas, no el porcentaje en una ventana, que diluye—, y (2) si hay "
     "algun YURAY entre 18 y 40 nt aguas arriba, como punto de ramificacion candidato. Los "
-    "dos numeros salen tal cual y la comparacion se hace CONTRA EL ACEPTOR LEGITIMO del "
-    "mismo intron, que es la referencia interna: asi el veredicto no depende de ningun "
+    "dos números salen tal cual y la comparación se hace CONTRA EL ACEPTOR LEGÍTIMO del "
+    "mismo intrón, que es la referencia interna: así el veredicto no depende de ningún "
     "umbral tomado de fuera."
 )
 
@@ -823,14 +823,14 @@ class CrypticDonor:
 
     def describe(self) -> list[str]:
         return [
-            f"DONANTE CRIPTICO {self.donor_motif} en +{self.donor_offset} del intron "
+            f"DONANTE CRÍPTICO {self.donor_motif} en +{self.donor_offset} del intrón "
             f"(flanco 5' de miR-E, dentro del ANDAMIO:",
-            "  viaja con cualquier candidato, no depende de la guia).",
-            f"  ¿Hay un ACEPTOR utilizable entre el (+{self.donor_offset}) y el legitimo "
+            "  viaja con cualquier candidato, no depende de la guía).",
+            f"  ¿Hay un ACEPTOR utilizable entre el (+{self.donor_offset}) y el legítimo "
             f"(+{self.acceptor_offset})? Se han mirado los",
-            f"  {len(self.candidates)} AG del intervalo. El aceptor LEGITIMO tiene un "
+            f"  {len(self.candidates)} AG del intervalo. El aceptor LEGÍTIMO tiene un "
             f"tracto de {self.acceptor_tract} pirimidinas contiguas;",
-            f"  el mejor criptico llega a {self.best_cryptic_tract}. "
+            f"  el mejor críptico llega a {self.best_cryptic_tract}. "
             + (
                 "NO hay ninguno comparable."
                 if not self.usable_cryptic_acceptor
@@ -838,19 +838,19 @@ class CrypticDonor:
             ),
             f"  {SPLICE_SITE_CRITERION}",
             "",
-            "  LO QUE ESO CIERRA: los productos que necesitarian un aceptor criptico en "
+            "  LO QUE ESO CIERRA: los productos que necesitarian un aceptor críptico en "
             "ese intervalo. No hay",
-            "  ninguno con un sitio 3' comparable al legitimo, asi que esa familia de "
+            "  ninguno con un sitio 3' comparable al legítimo, así que esa familia de "
             "productos se descarta POR SECUENCIA.",
             "",
-            "  LO QUE NO CIERRA, y es lo importante: el riesgo del donante criptico NO "
-            "se cierra por aqui, porque",
-            "  ese donante NO NECESITA un aceptor criptico — el aceptor LEGITIMO del MVM "
-            f"esta aguas abajo (+{self.acceptor_offset})",
+            "  LO QUE NO CIERRA, y es lo importante: el riesgo del donante críptico NO "
+            "se cierra por aquí, porque",
+            "  ese donante NO NECESITA un aceptor críptico — el aceptor LEGÍTIMO del MVM "
+            f"está aguas abajo (+{self.acceptor_offset})",
             "  y es perfectamente utilizable. Un empalme "
             f"+{self.donor_offset} → +{self.acceptor_offset} quita "
             f"{self.acceptor_offset + 1 - self.donor_offset} nt y deja",
-            f"  los {self.retained_if_cryptic} primeros nt del intron dentro del mRNA: "
+            f"  los {self.retained_if_cryptic} primeros nt del intrón dentro del mRNA: "
             f"banda = empalmada + {self.retained_if_cryptic} pb, frente a +0 (correcta) "
             f"y",
             f"  +{self.intron_length} (retenida). Es una banda INTERMEDIA, que es "
@@ -872,8 +872,8 @@ def cryptic_donor_scan(
     inicio = limpio.find(donor)
     if inicio < 0:
         raise ShmirDesignError(
-            f"El intron no contiene el donante criptico {donor!r}, que es parte del "
-            f"flanco 5' del andamio miR-E. O el andamio no es ese, o el intron no es "
+            f"El intrón no contiene el donante críptico {donor!r}, que es parte del "
+            f"flanco 5' del andamio miR-E. O el andamio no es ese, o el intrón no es "
             f"este; se aborta en vez de dar el riesgo por ausente."
         )
     aceptor = len(limpio) - 1          # 1-based de la A del AG final
@@ -947,28 +947,28 @@ class IntronlessControl:
 
     def describe(self) -> list[str]:
         return [
-            f"CONTROL SIN INTRON — {len(self.sequence)} pb / md5 {self.md5}",
+            f"CONTROL SIN INTRÓN — {len(self.sequence)} pb / md5 {self.md5}",
             f"  Sale de {self.source}, tramo casete:{self.fragment_start}-"
             f"{self.fragment_end}, con el donante y el aceptor ELIMINADOS: fuera los "
             f"{self.deleted} nt",
-            f"  del intron (MVM5 + MVM3, las dos piezas literales) y todo lo demas "
+            f"  del intrón (MVM5 + MVM3, las dos piezas literales) y todo lo demas "
             f"conservado base a base.",
             f"  Lleva {self.arm} nt de homologia a cada lado y conserva MluI y AgeI, "
-            f"asi que entra por digestion.",
+            f"así que entra por digestion.",
             f"  LONGITUD: {len(self.sequence)} pb tal cual. Si el proveedor pide un "
-            f"minimo mayor, se alargan los brazos",
-            f"  —`intronless_control(..., arm=N)`—, y salen del PROPIO plasmido, no de "
-            f"ningun sitio mas. Aqui no se",
-            "  inventa un minimo de sintesis: ese numero lo pone el catalogo, no este "
+            f"mínimo mayor, se alargan los brazos",
+            f"  —`intronless_control(..., arm=N)`—, y salen del PROPIO plásmido, no de "
+            f"ningún sitio más. Aquí no se",
+            "  inventa un mínimo de síntesis: ese número lo pone el catalogo, no este "
             "programa.",
             "  PARA QUE ES: es la LECTURA 3 del frente del empalme —el techo de "
-            "expresion—, y sin ella esa",
-            "  lectura no existe. Aqui NO HAY EMPALME QUE MEDIR: sin donante ni "
+            "expresión—, y sin ella esa",
+            "  lectura no existe. Aquí NO HAY EMPALME QUE MEDIR: sin donante ni "
             "aceptor, lo que expresa esta",
-            "  construccion es todo lo que la arquitectura puede dar. Se corre en la "
+            "  construcción es todo lo que la arquitectura puede dar. Se corre en la "
             "MISMA TANDA que las otras.",
-            f"  OJO: no confundir con {self.source}, que es el parental sin MODULO pero "
-            f"CON el intron vacio",
+            f"  OJO: no confundir con {self.source}, que es el parental sin MÓDULO pero "
+            f"CON el intrón vacío",
             "  de 82 nt — ese arrastra el mismo problema de empalme que se quiere medir.",
         ]
 
@@ -981,9 +981,9 @@ def intronless_control(
     sitio = locate_intron(limpia, name=name)
     if not sitio.empty:
         raise ShmirDesignError(
-            f"{name}: el intron mide {sitio.length} nt y no son las dos mitades MVM "
-            f"solas, asi que quitarlas dejaria dentro lo que hubiera en medio —el "
-            f"modulo del shmiR— y eso NO es un control sin intron, es el modo de fallo "
+            f"{name}: el intrón mide {sitio.length} nt y no son las dos mitades MVM "
+            f"solas, así que quitarlas dejaria dentro lo que hubiera en medio —el "
+            f"módulo del shmiR— y eso NO es un control sin intrón, es el modo de fallo "
             f"que se quiere medir. El control se hace sobre el PARENTAL. Se aborta."
         )
 
@@ -991,8 +991,8 @@ def intronless_control(
     agei = limpia.find(blocks.PIECES["AgeI"].sequence, sitio.acceptor_end)
     if mlui < 0 or agei < 0:
         raise ShmirDesignError(
-            f"{name}: no se encuentran MluI por delante del donante y AgeI por detras "
-            f"del aceptor, asi que el fragmento no se podria clonar por digestion. "
+            f"{name}: no se encuentran MluI por delante del donante y AgeI por detrás "
+            f"del aceptor, así que el fragmento no se podría clonar por digestion. "
             f"Se aborta en vez de emitir un fragmento que no entra."
         )
     fin_agei = agei + len(blocks.PIECES["AgeI"].sequence)
@@ -1001,7 +1001,7 @@ def intronless_control(
     if inicio < 1 or fin > len(limpia):
         raise ShmirDesignError(
             f"{name}: no caben {arm} nt de homologia a los dos lados dentro de las "
-            f"{len(limpia)} pb del plasmido; se aborta en vez de emitir un brazo corto "
+            f"{len(limpia)} pb del plásmido; se aborta en vez de emitir un brazo corto "
             f"sin decirlo."
         )
 

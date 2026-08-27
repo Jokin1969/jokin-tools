@@ -229,7 +229,7 @@ class TestEstratificacion(unittest.TestCase):
             replace(self.export, rows=tuple(filas)), frozenset()
         ).format_text()
         self.assertIn("contexto global", texto.lower())
-        self.assertIn("ninguna puntuacion", texto.lower())
+        self.assertIn("ninguna puntuación", texto.lower())
 
     def test_no_se_da_ninguna_cifra_agregada_de_solapamiento(self):
         # Estratificado significa estratificado: el porcentaje global desaparece.
@@ -309,7 +309,7 @@ class TestCasoDeReferencia(unittest.TestCase):
         self.assertEqual(self.comparacion.window_mismatches, ())
 
     def test_luego_el_score_ES_funcion_local_de_la_ventana(self):
-        self.assertIn("es funcion local", self.comparacion.format_text().lower())
+        self.assertIn("es función local", self.comparacion.format_text().lower())
 
     def test_el_informe_explica_la_indeterminacion_y_como_se_resuelve(self):
         texto = self.comparacion.format_text()

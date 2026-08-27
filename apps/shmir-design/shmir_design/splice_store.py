@@ -85,13 +85,13 @@ class SpliceRun:
             )
         mejor = par.best_cryptic
         cifra = (
-            f"mejor criptico {mejor.fraction:.0%} del legitimo "
+            f"mejor críptico {mejor.fraction:.0%} del legítimo "
             f"(construccion:{mejor.position}, {mejor.kind})"
             if mejor is not None
-            else "ningun criptico llega al umbral relativo"
+            else "ningún críptico llega al umbral relativo"
         )
         conocido = (
-            f" GTGAGCG: {par.known_cryptic.fraction:.0%} del legitimo."
+            f" GTGAGCG: {par.known_cryptic.fraction:.0%} del legítimo."
             if par.known_cryptic is not None
             else " GTGAGCG: sin puntuar en este resultado."
         )
@@ -99,12 +99,12 @@ class SpliceRun:
         estructura = ""
         if plegado is not None:
             estructura = (
-                " ACCESIBILIDAD ESTRUCTURAL (analisis APARTE, numero propio): "
+                " ACCESIBILIDAD ESTRUCTURAL (análisis APARTE, número propio): "
                 + ", ".join(f"{k} {v:.2f}" for k, v in sorted(plegado.items()))
                 + "."
             )
         motivo = (
-            f"[3utr:{candidate_start} x {intron}] REFERENTE INTERNO: donante legitimo "
+            f"[3utr:{candidate_start} x {intron}] REFERENTE INTERNO: donante legítimo "
             f"{par.legit_donor:.3f}, aceptor {par.legit_acceptor:.3f}. {cifra}."
             f"{conocido} Contexto declarado {par.context_5}/{par.context_3} nt. "
             f"Corrida {self.run_id} ({self.date}, {self.ran_by}, {self.executor}). "
@@ -118,7 +118,7 @@ class SpliceRun:
             f"CORRIDA {self.run_id} — {self.date} — corrida por {self.ran_by}",
             f"  ejecutor: {self.executor}",
             f"  resultado md5 {self.result_md5} · {len(self.scan.pairs)} par(es) "
-            f"candidato x intron",
+            f"candidato x intrón",
         ]
         for par in self.scan.pairs:
             lineas.extend(f"  {l}" for l in par.describe())
@@ -153,7 +153,7 @@ class SpliceStore:
             return FilterResult(
                 name=FILTER_NAME, state=FilterState.NOT_RUN,
                 reason=(
-                    f"No hay ninguna corrida de prediccion de sitios de splicing para "
+                    f"No hay ninguna corrida de predicción de sitios de splicing para "
                     f"3utr:{candidate_start} x {intron}. NOT_RUN no es PASS: no se ha "
                     f"consultado, que no es lo mismo que salir limpio."
                 ),

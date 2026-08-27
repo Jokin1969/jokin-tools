@@ -221,7 +221,7 @@ class TestLoQueDiceElInforme(unittest.TestCase):
     def test_dice_de_donde_salen_esas_plazas(self):
         bajo = self.texto.lower()
         self.assertIn("solo de fuente externa", bajo)
-        self.assertIn("vacio", bajo)
+        self.assertIn("vacío", bajo)
 
 
 if __name__ == "__main__":

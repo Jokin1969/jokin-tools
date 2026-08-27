@@ -50,19 +50,19 @@ def _validate_rna(sequence: str, *, name: str = "guia") -> str:
     cleaned = "".join(str(sequence).split()).upper()
     if not cleaned:
         raise InvalidSequenceError(
-            f"La {name} esta vacia; se aborta el calculo de la asimetria."
+            f"La {name} está vacía; se aborta el calculo de la asimetría."
         )
     for index, base in enumerate(cleaned, start=1):
         if base not in RNA_BASES:
             extra = (
-                " La guia va en notacion ARN: una T significa que llego ADN sin "
+                " La guía va en notacion ARN: una T significa que llego ADN sin "
                 "transformar."
                 if base == "T"
                 else ""
             )
             raise InvalidSequenceError(
-                f"{name}: caracter {base!r} no valido en la posicion {index} "
-                f"(se esperaba A, C, G o U); se aborta el calculo de la asimetria."
+                f"{name}: carácter {base!r} no válido en la posición {index} "
+                f"(se esperaba A, C, G o U); se aborta el calculo de la asimetría."
                 f"{extra}"
             )
     return cleaned
@@ -74,7 +74,7 @@ def tetramer_dg(tetramer: str) -> float:
     if len(cleaned) != TERMINAL_LENGTH:
         raise ValueError(
             f"El tetramero mide {len(cleaned)} nt y deben ser {TERMINAL_LENGTH}; "
-            f"se aborta el calculo de la asimetria."
+            f"se aborta el calculo de la asimetría."
         )
 
     total = 0.0
@@ -82,8 +82,8 @@ def tetramer_dg(tetramer: str) -> float:
         step = cleaned[index : index + 2]
         if step not in NN_STEPS:
             raise InvalidSequenceError(
-                f"Paso {step!r} sin parametro en la tabla de Turner; se aborta el "
-                f"calculo de la asimetria en vez de tratarlo como 0."
+                f"Paso {step!r} sin parámetro en la tabla de Turner; se aborta el "
+                f"calculo de la asimetría en vez de tratarlo como 0."
             )
         total += NN_STEPS[step]
 
@@ -98,9 +98,9 @@ def turner_asymmetry(guide: str) -> float:
     cleaned = _validate_rna(guide)
     if len(cleaned) < 2 * TERMINAL_LENGTH:
         raise ValueError(
-            f"La guia mide {len(cleaned)} nt y hacen falta al menos "
+            f"La guía mide {len(cleaned)} nt y hacen falta al menos "
             f"{2 * TERMINAL_LENGTH} para que los dos tetrameros terminales no se "
-            f"solapen; se aborta el calculo de la asimetria."
+            f"solapen; se aborta el calculo de la asimetría."
         )
     return tetramer_dg(cleaned[:TERMINAL_LENGTH]) - tetramer_dg(
         cleaned[-TERMINAL_LENGTH:]

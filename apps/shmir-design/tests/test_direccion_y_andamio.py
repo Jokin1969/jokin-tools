@@ -43,7 +43,7 @@ class TestDireccionDerivada(unittest.TestCase):
         # inventarselo.
         with self.assertRaises(ShmirDesignError) as caja:
             file_order_direction([("a", 1.0), ("b", 9.0), ("c", 2.0)])
-        self.assertIn("no es monotono", str(caja.exception))
+        self.assertIn("no es monótono", str(caja.exception))
 
     def test_los_empates_no_rompen_la_monotonia(self):
         self.assertTrue(file_order_direction([("a", 1.0), ("b", 1.0), ("c", 2.0)]))
@@ -61,7 +61,7 @@ class TestDireccionDerivada(unittest.TestCase):
                 derived_lower_is_better=False,
                 file_scaffold="miR-E", design_scaffold="miR-E",
             )
-        self.assertIn("direccion", str(caja.exception).lower())
+        self.assertIn("dirección", str(caja.exception).lower())
 
 
 class TestEvidencia(unittest.TestCase):

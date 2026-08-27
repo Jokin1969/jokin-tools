@@ -100,7 +100,7 @@ class Dossier:
             f"═══ Ficha del candidato — {self.species} 3utr:{self.start} ═══",
             "",
             f"  sitio      3utr:{self.start}-{self.end}",
-            f"  guia       {self.guide}",
+            f"  guía       {self.guide}",
             f"  pasajera   {self.passenger}",
             f"  veredicto  {self.verdict}",
             "",
@@ -111,7 +111,7 @@ class Dossier:
         lineas.extend(
             [
                 "",
-                "── Asimetria — las TRES cifras, que son magnitudes distintas ──",
+                "── Asimetría — las TRES cifras, que son magnitudes distintas ──",
                 f"  cruda {self.asymmetry_raw:+.2f}   penalizacion {self.penalty:.2f}   "
                 f"neta {self.asymmetry_net:+.2f}",
                 "",
@@ -131,24 +131,24 @@ class Dossier:
             lineas.extend(f"  {s.describe()}" for s in self.self_sites)
             if len(self.self_sites) > 1:
                 lineas.append(
-                    "  ⚠  MAS DE UNO: hay varias dianas en el mismo mensajero, asi que "
+                    "  ⚠  MÁS DE UNO: hay varias dianas en el mismo mensajero, así que "
                     "la cinetica no se lee"
                 )
                 lineas.append(
                     "     igual. La CLASE decide cuanto importa — un 8mer o un 7mer-m8 "
-                    "de mas dan cooperatividad"
+                    "de más dan cooperatividad"
                 )
                 lineas.append("     real; un 6mer es marginal.")
 
-        lineas.extend(["", "── Multiplexado: nucleo de seed compartido ──"])
+        lineas.extend(["", "── Multiplexado: núcleo de seed compartido ──"])
         if self.core_shared_with:
             lineas.extend(f"  ⚠  {c}" for c in self.core_shared_with)
         else:
             lineas.append(
-                "  Con ningun otro candidato del panel. En este eje es independiente."
+                "  Con ningún otro candidato del panel. En este eje es independiente."
             )
 
-        lineas.extend(["", "── Hexameros cercanos ──"])
+        lineas.extend(["", "── Hexámeros cercanos ──"])
         if self.hexamers:
             lineas.extend(f"  {h.describe()}" for h in self.hexamers)
         else:
@@ -157,7 +157,7 @@ class Dossier:
             [
                 "",
                 "── Bloques ──",
-                f"  modulo NheI-SacI ({len(self.module)} nt):",
+                f"  módulo NheI-SacI ({len(self.module)} nt):",
                 *(f"    {self.module[i:i + 60]}" for i in range(0, len(self.module), 60)),
                 f"  cassette MluI-AgeI ({len(self.cassette)} pb):",
                 *(
@@ -222,7 +222,7 @@ def build_dossier(
     )
     if elegido is None:
         raise ShmirDesignError(
-            f"3utr:{start} no esta entre los candidatos elegidos de esta corrida "
+            f"3utr:{start} no está entre los candidatos elegidos de esta corrida "
             f"({', '.join(str(c.start) for c in selection.selection.chosen)}); no se "
             f"emite una ficha de un sitio que el panel no tiene. Se aborta."
         )
@@ -379,7 +379,7 @@ def build_dossier(
         blast_history=almacen.history(consulta),
         module_note=(
             "" if bloque.module_safe
-            else "MODULO NO VERIFICADO: no se ha podido confirmar que la horquilla "
-                 "sobreviva dentro del intron."
+            else "MÓDULO NO VERIFICADO: no se ha podido confirmar que la horquilla "
+                 "sobreviva dentro del intrón."
         ),
     )

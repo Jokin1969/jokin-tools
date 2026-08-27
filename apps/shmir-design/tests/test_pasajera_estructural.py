@@ -65,7 +65,7 @@ class TestPreferencia(unittest.TestCase):
         self.assertNotIn("FALLBACK_MISMATCH_BASE", fuente)
 
 
-@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
 class TestCriterioEstructural(unittest.TestCase):
 
     def test_la_guia_de_SGEP_da_la_pasajera_real_del_plasmido(self):
@@ -128,7 +128,7 @@ class TestCriterioEstructural(unittest.TestCase):
         self.assertEqual(passenger_from_guide(GUIA_G1).candidates, ("G",))
 
 
-@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
 class TestCuandoNingunaBaseVale(unittest.TestCase):
 
     #: Andamio con el loop alargado: ya no monta la arquitectura de SGEP.
@@ -179,7 +179,7 @@ class TestSinViennaRNA(unittest.TestCase):
 
     def test_con_ViennaRNA_no_hay_aviso(self):
         if not VIENNA_AVAILABLE:
-            self.skipTest("ViennaRNA no esta instalado")
+            self.skipTest("ViennaRNA no está instalado")
         self.assertEqual(passenger_from_guide(REFERENCE_GUIDE).warnings, ())
 
 

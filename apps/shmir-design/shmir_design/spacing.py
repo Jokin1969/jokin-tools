@@ -51,7 +51,7 @@ class ReferenceSet:
         if not self.label or not self.label.strip():
             raise ValueError(
                 "Un conjunto de referencia necesita etiqueta: la cuenta de plazas "
-                "nuevas depende de contra que se mida, y sin decirlo el numero no "
+                "nuevas depende de contra que se mida, y sin decirlo el número no "
                 "significa nada. Se aborta."
             )
         if not isinstance(self.frame, Frame):
@@ -78,10 +78,10 @@ class SiteConflict:
     @property
     def message(self) -> str:
         return (
-            f"El candidato de {label(self.candidate_start, self.frame)} esta a "
+            f"El candidato de {label(self.candidate_start, self.frame)} está a "
             f"{self.distance} nt del de {label(self.reference_start, self.frame)}, que "
-            f"ya esta en {self.reference_label}: bajo el espaciado del proyecto son EL "
-            f"MISMO SITIO, asi que no es una plaza nueva del panel.\n"
+            f"ya está en {self.reference_label}: bajo el espaciado del proyecto son EL "
+            f"MISMO SITIO, así que no es una plaza nueva del panel.\n"
             f"    nuevo       {label(self.candidate_start, self.frame):>10}  "
             f"{self.candidate_guide}\n"
             f"    referencia  {label(self.reference_start, self.frame):>10}  "
@@ -116,11 +116,11 @@ class SiteComparison:
             "  La cifra de plazas nuevas depende de esta referencia y solo de ella: "
             "contra un",
             "  subconjunto seleccionado casi todo parece nuevo. Cambiar la referencia "
-            "cambia el numero.",
+            "cambia el número.",
         ]
         if self.identical:
             lineas.append(
-                "  IDENTICAS a una ventana de la referencia (misma posicion de inicio): "
+                "  IDÉNTICAS a una ventana de la referencia (misma posición de inicio): "
                 + ", ".join(label(p, self.reference.frame) for p in self.identical)
             )
         lineas.append(
@@ -135,7 +135,7 @@ class SiteComparison:
             lineas.append(
                 f"  {label(plaza, self.reference.frame)} absorbe a "
                 + ", ".join(label(p, self.reference.frame) for p in otras)
-                + f": entre ellas tambien hay menos de {self.spacing} nt, asi que son "
+                + f": entre ellas también hay menos de {self.spacing} nt, así que son "
                 f"UNA plaza."
             )
         lineas.extend(f"  · {c.message}" for c in self.conflicts)
@@ -260,7 +260,7 @@ class Convergence:
             return etiqueta
 
         lineas = [
-            "HALLAZGO — el espacio de ventanas viables esta SATURADO",
+            "HALLAZGO — el espacio de ventanas viables está SATURADO",
             f"  Dos metodos independientes con criterios distintos sobre el MISMO "
             f"3'UTR: {self.method_a}",
             f"  y {self.method_b}. {self.comparison.candidates} sitio(s) de la fuente "
@@ -274,7 +274,7 @@ class Convergence:
             lineas.append(
                 "      ("
                 + ", ".join(pos(p) for p in self.exclusive)
-                + " no choca con ningun sitio nuestro, pero no pasa nuestros filtros "
+                + " no choca con ningún sitio nuestro, pero no pasa nuestros filtros "
                 "duros:"
             )
             lineas.append(
@@ -282,7 +282,7 @@ class Convergence:
                 "una plaza que nadie aporte.)"
             )
         lineas.append(
-            f"    · {len(self.exact)} coincidencia(s) EXACTA(S), misma posicion de "
+            f"    · {len(self.exact)} coincidencia(s) EXACTA(S), misma posición de "
             f"inicio y misma ventana base a base: "
             + ", ".join(pos(p) for p in self.exact)
         )
@@ -296,7 +296,7 @@ class Convergence:
             )
         lineas.extend(
             [
-                "  LECTURA. Esto NO ES UNA VALIDACION cruzada: donde solo cabe "
+                "  LECTURA. Esto NO ES UNA VALIDACIÓN cruzada: donde solo cabe "
                 "coincidir, coincidir no",
                 "  demuestra nada. Lo que dice es que bajo los filtros duros quedan tan "
                 "pocas ventanas",
@@ -306,7 +306,7 @@ class Convergence:
                 "ordena, no desempata",
                 "  y no aporta plazas.",
                 "  Es un dato de CALIBRACION de nuestra propia cascada — cuanto margen "
-                "de eleccion deja —,",
+                "de elección deja —,",
                 "  y como tal va al SUPLEMENTARIO, no al ranking.",
             ]
         )

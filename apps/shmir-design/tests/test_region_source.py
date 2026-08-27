@@ -114,7 +114,7 @@ class TestCodonDeParada(unittest.TestCase):
 
         a = Anatomy.from_cds(cds=(6, 20), length=len(self.SEC))
         avisos = check_cds_boundaries(self.SEC, a)
-        self.assertTrue(any("codon de parada" in x for x in avisos))
+        self.assertTrue(any("codón de parada" in x for x in avisos))
 
     def test_un_CDS_que_no_empieza_por_ATG_se_detecta(self):
         from shmir_design.anatomy import check_cds_boundaries

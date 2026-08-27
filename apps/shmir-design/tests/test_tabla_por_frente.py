@@ -75,7 +75,7 @@ class TestLaFiabilidadDeLaFrontera(unittest.TestCase):
     def test_sin_anatomia_tampoco(self):
         info = presentation.anatomy_reliability(None)
         self.assertFalse(info["fiable"])
-        self.assertIn("SIN ANATOMIA", info["texto"])
+        self.assertIn("SIN ANATOMÍA", info["texto"])
 
     def test_lo_que_deja_de_valer_va_NOMBRADO_uno_a_uno(self):
         """«Algunas cosas» no sirve: hay que poder saber que columna no mirar."""
@@ -84,7 +84,7 @@ class TestLaFiabilidadDeLaFrontera(unittest.TestCase):
         )
         self.assertEqual(len(info["afectados"]), 5)
         texto = " ".join(info["afectados"])
-        for cosa in ("tercios", "region", "polyA", "TERMINALES"):
+        for cosa in ("tercios", "región", "polyA", "TERMINALES"):
             self.assertIn(cosa, texto)
 
     def test_y_el_motivo_dice_QUE_pasa_con_un_off_by_one(self):
@@ -92,7 +92,7 @@ class TestLaFiabilidadDeLaFrontera(unittest.TestCase):
             self._anatomia(RegionSource.CDS_DECLARADA)
         )
         self.assertIn("off-by-one", info["texto"])
-        self.assertIn("ningun error", info["texto"])
+        self.assertIn("ningún error", info["texto"])
 
     def test_se_ACEPTA_igual_no_se_bloquea(self):
         """Hay que poder trabajar. Lo que no se puede es no decirlo."""
@@ -192,14 +192,14 @@ class TestLosAvisosDeLaSeleccion(unittest.TestCase):
         avisos = presentation.selection_warnings(
             self.informe, self.seleccion, selected=(449, 1018), min_spacing=50
         )
-        self.assertTrue(any("nucleo" in a["texto"] for a in avisos))
+        self.assertTrue(any("núcleo" in a["texto"] for a in avisos))
         self.assertTrue(all(a["rojo"] for a in avisos))
 
     def test_449_y_1018_estan_LEJOS_y_aun_asi_avisan(self):
         avisos = presentation.selection_warnings(
             self.informe, self.seleccion, selected=(449, 1018), min_spacing=50
         )
-        self.assertFalse(any("espaciado minimo" in a["texto"] for a in avisos))
+        self.assertFalse(any("espaciado mínimo" in a["texto"] for a in avisos))
         self.assertTrue(avisos)
 
 

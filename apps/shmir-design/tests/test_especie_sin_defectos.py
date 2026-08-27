@@ -188,13 +188,13 @@ class TestElVectorEsMURINO_Y_LA_APP_LO_DICE(unittest.TestCase):
 
     def test_y_el_motivo_nombra_las_CUATRO_cosas_que_no_se_emiten(self):
         nota = blocks.vector_applies_to(CONEJO).note
-        for pieza in ("MODULO", "CASSETTE", "HOJA DE PEDIDO", "CONTROL SIN INTRON"):
+        for pieza in ("MÓDULO", "CASSETTE", "HOJA DE PEDIDO", "CONTROL SIN INTRÓN"):
             self.assertIn(pieza, nota)
 
     def test_y_dice_que_NO_se_parametriza_sino_que_se_sustituye(self):
         nota = blocks.vector_applies_to(CONEJO).note
         self.assertIn("no se parametriza", nota)
-        self.assertIn("OTRO plasmido", nota)
+        self.assertIn("OTRO plásmido", nota)
 
     def test_el_plasmido_va_NOMBRADO(self):
         self.assertIn("mouse_PrP", blocks.VECTOR_DESCRIPTION)

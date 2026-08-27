@@ -27,7 +27,7 @@ except ImportError:  # rule2-ok: ausencia de una dependencia OPCIONAL de la inte
 APP = Path(__file__).resolve().parent.parent / "ui" / "streamlit_app.py"
 
 
-@unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no esta instalado (pip install -r requirements-ui.txt)")
+@unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no está instalado (pip install -r requirements-ui.txt)")
 class TestArranque(unittest.TestCase):
 
     def run_app(self):
@@ -74,7 +74,7 @@ class TestArranque(unittest.TestCase):
         self.assertEqual(valores["Espaciado mínimo entre sitios, nt"], 50)
 
 
-@unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no esta instalado (pip install -r requirements-ui.txt)")
+@unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no está instalado (pip install -r requirements-ui.txt)")
 class TestFicherosDeReferencia(unittest.TestCase):
     """El panel de la barra lateral, y la casilla global que ya no existe.
 
@@ -137,9 +137,9 @@ class TestFicherosDeReferencia(unittest.TestCase):
         """
         app = self.run_app(especie="otra especie (no declarada)")
         avisos = " ".join(w.value for w in app.warning)
-        self.assertIn("NO esta declarada", avisos)
+        self.assertIn("NO está declarada", avisos)
         pies = " ".join(c.value for c in app.main.caption)
-        self.assertIn("colision de seed", pies)
+        self.assertIn("colisión de seed", pies)
         self.assertIn("species.SPECIES", pies)
 
     def test_y_el_recuento_de_frentes_sale_ANTES_de_ejecutar_nada(self):
@@ -148,7 +148,7 @@ class TestFicherosDeReferencia(unittest.TestCase):
         self.assertIn("frentes cerrables", textos)
 
 
-@unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no esta instalado (pip install -r requirements-ui.txt)")
+@unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no está instalado (pip install -r requirements-ui.txt)")
 class TestEnlacesExternos(unittest.TestCase):
     """Los tres enlaces, arriba y visibles desde el primer momento.
 
@@ -180,7 +180,7 @@ class TestEnlacesExternos(unittest.TestCase):
         self.assertIn("score_externo", ayudas)
 
 
-@unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no esta instalado (pip install -r requirements-ui.txt)")
+@unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no está instalado (pip install -r requirements-ui.txt)")
 class TestAnatomiaEnLaInterfaz(unittest.TestCase):
     """La pagina tiene que poder resolver la anatomia por las mismas tres vias.
 

@@ -156,7 +156,7 @@ class TestHomopolimeros(unittest.TestCase):
         self.assertIn("variable", bloque.check("homopolimeros").reason)
 
 
-@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no esta instalado")
+@unittest.skipUnless(VIENNA_AVAILABLE, "ViennaRNA no está instalado")
 class TestPlegado(unittest.TestCase):
 
     def test_el_97mero_aislado_pliega_como_la_referencia(self):
@@ -293,7 +293,7 @@ class TestSalidas(unittest.TestCase):
         texto = order_sheet([build_block(GUIA_1018)], species="raton")
         self.assertIn("XhoI", texto)
         self.assertIn("EcoRI", texto)
-        self.assertIn("NO son unicas", texto)
+        self.assertIn("NO son únicas", texto)
 
     def test_la_hoja_dice_por_donde_va_el_clonaje(self):
         texto = order_sheet([build_block(GUIA_1018)], species="raton")
@@ -301,7 +301,7 @@ class TestSalidas(unittest.TestCase):
         self.assertIn("SacI", texto)
 
     def test_una_lista_vacia_no_finge_una_hoja_de_pedido(self):
-        self.assertIn("ningun", order_sheet([], species="raton").lower())
+        self.assertIn("ningún", order_sheet([], species="raton").lower())
 
 
 if __name__ == "__main__":
@@ -315,7 +315,7 @@ class TestEspaciadoresEnElBloque(unittest.TestCase):
         bloque = build_block(GUIA_1018)
         self.assertFalse(bloque.custom_spacers)
         self.assertIs(bloque.check("espaciadores").state, FilterState.PASS)
-        self.assertIn("ESTANDAR", bloque.check("espaciadores").reason)
+        self.assertIn("ESTÁNDAR", bloque.check("espaciadores").reason)
 
     def test_el_TSV_dice_que_espaciadores_lleva(self):
         cabecera = blocks_tsv([build_block(GUIA_1018)], species="raton").splitlines()

@@ -464,7 +464,7 @@ class TestEstadoNotRun(unittest.TestCase):
     all(fixture_available(ref) for ref in REFERENCES.values()),
     "NOT_RUN: faltan los fixtures de data/reference/; añadelos al repositorio o "
     "descargalos con tools/reference_data.py --fetch. No se sustituyen por secuencia "
-    "sintetica (regla 1)",
+    "sintética (regla 1)",
 )
 class TestUtrCompletos(unittest.TestCase):
     """Sobre los 3'UTR reales, extraidos y verificados desde los fixtures."""

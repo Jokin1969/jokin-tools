@@ -45,7 +45,7 @@ class BlastDatabase:
             raise ValueError("La base necesita nombre; se aborta.")
         if not self.remote and (not self.version.strip() or not self.md5):
             raise ValueError(
-                f"La base local {self.name!r} necesita version y md5: sin ellos la "
+                f"La base local {self.name!r} necesita versión y md5: sin ellos la "
                 f"corrida no es reproducible y no puede dar veredicto. Si de verdad fue "
                 f"remota, marcala como tal. Se aborta."
             )
@@ -58,11 +58,11 @@ class BlastDatabase:
         if self.remote:
             return (
                 f"{self.name} vía -remote — NO REPRODUCIBLE: la base de NCBI CAMBIA "
-                f"entre corridas, asi que este resultado no se puede repetir y no vale "
+                f"entre corridas, así que este resultado no se puede repetir y no vale "
                 f"como veredicto. Es exploracion."
             )
         return (
-            f"{self.name} local, version {self.version}, md5 {self.md5} — reproducible."
+            f"{self.name} local, versión {self.version}, md5 {self.md5} — reproducible."
         )
 
 
@@ -97,8 +97,8 @@ class BlastRun:
                 )
         if params.remote != database.remote:
             raise ValueError(
-                f"Incoherencia: los parametros dicen remote={params.remote} y la base "
-                f"dice remote={database.remote}. Uno de los dos esta mal y no se elige "
+                f"Incoherencia: los parámetros dicen remote={params.remote} y la base "
+                f"dice remote={database.remote}. Uno de los dos está mal y no se elige "
                 f"por nuestra cuenta. Se aborta."
             )
         return cls(
@@ -142,10 +142,10 @@ class BlastRun:
             state=estado,
             reason=(
                 f"Corrida {self.run_id} ({self.date}, {self.uploaded_by}) sobre "
-                f"{self.database.describe()} Parametros estandar. "
+                f"{self.database.describe()} Parámetros estándar. "
                 f"{len(hits)} hit(s), {len(fuera)} a <=1 desapareamiento. "
                 f"OJO: esto NO cubre los off-targets mediados por seed — son un frente "
-                f"aparte y ningun alineador los ve."
+                f"aparte y ningún alineador los ve."
             ),
         )
 
@@ -182,16 +182,16 @@ def validate_upload(
             f"{declared_query_md5!r} y el que genero esta app es {esperado!r}. Se "
             f"RECHAZA: casi seguro es el resultado de OTRA CORRIDA. Es exactamente lo "
             f"que pasó con el CSV de miRarchitect — un fichero ajeno que entra, cuadra "
-            f"de forma y produce un analisis entero sobre el dato equivocado."
+            f"de forma y produce un análisis entero sobre el dato equivocado."
         )
     hits = blast.parse_outfmt6(raw)
     conocidos = set(panel_names)
     ajenas = sorted({h.query for h in hits} - conocidos)
     if ajenas:
         raise ShmirDesignError(
-            f"El resultado trae consulta(s) que no estan en el panel: "
+            f"El resultado trae consulta(s) que no están en el panel: "
             f"{', '.join(ajenas)}. Se RECHAZA. O el fichero es de otra corrida o el "
-            f"panel cambio despues de descargar el FASTA; en los dos casos hay que "
+            f"panel cambio después de descargar el FASTA; en los dos casos hay que "
             f"volver a generar la consulta, no aceptar esto."
         )
     return hits
@@ -207,7 +207,7 @@ class BlastStore:
         if any(r.run_id == run.run_id for r in self.runs):
             raise ShmirDesignError(
                 f"Ya hay una corrida con id {run.run_id!r}. Nada se sobrescribe: una "
-                f"corrida nueva se AÑADE con su propio id, y la ficha enseña la ultima. "
+                f"corrida nueva se AÑADE con su propio id, y la ficha enseña la última. "
                 f"Pisar la anterior perderia por que se volvio a correr. Se aborta."
             )
         self.runs.append(run)

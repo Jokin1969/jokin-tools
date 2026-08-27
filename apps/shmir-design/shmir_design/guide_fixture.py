@@ -96,17 +96,17 @@ def parse_guide_fasta(text: str, *, source: str) -> tuple[GuideExpectation, ...]
         guia = "".join(partes).upper().replace("U", "T")
         if len(guia) != GUIDE_LENGTH:
             raise ShmirDesignError(
-                f"{source}: la guia {nombre!r} mide {len(guia)} nt y se esperaban "
+                f"{source}: la guía {nombre!r} mide {len(guia)} nt y se esperaban "
                 f"{GUIDE_LENGTH}; se aborta."
             )
         if set(guia) - VALID_BASES:
             raise ShmirDesignError(
-                f"{source}: la guia {nombre!r} tiene bases que no son A/C/G/T; "
+                f"{source}: la guía {nombre!r} tiene bases que no son A/C/G/T; "
                 f"se aborta."
             )
         if guia in vistas:
             raise ShmirDesignError(
-                f"{source}: la guia de {nombre!r} esta repetida; se aborta en vez de "
+                f"{source}: la guía de {nombre!r} está repetida; se aborta en vez de "
                 f"contarla dos veces en la regresion."
             )
         vistas.add(guia)
@@ -126,7 +126,7 @@ def parse_guide_fasta(text: str, *, source: str) -> tuple[GuideExpectation, ...]
             )
         if elegida not in ok:
             raise ShmirDesignError(
-                f"{source}: {nombre!r} declara elegida={elegida} pero no esta en "
+                f"{source}: {nombre!r} declara elegida={elegida} pero no está en "
                 f"bases_ok={','.join(ok)}. La cabecera se contradice sola; se aborta."
             )
         entradas.append(
@@ -147,7 +147,7 @@ def parse_guide_fasta(text: str, *, source: str) -> tuple[GuideExpectation, ...]
     if not entradas:
         raise ShmirDesignError(
             f"{source}: no hay ninguna entrada; se aborta en vez de dar por pasada una "
-            f"regresion vacia."
+            f"regresion vacía."
         )
     return tuple(entradas)
 
@@ -161,7 +161,7 @@ def load_guide_fixture(
         raw = path.read_bytes()
     except OSError as exc:
         raise ShmirDesignError(
-            f"No se pudo leer el fixture de guias {path} ({exc}); la regresion de la "
+            f"No se pudo leer el fixture de guías {path} ({exc}); la regresion de la "
             f"pasajera queda sin ejecutar."
         ) from exc
 
@@ -169,7 +169,7 @@ def load_guide_fixture(
     esperado = EXPECTED_MD5 if expected_md5 is None else expected_md5
     if md5 != esperado:
         raise ChecksumMismatchError(
-            f"{path}: md5 {md5} y se esperaba {esperado}. El fixture de guias NO es el "
+            f"{path}: md5 {md5} y se esperaba {esperado}. El fixture de guías NO es el "
             f"que dice ser; se aborta antes de fijar ninguna regresion con el."
         )
     try:

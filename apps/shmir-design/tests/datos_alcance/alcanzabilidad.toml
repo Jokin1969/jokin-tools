@@ -1,0 +1,8 @@
+# Justificaciones del FIXTURE del análisis de alcanzabilidad, no del proyecto.
+#
+# Van aparte porque mezcladas con las de verdad salían como caducadas en la corrida
+# real —el símbolo no existe en `shmir_design/`— y una excepción caducada aborta. Que
+# el fichero de justificaciones sea un parámetro es lo que permite tener las dos.
+[justificados]
+estoy_justificada = "Fixture: existe para comprobar que una excepción declarada desaparece del informe."
+excepcion_que_sobra = "Fixture NEGATIVO a propósito: este símbolo no existe, así que el análisis tiene que denunciarlo como excepción caducada. Si se borra, ese test deja de cubrir nada."

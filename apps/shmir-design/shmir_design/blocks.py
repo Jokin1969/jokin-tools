@@ -81,7 +81,7 @@ class Piece:
         return len(self.sequence)
 
 
-_PLASMIDO = "plasmido receptor"
+_PLASMIDO = "plásmido receptor"
 _SGEP = "SGEP #111170"
 _NOVO = "diseño de novo"
 
@@ -122,8 +122,8 @@ def vector_applies_to(species: str) -> VectorApplicability:
             species=slug, applies=True,
             note=(
                 f"El vector de este proyecto es {VECTOR_DESCRIPTION} y la especie del "
-                f"diseño es la suya: modulo, cassette, hoja de pedido y control sin "
-                f"intron aplican."
+                f"diseño es la suya: módulo, cassette, hoja de pedido y control sin "
+                f"intrón aplican."
             ),
         )
     quien = resuelta.scientific if resuelta is not None else "una especie sin declarar"
@@ -131,12 +131,12 @@ def vector_applies_to(species: str) -> VectorApplicability:
         species=slug, applies=False,
         note=(
             f"NO_APLICA: el vector de este proyecto es {VECTOR_DESCRIPTION}, y esta "
-            f"corrida es de {quien}. Las 12 piezas del plasmido NO son un parametro con "
-            f"valor por defecto: son ese vector concreto, asi que el MODULO NheI-SacI, "
-            f"el CASSETTE MluI-AgeI, la HOJA DE PEDIDO y el CONTROL SIN INTRON no se "
+            f"corrida es de {quien}. Las 12 piezas del plásmido NO son un parámetro con "
+            f"valor por defecto: son ese vector concreto, así que el MÓDULO NheI-SacI, "
+            f"el CASSETTE MluI-AgeI, la HOJA DE PEDIDO y el CONTROL SIN INTRÓN no se "
             f"emiten. Emitirlos con las piezas murinas daria fragmentos con la forma "
             f"correcta y la secuencia equivocada, que es peor que no darlos. Para otra "
-            f"especie hace falta OTRO plasmido, y entonces se sustituye `blocks.PIECES` "
+            f"especie hace falta OTRO plásmido, y entonces se sustituye `blocks.PIECES` "
             f"— no se parametriza."
         ),
     )
@@ -193,7 +193,7 @@ class Block:
             if resultado.name == name:
                 return resultado
         disponibles = ", ".join(r.name for r in self.checks)
-        raise KeyError(f"No hay comprobacion {name!r}; las que hay: {disponibles}.")
+        raise KeyError(f"No hay comprobación {name!r}; las que hay: {disponibles}.")
 
     @property
     def module_safe(self) -> bool:
@@ -230,7 +230,7 @@ def _check_lengths(module: str, cassette: str, intron: str) -> FilterResult:
         name="longitudes",
         state=FilterState.PASS,
         reason=(
-            f"modulo {MODULE_LENGTH} nt, cassette {CASSETTE_LENGTH} pb, intron "
+            f"modulo {MODULE_LENGTH} nt, cassette {CASSETTE_LENGTH} pb, intrón "
             f"{INTRON_LENGTH} nt."
         ),
     )
@@ -247,7 +247,7 @@ def _check_unique_sites(cassette: str) -> FilterResult:
             name="sitios_unicos",
             state=FilterState.FAIL,
             reason=(
-                f"{detalle}. La guia o la pasajera generan un segundo sitio: eso rompe "
+                f"{detalle}. La guía o la pasajera generan un segundo sitio: eso rompe "
                 f"el clonaje por NheI/SacI, que es la via normal."
             ),
         )
@@ -265,14 +265,14 @@ def _check_no_outer_sites(module: str) -> FilterResult:
             name="sin_MluI_AgeI",
             state=FilterState.FAIL,
             reason=(
-                f"El modulo contiene {', '.join(presentes)}: cortaria tambien dentro "
+                f"El módulo contiene {', '.join(presentes)}: cortaria también dentro "
                 f"del inserto al montar el cassette."
             ),
         )
     return FilterResult(
         name="sin_MluI_AgeI",
         state=FilterState.PASS,
-        reason="El modulo no contiene ACGCGT (MluI) ni ACCGGT (AgeI).",
+        reason="El módulo no contiene ACGCGT (MluI) ni ACCGGT (AgeI).",
     )
 
 
@@ -289,16 +289,16 @@ def _check_homopolymers(guide: str, passenger: str) -> FilterResult:
             state=FilterState.FAIL,
             reason=(
                 f"La parte variable ({variable}) tiene un homopolimero de {peor} "
-                f"{peor_base}: el limite es {MAX_HOMOPOLYMER}."
+                f"{peor_base}: el límite es {MAX_HOMOPOLYMER}."
             ),
         )
     return FilterResult(
         name="homopolimeros",
         state=FilterState.PASS,
         reason=(
-            f"Sin homopolimeros de mas de {MAX_HOMOPOLYMER} en la parte variable "
-            f"(guia y pasajera). El GGGG del contexto 3' es nativo de SGEP y no cuenta: "
-            f"recortarlo cambiaria el andamio."
+            f"Sin homopolimeros de más de {MAX_HOMOPOLYMER} en la parte variable "
+            f"(guía y pasajera). El GGGG del contexto 3' es nativo de SGEP y no cuenta: "
+            f"recortarlo cambiaría el andamio."
         ),
     )
 
@@ -308,7 +308,7 @@ def _check_folding(
 ) -> tuple[FilterResult, FilterResult, str, str]:
     if not available:
         motivo = (
-            "ViennaRNA no esta instalado, asi que no se ha comprobado el plegado. "
+            "ViennaRNA no está instalado, así que no se ha comprobado el plegado. "
             "NOT_RUN no es PASS: los espaciadores se optimizaron para OTRA horquilla y "
             "sin plegar no se puede saber si esta sobrevive. `pip install ViennaRNA`."
         )
@@ -337,7 +337,7 @@ def _check_folding(
             state=FilterState.FAIL,
             reason=(
                 f"El 97-mero aislado NO pliega como la referencia: la horquilla en si "
-                f"no es estandar.\n  esperada {referencia}\n  obtenida {sola}"
+                f"no es estándar.\n  esperada {referencia}\n  obtenida {sola}"
             ),
         )
 
@@ -348,7 +348,7 @@ def _check_folding(
             name="plegado_en_intron",
             state=FilterState.PASS,
             reason=(
-                f"Dentro del intron de {INTRON_LENGTH} nt el 97-mero conserva la misma "
+                f"Dentro del intrón de {INTRON_LENGTH} nt el 97-mero conserva la misma "
                 f"estructura que aislado: el contexto no captura los flancos del pri-miR."
             ),
         )
@@ -357,13 +357,13 @@ def _check_folding(
             name="plegado_en_intron",
             state=FilterState.FAIL,
             reason=(
-                f"Dentro del intron de {INTRON_LENGTH} nt el 97-mero NO conserva su "
+                f"Dentro del intrón de {INTRON_LENGTH} nt el 97-mero NO conserva su "
                 f"estructura: el contexto captura los flancos del pri-miR y deshace el "
-                f"tallo basal. EL MODULO NheI-SacI NO ES SEGURO para esta guia, y el "
-                f"cassette con estos espaciadores tampoco — el mismo intron va dentro. "
+                f"tallo basal. EL MÓDULO NheI-SacI NO ES SEGURO para esta guía, y el "
+                f"cassette con estos espaciadores tampoco — el mismo intrón va dentro. "
                 f"Hacen falta espaciadores reoptimizados, que es secuencia de novo y la "
-                f"regla 1 no deja generarla sin autorizacion escrita.\n"
-                f"  aislado {sola}\n  en intron {dentro}"
+                f"regla 1 no deja generarla sin autorización escrita.\n"
+                f"  aislado {sola}\n  en intrón {dentro}"
             ),
         )
     return aislado, en_intron, dentro, sola
@@ -375,8 +375,8 @@ def _check_transgene(transgene) -> FilterResult:
             name="hits_transgen",
             state=FilterState.NOT_RUN,
             reason=(
-                "No se paso el resultado del filtro del transgen, asi que queda sin "
-                "comprobar si este candidato apaga la propia construccion terapeutica. "
+                "No se paso el resultado del filtro del transgén, así que queda sin "
+                "comprobar si este candidato apaga la propia construcción terapeutica. "
                 "NOT_RUN no es PASS."
             ),
         )
@@ -385,14 +385,14 @@ def _check_transgene(transgene) -> FilterResult:
             name="hits_transgen",
             state=FilterState.FAIL,
             reason=(
-                f"{len(transgene.hits)} sitio(s) en el casete del transgen: "
+                f"{len(transgene.hits)} sitio(s) en el casete del transgén: "
                 + "; ".join(h.describe() for h in transgene.hits)
             ),
         )
     return FilterResult(
         name="hits_transgen",
         state=FilterState.PASS,
-        reason="Cero sitios en el casete del transgen.",
+        reason="Cero sitios en el casete del transgén.",
     )
 
 
@@ -403,10 +403,10 @@ def _check_spacers(eleccion, pedido: bool, en_intron: FilterResult) -> FilterRes
             name="espaciadores",
             state=FilterState.PASS,
             reason=(
-                f"GENERADOS DE NOVO para esta guia (5' {eleccion.spacer5}, 3' "
-                f"{eleccion.spacer3}). Los estandar no conservaban la estructura del "
-                f"97-mero dentro del intron. El cassette NO es intercambiable con el "
-                f"modulo NheI-SacI estandar."
+                f"GENERADOS DE NOVO para esta guía (5' {eleccion.spacer5}, 3' "
+                f"{eleccion.spacer3}). Los estándar no conservaban la estructura del "
+                f"97-mero dentro del intrón. El cassette NO es intercambiable con el "
+                f"módulo NheI-SacI estándar."
             ),
         )
     if en_intron.state is FilterState.FAIL and not pedido:
@@ -414,15 +414,15 @@ def _check_spacers(eleccion, pedido: bool, en_intron: FilterResult) -> FilterRes
             name="espaciadores",
             state=FilterState.NOT_RUN,
             reason=(
-                "Los espaciadores estandar no valen para esta guia y no se pidio "
+                "Los espaciadores estándar no valen para esta guía y no se pidio "
                 "reoptimizarlos. Con --reoptimizar-espaciadores se generan de novo para "
-                "esta guia; hasta entonces no hay bloque valido. NOT_RUN no es PASS."
+                "esta guía; hasta entonces no hay bloque válido. NOT_RUN no es PASS."
             ),
         )
     return FilterResult(
         name="espaciadores",
         state=FilterState.PASS,
-        reason="Los espaciadores ESTANDAR del proyecto, sin tocar.",
+        reason="Los espaciadores ESTÁNDAR del proyecto, sin tocar.",
     )
 
 
@@ -486,8 +486,8 @@ def build_block(
                 state=en_intron.state,
                 reason=(
                     f"{en_intron.reason} CON ESPACIADORES GENERADOS DE NOVO para esta "
-                    f"guia: los estandar no conservaban la estructura. El cassette "
-                    f"resultante NO es intercambiable con el modulo NheI-SacI estandar."
+                    f"guía: los estándar no conservaban la estructura. El cassette "
+                    f"resultante NO es intercambiable con el módulo NheI-SacI estándar."
                 ),
             )
 
@@ -501,14 +501,14 @@ def build_block(
         limpio = "".join(str(recipient).split()).upper()
         if cassette not in limpio:
             raise ShmirDesignError(
-                "El plasmido receptor que se ha dado no contiene el cassette "
-                "MluI-AgeI, asi que no se pueden sacar de el los brazos de homologia. "
+                "El plásmido receptor que se ha dado no contiene el cassette "
+                "MluI-AgeI, así que no se pueden sacar de el los brazos de homologia. "
                 "Se aborta en vez de inventar contexto."
             )
         posicion = limpio.index(cassette)
         if posicion < GIBSON_ARM or posicion + len(cassette) + GIBSON_ARM > len(limpio):
             raise ShmirDesignError(
-                f"El plasmido receptor no tiene {GIBSON_ARM} pb a los dos lados del "
+                f"El plásmido receptor no tiene {GIBSON_ARM} pb a los dos lados del "
                 f"cassette; se aborta en vez de recortar el brazo."
             )
         cassette_gibson = limpio[
@@ -520,7 +520,7 @@ def build_block(
         FilterResult(
             name="gibson_cassette",
             state=FilterState.PASS,
-            reason=f"Brazos de {GIBSON_ARM} pb tomados del plasmido receptor dado.",
+            reason=f"Brazos de {GIBSON_ARM} pb tomados del plásmido receptor dado.",
         )
         if cassette_gibson is not None
         else FilterResult(
@@ -528,7 +528,7 @@ def build_block(
             state=FilterState.NOT_RUN,
             reason=(
                 f"Los brazos de {GIBSON_ARM} pb del cassette caen FUERA del cassette, "
-                f"en el plasmido receptor, que no se ha dado. No se inventan: pasa el "
+                f"en el plásmido receptor, que no se ha dado. No se inventan: pasa el "
                 f"receptor y salen. NOT_RUN no es PASS."
             ),
         )
@@ -579,9 +579,9 @@ CHECK_ORDER = (
 )
 
 AVISO_ENZIMAS = (
-    "XhoI (CTCGAG) y EcoRI (GAATTC) van DENTRO del modulo, heredadas de los contextos "
-    "de SGEP. En el plasmido final NO son unicas, asi que no sirven para el clonaje: "
-    "el clonaje va por NheI/SacI o por sintesis directa del bloque."
+    "XhoI (CTCGAG) y EcoRI (GAATTC) van DENTRO del módulo, heredadas de los contextos "
+    "de SGEP. En el plásmido final NO son únicas, así que no sirven para el clonaje: "
+    "el clonaje va por NheI/SacI o por síntesis directa del bloque."
 )
 
 
@@ -677,9 +677,9 @@ def blocks_tsv(blocks: list[Block], *, species: str) -> str:
 #: porque un fallo que produce el resultado correcto-en-apariencia no se ve leyendo.
 PRIMER_WARNING = (
     "**La especificidad de vector la da el cebador de AGUAS ARRIBA, y solo ese.** La "
-    "ventana de aguas abajo entra en el ORF de PrP, asi que un par con los DOS cebadores "
-    "ahi amplificaria tambien el Prnp ENDOGENO del tejido: saldria banda, del tamaño "
-    "esperado, y no seria del vector. **Es el error que arruinaria el ensayo sin dar "
+    "ventana de aguas abajo entra en el ORF de PrP, así que un par con los DOS cebadores "
+    "ahi amplificaria también el Prnp ENDOGENO del tejido: saldria banda, del tamaño "
+    "esperado, y no sería del vector. **Es el error que arruinaria el ensayo sin dar "
     "ninguna señal.**"
 )
 
@@ -699,7 +699,7 @@ def order_sheet(
     """
     if not blocks and intronless is None and rtpcr is None:
         return (
-            "No hay ningun bloque que pedir: la seleccion esta vacia. No se emite hoja "
+            "No hay ningún bloque que pedir: la selección está vacía. No se emite hoja "
             "de pedido en blanco."
         )
     if not blocks:
@@ -711,9 +711,9 @@ def order_sheet(
         f"═══ Hoja de pedido — {species} ═══",
         "",
         f"  {len(blocks)} candidato(s). Dos niveles por candidato:",
-        f"    · modulo NheI-SacI, {MODULE_LENGTH} nt — intercambia solo la horquilla en "
-        f"un plasmido que ya lleva el intron",
-        f"    · cassette MluI-AgeI, {CASSETTE_LENGTH} pb — intron completo, para montar "
+        f"    · módulo NheI-SacI, {MODULE_LENGTH} nt — intercambia solo la horquilla en "
+        f"un plásmido que ya lleva el intrón",
+        f"    · cassette MluI-AgeI, {CASSETTE_LENGTH} pb — intrón completo, para montar "
         f"de cero",
         "",
         f"  ⚠  {AVISO_ENZIMAS}",
@@ -721,7 +721,7 @@ def order_sheet(
     ]
 
     for numero, block in enumerate(blocks, start=1):
-        lineas.append(f"── Candidato {numero} — guia {block.guide} ──")
+        lineas.append(f"── Candidato {numero} — guía {block.guide} ──")
         lineas.append(f"  pasajera {block.passenger}")
         if block.custom_spacers:
             lineas.append("")
@@ -731,16 +731,16 @@ def order_sheet(
             lineas.append("")
         if not block.module_safe:
             lineas.append(
-                "  ⚠  MODULO NO VERIFICADO: no se ha podido confirmar que la horquilla "
-                "sobreviva dentro del intron."
+                "  ⚠  MÓDULO NO VERIFICADO: no se ha podido confirmar que la horquilla "
+                "sobreviva dentro del intrón."
             )
         for resultado in block.checks:
             if resultado.state is not FilterState.PASS:
                 lineas.append(f"  ⚠  {resultado.name}: {resultado.reason}")
         for titulo, secuencia in (
-            (f"modulo NheI-SacI ({len(block.module)} nt)", block.module),
+            (f"módulo NheI-SacI ({len(block.module)} nt)", block.module),
             (
-                f"modulo + brazos Gibson ({len(block.module_gibson)} nt)",
+                f"módulo + brazos Gibson ({len(block.module_gibson)} nt)",
                 block.module_gibson,
             ),
             (f"cassette MluI-AgeI ({len(block.cassette)} pb)", block.cassette),
@@ -756,7 +756,7 @@ def order_sheet(
             )
         lineas.append("")
 
-    lineas.append("  Clonaje: NheI + SacI para el modulo; MluI + AgeI para el cassette.")
+    lineas.append("  Clonaje: NheI + SacI para el módulo; MluI + AgeI para el cassette.")
     lineas.append(f"  {AVISO_ENZIMAS}")
     _extras(lineas, intronless, rtpcr)
     return "\n".join(lineas)
@@ -765,7 +765,7 @@ def order_sheet(
 def _extras(lineas: list[str], intronless, rtpcr) -> None:
     """El control sin intron y el aviso del cebador, al final y con su titulo."""
     if intronless is not None:
-        lineas.extend(["", "── Fragmento CONTROL SIN INTRON ──"])
+        lineas.extend(["", "── Fragmento CONTROL SIN INTRÓN ──"])
         lineas.extend(f"  {t}" for t in intronless.describe())
         lineas.append("  secuencia:")
         lineas.extend(f"    {t}" for t in _wrap(intronless.sequence).splitlines())

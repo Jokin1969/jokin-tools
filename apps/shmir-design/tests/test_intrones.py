@@ -83,7 +83,7 @@ class TestElMVM_SE_ENSAMBLA_NO_SE_TECLEA(unittest.TestCase):
             l.split("#")[0] for l in fuente.splitlines() if not l.strip().startswith("#")
         )
         for cadena in re.findall(r'"([ACGT]{8,})"', codigo):
-            self.fail(f"literal de ADN en el codigo: {cadena}")
+            self.fail(f"literal de ADN en el código: {cadena}")
 
     def test_el_intron_VACIO_mide_82_nt(self):
         """Es el del casete parental, y esta DOS nt por encima del suelo de 80."""
@@ -100,7 +100,7 @@ class TestLosCuatroElementosSeDERIVAN(unittest.TestCase):
 
     def setUp(self):
         self.elementos = introns.locate_elements(
-            introns.INTRONS["mvm_actual"].empty_sequence, name="mvm vacio"
+            introns.INTRONS["mvm_actual"].empty_sequence, name="mvm vacío"
         )
 
     def test_el_donante_es_el_GT_del_principio(self):
@@ -148,7 +148,7 @@ class TestLosCuatroElementosSeDERIVAN(unittest.TestCase):
     def test_con_el_modulo_dentro_los_elementos_SIGUEN_derivandose(self):
         """El punto de ramificacion vive en MVM3, asi que viaja con el."""
         montado = introns.INTRONS["mvm_actual"].with_module("A" * blocks.MODULE_LENGTH)
-        elementos = introns.locate_elements(montado, name="mvm con modulo")
+        elementos = introns.locate_elements(montado, name="mvm con módulo")
         self.assertEqual(elementos.branch_point.sequence, "TAATT")
         self.assertEqual(len(elementos.ppt.sequence), 9)
 
@@ -189,7 +189,7 @@ class TestLaFichaDelQueFALTA(unittest.TestCase):
 
         self.assertTrue(
             introns.INTRONS["quimerico_cmv_globina"].ficha in obtencion.load_all(),
-            "el quimerico no tiene ficha de obtencion",
+            "el quimérico no tiene ficha de obtencion",
         )
 
     def test_y_dice_de_donde_se_saca(self):

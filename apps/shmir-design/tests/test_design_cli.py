@@ -24,7 +24,7 @@ class TestArgumentos(unittest.TestCase):
 
     def test_sin_fixtures_y_sin_fasta_aborta(self):
         if all(fixture_available(ref) for ref in REFERENCES.values()):
-            self.skipTest("los fixtures estan disponibles; este caso ya no aplica")
+            self.skipTest("los fixtures están disponibles; este caso ya no aplica")
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(main(["--out", tmp]), 2)
 

@@ -180,7 +180,7 @@ class TestLasSalidasDeVerdadLlevanElEspacio(unittest.TestCase):
     def test_el_bloque_de_polya_del_informe_no_deja_enteros_sueltos(self):
         bloque = self.informe.split("── Riesgo de polyA")[1].split("── Que se ha")[0]
         for linea in bloque.splitlines():
-            if "inmunes tambien" in linea or "con TECHO" in linea:
+            if "inmunes también" in linea or "con TECHO" in linea:
                 with self.subTest(linea.strip()[:50]):
                     self.assertTrue(
                         ETIQUETADA.search(linea),

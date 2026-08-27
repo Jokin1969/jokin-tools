@@ -26,6 +26,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 GOLDEN = RAIZ / "tests" / "golden" / "raton_informe.txt"
 FICHA = RAIZ / "tests" / "golden" / "ficha_raton_200.txt"
 DOCUMENTO = RAIZ / "tests" / "golden" / "informe_documento.md"
+PAGINA = RAIZ / "tests" / "golden" / "pagina_raton.txt"
 
 #: La fecha del documento va FIJADA: si saliera la de hoy, el golden
 #: cambiaria cada dia y el diff dejaria de significar nada.
@@ -57,7 +58,7 @@ def generar(destino: Path) -> str:
         )
         if proceso.returncode != 0:
             raise SystemExit(
-                f"El diseño fallo con codigo {proceso.returncode}; no se regenera el "
+                f"El diseño fallo con código {proceso.returncode}; no se regenera el "
                 f"golden con una salida incompleta.\n{proceso.stdout}\n{proceso.stderr}"
             )
         return (Path(tmp) / "raton_informe.txt").read_text(encoding="utf-8")
@@ -120,6 +121,40 @@ def generar_documento() -> str:
     ).markdown()
 
 
+def generar_pagina() -> str:
+    """El camino de la PAGINA, entero, con lo que el usuario sube: el `.gb` murino.
+
+    Es el golden que faltaba. Los otros tres fijan salidas del nucleo; este fija la
+    juntura entre piezas —anatomia, tilado, estimacion, mapa, semaforo, informe— que es
+    donde aparecieron los tres fallos de la primera ejecucion real con 2.767 tests en
+    verde.
+
+    Solo ficheros VERSIONADOS, como los demas: sin manifiesto, para que se regenere con
+    un clon limpio.
+    """
+    import sys as _sys
+
+    _sys.path.insert(0, str(RAIZ))
+    from shmir_design.anatomy import Anatomy, RegionSource
+    from shmir_design.presentation import page_snapshot
+    from shmir_design.reference import REFERENCES, load_reference
+    from shmir_design.selection import SelectionConfig
+
+    referencia = REFERENCES["NM_011170.3"]
+    secuencia = load_reference(referencia)
+    return page_snapshot(
+        species="raton",
+        sequence=secuencia,
+        anatomy=Anatomy.from_cds(
+            cds=referencia.cds,
+            length=len(secuencia),
+            source=RegionSource.FIXTURE_VERIFICADO,
+        ),
+        generated=FECHA_GOLDEN,
+        config=SelectionConfig(n_candidates=10, apa_immune_quota=4),
+    )
+
+
 def main() -> int:
     informe = generar(GOLDEN)
     antes = GOLDEN.read_text(encoding="utf-8") if GOLDEN.is_file() else ""
@@ -129,7 +164,7 @@ def main() -> int:
     if antes == informe:
         print(f"Sin cambios: {GOLDEN} ({lineas} lineas).")
     else:
-        print(f"Regenerado {GOLDEN}: {lineas} lineas (antes {len(antes.splitlines())}).")
+        print(f"Regenerado {GOLDEN}: {lineas} líneas (antes {len(antes.splitlines())}).")
         print("Revisa el diff ANTES de commitear: es la salida entera del informe.")
 
     ficha = generar_ficha()
@@ -139,7 +174,7 @@ def main() -> int:
         print(f"Sin cambios: {FICHA} ({len(ficha.splitlines())} lineas).")
     else:
         print(f"Regenerada {FICHA}: {len(ficha.splitlines())} lineas.")
-        print("Revisa tambien ese diff: la ficha se compara ENTERA.")
+        print("Revisa también ese diff: la ficha se compara ENTERA.")
 
     documento = generar_documento()
     anterior = DOCUMENTO.read_text(encoding="utf-8") if DOCUMENTO.is_file() else ""
@@ -148,7 +183,16 @@ def main() -> int:
         print(f"Sin cambios: {DOCUMENTO} ({len(documento.splitlines())} lineas).")
     else:
         print(f"Regenerado {DOCUMENTO}: {len(documento.splitlines())} lineas.")
-        print("Y ese tambien entero: es el informe que se entrega.")
+        print("Y ese también entero: es el informe que se entrega.")
+
+    pagina = generar_pagina()
+    previo = PAGINA.read_text(encoding="utf-8") if PAGINA.is_file() else ""
+    PAGINA.write_text(pagina, encoding="utf-8")
+    if previo == pagina:
+        print(f"Sin cambios: {PAGINA} ({len(pagina.splitlines())} lineas).")
+    else:
+        print(f"Regenerado {PAGINA}: {len(pagina.splitlines())} lineas.")
+        print("Este es el camino de la PAGINA: leelo entero, es donde se junta todo.")
     return 0
 
 

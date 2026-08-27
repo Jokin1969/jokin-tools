@@ -34,10 +34,10 @@ from .species import RequiredFile, Species, file_for, fixture_report, required_f
 
 #: Por que no hay una casilla global. Va en la interfaz, no en un comentario.
 WHY_NO_GLOBAL_TOGGLE = (
-    "No hay ninguna casilla de «usar los ficheros de referencia». Su unico efecto "
+    "No hay ninguna casilla de «usar los ficheros de referencia». Su único efecto "
     "posible al desmarcarla era dejar todos los filtros con fichero en NOT_RUN sin decir "
-    "por que, y eso no es una opcion: es una trampa. Si un fichero esta y es valido, se "
-    "usa. Ignorar uno a proposito se hace POR FICHERO y con el motivo escrito, que viaja "
+    "por que, y eso no es una opción: es una trampa. Si un fichero está y es válido, se "
+    "usa. Ignorar uno a propósito se hace POR FICHERO y con el motivo escrito, que viaja "
     "al veredicto."
 )
 
@@ -55,14 +55,14 @@ class Ignored:
         if not str(self.reason).strip():
             raise ShmirDesignError(
                 f"Ignorar {self.filename!r} exige un motivo ESCRITO: viaja al veredicto, "
-                f"que es lo unico que distingue «se decidio no usarlo» de «no estaba». "
+                f"que es lo único que distingue «se decidio no usarlo» de «no estaba». "
                 f"Sin motivo se aborta en vez de dejar un NOT_RUN mudo."
             )
 
     @property
     def note(self) -> str:
         return (
-            f"{self.filename} NO se ha usado por decision explicita: {self.reason}. El "
+            f"{self.filename} NO se ha usado por decisión explicita: {self.reason}. El "
             f"filtro que dependia de el queda en NOT_RUN, y NOT_RUN no es PASS."
         )
 
@@ -86,7 +86,7 @@ def _v_refseq(path, contexto):
 
 
 def _v_transgen(path, contexto):
-    return _fasta(path, what="casete del transgen")
+    return _fasta(path, what="casete del transgén")
 
 
 def _v_mirbase(path, contexto):
@@ -220,16 +220,16 @@ class UploadResult:
             f"{self.filename} — {self.size} B — md5 {self.md5}",
             f"  Desbloquea: {self.what}",
             (
-                "  Registrado en el manifiesto (linea sustituida)."
+                "  Registrado en el manifiesto (línea sustituida)."
                 if self.replaced
-                else "  Registrado en el manifiesto (linea nueva)."
+                else "  Registrado en el manifiesto (línea nueva)."
             ),
         ]
         if self.fronts_opened:
             lineas.append("  Frentes que quedan CERRADOS: " + ", ".join(self.fronts_opened))
         if self.still_missing:
             lineas.append(
-                "  Sigue faltando, asi que el frente NO se abre todavia: "
+                "  Sigue faltando, así que el frente NO se abre todavia: "
                 + ", ".join(self.still_missing)
             )
         return "\n".join(lineas)
@@ -277,16 +277,16 @@ def accept_upload(
         raise ShmirDesignError(
             f"{filename!r} no es un fichero que {species.scientific} necesite. Los que "
             f"necesita se llaman: {esperados}. El nombre no es cosmetico: el manifiesto "
-            f"conecta cada fichero con su filtro POR EL NOMBRE, asi que un fichero de "
+            f"conecta cada fichero con su filtro POR EL NOMBRE, así que un fichero de "
             f"otra especie depositado con este nombre correria contra la secuencia "
-            f"equivocada sin dar ningun error — es exactamente lo que paso con "
+            f"equivocada sin dar ningún error — es exactamente lo que paso con "
             f"`rmsk_mouse.out` sobre el transcrito humano."
         )
 
     rol = role_for(species, filename)
     if rol is None:  # pragma: no cover - lo fija el test de que ROLES los cubre todos
         raise ShmirDesignError(
-            f"El rol {fila.role!r} no esta en `manifest.ROLES`, asi que no habria filtro "
+            f"El rol {fila.role!r} no está en `manifest.ROLES`, así que no habría filtro "
             f"al que conectar {filename!r}. Se aborta."
         )
 

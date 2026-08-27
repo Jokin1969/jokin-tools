@@ -42,7 +42,7 @@ class TestDeteccionPorSecuencia(unittest.TestCase):
         loop = SGEP_SCAFFOLD.loop.replace("U", "T")
         texto = carries_scaffold_module(_db("ACGT" * 20 + loop)).describe().lower()
         self.assertIn("maduro", texto)
-        self.assertIn("intron", texto)
+        self.assertIn("intrón", texto)
         self.assertIn("su propia horquilla", texto)
 
     def test_tambien_detecta_el_loop_de_miR_30a(self):
