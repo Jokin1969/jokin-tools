@@ -35,18 +35,29 @@ function shapeSvg(shape, color, px) {
   return `<svg class="pt-shape" width="${px}" height="${px}" viewBox="0 0 24 24" aria-hidden="true">${s}</svg>`;
 }
 // Real pill photo when the pharmacy has curated one (by Código Nacional), the
-// colour/shape icon otherwise. Shared file, shared URL, with Data Matrix and
-// Asignación — see apps/pastillero/pill-images.js for where the files live.
-function pillImgHtml(cn, shape, color, px) {
+// colour/shape icon otherwise. Shared file, shared URL, with Data Matrix,
+// Asignación and Galénica — see apps/pastillero/pill-images.js for where the
+// files live. Clicking a real photo opens it big (same modal style everywhere).
+function pillImgHtml(cn, shape, color, px, nombre) {
   px = px || 28;
   if (!cn) return shapeSvg(shape, color, px);
-  return `<img class="pt-pill-img" src="/pastillero/assets/pill/${esc(cn)}.png" width="${px}" height="${px}" alt="" onerror="pillImgFail(this,'${esc(shape)}','${esc(color)}',${px})">`;
+  return `<img class="pt-pill-img" src="/pastillero/assets/pill/${esc(cn)}.png" width="${px}" height="${px}" alt="" style="cursor:pointer" data-nombre="${esc(nombre || '')}" onclick="openPillPhotoModal(this)" onerror="pillImgFail(this,'${esc(shape)}','${esc(color)}',${px})">`;
 }
 // Named (not arrow/const) so it's reachable from the inline onerror= above.
 function pillImgFail(img, shape, color, px) {
   const span = document.createElement('span');
   span.innerHTML = shapeSvg(shape, color, px);
   img.replaceWith(span.firstElementChild);
+}
+function openModal(html) {
+  $('tool-modal-box').innerHTML = html;
+  $('tool-modal').hidden = false;
+  $('tool-modal-box').querySelectorAll('[data-close]').forEach(b => b.onclick = closeModal);
+}
+function closeModal() { $('tool-modal').hidden = true; $('tool-modal-box').innerHTML = ''; }
+function openPillPhotoModal(img) {
+  openModal(`<div class="pt-modal-h"><h3>💊 ${esc(img.dataset.nombre || 'Medicamento')}</h3><button class="pt-modal-x" data-close>×</button></div>
+    <div class="pt-img-modal"><img src="${img.src}" alt="Pastilla"></div>`);
 }
 function lget(k, d) { try { return localStorage.getItem(k) || d; } catch { return d; } }
 function lset(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } }
@@ -231,16 +242,16 @@ function pillGridHtml(meds, size) {
   if (size === 'lg') {
     const cell = `min(${zoomCellBase(pills.length)}px, ${zoomCellVwCap(pills.length)}vw)`;
     return `<div class="pt-pill-grid pt-pill-grid-lg" style="--cell:${cell}">${pills.map(m =>
-      `<div class="pt-pill-cell" title="${esc(m.nombre)}">${pillImgHtml(m.cn, m.shape, m.color, 60)}</div>`).join('')}</div>`;
+      `<div class="pt-pill-cell" title="${esc(m.nombre)}">${pillImgHtml(m.cn, m.shape, m.color, 60, m.nombre)}</div>`).join('')}</div>`;
   }
   return `<div class="pt-pill-grid pt-pill-grid-sm">${pills.map(m =>
-    `<div class="pt-pill-cell" title="${esc(m.nombre)}">${pillImgHtml(m.cn, m.shape, m.color, 22)}</div>`).join('')}</div>`;
+    `<div class="pt-pill-cell" title="${esc(m.nombre)}">${pillImgHtml(m.cn, m.shape, m.color, 22, m.nombre)}</div>`).join('')}</div>`;
 }
 function slotListHtml(meds) {
   if (!meds.length) return `<div class="pt-slot-empty">Sin medicación en esta franja.</div>`;
   return meds.map(m => `
     <div class="pt-med-row">
-      ${pillImgHtml(m.cn, m.shape, m.color, 30)}
+      ${pillImgHtml(m.cn, m.shape, m.color, 30, m.nombre)}
       <span class="pt-med-name">${esc(m.nombre)}</span>
       <span class="pt-med-qty">×${m.qty}</span>
     </div>`).join('');

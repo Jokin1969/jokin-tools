@@ -42,8 +42,19 @@ function closeModal() { $('tool-modal').hidden = true; const box = $('tool-modal
 // of the suite. No generic-icon fallback here (unlike the other apps): the whole
 // point of Galénica is the appearance, so a missing photo shows as an honest
 // empty slot with a hint, not a colour standing in for it.
-function pillPhotoHtml(cn, cls) {
-  return `<div class="${cls}" data-photobox="${esc(cn || '')}">${cn ? `<img src="/pastillero/assets/pill/${esc(cn)}.png" alt="" onerror="this.closest('[data-photobox]').innerHTML='<span style=&quot;color:var(--muted);font-size:.72rem;text-align:center;padding:6px&quot;>Sin foto</span>'">` : '<span style="color:var(--muted);font-size:.72rem">Sin CN</span>'}</div>`;
+// `clickable` opens it big on click — off for the copy already shown inside the
+// detail modal, since Galénica has one shared modal box: opening a second one
+// there would overwrite the edit form instead of stacking on top of it.
+function pillPhotoHtml(cn, cls, nombre, clickable) {
+  clickable = clickable !== false;
+  const img = cn
+    ? `<img src="/pastillero/assets/pill/${esc(cn)}.png" alt=""${clickable ? ` style="cursor:pointer" data-nombre="${esc(nombre || '')}" onclick="event.stopPropagation();openPillPhotoModal(this)"` : ''} onerror="this.closest('[data-photobox]').innerHTML='<span style=&quot;color:var(--muted);font-size:.72rem;text-align:center;padding:6px&quot;>Sin foto</span>'">`
+    : '<span style="color:var(--muted);font-size:.72rem">Sin CN</span>';
+  return `<div class="${cls}" data-photobox="${esc(cn || '')}">${img}</div>`;
+}
+function openPillPhotoModal(img) {
+  openModal(`<div class="qt-modal-h"><h3>${esc(img.dataset.nombre || 'Medicamento')}</h3><button class="qt-x" data-close>×</button></div>
+    <div class="gl-img-modal"><img src="${img.src}" alt="Pastilla"></div>`, { wide: true });
 }
 function eanSvg(ean) {
   const s = String(ean || '').replace(/\D/g, '');
@@ -149,7 +160,7 @@ function medCardHtml(m) {
   const sel = S.selected.has(m.id);
   return `<div class="gl-card ${sel ? 'is-selected' : ''}" data-id="${m.id}">
     <input type="checkbox" class="qt-check gl-card-check" data-sel="${m.id}" ${sel ? 'checked' : ''}>
-    ${pillPhotoHtml(m.cn, 'gl-card-photo')}
+    ${pillPhotoHtml(m.cn, 'gl-card-photo', m.nombre)}
     <div class="gl-card-name" data-open="${m.id}">${esc(m.nombre || 'Sin nombre')}</div>
     <div class="gl-card-meta">CN ${esc(m.cn)}${m.pactivos ? ' · ' + esc(m.pactivos) : ''}</div>
     <div class="gl-card-tags">${tagsHtml(m)}</div>
@@ -159,7 +170,7 @@ function medRowHtml(m) {
   const sel = S.selected.has(m.id);
   return `<tr class="${sel ? 'is-selected' : ''}" data-id="${m.id}">
     <td><input type="checkbox" class="qt-check" data-sel="${m.id}" ${sel ? 'checked' : ''}></td>
-    <td class="gl-td-photo">${pillPhotoHtml(m.cn, 'gl-thumb')}</td>
+    <td class="gl-td-photo">${pillPhotoHtml(m.cn, 'gl-thumb', m.nombre)}</td>
     <td><span class="qt-cell-name" data-open="${m.id}">${esc(m.nombre || 'Sin nombre')}</span><br><span class="gl-cn-mono">CN ${esc(m.cn)}</span></td>
     <td>${esc(m.pactivos || '—')}</td>
     <td>${esc(m.forma || '—')}</td>
@@ -230,7 +241,7 @@ function openDetail(id) {
   openModal(`<div class="qt-modal-h"><h3>${esc(m.nombre || 'Medicamento')}</h3><button class="qt-x" data-close>×</button></div>
     <div class="gl-detail">
       <div>
-        ${pillPhotoHtml(m.cn, 'gl-detail-photo')}
+        ${pillPhotoHtml(m.cn, 'gl-detail-photo', m.nombre, false)}
         <div class="gl-detail-codes">
           <span>CN ${esc(m.cn)}</span>
           <span>GTIN ${esc(m.gtin || '—')}</span>

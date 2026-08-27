@@ -144,11 +144,19 @@ function shapeSvg(shape, color, px) {
   return `<svg class="dm-shape" width="${px}" height="${px}" viewBox="0 0 24 24" aria-hidden="true">${s}</svg>`;
 }
 // Real pill photo when curated (by Código Nacional) — same file/URL shared with
-// Pastillero and Data Matrix — the colour/shape icon otherwise.
-function pillImgHtml(cn, shape, color, px) {
+// Pastillero, Data Matrix y Galénica — the colour/shape icon otherwise. Clicking
+// a real photo opens it big, same style/size as the CIMA caja/pastilla modal.
+function pillImgHtml(cn, shape, color, px, nombre) {
   px = px || 22;
   if (!cn) return shapeSvg(shape, color, px);
-  return `<img class="az-pill-img" src="/pastillero/assets/pill/${esc(cn)}.png" width="${px}" height="${px}" alt="" onerror="pillImgFail(this,'${esc(shape)}','${esc(color)}',${px})">`;
+  return `<img class="az-pill-img" src="/pastillero/assets/pill/${esc(cn)}.png" width="${px}" height="${px}" alt="" style="cursor:pointer" data-nombre="${esc(nombre || '')}" onclick="openPillPhotoModal(this)" onerror="pillImgFail(this,'${esc(shape)}','${esc(color)}',${px})">`;
+}
+function openPillPhotoModal(img) {
+  openTool(`<div class="qt-modal-h"><h3>💊 ${esc(img.dataset.nombre || 'Medicamento')}</h3><button class="qt-x" id="im-close">×</button></div>
+    <div class="az-img-modal"><img src="${img.src}" alt="Pastilla"></div>
+    <div class="az-form-hint" style="text-align:center">Pastilla</div>`);
+  $('tool-modal-box').classList.add('az-modal-wide');
+  $('im-close').onclick = closeTool;
 }
 function pillImgFail(img, shape, color, px) {
   const span = document.createElement('span');
@@ -1341,7 +1349,7 @@ function planRowFull(m, closed) {
       <div class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small><div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${progTxt}</span></div></div>
       ${bcInline}
       <div class="az-plan-actions">
-        <span class="az-plan-pillimg" title="${esc(m.nombre || 'Medicamento')}">${pillImgHtml(m.cn, m.shape, m.color, 34)}</span>
+        <span class="az-plan-pillimg" title="${esc(m.nombre || 'Medicamento')}">${pillImgHtml(m.cn, m.shape, m.color, 34, m.nombre)}</span>
         <span class="az-plan-qty">×<input type="number" class="az-qty" data-plan="${m.id}" value="${m.qty}" min="1" max="99" ${closed ? 'disabled' : ''}></span>
         ${doseChip(m)}
         ${(!noDm && m.barcode) ? `<button class="qt-iconbtn" data-precinto="${m.id}" title="Ver el código de barras (precinto)">🏷️</button>` : ''}
