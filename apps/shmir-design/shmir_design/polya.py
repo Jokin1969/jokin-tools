@@ -1536,6 +1536,59 @@ class AmpliconPlan:
     #: Espacio en que van TODAS las coordenadas de este plan. Un 334 no dice por si
     #: solo si es del transcrito o del 3'UTR, y esa confusion ya costo una tanda.
     frame: Frame = Frame.UTR3
+    #: OTRAS señales APA_POSIBLE cuyas bandas de corte ATRAVIESA cada amplicon. Un
+    #: amplicon partido por un corte no da producto en la isoforma cortada, asi que
+    #: cruzar una banda cambia lo que la razon mide — y el plan no puede callarselo.
+    #: Vacio = no cruza ninguna, que es el caso limpio.
+    proximal_crosses: tuple[PolyASignal, ...] = ()
+    distal_crosses: tuple[PolyASignal, ...] = ()
+    #: Hueco disponible entre esta banda y la siguiente, si la hay. Se emite porque la
+    #: pregunta obvia al leer «cruza otra banda» es «¿y por que no lo mueves?».
+    gap_between: tuple[int, int] | None = None
+
+    @property
+    def measures_all_cuts(self) -> bool:
+        """¿La razon mide la fraccion que sobrevive a TODOS los cortes, no solo a este?"""
+        return bool(self.distal_crosses)
+
+    def _lineas_de_cruce(self) -> list[str]:
+        """Que otras bandas de corte atraviesa el distal, y que mide entonces la razon.
+
+        Un amplicon partido por un corte NO da producto en la isoforma cortada. Si el
+        distal cruza la banda de otra señal, la razon distal/proximal deja de medir la
+        fraccion que sobrevive a ESTE corte y pasa a medir la que sobrevive a TODOS.
+        Eso puede ser exactamente lo que se quiere —lo es para este panel, cuyos seis
+        candidatos con techo estan detras de las dos— pero no puede quedar implicito:
+        quien lea el plan tiene que saberlo ANTES de pedir cebadores.
+        """
+        if not self.distal_crosses:
+            return []
+        cuales = ", ".join(
+            f"{s.motif}@{label(s.position, self.frame)}" for s in self.distal_crosses
+        )
+        lineas = [
+            f"  ATENCIÓN — el amplicón distal ATRAVIESA la banda de corte de {cuales}. "
+            f"Un amplicón",
+            "  partido por un corte no da producto en la isoforma cortada, así que la "
+            "razón",
+            "  distal/proximal NO mide la fracción que sobrevive a ESTE corte: mide la "
+            "que sobrevive",
+            "  a LAS DOS. Para el panel eso es lo que hace falta —sus candidatos con "
+            "techo están",
+            "  detrás de las dos bandas— pero el tramo intermedio NO se puede confirmar "
+            "con este par.",
+        ]
+        if self.gap_between is not None:
+            bajo, alto = self.gap_between
+            cabe = alto - bajo + 1
+            largo = self.distal.end - self.distal.start + 1
+            lineas.append(
+                f"  Y NO se arregla moviéndolo: entre las dos bandas, con la misma "
+                f"holgura, queda "
+                f"{span(bajo, alto, self.frame) if cabe > 0 else 'nada'}"
+                f" — {max(cabe, 0)} nt para un amplicón de {largo}. NO CABE."
+            )
+        return lineas
 
     def describe(self, *, offset: int = 0) -> list[str]:
         """`offset` = primera posicion del 3'UTR menos 1, para dar las dos parejas."""
@@ -1552,6 +1605,7 @@ class AmpliconPlan:
             f"banda de corte {span(self.cut_band[0], self.cut_band[1], self.frame)}.",
             f"  {self.proximal.describe(frame=self.frame, offset=offset)}",
             f"  {self.distal.describe(frame=self.frame, offset=offset)}",
+            *self._lineas_de_cruce(),
             "  Los dos se cuantifican contra una CURVA ESTÁNDAR COMUN: sin ella las dos "
             "eficiencias",
             "  no son comparables y la razón no significa nada.",
@@ -1650,6 +1704,11 @@ def rtqpcr_amplicons(
     avoid: list[tuple[int, int]] | tuple[tuple[int, int], ...] = (),
     length: int = RTQPCR_AMPLICON_LENGTH,
     margin: int = RTQPCR_MARGIN,
+    #: Las OTRAS señales `APA_POSIBLE` de la misma secuencia. Sin ellas este plan no
+    #: puede saber que su amplicon distal atraviesa la banda de corte de otra, y un
+    #: amplicon partido por un corte no da producto en la isoforma cortada. Vacio
+    #: significa «no hay otras», no «no se miraron»: quien tiene el informe las pasa.
+    others: tuple[PolyASignal, ...] = (),
 ) -> AmpliconPlan:
     """Propone las coordenadas de los dos amplicones. Solo coordenadas.
 
@@ -1696,12 +1755,33 @@ def rtqpcr_amplicons(
             f"la isoforma LARGA."
         ),
     )
+    # Que bandas de OTRAS señales atraviesa cada amplicon. Se calcula, no se supone.
+    def _cruza(amp) -> tuple:
+        return tuple(
+            otra for otra in others
+            if not (
+                amp.end < otra.end + CLEAVAGE_MIN
+                or otra.end + CLEAVAGE_MAX < amp.start
+            )
+        )
+
+    cruza_distal = _cruza(distal)
+    # El hueco entre esta banda y la SIGUIENTE que el distal cruza. Es la respuesta a la
+    # pregunta obvia —«¿y por que no lo mueves?»— y a veces la respuesta es que no cabe.
+    hueco = None
+    if cruza_distal:
+        siguiente = min(o.end + CLEAVAGE_MIN for o in cruza_distal)
+        hueco = (banda[1] + margin + 1, siguiente - margin - 1)
+
     return AmpliconPlan(
         signal=signal,
         proximal=proximal,
         distal=distal,
         cut_band=banda,
         utr_length=utr_length,
+        proximal_crosses=_cruza(proximal),
+        distal_crosses=cruza_distal,
+        gap_between=hueco,
         frame=frame,
     )
 

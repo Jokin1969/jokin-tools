@@ -278,6 +278,31 @@ def main(argv: list[str]) -> int:
     informe = analizar_alcance(project_root)
     print()
     print(informe.render())
+    # ── Datos de una especie que viven en el codigo ─────────────────────────────
+    #
+    # Misma razon para ponerlo aqui: un informe que hay que acordarse de pedir es un
+    # informe que nadie pide. Tampoco decide nada — la categoria la pone una persona en
+    # `data/datos_en_codigo.toml`, y el test es quien exige que no falte ninguna.
+    from auditar_datos import auditar as auditar_datos
+
+    datos = auditar_datos()
+    por_cat = datos["por_categoria"]
+    print()
+    print("  Datos de una especie que viven en el código:")
+    for categoria, titulo in (
+        ("dato", "DATO — deberían estar en un fichero del gestor"),
+        ("declaracion", "DECLARACIÓN — van en código a propósito"),
+        ("prosa", "PROSA — van pegadas a lo que explican"),
+    ):
+        print(f"    {len(por_cat.get(categoria, ())):3}  {titulo}")
+    for fila in por_cat.get("dato", ()):
+        print(f"         · {fila['simbolo']} → {fila['fichero']}")
+    if datos["sin_clasificar"]:
+        print(
+            f"\n  SIN CLASIFICAR: {', '.join(sorted(datos['sin_clasificar']))}",
+            file=sys.stderr,
+        )
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "

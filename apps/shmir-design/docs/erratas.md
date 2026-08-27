@@ -656,3 +656,88 @@ y sólo en esa clase: ponerla en todas la haría invisible.
 medidas —288 también es uno de los tres sitios anclados—, así que el caso «canónico,
 asumido» hay que buscarlo en el **humano**, donde la tabla no aplica por md5. La primera
 versión del test daba por hecho que 288 era el caso asumido, y no lo es.
+
+## 24 — El amplicón que el propio corte partía en dos
+
+**Encontrado por el responsable del proyecto (2026-08-27)**, al leer el cambio de
+coordenadas de la tanda anterior. Y es la primera vez que pasa esto en el proyecto, así
+que va con esas palabras:
+
+> **Un cambio de regla en el pipeline ha corregido un experimento de banco ANTES de
+> hacerlo.**
+
+**El fallo**: los amplicones de la RT-qPCR se habían diseñado contra el `AATAAA` de
+`3utr:288`, cuyo corte cae en `3utr:303-323`. Ése era el corte **más temprano** —hasta
+que la promoción por medida subió el `AATATA` de `3utr:236` a `APA_POSIBLE` y el corte
+más temprano pasó a `3utr:251-271`.
+
+Y ese tramo cae **entero dentro** del amplicón proximal viejo (`3utr:158-277`). No queda
+a caballo: queda **partido en dos por el propio suceso que se quería medir**. Un amplicón
+partido por un corte no da producto en la isoforma cortada, así que el proximal dejaría
+de medir «el total» y **la razón distal/proximal no mediría nada**.
+
+El distal viejo sí estaba bien colocado. Lo que invalida el par es el proximal.
+
+**Lo que se evita no es una plaza del panel**: es una tanda de RT-qPCR cuya razón no
+habría significado nada — y que habría parecido un resultado, porque saldría un número.
+
+### La segunda mitad, que va contra la propuesta nueva
+
+Al comprobar la corrección salió que la misma clase de fallo seguía viva en los
+amplicones que este proyecto acababa de emitir. `rtqpcr_amplicons` recibe **una** señal y
+coloca el distal justo detrás de **su** banda de corte: **no sabe que hay otra**.
+
+El distal nuevo (`3utr:282-401`) queda entero detrás de `251-271` —correcto para esa
+señal— y **atraviesa `303-323`**, la banda del `AATAAA` de 288. En la isoforma cortada
+ahí tampoco amplifica.
+
+**Y no se arregla moviéndolo**: entre las dos bandas, con 10 nt de holgura, quedan
+`3utr:282-292` — **11 nt** para un amplicón de 120. Es **geométricamente imposible**
+aislar el evento de 236 con esta arquitectura.
+
+**Eso NO invalida el experimento**, y decirlo bien importa: la pregunta del panel es el
+techo de sus seis candidatos con truncamiento, y los seis están detrás de **las dos**
+bandas — el tramo de 0,86. La razón mide exactamente eso. Lo que **no** puede es
+confirmar el **0,91 del tramo intermedio**, y quien lea el plan tiene que saberlo antes
+de pedir cebadores. Ahora lo emite el propio plan (`AmpliconPlan.distal_crosses`,
+`gap_between`), no una nota.
+
+### Y una frase de este registro que era falsa
+
+Aquí ponía que los amplicones iban «esquivando las dianas del panel». **Ni los nuevos ni
+los viejos lo consiguen**: el proximal solapa `3utr:143-164` y `3utr:200-221` (los viejos
+solapaban `143-164` y `221-242`). **El código sí lo decía** —lo marca con `⚠ solapa`— y
+era la prosa de este fichero la que no. Por eso se mide sobre **tejido sin tratar**.
+
+**La lección de método**: una función que diseña contra **una** señal en una secuencia
+que tiene **dos** no está incompleta — está **equivocada**, y su salida tiene la forma
+correcta. Es la familia del principio nº 7 aplicada a un diseño experimental.
+
+## 25 — En humano seguimos en modo asumido, y no se veía
+
+**No es un fallo de hoy: es una consecuencia del cambio de hoy que no era obvia.**
+
+Con el ratón, las **dos** señales `APA_POSIBLE` están **medidas** —el `AATATA` de
+`3utr:236` y el `AATAAA` de `3utr:288` son dos de los tres sitios anclados de PolyA_DB—.
+Así que el caso «canónico, asumido» que la etiqueta nueva sabe emitir **no existe en esta
+especie**.
+
+Sólo existe en el **humano**, y por una razón exacta: la tabla se aplica **por md5 del
+3'UTR**, así que sobre el humano devuelve `None` y sus dos `ATTAAA` (`3utr:955` y
+`3utr:1167`) se quedan clasificadas por canonicidad y **sin un solo dato de uso**.
+
+**Lo que eso significa cuando llegue el panel humano**: estaremos exactamente donde
+estaba el ratón antes de mirar PolyA_DB. Y allí el modo sin medida resultó ser el
+**equivocado** — al llegar la medida, una variante rara subió a `APA_POSIBLE`, tumbó a un
+candidato del panel por solape estérico y adelantó la frontera de la inmunidad 52 nt.
+
+**PolyA_DB v4 tiene entrada para PRNP en hg38** y quedó pendiente desde que se miró la
+murina. No es un fichero que haya que ir a buscar: es la misma consulta cambiando la
+especie en el selector. Ya está en la lista de ficheros que faltan y en la ficha de
+obtención, **que ahora dice qué se pierde mientras no esté** en vez de listarlo como un
+fichero más.
+
+**Y el gen sale de `reference.REFERENCES`, no de una regla de mayúsculas**: `Prnp` en
+ratón y `PRNP` en humano son dato declarado. En otro organismo el símbolo puede no seguir
+ninguna de las dos convenciones — el mismo criterio que impide deducir `ocu-` del nombre
+de la especie.
