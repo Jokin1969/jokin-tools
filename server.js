@@ -276,6 +276,16 @@ function runStartupMigrations() {
   } catch (e) {
     console.error('[batchwork] Library consolidation skipped:', e.message);
   }
+
+  // Galénica: catch up with the Código Nacional that were already in Asignación
+  // and Data Matrix before this feed existed (Asignación first — tiene más). One-way
+  // and best-effort, runs in the background — never blocks startup. From here on,
+  // new CNs feed in automatically as they're scanned/added (see apps/galenica/ingest.js).
+  try {
+    require('./apps/galenica/ingest').backfillAll();
+  } catch (e) {
+    console.error('[galenica] backfill skipped:', e.message);
+  }
 }
 
 // ─── Graceful shutdown ───────────────────────────────────────────────────────

@@ -253,6 +253,13 @@ function firstItemCnForGtin(gtin) {
   const r = db.prepare("SELECT cn FROM dm_items WHERE gtin = ? AND cn IS NOT NULL AND cn <> '' ORDER BY id LIMIT 1").get(gtin);
   return r ? r.cn : null;
 }
+// Todos los Código Nacional vistos alguna vez (cajas escaneadas + catálogo de
+// productos) — usado por el catch-up de arranque de Galénica (apps/galenica/ingest.js).
+function allCns() {
+  return db.prepare(
+    "SELECT cn FROM dm_items WHERE cn IS NOT NULL AND cn <> '' UNION SELECT cn FROM dm_products WHERE cn IS NOT NULL AND cn <> ''"
+  ).all().map(r => r.cn);
+}
 function listProducts() { return db.prepare('SELECT * FROM dm_products ORDER BY nombre COLLATE NOCASE, gtin').all(); }
 function upsertProduct(gtin, data) {
   const cur = getProduct(gtin) || {};
@@ -362,7 +369,7 @@ function cimaCacheCount() { return db.prepare('SELECT COUNT(*) n FROM cima_cache
 module.exports = {
   db, DEFAULT_SETTINGS,
   listItems, getItem, findByKey, createItem, createManyItems, setUsed, touchItem, setAssignee, availableItems, availableItemsByCn, recentItems, deleteItem, deleteMany, counts, autoArchive, unarchiveItem,
-  getProduct, listProducts, upsertProduct, importProducts, firstItemCnForGtin,
+  getProduct, listProducts, upsertProduct, importProducts, firstItemCnForGtin, allCns,
   getSettings, saveSettings,
   cartIds, cartAdd, cartRemove, cartClear,
   cimaCacheGet, cimaCachePut, cimaCacheFoto, cimaCacheCount,

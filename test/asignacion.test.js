@@ -11,6 +11,8 @@ process.env.QR_TIS_DB_PATH = path.join(dir, 'qr.db');
 process.env.DM_DB_PATH = path.join(dir, 'dm.db');
 process.env.ASIG_DB_PATH = path.join(dir, 'asig.db');
 process.env.DB_PATH = path.join(dir, 'auth.db');   // isolate the auth store too
+// routes.js feeds new CN into Galénica (apps/galenica/ingest.js) — isolate its DB too.
+process.env.GALENICA_DB_PATH = path.join(dir, 'galenica.db');
 
 const express = require('express');
 const qrDb = require('../apps/qr-tis/db');

@@ -6,6 +6,8 @@ const fs = require('fs');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dm-test-'));
 process.env.DM_DB_PATH = path.join(dir, 'datamatrix.db');
+// routes.js feeds new CN into Galénica (apps/galenica/ingest.js) — isolate its DB too.
+process.env.GALENICA_DB_PATH = path.join(dir, 'galenica.db');
 
 const gs1 = require('../apps/datamatrix/gs1');
 const visual = require('../apps/datamatrix/visual');
