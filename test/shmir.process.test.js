@@ -79,6 +79,30 @@ test('sin directorio de referencia declarado NO se inventa uno', () => {
   assert.ok(!('SHMIR_REFERENCE_DIR' in env), JSON.stringify(env.SHMIR_REFERENCE_DIR));
 });
 
+test('el entorno lleva TAMBIÉN el directorio de PROYECTOS', () => {
+  // Lo que se guarda ahí es el registro de lo que se decidió, y dentro de la imagen se
+  // pierde en el siguiente redespliegue. Si esta variable no viaja, la persistencia
+  // entera funciona en local y no sirve de nada en producción.
+  const env = proceso.buildEnv({ projectDir: '/data/shmir/proyectos' });
+  assert.equal(env.SHMIR_PROJECT_DIR, '/data/shmir/proyectos');
+});
+
+test('y sin declararlo tampoco se inventa uno', () => {
+  const env = proceso.buildEnv({ projectDir: '' });
+  assert.ok(!('SHMIR_PROJECT_DIR' in env), JSON.stringify(env.SHMIR_PROJECT_DIR));
+});
+
+test('los dos directorios son DISTINTOS: referencia se siembra, proyectos no', () => {
+  // La referencia se siembra desde lo versionado; los proyectos no tienen semilla
+  // ninguna. Mezclarlos en un solo directorio haría que la siembra tuviera que
+  // distinguir qué pisa y qué no, que es justo lo que la siembra no sabe hacer.
+  const env = proceso.buildEnv({
+    referenceDir: '/data/shmir/reference',
+    projectDir: '/data/shmir/proyectos',
+  });
+  assert.notEqual(env.SHMIR_REFERENCE_DIR, env.SHMIR_PROJECT_DIR);
+});
+
 test('el estado arranca en «parado» y no se ha lanzado nada', () => {
   const s = proceso.status();
   assert.equal(s.running, false);

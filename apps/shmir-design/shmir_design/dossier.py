@@ -36,9 +36,17 @@ class FrontVerdict:
     source: str
     date: str
 
-    def describe(self) -> str:
+    def describe(self, width: int = 24) -> str:
+        """`width` lo fija quien imprime la tabla, no esta fila.
+
+        Los nombres de frente crecieron al partirse por hebra y por intron
+        (`empalme_sitios:quimerico_cmv_globina` son 36 caracteres). Con un ancho fijo,
+        los nombres largos se comen la columna de al lado y el estado deja de leerse en
+        vertical — que es justo para lo que sirve la tabla: ver de un vistazo cuantos
+        `NOT_RUN` quedan.
+        """
         return (
-            f"{self.name:<24} {self.state.value:<9} {self.date:<12} {self.source}"
+            f"{self.name:<{width}} {self.state.value:<9} {self.date:<12} {self.source}"
         )
 
 
@@ -84,6 +92,10 @@ class Dossier:
     self_sites: tuple = ()
 
     def render(self) -> str:
+        # El ancho de la columna sale del nombre mas largo QUE HAY, no de un numero
+        # escrito a mano: cada frente que se parte (por hebra, por intron) alarga los
+        # nombres, y un ancho fijo se queda corto sin que nadie lo note.
+        ancho = max([len("frente")] + [len(f.name) for f in self.fronts])
         lineas = [
             f"═══ Ficha del candidato — {self.species} 3utr:{self.start} ═══",
             "",
@@ -93,9 +105,9 @@ class Dossier:
             f"  veredicto  {self.verdict}",
             "",
             f"── Frentes ({len(self.fronts)}) ──",
-            f"  {'frente':<24} {'estado':<9} {'fecha':<12} procedencia",
+            f"  {'frente':<{ancho}} {'estado':<9} {'fecha':<12} procedencia",
         ]
-        lineas.extend(f"  {f.describe()}" for f in self.fronts)
+        lineas.extend(f"  {f.describe(ancho)}" for f in self.fronts)
         lineas.extend(
             [
                 "",
@@ -197,7 +209,7 @@ def _hexamers_near(tiling, start: int, end: int, *, offset: int, window: int = 6
 
 def build_dossier(
     *, species: str, tiling, selection, start: int, store=None, seed_store=None,
-    offtarget_store=None, target: str | None = None,
+    offtarget_store=None, splice_store=None, target: str | None = None,
 ) -> Dossier:
     """Reune la ficha de UN candidato. Aborta si ese sitio no esta en el panel."""
     from .blocks import build_block
@@ -288,6 +300,27 @@ def build_dossier(
             else "sin corrida en el almacen"
         )
         fecha_de[nombre] = corrida.date if corrida else SIN_FECHA
+
+    # El CUARTO modal. Su veredicto va por PAR candidato x intron, asi que la ficha saca
+    # una fila por intron consultado — colapsarlo por candidato perderia justo lo que se
+    # quiere comparar: el mismo modulo dentro de dos intrones distintos.
+    from .introns import INTRONS
+    from .splice_store import SpliceStore
+
+    empalmes = splice_store or SpliceStore()
+    estados.pop("empalme_sitios", None)
+    procedencia_de.pop("empalme_sitios", None)
+    fecha_de.pop("empalme_sitios", None)
+    ultima = empalmes.latest
+    for intron in INTRONS:
+        nombre = f"empalme_sitios:{intron}"
+        resultado_intron = empalmes.verdict_for(start, intron)
+        estados[nombre] = (resultado_intron.state, resultado_intron.reason)
+        procedencia_de[nombre] = (
+            f"corrida {ultima.run_id} ({ultima.executor})" if ultima is not None
+            else "sin corrida en el almacen"
+        )
+        fecha_de[nombre] = ultima.date if ultima is not None else SIN_FECHA
 
     frentes = tuple(
         FrontVerdict(

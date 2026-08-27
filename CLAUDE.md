@@ -120,6 +120,16 @@ Lo que hay que saber para tocarlo:
   vuelve a pisar** — ni los ficheros ni el `manifest.tsv`, que es el que lleva los md5 de
   lo subido. Sin la variable, todo apunta al directorio del paquete y en local no cambia
   nada.
+- **Los PROYECTOS también viven en el volumen y en OTRO directorio**
+  (`SHMIR_PROJECT_DIR`, por defecto `/data/shmir/proyectos` en producción). Ahí va el
+  registro append-only de lo que se decidió —corridas, selecciones, veredictos— y el
+  motivo pesa más que en la referencia: un veredicto tiene que sobrevivir **a la app que
+  lo escribió**. Va aparte de la referencia porque la referencia **se siembra** desde lo
+  versionado y los proyectos no tienen semilla ninguna: en un solo directorio, la siembra
+  tendría que distinguir qué pisa y qué no, que es justo lo que no sabe hacer. Si la
+  variable no llega al proceso hijo, la persistencia funciona entera en local y en
+  producción se pierde en el siguiente redespliegue, sin ningún síntoma hasta que alguien
+  busca lo que guardó ayer.
 - **Streamlit se instala en el build** (`nixpacks.toml`) y se arranca como
   `python3 -m streamlit`, no por el ejecutable de la consola: `pip install --target` lo
   deja en un `bin` que no está en el PATH. La comprobación de importación va en el build

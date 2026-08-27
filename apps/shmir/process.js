@@ -69,7 +69,7 @@ function buildArgs({ port = PORT, basePath = BASE_PATH } = {}) {
   ];
 }
 
-function buildEnv({ referenceDir = '', base = process.env } = {}) {
+function buildEnv({ referenceDir = '', projectDir = '', base = process.env } = {}) {
   const env = { ...base };
   const libs = [];
   if (fs.existsSync(PYTHON_LIBS)) libs.push(PYTHON_LIBS);
@@ -83,6 +83,18 @@ function buildEnv({ referenceDir = '', base = process.env } = {}) {
     env.SHMIR_REFERENCE_DIR = String(referenceDir).trim();
   } else {
     delete env.SHMIR_REFERENCE_DIR;
+  }
+  // Y lo mismo para los PROYECTOS, que es donde vive el registro de lo que se decidió.
+  // Va en su propia variable y en su propio directorio: la referencia se SIEMBRA desde
+  // lo versionado y los proyectos no tienen semilla ninguna, así que mezclarlos
+  // obligaría a la siembra a distinguir qué pisa y qué no. Si esta variable no viaja, la
+  // persistencia funciona en local y en producción se pierde en el siguiente
+  // redespliegue — con el mismo síntoma de siempre: nada, hasta que alguien busca lo que
+  // guardó ayer.
+  if (String(projectDir).trim()) {
+    env.SHMIR_PROJECT_DIR = String(projectDir).trim();
+  } else {
+    delete env.SHMIR_PROJECT_DIR;
   }
   return env;
 }
@@ -194,10 +206,10 @@ async function waitUntilReady({ port = PORT, timeoutMs = READY_TIMEOUT_MS } = {}
   return false;
 }
 
-function spawnChild({ referenceDir }) {
+function spawnChild({ referenceDir, projectDir }) {
   const proc = spawn(PYTHON_BIN, buildArgs(), {
     cwd: SHMIR_ROOT,
-    env: buildEnv({ referenceDir }),
+    env: buildEnv({ referenceDir, projectDir }),
   });
   proc.stdout.on('data', d => { lastOutput += d.toString(); });
   proc.stderr.on('data', d => {
@@ -220,7 +232,7 @@ function spawnChild({ referenceDir }) {
 
 // Arranca si hace falta y espera a que conteste. Concurrente-seguro: varias peticiones
 // a la vez comparten el mismo arranque en vez de lanzar tres procesos.
-async function ensureRunning({ referenceDir = '' } = {}) {
+async function ensureRunning({ referenceDir = '', projectDir = '' } = {}) {
   if (child && child.exitCode === null && await probe()) {
     return { ok: true, alreadyRunning: true };
   }
@@ -240,7 +252,7 @@ async function ensureRunning({ referenceDir = '' } = {}) {
     }
     lastOutput = '';
     try {
-      child = spawnChild({ referenceDir });
+      child = spawnChild({ referenceDir, projectDir });
     } catch (err) {
       restarts += 1;
       _recordFailure(err.message);
