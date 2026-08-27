@@ -48,6 +48,18 @@ borra del volumen lo que ya no esté en el repo—, no una siembra de una sola v
 Servida en `GET /pastillero/assets/pill/<CN>.png`, compartida tal cual por
 Pastillero, Data Matrix, Asignación y Galénica.
 
+`apps/galenica/ingest.js` alimenta el catálogo de Galénica con los Código Nacional
+que van entrando por Data Matrix y Asignación — DE UN SOLO SENTIDO: esas dos apps
+llaman a `ingestCn(cn)` justo tras crear el registro (caja escaneada, medicamento
+añadido a un plan…) y no esperan ni necesitan respuesta; Galénica nunca escribe en
+sus bases de datos. Es best-effort y no bloqueante (nunca hace fallar la petición que
+lo dispara), y sólo actúa si el CN es NUEVO para Galénica — uno ya existente no se
+vuelve a tocar, ni con datos de CIMA más frescos, para no pisar una ficha ya editada
+a mano (sobre todo el color, que Galénica siempre lleva manual). Al arrancar,
+`backfillAll()` (llamado desde `runStartupMigrations` en `server.js`, en segundo
+plano) hace el mismo catch-up con lo que ya hubiera en esas dos apps antes de que
+este feed existiera — Asignación primero, que tiene más.
+
 ## `apps/shmir-design/` tiene reglas propias y vinculantes
 
 Antes de tocar cualquier cosa bajo `apps/shmir-design/`, lee entero

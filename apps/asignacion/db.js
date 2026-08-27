@@ -281,6 +281,11 @@ function listPlan(personId) {
 function distinctCnCount() {
   return db.prepare("SELECT COUNT(DISTINCT cn) n FROM asig_plan WHERE active = 1 AND cn IS NOT NULL AND cn <> ''").get().n;
 }
+// Todos los Código Nacional que han pasado alguna vez por el plan de alguien (activos
+// o no) — usado por el catch-up de arranque de Galénica (apps/galenica/ingest.js).
+function allCns() {
+  return db.prepare("SELECT DISTINCT cn FROM asig_plan WHERE cn IS NOT NULL AND cn <> ''").all().map(r => r.cn);
+}
 // Active plan medications across ALL people that match a Código Nacional or a GTIN
 // — used to find who could use a given Data Matrix box (the "conexión del CN").
 function plansByCnOrGtin(cn, gtin) {
@@ -860,7 +865,7 @@ function saveSettings(data, userId) {
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listPlan, plansByCnOrGtin, distinctCnCount, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, clearPlanGtin, deletePlanLine, planPersonIds,
+  listPlan, plansByCnOrGtin, distinctCnCount, allCns, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, clearPlanGtin, deletePlanLine, planPersonIds,
   SLOTS, setDoseSchedule, getDoseScheduleForDate, getDoseHistory,
   createEmptyPlan, personsWithPlanSet,
   setPlanRelease, setPlanAdvance, plansForRelease, planForItem, findPendingLineForMed,

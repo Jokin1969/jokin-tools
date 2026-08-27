@@ -14,6 +14,7 @@ const gs1 = require('./gs1');
 const visual = require('./visual');
 const cima = require('./cima');
 const cimaCache = require('./cima-cache');
+const galenicaIngest = require('../galenica/ingest');
 const { handleHelpPdf } = require('../../lib/help-pdf');
 
 const router = express.Router();
@@ -112,6 +113,7 @@ router.post('/api/scan', json, async (req, res) => {
     if (existing) return res.json({ duplicate: true, status: existing.status, item: publicItem(existing) });
     const item = db.createItem(data, req.user.id);
     await nameProductFromCima(data.gtin, data.cn);   // identify the medication via CIMA
+    galenicaIngest.ingestCn(data.cn);   // feed a nuevo CN hacia Galénica (fire-and-forget)
     res.status(201).json({ item: publicItem(db.findByKey(data.box_key) || item) });
   } catch (err) { fail(res, err); }
 });
@@ -273,6 +275,7 @@ router.post('/api/products/import', jsonBig, (req, res) => {
       })
       .filter(r => r.gtin);
     const n = db.importProducts(clean);
+    clean.forEach(r => galenicaIngest.ingestCn(r.cn));   // feed hacia Galénica (fire-and-forget)
     res.json({ imported: n, total: rows.length, skipped: rows.length - clean.length });
   } catch (err) { fail(res, err); }
 });
@@ -309,6 +312,7 @@ router.post('/api/import', jsonBig, async (req, res) => {
       const after = db.getProduct(d.gtin);
       if (after && after.nombre && (!before || !before.nombre)) named++;
     }
+    valid.forEach(d => galenicaIngest.ingestCn(d.cn));   // feed hacia Galénica (fire-and-forget)
     res.json({ created: created.length, named, errors, total: rows.length });
   } catch (err) { fail(res, err); }
 });

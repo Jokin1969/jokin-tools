@@ -19,6 +19,7 @@ const release = require('./release');
 const email = require('./email');
 const cima = require('../datamatrix/cima');
 const cimaCache = require('../datamatrix/cima-cache');
+const galenicaIngest = require('../galenica/ingest');
 const authStore = require('../auth/store');
 const { canAccess } = require('../auth/apps-registry');
 const { handleHelpPdf } = require('../../lib/help-pdf');
@@ -265,6 +266,7 @@ router.post('/api/plan/import', jsonBig, async (req, res) => {
         } catch (e) { errors.push({ line: row.line, code: row.code, cn, error: e.message }); }
       }
     }
+    cnList.forEach(cn => galenicaIngest.ingestCn(cn));   // feed hacia Galénica (fire-and-forget)
     // For people who got a medication with an unrecognised CN, leave a post-it note
     // (the same one shown by «Añadir nota»), without clobbering an existing note.
     let noted = 0;
@@ -392,6 +394,7 @@ router.post('/api/person/:id(\\d+)/plan', json, (req, res) => {
     } else {
       throw bad('Indica el GTIN o el Código Nacional del medicamento.');
     }
+    galenicaIngest.ingestCn(cn);   // feed hacia Galénica (fire-and-forget)
     res.json({ plan: planView(p.id) });
   } catch (err) { fail(res, err); }
 });
@@ -414,6 +417,7 @@ router.patch('/api/plan/:id(\\d+)', json, (req, res) => {
         edit.cn = cn; edit.barcode = barcode;
       }
       db.editPlanMed(line.id, edit);
+      if (edit.cn) galenicaIngest.ingestCn(edit.cn);   // feed hacia Galénica (fire-and-forget)
     }
     res.json({ plan: planView(line.person_id) });
   } catch (err) { fail(res, err); }
@@ -607,6 +611,7 @@ router.post('/api/person/:id(\\d+)/preassign', json, async (req, res) => {
       if (!item) {
         item = dmDb.createItem(data, req.user.id);
         if (data.gtin && !dmDb.getProduct(data.gtin)) dmDb.upsertProduct(data.gtin, {});
+        galenicaIngest.ingestCn(data.cn);   // feed hacia Galénica (fire-and-forget)
       }
     }
     // Enrich from CIMA (name + box/pill images) so a scanned box never associates
