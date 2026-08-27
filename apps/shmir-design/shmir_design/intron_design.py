@@ -322,3 +322,133 @@ def spacer_rejections(sequence: str) -> tuple[str, ...]:
 
 def is_acceptable(sequence: str) -> bool:
     return not spacer_rejections(sequence)
+
+# ─────────────────── la variante entera: las dos decisiones ───────────────────
+
+
+@dataclass(frozen=True)
+class IntronVariant:
+    """`mvm_sin_criptico`: la PROPUESTA, con las dos decisiones y sus dos estados.
+
+    NO es una construccion aprobada. Pasa por el mismo modal que las demas antes de ir a
+    sintesis, y sale marcada como propuesta en todo lo que emite.
+    """
+
+    state: FilterState
+    break_choice: "BreakChoice | None" = None
+    spacer_search: object | None = None
+    scaffold: object | None = None
+    reason: str = ""
+
+    def describe_text(self) -> str:
+        lineas = ["Variante «mvm_sin_criptico» — PROPUESTA, no una construcción aprobada"]
+        if self.reason:
+            lineas.append(f"  {self.reason}")
+        if self.break_choice is not None:
+            lineas.append("")
+            lineas.append("  1) Romper el donante críptico GTGAGCG")
+            if self.break_choice.chosen is not None:
+                elegido = self.break_choice.chosen
+                lineas.append(
+                    f"     ELEGIDA: {elegido.replacement} en la posición "
+                    f"{elegido.position} del flanco 5'"
+                )
+            elif self.break_choice.tied:
+                lineas.append(
+                    f"     EMPATAN {len(self.break_choice.tied)} alternativas y NO se "
+                    f"elige por nuestra cuenta: "
+                    + ", ".join(
+                        f"{c.replacement} en {c.position} → {c.motif}"
+                        for c in self.break_choice.tied
+                    )
+                )
+                lineas.append(
+                    "     Las dos bajan el donante igual y las dos conservan el "
+                    "plegado. La decisión es de quien firma la construcción."
+                )
+            else:
+                lineas.append(f"     SIN alternativa. {self.break_choice.reason}")
+        if self.spacer_search is not None:
+            lineas.append("")
+            lineas.append(
+                f"  2) Espaciadores por PLEGADO, longitudes FIJAS. {WHY_FIXED_LENGTHS}"
+            )
+            lineas.append(f"     {self.spacer_search.format_text()}")
+        return "\n".join(lineas)
+
+
+def design_variant(
+    *, guide: str, scaffold, available: bool | None = None
+) -> IntronVariant:
+    """Diseña `mvm_sin_criptico` con las DOS decisiones. Ver `IntronVariant`.
+
+    Necesita el 97-mero del candidato —de ahi la `guide`— porque las dos decisiones son
+    ESTRUCTURALES y la estructura depende de la guia: no hay una variante «del proyecto»,
+    hay una por candidato.
+    """
+    if not str(guide).strip():
+        raise ShmirDesignError(
+            "Sin guía no hay 97-mero, y sin 97-mero las dos decisiones de la variante "
+            "son estructurales sobre nada. Se aborta en vez de proponer un intrón "
+            "derivado de un plegado que no existe."
+        )
+
+    from .blocks import PIECES  # noqa: PLC0415
+    from .folding import VIENNA_AVAILABLE, dot_bracket  # noqa: PLC0415
+    from .scaffold import build_hairpin  # noqa: PLC0415
+    from .spacers import choose_spacers  # noqa: PLC0415
+
+    usable = VIENNA_AVAILABLE if available is None else available
+    if not usable:
+        return IntronVariant(
+            state=FilterState.NOT_RUN,
+            reason=(
+                "Sin ViennaRNA NO se diseña nada: las dos decisiones son estructurales y "
+                "tomarlas sin plegar sería inventarse la variante. NOT_RUN no es PASS."
+            ),
+        )
+
+    corte = choose_break(scaffold, guide=guide, motif=CRYPTIC_DONOR, available=usable)
+    if corte.chosen is None:
+        return IntronVariant(
+            state=FilterState.NOT_RUN,
+            break_choice=corte,
+            reason=(
+                "El primer paso no quedó resuelto, así que no se pasa al segundo: unos "
+                "espaciadores elegidos sobre un andamio que aún no está decidido no "
+                "valen para el andamio que salga."
+            ),
+        )
+
+    derivado = replace(scaffold, flank5=corte.chosen.flank5, verified=False)
+    horquilla = build_hairpin(guide, scaffold=derivado)
+    estructura_sola, _ = dot_bracket(horquilla.sequence)
+
+    def montar(espaciador5: str, espaciador3: str) -> str:
+        modulo = (
+            PIECES["NheI"].sequence + PIECES["contexto5"].sequence
+            + horquilla.sequence
+            + PIECES["contexto3"].sequence + PIECES["SacI"].sequence
+        )
+        return (
+            PIECES["MVM5"].sequence + espaciador5 + modulo + espaciador3
+            + PIECES["MVM3"].sequence
+        )
+
+    busqueda = choose_spacers(
+        hairpin=horquilla.sequence,
+        structure_alone=estructura_sola,
+        assemble=montar,
+    )
+    resuelta = busqueda.choice is not None
+    return IntronVariant(
+        state=FilterState.PASS if resuelta else FilterState.NOT_RUN,
+        break_choice=corte,
+        spacer_search=busqueda,
+        scaffold=derivado,
+        reason=(
+            "" if resuelta
+            else "El corte está decidido y los espaciadores NO: la variante queda a medias "
+                 "y no se propone entera."
+        ),
+    )

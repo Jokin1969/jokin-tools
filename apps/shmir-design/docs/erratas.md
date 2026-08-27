@@ -340,3 +340,36 @@ análisis está completo. Las tres instancias:
 `spacer_rejections` **aborta** si lo que recibe no es un espaciador, y la lista se llama
 por su alcance. Para la cuenta, la única defensa real es la que ya funcionó aquí: **al
 retirar algo, mirar qué números se mueven y comprobar que se mueven los que deben.**
+
+---
+
+## 12 — La comprobación a la que le faltaba una pieza
+
+**El fallo**: `intron_folding` medía la accesibilidad de **donante, punto de ramificación
+y ACEPTOR**. El **tracto de polipirimidinas no estaba**.
+
+Los tres elementos frágiles son **donante, punto y TRACTO**; el aceptor es la frontera,
+no lo que el espliceosoma lee para decidir. Así que cuando se pidió como criterio de
+aceptación de los espaciadores «que los tres sigan desapareados», ese criterio **no se
+podía evaluar** — y lo que había medido hasta entonces era otra cosa, con tres números,
+con nombres correctos y con toda la pinta de estar completa.
+
+**Nadie lo vio porque nadie había enumerado las piezas.** El test se llamaba
+`test_corre_y_da_los_TRES_elementos` y pasaba: comprobaba que salieran tres, y salían
+tres. Comprobaba la cantidad, no la identidad. Una comprobación compuesta parece completa
+cuando sus componentes no están declarados en ningún sitio, porque no hay contra qué
+contrastarla.
+
+**Misma familia que el `.out` sin `.tbl`**: allí un frente parecía cerrado con un fichero
+de dos porque nadie había listado los dos. Aquí una medida parecía completa con tres de
+cuatro por la misma razón.
+
+**Corolario**: **toda comprobación compuesta declara sus componentes en UN SOLO SITIO, y
+lleva un test de que los evalúa todos.** No basta con contar cuántos salen — hay que
+comprobar cuáles. La declaración es lo que convierte «faltó una pieza» en un fallo de
+test en vez de en un descubrimiento a los meses.
+
+**Contramedida aplicada**: `intron_folding.ELEMENTS` es la declaración, ahora con los
+cuatro, y el test contrasta contra ella por identidad y no por cantidad. `barrido.FRAGILE`
+declara aparte cuáles de esos cuatro son los frágiles, que es una pregunta distinta y por
+eso es otra lista.

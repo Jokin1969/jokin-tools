@@ -156,6 +156,28 @@ THRESHOLDS: tuple[ThresholdSource, ...] = (
 #: Umbrales que no viven en `Thresholds` pero se imprimen igual. Misma disciplina.
 OTHER_THRESHOLDS: tuple[ThresholdSource, ...] = (
     ThresholdSource(
+        key="spacer_lengths",
+        label="longitud de los espaciadores del intrón (5' y 3')",
+        value="20 nt en 5' y 45 nt en 3'",
+        origin="convencion",
+        rationale=(
+            "son los que lleva la construcción de hoy, y se FIJAN a propósito: con "
+            "espaciador constante e intrón variable, los tres intrones son comparables. "
+            "Si cada uno llevara su longitud «óptima», la matriz dejaría de ser "
+            "interpretable"
+        ),
+        no_measured_basis=(
+            "NO HAY NÚMERO QUE JUSTIFICAR, y no por no haberlo buscado: el barrido se "
+            "hizo (`tools/barrer_espaciadores.py`, 0-45 nt en los dos lados, con "
+            "réplicas) y NO DISCRIMINÓ. En ningún elemento el recorrido entre longitudes "
+            "supera la dispersión entre secuencias de la MISMA longitud: lo que mueve la "
+            "accesibilidad es la secuencia del espaciador, no su longitud. Optimizar por "
+            "un criterio que no discrimina es elegir ruido, y elegir el ruido favorable "
+            "es peor que no elegir. Misma categoría que el flanco de ±10 nt: nuestro, "
+            "sin base medida"
+        ),
+    ),
+    ThresholdSource(
         key="cleavage_band",
         label="banda de corte por detrás del hexámero",
         value="10-30 nt aguas abajo",

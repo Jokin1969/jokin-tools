@@ -53,9 +53,22 @@ class TestElPlegadoDeVerdad(unittest.TestCase):
         # son donante, punto y tracto; el aceptor es la frontera. Sin el tracto no se
         # podía evaluar el criterio de aceptación de los espaciadores.
         self.assertIs(self.resultado.state, FilterState.PASS)
+        # Por IDENTIDAD, no por cantidad. La version anterior comprobaba que salieran
+        # TRES —y salian tres— mientras faltaba el tracto: contar no es comprobar. Ver
+        # la errata nº 12.
         self.assertEqual(
             set(self.resultado.unpaired), set(intron_folding.ELEMENTS)
         )
+        self.assertIn("tracto_polipirimidinas", self.resultado.unpaired)
+        self.assertEqual(len(intron_folding.ELEMENTS), 4)
+
+    def test_y_los_TRES_FRAGILES_estan_entre_ellos(self):
+        # `barrido.FRAGILE` es OTRA lista y otra pregunta: cuales de los cuatro son los
+        # que el criterio de aceptacion de los espaciadores mira. El aceptor no esta.
+        from shmir_design.barrido import FRAGILE
+
+        self.assertTrue(set(FRAGILE) <= set(intron_folding.ELEMENTS))
+        self.assertNotIn("aceptor", FRAGILE)
 
     def test_cada_uno_es_una_FRACCION_entre_cero_y_uno(self):
         for nombre, valor in self.resultado.unpaired.items():

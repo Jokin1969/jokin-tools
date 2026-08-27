@@ -59,6 +59,40 @@ from .hard_filters import longest_homopolymer as _longest_homopolymer
 SPACER5_LENGTH = 20
 SPACER3_LENGTH = 45
 
+#: POR QUE LAS LONGITUDES ESTAN FIJAS Y NO SE EXPLORAN (2026-08-27). Tres razones, y la
+#: primera es la que sale de medir:
+#:
+#: 1. LA ACCESIBILIDAD NO VE LA LONGITUD. El barrido esta hecho
+#:    (`tools/barrer_espaciadores.py`, 0-45 en los dos lados, con replicas) y NO
+#:    DISCRIMINO: en ningun elemento el recorrido entre longitudes supera la dispersion
+#:    entre secuencias de la MISMA longitud. Optimizar por un criterio que no discrimina
+#:    es elegir RUIDO, y elegir el ruido favorable es peor que no elegir.
+#: 2. DISEÑO EXPERIMENTAL. Si cada intron lleva su longitud «optima», los tres dejan de
+#:    ser comparables. Espaciador CONSTANTE, intron VARIABLE: eso es lo que hace la
+#:    matriz interpretable.
+#: 3. 20/45 no tiene respaldo, pero cambiarlo por otro numero igual de arbitrario no
+#:    compra nada.
+#:
+#: LO QUE SI SE ELIGE es la SECUENCIA, que es donde la accesibilidad si discrimina.
+#:
+#: Y LA PALANCA, para cuando haya que atacar donante→punto: NO son los espaciadores. Es
+#: el MODULO — 149 de los 214 nt intercalados, contra 65 de los dos espaciadores juntos.
+#: Recortar espaciadores entero no llega ni a un tercio de lo que sobra.
+WHY_FIXED_LENGTHS = (
+    "Las longitudes 20/45 están FIJAS y no se exploran. El barrido se hizo y no "
+    "discriminó: lo que mueve la accesibilidad es la secuencia, no la longitud, así que "
+    "optimizar la longitud sería elegir ruido. Y con espaciador constante e intrón "
+    "variable los tres intrones son comparables, que es lo que hace la matriz "
+    "interpretable. La palanca de donante→punto no son los espaciadores: es el módulo, "
+    "149 de los 214 nt intercalados frente a los 65 de los dos espaciadores juntos."
+)
+
+WHY_THE_COUNT_IS_EMITTED = (
+    "La búsqueda dice sobre cuántos candidatos válidos descansa su elección. Si sólo uno "
+    "conserva la estructura, «el mejor» es el único, y un caso no distingue que funcione "
+    "de que acierte por suerte. Es la errata nº 10 aplicada a la elección de secuencia."
+)
+
 STANDARD_5 = PIECES["espaciador5"].sequence
 STANDARD_3 = PIECES["espaciador3"].sequence
 
@@ -217,11 +251,32 @@ class SpacerSearch:
     #: Cuantos candidatos descarto el filtro duro ANTES de plegarlos.
     rejected: int
     note: str
+    #: Cuantos pares CONSERVARON la estructura. Cero si ganaron los estandar: ahi no se
+    #: busco nada, y confundir «no hizo falta buscar» con «apenas se encontro» seria
+    #: emitir un aviso donde no hay nada que avisar.
+    valid_count: int = 0
+
+    @property
+    def single_candidate(self) -> bool:
+        """¿La eleccion descansa en UN SOLO candidato valido?"""
+        return self.valid_count == 1
+
+    @property
+    def thinness_warning(self) -> str:
+        """El aviso, o cadena vacia. Ver `WHY_THE_COUNT_IS_EMITTED`."""
+        if not self.single_candidate:
+            return ""
+        return (
+            f"⚠ La elección descansa en UN solo candidato válido de {self.evaluated} "
+            f"plegado(s): con uno no se distingue «esto funciona» de «esto acierta por "
+            f"suerte». Sube el presupuesto o cambia de candidato antes de fiarte."
+        )
 
     def format_text(self) -> str:
+        aviso = f"\n  {self.thinness_warning}" if self.thinness_warning else ""
         if self.choice is None:
-            return f"Espaciadores — NO HAY\n  {self.note}"
-        return self.choice.format_text() + f"\n  {self.note}"
+            return f"Espaciadores — NO HAY\n  {self.note}{aviso}"
+        return self.choice.format_text() + f"\n  {self.note}{aviso}"
 
 
 def _random_spacer(rng: random.Random, length: int) -> str:
@@ -366,6 +421,7 @@ def choose_spacers(
         choice=mejor,
         evaluated=evaluados,
         rejected=descartados,
+        valid_count=len(validos),
         note=(
             f"Los estándar NO conservan la estructura con esta guía. De "
             f"{evaluados} candidato(s) plegados, {len(validos)} la conservan; se ha "

@@ -2020,6 +2020,31 @@ def splice_warning_rows():
     return warning_blocks()
 
 
+def variant_proposal_text(guide: str, *, available=None) -> str:
+    """La propuesta de `mvm_sin_criptico` para ESTA guía, o por qué no la hay.
+
+    Va en el modal de empalme, junto a la lista de intrones, porque es donde se decide
+    con qué intrón se consulta: un intrón que la app propone y que nadie ve es un intrón
+    que no existe. Las dos decisiones son estructurales, así que hay una propuesta POR
+    CANDIDATO y no una «del proyecto».
+    """
+    from .intron_design import design_variant  # noqa: PLC0415
+    from .scaffold import SGEP_SCAFFOLD  # noqa: PLC0415
+
+    if not str(guide).strip():
+        return (
+            "Sin guía no hay 97-mero y las dos decisiones de la variante son "
+            "estructurales: no se propone nada."
+        )
+    try:
+        return design_variant(
+            guide=guide, scaffold=SGEP_SCAFFOLD, available=available
+        ).describe_text()
+    except ShmirDesignError as exc:
+        # rule2-ok: frontera de presentacion. El motivo entero se enseña.
+        return f"NO se pudo diseñar la variante — {exc}"
+
+
 def splice_intron_rows(names=None):
     """Estado de cada intron del registro. Los que faltan salen VISIBLES."""
     from .introns import INTRONS

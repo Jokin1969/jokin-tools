@@ -993,9 +993,12 @@ INTRONS: dict[str, Intron] = {
         derived=True,
         derived_from="mvm_actual",
         why_missing=(
-            "Todavia no se ha diseñado en esta corrida. Se genera con "
+            "Todavía no se ha diseñado en esta corrida. Se genera con "
             "`intron_design.design_variant()`, que necesita el 97-mero del candidato "
-            "para poder aplicar el criterio estructural."
+            "para poder aplicar el criterio estructural: las dos decisiones son "
+            "estructurales, así que no hay una variante «del proyecto» sino una POR "
+            "CANDIDATO. Con la guía de referencia, el primer paso EMPATA entre dos "
+            "alternativas y la app no elige: hace falta una decisión."
         ),
         ficha="intron_sin_criptico",
     ),
