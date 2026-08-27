@@ -127,14 +127,14 @@ class TestFronteras(unittest.TestCase):
         anatomia = resolve_anatomy(name="sonda", sequence=SONDA, cds=(44, 145))
         with self.assertRaises(ShmirDesignError) as caja:
             check_boundaries(SONDA, anatomia)
-        self.assertIn("codon de parada", str(caja.exception))
+        self.assertIn("codón de parada", str(caja.exception))
 
     def test_se_puede_permitir_a_proposito(self):
         from shmir_design.resolve import check_boundaries
 
         anatomia = resolve_anatomy(name="sonda", sequence=SONDA, cds=(44, 145))
         avisos = check_boundaries(SONDA, anatomia, allow_no_stop=True)
-        self.assertTrue(any("codon de parada" in a for a in avisos))
+        self.assertTrue(any("codón de parada" in a for a in avisos))
 
     def test_un_cds_correcto_no_aborta(self):
         from shmir_design.resolve import check_boundaries

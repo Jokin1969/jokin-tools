@@ -57,7 +57,7 @@ def declare_utr3_length(length: int, *, species: str) -> None:
     if not isinstance(length, int) or isinstance(length, bool) or length < 1:
         raise ValueError(
             f"Longitud de 3'UTR {length!r} invalida: se aborta en vez de subir el techo "
-            f"con un numero que no lo es."
+            f"con un número que no lo es."
         )
     if not str(species).strip():
         raise ValueError(
@@ -95,18 +95,18 @@ def check_utr3_range(value: int, limit: int | None = None) -> None:
     techo = max_utr3()
     if value > techo:
         raise ValueError(
-            f"3utr:{value} no cabe en ningun 3'UTR conocido del proyecto: el mas largo "
+            f"3utr:{value} no cabe en ningún 3'UTR conocido del proyecto: el más largo "
             f"mide {techo} nt. Si estas con otra especie, declaralo con "
             f"`coords.declare_utr3_length(n, species=...)`. Si no, casi seguro es una "
-            f"coordenada del TRANSCRITO etiquetada como 3'UTR (seria tx:{value}); el "
-            f"marco se saca de la anatomia con "
+            f"coordenada del TRANSCRITO etiquetada como 3'UTR (sería tx:{value}); el "
+            f"marco se saca de la anatomía con "
             f"coords.frame_of(), no se pone a mano. Se aborta en vez de imprimir una "
-            f"posicion que no existe."
+            f"posición que no existe."
         )
     if limit is not None and value > limit:
         raise ValueError(
-            f"3utr:{value} se sale del 3'UTR que se esta analizando, que mide {limit} "
-            f"nt. Se aborta: o el marco es otro (seria tx:{value}) o la conversion tiene "
+            f"3utr:{value} se sale del 3'UTR que se está analizando, que mide {limit} "
+            f"nt. Se aborta: o el marco es otro (sería tx:{value}) o la conversión tiene "
             f"un desfase."
         )
 
@@ -138,20 +138,20 @@ class Position:
     def __post_init__(self) -> None:
         if not isinstance(self.value, int) or isinstance(self.value, bool):
             raise TypeError(
-                f"Una posicion es un entero 1-based, no {type(self.value).__name__}; "
+                f"Una posición es un entero 1-based, no {type(self.value).__name__}; "
                 f"se aborta en vez de imprimir una coordenada que no lo es."
             )
         if self.value < 1:
             raise ValueError(
-                f"Posicion {self.value}: las coordenadas del proyecto son 1-based, asi "
-                f"que un valor menor que 1 es un error de conversion (tipicamente un "
+                f"Posicion {self.value}: las coordenadas del proyecto son 1-based, así "
+                f"que un valor menor que 1 es un error de conversión (tipicamente un "
                 f"0-based que se colo). Se aborta en vez de imprimirlo."
             )
         if not isinstance(self.frame, Frame):
             raise ValueError(
                 f"Espacio de coordenadas {self.frame!r} desconocido; los que hay son "
-                f"{', '.join(f.value for f in Frame)}. Se aborta: una posicion sin "
-                f"espacio no identifica ningun sitio."
+                f"{', '.join(f.value for f in Frame)}. Se aborta: una posición sin "
+                f"espacio no identifica ningún sitio."
             )
         if self.frame is Frame.UTR3:
             check_utr3_range(self.value)
@@ -180,8 +180,8 @@ class Position:
         """
         if self.frame is Frame.UTR3:
             raise ValueError(
-                f"{self} ya esta en el espacio del 3'UTR: restarle otra vez el desfase "
-                f"de {offset} nt daria una posicion inventada. Se aborta."
+                f"{self} ya está en el espacio del 3'UTR: restarle otra vez el desfase "
+                f"de {offset} nt daria una posición inventada. Se aborta."
             )
         return Position(self.value - offset, Frame.UTR3)
 
@@ -237,7 +237,7 @@ def parse(text: str) -> Position:
         numero = int(valor)
     except ValueError as exc:
         raise ValueError(
-            f"{text!r}: {valor!r} no es un entero; se aborta la lectura de la posicion."
+            f"{text!r}: {valor!r} no es un entero; se aborta la lectura de la posición."
         ) from exc
     try:
         return Position(numero, Frame(marco))
@@ -260,14 +260,14 @@ def frame_of(anatomy) -> Frame:
     """
     if anatomy is None:
         raise ValueError(
-            "No hay anatomia, asi que no se sabe en que espacio van las coordenadas de "
-            "lo tilado; se aborta en vez de etiquetarlas al azar. La anatomia se "
+            "No hay anatomía, así que no se sabe en que espacio van las coordenadas de "
+            "lo tilado; se aborta en vez de etiquetarlas al azar. La anatomía se "
             "resuelve con --genbank, --cds o --region 3utr."
         )
     utr3 = getattr(anatomy, "utr3", None)
     if not utr3:
         raise ValueError(
-            f"La anatomia {anatomy!r} no declara 3'UTR, asi que no hay desfase con el "
+            f"La anatomía {anatomy!r} no declara 3'UTR, así que no hay desfase con el "
             f"que decidir el espacio de coordenadas; se aborta."
         )
     return Frame.UTR3 if utr3[0] == 1 else Frame.TX

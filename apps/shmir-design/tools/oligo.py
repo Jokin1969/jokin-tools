@@ -32,7 +32,7 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--guide", help="Guia de 22 nt (ARN o ADN)")
+    parser.add_argument("--guide", help="Guía de 22 nt (ARN o ADN)")
     parser.add_argument("--target", help="Ventana diana de 22 nt")
     parser.add_argument(
         "--skip-filters",

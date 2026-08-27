@@ -181,7 +181,7 @@ class TestInstruccionesManuales(unittest.TestCase):
         # Sin candidatos las instrucciones siguen sirviendo, pero no puede colarse una
         # linea que parezca una guia: eso seria fabricar secuencia (regla 1).
         texto = manual_instructions([])
-        self.assertNotIn("Guias que hay que pegar", texto)
+        self.assertNotIn("Guías que hay que pegar", texto)
         parecen_secuencia = [
             linea for linea in texto.splitlines()
             if linea.strip() and set(linea.strip()) <= set("ACGTU")
@@ -206,8 +206,8 @@ class TestPlausibilidad(unittest.TestCase):
 
     @unittest.skipUnless(
         MIRARCHITECT_API or SPLASHRNA_API,
-        "NOT_RUN: no hay ninguna API verificada contra la que correr la comprobacion "
-        "de plausibilidad (403 del proxy, ver external_score.VERIFICACION)",
+        "NOT_RUN: no hay ninguna API verificada contra la que correr la comprobación "
+        "de plausibilidad (403 del proxy, ver external_score.VERIFICACIÓN)",
     )
     def test_la_guia_de_SGEP_sale_en_el_cuartil_superior(self):
         # SGEP esta validada empiricamente: si un endpoint la puntua en el cuartil
@@ -324,7 +324,7 @@ class TestMergeScores(unittest.TestCase):
                 file_scaffold=ANDAMIO, design_scaffold=ANDAMIO,
             )
         self.assertEqual(len(resultado.unmatched), 1)
-        self.assertIn("no corresponden a ningun candidato", resultado.format_text())
+        self.assertIn("no corresponden a ningún candidato", resultado.format_text())
 
     def test_el_offset_queda_escrito_en_la_fuente(self):
         resultado = merge_scores(

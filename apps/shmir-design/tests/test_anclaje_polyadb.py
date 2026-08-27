@@ -45,7 +45,7 @@ class TestLaLeyendaDePolyADB(unittest.TestCase):
     def test_dice_que_el_PAS_es_el_CORTE_y_no_el_hexamero(self):
         texto = polya.PAS_IS_CLEAVAGE_SITE.upper()
         self.assertIn("CORTE", texto)
-        self.assertIn("NO EL HEXAMERO", texto)
+        self.assertIn("NO EL HEXÁMERO", texto)
 
 
 class TestLaClaseDeHexamero(unittest.TestCase):
@@ -176,7 +176,7 @@ class TestLoQueDejaDeEstarPendiente(unittest.TestCase):
 
     def test_la_conversion_YA_NO_esta_pendiente(self):
         for p in POLYA_DB_PRNP.pending:
-            self.assertNotIn("AQUI NO SE PUEDE HACER", p)
+            self.assertNotIn("AQUÍ NO SE PUEDE HACER", p)
 
     def test_el_racimo_terminal_SIGUE_anotado_como_RESERVA(self):
         # Deja de ser una comprobacion BLOQUEANTE porque no mueve el valor, pero no

@@ -75,7 +75,7 @@ class TestElVeredictoSaleDelDatoReal(unittest.TestCase):
 
     def test_lo_dice_con_esas_palabras(self):
         texto = self.veredicto.describe()
-        self.assertIn("NO EXISTE un shmiR unico", texto)
+        self.assertIn("NO EXISTE un shmiR único", texto)
         self.assertIn("raton, Tg650 y clinica", texto)
         self.assertIn("ARQUITECTURA DEL PROGRAMA", texto)
         self.assertIn("no dos plazas del panel", texto)

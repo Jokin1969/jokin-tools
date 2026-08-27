@@ -43,13 +43,13 @@ def main(argv: list[str]) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--fasta", type=Path, required=True)
-    parser.add_argument("--genbank", type=Path, help="La via mas fiable de la anatomia.")
+    parser.add_argument("--genbank", type=Path, help="La via más fiable de la anatomía.")
     parser.add_argument("--cds", type=int, nargs=2, metavar=("INICIO", "FIN"))
     parser.add_argument("--out", type=Path, required=True, help="Directorio de salida.")
     parser.add_argument(
         "--longitud-esperada", type=int,
         help="Si la das, se comprueba contra la cadena ENTREGADA y se aborta si no "
-             "cuadra. Es la comprobacion de una linea que habria parado la errata nº 4.",
+             "cuadra. Es la comprobación de una línea que habría parado la errata nº 4.",
     )
     args = parser.parse_args(argv)
 
@@ -78,7 +78,7 @@ def main(argv: list[str]) -> int:
             directory=args.out,
             stem=f"{args.fasta.stem}_3utr",
             note=(
-                f"3'UTR {inicio}-{fin} del transcrito; anatomia por "
+                f"3'UTR {inicio}-{fin} del transcrito; anatomía por "
                 f"{anatomia.source.describe()}"
             ),
         )
@@ -88,7 +88,7 @@ def main(argv: list[str]) -> int:
         return 2
 
     print(f"Escrito {destino}")
-    print(f"  {len(utr3)} nt — md5 canonico {sequence_md5(utr3)}")
+    print(f"  {len(utr3)} nt — md5 canónico {sequence_md5(utr3)}")
     print("  Sube ESTE fichero. No copies la secuencia de una pantalla: lo que se")
     print("  pierde al copiar son las carreras de homopolimero, y eso no se ve.")
     return 0

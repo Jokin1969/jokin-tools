@@ -45,7 +45,7 @@ def _to_rna(sequence: str) -> str:
     for index, base in enumerate(cleaned, start=1):
         if base not in RNA_BASES:
             raise InvalidSequenceError(
-                f"Caracter {base!r} no valido en la posicion {index} (se esperaba A, C, "
+                f"Caracter {base!r} no válido en la posición {index} (se esperaba A, C, "
                 f"G, T o U); se aborta el plegado."
             )
     return cleaned
@@ -54,7 +54,7 @@ def _to_rna(sequence: str) -> str:
 def _fold_with(vienna, sequence: str) -> tuple[str, float]:
     if vienna is None:
         raise FoldingUnavailableError(
-            "ViennaRNA no esta instalado, asi que no se puede plegar: "
+            "ViennaRNA no está instalado, así que no se puede plegar: "
             "`pip install ViennaRNA`. Se aborta en vez de dar por buena una estructura "
             "que nadie ha calculado."
         )
@@ -82,7 +82,7 @@ def _unpaired_cached(rna: str) -> tuple[float, ...]:
     vienna = _import_vienna()
     if vienna is None:
         raise FoldingUnavailableError(
-            "ViennaRNA no esta instalado, asi que no hay funcion de particion que "
+            "ViennaRNA no está instalado, así que no hay función de particion que "
             "calcular: `pip install ViennaRNA`. Se aborta en vez de dar por buena una "
             "probabilidad que nadie ha calculado."
         )
@@ -132,9 +132,9 @@ def check_fold(hairpin, available: bool | None = None) -> FilterResult:
             name="plegado",
             state=FilterState.NOT_RUN,
             reason=(
-                "ViennaRNA no esta instalado, asi que no se ha comprobado que la "
+                "ViennaRNA no está instalado, así que no se ha comprobado que la "
                 "horquilla pliegue como la de referencia. NOT_RUN no es PASS: "
-                "`pip install ViennaRNA` si quieres esta comprobacion."
+                "`pip install ViennaRNA` si quieres esta comprobación."
             ),
         )
 
@@ -154,6 +154,6 @@ def check_fold(hairpin, available: bool | None = None) -> FilterResult:
         reason=(
             f"La estructura NO coincide con la de referencia. Esperada {referencia}; "
             f"obtenida {estructura} (ΔG {dg:.2f}). Revisa el desapareamiento de la "
-            f"posicion 1 de la pasajera antes de pedir nada."
+            f"posición 1 de la pasajera antes de pedir nada."
         ),
     )

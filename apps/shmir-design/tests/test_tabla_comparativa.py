@@ -379,7 +379,7 @@ class TestNotaDeCoordenadas(unittest.TestCase):
 
     def test_sin_marco_de_transcrito_lo_dice(self):
         cabecera = self.cabecera(self._sin_marco())
-        self.assertIn("no son coordenadas de ningun transcrito", cabecera)
+        self.assertIn("no son coordenadas de ningún transcrito", cabecera)
 
     def test_sin_marco_avisa_de_que_las_dos_parejas_coinciden(self):
         self.assertIn("coinciden", self.cabecera(self._sin_marco()))
@@ -402,7 +402,7 @@ class TestNotaDeCoordenadas(unittest.TestCase):
     def test_el_bloque_del_informe_tambien_lo_dice(self):
         _, seleccion = _piezas()
         texto = comparative_text(seleccion, SGEP_SCAFFOLD, anatomy=self._sin_marco())
-        self.assertIn("no son coordenadas de ningun transcrito", texto)
+        self.assertIn("no son coordenadas de ningún transcrito", texto)
 
     def test_las_columnas_no_cambian_de_nombre_ni_de_sitio(self):
         # El esquema es estable: lo que cambia es lo que se explica de el.

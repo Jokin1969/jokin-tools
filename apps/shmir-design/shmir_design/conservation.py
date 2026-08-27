@@ -93,7 +93,7 @@ class ConservedBlock:
                 return hit
         conocidas = ", ".join(h.species for h in self.hits)
         raise KeyError(
-            f"El bloque no tiene posicion para {species!r}; especies del bloque: "
+            f"El bloque no tiene posición para {species!r}; especies del bloque: "
             f"{conocidas}."
         )
 
@@ -226,7 +226,7 @@ class ConservationReport:
         if not self.blocks:
             lines.append("")
             lines.append(
-                f"No se encontro ningun bloque conservado de >= {self.min_length} nt."
+                f"No se encontro ningún bloque conservado de >= {self.min_length} nt."
             )
             return "\n".join(lines)
 
@@ -254,7 +254,7 @@ class ConservationReport:
             if aptas == 0:
                 lines.append(
                     "    Ninguna ventana pasa los filtros. El bloque se reporta "
-                    "igualmente: la decision de usarlo es del usuario, no del software."
+                    "igualmente: la decisión de usarlo es del usuario, no del software."
                 )
         return "\n".join(lines)
 
@@ -313,27 +313,27 @@ class SingleShmirVerdict:
     def describe(self) -> str:
         if self.possible is None:
             return (
-                "Un shmiR unico para raton, Tg650 y clinica por la via del 3'UTR: "
-                "NOT_RUN. No se ha comparado con otra especie, asi que no hay bloques "
+                "Un shmiR único para raton, Tg650 y clinica por la via del 3'UTR: "
+                "NOT_RUN. No se ha comparado con otra especie, así que no hay bloques "
                 "conservados que mirar. NOT_RUN no es «no existe»."
             )
         if self.possible:
             return (
                 f"SI hay ventanas de {self.window_size} nt CONTENIDAS en un bloque "
                 f"conservado que superan los filtros de secuencia: {self.passing} de "
-                f"{self.windows}. Un shmiR unico para raton, Tg650 y clinica por la via "
+                f"{self.windows}. Un shmiR único para raton, Tg650 y clinica por la via "
                 f"del 3'UTR es POSIBLE por ahi, y esas son las ventanas por las que "
                 f"pasa. Falta comprobarlas con los filtros que dependen de recurso."
             )
         return (
-            f"CONSECUENCIA: NO EXISTE un shmiR unico valido para raton, Tg650 y clinica "
+            f"CONSECUENCIA: NO EXISTE un shmiR único válido para raton, Tg650 y clinica "
             f"por la via del 3'UTR. De los {self.blocks} bloque(s) conservado(s), "
-            f"{self.long_enough} son lo bastante largos para alojar una guia de "
+            f"{self.long_enough} son lo bastante largos para alojar una guía de "
             f"{self.window_size} nt, y de las {self.windows} ventanas que caben DENTRO "
             f"de ellos NINGUNA supera los filtros de secuencia — con los mismos motivos "
             f"en las dos especies, porque la diana es la misma. No hay donde poner una "
-            f"guia que sirva para las tres cosas a la vez. Esto cambia la ARQUITECTURA "
-            f"DEL PROGRAMA —haria falta otra via, por ejemplo el ORF conservado— y no "
+            f"guía que sirva para las tres cosas a la vez. Esto cambia la ARQUITECTURA "
+            f"DEL PROGRAMA —haría falta otra via, por ejemplo el ORF conservado— y no "
             f"dos plazas del panel."
         )
 

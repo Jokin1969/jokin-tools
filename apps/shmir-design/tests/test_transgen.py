@@ -65,7 +65,7 @@ class TestSinBase(unittest.TestCase):
 
     def test_el_motivo_dice_que_queda_sin_ejecutar(self):
         r = filter_transgene(GUIA_1018, None, None)
-        self.assertIn("transgen", r.reason.lower())
+        self.assertIn("transgén", r.reason.lower())
 
 
 class TestVeredicto(unittest.TestCase):
@@ -258,7 +258,7 @@ class TestIntegracionEnElTilado(unittest.TestCase):
         texto = text_report(
             species="sonda", tiling=tiling, selection=seleccion, scaffold=SGEP_SCAFFOLD
         )
-        self.assertIn("── Transgen terapeutico ──", texto)
+        self.assertIn("── Transgén terapeutico ──", texto)
         self.assertIn("NOT_RUN no es", texto)
 
     def test_el_informe_con_casete_lleva_la_procedencia(self):

@@ -75,17 +75,17 @@ def download_text(url: str, *, timeout: float = 60.0) -> str:
     except urllib.error.HTTPError as exc:
         raise FetchError(
             f"{url} respondio HTTP {exc.code} ({exc.reason}); se aborta el paso 0 "
-            f"(descarga + verificacion de checksum) y con el todo el pipeline."
+            f"(descarga + verificación de checksum) y con el todo el pipeline."
         ) from exc
     except urllib.error.URLError as exc:
         raise FetchError(
             f"No se pudo conectar con {url} ({exc.reason}); se aborta el paso 0 "
-            f"(descarga + verificacion de checksum) y con el todo el pipeline."
+            f"(descarga + verificación de checksum) y con el todo el pipeline."
         ) from exc
     except TimeoutError as exc:
         raise FetchError(
             f"{url} no respondio en {timeout} s; se aborta el paso 0 "
-            f"(descarga + verificacion de checksum)."
+            f"(descarga + verificación de checksum)."
         ) from exc
 
     try:
@@ -106,14 +106,14 @@ def parse_fasta_payload(payload: str, *, source: str) -> tuple[str, str]:
     text = payload.strip()
     if not text:
         raise FetchError(
-            f"{source} devolvio una respuesta vacia; se aborta el paso 0. "
-            f"Sin secuencia no hay analisis y no se inventa ninguna."
+            f"{source} devolvio una respuesta vacía; se aborta el paso 0. "
+            f"Sin secuencia no hay análisis y no se inventa ninguna."
         )
     if not text.startswith(">"):
         preview = text[:PREVIEW_CHARS].replace("\n", " ")
         raise FetchError(
             f"La respuesta de {source} no empieza por '>': no es FASTA. "
-            f"Un codigo HTTP 200 no basta, NCBI devuelve sus errores asi. "
+            f"Un código HTTP 200 no basta, NCBI devuelve sus errores así. "
             f"Primeros {PREVIEW_CHARS} caracteres: {preview}"
         )
 

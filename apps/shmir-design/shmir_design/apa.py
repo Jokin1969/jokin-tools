@@ -71,7 +71,7 @@ class ApaSites:
             if not valor or not str(valor).strip():
                 raise ValueError(
                     f"Los sitios de APA necesitan {campo}: sin procedencia el dato no "
-                    f"es auditable y no puede sustituir a una prediccion. Se aborta."
+                    f"es auditable y no puede sustituir a una predicción. Se aborta."
                 )
         if self.coords not in COORD_SYSTEMS:
             raise ValueError(
@@ -80,15 +80,15 @@ class ApaSites:
             )
         if not self.sites:
             raise ShmirDesignError(
-                f"{self.source}: no hay ningun sitio de APA. Se aborta: una tabla vacia "
+                f"{self.source}: no hay ningún sitio de APA. Se aborta: una tabla vacía "
                 f"convertiria el riesgo en un cero medido, que es peor que una "
-                f"prediccion honesta."
+                f"predicción honesta."
             )
 
     @property
     def provenance(self) -> str:
         return (
-            f"{self.source}, version {self.version}, checksum {self.checksum}, "
+            f"{self.source}, versión {self.version}, checksum {self.checksum}, "
             f"{len(self.sites)} sitio(s), coordenadas de {self.coords}"
         )
 
@@ -110,12 +110,12 @@ def parse_apa_sites(
             posicion = int(campos[0])
         except (ValueError, IndexError) as exc:
             raise ShmirDesignError(
-                f"{source}:{numero}: la posicion {campos[0] if campos else ''!r} no es "
+                f"{source}:{numero}: la posición {campos[0] if campos else ''!r} no es "
                 f"un entero ({exc}); se aborta la carga de sitios de APA."
             ) from exc
         if posicion < 1:
             raise ShmirDesignError(
-                f"{source}:{numero}: posicion {posicion} invalida (1-based); se aborta."
+                f"{source}:{numero}: posición {posicion} invalida (1-based); se aborta."
             )
 
         fraccion: float | None = None
@@ -124,14 +124,14 @@ def parse_apa_sites(
                 fraccion = float(campos[1])
             except ValueError as exc:
                 raise ShmirDesignError(
-                    f"{source}:{numero}: la fraccion {campos[1]!r} no es un numero "
+                    f"{source}:{numero}: la fracción {campos[1]!r} no es un número "
                     f"({exc}); se aborta en vez de tratarla como ausente."
                 ) from exc
             if not 0.0 <= fraccion <= 1.0:
                 raise ShmirDesignError(
-                    f"{source}:{numero}: la fraccion {fraccion} esta fuera de [0, 1]. "
+                    f"{source}:{numero}: la fracción {fraccion} está fuera de [0, 1]. "
                     f"Se aborta: si la fuente da porcentajes o cuentas, hay que "
-                    f"convertirlas antes, no aqui."
+                    f"convertirlas antes, no aquí."
                 )
         nombre = campos[2].strip() if len(campos) > 2 else ""
         sitios.append(ApaSite(position=posicion, fraction=fraccion, name=nombre))
@@ -146,7 +146,7 @@ def parse_apa_sites(
     total = sum(s.fraction for s in resultado.sites if s.fraction is not None)
     if total > 1.0 + 1e-9:
         raise ShmirDesignError(
-            f"{source}: las fracciones de lecturas suman {total:.4g}, mas de 1. Se "
+            f"{source}: las fracciones de lecturas suman {total:.4g}, más de 1. Se "
             f"aborta: o la fuente da porcentajes, o hay sitios duplicados."
         )
     return resultado
@@ -165,13 +165,13 @@ def load_apa_sites(
     except OSError as exc:
         raise ShmirDesignError(
             f"No se pudo leer la tabla de sitios de APA {path} ({exc}); el riesgo de "
-            f"APA se quedaria en prediccion y eso hay que decirlo, no suponerlo."
+            f"APA se quedaria en predicción y eso hay que decirlo, no suponerlo."
         ) from exc
     md5 = hashlib.md5(raw, usedforsecurity=False).hexdigest()
     if expected_md5 is not None and md5 != expected_md5:
         raise ChecksumMismatchError(
             f"{path}: md5 {md5} y se esperaba {expected_md5}. El fichero NO es el que "
-            f"dice ser; se aborta antes de sustituir ninguna prediccion por el."
+            f"dice ser; se aborta antes de sustituir ninguna predicción por el."
         )
     try:
         texto = raw.decode("utf-8")
@@ -217,10 +217,10 @@ def apa_assessment(
             risk=predicted_risk,
             measured=False,
             reason=(
-                f"riesgo_APA={'si' if predicted_risk else 'no'} es una PREDICCION: no "
-                f"hay tabla de sitios de poliadenilacion medidos cargada, asi que no se "
+                f"riesgo_APA={'si' if predicted_risk else 'no'} es una PREDICCIÓN: no "
+                f"hay tabla de sitios de poliadenilación medidos cargada, así que no se "
                 f"sabe si el sitio proximal se usa. Con PolyA_DB o PolyASite este "
-                f"numero se sustituiria por el dato."
+                f"número se sustituiria por el dato."
             ),
         )
 
@@ -232,8 +232,8 @@ def apa_assessment(
             risk=False,
             measured=True,
             reason=(
-                f"Dato medido: no hay ningun sitio de corte por delante de la ventana, "
-                f"asi que la diana existe en todas las isoformas. {sites.provenance}."
+                f"Dato medido: no hay ningún sitio de corte por delante de la ventana, "
+                f"así que la diana existe en todas las isoformas. {sites.provenance}."
             ),
             lost_fraction=0.0 if sites.has_fractions else None,
             upstream=(),
@@ -244,10 +244,10 @@ def apa_assessment(
             risk=True,
             measured=True,
             reason=(
-                f"Dato medido: la ventana queda por detras de "
+                f"Dato medido: la ventana queda por detrás de "
                 f"{len(arriba)} sitio(s) de corte "
                 f"({'; '.join(s.describe() for s in arriba)}), pero la fuente no trae "
-                f"la fraccion de lecturas de todos ellos, asi que no se puede dar el "
+                f"la fracción de lecturas de todos ellos, así que no se puede dar el "
                 f"techo de knockdown. No se inventa. {sites.provenance}."
             ),
             upstream=arriba,
@@ -258,8 +258,8 @@ def apa_assessment(
         risk=perdida > 0.0,
         measured=True,
         reason=(
-            f"Dato medido: la ventana queda por detras de "
-            f"{'; '.join(s.describe() for s in arriba)}, asi que la diana falta en el "
+            f"Dato medido: la ventana queda por detrás de "
+            f"{'; '.join(s.describe() for s in arriba)}, así que la diana falta en el "
             f"{perdida:.0%} de los transcritos. Techo de knockdown: "
             f"{1.0 - perdida:.0%}. {sites.provenance}."
         ),
@@ -294,7 +294,7 @@ def polyadb_class(motif: str) -> str:
     motif = motif.upper()
     if motif not in polya.ALL_SIGNALS:
         raise ValueError(
-            f"{motif!r} no es una señal de poliadenilacion conocida, asi que no se le "
+            f"{motif!r} no es una señal de poliadenilación conocida, así que no se le "
             f"puede asignar la clase que usaria PolyA_DB; se aborta el anclaje."
         )
     return {"AATAAA": "AAUAAA", "ATTAAA": "AUUAAA"}.get(motif, "Other")
@@ -302,7 +302,7 @@ def polyadb_class(motif: str) -> str:
 
 class MappingHypothesis(StrEnum):
     CORTE = "PAS = sitio de corte"
-    HEXAMERO = "PAS = hexamero"
+    HEXAMERO = "PAS = hexámero"
     SIN_RESOLVER = "sin resolver"
 
 
@@ -324,7 +324,7 @@ class PasAnchor:
             )
         if self.declared_class not in _POLYADB_CLASSES:
             raise ValueError(
-                f"Clase de hexamero {self.declared_class!r} desconocida; PolyA_DB usa "
+                f"Clase de hexámero {self.declared_class!r} desconocida; PolyA_DB usa "
                 f"{', '.join(_POLYADB_CLASSES)}. Se aborta en vez de comparar contra "
                 f"una etiqueta inventada."
             )
@@ -372,10 +372,10 @@ class AnchoredSite:
     def _unico(self) -> tuple[int, str]:
         if len(self.candidates) != 1:
             raise ValueError(
-                f"{self.locus} admite {len(self.candidates)} hexameros de clase "
+                f"{self.locus} admite {len(self.candidates)} hexámeros de clase "
                 f"{self.declared_class} dentro de su banda "
                 f"({', '.join(f'{m} en 3utr:{p}' for p, m in self.candidates)}); no "
-                f"identifica uno solo, asi que no se le asigna ninguno. Se aborta en "
+                f"identifica uno solo, así que no se le asigna ninguno. Se aborta en "
                 f"vez de elegir por nuestra cuenta."
             )
         return self.candidates[0]
@@ -389,14 +389,14 @@ class AnchoredSite:
             )
             return (
                 f"{self.locus}  {self.declared_class:<7} → AMBIGUO: {len(self.candidates)} "
-                f"hexameros de su clase en la banda ({cuales}). Ancla, pero NO entra al "
+                f"hexámeros de su clase en la banda ({cuales}). Ancla, pero NO entra al "
                 f"modelo con banda propia."
             )
         return (
             f"{self.locus}  {self.declared_class:<7} → corte "
-            f"{span(*self.cleavage_band, Frame.UTR3)}, hexamero {self.motif} en "
+            f"{span(*self.cleavage_band, Frame.UTR3)}, hexámero {self.motif} en "
             f"{label(self.hexamer_start, Frame.UTR3)}"
-            + ("" if self.expression else "  (sin datos de expresion)")
+            + ("" if self.expression else "  (sin datos de expresión)")
             + (f"  ← {self.note}" if self.note else "")
         )
 
@@ -425,26 +425,26 @@ class AnchorResult:
             return [
                 f"MAPEO GENOMICO↔TRANSCRITO: SIN RESOLVER sobre esta secuencia "
                 f"({self.cleavage_anchored} de {self.total} coordenadas anclan). No se "
-                f"usa: un techo que depende de una conversion sin comprobar no es un "
+                f"usa: un techo que depende de una conversión sin comprobar no es un "
                 f"techo medido.",
             ]
         lineas = [
             "MAPEO GENOMICO↔TRANSCRITO — RESUELTO SIN COORDENADAS GENOMICAS.",
             f"  {polya.PAS_IS_CLEAVAGE_SITE}",
-            "  Hipotesis «PAS = hexamero»: DESCARTADA. Un hexamero es un punto, no una "
-            "banda, asi que",
-            f"  bajo esa lectura el aterrizaje tiene que ser EXACTO — y no hay ningun "
+            "  Hipotesis «PAS = hexámero»: DESCARTADA. Un hexámero es un punto, no una "
+            "banda, así que",
+            f"  bajo esa lectura el aterrizaje tiene que ser EXACTO — y no hay ningún "
             f"desfase que haga",
-            f"  aterrizar mas de {self.hexamer_best} de las {self.total} coordenadas. "
+            f"  aterrizar más de {self.hexamer_best} de las {self.total} coordenadas. "
             f"Bajo «PAS = corte» aterrizan las {self.cleavage_anchored},",
-            "  con el MISMO desfase y con la CLASE de hexamero que declara la propia "
+            "  con el MISMO desfase y con la CLASE de hexámero que declara la propia "
             "base en cada una.",
             f"  No es una resta: son {self.total} puntos de apoyo independientes. "
             f"Desfase 3'UTR→mm10 acotado a "
             f"{self.offsets[0]}-{self.offsets[-1]} ({len(self.offsets)} valores); se "
             f"deja como INTERVALO",
-            "  porque la banda de corte mide 20 nt y fijarlo en un entero seria "
-            "inventarse precision.",
+            "  porque la banda de corte mide 20 nt y fijarlo en un entero sería "
+            "inventarse precisión.",
             "",
         ]
         for sitio in self.anchors:
@@ -595,16 +595,16 @@ def long_isoform_fraction(sites, *, weighted: bool) -> float:
     """
     if not sites:
         raise ValueError(
-            "No hay ningun PAS medido: la fraccion de isoforma larga no se calcula "
-            "sobre una lista vacia. Se aborta."
+            "No hay ningún PAS medido: la fracción de isoforma larga no se calcula "
+            "sobre una lista vacía. Se aborta."
         )
     valor = (lambda s: s.weighted) if weighted else (lambda s: s.avg_rpm)
     total = sum(valor(s) for s in sites)
     distal = sum(valor(s) for s in sites if s.distal)
     if not distal:
         raise ValueError(
-            "Ningun PAS medido es distal, asi que la fraccion de isoforma larga saldria "
-            "0 por construccion y no por medida. Se aborta."
+            "Ningún PAS medido es distal, así que la fracción de isoforma larga saldria "
+            "0 por construcción y no por medida. Se aborta."
         )
     return distal / total
 
@@ -650,8 +650,8 @@ class MeasuredFraction:
     @property
     def why_weighted(self) -> str:
         return (
-            "La ponderada es la de trabajo porque AvgRPM esta condicionado a muestras "
-            "CON expresion: sin ponderar por PSE se cuenta como si todas expresaran."
+            "La ponderada es la de trabajo porque AvgRPM está condicionado a muestras "
+            "CON expresión: sin ponderar por PSE se cuenta como si todas expresaran."
         )
 
     @property
@@ -661,15 +661,15 @@ class MeasuredFraction:
 
     def describe(self) -> list[str]:
         lineas = [
-            f"FRACCION DE ISOFORMA LARGA — MEDIDA. {self.source} {self.version} "
+            f"FRACCIÓN DE ISOFORMA LARGA — MEDIDA. {self.source} {self.version} "
             f"({self.date}), {self.assembly}, {self.gene} (Gene ID {self.gene_id}).",
             f"  {self.total_pas} PAS en el gen, {self.with_expression} con datos de "
-            f"expresion; los demas por debajo de deteccion en 3'READS+ —incluidos los "
-            f"intermedios del 3'UTR—, asi que no introducen techos.",
+            f"expresión; los demas por debajo de detección en 3'READS+ —incluidos los "
+            f"intermedios del 3'UTR—, así que no introducen techos.",
             f"  Representativo de la base: {self.representative} (NO es nuestro "
             f"NM_011170.3).",
             "",
-            "  Sitios con expresion:",
+            "  Sitios con expresión:",
         ]
         for sitio in self.sites:
             lineas.append(
@@ -687,11 +687,11 @@ class MeasuredFraction:
                 f"{self.unweighted_value:.2f}",
                 f"  {self.why_weighted}",
                 "",
-                f"  TEJIDO: {self.tissue}. Las neuronas ALARGAN los 3'UTR, asi que la "
-                f"fraccion larga en cerebro sera probablemente MAYOR. El "
-                f"{self.working_value:.2f} es un LIMITE INFERIOR conservador para "
+                f"  TEJIDO: {self.tissue}. Las neuronas ALARGAN los 3'UTR, así que la "
+                f"fracción larga en cerebro será probablemente MAYOR. El "
+                f"{self.working_value:.2f} es un LÍMITE INFERIOR conservador para "
                 f"nuestro tejido — y por eso la RT-qPCR de los dos amplicones deja de "
-                f"ser solo confirmacion: puede MEJORAR el numero.",
+                f"ser solo confirmación: puede MEJORAR el número.",
                 "",
             ]
         )
@@ -706,7 +706,7 @@ class MeasuredFraction:
                 "genomico↔transcrito,"
             )
             lineas.append(
-                "  que era lo unico que lo bloqueaba, esta resuelto sobre cuatro puntos "
+                "  que era lo único que lo bloqueaba, está resuelto sobre cuatro puntos "
                 "de apoyo (ver arriba)."
             )
         if self.caveats:
@@ -736,7 +736,7 @@ POLYA_DB_PRNP = MeasuredFraction(
     utr3_md5="19f5fa2a77a87892770e2affdc90e0e4",
     sites=(
         MeasuredSite("chr2:+:131937444", "Other", 0.211, 0.55, distal=False,
-                     note="TERCER sitio de corte, el proximal MAS USADO de los tres"),
+                     note="TERCER sitio de corte, el proximal MÁS USADO de los tres"),
         MeasuredSite("chr2:+:131937504", "AAUAAA", 0.235, 0.34, distal=False,
                      note="nuestro AATAAA de 3utr:288"),
         MeasuredSite("chr2:+:131938392", "Other", 0.705, 1.65, distal=True,
@@ -744,25 +744,25 @@ POLYA_DB_PRNP = MeasuredFraction(
     ),
     anchors=(
         PasAnchor("chr2:+:131937444", 131937444, "Other",
-                  note="proximal mas usado: PSE 21,1 %, AvgRPM 0,55"),
+                  note="proximal más usado: PSE 21,1 %, AvgRPM 0,55"),
         PasAnchor("chr2:+:131937504", 131937504, "AAUAAA",
                   note="PSE 23,5 %, AvgRPM 0,34"),
         PasAnchor("chr2:+:131938392", 131938392, "Other",
                   note="PSE 70,5 %, AvgRPM 1,65"),
         PasAnchor("chr2:+:131938427", 131938427, "AUUAAA", expression=False,
-                  note="fuerza 99,9 %, conservado en humano y rata; SIN expresion, "
-                       "asi que no entra en la fraccion — solo ancla"),
+                  note="fuerza 99,9 %, conservado en humano y rata; SIN expresión, "
+                       "así que no entra en la fracción — solo ancla"),
     ),
     tissue="TODOS LOS TEJIDOS, no cerebro",
     pending=(),
     caveats=(
-        "El PAS terminal 131938427 y el que tiene expresion (131938392, 35 nt aguas "
+        "El PAS terminal 131938427 y el que tiene expresión (131938392, 35 nt aguas "
         "arriba) se anotan como DOS y no se fusionan sin comprobarlo: fusionarlos suma "
-        "su expresion y sube la fraccion larga sin dato. El anclaje los coloca sobre "
-        "hexameros DISTINTOS —ATTAAA en 3utr:1214 el uno; TATAAA en 3utr:1178 o en "
-        "3utr:1189 el otro, que ademas no distingue entre los dos—, asi que tampoco por "
+        "su expresión y sube la fracción larga sin dato. El anclaje los coloca sobre "
+        "hexámeros DISTINTOS —ATTAAA en 3utr:1214 el uno; TATAAA en 3utr:1178 o en "
+        "3utr:1189 el otro, que además no distingue entre los dos—, así que tampoco por "
         "ahi hay motivo para fusionarlos. NO MUEVE EL VALOR: 131938427 no tiene "
-        "expresion, luego no suma nada a ninguna de las dos formulas.",
+        "expresión, luego no suma nada a ninguna de las dos formulas.",
     ),
 )
 
@@ -841,7 +841,7 @@ class MeasuredApa:
             if capa.start_range[0] <= start <= capa.start_range[1]:
                 return capa
         raise ValueError(
-            f"La posicion {start} cae fuera de los tramos de techo "
+            f"La posición {start} cae fuera de los tramos de techo "
             f"({self.layers[0].start_range[0]}-{self.layers[-1].start_range[1]}); "
             f"se aborta en vez de devolver el techo del tramo de al lado."
         )
@@ -853,9 +853,9 @@ class MeasuredApa:
                 "",
                 "  TECHO POR TRAMOS. Con tres sitios de corte medidos el techo ya no es "
                 "UNO: la pregunta",
-                "  de un candidato no es cuanta isoforma larga hay, es que fraccion de "
+                "  de un candidato no es cuanta isoforma larga hay, es que fracción de "
                 "transcritos conserva",
-                "  SU diana — y eso depende de por detras de cuantos cortes esta.",
+                "  SU diana — y eso depende de por detrás de cuántos cortes esta.",
             ]
         )
         lineas.extend(f"    {c.describe()}" for c in self.layers)
@@ -877,9 +877,9 @@ def _build_layers(
     ]
     if not utiles:
         raise ValueError(
-            "Ningun sitio PROXIMAL medido quedo anclado sin ambiguedad, asi que no hay "
+            "Ningún sitio PROXIMAL medido quedo anclado sin ambigüedad, así que no hay "
             "con que construir los tramos de techo. Se aborta en vez de emitir un techo "
-            "unico que no se sabe de donde sale."
+            "único que no se sabe de donde sale."
         )
     total = sum(s.weighted for s in table.sites)
 
@@ -902,7 +902,7 @@ def _build_layers(
                 reason=(
                     "dentro de la banda de corte de "
                     + ", ".join(s.locus for s in banda)
-                    + ": no se sabe de que lado cae, asi que el techo es INDETERMINADO "
+                    + ": no se sabe de que lado cae, así que el techo es INDETERMINADO "
                       "(PENALIZADO, no TECHO)"
                 ),
             ))
@@ -911,7 +911,7 @@ def _build_layers(
             capas.append(CeilingLayer(
                 start_range=(inicio, fin), ceiling=None, lost=(), in_band=False,
                 frame=frame,
-                reason="por delante de todos los cortes medidos: la diana esta en TODAS "
+                reason="por delante de todos los cortes medidos: la diana está en TODAS "
                        "las isoformas. INMUNE.",
             ))
             continue
@@ -919,7 +919,7 @@ def _build_layers(
         capas.append(CeilingLayer(
             start_range=(inicio, fin), ceiling=conservado / total, lost=perdidos,
             in_band=False, frame=frame,
-            reason="por detras de " + ", ".join(s.locus for s in detras),
+            reason="por detrás de " + ", ".join(s.locus for s in detras),
         ))
     return tuple(capas)
 
@@ -954,7 +954,7 @@ def resolve_measured(
     if not table.utr3_md5:
         raise ValueError(
             f"La tabla de {table.source} {table.version} no declara a que 3'UTR se "
-            f"refiere, asi que no hay forma de comprobar que habla de esta secuencia; "
+            f"refiere, así que no hay forma de comprobar que habla de esta secuencia; "
             f"se aborta en vez de anclarla sobre lo que haya."
         )
     if reference.sequence_md5(utr3) != table.utr3_md5:
@@ -998,24 +998,24 @@ class ClusterReading:
 
         banda = span(*self.band, Frame.UTR3)
         return [
-            f"CABO SUELTO — NO RESUELTO: {self.locus}. Es el PAS con MAS expresion de "
+            f"CABO SUELTO — NO RESUELTO: {self.locus}. Es el PAS con MÁS expresión de "
             f"los tres (PSE 70,5 %,",
-            "  AvgRPM 1,65) y es el NUMERADOR de la fraccion larga, asi que de su "
+            "  AvgRPM 1,65) y es el NUMERADOR de la fracción larga, así que de su "
             "lectura depende lo que",
             "  significa el 0.86. Hay DOS, con consecuencias distintas:",
             f"    (a) es el racimo del PAS terminal {self.terminal_locus} → los dos son "
             f"el mismo sitio de corte",
-            "        y la fraccion larga 0.86 es exactamente lo que dice ser.",
+            "        y la fracción larga 0.86 es exactamente lo que dice ser.",
             f"    (b) es un corte PROPIO en {banda} → hay un TERCER corte por delante "
             f"del terminal, y todo",
-            "        lo que quede detras lleva un techo adicional. Peor: por detras de "
+            "        lo que quede detrás lleva un techo adicional. Peor: por detrás de "
             "esa banda ya no queda",
-            "        ningun PAS CON EXPRESION MEDIDA, asi que ahi la medida no acota "
+            "        ningún PAS CON EXPRESIÓN MEDIDA, así que ahi la medida no acota "
             "nada — no es un techo",
             "        bajo, es un techo del que esta tabla no sabe nada.",
             "  El anclaje de cuatro puntos ESTRECHA la banda a "
-            f"{banda} (antes se estimaba mas ancha) pero NO",
-            "  desempata: los dos hexameros de su clase que caben ahi son "
+            f"{banda} (antes se estimaba más ancha) pero NO",
+            "  desempata: los dos hexámeros de su clase que caben ahi son "
             + ", ".join(
                 f"{m} en {label(p, Frame.UTR3)}" for p, m in self.hexamers
             )
@@ -1026,24 +1026,24 @@ class ClusterReading:
             f"queda POR DELANTE de la banda: no le afecta.",
             f"    · {label(self.external_site, Frame.UTR3)} de la lista externa cae "
             f"DENTRO de la banda — indeterminado,",
-            "      ni detras ni delante. Ya fallaba nuestro propio filtro duro de "
-            "polyA, asi que no cambia nada hoy.",
-            "    · CERO ventanas elegibles por detras de la banda, y cero dentro. "
-            "Ninguno de los diez esta ahi.",
+            "      ni detrás ni delante. Ya fallaba nuestro propio filtro duro de "
+            "polyA, así que no cambia nada hoy.",
+            "    · CERO ventanas elegibles por detrás de la banda, y cero dentro. "
+            "Ninguno de los diez está ahi.",
             "  POR QUE EL FRENTE SIGUE CERRADO IGUAL, y no por conveniencia: bajo las "
             "DOS lecturas el techo",
             "  del panel es >= 0.86. Bajo (a) es 0.86 exacto; bajo (b) los diez siguen "
             "por delante de la banda,",
-            "  asi que conservan su diana en la isoforma de este corte Y en la "
-            "terminal, cuya expresion no",
-            "  esta medida — o sea 0.86 MAS lo que no se ha contado. La ambiguedad no "
-            "mueve el numero DEL PANEL;",
-            "  moveria el de cualquier candidato que se pusiera por detras de "
+            "  así que conservan su diana en la isoforma de este corte Y en la "
+            "terminal, cuya expresión no",
+            "  está medida — o sea 0.86 MÁS lo que no se ha contado. La ambigüedad no "
+            "mueve el número DEL PANEL;",
+            "  moveria el de cualquier candidato que se pusiera por detrás de "
             f"{banda}, y hoy no hay ninguno.",
             "  QUE LO RESOLVERIA: 3'-end seq de cerebro murino, o la regla de "
             "agrupamiento que use la propia",
             "  base para decidir si estos dos PAS son un racimo. Ninguna de las dos "
-            "esta aqui.",
+            "está aquí.",
         ]
 
 

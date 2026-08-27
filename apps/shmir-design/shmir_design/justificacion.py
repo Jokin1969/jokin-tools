@@ -32,14 +32,14 @@ ORIGINS = ("literatura", "convencion", "nuestro")
 
 ORIGIN_MEANING = {
     "literatura": (
-        "viene de trabajo publicado. Si no se puede citar con seguridad, no se marca asi"
+        "viene de trabajo publicado. Si no se puede citar con seguridad, no se marca así"
     ),
     "convencion": (
-        "es un convenio de diseño de este proyecto. NO hay medida detras, y por eso se "
+        "es un convenio de diseño de este proyecto. NO hay medida detrás, y por eso se "
         "declara en vez de citarse"
     ),
     "nuestro": (
-        "es una decision de este proyecto, con datos delante y con fecha. Se puede "
+        "es una decisión de este proyecto, con datos delante y con fecha. Se puede "
         "discutir; lo que no se puede es leerla como un hecho"
     ),
 }
@@ -66,7 +66,7 @@ class ThresholdSource:
             )
         if not self.rationale.strip():
             raise ValueError(
-                f"El umbral {self.key!r} no dice de donde sale. Un numero sin "
+                f"El umbral {self.key!r} no dice de donde sale. Un número sin "
                 f"procedencia en un informe se lee como una medida; se aborta."
             )
 
@@ -84,32 +84,32 @@ class ThresholdSource:
 THRESHOLDS: tuple[ThresholdSource, ...] = (
     ThresholdSource(
         key="gc_min",
-        label="GC minimo de la ventana",
+        label="GC mínimo de la ventana",
         value="0,30",
         origin="literatura",
         rationale=(
-            "el rango de GC de las guias funcionales de RNAi es un resultado repetido en "
+            "el rango de GC de las guías funcionales de RNAi es un resultado repetido en "
             "los trabajos de diseño de shRNA/siRNA: por debajo el duplex es demasiado "
             "inestable para cargar bien"
         ),
     ),
     ThresholdSource(
         key="gc_max",
-        label="GC maximo de la ventana",
+        label="GC máximo de la ventana",
         value="0,55",
         origin="literatura",
         rationale=(
             "por encima el duplex es demasiado estable y la hebra no se separa; mismo "
-            "cuerpo de trabajo que el minimo"
+            "cuerpo de trabajo que el mínimo"
         ),
     ),
     ThresholdSource(
         key="max_homopolymer",
-        label="homopolimero maximo",
+        label="homopolimero máximo",
         value="4 nt",
         origin="convencion",
         rationale=(
-            "carreras mas largas dan problemas de sintesis y de secuenciacion, y en el "
+            "carreras más largas dan problemas de síntesis y de secuenciacion, y en el "
             "casete son sustrato de deslizamiento de la polimerasa"
         ),
         no_measured_basis=(
@@ -119,23 +119,23 @@ THRESHOLDS: tuple[ThresholdSource, ...] = (
     ),
     ThresholdSource(
         key="min_asymmetry",
-        label="asimetria minima (proxy)",
+        label="asimetría mínima (proxy)",
         value="+1,0 kcal/mol",
         origin="nuestro",
         rationale=(
-            "la regla de asimetria termodinamica —el extremo 5' de la guia menos estable "
+            "la regla de asimetría termodinamica —el extremo 5' de la guía menos estable "
             "carga preferentemente— si viene de literatura; el UMBRAL en +1,0 sobre "
-            "NUESTRO proxy es nuestro. Y el proxy NO es una energia libre de duplex: es "
-            "una heuristica, con su aviso en `thermo.py`"
+            "NUESTRO proxy es nuestro. Y el proxy NO es una energía libre de duplex: es "
+            "una heurística, con su aviso en `thermo.py`"
         ),
         no_measured_basis=(
-            "el proxy no esta calibrado contra energias medidas, asi que el numero "
+            "el proxy no está calibrado contra energias medidas, así que el número "
             "ordena candidatos entre si pero no es una magnitud fisica"
         ),
     ),
     ThresholdSource(
         key="polya_flank",
-        label="flanco prohibido alrededor del hexamero (eje esterico)",
+        label="flanco prohibido alrededor del hexámero (eje esterico)",
         value="±10 nt",
         origin="convencion",
         rationale=(
@@ -144,11 +144,11 @@ THRESHOLDS: tuple[ThresholdSource, ...] = (
         ),
         no_measured_basis=(
             "NO TIENE BASE MEDIDA, y es el caso que obliga a distinguir origenes. La "
-            "huella real de CPSF/CstF sobre el pre-mRNA es MAYOR que 10 nt, asi que una "
-            "ventana que el filtro deja pasar por 4 nt esta probablemente dentro de la "
+            "huella real de CPSF/CstF sobre el pre-mRNA es MAYOR que 10 nt, así que una "
+            "ventana que el filtro deja pasar por 4 nt está probablemente dentro de la "
             "zona de competencia. El eje esterico es un GRADIENTE, no una frontera: "
-            "cualquier umbral en nucleotidos le atribuye una precision que la biologia "
-            "no tiene. Por eso el informe emite ademas la SENSIBILIDAD al flanco"
+            "cualquier umbral en nucleótidos le atribuye una precisión que la biologia "
+            "no tiene. Por eso el informe emite además la SENSIBILIDAD al flanco"
         ),
     ),
 )
@@ -157,27 +157,27 @@ THRESHOLDS: tuple[ThresholdSource, ...] = (
 OTHER_THRESHOLDS: tuple[ThresholdSource, ...] = (
     ThresholdSource(
         key="cleavage_band",
-        label="banda de corte por detras del hexamero",
+        label="banda de corte por detrás del hexámero",
         value="10-30 nt aguas abajo",
         origin="literatura",
         rationale=(
-            "el corte de poliadenilacion ocurre a esa distancia del hexamero; es un "
+            "el corte de poliadenilación ocurre a esa distancia del hexámero; es un "
             "resultado clasico del procesamiento del extremo 3'"
         ),
     ),
     ThresholdSource(
         key="min_spacing",
-        label="espaciado minimo entre candidatos elegidos",
+        label="espaciado mínimo entre candidatos elegidos",
         value="50 nt",
         origin="nuestro",
         rationale=(
-            "el espaciado compra INDEPENDENCIA ENTRE APUESTAS, no numero de apuestas: "
+            "el espaciado compra INDEPENDENCIA ENTRE APUESTAS, no número de apuestas: "
             "las causas de fallo son regionales —un APA, un repetitivo, un tramo "
-            "estructurado afectan a una region entera— asi que dos candidatos pegados "
+            "estructurado afectan a una región entera— así que dos candidatos pegados "
             "fallan juntos. Decidido con la tabla delante"
         ),
         no_measured_basis=(
-            "50 nt no sale de ninguna medida de correlacion espacial de fallos: sale de "
+            "50 nt no sale de ninguna medida de correlación espacial de fallos: sale de "
             "que sea claramente mayor que una ventana de 22 nt y de que deje sitio para "
             "el panel"
         ),
@@ -188,8 +188,8 @@ OTHER_THRESHOLDS: tuple[ThresholdSource, ...] = (
         value="posiciones 2-8",
         origin="literatura",
         rationale=(
-            "la seed 2-8 es la definicion estandar del emparejamiento que dirige la "
-            "represion mediada por miARN; la alternativa 2-7 tambien esta definida y la "
+            "la seed 2-8 es la definicion estándar del emparejamiento que dirige la "
+            "represion mediada por miARN; la alternativa 2-7 también está definida y la "
             "app la ofrece, pero cambia el espacio de seeds y la tasa base"
         ),
     ),
@@ -199,8 +199,8 @@ OTHER_THRESHOLDS: tuple[ThresholdSource, ...] = (
         value="purina en -3 y G en +4",
         origin="convencion",
         rationale=(
-            "es el criterio que este analisis aplica para clasificar los uATG, declarado "
-            "como parametro y no citado"
+            "es el criterio que este análisis aplica para clasificar los uATG, declarado "
+            "como parámetro y no citado"
         ),
         no_measured_basis=(
             "no se pondera la fuerza del contexto ni se usa ninguna matriz: es un corte "
@@ -210,33 +210,33 @@ OTHER_THRESHOLDS: tuple[ThresholdSource, ...] = (
     ThresholdSource(
         key="splice_acceptor",
         label="aceptor de empalme utilizable",
-        value="tracto de pirimidinas comparado con el aceptor LEGITIMO del mismo intron",
+        value="tracto de pirimidinas comparado con el aceptor LEGÍTIMO del mismo intrón",
         origin="nuestro",
         rationale=(
-            "la comparacion es contra una referencia INTERNA —el aceptor que ya funciona "
-            "en ese intron— asi que el veredicto no depende de ningun umbral traido de "
-            "fuera. El legitimo tiene 9 pirimidinas contiguas; el mejor criptico, 3"
+            "la comparación es contra una referencia INTERNA —el aceptor que ya funciona "
+            "en ese intrón— así que el veredicto no depende de ningún umbral traido de "
+            "fuera. El legítimo tiene 9 pirimidinas contiguas; el mejor críptico, 3"
         ),
     ),
     ThresholdSource(
         key="transgene_mismatches",
-        label="desapareamientos que hacen FAIL contra el transgen",
+        label="desapareamientos que hacen FAIL contra el transgén",
         value="0 o 1",
         origin="nuestro",
         rationale=(
-            "una guia a un solo desapareamiento apaga la construccion terapeutica casi "
-            "igual que a su diana, y eso seria un fallo silencioso: el experimento no "
+            "una guía a un solo desapareamiento apaga la construcción terapeutica casi "
+            "igual que a su diana, y eso sería un fallo silencioso: el experimento no "
             "distinguiria «el shmiR no funciona» de «el shmiR apago su propio vector»"
         ),
     ),
     ThresholdSource(
         key="null_draws",
-        label="sorteos minimos de la distribucion nula (carga de off-targets)",
+        label="sorteos minimos de la distribución nula (carga de off-targets)",
         value="10.000",
         origin="nuestro",
         rationale=(
-            "con menos, el percentil de la COLA —que es el unico numero accionable— no "
-            "tiene resolucion"
+            "con menos, el percentil de la COLA —que es el único número accionable— no "
+            "tiene resolución"
         ),
     ),
 )

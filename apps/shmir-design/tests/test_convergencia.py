@@ -156,4 +156,4 @@ class TestComoSeDeclaraEnElInforme(unittest.TestCase):
     def test_no_llama_validacion_a_esto(self):
         # Que dos metodos coincidan donde solo cabe coincidir no valida nada: si el
         # espacio esta saturado, la coincidencia es forzosa.
-        self.assertIn("no es una validacion", self.texto.lower())
+        self.assertIn("no es una validación", self.texto.lower())

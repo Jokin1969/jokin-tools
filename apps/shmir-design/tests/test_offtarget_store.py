@@ -149,7 +149,7 @@ class TestElAlmacen(unittest.TestCase):
         almacen = offtarget_store.OfftargetStore()
         almacen.add(self._run())
         motivo = almacen.verdict_for(self.scan.results[0].query).reason.lower()
-        self.assertIn("limite superior", motivo)
+        self.assertIn("límite superior", motivo)
 
     def test_y_dice_que_es_DESEMPATE(self):
         almacen = offtarget_store.OfftargetStore()
@@ -267,7 +267,7 @@ class TestLaPersistencia(unittest.TestCase):
             crudo = (Path(tmp) / "p" / store_mod.LOG_FILE).read_text(encoding="utf-8")
             self.assertLess(
                 len(crudo), 200_000,
-                "La nula son 10.000 sorteos por clase: guardarlos uno a uno haria el "
+                "La nula son 10.000 sorteos por clase: guardarlos uno a uno haría el "
                 "log ilegible con `cat`, que es justo lo que se decidio evitar.",
             )
             de_vuelta = store_mod.load_offtarget_store(

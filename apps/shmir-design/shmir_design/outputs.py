@@ -174,7 +174,7 @@ def fasta_guides(selection: ReportSelection, *, species: str) -> str:
         guide_dna = window.evaluation.guide.replace("U", "T")
         rank = selection.selection.rank_of(choice.start)
         lines.append(
-            f">{species}_pos{choice.start}_rank{rank} guia(ADN) "
+            f">{species}_pos{choice.start}_rank{rank} guía(ADN) "
             f"tercio={choice.tercio.value if choice.tercio else choice.region.value} "
             f"asimetria={choice.asymmetry:+.2f} "
             f"veredicto={window.verdict.value}"
@@ -250,7 +250,7 @@ def text_report(
     lines = [
         f"═══ Diseño de shmiR — {species} ═══",
         "",
-        "── Anatomia del transcrito ──",
+        "── Anatomía del transcrito ──",
     ]
     anatomia = tiling.anatomy
     # El espacio de coordenadas de TODO lo que se imprima aqui. Sale de la anatomia, no
@@ -264,7 +264,7 @@ def text_report(
     tope_utr3 = bound_of(anatomia)
     if transcript is None and anatomia is not None and anatomia.declared:
         lines.append(
-            "  Declarada por quien lanzo el analisis (no hay transcrito verificado):"
+            "  Declarada por quien lanzo el análisis (no hay transcrito verificado):"
         )
         lines.append(f"  total {anatomia.length} nt")
         if anatomia.utr5:
@@ -288,7 +288,7 @@ def text_report(
     elif transcript is None:
         lines.append(
             f"  Se ha tratado TODA la secuencia ({anatomia.length if anatomia else '?'} "
-            f"nt) como 3'UTR, por declaracion explicita."
+            f"nt) como 3'UTR, por declaración explicita."
         )
     else:
         lines.extend(
@@ -305,7 +305,7 @@ def text_report(
         )
 
     if anatomia is not None:
-        lines.append(f"  Procedencia de la anatomia: {anatomia.source.describe()}")
+        lines.append(f"  Procedencia de la anatomía: {anatomia.source.describe()}")
         if tiling.tile_range is not None:
             lines.append(
                 f"  Rango tilado: {tiling.tile_range.describe(anatomia)}"
@@ -322,13 +322,13 @@ def text_report(
             f"{region.value}: {cuantos}"
             for region, cuantos in selection.selection.config.region_quota
         )
-        lines.append(f"  Cuota por region pedida — {reparto}")
+        lines.append(f"  Cuota por región pedida — {reparto}")
         lines.append(
             "  Los filtros de polyA y APA salen NO_APLICA fuera del 3'UTR: son "
-            "heuristicas de 3'UTR y sobre el ORF no dan ni PASS ni FAIL."
+            "heurísticas de 3'UTR y sobre el ORF no dan ni PASS ni FAIL."
         )
 
-    lines.extend(["", "── Señales de poliadenilacion ──"])
+    lines.extend(["", "── Señales de poliadenilación ──"])
     if tiling.signals:
         lines.extend(f"  · {s.describe(frame=marco)}" for s in tiling.signals)
     else:
@@ -360,17 +360,17 @@ def text_report(
     lines.extend(
         [
             "",
-            "── Tiling y seleccion ──",
+            "── Tiling y selección ──",
             f"  ventanas:        {selection.total}",
             f"  biofisicos_ok:   {tiling.biofisicos_ok()}",
             f"  elegibles:       {selection.eligible} con criterio ESCALONADO "
-            f"(la variante rara de poliadenilacion penaliza, no excluye)",
+            f"(la variante rara de poliadenilación penaliza, no excluye)",
             f"                   {selection.eligible_strict} con criterio ESTRICTO "
-            f"(±flanco para los doce hexameros por igual)",
+            f"(±flanco para los doce hexámeros por igual)",
             f"  sitios:          {len(selection.selection.sites)}",
             f"  seleccionados:   {len(selection.selection.chosen)} de "
             f"{selection.selection.config.n_candidates} pedidos "
-            f"(espaciado minimo {selection.selection.config.min_spacing} nt entre "
+            f"(espaciado mínimo {selection.selection.config.min_spacing} nt entre "
             f"posiciones de inicio)",
         ]
     )
@@ -403,42 +403,42 @@ def text_report(
         lines.append("  Cuotas DURAS de este panel: " + "; ".join(cuotas) + ".")
         lines.append(
             "  De donde salen esas plazas: el bloque «solo de fuente externa» "
-            "desaparecio por VACIO."
+            "desaparecio por VACÍO."
         )
         lines.append(
             "  Contra el conjunto completo de sitios elegibles no queda ni un sitio "
             "exclusivo de la"
         )
         lines.append(
-            "  fuente externa que supere nuestros filtros duros, asi que sus plazas se "
+            "  fuente externa que supere nuestros filtros duros, así que sus plazas se "
             "reasignan a"
         )
         lines.append("  COBERTURA GEOGRAFICA.")
         lines.append(
-            "  Por que a cobertura y no por asimetria: las causas de fallo son "
+            "  Por que a cobertura y no por asimetría: las causas de fallo son "
             "regionales, no puntuales"
         )
         lines.append(
             "  —un APA, un elemento repetitivo, un tramo estructurado afectan a una "
-            "REGION entera—, asi"
+            "REGIÓN entera—, así"
         )
         lines.append(
-            "  que con la prediccion SATURADA la unica variable que sigue comprando "
+            "  que con la predicción SATURADA la única variable que sigue comprando "
             "independencia entre apuestas"
         )
         lines.append(
-            "  es el espaciado. Dos candidatos del mismo tramo con asimetrias distintas "
+            "  es el espaciado. Dos candidatos del mismo tramo con asimetrías distintas "
             "siguen"
         )
         lines.append("  compartiendo modo de fallo.")
         if config.apa_immune_quota and config.tercio_quota:
             lines.append(
-                "  El espaciado NO se baja para meter un inmune mas: el espaciado "
+                "  El espaciado NO se baja para meter un inmune más: el espaciado "
                 "compra INDEPENDENCIA"
             )
             lines.append(
-                "  entre apuestas, no NUMERO de apuestas. Dos candidatos a 30 nt fallan "
-                "juntos, asi que"
+                "  entre apuestas, no NÚMERO de apuestas. Dos candidatos a 30 nt fallan "
+                "juntos, así que"
             )
             lines.append(
                 "  un quinto inmune pegado a otro no compraria nada. La plaza que la "
@@ -446,7 +446,7 @@ def text_report(
             )
             lines.append(
                 "  puede llenar se reasigna al TERCIO MEDIO, que es donde el panel "
-                "queda mas flojo:"
+                "queda más flojo:"
             )
             lines.append(
                 "  si el APA resulta funcional se pierde un candidato; si no, se gana "
@@ -468,7 +468,7 @@ def text_report(
     else:
         lines.append(f"  Base: {tiling.specificity_db.provenance}")
         lines.append(
-            "  Parametros: escaneo exhaustivo local, hasta 2 desapareamientos, guia y "
+            "  Parámetros: escaneo exhaustivo local, hasta 2 desapareamientos, guía y "
             "pasajera por separado; solo cuentan los hits antisentido."
         )
     if selection.selection.chosen and species in TAXIDS:
@@ -490,9 +490,9 @@ def text_report(
             [
                 "",
                 "── Procedencia de los ficheros de referencia usados ──",
-                "  Copiado del manifiesto de data/reference/. Sin estas lineas, dentro "
+                "  Copiado del manifiesto de data/reference/. Sin estas líneas, dentro "
                 "de un año",
-                "  nadie podra saber con que version de cada base se saco este "
+                "  nadie podra saber con que versión de cada base se saco este "
                 "veredicto.",
             ]
         )
@@ -509,7 +509,7 @@ def text_report(
         "  La regla de ±flanco mezclaba dos cosas distintas, y esto las separa:"
     )
     lines.append(
-        "    TRUNCAMIENTO  la ventana esta POR DETRAS del corte que dirige un hexamero "
+        "    TRUNCAMIENTO  la ventana está POR DETRÁS del corte que dirige un hexámero "
         "funcional."
     )
     lines.append(
@@ -518,18 +518,18 @@ def text_report(
     )
     lines.append("                  la diana: si esa isoforma se usa, el tramo no esta.")
     lines.append(
-        "    ESTERICO      la ventana SOLAPA el hexamero y compite con CPSF/CstF por "
+        "    ESTERICO      la ventana SOLAPA el hexámero y compite con CPSF/CstF por "
         "ese tramo."
     )
     lines.append(
         "                  Es un riesgo sobre la ACCESIBILIDAD, y solo existe si el "
-        "hexamero se usa."
+        "hexámero se usa."
     )
     lines.append(
-        "  Un mismo hexamero NUNCA produce los dos en la misma ventana: o estas encima "
+        "  Un mismo hexámero NUNCA produce los dos en la misma ventana: o estas encima "
         "de la"
     )
-    lines.append("  señal, o estas por detras de su corte.")
+    lines.append("  señal, o estas por detrás de su corte.")
     lines.append("")
     # El riesgo DOMINANTE es el del corte MAS TEMPRANO, y eso no es lo mismo que «la
     # canonica». Con el tercer sitio medido de PolyA_DB el corte mas temprano lo pone un
@@ -582,32 +582,32 @@ def text_report(
                 "el caso INVERSO"
             )
             lines.append(
-                "  al del hexamero canonico: aqui el hexamero es una VARIANTE RARA "
+                "  al del hexámero canónico: aquí el hexámero es una VARIANTE RARA "
                 "("
                 + dominante.motif
                 + "), que por nuestra"
             )
             lines.append(
-                "  cascada de prediccion saldria OTRA y valdria solo una penalizacion de "
+                "  cascada de predicción saldria OTRA y valdria solo una penalizacion de "
                 "ranking. Lo que la"
             )
             lines.append(
-                "  sube es que hay dato de uso, y la medida SUSTITUYE a la prediccion: "
+                "  sube es que hay dato de uso, y la medida SUSTITUYE a la predicción: "
                 "una variante rara"
             )
             lines.append(
-                "  MEDIDA vale mas que una canonica sin medir. Procedencia del dato:"
+                "  MEDIDA vale más que una canónica sin medir. Procedencia del dato:"
             )
             lines.extend(
                 f"    {l}" for l in _envolver(dominante.measured_use, 84)
             )
         else:
             lines.append(
-                "  Clasificada APA_POSIBLE POR SER CANONICA y estar a mas de 100 nt del "
+                "  Clasificada APA_POSIBLE POR SER CANÓNICA y estar a más de 100 nt del "
                 "extremo 3',"
             )
             lines.append(
-                "  NO POR EVIDENCIA DE USO: aqui no hay ni un dato de uso de este sitio. "
+                "  NO POR EVIDENCIA DE USO: aquí no hay ni un dato de uso de este sitio. "
                 "Es un SUPUESTO,"
             )
             lines.append(
@@ -615,7 +615,7 @@ def text_report(
                 "dejaria de serlo."
             )
         lines.append(
-            f"  Su corte cae en {corte}. Un candidato que empiece por detras pierde su "
+            f"  Su corte cae en {corte}. Un candidato que empiece por detrás pierde su "
             f"diana en la"
         )
         lines.append(
@@ -623,7 +623,7 @@ def text_report(
             "en una"
         )
         lines.append(
-            "  MEZCLA DE ISOFORMAS, asi que lo que corre es un TECHO de knockdown — "
+            "  MEZCLA DE ISOFORMAS, así que lo que corre es un TECHO de knockdown — "
             "NO ES UN VETO."
         )
         detras, inmunes = [], []
@@ -635,7 +635,7 @@ def text_report(
             )
         if detras:
             lines.append(
-                f"    con TECHO (por detras del corte): "
+                f"    con TECHO (por detrás del corte): "
                 f"{', '.join(label(p, Frame.UTR3) for p in sorted(detras))}"
             )
             if tiling.measured_apa is None:
@@ -693,7 +693,7 @@ def text_report(
             top = alternativas[:6]
             lines.append(
                 f"      INMUNES elegibles NO elegidos: {len(alternativas)} sitio(s). "
-                f"Los mejores por asimetria:"
+                f"Los mejores por asimetría:"
             )
             # En la MISMA pareja de coordenadas que las lineas de arriba: mezclar el
             # marco del transcrito con el del 3'UTR aqui daria un «1018» que no es el
@@ -719,7 +719,7 @@ def text_report(
                     f"{label(_en_3utr(c), Frame.UTR3, limit=tope_utr3)} ({_asimetria(c)})"
                     for c in top
                 )
-                + "  ← inmunes tambien"
+                + "  ← inmunes también"
             )
             lines.append(
                 "      Son las plazas con las que se cambia un candidato con techo por "
@@ -727,22 +727,22 @@ def text_report(
             )
         if len(inmunes) + len(alternativas) < 3:
             lines.append(
-                "    Con uno o dos inmunes el panel depende de un supuesto que aqui no "
+                "    Con uno o dos inmunes el panel depende de un supuesto que aquí no "
                 "se ha medido."
             )
         if not inmunes:
             lines.append(
-                "    Ningun candidato del panel esta por delante de esa señal. Un panel "
+                "    Ningún candidato del panel está por delante de esa señal. Un panel "
                 "entero por"
             )
             lines.append(
-                "    detras del mismo corte comparte un unico modo de fallo: si esa "
+                "    detrás del mismo corte comparte un único modo de fallo: si esa "
                 "isoforma domina,"
             )
             lines.append("    todos quedan con el mismo techo a la vez.")
 
         if polya_conservation is not None:
-            lines.append("  Conservacion de esta señal en la otra especie:")
+            lines.append("  Conservación de esta señal en la otra especie:")
             lines.extend(
                 f"    {l}"
                 for l in _envolver(polya_conservation.describe(), 84)
@@ -766,11 +766,11 @@ def text_report(
                 )
         else:
             lines.append(
-                "  Sobre si esta conservada en otra especie: NOT_RUN. No se ha pasado "
-                "ningun 3'UTR"
+                "  Sobre si está conservada en otra especie: NOT_RUN. No se ha pasado "
+                "ningún 3'UTR"
             )
             lines.append(
-                "  con el que comparar (--fasta-b), asi que este informe no lo "
+                "  con el que comparar (--fasta-b), así que este informe no lo "
                 "confirma ni lo desmiente."
             )
         # El experimento que convierte el techo en un numero. Coordenadas derivadas,
@@ -792,7 +792,7 @@ def text_report(
                 for c in selection.selection.chosen
             ],
         )
-        lines.extend(["", "  ── Fraccion de isoforma larga ──"])
+        lines.extend(["", "  ── Fracción de isoforma larga ──"])
         if tiling.measured_apa is not None:
             lines.extend(f"  {l}" for l in tiling.measured_apa.describe())
             lines.append("")
@@ -802,27 +802,27 @@ def text_report(
             lines.extend(f"  {l}" for l in CLUSTER_READING.describe())
         lines.append("")
         lines.append(
-            "  ANTES DEL BANCO — mirar si la fraccion ya esta medida y publicada:"
+            "  ANTES DEL BANCO — mirar si la fracción ya está medida y publicada:"
         )
         lines.append(
             "    1. PolyA_DB / PolyASite: ¿hay sitio anotado en este 3'UTR, y con que "
-            "fraccion de"
+            "fracción de"
         )
         lines.append(
             "       lecturas? Si lo hay, entra por --apa-medido y el techo deja de "
             "estar indeterminado."
         )
         lines.append(
-            "    2. Datos publicos de 3'-end seq (3'-seq / PAS-seq / QuantSeq REV) de "
+            "    2. Datos públicos de 3'-end seq (3'-seq / PAS-seq / QuantSeq REV) de "
             "CEREBRO murino"
         )
         lines.append(
-            "       sobre Prnp: la fraccion de uso del sitio proximal se lee "
+            "       sobre Prnp: la fracción de uso del sitio proximal se lee "
             "directamente de ahi."
         )
         lines.append(
-            "    Si la fraccion esta publicada, el experimento de abajo es una "
-            "CONFIRMACION, no un"
+            "    Si la fracción está publicada, el experimento de abajo es una "
+            "CONFIRMACIÓN, no un"
         )
         lines.append(
             "    descubrimiento — y entonces cuesta lo que cuesta comprobar dos "
@@ -841,18 +841,18 @@ def text_report(
 
     lines.extend(["", "── Que se ha analizado ──"])
     lines.append(
-        f"  {tiling.sequence_length} nt, md5 canonico {tiling.sequence_md5}"
+        f"  {tiling.sequence_length} nt, md5 canónico {tiling.sequence_md5}"
     )
     lines.append(
         "  Sin estas dos cifras no hay forma de saber que secuencia se analizo. El md5 "
         "es el de la"
     )
     lines.append(
-        "  secuencia canonica (mayusculas, sin cabecera, sin saltos), no el del fichero."
+        "  secuencia canónica (mayusculas, sin cabecera, sin saltos), no el del fichero."
     )
     lines.extend(f"  {l}" for l in CONVENTION_NOTE.splitlines())
 
-    lines.extend(["", "── Score externo (columna vacia) ──"])
+    lines.extend(["", "── Score externo (columna vacía) ──"])
     lines.append(
         manual_instructions(
             [
@@ -862,7 +862,7 @@ def text_report(
         )
     )
 
-    lines.extend(["", "── Rango que cubre la seleccion ──"])
+    lines.extend(["", "── Rango que cubre la selección ──"])
     lines.append(
         coverage_report(
             selection.selection, sites=list(selection.selection.sites)
@@ -870,31 +870,31 @@ def text_report(
     )
     if not selection.selection.config.spread_coverage:
         lines.append(
-            "  La seleccion se hizo por asimetria, no repartiendo. La asimetria predice "
-            "SELECCION DE HEBRA, no potencia: si lo que se quiere es correlacionar "
-            "parametros contra el knockdown medido, --reparto-rango reparte los "
-            "candidatos por los extremos de los parametros dudosos."
+            "  La selección se hizo por asimetría, no repartiendo. La asimetría predice "
+            "SELECCIÓN DE HEBRA, no potencia: si lo que se quiere es correlacionar "
+            "parámetros contra el knockdown medido, --reparto-rango reparte los "
+            "candidatos por los extremos de los parámetros dudosos."
         )
 
-    lines.extend(["", "── Poliadenilacion alternativa (APA) ──"])
+    lines.extend(["", "── Poliadenilación alternativa (APA) ──"])
     if tiling.apa_sites is None:
         con_riesgo = sum(1 for w in tiling.windows if w.riesgo_APA)
         lines.append(
-            f"  riesgo_APA es una PREDICCION, no un dato: {con_riesgo} de "
+            f"  riesgo_APA es una PREDICCIÓN, no un dato: {con_riesgo} de "
             f"{len(tiling.windows)} ventana(s) "
-            f"({con_riesgo / len(tiling.windows):.1%}) quedan por detras de una señal "
+            f"({con_riesgo / len(tiling.windows):.1%}) quedan por detrás de una señal "
             f"de APA posible."
         )
         lines.append(
             "  Que esa señal se use o no, esto no lo puede saber. Si se usa, esas "
             "ventanas tienen un techo de knockdown duro e invisible. Con una tabla de "
-            "PolyA_DB o PolyASite (--apa-medido) el dato sustituiria a la prediccion."
+            "PolyA_DB o PolyASite (--apa-medido) el dato sustituiria a la predicción."
         )
     else:
         lines.append(f"  Sitios MEDIDOS: {tiling.apa_sites.provenance}")
         lines.append(
-            "  El dato sustituye a la prediccion. Un sitio medido ES el sitio de corte, "
-            "no el hexamero: no se le suman los 10-30 nt."
+            "  El dato sustituye a la predicción. Un sitio medido ES el sitio de corte, "
+            "no el hexámero: no se le suman los 10-30 nt."
         )
         con_techo = [
             w for w in tiling.windows
@@ -903,12 +903,12 @@ def text_report(
         if con_techo:
             peor = min(w.apa.knockdown_ceiling for w in con_techo)
             lines.append(
-                f"  Techo de knockdown mas bajo entre las ventanas evaluadas: "
+                f"  Techo de knockdown más bajo entre las ventanas evaluadas: "
                 f"{peor:.0%}."
             )
         elif tiling.apa_sites is not None and not tiling.apa_sites.has_fractions:
             lines.append(
-                "  La tabla no trae la fraccion de lecturas de todos los sitios, asi "
+                "  La tabla no trae la fracción de lecturas de todos los sitios, así "
                 "que hay riesgo identificado pero no techo. No se inventa."
             )
 
@@ -920,7 +920,7 @@ def text_report(
         )
     elif not VIENNA_AVAILABLE:
         lines.append(
-            "  NOT_RUN: se pidio, pero ViennaRNA no esta instalado "
+            "  NOT_RUN: se pidio, pero ViennaRNA no está instalado "
             "(`pip install ViennaRNA`). NOT_RUN no es cero."
         )
     else:
@@ -933,8 +933,8 @@ def text_report(
             f"contexto: ±{CONTEXT_WINDOWS[0]} y ±{CONTEXT_WINDOWS[1]} nt."
         )
         lines.append(
-            f"  En {len(discrepantes)} de ellas las dos ventanas discrepan mas de "
-            f"{DISCREPANCY:.0%}: ahi el numero depende de donde se corte el contexto y "
+            f"  En {len(discrepantes)} de ellas las dos ventanas discrepan más de "
+            f"{DISCREPANCY:.0%}: ahi el número depende de donde se corte el contexto y "
             f"no sirve para desempatar."
         )
         lines.append(
@@ -954,25 +954,25 @@ def text_report(
             lines.append(
                 "  ⚠  DOS EJES, no uno: "
                 + ", ".join(e.describe() for e in polimorficos)
-                + " es una repeticion POLIMORFICA en longitud."
+                + " es una repetición POLIMÓRFICA en longitud."
             )
             lines.extend(f"     {l}" for l in _envolver(WHY_REPEAT, 85))
             lines.extend(f"     {l}" for l in _envolver(WHY_POLYMORPHIC, 85))
             lines.append("")
     if tiling.mask is None:
         lines.append(
-            "  NOT_RUN: no hay mascara de repeticiones cargada. Una guia derivada de un "
+            "  NOT_RUN: no hay máscara de repeticiones cargada. Una guía derivada de un "
             "elemento repetitivo tiene miles de sitios perfectos: no es un off-target, "
-            "es una guia inservible. NOT_RUN no es PASS."
+            "es una guía inservible. NOT_RUN no es PASS."
         )
     else:
-        lines.append(f"  Mascara: {tiling.mask.provenance}")
+        lines.append(f"  Máscara: {tiling.mask.provenance}")
         lines.append(
             "  El enmascarado va ANTES de tilar y se RETILA: una ventana parcialmente "
             "repetitiva se reevalua entera, no se tacha de una lista ya hecha."
         )
 
-    lines.extend(["", "── Colision de seed con miARN endogeno ──"])
+    lines.extend(["", "── Colisión de seed con miARN endogeno ──"])
     if tiling.mature is None:
         lines.append(
             "  NOT_RUN: no hay tabla de maduros de miRBase cargada. Compartir seed con "
@@ -990,46 +990,46 @@ def text_report(
         else:
             lines.append(f"  Abundancia: {tiling.abundance.provenance}")
         lines.append(
-            f"  Dos niveles porque hay {SEED_SPACE} 7-meros posibles: una colision por "
-            f"azar no es rara, asi que el FAIL solo lo da la lista curada."
+            f"  Dos niveles porque hay {SEED_SPACE} 7-meros posibles: una colisión por "
+            f"azar no es rara, así que el FAIL solo lo da la lista curada."
         )
 
     lines.extend(["", "── Carga de off-targets por seed ──"])
     if tiling.utr3_set is None:
         lines.append(
             "  NOT_RUN: no hay FASTA de 3'UTR del transcriptoma cargado. Esto NO es un "
-            "cero: no saber cuantos sitios de seed hay no es lo mismo que no haber "
+            "cero: no saber cuántos sitios de seed hay no es lo mismo que no haber "
             "ninguno."
         )
         lines.append(
-            "  Ningun alineador devuelve estos sitios — la especificidad compara la "
-            "guia entera — asi que un veredicto de especificidad limpio no dice nada "
+            "  Ningún alineador devuelve estos sitios — la especificidad compara la "
+            "guía entera — así que un veredicto de especificidad limpio no dice nada "
             "sobre esto."
         )
     else:
         lines.append(f"  3'UTR: {tiling.utr3_set.provenance}")
         lines.append(
-            "  Numero comparativo entre candidatos, nunca veredicto: sale en la tabla "
+            "  Número comparativo entre candidatos, nunca veredicto: sale en la tabla "
             "como criterio de desempate."
         )
 
-    lines.extend(["", "── Transgen terapeutico ──"])
+    lines.extend(["", "── Transgén terapeutico ──"])
     if tiling.transgene_db is None:
         lines.append(
-            "  NOT_RUN: no hay casete del transgen cargado, asi que queda sin comprobar "
-            "si algun candidato apaga la propia construccion terapeutica. NOT_RUN no es "
+            "  NOT_RUN: no hay casete del transgén cargado, así que queda sin comprobar "
+            "si algun candidato apaga la propia construcción terapeutica. NOT_RUN no es "
             "PASS."
         )
         lines.append(
-            "  Por que importa: una guia a 1 desapareamiento del ORF del transgen lo "
-            "silencia casi igual que a su diana perfecta. El fallo seria silencioso — "
-            "knockdown global bonito y ningun beneficio en el ratio."
+            "  Por que importa: una guía a 1 desapareamiento del ORF del transgén lo "
+            "silencia casi igual que a su diana perfecta. El fallo sería silencioso — "
+            "knockdown global bonito y ningún beneficio en el ratio."
         )
     else:
         lines.append(f"  Casete: {tiling.transgene_db.provenance}")
         lines.append(
-            "  Parametros: mismo motor que la especificidad (escaneo exhaustivo local, "
-            "hasta 2 desapareamientos, guia y pasajera por separado). Aqui no hay gen "
+            "  Parámetros: mismo motor que la especificidad (escaneo exhaustivo local, "
+            "hasta 2 desapareamientos, guía y pasajera por separado). Aquí no hay gen "
             "diana que excluir: FAIL con 0 o 1 desapareamiento, aviso con 2."
         )
         tocados = [
@@ -1048,7 +1048,7 @@ def text_report(
     # ── El quinto frente. Va DESPUES del transgen porque comparte fichero, y ANTES de
     # los criterios de polyA porque no es un criterio: es un riesgo binario que decide
     # si la arquitectura sigue viva.
-    lines.extend(["", "── Empalme del intron ──"])
+    lines.extend(["", "── Empalme del intrón ──"])
     lines.extend(f"  {l}" for l in _envolver(splicing.BINARY_NOT_GRADUAL, 88))
     lines.extend(f"  {l}" for l in _envolver(splicing.WHY_SMALL_RNA_SEQ_MISSES_IT, 88))
     plan_empalme, motivo_empalme = splicing.plan_from_records(
@@ -1083,13 +1083,13 @@ def text_report(
     lines.extend(
         [
             "",
-            "── Criterio de poliadenilacion: los tres modos lado a lado ──",
+            "── Criterio de poliadenilación: los tres modos lado a lado ──",
             f"  Modo usado en esta corrida: {tiling.polya_mode.value}",
-            "  El corte no ocurre en el hexamero, ocurre 10-30 nt aguas abajo: el "
-            "hexamero se queda",
+            "  El corte no ocurre en el hexámero, ocurre 10-30 nt aguas abajo: el "
+            "hexámero se queda",
             "  dentro del ARNm maduro. La ventana que desaparece es la que empieza "
-            "DESPUES del corte,",
-            "  asi que la zona prohibida por esa razon es asimetrica y esta desplazada "
+            "DESPUÉS del corte,",
+            "  así que la zona prohibida por esa razón es asimetrica y está desplazada "
             "aguas abajo.",
         ]
     )
@@ -1099,7 +1099,7 @@ def text_report(
     lines.extend(
         [
             "",
-            "── Sensibilidad de la penalizacion por poliadenilacion debil ──",
+            "── Sensibilidad de la penalizacion por poliadenilación debil ──",
             f"  ventanas con bandera: {sensibilidad.flagged}",
         ]
     )
@@ -1120,8 +1120,8 @@ def text_report(
             for name, count in selection.not_run_filters.items()
         )
         lines.append(
-            "  NOT_RUN no es PASS. Mientras haya filtros sin correr, la seleccion es "
-            "PROVISIONAL y ningun candidato esta aprobado: su veredicto es INCOMPLETE."
+            "  NOT_RUN no es PASS. Mientras haya filtros sin correr, la selección es "
+            "PROVISIONAL y ningún candidato está aprobado: su veredicto es INCOMPLETE."
         )
         # Y con nombre y apellidos: cuantos FRENTES quedan abiertos, no «un
         # bloqueante». Un fichero pequeño que falta y una base de datos que falta
@@ -1155,7 +1155,7 @@ def text_report(
         )
         lines.append(
             "  y otro necesite una base entera no cambia nada: los dos bloquean igual, "
-            "y llamar «unico"
+            "y llamar «único"
         )
         lines.append(
             "  bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros "
@@ -1166,11 +1166,11 @@ def text_report(
         # pensar que basta con conseguir datos.
         if any(f.name == "empalme_intron" for f in abiertos):
             lines.append(
-                "  Y uno de ellos NO SE CIERRA CON NINGUN FICHERO: el empalme del intron "
+                "  Y uno de ellos NO SE CIERRA CON NINGÚN FICHERO: el empalme del intrón "
                 "solo se cierra en el"
             )
             lines.append(
-                "  banco, con las tres lecturas de su bloque. Ademas es el unico BINARIO "
+                "  banco, con las tres lecturas de su bloque. Además es el único BINARIO "
                 "— los demas degradan el"
             )
             lines.append(
@@ -1184,7 +1184,7 @@ def text_report(
     from .offtarget import MULTIPLEX_NOTE, core_conflicts
 
     conflictos = core_conflicts(selection)
-    lines.extend(["", "── Multiplexado: nucleos de seed compartidos ──"])
+    lines.extend(["", "── Multiplexado: núcleos de seed compartidos ──"])
     if conflictos:
         for conflicto in conflictos:
             # Las dos etiquetas salen del MARCO del informe, no de un prefijo escrito
@@ -1200,7 +1200,7 @@ def text_report(
         lines.extend(f"  {l}" for l in _envolver(MULTIPLEX_NOTE, 86))
     else:
         lines.append(
-            "  Ninguna pareja del panel comparte el nucleo de 6 nt: en este eje los "
+            "  Ninguna pareja del panel comparte el núcleo de 6 nt: en este eje los "
             "candidatos son"
         )
         lines.append(
@@ -1216,14 +1216,14 @@ def text_report(
     lines.extend(["", "── Triple motivo: repetitivo + polimorfico + TECHO ──"])
     if triple_motive is None:
         lines.append(
-            "  NOT_RUN: hace falta la mascara de repeticiones y un tilado SIN "
+            "  NOT_RUN: hace falta la máscara de repeticiones y un tilado SIN "
             "enmascarar. Con la"
         )
         lines.append(
-            "  mascara puesta el paso 15 retila, asi que esas ventanas ya no estan en la "
+            "  máscara puesta el paso 15 retila, así que esas ventanas ya no están en la "
             "piscina y una"
         )
-        lines.append("  lista por ventana saldria VACIA — que no es lo mismo que limpia.")
+        lines.append("  lista por ventana saldria VACÍA — que no es lo mismo que limpia.")
     elif not triple_motive:
         lines.append(
             "  Ninguna ventana elegible cae por los tres ejes a la vez sobre esta "
@@ -1245,12 +1245,12 @@ def text_report(
     for warning in scaffold.warnings:
         avisos.append(f"  ⚠  {warning}")
     for nota in selection.selection.notes:
-        avisos.append(f"  ⚠  seleccion: {nota}")
+        avisos.append(f"  ⚠  selección: {nota}")
     for pendiente in selection.selection.quota_unfilled:
         avisos.append(f"  ⚠  cuota por tercio sin cubrir — {pendiente}")
     if tiling.seeds is not None and tiling.seeds.is_bootstrap:
         avisos.append(
-            "  ⚠  El filtro de seed corrio con una lista de arranque, NO con miRBase "
+            "  ⚠  El filtro de seed corrió con una lista de arranque, NO con miRBase "
             "completo: sirve para probar la mecanica, no para cribar."
         )
     lines.extend(avisos or ["  Ninguno."])

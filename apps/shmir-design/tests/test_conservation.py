@@ -158,7 +158,7 @@ class TestInforme(unittest.TestCase):
         self.assertEqual(report.passing_windows(), 0)
         texto = report.format_text()
         self.assertIn(BLOCK, texto)
-        self.assertIn("decision", texto.lower())
+        self.assertIn("decisión", texto.lower())
 
     def test_el_informe_da_posiciones_distancias_y_gc(self):
         texto = self.report().format_text()
@@ -176,14 +176,14 @@ class TestInforme(unittest.TestCase):
     def test_sin_bloques_el_informe_lo_dice(self):
         report = build_conservation_report(Utr3("a", "N" * 40), Utr3("b", "N" * 40))
         self.assertEqual(report.blocks, ())
-        self.assertIn("ningun bloque", report.format_text().lower())
+        self.assertIn("ningún bloque", report.format_text().lower())
 
 
 @unittest.skipUnless(
     all(fixture_available(ref) for ref in REFERENCES.values()),
     "NOT_RUN: faltan los fixtures de data/reference/; añadelos al repositorio o "
     "descargalos con tools/reference_data.py --fetch. No se sustituyen por secuencia "
-    "sintetica (regla 1)",
+    "sintética (regla 1)",
 )
 class TestUtrCompletos(unittest.TestCase):
     """Sobre los 3'UTR reales, extraidos y verificados desde los fixtures."""

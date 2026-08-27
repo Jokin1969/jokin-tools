@@ -66,7 +66,7 @@ class TestNingunUmbralSinJustificar(unittest.TestCase):
         faltan = sorted({f.name for f in fields(Thresholds)} - declarados)
         self.assertEqual(
             faltan, [],
-            f"Umbral(es) sin justificar: {faltan}. Un numero en un informe sin decir de "
+            f"Umbral(es) sin justificar: {faltan}. Un número en un informe sin decir de "
             f"donde sale se lee como una medida; añadelo a `justificacion.THRESHOLDS`.",
         )
 
@@ -179,7 +179,7 @@ class TestLasSieteSecciones(unittest.TestCase):
 
     def test_7_lista_la_procedencia_de_TODOS_los_recursos(self):
         texto = "\n".join(_markdown_of(self.doc.section(7)))
-        for recurso in ("mascara de repetitivos", "maduros de miRBase", "APA medido"):
+        for recurso in ("máscara de repetitivos", "maduros de miRBase", "APA medido"):
             self.assertIn(recurso, texto)
 
 
@@ -218,7 +218,7 @@ class TestLasTresReglasDeRedaccion(unittest.TestCase):
         seccion_6 = self.md.index("## 6.")
         self.assertLess(
             primera, seccion_6,
-            "Un NOT_RUN que solo aparece en un anexo se lee despues de haber creido la "
+            "Un NOT_RUN que solo aparece en un anexo se lee después de haber creido la "
             "tabla de candidatos.",
         )
 
@@ -268,7 +268,7 @@ class TestElGolden(unittest.TestCase):
                 )
             )
             self.fail(
-                "El informe ha cambiado. Si el cambio es a proposito, regeneralo con "
+                "El informe ha cambiado. Si el cambio es a propósito, regeneralo con "
                 "`python3 tools/regenerar_golden.py` y que el diff entre en la "
                 f"revision:\n{diff[:4000]}"
             )

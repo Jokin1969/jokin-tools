@@ -319,7 +319,7 @@ class TestElBloqueExportable(unittest.TestCase):
     def test_dice_lo_que_NO_contesta(self):
         texto = self.corrida.export_block()
         self.assertIn("transcriptoma_3utr.fa", texto)
-        self.assertIn("cuantos mensajeros", texto.lower())
+        self.assertIn("cuántos mensajeros", texto.lower())
 
     def test_se_lee_sin_la_app_delante(self):
         # No hay referencias a widgets ni a «pincha aqui».
@@ -331,7 +331,7 @@ class TestLoQueEsteModalNoCierra(unittest.TestCase):
     def test_la_frase_esta_escrita_en_el_nucleo(self):
         texto = seed_scan.WHAT_THIS_DOES_NOT_ANSWER
         self.assertIn("mi seed es la de un miARN conocido", texto)
-        self.assertIn("cuantos mensajeros", texto.lower())
+        self.assertIn("cuántos mensajeros", texto.lower())
 
     def test_nombra_el_fichero_que_falta(self):
         self.assertIn("transcriptoma_3utr.fa", seed_scan.WHAT_THIS_DOES_NOT_ANSWER)

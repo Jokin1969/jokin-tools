@@ -149,9 +149,18 @@ Lo que hay que saber para tocarlo:
 
 ```bash
 npm test                  # suite del hub Node (node --test)
-npm run check:shmir       # regla 2 de shmir-design sobre el AST
-npm run test:shmir        # tests de shmir-design (394, sin dependencias externas)
+npm run check:shmir       # regla 2 de shmir-design sobre el AST + alcanzabilidad
+npm run check:tildes      # el castellano de los mensajes que ve el usuario
+npm run test:shmir        # tests de shmir-design (sin dependencias externas)
 ```
+
+`check:shmir` imprime además el **informe de alcanzabilidad**: qué función pública de
+`apps/shmir-design/` no tiene ningún llamador fuera de su propio módulo y de sus tests.
+No es un fallo automático —hay casos legítimos— pero aparecer ahí obliga a decidir: o se
+cablea, o se justifica por escrito en `apps/shmir-design/data/alcanzabilidad.toml`, o se
+borra. Existe porque el proyecto llegó **tres veces** a lo mismo: código con tests en
+verde y sin caller. El golden lee lo que se emite; esto detecta lo que nunca llega a
+emitirse.
 
 La interfaz Streamlit de `apps/shmir-design/` es opcional y se instala aparte
 (`pip install -r apps/shmir-design/requirements-ui.txt`); ni el hub ni los CLI la

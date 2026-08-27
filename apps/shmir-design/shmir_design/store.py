@@ -53,17 +53,17 @@ RECORD_KINDS = (
 WHAT_THE_CHAIN_DOES_NOT_DO = (
     "La cadena de md5 NO IMPIDE editar el log —nada lo impide, es un fichero— y no "
     "pretende impedirlo. Lo que hace es volverlo VISIBLE: `verify()` recalcula la cadena "
-    "y aborta diciendo en que linea se rompe. Es la misma disciplina que el md5 del "
+    "y aborta diciendo en que línea se rompe. Es la misma disciplina que el md5 del "
     "manifiesto: no evita que alguien cambie un fichero, evita que el cambio pase "
     "inadvertido."
 )
 
 #: Lo que deja de ser fiable cuando la anatomia no se pudo resolver.
 UNRELIABLE_NOTE = (
-    "Sin anatomia no se sabe donde empieza el 3'UTR, asi que TODO lo que dependa de esa "
+    "Sin anatomía no se sabe donde empieza el 3'UTR, así que TODO lo que dependa de esa "
     "frontera queda NO_FIABLE: los tercios, las etiquetas proximal/medio/distal y las "
     "zonas de polyA —incluida la distancia al extremo 3', que es la que decide si una "
-    "señal es terminal—. Los filtros de secuencia (GC, homopolimero, asimetria, G4) no "
+    "señal es terminal—. Los filtros de secuencia (GC, homopolimero, asimetría, G4) no "
     "dependen de ella y siguen valiendo."
 )
 
@@ -103,7 +103,7 @@ class Project:
             f"Proyecto {self.slug} — creado {self.created}",
             f"  entrada: {self.sequence_length} nt / md5 {self.sequence_md5}",
             f"  especie: {self.species or 'SIN DECLARAR'}",
-            f"  anatomia: {self.anatomy_source}"
+            f"  anatomía: {self.anatomy_source}"
             + ("" if self.reliable else "  ← NO_FIABLE"),
         ]
         if not self.reliable:
@@ -180,14 +180,14 @@ class ProjectStore:
         fichero = raiz / PROJECT_FILE
         if not fichero.is_file():
             raise ShmirDesignError(
-                f"No hay ningun proyecto {slug!r} en {raiz}: falta {PROJECT_FILE}. Se "
-                f"aborta en vez de crear uno vacio que parezca el de antes."
+                f"No hay ningún proyecto {slug!r} en {raiz}: falta {PROJECT_FILE}. Se "
+                f"aborta en vez de crear uno vacío que parezca el de antes."
             )
         try:
             crudo = json.loads(fichero.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise ShmirDesignError(
-                f"{fichero} no es JSON valido ({exc}); se aborta la apertura del "
+                f"{fichero} no es JSON válido ({exc}); se aborta la apertura del "
                 f"proyecto en vez de seguir con los campos que se hayan podido leer."
             ) from exc
         almacen = cls(root=raiz, project=Project(**crudo))
@@ -213,7 +213,7 @@ class ProjectStore:
                 crudo = json.loads(linea)
             except json.JSONDecodeError as exc:
                 raise ShmirDesignError(
-                    f"{self.log_path}, linea {numero}: no es JSON valido ({exc}); se "
+                    f"{self.log_path}, línea {numero}: no es JSON válido ({exc}); se "
                     f"aborta la lectura del registro."
                 ) from exc
             self._records.append(Record(**crudo))
@@ -233,7 +233,7 @@ class ProjectStore:
         except TypeError as exc:
             raise ShmirDesignError(
                 f"El contenido del registro {kind!r} no es serializable a JSON ({exc}); "
-                f"se aborta en vez de escribir una linea que luego no se pueda leer."
+                f"se aborta en vez de escribir una línea que luego no se pueda leer."
             ) from exc
 
         anterior = self._records[-1].md5 if self._records else ""
@@ -263,14 +263,14 @@ class ProjectStore:
             )
             if registro.seq != indice:
                 raise ShmirDesignError(
-                    f"{self.log_path}: la cadena esta rota en la linea {indice} — el "
-                    f"registro dice ser el nº {registro.seq}. Falta una linea o se "
+                    f"{self.log_path}: la cadena está rota en la línea {indice} — el "
+                    f"registro dice ser el nº {registro.seq}. Falta una línea o se "
                     f"reordenaron. {WHAT_THE_CHAIN_DOES_NOT_DO}"
                 )
             if registro.prev_md5 != anterior or registro.md5 != esperado:
                 raise ShmirDesignError(
-                    f"{self.log_path}: la cadena esta rota en la linea {indice}. El "
-                    f"contenido de esa linea o de una anterior ha cambiado despues de "
+                    f"{self.log_path}: la cadena está rota en la línea {indice}. El "
+                    f"contenido de esa línea o de una anterior ha cambiado después de "
                     f"escribirse. {WHAT_THE_CHAIN_DOES_NOT_DO}"
                 )
             anterior = registro.md5

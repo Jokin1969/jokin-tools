@@ -90,16 +90,16 @@ class SelectionConfig:
         if self.n_candidates < 1:
             raise ValueError(
                 f"n_candidates={self.n_candidates}: hay que pedir al menos 1 candidato; "
-                f"se aborta la seleccion."
+                f"se aborta la selección."
             )
         if self.min_spacing < 0:
             raise ValueError(
-                f"min_spacing={self.min_spacing} invalido; se aborta la seleccion."
+                f"min_spacing={self.min_spacing} invalido; se aborta la selección."
             )
         if self.min_per_tercio < 0:
             raise ValueError(
                 f"min_per_tercio={self.min_per_tercio}: una cuota negativa no significa "
-                f"nada; se aborta la seleccion."
+                f"nada; se aborta la selección."
             )
         # Solo cuando alguien PIDE mas de uno por tercio. Con el valor por defecto (1)
         # y un panel de menos de tres, el comportamiento de siempre se mantiene: nota y
@@ -114,7 +114,7 @@ class SelectionConfig:
                 f"min_per_tercio={self.min_per_tercio} sobre {len(TERCIOS)} tercios "
                 f"pide {self.min_per_tercio * len(TERCIOS)} candidatos y el panel es de "
                 f"{self.n_candidates}. Se aborta en vez de recortar la cuota en "
-                f"silencio: cuantos candidatos por tercio es una decision de diseño."
+                f"silencio: cuántos candidatos por tercio es una decisión de diseño."
             )
         if self.tercio_quota is not None:
             tercios = [t for t, _ in self.tercio_quota]
@@ -133,7 +133,7 @@ class SelectionConfig:
                 raise ValueError(
                     f"La cuota por tercio suma {total} y el panel es de "
                     f"{self.n_candidates}. Se aborta en vez de recortarla por nuestra "
-                    f"cuenta: que tercio pierde la plaza es una decision de diseño."
+                    f"cuenta: que tercio pierde la plaza es una decisión de diseño."
                 )
         for inicio, fin, plazas in self.start_window_quota or ():
             if fin < inicio:
@@ -166,20 +166,20 @@ class SelectionConfig:
             regiones = [r for r, _ in self.region_quota]
             if len(set(regiones)) != len(regiones):
                 raise ValueError(
-                    f"La cuota por region repite alguna region ({regiones}); se aborta "
+                    f"La cuota por región repite alguna región ({regiones}); se aborta "
                     f"en vez de quedarse con una de las dos cifras."
                 )
             if any(n < 0 for _, n in self.region_quota):
                 raise ValueError(
-                    f"La cuota por region {self.region_quota} tiene alguna cifra "
+                    f"La cuota por región {self.region_quota} tiene alguna cifra "
                     f"negativa; se aborta."
                 )
             total = sum(n for _, n in self.region_quota)
             if total != self.n_candidates:
                 raise ValueError(
-                    f"La cuota por region suma {total} y se piden "
+                    f"La cuota por región suma {total} y se piden "
                     f"{self.n_candidates} candidatos. Se aborta en vez de decidir por "
-                    f"nuestra cuenta que region se lleva la diferencia."
+                    f"nuestra cuenta que región se lleva la diferencia."
                 )
 
 
@@ -236,7 +236,7 @@ class Selection:
     def rank_of(self, start: int) -> int:
         """Puesto por asimetria (1 = mejor) del candidato que empieza en `start`."""
         if start not in self._ranked:
-            raise KeyError(f"No hay ningun candidato elegido que empiece en {start}.")
+            raise KeyError(f"No hay ningún candidato elegido que empiece en {start}.")
         return self._ranked.index(start) + 1
 
 
@@ -296,7 +296,7 @@ def _cuota_por_tercio(
         ]
         if not del_tercio:
             quota_unfilled.append(
-                f"tercio {tercio.value}: no hay ningun sitio elegible en ese tercio."
+                f"tercio {tercio.value}: no hay ningún sitio elegible en ese tercio."
             )
             continue
         elegido = next(
@@ -354,8 +354,8 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
     if config.region_quota is not None:
         if not sites:
             notes.append(
-                "No habia ningun sitio elegible: la seleccion esta vacia. Revisa "
-                "cuantas ventanas superan los filtros antes de buscar el fallo en la "
+                "No habia ningún sitio elegible: la selección está vacía. Revisa "
+                "cuántas ventanas superan los filtros antes de buscar el fallo en la "
                 "seleccion."
             )
         for region, plazas in config.region_quota:
@@ -382,9 +382,9 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
                 quota_unfilled.append(
                     f"region {region.value}: se pedian {plazas} candidato(s) y solo "
                     f"salen {puestos}. Habia {len(de_region)} sitio(s) elegible(s) en "
-                    f"esa region; los que faltan no cumplen el espaciado de "
+                    f"esa región; los que faltan no cumplen el espaciado de "
                     f"{config.min_spacing} nt o no existen. No se rellena con "
-                    f"candidatos de otra region."
+                    f"candidatos de otra región."
                 )
         por_asimetria = sorted(chosen, key=lambda c: (-c.asymmetry, c.start))
         return Selection(
@@ -398,8 +398,8 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
 
     if not sites:
         notes.append(
-            "No habia ningun sitio elegible: la seleccion esta vacia. Revisa cuantas "
-            "ventanas superan los filtros antes de buscar el fallo en la seleccion."
+            "No habia ningún sitio elegible: la selección está vacía. Revisa cuántas "
+            "ventanas superan los filtros antes de buscar el fallo en la selección."
         )
 
     ordenados = [s for s in ordenados if s.best.region is Region.UTR3]
@@ -411,7 +411,7 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
         if config.apa_immune_before is None:
             raise ValueError(
                 f"Se piden {config.apa_immune_quota} candidatos inmunes pero no se dice "
-                f"inmunes A QUE: `apa_immune_before` sigue en None y aqui ya no hay "
+                f"inmunes A QUE: `apa_immune_before` sigue en None y aquí ya no hay "
                 f"informe del que sacarlo. Se aborta antes de elegir a ciegas."
             )
         inmunes = [
@@ -433,7 +433,7 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
                 f"que empezaran por delante de {config.apa_immune_before} y solo salen "
                 f"{puestos}. Habia {len(inmunes)} sitio(s) elegible(s) en ese tramo; "
                 f"los que faltan no cumplen el espaciado de {config.min_spacing} nt. "
-                f"No se rellena con candidatos de mas abajo: serian otro riesgo, no el "
+                f"No se rellena con candidatos de más abajo: serían otro riesgo, no el "
                 f"que la cuota compra."
             )
 
@@ -479,7 +479,7 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
                 )
                 if elegido is None:
                     quota_unfilled.append(
-                        f"tercio {tercio.value}: se pedian {plazas} y no hay mas sitios "
+                        f"tercio {tercio.value}: se pedian {plazas} y no hay más sitios "
                         f"elegibles que cumplan el espaciado de {config.min_spacing} nt."
                     )
                     break
@@ -506,7 +506,7 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
                 ]
                 if not del_tercio:
                     quota_unfilled.append(
-                        f"tercio {tercio.value}: no hay ningun sitio elegible en ese "
+                        f"tercio {tercio.value}: no hay ningún sitio elegible en ese "
                         f"tercio."
                     )
                     break
@@ -542,7 +542,7 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
     if sites and len(chosen) < config.n_candidates:
         notes.append(
             f"Se pedian {config.n_candidates} candidatos y solo salen {len(chosen)}: "
-            f"no hay mas sitios elegibles que respeten el espaciado de "
+            f"no hay más sitios elegibles que respeten el espaciado de "
             f"{config.min_spacing} nt."
         )
 
@@ -632,8 +632,8 @@ def eligible_choices(
         if asymmetry is None:
             raise ValueError(
                 f"La ventana {window.window.name} es elegible pero no tiene valor de "
-                f"asimetria: no se puede ordenar por un numero que no existe. Se aborta "
-                f"la seleccion en vez de inventar un orden."
+                f"asimetría: no se puede ordenar por un número que no existe. Se aborta "
+                f"la selección en vez de inventar un orden."
             )
         penalty = config.weak_polya_penalty if window.bandera_polyA_debil else 0.0
         choices.append(
@@ -715,17 +715,17 @@ class PenaltySensitivity:
     def describe(self) -> str:
         if self.flagged == 0:
             return (
-                "Ninguna ventana lleva bandera de poliadenilacion debil: la "
+                "Ninguna ventana lleva bandera de poliadenilación debil: la "
                 "penalizacion no afecta a nada en este 3'UTR."
             )
         if self.stable:
             return (
                 f"Los seleccionados NO cambian entre {min(self.values)} y "
-                f"{max(self.values)} kcal/mol: el valor exacto es irrelevante aqui."
+                f"{max(self.values)} kcal/mol: el valor exacto es irrelevante aquí."
             )
         return (
             f"Los seleccionados CAMBIAN dentro del rango {min(self.values)}–"
-            f"{max(self.values)} kcal/mol: el valor no es inocuo, decidelo a proposito."
+            f"{max(self.values)} kcal/mol: el valor no es inocuo, decidelo a propósito."
         )
 
 
@@ -737,8 +737,8 @@ def penalty_sensitivity(
     """Repite la seleccion con varias penalizaciones y compara quien sale elegido."""
     if not values:
         raise ValueError(
-            "No hay ningun valor de penalizacion que barrer; se aborta en vez de "
-            "devolver un analisis vacio que parezca concluyente."
+            "No hay ningún valor de penalizacion que barrer; se aborta en vez de "
+            "devolver un análisis vacío que parezca concluyente."
         )
     base = config or SelectionConfig()
     selections: dict[float, tuple[int, ...]] = {}
@@ -786,13 +786,13 @@ class PolyAModeComparison:
         if self.stable:
             lines.append(
                 "  Los tres modos eligen exactamente los mismos candidatos: el umbral "
-                "de polyA no decide nada aqui, asi que el debate sobre el ±10 nt es "
-                "irrelevante para esta seleccion."
+                "de polyA no decide nada aquí, así que el debate sobre el ±10 nt es "
+                "irrelevante para esta selección."
             )
         else:
             lines.append(
-                "  Los tres modos NO eligen lo mismo: aqui el criterio de polyA SI "
-                "cambia quien entra, asi que la eleccion de modo es una decision de "
+                "  Los tres modos NO eligen lo mismo: aquí el criterio de polyA SI "
+                "cambia quien entra, así que la elección de modo es una decisión de "
                 "diseño y no un detalle."
             )
         return "\n".join(lines)
@@ -996,8 +996,8 @@ class CoverageReport:
         sangria = self._sangria()
         if estudiable is None:
             return [
-                f"{sangria}No se comprobo si la piscina de elegibles daba de si, asi "
-                f"que no se puede decir si es cosa de la seleccion o del 3'UTR."
+                f"{sangria}No se comprobo si la piscina de elegibles daba de si, así "
+                f"que no se puede decir si es cosa de la selección o del 3'UTR."
             ]
         if estudiable:
             rango = datos.get("rango_piscina")
@@ -1006,8 +1006,8 @@ class CoverageReport:
             )
             return [
                 f"{sangria}Pero SI habia candidatos elegibles en los dos "
-                f"extremos{detalle}: es la seleccion la que no los ha repartido. "
-                f"Prueba --reparto-rango o mas candidatos.",
+                f"extremos{detalle}: es la selección la que no los ha repartido. "
+                f"Prueba --reparto-rango o más candidatos.",
             ]
         rango = datos.get("rango_piscina")
         minimo = MIN_SPAN.get(eje)
@@ -1015,7 +1015,7 @@ class CoverageReport:
             recorrido = rango[1] - rango[0]
             detalle = (
                 f" — TODOS los elegibles caen entre {rango[0]:.2f} y {rango[1]:.2f}, "
-                f"{recorrido:.2f} de recorrido, por debajo del minimo de {minimo:.2f} "
+                f"{recorrido:.2f} de recorrido, por debajo del mínimo de {minimo:.2f} "
                 f"que pedimos para dar un eje por estudiable"
             )
         elif rango:
@@ -1027,7 +1027,7 @@ class CoverageReport:
         sangria = self._sangria()
         return [
             f"{sangria}Y no hay de donde sacarlos{detalle}.",
-            f"{sangria}Eso NO ES UN FALLO de la app ni de la seleccion: es INFORMACION.",
+            f"{sangria}Eso NO ES UN FALLO de la app ni de la selección: es INFORMACIÓN.",
             f"{sangria}Este eje NO SE PUEDE ESTUDIAR con este 3'UTR. Deja de tratarlo "
             f"como variable del experimento:",
             f"{sangria}no habra contraste que correlacionar contra el knockdown medido, "
@@ -1175,12 +1175,12 @@ class PromotionCost:
             f"todos los demas filtros pasan a FAIL por SOLAPAR una señal que la medida "
             f"acaba de subir a APA_POSIBLE ({cuales}). En 3'UTR: {posiciones}. "
             f"OJO CON EL EJE: esas ventanas NO pierden su inmunidad al TRUNCAMIENTO "
-            f"—empiezan por delante del corte, asi que su diana se conserva en las dos "
+            f"—empiezan por delante del corte, así que su diana se conserva en las dos "
             f"isoformas—, la pierden por el riesgo ESTERICO, que es el otro: la ventana "
-            f"contiene el hexamero y compite con CPSF/CstF por un sitio del que ahora se "
+            f"contiene el hexámero y compite con CPSF/CstF por un sitio del que ahora se "
             f"sabe que SE USA. Mientras la señal era una variante rara sin datos, el "
             f"solape valia una penalizacion de ranking; con uso medido, no. Es una "
-            f"decision, y esta es su factura."
+            f"decisión, y esta es su factura."
         )
 
 
@@ -1298,9 +1298,9 @@ class ClearanceRow:
 
         tope = self.utr3_length
         cambio = (
-            f"con un flanco de {self.flip_flank} en vez de {self.flank} tambien caeria"
+            f"con un flanco de {self.flip_flank} en vez de {self.flank} también caeria"
             if self.flip_flank is not None
-            else "ningun flanco razonable lo tumbaria"
+            else "ningún flanco razonable lo tumbaria"
         )
         # Los DOS ejes, siempre, y nunca «inmune» a secas: uno es geometrico y el otro
         # es un gradiente con un umbral convencional. Colapsarlos en una palabra es
@@ -1311,8 +1311,8 @@ class ClearanceRow:
             f"inmune_truncamiento = "
             + ("SI" if self.immune_truncation else "NO")
             + (
-                f" (empieza en {self.start}, el corte mas temprano esta en "
-                f"{self.earliest_cut}; es GEOMETRICO y no depende de ninguna convencion)"
+                f" (empieza en {self.start}, el corte más temprano está en "
+                f"{self.earliest_cut}; es GEOMÉTRICO y no depende de ninguna convención)"
                 if self.earliest_cut is not None
                 else " (sin corte medido con el que compararlo)"
             )
@@ -1322,7 +1322,7 @@ class ClearanceRow:
             f"delante de su zona prohibida "
             f"({span(*self.forbidden, Frame.UTR3, limit=tope)}); {cambio}. "
             f"OJO: el flanco de ±{self.flank} nt no tiene base medida y la huella real "
-            f"de CPSF/CstF es mayor, asi que estos {self.distance_to_hexamer} nt estan "
+            f"de CPSF/CstF es mayor, así que estos {self.distance_to_hexamer} nt están "
             f"probablemente DENTRO de la zona de competencia."
         )
 
@@ -1446,14 +1446,14 @@ class ApaCeilingRow:
             via = (
                 "por canonicidad, CONFIRMADA por medida de uso"
                 if predicha
-                else "SUBIDA aqui por MEDIDA de uso: por prediccion saldria OTRA"
+                else "SUBIDA aquí por MEDIDA de uso: por predicción saldria OTRA"
             )
         else:
             via = "por CANONICIDAD, sin dato de uso"
         techo = (
             f"Techo INDETERMINADO en las tres: fraccion_isoforma_larga sin medir."
             if self.ceiling is None
-            else f"Techo del tramo de detras: {self.ceiling:.2f}."
+            else f"Techo del tramo de detrás: {self.ceiling:.2f}."
         )
         return (
             f"{self.signal.motif} en {label(self.signal.position, marco)} "
@@ -1533,11 +1533,11 @@ class TercioCounts:
             + ".",
             "  La columna `tercio` etiqueta por el PUNTO MEDIO de la ventana; la "
             "particion de arriba va",
-            "  por POSICION DE INICIO. Con ventanas de 22 nt discrepan en el borde, asi "
+            "  por POSICIÓN DE INICIO. Con ventanas de 22 nt discrepan en el borde, así "
             "que se dan las dos.",
         ]
         for titulo, cuenta in (
-            ("ventanas elegibles, por punto medio (asi se etiqueta)", self.by_midpoint),
+            ("ventanas elegibles, por punto medio (así se etiqueta)", self.by_midpoint),
             ("ventanas elegibles, por inicio", self.by_start),
             ("SITIOS elegibles, por inicio", self.sites_by_start),
         ):
@@ -1548,7 +1548,7 @@ class TercioCounts:
         if self.immune_cut is not None:
             lineas.append(
                 f"  SITIOS INMUNES por tramo (empiezan por delante de "
-                f"{label(self.immune_cut, Frame.UTR3)}, el corte mas temprano de la "
+                f"{label(self.immune_cut, Frame.UTR3)}, el corte más temprano de la "
                 f"señal proximal):"
             )
             lineas.append(
@@ -1640,27 +1640,27 @@ def _estado_medida(measured=None) -> str:
 
     if measured is None:
         return (
-            f"HAY UNA MEDIDA —{POLYA_DB_PRNP.source} {POLYA_DB_PRNP.version}, fraccion "
+            f"HAY UNA MEDIDA —{POLYA_DB_PRNP.source} {POLYA_DB_PRNP.version}, fracción "
             f"larga {POLYA_DB_PRNP.working_value:.2f} ponderada / "
             f"{POLYA_DB_PRNP.unweighted_value:.2f} sin ponderar— PERO NO ENTRA EN ESTA "
-            f"CORRIDA: la tabla es de Prnp murino y se aplica por md5 del 3'UTR, asi que "
-            f"sobre otra secuencia no se ancla nada. Aqui el techo sigue INDETERMINADO y "
+            f"CORRIDA: la tabla es de Prnp murino y se aplica por md5 del 3'UTR, así que "
+            f"sobre otra secuencia no se ancla nada. Aquí el techo sigue INDETERMINADO y "
             f"este frente sigue bloqueando."
         )
     tramos = [c for c in measured.layers if c.ceiling is not None]
     cifras = ", ".join(f"{c.ceiling:.2f}" for c in tramos)
     return (
-        f"MEDIDO. {measured.source}, fraccion larga "
+        f"MEDIDO. {measured.source}, fracción larga "
         f"{POLYA_DB_PRNP.working_value:.2f} ponderada / "
         f"{POLYA_DB_PRNP.unweighted_value:.2f} sin ponderar. El mapeo "
-        f"genomico↔transcrito que bloqueaba esta RESUELTO sin coordenadas genomicas y "
+        f"genomico↔transcrito que bloqueaba está RESUELTO sin coordenadas genomicas y "
         f"sobre {measured.anchor.total} puntos de apoyo, no sobre una resta. Y el techo "
-        f"no es uno: va POR TRAMOS ({cifras}), porque depende de por detras de cuantos "
-        f"cortes esta cada candidato. Con eso deja de cumplirse lo que hacia bloquear a "
+        f"no es uno: va POR TRAMOS ({cifras}), porque depende de por detrás de cuántos "
+        f"cortes está cada candidato. Con eso deja de cumplirse lo que hacia bloquear a "
         f"este frente: un techo de {min(c.ceiling for c in tramos):.2f} NO es "
         f"indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el dato "
-        f"es de {POLYA_DB_PRNP.tissue}, y las neuronas alargan los 3'UTR, asi que estas "
-        f"cifras son un LIMITE INFERIOR conservador para el nuestro. La RT-qPCR de los "
+        f"es de {POLYA_DB_PRNP.tissue}, y las neuronas alargan los 3'UTR, así que estas "
+        f"cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los "
         f"dos amplicones sigue en pie y puede MEJORARLAS."
     )
 
@@ -1691,7 +1691,7 @@ def blocking_fronts(
                 + (
                     " Y OJO: este frente NO cubre los off-targets mediados por seed. "
                     "Eso es `offtarget_seed`, un frente APARTE, porque 7 nt contiguos no "
-                    "dan alineamiento y ningun BLAST los devuelve."
+                    "dan alineamiento y ningún BLAST los devuelve."
                     if nombre == "especificidad"
                     else ""
                 )
@@ -1712,7 +1712,7 @@ def blocking_fronts(
             BlockingFront(
                 name=_SEED_FRONT,
                 reason=(
-                    f"NOT_RUN: falta `transcriptoma_3utr.fa`, asi que los sitios de seed "
+                    f"NOT_RUN: falta `transcriptoma_3utr.fa`, así que los sitios de seed "
                     f"no se han contado. NOT_RUN no es PASS. {WHY_NOT_BLAST}"
                 ),
             )
@@ -1741,11 +1741,11 @@ def blocking_fronts(
         BlockingFront(
             name=_EMPALME_SITIOS,
             reason=(
-                "NOT_RUN: no se ha consultado la prediccion de sitios de splicing sobre "
-                "ningun cassette montado. La unidad de este frente es el PAR candidato x "
-                "intron, no el candidato. Es DESEMPATE Y ALERTA, nunca filtro: no puede "
+                "NOT_RUN: no se ha consultado la predicción de sitios de splicing sobre "
+                "ningún cassette montado. La unidad de este frente es el PAR candidato x "
+                "intrón, no el candidato. Es DESEMPATE Y ALERTA, nunca filtro: no puede "
                 "excluir a nadie, y por eso su veredicto solo puede ser NOT_RUN o PASS. "
-                "Lo accionable es que guias introducen cripticos que las otras no."
+                "Lo accionable es que guías introducen crípticos que las otras no."
             ),
         )
     )
@@ -1767,7 +1767,7 @@ def blocking_fronts(
         if len(con_inmunes) == 1
         else f"repartidos entre {', '.join(con_inmunes)}"
         if con_inmunes
-        else "ninguno en ningun tramo"
+        else "ninguno en ningún tramo"
     )
     marco = frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3
     inmunes = len(selection.selection.chosen) - len(con_techo)
@@ -1781,14 +1781,14 @@ def blocking_fronts(
                     "CERRADO. " if medido is not None else "NO MEDIDA, y bloquea. "
                 )
                 + f"{len(con_techo)} de "
-                f"{len(selection.selection.chosen)} candidatos quedan por detras del "
+                f"{len(selection.selection.chosen)} candidatos quedan por detrás del "
                 f"corte de {label(min(s.position for s in apa), marco)}: comparten "
-                f"UN UNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes "
+                f"UN ÚNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes "
                 f"por tramo son {reparto} —{donde}— y el espaciado deja "
-                f"meter cuatro, que son los {inmunes} que ya estan. "
-                f"POR QUE BLOQUEABA: si la fraccion de isoforma corta es alta, esos "
+                f"meter cuatro, que son los {inmunes} que ya están. "
+                f"POR QUE BLOQUEABA: si la fracción de isoforma corta es alta, esos "
                 f"{len(con_techo)} candidatos entran al cribado con un TECHO "
-                f"INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guia que no "
+                f"INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no "
                 f"funciona dan la misma lectura en la placa, y el experimento se gasta "
                 f"en no poder separarlos. "
                 f"ESTADO: {_estado_medida(medido)}"

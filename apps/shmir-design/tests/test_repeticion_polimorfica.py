@@ -73,7 +73,7 @@ class TestSobreElTAnHumano(unittest.TestCase):
     def test_el_elemento_es_de_familia_polimorfica(self):
         self.assertTrue(
             masking.is_polymorphic(self.mascara.elements[0]),
-            "el (TA)n es un microsatelite: varia en numero de repeticiones",
+            "el (TA)n es un microsatelite: varia en número de repeticiones",
         )
 
     def test_una_ventana_que_lo_solapa_falla_los_DOS(self):

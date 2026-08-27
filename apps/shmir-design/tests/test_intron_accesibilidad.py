@@ -39,7 +39,7 @@ class TestSinViennaRNA_NO_SE_INVENTA_NADA(unittest.TestCase):
         self.assertIsNone(resultado.energy)
 
 
-@unittest.skipUnless(VIENNA_AVAILABLE, "NOT_RUN: ViennaRNA no esta instalado")
+@unittest.skipUnless(VIENNA_AVAILABLE, "NOT_RUN: ViennaRNA no está instalado")
 class TestElPlegadoDeVerdad(unittest.TestCase):
 
     @classmethod
@@ -88,7 +88,7 @@ class TestElPlegadoDeVerdad(unittest.TestCase):
         self.assertNotEqual(otro.energy, self.resultado.energy)
 
 
-@unittest.skipUnless(VIENNA_AVAILABLE, "NOT_RUN: ViennaRNA no esta instalado")
+@unittest.skipUnless(VIENNA_AVAILABLE, "NOT_RUN: ViennaRNA no está instalado")
 class TestLoQueMIDE_Y_LO_QUE_NO(unittest.TestCase):
     """Dos hechos medidos el 2026-08-26, y el segundo es el que da sentido al primero.
 

@@ -68,7 +68,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--entrada-a", type=Path,
         help="La secuencia que se le paso a la PRIMERA corrida. Con las dos entradas se "
-             "calculan las posiciones divergentes y la comparacion sale ESTRATIFICADA: "
+             "calculan las posiciones divergentes y la comparación sale ESTRATIFICADA: "
              "sin ellas no hay estratos y el resultado vale mucho menos.",
     )
     parser.add_argument("--entrada-b", type=Path, help="Lo mismo para la segunda.")

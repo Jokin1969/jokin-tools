@@ -84,25 +84,25 @@ def spacer_rejections(sequence: str) -> tuple[str, ...]:
     """Motivos por los que un espaciador NO vale. Vacio = pasa todos los filtros."""
     limpia = "".join(str(sequence).split()).upper()
     if not limpia:
-        return ("El espaciador esta vacio.",)
+        return ("El espaciador está vacío.",)
 
     motivos: list[str] = []
     for donante in CRYPTIC_DONORS:
         if donante in limpia:
             motivos.append(
-                f"Lleva el donante criptico de splicing {donante}: podria abrir un 5'SS "
-                f"dentro del intron."
+                f"Lleva el donante críptico de splicing {donante}: podría abrir un 5'SS "
+                f"dentro del intrón."
             )
     for señal in POLYA_SIGNALS:
         if señal in limpia:
             motivos.append(
-                f"Lleva la señal de poliadenilacion {señal}: podria cortar el "
+                f"Lleva la señal de poliadenilación {señal}: podría cortar el "
                 f"transcrito antes de tiempo."
             )
     base, largo = _longest_homopolymer(limpia)
     if largo > MAX_HOMOPOLYMER:
         motivos.append(
-            f"Homopolimero de {largo} {base}: el limite es {MAX_HOMOPOLYMER}."
+            f"Homopolimero de {largo} {base}: el límite es {MAX_HOMOPOLYMER}."
         )
     for tramo in FORBIDDEN_RUNS:
         if tramo in limpia:
@@ -110,7 +110,7 @@ def spacer_rejections(sequence: str) -> tuple[str, ...]:
     for sitio in CASSETTE_SITES:
         if sitio in limpia:
             motivos.append(
-                f"Lleva el sitio {sitio}, que ya esta en el cassette: duplicarlo "
+                f"Lleva el sitio {sitio}, que ya está en el cassette: duplicarlo "
                 f"romperia el clonaje."
             )
     gc = gc_fraction(limpia)
@@ -135,11 +135,11 @@ class SpacerChoice:
 
     def format_text(self) -> str:
         lineas = [
-            "Espaciadores del intron:",
+            "Espaciadores del intrón:",
             f"  5' ({len(self.spacer5)} nt)  {self.spacer5}",
             f"  3' ({len(self.spacer3)} nt)  {self.spacer3}",
             "",
-            f"  Plegado del intron completo ({len(self.structure)} nt), "
+            f"  Plegado del intrón completo ({len(self.structure)} nt), "
             f"MFE {self.mfe:+.2f} kcal/mol:",
         ]
         lineas.extend(
@@ -149,21 +149,21 @@ class SpacerChoice:
         lineas.append("")
         if self.standard:
             lineas.append(
-                "  Son los espaciadores ESTANDAR del proyecto, sin tocar: el 97-mero "
-                "conserva su estructura dentro del intron con ellos."
+                "  Son los espaciadores ESTÁNDAR del proyecto, sin tocar: el 97-mero "
+                "conserva su estructura dentro del intrón con ellos."
             )
         else:
             lineas.extend(
                 [
-                    "  ⚠  ESPACIADORES GENERADOS DE NOVO. Son ESPECIFICOS DE ESTA GUIA "
-                    "y NO SON LOS ESTANDAR:",
-                    "     con los estandar el 97-mero no conserva su estructura dentro "
-                    "del intron.",
+                    "  ⚠  ESPACIADORES GENERADOS DE NOVO. Son ESPECÍFICOS DE ESTA GUÍA "
+                    "y NO SON LOS ESTÁNDAR:",
+                    "     con los estándar el 97-mero no conserva su estructura dentro "
+                    "del intrón.",
                     "  ⚠  Un cassette MluI-AgeI montado con estos espaciadores NO es "
                     "intercambiable con",
-                    "     el modulo NheI-SacI estandar: el intron es otro. Si cambias la "
+                    "     el módulo NheI-SacI estándar: el intrón es otro. Si cambias la "
                     "horquilla de ese",
-                    "     cassette por un modulo estandar, vuelves a tener el problema "
+                    "     cassette por un módulo estándar, vuelves a tener el problema "
                     "que estos espaciadores",
                     "     resuelven — y al reves.",
                 ]
@@ -233,8 +233,8 @@ def choose_spacers(
             evaluated=0,
             rejected=0,
             note=(
-                "ViennaRNA no esta instalado, asi que no hay criterio que aplicar: el "
-                "unico criterio de seleccion es el plegado. No se generan espaciadores "
+                "ViennaRNA no está instalado, así que no hay criterio que aplicar: el "
+                "único criterio de selección es el plegado. No se generan espaciadores "
                 "a ciegas. `pip install ViennaRNA`."
             ),
         )
@@ -265,7 +265,7 @@ def choose_spacers(
             evaluated=evaluados,
             rejected=0,
             note=(
-                "Los espaciadores estandar funcionan con esta guia; no se ha generado "
+                "Los espaciadores estándar funcionan con esta guía; no se ha generado "
                 "nada."
             ),
         )
@@ -284,7 +284,7 @@ def choose_spacers(
         corto = (
             f" AVISO: no se pudieron generar todos los candidatos pedidos "
             f"({len(cinco)}/{por_etapa} de 5' y {len(tres)}/{por_etapa} de 3'): los "
-            f"filtros duros dejan poco sitio. La busqueda es mas corta de lo que dice "
+            f"filtros duros dejan poco sitio. La busqueda es más corta de lo que dice "
             f"el presupuesto."
         )
 
@@ -312,8 +312,8 @@ def choose_spacers(
             evaluated=evaluados,
             rejected=descartados,
             note=(
-                f"No se encontro ningun par de espaciadores que conserve la estructura "
-                f"del 97-mero dentro del intron, en {evaluados} candidato(s) plegados "
+                f"No se encontro ningún par de espaciadores que conserve la estructura "
+                f"del 97-mero dentro del intrón, en {evaluados} candidato(s) plegados "
                 f"(presupuesto {budget}; {descartados} descartado(s) por los filtros "
                 f"duros antes de plegar). No se inventa uno peor: sube el presupuesto o "
                 f"cambia de candidato.{corto}"
@@ -328,8 +328,8 @@ def choose_spacers(
         evaluated=evaluados,
         rejected=descartados,
         note=(
-            f"Los estandar NO conservan la estructura con esta guia. De "
+            f"Los estándar NO conservan la estructura con esta guía. De "
             f"{evaluados} candidato(s) plegados, {len(validos)} la conservan; se ha "
-            f"elegido el de menor MFE del intron completo.{corto}"
+            f"elegido el de menor MFE del intrón completo.{corto}"
         ),
     )

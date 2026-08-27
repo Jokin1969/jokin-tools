@@ -185,7 +185,7 @@ def anatomia(sequence: str, etiqueta: str, genbank_file):
 
     st.warning(
         f"**{etiqueta}**: el mRNA no coincide con ninguna referencia verificada "
-        f"(md5 `{md5}`). No hay deteccion de ORF en el nucleo, asi que la anatomia la "
+        f"(md5 `{md5}`). No hay detección de ORF en el núcleo, así que la anatomía la "
         f"declaras tu — y hasta que la declares no se tila nada."
     )
     if genbank_file is not None:
@@ -208,7 +208,7 @@ def anatomia(sequence: str, etiqueta: str, genbank_file):
     declarar = st.checkbox(
         f"{etiqueta} — declarar las coordenadas del CDS a mano",
         key=f"{etiqueta}_declarar_cds",
-        help="1-based e inclusivas, como las escribe GenBank. El codon de parada se "
+        help="1-based e inclusivas, como las escribe GenBank. El codón de parada se "
              "comprueba: es lo que caza el off-by-one.",
     )
     if not declarar:
@@ -222,7 +222,7 @@ def anatomia(sequence: str, etiqueta: str, genbank_file):
         key=f"{etiqueta}_cds_inicio",
     )
     fin = st.number_input(
-        f"{etiqueta} — fin del CDS (incluye el codon de parada)",
+        f"{etiqueta} — fin del CDS (incluye el codón de parada)",
         min_value=int(inicio), max_value=len(sequence), value=len(sequence),
         key=f"{etiqueta}_cds_fin",
     )
@@ -387,8 +387,8 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         f"Generar los bloques listos para pedir de {nombre}",
         key=f"bloques_{nombre}",
         help=(
-            "Modulo NheI-SacI de 149 nt y cassette MluI-AgeI de 318 pb, con y sin "
-            "brazos de homologia, mas la hoja de pedido."
+            "Módulo NheI-SacI de 149 nt y cassette MluI-AgeI de 318 pb, con y sin "
+            "brazos de homologia, más la hoja de pedido."
         ),
     )
     if bloques and seleccion.selection.chosen:
@@ -399,10 +399,10 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             st.caption(aviso_vector["texto"])
         st.dataframe(block_rows(seleccion, scaffold, species=nombre), hide_index=True)
         st.caption(
-            "XhoI y EcoRI van DENTRO del modulo, heredadas de SGEP, y en el plasmido "
-            "final no son unicas: el clonaje va por NheI/SacI o por sintesis. "
+            "XhoI y EcoRI van DENTRO del módulo, heredadas de SGEP, y en el plásmido "
+            "final no son únicas: el clonaje va por NheI/SacI o por síntesis. "
             "`modulo_seguro = no` significa que no se ha confirmado que la horquilla "
-            "sobreviva dentro del intron."
+            "sobreviva dentro del intrón."
         )
 
     st.markdown("**Informe** — parcial o completo, en cualquier momento")
@@ -539,7 +539,7 @@ def _panel_referencias(especie: str) -> None:
             )
             origen = st.text_input(
                 "De donde salio", "", key=f"origen_{fila['nombre']}",
-                help="La fuente y su version. Es lo que se copia al informe.",
+                help="La fuente y su versión. Es lo que se copia al informe.",
             )
             if subido is not None and st.button(
                 "Validar y registrar", key=f"btn_{fila['nombre']}"
@@ -582,9 +582,9 @@ def main() -> None:
             )
     st.caption(
         "Servicios externos, para contrastar. Sus direcciones no se han podido "
-        "comprobar desde este entorno y **ningun codigo las llama**: se abren a mano. "
+        "comprobar desde este entorno y **ningun código las llama**: se abren a mano. "
         "El score que devuelva miRarchitect entra por `tools/import_scores.py`, nunca "
-        "calculado aqui."
+        "calculado aquí."
     )
     st.divider()
 
@@ -620,7 +620,7 @@ def main() -> None:
             st.caption(f"· {cerrado}")
         st.caption(f"**Como declararla:** {generico['como_declararla']}")
         nombre_modelo = st.text_input(
-            "Nombre cientifico de la especie",
+            "Nombre científico de la especie",
             "",
             help="Se usa para nombrar sus ficheros. No la declara: eso se hace en species.py.",
         )
@@ -670,8 +670,8 @@ def main() -> None:
         gb_modelo = st.file_uploader(
             "GenBank de la especie del diseño (.gb, PREFERENTE)",
             type=["gb", "gbk", "genbank"],
-            help="El CDS anotado del RefSeq. Es la via mas fiable de resolver la "
-                 "anatomia: sin el, las coordenadas del CDS las tecleas tu y los tercios "
+            help="El CDS anotado del RefSeq. Es la via más fiable de resolver la "
+                 "anatomía: sin el, las coordenadas del CDS las tecleas tu y los tercios "
                  "salen NO_FIABLE.",
         )
     with columnas[1]:
@@ -714,7 +714,7 @@ def main() -> None:
 
     if not modelo:
         st.info(
-            "Sube al menos un FASTA de mRNA para seguir. Con dos se buscan ademas los "
+            "Sube al menos un FASTA de mRNA para seguir. Con dos se buscan además los "
             "bloques conservados entre ellos."
         )
         return
@@ -798,7 +798,7 @@ def main() -> None:
         if st.button(
             "Estimar coste",
             help=(
-                "Mide una invocacion real de cada filtro caro y multiplica. No diseña "
+                "Mide una invocación real de cada filtro caro y multiplica. No diseña "
                 "nada: sirve para saber si esto son segundos o minutos."
             ),
         ):
@@ -834,10 +834,15 @@ def main() -> None:
 
         if accion == "estimar":
             for nombre, (_, anat) in anatomias.items():
-                st.subheader(f"{nombre} — estimacion")
+                st.subheader(f"{nombre} — estimación")
                 st.code(
+                    # La MISMA secuencia y la MISMA anatomia que la corrida. Pasarle el
+                    # 3'UTR mientras `bloque_especie` tila el transcrito entero hacia que
+                    # la estimacion contara 1221 ventanas y el resultado 2170, las dos
+                    # cifras en la misma pantalla. Ver `WHY_THE_ESTIMATE_NEEDS_ANATOMY`.
                     cost_text(
-                        _utr3(secuencias[nombre], anat),
+                        secuencias[nombre],
+                        anatomy=anat,
                         resources=recursos,
                         accessibility=accesibilidad,
                         thresholds=umbrales,

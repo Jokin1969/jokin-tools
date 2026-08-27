@@ -118,7 +118,7 @@ class TestElTejido(unittest.TestCase):
 
     def test_se_declara_como_LIMITE_INFERIOR_para_cerebro(self):
         texto = "\n".join(POLYA_DB_PRNP.describe())
-        self.assertIn("limite inferior", texto.lower())
+        self.assertIn("límite inferior", texto.lower())
         self.assertIn("alargan", texto.lower())
 
     def test_y_la_RT_qPCR_deja_de_ser_solo_confirmacion(self):

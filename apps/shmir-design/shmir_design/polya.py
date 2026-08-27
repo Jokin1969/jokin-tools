@@ -60,11 +60,11 @@ STRONG_SIGNALS = frozenset({CANONICAL_SIGNAL, "ATTAAA"})
 STERIC_IS_A_GRADIENT = (
     "EL RIESGO ESTERICO ES UN GRADIENTE, no una frontera. El flanco de ±10 nt NO TIENE "
     "BASE MEDIDA: es un umbral operativo, y la huella real de CPSF/CstF sobre el "
-    "pre-mRNA es MAYOR que eso, asi que ~15 nt aguas arriba del hexamero esta "
+    "pre-mRNA es MAYOR que eso, así que ~15 nt aguas arriba del hexámero esta "
     "probablemente DENTRO de la zona de competencia aunque el filtro lo deje pasar. "
-    "Cualquier umbral en nucleotidos le atribuye a este eje una precision que la "
-    "biologia no tiene, asi que la SENSIBILIDAD AL FLANCO se reporta SIEMPRE junto al "
-    "veredicto: sin ella, un PASS parece una medida y es una convencion."
+    "Cualquier umbral en nucleótidos le atribuye a este eje una precisión que la "
+    "biologia no tiene, así que la SENSIBILIDAD AL FLANCO se reporta SIEMPRE junto al "
+    "veredicto: sin ella, un PASS parece una medida y es una convención."
 )
 
 SIGNAL_FLANK = 10           # nt a cada lado de la señal que quedan prohibidos
@@ -97,28 +97,28 @@ def normalize_sequence(sequence: str | None, *, name: str = "secuencia") -> str:
     """
     if sequence is None:
         raise MissingSequenceError(
-            f"No hay {name}: se aborta la busqueda de señales de poliadenilacion. "
+            f"No hay {name}: se aborta la busqueda de señales de poliadenilación. "
             f"Regla 1: no se reconstruye una secuencia ausente."
         )
     if not isinstance(sequence, str):
         raise TypeError(
             f"{name} debe ser str, no {type(sequence).__name__}; "
-            f"se aborta la busqueda de señales de poliadenilacion."
+            f"se aborta la busqueda de señales de poliadenilación."
         )
 
     cleaned = "".join(sequence.split()).upper().replace("U", "T")
     if not cleaned:
         raise MissingSequenceError(
-            f"La {name} esta vacia: se aborta la busqueda de señales de "
-            f"poliadenilacion. Regla 1: no se genera una secuencia de relleno."
+            f"La {name} está vacía: se aborta la busqueda de señales de "
+            f"poliadenilación. Regla 1: no se genera una secuencia de relleno."
         )
 
     for index, base in enumerate(cleaned, start=1):
         if base not in VALID_BASES:
             raise InvalidSequenceError(
-                f"{name}: caracter {base!r} no valido en la posicion {index} "
+                f"{name}: carácter {base!r} no válido en la posición {index} "
                 f"(se esperaba A, C, G, T/U o N); se aborta la busqueda de señales "
-                f"de poliadenilacion sobre esta secuencia."
+                f"de poliadenilación sobre esta secuencia."
             )
     return cleaned
 
@@ -131,7 +131,7 @@ def read_fasta_sequence(path: Path | str) -> str:
     except OSError as exc:
         raise MissingSequenceError(
             f"No se pudo leer el FASTA {path} ({exc}); se aborta la busqueda de "
-            f"señales de poliadenilacion: sin secuencia no hay analisis."
+            f"señales de poliadenilación: sin secuencia no hay análisis."
         ) from exc
 
     records: list[list[str]] = []
@@ -142,14 +142,14 @@ def read_fasta_sequence(path: Path | str) -> str:
             if not records:
                 raise MissingSequenceError(
                     f"{path} empieza con secuencia sin cabecera '>'; no es un FASTA "
-                    f"valido y se aborta la busqueda de señales de poliadenilacion."
+                    f"válido y se aborta la busqueda de señales de poliadenilación."
                 )
             records[-1].append(line.strip())
 
     if len(records) != 1:
         raise MissingSequenceError(
             f"{path} contiene {len(records)} registros y se esperaba exactamente 1; "
-            f"se aborta la busqueda de señales de poliadenilacion para no analizar "
+            f"se aborta la busqueda de señales de poliadenilación para no analizar "
             f"la secuencia equivocada."
         )
     return normalize_sequence("".join(records[0]), name=f"secuencia de {path.name}")
@@ -231,25 +231,25 @@ def classify_signal(
     motif = motif.upper()
     if motif not in ALL_SIGNALS:
         raise ValueError(
-            f"{motif!r} no es una señal de poliadenilacion conocida "
+            f"{motif!r} no es una señal de poliadenilación conocida "
             f"(canonica {CANONICAL_SIGNAL} o variantes {', '.join(VARIANT_SIGNALS)}); "
-            f"se aborta la clasificacion."
+            f"se aborta la clasificación."
         )
     if flank < 0:
         raise ValueError(
             f"flank={flank} invalido: la zona prohibida no puede ser negativa; "
-            f"se aborta la clasificacion."
+            f"se aborta la clasificación."
         )
     if position < 1:
         raise ValueError(
             f"Posicion {position} invalida para {motif}: las coordenadas son 1-based; "
-            f"se aborta la clasificacion."
+            f"se aborta la clasificación."
         )
     end = position + len(motif) - 1
     if end > utr_length:
         raise ValueError(
             f"{motif} en {position} termina en {end}, fuera del 3'UTR de {utr_length} "
-            f"nt; se aborta la clasificacion para no reportar una señal inexistente."
+            f"nt; se aborta la clasificación para no reportar una señal inexistente."
         )
 
     distance = utr_length - end
@@ -296,7 +296,7 @@ def find_polya_signals(
         utr_length = last_position
     elif utr_length < last_position:
         raise ValueError(
-            f"El fragmento llega a la posicion {last_position} pero el 3'UTR declarado "
+            f"El fragmento llega a la posición {last_position} pero el 3'UTR declarado "
             f"mide {utr_length} nt; se aborta la busqueda de señales por coordenadas "
             f"incoherentes."
         )
@@ -339,8 +339,8 @@ def promote_by_measurement(signals, positions, *, source: str):
     huerfanas = sorted(posiciones - encontradas)
     if huerfanas:
         raise ValueError(
-            f"{source} declara sitio(s) de corte en {huerfanas} y ahi no hay ningun "
-            f"hexamero en la secuencia analizada; se aborta en vez de anotar un sitio "
+            f"{source} declara sitio(s) de corte en {huerfanas} y ahi no hay ningún "
+            f"hexámero en la secuencia analizada; se aborta en vez de anotar un sitio "
             f"que la secuencia no respalda."
         )
 
@@ -350,8 +350,8 @@ def promote_by_measurement(signals, positions, *, source: str):
             promovidas.append(señal)
             continue
         nota = (
-            f"{source}: sitio de corte con datos de expresion. La clasificacion viene "
-            f"de la MEDIDA, no de la canonicidad del hexamero."
+            f"{source}: sitio de corte con datos de expresión. La clasificación viene "
+            f"de la MEDIDA, no de la canonicidad del hexámero."
         )
         clasificacion = señal.classification
         if clasificacion is not SignalClass.TERMINAL_PROBABLE:
@@ -441,14 +441,14 @@ class Report:
         lines.append("")
         if not self.signals_available:
             lines.append(
-                "Señales de poliadenilacion: NO CALCULADAS — el filtro "
+                "Señales de poliadenilación: NO CALCULADAS — el filtro "
                 f"{FILTER_NAME} no llego a correr."
             )
         elif self.signals:
-            lines.append(f"Señales de poliadenilacion ({len(self.signals)}):")
+            lines.append(f"Señales de poliadenilación ({len(self.signals)}):")
             lines.extend(f"  · {s.describe(frame=self.frame)}" for s in self.signals)
         else:
-            lines.append("Señales de poliadenilacion: ninguna encontrada.")
+            lines.append("Señales de poliadenilación: ninguna encontrada.")
 
         for aviso in self.avisos:
             lines.append("")
@@ -524,12 +524,12 @@ def _validate_window(window: Window, utr_length: int) -> None:
     if window.length < 1:
         raise ValueError(
             f"La ventana {window.name} tiene longitud {window.length}; "
-            f"se aborta la anotacion del 3'UTR."
+            f"se aborta la anotación del 3'UTR."
         )
     if window.start < 1 or window.end > utr_length:
         raise ValueError(
             f"La ventana {window.name} ocupa {window.start}-{window.end}, fuera del "
-            f"3'UTR de {utr_length} nt; se aborta la anotacion para no anotar "
+            f"3'UTR de {utr_length} nt; se aborta la anotación para no anotar "
             f"coordenadas inexistentes."
         )
 
@@ -562,7 +562,7 @@ def _zona_prohibida(
             FilterResult(
                 name=FILTER_NAME,
                 state=FilterState.FAIL,
-                reason=f"Solapa señal fuerte de poliadenilacion ±{flank} nt: {detalle}.",
+                reason=f"Solapa señal fuerte de poliadenilación ±{flank} nt: {detalle}.",
             ),
             fuertes,
             debiles,
@@ -575,7 +575,7 @@ def _zona_prohibida(
                 name=FILTER_NAME,
                 state=FilterState.PASS,
                 reason=(
-                    f"Solapa variante(s) rara(s) de poliadenilacion ±{flank} nt "
+                    f"Solapa variante(s) rara(s) de poliadenilación ±{flank} nt "
                     f"({detalle}), clasificadas {SignalClass.OTHER.value}: no excluye, "
                     f"se penaliza en el ranking y queda con bandera."
                 ),
@@ -612,15 +612,15 @@ def annotate_3utr(
     """
     if utr_length < 1:
         raise ValueError(
-            f"Longitud de 3'UTR invalida ({utr_length}); se aborta la anotacion."
+            f"Longitud de 3'UTR invalida ({utr_length}); se aborta la anotación."
         )
 
     for signal in signals or ():
         if signal.utr_length != utr_length:
             raise ValueError(
                 f"La señal {signal.motif} en {signal.position} se clasifico sobre un "
-                f"3'UTR de {signal.utr_length} nt y aqui se anota uno de {utr_length} "
-                f"nt; se aborta la anotacion por coordenadas incoherentes."
+                f"3'UTR de {signal.utr_length} nt y aquí se anota uno de {utr_length} "
+                f"nt; se aborta la anotación por coordenadas incoherentes."
             )
 
     annotated: list[AnnotatedWindow] = []
@@ -640,7 +640,7 @@ def annotate_3utr(
                         name=FILTER_NAME,
                         state=FilterState.NOT_RUN,
                         reason=(
-                            "La busqueda de señales de poliadenilacion no llego a "
+                            "La busqueda de señales de poliadenilación no llego a "
                             "correr; la ventana no puede darse por aprobada."
                         ),
                     ),
@@ -715,21 +715,21 @@ def _avisos_apa(
             Aviso(
                 code="APA_PROXIMAL",
                 message=(
-                    f"Posible poliadenilacion alternativa: {signal.motif} "
+                    f"Posible poliadenilación alternativa: {signal.motif} "
                     + (
-                        "canonica"
+                        "canónica"
                         if signal.is_canonical
                         else f"({signal.evidence})"
                     )
                     + f" en {label(signal.position, frame)} "
                     f"(a {signal.distance_to_3p} nt del extremo 3'). "
                     f"{alcance}. Podrian no capturar la isoforma corta. NO se excluyen: "
-                    f"quedan anotadas con riesgo_APA=True y la lista completa esta en "
-                    f"el TSV. La decision es del responsable. El limite de riesgo es la "
+                    f"quedan anotadas con riesgo_APA=True y la lista completa está en "
+                    f"el TSV. La decisión es del responsable. El límite de riesgo es la "
                     f"SEÑAL ({label(signal.position, frame)}), no el sitio de corte, que "
                     f"cae 10-30 nt "
-                    f"aguas abajo: el marcado es conservador a proposito y NO es una "
-                    f"prediccion del extremo de la isoforma corta."
+                    f"aguas abajo: el marcado es conservador a propósito y NO es una "
+                    f"predicción del extremo de la isoforma corta."
                 ),
                 affected=tuple(a.name for a in afectadas),
                 affected_count=count,
@@ -778,9 +778,9 @@ CLEAVAGE_MAX = 30
 #: propia leyenda. No es una interpretacion nuestra: si el hexamero se BUSCA aguas arriba
 #: del PAS, el PAS no puede ser el hexamero.
 PAS_IS_CLEAVAGE_SITE = (
-    "PolyA_DB publica el sitio de CORTE, NO EL HEXAMERO. Su leyenda: «A[A/U]UAAA motif "
-    f"within 40-nt upstream from the PAS» — el hexamero se busca AGUAS ARRIBA del PAS, "
-    f"luego la coordenada publicada es el corte. Con nuestra convencion el hexamero cae "
+    "PolyA_DB pública el sitio de CORTE, NO EL HEXÁMERO. Su leyenda: «A[A/U]UAAA motif "
+    f"within 40-nt upstream from the PAS» — el hexámero se busca AGUAS ARRIBA del PAS, "
+    f"luego la coordenada publicada es el corte. Con nuestra convención el hexámero cae "
     f"{CLEAVAGE_MIN}-{CLEAVAGE_MAX} nt por delante, dentro de esos 40 nt."
 )
 
@@ -829,7 +829,7 @@ def seed_target_span(window: Window) -> tuple[int, int]:
     """Tramo absoluto de la diana con el que empareja la seed (posiciones 2-8)."""
     if window.length != TARGET_WINDOW_SIZE:
         raise ValueError(
-            f"La geometria de la seed esta calculada para ventanas de "
+            f"La geometria de la seed está calculada para ventanas de "
             f"{TARGET_WINDOW_SIZE} nt y esta mide {window.length}; se aborta en vez de "
             f"devolver un tramo que no corresponde."
         )
@@ -1055,13 +1055,13 @@ class PolyARisk:
             return
         if not isinstance(fraccion, (int, float)) or isinstance(fraccion, bool):
             raise TypeError(
-                f"fraccion_isoforma_larga debe ser un numero o None (no medida), no "
-                f"{type(fraccion).__name__}; se aborta la anotacion de polyA."
+                f"fraccion_isoforma_larga debe ser un número o None (no medida), no "
+                f"{type(fraccion).__name__}; se aborta la anotación de polyA."
             )
         if not 0.0 <= float(fraccion) <= 1.0:
             raise ValueError(
-                f"fraccion_isoforma_larga={fraccion} fuera de [0, 1]: es una fraccion "
-                f"de transcritos, no un recuento; se aborta la anotacion de polyA."
+                f"fraccion_isoforma_larga={fraccion} fuera de [0, 1]: es una fracción "
+                f"de transcritos, no un recuento; se aborta la anotación de polyA."
             )
         if self.truncamiento not in (RiskState.TECHO, RiskState.PENALIZADO):
             raise ValueError(
@@ -1144,8 +1144,8 @@ def polya_risk(
         s for s in signals if s.position <= window.end and s.end >= window.start
     ]
     esterico, esterico_motivo, esterico_signal = RiskState.NO_APLICA, (
-        "La ventana no solapa ningun hexamero, asi que no compite con la maquinaria de "
-        "corte por ningun tramo."
+        "La ventana no solapa ningún hexámero, así que no compite con la maquinaria de "
+        "corte por ningún tramo."
     ), None
     if solapadas:
         principal = min(solapadas, key=lambda s: _GRAVEDAD[s.classification])
@@ -1156,7 +1156,7 @@ def polya_risk(
                 f"La ventana solapa {principal.motif} en "
                 f"{principal.position}-{principal.end}, clase "
                 f"{principal.classification.value}: es una señal que se da por "
-                f"funcional, asi que la horquilla competiria con CPSF/CstF por ese "
+                f"funcional, así que la horquilla competiria con CPSF/CstF por ese "
                 f"tramo."
             )
         else:
@@ -1164,22 +1164,22 @@ def polya_risk(
             esterico_motivo = (
                 f"La ventana solapa {principal.motif} en "
                 f"{principal.position}-{principal.end}, clase "
-                f"{principal.classification.value}: es una variante rara, asi que el "
+                f"{principal.classification.value}: es una variante rara, así que el "
                 f"riesgo esterico solo existe si esa señal se usa. Penaliza el ranking, "
                 f"no elimina."
             )
 
     propio_motivo = (
-        "La ventana no solapa ningun hexamero: no hay «hexamero propio» del que hablar."
+        "La ventana no solapa ningún hexámero: no hay «hexámero propio» del que hablar."
     )
     if esterico_signal is not None:
         propio_motivo = (
             f"Respecto de {esterico_signal.motif} en {esterico_signal.position}-"
-            f"{esterico_signal.end}, que es el hexamero que la ventana SOLAPA: no hay "
+            f"{esterico_signal.end}, que es el hexámero que la ventana SOLAPA: no hay "
             f"riesgo de truncamiento. Solaparlo la deja aguas ARRIBA de su corte "
             f"({esterico_signal.end + CLEAVAGE_MIN}-{esterico_signal.end + CLEAVAGE_MAX}), "
-            f"asi que se conserva en las dos isoformas. OJO: esto NO dice nada sobre "
-            f"otras señales que queden mas arriba."
+            f"así que se conserva en las dos isoformas. OJO: esto NO dice nada sobre "
+            f"otras señales que queden más arriba."
         )
 
     #: Solo las funcionales dirigen un corte. Se toma la que deje la ventana MAS lejos
@@ -1194,8 +1194,8 @@ def polya_risk(
             if s.classification in _FUNCIONALES and s.end < window.start
         ]
         motivo = (
-            "La ventana esta aguas arriba del corte mas temprano de toda señal "
-            "funcional (o lo solapa), asi que se conserva en las dos isoformas: no hay "
+            "La ventana está aguas arriba del corte más temprano de toda señal "
+            "funcional (o lo solapa), así que se conserva en las dos isoformas: no hay "
             "riesgo de truncamiento."
             if candidatas or not signals
             else "No hay ninguna señal funcional por delante de la ventana."
@@ -1220,22 +1220,22 @@ def polya_risk(
         terminal = manda.classification is SignalClass.TERMINAL_PROBABLE
         estado = RiskState.FAIL if terminal else RiskState.TECHO
         detalle = (
-            f"a {window.start - (manda.end + CLEAVAGE_MAX)} nt POR DETRAS del corte mas "
+            f"a {window.start - (manda.end + CLEAVAGE_MAX)} nt POR DETRÁS del corte más "
             f"tardio ({manda.end + CLEAVAGE_MAX}): "
             + (
-                "ese tramo no esta en el ARNm maduro en ninguna isoforma, asi que la "
+                "ese tramo no está en el ARNm maduro en ninguna isoforma, así que la "
                 "diana no existe"
                 if terminal
                 else "en la isoforma corta este tramo no esta, pero en la larga si. El "
-                "APA reparte los transcritos entre las dos, asi que esto es un TECHO de "
-                "knockdown —la fraccion de isoforma larga—, no un veto"
+                "APA reparte los transcritos entre las dos, así que esto es un TECHO de "
+                "knockdown —la fracción de isoforma larga—, no un veto"
             )
         )
     else:
         estado = RiskState.PENALIZADO
         detalle = (
             f"dentro de la banda de corte ({manda.end + CLEAVAGE_MIN}-"
-            f"{manda.end + CLEAVAGE_MAX}): no se sabe si el corte cae antes o despues "
+            f"{manda.end + CLEAVAGE_MAX}): no se sabe si el corte cae antes o después "
             f"de la ventana"
         )
     return PolyARisk(
@@ -1376,8 +1376,8 @@ def _veredicto_polya(
         )
         return resultado(
             FilterState.FAIL,
-            f"La ventana empieza en {window.start}, por detras del sitio de corte de la "
-            f"señal terminal: {detalle}. Ese tramo no esta en el ARNm maduro, asi que "
+            f"La ventana empieza en {window.start}, por detrás del sitio de corte de la "
+            f"señal terminal: {detalle}. Ese tramo no está en el ARNm maduro, así que "
             f"la diana no existe.",
         )
 
@@ -1391,8 +1391,8 @@ def _veredicto_polya(
         detalle = "; ".join(f"{s.motif} en {s.position}" for s in solapadas)
         return resultado(
             FilterState.FAIL,
-            f"Solapa {len(solapadas)} hexamero(s) ±{solapadas[0].flank} nt ({detalle}). "
-            f"El criterio estricto no distingue entre hexameros.",
+            f"Solapa {len(solapadas)} hexámero(s) ±{solapadas[0].flank} nt ({detalle}). "
+            f"El criterio estricto no distingue entre hexámeros.",
         )
 
     if mode is PolyAMode.ESCALONADO and fuertes:
@@ -1401,18 +1401,18 @@ def _veredicto_polya(
         )
         return resultado(
             FilterState.FAIL,
-            f"Solapa señal fuerte de poliadenilacion ±{fuertes[0].flank} nt: {detalle}.",
+            f"Solapa señal fuerte de poliadenilación ±{fuertes[0].flank} nt: {detalle}.",
         )
 
     avisos = []
     if tras_posible:
         avisos.append(
             f"La ventana cae en la banda incierta del corte ({CLEAVAGE_MIN}-"
-            f"{CLEAVAGE_MAX} nt tras el hexamero): puede quedar fuera del ARNm maduro."
+            f"{CLEAVAGE_MAX} nt tras el hexámero): puede quedar fuera del ARNm maduro."
         )
     if solapadas and mode is not PolyAMode.ESTRICTO:
         avisos.append(
-            f"Solapa {len(solapadas)} hexamero(s), "
+            f"Solapa {len(solapadas)} hexámero(s), "
             + "; ".join(f"{s.motif} en {s.position}" for s in solapadas)
             + "."
         )
@@ -1512,50 +1512,50 @@ class AmpliconPlan:
             f"banda de corte {span(self.cut_band[0], self.cut_band[1], self.frame)}.",
             f"  {self.proximal.describe(frame=self.frame, offset=offset)}",
             f"  {self.distal.describe(frame=self.frame, offset=offset)}",
-            "  Los dos se cuantifican contra una CURVA ESTANDAR COMUN: sin ella las dos "
+            "  Los dos se cuantifican contra una CURVA ESTÁNDAR COMUN: sin ella las dos "
             "eficiencias",
-            "  no son comparables y la razon no significa nada.",
-            "  RETROTRANSCRIPCION CON HEXAMEROS ALEATORIOS. Con oligo-dT NO, y el sesgo "
-            "tiene direccion",
+            "  no son comparables y la razón no significa nada.",
+            "  RETROTRANSCRIPCION CON HEXÁMEROS ALEATORIOS. Con oligo-dT NO, y el sesgo "
+            "tiene dirección",
             f"  conocida: el oligo-dT ceba en la cola de poli(A) y la RT avanza 3'→5', "
-            f"asi que una RT",
-            f"  incompleta cubre lo que esta cerca de la cola y pierde lo de lejos. En "
+            f"así que una RT",
+            f"  incompleta cubre lo que está cerca de la cola y pierde lo de lejos. En "
             f"la isoforma LARGA",
             f"  el amplicon proximal queda a {self.utr_length - self.proximal.end} nt "
             f"de la cola y el distal a "
             f"{self.utr_length - self.distal.end} nt:",
-            "  la larga se subrepresenta MAS en el proximal que en el distal, y la "
-            "razon distal/proximal",
-            "  sale sesgada HACIA MAS ISOFORMA LARGA — que es justo el resultado que se "
-            "esta buscando.",
-            "  Con hexameros aleatorios el cebado no depende de la distancia a la cola.",
-            "  RNA con RIN DOCUMENTADO: la degradacion produce el mismo sesgo por la "
-            "misma razon.",
+            "  la larga se subrepresenta MÁS en el proximal que en el distal, y la "
+            "razón distal/proximal",
+            "  sale sesgada HACIA MÁS ISOFORMA LARGA — que es justo el resultado que se "
+            "está buscando.",
+            "  Con hexámeros aleatorios el cebado no depende de la distancia a la cola.",
+            "  RNA con RIN DOCUMENTADO: la degradación produce el mismo sesgo por la "
+            "misma razón.",
             "  CONTROL POSITIVO DE ENSAYO, obligatorio: un gen con APA caracterizado en "
             "el mismo tejido,",
             "  medido en las MISMAS muestras y con la MISMA arquitectura de amplicones "
             "(uno delante de su",
-            "  señal proximal, otro detras de su banda de corte). Sin el, un «casi todo "
+            "  señal proximal, otro detrás de su banda de corte). Sin el, un «casi todo "
             "isoforma larga» no",
             "  se distingue de un ensayo CIEGO a las isoformas cortas: los dos dan la "
             "misma cifra.",
-            "  Ese gen se elige con su cita — aqui no se propone ninguno, porque "
+            "  Ese gen se elige con su cita — aquí no se propone ninguno, porque "
             "nombrarlo de memoria",
-            "  seria inventarse la referencia que lo respalda.",
+            "  sería inventarse la referencia que lo respalda.",
             "    control_positivo_ensayo: NOT_RUN — falta el gen de control con su "
             "cita. NOT_RUN no es",
             "    PASS: mientras no lo aporte alguien, el ensayo no se puede leer, "
             "porque su resultado",
             "    esperado y el de un ensayo averiado son el mismo.",
-            "  fraccion_isoforma_larga = razon distal/proximal. Ese numero ES el techo "
+            "  fraccion_isoforma_larga = razón distal/proximal. Ese número ES el techo "
             "de knockdown",
-            "  de los candidatos que quedan por detras del corte.",
+            "  de los candidatos que quedan por detrás del corte.",
             "  Se mide sobre tejido SIN tratar: en muestras tratadas un amplicon que "
             "solape una diana",
             "  mide corte por RNAi, no isoformas.",
             "  Se emiten COORDENADAS: no se emiten cebadores. El diseño de cebadores "
             "necesita Tm,",
-            "  especificidad y comprobacion de horquillas, y eso no se improvisa aqui.",
+            "  especificidad y comprobación de horquillas, y eso no se improvisa aquí.",
         ]
 
 
@@ -1627,8 +1627,8 @@ def rtqpcr_amplicons(
 
     if first_position < 1:
         raise ValueError(
-            f"first_position={first_position} invalido: es la primera posicion de la "
-            f"region en la que se puede poner un amplicon, 1-based; se aborta."
+            f"first_position={first_position} invalido: es la primera posición de la "
+            f"región en la que se puede poner un amplicon, 1-based; se aborta."
         )
     proximal = _place_amplicon(
         role="proximal",
@@ -1639,7 +1639,7 @@ def rtqpcr_amplicons(
         avoid=evitar,
         rationale=(
             f"entero por delante de {signal.motif}@{label(signal.position, frame)} "
-            f"(holgura {margin} nt) y dentro de la region analizada: presente en las "
+            f"(holgura {margin} nt) y dentro de la región analizada: presente en las "
             f"DOS isoformas, mide el total."
         ),
     )
@@ -1651,7 +1651,7 @@ def rtqpcr_amplicons(
         downstream=True,
         avoid=evitar,
         rationale=(
-            f"entero por detras de la banda de corte "
+            f"entero por detrás de la banda de corte "
             f"{span(banda[0], banda[1], frame)} (holgura {margin} nt): solo presente en "
             f"la isoforma LARGA."
         ),
@@ -1706,13 +1706,13 @@ class SignalConservation:
             f"y el techo sigue indeterminado mientras fraccion_isoforma_larga siga sin "
             f"medir. "
             if ceiling is None
-            else f"y el techo YA esta medido ({ceiling:.2f} de isoforma larga), asi que "
-                 f"esta nota no lo cambia: lo que hace es dar una razon MAS para "
-                 f"esperar que el real sea aun mas alto. "
+            else f"y el techo YA está medido ({ceiling:.2f} de isoforma larga), así que "
+                 f"esta nota no lo cambia: lo que hace es dar una razón MÁS para "
+                 f"esperar que el real sea aun más alto. "
         )
         return (
             f"Y esto no es solo ausencia de homologo: el gen de {self.other_name} ha "
-            f"PRESCINDIDO del hexamero canonico por completo — ni una {self.motif} en "
+            f"PRESCINDIDO del hexámero canónico por completo — ni una {self.motif} en "
             f"{self.other_length} nt de 3'UTR. Un APA proximal FUNCIONAL es un elemento "
             f"regulador, y los elementos reguladores tienden a conservarse. Eso REBAJA "
             f"la probabilidad a priori de que la señal de esta especie se use. NO LO "
@@ -1724,7 +1724,7 @@ class SignalConservation:
     def describe(self) -> str:
         cabecera = (
             f"COMPROBADO sobre {self.other_name}, {self.other_length} nt: "
-            f"{len(self.occurrences)} aparicion(es) de {self.motif}."
+            f"{len(self.occurrences)} aparición(es) de {self.motif}."
         )
         if self.conserved:
             cuerpo = (
@@ -1735,21 +1735,21 @@ class SignalConservation:
             )
         else:
             cuerpo = (
-                f" La señal NO esta conservada: el 3'UTR de {self.other_name} no "
-                f"contiene {self.motif} ni una sola vez, asi que no hay homologo "
+                f" La señal NO está conservada: el 3'UTR de {self.other_name} no "
+                f"contiene {self.motif} ni una sola vez, así que no hay homologo "
                 f"posible. No hace falta alinear para decirlo."
             )
         matiz = ""
         if self.apa_elsewhere:
             matiz = (
                 " OJO: eso NO SIGNIFICA QUE la otra especie este libre de "
-                "poliadenilacion alternativa. Tiene "
+                "poliadenilación alternativa. Tiene "
                 + ", ".join(
                     f"{s.motif} en {label(s.position, Frame.UTR3)}"
                     for s in self.apa_elsewhere
                 )
                 + f" clasificada(s) {SignalClass.APA_POSSIBLE.value}: el riesgo no esta "
-                f"conservado COMO ESE HEXAMERO, que es otra cosa."
+                f"conservado COMO ESE HEXÁMERO, que es otra cosa."
             )
         return cabecera + cuerpo + matiz
 
@@ -1760,12 +1760,12 @@ def signal_conservation(
     """¿Aparece `motif` en el 3'UTR de la otra especie? Y que APA tiene ella."""
     if motif.upper() not in ALL_SIGNALS:
         raise ValueError(
-            f"{motif!r} no es una señal de poliadenilacion conocida; se aborta la "
-            f"comprobacion de conservacion."
+            f"{motif!r} no es una señal de poliadenilación conocida; se aborta la "
+            f"comprobación de conservación."
         )
     if not other_name or not other_name.strip():
         raise ValueError(
-            "Hay que decir en QUE secuencia se comprueba la conservacion: «no esta "
+            "Hay que decir en QUE secuencia se comprueba la conservación: «no esta "
             "conservada» sin nombrar la otra especie no es un resultado. Se aborta."
         )
     limpia = normalize_sequence(other_utr3, name=f"3'UTR de {other_name}")

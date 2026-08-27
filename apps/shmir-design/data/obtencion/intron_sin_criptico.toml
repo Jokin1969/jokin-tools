@@ -1,46 +1,46 @@
 frente = "intron_sin_criptico"
 pregunta = """\
-¿Se puede quitar el donante criptico `GTGAGCG` del flanco 5' de miR-E sin romper nada? \
-Ese donante viaja con CUALQUIER candidato porque esta dentro del andamio, y compite por \
-el aceptor legitimo del MVM: un empalme desde el produce una banda INTERMEDIA que en un \
+¿Se puede quitar el donante críptico `GTGAGCG` del flanco 5' de miR-E sin romper nada? \
+Ese donante viaja con CUALQUIER candidato porque está dentro del andamio, y compite por \
+el aceptor legítimo del MVM: un empalme desde el produce una banda INTERMEDIA que en un \
 gel se confunde con la buena."""
 fuente = "Lo diseña la app, derivandolo de `mvm_actual`. No se descarga de ninguna parte."
 url = "—"
 tamano = "—"
 validacion = """\
 La propuesta no se acepta por venir de la app: pasa por el MISMO modal que los demas \
-intrones antes de ir a sintesis. Lo que la app comprueba al generarla es que la variante \
+intrones antes de ir a síntesis. Lo que la app comprueba al generarla es que la variante \
 siga empezando por GT y acabando en AG, que conserve el tracto de polipirimidinas del \
-legitimo, que el intron montado no baje de 80 nt, y que el 97-mero siga plegando como en \
+legítimo, que el intrón montado no baje de 80 nt, y que el 97-mero siga plegando como en \
 SGEP."""
 
 sin_fichero = true
 por_que_sin_fichero = """\
 Este no se consigue: SE DISEÑA. La app lo deriva de `mvm_actual` con dos criterios \
 computables —romper el `GTGAGCG` y generar espaciadores nuevos de 20-30 nt— y emite las \
-alternativas CON SUS METRICAS. Si empatan NO elige: eso lo decide quien lee, igual que \
-con la posicion 1 de la pasajera. Lo que sale es una PROPUESTA, no una construccion \
+alternativas CON SUS MÉTRICAS. Si empatan NO elige: eso lo decide quien lee, igual que \
+con la posición 1 de la pasajera. Lo que sale es una PROPUESTA, no una construcción \
 aprobada."""
 
 pasos = [
-  "Abre el cuarto modal y elige un candidato: el criterio estructural necesita su 97-mero, asi que la variante se diseña POR CANDIDATO y no una vez para todos.",
-  "Pide la variante. La app prueba las cuatro bases en cada posicion del `GTGAGCG` que degrade el contexto de donante.",
-  "Mira las DOS metricas de cada alternativa: cuanto baja la puntuacion del sitio criptico, y si el 97-mero sigue plegando como en SGEP. Una alternativa que baje mucho el criptico y rompa el plegado NO sirve.",
+  "Abre el cuarto modal y elige un candidato: el criterio estructural necesita su 97-mero, así que la variante se diseña POR CANDIDATO y no una vez para todos.",
+  "Pide la variante. La app prueba las cuatro bases en cada posición del `GTGAGCG` que degrade el contexto de donante.",
+  "Mira las DOS métricas de cada alternativa: cuanto baja la puntuación del sitio críptico, y si el 97-mero sigue plegando como en SGEP. Una alternativa que baje mucho el críptico y rompa el plegado NO sirve.",
   "Elige tu si hay empate. La app no elige: emite las alternativas ordenadas y dice que empatan.",
-  "Con la base elegida, la app genera espaciadores de 20-30 nt, pliega el intron completo con el modulo dentro, y se queda con los que dejan desapareados el donante, el punto de ramificacion y el aceptor.",
-  "Pasa la propuesta por el modal como un intron mas, junto al `mvm_actual`, y compara los dos perfiles.",
+  "Con la base elegida, la app genera espaciadores de 20-30 nt, pliega el intrón completo con el módulo dentro, y se queda con los que dejan desapareados el donante, el punto de ramificacion y el aceptor.",
+  "Pasa la propuesta por el modal como un intrón mas, junto al `mvm_actual`, y compara los dos perfiles.",
 ]
 
 avisos = [
-  "ESTO GENERA SECUENCIA, y por eso lleva autorizacion escrita y acotada (`intron_design.AUTHORIZATION`), igual que la de `spacers.py`. Cubre SOLO la base que rompe el criptico y los espaciadores. No cubre guias, ni pasajeras, ni el andamio, ni ninguna otra pieza.",
+  "ESTO GENERA SECUENCIA, y por eso lleva autorización escrita y acotada (`intron_design.AUTHORIZATION`), igual que la de `spacers.py`. Cubre SOLO la base que rompe el críptico y los espaciadores. No cubre guías, ni pasajeras, ni el andamio, ni ninguna otra pieza.",
   "LA PROPUESTA NO ESTA APROBADA. Sale de dos criterios computables, no de una medida: pasa por el mismo modal que las demas y, como todo lo de este modal, es DESEMPATE y ALERTA, nunca filtro.",
-  "Si la app no puede aplicar el criterio estructural —sin ViennaRNA no hay plegado— la variante sale NOT_RUN y no se propone ninguna. Elegir la base «por lo que baja el criptico» sin comprobar el plegado es exactamente el fallo de la tabla por terminacion que este proyecto ya cometio con la pasajera.",
+  "Si la app no puede aplicar el criterio estructural —sin ViennaRNA no hay plegado— la variante sale NOT_RUN y no se propone ninguna. Elegir la base «por lo que baja el críptico» sin comprobar el plegado es exactamente el fallo de la tabla por terminacion que este proyecto ya cometio con la pasajera.",
 ]
 
 [[metadatos]]
 nombre = "que candidato se uso para el criterio estructural"
-por_que = "El 97-mero cambia con la guia, asi que la variante elegida puede no ser la misma para otro candidato. Sin decir cual se uso, la propuesta no se puede volver a derivar."
+por_que = "El 97-mero cambia con la guía, así que la variante elegida puede no ser la misma para otro candidato. Sin decir cual se uso, la propuesta no se puede volver a derivar."
 
 [[metadatos]]
 nombre = "la semilla del generador de espaciadores"
-por_que = "La generacion es determinista y la semilla viaja con el resultado: sin ella, dos corridas del mismo diseño pedirian bloques distintos."
+por_que = "La generación es determinista y la semilla viaja con el resultado: sin ella, dos corridas del mismo diseño pedirian bloques distintos."

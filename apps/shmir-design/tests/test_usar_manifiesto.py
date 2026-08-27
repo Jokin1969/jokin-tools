@@ -70,7 +70,7 @@ class _Base(unittest.TestCase):
 class TestConecta(_Base):
 
     def _seccion_transgen(self) -> str:
-        return self._informe().split("── Transgen")[1][:400]
+        return self._informe().split("── Transgén")[1][:400]
 
     def test_el_casete_del_transgen_se_conecta_solo(self):
         self._manifiesto(self._poner("aav_casete.fa", ">c\n" + CASETE + "\n", "transgen"))
@@ -84,13 +84,13 @@ class TestConecta(_Base):
         """El fallo que este atajo cierra: version y fichero dejan de ir por separado."""
         self._manifiesto(self._poner("aav_casete.fa", ">c\n" + CASETE + "\n", "transgen"))
         self._correr(["--usar-manifiesto"])
-        self.assertIn("version 2026-08-25", self._seccion_transgen())
+        self.assertIn("versión 2026-08-25", self._seccion_transgen())
 
     def test_sin_el_flag_no_se_conecta_nada(self):
         self._manifiesto(self._poner("aav_casete.fa", ">c\n" + CASETE + "\n", "transgen"))
         codigo, salida = self._correr()
         self.assertEqual(codigo, 0, salida)
-        self.assertIn("NOT_RUN", self._informe().split("── Transgen")[1][:400])
+        self.assertIn("NOT_RUN", self._informe().split("── Transgén")[1][:400])
 
     def test_la_consola_dice_que_conecto_y_con_que_version(self):
         self._manifiesto(self._poner("aav_casete.fa", ">c\n" + CASETE + "\n", "transgen"))
@@ -105,7 +105,7 @@ class TestConecta(_Base):
         codigo, salida = self._correr(["--usar-manifiesto"])
         self.assertEqual(codigo, 0, salida)
         self.assertIn("SIN_REGISTRAR", salida)
-        self.assertIn("NOT_RUN", self._informe().split("── Transgen")[1][:400])
+        self.assertIn("NOT_RUN", self._informe().split("── Transgén")[1][:400])
 
     def test_la_procedencia_del_informe_sale_del_manifiesto(self):
         self._manifiesto(self._poner("aav_casete.fa", ">c\n" + CASETE + "\n", "transgen"))

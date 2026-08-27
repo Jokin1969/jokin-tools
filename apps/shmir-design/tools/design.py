@@ -123,7 +123,7 @@ def estado_de_los_datos(directorio: Path, *, permitir_sin_manifiesto: bool):
             return None, None
         raise ShmirDesignError(
             f"{exc} Si de verdad quieres correr sin registro de procedencia, repite con "
-            f"--sin-manifiesto; la corrida no sera reproducible."
+            f"--sin-manifiesto; la corrida no será reproducible."
         ) from exc
 
     print(estado.format_text())
@@ -132,7 +132,7 @@ def estado_de_los_datos(directorio: Path, *, permitir_sin_manifiesto: bool):
         nombres = ", ".join(r.entry.name for r in estado.mismatched)
         raise ShmirDesignError(
             f"Hay ficheros de referencia que NO son los que dicen ser ({nombres}); se "
-            f"aborta antes de usarlos para ningun veredicto."
+            f"aborta antes de usarlos para ningún veredicto."
         )
     return estado, load_manifest(directorio / MANIFEST_NAME)
 
@@ -149,7 +149,7 @@ def load_seeds(path: Path):
 
 PISTA_CLI = (
     "\nEn este CLI: --genbank FICHERO.gb, --cds INICIO FIN, o --region 3utr.\n"
-    "Si no sabes cuales son, --proponer-cds calcula el marco mas largo y te enseña "
+    "Si no sabes cuales son, --proponer-cds calcula el marco más largo y te enseña "
     "el comando; la propuesta no decide por ti."
 )
 
@@ -169,14 +169,14 @@ def parse_cuota_region(texto: str) -> tuple[tuple[Region, int], ...]:
         clave = nombre.strip().lower()
         if clave not in REGIONES_CLI:
             raise ValueError(
-                f"--cuota-region: region {nombre.strip()!r} desconocida; las que hay "
+                f"--cuota-region: región {nombre.strip()!r} desconocida; las que hay "
                 f"son {', '.join(sorted(REGIONES_CLI))}."
             )
         try:
             cuantos = int(numero)
         except ValueError as exc:
             raise ValueError(
-                f"--cuota-region: {numero!r} no es un numero entero ({exc})."
+                f"--cuota-region: {numero!r} no es un número entero ({exc})."
             ) from exc
         cuota.append((REGIONES_CLI[clave], cuantos))
     return tuple(cuota)
@@ -209,7 +209,7 @@ def conectar_desde_manifiesto(args, estado) -> None:
     disponibles = roles_available(estado)
     if not disponibles:
         print(
-            "  --usar-manifiesto: ningun fichero de referencia esta en OK, asi que no "
+            "  --usar-manifiesto: ningún fichero de referencia está en OK, así que no "
             "hay nada que conectar. Los filtros que dependen de uno quedaran en "
             "NOT_RUN.\n"
         )
@@ -325,9 +325,9 @@ def _convergencia(ruta: Path, *, tiling, seleccion):
         externos[inicio] = fila.guide
     if not externos:
         raise ShmirDesignError(
-            f"Ninguna de las {len(export.rows)} guias de {ruta} mapea sobre la "
+            f"Ninguna de las {len(export.rows)} guías de {ruta} mapea sobre la "
             f"secuencia analizada; se aborta el bloque de convergencia en vez de "
-            f"declarar «cero sitios exclusivos» sobre un cruce vacio."
+            f"declarar «cero sitios exclusivos» sobre un cruce vacío."
         )
     sitios = {
         sitio.best.start: seleccion.windows[sitio.best.label].evaluation.guide
@@ -366,12 +366,12 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--usar-manifiesto", action="store_true",
         help="Conecta solo cada fichero de --datos que este en OK con el filtro que le "
-             "toca, con la version y el md5 del propio manifiesto. Sustituye a las 31 "
+             "toca, con la versión y el md5 del propio manifiesto. Sustituye a las 31 "
              "flags de fontaneria; una flag explicita sigue mandando sobre esto.",
     )
     parser.add_argument(
         "--sin-manifiesto", action="store_true",
-        help="Sigue adelante aunque no haya manifiesto. La corrida no sera "
+        help="Sigue adelante aunque no haya manifiesto. La corrida no será "
              "reproducible y el informe lo dira.",
     )
     parser.add_argument("--fasta", type=Path, help="3'UTR suelto en FASTA")
@@ -384,21 +384,21 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--min-por-tercio", type=int, default=SelectionConfig().min_per_tercio,
         help=(
-            "Minimo de candidatos por tercio del 3'UTR. Las causas de fallo son "
+            "Mínimo de candidatos por tercio del 3'UTR. Las causas de fallo son "
             "regionales, no puntuales."
         ),
     )
     parser.add_argument(
         "--inmunes", type=int, default=0,
         help=(
-            "Minimo de candidatos INMUNES al truncamiento: los que empiezan por delante "
+            "Mínimo de candidatos INMUNES al truncamiento: los que empiezan por delante "
             "del corte de la señal proximal. Necesita --inmunes-antes."
         ),
     )
     parser.add_argument(
         "--inmunes-antes", type=int, default=None,
         help=(
-            "Posicion (en el marco de lo tilado) del corte mas TEMPRANO de la señal "
+            "Posición (en el marco de lo tilado) del corte más TEMPRANO de la señal "
             "proximal. Un candidato que empiece por delante se conserva en las dos "
             "isoformas. Por defecto se DERIVA del informe: teclearlo es lo que hace que "
             "la cifra no se entere de que un sitio de corte medido adelante la frontera."
@@ -411,7 +411,7 @@ def main(argv: list[str]) -> int:
             "informe la convergencia con nuestra cascada. Se cruza por SECUENCIA, y "
             "SOLO contra la especie de --name: un export de raton no mapea sobre el "
             "3'UTR humano, y cruzarlo daria un «cero sitios exclusivos» sobre un cruce "
-            "vacio. Para la segunda especie hace falta su propio export."
+            "vacío. Para la segunda especie hace falta su propio export."
         ),
     )
     parser.add_argument("--min-spacing", type=int, default=SelectionConfig().min_spacing)
@@ -424,20 +424,20 @@ def main(argv: list[str]) -> int:
         help="Salida de RepeatMasker (.out) o tabla rmsk de UCSC, en coordenadas de la "
              "secuencia consultada. En raton el riesgo son los SINE B1/B2.",
     )
-    parser.add_argument("--rmsk-version", help="Version del rmsk; obligatoria")
+    parser.add_argument("--rmsk-version", help="Versión del rmsk; obligatoria")
     parser.add_argument("--rmsk-md5", help="md5 esperado; si no cuadra, PARA")
     parser.add_argument(
         "--rmsk-especie",
         help=(
             "Especie de la BIBLIOTECA que se esperaba (p. ej. «mus musculus»). "
-            "Obligatoria con un .out: es lo unico que distingue una corrida buena de "
+            "Obligatoria con un .out: es lo único que distingue una corrida buena de "
             "una contra otra especie, que sale con formato correcto y cifras plausibles."
         ),
     )
     parser.add_argument(
         "--rmsk-resumen", type=Path,
         help=(
-            "El .tbl de la corrida. Obligatorio con un .out: la linea de la especie "
+            "El .tbl de la corrida. Obligatorio con un .out: la línea de la especie "
             "vive ahi y no en el .out, y sin los ceros por familia un fichero sin filas "
             "no distingue «no habia repetitivos» de «la corrida no llego a correr»."
         ),
@@ -446,7 +446,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--min-block", type=int, default=MIN_BLOCK_LENGTH)
     parser.add_argument("--refseq", type=Path, help="FASTA local de RefSeq RNA")
     parser.add_argument("--refseq-name", default="RefSeq RNA")
-    parser.add_argument("--refseq-version", help="Version o fecha de descarga")
+    parser.add_argument("--refseq-version", help="Versión o fecha de descarga")
     parser.add_argument("--refseq-md5", help="md5 esperado; si no cuadra, PARA")
     parser.add_argument(
         "--target", help="Accession del gen diana, para no contarlo como off-target"
@@ -456,7 +456,7 @@ def main(argv: list[str]) -> int:
         help="mature.fa de miRBase. Con el corre `seed_colision` en sus dos niveles y "
              "se retira el filtro `seed` de la lista de arranque.",
     )
-    parser.add_argument("--mirbase-version", help="Version de miRBase; obligatoria")
+    parser.add_argument("--mirbase-version", help="Versión de miRBase; obligatoria")
     parser.add_argument("--mirbase-md5", help="md5 esperado; si no cuadra, PARA")
     parser.add_argument(
         "--mirbase-especies", default="mmu-,hsa-",
@@ -464,17 +464,17 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--abundancia", type=Path,
-        help="Lista curada de miARN abundantes en el tejido (MirGeneDB). Es la UNICA "
+        help="Lista curada de miARN abundantes en el tejido (MirGeneDB). Es la ÚNICA "
              "fuente del nivel FAIL; sin ella ese nivel queda en NOT_RUN.",
     )
-    parser.add_argument("--abundancia-version", help="Version de la lista; obligatoria")
+    parser.add_argument("--abundancia-version", help="Versión de la lista; obligatoria")
     parser.add_argument("--abundancia-md5", help="md5 esperado; si no cuadra, PARA")
     parser.add_argument(
         "--transcriptoma-3utr", type=Path,
         help="FASTA de los 3'UTR del transcriptoma, para contar la carga de "
-             "off-targets por seed. Es un numero comparativo, no un filtro.",
+             "off-targets por seed. Es un número comparativo, no un filtro.",
     )
-    parser.add_argument("--transcriptoma-version", help="Version; obligatoria")
+    parser.add_argument("--transcriptoma-version", help="Versión; obligatoria")
     parser.add_argument("--transcriptoma-md5", help="md5 esperado; si no cuadra, PARA")
     parser.add_argument(
         "--expresion", type=Path,
@@ -482,20 +482,20 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--apa-medido", type=Path,
-        help="Tabla `posicion<TAB>fraccion<TAB>nombre` de sitios de poliadenilacion "
+        help="Tabla `posicion<TAB>fraccion<TAB>nombre` de sitios de poliadenilación "
              "MEDIDOS (PolyA_DB, PolyASite). Con ella, el dato sustituye a la "
-             "prediccion de riesgo_APA y se puede dar el techo de knockdown.",
+             "predicción de riesgo_APA y se puede dar el techo de knockdown.",
     )
-    parser.add_argument("--apa-version", help="Version de la tabla; obligatoria")
+    parser.add_argument("--apa-version", help="Versión de la tabla; obligatoria")
     parser.add_argument("--apa-md5", help="md5 esperado; si no cuadra, PARA")
     parser.add_argument(
         "--apa-coords", choices=("3utr", "transcrito"), default="3utr",
-        help="En que coordenadas estan las posiciones de --apa-medido.",
+        help="En que coordenadas están las posiciones de --apa-medido.",
     )
     parser.add_argument(
         "--estimar", action="store_true",
-        help="No diseña nada: tila, cuenta cuantas ventanas pasarian por cada filtro "
-             "caro, mide UNA invocacion real de cada uno y dice cuanto va a tardar. "
+        help="No diseña nada: tila, cuenta cuántas ventanas pasarian por cada filtro "
+             "caro, mide UNA invocación real de cada uno y dice cuanto va a tardar. "
              "Para saber en unos segundos si merece la pena lanzarlo.",
     )
     parser.add_argument(
@@ -507,10 +507,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--transgen", type=Path,
         help="FASTA del casete AAV completo (ITR a ITR). Los candidatos que lo tocan "
-             "apagarian la propia construccion terapeutica.",
+             "apagarian la propia construcción terapeutica.",
     )
-    parser.add_argument("--transgen-name", default="casete del transgen")
-    parser.add_argument("--transgen-version", help="Version del vector; obligatoria")
+    parser.add_argument("--transgen-name", default="casete del transgén")
+    parser.add_argument("--transgen-version", help="Versión del vector; obligatoria")
     parser.add_argument("--transgen-md5", help="md5 esperado; si no cuadra, PARA")
     parser.add_argument(
         "--cds", nargs=2, type=int, metavar=("INICIO", "FIN"),
@@ -525,7 +525,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--genbank", type=Path,
         help="Fichero GenBank del transcrito de --fasta: de ahi sale el CDS anotado, "
-             "que es mas fiable que declararlo a mano.",
+             "que es más fiable que declararlo a mano.",
     )
     parser.add_argument("--genbank-b", type=Path, help="Lo mismo para --fasta-b.")
     parser.add_argument(
@@ -534,64 +534,64 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--genbank-b-md5", help="md5 esperado del --genbank-b.")
     parser.add_argument(
         "--proponer-cds", action="store_true",
-        help="Calcula el marco de lectura mas largo de --fasta, lo enseña con el "
+        help="Calcula el marco de lectura más largo de --fasta, lo enseña con el "
              "comando --cds para pegar, y NO diseña nada. La propuesta no fija la "
-             "anatomia: eso lo decide una persona.",
+             "anatomía: eso lo decide una persona.",
     )
     parser.add_argument(
         "--nota", type=Path, action="append", default=[],
         help="Fichero de texto que se copia TAL CUAL dentro del informe. Para que un "
-             "resultado que se calculo aparte —una comparacion de dos corridas, por "
+             "resultado que se calculo aparte —una comparación de dos corridas, por "
              "ejemplo— viaje en el documento y no solo en el log. Se puede repetir.",
     )
     parser.add_argument(
         "--permitir-cds-sin-codon-parada", action="store_true",
-        help="Sigue adelante aunque el CDS declarado no termine en codon de parada. "
+        help="Sigue adelante aunque el CDS declarado no termine en codón de parada. "
              "Por defecto eso aborta, porque casi siempre es un desplazamiento de "
              "coordenadas que corre todo el 3'UTR sin avisar.",
     )
     parser.add_argument(
         "--polyA-modo", choices=[m.value for m in PolyAMode],
         default=PolyAMode.ESCALONADO.value,
-        help="Criterio de poliadenilacion: 'estricto' tumba toda ventana que solape "
-             "cualquier hexamero; 'escalonado' solo las señales fuertes; 'permisivo' "
-             "solo las que quedan por detras del sitio de corte de la señal terminal. "
+        help="Criterio de poliadenilación: 'estricto' tumba toda ventana que solape "
+             "cualquier hexámero; 'escalonado' solo las señales fuertes; 'permisivo' "
+             "solo las que quedan por detrás del sitio de corte de la señal terminal. "
              "El informe saca el top-N bajo los tres, siempre.",
     )
     parser.add_argument(
         "--bloques", action="store_true",
-        help="Emite ademas los bloques listos para pedir de los candidatos elegidos: "
-             "modulo NheI-SacI de 149 nt, cassette MluI-AgeI de 318 pb, versiones con "
+        help="Emite además los bloques listos para pedir de los candidatos elegidos: "
+             "módulo NheI-SacI de 149 nt, cassette MluI-AgeI de 318 pb, versiones con "
              "brazos de Gibson y hoja de pedido.",
     )
     parser.add_argument(
         "--reoptimizar-espaciadores", action="store_true",
-        help="Con --bloques: genera espaciadores de novo para las guias cuyo 97-mero "
-             "no sobreviva dentro del intron estandar. Genera secuencia, va apagado "
+        help="Con --bloques: genera espaciadores de novo para las guías cuyo 97-mero "
+             "no sobreviva dentro del intrón estándar. Genera secuencia, va apagado "
              "por defecto y lo que produce se marca en toda la salida.",
     )
     parser.add_argument(
         "--reparto-rango", action="store_true",
-        help="Reparte los candidatos por los extremos de los parametros dudosos (GC "
-             "alto y bajo, accesibilidad alta y baja, delante y detras del APA, con y "
-             "sin bandera de polyA) en vez de coger los mejores por asimetria. Si el "
-             "objetivo es correlacionar parametros contra el knockdown medido, los "
+        help="Reparte los candidatos por los extremos de los parámetros dudosos (GC "
+             "alto y bajo, accesibilidad alta y baja, delante y detrás del APA, con y "
+             "sin bandera de polyA) en vez de coger los mejores por asimetría. Si el "
+             "objetivo es correlacionar parámetros contra el knockdown medido, los "
              "puntos tienen que estar repartidos.",
     )
     parser.add_argument(
         "--cuota-region", metavar="REGION=N[,REGION=N]",
-        help="Reparto de los candidatos por region, p.ej. '3utr=7,cds=3'. Sin esto "
+        help="Reparto de los candidatos por región, p.ej. '3utr=7,cds=3'. Sin esto "
              "solo entran candidatos del 3'UTR: una ventana del ORF puede ser diana "
              "valida, pero eso se pide, no se cuela. La suma tiene que ser igual a "
              "--candidates.",
     )
     parser.add_argument(
         "--tile-desde", type=int, metavar="POS",
-        help="Primera posicion a tilar. Por defecto, el principio de la secuencia.",
+        help="Primera posición a tilar. Por defecto, el principio de la secuencia.",
     )
     parser.add_argument(
         "--tile-hasta", type=int, metavar="POS",
-        help="Ultima posicion a tilar. Por defecto, el final de la secuencia.",
+        help="Última posición a tilar. Por defecto, el final de la secuencia.",
     )
     parser.add_argument(
         "--tile-coords", choices=("transcrito", "3utr"), default="transcrito",
@@ -602,7 +602,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--region", choices=("transcrito", "3utr"), default="transcrito",
         help="'3utr' declara que la secuencia dada YA es el 3'UTR. No hay valor por "
-             "defecto que resuelva la anatomia: sin --cds, sin --genbank y sin "
+             "defecto que resuelva la anatomía: sin --cds, sin --genbank y sin "
              "--region 3utr el diseño aborta en vez de adivinar.",
     )
     parser.add_argument("--gc-min", type=float, default=DEFAULT_THRESHOLDS.gc_min)
@@ -641,7 +641,7 @@ def main(argv: list[str]) -> int:
             if estado_datos is None:
                 raise ShmirDesignError(
                     f"--usar-manifiesto necesita un {MANIFEST_NAME} en {args.datos}: "
-                    f"es de donde salen el fichero, la version y el md5 de cada filtro."
+                    f"es de donde salen el fichero, la versión y el md5 de cada filtro."
                 )
             conectar_desde_manifiesto(args, estado_datos)
 
@@ -651,7 +651,7 @@ def main(argv: list[str]) -> int:
             seeds = load_seeds(args.seeds)
         if args.repeats and args.rmsk:
             raise ValueError(
-                "--repeats y --rmsk declaran los dos la mascara de repeticiones. Elige "
+                "--repeats y --rmsk declaran los dos la máscara de repeticiones. Elige "
                 "uno: si no coinciden, no hay forma de saber cual vale."
             )
         if args.rmsk and not args.rmsk_version:
@@ -663,14 +663,14 @@ def main(argv: list[str]) -> int:
             es_out = Path(args.rmsk).suffix.lower() == ".out"
             if es_out and not args.rmsk_especie:
                 raise ValueError(
-                    "--rmsk apunta a un .out y falta --rmsk-especie. Es lo unico que "
+                    "--rmsk apunta a un .out y falta --rmsk-especie. Es lo único que "
                     "distingue una corrida contra la biblioteca correcta de una contra "
                     "otra especie: la equivocada sale con formato correcto y cifras "
                     "plausibles. Se aborta."
                 )
             if es_out and not args.rmsk_resumen:
                 raise ValueError(
-                    "--rmsk apunta a un .out y falta --rmsk-resumen (.tbl). La linea de "
+                    "--rmsk apunta a un .out y falta --rmsk-resumen (.tbl). La línea de "
                     "la especie vive en el resumen, no en el .out —ninguno la trae— y "
                     "sin los ceros por familia un fichero sin filas no distingue «no "
                     "habia repetitivos» de «la corrida no llego a correr». Se aborta."
@@ -747,7 +747,7 @@ def main(argv: list[str]) -> int:
             if not args.apa_version:
                 raise ValueError(
                     "--apa-medido necesita --apa-version: este dato SUSTITUYE a una "
-                    "prediccion, asi que sin procedencia no vale. Se aborta."
+                    "predicción, así que sin procedencia no vale. Se aborta."
                 )
             apa_sitios = load_apa_sites(
                 args.apa_medido,

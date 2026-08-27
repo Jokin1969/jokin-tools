@@ -76,7 +76,7 @@ _ESPECIFICIDAD_SIN_BASE = FilterResult(
     name="especificidad",
     state=FilterState.NOT_RUN,
     reason=(
-        "No hay base de RefSeq RNA cargada, asi que el filtro de especificidad no se "
+        "No hay base de RefSeq RNA cargada, así que el filtro de especificidad no se "
         "ejecuta. NOT_RUN no es PASS."
     ),
 )
@@ -87,8 +87,8 @@ _SEED_COLISION_SIN_BASE = FilterResult(
     name="seed_colision",
     state=FilterState.NOT_RUN,
     reason=(
-        "No hay tabla de maduros de miRBase cargada, asi que no se puede saber si la "
-        "seed de esta guia coincide con la de un miARN endogeno. NOT_RUN no es PASS."
+        "No hay tabla de maduros de miRBase cargada, así que no se puede saber si la "
+        "seed de esta guía coincide con la de un miARN endogeno. NOT_RUN no es PASS."
     ),
 )
 
@@ -98,8 +98,8 @@ _TRANSGEN_SIN_BASE = FilterResult(
     name="transgen",
     state=FilterState.NOT_RUN,
     reason=(
-        "No hay casete del transgen cargado, asi que queda sin comprobar si el "
-        "candidato apaga la propia construccion terapeutica. NOT_RUN no es PASS."
+        "No hay casete del transgén cargado, así que queda sin comprobar si el "
+        "candidato apaga la propia construcción terapeutica. NOT_RUN no es PASS."
     ),
 )
 
@@ -120,7 +120,7 @@ def _seed_bootstrap(
             state=FilterState.NO_APLICA,
             reason=(
                 "Sustituido por `seed_colision`, que usa la tabla de maduros completa y "
-                "distingue colision abundante (FAIL) de colision anotada (aviso). "
+                "distingue colisión abundante (FAIL) de colisión anotada (aviso). "
                 "NO_APLICA no es PASS: mira la columna seed_colision."
             ),
         )
@@ -216,7 +216,7 @@ class TiledWindow:
                 return result
         disponibles = ", ".join(r.name for r in self.filters)
         raise KeyError(
-            f"La ventana no tiene ningun filtro {name!r}; los que hay: {disponibles}."
+            f"La ventana no tiene ningún filtro {name!r}; los que hay: {disponibles}."
         )
 
     @property
@@ -267,6 +267,34 @@ class TilingReport:
     sequence_length: int = 0
     sequence_md5: str = ""
 
+    @property
+    def frame(self) -> Frame:
+        """El espacio en que van las coordenadas de LO TILADO. Se DERIVA, no se pone.
+
+        Un solo sitio donde se decide. Cuando cada modulo lo suponia por su cuenta,
+        cuatro de ellos supusieron `3utr` sobre un tilado de transcrito y salieron
+        `3utr:1784`, `3utr:1185`, `3utr:1398` y `3utr:1856` — coordenadas del
+        transcrito etiquetadas como 3'UTR, y ninguna dio error hasta que `coords` puso
+        el techo. Quien pinte posiciones de este informe pide el marco aqui.
+        """
+        return frame_of(self.anatomy) if self.anatomy is not None else Frame.UTR3
+
+    def utr3_of(self, position: int) -> int | None:
+        """`position` (en el marco de lo tilado) llevada al 3'UTR, o `None` si no cae.
+
+        `None` no es un fallo: en un tilado de transcrito hay posiciones —las del CDS y
+        las del 5'UTR— que sencillamente no estan en el 3'UTR. Quien pinte un mapa del
+        3'UTR tiene que decidir que hace con ellas, y para decidirlo tiene que verlas.
+        """
+        if self.anatomy is None:
+            return position
+        return self.anatomy.utr3_position(position)
+
+    @property
+    def utr3_length(self) -> int:
+        """Longitud del 3'UTR de esta corrida, que NO es la de lo tilado."""
+        return self.utr_length if self.anatomy is None else self.anatomy.utr3_length
+
     def biofisicos_ok(self) -> int:
         return sum(1 for w in self.windows if w.biofisicos_ok)
 
@@ -304,7 +332,7 @@ class TilingReport:
 
         if self.mask is None:
             lines.append(
-                "  repeticiones:    NOT_RUN — sin mascara de rmsk cargada (paso 1 sin "
+                "  repeticiones:    NOT_RUN — sin máscara de rmsk cargada (paso 1 sin "
                 "ejecutar)."
             )
         else:
@@ -341,13 +369,13 @@ class TilingReport:
             lines.append(f"     {aviso.message}")
 
         lines.append("")
-        lines.append("La lista completa de ventanas esta en el TSV (format_tsv).")
+        lines.append("La lista completa de ventanas está en el TSV (format_tsv).")
         return "\n".join(lines)
 
     def format_tsv(self) -> str:
         # Toda coordenada, etiquetada con su espacio: `3utr:449` o `tx:1398`. La
         # cabecera de la columna no viaja con la celda.
-        marco = frame_of(self.anatomy) if self.anatomy is not None else Frame.UTR3
+        marco = self.frame
         filtros = [r.name for r in self.windows[0].filters] if self.windows else []
         columns = (
             ["inicio", "fin", "region", "inicio_3utr", "fin_3utr", "diana", "guia", "tercio"]
@@ -447,7 +475,7 @@ def tile_utr(
     )
     if anatomy.length != len(original):
         raise ValueError(
-            f"La anatomia declara {anatomy.length} nt y la secuencia mide "
+            f"La anatomía declara {anatomy.length} nt y la secuencia mide "
             f"{len(original)}; se aborta antes de etiquetar ninguna ventana con "
             f"coordenadas que no son las suyas."
         )
@@ -470,7 +498,7 @@ def tile_utr(
         raise ValueError(
             f"El rango de tilado {tile_range.describe(anatomy)} no contiene ni una "
             f"ventana entera de {window_size} nt; se aborta en vez de devolver un "
-            f"informe vacio que pareceria 'no hay candidatos'."
+            f"informe vacío que pareceria 'no hay candidatos'."
         )
     annotated = annotate_3utr(windows, signals, len(cleaned), anatomy=anatomy)
 
@@ -537,7 +565,7 @@ def tile_utr(
                 state=FilterState.NO_APLICA,
                 reason=(
                     f"La ventana cae en {region.value}, no en el 3'UTR. Las señales de "
-                    f"poliadenilacion solo tienen sentido sobre el 3'UTR: aqui la "
+                    f"poliadenilación solo tienen sentido sobre el 3'UTR: aquí la "
                     f"pregunta no aplica. NO_APLICA no es PASS."
                 ),
             )
@@ -566,8 +594,8 @@ def tile_utr(
                     name="seed_colision",
                     state=FilterState.NOT_RUN,
                     reason=(
-                        "No evaluada: por coste, la colision de seed solo se mira en "
-                        "las ventanas que superan los filtros biofisicos. NOT_RUN no "
+                        "No evaluada: por coste, la colisión de seed solo se mira en "
+                        "las ventanas que superan los filtros biofísicos. NOT_RUN no "
                         "es PASS."
                     ),
                 )
@@ -591,8 +619,8 @@ def tile_utr(
                     name="transgen",
                     state=FilterState.NOT_RUN,
                     reason=(
-                        "No evaluada: por coste, el casete del transgen solo se escanea "
-                        "en las ventanas que superan los filtros biofisicos. NOT_RUN no "
+                        "No evaluada: por coste, el casete del transgén solo se escanea "
+                        "en las ventanas que superan los filtros biofísicos. NOT_RUN no "
                         "es PASS."
                     ),
                 )
@@ -613,7 +641,7 @@ def tile_utr(
                     state=FilterState.NOT_RUN,
                     reason=(
                         "No evaluada: por coste, la especificidad solo se escanea en "
-                        "las ventanas que superan los filtros biofisicos. NOT_RUN no "
+                        "las ventanas que superan los filtros biofísicos. NOT_RUN no "
                         "es PASS."
                     ),
                 )

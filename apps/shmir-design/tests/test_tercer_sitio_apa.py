@@ -354,7 +354,7 @@ class TestElCuartoFrenteSeCIERRA(unittest.TestCase):
         self.assertIn("0.91", motivo)
 
     def test_conserva_la_reserva_del_TEJIDO(self):
-        self.assertIn("LIMITE INFERIOR", self._apa().reason)
+        self.assertIn("LÍMITE INFERIOR", self._apa().reason)
 
     def test_sin_medida_SIGUE_bloqueando(self):
         from shmir_design.selection import blocking_fronts
@@ -507,7 +507,7 @@ class TestLaTablaDeTechosLlevaSuMARCO(unittest.TestCase):
 
     def test_distingue_la_SUBIDA_por_medida_de_la_canonica_CONFIRMADA(self):
         filas = {f.signal.position: f for f in self._tabla(load_3utr(RATON))}
-        self.assertIn("SUBIDA aqui por MEDIDA", filas[236].describe())
+        self.assertIn("SUBIDA aquí por MEDIDA", filas[236].describe())
         self.assertIn("CONFIRMADA por medida", filas[288].describe())
 
     def test_y_sin_medida_ninguna_de_las_dos_cosas(self):

@@ -46,7 +46,7 @@ class TestLoQueSeDeclara(unittest.TestCase):
     def test_es_un_riesgo_BINARIO_y_lo_dice_con_esa_palabra(self):
         texto = splicing.BINARY_NOT_GRADUAL.upper()
         self.assertIn("BINARIO", texto)
-        self.assertIn("NO ES UN PARAMETRO DE CALIDAD", texto)
+        self.assertIn("NO ES UN PARÁMETRO DE CALIDAD", texto)
 
     def test_dice_que_decide_la_ARQUITECTURA_no_un_candidato(self):
         self.assertIn("arquitectura", splicing.BINARY_NOT_GRADUAL.lower())
@@ -166,7 +166,7 @@ class TestLasVentanasDeCebador(unittest.TestCase):
 
     def test_un_cebador_que_cruce_la_union_NO_vale_y_se_dice_por_que(self):
         # Solo amplificaria la forma empalmada, asi que no puede dar una PROPORCION.
-        self.assertIn("proporcion", splicing.WHY_NOT_JUNCTION_SPANNING.lower())
+        self.assertIn("proporción", splicing.WHY_NOT_JUNCTION_SPANNING.lower())
 
     def test_las_DOS_ventanas_son_UNICAS_en_el_plasmido(self):
         self.assertEqual(self.plan.upstream.occurrences, 1)
@@ -283,7 +283,7 @@ class TestElQuintoFrente(unittest.TestCase):
 
     def test_su_motivo_trae_las_TRES_lecturas(self):
         motivo = splicing.splicing_front().reason
-        for pieza in ("RT-PCR", "L42", "vg-qPCR", "SIN INTRON"):
+        for pieza in ("RT-PCR", "L42", "vg-qPCR", "SIN INTRÓN"):
             self.assertIn(pieza, motivo)
 
     def test_y_el_argumento_de_por_que_no_estaba_en_la_lista(self):
@@ -366,11 +366,11 @@ class TestElInformeLoDeclara(unittest.TestCase):
         )
 
     def test_hay_un_bloque_propio(self):
-        self.assertIn("Empalme del intron", self.texto)
+        self.assertIn("Empalme del intrón", self.texto)
 
     def test_lo_declara_BINARIO_y_no_parametro_de_calidad(self):
         self.assertIn("RIESGO BINARIO", self.texto)
-        self.assertIn("NO ES UN PARAMETRO DE CALIDAD", self.texto)
+        self.assertIn("NO ES UN PARÁMETRO DE CALIDAD", self.texto)
 
     def test_y_dice_por_que_el_small_RNA_seq_no_lo_cubre(self):
         self.assertIn("Drosha", self.texto)
@@ -429,10 +429,10 @@ class TestNoSeCierraConNingunFichero(unittest.TestCase):
         )
 
     def test_lo_dice_con_esas_palabras(self):
-        self.assertIn("NO SE CIERRA CON NINGUN FICHERO", self.texto)
+        self.assertIn("NO SE CIERRA CON NINGÚN FICHERO", self.texto)
 
     def test_y_que_es_el_unico_BINARIO(self):
-        self.assertIn("el unico BINARIO", self.texto)
+        self.assertIn("el único BINARIO", self.texto)
 
     def test_y_que_los_demas_degradan_y_este_ANULA(self):
         self.assertIn("los demas degradan", self.texto)
@@ -453,7 +453,7 @@ class TestElAvisoNoLlamaCanonicaAUnaVarianteRara(unittest.TestCase):
         informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
         avisos = [a.message for a in informe.avisos if a.code == "APA_PROXIMAL"]
         rara = next(m for m in avisos if "AATATA" in m)
-        self.assertNotIn("AATATA canonica", rara)
+        self.assertNotIn("AATATA canónica", rara)
         self.assertIn("(medida)", rara)
         canonica = next(m for m in avisos if "AATAAA" in m)
-        self.assertIn("AATAAA canonica", canonica)
+        self.assertIn("AATAAA canónica", canonica)

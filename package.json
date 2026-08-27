@@ -8,6 +8,7 @@
     "dev": "node --watch server.js",
     "test": "node --test \"test/**/*.test.js\"",
     "check:shmir": "python3 apps/shmir-design/tools/check_rules.py",
+    "check:tildes": "python3 apps/shmir-design/tools/check_tildes.py",
     "test:shmir": "cd apps/shmir-design && python3 -m unittest discover -s tests -t ."
   },
   "dependencies": {

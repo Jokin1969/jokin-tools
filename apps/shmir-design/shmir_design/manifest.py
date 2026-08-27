@@ -102,13 +102,13 @@ ROLES: tuple[Role, ...] = (
     Role(
         role="mirbase",
         filename="mature.fa",
-        what="colision de seed, nivel aviso (paso 10a)",
+        what="colisión de seed, nivel aviso (paso 10a)",
         replaces=("--mirbase", "--mirbase-version", "--mirbase-md5"),
     ),
     Role(
         role="abundancia",
         filename="mirgenedb_cerebro.txt",
-        what="colision de seed, nivel FAIL (paso 10a)",
+        what="colisión de seed, nivel FAIL (paso 10a)",
         replaces=("--abundancia", "--abundancia-version", "--abundancia-md5"),
     ),
     Role(
@@ -124,7 +124,7 @@ ROLES: tuple[Role, ...] = (
     Role(
         role="expresion",
         filename="expresion_cerebro.tsv",
-        what="ponderacion de la carga de seed",
+        what="ponderación de la carga de seed",
         replaces=("--expresion",),
     ),
     Role(
@@ -136,7 +136,7 @@ ROLES: tuple[Role, ...] = (
     Role(
         role="transgen",
         filename="aav_casete.fa",
-        what="filtro del transgen (paso 12b)",
+        what="filtro del transgén (paso 12b)",
         replaces=("--transgen", "--transgen-name", "--transgen-version", "--transgen-md5"),
     ),
     Role(
@@ -219,7 +219,7 @@ class Manifest:
         """Las lineas del manifiesto de los ficheros que se USARON, para el informe."""
         if not used:
             return (
-                "No se uso ningun fichero de referencia: todos los filtros que dependen "
+                "No se uso ningún fichero de referencia: todos los filtros que dependen "
                 "de uno quedaron en NOT_RUN.",
             )
         lineas: list[str] = []
@@ -229,8 +229,8 @@ class Manifest:
                 entrada.as_line()
                 if entrada is not None
                 else (
-                    f"{nombre} — NO ESTA EN EL MANIFIESTO: se uso un fichero sin "
-                    f"registrar, asi que esta corrida no es reproducible. Añadelo a "
+                    f"{nombre} — NO ESTÁ EN EL MANIFIESTO: se uso un fichero sin "
+                    f"registrar, así que esta corrida no es reproducible. Añadelo a "
                     f"{MANIFEST_NAME}."
                 )
             )
@@ -245,7 +245,7 @@ def _longitud(bruto: str, *, source: str, fila: int) -> int | None:
         return int(bruto)
     except ValueError as exc:
         raise ShmirDesignError(
-            f"{source}, fila {fila}: la longitud {bruto!r} no es un numero. Se aborta: "
+            f"{source}, fila {fila}: la longitud {bruto!r} no es un número. Se aborta: "
             f"esa columna existe para comprobar ficheros, y una que no se puede leer no "
             f"comprueba nada."
         ) from exc
@@ -256,7 +256,7 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
     if not filas:
         raise ShmirDesignError(
             f"{source}: el manifiesto no tiene ninguna fila; se aborta en vez de dar "
-            f"por vacio el directorio de referencias."
+            f"por vacío el directorio de referencias."
         )
     cabecera = tuple(filas[0].split("\t"))
     # Se aceptan dos anchos: el completo y el corto, que es el de antes de que
@@ -266,13 +266,13 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
     if cabecera not in (MANIFEST_COLUMNS, PREVIOUS_COLUMNS, LEGACY_COLUMNS):
         raise ShmirDesignError(
             f"{source}: la cabecera del manifiesto es {cabecera} y se esperaba "
-            f"{MANIFEST_COLUMNS}; se aborta en vez de leer las columnas por posicion."
+            f"{MANIFEST_COLUMNS}; se aborta en vez de leer las columnas por posición."
         )
     ancho = len(cabecera)
     if len(filas) == 1:
         raise ShmirDesignError(
             f"{source}: el manifiesto solo tiene cabecera. Se aborta: un manifiesto "
-            f"vacio no distingue 'no hay ficheros' de 'nadie los ha registrado'."
+            f"vacío no distingue 'no hay ficheros' de 'nadie los ha registrado'."
         )
 
     entradas: list[ManifestEntry] = []
@@ -292,7 +292,7 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
         if nombre in vistos:
             raise ShmirDesignError(
                 f"{source}, fila {numero}: {nombre} aparece dos veces; se aborta en vez "
-                f"de quedarse con una de las dos lineas."
+                f"de quedarse con una de las dos líneas."
             )
         vistos.add(nombre)
         if md5 and not _MD5.match(md5):
@@ -306,7 +306,7 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
                 talla = int(tamaño)
             except ValueError as exc:
                 raise ShmirDesignError(
-                    f"{source}, fila {numero}: el tamaño {tamaño!r} no es un numero "
+                    f"{source}, fila {numero}: el tamaño {tamaño!r} no es un número "
                     f"({exc}); se aborta."
                 ) from exc
         entradas.append(
@@ -351,7 +351,7 @@ class EntryResult:
             return f"falta el fichero — {self.entry.origin}"
         if self.status is EntryStatus.SIN_REGISTRAR:
             return (
-                f"el fichero esta pero el manifiesto no trae su md5. Apunta "
+                f"el fichero está pero el manifiesto no trae su md5. Apunta "
                 f"{self.computed_md5} ({self.computed_size} B) en {MANIFEST_NAME}: "
                 f"hasta entonces la corrida no es auditable."
             )
@@ -407,7 +407,7 @@ class DirectoryStatus:
                 + ", ".join(sorted(r.entry.filter_name for r in self.runnable))
             )
         else:
-            lineas.append("  Ningun filtro que dependa de un fichero puede correr.")
+            lineas.append("  Ningún filtro que dependa de un fichero puede correr.")
         if self.not_run:
             lineas.append(
                 "  Quedaran en NOT_RUN: "
@@ -506,8 +506,8 @@ def _campo(valor: object) -> str:
     texto = "" if valor is None else str(valor)
     if "\t" in texto or "\n" in texto:
         raise ShmirDesignError(
-            f"El valor {texto!r} lleva un tabulador o un salto de linea dentro, asi que "
-            f"partiria la fila en dos y el manifiesto pasaria a decir otra cosa. Se "
+            f"El valor {texto!r} lleva un tabulador o un salto de línea dentro, así que "
+            f"partiria la fila en dos y el manifiesto pasaría a decir otra cosa. Se "
             f"aborta en vez de escribirlo."
         )
     return texto
@@ -587,7 +587,7 @@ def register_entry(directory: Path | str, entry: ManifestEntry) -> ManifestUpdat
     except OSError as exc:
         raise ShmirDesignError(
             f"No se pudo leer {ruta} para registrar {entry.name!r} ({exc}); sin "
-            f"manifiesto el fichero no seria auditable y no se usa."
+            f"manifiesto el fichero no sería auditable y no se usa."
         ) from exc
     actualizado = update_manifest_text(texto, entry)
     try:

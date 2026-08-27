@@ -97,12 +97,12 @@ class Accessibility:
             lines.append(f"    {self.structure[flanco]}")
         if self.discrepant:
             lines.append(
-                "  Las dos ventanas de contexto NO coinciden: el numero depende de "
-                "donde se corte el contexto, asi que no es de fiar para desempatar."
+                "  Las dos ventanas de contexto NO coinciden: el número depende de "
+                "donde se corte el contexto, así que no es de fiar para desempatar."
             )
         else:
             lines.append(
-                "  Las dos ventanas de contexto coinciden, asi que el numero no depende "
+                "  Las dos ventanas de contexto coinciden, así que el número no depende "
                 "de donde se corte."
             )
         lines.append(
@@ -125,7 +125,7 @@ def accessibility_of(
         return Accessibility(
             state=FilterState.NOT_RUN,
             reason=(
-                "ViennaRNA no esta instalado, asi que la accesibilidad no se ha "
+                "ViennaRNA no está instalado, así que la accesibilidad no se ha "
                 "calculado. NOT_RUN no es cero: no haber podido plegar no es lo mismo "
                 "que una diana inaccesible. `pip install ViennaRNA` si quieres este "
                 "numero."
@@ -159,6 +159,6 @@ def accessibility_of(
         energy=energias,
         reason=(
             f"{sin_aparear[CONTEXT_WINDOWS[0]]:.2f} de las {length} bases sin aparear "
-            f"con contexto ±{CONTEXT_WINDOWS[0]} nt. Numero de desempate, no veredicto."
+            f"con contexto ±{CONTEXT_WINDOWS[0]} nt. Número de desempate, no veredicto."
         ),
     )

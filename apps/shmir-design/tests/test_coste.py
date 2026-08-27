@@ -96,7 +96,7 @@ class TestSalida(unittest.TestCase):
 
     def test_el_texto_avisa_de_que_es_una_estimacion(self):
         texto = estimate_cost(sequence=SONDA, anatomy=_anatomia()).format_text()
-        self.assertIn("estimacion", texto.lower())
+        self.assertIn("estimación", texto.lower())
 
     def test_el_texto_dice_como_se_midio(self):
         texto = estimate_cost(sequence=SONDA, anatomy=_anatomia(), utr3_set=_utrs()).format_text()

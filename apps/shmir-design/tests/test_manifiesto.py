@@ -216,7 +216,7 @@ class TestQueFiltrosPuedenCorrer(unittest.TestCase):
             (directorio / MANIFEST_NAME).write_text(TABLA, encoding="utf-8")
             texto = check_directory(directorio).format_text()
         self.assertIn("NOT_RUN", texto)
-        self.assertIn("colision de seed", texto)
+        self.assertIn("colision de seed", texto)  # el fixture TABLA es data, va tal cual
 
     def test_el_texto_es_una_tabla_con_una_fila_por_fichero(self):
         with TemporaryDirectory() as tmp:
@@ -245,7 +245,7 @@ class TestLineasParaElInforme(unittest.TestCase):
     def test_pedir_un_fichero_que_no_esta_en_el_manifiesto_lo_dice(self):
         manifiesto = parse_manifest(TABLA, source="s")
         linea = manifiesto.provenance_lines(["fantasma.fa"])[0]
-        self.assertIn("NO ESTA EN EL MANIFIESTO", linea)
+        self.assertIn("NO ESTÁ EN EL MANIFIESTO", linea)
 
     def test_sin_ficheros_usados_lo_dice_en_vez_de_callar(self):
         manifiesto = parse_manifest(TABLA, source="s")
@@ -346,7 +346,7 @@ class TestIntegracionConElDiseño(unittest.TestCase):
     def test_sin_ficheros_usados_el_informe_lo_dice(self):
         _, _, tmp = self._correr()
         texto = list(tmp.glob("*informe*.txt"))[0].read_text(encoding="utf-8")
-        self.assertIn("No se uso ningun fichero de referencia", texto)
+        self.assertIn("No se uso ningún fichero de referencia", texto)
 
     def test_un_directorio_sin_manifiesto_aborta_el_diseño(self):
         import tempfile

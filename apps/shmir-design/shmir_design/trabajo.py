@@ -40,10 +40,10 @@ PROJECT_ENV_VAR = "SHMIR_PROJECT_DIR"
 #: Por que existe. Va a la interfaz cuando el de trabajo no es el del paquete, para que
 #: quien sube un fichero sepa DONDE ha ido a parar.
 WHY_A_WORKING_DIR = (
-    "Los ficheros de referencia se guardan fuera del directorio del codigo porque el "
+    "Los ficheros de referencia se guardan fuera del directorio del código porque el "
     "sistema de ficheros de un despliegue es efimero: dentro de la imagen, todo lo subido "
-    "desapareceria en el siguiente redespliegue y el unico sintoma seria un frente que "
-    "vuelve a salir NOT_RUN. Lo versionado se copia aqui la primera vez y no se vuelve a "
+    "desapareceria en el siguiente redespliegue y el único sintoma sería un frente que "
+    "vuelve a salir NOT_RUN. Lo versionado se copia aquí la primera vez y no se vuelve a "
     "pisar."
 )
 
@@ -58,7 +58,7 @@ def reference_dir(env=None) -> Path:
     if not ruta.is_absolute():
         raise ShmirDesignError(
             f"{ENV_VAR}={declarado!r} no es una ruta absoluta. Se aborta: un directorio "
-            f"de trabajo relativo depende de desde donde se arranque el proceso, asi que "
+            f"de trabajo relativo depende de desde donde se arranque el proceso, así que "
             f"los ficheros acabarian en un sitio distinto segun quien lo lance y la "
             f"mitad de los frentes saldrian NOT_RUN sin motivo visible."
         )
@@ -81,7 +81,7 @@ def projects_dir(env=None) -> Path:
         raise ShmirDesignError(
             f"{PROJECT_ENV_VAR}={declarado!r} no es una ruta absoluta. Se aborta: un "
             f"directorio de proyectos relativo depende de desde donde se arranque el "
-            f"proceso, asi que el log de un proyecto acabaria en un sitio distinto segun "
+            f"proceso, así que el log de un proyecto acabaria en un sitio distinto segun "
             f"quien lo lance — y entonces no sobrevive a nada, que es justo lo contrario "
             f"de para lo que existe."
         )
@@ -130,15 +130,15 @@ def seed_reference_dir(target: Path | str, *, source: Path | str | None = None) 
     if not origen.is_dir():
         raise ShmirDesignError(
             f"No hay de donde sembrar el directorio de referencia: {origen} no existe. "
-            f"Se aborta en vez de arrancar con un directorio vacio, que se leeria como "
-            f"«no hay ningun fichero» y no como «la instalacion esta rota»."
+            f"Se aborta en vez de arrancar con un directorio vacío, que se leeria como "
+            f"«no hay ningún fichero» y no como «la instalación está rota»."
         )
     try:
         destino.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise ShmirDesignError(
             f"No se pudo crear el directorio de referencia de trabajo {destino} ({exc}); "
-            f"sin el no se puede subir ningun fichero por la interfaz."
+            f"sin el no se puede subir ningún fichero por la interfaz."
         ) from exc
 
     copiados: list[str] = []

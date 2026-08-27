@@ -156,9 +156,15 @@ Reglas de agregación:
 falla si encuentra manejo de errores prohibido por la regla 2:
 
 ```bash
-npm run check:shmir   # o: python3 apps/shmir-design/tools/check_rules.py [ruta ...]
+npm run check:shmir   # regla 2 sobre el AST + informe de ALCANZABILIDAD
+npm run check:tildes  # el castellano de los mensajes que ve el usuario
 npm run test:shmir    # o: cd apps/shmir-design && python3 -m unittest discover -s tests -t .
 ```
+
+`check:shmir` imprime además el informe de alcanzabilidad —qué función pública no tiene
+ningún llamador— y **aborta solo** si hay una excepción declarada que ya no hace falta.
+`check:tildes --arreglar` corrige, y el diff se revisa: el vocabulario es cerrado, pero
+el contexto no lo mira nadie.
 
 Pásalos antes de cada commit que toque `apps/shmir-design/`.
 
@@ -1956,6 +1962,122 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     nombres llegaron a 36 caracteres y el `<24` fijo se comía la columna de al lado: el
     estado dejaba de leerse en vertical, que es justo para lo que sirve la tabla. Lo cazó
     **leer el diff del golden**, otra vez.
+
+- **LA PRIMERA EJECUCIÓN REAL DE LA PÁGINA (2026-08-27): tres fallos con 2.947 tests en
+  verde.** `NM_011170.3.gb`, Mus musculus, sin subir nada. Los tres estaban en la
+  **juntura** entre piezas que por separado estaban bien, y ninguno era sutil.
+  - **1. El mapa PONÍA el marco en vez de recibirlo** (`presentation.map_svg`,
+    `TilingReport.frame`). La página tila el TRANSCRITO ENTERO con su anatomía —igual que
+    el CLI— y el mapa daba por hecho que toda posición era del 3'UTR. Dos consecuencias y
+    **solo una daba error**:
+    - `signal.describe()` etiquetaba `3utr:1856` sobre un 3'UTR de 1242 nt. Eso lo abortó
+      `coords`: **la cuarta vez** que aparece esta familia, después de `3utr:1784`,
+      `3utr:1185` y `3utr:1398`. El invariante hizo su trabajo;
+    - y el eje, los tercios y la escala se dibujaban sobre los **2191 nt de lo tilado**
+      con la etiqueta «3'UTR» encima. Eso **no daba ningún error**: un mapa mudo con las
+      divisorias de los tercios donde no era. El aborto tapaba al fallo callado.
+    Ahora el marco sale de `report.frame` y la frontera de `report.utr3_of()`, las dos
+    derivadas de la anatomía; lo que no cae en el 3'UTR **no se dibuja y se dice cuántos
+    son** —el `(CTC)n` murino de `tx:892-936` está entero en el CDS—, porque descartarlo
+    en silencio deja un mapa que parece completo.
+  - **2. Aritmética imposible: «ventanas a tilar: 1221» arriba y «1773 no evaluables»
+    abajo.** No puede haber más descartadas que totales. Eran **dos conjuntos distintos
+    con el mismo nombre**: `cost_text` recibía el 3'UTR (1242 nt → 1221 ventanas) y la
+    corrida tilaba el transcrito entero (2191 → 2170). `cost_text` **exige ahora la
+    anatomía** y aborta sin ella (`WHY_THE_ESTIMATE_NEEDS_ANATOMY`): fabricarse una para
+    estimar es la misma suposición que `resolve.py` prohíbe.
+  - **3. El recuento AFIRMABA UNA CAUSA QUE NO HABÍA COMPROBADO.** Las 1773 se
+    anunciaban como «ventanas no evaluables (bases desconocidas o enmascaradas)» y **ni
+    una** tenía una N ni estaba enmascarada: fallaban GC y homopolímero. Misma familia
+    que el «comprueba que Streamlit está instalado» pegado a un fallo de configuración y
+    que el «Alu 0 %» obtenido sin buscar Alu. Ahora la descomposición va **entera**: de
+    las 2170 tiladas, 949 caen fuera del 3'UTR y 1221 dentro; pasan los biofísicos 407,
+    de los que 287 son del 3'UTR y 120 de fuera. Y **no se resume en una causa**: por qué
+    falla cada una está en su fila.
+    - Escribiendo ese mismo texto salió una primera versión que decía «las otras 407 sí
+      entran. De esas, 949 están fuera del 3'UTR» — 949 de 407. El fallo no es difícil de
+      cometer, y por eso la cuenta se emite entera en vez de por diferencias.
+  - **4. El `.tbl` era obligatorio y NO SE VEÍA** (`resources.describe_connected`,
+    `COMPANION_NOTE`). `rmsk_mouse.out` a solas **no** cierra el frente —`_rmsk` aborta
+    sin resumen, comprobado— pero la lista de conectados solo nombraba el `.out`, así que
+    la pantalla se leía como «un frente cerrado con un `.out` a solas», que es justo lo
+    que este proyecto promete no hacer. Una pantalla que contradice al código cuesta lo
+    mismo que el código equivocado: hay que ir a leer el fuente para saber cuál manda.
+  - **5. «2 de 7 frentes» y «8 de 12 filtros» en la misma pantalla, y ninguno decía cuál
+    contaba qué** (`FRONT_COUNT_NAME`, `FILTER_COUNT_NAME`, `FRONTS_VS_FILTERS`). Son dos
+    cuentas distintas: los 7 son frentes que cierra un FICHERO; los 12, filtros de UN
+    candidato, cinco de ellos biofísicos que no necesitan fichero y corren siempre. Ahora
+    cada número lleva su nombre y la relación va escrita.
+  - **Y EL TEST QUE FALTABA, que es la consecuencia de método**
+    (`tests/test_corrida_de_la_pagina.py`, `tests/golden/pagina_raton.txt`,
+    `presentation.page_run` / `page_snapshot`). No fallaba la cobertura de las funciones:
+    fallaba que **nadie recorría el camino de la página de punta a punta mirando la
+    salida entera**. La página llama ahora a `page_run` en vez de rehacer el camino —si
+    lo rehiciera, volvería a poder divergir— y `page_snapshot` lo pinta entero contra un
+    golden, con la misma disciplina que el informe.
+    - **Los tiempos MEDIDOS no entran en el golden** (`_sin_tiempos`): cambian en cada
+      corrida y harían fallar el golden sin que nadie haya tocado nada. Falló en la
+      primera corrida del propio test, 205 ms contra 221. Un golden que falla siempre
+      deja de leerse, que es la única forma en que sirve para algo.
+    - **El test pide la instantánea AL MISMO generador que escribe el golden.** Pedirla
+      por separado ya se dio: el test usaba la configuración por defecto y el generador
+      `n_candidates=10`, así que el golden decía 10 candidatos y el test veía 6. Un fallo
+      que no era del código sino de tener la corrida definida dos veces — `resolve.py`
+      otra vez.
+
+- **LAS TILDES SON PARTE DEL PRODUCTO (2026-08-27)** (`tools/check_tildes.py`,
+  `npm run check:tildes`). Los mensajes se escribieron sin tildes, y no es estilo: es
+  texto que se copia a un correo y se pega en un informe que defiende una selección.
+  «Ningun candidato esta aprobado y la seleccion es PROVISIONAL» está mal escrito.
+  - **Qué se toca y qué no.** Solo literales de **prosa**, definida como «una sola línea
+    y con al menos un espacio». `"seleccion"` a secas NO se toca: es una etiqueta de
+    `RECORD_KINDS` o una cabecera de columna, y acentuarla rompe un fichero ya escrito en
+    disco. Y lo de **una sola línea** no es cosmético — en la primera pasada convirtió
+    `VERSION     NM_011170.3` en `VERSIÓN` dentro del fixture de GenBank y el parser dejó
+    de encontrar la versión del transcrito. **Ortografía correcta, dato roto**: ese
+    intercambio no se acepta.
+  - **Tres cosas más quedan fuera, las tres por haber fallado**: lo que va detrás de un
+    `-` (convirtió `--guia` en `--guía`, una opción que no existe: el texto quedaba bien
+    escrito y las instrucciones que daba, mal), lo que va entre acentos graves (es código,
+    no prosa) y el interior de `{...}` en una f-string (es una variable).
+  - **`esta` y `mas` no los resuelve el diccionario.** «esta tabla» es demostrativo y
+    «esta fuera» es el verbo: meter `esta → está` en la lista habría acentuado los 250
+    casos, demostrativos incluidos — cambiar unas faltas por otras. La regla es
+    **positiva y cerrada**, construida LEYENDO las 88 palabras que siguen a `esta` en
+    este código: «esta corrida», «esta medida», «esta entrada» tienen forma de participio
+    y aquí son **sustantivos**, así que una regla genérica de participios las habría
+    acentuado todas.
+  - El vocabulario es **cerrado y escrito a mano** (269 entradas): deducirlo con reglas
+    de acentuación daría falsos positivos sobre `seed`, `pri-miR` y `Alu`, y un informe
+    con falsos positivos deja de leerse.
+
+- **ALCANZABILIDAD: lo que el golden NO puede ver (2026-08-27)**
+  (`tools/check_alcance.py`, `data/alcanzabilidad.toml`, dentro de
+  `npm run check:shmir`). Es la **tercera vez** que aparece código con tests en verde y
+  sin ningún llamador: `triple_motive_rows`, `intron_folding` y `store.save_*` —la capa
+  de persistencia entera—. Tres veces no es casualidad.
+  - **Ni los tests ni el golden lo cazan, y no por descuido**: un test comprueba que la
+    función hace lo que dice, y para eso la llama él; el golden lee lo que se emite. Lo
+    que **nunca llega a emitirse** no aparece en ninguno de los dos. Son complementarios:
+    **el golden lee lo que se emite; la alcanzabilidad detecta lo que nunca llega a
+    emitirse.** Está escrito así en [`docs/principios.md`](./docs/principios.md).
+  - **No es un fallo automático**, y el propio informe lo dice: hay casos legítimos.
+    Aparecer ahí **obliga a decidir** — o se cablea, o se justifica por escrito, o se
+    borra. Hoy salen **93** funciones; la primera justificación declarada es
+    `seed_reference_dir`, que la invoca el hub con `python3 -c` desde `routes.js` y por
+    eso este análisis no la ve.
+  - **Lo que SÍ aborta es una excepción caducada**: declarada para algo que ya tiene
+    llamador o que ya no existe. Una lista con entradas muertas deja de leerse, y
+    entonces el siguiente hallazgo se pierde dentro — misma razón por la que un frente
+    CERRADO sigue saliendo en el informe.
+  - **Solo mira FUNCIONES.** Con las clases dentro salían 215 filas y casi todas eran
+    `dataclass` que una función devuelve —se construyen en su propio módulo y quien las
+    usa nunca escribe su nombre—. Un informe de 215 filas no lo lee nadie, y los tres
+    casos reales son funciones: lo que se busca es **trabajo calculado que no llega a
+    ninguna salida**.
+  - Y declara **lo que no puede hacer**: no sigue `getattr` ni despachos por cadena, no
+    distingue una referencia de una llamada, y **no dice que el código sobre** — dice que
+    nadie lo llama, que es un hecho y no un veredicto.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

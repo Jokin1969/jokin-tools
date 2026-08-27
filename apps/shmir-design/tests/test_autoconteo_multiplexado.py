@@ -155,7 +155,7 @@ class TestLaInterseccionDeDosRedes(unittest.TestCase):
         }
         self.assertTrue(
             distintas,
-            "Difieren en la posicion 8, asi que la misma posicion cae en clases "
+            "Difieren en la posición 8, así que la misma posición cae en clases "
             "distintas para cada uno. Si salieran todas iguales, algo no se esta "
             "mirando.",
         )
@@ -207,7 +207,7 @@ class TestElAvisoDeMultiplexado(unittest.TestCase):
         texto = offtarget.MULTIPLEX_NOTE
         self.assertIn("3utr:449", texto)
         self.assertIn("3utr:1018", texto)
-        self.assertIn("PEOR eleccion", texto)
+        self.assertIn("PEOR elección", texto)
         self.assertIn("espaciado no lo ve", texto)
 
     def test_el_informe_lo_saca_AUNQUE_no_haya_conflicto(self):
@@ -221,7 +221,7 @@ class TestElAvisoDeMultiplexado(unittest.TestCase):
             species="raton", tiling=self.informe, selection=uno,
             scaffold=SGEP_SCAFFOLD,
         )
-        self.assertIn("Multiplexado: nucleos de seed compartidos", texto)
+        self.assertIn("Multiplexado: núcleos de seed compartidos", texto)
         self.assertIn("Ninguna pareja del panel comparte", texto)
 
     def test_y_con_conflicto_lo_marca_con_las_coordenadas_del_MARCO_del_informe(self):
@@ -233,7 +233,7 @@ class TestElAvisoDeMultiplexado(unittest.TestCase):
             scaffold=SGEP_SCAFFOLD,
         )
         # Este informe tila el 3'UTR, asi que el marco ES 3utr.
-        self.assertIn("3utr:449 y 3utr:1018 comparten el nucleo", texto)
+        self.assertIn("3utr:449 y 3utr:1018 comparten el núcleo", texto)
 
 
 @unittest.skipUnless(HAY, "NOT_RUN: falta el fixture del raton")
@@ -268,7 +268,7 @@ class TestElTripleMotivoYaVIVE_EN_LA_APP(unittest.TestCase):
                 parametro.default, inspect.Parameter.empty,
                 f"{nombre} no puede tener valor por defecto: una constante que sirve "
                 f"para dos preguntas son DOS constantes, y un cero por defecto deja que "
-                f"el fallo vuelva sin dar ningun error.",
+                f"el fallo vuelva sin dar ningún error.",
             )
             self.assertIs(parametro.kind, inspect.Parameter.KEYWORD_ONLY)
 
