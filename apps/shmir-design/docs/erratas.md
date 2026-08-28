@@ -1124,3 +1124,68 @@ Sólo que nadie la ejecutaba.
 
 De ahí sale la contramedida que cubre el hueco: `tools/auditar_banderas.py`, el
 inventario de qué banderas de los CLI recorre algún test **de punta a punta**.
+
+---
+
+## 32 — El CLI y la página daban paneles distintos, y llevaba así desde que se arregló la página
+
+**Fecha:** 2026-08-27. **Estado:** cerrada. **Cómo apareció:** clasificando las 50
+banderas VEREDICTO sin recorrido de punta a punta.
+
+`tools/design.py` construía un `SelectionConfig(...)` pelado con
+`apa_immune_quota=args.inmunes`, y **`--inmunes` valía `0` por defecto**. La decisión del
+proyecto son **cuatro** (`DEFAULT_IMMUNE_QUOTA`), y vive en `selection.default_config()`,
+que es lo que llama `presentation.page_run`.
+
+Como **nadie pasa nunca esa bandera**, el CLI corría siempre con la cuota apagada:
+
+| | panel |
+|---|---|
+| página | `3utr:` 10, 60, 143, **200**, 449, 553, 652, 735, 819, 1018 |
+| CLI | `3utr:` 10, 60, 143, **359**, 449, 553, 652, 735, 819, 1018 |
+
+`3utr:359` (+4,82) desplaza a `3utr:200` (+3,80) por asimetría, así que el panel del CLI
+llevaba **tres inmunes en vez de cuatro** — y no lo decía nadie, porque los dos son del
+tercio proximal y la cuota de tercios se cumple igual.
+
+**Es literalmente el fallo que `default_config()` existe para cerrar**, arreglado en la
+página y no en el CLI. La sexta divergencia entre los dos frontales, y la primera que es
+el mismo fallo corregido sólo en un lado.
+
+### Por qué nadie lo vio, y es lo que enseña
+
+El golden pasaba **`--inmunes 4` tecleado a mano** en `regenerar_golden.py`. O sea que la
+única corrida del CLI que alguien miraba llevaba la cuota puesta **desde fuera**, y por
+eso coincidía con la página. El defecto del CLI no lo ejercitaba nadie.
+
+Es el principio nº 17 otra vez, con una vuelta más: no es que la rama no se recorriera
+—se recorría, en el golden—, es que **se recorría con la bandera puesta**, que es
+justamente el camino que ningún usuario toma.
+
+### Lo que se ha hecho
+
+- `tools/design.py` monta su configuración con `config_de_seleccion(args)`, que parte de
+  `default_config()`. La regresión compara los dos frontales y **falla si vuelven a
+  separarse**.
+- `--inmunes` y `--inmunes-antes` se **RETIRAN**. La cuota es una decisión del proyecto,
+  no un parámetro de corrida; y la frontera **se deriva** del informe desde que un sitio
+  medido la adelantó de `3utr:303` a `3utr:251` —una cifra tecleada no se entera, y no da
+  ningún error—.
+- El golden deja de pasar `--inmunes 4`: ahora sale solo. **Y no cambió ni una línea**,
+  que es la comprobación de que el arreglo es el correcto.
+
+### Y una decisión que hubo que tomar por el camino
+
+Con la cuota aplicándose siempre, `select_from_report` **abortaba** en toda corrida cuya
+secuencia no tuviera ninguna señal `APA_POSIBLE`: «no hay corte al que ser inmune». Sobre
+el ratón no pasa nunca; sobre una entrada cualquiera, siempre.
+
+La distinción que faltaba es la que `default_config` ya aplicaba al tamaño del panel
+—«abortar por un defecto que quien llama no ha pedido sería peor que no tenerlo»—:
+
+- cuota **PEDIDA** y sin corte → **ABORTA**. Se pidieron inmunes a algo que no existe.
+- cuota **POR DEFECTO** y sin corte → **`NO_APLICA`, y se dice**. No hay pregunta de
+  inmunidad que contestar. Pero la nota va en la selección, porque *«el panel no lleva
+  reserva porque aquí no hay truncamiento que temer»* y *«no lleva reserva porque se
+  renunció a ella»* son cosas distintas, y una cuota que desaparece en silencio es lo
+  mismo que no haberla tenido nunca.

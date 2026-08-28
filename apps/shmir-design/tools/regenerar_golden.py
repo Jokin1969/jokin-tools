@@ -44,7 +44,10 @@ ARGV = [
     "--convergencia", "data/reference/mirarchitect_prnp_export_buena.csv",
     "--min-block", "22",
     "--candidates", "10",
-    "--inmunes", "4",
+    # SIN `--inmunes`: la cuota de cuatro es la decision del proyecto y sale sola de
+    # `default_config()`. Estaba tecleada aqui, que es lo que hacia que el golden
+    # coincidiera con la pagina mientras el CLI por defecto NO — o sea que la unica
+    # corrida que alguien miraba llevaba la cuota puesta a mano.
     "--sin-manifiesto",
 ]
 

@@ -34,11 +34,6 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--guide", help="Guía de 22 nt (ARN o ADN)")
     parser.add_argument("--target", help="Ventana diana de 22 nt")
-    parser.add_argument(
-        "--skip-filters",
-        action="store_true",
-        help="No evaluar los filtros de la ventana diana antes de montar el oligo",
-    )
     args = parser.parse_args(argv)
 
     if bool(args.guide) == bool(args.target):
@@ -50,7 +45,10 @@ def main(argv: list[str]) -> int:
 
     try:
         if args.target:
-            evaluacion = None if args.skip_filters else evaluate_window(args.target)
+            # SIN escape: los filtros duros corren SIEMPRE. Habia una bandera para
+            # saltarselos y lo que producia era justo lo que este proyecto existe para
+            # impedir — una secuencia lista para sintetizar y sin veredicto.
+            evaluacion = evaluate_window(args.target)
             guide = guide_from_target(args.target)
         else:
             evaluacion, guide = None, args.guide

@@ -49,6 +49,8 @@ que_hace = "el TSV a auditar"
 bandera = "audit_scores:--utr3-desde"
 consecuencia = "VEREDICTO"
 que_hace = "el desfase al 3'UTR; el equivocado mapea contra el sitio de al lado"
+destino = "CUBRIR"
+porque_destino = "El desfase al 3'UTR: el equivocado mapea contra el sitio de al lado. Los ficheros están."
 
 [[bandera]]
 bandera = "blocks:--elegir"
@@ -59,6 +61,8 @@ que_hace = "elige una de las variantes propuestas"
 bandera = "blocks:--especie"
 consecuencia = "VEREDICTO"
 que_hace = "fuera de ratón el vector NO se parametriza: no se emite nada"
+destino = "CUBRIR"
+porque_destino = "Fuera de ratón el vector no se parametriza y no se emite nada: ese camino no lo recorre nadie."
 
 [[bandera]]
 bandera = "blocks:--guia"
@@ -74,11 +78,17 @@ que_hace = "salida"
 bandera = "blocks:--receptor"
 consecuencia = "VEREDICTO"
 que_hace = "el plásmido contra el que se contrastan los contextos"
+destino = "CUBRIR"
+porque_destino = "El plásmido contra el que se contrastan los contextos del módulo que se va a PEDIR."
+bloqueada_por = "el plásmido SGEP no está en el repositorio"
 
 [[bandera]]
 bandera = "blocks:--reoptimizar-espaciadores"
 consecuencia = "VEREDICTO"
 que_hace = "genera espaciadores de novo; marca toda la salida"
+destino = "CUBRIR"
+porque_destino = "Genera espaciadores de novo y marca toda la salida."
+bloqueada_por = "necesita ViennaRNA"
 
 [[bandera]]
 bandera = "blocks:--tabla"
@@ -109,16 +119,22 @@ que_hace = "segunda corrida"
 bandera = "compare_exports:--eje"
 consecuencia = "VEREDICTO"
 que_hace = "OBLIGATORIO: la misma aritmética contesta dos preguntas distintas"
+destino = "CUBRIR"
+porque_destino = "OBLIGATORIA: la misma aritmética contesta dos preguntas distintas. Las dos corridas están en el repositorio."
 
 [[bandera]]
 bandera = "compare_exports:--entrada-a"
 consecuencia = "VEREDICTO"
 que_hace = "la entrada de la corrida A: decide qué ventanas son comparables"
+destino = "CUBRIR"
+porque_destino = "Decide qué ventanas son comparables entre las dos corridas."
 
 [[bandera]]
 bandera = "compare_exports:--entrada-b"
 consecuencia = "VEREDICTO"
 que_hace = "la entrada de la corrida B"
+destino = "CUBRIR"
+porque_destino = "Idem."
 
 [[bandera]]
 bandera = "compare_exports:--fasta"
@@ -134,6 +150,8 @@ que_hace = "salida"
 bandera = "compare_exports:--utr3-desde"
 consecuencia = "VEREDICTO"
 que_hace = "el desfase al 3'UTR"
+destino = "CUBRIR"
+porque_destino = "El desfase al 3'UTR."
 
 [[bandera]]
 bandera = "conservation_report:--fasta-a"
@@ -149,6 +167,8 @@ que_hace = "segundo 3'UTR"
 bandera = "conservation_report:--min-length"
 consecuencia = "VEREDICTO"
 que_hace = "longitud mínima del bloque: decide qué cuenta como conservado"
+destino = "CUBRIR"
+porque_destino = "Decide qué cuenta como bloque conservado; los dos 3'UTR están."
 
 [[bandera]]
 bandera = "conservation_report:--name-a"
@@ -164,6 +184,8 @@ que_hace = "nombre de la segunda especie"
 bandera = "conservation_report:--window-size"
 consecuencia = "VEREDICTO"
 que_hace = "tamaño de ventana: decide qué cabe DENTRO del bloque"
+destino = "CUBRIR"
+porque_destino = "Decide qué ventanas caben DENTRO del bloque — la distinción que dio un «sí hay elegibles» falso."
 
 [[bandera]]
 bandera = "design:--abundancia"
@@ -174,6 +196,9 @@ que_hace = "capa AMPLIADA de la colisión de seed: nivel AVISO, nunca FAIL"
 bandera = "design:--abundancia-md5"
 consecuencia = "VEREDICTO"
 que_hace = "md5 de la lista ampliada; si no cuadra ABORTA"
+destino = "CUBRIR"
+porque_destino = "Se cubriría con la lista ampliada de abundancia."
+bloqueada_por = "la lista ampliada no está en el repositorio"
 
 [[bandera]]
 bandera = "design:--abundancia-version"
@@ -184,21 +209,33 @@ que_hace = "versión que viaja con el aviso"
 bandera = "design:--accesibilidad"
 consecuencia = "VEREDICTO"
 que_hace = "calcula la accesibilidad; es desempate, y llena una columna del veredicto"
+destino = "CUBRIR"
+porque_destino = "Es desempate y llena una columna del veredicto."
+bloqueada_por = "necesita ViennaRNA"
 
 [[bandera]]
 bandera = "design:--apa-coords"
 consecuencia = "VEREDICTO"
 que_hace = "en qué marco vienen esas posiciones; el equivocado ancla ruido"
+destino = "CUBRIR"
+porque_destino = "El marco de esas posiciones; el equivocado ancla ruido."
+bloqueada_por = "apa_medido.tsv no existe"
 
 [[bandera]]
 bandera = "design:--apa-md5"
 consecuencia = "VEREDICTO"
 que_hace = "md5 de la tabla de APA; si no cuadra ABORTA"
+destino = "CUBRIR"
+porque_destino = "Se cubre en la misma corrida."
+bloqueada_por = "apa_medido.tsv no existe"
 
 [[bandera]]
 bandera = "design:--apa-medido"
 consecuencia = "VEREDICTO"
 que_hace = "sitios de APA medidos: el dato SUSTITUYE a la predicción"
+destino = "CUBRIR"
+porque_destino = "La tabla ya convertida a 3'UTR: el dato SUSTITUYE a la predicción."
+bloqueada_por = "apa_medido.tsv no existe: es el 3'-end seq pendiente"
 
 [[bandera]]
 bandera = "design:--apa-version"
@@ -214,6 +251,8 @@ que_hace = "emite además el módulo y el cassette"
 bandera = "design:--bootstrap-seeds"
 consecuencia = "VEREDICTO"
 que_hace = "las 12 de arranque: filtro reducido, no el real"
+destino = "CUBRIR"
+porque_destino = "La pasa el puente de Batchwork. Es la tabla de arranque de 12 seeds, que YA tiene fecha de caducidad declarada (seeds.bootstrap_expiry_note): se borra cuando mature.fa sea obligatorio, y con ella esta bandera."
 
 [[bandera]]
 bandera = "design:--candidates"
@@ -229,6 +268,8 @@ que_hace = "declara la anatomía; un off-by-one corre el 3'UTR entero y con él 
 bandera = "design:--cds-b"
 consecuencia = "VEREDICTO"
 que_hace = "lo mismo para la segunda especie"
+destino = "CUBRIR"
+porque_destino = "La pasa el puente de Batchwork cuando se suben dos ficheros."
 
 [[bandera]]
 bandera = "design:--convergencia"
@@ -284,36 +325,36 @@ que_hace = "la anatomía por anotación, que es la vía fiable"
 bandera = "design:--genbank-b"
 consecuencia = "VEREDICTO"
 que_hace = "lo mismo para la segunda especie"
+destino = "CUBRIR"
+porque_destino = "La segunda especie por anotación: es la vía de los bloques conservados y del ORF, y los dos .gb están en el repositorio."
 
 [[bandera]]
 bandera = "design:--genbank-b-md5"
 consecuencia = "VEREDICTO"
 que_hace = "md5 del .gb de la segunda especie"
+destino = "CUBRIR"
+porque_destino = "Igual, para la segunda especie."
 
 [[bandera]]
 bandera = "design:--genbank-md5"
 consecuencia = "VEREDICTO"
 que_hace = "md5 del .gb; si no cuadra ABORTA"
+destino = "CUBRIR"
+porque_destino = "Procedencia del .gb; aborta si no cuadra. Se cubre en la misma corrida que --genbank."
 
 [[bandera]]
 bandera = "design:--ignorar-apa-medido"
 consecuencia = "VEREDICTO"
 que_hace = "excluye la medida A PROPÓSITO, con motivo; sin ella 3utr:221 vuelve al panel"
-
-[[bandera]]
-bandera = "design:--inmunes"
-consecuencia = "VEREDICTO"
-que_hace = "cuota dura de inmunes al APA"
-
-[[bandera]]
-bandera = "design:--inmunes-antes"
-consecuencia = "VEREDICTO"
-que_hace = "la frontera de la inmunidad; tecleada mal, no da ningún error"
+destino = "CUBRIR"
+porque_destino = "La exclusión DELIBERADA de la medida, con motivo escrito. No necesita ningún fichero que falte: sólo la tabla que ya está."
 
 [[bandera]]
 bandera = "design:--max-homopolymer"
 consecuencia = "VEREDICTO"
 que_hace = "umbral duro de homopolímero"
+destino = "CUBRIR"
+porque_destino = "La pasa el puente de Batchwork en cada corrida."
 
 [[bandera]]
 bandera = "design:--min-asymmetry"
@@ -326,24 +367,16 @@ consecuencia = "DATO"
 que_hace = "longitud mínima del bloque conservado que se reporta"
 
 [[bandera]]
-bandera = "design:--min-por-tercio"
-consecuencia = "VEREDICTO"
-que_hace = "cuota dura por tercio"
-
-[[bandera]]
 bandera = "design:--min-spacing"
 consecuencia = "VEREDICTO"
 que_hace = "espaciado mínimo: decide qué sitios compiten"
+destino = "CUBRIR"
+porque_destino = "La pasa el puente de Batchwork en CADA corrida por lotes, desplegado."
 
 [[bandera]]
 bandera = "design:--mirbase"
 consecuencia = "VEREDICTO"
 que_hace = "conecta mature.fa: colisión de seed, con FAIL duro del núcleo"
-
-[[bandera]]
-bandera = "design:--mirbase-especies"
-consecuencia = "VEREDICTO"
-que_hace = "prefijos a indexar; el equivocado da CERO colisiones, que parece buena noticia"
 
 [[bandera]]
 bandera = "design:--mirbase-md5"
@@ -381,11 +414,6 @@ consecuencia = "VEREDICTO"
 que_hace = "APAGA el aviso duro que pilla el off-by-one del CDS"
 
 [[bandera]]
-bandera = "design:--polyA-modo"
-consecuencia = "VEREDICTO"
-que_hace = "estricto o escalonado: son DOS criterios de elegibilidad"
-
-[[bandera]]
 bandera = "design:--polya-flank"
 consecuencia = "VEREDICTO"
 que_hace = "el flanco del eje estérico: mueve qué ventanas caen"
@@ -399,11 +427,17 @@ que_hace = "imprime un --cds para pegar; no diseña nada"
 bandera = "design:--refseq"
 consecuencia = "VEREDICTO"
 que_hace = "conecta la base de especificidad (paso 12)"
+destino = "CUBRIR"
+porque_destino = "El fichero suelto sin registrar. --usar-manifiesto lo conecta por rol en el camino normal."
+bloqueada_por = "refseq_rna.fa no está en el repositorio"
 
 [[bandera]]
 bandera = "design:--refseq-md5"
 consecuencia = "VEREDICTO"
 que_hace = "md5 de la base; si no cuadra ABORTA"
+destino = "CUBRIR"
+porque_destino = "Se cubre en la misma corrida que --refseq."
+bloqueada_por = "refseq_rna.fa no está en el repositorio"
 
 [[bandera]]
 bandera = "design:--refseq-name"
@@ -424,16 +458,14 @@ que_hace = "declara que lo subido YA es el 3'UTR"
 bandera = "design:--reoptimizar-espaciadores"
 consecuencia = "VEREDICTO"
 que_hace = "GENERA secuencia de novo bajo autorización acotada"
+destino = "CUBRIR"
+porque_destino = "GENERA secuencia de novo bajo autorización acotada. Es lo último que puede quedarse sin recorrer."
+bloqueada_por = "necesita ViennaRNA"
 
 [[bandera]]
 bandera = "design:--reparto-rango"
 consecuencia = "VEREDICTO"
 que_hace = "cambia el criterio de selección a cobertura de rango"
-
-[[bandera]]
-bandera = "design:--repeats"
-consecuencia = "VEREDICTO"
-que_hace = "máscara a mano por intervalos; misma consecuencia que --rmsk"
 
 [[bandera]]
 bandera = "design:--rmsk"
@@ -454,6 +486,8 @@ que_hace = "la especie esperada; sin ella una máscara ajena taparía tramo que 
 bandera = "design:--rmsk-md5"
 consecuencia = "VEREDICTO"
 que_hace = "md5 de la máscara; si no cuadra ABORTA"
+destino = "CUBRIR"
+porque_destino = "rmsk_mouse.out SÍ está: se cubre en la corrida de --rmsk, que ya se recorre."
 
 [[bandera]]
 bandera = "design:--rmsk-resumen"
@@ -471,11 +505,6 @@ consecuencia = "VEREDICTO"
 que_hace = "otro andamio: cambia la horquilla y el aviso ANDAMIO_NO_VERIFICADO"
 
 [[bandera]]
-bandera = "design:--seeds"
-consecuencia = "VEREDICTO"
-que_hace = "tabla de seeds propia; decide contra qué se compara"
-
-[[bandera]]
 bandera = "design:--sin-manifiesto"
 consecuencia = "VEREDICTO"
 que_hace = "lo desconecta todo: deja los frentes en NOT_RUN"
@@ -489,6 +518,8 @@ que_hace = "el gen diana, para no contarlo como off-target"
 bandera = "design:--tile-coords"
 consecuencia = "VEREDICTO"
 que_hace = "en qué marco van esos límites"
+destino = "CUBRIR"
+porque_destino = "En qué marco van --tile-desde/--tile-hasta. Las dos ya se recorren; ésta no, y es la que decide si el rango es del transcrito o del 3'UTR."
 
 [[bandera]]
 bandera = "design:--tile-desde"
@@ -504,11 +535,17 @@ que_hace = "acota qué ventanas entran"
 bandera = "design:--transcriptoma-3utr"
 consecuencia = "VEREDICTO"
 que_hace = "conecta la carga de off-targets por seed (paso 10b)"
+destino = "CUBRIR"
+porque_destino = "Idem para la carga de off-targets."
+bloqueada_por = "transcriptoma_3utr.fa no está en el repositorio"
 
 [[bandera]]
 bandera = "design:--transcriptoma-md5"
 consecuencia = "VEREDICTO"
 que_hace = "md5 del transcriptoma; si no cuadra ABORTA"
+destino = "CUBRIR"
+porque_destino = "Se cubre en la misma corrida."
+bloqueada_por = "transcriptoma_3utr.fa no está en el repositorio"
 
 [[bandera]]
 bandera = "design:--transcriptoma-version"
@@ -524,6 +561,8 @@ que_hace = "segunda base de especificidad: FAIL con 0 o 1 desapareamiento"
 bandera = "design:--transgen-md5"
 consecuencia = "VEREDICTO"
 que_hace = "md5 del casete; si no cuadra ABORTA"
+destino = "CUBRIR"
+porque_destino = "aav_casete.fa SÍ está: se cubre en la misma corrida que --transgen, que ya se recorre."
 
 [[bandera]]
 bandera = "design:--transgen-name"
@@ -544,6 +583,8 @@ que_hace = "LA FORMA NORMAL DE CORRER: conecta TODOS los ficheros por su rol"
 bandera = "export_utr3:--cds"
 consecuencia = "VEREDICTO"
 que_hace = "la anatomía declarada a mano"
+destino = "CUBRIR"
+porque_destino = "La anatomía declarada a mano."
 
 [[bandera]]
 bandera = "export_utr3:--fasta"
@@ -554,11 +595,15 @@ que_hace = "la secuencia"
 bandera = "export_utr3:--genbank"
 consecuencia = "VEREDICTO"
 que_hace = "la anatomía por anotación"
+destino = "CUBRIR"
+porque_destino = "La anatomía por anotación; el .gb está."
 
 [[bandera]]
 bandera = "export_utr3:--longitud-esperada"
 consecuencia = "VEREDICTO"
 que_hace = "comprueba la longitud ENTREGADA: es la contramedida de la errata nº 5"
+destino = "CUBRIR"
+porque_destino = "Es la contramedida de la errata nº 5: comprueba la longitud ENTREGADA. Que no se recorra es lo peor de esta lista después de --inmunes."
 
 [[bandera]]
 bandera = "export_utr3:--out"
@@ -584,6 +629,8 @@ que_hace = "la fuente decide la dirección de la escala (lower_is_better)"
 bandera = "import_scores:--offset"
 consecuencia = "VEREDICTO"
 que_hace = "desfase de coordenadas; el equivocado pega el score en la fila de al lado"
+destino = "CUBRIR"
+porque_destino = "Desfase de coordenadas; el equivocado pega el score en la fila de al lado."
 
 [[bandera]]
 bandera = "import_scores:--out"
@@ -599,16 +646,22 @@ que_hace = "el fichero de scores"
 bandera = "informe:--candidatos"
 consecuencia = "VEREDICTO"
 que_hace = "tamaño del panel del documento"
+destino = "CUBRIR"
+porque_destino = "Tamaño del panel del documento."
 
 [[bandera]]
 bandera = "informe:--cds"
 consecuencia = "VEREDICTO"
 que_hace = "la anatomía declarada a mano"
+destino = "CUBRIR"
+porque_destino = "Idem, declarada a mano."
 
 [[bandera]]
 bandera = "informe:--especie"
 consecuencia = "VEREDICTO"
 que_hace = "prefijo, taxid y ensamblaje salen de aquí"
+destino = "CUBRIR"
+porque_destino = "Prefijo, taxid y ensamblaje del documento salen de aquí."
 
 [[bandera]]
 bandera = "informe:--fasta"
@@ -624,11 +677,15 @@ que_hace = "la fecha del documento"
 bandera = "informe:--genbank"
 consecuencia = "VEREDICTO"
 que_hace = "la anatomía por anotación"
+destino = "CUBRIR"
+porque_destino = "La anatomía del documento que se entrega."
 
 [[bandera]]
 bandera = "informe:--region-3utr"
 consecuencia = "VEREDICTO"
 que_hace = "declara que lo subido YA es el 3'UTR"
+destino = "CUBRIR"
+porque_destino = "Idem, declarando que lo subido ya es el 3'UTR."
 
 [[bandera]]
 bandera = "informe:--salida"
@@ -639,11 +696,6 @@ que_hace = "salida"
 bandera = "oligo:--guide"
 consecuencia = "VEREDICTO"
 que_hace = "la guía del oligo que se manda a sintetizar"
-
-[[bandera]]
-bandera = "oligo:--skip-filters"
-consecuencia = "VEREDICTO"
-que_hace = "SALTA los filtros duros: emite un oligo sin comprobar"
 
 [[bandera]]
 bandera = "oligo:--target"
@@ -696,6 +748,8 @@ que_hace = "cortesía de NCBI, viaja en la petición"
 bandera = "tiling_report:--bootstrap-seeds"
 consecuencia = "VEREDICTO"
 que_hace = "las 12 de arranque en vez del fichero real"
+destino = "CUBRIR"
+porque_destino = "La tabla de arranque, con su caducidad ya declarada."
 
 [[bandera]]
 bandera = "tiling_report:--fasta"
@@ -706,11 +760,6 @@ que_hace = "la secuencia"
 bandera = "tiling_report:--name"
 consecuencia = "FONTANERIA"
 que_hace = "nombre de la especie"
-
-[[bandera]]
-bandera = "tiling_report:--seeds"
-consecuencia = "VEREDICTO"
-que_hace = "tabla de seeds contra la que se compara"
 
 [[bandera]]
 bandera = "tiling_report:--tsv"
@@ -727,8 +776,17 @@ que_hace = "emite el TSV además del texto"
 #
 # Sólo puede ir hacia abajo. No hace falta cubrirlas todas de golpe: hace falta que
 # bajarlo sea la única forma de cerrar la suite.
+#
+# HISTORIA, porque el camino importa tanto como el número:
+#   54 → 52  dos exenciones declaradas (las de red, regla 4)
+#   52 → 50  `--mirbase` recorrida entera
+#   50 → 41  NUEVE banderas RETIRADAS. Bajar eliminando es más barato que cubrir, y una
+#            bandera retirada no puede fallar. De las nueve, cinco reproducían una
+#            decisión ya tomada y cuatro estaban muertas — y una de las cinco,
+#            `--inmunes`, llevaba puesto un defecto (0) que contradice la constante del
+#            proyecto (4) y hacía que el CLI diera un panel distinto del de la página.
 [umbral]
-veredicto_sin_recorrer = 50
+veredicto_sin_recorrer = 41
 
 # ── COMBINACIONES que sólo significan algo juntas ─────────────────────────────
 #
