@@ -2867,8 +2867,12 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     un endpoint verificado y el registro está vacío (regla 4). Una exención que
     desaparece de la lista deja de poder caducar; hay test de que una exenta que ya se
     recorre hace fallar la suite.
+<<<<<<< HEAD
   - **Estado de partida: 47 de 139 banderas con recorrido entero**; hoy 47 de 130, tras
     retirar nueve (bloque siguiente). La primera que se
+=======
+  - **Estado de partida: 47 de 139 banderas con recorrido entero.** La primera que se
+>>>>>>> origin/main
     cubrió al estrenarlo fue `--mirbase` —conecta `mature.fa` y con él el FAIL duro del
     núcleo de abundancia—, que era la `VEREDICTO` más consecuente de las alcanzables hoy:
     `--apa-medido` espera al 3'-end seq y `--accesibilidad` a ViennaRNA.
@@ -2881,6 +2885,7 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     no ve banderas que lleguen por variable, y no dice que una bandera esté rota — dice
     que **nadie la ha recorrido entera**.
 
+<<<<<<< HEAD
 - **LAS 50 BANDERAS VEREDICTO, CLASIFICADAS — Y NUEVE RETIRADAS (2026-08-27)**
   (`destino` en `data/banderas.toml`). El techo de 50 no decía nada accionable, así que
   se clasificó con el mismo criterio que la alcanzabilidad: **CUBRIR** (se usa de
@@ -2914,6 +2919,8 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     más — y la historia de cómo bajó va en la propia tabla, porque el camino importa
     tanto como el número.
 
+=======
+>>>>>>> origin/main
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
