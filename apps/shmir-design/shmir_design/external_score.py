@@ -323,6 +323,21 @@ def _same_scaffold(a: str, b: str) -> bool:
     return bool(ta) and bool(tb) and (ta <= tb or tb <= ta)
 
 
+#: LO QUE ESTE CAMINO NO COMPRUEBA, y va pegado al veredicto.
+#:
+#: El andamio se compara por el nombre que teclea quien importa, no por el LOOP del
+#: fichero. El guardia que lo hace por secuencia existe (`Export.check_scaffold`) y no
+#: puede correr aqui: necesita un export completo y este CLI recibe dos columnas.
+#: Descubierto al cruzar la alcanzabilidad con la tabla de guardias (2026-08-27): la
+#: comprobacion estaba escrita, probada y sin ningun llamador — nominal.
+SCAFFOLD_BY_LABEL = (
+    "El andamio de este fichero se ha comprobado por su ETIQUETA —el `--andamio` que se "
+    "teclea— y NO por la secuencia de su loop, porque un TSV de dos columnas no la "
+    "trae. La comprobación por secuencia (`Export.check_scaffold`) exige el export "
+    "completo de la fuente. Una etiqueta no es una prueba."
+)
+
+
 def check_orderable(
     source: ScoreSource,
     *,
@@ -341,6 +356,18 @@ def check_orderable(
       procesa distinto (Fellmann 2013), asi que el sesgo cae justo sobre lo que el
       score dice medir. El numero sigue sirviendo como convergencia de sitio —dos
       metodos independientes señalan la misma region— pero no para ordenar.
+
+    **AQUI EL ANDAMIO ES UNA ETIQUETA TECLEADA, Y ESO SE DICE** (`SCAFFOLD_BY_LABEL`).
+    El proyecto tiene escrito que «el andamio se decide por SECUENCIA, no por etiqueta»
+    y tiene el guardia que lo hace —`mirarchitect.Export.check_scaffold`, que compara el
+    LOOP del fichero contra el del andamio—. Pero ese guardia necesita un export
+    COMPLETO, y el camino que existe (`tools/import_scores.py`) recibe un TSV de dos
+    columnas `guia<TAB>score`, donde no hay loop que comparar: lo unico que hay es el
+    `--andamio` que teclea quien importa.
+    Asi que por este camino la comprobacion es de ETIQUETA, y el veredicto lo dice —la
+    procedencia va pegada al veredicto, como el md5 va pegado a la longitud—. Cerrarlo
+    de verdad es aceptar el export entero por el CLI, y eso es una decision de interfaz
+    que no se toma de paso.
     """
     registrada = lower_is_better(source)
     if registrada != derived_lower_is_better:

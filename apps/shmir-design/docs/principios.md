@@ -564,3 +564,54 @@ escribirlo no protege de nada. Ahora corre en `presentation.project_open`.
 
 La misma pregunta sacó que la comparación de la huella de corrida vivía **en la página**,
 copiada en los dos modales — sin test y pudiendo divergir entre ellos.
+
+---
+
+## 15 — Un informe que se puede leer como «pendiente» no obliga a nada
+
+La alcanzabilidad llevaba días listando lo que no tiene llamador. La tabla de guardias
+pregunta cuándo protege cada uno. **Es la misma información**, y sólo una de las dos
+formas de preguntarla obliga a actuar:
+
+| pregunta | respuesta | cómo se lee |
+|---|---|---|
+| ¿quién la llama? | nadie | **pendiente** — una fila de una lista larga |
+| ¿cuándo protege? | **nunca** | no se puede leer de otra forma |
+
+«Nadie la llama» convive con una lista de trece. «Nunca protege» no convive con nada.
+
+### La consecuencia operativa: cruzar las dos listas, y que el cruce sea un FALLO
+
+Un símbolo que esté en las dos —sin quien lo invoque **y** declarado como guardia— deja
+de ser un informe y pasa a ser un fallo de `npm run check:shmir`. Y **sin excepción
+posible**: una justificación de alcanzabilidad vale para una función que nadie llama; para
+un **guardia** que nadie llama, no. Si protege algo, alguien tiene que invocarlo; si no lo
+invoca nadie, no protege nada, por bien escrito que esté.
+
+Está en `tools/auditar_guardias.py`, y **al estrenarse cazó uno**:
+`mirarchitect.Export.check_scaffold`.
+
+### Dos cosas que hubo que afinar, y las dos por la misma razón
+
+Un guardia con falsos positivos se acaba apagando, así que el criterio del cruce se
+midió en vez de suponerse:
+
+- **no vale una mención en prosa.** Con un criterio textual, `check_scaffold` salía
+  «vivo» porque tres docstrings hablan de él. Un guardia explicado no es un guardia que
+  corra.
+- **pero sí vale nombrarlo sin llamarlo.** `resources._refseq` no se invoca por su
+  nombre: entra en un diccionario y se despacha por rol. Exigir una llamada literal
+  denunciaba los nueve cargadores, que corren en cada corrida.
+
+El criterio que queda —**referencia de código, ni prosa ni llamada literal**— dio
+exactamente tres candidatos, y **dos eran errores de la tabla**, no del código: un
+cargador de fixtures de test y una API para otra especie estaban clasificados como
+guardias de producción. Se corrigió la tabla. El tercero era el hallazgo.
+
+### Una tercera categoría, que no es fallo ni código muerto
+
+`[sin_camino]`: comprobaciones escritas para una entrada que la app **todavía no acepta**.
+Se declaran porque la alternativa es peor —leerlas en el código y creer que corren— y cada
+una dice **qué haría falta** para que corriera. Sin eso sería una lista de excusas en vez
+de una lista de deudas. Y una entrada que deja de hacer falta **caduca**, como las de
+alcanzabilidad.
