@@ -2598,17 +2598,78 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     escrita, probada y **sin ningún llamador fuera de sus tests**. La cadena **no se
     comprobaba nunca en la app**. Es el patrón de `store.save_*` y `page_run` por cuarta
     vez, pero sobre un **guardia**: no es trabajo calculado que no llega a una salida, es
-    una **comprobación que no comprueba**. Y su momento natural saltó en cuanto se
+    una **comprobación que no comprueba**.
+    - **Y es la peor de la serie por una razón que no es de grado** (errata nº 29): las
+      tres anteriores producían **ausencia de información** —un detalle que no salía, un
+      eje que no llegaba a la pantalla, cuatro modales que no guardaban nada—. Ésta
+      producía **CONFIANZA INFUNDADA**. Estaba **toda la disciplina de la cadena de
+      md5** —el eslabón por línea, el aborto con el número de línea, el texto que explica
+      que no impide editar el fichero sino que lo vuelve visible— y existía
+      **nominalmente**: nada era visible, y un log editado se habría leído igual que uno
+      íntegro. De un hueco de información uno se entera al buscar el dato; de una
+      comprobación que no comprueba **no se entera nadie**, porque su producto normal es
+      el silencio, que es justo lo que se ve cuando todo está bien. Y su momento natural saltó en cuanto se
     preguntó por él — el log se edita **entre sesiones**, así que comprobarlo sólo al
     escribirlo no protege de nada. **CABLEADO** en `presentation.project_open`, con
     regresión.
     - La misma pregunta sacó que la comparación de la **huella de corrida** vivía **en la
       página** y copiada en los **dos** modales: sin test y pudiendo divergir entre ellos.
       Ahora decide `presentation.cached_run` (regla 6).
+  - **EL CRUCE CON LA ALCANZABILIDAD SÍ ES UN FALLO. AÑADIDO (2026-08-27)**, y sale de
+    cómo apareció lo de `verify()`. **No lo cazó la alcanzabilidad y no podía**: ese
+    análisis mira funciones de módulo y `verify` es un **método**; la exclusión estaba
+    declarada y justificada con «los tres casos reales son funciones», que era cierto
+    cuando se escribió y que **el cuarto refuta**. Lo cazó tener que rellenar «cuándo se
+    ejecuta».
+    - **Es la misma información y son dos preguntas** (principio nº 15): «nadie la
+      llama» se lee como **pendiente** —una fila más de una lista de trece— y «cuándo
+      protege → nunca» no se puede leer de otra forma. **Sólo una obliga a actuar.**
+    - Así que se cruzan, y **sin excepción posible**: una justificación de alcanzabilidad
+      vale para una función que nadie llama; para un **guardia** que nadie llama, no.
+    - La alcanzabilidad entra ahora en los **métodos declarados como guardias** —pocos,
+      enumerados a mano— y el resto de los métodos siguen fuera por la razón de siempre.
+    - **El criterio del cruce se MIDIÓ, no se supuso**, porque un guardia con falsos
+      positivos se acaba apagando: **no vale una mención en prosa** —con un criterio
+      textual `check_scaffold` salía «vivo» porque tres docstrings hablan de él— pero
+      **sí vale nombrarlo sin llamarlo**, porque `resources._refseq` entra en un
+      diccionario y se despacha por rol. Con el criterio fino salían cuatro y tres eran
+      falsos positivos.
+    - **Al estrenarse dio tres, y DOS eran errores de la tabla**, no del código: un
+      cargador de fixtures de test y una API para otra especie estaban clasificados como
+      guardias de producción. Se corrigió la tabla.
+  - **EL TERCERO ERA REAL: `mirarchitect.Export.check_scaffold` no lo llama nadie.** «El
+    andamio se decide por SECUENCIA, no por etiqueta» es una regla escrita de este
+    proyecto, y **el camino vivo se fía de la etiqueta**: `tools/import_scores.py` recibe
+    un TSV de dos columnas donde no hay loop que comparar, así que lo que decide es el
+    `--andamio` que se teclea.
+    - Se ha hecho lo honesto y no lo cómodo: el veredicto **dice** que se comprobó por
+      etiqueta (`external_score.SCAFFOLD_BY_LABEL`) y el guardia por secuencia queda en
+      **`[sin_camino]`** con **qué haría falta** —que el CLI acepte el export entero—.
+      Aceptarlo es una decisión de interfaz y no se toma de paso.
+    - **`[sin_camino]` es una tercera categoría**: ni fallo ni código muerto, sino una
+      comprobación escrita para una entrada que la app todavía no acepta. Se declara
+      porque la alternativa es peor —leerla en el código y creer que corre— y **caduca**
+      en cuanto alguien la cablea, como las excepciones de alcanzabilidad.
+  - **`revalida = SUITE` ES CATEGORÍA DE PRIMERA, y al preguntarlo en serio son TRES, no
+    uno.** Obliga a rellenar `revalida_en_produccion`: sin eso la categoría es una queja
+    y no una tarea. Los tres se apoyan en el **contenido de un volumen** que sólo cruza
+    un test:
+    - **la tabla de PolyA_DB** — el md5 del fichero cuadra contra el manifiesto de
+      TRABAJO, que se escribe en el mismo volumen y se puede actualizar a la vez. Lo
+      cerraría un md5 fijado en **código**, como ya se hace con la secuencia canónica de
+      las referencias y por la misma razón: la constante no es editable y el manifiesto
+      de trabajo sí;
+    - **la anatomía del manifiesto contra `REFERENCES`** — `parse_manifest` sólo comprueba
+      la FORMA. Lo cerraría que el cargador compare la fila contra `REFERENCES` cuando el
+      accession esté declarado: es barato, ya se lee la fila;
+    - **el ancla de `EVIDENCE`** — lo cerraría que `read_evidence_pairs` mire la línea del
+      ancla en el manifiesto de trabajo y aborte si su origen la marca «NO USAR».
   - **No falla nunca: es un informe.** Lo que falla es `tests/test_guardias.py` — si una
     entrada nombra un símbolo que ya no existe, si de un guardia `ABORTA` no aborta
-    ninguna pieza, o si algo de la clase **derivada del código** —todo lo que compara una
-    identidad declarada contra lo entregado— se queda fuera sin declararlo.
+    ninguna pieza, si algo de la clase **derivada del código** —todo lo que compara una
+    identidad declarada contra lo entregado— se queda fuera sin declararlo, si un guardia
+    **no lo invoca nadie**, si un `SUITE` no dice qué lo cerraría en producción, o si una
+    entrada de `[sin_camino]` ya tiene camino.
 
 - **LA FICHA DE OBTENCIÓN DESCRIBÍA UN FICHERO Y EL CARGADOR LEÍA OTRO (2026-08-27).**
   Mismo principio nº 13, un piso más arriba, y es lo que hizo creer que la tabla de

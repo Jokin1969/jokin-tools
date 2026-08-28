@@ -891,3 +891,79 @@ dice `transcriptoma_3utr.fa` —lo que el cargador busca— en vez de
 
 Es el principio nº 13 aplicado un piso más arriba: **lo que se declara es cuál, y el
 nombre lo pone quien lo usa.**
+
+---
+
+## 29 — `verify()`: la única de la serie que producía CONFIANZA INFUNDADA
+
+Es la cuarta vez que aparece el patrón —código escrito, probado y sin ningún llamador— y
+la peor, por una razón que conviene escribir porque no es de grado:
+
+**Las tres anteriores producían AUSENCIA DE INFORMACIÓN. Ésta producía CONFIANZA
+INFUNDADA.**
+
+- `masking.triple_motive_rows` — un detalle por ventana que se calculaba y no salía en
+  ninguna salida. Faltaba información.
+- `intron_folding` — lo mismo, un eje que no llegaba a la pantalla. Faltaba información.
+- `store.save_*` — los cuatro modales calculaban y al cerrar la pestaña no quedaba nada.
+  Faltaba información, y era mucha.
+- **`store.ProjectStore.verify`** — no faltaba nada. Estaba **toda la disciplina de la
+  cadena de md5**: cada línea del log lleva el md5 de la anterior, editar o borrar una
+  vieja rompe la cadena, `verify()` lo dice con el número de línea, y hay un texto
+  (`WHAT_THE_CHAIN_DOES_NOT_DO`) que explica con cuidado que no impide editar el fichero
+  sino que lo vuelve **visible**.
+
+  Todo eso existía **nominalmente**. Nadie llamaba a `verify()` fuera de sus tests, así
+  que la cadena no se recalculaba nunca en la app y **nada era visible**. Un log editado
+  se habría leído igual que uno íntegro.
+
+La diferencia importa: de un hueco de información uno se entera al buscar el dato y no
+encontrarlo. De una comprobación que no comprueba **no se entera nadie**, porque su
+producto normal es el silencio — y el silencio es exactamente lo que se ve cuando todo
+está bien.
+
+### Cómo apareció, que es lo que más enseña
+
+**No lo cazó la alcanzabilidad**, y no por descuido: **no podía**. Ese análisis mira
+funciones de nivel de módulo, y `verify` es un **método**. La exclusión estaba declarada
+y justificada con esta frase: *«no se pierde nada del modo de fallo que motiva esto — los
+tres casos reales son funciones»*. Era cierta cuando se escribió, y **el cuarto caso la
+refuta**.
+
+Lo cazó **tener que rellenar una columna**: «cuándo se ejecuta». No hay respuesta posible
+para `verify()` salvo *nunca*.
+
+Y ésa es la lección, que va a principios como la nº 15: **la alcanzabilidad y la tabla de
+guardias tienen la misma información y hacen dos preguntas distintas.**
+
+| | |
+|---|---|
+| «nadie la llama» | se lee como **pendiente** — una fila más de una lista que obliga a decidir algún día |
+| «cuándo protege» → *nunca* | no se puede leer de ninguna otra forma |
+
+**Sólo una de las dos obliga a actuar.**
+
+### Qué se ha hecho
+
+- `presentation.project_open` llama a `verify()` en cada apertura, con regresión escrita.
+  Su momento natural era evidente en cuanto se preguntó por él: el log se edita **entre
+  sesiones**, así que comprobarlo sólo al escribirlo no protege de nada.
+- La alcanzabilidad entra en los **métodos declarados como guardias** en
+  `data/guardias.toml` — pocos, enumerados a mano, y de ellos ya se sabe que protegen
+  algo. El resto de los métodos siguen fuera por la razón de siempre (215 filas de ruido).
+- **Y las dos listas se cruzan**: un guardia sin quien lo invoque **sube de informe a
+  fallo**, sin excepción posible. Ya cazó otro — ver abajo.
+
+### Lo que el cruce encontró al estrenarse
+
+`mirarchitect.Export.check_scaffold` — «el andamio se decide por SECUENCIA, no por
+etiqueta», que es una regla escrita de este proyecto — **no lo llama nadie**. Y no es un
+cableado olvidado: el único camino que existe (`tools/import_scores.py`) recibe un TSV de
+dos columnas donde **no hay loop que comparar**, así que lo que decide es el `--andamio`
+que teclea quien importa. La regla dice «fiarse de la etiqueta es lo que se deja de hacer
+aquí» y el camino vivo se fía de la etiqueta.
+
+Se ha hecho lo honesto y no lo cómodo: el veredicto **dice** que el andamio se comprobó
+por etiqueta (`external_score.SCAFFOLD_BY_LABEL`), y el guardia por secuencia queda
+declarado en `[sin_camino]` con **qué haría falta** para que corriera —que el CLI acepte
+el export entero—. Es una decisión de interfaz, no un cableado, y no se toma de paso.

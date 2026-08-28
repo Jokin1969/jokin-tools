@@ -26,10 +26,16 @@
 # `puede_degradar` — si lo protegido puede CAMBIAR después de la comprobación.
 # `revalida` — qué lo vuelve a comprobar, o `NADA`.
 #
-# OJO CON UN VALOR DE `revalida`: **SUITE** significa que sólo lo revalida la suite de
-# tests. Eso protege el REPOSITORIO y no protege una corrida: en producción el
-# directorio de referencia vive en un volumen (`SHMIR_REFERENCE_DIR`) que la suite no
-# mira. No es lo mismo que una revalidación en tiempo de ejecución y no se escribe igual.
+# **SUITE ES UNA CATEGORÍA DE PRIMERA, NO UNA NOTA. DECIDIDO 2026-08-27.** Un guardia
+# cuyo supuesto sólo comprueba la suite protege el REPOSITORIO y **no protege una
+# corrida**: en producción el directorio de referencia y los proyectos viven en volúmenes
+# (`SHMIR_REFERENCE_DIR`, `SHMIR_PROJECT_DIR`) que la suite no mira, y el manifiesto de
+# trabajo se escribe ahí. Todo lo que se apoye en el CONTENIDO de esos volúmenes y sólo
+# lo cruce un test está en esta situación.
+#
+# Por eso `revalida = "SUITE …"` OBLIGA a rellenar `revalida_en_produccion`, que dice qué
+# lo revalidaría de verdad. Sin ese campo la categoría sería una queja; con él es una
+# lista de tareas. Lo exige `tests/test_guardias.py`.
 
 # ─────────────── Identidad de los ficheros de referencia ───────────────
 
@@ -51,7 +57,7 @@ implementa = [
   "mirna.load_mature_fa", "mirna.load_abundance_list", "mirna._read",
   "seed_load.load_utr3_set", "specificity.load_database",
   "apa.load_apa_sites", "apa.load_polyadb", "masking.load_rmsk",
-  "masking.parse_rmsk_out", "guide_fixture.load_guide_fixture",
+  "masking.parse_rmsk_out",
 ]
 protege = "Lo mismo que el anterior, pero en el momento en que el dato se USA. Es lo que hace que la comprobación de ingesta no sea la única."
 momento = "CADA_CORRIDA"
@@ -73,9 +79,10 @@ guardia = "El md5 del 3'UTR decide si la tabla de APA medido aplica"
 implementa = ["apa.resolve_measured"]
 protege = "Que unas coordenadas de un gen no se anclen sobre OTRO 3'UTR. El ruido ancla si se le deja sitio."
 momento = "CADA_CORRIDA"
-puede_degradar = false
-degrada_como = "No se degrada: se compara contra la secuencia de esta corrida."
-revalida = "Se revalida a sí mismo en cada corrida."
+puede_degradar = true
+degrada_como = "El md5 del 3'UTR y la tabla medida viven los DOS en el volumen. Lo que ningún camino de ejecución comprueba es que los VALORES de esa tabla sigan siendo los de PolyA_DB: el md5 del fichero cuadra contra el manifiesto de TRABAJO, que se escribe en el mismo volumen y se puede actualizar a la vez."
+revalida = "SUITE — `tests/test_polyadb_es_un_fichero.py` y `tests/test_fraccion_medida.py` exigen que las dos fracciones sigan dando 0,86 y 0,65, pero leen la copia del REPOSITORIO."
+revalida_en_produccion = "Nada, hoy. Lo cerraría un md5 del fichero de PolyA_DB fijado en CÓDIGO y no sólo en el manifiesto de trabajo — que es lo que ya se hace con la SECUENCIA canónica de las referencias, y por la misma razón: el manifiesto de trabajo es editable y la constante de `reference.REFERENCES` no."
 
 [[guardia]]
 guardia = "El `.gb` es del accession y la longitud que declara"
@@ -106,6 +113,16 @@ momento = "INGESTA"
 puede_degradar = false
 degrada_como = "No se degrada: lo que valida es el propio cargador del filtro, y ése vuelve a correr en cada corrida."
 revalida = "El cargador del filtro, en cada corrida."
+
+[[guardia]]
+guardia = "La anatomía del manifiesto cuadra con la declarada en `REFERENCES`"
+implementa = ["manifest.parse_manifest"]
+protege = "Que el `cds`, el `md5_secuencia` y el `md5_utr3` de una fila sean los de la referencia que dice ser. De esa frontera cuelgan los tercios, la región de cada ventana y la distancia de cada señal de polyA al extremo."
+momento = "INGESTA"
+puede_degradar = true
+degrada_como = "Son DOS definiciones de la misma anatomía y el manifiesto de TRABAJO vive en el volumen: se puede editar sin que nada de la corrida lo compare con `REFERENCES`. `parse_manifest` sólo comprueba la FORMA —que el CDS sea `inicio..fin` creciente y que los md5 sean hexadecimales de 32—, no que coincidan."
+revalida = "SUITE — `tests/test_anatomia_en_el_manifiesto.py` las cruza en las dos direcciones, sobre la copia del REPOSITORIO."
+revalida_en_produccion = "Que el cargador compare la fila del manifiesto contra `reference.REFERENCES` cuando el accession esté declarado, y aborte si discrepan. Es barato —ya se lee la fila— y convierte el cruce de la suite en un guardia de corrida."
 
 # ─────────────── Identidad de lo que se sube como RESULTADO ───────────────
 
@@ -180,6 +197,7 @@ momento = "CADA_CORRIDA"
 puede_degradar = true
 degrada_como = "ES EL CASO DE LA ERRATA Nº 27. La evidencia estaba TRANSCRITA y salía de un fichero retirado: `lower_is_better()` habría aprobado igual, porque sólo mira si la fuente está registrada. Ahora los pares se LEEN del fichero y su ausencia aborta, pero que el fichero ancla siga siendo el bueno no lo comprueba ninguna corrida."
 revalida = "SUITE — `tests/test_procedencia_retirada.py` comprueba que el ancla no esté retirada. Protege el repositorio, NO una corrida sobre un volumen."
+revalida_en_produccion = "Que `read_evidence_pairs` mire la línea del ANCLA en el manifiesto de TRABAJO y aborte si su `origen` la marca «NO USAR» o «FIXTURE NEGATIVO». Hoy lee el fichero sin preguntarle al manifiesto qué es, así que sobre un volumen donde alguien haya retirado el export la evidencia se seguiría leyendo."
 
 [[guardia]]
 guardia = "La dirección derivada del fichero cuadra con la registrada"
@@ -191,12 +209,12 @@ degrada_como = "ERA EL ÚNICO GUARDIA QUE HABRÍA SALTADO en la errata nº 27, y
 revalida = "NADA"
 
 [[guardia]]
-guardia = "El andamio se decide por SECUENCIA, no por etiqueta"
-implementa = ["mirarchitect.Export.check_scaffold", "external_score.check_orderable"]
+guardia = "El andamio del score se comprueba al importar — POR ETIQUETA"
+implementa = ["external_score.check_orderable"]
 protege = "Que un score medido sobre otra horquilla no ordene estos candidatos. miR-E existe porque procesa distinto de miR-30a, y el sesgo cae sobre lo que el score dice medir."
 momento = "INGESTA"
 puede_degradar = false
-degrada_como = "No se degrada: el andamio del diseño no cambia dentro de una corrida."
+degrada_como = "No se degrada dentro de una corrida. LO QUE NO HACE es comprobarlo por SECUENCIA: el `--andamio` lo teclea quien importa, y una etiqueta no es una prueba. Va DICHO en el veredicto (`external_score.SCAFFOLD_BY_LABEL`), no escondido — el guardia por secuencia existe y no puede correr por este camino, ver [sin_camino]."
 revalida = "Cada importación."
 
 # ─────────────── Invariantes de lo que se EMITE ───────────────
@@ -212,7 +230,7 @@ revalida = "Cada construcción."
 
 [[guardia]]
 guardia = "Invariante de rango de las coordenadas del 3'UTR"
-implementa = ["coords.check_utr3_range", "coords.declare_utr3_length"]
+implementa = ["coords.check_utr3_range"]
 protege = "Que una posición etiquetada `3utr:` quepa en el 3'UTR. Caza lo IMPOSIBLE, no lo equivocado — y eso está escrito como principio nº 1."
 momento = "AL_CONSTRUIR"
 puede_degradar = false
@@ -318,4 +336,17 @@ revalida = "Cada corrida."
 # para que alguien lo pinte. Sirve para decidir con la pantalla delante; no impide nada.
 
 [solo_informan]
+"guide_fixture.load_guide_fixture" = "COMPARA el md5, y protege el fixture de los TESTS —80 ficheros lo usan como `skipUnless`—, no ningún camino de la app. Se saca de la tabla de guardias a propósito: mezclarlo con los cargadores de producción hacía parecer que el md5 de un fichero de referencia lo comprobaba algo que sólo corre en la suite. Su justificación de alcanzabilidad ya estaba escrita y sigue valiendo."
 "manifest.check_directory" = "Compara el md5 de cada fichero del directorio contra el manifiesto y devuelve `EntryStatus.NO_COINCIDE`. Es lo que pinta el panel de ficheros — y NO aborta. Quien aborta es el cargador del filtro, en cada corrida."
+
+# ─────────── Existen, y NO PUEDEN correr por ningun camino que haya hoy ───────────
+#
+# Ni guardias que alguien olvido cablear —eso es un FALLO y sale arriba— ni codigo
+# muerto. Son comprobaciones escritas para una entrada que la app todavia no acepta. Se
+# declaran porque la alternativa es peor: leerlas en el codigo y creer que corren.
+#
+# Cada una dice QUE HARIA FALTA para que corriera. Sin eso, esto seria una lista de
+# excusas en vez de una lista de deudas.
+
+[sin_camino]
+"mirarchitect.Export.check_scaffold" = "Compara el LOOP del fichero contra el del andamio, que es como este proyecto dice que se decide el andamio. Necesita un EXPORT COMPLETO de miRarchitect, y el unico camino que existe —`tools/import_scores.py`— recibe un TSV de dos columnas `guia<TAB>score`, donde no hay loop. QUE HARIA FALTA: que ese CLI acepte tambien el CSV entero. Es una decision de interfaz, no un cableado, y por eso no se toma de paso. MIENTRAS TANTO el veredicto dice que el andamio se comprobo por ETIQUETA (`external_score.SCAFFOLD_BY_LABEL`)."

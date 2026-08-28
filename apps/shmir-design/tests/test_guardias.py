@@ -121,6 +121,86 @@ class TestCadaEntradaEstaCOMPLETA(unittest.TestCase):
                 self.assertTrue(guardia.get("revalida", "").strip())
 
 
+class TestElCruceEsUnFALLO(unittest.TestCase):
+    """La alcanzabilidad dice «nadie la llama» y se lee como PENDIENTE; esta tabla
+    pregunta CUÁNDO protege, y para lo mismo la respuesta es «nunca».
+
+    Misma información, dos preguntas, y sólo una obliga a actuar. Por eso se cruzan, y
+    el cruce **no admite excepción**: un guardia legítimamente sin llamador no existe.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.informe = auditar_guardias.auditar()
+
+    def test_ningun_guardia_se_queda_sin_quien_lo_invoque(self):
+        self.assertEqual(
+            self.informe["guardias_sin_llamador"], [],
+            "Hay un guardia que no invoca nadie. Si protege algo, alguien tiene que "
+            "invocarlo; si no lo invoca nadie, no protege nada — y da igual lo bien "
+            "escrito que esté. O se cablea, o deja de estar declarado como guardia.",
+        )
+
+    def test_el_criterio_admite_lo_que_se_NOMBRA_sin_llamarse(self):
+        # `resources._refseq` no se invoca por su nombre: entra en el diccionario
+        # `LOADERS` y se despacha por rol. Exigir una llamada literal habría denunciado
+        # los nueve cargadores, que corren en cada corrida — y un guardia con falsos
+        # positivos se acaba apagando.
+        self.assertEqual(auditar_guardias._nadie_lo_invoca(["resources._refseq"]), [])
+
+    def test_pero_NO_admite_una_mencion_en_prosa(self):
+        # `check_scaffold` aparece en tres docstrings de `external_score` y no lo llama
+        # nadie. Un guardia explicado no es un guardia que corra.
+        self.assertEqual(
+            auditar_guardias._nadie_lo_invoca(["mirarchitect.Export.check_scaffold"]),
+            ["mirarchitect.Export.check_scaffold"],
+        )
+
+
+class TestLoQueEXISTEYNoPuedeCorrer(unittest.TestCase):
+    """Ni fallo ni código muerto: una deuda declarada, con lo que haría falta."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.informe = auditar_guardias.auditar()
+
+    def test_cada_uno_dice_QUE_HARIA_FALTA(self):
+        for simbolo, motivo in self.informe["sin_camino"].items():
+            with self.subTest(simbolo=simbolo):
+                self.assertIn("HARIA FALTA", motivo.upper().replace("Í", "I"))
+
+    def test_y_ninguno_ha_dejado_de_estar_sin_camino(self):
+        # El día que alguien lo cablee, la entrada sobra — igual que una excepción de
+        # alcanzabilidad caducada.
+        self.assertEqual(self.informe["con_camino_ya"], [])
+
+    def test_el_del_andamio_sigue_declarado_mientras_el_CLI_reciba_dos_columnas(self):
+        self.assertIn(
+            "mirarchitect.Export.check_scaffold", self.informe["sin_camino"]
+        )
+
+
+class TestSUITEEsUnaCategoriaDePrimera(unittest.TestCase):
+    """Protege el repositorio y NO protege una corrida: el volumen no lo mira nadie."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.informe = auditar_guardias.auditar()
+
+    def test_todo_SUITE_dice_que_lo_cerraria_en_produccion(self):
+        self.assertEqual(
+            self.informe["suite_sin_salida"], [],
+            "Un guardia validado sólo por la suite tiene que decir QUÉ lo revalidaría "
+            "en producción. Sin eso la categoría es una queja y no una tarea.",
+        )
+
+    def test_son_TRES_y_no_uno(self):
+        # Al preguntarlo en serio salieron tres, no el que ya se conocía: la tabla de
+        # PolyA_DB, la anatomía del manifiesto y el ancla de la evidencia. Los tres se
+        # apoyan en el CONTENIDO de un volumen que sólo cruza un test.
+        self.assertGreaterEqual(len(self.informe["solo_suite"]), 3)
+
+
 class TestLaClaseDeRiesgo(unittest.TestCase):
     """Lo que este informe existe para señalar."""
 
