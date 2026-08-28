@@ -930,6 +930,28 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   `polyA_veredicto` sigue siendo el del modo con el que se corrió. Ojo con el marco:
   `polyA_hexamero_pos` va en coordenadas de LO TILADO, como `inicio_transcrito`, y la
   cabecera lo dice.
+- **EL GOLDEN SE GENERA CON LA CONFIGURACIÓN POR DEFECTO. SIN EXCEPCIONES.
+  DECIDIDO (2026-08-27)**, principio nº 18. Llevaba `--inmunes 4`, `--candidates 10`,
+  `--min-block 22` y `--sin-manifiesto` **tecleados**, así que la única corrida del CLI
+  que alguien miraba llevaba una configuración que ningún usuario usa — y validaba un
+  panel que el CLI por defecto no producía (errata nº 32). **De los cuatro, TRES eran
+  inertes**: llevaban ahí sin hacer nada y sin que nadie lo supiera.
+  - Si hace falta otra configuración, va en un artefacto **adicional cuyo nombre la
+    declara**: hoy `raton_informe__con_convergencia.txt` y
+    `raton_informe__con_usar_manifiesto__una_especie.txt`. Hay test de que cada variante
+    nombra en su fichero las banderas que la distinguen.
+  - **La segunda variante existe porque `--usar-manifiesto` —«la forma normal de
+    correr»— no la leía ningún golden**, y al escribirla apareció que **abortaba** con un
+    `KeyError: 'polyadb'` contra el manifiesto de verdad: `manifest.ROLES` ganó ese rol y
+    `design.py` no se enteró. Va **con una sola especie** a propósito: con dos, el
+    manifiesto conecta `rmsk_mouse.out` por su rol y `RepeatMask.query_length` aborta —el
+    guardia hace lo que debe, y lo que dice es que esa combinación no es viable hoy.
+  - **Y los otros tres artefactos tenían el mismo vicio**: la ficha, el documento y la
+    página construían `SelectionConfig(n_candidates=10, apa_immune_quota=4)` a mano.
+    Ahora pasan por `default_config()` y **no cambió ni una línea**, que es lo que se
+    espera: hoy los valores coinciden, y mañana los goldens se enteran si la constante se
+    mueve.
+
 - **El informe ENTERO está fijado contra un golden versionado**
   (`tests/golden/raton_informe.txt`, `tools/regenerar_golden.py`,
   `tests/test_informe_golden.py`). Los tests de presencia comprueban que aparezca lo que
@@ -2913,6 +2935,37 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     fallar.** El trinquete pasó de **50 a 41** sin escribir un solo test de punta a punta
     más — y la historia de cómo bajó va en la propia tabla, porque el camino importa
     tanto como el número.
+
+- **EL INVENTARIO DE ESTADOS DE LA INTERFAZ (2026-08-27)**
+  (`tools/auditar_estados.py`, `data/estados.toml`, dentro de `npm run check:shmir`).
+  El de banderas cubre los CLI; **éste cubre la PÁGINA, que es donde vive lo que el
+  usuario toca**. Y el eje no son los widgets: son las **combinaciones de estado que
+  pintan cosas distintas**.
+  - **Tres ejes, los tres DERIVADOS**: `corrida` (SIN_DISEÑAR · DISEÑADO_SIN_SELECCION ·
+    DISEÑADO_CON_SELECCION), `fichero:<rol>` CON/SIN —uno por rol de
+    `species.required_files`— y `modal:<corrida>` CON_CORRIDA/SIN_CORRIDA —uno por cada
+    `corrida_*` de `store.RECORD_KINDS`—. **29 estados.**
+  - **DOS NIVELES, y la distinción es el punto entero**: `PINTADO` (algún test
+    **renderiza la página** con ese estado) y `CONSTRUIDO` (lo monta en el núcleo y no
+    pinta). Un `CONSTRUIDO` es el principio nº 17 en esta superficie: el estado existe en
+    un test y el camino que lo pinta no lo recorre nadie. **Sólo PINTADO cuenta.**
+  - **ESTADO DE PARTIDA: 10 de 29 pintados.** Y los diez son del panel de ficheros: **ni
+    uno solo de los cuatro modales, ni el estado DISEÑADO, se ha pintado nunca**. Ahí es
+    exactamente donde vive `_modal_blast`.
+  - **Y las causas son DOS, no diecinueve**: `AppTest` no puede rellenar un
+    `file_uploader` —18 estados, los ocho de los modales entre ellos— y la página no
+    acepta un directorio de referencia de prueba —9 estados—. **Abrir cualquiera de las
+    dos desbloquea todas las suyas de golpe**, así que lo que hay que hacer no es
+    escribir tests sueltos: es abrir esas dos vías.
+  - **Los BLOQUEADOS CUENTAN para el trinquete.** Excluirlos lo dejaba en **cero** con
+    diecinueve estados sin pintar — un informe que se lee como «pendiente» y no obliga a
+    nada (principio nº 15). `bloqueado_por` dice **qué lo cerraría**; no exime.
+  - **El detector se equivocó DOS veces antes de valer**, y las dos quedan fijadas con
+    test: comparaba los niveles con `max()` de cadenas —y `max("NADA", "CONSTRUIDO")` es
+    `"NADA"`, así que TODO salía sin tocar—, y reconocía los estados de fichero por el
+    nombre del fichero en el fuente, **que aparece igual en un test que lo pone y en uno
+    que comprueba que falta**. Ahora el estado de un fichero se deriva de su PRESENCIA
+    REAL, que no es un marcador sino el hecho.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

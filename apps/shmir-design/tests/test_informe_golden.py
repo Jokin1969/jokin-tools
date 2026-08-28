@@ -91,3 +91,85 @@ class TestElInformeEntero(unittest.TestCase):
         ):
             with self.subTest(bloque):
                 self.assertIn(bloque, self.esperado)
+
+
+# ─────────────────────── las VARIANTES, cada una con su nombre ───────────────────────
+
+
+@unittest.skipUnless(
+    all(f.is_file() for f in FIXTURES),
+    "NOT_RUN: faltan fixtures versionados",
+)
+class TestLasVariantesTambienSeComparanENTERAS(unittest.TestCase):
+    """Un golden por configuración, y el nombre dice cuál (principio nº 18).
+
+    El golden por defecto se genera con la configuración por defecto **sin excepciones**.
+    Lo que necesite otra configuración va en un artefacto APARTE cuyo nombre la declara —
+    nunca en el de por defecto con parámetros puestos a mano, que es lo que hizo que la
+    única corrida del CLI que alguien miraba llevara `--inmunes 4` y validara un panel
+    que el CLI por defecto no producía (errata nº 32).
+    """
+
+    def test_cada_variante_declarada_tiene_su_fichero(self):
+        from tools.regenerar_golden import VARIANTES
+
+        for nombre in VARIANTES:
+            with self.subTest(nombre):
+                self.assertTrue((GOLDEN.parent / nombre).is_file(), nombre)
+
+    def test_y_ninguna_se_ha_quedado_sin_declarar(self):
+        """Un golden huérfano en la carpeta es un artefacto que nadie regenera."""
+        from tools.regenerar_golden import DOCUMENTO, FICHA, PAGINA, VARIANTES
+
+        conocidos = {GOLDEN.name, FICHA.name, DOCUMENTO.name, PAGINA.name} | set(VARIANTES)
+        sobran = sorted(
+            p.name for p in GOLDEN.parent.iterdir() if p.name not in conocidos
+        )
+        self.assertEqual(sobran, [])
+
+    def test_el_nombre_de_cada_variante_DICE_que_lleva(self):
+        """No vale `raton_informe_2.txt`: quien lo abre dentro de un año tiene que saber
+        con qué configuración se generó sin ir a leer el generador."""
+        from tools.regenerar_golden import ARGV, VARIANTES
+
+        for nombre, argv in VARIANTES.items():
+            with self.subTest(nombre):
+                distintos = [a for a in argv if a.startswith("--") and a not in ARGV]
+                self.assertTrue(distintos, f"{nombre} no se distingue del de por defecto")
+                for bandera in distintos:
+                    self.assertIn(
+                        bandera.lstrip("-").replace("-", "_"),
+                        nombre,
+                        f"{nombre} no nombra {bandera}",
+                    )
+
+    def test_las_variantes_se_comparan_ENTERAS_igual_que_el_de_por_defecto(self):
+        from tools.regenerar_golden import VARIANTES, generar
+
+        for nombre, argv in VARIANTES.items():
+            with self.subTest(nombre):
+                destino = GOLDEN.parent / nombre
+                self.assertEqual(
+                    generar(destino, argv),
+                    destino.read_text(encoding="utf-8"),
+                    f"{nombre} ha cambiado. Si es deliberado: "
+                    f"python3 tools/regenerar_golden.py, y el diff entra en la revisión.",
+                )
+
+    def test_el_de_por_defecto_NO_lleva_ningun_parametro_puesto_a_mano(self):
+        """La contramedida del principio nº 18, comprobada sobre el propio generador.
+
+        Sólo se admiten las banderas que declaran QUÉ se analiza —la entrada y su
+        anatomía—. Cualquier otra es una configuración, y una configuración en el golden
+        por defecto es una configuración fantasma.
+        """
+        from tools.regenerar_golden import ARGV
+
+        de_entrada = {"--fasta", "--fasta-b", "--name", "--name-b", "--genbank",
+                      "--genbank-b", "--out"}
+        puestas = [a for a in ARGV if a.startswith("--") and a not in de_entrada]
+        self.assertEqual(
+            puestas, [],
+            f"El golden por defecto lleva {puestas} puesto a mano. Si hace falta esa "
+            f"configuración, va en una VARIANTE que la declare en su nombre.",
+        )

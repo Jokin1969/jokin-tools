@@ -338,6 +338,14 @@ def main(argv: list[str]) -> int:
 
     print(render_banderas(auditar_banderas()))
 
+    # LOS ESTADOS DE LA INTERFAZ (2026-08-27). El de banderas cubre los CLI; este cubre
+    # la PAGINA, que es donde vive lo que el usuario toca. El eje no son los widgets: son
+    # las combinaciones de estado que PINTAN cosas distintas.
+    from auditar_estados import auditar as auditar_estados
+    from auditar_estados import render as render_estados
+
+    print(render_estados(auditar_estados()))
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "
