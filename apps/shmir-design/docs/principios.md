@@ -658,3 +658,61 @@ mismo no pueden compartir color. `apa_medido.tsv` salía en el mismo ámbar que
 sobra (errata nº 30). Por eso `NO USADO` es un estado propio, y por eso el color lo pone
 `presentation.py` con tests y no la página: un color elegido en la página es una decisión
 sin test, y las decisiones sin test es donde reaparece todo esto.
+
+---
+
+## 17 — Un fallo ruidoso en una rama que nadie ejecuta es tan invisible como uno silencioso
+
+`tools/design.py` pasaba `thresholds=umbrales`, y esa variable no existe en el módulo. Un
+`NameError`: el fallo más ruidoso que hay, inmediato, imposible de confundir con otra
+cosa. **Sobrevivió igual**, porque toda corrida con `--rmsk` moría antes de que nadie la
+viera — y nadie la veía porque **ningún test recorría ese camino**.
+
+La intuición que esto rompe es que los fallos se ordenan por lo escandalosos que son. No:
+se ordenan por **si alguien pasa por ahí**. Un `NameError` en una rama muerta y un valor
+mal calculado en una rama muerta cuestan exactamente lo mismo — cero, hasta el día que
+alguien la ejecuta, y entonces cuestan lo que costaba desde el principio.
+
+### El corolario: dónde está el hueco
+
+**La alcanzabilidad ve símbolos sin llamador. El golden ve la salida por defecto. Y entre
+los dos hay un hueco donde vive el código llamado desde caminos que nadie recorre.**
+
+Ninguna de las dos podía cazarlo, y no por descuido:
+
+| herramienta | qué mira | por qué se le escapó |
+|---|---|---|
+| alcanzabilidad | símbolos que nadie nombra | **había una llamada escrita** — sólo que nunca se ejecutaba |
+| golden | la salida entera de una corrida | esa corrida se genera **sin máscara** |
+| los tests de la pieza | que la función haga lo que dice | la llaman **ellos**, no el camino de verdad |
+
+Las tres son necesarias y ninguna cubre esto. Lo que lo cubre es **recorrer el camino
+entero y leer lo que sale**: correr `main()` con esa combinación de banderas, comprobar
+que termina en 0, y mirar el resultado.
+
+### La contramedida: el inventario de banderas
+
+`tools/auditar_banderas.py` deriva las banderas de cada CLI de sus propios
+`add_argument`, deriva de los tests cuáles aparecen en una llamada que **no** se espera
+que aborte, y cruza las dos listas. Tres decisiones de diseño y las tres tienen motivo:
+
+- **Se ordena por CONSECUENCIA**, no alfabéticamente. Una bandera que cambia un
+  **veredicto** sin recorrido es urgente; una que cambia el **formato** de la salida, no.
+  Sin esa distinción, 139 filas planas no las lee nadie — que es el fallo que la
+  herramienta viene a evitar, no a repetir.
+- **Un test que espera un `2` NO cuenta como recorrido.** Comprobar que una entrada mala
+  se rechaza es útil y no atraviesa el camino. Ahí vivía exactamente la errata nº 31.
+- **Y lleva un TRINQUETE**, porque una lista larga se lee como «pendiente» y no obliga a
+  nada (principio nº 15): el número de banderas VEREDICTO sin recorrer va **declarado**, y
+  la suite falla **en las dos direcciones** — si sube, alguien añadió algo que decide y no
+  lo recorrió; si baja, el techo está caducado. Sólo puede ir hacia abajo. No hace falta
+  cubrirlas todas de golpe: hace falta que bajarlo sea la única forma de cerrar la suite.
+
+### Y el detector se equivocó en las dos direcciones antes de valer
+
+Su primera versión resolvía «de qué CLI es este `main`» con una tabla de alias global.
+Daba por recorridas de `design` las banderas de `import_scores` —que también importa su
+main como `main`— y no veía las de `test_usar_manifiesto.py`, que llama por un ayudante.
+Se contrastó contra un `grep` en las dos direcciones antes de darlo por bueno, y ahora el
+CLI se resuelve **por fichero, de sus propios `import`**. Un análisis que se equivoca
+hacia el silencio es peor que no tenerlo: no avisa y además tranquiliza.

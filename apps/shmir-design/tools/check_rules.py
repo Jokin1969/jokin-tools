@@ -328,6 +328,16 @@ def main(argv: list[str]) -> int:
         if filas:
             print(f"\n  {etiqueta.upper()}: {', '.join(filas)}", file=sys.stderr)
 
+    # LAS BANDERAS DE LOS CLI, Y CUALES SE RECORREN ENTERAS (2026-08-27). Va aqui por
+    # lo mismo que las otras tres, y por una razon propia: es el hueco que ni la
+    # alcanzabilidad ni el golden pueden ver —la alcanzabilidad busca simbolos sin
+    # llamador y aqui hay llamada escrita; el golden lee la salida POR DEFECTO—. Ahi
+    # vive el codigo llamado desde caminos que nadie recorre (principio nº 17).
+    from auditar_banderas import auditar as auditar_banderas
+    from auditar_banderas import render as render_banderas
+
+    print(render_banderas(auditar_banderas()))
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "

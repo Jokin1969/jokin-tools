@@ -1104,4 +1104,23 @@ con `--rmsk` y comprueba **los dos** bloques que la rama emite.
 
 El fallo era un `NameError` —ruidoso, inmediato, imposible de confundir con otra cosa—.
 Sobrevivió igual, porque **nadie recorría ese camino**. Un fallo ruidoso en una rama que
-nadie ejecuta es exactamente tan invisible como uno silencioso.
+nadie ejecuta es exactamente tan invisible como uno silencioso. Va como **principio
+nº 17**, con su corolario: la alcanzabilidad ve símbolos sin llamador, el golden ve la
+salida por defecto, y entre los dos hay un hueco donde vive el código llamado desde
+caminos que nadie recorre.
+
+### Y LA IRONÍA, que es lo que lo hace memorable
+
+**La rama muerta era la del bloque que se cableó precisamente porque sólo existía si
+alguien lo corría a mano.** `masking.triple_motive_rows` fue uno de los tres hallazgos
+que dieron origen al análisis de alcanzabilidad: código con tests en verde y sin ningún
+llamador, un análisis que se corría a mano aunque estuviera en la librería. Se le puso
+llamador, se documentó como resuelto, y se dio por cerrado.
+
+**Se cableó, y el cable no conducía.** El caso que motivó una herramienta entera del
+proyecto volvió por la única puerta que esa herramienta no vigila — porque desde el día
+que se cableó, la alcanzabilidad lo veía vivo: hay una llamada, escrita, apuntando a él.
+Sólo que nadie la ejecutaba.
+
+De ahí sale la contramedida que cubre el hueco: `tools/auditar_banderas.py`, el
+inventario de qué banderas de los CLI recorre algún test **de punta a punta**.
