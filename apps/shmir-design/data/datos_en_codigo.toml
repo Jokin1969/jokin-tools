@@ -155,6 +155,16 @@ parametriza, se sustituye — y entonces se sustituye esto tambien."""
 # ─────────────────────────── PROSA ───────────────────────────
 
 [[constante]]
+simbolo = "apa.APA_ARE_TWO_FILES"
+categoria = "prosa"
+motivo = """\
+Que el frente del APA lo cierra CUALQUIERA de dos ficheros, y que no son el mismo con \
+otro nombre. Nombra `polya_db_<especie>.tsv` porque de eso habla: es la frase que \
+explica por que `apa_medido.tsv` sale como ALTERNATIVA NO USADA y no como algo \
+pendiente. El dato sigue estando en el fichero del gestor; aqui esta la regla de que \
+uno de los dos basta, que es codigo y no dato."""
+
+[[constante]]
 simbolo = "apa.WHERE_THE_MOUSE_TABLE_LIVES"
 categoria = "prosa"
 motivo = """\

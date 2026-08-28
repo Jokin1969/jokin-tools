@@ -152,12 +152,17 @@ class TestFicherosDeReferencia(unittest.TestCase):
         self.assertIn("Borrar", botones)
         self.assertIn("Descargar", descargas)
 
-    def test_las_filas_van_agrupadas_por_FRENTE(self):
+    def test_cada_fila_dice_QUE_FRENTE_cierra(self):
+        """Ya NO se agrupa por frente: el orden es por IMPACTO —lo que falta arriba, lo
+        resuelto abajo—, que es lo que se viene a mirar. Pero el frente no se pierde por
+        eso: viaja EN LA FILA. Un fichero sin frente visible es un fichero del que no se
+        sabe para que sirve."""
         app = self.run_app()
-        titulos = [s.value for s in app.get("subheader")]
+        texto = " ".join(m.value for m in app.get("markdown"))
+        texto += " ".join(e.label for e in app.get("expander"))
         for frente in ("especificidad", "repeticiones", "seed", "transgen"):
             with self.subTest(frente):
-                self.assertIn(frente, titulos)
+                self.assertIn(frente, texto)
 
     def test_presentes_y_ausentes_salen_en_LA_MISMA_tabla(self):
         # Lo que este cambio existe para arreglar: antes eran dos sitios —los frentes
@@ -181,10 +186,12 @@ class TestFicherosDeReferencia(unittest.TestCase):
         self.assertIn("colisión de seed", pies)
         self.assertIn("species.SPECIES", pies)
 
-    def test_y_el_recuento_de_frentes_sale_ANTES_de_ejecutar_nada(self):
+    def test_y_el_recuento_de_frentes_SIGUE_saliendo_antes_de_ejecutar_nada(self):
+        """El contador se mudo al paso 5 y cambio de forma —«N de 7 frentes cerrados»,
+        con barra—, pero se sigue pudiendo ver sin haber corrido nada."""
         app = self.run_app()
-        textos = " ".join(c.value for c in app.caption)
-        self.assertIn("frentes cerrables", textos)
+        textos = " ".join(p.proto.text for p in app.get("progress"))
+        self.assertIn("de 7 frentes cerrados", textos)
 
 
 @unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no está instalado (pip install -r requirements-ui.txt)")

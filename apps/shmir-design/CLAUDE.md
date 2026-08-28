@@ -1882,16 +1882,92 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
       El motivo **viaja al veredicto**: sin el, «se decidio no usarlo» y «no estaba» serian
       el mismo NOT_RUN mudo. Pedir ignorar un fichero que no se iba a usar **aborta** — un
       motivo escrito para una decision que nadie tomo ensucia el informe.
-  - **5. La pantalla va en cuatro pasos numerados**: **1) especie · 2) secuencia ·
-    3) ficheros de referencia · 4) diseñar**. El paso 3 dice **cuantos frentes se van a
-    poder cerrar ANTES de ejecutar nada** —con el raton y lo que hay, 4 de 7; con un
-    conejo, 1 de 7— que es lo que permite decidir si se sigue o se va a buscar un fichero
-    primero. **No bloquea**: un frente abierto deja los candidatos en `INCOMPLETE`, que es
+  - **5. La pantalla va en pasos numerados**, y desde 2026-08-27 son **CINCO**: los
+    ficheros de referencia se partieron en sus **dos momentos** (bloque siguiente).
+    **No bloquea**: un frente abierto deja los candidatos en `INCOMPLETE`, que es
     informacion, no un veto, y el paso 4 lo dice con esas palabras.
   - **El manifiesto se carga cuando se diseña, no al pintar la pantalla.** La presencia de
     un fichero es un listado de directorio y es barato; conectar `mature.fa` son 5,6 MB en
     cada rerun de Streamlit. La pantalla no promete nada que no vaya a cumplir: dice que
     frentes se pueden cerrar, no que ya esten cerrados.
+
+- **LOS FICHEROS DE REFERENCIA SON DOS MOMENTOS, NO UNO. DECIDIDO (2026-08-27)**
+  (`presentation.WHY_TWO_MOMENTS`, `design_files_rows`, `refinement_panel`,
+  `_panel_refinamiento` en la página). El paso 3 pedía **los siete frentes** antes de
+  diseñar, como si todos sirvieran para lo mismo. No sirven, y presentarlos juntos
+  **afirmaba una dependencia que no existe**: *no puedo empezar hasta reunirlo todo*.
+  - **Momento 1 — obtener candidatos** (paso 3). Le hace falta la secuencia y su
+    anatomía, y nada más. **Hoy la lista está VACÍA**, y eso NO se declara: hay un test
+    que **corre el diseño con el directorio de referencia vacío** y comprueba que salen
+    candidatos (287 elegibles con el ratón). El día que algo pase a hacer falta para
+    tilar, el test lo dice y el paso 3 lo enseña solo.
+  - **Momento 2 — refinar y descartar** (paso 5, **después** del botón y **debajo de los
+    resultados**). Estos ficheros no cambian QUÉ candidatos salen: cambian qué veredicto
+    lleva cada uno y **cuáles acaban cayendo**. La frase que abre la sección va en la
+    propia sección y no en un tooltip: «**Los candidatos ya están. Estos ficheros no
+    cambian cuáles son, cambian cuáles sobreviven.**»
+  - **Y esa frase está MEDIDA, no afirmada.** El conjunto de elegibles con cualquier
+    fichero de referencia es un **SUBCONJUNTO** del que sale sin ninguno —**ninguno
+    inventa un candidato**— y lo que quita cada uno está contado: PolyA_DB **17** (que
+    es exactamente `measured_promotion_cost`), `mature.fa` **2**, la máscara murina
+    **0** y el casete **0**. Ese cero de la máscara es un hecho **del 3'UTR del ratón**
+    —su único repetitivo, el `(CTC)n`, está en el CDS— y no una propiedad del fichero:
+    sobre el humano la misma máscara tumba cinco. Está en `tests/test_dos_momentos.py`.
+  - **Cuatro estados, constantes, con leyenda al principio**: `CERRADO` (verde), `FALTA`
+    (ámbar), `OPCIONAL` (gris) y `NO USADO` (gris claro). El color lo pone
+    `presentation.REFINEMENT_STATES`, no la página: un color elegido en la página es una
+    decisión sin test (regla 6).
+    - **`NO USADO` es un estado propio y existe por un fallo real** (errata nº 30):
+      `apa_medido.tsv` salía en el mismo ámbar que `refseq_rna.fa` con
+      `polya_db_mouse.tsv` ya en el depósito. Uno no hace falta y el otro sí. La fila
+      dice **qué fichero** cierra su frente, por su nombre.
+    - **`OPCIONAL` no puede parecerse a `FALTA`**: `expresion_cerebro.tsv` refina una
+      ponderación y **no bloquea nada**, así que va en otro grupo y con otro color.
+  - **El orden es por IMPACTO, no alfabético**: primero lo que cierra un frente, luego lo
+    opcional, y dentro de cada grupo **lo resuelto abajo**. Alfabético pone
+    `aav_casete.fa` delante de `transcriptoma_3utr.fa` sin ninguna razón, y quien entra
+    aquí entra a saber qué le falta. El frente **viaja en la fila** ahora que ya no se
+    agrupa por frente: un fichero sin frente visible es un fichero del que no se sabe
+    para qué sirve.
+  - **Densidad**: lo resuelto se colapsa a **una línea CON SUS BOTONES** —colapsar es no
+    ocupar sitio, no dejar de poder ver, reemplazar, borrar o descargar— y sólo se queda
+    expandido lo que falta.
+  - **Contador en el encabezado**, `N de 7 frentes cerrados`, con barra. Con el ratón y
+    lo que hay son **5 de 7** (eran «4 de 7» y la cifra estaba mal: ver errata nº 30).
+  - **Cada fila que falta dice QUÉ PASA si no llega**, con las palabras de siempre: su
+    frente se queda en `NOT_RUN` y los candidatos en `INCOMPLETE`. Una opcional dice lo
+    contrario —nada se queda sin correr— y una `NO USADO`, que conseguirla no cambiaría
+    ningún veredicto. A un fichero que YA está no se le hace la pregunta: ahí el campo
+    vacío es `NO_APLICA`, no un hueco.
+  - **El depósito sigue siendo alcanzable ANTES de diseñar**, pero como acceso
+    **secundario**: un expander **colapsado** y titulado «no hace falta ninguno para
+    diseñar» (`_deposito_opcional`). El paso 5 sólo aparece después de haber diseñado, y
+    ésa es la decisión; dejar el gestor *sólo* ahí dentro le quitaba la única vía de
+    subir un fichero a quien acaba de abrir la app, y este proyecto tiene decidido que
+    **todo se sube por la interfaz**.
+
+- **EL FRENTE DEL APA LO CIERRAN DOS FICHEROS, Y NINGUNO DE LOS DOS ROLES SOBRA.
+  REVISADO (2026-08-27)** (`apa.APA_ARE_TWO_FILES`). `species.fixture_report` tenía ese
+  frente con **`available=False` escrito a mano**, de cuando la tabla vivía en el código:
+  el contador decía 4 de 7 y eran 5, y `apa_medido.tsv` salía en ámbar con
+  `polya_db_mouse.tsv` ya dentro. Errata nº 30; ahora se **deriva**.
+  - **No son dos formatos del mismo fichero.** `polya_db_<especie>.tsv` es PolyA_DB **en
+    crudo** —coordenadas GENÓMICAS, clase declarada, PSE y AvgRPM—, hay que anclarlo por
+    los cuatro puntos y de él sale la **promoción por medida** y el techo **por tramos**.
+    `apa_medido_<especie>.tsv` son posiciones **YA convertidas** a coordenadas de 3'UTR
+    con su fracción; no ancla nada y no promueve ninguna señal: alimenta
+    `apa_assessment`. Con cualquiera de los dos el frente está cerrado.
+  - **Y el segundo SÍ se va a usar en ratón**: su caso es exactamente el fichero
+    pendiente —**3'-end seq de cerebro murino**—, la medida *en nuestro tejido*, que
+    PolyA_DB no puede dar porque su 0,86 es de **todos** los tejidos y por eso se declara
+    como límite inferior.
+  - **LO QUE NO SE CALLA**: hoy los dos producen un techo de knockdown por caminos
+    **independientes** —`apa_assessment` no mira la tabla de PolyA_DB y `resolve_measured`
+    no mira los sitios convertidos— y **nada obliga a que coincidan**. Es el patrón de los
+    dos contadores del mismo suceso, el que ata un test entre `seed_load.seed_load` y
+    `offtarget`. Aquí ese test **no se puede escribir todavía**: el segundo fichero no
+    existe y fabricarlo sería inventarse la medida (regla 5). **El día que llegue el
+    3'-end seq, lo primero es cruzar los dos techos, no enchufarlo.**
 
 - **LA INTERFAZ SE SIRVE DESDE EL HUB, EN `/shmir`. DECIDIDO (2026-08-26)**
   (`apps/shmir/` en el hub — proceso hijo + proxy inverso). Hasta ahora esta interfaz
@@ -2718,7 +2794,7 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | lista ampliada de abundancia (con referencia y umbral) | colisión de seed, nivel AVISO | `--abundancia` |
 | 3'UTR del transcriptoma (UCSC Table Browser, mm39, NCBI RefSeq, «3' UTR Exons»; hay que apuntar ensamblaje, fecha de la tabla y criterio de representante) | carga de off-targets por seed — el TERCER modal, `offtarget_seed` | `--transcriptoma-3utr` o el modal |
 | máscara rmsk de ratón | elementos repetitivos | `--rmsk` |
-| 3'-end seq de cerebro murino | fracción de isoforma larga en NUESTRO tejido (hoy hay la de todos los tejidos: 0,86, límite inferior) | se sube por el gestor |
+| 3'-end seq de cerebro murino — **es el caso del rol `apa_medido`** (`apa_medido.tsv`, posiciones ya convertidas a 3'UTR con su fracción) | fracción de isoforma larga en NUESTRO tejido (hoy hay la de todos los tejidos: 0,86, límite inferior). **Al llegar, lo primero es cruzar su techo con el de PolyA_DB**: hoy los dos se calculan por caminos independientes y nada obliga a que coincidan | se sube por el gestor |
 | **`apa_medido_human.tsv`** — PolyA_DB v4 para **PRNP / hg38** | que el humano deje de estar en **MODO ASUMIDO**. La tabla murina se aplica por md5 del 3'UTR, así que sobre el humano devuelve `None` y sus dos `ATTAAA` (`3utr:955` y `3utr:1167`) siguen clasificadas por **canonicidad y sin un solo dato de uso**. Es exactamente donde estaba el ratón antes de mirar PolyA_DB — y allí el modo sin medida resultó ser el **equivocado**. **La entrada existe y quedó pendiente** desde que se miró la murina: es la misma consulta cambiando la especie en el selector | se sube por el gestor |
 | parental SIN INTRÓN (donante y aceptor fuera) | techo de expresión para el empalme; `aav_casete.fa` NO vale, lleva el intrón vacío de 82 nt | — |
 | tabla de expresión | ponderar la carga de seed | `--expresion` |

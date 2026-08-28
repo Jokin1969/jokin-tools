@@ -615,3 +615,46 @@ Se declaran porque la alternativa es peor —leerlas en el código y creer que c
 una dice **qué haría falta** para que corriera. Sin eso sería una lista de excusas en vez
 de una lista de deudas. Y una entrada que deja de hacer falta **caduca**, como las de
 alcanzabilidad.
+
+---
+
+## 16 — La disposición de una pantalla AFIRMA algo, y eso también se deriva
+
+Un formulario no es neutro. Poner cuatro cosas en el mismo paso, antes de un botón, dice
+**«hacen falta las cuatro para pulsarlo»** — y lo dice con más fuerza que cualquier texto,
+porque nadie lee un texto para saber en qué orden se hacen las cosas: lo lee del orden.
+
+El paso 3 de la interfaz pedía **los siete frentes** antes de diseñar. Ninguna frase
+afirmaba que hicieran falta; la **disposición** sí. Y era falso: para obtener candidatos
+no hace falta ninguno —la anatomía sale del `.gb`, los filtros biofísicos corren solos—.
+Lo que esos ficheros deciden es **cuáles caen**, no cuáles salen. Presentarlos juntos
+producía una espera que no tenía que existir: *no puedo empezar hasta reunirlo todo*.
+
+### La regla
+
+Una afirmación implícita en la disposición se **deriva** y se **comprueba**, igual que un
+número. Aquí:
+
+- «para diseñar hoy no hace falta ningún fichero» **no se escribe**: la lista del paso 3
+  se filtra de `species.required_files`, y hay un test que **corre el diseño con el
+  directorio de referencia vacío** y comprueba que salen candidatos. El día que algo pase
+  a hacer falta para tilar, el test lo dice y el paso 3 lo enseña solo;
+- «estos ficheros no cambian cuáles son, cambian cuáles sobreviven» **está medida**: el
+  conjunto de elegibles con cualquier fichero de referencia es un **subconjunto** del que
+  sale sin ninguno —ninguno inventa un candidato— y lo que quita cada uno está contado
+  (PolyA_DB 17, `mature.fa` 2, la máscara murina 0, y ese 0 es un hecho del 3'UTR del
+  ratón, no una propiedad del fichero).
+
+Es el principio nº 11 —cuando código y prosa discrepan, la prosa es la que se ha quedado
+atrás— aplicado a algo que **no es prosa**: la maquetación envejece igual, y encima sin
+una frase que alguien pueda ir a corregir.
+
+### El corolario del color
+
+Cuatro estados que decir algo distinto tienen que **verse** distintos, siempre igual, con
+la leyenda al principio y no detrás de un tooltip. Y al revés: dos cosas que no son lo
+mismo no pueden compartir color. `apa_medido.tsv` salía en el mismo ámbar que
+`refseq_rna.fa` —uno no hace falta y el otro sí— y eso manda a buscar un fichero que ya
+sobra (errata nº 30). Por eso `NO USADO` es un estado propio, y por eso el color lo pone
+`presentation.py` con tests y no la página: un color elegido en la página es una decisión
+sin test, y las decisiones sin test es donde reaparece todo esto.

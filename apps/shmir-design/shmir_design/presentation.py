@@ -2016,19 +2016,305 @@ def accept_reference_upload(
     }
 
 
+# ═════════════════ LOS FICHEROS DE REFERENCIA SON DOS MOMENTOS ═════════════════
+#
+# El paso 3 pedia los siete frentes a la vez, antes de diseñar, como si todos sirvieran
+# para lo mismo. No sirven para lo mismo, y presentarlos juntos hace creer que sin ellos
+# no se puede empezar — que es FALSO: se puede diseñar hoy y refinar mañana.
+#
+#   - MOMENTO 1, obtener candidatos. Le hace falta la secuencia y su anatomia, y nada
+#     mas. Los filtros biofisicos y la prediccion de polyA corren sin ningun fichero
+#     externo. HOY LA LISTA ESTA VACIA, y eso no se declara: `tests/test_dos_momentos.py`
+#     corre el diseño con el directorio de referencia VACIO y comprueba que salen
+#     candidatos. El dia que algo pase a hacer falta para tilar, el test lo dice.
+#   - MOMENTO 2, refinar y descartar. `mature.fa`, `transcriptoma_3utr.fa`,
+#     `refseq_rna.fa`, la tabla de PolyA_DB… Estos no cambian QUE candidatos salen:
+#     cambian que veredicto lleva cada uno y CUALES ACABAN CAYENDO.
+#
+# La frase del momento 2 tambien esta MEDIDA, no afirmada: el conjunto de elegibles con
+# cualquier fichero de referencia es un SUBCONJUNTO del que sale sin ninguno —ninguno
+# inventa un candidato— y lo que quita cada uno esta contado (PolyA_DB 17, `mature.fa`
+# 2, la mascara murina 0 porque el 3'UTR del raton no tiene ni un repetitivo). Una prosa
+# sobre la que el codigo puede discrepar es la que se queda atras, y es la que alguien
+# va a leer: principio nº 11.
+
+WHY_TWO_MOMENTS = (
+    "Son dos momentos y no uno. Para OBTENER candidatos hace falta la secuencia y su "
+    "anatomía, y nada más. Los ficheros de refinamiento no cambian qué candidatos "
+    "salen: cambian qué veredicto lleva cada uno y cuáles acaban cayendo. Pedirlos "
+    "todos antes de diseñar hace creer que sin ellos no se puede empezar."
+)
+
+#: La frase que abre el paso 5. Va EN LA SECCION y no en un tooltip: lo que hay que
+#: entender para leer bien la lista no puede estar detrás de un gesto.
+REFINEMENT_FRAMING = (
+    "Los candidatos ya están. Estos ficheros no cambian cuáles son, cambian cuáles "
+    "sobreviven."
+)
+
+#: Lo que le pasa a un frente que no se cierra. Va POR FILA y con estas palabras: es la
+#: cuarta pregunta del criterio de aceptacion —«¿que pasa si no lo consigo?»— y su
+#: respuesta no es «nada».
+WHAT_IF_IT_NEVER_ARRIVES = (
+    "Su frente se queda en NOT_RUN y los candidatos, en INCOMPLETE. No bloquea el "
+    "diseño: bloquea aprobarlo."
+)
+WHAT_IF_OPTIONAL_NEVER_ARRIVES = (
+    "Nada se queda sin correr. El filtro corre igual y sin este fichero da un número "
+    "menos afinado, no un hueco."
+)
+WHAT_IF_UNUSED_NEVER_ARRIVES = (
+    "Nada. Su frente ya está cerrado por otro fichero, así que conseguirlo no cambiaría "
+    "ningún veredicto."
+)
+
+#: LOS CUATRO ESTADOS, CONSTANTES. Siempre los mismos cuatro, siempre el mismo color, y
+#: la leyenda al principio de la seccion. La pagina no elige ninguno: si eligiera un
+#: color segun un umbral, eso seria logica en la pagina (regla 6).
+#:
+#: «NO USADO» existe porque el panel pedia `apa_medido.tsv` en ambar con
+#: `polya_db_mouse.tsv` ya en el deposito: dos ficheros que cierran el MISMO frente, y
+#: el que sobra se leia como trabajo pendiente. Una alternativa que no hace falta y una
+#: cosa que falta de verdad no pueden tener el mismo color.
+REFINEMENT_STATES = (
+    {
+        "estado": "CERRADO",
+        "color": "verde",
+        "marca": "🟢",
+        "significa": "está en el depósito y se está usando. Su frente puede correr.",
+    },
+    {
+        "estado": "FALTA",
+        "color": "ámbar",
+        "marca": "🟠",
+        "significa": (
+            "no está, y su frente no se puede cerrar sin él: NOT_RUN, y los candidatos "
+            "INCOMPLETE."
+        ),
+    },
+    {
+        "estado": "OPCIONAL",
+        "color": "gris",
+        "marca": "⚪",
+        "significa": (
+            "no está, y no bloquea nada: refina un filtro que corre igual sin él."
+        ),
+    },
+    {
+        "estado": "NO USADO",
+        "color": "gris claro",
+        "marca": "⚫",
+        "significa": (
+            "no está y NO hace falta: otro fichero ya cierra su frente. No es trabajo "
+            "pendiente."
+        ),
+    },
+)
+
+_COLOR = {e["estado"]: (e["color"], e["marca"]) for e in REFINEMENT_STATES}
+
+
+def design_files_rows(species: str, *, directory) -> dict[str, object]:
+    """MOMENTO 1: los ficheros imprescindibles para OBTENER candidatos.
+
+    Hoy la lista sale vacía, y no porque esté escrito: se deriva de `required_files`
+    filtrando los que hacen falta ANTES de tilar, que hoy no es ninguno — la anatomía
+    sale del `.gb` del paso 2. Hay un test que corre el diseño con el directorio vacío
+    y comprueba que salen candidatos, así que el día que algo pase a hacer falta aquí,
+    la suite lo dice en vez de que este texto envejezca solo.
+    """
+    filas = [
+        fila
+        for fila in _refinement_rows(species, directory=directory)
+        if fila["momento"] == 1
+    ]
+    if filas:
+        texto = (
+            f"Hacen falta {len(filas)} fichero(s) antes de poder obtener candidatos: "
+            + ", ".join(f["nombre"] for f in filas)
+            + "."
+        )
+    else:
+        texto = (
+            "Ninguno. La anatomía sale del `.gb` del paso 2, y los filtros biofísicos "
+            "—GC, homopolímero, G4 y asimetría— no necesitan ningún fichero. Se puede "
+            "diseñar ya: lo que hace falta para REFINAR se pide después, en el paso 5."
+        )
+    return {"filas": filas, "hacen_falta": len(filas), "texto": texto}
+
+
+def refinement_panel(species: str, *, directory) -> dict[str, object]:
+    """MOMENTO 2: los ficheros que deciden qué candidatos CAEN.
+
+    Se pinta DESPUES del botón de diseñar y debajo de los resultados. Trae la frase de
+    encuadre, el contador de frentes con su fracción para la barra, la leyenda de los
+    cuatro estados y las filas YA ordenadas por impacto.
+    """
+    resumen = reference_panel_summary(species, directory=directory)
+    cerrados, total = resumen["cerrables"], resumen["total"]
+    filas = [
+        fila
+        for fila in _refinement_rows(species, directory=directory)
+        if fila["momento"] == 2
+    ]
+    return {
+        "frase": REFINEMENT_FRAMING,
+        "progreso": {
+            "cerrados": cerrados,
+            "total": total,
+            "fraccion": cerrados / total if total else 0.0,
+            "texto": f"{cerrados} de {total} frentes cerrados",
+        },
+        "leyenda": list(REFINEMENT_STATES),
+        "filas": filas,
+    }
+
+
+def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
+    """Una fila por fichero, con su estado, su grupo y si va colapsada.
+
+    EL ORDEN ES POR IMPACTO, no alfabético: primero lo que cierra un frente, luego lo
+    opcional, y dentro de cada grupo lo resuelto ABAJO. Alfabético pone `aav_casete.fa`
+    delante de `transcriptoma_3utr.fa` sin ninguna razón, y quien entra a este panel
+    entra a saber qué le falta.
+    """
+    from .species import fixture_report, resolve  # noqa: PLC0415
+
+    especie = resolve(species)
+    informe = fixture_report(especie, have=_presentes(directory))
+    # Que frentes estan cerrados y CON QUE fichero. De aqui sale «NO USADO»: una fila
+    # cuyo frente ya cierra OTRO fichero que si esta no es trabajo pendiente.
+    cerrado_por: dict[str, list[str]] = {}
+    presentes = set(_presentes(directory))
+    for frente in informe.rows:
+        if frente.available:
+            for clave in frente.keys:
+                cerrado_por[clave] = [f for f in frente.files if f in presentes]
+
+    filas = []
+    for fila in reference_manager_rows(species, directory=directory):
+        estado = _estado_de(fila, cerrado_por, presentes)
+        color, marca = _COLOR[estado]
+        opcional = not fila["obligatorio"]
+        bloquea = estado == "FALTA"
+        filas.append(
+            {
+                **fila,
+                # Hoy ninguno es del momento 1. Se deja DERIVADO y no escrito a cero:
+                # un fichero que pasara a hacer falta para tilar tiene que poder subir
+                # al paso 3 cambiando `required_files`, no editando dos sitios.
+                "momento": 1 if fila["role"] in _ROLES_PARA_DISEÑAR else 2,
+                "estado": estado,
+                "color": color,
+                "marca": marca,
+                "bloquea": bloquea,
+                "grupo": 1 if opcional else 0,
+                "resuelta": 0 if estado in {"FALTA", "OPCIONAL"} else 1,
+                "colapsada": estado in {"CERRADO", "NO USADO"},
+                # Que frentes cierra, EN LA FILA. El panel ya no agrupa por frente
+                # —el orden es por impacto—, asi que si el frente no viaja en la fila
+                # deja de verse: un fichero sin frente visible es un fichero que no se
+                # sabe para que sirve.
+                "frentes_texto": ", ".join(fila["frentes"]) or "—",
+                "por_que": _por_que(fila, estado, cerrado_por),
+                "si_no_llega": (
+                    WHAT_IF_IT_NEVER_ARRIVES if bloquea
+                    else WHAT_IF_OPTIONAL_NEVER_ARRIVES if estado == "OPCIONAL"
+                    else WHAT_IF_UNUSED_NEVER_ARRIVES if estado == "NO USADO"
+                    # Un fichero que YA esta no tiene «si no llega»: la pregunta no se
+                    # le hace. Vacio aqui es NO_APLICA, no un hueco.
+                    else ""
+                ),
+            }
+        )
+    return sorted(filas, key=lambda f: (f["grupo"], f["resuelta"], f["nombre"]))
+
+
+#: Los roles cuyo fichero hace falta ANTES de tilar. Vacio, y comprobado corriendo el
+#: diseño sin ninguno (`tests/test_dos_momentos.py`). No es una lista que se rellene a
+#: ojo: si algo entra aqui, el test del directorio vacio tiene que dejar de pasar.
+_ROLES_PARA_DISEÑAR: frozenset[str] = frozenset()
+
+
+def _presentes(directory):
+    from pathlib import Path  # noqa: PLC0415
+
+    from .presencia import ficheros_con_contenido  # noqa: PLC0415
+
+    return tuple(sorted(ficheros_con_contenido(Path(directory))))
+
+
+def _estado_de(fila, cerrado_por, presentes) -> str:
+    """Los cuatro estados, derivados de dos hechos: si está, y si su frente ya cierra.
+
+    El orden de las ramas importa: una alternativa no usada tiene que decidirse ANTES de
+    caer en «FALTA», que es justo lo que pasaba con `apa_medido.tsv`.
+    """
+    if fila["estado"] == "presente":
+        return "CERRADO"
+    if not fila["obligatorio"]:
+        return "OPCIONAL"
+    otros = [
+        f
+        for clave in fila["frentes"]
+        for f in cerrado_por.get(clave, ())
+        if f != fila["nombre"]
+    ]
+    # TODOS sus frentes cerrados por otro, no alguno: un fichero que cierra dos frentes
+    # y solo tiene uno cubierto sigue haciendo falta.
+    if fila["frentes"] and all(cerrado_por.get(c) for c in fila["frentes"]) and otros:
+        return "NO USADO"
+    return "FALTA"
+
+
+def _por_que(fila, estado: str, cerrado_por) -> str:
+    """Por que esta fila esta en ese estado, con el nombre del fichero que lo decide."""
+    if estado == "CERRADO":
+        return f"Está en el depósito. Desbloquea: {fila['que_desbloquea']}."
+    if estado == "OPCIONAL":
+        return (
+            f"No bloquea nada: {fila['que_desbloquea']}. El filtro corre sin él y con "
+            f"él afina."
+        )
+    if estado == "NO USADO":
+        otros = sorted(
+            {
+                f
+                for clave in fila["frentes"]
+                for f in cerrado_por.get(clave, ())
+                if f != fila["nombre"]
+            }
+        )
+        return (
+            f"Su frente ya está cerrado por {', '.join(otros)}. Es una ALTERNATIVA que "
+            f"no hace falta conseguir, no algo pendiente."
+        )
+    return f"Falta, y sin él no se puede cerrar: {fila['que_desbloquea']}."
+
+
 # ───────────────────────── la primera pantalla, en cuatro pasos ─────────────────────────
 
 
-def steps_rows(*, species: str, sequence_loaded: bool, directory) -> list[dict[str, object]]:
-    """Los cuatro pasos, en orden, con lo que falta en cada uno.
+def steps_rows(
+    *, species: str, sequence_loaded: bool, directory, designed: bool = False
+) -> list[dict[str, object]]:
+    """Los CINCO pasos, en orden, con lo que falta en cada uno.
 
-    El paso 3 dice cuantos frentes se van a poder cerrar ANTES de ejecutar nada: es lo
-    que permite decidir si se sigue o se va a buscar un fichero primero. Y NO bloquea —
-    un frente abierto deja los candidatos en INCOMPLETE, que es informacion, no un veto.
+    Son cinco desde que los ficheros de referencia se partieron en sus DOS MOMENTOS (ver
+    `WHY_TWO_MOMENTS`): el paso 3 pide solo lo imprescindible para OBTENER candidatos
+    —hoy, nada— y el paso 5 los que deciden cuales caen. El 5 va DESPUES del boton y
+    solo se ve con `designed=True`: antes de diseñar no hay candidatos que refinar, y
+    enseñarlo arriba es lo que hacia creer que habia que reunirlo todo para empezar.
+
+    Ninguno de los dos BLOQUEA — un frente abierto deja los candidatos en INCOMPLETE,
+    que es informacion, no un veto.
     """
     elegida = bool(str(species).strip()) and str(species).strip() != OTHER_SPECIES
     resumen = (
         reference_panel_summary(species, directory=directory) if elegida else None
+    )
+    diseñar = (
+        design_files_rows(species, directory=directory) if elegida else None
     )
     return [
         {
@@ -2036,6 +2322,7 @@ def steps_rows(*, species: str, sequence_loaded: bool, directory) -> list[dict[s
             "titulo": "Especie",
             "hecho": elegida,
             "abierto": not elegida,
+            "visible": True,
             "cerrables": None,
             "total_frentes": None,
             "detalle": (
@@ -2053,6 +2340,7 @@ def steps_rows(*, species: str, sequence_loaded: bool, directory) -> list[dict[s
             "titulo": "Secuencia",
             "hecho": bool(sequence_loaded),
             "abierto": elegida and not sequence_loaded,
+            "visible": True,
             "cerrables": None,
             "total_frentes": None,
             "detalle": (
@@ -2063,32 +2351,53 @@ def steps_rows(*, species: str, sequence_loaded: bool, directory) -> list[dict[s
         },
         {
             "numero": 3,
-            "titulo": "Ficheros de referencia",
-            "hecho": bool(resumen and not resumen["abiertos"]),
-            "abierto": elegida,
-            "cerrables": resumen["cerrables"] if resumen else None,
-            "total_frentes": resumen["total"] if resumen else None,
+            "titulo": "Ficheros de referencia — para diseñar",
+            # HECHO cuando no hace falta ninguno, que es hoy. Antes estaba atado a que
+            # no quedara NINGUN frente abierto, asi que el paso 3 se quedaba abierto
+            # para siempre y se leia como algo que falta para poder seguir.
+            "hecho": bool(diseñar and not diseñar["hacen_falta"]),
+            "abierto": elegida and bool(diseñar and diseñar["hacen_falta"]),
+            "visible": True,
+            "cerrables": None,
+            "total_frentes": None,
             "detalle": (
-                f"Con lo que hay se pueden cerrar {resumen['cerrables']} de "
-                f"{resumen['total']} {FRONT_COUNT_NAME}. Los demas quedan en NOT_RUN, "
-                f"VISIBLE en la tabla de candidatos. Sube lo que falte en el panel de la "
-                f"barra lateral: cada fichero trae la ficha que dice de donde sale. "
-                f"{FRONTS_VS_FILTERS}"
-                if resumen
+                f"Sólo lo imprescindible para obtener candidatos. {diseñar['texto']}"
+                if diseñar
                 else "Elige la especie primero: los ficheros que hacen falta dependen de ella."
             ),
         },
         {
             "numero": 4,
             "titulo": "Diseñar",
-            "hecho": False,
+            "hecho": bool(designed),
             "abierto": elegida and bool(sequence_loaded),
+            "visible": True,
             "cerrables": None,
             "total_frentes": None,
             "detalle": (
                 "Se puede diseñar con frentes abiertos: los candidatos saldran "
                 "INCOMPLETE y cada frente sin correr sale NOT_RUN en su columna. NOT_RUN "
                 "no es PASS, y no haber contado no es contar cero."
+            ),
+        },
+        {
+            "numero": 5,
+            "titulo": "Refinamiento",
+            "hecho": bool(resumen and not resumen["abiertos"]),
+            "abierto": bool(designed and resumen and resumen["abiertos"]),
+            # SOLO DESPUES DE DISEÑAR. Antes de haber diseñado no hay candidatos que
+            # refinar, y ponerlo arriba con los demas es lo que hacia creer que sin
+            # estos ficheros no se puede empezar.
+            "visible": bool(designed),
+            "cerrables": resumen["cerrables"] if resumen else None,
+            "total_frentes": resumen["total"] if resumen else None,
+            "detalle": (
+                f"Los candidatos de arriba son PROVISIONALES. Cada fichero de esta "
+                f"sección cierra un frente y puede tumbar alguno. "
+                f"{resumen['cerrables']} de {resumen['total']} frentes cerrados. "
+                f"{FRONTS_VS_FILTERS}"
+                if resumen
+                else "Elige la especie primero: los ficheros que hacen falta dependen de ella."
             ),
         },
     ]

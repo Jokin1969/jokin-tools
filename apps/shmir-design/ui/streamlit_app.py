@@ -85,6 +85,10 @@ from shmir_design.presentation import (  # noqa: E402
     splice_scan_from_result,
     splice_warning_rows,
     WHY_NO_GLOBAL_TOGGLE,
+    REFINEMENT_FRAMING,
+    WHY_TWO_MOMENTS,
+    design_files_rows,
+    refinement_panel,
     accept_reference_upload,
     reference_panel_rows,
     reference_panel_summary,
@@ -711,17 +715,36 @@ def _fila_ausente(fila, directorio) -> None:
         st.caption(fila["ficha"]["texto"])
 
 
-def _panel_referencias(especie: str) -> None:
-    """El GESTOR de ficheros de referencia. UNA tabla: presentes y ausentes juntos.
+def _deposito_opcional(especie: str) -> None:
+    """El deposito, alcanzable antes de diseñar — pero como acceso SECUNDARIO.
 
-    Antes eran dos listas en dos sitios y había que mirar dos veces para saber en qué
-    punto estabas. Y sobre lo que ya estaba no se podía hacer nada: el fichero entraba y
-    dejaba de ser tuyo.
+    El paso 5 solo aparece despues de haber diseñado, y esa es la decision. Pero dejar
+    el gestor SOLO ahi dentro quitaba la unica via de subir un fichero a quien acaba de
+    abrir la app, y este proyecto tiene decidido que **todo se sube por la interfaz**
+    porque quien la usa no conoce el arbol del repositorio.
 
-    La página no valida, no calcula ningún md5, no decide qué botones tocan y no sabe qué
-    invalida qué: todo eso está en `gestor.py`, con tests. Aquí sólo se pinta.
+    Va COLAPSADO y con el titulo diciendo que no hace falta para diseñar: asi se puede
+    depositar antes, sin que la pantalla vuelva a leerse como una lista de requisitos.
     """
-    st.header("Ficheros de referencia")
+    with st.expander(
+        "Depositar ficheros de referencia (no hace falta ninguno para diseñar)",
+        expanded=False,
+    ):
+        _panel_refinamiento(especie)
+
+
+def _panel_refinamiento(especie: str) -> None:
+    """PASO 5. Los ficheros que deciden que candidatos CAEN, DESPUES de los resultados.
+
+    Antes esto era el paso 3 y se pedia entero antes de diseñar, como si los siete
+    frentes sirvieran para lo mismo. No sirven: para obtener candidatos no hace falta
+    ninguno. Ver `presentation.WHY_TWO_MOMENTS`.
+
+    La pagina no decide nada aqui (regla 6): el estado de cada fila, su color, el orden
+    y si va colapsada salen de `presentation.refinement_panel`, con tests. Si el color
+    lo eligiera la pagina segun un umbral, eso seria logica sin test — y un panel que
+    pinta en ambar algo que no hace falta manda a buscar un fichero que ya sobra.
+    """
     if not especie:
         st.caption(
             "Elige una especie: los ficheros que hacen falta —y cómo se llaman— "
@@ -730,28 +753,44 @@ def _panel_referencias(especie: str) -> None:
         return
 
     directorio = reference_dir()
-    resumen = reference_panel_summary(especie, directory=directorio)
+    panel = refinement_panel(especie, directory=directorio)
+
+    # La frase de encuadre, EN LA SECCION y no en un tooltip: lo que hace falta para
+    # leer bien la lista no puede estar detras de un gesto.
+    st.info(panel["frase"])
+    st.progress(panel["progreso"]["fraccion"], text=panel["progreso"]["texto"])
     st.caption(
-        f"{resumen['cerrables']} de {resumen['total']} frentes cerrables con lo que hay."
+        " · ".join(
+            f"{e['marca']} **{e['estado']}** {e['significa']}" for e in panel["leyenda"]
+        )
     )
+    st.caption(WHY_NO_GLOBAL_TOGGLE)
     if is_declared():
         st.caption(f"Se guardan en `{directorio}`. {WHY_A_WORKING_DIR}")
 
-    filas = reference_manager_rows(especie, directory=directorio)
+    filas = panel["filas"]
     if filas and filas[0]["aviso_manifiesto"]:
         st.error(f"**Manifiesto ilegible** — {filas[0]['aviso_manifiesto']}")
 
-    frente_actual = ""
     for fila in filas:
-        if fila["frente"] != frente_actual:
-            frente_actual = fila["frente"]
-            st.subheader(frente_actual or "sin frente")
+        titular = (
+            f"{fila['marca']} **{fila['nombre']}** · {fila['frentes_texto']} — "
+            f"{fila['por_que']}"
+        )
+        if fila["colapsada"]:
+            # UNA LINEA, pero CON SUS BOTONES: colapsar es no ocupar sitio, no dejar de
+            # poder ver, reemplazar, borrar o descargar lo que ya esta.
+            with st.expander(titular, expanded=False):
+                st.caption(fila["resumen"])
+                if fila["acciones"]:
+                    _fila_presente(fila, directorio)
+                else:
+                    st.caption(fila["si_no_llega"])
+            continue
         with st.container(border=True):
-            st.markdown(f"{fila['marca']} **{fila['nombre']}** — {fila['resumen']}")
-            if fila["estado"] == "presente":
-                _fila_presente(fila, directorio)
-            else:
-                _fila_ausente(fila, directorio)
+            st.markdown(titular)
+            st.caption(fila["si_no_llega"])
+            _fila_ausente(fila, directorio)
 
 
 def main() -> None:
@@ -897,29 +936,34 @@ def main() -> None:
             ),
         )
 
-    # ── PASO 3 · FICHEROS DE REFERENCIA ─────────────────────────────────────────
+    # ── PASO 3 · FICHEROS DE REFERENCIA, LOS DE DISEÑAR ─────────────────────────
     #
-    # El recuento va AQUI, antes de ejecutar nada: es lo que permite decidir si se sigue
-    # o se va a buscar un fichero primero.
-    st.subheader("3) Ficheros de referencia")
+    # SOLO lo imprescindible para OBTENER candidatos, que hoy es nada. Los que deciden
+    # cuales CAEN van en el paso 5, DESPUES del boton: pedirlos todos aqui hacia creer
+    # que sin ellos no se puede empezar, y eso es falso — se puede diseñar hoy y refinar
+    # mañana. Ver `presentation.WHY_TWO_MOMENTS`.
     pasos = steps_rows(
         species=nombre_modelo,
         sequence_loaded=modelo is not None,
         directory=reference_dir(),
+        designed=st.session_state.get("accion") == "diseñar",
     )
+    st.subheader(f"3) {pasos[2]['titulo']}")
     st.info(pasos[2]["detalle"])
-    # UNA sola tabla. Antes esto eran DOS sitios —la lista de frentes abiertos aquí y el
-    # panel de subida en la barra lateral— y había que mirar dos veces para saber en qué
-    # punto estabas. El gestor los junta: presentes y ausentes, ordenados por frente, con
-    # lo que se puede hacer con cada uno en su propia fila.
-    st.caption(WHY_NO_GLOBAL_TOGGLE)
-    _panel_referencias(nombre_modelo)
+    # Por que son DOS pasos y no uno. Va aqui, donde se nota la ausencia de la lista
+    # larga: sin esta frase, un paso 3 vacio se lee como un paso que no hace nada.
+    st.caption(WHY_TWO_MOMENTS)
+    for fila in design_files_rows(nombre_modelo, directory=reference_dir())["filas"]:
+        with st.container(border=True):
+            st.markdown(f"{fila['marca']} **{fila['nombre']}** — {fila['por_que']}")
+            _fila_ausente(fila, reference_dir())
 
     if not modelo:
         st.info(
             "Sube al menos un FASTA de mRNA para seguir. Con dos se buscan además los "
             "bloques conservados entre ellos."
         )
+        _deposito_opcional(nombre_modelo)
         return
     if diana and not nombre_diana:
         st.error(
@@ -1016,6 +1060,7 @@ def main() -> None:
             "Todo listo. **Estimar coste** dice cuanto va a tardar sin diseñar nada; "
             "**Diseñar** lanza la corrida."
         )
+        _deposito_opcional(nombre_modelo)
         return
 
     try:
@@ -1101,6 +1146,18 @@ def main() -> None:
     )
     for nombre, contenido in sorted(ficheros.items()):
         st.download_button(nombre, contenido, nombre, "text/plain", key=f"dl_{nombre}")
+
+    # ── PASO 5 · REFINAMIENTO ───────────────────────────────────────────────────
+    #
+    # AQUI ABAJO y no arriba: los candidatos de mas arriba son PROVISIONALES, y cada
+    # fichero de esta seccion puede tumbar alguno. Puesto antes del boton se leia como
+    # una lista de requisitos para empezar.
+    quinto = pasos[4]
+    if quinto["visible"]:
+        st.divider()
+        st.subheader(f"5) {quinto['titulo']}")
+        st.caption(quinto["detalle"])
+        _panel_refinamiento(nombre_modelo)
 
 
 if __name__ == "__main__":

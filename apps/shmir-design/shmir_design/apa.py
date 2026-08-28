@@ -999,6 +999,43 @@ WHERE_THE_MOUSE_TABLE_LIVES = (
 )
 
 
+#: LOS DOS ROLES DE APA SIGUEN VIVOS, Y NO SON EL MISMO HUECO. REVISADO 2026-08-27.
+#:
+#: La pregunta era legitima: con `polyadb` en el gestor, ¿para que sigue existiendo el
+#: rol `apa` (`apa_medido_{slug}.tsv`)? Se ha mirado que CARGA cada uno y adonde va, y
+#: no son dos formatos del mismo fichero:
+#:
+#:   - `polya_db_{slug}.tsv` → `MeasuredFraction`. Es PolyA_DB EN CRUDO: coordenadas
+#:     GENOMICAS, clase declarada, PSE y AvgRPM. Hay que anclarlo —los cuatro puntos a
+#:     la vez, con el mismo desfase— y se aplica por md5 del 3'UTR. De el sale la
+#:     PROMOCION POR MEDIDA de una señal y el techo POR TRAMOS.
+#:   - `apa_medido_{slug}.tsv` → `ApaSites`. Son posiciones YA CONVERTIDAS a coordenadas
+#:     de 3'UTR con su fraccion de lecturas. No ancla nada y no promueve ninguna señal:
+#:     alimenta `apa_assessment`, que da el riesgo por ventana y el techo de knockdown.
+#:
+#: Y NO es que uno no vaya a usarse nunca en raton: su caso es exactamente el fichero
+#: que este proyecto tiene pendiente —3'-end seq de cerebro MURINO—, que es la medida
+#: EN NUESTRO TEJIDO. PolyA_DB no la puede dar: su 0,86 es de TODOS los tejidos y por
+#: eso se declara como limite inferior. O sea que el rol se queda, y su hueco esta
+#: nombrado en la tabla de «Ficheros que faltan».
+#:
+#: LO QUE SI HAY QUE DECIR, Y VA AQUI EN VEZ DE CALLARSE: hoy los dos producen un techo
+#: de knockdown por caminos INDEPENDIENTES —`apa_assessment` no mira la tabla de
+#: PolyA_DB y `resolve_measured` no mira los sitios convertidos— y NADA obliga a que
+#: coincidan. Es el patron de los dos contadores del mismo suceso, el mismo que ata un
+#: test entre `seed_load.seed_load` y `offtarget`. Aqui ese test no se puede escribir
+#: todavia: el segundo fichero NO EXISTE, y fabricarlo para tenerlo seria inventarse la
+#: medida (regla 5). Queda declarado: el dia que llegue el 3'-end seq, lo primero es
+#: cruzar los dos techos, no enchufarlo.
+APA_ARE_TWO_FILES = (
+    "El frente del APA lo cierra cualquiera de dos ficheros, y no son el mismo con otro "
+    "nombre: `polya_db_<especie>.tsv` es PolyA_DB en crudo —coordenadas genómicas, PSE "
+    "y AvgRPM— y de él sale la promoción por medida; `apa_medido_<especie>.tsv` es una "
+    "medida que llega ya convertida a coordenadas de 3'UTR, que es el caso de un "
+    "3'-end seq del tejido. Con uno de los dos el frente está cerrado."
+)
+
+
 # ─── El techo deja de ser UNO: con tres sitios va POR TRAMOS ─────────────────
 #
 # Un solo numero (0,86) responde a «cuanta isoforma larga hay», que es la pregunta del
