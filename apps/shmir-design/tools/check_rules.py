@@ -303,6 +303,31 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
 
+    # LOS GUARDIAS, Y CUANDO CORRE CADA UNO (2026-08-27). Va aqui por lo mismo: un
+    # informe que hay que acordarse de pedir es un informe que nadie pide. Y lo que
+    # senala —INGESTA + puede degradarse + nada lo revalida— son los SIGUIENTES en
+    # fallar, asi que tiene que verse en cada tanda y no cuando alguien se acuerde.
+    from auditar_guardias import auditar as auditar_guardias
+
+    guardias = auditar_guardias()
+    print()
+    print("  Guardias, por cuándo corren:")
+    for momento in ("INGESTA", "CADA_CORRIDA", "AL_EMITIR", "AL_ABRIR", "AL_CONSTRUIR"):
+        print(f"    {len(guardias['momentos'][momento]):3}  {momento}")
+    print(f"    {len(guardias['riesgo']):3}  ⚠  INGESTA + se degrada + NADA lo revalida")
+    for fila in guardias["riesgo"]:
+        print(f"         · {fila['guardia']}")
+    print(f"    {len(guardias['solo_suite']):3}  ⚠  sólo los revalida la SUITE")
+    for fila in guardias["solo_suite"]:
+        print(f"         · {fila['guardia']}")
+    for etiqueta, filas in (
+        ("guardias sin cubrir", guardias["sin_cubrir"]),
+        ("entradas fantasma", guardias["fantasmas"]),
+        ("guardias que ya no abortan", guardias["mudos"]),
+    ):
+        if filas:
+            print(f"\n  {etiqueta.upper()}: {', '.join(filas)}", file=sys.stderr)
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "

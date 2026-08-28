@@ -838,3 +838,56 @@ decisión y tiene que verse en el diff.
 
 Y deja dos principios, el **nº 12** y el **nº 13**, porque el mecanismo no era de esta
 constante: era del método.
+
+---
+
+## 28 — Tres niveles del mismo dato transcrito, cada uno mintiendo por su cuenta
+
+De la errata nº 27 salió el mecanismo; de arreglarlo salió esto, que es el mismo
+mecanismo **repetido en capas**. La tabla de PolyA_DB tenía tres sitios diciendo cuál era
+su hueco en el gestor, y **los tres estaban mal, cada uno de una forma distinta**:
+
+**Nivel 1 — la FICHA describía otro fichero.** `fraccion_isoforma_larga.toml` explicaba
+PolyA_DB de arriba abajo: su URL, sus dos tablas, sus columnas `PSE_3'READS` y
+`AvgRPM_3READS` por su nombre, el aviso de que las coordenadas son genómicas. Y el rol al
+que iba enganchada carga **otro formato**: tres columnas, `posicion/fraccion/nombre`, con
+la posición ya convertida. Lo que el texto mandaba preparar y lo que el cargador sabe
+leer eran cosas distintas.
+
+**Nivel 2 — el LISTADO no nombraba el fichero que la ficha describía.** El único
+`[[ficheros]]` de esa ficha era el del otro formato. O sea que la ficha explicaba cómo
+conseguir un fichero que **no aparecía en su propia lista**.
+
+**Nivel 3 — los NOMBRES estaban transcritos.** La ficha escribía `apa_medido_{slug}.tsv`
+y el gestor pide `apa_medido.tsv` en ratón: la regla de sufijos por especie vivía en dos
+sitios y no coincidían.
+
+### Lo que esto enseña, y es lo que lo convierte en errata y no en tres arreglos
+
+**Un dato transcrito en lugar de derivado no se desincroniza en un sitio: se
+desincroniza en todos los que lo copiaron.** Cada copia envejece por su cuenta y en su
+propia dirección, así que ninguna coincide con las otras y todas parecen plausibles por
+separado. Es lo mismo que ya había pasado con los pares de `EVIDENCE` —la constante, la
+tabla de auditoría y el ancla real, tres orígenes distintos y ninguno correcto— sólo que
+aquí las tres capas estaban una encima de otra sobre el mismo dato.
+
+Y ninguna de las tres daba error: la ficha se **lee**, el cargador se **ejecuta**, y
+nadie los pone uno al lado del otro.
+
+### El tercer nivel destapó tres huecos más
+
+Al escribir `tests/test_ficha_contra_gestor.py` —que cruza, por especie, los ficheros que
+el gestor pide contra los que la ficha nombra— salieron otras tres fichas incompletas:
+la de **especificidad** no nombraba la base de RefSeq como fichero, la de **off-targets**
+no nombraba `expresion_cerebro.tsv`, y la de **colisión de seed** no nombraba la capa
+ampliada de abundancia. Ninguna se buscaba: aparecieron porque el cruce las miró todas.
+
+### Qué se ha hecho
+
+La ficha nombra ahora **el rol** (`{fichero_polyadb}`, `{hermano_rmsk}`) y el nombre lo
+pone `species.required_files`, que es quien lo va a cargar. El informe que se entrega ya
+dice `transcriptoma_3utr.fa` —lo que el cargador busca— en vez de
+`transcriptoma_3utr_mouse.fa`, y el diff del golden es la prueba.
+
+Es el principio nº 13 aplicado un piso más arriba: **lo que se declara es cuál, y el
+nombre lo pone quien lo usa.**
