@@ -777,3 +777,64 @@ como lo que fue, que es distinto.
 
 Ver el corolario del principio nº 3: **cuando el código y la prosa discrepan sobre el
 mismo hecho, la que se ha quedado atrás es la prosa, y es la que alguien va a leer.**
+
+---
+
+## 27 — La contramedida contra el peor fallo del proyecto, apoyada en el dato que ese mismo fallo retiró
+
+**Es la peor de la serie, y no por lo que rompió: por lo que podría haber roto sin que
+nada lo dijera.**
+
+`external_score.EVIDENCE` registra la **dirección** de la escala de miRarchitect —si
+menor es mejor— **con los pares (puesto, score) de los que salió**. Esos cinco pares
+estaban transcritos a mano en el código. Al derivarlos del fichero versionado salió que
+**no eran de ese fichero**: cuadran, uno a uno, con `mirarchitect_prnp_raton.tsv`.
+
+Ese fichero es el que el manifiesto marca **«NO USAR»**. Se puntuó sobre el **3'UTR
+FABRICADO de 1246 nt** — la errata nº 5, la que dejó inservible una corrida entera de
+miRarchitect y se llevó por delante varias tandas persiguiendo hipótesis falsas.
+
+### Por qué esto es peor que un número mal copiado
+
+`lower_is_better()` no es una función cualquiera. Existe **exactamente** para impedir que
+se ordene por un score cuya dirección no se conoce y se manden a síntesis **los peores
+candidatos**. Es la contramedida escrita contra el modo de fallo más caro que este
+proyecto sabe nombrar.
+
+Y estaba apoyada en el dato que el propio fallo retiró.
+
+### La dirección no cambió, y eso es suerte — no un atenuante
+
+Los tres ficheros vienen crecientes en el score, así que la conclusión —menor es mejor—
+es la misma con cualquiera de ellos. Pero eso es una propiedad del dato, no del método.
+**Si la corrida retirada hubiera venido al revés**, hoy tendríamos:
+
+- la dirección **invertida**,
+- **cinco pares de aval** escritos al lado,
+- el test de `EVIDENCE` **en verde** —comprueba que la evidencia es monótona consigo
+  misma, y una evidencia invertida lo es—,
+- `file_order_direction()` derivando del fichero bueno la dirección **contraria** a la
+  registrada… y ahí sí habría abortado. Pero sólo al importar un fichero: `lower_is_better()`
+  a solas habría seguido **aprobando**.
+
+O sea: la mitad de la contramedida habría funcionado, y la otra mitad habría firmado el
+error con cinco pruebas debajo.
+
+### Tres sitios decían de dónde salía el dato, y ninguno acertaba
+
+- la constante decía «corrida manual sobre el 3'UTR de Prnp murino»;
+- `data/datos_en_codigo.toml` decía `mirarchitect_prnp_export.csv`;
+- el ancla real era `mirarchitect_prnp_raton.tsv`.
+
+**Ninguno de los tres era el fichero bueno.** Eso es lo que lo hizo invisible durante
+semanas: cada sitio parecía confirmar a los otros dos.
+
+### Qué se ha hecho
+
+Los pares se **leen** de `mirarchitect_prnp_export_buena.csv` —la corrida sobre el 3'UTR
+verificado— con `read_evidence_pairs`, y salen **todas** las filas: elegir cinco vuelve a
+ser transcribir. Lo único que queda en código es **cuál es el fichero ancla**, que es una
+decisión y tiene que verse en el diff.
+
+Y deja dos principios, el **nº 12** y el **nº 13**, porque el mecanismo no era de esta
+constante: era del método.

@@ -27,7 +27,7 @@ avisos = [
 ]
 
 [[ficheros]]
-nombre = "aav_casete.fa"
+nombre = "{fichero_transgen}"
 por_que = "La secuencia del casete terapeutico. Es la segunda base de especificidad y la única forma de saber si una guía apagaria la propia construcción."
 obligatorio = true
 

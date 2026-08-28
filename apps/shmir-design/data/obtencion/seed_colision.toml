@@ -26,9 +26,14 @@ avisos = [
 ]
 
 [[ficheros]]
-nombre = "mature.fa"
+nombre = "{fichero_mirbase}"
 por_que = "Los maduros de miRBase. De aquí salen las seeds contra las que se compara, y también las de los controles biologicos del frente de carga de off-targets — nunca escritas en el código."
 obligatorio = true
+
+[[ficheros]]
+nombre = "{fichero_abundancia}"
+por_que = "OPCIONAL y solo para el nivel AVISO: la capa AMPLIADA de abundancia en cerebro. El nivel de FAIL duro no lo necesita —corre siempre, con la lista del código y su autorización escrita—. El fichero tiene que traer en cabecera la REFERENCIA y el UMBRAL: sin ellos la capa queda NOT_RUN y no avisa de nada, porque un aviso sin umbral parece un veredicto y no lo es."
+obligatorio = false
 
 [[metadatos]]
 nombre = "release de miRBase"

@@ -2462,13 +2462,10 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
       formatos vivos. La ficha de obtención de `apa_medido.tsv` describía PolyA_DB, que
       es lo que hacía parecer que era el mismo hueco.
     - ~~`external_score.EVIDENCE`~~ → los pares se **leen** de
-      `mirarchitect_prnp_export_buena.csv` (`read_evidence_pairs`). Y al cruzarlos salió
-      lo que un par duplicado siempre acaba enseñando: **los cinco pares transcritos no
-      eran de ese fichero**. Cuadran con `mirarchitect_prnp_raton.tsv`, el que el
-      manifiesto marca **«NO USAR»** por haberse puntuado sobre el 3'UTR fabricado de
-      1246 nt (errata nº 5). La **dirección** no se mueve —los tres ficheros vienen
-      crecientes— pero eso es suerte: si la corrida retirada hubiera venido al revés, la
-      constante habría registrado la dirección contraria **con cinco pares de aval**.
+      `mirarchitect_prnp_export_buena.csv` (`read_evidence_pairs`), y salen **todas** las
+      filas: elegir cinco vuelve a ser transcribir. **Lo que salió al cruzarlo tiene
+      entrada propia** — errata nº 27 y principios nº 12 y nº 13 — y se resume abajo,
+      porque es lo más grave de esta tanda.
     - ~~`reference.REFERENCES`~~ → la **anatomía** entra en el manifiesto: tres columnas
       nuevas (`cds`, `md5_secuencia`, `md5_utr3`). Registraba los FICHEROS y no la
       frontera de la que cuelgan los tercios, la región de cada ventana y la distancia
@@ -2511,6 +2508,80 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - La tabla la ata un test en las dos direcciones, como `alcanzabilidad.toml`: una
     constante sospechosa **sin clasificar** hace fallar la suite, y una entrada **muerta**
     también.
+
+- **LA CONTRAMEDIDA CONTRA EL PEOR FALLO DEL PROYECTO ESTABA APOYADA EN EL DATO QUE ESE
+  MISMO FALLO RETIRÓ (2026-08-27).** Errata nº 27, y es lo más grave que ha salido en
+  esta tanda — no por lo que rompió, sino por lo que podría haber roto sin que nada lo
+  dijera.
+  - `external_score.EVIDENCE` registra la **dirección** de la escala de miRarchitect
+    —si menor es mejor— **con los pares (puesto, score) de los que salió**. Estaban
+    transcritos a mano. Al derivarlos del fichero versionado salió que **no eran de ese
+    fichero**: cuadran, uno a uno, con `mirarchitect_prnp_raton.tsv`, el que el
+    manifiesto marca **«NO USAR»** porque se puntuó sobre el **3'UTR FABRICADO de
+    1246 nt** — la errata nº 5.
+  - **`lower_is_better()` no es una función cualquiera**: existe exactamente para impedir
+    que se ordene por un score de dirección desconocida y **se manden a síntesis los
+    peores candidatos**. Es la contramedida escrita contra el modo de fallo más caro que
+    este proyecto sabe nombrar, y estaba apoyada en el dato que ese fallo retiró.
+  - **La dirección no cambió, y eso es SUERTE, no un atenuante.** Los tres ficheros
+    vienen crecientes. Si la corrida retirada hubiera venido al revés, hoy tendríamos la
+    dirección **invertida**, **cinco pares de aval** al lado, el test de `EVIDENCE` **en
+    verde** —comprueba que la evidencia es monótona consigo misma, y una invertida lo
+    es— y `lower_is_better()` **aprobando**. Sólo habría saltado `file_order_direction`,
+    y sólo al importar un fichero.
+  - **Tres sitios decían de dónde salía el dato y NINGUNO acertaba**: la constante decía
+    «corrida manual sobre el 3'UTR de Prnp murino», `datos_en_codigo.toml` decía
+    `mirarchitect_prnp_export.csv`, y el ancla real era el TSV retirado. Cada uno parecía
+    confirmar a los otros dos: eso es lo que lo hizo invisible durante semanas.
+  - **PRINCIPIO nº 12 — la procedencia de una EVIDENCIA se audita igual que la de un
+    dato.** Un fichero retirado **no se retira solo** de las constantes que lo citan.
+    `tests/test_procedencia_retirada.py` deriva la lista de retirados **del manifiesto**
+    —«NO USAR» o «FIXTURE NEGATIVO»— y barre `shmir_design/` y `tools/` **enteros**, no
+    sólo `EVIDENCE`. Si mañana se retira otro fichero, queda cubierto sin tocar el test.
+    - **Nombrar un retirado se puede; nombrarlo como si fuera una fuente viva, no.** La
+      regla no es una lista de módulos exentos —eso habría dejado ciego justo al módulo
+      que lo motivó— sino: **quien escribe el nombre escribe al lado por qué no se usa**,
+      en el mismo texto. Ya cazó uno: el ejemplo de uso de `tools/audit_scores.py`
+      apuntaba al fichero retirado sin decirlo.
+  - **PRINCIPIO nº 13 — una constante que cita un fichero se DERIVA de él, nunca se
+    transcribe.** Lo que vive en código es **cuál** es el fichero; los valores se leen. Y
+    si no está, se **aborta** — no se devuelve una lista vacía, que es como una evidencia
+    desaparece sin que nadie lo note.
+  - **LOS OTROS DOS FIXTURES RETIRADOS: LIMPIOS, y se dice CÓMO se buscó.** «No hay nada»
+    sin decir con qué se miró es la misma frase que el «Alu 0 %» obtenido sin buscar Alu.
+    - Contra el **3'UTR fabricado** no sirve buscar números —comparte casi todos con las
+      referencias buenas—: se busca **por subcadena de ADN**, y una que esté en él y en
+      ninguna referencia verdadera sólo puede venir de ahí. **Cero.** Con su **control
+      adversario**: el test comprueba además que existe algún tramo exclusivo, porque si
+      no existiera, «cero culpables» y «la búsqueda no distingue nada» darían lo mismo.
+    - Contra el **`.out` de biblioteca equivocada** no hay cifra exclusiva que buscar, y
+      la razón es la propia demostración del proyecto: **es el mismo fichero byte a
+      byte** que el válido. Lo que lo distingue vive en el `.tbl`, y de ahí tampoco hay
+      ninguna cifra en el código. **Cero.**
+
+- **LA FICHA DE OBTENCIÓN DESCRIBÍA UN FICHERO Y EL CARGADOR LEÍA OTRO (2026-08-27).**
+  Mismo principio nº 13, un piso más arriba, y es lo que hizo creer que la tabla de
+  PolyA_DB ya tenía hueco en el gestor: tenía la **ficha**, no el cargador.
+  - `fraccion_isoforma_larga.toml` describía PolyA_DB de arriba abajo —su URL, sus dos
+    tablas, sus columnas por nombre, el aviso de las coordenadas genómicas— y el **único**
+    fichero que listaba era `apa_medido_{slug}.tsv`, cuyo cargador lee **otro formato**:
+    tres columnas `posicion/fraccion/nombre` con la posición ya convertida. **Lo que el
+    texto mandaba preparar y lo que el cargador sabe leer eran cosas distintas.**
+  - Ahora la ficha nombra **los dos**, con su formato cada uno y con un aviso que dice
+    que son dos y por qué: `polya_db_{slug}.tsv` es la de PolyA_DB —la que producen sus
+    pasos— y `apa_medido_{slug}.tsv` es la simple, **opcional**, para una medida que
+    llega ya convertida (el caso sería un 3'-end seq de cerebro murino).
+  - **Y los nombres los pone el GESTOR, no la ficha** (`{fichero_<rol>}`,
+    `{hermano_<rol>}` resueltos contra `species.required_files`). La ficha escribía
+    `apa_medido_{slug}.tsv` y el gestor pide `apa_medido.tsv` en ratón: la regla de
+    sufijos por especie estaba en dos sitios. Ahora la ficha nombra el **rol** —que es lo
+    estable— y el nombre lo pone quien lo va a cargar.
+  - **`tests/test_ficha_contra_gestor.py` cruza las dos listas por especie**, en las dos
+    direcciones: ningún fichero que el gestor pida puede faltar en su ficha, y ningún
+    nombre de fichero de la ficha puede ser algo que nadie vaya a cargar. Al escribirlo
+    salieron **tres huecos más**: la ficha de especificidad no nombraba la base de RefSeq
+    como fichero, la de off-targets no nombraba `expresion_cerebro`, y la de colisión de
+    seed no nombraba la capa ampliada de abundancia.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

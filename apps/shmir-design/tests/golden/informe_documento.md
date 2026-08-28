@@ -27,13 +27,13 @@ Un frente es una pregunta que hay que contestar antes de pedir oligo. Los cerrad
 
 | frente | estado | que falta | donde se consigue |
 |---|---|---|---|
-| especificidad | NOT_RUN | refseq_rna (base de BLAST) + el resultado en `-outfmt 6` | La app prepara la consulta; el BLAST lo corres tu. La base es RefSeq RNA del NCBI. (https://ftp.ncbi.nlm.nih.gov/blast/db/) |
+| especificidad | NOT_RUN | refseq_rna.fa, el resultado del BLAST en `-outfmt 6` | La app prepara la consulta; el BLAST lo corres tu. La base es RefSeq RNA del NCBI. (https://ftp.ncbi.nlm.nih.gov/blast/db/) |
 | repeticion_polimorfica | NOT_RUN | rmsk_mouse.out, rmsk_mouse.tbl | RepeatMasker Web Server (https://www.repeatmasker.org/) |
 | repeticiones | NOT_RUN | rmsk_mouse.out, rmsk_mouse.tbl | RepeatMasker Web Server (https://www.repeatmasker.org/) |
 | seed | NOT_RUN | mature.fa | miRBase (el mismo `mature.fa`), o una tabla propia `seed<TAB>familia` (https://www.mirbase.org/) |
 | seed_colision | NOT_RUN | mature.fa | miRBase (https://www.mirbase.org/) |
 | transgen | NOT_RUN | aav_casete.fa | El laboratorio: el fichero del plásmido del casete AAV (—) |
-| offtarget_seed | NOT_RUN | transcriptoma_3utr_mouse.fa | UCSC Table Browser (https://genome.ucsc.edu/cgi-bin/hgTables) |
+| offtarget_seed | NOT_RUN | transcriptoma_3utr.fa | UCSC Table Browser (https://genome.ucsc.edu/cgi-bin/hgTables) |
 | empalme_intron | NOT_RUN | no se cierra con ningún fichero (banco) | Banco: RT-PCR, Western y secuenciacion. No hay descarga que valga. (—) |
 | empalme_sitios | NOT_RUN | resultado de SpliceAI sobre las construcciones (TSV) | SpliceAI, ejecutado por ti. La app prepara las construcciones y recoge el resultado. (—) |
 | fraccion_isoforma_larga | CERRADO | — | — |
@@ -75,8 +75,10 @@ COMO CERRAR EL FRENTE «especificidad»
   QUE PREGUNTA RESPONDE: ¿Esta guía tiene complementariedad EXTENSA con algun otro transcrito? Es la pregunta de los alineamientos, y la contesta un BLAST contra una base de transcritos.
 
   FICHERO(S) QUE HACEN FALTA:
-    · refseq_rna (base de BLAST) + el resultado en `-outfmt 6`  [OBLIGATORIO]
-      La base es contra lo que se alinea; el `-outfmt 6` es lo que se sube. La app no necesita la base: necesita su nombre, su versión y su md5 para poder decir contra que se comparo.
+    · refseq_rna.fa  [OBLIGATORIO]
+      La base de RefSeq RNA contra la que se alinea. La app no necesita el fichero entero para dar el veredicto —el BLAST lo corres tu— pero si su nombre, su versión y su md5, que es lo único que permite decir contra que se comparo.
+    · el resultado del BLAST en `-outfmt 6`  [OBLIGATORIO]
+      Lo que se SUBE. No es un fichero con nombre fijo: sale de la orden que da la app, y por eso aquí se describe en vez de nombrarse. Un `-outfmt 6` VACÍO se rechaza — cero hits y «no llego a correr» son cosas distintas y ese fichero no las distingue.
 
   FUENTE: La app prepara la consulta; el BLAST lo corres tu. La base es RefSeq RNA del NCBI.
   URL: https://ftp.ncbi.nlm.nih.gov/blast/db/
@@ -273,6 +275,8 @@ COMO CERRAR EL FRENTE «seed_colision»
   FICHERO(S) QUE HACEN FALTA:
     · mature.fa  [OBLIGATORIO]
       Los maduros de miRBase. De aquí salen las seeds contra las que se compara, y también las de los controles biologicos del frente de carga de off-targets — nunca escritas en el código.
+    · mirgenedb_cerebro.txt  [opcional]
+      OPCIONAL y solo para el nivel AVISO: la capa AMPLIADA de abundancia en cerebro. El nivel de FAIL duro no lo necesita —corre siempre, con la lista del código y su autorización escrita—. El fichero tiene que traer en cabecera la REFERENCIA y el UMBRAL: sin ellos la capa queda NOT_RUN y no avisa de nada, porque un aviso sin umbral parece un veredicto y no lo es.
 
   FUENTE: miRBase
   URL: https://www.mirbase.org/
@@ -365,8 +369,10 @@ COMO CERRAR EL FRENTE «offtarget_seed»
   QUE PREGUNTA RESPONDE: ¿Cuántos mensajeros del transcriptoma llevan un sitio para la seed de esta hebra? Es la CARGA de off-targets, y es otra pregunta que la colisión con un miARN conocido. No la contesta ningún alineador: 7 nt contiguos no dan un alineamiento puntuable, así que ningún BLAST los devuelve por mucho que se le baje el word_size.
 
   FICHERO(S) QUE HACEN FALTA:
-    · transcriptoma_3utr_mouse.fa  [OBLIGATORIO]
+    · transcriptoma_3utr.fa  [OBLIGATORIO]
       Los 3'UTR sobre los que se cuentan los sitios de seed. Un transcrito representativo por gen; si trae varias isoformas, la app lo detecta y avisa de que el conteo está inflado.
+    · expresion_cerebro.tsv  [opcional]
+      OPCIONAL y REFINA, no cierra: una tabla `transcrito<TAB>valor` de expresión en el tejido. Sin ella el conteo sigue saliendo, pero sin ponderar — un sitio en un gen que la neurona no expresa cuenta igual que uno en un gen abundante. Es una de las tres limitaciones que hacen del número un LÍMITE SUPERIOR, y la única de las tres que un fichero puede quitar.
 
   FUENTE: UCSC Table Browser
   URL: https://genome.ucsc.edu/cgi-bin/hgTables
