@@ -500,3 +500,67 @@ es transcribir otra vez, con el mismo mecanismo y menos aviso.
 - **La anatomía** vive en `reference.REFERENCES` y en el manifiesto, y ahí no se pudo
   derivar todavía — así que se cruzan con un test en las dos direcciones. Cuando no se
   puede derivar, se **ata**; lo que no vale es dejarlo suelto.
+
+---
+
+## 14 — Haber comprobado una vez no es seguir comprobando
+
+El complemento del nº 9. Allí: *existir no es contener* — un fichero de 0 bytes pasa
+`is_file()` y no tiene nada dentro. Aquí: **una comprobación que corrió en la ingesta no
+sigue corriendo**, y lo que protege puede haber cambiado desde entonces.
+
+Sale del contrafactual de la errata nº 27, que es la parte que más enseña. De los dos
+guardias que podían haber cazado la evidencia anclada a un fichero retirado:
+
+- `lower_is_better()` habría **aprobado**: sólo mira si la fuente está registrada;
+- `file_order_direction()` sí habría saltado — **y sólo al importar un fichero**.
+
+La contramedida existía y estaba en el **sitio equivocado del flujo**. Nada la
+revalidaba después.
+
+### La pregunta que hay que hacerle a cada guardia
+
+No es «¿existe?» ni «¿está probado?». Es **cuándo corre**, y luego **qué lo vuelve a
+correr**:
+
+| | |
+|---|---|
+| **qué protege** | el invariante, no la función |
+| **cuándo se ejecuta** | ingesta · cada corrida · al emitir · al abrir · al construir |
+| **puede degradarse** | ¿lo protegido puede cambiar después de la comprobación? |
+| **qué lo revalida** | …o `NADA` |
+
+**La clase de riesgo es la intersección**: corre sólo en la ingesta, lo protegido puede
+cambiar, y nada lo revalida. Ésos son los siguientes en fallar. Va emitido en
+`tools/auditar_guardias.py`, dentro de `npm run check:shmir`, con su tabla versionada en
+`data/guardias.toml` y atada al código por `tests/test_guardias.py` — igual que la
+alcanzabilidad y los datos en código, y por la misma razón: un informe que hay que
+acordarse de pedir es un informe que nadie pide.
+
+### Tres distinciones que salieron de rellenar la tabla, no de escribirla
+
+- **`SUITE` no es una revalidación.** Un guardia cuyo supuesto sólo lo comprueba la suite
+  protege el **repositorio** y no protege una **corrida**: en producción el directorio de
+  referencia vive en un volumen que la suite no mira. Es una segunda clase de riesgo y
+  sale aparte.
+- **Un guardia que no aborta puede ser un INFORME.** `manifest.check_directory` compara
+  el md5 de cada fichero contra el manifiesto y devuelve `NO_COINCIDE` para que el panel
+  lo pinte. Eso ayuda a decidir con la pantalla delante; no impide nada. Quien impide es
+  el cargador, en cada corrida. La distinción se declara, porque «no aborta» a secas es
+  justo lo que separa un guardia de un aviso.
+- **Y a veces RECHAZAR es lo correcto y abortar no.** `cached_run` retiene un resultado
+  cuya huella ya no cuadra y dice por qué; abortar habría tirado la página al cambiar un
+  ajuste. Se declara como `RECHAZA` en vez de dejarlo pasar por «no aborta».
+
+### Lo que la tabla encontró al llenarse
+
+`store.ProjectStore.verify()` —la que recalcula la cadena de md5 del log— estaba escrita,
+probada y **sin ningún llamador fuera de sus tests**. La cadena no se comprobaba nunca en
+la app. Es el patrón de `store.save_*` y `page_run` por cuarta vez, pero sobre un
+**guardia**, que es peor: no es trabajo calculado que no llega a una salida, es una
+**comprobación que no comprueba**. Y su momento natural era evidente en cuanto se
+preguntó por él: el log se edita **entre sesiones**, así que comprobarlo sólo al
+escribirlo no protege de nada. Ahora corre en `presentation.project_open`.
+
+La misma pregunta sacó que la comparación de la huella de corrida vivía **en la página**,
+copiada en los dos modales — sin test y pudiendo divergir entre ellos.

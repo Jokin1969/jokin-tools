@@ -1,0 +1,321 @@
+# Los guardias del proyecto: qué protege cada uno, CUÁNDO corre, y qué lo revalida.
+#
+# Lo emite y lo comprueba `tools/auditar_guardias.py`, con `tests/test_guardias.py`
+# atando la tabla al código en las dos direcciones — igual que `alcanzabilidad.toml` y
+# `datos_en_codigo.toml`, y por la misma razón: una lista que se pudre deja de leerse.
+#
+# POR QUÉ EXISTE. Errata nº 27: `EVIDENCE` llevaba anclada a un fichero retirado, y de
+# los dos guardias que podían haberlo cazado uno habría APROBADO y el otro sólo salta
+# AL IMPORTAR UN FICHERO. La contramedida existía y estaba en el sitio equivocado del
+# flujo; nada la revalidaba después.
+#
+# `momento` — cuándo corre:
+#   INGESTA        al cargar o al subir algo. Protege el instante, no lo que venga luego.
+#   CADA_CORRIDA   cada vez que se diseña.
+#   AL_EMITIR      al escribir la salida.
+#   AL_ABRIR       al recuperar algo guardado.
+#   AL_CONSTRUIR   en el `__post_init__`: siempre que el objeto exista.
+#
+# `como_actua` — cómo impide lo que impide:
+#   ABORTA   levanta el error y el paso no se ejecuta. Es el caso normal (regla 2).
+#   RECHAZA  no aborta: RETIENE el resultado y dice por qué. Vale donde abortar sería
+#            peor — una página que se cae al cambiar un ajuste no protege a nadie— pero
+#            se declara, porque «no aborta» a secas es lo que distingue un guardia de un
+#            aviso, y un aviso no protege nada.
+#
+# `puede_degradar` — si lo protegido puede CAMBIAR después de la comprobación.
+# `revalida` — qué lo vuelve a comprobar, o `NADA`.
+#
+# OJO CON UN VALOR DE `revalida`: **SUITE** significa que sólo lo revalida la suite de
+# tests. Eso protege el REPOSITORIO y no protege una corrida: en producción el
+# directorio de referencia vive en un volumen (`SHMIR_REFERENCE_DIR`) que la suite no
+# mira. No es lo mismo que una revalidación en tiempo de ejecución y no se escribe igual.
+
+# ─────────────── Identidad de los ficheros de referencia ───────────────
+
+[[guardia]]
+guardia = "El md5 del FICHERO en disco cuadra con el manifiesto"
+implementa = ["deposito.accept_upload"]
+protege = "Que el fichero que hay sea el que se registró: ni otra descarga, ni otra versión, ni el mismo nombre con otro contenido."
+momento = "INGESTA"
+puede_degradar = true
+degrada_como = "El directorio de trabajo es un VOLUMEN: alguien puede subir otro fichero con el mismo nombre entre la comprobación y la corrida. Y OJO — `manifest.check_directory`, que es lo que pinta el panel, NO aborta: devuelve `NO_COINCIDE` y lo enseña. Eso es un INFORME, no un guardia, y lo señaló esta misma auditoría al ver una entrada de la que no abortaba ninguna pieza."
+revalida = "Los cargadores de `resources.py`, que reciben `expected_md5` del manifiesto y lo vuelven a comprobar EN CADA CORRIDA. Son ellos los que abortan."
+
+[[guardia]]
+guardia = "Cada cargador reverifica el md5 del fichero que abre"
+implementa = [
+  "resources._refseq", "resources._mirbase", "resources._abundancia",
+  "resources._transcriptoma", "resources._rmsk", "resources._transgen",
+  "resources._apa", "resources._polyadb",
+  "mirna.load_mature_fa", "mirna.load_abundance_list", "mirna._read",
+  "seed_load.load_utr3_set", "specificity.load_database",
+  "apa.load_apa_sites", "apa.load_polyadb", "masking.load_rmsk",
+  "masking.parse_rmsk_out", "guide_fixture.load_guide_fixture",
+]
+protege = "Lo mismo que el anterior, pero en el momento en que el dato se USA. Es lo que hace que la comprobación de ingesta no sea la única."
+momento = "CADA_CORRIDA"
+puede_degradar = false
+degrada_como = "No se degrada: el md5 se recalcula de los bytes que se acaban de leer."
+revalida = "Se revalida a sí mismo en cada corrida."
+
+[[guardia]]
+guardia = "El md5 de la SECUENCIA canónica, que no es el del fichero"
+implementa = ["reference.verify_transcript", "reference.extract_3utr"]
+protege = "Que la secuencia sea la de la referencia. Va sobre la cadena canónica —mayúsculas, sin cabecera, sin saltos—, así que sobrevive a un reformateo del FASTA que cambiaría el md5 del fichero."
+momento = "CADA_CORRIDA"
+puede_degradar = false
+degrada_como = "No se degrada: se recalcula de la secuencia cargada."
+revalida = "Se revalida a sí mismo en cada carga."
+
+[[guardia]]
+guardia = "El md5 del 3'UTR decide si la tabla de APA medido aplica"
+implementa = ["apa.resolve_measured"]
+protege = "Que unas coordenadas de un gen no se anclen sobre OTRO 3'UTR. El ruido ancla si se le deja sitio."
+momento = "CADA_CORRIDA"
+puede_degradar = false
+degrada_como = "No se degrada: se compara contra la secuencia de esta corrida."
+revalida = "Se revalida a sí mismo en cada corrida."
+
+[[guardia]]
+guardia = "El `.gb` es del accession y la longitud que declara"
+implementa = [
+  "genbank.load_genbank_cds", "genbank.parse_plasmid_feature",
+  "genbank.load_plasmid_feature", "introns._cargar_quimerico",
+]
+protege = "Que la anatomía —y con ella los tercios, las regiones y las distancias de polyA— salga del registro que dice ser, y que la feature extraída sea la que se pidió."
+momento = "INGESTA"
+puede_degradar = true
+degrada_como = "El `.gb` vive en el mismo volumen que lo demás y se puede sustituir."
+revalida = "El md5 del fichero, en cada corrida, por la vía del manifiesto."
+
+[[guardia]]
+guardia = "La especie de la biblioteca de RepeatMasker vive en el `.tbl`"
+implementa = ["masking.check_summary", "deposito._v_rmsk"]
+protege = "Que una corrida contra la biblioteca equivocada no pase por buena. Está DEMOSTRADO que los dos `.out` son el mismo fichero byte a byte: sin el resumen no hay nada que comprobar."
+momento = "INGESTA"
+puede_degradar = true
+degrada_como = "El `.out` y el `.tbl` se suben por separado; nada impide reemplazar uno después."
+revalida = "`resources._rmsk` exige el resumen y vuelve a comprobar especie y longitud de la consulta EN CADA CORRIDA."
+
+[[guardia]]
+guardia = "Lo que se sube por el panel se valida ANTES de escribirse"
+implementa = ["deposito.accept_upload"]
+protege = "Que un fichero que el cargador de verdad rechazaría no llegue a quedarse en el directorio ni en el manifiesto. Se escribe a un provisional, se valida, y sólo entonces se renombra."
+momento = "INGESTA"
+puede_degradar = false
+degrada_como = "No se degrada: lo que valida es el propio cargador del filtro, y ése vuelve a correr en cada corrida."
+revalida = "El cargador del filtro, en cada corrida."
+
+# ─────────────── Identidad de lo que se sube como RESULTADO ───────────────
+
+[[guardia]]
+guardia = "El resultado que se sube es de la consulta que generó esta app"
+implementa = [
+  "blast_store.BlastRun.create", "seed_store.SeedRun.create",
+  "offtarget_store.OfftargetRun.create", "splice_store.SpliceRun.create",
+  "spliceai.parse_result", "offtarget.validate_upload",
+]
+protege = "El fallo del CSV de miRarchitect por la puerta de los modales: un fichero de OTRA corrida que entra, cuadra de forma y produce un análisis entero sobre el dato equivocado."
+momento = "INGESTA"
+puede_degradar = false
+degrada_como = "No se degrada: el almacén es inmutable y la corrida queda con su md5 dentro."
+revalida = "No hace falta: lo guardado no cambia, y repetir un `run_id` aborta."
+
+[[guardia]]
+guardia = "La huella de la corrida que se está VIENDO"
+implementa = ["presentation.cached_run"]
+como_actua = "RECHAZA"
+protege = "Que un resultado calculado con otro panel u otros ajustes no siga en pantalla —y ofreciéndose para guardar— después de cambiarlos. Un resultado que no es de la corrida que se ve es una procedencia falsa."
+momento = "CADA_CORRIDA"
+puede_degradar = false
+degrada_como = "No se degrada: se recalcula en cada rerun. CABLEADO 2026-08-27: la comparación vivía EN LA PÁGINA y copiada en los dos modales, así que no tenía test y podía divergir entre ellos. `run_fingerprint` sólo calcula el resumen; quien decide es `cached_run`."
+revalida = "Cada rerun."
+
+# ─────────────── La persistencia ───────────────
+
+[[guardia]]
+guardia = "La cadena de md5 del log append-only"
+implementa = ["store.ProjectStore.create", "store.ProjectStore.verify"]
+protege = "Que editar o borrar una línea vieja del `registro.jsonl` sea VISIBLE. No lo impide —es un fichero, nada lo impide— pero lo delata, con el número de línea."
+momento = "AL_ABRIR"
+puede_degradar = true
+degrada_como = "El log vive en un volumen y se edita ENTRE sesiones, que es justo cuando esto tiene que morder."
+revalida = "`presentation.project_open` llama a `verify()` en cada apertura. CABLEADO 2026-08-27: hasta entonces `verify()` no la llamaba NADIE fuera de sus tests — el guardia estaba escrito, probado y sin correr."
+
+[[guardia]]
+guardia = "Abrir un proyecto con OTRA secuencia se rechaza"
+implementa = ["presentation.project_open"]
+protege = "Que no se sigan apuntando corridas de otra secuencia en el log de ésta. La cadena de md5 no se enteraría: quedaría coherente de forma."
+momento = "AL_ABRIR"
+puede_degradar = false
+degrada_como = "No se degrada: se compara contra la secuencia cargada en esa sesión."
+revalida = "Cada apertura."
+
+[[guardia]]
+guardia = "El nombre de un fichero subido lo pone el navegador"
+implementa = ["presentation.upload_path", "presentation.check_project_slug"]
+protege = "Que la escritura no salga del directorio temporal creado para contenerla. Sobrevive el nombre, se cae toda la ruta, y la comprobación final va sobre la ruta RESUELTA."
+momento = "INGESTA"
+puede_degradar = false
+degrada_como = "No se degrada: se comprueba en cada subida."
+revalida = "Cada subida."
+
+[[guardia]]
+guardia = "La biblioteca del gestor guarda y lee por md5"
+implementa = ["biblioteca.guardar", "biblioteca.leer"]
+protege = "Que lo que se recupera de la biblioteca sea lo que se guardó."
+momento = "AL_ABRIR"
+puede_degradar = false
+degrada_como = "No se degrada: se comprueba al leer, no al guardar."
+revalida = "Cada lectura."
+
+# ─────────────── Identidad de una FUENTE EXTERNA ───────────────
+
+[[guardia]]
+guardia = "La dirección de la escala externa está registrada CON su evidencia"
+implementa = ["external_score.lower_is_better", "external_score.read_evidence_pairs"]
+protege = "Que no se ordene por un score cuya dirección no se conoce y se manden a síntesis JUSTO LOS PEORES candidatos. Es la contramedida contra el modo de fallo más caro que este proyecto sabe nombrar."
+momento = "CADA_CORRIDA"
+puede_degradar = true
+degrada_como = "ES EL CASO DE LA ERRATA Nº 27. La evidencia estaba TRANSCRITA y salía de un fichero retirado: `lower_is_better()` habría aprobado igual, porque sólo mira si la fuente está registrada. Ahora los pares se LEEN del fichero y su ausencia aborta, pero que el fichero ancla siga siendo el bueno no lo comprueba ninguna corrida."
+revalida = "SUITE — `tests/test_procedencia_retirada.py` comprueba que el ancla no esté retirada. Protege el repositorio, NO una corrida sobre un volumen."
+
+[[guardia]]
+guardia = "La dirección derivada del fichero cuadra con la registrada"
+implementa = ["external_score.file_order_direction", "external_score.check_orderable"]
+protege = "Lo mismo, contrastado contra el fichero que se está importando: si el orden de las filas no es monótono no es un ranking, y si la dirección derivada no coincide con la registrada uno de los dos está mal."
+momento = "INGESTA"
+puede_degradar = true
+degrada_como = "ERA EL ÚNICO GUARDIA QUE HABRÍA SALTADO en la errata nº 27, y sólo al importar un fichero. Sin importación no corre, y el score ya importado sigue en la tabla."
+revalida = "NADA"
+
+[[guardia]]
+guardia = "El andamio se decide por SECUENCIA, no por etiqueta"
+implementa = ["mirarchitect.Export.check_scaffold", "external_score.check_orderable"]
+protege = "Que un score medido sobre otra horquilla no ordene estos candidatos. miR-E existe porque procesa distinto de miR-30a, y el sesgo cae sobre lo que el score dice medir."
+momento = "INGESTA"
+puede_degradar = false
+degrada_como = "No se degrada: el andamio del diseño no cambia dentro de una corrida."
+revalida = "Cada importación."
+
+# ─────────────── Invariantes de lo que se EMITE ───────────────
+
+[[guardia]]
+guardia = "Ningún intervalo se escribe a mano"
+implementa = ["audit.Span.check"]
+protege = "Que un intervalo emitido describa la secuencia que dice describir: aborta si `fin - inicio + 1` no es la longitud."
+momento = "AL_CONSTRUIR"
+puede_degradar = false
+degrada_como = "No se degrada: se comprueba cada vez que se construye un `Span`."
+revalida = "Cada construcción."
+
+[[guardia]]
+guardia = "Invariante de rango de las coordenadas del 3'UTR"
+implementa = ["coords.check_utr3_range", "coords.declare_utr3_length"]
+protege = "Que una posición etiquetada `3utr:` quepa en el 3'UTR. Caza lo IMPOSIBLE, no lo equivocado — y eso está escrito como principio nº 1."
+momento = "AL_CONSTRUIR"
+puede_degradar = false
+degrada_como = "No se degrada."
+revalida = "Cada construcción de una `Position`."
+
+[[guardia]]
+guardia = "La fila del manifiesto tiene tantos campos como columnas"
+implementa = ["manifest.entry_row"]
+protege = "Que una columna que no se escribe no corra los valores a la de al lado. No da ningún error: da un manifiesto equivocado."
+momento = "AL_EMITIR"
+puede_degradar = false
+degrada_como = "No se degrada: el ancho se deriva de `MANIFEST_COLUMNS` en cada escritura."
+revalida = "Cada escritura."
+
+[[guardia]]
+guardia = "Una tabla descuadrada aborta"
+implementa = ["informe_doc.Block.__post_init__"]
+protege = "Que una fila con menos celdas que cabeceras no desplace los valores a la columna de al lado del informe que se entrega."
+momento = "AL_CONSTRUIR"
+puede_degradar = false
+degrada_como = "No se degrada."
+revalida = "Cada construcción."
+
+[[guardia]]
+guardia = "Los contextos del módulo cuadran con el plásmido depositado"
+implementa = ["gblock.verify_contexts_against_plasmid"]
+protege = "Que lo que se manda a SINTETIZAR lleve los contextos del vector real. Sin el plásmido sale NOT_RUN, no PASS."
+momento = "AL_EMITIR"
+puede_degradar = false
+degrada_como = "No se degrada: corre en los DOS generadores cada vez que se monta el módulo."
+revalida = "Cada emisión del módulo y del cassette."
+
+[[guardia]]
+guardia = "Una ficha con marcadores sin resolver no se renderiza"
+implementa = ["obtencion.Ficha.render", "obtencion.resolve_ficha"]
+protege = "Que no salga `rmsk_{slug}.out` como si fuera un nombre de fichero. Esos textos se copian."
+momento = "AL_EMITIR"
+puede_degradar = false
+degrada_como = "No se degrada."
+revalida = "Cada renderizado."
+
+# ─────────────── Invariantes de la CORRIDA ───────────────
+
+[[guardia]]
+guardia = "La anatomía se resuelve por una vía declarada, nunca se adivina"
+implementa = ["resolve.resolve_anatomy", "resolve.check_boundaries", "anatomy.check_cds_boundaries"]
+protege = "Que no exista ningún camino que convierta un «no sé» en un «todo es 3'UTR». Incluye el codón de parada, que es el chequeo que pilla el off-by-one."
+momento = "CADA_CORRIDA"
+puede_degradar = false
+degrada_como = "No se degrada: se resuelve en cada corrida y la vía usada sale impresa."
+revalida = "Cada corrida."
+
+[[guardia]]
+guardia = "La medida de APA no se salta en silencio"
+implementa = ["tiling.tile_utr"]
+protege = "Que «se decidió no usarla» y «nadie se acordó» no den el mismo resultado mudo. `measured_apa=None` ABORTA; para excluirla hay que escribir `ApaExcluded` con motivo."
+momento = "CADA_CORRIDA"
+puede_degradar = false
+degrada_como = "No se degrada: el centinela está en la firma."
+revalida = "Cada corrida."
+
+[[guardia]]
+guardia = "La especie tiene prefijo y taxid DECLARADOS"
+implementa = ["species.resolve", "species.mirbase_prefix", "specificity.taxid_for"]
+protege = "Que no se deduzcan del nombre. Filtrar con el prefijo equivocado da CERO colisiones, que parece una buena noticia."
+momento = "CADA_CORRIDA"
+puede_degradar = false
+degrada_como = "No se degrada."
+revalida = "Cada corrida."
+
+[[guardia]]
+guardia = "La máscara no se aplica a otra secuencia"
+implementa = ["masking.apply_mask"]
+protege = "Que un intervalo murino no se aplique sobre el transcrito humano, donde CABE de sobra y taparía un tramo que ahí no es repetitivo. Se compara lo que el resumen declara haber analizado con lo que se le da."
+momento = "CADA_CORRIDA"
+puede_degradar = false
+degrada_como = "No se degrada."
+revalida = "Cada corrida."
+
+# ─────────────── Lo que SÓLO calcula un resumen, y por tanto no es un guardia ───────────────
+#
+# Aparecen en la clase derivada del código —tocan un md5— pero no COMPARAN nada: lo
+# calculan para que otro lo compare, o para sembrar un generador. Se declaran aquí para
+# que la clase derivada quede cubierta entera y no haya donde esconder un guardia.
+
+[solo_calculan]
+"blast.QueryFasta.md5" = "Calcula el md5 del FASTA de consulta para que `blast_store` lo compare al recibir el resultado. El guardia es aquél."
+"genbank.sequence_md5" = "Calcula el md5 del ORIGIN. Quien lo compara es `reference.verify_transcript`."
+"reference.sequence_md5" = "El md5 canónico de una secuencia. Lo compara `verify_transcript`."
+"spliceai._md5" = "Calcula el md5 de una construcción para que `parse_result` lo compare."
+"splicing.IntronlessControl.md5" = "El md5 del control sin intrón, para la hoja de pedido. No compara nada."
+"store._line_md5" = "Calcula el eslabón de la cadena. Quien la comprueba es `verify()`."
+"presentation.reference_md5s" = "Copia al informe los md5 del manifiesto. Es procedencia que se enseña, no una comprobación."
+"gestor._md5" = "El md5 de un fichero del gestor. Lo comparan `biblioteca.guardar` y `biblioteca.leer`."
+"spacers.choose_spacers" = "Usa un md5 como SEMILLA del generador de espaciadores, no como identidad: sirve para que la elección sea reproducible."
+"presentation.run_fingerprint" = "Calcula la huella del panel y los ajustes. Quien la COMPARA es `cached_run`."
+
+# ─────────────── Comparan una identidad y NO abortan: son INFORMES ───────────────
+#
+# La distinción es el punto de esta auditoría: **un guardia que no aborta es un aviso, y
+# un aviso no protege nada**. Lo que hay aquí compara de verdad, pero devuelve un estado
+# para que alguien lo pinte. Sirve para decidir con la pantalla delante; no impide nada.
+
+[solo_informan]
+"manifest.check_directory" = "Compara el md5 de cada fichero del directorio contra el manifiesto y devuelve `EntryStatus.NO_COINCIDE`. Es lo que pinta el panel de ficheros — y NO aborta. Quien aborta es el cargador del filtro, en cada corrida."

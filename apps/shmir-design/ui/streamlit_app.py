@@ -34,10 +34,10 @@ from shmir_design.offtarget import DEFAULTS as OFFTARGET_DEFAULTS  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
-    WHY_A_RUN_FINGERPRINT,
     BLAST_MODAL_NOTE,
     anatomy_payload,
     load_stores,
+    cached_run,
     run_fingerprint,
     intron_geometry_text,
     stored_runs_note,
@@ -1354,10 +1354,12 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None) -> None:
             seleccion, mature=maduros, params=params, species=nombre,
             starts=tuple(starts), guides=True, passengers=True,
         ))
-    guardado = st.session_state.get(f"seed_scan_{nombre}")
-    scan = guardado[1] if guardado and guardado[0] == huella else None
-    if guardado and guardado[0] != huella:
-        st.info(WHY_A_RUN_FINGERPRINT)
+    # La pagina NO decide si lo cacheado sirve: lo decide `cached_run`. Estaba aqui,
+    # copiado en los dos modales, y por tanto sin test y pudiendo divergir.
+    cacheado = cached_run(st.session_state.get(f"seed_scan_{nombre}"), huella)
+    scan = cacheado["resultado"]
+    if cacheado["caducado"]:
+        st.info(cacheado["aviso"])
     if scan is not None:
         destacados = seed_highlights(scan)
         st.warning(destacados["tasa_base"]["texto"])
@@ -1634,10 +1636,12 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
             species=nombre, starts=tuple(starts), guides=True, passengers=True,
             target=diana, target_label=f"3'UTR de {nombre}",
         ))
-    guardado = st.session_state.get(f"ot_scan_{nombre}")
-    scan = guardado[1] if guardado and guardado[0] == huella else None
-    if guardado and guardado[0] != huella:
-        st.info(WHY_A_RUN_FINGERPRINT)
+    # La pagina NO decide si lo cacheado sirve: lo decide `cached_run`. Estaba aqui,
+    # copiado en los dos modales, y por tanto sin test y pudiendo divergir.
+    cacheado = cached_run(st.session_state.get(f"ot_scan_{nombre}"), huella)
+    scan = cacheado["resultado"]
+    if cacheado["caducado"]:
+        st.info(cacheado["aviso"])
     if scan is not None:
         destacados = offtarget_highlights(scan)
         st.error(destacados["limite_superior"]["texto"])

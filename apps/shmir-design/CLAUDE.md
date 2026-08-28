@@ -2559,6 +2559,57 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
       byte** que el válido. Lo que lo distingue vive en el `.tbl`, y de ahí tampoco hay
       ninguna cifra en el código. **Cero.**
 
+- **CADA GUARDIA, CON SU MOMENTO. AÑADIDO (2026-08-27)**
+  (`tools/auditar_guardias.py`, `data/guardias.toml`, dentro de `npm run check:shmir`).
+  Sale de la parte del contrafactual de la errata nº 27 que más enseña: de los dos
+  guardias que podían haberlo cazado, `lower_is_better()` habría **aprobado** y
+  `file_order_direction()` sólo salta **al importar un fichero**. **La contramedida
+  existía y estaba en el sitio equivocado del flujo**, y nada la revalidaba después.
+  - **Es el complemento del principio nº 9**, y va como principio nº 14: *existir no es
+    contener, y **haber comprobado una vez no es seguir comprobando**.*
+  - **Cuatro columnas por guardia, y ninguna sobra**: qué protege (el invariante, no la
+    función), **cuándo se ejecuta** (`INGESTA` · `CADA_CORRIDA` · `AL_EMITIR` ·
+    `AL_ABRIR` · `AL_CONSTRUIR`), si lo protegido **puede degradarse** después de la
+    comprobación, y **qué lo revalida** — o `NADA`.
+  - **LA CLASE DE RIESGO ES LA INTERSECCIÓN**: `INGESTA` + puede degradarse + nada lo
+    revalida. Hoy sale **uno**, y es exactamente el de la errata: `file_order_direction`.
+    Mientras nadie lo cablee sigue siendo el siguiente en fallar, y hay un test que lo
+    fija — si alguien lo arregla, el test cambia con él.
+  - **Y UNA SEGUNDA CLASE que salió de RELLENAR la tabla, no de escribirla:
+    `revalida = SUITE`.** Un guardia cuyo supuesto sólo lo comprueba la suite protege el
+    **repositorio** y no protege una **corrida**: en producción el directorio de
+    referencia vive en un volumen que la suite no mira. Hoy sale uno — el ancla de
+    `EVIDENCE`.
+  - **Tres distinciones más, todas de llenar la tabla**:
+    - **Un guardia que no aborta puede ser un INFORME.** `manifest.check_directory`
+      compara el md5 de cada fichero contra el manifiesto y devuelve `NO_COINCIDE` para
+      que el panel lo pinte: ayuda a decidir con la pantalla delante, **no impide nada**.
+      Quien impide es el cargador, en cada corrida. Va en `[solo_informan]`, porque «no
+      aborta» a secas es justo lo que separa un guardia de un aviso.
+    - **A veces RECHAZAR es lo correcto y abortar no** (`como_actua = "RECHAZA"`).
+      `cached_run` retiene un resultado cuya huella ya no cuadra; abortar habría tirado
+      la página al cambiar un ajuste.
+    - **«Mudo» va por ENTRADA, no por símbolo.** Un guardia se implementa con varias
+      piezas y no todas abortan —`resources._refseq` PASA el md5 esperado y quien aborta
+      es `specificity.load_database`—. Exigirlo pieza a pieza daba falsos positivos sobre
+      la fontanería, y **un guardia con falsos positivos se acaba apagando**.
+  - **LO QUE LA TABLA ENCONTRÓ AL LLENARSE, y es el hallazgo de la tanda**:
+    `store.ProjectStore.verify()` —la que recalcula la cadena de md5 del log— estaba
+    escrita, probada y **sin ningún llamador fuera de sus tests**. La cadena **no se
+    comprobaba nunca en la app**. Es el patrón de `store.save_*` y `page_run` por cuarta
+    vez, pero sobre un **guardia**: no es trabajo calculado que no llega a una salida, es
+    una **comprobación que no comprueba**. Y su momento natural saltó en cuanto se
+    preguntó por él — el log se edita **entre sesiones**, así que comprobarlo sólo al
+    escribirlo no protege de nada. **CABLEADO** en `presentation.project_open`, con
+    regresión.
+    - La misma pregunta sacó que la comparación de la **huella de corrida** vivía **en la
+      página** y copiada en los **dos** modales: sin test y pudiendo divergir entre ellos.
+      Ahora decide `presentation.cached_run` (regla 6).
+  - **No falla nunca: es un informe.** Lo que falla es `tests/test_guardias.py` — si una
+    entrada nombra un símbolo que ya no existe, si de un guardia `ABORTA` no aborta
+    ninguna pieza, o si algo de la clase **derivada del código** —todo lo que compara una
+    identidad declarada contra lo entregado— se queda fuera sin declararlo.
+
 - **LA FICHA DE OBTENCIÓN DESCRIBÍA UN FICHERO Y EL CARGADOR LEÍA OTRO (2026-08-27).**
   Mismo principio nº 13, un piso más arriba, y es lo que hizo creer que la tabla de
   PolyA_DB ya tenía hueco en el gestor: tenía la **ficha**, no el cargador.
@@ -2582,6 +2633,18 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     salieron **tres huecos más**: la ficha de especificidad no nombraba la base de RefSeq
     como fichero, la de off-targets no nombraba `expresion_cerebro`, y la de colisión de
     seed no nombraba la capa ampliada de abundancia.
+  - **ERAN TRES NIVELES, y cada uno mentía por su cuenta** (errata nº 28): la **ficha**
+    describía un fichero y el rol cargaba otro; el **listado** no nombraba el fichero que
+    la propia ficha describía; y los **nombres** estaban transcritos con otra regla de
+    sufijos que la del gestor. Ninguno daba error — la ficha se lee, el cargador se
+    ejecuta, y nadie los pone uno al lado del otro.
+  - **La lección, y es la que generaliza**: **un dato transcrito en lugar de derivado no
+    se desincroniza en un sitio, se desincroniza en TODOS los que lo copiaron.** Cada
+    copia envejece por su cuenta y en su propia dirección, así que ninguna coincide con
+    las otras y todas parecen plausibles por separado. Es lo mismo que con los pares de
+    `EVIDENCE` —la constante, la tabla de auditoría y el ancla real, tres orígenes y
+    ninguno correcto—, sólo que aquí las tres capas estaban una encima de otra sobre el
+    mismo dato.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

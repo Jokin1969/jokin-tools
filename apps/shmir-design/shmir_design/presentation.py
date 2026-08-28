@@ -2865,6 +2865,13 @@ def project_open(base, slug: str, *, expect_md5: str | None = None):
     from .store import ProjectStore
 
     almacen = ProjectStore.open(base, check_project_slug(slug))
+    # LA CADENA SE RECALCULA AL ABRIR, y hasta 2026-08-27 NO se recalculaba nunca:
+    # `verify()` estaba escrita, testada, y sin ningún llamador fuera de sus tests. Es
+    # el mismo patrón que `store.save_*` y que `page_run` — la cuarta vez— pero sobre un
+    # GUARDIA, que es peor: no es trabajo que no llega a una salida, es una comprobación
+    # que no comprueba. Y su momento natural es justo éste: el log se edita entre
+    # sesiones, así que comprobarlo sólo al escribirlo no protege de nada.
+    almacen.verify()
     if expect_md5 and almacen.project.sequence_md5 != str(expect_md5):
         raise ShmirDesignError(
             f"El proyecto {slug!r} se creo sobre una secuencia de md5 "
@@ -3330,8 +3337,34 @@ WHY_A_RUN_FINGERPRINT = (
 
 
 def run_fingerprint(*partes) -> str:
-    """Huella de lo que produjo una corrida. Ver `WHY_A_RUN_FINGERPRINT`."""
+    """Huella de lo que produjo una corrida. Ver `WHY_A_RUN_FINGERPRINT`.
+
+    SOLO CALCULA. Quien decide si lo cacheado sigue valiendo es `cached_run`.
+    """
     import hashlib
 
     crudo = "|".join(repr(p) for p in partes)
     return hashlib.md5(crudo.encode("utf-8")).hexdigest()
+
+
+def cached_run(guardado, huella: str) -> dict:
+    """¿Sirve todavía la corrida cacheada? El GUARDIA, y vive aquí, no en la página.
+
+    Estaba en la página —`guardado[1] if guardado and guardado[0] == huella else None`—
+    y **copiado en los dos modales**, así que la regla podía divergir entre ellos y no
+    tenía test. Lo cazó la auditoría de guardias: `run_fingerprint` sólo calcula el
+    resumen, y una entrada de la tabla en la que ninguna pieza abortaba señaló que la
+    comprobación de verdad estaba en otro sitio.
+
+    Devuelve el resultado si la huella cuadra, `None` si no, y el motivo cuando hay algo
+    cacheado que ya no vale — que es lo que hay que enseñar para que un resultado viejo
+    no se lea como el de la corrida que se está viendo.
+    """
+    if not guardado:
+        return {"resultado": None, "caducado": False, "aviso": ""}
+    caducado = guardado[0] != huella
+    return {
+        "resultado": None if caducado else guardado[1],
+        "caducado": caducado,
+        "aviso": WHY_A_RUN_FINGERPRINT if caducado else "",
+    }
