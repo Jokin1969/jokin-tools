@@ -2835,6 +2835,51 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     ninguno correcto—, sólo que aquí las tres capas estaban una encima de otra sobre el
     mismo dato.
 
+- **QUÉ BANDERAS DE LOS CLI SE RECORREN DE PUNTA A PUNTA (2026-08-27)**
+  (`tools/auditar_banderas.py`, `data/banderas.toml`, dentro de `npm run check:shmir`).
+  Sale de la errata nº 31, y cubre el **hueco entre las dos herramientas que ya había**:
+  - **la alcanzabilidad ve símbolos sin llamador; el golden ve la salida POR DEFECTO; y
+    entre los dos vive el código llamado desde caminos que nadie recorre.** Es el
+    principio nº 17. Ninguna de las dos podía cazar el `NameError` de `--rmsk`: había una
+    llamada escrita, y el golden se genera sin máscara.
+  - **Todo se DERIVA**: las banderas, de los `add_argument` de cada CLI; el recorrido, de
+    los tests. Aquí sólo se declara lo que no se puede derivar — **qué consecuencia tiene
+    cada bandera**, que es lo que ordena la lista.
+  - **CUATRO consecuencias, y el orden ES la priorización**: `VEREDICTO` (puede cambiar
+    si un candidato pasa, cae o queda INCOMPLETE — conecta un filtro, mueve un umbral,
+    resuelve la anatomía, o ABORTA cuando un md5 no cuadra), `DATO` (cifras y
+    anotaciones que viajan con el veredicto sin decidirlo), `FORMATO` y `FONTANERIA`.
+    Una `VEREDICTO` sin recorrido es **urgente**; una de `FORMATO`, no. Sin esa
+    distinción, 139 filas planas no las lee nadie — el fallo que esto viene a evitar.
+    - **Un `*-md5` es VEREDICTO y no DATO a propósito**: su trabajo es **abortar** cuando
+      el fichero no es el que dice ser. Si ese camino no se recorre, el fichero
+      equivocado entra en silencio.
+  - **Un test que espera un `2` NO cuenta como recorrido.** Comprobar que una entrada
+    mala se rechaza es útil y **no atraviesa el camino** — ahí vivía la errata nº 31.
+  - **Y LLEVA TRINQUETE**, porque una lista larga se lee como «pendiente» y no obliga a
+    nada (principio nº 15): el número de `VEREDICTO` sin recorrer va **declarado** y la
+    suite falla **en las dos direcciones** —si sube, alguien añadió algo que decide y no
+    lo recorrió; si baja, el techo está caducado—. **Sólo puede ir hacia abajo.** Hoy
+    está en **50**. Cubrirlas todas de golpe no hace falta; lo que hace falta es que
+    bajarlo sea la única forma de cerrar la suite.
+  - **Las exenciones van DECLARADAS con motivo y siguen saliendo**: hoy dos,
+    `reference_data --fetch` y `--efetch-url`, que salen a la RED — recorrerlas exigiría
+    un endpoint verificado y el registro está vacío (regla 4). Una exención que
+    desaparece de la lista deja de poder caducar; hay test de que una exenta que ya se
+    recorre hace fallar la suite.
+  - **Estado de partida: 47 de 139 banderas con recorrido entero.** La primera que se
+    cubrió al estrenarlo fue `--mirbase` —conecta `mature.fa` y con él el FAIL duro del
+    núcleo de abundancia—, que era la `VEREDICTO` más consecuente de las alcanzables hoy:
+    `--apa-medido` espera al 3'-end seq y `--accesibilidad` a ViennaRNA.
+  - **El detector se equivocó EN LAS DOS DIRECCIONES antes de valer.** Resolvía el CLI
+    con una tabla de alias global: daba por recorridas de `design` las banderas de
+    `import_scores` —que también importa su main como `main`— y no veía las de
+    `test_usar_manifiesto.py`, que llama por un ayudante. Se contrastó contra un `grep`
+    en las dos direcciones y ahora el CLI se resuelve **por fichero, de sus propios
+    `import`**, siguiendo **un** nivel de ayudante. Lo que no puede hacer va declarado:
+    no ve banderas que lleguen por variable, y no dice que una bandera esté rota — dice
+    que **nadie la ha recorrido entera**.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
