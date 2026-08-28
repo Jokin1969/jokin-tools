@@ -1027,12 +1027,37 @@ WHERE_THE_MOUSE_TABLE_LIVES = (
 #: todavia: el segundo fichero NO EXISTE, y fabricarlo para tenerlo seria inventarse la
 #: medida (regla 5). Queda declarado: el dia que llegue el 3'-end seq, lo primero es
 #: cruzar los dos techos, no enchufarlo.
+#:
+#: Y LA DIRECCION ESPERADA VA ESCRITA, que es la parte que hay que retener. Si los dos
+#: numeros discrepan, ESO NO ES UN FALLO A RECONCILIAR: es el dato. PolyA_DB promedia
+#: TODOS los tejidos y las neuronas ALARGAN los 3'UTR, asi que lo esperable es que el
+#: techo de cerebro sea MAYOR que 0,86.
+#:
+#:   - cerebro > PolyA_DB  →  CONFIRMA el modelo. El 0,86 era un limite inferior y se
+#:     declaro como tal; el dato del tejido lo mejora, que es justo lo que se anticipo.
+#:   - cerebro < PolyA_DB  →  **PARAR**. Contradice la direccion conocida del sesgo, asi
+#:     que antes de tocar ningun veredicto hay que buscar la causa: anclaje, md5 del
+#:     3'UTR, o que una de las dos tablas no sea del gen que dice.
+#:
+#: Sin esta frase, alguien tratara la discrepancia como un error a reconciliar y
+#: promediara los dos numeros — que es perder la unica informacion que la discrepancia
+#: lleva dentro.
+EXPECTED_DIRECTION = (
+    "Si el techo del 3'-end seq de cerebro y el de PolyA_DB discrepan, la discrepancia "
+    "NO es un fallo a reconciliar: es el dato. PolyA_DB promedia todos los tejidos y "
+    "las neuronas alargan los 3'UTR, así que lo esperable es que el de cerebro sea "
+    "MAYOR que 0,86 — y una discrepancia en esa dirección CONFIRMA el modelo. En la "
+    "contraria hay que PARAR: contradice la dirección conocida del sesgo, y antes de "
+    "mover ningún veredicto hay que buscar la causa. No se promedian."
+)
+
 APA_ARE_TWO_FILES = (
     "El frente del APA lo cierra cualquiera de dos ficheros, y no son el mismo con otro "
     "nombre: `polya_db_<especie>.tsv` es PolyA_DB en crudo —coordenadas genómicas, PSE "
     "y AvgRPM— y de él sale la promoción por medida; `apa_medido_<especie>.tsv` es una "
     "medida que llega ya convertida a coordenadas de 3'UTR, que es el caso de un "
-    "3'-end seq del tejido. Con uno de los dos el frente está cerrado."
+    "3'-end seq del tejido. Con uno de los dos el frente está cerrado. "
+    + EXPECTED_DIRECTION
 )
 
 

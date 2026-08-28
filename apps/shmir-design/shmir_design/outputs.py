@@ -25,7 +25,7 @@ from .coords import bound_of, Frame, frame_of, label, span
 from .transgene import carries_scaffold_module
 from .mirna import SEED_SPACE
 from . import splicing
-from .apa import CLUSTER_READING
+from .apa import APA_ARE_TWO_FILES, CLUSTER_READING
 from .polya import rtqpcr_amplicons
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
@@ -247,6 +247,7 @@ def text_report(
     polya_conservation=None,
     orf_sweep=None,
     triple_motive=None,
+    mask_bite=None,
 ) -> str:
     lines = [
         f"═══ Diseño de shmiR — {species} ═══",
@@ -901,6 +902,12 @@ def text_report(
         )
 
     lines.extend(["", "── Poliadenilación alternativa (APA) ──"])
+    # DOS FICHEROS CIERRAN ESTE FRENTE y no son el mismo con otro nombre, asi que va
+    # dicho aqui — con la DIRECCION esperada de la discrepancia entre sus dos techos.
+    # Sin esa direccion, quien reciba el 3'-end seq de cerebro y vea un numero distinto
+    # de 0,86 lo tratara como un error a reconciliar y promediara los dos, que es perder
+    # justo la informacion que la discrepancia lleva dentro.
+    lines.extend(f"  {l}" for l in _envolver(APA_ARE_TWO_FILES, 85))
     if tiling.apa_sites is None:
         con_riesgo = sum(1 for w in tiling.windows if w.riesgo_APA)
         lines.append(
@@ -995,6 +1002,19 @@ def text_report(
             "  El enmascarado va ANTES de tilar y se RETILA: una ventana parcialmente "
             "repetitiva se reevalua entera, no se tacha de una lista ya hecha."
         )
+        # CUANTO MUERDE, y que un cero se pueda leer. Se calcula fuera —hace falta un
+        # informe tilado SIN mascara, misma condicion que el triple motivo— y entra por
+        # parametro. Sin esta cuenta, un filtro que corre y no quita nada es
+        # indistinguible en la salida de uno que no llego a correr, y eso es justo lo
+        # que la regla 3 existe para impedir. Ver `masking.WHY_THE_BITE_IS_A_PROPERTY`.
+        if mask_bite is None:
+            lines.append(
+                "  Cuánto se lleva por delante: NOT_RUN — hace falta un tilado SIN "
+                "enmascarar para contarlo. Con la máscara puesta el paso 15 retila y la "
+                "cuenta saldría cero, indistinguible de un cero de verdad."
+            )
+        else:
+            lines.extend(f"  {l}" for l in _envolver(mask_bite.describe(), 85))
 
     lines.extend(["", "── Colisión de seed con miARN endogeno ──"])
     if tiling.mature is None:

@@ -434,6 +434,17 @@
   La selección se hizo por asimetría, no repartiendo. La asimetría predice SELECCIÓN DE HEBRA, no potencia: si lo que se quiere es correlacionar parámetros contra el knockdown medido, --reparto-rango reparte los candidatos por los extremos de los parámetros dudosos.
 
 ── Poliadenilación alternativa (APA) ──
+  El frente del APA lo cierra cualquiera de dos ficheros, y no son el mismo con otro
+  nombre: `polya_db_<especie>.tsv` es PolyA_DB en crudo —coordenadas genómicas, PSE y
+  AvgRPM— y de él sale la promoción por medida; `apa_medido_<especie>.tsv` es una
+  medida que llega ya convertida a coordenadas de 3'UTR, que es el caso de un 3'-end
+  seq del tejido. Con uno de los dos el frente está cerrado. Si el techo del 3'-end seq
+  de cerebro y el de PolyA_DB discrepan, la discrepancia NO es un fallo a reconciliar:
+  es el dato. PolyA_DB promedia todos los tejidos y las neuronas alargan los 3'UTR, así
+  que lo esperable es que el de cerebro sea MAYOR que 0,86 — y una discrepancia en esa
+  dirección CONFIRMA el modelo. En la contraria hay que PARAR: contradice la dirección
+  conocida del sesgo, y antes de mover ningún veredicto hay que buscar la causa. No se
+  promedian.
   riesgo_APA es una PREDICCIÓN, no un dato: 980 de 2170 ventana(s) (45.2%) quedan por detrás de una señal de APA posible.
   Que esa señal se use o no, esto no lo puede saber. Si se usa, esas ventanas tienen un techo de knockdown duro e invisible. Con una tabla de PolyA_DB o PolyASite (--apa-medido) el dato sustituiria a la predicción.
 

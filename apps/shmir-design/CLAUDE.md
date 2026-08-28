@@ -714,6 +714,41 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     puesta esas ventanas ya no están en la piscina y una lista por ventana saldría vacía.
     El informe emite los **dos ejes** con su motivo; el detalle por ventana es
     `masking.triple_motive_rows` sobre un informe tilado **sin** máscara.
+- **CUÁNTO MUERDE LA MÁSCARA SALE EN EL INFORME, y es INFORMACIÓN (2026-08-27)**
+  (`masking.mask_bite`, `WHY_THE_BITE_IS_A_PROPERTY`). Salió al medir qué cambia cada
+  fichero de referencia: la máscara del ratón quita **0** ventanas elegibles y la del
+  humano **5**. Eso **no es una propiedad del pipeline** —es la misma maquinaria en los
+  dos— sino de los **TRANSCRITOS**, y por eso va en la salida y no en un test.
+  - Un filtro que corre y no quita nada tiene que **distinguirse** de uno que no corrió.
+    Un cero a secas se lee como «no hizo nada» o, peor, como que no llegó a mirar — y no
+    haber quitado nada no es lo mismo que no haber mirado. Misma familia que el «Alu 0 %»
+    obtenido sin buscar Alu.
+  - **Tres cifras y ninguna sobra**: elementos en toda la consulta, cuántos **dentro** del
+    3'UTR, y cuántas ventanas **elegibles** solapa. En el ratón son 1 / 0 / 0, y es la
+    segunda la que hace legible el cero: la máscara **sí** encontró algo y está en el CDS.
+  - **Se calcula sobre un tilado SIN máscara**, misma condición que `triple_motive_rows`:
+    con ella puesta el paso 15 retila y la cuenta saldría cero — indistinguible del cero
+    de verdad, que es justo el número que esto existe para poder leer. Y con los **dos**
+    desfases por nombre, por lo mismo que allí.
+  - **Las dos cifras de la frase NO están transcritas**:
+    `tests/test_mordida_de_la_mascara.py` las recalcula de los ficheros de verdad y exige
+    que la prosa las cite (principio nº 13).
+  - **Y NO se comprueba con un `grep` sobre el fuente.** El golden del informe se genera
+    **sin máscara**, así que este bloque no entra en él: un test que mirara `outputs.py`
+    pasaría igual con la línea sin llegar nunca a una pantalla. Se corre el **CLI de
+    verdad** con `--rmsk` y se lee el informe que escribe.
+  - **Y ESE TEST CAZÓ UNA RAMA QUE NUNCA HABÍA CORRIDO** (errata nº 31): `design.py`
+    pasaba `thresholds=umbrales` y esa variable **no existe** —se llama `thresholds`—,
+    así que **toda** corrida con `--rmsk` moría con un `NameError`, y con ella el bloque
+    del **triple motivo**, que se cableó justo porque «existía sólo porque alguien lo
+    corría a mano». Ningún test lo veía porque **ninguno corría el CLI con máscara**: los
+    del triple motivo llaman a `triple_motive_rows` ellos mismos. Es la **quinta** vez de
+    esa familia, y la primera en que hay un llamador escrito y lo que falla es el
+    llamador. **Un fallo ruidoso en una rama que nadie ejecuta es tan invisible como uno
+    silencioso**, y ni la alcanzabilidad ni el golden pueden verlo: la regla que queda es
+    que una combinación de flags que ningún test recorre de punta a punta **no está
+    probada**, por muchos tests que tengan sus piezas.
+
 - **El manifiesto registra la BIBLIOTECA además de la versión del binario** (columna
   `biblioteca`): RepeatMasker 4.0.9 con Dfam_3.0 y con otra biblioteca dan resultados
   distintos, así que la versión a solas no identifica la corrida. Las cabeceras cortas se
@@ -1961,6 +1996,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     pendiente —**3'-end seq de cerebro murino**—, la medida *en nuestro tejido*, que
     PolyA_DB no puede dar porque su 0,86 es de **todos** los tejidos y por eso se declara
     como límite inferior.
+  - **RECTIFICADO por Joaquín Castilla (2026-08-27), y anotado con su nombre a petición
+    suya**: «no era un residuo... son dos preguntas, y el segundo tiene un uso real
+    pendiente». Va con su nombre por la misma razón que la predicción refutada de la
+    carrera de A: si sólo se anotan las rectificaciones ajenas, el registro deja de ser
+    un registro y pasa a ser un argumento.
   - **LO QUE NO SE CALLA**: hoy los dos producen un techo de knockdown por caminos
     **independientes** —`apa_assessment` no mira la tabla de PolyA_DB y `resolve_measured`
     no mira los sitios convertidos— y **nada obliga a que coincidan**. Es el patrón de los
@@ -1968,6 +2008,18 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     `offtarget`. Aquí ese test **no se puede escribir todavía**: el segundo fichero no
     existe y fabricarlo sería inventarse la medida (regla 5). **El día que llegue el
     3'-end seq, lo primero es cruzar los dos techos, no enchufarlo.**
+  - **Y LA DIRECCIÓN ESPERADA VA ESCRITA** (`apa.EXPECTED_DIRECTION`, emitida en el
+    informe). **Si discrepan, NO es un fallo a reconciliar: es el dato.** PolyA_DB
+    promedia **todos** los tejidos y las neuronas **alargan** los 3'UTR, así que lo
+    esperable es que el techo de cerebro sea **MAYOR** que 0,86:
+    - **cerebro > PolyA_DB → CONFIRMA el modelo.** El 0,86 se declaró como límite
+      inferior y el dato del tejido lo mejora, que es lo que se anticipó.
+    - **cerebro < PolyA_DB → PARAR.** Contradice la dirección conocida del sesgo: antes
+      de mover ningún veredicto hay que buscar la causa —anclaje, md5 del 3'UTR, o que
+      una de las dos tablas no sea del gen que dice.
+    **Y no se promedian.** Sin la dirección escrita, quien vea un número distinto de 0,86
+    lo tratará como un error y hará la media, que es perder justo la información que la
+    discrepancia lleva dentro. Misma clase de frase que «rebaja, no descarta».
 
 - **LA INTERFAZ SE SIRVE DESDE EL HUB, EN `/shmir`. DECIDIDO (2026-08-26)**
   (`apps/shmir/` en el hub — proceso hijo + proxy inverso). Hasta ahora esta interfaz

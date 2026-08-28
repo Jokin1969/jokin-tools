@@ -155,6 +155,28 @@ parametriza, se sustituye — y entonces se sustituye esto tambien."""
 # ─────────────────────────── PROSA ───────────────────────────
 
 [[constante]]
+simbolo = "apa.EXPECTED_DIRECTION"
+categoria = "prosa"
+motivo = """\
+La DIRECCION esperada de la discrepancia entre los dos techos de APA, y por que. Nombra \
+el 0,86 porque es contra ese numero contra el que se compara, pero el numero no vive \
+aqui: sale de `polya_db_mouse.tsv`. Lo que vive aqui es la REGLA de como leer la \
+discrepancia —mayor confirma, menor obliga a parar, y no se promedian—, que es \
+razonamiento sobre el dato y no el dato. Sin ella, quien reciba el 3'-end seq de cerebro \
+y vea otro numero lo tratara como un error a reconciliar."""
+
+[[constante]]
+simbolo = "masking.WHY_THE_BITE_IS_A_PROPERTY"
+categoria = "prosa"
+motivo = """\
+Que la mascara no quite ninguna ventana es una propiedad del TRANSCRITO y no del \
+pipeline. Cita las dos cifras de las dos especies —0 en Mus musculus, 5 en Homo \
+sapiens— porque la comparacion ES el contenido de la frase: sin las dos, un cero se lee \
+como «el filtro no hizo nada». No estan transcritas: \
+`tests/test_mordida_de_la_mascara.py` las recalcula de los ficheros de verdad y exige \
+que esta frase las cite."""
+
+[[constante]]
 simbolo = "apa.APA_ARE_TWO_FILES"
 categoria = "prosa"
 motivo = """\
