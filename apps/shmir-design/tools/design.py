@@ -189,6 +189,17 @@ DESTINOS = {
     "rmsk": ("rmsk", "rmsk_version", "rmsk_md5"),
     "transgen": ("transgen", "transgen_version", "transgen_md5"),
     "apa": ("apa_medido", "apa_version", "apa_md5"),
+    # `polyadb` NO SE CONECTA POR AQUI, y `None` lo dice: la tabla de PolyA_DB la
+    # resuelve `tile_utr` por su cuenta del directorio de referencia (`find_polyadb`),
+    # asi que no hay bandera que rellenar. Antes ni siquiera estaba, y `--usar-manifiesto`
+    # —«la forma normal de correr»— reventaba con un `KeyError: 'polyadb'` contra el
+    # manifiesto de verdad. Ningun test lo veia porque todos montan un manifiesto
+    # PARCIAL en un temporal, sin ese rol.
+    #
+    # `None` es una DECISION declarada, no un hueco: un rol que faltara del diccionario
+    # vuelve a ser el KeyError, y `tests/test_roles_del_manifiesto.py` cruza las dos
+    # listas en las dos direcciones para que no pueda volver a pasar.
+    "polyadb": None,
 }
 
 
@@ -210,7 +221,10 @@ def conectar_desde_manifiesto(args, estado) -> None:
 
     print("  --usar-manifiesto conecta:")
     for rol in disponibles:
-        destino, version, md5 = DESTINOS[rol.role]
+        conexion = DESTINOS[rol.role]
+        if conexion is None:
+            continue  # lo resuelve el nucleo, no hay bandera que rellenar
+        destino, version, md5 = conexion
         entrada = estado.result_of(rol.filename).entry
         if getattr(args, destino) is not None:
             print(

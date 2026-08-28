@@ -716,3 +716,62 @@ main como `main`— y no veía las de `test_usar_manifiesto.py`, que llama por u
 Se contrastó contra un `grep` en las dos direcciones antes de darlo por bueno, y ahora el
 CLI se resuelve **por fichero, de sus propios `import`**. Un análisis que se equivoca
 hacia el silencio es peor que no tenerlo: no avisa y además tranquiliza.
+
+---
+
+## 18 — Un artefacto de verificación generado con parámetros distintos a los de uso valida una configuración fantasma
+
+El golden del informe se generaba con `--inmunes 4` **tecleado a mano** en
+`regenerar_golden.py`. Así que la única corrida del CLI que alguien miraba llevaba una
+configuración que **ningún usuario usa** — y coincidía con la página mientras el CLI por
+defecto daba otro panel, con tres inmunes en vez de cuatro (errata nº 32).
+
+Es grave por dónde falló: **el golden es la contramedida principal de este proyecto.** Se
+escribió porque los tests de presencia miran lo que cada uno espera y nadie mira el
+conjunto; lee la salida entera; se regenera a mano y su diff entra en la revisión. Todo
+eso siguió funcionando — sobre una configuración que no existe fuera del generador.
+
+### La contramedida
+
+**El artefacto de verificación se genera con la configuración por defecto, sin
+excepciones.** Si hace falta una variante, se genera un artefacto **adicional** cuyo
+**nombre declara** qué configuración lleva. Nunca uno solo con parámetros puestos a mano.
+
+Está comprobado sobre el propio generador: un test recorre su `ARGV` y **falla si aparece
+cualquier bandera que no sea de entrada** —la secuencia y su anatomía—. Todo lo demás es
+configuración, y una configuración en el golden por defecto es una configuración
+fantasma.
+
+### Lo que salió al aplicarla, que es media lección más
+
+De los cuatro parámetros tecleados, **tres eran INERTES**: `--candidates 10` es el
+defecto, `--min-block 22` da lo mismo que 15 sobre este par, y `--sin-manifiesto` no
+cambia nada habiendo manifiesto. Llevaban ahí sin hacer nada y sin que nadie lo supiera.
+El único con efecto era el que rompió.
+
+Un parámetro puesto a mano en un artefacto de verificación **no se revisa nunca más**: se
+lee como parte del decorado. Por eso la regla no es «revisa que los parámetros sigan
+teniendo sentido» sino «**no los pongas**».
+
+### Y los tres artefactos que no eran el golden
+
+`ficha_raton_200.txt`, `informe_documento.md` y `pagina_raton.txt` construían
+`SelectionConfig(n_candidates=10, apa_immune_quota=4)` a mano — `--inmunes 4` con otra
+forma. Los tres pasan ahora por `default_config()`. **No cambió ni una línea de los tres**,
+que es lo que se espera: hoy los valores coinciden. Lo que cambia es que mañana, si
+alguien mueve la constante del proyecto, los goldens se enteran.
+
+La ironía: dos de ellos ya llevaban escrito, dos líneas más arriba, que la tabla de
+PolyA_DB **no se pasa a mano** porque «era lo que hacía que el golden se generara con la
+constante mientras la app leía el fichero — dos caminos, y el golden dejaba de comprobar
+el de verdad». La misma lección, aplicada al dato y no a la configuración, en el mismo
+bloque de código.
+
+### El corolario de la clasificación
+
+**Al clasificar una bandera —o un estado— hay que mirar QUIÉN LA LLAMA, no sólo qué
+hace.** El puente de Batchwork pasa 18 banderas en cada corrida desplegada, cuatro de
+ellas sin recorrido de punta a punta; eso no se ve mirando la bandera. Y al revés:
+`--usar-manifiesto` figuraba como recorrida porque sus tests montan un manifiesto
+**parcial** en un temporal — contra el manifiesto de verdad abortaba con un
+`KeyError: 'polyadb'`. Quién llama, y **con qué entrada**.

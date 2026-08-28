@@ -1,0 +1,197 @@
+# Estados de la interfaz: en cuáles se ha PINTADO la página alguna vez.
+#
+# El espacio lo deriva `tools/auditar_estados.py` —los roles de `species.required_files`,
+# los modales de `store.RECORD_KINDS`— y el nivel lo deriva de los tests. Aquí sólo vive
+# lo que no se puede derivar: QUÉ PINTA cada estado y qué se hace con él.
+#
+# Los tres destinos, los mismos que en las banderas:
+#
+#   CUBRIR    — pinta algo distinto y hay que probarlo pintando.
+#   CONSTANTE — el estado existe pero la página pinta lo mismo que en otro: no es un
+#               estado propio y debería dejar de contarse como tal.
+#   BORRAR    — la página no puede estar en él.
+#
+# Y `bloqueado_por` dice por qué no se puede cubrir HOY. No es una excusa: es la tarea
+# concreta que lo desbloquearía, como `revalida_en_produccion` en los guardias.
+
+[[estado]]
+estado = "corrida:SIN_DISEÑAR"
+destino = "CUBRIR"
+que_pinta = "Pasos 1-4, sin resultados y sin paso 5. Es lo que ve quien abre la app."
+
+[[estado]]
+estado = "corrida:DISEÑADO_SIN_SELECCION"
+destino = "CUBRIR"
+que_pinta = "Aparecen resultados, mapa, semáforo y el paso 5 con el panel de refinamiento."
+bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningún test puede llevar la página al estado DISEÑADO. Lo cerraría una vía para inyectar la secuencia sin pasar por el widget."
+
+[[estado]]
+estado = "corrida:DISEÑADO_CON_SELECCION"
+destino = "CUBRIR"
+que_pinta = "Además, los CUATRO modales y la ficha del candidato. Aquí es donde vive `_modal_blast`."
+bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningún test puede llevar la página al estado DISEÑADO. Lo cerraría una vía para inyectar la secuencia sin pasar por el widget."
+
+[[estado]]
+estado = "fichero:rmsk:CON"
+destino = "CUBRIR"
+que_pinta = "El rol `rmsk` sale CERRADO en el panel de refinamiento y su frente puede correr."
+
+[[estado]]
+estado = "fichero:rmsk:SIN"
+destino = "CUBRIR"
+que_pinta = "El rol `rmsk` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
+bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
+
+[[estado]]
+estado = "fichero:mirbase:CON"
+destino = "CUBRIR"
+que_pinta = "El rol `mirbase` sale CERRADO en el panel de refinamiento y su frente puede correr."
+
+[[estado]]
+estado = "fichero:mirbase:SIN"
+destino = "CUBRIR"
+que_pinta = "El rol `mirbase` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
+bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
+
+[[estado]]
+estado = "fichero:abundancia:CON"
+destino = "CUBRIR"
+que_pinta = "El rol `abundancia` sale CERRADO en el panel de refinamiento y su frente puede correr."
+bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
+
+[[estado]]
+estado = "fichero:abundancia:SIN"
+destino = "CUBRIR"
+que_pinta = "El rol `abundancia` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
+
+[[estado]]
+estado = "fichero:transcriptoma:CON"
+destino = "CUBRIR"
+que_pinta = "El rol `transcriptoma` sale CERRADO en el panel de refinamiento y su frente puede correr."
+bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
+
+[[estado]]
+estado = "fichero:transcriptoma:SIN"
+destino = "CUBRIR"
+que_pinta = "El rol `transcriptoma` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
+
+[[estado]]
+estado = "fichero:expresion:CON"
+destino = "CUBRIR"
+que_pinta = "El rol `expresion` sale CERRADO en el panel de refinamiento y su frente puede correr."
+bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
+
+[[estado]]
+estado = "fichero:expresion:SIN"
+destino = "CUBRIR"
+que_pinta = "El rol `expresion` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
+
+[[estado]]
+estado = "fichero:refseq:CON"
+destino = "CUBRIR"
+que_pinta = "El rol `refseq` sale CERRADO en el panel de refinamiento y su frente puede correr."
+bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
+
+[[estado]]
+estado = "fichero:refseq:SIN"
+destino = "CUBRIR"
+que_pinta = "El rol `refseq` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
+
+[[estado]]
+estado = "fichero:transgen:CON"
+destino = "CUBRIR"
+que_pinta = "El rol `transgen` sale CERRADO en el panel de refinamiento y su frente puede correr."
+
+[[estado]]
+estado = "fichero:transgen:SIN"
+destino = "CUBRIR"
+que_pinta = "El rol `transgen` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
+bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
+
+[[estado]]
+estado = "fichero:apa:CON"
+destino = "CUBRIR"
+que_pinta = "El rol `apa` sale CERRADO en el panel de refinamiento y su frente puede correr."
+bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
+
+[[estado]]
+estado = "fichero:apa:SIN"
+destino = "CUBRIR"
+que_pinta = "El rol `apa` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
+
+[[estado]]
+estado = "fichero:polyadb:CON"
+destino = "CUBRIR"
+que_pinta = "El rol `polyadb` sale CERRADO en el panel de refinamiento y su frente puede correr."
+
+[[estado]]
+estado = "fichero:polyadb:SIN"
+destino = "CUBRIR"
+que_pinta = "El rol `polyadb` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
+bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
+
+[[estado]]
+estado = "modal:blast:CON_CORRIDA"
+destino = "CUBRIR"
+que_pinta = "El modal de `blast` enseña el veredicto de la última corrida guardada y su historial."
+bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningún test puede llevar la página al estado DISEÑADO. Lo cerraría una vía para inyectar la secuencia sin pasar por el widget."
+
+[[estado]]
+estado = "modal:blast:SIN_CORRIDA"
+destino = "CUBRIR"
+que_pinta = "El modal de `blast` enseña NOT_RUN VISIBLE: no haber corrido no se parece a haber corrido limpio."
+bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningún test puede llevar la página al estado DISEÑADO. Lo cerraría una vía para inyectar la secuencia sin pasar por el widget."
+
+[[estado]]
+estado = "modal:empalme:CON_CORRIDA"
+destino = "CUBRIR"
+que_pinta = "El modal de `empalme` enseña el veredicto de la última corrida guardada y su historial."
+bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningún test puede llevar la página al estado DISEÑADO. Lo cerraría una vía para inyectar la secuencia sin pasar por el widget."
+
+[[estado]]
+estado = "modal:empalme:SIN_CORRIDA"
+destino = "CUBRIR"
+que_pinta = "El modal de `empalme` enseña NOT_RUN VISIBLE: no haber corrido no se parece a haber corrido limpio."
+bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningún test puede llevar la página al estado DISEÑADO. Lo cerraría una vía para inyectar la secuencia sin pasar por el widget."
+
+[[estado]]
+estado = "modal:offtarget:CON_CORRIDA"
+destino = "CUBRIR"
+que_pinta = "El modal de `offtarget` enseña el veredicto de la última corrida guardada y su historial."
+bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningún test puede llevar la página al estado DISEÑADO. Lo cerraría una vía para inyectar la secuencia sin pasar por el widget."
+
+[[estado]]
+estado = "modal:offtarget:SIN_CORRIDA"
+destino = "CUBRIR"
+que_pinta = "El modal de `offtarget` enseña NOT_RUN VISIBLE: no haber corrido no se parece a haber corrido limpio."
+bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningún test puede llevar la página al estado DISEÑADO. Lo cerraría una vía para inyectar la secuencia sin pasar por el widget."
+
+[[estado]]
+estado = "modal:seed:CON_CORRIDA"
+destino = "CUBRIR"
+que_pinta = "El modal de `seed` enseña el veredicto de la última corrida guardada y su historial."
+bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningún test puede llevar la página al estado DISEÑADO. Lo cerraría una vía para inyectar la secuencia sin pasar por el widget."
+
+[[estado]]
+estado = "modal:seed:SIN_CORRIDA"
+destino = "CUBRIR"
+que_pinta = "El modal de `seed` enseña NOT_RUN VISIBLE: no haber corrido no se parece a haber corrido limpio."
+bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningún test puede llevar la página al estado DISEÑADO. Lo cerraría una vía para inyectar la secuencia sin pasar por el widget."
+
+# ── EL TRINQUETE ──────────────────────────────────────────────────────────────
+#
+# Cuenta los estados que DECIDEN qué se pinta, no están bloqueados por una razón escrita,
+# y en los que nadie ha pintado la página. Falla en las DOS direcciones, como el de las
+# banderas: sólo puede ir hacia abajo.
+#
+# LOS BLOQUEADOS CUENTAN. Excluirlos dejaba el número en CERO con diecinueve estados sin
+# pintar — un informe que se lee como «pendiente» y no obliga a nada (principio nº 15).
+# `bloqueado_por` dice POR QUÉ no se puede hoy; no exime de contarlo.
+#
+# HOY ESTÁ EN 19 sobre 29, y las causas son DOS, no diecinueve: `AppTest` no puede
+# rellenar un `file_uploader` (18 estados, entre ellos los OCHO de los cuatro modales) y
+# la página no acepta un directorio de referencia de prueba (9 estados). Abrir cualquiera
+# de las dos desbloquea todas las suyas de golpe. Lo que hay que hacer NO es escribir
+# tests sueltos: es abrir esas dos vías.
+[umbral]
+sin_pintar = 19

@@ -357,6 +357,24 @@
     RECODIFICAR nada. El obstaculo clasico de la via ORF no existe aquí. Se comprueba igual
     con el filtro del transgén: no se da por supuesto.
 
+── Convergencia con la fuente externa ──
+  HALLAZGO — el espacio de ventanas viables está SATURADO
+    Dos metodos independientes con criterios distintos sobre el MISMO 3'UTR: nuestra cascada de filtros duros
+    y fuente externa (mirarchitect_prnp_export_buena.csv, 24 filas, 0 sin mapear). 24 sitio(s) de la fuente externa contra los 86 sitios elegibles (la tabla COMPLETA)
+    (86 posiciones), espaciado 50 nt:
+      · 0 sitios exclusivos de la fuente externa que superen nuestros filtros duros.
+        (tx:2149 (3utr:1200) no choca con ningún sitio nuestro, pero no pasa nuestros filtros duros:
+        por eso no hay ninguna ventana elegible cerca, y por eso no es una plaza que nadie aporte.)
+      · 3 coincidencia(s) EXACTA(S), misma posición de inicio y misma ventana base a base: tx:1684 (3utr:735), tx:1759 (3utr:810), tx:1967 (3utr:1018)
+      · 6 a 1 nt (la misma ventana corrida una base): tx:1286 (3utr:337)↔tx:1287 (3utr:338), tx:1465 (3utr:516)↔tx:1466 (3utr:517), tx:1501 (3utr:552)↔tx:1502 (3utr:553), tx:1966 (3utr:1017)↔tx:1967 (3utr:1018), tx:1973 (3utr:1024)↔tx:1974 (3utr:1025), tx:2024 (3utr:1075)↔tx:2025 (3utr:1076)
+    LECTURA. Esto NO ES UNA VALIDACIÓN cruzada: donde solo cabe coincidir, coincidir no
+    demuestra nada. Lo que dice es que bajo los filtros duros quedan tan pocas ventanas
+    viables que dos criterios distintos aterrizan en las mismas. La convergencia externa
+    NO DISCRIMINA entre candidatos y NO PUEDE USARSE PARA ELEGIR: no ordena, no desempata
+    y no aporta plazas.
+    Es un dato de CALIBRACION de nuestra propia cascada — cuanto margen de elección deja —,
+    y como tal va al SUPLEMENTARIO, no al ranking.
+
 ── Que se ha analizado ──
   2191 nt, md5 canónico 44fb8cd80883844cde5e53bbc367b176
   Sin estas dos cifras no hay forma de saber que secuencia se analizo. El md5 es el de la

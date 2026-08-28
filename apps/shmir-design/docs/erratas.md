@@ -1189,3 +1189,51 @@ La distinción que faltaba es la que `default_config` ya aplicaba al tamaño del
   reserva porque aquí no hay truncamiento que temer»* y *«no lleva reserva porque se
   renunció a ella»* son cosas distintas, y una cuota que desaparece en silencio es lo
   mismo que no haberla tenido nunca.
+
+---
+
+## 33 — `--usar-manifiesto` abortaba con un `KeyError` contra el manifiesto de verdad
+
+**Fecha:** 2026-08-27. **Estado:** cerrada. **Cómo apareció:** escribiendo el golden
+variante que fija «la forma normal de correr».
+
+`manifest.ROLES` ganó el rol **`polyadb`** cuando la tabla de PolyA_DB se mudó del código
+al gestor. `tools/design.py` tiene su propio diccionario, `DESTINOS`, que dice a qué
+bandera va cada rol — y **no se enteró**. Resultado:
+
+```
+python3 tools/design.py --usar-manifiesto ...   →   KeyError: 'polyadb'
+```
+
+O sea que **«la forma normal de correr» estaba rota** desde entonces.
+
+### Por qué ningún test lo vio, y es lo que enseña
+
+`tests/test_usar_manifiesto.py` existe, pasa, y recorre la bandera de punta a punta. Pero
+monta un manifiesto **PARCIAL** en un directorio temporal, con los roles que ese test
+necesita. Ninguno incluía `polyadb`.
+
+Así que la bandera figuraba como **cubierta** en el inventario —y lo estaba— sobre una
+entrada que no se parece a la de producción. Es el principio nº 17 con la forma del
+nº 18: el camino se recorre, pero **con una entrada que ningún usuario tiene**. De ahí
+sale el corolario: al clasificar hay que mirar quién llama **y con qué entrada**.
+
+### Lo que se ha hecho
+
+- `DESTINOS["polyadb"] = None`, con el motivo: la tabla la resuelve `tile_utr` por su
+  cuenta (`find_polyadb`), así que no hay bandera que rellenar. `None` es una **decisión
+  declarada**, no un hueco.
+- `tests/test_roles_del_manifiesto.py` cruza `manifest.ROLES` contra `DESTINOS` **en las
+  dos direcciones**, y corre `main(["--usar-manifiesto"])` contra el manifiesto **del
+  repositorio**, no contra uno de temporal.
+- Y queda un golden que lee esa corrida entera:
+  `raton_informe__con_usar_manifiesto__una_especie.txt`.
+
+### Un límite que el aborto dejó a la vista, y no es un fallo
+
+Con **dos** especies, `--usar-manifiesto` sigue abortando — y correctamente: el
+manifiesto conecta `rmsk_mouse.out` **por su rol**, sin mirar qué se está diseñando, y
+`RepeatMask.query_length` se niega a aplicar una máscara de 2191 nt a un transcrito de
+2435. El guardia hace exactamente su trabajo. Lo que dice el aborto es que
+**`--usar-manifiesto` con dos especies no es una combinación viable hoy**, y eso es
+información que no estaba escrita en ninguna parte.
