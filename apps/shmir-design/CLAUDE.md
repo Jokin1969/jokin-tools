@@ -2867,7 +2867,8 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     un endpoint verificado y el registro está vacío (regla 4). Una exención que
     desaparece de la lista deja de poder caducar; hay test de que una exenta que ya se
     recorre hace fallar la suite.
-  - **Estado de partida: 47 de 139 banderas con recorrido entero.** La primera que se
+  - **Estado de partida: 47 de 139 banderas con recorrido entero**; hoy 47 de 130, tras
+    retirar nueve (bloque siguiente). La primera que se
     cubrió al estrenarlo fue `--mirbase` —conecta `mature.fa` y con él el FAIL duro del
     núcleo de abundancia—, que era la `VEREDICTO` más consecuente de las alcanzables hoy:
     `--apa-medido` espera al 3'-end seq y `--accesibilidad` a ViennaRNA.
@@ -2879,6 +2880,39 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     `import`**, siguiendo **un** nivel de ayudante. Lo que no puede hacer va declarado:
     no ve banderas que lleguen por variable, y no dice que una bandera esté rota — dice
     que **nadie la ha recorrido entera**.
+
+- **LAS 50 BANDERAS VEREDICTO, CLASIFICADAS — Y NUEVE RETIRADAS (2026-08-27)**
+  (`destino` en `data/banderas.toml`). El techo de 50 no decía nada accionable, así que
+  se clasificó con el mismo criterio que la alcanzabilidad: **CUBRIR** (se usa de
+  verdad), **CONSTANTE** (reproduce una decisión ya tomada y debe dejar de ser bandera),
+  **BORRAR** (muerta). Salieron **41 / 5 / 4**.
+  - **La sospecha de «superficie de configuración crecida» sale CONFIRMADA en parte, y
+    conviene decir en cuál**: la mayoría (41) son caminos reales, y **12 de ellos no se
+    pueden recorrer hoy** porque el dato no existe (`--refseq`, `--transcriptoma-3utr`,
+    `--apa-medido`…) o falta ViennaRNA. Lo que sí había era **nueve** banderas sin dueño.
+  - **Un flujo real que nadie tenía en cuenta**: el puente de Batchwork
+    (`apps/batchwork/server/operations/shmir-design.js`) pasa **18 banderas en cada
+    corrida desplegada**, cuatro de ellas sin recorrido de punta a punta
+    (`--bootstrap-seeds`, `--cds-b`, `--max-homopolymer`, `--min-spacing`). Al clasificar
+    hay que mirar quién llama, no sólo qué hace la bandera.
+  - **Las nueve retiradas**, y por qué:
+    - `--inmunes` y `--inmunes-antes` — la cuota es la decisión del proyecto y la
+      frontera **se deriva**. Su defecto (0) contradecía la constante (4): errata nº 32.
+    - `--min-por-tercio` — repetía el valor que ya trae `SelectionConfig`.
+    - `--mirbase-especies` — puerta de atrás a un prefijo tecleado, que es justo lo que
+      da CERO colisiones y parece buena noticia. El prefijo sale de `species.resolve()`.
+    - `--polyA-modo` — el criterio es ESCALONADO, decidido con la tabla delante, y el
+      informe ya emite el top-N bajo los tres criterios.
+    - `--seeds` (en `design` y en `tiling_report`) — tabla suelta **sin procedencia**,
+      sustituida por `mature.fa` en el gestor.
+    - `--repeats` — máscara por intervalos pelados, sin especie, sin resumen y sin md5.
+      La sustituyó `--rmsk`, que valida la corrida entera.
+    - `oligo --skip-filters` — saltaba los filtros duros y emitía un oligo **sin
+      veredicto**, que es exactamente lo que este proyecto existe para impedir.
+  - **Bajar eliminando es más barato que cubrir, y una bandera retirada no puede
+    fallar.** El trinquete pasó de **50 a 41** sin escribir un solo test de punta a punta
+    más — y la historia de cómo bajó va en la propia tabla, porque el camino importa
+    tanto como el número.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

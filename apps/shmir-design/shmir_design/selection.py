@@ -91,6 +91,21 @@ class SelectionConfig:
     #: decir inmunes A QUE no significa nada.
     apa_immune_quota: int = 0
     apa_immune_before: int | None = None
+    #: ¿La cuota la PIDIO quien llama, o viene del defecto del proyecto? No es lo mismo,
+    #: y la diferencia decide que pasa cuando la cuota es INSATISFACIBLE porque el
+    #: informe no tiene ninguna señal `APA_POSIBLE`:
+    #:
+    #:   - PEDIDA  → ABORTA. Alguien pidio inmunes a un corte que no existe, y darla por
+    #:     cumplida con cualquiera seria inventarse la inmunidad.
+    #:   - POR DEFECTO → NO_APLICA, y SE DICE en las notas de la seleccion. Abortar por
+    #:     un defecto que nadie pidio es peor que no tenerlo — es exactamente el
+    #:     razonamiento que `default_config` ya aplica al tamaño del panel, y aqui hacia
+    #:     falta el otro lado: una secuencia sin señal de APA no tiene pregunta de
+    #:     inmunidad, asi que no hay nada que abortar.
+    #:
+    #: Se supo al hacer que el CLI usara `default_config()` como la pagina: con la cuota
+    #: puesta, toda corrida sobre una secuencia sin señal de APA moria.
+    apa_immune_quota_por_defecto: bool = False
     #: Cuota EXPLICITA por tercio, del tipo ((PROXIMAL, 4), (MEDIO, 3), (DISTAL, 2)).
     #: Manda sobre `min_per_tercio`. Existe para poder REASIGNAR una plaza a un tercio
     #: concreto y que quede escrito cual y por que, en vez de que el reparto salga de
@@ -697,6 +712,10 @@ def default_config(n_candidates: int = DEFAULT_CANDIDATES, **extra) -> Selection
     return SelectionConfig(
         n_candidates=n_candidates,
         apa_immune_quota=min(DEFAULT_IMMUNE_QUOTA, n_candidates),
+        # Marcada como DEL PROYECTO, no pedida. Ver `apa_immune_quota_por_defecto`: sin
+        # esto, toda corrida sobre una secuencia sin señal de APA aborta por una cuota
+        # que quien llama no ha pedido.
+        apa_immune_quota_por_defecto=True,
         **extra,
     )
 
@@ -714,21 +733,39 @@ def select_from_report(
     defecto.
     """
     config = config or SelectionConfig()
+    sin_corte = ""
     if config.apa_immune_quota and config.apa_immune_before is None:
         # De donde sale la frontera: del informe, no de un numero tecleado. Un corte
         # escrito a mano no se entera de que un sitio de corte medido lo adelante.
         derivado = derive_immune_cut(report)
-        if derivado is None:
+        if derivado is None and not config.apa_immune_quota_por_defecto:
             raise ValueError(
                 f"Se piden {config.apa_immune_quota} candidatos inmunes al truncamiento "
                 f"por APA, pero este informe no tiene ninguna señal APA_POSIBLE: no hay "
                 f"corte al que ser inmune. Se aborta en vez de dar la cuota por "
                 f"cumplida con cualquiera."
             )
-        config = replace(config, apa_immune_before=derivado)
+        if derivado is None:
+            # NO_APLICA, y SE DICE. Sin señal de APA no hay pregunta de inmunidad, asi
+            # que la cuota del proyecto no se puede cumplir NI incumplir. Se quita, y la
+            # nota va a la seleccion: una cuota que desaparece en silencio es lo mismo
+            # que no haberla tenido nunca.
+            sin_corte = (
+                f"Cuota de {config.apa_immune_quota} inmunes al APA: NO_APLICA. Esta "
+                f"secuencia no tiene ninguna señal APA_POSIBLE, así que no hay corte al "
+                f"que ser inmune. La cuota es del proyecto y no la pidió esta corrida, "
+                f"así que se retira en vez de abortar — pero se dice: el panel NO lleva "
+                f"reserva frente al truncamiento porque aquí no hay truncamiento que "
+                f"temer, no porque se haya renunciado a ella."
+            )
+            config = replace(config, apa_immune_quota=0)
+        else:
+            config = replace(config, apa_immune_before=derivado)
     choices = eligible_choices(report, config)
     sites = group_choices(choices)
     selection = choose(sites, config)
+    if sin_corte:
+        selection = replace(selection, notes=(sin_corte,) + selection.notes)
     return ReportSelection(
         selection=selection,
         windows={w.window.name: w for w in report.windows},

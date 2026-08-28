@@ -54,7 +54,6 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--fasta", type=Path, help="3'UTR suelto en FASTA")
     parser.add_argument("--name", default="3utr", help="Nombre para --fasta")
-    parser.add_argument("--seeds", type=Path, help="Tabla de seeds `seed familia`")
     parser.add_argument(
         "--bootstrap-seeds",
         action="store_true",
@@ -63,20 +62,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--tsv", type=Path, help="Directorio donde escribir los TSV")
     args = parser.parse_args(argv)
 
-    if args.seeds and args.bootstrap_seeds:
-        print(
-            "tiling_report: --seeds y --bootstrap-seeds son excluyentes; elige de "
-            "donde vienen las seeds.",
-            file=sys.stderr,
-        )
-        return 2
-
     try:
-        seeds = None
-        if args.bootstrap_seeds:
-            seeds = BOOTSTRAP_SEEDS
-        elif args.seeds:
-            seeds = load_seed_set(args.seeds)
+        # Sin `--seeds`: una tabla suelta no trae procedencia, y el filtro real sale
+        # de `mature.fa` por el gestor. Lo unico que queda es la lista de ARRANQUE, que
+        # ya lleva su fecha de caducidad declarada (`seeds.bootstrap_expiry_note`).
+        seeds = BOOTSTRAP_SEEDS if args.bootstrap_seeds else None
 
         if args.fasta:
             entradas = {args.name: read_fasta_sequence(args.fasta)}
