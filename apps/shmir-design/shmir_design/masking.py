@@ -794,6 +794,106 @@ def triple_motive_rows(
     return tuple(filas)
 
 
+#: CUANTO MUERDE LA MASCARA, Y POR QUE ES INFORMACION. AÑADIDO 2026-08-27.
+#:
+#: Salio al medir que cambia cada fichero de referencia: la mascara del raton quita CERO
+#: ventanas elegibles y la del humano CINCO. Eso NO es una propiedad del pipeline —es la
+#: misma maquinaria en los dos— sino de los TRANSCRITOS: el 3'UTR murino de Prnp no tiene
+#: ni un elemento repetitivo (su unico hallazgo, el `(CTC)n` de `tx:892-936`, esta entero
+#: dentro del CDS) y el humano si, un `(TA)n` en `3utr:1268-1301`.
+#:
+#: Un filtro que corre y no quita nada tiene que distinguirse de uno que no corrio. Un
+#: cero a secas se lee como «no hizo nada» o, peor, como que no llego a mirar — y no
+#: haber quitado nada no es lo mismo que no haber mirado. Misma familia que el «Alu 0 %»
+#: obtenido sin buscar Alu.
+#:
+#: Las dos cifras NO estan transcritas: `tests/test_mordida_de_la_mascara.py` las
+#: recalcula de los ficheros de verdad y exige que esta frase las cite (principio nº 13).
+WHY_THE_BITE_IS_A_PROPERTY = (
+    "Que la máscara no quite ninguna ventana es una propiedad del TRANSCRITO, no del "
+    "pipeline: la misma maquinaria se lleva 0 ventanas elegibles en Mus musculus —cuyo "
+    "3'UTR de Prnp no tiene ni un elemento repetitivo: el único hallazgo, el `(CTC)n`, "
+    "está entero dentro del CDS— y 5 en Homo sapiens, por el `(TA)n` de "
+    "`3utr:1268-1301`. Un cero aquí es un resultado medido, no un filtro que no corrió."
+)
+
+
+@dataclass(frozen=True)
+class MaskBite:
+    """Cuanto se lleva la maScara por delante en ESTE transcrito.
+
+    Tres cifras y ninguna sobra, porque dicen cosas distintas:
+
+    - `elements` — cuantos elementos encontro RepeatMasker en toda la consulta. Cero
+      aqui significa que la corrida no encontro nada;
+    - `in_utr3` — cuantos de ellos caen DENTRO del 3'UTR. Cero aqui con `elements` mayor
+      que cero significa que si encontro algo y esta en otra region, que es el caso del
+      raton;
+    - `windows` — cuantas ventanas ELEGIBLES solapa. Es la mordida de verdad.
+
+    Colapsarlas a una sola perderia justo la distincion que hace legible el cero.
+    """
+
+    elements: int
+    in_utr3: int
+    windows: int
+    labels: tuple[str, ...]
+
+    def describe(self) -> str:
+        if self.windows:
+            return (
+                f"La máscara se lleva {self.windows} ventana(s) elegible(s) de este "
+                f"3'UTR ({', '.join(self.labels)}), de {self.in_utr3} elemento(s) "
+                f"repetitivo(s) dentro de él. {WHY_THE_BITE_IS_A_PROPERTY}"
+            )
+        if self.elements:
+            return (
+                f"La máscara corrió y NO se lleva ninguna ventana: encontró "
+                f"{self.elements} elemento(s) en la consulta y {self.in_utr3} dentro "
+                f"del 3'UTR. {WHY_THE_BITE_IS_A_PROPERTY}"
+            )
+        return (
+            "La máscara corrió y no encontró ningún elemento en toda la consulta. Eso "
+            "no es lo mismo que no haber mirado. " + WHY_THE_BITE_IS_A_PROPERTY
+        )
+
+
+def mask_bite(report, mask: RepeatMask, *, mask_offset: int, label_offset: int) -> MaskBite:
+    """Cuantas ventanas ELEGIBLES se lleva la maScara por delante.
+
+    IMPORTANTE — sobre QUE informe se llama, y es la misma condicion que
+    `triple_motive_rows`: tiene que ser uno tilado **SIN** aplicar la maScara. Con ella
+    puesta el paso 15 enmascara y RETILA, asi que esas ventanas ya no estan en la
+    piscina y la cuenta saldria CERO — indistinguible de un cero de verdad, que es
+    justamente el numero que esto existe para poder leer.
+
+    Los DOS desfases van por nombre y sin valor por defecto, por lo mismo que alli: con
+    uno solo se marcaban ventanas de `tx:2104` como si solaparan un elemento que esta a
+    800 nt.
+    """
+    from .selection import is_eligible  # noqa: PLC0415
+
+    inicio_utr3 = label_offset + 1
+    dentro = sum(
+        1
+        for e in mask.elements
+        if e.end - mask_offset >= inicio_utr3
+    )
+    etiquetas: list[str] = []
+    for ventana in report.windows:
+        if not is_eligible(ventana):
+            continue
+        inicio, fin = ventana.window.start, ventana.window.end
+        if mask.elements_overlapping(inicio + mask_offset, fin + mask_offset):
+            etiquetas.append(f"3utr:{inicio - label_offset}")
+    return MaskBite(
+        elements=len(mask.elements),
+        in_utr3=dentro,
+        windows=len(etiquetas),
+        labels=tuple(etiquetas),
+    )
+
+
 def describe_triple(filas) -> str:
     if not filas:
         return ""

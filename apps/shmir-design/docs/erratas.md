@@ -1029,3 +1029,79 @@ test entre `seed_load.seed_load` y `offtarget`. Ese test aquí **no se puede esc
 todavía**: el segundo fichero no existe, y fabricarlo sería inventarse la medida
 (regla 5). El día que llegue el 3'-end seq, lo primero es cruzar los dos techos, no
 enchufarlo.
+
+### RECTIFICACIÓN DE JOAQUÍN CASTILLA, 2026-08-27 — anotada con su nombre a petición suya
+
+> «Rectifico lo de `apa_medido.tsv`: **no era un residuo**. Tienes razón en que son dos
+> preguntas —PolyA_DB en crudo frente a posiciones ya convertidas— y en que el segundo
+> tiene un uso real pendiente.»
+
+Va con su nombre por la misma razón que la predicción refutada de la carrera de A
+(errata nº 7): **si sólo se anotan las rectificaciones ajenas, el registro deja de ser un
+registro y pasa a ser un argumento.** La sospecha inicial era razonable —dos roles vivos
+para la misma pregunta huele a residuo— y comprobarla es lo que la deshizo.
+
+### Y LA DIRECCIÓN DE LA DISCREPANCIA, que es la parte que hay que retener
+
+Añadido por el mismo responsable, y es lo que convierte «cruzar los dos números» en algo
+accionable (`apa.EXPECTED_DIRECTION`, emitido en el informe):
+
+**Si los dos techos discrepan, no es un fallo: es el dato.** PolyA_DB promedia **todos**
+los tejidos y las neuronas **alargan** los 3'UTR, así que lo esperable es que el techo de
+cerebro sea **mayor** que 0,86:
+
+| resultado | lectura |
+|---|---|
+| cerebro **>** PolyA_DB | **CONFIRMA el modelo.** El 0,86 se declaró como límite inferior y el dato del tejido lo mejora, que es justo lo que se anticipó. |
+| cerebro **<** PolyA_DB | **PARAR.** Contradice la dirección conocida del sesgo. Antes de mover ningún veredicto hay que buscar la causa: el anclaje, el md5 del 3'UTR, o que una de las dos tablas no sea del gen que dice. |
+
+**Y no se promedian.** Sin esta dirección escrita, quien reciba el 3'-end seq y vea un
+número distinto de 0,86 lo tratará como un error a reconciliar y hará la media — que es
+perder exactamente la información que la discrepancia lleva dentro. Es la misma clase de
+frase que «rebaja, no descarta»: las dos ramas van juntas o ninguna sirve.
+
+---
+
+## 31 — `--rmsk` abortaba con un `NameError`, y con él el bloque que se cableó para no correrlo a mano
+
+**Fecha:** 2026-08-27. **Estado:** cerrada. **Cómo apareció:** escribiendo el test que
+corre el CLI **con máscara** para comprobar otra cosa.
+
+`tools/design.py` pasaba `thresholds=umbrales`. **`umbrales` no existe en ese módulo** —
+la variable se llama `thresholds`, y está definida tres llamadas más arriba en la misma
+función. Así que **toda** corrida del CLI con `--rmsk` moría con un `NameError`, y con
+ella todo lo que cuelga de esa rama:
+
+- el **triple motivo por ventana** (`masking.triple_motive_rows`), que se cableó
+  precisamente porque *«existía sólo porque alguien lo corría a mano»*;
+- y, desde hoy, la **mordida de la máscara**.
+
+### Por qué ningún test lo vio
+
+Porque **ningún test corría el CLI con máscara**. Los del triple motivo llaman a
+`triple_motive_rows` ellos mismos, así que la función estaba verde y **el llamador de
+verdad no lo ejecutaba nadie**. Es la ceguera que describe la alcanzabilidad, un piso
+más arriba: ahí el símbolo no tiene llamador; aquí lo tiene, y el llamador está roto.
+El análisis de alcanzabilidad **no puede** verlo —hay una llamada escrita, y él no
+ejecuta nada— y el golden tampoco, porque se genera **sin máscara**.
+
+### Lo que enseña, y por qué no es un despiste
+
+Es la **quinta** vez que aparece la misma familia: `triple_motive_rows`,
+`intron_folding`, `store.save_*`, `page_run`, y ahora esto. Las cuatro anteriores eran
+código sin llamador; ésta es un **llamador que no se ejecuta jamás**, que produce el
+mismo resultado —trabajo escrito que no llega a ninguna salida— por una vía que ninguna
+de las herramientas del proyecto cubría.
+
+**Y hay una regla operativa que sale de aquí**: una rama del CLI que ningún test recorre
+**de punta a punta** no está probada, por muchos tests que tengan sus piezas. La
+contramedida no es otro análisis estático: es correr `main()` con esa combinación de
+flags y leer lo que escribe. Eso está ahora en
+`tests/test_mordida_de_la_mascara.py::TestSaleEnElInformeDEVERDAD`, que ejecuta el CLI
+con `--rmsk` y comprueba **los dos** bloques que la rama emite.
+
+### Un detalle que no se pasa por alto
+
+El fallo era un `NameError` —ruidoso, inmediato, imposible de confundir con otra cosa—.
+Sobrevivió igual, porque **nadie recorría ese camino**. Un fallo ruidoso en una rama que
+nadie ejecuta es exactamente tan invisible como uno silencioso.

@@ -993,6 +993,7 @@ def main(argv: list[str]) -> int:
             # Y los DOS desfases van explicitos y por nombre (masking.triple_motive_rows
             # no admite omitir ninguno): el de busqueda en la mascara y el de etiquetado.
             triple = None
+            mordida = None
             if mask is not None:
                 sin_mascara = tile_utr(
                     secuencia,
@@ -1001,7 +1002,19 @@ def main(argv: list[str]) -> int:
                     anatomy=anatomias[especie],
                     tile_range=rangos[especie],
                     polya_mode=PolyAMode(args.polyA_modo),
-                    thresholds=umbrales,
+                    # `umbrales` NO EXISTE en este modulo y estuvo aqui desde que se
+                    # cableo el triple motivo: la variable se llama `thresholds`, tres
+                    # lineas mas arriba en esta misma funcion. O sea que TODA corrida del
+                    # CLI con `--rmsk` abortaba con un NameError, y el bloque que este
+                    # `tile_utr` alimenta —el que se escribio justo porque «existia solo
+                    # porque alguien lo corria a mano»— no habia corrido NUNCA.
+                    #
+                    # Ningun test lo cazo porque ninguno corria el CLI CON mascara: los
+                    # del triple motivo llaman a `triple_motive_rows` ellos mismos, que
+                    # es exactamente la ceguera que describe la alcanzabilidad — el
+                    # llamador de verdad no lo ejecutaba nadie. Lo cazo escribir un test
+                    # que corre `main()` con `--rmsk`, y ese test se queda.
+                    thresholds=thresholds,
                 )
                 inicio_utr3 = anatomias[especie].utr3[0]
                 triple = masking.triple_motive_rows(
@@ -1016,12 +1029,19 @@ def main(argv: list[str]) -> int:
                     # de 2435 nt, y lo cazo el invariante de rango en el acto.
                     label_offset=inicio_utr3 - 1,
                 )
+                # Del MISMO informe sin mascara y con los MISMOS dos desfases: si se
+                # calculara del tilado con mascara, el paso 15 ya habria retilado y
+                # saldria cero — el numero que esto existe para poder leer.
+                mordida = masking.mask_bite(
+                    sin_mascara, mask, mask_offset=0, label_offset=inicio_utr3 - 1
+                )
             informe = text_report(
                 species=especie,
                 tiling=tiling,
                 selection=seleccion,
                 scaffold=scaffold,
                 triple_motive=triple,
+                mask_bite=mordida,
                 convergence=convergencias.get(especie),
                 polya_conservation=_conservacion_polya(
                     especie, secuencias, anatomias
