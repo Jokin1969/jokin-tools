@@ -385,7 +385,7 @@ class TestLaSubidaDesdePresentation(_ConDirectorio):
         self.assertTrue("sequence_md5(" in PAGINA)
 
     def test_ni_escribe_en_data_reference_ni_toca_el_manifiesto(self):
-        inicio = PAGINA.index("def _panel_referencias(")
+        inicio = PAGINA.index("def _panel_refinamiento(")
         fin = PAGINA.index("\ndef ", inicio + 10)
         panel = PAGINA[inicio:fin]
         for prohibido in ("write_bytes(", "write_text(", "manifest", "open("):
@@ -470,14 +470,17 @@ class TestIgnorarUnFicheroEsPOR_FICHERO_Y_CON_MOTIVO(unittest.TestCase):
 
 class TestLosCuatroPasos(unittest.TestCase):
 
-    def test_son_CUATRO_y_en_su_orden(self):
+    def test_son_CINCO_y_en_su_orden(self):
+        """Eran cuatro hasta que los ficheros de referencia se partieron en sus DOS
+        momentos: el 3 pide lo imprescindible para diseñar y el 5, lo que refina."""
         pasos = presentation.steps_rows(species="", sequence_loaded=False, directory=DATOS)
-        self.assertEqual([p["numero"] for p in pasos], [1, 2, 3, 4])
+        self.assertEqual([p["numero"] for p in pasos], [1, 2, 3, 4, 5])
         titulos = " · ".join(p["titulo"].lower() for p in pasos)
         self.assertIn("especie", titulos)
         self.assertIn("secuencia", titulos)
         self.assertIn("ficheros de referencia", titulos)
         self.assertIn("diseñar", titulos)
+        self.assertIn("refinamiento", titulos)
 
     def test_sin_especie_solo_el_primero_esta_ABIERTO(self):
         pasos = presentation.steps_rows(species="", sequence_loaded=False, directory=DATOS)
@@ -491,22 +494,25 @@ class TestLosCuatroPasos(unittest.TestCase):
         self.assertTrue(por_numero[2]["abierto"])
         self.assertFalse(por_numero[4]["abierto"])
 
-    def test_el_paso_3_DICE_CUANTOS_FRENTES_se_van_a_poder_cerrar(self):
+    def test_el_PASO_5_DICE_CUANTOS_FRENTES_se_van_a_poder_cerrar(self):
+        """El recuento se MUDO del paso 3 al 5 cuando los ficheros se partieron en sus
+        dos momentos: no es un requisito para empezar, es el estado del refinamiento."""
         pasos = presentation.steps_rows(
-            species="raton", sequence_loaded=True, directory=DATOS
+            species="raton", sequence_loaded=True, directory=DATOS, designed=True
         )
-        tercero = next(p for p in pasos if p["numero"] == 3)
-        self.assertIsNotNone(tercero["cerrables"])
-        self.assertIn(str(tercero["cerrables"]), tercero["detalle"])
-        self.assertIn(str(tercero["total_frentes"]), tercero["detalle"])
+        quinto = next(p for p in pasos if p["numero"] == 5)
+        self.assertIsNotNone(quinto["cerrables"])
+        self.assertIn(str(quinto["cerrables"]), quinto["detalle"])
+        self.assertIn(str(quinto["total_frentes"]), quinto["detalle"])
 
-    def test_y_lo_dice_ANTES_de_ejecutar_nada(self):
-        """Es lo que permite decidir si seguir o ir a buscar un fichero primero."""
+    def test_y_la_cifra_esta_CALCULADA_antes_de_ejecutar_nada(self):
+        """Se sigue pudiendo saber que frentes cierran sin haber corrido: lo que cambia
+        es DONDE se enseña, no cuando se puede saber."""
         pasos = presentation.steps_rows(
             species=CONEJO, sequence_loaded=False, directory=DATOS
         )
-        tercero = next(p for p in pasos if p["numero"] == 3)
-        self.assertEqual(tercero["cerrables"], 1)
+        quinto = next(p for p in pasos if p["numero"] == 5)
+        self.assertEqual(quinto["cerrables"], 1)
 
     def test_el_paso_3_NO_bloquea_se_puede_diseñar_con_frentes_abiertos(self):
         """Un frente abierto deja los candidatos en INCOMPLETE, no impide correr."""
@@ -531,7 +537,7 @@ class TestLosCuatroPasos(unittest.TestCase):
 class TestLaPaginaSigueSinLOGICA(unittest.TestCase):
 
     def test_el_panel_de_ficheros_no_decide_nada(self):
-        inicio = PAGINA.index("def _panel_referencias(")
+        inicio = PAGINA.index("def _panel_refinamiento(")
         fin = PAGINA.index("def ", inicio + 10)
         panel = PAGINA[inicio:fin]
         comprobar_sin_logica(self, panel)

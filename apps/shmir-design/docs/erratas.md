@@ -967,3 +967,65 @@ Se ha hecho lo honesto y no lo cómodo: el veredicto **dice** que el andamio se 
 por etiqueta (`external_score.SCAFFOLD_BY_LABEL`), y el guardia por secuencia queda
 declarado en `[sin_camino]` con **qué haría falta** para que corriera —que el CLI acepte
 el export entero—. Es una decisión de interfaz, no un cableado, y no se toma de paso.
+
+---
+
+## 30 — Un frente cerrado que decía FALTA, con el `False` escrito a mano
+
+**Fecha:** 2026-08-27. **Estado:** cerrada.
+
+`species.fixture_report` construía la fila del frente del APA con **`available=False`
+literal**. No era un valor calculado que diera falso: era un falso **tecleado**, de
+cuando la tabla de PolyA_DB vivía en el código (`apa.POLYA_DB_PRNP`) y no había ningún
+fichero que pudiera cerrar ese frente. Cuando el dato se mudó al gestor
+—`data/reference/polya_db_mouse.tsv`, con su md5 en el manifiesto— **esa línea no se
+enteró**.
+
+### Qué se veía
+
+Dos cosas a la vez, y las dos con pinta de medida:
+
+- **el contador decía «4 de 7» y eran 5.** El frente estaba cerrado con un fichero que
+  está en el depósito y que la corrida SÍ usa: es el que promociona el `AATATA` de
+  `3utr:236` y saca a `3utr:221` del panel. O sea que la pantalla contradecía al
+  resultado que ella misma acababa de imprimir;
+- **`apa_medido.tsv` salía en ámbar, como algo que falta.** Mandaba a conseguir un
+  fichero que no hacía falta, y encima uno cuya ficha de obtención explica cómo bajar
+  PolyA_DB — que es exactamente lo que ya estaba dentro.
+
+### Por qué no lo cazó nada
+
+Porque un booleano escrito a mano no se puede desincronizar «con error»: se
+desincroniza en silencio y sigue teniendo la forma correcta. Es el **principio nº 13**
+—una constante que cita un fichero se deriva de él, nunca se transcribe— aplicado a
+algo que ni siquiera parece un dato: un `False`. Y es la tercera capa del mismo montón
+de la errata nº 28: la ficha, el listado, los nombres… y la **disponibilidad**.
+
+### Qué se ha hecho
+
+- `available` se **DERIVA** de los ficheros presentes, y son **DOS** los que cierran ese
+  frente: `polya_db_<especie>.tsv` o `apa_medido_<especie>.tsv`. Cualquiera basta.
+- El panel gana un estado propio, **`NO USADO`**, para una alternativa cuyo frente ya
+  cierra otro fichero. No es trabajo pendiente y no puede compartir color con lo que sí
+  falta: la fila dice **qué fichero** lo cierra, por su nombre.
+- `tests/test_dos_momentos.py` fija las dos direcciones: con la tabla dentro,
+  `apa_medido.tsv` es `NO USADO`; sin ella, vuelve a ser `FALTA`.
+
+### Y la pregunta que abrió: ¿sobra uno de los dos roles?
+
+No. Se ha mirado qué carga cada uno (`apa.APA_ARE_TWO_FILES`) y no son dos formatos del
+mismo fichero: `polya_db_<especie>.tsv` es PolyA_DB **en crudo** —coordenadas genómicas,
+PSE y AvgRPM, anclado por los cuatro puntos— y de él sale la **promoción por medida**;
+`apa_medido_<especie>.tsv` son posiciones **ya convertidas** a coordenadas de 3'UTR con
+su fracción, y alimenta `apa_assessment`. El caso del segundo es justo el fichero que
+este proyecto tiene pendiente: **3'-end seq de cerebro murino**, la medida *en nuestro
+tejido*, que PolyA_DB no puede dar porque su 0,86 es de **todos** los tejidos.
+
+**Lo que sí hay que decir, y queda declarado en vez de callado:** hoy los dos producen
+un techo de knockdown por caminos **independientes** —`apa_assessment` no mira la tabla
+de PolyA_DB y `resolve_measured` no mira los sitios convertidos— y **nada obliga a que
+coincidan**. Es el patrón de los dos contadores del mismo suceso, el mismo que ata un
+test entre `seed_load.seed_load` y `offtarget`. Ese test aquí **no se puede escribir
+todavía**: el segundo fichero no existe, y fabricarlo sería inventarse la medida
+(regla 5). El día que llegue el 3'-end seq, lo primero es cruzar los dos techos, no
+enchufarlo.
