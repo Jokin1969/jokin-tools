@@ -210,8 +210,8 @@
     No es una resta: son 4 puntos de apoyo independientes. Desfase 3'UTR→mm10 acotado a 131937185-131937193 (9 valores); se deja como INTERVALO
     porque la banda de corte mide 20 nt y fijarlo en un entero sería inventarse precisión.
   
-      chr2:+:131937444  Other   → corte 3utr:251-271, hexámero AATATA en 3utr:236  ← proximal más usado: PSE 21,1 %, AvgRPM 0,55
-      chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexámero AATAAA en 3utr:288  ← PSE 23,5 %, AvgRPM 0,34
+      chr2:+:131937444  Other   → corte 3utr:251-271, hexámero AATATA en 3utr:236  PSE 21.1%, AvgRPM 0.55  ← TERCER sitio de corte, el proximal MÁS USADO de los tres
+      chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexámero AATAAA en 3utr:288  PSE 23.5%, AvgRPM 0.34  ← nuestro AATAAA de 3utr:288
       chr2:+:131938392  Other   → AMBIGUO: 2 hexámeros de su clase en la banda (TATAAA en 3utr:1178, TATAAA en 3utr:1189). Ancla, pero NO entra al modelo con banda propia.
       chr2:+:131938427  AUUAAA  → corte 3utr:1229-1249, hexámero ATTAAA en 3utr:1214  (sin datos de expresión)  ← fuerza 99,9 %, conservado en humano y rata; SIN expresión, así que no entra en la fracción — solo ancla
   
@@ -282,12 +282,14 @@
     Señal en cuestion: AATATA en tx:1185-1190 (3utr:236-241); banda de corte tx:1200-1220.
     proximal: tx:1055-1174 (3utr:106-225) (120 nt). entero por delante de AATATA@tx:1185 (holgura 10 nt) y dentro de la región analizada: presente en las DOS isoformas, mide el total.  ⚠  solapa 1082-1123, 1139-1180
     distal: tx:1231-1350 (3utr:282-401) (120 nt). entero por detrás de la banda de corte tx:1200-1220 (holgura 10 nt): solo presente en la isoforma LARGA.
-    ATENCIÓN — el amplicón distal ATRAVIESA la banda de corte de AATAAA@tx:1237. Un amplicón
-    partido por un corte no da producto en la isoforma cortada, así que la razón
-    distal/proximal NO mide la fracción que sobrevive a ESTE corte: mide la que sobrevive
-    a LAS DOS. Para el panel eso es lo que hace falta —sus candidatos con techo están
-    detrás de las dos bandas— pero el tramo intermedio NO se puede confirmar con este par.
+    QUÉ MIDE ESTE PAR: la fracción de transcritos que sobrevive a las bandas de corte de
+    esta señal Y de AATAAA@tx:1237 — o sea el techo de los candidatos que quedan por detrás de
+    TODAS ellas, que es exactamente el que necesita el panel.
+    QUÉ NO MIDE: no separa esta señal de AATAAA@tx:1237 y no confirma el techo del tramo
+    INTERMEDIO. El amplicón distal atraviesa esa otra banda, y un amplicón partido por un
+    corte no da producto en la isoforma cortada.
     Y NO se arregla moviéndolo: entre las dos bandas, con la misma holgura, queda tx:1231-1241 — 11 nt para un amplicón de 120. NO CABE.
+    SI ALGÚN DÍA HICIERA FALTA el tramo intermedio: no se alcanza moviendo amplicones —es geométricamente imposible— sino con 3'RACE o secuenciación de extremos, donde la resolución no depende de que quepa un amplicón entre dos cortes. Línea abierta: hoy no hay ningún candidato ahí, así que no confirmarlo no cuesta nada.
     Los dos se cuantifican contra una CURVA ESTÁNDAR COMUN: sin ella las dos eficiencias
     no son comparables y la razón no significa nada.
     RETROTRANSCRIPCION CON HEXÁMEROS ALEATORIOS. Con oligo-dT NO, y el sesgo tiene dirección

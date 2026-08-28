@@ -26,7 +26,7 @@ que `deposito.Ignored`, y el motivo viaja al veredicto: sin él, «se decidió n
 
 import unittest
 
-from shmir_design.apa import POLYA_DB_PRNP, ApaExcluded
+from shmir_design.apa import ApaExcluded
 from shmir_design.errors import ShmirDesignError
 from shmir_design.polya import SignalClass
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr

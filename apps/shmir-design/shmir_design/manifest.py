@@ -53,6 +53,23 @@ MANIFEST_COLUMNS = (
     # con la misma version del binario, asi que «RepeatMasker open-4.0.9» a solas NO
     # identifica la corrida. Vacia para los ficheros que no son salida de herramienta.
     "biblioteca",
+    # LA ANATOMIA, añadida 2026-08-27. Hasta aqui el manifiesto registraba los FICHEROS
+    # —nombre, tamaño, md5, accession, longitud— y la anatomia vivia SOLO en
+    # `reference.REFERENCES`: donde empieza el CDS, donde el 3'UTR, y los dos md5
+    # CANONICOS. O sea que añadir una especie era editar codigo, y que la frontera de
+    # la que cuelgan los tercios, las regiones y las distancias de polyA no tenia linea
+    # que la registrara.
+    #
+    # Van vacias en todo lo que no sea un transcrito, y vacio significa NO REGISTRADO.
+    #
+    # OJO CON LOS TRES CHECKSUMS, que ahora conviven en la misma fila y son cantidades
+    # DISTINTAS: `md5` es el del FICHERO en disco (con cabecera y con saltos de linea),
+    # `md5_secuencia` el de la SECUENCIA canonica (mayusculas, sin cabecera, sin saltos)
+    # y `md5_utr3` el del 3'UTR canonico. Copiar uno en el sitio de otro hace que el
+    # fichero BUENO se rechace.
+    "cds",
+    "md5_secuencia",
+    "md5_utr3",
 )
 
 #: El ancho de antes de las columnas de procedencia. Se sigue leyendo.
@@ -61,6 +78,9 @@ LEGACY_COLUMNS = MANIFEST_COLUMNS[:6]
 #: un manifiesto viejo se lee igual y la columna nueva sale vacia, que es la verdad —
 #: no se sabe con que biblioteca se corrio.
 PREVIOUS_COLUMNS = MANIFEST_COLUMNS[:9]
+#: La cabecera de antes de que la ANATOMIA entrara en el manifiesto (2026-08-27). Misma
+#: regla: se sigue leyendo y las tres columnas nuevas salen vacias.
+BEFORE_ANATOMY_COLUMNS = MANIFEST_COLUMNS[:10]
 
 #: Ficheros del directorio que no son datos y no cuentan como sobrantes.
 _NO_SON_DATOS = frozenset({MANIFEST_NAME, ".gitignore"})
@@ -142,8 +162,18 @@ ROLES: tuple[Role, ...] = (
     Role(
         role="apa",
         filename="apa_medido.tsv",
-        what="APA medido en vez de predicho",
+        what="APA medido en vez de predicho (tabla simple posición/fracción/nombre)",
         replaces=("--apa-medido", "--apa-version", "--apa-md5"),
+    ),
+    # OTRA tabla, y por eso otro nombre. `apa_medido.tsv` es la simple —posicion,
+    # fraccion, nombre— y esta es la de PolyA_DB, con clase, PSE y AvgRPM por PAS: es la
+    # que promueve señales por MEDIDA y la que da el techo por tramos. Fundirlas en un
+    # solo fichero seria el patron de los dos contadores que discrepan.
+    Role(
+        role="polyadb",
+        filename="polya_db_mouse.tsv",
+        what="tabla de PolyA_DB: los PAS con su clase, PSE y AvgRPM",
+        replaces=(),
     ),
 )
 
@@ -173,6 +203,14 @@ class ManifestEntry:
     #: Biblioteca de la herramienta que genero el fichero (p. ej. Dfam_3.0). Vacia si no
     #: aplica. El veredicto depende de ella tanto como de la version del binario.
     library: str = ""
+    #: La ANATOMIA declarada, para un transcrito. `cds` es el par 1-based inclusivo
+    #: (185, 949) en la notacion del propio GenBank; `None` si no se registro — y no
+    #: registrarla NO es «todo es 3'UTR», que es justo lo que `Anatomy` prohibe.
+    cds: tuple[int, int] | None = None
+    #: md5 de la SECUENCIA canonica. NO es `md5`, que es el del fichero en disco.
+    sequence_md5: str = ""
+    #: md5 del 3'UTR canonico. Es el que decide si la tabla de APA medido se aplica.
+    utr3_md5: str = ""
 
     def usable(self, status: EntryStatus) -> bool:
         """¿Se puede correr el filtro que depende de este fichero?
@@ -251,6 +289,33 @@ def _longitud(bruto: str, *, source: str, fila: int) -> int | None:
         ) from exc
 
 
+def _cds(bruto: str, *, source: str, fila: int) -> tuple[int, int] | None:
+    """`185..949` → `(185, 949)`, o `None` si no se registro.
+
+    Se lee en la notacion del propio GenBank, que es de donde sale, para que la columna
+    se pueda cotejar con el `.gb` sin traducir nada. Un par que no se puede leer ABORTA:
+    la frontera del 3'UTR es de lo que cuelgan los tercios, las regiones y las
+    distancias de polyA, y una anatomia mal leida corre todo eso sin dar ningun error.
+    """
+    if not bruto:
+        return None
+    partes = bruto.split("..")
+    if len(partes) != 2 or not all(p.strip().isdigit() for p in partes):
+        raise ShmirDesignError(
+            f"{source}, fila {fila}: el CDS {bruto!r} no tiene la forma `inicio..fin` "
+            f"(p. ej. `185..949`). Se aborta: de esa frontera cuelgan los tercios, la "
+            f"región de cada ventana y la distancia de cada señal de polyA al extremo, "
+            f"y leerla mal las corre TODAS sin dar ningún error."
+        )
+    inicio, fin = (int(p) for p in partes)
+    if inicio < 1 or fin < inicio:
+        raise ShmirDesignError(
+            f"{source}, fila {fila}: el CDS {bruto!r} no es un intervalo 1-based "
+            f"creciente. Se aborta."
+        )
+    return (inicio, fin)
+
+
 def parse_manifest(text: str, *, source: str) -> Manifest:
     filas = [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
     if not filas:
@@ -263,7 +328,9 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
     # existieran las columnas de procedencia. Un manifiesto corto NO es un error —los
     # ficheros que no son transcritos no tienen accession— pero deja esas columnas
     # vacias, y vacio significa "no registrado", nunca un valor por defecto.
-    if cabecera not in (MANIFEST_COLUMNS, PREVIOUS_COLUMNS, LEGACY_COLUMNS):
+    if cabecera not in (
+        MANIFEST_COLUMNS, BEFORE_ANATOMY_COLUMNS, PREVIOUS_COLUMNS, LEGACY_COLUMNS,
+    ):
         raise ShmirDesignError(
             f"{source}: la cabecera del manifiesto es {cabecera} y se esperaba "
             f"{MANIFEST_COLUMNS}; se aborta en vez de leer las columnas por posición."
@@ -286,7 +353,8 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
             )
         rellenos = [*(c.strip() for c in campos), *([""] * (len(MANIFEST_COLUMNS) - ancho))]
         (nombre, filtro, tamaño, md5, fecha, origen,
-         accession, longitud, url, biblioteca) = rellenos
+         accession, longitud, url, biblioteca,
+         cds, md5_secuencia, md5_utr3) = rellenos
         if not nombre:
             raise ShmirDesignError(f"{source}, fila {numero}: sin nombre de fichero.")
         if nombre in vistos:
@@ -295,11 +363,14 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
                 f"de quedarse con una de las dos líneas."
             )
         vistos.add(nombre)
-        if md5 and not _MD5.match(md5):
-            raise ShmirDesignError(
-                f"{source}, fila {numero}: {md5!r} no es un md5 hexadecimal de 32 "
-                f"caracteres; se aborta."
-            )
+        for etiqueta, valor in (
+            ("md5", md5), ("md5_secuencia", md5_secuencia), ("md5_utr3", md5_utr3),
+        ):
+            if valor and not _MD5.match(valor):
+                raise ShmirDesignError(
+                    f"{source}, fila {numero}: {valor!r} en la columna {etiqueta} no es "
+                    f"un md5 hexadecimal de 32 caracteres; se aborta."
+                )
         talla: int | None = None
         if tamaño:
             try:
@@ -315,6 +386,8 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
                 date=fecha, origin=origen, accession=accession,
                 length=_longitud(longitud, source=source, fila=numero), url=url,
                 library=biblioteca,
+                cds=_cds(cds, source=source, fila=numero),
+                sequence_md5=md5_secuencia, utr3_md5=md5_utr3,
             )
         )
     return Manifest(entries=tuple(entradas), source=source)
@@ -514,14 +587,32 @@ def _campo(valor: object) -> str:
 
 
 def entry_row(entry: ManifestEntry) -> str:
-    """La linea de una entrada, con las diez columnas en el orden de la cabecera."""
-    return "\t".join(
+    """La linea de una entrada, con TODAS las columnas en el orden de la cabecera.
+
+    El numero no se escribe aqui: sale de `MANIFEST_COLUMNS`, y hay un test que exige
+    que esta fila tenga tantos campos como columnas declara la cabecera. Una columna
+    nueva que no se escribiera desplazaria en silencio a las de su derecha.
+    """
+    fila = "\t".join(
         _campo(v)
         for v in (
             entry.name, entry.filter_name, entry.size, entry.md5, entry.date,
             entry.origin, entry.accession, entry.length, entry.url, entry.library,
+            _cds_texto(entry.cds), entry.sequence_md5, entry.utr3_md5,
         )
     )
+    if len(fila.split("\t")) != len(MANIFEST_COLUMNS):
+        raise ShmirDesignError(
+            f"La fila de {entry.name!r} tiene {len(fila.split(chr(9)))} campo(s) y la "
+            f"cabecera declara {len(MANIFEST_COLUMNS)}. Se aborta: escribirla así "
+            f"correria los valores a la columna de al lado, que no da ningún error."
+        )
+    return fila
+
+
+def _cds_texto(cds: tuple[int, int] | None) -> str:
+    """`(185, 949)` → `185..949`. Vacio si no se registro, nunca `0..0`."""
+    return "" if cds is None else f"{cds[0]}..{cds[1]}"
 
 
 @dataclass(frozen=True)
@@ -531,7 +622,7 @@ class ManifestUpdate:
     text: str
     #: `True` si la entrada ya estaba y se ha sustituido; `False` si se ha añadido.
     replaced: bool
-    #: `True` si la cabecera era de las cortas y se ha ensanchado a las diez columnas.
+    #: `True` si la cabecera era de las cortas y se ha ensanchado a las de hoy.
     widened: bool
 
 
@@ -543,7 +634,7 @@ def update_manifest_text(text: str, entry: ManifestEntry) -> ManifestUpdate:
     los dos checksums, y perderlos al subir un fichero seria borrar la unica advertencia
     que evita copiar un md5 en el sitio del otro.
 
-    Una cabecera corta se ENSANCHA a las diez columnas rellenando las nuevas en vacio,
+    Una cabecera corta se ENSANCHA a las columnas de hoy rellenando las nuevas en vacio,
     que es la verdad: nadie las registro. Abortar seria dejar sin subir ficheros a quien
     tenga un manifiesto viejo, y esa persona es exactamente la que no puede editarlo.
     """

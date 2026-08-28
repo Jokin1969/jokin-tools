@@ -241,7 +241,28 @@ def _values(species) -> dict[str, str]:
         # de una regla de mayusculas: en otro organismo el simbolo puede no seguir
         # ninguna de las dos convenciones.
         "gen": _gen_de(species),
+        # LOS NOMBRES DE FICHERO SE DERIVAN DEL GESTOR, no se transcriben en la ficha.
+        # Una ficha que escribe `apa_medido_{slug}.tsv` y un cargador que busca
+        # `apa_medido.tsv` mandan preparar una cosa y leen otra, y de eso no se entera
+        # nadie: la ficha se lee y el cargador se ejecuta. La regla del proyecto es la
+        # misma que con `EVIDENCE`: una constante que cita un fichero se DERIVA de el.
+        **_ficheros_de(species),
     }
+
+
+def _ficheros_de(species) -> dict[str, str]:
+    """Marcadores `{fichero_<rol>}` y `{hermano_<rol>}`, sacados de `required_files`.
+
+    La ficha nombra el ROL —que es lo estable— y el nombre lo pone quien lo va a
+    cargar. Asi la regla de sufijos por especie vive en un solo sitio.
+    """
+    from .species import required_files  # noqa: PLC0415
+
+    valores: dict[str, str] = {}
+    for requerido in required_files(species):
+        valores[f"fichero_{requerido.role}"] = requerido.filename
+        valores[f"hermano_{requerido.role}"] = requerido.companion
+    return valores
 
 
 def _gen_de(species) -> str:
@@ -280,6 +301,17 @@ _UNDECLARED = {
 }
 
 
+def undeclared_note(clave: str, *, cientifico: str) -> str:
+    """El texto de «esto NO ESTA DECLARADO» para un marcador, ya resuelto.
+
+    Publico porque hay mas de un sitio que necesita decirlo —las fichas y la ruta de
+    descarga de UCSC— y dos redacciones del mismo hueco acaban discrepando: una diria
+    donde se declara y la otra no.
+    """
+    plantilla = _UNDECLARED.get(clave, f"{clave} no está declarado para esta especie")
+    return plantilla.format(cientifico=cientifico)
+
+
 def _substitute(texto: str, valores: dict[str, str], huecos: set[str]) -> str:
     def cambia(match: re.Match) -> str:
         clave = match.group(1)
@@ -293,10 +325,7 @@ def _substitute(texto: str, valores: dict[str, str], huecos: set[str]) -> str:
         if valor:
             return valor
         huecos.add(clave)
-        plantilla = _UNDECLARED.get(
-            clave, f"{clave} no está declarado para esta especie"
-        )
-        return plantilla.format(cientifico=valores["cientifico"])
+        return undeclared_note(clave, cientifico=valores["cientifico"])
 
     return _PLACEHOLDER.sub(cambia, texto)
 

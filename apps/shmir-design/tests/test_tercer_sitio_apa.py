@@ -28,7 +28,6 @@ import unittest
 
 from shmir_design import polya
 from shmir_design.apa import (
-    POLYA_DB_PRNP,
     ApaExcluded,
     anchor_polyadb,
     ceiling_layers,
@@ -42,6 +41,7 @@ from shmir_design.reference import (
     load_3utr,
     load_reference,
 )
+from tests.tabla_medida import TABLA
 
 RATON = REFERENCES["NM_011170.3"]
 
@@ -52,7 +52,7 @@ class TestLaPromocionPorMedida(unittest.TestCase):
     def setUp(self):
         self.utr3 = load_3utr(RATON)
         self.señales = polya.find_polya_signals(self.utr3)
-        self.medido = resolve_measured(self.utr3, POLYA_DB_PRNP)
+        self.medido = resolve_measured(self.utr3, TABLA)
 
     def test_sin_medida_el_AATATA_de_236_es_OTRA(self):
         s = next(x for x in self.señales if x.position == 236)
@@ -100,7 +100,7 @@ class TestLaBandaDeCorteYLaInmunidad(unittest.TestCase):
 
     def setUp(self):
         self.utr3 = load_3utr(RATON)
-        self.medido = resolve_measured(self.utr3, POLYA_DB_PRNP)
+        self.medido = resolve_measured(self.utr3, TABLA)
 
     def test_el_corte_del_tercer_sitio_es_251_271(self):
         sitio = self.medido.anchor.by_locus("chr2:+:131937444")
@@ -136,7 +136,7 @@ class TestElTechoPorTRAMOS(unittest.TestCase):
 
     def setUp(self):
         self.utr3 = load_3utr(RATON)
-        self.medido = resolve_measured(self.utr3, POLYA_DB_PRNP)
+        self.medido = resolve_measured(self.utr3, TABLA)
         self.capas = ceiling_layers(self.medido)
 
     def test_por_delante_de_todo_no_hay_techo(self):
@@ -156,7 +156,7 @@ class TestElTechoPorTRAMOS(unittest.TestCase):
 
     def test_el_0_86_de_la_tabla_es_el_del_tramo_MAS_PROFUNDO(self):
         self.assertAlmostEqual(
-            self.medido.layer_for(1018).ceiling, POLYA_DB_PRNP.working_value, places=4
+            self.medido.layer_for(1018).ceiling, TABLA.working_value, places=4
         )
 
     def test_dentro_de_una_banda_de_corte_el_techo_es_INDETERMINADO(self):
@@ -186,10 +186,10 @@ class TestLaTablaNoSeAplicaAOtraSecuencia(unittest.TestCase):
         humano = REFERENCES["NM_000311.5"]
         if not fixture_available(humano):
             self.skipTest("falta data/reference/NM_000311.5.fa")
-        self.assertIsNone(resolve_measured(load_3utr(humano), POLYA_DB_PRNP))
+        self.assertIsNone(resolve_measured(load_3utr(humano), TABLA))
 
     def test_el_md5_es_la_condicion_y_va_declarado(self):
-        self.assertEqual(POLYA_DB_PRNP.utr3_md5, RATON.utr3_md5)
+        self.assertEqual(TABLA.utr3_md5, RATON.utr3_md5)
 
 
 @unittest.skipUnless(fixture_available(RATON), "falta data/reference/NM_011170.3.fa")
@@ -203,7 +203,7 @@ class TestSobreElTranscritoEntero(unittest.TestCase):
             source=RegionSource.ANOTACION_GENBANK,
         )
         self.medido = resolve_measured(
-            self.transcrito, POLYA_DB_PRNP, anatomy=self.anatomy
+            self.transcrito, TABLA, anatomy=self.anatomy
         )
 
     def test_las_posiciones_salen_en_el_marco_de_LO_TILADO(self):
@@ -238,7 +238,7 @@ class TestLoQueCUESTALaPromocion(unittest.TestCase):
         from shmir_design.tiling import tile_utr
 
         utr3 = load_3utr(RATON)
-        cls.medido = resolve_measured(utr3, POLYA_DB_PRNP)
+        cls.medido = resolve_measured(utr3, TABLA)
         # La medida entra SOLA desde 2026-08-27; el control «sin» hay que pedirlo
         # a proposito y con motivo escrito. Ver `apa.WHY_MEASURE_IS_NOT_A_FLAG`.
         cls.sin = tile_utr(utr3, measured_apa=ApaExcluded(reason="control de esta comparación: se quiere el resultado SIN la promoción por medida, para poder enseñar qué cambia"))
@@ -379,7 +379,7 @@ class TestElEspacioDeCoordenadasDeLosTramos(unittest.TestCase):
     """
 
     def test_sobre_el_3UTR_los_tramos_van_etiquetados_3utr(self):
-        medido = resolve_measured(load_3utr(RATON), POLYA_DB_PRNP)
+        medido = resolve_measured(load_3utr(RATON), TABLA)
         self.assertTrue(all(c.describe().startswith("3utr:") for c in medido.layers))
 
     def test_sobre_el_transcrito_entero_van_etiquetados_tx(self):
@@ -388,7 +388,7 @@ class TestElEspacioDeCoordenadasDeLosTramos(unittest.TestCase):
             source=RegionSource.ANOTACION_GENBANK,
         )
         medido = resolve_measured(
-            load_reference(RATON), POLYA_DB_PRNP, anatomy=anatomy
+            load_reference(RATON), TABLA, anatomy=anatomy
         )
         self.assertTrue(all(c.describe().startswith("tx:") for c in medido.layers))
 
@@ -398,7 +398,7 @@ class TestElEspacioDeCoordenadasDeLosTramos(unittest.TestCase):
             source=RegionSource.ANOTACION_GENBANK,
         )
         medido = resolve_measured(
-            load_reference(RATON), POLYA_DB_PRNP, anatomy=anatomy
+            load_reference(RATON), TABLA, anatomy=anatomy
         )
         self.assertEqual(medido.layers[-1].start_range[1], RATON.length)
 
@@ -408,7 +408,7 @@ class TestElEspacioDeCoordenadasDeLosTramos(unittest.TestCase):
             source=RegionSource.ANOTACION_GENBANK,
         )
         medido = resolve_measured(
-            load_reference(RATON), POLYA_DB_PRNP, anatomy=anatomy
+            load_reference(RATON), TABLA, anatomy=anatomy
         )
         self.assertEqual(
             medido.anchor.by_locus("chr2:+:131937444").hexamer_start, 236

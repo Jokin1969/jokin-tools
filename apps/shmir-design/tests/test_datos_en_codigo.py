@@ -85,18 +85,33 @@ class TestLosQueYaSABEMOSQueSonDATO(unittest.TestCase):
     def setUpClass(cls):
         cls.por_simbolo = {e["simbolo"]: e for e in _auditar()["entradas"]}
 
-    def test_la_tabla_de_PolyA_DB_del_raton(self):
-        entrada = self.por_simbolo["apa.POLYA_DB_PRNP"]
-        self.assertEqual(entrada["categoria"], "dato")
-        self.assertEqual(entrada["fichero"], "apa_medido.tsv")
+    def test_la_tabla_de_PolyA_DB_del_raton_ya_NO_esta_en_el_codigo(self):
+        # Era la mas importante de la lista: 15 PAS con su PSE y su AvgRPM, y de ella
+        # cuelgan el techo por tramos, la promocion del AATATA y el panel de diez. Vive
+        # en `data/reference/polya_db_mouse.tsv`, con su md5 en el manifiesto. Que el
+        # auditor ya no la vea ES la comprobacion de que la mudanza esta hecha.
+        self.assertNotIn("apa.POLYA_DB_PRNP", self.por_simbolo)
 
     def test_la_lista_de_arranque_de_seeds(self):
         entrada = self.por_simbolo["seeds.BOOTSTRAP_SEED_TABLE"]
         self.assertEqual(entrada["categoria"], "dato")
 
-    def test_los_controles_biologicos_del_off_target(self):
+    def test_los_controles_biologicos_del_off_target_son_DECLARACION(self):
+        # RECLASIFICADA 2026-08-27. Estaba como DATO porque «la eleccion viene de la
+        # biologia», y eso es cierto y no es el criterio: el criterio es si CAMBIARIA al
+        # cambiar de especie o de gen (dato, al gestor) o si es una decision del
+        # proyecto sobre como tratar el dato (codigo). Los tres nombres son el PATRON de
+        # que significa «muchos sitios»: en un fichero se cambiarian sin verse en el
+        # diff, igual que `CORE_ABUNDANT`.
         entrada = self.por_simbolo["offtarget.CONTROL_NAMES"]
-        self.assertEqual(entrada["categoria"], "dato")
+        self.assertEqual(entrada["categoria"], "declaracion")
+
+    def test_la_ruta_de_UCSC_ya_NO_esta_en_la_tabla(self):
+        # Sale de la tabla porque dejo de nombrar `mm39` dentro del texto: ahora el
+        # ensamblaje se resuelve contra `species.ucsc_assembly`. Que el auditor ya no la
+        # vea ES la comprobacion de que la tarea esta hecha.
+        self.assertNotIn("offtarget.UCSC_ROUTE_TEMPLATE", self.por_simbolo)
+        self.assertNotIn("offtarget.UCSC_ROUTE", self.por_simbolo)
 
     def test_y_el_nucleo_de_abundancia_NO_es_dato_sino_declaracion(self):
         # Tiene autorizacion escrita y fechada: es una DECISION del proyecto, no una

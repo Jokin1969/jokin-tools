@@ -95,9 +95,18 @@ class TestLaSiembra(unittest.TestCase):
         """Es el que lleva los md5 de lo subido: pisarlo es perder la procedencia."""
         self.destino.mkdir(parents=True)
         propio = (VERSIONADO / manifest.MANIFEST_NAME).read_text(encoding="utf-8")
+        # La fila se MONTA con `entry_row`, no se teclea con tabuladores contados a
+        # mano: al entrar las tres columnas de la anatomia, la version tecleada se
+        # quedo en diez campos y el manifiesto dejo de parsearse. La leccion es la
+        # misma que la del propio invariante de ancho de fila.
+        fila = manifest.entry_row(
+            manifest.ManifestEntry(
+                name="subido.fa", filter_name="x", size=1, md5="0" * 32,
+                date="2026-08-26", origin="mio",
+            )
+        )
         (self.destino / manifest.MANIFEST_NAME).write_text(
-            propio + "subido.fa\tx\t1\t" + "0" * 32 + "\t2026-08-26\tmio\t\t\t\t\n",
-            encoding="utf-8",
+            propio + fila + "\n", encoding="utf-8",
         )
         trabajo.seed_reference_dir(self.destino, source=VERSIONADO)
         vuelto = manifest.load_manifest(self.destino / manifest.MANIFEST_NAME)

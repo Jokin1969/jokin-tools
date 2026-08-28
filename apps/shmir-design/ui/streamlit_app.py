@@ -1552,7 +1552,7 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
     ):
         return
 
-    st.caption(offtarget_route_text())
+    st.caption(offtarget_route_text(nombre))
 
     st.subheader("Procedencia del fichero")
     st.caption(

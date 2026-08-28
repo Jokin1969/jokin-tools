@@ -371,3 +371,132 @@ silencioso; para excluir hay que escribir el objeto con su motivo. La prueba de 
 sobraba está en el diff: **doce ficheros de test** pasaban la tabla a mano y dejaron de
 necesitarlo. Doce sitios acordándose de lo mismo son doce sitios donde uno puede
 olvidarse.
+
+---
+
+## 11 — Cuando código y prosa discrepan, la prosa es la que se ha quedado atrás
+
+Corolario del nº 3, y de la misma familia que el nº 5: **dos definiciones del mismo hecho
+que nada obliga a coincidir acaban discrepando**, y aquí una de las dos no es código.
+
+El caso: `CLAUDE.md` afirmaba que los amplicones de la RT-qPCR quedaban «esquivando las
+dianas del panel». `polya.rtqpcr_amplicons` marcaba los solapes con `⚠ solapa` desde el
+principio. **Los dos textos hablaban del mismo hecho y decían cosas contrarias**, y no
+saltó nada: una frase no tiene invariante.
+
+Y la asimetría es lo que lo hace un principio y no una anécdota:
+
+- **el código se ejecuta**, así que un error suyo acaba dando un resultado raro;
+- **la prosa se lee**, y un error suyo se cree — sobre todo el que va en el fichero que
+  gobierna el proyecto, que es el que alguien abre para saber qué hacer;
+- y la prosa **no se regenera**: sobrevive intacta al cambio que la deja falsa.
+
+### La regla operativa: que la frase la EMITA el generador, o que un test la contraste
+
+No basta con corregirla. Toda afirmación de prosa sobre un hecho que el código calcula
+tiene que estar atada de una de estas dos formas:
+
+1. **Que el generador la emita.** Es lo que ya se hace con las coordenadas de los
+   amplicones, con el techo por tramos y con la descomposición del recuento: el texto
+   sale de la magnitud, así que no puede contradecirla.
+2. **Que un test la contraste.** Cuando la frase vive en un documento —`CLAUDE.md`,
+   `docs/`— el test lee el documento y lo compara con lo que el código emite.
+   `tests/test_prosa_contra_codigo.py` hace eso con los amplicones declarados y con el
+   panel de diez.
+
+Lo que **no** vale es corregir la frase y seguir. Eso deja el mismo mecanismo intacto, y
+el mecanismo es lo que produjo las otras dos de esta misma familia: el «comprueba que
+Streamlit está instalado» pegado a todo fallo, y el «Alu 0 %» obtenido sin buscar Alu.
+
+### Un aviso: no todo lo que parece discrepar lo es
+
+La prosa dice además cosas que el código **no** calcula —por qué se decidió algo, qué
+queda abierto, qué cuesta no resolverlo— y eso no tiene con qué contrastarse ni falta.
+El corolario aplica a **afirmaciones sobre hechos que el código sabe**; lo demás es el
+registro, y el registro se defiende leyéndolo, no con un test.
+
+---
+
+## 12 — La procedencia de una EVIDENCIA se audita igual que la de un dato
+
+Este proyecto exige procedencia para todo lo que entra al pipeline: md5 en el manifiesto,
+versión de la herramienta, biblioteca con la que se corrió, ensamblaje de las
+coordenadas. Y no la exigía para lo que **justifica una regla**.
+
+`external_score.EVIDENCE` no es un dato del análisis: es la **prueba** de que la escala
+va en la dirección que se dice. Y estaba anclada a `mirarchitect_prnp_raton.tsv`, un
+fichero que el manifiesto marca «NO USAR» — se puntuó sobre el 3'UTR fabricado de la
+errata nº 5.
+
+### Un fichero retirado no se retira solo de las constantes que lo citan
+
+Ésa es la parte mecánica y es la que hay que cerrar con una comprobación, no con
+cuidado. Retirar un fichero es un acto en el manifiesto; las constantes que se
+derivaron de él siguen exactamente donde estaban, con el mismo aspecto de siempre, y
+nada las vuelve a mirar.
+
+La comprobación va sobre **todas** las constantes, no sobre la que falló:
+`tests/test_procedencia_retirada.py` deriva la lista de retirados **del propio
+manifiesto** —«NO USAR» o «FIXTURE NEGATIVO»— y barre `shmir_design/` y `tools/`
+enteros. Si mañana se retira otro fichero, queda cubierto sin que nadie añada nada.
+
+### Nombrar un retirado se puede; nombrarlo COMO SI FUERA una fuente viva, no
+
+Los fixtures negativos existen a propósito y no se borran: son evidencia, y ya está
+escrito que borrarlos sería perderla. Así que la regla no es «prohibido nombrarlos» —una
+lista de módulos exentos habría dejado ciego justo al módulo que motivó esto—, sino:
+**quien escribe el nombre escribe al lado por qué no se usa**, en el mismo texto. Se
+cumple sola y se lee sola.
+
+### Y lo que no se encuentra se dice CÓMO se buscó
+
+Los otros dos fixtures retirados —el 3'UTR fabricado y el `.out` de biblioteca
+equivocada— salieron limpios. Eso no se anota como «no hay nada»: se anota con el método,
+porque «no hay nada» sin decir con qué se miró es la misma frase que el «Alu 0 %»
+obtenido sin buscar Alu (principio nº 3).
+
+- Contra el **fabricado** no sirve buscar números —comparte casi todos con las
+  referencias buenas—: se busca por **subcadena de ADN**, y una que esté en él y en
+  ninguna referencia verdadera sólo puede venir de ahí. Con su **control adversario**:
+  el test comprueba además que existe al menos un tramo exclusivo, porque si no
+  existiera, «cero culpables» y «la búsqueda no distingue nada» serían el mismo
+  resultado.
+- Contra el **`.out` equivocado** no hay cifra exclusiva que buscar, y la razón es la
+  propia demostración del proyecto: **es el mismo fichero byte a byte** que el válido. Lo
+  que lo distingue vive en el `.tbl`, y de ahí tampoco hay ninguna cifra en el código.
+
+---
+
+## 13 — Una constante que cita un fichero se DERIVA de él, nunca se transcribe
+
+El corolario operativo del nº 12, y el que habría bastado por sí solo.
+
+Cuando una constante dice «estos son los valores de tal fichero», hay dos definiciones
+del mismo dato (principio nº 5) con un agravante: **una de las dos es un fichero que
+nadie vuelve a abrir**. La copia de código es la que se lee, así que es la que se cree, y
+puede envejecer o —como pasó— haber nacido apuntando a otro sitio.
+
+**Tres sitios decían de dónde salían los pares de `EVIDENCE` y ninguno acertaba**: la
+constante decía «corrida manual sobre el 3'UTR de Prnp murino», la tabla de auditoría
+decía `mirarchitect_prnp_export.csv`, y el ancla real era el TSV retirado. Cada uno
+parecía confirmar a los otros dos. Eso es lo que lo hizo invisible durante semanas.
+
+### La regla
+
+Lo que vive en código es **cuál** es el fichero —eso es una decisión, y reapuntarla tiene
+que verse en el diff—. Los **valores** se leen de él. Si el fichero no está, se **aborta**
+diciendo qué paso queda sin ejecutar; no se devuelve una lista vacía, que es el modo en
+que una evidencia desaparece sin que nadie lo note.
+
+Y no se muestrea: `EVIDENCE` emite **todas** las filas del export, no cinco. Elegir cinco
+es transcribir otra vez, con el mismo mecanismo y menos aviso.
+
+### Dónde más aplicaba lo mismo
+
+- **La ficha de obtención** nombraba `apa_medido_{slug}.tsv` mientras el cargador buscaba
+  `apa_medido.tsv`: el texto mandaba preparar una cosa y el código leía otra. Ahora la
+  ficha nombra el **rol** (`{fichero_polyadb}`) y el nombre lo pone
+  `species.required_files`, que es quien lo va a cargar.
+- **La anatomía** vive en `reference.REFERENCES` y en el manifiesto, y ahí no se pudo
+  derivar todavía — así que se cruzan con un test en las dos direcciones. Cuando no se
+  puede derivar, se **ata**; lo que no vale es dejarlo suelto.

@@ -35,12 +35,12 @@ avisos = [
 ]
 
 [[ficheros]]
-nombre = "rmsk_{slug}.out"
+nombre = "{fichero_rmsk}"
 por_que = "Las filas con los intervalos enmascarados. Es lo que se aplica a la secuencia."
 obligatorio = true
 
 [[ficheros]]
-nombre = "rmsk_{slug}.tbl"
+nombre = "{hermano_rmsk}"
 por_que = "El resumen. Es el ÚNICO sitio donde se declara la especie de la biblioteca y la longitud de la consulta, así que es lo único que permite validar la corrida. Sin el, un `.out` sin filas no distingue «no habia repetitivos» de «la corrida no llego a correr»."
 obligatorio = true
 

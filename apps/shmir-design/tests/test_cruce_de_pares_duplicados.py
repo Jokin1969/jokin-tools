@@ -25,6 +25,7 @@ import unittest
 
 from shmir_design.filters import FilterState
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
+from tests.tabla_medida import TABLA
 
 
 class TestElParQueNOCoincide(unittest.TestCase):
@@ -128,9 +129,9 @@ class TestElInvarianteDeLosTramos(unittest.TestCase):
                 self.assertLessEqual(inicio, capa.start_range[1])
 
     def _medido(self):
-        from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+        from shmir_design.apa import resolve_measured
 
-        return resolve_measured(load_3utr(REFERENCES["NM_011170.3"]), POLYA_DB_PRNP)
+        return resolve_measured(load_3utr(REFERENCES["NM_011170.3"]), TABLA)
 
 
 class TestLoQueSICOMPARTEN(unittest.TestCase):

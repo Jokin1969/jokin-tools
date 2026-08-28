@@ -168,7 +168,7 @@ class TestLaFichaSeparaLasDosHEBRAS(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+        from shmir_design.apa import resolve_measured
         from shmir_design.dossier import build_dossier
         from shmir_design.mirna import load_mature_fa
         from shmir_design.seed_store import SeedRun, SeedStore
@@ -227,7 +227,7 @@ class TestLaFichaSeparaLasDosHEBRAS(unittest.TestCase):
 
     @classmethod
     def ficha_tiling(cls):
-        from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+        from shmir_design.apa import resolve_measured
         from shmir_design.mirna import load_mature_fa
         from shmir_design.tiling import tile_utr
 

@@ -32,9 +32,14 @@ avisos = [
 ]
 
 [[ficheros]]
-nombre = "transcriptoma_3utr_{slug}.fa"
+nombre = "{fichero_transcriptoma}"
 por_que = "Los 3'UTR sobre los que se cuentan los sitios de seed. Un transcrito representativo por gen; si trae varias isoformas, la app lo detecta y avisa de que el conteo está inflado."
 obligatorio = true
+
+[[ficheros]]
+nombre = "{fichero_expresion}"
+por_que = "OPCIONAL y REFINA, no cierra: una tabla `transcrito<TAB>valor` de expresión en el tejido. Sin ella el conteo sigue saliendo, pero sin ponderar — un sitio en un gen que la neurona no expresa cuenta igual que uno en un gen abundante. Es una de las tres limitaciones que hacen del número un LÍMITE SUPERIOR, y la única de las tres que un fichero puede quitar."
+obligatorio = false
 
 [[metadatos]]
 nombre = "ensamblaje"
