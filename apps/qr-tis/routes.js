@@ -280,6 +280,7 @@ router.post('/api/people', json, (req, res) => {
       apellidos: cleanName(b.apellidos, 'Apellidos', 160),
       tis: cleanTis(b.tis),
       group_name: cleanGroups(b.groups !== undefined ? b.groups : b.group_name),
+      qr_code: cleanQrCode(b.qr_code),
       qr_dark: cleanColorOpt(b.qr_dark), qr_light: cleanColorOpt(b.qr_light), qr_style: cleanStyleOpt(b.qr_style),
     };
     if (db.pharmacyTaken(data.pharmacy_no)) throw bad(`El Nº de farmacia ${data.pharmacy_no} ya está asignado a otra persona.`);
