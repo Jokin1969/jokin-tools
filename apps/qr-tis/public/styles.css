@@ -97,6 +97,8 @@ button { font-family: inherit; }
 .qt-tis-wrap .qt-input { font-family: var(--mono); letter-spacing: 0.32em; text-align: center; font-size: 1.5rem; }
 .qt-scan-btn { flex: none; width: 62px; border: 2px solid var(--line); border-radius: 13px; background: #fff; cursor: pointer; font-size: 1.4rem; color: var(--brand); display: flex; align-items: center; justify-content: center; }
 .qt-scan-btn:hover { border-color: var(--brand); background: #f1f8fd; }
+/* Grosor doble que un .qt-input normal (~52px) — para el código real del QR. */
+.qt-input-tall { min-height: 104px; resize: vertical; font-family: inherit; line-height: 1.4; }
 .qt-field-hint { font-size: 0.78rem; color: var(--muted); margin-top: 7px; }
 .qt-form-err { color: var(--danger); font-size: 0.88rem; min-height: 20px; margin-bottom: 8px; font-weight: 600; }
 .qt-form-actions { display: flex; gap: 12px; }

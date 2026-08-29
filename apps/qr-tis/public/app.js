@@ -187,7 +187,7 @@ function viewForm() {
     `<button class="qt-back" id="back">← Inicio</button>
      <div class="qt-panel qt-form">
        <div class="qt-section-title">Introducir persona / TIS</div>
-       <div class="qt-section-sub">Todos los campos son obligatorios <span style="color:var(--danger)">*</span></div>
+       <div class="qt-section-sub">Los campos marcados con <span style="color:var(--danger)">*</span> son obligatorios</div>
        <div class="qt-form-err" id="f-err"></div>
        <div class="qt-field">
          <label>Nº de farmacia <span class="req">*</span></label>
@@ -203,12 +203,21 @@ function viewForm() {
          <input class="qt-input" id="f-apellidos" placeholder="p. ej. Pérez García" autocomplete="off" />
        </div>
        <div class="qt-field">
+         <label>Grupo (residencia)</label>
+         <input class="qt-input" id="f-grupo" placeholder="p. ej. Residencia San José" autocomplete="off" />
+         <div class="qt-field-hint">Opcional. También puedes añadirlo o cambiarlo más adelante desde la ficha de la persona.</div>
+       </div>
+       <div class="qt-field">
          <label>Código TIS <span class="req">*</span></label>
          <div class="qt-tis-wrap">
            <input class="qt-input" id="f-tis" placeholder="00000000" inputmode="numeric" maxlength="8" autocomplete="off" />
-           <button type="button" class="qt-scan-btn" id="f-scan" title="Escanear QR con la cámara">⛶</button>
          </div>
-         <div class="qt-field-hint">8 cifras. Los ceros a la izquierda cuentan. Puedes escribirlo o pulsar ⛶ para escanear un QR.</div>
+         <div class="qt-field-hint">8 cifras. Los ceros a la izquierda cuentan. Enfoca aquí y escanea con el lector, o escríbelo a mano.</div>
+       </div>
+       <div class="qt-field">
+         <label>Código del QR (opcional)</label>
+         <textarea class="qt-input qt-input-tall" id="f-qrcode" rows="3" autocomplete="off" placeholder="Escanea con el lector (emulador de teclado) o escribe el código…"></textarea>
+         <div class="qt-field-hint">Es lo que codifica realmente el QR (acepta cualquier texto alfanumérico, sin límite de longitud). Enfoca aquí y escanea con el lector, o escríbelo. <strong>No se muestra</strong> en la app. Vacío = el QR usa el Código TIS.</div>
        </div>
        <div class="qt-form-actions">
          <button class="qt-btn qt-btn-ghost" id="f-cancel">Cancelar</button>
@@ -218,24 +227,26 @@ function viewForm() {
   $('back').onclick = viewHome;
   $('f-cancel').onclick = viewHome;
   const tisEl = $('f-tis');
+  const grupoEl = $('f-grupo');
+  const qrEl = $('f-qrcode');
   tisEl.addEventListener('input', () => { tisEl.value = tisEl.value.replace(/\D/g, '').slice(0, 8); });
-  $('f-scan').onclick = () => openScanner((raw, digits) => {
-    tisEl.value = (digits && digits.length >= 8) ? digits.slice(0, 8) : digits || '';
-    if (tisEl.value.length === 8) toast('TIS escaneado: ' + tisEl.value, 'ok');
-    else toast('QR leído, pero no son 8 cifras. Revísalo.', 'err');
-  });
   $('f-save').onclick = submitForm;
   const farmEl = $('f-farmacia');
   farmEl.addEventListener('input', () => { farmEl.value = farmEl.value.replace(/\D/g, '').slice(0, 5); });
   farmEl.focus();
-  [farmEl, tisEl, $('f-nombre'), $('f-apellidos')].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') submitForm(); }));
+  [farmEl, tisEl, $('f-nombre'), $('f-apellidos'), grupoEl].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') submitForm(); }));
+  // El lector de códigos termina el escaneo con un Enter; en un <textarea> eso
+  // insertaría un salto de línea en vez de enviar el formulario.
+  qrEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitForm(); } });
 }
 
 async function submitForm() {
   const pharmacy_no = $('f-farmacia').value.replace(/\D/g, '');
   const nombre = $('f-nombre').value.trim();
   const apellidos = $('f-apellidos').value.trim();
+  const group_name = $('f-grupo').value.trim();
   const tis = $('f-tis').value.replace(/\D/g, '');
+  const qr_code = $('f-qrcode').value;
   const err = $('f-err');
   $('f-farmacia').classList.toggle('is-invalid', !/^\d{5}$/.test(pharmacy_no));
   $('f-nombre').classList.toggle('is-invalid', !nombre);
@@ -246,7 +257,7 @@ async function submitForm() {
   if (!/^\d{8}$/.test(tis)) { err.textContent = 'El Código TIS debe tener exactamente 8 cifras.'; return; }
   err.textContent = '';
   try {
-    const { item } = await api('/people', jbody({ pharmacy_no, nombre, apellidos, tis }));
+    const { item } = await api('/people', jbody({ pharmacy_no, nombre, apellidos, tis, group_name, qr_code }));
     await reloadPeople();
     toast('Persona guardada ✓', 'ok');
     S.nav = [];

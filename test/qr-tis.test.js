@@ -296,6 +296,33 @@ test('QR code: asociación por Nº de farmacia, PATCH, PUT y borrado (fallback a
   } finally { server.close(); }
 });
 
+test('POST /api/people (alta desde el formulario): admite grupo y Código QR desde la creación', async () => {
+  const express = require('express');
+  const router = require('../apps/qr-tis/routes');
+  const app = express();
+  app.use((req, res, next) => { req.user = { id: 1, email: 'a@e', name: 'A', role: 'admin', apps: '*' }; next(); });
+  app.use('/qr-tis', router);
+  const server = await new Promise(r => { const s = app.listen(0, () => r(s)); });
+  const base = `http://127.0.0.1:${server.address().port}/qr-tis/api`;
+  const call = (m, p, b) => fetch(base + p, { method: m, headers: b ? { 'Content-Type': 'application/json' } : {}, body: b ? JSON.stringify(b) : undefined }).then(async r => ({ status: r.status, data: await r.json().catch(() => ({})) }));
+  try {
+    const created = await call('POST', '/people', {
+      pharmacy_no: '91001', nombre: 'Alta', apellidos: 'ConQR', tis: '00910011',
+      group_name: 'Residencia San José', qr_code: 'CODIGO-QR-LARGO-123',
+    });
+    assert.equal(created.status, 201);
+    assert.equal(created.data.item.group_name, 'Residencia San José', 'el grupo se guarda ya desde el alta');
+    assert.equal(created.data.item.qr_code, 'CODIGO-QR-LARGO-123', 'el Código QR se guarda ya desde el alta (antes se perdía)');
+    assert.equal(created.data.item.tis, '00910011', 'el TIS se conserva aparte, como texto legible');
+
+    // Sin grupo ni Código QR: ambos quedan vacíos (el QR usará el TIS, como siempre).
+    const plain = await call('POST', '/people', { pharmacy_no: '91002', nombre: 'Alta', apellidos: 'Simple', tis: '00910012' });
+    assert.equal(plain.status, 201);
+    assert.equal(plain.data.item.group_name, null);
+    assert.equal(plain.data.item.qr_code, null);
+  } finally { server.close(); }
+});
+
 test('bulk import (/api/import) crea personas con su Código QR (real); vacío = QR usa el TIS', async () => {
   const express = require('express');
   const router = require('../apps/qr-tis/routes');
