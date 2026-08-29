@@ -719,7 +719,17 @@ hacia el silencio es peor que no tenerlo: no avisa y además tranquiliza.
 
 ---
 
-## 18 — Un artefacto de verificación generado con parámetros distintos a los de uso valida una configuración fantasma
+## 18 — Un artefacto de verificación se genera con la CONFIGURACIÓN DE USO y con los DATOS DE USO
+
+Tenía dos mitades y al principio sólo se escribió una. **Un parámetro tecleado y un
+fixture sintético son la misma enfermedad:** los dos validan un camino que nadie recorre.
+El golden llevaba `--inmunes 4` a mano y validaba un panel que ningún usuario ve;
+`test_usar_manifiesto.py` pasaba de punta a punta sobre un manifiesto **parcial** montado
+en un temporal, y el manifiesto **real** abortaba con un `KeyError: 'polyadb'`
+(errata nº 33). Una configuración fantasma y una entrada fantasma, y el mismo agujero.
+
+### La mitad de la configuración
+
 
 El golden del informe se generaba con `--inmunes 4` **tecleado a mano** en
 `regenerar_golden.py`. Así que la única corrida del CLI que alguien miraba llevaba una
@@ -766,6 +776,47 @@ PolyA_DB **no se pasa a mano** porque «era lo que hacía que el golden se gener
 constante mientras la app leía el fichero — dos caminos, y el golden dejaba de comprobar
 el de verdad». La misma lección, aplicada al dato y no a la configuración, en el mismo
 bloque de código.
+
+### La mitad de los DATOS, y su corolario accionable
+
+**Todo test que monte un fixture donde exista el artefacto real debe justificar por qué
+no usa el real, y esa justificación va ESCRITA.** No es una prohibición: fabricar tiene
+motivos buenos —probar el fichero corrupto, la cabecera corta, un md5 que no cuadra, un
+manifiesto al que le falta un rol a propósito— y ninguno de ellos se puede montar con el
+real. Lo que no vale es no decirlo.
+
+Se revisó cuántos había, y el del manifiesto no era el único: **doce fabricaciones en
+nueve ficheros**. Están en `data/fixtures_sinteticos.toml`, cada una con su motivo, y
+`tools/auditar_fixtures.py` cruza la tabla con el código en las dos direcciones: una
+fabricación sin entrada falla, y una entrada que ya no corresponde a ningún test también
+—una justificación caducada es peor que ninguna, porque se lee como vigente.
+
+Y lo que faltaba en el caso del manifiesto **no era dejar de fabricarlo**: era que
+ADEMÁS hubiera una corrida contra el real. Las dos cosas, no una en lugar de la otra.
+
+### La regla de los INERTES
+
+**No se ponen parámetros en un artefacto de verificación, ni siquiera los que coinciden
+con el defecto.** De los cuatro que llevaba el golden, tres no hacían nada — y ése es
+exactamente el problema: **un parámetro que no hace nada no se distingue de uno que sí**,
+así que nadie los volvió a mirar y el que rompía viajó de polizón entre los otros tres.
+
+Lo comprueba un test sobre **todos** los generadores, no sólo sobre el del CLI:
+`default_config()` se llama sin nada, `tile_utr` recibe la secuencia y nada más, no se
+construye ningún `SelectionConfig` a mano, y **ningún campo de `SelectionConfig` aparece
+como argumento** en el fichero — esa última lista se deriva de la propia clase, así que un
+ajuste nuevo queda cubierto sin que nadie se acuerde de añadirlo. Lo permitido en una
+variante tampoco es una lista escrita: sale de su propio nombre.
+
+### La ironía de los dos generadores
+
+Dos de ellos llevaban escrito, **dos líneas más arriba**, que la tabla de PolyA_DB no se
+pasa a mano porque eso hacía que el golden se generara con la constante mientras la app
+leía el fichero. Tenían la regla delante, redactada, para el **dato** — y no la vieron
+para la **configuración**, en el mismo bloque de código.
+
+**Saber la regla no basta si no se aplica al eje que toca.** Una regla escrita para un eje
+no se transfiere sola al de al lado; hay que ir a buscarla.
 
 ### El corolario de la clasificación
 

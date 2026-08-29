@@ -2949,14 +2949,36 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **renderiza la página** con ese estado) y `CONSTRUIDO` (lo monta en el núcleo y no
     pinta). Un `CONSTRUIDO` es el principio nº 17 en esta superficie: el estado existe en
     un test y el camino que lo pinta no lo recorre nadie. **Sólo PINTADO cuenta.**
-  - **ESTADO DE PARTIDA: 10 de 29 pintados.** Y los diez son del panel de ficheros: **ni
-    uno solo de los cuatro modales, ni el estado DISEÑADO, se ha pintado nunca**. Ahí es
-    exactamente donde vive `_modal_blast`.
-  - **Y las causas son DOS, no diecinueve**: `AppTest` no puede rellenar un
+  - **Las causas eran DOS, no diecinueve**: `AppTest` no puede rellenar un
     `file_uploader` —18 estados, los ocho de los modales entre ellos— y la página no
-    acepta un directorio de referencia de prueba —9 estados—. **Abrir cualquiera de las
+    aceptaba un directorio de referencia de prueba —9 estados—. **Abrir cualquiera de las
     dos desbloquea todas las suyas de golpe**, así que lo que hay que hacer no es
     escribir tests sueltos: es abrir esas dos vías.
+  - **LA SEGUNDA VÍA YA ESTÁ ABIERTA, y el trinquete pasó de 19 a 10.**
+    `trabajo.reference_dir()` lee `os.environ` **en cada llamada** —la indirección ya
+    estaba, la usaba el hub y no la usaba ningún test—, así que apuntando
+    `SHMIR_REFERENCE_DIR` a un temporal la misma página pinta los nueve roles en el lado
+    que se quiera. Los dos ayudantes son `deposito_vacio()` y `deposito_completo()`, en
+    `tests/test_estados_de_fichero.py`, y **no hubo que tocar la página**.
+    - Cinco de los diez ficheros no están en el repositorio, así que el depósito completo
+      les pone un **marcador de presencia** con su motivo escrito uno a uno — y al
+      escribirlos apareció que los motivos **no son el mismo**: cuatro son descargas de
+      cientos de MB y `apa_medido.tsv` es que **todavía no existe**. Un motivo común
+      habría tapado esa diferencia.
+    - Con un marcador se pinta el estado CON **del panel**, que es lo que este eje cubre.
+      No prueba que el frente corra: eso pide el fichero de verdad. Escrito donde está.
+  - **Y al abrir esa vía apareció un fallo de producción a la primera corrida**
+    (errata nº 34): una fila **colapsada y AUSENTE** —`apa_medido.tsv`, cuyo frente ya
+    cierra PolyA_DB— salía con las cuatro acciones de un fichero presente, porque la
+    página decidía con `if fila["acciones"]:` y esa lista **nunca está vacía**: una fila
+    ausente lleva `["subir"]`. El panel enseñaba un error rojo al abrir la app y «Ver»
+    tiraba la página entera. Ahora la fila **dice** si está (`"presente"`, en
+    `presentation.py`: regla 6) y hay test de las dos cosas.
+  - **LO QUE QUEDA son los diez de la MISMA causa**: `AppTest` no rellena un
+    `file_uploader`, así que la página no llega a DISEÑADO y con ella se quedan fuera los
+    ocho de los cuatro modales — donde vive `_modal_blast`. Es un límite de la
+    herramienta, no de la app: cerrarlo pide una vía para inyectar la secuencia sin pasar
+    por el widget.
   - **Los BLOQUEADOS CUENTAN para el trinquete.** Excluirlos lo dejaba en **cero** con
     diecinueve estados sin pintar — un informe que se lee como «pendiente» y no obliga a
     nada (principio nº 15). `bloqueado_por` dice **qué lo cerraría**; no exime.
@@ -2964,8 +2986,55 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     test: comparaba los niveles con `max()` de cadenas —y `max("NADA", "CONSTRUIDO")` es
     `"NADA"`, así que TODO salía sin tocar—, y reconocía los estados de fichero por el
     nombre del fichero en el fuente, **que aparece igual en un test que lo pone y en uno
-    que comprueba que falta**. Ahora el estado de un fichero se deriva de su PRESENCIA
-    REAL, que no es un marcador sino el hecho.
+    que comprueba que falta**. Ahora hay dos vías y ninguna es ésa: el **hecho** —está o
+    no está en el depósito del paquete— y el **ayudante** que lleva el depósito ENTERO a
+    un lado, que no nombra ningún fichero. Lo que sigue prohibido es lo de entonces, y
+    hay test.
+
+- **EL INVENTARIO DE FIXTURES SINTÉTICOS (2026-08-29)**
+  (`tools/auditar_fixtures.py`, `data/fixtures_sinteticos.toml`, dentro de
+  `npm run check:shmir`). Es la **segunda mitad del principio nº 18**: un parámetro
+  tecleado y un fixture sintético son **la misma enfermedad**, los dos validan un camino
+  que nadie recorre. `test_usar_manifiesto.py` pasaba de punta a punta sobre un
+  manifiesto PARCIAL en un temporal, y el manifiesto real abortaba (errata nº 33).
+  - **Fabricar NO está prohibido** —el fichero corrupto, la cabecera corta, el md5 que no
+    cuadra, el manifiesto al que le falta un rol a propósito: ninguno se puede montar con
+    el real—. Lo prohibido es **no decir por qué**, y el motivo va escrito en la tabla.
+  - Se revisó cuántos había y el del manifiesto **no era el único**: **12 fabricaciones
+    en 9 ficheros**. La tabla se cruza con el código **en las dos direcciones**: una
+    fabricación sin entrada falla, y una entrada que ya no corresponde a ningún test
+    también — una justificación caducada se lee como vigente, que es peor que ninguna.
+  - **Lo que faltaba en el caso del manifiesto no era dejar de fabricarlo**: era que
+    ADEMÁS hubiera una corrida contra el real. Las dos cosas.
+  - Los artefactos salen del **directorio** `data/reference/`, no de una lista. El
+    detector reconoce la fabricación por el NOMBRE cerca de una escritura, y `shutil.copy`
+    **no cuenta** —copiar el real es usarlo—: meterlo daba 47 detecciones en 20 ficheros,
+    casi todas tests haciendo lo correcto, y un auditor con falsos positivos se apaga.
+
+- **LA REGLA DE LOS INERTES (2026-08-29)**, comprobada sobre **todos** los generadores de
+  goldens, no sólo sobre el del CLI. **No se ponen parámetros en un artefacto de
+  verificación, ni siquiera los que coinciden con el defecto.** De los cuatro que llevaba
+  el golden, tres no hacían nada — y ése es el problema: **un parámetro que no hace nada
+  no se distingue de uno que sí**, así que nadie los vuelve a mirar y el que rompía viajó
+  de polizón entre los otros tres.
+  - Lo fija `TestNingunGeneradorPONEunParametro`: `default_config()` se llama **sin
+    nada**, `tile_utr` recibe la secuencia y nada más, no se construye ningún
+    `SelectionConfig` a mano, y **ningún campo de `SelectionConfig` aparece como
+    argumento** — esa lista se deriva de la propia clase, así que un ajuste nuevo queda
+    cubierto sin que nadie se acuerde. Lo permitido en una variante tampoco es una lista
+    escrita: sale de **su propio nombre**.
+  - **La ironía, al registro**: dos de los generadores llevaban escrito **dos líneas más
+    arriba** que la tabla de PolyA_DB no se pasa a mano, por este mismo motivo. Tenían la
+    regla delante, redactada, **para el dato** — y no la vieron **para la configuración**,
+    en el mismo bloque de código. Saber la regla no basta si no se aplica al eje que toca.
+
+- **`--usar-manifiesto` VA CON UNA SOLA ESPECIE**, y no es un descuido ni un fallo. El
+  manifiesto conecta `rmsk_mouse.out` **por su rol**, sin mirar qué se está diseñando, así
+  que con `--fasta-b` la máscara murina acaba delante del transcrito humano y
+  `RepeatMask.query_length` la rechaza —«se corrió sobre 2191 nt y se le está dando una de
+  2435»—. **El guardia hace exactamente lo que debe.** Con dos especies, se conectan los
+  ficheros con sus flags. Está escrito **en la ayuda de la bandera**, que es donde se mira
+  antes de intentarlo, y no sólo en el mensaje del aborto.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

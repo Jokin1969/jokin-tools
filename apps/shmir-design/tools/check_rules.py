@@ -346,6 +346,16 @@ def main(argv: list[str]) -> int:
 
     print(render_estados(auditar_estados()))
 
+    # LOS FIXTURES SINTETICOS DONDE EXISTE EL ARTEFACTO REAL (2026-08-29). Segunda mitad
+    # del principio nº 18: un parametro tecleado y un fixture sintetico son la misma
+    # enfermedad —los dos validan un camino que nadie recorre—. Va aqui por lo mismo que
+    # los otros cuatro. No decide nada salvo lo que ya decide su test: fabricar esta
+    # permitido, no decir POR QUE no.
+    from auditar_fixtures import auditar as auditar_fixtures
+    from auditar_fixtures import render as render_fixtures
+
+    print(render_fixtures(auditar_fixtures()))
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "

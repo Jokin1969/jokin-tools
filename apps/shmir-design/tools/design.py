@@ -404,7 +404,11 @@ def main(argv: list[str]) -> int:
         "--usar-manifiesto", action="store_true",
         help="Conecta solo cada fichero de --datos que este en OK con el filtro que le "
              "toca, con la versión y el md5 del propio manifiesto. Sustituye a las 31 "
-             "flags de fontaneria; una flag explicita sigue mandando sobre esto.",
+             "flags de fontaneria; una flag explicita sigue mandando sobre esto. "
+             "UNA SOLA ESPECIE: el manifiesto conecta la máscara POR SU ROL, sin mirar "
+             "qué se está diseñando, así que con --fasta-b la máscara murina se le "
+             "aplicaría al transcrito humano y el guardia lo aborta. Con dos especies, "
+             "conecta los ficheros con sus flags.",
     )
     parser.add_argument(
         "--sin-manifiesto", action="store_true",

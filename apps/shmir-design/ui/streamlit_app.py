@@ -782,7 +782,7 @@ def _panel_refinamiento(especie: str) -> None:
             # poder ver, reemplazar, borrar o descargar lo que ya esta.
             with st.expander(titular, expanded=False):
                 st.caption(fila["resumen"])
-                if fila["acciones"]:
+                if fila["presente"]:
                     _fila_presente(fila, directorio)
                 else:
                     st.caption(fila["si_no_llega"])

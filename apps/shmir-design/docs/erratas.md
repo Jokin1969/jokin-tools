@@ -1237,3 +1237,57 @@ manifiesto conecta `rmsk_mouse.out` **por su rol**, sin mirar qué se está dise
 2435. El guardia hace exactamente su trabajo. Lo que dice el aborto es que
 **`--usar-manifiesto` con dos especies no es una combinación viable hoy**, y eso es
 información que no estaba escrita en ninguna parte.
+
+---
+
+## 34 — La fila colapsada y ausente: un error rojo al abrir, y «Ver» tiraba la página
+
+**Fecha:** 2026-08-29. **Estado:** cerrada. **Cómo apareció:** abriendo la primera de las
+dos vías bloqueadas del inventario de estados — apuntar la página a un depósito de
+prueba. Al pintar los nueve roles se vio, de paso, lo que hacía el depósito **real**.
+
+`apa_medido.tsv` está en el estado **NO USADO**: su frente ya lo cierra
+`polya_db_mouse.tsv`, así que no es trabajo pendiente y su fila sale **colapsada**. Pero
+el fichero **no está**. La página elegía qué pintar así:
+
+```python
+if fila["acciones"]:
+    _fila_presente(fila, directorio)
+```
+
+y `acciones` **nunca está vacía**: una fila ausente lleva `["subir"]`, que es verdadera.
+Así que la fila salía con las cuatro acciones de un fichero presente. Al abrir la app, hoy,
+en producción:
+
+- un **recuadro rojo** —«`apa_medido.tsv` no está, así que no hay nada que descargar»—
+  sobre una fila que la propia página acaba de describir como algo que **no hace falta
+  conseguir**;
+- y al pulsar «Ver», **la página entera se cae** con una excepción sin capturar.
+
+### Lo que enseña
+
+Tres cosas, y ninguna es «faltaba un test».
+
+**Una: la página decidía.** Es la regla 6 — lo que decide vive en `presentation.py` — y
+se saltó de la forma más barata que hay, una comprobación de verdad sobre una lista. No
+había dónde escribir un test que lo cazara porque la decisión no existía como dato.
+Ahora la fila **dice** si está: `"presente": fila["nombre"] in presentes`.
+
+**Dos: el truco de la lista siempre verdadera.** `acciones` era `["ver", …]` o
+`["subir"]`: dos cosas distintas, las dos verdaderas. Un `if` sobre eso no lee lo que
+parece que lee. Hay un test que fija ese hecho —`acciones` nunca está vacía— para que
+nadie vuelva a apoyarse en él.
+
+**Tres, y es la que importa: el inventario acertó.** `data/estados.toml` decía que nadie
+había pintado la página con los ficheros en el otro estado, y decía por qué no se podía.
+Se abrió esa vía y el fallo apareció **en la primera corrida**. Diecinueve estados sin
+pintar no eran diecinueve tareas: eran **dos causas**, y abrir una tiró nueve estados y
+un fallo de producción con ella. Es el principio nº 15 cobrando: el informe obligaba
+porque el trinquete lo contaba.
+
+### La ironía
+
+La fila estaba colapsada precisamente porque el panel **sabía** que ese fichero no hacía
+falta —lo dice con su propio texto, «es una ALTERNATIVA que no hace falta conseguir»— y
+dos líneas después le ofrecía descargarlo y se caía al intentarlo. El estado estaba bien
+calculado en el núcleo y mal leído en la página.

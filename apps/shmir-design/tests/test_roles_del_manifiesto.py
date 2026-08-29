@@ -82,3 +82,41 @@ class TestLaFormaNORMALdeCorrerNOaborta(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestElLIMITEdeLasDosEspeciesSEDICEANTES(unittest.TestCase):
+    """Que la combinación no sea viable es correcto; que sólo se sepa al abortar, no.
+
+    El manifiesto conecta `rmsk_mouse.out` **por su rol**, sin mirar qué se está
+    diseñando, así que con `--fasta-b` la máscara murina acaba delante del transcrito
+    humano y `RepeatMask.query_length` la rechaza —«se corrió sobre 2191 nt y se le está
+    dando una de 2435»—. El guardia hace exactamente lo que debe. Lo que faltaba es que
+    lo dijera **antes de que alguien lo intente**, y el sitio donde se mira antes de
+    intentar nada es la ayuda de la bandera.
+    """
+
+    def test_la_ayuda_de_la_bandera_dice_UNA_SOLA_ESPECIE(self):
+        import io
+        from contextlib import redirect_stdout
+
+        from tools.design import main
+
+        salida = io.StringIO()
+        with redirect_stdout(salida), self.assertRaises(SystemExit):
+            main(["--help"])
+        texto = salida.getvalue()
+        self.assertIn("--usar-manifiesto", texto)
+        self.assertIn("UNA SOLA ESPECIE", texto)
+        self.assertIn("--fasta-b", texto)
+
+    def test_y_dice_POR_QUE_no_solo_que_no(self):
+        """«No se puede» sin causa manda a probar cosas al azar. La causa es el rol."""
+        import io
+        from contextlib import redirect_stdout
+
+        from tools.design import main
+
+        salida = io.StringIO()
+        with redirect_stdout(salida), self.assertRaises(SystemExit):
+            main(["--help"])
+        self.assertIn("POR SU ROL", salida.getvalue())

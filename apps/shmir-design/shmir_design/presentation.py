@@ -2211,6 +2211,15 @@ def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
                 "grupo": 1 if opcional else 0,
                 "resuelta": 0 if estado in {"FALTA", "OPCIONAL"} else 1,
                 "colapsada": estado in {"CERRADO", "NO USADO"},
+                # ESTA O NO ESTA, dicho aqui y no deducido en la pagina. La pagina
+                # elegia entre las cuatro acciones de lo presente y el hueco de subida
+                # con `if fila["acciones"]:`, y esa lista NUNCA esta vacia —una fila
+                # ausente lleva `["subir"]`, que es verdadera—. O sea que una fila
+                # COLAPSADA Y AUSENTE («NO USADO»: su frente ya lo cierra otro fichero)
+                # salia con «Ver», «Reemplazar», «Borrar» y «Descargar» sobre un fichero
+                # que no esta: el panel enseñaba un error rojo al abrir la app y «Ver»
+                # tiraba la pagina entera. Regla 6: lo que decide, decidido aqui.
+                "presente": fila["nombre"] in presentes,
                 # Que frentes cierra, EN LA FILA. El panel ya no agrupa por frente
                 # —el orden es por impacto—, asi que si el frente no viaja en la fila
                 # deja de verse: un fichero sin frente visible es un fichero que no se

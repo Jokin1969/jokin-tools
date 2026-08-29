@@ -123,14 +123,40 @@ class TestLoQueELdetectorNOpuedeHacer(unittest.TestCase):
         # Alfabeticamente seria al reves, que es justo el fallo que hubo.
         self.assertGreater("PINTADO", "CONSTRUIDO")
 
-    def test_el_estado_de_un_FICHERO_sale_de_su_presencia_real_y_no_de_un_marcador(self):
+    def test_el_estado_de_un_FICHERO_nunca_se_reconoce_por_el_NOMBRE_del_fichero(self):
+        """Ésa fue la equivocación: el nombre aparece IGUAL en un test que pone el
+        fichero y en uno que comprueba que falta («Subir transcriptoma_3utr.fa»), así que
+        daba PINTADO a cuatro que no están en el repositorio.
+
+        Ahora hay DOS vías y ninguna es ésa: el HECHO —está o no está en el depósito del
+        paquete— y el AYUDANTE que lleva el depósito ENTERO a un lado, que no nombra
+        ningún fichero. Lo que sigue prohibido es lo de entonces.
+        """
+        from shmir_design.species import required_files, resolve
+
+        nombres = {n for f in required_files(resolve("raton")) for n in f.filenames}
         de_fichero = [
             e for e in auditoria.espacio_de_estados() if e.eje.startswith("fichero:")
         ]
         self.assertTrue(de_fichero)
         for estado in de_fichero:
-            self.assertEqual(estado.marcadores, ())
-            self.assertIsNotNone(estado.presente)
+            self.assertIsNotNone(estado.presente, estado.clave)
+            for marcador in estado.marcadores:
+                self.assertNotIn(marcador, nombres, estado.clave)
+                for nombre in nombres:
+                    self.assertNotIn(nombre, marcador, estado.clave)
+
+    def test_y_el_ayudante_que_lo_reconoce_EXISTE_y_pinta_la_pagina(self):
+        """Un marcador que nombra algo que no existe es un PINTADO regalado. Éste tiene
+        que estar escrito en un fichero que además renderice la página."""
+        fuente = (RAIZ / "tests" / "test_estados_de_fichero.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("AppTest", fuente)
+        for marcador in (auditoria.DEPOSITO_VACIO, auditoria.DEPOSITO_COMPLETO):
+            with self.subTest(marcador):
+                self.assertIn(f"def {marcador.rstrip('(')}(", fuente)
+                self.assertIn(marcador, fuente)
 
     def test_y_para_cada_rol_EXACTAMENTE_uno_de_los_dos_estados_es_el_de_hoy(self):
         """CON y SIN son excluyentes: si los dos salieran «presentes», el detector
