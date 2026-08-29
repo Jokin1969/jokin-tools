@@ -59,12 +59,11 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
         # que fija este test es que el APA es UNO MAS, no uno de ellos. Hay otros TRES
         # que tampoco salen de un filtro de ventana: el empalme del intron, el
         # off-target por seed y la prediccion de sitios de splicing (el cuarto modal).
-        # Y se descuentan los PENDIENTES DE DECISION (`G4_*`): salen en
+        # (Hubo filtros PENDIENTES DE DECISION que se descontaban aquí; se
         # `not_run_filters` porque su estado es NOT_RUN, pero no son frentes — no se
         # cierran consiguiendo nada, se cierran decidiendo su criterio por escrito.
-        from shmir_design.filters import UNDECIDED_FILTERS
 
-        de_recurso = set(self.seleccion.not_run_filters) - UNDECIDED_FILTERS
+        de_recurso = set(self.seleccion.not_run_filters)
         self.assertEqual(len(self.frentes), len(de_recurso) + 4)
 
     def test_y_uno_de_ellos_es_el_APA(self):
@@ -75,10 +74,9 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
             "fraccion_isoforma_larga", "empalme_intron", "offtarget_seed",
             "empalme_sitios",
         }
-        from shmir_design.filters import UNDECIDED_FILTERS
 
         self.assertEqual(
-            de_recurso, set(self.seleccion.not_run_filters) - UNDECIDED_FILTERS
+            de_recurso, set(self.seleccion.not_run_filters)
         )
 
     def test_con_los_tres_ficheros_cargados_quedarian_SEIS(self):
@@ -115,24 +113,46 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
     def test_el_frente_del_APA_trae_la_cuenta_que_lo_justifica(self):
         apa = [f for f in self.frentes if f.name == "fraccion_isoforma_larga"][0]
         self.assertIn("6 de 10", apa.reason)
-        self.assertIn("20/0/0", apa.reason)
+        # 16/0/0, no 20/0/0: la promoción por medida entra siempre y el corte de la
+        # inmunidad se adelanta de `3utr:303` a `3utr:251`.
+        self.assertIn("16/0/0", apa.reason)
         self.assertIn("cuatro", apa.reason.lower())
 
     def test_y_la_frase_que_explica_POR_QUE_bloquea(self):
         apa = [f for f in self.frentes if f.name == "fraccion_isoforma_larga"][0]
         self.assertIn("INDISTINGUIBLE DE UN shmiR MALO", apa.reason)
 
-    def test_cita_la_medida_de_PolyA_DB_y_por_que_no_basta_EN_ESTA_corrida(self):
-        # ACTUALIZADO 2026-08-26: ya hay medida (PolyA_DB v4.1). El frente sigue
-        # bloqueando porque la conversion genomico↔transcrito no esta comprobada, y un
-        # numero que depende de una conversion sin comprobar no es un techo medido.
+    def test_cita_la_medida_de_PolyA_DB_y_el_frente_queda_CERRADO(self):
+        # ACTUALIZADO 2026-08-27. Este test decía que la tabla «NO ENTRA EN ESTA
+        # CORRIDA», y era cierto sólo porque la corrida no la pasaba. Ahora la medida
+        # entra SIEMPRE que hable de la secuencia, así que el frente sale CERRADO con su
+        # motivo. Lo que sigue protegiendo es lo mismo: que el estado cite la fuente y la
+        # cifra, y que no se cierre en silencio.
         apa = [f for f in self.frentes if f.name == "fraccion_isoforma_larga"][0]
         self.assertIn("PolyA_DB", apa.reason)
         self.assertIn("0.86", apa.reason)
-        # Esta corrida se hace SIN pasar la tabla medida, asi que el techo sigue
-        # indeterminado aqui. Que la tabla exista no la aplica: se aplica por md5.
-        self.assertIn("NO ENTRA EN ESTA CORRIDA", apa.reason)
-        self.assertIn("md5", apa.reason)
+        self.assertIn("CERRADO", apa.reason)
+        self.assertFalse(apa.blocking)
+
+    def test_y_sin_tabla_aplicable_SIGUE_bloqueando(self):
+        # El caso que el test anterior cubría por accidente, ahora pedido a propósito:
+        # una corrida donde la tabla NO habla de la secuencia. Se pide con `ApaExcluded`,
+        # que es la única forma, y con el motivo escrito.
+        from shmir_design.apa import ApaExcluded
+        from shmir_design.reference import REFERENCES, load_3utr
+        from shmir_design.selection import blocking_fronts
+        from shmir_design.tiling import tile_utr
+
+        sin = tile_utr(
+            load_3utr(REFERENCES["NM_011170.3"]),
+            measured_apa=ApaExcluded(
+                reason="control de este test: se quiere el frente sin medida aplicable"
+            ),
+        )
+        apa = [
+            f for f in blocking_fronts(sin, self.seleccion)
+            if f.name == "fraccion_isoforma_larga"
+        ][0]
         self.assertTrue(apa.blocking)
 
     def test_sin_candidatos_con_techo_el_frente_NO_existe(self):
@@ -168,7 +188,10 @@ class TestLoQueDiceElInforme(unittest.TestCase):
         )
 
     def test_el_informe_cuenta_los_frentes_e_incluye_el_APA(self):
-        self.assertIn("PROVISIONAL EN 10 FRENTE(S)", self.texto)
+        # NUEVE, no diez: con la medida aplicada el frente del APA sale CERRADO y deja
+        # de contarse como provisional. Sigue SALIENDO en el informe —un frente cerrado
+        # no desaparece— y eso es lo que comprueba la segunda línea.
+        self.assertIn("PROVISIONAL EN 9 FRENTE(S)", self.texto)
         self.assertIn("fraccion_isoforma_larga:", self.texto)
 
     def test_y_el_APA_esta_entre_ellos_con_su_cifra(self):

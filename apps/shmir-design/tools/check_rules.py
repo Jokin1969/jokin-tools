@@ -278,6 +278,74 @@ def main(argv: list[str]) -> int:
     informe = analizar_alcance(project_root)
     print()
     print(informe.render())
+    # ── Datos de una especie que viven en el codigo ─────────────────────────────
+    #
+    # Misma razon para ponerlo aqui: un informe que hay que acordarse de pedir es un
+    # informe que nadie pide. Tampoco decide nada — la categoria la pone una persona en
+    # `data/datos_en_codigo.toml`, y el test es quien exige que no falte ninguna.
+    from auditar_datos import auditar as auditar_datos
+
+    datos = auditar_datos()
+    por_cat = datos["por_categoria"]
+    print()
+    print("  Datos de una especie que viven en el código:")
+    for categoria, titulo in (
+        ("dato", "DATO — deberían estar en un fichero del gestor"),
+        ("declaracion", "DECLARACIÓN — van en código a propósito"),
+        ("prosa", "PROSA — van pegadas a lo que explican"),
+    ):
+        print(f"    {len(por_cat.get(categoria, ())):3}  {titulo}")
+    for fila in por_cat.get("dato", ()):
+        print(f"         · {fila['simbolo']} → {fila['fichero']}")
+    if datos["sin_clasificar"]:
+        print(
+            f"\n  SIN CLASIFICAR: {', '.join(sorted(datos['sin_clasificar']))}",
+            file=sys.stderr,
+        )
+
+    # LOS GUARDIAS, Y CUANDO CORRE CADA UNO (2026-08-27). Va aqui por lo mismo: un
+    # informe que hay que acordarse de pedir es un informe que nadie pide. Y lo que
+    # senala —INGESTA + puede degradarse + nada lo revalida— son los SIGUIENTES en
+    # fallar, asi que tiene que verse en cada tanda y no cuando alguien se acuerde.
+    from auditar_guardias import auditar as auditar_guardias
+
+    guardias = auditar_guardias()
+    print()
+    print("  Guardias, por cuándo corren:")
+    for momento in ("INGESTA", "CADA_CORRIDA", "AL_EMITIR", "AL_ABRIR", "AL_CONSTRUIR"):
+        print(f"    {len(guardias['momentos'][momento]):3}  {momento}")
+    print(f"    {len(guardias['riesgo']):3}  ⚠  INGESTA + se degrada + NADA lo revalida")
+    for fila in guardias["riesgo"]:
+        print(f"         · {fila['guardia']}")
+    print(f"    {len(guardias['solo_suite']):3}  ⚠  sólo los revalida la SUITE")
+    for fila in guardias["solo_suite"]:
+        print(f"         · {fila['guardia']}")
+    for etiqueta, filas in (
+        ("guardias sin cubrir", guardias["sin_cubrir"]),
+        ("entradas fantasma", guardias["fantasmas"]),
+        ("guardias que ya no abortan", guardias["mudos"]),
+    ):
+        if filas:
+            print(f"\n  {etiqueta.upper()}: {', '.join(filas)}", file=sys.stderr)
+
+    # LAS BANDERAS DE LOS CLI, Y CUALES SE RECORREN ENTERAS (2026-08-27). Va aqui por
+    # lo mismo que las otras tres, y por una razon propia: es el hueco que ni la
+    # alcanzabilidad ni el golden pueden ver —la alcanzabilidad busca simbolos sin
+    # llamador y aqui hay llamada escrita; el golden lee la salida POR DEFECTO—. Ahi
+    # vive el codigo llamado desde caminos que nadie recorre (principio nº 17).
+    from auditar_banderas import auditar as auditar_banderas
+    from auditar_banderas import render as render_banderas
+
+    print(render_banderas(auditar_banderas()))
+
+    # LOS ESTADOS DE LA INTERFAZ (2026-08-27). El de banderas cubre los CLI; este cubre
+    # la PAGINA, que es donde vive lo que el usuario toca. El eje no son los widgets: son
+    # las combinaciones de estado que PINTAN cosas distintas.
+    from auditar_estados import auditar as auditar_estados
+    from auditar_estados import render as render_estados
+
+    print(render_estados(auditar_estados()))
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "

@@ -222,3 +222,556 @@ Tres consecuencias, y hay que cumplir las tres:
 3. **Se ve.** Una comprobación que corre y cuyo resultado no llega a la pantalla es la
    mitad del arreglo. El diff del golden es la prueba de que llegó: si el golden no se
    mueve, no se ve.
+
+---
+
+## 7 — Una comprobación compuesta declara sus componentes en un solo sitio
+
+Una comprobación con varias piezas parece completa cuando sus piezas no están enumeradas
+en ningún sitio, porque **no hay contra qué contrastarla**. `intron_folding` medía
+donante, punto de ramificación y aceptor, y el **tracto no estaba**: tres números, con
+nombres correctos, con toda la pinta de estar completos. Y el test que lo cubría se
+llamaba «da los TRES elementos» y pasaba — **comprobaba la cantidad, no la identidad**.
+
+Dos consecuencias, y hay que cumplir las dos:
+
+1. **Los componentes se declaran en una constante**, no se enumeran en cada sitio que
+   los usa. `intron_folding.ELEMENTS` es esa declaración.
+2. **El test contrasta por IDENTIDAD contra esa constante**, no por cantidad. Contar
+   cuántos salen no distingue «están los cuatro» de «están tres y uno de más».
+
+Y cuando un subconjunto responde a otra pregunta, **es otra lista**: `barrido.FRAGILE`
+declara cuáles de los cuatro son los frágiles —donante, punto y tracto; el aceptor es la
+frontera— porque «qué se mide» y «qué decide» no son la misma pregunta y meterlas en la
+misma lista obliga a elegir cuál de las dos se rompe.
+
+Es la misma familia que el `.out` sin su `.tbl`: allí un frente parecía cerrado con un
+fichero de dos porque nadie había listado los dos. La diferencia entre «faltó una pieza»
+como fallo de test y como descubrimiento a los meses es exactamente la declaración.
+
+### Corolario A — qué se mide y qué decide son dos preguntas, y por tanto dos listas
+
+`intron_folding.ELEMENTS` declara **qué se mide**: donante, punto de ramificación, tracto
+y aceptor, los cuatro. `barrido.FRAGILE` declara **qué decide**: donante, punto y tracto —
+el aceptor es la frontera, no lo que el espliceosoma lee.
+
+Son **dos listas porque son dos preguntas**. Meterlas en una obliga a elegir cuál de las
+dos se rompe: o se mide de menos para que la lista sirva de criterio, o se decide de más
+porque el criterio arrastra todo lo que se mide. Las dos salidas son peores que tener dos
+constantes.
+
+### Corolario B — un test de estructura pasa cuando el contenido está mal
+
+El valor esperado tiene que ser **lo que se dice**, no cuántas cosas se dicen ni con qué
+forma. Dos casos reales, con meses de diferencia y el mismo mecanismo:
+
+- «da los **TRES** elementos» pasaba mientras faltaba el tracto, porque salían tres
+  (errata nº 12);
+- «sale un hueco de subida por fichero» pasaba pidiendo hueco para tres ficheros que
+  estaban, porque el panel pintaba el hueco a ciegas (errata nº 14).
+
+Contar widgets, contar elementos o contar filas no distingue una salida correcta de una
+que tiene el mismo tamaño y dice otra cosa. **Contar no es comprobar.**
+
+## 8 — La página no accede a atributos del modelo. Ninguno.
+
+La regla 6 dice que la interfaz no contiene lógica. Este principio dice algo más
+concreto y más operativo, y sale de la errata nº 17:
+
+> **Cada `a.b.c` que la página escribe sobre un objeto del modelo es una suposición
+> sobre la forma de ese modelo que ningún test comprueba.**
+
+El `AttributeError` del modal de empalme no fue mala suerte. `variant_proposal_text`
+recibía `seleccion.selection.chosen[0].guide` y `Choice` no tiene `guide`: la guía se
+alcanza por `window_of(choice).evaluation.guide`. El error estaba a un `.` de distancia
+del código correcto, y sobrevivió a 3.169 tests en verde porque vivía en el único sitio
+donde no lo mira nadie.
+
+La contramedida no es revisar mejor: es que la página **pida funciones**, no atributos.
+Una función de `presentation` tiene test; una cadena de atributos en la página, no.
+
+### No todas cuestan lo mismo: primero las que están detrás de un clic
+
+Un acceso dentro de `if st.button(...)` **no lo recorre ninguna suite**. No lo recorre el
+golden de la corrida, que pinta la página sin pulsar nada. No lo recorre el test de humo,
+que sólo comprueba que responde. Su primer lector es el usuario, y lo que ve es una traza.
+
+Los que se pintan en cada rerun son otra cosa: el golden los cubre en parte, y un
+`AttributeError` ahí lo encuentra el primero que abra la app en vez del primero que
+pulse el botón que nadie pulsa.
+
+`tools/auditar_navegacion.py` los cuenta y los separa en esas dos listas. Al escribirlo
+había **nueve**, uno de ellos bajo clic; quedan **uno** y **cero**, y el que queda es
+`upload.getvalue().decode`, que es la API de Streamlit para un fichero subido — contrato
+de otra gente, no modelo nuestro. `tests/test_navegacion_de_la_pagina.py` mantiene la
+segunda cifra en cero.
+
+## 9 — Existir no es contener
+
+> **Existir no es contener.** Un estado se deriva de que algo TENGA ALGO DENTRO, nunca
+> de que la clave, la entrada o el fichero estén.
+
+Sale de la errata nº 15 y aplica a todo. `provided` era `True` porque la **entrada
+estaba en el registro**, no porque hubiera secuencia: fichero fuera de git,
+`raw_sequence=""`, y aun así PASS — y el guardia de la regla 1 no llegaba a saltar
+porque moría antes con un `KeyError('')`, que ningún `except` del proyecto recoge.
+
+La forma general es ésta, y en este proyecto vive sobre todo en `Path.is_file()`:
+
+> **Un fichero de 0 bytes existe.** Pasa `is_file()`. Y no contiene nada.
+
+La descarga cortada a medias, el `touch` de una prueba, el volumen que se llenó a mitad
+de escritura: los tres dejan exactamente eso, y los tres se leían como «lo tenemos» — en
+el panel de ficheros, en `fixture_available` (de donde cuelga que ~80 ficheros de test se
+salten de forma visible o corran contra nada) y en la cuenta de frentes cerrables del
+paso 3.
+
+`presencia.hay_fichero` es la única puerta, y el test que la exige es **de
+comportamiento**, no de forma: comprueba que los tres sitios que deciden dicen AUSENTE
+ante un fichero vacío, no que ninguno escriba `is_file()`. Buscar la llamada en el fuente
+habría marcado además los sitios donde existir SÍ es la pregunta —abrir, borrar,
+comprobar la pareja de un `.out`— que es el corolario B otra vez.
+
+### Corolario — cerrar por derivación, no por test
+
+Un test comprueba que no ha pasado; una **definición única** impide que pase. `provided`
+dejó de ser un campo y pasó a ser una propiedad calculada, que es el mismo cierre que se
+le dio al cuarto par duplicado. Cuando dos cosas tienen que coincidir y una se declara a
+mano, la pregunta no es cómo comprobarlo: es cuál de las dos se deriva de la otra.
+
+## 10 — Si el dato está y es válido, se usa
+
+Un veredicto no puede depender de que alguien se acuerde de una bandera.
+
+Este proyecto ya cerró esa puerta una vez, con la casilla «Usar los de
+`data/reference/`»: una opción cuyo único efecto posible al desmarcarla era dejarlo todo
+en `NOT_RUN` sin decir por qué no es una opción, es una trampa. La errata nº 22 es la
+misma forma un nivel más adentro — la promoción por medida entraba sólo si el llamador
+la resolvía y la pasaba, y **eso decidía un FAIL**.
+
+### El modo sin el dato no es el modo neutro
+
+Es la mitad que más cuesta ver. Omitir una medida no deja el análisis «sin opinión»:
+le hace adoptar **la opinión contraria**. Sin la tabla de PolyA_DB, el `AATATA` de
+`3utr:236` se trata como **no funcional** — que es la hipótesis **menos conservadora**, y
+además la **falsa** según lo que está medido. El defecto favorecía al candidato
+equivocado por omisión, y sin que nada lo dijera.
+
+### Excluirlo es posible, pero es una decisión y se escribe
+
+Hay que poder trabajar, así que la exclusión existe — **por fichero y con el motivo
+escrito** (`deposito.Ignored`, `apa.ApaExcluded`), y el motivo **viaja al veredicto**.
+Sin él, «se decidió no usarlo» y «nadie se acordó» son el mismo resultado mudo.
+
+### El cierre es un centinela, no una nota
+
+Que el valor por defecto haga lo correcto no basta: hay que quitar la forma de
+equivocarse. `measured_apa=None` **aborta**, porque `None` era justo el salto
+silencioso; para excluir hay que escribir el objeto con su motivo. La prueba de que
+sobraba está en el diff: **doce ficheros de test** pasaban la tabla a mano y dejaron de
+necesitarlo. Doce sitios acordándose de lo mismo son doce sitios donde uno puede
+olvidarse.
+
+---
+
+## 11 — Cuando código y prosa discrepan, la prosa es la que se ha quedado atrás
+
+Corolario del nº 3, y de la misma familia que el nº 5: **dos definiciones del mismo hecho
+que nada obliga a coincidir acaban discrepando**, y aquí una de las dos no es código.
+
+El caso: `CLAUDE.md` afirmaba que los amplicones de la RT-qPCR quedaban «esquivando las
+dianas del panel». `polya.rtqpcr_amplicons` marcaba los solapes con `⚠ solapa` desde el
+principio. **Los dos textos hablaban del mismo hecho y decían cosas contrarias**, y no
+saltó nada: una frase no tiene invariante.
+
+Y la asimetría es lo que lo hace un principio y no una anécdota:
+
+- **el código se ejecuta**, así que un error suyo acaba dando un resultado raro;
+- **la prosa se lee**, y un error suyo se cree — sobre todo el que va en el fichero que
+  gobierna el proyecto, que es el que alguien abre para saber qué hacer;
+- y la prosa **no se regenera**: sobrevive intacta al cambio que la deja falsa.
+
+### La regla operativa: que la frase la EMITA el generador, o que un test la contraste
+
+No basta con corregirla. Toda afirmación de prosa sobre un hecho que el código calcula
+tiene que estar atada de una de estas dos formas:
+
+1. **Que el generador la emita.** Es lo que ya se hace con las coordenadas de los
+   amplicones, con el techo por tramos y con la descomposición del recuento: el texto
+   sale de la magnitud, así que no puede contradecirla.
+2. **Que un test la contraste.** Cuando la frase vive en un documento —`CLAUDE.md`,
+   `docs/`— el test lee el documento y lo compara con lo que el código emite.
+   `tests/test_prosa_contra_codigo.py` hace eso con los amplicones declarados y con el
+   panel de diez.
+
+Lo que **no** vale es corregir la frase y seguir. Eso deja el mismo mecanismo intacto, y
+el mecanismo es lo que produjo las otras dos de esta misma familia: el «comprueba que
+Streamlit está instalado» pegado a todo fallo, y el «Alu 0 %» obtenido sin buscar Alu.
+
+### Un aviso: no todo lo que parece discrepar lo es
+
+La prosa dice además cosas que el código **no** calcula —por qué se decidió algo, qué
+queda abierto, qué cuesta no resolverlo— y eso no tiene con qué contrastarse ni falta.
+El corolario aplica a **afirmaciones sobre hechos que el código sabe**; lo demás es el
+registro, y el registro se defiende leyéndolo, no con un test.
+
+---
+
+## 12 — La procedencia de una EVIDENCIA se audita igual que la de un dato
+
+Este proyecto exige procedencia para todo lo que entra al pipeline: md5 en el manifiesto,
+versión de la herramienta, biblioteca con la que se corrió, ensamblaje de las
+coordenadas. Y no la exigía para lo que **justifica una regla**.
+
+`external_score.EVIDENCE` no es un dato del análisis: es la **prueba** de que la escala
+va en la dirección que se dice. Y estaba anclada a `mirarchitect_prnp_raton.tsv`, un
+fichero que el manifiesto marca «NO USAR» — se puntuó sobre el 3'UTR fabricado de la
+errata nº 5.
+
+### Un fichero retirado no se retira solo de las constantes que lo citan
+
+Ésa es la parte mecánica y es la que hay que cerrar con una comprobación, no con
+cuidado. Retirar un fichero es un acto en el manifiesto; las constantes que se
+derivaron de él siguen exactamente donde estaban, con el mismo aspecto de siempre, y
+nada las vuelve a mirar.
+
+La comprobación va sobre **todas** las constantes, no sobre la que falló:
+`tests/test_procedencia_retirada.py` deriva la lista de retirados **del propio
+manifiesto** —«NO USAR» o «FIXTURE NEGATIVO»— y barre `shmir_design/` y `tools/`
+enteros. Si mañana se retira otro fichero, queda cubierto sin que nadie añada nada.
+
+### Nombrar un retirado se puede; nombrarlo COMO SI FUERA una fuente viva, no
+
+Los fixtures negativos existen a propósito y no se borran: son evidencia, y ya está
+escrito que borrarlos sería perderla. Así que la regla no es «prohibido nombrarlos» —una
+lista de módulos exentos habría dejado ciego justo al módulo que motivó esto—, sino:
+**quien escribe el nombre escribe al lado por qué no se usa**, en el mismo texto. Se
+cumple sola y se lee sola.
+
+### Y lo que no se encuentra se dice CÓMO se buscó
+
+Los otros dos fixtures retirados —el 3'UTR fabricado y el `.out` de biblioteca
+equivocada— salieron limpios. Eso no se anota como «no hay nada»: se anota con el método,
+porque «no hay nada» sin decir con qué se miró es la misma frase que el «Alu 0 %»
+obtenido sin buscar Alu (principio nº 3).
+
+- Contra el **fabricado** no sirve buscar números —comparte casi todos con las
+  referencias buenas—: se busca por **subcadena de ADN**, y una que esté en él y en
+  ninguna referencia verdadera sólo puede venir de ahí. Con su **control adversario**:
+  el test comprueba además que existe al menos un tramo exclusivo, porque si no
+  existiera, «cero culpables» y «la búsqueda no distingue nada» serían el mismo
+  resultado.
+- Contra el **`.out` equivocado** no hay cifra exclusiva que buscar, y la razón es la
+  propia demostración del proyecto: **es el mismo fichero byte a byte** que el válido. Lo
+  que lo distingue vive en el `.tbl`, y de ahí tampoco hay ninguna cifra en el código.
+
+---
+
+## 13 — Una constante que cita un fichero se DERIVA de él, nunca se transcribe
+
+El corolario operativo del nº 12, y el que habría bastado por sí solo.
+
+Cuando una constante dice «estos son los valores de tal fichero», hay dos definiciones
+del mismo dato (principio nº 5) con un agravante: **una de las dos es un fichero que
+nadie vuelve a abrir**. La copia de código es la que se lee, así que es la que se cree, y
+puede envejecer o —como pasó— haber nacido apuntando a otro sitio.
+
+**Tres sitios decían de dónde salían los pares de `EVIDENCE` y ninguno acertaba**: la
+constante decía «corrida manual sobre el 3'UTR de Prnp murino», la tabla de auditoría
+decía `mirarchitect_prnp_export.csv`, y el ancla real era el TSV retirado. Cada uno
+parecía confirmar a los otros dos. Eso es lo que lo hizo invisible durante semanas.
+
+### La regla
+
+Lo que vive en código es **cuál** es el fichero —eso es una decisión, y reapuntarla tiene
+que verse en el diff—. Los **valores** se leen de él. Si el fichero no está, se **aborta**
+diciendo qué paso queda sin ejecutar; no se devuelve una lista vacía, que es el modo en
+que una evidencia desaparece sin que nadie lo note.
+
+Y no se muestrea: `EVIDENCE` emite **todas** las filas del export, no cinco. Elegir cinco
+es transcribir otra vez, con el mismo mecanismo y menos aviso.
+
+### Dónde más aplicaba lo mismo
+
+- **La ficha de obtención** nombraba `apa_medido_{slug}.tsv` mientras el cargador buscaba
+  `apa_medido.tsv`: el texto mandaba preparar una cosa y el código leía otra. Ahora la
+  ficha nombra el **rol** (`{fichero_polyadb}`) y el nombre lo pone
+  `species.required_files`, que es quien lo va a cargar.
+- **La anatomía** vive en `reference.REFERENCES` y en el manifiesto, y ahí no se pudo
+  derivar todavía — así que se cruzan con un test en las dos direcciones. Cuando no se
+  puede derivar, se **ata**; lo que no vale es dejarlo suelto.
+
+---
+
+## 14 — Haber comprobado una vez no es seguir comprobando
+
+El complemento del nº 9. Allí: *existir no es contener* — un fichero de 0 bytes pasa
+`is_file()` y no tiene nada dentro. Aquí: **una comprobación que corrió en la ingesta no
+sigue corriendo**, y lo que protege puede haber cambiado desde entonces.
+
+Sale del contrafactual de la errata nº 27, que es la parte que más enseña. De los dos
+guardias que podían haber cazado la evidencia anclada a un fichero retirado:
+
+- `lower_is_better()` habría **aprobado**: sólo mira si la fuente está registrada;
+- `file_order_direction()` sí habría saltado — **y sólo al importar un fichero**.
+
+La contramedida existía y estaba en el **sitio equivocado del flujo**. Nada la
+revalidaba después.
+
+### La pregunta que hay que hacerle a cada guardia
+
+No es «¿existe?» ni «¿está probado?». Es **cuándo corre**, y luego **qué lo vuelve a
+correr**:
+
+| | |
+|---|---|
+| **qué protege** | el invariante, no la función |
+| **cuándo se ejecuta** | ingesta · cada corrida · al emitir · al abrir · al construir |
+| **puede degradarse** | ¿lo protegido puede cambiar después de la comprobación? |
+| **qué lo revalida** | …o `NADA` |
+
+**La clase de riesgo es la intersección**: corre sólo en la ingesta, lo protegido puede
+cambiar, y nada lo revalida. Ésos son los siguientes en fallar. Va emitido en
+`tools/auditar_guardias.py`, dentro de `npm run check:shmir`, con su tabla versionada en
+`data/guardias.toml` y atada al código por `tests/test_guardias.py` — igual que la
+alcanzabilidad y los datos en código, y por la misma razón: un informe que hay que
+acordarse de pedir es un informe que nadie pide.
+
+### Tres distinciones que salieron de rellenar la tabla, no de escribirla
+
+- **`SUITE` no es una revalidación.** Un guardia cuyo supuesto sólo lo comprueba la suite
+  protege el **repositorio** y no protege una **corrida**: en producción el directorio de
+  referencia vive en un volumen que la suite no mira. Es una segunda clase de riesgo y
+  sale aparte.
+- **Un guardia que no aborta puede ser un INFORME.** `manifest.check_directory` compara
+  el md5 de cada fichero contra el manifiesto y devuelve `NO_COINCIDE` para que el panel
+  lo pinte. Eso ayuda a decidir con la pantalla delante; no impide nada. Quien impide es
+  el cargador, en cada corrida. La distinción se declara, porque «no aborta» a secas es
+  justo lo que separa un guardia de un aviso.
+- **Y a veces RECHAZAR es lo correcto y abortar no.** `cached_run` retiene un resultado
+  cuya huella ya no cuadra y dice por qué; abortar habría tirado la página al cambiar un
+  ajuste. Se declara como `RECHAZA` en vez de dejarlo pasar por «no aborta».
+
+### Lo que la tabla encontró al llenarse
+
+`store.ProjectStore.verify()` —la que recalcula la cadena de md5 del log— estaba escrita,
+probada y **sin ningún llamador fuera de sus tests**. La cadena no se comprobaba nunca en
+la app. Es el patrón de `store.save_*` y `page_run` por cuarta vez, pero sobre un
+**guardia**, que es peor: no es trabajo calculado que no llega a una salida, es una
+**comprobación que no comprueba**. Y su momento natural era evidente en cuanto se
+preguntó por él: el log se edita **entre sesiones**, así que comprobarlo sólo al
+escribirlo no protege de nada. Ahora corre en `presentation.project_open`.
+
+La misma pregunta sacó que la comparación de la huella de corrida vivía **en la página**,
+copiada en los dos modales — sin test y pudiendo divergir entre ellos.
+
+---
+
+## 15 — Un informe que se puede leer como «pendiente» no obliga a nada
+
+La alcanzabilidad llevaba días listando lo que no tiene llamador. La tabla de guardias
+pregunta cuándo protege cada uno. **Es la misma información**, y sólo una de las dos
+formas de preguntarla obliga a actuar:
+
+| pregunta | respuesta | cómo se lee |
+|---|---|---|
+| ¿quién la llama? | nadie | **pendiente** — una fila de una lista larga |
+| ¿cuándo protege? | **nunca** | no se puede leer de otra forma |
+
+«Nadie la llama» convive con una lista de trece. «Nunca protege» no convive con nada.
+
+### La consecuencia operativa: cruzar las dos listas, y que el cruce sea un FALLO
+
+Un símbolo que esté en las dos —sin quien lo invoque **y** declarado como guardia— deja
+de ser un informe y pasa a ser un fallo de `npm run check:shmir`. Y **sin excepción
+posible**: una justificación de alcanzabilidad vale para una función que nadie llama; para
+un **guardia** que nadie llama, no. Si protege algo, alguien tiene que invocarlo; si no lo
+invoca nadie, no protege nada, por bien escrito que esté.
+
+Está en `tools/auditar_guardias.py`, y **al estrenarse cazó uno**:
+`mirarchitect.Export.check_scaffold`.
+
+### Dos cosas que hubo que afinar, y las dos por la misma razón
+
+Un guardia con falsos positivos se acaba apagando, así que el criterio del cruce se
+midió en vez de suponerse:
+
+- **no vale una mención en prosa.** Con un criterio textual, `check_scaffold` salía
+  «vivo» porque tres docstrings hablan de él. Un guardia explicado no es un guardia que
+  corra.
+- **pero sí vale nombrarlo sin llamarlo.** `resources._refseq` no se invoca por su
+  nombre: entra en un diccionario y se despacha por rol. Exigir una llamada literal
+  denunciaba los nueve cargadores, que corren en cada corrida.
+
+El criterio que queda —**referencia de código, ni prosa ni llamada literal**— dio
+exactamente tres candidatos, y **dos eran errores de la tabla**, no del código: un
+cargador de fixtures de test y una API para otra especie estaban clasificados como
+guardias de producción. Se corrigió la tabla. El tercero era el hallazgo.
+
+### Una tercera categoría, que no es fallo ni código muerto
+
+`[sin_camino]`: comprobaciones escritas para una entrada que la app **todavía no acepta**.
+Se declaran porque la alternativa es peor —leerlas en el código y creer que corren— y cada
+una dice **qué haría falta** para que corriera. Sin eso sería una lista de excusas en vez
+de una lista de deudas. Y una entrada que deja de hacer falta **caduca**, como las de
+alcanzabilidad.
+
+---
+
+## 16 — La disposición de una pantalla AFIRMA algo, y eso también se deriva
+
+Un formulario no es neutro. Poner cuatro cosas en el mismo paso, antes de un botón, dice
+**«hacen falta las cuatro para pulsarlo»** — y lo dice con más fuerza que cualquier texto,
+porque nadie lee un texto para saber en qué orden se hacen las cosas: lo lee del orden.
+
+El paso 3 de la interfaz pedía **los siete frentes** antes de diseñar. Ninguna frase
+afirmaba que hicieran falta; la **disposición** sí. Y era falso: para obtener candidatos
+no hace falta ninguno —la anatomía sale del `.gb`, los filtros biofísicos corren solos—.
+Lo que esos ficheros deciden es **cuáles caen**, no cuáles salen. Presentarlos juntos
+producía una espera que no tenía que existir: *no puedo empezar hasta reunirlo todo*.
+
+### La regla
+
+Una afirmación implícita en la disposición se **deriva** y se **comprueba**, igual que un
+número. Aquí:
+
+- «para diseñar hoy no hace falta ningún fichero» **no se escribe**: la lista del paso 3
+  se filtra de `species.required_files`, y hay un test que **corre el diseño con el
+  directorio de referencia vacío** y comprueba que salen candidatos. El día que algo pase
+  a hacer falta para tilar, el test lo dice y el paso 3 lo enseña solo;
+- «estos ficheros no cambian cuáles son, cambian cuáles sobreviven» **está medida**: el
+  conjunto de elegibles con cualquier fichero de referencia es un **subconjunto** del que
+  sale sin ninguno —ninguno inventa un candidato— y lo que quita cada uno está contado
+  (PolyA_DB 17, `mature.fa` 2, la máscara murina 0, y ese 0 es un hecho del 3'UTR del
+  ratón, no una propiedad del fichero).
+
+Es el principio nº 11 —cuando código y prosa discrepan, la prosa es la que se ha quedado
+atrás— aplicado a algo que **no es prosa**: la maquetación envejece igual, y encima sin
+una frase que alguien pueda ir a corregir.
+
+### El corolario del color
+
+Cuatro estados que decir algo distinto tienen que **verse** distintos, siempre igual, con
+la leyenda al principio y no detrás de un tooltip. Y al revés: dos cosas que no son lo
+mismo no pueden compartir color. `apa_medido.tsv` salía en el mismo ámbar que
+`refseq_rna.fa` —uno no hace falta y el otro sí— y eso manda a buscar un fichero que ya
+sobra (errata nº 30). Por eso `NO USADO` es un estado propio, y por eso el color lo pone
+`presentation.py` con tests y no la página: un color elegido en la página es una decisión
+sin test, y las decisiones sin test es donde reaparece todo esto.
+
+---
+
+## 17 — Un fallo ruidoso en una rama que nadie ejecuta es tan invisible como uno silencioso
+
+`tools/design.py` pasaba `thresholds=umbrales`, y esa variable no existe en el módulo. Un
+`NameError`: el fallo más ruidoso que hay, inmediato, imposible de confundir con otra
+cosa. **Sobrevivió igual**, porque toda corrida con `--rmsk` moría antes de que nadie la
+viera — y nadie la veía porque **ningún test recorría ese camino**.
+
+La intuición que esto rompe es que los fallos se ordenan por lo escandalosos que son. No:
+se ordenan por **si alguien pasa por ahí**. Un `NameError` en una rama muerta y un valor
+mal calculado en una rama muerta cuestan exactamente lo mismo — cero, hasta el día que
+alguien la ejecuta, y entonces cuestan lo que costaba desde el principio.
+
+### El corolario: dónde está el hueco
+
+**La alcanzabilidad ve símbolos sin llamador. El golden ve la salida por defecto. Y entre
+los dos hay un hueco donde vive el código llamado desde caminos que nadie recorre.**
+
+Ninguna de las dos podía cazarlo, y no por descuido:
+
+| herramienta | qué mira | por qué se le escapó |
+|---|---|---|
+| alcanzabilidad | símbolos que nadie nombra | **había una llamada escrita** — sólo que nunca se ejecutaba |
+| golden | la salida entera de una corrida | esa corrida se genera **sin máscara** |
+| los tests de la pieza | que la función haga lo que dice | la llaman **ellos**, no el camino de verdad |
+
+Las tres son necesarias y ninguna cubre esto. Lo que lo cubre es **recorrer el camino
+entero y leer lo que sale**: correr `main()` con esa combinación de banderas, comprobar
+que termina en 0, y mirar el resultado.
+
+### La contramedida: el inventario de banderas
+
+`tools/auditar_banderas.py` deriva las banderas de cada CLI de sus propios
+`add_argument`, deriva de los tests cuáles aparecen en una llamada que **no** se espera
+que aborte, y cruza las dos listas. Tres decisiones de diseño y las tres tienen motivo:
+
+- **Se ordena por CONSECUENCIA**, no alfabéticamente. Una bandera que cambia un
+  **veredicto** sin recorrido es urgente; una que cambia el **formato** de la salida, no.
+  Sin esa distinción, 139 filas planas no las lee nadie — que es el fallo que la
+  herramienta viene a evitar, no a repetir.
+- **Un test que espera un `2` NO cuenta como recorrido.** Comprobar que una entrada mala
+  se rechaza es útil y no atraviesa el camino. Ahí vivía exactamente la errata nº 31.
+- **Y lleva un TRINQUETE**, porque una lista larga se lee como «pendiente» y no obliga a
+  nada (principio nº 15): el número de banderas VEREDICTO sin recorrer va **declarado**, y
+  la suite falla **en las dos direcciones** — si sube, alguien añadió algo que decide y no
+  lo recorrió; si baja, el techo está caducado. Sólo puede ir hacia abajo. No hace falta
+  cubrirlas todas de golpe: hace falta que bajarlo sea la única forma de cerrar la suite.
+
+### Y el detector se equivocó en las dos direcciones antes de valer
+
+Su primera versión resolvía «de qué CLI es este `main`» con una tabla de alias global.
+Daba por recorridas de `design` las banderas de `import_scores` —que también importa su
+main como `main`— y no veía las de `test_usar_manifiesto.py`, que llama por un ayudante.
+Se contrastó contra un `grep` en las dos direcciones antes de darlo por bueno, y ahora el
+CLI se resuelve **por fichero, de sus propios `import`**. Un análisis que se equivoca
+hacia el silencio es peor que no tenerlo: no avisa y además tranquiliza.
+
+---
+
+## 18 — Un artefacto de verificación generado con parámetros distintos a los de uso valida una configuración fantasma
+
+El golden del informe se generaba con `--inmunes 4` **tecleado a mano** en
+`regenerar_golden.py`. Así que la única corrida del CLI que alguien miraba llevaba una
+configuración que **ningún usuario usa** — y coincidía con la página mientras el CLI por
+defecto daba otro panel, con tres inmunes en vez de cuatro (errata nº 32).
+
+Es grave por dónde falló: **el golden es la contramedida principal de este proyecto.** Se
+escribió porque los tests de presencia miran lo que cada uno espera y nadie mira el
+conjunto; lee la salida entera; se regenera a mano y su diff entra en la revisión. Todo
+eso siguió funcionando — sobre una configuración que no existe fuera del generador.
+
+### La contramedida
+
+**El artefacto de verificación se genera con la configuración por defecto, sin
+excepciones.** Si hace falta una variante, se genera un artefacto **adicional** cuyo
+**nombre declara** qué configuración lleva. Nunca uno solo con parámetros puestos a mano.
+
+Está comprobado sobre el propio generador: un test recorre su `ARGV` y **falla si aparece
+cualquier bandera que no sea de entrada** —la secuencia y su anatomía—. Todo lo demás es
+configuración, y una configuración en el golden por defecto es una configuración
+fantasma.
+
+### Lo que salió al aplicarla, que es media lección más
+
+De los cuatro parámetros tecleados, **tres eran INERTES**: `--candidates 10` es el
+defecto, `--min-block 22` da lo mismo que 15 sobre este par, y `--sin-manifiesto` no
+cambia nada habiendo manifiesto. Llevaban ahí sin hacer nada y sin que nadie lo supiera.
+El único con efecto era el que rompió.
+
+Un parámetro puesto a mano en un artefacto de verificación **no se revisa nunca más**: se
+lee como parte del decorado. Por eso la regla no es «revisa que los parámetros sigan
+teniendo sentido» sino «**no los pongas**».
+
+### Y los tres artefactos que no eran el golden
+
+`ficha_raton_200.txt`, `informe_documento.md` y `pagina_raton.txt` construían
+`SelectionConfig(n_candidates=10, apa_immune_quota=4)` a mano — `--inmunes 4` con otra
+forma. Los tres pasan ahora por `default_config()`. **No cambió ni una línea de los tres**,
+que es lo que se espera: hoy los valores coinciden. Lo que cambia es que mañana, si
+alguien mueve la constante del proyecto, los goldens se enteran.
+
+La ironía: dos de ellos ya llevaban escrito, dos líneas más arriba, que la tabla de
+PolyA_DB **no se pasa a mano** porque «era lo que hacía que el golden se generara con la
+constante mientras la app leía el fichero — dos caminos, y el golden dejaba de comprobar
+el de verdad». La misma lección, aplicada al dato y no a la configuración, en el mismo
+bloque de código.
+
+### El corolario de la clasificación
+
+**Al clasificar una bandera —o un estado— hay que mirar QUIÉN LA LLAMA, no sólo qué
+hace.** El puente de Batchwork pasa 18 banderas en cada corrida desplegada, cuatro de
+ellas sin recorrido de punta a punta; eso no se ve mirando la bandera. Y al revés:
+`--usar-manifiesto` figuraba como recorrida porque sus tests montan un manifiesto
+**parcial** en un temporal — contra el manifiesto de verdad abortaba con un
+`KeyError: 'polyadb'`. Quién llama, y **con qué entrada**.

@@ -76,7 +76,12 @@ class TestArranque(unittest.TestCase):
 
 @unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no está instalado (pip install -r requirements-ui.txt)")
 class TestFicherosDeReferencia(unittest.TestCase):
-    """El panel de la barra lateral, y la casilla global que ya no existe.
+    """El GESTOR del paso 3, y la casilla global que ya no existe.
+
+    El panel VIVIA EN LA BARRA LATERAL y la lista de frentes abiertos en el paso 3: dos
+    sitios para la misma pregunta, y habia que mirar los dos para saber en que punto
+    estabas. Ahora es UNA tabla en el paso 3, y por eso estos tests miran el cuerpo de la
+    pagina y no `app.sidebar`.
 
     La casilla «Usar los de `data/reference/`» era una TRAMPA: su unico efecto posible al
     desmarcarla era dejar todos los filtros con fichero en NOT_RUN sin decir por que. Y
@@ -93,12 +98,12 @@ class TestFicherosDeReferencia(unittest.TestCase):
 
     def test_la_casilla_GLOBAL_ya_no_existe(self):
         app = self.run_app()
-        etiquetas = [w.label for w in app.sidebar.checkbox]
+        etiquetas = [w.label for w in app.checkbox] + [w.label for w in app.sidebar.checkbox]
         self.assertNotIn("Usar los de data/reference/", etiquetas)
 
     def test_siguen_los_dos_controles_que_SI_son_decisiones(self):
         app = self.run_app()
-        etiquetas = [w.label for w in app.sidebar.checkbox]
+        etiquetas = [w.label for w in app.checkbox] + [w.label for w in app.sidebar.checkbox]
         etiquetas += [w.label for w in app.sidebar.text_input]
         for esperado in ("Gen diana (accession)", "Calcular accesibilidad (lento)"):
             with self.subTest(esperado):
@@ -116,19 +121,58 @@ class TestFicherosDeReferencia(unittest.TestCase):
         valores = {w.label: w.value for w in app.sidebar.text_input}
         self.assertEqual(valores["Gen diana (accession)"], "")
 
-    def test_sin_especie_el_panel_dice_que_hay_que_elegirla(self):
+    def test_sin_especie_NO_se_llega_al_gestor_y_se_dice_por_que(self):
+        # Con el panel en la barra lateral salía siempre, con un «elige una especie».
+        # Ahora vive en el paso 3, y sin especie la página no llega hasta ahí: lo que
+        # tiene que estar es el motivo, y el desplegable SIN valor por defecto.
         app = self.run_app(especie=None)
-        textos = " ".join(c.value for c in app.sidebar.caption)
-        self.assertIn("Elige una especie", textos)
+        self.assertIsNone(app.selectbox[0].value)
+        etiquetas = [w.label for w in app.get("file_uploader")]
+        self.assertEqual([e for e in etiquetas if e.startswith("Subir ")], [])
 
-    def test_con_especie_sale_un_HUECO_DE_SUBIDA_por_fichero(self):
+    def test_los_AUSENTES_salen_con_su_hueco_de_subida(self):
+        # Sólo los ausentes. `rmsk_mouse.out`, `mature.fa` y `aav_casete.fa` están en el
+        # directorio de referencia del paquete, así que salen con sus CUATRO botones y
+        # no con «Subir»: la versión anterior de este test los pedía como huecos porque
+        # el panel no distinguía presente de ausente.
         app = self.run_app()
-        etiquetas = [w.label for w in app.sidebar.get("file_uploader")]
-        for esperado in ("Subir rmsk_mouse.out", "Subir rmsk_mouse.tbl",
-                         "Subir mature.fa", "Subir refseq_rna.fa",
-                         "Subir transcriptoma_3utr.fa"):
+        etiquetas = [w.label for w in app.get("file_uploader")]
+        for esperado in ("Subir refseq_rna.fa", "Subir transcriptoma_3utr.fa",
+                         "Subir expresion_cerebro.tsv"):
             with self.subTest(esperado):
                 self.assertIn(esperado, etiquetas)
+
+    def test_y_los_PRESENTES_con_sus_CUATRO_acciones(self):
+        # El criterio del panel: sobre lo que ya está se puede actuar sin salir de ahí.
+        app = self.run_app()
+        botones = [b.label for b in app.button] + [b.label for b in app.get("toggle")]
+        descargas = [b.label for b in app.get("download_button")]
+        self.assertIn("Ver", botones)
+        self.assertIn("Reemplazar", botones)
+        self.assertIn("Borrar", botones)
+        self.assertIn("Descargar", descargas)
+
+    def test_cada_fila_dice_QUE_FRENTE_cierra(self):
+        """Ya NO se agrupa por frente: el orden es por IMPACTO —lo que falta arriba, lo
+        resuelto abajo—, que es lo que se viene a mirar. Pero el frente no se pierde por
+        eso: viaja EN LA FILA. Un fichero sin frente visible es un fichero del que no se
+        sabe para que sirve."""
+        app = self.run_app()
+        texto = " ".join(m.value for m in app.get("markdown"))
+        texto += " ".join(e.label for e in app.get("expander"))
+        for frente in ("especificidad", "repeticiones", "seed", "transgen"):
+            with self.subTest(frente):
+                self.assertIn(frente, texto)
+
+    def test_presentes_y_ausentes_salen_en_LA_MISMA_tabla(self):
+        # Lo que este cambio existe para arreglar: antes eran dos sitios —los frentes
+        # abiertos en el paso 3 y la subida en la barra lateral— y habia que mirar los
+        # dos para saber en que punto estabas.
+        app = self.run_app()
+        etiquetas = [w.label for w in app.get("file_uploader")]
+        self.assertTrue(any(e.startswith("Subir ") for e in etiquetas))
+        self.assertEqual([w.label for w in app.sidebar.get("file_uploader")
+                          if w.label.startswith("Subir ")], [])
 
     def test_elegir_OTRA_ESPECIE_explica_los_frentes_ANTES_de_teclear_el_nombre(self):
         """La pregunta que se contesta es «¿me sirve esta app para mi especie?».
@@ -142,10 +186,12 @@ class TestFicherosDeReferencia(unittest.TestCase):
         self.assertIn("colisión de seed", pies)
         self.assertIn("species.SPECIES", pies)
 
-    def test_y_el_recuento_de_frentes_sale_ANTES_de_ejecutar_nada(self):
+    def test_y_el_recuento_de_frentes_SIGUE_saliendo_antes_de_ejecutar_nada(self):
+        """El contador se mudo al paso 5 y cambio de forma —«N de 7 frentes cerrados»,
+        con barra—, pero se sigue pudiendo ver sin haber corrido nada."""
         app = self.run_app()
-        textos = " ".join(c.value for c in app.sidebar.caption)
-        self.assertIn("frentes cerrables", textos)
+        textos = " ".join(p.proto.text for p in app.get("progress"))
+        self.assertIn("de 7 frentes cerrados", textos)
 
 
 @unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no está instalado (pip install -r requirements-ui.txt)")

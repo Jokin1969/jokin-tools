@@ -83,8 +83,16 @@ MISSING_FILE = "transcriptoma_3utr.fa"
 
 #: La ruta de descarga, para que la interfaz la enseñe en vez de que haya que
 #: preguntarla. La aporto el responsable del proyecto.
-UCSC_ROUTE = (
-    "COMO CONSEGUIR EL FICHERO: Table Browser de UCSC, ensamblaje mm39, grupo «Genes "
+#: La ruta de descarga, CON MARCADOR. No se lee tal cual: se resuelve con
+#: `ucsc_route(especie)` contra `species.ucsc_assembly`.
+#:
+#: Antes ponia `mm39` DENTRO del texto. No daba ningun error —el resto de la ruta es la
+#: misma para cualquier especie— y por eso es el caso peligroso: quien cargara conejo
+#: leia una instruccion correcta de principio a fin con el ensamblaje del raton, y el
+#: fichero que bajara habria salido con la forma correcta y las coordenadas de otro
+#: organismo. Mismo patron que `rmsk_mouse.out` conectado por rol.
+UCSC_ROUTE_TEMPLATE = (
+    "COMO CONSEGUIR EL FICHERO: Table Browser de UCSC, ensamblaje {ensamblaje}, grupo «Genes "
     "and Gene Predictions», track «NCBI RefSeq», tabla «RefSeq All» o «RefSeq Curated», "
     "y en «output format» se elige «sequence». Al dar a «get output» pregunta que región "
     "se quiere: ahi se marca «3' UTR Exons» y se desmarca TODO lo demas. "
@@ -94,7 +102,50 @@ UCSC_ROUTE = (
     "nombre, tamaño y md5, como con `refseq_rna.fa`."
 )
 
+
+def ucsc_route(species) -> str:
+    """La ruta de descarga para ESTA especie, con su ensamblaje puesto.
+
+    Si la especie no tiene ensamblaje declarado, el texto lo DICE y dice donde se
+    declara — no se deduce ni se deja el del raton. Misma regla que las fichas de
+    obtencion, y con la misma redaccion: `obtencion.undeclared_note`.
+    """
+    from .obtencion import undeclared_note  # noqa: PLC0415
+    from .species import resolve  # noqa: PLC0415
+
+    especie = resolve(species) if isinstance(species, str) else species
+    ensamblaje = especie.ucsc_assembly
+    if not ensamblaje:
+        ensamblaje = undeclared_note("ensamblaje", cientifico=especie.scientific)
+    return UCSC_ROUTE_TEMPLATE.format(ensamblaje=ensamblaje)
+
+
+#: Los tres controles biologicos. Son una DECLARACION del proyecto, no un dato de
+#: fichero: ver `WHY_THE_CONTROLS_STAY_IN_CODE`.
 CONTROL_NAMES = ("miR-124-3p", "miR-9-5p", "let-7a-5p")
+
+#: POR QUE LOS TRES NOMBRES SE QUEDAN EN EL CODIGO. DECIDIDO 2026-08-27.
+#:
+#: La auditoria los habia clasificado como DATO —«su eleccion viene de la biologia, no
+#: del codigo»— y esa frase es cierta y no es el criterio. El criterio es el otro: un
+#: dato es lo que CAMBIA al cambiar de especie o de gen y entra por el gestor; una
+#: eleccion del proyecto sobre que se toma como referencia va en codigo, porque en un
+#: fichero se podria cambiar SIN QUE SE VIERA EN EL DIFF. Y cambiar el patron de medida
+#: cambia lo que significa «muchos sitios» en todos los informes a la vez.
+#:
+#: Es exactamente la razon de `mirna.CORE_ABUNDANT`, y va con la misma consecuencia:
+#: fuera de cerebro murino la eleccion no esta justificada, asi que lo que hay que
+#: hacer no es sacarla a un fichero — es MARCARLA, como se marca `LISTA_DE_OTRA_ESPECIE`.
+#:
+#: Lo que si es dato son sus SECUENCIAS, y ya salen de `mature.fa` (regla 1).
+WHY_THE_CONTROLS_STAY_IN_CODE = (
+    "Los tres controles son una DECISIÓN del proyecto sobre qué se toma como patrón de "
+    "«muchos sitios», no una medida que venga de un fichero. En un fichero se podrían "
+    "cambiar sin que se viera en el diff, y con ellos cambiaría la lectura de todos los "
+    "informes a la vez: misma razón que `mirna.CORE_ABUNDANT`. Sus SECUENCIAS sí son "
+    "dato y salen de `mature.fa`. Fuera de cerebro murino la elección no está "
+    "justificada, y eso se resuelve MARCÁNDOLA, no sacándola a un fichero."
+)
 
 CONTROLS_NOTE = (
     "CONTROLES BIOLOGICOS, en la misma corrida y sobre el mismo fichero. Su conteo es la "
@@ -1091,7 +1142,12 @@ class OfftargetParams:
     def describe(self) -> list[str]:
         lineas = [
             f"sorteos de la nula={self.null_draws}  semilla={self.null_seed}  "
-            f"controles={self.species_prefix or 'TODAS'}",
+            # Misma distincion que en la tasa base: `None` no es `""`. Errata nº 18.
+            "  controles="
+            + (
+                "SIN DECLARAR" if self.species_prefix is None
+                else (self.species_prefix or "TODAS")
+            ),
             "U↔T: siempre, y no se puede apagar.",
         ]
         tocados = self.modified()
@@ -1138,6 +1194,12 @@ class OfftargetScan:
     controls: tuple[Control, ...]
     self_counts: dict[str, SelfCount]
     raw: str
+    #: Esta corrida consume DOS ficheros. `provenance.md5` es el del catalogo de 3'UTR;
+    #: este es el del fichero de MADUROS, del que salen los controles y la tasa base.
+    #: Faltaba, y lo tapaba que el del catalogo si estuviera — la misma forma de la
+    #: errata nº 12. Ver `insumos.CONSUMIDOS`.
+    mature_md5: str = ""
+    mature_version: str = ""
 
     def for_strand(self, strand: str) -> tuple[LoadResult, ...]:
         return tuple(r for r in self.results if r.strand == strand)
@@ -1288,4 +1350,5 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
         ),
         self_counts=autoconteos,
         raw="\n".join(crudas) + "\n",
+        mature_md5=mature.checksum, mature_version=mature.version,
     )

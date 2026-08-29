@@ -168,7 +168,7 @@ class TestLaFichaSeparaLasDosHEBRAS(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+        from shmir_design.apa import resolve_measured
         from shmir_design.dossier import build_dossier
         from shmir_design.mirna import load_mature_fa
         from shmir_design.seed_store import SeedRun, SeedStore
@@ -178,7 +178,7 @@ class TestLaFichaSeparaLasDosHEBRAS(unittest.TestCase):
         utr3 = load_3utr(RATON)
         maduros = load_mature_fa(MATURE, version="23")
         tiling = tile_utr(
-            utr3, mature=maduros, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP)
+            utr3, mature=maduros
         )
         seleccion = select_from_report(
             tiling, SelectionConfig(n_candidates=10, apa_immune_quota=4)
@@ -227,14 +227,13 @@ class TestLaFichaSeparaLasDosHEBRAS(unittest.TestCase):
 
     @classmethod
     def ficha_tiling(cls):
-        from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+        from shmir_design.apa import resolve_measured
         from shmir_design.mirna import load_mature_fa
         from shmir_design.tiling import tile_utr
 
         utr3 = load_3utr(RATON)
         return tile_utr(
             utr3, mature=load_mature_fa(MATURE, version="23"),
-            measured_apa=resolve_measured(utr3, POLYA_DB_PRNP),
         )
 
     @classmethod

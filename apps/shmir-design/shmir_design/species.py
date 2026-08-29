@@ -218,6 +218,22 @@ def required_files(species: Species) -> tuple[RequiredFile, ...]:
             fronts=("fraccion_isoforma_larga",),
             extensions=("tsv", "txt"),
         ),
+        # La tabla de PolyA_DB. Es DATO y entra por aqui; la REGLA sobre que hacer con
+        # ella —que un hexamero con uso medido se trate como funcional— vive en el
+        # codigo y no lleva bandera. Lleva sufijo de especie SIEMPRE, tambien en raton:
+        # sin el, la tabla murina contaria como presente para un humano y su frente
+        # saldria cerrado con los datos del gen equivocado.
+        RequiredFile(
+            role="polyadb",
+            filename=f"polya_db_{slug}.tsv",
+            what=(
+                "los PAS medidos de PolyA_DB con su clase, PSE y AvgRPM: de ahi sale la "
+                "promocion de señales por MEDIDA y el techo por tramos"
+            ),
+            ficha="fraccion_isoforma_larga",
+            fronts=("fraccion_isoforma_larga",),
+            extensions=("tsv", "txt"),
+        ),
     )
 
 
@@ -322,6 +338,7 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
     refseq = por_rol["refseq"].filename
     transcriptoma = por_rol["transcriptoma"].filename
     apa = por_rol["apa"].filename
+    polyadb = por_rol["polyadb"].filename
     casete = por_rol["transgen"].filename
     maduros = por_rol["mirbase"].filename
 
@@ -380,16 +397,27 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
                 "transcriptoma de ESTA especie; el de otra no sirve."
             ),
         ),
+        # DOS FICHEROS Y CUALQUIERA DE LOS DOS LO CIERRA, y por eso `available` se
+        # DERIVA de lo que hay en vez de estar escrito. Estaba a `False` fijo y el panel
+        # pedia `apa_medido.tsv` en ambar con `polya_db_mouse.tsv` ya en el deposito:
+        # mandaba a buscar algo que no hace falta, y ademas dejaba el contador en 4 de 7
+        # cuando eran 5. Un `False` escrito a mano es un dato transcrito (principio
+        # nº 13) y envejece igual que cualquier otro.
+        #
+        # No son el mismo fichero con otro nombre: `polya_db_{slug}.tsv` es PolyA_DB en
+        # crudo —coordenadas genomicas, PSE y AvgRPM, anclada por los cuatro puntos— y
+        # `apa_medido_{slug}.tsv` es una medida que llega YA convertida a coordenadas de
+        # 3'UTR, que es el caso de un 3'-end seq del tejido. Ver `APA_ARE_TWO_FILES`.
         FrontAvailability(
             front="APA",
-            available=False,
-            missing="datos de PolyA_DB para esta especie",
-            files=(apa,),
+            available=polyadb in presentes or apa in presentes,
+            missing=f"datos de PolyA_DB para esta especie ({polyadb})",
+            files=(polyadb, apa),
             keys=("fraccion_isoforma_larga",),
             note=(
-                "La tabla que hay es de Prnp murino y se aplica por md5 del 3'UTR, así "
-                "que sobre otra secuencia devuelve None y no promueve nada. Eso esta "
-                "bien: lo que falta es la tabla de esta especie."
+                "Se aplica por md5 del 3'UTR, así que una tabla de otra especie "
+                "devuelve None y no promueve nada. Eso está bien: lo que falta es la "
+                "tabla de ésta."
             ),
         ),
         FrontAvailability(

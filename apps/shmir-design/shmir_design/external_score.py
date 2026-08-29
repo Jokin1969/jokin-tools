@@ -173,15 +173,61 @@ class ScoreSource(StrEnum):
     MANUAL_MIRARCHITECT = "manual_mirarchitect"
 
 
+#: El fichero VERSIONADO del que salen los pares de la corrida manual. Lo que se
+#: declara aqui es CUAL es el ancla —eso es una decision— y los NUMEROS se leen de el.
+#:
+#: Antes los pares estaban TRANSCRITOS en `EVIDENCE`, y estaban transcritos del fichero
+#: EQUIVOCADO: los cinco cuadraban con `mirarchitect_prnp_raton.tsv`, que el manifiesto
+#: marca «NO USAR» por haberse puntuado sobre el 3'UTR fabricado de 1246 nt (errata
+#: nº 5). Dos definiciones del mismo dato, y la copia de codigo apuntando a un fichero
+#: retirado: la que nadie vuelve a mirar es la que se queda mal.
+MANUAL_EVIDENCE_FILE = "mirarchitect_prnp_export_buena.csv"
+
+
 @dataclass(frozen=True)
 class ScoreEvidence:
     """La direccion de una escala, con el dato del que se saco. No es una opinion."""
 
     lower_is_better: bool
-    #: Pares (puesto, score) observados. Si la escala fuera de mayor-es-mejor, el
-    #: puesto 3 no podria tener un score menor que el puesto 22.
-    pairs: tuple[tuple[int, float], ...]
+    #: Fichero versionado del que se LEEN los pares. `None` para una fuente que hereda
+    #: la direccion de otra y no tiene evidencia propia.
+    evidence_file: str | None
     note: str
+
+    @property
+    def pairs(self) -> tuple[tuple[int, float], ...]:
+        """Pares (puesto, score) LEIDOS del fichero. Si la escala fuera de
+        mayor-es-mejor, el puesto 3 no podria tener un score menor que el puesto 22.
+
+        Salen TODAS las filas, no una muestra: elegir cinco vuelve a ser transcribir a
+        mano, que es exactamente lo que esto deja de hacer.
+        """
+        if self.evidence_file is None:
+            return ()
+        return read_evidence_pairs(self.evidence_file)
+
+
+def read_evidence_pairs(filename: str) -> tuple[tuple[int, float], ...]:
+    """Lee los pares (puesto, score) del export versionado, o aborta.
+
+    El puesto es el ORDEN DE LAS FILAS: estos ficheros no traen columna de rank, y
+    sacarlo de otro sitio seria inventarselo.
+    """
+    from pathlib import Path  # noqa: PLC0415
+
+    from .mirarchitect import parse_export  # noqa: PLC0415
+    from .presencia import hay_fichero  # noqa: PLC0415
+
+    ruta = Path(__file__).resolve().parent.parent / "data" / "reference" / filename
+    if not hay_fichero(ruta):
+        raise ShmirDesignError(
+            f"No hay contenido en {ruta}, que es de donde salen los pares (puesto, "
+            f"score) que registran la dirección de la escala de miRarchitect. Se "
+            f"aborta el paso 'evidencia de la dirección del score': transcribirlos a "
+            f"mano es lo que dejo la constante apuntando a un fichero retirado."
+        )
+    export = parse_export(ruta.read_text(encoding="utf-8"), source=filename)
+    return tuple((puesto, fila.score) for puesto, fila in enumerate(export.rows, 1))
 
 
 #: Direccion de cada escala CON su evidencia. Perder esto es leer el ranking al reves y
@@ -189,22 +235,29 @@ class ScoreEvidence:
 EVIDENCE = {
     ScoreSource.MANUAL_MIRARCHITECT: ScoreEvidence(
         lower_is_better=True,
-        pairs=((3, 10.01), (7, 10.89), (12, 12.99), (13, 13.09), (22, 62.59)),
+        evidence_file=MANUAL_EVIDENCE_FILE,
         note=(
-            "Corrida manual sobre el 3'UTR de Prnp murino (2026-08-26). El fichero NO "
-            "trae columna de rank: los puestos son los del ORDEN DE SUS FILAS, que es "
-            "estrictamente creciente en el score a lo largo de las 25 líneas.\n"
-            "OJO CON EL ALCANCE DE ESA PRUEBA: que 25 filas salgan ordenadas demuestra "
+            "Corrida de miRarchitect sobre el 3'UTR VERIFICADO de Prnp murino (1242 nt, "
+            "md5 canónico 19f5fa2a). Los pares se LEEN de "
+            f"{MANUAL_EVIDENCE_FILE}: el fichero NO trae columna de rank, así que el "
+            "puesto es el del ORDEN DE SUS FILAS, estrictamente creciente en el score "
+            "a lo largo de las 24.\n"
+            "OJO CON EL ALCANCE DE ESA PRUEBA: que 24 filas salgan ordenadas demuestra "
             "que el fichero ESTÁ ordenado, no en que dirección. Que la primera fila sea "
             "la MEJOR sigue siendo un SUPUESTO sobre el convenio de la fuente. Se "
             "confirma leyendo el puesto que muestra la propia interfaz de miRarchitect "
             "en el re-export; hasta entonces, esto es una hipotesis de trabajo con la "
-            "que se ha decidido operar, no un hecho comprobado."
+            "que se ha decidido operar, no un hecho comprobado.\n"
+            "CORREGIDO 2026-08-27: los pares iban transcritos a mano y salían de "
+            "mirarchitect_prnp_raton.tsv, que el manifiesto marca «NO USAR» — se "
+            "puntuó sobre el 3'UTR fabricado de 1246 nt (errata nº 5). La DIRECCIÓN no "
+            "se mueve —los tres ficheros vienen crecientes— pero la evidencia estaba "
+            "anclada a una corrida retirada."
         ),
     ),
     ScoreSource.MIRARCHITECT_API: ScoreEvidence(
         lower_is_better=True,
-        pairs=(),
+        evidence_file=None,
         note=(
             "Se hereda de la corrida manual: es el mismo servicio. Sin endpoint "
             "verificado no hay evidencia propia."
@@ -270,6 +323,21 @@ def _same_scaffold(a: str, b: str) -> bool:
     return bool(ta) and bool(tb) and (ta <= tb or tb <= ta)
 
 
+#: LO QUE ESTE CAMINO NO COMPRUEBA, y va pegado al veredicto.
+#:
+#: El andamio se compara por el nombre que teclea quien importa, no por el LOOP del
+#: fichero. El guardia que lo hace por secuencia existe (`Export.check_scaffold`) y no
+#: puede correr aqui: necesita un export completo y este CLI recibe dos columnas.
+#: Descubierto al cruzar la alcanzabilidad con la tabla de guardias (2026-08-27): la
+#: comprobacion estaba escrita, probada y sin ningun llamador — nominal.
+SCAFFOLD_BY_LABEL = (
+    "El andamio de este fichero se ha comprobado por su ETIQUETA —el `--andamio` que se "
+    "teclea— y NO por la secuencia de su loop, porque un TSV de dos columnas no la "
+    "trae. La comprobación por secuencia (`Export.check_scaffold`) exige el export "
+    "completo de la fuente. Una etiqueta no es una prueba."
+)
+
+
 def check_orderable(
     source: ScoreSource,
     *,
@@ -288,6 +356,18 @@ def check_orderable(
       procesa distinto (Fellmann 2013), asi que el sesgo cae justo sobre lo que el
       score dice medir. El numero sigue sirviendo como convergencia de sitio —dos
       metodos independientes señalan la misma region— pero no para ordenar.
+
+    **AQUI EL ANDAMIO ES UNA ETIQUETA TECLEADA, Y ESO SE DICE** (`SCAFFOLD_BY_LABEL`).
+    El proyecto tiene escrito que «el andamio se decide por SECUENCIA, no por etiqueta»
+    y tiene el guardia que lo hace —`mirarchitect.Export.check_scaffold`, que compara el
+    LOOP del fichero contra el del andamio—. Pero ese guardia necesita un export
+    COMPLETO, y el camino que existe (`tools/import_scores.py`) recibe un TSV de dos
+    columnas `guia<TAB>score`, donde no hay loop que comparar: lo unico que hay es el
+    `--andamio` que teclea quien importa.
+    Asi que por este camino la comprobacion es de ETIQUETA, y el veredicto lo dice —la
+    procedencia va pegada al veredicto, como el md5 va pegado a la longitud—. Cerrarlo
+    de verdad es aceptar el export entero por el CLI, y eso es una decision de interfaz
+    que no se toma de paso.
     """
     registrada = lower_is_better(source)
     if registrada != derived_lower_is_better:

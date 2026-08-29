@@ -16,7 +16,7 @@ Regla 5: escritos antes.
 
 import unittest
 
-from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+from shmir_design.apa import resolve_measured
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 
 RATON = REFERENCES["NM_011170.3"]
@@ -33,7 +33,7 @@ class TestElVeredictoDe3utr200(unittest.TestCase):
         from shmir_design.tiling import tile_utr
 
         utr3 = load_3utr(RATON)
-        cls.informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
+        cls.informe = tile_utr(utr3)
         cls.seleccion = select_from_report(
             cls.informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
         )
@@ -152,7 +152,7 @@ class TestLosDosSalenEnElINFORME(unittest.TestCase):
         from shmir_design.tiling import tile_utr
 
         utr3 = load_3utr(RATON)
-        informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
+        informe = tile_utr(utr3)
         cls.texto = text_report(
             species="raton", tiling=informe,
             selection=select_from_report(
@@ -201,7 +201,6 @@ class TestElBloqueNuevoNoVuelveARepetirElFallo(unittest.TestCase):
             secuencia, anatomy = load_3utr(RATON), None
         informe = tile_utr(
             secuencia, anatomy=anatomy,
-            measured_apa=resolve_measured(secuencia, POLYA_DB_PRNP, anatomy=anatomy),
         )
         return promotion_clearance(
             informe,

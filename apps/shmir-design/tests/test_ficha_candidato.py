@@ -13,7 +13,7 @@ comprueban lo que cada uno espera y no ven lo que falta.
 
 import unittest
 
-from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+from shmir_design.apa import resolve_measured
 from shmir_design.filters import FilterState
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 
@@ -25,7 +25,7 @@ def _piezas():
     from shmir_design.tiling import tile_utr
 
     utr3 = load_3utr(RATON)
-    informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
+    informe = tile_utr(utr3)
     seleccion = select_from_report(
         informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
     )

@@ -32,8 +32,23 @@ PAGINA = RAIZ / "tests" / "golden" / "pagina_raton.txt"
 #: cambiaria cada dia y el diff dejaria de significar nada.
 FECHA_GOLDEN = "2026-08-26"
 
-#: La corrida que se fija. Solo ficheros VERSIONADOS: el golden tiene que poder
-#: regenerarse con un clon limpio del repositorio, sin pedirle nada a nadie.
+#: LA CORRIDA QUE SE FIJA VA CON LA CONFIGURACION POR DEFECTO. SIN EXCEPCIONES.
+#:
+#: Principio nº 18. Aqui habia `--inmunes 4`, `--candidates 10`, `--min-block 22` y
+#: `--sin-manifiesto`, todos tecleados — asi que la unica corrida del CLI que alguien
+#: miraba llevaba una configuracion que ningun usuario usa. Con `--inmunes 4` puesto, el
+#: golden coincidia con la pagina mientras el CLI por defecto daba OTRO panel (errata
+#: nº 32): el artefacto de verificacion validaba una configuracion FANTASMA.
+#:
+#: De los cuatro, tres eran ademas INERTES —`--candidates 10` es el defecto, `--min-block
+#: 22` da lo mismo que 15 en este par, y `--sin-manifiesto` no cambia nada habiendo
+#: manifiesto—, o sea que llevaban ahi sin hacer nada y sin que nadie lo supiera. El unico
+#: con efecto era `--inmunes 4`, que es el que rompio.
+#:
+#: Si hace falta una variante, se genera un golden ADICIONAL que declare en su nombre que
+#: configuracion lleva. Nunca uno solo con parametros puestos a mano.
+#:
+#: Solo ficheros VERSIONADOS: el golden tiene que poder regenerarse con un clon limpio.
 ARGV = [
     "--fasta", "data/reference/NM_011170.3.fa",
     "--name", "raton",
@@ -41,19 +56,45 @@ ARGV = [
     "--fasta-b", "data/reference/NM_000311.5.fa",
     "--name-b", "humano",
     "--genbank-b", "data/reference/NM_000311.5.gb",
-    "--convergencia", "data/reference/mirarchitect_prnp_export_buena.csv",
-    "--min-block", "22",
-    "--candidates", "10",
-    "--inmunes", "4",
-    "--sin-manifiesto",
 ]
 
+#: LAS VARIANTES, cada una con su ARGV COMPLETO y su nombre diciendo QUE lleva. Ninguna
+#: es «el golden con unos ajustes»: son artefactos distintos que fijan caminos distintos.
+VARIANTES = {
+    # El analisis de convergencia con la fuente externa esta APAGADO por defecto, asi
+    # que sin esta variante su bloque no lo lee ningun golden.
+    "raton_informe__con_convergencia.txt": ARGV + [
+        "--convergencia", "data/reference/mirarchitect_prnp_export_buena.csv",
+    ],
+    # LA FORMA NORMAL DE CORRER, y hasta hoy ningun golden la leia. Conecta por rol todo
+    # lo que este en OK: `mature.fa`, la mascara con su resumen, el casete y la tabla de
+    # PolyA_DB. Es la corrida que mas se parece a la de un usuario, y es justo la que
+    # abortaba con un `KeyError: polyadb`.
+    #
+    # VA CON UNA SOLA ESPECIE, y no es un descuido: el manifiesto conecta `rmsk_mouse.out`
+    # POR SU ROL, sin mirar que se esta diseñando, asi que con la segunda especie dentro
+    # `RepeatMask.query_length` aborta —«se corrio sobre 2191 nt y se le esta dando una de
+    # 2435»—. El guardia hace exactamente lo que debe; lo que dice el aborto es que
+    # `--usar-manifiesto` con dos especies NO es una combinacion viable hoy, y eso es
+    # informacion, no un problema del golden.
+    "raton_informe__con_usar_manifiesto__una_especie.txt": [
+        "--fasta", "data/reference/NM_011170.3.fa",
+        "--name", "raton",
+        "--genbank", "data/reference/NM_011170.3.gb",
+        "--usar-manifiesto",
+    ],
+}
 
-def generar(destino: Path) -> str:
-    """Corre el diseño de verdad y devuelve el informe del raton."""
+
+def generar(destino: Path, argv: list[str] | None = None) -> str:
+    """Corre el diseño de verdad y devuelve el informe del raton.
+
+    `argv` COMPLETO, no unos extras sobre el de por defecto: una variante es otro
+    artefacto, no el mismo con ajustes. Ver el principio nº 18.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         proceso = subprocess.run(
-            [sys.executable, "tools/design.py", *ARGV, "--out", tmp],
+            [sys.executable, "tools/design.py", *(argv or ARGV), "--out", tmp],
             cwd=RAIZ, capture_output=True, text=True,
         )
         if proceso.returncode != 0:
@@ -74,17 +115,21 @@ def generar_ficha() -> str:
     import sys as _sys
 
     _sys.path.insert(0, str(RAIZ))
-    from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
     from shmir_design.dossier import build_dossier
     from shmir_design.reference import REFERENCES, load_3utr
-    from shmir_design.selection import SelectionConfig, select_from_report
+    from shmir_design.selection import default_config, select_from_report
     from shmir_design.tiling import tile_utr
 
     utr3 = load_3utr(REFERENCES["NM_011170.3"])
-    informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
-    seleccion = select_from_report(
-        informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
-    )
+    # La tabla de PolyA_DB la resuelve `tile_utr` del FICHERO del gestor: aqui no se
+    # pasa nada. Pasarla a mano era lo que hacia que el golden se generara con la
+    # constante mientras la app leia el fichero — dos caminos, y el golden dejaba
+    # de comprobar el de verdad.
+    informe = tile_utr(utr3)
+    # `default_config()`, NO un `SelectionConfig` a mano: el panel de 10 y la cuota de 4
+    # son las constantes del proyecto, y tecleadas aqui el golden dejaba de enterarse si
+    # alguien las cambiaba. Es `--inmunes 4` con otra forma (principio nº 18).
+    seleccion = select_from_report(informe, default_config())
     return build_dossier(
         species="raton", tiling=informe, selection=seleccion, start=200,
         # Con `target` la ficha puede contar los sitios de esta seed en su PROPIA diana,
@@ -102,17 +147,21 @@ def generar_documento() -> str:
     import sys as _sys
 
     _sys.path.insert(0, str(RAIZ))
-    from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
     from shmir_design.informe_doc import build_document
     from shmir_design.reference import REFERENCES, load_3utr
-    from shmir_design.selection import SelectionConfig, select_from_report
+    from shmir_design.selection import default_config, select_from_report
     from shmir_design.tiling import tile_utr
 
     utr3 = load_3utr(REFERENCES["NM_011170.3"])
-    informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
-    seleccion = select_from_report(
-        informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
-    )
+    # La tabla de PolyA_DB la resuelve `tile_utr` del FICHERO del gestor: aqui no se
+    # pasa nada. Pasarla a mano era lo que hacia que el golden se generara con la
+    # constante mientras la app leia el fichero — dos caminos, y el golden dejaba
+    # de comprobar el de verdad.
+    informe = tile_utr(utr3)
+    # `default_config()`, NO un `SelectionConfig` a mano: el panel de 10 y la cuota de 4
+    # son las constantes del proyecto, y tecleadas aqui el golden dejaba de enterarse si
+    # alguien las cambiaba. Es `--inmunes 4` con otra forma (principio nº 18).
+    seleccion = select_from_report(informe, default_config())
     return build_document(
         species="mouse", tiling=informe, selection=seleccion,
         generated=FECHA_GOLDEN,
@@ -138,7 +187,7 @@ def generar_pagina() -> str:
     from shmir_design.anatomy import Anatomy, RegionSource
     from shmir_design.presentation import page_snapshot
     from shmir_design.reference import REFERENCES, load_reference
-    from shmir_design.selection import SelectionConfig
+    from shmir_design.selection import default_config
 
     referencia = REFERENCES["NM_011170.3"]
     secuencia = load_reference(referencia)
@@ -151,11 +200,23 @@ def generar_pagina() -> str:
             source=RegionSource.FIXTURE_VERIFICADO,
         ),
         generated=FECHA_GOLDEN,
-        config=SelectionConfig(n_candidates=10, apa_immune_quota=4),
+        # Igual que los otros dos: la configuracion del proyecto, no una tecleada.
+        config=default_config(),
     )
 
 
+def escribir(destino: Path, contenido: str) -> None:
+    antes = destino.read_text(encoding="utf-8") if destino.is_file() else ""
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(contenido, encoding="utf-8")
+    lineas = len(contenido.splitlines())
+    estado = "Sin cambios" if antes == contenido else "REGENERADO"
+    print(f"{estado}: {destino} ({lineas} lineas).")
+
+
 def main() -> int:
+    for nombre, argv in VARIANTES.items():
+        escribir(GOLDEN.parent / nombre, generar(GOLDEN.parent / nombre, argv))
     informe = generar(GOLDEN)
     antes = GOLDEN.read_text(encoding="utf-8") if GOLDEN.is_file() else ""
     GOLDEN.parent.mkdir(parents=True, exist_ok=True)

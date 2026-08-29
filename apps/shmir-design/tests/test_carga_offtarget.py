@@ -401,10 +401,32 @@ class TestLaProcedenciaDelFichero(unittest.TestCase):
                 )
 
     def test_la_ruta_de_descarga_va_escrita_en_la_interfaz(self):
-        texto = offtarget.UCSC_ROUTE
+        texto = offtarget.ucsc_route("raton")
         self.assertIn("Table Browser", texto)
         self.assertIn("mm39", texto)
         self.assertIn("3' UTR Exons", texto)
+
+    def test_el_ensamblaje_NO_esta_escrito_dentro_de_la_plantilla(self):
+        # El fallo que esto cierra: `mm39` dentro del texto daba una instruccion
+        # correcta de principio a fin con el ensamblaje del raton para cualquier
+        # especie, y no daba ningun error.
+        self.assertNotIn("mm39", offtarget.UCSC_ROUTE_TEMPLATE)
+        self.assertIn("{ensamblaje}", offtarget.UCSC_ROUTE_TEMPLATE)
+
+    def test_otra_especie_declarada_trae_SU_ensamblaje(self):
+        texto = offtarget.ucsc_route("humano")
+        self.assertIn("hg38", texto)
+        self.assertNotIn("mm39", texto)
+
+    def test_una_especie_SIN_ensamblaje_declarado_lo_DICE_y_no_pone_el_del_raton(self):
+        from shmir_design.species import Species
+
+        texto = offtarget.ucsc_route(
+            Species(slug="conejo", scientific="Oryctolagus cuniculus")
+        )
+        self.assertIn("NO ESTÁ DECLARADO", texto)
+        self.assertIn("species.SPECIES", texto)
+        self.assertNotIn("mm39", texto)
 
     def test_el_fichero_que_falta_se_nombra(self):
         self.assertEqual(offtarget.MISSING_FILE, "transcriptoma_3utr.fa")

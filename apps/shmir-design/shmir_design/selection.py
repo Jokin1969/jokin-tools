@@ -91,6 +91,21 @@ class SelectionConfig:
     #: decir inmunes A QUE no significa nada.
     apa_immune_quota: int = 0
     apa_immune_before: int | None = None
+    #: ¿La cuota la PIDIO quien llama, o viene del defecto del proyecto? No es lo mismo,
+    #: y la diferencia decide que pasa cuando la cuota es INSATISFACIBLE porque el
+    #: informe no tiene ninguna señal `APA_POSIBLE`:
+    #:
+    #:   - PEDIDA  → ABORTA. Alguien pidio inmunes a un corte que no existe, y darla por
+    #:     cumplida con cualquiera seria inventarse la inmunidad.
+    #:   - POR DEFECTO → NO_APLICA, y SE DICE en las notas de la seleccion. Abortar por
+    #:     un defecto que nadie pidio es peor que no tenerlo — es exactamente el
+    #:     razonamiento que `default_config` ya aplica al tamaño del panel, y aqui hacia
+    #:     falta el otro lado: una secuencia sin señal de APA no tiene pregunta de
+    #:     inmunidad, asi que no hay nada que abortar.
+    #:
+    #: Se supo al hacer que el CLI usara `default_config()` como la pagina: con la cuota
+    #: puesta, toda corrida sobre una secuencia sin señal de APA moria.
+    apa_immune_quota_por_defecto: bool = False
     #: Cuota EXPLICITA por tercio, del tipo ((PROXIMAL, 4), (MEDIO, 3), (DISTAL, 2)).
     #: Manda sobre `min_per_tercio`. Existe para poder REASIGNAR una plaza a un tercio
     #: concreto y que quede escrito cual y por que, en vez de que el reparto salga de
@@ -697,6 +712,10 @@ def default_config(n_candidates: int = DEFAULT_CANDIDATES, **extra) -> Selection
     return SelectionConfig(
         n_candidates=n_candidates,
         apa_immune_quota=min(DEFAULT_IMMUNE_QUOTA, n_candidates),
+        # Marcada como DEL PROYECTO, no pedida. Ver `apa_immune_quota_por_defecto`: sin
+        # esto, toda corrida sobre una secuencia sin señal de APA aborta por una cuota
+        # que quien llama no ha pedido.
+        apa_immune_quota_por_defecto=True,
         **extra,
     )
 
@@ -714,21 +733,39 @@ def select_from_report(
     defecto.
     """
     config = config or SelectionConfig()
+    sin_corte = ""
     if config.apa_immune_quota and config.apa_immune_before is None:
         # De donde sale la frontera: del informe, no de un numero tecleado. Un corte
         # escrito a mano no se entera de que un sitio de corte medido lo adelante.
         derivado = derive_immune_cut(report)
-        if derivado is None:
+        if derivado is None and not config.apa_immune_quota_por_defecto:
             raise ValueError(
                 f"Se piden {config.apa_immune_quota} candidatos inmunes al truncamiento "
                 f"por APA, pero este informe no tiene ninguna señal APA_POSIBLE: no hay "
                 f"corte al que ser inmune. Se aborta en vez de dar la cuota por "
                 f"cumplida con cualquiera."
             )
-        config = replace(config, apa_immune_before=derivado)
+        if derivado is None:
+            # NO_APLICA, y SE DICE. Sin señal de APA no hay pregunta de inmunidad, asi
+            # que la cuota del proyecto no se puede cumplir NI incumplir. Se quita, y la
+            # nota va a la seleccion: una cuota que desaparece en silencio es lo mismo
+            # que no haberla tenido nunca.
+            sin_corte = (
+                f"Cuota de {config.apa_immune_quota} inmunes al APA: NO_APLICA. Esta "
+                f"secuencia no tiene ninguna señal APA_POSIBLE, así que no hay corte al "
+                f"que ser inmune. La cuota es del proyecto y no la pidió esta corrida, "
+                f"así que se retira en vez de abortar — pero se dice: el panel NO lleva "
+                f"reserva frente al truncamiento porque aquí no hay truncamiento que "
+                f"temer, no porque se haya renunciado a ella."
+            )
+            config = replace(config, apa_immune_quota=0)
+        else:
+            config = replace(config, apa_immune_before=derivado)
     choices = eligible_choices(report, config)
     sites = group_choices(choices)
     selection = choose(sites, config)
+    if sin_corte:
+        selection = replace(selection, notes=(sin_corte,) + selection.notes)
     return ReportSelection(
         selection=selection,
         windows={w.window.name: w for w in report.windows},
@@ -1214,9 +1251,14 @@ class PromotionCost:
         cuales = ", ".join(
             f"{s.motif} en {label(s.position, marco)}" for s in self.signals
         )
+        # Solo las que TIENEN coordenada de 3'UTR. `None` es «no cae en el 3'UTR», y
+        # sustituirla por la de lo tilado la etiquetaria `3utr:` siendo del transcrito.
+        # Las que no la tienen se cuentan aparte en vez de desaparecer. Errata nº 18.
+        en_utr3 = [w for w in self.windows if w.inicio_3utr is not None]
+        fuera = len(self.windows) - len(en_utr3)
         posiciones = ", ".join(
-            label(w.inicio_3utr or w.window.start, Frame.UTR3) for w in self.windows
-        )
+            label(w.inicio_3utr, Frame.UTR3) for w in en_utr3
+        ) + (f" (y {fuera} fuera del 3'UTR)" if fuera else "")
         return (
             f"LO QUE CUESTA LA PROMOCION: {len(self.windows)} ventana(s) que superaban "
             f"todos los demas filtros pasan a FAIL por SOLAPAR una señal que la medida "
@@ -1503,6 +1545,11 @@ class ApaCeilingRow:
             else f"Techo del tramo de detrás: {self.ceiling:.2f}."
         )
         return (
+            # La etiqueta lleva la PROCEDENCIA pegada: `APA_POSIBLE (medido, PolyA_DB
+            # v4.1)` frente a `APA_POSIBLE (canónico, asumido)`. Sin ella las dos se
+            # llaman igual, y `via` —que ya distinguia— queda cinco palabras mas alla,
+            # donde no la lee quien copia la linea a un correo.
+            f"{self.signal.classification_label}: "
             f"{self.signal.motif} en {label(self.signal.position, marco)} "
             f"({via}) "
             f"(corte {span(self.signal.end + CLEAVAGE_MIN, self.signal.end + CLEAVAGE_MAX, marco)}): "
@@ -1681,32 +1728,34 @@ def tercio_counts(
 # experimento en no poder distinguirlos.
 
 
-def _estado_medida(measured=None) -> str:
-    """Que se sabe hoy de la fraccion, y por que sigue (o no) bloqueando."""
-    from .apa import POLYA_DB_PRNP
+def _estado_medida(measured=None, *, missing_reason: str = "") -> str:
+    """Que se sabe hoy de la fraccion, y por que sigue (o no) bloqueando.
 
+    TODAS las cifras salen de la tabla QUE SE APLICO, no de una constante del codigo:
+    imprimir las murinas pasara lo que pasara daria las de Prnp para cualquier especie,
+    que es el mismo fallo que `rmsk_mouse.out` conectado por rol.
+    """
     if measured is None:
         return (
-            f"HAY UNA MEDIDA —{POLYA_DB_PRNP.source} {POLYA_DB_PRNP.version}, fracción "
-            f"larga {POLYA_DB_PRNP.working_value:.2f} ponderada / "
-            f"{POLYA_DB_PRNP.unweighted_value:.2f} sin ponderar— PERO NO ENTRA EN ESTA "
-            f"CORRIDA: la tabla es de Prnp murino y se aplica por md5 del 3'UTR, así que "
-            f"sobre otra secuencia no se ancla nada. Aquí el techo sigue INDETERMINADO y "
-            f"este frente sigue bloqueando."
+            "NO HAY MEDIDA EN ESTA CORRIDA, así que el techo sigue INDETERMINADO y este "
+            "frente sigue bloqueando. "
+            + (missing_reason or
+               "No se ha resuelto ninguna tabla de PolyA_DB para esta secuencia.")
         )
+    tabla = measured.table
     tramos = [c for c in measured.layers if c.ceiling is not None]
     cifras = ", ".join(f"{c.ceiling:.2f}" for c in tramos)
     return (
         f"MEDIDO. {measured.source}, fracción larga "
-        f"{POLYA_DB_PRNP.working_value:.2f} ponderada / "
-        f"{POLYA_DB_PRNP.unweighted_value:.2f} sin ponderar. El mapeo "
+        f"{tabla.working_value:.2f} ponderada / "
+        f"{tabla.unweighted_value:.2f} sin ponderar. El mapeo "
         f"genomico↔transcrito que bloqueaba está RESUELTO sin coordenadas genomicas y "
         f"sobre {measured.anchor.total} puntos de apoyo, no sobre una resta. Y el techo "
         f"no es uno: va POR TRAMOS ({cifras}), porque depende de por detrás de cuántos "
         f"cortes está cada candidato. Con eso deja de cumplirse lo que hacia bloquear a "
         f"este frente: un techo de {min(c.ceiling for c in tramos):.2f} NO es "
         f"indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el dato "
-        f"es de {POLYA_DB_PRNP.tissue}, y las neuronas alargan los 3'UTR, así que estas "
+        f"es de {tabla.tissue}, y las neuronas alargan los 3'UTR, así que estas "
         f"cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los "
         f"dos amplicones sigue en pie y puede MEJORARLAS."
     )
@@ -1743,7 +1792,7 @@ def blocking_fronts(
     de banco. Lo demas se cuenta en el semaforo, con las ventanas tiladas.
     """
     from .coords import Frame, frame_of, label
-    from .filters import BIOPHYSICAL_FILTERS, UNDECIDED_FILTERS
+    from .filters import BIOPHYSICAL_FILTERS
     from .polya import CLEAVAGE_MIN, SignalClass
 
     # Lo que NO abre frente, y por que cada uno:
@@ -1752,7 +1801,7 @@ def blocking_fronts(
     #   - los que estan PENDIENTES DE DECISION (`G4_*`): tampoco se cierran con un
     #     fichero. Lo que les falta es que alguien decida su criterio, y eso no tiene
     #     ficha de obtencion — tiene una entrada en `justificacion.py`.
-    sin_frente = BIOPHYSICAL_FILTERS | UNDECIDED_FILTERS
+    sin_frente = BIOPHYSICAL_FILTERS
     frentes = [
         BlockingFront(
             name=nombre,
@@ -1863,7 +1912,7 @@ def blocking_fronts(
                 f"INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no "
                 f"funciona dan la misma lectura en la placa, y el experimento se gasta "
                 f"en no poder separarlos. "
-                f"ESTADO: {_estado_medida(medido)}"
+                f"ESTADO: {_estado_medida(medido, missing_reason=getattr(report, 'apa_missing_reason', '') or getattr(report, 'apa_excluded_reason', ''))}"
             ),
         )
     )

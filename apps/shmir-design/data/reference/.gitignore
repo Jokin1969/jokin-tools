@@ -49,3 +49,20 @@
 !rmsk_human.tbl
 !rmsk_human_WRONG_SPECIES_mouse_lib.out
 !rmsk_human_WRONG_SPECIES_mouse_lib.tbl
+
+# Y el plasmido del intron quimerico, con el mismo criterio de tamaño que los de arriba:
+# 22 kB de GenBank de un deposito PUBLICO (Addgene #198131) no son "una base de datos",
+# y no son material de laboratorio sin publicar como el casete AAV. Entra ademas por una
+# razon que las otras excepciones no tenian: `intron_quimerico` SALE de este fichero por
+# su anotacion. Sin el dentro, quien clonara el repositorio se encontraba la entrada con
+# la secuencia VACIA — y, mientras `provided` fue un campo declarado, ademas en PASS.
+# Eso ya no puede volver a pasar (`provided` se deriva), pero sin el fichero el intron
+# quedaria en NOT_RUN para todo el mundo menos para quien lo subio.
+!addgene_198131.gb
+
+# Y la tabla de PolyA_DB, con el mismo criterio de tamaño: son CUATRO FILAS de una base
+# publica. Entra ademas por un motivo que las otras excepciones no tenian: de ella
+# cuelgan la promocion del AATATA de 3utr:236, el techo por tramos y el panel de diez.
+# Sin ella dentro, quien clone el repositorio no reproduce la corrida murina — y el
+# frente del APA le sale NOT_RUN, que es lo correcto pero no es lo que hay.
+!polya_db_*.tsv

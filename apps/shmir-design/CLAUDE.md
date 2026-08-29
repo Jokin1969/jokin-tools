@@ -10,6 +10,92 @@
 
 ---
 
+## ⚠ SI VAS AL BANCO: los amplicones de la RT-qPCR son ÉSTOS
+
+Va arriba del todo porque es lo único de este fichero que puede llegar tarde: un
+cuaderno con las coordenadas viejas ya está escrito.
+
+| | 3'UTR | transcrito |
+|---|---|---|
+| **proximal** | **`3utr:106-225`** | `tx:1055-1174` |
+| **distal** | **`3utr:282-401`** | `tx:1231-1350` |
+
+120 nt cada uno, holgura de 10 nt. Emitidos por `polya.rtqpcr_amplicons` sobre el corte
+más temprano, que es el del `AATATA` de `3utr:236`.
+
+### ~~Los viejos: `3utr:158-277` y `3utr:684-803`~~ — NO VALEN
+
+Se diseñaron contra `3utr:288`, cuyo corte cae en `3utr:303-323`. Eso era el corte más
+temprano **antes** de que la promoción por medida subiera el `AATATA` de `3utr:236` a
+`APA_POSIBLE`. Con ese sitio dentro, el corte más temprano pasa a `3utr:251-271` — y ese
+tramo cae **entero dentro del amplicón proximal viejo**.
+
+No queda a caballo: queda **partido en dos por el propio suceso que se quería medir**. Un
+amplicón partido por un corte no da producto en la isoforma cortada, así que el proximal
+dejaría de medir «el total» y **la razón distal/proximal no mediría nada**. El distal
+viejo sí estaba bien colocado; el que invalida el par es el proximal.
+
+### Lo que este par SÍ mide y lo que NO
+
+El amplicón distal nuevo (`3utr:282-401`) queda entero detrás de `251-271` **y atraviesa
+`303-323`**, la banda del `AATAAA` de 288. Así que la razón **no** mide la fracción que
+sobrevive al corte de 236: mide **la que sobrevive a los dos**.
+
+**Para el panel eso es justo lo que hace falta** —sus seis candidatos con techo están
+detrás de las dos bandas, o sea el tramo de 0,86—. Lo que **no** se puede confirmar con
+este par es el **0,91 del tramo intermedio**.
+
+**Y no se arregla moviéndolo**: entre las dos bandas, con la misma holgura, quedan
+`3utr:282-292` — **11 nt** para un amplicón de 120. Es geométricamente imposible aislar
+el evento de 236 con esta arquitectura. El informe lo emite pegado al plan
+(`AmpliconPlan.distal_crosses`, `gap_between`), no en una nota.
+
+**EL ENSAYO NO SE REDISEÑA: se queda con ALCANCE DECLARADO. DECIDIDO (2026-08-27).**
+Mide lo que el panel necesita —el **0,86** que hay detrás de las dos bandas—, y el plan
+lo dice con **dos frases y no con una limitación al pie** (`_lineas_de_cruce`):
+
+> **QUÉ MIDE** — la fracción de transcritos que sobrevive a las dos bandas de corte, o
+> sea el techo de los candidatos que quedan por detrás de todas ellas.
+> **QUÉ NO MIDE** — no separa una señal de la otra y no confirma el techo del tramo
+> **intermedio**.
+
+Van las dos o ninguna: sólo la segunda deja el ensayo pareciendo defectuoso, y sólo la
+primera lo deja pareciendo completo.
+
+**Y la salida, por si algún día hace falta** (`polya.WAY_OUT_IF_EVER_NEEDED`): el tramo
+intermedio **no se alcanza moviendo amplicones** —eso ya está demostrado imposible— sino
+con **3'RACE o secuenciación de extremos**, donde la resolución no depende de que quepa
+un amplicón entre dos cortes. Es **línea abierta, no tarea**: hoy no hay ningún candidato
+ahí, así que no confirmarlo no cuesta nada.
+
+### Y una frase que era falsa, también de los viejos
+
+Aquí ponía «esquivando las dianas del panel». **Ni los nuevos ni los viejos lo
+consiguen**: el proximal solapa `3utr:143-164` y `3utr:200-221` (los viejos solapaban
+`143-164` y `221-242`). El código sí lo decía —lo marca con `⚠ solapa`— y era la prosa de
+este fichero la que no. Por eso se mide sobre **tejido sin tratar**: en muestras tratadas
+un amplicón que solape una diana mide corte por RNAi, no isoformas.
+
+Va al registro como **errata propia nº 26**, y deja **principio nº 11**: *cuando el
+código y la prosa discrepan sobre el mismo hecho, la que se ha quedado atrás es la
+prosa, y es la que alguien va a leer.* No basta con corregir la frase — el mecanismo
+sigue ahí. La regla operativa es que **la frase la emita el generador**, o que **un test
+la contraste** contra lo que el código emite: `tests/test_prosa_contra_codigo.py`
+comprueba que este fichero no vuelve a **afirmar** esa frase (puede citarla entre «» como
+lo que fue), que los amplicones que declara son los que emite `rtqpcr_amplicons`, y que
+el panel declarado es el de una corrida real.
+
+### Por qué esto está en el registro y no sólo en un commit
+
+**Es el primer caso en el que el trabajo computacional corrige un experimento de banco
+ANTES de hacerlo.** Hasta ahora el pipeline emitía veredictos sobre candidatos; aquí un
+cambio de regla —la promoción por medida deja de depender de una bandera— ha invalidado
+un diseño experimental que ya estaba escrito y ha emitido el que lo sustituye. El coste
+evitado no es una plaza del panel: es una tanda de RT-qPCR cuya razón no habría
+significado nada, y que habría parecido un resultado.
+
+---
+
 ## Reglas innegociables
 
 **1. NUNCA generes, completes ni "reconstruyas" secuencias biológicas.** Si falta una
@@ -296,8 +382,9 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     (`polya.rtqpcr_amplicons`): RT-qPCR de dos amplicones sobre el 3'UTR murino, uno
     entero por delante del hexámero y otro entero por detrás de la banda de corte,
     cuantificados contra una **curva estándar común**; la razón distal/proximal *es*
-    `fraccion_isoforma_larga`. Con la señal de 288 salen 3'UTR **158-277** y **684-803**
-    (120 nt cada uno, holgura de 10 nt y esquivando las dianas del panel). Se emiten
+    `fraccion_isoforma_larga`. **Las coordenadas están arriba del todo**, en «SI VAS AL
+    BANCO», con las viejas tachadas y el motivo: se diseña contra el corte MÁS TEMPRANO,
+    que con la medida aplicada siempre pasó a ser el `AATATA` de `3utr:236`. Se emiten
     **coordenadas**: no se emiten cebadores — eso necesita Tm, especificidad y horquillas,
     y no se improvisa. Se mide sobre tejido **sin tratar**: en muestras tratadas un
     amplicón que solape una diana mide corte por RNAi, no isoformas.
@@ -345,6 +432,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     que la murina se use. **NO LA DESCARTA**: puede ser diferencia real de especie. Las
     dos cláusulas van juntas y ninguna sobra — el informe termina con «rebaja, no
     descarta».
+  - **PANEL CONFIRMADO (2026-08-27)**: con la promoción por medida aplicada siempre, la
+    corrida real por defecto da `3utr:` **10, 60, 143, 200, 449, 553, 652, 735, 819,
+    1018** — los diez, con los **cuatro inmunes**. Coincide con el panel del responsable,
+    así que la app reproduce lo que se sabía antes de construirla y la validación queda
+    **cerrada**. Fijado en `tests/test_promocion_por_defecto.py`.
   - **Inmunes: 60, 143 y 200**, no solo 60. 60 es el único que salía por asimetría, pero
     la piscina de elegibles tiene 15 sitios más por delante del corte y el informe saca los
     mejores — `3utr:143` (+5,08) y `3utr:200` (+3,80) entre ellos. Con un solo inmune el
@@ -622,11 +714,73 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     puesta esas ventanas ya no están en la piscina y una lista por ventana saldría vacía.
     El informe emite los **dos ejes** con su motivo; el detalle por ventana es
     `masking.triple_motive_rows` sobre un informe tilado **sin** máscara.
+- **CUÁNTO MUERDE LA MÁSCARA SALE EN EL INFORME, y es INFORMACIÓN (2026-08-27)**
+  (`masking.mask_bite`, `WHY_THE_BITE_IS_A_PROPERTY`). Salió al medir qué cambia cada
+  fichero de referencia: la máscara del ratón quita **0** ventanas elegibles y la del
+  humano **5**. Eso **no es una propiedad del pipeline** —es la misma maquinaria en los
+  dos— sino de los **TRANSCRITOS**, y por eso va en la salida y no en un test.
+  - Un filtro que corre y no quita nada tiene que **distinguirse** de uno que no corrió.
+    Un cero a secas se lee como «no hizo nada» o, peor, como que no llegó a mirar — y no
+    haber quitado nada no es lo mismo que no haber mirado. Misma familia que el «Alu 0 %»
+    obtenido sin buscar Alu.
+  - **Tres cifras y ninguna sobra**: elementos en toda la consulta, cuántos **dentro** del
+    3'UTR, y cuántas ventanas **elegibles** solapa. En el ratón son 1 / 0 / 0, y es la
+    segunda la que hace legible el cero: la máscara **sí** encontró algo y está en el CDS.
+  - **Se calcula sobre un tilado SIN máscara**, misma condición que `triple_motive_rows`:
+    con ella puesta el paso 15 retila y la cuenta saldría cero — indistinguible del cero
+    de verdad, que es justo el número que esto existe para poder leer. Y con los **dos**
+    desfases por nombre, por lo mismo que allí.
+  - **Las dos cifras de la frase NO están transcritas**:
+    `tests/test_mordida_de_la_mascara.py` las recalcula de los ficheros de verdad y exige
+    que la prosa las cite (principio nº 13).
+  - **Y NO se comprueba con un `grep` sobre el fuente.** El golden del informe se genera
+    **sin máscara**, así que este bloque no entra en él: un test que mirara `outputs.py`
+    pasaría igual con la línea sin llegar nunca a una pantalla. Se corre el **CLI de
+    verdad** con `--rmsk` y se lee el informe que escribe.
+  - **Y ESE TEST CAZÓ UNA RAMA QUE NUNCA HABÍA CORRIDO** (errata nº 31): `design.py`
+    pasaba `thresholds=umbrales` y esa variable **no existe** —se llama `thresholds`—,
+    así que **toda** corrida con `--rmsk` moría con un `NameError`, y con ella el bloque
+    del **triple motivo**, que se cableó justo porque «existía sólo porque alguien lo
+    corría a mano». Ningún test lo veía porque **ninguno corría el CLI con máscara**: los
+    del triple motivo llaman a `triple_motive_rows` ellos mismos. Es la **quinta** vez de
+    esa familia, y la primera en que hay un llamador escrito y lo que falla es el
+    llamador. **Un fallo ruidoso en una rama que nadie ejecuta es tan invisible como uno
+    silencioso**, y ni la alcanzabilidad ni el golden pueden verlo: la regla que queda es
+    que una combinación de flags que ningún test recorre de punta a punta **no está
+    probada**, por muchos tests que tengan sus piezas.
+
 - **El manifiesto registra la BIBLIOTECA además de la versión del binario** (columna
   `biblioteca`): RepeatMasker 4.0.9 con Dfam_3.0 y con otra biblioteca dan resultados
-  distintos, así que la versión a solas no identifica la corrida. La cabecera de 9
-  columnas se sigue aceptando (`PREVIOUS_COLUMNS`) y la columna sale vacía, que es la
-  verdad.
+  distintos, así que la versión a solas no identifica la corrida. Las cabeceras cortas se
+  siguen aceptando (`LEGACY_COLUMNS`, `PREVIOUS_COLUMNS`, `BEFORE_ANATOMY_COLUMNS`) y las
+  columnas nuevas salen vacías, que es la verdad — nadie las registró.
+- **Y REGISTRA LA ANATOMÍA, no sólo los ficheros. AÑADIDO (2026-08-27)**: tres columnas
+  más, `cds` (en la notación `185..949` del propio GenBank, para poder cotejarla con el
+  `.gb` sin traducir nada), `md5_secuencia` y `md5_utr3`. Hasta aquí registraba nombre,
+  tamaño, md5, accession y longitud, y **la frontera del 3'UTR no tenía ninguna línea**:
+  vivía sólo en `reference.REFERENCES`, así que añadir una especie era editar código y un
+  veredicto de hace tres meses no se podía auditar sin la versión del código con la que
+  salió. De esa frontera cuelgan los tercios, la región de cada ventana y la distancia de
+  cada señal de polyA al extremo.
+  - **Sigue habiendo DOS definiciones** —la del manifiesto y la de `REFERENCES`— y eso
+    sólo es admisible porque algo obliga a que coincidan:
+    `tests/test_anatomia_en_el_manifiesto.py` las cruza **en las dos direcciones**, así
+    que una especie nueva sin su línea hace fallar la suite. Es el principio nº 5
+    aplicado antes de que el par diverja, en vez de después.
+  - **Vacío significa NO REGISTRADO**, nunca «todo es 3'UTR»: un `0..0` o un md5 de
+    relleno serían un dato. Un CDS que no se puede leer **aborta** — leer mal esa
+    frontera corre los tercios enteros sin dar ningún error.
+  - **AHORA SON TRES CHECKSUMS EN LA MISMA FILA**, y son cantidades distintas: `md5` es
+    el del FICHERO en disco, `md5_secuencia` el de la SECUENCIA canónica (mayúsculas, sin
+    cabecera, sin saltos) y `md5_utr3` el del 3'UTR — que es el que decide si la tabla de
+    APA medido se aplica. Copiar uno en el sitio de otro hace que el fichero **bueno** se
+    rechace; hay test de que los tres son distintos.
+  - **La fila la monta `entry_row` y su ancho se DERIVA de `MANIFEST_COLUMNS`**, con un
+    aborto si no cuadra. No es teórico: al entrar estas tres columnas, un test que
+    escribía la fila con tabuladores contados a mano se quedó en diez campos y el
+    manifiesto dejó de parsearse. Una columna que no se escribe corre los valores a la de
+    al lado, y eso no da ningún error — es la tabla descuadrada de `Block.__post_init__`
+    un nivel más abajo.
 - **El casete que se pasa tiene que ser lo que la célula MADURA** (`transgene.py`). Si el
   casete lleva el módulo del shmiR y se pasa el **genoma con el intrón dentro**, toda guía
   da impacto contra **su propia horquilla**: el filtro tumba el panel entero por un
@@ -642,9 +796,36 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - **La accesibilidad es DESEMPATE, nunca filtro**: es el criterio peor predicho del
   pipeline. Se calculan dos ventanas de contexto (±80 y ±150) y si discrepan el informe
   dice que el número no sirve para desempatar.
-- **`riesgo_APA` es una PREDICCIÓN mientras no haya `--apa-medido`**, y el informe lo
-  dice con esa palabra. Con sitios medidos el dato sustituye a la predicción y sale el
-  techo de knockdown.
+- **`riesgo_APA` es una PREDICCIÓN mientras no haya medida**, y el informe lo dice con
+  esa palabra. Con sitios medidos el dato sustituye a la predicción y sale el techo de
+  knockdown.
+- **LA MEDIDA ENTRA SIEMPRE QUE HAYA MEDIDA. DECIDIDO (2026-08-27)**
+  (`apa.WHY_MEASURE_IS_NOT_A_FLAG`, `tiling.RESOLVER_MEDIDA`, `apa.ApaExcluded`). No es
+  una preferencia de ordenación: **son dos veredictos**. Sin la medida `3utr:221` lleva
+  una penalización de −1,00 por hexámero variante y **sigue en el panel**; con ella, el
+  `AATATA` de `3utr:236` es `APA_POSIBLE` y `3utr:221` es **FAIL duro** por solape
+  estérico. Y el dato existe: PSE 21,1 %, AvgRPM 0,55, el proximal **más usado** de los
+  tres.
+  - **`tile_utr` la resuelve por su cuenta**: nadie tiene que acordarse. Antes dependía de
+    que el llamador llamara a `resolve_measured` y pasara el resultado — tres sitios
+    acordándose de lo mismo, y ya había fallado una vez (la cuarta divergencia entre la
+    página y el CLI). Doce ficheros de test la pasaban a mano y dejaron de necesitarlo.
+  - **`measured_apa=None` ABORTA.** Era el salto silencioso. Para excluirla hay que
+    escribir `apa.ApaExcluded(reason=…)`, el motivo es **obligatorio** y **viaja al
+    informe** (`TilingReport.apa_excluded_reason`): sin él, «se decidió no usarla» y
+    «nadie se acordó» dan el mismo resultado mudo. Mismo criterio que `deposito.Ignored`.
+  - **El modo sin medida NO es el modo neutro**: trata el hexámero como **no funcional**,
+    que es la hipótesis menos conservadora y la falsa según lo medido. El defecto
+    favorecía al candidato equivocado **por omisión**. Principio nº 10.
+  - `--apa-medido` deja de ser un interruptor y pasa a ser una tabla **adicional**; la
+    exclusión deliberada es `--ignorar-apa-medido MOTIVO`.
+- **`APA_POSIBLE` no dice lo mismo de dos cosas distintas**
+  (`PolyASignal.classification_label`). Se emite `APA_POSIBLE (medido, PolyA_DB v4.1)` y
+  `APA_POSIBLE (canónico, asumido)`, con la procedencia **pegada a la clase**: `evidence`
+  ya las distinguía, pero quedaba cinco palabras más allá, donde no lo lee quien copia la
+  línea a un correo. Misma regla que el md5 junto a la longitud. Sólo en esa clase:
+  ponerla en todas la haría invisible. **Con el ratón las DOS están medidas** —288 es uno
+  de los tres sitios anclados—, así que el caso «canónico, asumido» es el **humano**.
 - **El cruce con una fuente externa va por SECUENCIA, nunca por coordenada.**
   miRarchitect numera sus ventanas con un convenio que no es el nuestro —para la misma
   guía da a veces una posición y a veces otra— así que cruzar por número pega un score
@@ -749,6 +930,28 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   `polyA_veredicto` sigue siendo el del modo con el que se corrió. Ojo con el marco:
   `polyA_hexamero_pos` va en coordenadas de LO TILADO, como `inicio_transcrito`, y la
   cabecera lo dice.
+- **EL GOLDEN SE GENERA CON LA CONFIGURACIÓN POR DEFECTO. SIN EXCEPCIONES.
+  DECIDIDO (2026-08-27)**, principio nº 18. Llevaba `--inmunes 4`, `--candidates 10`,
+  `--min-block 22` y `--sin-manifiesto` **tecleados**, así que la única corrida del CLI
+  que alguien miraba llevaba una configuración que ningún usuario usa — y validaba un
+  panel que el CLI por defecto no producía (errata nº 32). **De los cuatro, TRES eran
+  inertes**: llevaban ahí sin hacer nada y sin que nadie lo supiera.
+  - Si hace falta otra configuración, va en un artefacto **adicional cuyo nombre la
+    declara**: hoy `raton_informe__con_convergencia.txt` y
+    `raton_informe__con_usar_manifiesto__una_especie.txt`. Hay test de que cada variante
+    nombra en su fichero las banderas que la distinguen.
+  - **La segunda variante existe porque `--usar-manifiesto` —«la forma normal de
+    correr»— no la leía ningún golden**, y al escribirla apareció que **abortaba** con un
+    `KeyError: 'polyadb'` contra el manifiesto de verdad: `manifest.ROLES` ganó ese rol y
+    `design.py` no se enteró. Va **con una sola especie** a propósito: con dos, el
+    manifiesto conecta `rmsk_mouse.out` por su rol y `RepeatMask.query_length` aborta —el
+    guardia hace lo que debe, y lo que dice es que esa combinación no es viable hoy.
+  - **Y los otros tres artefactos tenían el mismo vicio**: la ficha, el documento y la
+    página construían `SelectionConfig(n_candidates=10, apa_immune_quota=4)` a mano.
+    Ahora pasan por `default_config()` y **no cambió ni una línea**, que es lo que se
+    espera: hoy los valores coinciden, y mañana los goldens se enteran si la constante se
+    mueve.
+
 - **El informe ENTERO está fijado contra un golden versionado**
   (`tests/golden/raton_informe.txt`, `tools/regenerar_golden.py`,
   `tests/test_informe_golden.py`). Los tests de presencia comprueban que aparezca lo que
@@ -902,7 +1105,9 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   en todo andamio cargado de fichero.
 - Elegible no es aprobado: mientras haya filtros en `NOT_RUN`, la selección es
   provisional y los candidatos salen `INCOMPLETE`.
-- **La fracción de isoforma larga está MEDIDA y YA ENTRA** (`apa.POLYA_DB_PRNP`).
+- **La fracción de isoforma larga está MEDIDA y YA ENTRA**
+  (`data/reference/polya_db_mouse.tsv`, cargada con `apa.find_polyadb`; estuvo
+  cableada en `apa.POLYA_DB_PRNP` hasta 2026-08-27 y la constante ya no existe).
   PolyA_DB v4.1 (2025-09-15), mm10, Prnp (Gene ID 19122): 15 PAS, 5 con expresión. Las dos
   cifras con su fórmula, porque no miden lo mismo:
   - **ponderada** `Σ(AvgRPM × PSE) distal / Σ total` = **0,86** ← valor de trabajo
@@ -1379,8 +1584,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     `espaciador3`, `MVM3`, `exon3`, `AgeI`), y con ellas el módulo, el cassette, la hoja
     de pedido, el control sin intrón y `splicing.locate_intron`. **Esto no es un valor por
     defecto: es el vector concreto**, y para otra especie no se parametriza — se sustituye.
-  - `apa.POLYA_DB_PRNP` **no** está en esta lista: se aplica por md5 del 3'UTR
-    (`resolve_measured`), así que sobre otra secuencia devuelve `None` y no promueve nada.
+  - La tabla de PolyA_DB **no** está en esta lista, y por dos razones distintas: se
+    aplica por md5 del 3'UTR (`resolve_measured`), así que sobre otra secuencia
+    devuelve `None` y no promueve nada — y desde 2026-08-27 **ya no está en el
+    código**: es `polya_db_mouse.tsv`, un fichero del gestor con su md5 en el
+    manifiesto, así que otra especie es otro fichero y no otro commit.
   - **Y lo que NO está metido, para no tocarlo**: `polya.ALL_SIGNALS` (los diez
     hexámeros), `CLEAVAGE_MIN/MAX` (10-30 nt), `SIGNAL_FLANK` y los umbrales terminales
     son **mamífero**, no murino. Los números 949 / 1242 / 2191 aparecen solo en
@@ -1452,8 +1660,12 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     criterio de representante y versión— son **obligatorios** y su ausencia aborta: sin
     ensamblaje y sin fecha el conteo no es reproducible, que es la misma regla de la
     versión de miRBase y de la biblioteca de Dfam. La ruta de descarga (Table Browser de
-    UCSC, mm39, NCBI RefSeq, «3' UTR Exons») va **en la interfaz** (`UCSC_ROUTE`), no en
-    una conversación.
+    UCSC, **el ensamblaje de la especie que se esté analizando**, NCBI RefSeq, «3' UTR
+    Exons») va **en la interfaz** (`ucsc_route(especie)` sobre `UCSC_ROUTE_TEMPLATE`),
+    no en una conversación. El ensamblaje **se resuelve** contra
+    `species.ucsc_assembly` y no va escrito dentro del texto: con `mm39` dentro, quien
+    cargara conejo leía una instrucción correcta de principio a fin con el ensamblaje
+    del ratón, y **no daba ningún error**.
   - **Validación al recibirlo, y rechaza**: que sea FASTA, que el alfabeto sea de ADN, el
     md5 declarado si lo hay, más número de secuencias y longitud total. Y la **auditoría
     de isoformas** (`IsoformAudit`), que son tres preguntas y no una:
@@ -1727,16 +1939,109 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
       El motivo **viaja al veredicto**: sin el, «se decidio no usarlo» y «no estaba» serian
       el mismo NOT_RUN mudo. Pedir ignorar un fichero que no se iba a usar **aborta** — un
       motivo escrito para una decision que nadie tomo ensucia el informe.
-  - **5. La pantalla va en cuatro pasos numerados**: **1) especie · 2) secuencia ·
-    3) ficheros de referencia · 4) diseñar**. El paso 3 dice **cuantos frentes se van a
-    poder cerrar ANTES de ejecutar nada** —con el raton y lo que hay, 4 de 7; con un
-    conejo, 1 de 7— que es lo que permite decidir si se sigue o se va a buscar un fichero
-    primero. **No bloquea**: un frente abierto deja los candidatos en `INCOMPLETE`, que es
+  - **5. La pantalla va en pasos numerados**, y desde 2026-08-27 son **CINCO**: los
+    ficheros de referencia se partieron en sus **dos momentos** (bloque siguiente).
+    **No bloquea**: un frente abierto deja los candidatos en `INCOMPLETE`, que es
     informacion, no un veto, y el paso 4 lo dice con esas palabras.
   - **El manifiesto se carga cuando se diseña, no al pintar la pantalla.** La presencia de
     un fichero es un listado de directorio y es barato; conectar `mature.fa` son 5,6 MB en
     cada rerun de Streamlit. La pantalla no promete nada que no vaya a cumplir: dice que
     frentes se pueden cerrar, no que ya esten cerrados.
+
+- **LOS FICHEROS DE REFERENCIA SON DOS MOMENTOS, NO UNO. DECIDIDO (2026-08-27)**
+  (`presentation.WHY_TWO_MOMENTS`, `design_files_rows`, `refinement_panel`,
+  `_panel_refinamiento` en la página). El paso 3 pedía **los siete frentes** antes de
+  diseñar, como si todos sirvieran para lo mismo. No sirven, y presentarlos juntos
+  **afirmaba una dependencia que no existe**: *no puedo empezar hasta reunirlo todo*.
+  - **Momento 1 — obtener candidatos** (paso 3). Le hace falta la secuencia y su
+    anatomía, y nada más. **Hoy la lista está VACÍA**, y eso NO se declara: hay un test
+    que **corre el diseño con el directorio de referencia vacío** y comprueba que salen
+    candidatos (287 elegibles con el ratón). El día que algo pase a hacer falta para
+    tilar, el test lo dice y el paso 3 lo enseña solo.
+  - **Momento 2 — refinar y descartar** (paso 5, **después** del botón y **debajo de los
+    resultados**). Estos ficheros no cambian QUÉ candidatos salen: cambian qué veredicto
+    lleva cada uno y **cuáles acaban cayendo**. La frase que abre la sección va en la
+    propia sección y no en un tooltip: «**Los candidatos ya están. Estos ficheros no
+    cambian cuáles son, cambian cuáles sobreviven.**»
+  - **Y esa frase está MEDIDA, no afirmada.** El conjunto de elegibles con cualquier
+    fichero de referencia es un **SUBCONJUNTO** del que sale sin ninguno —**ninguno
+    inventa un candidato**— y lo que quita cada uno está contado: PolyA_DB **17** (que
+    es exactamente `measured_promotion_cost`), `mature.fa` **2**, la máscara murina
+    **0** y el casete **0**. Ese cero de la máscara es un hecho **del 3'UTR del ratón**
+    —su único repetitivo, el `(CTC)n`, está en el CDS— y no una propiedad del fichero:
+    sobre el humano la misma máscara tumba cinco. Está en `tests/test_dos_momentos.py`.
+  - **Cuatro estados, constantes, con leyenda al principio**: `CERRADO` (verde), `FALTA`
+    (ámbar), `OPCIONAL` (gris) y `NO USADO` (gris claro). El color lo pone
+    `presentation.REFINEMENT_STATES`, no la página: un color elegido en la página es una
+    decisión sin test (regla 6).
+    - **`NO USADO` es un estado propio y existe por un fallo real** (errata nº 30):
+      `apa_medido.tsv` salía en el mismo ámbar que `refseq_rna.fa` con
+      `polya_db_mouse.tsv` ya en el depósito. Uno no hace falta y el otro sí. La fila
+      dice **qué fichero** cierra su frente, por su nombre.
+    - **`OPCIONAL` no puede parecerse a `FALTA`**: `expresion_cerebro.tsv` refina una
+      ponderación y **no bloquea nada**, así que va en otro grupo y con otro color.
+  - **El orden es por IMPACTO, no alfabético**: primero lo que cierra un frente, luego lo
+    opcional, y dentro de cada grupo **lo resuelto abajo**. Alfabético pone
+    `aav_casete.fa` delante de `transcriptoma_3utr.fa` sin ninguna razón, y quien entra
+    aquí entra a saber qué le falta. El frente **viaja en la fila** ahora que ya no se
+    agrupa por frente: un fichero sin frente visible es un fichero del que no se sabe
+    para qué sirve.
+  - **Densidad**: lo resuelto se colapsa a **una línea CON SUS BOTONES** —colapsar es no
+    ocupar sitio, no dejar de poder ver, reemplazar, borrar o descargar— y sólo se queda
+    expandido lo que falta.
+  - **Contador en el encabezado**, `N de 7 frentes cerrados`, con barra. Con el ratón y
+    lo que hay son **5 de 7** (eran «4 de 7» y la cifra estaba mal: ver errata nº 30).
+  - **Cada fila que falta dice QUÉ PASA si no llega**, con las palabras de siempre: su
+    frente se queda en `NOT_RUN` y los candidatos en `INCOMPLETE`. Una opcional dice lo
+    contrario —nada se queda sin correr— y una `NO USADO`, que conseguirla no cambiaría
+    ningún veredicto. A un fichero que YA está no se le hace la pregunta: ahí el campo
+    vacío es `NO_APLICA`, no un hueco.
+  - **El depósito sigue siendo alcanzable ANTES de diseñar**, pero como acceso
+    **secundario**: un expander **colapsado** y titulado «no hace falta ninguno para
+    diseñar» (`_deposito_opcional`). El paso 5 sólo aparece después de haber diseñado, y
+    ésa es la decisión; dejar el gestor *sólo* ahí dentro le quitaba la única vía de
+    subir un fichero a quien acaba de abrir la app, y este proyecto tiene decidido que
+    **todo se sube por la interfaz**.
+
+- **EL FRENTE DEL APA LO CIERRAN DOS FICHEROS, Y NINGUNO DE LOS DOS ROLES SOBRA.
+  REVISADO (2026-08-27)** (`apa.APA_ARE_TWO_FILES`). `species.fixture_report` tenía ese
+  frente con **`available=False` escrito a mano**, de cuando la tabla vivía en el código:
+  el contador decía 4 de 7 y eran 5, y `apa_medido.tsv` salía en ámbar con
+  `polya_db_mouse.tsv` ya dentro. Errata nº 30; ahora se **deriva**.
+  - **No son dos formatos del mismo fichero.** `polya_db_<especie>.tsv` es PolyA_DB **en
+    crudo** —coordenadas GENÓMICAS, clase declarada, PSE y AvgRPM—, hay que anclarlo por
+    los cuatro puntos y de él sale la **promoción por medida** y el techo **por tramos**.
+    `apa_medido_<especie>.tsv` son posiciones **YA convertidas** a coordenadas de 3'UTR
+    con su fracción; no ancla nada y no promueve ninguna señal: alimenta
+    `apa_assessment`. Con cualquiera de los dos el frente está cerrado.
+  - **Y el segundo SÍ se va a usar en ratón**: su caso es exactamente el fichero
+    pendiente —**3'-end seq de cerebro murino**—, la medida *en nuestro tejido*, que
+    PolyA_DB no puede dar porque su 0,86 es de **todos** los tejidos y por eso se declara
+    como límite inferior.
+  - **RECTIFICADO por Joaquín Castilla (2026-08-27), y anotado con su nombre a petición
+    suya**: «no era un residuo... son dos preguntas, y el segundo tiene un uso real
+    pendiente». Va con su nombre por la misma razón que la predicción refutada de la
+    carrera de A: si sólo se anotan las rectificaciones ajenas, el registro deja de ser
+    un registro y pasa a ser un argumento.
+  - **LO QUE NO SE CALLA**: hoy los dos producen un techo de knockdown por caminos
+    **independientes** —`apa_assessment` no mira la tabla de PolyA_DB y `resolve_measured`
+    no mira los sitios convertidos— y **nada obliga a que coincidan**. Es el patrón de los
+    dos contadores del mismo suceso, el que ata un test entre `seed_load.seed_load` y
+    `offtarget`. Aquí ese test **no se puede escribir todavía**: el segundo fichero no
+    existe y fabricarlo sería inventarse la medida (regla 5). **El día que llegue el
+    3'-end seq, lo primero es cruzar los dos techos, no enchufarlo.**
+  - **Y LA DIRECCIÓN ESPERADA VA ESCRITA** (`apa.EXPECTED_DIRECTION`, emitida en el
+    informe). **Si discrepan, NO es un fallo a reconciliar: es el dato.** PolyA_DB
+    promedia **todos** los tejidos y las neuronas **alargan** los 3'UTR, así que lo
+    esperable es que el techo de cerebro sea **MAYOR** que 0,86:
+    - **cerebro > PolyA_DB → CONFIRMA el modelo.** El 0,86 se declaró como límite
+      inferior y el dato del tejido lo mejora, que es lo que se anticipó.
+    - **cerebro < PolyA_DB → PARAR.** Contradice la dirección conocida del sesgo: antes
+      de mover ningún veredicto hay que buscar la causa —anclaje, md5 del 3'UTR, o que
+      una de las dos tablas no sea del gen que dice.
+    **Y no se promedian.** Sin la dirección escrita, quien vea un número distinto de 0,86
+    lo tratará como un error y hará la media, que es perder justo la información que la
+    discrepancia lleva dentro. Misma clase de frase que «rebaja, no descarta».
 
 - **LA INTERFAZ SE SIRVE DESDE EL HUB, EN `/shmir`. DECIDIDO (2026-08-26)**
   (`apps/shmir/` en el hub — proceso hijo + proxy inverso). Hasta ahora esta interfaz
@@ -2283,6 +2588,385 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   código no pudo calcular —los pasos 3-8 estaban «pendiente»—. **El repositorio no puede
   decidir cuál de las dos, así que no se decide.**
 
+- **QUÉ DATOS DE UNA ESPECIE SIGUEN EN EL CÓDIGO (2026-08-27)**
+  (`tools/auditar_datos.py`, `data/datos_en_codigo.toml`, dentro de
+  `npm run check:shmir`). Es la generalización de lo que ya pasó tres veces —
+  `rmsk_mouse.out` conectado por rol, `txid10090` por defecto, `mmu-` por defecto—: un
+  dato de UNA especie escrito en el código **funciona callado** y sobre otra produce un
+  resultado con la **forma correcta**. Tres categorías, y la distinción es lo único que
+  hace útil el informe:
+  - **DE LAS CINCO DE «DATO», TRES SE HAN MOVIDO. DECIDIDO (2026-08-27)**, con el
+    criterio dicho en una frase por el responsable y que es lo que ordena la lista:
+    **si cambiaría al cambiar de especie o de gen, es dato y va al gestor; si es una
+    regla sobre cómo tratar el dato, va al código.**
+    - ~~`apa.POLYA_DB_PRNP`~~ → **`data/reference/polya_db_mouse.tsv`**, con su línea en
+      el manifiesto y su md5. Era la más importante: 15 PAS con PSE y AvgRPM, y de ella
+      cuelgan el techo por tramos, la promoción del `AATATA` y el panel de diez. **La
+      constante se quitó ENTERA**, no se dejó «por si acaso»: mientras existieran las
+      dos habría dos definiciones del mismo dato sin nada que las atara — y ya habían
+      empezado a separarse, con las notas de los anclajes diciendo `PSE 21,1 %` en el
+      código y la lectura del racimo en el fichero. Los tests la cargan del fichero
+      (`tests/tabla_medida.py`), que es el camino que corre la app.
+      **No es el rol `apa_medido.tsv`**: ése ya existe y carga OTRO formato —posición,
+      fracción, nombre—, así que se le dio rol propio (`polyadb`) en vez de fundir dos
+      formatos vivos. La ficha de obtención de `apa_medido.tsv` describía PolyA_DB, que
+      es lo que hacía parecer que era el mismo hueco.
+    - ~~`external_score.EVIDENCE`~~ → los pares se **leen** de
+      `mirarchitect_prnp_export_buena.csv` (`read_evidence_pairs`), y salen **todas** las
+      filas: elegir cinco vuelve a ser transcribir. **Lo que salió al cruzarlo tiene
+      entrada propia** — errata nº 27 y principios nº 12 y nº 13 — y se resume abajo,
+      porque es lo más grave de esta tanda.
+    - ~~`reference.REFERENCES`~~ → la **anatomía** entra en el manifiesto: tres columnas
+      nuevas (`cds`, `md5_secuencia`, `md5_utr3`). Registraba los FICHEROS y no la
+      frontera de la que cuelgan los tercios, la región de cada ventana y la distancia
+      de cada señal de polyA al extremo. **Sigue habiendo dos definiciones**, y eso solo
+      es admisible porque algo obliga a que coincidan:
+      `tests/test_anatomia_en_el_manifiesto.py` las cruza **en las dos direcciones**.
+      Queda pendiente el paso siguiente —que `REFERENCES` se **lea** del manifiesto—,
+      que es un cambio de fuente única y no un registro.
+    - **OJO CON LOS TRES CHECKSUMS**, que ahora conviven en la misma fila: `md5` es el
+      del FICHERO en disco, `md5_secuencia` el de la SECUENCIA canónica y `md5_utr3` el
+      del 3'UTR. Copiar uno en el sitio de otro hace que el fichero **bueno** se
+      rechace. Hay test de que los tres son distintos.
+  - **LAS DOS QUE SE QUEDAN, y por qué no es incoherencia**:
+    - `offtarget.CONTROL_NAMES` **se reclasifica como DECLARACIÓN**
+      (`WHY_THE_CONTROLS_STAY_IN_CODE`). Estaba como DATO con el motivo «su elección
+      viene de la biología, no del código»: la frase es cierta y **no es el criterio**.
+      Los tres nombres son el **patrón** de qué significa «muchos sitios», y cambiarlos
+      cambia la lectura de todos los informes a la vez; en un fichero se cambiarían
+      **sin que se viera en el diff**, que es exactamente la razón de `CORE_ABUNDANT`. Y
+      con la misma consecuencia: fuera de cerebro murino la elección no está
+      justificada, y eso se arregla **marcándola**, no sacándola a un fichero. Sus
+      **secuencias** sí son dato y ya salen de `mature.fa`.
+    - `seeds.BOOTSTRAP_SEED_TABLE` **se queda, con FECHA DE CADUCIDAD explícita**
+      (`seeds.bootstrap_expiry_note`). El aviso de siempre salía **igual** con
+      `mature.fa` en el depósito y sin él, así que no distinguía «no lo tenemos» —una
+      limitación que se declara y con la que se convive— de «lo tenemos y no se está
+      usando», que es la tabla equivocada. Ahora el segundo caso sale aparte y dice qué
+      hacer. Se borra cuando el fichero de maduros sea obligatorio para correr.
+  - **PROSA: la tarea pendiente está CERRADA.** `offtarget.UCSC_ROUTE` nombraba `mm39`
+    **dentro del texto**; ahora es `UCSC_ROUTE_TEMPLATE` con marcador y `ucsc_route(especie)`
+    lo resuelve contra `species.ucsc_assembly`. Si la especie no lo tiene declarado, el
+    texto **lo dice y dice dónde se declara**, con la misma redacción que las fichas
+    (`obtencion.undeclared_note`). Era el caso peligroso de siempre: la instrucción se
+    leía correcta de principio a fin y mandaba a bajar el transcriptoma del organismo
+    equivocado, **sin dar ningún error**.
+  - **Y una constante que se muda deja DIRECCIÓN** (`apa.WHERE_THE_MOUSE_TABLE_LIVES`):
+    sin una frase que diga a dónde se fue, el siguiente que busque `POLYA_DB_PRNP` y no
+    la encuentre pensará que el dato se perdió o que nunca estuvo. Mismo criterio que un
+    frente CERRADO que sigue saliendo en el informe.
+  - La tabla la ata un test en las dos direcciones, como `alcanzabilidad.toml`: una
+    constante sospechosa **sin clasificar** hace fallar la suite, y una entrada **muerta**
+    también.
+
+- **LA CONTRAMEDIDA CONTRA EL PEOR FALLO DEL PROYECTO ESTABA APOYADA EN EL DATO QUE ESE
+  MISMO FALLO RETIRÓ (2026-08-27).** Errata nº 27, y es lo más grave que ha salido en
+  esta tanda — no por lo que rompió, sino por lo que podría haber roto sin que nada lo
+  dijera.
+  - `external_score.EVIDENCE` registra la **dirección** de la escala de miRarchitect
+    —si menor es mejor— **con los pares (puesto, score) de los que salió**. Estaban
+    transcritos a mano. Al derivarlos del fichero versionado salió que **no eran de ese
+    fichero**: cuadran, uno a uno, con `mirarchitect_prnp_raton.tsv`, el que el
+    manifiesto marca **«NO USAR»** porque se puntuó sobre el **3'UTR FABRICADO de
+    1246 nt** — la errata nº 5.
+  - **`lower_is_better()` no es una función cualquiera**: existe exactamente para impedir
+    que se ordene por un score de dirección desconocida y **se manden a síntesis los
+    peores candidatos**. Es la contramedida escrita contra el modo de fallo más caro que
+    este proyecto sabe nombrar, y estaba apoyada en el dato que ese fallo retiró.
+  - **La dirección no cambió, y eso es SUERTE, no un atenuante.** Los tres ficheros
+    vienen crecientes. Si la corrida retirada hubiera venido al revés, hoy tendríamos la
+    dirección **invertida**, **cinco pares de aval** al lado, el test de `EVIDENCE` **en
+    verde** —comprueba que la evidencia es monótona consigo misma, y una invertida lo
+    es— y `lower_is_better()` **aprobando**. Sólo habría saltado `file_order_direction`,
+    y sólo al importar un fichero.
+  - **Tres sitios decían de dónde salía el dato y NINGUNO acertaba**: la constante decía
+    «corrida manual sobre el 3'UTR de Prnp murino», `datos_en_codigo.toml` decía
+    `mirarchitect_prnp_export.csv`, y el ancla real era el TSV retirado. Cada uno parecía
+    confirmar a los otros dos: eso es lo que lo hizo invisible durante semanas.
+  - **PRINCIPIO nº 12 — la procedencia de una EVIDENCIA se audita igual que la de un
+    dato.** Un fichero retirado **no se retira solo** de las constantes que lo citan.
+    `tests/test_procedencia_retirada.py` deriva la lista de retirados **del manifiesto**
+    —«NO USAR» o «FIXTURE NEGATIVO»— y barre `shmir_design/` y `tools/` **enteros**, no
+    sólo `EVIDENCE`. Si mañana se retira otro fichero, queda cubierto sin tocar el test.
+    - **Nombrar un retirado se puede; nombrarlo como si fuera una fuente viva, no.** La
+      regla no es una lista de módulos exentos —eso habría dejado ciego justo al módulo
+      que lo motivó— sino: **quien escribe el nombre escribe al lado por qué no se usa**,
+      en el mismo texto. Ya cazó uno: el ejemplo de uso de `tools/audit_scores.py`
+      apuntaba al fichero retirado sin decirlo.
+  - **PRINCIPIO nº 13 — una constante que cita un fichero se DERIVA de él, nunca se
+    transcribe.** Lo que vive en código es **cuál** es el fichero; los valores se leen. Y
+    si no está, se **aborta** — no se devuelve una lista vacía, que es como una evidencia
+    desaparece sin que nadie lo note.
+  - **LOS OTROS DOS FIXTURES RETIRADOS: LIMPIOS, y se dice CÓMO se buscó.** «No hay nada»
+    sin decir con qué se miró es la misma frase que el «Alu 0 %» obtenido sin buscar Alu.
+    - Contra el **3'UTR fabricado** no sirve buscar números —comparte casi todos con las
+      referencias buenas—: se busca **por subcadena de ADN**, y una que esté en él y en
+      ninguna referencia verdadera sólo puede venir de ahí. **Cero.** Con su **control
+      adversario**: el test comprueba además que existe algún tramo exclusivo, porque si
+      no existiera, «cero culpables» y «la búsqueda no distingue nada» darían lo mismo.
+    - Contra el **`.out` de biblioteca equivocada** no hay cifra exclusiva que buscar, y
+      la razón es la propia demostración del proyecto: **es el mismo fichero byte a
+      byte** que el válido. Lo que lo distingue vive en el `.tbl`, y de ahí tampoco hay
+      ninguna cifra en el código. **Cero.**
+
+- **CADA GUARDIA, CON SU MOMENTO. AÑADIDO (2026-08-27)**
+  (`tools/auditar_guardias.py`, `data/guardias.toml`, dentro de `npm run check:shmir`).
+  Sale de la parte del contrafactual de la errata nº 27 que más enseña: de los dos
+  guardias que podían haberlo cazado, `lower_is_better()` habría **aprobado** y
+  `file_order_direction()` sólo salta **al importar un fichero**. **La contramedida
+  existía y estaba en el sitio equivocado del flujo**, y nada la revalidaba después.
+  - **Es el complemento del principio nº 9**, y va como principio nº 14: *existir no es
+    contener, y **haber comprobado una vez no es seguir comprobando**.*
+  - **Cuatro columnas por guardia, y ninguna sobra**: qué protege (el invariante, no la
+    función), **cuándo se ejecuta** (`INGESTA` · `CADA_CORRIDA` · `AL_EMITIR` ·
+    `AL_ABRIR` · `AL_CONSTRUIR`), si lo protegido **puede degradarse** después de la
+    comprobación, y **qué lo revalida** — o `NADA`.
+  - **LA CLASE DE RIESGO ES LA INTERSECCIÓN**: `INGESTA` + puede degradarse + nada lo
+    revalida. Hoy sale **uno**, y es exactamente el de la errata: `file_order_direction`.
+    Mientras nadie lo cablee sigue siendo el siguiente en fallar, y hay un test que lo
+    fija — si alguien lo arregla, el test cambia con él.
+  - **Y UNA SEGUNDA CLASE que salió de RELLENAR la tabla, no de escribirla:
+    `revalida = SUITE`.** Un guardia cuyo supuesto sólo lo comprueba la suite protege el
+    **repositorio** y no protege una **corrida**: en producción el directorio de
+    referencia vive en un volumen que la suite no mira. Hoy sale uno — el ancla de
+    `EVIDENCE`.
+  - **Tres distinciones más, todas de llenar la tabla**:
+    - **Un guardia que no aborta puede ser un INFORME.** `manifest.check_directory`
+      compara el md5 de cada fichero contra el manifiesto y devuelve `NO_COINCIDE` para
+      que el panel lo pinte: ayuda a decidir con la pantalla delante, **no impide nada**.
+      Quien impide es el cargador, en cada corrida. Va en `[solo_informan]`, porque «no
+      aborta» a secas es justo lo que separa un guardia de un aviso.
+    - **A veces RECHAZAR es lo correcto y abortar no** (`como_actua = "RECHAZA"`).
+      `cached_run` retiene un resultado cuya huella ya no cuadra; abortar habría tirado
+      la página al cambiar un ajuste.
+    - **«Mudo» va por ENTRADA, no por símbolo.** Un guardia se implementa con varias
+      piezas y no todas abortan —`resources._refseq` PASA el md5 esperado y quien aborta
+      es `specificity.load_database`—. Exigirlo pieza a pieza daba falsos positivos sobre
+      la fontanería, y **un guardia con falsos positivos se acaba apagando**.
+  - **LO QUE LA TABLA ENCONTRÓ AL LLENARSE, y es el hallazgo de la tanda**:
+    `store.ProjectStore.verify()` —la que recalcula la cadena de md5 del log— estaba
+    escrita, probada y **sin ningún llamador fuera de sus tests**. La cadena **no se
+    comprobaba nunca en la app**. Es el patrón de `store.save_*` y `page_run` por cuarta
+    vez, pero sobre un **guardia**: no es trabajo calculado que no llega a una salida, es
+    una **comprobación que no comprueba**.
+    - **Y es la peor de la serie por una razón que no es de grado** (errata nº 29): las
+      tres anteriores producían **ausencia de información** —un detalle que no salía, un
+      eje que no llegaba a la pantalla, cuatro modales que no guardaban nada—. Ésta
+      producía **CONFIANZA INFUNDADA**. Estaba **toda la disciplina de la cadena de
+      md5** —el eslabón por línea, el aborto con el número de línea, el texto que explica
+      que no impide editar el fichero sino que lo vuelve visible— y existía
+      **nominalmente**: nada era visible, y un log editado se habría leído igual que uno
+      íntegro. De un hueco de información uno se entera al buscar el dato; de una
+      comprobación que no comprueba **no se entera nadie**, porque su producto normal es
+      el silencio, que es justo lo que se ve cuando todo está bien. Y su momento natural saltó en cuanto se
+    preguntó por él — el log se edita **entre sesiones**, así que comprobarlo sólo al
+    escribirlo no protege de nada. **CABLEADO** en `presentation.project_open`, con
+    regresión.
+    - La misma pregunta sacó que la comparación de la **huella de corrida** vivía **en la
+      página** y copiada en los **dos** modales: sin test y pudiendo divergir entre ellos.
+      Ahora decide `presentation.cached_run` (regla 6).
+  - **EL CRUCE CON LA ALCANZABILIDAD SÍ ES UN FALLO. AÑADIDO (2026-08-27)**, y sale de
+    cómo apareció lo de `verify()`. **No lo cazó la alcanzabilidad y no podía**: ese
+    análisis mira funciones de módulo y `verify` es un **método**; la exclusión estaba
+    declarada y justificada con «los tres casos reales son funciones», que era cierto
+    cuando se escribió y que **el cuarto refuta**. Lo cazó tener que rellenar «cuándo se
+    ejecuta».
+    - **Es la misma información y son dos preguntas** (principio nº 15): «nadie la
+      llama» se lee como **pendiente** —una fila más de una lista de trece— y «cuándo
+      protege → nunca» no se puede leer de otra forma. **Sólo una obliga a actuar.**
+    - Así que se cruzan, y **sin excepción posible**: una justificación de alcanzabilidad
+      vale para una función que nadie llama; para un **guardia** que nadie llama, no.
+    - La alcanzabilidad entra ahora en los **métodos declarados como guardias** —pocos,
+      enumerados a mano— y el resto de los métodos siguen fuera por la razón de siempre.
+    - **El criterio del cruce se MIDIÓ, no se supuso**, porque un guardia con falsos
+      positivos se acaba apagando: **no vale una mención en prosa** —con un criterio
+      textual `check_scaffold` salía «vivo» porque tres docstrings hablan de él— pero
+      **sí vale nombrarlo sin llamarlo**, porque `resources._refseq` entra en un
+      diccionario y se despacha por rol. Con el criterio fino salían cuatro y tres eran
+      falsos positivos.
+    - **Al estrenarse dio tres, y DOS eran errores de la tabla**, no del código: un
+      cargador de fixtures de test y una API para otra especie estaban clasificados como
+      guardias de producción. Se corrigió la tabla.
+  - **EL TERCERO ERA REAL: `mirarchitect.Export.check_scaffold` no lo llama nadie.** «El
+    andamio se decide por SECUENCIA, no por etiqueta» es una regla escrita de este
+    proyecto, y **el camino vivo se fía de la etiqueta**: `tools/import_scores.py` recibe
+    un TSV de dos columnas donde no hay loop que comparar, así que lo que decide es el
+    `--andamio` que se teclea.
+    - Se ha hecho lo honesto y no lo cómodo: el veredicto **dice** que se comprobó por
+      etiqueta (`external_score.SCAFFOLD_BY_LABEL`) y el guardia por secuencia queda en
+      **`[sin_camino]`** con **qué haría falta** —que el CLI acepte el export entero—.
+      Aceptarlo es una decisión de interfaz y no se toma de paso.
+    - **`[sin_camino]` es una tercera categoría**: ni fallo ni código muerto, sino una
+      comprobación escrita para una entrada que la app todavía no acepta. Se declara
+      porque la alternativa es peor —leerla en el código y creer que corre— y **caduca**
+      en cuanto alguien la cablea, como las excepciones de alcanzabilidad.
+  - **`revalida = SUITE` ES CATEGORÍA DE PRIMERA, y al preguntarlo en serio son TRES, no
+    uno.** Obliga a rellenar `revalida_en_produccion`: sin eso la categoría es una queja
+    y no una tarea. Los tres se apoyan en el **contenido de un volumen** que sólo cruza
+    un test:
+    - **la tabla de PolyA_DB** — el md5 del fichero cuadra contra el manifiesto de
+      TRABAJO, que se escribe en el mismo volumen y se puede actualizar a la vez. Lo
+      cerraría un md5 fijado en **código**, como ya se hace con la secuencia canónica de
+      las referencias y por la misma razón: la constante no es editable y el manifiesto
+      de trabajo sí;
+    - **la anatomía del manifiesto contra `REFERENCES`** — `parse_manifest` sólo comprueba
+      la FORMA. Lo cerraría que el cargador compare la fila contra `REFERENCES` cuando el
+      accession esté declarado: es barato, ya se lee la fila;
+    - **el ancla de `EVIDENCE`** — lo cerraría que `read_evidence_pairs` mire la línea del
+      ancla en el manifiesto de trabajo y aborte si su origen la marca «NO USAR».
+  - **No falla nunca: es un informe.** Lo que falla es `tests/test_guardias.py` — si una
+    entrada nombra un símbolo que ya no existe, si de un guardia `ABORTA` no aborta
+    ninguna pieza, si algo de la clase **derivada del código** —todo lo que compara una
+    identidad declarada contra lo entregado— se queda fuera sin declararlo, si un guardia
+    **no lo invoca nadie**, si un `SUITE` no dice qué lo cerraría en producción, o si una
+    entrada de `[sin_camino]` ya tiene camino.
+
+- **LA FICHA DE OBTENCIÓN DESCRIBÍA UN FICHERO Y EL CARGADOR LEÍA OTRO (2026-08-27).**
+  Mismo principio nº 13, un piso más arriba, y es lo que hizo creer que la tabla de
+  PolyA_DB ya tenía hueco en el gestor: tenía la **ficha**, no el cargador.
+  - `fraccion_isoforma_larga.toml` describía PolyA_DB de arriba abajo —su URL, sus dos
+    tablas, sus columnas por nombre, el aviso de las coordenadas genómicas— y el **único**
+    fichero que listaba era `apa_medido_{slug}.tsv`, cuyo cargador lee **otro formato**:
+    tres columnas `posicion/fraccion/nombre` con la posición ya convertida. **Lo que el
+    texto mandaba preparar y lo que el cargador sabe leer eran cosas distintas.**
+  - Ahora la ficha nombra **los dos**, con su formato cada uno y con un aviso que dice
+    que son dos y por qué: `polya_db_{slug}.tsv` es la de PolyA_DB —la que producen sus
+    pasos— y `apa_medido_{slug}.tsv` es la simple, **opcional**, para una medida que
+    llega ya convertida (el caso sería un 3'-end seq de cerebro murino).
+  - **Y los nombres los pone el GESTOR, no la ficha** (`{fichero_<rol>}`,
+    `{hermano_<rol>}` resueltos contra `species.required_files`). La ficha escribía
+    `apa_medido_{slug}.tsv` y el gestor pide `apa_medido.tsv` en ratón: la regla de
+    sufijos por especie estaba en dos sitios. Ahora la ficha nombra el **rol** —que es lo
+    estable— y el nombre lo pone quien lo va a cargar.
+  - **`tests/test_ficha_contra_gestor.py` cruza las dos listas por especie**, en las dos
+    direcciones: ningún fichero que el gestor pida puede faltar en su ficha, y ningún
+    nombre de fichero de la ficha puede ser algo que nadie vaya a cargar. Al escribirlo
+    salieron **tres huecos más**: la ficha de especificidad no nombraba la base de RefSeq
+    como fichero, la de off-targets no nombraba `expresion_cerebro`, y la de colisión de
+    seed no nombraba la capa ampliada de abundancia.
+  - **ERAN TRES NIVELES, y cada uno mentía por su cuenta** (errata nº 28): la **ficha**
+    describía un fichero y el rol cargaba otro; el **listado** no nombraba el fichero que
+    la propia ficha describía; y los **nombres** estaban transcritos con otra regla de
+    sufijos que la del gestor. Ninguno daba error — la ficha se lee, el cargador se
+    ejecuta, y nadie los pone uno al lado del otro.
+  - **La lección, y es la que generaliza**: **un dato transcrito en lugar de derivado no
+    se desincroniza en un sitio, se desincroniza en TODOS los que lo copiaron.** Cada
+    copia envejece por su cuenta y en su propia dirección, así que ninguna coincide con
+    las otras y todas parecen plausibles por separado. Es lo mismo que con los pares de
+    `EVIDENCE` —la constante, la tabla de auditoría y el ancla real, tres orígenes y
+    ninguno correcto—, sólo que aquí las tres capas estaban una encima de otra sobre el
+    mismo dato.
+
+- **QUÉ BANDERAS DE LOS CLI SE RECORREN DE PUNTA A PUNTA (2026-08-27)**
+  (`tools/auditar_banderas.py`, `data/banderas.toml`, dentro de `npm run check:shmir`).
+  Sale de la errata nº 31, y cubre el **hueco entre las dos herramientas que ya había**:
+  - **la alcanzabilidad ve símbolos sin llamador; el golden ve la salida POR DEFECTO; y
+    entre los dos vive el código llamado desde caminos que nadie recorre.** Es el
+    principio nº 17. Ninguna de las dos podía cazar el `NameError` de `--rmsk`: había una
+    llamada escrita, y el golden se genera sin máscara.
+  - **Todo se DERIVA**: las banderas, de los `add_argument` de cada CLI; el recorrido, de
+    los tests. Aquí sólo se declara lo que no se puede derivar — **qué consecuencia tiene
+    cada bandera**, que es lo que ordena la lista.
+  - **CUATRO consecuencias, y el orden ES la priorización**: `VEREDICTO` (puede cambiar
+    si un candidato pasa, cae o queda INCOMPLETE — conecta un filtro, mueve un umbral,
+    resuelve la anatomía, o ABORTA cuando un md5 no cuadra), `DATO` (cifras y
+    anotaciones que viajan con el veredicto sin decidirlo), `FORMATO` y `FONTANERIA`.
+    Una `VEREDICTO` sin recorrido es **urgente**; una de `FORMATO`, no. Sin esa
+    distinción, 139 filas planas no las lee nadie — el fallo que esto viene a evitar.
+    - **Un `*-md5` es VEREDICTO y no DATO a propósito**: su trabajo es **abortar** cuando
+      el fichero no es el que dice ser. Si ese camino no se recorre, el fichero
+      equivocado entra en silencio.
+  - **Un test que espera un `2` NO cuenta como recorrido.** Comprobar que una entrada
+    mala se rechaza es útil y **no atraviesa el camino** — ahí vivía la errata nº 31.
+  - **Y LLEVA TRINQUETE**, porque una lista larga se lee como «pendiente» y no obliga a
+    nada (principio nº 15): el número de `VEREDICTO` sin recorrer va **declarado** y la
+    suite falla **en las dos direcciones** —si sube, alguien añadió algo que decide y no
+    lo recorrió; si baja, el techo está caducado—. **Sólo puede ir hacia abajo.** Hoy
+    está en **50**. Cubrirlas todas de golpe no hace falta; lo que hace falta es que
+    bajarlo sea la única forma de cerrar la suite.
+  - **Las exenciones van DECLARADAS con motivo y siguen saliendo**: hoy dos,
+    `reference_data --fetch` y `--efetch-url`, que salen a la RED — recorrerlas exigiría
+    un endpoint verificado y el registro está vacío (regla 4). Una exención que
+    desaparece de la lista deja de poder caducar; hay test de que una exenta que ya se
+    recorre hace fallar la suite.
+  - **Estado de partida: 47 de 139 banderas con recorrido entero**; hoy 47 de 130, tras
+    retirar nueve (bloque siguiente). La primera que se
+    cubrió al estrenarlo fue `--mirbase` —conecta `mature.fa` y con él el FAIL duro del
+    núcleo de abundancia—, que era la `VEREDICTO` más consecuente de las alcanzables hoy:
+    `--apa-medido` espera al 3'-end seq y `--accesibilidad` a ViennaRNA.
+  - **El detector se equivocó EN LAS DOS DIRECCIONES antes de valer.** Resolvía el CLI
+    con una tabla de alias global: daba por recorridas de `design` las banderas de
+    `import_scores` —que también importa su main como `main`— y no veía las de
+    `test_usar_manifiesto.py`, que llama por un ayudante. Se contrastó contra un `grep`
+    en las dos direcciones y ahora el CLI se resuelve **por fichero, de sus propios
+    `import`**, siguiendo **un** nivel de ayudante. Lo que no puede hacer va declarado:
+    no ve banderas que lleguen por variable, y no dice que una bandera esté rota — dice
+    que **nadie la ha recorrido entera**.
+
+- **LAS 50 BANDERAS VEREDICTO, CLASIFICADAS — Y NUEVE RETIRADAS (2026-08-27)**
+  (`destino` en `data/banderas.toml`). El techo de 50 no decía nada accionable, así que
+  se clasificó con el mismo criterio que la alcanzabilidad: **CUBRIR** (se usa de
+  verdad), **CONSTANTE** (reproduce una decisión ya tomada y debe dejar de ser bandera),
+  **BORRAR** (muerta). Salieron **41 / 5 / 4**.
+  - **La sospecha de «superficie de configuración crecida» sale CONFIRMADA en parte, y
+    conviene decir en cuál**: la mayoría (41) son caminos reales, y **12 de ellos no se
+    pueden recorrer hoy** porque el dato no existe (`--refseq`, `--transcriptoma-3utr`,
+    `--apa-medido`…) o falta ViennaRNA. Lo que sí había era **nueve** banderas sin dueño.
+  - **Un flujo real que nadie tenía en cuenta**: el puente de Batchwork
+    (`apps/batchwork/server/operations/shmir-design.js`) pasa **18 banderas en cada
+    corrida desplegada**, cuatro de ellas sin recorrido de punta a punta
+    (`--bootstrap-seeds`, `--cds-b`, `--max-homopolymer`, `--min-spacing`). Al clasificar
+    hay que mirar quién llama, no sólo qué hace la bandera.
+  - **Las nueve retiradas**, y por qué:
+    - `--inmunes` y `--inmunes-antes` — la cuota es la decisión del proyecto y la
+      frontera **se deriva**. Su defecto (0) contradecía la constante (4): errata nº 32.
+    - `--min-por-tercio` — repetía el valor que ya trae `SelectionConfig`.
+    - `--mirbase-especies` — puerta de atrás a un prefijo tecleado, que es justo lo que
+      da CERO colisiones y parece buena noticia. El prefijo sale de `species.resolve()`.
+    - `--polyA-modo` — el criterio es ESCALONADO, decidido con la tabla delante, y el
+      informe ya emite el top-N bajo los tres criterios.
+    - `--seeds` (en `design` y en `tiling_report`) — tabla suelta **sin procedencia**,
+      sustituida por `mature.fa` en el gestor.
+    - `--repeats` — máscara por intervalos pelados, sin especie, sin resumen y sin md5.
+      La sustituyó `--rmsk`, que valida la corrida entera.
+    - `oligo --skip-filters` — saltaba los filtros duros y emitía un oligo **sin
+      veredicto**, que es exactamente lo que este proyecto existe para impedir.
+  - **Bajar eliminando es más barato que cubrir, y una bandera retirada no puede
+    fallar.** El trinquete pasó de **50 a 41** sin escribir un solo test de punta a punta
+    más — y la historia de cómo bajó va en la propia tabla, porque el camino importa
+    tanto como el número.
+
+- **EL INVENTARIO DE ESTADOS DE LA INTERFAZ (2026-08-27)**
+  (`tools/auditar_estados.py`, `data/estados.toml`, dentro de `npm run check:shmir`).
+  El de banderas cubre los CLI; **éste cubre la PÁGINA, que es donde vive lo que el
+  usuario toca**. Y el eje no son los widgets: son las **combinaciones de estado que
+  pintan cosas distintas**.
+  - **Tres ejes, los tres DERIVADOS**: `corrida` (SIN_DISEÑAR · DISEÑADO_SIN_SELECCION ·
+    DISEÑADO_CON_SELECCION), `fichero:<rol>` CON/SIN —uno por rol de
+    `species.required_files`— y `modal:<corrida>` CON_CORRIDA/SIN_CORRIDA —uno por cada
+    `corrida_*` de `store.RECORD_KINDS`—. **29 estados.**
+  - **DOS NIVELES, y la distinción es el punto entero**: `PINTADO` (algún test
+    **renderiza la página** con ese estado) y `CONSTRUIDO` (lo monta en el núcleo y no
+    pinta). Un `CONSTRUIDO` es el principio nº 17 en esta superficie: el estado existe en
+    un test y el camino que lo pinta no lo recorre nadie. **Sólo PINTADO cuenta.**
+  - **ESTADO DE PARTIDA: 10 de 29 pintados.** Y los diez son del panel de ficheros: **ni
+    uno solo de los cuatro modales, ni el estado DISEÑADO, se ha pintado nunca**. Ahí es
+    exactamente donde vive `_modal_blast`.
+  - **Y las causas son DOS, no diecinueve**: `AppTest` no puede rellenar un
+    `file_uploader` —18 estados, los ocho de los modales entre ellos— y la página no
+    acepta un directorio de referencia de prueba —9 estados—. **Abrir cualquiera de las
+    dos desbloquea todas las suyas de golpe**, así que lo que hay que hacer no es
+    escribir tests sueltos: es abrir esas dos vías.
+  - **Los BLOQUEADOS CUENTAN para el trinquete.** Excluirlos lo dejaba en **cero** con
+    diecinueve estados sin pintar — un informe que se lee como «pendiente» y no obliga a
+    nada (principio nº 15). `bloqueado_por` dice **qué lo cerraría**; no exime.
+  - **El detector se equivocó DOS veces antes de valer**, y las dos quedan fijadas con
+    test: comparaba los niveles con `max()` de cadenas —y `max("NADA", "CONSTRUIDO")` es
+    `"NADA"`, así que TODO salía sin tocar—, y reconocía los estados de fichero por el
+    nombre del fichero en el fuente, **que aparece igual en un test que lo pone y en uno
+    que comprueba que falta**. Ahora el estado de un fichero se deriva de su PRESENCIA
+    REAL, que no es un marcador sino el hecho.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
@@ -2294,6 +2978,7 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | lista ampliada de abundancia (con referencia y umbral) | colisión de seed, nivel AVISO | `--abundancia` |
 | 3'UTR del transcriptoma (UCSC Table Browser, mm39, NCBI RefSeq, «3' UTR Exons»; hay que apuntar ensamblaje, fecha de la tabla y criterio de representante) | carga de off-targets por seed — el TERCER modal, `offtarget_seed` | `--transcriptoma-3utr` o el modal |
 | máscara rmsk de ratón | elementos repetitivos | `--rmsk` |
-| 3'-end seq de cerebro murino | fracción de isoforma larga en NUESTRO tejido (hoy hay la de todos los tejidos: 0,86, límite inferior) | `--apa-medido` |
+| 3'-end seq de cerebro murino — **es el caso del rol `apa_medido`** (`apa_medido.tsv`, posiciones ya convertidas a 3'UTR con su fracción) | fracción de isoforma larga en NUESTRO tejido (hoy hay la de todos los tejidos: 0,86, límite inferior). **Al llegar, lo primero es cruzar su techo con el de PolyA_DB**: hoy los dos se calculan por caminos independientes y nada obliga a que coincidan | se sube por el gestor |
+| **`apa_medido_human.tsv`** — PolyA_DB v4 para **PRNP / hg38** | que el humano deje de estar en **MODO ASUMIDO**. La tabla murina se aplica por md5 del 3'UTR, así que sobre el humano devuelve `None` y sus dos `ATTAAA` (`3utr:955` y `3utr:1167`) siguen clasificadas por **canonicidad y sin un solo dato de uso**. Es exactamente donde estaba el ratón antes de mirar PolyA_DB — y allí el modo sin medida resultó ser el **equivocado**. **La entrada existe y quedó pendiente** desde que se miró la murina: es la misma consulta cambiando la especie en el selector | se sube por el gestor |
 | parental SIN INTRÓN (donante y aceptor fuera) | techo de expresión para el empalme; `aav_casete.fa` NO vale, lleva el intrón vacío de 82 nt | — |
 | tabla de expresión | ponderar la carga de seed | `--expresion` |

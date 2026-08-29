@@ -32,6 +32,7 @@ from .accessibility import Accessibility, accessibility_of
 from .anatomy import Anatomy, Region, RegionSource, TileRange
 from .coords import Frame, frame_of, label
 from .apa import ApaAssessment, ApaSites, MeasuredApa, apa_assessment
+from .errors import ShmirDesignError
 from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
 from .masking import RepeatMask, apply_mask, filter_polymorphic, filter_repeats
 from .hard_filters import (
@@ -59,7 +60,7 @@ from .polya import (
 from .mirna import AbundanceList, MatureSet, filter_seed_collision
 from .scaffold import passenger_from_guide
 from .seed_load import SeedLoad, Utr3Set, seed_load
-from .seeds import SeedSet, filter_seed
+from .seeds import SeedSet, bootstrap_expiry_note, filter_seed
 from .specificity import (
     SpecificityDatabase,
     SpecificityResult,
@@ -260,6 +261,15 @@ class TilingReport:
     #: por tramos; `None` significa que no hay medida para esta secuencia y que
     #: `riesgo_APA` sigue siendo una PREDICCION.
     measured_apa: "MeasuredApa | None" = None
+    #: POR QUE no hay medida, cuando no la hay. Son TRES estados y `measured_apa=None`
+    #: no los distingue: no hay fichero / hay fichero y no habla de esta secuencia / se
+    #: excluyo a proposito. Si el informe dijera lo mismo de los tres, nadie sabria si
+    #: hay que subir un fichero o si el que hay es de otro gen.
+    apa_missing_reason: str = ""
+    #: Si la medida se EXCLUYO a proposito, el motivo escrito. Vacio = no se excluyo.
+    #: Va aqui y no en una nota aparte porque tiene que viajar al veredicto: sin el,
+    #: «se decidio no usarla» y «no habia» son el mismo `measured_apa=None`.
+    apa_excluded_reason: str = ""
     polya_mode: PolyAMode = PolyAMode.ESCALONADO
     #: Longitud y md5 CANONICO de la secuencia que se analizo. Sin esto no hay forma de
     #: saber que se analizo: la errata del 3'UTR fabricado se detecto por longitud
@@ -354,6 +364,9 @@ class TilingReport:
                     "mecanica, NO un filtro real. El filtro real necesita mature.fa de "
                     "miRBase completo."
                 )
+                caducada = bootstrap_expiry_note()
+                if caducada is not None:
+                    lines.append(f"                   {caducada}")
 
         sin_correr = self.not_run_counts()
         if sin_correr:
@@ -421,6 +434,17 @@ def _tsv_safe(field: str) -> str:
     return field.replace("\t", " ").replace("\r", " ").replace("\n", " ")
 
 
+#: Centinela de «resuelvela tu». No es `None` a proposito: `None` significaba «no hay
+#: medida» y era indistinguible de «nadie se acordo de pasarla», que es el fallo que esto
+#: cierra. Un centinela que se confunde con un dato legitimo no es un centinela — misma
+#: leccion que el espaciador vacio (errata nº 16).
+#:
+#: Es PUBLICO porque un llamador que quiera decir explicitamente «resuelvela tu» tiene
+#: que poder escribirlo — sin un nombre, la unica forma seria omitir el argumento, y
+#: entonces no hay manera de distinguir «lo decidi» de «no me acorde».
+RESOLVER_MEDIDA = object()
+
+
 def tile_utr(
     sequence: str,
     *,
@@ -445,7 +469,16 @@ def tile_utr(
     #: quitando.
     species: str = "",
     apa_sites: ApaSites | None = None,
-    measured_apa: "MeasuredApa | None" = None,
+    #: LA MEDIDA ENTRA SOLA. Sin pasar nada, `tile_utr` resuelve la tabla de APA medido
+    #: contra la secuencia (por md5 del 3'UTR) y la aplica si habla de ella. Ver
+    #: `apa.WHY_MEASURE_IS_NOT_A_FLAG`: es un VEREDICTO, no una ordenacion, y hacerlo
+    #: depender de que el llamador se acuerde es lo que dejaba a `3utr:221` en el panel.
+    #: `None` ABORTA: era el salto silencioso. Para excluirla, `apa.ApaExcluded(motivo)`.
+    measured_apa: "MeasuredApa | ApaExcluded | None" = RESOLVER_MEDIDA,
+    #: Donde buscar la tabla de PolyA_DB. Sin declarar, los directorios de referencia
+    #: de siempre. Se puede fijar para probar el caso «no hay fichero», que es un estado
+    #: distinto de «la tabla no habla de esta secuencia» y tiene que poder comprobarse.
+    reference_dir=None,
     asymmetry_model: AsymmetryModel | None = turner_asymmetry,
     thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> TilingReport:
@@ -469,6 +502,53 @@ def tile_utr(
             f"{len(original)}; se aborta antes de etiquetar ninguna ventana con "
             f"coordenadas que no son las suyas."
         )
+    from .apa import (  # noqa: PLC0415
+        POLYADB_FILENAME,
+        ApaExcluded,
+        find_polyadb,
+        resolve_measured,
+    )
+
+    motivo_exclusion = ""
+    motivo_sin_medida = ""
+    if measured_apa is None:
+        raise ShmirDesignError(
+            "`measured_apa=None` ya no vale: era el salto SILENCIOSO de la tabla de APA "
+            "medido, y de eso dependen veredictos —con la medida, `3utr:221` es FAIL "
+            "duro por solape estérico; sin ella, sólo lleva una penalización—. No pases "
+            "nada para que entre sola, o pasa `apa.ApaExcluded(reason=…)` con el motivo "
+            "escrito para excluirla a propósito."
+        )
+    if isinstance(measured_apa, ApaExcluded):
+        motivo_exclusion = measured_apa.reason
+        measured_apa = None
+    elif measured_apa is RESOLVER_MEDIDA:
+        # LOS VALORES SALEN DEL FICHERO, no de una constante. La REGLA —que un hexamero
+        # con uso medido se trate como funcional— es la que vive aqui y no lleva
+        # bandera; el DATO entra por el gestor, y en otra especie basta con subir el
+        # suyo. Hasta 2026-08-27 esto leia `apa.POLYA_DB_PRNP`, asi que fuera del raton
+        # no habia forma de meter los numeros sin editar el modulo.
+        tabla = find_polyadb(directory=reference_dir, species=species)
+        if tabla is None:
+            motivo_sin_medida = (
+                f"No hay tabla de PolyA_DB en el directorio de referencia "
+                f"({POLYADB_FILENAME.format(slug=species or '<especie>')}), así que el "
+                f"frente del APA queda NOT_RUN y `riesgo_APA` sigue siendo una "
+                f"PREDICCIÓN. Se sube por el gestor."
+            )
+            measured_apa = None
+        else:
+            # Se coloca sola sobre la secuencia que le corresponde y SOLO sobre esa: la
+            # condicion es el md5 canonico del 3'UTR.
+            measured_apa = resolve_measured(original, tabla, anatomy=anatomy)
+            if measured_apa is None:
+                motivo_sin_medida = (
+                    f"La tabla de {tabla.source} {tabla.version} es de {tabla.gene} y "
+                    f"su md5 de 3'UTR ({tabla.utr3_md5}) no es el de esta secuencia, "
+                    f"así que NO habla de ella y no se promueve nada. No es un fallo: "
+                    f"unas coordenadas ancladas sobre otro 3'UTR anclarían ruido."
+                )
+
     signals = find_polya_signals(original, flank=thresholds.polya_flank)
     if measured_apa is not None:
         # La medida SUSTITUYE a la prediccion: una variante rara con uso medido
@@ -690,6 +770,8 @@ def tile_utr(
         windows=tuple(tiled),
         signals=tuple(signals),
         measured_apa=measured_apa,
+        apa_excluded_reason=motivo_exclusion,
+        apa_missing_reason=motivo_sin_medida,
         anatomy=anatomy,
         specificity_db=specificity_db,
         avisos=annotated.avisos,

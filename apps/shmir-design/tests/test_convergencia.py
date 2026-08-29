@@ -77,8 +77,13 @@ class TestElHallazgoDeSaturacion(unittest.TestCase):
             method_b="miRarchitect (andamio miR-30a)",
         )
 
-    def test_cuatro_coincidencias_EXACTAS(self):
-        self.assertEqual(self.hallazgo.exact, (221, 735, 810, 1018))
+    def test_TRES_coincidencias_EXACTAS(self):
+        # Eran CUATRO cuando `3utr:221` seguía siendo elegible. Con la promoción por
+        # medida aplicada siempre, 221 es FAIL por solape estérico y sale de la piscina,
+        # así que ya no puede coincidir con nada. El hallazgo de SATURACIÓN no cambia —
+        # sigue habiendo cero sitios exclusivos de la fuente externa que superen nuestros
+        # filtros—, y ésa es la conclusión que este test protege.
+        self.assertEqual(self.hallazgo.exact, (735, 810, 1018))
 
     def test_735_es_la_misma_ventana_base_a_base(self):
         self.assertEqual(self.utr3[734:756], self.hallazgo.window_of(735, self.utr3))

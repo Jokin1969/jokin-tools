@@ -37,21 +37,49 @@ from .errors import ShmirDesignError
 from .filters import FilterResult, FilterState, Verdict, overall_verdict
 from .scaffold import Hairpin
 
-NHEI_SITE = "GCTAGC"
-CONTEXT_5 = "GAAGGCTCGAGAAGGTATAT"
-CONTEXT_3 = "CTTCAAGGGGCTAGAATTCG"
-SACI_SITE = "GAGCTC"
 
-MLUI_SITE = "ACGCGT"
-AGEI_SITE = "ACCGGT"
+def _pieza(nombre: str) -> str:
+    """La secuencia de una pieza de `blocks.PIECES`, que es su unico origen."""
+    from .blocks import PIECES  # noqa: PLC0415  (ciclo: `blocks` importa `gblock`)
+
+    return PIECES[nombre].sequence
+
+
+def _span(nombre: str) -> tuple[int, int]:
+    """Las posiciones de esa pieza en el plasmido. ABORTA si la pieza no las declara."""
+    from .blocks import PIECES  # noqa: PLC0415
+
+    pieza = PIECES[nombre]
+    if pieza.span is None:
+        raise ShmirDesignError(
+            f"La pieza {nombre!r} no declara sus posiciones en el plásmido, así que no "
+            f"se puede contrastar con él; se aborta en vez de inventarlas."
+        )
+    return pieza.span
+
+# ORIGEN ÚNICO: estas secuencias VIVEN en `blocks.PIECES`, con su procedencia y sus
+# posiciones en el plásmido. Aquí sólo se les pone nombre. Antes había dos juegos de
+# constantes con llamador cada uno, coincidiendo sin que nada lo obligara: corregir un
+# contexto en un sitio y no en el otro habría hecho que la ficha y los oligos
+# describieran dos módulos distintos, y lo que divergiría es ADN que se manda a
+# sintetizar. Un test comprueba que no ha pasado; esto impide que pase.
+NHEI_SITE = _pieza("NheI")
+CONTEXT_5 = _pieza("contexto5")
+CONTEXT_3 = _pieza("contexto3")
+SACI_SITE = _pieza("SacI")
+
+MLUI_SITE = _pieza("MluI")
+AGEI_SITE = _pieza("AgeI")
 
 GBLOCK_LENGTH = 149
 MAX_HOMOPOLYMER = 3
 HOMOPOLYMER = re.compile(r"(.)\1{" + str(MAX_HOMOPOLYMER) + r",}")
 
 #: Posiciones de los contextos en el plasmido SGEP depositado (1-based, inclusivas).
+#: Tambien DERIVADAS: las lleva la pieza, que es donde vive su procedencia. Tenerlas
+#: aqui a mano era la tercera copia del mismo dato.
 CONTEXT_POSITIONS = MappingProxyType(
-    {"contexto_5": (1739, 1758), "contexto_3": (1856, 1875)}
+    {"contexto_5": _span("contexto5"), "contexto_3": _span("contexto3")}
 )
 
 

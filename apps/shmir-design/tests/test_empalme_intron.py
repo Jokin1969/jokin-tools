@@ -443,14 +443,14 @@ class TestElAvisoNoLlamaCanonicaAUnaVarianteRara(unittest.TestCase):
     """Desde que una variante rara puede ser APA_POSIBLE por medida, «canonica» miente."""
 
     def test_una_variante_rara_promovida_NO_sale_como_canonica(self):
-        from shmir_design.apa import POLYA_DB_PRNP, resolve_measured
+        from shmir_design.apa import resolve_measured
         from shmir_design.reference import REFERENCES, load_3utr, fixture_available
         from shmir_design.tiling import tile_utr
 
         if not fixture_available(REFERENCES["NM_011170.3"]):
             self.skipTest("falta data/reference/NM_011170.3.fa")
         utr3 = load_3utr(REFERENCES["NM_011170.3"])
-        informe = tile_utr(utr3, measured_apa=resolve_measured(utr3, POLYA_DB_PRNP))
+        informe = tile_utr(utr3)
         avisos = [a.message for a in informe.avisos if a.code == "APA_PROXIMAL"]
         rara = next(m for m in avisos if "AATATA" in m)
         self.assertNotIn("AATATA canónica", rara)

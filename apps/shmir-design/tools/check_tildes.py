@@ -409,7 +409,45 @@ def _es_prosa(texto: str) -> bool:
     """
     if "\n" in texto:
         return False
+    if _es_etiqueta_ajena(texto):
+        return False
     return (" " in texto.strip()) if SOLO_PROSA else bool(texto.strip())
+
+
+#: Literales EXACTOS que son etiquetas de un formato ajeno y no prosa nuestra. Es una
+#: lista de CADENAS COMPLETAS, no de palabras sueltas, y ésa es la corrección: la versión
+#: anterior eximía cualquier literal cuyas palabras estuvieran TODAS en un vocabulario
+#: inglés, y `intron` y `primer` existen en los dos idiomas. Con eso, «primer intron»
+#: —prosa castellana, con dos faltas— salía eximido entero. Un guardia que deja pasar
+#: justo lo que tenía que cazar es peor que no tenerlo, porque además tranquiliza.
+#:
+#: Para entrar aquí hace falta que el literal se USE como clave o etiqueta de un fichero
+#: que no es nuestro. `"chimeric intron"` es el `label` con el que se busca la feature en
+#: el GenBank del plásmido: tildarlo lo convierte en una etiqueta que no existe y la
+#: extracción deja de encontrar nada. Misma familia que `--guia` → `--guía` y que
+#: `VERSION` → `VERSIÓN`: ortografía correcta, dato roto.
+#:
+#: Los literales de UNA sola palabra no necesitan estar aquí: `SOLO_PROSA` ya exige un
+#: espacio, así que `"intron"`, `"exon5"` o `"source"` no se tocan de todos modos.
+ETIQUETAS_AJENAS = frozenset({
+    "chimeric intron",
+})
+
+
+def _es_etiqueta_ajena(texto: str) -> bool:
+    """¿Es un literal que se usa como etiqueta de un fichero ajeno?
+
+    Comparación EXACTA contra `ETIQUETAS_AJENAS`. No hay regla que deduzca esto: una
+    etiqueta lo es por DÓNDE SE USA, no por cómo está escrita, y cualquier heurística
+    sobre las palabras vuelve a abrir el agujero de «primer intron».
+
+    Lo único que se normaliza son las COMILLAS y los espacios de los extremos, porque
+    esta función recibe las dos cosas: `corregir()` le pasa el valor de la cadena y el
+    barrido del fichero le pasa el TOKEN, que trae las comillas pegadas. Sin quitarlas,
+    la excepción funcionaba desde una y no desde el otro — la etiqueta del GenBank salía
+    exenta al probarla a mano y acentuada al pasar el guardia sobre el fichero.
+    """
+    return texto.strip().strip("'\"").strip() in ETIQUETAS_AJENAS
 
 
 def _palabras_de(texto: str):

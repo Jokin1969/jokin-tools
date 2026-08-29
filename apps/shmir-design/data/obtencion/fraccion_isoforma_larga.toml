@@ -25,12 +25,20 @@ avisos = [
   "LAS COORDENADAS SON GENOMICAS, no del transcrito. Hay que convertirlas contra la anotación real —el `.gb` del RefSeq, con sus exones— y NUNCA con una resta: una resta es un solo punto de apoyo y SIEMPRE cuadra, así que no demuestra nada. En este proyecto el mapeo se resolvio exigiendo que las CUATRO coordenadas publicadas aterrizaran a la vez con el mismo desfase sobre hexámeros de la clase declarada.",
   "El PAS que pública PolyA_DB es el SITIO DE CORTE, no el hexámero. Lo dice su propia leyenda: «A[A/U]UAAA motif within 40-nt upstream from the PAS» — si el hexámero se busca aguas ARRIBA del PAS, el PAS no puede ser el hexámero.",
   "Si el dato que consigues es de TODOS LOS TEJIDOS y no del tuyo, dilo al subirlo. Las neuronas alargan los 3'UTR, así que una fracción de todos los tejidos es un LÍMITE INFERIOR conservador para cerebro — util, pero no es lo mismo.",
+  "MIENTRAS ESTE FICHERO NO ESTE, esta especie trabaja en MODO ASUMIDO: sus señales de poliadenilación se clasifican por CANONICIDAD y sin un solo dato de uso, y salen etiquetadas «APA_POSIBLE (canónico, asumido)». Eso no es neutral: el modo sin medida trata como NO FUNCIONAL cualquier variante rara, que es la hipótesis MENOS conservadora — y en el ratón resultó ser la FALSA. Al llegar la medida, el AATATA de 3utr:236 subió a APA_POSIBLE, tumbó a un candidato del panel por solape estérico y adelantó la frontera de la inmunidad 52 nt.",
+  "PolyA_DB v4 TIENE ENTRADA para {gen} en {ensamblaje}, y quedó PENDIENTE desde que se miró la del ratón. No es un fichero que haya que ir a buscar a ninguna parte: es la misma consulta de los pasos de arriba, cambiando la especie en el selector.",
+  "SON DOS FICHEROS Y DOS FORMATOS, y esta ficha describe el PRIMERO. Los pasos de arriba producen `polya_db_{slug}.tsv`, la tabla de PolyA_DB con clase, PSE y AvgRPM por PAS. `apa_medido_{slug}.tsv` es OTRA cosa: tres columnas, `posicion<TAB>fraccion<TAB>nombre`, con la posición ya convertida al 3'UTR. Se dice aquí porque hasta 2026-08-27 esta ficha describia PolyA_DB y el ÚNICO fichero que listaba era el segundo — así que lo que el texto mandaba preparar y lo que el cargador leia eran cosas distintas, y eso es lo que hizo creer que era el mismo hueco. No se fundieron en uno: fundir dos formatos vivos habría dejado un cargador adivinando cual le toca.",
 ]
 
 [[ficheros]]
-nombre = "apa_medido_{slug}.tsv"
-por_que = "Una fila por sitio con coordenada, hexámero, PSE y AvgRPM. De ahi sale el techo de knockdown por tramos y la promocion de senales por MEDIDA en vez de por canonicidad."
+nombre = "{fichero_polyadb}"
+por_que = "LA TABLA DE PolyA_DB, y el fichero que producen los pasos de arriba. Una fila por PAS con `pas_id`, `coordenada` GENOMICA, `clase` del hexámero, `pse`, `avgrpm`, `distal` y `nota`, más una cabecera de comentarios con fuente, versión, ensamblaje, gen y el md5 del 3'UTR al que se aplica. De aquí salen la promocion de señales por MEDIDA en vez de por canonicidad y el techo de knockdown POR TRAMOS."
 obligatorio = true
+
+[[ficheros]]
+nombre = "{fichero_apa}"
+por_que = "OTRO FICHERO Y OTRO FORMATO, opcional: la tabla SIMPLE de tres columnas `posicion<TAB>fraccion<TAB>nombre`, con la posición YA CONVERTIDA al marco del 3'UTR y una fracción por sitio. NO es la de PolyA_DB y los pasos de arriba NO la producen: es para una medida que llega ya convertida y sin desglose por PAS — el caso de hoy sería un 3'-end seq de cerebro murino. Entra como tabla ADICIONAL (`--apa-medido`), nunca como interruptor."
+obligatorio = false
 
 [[metadatos]]
 nombre = "versión de PolyA_DB"

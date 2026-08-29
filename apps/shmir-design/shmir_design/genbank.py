@@ -172,6 +172,162 @@ def _features(text: str) -> list[tuple[str, str, dict[str, str]]]:
     return features
 
 
+@dataclass(frozen=True)
+class PlasmidFeature:
+    """Una feature anotada de un plasmido, con el plasmido entero detras.
+
+    El plasmido entero viaja con ella A PROPOSITO: los contextos exonicos se DERIVAN de
+    las coordenadas, no se piden aparte. Pedirlos aparte es abrir una segunda fuente
+    para el mismo dato, y la segunda fuente es la que acaba estando mal.
+    """
+
+    plasmid: str
+    key: str
+    label: str
+    start: int
+    end: int
+    qualifiers: dict[str, str]
+
+    @property
+    def sequence(self) -> str:
+        return self.plasmid[self.start - 1:self.end]
+
+    def context_5(self, nt: int) -> str:
+        """Los `nt` de delante. Aborta si no caben: no se rellena con nada."""
+        if nt > self.start - 1:
+            raise ShmirDesignError(
+                f"Se piden {nt} nt de contexto 5' y la feature empieza en "
+                f"{self.start}: no caben. Se aborta en vez de devolver menos sin "
+                f"decirlo. (El plásmido es circular, pero dar la vuelta cambiaría el "
+                f"contexto por uno de otra parte del vector sin avisar.)"
+            )
+        return self.plasmid[self.start - 1 - nt:self.start - 1]
+
+    def context_3(self, nt: int) -> str:
+        """Los `nt` de detras. Aborta si no caben."""
+        if self.end + nt > len(self.plasmid):
+            raise ShmirDesignError(
+                f"Se piden {nt} nt de contexto 3' y la feature acaba en {self.end} de "
+                f"{len(self.plasmid)}: no caben. Se aborta en vez de devolver menos."
+            )
+        return self.plasmid[self.end:self.end + nt]
+
+    def describe(self) -> list[str]:
+        return [
+            f"{self.key} «{self.label}» — plásmido {self.start}-{self.end} "
+            f"({len(self.sequence)} pb de {len(self.plasmid)})",
+            f"  md5 del fragmento: {sequence_md5(self.sequence)}",
+        ]
+
+
+def sequence_md5(sequence: str) -> str:
+    """md5 de una secuencia ya normalizada. Es el ancla de todas las comprobaciones."""
+    return hashlib.md5(sequence.encode("utf-8"), usedforsecurity=False).hexdigest()
+
+
+def parse_plasmid_feature(
+    text: str, *, key: str, label: str | None = None, source: str = "GenBank",
+    expected_md5: str | None = None,
+) -> PlasmidFeature:
+    """Saca UNA feature anotada de un registro GenBank de plasmido. Aborta si hay duda.
+
+    Es la puerta de entrada para un PLASMIDO, distinta de `parse_genbank_cds`, que es
+    para un TRANSCRITO y exige un unico CDS: un plasmido lleva AmpR, el transgen y lo
+    que haga falta, asi que por alli no entra — y hace bien en no entrar.
+
+    Nada se teclea: la secuencia sale de las coordenadas de la anotacion. `expected_md5`
+    es la contramedida de la errata nº 5 — una feature mal anotada por un nucleotido
+    corre todas las coordenadas y no da ningun error.
+    """
+    features = _features(text)
+    if not features:
+        raise ShmirDesignError(
+            f"{source}: el registro no tiene bloque FEATURES, así que no hay ninguna "
+            f"anotación de la que extraer nada; se aborta en vez de buscar por secuencia."
+        )
+    candidatas = [f for f in features if f[0] == key]
+    if label is not None:
+        candidatas = [f for f in candidatas if f[2].get("label", "") == label]
+    if not candidatas:
+        etiquetas = sorted(
+            {f"{k} «{q.get('label', '')}»" for k, _, q in features if k == key}
+        )
+        raise ShmirDesignError(
+            f"{source}: no hay ninguna feature {key!r}"
+            + (f" con label {label!r}" if label else "")
+            + f". Las de esa clave: {', '.join(etiquetas) or 'ninguna'}. Se aborta en "
+            f"vez de coger otra."
+        )
+    if len(candidatas) > 1:
+        donde = ", ".join(f[1] for f in candidatas)
+        raise ShmirDesignError(
+            f"{source}: hay {len(candidatas)} features {key!r}"
+            + (f" con label {label!r}" if label else "")
+            + f" ({donde}). Elegir una por nuestra cuenta sería inventarse cuál; se "
+            f"aborta y se pide la que vale."
+        )
+
+    clave, localizacion, cualificadores = candidatas[0]
+    inicio, fin = _parse_location(localizacion, source=source)
+
+    origen = text.split("ORIGIN", 1)
+    if len(origen) < 2:
+        raise ShmirDesignError(
+            f"{source}: el registro no tiene bloque ORIGIN, así que trae anotaciones y "
+            f"no trae secuencia; se aborta en vez de devolver coordenadas sobre nada."
+        )
+    plasmido = "".join(
+        re.findall(r"[acgtnACGTN]", origen[1].split("//", 1)[0])
+    ).upper()
+
+    locus = next(
+        (m for m in (_LOCUS.match(l) for l in text.splitlines()) if m), None
+    )
+    if locus is not None and int(locus["length"]) != len(plasmido):
+        raise ShmirDesignError(
+            f"{source}: la línea LOCUS dice {locus['length']} bp y el bloque ORIGIN "
+            f"trae {len(plasmido)}. Se aborta: una de las dos está mal y no se sabe "
+            f"cuál."
+        )
+    if fin > len(plasmido):
+        raise ShmirDesignError(
+            f"{source}: la feature {key!r} va de {inicio} a {fin} y el plásmido mide "
+            f"{len(plasmido)}. Se aborta en vez de recortar."
+        )
+
+    feature = PlasmidFeature(
+        plasmid=plasmido, key=clave,
+        label=cualificadores.get("label", ""),
+        start=inicio, end=fin, qualifiers=dict(cualificadores),
+    )
+    if expected_md5 is not None:
+        md5 = sequence_md5(feature.sequence)
+        if md5 != expected_md5:
+            raise ShmirDesignError(
+                f"{source}: la feature {key!r} «{feature.label}» en {inicio}-{fin} "
+                f"({len(feature.sequence)} pb) tiene md5 {md5} y se esperaba "
+                f"{expected_md5}. NO es lo que dice ser; se aborta antes de usarla."
+            )
+    return feature
+
+
+def load_plasmid_feature(
+    path: Path | str, *, key: str, label: str | None = None,
+    expected_md5: str | None = None,
+) -> PlasmidFeature:
+    """`parse_plasmid_feature` sobre un fichero."""
+    ruta = Path(path)
+    try:
+        texto = ruta.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ShmirDesignError(
+            f"No se pudo leer {ruta} ({exc}); la feature {key!r} queda sin extraer."
+        ) from exc
+    return parse_plasmid_feature(
+        texto, key=key, label=label, source=str(ruta), expected_md5=expected_md5
+    )
+
+
 def parse_genbank_cds(text: str, *, source: str = "GenBank") -> GenBankCds:
     """Saca el CDS de un registro GenBank. Aborta ante cualquier ambiguedad."""
     if not text.strip():

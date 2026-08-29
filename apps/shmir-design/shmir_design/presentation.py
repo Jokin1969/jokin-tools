@@ -122,25 +122,14 @@ def status_light(selection: ReportSelection) -> StatusLight:
     # mismo fallo que tuvo la interfaz con sus tres parámetros.
     #
     # Y NO se esconden: salen aparte, con su nombre, en `undecided`.
-    from .filters import UNDECIDED_FILTERS
-
-    sin_decidir = sorted(
-        {
-            r.name
-            for choice in selection.selection.chosen
-            for r in selection.window_of(choice).filters
-            if r.name in UNDECIDED_FILTERS
-        }
-    )
-    nota_sin_decidir = (
-        f" Y {len(sin_decidir)} filtro(s) con el CRITERIO SIN DECIDIR "
-        f"({', '.join(sin_decidir)}): calculan y no emiten veredicto, así que no "
-        f"excluyen a nadie ni bloquean la aprobacion. Se decide por escrito, no se "
-        f"consigue un fichero."
-        if sin_decidir
-        else ""
-    )
-    conteos = {**conteos, "undecided": tuple(sin_decidir)}
+    #
+    # HOY NO HAY NINGUNO. El estado existió para G4 y se retiró con él (ver `filters.py`
+    # y `docs/procedencia-g4.md`). El campo `undecided` se queda —vacío— porque es parte
+    # del contrato de `StatusLight` y quien lo lee tiene que poder seguir leyéndolo; lo
+    # que se fue es el conjunto que lo llenaba.
+    sin_decidir: list[str] = []
+    nota_sin_decidir = ""
+    conteos = {**conteos, "undecided": ()}
     total = (
         len(selection.window_of(selection.selection.chosen[0]).filters)
         if selection.selection.chosen
@@ -164,7 +153,7 @@ def status_light(selection: ReportSelection) -> StatusLight:
             r.name
             for choice in selection.selection.chosen
             for r in selection.window_of(choice).filters
-            if r.state is FilterState.NOT_RUN and r.name not in UNDECIDED_FILTERS
+            if r.state is FilterState.NOT_RUN
         }
     )
     if not pendientes:
@@ -1163,10 +1152,16 @@ def offtarget_placeholder(catalog):
     }
 
 
-def offtarget_route_text() -> str:
-    from .offtarget import UCSC_ROUTE
+def offtarget_route_text(species) -> str:
+    """La ruta de descarga de UCSC para ESTA especie. La especie es obligatoria.
 
-    return UCSC_ROUTE
+    Sin ella el texto salia con `mm39` escrito dentro, o sea con el ensamblaje del
+    raton para cualquiera que abriera el modal — una instruccion correcta de principio
+    a fin y del organismo equivocado.
+    """
+    from .offtarget import ucsc_route
+
+    return ucsc_route(species)
 
 
 def offtarget_provenance_from_form(form: dict, *, md5: str):
@@ -1825,6 +1820,90 @@ def species_choice_note(choice: str) -> dict[str, object]:
 # ─────────────── el panel de ficheros de referencia de la barra lateral ───────────────
 
 
+# ── El gestor de ficheros de referencia ──────────────────────────────────────────
+#
+# La pagina no importa `gestor.py`: pasa por aqui. Si lo importara acabaria decidiendo
+# que botones pinta y que invalida que, y eso es la regla 6.
+
+
+def reference_manager_rows(species: str, *, directory) -> list[dict]:
+    """Las filas del gestor, con la marca y el resumen YA montados."""
+    from .gestor import manager_rows  # noqa: PLC0415
+
+    filas = []
+    for fila in manager_rows(species, directory=directory):
+        presente = fila["estado"] == "presente"
+        marca = "✅" if presente else ("⬜" if fila["obligatorio"] else "▫️")
+        if presente:
+            trozos = [f"{fila['bytes']} bytes", f"md5 {fila['md5'][:8]}"]
+            if fila["fecha"]:
+                trozos.append(fila["fecha"])
+            if fila["origen"]:
+                trozos.append(fila["origen"])
+            resumen = " · ".join(trozos)
+        else:
+            resumen = (
+                f"FALTA{'' if fila['obligatorio'] else ' (opcional)'} — "
+                f"{fila['que_desbloquea']}"
+            )
+        filas.append({**fila, "especie": species, "marca": marca, "resumen": resumen})
+    return filas
+
+
+def reference_preview(name: str, *, directory, lines: int = 10) -> dict:
+    """La vista de las primeras lineas, con su cabecera ya escrita."""
+    from .gestor import preview  # noqa: PLC0415
+
+    vista = preview(name, directory=directory, lines=lines)
+    if not vista.is_text:
+        cabecera = f"{name}: binario"
+    elif vista.truncated:
+        cabecera = (
+            f"{name}: primeras {vista.shown} de {vista.total_lines} líneas"
+        )
+    else:
+        cabecera = f"{name}: {vista.total_lines} línea(s), entero"
+    return {"cabecera": cabecera, "texto": vista.text, "es_texto": vista.is_text}
+
+
+def reference_download(name: str, *, directory) -> bytes:
+    """Los bytes tal como se subieron. Ver `gestor.WHY_DOWNLOAD`."""
+    from .gestor import download  # noqa: PLC0415
+
+    return download(name, directory=directory)
+
+
+def reference_replace_plan(name: str, *, directory, payload: bytes, species=None) -> dict:
+    """Que cambia y que deja de valer, ANTES de confirmar."""
+    from .gestor import plan_replace  # noqa: PLC0415
+
+    plan = plan_replace(
+        name, directory=directory, payload=payload, species=species
+    )
+    return {
+        "texto": plan.describe(),
+        "invalida": list(plan.invalidates),
+        "mismo": plan.same_file,
+        "md5_viejo": plan.old_md5,
+        "md5_nuevo": plan.new_md5,
+    }
+
+
+def reference_delete_plan(name: str, *, directory, species=None) -> dict:
+    """Que frente vuelve a NOT_RUN. NO borra."""
+    from .gestor import plan_delete  # noqa: PLC0415
+
+    plan = plan_delete(name, directory=directory, species=species)
+    return {"texto": plan.describe(), "frentes": list(plan.fronts)}
+
+
+def reference_delete(name: str, *, directory) -> str:
+    """Borra y devuelve el texto de lo que se fue, con su md5."""
+    from .gestor import delete  # noqa: PLC0415
+
+    return f"Borrado {name} (md5 {delete(name, directory=directory)})."
+
+
 def reference_panel_rows(species: str, *, directory) -> list[dict[str, object]]:
     """Una fila por FICHERO que esta especie necesita: cual es, si esta, y su ficha.
 
@@ -1835,10 +1914,11 @@ def reference_panel_rows(species: str, *, directory) -> list[dict[str, object]]:
 
     from .species import required_files, resolve
 
+    from .presencia import ficheros_con_contenido
+
     ruta = Path(directory)
-    presentes = (
-        {p.name for p in ruta.iterdir() if p.is_file()} if ruta.is_dir() else set()
-    )
+    # No `is_file()`: un fichero de 0 bytes existe y no tiene nada dentro. Errata nº 15.
+    presentes = ficheros_con_contenido(ruta)
     especie = resolve(species)
 
     filas: list[dict[str, object]] = []
@@ -1892,10 +1972,10 @@ def reference_panel_summary(species: str, *, directory) -> dict[str, object]:
 
     from .species import fixture_report, resolve
 
+    from .presencia import ficheros_con_contenido
+
     ruta = Path(directory)
-    presentes = (
-        tuple(p.name for p in ruta.iterdir() if p.is_file()) if ruta.is_dir() else ()
-    )
+    presentes = tuple(sorted(ficheros_con_contenido(ruta)))
     informe = fixture_report(resolve(species), have=presentes)
     faltan = [f for f in informe.rows if not f.available]
     return {
@@ -1936,19 +2016,305 @@ def accept_reference_upload(
     }
 
 
+# ═════════════════ LOS FICHEROS DE REFERENCIA SON DOS MOMENTOS ═════════════════
+#
+# El paso 3 pedia los siete frentes a la vez, antes de diseñar, como si todos sirvieran
+# para lo mismo. No sirven para lo mismo, y presentarlos juntos hace creer que sin ellos
+# no se puede empezar — que es FALSO: se puede diseñar hoy y refinar mañana.
+#
+#   - MOMENTO 1, obtener candidatos. Le hace falta la secuencia y su anatomia, y nada
+#     mas. Los filtros biofisicos y la prediccion de polyA corren sin ningun fichero
+#     externo. HOY LA LISTA ESTA VACIA, y eso no se declara: `tests/test_dos_momentos.py`
+#     corre el diseño con el directorio de referencia VACIO y comprueba que salen
+#     candidatos. El dia que algo pase a hacer falta para tilar, el test lo dice.
+#   - MOMENTO 2, refinar y descartar. `mature.fa`, `transcriptoma_3utr.fa`,
+#     `refseq_rna.fa`, la tabla de PolyA_DB… Estos no cambian QUE candidatos salen:
+#     cambian que veredicto lleva cada uno y CUALES ACABAN CAYENDO.
+#
+# La frase del momento 2 tambien esta MEDIDA, no afirmada: el conjunto de elegibles con
+# cualquier fichero de referencia es un SUBCONJUNTO del que sale sin ninguno —ninguno
+# inventa un candidato— y lo que quita cada uno esta contado (PolyA_DB 17, `mature.fa`
+# 2, la mascara murina 0 porque el 3'UTR del raton no tiene ni un repetitivo). Una prosa
+# sobre la que el codigo puede discrepar es la que se queda atras, y es la que alguien
+# va a leer: principio nº 11.
+
+WHY_TWO_MOMENTS = (
+    "Son dos momentos y no uno. Para OBTENER candidatos hace falta la secuencia y su "
+    "anatomía, y nada más. Los ficheros de refinamiento no cambian qué candidatos "
+    "salen: cambian qué veredicto lleva cada uno y cuáles acaban cayendo. Pedirlos "
+    "todos antes de diseñar hace creer que sin ellos no se puede empezar."
+)
+
+#: La frase que abre el paso 5. Va EN LA SECCION y no en un tooltip: lo que hay que
+#: entender para leer bien la lista no puede estar detrás de un gesto.
+REFINEMENT_FRAMING = (
+    "Los candidatos ya están. Estos ficheros no cambian cuáles son, cambian cuáles "
+    "sobreviven."
+)
+
+#: Lo que le pasa a un frente que no se cierra. Va POR FILA y con estas palabras: es la
+#: cuarta pregunta del criterio de aceptacion —«¿que pasa si no lo consigo?»— y su
+#: respuesta no es «nada».
+WHAT_IF_IT_NEVER_ARRIVES = (
+    "Su frente se queda en NOT_RUN y los candidatos, en INCOMPLETE. No bloquea el "
+    "diseño: bloquea aprobarlo."
+)
+WHAT_IF_OPTIONAL_NEVER_ARRIVES = (
+    "Nada se queda sin correr. El filtro corre igual y sin este fichero da un número "
+    "menos afinado, no un hueco."
+)
+WHAT_IF_UNUSED_NEVER_ARRIVES = (
+    "Nada. Su frente ya está cerrado por otro fichero, así que conseguirlo no cambiaría "
+    "ningún veredicto."
+)
+
+#: LOS CUATRO ESTADOS, CONSTANTES. Siempre los mismos cuatro, siempre el mismo color, y
+#: la leyenda al principio de la seccion. La pagina no elige ninguno: si eligiera un
+#: color segun un umbral, eso seria logica en la pagina (regla 6).
+#:
+#: «NO USADO» existe porque el panel pedia `apa_medido.tsv` en ambar con
+#: `polya_db_mouse.tsv` ya en el deposito: dos ficheros que cierran el MISMO frente, y
+#: el que sobra se leia como trabajo pendiente. Una alternativa que no hace falta y una
+#: cosa que falta de verdad no pueden tener el mismo color.
+REFINEMENT_STATES = (
+    {
+        "estado": "CERRADO",
+        "color": "verde",
+        "marca": "🟢",
+        "significa": "está en el depósito y se está usando. Su frente puede correr.",
+    },
+    {
+        "estado": "FALTA",
+        "color": "ámbar",
+        "marca": "🟠",
+        "significa": (
+            "no está, y su frente no se puede cerrar sin él: NOT_RUN, y los candidatos "
+            "INCOMPLETE."
+        ),
+    },
+    {
+        "estado": "OPCIONAL",
+        "color": "gris",
+        "marca": "⚪",
+        "significa": (
+            "no está, y no bloquea nada: refina un filtro que corre igual sin él."
+        ),
+    },
+    {
+        "estado": "NO USADO",
+        "color": "gris claro",
+        "marca": "⚫",
+        "significa": (
+            "no está y NO hace falta: otro fichero ya cierra su frente. No es trabajo "
+            "pendiente."
+        ),
+    },
+)
+
+_COLOR = {e["estado"]: (e["color"], e["marca"]) for e in REFINEMENT_STATES}
+
+
+def design_files_rows(species: str, *, directory) -> dict[str, object]:
+    """MOMENTO 1: los ficheros imprescindibles para OBTENER candidatos.
+
+    Hoy la lista sale vacía, y no porque esté escrito: se deriva de `required_files`
+    filtrando los que hacen falta ANTES de tilar, que hoy no es ninguno — la anatomía
+    sale del `.gb` del paso 2. Hay un test que corre el diseño con el directorio vacío
+    y comprueba que salen candidatos, así que el día que algo pase a hacer falta aquí,
+    la suite lo dice en vez de que este texto envejezca solo.
+    """
+    filas = [
+        fila
+        for fila in _refinement_rows(species, directory=directory)
+        if fila["momento"] == 1
+    ]
+    if filas:
+        texto = (
+            f"Hacen falta {len(filas)} fichero(s) antes de poder obtener candidatos: "
+            + ", ".join(f["nombre"] for f in filas)
+            + "."
+        )
+    else:
+        texto = (
+            "Ninguno. La anatomía sale del `.gb` del paso 2, y los filtros biofísicos "
+            "—GC, homopolímero, G4 y asimetría— no necesitan ningún fichero. Se puede "
+            "diseñar ya: lo que hace falta para REFINAR se pide después, en el paso 5."
+        )
+    return {"filas": filas, "hacen_falta": len(filas), "texto": texto}
+
+
+def refinement_panel(species: str, *, directory) -> dict[str, object]:
+    """MOMENTO 2: los ficheros que deciden qué candidatos CAEN.
+
+    Se pinta DESPUES del botón de diseñar y debajo de los resultados. Trae la frase de
+    encuadre, el contador de frentes con su fracción para la barra, la leyenda de los
+    cuatro estados y las filas YA ordenadas por impacto.
+    """
+    resumen = reference_panel_summary(species, directory=directory)
+    cerrados, total = resumen["cerrables"], resumen["total"]
+    filas = [
+        fila
+        for fila in _refinement_rows(species, directory=directory)
+        if fila["momento"] == 2
+    ]
+    return {
+        "frase": REFINEMENT_FRAMING,
+        "progreso": {
+            "cerrados": cerrados,
+            "total": total,
+            "fraccion": cerrados / total if total else 0.0,
+            "texto": f"{cerrados} de {total} frentes cerrados",
+        },
+        "leyenda": list(REFINEMENT_STATES),
+        "filas": filas,
+    }
+
+
+def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
+    """Una fila por fichero, con su estado, su grupo y si va colapsada.
+
+    EL ORDEN ES POR IMPACTO, no alfabético: primero lo que cierra un frente, luego lo
+    opcional, y dentro de cada grupo lo resuelto ABAJO. Alfabético pone `aav_casete.fa`
+    delante de `transcriptoma_3utr.fa` sin ninguna razón, y quien entra a este panel
+    entra a saber qué le falta.
+    """
+    from .species import fixture_report, resolve  # noqa: PLC0415
+
+    especie = resolve(species)
+    informe = fixture_report(especie, have=_presentes(directory))
+    # Que frentes estan cerrados y CON QUE fichero. De aqui sale «NO USADO»: una fila
+    # cuyo frente ya cierra OTRO fichero que si esta no es trabajo pendiente.
+    cerrado_por: dict[str, list[str]] = {}
+    presentes = set(_presentes(directory))
+    for frente in informe.rows:
+        if frente.available:
+            for clave in frente.keys:
+                cerrado_por[clave] = [f for f in frente.files if f in presentes]
+
+    filas = []
+    for fila in reference_manager_rows(species, directory=directory):
+        estado = _estado_de(fila, cerrado_por, presentes)
+        color, marca = _COLOR[estado]
+        opcional = not fila["obligatorio"]
+        bloquea = estado == "FALTA"
+        filas.append(
+            {
+                **fila,
+                # Hoy ninguno es del momento 1. Se deja DERIVADO y no escrito a cero:
+                # un fichero que pasara a hacer falta para tilar tiene que poder subir
+                # al paso 3 cambiando `required_files`, no editando dos sitios.
+                "momento": 1 if fila["role"] in _ROLES_PARA_DISEÑAR else 2,
+                "estado": estado,
+                "color": color,
+                "marca": marca,
+                "bloquea": bloquea,
+                "grupo": 1 if opcional else 0,
+                "resuelta": 0 if estado in {"FALTA", "OPCIONAL"} else 1,
+                "colapsada": estado in {"CERRADO", "NO USADO"},
+                # Que frentes cierra, EN LA FILA. El panel ya no agrupa por frente
+                # —el orden es por impacto—, asi que si el frente no viaja en la fila
+                # deja de verse: un fichero sin frente visible es un fichero que no se
+                # sabe para que sirve.
+                "frentes_texto": ", ".join(fila["frentes"]) or "—",
+                "por_que": _por_que(fila, estado, cerrado_por),
+                "si_no_llega": (
+                    WHAT_IF_IT_NEVER_ARRIVES if bloquea
+                    else WHAT_IF_OPTIONAL_NEVER_ARRIVES if estado == "OPCIONAL"
+                    else WHAT_IF_UNUSED_NEVER_ARRIVES if estado == "NO USADO"
+                    # Un fichero que YA esta no tiene «si no llega»: la pregunta no se
+                    # le hace. Vacio aqui es NO_APLICA, no un hueco.
+                    else ""
+                ),
+            }
+        )
+    return sorted(filas, key=lambda f: (f["grupo"], f["resuelta"], f["nombre"]))
+
+
+#: Los roles cuyo fichero hace falta ANTES de tilar. Vacio, y comprobado corriendo el
+#: diseño sin ninguno (`tests/test_dos_momentos.py`). No es una lista que se rellene a
+#: ojo: si algo entra aqui, el test del directorio vacio tiene que dejar de pasar.
+_ROLES_PARA_DISEÑAR: frozenset[str] = frozenset()
+
+
+def _presentes(directory):
+    from pathlib import Path  # noqa: PLC0415
+
+    from .presencia import ficheros_con_contenido  # noqa: PLC0415
+
+    return tuple(sorted(ficheros_con_contenido(Path(directory))))
+
+
+def _estado_de(fila, cerrado_por, presentes) -> str:
+    """Los cuatro estados, derivados de dos hechos: si está, y si su frente ya cierra.
+
+    El orden de las ramas importa: una alternativa no usada tiene que decidirse ANTES de
+    caer en «FALTA», que es justo lo que pasaba con `apa_medido.tsv`.
+    """
+    if fila["estado"] == "presente":
+        return "CERRADO"
+    if not fila["obligatorio"]:
+        return "OPCIONAL"
+    otros = [
+        f
+        for clave in fila["frentes"]
+        for f in cerrado_por.get(clave, ())
+        if f != fila["nombre"]
+    ]
+    # TODOS sus frentes cerrados por otro, no alguno: un fichero que cierra dos frentes
+    # y solo tiene uno cubierto sigue haciendo falta.
+    if fila["frentes"] and all(cerrado_por.get(c) for c in fila["frentes"]) and otros:
+        return "NO USADO"
+    return "FALTA"
+
+
+def _por_que(fila, estado: str, cerrado_por) -> str:
+    """Por que esta fila esta en ese estado, con el nombre del fichero que lo decide."""
+    if estado == "CERRADO":
+        return f"Está en el depósito. Desbloquea: {fila['que_desbloquea']}."
+    if estado == "OPCIONAL":
+        return (
+            f"No bloquea nada: {fila['que_desbloquea']}. El filtro corre sin él y con "
+            f"él afina."
+        )
+    if estado == "NO USADO":
+        otros = sorted(
+            {
+                f
+                for clave in fila["frentes"]
+                for f in cerrado_por.get(clave, ())
+                if f != fila["nombre"]
+            }
+        )
+        return (
+            f"Su frente ya está cerrado por {', '.join(otros)}. Es una ALTERNATIVA que "
+            f"no hace falta conseguir, no algo pendiente."
+        )
+    return f"Falta, y sin él no se puede cerrar: {fila['que_desbloquea']}."
+
+
 # ───────────────────────── la primera pantalla, en cuatro pasos ─────────────────────────
 
 
-def steps_rows(*, species: str, sequence_loaded: bool, directory) -> list[dict[str, object]]:
-    """Los cuatro pasos, en orden, con lo que falta en cada uno.
+def steps_rows(
+    *, species: str, sequence_loaded: bool, directory, designed: bool = False
+) -> list[dict[str, object]]:
+    """Los CINCO pasos, en orden, con lo que falta en cada uno.
 
-    El paso 3 dice cuantos frentes se van a poder cerrar ANTES de ejecutar nada: es lo
-    que permite decidir si se sigue o se va a buscar un fichero primero. Y NO bloquea —
-    un frente abierto deja los candidatos en INCOMPLETE, que es informacion, no un veto.
+    Son cinco desde que los ficheros de referencia se partieron en sus DOS MOMENTOS (ver
+    `WHY_TWO_MOMENTS`): el paso 3 pide solo lo imprescindible para OBTENER candidatos
+    —hoy, nada— y el paso 5 los que deciden cuales caen. El 5 va DESPUES del boton y
+    solo se ve con `designed=True`: antes de diseñar no hay candidatos que refinar, y
+    enseñarlo arriba es lo que hacia creer que habia que reunirlo todo para empezar.
+
+    Ninguno de los dos BLOQUEA — un frente abierto deja los candidatos en INCOMPLETE,
+    que es informacion, no un veto.
     """
     elegida = bool(str(species).strip()) and str(species).strip() != OTHER_SPECIES
     resumen = (
         reference_panel_summary(species, directory=directory) if elegida else None
+    )
+    diseñar = (
+        design_files_rows(species, directory=directory) if elegida else None
     )
     return [
         {
@@ -1956,6 +2322,7 @@ def steps_rows(*, species: str, sequence_loaded: bool, directory) -> list[dict[s
             "titulo": "Especie",
             "hecho": elegida,
             "abierto": not elegida,
+            "visible": True,
             "cerrables": None,
             "total_frentes": None,
             "detalle": (
@@ -1973,6 +2340,7 @@ def steps_rows(*, species: str, sequence_loaded: bool, directory) -> list[dict[s
             "titulo": "Secuencia",
             "hecho": bool(sequence_loaded),
             "abierto": elegida and not sequence_loaded,
+            "visible": True,
             "cerrables": None,
             "total_frentes": None,
             "detalle": (
@@ -1983,32 +2351,53 @@ def steps_rows(*, species: str, sequence_loaded: bool, directory) -> list[dict[s
         },
         {
             "numero": 3,
-            "titulo": "Ficheros de referencia",
-            "hecho": bool(resumen and not resumen["abiertos"]),
-            "abierto": elegida,
-            "cerrables": resumen["cerrables"] if resumen else None,
-            "total_frentes": resumen["total"] if resumen else None,
+            "titulo": "Ficheros de referencia — para diseñar",
+            # HECHO cuando no hace falta ninguno, que es hoy. Antes estaba atado a que
+            # no quedara NINGUN frente abierto, asi que el paso 3 se quedaba abierto
+            # para siempre y se leia como algo que falta para poder seguir.
+            "hecho": bool(diseñar and not diseñar["hacen_falta"]),
+            "abierto": elegida and bool(diseñar and diseñar["hacen_falta"]),
+            "visible": True,
+            "cerrables": None,
+            "total_frentes": None,
             "detalle": (
-                f"Con lo que hay se pueden cerrar {resumen['cerrables']} de "
-                f"{resumen['total']} {FRONT_COUNT_NAME}. Los demas quedan en NOT_RUN, "
-                f"VISIBLE en la tabla de candidatos. Sube lo que falte en el panel de la "
-                f"barra lateral: cada fichero trae la ficha que dice de donde sale. "
-                f"{FRONTS_VS_FILTERS}"
-                if resumen
+                f"Sólo lo imprescindible para obtener candidatos. {diseñar['texto']}"
+                if diseñar
                 else "Elige la especie primero: los ficheros que hacen falta dependen de ella."
             ),
         },
         {
             "numero": 4,
             "titulo": "Diseñar",
-            "hecho": False,
+            "hecho": bool(designed),
             "abierto": elegida and bool(sequence_loaded),
+            "visible": True,
             "cerrables": None,
             "total_frentes": None,
             "detalle": (
                 "Se puede diseñar con frentes abiertos: los candidatos saldran "
                 "INCOMPLETE y cada frente sin correr sale NOT_RUN en su columna. NOT_RUN "
                 "no es PASS, y no haber contado no es contar cero."
+            ),
+        },
+        {
+            "numero": 5,
+            "titulo": "Refinamiento",
+            "hecho": bool(resumen and not resumen["abiertos"]),
+            "abierto": bool(designed and resumen and resumen["abiertos"]),
+            # SOLO DESPUES DE DISEÑAR. Antes de haber diseñado no hay candidatos que
+            # refinar, y ponerlo arriba con los demas es lo que hacia creer que sin
+            # estos ficheros no se puede empezar.
+            "visible": bool(designed),
+            "cerrables": resumen["cerrables"] if resumen else None,
+            "total_frentes": resumen["total"] if resumen else None,
+            "detalle": (
+                f"Los candidatos de arriba son PROVISIONALES. Cada fichero de esta "
+                f"sección cierra un frente y puede tumbar alguno. "
+                f"{resumen['cerrables']} de {resumen['total']} frentes cerrados. "
+                f"{FRONTS_VS_FILTERS}"
+                if resumen
+                else "Elige la especie primero: los ficheros que hacen falta dependen de ella."
             ),
         },
     ]
@@ -2031,12 +2420,251 @@ def splice_warning_rows():
     return warning_blocks()
 
 
+def variant_proposal_text(guide: str, *, available=None) -> str:
+    """La propuesta de `mvm_sin_criptico` para ESTA guía, o por qué no la hay.
+
+    Va en el modal de empalme, junto a la lista de intrones, porque es donde se decide
+    con qué intrón se consulta: un intrón que la app propone y que nadie ve es un intrón
+    que no existe. Las dos decisiones son estructurales, así que hay una propuesta POR
+    CANDIDATO y no una «del proyecto».
+    """
+    from .intron_design import design_variant  # noqa: PLC0415
+    from .scaffold import SGEP_SCAFFOLD  # noqa: PLC0415
+
+    if not str(guide).strip():
+        return (
+            "Sin guía no hay 97-mero y las dos decisiones de la variante son "
+            "estructurales: no se propone nada."
+        )
+    try:
+        return design_variant(
+            guide=guide, scaffold=SGEP_SCAFFOLD, available=available
+        ).describe_text()
+    except ShmirDesignError as exc:
+        # rule2-ok: frontera de presentacion. El motivo entero se enseña.
+        return f"NO se pudo diseñar la variante — {exc}"
+
+
+def reference_md5s(directory) -> dict[str, str]:
+    """Fichero → md5 de lo que HAY hoy en el directorio de referencia.
+
+    Se calcula del fichero, nunca se declara: es la misma regla del depósito. Un fichero
+    vacío no entra —`presencia.hay_fichero`—, así que un `touch` no puede hacer que una
+    corrida parezca obsoleta contra la nada.
+    """
+    import hashlib  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    from .presencia import ficheros_con_contenido  # noqa: PLC0415
+
+    raiz = Path(directory)
+    salida = {}
+    for nombre in sorted(ficheros_con_contenido(raiz)):
+        salida[nombre] = hashlib.md5(
+            (raiz / nombre).read_bytes(), usedforsecurity=False
+        ).hexdigest()
+    return salida
+
+
+def run_freshness(kind: str, payload, *, actuales: dict[str, str]) -> dict[str, object]:
+    """¿Sigue valiendo esta corrida? PASS / OBSOLETO / NOT_RUN, DERIVADO de los md5.
+
+    La tabla de `insumos.CONSUMIDOS` dice qué consume cada tipo de corrida y dónde vive
+    el md5 de cada insumo dentro del registro; aquí sólo se traduce el resultado a un
+    estado. Los tres casos, y ninguno sobra: los ficheros son los mismos (PASS), alguno
+    cambió (OBSOLETO), o no se ha podido comprobar (NOT_RUN) — que no es que coincida.
+    """
+    from .filters import FilterState  # noqa: PLC0415
+    from .insumos import obsoleta  # noqa: PLC0415
+
+    motivos = list(obsoleta(kind, payload, actuales=actuales))
+    if not motivos:
+        return {"estado": FilterState.PASS, "motivos": []}
+    if all("no se ha podido comprobar" in m for m in motivos):
+        return {"estado": FilterState.NOT_RUN, "motivos": motivos}
+    return {"estado": FilterState.OBSOLETO, "motivos": motivos}
+
+
+def obsolete_rows(store, *, directory) -> list[dict[str, object]]:
+    """Una fila por corrida guardada, con su frescura. Es lo que pinta la página.
+
+    Existe para que `insumos.obsoleta` no se quede como `store.save_*`: escrita, probada
+    y sin llegar nunca a una pantalla. La comprobación que corre y no se ve es media
+    comprobación.
+    """
+    from .insumos import CONSUMIDOS, md5s_de_corrida  # noqa: PLC0415
+
+    hoy = reference_md5s(directory)
+    filas = []
+    for registro in store.records():
+        if registro.kind not in CONSUMIDOS:
+            continue
+        frescura = run_freshness(registro.kind, registro.payload, actuales=hoy)
+        filas.append(
+            {
+                "tipo": registro.kind,
+                "fecha": registro.date,
+                "estado": frescura["estado"],
+                "motivos": frescura["motivos"],
+                "insumos": md5s_de_corrida(registro.kind, registro.payload),
+            }
+        )
+    return filas
+
+
+def project_banner(store) -> dict[str, object]:
+    """Lo que la barra lateral enseña de un proyecto abierto, ya resuelto.
+
+    La página leía `almacen.project.slug`, `.reliable` y `.why_unreliable` — tres
+    cadenas de atributos y tres suposiciones sin test. Corolario de la errata nº 17.
+    """
+    proyecto = store.project
+    return {
+        "titulo": f"Proyecto **{proyecto.slug}** — {len(store.records())} registro(s)",
+        "fiable": bool(proyecto.reliable),
+        "aviso": "" if proyecto.reliable else proyecto.why_unreliable,
+    }
+
+
+def anatomy_source_label(anatomy) -> str:
+    """Cómo se resolvió la anatomía, en una palabra, para el informe.
+
+    Antes era `anat.source.value if hasattr(anat, "source") else str(anat)` EN LA
+    PÁGINA: una navegación y un `hasattr` de rescate, o sea dos suposiciones.
+    """
+    fuente = getattr(anatomy, "source", None)
+    return getattr(fuente, "value", None) or str(anatomy)
+
+
+def chosen_starts(selection) -> list[int]:
+    """Los inicios de los candidatos elegidos, en el orden en que los eligió la app.
+
+    Existe para que la página deje de escribir `[c.start for c in
+    selection.selection.chosen]`, que estaba copiado en tres modales y en el botón de
+    guardar. Cada una de esas copias es una suposición sobre la forma del modelo que
+    ningún test comprueba — el corolario de la errata nº 17 — y las cuatro tendrían que
+    cambiar a la vez el día que `Choice` cambie.
+
+    OJO con el nombre: `selected_starts` es OTRA cosa y ya existía — lee del ALMACÉN la
+    última selección guardada. Ésta lee la selección VIVA de esta corrida. Se llaman
+    distinto porque son distintas, y confundirlas daría el panel de ayer.
+    """
+    return [c.start for c in selection.selection.chosen]
+
+
+def has_selection(selection) -> bool:
+    """¿Hay algún candidato elegido? Misma razón que arriba."""
+    return bool(selection.selection.chosen)
+
+
+def variant_proposal_for(selection, *, available=None) -> str:
+    """La propuesta de variante para el PRIMER candidato elegido de esta selección.
+
+    La página pedía el texto leyendo `guide` del primer elegido, y `Choice` no tiene
+    ese campo: la guía se alcanza por `window_of(choice).evaluation.guide`, como hace
+    `block_bundle`. Eran dos fallos en uno —un `AttributeError` en cuanto alguien
+    abriera el modal, y una página NAVEGANDO el modelo, que es lo que la regla 6
+    prohíbe—, y el segundo es el que produjo el primero. La navegación vive aquí.
+    """
+    elegidos = selection.selection.chosen
+    if not elegidos:
+        return variant_proposal_text("", available=available)
+    guia = selection.window_of(elegidos[0]).evaluation.guide.replace("U", "T")
+    return variant_proposal_text(guia, available=available)
+
+
 def splice_intron_rows(names=None):
     """Estado de cada intron del registro. Los que faltan salen VISIBLES."""
     from .introns import INTRONS
     from .spliceai import intron_report
 
     return intron_report(names if names is not None else tuple(INTRONS))
+
+
+def intron_geometry_rows(names=None, *, module_length: int = 149):
+    """Por intrón: el desglose pieza a pieza y dónde cabe el módulo.
+
+    Son las dos preguntas que hay que poder mirar ANTES de montar nada, y las dos
+    salieron de la misma grieta: un total de 296 nt que nadie podía descomponer escondía
+    65 nt de espaciadores de novo, y el sitio de inserción no se emitía en ninguna
+    parte. Un número que no se puede descomponer y una restricción que no se ve son la
+    misma clase de problema.
+
+    Los intrones que NO se ensamblan de piezas —o que todavía no tenemos— salen con su
+    motivo en `nota` y sin inventarse nada: es la regla 3 sobre geometría en vez de
+    sobre filtros.
+    """
+    from .introns import (
+        INTRONS,
+        check_module_upstream,
+        insertion_window,
+        intron_breakdown,
+        locate_elements,
+    )
+
+    filas = []
+    for nombre in (names if names is not None else tuple(INTRONS)):
+        entrada = INTRONS.get(nombre)
+        if entrada is None:
+            raise ShmirDesignError(
+                f"No hay ningún intrón {nombre!r} en el registro; los que hay son "
+                f"{', '.join(sorted(INTRONS))}."
+            )
+        fila = {
+            "intron": nombre,
+            "desglose": None,
+            "insercion": None,
+            "elementos": None,
+            "aguas_arriba": None,
+            "nota": "",
+        }
+        try:
+            fila["desglose"] = intron_breakdown(nombre, module_length=module_length)
+        except ShmirDesignError as exc:
+            # rule2-ok: no es un fallo, es la ausencia dicha con su motivo.
+            fila["nota"] = str(exc)
+        try:
+            secuencia = entrada.require_sequence()
+        except ShmirDesignError as exc:
+            # rule2-ok: el intrón no está. Se dice, y no se calcula geometría de nada.
+            fila["nota"] = (fila["nota"] + " " + str(exc)).strip()
+            filas.append(fila)
+            continue
+        elementos = locate_elements(secuencia, name=nombre)
+        fila["elementos"] = elementos
+        ventana = insertion_window(elementos, module_length=module_length)
+        fila["insercion"] = ventana
+        # La TERCERA restricción, comprobada sobre el primer sitio admisible. Sin
+        # candidato a punto de ramificación sale NOT_RUN y no PASS — no haber podido
+        # comprobarlo no es que se cumpla.
+        fila["aguas_arriba"] = check_module_upstream(
+            elementos, after=ventana.ranges[0][0]
+        )
+        filas.append(fila)
+    return filas
+
+
+def intron_geometry_text(names=None, *, module_length: int = 149) -> str:
+    """El bloque de texto de lo anterior, ya montado. La página no formatea."""
+    lineas: list[str] = []
+    for fila in intron_geometry_rows(names, module_length=module_length):
+        lineas.append(f"── {fila['intron']} ──")
+        if fila["desglose"] is not None:
+            lineas.extend(fila["desglose"].describe())
+        if fila["elementos"] is not None:
+            lineas.extend(fila["elementos"].describe())
+        if fila["insercion"] is not None:
+            lineas.extend(fila["insercion"].describe())
+        if fila["aguas_arriba"] is not None:
+            estado = fila["aguas_arriba"]
+            marca = "OK" if estado.state is FilterState.PASS else "⬜"
+            lineas.append(
+                f"  {marca} {estado.name}: {estado.state.value} — {estado.reason}"
+            )
+        if fila["nota"]:
+            lineas.append(f"  ⬜ {fila['nota']}")
+        lineas.append("")
+    return "\n".join(lineas).rstrip()
 
 
 def splice_constructions(selection, *, target, intron_names, scaffold, starts=None,
@@ -2388,6 +3016,92 @@ def check_project_slug(slug: str) -> str:
     return limpio
 
 
+# ── Biblioteca del paso 2 ────────────────────────────────────────────────────────
+#
+# La pagina no toca `biblioteca.py`: pasa por aqui, como con todo lo demas. Si empezara a
+# importarlo directamente, acabaria decidiendo sobre el almacen —que ordenar, que
+# etiqueta poner, que hacer si falta— y eso es la regla 6.
+
+
+@dataclass(frozen=True)
+class LibraryFile:
+    """Un fichero de la biblioteca con la MISMA forma que uno subido.
+
+    La pagina usa exactamente dos cosas de un `UploadedFile`: `.name` y `.getvalue()`.
+    Con esto, todo lo que hay aguas abajo —`_fasta_sequence`, `resolve_anatomy`— no se
+    entera de si vino del navegador o del volumen. Distinguirlos aguas abajo serian dos
+    caminos que divergen, y este proyecto ya lleva cuatro divergencias entre frontales.
+    """
+
+    name: str
+    _data: bytes
+
+    def getvalue(self) -> bytes:
+        return self._data
+
+
+def library_note() -> str:
+    """Donde vive la biblioteca y por que sobrevive. Va a la vista, no en un comentario."""
+    from .biblioteca import WHY_THE_VOLUME  # noqa: PLC0415
+
+    return (
+        f"{WHY_THE_VOLUME} Lo guardado aquí NO cierra ningún frente y no entra en el "
+        f"manifiesto: es sólo para no volver a buscar el mismo fichero en cada sesión."
+    )
+
+
+def library_rows(slot: str, *, base=None) -> list[dict]:
+    """Una fila por fichero guardado, con la etiqueta YA montada."""
+    from .biblioteca import listar  # noqa: PLC0415
+
+    return [
+        {
+            "id": e.id,
+            "nombre": e.name,
+            "guardado": e.date,
+            "bytes": e.size,
+            "etiqueta": f"{e.name} — {e.size} bytes, {e.date}, md5 {e.id[:8]}",
+        }
+        for e in listar(slot, base=base)
+    ]
+
+
+def library_file(slot: str, ident: str, *, base=None) -> LibraryFile:
+    """Un fichero guardado, con la forma de uno subido. ABORTA si no cuadra el md5."""
+    from .biblioteca import leer, listar  # noqa: PLC0415
+
+    entrada = next((e for e in listar(slot, base=base) if e.id == ident), None)
+    if entrada is None:
+        raise ShmirDesignError(
+            f"No hay ningún fichero {ident} guardado en la ranura {slot!r}; se aborta "
+            f"en vez de seguir sin él."
+        )
+    return LibraryFile(name=entrada.name, _data=leer(slot, ident, base=base))
+
+
+def library_save(slot: str, upload, *, date: str, base=None) -> dict:
+    """Guarda lo que hay en el hueco. Devuelve la fila de lo guardado."""
+    from .biblioteca import guardar  # noqa: PLC0415
+
+    entrada = guardar(
+        slot, nombre=upload.name, data=upload.getvalue(), date=str(date), base=base
+    )
+    return {
+        "id": entrada.id,
+        "nombre": entrada.name,
+        "guardado": entrada.date,
+        "bytes": entrada.size,
+        "etiqueta": entrada.describe(),
+    }
+
+
+def library_delete(slot: str, ident: str, *, base=None) -> str:
+    """Borra una entrada y devuelve el texto de lo que se fue."""
+    from .biblioteca import borrar  # noqa: PLC0415
+
+    return borrar(slot, ident, base=base).describe()
+
+
 UPLOAD_NAME_RULE = (
     "El nombre de un fichero subido lo pone el NAVEGADOR, no el servidor: se escribe "
     "en disco, así que se queda con el nombre a secas y se comprueba que la ruta cae "
@@ -2460,6 +3174,13 @@ def project_open(base, slug: str, *, expect_md5: str | None = None):
     from .store import ProjectStore
 
     almacen = ProjectStore.open(base, check_project_slug(slug))
+    # LA CADENA SE RECALCULA AL ABRIR, y hasta 2026-08-27 NO se recalculaba nunca:
+    # `verify()` estaba escrita, testada, y sin ningún llamador fuera de sus tests. Es
+    # el mismo patrón que `store.save_*` y que `page_run` — la cuarta vez— pero sobre un
+    # GUARDIA, que es peor: no es trabajo que no llega a una salida, es una comprobación
+    # que no comprueba. Y su momento natural es justo éste: el log se edita entre
+    # sesiones, así que comprobarlo sólo al escribirlo no protege de nada.
+    almacen.verify()
     if expect_md5 and almacen.project.sequence_md5 != str(expect_md5):
         raise ShmirDesignError(
             f"El proyecto {slug!r} se creo sobre una secuencia de md5 "
@@ -2607,7 +3328,6 @@ def page_run(
     de transcrito son coordenadas de transcrito de verdad y no una copia de las del
     3'UTR. Que ventanas entran lo decide `tile_range`, en el nucleo.
     """
-    from .apa import POLYA_DB_PRNP, resolve_measured
     from .selection import default_config, select_from_report
     from .tiling import tile_utr
 
@@ -2621,22 +3341,14 @@ def page_run(
     extra = dict(resources.as_kwargs()) if resources is not None else {}
     if mask is not None:
         extra["mask"] = mask  # la mascara subida a mano manda sobre la del manifiesto
-    # La tabla de APA MEDIDO se coloca sola sobre la secuencia que le corresponde y solo
-    # sobre esa: la condicion es el md5 canonico del 3'UTR, asi que sobre cualquier otra
-    # devuelve `None` y no se promueve ninguna señal.
-    #
-    # POR QUE ESTABA AQUI EL FALLO: el CLI la aplicaba y la pagina no. Sin ella el tercer
-    # sitio de corte —`131937444`, el proximal MAS USADO de los tres— no promociona, la
-    # frontera de la inmunidad se queda en `3utr:303` en vez de adelantarse a `3utr:251`,
-    # y `3utr:221` vuelve al panel porque su riesgo ESTERICO no llega a existir. O sea:
-    # el mismo mRNA daba un panel por consola y otro por navegador. Es la CUARTA
-    # divergencia entre los dos frontales y exactamente el fallo que obligo a crear
-    # `resolve.py` con la anatomia.
-    medido = resolve_measured(sequence, POLYA_DB_PRNP, anatomy=anatomy)
+    # LA TABLA DE APA MEDIDO LA RESUELVE `tile_utr`, del FICHERO del gestor. Aqui no
+    # se pasa nada: la regla entra sola y el dato sale del deposito. Antes esto llamaba
+    # a `resolve_measured` con la constante `apa.POLYA_DB_PRNP`, asi que la pagina
+    # tenia que acordarse —y en otra especie no habia forma de meter los numeros—.
     tiling = tile_utr(
         sequence, anatomy=anatomy, seeds=seeds, thresholds=thresholds,
         accessibility=accessibility, species=species, tile_range=tile_range,
-        measured_apa=medido, **extra,
+        **extra,
     )
     # `default_config()` es la configuracion DEL PROYECTO: panel de 10 y cuota de
     # inmunes emparejada con su frontera. `SelectionConfig()` a secas no la lleva, y
@@ -2934,8 +3646,34 @@ WHY_A_RUN_FINGERPRINT = (
 
 
 def run_fingerprint(*partes) -> str:
-    """Huella de lo que produjo una corrida. Ver `WHY_A_RUN_FINGERPRINT`."""
+    """Huella de lo que produjo una corrida. Ver `WHY_A_RUN_FINGERPRINT`.
+
+    SOLO CALCULA. Quien decide si lo cacheado sigue valiendo es `cached_run`.
+    """
     import hashlib
 
     crudo = "|".join(repr(p) for p in partes)
     return hashlib.md5(crudo.encode("utf-8")).hexdigest()
+
+
+def cached_run(guardado, huella: str) -> dict:
+    """¿Sirve todavía la corrida cacheada? El GUARDIA, y vive aquí, no en la página.
+
+    Estaba en la página —`guardado[1] if guardado and guardado[0] == huella else None`—
+    y **copiado en los dos modales**, así que la regla podía divergir entre ellos y no
+    tenía test. Lo cazó la auditoría de guardias: `run_fingerprint` sólo calcula el
+    resumen, y una entrada de la tabla en la que ninguna pieza abortaba señaló que la
+    comprobación de verdad estaba en otro sitio.
+
+    Devuelve el resultado si la huella cuadra, `None` si no, y el motivo cuando hay algo
+    cacheado que ya no vale — que es lo que hay que enseñar para que un resultado viejo
+    no se lea como el de la corrida que se está viendo.
+    """
+    if not guardado:
+        return {"resultado": None, "caducado": False, "aviso": ""}
+    caducado = guardado[0] != huella
+    return {
+        "resultado": None if caducado else guardado[1],
+        "caducado": caducado,
+        "aviso": WHY_A_RUN_FINGERPRINT if caducado else "",
+    }

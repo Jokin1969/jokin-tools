@@ -39,7 +39,7 @@ class TestTsvCompleto(unittest.TestCase):
         lineas = tsv_all_windows(report).splitlines()
         self.assertEqual(len(lineas), len(report.windows) + 1)
         cabecera = lineas[0].split("\t")
-        for filtro in ("GC", "homopolimero", "asimetria", "G4_diana", "G4_guia",
+        for filtro in ("GC", "homopolimero", "asimetria",
                        "zona_prohibida_polyA", "repeticiones", "seed"):
             with self.subTest(filtro):
                 self.assertIn(filtro, cabecera)
@@ -62,7 +62,7 @@ class TestTsvSeleccionados(unittest.TestCase):
         """Quien abra este TSV tiene que ver QUE filtro falta, no solo INCOMPLETE."""
         _, seleccion = piezas()
         cabecera = tsv_selected(seleccion, species="sonda").splitlines()[0].split("\t")
-        for filtro in ("GC", "homopolimero", "asimetria", "G4_diana", "G4_guia",
+        for filtro in ("GC", "homopolimero", "asimetria",
                        "zona_prohibida_polyA", "repeticiones", "seed"):
             with self.subTest(filtro):
                 self.assertIn(filtro, cabecera)

@@ -100,6 +100,14 @@ class Report:
     stale: tuple[str, ...]
     scanned: int
     exempted: int
+    #: TODOS los que no tienen llamador, **incluidos los justificados por escrito**.
+    #: `unreachable` es lo que se IMPRIME —de ahi salen los justificados, que es lo que
+    #: hace legible el informe—; esto es lo que se CRUZA con la tabla de guardias, donde
+    #: no cabe excepcion: una justificacion vale para una funcion que nadie llama, y no
+    #: vale para un GUARDIA que nadie llama. Si protege algo, alguien tiene que
+    #: invocarlo; si no lo invoca nadie, no protege nada, y da igual lo bien escrita que
+    #: este la justificacion.
+    all_uncalled: tuple[Symbol, ...] = ()
 
     def render(self) -> str:
         lineas = [
@@ -172,12 +180,22 @@ def _definiciones(fichero: Path) -> list[Symbol]:
         funciones, y prácticamente todas las clases son ese caso. Con ellas dentro el
         informe tiene 215 filas y no se lee ninguna.
 
-    Y no se pierde nada del modo de fallo que motiva esto: los tres casos reales
-    —`triple_motive_rows`, `intron_folding`, `store.save_*`— son funciones. Lo que se
-    busca es trabajo calculado que no llega a ninguna salida, y eso lo hace una función.
+    **LA EXCLUSIÓN DE LOS MÉTODOS TENÍA UN AGUJERO, Y SE HA CERRADO A MEDIDA
+    (2026-08-27).** Decía: «no se pierde nada del modo de fallo que motiva esto — los
+    tres casos reales son funciones». Era cierto **cuando se escribió**, y el CUARTO caso
+    lo refutó: `store.ProjectStore.verify` es un MÉTODO, llevaba desde que se escribió
+    sin ningún llamador fuera de sus tests, y **este análisis no la listó ni podía
+    listarla**. La cadena de md5 del log no se comprobaba nunca en la app.
+
+    La regla vuelta a escribir con el agujero cerrado, y sin abrir el de los 215 falsos
+    positivos: **entran los métodos DECLARADOS COMO GUARDIAS** en `data/guardias.toml`.
+    Son pocos, están enumerados a mano, y de ellos ya se sabe que protegen algo — así
+    que uno sin llamador no es una fila más de un informe: es una comprobación que no
+    comprueba. El resto de los métodos siguen fuera por la razón de siempre.
     """
     arbol = ast.parse(fichero.read_text(encoding="utf-8"), filename=str(fichero))
     salida: list[Symbol] = []
+    guardias = _metodos_guardia()
     for nodo in arbol.body:
         if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if nodo.name.startswith("_"):
@@ -190,7 +208,47 @@ def _definiciones(fichero: Path) -> list[Symbol]:
                     kind="función",
                 )
             )
+        elif isinstance(nodo, ast.ClassDef):
+            for miembro in nodo.body:
+                if not isinstance(miembro, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                if miembro.name.startswith("__"):
+                    # `__post_init__` y compañia los llama la maquinaria del dataclass:
+                    # corren SIEMPRE que el objeto exista, y listarlos como «sin
+                    # llamador» seria un falso positivo — y un guardia con falsos
+                    # positivos se acaba apagando.
+                    continue
+                if f"{fichero.stem}.{nodo.name}.{miembro.name}" not in guardias:
+                    continue
+                salida.append(
+                    Symbol(
+                        name=miembro.name,
+                        module=fichero.stem,
+                        line=miembro.lineno,
+                        kind="guardia",
+                    )
+                )
     return salida
+
+
+def _metodos_guardia() -> frozenset[str]:
+    """Los MÉTODOS que `data/guardias.toml` declara como guardias.
+
+    Se leen de la tabla, no se enumeran aquí: dos listas del mismo conjunto es el par
+    duplicado de siempre, y la que no se usa acaba siendo la equivocada.
+    """
+    import tomllib  # noqa: PLC0415
+
+    tabla = RAIZ / "data" / "guardias.toml"
+    if not tabla.is_file():
+        return frozenset()
+    datos = tomllib.loads(tabla.read_text(encoding="utf-8"))
+    return frozenset(
+        simbolo
+        for entrada in datos.get("guardia", ())
+        for simbolo in entrada["implementa"]
+        if simbolo.count(".") == 2
+    )
 
 
 def _referencias_por_funcion(fichero: Path) -> dict[str, set[str]]:
@@ -332,6 +390,7 @@ def analizar(raiz: Path | str = RAIZ, *, fuentes=None, excepciones=None) -> Repo
         stale=caducadas,
         scanned=len(modulos),
         exempted=len(sin_llamador) - len(visibles),
+        all_uncalled=tuple(sin_llamador),
     )
 
 

@@ -25,13 +25,14 @@ from .coords import bound_of, Frame, frame_of, label, span
 from .transgene import carries_scaffold_module
 from .mirna import SEED_SPACE
 from . import splicing
-from .apa import CLUSTER_READING, POLYA_DB_PRNP
+from .apa import APA_ARE_TWO_FILES, CLUSTER_READING
 from .polya import rtqpcr_amplicons
 from .reference import ReferenceTranscript
 from .gblock import build_gblock
 from .scaffold import ScaffoldSpec, build_hairpin
 from .comparative import CONVENTION_NOTE, comparative_text, comparative_tsv
 from .external_score import manual_instructions
+from . import seeds as seeds_module
 from .selection import (
     apa_ceiling_table,
     blocking_fronts,
@@ -246,6 +247,7 @@ def text_report(
     polya_conservation=None,
     orf_sweep=None,
     triple_motive=None,
+    mask_bite=None,
 ) -> str:
     lines = [
         f"═══ Diseño de shmiR — {species} ═══",
@@ -699,8 +701,20 @@ def text_report(
             # marco del transcrito con el del 3'UTR aqui daria un «1018» que no es el
             # 1018 de dos lineas mas arriba.
             def _en_3utr(choice) -> int:
+                # NADA de `inicio_3utr or window.start`. `None` no es una posicion que
+                # falte: es que esa ventana NO CAE en el 3'UTR —una del ORF entra con
+                # `--cuota-region`— y rellenarla con la coordenada de LO TILADO para
+                # etiquetarla `Frame.UTR3` acto seguido es la quinta vez de esta
+                # familia. Errata nº 18.
                 ventana = selection.windows[choice.label]
-                return ventana.inicio_3utr or ventana.window.start
+                if ventana.inicio_3utr is None:
+                    raise ValueError(
+                        f"La ventana {choice.label} no cae en el 3'UTR, así que no "
+                        f"tiene coordenada de 3'UTR que imprimir en esta línea. Se "
+                        f"aborta en vez de poner la de lo tilado con una etiqueta "
+                        f"`3utr:` delante."
+                    )
+                return ventana.inicio_3utr
 
             # Las DOS cifras cuando hay penalizacion: la asimetria cruda y la neta.
             # Dar una sola columna con la neta hizo que el 221 saliera +4.15 al lado de
@@ -780,6 +794,11 @@ def text_report(
             dominante,
             utr_length=tiling.sequence_length,
             frame=marco,
+            # LAS OTRAS señales APA_POSIBLE. Sin ellas el plan no puede saber que su
+            # amplicon distal atraviesa la banda de corte de otra —y un amplicon partido
+            # por un corte no da producto en la isoforma cortada—, asi que la razon
+            # distal/proximal mediria otra cosa de la que dice. Errata nº 24.
+            others=tuple(s for s in canonicas if s is not dominante),
             # Los amplicones se quedan DENTRO de lo que se ha analizado como 3'UTR: sin
             # este limite, esquivar las dianas del panel empujaba el proximal hasta el
             # CDS, y ahi ya no hay coordenada de 3'UTR que emitir.
@@ -796,7 +815,13 @@ def text_report(
         if tiling.measured_apa is not None:
             lines.extend(f"  {l}" for l in tiling.measured_apa.describe())
             lines.append("")
-        lines.extend(f"  {l}" for l in POLYA_DB_PRNP.describe())
+            # La tabla QUE SE USO, no una constante del codigo. Imprimir la murina
+            # pasara lo que pasara daria las cifras de Prnp para cualquier especie.
+            lines.extend(f"  {l}" for l in tiling.measured_apa.table.describe())
+        else:
+            lines.append(
+                f"  NOT_RUN — {tiling.apa_missing_reason or tiling.apa_excluded_reason}"
+            )
         if tiling.measured_apa is not None:
             lines.append("")
             lines.extend(f"  {l}" for l in CLUSTER_READING.describe())
@@ -877,6 +902,12 @@ def text_report(
         )
 
     lines.extend(["", "── Poliadenilación alternativa (APA) ──"])
+    # DOS FICHEROS CIERRAN ESTE FRENTE y no son el mismo con otro nombre, asi que va
+    # dicho aqui — con la DIRECCION esperada de la discrepancia entre sus dos techos.
+    # Sin esa direccion, quien reciba el 3'-end seq de cerebro y vea un numero distinto
+    # de 0,86 lo tratara como un error a reconciliar y promediara los dos, que es perder
+    # justo la informacion que la discrepancia lleva dentro.
+    lines.extend(f"  {l}" for l in _envolver(APA_ARE_TWO_FILES, 85))
     if tiling.apa_sites is None:
         con_riesgo = sum(1 for w in tiling.windows if w.riesgo_APA)
         lines.append(
@@ -971,6 +1002,19 @@ def text_report(
             "  El enmascarado va ANTES de tilar y se RETILA: una ventana parcialmente "
             "repetitiva se reevalua entera, no se tacha de una lista ya hecha."
         )
+        # CUANTO MUERDE, y que un cero se pueda leer. Se calcula fuera —hace falta un
+        # informe tilado SIN mascara, misma condicion que el triple motivo— y entra por
+        # parametro. Sin esta cuenta, un filtro que corre y no quita nada es
+        # indistinguible en la salida de uno que no llego a correr, y eso es justo lo
+        # que la regla 3 existe para impedir. Ver `masking.WHY_THE_BITE_IS_A_PROPERTY`.
+        if mask_bite is None:
+            lines.append(
+                "  Cuánto se lleva por delante: NOT_RUN — hace falta un tilado SIN "
+                "enmascarar para contarlo. Con la máscara puesta el paso 15 retila y la "
+                "cuenta saldría cero, indistinguible de un cero de verdad."
+            )
+        else:
+            lines.extend(f"  {l}" for l in _envolver(mask_bite.describe(), 85))
 
     lines.extend(["", "── Colisión de seed con miARN endogeno ──"])
     if tiling.mature is None:
@@ -1253,6 +1297,9 @@ def text_report(
             "  ⚠  El filtro de seed corrió con una lista de arranque, NO con miRBase "
             "completo: sirve para probar la mecanica, no para cribar."
         )
+        caducada = seeds_module.bootstrap_expiry_note()
+        if caducada is not None:
+            avisos.append(f"  ⚠  {caducada}")
     lines.extend(avisos or ["  Ninguno."])
 
     if any(w.verdict is Verdict.PASS for w in tiling.windows):

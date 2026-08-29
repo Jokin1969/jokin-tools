@@ -13,6 +13,7 @@ El nucleo sigue siendo stdlib pura: Streamlit es una dependencia SOLO de esta in
 
 from __future__ import annotations
 
+import datetime
 import io
 import sys
 import tempfile
@@ -33,13 +34,31 @@ from shmir_design.offtarget import DEFAULTS as OFFTARGET_DEFAULTS  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
-    WHY_A_RUN_FINGERPRINT,
     BLAST_MODAL_NOTE,
     anatomy_payload,
     load_stores,
+    cached_run,
     run_fingerprint,
+    intron_geometry_text,
     stored_runs_note,
     upload_path,
+    anatomy_source_label,
+    chosen_starts,
+    obsolete_rows,
+    has_selection,
+    project_banner,
+    variant_proposal_for,
+    reference_delete,
+    reference_delete_plan,
+    reference_download,
+    reference_manager_rows,
+    reference_preview,
+    reference_replace_plan,
+    library_delete,
+    library_file,
+    library_note,
+    library_rows,
+    library_save,
     project_create,
     project_list,
     project_open,
@@ -66,6 +85,10 @@ from shmir_design.presentation import (  # noqa: E402
     splice_scan_from_result,
     splice_warning_rows,
     WHY_NO_GLOBAL_TOGGLE,
+    REFINEMENT_FRAMING,
+    WHY_TWO_MOMENTS,
+    design_files_rows,
+    refinement_panel,
     accept_reference_upload,
     reference_panel_rows,
     reference_panel_summary,
@@ -127,7 +150,7 @@ from shmir_design.presentation import (  # noqa: E402
     window_rows,
 )
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
-from shmir_design.filters import FilterState  # noqa: E402
+from shmir_design.filters import OBSOLETO_NOTE, FilterState  # noqa: E402
 from shmir_design.reference import (  # noqa: E402
     REFERENCES,
     extract_3utr,
@@ -151,6 +174,73 @@ from shmir_design.selection import (  # noqa: E402
 )
 
 COLORES = {"verde": ("#2f7d5d", "🟢"), "ambar": ("#b58900", "🟠")}
+
+
+def _hoy() -> str:
+    """La fecha de hoy como valor POR DEFECTO del campo, no como dato.
+
+    La biblioteca no es procedencia: es una comodidad para no volver a buscar el mismo
+    fichero. La fecha sirve para reconocerlo en la lista y se puede cambiar. Donde la
+    fecha SI es procedencia —las corridas de los cuatro modales— se teclea, y ahi no hay
+    ningun valor por defecto a proposito.
+    """
+    return datetime.date.today().isoformat()
+
+
+def _panel_biblioteca(ranura: str, subido, *, ayuda: str = ""):
+    """Un hueco del paso 2 con su biblioteca: guardar, elegir uno guardado, borrar.
+
+    Devuelve LO QUE HAY QUE USAR: lo subido si se subió algo, y si no el elegido de la
+    biblioteca. La página no decide nada aquí — las filas vienen montadas de
+    `presentation` y el fichero guardado llega con la MISMA forma que uno subido, así
+    que aguas abajo nadie se entera de por dónde vino.
+    """
+    filas = library_rows(ranura)
+    with st.expander(f"📁 Guardados ({len(filas)})", expanded=False):
+        st.caption(library_note())
+        if subido is not None:
+            fecha = st.text_input(
+                "Fecha", value=_hoy(), key=f"bib_fecha_{ranura}",
+                help="La que queda registrada junto al fichero.",
+            )
+            if st.button(f"Guardar «{subido.name}»", key=f"bib_add_{ranura}"):
+                try:
+                    fila = library_save(ranura, subido, date=fecha)
+                except (ShmirDesignError, ValueError) as exc:
+                    # rule2-ok: frontera de la interfaz. El motivo se enseña entero.
+                    st.error(f"**NO se guardó** — {exc}")
+                else:
+                    st.success(f"Guardado: {fila['etiqueta']}")
+                    st.rerun()
+        if not filas:
+            st.info("Nada guardado todavía en este hueco.")
+            return subido
+
+        elegido = st.selectbox(
+            "Usar uno guardado",
+            [f["id"] for f in filas],
+            index=None,
+            placeholder="ninguno",
+            format_func=lambda i: next(f["etiqueta"] for f in filas if f["id"] == i),
+            key=f"bib_pick_{ranura}",
+            help=ayuda or None,
+        )
+        for fila in filas:
+            if st.button(f"Borrar {fila['nombre']}", key=f"bib_del_{ranura}_{fila['id']}"):
+                try:
+                    ido = library_delete(ranura, fila["id"])
+                except ShmirDesignError as exc:
+                    # rule2-ok: frontera de la interfaz.
+                    st.error(f"**NO se borró** — {exc}")
+                else:
+                    st.warning(f"Borrado: {ido}")
+                    st.rerun()
+
+    if subido is not None:
+        return subido
+    if elegido:
+        return library_file(ranura, elegido)
+    return None
 
 
 def _read_upload(upload) -> str:
@@ -405,7 +495,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "brazos de homologia, más la hoja de pedido."
         ),
     )
-    if bloques and seleccion.selection.chosen:
+    if bloques and has_selection(seleccion):
         aviso_vector = vector_note(nombre)
         if not aviso_vector["aplica"]:
             st.error(aviso_vector["texto"])
@@ -423,7 +513,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     documento = informe_documento(
         seleccion, tiling, species=nombre,
         generated=st.session_state.get("fecha_informe", "sin fecha declarada"),
-        anatomy_source=anat.source.value if hasattr(anat, "source") else str(anat),
+        anatomy_source=anatomy_source_label(anat),
     )
     (st.warning if documento.state == "PARCIAL" else st.success)(
         informe_state_text(documento)
@@ -504,79 +594,203 @@ def _panel_proyecto(especie: str, secuencia: str, anat):
         st.sidebar.error(f"**PARA** — {exc}")
         return None
 
-    st.sidebar.success(f"Proyecto **{almacen.project.slug}** — {len(almacen.records())} registro(s)")
-    if not almacen.project.reliable:
-        st.sidebar.warning(almacen.project.why_unreliable)
+    cartel = project_banner(almacen)
+    st.sidebar.success(cartel["titulo"])
+    if not cartel["fiable"]:
+        st.sidebar.warning(cartel["aviso"])
     with st.sidebar.expander("Historial"):
         for fila in project_rows(almacen):
             st.write(f"{fila['n']}. `{fila['tipo']}` {fila['fecha']} — {fila['resumen']}")
+
+    # ¿Siguen valiendo? Se DERIVA comparando el md5 que cada corrida guardó con el del
+    # fichero de hoy. La página no compara nada: pide las filas ya resueltas.
+    filas = obsolete_rows(almacen, directory=reference_dir())
+    caducadas = [f for f in filas if f["estado"] is FilterState.OBSOLETO]
+    if caducadas:
+        st.sidebar.error(
+            f"**{len(caducadas)} corrida(s) OBSOLETA(s)** — un fichero que consumieron "
+            f"ha cambiado debajo."
+        )
+    if filas:
+        with st.sidebar.expander("¿Siguen valiendo las corridas guardadas?"):
+            st.caption(OBSOLETO_NOTE)
+            for fila in filas:
+                st.write(f"`{fila['tipo']}` {fila['fecha']} — **{fila['estado']}**")
+                for motivo in fila["motivos"]:
+                    st.caption(f"  {motivo}")
     return almacen
 
 
 
-def _panel_referencias(especie: str) -> None:
-    """El panel de ficheros de referencia de la barra lateral.
+def _fila_presente(fila, directorio) -> None:
+    """Las CUATRO acciones de un fichero que está. Ninguna escondida tras un menú."""
+    nombre = fila["nombre"]
+    botones = st.columns(4)
+    with botones[0]:
+        ver = st.button("Ver", key=f"g_ver_{nombre}", width="stretch")
+    with botones[1]:
+        cambiar = st.toggle("Reemplazar", key=f"g_rep_{nombre}")
+    with botones[2]:
+        quitar = st.toggle("Borrar", key=f"g_del_{nombre}")
+    with botones[3]:
+        try:
+            st.download_button(
+                "Descargar", data=reference_download(nombre, directory=directorio),
+                file_name=nombre, key=f"g_dl_{nombre}", width="stretch",
+            )
+        except ShmirDesignError as exc:
+            # rule2-ok: frontera de la interfaz. El motivo entero, sin degradado.
+            st.error(f"{exc}")
 
-    Lo que arregla: unos ficheros se subian por aqui y otros habia que DEPOSITAR en
-    `data/reference/`, que es un directorio del repositorio. Quien no conoce ese arbol
-    —que es exactamente el usuario para el que se escribe esta app— no podia usarla.
+    if ver:
+        vista = reference_preview(nombre, directory=directorio)
+        st.caption(vista["cabecera"])
+        st.code(vista["texto"])
 
-    La pagina no valida, no calcula ningun md5 y no escribe el manifiesto: todo eso pasa
-    en `presentation.accept_reference_upload` y en `deposito.py`, con tests.
+    if cambiar:
+        subido = st.file_uploader(
+            f"Fichero nuevo para {nombre}", type=fila["extensiones"],
+            key=f"g_up_{nombre}",
+        )
+        if subido is not None:
+            plan = reference_replace_plan(
+                nombre, directory=directorio, payload=subido.getvalue(),
+                species=fila["especie"],
+            )
+            (st.warning if plan["invalida"] else st.info)(plan["texto"])
+            fecha = st.text_input("Fecha", "", key=f"g_fecha_{nombre}")
+            origen = st.text_input("De dónde salió", "", key=f"g_org_{nombre}")
+            if st.button(f"Confirmar reemplazo de {nombre}", key=f"g_ok_{nombre}"):
+                try:
+                    hecho = accept_reference_upload(
+                        fila["especie"], directory=directorio, filename=nombre,
+                        payload=subido.getvalue(), date=fecha,
+                        origin=origen or "reemplazado por la interfaz",
+                    )
+                except (ShmirDesignError, ValueError, OSError) as exc:
+                    # rule2-ok: no se ha escrito nada y el motivo se enseña entero.
+                    st.error(f"**RECHAZADO** — {exc}")
+                else:
+                    st.success(hecho["texto"])
+                    st.rerun()
+
+    if quitar:
+        plan = reference_delete_plan(
+            nombre, directory=directorio, species=fila["especie"]
+        )
+        st.warning(plan["texto"])
+        if st.button(f"Confirmar borrado de {nombre}", key=f"g_okdel_{nombre}"):
+            try:
+                ido = reference_delete(nombre, directory=directorio)
+            except (ShmirDesignError, OSError) as exc:
+                # rule2-ok: frontera de la interfaz.
+                st.error(f"**NO se borró** — {exc}")
+            else:
+                st.warning(ido)
+                st.rerun()
+
+
+def _fila_ausente(fila, directorio) -> None:
+    """Subir, con la ficha de obtención desplegable justo debajo."""
+    nombre = fila["nombre"]
+    subido = st.file_uploader(
+        f"Subir {nombre}", type=fila["extensiones"], key=f"g_new_{nombre}"
+    )
+    fecha = st.text_input("Fecha de descarga (AAAA-MM-DD)", "", key=f"g_nf_{nombre}")
+    origen = st.text_input("De dónde salió", "", key=f"g_no_{nombre}")
+    if subido is not None and st.button(f"Validar y registrar {nombre}", key=f"g_nb_{nombre}"):
+        try:
+            hecho = accept_reference_upload(
+                fila["especie"], directory=directorio, filename=nombre,
+                payload=subido.getvalue(), date=fecha,
+                origin=origen or "subido por la interfaz",
+            )
+        except (ShmirDesignError, ValueError, OSError) as exc:
+            # rule2-ok: el fichero NO se ha escrito y el motivo se enseña entero.
+            st.error(f"**RECHAZADO** — {exc}")
+        else:
+            st.success(hecho["texto"])
+            st.rerun()
+    with st.expander(f"Cómo se consigue {nombre}", expanded=False):
+        st.caption(fila["ficha"]["texto"])
+
+
+def _deposito_opcional(especie: str) -> None:
+    """El deposito, alcanzable antes de diseñar — pero como acceso SECUNDARIO.
+
+    El paso 5 solo aparece despues de haber diseñado, y esa es la decision. Pero dejar
+    el gestor SOLO ahi dentro quitaba la unica via de subir un fichero a quien acaba de
+    abrir la app, y este proyecto tiene decidido que **todo se sube por la interfaz**
+    porque quien la usa no conoce el arbol del repositorio.
+
+    Va COLAPSADO y con el titulo diciendo que no hace falta para diseñar: asi se puede
+    depositar antes, sin que la pantalla vuelva a leerse como una lista de requisitos.
     """
-    st.sidebar.header("Ficheros de referencia")
+    with st.expander(
+        "Depositar ficheros de referencia (no hace falta ninguno para diseñar)",
+        expanded=False,
+    ):
+        _panel_refinamiento(especie)
+
+
+def _panel_refinamiento(especie: str) -> None:
+    """PASO 5. Los ficheros que deciden que candidatos CAEN, DESPUES de los resultados.
+
+    Antes esto era el paso 3 y se pedia entero antes de diseñar, como si los siete
+    frentes sirvieran para lo mismo. No sirven: para obtener candidatos no hace falta
+    ninguno. Ver `presentation.WHY_TWO_MOMENTS`.
+
+    La pagina no decide nada aqui (regla 6): el estado de cada fila, su color, el orden
+    y si va colapsada salen de `presentation.refinement_panel`, con tests. Si el color
+    lo eligiera la pagina segun un umbral, eso seria logica sin test — y un panel que
+    pinta en ambar algo que no hace falta manda a buscar un fichero que ya sobra.
+    """
     if not especie:
-        st.sidebar.caption(
-            "Elige una especie: los ficheros que hacen falta —y como se llaman— "
+        st.caption(
+            "Elige una especie: los ficheros que hacen falta —y cómo se llaman— "
             "dependen de ella."
         )
         return
 
-    resumen = reference_panel_summary(especie, directory=reference_dir())
-    st.sidebar.caption(
-        f"{resumen['cerrables']} de {resumen['total']} frentes cerrables con lo que hay."
+    directorio = reference_dir()
+    panel = refinement_panel(especie, directory=directorio)
+
+    # La frase de encuadre, EN LA SECCION y no en un tooltip: lo que hace falta para
+    # leer bien la lista no puede estar detras de un gesto.
+    st.info(panel["frase"])
+    st.progress(panel["progreso"]["fraccion"], text=panel["progreso"]["texto"])
+    st.caption(
+        " · ".join(
+            f"{e['marca']} **{e['estado']}** {e['significa']}" for e in panel["leyenda"]
+        )
     )
-    # Donde van a parar los ficheros. Solo cuando NO es el del paquete: en local, decirlo
-    # seria ruido; en un servidor, no decirlo deja al usuario sin saber si lo que sube
-    # sobrevive a un redespliegue.
+    st.caption(WHY_NO_GLOBAL_TOGGLE)
     if is_declared():
-        st.sidebar.caption(f"Se guardan en `{reference_dir()}`. {WHY_A_WORKING_DIR}")
-    for fila in reference_panel_rows(especie, directory=reference_dir()):
-        marca = "✅" if fila["presente"] else ("⬜" if fila["obligatorio"] else "▫️")
-        with st.sidebar.expander(f"{marca} {fila['nombre']}", expanded=False):
-            st.caption(fila["que_desbloquea"])
-            subido = st.file_uploader(
-                f"Subir {fila['nombre']}",
-                type=fila["extensiones"],
-                key=f"ref_{fila['nombre']}",
-            )
-            fecha = st.text_input(
-                "Fecha de descarga (AAAA-MM-DD)", "", key=f"fecha_{fila['nombre']}",
-                help="Sin fecha el fichero no es reproducible; va al manifiesto.",
-            )
-            origen = st.text_input(
-                "De donde salio", "", key=f"origen_{fila['nombre']}",
-                help="La fuente y su versión. Es lo que se copia al informe.",
-            )
-            if subido is not None and st.button(
-                "Validar y registrar", key=f"btn_{fila['nombre']}"
-            ):
-                try:
-                    hecho = accept_reference_upload(
-                        especie,
-                        directory=reference_dir(),
-                        filename=fila["nombre"],
-                        payload=subido.getvalue(),
-                        date=fecha,
-                        origin=origen or "subido por la interfaz",
-                    )
-                except (ShmirDesignError, ValueError, OSError) as exc:
-                    # rule2-ok: frontera de la interfaz. El fichero NO se ha escrito y el
-                    # motivo se enseña entero; no hay degradado silencioso.
-                    st.error(f"**RECHAZADO** — {exc}")
+        st.caption(f"Se guardan en `{directorio}`. {WHY_A_WORKING_DIR}")
+
+    filas = panel["filas"]
+    if filas and filas[0]["aviso_manifiesto"]:
+        st.error(f"**Manifiesto ilegible** — {filas[0]['aviso_manifiesto']}")
+
+    for fila in filas:
+        titular = (
+            f"{fila['marca']} **{fila['nombre']}** · {fila['frentes_texto']} — "
+            f"{fila['por_que']}"
+        )
+        if fila["colapsada"]:
+            # UNA LINEA, pero CON SUS BOTONES: colapsar es no ocupar sitio, no dejar de
+            # poder ver, reemplazar, borrar o descargar lo que ya esta.
+            with st.expander(titular, expanded=False):
+                st.caption(fila["resumen"])
+                if fila["acciones"]:
+                    _fila_presente(fila, directorio)
                 else:
-                    st.success(hecho["texto"])
-            st.caption(fila["ficha"]["texto"])
+                    st.caption(fila["si_no_llega"])
+            continue
+        with st.container(border=True):
+            st.markdown(titular)
+            st.caption(fila["si_no_llega"])
+            _fila_ausente(fila, directorio)
 
 
 def main() -> None:
@@ -651,7 +865,6 @@ def main() -> None:
         else:
             st.success(nota["texto"])
 
-    _panel_referencias(nombre_modelo)
 
     st.sidebar.header("Otros ajustes")
     gen_diana = st.sidebar.text_input(
@@ -683,13 +896,19 @@ def main() -> None:
     st.subheader("2) Secuencia")
     columnas = st.columns(2)
     with columnas[0]:
-        modelo = st.file_uploader("mRNA — especie del diseño", type=["fa", "fasta", "txt"])
-        gb_modelo = st.file_uploader(
-            "GenBank de la especie del diseño (.gb, PREFERENTE)",
-            type=["gb", "gbk", "genbank"],
-            help="El CDS anotado del RefSeq. Es la via más fiable de resolver la "
-                 "anatomía: sin el, las coordenadas del CDS las tecleas tu y los tercios "
-                 "salen NO_FIABLE.",
+        modelo = _panel_biblioteca(
+            "mrna_diseno",
+            st.file_uploader("mRNA — especie del diseño", type=["fa", "fasta", "txt"]),
+        )
+        gb_modelo = _panel_biblioteca(
+            "genbank_diseno",
+            st.file_uploader(
+                "GenBank de la especie del diseño (.gb, PREFERENTE)",
+                type=["gb", "gbk", "genbank"],
+                help="El CDS anotado del RefSeq. Es la via más fiable de resolver la "
+                     "anatomía: sin el, las coordenadas del CDS las tecleas tu y los "
+                     "tercios salen NO_FIABLE.",
+            ),
         )
     with columnas[1]:
         opciones_diana = [o for o in opciones if o["valor"] != nombre_modelo]
@@ -702,38 +921,49 @@ def main() -> None:
                 o["etiqueta"] for o in opciones_diana if o["valor"] == v
             ),
         )
-        diana = st.file_uploader(
-            "mRNA — segunda especie (opcional)", type=["fa", "fasta", "txt"]
+        diana = _panel_biblioteca(
+            "mrna_segunda",
+            st.file_uploader(
+                "mRNA — segunda especie (opcional)", type=["fa", "fasta", "txt"]
+            ),
         )
-        gb_diana = st.file_uploader(
-            "GenBank de la segunda especie (.gb, opcional)",
-            type=["gb", "gbk", "genbank"],
-            help="Lo mismo para la segunda especie.",
+        gb_diana = _panel_biblioteca(
+            "genbank_segunda",
+            st.file_uploader(
+                "GenBank de la segunda especie (.gb, opcional)",
+                type=["gb", "gbk", "genbank"],
+                help="Lo mismo para la segunda especie.",
+            ),
         )
 
-    # ── PASO 3 · FICHEROS DE REFERENCIA ─────────────────────────────────────────
+    # ── PASO 3 · FICHEROS DE REFERENCIA, LOS DE DISEÑAR ─────────────────────────
     #
-    # El recuento va AQUI, antes de ejecutar nada: es lo que permite decidir si se sigue
-    # o se va a buscar un fichero primero.
-    st.subheader("3) Ficheros de referencia")
+    # SOLO lo imprescindible para OBTENER candidatos, que hoy es nada. Los que deciden
+    # cuales CAEN van en el paso 5, DESPUES del boton: pedirlos todos aqui hacia creer
+    # que sin ellos no se puede empezar, y eso es falso — se puede diseñar hoy y refinar
+    # mañana. Ver `presentation.WHY_TWO_MOMENTS`.
     pasos = steps_rows(
         species=nombre_modelo,
         sequence_loaded=modelo is not None,
         directory=reference_dir(),
+        designed=st.session_state.get("accion") == "diseñar",
     )
-    tercero = pasos[2]
-    st.info(tercero["detalle"])
-    resumen = reference_panel_summary(nombre_modelo, directory=reference_dir())
-    with st.expander(f"Frentes que quedan abiertos ({len(resumen['abiertos'])})"):
-        for fila in resumen["abiertos"]:
-            st.write(f"· **{fila['frente']}** — falta {fila['falta']}")
-        st.caption(WHY_NO_GLOBAL_TOGGLE)
+    st.subheader(f"3) {pasos[2]['titulo']}")
+    st.info(pasos[2]["detalle"])
+    # Por que son DOS pasos y no uno. Va aqui, donde se nota la ausencia de la lista
+    # larga: sin esta frase, un paso 3 vacio se lee como un paso que no hace nada.
+    st.caption(WHY_TWO_MOMENTS)
+    for fila in design_files_rows(nombre_modelo, directory=reference_dir())["filas"]:
+        with st.container(border=True):
+            st.markdown(f"{fila['marca']} **{fila['nombre']}** — {fila['por_que']}")
+            _fila_ausente(fila, reference_dir())
 
     if not modelo:
         st.info(
             "Sube al menos un FASTA de mRNA para seguir. Con dos se buscan además los "
             "bloques conservados entre ellos."
         )
+        _deposito_opcional(nombre_modelo)
         return
     if diana and not nombre_diana:
         st.error(
@@ -830,6 +1060,7 @@ def main() -> None:
             "Todo listo. **Estimar coste** dice cuanto va a tardar sin diseñar nada; "
             "**Diseñar** lanza la corrida."
         )
+        _deposito_opcional(nombre_modelo)
         return
 
     try:
@@ -916,6 +1147,18 @@ def main() -> None:
     for nombre, contenido in sorted(ficheros.items()):
         st.download_button(nombre, contenido, nombre, "text/plain", key=f"dl_{nombre}")
 
+    # ── PASO 5 · REFINAMIENTO ───────────────────────────────────────────────────
+    #
+    # AQUI ABAJO y no arriba: los candidatos de mas arriba son PROVISIONALES, y cada
+    # fichero de esta seccion puede tumbar alguno. Puesto antes del boton se leia como
+    # una lista de requisitos para empezar.
+    quinto = pasos[4]
+    if quinto["visible"]:
+        st.divider()
+        st.subheader(f"5) {quinto['titulo']}")
+        st.caption(quinto["detalle"])
+        _panel_refinamiento(nombre_modelo)
+
 
 if __name__ == "__main__":
     main()
@@ -970,7 +1213,7 @@ def _guardar_seleccion(proyecto, seleccion, nombre: str) -> None:
             try:
                 save_selection(
                     proyecto,
-                    starts=[c.start for c in seleccion.selection.chosen],
+                    starts=chosen_starts(seleccion),
                     date=fecha, by=quien,
                 )
             except (ShmirDesignError, ValueError, OSError) as exc:
@@ -1156,7 +1399,7 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None) -> None:
                 f"(por defecto {fila['por_defecto']})"
             )
 
-    starts = [c.start for c in seleccion.selection.chosen]
+    starts = chosen_starts(seleccion)
     # La HUELLA del panel y los ajustes. Ver `WHY_A_RUN_FINGERPRINT`: sin ella, cambiar
     # la selección o un ajuste dejaba en pantalla el resultado viejo y lo ofrecía para
     # guardar — una corrida con una procedencia que no era la suya.
@@ -1168,10 +1411,12 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None) -> None:
             seleccion, mature=maduros, params=params, species=nombre,
             starts=tuple(starts), guides=True, passengers=True,
         ))
-    guardado = st.session_state.get(f"seed_scan_{nombre}")
-    scan = guardado[1] if guardado and guardado[0] == huella else None
-    if guardado and guardado[0] != huella:
-        st.info(WHY_A_RUN_FINGERPRINT)
+    # La pagina NO decide si lo cacheado sirve: lo decide `cached_run`. Estaba aqui,
+    # copiado en los dos modales, y por tanto sin test y pudiendo divergir.
+    cacheado = cached_run(st.session_state.get(f"seed_scan_{nombre}"), huella)
+    scan = cacheado["resultado"]
+    if cacheado["caducado"]:
+        st.info(cacheado["aviso"])
     if scan is not None:
         destacados = seed_highlights(scan)
         st.warning(destacados["tasa_base"]["texto"])
@@ -1241,6 +1486,18 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None) ->
             st.write(f"⬜ **{fila['intron']}** — NOT_RUN. {fila['motivo']}")
             with st.expander(f"Cómo se resuelve «{fila['intron']}»"):
                 st.caption(obtencion_rows(fila["ficha"], species=nombre)["texto"])
+
+    # La GEOMETRIA de cada intron: el desglose pieza a pieza y donde cabe el modulo.
+    # Va aqui porque es lo que hay que mirar ANTES de montar nada — un total que nadie
+    # puede descomponer escondia 65 nt de espaciadores de novo, y el sitio de insercion
+    # no se emitia en ninguna parte. La pagina no calcula: pide el texto ya montado.
+    with st.expander("Geometría de los intrones — desglose y sitio de inserción"):
+        st.code(intron_geometry_text(), language=None)
+
+    # La variante que la app DISEÑA, para esta guía. Se enseña aquí porque es donde se
+    # decide con qué intrón se consulta: uno que se propone y nadie ve no existe.
+    with st.expander("Variante propuesta — mvm_sin_criptico", expanded=False):
+        st.text(variant_proposal_for(seleccion))
 
     disponibles = [f["intron"] for f in splice_intron_rows() if f["estado"] is FilterState.PASS]
     elegidos = st.multiselect(
@@ -1354,7 +1611,7 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
     ):
         return
 
-    st.caption(offtarget_route_text())
+    st.caption(offtarget_route_text(nombre))
 
     st.subheader("Procedencia del fichero")
     st.caption(
@@ -1426,7 +1683,7 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         )
     st.error(offtarget_upper_bound()["texto"])
 
-    starts = [c.start for c in seleccion.selection.chosen]
+    starts = chosen_starts(seleccion)
     huella = run_fingerprint(tuple(starts), params)
     if st.button(f"Contar off-targets — {nombre}", key=f"ot_go_{nombre}"):
         # Mismo motivo que en el modal de seed: el scan tiene que sobrevivir al rerun.
@@ -1436,10 +1693,12 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
             species=nombre, starts=tuple(starts), guides=True, passengers=True,
             target=diana, target_label=f"3'UTR de {nombre}",
         ))
-    guardado = st.session_state.get(f"ot_scan_{nombre}")
-    scan = guardado[1] if guardado and guardado[0] == huella else None
-    if guardado and guardado[0] != huella:
-        st.info(WHY_A_RUN_FINGERPRINT)
+    # La pagina NO decide si lo cacheado sirve: lo decide `cached_run`. Estaba aqui,
+    # copiado en los dos modales, y por tanto sin test y pudiendo divergir.
+    cacheado = cached_run(st.session_state.get(f"ot_scan_{nombre}"), huella)
+    scan = cacheado["resultado"]
+    if cacheado["caducado"]:
+        st.info(cacheado["aviso"])
     if scan is not None:
         destacados = offtarget_highlights(scan)
         st.error(destacados["limite_superior"]["texto"])

@@ -48,11 +48,27 @@ class TestElPlegadoDeVerdad(unittest.TestCase):
             introns.INTRONS["mvm_actual"], module=MODULO
         )
 
-    def test_corre_y_da_los_TRES_elementos(self):
+    def test_corre_y_da_los_CUATRO_elementos(self):
+        # Eran tres —donante, punto y ACEPTOR— y el tracto faltaba. Los TRES FRÁGILES
+        # son donante, punto y tracto; el aceptor es la frontera. Sin el tracto no se
+        # podía evaluar el criterio de aceptación de los espaciadores.
         self.assertIs(self.resultado.state, FilterState.PASS)
+        # Por IDENTIDAD, no por cantidad. La version anterior comprobaba que salieran
+        # TRES —y salian tres— mientras faltaba el tracto: contar no es comprobar. Ver
+        # la errata nº 12.
         self.assertEqual(
             set(self.resultado.unpaired), set(intron_folding.ELEMENTS)
         )
+        self.assertIn("tracto_polipirimidinas", self.resultado.unpaired)
+        self.assertEqual(len(intron_folding.ELEMENTS), 4)
+
+    def test_y_los_TRES_FRAGILES_estan_entre_ellos(self):
+        # `barrido.FRAGILE` es OTRA lista y otra pregunta: cuales de los cuatro son los
+        # que el criterio de aceptacion de los espaciadores mira. El aceptor no esta.
+        from shmir_design.barrido import FRAGILE
+
+        self.assertTrue(set(FRAGILE) <= set(intron_folding.ELEMENTS))
+        self.assertNotIn("aceptor", FRAGILE)
 
     def test_cada_uno_es_una_FRACCION_entre_cero_y_uno(self):
         for nombre, valor in self.resultado.unpaired.items():
@@ -158,7 +174,11 @@ class TestLoQueMIDE_Y_LO_QUE_NO(unittest.TestCase):
         )
         perfil = self._perfil(bloque.module).unpaired
         self.assertAlmostEqual(perfil["donante"], 0.89, places=2)
-        self.assertAlmostEqual(perfil["punto_de_ramificacion"], 0.29, places=2)
+        # 0.26 y no 0.29: el punto de ramificación se movió un nucleótido al recalibrar
+        # el motivo (`YURAY` leía TAATT en 43-47, `YTNAY` lee TTAAT en 42-46 — la MISMA
+        # A, otro marco de lectura), y el perfil se mide sobre las posiciones del
+        # elemento. El número no se ajustó a mano: es lo que sale ahora.
+        self.assertAlmostEqual(perfil["punto_de_ramificacion"], 0.26, places=2)
         self.assertAlmostEqual(perfil["aceptor"], 0.84, places=2)
 
     def test_pero_un_modulo_ADVERSARIO_SI_lo_mueve(self):

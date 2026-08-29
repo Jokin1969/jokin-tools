@@ -32,7 +32,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shmir_design import masking  # noqa: E402
-from shmir_design.apa import POLYA_DB_PRNP, load_apa_sites, resolve_measured  # noqa: E402
+from shmir_design.apa import ApaExcluded, load_apa_sites  # noqa: E402
 from shmir_design.splicing import intronless_control, plan_from_records  # noqa: E402
 from shmir_design.anatomy import (  # noqa: E402
     Anatomy,
@@ -68,7 +68,7 @@ from shmir_design.manifest import (  # noqa: E402
     roles_available,
 )
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
-from shmir_design.masking import load_mask_file, load_rmsk  # noqa: E402
+from shmir_design.masking import load_rmsk  # noqa: E402
 from shmir_design.outputs import (  # noqa: E402
     fasta_guides,
     text_report,
@@ -97,9 +97,13 @@ from shmir_design.seed_load import (  # noqa: E402
     load_utr3_set,
 )
 from shmir_design.seeds import BOOTSTRAP_SEEDS, parse_seed_table  # noqa: E402
-from shmir_design.selection import SelectionConfig, select_from_report  # noqa: E402
+from shmir_design.selection import (  # noqa: E402
+    SelectionConfig,
+    default_config,
+    select_from_report,
+)
 from shmir_design.specificity import load_database  # noqa: E402
-from shmir_design.tiling import tile_utr  # noqa: E402
+from shmir_design.tiling import RESOLVER_MEDIDA, tile_utr  # noqa: E402
 
 DEFAULT_PAIR = {"raton": "NM_011170.3", "humano": "NM_000311.5"}
 
@@ -135,17 +139,6 @@ def estado_de_los_datos(directorio: Path, *, permitir_sin_manifiesto: bool):
             f"aborta antes de usarlos para ningún veredicto."
         )
     return estado, load_manifest(directorio / MANIFEST_NAME)
-
-
-def load_seeds(path: Path):
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise ShmirDesignError(
-            f"No se pudo leer el fichero de seeds {path} ({exc}); se aborta el diseño."
-        ) from exc
-    return parse_seed_table(text, source=str(path))
-
 
 PISTA_CLI = (
     "\nEn este CLI: --genbank FICHERO.gb, --cds INICIO FIN, o --region 3utr.\n"
@@ -196,6 +189,17 @@ DESTINOS = {
     "rmsk": ("rmsk", "rmsk_version", "rmsk_md5"),
     "transgen": ("transgen", "transgen_version", "transgen_md5"),
     "apa": ("apa_medido", "apa_version", "apa_md5"),
+    # `polyadb` NO SE CONECTA POR AQUI, y `None` lo dice: la tabla de PolyA_DB la
+    # resuelve `tile_utr` por su cuenta del directorio de referencia (`find_polyadb`),
+    # asi que no hay bandera que rellenar. Antes ni siquiera estaba, y `--usar-manifiesto`
+    # —«la forma normal de correr»— reventaba con un `KeyError: 'polyadb'` contra el
+    # manifiesto de verdad. Ningun test lo veia porque todos montan un manifiesto
+    # PARCIAL en un temporal, sin ese rol.
+    #
+    # `None` es una DECISION declarada, no un hueco: un rol que faltara del diccionario
+    # vuelve a ser el KeyError, y `tests/test_roles_del_manifiesto.py` cruza las dos
+    # listas en las dos direcciones para que no pueda volver a pasar.
+    "polyadb": None,
 }
 
 
@@ -217,7 +221,10 @@ def conectar_desde_manifiesto(args, estado) -> None:
 
     print("  --usar-manifiesto conecta:")
     for rol in disponibles:
-        destino, version, md5 = DESTINOS[rol.role]
+        conexion = DESTINOS[rol.role]
+        if conexion is None:
+            continue  # lo resuelve el nucleo, no hay bandera que rellenar
+        destino, version, md5 = conexion
         entrada = estado.result_of(rol.filename).entry
         if getattr(args, destino) is not None:
             print(
@@ -353,6 +360,36 @@ def _convergencia(ruta: Path, *, tiling, seleccion):
     )
 
 
+def config_de_seleccion(args) -> SelectionConfig:
+    """La configuracion de seleccion del CLI. Sale de `default_config()`, como la pagina.
+
+    ANTES ERA UN `SelectionConfig(...)` PELADO, y ahi vivia la SEXTA divergencia entre
+    los dos frontales: `--inmunes` valia **0** por defecto y la decision del proyecto es
+    **4** (`DEFAULT_IMMUNE_QUOTA`). Como nadie pasa nunca esa bandera, el CLI corria
+    SIEMPRE con la cuota apagada y daba otro panel:
+
+        pagina  →  3utr: 10, 60, 143, **200**, 449, 553, 652, 735, 819, 1018
+        CLI     →  3utr: 10, 60, 143, **359**, 449, 553, 652, 735, 819, 1018
+
+    `3utr:359` (+4,82) desplaza a `3utr:200` (+3,80) por asimetria, asi que el panel del
+    CLI se quedaba con TRES inmunes en vez de cuatro — y no lo decia nadie, porque los
+    dos son del tercio proximal y la cuota de tercios se cumple igual. Es literalmente el
+    fallo que `default_config()` existe para cerrar, arreglado en la pagina y no aqui.
+
+    Y la frontera de la inmunidad NO se recibe: `select_from_report` la DERIVA del
+    informe. Un corte tecleado no se entera de que un sitio medido lo adelante — paso de
+    `3utr:303` a `3utr:251` y la cifra escrita a mano siguio ahi sin dar ningun error.
+    """
+    return default_config(
+        n_candidates=args.candidates,
+        min_spacing=args.min_spacing,
+        region_quota=(
+            parse_cuota_region(args.cuota_region) if args.cuota_region else None
+        ),
+        spread_coverage=args.reparto_rango,
+    )
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -382,29 +419,6 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--name-b", default="especie_b", help="Nombre para --fasta-b")
     parser.add_argument("--candidates", type=int, default=SelectionConfig().n_candidates)
     parser.add_argument(
-        "--min-por-tercio", type=int, default=SelectionConfig().min_per_tercio,
-        help=(
-            "Mínimo de candidatos por tercio del 3'UTR. Las causas de fallo son "
-            "regionales, no puntuales."
-        ),
-    )
-    parser.add_argument(
-        "--inmunes", type=int, default=0,
-        help=(
-            "Mínimo de candidatos INMUNES al truncamiento: los que empiezan por delante "
-            "del corte de la señal proximal. Necesita --inmunes-antes."
-        ),
-    )
-    parser.add_argument(
-        "--inmunes-antes", type=int, default=None,
-        help=(
-            "Posición (en el marco de lo tilado) del corte más TEMPRANO de la señal "
-            "proximal. Un candidato que empiece por delante se conserva en las dos "
-            "isoformas. Por defecto se DERIVA del informe: teclearlo es lo que hace que "
-            "la cifra no se entere de que un sitio de corte medido adelante la frontera."
-        ),
-    )
-    parser.add_argument(
         "--convergencia", type=Path, default=None,
         help=(
             "Export de la fuente externa (CSV de miRarchitect) para declarar en el "
@@ -416,9 +430,7 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--min-spacing", type=int, default=SelectionConfig().min_spacing)
     parser.add_argument("--scaffold", type=Path, help="Andamio en TOML")
-    parser.add_argument("--seeds", type=Path, help="Tabla de seeds `seed familia`")
     parser.add_argument("--bootstrap-seeds", action="store_true")
-    parser.add_argument("--repeats", type=Path, help="Intervalos repetitivos `inicio fin`")
     parser.add_argument(
         "--rmsk", type=Path,
         help="Salida de RepeatMasker (.out) o tabla rmsk de UCSC, en coordenadas de la "
@@ -459,10 +471,6 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--mirbase-version", help="Versión de miRBase; obligatoria")
     parser.add_argument("--mirbase-md5", help="md5 esperado; si no cuadra, PARA")
     parser.add_argument(
-        "--mirbase-especies", default="mmu-,hsa-",
-        help="Prefijos de especie que se leen de mature.fa (por defecto mmu-,hsa-).",
-    )
-    parser.add_argument(
         "--abundancia", type=Path,
         help="Lista curada de miARN abundantes en el tejido (MirGeneDB). Es la ÚNICA "
              "fuente del nivel FAIL; sin ella ese nivel queda en NOT_RUN.",
@@ -483,8 +491,17 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--apa-medido", type=Path,
         help="Tabla `posicion<TAB>fraccion<TAB>nombre` de sitios de poliadenilación "
-             "MEDIDOS (PolyA_DB, PolyASite). Con ella, el dato sustituye a la "
-             "predicción de riesgo_APA y se puede dar el techo de knockdown.",
+             "MEDIDOS (PolyA_DB, PolyASite) ADICIONAL. NO es un interruptor: la tabla "
+             "de PolyA_DB que el proyecto ya tiene se aplica SIEMPRE que hable de la "
+             "secuencia analizada, sin pedirla. Esto añade otra.",
+    )
+    parser.add_argument(
+        "--ignorar-apa-medido", metavar="MOTIVO",
+        help="Excluir A PROPÓSITO la tabla de APA medido, con el motivo escrito. Es la "
+             "única forma de que no entre: sin ella una señal con uso medido se trata "
+             "como no funcional, que es la hipotesis MENOS conservadora. El motivo viaja "
+             "al veredicto — sin el, «se decidio no usarla» y «nadie se acordo» son el "
+             "mismo resultado mudo. Mismo criterio que ignorar un fichero del deposito.",
     )
     parser.add_argument("--apa-version", help="Versión de la tabla; obligatoria")
     parser.add_argument("--apa-md5", help="md5 esperado; si no cuadra, PARA")
@@ -551,14 +568,6 @@ def main(argv: list[str]) -> int:
              "coordenadas que corre todo el 3'UTR sin avisar.",
     )
     parser.add_argument(
-        "--polyA-modo", choices=[m.value for m in PolyAMode],
-        default=PolyAMode.ESCALONADO.value,
-        help="Criterio de poliadenilación: 'estricto' tumba toda ventana que solape "
-             "cualquier hexámero; 'escalonado' solo las señales fuertes; 'permisivo' "
-             "solo las que quedan por detrás del sitio de corte de la señal terminal. "
-             "El informe saca el top-N bajo los tres, siempre.",
-    )
-    parser.add_argument(
         "--bloques", action="store_true",
         help="Emite además los bloques listos para pedir de los candidatos elegidos: "
              "módulo NheI-SacI de 149 nt, cassette MluI-AgeI de 318 pb, versiones con "
@@ -621,9 +630,6 @@ def main(argv: list[str]) -> int:
     if args.out is None and not args.estimar:
         print("design: falta --out con el directorio de salida.", file=sys.stderr)
         return 2
-    if args.seeds and args.bootstrap_seeds:
-        print("design: --seeds y --bootstrap-seeds son excluyentes.", file=sys.stderr)
-        return 2
     if args.fasta_b and not args.fasta:
         print(
             "design: --fasta-b necesita --fasta; son las dos especies que se comparan.",
@@ -647,13 +653,6 @@ def main(argv: list[str]) -> int:
 
         scaffold = load_scaffold(args.scaffold) if args.scaffold else SGEP_SCAFFOLD
         seeds = BOOTSTRAP_SEEDS if args.bootstrap_seeds else None
-        if args.seeds:
-            seeds = load_seeds(args.seeds)
-        if args.repeats and args.rmsk:
-            raise ValueError(
-                "--repeats y --rmsk declaran los dos la máscara de repeticiones. Elige "
-                "uno: si no coinciden, no hay forma de saber cual vale."
-            )
         if args.rmsk and not args.rmsk_version:
             raise ValueError(
                 "--rmsk necesita --rmsk-version: sin procedencia el enmascarado no es "
@@ -684,7 +683,7 @@ def main(argv: list[str]) -> int:
                 summary_path=args.rmsk_resumen,
             )
         else:
-            mask = load_mask_file(args.repeats) if args.repeats else None
+            mask = None
 
         maduros = None
         if args.mirbase:
@@ -697,9 +696,10 @@ def main(argv: list[str]) -> int:
                 args.mirbase,
                 version=args.mirbase_version,
                 expected_md5=args.mirbase_md5,
-                prefixes=tuple(
-                    p.strip() for p in args.mirbase_especies.split(",") if p.strip()
-                ),
+                # SIN `prefixes`: se indexa el fichero ENTERO y el filtro por especie es
+                # de quien PREGUNTA, no de quien carga. Habia una bandera para teclearlo
+                # y era la puerta de atras al prefijo equivocado, que da CERO colisiones
+                # y parece una buena noticia. Ver `mirna.DEFAULT_PREFIXES`.
             )
 
         abundantes = None
@@ -788,17 +788,7 @@ def main(argv: list[str]) -> int:
                 version=args.refseq_version,
                 expected_md5=args.refseq_md5,
             )
-        config = SelectionConfig(
-            n_candidates=args.candidates,
-            min_spacing=args.min_spacing,
-            min_per_tercio=args.min_por_tercio,
-            apa_immune_quota=args.inmunes,
-            apa_immune_before=args.inmunes_antes,
-            region_quota=(
-                parse_cuota_region(args.cuota_region) if args.cuota_region else None
-            ),
-            spread_coverage=args.reparto_rango,
-        )
+        config = config_de_seleccion(args)
         thresholds = Thresholds(
             gc_min=args.gc_min,
             gc_max=args.gc_max,
@@ -901,7 +891,7 @@ def main(argv: list[str]) -> int:
         # informe. Un veredicto sin esto no es auditable dentro de un año.
         for ruta in (
             args.refseq, args.mirbase, args.abundancia, args.transcriptoma_3utr,
-            args.expresion, args.transgen, args.rmsk, args.repeats, args.apa_medido,
+            args.expresion, args.transgen, args.rmsk, args.apa_medido,
             args.genbank, args.genbank_b,
         ):
             if ruta is not None:
@@ -941,8 +931,14 @@ def main(argv: list[str]) -> int:
             # La tabla de PolyA_DB se coloca sola sobre la secuencia que le corresponde
             # y solo sobre esa: la condicion es el md5 canonico del 3'UTR, asi que
             # sobre cualquier otra devuelve None y no se promueve ninguna señal.
-            medido = resolve_measured(
-                secuencia, POLYA_DB_PRNP, anatomy=anatomias[especie]
+            # La medida ENTRA SOLA: `tile_utr` la resuelve por su cuenta contra el
+            # md5 del 3'UTR. Aqui solo se recoge la EXCLUSION deliberada, que es la
+            # unica forma de que no entre y exige motivo escrito. Ver
+            # `apa.WHY_MEASURE_IS_NOT_A_FLAG`: es un veredicto, no una ordenacion.
+            medido = (
+                ApaExcluded(reason=args.ignorar_apa_medido)
+                if args.ignorar_apa_medido
+                else RESOLVER_MEDIDA
             )
             tiling = tile_utr(
                 secuencia,
@@ -954,7 +950,11 @@ def main(argv: list[str]) -> int:
                 mask=mask,
                 anatomy=anatomias[especie],
                 tile_range=rangos[especie],
-                polya_mode=PolyAMode(args.polyA_modo),
+                # El criterio es ESCALONADO. DECIDIDO (2026-08-26) con la tabla delante, y
+                # el informe emite el top-N bajo los TRES criterios de todos modos,
+                # asi que una bandera para cambiarlo reproducia una decision que la
+                # propia salida ya documenta.
+                polya_mode=PolyAMode.ESCALONADO,
                 specificity_db=refseq,
                 transgene_db=transgen_db,
                 mature=maduros,
@@ -978,6 +978,7 @@ def main(argv: list[str]) -> int:
             # Y los DOS desfases van explicitos y por nombre (masking.triple_motive_rows
             # no admite omitir ninguno): el de busqueda en la mascara y el de etiquetado.
             triple = None
+            mordida = None
             if mask is not None:
                 sin_mascara = tile_utr(
                     secuencia,
@@ -985,8 +986,24 @@ def main(argv: list[str]) -> int:
                     seeds=seeds,
                     anatomy=anatomias[especie],
                     tile_range=rangos[especie],
-                    polya_mode=PolyAMode(args.polyA_modo),
-                    thresholds=umbrales,
+                    # El criterio es ESCALONADO. DECIDIDO (2026-08-26) con la tabla delante, y
+                # el informe emite el top-N bajo los TRES criterios de todos modos,
+                # asi que una bandera para cambiarlo reproducia una decision que la
+                # propia salida ya documenta.
+                polya_mode=PolyAMode.ESCALONADO,
+                    # `umbrales` NO EXISTE en este modulo y estuvo aqui desde que se
+                    # cableo el triple motivo: la variable se llama `thresholds`, tres
+                    # lineas mas arriba en esta misma funcion. O sea que TODA corrida del
+                    # CLI con `--rmsk` abortaba con un NameError, y el bloque que este
+                    # `tile_utr` alimenta —el que se escribio justo porque «existia solo
+                    # porque alguien lo corria a mano»— no habia corrido NUNCA.
+                    #
+                    # Ningun test lo cazo porque ninguno corria el CLI CON mascara: los
+                    # del triple motivo llaman a `triple_motive_rows` ellos mismos, que
+                    # es exactamente la ceguera que describe la alcanzabilidad — el
+                    # llamador de verdad no lo ejecutaba nadie. Lo cazo escribir un test
+                    # que corre `main()` con `--rmsk`, y ese test se queda.
+                    thresholds=thresholds,
                 )
                 inicio_utr3 = anatomias[especie].utr3[0]
                 triple = masking.triple_motive_rows(
@@ -1001,12 +1018,19 @@ def main(argv: list[str]) -> int:
                     # de 2435 nt, y lo cazo el invariante de rango en el acto.
                     label_offset=inicio_utr3 - 1,
                 )
+                # Del MISMO informe sin mascara y con los MISMOS dos desfases: si se
+                # calculara del tilado con mascara, el paso 15 ya habria retilado y
+                # saldria cero — el numero que esto existe para poder leer.
+                mordida = masking.mask_bite(
+                    sin_mascara, mask, mask_offset=0, label_offset=inicio_utr3 - 1
+                )
             informe = text_report(
                 species=especie,
                 tiling=tiling,
                 selection=seleccion,
                 scaffold=scaffold,
                 triple_motive=triple,
+                mask_bite=mordida,
                 convergence=convergencias.get(especie),
                 polya_conservation=_conservacion_polya(
                     especie, secuencias, anatomias

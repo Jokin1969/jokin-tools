@@ -125,14 +125,14 @@
   señal, o estas por detrás de su corte.
 
   SEÑALES DE APA POSIBLE: 2. Cada una pone su propio techo, y se cuentan aparte:
-    · AATATA en tx:1185 (SUBIDA aquí por MEDIDA de uso: por predicción saldria OTRA) (corte
-      tx:1200-1220): TECHO sobre 217 de 270 ventanas elegibles (80.4%); 0 en la banda de
-      corte (PENALIZADO, no se sabe de que lado caen); 53 por delante, inmunes. Techo del
-      tramo de detrás: 0.91.
-    · AATAAA en tx:1237 (por canonicidad, CONFIRMADA por medida de uso) (corte
-      tx:1252-1272): TECHO sobre 208 de 270 ventanas elegibles (77.0%); 9 en la banda de
-      corte (PENALIZADO, no se sabe de que lado caen); 53 por delante, inmunes. Techo del
-      tramo de detrás: 0.86.
+    · APA_POSIBLE (medido, PolyA_DB v4.1): AATATA en tx:1185 (SUBIDA aquí por MEDIDA de uso:
+      por predicción saldria OTRA) (corte tx:1200-1220): TECHO sobre 217 de 270 ventanas
+      elegibles (80.4%); 0 en la banda de corte (PENALIZADO, no se sabe de que lado caen);
+      53 por delante, inmunes. Techo del tramo de detrás: 0.91.
+    · APA_POSIBLE (medido, PolyA_DB v4.1): AATAAA en tx:1237 (por canonicidad, CONFIRMADA
+      por medida de uso) (corte tx:1252-1272): TECHO sobre 208 de 270 ventanas elegibles
+      (77.0%); 9 en la banda de corte (PENALIZADO, no se sabe de que lado caen); 53 por
+      delante, inmunes. Techo del tramo de detrás: 0.86.
 
   LO QUE CUESTA LA PROMOCION: 17 ventana(s) que superaban todos los demas filtros pasan
   a FAIL por SOLAPAR una señal que la medida acaba de subir a APA_POSIBLE (AATATA en
@@ -210,8 +210,8 @@
     No es una resta: son 4 puntos de apoyo independientes. Desfase 3'UTR→mm10 acotado a 131937185-131937193 (9 valores); se deja como INTERVALO
     porque la banda de corte mide 20 nt y fijarlo en un entero sería inventarse precisión.
   
-      chr2:+:131937444  Other   → corte 3utr:251-271, hexámero AATATA en 3utr:236  ← proximal más usado: PSE 21,1 %, AvgRPM 0,55
-      chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexámero AATAAA en 3utr:288  ← PSE 23,5 %, AvgRPM 0,34
+      chr2:+:131937444  Other   → corte 3utr:251-271, hexámero AATATA en 3utr:236  PSE 21.1%, AvgRPM 0.55  ← TERCER sitio de corte, el proximal MÁS USADO de los tres
+      chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexámero AATAAA en 3utr:288  PSE 23.5%, AvgRPM 0.34  ← nuestro AATAAA de 3utr:288
       chr2:+:131938392  Other   → AMBIGUO: 2 hexámeros de su clase en la banda (TATAAA en 3utr:1178, TATAAA en 3utr:1189). Ancla, pero NO entra al modelo con banda propia.
       chr2:+:131938427  AUUAAA  → corte 3utr:1229-1249, hexámero ATTAAA en 3utr:1214  (sin datos de expresión)  ← fuerza 99,9 %, conservado en humano y rata; SIN expresión, así que no entra en la fracción — solo ancla
   
@@ -282,6 +282,14 @@
     Señal en cuestion: AATATA en tx:1185-1190 (3utr:236-241); banda de corte tx:1200-1220.
     proximal: tx:1055-1174 (3utr:106-225) (120 nt). entero por delante de AATATA@tx:1185 (holgura 10 nt) y dentro de la región analizada: presente en las DOS isoformas, mide el total.  ⚠  solapa 1082-1123, 1139-1180
     distal: tx:1231-1350 (3utr:282-401) (120 nt). entero por detrás de la banda de corte tx:1200-1220 (holgura 10 nt): solo presente en la isoforma LARGA.
+    QUÉ MIDE ESTE PAR: la fracción de transcritos que sobrevive a las bandas de corte de
+    esta señal Y de AATAAA@tx:1237 — o sea el techo de los candidatos que quedan por detrás de
+    TODAS ellas, que es exactamente el que necesita el panel.
+    QUÉ NO MIDE: no separa esta señal de AATAAA@tx:1237 y no confirma el techo del tramo
+    INTERMEDIO. El amplicón distal atraviesa esa otra banda, y un amplicón partido por un
+    corte no da producto en la isoforma cortada.
+    Y NO se arregla moviéndolo: entre las dos bandas, con la misma holgura, queda tx:1231-1241 — 11 nt para un amplicón de 120. NO CABE.
+    SI ALGÚN DÍA HICIERA FALTA el tramo intermedio: no se alcanza moviendo amplicones —es geométricamente imposible— sino con 3'RACE o secuenciación de extremos, donde la resolución no depende de que quepa un amplicón entre dos cortes. Línea abierta: hoy no hay ningún candidato ahí, así que no confirmarlo no cuesta nada.
     Los dos se cuantifican contra una CURVA ESTÁNDAR COMUN: sin ella las dos eficiencias
     no son comparables y la razón no significa nada.
     RETROTRANSCRIPCION CON HEXÁMEROS ALEATORIOS. Con oligo-dT NO, y el sesgo tiene dirección
@@ -349,24 +357,6 @@
     RECODIFICAR nada. El obstaculo clasico de la via ORF no existe aquí. Se comprueba igual
     con el filtro del transgén: no se da por supuesto.
 
-── Convergencia con la fuente externa ──
-  HALLAZGO — el espacio de ventanas viables está SATURADO
-    Dos metodos independientes con criterios distintos sobre el MISMO 3'UTR: nuestra cascada de filtros duros
-    y fuente externa (mirarchitect_prnp_export_buena.csv, 24 filas, 0 sin mapear). 24 sitio(s) de la fuente externa contra los 86 sitios elegibles (la tabla COMPLETA)
-    (86 posiciones), espaciado 50 nt:
-      · 0 sitios exclusivos de la fuente externa que superen nuestros filtros duros.
-        (tx:2149 (3utr:1200) no choca con ningún sitio nuestro, pero no pasa nuestros filtros duros:
-        por eso no hay ninguna ventana elegible cerca, y por eso no es una plaza que nadie aporte.)
-      · 3 coincidencia(s) EXACTA(S), misma posición de inicio y misma ventana base a base: tx:1684 (3utr:735), tx:1759 (3utr:810), tx:1967 (3utr:1018)
-      · 6 a 1 nt (la misma ventana corrida una base): tx:1286 (3utr:337)↔tx:1287 (3utr:338), tx:1465 (3utr:516)↔tx:1466 (3utr:517), tx:1501 (3utr:552)↔tx:1502 (3utr:553), tx:1966 (3utr:1017)↔tx:1967 (3utr:1018), tx:1973 (3utr:1024)↔tx:1974 (3utr:1025), tx:2024 (3utr:1075)↔tx:2025 (3utr:1076)
-    LECTURA. Esto NO ES UNA VALIDACIÓN cruzada: donde solo cabe coincidir, coincidir no
-    demuestra nada. Lo que dice es que bajo los filtros duros quedan tan pocas ventanas
-    viables que dos criterios distintos aterrizan en las mismas. La convergencia externa
-    NO DISCRIMINA entre candidatos y NO PUEDE USARSE PARA ELEGIR: no ordena, no desempata
-    y no aporta plazas.
-    Es un dato de CALIBRACION de nuestra propia cascada — cuanto margen de elección deja —,
-    y como tal va al SUPLEMENTARIO, no al ranking.
-
 ── Que se ha analizado ──
   2191 nt, md5 canónico 44fb8cd80883844cde5e53bbc367b176
   Sin estas dos cifras no hay forma de saber que secuencia se analizo. El md5 es el de la
@@ -426,6 +416,17 @@
   La selección se hizo por asimetría, no repartiendo. La asimetría predice SELECCIÓN DE HEBRA, no potencia: si lo que se quiere es correlacionar parámetros contra el knockdown medido, --reparto-rango reparte los candidatos por los extremos de los parámetros dudosos.
 
 ── Poliadenilación alternativa (APA) ──
+  El frente del APA lo cierra cualquiera de dos ficheros, y no son el mismo con otro
+  nombre: `polya_db_<especie>.tsv` es PolyA_DB en crudo —coordenadas genómicas, PSE y
+  AvgRPM— y de él sale la promoción por medida; `apa_medido_<especie>.tsv` es una
+  medida que llega ya convertida a coordenadas de 3'UTR, que es el caso de un 3'-end
+  seq del tejido. Con uno de los dos el frente está cerrado. Si el techo del 3'-end seq
+  de cerebro y el de PolyA_DB discrepan, la discrepancia NO es un fallo a reconciliar:
+  es el dato. PolyA_DB promedia todos los tejidos y las neuronas alargan los 3'UTR, así
+  que lo esperable es que el de cerebro sea MAYOR que 0,86 — y una discrepancia en esa
+  dirección CONFIRMA el modelo. En la contraria hay que PARAR: contradice la dirección
+  conocida del sesgo, y antes de mover ningún veredicto hay que buscar la causa. No se
+  promedian.
   riesgo_APA es una PREDICCIÓN, no un dato: 980 de 2170 ventana(s) (45.2%) quedan por detrás de una señal de APA posible.
   Que esa señal se use o no, esto no lo puede saber. Si se usa, esas ventanas tienen un techo de knockdown duro e invisible. Con una tabla de PolyA_DB o PolyASite (--apa-medido) el dato sustituiria a la predicción.
 
@@ -549,8 +550,6 @@
   Los seleccionados CAMBIAN dentro del rango 0.5–2.0 kcal/mol: el valor no es inocuo, decidelo a propósito.
 
 ── FILTROS QUE NO SE EJECUTARON ──
-  G4_diana: NOT_RUN en 2170 de 2170 ventanas
-  G4_guia: NOT_RUN en 2170 de 2170 ventanas
   especificidad: NOT_RUN en 2170 de 2170 ventanas
   repeticion_polimorfica: NOT_RUN en 2170 de 2170 ventanas
   repeticiones: NOT_RUN en 2170 de 2170 ventanas

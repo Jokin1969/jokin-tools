@@ -315,6 +315,13 @@ class PasAnchor:
     declared_class: str
     expression: bool = True
     note: str = ""
+    #: PSE y AvgRPM del PAS, cuando los tiene. Van AQUI y no dentro de `note` porque el
+    #: informe los IMPRIME: escritos en la prosa de la nota, el fichero los llevaba
+    #: ademas en sus columnas y las dos copias ya habian empezado a discrepar — la nota
+    #: decia «PSE 21,1 %» y la columna 0.211, y nada obligaba a que coincidieran.
+    #: Principio nº 11: la cifra se emite, no se escribe.
+    pse: float | None = None
+    avgrpm: float | None = None
 
     def __post_init__(self) -> None:
         if not self.locus.strip():
@@ -346,6 +353,11 @@ class AnchoredSite:
     candidates: tuple[tuple[int, str], ...]
     expression: bool
     note: str = ""
+    #: Viajan desde el `PasAnchor` para poder EMITIRLAS aqui. Escritas en la prosa de
+    #: `note` estaban ademas en las columnas del fichero, y las dos copias ya habian
+    #: empezado a discrepar. Principio nº 11.
+    pse: float | None = None
+    avgrpm: float | None = None
 
     @property
     def ambiguous(self) -> bool:
@@ -397,8 +409,15 @@ class AnchoredSite:
             f"{span(*self.cleavage_band, Frame.UTR3)}, hexámero {self.motif} en "
             f"{label(self.hexamer_start, Frame.UTR3)}"
             + ("" if self.expression else "  (sin datos de expresión)")
+            + self._medida()
             + (f"  ← {self.note}" if self.note else "")
         )
+
+    def _medida(self) -> str:
+        """PSE y AvgRPM, EMITIDOS de las columnas. Vacio si el PAS no los tiene."""
+        if self.pse is None or self.avgrpm is None:
+            return ""
+        return f"  PSE {self.pse:.1%}, AvgRPM {self.avgrpm:.2f}"
 
 
 @dataclass(frozen=True)
@@ -546,6 +565,8 @@ def anchor_polyadb(
                 candidates=tuple(sorted(opciones)),
                 expression=ancla.expression,
                 note=ancla.note,
+                pse=ancla.pse,
+                avgrpm=ancla.avgrpm,
             )
         )
 
@@ -723,47 +744,320 @@ class MeasuredFraction:
 #: referencia cDNA y EST (CK622972.1, AK148061.1, AK158908.1, AV361844.1), no un
 #: cromosoma— y ya no hace falta: el mapeo se resuelve con `anchor_polyadb` sobre la
 #: secuencia que ya esta en el repositorio. Ver `polya.PAS_IS_CLEAVAGE_SITE`.
-POLYA_DB_PRNP = MeasuredFraction(
-    source="PolyA_DB",
-    version="v4.1",
-    date="2025-09-15",
-    assembly="mm10",
-    gene="Prnp",
-    gene_id="19122",
-    representative="NM_001278256.1",
-    total_pas=15,
-    with_expression=5,
-    utr3_md5="19f5fa2a77a87892770e2affdc90e0e4",
-    sites=(
-        MeasuredSite("chr2:+:131937444", "Other", 0.211, 0.55, distal=False,
-                     note="TERCER sitio de corte, el proximal MÁS USADO de los tres"),
-        MeasuredSite("chr2:+:131937504", "AAUAAA", 0.235, 0.34, distal=False,
-                     note="nuestro AATAAA de 3utr:288"),
-        MeasuredSite("chr2:+:131938392", "Other", 0.705, 1.65, distal=True,
-                     note="racimo terminal"),
-    ),
-    anchors=(
-        PasAnchor("chr2:+:131937444", 131937444, "Other",
-                  note="proximal más usado: PSE 21,1 %, AvgRPM 0,55"),
-        PasAnchor("chr2:+:131937504", 131937504, "AAUAAA",
-                  note="PSE 23,5 %, AvgRPM 0,34"),
-        PasAnchor("chr2:+:131938392", 131938392, "Other",
-                  note="PSE 70,5 %, AvgRPM 1,65"),
-        PasAnchor("chr2:+:131938427", 131938427, "AUUAAA", expression=False,
-                  note="fuerza 99,9 %, conservado en humano y rata; SIN expresión, "
-                       "así que no entra en la fracción — solo ancla"),
-    ),
-    tissue="TODOS LOS TEJIDOS, no cerebro",
-    pending=(),
-    caveats=(
-        "El PAS terminal 131938427 y el que tiene expresión (131938392, 35 nt aguas "
-        "arriba) se anotan como DOS y no se fusionan sin comprobarlo: fusionarlos suma "
-        "su expresión y sube la fracción larga sin dato. El anclaje los coloca sobre "
-        "hexámeros DISTINTOS —ATTAAA en 3utr:1214 el uno; TATAAA en 3utr:1178 o en "
-        "3utr:1189 el otro, que además no distingue entre los dos—, así que tampoco por "
-        "ahi hay motivo para fusionarlos. NO MUEVE EL VALOR: 131938427 no tiene "
-        "expresión, luego no suma nada a ninguna de las dos formulas.",
-    ),
+#: EL FORMATO, DECLARADO. Este fichero es DATO y entra por el gestor; la REGLA sobre
+#: que hacer con el —que un hexamero con uso medido se trate como funcional— vive en el
+#: codigo y no lleva bandera. Son dos cosas y van separadas a proposito.
+POLYADB_COLUMNS = ("pas_id", "coordenada", "clase", "pse", "avgrpm", "distal", "nota")
+
+#: Cabecera obligatoria. Sin `utr3_md5` la tabla no se puede aplicar a NADA —es la
+#: condicion de que hable de esta secuencia— y sin `version` ni `ensamblaje` la corrida
+#: no es reproducible: las cifras cambian entre versiones y dos ensamblajes dan
+#: coordenadas distintas.
+POLYADB_HEADER = ("fuente", "version", "ensamblaje", "gen", "tejido", "utr3_md5")
+
+POLYADB_FORMAT = (
+    "TSV con cabecera de metadatos en líneas `# clave<TAB>valor` y una fila por PAS. "
+    f"Columnas: {', '.join(POLYADB_COLUMNS)}. Los PAS SIN expresión se incluyen igual, "
+    f"con `pse` y `avgrpm` vacíos: sirven de ANCLA aunque no sumen a ninguna fracción. "
+    f"Cabecera obligatoria: {', '.join(POLYADB_HEADER)}."
+)
+
+#: Nombre del fichero por especie. El del raton lleva sufijo como los demas desde que
+#: hay dos especies: sin el, la tabla murina contaria como presente para un humano y su
+#: frente saldria cerrado con los datos del gen equivocado.
+POLYADB_FILENAME = "polya_db_{slug}.tsv"
+
+
+def _cabecera(texto: str, *, source: str) -> dict[str, str]:
+    valores: dict[str, str] = {}
+    reservas: list[str] = []
+    for linea in texto.splitlines():
+        if not linea.startswith("#"):
+            continue
+        cuerpo = linea.lstrip("#").strip()
+        if "\t" not in cuerpo:
+            continue                       # comentario libre, no metadato
+        clave, valor = cuerpo.split("\t", 1)
+        clave = clave.strip()
+        if clave == "reserva":
+            reservas.append(valor.strip())
+        else:
+            valores[clave] = valor.strip()
+    valores["_reservas"] = "\n".join(reservas)
+    faltan = [c for c in POLYADB_HEADER if not valores.get(c)]
+    if faltan:
+        raise ShmirDesignError(
+            f"{source}: a la cabecera le faltan {', '.join(faltan)}. Sin `utr3_md5` la "
+            f"tabla no se puede aplicar a ninguna secuencia —es la condición de que "
+            f"hable de esta— y sin versión ni ensamblaje la corrida no es reproducible. "
+            f"Se aborta en vez de aplicarla a medias.\n\n{POLYADB_FORMAT}"
+        )
+    return valores
+
+
+def _fraccion(bruto: str, *, campo: str, source: str, fila: int) -> float:
+    try:
+        valor = float(bruto)
+    except ValueError as exc:
+        raise ShmirDesignError(
+            f"{source}, fila {fila}: {campo}={bruto!r} no es un número; se aborta."
+        ) from exc
+    if not 0.0 <= valor <= 1.0:
+        raise ShmirDesignError(
+            f"{source}, fila {fila}: {campo}={valor} no es una FRACCIÓN (0-1). PolyA_DB "
+            f"pública el PSE en tanto por ciento; aquí va en tanto por uno. Se aborta "
+            f"en vez de meter un 21,1 donde se esperaba un 0,211."
+        )
+    return valor
+
+
+def parse_polyadb(texto: str, *, source: str) -> MeasuredFraction:
+    """Lee la tabla de PolyA_DB. Cualquier fila mal formada ABORTA la carga.
+
+    No se salta ninguna linea «rara»: una tabla a medias daria un techo que parece
+    medido y no lo es, y eso es peor que no tenerla.
+    """
+    cabecera = _cabecera(texto, source=source)
+    filas = [
+        l for l in texto.splitlines()
+        if l.strip() and not l.startswith("#")
+    ]
+    if not filas:
+        raise ShmirDesignError(
+            f"{source}: no hay ni una fila de PAS. Una tabla vacía y «no hay tabla» son "
+            f"cosas distintas y este fichero no las distingue; se aborta.\n\n"
+            f"{POLYADB_FORMAT}"
+        )
+    columnas = tuple(c.strip() for c in filas[0].split("\t"))
+    if columnas != POLYADB_COLUMNS:
+        faltan = [c for c in POLYADB_COLUMNS if c not in columnas]
+        sobran = [c for c in columnas if c not in POLYADB_COLUMNS]
+        raise ShmirDesignError(
+            f"{source}: las columnas no son las esperadas. "
+            f"Faltan: {', '.join(faltan) or 'ninguna'}. "
+            f"Sobran: {', '.join(sobran) or 'ninguna'}.\n\n{POLYADB_FORMAT}"
+        )
+
+    sitios: list[MeasuredSite] = []
+    anclas: list[PasAnchor] = []
+    for numero, linea in enumerate(filas[1:], start=2):
+        campos = linea.split("\t")
+        if len(campos) != len(POLYADB_COLUMNS):
+            raise ShmirDesignError(
+                f"{source}, fila {numero}: {len(campos)} campo(s) y se esperaban "
+                f"{len(POLYADB_COLUMNS)}. Se aborta: una fila corrida mete el valor de "
+                f"una columna en la de al lado y eso no da ningún error."
+            )
+        pas_id, coordenada, clase, pse, rpm, distal, nota = (c.strip() for c in campos)
+        try:
+            genomica = int(coordenada)
+        except ValueError as exc:
+            raise ShmirDesignError(
+                f"{source}, fila {numero}: la coordenada {coordenada!r} no es un entero."
+            ) from exc
+        con_expresion = bool(pse) and bool(rpm)
+        if bool(pse) != bool(rpm):
+            raise ShmirDesignError(
+                f"{source}, fila {numero}: {pas_id} trae PSE o AvgRPM pero no los dos. "
+                f"Los dos juntos o ninguno: la fracción ponderada necesita ambos, y una "
+                f"a medias daria un número que no se refiere a nada."
+            )
+        if con_expresion:
+            sitios.append(MeasuredSite(
+                pas_id, clase,
+                _fraccion(pse, campo="pse", source=source, fila=numero),
+                float(rpm),
+                distal=distal.lower() in ("si", "sí", "s", "true", "1"),
+                note=nota,
+            ))
+        anclas.append(PasAnchor(
+            pas_id, genomica, clase, expression=con_expresion, note=nota,
+            pse=_fraccion(pse, campo="pse", source=source, fila=numero)
+            if con_expresion else None,
+            avgrpm=float(rpm) if con_expresion else None,
+        ))
+
+    if not sitios:
+        raise ShmirDesignError(
+            f"{source}: ningún PAS trae expresión, así que no hay fracción que calcular. "
+            f"Se aborta: cero sitios con expresión y «no se midio» son cosas distintas."
+        )
+    reservas = tuple(
+        r for r in cabecera.get("_reservas", "").split("\n") if r.strip()
+    )
+    return MeasuredFraction(
+        source=cabecera["fuente"],
+        version=cabecera["version"],
+        date=cabecera.get("fecha", ""),
+        assembly=cabecera["ensamblaje"],
+        gene=cabecera["gen"],
+        gene_id=cabecera.get("gen_id", ""),
+        representative=cabecera.get("representante", ""),
+        total_pas=int(cabecera.get("pas_totales") or len(anclas)),
+        with_expression=int(cabecera.get("pas_con_expresion") or len(sitios)),
+        utr3_md5=cabecera["utr3_md5"],
+        sites=tuple(sitios),
+        anchors=tuple(anclas),
+        tissue=cabecera["tejido"],
+        pending=(),
+        caveats=reservas,
+    )
+
+
+def load_polyadb(path: Path | str, *, expected_md5: str | None = None) -> MeasuredFraction:
+    """Carga la tabla desde disco, comprobando el md5 si se declara."""
+    path = Path(path)
+    try:
+        bruto = path.read_bytes()
+    except OSError as exc:
+        raise ShmirDesignError(
+            f"No se pudo leer la tabla de PolyA_DB {path} ({exc}); el frente del APA se "
+            f"quedaria en predicción y eso hay que decirlo, no suponerlo."
+        ) from exc
+    md5 = hashlib.md5(bruto, usedforsecurity=False).hexdigest()
+    if expected_md5 is not None and md5 != expected_md5:
+        raise ChecksumMismatchError(
+            f"{path}: md5 {md5} y se esperaba {expected_md5}. El fichero NO es el que "
+            f"dice ser; se aborta antes de sustituir ninguna predicción por el."
+        )
+    try:
+        texto = bruto.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ShmirDesignError(f"{path}: no es UTF-8 ({exc}); se aborta.") from exc
+    return parse_polyadb(texto, source=str(path))
+
+
+def find_polyadb(*, directory=None, species: str = "") -> MeasuredFraction | None:
+    """Busca la tabla en el directorio de referencia y la carga. `None` si no esta.
+
+    `None` significa NO HAY FICHERO, y el frente queda NOT_RUN. Es distinto de que la
+    tabla exista y no hable de esta secuencia —eso lo decide `resolve_measured` por
+    md5— y las dos cosas se dicen distinto en el informe.
+
+    Sin especie se prueban todos los nombres que haya: la tabla se aplica por md5 de
+    todos modos, asi que una de otra especie no puede colarse.
+    """
+    from . import reference as _ref  # noqa: PLC0415
+
+    directorios = [Path(directory)] if directory is not None else list(
+        _ref.reference_dirs(None)
+    )
+    # LA ESPECIE SE RESUELVE, no se usa tal cual. `tile_utr` la recibe como venga —y en
+    # este proyecto «raton» es un ALIAS, no el slug—, asi que formatear el nombre con lo
+    # que llegue da `polya_db_raton.tsv`, que no existe. Lo cazo el golden: la tabla
+    # dejo de encontrarse y el informe volvio a las cifras de antes de la promocion.
+    slugs = _slugs_de(species) if species else _known_slugs()
+    for carpeta in directorios:
+        for slug in slugs:
+            ruta = Path(carpeta) / POLYADB_FILENAME.format(slug=slug)
+            if ruta.is_file() and ruta.stat().st_size:
+                return load_polyadb(ruta)
+    return None
+
+
+def _slugs_de(species: str) -> list[str]:
+    """El slug de esa especie. Una que no este declarada NO aborta aqui: se prueban
+    todos, y el md5 del 3'UTR es quien decide — una tabla de otra especie no puede
+    colarse por tener el nombre parecido."""
+    from .errors import ShmirDesignError as _Error  # noqa: PLC0415
+    from .species import resolve  # noqa: PLC0415
+
+    try:
+        return [resolve(species).slug]
+    except _Error:
+        # rule2-ok: una especie sin declarar no es un fallo AQUI. Buscar el fichero es
+        # barato y aplicarlo lo decide el md5; abortar dejaria sin tabla a quien esta
+        # trabajando con una especie que todavia no ha declarado.
+        return _known_slugs()
+
+
+def _known_slugs() -> list[str]:
+    from .species import SPECIES  # noqa: PLC0415
+
+    return sorted(SPECIES)
+
+
+#: LA TABLA MURINA YA NO ESTA AQUI. DECIDIDO 2026-08-27.
+#:
+#: Estuvo cableada en `POLYA_DB_PRNP` —15 PAS con su PSE y su AvgRPM llegados por
+#: conversacion— y de ella colgaban el techo por tramos, la promocion del `AATATA` de
+#: `3utr:236` y el panel de diez. Ahora es `data/reference/polya_db_mouse.tsv`, con su
+#: linea en el manifiesto y su md5, y se carga con `find_polyadb`.
+#:
+#: La constante se quito ENTERA en vez de dejarla «por si acaso»: mientras las dos
+#: existieran habria dos definiciones del mismo dato sin nada que obligara a que
+#: coincidieran, y ya habian empezado a separarse — las notas de los anclajes decian
+#: «PSE 21,1 %» en la constante y la lectura del racimo en el fichero. Es el quinto par
+#: duplicado del proyecto, y el unico cuya copia de codigo se podia borrar entera
+#: porque la otra mitad es DATO y su sitio es el gestor.
+#:
+#: Quien la necesitaba en un test carga el fichero: `apa.find_polyadb(species=…)`.
+WHERE_THE_MOUSE_TABLE_LIVES = (
+    "La tabla de PolyA_DB murina vive en `data/reference/polya_db_mouse.tsv`, no en el "
+    "código: entra por el gestor como cualquier otro fichero, con su md5 en el "
+    "manifiesto. Se carga con `apa.find_polyadb`."
+)
+
+
+#: LOS DOS ROLES DE APA SIGUEN VIVOS, Y NO SON EL MISMO HUECO. REVISADO 2026-08-27.
+#:
+#: La pregunta era legitima: con `polyadb` en el gestor, ¿para que sigue existiendo el
+#: rol `apa` (`apa_medido_{slug}.tsv`)? Se ha mirado que CARGA cada uno y adonde va, y
+#: no son dos formatos del mismo fichero:
+#:
+#:   - `polya_db_{slug}.tsv` → `MeasuredFraction`. Es PolyA_DB EN CRUDO: coordenadas
+#:     GENOMICAS, clase declarada, PSE y AvgRPM. Hay que anclarlo —los cuatro puntos a
+#:     la vez, con el mismo desfase— y se aplica por md5 del 3'UTR. De el sale la
+#:     PROMOCION POR MEDIDA de una señal y el techo POR TRAMOS.
+#:   - `apa_medido_{slug}.tsv` → `ApaSites`. Son posiciones YA CONVERTIDAS a coordenadas
+#:     de 3'UTR con su fraccion de lecturas. No ancla nada y no promueve ninguna señal:
+#:     alimenta `apa_assessment`, que da el riesgo por ventana y el techo de knockdown.
+#:
+#: Y NO es que uno no vaya a usarse nunca en raton: su caso es exactamente el fichero
+#: que este proyecto tiene pendiente —3'-end seq de cerebro MURINO—, que es la medida
+#: EN NUESTRO TEJIDO. PolyA_DB no la puede dar: su 0,86 es de TODOS los tejidos y por
+#: eso se declara como limite inferior. O sea que el rol se queda, y su hueco esta
+#: nombrado en la tabla de «Ficheros que faltan».
+#:
+#: LO QUE SI HAY QUE DECIR, Y VA AQUI EN VEZ DE CALLARSE: hoy los dos producen un techo
+#: de knockdown por caminos INDEPENDIENTES —`apa_assessment` no mira la tabla de
+#: PolyA_DB y `resolve_measured` no mira los sitios convertidos— y NADA obliga a que
+#: coincidan. Es el patron de los dos contadores del mismo suceso, el mismo que ata un
+#: test entre `seed_load.seed_load` y `offtarget`. Aqui ese test no se puede escribir
+#: todavia: el segundo fichero NO EXISTE, y fabricarlo para tenerlo seria inventarse la
+#: medida (regla 5). Queda declarado: el dia que llegue el 3'-end seq, lo primero es
+#: cruzar los dos techos, no enchufarlo.
+#:
+#: Y LA DIRECCION ESPERADA VA ESCRITA, que es la parte que hay que retener. Si los dos
+#: numeros discrepan, ESO NO ES UN FALLO A RECONCILIAR: es el dato. PolyA_DB promedia
+#: TODOS los tejidos y las neuronas ALARGAN los 3'UTR, asi que lo esperable es que el
+#: techo de cerebro sea MAYOR que 0,86.
+#:
+#:   - cerebro > PolyA_DB  →  CONFIRMA el modelo. El 0,86 era un limite inferior y se
+#:     declaro como tal; el dato del tejido lo mejora, que es justo lo que se anticipo.
+#:   - cerebro < PolyA_DB  →  **PARAR**. Contradice la direccion conocida del sesgo, asi
+#:     que antes de tocar ningun veredicto hay que buscar la causa: anclaje, md5 del
+#:     3'UTR, o que una de las dos tablas no sea del gen que dice.
+#:
+#: Sin esta frase, alguien tratara la discrepancia como un error a reconciliar y
+#: promediara los dos numeros — que es perder la unica informacion que la discrepancia
+#: lleva dentro.
+EXPECTED_DIRECTION = (
+    "Si el techo del 3'-end seq de cerebro y el de PolyA_DB discrepan, la discrepancia "
+    "NO es un fallo a reconciliar: es el dato. PolyA_DB promedia todos los tejidos y "
+    "las neuronas alargan los 3'UTR, así que lo esperable es que el de cerebro sea "
+    "MAYOR que 0,86 — y una discrepancia en esa dirección CONFIRMA el modelo. En la "
+    "contraria hay que PARAR: contradice la dirección conocida del sesgo, y antes de "
+    "mover ningún veredicto hay que buscar la causa. No se promedian."
+)
+
+APA_ARE_TWO_FILES = (
+    "El frente del APA lo cierra cualquiera de dos ficheros, y no son el mismo con otro "
+    "nombre: `polya_db_<especie>.tsv` es PolyA_DB en crudo —coordenadas genómicas, PSE "
+    "y AvgRPM— y de él sale la promoción por medida; `apa_medido_<especie>.tsv` es una "
+    "medida que llega ya convertida a coordenadas de 3'UTR, que es el caso de un "
+    "3'-end seq del tejido. Con uno de los dos el frente está cerrado. "
+    + EXPECTED_DIRECTION
 )
 
 
@@ -922,6 +1216,52 @@ def _build_layers(
             reason="por detrás de " + ", ".join(s.locus for s in detras),
         ))
     return tuple(capas)
+
+
+#: LA MEDIDA ENTRA SIEMPRE QUE HAYA MEDIDA. DECIDIDO (2026-08-27) por el responsable
+#: del proyecto, y el motivo es que son DOS VEREDICTOS y no dos ordenaciones:
+#:
+#:   - sin la medida, `3utr:221` lleva una PENALIZACION de -1,00 por solapar un hexamero
+#:     variante — sigue en el panel, solo que peor colocada;
+#:   - con la medida, el `AATATA` de `3utr:236` es `APA_POSIBLE` y `3utr:221` es FAIL
+#:     duro por solape esterico.
+#:
+#: Y el dato existe: PSE 21,1 %, AvgRPM 0,55, el proximal MAS usado de los tres. El modo
+#: sin medida trata ese hexamero como no funcional, que es la hipotesis MENOS
+#: conservadora y ademas la falsa segun lo medido: el defecto favorecia al candidato
+#: equivocado POR OMISION.
+#:
+#: Mismo criterio que el `.out` de RepeatMasker y que la casilla global que se quito: si
+#: el dato esta en el deposito y es valido, se usa. Que un veredicto dependa de
+#: acordarse de una bandera es la trampa que este proyecto ya cerro una vez.
+WHY_MEASURE_IS_NOT_A_FLAG = (
+    "La promoción por medida se aplica siempre que la tabla hable de esta secuencia. No "
+    "es una preferencia de ordenación: sin ella una señal medida se trata como no "
+    "funcional, que es la hipótesis menos conservadora y la falsa según el dato. "
+    "Excluirla es posible, pero con motivo escrito (`ApaExcluded`), y el motivo viaja al "
+    "veredicto: sin él, «se decidió no usarla» y «nadie se acordó» son el mismo "
+    "resultado mudo."
+)
+
+
+@dataclass(frozen=True)
+class ApaExcluded:
+    """Excluir la tabla medida A PROPOSITO, con el motivo escrito.
+
+    Es la unica forma de que la promocion no entre. `measured_apa=None` ya no vale y
+    aborta: `None` era exactamente el salto silencioso, y es lo que hacia que el panel
+    dependiera de que el llamador se acordara.
+    """
+
+    reason: str
+
+    def __post_init__(self) -> None:
+        if not str(self.reason).strip():
+            raise ShmirDesignError(
+                "Excluir la tabla de APA medido necesita un MOTIVO escrito. Sin él, "
+                "«se decidió no usarla» y «nadie se acordó» dan el mismo NOT_RUN mudo, "
+                "que es justo lo que la casilla global de ficheros dejó de permitir."
+            )
 
 
 def resolve_measured(

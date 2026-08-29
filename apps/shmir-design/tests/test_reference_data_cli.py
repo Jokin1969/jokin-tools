@@ -45,11 +45,9 @@ class TestTilingCli(unittest.TestCase):
             self.skipTest("los fixtures están disponibles; este caso ya no aplica")
         self.assertEqual(tiling_main([]), 2)
 
-    def test_un_fichero_de_seeds_inexistente_aborta(self):
-        self.assertEqual(tiling_main(["--seeds", "/no/existe.txt"]), 2)
-
-    def test_seeds_y_bootstrap_a_la_vez_es_error(self):
-        self.assertEqual(tiling_main(["--seeds", "/x.txt", "--bootstrap-seeds"]), 2)
+    # `--seeds` RETIRADA: una tabla suelta no trae procedencia, y el filtro real sale
+    # de `mature.fa` por el gestor. Con ella se fue su unico caso de error, que era la
+    # exclusion mutua con `--bootstrap-seeds`.
 
 
 class TestOligoCli(unittest.TestCase):

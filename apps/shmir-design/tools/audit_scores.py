@@ -4,6 +4,11 @@
         --tsv data/reference/mirarchitect_prnp_raton.tsv \\
         --fasta data/reference/NM_011170.3.fa --utr3-desde 950
 
+El ejemplo usa a proposito un fichero que el manifiesto marca NO USAR —se puntuo sobre
+el 3'UTR FABRICADO de 1246 nt, errata nº 5— porque auditar el fichero MALO es para lo
+que existe esta herramienta: sobre el bueno no hay nada que enseñar. Que aparezca aqui
+NO significa que entre a ningun diseño.
+
 No cruza nada ni escribe ninguna tabla: solo dice que le pasa al fichero. Tabula las
 longitudes, dice que guias no mapean sobre el 3'UTR y como se restauran, si alguna fila
 es prefijo de otra, y si hay sitios de restriccion que no estan en el 3'UTR — señal de
