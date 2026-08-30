@@ -69,35 +69,9 @@ async function buildPeoplePdf(people, size, title, st, opts = {}) {
     const pageW = doc.page.width, pageH = doc.page.height, M = 40;
     const usableW = pageW - 2 * M;
     const gap = 18;
-    const namePriority = !!opts.namePriority;
-    // Name-priority: the label block (name + TIS + farmacia) goes ON TOP and grows
-    // with nameSize; the QR becomes the small element underneath. Same "size +
-    // labelH + 10" cell-height shape either way — only what's inside labelH changes.
-    const nameSize = Math.round(Math.min(32, Math.max(10, Number(opts.nameSize) || 20)));
-    let nameBoxH = 0, cellW;
-    if (namePriority) {
-      // Real font metrics, not a guessed average character width — otherwise a
-      // narrow cellW makes the "priority" name ellipsize almost immediately
-      // (worse than the small-QR mode it's supposed to improve on).
-      doc.font('Helvetica-Bold').fontSize(nameSize);
-      nameBoxH = Math.ceil(doc.currentLineHeight(true) * 2);   // hasta 2 líneas de nombre
-      const maxNameW = people.reduce((m, p) => Math.max(m, doc.widthOfString(`${p.nombre} ${p.apellidos}`)), 0);
-      // Ancho pensado para que quepa en una línea la mayoría de nombres reales; uno
-      // desproporcionadamente largo simplemente pasa a la segunda línea (o, si ni
-      // así cabe, se trunca con «…» — igual que ya se hace en el modo normal). El
-      // límite de 220 evita que una única persona con nombre kilométrico fuerce una
-      // sola columna para TODA la hoja.
-      cellW = Math.max(size, Math.min(maxNameW + 20, 220), 140);
-    } else {
-      cellW = Math.max(size, 90);
-    }
-    const tisGap = 4, tisH = 15, pharmGap = 4, pharmH = 12;
-    const labelH = namePriority ? (nameBoxH + tisGap + tisH + pharmGap + pharmH) : 44;
-    const cols = Math.max(1, Math.floor((usableW + gap) / (cellW + gap)));
-    const cellH = size + labelH + 10;
-    const colGap = cols > 1 ? (usableW - cols * cellW) / (cols - 1) : 0;
+    const layout = opts.layout === 'list' ? 'list' : 'table';
 
-    // Header
+    // Header (shared by both formats)
     doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(17).text(title, M, M, { width: usableW });
     doc.fillColor('#5c7086').font('Helvetica').fontSize(9)
       .text(`${people.length} persona(s) · Gestión de QR (TIS)`, M, M + 22, { width: usableW });
@@ -113,42 +87,106 @@ async function buildPeoplePdf(people, size, title, st, opts = {}) {
       }
     };
 
-    people.forEach((p, i) => {
-      const col = i % cols;
-      if (i > 0 && col === 0) {
-        top += cellH + gap;
-        if (top + cellH > pageH - M) { doc.addPage(); top = M; }
-      }
-      const x = M + col * (cellW + colGap);
-      const y = top;
-      const qx = x + (cellW - size) / 2;
+    if (layout === 'list') {
+      // Listado estándar: una fila por persona, ancho completo, con el QR aparte a
+      // la derecha (al tamaño elegido) — el nombre va como texto normal, ya en
+      // primer plano por sí mismo, sin necesitar ningún "modo prioridad" propio.
+      const textW = usableW - size - 20;
+      doc.font('Helvetica-Bold').fontSize(13);
+      const nameLineH = doc.currentLineHeight(true);
+      doc.font('Courier-Bold').fontSize(11);
+      const tisLineH = doc.currentLineHeight(true);
+      doc.font('Helvetica').fontSize(8);
+      const pharmLineH = doc.currentLineHeight(true);
+      const textGap = 3;
+      const textBlockH = nameLineH + textGap + tisLineH + textGap + pharmLineH;
+      const rowPad = 10;
+      const rowH = Math.max(size, textBlockH) + rowPad * 2;
 
+      people.forEach((p, i) => {
+        if (top + rowH > pageH - M) { doc.addPage(); top = M; }
+        const y = top;
+        doc.save().lineWidth(0.75).strokeColor('#e2e8f0').moveTo(M, y).lineTo(pageW - M, y).stroke().restore();
+        const textTop = y + (rowH - textBlockH) / 2;
+        doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(13)
+          .text(`${p.nombre} ${p.apellidos}`, M, textTop, { width: textW, ellipsis: true, height: nameLineH });
+        doc.fillColor('#1273b8').font('Courier-Bold').fontSize(11)
+          .text(String(p.tis), M, textTop + nameLineH + textGap, { width: textW });
+        if (p.pharmacy_no) {
+          doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
+            .text(`Farmacia: ${p.pharmacy_no}`, M, textTop + nameLineH + textGap + tisLineH + textGap, { width: textW });
+        }
+        drawQr(i, pageW - M - size, y + (rowH - size) / 2);
+        top += rowH;
+      });
+      doc.save().lineWidth(0.75).strokeColor('#e2e8f0').moveTo(M, top).lineTo(pageW - M, top).stroke().restore();
+    } else {
+      const namePriority = !!opts.namePriority;
+      // Name-priority: the label block (name + TIS + farmacia) goes ON TOP and
+      // grows with nameSize; the QR becomes the small element underneath. Same
+      // "size + labelH + 10" cell-height shape either way — only what's inside
+      // labelH changes.
+      const nameSize = Math.round(Math.min(32, Math.max(10, Number(opts.nameSize) || 20)));
+      let nameBoxH = 0, cellW;
       if (namePriority) {
-        // Nombre grande arriba (lo que de verdad se lee de un vistazo); el QR,
-        // en segundo plano, queda pequeño debajo.
-        doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(nameSize)
-          .text(`${p.nombre} ${p.apellidos}`, x, y, { width: cellW, align: 'center', ellipsis: true, height: nameBoxH });
-        const tisTop = y + nameBoxH + tisGap;
-        doc.fillColor('#1273b8').font('Courier-Bold').fontSize(11)
-          .text(String(p.tis), x, tisTop, { width: cellW, align: 'center' });
-        const qrTop = tisTop + tisH + pharmGap;
-        drawQr(i, qx, qrTop);
-        if (p.pharmacy_no) {
-          doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
-            .text(`Farmacia: ${p.pharmacy_no}`, x, qrTop + size + 4, { width: cellW, align: 'center' });
-        }
+        // Real font metrics, not a guessed average character width — otherwise a
+        // narrow cellW makes the "priority" name ellipsize almost immediately
+        // (worse than the small-QR mode it's supposed to improve on).
+        doc.font('Helvetica-Bold').fontSize(nameSize);
+        nameBoxH = Math.ceil(doc.currentLineHeight(true) * 2);   // hasta 2 líneas de nombre
+        const maxNameW = people.reduce((m, p) => Math.max(m, doc.widthOfString(`${p.nombre} ${p.apellidos}`)), 0);
+        // Ancho pensado para que quepa en una línea la mayoría de nombres reales; uno
+        // desproporcionadamente largo simplemente pasa a la segunda línea (o, si ni
+        // así cabe, se trunca con «…» — igual que ya se hace en el modo normal). El
+        // límite de 220 evita que una única persona con nombre kilométrico fuerce una
+        // sola columna para TODA la hoja.
+        cellW = Math.max(size, Math.min(maxNameW + 20, 220), 140);
       } else {
-        drawQr(i, qx, y);
-        doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(10)
-          .text(`${p.nombre} ${p.apellidos}`, x, y + size + 4, { width: cellW, align: 'center', ellipsis: true, height: 14 });
-        doc.fillColor('#1273b8').font('Courier-Bold').fontSize(11)
-          .text(String(p.tis), x, y + size + 17, { width: cellW, align: 'center' });
-        if (p.pharmacy_no) {
-          doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
-            .text(`Farmacia: ${p.pharmacy_no}`, x, y + size + 31, { width: cellW, align: 'center' });
-        }
+        cellW = Math.max(size, 90);
       }
-    });
+      const tisGap = 4, tisH = 15, pharmGap = 4, pharmH = 12;
+      const labelH = namePriority ? (nameBoxH + tisGap + tisH + pharmGap + pharmH) : 44;
+      const cols = Math.max(1, Math.floor((usableW + gap) / (cellW + gap)));
+      const cellH = size + labelH + 10;
+      const colGap = cols > 1 ? (usableW - cols * cellW) / (cols - 1) : 0;
+
+      people.forEach((p, i) => {
+        const col = i % cols;
+        if (i > 0 && col === 0) {
+          top += cellH + gap;
+          if (top + cellH > pageH - M) { doc.addPage(); top = M; }
+        }
+        const x = M + col * (cellW + colGap);
+        const y = top;
+        const qx = x + (cellW - size) / 2;
+
+        if (namePriority) {
+          // Nombre grande arriba (lo que de verdad se lee de un vistazo); el QR,
+          // en segundo plano, queda pequeño debajo.
+          doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(nameSize)
+            .text(`${p.nombre} ${p.apellidos}`, x, y, { width: cellW, align: 'center', ellipsis: true, height: nameBoxH });
+          const tisTop = y + nameBoxH + tisGap;
+          doc.fillColor('#1273b8').font('Courier-Bold').fontSize(11)
+            .text(String(p.tis), x, tisTop, { width: cellW, align: 'center' });
+          const qrTop = tisTop + tisH + pharmGap;
+          drawQr(i, qx, qrTop);
+          if (p.pharmacy_no) {
+            doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
+              .text(`Farmacia: ${p.pharmacy_no}`, x, qrTop + size + 4, { width: cellW, align: 'center' });
+          }
+        } else {
+          drawQr(i, qx, y);
+          doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(10)
+            .text(`${p.nombre} ${p.apellidos}`, x, y + size + 4, { width: cellW, align: 'center', ellipsis: true, height: 14 });
+          doc.fillColor('#1273b8').font('Courier-Bold').fontSize(11)
+            .text(String(p.tis), x, y + size + 17, { width: cellW, align: 'center' });
+          if (p.pharmacy_no) {
+            doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
+              .text(`Farmacia: ${p.pharmacy_no}`, x, y + size + 31, { width: cellW, align: 'center' });
+          }
+        }
+      });
+    }
 
     doc.end();
   });
@@ -469,9 +507,10 @@ router.post('/api/export/pdf', jsonBig, async (req, res) => {
     }
     if (!people.length) throw bad('No hay personas que exportar.');
     const st = db.getSettings();
+    const layout = b.layout === 'list' ? 'list' : 'table';
     const namePriority = !!b.name_priority;
     const nameSize = Math.round(Math.min(32, Math.max(10, Number(b.name_size) || 20)));
-    const buf = await buildPeoplePdf(people, size, title, st, { namePriority, nameSize });
+    const buf = await buildPeoplePdf(people, size, title, st, { layout, namePriority, nameSize });
     setDownload(res, `TIS_${title.replace(/[^\w áéíóúñÁÉÍÓÚÑ-]/gi, '_').slice(0, 40)}.pdf`, 'application/pdf');
     res.send(buf);
   } catch (err) { fail(res, err); }

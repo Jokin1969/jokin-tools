@@ -1457,14 +1457,16 @@ function sortPeopleBy(list, order, sub) {
 }
 function toolExportPdf() {
   const groups = [...new Set(S.people.flatMap(p => p.groups || []))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
-  const st = { order: 'apellidos', sub: 'apellidos', res: new Set(), namePriority: false };
+  const st = { order: 'apellidos', sub: 'apellidos', res: new Set(), layout: 'table', namePriority: false };
   const ORDERS = [['pharmacy_no', 'Nº farmacia'], ['tis', 'TIS'], ['nombre', 'Nombre'], ['apellidos', 'Apellidos'], ['residencia', 'Residencia']];
   const SUBS = [['pharmacy_no', 'Nº farmacia'], ['tis', 'TIS'], ['nombre', 'Nombre'], ['apellidos', 'Apellidos']];
   const seg = (id, opts, cur) => `<div class="qt-seg qt-exp-seg" id="${id}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" class="${v === cur ? 'sel' : ''}">${l}</button>`).join('')}</div>`;
   openModal(
     `<div class="qt-modal-h"><h3>Exportar PDF de códigos QR</h3><button class="qt-x" data-close>×</button></div>
      <p style="color:var(--muted);font-size:.88rem;margin:0 0 8px">Una hoja imprimible con los QR y su TIS. Elige qué exportar, cómo ordenarlo y el tamaño.</p>
-     <div class="qt-tool-row">
+     <div class="qt-exp-block"><label class="qt-exp-label">Formato</label>${seg('pdf-format', [['table', 'Tabla'], ['list', 'Listado']], st.layout)}
+       <div class="qt-exp-hint">Tabla: tarjetas en rejilla. Listado: una fila por persona, con el QR a la derecha.</div></div>
+     <div class="qt-tool-row" id="pdf-nameprio-row">
        <button type="button" class="qt-toggle" id="pdf-nameprio">👤 Priorizar nombre y apellidos (QR en segundo plano)</button>
      </div>
      <div class="qt-tool-row"><label>Título:</label><input class="qt-select" style="flex:1" id="pdf-title" value="Listado de códigos TIS" maxlength="120"></div>
@@ -1494,6 +1496,14 @@ function toolExportPdf() {
     $('pdf-namesize-row').hidden = !st.namePriority;
   };
   const box = $('tool-modal-box');
+  // Formato: la prioridad nombre/QR solo tiene sentido en la tabla (en el listado
+  // el nombre ya va primero, en texto, y el QR queda aparte a la derecha).
+  box.querySelector('#pdf-format').querySelectorAll('button').forEach(b => b.onclick = () => {
+    st.layout = b.dataset.v; box.querySelector('#pdf-format').querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b));
+    const isTable = st.layout === 'table';
+    $('pdf-nameprio-row').hidden = !isTable;
+    if (!isTable) { st.namePriority = false; $('pdf-nameprio').classList.remove('on'); $('pdf-namesize-row').hidden = true; }
+  });
   // Residence chips (multi-select; "Todas" clears).
   if ($('pdf-res')) box.querySelectorAll('#pdf-res .qt-exp-chip').forEach(c => c.onclick = () => {
     const r = c.dataset.r;
@@ -1518,7 +1528,7 @@ function toolExportPdf() {
     try {
       const blob = await apiBlob('/export/pdf', {
         ids: people.map(p => p.id), qr_size: Number(sz.value), title: $('pdf-title').value,
-        name_priority: st.namePriority, name_size: Number(nsz.value),
+        layout: st.layout, name_priority: st.namePriority, name_size: Number(nsz.value),
       });
       downloadBlob(blob, `TIS_QR_${stamp()}.pdf`);
       closeModal(); toast(`PDF generado · ${people.length} persona(s)`, 'ok');

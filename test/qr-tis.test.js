@@ -389,3 +389,44 @@ test('export/pdf: modo normal (QR primero) y modo "priorizar nombre" (QR en segu
     assert.equal(clamped.status, 200, 'un name_size disparatado se acota, no rompe la exportación');
   } finally { server.close(); }
 });
+
+test('export/pdf: formato "listado" (fila por persona, QR a la derecha)', async () => {
+  const express = require('express');
+  const router = require('../apps/qr-tis/routes');
+  const app = express();
+  app.use((req, res, next) => { req.user = { id: 1, email: 'a@e', name: 'A', role: 'admin', apps: '*' }; next(); });
+  app.use('/qr-tis', router);
+  const server = await new Promise(r => { const s = app.listen(0, () => r(s)); });
+  const base = `http://127.0.0.1:${server.address().port}/qr-tis/api`;
+  try {
+    const ids = [];
+    for (let i = 0; i < 3; i++) {
+      ids.push(db.createPerson({ pharmacy_no: String(94000 + i).padStart(5, '0'), nombre: 'Listado', apellidos: 'Persona' + i, tis: String(94000000 + i).padStart(8, '0') }, 1).id);
+    }
+    const list = await fetch(base + '/export/pdf', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, qr_size: 60, title: 'Prueba listado', layout: 'list' }),
+    });
+    assert.equal(list.status, 200);
+    assert.equal(list.headers.get('content-type'), 'application/pdf');
+    const listBytes = Buffer.from(await list.arrayBuffer());
+    assert.ok(listBytes.length > 500 && listBytes.slice(0, 4).toString() === '%PDF', 'es un PDF válido');
+
+    // name_priority no aplica al listado (ya va el nombre primero, en texto) —
+    // enviarlo igualmente no debe romper nada.
+    const listIgnoresPriority = await fetch(base + '/export/pdf', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, qr_size: 200, title: 'Listado con QR grande', layout: 'list', name_priority: true, name_size: 30 }),
+    });
+    assert.equal(listIgnoresPriority.status, 200);
+    const bytes2 = Buffer.from(await listIgnoresPriority.arrayBuffer());
+    assert.ok(bytes2.length > 500 && bytes2.slice(0, 4).toString() === '%PDF');
+
+    // Un layout desconocido cae al formato de tabla por defecto (no rompe).
+    const unknown = await fetch(base + '/export/pdf', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, layout: 'algo-raro' }),
+    });
+    assert.equal(unknown.status, 200);
+  } finally { server.close(); }
+});
