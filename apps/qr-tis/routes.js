@@ -38,6 +38,12 @@ function setDownload(res, filename, mime) {
 // `opts.namePriority` flips the emphasis: name/apellidos go big and on top, the QR
 // shrinks to a secondary element below it — same overall cell math (a fixed label
 // block + the QR), just which one is "the label" and which is "the image" swaps.
+// `opts.showGroup` shows each person's grupo (residencia). When it's combined with
+// `opts.order === 'residencia'` (the list arrives already sorted that way from the
+// client) it stops being a per-person line and becomes an epígrafe: a heading
+// spanning the page, printed once before each contiguous run of people that share
+// the same grupo — the natural "prioriza la tabla, o el listado" already established
+// for name/QR, extended one level up to whole sections.
 async function buildPeoplePdf(people, size, title, st, opts = {}) {
   const PDFDocument = require('pdfkit');
   const QRCode = require('qrcode');
@@ -59,6 +65,12 @@ async function buildPeoplePdf(people, size, title, st, opts = {}) {
     const value = p.qr_code ? String(p.qr_code) : String(p.tis);   // real code when set, else TIS
     return QRCode.toBuffer(value, { type: 'png', errorCorrectionLevel: 'M', margin: 1, width: Math.round(size * 2), color: { dark, light } }).catch(() => null);
   }));
+  const showGroup = !!opts.showGroup;
+  const groupHeadings = showGroup && opts.order === 'residencia';
+  const showInlineGroup = showGroup && !groupHeadings;
+  const personGroups = p => parseGroups(p.group_name);
+  const personGroupLabel = p => { const g = personGroups(p); return g.length ? g.join(' · ') : 'Sin grupo asignado'; };
+  const personGroupKey = p => personGroups(p).join('␟');   // '' = sin grupo (su propio bloque)
   return await new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 40, info: { Title: title } });
     const chunks = [];
@@ -86,6 +98,12 @@ async function buildPeoplePdf(people, size, title, st, opts = {}) {
         doc.restore();
       }
     };
+    const HEADING_H = 20;
+    const drawHeading = (label, y) => {
+      doc.save().rect(M, y, usableW, HEADING_H).fill('#eaf2f9').restore();
+      doc.fillColor('#12507a').font('Helvetica-Bold').fontSize(11)
+        .text(label, M + 8, y + 5, { width: usableW - 16, ellipsis: true, height: 14 });
+    };
 
     if (layout === 'list') {
       // Listado estándar: una fila por persona, ancho completo, con el QR aparte a
@@ -98,12 +116,23 @@ async function buildPeoplePdf(people, size, title, st, opts = {}) {
       const tisLineH = doc.currentLineHeight(true);
       doc.font('Helvetica').fontSize(8);
       const pharmLineH = doc.currentLineHeight(true);
+      const groupLineH = pharmLineH;   // misma tipografía/tamaño que la línea de farmacia
       const textGap = 3;
-      const textBlockH = nameLineH + textGap + tisLineH + textGap + pharmLineH;
+      const textBlockH = nameLineH + textGap + tisLineH + textGap + pharmLineH + (showInlineGroup ? textGap + groupLineH : 0);
       const rowPad = 10;
       const rowH = Math.max(size, textBlockH) + rowPad * 2;
 
+      let lastGroupKey = null;
       people.forEach((p, i) => {
+        if (groupHeadings) {
+          const gk = personGroupKey(p);
+          if (gk !== lastGroupKey) {
+            if (top + HEADING_H + rowH > pageH - M) { doc.addPage(); top = M; }
+            drawHeading(personGroupLabel(p), top);
+            top += HEADING_H + 6;
+            lastGroupKey = gk;
+          }
+        }
         if (top + rowH > pageH - M) { doc.addPage(); top = M; }
         const y = top;
         doc.save().lineWidth(0.75).strokeColor('#e2e8f0').moveTo(M, y).lineTo(pageW - M, y).stroke().restore();
@@ -115,6 +144,13 @@ async function buildPeoplePdf(people, size, title, st, opts = {}) {
         if (p.pharmacy_no) {
           doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
             .text(`Farmacia: ${p.pharmacy_no}`, M, textTop + nameLineH + textGap + tisLineH + textGap, { width: textW });
+        }
+        if (showInlineGroup) {
+          const g = personGroups(p);
+          if (g.length) {
+            doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
+              .text(`Grupo: ${g.join(' · ')}`, M, textTop + nameLineH + textGap + tisLineH + textGap + pharmLineH + textGap, { width: textW, ellipsis: true, height: groupLineH });
+          }
         }
         drawQr(i, pageW - M - size, y + (rowH - size) / 2);
         top += rowH;
@@ -145,17 +181,30 @@ async function buildPeoplePdf(people, size, title, st, opts = {}) {
         cellW = Math.max(size, 90);
       }
       const tisGap = 4, tisH = 15, pharmGap = 4, pharmH = 12;
-      const labelH = namePriority ? (nameBoxH + tisGap + tisH + pharmGap + pharmH) : 44;
+      const groupGap = 4, groupH = 10;
+      const labelH = namePriority
+        ? (nameBoxH + tisGap + tisH + pharmGap + pharmH + (showInlineGroup ? groupGap + groupH : 0))
+        : (44 + (showInlineGroup ? 14 : 0));
       const cols = Math.max(1, Math.floor((usableW + gap) / (cellW + gap)));
       const cellH = size + labelH + 10;
       const colGap = cols > 1 ? (usableW - cols * cellW) / (cols - 1) : 0;
 
+      let col = 0, lastGroupKey = null, firstItem = true;
       people.forEach((p, i) => {
-        const col = i % cols;
-        if (i > 0 && col === 0) {
-          top += cellH + gap;
-          if (top + cellH > pageH - M) { doc.addPage(); top = M; }
+        if (groupHeadings) {
+          const gk = personGroupKey(p);
+          if (gk !== lastGroupKey) {
+            if (!firstItem) {
+              if (col !== 0) { top += cellH + gap; col = 0; }   // cierra la fila incompleta del grupo anterior
+              else top += gap;                                    // ya estábamos al borde de una fila nueva
+            }
+            if (top + HEADING_H + cellH > pageH - M) { doc.addPage(); top = M; }
+            drawHeading(personGroupLabel(p), top);
+            top += HEADING_H + 6;
+            lastGroupKey = gk;
+          }
         }
+        if (top + cellH > pageH - M) { doc.addPage(); top = M; }
         const x = M + col * (cellW + colGap);
         const y = top;
         const qx = x + (cellW - size) / 2;
@@ -174,6 +223,13 @@ async function buildPeoplePdf(people, size, title, st, opts = {}) {
             doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
               .text(`Farmacia: ${p.pharmacy_no}`, x, qrTop + size + 4, { width: cellW, align: 'center' });
           }
+          if (showInlineGroup) {
+            const g = personGroups(p);
+            if (g.length) {
+              doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
+                .text(`Grupo: ${g.join(' · ')}`, x, qrTop + size + 4 + pharmH + groupGap, { width: cellW, align: 'center', ellipsis: true, height: groupH });
+            }
+          }
         } else {
           drawQr(i, qx, y);
           doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(10)
@@ -184,7 +240,18 @@ async function buildPeoplePdf(people, size, title, st, opts = {}) {
             doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
               .text(`Farmacia: ${p.pharmacy_no}`, x, y + size + 31, { width: cellW, align: 'center' });
           }
+          if (showInlineGroup) {
+            const g = personGroups(p);
+            if (g.length) {
+              doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
+                .text(`Grupo: ${g.join(' · ')}`, x, y + size + 45, { width: cellW, align: 'center', ellipsis: true, height: 10 });
+            }
+          }
         }
+
+        firstItem = false;
+        col++;
+        if (col >= cols) { col = 0; top += cellH + gap; }
       });
     }
 
@@ -510,7 +577,9 @@ router.post('/api/export/pdf', jsonBig, async (req, res) => {
     const layout = b.layout === 'list' ? 'list' : 'table';
     const namePriority = !!b.name_priority;
     const nameSize = Math.round(Math.min(32, Math.max(10, Number(b.name_size) || 20)));
-    const buf = await buildPeoplePdf(people, size, title, st, { layout, namePriority, nameSize });
+    const showGroup = !!b.show_group;
+    const order = b.order ? String(b.order) : null;
+    const buf = await buildPeoplePdf(people, size, title, st, { layout, namePriority, nameSize, showGroup, order });
     setDownload(res, `TIS_${title.replace(/[^\w áéíóúñÁÉÍÓÚÑ-]/gi, '_').slice(0, 40)}.pdf`, 'application/pdf');
     res.send(buf);
   } catch (err) { fail(res, err); }
