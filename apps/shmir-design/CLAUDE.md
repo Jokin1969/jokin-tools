@@ -3091,6 +3091,35 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     de un `return sum(...)`. Un exento no reconocido empuja a quitar el comentario y poner
     `strict` donde no toca.
 
+- **EL REGISTRO DE ANDAMIOS (2026-08-30)** (`shmir_design/scaffold_registry.py`,
+  `tests/test_registro_andamios.py`). **Cambiar de andamio NO es sustituir un flanco: es
+  rediseñar el módulo entero.** Hasta hoy `blocks.PIECES` sólo tenía miR-E. El registro
+  lleva cuatro cosas INDEPENDIENTES por andamio —secuencia verificada de fichero,
+  contextos, regla de pasajera con su criterio, y plásmido con md5— y **la app se niega a
+  montar** con uno incompleto (`require_verified`), en vez de montarlo con una regla
+  prestada: saldría con la forma correcta, que es peor que no salir.
+  - **La regla de la pasajera es PROPIEDAD DEL ANDAMIO, no constante global**, y está
+    medido cuánto cambia: la de miR-E es revcomp con desapareamiento en la posición 1
+    **elegido plegando contra SGEP**; la que miRarchitect emite para miR-30a es
+    `revcomp(guía)[0:9] + revcomp(guía)[11:22] + "GC"` — dos nucleótidos borrados tras la
+    posición 9 y un `GC` terminal. No se parecen en nada. Esa segunda está en
+    `mirarchitect.passenger_of` **para poder descartarla**, no para diseñar.
+  - **MONTAR y VERIFICAR LOS CONTEXTOS son dos ejes**, y fundirlos dejaría `mir_e` en
+    NOT_RUN y la app dejaría de emitir lo único que hoy emite bien.
+  - **Y al montarlo salió que miR-E tampoco está completo**: el plásmido de SGEP #111170
+    **no está en el repositorio**, así que sus contextos son coordenadas declaradas que
+    ningún fichero confirma. `verify_contexts_against_plasmid` queda en `NOT_RUN` en toda
+    corrida real y su test monta un plásmido sintético de N's con los dos contextos
+    dentro: **prueba el comprobador, no las coordenadas** (principio nº 18).
+  - **NINGUNO DE LOS DOS PLÁSMIDOS APORTADOS TRAE SU ANDAMIO COMO FEATURE**, y eso es el
+    hallazgo, no un contratiempo: **#20670** anota únicamente el `miR-30a loop` —15 nt,
+    154..168, y su propia nota dice que es el loop del precursor de 71 nt— y encima son
+    771 pb **lineales** con 10 bases ambiguas desde la 710, o sea un fragmento;
+    **#78126** está completo y verificado por md5 pero **no anota ninguna feature de
+    miARN**: sus 34 features son el esqueleto de pcDNA3.1. Que el título diga «miR155 in
+    pcDNA3.1» no es una anotación, es un texto. Buscar el andamio por secuencia contra
+    una construida por nosotros es exactamente lo que prohíbe la regla 1.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
@@ -3106,3 +3135,7 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | **`apa_medido_human.tsv`** — PolyA_DB v4 para **PRNP / hg38** | que el humano deje de estar en **MODO ASUMIDO**. La tabla murina se aplica por md5 del 3'UTR, así que sobre el humano devuelve `None` y sus dos `ATTAAA` (`3utr:955` y `3utr:1167`) siguen clasificadas por **canonicidad y sin un solo dato de uso**. Es exactamente donde estaba el ratón antes de mirar PolyA_DB — y allí el modo sin medida resultó ser el **equivocado**. **La entrada existe y quedó pendiente** desde que se miró la murina: es la misma consulta cambiando la especie en el selector | se sube por el gestor |
 | parental SIN INTRÓN (donante y aceptor fuera) | techo de expresión para el empalme; `aav_casete.fa` NO vale, lleva el intrón vacío de 82 nt | — |
 | tabla de expresión | ponderar la carga de seed | `--expresion` |
+| **`hairpin.fa` de miRBase** (los PRECURSORES; el que hay es `mature.fa`, los maduros) | **los tres cálculos de miR-451**. El pre-miR-451 nativo es a la vez el andamio y la referencia contra la que se comparan los diez candidatos, y del maduro no se deriva: reconstruirlo es la regla 1. También localizaría el precursor de miR-155 dentro del hueco sin anotar de #78126 | se sube por el gestor |
+| plásmido **SGEP #111170** (`.dna` o `.gb`) | que los contextos 5' y 3' de `blocks.PIECES` —1739-1758 y 1856-1875— dejen de ser coordenadas declaradas. Hoy `verify_contexts_against_plasmid` queda en `NOT_RUN` en toda corrida real, y su test monta un plásmido sintético de N's: **prueba el comprobador, no las coordenadas** | — |
+| export de **Addgene #20670** con el precursor de miR-30a anotado, o sus coordenadas | el andamio **miR-30 original**. El fichero que hay anota sólo el `miR-30a loop` (15 nt, 154..168) y son 771 pb LINEALES con 10 bases ambiguas desde la 710: un fragmento, no el plásmido | se sube por el gestor |
+| export de **Addgene #78126** con el inserto anotado | el andamio **miR-155**. El fichero que hay está completo y verificado (5504 pb, sin ambiguas) pero **no anota ninguna feature de miARN**: sus 34 features son el esqueleto de pcDNA3.1 | se sube por el gestor |

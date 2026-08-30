@@ -259,3 +259,17 @@ columna del manifiesto se podria reasignar un fichero a otro filtro sin que se v
 el diff. Los nombres murinos que lleva son el CASO BASE del manifiesto que ya existe, no \
 el unico posible — el nombre por especie lo pone `species.required_files`."""
 
+
+[[constante]]
+simbolo = "scaffold_registry.SCAFFOLDS"
+categoria = "declaracion"
+motivo = """\
+QUE andamios existen y QUE le falta a cada uno. Es una declaracion, no un dato de una \
+especie: no contiene ni una sola secuencia. Las que hay salen de fichero —el 97-mero de \
+miR-E de `scaffold.SGEP_SCAFFOLD`, verificado; los plasmidos #20670 y #78126 del \
+directorio de referencia, por md5— y las que faltan estan declaradas como NOT_RUN con \
+su motivo y su ficha de obtencion, que es justamente lo contrario de tenerlas en codigo. \
+Un test recorre el fuente del modulo y falla si aparece cualquier cadena de 20 o mas \
+caracteres de A/C/G/T/U: tecleada aqui, una secuencia seria una reconstruccion (regla 1). \
+Va en codigo A PROPOSITO porque es la fuente unica de la pregunta «se puede montar un \
+modulo con este andamio», y en un fichero se podria cambiar sin que se viera en el diff."""
