@@ -159,7 +159,10 @@ class SpecificityDatabase:
 def _count_mismatches(pattern: str, window: str, limit: int) -> int | None:
     """Desapareamientos, o None si pasan del limite o hay una base desconocida."""
     total = 0
-    for a, b in zip(pattern, window):
+    # Una ventana mas corta que el patron contaria MENOS desapareamientos, o sea
+    # un impacto que parece mejor de lo que es — y de ahi sale un veredicto de
+    # especificidad. El unico llamador recorta a `largo` exacto; esto lo exige.
+    for a, b in zip(pattern, window, strict=True):
         if b == "N" or a == "N":
             return None
         if a != b:

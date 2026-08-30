@@ -374,6 +374,24 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
+    # SECUENCIAS EMPAREJADAS (2026-08-30). El otro lado del principio nº 19, y el que
+    # NO lleva ninguna condicion: `zip` trunca al mas corto en silencio, asi que ninguna
+    # busqueda de `if` lo encuentra y lo que sale no es un error sino un informe corto
+    # que se lee como un resultado. Guardia tambien: o `strict=`, o el motivo escrito.
+    from auditar_pares import auditar as auditar_pares
+    from auditar_pares import render as render_pares
+
+    pares = auditar_pares()
+    print(render_pares(pares))
+
+    if pares.mudos:
+        print(
+            f"\ncheck_rules: {len(pares.mudos)} `zip`/`map` de dos secuencias sin "
+            f"declarar si van emparejadas.",
+            file=sys.stderr,
+        )
+        return 1
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "

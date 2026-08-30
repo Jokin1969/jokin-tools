@@ -3057,11 +3057,39 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     la «no vacuidad» de las claves de `ACTIONS`. La distinción dejó además sin trabajo a
     la lista de ficheros excluidos, que se retiró: dos mecanismos para lo mismo es uno de
     más.
-  - **El disfraz silencioso es `zip`**, y no lleva ningún `if`. `BreakChoice.folding_ok`
-    tiene `= ()` por defecto y todo lo que lo lee hace `zip(candidates, folding_ok)`:
-    **`zip` trunca al más corto sin decir nada**, así que olvidar ese campo daría un
-    informe sin ninguna fila y sin ningún error. Hay guardia en `__post_init__`. Donde dos
-    secuencias van en paralelo, que vayan en paralelo es una invariante.
+  - **El cuarto caso NO LLEVA NINGUNA CONDICIÓN**, y es el que más enseña:
+    `BreakChoice.folding_ok` tiene `= ()` por defecto y todo lo que lo lee hace
+    `zip(candidates, folding_ok)`. **`zip` trunca al más corto sin decir nada**, así que
+    olvidar ese campo daría un informe **sin ninguna fila y sin ningún error** — que se
+    lee como un resultado. Ninguna búsqueda de `if` lo habría encontrado. Un barrido que
+    sólo mire condiciones deja fuera media familia.
+
+- **SECUENCIAS EMPAREJADAS (2026-08-30)** (`tools/auditar_pares.py`, dentro de
+  `npm run check:shmir`). El barrido del otro lado: `zip`, `map` de dos iterables y las
+  comprensiones sobre dos secuencias. **Catorce**, descontando las ventanas
+  `zip(x, x[1:])`, que recorren pares consecutivos de UNA lista y no emparejan nada.
+  - **Dos salidas y ninguna tercera**, porque son dos cosas distintas y sólo quien
+    escribe la línea sabe cuál: **`strict=True`** cuando van en paralelo y diferir es un
+    fallo (**diez**), o **`# zip-ok: <motivo>`** cuando la truncación es la intención
+    (**cuatro**) — la misma convención que `# rule2-ok`. Dejarlo implícito no es una
+    tercera opción: es que el lector adivine. Es un **guardia**, no un trinquete.
+  - **Que tenga dos salidas es lo que la hace aplicable**: «pon `strict` en todos» habría
+    roto cuatro sitios correctos, y una regla que rompe lo correcto se retira a la semana.
+  - **Los cuatro exentos, medidos, no supuestos.** El más instructivo:
+    `_donor_score` puntúa un motivo de **7 nt** contra un consenso de **5 posiciones**, y
+    la consecuencia va escrita porque no es obvia — cambiar una base en la posición 6 o la
+    7 **no baja la puntuación**, así que esas alternativas salen con el mismo número que
+    el motivo intacto y nunca se eligen (gana el mínimo).
+  - **Lo que ya estaba bien y sirvió de modelo**: `informe_doc.Block.__post_init__` lleva
+    desde hace tiempo el guardia exacto para las tablas —«una fila descuadrada desplaza
+    los valores a la columna de al lado y eso no da ningún error»— y protege aguas arriba
+    a `pdf_writer._table_lines`, su único llamador.
+  - **El detector se equivocó DOS veces, las dos HACIA EL SILENCIO**, y las dos quedan
+    fijadas con test: buscaba la marca sólo dos líneas por encima —y un motivo que merece
+    escribirse ocupa varias, con `# zip-ok:` en la primera— y luego la anclaba a la
+    llamada en vez de a la SENTENCIA, con lo que se le escapaba el `zip` que vive dentro
+    de un `return sum(...)`. Un exento no reconocido empuja a quitar el comentario y poner
+    `strict` donde no toca.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

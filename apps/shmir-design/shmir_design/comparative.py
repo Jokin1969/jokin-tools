@@ -334,12 +334,16 @@ def comparative_text(
         for i, indice in enumerate(indices)
     ]
     lineas = [
-        "  " + "  ".join(c.ljust(a) for c, a in zip(RESUMEN_COLUMNS, anchos))
+        "  " + "  ".join(
+            c.ljust(a) for c, a in zip(RESUMEN_COLUMNS, anchos, strict=True)
+        )
     ]
     for fila in filas[1:]:
         lineas.append(
             "  "
-            + "  ".join(fila[i].ljust(a) for i, a in zip(indices, anchos))
+            + "  ".join(
+                fila[i].ljust(a) for i, a in zip(indices, anchos, strict=True)
+            )
         )
     lineas.append(
         "  La tabla COMPLETA —con la pasajera, el módulo de 149 nt, los cinco campos de"

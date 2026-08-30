@@ -79,7 +79,7 @@ def _mapas_y_valores(arboles: dict[str, ast.Module]):
             # un campo `presente` heredaba la «no vacuidad» de la tabla y salia marcado.
             # Lo cazó el propio test de este detector, con el fixture del fallo real.
             if isinstance(n, ast.Dict) and id(n) not in tablas:
-                for clave, valor in zip(n.keys, n.values):
+                for clave, valor in zip(n.keys, n.values, strict=True):
                     if isinstance(clave, ast.Constant) and isinstance(clave.value, str):
                         valores[clave.value].append(valor)
     return mapas, valores

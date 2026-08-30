@@ -1682,7 +1682,7 @@ def tercio_counts(
     nombres = ("proximal", "medio", "distal")
 
     def por_inicio(posicion: int) -> str:
-        for nombre, (a, b) in zip(nombres, limites):
+        for nombre, (a, b) in zip(nombres, limites, strict=True):
             if a <= posicion <= b:
                 return nombre
         return nombres[-1]

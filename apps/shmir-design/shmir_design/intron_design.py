@@ -126,6 +126,11 @@ def locate_cryptic(scaffold, *, motif: str = CRYPTIC_DONOR) -> CrypticSite:
 
 def _donor_score(motivo: str) -> int:
     """Cuantas posiciones siguen coincidiendo con el consenso. Menos = mas degradado."""
+    # zip-ok: el motivo criptico son 7 nt y el consenso del donante son 5
+    # posiciones; se puntuan las cinco A PROPOSITO, que es lo que mide un consenso.
+    # Consecuencia MEDIDA, y va escrita porque no es obvia: cambiar una base en la
+    # posicion 6 o la 7 NO baja la puntuacion, asi que esas alternativas salen con
+    # el mismo numero que el motivo intacto y nunca se eligen — el minimo gana.
     return sum(
         1 for base, esperado in zip(motivo, DONOR_CONSENSUS) if base in esperado
     )
@@ -218,20 +223,25 @@ class BreakChoice:
                 "plegado_ok": ok,
                 "elegible": c in elegibles,
             }
-            for c, ok in zip(self.candidates, self.folding_ok)
+            for c, ok in zip(self.candidates, self.folding_ok, strict=True)
         ]
 
     def _eligible_set(self):
         if self.state is not FilterState.PASS:
             return set()
         minimo = min(
-            (c.donor_score for c, ok in zip(self.candidates, self.folding_ok) if ok),
+            (
+                c.donor_score
+                for c, ok in zip(self.candidates, self.folding_ok, strict=True)
+                if ok
+            ),
             default=None,
         )
         if minimo is None:
             return set()
         return {
-            c for c, ok in zip(self.candidates, self.folding_ok)
+            c
+            for c, ok in zip(self.candidates, self.folding_ok, strict=True)
             if ok and c.donor_score == minimo
         }
 

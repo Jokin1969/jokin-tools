@@ -805,6 +805,8 @@ def main() -> None:
     # antes de subir nada. Las direcciones y sus textos viven en
     # `external_score.EXTERNAL_TOOLS`: la pagina no tiene datos propios (regla 6).
     enlaces = st.columns(len(EXTERNAL_TOOLS) + 2)
+    # zip-ok: se piden DOS columnas de mas que herramientas, a proposito, para que
+    # los botones no se estiren a todo el ancho. Las dos ultimas quedan vacias.
     for columna, herramienta in zip(enlaces, EXTERNAL_TOOLS):
         with columna:
             st.link_button(

@@ -831,7 +831,7 @@ ellas sin recorrido de punta a punta; eso no se ve mirando la bandera. Y al rev�
 
 ## 19 — Un valor legítimo puede tener la FORMA de la ausencia, y la comprobación mira el continente
 
-Van tres fallos con la misma anatomía, en tres años de código distinto:
+Van **cuatro** fallos con la misma anatomía, en años de código distinto:
 
 1. **`x or defecto` con la cadena vacía** (errata nº 18). `""` es un valor —«todas las
    especies, a propósito»— y `None` es «nadie lo declaró». El `or` los hace uno.
@@ -839,9 +839,20 @@ Van tres fallos con la misma anatomía, en tres años de código distinto:
    y no tiene nada dentro; el panel lo daba por presente y «Ver» enseñaba el vacío.
 3. **`if fila["acciones"]` sobre una lista que nunca está vacía** (errata nº 34). Valía
    `["ver", …]` o `["subir"]`: dos cosas distintas, las dos verdaderas.
+4. **`zip(candidates, folding_ok)` con el segundo vacío por defecto.** `zip` trunca al
+   más corto **sin decir nada**, así que el informe habría salido **sin ninguna fila y
+   sin ningún error** — «no hay alternativas» cuando lo que pasa es que no se midió
+   ninguna.
 
-En los tres, **la pregunta era por el contenido y la comprobación miró el continente**. Y
-en los tres el resultado fue el peor posible: no un error, sino una respuesta plausible.
+En los cuatro, **la pregunta era por el contenido y la comprobación miró el continente**.
+Y en los cuatro el resultado fue el peor posible: no un error, sino una respuesta
+plausible.
+
+**El cuarto no está de adorno, y es el que más enseña**: no lleva **ninguna condición**.
+Los tres primeros se encuentran mirando los `if`; a éste ninguna búsqueda de `if` lo
+habría encontrado nunca. Y donde los otros devuelven un valor equivocado, éste devuelve
+**un informe vacío, que se lee como un resultado** — la forma más callada que hay de leer
+el continente. Un barrido que sólo mire condiciones deja fuera media familia.
 
 ### La forma de la enfermedad
 
@@ -876,14 +887,28 @@ Está probado contra el fallo que lo originó — se le da el fuente **de antes*
 y se exige que lo señale. Un detector que sale a cero sobre el código ya arreglado no ha
 demostrado nada; es el `verify()` de la errata nº 29 otra vez.
 
-### El disfraz silencioso: `zip`
+### La contramedida del cuarto: dos salidas y ninguna tercera
 
-El mismo mal sin `if` ninguno. `BreakChoice.folding_ok` tiene `= ()` por defecto y todo lo
-que lo lee hace `zip(candidates, folding_ok)`. **`zip` trunca al más corto sin decir
-nada**, así que una construcción que rellenara los candidatos y olvidara los plegados
-daría un informe **sin ninguna fila y sin ningún error**: se leería como «no hay
-alternativas» cuando lo que pasa es que no se midió ninguna. Los dos sitios que lo
-construyen hoy están bien; ahora hay un guardia para el tercero.
+Se barrió el paquete entero por `zip`, por `map` de dos iterables y por las comprensiones
+sobre dos secuencias: **catorce**, descontando las ventanas del tipo `zip(x, x[1:])`, que
+recorren pares consecutivos de **una** lista y no emparejan nada.
+
+Y la lectura de los catorce da la regla, porque son **dos cosas distintas** y sólo quien
+escribe la línea sabe cuál:
+
+- **van en paralelo** —una fila y su ancho, un candidato y su veredicto de plegado, un
+  patrón y su ventana— y entonces que difieran es un fallo: **`strict=True`**, biblioteca
+  estándar desde 3.10, que aborta en vez de acortar. **Diez.**
+- **la truncación ES la intención** —cinco columnas de layout para tres herramientas, un
+  motivo de 7 nt contra un consenso de 5 posiciones— y entonces se escribe
+  **`# zip-ok: <motivo>`**, la misma convención que `# rule2-ok`. **Cuatro.**
+
+Dejarlo implícito no es una tercera opción: es que el lector adivine. Lo hace cumplir
+`tools/auditar_pares.py`, y es un **guardia**, no un trinquete.
+
+Que la regla tenga dos salidas no es una concesión: es lo que la hace aplicable. «Pon
+`strict` en todos» habría roto cuatro sitios correctos, y una regla que rompe lo correcto
+se retira a la semana.
 
 **Donde dos secuencias van en paralelo, que vayan en paralelo es una invariante y se hace
-cumplir.** `zip` es la forma más silenciosa que existe de leer el continente.
+cumplir.** Y donde no van en paralelo, eso se dice.
