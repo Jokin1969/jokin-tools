@@ -430,3 +430,50 @@ test('export/pdf: formato "listado" (fila por persona, QR a la derecha)', async 
     assert.equal(unknown.status, 200);
   } finally { server.close(); }
 });
+
+test('export/pdf: mostrar el grupo — inline, o como epígrafe si se ordena por residencia', async () => {
+  const express = require('express');
+  const router = require('../apps/qr-tis/routes');
+  const app = express();
+  app.use((req, res, next) => { req.user = { id: 1, email: 'a@e', name: 'A', role: 'admin', apps: '*' }; next(); });
+  app.use('/qr-tis', router);
+  const server = await new Promise(r => { const s = app.listen(0, () => r(s)); });
+  const base = `http://127.0.0.1:${server.address().port}/qr-tis/api`;
+  try {
+    const a = db.createPerson({ pharmacy_no: '96001', nombre: 'Grupo', apellidos: 'UnoA', tis: '00960011', group_name: 'Residencia A' }, 1).id;
+    const b = db.createPerson({ pharmacy_no: '96002', nombre: 'Grupo', apellidos: 'DosA', tis: '00960012', group_name: 'Residencia A' }, 1).id;
+    const c = db.createPerson({ pharmacy_no: '96003', nombre: 'Grupo', apellidos: 'UnoB', tis: '00960013', group_name: 'Residencia B' }, 1).id;
+    const d = db.createPerson({ pharmacy_no: '96004', nombre: 'Grupo', apellidos: 'SinGrupo', tis: '00960014' }, 1).id;
+    const ids = [a, b, c, d];
+
+    // show_group + orden normal (apellidos): el grupo va inline, por persona.
+    for (const layout of ['table', 'list']) {
+      const r = await fetch(base + '/export/pdf', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, qr_size: 100, layout, show_group: true, order: 'apellidos' }),
+      });
+      assert.equal(r.status, 200, `${layout} inline: status`);
+      const bytes = Buffer.from(await r.arrayBuffer());
+      assert.ok(bytes.length > 500 && bytes.slice(0, 4).toString() === '%PDF', `${layout} inline: PDF válido`);
+    }
+
+    // show_group + orden por residencia: el grupo pasa a epígrafe (misma llamada,
+    // solo cambia "order" — el propio backend decide el modo, no el cliente).
+    for (const layout of ['table', 'list']) {
+      const r = await fetch(base + '/export/pdf', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, qr_size: 100, layout, show_group: true, order: 'residencia' }),
+      });
+      assert.equal(r.status, 200, `${layout} epígrafe: status`);
+      const bytes = Buffer.from(await r.arrayBuffer());
+      assert.ok(bytes.length > 500 && bytes.slice(0, 4).toString() === '%PDF', `${layout} epígrafe: PDF válido`);
+    }
+
+    // show_group desactivado: comportamiento de siempre, sin tocar nada de esto.
+    const off = await fetch(base + '/export/pdf', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, qr_size: 100 }),
+    });
+    assert.equal(off.status, 200);
+  } finally { server.close(); }
+});

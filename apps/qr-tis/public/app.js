@@ -1457,7 +1457,7 @@ function sortPeopleBy(list, order, sub) {
 }
 function toolExportPdf() {
   const groups = [...new Set(S.people.flatMap(p => p.groups || []))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
-  const st = { order: 'apellidos', sub: 'apellidos', res: new Set(), layout: 'table', namePriority: false };
+  const st = { order: 'apellidos', sub: 'apellidos', res: new Set(), layout: 'table', namePriority: false, showGroup: false };
   const ORDERS = [['pharmacy_no', 'Nº farmacia'], ['tis', 'TIS'], ['nombre', 'Nombre'], ['apellidos', 'Apellidos'], ['residencia', 'Residencia']];
   const SUBS = [['pharmacy_no', 'Nº farmacia'], ['tis', 'TIS'], ['nombre', 'Nombre'], ['apellidos', 'Apellidos']];
   const seg = (id, opts, cur) => `<div class="qt-seg qt-exp-seg" id="${id}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" class="${v === cur ? 'sel' : ''}">${l}</button>`).join('')}</div>`;
@@ -1469,7 +1469,11 @@ function toolExportPdf() {
      <div class="qt-tool-row" id="pdf-nameprio-row">
        <button type="button" class="qt-toggle" id="pdf-nameprio">👤 Priorizar nombre y apellidos (QR en segundo plano)</button>
      </div>
-     <div class="qt-tool-row"><label>Título:</label><input class="qt-select" style="flex:1" id="pdf-title" value="Listado de códigos TIS" maxlength="120"></div>
+     ${groups.length ? `<div class="qt-tool-row" id="pdf-showgroup-row">
+       <button type="button" class="qt-toggle" id="pdf-showgroup">🏷️ Mostrar el grupo (residencia)</button>
+     </div>
+     <div class="qt-exp-hint" id="pdf-showgroup-hint" hidden>Si además ordenas por «Residencia», el grupo aparece como epígrafe agrupando a las personas, en vez de repetirse en cada una.</div>` : ''}
+     <div class="qt-tool-row"><label>Título:</label><input class="qt-select" style="flex:1" id="pdf-title" value="Listado de personas / QR" maxlength="120"></div>
      <div class="qt-tool-row" style="align-items:center">
        <label>Tamaño del QR:</label>
        <input type="range" id="pdf-size" min="70" max="280" step="10" value="150" style="flex:1;accent-color:var(--brand)">
@@ -1494,6 +1498,11 @@ function toolExportPdf() {
     st.namePriority = !st.namePriority;
     $('pdf-nameprio').classList.toggle('on', st.namePriority);
     $('pdf-namesize-row').hidden = !st.namePriority;
+  };
+  if ($('pdf-showgroup')) $('pdf-showgroup').onclick = () => {
+    st.showGroup = !st.showGroup;
+    $('pdf-showgroup').classList.toggle('on', st.showGroup);
+    $('pdf-showgroup-hint').hidden = !st.showGroup;
   };
   const box = $('tool-modal-box');
   // Formato: la prioridad nombre/QR solo tiene sentido en la tabla (en el listado
@@ -1529,6 +1538,7 @@ function toolExportPdf() {
       const blob = await apiBlob('/export/pdf', {
         ids: people.map(p => p.id), qr_size: Number(sz.value), title: $('pdf-title').value,
         layout: st.layout, name_priority: st.namePriority, name_size: Number(nsz.value),
+        show_group: st.showGroup, order: st.order,
       });
       downloadBlob(blob, `TIS_QR_${stamp()}.pdf`);
       closeModal(); toast(`PDF generado · ${people.length} persona(s)`, 'ok');
