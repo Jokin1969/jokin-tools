@@ -3106,11 +3106,30 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     `mirarchitect.passenger_of` **para poder descartarla**, no para diseñar.
   - **MONTAR y VERIFICAR LOS CONTEXTOS son dos ejes**, y fundirlos dejaría `mir_e` en
     NOT_RUN y la app dejaría de emitir lo único que hoy emite bien.
-  - **Y al montarlo salió que miR-E tampoco está completo**: el plásmido de SGEP #111170
-    **no está en el repositorio**, así que sus contextos son coordenadas declaradas que
-    ningún fichero confirma. `verify_contexts_against_plasmid` queda en `NOT_RUN` en toda
-    corrida real y su test monta un plásmido sintético de N's con los dos contextos
-    dentro: **prueba el comprobador, no las coordenadas** (principio nº 18).
+  - **Al montarlo salió que miR-E tampoco estaba completo** —faltaba el plásmido de SGEP,
+    así que sus contextos eran coordenadas que ningún fichero confirmaba, y su test los
+    probaba contra un plásmido sintético de N's: **el comprobador, no las coordenadas**
+    (principio nº 18)—. **CERRADO el 2026-08-30**: llegó #111170 (8968 pb, md5
+    `b15d8091…`) y `contexto5` en 1739-1758 y `contexto3` en 1856-1875 **coinciden
+    exactamente**. miR-E está completo en los cuatro ejes y hay test contra el fichero.
+  - **LOS DOS PLÁSMIDOS SE MIDIERON ANTES DE DESCARTARLOS**, con un CONTROL POSITIVO:
+    SGEP anota su `miR-30a loop` con la misma etiqueta de 15 nt, así que centrarlo en una
+    ventana de 71 nt y plegarla se puede probar donde la respuesta se conoce — y da una
+    horquilla limpia (−35,10 kcal/mol, 82 % emparejada, **un** bucle terminal). Con el
+    mismo método: **#20670 SÍ da horquilla** (−34,70; 73 %; un bucle; las 10 bases
+    ambiguas empiezan en la 710, fuera de la ventana) → hay base para pedir la anotación.
+    **#78126 NO**: su mejor ventana se queda en −26,00 y 65 %, y lo que lo decide no es
+    el plegado sino que ese hueco tiene **15 dianas de restricción canónicas en 215 nt,
+    una cada 12,6 y con densidad 105× la del resto del plásmido** — es un polilinker
+    vacío. Descartado con motivo medido, no por ausencia de etiqueta.
+  - **La ventana se DERIVA, y no era un detalle**: centrada da 126..196; el rango
+    propuesto a ojo (112..183) da −20,50, 53 % y **dos** bucles. Catorce kcal/mol.
+  - **Y el discriminante primero fue equivocado**: conté `)(` —tallos SECUENCIALES— y
+    estas estructuras son ANIDADAS, así que ninguna tenía uno; el control positivo pasó
+    **por casualidad**. Lo que separa una horquilla es cuántos BUCLES TERMINALES cierra.
+    Con el criterio bueno, la mejor ventana de #78126 **sí** es una horquilla: lo que la
+    descarta es la magnitud y la densidad de dianas, no la forma. Decir «ramificada»
+    habría sido un diagnóstico equivocado, que cuesta más que ninguno.
   - **NINGUNO DE LOS DOS PLÁSMIDOS APORTADOS TRAE SU ANDAMIO COMO FEATURE**, y eso es el
     hallazgo, no un contratiempo: **#20670** anota únicamente el `miR-30a loop` —15 nt,
     154..168, y su propia nota dice que es el loop del precursor de 71 nt— y encima son
@@ -3136,6 +3155,5 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | parental SIN INTRÓN (donante y aceptor fuera) | techo de expresión para el empalme; `aav_casete.fa` NO vale, lleva el intrón vacío de 82 nt | — |
 | tabla de expresión | ponderar la carga de seed | `--expresion` |
 | **`hairpin.fa` de miRBase** (los PRECURSORES; el que hay es `mature.fa`, los maduros) | **los tres cálculos de miR-451**. El pre-miR-451 nativo es a la vez el andamio y la referencia contra la que se comparan los diez candidatos, y del maduro no se deriva: reconstruirlo es la regla 1. También localizaría el precursor de miR-155 dentro del hueco sin anotar de #78126 | se sube por el gestor |
-| plásmido **SGEP #111170** (`.dna` o `.gb`) | que los contextos 5' y 3' de `blocks.PIECES` —1739-1758 y 1856-1875— dejen de ser coordenadas declaradas. Hoy `verify_contexts_against_plasmid` queda en `NOT_RUN` en toda corrida real, y su test monta un plásmido sintético de N's: **prueba el comprobador, no las coordenadas** | — |
-| export de **Addgene #20670** con el precursor de miR-30a anotado, o sus coordenadas | el andamio **miR-30 original**. El fichero que hay anota sólo el `miR-30a loop` (15 nt, 154..168) y son 771 pb LINEALES con 10 bases ambiguas desde la 710: un fragmento, no el plásmido | se sube por el gestor |
-| export de **Addgene #78126** con el inserto anotado | el andamio **miR-155**. El fichero que hay está completo y verificado (5504 pb, sin ambiguas) pero **no anota ninguna feature de miARN**: sus 34 features son el esqueleto de pcDNA3.1 | se sube por el gestor |
+| export de **Addgene #20670** con el precursor de miR-30a anotado, o sus coordenadas | el andamio **miR-30 original**. Plegando la ventana de 71 nt centrada en el loop anotado **sí sale horquilla** (−34,70; 73 %; un bucle) frente al control de SGEP (−35,10; 82 %; un bucle): hay base para pedir la anotación, pero anotado no está | se sube por el gestor |
+| **otro plásmido de miR-155** | el andamio **miR-155**. #78126 queda **DESCARTADO con motivo medido**: su único hueco sin anotar es un polilinker vacío — 15 dianas de restricción canónicas en 215 nt, densidad **105×** la del resto — y su mejor ventana de 71 nt se queda en −26,00 y 65 % | se sube por el gestor |

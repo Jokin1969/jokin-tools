@@ -139,17 +139,42 @@ class TestElINVENTARIO(unittest.TestCase):
                 self.assertIsInstance(fila["tiene"], list)
                 self.assertIsInstance(fila["falta"], list)
 
-    def test_miR_E_MONTA_pero_le_falta_su_PLASMIDO(self):
-        """Lo daba por completo y no lo está, y salió al montar el registro: SGEP
-        #111170 NO está en el repositorio. El 97-mero sí está verificado —contra la
-        publicación y el plegado— así que monta; lo que nadie ha contrastado contra un
-        fichero son los CONTEXTOS, y `verify_contexts_against_plasmid` queda en NOT_RUN
-        en toda corrida real. Su test monta un plásmido sintético de N's con los dos
-        contextos dentro: prueba el comprobador, no las coordenadas."""
+    def test_miR_E_esta_COMPLETO_en_los_cuatro_ejes(self):
+        """CERRADO el 2026-08-30, y hasta ese día no lo estaba: faltaba el plásmido, así
+        que los contextos eran coordenadas que ningún fichero confirmaba."""
         fila = next(f for f in inventory() if f["andamio"] == "mir_e")
         self.assertEqual(fila["estado"], "PASS")
-        self.assertEqual(len(fila["falta"]), 1, fila["falta"])
-        self.assertIn("plásmido", fila["falta"][0])
+        self.assertEqual(fila["falta"], [])
+
+    def test_y_los_contextos_declarados_COINCIDEN_con_el_plasmido_real(self):
+        """La comprobación que faltaba, y la que este registro existía para forzar.
+
+        El test que había plegaba los contextos contra un plásmido SINTÉTICO de N's con
+        los dos metidos dentro: eso prueba el COMPROBADOR y no las coordenadas
+        (principio nº 18, la mitad de los datos). Aquí se contrastan contra el fichero.
+        """
+        import re
+        from pathlib import Path
+
+        from shmir_design.blocks import PIECES
+
+        raiz = Path(__file__).resolve().parent.parent
+        origen = (raiz / "data" / "reference" / "addgene_111170.gb").read_text(
+            encoding="utf-8"
+        ).split("ORIGIN", 1)[1].split("//")[0]
+        seq = "".join(
+            re.findall(r"[acgtnACGTN]", origen.translate(str.maketrans("", "", "0123456789")))
+        ).upper()
+        self.assertEqual(len(seq), 8968)
+        for nombre in ("contexto5", "contexto3"):
+            pieza = PIECES[nombre]
+            inicio, fin = pieza.span
+            with self.subTest(nombre):
+                self.assertEqual(
+                    seq[inicio - 1 : fin],
+                    pieza.sequence,
+                    f"{nombre} declarado en {inicio}-{fin} no es lo que hay ahí.",
+                )
 
     def test_y_montar_NO_depende_del_plasmido(self):
         """Los dos ejes, separados: fundirlos dejaría `mir_e` en NOT_RUN y la app

@@ -273,7 +273,16 @@ class Selection:
 
 
 def group_choices(choices: list[Choice]) -> list[Site]:
-    """Agrupa ventanas elegibles contiguas en sitios independientes (paso 4)."""
+    """Agrupa ventanas elegibles contiguas en sitios independientes (paso 4).
+
+    **EL RECUENTO DE SITIOS MIDE FRAGMENTACIÓN, NO OPORTUNIDAD, Y NO ES COMPARABLE ENTRE
+    CRITERIOS.** Un sitio es un bloque de posiciones de inicio CONTIGUAS que pasan, así
+    que al pasar más ventanas los bloques **se funden** y el recuento BAJA. Medido sobre
+    el 3'UTR murino poniendo la asimetría en `NO_APLICA` —el criterio de miR-451—: las
+    ventanas suben de 270 a 554 y los sitios bajan de 86 a 40, con el tamaño medio
+    pasando de 3,1 a 13,8 ventanas y los cortes de 85 a 39. No se perdieron 46 sitios: se
+    unieron. Para comparar dos criterios el número es el de VENTANAS.
+    """
     ordenadas = sorted(choices, key=lambda c: c.start)
     if not ordenadas:
         return []

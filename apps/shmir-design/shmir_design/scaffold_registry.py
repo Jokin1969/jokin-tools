@@ -125,6 +125,7 @@ class RegisteredScaffold:
 #: para que un fichero cambiado se note; no son una fuente de secuencia.
 _MD5_20670 = "14eab980202d1256a5356374000b7d2c"
 _MD5_78126 = "1991fb428c67a2407e027cbd0c1319e8"
+_MD5_111170 = "b15d809181d72c78c815755442c188fd"
 
 
 SCAFFOLDS: dict[str, RegisteredScaffold] = {
@@ -140,28 +141,16 @@ SCAFFOLDS: dict[str, RegisteredScaffold] = {
             criterion=PASSENGER_RULE_SOURCE,
             derived_from="SGEP #111170 y LT3GEPIR #111177",
         ),
-        # EL PLASMIDO DE SGEP NO ESTA EN EL REPOSITORIO, y salio al montar este
-        # registro. El 97-mero si esta verificado —contra la publicacion y contra el
-        # plegado— y por eso se puede MONTAR; lo que no esta verificado contra un
-        # fichero son los CONTEXTOS 5' y 3', que hoy son coordenadas declaradas
-        # (1739-1758 y 1856-1875) que ningun fichero del repositorio confirma:
-        # `gblock.verify_contexts_against_plasmid` queda en NOT_RUN en toda corrida
-        # real, y su test monta un plasmido sintetico de N's con los dos contextos
-        # dentro — que prueba el COMPROBADOR, no las coordenadas.
-        plasmid="",
-        why_missing=(
-            "miR-E monta: su 97-mero está verificado contra la publicación y contra el "
-            "plegado, y tiene su regla de pasajera propia. Lo que le falta es el "
-            "PLÁSMIDO de referencia: SGEP #111170 no está en el directorio, así que los "
-            "contextos 5' y 3' siguen siendo coordenadas declaradas que ningún fichero "
-            "confirma, y `verify_contexts_against_plasmid` queda en NOT_RUN en toda "
-            "corrida real."
-        ),
-        como_conseguirlo=(
-            "El `.dna` o el `.gb` de SGEP #111170. Con él, los contextos de "
-            "`blocks.PIECES` —posiciones 1739-1758 y 1856-1875— se contrastan de "
-            "verdad en vez de quedarse en NOT_RUN, que es lo que hacen hoy."
-        ),
+        # CERRADO 2026-08-30: llego SGEP #111170 y los dos contextos declarados
+        # COINCIDEN EXACTAMENTE en sus coordenadas — `contexto5` en 1739-1758 y
+        # `contexto3` en 1856-1875, contrastados contra la secuencia del fichero. Hasta
+        # hoy eran coordenadas que ningun fichero confirmaba: el test las probaba contra
+        # un plasmido SINTETICO de N's con los dos contextos dentro, que prueba el
+        # COMPROBADOR y no las coordenadas (principio nº 18). Ahora hay test contra el
+        # plasmido real.
+        plasmid="addgene_111170.gb",
+        plasmid_md5=_MD5_111170,
+        loop_feature=("ncRNA", "miR-30a loop"),
     ),
     "mir30_original": RegisteredScaffold(
         name="mir30_original",
@@ -188,11 +177,15 @@ SCAFFOLDS: dict[str, RegisteredScaffold] = {
             "fragmento de baja calidad en el extremo, no el plásmido entero."
         ),
         como_conseguirlo=(
-            "Hacen falta las COORDENADAS del precursor de 71 nt dentro de #20670, o un "
-            "export del plásmido entero con el precursor anotado como feature. La otra "
-            "vía que no depende de Addgene es `hairpin.fa` de miRBase, que trae los "
-            "precursores y del que hoy sólo tenemos `mature.fa` (los maduros). Con "
-            "cualquiera de las dos, la secuencia sale de un fichero y no se teclea."
+            "MEDIDO, y el resultado es favorable: centrando el loop anotado en una "
+            "ventana de 71 nt —126..196, DERIVADA de las coordenadas del loop, no "
+            "adivinada— sale UNA horquilla de ΔG −34,70 kcal/mol con el 73 % de las "
+            "bases emparejadas y UN solo bucle terminal, contra el control positivo de "
+            "SGEP (−35,10 y 82 %, también un bucle) medido con el mismo método. Las 10 "
+            "bases ambiguas del fichero empiezan en la 710, fuera de la ventana. Eso NO "
+            "lo declara andamio —sigue sin estar anotado— pero da base para pedir la "
+            "anotación del precursor o un export del plásmido entero. La otra vía es "
+            "`hairpin.fa` de miRBase. Con cualquiera de las dos, de fichero y sin teclear."
         ),
         precedent=(
             "PRECEDENTE MEDIDO, y no se adopta: la pasajera que emite miRarchitect para "
@@ -222,14 +215,16 @@ SCAFFOLDS: dict[str, RegisteredScaffold] = {
             "es una anotación: es un texto. El inserto no está delimitado en el fichero."
         ),
         como_conseguirlo=(
-            "MEDIDO sobre las anotaciones del fichero: el único intervalo sin anotar "
-            "del casete de expresión son 215 nt en 883..1097, entre el promotor T7 "
-            "(863..881) y el cebador BGH-rev (1098..1115), donde por fuerza vive el "
-            "inserto. Eso lo dicen las propias anotaciones y no una secuencia construida "
-            "por nosotros, pero NO delimita el andamio dentro de esos 215 nt. Hace falta "
-            "un export con el inserto "
-            "anotado, o `hairpin.fa` de miRBase para localizar el precursor de miR-155 "
-            "por su secuencia REAL —de fichero— dentro de ese intervalo."
+            "MEDIDO, y el resultado DESCARTA este fichero: el único intervalo sin anotar "
+            "del casete son 215 nt en 883..1097, entre el promotor T7 (863..881) y el "
+            "cebador BGH-rev (1098..1115). Plegando TODAS sus ventanas de 71 nt —el "
+            "tamaño del control positivo— la mejor da ΔG −26,00 con el 65 % emparejado, "
+            "contra −35,10 y 82 % del control. Sí cierra un solo bucle, o sea que "
+            "topológicamente es una horquilla, y eso no significa nada: cualquier tramo "
+            "rico en GC pliega algo. Lo que decide es otra medida: ese intervalo contiene "
+            "15 DIANAS DE RESTRICCIÓN canónicas distintas, una cada 12,6 nt, con una "
+            "densidad 105 veces la del resto del plásmido. Es un POLILINKER VACÍO, no un "
+            "inserto. Hace falta OTRO plásmido, o `hairpin.fa` para saber qué buscar."
         ),
     ),
     "mir451": RegisteredScaffold(
@@ -250,11 +245,20 @@ SCAFFOLDS: dict[str, RegisteredScaffold] = {
             "a partir del maduro es exactamente lo que prohíbe la regla 1."
         ),
         como_conseguirlo=(
-            "FALTA `hairpin.fa` de miRBase (los precursores; el que hay es `mature.fa`, "
-            "los maduros). Con él salen `mmu-mir-451a` y su geometría, y con eso se "
-            "pueden correr los tres cálculos. Sin él, el pre-miR-451 nativo —el valor "
-            "esperado que viene de la biología y no del código— no existe, y una "
-            "comparación sin referencia no dice nada."
+            "FALTA `hairpin.fa` de miRBase — los PRECURSORES; el que hay es `mature.fa`, "
+            "los maduros. Misma fuente (mirbase.org → Downloads) y **la misma release**: "
+            "hoy el manifiesto declara la 23 para `mature.fa` y "
+            "`mirbase_release.comprobar_release` ABORTA si no coinciden. No es una "
+            "recomendación: entre releases miRBase añade, retira y RENOMBRA entradas, así "
+            "que un maduro buscado dentro de un precursor de otra versión puede no "
+            "aparecer o aparecer donde no toca — y eso no daría un error, daría una "
+            "geometría plausible. Si sólo hay una release más nueva, se reemplazan LOS "
+            "DOS a la vez. Con él salen `mmu-mir-451a` y su geometría, y con eso corren "
+            "los tres cálculos; sin él, el pre-miR-451 nativo —el valor esperado que "
+            "viene de la biología y no del código— no existe, y una comparación sin "
+            "referencia no dice nada. De paso da la vía que no depende de Addgene para "
+            "localizar los precursores de miR-30a y miR-155 en sus plásmidos, por su "
+            "secuencia REAL en vez de por una construida por nosotros (regla 1)."
         ),
     ),
 }
