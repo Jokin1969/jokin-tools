@@ -35,7 +35,10 @@ function setDownload(res, filename, mime) {
 // Build a printable PDF sheet: a grid of QR codes (server-rendered) with the
 // person's name and TIS beneath each. The QR side length (points) is the caller's
 // variable. Inactive people show a placeholder instead of a scannable QR.
-async function buildPeoplePdf(people, size, title, st) {
+// `opts.namePriority` flips the emphasis: name/apellidos go big and on top, the QR
+// shrinks to a secondary element below it — same overall cell math (a fixed label
+// block + the QR), just which one is "the label" and which is "the image" swaps.
+async function buildPeoplePdf(people, size, title, st, opts = {}) {
   const PDFDocument = require('pdfkit');
   const QRCode = require('qrcode');
   const gdark = /^#[0-9a-f]{6}$/i.test(st.qr_dark) ? st.qr_dark : '#0f172a';
@@ -65,9 +68,31 @@ async function buildPeoplePdf(people, size, title, st) {
 
     const pageW = doc.page.width, pageH = doc.page.height, M = 40;
     const usableW = pageW - 2 * M;
-    const labelH = 44;
     const gap = 18;
-    const cellW = Math.max(size, 90);
+    const namePriority = !!opts.namePriority;
+    // Name-priority: the label block (name + TIS + farmacia) goes ON TOP and grows
+    // with nameSize; the QR becomes the small element underneath. Same "size +
+    // labelH + 10" cell-height shape either way — only what's inside labelH changes.
+    const nameSize = Math.round(Math.min(32, Math.max(10, Number(opts.nameSize) || 20)));
+    let nameBoxH = 0, cellW;
+    if (namePriority) {
+      // Real font metrics, not a guessed average character width — otherwise a
+      // narrow cellW makes the "priority" name ellipsize almost immediately
+      // (worse than the small-QR mode it's supposed to improve on).
+      doc.font('Helvetica-Bold').fontSize(nameSize);
+      nameBoxH = Math.ceil(doc.currentLineHeight(true) * 2);   // hasta 2 líneas de nombre
+      const maxNameW = people.reduce((m, p) => Math.max(m, doc.widthOfString(`${p.nombre} ${p.apellidos}`)), 0);
+      // Ancho pensado para que quepa en una línea la mayoría de nombres reales; uno
+      // desproporcionadamente largo simplemente pasa a la segunda línea (o, si ni
+      // así cabe, se trunca con «…» — igual que ya se hace en el modo normal). El
+      // límite de 220 evita que una única persona con nombre kilométrico fuerce una
+      // sola columna para TODA la hoja.
+      cellW = Math.max(size, Math.min(maxNameW + 20, 220), 140);
+    } else {
+      cellW = Math.max(size, 90);
+    }
+    const tisGap = 4, tisH = 15, pharmGap = 4, pharmH = 12;
+    const labelH = namePriority ? (nameBoxH + tisGap + tisH + pharmGap + pharmH) : 44;
     const cols = Math.max(1, Math.floor((usableW + gap) / (cellW + gap)));
     const cellH = size + labelH + 10;
     const colGap = cols > 1 ? (usableW - cols * cellW) / (cols - 1) : 0;
@@ -78,6 +103,16 @@ async function buildPeoplePdf(people, size, title, st) {
       .text(`${people.length} persona(s) · Gestión de QR (TIS)`, M, M + 22, { width: usableW });
     let top = M + 46;
 
+    const drawQr = (i, qx, qy) => {
+      if (pngs[i]) {
+        try { doc.image(pngs[i], qx, qy, { width: size, height: size }); } catch { /* skip */ }
+      } else {
+        doc.save().lineWidth(1).strokeColor('#c3c9d2').dash(3, { space: 3 }).rect(qx, qy, size, size).stroke().undash();
+        doc.fillColor('#9aa4b0').font('Helvetica').fontSize(9).text('Inactiva', qx, qy + size / 2 - 6, { width: size, align: 'center' });
+        doc.restore();
+      }
+    };
+
     people.forEach((p, i) => {
       const col = i % cols;
       if (i > 0 && col === 0) {
@@ -87,20 +122,31 @@ async function buildPeoplePdf(people, size, title, st) {
       const x = M + col * (cellW + colGap);
       const y = top;
       const qx = x + (cellW - size) / 2;
-      if (pngs[i]) {
-        try { doc.image(pngs[i], qx, y, { width: size, height: size }); } catch { /* skip */ }
+
+      if (namePriority) {
+        // Nombre grande arriba (lo que de verdad se lee de un vistazo); el QR,
+        // en segundo plano, queda pequeño debajo.
+        doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(nameSize)
+          .text(`${p.nombre} ${p.apellidos}`, x, y, { width: cellW, align: 'center', ellipsis: true, height: nameBoxH });
+        const tisTop = y + nameBoxH + tisGap;
+        doc.fillColor('#1273b8').font('Courier-Bold').fontSize(11)
+          .text(String(p.tis), x, tisTop, { width: cellW, align: 'center' });
+        const qrTop = tisTop + tisH + pharmGap;
+        drawQr(i, qx, qrTop);
+        if (p.pharmacy_no) {
+          doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
+            .text(`Farmacia: ${p.pharmacy_no}`, x, qrTop + size + 4, { width: cellW, align: 'center' });
+        }
       } else {
-        doc.save().lineWidth(1).strokeColor('#c3c9d2').dash(3, { space: 3 }).rect(qx, y, size, size).stroke().undash();
-        doc.fillColor('#9aa4b0').font('Helvetica').fontSize(9).text('Inactiva', qx, y + size / 2 - 6, { width: size, align: 'center' });
-        doc.restore();
-      }
-      doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(10)
-        .text(`${p.nombre} ${p.apellidos}`, x, y + size + 4, { width: cellW, align: 'center', ellipsis: true, height: 14 });
-      doc.fillColor('#1273b8').font('Courier-Bold').fontSize(11)
-        .text(String(p.tis), x, y + size + 17, { width: cellW, align: 'center' });
-      if (p.pharmacy_no) {
-        doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
-          .text(`Farmacia: ${p.pharmacy_no}`, x, y + size + 31, { width: cellW, align: 'center' });
+        drawQr(i, qx, y);
+        doc.fillColor('#0f2233').font('Helvetica-Bold').fontSize(10)
+          .text(`${p.nombre} ${p.apellidos}`, x, y + size + 4, { width: cellW, align: 'center', ellipsis: true, height: 14 });
+        doc.fillColor('#1273b8').font('Courier-Bold').fontSize(11)
+          .text(String(p.tis), x, y + size + 17, { width: cellW, align: 'center' });
+        if (p.pharmacy_no) {
+          doc.fillColor('#5c7086').font('Helvetica').fontSize(8)
+            .text(`Farmacia: ${p.pharmacy_no}`, x, y + size + 31, { width: cellW, align: 'center' });
+        }
       }
     });
 
@@ -423,7 +469,9 @@ router.post('/api/export/pdf', jsonBig, async (req, res) => {
     }
     if (!people.length) throw bad('No hay personas que exportar.');
     const st = db.getSettings();
-    const buf = await buildPeoplePdf(people, size, title, st);
+    const namePriority = !!b.name_priority;
+    const nameSize = Math.round(Math.min(32, Math.max(10, Number(b.name_size) || 20)));
+    const buf = await buildPeoplePdf(people, size, title, st, { namePriority, nameSize });
     setDownload(res, `TIS_${title.replace(/[^\w áéíóúñÁÉÍÓÚÑ-]/gi, '_').slice(0, 40)}.pdf`, 'application/pdf');
     res.send(buf);
   } catch (err) { fail(res, err); }
