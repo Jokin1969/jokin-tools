@@ -3139,6 +3139,42 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     pcDNA3.1» no es una anotación, es un texto. Buscar el andamio por secuencia contra
     una construida por nosotros es exactamente lo que prohíbe la regla 1.
 
+- **LA MATRIZ INTRÓN × ANDAMIO (2026-08-30)** (`shmir_design/matriz_andamio_intron.py`).
+  **Los dos registros NO son independientes**, y tratarlos como 12 combinaciones sueltas
+  permite construir pares que no resuelven nada: `mvm_sin_criptico` existe **sólo** para
+  romper el `GTGAGCG` del flanco 5' de miR-E, así que con un andamio que no lo lleve es
+  la misma construcción con otro nombre.
+  - **Los motivos se buscan en la SECUENCIA REAL del módulo montado**, nunca por familia
+    ni por analogía, y el contexto de donante se puntúa **contra el donante legítimo del
+    propio intrón** — referencia interna, el mismo criterio que cazó el `GTGAGCG`.
+  - **Lo medido sobre `mvm_actual` × `mir_e`**, el único par evaluable hoy: **UN** donante
+    críptico en los 149 nt del módulo, y es el conocido — `GTGAGCG` en +38, con score
+    **5, el mismo que el donante legítimo** (`GTAAGGG`). Por eso compite, y por eso no
+    hace falta ningún umbral de fuera para decirlo. Cae en el flanco 5' del andamio, así
+    que **viaja con cualquier guía**.
+  - **NINGÚN aceptor utilizable dentro del módulo**: el mejor tracto de cualquier `AG` son
+    **2** pirimidinas contiguas contra las **9** del aceptor legítimo. Eso cierra **por
+    secuencia** los empalmes que cortarían por dentro de la horquilla.
+  - **Un YTNAY (`TTGAC` en +32) y NO define ningún intrón**: va **aguas arriba** del
+    donante —el orden contrario al que haría falta— y no hay aceptor. El peor caso sería
+    donante, punto y aceptor los tres dentro y en ese orden; se comprueba el ORDEN, no
+    sólo la presencia.
+  - **1 de 12 evaluable, y los `NOT_RUN` tienen DOS causas distintas** (9 + 2). Fundirlas
+    diría «falta un fichero de andamio» sobre algo que ningún andamio arregla:
+    `intron_quimerico` llega **entero** y no declara sus puntos de inserción, y
+    `mvm_sin_criptico` se **diseña por candidato** y hoy el primer paso empata. El motivo
+    lo da el propio intrón; no se transcribe en la matriz.
+  - **La redundancia se MARCA, no se elimina**: la decisión de no sintetizar es de quien
+    diseña. Y `aviso_de_par` lo dice **al montar**, como el aviso de núcleo de seed
+    compartido — sin impedirlo.
+  - **`None` no es `False`, y decide qué se hace**: «el andamio no lleva el motivo»
+    descarta el par; «no se ha mirado» manda a conseguir el fichero. El aviso nunca
+    declara redundancia sobre un andamio sin evaluar.
+  - **El aviso pregunta por el ANDAMIO, no por el par**: el módulo se monta con el andamio
+    y la guía, y el intrón lo envuelve. Atarlo al par hacía que dijera «no se puede
+    comprobar» sobre miR-E —donde el motivo está y está medido— sólo porque la variante
+    de intrón todavía no se ha diseñado.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

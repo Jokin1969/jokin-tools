@@ -889,6 +889,13 @@ class Intron:
     #: `True` si lo DISEÑA la app en vez de venir de fuera.
     derived: bool = False
     derived_from: str = ""
+    #: El motivo que esta variante existe para ROMPER. Vacio = no rompe ninguno.
+    #:
+    #: Esta aqui porque los dos registros —intrones y andamios— no son independientes:
+    #: una variante que rompe un motivo NO APORTA NADA con un andamio que no lo lleva, y
+    #: sin declararlo eso no se puede derivar. Un test lo cruza con el motivo que
+    #: `intron_design.break_candidates` rompe de verdad, para que no se separen.
+    breaks_motif: str = ""
     why_missing: str = ""
     ficha: str = ""
     #: Contexto exonico declarado a los dos lados, tambien de piezas versionadas.
@@ -1079,6 +1086,10 @@ INTRONS: dict[str, Intron] = {
         exon3_piece="exon3",
         derived=True,
         derived_from="mvm_actual",
+        # Import local: `splicing` importa `blocks`, que importa esto.
+        breaks_motif=__import__(
+            "shmir_design.splicing", fromlist=["CRYPTIC_DONOR"]
+        ).CRYPTIC_DONOR,
         why_missing=(
             "Todavía no se ha diseñado en esta corrida. Se genera con "
             "`intron_design.design_variant()`, que necesita el 97-mero del candidato "
