@@ -3036,6 +3036,33 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   ficheros con sus flags. Está escrito **en la ayuda de la bandera**, que es donde se mira
   antes de intentarlo, y no sólo en el mensaje del aborto.
 
+- **EL GUARDIA DE LAS CONDICIONES QUE NO PUEDEN SER FALSAS (2026-08-29)**
+  (`tools/auditar_condiciones.py`, dentro de `npm run check:shmir`). Principio nº 19, y
+  sale de **tres fallos con la misma anatomía**: `x or defecto` con la cadena vacía
+  (errata nº 18), `Path.is_file()` sobre un fichero de 0 bytes (errata nº 15) y
+  `if fila["acciones"]` sobre una lista que nunca está vacía (errata nº 34). En los tres
+  **la pregunta era por el CONTENIDO y la comprobación miró el CONTINENTE**, y el
+  resultado no fue un error sino una respuesta plausible.
+  - **NO es un trinquete: es un guardia.** El número correcto es CERO y cualquier
+    hallazgo aborta — una rama que no puede ejecutarse no es una decisión.
+  - **Es estrecho a propósito.** Se barrió el paquete por los tres ejes y el barrido
+    ancho da **187 posiciones sólo en las colecciones, casi todas correctas**: en
+    `if not filas` la vacuidad ES la pregunta. Un auditor así se apaga el primer día.
+    Lo que sí se decide sin discusión es el caso extremo.
+  - **Está probado contra el fallo que lo originó**: se le da el fuente de ANTES del
+    arreglo y se exige que lo señale. Salir a cero sobre el código ya arreglado no
+    demuestra nada — es el `verify()` de la errata nº 29 otra vez.
+  - Distingue **TABLA de REGISTRO** (un diccionario de módulo frente a uno construido por
+    fila), y eso lo cazó su propio test: sin esa distinción, un campo `presente` heredaba
+    la «no vacuidad» de las claves de `ACTIONS`. La distinción dejó además sin trabajo a
+    la lista de ficheros excluidos, que se retiró: dos mecanismos para lo mismo es uno de
+    más.
+  - **El disfraz silencioso es `zip`**, y no lleva ningún `if`. `BreakChoice.folding_ok`
+    tiene `= ()` por defecto y todo lo que lo lee hace `zip(candidates, folding_ok)`:
+    **`zip` trunca al más corto sin decir nada**, así que olvidar ese campo daría un
+    informe sin ninguna fila y sin ningún error. Hay guardia en `__post_init__`. Donde dos
+    secuencias van en paralelo, que vayan en paralelo es una invariante.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

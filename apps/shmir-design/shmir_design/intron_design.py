@@ -181,6 +181,28 @@ class BreakChoice:
     tied: tuple[BreakCandidate, ...] = ()
     reason: str = ""
 
+    def __post_init__(self) -> None:
+        """Las dos tuplas van EN PARALELO, y eso no se puede dejar a la buena fe.
+
+        `rows()`, `_eligible_set()` y el minimo recorren `zip(candidates, folding_ok)`, y
+        **`zip` trunca al mas corto sin decir nada**. Con `folding_ok` en su defecto —una
+        tupla vacia— el informe saldria SIN NINGUNA FILA y sin ningun error: se leeria
+        como «no hay alternativas» cuando lo que pasa es que no se midio ninguna.
+
+        Los dos sitios que construyen esto hoy rellenan los dos campos. El guardia esta
+        para el tercero. Es el principio nº 19 en su version silenciosa: un valor
+        legitimo —la tupla vacia del defecto— tiene la forma de otra cosa, y quien lo lee
+        mira el contenedor.
+        """
+        if len(self.folding_ok) != len(self.candidates):
+            raise ShmirDesignError(
+                f"BreakChoice: {len(self.candidates)} alternativa(s) y "
+                f"{len(self.folding_ok)} veredicto(s) de plegado. Van en paralelo y `zip`"
+                f" truncaría al más corto EN SILENCIO, dejando alternativas fuera del "
+                f"informe sin decirlo. Se aborta: cada alternativa lleva su `folding_ok`,"
+                f" y si no se pudo medir el plegado va `False` con su motivo en `reason`."
+            )
+
     @property
     def tie(self) -> bool:
         return len(self.tied) > 1

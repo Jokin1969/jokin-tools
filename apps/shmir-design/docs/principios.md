@@ -826,3 +826,64 @@ ellas sin recorrido de punta a punta; eso no se ve mirando la bandera. Y al rev�
 `--usar-manifiesto` figuraba como recorrida porque sus tests montan un manifiesto
 **parcial** en un temporal — contra el manifiesto de verdad abortaba con un
 `KeyError: 'polyadb'`. Quién llama, y **con qué entrada**.
+
+---
+
+## 19 — Un valor legítimo puede tener la FORMA de la ausencia, y la comprobación mira el continente
+
+Van tres fallos con la misma anatomía, en tres años de código distinto:
+
+1. **`x or defecto` con la cadena vacía** (errata nº 18). `""` es un valor —«todas las
+   especies, a propósito»— y `None` es «nadie lo declaró». El `or` los hace uno.
+2. **`Path.is_file()` sobre un fichero de 0 bytes** (errata nº 15). El fichero **existe**
+   y no tiene nada dentro; el panel lo daba por presente y «Ver» enseñaba el vacío.
+3. **`if fila["acciones"]` sobre una lista que nunca está vacía** (errata nº 34). Valía
+   `["ver", …]` o `["subir"]`: dos cosas distintas, las dos verdaderas.
+
+En los tres, **la pregunta era por el contenido y la comprobación miró el continente**. Y
+en los tres el resultado fue el peor posible: no un error, sino una respuesta plausible.
+
+### La forma de la enfermedad
+
+Python —y cualquier lenguaje con verdad implícita— colapsa cosas distintas en «falso»:
+`None`, `""`, `0`, `[]`, `{}`. **El colapso es cómodo mientras ninguno de ellos signifique
+algo**, y deja de serlo en cuanto uno significa. Y el caso 3 enseña que el colapso también
+va al revés: dos valores distintos pueden ser los dos **verdaderos**, y entonces el `if`
+no separa nada aunque lo parezca.
+
+Así que la regla no es «no uses la verdad implícita» — sería inaplicable y falsa, porque
+en `if not filas` la vacuidad **es** la pregunta. La regla es:
+
+> **Antes de escribir `if x:`, di en voz alta qué pregunta estás haciendo. Si la pregunta
+> no es literalmente «¿está vacío?», el `if` no es la comprobación que necesitas.**
+
+«¿Me lo dieron?» es `x is None`. «¿Hay algo dentro?» es `hay_fichero(ruta)`. «¿Está
+presente?» es `fila["presente"]` — un dato que alguien calculó y que se puede probar.
+
+### La contramedida, y por qué es más estrecha de lo que parece
+
+Se barrió el paquete entero por los tres ejes. **El barrido ancho no sirve**: da 187
+posiciones sólo en el eje de las colecciones y casi todas son correctas. Un auditor así
+se apaga el primer día, y un auditor apagado es peor que ninguno — es la lección de
+`shutil.copy` en el de fixtures, con otra ropa.
+
+Lo que sí se decide sin discusión es el caso extremo: **una condición que no puede ser
+falsa nunca**. Eso no es un criterio opinable, es una rama muerta con forma de decisión.
+`tools/auditar_condiciones.py` la busca derivando qué claves valen siempre algo no vacío,
+y **no es un trinquete sino un guardia**: el número correcto es cero.
+
+Está probado contra el fallo que lo originó — se le da el fuente **de antes** del arreglo
+y se exige que lo señale. Un detector que sale a cero sobre el código ya arreglado no ha
+demostrado nada; es el `verify()` de la errata nº 29 otra vez.
+
+### El disfraz silencioso: `zip`
+
+El mismo mal sin `if` ninguno. `BreakChoice.folding_ok` tiene `= ()` por defecto y todo lo
+que lo lee hace `zip(candidates, folding_ok)`. **`zip` trunca al más corto sin decir
+nada**, así que una construcción que rellenara los candidatos y olvidara los plegados
+daría un informe **sin ninguna fila y sin ningún error**: se leería como «no hay
+alternativas» cuando lo que pasa es que no se midió ninguna. Los dos sitios que lo
+construyen hoy están bien; ahora hay un guardia para el tercero.
+
+**Donde dos secuencias van en paralelo, que vayan en paralelo es una invariante y se hace
+cumplir.** `zip` es la forma más silenciosa que existe de leer el continente.

@@ -356,6 +356,24 @@ def main(argv: list[str]) -> int:
 
     print(render_fixtures(auditar_fixtures()))
 
+    # CONDICIONES QUE NO PUEDEN SER FALSAS (2026-08-29). Principio nº 19. A diferencia de
+    # los otros cinco, este NO es un informe ni un trinquete: es un GUARDIA. Una rama que
+    # no puede ejecutarse no es una decision, asi que el numero correcto es cero y
+    # cualquier hallazgo aborta.
+    from auditar_condiciones import auditar as auditar_condiciones
+    from auditar_condiciones import render as render_condiciones
+
+    condiciones = auditar_condiciones()
+    print(render_condiciones(condiciones))
+
+    if condiciones.hallazgos:
+        print(
+            f"\ncheck_rules: {len(condiciones.hallazgos)} condición(es) que no pueden "
+            f"ser falsas.",
+            file=sys.stderr,
+        )
+        return 1
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "
