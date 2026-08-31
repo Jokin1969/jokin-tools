@@ -35,6 +35,11 @@ from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     BLAST_MODAL_NOTE,
+    arms_rows,
+    arms_warning,
+    control_choices,
+    control_panel,
+    cassette_sequence,
     anatomy_payload,
     load_stores,
     cached_run,
@@ -505,11 +510,13 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     _modal_blast(seleccion, nombre, proyecto)
     _modal_seed(seleccion, nombre, tiling.mature, proyecto)
     _modal_offtarget(seleccion, nombre, tiling.mature, utr3, proyecto)
-    _modal_empalme(seleccion, nombre, utr3, _casete_de(tiling), proyecto)
+    _modal_empalme(seleccion, nombre, utr3, cassette_sequence(tiling), proyecto)
     _guardar_seleccion(proyecto, seleccion, nombre)
 
     with st.expander(f"Todas las ventanas de {nombre} ({len(tiling.windows)})"):
         st.dataframe(window_rows(tiling), hide_index=True)
+
+    _panel_controles(seleccion, nombre, tiling, utr3)
 
     bloques = st.checkbox(
         f"Generar los bloques listos para pedir de {nombre}",
@@ -1448,11 +1455,70 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None) -> None:
 
 
 
-def _casete_de(tiling):
-    """La secuencia del casete, si se cargó. `None` si no: no se inventa contexto."""
-    base = getattr(tiling, "transgene_db", None)
-    registros = getattr(base, "records", None) if base is not None else None
-    return registros[0].sequence if registros else None
+def _panel_controles(seleccion, nombre: str, tiling, diana: str) -> None:
+    """Los dos controles del experimento y los seis brazos.
+
+    La pagina NO decide nada aqui: elige `control_panel` que candidato se controla, con
+    que ficheros y que columnas salen (regla 6). Lo unico que vive en esta funcion es
+    que widget se pinta.
+
+    Va detras de los resultados y no en un paso propio porque un control se construye
+    SOBRE un candidato: sin panel no hay nada que controlar.
+    """
+    if not has_selection(seleccion):
+        return
+    with st.expander(f"Controles del experimento — {nombre}"):
+        opciones = control_choices(seleccion)
+        elegido = st.selectbox(
+            "¿Para qué candidato?",
+            options=[o["inicio"] for o in opciones],
+            format_func=lambda inicio: f"3utr:{inicio}",
+            key=f"ctrl_sitio_{nombre}",
+            help=(
+                "Las dos construcciones se derivan de LA GUÍA de ese candidato, así que "
+                "cambiarlo las cambia enteras. Cualquiera del panel vale: la elección "
+                "es tuya."
+            ),
+        )
+        st.markdown("**Los seis brazos** — aviso, no impedimento")
+        marcados = st.multiselect(
+            "Brazos que vas a montar",
+            options=[fila["brazo"] for fila in arms_rows()],
+            default=[fila["brazo"] for fila in arms_rows()],
+            key=f"ctrl_brazos_{nombre}",
+        )
+        aviso = arms_warning(marcados)
+        if aviso is not None:
+            st.error(aviso["texto"])
+        st.dataframe(arms_rows(marcados), hide_index=True)
+
+        if not st.button(
+            f"Construir los controles de 3utr:{elegido}", key=f"ctrl_ir_{nombre}"
+        ):
+            st.caption(
+                "No se construye nada al abrir el panel: cada construcción pliega "
+                "horquillas y eso tarda. El botón es el que pide el trabajo."
+            )
+            return
+        panel = control_panel(
+            seleccion, start=elegido, target=diana,
+            target_label=f"3'UTR de {nombre}", species=nombre,
+            mature=getattr(tiling, "mature", None),
+            transgene_db=getattr(tiling, "transgene_db", None),
+        )
+        for texto in panel["avisos"]:
+            st.warning(texto)
+        st.markdown(f"**shmiR scrambled** — derivado de {panel['origen']}")
+        st.dataframe(panel["scrambled"], hide_index=True)
+        st.markdown("**shmiR con la seed rota** — las DOS versiones")
+        st.dataframe(panel["comparacion"], hide_index=True)
+        for cambios, filas in panel["seed_mismatch"].items():
+            st.caption(f"{cambios} cambios")
+            st.dataframe(filas, hide_index=True)
+        for ficha in panel["fichas"]:
+            st.code(ficha, language="text")
+
+
 
 
 def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None) -> None:

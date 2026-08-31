@@ -3691,3 +3691,126 @@ def cached_run(guardado, huella: str) -> dict:
         "caducado": caducado,
         "aviso": WHY_A_RUN_FINGERPRINT if caducado else "",
     }
+
+
+# ═══════════════════════════ los controles del experimento ═══════════════════════════
+#
+# Regla 6: la pagina no decide nada. Aqui se resuelve QUE candidato controla cada
+# construccion, con que ficheros se cierran sus frentes y que columnas salen; la pagina
+# pinta lo que sale de `control_panel`.
+
+#: Cuantas construcciones se emiten por tipo en la pantalla. No es una eleccion entre
+#: ellas —no se elige— sino cuantas caben para poder compararlas de un vistazo.
+CONTROLES_POR_TIPO = 5
+
+
+def control_choices(selection) -> list[dict[str, object]]:
+    """Los candidatos del panel para los que se puede construir un control.
+
+    La eleccion de CUAL se controla es del usuario y no de la app: cualquiera del panel
+    vale, y el que se elija cambia las dos construcciones enteras.
+    """
+    return [
+        {"inicio": choice.start, "etiqueta": f"3utr:{choice.start}",
+         "guia": selection.window_of(choice).evaluation.guide}
+        for choice in selection.selection.chosen
+    ]
+
+
+def control_panel(selection, *, start: int, target: str, target_label: str,
+                  species: str = "", mature=None, abundance=None, transgene_db=None,
+                  wanted: int = CONTROLES_POR_TIPO) -> dict[str, object]:
+    """Todo lo que la pagina necesita para el bloque de controles, ya decidido.
+
+    Un solo punto de entrada a proposito: si cada tabla llamara a `controles.py` por su
+    cuenta, la de scrambled y la de seed-mismatch podrian acabar corriendo con ficheros
+    distintos —una con `mature.fa` y otra sin el— y las dos parecerian medidas.
+    """
+    from .controles import (CUANTOS_CAMBIOS_SIN_DECIDIR, LOS_DOS_NO_SE_SUSTITUYEN,
+                            ORDEN_NO_ES_RANKING, PLEGADO_NO_DISCRIMINA,
+                            mismatch_comparison, scrambled_candidates,
+                            seed_mismatch_candidates)
+
+    elegido = next(
+        (c for c in selection.selection.chosen if c.start == int(start)), None
+    )
+    if elegido is None:
+        raise ShmirDesignError(
+            f"3utr:{start} no está en el panel de esta corrida, así que no se puede "
+            f"construir un control para él. Se aborta en vez de emitir controles de un "
+            f"candidato que nadie eligió."
+        )
+    guia = selection.window_of(elegido).evaluation.guide
+    comun = dict(
+        origin_label=f"3utr:{elegido.start}", target=target, target_label=target_label,
+        mature=mature, abundance=abundance, transgene_db=transgene_db, species=species,
+    )
+    scrambled = scrambled_candidates(guia, wanted=wanted, **comun)
+    mismatch = {
+        cambios: seed_mismatch_candidates(guia, changes=cambios, wanted=wanted, **comun)
+        for cambios in (2, 3)
+    }
+    return {
+        "origen": f"3utr:{elegido.start}",
+        "guia": guia,
+        "scrambled": [c.row() for c in scrambled],
+        "seed_mismatch": {k: [c.row() for c in v] for k, v in mismatch.items()},
+        "comparacion": mismatch_comparison(
+            guia, origin_label=f"3utr:{elegido.start}", target=target,
+            target_label=target_label, mature=mature, species=species,
+        ),
+        "fichas": [c.render() for c in scrambled[:1]]
+                  + [v[0].render() for v in mismatch.values()],
+        "avisos": [
+            ORDEN_NO_ES_RANKING, PLEGADO_NO_DISCRIMINA, CUANTOS_CAMBIOS_SIN_DECIDIR,
+            LOS_DOS_NO_SE_SUSTITUYEN,
+        ],
+    }
+
+
+def cassette_sequence(tiling) -> str | None:
+    """La secuencia del casete conectado, o `None`. Vivía en la página y estaba ROTA.
+
+    `_casete_de` hacía `records[0].sequence` sobre lo que devuelve
+    `specificity.load_database`, que es un `dict[str, str]`: indexar un diccionario por
+    `0` y pedirle `.sequence` a una cadena. La rama nunca había corrido porque el casete
+    nunca se había conectado en la página, así que el `getattr(..., None)` de delante la
+    tapaba entera — y el día que alguien subiera `aav_casete.fa` el cuarto modal moriría
+    con un `KeyError: 0`. Es la regla de la errata nº 31: una combinación que ningún
+    test recorre de punta a punta NO está probada, por muchos tests que tengan sus piezas.
+
+    Y decidir CUÁL registro es el casete es una decisión, así que vive aquí y no en la
+    página (regla 6). Con más de uno se ABORTA: el contexto de empalme tiene que salir
+    de UNA molécula, y concatenar dos inventa una juntura que no existe.
+    """
+    base = getattr(tiling, "transgene_db", None)
+    registros = getattr(base, "records", None) if base is not None else None
+    if not registros:
+        return None
+    if len(registros) > 1:
+        raise ShmirDesignError(
+            f"El casete cargado trae {len(registros)} registros "
+            f"({', '.join(list(registros)[:3])}…) y el contexto de empalme tiene que "
+            f"salir de UNA molécula. Se aborta en vez de elegir uno por orden de "
+            f"aparición o de concatenarlos, que inventaría una juntura."
+        )
+    return next(iter(registros.values()))
+
+
+def arms_rows(present=()) -> list[dict[str, object]]:
+    """Los seis brazos, con QUE AISLA cada uno y si esta declarado."""
+    from .controles import ARMS
+
+    declarados = {str(clave) for clave in present}
+    return [
+        {"brazo": brazo.key, "nombre": brazo.label, "aisla": brazo.isolates,
+         "declarado": brazo.key in declarados}
+        for brazo in ARMS
+    ]
+
+
+def arms_warning(present=()) -> dict[str, object] | None:
+    """El aviso de brazos que faltan. AVISO, no impedimento — como el del núcleo."""
+    from .controles import arms_warning as _aviso
+
+    return _aviso(present)

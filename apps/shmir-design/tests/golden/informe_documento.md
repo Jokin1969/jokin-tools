@@ -828,7 +828,35 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:1112 | 1112 | NO_FIABLE | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUACAUGCAGAUUCAAAGAC |
 | False | 3utr:1113 | 1113 | NO_FIABLE | 0.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGUACAUGCAGAUUCAAAGA |
 
-## 7. Fichas de los seleccionados
+## 7. Controles del experimento
+
+Un control sin veredictos no es un control, es una secuencia. Los dos que diseña la app pasan por los mismos filtros que un candidato y salen INCOMPLETE mientras les quede un frente sin correr.
+
+SCRAMBLED Y SEED-MISMATCH NO SON INTERCAMBIABLES, y quedarse con uno deja viva una explicación alternativa. El scrambled controla «tener un shmiR» —saturación de la maquinaria, respuesta a ARN de doble cadena, carga viral— con una guía que no se parece a la nuestra. El seed-mismatch controla «tener ESTA guía»: misma composición, misma estructura, mismo sitio del andamio y la seed rota, así que lo único que cambia es el reconocimiento de la diana.
+
+| brazo | qué aísla |
+|---|---|
+| vehículo | el procedimiento: inyección, cirugía y formulación, sin vector. Es la línea de base contra la que se lee todo lo demás. |
+| shmiR scrambled | tener UN shmiR: saturación de la maquinaria de miARN, respuesta a ARN de doble cadena y carga viral, con una guía sin diana. Lo que quede de efecto aquí no es del silenciamiento. |
+| shmiR con la seed rota | tener ESTA guía: misma composición, misma estructura y mismo sitio, con el reconocimiento de la diana roto. Lo que quede de efecto aquí es off-target de esta secuencia, no del knockdown. |
+| sólo shmiR | la contribución del knockdown sin la proteína dominante negativa. |
+| sólo DN | la contribución de la dominante negativa sin knockdown. Es además el techo de expresión con el que se lee la construcción completa. |
+| construcción completa | el efecto terapéutico que se quiere demostrar. Sin los otros cinco no se puede atribuir a nada en concreto. |
+
+PASAR EL FILTRO DE ASIMETRÍA NO ES SER EQUIVALENTE. El umbral del pipeline dice si una hebra se carga; un control necesita además cargarse IGUAL que la guía que controla, y eso es una distancia, no un mínimo. Medido sobre `3utr:1018`: la mediana de las permutaciones es 0,67 frente a 7,65 del original, así que casi todas pasan el filtro y ninguna sería comparable.
+
+EL PLEGADO DEL 97-MERO NO DISCRIMINA, y por eso un PASS aquí no es evidencia de que el control se procese como el original. `passenger_from_guide` ELIGE la base de la posición 1 de la pasajera para que el 97-mero reproduzca la estructura de SGEP, y ABORTA si ninguna de las cuatro lo consigue: la comprobación posterior vuelve a preguntar algo que ya era condición para haber montado la horquilla. Medido el 2026-08-31: 0 de 2000 permutaciones y 0 de 1134 variantes de seed dan una notación distinta, y tampoco la da una guía derivada del propio andamio para que compita con el loop. Lo que SÍ discrimina es la ASIMETRÍA —falla el 47 % de las permutaciones—, que además es la propiedad que decide qué hebra carga AGO2: un tallo más débil se procesa peor y entonces la comparación no mide la diana, mide el procesamiento.
+
+2 o 3 cambios en la seed, medido sobre la guía de 3utr:10 —el primero del panel—. La «racha intacta» es el tramo contiguo de seed que queda sin tocar, y es lo que mide el residuo de reconocimiento: importa más DÓNDE caen los cambios que cuántos son.
+
+| cambios | variantes | limpias | racha mínima | con esa racha | chocan con el núcleo |
+|---|---|---|---|---|---|
+| 2 | 189 | 128 | 2 | 17 | no comprobado |
+| 3 | 945 | 535 | 1 | 18 | no comprobado |
+
+2 o 3 CAMBIOS: no se elige aquí. Se emiten las dos versiones con sus métricas y lo decide quien lee, con la tabla delante. Lo que la medida añade a la intuición es que el número de cambios importa MENOS que dónde caen: lo que deja residuo de reconocimiento es la RACHA de seed que queda intacta, no cuántas bases se tocaron.
+
+## 8. Fichas de los seleccionados
 
 Una ficha por candidato seleccionado, con el veredicto de CADA frente, su procedencia y su fecha.
 
@@ -892,7 +920,7 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
   SIN CORRIDAS. El frente de especificidad sigue en NOT_RUN, y NOT_RUN no es PASS.
 ```
 
-## 8. Limitaciones
+## 9. Limitaciones
 
 Seccion propia y no un pie: una limitacion al pie se lee después de haber creido el número.
 
@@ -935,7 +963,7 @@ Ordena candidatos entre si; no es una magnitud fisica y no se debe leer como tal
 
 El empalme del intrón es BINARIO y solo se contesta en el banco. Y la lectura que se hace por defecto NO lo coge: un small RNA-seq puede salir perfecto con el empalme fallando, porque Drosha procesa el pri-miR cotranscripcionalmente — o sea ANTES del splicing. Un shmiR correcto no es evidencia de que haya proteina.
 
-## 9. Procedencia
+## 10. Procedencia
 
 Todos los ficheros que entraron, con versión y md5. Sin esto un veredicto no es auditable dentro de un año — que es la razón por la que el manifiesto se versiona en texto.
 

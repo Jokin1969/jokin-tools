@@ -118,6 +118,15 @@ class TestElCasoREAL(unittest.TestCase):
         por_nombre = {
             n.name: n.lineno for n in arbol.body if isinstance(n, ast.FunctionDef)
         }
-        for ayudante in ("_guardar_corrida", "_guardar_seleccion", "_casete_de"):
+        # `_casete_de` estaba aqui y ya no existe: su logica —decidir CUAL registro es
+        # el casete— se movio a `presentation.cassette_sequence` porque decidia algo
+        # (regla 6), y ademas estaba rota. Lo que ancla este test es que los ayudantes
+        # que la entrada usa se definan antes que ella, asi que la lista sigue los
+        # ayudantes que HAY.
+        for ayudante in ("_guardar_corrida", "_guardar_seleccion", "_panel_controles"):
             with self.subTest(ayudante):
+                # `assertIn` PRIMERO: sin el, un ayudante retirado revienta con un
+                # `KeyError` en vez de decir que ya no esta, y hay que ir a leer el
+                # fuente para enterarse de que ha pasado.
+                self.assertIn(ayudante, por_nombre)
                 self.assertLess(por_nombre[ayudante], entrada)

@@ -328,6 +328,7 @@ revalida = "Cada corrida."
 "gestor._md5" = "El md5 de un fichero del gestor. Lo comparan `biblioteca.guardar` y `biblioteca.leer`."
 "spacers.choose_spacers" = "Usa un md5 como SEMILLA del generador de espaciadores, no como identidad: sirve para que la elección sea reproducible."
 "presentation.run_fingerprint" = "Calcula la huella del panel y los ajustes. Quien la COMPARA es `cached_run`."
+"controles._seed_for" = "Usa un sha256 de la guía como SEMILLA del sorteo de permutaciones, no como identidad: sirve para que la misma guía dé siempre los mismos controles, igual que `spacers.choose_spacers`. No compara nada y no hay nada que abortar."
 
 # ─────────────── Comparan una identidad y NO abortan: son INFORMES ───────────────
 #

@@ -1395,3 +1395,77 @@ líneas, y habría cazado el fallo meses antes que la vía del `file_uploader`.
 - `tests/test_orden_del_modulo.py` lo impide: nada —función, clase o asignación— se define
   después del punto de entrada. Y de paso comprueba que ninguna llamada a un ayudante
   privado apunte a un nombre que no existe, que cazaría un `_modal_*` renombrado a medias.
+
+---
+
+## 37 — La columna `asimetria` era el número y era el estado, y el estado se comía el número
+
+**Qué pasó.** La fila de un control (`controles.Control.row`) llevaba una columna
+`asimetria` con el valor en kcal/mol —el que se compara contra el del original para saber
+si el control se procesa igual— y luego un bucle escribía una columna por filtro con su
+estado. Uno de los filtros se llama `asimetria`. La segunda escritura pisaba a la primera,
+así que la fila salía con `PASS` donde tenía que ir el número.
+
+**Ningún error.** El diccionario se dejó actualizar, la tabla salió con todas sus columnas
+y el valor que decide si el control vale desapareció sin dejar rastro.
+
+### Lo que lo hace anotable no es el fallo: es que la lección estaba escrita DOS LÍNEAS más arriba
+
+`presentation.candidate_rows` tiene, desde el bloque 3, este comentario exacto:
+
+> El VALOR de la asimetria y el ESTADO de su filtro son dos columnas: si comparten
+> nombre, el diccionario fusionado pierde el numero.
+
+Y por eso esa tabla usa `asimetria_kcal`. La tabla nueva repitió el fallo **en el mismo
+eje y con el mismo par de magnitudes**. Es la misma forma que «la ironía de los dos
+generadores» (principio nº 18): la regla estaba redactada, se aplicaba en un sitio, y no
+existía nada que la aplicara en el siguiente.
+
+### La diferencia entre un comentario y un mecanismo
+
+Un comentario protege la tabla donde está escrito. Lo que faltaba es que la tabla
+**se negara** a pisarse a sí misma. Ahora `row()` aborta si un filtro tiene el nombre de
+una columna de métrica, con el motivo: *una columna que cambia de significado a mitad de
+tabla es peor que una columna que falta*. Es la misma disciplina que
+`informe_doc.Block.__post_init__` con las filas descuadradas, un nivel más abajo.
+
+**Regla que queda:** cuando una lección se escribe como comentario en el sitio donde
+apareció, hay que preguntarse si el sitio siguiente la va a heredar. Si la respuesta es
+que no, el comentario es media contramedida.
+
+---
+
+## 38 — `_casete_de` indexaba un diccionario por `0`, y esperaba a que alguien subiera el casete
+
+**Qué pasó.** La página tenía este ayudante:
+
+```python
+def _casete_de(tiling):
+    base = getattr(tiling, "transgene_db", None)
+    registros = getattr(base, "records", None) if base is not None else None
+    return registros[0].sequence if registros else None
+```
+
+`specificity.load_database` devuelve `records: dict[str, str]`. Así que `registros[0]` es
+un `KeyError: 0` y `.sequence` sobre una cadena es otro error detrás. **Dos fallos en una
+línea de cuatro.**
+
+**Por qué nadie se enteró.** `aav_casete.fa` no se ha conectado nunca desde la página, así
+que `transgene_db` siempre ha sido `None` y el `if registros else None` de delante tapaba
+la rama entera. El día que alguien subiera el casete, el CUARTO MODAL —el de empalme, que
+recibe justo esto como contexto— moriría al abrirse.
+
+Es la errata nº 31 otra vez con otra ropa: **una combinación que ningún test recorre de
+punta a punta no está probada**, por muchos tests que tengan sus piezas. Allí era
+`--rmsk`; aquí es «la página con el casete conectado».
+
+### Lo que se ha hecho
+
+- La función se va a `presentation.cassette_sequence`, porque **decidir cuál registro es
+  el casete es decidir** (regla 6) y en la página no tenía test posible.
+- Con **más de un registro ABORTA** en vez de elegir por orden de aparición: el contexto
+  de empalme tiene que salir de UNA molécula, y concatenar dos inventa una juntura que no
+  existe en ninguna. Es el mismo criterio por el que los bloques conservados se miran
+  CONTENIDOS y no solapando.
+- Tres tests con el casete de verdad: la secuencia sale, sin casete devuelve `None` sin
+  reventar, y con dos registros aborta.

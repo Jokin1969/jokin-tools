@@ -271,6 +271,7 @@ class TestParcialYCompletoSonELMISMO(unittest.TestCase):
         "Mapa del 3'UTR",
         "Tabla de candidatos",
         "Todos los sitios elegibles",
+        "Controles del experimento",
         "Fichas de los seleccionados",
         "Limitaciones",
         "Procedencia",

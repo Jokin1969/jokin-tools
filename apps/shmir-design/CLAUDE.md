@@ -3267,6 +3267,113 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     por título, y dice por escrito que hoy no se puede construir un COMPLETO porque
     ningún frente cierra sin ficheros.
 
+- **LOS DOS CONTROLES DEL EXPERIMENTO (2026-08-31)** (`shmir_design/controles.py`). Son
+  **construcciones de primera clase**, con la misma disciplina que un candidato: filtros
+  con estado, ficha, procedencia y veredicto. **Un control sin veredictos no es un
+  control, es una secuencia.**
+  - **AUTORIZACIÓN ESCRITA Y ACOTADA** (regla 1), como `spacers.py` e `intron_design.py`.
+    Cubre **dos cosas**: permutar las bases de una guía existente (posiciones 2-22) y
+    sustituir 2 o 3 bases dentro de las posiciones 2-8. **No cubre** el andamio, el loop,
+    los contextos de SGEP, los espaciadores, el intrón ni ninguna guía nueva. La pasajera
+    **no se genera**: se DERIVA con la regla del propio andamio. Todo lo que sale va
+    **marcado** (`GENERATED_MARK`) en toda la salida.
+  - **La posición 1 NO se permuta**, y no es un detalle: es CONVENIO —la T/U que fuerza el
+    pipeline para que AGO2 cargue la hebra—, así que permutarla cambiaría el control en
+    algo que no es su secuencia diana. Se permutan las 21 restantes y la composición total
+    se conserva exactamente.
+  - **PASAR EL FILTRO NO ES SER EQUIVALENTE, y es el hallazgo del bloque** (principio
+    nº 21). Las cinco primeras permutaciones pasaban TODO y tenían asimetría **+0,8 a
+    +3,9 frente a los +7,65 del original**: un control así mezcla la diana con el
+    procesamiento y no separa ninguna de las dos. Las permutaciones tienen **mediana 0,67**
+    y rango −6,45 a 8,05 — casi todas pasan el umbral del pipeline (0,5) y casi ninguna es
+    comparable. Por eso hay un **segundo umbral** con su propio frente
+    (`equivalencia_asimetria`, tolerancia declarada **1,5 kcal/mol**) y la asimetría del
+    original va **al lado**: aquí lo que se busca es PARECERSE, no maximizar.
+  - **EL PLEGADO DEL 97-MERO NO DISCRIMINA NADA, y va dicho en la salida.**
+    `passenger_from_guide` ELIGE la base de la posición 1 de la pasajera para que el
+    97-mero reproduzca la estructura de SGEP y ABORTA si ninguna lo consigue, así que
+    `check_fold` sobre una horquilla ya montada vuelve a preguntar lo que era condición
+    para montarla. **0 de 2000** permutaciones, **0 de 1134** variantes de seed, y tampoco
+    una guía **derivada del propio andamio** (revcomp del loop) para competir con él. No
+    se quita —sigue siendo el guardia de una guía que no admita pasajera— pero un PASS ahí
+    **no es evidencia**. Cuarta vez que aparece un criterio que da el mismo resultado a
+    todos; el control adversario es lo único que distingue «todos pasan» de «esto no mide
+    nada».
+  - **SIN DIANA son DOS preguntas y no se colapsan**: el **tramo contiguo** más largo
+    contra la secuencia analizada —apareamiento extenso, el que permite un corte, umbral
+    declarado `MAX_CONTIGUO = 11`— y los **sitios de seed**, que reprimen con 6-7 nt y que
+    ningún alineamiento ve. Medido: la moda del contiguo es 6 y sólo 1 de 2000 llega a 12;
+    **la guía original da 22**, que es el control adversario de la medida. Y **451 de 2000**
+    permutaciones SÍ tienen sitio de seed, o sea que ese filtro muerde.
+  - **El transcriptoma queda `NOT_RUN`** hasta que llegue `refseq_rna.fa`, y
+    `offtarget_seed` hasta `transcriptoma_3utr.fa`. **`APROBADO_A_MEDIAS` va en la ficha**
+    con los frentes sin correr nombrados uno a uno: un control aprobado a medias se usa
+    como si estuviera limpio, que es peor que no tenerlo.
+  - **La rama de off-target NO se escribe hasta que haya fichero**, y queda escrito qué
+    habrá que hacer (`OFFTARGET_CUANDO_LLEGUE`): la carga del control se compara con la
+    del **ORIGINAL**, no con cero — una carga mucho menor lo hace tan poco comparable como
+    una mucho mayor —, y sigue siendo un número comparativo y nunca un veredicto.
+  - **SEED-MISMATCH: se enumera entero, no se sortea.** 189 variantes con 2 cambios y 945
+    con 3 caben, así que el resultado no depende de ninguna semilla. Sólo se tocan las
+    posiciones 2-8; la pasajera se recalcula; el heptámero nuevo no puede chocar con el
+    núcleo de abundantes.
+  - **2 O 3 CAMBIOS: NO SE ELIGE AQUÍ**, y la tabla que lo decide está medida sobre
+    `3utr:1018`:
+
+    | | k=2 | k=3 |
+    |---|---|---|
+    | variantes | 189 | 945 |
+    | limpias (sin sitio de seed, sin núcleo, biofísicos) | 62 | 198 |
+    | **racha de seed intacta mínima** | **2** | **1** |
+    | limpias con esa racha | **1** | **7** |
+    | chocan con el núcleo | **0** | **8** |
+
+    **Lo que la medida añade a la intuición**: el residuo de reconocimiento no lo decide
+    cuántas bases se tocan, sino DÓNDE caen — dos cambios pegados dejan una racha contigua
+    de 5 nt y dos repartidos dejan 2. Con k=2 la mejor racha alcanzable es 2 y **la
+    consigue una sola variante**, sin margen para descartarla por otra cosa; con k=3 se
+    baja a 1 con siete. Y el riesgo que se temía de k=3 —parecerse a otro miARN— está
+    **medido y filtrado**: 8 de 945 chocan con el núcleo y ninguna de ésas se emite.
+  - **`3utr:449` NO ADMITE SCRAMBLED, y eso se DEMUESTRA en un paso.** El GC es
+    **invariante bajo permutación**, así que si la guía original no pasa el filtro,
+    ninguna permutación lo pasará nunca: sortear 4000 veces para acabar en cero daría un
+    cero que se lee como una medida. Ahora aborta antes de sortear, con el número y el
+    umbral.
+    - **Y la causa es una distinción que este proyecto ya tenía escrita**: los umbrales
+      biofísicos están definidos sobre la **DIANA**, y una guía **no es** su diana —
+      difieren justo en la posición 1, que es CONVENIO (la T que fuerza el pipeline para
+      que AGO2 cargue la hebra). La guía de `3utr:449` empezaba por G; al forzarse la T su
+      GC baja de **0,318 a 0,273** y cruza el mínimo de 0,30. **El candidato es legítimo**
+      —su diana pasa— y lo que no admite es un scrambled por permutación bajo estos
+      umbrales. Los otros nueve del panel sí.
+    - Que el seed-mismatch de `3utr:449` **sí** salga lo confirma: no es el candidato el
+      que no admite controles, es esa vía — el mismatch cambia la composición y el
+      scrambled no puede.
+  - **NO SE PERSISTEN en el log del proyecto, y el motivo no es pereza**: las dos
+    construcciones son **deterministas** —la semilla sale de la propia guía—, así que se
+    regeneran idénticas y guardarlas sería guardar una función de algo que ya está en el
+    log. Lo que SÍ es una decisión es **cuál se manda a sintetizar**, y eso va como
+    `seleccion` o `nota`, que ya existen. (Una corrida de BLAST no se puede regenerar; una
+    permutación sí. Es la diferencia.)
+  - **LOS SEIS BRAZOS: AVISO, NO IMPEDIMENTO**, como el del núcleo de seed compartido.
+    `ARMS` declara **qué AÍSLA cada uno**, que es lo que hay que saber para decidir si se
+    quita: sin eso la lista es una checklist. Y va escrito que **scrambled y seed-mismatch
+    no son intercambiables** —el primero controla «tener UN shmiR» (saturación de la
+    maquinaria, respuesta a ARN de doble cadena, carga viral), el segundo «tener ESTA
+    guía»—, porque quedarse con uno deja viva una explicación alternativa y la tentación de
+    hacerlo es evidente.
+  - **Dónde se ve**: panel propio en la página, detrás de los resultados (un control se
+    construye SOBRE un candidato, así que sin panel no hay nada que controlar) y sección
+    **«Controles del experimento»** en el informe. En el informe **no entran las secuencias
+    generadas**: una secuencia que se va a sintetizar se emite donde se pide, con su ficha
+    y su marca, no en un documento que se lee y del que se copia.
+  - **Dos erratas propias del bloque**, las dos de familias ya conocidas: la **nº 37** —la
+    columna `asimetria` era el número y el estado, y el estado se comía el número, con la
+    lección escrita literalmente dos líneas más arriba en `candidate_rows`: un comentario
+    protege su tabla, un mecanismo protege la siguiente— y la **nº 38** —`_casete_de`
+    indexaba por `0` un `dict`, esperando a que alguien conectara el casete para matar el
+    cuarto modal—.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

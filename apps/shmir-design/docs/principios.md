@@ -979,3 +979,65 @@ Una sola ruta no podía cazar esto **porque el fallo estaba en la ruta**. Es el 
 nº 5 —dos implementaciones del mismo número se cruzan— aplicado donde más falta hace: no
 a los números que dos módulos calculan por separado, sino a los que un módulo calcula
 componiendo, que es donde los errores se suman en silencio.
+
+---
+
+## 21 — Pasar un umbral no es ser EQUIVALENTE, y un control necesita lo segundo
+
+Un filtro del pipeline contesta *«¿sirve esto?»*. Un control contesta otra pregunta:
+*«¿se comporta esto como aquello?»*. **La primera es un mínimo y la segunda es una
+distancia**, y quien tiene la primera puesta cree que tiene las dos.
+
+### De dónde sale
+
+El scrambled de un shmiR se genera permutando la guía original para conservar su
+composición. Las cinco primeras permutaciones que salieron pasaban **todos** los filtros
+—GC, homopolímero, asimetría, sin diana, sin sitio de seed— y tenían una asimetría de
+**+0,8 a +3,9 kcal/mol frente a los +7,65 del original**. El umbral del proyecto
+(`MIN_ASYMMETRY`, 0,5) dice si una hebra se carga en AGO2; no dice si se carga **igual**.
+
+Con esos controles, la diferencia entre el brazo tratado y el brazo control mezclaría dos
+cosas —la diana y el procesamiento— y no separaría ninguna. O sea: el control mediría
+justo lo que existe para descartar.
+
+Medido sobre la guía de `3utr:1018`: las permutaciones tienen **mediana 0,67** y rango de
+−6,45 a 8,05. **Casi todas pasan el filtro y casi ninguna es comparable.**
+
+### La forma general
+
+Cuando una construcción existe para ser **el mismo experimento menos una cosa**, sus
+criterios de admisión no son los del objeto que imita:
+
+- el objeto necesita **estar por encima de un mínimo**;
+- su control necesita **estar cerca de él** en todo lo que no se quiso cambiar.
+
+Los dos criterios se parecen lo bastante como para que el segundo parezca cubierto por el
+primero, y no lo está. Un control admitido por el umbral del original es un control que
+pasa todo y no controla nada.
+
+### La contramedida
+
+**Dos umbrales, dos nombres, dos frentes.** El del pipeline se queda donde está;
+la equivalencia va en su propio filtro (`equivalencia_asimetria`) con la magnitud del
+original **al lado**, para que un lector acostumbrado a que «más es mejor» vea que aquí
+lo que se busca es **parecerse**. La tolerancia va declarada como parámetro, con la
+distribución medida detrás —de 1380 permutaciones admisibles, 1 a ≤0,5, 4 a ≤1,0 y 17 a
+≤1,5— para que el número no sea una elección de despacho, y con la nota de que no sale de
+ningún artículo.
+
+### Corolario: el criterio que no puede fallar tampoco es equivalencia
+
+Al medirlo apareció el otro lado. El criterio estructural —«el 97-mero pliega igual que el
+original»— **no rechaza nada y no puede**: `passenger_from_guide` ELIGE la base de la
+posición 1 de la pasajera para que el 97-mero reproduzca la estructura de SGEP y ABORTA si
+ninguna lo consigue, así que la comprobación posterior vuelve a preguntar lo que ya era
+condición para haber montado la horquilla. **0 de 2000** permutaciones, **0 de 1134**
+variantes de seed, y tampoco una guía derivada del propio andamio para competir con el
+loop.
+
+No se quita —sigue siendo el guardia del caso en que una guía no admita pasajera— pero
+sale con esa frase pegada: **un PASS que no puede fallar no es evidencia, es la
+definición**. Es la cuarta vez que este proyecto se encuentra un criterio que da el mismo
+resultado a todo el mundo (el `donante 1,00 / aceptor 0,00` de MFE, el `)(` del
+discriminante de horquillas, el GC de una permutación, y éste), y la regla que queda es la
+misma: **antes de creerse un criterio, hay que enseñarle un caso que deba suspender.**

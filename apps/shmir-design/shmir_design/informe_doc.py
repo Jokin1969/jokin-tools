@@ -679,6 +679,75 @@ def _seccion_elegibles(tiling, selection, *, species: str) -> Section:
     )
 
 
+def _seccion_controles(tiling, selection, *, species: str, target=None) -> Section:
+    """Los controles del experimento: los seis brazos y las dos construcciones.
+
+    QUE ENTRA Y QUE NO. Entran los seis brazos con lo que AISLA cada uno, los criterios
+    de las dos construcciones y la tabla que decide entre 2 y 3 cambios. NO entran las
+    secuencias generadas: una secuencia que se va a sintetizar se emite donde se pide,
+    con su ficha y su marca de generada, no en un documento que se lee. Un informe con
+    oligos dentro invita a copiarlos de una pantalla, que es justo lo que este proyecto
+    tiene prohibido (`tools/export_utr3.py`).
+    """
+    from .controles import (ARMS, CUANTOS_CAMBIOS_SIN_DECIDIR,
+                            EQUIVALENCIA_NO_ES_ADMISION, LOS_DOS_NO_SE_SUSTITUYEN,
+                            PLEGADO_NO_DISCRIMINA, mismatch_comparison)
+
+    bloques = [
+        para(
+            "Un control sin veredictos no es un control, es una secuencia. Los dos que "
+            "diseña la app pasan por los mismos filtros que un candidato y salen "
+            "INCOMPLETE mientras les quede un frente sin correr."
+        ),
+        para(LOS_DOS_NO_SE_SUSTITUYEN),
+        table(
+            ("brazo", "qué aísla"),
+            tuple((brazo.label, brazo.isolates) for brazo in ARMS),
+        ),
+        para(EQUIVALENCIA_NO_ES_ADMISION),
+        para(PLEGADO_NO_DISCRIMINA),
+    ]
+    elegidos = selection.selection.chosen
+    if target is None or not elegidos:
+        # Sin la secuencia no se puede decir que una variante NO tiene diana, y eso es
+        # media tabla. NOT_RUN con el motivo, no una tabla a medias.
+        bloques.append(para(
+            "La tabla de 2 contra 3 cambios NO se ha calculado en este informe: hace "
+            "falta la secuencia analizada para poder decir qué variantes se quedan sin "
+            "sitio de seed en ella, y este camino no la recibe. NOT_RUN no es PASS."
+        ))
+    else:
+        primero = elegidos[0]
+        guia = selection.window_of(primero).evaluation.guide
+        filas = mismatch_comparison(
+            guia, origin_label=f"3utr:{primero.start}",
+            target=target, target_label=f"3'UTR de {species}",
+            mature=getattr(tiling, "mature", None), species=species,
+        )
+        bloques += [
+            para(
+                f"2 o 3 cambios en la seed, medido sobre la guía de "
+                f"3utr:{primero.start} —el primero del panel—. La «racha intacta» es el "
+                f"tramo contiguo de seed que queda sin tocar, y es lo que mide el "
+                f"residuo de reconocimiento: importa más DÓNDE caen los cambios que "
+                f"cuántos son."
+            ),
+            table(
+                ("cambios", "variantes", "limpias", "racha mínima",
+                 "con esa racha", "chocan con el núcleo"),
+                tuple(
+                    (str(f["cambios"]), str(f["variantes"]), str(f["limpias"]),
+                     str(f["racha_minima"]), str(f["con_la_racha_minima"]),
+                     "no comprobado" if f["chocan_nucleo"] is None
+                     else str(f["chocan_nucleo"]))
+                    for f in filas
+                ),
+            ),
+            para(CUANTOS_CAMBIOS_SIN_DECIDIR),
+        ]
+    return Section(number=0, title="Controles del experimento", blocks=tuple(bloques))
+
+
 def _numerar(secciones: tuple[Section, ...]) -> tuple[Section, ...]:
     """Numera las secciones POR POSICION, no por lo que cada una traiga escrito.
 
@@ -723,6 +792,7 @@ def build_document(
             _seccion_mapa(tiling, selection),
             _section_4(selection),
             _seccion_elegibles(tiling, selection, species=species),
+            _seccion_controles(tiling, selection, species=species, target=target),
             _section_5(
                 species=species, tiling=tiling, selection=selection,
                 starts=tuple(dossier_starts), target=target,
