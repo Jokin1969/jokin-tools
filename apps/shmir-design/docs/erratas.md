@@ -1336,3 +1336,62 @@ exige que den lo mismo. Una sola ruta no habría cazado esto, porque el fallo es
 ruta.
 
 Y queda fijado por escrito lo que se malentendió: **`inserted` incluye los espaciadores**.
+
+
+---
+
+## 36 — `NameError: _modal_blast`: la llamada a `main()` estaba a mitad del fichero
+
+**Fecha:** 2026-08-30. **Estado:** cerrada. **Cómo apareció:** pulsando **Diseñar** en la
+app desplegada. No lo encontró ningún test.
+
+`ui/streamlit_app.py` tenía el bloque de entrada en la línea 1165:
+
+```python
+if __name__ == "__main__":
+    main()
+```
+
+y **siete funciones definidas por debajo** — `_guardar_corrida`, `_guardar_seleccion`,
+`_casete_de` y **los cuatro modales**. Streamlit ejecuta el fichero como `__main__`, así
+que `main()` corre **en el sitio donde está esa línea**: cuando llega a
+`_modal_blast(...)` en la línea 481, ese nombre todavía no existe.
+
+La app arrancaba, pintaba los pasos 1 a 4 y sólo reventaba al llegar al único camino que
+llama a un modal: **después de diseñar y con un candidato seleccionado**.
+
+**Es antiguo.** Al menos quince commits con las mismas siete definiciones por debajo del
+punto de entrada. No es una regresión reciente: es un defecto latente desde que se
+añadieron los modales, y sólo dispara en el camino que ningún test podía recorrer.
+
+### Por qué la suite no lo veía — y por qué eso no es la lección
+
+`AppTest` no puede rellenar un `file_uploader`, así que la página nunca llega a DISEÑADO
+y nunca ejecuta la línea 481. Es **exactamente** el estado que `data/estados.toml`
+declaraba sin pintar, con su bloqueo escrito. **El inventario acertó**: dijo dónde estaba
+el agujero y ahí estaba `_modal_blast`, con nombre y apellidos, desde el primer día.
+
+**Pero pintar el estado no hacía falta.** Este fallo es **ESTÁTICO**: «hay un `def`
+después del punto de entrada» se ve leyendo el fichero con `ast`, sin ejecutar nada, sin
+Streamlit y sin ViennaRNA. Existía una comprobación **mucho más barata** que la que
+estábamos esperando a poder hacer.
+
+### La lección, que es sobre los bloqueos
+
+**Un bloqueo declarado invita a dejar de buscar por otro lado.** El estado tenía una causa
+escrita —`AppTest` no rellena un `file_uploader`— y esa causa era cierta; el trinquete lo
+contaba, así que tampoco se leía como «pendiente» (principio nº 15 funcionando). Lo que
+pasó es más fino: **con una explicación buena de por qué no se puede hacer LO CARO, nadie
+preguntó si había algo BARATO que cazara el mismo fallo**. La explicación correcta ocupó
+el sitio de la pregunta.
+
+Así que a `bloqueado_por` le falta una pregunta al lado: *¿y hay alguna manera más barata
+de cazar lo que vive detrás de este bloqueo?* Aquí la había, era un `ast.parse` de veinte
+líneas, y habría cazado el fallo meses antes que la vía del `file_uploader`.
+
+### Lo que se ha hecho
+
+- La llamada a `main()` va **al final del módulo**, con el motivo escrito al lado.
+- `tests/test_orden_del_modulo.py` lo impide: nada —función, clase o asignación— se define
+  después del punto de entrada. Y de paso comprueba que ninguna llamada a un ayudante
+  privado apunte a un nombre que no existe, que cazaría un `_modal_*` renombrado a medias.

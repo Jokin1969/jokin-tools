@@ -190,6 +190,15 @@ bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningú
 # fichero presente. El panel enseñaba un error rojo al abrir la app y «Ver» tiraba la
 # página entera. Errata nº 34.
 #
+# Y EL 2026-08-30 ESE BLOQUEO SE COBRO UNO: `NameError: _modal_blast` en produccion, al
+# pulsar Disenar, en el estado DISENADO_CON_SELECCION — el que esta tabla decia sin pintar.
+# El inventario acerto. Lo que enseño el fallo es otra cosa: NO HACIA FALTA pintarlo. La
+# llamada a `main()` estaba a mitad del fichero con los cuatro modales definidos debajo, y
+# eso se ve con un `ast.parse` de veinte lineas, sin Streamlit y sin ejecutar nada
+# (errata nº 36). UN BLOQUEO DECLARADO INVITA A DEJAR DE BUSCAR POR OTRO LADO: la
+# explicacion de por que no se puede hacer lo caro ocupo el sitio de la pregunta de si
+# habia algo barato. A cada `bloqueado_por` le falta esa pregunta al lado.
+#
 # LOS DIEZ QUE QUEDAN son todos la MISMA causa: `AppTest` no puede rellenar un
 # `file_uploader`, así que la página no llega a DISEÑADO — y con ella se quedan fuera los
 # ocho de los cuatro modales. Es un límite de la herramienta, no de la app, así que

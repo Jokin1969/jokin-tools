@@ -1162,9 +1162,6 @@ def main() -> None:
         _panel_refinamiento(nombre_modelo)
 
 
-if __name__ == "__main__":
-    main()
-
 
 
 
@@ -1734,3 +1731,13 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
             ),
             guardar=save_offtarget_run, clave="ot",
         )
+
+
+# LA LLAMADA VA AL FINAL DEL MODULO, y no es estilo. Streamlit ejecuta este fichero como
+# `__main__`, asi que `main()` corre EN EL SITIO DONDE ESTA ESTA LINEA: todo lo que se
+# defina por debajo todavia no existe. Estuvo a mitad del fichero, con los cuatro modales
+# definidos despues, y la pagina reventaba con `NameError: _modal_blast` al pulsar
+# Diseñar — pero solo en ese camino, que es el unico que llama a un modal.
+# `tests/test_orden_del_modulo.py` lo impide.
+if __name__ == "__main__":
+    main()
