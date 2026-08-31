@@ -54,6 +54,7 @@ from .hard_filters import gc_fraction
 from .hard_filters import longest_homopolymer as _longest_homopolymer
 from .spacers import WHY_FIXED_LENGTHS
 from .spacers import spacer_rejections as _spacer_rejections
+from .introns import BRANCH_A_OFFSET
 from .splicing import CRYPTIC_DONOR
 
 AUTHORIZATION = (
@@ -576,3 +577,95 @@ def design_variant(
                  "y no se propone entera."
         ),
     )
+
+
+# ─── DONDE VA EL MODULO dentro de un intron que llega ENTERO ──────────────────
+#
+# `intron_quimerico` sale de la anotacion de su plasmido y no declara sus puntos de
+# insercion, asi que no se puede montar con ningun andamio. Eso NO es un fichero que
+# falte: es una decision con criterio, y el criterio es computable.
+
+VENTANA_ADMISIBLE = (
+    "El módulo va DESPUÉS del donante y ANTES del primer candidato a punto de "
+    "ramificación: los dos límites salen de los elementos del propio intrón, no de un "
+    "número escrito. Y dentro de esa ventana hay dos criterios que NO coinciden — la "
+    "separación de los elementos y la conservación de la horquilla— así que se emiten "
+    "las posiciones con sus dos medidas y se decide mirándolas."
+)
+
+
+@dataclass(frozen=True)
+class InsertionCandidate:
+    """Una posición de inserción con TODAS sus distancias. No trae veredicto."""
+
+    position: int
+    to_donor: int
+    to_branch: int
+    to_tract: int
+    dg: float
+    hairpin_intact: bool
+
+    @property
+    def min_separation(self) -> int:
+        """La separación MÍNIMA de los dos extremos: el criterio de «máxima separación»
+        es maximizar este número, no la suma — una suma alta puede esconder un extremo
+        pegado."""
+        return min(self.to_donor, self.to_branch)
+
+
+def insertion_candidates(
+    intron, module: str, *, hairpin: str
+) -> tuple[InsertionCandidate, ...]:
+    """Toda la ventana admisible, medida. Sin elegir: quien decide mira la tabla.
+
+    `hairpin` va EXPLÍCITO porque el criterio estructural del proyecto es sobre la
+    HORQUILLA, no sobre el módulo entero. La primera versión comparaba el módulo y daba
+    CERO posiciones que conservan la estructura — un cero que se lee como «ninguna vale»
+    cuando lo que pasaba es que se medía otra cosa. El módulo lleva sitios de restricción
+    y contextos a los dos lados que replegan con el intrón; los 97 nt de la horquilla son
+    lo que tiene que sobrevivir.
+    """
+    from .folding import VIENNA_AVAILABLE, dot_bracket
+
+    if not intron.raw_sequence:
+        raise ShmirDesignError(
+            f"El intrón {intron.name!r} no llega entero, así que sus puntos de "
+            f"inserción salen de sus piezas y no hay nada que elegir. Se aborta."
+        )
+    if not VIENNA_AVAILABLE:
+        raise ShmirDesignError(
+            "Sin ViennaRNA no se puede decir si la horquilla conserva su estructura "
+            "dentro del intrón, y ése es uno de los dos criterios. Se aborta en vez de "
+            "emitir media tabla que se leería como la tabla entera."
+        )
+    secuencia = intron.raw_sequence
+    elementos = intron.elements()
+    fin_donante = elementos.donor.end
+    ramas = [c.branch_a for c in elementos.branch_candidates if c.branch_a is not None]
+    if not ramas:
+        raise ShmirDesignError(
+            f"El intrón {intron.name!r} no tiene ningún candidato a punto de "
+            f"ramificación, así que no hay límite superior para la ventana. Se aborta: "
+            f"insertar aguas abajo del punto es lo que la regla del módulo prohíbe."
+        )
+    primera_rama, tracto = min(ramas), elementos.ppt.start
+    # El limite superior es el INICIO DEL MOTIVO, no la A: invadir el motivo lo rompe.
+    tope = min(primera_rama - BRANCH_A_OFFSET, tracto) - 1
+    horquilla_sola = None
+    salida = []
+    for posicion in range(fin_donante + 1, tope + 1):
+        montado = secuencia[:posicion] + module + secuencia[posicion:]
+        estructura, energia = dot_bracket(montado)
+        if horquilla_sola is None:
+            horquilla_sola = dot_bracket(hairpin)[0]
+        inicio = posicion + module.find(hairpin)
+        dentro = estructura[inicio : inicio + len(hairpin)]
+        salida.append(InsertionCandidate(
+            position=posicion,
+            to_donor=posicion - fin_donante,
+            to_branch=primera_rama - posicion,
+            to_tract=tracto - posicion,
+            dg=energia,
+            hairpin_intact=dentro == horquilla_sola,
+        ))
+    return tuple(salida)

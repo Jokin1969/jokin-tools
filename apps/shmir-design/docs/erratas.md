@@ -1291,3 +1291,48 @@ La fila estaba colapsada precisamente porque el panel **sabía** que ese fichero
 falta —lo dice con su propio texto, «es una ALTERNATIVA que no hace falta conseguir»— y
 dos líneas después le ofrecía descargarlo y se caía al intentarlo. El estado estaba bien
 calculado en el núcleo y mal leído en la página.
+
+
+---
+
+## 35 — Donante→punto salía 405 en vez de 256: dos errores que sumaban uno plausible
+
+**Fecha:** 2026-08-30. **Estado:** cerrada. **Cómo apareció:** leyendo la primera matriz
+intrón × andamio. El número había sido 256 durante todo el proyecto y de pronto era 405,
+sin que nadie hubiera tocado el intrón — y **405 − 256 = 149, la longitud del módulo**.
+
+`donor_to_branch(elements, *, name, inserted)` tiene un contrato explícito:
+`assembled = empty + inserted`. La celda de la matriz lo llamaba así:
+
+```python
+elementos = entrada.elements(modulo)          # elementos del intrón YA MONTADO
+salto = donor_to_branch(elementos, name=intron, inserted=len(modulo))
+```
+
+**Dos errores, y ninguno de los dos por separado daba 405:**
+
+1. los elementos eran los del intrón **montado**, cuyo campo `empty` vale ya la distancia
+   montada (256), y la función le sumaba la inserción **otra vez**;
+2. `inserted` no es la longitud del módulo: es **todo lo insertado**, el módulo **más los
+   dos espaciadores** — 149 + 20 + 45 = **214**.
+
+Con (1) y el 214 correcto habrían salido 470. Con (2) sobre el intrón vacío, 191. La
+combinación dio 405, que es **el número con mejor pinta de los tres**.
+
+### Lo que enseña
+
+**Un valor plausible puede ser la suma de dos equivocaciones**, y entonces ninguna de las
+dos se ve por separado: 470 y 191 habrían chirriado, 405 no. Lo que lo delató no fue una
+comprobación sino que alguien recordara el número anterior y notara que la diferencia era
+**exactamente la longitud de una pieza**. Una diferencia que coincide con una constante
+del proyecto casi nunca es una coincidencia.
+
+### La contramedida
+
+No es «arreglarlo»: es que el número salga por **dos derivaciones independientes que
+tienen que coincidir**. Ahora la matriz lo **mide** sobre la secuencia del intrón montado,
+y el test lo cruza contra la ruta aritmética —`donor_to_branch(vacío, inserted=214)`— y
+exige que den lo mismo. Una sola ruta no habría cazado esto, porque el fallo estaba en la
+ruta.
+
+Y queda fijado por escrito lo que se malentendió: **`inserted` incluye los espaciadores**.

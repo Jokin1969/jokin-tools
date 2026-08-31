@@ -227,3 +227,91 @@ class TestElAVISOalMONTAR(unittest.TestCase):
                 self.assertEqual(
                     aviso_de_par("mvm_actual", andamio, guide=_guia()), ""
                 )
+
+
+class TestDonanteAPuntoPorDOSrutas(unittest.TestCase):
+    """256, y se comprueba por dos derivaciones independientes.
+
+    La primera versión daba **405**, que son 256 + 149, y 149 es la longitud del módulo:
+    un número que se mueve exactamente la longitud de una pieza es casi siempre una suma
+    de más. Eran DOS errores:
+
+      1. `donor_to_branch` recibía los elementos del intrón YA MONTADO, cuyo campo
+         `empty` vale ya la distancia montada, y la función le sumaba la inserción otra
+         vez;
+      2. y recibía `inserted=len(modulo)`. `inserted` es **todo lo insertado** —módulo
+         más los dos espaciadores, 149+20+45=214—, no el módulo.
+
+    Ninguno de los dos por separado daba 405: con (1) y el 214 bueno salen 470, con (2)
+    sobre el vacío salen 191. **Un número plausible puede ser la suma de dos
+    equivocaciones**, y por eso aquí no basta con arreglarlo: se cruzan las dos rutas.
+    """
+
+    def _piezas(self):
+        from shmir_design.blocks import build_block
+        from shmir_design.introns import get
+
+        modulo = build_block(guide=_guia(), available=False).module
+        return get("mvm_actual"), modulo
+
+    def test_la_MEDIDA_sobre_el_intron_montado(self):
+        f = fila("mvm_actual", "mir_e", guide=_guia())
+        self.assertEqual(f["donante_a_punto"], (256, 256))
+
+    def test_y_la_ARITMETICA_desde_el_vacio_da_lo_mismo(self):
+        from shmir_design.introns import donor_to_branch
+
+        intron, modulo = self._piezas()
+        insertado = len(intron.with_module(modulo)) - len(intron.empty_sequence)
+        self.assertEqual(insertado, 214)
+        salto = donor_to_branch(intron.elements(), name="mvm_actual", inserted=insertado)
+        self.assertEqual(salto.empty, (42, 42))
+        self.assertEqual(salto.assembled, (256, 256))
+        self.assertEqual(salto.assembled, fila("mvm_actual", "mir_e", guide=_guia())["donante_a_punto"])
+
+    def test_INSERTADO_no_es_la_longitud_del_modulo(self):
+        """El error que más fácil se repite: `inserted` incluye los espaciadores."""
+        from shmir_design.blocks import PIECES
+
+        intron, modulo = self._piezas()
+        espaciadores = (len(PIECES["espaciador5"].sequence)
+                        + len(PIECES["espaciador3"].sequence))
+        self.assertEqual(len(modulo) + espaciadores, 214)
+        self.assertNotEqual(len(modulo), 214)
+
+
+class TestLasDosFrasesVanJUNTAS(unittest.TestCase):
+    """«No hay aceptor utilizable» leído solo suena a riesgo cerrado y no lo es."""
+
+    def setUp(self):
+        self.f = fila("mvm_actual", "mir_e", guide=_guia())
+
+    def test_donde_va_el_hallazgo_va_lo_que_NO_cierra(self):
+        from shmir_design.matriz_andamio_intron import LO_QUE_EL_ACEPTOR_NO_CIERRA
+
+        self.assertEqual(self.f["aceptores"], [])
+        self.assertEqual(self.f["aceptores_no_cierran"], LO_QUE_EL_ACEPTOR_NO_CIERRA)
+        self.assertIn("NO CIERRA EL RIESGO DEL DONANTE", LO_QUE_EL_ACEPTOR_NO_CIERRA)
+        self.assertIn("aceptor LEGÍTIMO", LO_QUE_EL_ACEPTOR_NO_CIERRA)
+        self.assertIn("INTERMEDIA", LO_QUE_EL_ACEPTOR_NO_CIERRA)
+
+    def test_el_5_contra_5_va_en_la_fila_cuando_hay_criptico(self):
+        self.assertIn("5 sobre 5", self.f["por_que_compite"])
+        self.assertIn("EMPATA", self.f["por_que_compite"])
+
+    def test_y_NO_va_cuando_no_hay_ninguno(self):
+        """Una explicación de por qué compite algo que no está sería ruido."""
+        from shmir_design.matriz_andamio_intron import POR_QUE_COMPITE
+
+        self.assertTrue(POR_QUE_COMPITE)
+        self.assertTrue(self.f["donantes"])
+        self.assertTrue(self.f["por_que_compite"])
+
+    def test_el_METODO_del_orden_queda_escrito_para_los_que_faltan(self):
+        from shmir_design.matriz_andamio_intron import ORDEN_ANTES_QUE_PRESENCIA
+
+        for andamio in ("mir30_original", "mir155", "mir451"):
+            with self.subTest(andamio):
+                self.assertIn(andamio.split("_")[0].replace("mir", "miR-"),
+                              ORDEN_ANTES_QUE_PRESENCIA.replace("miR-30 original", "miR-30"))
+        self.assertIn("PRESENCIA SIN GEOMETRÍA", ORDEN_ANTES_QUE_PRESENCIA)

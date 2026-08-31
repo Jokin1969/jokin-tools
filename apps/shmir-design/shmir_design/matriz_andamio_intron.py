@@ -47,6 +47,38 @@ COMO_SE_BUSCA = (
     "que los del flanco 5', el loop y el flanco 3' viajan con cualquier candidato."
 )
 
+#: LAS DOS FRASES VAN JUNTAS, y por eso es una sola constante: separarlas es lo que
+#: convierte un hallazgo en un riesgo cerrado que no lo está.
+LO_QUE_EL_ACEPTOR_NO_CIERRA = (
+    "Que no haya ningún aceptor utilizable DENTRO del módulo cierra una familia concreta: "
+    "los empalmes que cortarían por dentro de la horquilla. NO CIERRA EL RIESGO DEL "
+    "DONANTE CRÍPTICO, y es lo importante: ese donante NO NECESITA un aceptor críptico. "
+    "El aceptor LEGÍTIMO del intrón está aguas abajo y es perfectamente bueno, así que un "
+    "empalme desde el críptico hasta él deja los primeros nt del intrón dentro del mRNA — "
+    "la banda INTERMEDIA, la que se confunde en un gel con la correcta. Leer «no hay "
+    "aceptor utilizable» a solas suena a riesgo cerrado y no lo es."
+)
+
+#: Por que el criptico compite, en un numero que se entiende sin conocer el proyecto.
+POR_QUE_COMPITE = (
+    "El donante críptico no es «un GT sospechoso»: con el criterio de consenso de "
+    "donante EMPATA con el donante legítimo del propio intrón — los dos puntúan 5 sobre "
+    "5. Ésa es la justificación retrospectiva de que `mvm_sin_criptico` exista, y no "
+    "necesita ningún umbral traído de fuera: la referencia es el donante bueno de la "
+    "misma construcción."
+)
+
+#: EL METODO del orden, y aplica a los tres andamios que faltan.
+ORDEN_ANTES_QUE_PRESENCIA = (
+    "PRESENCIA SIN GEOMETRÍA NO SIGNIFICA NADA. Un YTNAY dentro del módulo no es un punto "
+    "de ramificación competidor por estar: para serlo tiene que caer ENTRE un donante y un "
+    "aceptor, y a la distancia del punto al aceptor que usan los intrones. En miR-E hay un "
+    "YTNAY y va AGUAS ARRIBA del donante críptico —el orden contrario al que haría falta—, "
+    "así que no define nada. El mismo método se aplicará a miR-30 original, miR-155 y "
+    "miR-451 cuando tengan secuencia: contar motivos sin comprobar el orden habría dado "
+    "tres falsos positivos."
+)
+
 REDUNDANCIA = (
     "Un intrón cuya única diferencia con otro es romper un motivo que ESE ANDAMIO NO "
     "TIENE es la misma construcción con otro nombre. Se MARCA y no se elimina: la "
@@ -236,9 +268,24 @@ def fila(intron: str, andamio: str, *, guide: str) -> dict:
     lleva = entrada.breaks_motif and entrada.breaks_motif in modulo
     redundante = bool(entrada.breaks_motif) and not lleva
 
-    from .introns import donor_to_branch
-
-    salto = donor_to_branch(elementos, name=intron, inserted=len(modulo))
+    # DONANTE→PUNTO, MEDIDO sobre el intrón montado. La primera versión lo reconstruía
+    # con `donor_to_branch` y daba 405 en vez de 256, por DOS errores que se sumaron:
+    #
+    #   1. le pasaba los elementos del intrón YA MONTADO, cuyo campo `empty` vale ya la
+    #      distancia montada (256), y la función le sumaba la inserción otra vez;
+    #   2. y le pasaba `inserted=len(modulo)`. `inserted` es TODO lo que se inserta —el
+    #      módulo MÁS los dos espaciadores, 149+20+45=214—, no el módulo.
+    #
+    # Ninguno de los dos solo daba 405: con (1) y el 214 bueno habrían salido 470, y con
+    # (2) sobre el vacío, 191. Lo que enseña es que un número plausible puede ser la suma
+    # de dos equivocaciones, así que aquí se MIDE sobre la secuencia y se contrasta con la
+    # ruta aritmética en el test — dos derivaciones independientes que tienen que coincidir.
+    distancias = [
+        candidato.branch_a - elementos.donor.end - 1
+        for candidato in elementos.branch_candidates
+        if candidato.branch_a is not None
+    ]
+    salto = (min(distancias), max(distancias)) if distancias else None
     base.update({
         "causa": "",
         "donantes": donantes,
@@ -251,12 +298,16 @@ def fila(intron: str, andamio: str, *, guide: str) -> dict:
             f"{entrada.derived_from!r} con otro nombre. {REDUNDANCIA}"
         ) if redundante else "",
         "intron_autodefinido": autodefinido,
+        # Las dos frases SIEMPRE juntas: el hallazgo y lo que NO cierra.
+        "aceptores_no_cierran": LO_QUE_EL_ACEPTOR_NO_CIERRA,
+        "por_que_compite": POR_QUE_COMPITE if donantes else "",
+        "metodo_del_orden": ORDEN_ANTES_QUE_PRESENCIA,
         "score_legitimo": score_legitimo,
         "tracto_legitimo": tracto_legitimo,
         "mejor_tracto": mejor_tracto,
         "longitud_modulo": len(modulo),
         "longitud_intron": len(montado),
-        "donante_a_punto": None if salto is None else salto.assembled,
+        "donante_a_punto": salto,
     })
     return base
 

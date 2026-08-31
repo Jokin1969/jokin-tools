@@ -3164,6 +3164,21 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     `intron_quimerico` llega **entero** y no declara sus puntos de inserción, y
     `mvm_sin_criptico` se **diseña por candidato** y hoy el primer paso empata. El motivo
     lo da el propio intrón; no se transcribe en la matriz.
+  - **DONANTE→PUNTO son 256, y sale por DOS rutas que tienen que coincidir**: medido
+    sobre el intrón montado, y `donor_to_branch(vacío, inserted=214)`. La primera versión
+    daba **405** por dos errores sumados —elementos ya montados *más* `inserted=149`— y
+    405 era **el más plausible de los tres números posibles** (470 y 191 habrían
+    chirriado). Errata nº 35. **`inserted` es todo lo insertado: módulo MÁS espaciadores**,
+    149+20+45.
+  - **LAS DOS FRASES DEL ACEPTOR VAN JUNTAS**, y por eso son una sola constante: que no
+    haya aceptor utilizable dentro del módulo cierra los empalmes que cortarían **por
+    dentro de la horquilla**, y **NO cierra el riesgo del donante críptico** — ése no
+    necesita aceptor críptico, el legítimo está aguas abajo y es bueno, así que la banda
+    intermedia sigue viva. Leído solo suena a riesgo cerrado y no lo es.
+  - **PRESENCIA SIN GEOMETRÍA NO SIGNIFICA NADA**, y el método queda escrito porque
+    aplica a los tres andamios que faltan: un YTNAY no es un punto competidor por estar —
+    tiene que caer ENTRE un donante y un aceptor y a la distancia que usan los intrones.
+    Contar motivos sin comprobar el orden habría dado tres falsos positivos.
   - **La redundancia se MARCA, no se elimina**: la decisión de no sintetizar es de quien
     diseña. Y `aviso_de_par` lo dice **al montar**, como el aviso de núcleo de seed
     compartido — sin impedirlo.
@@ -3174,6 +3189,28 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     y la guía, y el intrón lo envuelve. Atarlo al par hacía que dijera «no se puede
     comprobar» sobre miR-E —donde el motivo está y está medido— sólo porque la variante
     de intrón todavía no se ha diseñado.
+
+- **LOS PUNTOS DE INSERCIÓN DE `intron_quimerico` (2026-08-30)**
+  (`intron_design.insertion_candidates`). Ese intrón llega entero de su plásmido y no
+  declara dónde va el módulo, así que no se monta con ningún andamio — y **eso no es un
+  fichero que falte: es una decisión con criterio**, y el criterio es computable.
+  - **La ventana se DERIVA**: 3..99, 97 posiciones. Después del donante (1-2) y antes del
+    **motivo** del primer candidato a punto, que empieza en 100 — el tope es el inicio del
+    motivo, no la A de 103: invadirlo lo rompe.
+  - **DOS CRITERIOS QUE DISCREPAN, y por eso no se colapsan**: la separación mínima de los
+    dos extremos —el mínimo, no la suma: una suma alta esconde un extremo pegado— y la
+    conservación de la HORQUILLA. Sólo **15 de 97** conservan la horquilla, y **las que
+    ganan por separación pura (52 y 53) no están entre ellas**. Mirando sólo la separación
+    se habría elegido una posición que rompe la horquilla.
+  - **Entre las 15, la separación da un ganador ÚNICO: la 49** (47 al donante, 54 a la
+    rama, 70 al tracto). No hay empate, así que no hace falta decidir a ciegas — pero el
+    **mejor ΔG es la 69** (−109,20 frente a −106,50), y cuál pesa más es decisión de
+    diseño. La función devuelve la tabla entera y no elige.
+  - **El criterio estructural mide la HORQUILLA, no el módulo**: la primera versión
+    comparaba el módulo entero y daba **cero** posiciones válidas — un cero que se lee
+    como «ninguna vale» cuando lo que pasaba es que se medía otra cosa. El módulo lleva
+    sitios de restricción y contextos que replegan con el intrón; lo que tiene que
+    sobrevivir son los 97 nt de la horquilla. Por eso `hairpin` va explícito en la firma.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
