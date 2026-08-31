@@ -39,12 +39,18 @@ PROJECT_ENV_VAR = "SHMIR_PROJECT_DIR"
 
 #: Por que existe. Va a la interfaz cuando el de trabajo no es el del paquete, para que
 #: quien sube un fichero sepa DONDE ha ido a parar.
+#: LA FRASE DICE LO QUE PASA, no lo que se evitó. La versión anterior explicaba el
+#: contrafactual —«dentro de la imagen desapareceria en el siguiente redespliegue»— y en
+#: pantalla se leía como que lo subido se borra, que es lo contrario de lo que hace la
+#: app. Este texto sólo se pinta cuando el directorio de trabajo ESTÁ declarado, así que
+#: puede afirmarlo sin condicionales; la razón va detrás, en pasado, donde no se
+#: confunde con el veredicto. Ver el mismo arreglo en `biblioteca.SURVIVES`.
 WHY_A_WORKING_DIR = (
-    "Los ficheros de referencia se guardan fuera del directorio del código porque el "
-    "sistema de ficheros de un despliegue es efimero: dentro de la imagen, todo lo subido "
-    "desapareceria en el siguiente redespliegue y el único sintoma sería un frente que "
-    "vuelve a salir NOT_RUN. Lo versionado se copia aquí la primera vez y no se vuelve a "
-    "pisar."
+    "Lo que subas SOBREVIVE a los redespliegues: este directorio está fuera del código, "
+    "en el volumen. Se hizo así porque el sistema de ficheros de un despliegue es "
+    "efimero y, dentro de la imagen, lo subido se habría perdido en el siguiente "
+    "redespliegue dejando un frente que vuelve a salir NOT_RUN. Lo versionado se copia "
+    "aquí la primera vez y no se vuelve a pisar."
 )
 
 

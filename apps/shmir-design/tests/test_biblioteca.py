@@ -16,6 +16,7 @@ otra vez AL LEER, porque un fichero que cambió en el volumen sin pasar por aqu�
 que se guardó; y el nombre lo pone el navegador, así que pasa por `upload_path`.
 """
 
+import tempfile
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -173,3 +174,124 @@ class TestSobreviveAlREDESPLIEGUE(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLaBibliotecaSOBREVIVEalRedespliegue(unittest.TestCase):
+    """MEDIDO, no leído — y es lo que faltaba.
+
+    El «COMPROBADO que lo subido aguanta un redespliegue» del registro se midió sobre
+    los ficheros de REFERENCIA, que están en la raíz del directorio de trabajo. La
+    biblioteca vive en un SUBDIRECTORIO (`biblioteca/`) y nada comprobaba que la siembra
+    no la tocara: la siembra recorre `origen.iterdir()` y salta lo que no es fichero, así
+    que hoy no la toca — pero eso es una propiedad del código de hoy, no un invariante,
+    y sin test cambiarlo no rompería nada visible.
+
+    El síntoma de romperlo sería una biblioteca vacía después de un despliegue, sin
+    ningún error: exactamente la clase de fallo silencioso contra la que existe el
+    volumen.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.vol = Path(self.tmp.name) / "data" / "shmir" / "reference"
+        self.addCleanup(self.tmp.cleanup)
+        # El fichero es uno REAL del repositorio, no uno fabricado: lo que se mide es
+        # que sobreviva un fichero de verdad con su md5, no un `b"x"`.
+        from shmir_design.reference import REFERENCES, find_fixture
+
+        self.datos = find_fixture(REFERENCES["NM_011170.3"]).read_bytes()
+
+    def _sembrar(self):
+        from shmir_design.trabajo import seed_reference_dir
+
+        return seed_reference_dir(self.vol)
+
+    def test_lo_guardado_sigue_ahi_y_es_BYTE_A_BYTE_lo_mismo(self):
+        from shmir_design import biblioteca
+
+        primera = self._sembrar()
+        entrada = biblioteca.guardar(
+            "mrna_diseno", nombre="NM_011170.3.fa", data=self.datos,
+            date="2026-08-31", base=self.vol,
+        )
+        self.assertGreater(len(primera.copied), 0, "la primera siembra no copió nada")
+
+        # EL REDESPLIEGUE: contenedor nuevo, imagen nueva, el MISMO volumen debajo.
+        segunda = self._sembrar()
+        self.assertEqual(segunda.copied, ())
+        self.assertEqual(len(segunda.kept), len(primera.copied))
+
+        quedan = biblioteca.listar("mrna_diseno", base=self.vol)
+        self.assertEqual([e.id for e in quedan], [entrada.id])
+        self.assertEqual(
+            biblioteca.leer("mrna_diseno", entrada.id, base=self.vol), self.datos
+        )
+
+    def test_la_siembra_NO_entra_en_el_subdirectorio_de_la_biblioteca(self):
+        """Y si algún día entrara, este test lo dice antes que un usuario."""
+        from shmir_design import biblioteca
+
+        self._sembrar()
+        biblioteca.guardar(
+            "mrna_diseno", nombre="NM_011170.3.fa", data=self.datos,
+            date="2026-08-31", base=self.vol,
+        )
+        antes = sorted(p.name for p in (self.vol / "biblioteca").rglob("*"))
+        self._sembrar()
+        despues = sorted(p.name for p in (self.vol / "biblioteca").rglob("*"))
+        self.assertEqual(antes, despues)
+
+    def test_y_la_biblioteca_esta_DENTRO_del_volumen_no_del_paquete(self):
+        """El control adversario de todo lo anterior: si viviera en el paquete, el
+        redespliegue la borraría y estos tests pasarían igual."""
+        from shmir_design.trabajo import PACKAGE_REFERENCE_DIR
+
+        self._sembrar()
+        destino = (self.vol / "biblioteca").resolve()
+        self.assertTrue(str(destino).startswith(str(Path(self.tmp.name).resolve())))
+        self.assertNotIn(str(Path(PACKAGE_REFERENCE_DIR).resolve()), str(destino))
+
+
+class TestElTEXTOdiceLoQuePASAyNoLoQueSeEVITO(unittest.TestCase):
+    """El texto explicaba el CONTRAFACTUAL y se leía como el hecho.
+
+    Decía: «dentro de la imagen, todo lo guardado desaparecería en el siguiente
+    redespliegue». Es cierto y es la razón por la que la biblioteca vive en el volumen —
+    pero leído en pantalla dice que lo guardado se borra, que es lo contrario de lo que
+    hace la app. Un usuario lo leyó así y preguntó por qué no se podía arreglar algo que
+    ya estaba hecho.
+
+    Es el principio nº 11 con los papeles cambiados: allí la prosa se había quedado
+    atrás; aquí la prosa es correcta como explicación y FALSA como descripción. La regla
+    que queda es la misma — **la frase la tiene que emitir quien conoce el estado**, y
+    por eso ahora se deriva de `is_declared()` en vez de ser una cadena fija.
+    """
+
+    def test_con_el_volumen_declarado_dice_que_SOBREVIVE(self):
+        from shmir_design.presentation import library_note
+
+        with tempfile.TemporaryDirectory() as tmp:
+            texto = library_note(env={"SHMIR_REFERENCE_DIR": tmp})
+        self.assertIn("sobrevive", texto.lower())
+        self.assertIn(tmp, texto)
+
+    def test_y_NO_dice_que_desapareceria(self):
+        """La palabra que se leía como el veredicto ya no está en el texto normal."""
+        from shmir_design.presentation import library_note
+
+        with tempfile.TemporaryDirectory() as tmp:
+            texto = library_note(env={"SHMIR_REFERENCE_DIR": tmp})
+        self.assertNotIn("desaparec", texto.lower())
+
+    def test_sin_declarar_dice_que_esta_EN_LOCAL_y_que_no_es_el_volumen(self):
+        from shmir_design.presentation import library_note
+
+        texto = library_note(env={})
+        self.assertIn("local", texto.lower())
+        self.assertNotIn("sobrevive a", texto.lower())
+
+    def test_y_sigue_diciendo_que_esto_NO_cierra_ningun_frente(self):
+        from shmir_design.presentation import library_note
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIn("frente", library_note(env={"SHMIR_REFERENCE_DIR": tmp}))

@@ -46,9 +46,18 @@ class TestLasFilas(unittest.TestCase):
         self.assertEqual(presentation.library_rows("mrna_segunda", base=self.base), [])
 
     def test_la_nota_dice_donde_vive_y_que_sobrevive(self):
-        nota = presentation.library_note()
+        """Y el ENTORNO se declara, porque la nota depende de él.
+
+        Antes llamaba a `library_note()` sin argumentos, así que leía el entorno de quien
+        corriera la suite y la rama que tomaba era un accidente: con la variable puesta
+        habría comprobado una frase y sin ella otra, las dos pasando por casualidad. La
+        nota dice ahora cosas distintas según el estado (errata nº 39), así que el estado
+        se pasa.
+        """
+        nota = presentation.library_note(env={"SHMIR_REFERENCE_DIR": str(self.base)})
         self.assertIn("volumen", nota.lower())
-        self.assertIn("redespliegue", nota.lower())
+        self.assertIn("sobrevive", nota.lower())
+        self.assertIn(str(self.base), nota)
 
 
 class TestElADAPTADOR(unittest.TestCase):

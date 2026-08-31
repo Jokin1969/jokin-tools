@@ -3374,6 +3374,28 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     indexaba por `0` un `dict`, esperando a que alguien conectara el casete para matar el
     cuarto modal—.
 
+- **«¿POR QUÉ NO AGUANTAN EL DESPLIEGUE?» — AGUANTABAN (2026-08-31)**, errata nº 39. La
+  biblioteca del paso 2 y los ficheros de referencia **ya sobreviven**: viven en el
+  volumen (`SHMIR_REFERENCE_DIR`, derivado de `DB_PATH` → `/data/shmir/reference`), la
+  siembra **no borra nada** y sólo recorre ficheros de la raíz, así que
+  `biblioteca/` ni se toca. Lo que estaba mal era **el texto**.
+  - **Decía el CONTRAFACTUAL**: «dentro de la imagen, todo lo guardado desaparecería en
+    el siguiente redespliegue». Cierto como razón de por qué vive en el volumen, y en
+    pantalla se lee como que lo guardado se borra. Es el **principio nº 11 con los papeles
+    cambiados**: allí la prosa se había quedado atrás; aquí es correcta como explicación y
+    falsa como descripción.
+  - **La frase se DERIVA ahora** (`presentation.library_note(env)`): con el volumen
+    declarado afirma que sobrevive y da la ruta; sin declarar dice que estás en local.
+    Cuál es verdad depende del estado, así que una cadena fija no podía decirlo — que es
+    justo la regla operativa del principio nº 11 sin aplicar.
+  - **Y SE MIDIÓ ANTES DE CONTESTAR.** El «COMPROBADO que aguanta un redespliegue» del
+    registro era sobre los ficheros de REFERENCIA, que están en la raíz; la biblioteca
+    vive en un SUBDIRECTORIO y nada lo cubría. Simulado: **27 copiados** la primera vez,
+    **0 copiados y 27 respetados** en el redespliegue, y el `.gb` guardado vuelve byte a
+    byte. `TestLaBibliotecaSOBREVIVEalRedespliegue` lo fija, con el control adversario de
+    que el directorio esté de verdad fuera del paquete — si viviera dentro, los otros dos
+    tests pasarían igual.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

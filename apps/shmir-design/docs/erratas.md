@@ -1469,3 +1469,49 @@ punta a punta no está probada**, por muchos tests que tengan sus piezas. Allí 
   CONTENIDOS y no solapando.
 - Tres tests con el casete de verdad: la secuencia sale, sin casete devuelve `None` sin
   reventar, y con dos registros aborta.
+
+---
+
+## 39 — El texto explicaba lo que se EVITÓ y se leía como lo que pasa
+
+**Qué pasó.** El panel de «Guardados» decía:
+
+> La biblioteca vive en el volumen y no en la imagen. **Dentro de la imagen, todo lo
+> guardado desaparecería en el siguiente redespliegue** y el único síntoma sería una
+> biblioteca vacía sin ninguna explicación.
+
+Las dos frases son **ciertas**. La primera dice dónde vive; la segunda explica el
+contrafactual — qué habría pasado en el sitio donde NO está. Leídas en pantalla, la
+segunda es la que se queda, porque es la concreta y la que habla de consecuencias.
+
+El responsable del proyecto lo leyó así y preguntó por qué no se podía hacer que lo
+subido aguantara el despliegue. **Ya aguantaba.** La misma frase estaba en
+`trabajo.WHY_A_WORKING_DIR`, para los ficheros de referencia.
+
+### Es el principio nº 11 con los papeles cambiados
+
+Allí la prosa **se había quedado atrás** y contradecía al código. Aquí la prosa es
+correcta **como explicación** y falsa **como descripción**, que es un fallo distinto y
+más difícil de ver: no hay nada que corregir en ella, hay que cambiar de qué habla.
+
+**Y el mecanismo que la deja pasar es el mismo.** La regla operativa del principio nº 11
+—«la frase la emite el generador, o un test la contrasta contra lo que el código
+emite»— estaba aplicada a los amplicones y no a esto: eran **cadenas fijas**, y una
+cadena fija no puede decir lo que pasa cuando lo que pasa depende del estado.
+
+### Lo que se ha hecho
+
+- **La frase se DERIVA** (`presentation.library_note(env)`): con el directorio de trabajo
+  declarado dice «Lo guardado aquí SOBREVIVE a los redespliegues» y da la ruta; sin
+  declarar dice «Estás en LOCAL» y qué significa. Cuál de las dos es verdad lo sabe
+  `trabajo.is_declared()`, así que lo decide él.
+- `WHY_A_WORKING_DIR` se reescribe igual: **afirma primero** —sólo se pinta cuando el
+  directorio está declarado— y deja la razón detrás, en pasado.
+- **Y se MIDIÓ antes de contestar**, porque el registro decía «COMPROBADO que lo subido
+  aguanta un redespliegue» y esa medida era sobre los **ficheros de referencia**, que
+  están en la raíz del directorio. La biblioteca vive en un **subdirectorio** y nada
+  comprobaba que la siembra no lo tocara. Se simuló el redespliegue: 27 copiados la
+  primera vez, **0 copiados y 27 respetados** la segunda, y el `.gb` guardado sigue ahí
+  byte a byte. Ahora lo fija `TestLaBibliotecaSOBREVIVEalRedespliegue`, con su control
+  adversario —que el directorio esté de verdad fuera del paquete—, porque si viviera
+  dentro los otros dos tests pasarían igual.

@@ -3054,13 +3054,27 @@ class LibraryFile:
         return self._data
 
 
-def library_note() -> str:
-    """Donde vive la biblioteca y por que sobrevive. Va a la vista, no en un comentario."""
-    from .biblioteca import WHY_THE_VOLUME  # noqa: PLC0415
+def library_note(env=None) -> str:
+    """Qué le pasa a lo guardado, DERIVADO del estado y no una frase fija.
 
+    La versión anterior era una cadena que explicaba el contrafactual —«dentro de la
+    imagen desaparecería en el siguiente redespliegue»—, cierta como razón y falsa como
+    descripción: quien la leía entendía que lo guardado se borra al desplegar, que es lo
+    contrario de lo que hace la app. Cuál de las dos frases es verdad depende de si el
+    directorio de trabajo está declarado, así que la decide quien lo sabe.
+    """
+    from .biblioteca import NOT_ON_A_VOLUME, SURVIVES, base_por_defecto  # noqa: PLC0415
+    from .trabajo import is_declared, reference_dir  # noqa: PLC0415
+
+    # La RUTA se deriva igual que la usa `biblioteca`, y con el mismo `env`: decir
+    # dónde vive algo mirando otra variable que la que se usa para escribirlo es
+    # cómo se llega a una pantalla que contradice al código.
+    donde = reference_dir(env) / "biblioteca" if env is not None else base_por_defecto()
+    cabeza = SURVIVES if is_declared(env) else NOT_ON_A_VOLUME
     return (
-        f"{WHY_THE_VOLUME} Lo guardado aquí NO cierra ningún frente y no entra en el "
-        f"manifiesto: es sólo para no volver a buscar el mismo fichero en cada sesión."
+        f"{cabeza} Está en `{donde}`. Lo guardado aquí NO cierra ningún "
+        f"frente y no entra en el manifiesto: es sólo para no volver a buscar el mismo "
+        f"fichero en cada sesión."
     )
 
 
