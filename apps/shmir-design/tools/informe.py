@@ -79,9 +79,13 @@ def main(argv=None) -> int:
     seleccion = select_from_report(
         informe, SelectionConfig(n_candidates=args.candidatos, apa_immune_quota=4)
     )
+    # La anatomia se PASA, no se deduce: el CLI la tiene resuelta y la pagina tambien,
+    # asi que el mismo documento sale con la misma seccion por los dos caminos. Sin esto,
+    # el informe descargado desde el navegador traeria una tabla que el del CLI no, que es
+    # justo la divergencia entre frontales que este proyecto lleva cazando.
     documento = informe_documento(
         seleccion, informe, species=args.especie, generated=args.fecha,
-        anatomy_source=anat.source.value,
+        anatomy_source=anat.source.value, anatomy=anat,
     )
 
     destino = Path(args.salida)

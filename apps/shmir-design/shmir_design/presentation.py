@@ -1433,13 +1433,18 @@ def front_help_rows(tiling, selection, *, species: str):
 
 def informe_documento(selection, tiling, *, species: str, generated: str,
                       anatomy_source: str = "no declarada en esta corrida",
-                      dossier_starts=None):
-    """El documento entero. Parcial o completo segun los frentes, nunca dos productos."""
+                      dossier_starts=None, anatomy=None):
+    """El documento entero. Parcial o completo segun los frentes, nunca dos productos.
+
+    `anatomy` es OPCIONAL y no por comodidad: hay caminos que no la tienen —el CLI la
+    deriva y otros la reciben declarada—, y un informe sin ella sigue siendo valido. Con
+    ella entra la tabla de la anatomia del transcrito, la MISMA que pinta la pagina.
+    """
     from .informe_doc import build_document
 
     return build_document(
         species=species, tiling=tiling, selection=selection, generated=generated,
-        anatomy_source=anatomy_source, dossier_starts=dossier_starts,
+        anatomy_source=anatomy_source, dossier_starts=dossier_starts, anatomy=anatomy,
     )
 
 

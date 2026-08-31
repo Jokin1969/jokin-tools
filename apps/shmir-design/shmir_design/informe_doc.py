@@ -601,11 +601,104 @@ def _section_7(tiling, *, extra=()) -> Section:
     )
 
 
+def _seccion_anatomia(anatomy) -> Section:
+    """La anatomía del transcrito, la MISMA tabla que pinta la página.
+
+    Sale de `presentation.anatomy_rows`, no de una copia: si la página gana una columna,
+    el informe la gana con ella. Dos tablas para lo mismo divergen — y aquí el que
+    diverge es el que acaba en una libreta de laboratorio.
+    """
+    from .presentation import anatomy_rows  # noqa: PLC0415
+
+    filas = anatomy_rows(None, utr3_length=anatomy.utr3_length, anatomy=anatomy)
+    return Section(
+        number=0,   # lo asigna `build_document` por POSICION; ver `_numerar`.
+        title="Anatomía del transcrito",
+        blocks=(
+            para(
+                "De dónde sale cada frontera. La procedencia de la anotación importa "
+                "tanto como el número: una frontera declarada y una anotada no "
+                "sostienen lo mismo."
+            ),
+            table(tuple(filas[0]), tuple(tuple(str(f[c]) for c in filas[0]) for f in filas)),
+        ),
+    )
+
+
+def _seccion_mapa(tiling, selection) -> Section:
+    """El mapa del 3'UTR. En el PDF va su RESUMEN, no el SVG.
+
+    El PDF es monoespaciado: mil coordenadas con decimales no se leen. Lo que entra es
+    el conteo por tipo y la leyenda —lo mismo que se fija en el golden—, que es lo que
+    permite ver que un mapa se quedó sin candidatos o dibuja el triple de señales.
+    """
+    from .presentation import _mapa_resumen, map_svg  # noqa: PLC0415
+
+    lineas = _mapa_resumen(map_svg(tiling, selection))
+    return Section(
+        number=0,
+        title="Mapa del 3'UTR",
+        blocks=(
+            para(
+                "Resumen del mapa: cuántos elementos dibuja por tipo, y su leyenda. El "
+                "dibujo entero se ve en la página; aquí va lo que se puede leer en "
+                "monoespaciado y comparar entre dos corridas."
+            ),
+            pre("\n".join(lineas)),
+        ),
+    )
+
+
+def _seccion_elegibles(tiling, selection, *, species: str) -> Section:
+    """Todos los sitios elegibles, con UNA COLUMNA POR FRENTE.
+
+    Es la vista que impide que vuelva a pasar lo de `offtarget_seed`: un frente sin
+    columna no se ve, y lo que no se ve no existe. Las columnas se derivan de los frentes
+    que el informe conoce, así que uno nuevo aparece solo — también aquí.
+    """
+    from .presentation import site_table_rows  # noqa: PLC0415
+
+    filas = site_table_rows(tiling, selection, species=species)
+    if not filas:
+        return Section(
+            number=0,
+            title="Todos los sitios elegibles",
+            blocks=(para("Ningún sitio elegible con estos umbrales."),),
+        )
+    return Section(
+        number=0,
+        title=f"Todos los sitios elegibles, con una columna por frente — {species}",
+        blocks=(
+            para(
+                "Todos, no sólo los seleccionados: la selección es una propuesta y esta "
+                "tabla es el conjunto sobre el que se hizo. Una columna por frente, "
+                "derivada de los frentes que el informe conoce."
+            ),
+            table(tuple(filas[0]), tuple(tuple(str(f[c]) for c in filas[0]) for f in filas)),
+        ),
+    )
+
+
+def _numerar(secciones: tuple[Section, ...]) -> tuple[Section, ...]:
+    """Numera las secciones POR POSICION, no por lo que cada una traiga escrito.
+
+    Estaban numeradas a mano, una a una, y eso hace que insertar una en medio obligue a
+    tocar todas las de detras — y el dia que alguien no las toque, el informe tiene dos
+    secciones «4». El numero es una CONSECUENCIA del orden, asi que se deriva de el.
+    """
+    from dataclasses import replace  # noqa: PLC0415
+
+    return tuple(
+        replace(seccion, number=indice)
+        for indice, seccion in enumerate(secciones, start=1)
+    )
+
+
 def build_document(
     *, species: str, tiling, selection, generated: str,
     anatomy_source: str = "no declarada en esta corrida",
     dossier_starts=None, extra_provenance=(), title: str | None = None,
-    target: str | None = None,
+    target: str | None = None, anatomy=None,
 ) -> Document:
     """El informe entero. Parcial o completo segun los frentes, nunca dos documentos."""
     from .selection import blocking_fronts
@@ -619,19 +712,22 @@ def build_document(
         state="PARCIAL" if abiertos else "COMPLETO",
         generated=generated,
         open_fronts=abiertos,
-        sections=(
+        sections=_numerar((
             _section_1(
                 species=species, tiling=tiling, generated=generated,
                 anatomy_source=anatomy_source,
             ),
             _section_2(frentes, species=species),
             _section_3(frentes, species=species, tiling=tiling),
+            *((_seccion_anatomia(anatomy),) if anatomy is not None else ()),
+            _seccion_mapa(tiling, selection),
             _section_4(selection),
+            _seccion_elegibles(tiling, selection, species=species),
             _section_5(
                 species=species, tiling=tiling, selection=selection,
                 starts=tuple(dossier_starts), target=target,
             ),
             _section_6(),
             _section_7(tiling, extra=extra_provenance),
-        ),
+        )),
     )

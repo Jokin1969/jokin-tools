@@ -471,6 +471,30 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
                 disabled=not fila["ficha"]["url"].startswith("http"),
             )
 
+    # EL INFORME VA AQUI, justo debajo de los frentes. Estaba mas abajo, detras del
+    # generador de bloques, y ahi es lo ultimo que se ve: quien acaba de leer que le
+    # falta por cerrar es cuando quiere llevarselo. Es el MISMO documento que emite el
+    # CLI —`informe_documento` + `informe_files`—, no uno nuevo: dos documentos para lo
+    # mismo divergen, y el que se descarga acaba en una libreta de laboratorio.
+    st.markdown("**Informe** — parcial o completo, en cualquier momento")
+    documento = informe_documento(
+        seleccion, tiling, species=nombre,
+        generated=st.session_state.get("fecha_informe", "sin fecha declarada"),
+        anatomy_source=anatomy_source_label(anat),
+        anatomy=anat,
+    )
+    (st.warning if documento.state == "PARCIAL" else st.success)(
+        informe_state_text(documento)
+    )
+    for entregable in informe_files(documento, stem=nombre):
+        st.download_button(
+            entregable["nombre"],
+            data=entregable["datos"],
+            file_name=entregable["nombre"],
+            mime=entregable["mime"],
+            key=f"inf_{nombre}_{entregable['nombre']}",
+        )
+
     # LO GUARDADO SE RELEE. `load_stores` estaba importado y no se llamaba desde ningún
     # sitio: al reabrir un proyecto volvía la selección y **los cuatro frentes salían de
     # nuevo NOT_RUN**, así que la persistencia servía para la mitad de lo que dice servir.
@@ -507,24 +531,6 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "final no son únicas: el clonaje va por NheI/SacI o por síntesis. "
             "`modulo_seguro = no` significa que no se ha confirmado que la horquilla "
             "sobreviva dentro del intrón."
-        )
-
-    st.markdown("**Informe** — parcial o completo, en cualquier momento")
-    documento = informe_documento(
-        seleccion, tiling, species=nombre,
-        generated=st.session_state.get("fecha_informe", "sin fecha declarada"),
-        anatomy_source=anatomy_source_label(anat),
-    )
-    (st.warning if documento.state == "PARCIAL" else st.success)(
-        informe_state_text(documento)
-    )
-    for entregable in informe_files(documento, stem=nombre):
-        st.download_button(
-            entregable["nombre"],
-            data=entregable["datos"],
-            file_name=entregable["nombre"],
-            mime=entregable["mime"],
-            key=f"inf_{nombre}_{entregable['nombre']}",
         )
 
     return output_bundle(

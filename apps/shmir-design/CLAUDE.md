@@ -3225,6 +3225,48 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **explícito en la firma**: **un criterio no se deduce, se pasa** — deducido, el día
     que se deduzca mal no hay error, hay un número.
 
+- **EL INFORME DESCARGABLE (2026-08-31)** — y lo que enseñó pedirlo. La descarga **ya
+  existía**: `informe_documento` + `informe_files` emiten markdown, `.docx` y PDF del
+  MISMO documento que el CLI. Estuve a punto de añadir un segundo botón de PDF, que es
+  exactamente la duplicación que este proyecto persigue. **Lo que faltaba no era el
+  botón: era el contenido y el sitio.**
+  - **CONTENIDO**: el documento gana tres secciones que estaban en la página y no en el
+    informe — **Anatomía del transcrito**, **Mapa del 3'UTR** y **Todos los sitios
+    elegibles con una columna por frente**. Las tres salen de las MISMAS funciones que
+    pinta la página (`anatomy_rows`, `map_svg`, `site_table_rows`), no de una copia: dos
+    tablas para lo mismo divergen, y el que diverge acaba en una libreta de laboratorio.
+  - **SITIO**: el bloque de descarga estaba detrás del generador de bloques, o sea lo
+    último. Ahora va **justo debajo de «Frentes»**, que es cuando quien acaba de leer lo
+    que le falta por cerrar quiere llevárselo.
+  - **LA ANATOMÍA SE PASA, y por los DOS caminos.** `build_document` la recibe como
+    argumento OPCIONAL —hay caminos que no la tienen— y la página se la da; el CLI
+    `tools/informe.py` la tenía resuelta y **no se la pasaba**, así que el informe
+    descargado del navegador habría traído una tabla que el del CLI no. Es la
+    divergencia entre frontales que obligó a escribir `resolve.py`, y por eso se cierra
+    en la misma tanda que la abre.
+  - **Y esa sección NO entra en el golden del documento, a propósito**: ese generador
+    tila el 3'UTR **pelado** (`tile_utr(utr3)`), que no tiene anatomía ninguna —
+    fabricarle una para que el golden la enseñe sería el principio nº 18 por la puerta
+    de atrás. Las otras dos secciones sí entran, y el diff de +297 líneas es la prueba
+    de que llegan a una salida. La de anatomía la fija
+    `tests/test_informe_descargable.py` con la anatomía REAL del `.gb` murino, y con el
+    PDF comprobado como PDF de verdad.
+  - **El mapa entra como RESUMEN, no como SVG**: el PDF es monoespaciado y mil
+    coordenadas con decimales no se leen. Lo que entra —conteo por tipo y leyenda— es lo
+    mismo que fija el golden, que es lo que permite ver que un mapa se quedó sin
+    candidatos.
+  - **LOS NÚMEROS DE SECCIÓN SE DERIVAN DE LA POSICIÓN** (`_numerar`). Estaban escritos a
+    mano, uno a uno, así que insertar una sección en medio obligaba a tocar todas las de
+    detrás — y el día que alguien no las tocara, el informe tendría dos secciones «4». El
+    número es una consecuencia del orden.
+  - **Y los tests buscaban las secciones POR NÚMERO**, con lo que tenían el mismo
+    acoplamiento: `section(4)`, `section(6)`. Ahora buscan **por título**. Uno de ellos
+    afirmaba «las secciones son las mismas en los dos estados» y lo comprobaba con
+    `len(doc.sections) == 7`: un recuento, no la invariante — se rompía al añadir una
+    sección sin que hubiera pasado nada de lo que vigila. Ahora comprueba el ESQUELETO
+    por título, y dice por escrito que hoy no se puede construir un COMPLETO porque
+    ningún frente cierra sin ficheros.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
