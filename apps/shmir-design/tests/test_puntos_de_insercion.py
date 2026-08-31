@@ -152,3 +152,91 @@ class TestNoSeElige(unittest.TestCase):
     def test_la_ventana_admisible_esta_EXPLICADA(self):
         self.assertIn("NO coinciden", VENTANA_ADMISIBLE)
         self.assertGreater(len(VENTANA_ADMISIBLE), 200)
+
+
+class TestLaDECISIONregistrada(unittest.TestCase):
+    """49, con el criterio de quien decide. Mismo patrón que el desempate del críptico:
+    la elegida y la DESCARTADA con su motivo, para no volver a razonarla."""
+
+    def test_la_elegida_es_la_49_y_la_descartada_la_69(self):
+        from shmir_design.intron_design import (
+            INSERTION_POSITION,
+            INSERTION_REJECTED,
+        )
+
+        self.assertEqual(INSERTION_POSITION, 49)
+        self.assertEqual(INSERTION_REJECTED, 69)
+
+    @unittest.skipUnless(VIENNA_AVAILABLE, "NOT_RUN: falta ViennaRNA")
+    def test_LAS_DOS_estan_entre_las_que_conservan_la_horquilla(self):
+        """El criterio dice que ese eje es binario y que las dos lo cumplen. Si dejaran
+        de cumplirlo, el razonamiento entero deja de valer."""
+        from shmir_design.intron_design import (
+            INSERTION_POSITION,
+            INSERTION_REJECTED,
+            insertion_candidates,
+        )
+
+        modulo, horquilla = _piezas()
+        por_posicion = {
+            x.position: x
+            for x in insertion_candidates(
+                get("intron_quimerico"), modulo, hairpin=horquilla
+            )
+        }
+        for posicion in (INSERTION_POSITION, INSERTION_REJECTED):
+            with self.subTest(posicion):
+                self.assertTrue(por_posicion[posicion].hairpin_intact)
+
+    @unittest.skipUnless(VIENNA_AVAILABLE, "NOT_RUN: falta ViennaRNA")
+    def test_y_las_distancias_del_criterio_son_las_MEDIDAS(self):
+        """Los números del texto no están transcritos: se cruzan con la tabla."""
+        from shmir_design.intron_design import (
+            INSERTION_POSITION,
+            INSERTION_RATIONALE,
+            INSERTION_REJECTED,
+            insertion_candidates,
+        )
+
+        modulo, horquilla = _piezas()
+        por_posicion = {
+            x.position: x
+            for x in insertion_candidates(
+                get("intron_quimerico"), modulo, hairpin=horquilla
+            )
+        }
+        elegida, descartada = por_posicion[INSERTION_POSITION], por_posicion[INSERTION_REJECTED]
+        self.assertEqual(elegida.to_branch, 54)
+        self.assertEqual(descartada.to_branch, 34)
+        self.assertEqual(elegida.to_tract, 70)
+        self.assertEqual(descartada.to_tract, 50)
+        for numero in ("54", "34", "70", "50"):
+            with self.subTest(numero):
+                self.assertIn(numero, INSERTION_RATIONALE)
+
+    def test_el_TRACTO_interrumpido_del_criterio_es_un_hecho_del_fichero(self):
+        """La parte biológica del razonamiento también se comprueba: el tracto contiguo
+        son 11 nt entre una G y una A, con purinas aguas arriba."""
+        from shmir_design.intron_design import INSERTION_RATIONALE
+
+        secuencia = get("intron_quimerico").raw_sequence
+        elementos = get("intron_quimerico").elements()
+        self.assertEqual((elementos.ppt.start, elementos.ppt.end), (119, 129))
+        self.assertEqual(len(elementos.ppt.sequence), 11)
+        self.assertEqual(secuencia[118 - 1], "G")
+        self.assertEqual(secuencia[130 - 1], "A")
+        self.assertIn("113", INSERTION_RATIONALE)
+
+    def test_la_DESCARTADA_dice_que_esta_a_un_gBlock(self):
+        from shmir_design.intron_design import INSERTION_REJECTED_WHY
+
+        self.assertIn("gBlock", INSERTION_REJECTED_WHY)
+        self.assertIn("DESCARTADA, no eliminada", INSERTION_REJECTED_WHY)
+
+    def test_la_nota_VIAJA_entera(self):
+        from shmir_design.intron_design import insertion_note
+
+        nota = insertion_note()
+        for trozo in ("49", "69", "gBlock", "BINARIO", "frágil"):
+            with self.subTest(trozo):
+                self.assertIn(trozo, nota)

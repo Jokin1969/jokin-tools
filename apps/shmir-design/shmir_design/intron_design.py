@@ -669,3 +669,46 @@ def insertion_candidates(
             hairpin_intact=dentro == horquilla_sola,
         ))
     return tuple(salida)
+
+
+# ─── LA POSICION ELEGIDA para `intron_quimerico`, y la descartada ─────────────
+#
+# Mismo patron que el desempate del criptico: la decision es del responsable del
+# proyecto, va con SUS palabras, y la alternativa queda REGISTRADA con su motivo para
+# que no haya que volver a razonarla.
+
+INSERTION_POSITION = 49
+INSERTION_REJECTED = 69
+
+#: El criterio, con las palabras de quien lo decidio (2026-08-30).
+INSERTION_RATIONALE = (
+    "Decisión del responsable del proyecto (2026-08-30). LOS DOS CRITERIOS NO PESAN "
+    "IGUAL: conservar la horquilla es BINARIO y las dos posiciones lo cumplen, y ΔG "
+    "−106,5 frente a −109,2 no acerca a ninguna a fallar — así que el ΔG no discrimina "
+    "aquí. La SEPARACIÓN sí: el elemento más cercano de la 69 es el PUNTO DE "
+    "RAMIFICACIÓN, a 34 nt, y el punto es el elemento frágil. La 49 lo deja a 54. "
+    "Además la 49 deja 70 nt al tracto de polipirimidinas frente a 50, y eso cuenta "
+    "porque ese tracto ya viene interrumpido: la carrera contigua son 11 nt (119-129) "
+    "entre una G en 118 y una A en 130, con más purinas aguas arriba en 113 y 118. Un "
+    "tracto que ya no es una carrera limpia agradece el sitio."
+)
+
+#: La DESCARTADA, con su motivo. Si la 49 da problemas, esta esta a un gBlock.
+INSERTION_REJECTED_WHY = (
+    "La 69 queda DESCARTADA, no eliminada: conserva la horquilla igual que la 49 y tiene "
+    "el MEJOR ΔG de las quince (−109,20 frente a −106,50). Pierde en lo que discrimina: "
+    "deja el punto de ramificación a 34 nt en vez de 54, y el punto es el elemento "
+    "frágil. Si la 49 diera problemas, ésta está a un gBlock de distancia y no hay que "
+    "volver a razonarla."
+)
+
+
+def insertion_note() -> str:
+    """La decisión entera, para que viaje con la construcción."""
+    return "\n".join([
+        f"Posición de inserción del módulo en `intron_quimerico`: "
+        f"{INSERTION_POSITION}.",
+        f"  {INSERTION_RATIONALE}",
+        f"  DESCARTADA: {INSERTION_REJECTED}. {INSERTION_REJECTED_WHY}",
+        f"  {VENTANA_ADMISIBLE}",
+    ])

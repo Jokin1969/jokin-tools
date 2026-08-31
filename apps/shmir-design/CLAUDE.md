@@ -3168,7 +3168,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     sobre el intrón montado, y `donor_to_branch(vacío, inserted=214)`. La primera versión
     daba **405** por dos errores sumados —elementos ya montados *más* `inserted=149`— y
     405 era **el más plausible de los tres números posibles** (470 y 191 habrían
-    chirriado). Errata nº 35. **`inserted` es todo lo insertado: módulo MÁS espaciadores**,
+    chirriado). Errata nº 35, y **principio nº 20**: dos errores independientes pueden
+    cancelarse hacia un resultado creíble, y entonces **la plausibilidad deja de ser
+    señal**. El corolario operativo, que es lo que lo cazó: cuando una magnitud cambia sin
+    que nadie haya cambiado su entrada, **la diferencia es el diagnóstico** — mirar si
+    coincide con la longitud de alguna pieza conocida antes de buscar en otro sitio. **`inserted` es todo lo insertado: módulo MÁS espaciadores**,
     149+20+45.
   - **LAS DOS FRASES DEL ACEPTOR VAN JUNTAS**, y por eso son una sola constante: que no
     haya aceptor utilizable dentro del módulo cierra los empalmes que cortarían **por
@@ -3202,15 +3206,24 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     conservación de la HORQUILLA. Sólo **15 de 97** conservan la horquilla, y **las que
     ganan por separación pura (52 y 53) no están entre ellas**. Mirando sólo la separación
     se habría elegido una posición que rompe la horquilla.
-  - **Entre las 15, la separación da un ganador ÚNICO: la 49** (47 al donante, 54 a la
-    rama, 70 al tracto). No hay empate, así que no hace falta decidir a ciegas — pero el
-    **mejor ΔG es la 69** (−109,20 frente a −106,50), y cuál pesa más es decisión de
-    diseño. La función devuelve la tabla entera y no elige.
+  - **DECIDIDO: la 49** (2026-08-30, decisión del responsable del proyecto). Y el
+    criterio es que **los dos ejes no pesan igual**: conservar la horquilla es BINARIO y
+    las dos candidatas lo cumplen; ΔG −106,5 frente a −109,2 no acerca a ninguna a
+    fallar, así que ahí no discrimina. **La separación sí**, y el elemento más cercano de
+    la 69 es el **punto de ramificación** —a 34 nt frente a 54—, que es el frágil. Además
+    la 49 deja **70 nt al tracto frente a 50**, y eso cuenta porque ese tracto **ya viene
+    interrumpido**: la carrera contigua son 11 nt (119-129) entre una G en 118 y una A en
+    130, con más purinas aguas arriba. **La 69 queda REGISTRADA como descartada** con su
+    motivo, igual que `GTGCGCG`: si la 49 diera problemas, está a un gBlock y no hay que
+    volver a razonarla.
   - **El criterio estructural mide la HORQUILLA, no el módulo**: la primera versión
     comparaba el módulo entero y daba **cero** posiciones válidas — un cero que se lee
-    como «ninguna vale» cuando lo que pasaba es que se medía otra cosa. El módulo lleva
-    sitios de restricción y contextos que replegan con el intrón; lo que tiene que
-    sobrevivir son los 97 nt de la horquilla. Por eso `hairpin` va explícito en la firma.
+    como «ninguna vale» cuando lo que pasaba es que se medía otra cosa. **Es la CUARTA
+    entrada del registro del «Alu 0 %»** (principio nº 3), y la primera que es un NÚMERO y
+    no una frase: un cero no parece un diagnóstico, parece una medida, pero «cero
+    encontrados» afirma una causa igual que cualquier texto. Por eso `hairpin` va
+    **explícito en la firma**: **un criterio no se deduce, se pasa** — deducido, el día
+    que se deduzca mal no hay error, hay un número.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

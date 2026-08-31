@@ -130,14 +130,25 @@ Por eso, siempre que se emite un veredicto sobre un eje así:
 
 Y si no la ha comprobado, **describe el síntoma y calla la causa**.
 
-Es la tercera vez que el mismo fallo sale en esta app, siempre igual: un texto plausible,
-escrito a mano junto a un dato, que nombra una causa que nadie ha mirado.
+Es la **cuarta** vez que el mismo fallo sale en esta app, siempre igual: un dato plausible
+—un texto o un número— que se lee como una causa que nadie ha mirado.
 
-| mensaje | lo que decía | lo que era |
+| mensaje o dato | lo que decía | lo que era |
 |---|---|---|
 | `/shmir` no arranca | «comprueba que Streamlit está instalado» | Streamlit estaba instalado y corriendo: era un conflicto de configuración |
 | máscara de RepeatMasker | «Alu 0 %» | 0 % obtenido **sin buscar Alu**: la corrida era contra otra biblioteca |
 | 1773 ventanas descartadas | «bases desconocidas o enmascaradas» | ninguna tenía `N` ni estaba enmascarada: fallaban GC y homopolímero |
+| posiciones de inserción válidas en `intron_quimerico` | **«cero»**, que se lee como «ninguna vale» | se comparaba la estructura del MÓDULO entero en vez de la de la HORQUILLA. Con el criterio bueno son **15 de 97** |
+
+**El cuarto es un CERO, no una frase, y por eso vale la pena tenerlo aquí**: un cero no
+parece un diagnóstico, parece una medida. Pero «cero encontrados» dice una causa —«no
+hay»— y esa causa hay que haberla comprobado igual que cualquier otra. Aquí la verdadera
+era «se midió otra cosa».
+
+Y el arreglo enseña dónde estaba la grieta: el criterio se **deducía** —la función recibía
+el módulo y decidía por su cuenta qué comparar—. Ahora `hairpin` va **explícito en la
+firma**. **Un criterio no se deduce, se pasa**: deducido, el día que se deduzca mal no hay
+error, hay un número.
 
 **Un diagnóstico plausible y falso cuesta más que ninguno.** Manda a mirar al sitio
 equivocado, y quien lo lee gasta el tiempo ahí antes de sospechar del mensaje — que es
@@ -912,3 +923,59 @@ se retira a la semana.
 
 **Donde dos secuencias van en paralelo, que vayan en paralelo es una invariante y se hace
 cumplir.** Y donde no van en paralelo, eso se dice.
+
+
+---
+
+## 20 — Dos errores independientes pueden cancelarse hacia un resultado CREÍBLE, y entonces la plausibilidad deja de ser señal
+
+`donor_to_branch` empezó a dar **405** donde llevaba todo el proyecto dando **256**, sin
+que nadie hubiera tocado el intrón. Eran **dos** errores en la misma llamada:
+
+1. recibía los elementos del intrón **ya montado**, cuyo campo `empty` vale ya la
+   distancia montada — y la función le sumaba la inserción otra vez;
+2. y recibía `inserted = len(módulo)`, cuando `inserted` es **todo lo insertado**: el
+   módulo **más los dos espaciadores**, 149 + 20 + 45 = 214.
+
+Lo que hace este caso distinto de un descuido es la aritmética. Los tres resultados
+posibles eran:
+
+| errores | resultado | ¿habría chirriado? |
+|---|---|---|
+| sólo (1) | 470 | **sí** — casi el doble |
+| sólo (2) | 191 | **sí** — por debajo del conocido |
+| los dos | **405** | **no** |
+
+**Cada error por separado producía un número inverosímil. Juntos produjeron el más
+creíble de los tres.** Así que el filtro que normalmente salva —«esto no puede ser»— no
+disparó, y no por descuido de quien lo leyó: porque el número no daba motivo.
+
+### Lo que se pierde, y hay que decirlo
+
+La plausibilidad es el detector barato que se usa todo el rato, y **contra errores
+compuestos no funciona**. No es que falle a veces: es que la composición **tiende** a
+llevar el resultado hacia el centro, porque los extremos se cancelan entre sí. Cuantos
+más errores independientes, más creíble el resultado y menos fiable el olfato.
+
+### El corolario operativo, y es el que lo cazó
+
+**Cuando una magnitud cambia sin que nadie haya cambiado su entrada, la DIFERENCIA es el
+diagnóstico.** Antes de buscar en otro sitio, comprobar si esa diferencia **coincide con
+la longitud de alguna pieza conocida**. Aquí 405 − 256 = **149**, que es exactamente la
+longitud del módulo — y una diferencia que coincide con una constante del proyecto casi
+nunca es una coincidencia: es una suma de más, una resta de menos o una unidad confundida.
+
+No lo cazó ninguna comprobación. Lo cazó alguien que recordaba el número anterior. Eso no
+es un método, así que hace falta uno.
+
+### La contramedida general
+
+**Toda magnitud compuesta sale por DOS DERIVACIONES INDEPENDIENTES que se cruzan.** No
+«se comprueba»: se calcula dos veces por caminos distintos y el test exige que coincidan.
+Donante→punto se **mide** ahora sobre la secuencia del intrón montado y se cruza contra la
+ruta aritmética `donor_to_branch(vacío, inserted=214)`.
+
+Una sola ruta no podía cazar esto **porque el fallo estaba en la ruta**. Es el principio
+nº 5 —dos implementaciones del mismo número se cruzan— aplicado donde más falta hace: no
+a los números que dos módulos calculan por separado, sino a los que un módulo calcula
+componiendo, que es donde los errores se suman en silencio.
