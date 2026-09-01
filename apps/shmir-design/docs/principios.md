@@ -1088,3 +1088,50 @@ Vale para cualquier artefacto que se entregue y lea algo que cambia debajo. **Fe
 identificar.** Si dos ejecuciones con la misma fecha pueden dar productos distintos, el
 producto tiene que llevar **de qué estado salió** — y llevarlo donde se lee, no en un
 anexo.
+
+---
+
+## 23 — Cuando dos artefactos leen el mismo estado y sólo uno se actualiza, el intermedio es PEOR que el punto de partida
+
+**Formulado por el responsable del proyecto (2026-09-01)**, sobre una tanda propia. No es
+una observación de gestión: es una regla técnica sobre cómo se reparte un cambio.
+
+### El caso
+
+El informe descargable pasó a leer los almacenes del proyecto. La tabla de la pantalla no,
+todavía. Antes de la tanda los dos **callaban** —`NOT_RUN` los dos— y eran coherentes en su
+ignorancia. Después, el documento puede decir `PASS` de un frente que la pantalla sigue
+enseñando en `NOT_RUN`.
+
+**Y el que se entrega es el documento.**
+
+### Por qué el estado intermedio es peor que el inicial
+
+Antes había **una laguna**: los dos artefactos decían menos de lo que se sabía, y quien los
+leía sabía a qué atenerse. Ahora hay una **contradicción**: dos artefactos del mismo
+proyecto afirman cosas distintas del mismo frente, y quien los ponga uno al lado del otro
+**concluirá que uno está mal sin poder saber cuál**. Eso no es «media mejora»: es
+información nueva y falsa sobre la fiabilidad de las dos.
+
+Es la familia del principio nº 11 —código y prosa que discrepan— con los dos lados siendo
+**salidas del código**, y con el agravante de que ninguna se ha quedado atrás por descuido:
+el desfase lo introdujo una mejora.
+
+### La regla operativa
+
+Al repartir un cambio que toca varios artefactos que leen el mismo estado:
+
+1. **Preferible: en la misma tanda.** Si los dos leen, no hay desfase que declarar.
+2. **Si no cabe: el desfase se DECLARA en el artefacto que se ha quedado atrás**, diciendo
+   quién sabe más y **a cuál creer** — un aviso que sólo siembra duda es peor que ninguno.
+   Aquí es `presentation.TABLE_LAGS_REPORT`, pintado sobre la tabla.
+3. **Y el aviso CADUCA con un test.** `tests/test_desacuerdo_declarado.py` falla el día que
+   `site_table_rows` lea los almacenes, obligando a borrarlo: **un aviso que sobrevive a su
+   causa manda a desconfiar de algo que ya es correcto**, que es el mismo daño al revés.
+
+### El corolario que no es obvio
+
+**«Está a medias» no describe este estado.** Una tanda a medias deja cosas sin hacer; ésta
+deja algo **nuevo y roto** que antes no existía. La pregunta antes de partir un cambio no
+es *¿qué parte entra?* sino *¿el estado intermedio afirma algo falso?* — y si lo afirma,
+o entra entero, o entra con el desfase declarado.

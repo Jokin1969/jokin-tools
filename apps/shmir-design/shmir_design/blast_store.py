@@ -229,9 +229,39 @@ class BlastStore:
         historial = self.history(query_name)
         return historial[-1] if historial else None
 
+    def deciding_run(self, query_name: str):
+        """La corrida que MANDA sobre este frente, y por que no es «la ultima».
+
+        DECIDIDO (2026-09-01), planteado antes de que pasara: se sube una corrida buena y
+        despues, por probar, una `-remote`. Con «manda la ultima», la exploracion tumba un
+        veredicto ganado con una base local de decenas de GB.
+
+        Y la salida NO es «manda la mejor», que esconderia una FAIL posterior — repetir
+        contra una base mejor y sacar FAIL tiene que degradar. Ni borrar la anterior, que
+        rompe el log.
+
+        LA REGLA sale de que `NO_CIERRA` **no es un veredicto peor: es NINGUN veredicto**.
+        Una corrida que no puede cerrar no es evidencia sobre este candidato — no habla de
+        el. Asi que manda **la ultima que PUEDE dar veredicto**; entre esas, la ultima
+        siempre, sea mejor o peor; y si ninguna puede, la ultima de todas con su motivo.
+        """
+        historial = self.history(query_name)
+        if not historial:
+            return None, ()
+        con_veredicto = [r for r in historial if r.gives_verdict]
+        if not con_veredicto:
+            return historial[-1], ()
+        manda = con_veredicto[-1]
+        # Las que llegaron DESPUES y no pueden cerrar. No cambian el veredicto y NO se
+        # callan: quien subio la ultima se quedaria creyendo que es la que cuenta.
+        posteriores = tuple(
+            r for r in historial[historial.index(manda) + 1:] if not r.gives_verdict
+        )
+        return manda, posteriores
+
     def verdict_for(self, query_name: str) -> FilterResult:
         """`NOT_RUN` VISIBLE cuando no hay corrida. El almacen no relaja la regla 3."""
-        ultima = self.latest(query_name)
+        ultima, posteriores = self.deciding_run(query_name)
         if ultima is None:
             return FilterResult(
                 name=FILTER_NAME,
@@ -242,4 +272,17 @@ class BlastStore:
                     f"parecen en nada, y el almacen no cambia esa disciplina."
                 ),
             )
-        return ultima.verdict(query_name)
+        resultado = ultima.verdict(query_name)
+        if not posteriores:
+            return resultado
+        ids = ", ".join(r.run_id for r in posteriores)
+        return FilterResult(
+            name=resultado.name,
+            state=resultado.state,
+            reason=(
+                f"{resultado.reason} Hay {len(posteriores)} corrida(s) POSTERIOR(es) que "
+                f"no cierran el frente ({ids}) y por eso no mandan: una corrida que no "
+                f"puede dar veredicto no es evidencia sobre este candidato. Siguen en el "
+                f"historial."
+            ),
+        )

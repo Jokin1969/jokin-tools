@@ -4328,3 +4328,19 @@ def run_provenance_rows(stores) -> list[dict[str, str]]:
                 }
             )
     return filas
+
+
+#: MIENTRAS EL INFORME LEA LOS ALMACENES Y LA TABLA NO. Es una inconsistencia NUEVA, no
+#: una tanda a medias: antes los dos artefactos callaban y eran coherentes en su
+#: ignorancia. Ahora el documento puede decir `PASS` de un frente que la pantalla enseña
+#: en `NOT_RUN` — y el que se entrega es el documento. Un desacuerdo DECLARADO es
+#: manejable; uno silencioso hace que quien vea los dos concluya que uno esta mal sin
+#: saber cual. Se BORRA cuando `site_table_rows` lea los almacenes, y
+#: `tests/test_desacuerdo_declarado.py` obliga a borrarlo: un aviso que sobrevive a su
+#: causa manda a desconfiar de una tabla que ya es correcta.
+TABLE_LAGS_REPORT = (
+    "**Esta tabla todavía no lee las corridas guardadas; el informe sí.** Si has subido "
+    "el resultado de una comprobación, aquí puede seguir saliendo `NOT_RUN` mientras el "
+    "informe descargable ya trae su veredicto. **Manda el informe**, que es el que lleva "
+    "la corrida con su procedencia. En cuanto la tabla las lea, este aviso desaparece."
+)

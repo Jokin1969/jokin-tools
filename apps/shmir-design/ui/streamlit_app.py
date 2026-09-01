@@ -110,6 +110,7 @@ from shmir_design.presentation import (  # noqa: E402
     blast_defaults_for,
     front_help_rows,
     front_card_rows,
+    TABLE_LAGS_REPORT,
     folding_capability,
     check_can_emit_dna,
     front_progress,
@@ -485,6 +486,10 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "La selección de la app viene marcada. Se puede cambiar a mano: los avisos "
             "de abajo se recalculan con lo que esté marcado."
         )
+        # EL DESACUERDO, DECLARADO. Sólo con proyecto abierto: sin él no hay corridas
+        # guardadas y el aviso sembraría una duda que no existe.
+        if proyecto is not None:
+            st.warning(TABLE_LAGS_REPORT)
         st.dataframe(
             site_table_rows(tiling, seleccion, species=nombre, selected=marcados),
             hide_index=True,

@@ -1863,3 +1863,41 @@ de formato el test se entera en vez de acompañarlo. Es el principio nº 13 —u
 que cita algo se deriva, nunca se transcribe— **sobre una CLAVE en vez de sobre un dato**,
 y el corolario que añade: *un fixture que transcribe un formato es una copia más, y es la
 que hace parecer que todo cuadra.*
+
+## 45 — DECISIÓN: qué corrida manda cuando hay dos del mismo frente
+
+No es una errata: es una **decisión tomada antes de que el fallo ocurriera**, y se anota
+aquí porque el registro sirve para eso — el caso lo planteó el responsable del proyecto al
+leer el criterio de aceptación, viendo que iba a probar exactamente la secuencia que lo
+rompía.
+
+**El caso.** Se sube una corrida buena y después, por probar, una marcada `-remote`.
+«Nada se sobrescribe» y la ficha enseñaba **la última**, así que una corrida mala posterior
+habría degradado un frente ya cerrado.
+
+### Las tres salidas obvias, y por qué ninguna vale
+
+- **«Manda la última»** — una exploración de treinta segundos tumba un veredicto ganado con
+  una base local de decenas de GB.
+- **«Manda la mejor»** — esconde una `FAIL` posterior, que es justo la que hay que ver: si
+  se repite contra una base mejor y ahora falla, **el candidato falla**. Sería un `PASS`
+  con letra pequeña, que es lo que este proyecto acaba de escribir que no hace (errata
+  nº 43).
+- **«Se borra la anterior»** — rompe el log append-only, que es la única memoria de por qué
+  se volvió a correr.
+
+### La regla, y de dónde sale
+
+Sale de una distinción que ya estaba escrita: **`NO_CIERRA` no es un veredicto peor, es
+NINGÚN veredicto.** Una corrida que no puede cerrar el frente no es evidencia sobre ese
+candidato — no lo empeora ni lo mejora, **no habla de él**. Así que:
+
+1. manda **la última corrida que PUEDE dar veredicto**, aunque después haya exploraciones;
+2. entre las que pueden, **la última siempre**, sea mejor o peor: repetir contra una base
+   mejor y sacar `FAIL` tiene que degradar;
+3. si **ninguna** puede, se enseña la última con su `NO_CIERRA` y su motivo;
+4. y si hay exploraciones **posteriores** a la que manda, **se dicen** — callarlas dejaría
+   a quien acaba de subir la última creyendo que es la que cuenta.
+
+`BlastStore.deciding_run` la implementa y **no borra nada**: decide cuál manda, no cuál se
+guarda. Las dos siguen en el historial, que es donde se ve que alguien volvió a correr.
