@@ -1,4 +1,7 @@
 frente = "empalme_intron"
+titulo_llano = "¿La célula recorta bien la pieza que lleva el shmiR?"
+en_cristiano = """\
+El shmiR viaja dentro de una pieza —un intrón— que la célula tiene que recortar y tirar para poder fabricar la proteína del tratamiento. Si no la recorta, no hay proteína. Es la única comprobación de todo o nada: aquí no hay resultado a medias."""
 sin_fichero = true
 por_que_sin_fichero = """\
 Este frente NO SE CIERRA CON NINGÚN FICHERO, y por eso va aparte de los demas: sus cuatro \

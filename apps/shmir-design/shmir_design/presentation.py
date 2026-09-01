@@ -3950,3 +3950,238 @@ def query_name(species: str, start: int, strand: str) -> str:
     from .species import resolve
 
     return f"{resolve(species).slug}_pos{int(start)}_{strand}"
+
+
+# ─── LENGUAJE LLANO: lo que lee quien NO ha estado en estas conversaciones ──────────
+#
+# El criterio de aceptacion de la primera pantalla ya decia «alguien que no haya estado
+# en estas conversaciones tiene que poder abrir la app y llegar a un informe». Lo que
+# faltaba es que el TEXTO lo cumpliera: «determina el prefijo de miRBase, el taxid y el
+# ensamblaje» es correcto y no se entiende sin saber ya lo que son.
+#
+# LA REGLA ES ANTEPONER, NO SUSTITUIR. El detalle tecnico sigue estando, un clic mas
+# adentro: quitarlo seria perder la procedencia, que es lo que este proyecto no hace.
+# Y el idioma llano lleva TEST (`tests/test_lenguaje_llano.py`), porque si no se pudre:
+# la proxima frase que alguien escriba volvera a ser tecnica si nada lo impide.
+
+APP_PURPOSE = (
+    "Esta herramienta diseña shmiR: pequeñas moléculas de ARN que, metidas en una "
+    "célula, se pegan al mensajero de un gen y lo apagan. Tú dices a qué gen y de qué "
+    "especie; ella recorre el mensajero entero, propone los mejores sitios donde "
+    "atacarlo y va comprobando, uno a uno, todos los motivos por los que un sitio "
+    "podría no servir."
+)
+
+WHAT_YOU_NEED = (
+    "Para empezar sólo hacen falta dos cosas: saber de qué especie es tu gen, y tener "
+    "su secuencia en un fichero. Todo lo demás se puede ir añadiendo después, y la "
+    "herramienta te dice en cada momento qué falta y de dónde sacarlo."
+)
+
+#: Que se pide en cada paso y POR QUE, en el idioma de quien llega. El numero es la
+#: clave; el orden y el titulo tecnico siguen viviendo en `steps_rows`.
+_STEP_PLAIN = {
+    1: {
+        "titulo": "¿De qué especie es tu gen?",
+        "que_se_pide": (
+            "Elige el animal del que vas a apagar un gen: ratón, humano…"
+        ),
+        "por_que": (
+            "Cada especie tiene sus propios catálogos —de genes, de moléculas "
+            "parecidas a la tuya, de zonas conflictivas del genoma— y la herramienta "
+            "necesita saber cuáles usar. Elegir mal aquí da un resultado con la forma "
+            "correcta y las comprobaciones hechas contra el animal equivocado."
+        ),
+    },
+    2: {
+        "titulo": "¿Cuál es la secuencia de tu gen?",
+        "que_se_pide": (
+            "Sube el fichero con la secuencia del mensajero que quieres apagar. Si lo "
+            "tienes en formato GenBank (.gb) mejor: ese trae marcado dónde empieza y "
+            "acaba la parte que codifica la proteína."
+        ),
+        "por_que": (
+            "Ahí es donde se buscan los sitios donde atacar. Y saber qué parte "
+            "codifica la proteína importa: los mejores sitios suelen estar en la cola "
+            "final del mensajero, y sin esa marca hay que decirle a mano dónde acaba."
+        ),
+    },
+    3: {
+        "titulo": "Buscar los candidatos",
+        "que_se_pide": "Nada más. Dale al botón.",
+        "por_que": (
+            "Con la secuencia basta para proponer sitios: los primeros criterios miden "
+            "propiedades de la propia secuencia y no necesitan ningún dato de fuera."
+        ),
+    },
+    4: {
+        "titulo": "Los candidatos, y lo que aún les falta",
+        "que_se_pide": (
+            "Mira la lista. Ninguno está aprobado todavía: son los que superan los "
+            "primeros criterios."
+        ),
+        "por_que": (
+            "Los criterios que quedan necesitan datos que hay que conseguir fuera, y "
+            "cada uno descarta candidatos distintos. Por eso la lista es provisional."
+        ),
+    },
+    5: {
+        "titulo": "Las comprobaciones que faltan",
+        "que_se_pide": (
+            "Una tarjeta por comprobación. Cada una te dice qué mira, qué hace falta "
+            "para hacerla y dónde conseguirlo."
+        ),
+        "por_que": (
+            "Cuando estén todas hechas, y sólo entonces, la lista deja de ser "
+            "provisional y se puede encargar la síntesis."
+        ),
+    },
+}
+
+
+def step_plain(number: int) -> dict[str, str]:
+    """Que se pide en un paso y por que, en llano. Un paso sin explicacion ABORTA."""
+    guia = _STEP_PLAIN.get(int(number))
+    if guia is None:
+        raise ShmirDesignError(
+            f"El paso {number} no tiene explicacion en lenguaje llano. Se aborta en vez "
+            f"de pintar un paso mudo: un formulario sin decir que se pide y por que es "
+            f"exactamente lo que esta pantalla existe para no ser. Se añade en "
+            f"`presentation._STEP_PLAIN`."
+        )
+    return dict(guia)
+
+
+def species_plain(name: str) -> dict[str, str]:
+    """La especie, explicada antes de dar sus codigos.
+
+    «Mus musculus está declarada: prefijo de miRBase «mmu-», taxid txid10090,
+    ensamblaje mm39» es cierto y no dice NADA a quien empieza. Lo llano va delante; los
+    tres identificadores siguen estando, en `detalle`, que la pagina pinta plegado.
+    """
+    from .species import resolve
+
+    nota = species_choice_note(name)
+    if str(name).strip() == OTHER_SPECIES or nota["bloquea"]:
+        return {
+            "texto": (
+                "Esa especie todavía no está preparada en la herramienta. Puedes "
+                "diseñar igual y verás candidatos, pero varias de las comprobaciones "
+                "no se podrán hacer: no existe el catálogo con el que compararlos."
+            ),
+            "detalle": nota["texto"],
+            "bloquea": True,
+        }
+    especie = resolve(name)
+    return {
+        "texto": (
+            f"Preparada. Se usarán los catálogos de {especie.scientific} para todas "
+            f"las comprobaciones."
+        ),
+        "detalle": nota["texto"],
+        "bloquea": False,
+    }
+
+
+def semaforo_plain(light) -> dict[str, str]:
+    """El semaforo en tres piezas: titular corto, que hacer, y el detalle con cifras.
+
+    Antes era un parrafo de siete lineas que empezaba por «Faltan 4 de 10 filtros» y
+    metia dentro las tres cuentas de ventanas. Todo cierto y nadie lo lee entero: lo
+    primero que se ve tiene que caber de un vistazo.
+    """
+    hechos = int(getattr(light, "ran", 0) or 0)
+    total = int(getattr(light, "total", 0) or 0)
+    faltan = max(total - hechos, 0)
+    if not faltan:
+        titular = "Todas las comprobaciones hechas."
+        que_hacer = "La lista ya no es provisional."
+    else:
+        titular = (
+            f"Hechas {hechos} de {total} comprobaciones. Ninguno de estos candidatos "
+            f"está aprobado todavía."
+        )
+        que_hacer = (
+            "Sigue abajo: hay una tarjeta por cada comprobación que falta, con lo que "
+            "hace falta para hacerla."
+        )
+    return {
+        "titular": titular,
+        "que_hacer": que_hacer,
+        "detalle": str(getattr(light, "detail", "") or getattr(light, "texto", "")),
+    }
+
+
+#: Los tres estados de una tarjeta y su color. El color lo pone `presentation`, no la
+#: pagina: uno elegido en la pagina es una decision sin test (regla 6), y ya paso con
+#: `REFINEMENT_STATES`.
+CARD_STATES = {
+    "HECHO": "green",
+    "SIN_HACER": "grey",
+    "NO_APLICA": "blue",
+}
+
+
+def front_card_rows(run, *, species: str) -> list[dict[str, object]]:
+    """Una tarjeta por comprobacion, DERIVADA de `blocking_fronts`.
+
+    Se derivan por la misma razon que las columnas de la tabla de sitios: una lista
+    escrita a mano deja fuera al frente numero once sin que nadie lo note, y **lo que no
+    se ve no existe**. El texto llano de cada una sale de su ficha, que es un fichero de
+    datos versionado con test en las dos direcciones.
+    """
+    from .obtencion import resolve_ficha
+    from .selection import blocking_fronts
+    from .species import resolve
+
+    especie = resolve(species)
+    tarjetas = []
+    for frente in blocking_fronts(run.tiling, run.selection):
+        ficha = resolve_ficha(frente.name, species=especie)
+        estado = "HECHO" if not frente.blocking else "SIN_HACER"
+        tarjetas.append(
+            {
+                "frente": frente.name,
+                "titulo": ficha.plain_title,
+                "en_cristiano": ficha.plain,
+                "estado": estado,
+                "color": CARD_STATES[estado],
+                "que_hace_falta": [f.name for f in ficha.files],
+                "donde": ficha.url,
+            }
+        )
+    return tarjetas
+
+
+def front_progress(cards) -> dict[str, object]:
+    """Cuantas comprobaciones hay hechas. Se DERIVA de las tarjetas, no se cuenta aparte.
+
+    Dos contadores del mismo suceso acaban discrepando —ya paso entre `seed_load` y
+    `offtarget`— y aqui el que discrepara pintaria una barra que no corresponde a las
+    tarjetas que hay debajo.
+    """
+    filas = list(cards)
+    hechas = sum(1 for c in filas if c["estado"] == "HECHO")
+    total = len(filas)
+    return {
+        "hechas": hechas,
+        "total": total,
+        "fraccion": (hechas / total) if total else 0.0,
+        "texto": f"{hechas} de {total} comprobaciones hechas",
+    }
+
+
+#: EL PRIMER TRAMO TERMINA AQUI, y hasta ahora no lo decia: la lista de candidatos venia
+#: seguida de todo lo demas, asi que se leia como el resultado. No lo es.
+CANDIDATES_ARE_NOT_THE_END = (
+    "**Hasta aquí, los candidatos.** Son los sitios del mensajero que superan los "
+    "criterios que se pueden medir sobre la propia secuencia. Todavía falta lo más "
+    "importante: comprobar que ninguno se pega donde no debe. Ninguno de estos está "
+    "aprobado, y el orden en que salen todavía puede cambiar."
+)
+
+#: Los botones se llaman por lo que HACEN. «Diseñar» y «Estimar coste» no dicen que va a
+#: aparecer en la pantalla, que es lo unico que quien lee necesita saber para pulsarlos.
+BUTTON_DESIGN = "Buscar candidatos"
+BUTTON_ESTIMATE = "¿Cuánto va a tardar?"
+BUTTON_CONTINUE = "Seguir: las comprobaciones que faltan"

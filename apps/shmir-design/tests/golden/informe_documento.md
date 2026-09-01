@@ -72,6 +72,9 @@ Los seis filtros biofísicos de ventana NO dependen de ningún fichero ni de nin
 ```
 COMO CERRAR EL FRENTE «especificidad»
 
+  ¿Se pega también a otros genes?
+  Tu shmiR está pensado para apagar un gen y sólo uno. Esta comprobación busca si su secuencia se parece lo bastante a la de otros mensajeros de la célula como para apagarlos también. Se contesta comparándola contra un catálogo de los mensajeros conocidos de tu especie.
+
   QUE PREGUNTA RESPONDE: ¿Esta guía tiene complementariedad EXTENSA con algun otro transcrito? Es la pregunta de los alineamientos, y la contesta un BLAST contra una base de transcritos.
 
   FICHERO(S) QUE HACEN FALTA:
@@ -135,6 +138,9 @@ COMO CERRAR EL FRENTE «especificidad»
 ```
 COMO CERRAR EL FRENTE «repeticion_polimorfica»
 
+  ¿Cae en un tramo que mide distinto en cada individuo?
+  Algunos tramos repetidos tienen distinto número de repeticiones en cada persona. Un shmiR dirigido ahí funcionaría en unos y en otros no — y no por un cambio de letras, sino de longitud, que es algo que los catálogos de variantes captan mal.
+
   QUE PREGUNTA RESPONDE: ¿La ventana cae dentro de una repetición POLIMÓRFICA — un microsatelite, un satelite, un tramo de baja complejidad? Es otra pregunta que la de `repeticiones`, aunque salga del mismo fichero: aquella va de estabilidad del genoma AAV y esta de VIABILIDAD CLINICA. Un microsatelite varia en NÚMERO DE REPETICIONES entre individuos, así que una guía ahi tendría respondedores y no respondedores por variación de LONGITUD, no de secuencia.
 
   FICHERO(S) QUE HACEN FALTA:
@@ -186,6 +192,9 @@ COMO CERRAR EL FRENTE «repeticion_polimorfica»
 
 ```
 COMO CERRAR EL FRENTE «repeticiones»
+
+  ¿Cae en un tramo repetido del genoma?
+  Hay tramos que aparecen miles de veces repartidos por el genoma. Un shmiR dirigido a uno de ellos tendría miles de sitios donde pegarse. Y además, un tramo repetido dentro del virus con el que se administra el tratamiento lo vuelve inestable.
 
   QUE PREGUNTA RESPONDE: ¿La ventana cae dentro de un elemento repetitivo? Importa por dos cosas distintas: un tramo repetitivo dentro del casete AAV es sustrato de recombinación, y una guía contra un repetitivo tiene miles de sitios perfectos en el genoma.
 
@@ -239,6 +248,9 @@ COMO CERRAR EL FRENTE «repeticiones»
 ```
 COMO CERRAR EL FRENTE «seed»
 
+  ¿Empieza igual que una familia de microARN conocida?
+  Es la versión rápida de la comprobación anterior: mira las primeras letras contra una lista corta de familias, antes de compararlas una a una con el catálogo completo.
+
   QUE PREGUNTA RESPONDE: ¿La seed de la guía coincide con la de alguna familia de miARN de la tabla de seeds que se le haya pasado al diseño? Es el filtro de ventana, previo y más grueso que `seed_colision`: aquel compara contra los maduros de miRBase uno a uno.
 
   FICHERO(S) QUE HACEN FALTA:
@@ -282,6 +294,9 @@ COMO CERRAR EL FRENTE «seed»
 
 ```
 COMO CERRAR EL FRENTE «seed_colision»
+
+  ¿Se confunde con un microARN de la propia célula?
+  La célula fabrica sus propios microARN, y en el cerebro algunos son muy abundantes. Si tu shmiR empieza con las mismas letras que uno de ellos competirá con él, y de paso alterará todos los genes que ese microARN controla.
 
   QUE PREGUNTA RESPONDE: ¿La seed de esta hebra es la de un miARN maduro conocido y abundante? Compartir seed con uno del núcleo no da off-targets dispersos: secuestra un programa regulador neuronal entero.
 
@@ -331,6 +346,9 @@ COMO CERRAR EL FRENTE «seed_colision»
 ```
 COMO CERRAR EL FRENTE «transgen»
 
+  ¿Apagaría también el propio tratamiento?
+  El tratamiento se administra dentro de un virus que lleva su propia copia del gen. Si el shmiR se pega también a esa copia, apaga la terapia a la vez que la diana. No se notaría: parecería sencillamente que el tratamiento no funciona.
+
   QUE PREGUNTA RESPONDE: ¿Esta guía impacta contra el TRANSGÉN del casete terapeutico? Es una segunda base de especificidad, y falla duro con cero o un desapareamiento: una guía a un solo desapareamiento apaga la construcción terapeutica casi igual que a su diana, y eso sería un fallo silencioso.
 
   FICHERO(S) QUE HACEN FALTA:
@@ -378,6 +396,9 @@ COMO CERRAR EL FRENTE «transgen»
 
 ```
 COMO CERRAR EL FRENTE «offtarget_seed»
+
+  ¿A cuántos genes puede afectar de rebote?
+  A un shmiR le bastan siete letras del principio para frenar un mensajero, aunque el resto no encaje. Esto cuenta cuántos mensajeros de tu especie llevan esas siete letras. No es un aprobado ni un suspenso: es una cifra para comparar unos candidatos con otros.
 
   QUE PREGUNTA RESPONDE: ¿Cuántos mensajeros del transcriptoma llevan un sitio para la seed de esta hebra? Es la CARGA de off-targets, y es otra pregunta que la colisión con un miARN conocido. No la contesta ningún alineador: 7 nt contiguos no dan un alineamiento puntuable, así que ningún BLAST los devuelve por mucho que se le baje el word_size.
 
@@ -436,6 +457,9 @@ COMO CERRAR EL FRENTE «offtarget_seed»
 ```
 COMO CERRAR EL FRENTE «empalme_intron»
 
+  ¿La célula recorta bien la pieza que lleva el shmiR?
+  El shmiR viaja dentro de una pieza —un intrón— que la célula tiene que recortar y tirar para poder fabricar la proteína del tratamiento. Si no la recorta, no hay proteína. Es la única comprobación de todo o nada: aquí no hay resultado a medias.
+
   QUE PREGUNTA RESPONDE: ¿Se escinde el intrón? Es el ÚNICO frente BINARIO del proyecto: los otros son graduales —una especificidad regular da off-targets, un techo de APA baja el knockdown— pero aquí, si el intrón no se escinde, la horquilla se queda en el 5'UTR del mRNA maduro y NO HAY PROTEINA DN EN ABSOLUTO. No hay «un poco de proteina» que optimizar.
 
   NO SE CIERRA CON NINGÚN FICHERO.
@@ -480,6 +504,9 @@ COMO CERRAR EL FRENTE «empalme_intron»
 
 ```
 COMO CERRAR EL FRENTE «empalme_sitios»
+
+  ¿La guía crea un corte donde no debería?
+  Al meter tu guía dentro de esa pieza puede aparecer por casualidad una señal de corte nueva. Si la célula la usa, corta por donde no toca y el tratamiento sale mal montado.
 
   QUE PREGUNTA RESPONDE: ¿El módulo de esta guía introduce un sitio de splicing críptico dentro del intrón? La unidad no es la guía: es el CASSETTE MONTADO —intrón completo, módulo dentro, guía y pasajera de ese candidato, y contexto exonico a los dos lados—. Un críptico que compita con el donante legítimo produce una banda intermedia que en un gel se confunde con la buena.
 

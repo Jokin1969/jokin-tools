@@ -426,7 +426,10 @@ class TestLaPaginaSoloPinta(unittest.TestCase):
         """Y «despues» se mide en el fuente: el panel tiene que quedar por debajo del
         boton y por debajo del bloque de descargas, no en cualquier sitio de la pagina."""
         panel = PAGINA.index("_panel_refinamiento(nombre_modelo)")
-        boton = PAGINA.index('st.subheader("4) Diseñar")')
+        # El ancla es el ENCABEZADO del paso del boton, no su titulo: el titulo es
+        # texto que se reescribe —«Diseñar» paso a «Buscar candidatos»— y anclar una
+        # invariante a un texto la rompe cada vez que alguien mejora una frase.
+        boton = PAGINA.index("_cabecera_paso(3, step_plain(3))")
         descargas = PAGINA.index('st.subheader("Descargas")')
         self.assertGreater(panel, boton)
         self.assertGreater(panel, descargas)

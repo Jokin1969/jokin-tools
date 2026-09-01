@@ -1,4 +1,7 @@
 frente = "intron_quimerico"
+titulo_llano = "Una segunda pieza de recorte con la que comparar"
+en_cristiano = """\
+Con una sola no hay comparación posible: un resultado limpio en la única pieza que hay no dice si el mérito es del diseño o de esa pieza en concreto."""
 pregunta = """\
 ¿Como se comporta el módulo dentro de OTRO intrón? El cuarto modal pregunta sobre el \
 cassette montado, no sobre la guía, así que el intrón es la mitad de la pregunta. Con uno \

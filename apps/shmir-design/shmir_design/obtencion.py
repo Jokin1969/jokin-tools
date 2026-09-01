@@ -34,7 +34,13 @@ NO_URL = "—"
 
 #: Campos obligatorios de toda ficha. Que falte uno ABORTA al cargarla: una ficha a
 #: medias es peor que ninguna, porque parece que la pregunta esta contestada.
-REQUIRED = ("frente", "pregunta", "fuente", "url", "tamano", "validacion", "pasos")
+#: `titulo_llano` y `en_cristiano` son OBLIGATORIOS y van los primeros: son lo que lee
+#: quien abre la app sin haber estado en estas conversaciones. `pregunta` no se
+#: sustituye —es la version tecnica y hace falta— pero deja de ser lo PRIMERO.
+REQUIRED = (
+    "frente", "titulo_llano", "en_cristiano", "pregunta", "fuente", "url", "tamano",
+    "validacion", "pasos",
+)
 
 _PLACEHOLDER = re.compile(r"\{([a-z_]+)\}")
 
@@ -57,6 +63,11 @@ class Ficha:
     """La ficha de UN frente. `resolved` dice si ya se ha atado a una especie."""
 
     front: str
+    #: El titulo en lenguaje llano: la pregunta que se hace alguien que quiere apagar un
+    #: gen, no la que se hace quien ya conoce el pipeline.
+    plain_title: str
+    #: Que comprueba este frente, explicado sin jerga. Va ANTES de `question`.
+    plain: str
     question: str
     source: str
     url: str
@@ -84,6 +95,9 @@ class Ficha:
             )
         lineas = [
             f"COMO CERRAR EL FRENTE «{self.front}»",
+            "",
+            f"  {self.plain_title}",
+            f"  {self.plain}",
             "",
             f"  QUE PREGUNTA RESPONDE: {self.question}",
             "",
@@ -194,6 +208,8 @@ def load_ficha(path: Path | str) -> Ficha:
 
     return Ficha(
         front=datos["frente"],
+        plain_title=datos["titulo_llano"],
+        plain=datos["en_cristiano"],
         question=datos["pregunta"],
         source=datos["fuente"],
         url=datos["url"],
@@ -359,6 +375,8 @@ def resolve_ficha(front: str, *, species) -> Ficha:
 
     resuelta = Ficha(
         front=ficha.front,
+        plain_title=sub(ficha.plain_title),
+        plain=sub(ficha.plain),
         question=sub(ficha.question),
         source=sub(ficha.source),
         url=ficha.url,

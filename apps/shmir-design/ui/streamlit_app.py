@@ -109,6 +109,8 @@ from shmir_design.presentation import (  # noqa: E402
     blast_command_text,
     blast_defaults_for,
     front_help_rows,
+    front_card_rows,
+    front_progress,
     informe_documento,
     informe_files,
     informe_state_text,
@@ -155,6 +157,15 @@ from shmir_design.presentation import (  # noqa: E402
     conservation_for,
     output_bundle,
     status_light,
+    step_plain,
+    species_plain,
+    semaforo_plain,
+    APP_PURPOSE,
+    WHAT_YOU_NEED,
+    CANDIDATES_ARE_NOT_THE_END,
+    BUTTON_DESIGN,
+    BUTTON_ESTIMATE,
+    BUTTON_CONTINUE,
     window_rows,
 )
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
@@ -392,15 +403,26 @@ def panel_umbrales() -> tuple[Thresholds, SelectionConfig, int]:
 
 
 def semaforo(luz) -> None:
+    """Titular corto, que hacer, y el detalle PLEGADO.
+
+    Era un parrafo de siete lineas que empezaba por «Faltan 4 de 10 filtros» y metia
+    dentro las tres cuentas de ventanas. Todo cierto, y nadie lo lee entero: lo primero
+    que se ve tiene que caber de un vistazo. El texto lo arma `semaforo_plain`, no esta
+    funcion — aqui no se decide nada (regla 6).
+    """
     color, emoji = COLORES[luz.color]
+    llano = semaforo_plain(luz)
     st.markdown(
         f'<div style="border-left:8px solid {color};background:#faf8f3;'
-        f'padding:14px 18px;border-radius:6px;margin-bottom:14px">'
-        f'<div style="font-size:1.15rem;font-weight:700;color:{color}">'
-        f"{emoji} {luz.headline}</div>"
-        f'<div style="color:#4a443a;margin-top:6px">{luz.detail}</div></div>',
+        f'padding:18px 22px;border-radius:8px;margin-bottom:16px">'
+        f'<div style="font-size:1.25rem;font-weight:700;color:{color}">'
+        f"{emoji} {llano['titular']}</div>"
+        f'<div style="color:#4a443a;margin-top:8px;font-size:1.02rem">'
+        f"{llano['que_hacer']}</div></div>",
         unsafe_allow_html=True,
     )
+    with st.expander("Las cifras de la corrida"):
+        st.caption(llano["detalle"])
 
 
 def _utr3(secuencia: str, anat) -> str:
@@ -468,16 +490,19 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         for aviso in selection_warnings(tiling, seleccion, selected=marcados):
             (st.error if aviso["rojo"] else st.warning)(aviso["texto"])
 
-    st.markdown("**Frentes** — y cómo cerrar los que están en NOT_RUN")
-    for fila in front_help_rows(tiling, seleccion, species=nombre):
-        etiqueta = "NOT_RUN" if fila["abierto"] else "CERRADO"
-        with st.expander(f"{etiqueta} · {fila['frente']}", expanded=False):
-            st.caption(fila["motivo"])
-            st.code(fila["ficha"]["texto"], language=None)
-            st.link_button(
-                f"↗ {fila['ficha']['fuente']}", fila["ficha"]["url"],
-                disabled=not fila["ficha"]["url"].startswith("http"),
-            )
+    # ── AQUI TERMINA EL PRIMER TRAMO, y hasta ahora no lo decia ─────────────────
+    #
+    # La lista de candidatos venia seguida de todo lo demas, asi que se leia como el
+    # resultado. No lo es: es la mitad del camino, y la segunda mitad es la que decide
+    # cuales sobreviven.
+    st.divider()
+    st.info(CANDIDATES_ARE_NOT_THE_END)
+    if st.button(BUTTON_CONTINUE, type="primary", key=f"seguir_{nombre}"):
+        st.session_state[f"tramo2_{nombre}"] = True
+    if not st.session_state.get(f"tramo2_{nombre}"):
+        return {}
+
+    _tarjetas_de_comprobacion(corrida, nombre, tiling, seleccion)
 
     # EL INFORME VA AQUI, justo debajo de los frentes. Estaba mas abajo, detras del
     # generador de bloques, y ahi es lo ultimo que se ve: quien acaba de leer que le
@@ -553,6 +578,40 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         blocks=bloques,
     )
 
+
+
+def _tarjetas_de_comprobacion(corrida, nombre: str, tiling, seleccion) -> None:
+    """Una tarjeta por comprobacion, con su color y su estado.
+
+    Sustituye a la lista de «Frentes — y como cerrar los que estan en NOT_RUN», que
+    nombraba diez frentes por su nombre interno y pedia al lector que supiera lo que es
+    un frente. Las tarjetas se DERIVAN igual que aquella lista —una escrita a mano
+    dejaria fuera a la numero once— y el color lo pone `presentation.CARD_STATES`.
+    """
+    _cabecera_paso(4, step_plain(5))
+    progreso = front_progress(front_card_rows(corrida, species=nombre))
+    st.progress(progreso["fraccion"], text=progreso["texto"])
+
+    tarjetas = front_card_rows(corrida, species=nombre)
+    motivos = {f["frente"]: f for f in front_help_rows(tiling, seleccion, species=nombre)}
+    columnas = st.columns(2)
+    for indice, tarjeta in enumerate(tarjetas):
+        with columnas[indice % 2]:
+            with st.container(border=True):
+                st.markdown(
+                    f":{tarjeta['color']}[●] **{tarjeta['titulo']}**"
+                )
+                st.caption(tarjeta["en_cristiano"])
+                detalle = motivos.get(tarjeta["frente"])
+                if detalle is not None:
+                    with st.expander("Cómo se hace"):
+                        st.caption(detalle["motivo"])
+                        st.code(detalle["ficha"]["texto"], language=None)
+                        st.link_button(
+                            f"↗ {detalle['ficha']['fuente']}",
+                            detalle["ficha"]["url"],
+                            disabled=not detalle["ficha"]["url"].startswith("http"),
+                        )
 
 
 def _panel_proyecto(especie: str, secuencia: str, anat):
@@ -834,32 +893,70 @@ def _panel_refinamiento(especie: str) -> None:
             _fila_ausente(fila, directorio)
 
 
-def main() -> None:
-    st.set_page_config(page_title="shmir-design", layout="wide")
-    st.title("shmir-design")
-    st.caption(
-        "Interfaz sobre el núcleo ya testado. Ninguna decisión se toma aquí: esta "
-        "página solo llama a funciones con tests."
+def _estilo() -> None:
+    """Tipografia y aire. La pagina se leia como una consola: letra de 14 px, todo
+
+    pegado y las explicaciones en `caption`, que es el tamaño mas pequeño que hay.
+    Nada de esto DECIDE nada —son medidas, no criterios— asi que puede vivir aqui.
+    """
+    st.markdown(
+        """
+        <style>
+          .block-container { max-width: 1180px; padding-top: 2.2rem; }
+          html, body, [class*="css"] { font-size: 17px; line-height: 1.65; }
+          h1 { font-size: 2.1rem; letter-spacing: -0.5px; margin-bottom: .2rem; }
+          h2 { font-size: 1.55rem; margin-top: 2.6rem; margin-bottom: .4rem; }
+          h3 { font-size: 1.2rem; margin-top: 1.6rem; }
+          /* Las explicaciones dejan de ser letra pequeña: son la mitad del producto. */
+          [data-testid="stCaptionContainer"] p { font-size: .97rem; color: #55504a; }
+          [data-testid="stVerticalBlockBorderWrapper"] { padding: .35rem .2rem; }
+          div[data-testid="stExpander"] { border-radius: 8px; }
+          .stButton button { padding: .55rem 1.1rem; font-size: 1rem; }
+          .sd-lede { font-size: 1.12rem; color: #3d3831; max-width: 46rem; }
+          .sd-paso { color: #8a8178; font-size: .82rem; letter-spacing: .12em;
+                     text-transform: uppercase; font-weight: 700; }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
 
-    # Los tres servicios externos a los que se contrasta un diseño, arriba y visibles
-    # antes de subir nada. Las direcciones y sus textos viven en
-    # `external_score.EXTERNAL_TOOLS`: la pagina no tiene datos propios (regla 6).
-    enlaces = st.columns(len(EXTERNAL_TOOLS) + 2)
-    # zip-ok: se piden DOS columnas de mas que herramientas, a proposito, para que
-    # los botones no se estiren a todo el ancho. Las dos ultimas quedan vacias.
-    for columna, herramienta in zip(enlaces, EXTERNAL_TOOLS):
-        with columna:
-            st.link_button(
-                f"↗ {herramienta.name}", herramienta.url, help=herramienta.tooltip,
-                width="stretch",
-            )
-    st.caption(
-        "Servicios externos, para contrastar. Sus direcciones no se han podido "
-        "comprobar desde este entorno y **ningun código las llama**: se abren a mano. "
-        "El score que devuelva miRarchitect entra por `tools/import_scores.py`, nunca "
-        "calculado aquí."
-    )
+
+def _cabecera_paso(numero: int, guia) -> None:
+    """El encabezado de un paso: numero pequeño, titulo llano grande, y por que."""
+    st.markdown(f'<div class="sd-paso">Paso {numero}</div>', unsafe_allow_html=True)
+    st.header(guia["titulo"], anchor=False)
+    st.markdown(f'<div class="sd-lede">{guia["que_se_pide"]}</div>',
+                unsafe_allow_html=True)
+    st.caption(guia["por_que"])
+
+
+def main() -> None:
+    st.set_page_config(page_title="shmir-design", layout="wide")
+    _estilo()
+    st.title("shmir-design")
+
+    # EL INICIO, que no existia. Sin el, la primera pantalla es un formulario sin
+    # pregunta: quien entra no sabe si esta herramienta hace lo que necesita.
+    st.markdown(f'<div class="sd-lede">{APP_PURPOSE}</div>', unsafe_allow_html=True)
+    st.info(WHAT_YOU_NEED)
+
+    # Los servicios externos bajan a un desplegable. Arriba del todo eran tres botones
+    # sin contexto delante de alguien que todavia no sabe que hace la app.
+    with st.expander("Servicios externos con los que contrastar un diseño"):
+        enlaces = st.columns(len(EXTERNAL_TOOLS) + 2)
+        # zip-ok: se piden DOS columnas de mas que herramientas, a proposito, para que
+        # los botones no se estiren a todo el ancho. Las dos ultimas quedan vacias.
+        for columna, herramienta in zip(enlaces, EXTERNAL_TOOLS):
+            with columna:
+                st.link_button(
+                    f"↗ {herramienta.name}", herramienta.url, help=herramienta.tooltip,
+                    width="stretch",
+                )
+        st.caption(
+            "Sus direcciones no se han podido comprobar desde este entorno y **ningun "
+            "código las llama**: se abren a mano. El score que devuelva miRarchitect "
+            "entra por `tools/import_scores.py`, nunca calculado aquí."
+        )
     st.divider()
 
     umbrales, config, min_bloque = panel_umbrales()
@@ -870,19 +967,22 @@ def main() -> None:
     # —«modelo»— parece configurado y deja la colision de seed y la especificidad rotas
     # sin decir por que. Las opciones salen de `species.SPECIES`; la pagina no tiene
     # ninguna lista propia.
-    st.subheader("1) Especie")
+    _cabecera_paso(1, step_plain(1))
     opciones = species_options()
-    elegida = st.selectbox(
-        "Especie del diseño",
-        [o["valor"] for o in opciones],
-        index=species_default(),
-        placeholder="elige una — no hay valor por defecto",
-        format_func=lambda v: next(o["etiqueta"] for o in opciones if o["valor"] == v),
-        help=(
-            "Determina el prefijo de miRBase, el taxid y el ensamblaje. Ninguno de los "
-            "tres se deduce del nombre."
-        ),
-    )
+    # El desplegable, ESTRECHO, y la nota a su derecha. A todo lo ancho, la frase que
+    # explica que pasa con esa especie caia debajo y a 14 px.
+    izquierda, derecha = st.columns([2, 3])
+    with izquierda:
+        elegida = st.selectbox(
+            "Especie",
+            [o["valor"] for o in opciones],
+            index=species_default(),
+            placeholder="elige una",
+            format_func=lambda v: next(
+                o["etiqueta"] for o in opciones if o["valor"] == v
+            ),
+            label_visibility="collapsed",
+        )
     nombre_modelo = elegida or ""
     if elegida is not None and species_needs_name(elegida):
         # Que frentes quedan cerrados se dice AL ELEGIR la opcion, no despues de
@@ -900,13 +1000,18 @@ def main() -> None:
         )
     if nombre_modelo and not species_needs_name(elegida or ""):
         nota = species_choice_note(nombre_modelo)
+        llano = species_plain(nombre_modelo)
+        with derecha:
+            # LO LLANO DELANTE, el detalle tecnico un clic mas adentro. No se sustituye:
+            # los tres identificadores deciden contra que catalogos se comprueba, y
+            # borrarlos seria perder la procedencia.
+            (st.warning if llano["bloquea"] else st.success)(llano["texto"])
+            with st.expander("Qué identificadores se van a usar"):
+                st.caption(llano["detalle"])
         if nota["bloquea"]:
-            st.warning(nota["texto"])
             for cerrado in nota["cerrados"]:
                 st.caption(f"· {cerrado}")
             st.caption(f"**Como declararla:** {nota['como_declararla']}")
-        else:
-            st.success(nota["texto"])
 
 
     st.sidebar.header("Otros ajustes")
@@ -930,13 +1035,14 @@ def main() -> None:
 
     if not nombre_modelo:
         st.info(
-            "Elige una especie para seguir. Sin ella no se sabe que ficheros hacen falta "
-            "ni se puede comprobar que los que hay son de esta especie."
+            "Elige una especie para continuar. Sin saberla no se puede comprobar nada: "
+            "los catálogos con los que se contrasta un diseño son distintos en cada "
+            "animal."
         )
         return
 
     # ── PASO 2 · SECUENCIA ──────────────────────────────────────────────────────
-    st.subheader("2) Secuencia")
+    _cabecera_paso(2, step_plain(2))
     columnas = st.columns(2)
     with columnas[0]:
         modelo = _panel_biblioteca(
@@ -991,20 +1097,18 @@ def main() -> None:
         directory=reference_dir(),
         designed=st.session_state.get("accion") == "diseñar",
     )
-    st.subheader(f"3) {pasos[2]['titulo']}")
-    st.info(pasos[2]["detalle"])
-    # Por que son DOS pasos y no uno. Va aqui, donde se nota la ausencia de la lista
-    # larga: sin esta frase, un paso 3 vacio se lee como un paso que no hace nada.
-    st.caption(WHY_TWO_MOMENTS)
-    for fila in design_files_rows(nombre_modelo, directory=reference_dir())["filas"]:
-        with st.container(border=True):
-            st.markdown(f"{fila['marca']} **{fila['nombre']}** — {fila['por_que']}")
-            _fila_ausente(fila, reference_dir())
+    # EL PASO DE «FICHEROS DE REFERENCIA PARA DISEÑAR» YA NO ESTA AQUI, y no es una
+    # supresion: es que su lista esta VACIA —para obtener candidatos no hace falta
+    # ningun fichero— y un paso vacio delante del boton hace creer que falta algo. Lo
+    # que si hace falta para refinar se pide DESPUES, en su sitio. Es la doctrina de los
+    # dos momentos (`WHY_TWO_MOMENTS`) aplicada tambien a la pantalla, no solo al texto.
 
     if not modelo:
         st.info(
-            "Sube al menos un FASTA de mRNA para seguir. Con dos se buscan además los "
-            "bloques conservados entre ellos."
+            "Sube la secuencia del mensajero que quieres apagar y podrás continuar. Si "
+            "subes también la de otra especie, se buscan además los tramos idénticos "
+            "entre las dos — que son los sitios donde un mismo shmiR valdría para las "
+            "dos."
         )
         _deposito_opcional(nombre_modelo)
         return
@@ -1081,21 +1185,21 @@ def main() -> None:
     # Sin esto la pagina lanzaba el diseño entero en cuanto se subia un FASTA, asi que
     # una corrida de minutos —manifiesto conectado y accesibilidad— empezaba sin avisar
     # y la estimacion no habria servido de nada: llegaba cuando ya estaba corriendo.
-    st.subheader("4) Diseñar")
-    st.caption(pasos[3]["detalle"])
-    acciones = st.columns([1, 1, 4])
+    _cabecera_paso(3, step_plain(3))
+    acciones = st.columns([2, 2, 3])
     with acciones[0]:
+        if st.button(BUTTON_DESIGN, type="primary", width="stretch"):
+            st.session_state["accion"] = "diseñar"
+    with acciones[1]:
         if st.button(
-            "Estimar coste",
+            BUTTON_ESTIMATE,
+            width="stretch",
             help=(
-                "Mide una invocación real de cada filtro caro y multiplica. No diseña "
-                "nada: sirve para saber si esto son segundos o minutos."
+                "Cronometra una pasada de los criterios más lentos y multiplica. No "
+                "busca nada: sólo dice si esto son segundos o minutos."
             ),
         ):
             st.session_state["accion"] = "estimar"
-    with acciones[1]:
-        if st.button("Diseñar", type="primary"):
-            st.session_state["accion"] = "diseñar"
 
     accion = st.session_state.get("accion")
     if accion is None:
@@ -1153,8 +1257,9 @@ def main() -> None:
         )
         if conservacion is None:
             st.info(
-                "Una sola especie: no hay bloques conservados que buscar. Sube una "
-                "segunda para compararlas."
+                "Con una sola especie no hay nada que comparar. Si subes la secuencia de "
+                "otra, se buscan los tramos idénticos entre las dos: son los únicos "
+                "sitios donde un mismo shmiR podría servir para las dos."
             )
 
         # El proyecto: uno por especie analizada. Se abre AQUI, con la anatomia ya

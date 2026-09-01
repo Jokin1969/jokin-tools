@@ -1,4 +1,7 @@
 frente = "intron_sin_criptico"
+titulo_llano = "Una versión de la pieza sin la señal de corte sobrante"
+en_cristiano = """\
+La pieza que se usa hoy lleva dentro una señal de corte de más, y viaja con cualquier guía. Ésta es la propuesta de quitarla sin romper nada de lo demás."""
 pregunta = """\
 ¿Se puede quitar el donante críptico `GTGAGCG` del flanco 5' de miR-E sin romper nada? \
 Ese donante viaja con CUALQUIER candidato porque está dentro del andamio, y compite por \

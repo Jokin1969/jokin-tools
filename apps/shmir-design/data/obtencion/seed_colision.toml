@@ -1,4 +1,7 @@
 frente = "seed_colision"
+titulo_llano = "¿Se confunde con un microARN de la propia célula?"
+en_cristiano = """\
+La célula fabrica sus propios microARN, y en el cerebro algunos son muy abundantes. Si tu shmiR empieza con las mismas letras que uno de ellos competirá con él, y de paso alterará todos los genes que ese microARN controla."""
 pregunta = """\
 ¿La seed de esta hebra es la de un miARN maduro conocido y abundante? Compartir seed con \
 uno del núcleo no da off-targets dispersos: secuestra un programa regulador neuronal \

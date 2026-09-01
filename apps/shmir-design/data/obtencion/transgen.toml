@@ -1,4 +1,7 @@
 frente = "transgen"
+titulo_llano = "¿Apagaría también el propio tratamiento?"
+en_cristiano = """\
+El tratamiento se administra dentro de un virus que lleva su propia copia del gen. Si el shmiR se pega también a esa copia, apaga la terapia a la vez que la diana. No se notaría: parecería sencillamente que el tratamiento no funciona."""
 pregunta = """\
 ¿Esta guía impacta contra el TRANSGÉN del casete terapeutico? Es una segunda base de \
 especificidad, y falla duro con cero o un desapareamiento: una guía a un solo \

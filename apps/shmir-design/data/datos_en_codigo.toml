@@ -273,3 +273,15 @@ Un test recorre el fuente del modulo y falla si aparece cualquier cadena de 20 o
 caracteres de A/C/G/T/U: tecleada aqui, una secuencia seria una reconstruccion (regla 1). \
 Va en codigo A PROPOSITO porque es la fuente unica de la pregunta «se puede montar un \
 modulo con este andamio», y en un fichero se podria cambiar sin que se viera en el diff."""
+
+[[constante]]
+simbolo = "presentation._STEP_PLAIN"
+categoria = "declaracion"
+motivo = """\
+Que se pide en cada paso y POR QUE, en lenguaje llano. No es dato de ninguna especie: no \
+cambia al cambiar de raton a conejo, y no describe el material sino la HERRAMIENTA. Es \
+una decision del proyecto sobre como se explica lo que hace, del mismo tipo que \
+`offtarget.CONTROL_NAMES`: en un fichero se podria reescribir sin que se viera en el \
+diff, y lo que se leeria distinto seria la primera pantalla de todo el que abre la app. \
+Ademas lo cruza `tests/test_lenguaje_llano.py` en las dos direcciones: un paso sin \
+explicacion ABORTA, y la explicacion no puede usar jerga."""

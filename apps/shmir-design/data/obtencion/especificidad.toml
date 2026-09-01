@@ -1,4 +1,7 @@
 frente = "especificidad"
+titulo_llano = "¿Se pega también a otros genes?"
+en_cristiano = """\
+Tu shmiR está pensado para apagar un gen y sólo uno. Esta comprobación busca si su secuencia se parece lo bastante a la de otros mensajeros de la célula como para apagarlos también. Se contesta comparándola contra un catálogo de los mensajeros conocidos de tu especie."""
 pregunta = """\
 ¿Esta guía tiene complementariedad EXTENSA con algun otro transcrito? Es la pregunta de \
 los alineamientos, y la contesta un BLAST contra una base de transcritos."""

@@ -48,11 +48,21 @@ class TestArranque(unittest.TestCase):
         textos = " ".join(info.value for info in app.info)
         self.assertIn("Elige una especie", textos)
 
-    def test_y_el_FASTA_se_pide_DESPUES_de_elegirla(self):
+    def test_y_la_SECUENCIA_se_pide_DESPUES_de_elegirla(self):
+        """La invariante es el ORDEN, no la palabra.
+
+        Este test decia `assertIn("FASTA", ...)` y empezo a fallar cuando el mensaje paso
+        a hablar de «la secuencia del mensajero» en vez del formato del fichero — que es
+        una mejora, no una regresion. Anclar una invariante a una palabra concreta la
+        rompe cada vez que alguien escribe mejor la frase, y el arreglo comodo habria
+        sido devolver la jerga.
+        """
         app = self.run_app()
         app.selectbox[0].set_value("Mus musculus").run()
-        textos = " ".join(info.value for info in app.info)
-        self.assertIn("FASTA", textos)
+        textos = " ".join(info.value for info in app.info).lower()
+        self.assertIn("sube la secuencia", textos)
+        # Y que ya NO pide la especie: eso es lo que demuestra que se paso de paso.
+        self.assertNotIn("elige una especie", textos)
 
     def test_los_umbrales_muestran_su_valor_por_defecto(self):
         app = self.run_app()

@@ -1,6 +1,9 @@
 # Ficha de obtencion — se versiona en git. Es documentacion, no un fichero de datos
 # grande: se lee con `cat` y no hace falta la app para consultarla.
 frente = "repeticiones"
+titulo_llano = "¿Cae en un tramo repetido del genoma?"
+en_cristiano = """\
+Hay tramos que aparecen miles de veces repartidos por el genoma. Un shmiR dirigido a uno de ellos tendría miles de sitios donde pegarse. Y además, un tramo repetido dentro del virus con el que se administra el tratamiento lo vuelve inestable."""
 pregunta = """\
 ¿La ventana cae dentro de un elemento repetitivo? Importa por dos cosas distintas: un \
 tramo repetitivo dentro del casete AAV es sustrato de recombinación, y una guía contra \
