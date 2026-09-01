@@ -871,6 +871,11 @@ def blast_warnings(params) -> list[dict[str, object]]:
         })
     if not params.can_give_verdict:
         avisos.append({"bloquea": True, "texto": params.why_no_verdict})
+    # DE DONDE SALE EL FILTRO DE ORGANISMO en esta corrida. Sale siempre y no bloquea:
+    # las dos vias son defendibles, y lo que no lo es es creer que la orden filtra
+    # cuando no filtra. Ver `blast.BlastParams.organism_note`.
+    if params.entrez_query:
+        avisos.append({"bloquea": False, "texto": params.organism_note()})
     # Este sale SIEMPRE, con o sin ajustes tocados: no bloquea ESTE modal, pero deja
     # claro que un PASS aqui no cubre el otro frente.
     avisos.append(

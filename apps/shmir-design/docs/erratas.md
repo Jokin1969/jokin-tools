@@ -1515,3 +1515,71 @@ cadena fija no puede decir lo que pasa cuando lo que pasa depende del estado.
   byte a byte. Ahora lo fija `TestLaBibliotecaSOBREVIVEalRedespliegue`, con su control
   adversario —que el directorio esté de verdad fuera del paquete—, porque si viviera
   dentro los otros dos tests pasarían igual.
+
+## 40 — La orden llevaba `-entrez_query` y la ficha mandaba correrla en LOCAL
+
+**Qué pasó.** El modal de especificidad emitía siempre esta orden:
+
+```
+blastn -task blastn-short -db refseq_rna -word_size 7 -evalue 1000 -dust no \
+       -outfmt 6 -entrez_query "txid10090[ORGN]" -query consulta.fasta
+```
+
+Y dos pantallas más allá, el paso 4 de `data/obtencion/especificidad.toml` decía:
+«Ejecútalo contra una base **LOCAL**… Sólo una base local con md5 cierra el frente.»
+
+**`-entrez_query` es un filtro del SERVICIO de Entrez, no de `blastn`.** Es una consulta
+al índice de NCBI, así que sólo tiene a quién preguntársela con `-remote`; contra una
+base local no hay Entrez al que consultar. BLAST+ lo declara en su propia ayuda
+(`-entrez_query … * Requires: remote`).
+
+### Las dos instrucciones se contradecían, y la contradicción se cobraba tarde
+
+Quien siguiera la ficha se llevaba **varios GB de base** primero y descubría el conflicto
+**después**, al lanzar la única orden que la app le había dado. El coste no es el error:
+es *cuándo* llega.
+
+### Y no depende de que `blastn` aborte
+
+Este entorno no tiene BLAST+ instalado, así que **no se ha ejecutado la orden para
+verlo** — y da igual, porque las dos salidas posibles son malas y una es peor:
+
+- si **aborta**, se pierde la descarga y hay que averiguar por qué;
+- si lo **ignorase**, la corrida saldría contra `refseq_rna` **entera** con el veredicto
+  presentándose como restringido a la especie. Eso es exactamente el `.out` sin resumen:
+  un resultado con la forma correcta obtenido contra otra cosa.
+
+Lo que hace falso el par no es el comportamiento del binario: es que **la orden decía
+filtrar por organismo y el destino que la ficha manda no puede filtrar así**.
+
+### Lo que se ha hecho
+
+- **La orden sale coherente con su destino** (`BlastParams.command`): `-entrez_query`
+  entra **sólo** cuando `remote=True`, junto a `-remote`. Lo demás no se toca.
+- **El organismo se sigue exigiendo SIEMPRE**, también en local: es la **identidad** de la
+  corrida y viaja con ella al almacén (`describe()`). Lo exigía de rebote
+  `entrez_expression()`, así que al dejar de llamarse en local el guardia se habría caído
+  con el filtro: ahora se llama explícitamente al principio de `command()`, con el motivo
+  escrito al lado.
+- **Adónde se fue el filtro se DICE, no se calla** (`BlastParams.organism_note`, emitido
+  por `presentation.blast_warnings` como aviso **que no bloquea**). En local la
+  restricción pasa a ser una propiedad de la **BASE**: o se construye una sólo con
+  transcritos de la especie (`makeblastdb`), o se corre contra la completa **leyendo que
+  los aciertos de otros organismos están dentro del resultado**. Los dos son defendibles;
+  creer que la orden filtra cuando no filtra, no.
+- **El paso 4 de la ficha era una línea para una instalación y una descarga de varios GB.**
+  Ahora son cuatro pasos: instalar BLAST+, bajar la base **ya formateada**
+  (`update_blastdb.pl --decompress refseq_rna`, que llega en volúmenes numerados que son
+  una sola base), **comprobar que se lee antes de lanzar nada**
+  (`blastdbcmd -db refseq_rna -info`, que además da dos de los tres metadatos que hay que
+  anotar) y ejecutar desde el directorio de la base o con `-db` completo.
+
+### La regla que deja
+
+**Una orden que se copia y una instrucción que se lee son la misma instrucción**, y nadie
+las pone una al lado de otra: la orden la genera el código y el paso lo escribe una
+persona. Es la errata nº 28 —ficha, listado y nombres desincronizados— sobre la
+superficie que el usuario ejecuta en vez de la que prepara. `TestLaOrdenTIENEqueCORRERdondeSeDICE`
+lo fija por los dos lados: que la orden local no lleve `-entrez_query` ni `-remote`, que
+la remota lleve los dos, y que la nota del organismo llegue **a la pantalla** —no basta
+con que exista— sin bloquear.

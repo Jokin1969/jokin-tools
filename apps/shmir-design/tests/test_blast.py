@@ -68,17 +68,38 @@ class TestLosParametrosPorDefecto(unittest.TestCase):
         self.assertFalse(otros.is_standard)
 
     def test_la_orden_lleva_TODOS_los_parametros_no_solo_los_cambiados(self):
+        """El `txid` ya NO sale en la orden LOCAL: `-entrez_query` es sólo de `-remote`.
+
+        Sigue exigiéndose —`command()` aborta sin organismo— y sigue viajando con la
+        corrida en `describe()`. Lo que cambia es de dónde sale el filtro, no si se sabe
+        cuál era. Ver `TestLaOrdenTIENEqueCORRERdondeSeDICE` y errata nº 40.
+        """
         orden = blast.BlastParams.for_species('raton').command(query_path="q.fasta")
         for trozo in (
             "-task blastn-short", "-word_size 7", "-evalue 1000", "-dust no",
-            "-outfmt 6", "-db refseq_rna", "txid10090", "-query q.fasta",
+            "-outfmt 6", "-db refseq_rna", "-query q.fasta",
         ):
             self.assertIn(trozo, orden)
+        self.assertNotIn("txid10090", orden)
+        self.assertIn("txid10090", " ".join(
+            blast.BlastParams.for_species('raton').describe()
+        ))
 
-    def test_excluir_predichos_se_ve_en_la_orden(self):
-        sin = blast.BlastParams.for_species("raton", include_predicted=False)
+    def test_excluir_predichos_se_ve_en_la_orden_REMOTA(self):
+        """En LOCAL no se pueden excluir por la orden, y no hace falta.
+
+        La exclusión viaja dentro de la expresión de Entrez, que sólo existe con
+        `-remote`. Localmente un hit contra un modelo predicho se distingue por su
+        PREFIJO al leer el resultado (`PREDICTED_PREFIXES`) — sobre el dato y no
+        filtrando antes, que además es mejor: un hit excluido antes de mirarlo no se
+        puede contar.
+        """
+        sin = blast.BlastParams.for_species(
+            "raton", include_predicted=False, remote=True
+        )
         self.assertIn("NOT", sin.command(query_path="q.fasta"))
-        self.assertIn("biomol_mrna", sin.command(query_path="q.fasta").lower() + "biomol_mrna")
+        local = blast.BlastParams.for_species("raton", include_predicted=False)
+        self.assertNotIn("NOT", local.command(query_path="q.fasta"))
 
     def test_remote_se_ve_en_la_orden(self):
         con = blast.BlastParams.for_species("raton", remote=True)
@@ -246,3 +267,106 @@ class TestElParseoDelOutfmt6(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLaOrdenTIENEqueCORRERdondeSeDICE(unittest.TestCase):
+    """`-entrez_query` es SÓLO para `-remote`, y la ficha manda correr en LOCAL.
+
+    La orden salía siempre con `-entrez_query "txid10090[ORGN]"` y sin `-remote`, así que
+    contra una base local `blastn` la rechaza. Y dos líneas más abajo la ficha decía
+    «ejecútalo contra una base LOCAL; sólo una base local con md5 cierra el frente».
+    **Las dos instrucciones se contradecían: la orden que damos no puede correr en el
+    sitio donde decimos que se corra**, y quien la copiaba se estrellaba después de
+    bajarse varios GB.
+
+    No es un fallo de cálculo: es la app mandando hacer una cosa imposible. La misma
+    familia que el `.out` a solas abriendo el frente de repetitivos — la pantalla decía
+    una cosa y el cargador hacía otra.
+    """
+
+    def test_LOCAL_no_lleva_entrez_query(self):
+        orden = blast.BlastParams.for_species("raton").command(query_path="q.fa")
+        self.assertNotIn("-entrez_query", orden)
+        self.assertNotIn("-remote", orden)
+
+    def test_REMOTO_si_lo_lleva(self):
+        from dataclasses import replace
+
+        params = replace(blast.BlastParams.for_species("raton"), remote=True)
+        orden = params.command(query_path="q.fa")
+        self.assertIn("-remote", orden)
+        self.assertIn('-entrez_query "txid10090[ORGN]"', orden)
+
+    def test_la_orden_local_SIGUE_llevando_todo_lo_demas(self):
+        """Quitar el filtro no es quitar los ajustes: siguen explícitos, no por defecto."""
+        orden = blast.BlastParams.for_species("raton").command(
+            query_path="q.fa", out_path="r.tsv"
+        )
+        for trozo in ("-task blastn-short", "-word_size 7", "-evalue 1000",
+                      "-dust no", "-outfmt 6", "-db refseq_rna",
+                      "-query q.fa", "-out r.tsv"):
+            self.assertIn(trozo, orden)
+
+    def test_y_se_DICE_de_donde_sale_el_filtro_de_organismo_en_local(self):
+        """Que el filtro desaparezca de la orden no puede ser silencioso.
+
+        La restricción a la especie no se pierde: pasa a ser una propiedad de la BASE.
+        Si no se dijera, una corrida contra `refseq_rna` entero se leería como si
+        estuviera restringida a ratón.
+        """
+        nota = blast.BlastParams.for_species("raton").organism_note().lower()
+        self.assertIn("organismo", nota)
+        self.assertIn("base", nota)
+        self.assertIn("makeblastdb", nota)
+
+    def test_y_en_REMOTO_la_nota_dice_que_va_en_la_orden(self):
+        from dataclasses import replace
+
+        nota = replace(
+            blast.BlastParams.for_species("raton"), remote=True
+        ).organism_note()
+        self.assertIn("-entrez_query", nota)
+
+    def test_la_nota_LLEGA_al_modal(self):
+        """Regla 6: quien decide es `presentation`, y esto comprueba que se pinta."""
+        from shmir_design.presentation import blast_warnings
+
+        avisos = blast_warnings(blast.BlastParams.for_species("raton"))
+        textos = [a["texto"] for a in avisos]
+        self.assertTrue(
+            any("makeblastdb" in t for t in textos), textos
+        )
+        self.assertTrue(
+            all(not a["bloquea"] for a in avisos if "makeblastdb" in a["texto"])
+        )
+
+    def test_el_organismo_SIGUE_viajando_con_la_corrida_aunque_no_este_en_la_orden(self):
+        """Se emite en `describe()`, que es lo que se guarda: la identidad no se pierde."""
+        params = blast.BlastParams.for_species("raton")
+        self.assertIn("txid10090", " ".join(params.describe()))
+
+    def test_y_una_corrida_LOCAL_estandar_SIGUE_pudiendo_dar_veredicto(self):
+        self.assertTrue(blast.BlastParams.for_species("raton").can_give_verdict)
+
+
+class TestLosPREDICHOSseCLASIFICANdespues(unittest.TestCase):
+    """En local no se pueden excluir por la orden, y no hace falta.
+
+    La exclusión de `XM_`/`XR_` viajaba dentro de la expresión de Entrez, así que al
+    quitarla del camino local desaparecería de la orden. No se pierde nada: el módulo ya
+    distingue un hit contra un modelo PREDICHO de uno contra un transcrito curado por su
+    prefijo, o sea sobre el DATO y no filtrando antes. Es mejor así — un hit excluido
+    antes de mirarlo no se puede contar.
+    """
+
+    def test_los_prefijos_de_predichos_estan_declarados(self):
+        self.assertEqual(blast.PREDICTED_PREFIXES, ("XM_", "XR_", "XP_"))
+
+    def test_y_la_expresion_de_entrez_los_sigue_excluyendo_cuando_se_pide(self):
+        from dataclasses import replace
+
+        params = replace(
+            blast.BlastParams.for_species("raton"),
+            remote=True, include_predicted=False,
+        )
+        self.assertIn("XM_[ACCN]", params.command(query_path="q.fa"))

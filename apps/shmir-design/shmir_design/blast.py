@@ -150,7 +150,25 @@ class BlastParams:
         return " AND ".join(partes)
 
     def command(self, *, query_path: str, out_path: str | None = None) -> str:
-        """La orden `blastn` COMPLETA. Todos los parametros, no solo los cambiados."""
+        """La orden `blastn` COMPLETA. Todos los parametros, no solo los cambiados.
+
+        **`-entrez_query` SOLO va con `-remote`**, y esto se aprendio de la peor manera:
+        la orden lo llevaba siempre, asi que contra una base LOCAL `blastn` la rechaza —
+        y la ficha, dos lineas mas abajo, mandaba correrla en local. Las dos
+        instrucciones se contradecian y quien copiaba la orden se estrellaba DESPUES de
+        bajarse varios GB de base. Ver errata nº 40.
+
+        En local la restriccion a la especie no desaparece: **pasa a ser una propiedad de
+        la BASE**, y eso se dice en los avisos en vez de dejar que se pierda en silencio.
+        El organismo sigue viajando con la corrida (`describe()`), que es lo que se
+        guarda: lo que cambia es de donde sale el filtro, no si se sabe cual era.
+        """
+        # El ORGANISMO se exige SIEMPRE, tambien en local, aunque en local no salga en la
+        # orden: es la IDENTIDAD de la corrida y viaja con ella al almacen. Sin el, la
+        # corrida no se puede leer dentro de un año — «¿contra que organismo era esto?».
+        # Antes lo exigia `entrez_expression()` de rebote, asi que al dejar de llamarse
+        # en local el guardia se habria caido con el filtro.
+        self.entrez_expression()
         trozos = [
             "blastn",
             f"-task {self.task}",
@@ -159,14 +177,38 @@ class BlastParams:
             f"-evalue {self.evalue:g}",
             f"-dust {self.dust}",
             f"-outfmt {self.outfmt}",
-            f'-entrez_query "{self.entrez_expression()}"',
             f"-query {query_path}",
         ]
         if self.remote:
             trozos.insert(3, "-remote")
+            # El filtro de Entrez es del servicio de NCBI, no de `blastn`: sin `-remote`
+            # no hay a quien preguntarselo.
+            trozos.insert(-1, f'-entrez_query "{self.entrez_expression()}"')
         if out_path:
             trozos.append(f"-out {out_path}")
         return " ".join(trozos)
+
+    def organism_note(self) -> str:
+        """De donde sale la restriccion a la especie en ESTA corrida.
+
+        No es cosmetico: sin esta frase, una corrida local contra `refseq_rna` entero se
+        leeria como si estuviera restringida al organismo declarado, que es justo lo que
+        el aviso del `.out` sin especie existe para impedir.
+        """
+        if self.remote:
+            return (
+                f"El filtro de ORGANISMO ({self.entrez_query}) va en la orden, en "
+                f"`-entrez_query`, y lo aplica el servicio de NCBI."
+            )
+        return (
+            f"El filtro de ORGANISMO ({self.entrez_query}) NO va en la orden: "
+            f"`-entrez_query` sólo funciona con `-remote`. En una corrida LOCAL la "
+            f"restricción tiene que venir de la BASE — o construyes una sólo con "
+            f"transcritos de esa especie (`makeblastdb`), o corres contra la base "
+            f"completa y lees que los aciertos de otros organismos están DENTRO del "
+            f"resultado. Los dos son defendibles; lo que no lo es es creer que la orden "
+            f"filtra cuando no filtra."
+        )
 
     def describe(self) -> list[str]:
         tocados = self.modified()

@@ -86,10 +86,12 @@ COMO CERRAR EL FRENTE «especificidad»
   PASOS:
     1. Abre el modal de especificidad en la app y marca los candidatos y las hebras que quieras consultar.
     2. Descarga el FASTA de consulta que genera la app. Lleva su md5: no lo edites.
-    3. Copia el comando que la app deja listo. Ya trae los ajustes buenos para una consulta corta: `-task blastn-short`, `-word_size 7`, `-evalue 1000`, `-dust no`, `-outfmt 6`.
-    4. Ejecutalo contra una base LOCAL: descarga `refseq_rna` del FTP de BLAST del NCBI y apunta su fecha y su md5. Solo una base local con md5 cierra el frente.
-    5. Filtra por organismo con el taxid de la especie: txid10090
-    6. Sube el `-outfmt 6` tal cual, sin recortarlo.
+    3. Instala BLAST+ del NCBI, que es lo que trae `blastn`, `update_blastdb.pl` y `blastdbcmd`. Sin esto no hay nada que ejecutar.
+    4. Descarga la base `refseq_rna` YA FORMATEADA, no el FASTA: `update_blastdb.pl --decompress refseq_rna`. Son varios GB y llegan en volúmenes numerados (`refseq_rna.00.*`, `refseq_rna.01.*`…) que son UNA sola base; no falta ninguno por que los ficheros se llamen distinto. La ruta del FTP es la de arriba, por si prefieres bajarlos a mano.
+    5. Comprueba que la base se lee ANTES de lanzar nada: `blastdbcmd -db refseq_rna -info`. Da el número de secuencias y la FECHA, que son dos de los tres metadatos que hay que anotar. Si esto falla, el BLAST también falla — y falla después de horas.
+    6. Copia el comando que la app deja listo, TAL CUAL. Trae los ajustes de una consulta corta (`-task blastn-short`, `-word_size 7`, `-evalue 1000`, `-dust no`) y `-outfmt 6` a secas. Cambiar cualquiera de ellos no es un detalle: viaja con el resultado y se marca en rojo.
+    7. Ejecútalo desde el directorio donde está la base, o pásale la ruta completa en `-db`, o declara `BLASTDB`. Con `-db refseq_rna` a secas desde otro sitio, `blastn` no la encuentra.
+    8. Sube el `-outfmt 6` tal cual, sin recortarlo.
 
   QUE ANOTAR AL DESCARGARLO (sin esto no es reproducible):
     · nombre, versión y md5 de la base
@@ -102,6 +104,7 @@ COMO CERRAR EL FRENTE «especificidad»
   COMO SE VALIDA AL SUBIRLO: Al subir el resultado la app comprueba DOS cosas y las dos rechazan: que el md5 del FASTA de consulta que declaras sea el del FASTA que ella genero, y que toda `query` del resultado este en el panel. Es el fallo del CSV de miRarchitect —un fichero de otra corrida que entra, cuadra de forma y produce un análisis entero sobre el dato equivocado— y el mensaje lo nombra. Un `-outfmt 6` VACÍO también se rechaza: cero hits y «la corrida no llego a correr» son cosas distintas y ese fichero no las distingue.
 
   AVISOS:
+    ⚠ EL FILTRO POR ORGANISMO NO VA EN LA ORDEN LOCAL. `-entrez_query` lo aplica el servicio de NCBI, así que sólo funciona con `-remote` — y `-remote` no da veredicto. En una corrida local la restricción a la especie tiene que venir de la BASE: o construyes una sólo con transcritos de Mus musculus (`makeblastdb`), o corres contra `refseq_rna` entera y lees que los aciertos de otros organismos están DENTRO del resultado. Los dos son defendibles; creer que la orden filtra cuando no filtra, no. El organismo (txid10090) viaja igual con la corrida: es su identidad, no un ajuste.
     ⚠ ESTA APP NO LANZA EL BLAST Y NO PUEDE: el navegador no puede llamar a NCBI (CORS) y el backend no tiene red saliente. No es una limitacion escondida: es la arquitectura, y el modal lo dice.
     ⚠ `-remote` es EXPLORACION, NUNCA VEREDICTO. La base de NCBI cambia entre corridas, así que un resultado remoto no es reproducible. Solo una base LOCAL con md5 cierra el frente.
     ⚠ ESTE FRENTE NO CUBRE LOS OFF-TARGETS POR SEED. Son dos frentes y el otro es `offtarget_seed`: 7 nt contiguos no dan un alineamiento puntuable, así que ningún BLAST los devuelve. Un «especificidad: PASS» sin esa frase invita a creer que la guía está comprobada cuando lo comprobado son los alineamientos.

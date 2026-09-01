@@ -1408,6 +1408,28 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - **`-remote` es EXPLORACIÓN, nunca veredicto**, con el motivo visible: la base de NCBI
     **cambia entre corridas**, así que no es reproducible. Sólo una base **local con md5**
     cierra el frente.
+  - **`-entrez_query` VA SÓLO CON `-remote`, y la orden ya no se contradice con la ficha.
+    CORREGIDO (2026-09-01)**, errata nº 40. La orden lo llevaba **siempre** y el paso 4 de
+    su ficha mandaba correrla contra una base **LOCAL**: es un filtro del servicio de
+    Entrez, así que en local no hay a quién preguntárselo. La contradicción se cobraba
+    **después** de bajarse varios GB.
+    - **El organismo se sigue exigiendo SIEMPRE**, también en local: es la **identidad** de
+      la corrida y viaja con ella al almacén. Lo exigía de rebote `entrez_expression()`,
+      así que al dejar de llamarse en local el guardia se habría caído con el filtro; ahora
+      se llama explícitamente.
+    - **Adónde se fue el filtro se DICE** (`organism_note`, aviso que **no bloquea**): en
+      local la restricción es una propiedad de la **BASE** —`makeblastdb` con una sola
+      especie, o leer que los aciertos de otros organismos están dentro del resultado—.
+      Callarlo dejaría un veredicto contra `refseq_rna` **entera** presentándose como
+      restringido a la especie, que es el `.out` sin resumen otra vez.
+    - **Y NO depende de que `blastn` aborte**, que aquí no se ha podido ejecutar: si
+      abortara se pierde la descarga, y si lo ignorara el veredicto saldría contra otra
+      cosa con la forma correcta. Lo falso era el par, no el binario.
+    - **El paso 4 de la ficha era UNA línea para instalar y descargar varios GB.** Ahora
+      son cuatro: instalar BLAST+, `update_blastdb.pl --decompress refseq_rna` (llega en
+      volúmenes numerados que son **una** base), **comprobar que se lee antes de lanzar
+      nada** con `blastdbcmd -db refseq_rna -info` —que además da dos de los tres
+      metadatos— y ejecutar desde el directorio de la base o con `-db` completo.
   - **`-outfmt` distinto de 6 aborta al ELEGIRLO**, no al subir el fichero: aceptar un
     formato que el almacén no sabe leer dejaría entrar algo que luego se rechaza sin poder
     decir por qué.
