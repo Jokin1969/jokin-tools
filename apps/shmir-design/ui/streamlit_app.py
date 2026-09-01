@@ -110,6 +110,8 @@ from shmir_design.presentation import (  # noqa: E402
     blast_defaults_for,
     front_help_rows,
     front_card_rows,
+    folding_capability,
+    check_can_emit_dna,
     front_progress,
     informe_documento,
     informe_files,
@@ -555,6 +557,15 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         ),
     )
     if bloques and has_selection(seleccion):
+        # SIN MOTOR DE PLEGADO NO SE EMITE ADN. La pasajera de este modulo se elige
+        # plegando, y sin plegado se elegiria con la regla que este proyecto descarto
+        # por escrito — y esto se manda a sintetizar. Ver `check_can_emit_dna`.
+        try:
+            check_can_emit_dna()
+        except ShmirDesignError as exc:
+            # rule2-ok: frontera de la interfaz. No se emite nada y se dice por que.
+            st.error(f"**PARA** — {exc}")
+            return ficheros
         aviso_vector = vector_note(nombre)
         if not aviso_vector["aplica"]:
             st.error(aviso_vector["texto"])
@@ -942,6 +953,13 @@ def main() -> None:
 
     # Los servicios externos bajan a un desplegable. Arriba del todo eran tres botones
     # sin contexto delante de alguien que todavia no sabe que hace la app.
+    # LA CAPACIDAD DEL ENTORNO, arriba y visible. No es un fichero que falte —eso se
+    # consigue— sino algo que se instala en la imagen, y confundirlos manda al usuario a
+    # buscar un fichero que no existe.
+    plegado = folding_capability()
+    if not plegado["disponible"]:
+        st.warning(plegado["texto"])
+
     with st.expander("Servicios externos con los que contrastar un diseño"):
         enlaces = st.columns(len(EXTERNAL_TOOLS) + 2)
         # zip-ok: se piden DOS columnas de mas que herramientas, a proposito, para que

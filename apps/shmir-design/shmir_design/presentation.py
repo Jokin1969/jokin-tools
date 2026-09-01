@@ -4185,3 +4185,70 @@ CANDIDATES_ARE_NOT_THE_END = (
 BUTTON_DESIGN = "Buscar candidatos"
 BUTTON_ESTIMATE = "¿Cuánto va a tardar?"
 BUTTON_CONTINUE = "Seguir: las comprobaciones que faltan"
+
+
+# ─── ViennaRNA: una CAPACIDAD del entorno, no un fichero que falte ──────────────────
+#
+# LA LECCION, y va al registro con esa forma: **un entorno sin una dependencia no falla,
+# DEGRADA** — y aqui degrado a la regla que este proyecto ya habia descartado por
+# escrito. La imagen de produccion no instala ViennaRNA; el nucleo esta preparado para
+# eso y `check_fold` sale `NOT_RUN` en vez de `PASS`, que es correcto. Lo que NO se
+# degrada igual es la regla de la PASAJERA: `passenger_from_guide` elige la base de la
+# posicion 1 PLEGANDO contra SGEP, y sin plegado cae a la tabla por terminacion — la que
+# fallaba con guias acabadas en G por el apareamiento tambaleante G:U, y que fue la
+# primera errata del proyecto.
+#
+# Esa pasajera VA DENTRO DEL MODULO DE 149 nt, o sea dentro de lo que se manda a
+# sintetizar. Un `NOT_RUN` que produce ADN sintetizable no es un `NOT_RUN`: es un `PASS`
+# con letra pequeña. Por eso lo que se comprueba aqui no es que la dependencia este, sino
+# que su ausencia IMPIDA lo que sin ella no se puede hacer.
+
+NO_FOLDING_NOTE = (
+    "**Este servidor no tiene instalado el motor de plegado (ViennaRNA).** Se pueden "
+    "buscar candidatos y se puede correr todo lo demás, pero **no se emite ADN para "
+    "sintetizar**: la hebra pasajera se elige plegando la horquilla y comparándola con "
+    "la del plásmido de referencia, y sin ese cálculo se elegiría por una regla que "
+    "este proyecto ya comprobó que falla con guías acabadas en G."
+)
+
+FOLDING_OK_NOTE = "Motor de plegado disponible: la hebra pasajera se elige plegando."
+
+
+def folding_capability(available: bool | None = None) -> dict[str, object]:
+    """¿Puede este entorno plegar? Es una capacidad AUSENTE, no un fichero que falte.
+
+    Va en la CABECERA de la pagina y no en el campo de un veredicto: un fichero que
+    falta se consigue, y esto no — se instala en la imagen. Confundirlos manda al
+    usuario a buscar un fichero que no existe.
+    """
+    from .folding import VIENNA_AVAILABLE
+
+    hay = VIENNA_AVAILABLE if available is None else bool(available)
+    return {
+        "disponible": hay,
+        "texto": FOLDING_OK_NOTE if hay else NO_FOLDING_NOTE,
+    }
+
+
+def check_can_emit_dna(available: bool | None = None) -> None:
+    """ABORTA si no se puede plegar. Se llama ANTES de emitir cualquier ADN.
+
+    Acotado a la EMISION a proposito: el nucleo y los CLI tienen que seguir corriendo
+    sin ViennaRNA —esta escrito en `docs/dependencias-autorizadas.md`— y abortar el
+    pipeline entero dejaria la app sin hacer lo unico que hoy hace bien. Lo que se
+    prohibe es lo que no se puede deshacer: pedir oligos.
+    """
+    from .folding import VIENNA_AVAILABLE
+
+    hay = VIENNA_AVAILABLE if available is None else bool(available)
+    if not hay:
+        raise ShmirDesignError(
+            "NO SE EMITE ADN SIN EL MOTOR DE PLEGADO. La hebra pasajera de este módulo "
+            "se elige plegando el 97-mero y comparandolo con la estructura de SGEP; sin "
+            "ViennaRNA se elegiria con la tabla por terminacion, que está COMPROBADA "
+            "como incorrecta —le falta el apareamiento tambaleante G:U, así que con una "
+            "guía acabada en G elige una base que deja un bulge de 2 nt en vez de 1—. "
+            "Emitirlo con un `NOT_RUN` al lado no basta: lo que sale de aquí se manda a "
+            "sintetizar. Instala ViennaRNA en el entorno (ver "
+            "`docs/dependencias-autorizadas.md`)."
+        )
