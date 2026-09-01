@@ -1408,6 +1408,36 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - **`-remote` es EXPLORACIÓN, nunca veredicto**, con el motivo visible: la base de NCBI
     **cambia entre corridas**, así que no es reproducible. Sólo una base **local con md5**
     cierra el frente.
+  - **LA BASE SE CONSIGUE POR DOS VÍAS, Y LA RECOMENDADA ES UCSC. AÑADIDO (2026-09-01)**,
+    errata nº 41. La ficha escribía **una sola**, el FTP del NCBI, y la descarga real
+    fueron **80 GB** de transcritos de TODOS los organismos para consultar veinte guías de
+    una. El Table Browser de UCSC da los de la especie del diseño en **decenas de MB**, y
+    sale de la **misma sesión** que `transcriptoma_3utr.fa` —allí «3' UTR Exons», aquí el
+    transcrito entero—. Una ficha que sólo escribe un camino **no recomienda: decide**, y
+    decide sin decir lo que cuesta.
+    - **La del NCBI no se borra**: es la exhaustiva y la única con los **predichos**
+      (`XM_`/`XR_`). Lo que cambia es que ahora se elige, con los dos tamaños delante.
+    - **«RefSeq Curated» NO trae los predichos**, y el aviso lleva la **consecuencia**, no
+      sólo el hecho: cero aciertos contra `XM_`/`XR_` **no es** «no hay off-targets contra
+      predichos», es que no había ninguno en la base. El «Alu 0 %» otra vez.
+    - **`makeblastdb` FALTABA EN LAS DOS, y sin él ninguna corre**: un FASTA no es una base
+      de BLAST. Va **en los pasos, no en un aviso** —un aviso se lee en diagonal— y con
+      test de las dos mitades. Por la vía B hace falta igual aunque la base venga
+      preformateada, por dos razones que se suman: `-entrez_query` no filtra en local, y
+      **la preformateada no deja ningún FASTA que registrar**, así que el manifiesto se
+      quedaría sin el md5 que es toda la procedencia. Las dos vías convergen en
+      `refseq_rna.fa`, y por eso ese md5 significa lo mismo por las dos.
+    - **Los comandos NO se han podido ejecutar desde aquí** (sin BLAST+ y sin red: las dos
+      URL dan 403 en el CONNECT del proxy, que es política de red y no una respuesta del
+      servicio), y **va escrito en la ficha**. Por eso la comprobación no se apoya en que
+      los menús se llamen igual sino en el **resultado**: con Curated las cabeceras
+      empiezan por `NM_`/`NR_`. Y antes de lanzar nada,
+      `blastdbcmd -db <base> -info`.
+    - **`{taxid_numero}` se DERIVA del taxid declarado** (principio nº 13): `-taxids` quiere
+      el número pelado, y un comando que la ficha da para copiar y hay que editar antes de
+      pegarlo no es un comando. Al derivarlo salió que una especie sin taxid abría **dos
+      huecos con el mismo texto** y el panel los pintaba los dos; ahora se avisa una vez, y
+      los dos siguen declarados en `undeclared`.
   - **`-entrez_query` VA SÓLO CON `-remote`, y la orden ya no se contradice con la ficha.
     CORREGIDO (2026-09-01)**, errata nº 40. La orden lo llevaba **siempre** y el paso 4 de
     su ficha mandaba correrla contra una base **LOCAL**: es un filtro del servicio de

@@ -235,6 +235,12 @@ def _values(species) -> dict[str, str]:
         "cientifico": species.scientific,
         "prefijo": species.mirbase_prefix,
         "taxid": species.taxid,
+        # El taxid SIN el prefijo `txid`, que es lo que quiere `blastdbcmd -taxids`. Se
+        # DERIVA del declarado y no se escribe aparte: dos fuentes del mismo numero
+        # envejecen cada una por su lado (principio nº 13). Y no es cosmetico — una
+        # ficha que da un comando para copiar y obliga a recortarlo antes de pegarlo no
+        # esta dando un comando, y quien lo recorte mal se entera al final (errata nº 40).
+        "taxid_numero": species.taxid.removeprefix("txid"),
         "ensamblaje": getattr(species, "ucsc_assembly", ""),
         # El gen diana de esta especie. Sale de `reference.REFERENCES`, que es DATO
         # declarado —`Prnp` en raton, `PRNP` en humano—, no del nombre de la especie ni
@@ -299,6 +305,11 @@ _UNDECLARED = {
         "simbolo de otra: las convenciones de mayusculas cambian entre organismos."
     ),
 }
+
+#: El numero del taxid y el taxid son EL MISMO hueco, asi que comparten texto. Dos
+#: redacciones del mismo agujero acaban discrepando: una diria donde se declara y la
+#: otra no.
+_UNDECLARED["taxid_numero"] = _UNDECLARED["taxid"]
 
 
 def undeclared_note(clave: str, *, cientifico: str) -> str:
@@ -371,9 +382,14 @@ def resolve_ficha(front: str, *, species) -> Ficha:
         return resuelta
     # Un hueco NO se queda solo dentro de un paso: sale ademas como aviso, porque un
     # paso largo se lee en diagonal y esto es lo que impide cerrar el frente.
+    # SIN REPETIR: dos marcadores del mismo dato —`{taxid}` y `{taxid_numero}`— son un
+    # solo agujero y comparten texto, asi que a pelo el mismo aviso salia dos veces. Dos
+    # avisos identicos se leen como dos problemas. `dict.fromkeys` conserva el orden.
     avisos = tuple(
-        _UNDECLARED[clave].format(cientifico=valores["cientifico"])
-        for clave in sorted(huecos)
-        if clave in _UNDECLARED
+        dict.fromkeys(
+            _UNDECLARED[clave].format(cientifico=valores["cientifico"])
+            for clave in sorted(huecos)
+            if clave in _UNDECLARED
+        )
     )
     return Ficha(**{**resuelta.__dict__, "warnings": avisos + resuelta.warnings})

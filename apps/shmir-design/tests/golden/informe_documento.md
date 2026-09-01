@@ -27,7 +27,7 @@ Un frente es una pregunta que hay que contestar antes de pedir oligo. Los cerrad
 
 | frente | estado | que falta | donde se consigue |
 |---|---|---|---|
-| especificidad | NOT_RUN | refseq_rna.fa, el resultado del BLAST en `-outfmt 6` | La app prepara la consulta; el BLAST lo corres tu. La base es RefSeq RNA del NCBI. (https://ftp.ncbi.nlm.nih.gov/blast/db/) |
+| especificidad | NOT_RUN | refseq_rna.fa, el resultado del BLAST en `-outfmt 6` | La app prepara la consulta; el BLAST lo corres tu. La base la construyes por una de DOS vias: el Table Browser de UCSC (recomendada, la especie del diseño, decenas de MB) o el FTP de BLAST del NCBI (exhaustiva, todos los organismos, decenas de GB). (https://genome.ucsc.edu/cgi-bin/hgTables) |
 | repeticion_polimorfica | NOT_RUN | rmsk_mouse.out, rmsk_mouse.tbl | RepeatMasker Web Server (https://www.repeatmasker.org/) |
 | repeticiones | NOT_RUN | rmsk_mouse.out, rmsk_mouse.tbl | RepeatMasker Web Server (https://www.repeatmasker.org/) |
 | seed | NOT_RUN | mature.fa | miRBase (el mismo `mature.fa`), o una tabla propia `seed<TAB>familia` (https://www.mirbase.org/) |
@@ -76,35 +76,45 @@ COMO CERRAR EL FRENTE «especificidad»
 
   FICHERO(S) QUE HACEN FALTA:
     · refseq_rna.fa  [OBLIGATORIO]
-      La base de RefSeq RNA contra la que se alinea. La app no necesita el fichero entero para dar el veredicto —el BLAST lo corres tu— pero si su nombre, su versión y su md5, que es lo único que permite decir contra que se comparo.
+      El FASTA de transcritos del que sale la base. Es lo que se DECLARA: la app no necesita el fichero entero para dar el veredicto —el BLAST lo corres tu— pero si su nombre, su versión y su md5, que es lo único que permite decir contra que se comparo. Las dos vias acaban en este mismo fichero, y por eso el md5 significa lo mismo por las dos.
     · el resultado del BLAST en `-outfmt 6`  [OBLIGATORIO]
       Lo que se SUBE. No es un fichero con nombre fijo: sale de la orden que da la app, y por eso aquí se describe en vez de nombrarse. Un `-outfmt 6` VACÍO se rechaza — cero hits y «no llego a correr» son cosas distintas y ese fichero no las distingue.
 
-  FUENTE: La app prepara la consulta; el BLAST lo corres tu. La base es RefSeq RNA del NCBI.
-  URL: https://ftp.ncbi.nlm.nih.gov/blast/db/
+  FUENTE: La app prepara la consulta; el BLAST lo corres tu. La base la construyes por una de DOS vias: el Table Browser de UCSC (recomendada, la especie del diseño, decenas de MB) o el FTP de BLAST del NCBI (exhaustiva, todos los organismos, decenas de GB).
+  URL: https://genome.ucsc.edu/cgi-bin/hgTables
 
   PASOS:
     1. Abre el modal de especificidad en la app y marca los candidatos y las hebras que quieras consultar.
     2. Descarga el FASTA de consulta que genera la app. Lleva su md5: no lo edites.
-    3. Instala BLAST+ del NCBI, que es lo que trae `blastn`, `update_blastdb.pl` y `blastdbcmd`. Sin esto no hay nada que ejecutar.
-    4. Descarga la base `refseq_rna` YA FORMATEADA, no el FASTA: `update_blastdb.pl --decompress refseq_rna`. Son varios GB y llegan en volúmenes numerados (`refseq_rna.00.*`, `refseq_rna.01.*`…) que son UNA sola base; no falta ninguno por que los ficheros se llamen distinto. La ruta del FTP es la de arriba, por si prefieres bajarlos a mano.
-    5. Comprueba que la base se lee ANTES de lanzar nada: `blastdbcmd -db refseq_rna -info`. Da el número de secuencias y la FECHA, que son dos de los tres metadatos que hay que anotar. Si esto falla, el BLAST también falla — y falla después de horas.
-    6. Copia el comando que la app deja listo, TAL CUAL. Trae los ajustes de una consulta corta (`-task blastn-short`, `-word_size 7`, `-evalue 1000`, `-dust no`) y `-outfmt 6` a secas. Cambiar cualquiera de ellos no es un detalle: viaja con el resultado y se marca en rojo.
-    7. Ejecútalo desde el directorio donde está la base, o pásale la ruta completa en `-db`, o declara `BLASTDB`. Con `-db refseq_rna` a secas desde otro sitio, `blastn` no la encuentra.
-    8. Sube el `-outfmt 6` tal cual, sin recortarlo.
+    3. Instala BLAST+ del NCBI. Trae `blastn`, `makeblastdb` y `blastdbcmd`, y los necesitas por las DOS vias.
+    4. ELIGE VÍA, y la elección es de TAMAÑO: la A son decenas de MB, sólo de Mus musculus; la B son decenas de GB de todos los organismos. Lo único que la B da y la A no son los transcritos PREDICHOS (`XM_`/`XR_`) — lee el aviso antes de elegir.
+    5. [VÍA A · UCSC — RECOMENDADA] Abre el Table Browser (la URL de arriba) y pide los transcritos de Mus musculus: «assembly» mm39, «group» Genes and Gene Predictions, «track» NCBI RefSeq, «table» «RefSeq Curated», «output format» sequence. Cuando pregunte el tipo de secuencia, elige el TRANSCRITO (mRNA), NO «genomic»: una guía se alinea contra mensajeros, y el genomico traeria intrones que no existen en ningún transcrito.
+    6. [VÍA A · UCSC] Es la MISMA sesion de la que sale transcriptoma_3utr.fa: alli se marca la región «3' UTR Exons» y aquí se pide el transcrito entero. Dos descargas, una navegacion.
+    7. [VÍA A · UCSC] Guarda el FASTA como refseq_rna.fa y MIRA LAS CABECERAS antes de seguir: con «RefSeq Curated» todas empiezan por `NM_` o `NR_` y no puede haber ni un `XM_`/`XR_`. Es la comprobación que no depende de que los menus se sigan llamando como aquí.
+    8. [VÍA A · UCSC] Construye la base — un FASTA no es una base de BLAST: `makeblastdb -in refseq_rna.fa -dbtype nucl -out refseq_rna_mouse`
+    9. [VÍA B · NCBI — EXHAUSTIVA] Descarga la base ya formateada desde https://ftp.ncbi.nlm.nih.gov/blast/db/ con `update_blastdb.pl --decompress refseq_rna`. Llega en volumenes numerados (`refseq_rna.00.*`, `refseq_rna.01.*`…) que son UNA sola base: no falta ninguno porque los ficheros se llamen distinto. Son decenas de GB de TODOS los organismos.
+    10. [VÍA B · NCBI] Filtra a Mus musculus y vuelve a un FASTA: `blastdbcmd -db refseq_rna -taxids 10090 -out refseq_rna.fa`. Hace falta por DOS razones: `-entrez_query` no funciona contra una base local, así que sin filtrar la corrida no queda restringida a la especie; y la base preformateada no deja ningún FASTA que registrar, así que sin este paso el manifiesto se queda sin el md5 que es toda la procedencia del veredicto.
+    11. [VÍA B · NCBI] Construye la base filtrada — un FASTA no es una base de BLAST: `makeblastdb -in refseq_rna.fa -dbtype nucl -out refseq_rna_mouse`
+    12. Comprueba que la base se lee ANTES de lanzar nada: `blastdbcmd -db refseq_rna_mouse -info`. Da el número de secuencias y la fecha, que son dos de los tres metadatos que hay que anotar. Si esto falla, el BLAST también — y falla después de horas.
+    13. En el modal, cambia `-db` al nombre de la base que acabas de construir. Se marcara como ajuste modificado y viajara con el resultado, y eso es lo CORRECTO: la base no es la estándar y el veredicto no puede parecer que si.
+    14. Copia el comando que la app deja listo, TAL CUAL. Trae los ajustes de una consulta corta (`-task blastn-short`, `-word_size 7`, `-evalue 1000`, `-dust no`) y `-outfmt 6` a secas. Cambiar cualquier otro no es un detalle: viaja con el resultado y se marca en rojo.
+    15. Ejecutalo desde el directorio donde esta la base, o pasale la ruta completa en `-db`, o declara `BLASTDB`. Con el nombre a secas desde otro sitio, `blastn` no la encuentra.
+    16. Sube el `-outfmt 6` tal cual, sin recortarlo.
 
   QUE ANOTAR AL DESCARGARLO (sin esto no es reproducible):
     · nombre, versión y md5 de la base
-      Sin ellos el veredicto no es reproducible, y el almacen marca la corrida como «no reproducible» con esas palabras.
+      Sin ellos el veredicto no es reproducible, y el almacen marca la corrida como «no reproducible» con esas palabras. Con la via de UCSC van además el ensamblaje y la tabla («RefSeq Curated» o «RefSeq All»), que es lo que dice si los predichos estaban dentro.
     · los ajustes que hayas cambiado
-      Cualquier ajuste distinto del estándar viaja con el resultado y se marca en rojo: un veredicto obtenido con parámetros no estándar no puede ser indistinguible de uno estándar.
+      Cualquier ajuste distinto del estándar viaja con el resultado y se marca en rojo: un veredicto obtenido con parámetros no estándar no puede ser indistinguible de uno estándar. El `-db` de una base que te has construido tu ENTRA aquí, y tiene que entrar.
 
-  TAMAÑO APROXIMADO: el resultado (`-outfmt 6`) son unos KB; la base local de RefSeq RNA son varios GB
+  TAMAÑO APROXIMADO: por la via de UCSC, unas decenas de MB; por la del NCBI, decenas de GB — una descarga real de este proyecto se fue a 80 GB. El resultado (`-outfmt 6`) son unos KB por las dos
 
   COMO SE VALIDA AL SUBIRLO: Al subir el resultado la app comprueba DOS cosas y las dos rechazan: que el md5 del FASTA de consulta que declaras sea el del FASTA que ella genero, y que toda `query` del resultado este en el panel. Es el fallo del CSV de miRarchitect —un fichero de otra corrida que entra, cuadra de forma y produce un análisis entero sobre el dato equivocado— y el mensaje lo nombra. Un `-outfmt 6` VACÍO también se rechaza: cero hits y «la corrida no llego a correr» son cosas distintas y ese fichero no las distingue.
 
   AVISOS:
-    ⚠ EL FILTRO POR ORGANISMO NO VA EN LA ORDEN LOCAL. `-entrez_query` lo aplica el servicio de NCBI, así que sólo funciona con `-remote` — y `-remote` no da veredicto. En una corrida local la restricción a la especie tiene que venir de la BASE: o construyes una sólo con transcritos de Mus musculus (`makeblastdb`), o corres contra `refseq_rna` entera y lees que los aciertos de otros organismos están DENTRO del resultado. Los dos son defendibles; creer que la orden filtra cuando no filtra, no. El organismo (txid10090) viaja igual con la corrida: es su identidad, no un ajuste.
+    ⚠ «RefSeq Curated» NO TRAE LOS PREDICHOS (`XM_`/`XR_`), y eso cambia como se LEE el resultado: cero aciertos contra predichos NO ES «no hay off-targets contra predichos» — es que no habia ninguno en la base contra el que acertar. Es el «Alu 0 %» obtenido sin buscar Alu. Si los quieres dentro, o eliges «RefSeq All» en el mismo menu (si tu ensamblaje lo ofrece) o te vas a la VÍA B. Lo que no vale es dar por comprobado lo que no se miro.
+    ⚠ EL FILTRO POR ORGANISMO NO VA EN LA ORDEN LOCAL. `-entrez_query` lo aplica el servicio de NCBI, así que sólo funciona con `-remote` — y `-remote` no da veredicto. En una corrida local la restricción a la especie tiene que venir de la BASE, y por eso las dos vias acaban en `makeblastdb`: la A porque UCSC ya te da una sola especie, la B porque hay que filtrarla. El organismo (txid10090) viaja igual con la corrida: es su identidad, no un ajuste.
+    ⚠ ESTOS COMANDOS NO SE HAN PODIDO EJECUTAR DESDE ESTE PROYECTO: aquí no hay BLAST+ instalado ni red saliente. Son la ruta, no una corrida comprobada — y el paso de `blastdbcmd -info` está puesto justo para eso: que un fallo salga antes de la corrida y no después de ella.
     ⚠ ESTA APP NO LANZA EL BLAST Y NO PUEDE: el navegador no puede llamar a NCBI (CORS) y el backend no tiene red saliente. No es una limitacion escondida: es la arquitectura, y el modal lo dice.
     ⚠ `-remote` es EXPLORACION, NUNCA VEREDICTO. La base de NCBI cambia entre corridas, así que un resultado remoto no es reproducible. Solo una base LOCAL con md5 cierra el frente.
     ⚠ ESTE FRENTE NO CUBRE LOS OFF-TARGETS POR SEED. Son dos frentes y el otro es `offtarget_seed`: 7 nt contiguos no dan un alineamiento puntuable, así que ningún BLAST los devuelve. Un «especificidad: PASS» sin esa frase invita a creer que la guía está comprobada cuando lo comprobado son los alineamientos.

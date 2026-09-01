@@ -1583,3 +1583,80 @@ superficie que el usuario ejecuta en vez de la que prepara. `TestLaOrdenTIENEque
 lo fija por los dos lados: que la orden local no lleve `-entrez_query` ni `-remote`, que
 la remota lleve los dos, y que la nota del organismo llegue **a la pantalla** —no basta
 con que exista— sin bloquear.
+
+## 41 — La ficha mandaba al FTP del NCBI y punto: 80 GB para consultar veinte guías
+
+**Qué pasó.** El frente de especificidad necesita una base de transcritos, y la ficha
+escribía **una sola vía**: el FTP de BLAST del NCBI. Se siguió, y la descarga real fueron
+**80 GB** — el RefSeq RNA completo, de **todos los organismos**, para consultar veinte
+guías de **una**.
+
+**La vía barata existía y estaba a la vista.** El mismo Table Browser de UCSC del que ya
+sale `transcriptoma_3utr.fa` da los transcritos de la especie del diseño en **decenas de
+MB**, y sale de la **misma sesión**: allí se pide la región «3' UTR Exons» y aquí el
+transcrito entero. Dos descargas, una navegación.
+
+### No es que la vía cara estuviera mal: es que era la ÚNICA escrita
+
+La del NCBI sigue siendo legítima y por eso **no se borra**: es la exhaustiva, y la única
+que trae los transcritos **predichos** (`XM_`/`XR_`). Lo que estaba mal es que la ficha no
+ofrecía elegir, y una ficha que sólo escribe un camino **no está recomendando: está
+decidiendo**, y decide sin decir lo que cuesta.
+
+**Es la errata nº 30 con otro disfraz.** Allí una fila decía FALTA de un frente que ya
+cerraba otro fichero; aquí la ficha manda conseguir lo caro cuando lo barato ya vale.
+Las dos veces el usuario hace trabajo que no hacía falta y **nada da ningún error**.
+
+### Y faltaba un paso sin el cual ninguna de las dos vías funciona: `makeblastdb`
+
+**Un FASTA no es una base de BLAST.** No aparecía en ninguna parte de la ficha, así que
+por la vía de UCSC —que entrega un FASTA— la orden que da la app no puede correr, y eso
+se descubre **después** de la descarga. Por la del NCBI la base viene preformateada, así
+que el paso parecía innecesario… y no lo es, por dos razones que se suman:
+
+- **`-entrez_query` no funciona en local** (errata nº 40), así que sin filtrar, la corrida
+  no queda restringida a la especie por ningún sitio;
+- **la base preformateada no deja ningún FASTA que registrar**, y el manifiesto se
+  quedaría sin el md5 que es toda la procedencia del veredicto.
+
+Así que las dos vías acaban en `blastdbcmd`/`makeblastdb` y **en el mismo artefacto
+declarable** —`refseq_rna.fa`—, que es lo que hace que el md5 signifique lo mismo por las
+dos. Hay test de esa convergencia.
+
+### Un cero que no significa lo que parece
+
+«RefSeq Curated» **no trae los predichos**, así que por la vía A **cero aciertos contra
+`XM_`/`XR_` no es «no hay off-targets contra predichos»**: es que no había ninguno en la
+base contra el que acertar. Es el **«Alu 0 %» obtenido sin buscar Alu**, y va como aviso
+con la consecuencia escrita, no sólo con el hecho.
+
+### Lo que se ha hecho
+
+- **Dos vías declaradas** en `data/obtencion/especificidad.toml`, cada paso etiquetado
+  `[VÍA A · UCSC]` / `[VÍA B · NCBI]`, con lo que pesa cada una **en la propia ficha**
+  —los 80 GB incluidos, porque el número medido convence y «decenas de GB» se lee en
+  diagonal—. La URL de cabecera pasa a ser la de UCSC: la que se lee primero es la que se
+  sigue.
+- **`makeblastdb` en LAS DOS**, y **en los pasos, no en un aviso**: un aviso se lee en
+  diagonal, un paso se ejecuta. Hay test de las dos mitades.
+- **`blastdbcmd -db <base> -info` antes de lanzar nada**, para que un fallo salga antes de
+  la corrida y no después de horas.
+- **El `-db` cambiado se declara en el modal**, y que se marque como ajuste modificado es
+  **correcto**: la base no es la estándar y el veredicto no puede parecer que sí.
+
+### Y una nota de método que no se calla
+
+**Ninguno de esos comandos se ha podido ejecutar desde este proyecto**: aquí no hay
+BLAST+ instalado ni red saliente —las dos URL dan 403 en el CONNECT del proxy, que es una
+denegación de política y no una respuesta del servicio—. Va **escrito en la ficha**: son
+la ruta, no una corrida comprobada. Por eso el paso de comprobación no se apoya en que
+los menús se sigan llamando igual, sino en el **resultado**: con «RefSeq Curated» las
+cabeceras empiezan por `NM_`/`NR_` y no puede haber ni un `XM_`.
+
+### Y de paso, la errata nº 40 un piso más abajo
+
+El comando de filtrado se escribió primero como `-taxids <el número de {taxid}, sin el
+prefijo txid>`: un comando que la ficha da **para copiar** y que hay que **editar antes de
+pegarlo**. `{taxid_numero}` se **deriva** del taxid declarado (principio nº 13) y sale
+`-taxids 10090`. Al derivarlo aparecieron **dos avisos idénticos** para una especie sin
+taxid —dos marcadores del mismo dato son un solo agujero—, y ahora se emite uno.
