@@ -65,6 +65,16 @@ NIVELES = ("PINTADO", "CONSTRUIDO", "NADA")
 DEPOSITO_COMPLETO = "deposito_completo("
 DEPOSITO_VACIO = "deposito_vacio("
 
+#: El ayudante que pinta la pagina, TOCA un widget y la vuelve a pintar. El eje `rerun`
+#: no estaba, y ahi vivia la errata nº 42: en Streamlit cada tecla es un rerun, asi que
+#: el segundo render es el caso NORMAL — y los 29 estados de antes describian todos el
+#: PRIMERO. Un inventario que solo mira el primer render no puede ver esa familia.
+SEGUNDO_RERUN = "segundo_rerun("
+
+#: El proyecto abierto era un estado de la pagina que el inventario no tenia en ningun
+#: eje, y de el cuelga si un modal puede guardar. Hoy no hay ayudante que lo monte.
+PROYECTO_ABIERTO = "proyecto_abierto("
+
 
 @dataclass(frozen=True)
 class Estado:
@@ -96,6 +106,14 @@ def espacio_de_estados() -> list[Estado]:
         Estado("corrida", "SIN_DISEÑAR", (), presente=True),
         Estado("corrida", "DISEÑADO_SIN_SELECCION", (), presente=False),
         Estado("corrida", "DISEÑADO_CON_SELECCION", (), presente=False),
+        # EL EJE DEL RERUN. `PRIMERA` es un hecho: toda corrida de `AppTest` pinta una
+        # vez. `SEGUNDA` necesita que alguien toque un widget y vuelva a pintar, y hasta
+        # la errata nº 42 no lo hacia nadie.
+        Estado("rerun", "PRIMERA", (), presente=True),
+        Estado("rerun", "SEGUNDA", (SEGUNDO_RERUN,), presente=False),
+        # EL EJE DEL PROYECTO. `SIN_ABRIR` es el estado de toda corrida de hoy.
+        Estado("proyecto", "SIN_ABRIR", (), presente=True),
+        Estado("proyecto", "ABIERTO", (PROYECTO_ABIERTO,), presente=False),
     ]
     # UN ROL, DOS ESTADOS. Y NO se reconocen por el nombre del fichero en el fuente: ese
     # nombre aparece IGUAL en un test que lo pone y en uno que comprueba que falta

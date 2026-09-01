@@ -3448,6 +3448,43 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     que el directorio esté de verdad fuera del paquete — si viviera dentro, los otros dos
     tests pasarían igual.
 
+- **EL PROYECTO NO SOBREVIVÍA AL RERUN, Y EL FASTA EMITÍA `qseqid` INSERVIBLES
+  (2026-09-01)**, errata nº 42. Los dos fallos vivían detrás de una descarga de decenas de
+  GB y una corrida de horas, y ninguno daba error.
+  - **`_panel_proyecto` creaba el proyecto dentro de un `if boton:`**, y un botón de
+    Streamlit vale `True` **un solo rerun**. Como **en Streamlit cada tecla es un rerun**,
+    escribir en «Fecha» —campo obligatorio del propio formulario de guardar— borraba el
+    proyecto y con él el formulario. **Era imposible de completar**: para rellenarlo hay
+    que escribir, y escribir lo borraba. Afectaba a **los cuatro modales**, porque
+    `_guardar_corrida` es la misma función y recibe el mismo `proyecto`.
+    - Decide `presentation.project_target` (regla 6) y la página **recuerda el SLUG**, no
+      el almacén: el md5 de la secuencia y la cadena del log se comprueban **al abrir**,
+      así que guardar el `ProjectStore` congelaría esa comprobación en el primer repintado
+      — principio nº 14 en la persistencia de la interfaz.
+  - **Sin proyecto, el modal aceptaba el fichero y avisaba en gris.** Eso es una trampa,
+    no información: mismo criterio que la casilla global que se quitó. `upload_allowed`
+    decide y **los tres modales que suben fichero** no pintan el `file_uploader` sin
+    proyecto.
+  - **`>Mus musculus_pos959_guia`**: el nombre de consulta llevaba el nombre que se pinta
+    y **BLAST corta `qseqid` en el primer espacio**, así que veinte consultas llegaban al
+    `-outfmt 6` como `Mus`. **Ese resultado NO es recuperable** —no contiene de qué
+    consulta viene cada fila— y **no vale reconstruirlo por el orden**: una consulta sin
+    hits no emite ninguna fila, así que no se sabe cuál falta. Lo caro (la base) queda
+    intacto; se repite el `blastn`.
+    - **Dos arreglos**: `query_name` usa el slug —que además NORMALIZA los alias— y el
+      **mecanismo** va en `QueryFasta.from_records`, que aborta con cualquier blanco, al
+      lado del guardia de nombres repetidos que ya estaba (lección de la errata nº 37).
+  - **Y EL INVENTARIO DE ESTADOS NO PODÍA VER ESTO**, que es lo que generaliza: de los
+    cinco componentes del estado —diseñado, con selección, proyecto abierto, fichero
+    subido, campo modificado— sólo dos estaban modelados. **No había eje de PROYECTO** ni
+    **eje de RERUN**: los 29 estados describían todos la página *recién pintada*, y en
+    Streamlit el segundo render no es raro, es **el normal**. Entran los dos (33 estados);
+    `rerun:SEGUNDA` **se pinta** (`tests/test_segundo_rerun.py`) y `proyecto:ABIERTO` queda
+    bloqueado por la MISMA causa que los otros diez, declarada como tal.
+    - **El trinquete sube de 10 a 11 y eso es correcto**: no se perdió cobertura, es que
+      **el espacio era demasiado pequeño**. Un inventario que no puede expresar un estado
+      no puede echarlo de menos — la contrapartida del principio nº 15.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

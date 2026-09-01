@@ -259,6 +259,20 @@ class QueryFasta:
                     f"La consulta {nombre!r} no trae secuencia; se aborta en vez de "
                     f"emitir un registro vacío (regla 1)."
                 )
+            # NINGUN BLANCO EN EL NOMBRE. BLAST corta `qseqid` en el primer espacio y
+            # `-outfmt 6` es un TSV, asi que un espacio colapsa consultas distintas en un
+            # mismo identificador y un tabulador parte la fila. El fichero sale con la
+            # forma correcta y no se puede recuperar: no dice de que consulta viene cada
+            # fila. El guardia va AQUI y no en quien construye el nombre — un comentario
+            # protege su tabla, un mecanismo protege la siguiente (errata nº 42).
+            if nombre != "".join(nombre.split()):
+                raise ShmirDesignError(
+                    f"El nombre de consulta {nombre!r} lleva un espacio en blanco. BLAST "
+                    f"corta `qseqid` en el primer blanco, así que en el `-outfmt 6` esta "
+                    f"consulta saldria como {nombre.split()[0]!r} — igual que todas las "
+                    f"demas que empiecen igual, y sin forma de distinguirlas. Se aborta "
+                    f"antes de emitir el FASTA."
+                )
             if nombre in vistos:
                 raise ShmirDesignError(
                     f"El nombre de consulta {nombre!r} aparece dos veces. El resultado "

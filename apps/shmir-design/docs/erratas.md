@@ -1660,3 +1660,96 @@ prefijo txid>`: un comando que la ficha da **para copiar** y que hay que **edita
 pegarlo**. `{taxid_numero}` se **deriva** del taxid declarado (principio nº 13) y sale
 `-taxids 10090`. Al derivarlo aparecieron **dos avisos idénticos** para una especie sin
 taxid —dos marcadores del mismo dato son un solo agujero—, y ahora se emite uno.
+
+## 42 — El proyecto se perdía en cada rerun, y el FASTA emitía identificadores inservibles
+
+Dos fallos en el mismo camino, los dos detrás de una descarga de decenas de GB y una
+corrida de BLAST de horas, y **ninguno de los dos daba un error**.
+
+### 1. El formulario de guardar era imposible de completar
+
+Reproducción exacta: abrir proyecto → subir el `.tsv` → rellenar md5, base y versión →
+aparecen «Fecha», «Quién la corrió» y el botón → **escribir en «Fecha»** → los dos campos
+y el botón desaparecen y vuelve «Sin proyecto abierto esta corrida NO se guarda».
+
+La causa es de una línea: `_panel_proyecto` creaba el proyecto **dentro de un
+`if st.sidebar.button(...)`**, y un botón de Streamlit vale `True` **un solo rerun**. Al
+siguiente repintado el botón ya no está pulsado, el panel devuelve `None`, y con `None`
+llega `_guardar_corrida`, que pinta el aviso gris.
+
+**Y en Streamlit cada tecla que el usuario escribe ES un rerun.** O sea: para rellenar el
+formulario hay que escribir, y escribir lo borraba. No es un caso raro — es el único
+camino que hay.
+
+**Afecta a los CUATRO modales**, y no por coincidencia: `_guardar_corrida` es la misma
+función para los cuatro y recibe el mismo `proyecto` del mismo panel. Un solo fallo, cuatro
+síntomas.
+
+**El arreglo.** La decisión sale de la página (regla 6): `presentation.project_target`
+recibe el estado de los widgets y dice qué hacer —`ninguna` / `crear` / `abrir`— y **qué
+recordar**. La página guarda el **slug** en `session_state` y vuelve a abrir el proyecto
+en cada rerun.
+
+**Se recuerda el slug y no el almacén**, y eso no es un detalle de implementación: el md5
+de la secuencia y la cadena del log **se comprueban al abrir**, así que un `ProjectStore`
+guardado en `session_state` se quedaría con la comprobación del primer repintado para
+siempre. Es el principio nº 14 —haber comprobado una vez no es seguir comprobando— en la
+persistencia de la interfaz.
+
+### 2. Sin proyecto, el modal aceptaba el fichero igualmente
+
+Y avisaba **en gris** de que no se iba a guardar nada. Detrás de ese fichero hay una
+descarga y una corrida que no se repiten gratis: un sitio donde se puede soltar algo que
+no se guarda no informa, **es una trampa**. Es el mismo criterio con el que se quitó la
+casilla «Usar los de `data/reference/`», cuyo único efecto posible al desmarcarla era
+dejarlo todo en `NOT_RUN`.
+
+Ahora `presentation.upload_allowed` decide y **los tres modales que aceptan un fichero**
+—BLAST, SpliceAI y off-targets— no pintan el `file_uploader` sin proyecto: sale un error
+rojo que dice dónde se abre.
+
+### 3. `>Mus musculus_pos959_guia`: veinte consultas que llegan como una
+
+El FASTA de consulta construía el identificador con el nombre que se **pinta**
+(`Mus musculus`) en vez del **slug**. **BLAST corta `qseqid` en el primer espacio**, así
+que las veinte consultas salen en el `-outfmt 6` como `Mus`, todas iguales.
+
+**El fichero de resultados no es recuperable, y no por culpa de la interfaz**: no contiene
+de qué consulta viene cada fila. Ni la app ni un CLI ni nadie puede repartir esas filas
+entre los candidatos, porque la información no está. **Y no vale reconstruirlo por el
+orden**: `-outfmt 6` agrupa por consulta en el orden de entrada, pero **una consulta sin
+ningún hit no emite ninguna fila**, así que no se puede saber cuál falta. Eso es
+reconstruir un dato ausente, que es la regla 1 por otra puerta.
+
+Lo caro —la base— está intacto; lo que hay que repetir es el `blastn`.
+
+**Dos arreglos, no uno.** `presentation.query_name` usa el slug (y de paso **normaliza**:
+`mouse`, `raton` y `Mus musculus` son la misma especie, así que un nombre por alias haría
+incomparables dos corridas de lo mismo). Y el **mecanismo** va en
+`QueryFasta.from_records`, que ya abortaba con nombres repetidos y ahora aborta con
+cualquier blanco: es la lección de la errata nº 37 —un comentario protege su tabla, un
+mecanismo protege la siguiente— aplicada donde el guardia hermano ya vivía.
+
+### Lo que enseña sobre el INVENTARIO DE ESTADOS, que es lo que generaliza
+
+El responsable preguntó si este estado —diseñado, con selección, proyecto abierto,
+fichero subido, campo de texto modificado— estaba en `data/estados.toml` y si se había
+pintado alguna vez. **No estaba, y no podía estar**: de sus cinco componentes, el
+inventario sólo modelaba dos.
+
+- **No había eje de PROYECTO.** El estado del que cuelga si un modal puede guardar no
+  aparecía en ningún eje.
+- **Y no había eje de RERUN.** Los 29 estados describían **todos** la página *recién
+  pintada*. Ninguno decía nada de volver a pintarla — que en Streamlit no es un caso raro
+  sino **el normal**, uno por tecla.
+
+Los dos ejes entran ahora (33 estados). `rerun:SEGUNDA` **se pinta hoy**
+(`tests/test_segundo_rerun.py`: pinta, toca un widget, vuelve a pintar) y
+`proyecto:ABIERTO` queda bloqueado **por la misma causa que los otros diez** —`AppTest` no
+rellena un `file_uploader`, así que la página no llega a DISEÑADO—, declarada como tal y
+no como un bloqueo nuevo.
+
+**El trinquete SUBE de 10 a 11, y eso es correcto.** No es que se haya perdido cobertura:
+es que **el espacio era demasiado pequeño**, y un inventario que no puede expresar un
+estado no puede echarlo de menos. Es la contrapartida del principio nº 15: una lista que
+sólo baja es útil mientras la lista sea la lista completa.

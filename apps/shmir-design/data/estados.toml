@@ -204,4 +204,31 @@ bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningú
 # ocho de los cuatro modales. Es un límite de la herramienta, no de la app, así que
 # cerrarlo pide un rodeo: una vía para inyectar la secuencia sin pasar por el widget.
 [umbral]
-sin_pintar = 10
+sin_pintar = 11
+# ─── El eje del RERUN y el del PROYECTO. AÑADIDOS (2026-09-01), errata nº 42 ─────────
+#
+# Los 29 estados de antes describian TODOS la pagina recien pintada. En Streamlit cada
+# tecla que el usuario escribe es un rerun, asi que el segundo render no es un caso raro:
+# es el normal — y ahi vivia el fallo que dejo el formulario de guardar imposible de
+# completar. El inventario no podia verlo porque el eje no existia.
+
+[[estado]]
+estado = "rerun:PRIMERA"
+destino = "CUBRIR"
+que_pinta = "La pagina recien cargada. Es lo que pintaban los 29 estados anteriores, todos."
+
+[[estado]]
+estado = "rerun:SEGUNDA"
+destino = "CUBRIR"
+que_pinta = "La pagina DESPUES de tocar un widget. Aqui es donde se cae lo que colgaba de un booleano de un solo rerun — un boton pulsado, una corrida cacheada sin huella."
+
+[[estado]]
+estado = "proyecto:SIN_ABRIR"
+destino = "CUBRIR"
+que_pinta = "Los modales calculan y no ofrecen guardar. Es el estado de toda corrida de `AppTest` de hoy."
+
+[[estado]]
+estado = "proyecto:ABIERTO"
+destino = "CUBRIR"
+que_pinta = "El cartel del proyecto en la barra lateral, el historial, y en cada modal el formulario de «Guardar en el proyecto» con fecha y quien la corrio. De este estado cuelga si una corrida se puede guardar, que es para lo que existe la persistencia."
+bloqueado_por = "El panel de proyecto se pinta DESPUES de diseñar, y `AppTest` no rellena un `file_uploader`. Lo cerraría la misma vía que los otros diez: inyectar la secuencia sin pasar por el widget. Es el mismo bloqueo, no uno nuevo."

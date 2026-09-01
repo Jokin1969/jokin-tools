@@ -67,6 +67,9 @@ from shmir_design.presentation import (  # noqa: E402
     project_create,
     project_list,
     project_open,
+    project_target,
+    PROJECT_NEW_OPTION,
+    upload_allowed,
     project_rows,
     projects_root,
     save_blast_run,
@@ -574,34 +577,59 @@ def _panel_proyecto(especie: str, secuencia: str, anat):
         help="Las corridas de los modales y la selección quedan en un log de texto que "
              "se lee con `cat` y sobrevive a cerrar la pestaña.",
     ) is False:
-        st.sidebar.caption(
-            "Sin proyecto, lo que calculen los modales se pierde al cerrar la pestaña."
+        # Y se OLVIDA lo recordado: volver a marcar la casilla no puede reabrir solo un
+        # proyecto que se cerró a proposito.
+        plan = project_target(
+            active=False, chosen="", new_name="", date="", clicked=False,
+            remembered=st.session_state.get(f"pr_abierto_{especie}", ""),
         )
+        st.session_state[f"pr_abierto_{especie}"] = plan["recordar"]
+        st.sidebar.caption(plan["aviso"])
         return None
 
-    opciones = ["— crear uno nuevo —"] + [f["slug"] for f in existentes]
+    opciones = [PROJECT_NEW_OPTION] + [f["slug"] for f in existentes]
     elegido = st.sidebar.selectbox("Proyecto", opciones, key=f"pr_slug_{especie}")
     fecha = st.sidebar.text_input(
         "Fecha (AAAA-MM-DD)", "", key=f"pr_fecha_{especie}",
         help="Va en cada registro del log. Sin ella no es auditable.",
     )
+    # LOS WIDGETS SE PINTAN SIEMPRE Y LA DECISION SE TOMA DESPUES. Antes el botón de
+    # crear estaba dentro de un `if` que devolvía `None`, y un botón de Streamlit vale
+    # `True` UN SOLO rerun: al escribir en cualquier campo, el proyecto desaparecía.
+    # Ver `WHY_THE_PROJECT_IS_REMEMBERED` y errata nº 42.
+    nombre_nuevo = ""
+    pulsado = False
+    if elegido == PROJECT_NEW_OPTION:
+        nombre_nuevo = st.sidebar.text_input(
+            "Nombre del proyecto nuevo", "", key=f"pr_nuevo_{especie}"
+        )
+        pulsado = st.sidebar.button("Crear proyecto", key=f"pr_crear_{especie}")
+
+    clave_abierto = f"pr_abierto_{especie}"
+    plan = project_target(
+        active=True, chosen=elegido, new_name=nombre_nuevo, date=fecha,
+        clicked=pulsado, remembered=st.session_state.get(clave_abierto, ""),
+    )
+    # Se recuerda el SLUG, no el almacén: `WHY_THE_SLUG_AND_NOT_THE_STORE`.
+    st.session_state[clave_abierto] = plan["recordar"]
+    if plan["accion"] == "ninguna":
+        st.sidebar.caption(plan["aviso"])
+        return None
+
     try:
-        if elegido == opciones[0]:
-            nombre = st.sidebar.text_input("Nombre del proyecto nuevo", "", key=f"pr_nuevo_{especie}")
-            if not nombre or not fecha:
-                st.sidebar.caption("Hace falta un nombre y una fecha para crearlo.")
-                return None
-            if not st.sidebar.button("Crear proyecto", key=f"pr_crear_{especie}"):
-                return None
+        if plan["accion"] == "crear":
             payload, fuente = anatomy_payload(anat)
             almacen = project_create(
-                raiz, slug=nombre, date=fecha, sequence=secuencia, species=especie,
+                raiz, slug=plan["slug"], date=fecha, sequence=secuencia, species=especie,
                 anatomy=payload, anatomy_source=fuente,
             )
         else:
             # El md5 se comprueba: seguir apuntando corridas de OTRA secuencia en este
-            # log lo dejaría coherente de forma y nada lo delataría.
-            almacen = project_open(raiz, elegido, expect_md5=sequence_md5(secuencia))
+            # log lo dejaría coherente de forma y nada lo delataría. Y se comprueba en
+            # CADA rerun, que es por lo que se recuerda el slug y no el almacén.
+            almacen = project_open(
+                raiz, plan["slug"], expect_md5=sequence_md5(secuencia)
+            )
     except (ShmirDesignError, ValueError, OSError) as exc:
         # rule2-ok: frontera de la interfaz. El fallo se enseña entero.
         st.sidebar.error(f"**PARA** — {exc}")
@@ -1315,6 +1343,13 @@ def _modal_blast(seleccion, nombre: str, proyecto=None) -> None:
             file_name=ruta,
             key=f"blast_dl_{nombre}",
         )
+        # SIN PROYECTO NO SE ACEPTA EL FICHERO. Antes se aceptaba y se avisaba en gris de
+        # que no se guardaba nada — detras de este fichero hay una descarga de decenas de
+        # GB y una corrida de horas, asi que dejarlo soltar era una trampa (errata nº 42).
+        veredicto = upload_allowed(proyecto)
+        if not veredicto["permitido"]:
+            st.error(veredicto["motivo"])
+            return
         subido = st.file_uploader(
             "Soltar aquí el resultado (-outfmt 6)",
             key=f"blast_up_{nombre}",
@@ -1630,6 +1665,10 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None) ->
     )
 
     st.subheader("Subir el resultado de SpliceAI")
+    veredicto = upload_allowed(proyecto)
+    if not veredicto["permitido"]:
+        st.error(veredicto["motivo"])
+        return
     subido = st.file_uploader(
         "Resultado (TSV)", type=["tsv", "txt"], key=f"sp_res_{nombre}"
     )
@@ -1703,6 +1742,10 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
             campo, key=f"ot_p_{nombre}_{campo}", help=ayuda
         )
 
+    veredicto = upload_allowed(proyecto)
+    if not veredicto["permitido"]:
+        st.error(veredicto["motivo"])
+        return
     subido = st.file_uploader(
         "Soltar aquí `transcriptoma_3utr.fa`",
         key=f"ot_up_{nombre}",

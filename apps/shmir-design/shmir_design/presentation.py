@@ -789,11 +789,14 @@ def blast_query(selection, *, species: str, starts, guides: bool, passengers: bo
     for inicio in pedidos:
         ventana = selection.window_of(por_inicio[inicio])
         guia = ventana.evaluation.guide.replace("U", "T")
+        # El NOMBRE lo pone `query_name`, que usa el SLUG. Aqui iba el nombre que se
+        # pinta —`Mus musculus`— y BLAST corta `qseqid` en el primer espacio: las veinte
+        # consultas llegaban al resultado como `Mus`. Ver errata nº 42.
         if guides:
-            registros.append((f"{species}_pos{inicio}_guia", guia))
+            registros.append((query_name(species, inicio, "guia"), guia))
         if passengers:
             registros.append(
-                (f"{species}_pos{inicio}_pasajera", _passenger_dna(
+                (query_name(species, inicio, "pasajera"), _passenger_dna(
                     ventana.evaluation.guide
                 ))
             )
@@ -3833,3 +3836,117 @@ def arms_warning(present=()) -> dict[str, object] | None:
     from .controles import arms_warning as _aviso
 
     return _aviso(present)
+
+
+# ─── El proyecto abierto, y por que la pagina tiene que ACORDARSE ───────────────────
+
+#: La opcion de «crear uno nuevo» del desplegable. Vive aqui y no en la pagina porque
+#: `project_target` la compara: dos literales, uno en cada sitio, discreparian el dia que
+#: alguien reescriba el texto — y la comparacion fallaria en silencio, eligiendo siempre
+#: la rama de abrir.
+PROJECT_NEW_OPTION = "— crear uno nuevo —"
+
+#: POR QUE LA PAGINA RECUERDA EL PROYECTO. Un boton de Streamlit vale `True` UN SOLO
+#: rerun. La pagina creaba el proyecto dentro de `if boton:`, asi que el siguiente
+#: repintado —el que dispara escribir en cualquier `text_input`— devolvia `None` y el
+#: proyecto desaparecia. Y el sitio donde se cobraba era el peor: el formulario de
+#: guardar la corrida de BLAST pide fecha y quien la corrio, o sea que hay que ESCRIBIR
+#: para completarlo, y escribir lo borraba. El formulario era imposible de rellenar
+#: detras de horas de descarga y de corrida. Ver errata nº 42.
+WHY_THE_PROJECT_IS_REMEMBERED = (
+    "El proyecto abierto se recuerda entre reruns: un botón de Streamlit vale `True` un "
+    "solo repintado, así que abrirlo dentro de un `if botón:` lo perdía en cuanto el "
+    "usuario escribía en cualquier campo."
+)
+
+#: Lo que se recuerda es el SLUG, no el almacen. Un `ProjectStore` en `session_state`
+#: sobreviviria igual, y ahi esta la trampa: el md5 de la secuencia y la cadena del log
+#: se comprueban AL ABRIR, asi que un almacen guardado se quedaria con la comprobacion
+#: del primer rerun para siempre. Es el principio nº 14 —haber comprobado una vez no es
+#: seguir comprobando— aplicado a la persistencia de la interfaz.
+WHY_THE_SLUG_AND_NOT_THE_STORE = (
+    "Se recuerda el SLUG y se vuelve a abrir en cada rerun: guardar el almacén dejaría "
+    "la comprobación del md5 y la de la cadena del log congeladas en el primer "
+    "repintado."
+)
+
+
+def project_target(*, active: bool, chosen: str, new_name: str, date: str,
+                   clicked: bool, remembered: str = "") -> dict[str, str]:
+    """Que hacer con el panel de proyecto en ESTE rerun. La pagina no decide.
+
+    Devuelve `accion` (`ninguna` / `crear` / `abrir`), el `slug` sobre el que actuar, el
+    `aviso` que se pinta si no hay accion, y que hay que `recordar` para el rerun
+    siguiente. Toda la logica del panel esta aqui para que tenga tests: en la pagina,
+    una condicion sobre un booleano de widget no la prueba nadie (regla 6).
+    """
+    if not active:
+        # OLVIDAR es parte de la decision: si no se olvidara, volver a marcar la casilla
+        # reabriria un proyecto que el usuario habia cerrado a proposito.
+        return {
+            "accion": "ninguna", "slug": "", "recordar": "",
+            "aviso": "Sin proyecto, lo que calculen los modales se pierde al cerrar la "
+                     "pestaña.",
+        }
+    if chosen != PROJECT_NEW_OPTION:
+        # El desplegable MANDA sobre lo recordado: elegir otro es una decision explicita.
+        return {"accion": "abrir", "slug": chosen, "recordar": chosen, "aviso": ""}
+    if clicked and new_name and date:
+        # Crear tambien manda: el usuario puede tener uno abierto y querer otro.
+        return {"accion": "crear", "slug": new_name, "recordar": new_name, "aviso": ""}
+    if remembered:
+        # AQUI ESTA EL ARREGLO. El desplegable sigue diciendo «crear uno nuevo» —su
+        # valor es de widget y no se mueve solo— pero el proyecto ya existe y esta
+        # abierto. Sin esta rama, el rerun siguiente a crearlo lo perdia.
+        return {
+            "accion": "abrir", "slug": remembered, "recordar": remembered, "aviso": "",
+        }
+    if not new_name or not date:
+        return {
+            "accion": "ninguna", "slug": "", "recordar": "",
+            "aviso": "Hace falta un nombre y una fecha para crearlo.",
+        }
+    return {
+        "accion": "ninguna", "slug": "", "recordar": "",
+        "aviso": "Dale a «Crear proyecto» para abrirlo.",
+    }
+
+
+#: SIN PROYECTO NO SE ACEPTA EL FICHERO. Se aceptaba, con un aviso en gris de que no se
+#: iba a guardar nada — y detras de ese fichero hay una descarga de decenas de GB y una
+#: corrida de horas. Un sitio donde se puede soltar algo que no se guarda no informa: es
+#: una trampa. Mismo criterio que la casilla global «Usar los de data/reference/», que se
+#: quito porque su unico efecto posible al desmarcarla era dejarlo todo en NOT_RUN.
+UPLOAD_NEEDS_PROJECT = (
+    "**Abre un proyecto antes de subir el resultado.** Sin proyecto no hay dónde "
+    "guardarlo, así que dejarlo caer aquí lo perdería — y detrás de este fichero hay una "
+    "descarga y una corrida que no se repiten gratis. Se activa en la barra lateral, en "
+    "«Guardar esta corrida en un proyecto»."
+)
+
+
+def upload_allowed(project) -> dict[str, object]:
+    """¿Se puede aceptar un fichero de resultado en este momento?
+
+    Un booleano y su motivo, resueltos aqui: la pagina no decide, pinta.
+    """
+    if project is None:
+        return {"permitido": False, "motivo": UPLOAD_NEEDS_PROJECT}
+    return {"permitido": True, "motivo": ""}
+
+
+def query_name(species: str, start: int, strand: str) -> str:
+    """El identificador de UNA consulta del FASTA de BLAST.
+
+    LLEVA EL SLUG Y NO EL NOMBRE QUE SE PINTA. Con el cientifico dentro salia
+    `>Mus musculus_pos959_guia`, y **BLAST corta `qseqid` en el primer espacio**: las
+    veinte consultas llegaban al `-outfmt 6` como `Mus`, indistinguibles entre si. El
+    fichero no da ningun error —es un TSV con la forma correcta— y no se puede
+    recuperar: no contiene de que consulta viene cada fila.
+
+    Y el slug ademas NORMALIZA: `mouse`, `raton` y `Mus musculus` son la misma especie,
+    asi que un nombre por alias haria incomparables dos corridas de lo mismo.
+    """
+    from .species import resolve
+
+    return f"{resolve(species).slug}_pos{int(start)}_{strand}"
