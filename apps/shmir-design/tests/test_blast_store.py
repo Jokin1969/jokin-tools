@@ -111,8 +111,16 @@ class TestCriterio1_ParametrosNoEstandar(unittest.TestCase):
     def test_la_corrida_NO_da_veredicto(self):
         self.assertFalse(self.raro.gives_verdict)
 
-    def test_su_veredicto_es_NOT_RUN_no_PASS(self):
-        self.assertIs(self.raro.verdict().state, FilterState.NOT_RUN)
+    def test_su_veredicto_es_NO_CIERRA_no_PASS(self):
+        """CAMBIO DE DECISION (2026-09-01), no una regresion.
+
+        Este test exigia `NOT_RUN`. Ahora exige `NO_CIERRA`, que es un estado PROPIO: la
+        corrida existe y se puede leer, y lo que pasa es que no defiende un veredicto.
+        La diferencia es accionable — «se corrio y no vale» se arregla REPITIENDO BIEN y
+        «no se ha corrido» hay que EMPEZARLO, y detras de una corrida de BLAST hay una
+        descarga de decenas de GB. Lo que NO cambia es que ninguno de los dos aprueba.
+        """
+        self.assertIs(self.raro.verdict().state, FilterState.NO_CIERRA)
 
     def test_y_el_motivo_NOMBRA_el_ajuste_cambiado(self):
         self.assertIn("word_size", self.raro.verdict().reason)
@@ -185,8 +193,16 @@ class TestCriterio3_RemoteNoCierraElFrente(unittest.TestCase):
     def test_no_da_veredicto(self):
         self.assertFalse(self.remota.gives_verdict)
 
-    def test_su_veredicto_es_NOT_RUN(self):
-        self.assertIs(self.remota.verdict().state, FilterState.NOT_RUN)
+    def test_su_veredicto_es_NO_CIERRA(self):
+        """CAMBIO DE DECISION (2026-09-01), no una regresion.
+
+        Este test exigia `NOT_RUN`. Ahora exige `NO_CIERRA`, que es un estado PROPIO: la
+        corrida existe y se puede leer, y lo que pasa es que no defiende un veredicto.
+        La diferencia es accionable — «se corrio y no vale» se arregla REPITIENDO BIEN y
+        «no se ha corrido» hay que EMPEZARLO, y detras de una corrida de BLAST hay una
+        descarga de decenas de GB. Lo que NO cambia es que ninguno de los dos aprueba.
+        """
+        self.assertIs(self.remota.verdict().state, FilterState.NO_CIERRA)
 
     def test_el_motivo_dice_EXPLORACION(self):
         self.assertIn("exploracion", self.remota.verdict().reason.lower())
@@ -259,13 +275,19 @@ class TestCriterio4_SinCorridaSigueEnNOT_RUN(unittest.TestCase):
             self.almacen.verdict_for("raton_pos200_guia").state, FilterState.NOT_RUN
         )
 
-    def test_con_corrida_remota_sigue_en_NOT_RUN(self):
+    def test_con_corrida_remota_pasa_a_NO_CIERRA(self):
+        """Y NO se queda en NOT_RUN, que es el cambio de decision de 2026-09-01.
+
+        Aqui esta la mitad que importa del estado nuevo: quien ve esta celda ya sabe que
+        hay una corrida hecha y que el arreglo es repetirla en local, no empezar de cero
+        bajandose la base otra vez.
+        """
         self.almacen.add(
             _corrida(params=blast.DEFAULTS.with_changes(remote=True), database=REMOTA)
         )
-        self.assertIs(
-            self.almacen.verdict_for("raton_pos200_guia").state, FilterState.NOT_RUN
-        )
+        resultado = self.almacen.verdict_for("raton_pos200_guia")
+        self.assertIs(resultado.state, FilterState.NO_CIERRA)
+        self.assertIn("REPITIENDO", resultado.reason)
 
 
 if __name__ == "__main__":

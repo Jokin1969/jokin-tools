@@ -67,6 +67,18 @@ class FilterState(StrEnum):
     #: fichero que ya no existe. Se DERIVA comparando md5 (`insumos.obsoleta`), no se
     #: anota a mano. Ver `OBSOLETO_NOTE`.
     OBSOLETO = "OBSOLETO"
+    #: LA CORRIDA SE HIZO Y NO CIERRA EL FRENTE. No es `NOT_RUN` —hay resultado y se
+    #: puede leer— y no es `PASS`: una corrida `-remote`, o con un parametro cambiado, o
+    #: cuyo FASTA de consulta no es el que emitio la app, no defiende un veredicto.
+    #: DECIDIDO (2026-09-01) por el responsable del proyecto, con las tres condiciones
+    #: escritas en `blast.BlastParams.can_give_verdict`.
+    #:
+    #: Distinguirlo de `NOT_RUN` no es cosmetico: «se corrio y no vale» se arregla
+    #: REPITIENDO BIEN y «no se ha corrido» hay que EMPEZARLO. Colapsarlos manda a hacer
+    #: de cero un trabajo que ya esta hecho — y detras de una corrida de BLAST hay una
+    #: descarga de decenas de GB. Misma familia que `OBSOLETO`, y se DERIVA igual: de
+    #: `can_give_verdict`, nunca anotado a mano.
+    NO_CIERRA = "NO_CIERRA"
 
 
 OBSOLETO_NOTE = (
@@ -124,7 +136,12 @@ def overall_verdict(results: list[FilterResult]) -> Verdict:
         )
     if any(r.state is FilterState.FAIL for r in results):
         return Verdict.FAIL
-    if any(r.state is FilterState.NOT_RUN for r in results):
+    # `NO_CIERRA` impide aprobar EXACTAMENTE igual que `NOT_RUN`: lo que cambia es que
+    # dice como se arregla, no si bloquea. Si contara como aprobado, el estado nuevo
+    # seria una forma elegante de relajar la regla 3.
+    if any(
+        r.state in (FilterState.NOT_RUN, FilterState.NO_CIERRA) for r in results
+    ):
         return Verdict.INCOMPLETE
     if not any(r.state is FilterState.PASS for r in results):
         # Todo NO_APLICA: no se llego a preguntar nada, asi que no hay nada aprobado.

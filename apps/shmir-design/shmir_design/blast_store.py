@@ -126,12 +126,17 @@ class BlastRun:
                     "`-remote`: EXPLORACION, nunca veredicto. " + self.database.describe()
                     + " " + motivos
                 ).strip()
+            # ESTADO PROPIO, no `NOT_RUN`. Hay resultado y se puede leer; lo que pasa
+            # es que no defiende un veredicto. El motivo va AQUI, en el veredicto, y no
+            # en una nota al lado: quien lee la celda tiene que saber si repetir o
+            # empezar.
             return FilterResult(
                 name=FILTER_NAME,
-                state=FilterState.NOT_RUN,
+                state=FilterState.NO_CIERRA,
                 reason=(
                     f"Hay corrida ({self.run_id}, {self.date}) pero NO CIERRA EL FRENTE: "
-                    f"{motivos} NOT_RUN no es PASS."
+                    f"{motivos} Se arregla REPITIENDO la corrida sin eso — no hay que "
+                    f"volver a empezar."
                 ),
             )
         hits = self.hits if query_name is None else self.hits_for(query_name)

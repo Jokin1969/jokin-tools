@@ -338,6 +338,7 @@ revalida = "Cada corrida."
 
 [solo_informan]
 "guide_fixture.load_guide_fixture" = "COMPARA el md5, y protege el fixture de los TESTS —80 ficheros lo usan como `skipUnless`—, no ningún camino de la app. Se saca de la tabla de guardias a propósito: mezclarlo con los cargadores de producción hacía parecer que el md5 de un fichero de referencia lo comprobaba algo que sólo corre en la suite. Su justificación de alcanzabilidad ya estaba escrita y sigue valiendo."
+"presentation.log_fingerprint" = "Deriva un md5 de la lista de `run_id` presentes al generar un informe, y NO impide nada: identifica el ESTADO DEL LOG con el que se genero el documento. Va en `[solo_informan]` porque su producto es una CIFRA que se compara a mano entre dos informes —misma huella, mismo documento— y no un aborto. Lo que si obliga es a que el informe la lleve: un documento que lee estado mutable y no declara contra que estado se genero no se puede comparar con otro, y la fecha no basta porque dos corridas del mismo dia son dos documentos distintos. Lo fija `tests/test_informe_contra_estado.py`, con el control de que el ORDEN de llegada no la cambia: dos logs con las mismas corridas son el mismo estado."
 "manifest.check_directory" = "Compara el md5 de cada fichero del directorio contra el manifiesto y devuelve `EntryStatus.NO_COINCIDE`. Es lo que pinta el panel de ficheros — y NO aborta. Quien aborta es el cargador del filtro, en cada corrida."
 
 # ─────────── Existen, y NO PUEDEN correr por ningun camino que haya hoy ───────────

@@ -517,6 +517,11 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         generated=st.session_state.get("fecha_informe", "sin fecha declarada"),
         anatomy_source=anatomy_source_label(anat),
         anatomy=anat,
+        # LOS ALMACENES. Sin ellos las fichas del documento se construian con uno vacio
+        # y decia `NOT_RUN` de frentes cerrados — sobre el artefacto que defiende la
+        # seleccion. Con proyecto cerrado va `None`, que es la verdad: no hay corridas
+        # que leer, y la huella del registro lo dice con 0 corridas.
+        stores=load_stores(proyecto) if proyecto is not None else None,
     )
     (st.warning if documento.state == "PARCIAL" else st.success)(
         informe_state_text(documento)

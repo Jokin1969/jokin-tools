@@ -1041,3 +1041,50 @@ definición**. Es la cuarta vez que este proyecto se encuentra un criterio que d
 resultado a todo el mundo (el `donante 1,00 / aceptor 0,00` de MFE, el `)(` del
 discriminante de horquillas, el GC de una permutación, y éste), y la regla que queda es la
 misma: **antes de creerse un criterio, hay que enseñarle un caso que deba suspender.**
+
+---
+
+## 22 — Un informe que lee estado MUTABLE declara contra QUÉ estado se generó, no sólo cuándo
+
+**Formulado por el responsable del proyecto (2026-09-01)**, al cablear los almacenes al
+documento. En una frase: **la fecha no basta — dos corridas del mismo día son dos
+documentos distintos.**
+
+### De dónde sale
+
+Mientras el informe se calculaba **sólo del tilado**, «generado el 1 de septiembre» lo
+identificaba: la entrada era la misma y el resultado también. En cuanto empieza a leer los
+almacenes del proyecto, la entrada deja de ser una — el mismo día, la misma secuencia y el
+mismo panel dan **dos documentos distintos** según si se subió un BLAST entre uno y otro.
+
+Y el que los compara no tiene forma de saberlo. «Este informe es de después de subir el
+BLAST» pasa a ser **algo que alguien tiene que recordar**, que es exactamente la clase de
+cosa que este proyecto no deja en la memoria de nadie.
+
+### La contramedida, en dos piezas
+
+- **La HUELLA, en la cabecera** (`presentation.log_fingerprint`): un md5 de la lista de
+  `run_id` presentes al generar. **Dos informes con la misma huella son el mismo
+  documento; con huellas distintas, la diferencia se explica sola.** Va **ordenada**,
+  porque el orden de llegada no es estado: dos logs con las mismas corridas son el mismo
+  estado, y si el orden contara, dos documentos idénticos saldrían con huellas distintas y
+  la señal dejaría de servir para lo único que sirve. Hay test de eso.
+- **La PROCEDENCIA de cada corrida** (`run_provenance_rows`), en la sección que ya lleva
+  la de los ficheros: `run_id`, fecha, **md5 del fichero subido** y md5 de la base o
+  catálogo. Es **lo mismo que se le exige a un fichero de referencia, aplicado a un
+  resultado** — y sin ello un frente que sale cerrado en el documento no se puede cotejar
+  con nada.
+
+### El detalle que no es un detalle
+
+De una corrida de BLAST hay **dos** md5 y sólo uno sirve aquí: `query_md5` es el del FASTA
+que **generó la app** —regenerable, no prueba nada de fuera— y `result_md5` el del fichero
+que **llegó**. La procedencia lleva el segundo. Confundirlos deja el documento apuntando a
+lo que él mismo produjo.
+
+### La forma general
+
+Vale para cualquier artefacto que se entregue y lea algo que cambia debajo. **Fechar no es
+identificar.** Si dos ejecuciones con la misma fecha pueden dar productos distintos, el
+producto tiene que llevar **de qué estado salió** — y llevarlo donde se lee, no en un
+anexo.

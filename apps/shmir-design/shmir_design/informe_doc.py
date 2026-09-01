@@ -297,7 +297,8 @@ def _threshold_rows(claves):
 _THRESHOLD_HEADERS = ("umbral", "valor", "origen", "de donde sale")
 
 
-def _section_1(*, species, tiling, generated, anatomy_source) -> Section:
+def _section_1(*, species, tiling, generated, anatomy_source,
+               fingerprint=None) -> Section:
     filas = [
         (
             "secuencia analizada",
@@ -309,6 +310,16 @@ def _section_1(*, species, tiling, generated, anatomy_source) -> Section:
         ("tamaño de ventana", f"{tiling.window_size} nt"),
         ("fecha del informe", generated),
     ]
+    # LA HUELLA DEL LOG, en la CABECERA y no en un anexo. Identifica el ESTADO con el
+    # que se genero: dos informes con la misma huella son el mismo documento. La fecha
+    # sola no lo hace — dos corridas del mismo dia son dos documentos distintos.
+    if fingerprint is not None:
+        filas.append(
+            (
+                "estado del registro",
+                f"{fingerprint['huella']} · {fingerprint['corridas']} corrida(s)",
+            )
+        )
     return Section(
         number=1,
         title="Que se analizo",
@@ -502,7 +513,8 @@ def _section_4(selection) -> Section:
     return Section(number=4, title="Tabla de candidatos", blocks=tuple(bloques))
 
 
-def _section_5(*, species, tiling, selection, starts, target=None) -> Section:
+def _section_5(*, species, tiling, selection, starts, target=None,
+               stores=None) -> Section:
     from .dossier import build_dossier
 
     bloques = [
@@ -512,9 +524,18 @@ def _section_5(*, species, tiling, selection, starts, target=None) -> Section:
         )
     ]
     for inicio in starts:
+        # CON LOS ALMACENES. Esto se llamaba sin ellos, asi que `build_dossier`
+        # construia un `BlastStore()` vacio y el documento que se entrega decia
+        # `NOT_RUN` de frentes que podian estar cerrados — sobre el artefacto que
+        # defiende la seleccion.
+        almacenes = stores or {}
         ficha = build_dossier(
             species=species, tiling=tiling, selection=selection, start=inicio,
             target=target,
+            store=almacenes.get("blast"),
+            seed_store=almacenes.get("seed"),
+            offtarget_store=almacenes.get("offtarget"),
+            splice_store=almacenes.get("splice"),
         )
         bloques.append(heading(f"3utr:{inicio}", level=3))
         bloques.append(pre(ficha.render()))
@@ -767,10 +788,28 @@ def build_document(
     *, species: str, tiling, selection, generated: str,
     anatomy_source: str = "no declarada en esta corrida",
     dossier_starts=None, extra_provenance=(), title: str | None = None,
-    target: str | None = None, anatomy=None,
+    target: str | None = None, anatomy=None, stores=None,
 ) -> Document:
-    """El informe entero. Parcial o completo segun los frentes, nunca dos documentos."""
+    """El informe entero. Parcial o completo segun los frentes, nunca dos documentos.
+
+    `stores` son los almacenes del proyecto. Con ellos las fichas leen las corridas de
+    verdad — antes `_section_5` llamaba a `build_dossier` SIN almacen, asi que construia
+    uno vacio y el documento decia `NOT_RUN` de frentes que podian estar cerrados. Y en
+    cuanto lee estado MUTABLE, el documento tiene que declarar contra QUE estado se
+    genero: la fecha no basta, dos corridas del mismo dia son dos documentos distintos.
+    """
+    from .presentation import log_fingerprint, run_provenance_rows
     from .selection import blocking_fronts
+
+    huella = log_fingerprint(stores)
+    procedencia_corridas = tuple(
+        (
+            f"corrida {fila['almacen']} {fila['run_id']}",
+            f"{fila['fecha']} · subido md5 {fila['md5_subido']}"
+            + (f" · base md5 {fila['md5_base']}" if fila["md5_base"] else ""),
+        )
+        for fila in run_provenance_rows(stores)
+    )
 
     frentes = blocking_fronts(tiling, selection)
     abiertos = tuple(f.name for f in frentes if f.blocking)
@@ -784,7 +823,7 @@ def build_document(
         sections=_numerar((
             _section_1(
                 species=species, tiling=tiling, generated=generated,
-                anatomy_source=anatomy_source,
+                anatomy_source=anatomy_source, fingerprint=huella,
             ),
             _section_2(frentes, species=species),
             _section_3(frentes, species=species, tiling=tiling),
@@ -795,9 +834,11 @@ def build_document(
             _seccion_controles(tiling, selection, species=species, target=target),
             _section_5(
                 species=species, tiling=tiling, selection=selection,
-                starts=tuple(dossier_starts), target=target,
+                starts=tuple(dossier_starts), target=target, stores=stores,
             ),
             _section_6(),
-            _section_7(tiling, extra=extra_provenance),
+            _section_7(
+                tiling, extra=tuple(extra_provenance) + procedencia_corridas
+            ),
         )),
     )

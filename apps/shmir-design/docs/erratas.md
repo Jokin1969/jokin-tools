@@ -1815,3 +1815,51 @@ y si alguna cae a algo que ya se descartó, la ausencia tiene que IMPEDIR — no
 Comprobar que la dependencia está es la mitad; la otra mitad es comprobar que su ausencia
 bloquea lo que sin ella no se puede hacer, y eso es lo que fija
 `tests/test_sin_plegado_no_hay_ADN.py`, simulando la imagen de producción.
+
+## 44 — Cinco copias de la misma clave, y dos tests que preguntaban por la suya
+
+**Qué pasó.** Investigando por qué una corrida de BLAST guardada no cambiaba ningún
+veredicto —cuya causa real es otra: **nadie consulta el almacén en el camino del
+veredicto**— apareció un fallo distinto y latente. El identificador de una consulta se
+construía **a mano en cinco sitios**:
+
+| dónde | para qué |
+|---|---|
+| `presentation.query_name` | el FASTA que se descarga |
+| `dossier.build_dossier` | la búsqueda en el almacén de BLAST |
+| `dossier` (×2) | las búsquedas por hebra, seed y off-target |
+| `seed_scan.run_scan` | las consultas que **emite** el scan |
+| `offtarget` | lo mismo para la carga de off-targets |
+| `presentation.seed_preview_rows` | los ids que el usuario **marca** |
+
+Al pasar el FASTA al slug (errata nº 42) **las demás se quedaron atrás**: una decía
+`Mus musculus_pos959_guia` y otra `mouse_pos959_guia`.
+
+### Por qué es más valioso que el bug que se estaba buscando
+
+**Habría producido el mismo síntoma que el problema real.** Se habría cableado el
+almacén, `verdict_for` no habría encontrado nada, la tabla habría seguido diciendo
+`NOT_RUN` — y la conclusión natural habría sido *«el cableado no funciona»*, buscando en
+el sitio equivocado con la evidencia apuntando ahí. Un fallo que imita al que estás
+arreglando es peor que uno ruidoso: no se descubre, se **confunde**.
+
+### Y lo que lo escondía
+
+> **Dos tests transcribían el formato — preguntaban por la clave que ellos mismos habían
+> escrito.**
+
+`test_seed_store` y `test_ficha_candidato` construían `"raton_pos10_guia"` a mano, metían
+la corrida en el almacén con esa clave y luego la buscaban con esa misma clave. Verde
+siempre, porque el test era **su propio universo**: nunca tocaba al productor real. Es la
+tercera copia del mismo dato haciendo de aval de las otras dos, igual que en la errata
+nº 27 —la constante, la tabla y el ancla, tres orígenes y ninguno correcto— y en la nº 28,
+donde eran tres capas encima del mismo dato.
+
+### Lo que se ha hecho
+
+Las seis derivan de `query_name`. **Y los fixtures también**: `tests/test_seed_store.py`
+llama a un ayudante `CLAVE(inicio, hebra)` que la deriva, así que si el productor cambia
+de formato el test se entera en vez de acompañarlo. Es el principio nº 13 —una constante
+que cita algo se deriva, nunca se transcribe— **sobre una CLAVE en vez de sobre un dato**,
+y el corolario que añade: *un fixture que transcribe un formato es una copia más, y es la
+que hace parecer que todo cuadra.*

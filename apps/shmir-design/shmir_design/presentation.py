@@ -1443,7 +1443,7 @@ def front_help_rows(tiling, selection, *, species: str):
 
 def informe_documento(selection, tiling, *, species: str, generated: str,
                       anatomy_source: str = "no declarada en esta corrida",
-                      dossier_starts=None, anatomy=None):
+                      dossier_starts=None, anatomy=None, stores=None):
     """El documento entero. Parcial o completo segun los frentes, nunca dos productos.
 
     `anatomy` es OPCIONAL y no por comodidad: hay caminos que no la tienen —el CLI la
@@ -1455,6 +1455,7 @@ def informe_documento(selection, tiling, *, species: str, generated: str,
     return build_document(
         species=species, tiling=tiling, selection=selection, generated=generated,
         anatomy_source=anatomy_source, dossier_starts=dossier_starts, anatomy=anatomy,
+        stores=stores,
     )
 
 
@@ -4254,3 +4255,76 @@ def check_can_emit_dna(available: bool | None = None) -> None:
             "sintetizar. Instala ViennaRNA en el entorno (ver "
             "`docs/dependencias-autorizadas.md`)."
         )
+
+
+# ─── UN INFORME QUE LEE ESTADO MUTABLE DECLARA CONTRA QUE ESTADO SE GENERO ───────────
+#
+# COROLARIO del responsable del proyecto (2026-09-01), y va a `docs/principios.md`:
+# **la fecha no basta — dos corridas del mismo dia son dos documentos distintos.**
+# Mientras el documento se calculaba solo del tilado, «generado el 1 de septiembre» lo
+# identificaba: la entrada era la misma. En cuanto lee los almacenes, deja de hacerlo.
+
+#: Los almacenes que un informe puede leer. Se enumeran aqui y no se recorre el dict a
+#: ciegas: un almacen nuevo tiene que entrar TAMBIEN en la huella, y si se colara sin
+#: entrar, dos informes distintos darian la misma huella — que es peor que no tenerla.
+LOG_KINDS = ("blast", "seed", "offtarget", "splice")
+
+FINGERPRINT_NOTE = (
+    "La huella identifica el ESTADO DEL LOG con el que se generó este informe. Dos "
+    "informes con la misma huella son el mismo documento; con huellas distintas, la "
+    "diferencia está en las corridas que había al generarlos. La fecha no basta: dos "
+    "corridas del mismo día son dos documentos distintos."
+)
+
+
+def _runs_of(store) -> list:
+    """Las corridas de un almacen, sea del tipo que sea. Vacio si no hay almacen."""
+    return list(getattr(store, "runs", ()) or ())
+
+
+def log_fingerprint(stores) -> dict[str, object]:
+    """md5 de la lista de `run_id` presentes. ORDENADA, porque el orden no es estado.
+
+    Dos logs con las mismas corridas son el mismo estado: si el orden de llegada contara,
+    dos informes identicos saldrian con huellas distintas y la señal dejaria de servir
+    para lo unico que sirve — decir si dos documentos son el mismo.
+    """
+    import hashlib
+
+    ids = sorted(
+        f"{clave}:{corrida.run_id}"
+        for clave in LOG_KINDS
+        for corrida in _runs_of((stores or {}).get(clave))
+    )
+    return {
+        "huella": hashlib.md5("\n".join(ids).encode("utf-8")).hexdigest(),
+        "corridas": len(ids),
+        "nota": FINGERPRINT_NOTE,
+    }
+
+
+def run_provenance_rows(stores) -> list[dict[str, str]]:
+    """Por cada corrida: id, fecha, md5 del fichero SUBIDO y md5 de la base o catalogo.
+
+    Es lo que ya se le exige a un fichero de referencia —nombre, version y md5— aplicado
+    a un RESULTADO. Sin esto, un frente cerrado en el documento no se puede cotejar con
+    nada: diria «PASS» y no habria forma de saber contra que.
+
+    OJO con los DOS md5 de una corrida de BLAST: `query_md5` es el del FASTA que generó
+    la app y `result_md5` el del fichero que llegó de fuera. El que hay que poder cotejar
+    es el segundo — el primero ya se puede regenerar aquí.
+    """
+    filas = []
+    for clave in LOG_KINDS:
+        for corrida in _runs_of((stores or {}).get(clave)):
+            base = getattr(corrida, "database", None)
+            filas.append(
+                {
+                    "almacen": clave,
+                    "run_id": str(getattr(corrida, "run_id", "")),
+                    "fecha": str(getattr(corrida, "date", "")),
+                    "md5_subido": str(getattr(corrida, "result_md5", "")),
+                    "md5_base": str(getattr(base, "md5", "") if base else ""),
+                }
+            )
+    return filas

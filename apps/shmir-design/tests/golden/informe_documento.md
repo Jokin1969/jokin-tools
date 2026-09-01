@@ -20,6 +20,7 @@ Longitud y md5 van JUNTOS a propósito: «referencia 1246 nt» parece razonable 
 | ventanas tiladas | 1221 |
 | tamaño de ventana | 22 nt |
 | fecha del informe | 2026-08-26 |
+| estado del registro | d41d8cd98f00b204e9800998ecf8427e · 0 corrida(s) |
 
 ## 2. Estado de los frentes
 
