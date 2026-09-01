@@ -1753,3 +1753,65 @@ no como un bloqueo nuevo.
 es que **el espacio era demasiado pequeño**, y un inventario que no puede expresar un
 estado no puede echarlo de menos. Es la contrapartida del principio nº 15: una lista que
 sólo baja es útil mientras la lista sea la lista completa.
+
+## 43 — La imagen no tenía ViennaRNA, así que la app degradó a la regla que ya había descartado
+
+**Qué pasó.** `nixpacks.toml` instalaba Streamlit y el stack de PDF. **ViennaRNA no.** El
+núcleo está escrito para eso —`check_fold` sale `NOT_RUN` y nunca `PASS`, y el diseño
+sigue— y hasta ahí todo correcto: es una limitación declarada, con la que se convive.
+
+**Lo que no degrada igual es la regla de la hebra PASAJERA.** `passenger_from_guide`
+elige la base de la posición 1 **plegando** el 97-mero y comparándolo con la estructura de
+SGEP. Sin plegado no hay criterio que aplicar, así que cae a la **tabla por terminación**
+— y esa tabla es **la primera errata de este proyecto**: le falta el apareamiento
+tambaleante `G:U`, así que con una guía acabada en G elige una base que deja un bulge de
+2 nt en vez de 1. Está descartada **por escrito** y sustituida por el criterio estructural.
+
+### Por qué no es «un `NOT_RUN` más»
+
+Esa pasajera **va dentro del módulo de 149 nt**, que es lo que se manda a sintetizar. La
+app desplegada emitía el módulo y la hoja de pedido con `structural_check = NOT_RUN` al
+lado, más la advertencia de los contextos de SGEP — **que habla de otra cosa**. O sea:
+
+> **Un `NOT_RUN` que produce ADN sintetizable no es un `NOT_RUN`: es un `PASS` con letra
+> pequeña.**
+
+Un gBlock pedido desde la app desplegada habría llevado la base equivocada, y el único
+síntoma habría sido una horquilla que procesa peor — indistinguible de un mal candidato.
+
+### Cómo se descubrió, y eso también cuenta
+
+No lo cazó ningún test: lo cazó una **discrepancia de md5**. Al reconstruir el FASTA de
+consulta del usuario salía `f4d304d7…` y el suyo era `148f946e…`, con los **mismos 1038
+bytes** y las mismas cabeceras. En vez de dar una cifra plausible se buscó la causa, y
+resultó ser que **este entorno tiene ViennaRNA y la imagen no**. Simulando la imagen
+—bloqueando el `import RNA`— el md5 salió **exacto**. Los bytes coincidían porque la
+pasajera cambia de base, no de longitud: la diferencia era invisible por tamaño.
+
+### Lo que se ha hecho, y son tres cosas distintas
+
+1. **La causa raíz**: la imagen instala ViennaRNA, con la comprobación de `import` **en el
+   build**, igual que Streamlit y por la misma razón. Aquí pesa más: si no entra, la app
+   **no falla a gritos** — sigue funcionando y deja de poder emitir oligos.
+2. **El guardia, que se queda aunque esté instalado**: `presentation.check_can_emit_dna()`
+   aborta la emisión del módulo y de la hoja de pedido sin plegado. Acotado a la
+   **emisión** a propósito: el núcleo y los CLI tienen que seguir corriendo sin ViennaRNA
+   —está en `docs/dependencias-autorizadas.md`— y abortar el pipeline entero dejaría la
+   app sin hacer lo único que hoy hace bien. Se prohíbe lo que no se puede deshacer.
+3. **Visible, no deducible**: `folding_capability()` lo dice en la **cabecera**. Es una
+   **capacidad ausente del entorno**, no un fichero que falte — y confundirlos manda al
+   usuario a buscar un fichero que no existe.
+
+### La regla que deja
+
+**Un entorno sin una dependencia no falla: DEGRADA** — y aquí degradó, en silencio, a la
+regla que el proyecto ya había descartado por escrito. La familia es la del principio
+nº 14 (haber comprobado una vez no es seguir comprobando) con el eje cambiado: aquí la
+comprobación **sí corre**, y lo que cambia debajo es de qué se alimenta.
+
+Lo operativo, y aplica a las dos dependencias opcionales y a las que vengan: **no basta
+con que la ausencia esté declarada. Hay que preguntarse a QUÉ cae cada cosa cuando falta,
+y si alguna cae a algo que ya se descartó, la ausencia tiene que IMPEDIR — no anotar.**
+Comprobar que la dependencia está es la mitad; la otra mitad es comprobar que su ausencia
+bloquea lo que sin ella no se puede hacer, y eso es lo que fija
+`tests/test_sin_plegado_no_hay_ADN.py`, simulando la imagen de producción.

@@ -3485,6 +3485,33 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
       **el espacio era demasiado pequeño**. Un inventario que no puede expresar un estado
       no puede echarlo de menos — la contrapartida del principio nº 15.
 
+- **SIN MOTOR DE PLEGADO NO SE EMITE ADN. AÑADIDO (2026-09-01)**, errata nº 43. La
+  imagen de producción **no instalaba ViennaRNA**. El núcleo está escrito para eso
+  —`check_fold` sale `NOT_RUN`, nunca `PASS`— pero **la regla de la PASAJERA no degrada
+  igual**: se elige plegando el 97-mero contra SGEP, y sin plegado cae a la **tabla por
+  terminación**, que es **la primera errata del proyecto** (falla con guías acabadas en G
+  por el apareamiento tambaleante `G:U`) y está descartada por escrito.
+  - **Y esa pasajera va DENTRO del módulo de 149 nt**, o sea de lo que se manda a
+    sintetizar: un gBlock pedido desde la app desplegada llevaría la base equivocada, y el
+    único síntoma sería una horquilla que procesa peor — indistinguible de un mal
+    candidato. **Un `NOT_RUN` que produce ADN sintetizable no es un `NOT_RUN`: es un
+    `PASS` con letra pequeña.**
+  - **Tres cosas y ninguna sustituye a otra**: `nixpacks.toml` lo instala con la
+    comprobación de `import` en el **build**; `check_can_emit_dna()` **aborta la emisión**
+    del módulo y la hoja de pedido sin plegado —acotado a la EMISIÓN, porque el núcleo y
+    los CLI tienen que seguir corriendo sin él—; y `folding_capability()` lo dice en la
+    **cabecera**, porque es una **capacidad ausente del entorno** y no un fichero que
+    falte: confundirlos manda a buscar un fichero que no existe.
+  - **Lo cazó una discrepancia de md5, no un test**: el FASTA reconstruido daba
+    `f4d304d7…` y el del usuario `148f946e…` con los **mismos 1038 bytes**. Simulando la
+    imagen —bloqueando el `import RNA`— salió exacto. Los bytes coincidían porque la
+    pasajera cambia de **base**, no de longitud.
+  - **LA REGLA: un entorno sin una dependencia no falla, DEGRADA.** No basta con declarar
+    la ausencia: hay que preguntarse **a qué cae** cada cosa cuando falta, y si cae a algo
+    ya descartado, la ausencia tiene que **impedir**, no anotar. Comprobar que la
+    dependencia está es la mitad; la otra la fija `tests/test_sin_plegado_no_hay_ADN.py`,
+    que **simula la imagen de producción** y exige que su ausencia bloquee.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
