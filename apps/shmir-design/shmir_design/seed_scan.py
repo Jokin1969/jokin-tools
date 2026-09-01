@@ -477,7 +477,14 @@ def run_scan(
             "FAIL" if any(c.core for c in colisiones)
             else "AVISO" if colisiones else "LIMPIO"
         )
-        consulta = f"{species}_pos{inicio}_{hebra}"
+        # LA CLAVE SE DERIVA. Habia CUATRO sitios armando este identificador —el
+        # FASTA de consulta, la ficha, este scan y el de off-targets— y al pasar el
+        # FASTA al slug (errata nº 42) los demas se quedaron atras. Una corrida
+        # guardada con una clave y buscada con otra no se encuentra, y el sintoma es
+        # identico al de no haberla guardado. Principio nº 13 sobre una CLAVE.
+        from .presentation import query_name
+
+        consulta = query_name(species, inicio, hebra)
         resultados.append(
             SeedResult(
                 start=inicio, strand=hebra, query=consulta, sequence=secuencia,

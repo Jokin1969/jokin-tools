@@ -147,7 +147,7 @@ class TestLaFichaConCorridaDeBLAST(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from shmir_design import blast
+        from shmir_design import blast, presentation
         from shmir_design.blast_store import BlastDatabase, BlastRun, BlastStore
         from shmir_design.dossier import build_dossier
 
@@ -156,7 +156,11 @@ class TestLaFichaConCorridaDeBLAST(unittest.TestCase):
             next(c for c in cls.seleccion.selection.chosen if c.start == 200)
         )
         guia = ventana.evaluation.guide.replace("U", "T")
-        nombre = "raton_pos200_guia"
+        # LA CLAVE SE DERIVA, tambien en el fixture. Estaba transcrita —«raton_pos200
+        # _guia»— y el alias `raton` tiene slug `mouse`, asi que al derivarla en
+        # `build_dossier` este test dejo de encontrar su propia corrida. El fixture era
+        # la tercera copia del formato, y es la que hacia parecer que todo cuadraba.
+        nombre = presentation.query_name("raton", 200, "guia")
         consulta = blast.QueryFasta.from_records(((nombre, guia),))
         cls.almacen = BlastStore()
         cls.almacen.add(

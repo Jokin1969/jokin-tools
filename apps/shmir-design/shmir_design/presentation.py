@@ -741,8 +741,10 @@ def blast_candidate_rows(selection, *, species: str) -> list[dict[str, object]]:
         filas.append(
             {
                 "start": choice.start,
-                "guia_id": f"{species}_pos{choice.start}_guia",
-                "pasajera_id": f"{species}_pos{choice.start}_pasajera",
+                # Derivados, como todo lo demas: estos ids son los que despues busca
+                # la ficha, asi que una quinta copia del formato los desconectaria.
+                "guia_id": query_name(species, choice.start, "guia"),
+                "pasajera_id": query_name(species, choice.start, "pasajera"),
                 "guia": ventana.evaluation.guide.replace("U", "T"),
                 "pasajera": _passenger_dna(ventana.evaluation.guide),
                 "asimetria": f"{choice.asymmetry:+.2f}",
