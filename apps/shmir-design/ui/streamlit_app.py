@@ -137,6 +137,7 @@ from shmir_design.presentation import (  # noqa: E402
     seed_highlights,
     selection_warnings,
     site_table_rows,
+    TABLE_SCOPE_NOTE,
     vector_note,
     seed_load_placeholder,
     seed_preview_rows,
@@ -479,7 +480,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     (st.success if fiabilidad["fiable"] else st.warning)(fiabilidad["texto"])
 
     st.markdown("**Candidatos** — un estado por filtro, en columnas separadas")
-    filas = candidate_rows(seleccion)
+    filas = candidate_rows(seleccion, species=nombre, stores=almacenes)
     if filas:
         st.dataframe(filas, hide_index=True)
     else:
@@ -499,6 +500,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "La selección de la app viene marcada. Se puede cambiar a mano: los avisos "
             "de abajo se recalculan con lo que esté marcado."
         )
+        st.info(TABLE_SCOPE_NOTE)
         st.dataframe(
             # LOS ALMACENES VAN AQUI. La capacidad estaba cableada y probada desde
             # hacía días, y ESTA llamada —la única que se ejecuta— no la usaba: la celda
@@ -569,7 +571,10 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     _guardar_seleccion(proyecto, seleccion, nombre)
 
     with st.expander(f"Todas las ventanas de {nombre} ({len(tiling.windows)})"):
-        st.dataframe(window_rows(tiling), hide_index=True)
+        st.dataframe(
+            window_rows(tiling, species=nombre, stores=almacenes),
+            hide_index=True,
+        )
 
     _panel_controles(seleccion, nombre, tiling, utr3)
 

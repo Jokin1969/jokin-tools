@@ -67,15 +67,19 @@ class TestElALMACENnoPISAloQueNOsabe(unittest.TestCase):
         cls.primero = cls.seleccion.selection.chosen[0].start
         cls.otro = cls.seleccion.selection.chosen[1].start
 
-    def test_sin_corrida_para_ESE_candidato_manda_el_filtro_de_la_ventana(self):
-        from shmir_design.presentation import _store_state
+    def test_sin_corrida_para_ESE_candidato_NO_se_le_pega_el_veredicto_del_otro(self):
+        from shmir_design.presentation import SIN_CONSULTAR, _store_state
 
-        # `None` = «el almacen no dice nada de esto», que NO es `NOT_RUN`: quien decide
-        # entonces es el filtro de la ventana, como siempre.
+        # Lo que se protege aquí no ha cambiado: el veredicto del candidato que SÍ se
+        # consultó no puede contagiarse al que no. Lo que cambió (2026-09-02, errata
+        # nº 55) es la ETIQUETA: con corridas de este frente guardadas, «a éste no se le
+        # ha preguntado» es una causa distinta de «no se ha corrido nada», y decir las
+        # dos `NOT_RUN` era lo que hacía ilegible la tabla de 270 filas.
         estado = _store_state(
             {"blast": _almacen_con(self.primero)}, "especificidad", "raton", self.otro
         )
-        self.assertIsNone(estado)
+        self.assertEqual(estado, SIN_CONSULTAR)
+        self.assertNotEqual(estado, "PASS")
 
     def test_con_corrida_SI_manda_el_almacen(self):
         from shmir_design.presentation import _store_state

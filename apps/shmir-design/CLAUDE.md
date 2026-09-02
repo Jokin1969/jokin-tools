@@ -3752,6 +3752,32 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **dentro del comentario que lo explica**. Un ancla falsa da verde sin comprobar nada;
     ahora se quitan los comentarios antes de mirar.
 
+- **ERAN TRES TABLAS, Y «NO SE CONSULTÓ» DECÍA LO MISMO QUE «FALTA EL FICHERO»
+  (2026-09-02)**, errata nº 55. La tarjeta decía «CERRADO por corrida guardada: los 10
+  candidatos» y la tabla de esos mismos diez decía `NOT_RUN`.
+  - **Tres tablas emiten estado por filtro y la página pinta las tres**:
+    `site_table_rows`, **`candidate_rows`** —la de «Candidatos, un estado por filtro»— y
+    **`window_rows`**. El `stores=` había ido a **una**.
+  - **El guardia que faltaba es mecánico**: `_filter_columns` es el ÚNICO sitio que emite
+    el estado por filtro de una fila, así que **todo el que lo llame pasa por
+    `_with_stores`**. Escrito el test, `window_rows` saltó de inmediato — una cuarta tabla
+    falla ahí y no el día que alguien la mire con una corrida guardada.
+  - **`SIN_CONSULTAR`**, y NO es presentación: «a este candidato no se le ha preguntado» y
+    «falta el fichero» son dos causas y se arreglan con cosas distintas. Sólo aparece si el
+    proyecto YA tiene corridas de ese frente; sin ninguna, `NOT_RUN` sigue siendo lo
+    honesto. Con la corrida del panel: 270 `NOT_RUN` → **10 `PASS` + 260 `SIN_CONSULTAR`**.
+    Para el veredicto bloquea igual que `NOT_RUN`, y `verdicts_changed` los trata como lo
+    mismo — si no, la primera corrida anunciaba «270 cambios».
+  - **El panel va ARRIBA** en la tabla de sitios (`panel_first`): las diez repartidas entre
+    260 hacían que lo primero que se ve fuera `NOT_RUN`. Ordenar no es filtrar: no se quita
+    ni una fila.
+  - **MÉTODO, y es lo que más pesa**: tres veces seguidas di un diagnóstico que explicaba
+    UNA parte de lo observado y fui a arreglar esa parte —un consumidor de seis, luego una
+    tabla de tres—. Las tres veces la corrección vino de fuera con el mismo argumento:
+    **varios síntomas a la vez significan una causa arriba, no varios arreglos abajo.** Y
+    la identificación decisiva fue **por un dato interno** —`bandera_polyA_debil` marcada
+    en la última fila, que es `3utr:1018`— no por la captura.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

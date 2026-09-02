@@ -200,8 +200,22 @@ def _filter_columns(window: TiledWindow) -> dict[str, str]:
     return {r.name: r.state.value for r in window.filters}
 
 
-def candidate_rows(selection: ReportSelection) -> list[dict[str, object]]:
-    """Una fila por candidato, con el estado de CADA filtro en su propia columna."""
+def candidate_rows(
+    selection: ReportSelection, *, species: str = "", stores=None,
+) -> list[dict[str, object]]:
+    """Una fila por candidato, con el estado de CADA filtro en su propia columna.
+
+    LEE LOS ALMACENES (2026-09-02, errata nº 55). Son DOS tablas y las dos se llaman
+    desde la pagina: esta —«Candidatos, un estado por filtro»— y `site_table_rows`, la de
+    todos los sitios elegibles. El arreglo de `stores=` fue a la segunda y esta se quedo
+    fuera, asi que la tarjeta decia «CERRADO por corrida guardada: los 10 candidatos» y la
+    tabla de esos mismos diez decia `NOT_RUN` tres centimetros mas arriba.
+
+    Lo cazo quien lo reporto **por el dato interno**: la ultima fila llevaba marcada
+    `bandera_polyA_debil`, que es `3utr:1018` — el unico del panel con `ACTAAA` solapando.
+    O sea, eran los diez del panel y no diez cualesquiera. Ver principio nº 23: dos
+    artefactos que leen el mismo estado y solo uno actualizado.
+    """
     rows: list[dict[str, object]] = []
     for choice in selection.selection.chosen:
         window = selection.window_of(choice)
@@ -232,7 +246,9 @@ def candidate_rows(selection: ReportSelection) -> list[dict[str, object]]:
                 "accesibilidad": (
                     window.accesibilidad.as_column() if window.accesibilidad else ""
                 ),
-                **_filter_columns(window),
+                **_with_stores(
+                    _filter_columns(window), stores, species, choice.start
+                ),
                 "bandera_polyA_debil": window.bandera_polyA_debil,
                 "biofisicos_ok": window.biofisicos_ok,
                 "riesgo_APA": (
@@ -248,8 +264,17 @@ def candidate_rows(selection: ReportSelection) -> list[dict[str, object]]:
     return rows
 
 
-def window_rows(report: TilingReport) -> list[dict[str, object]]:
-    """TODAS las ventanas. Ninguna se omite: omitir es esconder un NOT_RUN."""
+def window_rows(
+    report: TilingReport, *, species: str = "", stores=None,
+) -> list[dict[str, object]]:
+    """TODAS las ventanas. Ninguna se omite: omitir es esconder un NOT_RUN.
+
+    LEE LOS ALMACENES, como las otras dos tablas. Era la TERCERA —«Todas las ventanas»,
+    en su propio desplegable— y la encontro el guardia que se escribio al descubrir que
+    eran dos: `_filter_columns` es el unico sitio que emite el estado por filtro de una
+    fila, asi que todo el que lo llame tiene que pasar por `_with_stores`. Arreglar las
+    tablas de una en una es como estuve dos tandas.
+    """
     return [
         {
             "inicio": w.window.start,
@@ -261,7 +286,9 @@ def window_rows(report: TilingReport) -> list[dict[str, object]]:
                 None if w.evaluation.asymmetry is None
                 else round(w.evaluation.asymmetry, 2)
             ),
-            **_filter_columns(w),
+            **_with_stores(
+                _filter_columns(w), stores, species, w.window.start
+            ),
             "bandera_polyA_debil": w.bandera_polyA_debil,
             "biofisicos_ok": w.biofisicos_ok,
             "veredicto": w.verdict.value,
@@ -1675,6 +1702,28 @@ def front_columns(tiling, selection) -> list[str]:
 STORE_FOR_FRONT = {"especificidad": "blast"}
 
 
+#: LO QUE FALTABA PARA QUE LA TABLA DE 270 FILAS SE PUEDA LEER (errata nº 55). «No se le
+#: ha preguntado a este candidato» y «falta el fichero» decian las dos `NOT_RUN`, asi que
+#: las 260 filas que nadie va a consultar nunca eran indistinguibles de las que esperan un
+#: fichero. No es presentacion: son dos causas distintas y una se arregla consiguiendo
+#: algo y la otra lanzando una corrida.
+#:
+#: Solo aparece cuando el proyecto YA tiene corridas de ese frente: sin ninguna, el estado
+#: honesto sigue siendo `NOT_RUN` — nadie ha corrido nada, no es que este candidato se
+#: haya quedado fuera.
+SIN_CONSULTAR = "SIN_CONSULTAR"
+
+
+def _with_stores(estados: dict, stores, species: str, start: int) -> dict:
+    """Los estados de una fila, con lo que digan los almacenes encima. UN solo sitio."""
+    if not stores:
+        return estados
+    return {
+        nombre: (_store_state(stores, nombre, species, start) or estado)
+        for nombre, estado in estados.items()
+    }
+
+
 def _store_state(stores, front: str, species: str, start: int) -> str | None:
     """El estado de ESE frente para ESE candidato segun los almacenes, o `None`.
 
@@ -1695,7 +1744,11 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
     # por un `NOT_RUN` del almacen. Es el mismo fallo latente que las cinco claves: no
     # se ve hasta que otra cosa cambia.
     if not almacen.history(consulta):
-        return None
+        # HAY CORRIDAS DE ESTE FRENTE PERO NINGUNA MIRO A ESTE CANDIDATO. No es lo mismo
+        # que no haber corrido nada: se arregla lanzando una corrida que lo incluya, no
+        # consiguiendo un fichero. Sin corridas de ningun tipo se devuelve `None` y manda
+        # el filtro de la ventana, como siempre.
+        return SIN_CONSULTAR if getattr(almacen, "runs", None) else None
     return almacen.verdict_for(consulta).state.value
 
 
@@ -1721,7 +1774,13 @@ def verdict_with_stores(estados) -> str:
 
     resultados = [
         FilterResult(
-            name=nombre, state=FilterState(estado),
+            name=nombre,
+            # SIN_CONSULTAR no es un `FilterState`: es una etiqueta de la TABLA que dice
+            # por que no hay veredicto. Para agregar, bloquea igual que `NOT_RUN` — lo
+            # que cambia es lo que hay que hacer, no si impide aprobar.
+            state=FilterState(
+                "NOT_RUN" if estado == SIN_CONSULTAR else estado
+            ),
             # La regla 3 exige motivo TAMBIEN en PASS. Aqui el estado ya viene resuelto
             # —de la celda de la tabla— y el motivo largo vive en la ficha y en la
             # propia celda; esto solo agrega.
@@ -1816,6 +1875,37 @@ def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int
     return salida
 
 
+#: QUE HAY EN LA TABLA, dicho arriba. Sin esto, sus 270 filas se leen como si todas
+#: fueran candidatos del panel — y las 260 que no lo son salen `NOT_RUN` con toda la
+#: razon, porque nadie las ha consultado. La salida es correcta y la conclusion que
+#: produce, falsa (errata nº 55).
+TABLE_SCOPE_NOTE = (
+    "Aquí salen TODOS los sitios elegibles, no sólo los del panel: un sitio que no se "
+    "eligió sigue teniendo veredictos, y esconderlo dejaría sin poder discutir la "
+    "selección. **Los del panel van arriba**, en el orden en que la app los eligió. En "
+    "los demás, un `NOT_RUN` significa que **a ese candidato no se le ha preguntado** —"
+    "las corridas se lanzan sobre el panel—, no que falte un fichero."
+)
+
+
+def panel_first(filas):
+    """El panel ARRIBA y por rango; el resto detras, en su orden de posicion.
+
+    La tabla enseña los ~270 sitios elegibles a proposito, y sólo los 10 del panel
+    llevan las corridas. Repartidos entre los otros 260, lo que se ve al abrirla es
+    `NOT_RUN` — con la tarjeta de al lado diciendo «CERRADO por corrida guardada». Fue
+    exactamente lo que se reporto con captura.
+
+    ORDENAR NO ES FILTRAR: no se quita ni una fila. Lo que cambia es cual se ve primero.
+    """
+    elegidas = [f for f in filas if f.get("elegido")]
+    resto = [f for f in filas if not f.get("elegido")]
+    elegidas.sort(
+        key=lambda f: (f.get("rango") if isinstance(f.get("rango"), int) else 10**9)
+    )
+    return elegidas + resto
+
+
 def site_table_rows(tiling, selection, *, species: str = "",
                     selected=None, stores=None) -> list[dict[str, object]]:
     """TODOS los sitios elegibles, con UNA COLUMNA POR FRENTE.
@@ -1868,13 +1958,10 @@ def site_table_rows(tiling, selection, *, species: str = "",
                 ),
                 # El almacen MANDA donde tiene algo que decir; donde no, decide el
                 # filtro de la ventana. Y sólo sobre SU columna: `STORE_FOR_FRONT`.
-                **(efectivos := {
-                    nombre: (
-                        _store_state(stores, nombre, species, ventana.window.start)
-                        or estados.get(nombre, "NOT_RUN")
-                    )
-                    for nombre in columnas
-                }),
+                **(efectivos := _with_stores(
+                    {n: estados.get(n, "NOT_RUN") for n in columnas},
+                    stores, species, ventana.window.start,
+                )),
                 # EL VEREDICTO CUENTA LO MISMO QUE LAS CELDAS. Antes salia
                 # `ventana.verdict`, del informe de tilado, asi que una fila podia decir
                 # `especificidad: PASS` y `veredicto: INCOMPLETE` — dos numeros del mismo
@@ -1886,7 +1973,8 @@ def site_table_rows(tiling, selection, *, species: str = "",
                 "guia": ventana.evaluation.guide,
             }
         )
-    return filas
+    # EL PANEL ARRIBA. Ver `panel_first`: la tabla estaba bien y era ilegible.
+    return panel_first(filas)
 
 
 def selection_warnings(tiling, selection, *, selected=None,
@@ -4642,7 +4730,16 @@ def verdicts_changed(tiling, selection, *, species: str, before, after
             for c in columnas
         }
 
-    antes, despues = _tabla(before), _tabla(after)
+    # `SIN_CONSULTAR` y `NOT_RUN` son LO MISMO para esta cuenta: ninguno es un veredicto,
+    # y el paso de uno a otro sólo afina la etiqueta —«hay corridas de este frente y
+    # ninguna te miró» en vez de «no se ha corrido nada»—. Sin esto, la primera corrida
+    # decía «270 cambios» porque las 260 filas que nadie consultó cambiaban de nombre:
+    # el contador engañoso que este contador existe para no ser (errata nº 55).
+    def _mismo(valor):
+        return FilterState.NOT_RUN.value if valor == SIN_CONSULTAR else valor
+
+    antes = {k: _mismo(v) for k, v in _tabla(before).items()}
+    despues = {k: _mismo(v) for k, v in _tabla(after).items()}
     cambiados = [k for k, v in despues.items() if antes.get(k) != v]
     con_veredicto = sum(
         1 for k in cambiados

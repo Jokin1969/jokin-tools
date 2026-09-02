@@ -5,7 +5,7 @@ comprobarlo sin abrir el codigo:
 
   1. la columna `especificidad` de un candidato con corrida deja de decir `NOT_RUN`;
   2. una corrida `-remote` da `NO_CIERRA`, no `NOT_RUN` ni `PASS`;
-  3. un candidato SIN corrida sigue en `NOT_RUN` — control adversario: si todos cambiaran,
+  3. un candidato SIN corrida NO se contagia — control adversario: si todos cambiaran,
      la tabla no estaria leyendo nada, estaria pintando otra cosa;
   4. y el contador de la confirmacion dice cuantos veredictos cambiaron, con el CERO
      visible: «guardada, 0 veredictos actualizados» es la señal de que algo no encaja, y
@@ -75,7 +75,7 @@ class TestLaTABLAcambiaConLaCorrida(unittest.TestCase):
         )["especificidad"]
         self.assertEqual(estado, "NO_CIERRA")
 
-    def test_4_los_OTROS_candidatos_siguen_en_NOT_RUN(self):
+    def test_4_los_OTROS_candidatos_NO_se_contagian(self):
         """Control adversario. Si todos cambiaran, la tabla no leeria: pintaria otra cosa."""
         filas = presentation.site_table_rows(
             self.tiling, self.seleccion, species="raton",
@@ -88,7 +88,11 @@ class TestLaTABLAcambiaConLaCorrida(unittest.TestCase):
         self.assertTrue(otros)
         for fila in otros:
             with self.subTest(inicio=fila["inicio"]):
-                self.assertEqual(fila["especificidad"], "NOT_RUN")
+                # `SIN_CONSULTAR` desde 2026-09-02 (errata nº 55): hay corridas de este
+                # frente y ninguna miró a este candidato, que NO es lo mismo que no
+                # haber corrido nada. Lo que se comprueba aquí sigue siendo lo de antes:
+                # que el veredicto del que sí se consultó NO se contagia al resto.
+                self.assertEqual(fila["especificidad"], presentation.SIN_CONSULTAR)
 
     def test_5_los_OTROS_FRENTES_del_mismo_candidato_no_se_mueven(self):
         # Una corrida de BLAST cierra especificidad y NADA MAS. Si moviera otra columna,

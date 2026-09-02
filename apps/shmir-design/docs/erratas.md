@@ -2405,3 +2405,61 @@ función y lo encontraba **dentro del comentario que lo explica**, así que med�
 contra la prosa. Corregido —se quitan los comentarios antes de mirar— y anotado aquí
 porque es la misma familia que un guardia que muerde donde no hay lógica: **un ancla falsa
 da verde sin comprobar nada**.
+
+## 55 — Eran TRES tablas, y «no se consultó» decía lo mismo que «falta el fichero»
+
+**Reportado con dos capturas (2026-09-02)**, y el diagnóstico volvió a ser de quien lo
+reportaba, no mío. La tarjeta decía **«CERRADO por corrida guardada: los 10 candidatos del
+panel tienen veredicto»** y la tabla de esos mismos diez, tres centímetros más arriba,
+decía `NOT_RUN` en las diez filas.
+
+Mi respuesta anterior fue que la tabla «no estaba mal, estaba ilegible»: 270 filas y sólo
+10 con veredicto. **Era otra tabla.** Lo dijo el título de la propia captura —«Candidatos
+— un estado por filtro»— y lo confirmó **por el dato interno**:
+
+> la última fila lleva marcada `bandera_polyA_debil`. Ése es `3utr:1018`, el único del
+> panel con `ACTAAA` solapando la ventana. Son los diez del panel, no diez de los otros
+> 260.
+
+Comprobado: `tx:1967` = `3utr:1018`, y es la única del panel con esa bandera. **Una
+identificación por un dato interno vale más que una captura**, y era la única forma de
+distinguir las dos tablas desde fuera.
+
+### Eran TRES, y las arreglé de una en una
+
+`site_table_rows` (todos los sitios elegibles), **`candidate_rows`** (la de la captura) y
+**`window_rows`** (todas las ventanas, en su propio desplegable). Las tres las pinta la
+página, las tres emiten estado por filtro, y el `stores=` había ido a **una**.
+
+El guardia que faltaba es mecánico y lo encontró sola la tercera: `_filter_columns` es el
+**único** sitio que emite el estado por filtro de una fila, así que **todo el que lo llame
+tiene que pasar por `_with_stores`**. Escrito el test, saltó `window_rows` de inmediato.
+
+### Y la segunda mitad, que no es presentación
+
+> Si sólo diez de 270 pueden tener veredicto y las 260 restantes salen `NOT_RUN` para
+> siempre, esa tabla necesita distinguir «no se consultó» de «se consultó y no cerró». Hoy
+> las dos dicen lo mismo, y eso es lo que hace la tabla ilegible.
+
+Tiene razón y mi «es de presentación» era falso: son **dos causas distintas y se arreglan
+con cosas distintas** —una lanzando una corrida que incluya ese candidato, la otra
+consiguiendo un fichero—. Entra `SIN_CONSULTAR`, y sólo aparece cuando el proyecto **ya
+tiene corridas de ese frente**: sin ninguna, el estado honesto sigue siendo `NOT_RUN`,
+porque entonces no es que ese candidato se haya quedado fuera. Con la corrida del panel
+guardada, la tabla pasa de 270 `NOT_RUN` a **10 `PASS` + 260 `SIN_CONSULTAR`**.
+
+Para el veredicto agregado **bloquea igual que `NOT_RUN`**: lo que cambia es qué hay que
+hacer, no si impide aprobar.
+
+Y arrastró un contador: la primera corrida decía «**270 cambios**» porque las 260 filas
+cambiaban de etiqueta. `verdicts_changed` trata ahora `SIN_CONSULTAR` y `NOT_RUN` como lo
+mismo — era el contador engañoso que ese contador existe para no ser.
+
+### Lo que esta errata deja como método
+
+Tres veces seguidas he dado un diagnóstico que explicaba **una parte** de lo observado y
+he ido a arreglar esa parte: primero un consumidor de seis, luego una tabla de tres. Las
+tres veces la corrección vino de fuera y las tres veces el argumento fue el mismo —
+**varios síntomas a la vez significan una causa arriba, no varios arreglos abajo**. El
+guardia de `_filter_columns` es la primera contramedida de esta serie que no depende de
+que yo mire en el sitio correcto.
