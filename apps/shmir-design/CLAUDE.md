@@ -3622,6 +3622,63 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     fallo sólo aparece cuando alguien **pide** la clave: es el argumento de que la
     auditoría hacía falta.
 
+- **LA CORRIDA DABA `PASS` Y NO LLEGABA NI A LA TABLA NI AL SEMÁFORO (2026-09-02)**,
+  errata nº 51. Reportado con el proyecto delante y pidiendo distinguir cuál de los dos
+  fallos era. **Eran los dos.**
+  - **1. El argumento que faltaba en la única llamada que se ejecuta.** La página pintaba
+    `site_table_rows(tiling, seleccion, species=…, selected=…)` **sin `stores=`**. La
+    capacidad estaba cableada y probada desde la tanda anterior. **Quinta vez** de esta
+    familia —`triple_motive_rows`, `intron_folding`, `store.save_*`, `page_run`— y la
+    primera en que lo que faltaba era un **argumento**, no una llamada.
+  - **2. Y faltaban TRES consumidores.** El **veredicto** de cada candidato salía de
+    `ventana.verdict`, así que la fila podía decir `especificidad: PASS` y
+    `veredicto: INCOMPLETE`, **una al lado de la otra y las dos con pinta de medida**; las
+    **tarjetas**, el **semáforo** y el bloque de **frentes del informe** derivan de
+    `blocking_fronts`, que no miraba los almacenes.
+  - `presentation.store_states_by_front` resuelve UNA vez lo que dicen los almacenes y lo
+    usan los cuatro. El veredicto lo agrega `filters.overall_verdict` con los estados
+    efectivos — **no se reimplementa**, que es como `NO_CIERRA` volvería a contar mal.
+  - **UN FRENTE SÓLO SE CIERRA SI LO CUBRE TODO EL PANEL** (`fronts_closed_by_runs`). Con
+    seis de diez consultados, «frente cerrado» daría por comprobados cuatro que nadie
+    miró. Y un **`FAIL` cierra igual que un `PASS`**: se cierra consiguiendo *la
+    respuesta*, no una buena. `NOT_RUN` y `NO_CIERRA` no cierran — ahí no hay respuesta.
+
+- **UNA MAGNITUD, UN SITIO QUE LA CALCULA (2026-09-02)**
+  (`tools/auditar_claves.py` segunda mitad, `data/magnitudes.toml`). Cuarto par del mismo
+  tipo en pocos días —`blocks`/`gblock`, `verdict_state`/`SpliceRun`, las cinco copias de
+  la clave, los cuatro `hashlib.md5(raw)`—, y el patrón es siempre **una magnitud que
+  decide algo, calculada en más de un sitio**.
+  - **DIGESTOS**: cada `hashlib.*` declara QUÉ magnitud calcula, y **dos sitios no pueden
+    declarar la misma**. Guardia, cero. Dos salidas y ninguna tercera: uno delega, o son
+    números distintos y el motivo dice **por qué no son el mismo**.
+  - Se consolidaron dos: **`identidad.file_fingerprint`** (el md5 de los bytes de un
+    fichero, que lo pedían **seis** sitios) y **`genbank.sequence_md5`**, que hasheaba la
+    cadena tal cual mientras `reference.sequence_md5` **canoniza** antes — coincidían sólo
+    con la entrada ya normalizada, y de ese número depende que un fichero **bueno** se
+    acepte.
+  - **IDENTIFICADORES**: un `*_id` construido a mano con una f-string. Guardia, cero: es
+    la regresión de la errata nº 48.
+  - **FÓRMULAS** repetidas entre módulos: **trinquete** en 11, porque cero no se puede
+    exigir. La que más pesa es la misma escrita de dos formas —`self.end - self.start + 1`
+    en siete módulos y `fin - inicio + 1` en seis—, que es justo la cantidad que
+    `audit.Span.check()` existe para derivar.
+
+- **DOS AUDITORÍAS CON REGLAS OPUESTAS SOBRE LA MISMA EVIDENCIA (2026-09-02)**
+  (`data/auditorias.toml`, `tests/test_auditorias_no_se_pisan.py`), errata nº 52 y
+  principio nº 26. `auditar_fixtures` reconocía la fabricación **por el nombre escrito** y
+  `auditar_claves` **prohíbe escribirlo**: al derivarlo, la fabricación siguió y su
+  justificación viva pasó a leerse como **caducada**.
+  - **La contramedida no es coordinarlas a mano.** Cada auditoría declara sobre qué
+    **evidencia** opina y **cómo la reconoce** —que es donde dos criterios se separan sin
+    que nadie lo note—, y dos que compartan evidencia **tienen que declarar un cruce**.
+  - **El cruce es una comprobación, no una declaración**: da a los dos reconocedores el
+    mismo material escrito de las dos formas y exige el mismo veredicto. Un campo que
+    nadie ejecuta sería la errata nº 29 otra vez.
+  - **Y encontró dos cosas al estrenarse**: `auditar_geometria` y `auditar_navegacion` no
+    estaban declaradas en ninguna parte, y `guardias.toml` y `magnitudes.toml` opinan las
+    dos sobre quién calcula un digesto — hay que actualizar **las dos**, y eso ya se había
+    olvidado dos veces en un día.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

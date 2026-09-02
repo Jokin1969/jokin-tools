@@ -26,12 +26,12 @@ Python 3.11+, sólo biblioteca estándar (regla 6).
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
 from .errors import ShmirDesignError
+from .identidad import file_fingerprint
 from .presencia import hay_fichero
 
 #: QUE CORRIDAS INVALIDA CAMBIAR CADA FICHERO. Declarado en UN SOLO SITIO y con test de
@@ -85,7 +85,7 @@ def _ruta(directory, name: str) -> Path:
 
 
 def _md5(data: bytes) -> str:
-    return hashlib.md5(data, usedforsecurity=False).hexdigest()
+    return file_fingerprint(data)
 
 
 @dataclass(frozen=True)

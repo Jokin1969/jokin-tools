@@ -25,13 +25,13 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-import hashlib
 import re
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
 from .errors import ShmirDesignError
+from .identidad import file_fingerprint
 
 MANIFEST_NAME = "manifest.tsv"
 MANIFEST_COLUMNS = (
@@ -533,7 +533,7 @@ def check_directory(directory: Path | str) -> DirectoryStatus:
             resultados.append(EntryResult(entry=entrada, status=EntryStatus.AUSENTE))
             continue
         datos = ruta.read_bytes()
-        md5 = hashlib.md5(datos, usedforsecurity=False).hexdigest()
+        md5 = file_fingerprint(datos)
         if not entrada.md5:
             estado = EntryStatus.SIN_REGISTRAR
         elif md5 == entrada.md5:

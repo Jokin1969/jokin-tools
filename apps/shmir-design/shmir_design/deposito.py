@@ -24,11 +24,11 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
 from .errors import ShmirDesignError
+from .identidad import file_fingerprint
 from .manifest import ROLES, ManifestEntry, Role, register_entry
 from .species import RequiredFile, Species, file_for, fixture_report, required_files
 
@@ -311,7 +311,7 @@ def accept_upload(
         provisional.unlink(missing_ok=True)
         raise
 
-    md5 = hashlib.md5(payload, usedforsecurity=False).hexdigest()
+    md5 = file_fingerprint(payload)
     destino = directory / filename
     provisional.replace(destino)
 

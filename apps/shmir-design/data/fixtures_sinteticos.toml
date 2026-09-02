@@ -82,3 +82,9 @@ test = "test_usar_manifiesto.py"
 artefacto = "aav_casete.fa"
 usa_el_real = false
 por_que_no_el_real = "MOTIVO DE PESO, y es el que enseñó la errata nº 33: este fichero monta manifiestos PARCIALES a propósito, para probar qué pasa cuando falta un rol, cuando un md5 no cuadra, o cuando una bandera explícita manda sobre el manifiesto. Con el real no se pueden montar esos casos. LO QUE FALTABA no era dejar de fabricarlos: era que ADEMÁS hubiera una corrida contra el manifiesto REAL — y esa está ahora en `test_roles_del_manifiesto.py`, donde se vio el `KeyError: polyadb`."
+
+[[fixture]]
+test = "test_auditorias_no_se_pisan.py"
+artefacto = "aav_casete.fa"
+usa_el_real = false
+por_que_no_el_real = "NO fabrica nada: el nombre está dentro de un FUENTE SINTÉTICO que se le da al reconocedor de `auditar_fixtures` para comprobar que muerde igual con el nombre literal y con el derivado. El material de prueba de un detector tiene que contener justo lo que el detector busca — es el mismo caso que el fuente de antes del arreglo con el que se prueba `auditar_condiciones`. Y que ESTA entrada exista es además la demostración del principio nº 26: el cruce entre las dos auditorías lo detecta la otra auditoría, así que las dos siguen mirando el mismo hecho."

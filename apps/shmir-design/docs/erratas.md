@@ -2159,3 +2159,112 @@ inventar una identidad en vez de abortar. Ahora `resolve` es **idempotente** con
 Ese fallo no lo podía ver ningún test que escribiera el nombre a mano: sólo aparece
 cuando alguien **pide** la clave. Que sea lo primero que salió al aplicar la auditoría es
 el argumento de que la auditoría hacía falta.
+
+## 50 — Un constructor permisivo convierte un error de tipo en un dato con forma correcta
+
+**Salió de la auditoría de claves (2026-09-02)**, al pedirle el nombre de consulta a
+`query_name` en vez de escribirlo:
+
+```python
+>>> query_name(resolve("raton"), 200, "guia")
+'species_scientific_mus_musculus_slug_mouse_mirbase_prefix_mmu_taxid_txid10090_ucsc_assembly_mm39_pos200_guia'
+```
+
+`species.resolve` terminaba en `Species(scientific=str(name), slug=_slugify(str(name)))`,
+así que con **cualquier objeto** fabricaba una especie a partir de su `repr`. La
+anotación decía `name: str` y nadie la comprueba en tiempo de ejecución.
+
+**La lección, y es lo que generaliza**: no produjo una excepción, produjo **un dato con
+la forma correcta**. Una excepción se ve; un nombre de consulta plausible viaja al FASTA,
+al `-outfmt 6` y al almacén. Es la regla 4 —no se deduce, se comprueba o se aborta—
+aplicada al **tipo** en vez de a un endpoint, y la familia del `.out` sin resumen: lo que
+sale tiene forma de resultado.
+
+`resolve` es ahora **idempotente** con un `Species` y **aborta** con cualquier otro tipo.
+
+### Y se buscaron los demás, que era la mitad del encargo
+
+`tools/auditar_claves.py` gana la regla: **`str(argumento)` que acaba construyendo un
+objeto o un digesto sin un `isinstance` sobre ese mismo argumento**. Se sigue **un nivel
+de asignación** (`limpio = str(name).strip()` y luego `Species(..., limpio)`), y eso no es
+un detalle: sin esa vuelta, el fuente de antes del arreglo **salía limpio**. Está
+comprobado contra él.
+
+Salieron **10**. Uno era real y ya está cerrado — `identidad.result_fingerprint` hacía
+`str(raw)` antes de hashear, así que un `Path` o una lista habrían dado un md5 válido de
+su `repr`, **y ese md5 entra en el `run_id`**. Los otros nueve son `str(fecha)` a un campo
+de texto, `str(ruta)` a una etiqueta de procedencia o `str(algo)` dentro del mensaje de un
+aborto: quedan declarados con su motivo en `data/magnitudes.toml`, y una declaración que
+deje de corresponder caduca.
+
+**No se mira la anotación de tipo**, y ésa es la decisión de método: la de `resolve` decía
+`str` y era justo la que mentía.
+
+## 51 — La corrida daba PASS y no llegaba ni a la tabla ni al semáforo
+
+**Reportado con el proyecto delante (2026-09-02)**: proyecto `Intento_10`, corrida
+`blast-…-da94fcf3…`. La sección «¿Siguen valiendo las corridas guardadas?» decía **PASS**
+—o sea que la comparación de md5 contra `refseq_rna.fa` funcionaba— y a la vez el semáforo
+decía «Hechas 6 de 10», las tarjetas «1 de 8», los diez candidatos salían `INCOMPLETE` y
+el informe seguía listando `especificidad` entre los frentes abiertos.
+
+Y quien lo reportó pidió **distinguir cuál de los dos fallos era**, porque son distintos:
+si la celda cambió y el semáforo no, falta un consumidor; si la celda tampoco cambió,
+`stores` no llega a `site_table_rows`. **Eran los dos.**
+
+### Fallo 1 — el argumento que faltaba en la única llamada que se ejecuta
+
+```python
+site_table_rows(tiling, seleccion, species=nombre, selected=marcados)
+```
+
+Sin `stores=`. La función lo acepta desde la tanda anterior y sus tests pasan; la página
+—el único camino que se ejecuta— no lo usaba. Es la **quinta** vez de esta familia
+—`triple_motive_rows`, `intron_folding`, `store.save_*`, `page_run`— y la primera en que
+la capacidad estaba **cableada y probada**: lo que faltaba era un argumento.
+
+### Fallo 2 — y además faltaban TRES consumidores
+
+Aunque `stores` hubiera llegado a la tabla, sólo habría cambiado la celda:
+
+- **el veredicto de cada candidato** salía de `ventana.verdict`, del informe de tilado. La
+  fila podía decir `especificidad: PASS` y `veredicto: INCOMPLETE`, **una al lado de la
+  otra y las dos con pinta de medida** — dos contadores del mismo suceso;
+- **las tarjetas y el semáforo** se derivan de `blocking_fronts`, que no mira los
+  almacenes;
+- **el bloque de frentes del informe**, por lo mismo.
+
+Ahora `presentation.store_states_by_front` resuelve una sola vez lo que dicen los
+almacenes y lo usan los cuatro. El veredicto lo agrega `filters.overall_verdict` con los
+estados **efectivos** — no se reimplementa, que es como `NO_CIERRA` seguiría contando mal.
+
+### La regla que impide un cierre falso, y no se puede omitir
+
+**Un frente sólo se cierra si lo cubre TODO el panel.** Con seis candidatos consultados de
+diez, decir «frente cerrado» daría por comprobados cuatro que nadie miró — es la regla 3
+un piso más arriba. Y **un `FAIL` cierra el frente igual que un `PASS`**: un frente se
+cierra consiguiendo *la respuesta*, no consiguiendo una buena. Lo que no cierra es
+`NOT_RUN` ni `NO_CIERRA`, porque ahí no hay respuesta que leer.
+
+## 52 — Dos auditorías con reglas opuestas sobre la misma evidencia
+
+Pasó dentro de la tanda anterior y lo señaló el responsable del proyecto:
+`auditar_fixtures` reconocía que un test fabrica un artefacto **por el nombre del fichero
+escrito en el test**, y `auditar_claves` —estrenada el mismo día— **prohíbe escribirlo**.
+Dos guardias con reglas opuestas sobre la misma evidencia.
+
+Al derivar el nombre, la fabricación **siguió existiendo** y su justificación, viva, pasó
+a leerse como **caducada**. El guardia dejó de ver lo que sí estaba: el fallo hacia el
+silencio, que es el peor de los dos sentidos.
+
+Y la contramedida **no es coordinarlas a mano**: con once auditorías conviviendo, eso es
+una condición que alguien tiene que recordar. Ver el principio nº 26 y
+`data/auditorias.toml`.
+
+**El cruce encontró dos cosas nada más estrenarse**, que es el argumento de que hacía
+falta: dos auditorías del repositorio (`auditar_geometria`, `auditar_navegacion`) que **no
+estaban declaradas en ninguna parte**, y que `guardias.toml` y `magnitudes.toml` opinan
+las dos sobre quién calcula un digesto — con lo que hay que actualizar **las dos** al
+añadir un sitio que hashea. Eso ya se había olvidado dos veces en un solo día
+(`result_fingerprint` y `file_fingerprint`), y las dos se cazaron por casualidad al correr
+la suite.

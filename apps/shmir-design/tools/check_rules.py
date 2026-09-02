@@ -426,6 +426,63 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
+    # UNA MAGNITUD, UN SITIO QUE LA CALCULA (2026-09-02). La otra cara del principio
+    # nº 24: los digestos y los identificadores son GUARDIA —dos sitios calculando el
+    # mismo numero es un fallo— y las formulas repetidas entre modulos, TRINQUETE.
+    from auditar_claves import digestos, revisar_magnitudes
+
+    mag = revisar_magnitudes()
+    print("\n── Una magnitud, un sitio que la calcula ──\n")
+    print(f"  digestos declarados      {len(digestos())}")
+    print(f"  identificadores a mano   {len(mag['identificadores'])} (el correcto es 0)")
+    print(
+        f"  constructores permisivos {len(mag['permisivos'])} sin declarar"
+        f" (el correcto es 0)"
+    )
+    print(
+        f"  fórmulas repetidas       {len(mag['formulas'])} de un techo de {mag['techo']}"
+        f" — sólo puede bajar"
+    )
+    print()
+    problemas = []
+    for sitio in mag["sin_declarar"]:
+        problemas.append(f"  · {sitio} calcula un digesto y no dice QUÉ magnitud")
+    for sitio in mag["muertas"]:
+        problemas.append(f"  · {sitio} está declarado y ya no calcula nada")
+    for magnitud, sitios in mag["repetidas"].items():
+        problemas.append(
+            f"  · «{magnitud}» la calculan {len(sitios)} sitios: {', '.join(sitios)}"
+        )
+    for sitio in mag["identificadores"]:
+        problemas.append(f"  · {sitio} construye un `*_id` a mano (errata nº 48)")
+    for sitio in mag["permisivos"]:
+        problemas.append(
+            f"  · {sitio} hace `str(argumento)` y con eso construye algo, sin comprobar "
+            f"el tipo (errata nº 50)"
+        )
+    for sitio in mag["permisivos_muertos"]:
+        problemas.append(
+            f"  · {sitio} está declarado como constructor permisivo y ya no lo es"
+        )
+    if mag["techo_roto"]:
+        problemas.append(
+            f"  · fórmulas repetidas: {len(mag['formulas'])} contra un techo de "
+            f"{mag['techo']}. Si ha subido, alguien duplicó una; si ha bajado, el techo "
+            f"está caducado y se actualiza en data/magnitudes.toml."
+        )
+    if problemas:
+        print("\n".join(problemas))
+        print(
+            "\n  O uno DELEGA en el otro, o son números distintos y el motivo lo dice."
+            "\n  Nada obliga a que dos cálculos del mismo número coincidan.\n"
+        )
+        print(
+            f"\ncheck_rules: {len(problemas)} magnitud(es) calculada(s) por duplicado.",
+            file=sys.stderr,
+        )
+        return 1
+    print("  Ninguna magnitud se calcula dos veces sin decir por qué.\n")
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "

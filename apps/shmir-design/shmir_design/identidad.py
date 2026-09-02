@@ -31,7 +31,10 @@ import hashlib
 
 from .errors import ShmirDesignError
 
-__all__ = ["ETIQUETAS", "mensaje_de_id_repetido", "result_fingerprint", "run_id"]
+__all__ = [
+    "ETIQUETAS", "file_fingerprint", "mensaje_de_id_repetido",
+    "result_fingerprint", "run_id",
+]
 
 
 #: Tipo de registro (`store.RECORD_KINDS`) → la etiqueta corta que va en el id. El
@@ -47,8 +50,38 @@ ETIQUETAS: dict[str, str] = {
 
 
 def result_fingerprint(raw) -> str:
-    """El md5 del CRUDO, tal cual. UN solo sitio para los cuatro almacenes y el id."""
-    return hashlib.md5(str(raw).encode("utf-8"), usedforsecurity=False).hexdigest()
+    """El md5 del CRUDO, tal cual. UN solo sitio para los cuatro almacenes y el id.
+
+    ABORTA si no es texto, y no es una precaucion: llevaba `str(raw)`, asi que con un
+    `Path`, una lista o un objeto cualquiera habria hasheado su `repr` y devuelto un md5
+    con la forma correcta — y ese md5 ENTRA en el `run_id`. Es el mismo fallo que
+    `species.resolve` fabricando una especie del `repr` (errata nº 50): un constructor
+    permisivo convierte un error de tipo en un dato con forma correcta.
+    """
+    if not isinstance(raw, str):
+        raise ShmirDesignError(
+            f"`result_fingerprint` espera el CRUDO de la corrida como texto y ha "
+            f"recibido un {type(raw).__name__}. Se aborta en vez de hashear su texto: "
+            f"eso daría un md5 válido de una cosa que no es el resultado, y ese md5 "
+            f"identifica la corrida."
+        )
+    return hashlib.md5(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
+
+
+def file_fingerprint(datos: bytes) -> str:
+    """El md5 de los BYTES de un fichero. UN solo sitio, y son seis los que lo pedian.
+
+    Lo destapo la auditoria de magnitudes (`tools/auditar_claves.py`): `biblioteca` dos
+    veces, `gestor`, `deposito`, `manifest` y `presentation` calculaban cada uno su
+    `hashlib.md5(datos)`. Es el mismo numero y decide cosas —si un fichero subido es el
+    que dice ser, si el indice de la biblioteca sigue valiendo, si una corrida quedo
+    obsoleta—, asi que seis copias son seis definiciones que pueden separarse.
+
+    OJO, y esta advertencia ya estaba escrita para el manifiesto: NO es el md5 de la
+    SECUENCIA canonica (`reference.sequence_md5`). Son cantidades distintas y copiar una
+    en el sitio de la otra hace que el fichero BUENO se rechace.
+    """
+    return hashlib.md5(datos, usedforsecurity=False).hexdigest()
 
 
 def run_id(*, kind: str, date: str, result_md5: str) -> str:

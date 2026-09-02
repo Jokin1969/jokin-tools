@@ -1,0 +1,118 @@
+# SOBRE QUÉ HECHO OPINA CADA AUDITORÍA
+#
+# Pasó el 2026-09-02 y va a volver a pasar: `auditar_fixtures` reconocía que un test
+# fabrica un artefacto **por el nombre del fichero escrito en el test**, y `auditar_claves`
+# —estrenada ese mismo día— **prohíbe escribir ese nombre**, porque hay que pedírselo al
+# gestor. Dos guardias con reglas OPUESTAS sobre la misma evidencia. Al derivar el nombre,
+# la fabricación siguió existiendo y su justificación, viva, pasó a leerse como
+# **caducada**: el guardia dejó de ver lo que sí estaba.
+#
+# **La contramedida no es coordinarlas a mano.** Con nueve auditorías conviviendo, eso es
+# una condición que alguien tiene que recordar, y las que hay que recordar se olvidan.
+# Cada auditoría declara aquí:
+#
+#   `lee`     — la EVIDENCIA que interpreta, escrita IGUAL cuando es la misma. Es la
+#               clave del cruce: dos entradas con el mismo `lee` opinan sobre el mismo
+#               hecho, aunque concluyan cosas distintas de él.
+#   `opina`   — qué concluye de esa evidencia.
+#   `reconoce_por` — CÓMO la reconoce. Aquí es donde dos auditorías se separan sin que
+#               nadie lo note, que es exactamente lo que pasó.
+#   `instrumento` — GUARDIA (cero), TRINQUETE (techo que sólo baja) o INFORME.
+#   `cruce`   — OBLIGATORIO cuando dos comparten `lee`: el test que comprueba que las dos
+#               siguen de acuerdo. `tests/test_auditorias_no_se_pisan.py` falla si falta.
+#
+# Compartir `lee` no es un fallo: a veces es lo correcto. Lo que no vale es compartirlo
+# **sin nada que ate los dos criterios**.
+
+[[auditoria]]
+nombre = "auditar_fixtures"
+lee = "el nombre de un artefacto del depósito dentro de un fichero de test"
+opina = "ese test FABRICA el artefacto en vez de usar el real (principio nº 18)"
+reconoce_por = "el nombre —literal, o el alias que lo deriva de `species.required_files`— a menos de dos líneas de una escritura"
+instrumento = "TRINQUETE"
+cruce = "tests/test_auditorias_no_se_pisan.py"
+
+[[auditoria]]
+nombre = "auditar_claves"
+lee = "el nombre de un artefacto del depósito dentro de un fichero de test"
+opina = "ese test ESCRIBE una clave que alguien produce, así que no puede fallar (principio nº 25)"
+reconoce_por = "el nombre literal usado como CLAVE de un diccionario o conjunto que el test pasa a una llamada"
+instrumento = "GUARDIA"
+cruce = "tests/test_auditorias_no_se_pisan.py"
+
+[[auditoria]]
+nombre = "auditar_guardias"
+lee = "los sitios del paquete que calculan un digesto"
+opina = "ese sitio calcula un resumen y NO compara nada, o es un guardia y se clasifica"
+reconoce_por = "una entrada declarada a mano en `data/guardias.toml`, sección `[solo_calculan]`"
+instrumento = "GUARDIA"
+cruce = "tests/test_auditorias_no_se_pisan.py"
+
+[[auditoria]]
+nombre = "auditar_claves:digestos"
+lee = "los sitios del paquete que calculan un digesto"
+opina = "ese sitio calcula UNA magnitud, y dos sitios no pueden calcular la misma (principio nº 24)"
+reconoce_por = "una llamada a `hashlib.*` derivada del AST, contrastada con `data/magnitudes.toml`"
+instrumento = "GUARDIA"
+cruce = "tests/test_auditorias_no_se_pisan.py"
+
+# ── Las que hoy NO comparten evidencia con ninguna otra ──
+#
+# Se declaran igual: la tabla sirve para ver de un vistazo quién mira qué, y el día que
+# una nueva coincida con alguna de éstas, el cruce se exige solo.
+
+[[auditoria]]
+nombre = "auditar_datos"
+lee = "las constantes de módulo del paquete"
+opina = "esa constante es un DATO de una especie y debería vivir en el gestor"
+reconoce_por = "una entrada clasificada en `data/datos_en_codigo.toml`"
+instrumento = "GUARDIA"
+
+[[auditoria]]
+nombre = "auditar_banderas"
+lee = "los `add_argument` de los CLI y qué tests los recorren"
+opina = "esa bandera puede cambiar un veredicto y nadie la recorre de punta a punta"
+reconoce_por = "el AST del CLI más los imports de cada test, siguiendo un nivel de ayudante"
+instrumento = "TRINQUETE"
+
+[[auditoria]]
+nombre = "auditar_estados"
+lee = "qué combinaciones de estado de la interfaz pinta algún test"
+opina = "ese estado existe y nadie llega a pintarlo"
+reconoce_por = "los marcadores de los ayudantes de `tests/test_estados_de_fichero.py`"
+instrumento = "TRINQUETE"
+
+[[auditoria]]
+nombre = "auditar_condiciones"
+lee = "las condiciones del paquete sobre colecciones y cadenas"
+opina = "esa condición no puede ser falsa: mira el continente y pregunta por el contenido"
+reconoce_por = "el AST, acotado al caso extremo que no admite discusión"
+instrumento = "GUARDIA"
+
+[[auditoria]]
+nombre = "auditar_pares"
+lee = "los `zip` y `map` de dos secuencias"
+opina = "ese emparejamiento no dice si va en paralelo o trunca a propósito"
+reconoce_por = "el AST, con la marca `# zip-ok:` en la sentencia"
+instrumento = "GUARDIA"
+
+[[auditoria]]
+nombre = "check_alcance"
+lee = "las funciones públicas del paquete y quién las llama"
+opina = "esa función no tiene ningún llamador fuera de su módulo y sus tests"
+reconoce_por = "el cierre transitivo de llamadas sobre el AST, con clave (módulo, nombre)"
+instrumento = "INFORME"
+
+[[auditoria]]
+nombre = "auditar_geometria"
+lee = "qué da cada regla de geometría sobre cada intrón del registro"
+opina = "esa regla está calibrada sobre un solo caso y no se distingue de una que coincide con él"
+reconoce_por = "correr las reglas de `spacers`/`introns` sobre los intrones declarados y tabular"
+instrumento = "INFORME"
+
+[[auditoria]]
+nombre = "auditar_navegacion"
+lee = "las cadenas de atributos de profundidad ≥ 2 en la página"
+opina = "esa navegación es una suposición sobre el modelo que ningún test comprueba"
+reconoce_por = "el AST de la página, separando lo que se pinta siempre de lo que sólo se ejecuta bajo clic"
+instrumento = "INFORME"

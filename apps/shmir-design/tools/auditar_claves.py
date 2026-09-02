@@ -1,4 +1,16 @@
-"""Qué tests ESCRIBEN la clave por la que luego preguntan.
+"""Una magnitud, un sitio que la calcula — en los tests y en el codigo.
+
+DOS MITADES, y son el mismo principio (nº 24) por sus dos caras:
+
+  1. **Claves que un test ESCRIBE y alguien PRODUCE.** Un test que construye el
+     diccionario de entrada con el mismo nombre que el codigo va a buscar no puede
+     fallar: coincide por construccion.
+  2. **Magnitudes calculadas en mas de un sitio.** Un digesto, un identificador o una
+     formula que decide algo y que se calcula por duplicado: nada obliga a que las dos
+     copias coincidan, asi que se separan sin dar ningun error. Cuarto par del mismo tipo
+     en pocos dias.
+
+--- 1. Que tests ESCRIBEN la clave por la que luego preguntan ---
 
 Un test que construye el diccionario de entrada con el mismo nombre que el codigo va a
 buscar **no puede fallar**: coincide por construccion. Su verde no dice nada del
@@ -34,7 +46,11 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 TABLA = RAIZ / "data" / "claves_derivadas.toml"
+MAGNITUDES = RAIZ / "data" / "magnitudes.toml"
 TESTS = RAIZ / "tests"
+#: Donde vive el codigo de produccion. `tests/` no entra: ahi duplicar una formula no
+#: decide nada, y la mitad de arriba ya cubre lo que si.
+PRODUCCION = ("shmir_design", "tools", "ui")
 
 
 def nombres_del_deposito() -> set[str]:
@@ -207,3 +223,233 @@ def informe() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(informe())
+
+
+# ─── 2. Magnitudes calculadas en mas de un sitio ─────────────────────────────
+#
+# Tres reglas, y cada una tiene su instrumento:
+#
+#   DIGESTOS       cada `hashlib.*` declara QUE magnitud calcula. Dos sitios con la misma
+#                  magnitud es un FALLO: o uno delega, o son numeros distintos y hay que
+#                  decir por que. Guardia, cero.
+#   IDENTIFICADORES un `*_id` construido a mano con una f-string o una concatenacion.
+#                  Guardia, cero: es la regresion de la errata nº 48 — el id lo produce
+#                  `identidad.run_id` y nadie mas.
+#   FORMULAS       una expresion aritmetica que aparece literal en mas de un modulo. Aqui
+#                  cero no se puede exigir —`fin - inicio + 1` esta en seis sitios y
+#                  ninguno es sospechoso por si mismo— asi que es TRINQUETE: el techo se
+#                  declara y solo puede bajar.
+
+
+def _funcion_contenedora(arbol: ast.AST) -> dict[int, str]:
+    dentro: dict[int, str] = {}
+    for nodo in ast.walk(arbol):
+        if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for hijo in ast.walk(nodo):
+                dentro[id(hijo)] = nodo.name
+    return dentro
+
+
+def _ficheros_de_produccion():
+    for raiz in PRODUCCION:
+        yield from sorted((RAIZ / raiz).rglob("*.py"))
+
+
+def digestos() -> list[str]:
+    """`modulo.funcion` de cada sitio que calcula un digesto."""
+    salida = []
+    for fichero in _ficheros_de_produccion():
+        arbol = ast.parse(fichero.read_text(encoding="utf-8"), str(fichero))
+        dentro = _funcion_contenedora(arbol)
+        for nodo in ast.walk(arbol):
+            if (
+                isinstance(nodo, ast.Call)
+                and isinstance(nodo.func, ast.Attribute)
+                and isinstance(nodo.func.value, ast.Name)
+                and nodo.func.value.id == "hashlib"
+            ):
+                salida.append(f"{fichero.stem}.{dentro.get(id(nodo), '<modulo>')}")
+    return sorted(set(salida))
+
+
+def identificadores_a_mano() -> list[str]:
+    """Un `*_id` construido con una f-string o una concatenacion, fuera del productor.
+
+    Se mira el NOMBRE del destino —`run_id=`, `algo_id =`— y no el valor: lo que delata
+    la construccion a mano es que alguien este montando la identidad de un registro con
+    trozos. Las claves de widget de Streamlit (`key=`) no cuentan y por eso no se miran:
+    son 69, todas correctas, y meterlas apagaria el guardia.
+    """
+    salida = []
+    for fichero in _ficheros_de_produccion():
+        arbol = ast.parse(fichero.read_text(encoding="utf-8"), str(fichero))
+        for nodo in ast.walk(arbol):
+            objetivos = []
+            if isinstance(nodo, ast.Assign) and len(nodo.targets) == 1:
+                destino = nodo.targets[0]
+                nombre = getattr(destino, "id", None) or getattr(destino, "attr", None)
+                if nombre and nombre.endswith("_id"):
+                    objetivos.append(nodo.value)
+            elif isinstance(nodo, ast.Call):
+                objetivos.extend(
+                    kw.value for kw in nodo.keywords
+                    if kw.arg and kw.arg.endswith("_id")
+                )
+            for valor in objetivos:
+                if isinstance(valor, ast.JoinedStr) or (
+                    isinstance(valor, ast.BinOp) and isinstance(valor.op, ast.Add)
+                ):
+                    salida.append(f"{fichero.name}:{nodo.lineno}")
+    return sorted(set(salida))
+
+
+def formulas_repetidas() -> dict[str, list[str]]:
+    """Expresiones aritmeticas que aparecen literalmente en mas de un modulo.
+
+    Se descartan las que llevan un literal de texto —son formato, no aritmetica—, las de
+    menos de dos operadores y las anotaciones de tipo (`Path | str | None` es una union,
+    no una cuenta).
+    """
+    sitios: dict[str, list[str]] = {}
+    for fichero in _ficheros_de_produccion():
+        arbol = ast.parse(fichero.read_text(encoding="utf-8"), str(fichero))
+        anotaciones = {
+            id(n.annotation)
+            for n in ast.walk(arbol)
+            if isinstance(n, (ast.AnnAssign, ast.arg)) and getattr(n, "annotation", None)
+        }
+        for nodo in ast.walk(arbol):
+            if not isinstance(nodo, (ast.BinOp, ast.Compare)):
+                continue
+            if id(nodo) in anotaciones:
+                continue
+            partes = [
+                n for n in ast.walk(nodo) if isinstance(n, (ast.BinOp, ast.Compare))
+            ]
+            if len(partes) < 2:
+                continue
+            if any(
+                isinstance(n, ast.Constant) and isinstance(n.value, str)
+                for n in ast.walk(nodo)
+            ):
+                continue
+            fuente = ast.unparse(nodo)
+            if len(fuente) < 12:
+                continue
+            sitios.setdefault(fuente, []).append(fichero.name)
+    return {
+        f: sorted(set(m)) for f, m in sitios.items() if len(set(m)) > 1
+    }
+
+
+def revisar_magnitudes(ruta: Path = MAGNITUDES) -> dict:
+    """Los tres hallazgos, ya resueltos contra la tabla."""
+    with ruta.open("rb") as f:
+        tabla = tomllib.load(f)
+    declarados = tabla.get("digestos", {})
+    vivos = digestos()
+
+    por_magnitud: dict[str, list[str]] = {}
+    for sitio in vivos:
+        entrada = declarados.get(sitio)
+        if entrada:
+            por_magnitud.setdefault(entrada["magnitud"], []).append(sitio)
+
+    permisivos = constructores_permisivos()
+    declarados_ctor = tabla.get("constructores", {})
+    formulas = formulas_repetidas()
+    techo = tabla.get("formulas", {}).get("techo")
+    return {
+        "sin_declarar": [s for s in vivos if s not in declarados],
+        "muertas": [s for s in declarados if s not in vivos],
+        "repetidas": {m: s for m, s in por_magnitud.items() if len(s) > 1},
+        "identificadores": identificadores_a_mano(),
+        "permisivos": [c for c in permisivos if c not in declarados_ctor],
+        "permisivos_muertos": [c for c in declarados_ctor if c not in permisivos],
+        "formulas": formulas,
+        "techo": techo,
+        "techo_roto": techo is not None and len(formulas) != techo,
+    }
+
+
+def constructores_permisivos() -> list[str]:
+    """`str(argumento)` que construye un objeto o un digesto SIN comprobar antes el tipo.
+
+    Es la forma de la errata nº 50: `species.resolve` terminaba en
+    `Species(scientific=str(name))` y con cualquier objeto fabricaba una especie de su
+    `repr`, con la forma correcta y sin ningun error. Un constructor permisivo convierte
+    un error de tipo en un DATO, que es peor que una excepcion porque no se ve.
+
+    Se sigue UN nivel de asignacion —`limpio = str(name).strip()` y despues
+    `Species(..., limpio)`— porque sin eso el caso original no se detecta: lo comprobe
+    contra el fuente de antes del arreglo, y sin esa vuelta salia limpio.
+
+    Se da por comprobado cuando la funcion tiene un `isinstance` sobre ESE argumento. No
+    se mira la anotacion: la de `resolve` decia `name: str` y era justamente la que
+    mentia — una anotacion no la comprueba nadie en tiempo de ejecucion.
+    """
+    salida = []
+    for fichero in _ficheros_de_produccion():
+        arbol = ast.parse(fichero.read_text(encoding="utf-8"), str(fichero))
+        for fn in ast.walk(arbol):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            args = fn.args
+            params = {
+                x.arg for x in
+                list(args.posonlyargs) + list(args.args) + list(args.kwonlyargs)
+            }
+            comprobados = {
+                n.args[0].id for n in ast.walk(fn)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                and n.func.id == "isinstance" and n.args
+                and isinstance(n.args[0], ast.Name)
+            }
+
+            def raiz(nodo):
+                while isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Attribute):
+                    nodo = nodo.func.value
+                if (
+                    isinstance(nodo, ast.Call)
+                    and isinstance(nodo.func, ast.Name)
+                    and nodo.func.id == "str"
+                    and len(nodo.args) == 1
+                    and isinstance(nodo.args[0], ast.Name)
+                    and nodo.args[0].id in params
+                    and nodo.args[0].id not in comprobados
+                ):
+                    return nodo.args[0].id
+                return None
+
+            contagiados = {}
+            for nodo in ast.walk(fn):
+                if (
+                    isinstance(nodo, ast.Assign)
+                    and len(nodo.targets) == 1
+                    and isinstance(nodo.targets[0], ast.Name)
+                ):
+                    quien = raiz(nodo.value)
+                    if quien:
+                        contagiados[nodo.targets[0].id] = quien
+            for nodo in ast.walk(fn):
+                if not isinstance(nodo, ast.Call):
+                    continue
+                destino = None
+                if isinstance(nodo.func, ast.Name) and nodo.func.id[:1].isupper():
+                    destino = nodo.func.id
+                elif (
+                    isinstance(nodo.func, ast.Attribute)
+                    and isinstance(nodo.func.value, ast.Name)
+                    and nodo.func.value.id == "hashlib"
+                ):
+                    destino = "hashlib." + nodo.func.attr
+                if not destino:
+                    continue
+                for sub in ast.walk(nodo):
+                    quien = raiz(sub) or (
+                        contagiados.get(sub.id) if isinstance(sub, ast.Name) else None
+                    )
+                    if quien:
+                        salida.append(f"{fichero.name}:{fn.name}")
+                        break
+    return sorted(set(salida))

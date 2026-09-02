@@ -1693,6 +1693,85 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
     return almacen.verdict_for(consulta).state.value
 
 
+#: Un frente se cierra CONSIGUIENDO LA RESPUESTA, no consiguiendo un `PASS`. Un `FAIL`
+#: es una respuesta —el candidato cae— y deja el frente cerrado igual. Lo que NO cierra
+#: es `NOT_RUN` ni `NO_CIERRA`: ahi no hay respuesta que leer.
+ESTADOS_QUE_RESPONDEN = ("PASS", "FAIL")
+
+
+def verdict_with_stores(estados) -> str:
+    """El veredicto de un candidato con los estados YA resueltos, almacenes incluidos.
+
+    Existe porque la tabla pintaba la celda con lo que dicen los almacenes y la columna
+    `veredicto` con lo que dice el informe de tilado: dos numeros del mismo suceso, uno
+    al lado del otro y sin nada que los ate — la fila decia `especificidad: PASS` y
+    `veredicto: INCOMPLETE`, las dos con pinta de medida.
+
+    La agregacion NO se reimplementa: se construyen `FilterResult` con los estados
+    efectivos y decide `filters.overall_verdict`, que es quien sabe que `NO_CIERRA`
+    impide aprobar igual que `NOT_RUN`.
+    """
+    from .filters import FilterResult, FilterState, overall_verdict  # noqa: PLC0415
+
+    resultados = [
+        FilterResult(
+            name=nombre, state=FilterState(estado),
+            # La regla 3 exige motivo TAMBIEN en PASS. Aqui el estado ya viene resuelto
+            # —de la celda de la tabla— y el motivo largo vive en la ficha y en la
+            # propia celda; esto solo agrega.
+            reason=f"estado efectivo de la tabla: {estado}",
+        )
+        for nombre, estado in estados.items()
+    ]
+    return overall_verdict(resultados).value
+
+
+def fronts_closed_by_runs(estados_por_frente, *, starts) -> dict[str, str]:
+    """Que frentes cierran las corridas guardadas, y con que motivo.
+
+    `estados_por_frente` es `{frente: {inicio: estado}}` — lo que dicen los almacenes de
+    cada candidato del panel.
+
+    **UN FRENTE SOLO SE CIERRA SI LO CUBRE TODO EL PANEL**, y esa mitad no se puede
+    omitir: con seis candidatos consultados de diez, decir «frente cerrado» daria por
+    comprobados cuatro que nadie miro. Es la misma regla que un `NOT_RUN` que no puede
+    reportarse como aprobado, un piso mas arriba.
+    """
+    if not estados_por_frente or not starts:
+        return {}
+    panel = sorted({int(s) for s in starts})
+    cerrados = {}
+    for frente, por_candidato in estados_por_frente.items():
+        cubiertos = [
+            inicio for inicio in panel
+            if por_candidato.get(inicio) in ESTADOS_QUE_RESPONDEN
+        ]
+        if len(cubiertos) == len(panel):
+            cerrados[frente] = (
+                f"CERRADO por corrida guardada: los {len(panel)} candidatos del panel "
+                f"tienen veredicto de este frente en el registro del proyecto."
+            )
+    return cerrados
+
+
+def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int, str]]:
+    """`{frente: {inicio: estado}}` segun los almacenes. Lo que la tabla ya usaba, suelto.
+
+    Se saca aparte para que lo usen los CUATRO consumidores —celda, veredicto, tarjetas
+    y semaforo— en vez de que cada uno vuelva a preguntarle al almacen a su manera.
+    """
+    salida: dict[str, dict[int, str]] = {}
+    for frente in STORE_FOR_FRONT:
+        por_candidato = {}
+        for inicio in starts:
+            estado = _store_state(stores, frente, species, int(inicio))
+            if estado is not None:
+                por_candidato[int(inicio)] = estado
+        if por_candidato:
+            salida[frente] = por_candidato
+    return salida
+
+
 def site_table_rows(tiling, selection, *, species: str = "",
                     selected=None, stores=None) -> list[dict[str, object]]:
     """TODOS los sitios elegibles, con UNA COLUMNA POR FRENTE.
@@ -1745,14 +1824,21 @@ def site_table_rows(tiling, selection, *, species: str = "",
                 ),
                 # El almacen MANDA donde tiene algo que decir; donde no, decide el
                 # filtro de la ventana. Y sólo sobre SU columna: `STORE_FOR_FRONT`.
-                **{
+                **(efectivos := {
                     nombre: (
                         _store_state(stores, nombre, species, ventana.window.start)
                         or estados.get(nombre, "NOT_RUN")
                     )
                     for nombre in columnas
-                },
-                "veredicto": ventana.verdict.value,
+                }),
+                # EL VEREDICTO CUENTA LO MISMO QUE LAS CELDAS. Antes salia
+                # `ventana.verdict`, del informe de tilado, asi que una fila podia decir
+                # `especificidad: PASS` y `veredicto: INCOMPLETE` — dos numeros del mismo
+                # suceso, uno al lado del otro, sin nada que los ate.
+                "veredicto": (
+                    verdict_with_stores(efectivos) if stores
+                    else ventana.verdict.value
+                ),
                 "guia": ventana.evaluation.guide,
             }
         )
@@ -2575,17 +2661,15 @@ def reference_md5s(directory) -> dict[str, str]:
     vacío no entra —`presencia.hay_fichero`—, así que un `touch` no puede hacer que una
     corrida parezca obsoleta contra la nada.
     """
-    import hashlib  # noqa: PLC0415
     from pathlib import Path  # noqa: PLC0415
 
+    from .identidad import file_fingerprint  # noqa: PLC0415
     from .presencia import ficheros_con_contenido  # noqa: PLC0415
 
     raiz = Path(directory)
     salida = {}
     for nombre in sorted(ficheros_con_contenido(raiz)):
-        salida[nombre] = hashlib.md5(
-            (raiz / nombre).read_bytes(), usedforsecurity=False
-        ).hexdigest()
+        salida[nombre] = file_fingerprint((raiz / nombre).read_bytes())
     return salida
 
 
@@ -4262,23 +4346,37 @@ CARD_STATES = {
 }
 
 
-def front_card_rows(run, *, species: str) -> list[dict[str, object]]:
+def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]]:
     """Una tarjeta por comprobacion, DERIVADA de `blocking_fronts`.
 
     Se derivan por la misma razon que las columnas de la tabla de sitios: una lista
     escrita a mano deja fuera al frente numero once sin que nadie lo note, y **lo que no
     se ve no existe**. El texto llano de cada una sale de su ficha, que es un fichero de
     datos versionado con test en las dos direcciones.
+
+    Y LEE LOS ALMACENES (2026-09-02). Sin ellos, una corrida de BLAST guardada y valida
+    dejaba la tarjeta en gris, el semaforo en «6 de 10» y el informe listando el frente
+    como abierto — mientras la seccion de corridas guardadas decia `PASS` de esa misma
+    corrida. Reportado con el proyecto delante; errata nº 51.
     """
     from .obtencion import resolve_ficha
     from .selection import blocking_fronts
     from .species import resolve
 
     especie = resolve(species)
+    cerrados = fronts_closed_by_runs(
+        store_states_by_front(
+            stores, species=species, starts=chosen_starts(run.selection)
+        ),
+        starts=chosen_starts(run.selection),
+    )
     tarjetas = []
     for frente in blocking_fronts(run.tiling, run.selection):
         ficha = resolve_ficha(frente.name, species=especie)
-        estado = "HECHO" if not frente.blocking else "SIN_HACER"
+        estado = (
+            "HECHO" if (not frente.blocking or frente.name in cerrados)
+            else "SIN_HACER"
+        )
         tarjetas.append(
             {
                 "frente": frente.name,

@@ -488,7 +488,13 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "de abajo se recalculan con lo que esté marcado."
         )
         st.dataframe(
-            site_table_rows(tiling, seleccion, species=nombre, selected=marcados),
+            # LOS ALMACENES VAN AQUI. La capacidad estaba cableada y probada desde
+            # hacía días, y ESTA llamada —la única que se ejecuta— no la usaba: la celda
+            # de `especificidad` seguía en NOT_RUN con la corrida guardada y en PASS.
+            site_table_rows(
+                tiling, seleccion, species=nombre, selected=marcados,
+                stores=load_stores(proyecto) if proyecto is not None else None,
+            ),
             hide_index=True,
         )
         for aviso in selection_warnings(tiling, seleccion, selected=marcados):
@@ -506,7 +512,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     if not st.session_state.get(f"tramo2_{nombre}"):
         return {}
 
-    _tarjetas_de_comprobacion(corrida, nombre, tiling, seleccion)
+    _tarjetas_de_comprobacion(corrida, nombre, tiling, seleccion, proyecto)
 
     # EL INFORME VA AQUI, justo debajo de los frentes. Estaba mas abajo, detras del
     # generador de bloques, y ahi es lo ultimo que se ve: quien acaba de leer que le
@@ -598,7 +604,9 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
 
 
 
-def _tarjetas_de_comprobacion(corrida, nombre: str, tiling, seleccion) -> None:
+def _tarjetas_de_comprobacion(
+    corrida, nombre: str, tiling, seleccion, proyecto=None
+) -> None:
     """Una tarjeta por comprobacion, con su color y su estado.
 
     Sustituye a la lista de «Frentes — y como cerrar los que estan en NOT_RUN», que
@@ -607,10 +615,13 @@ def _tarjetas_de_comprobacion(corrida, nombre: str, tiling, seleccion) -> None:
     dejaria fuera a la numero once— y el color lo pone `presentation.CARD_STATES`.
     """
     _cabecera_paso(4, step_plain(5))
-    progreso = front_progress(front_card_rows(corrida, species=nombre))
+    almacenes = load_stores(proyecto) if proyecto is not None else None
+    progreso = front_progress(
+        front_card_rows(corrida, species=nombre, stores=almacenes)
+    )
     st.progress(progreso["fraccion"], text=progreso["texto"])
 
-    tarjetas = front_card_rows(corrida, species=nombre)
+    tarjetas = front_card_rows(corrida, species=nombre, stores=almacenes)
     motivos = {f["frente"]: f for f in front_help_rows(tiling, seleccion, species=nombre)}
     columnas = st.columns(2)
     for indice, tarjeta in enumerate(tarjetas):

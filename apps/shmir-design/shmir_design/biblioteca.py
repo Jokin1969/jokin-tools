@@ -34,12 +34,12 @@ Python 3.11+, sólo biblioteca estándar (regla 6).
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
 from .errors import ShmirDesignError
+from .identidad import file_fingerprint
 
 
 @dataclass(frozen=True)
@@ -220,7 +220,7 @@ def guardar(
             f".gb en el hueco del FASTA es justo el error que esto evita."
         )
 
-    ident = hashlib.md5(data, usedforsecurity=False).hexdigest()
+    ident = file_fingerprint(data)
     entrada = Entrada(ident, limpio, str(date), len(data))
     ruta_de(clave, ident, base=base).write_bytes(data)
     otras = [e for e in _leer_indice(directorio) if e.id != ident]
@@ -245,7 +245,7 @@ def leer(clave: str, ident: str, *, base: Path | str | None = None) -> bytes:
             f"fichero a mano. Se aborta en vez de seguir sin él."
         )
     datos = ruta.read_bytes()
-    real = hashlib.md5(datos, usedforsecurity=False).hexdigest()
+    real = file_fingerprint(datos)
     if real != ident:
         raise ShmirDesignError(
             f"{ruta}: el md5 del fichero es {real} y el índice dice {ident}. Ya NO es el "

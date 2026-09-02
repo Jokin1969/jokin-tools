@@ -1224,3 +1224,51 @@ correctos, y un auditor así se apaga el primer día):
 
 Es un **guardia**: el número correcto es cero. Un test que no puede fallar no es deuda
 pendiente que se salda cuando se pueda; es una comprobación que no comprueba.
+
+## 26 — Dos guardias que opinan sobre el mismo hecho tienen que estar atados, o se separan
+
+**Formulado por el responsable del proyecto (2026-09-02)** sobre un caso propio y con la
+predicción incluida: *«con tres auditorías ya conviviendo, esto va a volver a pasar»*.
+
+### El caso
+
+`auditar_fixtures` reconocía que un test fabrica un artefacto **por el nombre del fichero
+escrito en el test**. `auditar_claves`, estrenada el mismo día, **prohíbe escribirlo**: hay
+que pedírselo al gestor. Dos guardias con reglas **opuestas** sobre la misma evidencia.
+
+Al derivar el nombre, la fabricación siguió existiendo y su justificación —viva y
+correcta— pasó a leerse como **caducada**. Ninguno de los dos falló; uno **dejó de ver** lo
+que sí estaba.
+
+### Por qué no basta con arreglarlo
+
+El arreglo evidente es enseñarle a la primera a reconocer el alias. Eso cierra este caso y
+deja el mecanismo entero en pie: la próxima auditoría que mire una evidencia ya vigilada
+volverá a separarse, y el síntoma volverá a ser una justificación que se lee como
+caducada, o un guardia que calla. **Es una condición que alguien tiene que recordar, y las
+que hay que recordar se olvidan** — el mismo argumento por el que aquí nada se coordina a
+mano.
+
+### La regla
+
+Cada auditoría declara **sobre qué evidencia opina** (`data/auditorias.toml`), escrita
+igual cuando es la misma, junto con **cómo la reconoce** — que es donde dos criterios se
+separan sin que nadie lo note. Dos entradas que comparten evidencia **tienen que declarar
+un cruce**, y el cruce es un test que comprueba que las dos siguen de acuerdo sobre el
+mismo material. `tests/test_auditorias_no_se_pisan.py` falla si falta.
+
+Compartir evidencia no es un fallo: a menudo es lo correcto. Lo que no vale es compartirla
+**sin nada que ate los dos criterios**.
+
+### Y el cruce tiene que ser una comprobación, no una declaración
+
+Un campo `cruce = "..."` que nadie ejecuta sería la errata nº 29 otra vez. Aquí el cruce
+corre de verdad: da a los dos reconocedores el **mismo** material escrito de las dos
+formas —el nombre literal y el derivado— y exige el **mismo veredicto**.
+
+### Lo que encontró nada más estrenarse
+
+Dos auditorías del repositorio sin declarar en ninguna parte, y que `guardias.toml` y
+`magnitudes.toml` opinan **las dos** sobre quién calcula un digesto: hay que actualizar
+las dos al añadir un sitio que hashea, y eso ya se había olvidado dos veces en un día. Las
+dos veces se cazó por casualidad, al correr la suite entera por otro motivo.
