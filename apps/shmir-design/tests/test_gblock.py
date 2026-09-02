@@ -25,6 +25,8 @@ from shmir_design.gblock import (
 )
 from shmir_design.scaffold import build_hairpin
 
+from tests import plasmido_sgep as sgep
+
 GUIA_REF = "TAGATAAGCATTATAATTCCTA"
 MODULO_REF = (
     "GCTAGCGAAGGCTCGAGAAGGTATATTGCTGTTGACAGTGAGCGCAGGAATTATAATGCTTATCTATAGTGAAGCC"
@@ -74,10 +76,8 @@ class TestComprobaciones(unittest.TestCase):
         # Antes esto era `assertTrue(gblock.ok)`. Cambia a propósito: un módulo cuyos
         # contextos nadie ha contrastado con el vector real no puede salir apto, y lo
         # que se pide con un apto falso es ADN. Con el plásmido delante, sí lo es.
-        from tests.test_contextos_vs_plasmido import plasmido
-
         self.assertFalse(build_gblock(build_hairpin(GUIA_REF)).ok)
-        self.assertTrue(build_gblock(build_hairpin(GUIA_REF), plasmid=plasmido()).ok)
+        self.assertTrue(build_gblock(build_hairpin(GUIA_REF), plasmid=sgep.texto()).ok)
 
     def test_longitud(self):
         self.assertIs(self.checks(GUIA_REF)["longitud"].state, FilterState.PASS)
@@ -117,30 +117,45 @@ class TestComprobaciones(unittest.TestCase):
 
 
 class TestVerificacionContraElPlasmido(unittest.TestCase):
+    """CAMBIADO 2026-09-02: se comprueba contra el plásmido REAL, no contra un relleno.
 
-    def plasmido(self, ctx5=CONTEXT_5, ctx3=CONTEXT_3):
-        inicio5, _ = CONTEXT_POSITIONS["contexto_5"]
-        inicio3, fin3 = CONTEXT_POSITIONS["contexto_3"]
-        bases = ["N"] * (fin3 + 100)
-        for offset, base in enumerate(ctx5):
-            bases[inicio5 - 1 + offset] = base
-        for offset, base in enumerate(ctx3):
-            bases[inicio3 - 1 + offset] = base
-        return "".join(bases)
+    Aquí había un plásmido de N's con los dos contextos metidos en sus coordenadas
+    declaradas. Ese fixture no probaba las coordenadas: probaba que el comparador compara
+    —principio nº 18—, y le daba la razón a cualquier número que estuviera escrito. Con la
+    comprobación anclada en la ANOTACIÓN del fichero ya ni siquiera es construible: un
+    relleno no tiene bloque FEATURES.
+    """
 
-    def test_las_posiciones_declaradas(self):
-        self.assertEqual(CONTEXT_POSITIONS["contexto_5"], (1739, 1758))
-        self.assertEqual(CONTEXT_POSITIONS["contexto_3"], (1856, 1875))
+    def test_el_plasmido_de_verdad_pasa(self):
+        if not sgep.HAY:
+            self.skipTest("falta addgene_111170.gb")
+        verify_contexts_against_plasmid(sgep.texto())
 
-    def test_un_plasmido_que_coincide_pasa(self):
-        verify_contexts_against_plasmid(self.plasmido())
+    def test_las_posiciones_YA_NO_son_una_entrada_sino_un_resultado(self):
+        # Siguen siendo (1739,1758) y (1856,1875) — el hallazgo es que COINCIDEN— pero
+        # ahora salen del fichero. Se comprueban donde se derivan, no aquí.
+        if not sgep.HAY:
+            self.skipTest("falta addgene_111170.gb")
+        from shmir_design.scaffold_registry import SCAFFOLDS, anchor_scaffold
+
+        ancla = anchor_scaffold(
+            SCAFFOLDS["mir_e"], sgep.texto(), context_length=len(CONTEXT_5)
+        )
+        self.assertEqual(
+            (ancla.context_5_span, ancla.context_3_span),
+            (CONTEXT_POSITIONS["contexto_5"], CONTEXT_POSITIONS["contexto_3"]),
+        )
 
     def test_un_plasmido_que_no_coincide_aborta(self):
+        if not sgep.HAY:
+            self.skipTest("falta addgene_111170.gb")
         with self.assertRaises(ShmirDesignError) as ctx:
-            verify_contexts_against_plasmid(self.plasmido(ctx5="A" * 20))
-        self.assertIn("1739", str(ctx.exception))
+            verify_contexts_against_plasmid(sgep.con_una_base_cambiada(1758))
+        self.assertIn("contexto_5", str(ctx.exception))
 
-    def test_un_plasmido_demasiado_corto_aborta(self):
+    def test_un_plasmido_SIN_anotacion_aborta(self):
+        # Y no por «demasiado corto»: sin la feature del loop no hay de qué anclarse, y
+        # ése es el motivo que tiene que salir.
         with self.assertRaises(ShmirDesignError):
             verify_contexts_against_plasmid("ACGT" * 100)
 

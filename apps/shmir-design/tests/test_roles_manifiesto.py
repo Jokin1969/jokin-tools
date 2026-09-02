@@ -33,11 +33,20 @@ DIRECTORIO = fixture_path().parent
 
 class TestLaTablaDeRoles(unittest.TestCase):
 
-    #: El unico rol cuyo `replaces` esta VACIO, y con motivo: la tabla de PolyA_DB
-    #: nunca fue alcanzable por una flag — estaba CABLEADA en `apa.POLYA_DB_PRNP`. No
-    #: sustituye a ninguna opcion porque no habia ninguna: sustituye a una constante.
-    #: Se declara aqui en vez de inventarle una flag que no existio.
-    SIN_FLAG_PREVIA = {"polyadb"}
+    #: Los roles cuyo `replaces` esta VACIO, cada uno con su motivo. Ninguno de los dos
+    #: sustituye a una opcion, porque no habia opcion:
+    #:
+    #:   - `polyadb`: la tabla de PolyA_DB estaba CABLEADA en `apa.POLYA_DB_PRNP`, asi
+    #:     que sustituye a una CONSTANTE, no a una flag;
+    #:   - `plasmido_andamio`: el plasmido de SGEP no era alcanzable por NINGUN camino —
+    #:     ni flag ni constante—. Vivia en `data/reference/` sin linea en el manifiesto y
+    #:     sin hueco en el gestor, y `verify_contexts_against_plasmid` lo leia por
+    #:     COORDENADAS escritas. O sea que este rol no sustituye nada: lo que hace es
+    #:     dar entrada por el gestor a un fichero que no la tenia.
+    #:
+    #: Una excepcion que crece sin que nadie la mire deja de ser una excepcion, y por eso
+    #: el test de abajo exige que el conjunto sea EXACTAMENTE este.
+    SIN_FLAG_PREVIA = {"polyadb", "plasmido_andamio"}
 
     def test_cada_rol_declara_fichero_y_para_que_sirve(self):
         for rol in ROLES:

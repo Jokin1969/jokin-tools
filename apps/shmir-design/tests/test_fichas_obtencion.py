@@ -62,6 +62,18 @@ def _frentes_de_verdad() -> set[str]:
     from shmir_design.introns import INTRONS
 
     nombres |= {i.ficha for i in INTRONS.values() if i.ficha}
+
+    # Y TERCERA FAMILIA (2026-09-02): las fichas que declara el GESTOR. `blocking_fronts`
+    # sale de los filtros de un CANDIDATO, asi que no ve un frente que se cierra con un
+    # fichero y no se le pregunta a cada ventana — el plasmido del andamio es el primero.
+    # Se toma de `species.required_files`, que es la unica fuente de los ficheros del
+    # deposito: asi un fichero nuevo cuya ficha no exista rompe la suite, que es de lo
+    # que va este test.
+    from shmir_design.species import required_files, resolve
+
+    nombres |= {
+        f.ficha for f in required_files(resolve("raton")) if f.ficha
+    }
     return nombres
 
 
@@ -132,10 +144,10 @@ class TestTodoFrenteTieneFicha(unittest.TestCase):
             f"que no esta engaña igual que la ausencia.",
         )
 
-    def test_hay_una_por_cada_uno_de_los_DOCE_de_hoy(self):
-        """Diez frentes —el cuarto modal añadio `empalme_sitios`— mas los DOS intrones
-        que faltan del registro."""
-        self.assertEqual(len(obtencion.load_all()), 12)
+    def test_hay_una_por_cada_uno_de_los_TRECE_de_hoy(self):
+        """Once frentes —el cuarto modal añadio `empalme_sitios` y el plasmido de SGEP
+        añade `contextos_del_andamio`— mas los DOS intrones que faltan del registro."""
+        self.assertEqual(len(obtencion.load_all()), 13)
 
 
 class TestElContenidoDeCadaFicha(unittest.TestCase):

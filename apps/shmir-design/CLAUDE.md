@@ -4033,6 +4033,57 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     y falso desde este cambio: principio nº 11. Ahora hay comprobación mecánica de que la
     página no convierte ninguna fecha (`isoformat()`, `strftime(`, `text_input` de fecha).
 
+- **EL PLÁSMIDO DE SGEP ES UN FICHERO DE PRIMERA CLASE, Y LOS CONTEXTOS SE DERIVAN DE ÉL
+  (2026-09-02)**, errata nº 65 (`scaffold_registry.anchor_scaffold`, rol
+  `plasmido_andamio`). `verify_contexts_against_plasmid` leía el plásmido en `1739-1758` y
+  `1856-1875` —números **escritos**— y comparaba lo que hubiera ahí.
+  - **Eso comprueba mucho menos de lo que parece**: con las coordenadas corridas fallaría
+    contra un plásmido CORRECTO, y el arreglo obvio —moverlas hasta que cuadren— lo
+    dejaría pasando siempre. Un número escrito **no puede validar el fichero del que
+    salió** (principio nº 13).
+  - **DOS VÍAS Y TIENEN QUE COINCIDIR**: el ancla es la **anotación del propio fichero**
+    —`ncRNA` «miR-30a loop», que el registro ya declaraba en `loop_feature`— y el andamio
+    se localiza **por secuencia** a su alrededor, exigiendo que aparezca **una sola vez** y
+    que la anotación caiga **dentro**. Los contextos son lo que flanquea al 97-mero, con
+    la longitud del contexto del módulo — que es la pregunta: *¿lo que llevamos es lo
+    nativo de SGEP?* La anotación dice dónde mirar y la secuencia dice qué hay.
+  - **Y el resultado CONFIRMA lo que estaba escrito, ahora como consecuencia**: el andamio
+    sale en `1759-1855` —**97 nt exactos**— y los contextos en `1739-1758` y `1856-1875`.
+    Los mismos números; la diferencia es que ya no son una entrada.
+  - **Dos controles adversarios**, porque sin ellos «pasa» y «no mira nada» dan el mismo
+    verde: una base cambiada del contexto sobre el fichero real aborta, y la anotación
+    movida aborta diciendo que no cae dentro — lo segundo es lo que impide que el ancla
+    sea decorativa.
+  - **Y el fixture que había era el fallo que este registro ya describía**: los tests
+    montaban un plásmido de relleno con los contextos en sus coordenadas declaradas, o sea
+    probaban **el comparador y no las coordenadas** (principio nº 18). Con la derivación
+    ni siquiera es construible —un relleno no tiene FEATURES— y los tres ficheros que lo
+    copiaban usan ahora el plásmido de verdad desde `tests/plasmido_sgep.py`.
+  - **NO LLEVA SUFIJO DE ESPECIE**, y es el único del depósito del que eso es cierto: SGEP
+    es el vector del **ANDAMIO**, no de ningún organismo — justo al revés que
+    `aav_casete.fa`, que es pAAV con PrP murino. Se ve en el contador: con conejo los
+    frentes cerrables pasan de 1 a 2. El contador general pasa de **7 a 8**.
+  - **La validación al subir es la comprobación ENTERA**, no una ligera: un fichero que
+    pasara ahí y fallara al pedir el gBlock sería peor que no validarlo.
+
+- **LA AUDITORÍA DE LAS PIEZAS: diez decían de dónde venían y nadie lo comprobaba**
+  (`blocks.audit_pieces_against_plasmids`, en `npm run check:shmir`). Se pidió «de paso» y
+  es **INFORME, no guardia** — aquí el número correcto NO es cero.
+  - `MluI`, `MVM5`, `MVM3`, `AgeI`: **únicas** en `aav_casete.fa`. Confirmadas.
+  - `exon5` y `exon3` miden 5 nt y aparecen 3 y 8 veces: a solas no identifican nada, así
+    que se exige que estén **pegadas a su MVM**. Decir «confirmada» de una coincidencia de
+    5 nt sería el «Alu 0 %» al revés.
+  - **EL HALLAZGO: `NheI` y `SacI` NO están en el receptor depositado**, y su procedencia
+    decía «plásmido receptor». Es coherente —el parental lleva el intrón vacío, sin sitio
+    de clonaje— así que lo que estaba mal no eran las secuencias, que son las dianas
+    canónicas: era **la frase**, que afirmaba un origen que ningún fichero sostiene. Y se
+    las **sigue buscando** aunque ya no lo afirmen: si al corregir la frase dejaran de
+    mirarse, el informe perdería la medida que lo motivó.
+  - **Sobre la sospecha del andamio de miR-E**: no es el mismo caso. Tiene una
+    **publicación** detrás, así que no se DERIVA del plásmido —eso sería elegir
+    coordenadas por nuestra cuenta, lo que `mir30_original` se niega a hacer— sino que se
+    **CONTRASTA** con él, y eso es lo que corre ahora en cada comprobación de contexto.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

@@ -57,6 +57,10 @@ ROLE_INVALIDATES = MappingProxyType(
         # ninguna corrida del log. Lo que SI cambia al reemplazarla es el panel entero
         # —y eso se ve al volver a diseñar, no en una corrida vieja.
         "polyadb": (),
+        # Tampoco: los contextos se contrastan al EMITIR el modulo, en cada corrida. Lo
+        # que si cambia al reemplazarlo es si el modulo se puede emitir, y eso se ve al
+        # volver a pedirlo — no en una corrida guardada.
+        "plasmido_andamio": (),
     }
 )
 

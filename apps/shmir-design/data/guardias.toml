@@ -53,7 +53,7 @@ guardia = "Cada cargador reverifica el md5 del fichero que abre"
 implementa = [
   "resources._refseq", "resources._mirbase", "resources._abundancia",
   "resources._transcriptoma", "resources._rmsk", "resources._transgen",
-  "resources._apa", "resources._polyadb",
+  "resources._apa", "resources._polyadb", "resources._plasmido_andamio",
   "mirna.load_mature_fa", "mirna.load_abundance_list", "mirna._read",
   "seed_load.load_utr3_set", "specificity.load_database",
   "apa.load_apa_sites", "apa.load_polyadb", "masking.load_rmsk",

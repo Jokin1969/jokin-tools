@@ -189,6 +189,16 @@ ROLES: tuple[Role, ...] = (
     # fraccion, nombre— y esta es la de PolyA_DB, con clase, PSE y AvgRPM por PAS: es la
     # que promueve señales por MEDIDA y la que da el techo por tramos. Fundirlas en un
     # solo fichero seria el patron de los dos contadores que discrepan.
+    # EL PLASMIDO DEL ANDAMIO. No lleva sufijo de especie y no es un descuido: SGEP es
+    # el vector del ANDAMIO, no de ninguna especie — al reves que `aav_casete.fa`, que es
+    # pAAV con PrP MURINO y por eso si lo lleva. No sustituye ninguna flag: nunca hubo
+    # una, que es justo de lo que se queja este bloque.
+    Role(
+        role="plasmido_andamio",
+        filename="addgene_111170.gb",
+        what="los contextos nativos del módulo de 149 nt, contrastados contra SGEP",
+        replaces=(),
+    ),
     Role(
         role="polyadb",
         filename="polya_db_mouse.tsv",

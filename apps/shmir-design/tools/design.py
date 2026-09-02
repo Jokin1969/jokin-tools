@@ -200,6 +200,12 @@ DESTINOS = {
     # vuelve a ser el KeyError, y `tests/test_roles_del_manifiesto.py` cruza las dos
     # listas en las dos direcciones para que no pueda volver a pasar.
     "polyadb": None,
+    # TAMPOCO SE CONECTA, y por el mismo mecanismo: el plasmido del andamio no alimenta
+    # ningun filtro del DISEÑO. Lo consume la EMISION del modulo de 149 nt
+    # (`gblock.verify_contexts_against_plasmid`), que lo lee del directorio de referencia
+    # cuando hay que emitir ADN. Un rol que faltara aqui vuelve a ser el KeyError de
+    # `polyadb`, y por eso se declara `None` en vez de omitirlo.
+    "plasmido_andamio": None,
 }
 
 

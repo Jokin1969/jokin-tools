@@ -137,3 +137,10 @@ lee = "las celdas de las tablas que la app exporta, CORRIDAS de verdad"
 opina = "esa columna lleva secuencia y no mide lo que su fuente declara — o no declara nada, que es lo mismo dentro de un año"
 reconoce_por = "el contenido de la columna (alfabeto de ácidos nucleicos, ≥ 6 nt) contrastado con la longitud DERIVADA del objeto que produjo la tabla"
 instrumento = "GUARDIA"
+
+[[auditoria]]
+nombre = "auditar_piezas"
+lee = "lo que cada pieza del módulo declara sobre de qué plásmido viene"
+opina = "esa procedencia no la sostiene el fichero que dice, o no se puede comprobar"
+reconoce_por = "buscar la secuencia de la pieza en el plásmido del depósito que su procedencia nombra, exigiendo unicidad — y por POSICIÓN cuando mide 5 nt y aparece por azar"
+instrumento = "INFORME"

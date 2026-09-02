@@ -3096,3 +3096,108 @@ Era cierto cuando se escribió y dejó de serlo con este cambio: el **principio 
 prosa que se queda atrás. Se ha ido con la función, y lo que queda es una comprobación
 mecánica — la página no puede convertir ninguna fecha por su cuenta, y hay test de que no
 queda ni un `isoformat()`, ni un `strftime(`, ni un `text_input` de fecha.
+
+---
+
+## 65 — El plásmido de SGEP no tenía hueco, y su comprobación leía coordenadas escritas
+
+**Pedido el 2026-09-02**: «El plásmido de SGEP #111170 no tiene hueco en el panel de
+referencia… Hazlo fichero de primera clase, como los demás: rol propio, hueco en el
+gestor, ficha de obtención, validación al subir y md5 en el manifiesto. Formato .gb o
+.dna, **y que extraiga los contextos por la anotación, no por las coordenadas
+declaradas**… Y de paso: audita si queda algún dato más en esa situación».
+
+### Lo segundo es lo que pesa
+
+`gblock.verify_contexts_against_plasmid` leía el plásmido en `1739-1758` y `1856-1875`
+—números **escritos**— y comparaba lo que hubiera ahí con los contextos del módulo. Eso
+comprueba mucho menos de lo que parece:
+
+- con las coordenadas corridas, **la comprobación fallaría contra un plásmido correcto**,
+  y el arreglo obvio —moverlas hasta que cuadren— la dejaría **pasando siempre**;
+- y un número escrito **no puede validar el fichero del que salió** (principio nº 13).
+
+Ahora hay **dos vías y tienen que coincidir**. El ancla es la **anotación del propio
+fichero** —`ncRNA` «miR-30a loop», que el registro de andamios ya declaraba en
+`loop_feature`— y el andamio se localiza **por secuencia** a su alrededor, exigiendo que
+aparezca **una sola vez** y que la anotación caiga **dentro** de lo localizado. Los
+contextos son lo que flanquea al 97-mero, con la longitud del contexto del módulo — que
+es la pregunta de verdad: *¿lo que llevamos es lo nativo de SGEP?*
+
+**Y el resultado confirma lo que estaba escrito, ahora como consecuencia**: el andamio cae
+en `1759-1855` —**97 nt exactos**, que es el 97-mero— y los contextos en `1739-1758` y
+`1856-1875`. Los mismos números. La diferencia es que ya no son una entrada: si mañana
+llega otro export, se derivan otra vez.
+
+**Con sus dos controles adversarios**, porque sin ellos «pasa» y «no mira nada» dan el
+mismo verde: se cambia **una base** del contexto sobre el fichero real y aborta; se
+**mueve la anotación** del loop y aborta diciendo que no cae dentro. Lo segundo es lo que
+impide que el ancla sea decorativa.
+
+### Y el fixture que había era el problema descrito en el propio registro
+
+Los tests de esa comprobación montaban **un plásmido de relleno de A's (o de N's) con los
+dos contextos metidos en sus coordenadas declaradas**. El CLAUDE.md ya lo decía con esas
+palabras —«el test los probaba contra un plásmido sintético: **el comprobador, no las
+coordenadas**»— y seguía ahí. Con la derivación ni siquiera es construible: un relleno no
+tiene bloque FEATURES del que anclarse. Los tres ficheros que lo copiaban usan ahora el
+plásmido de verdad, desde `tests/plasmido_sgep.py`, que es **un solo sitio**.
+
+### Fichero de primera clase
+
+Rol propio `plasmido_andamio`, hueco en el gestor, ficha de obtención, validación al subir
+—que es **la comprobación entera**, no una validación ligera: un fichero que pasara aquí y
+fallara al pedir el gBlock sería peor que no validarlo— y su md5 en el manifiesto.
+
+**No lleva sufijo de especie, y no es un descuido**: SGEP es el vector del **ANDAMIO**, no
+de ningún organismo. Es el único fichero del depósito del que eso es cierto — justo al
+revés que `aav_casete.fa`, que es pAAV con PrP **murino** y por eso sí lo lleva. Se ve en
+el contador: con conejo, los frentes cerrables pasan de 1 a 2, y el segundo es éste.
+
+El contador de frentes pasa de **7 a 8**.
+
+### La auditoría que se pidió de paso, y lo que encontró
+
+De las 12 piezas de `blocks.PIECES`, sólo las dos de SGEP declaraban coordenadas. Lo que
+apareció al mirar las otras diez es de otra clase: **diez dicen de dónde vienen y nadie lo
+estaba comprobando**, teniendo el fichero en el depósito. `audit_pieces_against_plasmids`
+lo mide, y sale en `npm run check:shmir` como INFORME — aquí el número correcto **no es
+cero**:
+
+| pieza | estado |
+|---|---|
+| `MluI`, `MVM5`, `MVM3`, `AgeI` | **CONFIRMADA**: únicas en `aav_casete.fa` |
+| `exon5`, `exon3` | **CONFIRMADA_EN_POSICIÓN**: miden 5 nt y salen 3 y 8 veces, así que a solas no identifican nada; se exige que estén pegadas a su MVM |
+| `NheI`, `SacI` | **NO ESTÁN** en el receptor depositado |
+| `espaciador5`, `espaciador3` | `NO_APLICA`: son de novo |
+| `contexto5`, `contexto3` | **CONFIRMADA** contra SGEP, ahora por derivación |
+
+**El hallazgo son `NheI` y `SacI`**: su procedencia decía «plásmido receptor» y el
+receptor que hay **no las contiene**. Y es coherente —el parental lleva el intrón vacío,
+sin sitio de clonaje—, así que lo que estaba mal no eran las secuencias, que son las
+dianas canónicas de las dos enzimas: era **la frase**, que afirmaba un origen que ningún
+fichero sostiene. Corregida. Y se las **sigue buscando** aunque ya no lo afirmen: si al
+corregir la frase dejaran de mirarse, el informe perdería justo la medida que lo motivó —
+mismo criterio que un frente CERRADO que sigue saliendo en el informe.
+
+### Sobre la sospecha del andamio
+
+Era razonable y la respuesta es que **no es el mismo caso**. El andamio de miR-E tiene una
+**publicación** detrás, así que no se DERIVA del plásmido —eso sería elegir coordenadas
+por nuestra cuenta, que es exactamente lo que `mir30_original` se niega a hacer— sino que
+se **CONTRASTA** con él, y eso es lo que ahora corre: sus tres piezas se localizan por
+secuencia en el fichero cada vez que se comprueba un contexto.
+
+### Un fallo del corrector de tildes, encontrado al escribir esto
+
+`check_tildes` marcó «esta medida es lo que lo corrigió» —demostrativo + sustantivo— como
+si fuera el verbo. `"medida"` estaba en `_TRAS_ESTA`, la lista cerrada de palabras tras
+las que `esta` es verbo… **y el comentario tres líneas más arriba la nombra como ejemplo
+de lo que NO hay que meter ahí**: «esta corrida», «esta medida», «esta entrada» tienen
+forma de participio y aquí son sustantivos.
+
+Medido antes de quitarla: en literales de prosa **no había ni un solo «esta medida» como
+verbo**, así que la entrada nunca acertó y sólo podía fallar. `"medido"` se queda —«el APA
+esta medido» sí aparece— y no es incoherencia: son dos palabras con dos repartos distintos
+en este corpus, que es justo lo que una lista **cerrada y leída** puede decir y una regla
+de participios no.

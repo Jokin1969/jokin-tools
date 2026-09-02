@@ -201,7 +201,7 @@ class TestFicherosDeReferencia(unittest.TestCase):
         con barra—, pero se sigue pudiendo ver sin haber corrido nada."""
         app = self.run_app()
         textos = " ".join(p.proto.text for p in app.get("progress"))
-        self.assertIn("de 7 frentes cerrados", textos)
+        self.assertIn("de 8 frentes cerrados", textos)
 
 
 @unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no está instalado (pip install -r requirements-ui.txt)")

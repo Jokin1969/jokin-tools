@@ -24,18 +24,17 @@ from shmir_design.gblock import (
 )
 from shmir_design.scaffold import build_hairpin
 
+from tests import plasmido_sgep as sgep
+
 GUIA = "TATTTAATGTCAGTCTGATAGC"
 
 
-def plasmido(ctx5: str = CONTEXT_5, ctx3: str = CONTEXT_3) -> str:
-    """Un plásmido de relleno con los dos contextos en sus posiciones declaradas."""
-    ini5, fin5 = CONTEXT_POSITIONS["contexto_5"]
-    ini3, fin3 = CONTEXT_POSITIONS["contexto_3"]
-    largo = max(fin5, fin3)
-    relleno = list("A" * largo)
-    relleno[ini5 - 1 : fin5] = list(ctx5)
-    relleno[ini3 - 1 : fin3] = list(ctx3)
-    return "".join(relleno)
+#: EL PLASMIDO DE VERDAD. Aqui habia un relleno de A's con los dos contextos metidos en
+#: sus coordenadas DECLARADAS, y eso probaba el comparador y no las coordenadas (principio
+#: nº 18) — lo dice el propio registro. Desde que la comprobacion se ancla en la ANOTACION,
+#: ademas es imposible: un relleno no tiene bloque FEATURES.
+def plasmido() -> str:
+    return sgep.texto()
 
 
 class TestElQuintoCheck(unittest.TestCase):
@@ -70,14 +69,24 @@ class TestElQuintoCheck(unittest.TestCase):
     def test_con_un_plasmido_que_NO_coincide_ABORTA(self):
         # No es un FAIL de este candidato: si los contextos no son los del vector, TODOS
         # los módulos están mal, no éste. Un veredicto por candidato lo haría pasar por
-        # un problema de la ventana.
+        # un problema de la ventana. Se cambia UNA base del contexto 5' sobre el fichero
+        # real, que es lo que hace de esto un control y no una comprobación de sí mismo.
         with self.assertRaises(ShmirDesignError) as ctx:
-            build_gblock(build_hairpin(GUIA), plasmid=plasmido(ctx5="A" * 20))
+            build_gblock(
+                build_hairpin(GUIA), plasmid=sgep.con_una_base_cambiada(1758)
+            )
         self.assertIn("contexto_5", str(ctx.exception))
 
     def test_y_un_plasmido_demasiado_corto_tambien(self):
         with self.assertRaises(ShmirDesignError):
             build_gblock(build_hairpin(GUIA), plasmid="ACGT" * 100)
+
+    def test_y_con_la_ANOTACION_movida_tambien(self):
+        # La otra mitad del ancla: la anotación tiene que caer DENTRO del andamio
+        # localizado por secuencia. Sin esto, anclarse en ella sería decorativo.
+        with self.assertRaises(ShmirDesignError) as ctx:
+            build_gblock(build_hairpin(GUIA), plasmid=sgep.con_la_anotacion_movida())
+        self.assertIn("NO cae dentro", str(ctx.exception))
 
 
 class TestElRecursoNOESTA(unittest.TestCase):

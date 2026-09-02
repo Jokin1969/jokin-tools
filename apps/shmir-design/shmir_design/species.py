@@ -228,6 +228,21 @@ def required_files(species: Species) -> tuple[RequiredFile, ...]:
             fronts=("transgen",),
             extensions=("fa", "fasta", "txt", "gb"),
         ),
+        # EL PLASMIDO DEL ANDAMIO, y NO lleva sufijo de especie: SGEP es el vector del
+        # ANDAMIO, no de una especie. Ponerselo diria que hace falta uno por especie, que
+        # es falso — justo al reves que `aav_casete.fa`, que es pAAV con PrP murino.
+        # Cambia si se cambia de ANDAMIO, no si se cambia de organismo.
+        RequiredFile(
+            role="plasmido_andamio",
+            filename="addgene_111170.gb",
+            what=(
+                "contrastar los contextos del módulo de 149 nt contra el plásmido de "
+                "SGEP, que es de donde son nativos"
+            ),
+            ficha="contextos_del_andamio",
+            fronts=("contextos_del_andamio",),
+            extensions=("gb", "gbk", "dna"),
+        ),
         RequiredFile(
             role="apa",
             filename=_por_especie("apa_medido", ".tsv", slug, sin_sufijo=("mouse",)),
@@ -359,6 +374,7 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
     polyadb = por_rol["polyadb"].filename
     casete = por_rol["transgen"].filename
     maduros = por_rol["mirbase"].filename
+    plasmido = por_rol["plasmido_andamio"].filename
 
     def _nota_ajena(nombre_generico: str) -> str:
         ajenos = [n for n in presentes if n.startswith(nombre_generico) ]
@@ -452,6 +468,20 @@ def fixture_report(species: Species, *, have) -> FixtureReport:
                     "de BLAST no se puede construir: `blast_command` aborta en vez de "
                     "inventarlo."
                 )
+            ),
+        ),
+        # NO DEPENDE DE LA ESPECIE, y por eso su nota lo dice: es el vector del
+        # ANDAMIO. Mientras falte, `verify_contexts_against_plasmid` sale NOT_RUN y el
+        # modulo entero INCOMPLETE — no PASS.
+        FrontAvailability(
+            front="contextos del andamio",
+            available=plasmido in presentes,
+            missing=f"el plásmido del andamio ({plasmido})",
+            files=(plasmido,),
+            keys=("contextos_del_andamio",),
+            note=(
+                "Es el único fichero del depósito que NO es de esta especie: SGEP es el "
+                "vector del ANDAMIO. Cambia al cambiar de andamio, no de organismo."
             ),
         ),
         FrontAvailability(

@@ -205,7 +205,11 @@ class TestElPanelDeFicherosDeReferencia(unittest.TestCase):
     def test_y_el_recuento_esta_ANTES_de_ejecutar_nada(self):
         """No hace falta ni haber subido la secuencia para saberlo."""
         resumen = presentation.reference_panel_summary(CONEJO, directory=DATOS)
-        self.assertEqual(resumen["cerrables"], 1)  # solo el barrido biofisico
+        # DOS: el barrido biofisico y los contextos del andamio. El segundo NO es
+        # de esta especie ni de ninguna —SGEP es el vector del ANDAMIO—, asi
+        # que un conejo lo tiene cerrado desde el primer dia. Es el unico
+        # fichero del deposito del que eso es cierto.
+        self.assertEqual(resumen["cerrables"], 2)
 
 
 # ────────────────────── 3. la subida: validacion, md5 y manifiesto ──────────────────────
@@ -512,7 +516,7 @@ class TestLosCuatroPasos(unittest.TestCase):
             species=CONEJO, sequence_loaded=False, directory=DATOS
         )
         quinto = next(p for p in pasos if p["numero"] == 5)
-        self.assertEqual(quinto["cerrables"], 1)
+        self.assertEqual(quinto["cerrables"], 2)  # ver arriba: + los contextos
 
     def test_el_paso_3_NO_bloquea_se_puede_diseñar_con_frentes_abiertos(self):
         """Un frente abierto deja los candidatos en INCOMPLETE, no impide correr."""

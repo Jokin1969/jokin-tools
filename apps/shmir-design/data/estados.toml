@@ -122,6 +122,16 @@ destino = "CUBRIR"
 que_pinta = "El rol `polyadb` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
 
 [[estado]]
+estado = "fichero:plasmido_andamio:CON"
+destino = "CUBRIR"
+que_pinta = "El rol `plasmido_andamio` sale CERRADO y el módulo de 149 nt puede emitirse: sus contextos quedan contrastados contra el plásmido de SGEP."
+
+[[estado]]
+estado = "fichero:plasmido_andamio:SIN"
+destino = "CUBRIR"
+que_pinta = "El rol `plasmido_andamio` sale FALTA, y `contextos_vs_plasmido` queda NOT_RUN: el módulo entero sale INCOMPLETE y NO se emite ADN."
+
+[[estado]]
 estado = "modal:blast:CON_CORRIDA"
 destino = "CUBRIR"
 que_pinta = "El modal de `blast` enseña el veredicto de la última corrida guardada y su historial."

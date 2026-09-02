@@ -119,6 +119,23 @@ def _v_apa(path, contexto):
     return load_apa_sites(path, version="subido por la interfaz")
 
 
+def _v_plasmido_andamio(path, contexto):
+    """El plásmido del andamio: se valida ANCLÁNDOLO, que es para lo que sirve.
+
+    No basta con que sea un GenBank legible. Lo que hace útil a este fichero es que sus
+    contextos sean los del módulo que se manda a sintetizar, así que la validación de la
+    subida es exactamente la comprobación que luego va a correr: si el fichero no lleva la
+    anotación del loop, o el andamio no está, o los contextos no coinciden, **no entra**.
+    Un fichero que pasara aquí y fallara al emitir el módulo sería peor que no validarlo.
+    """
+    from .gblock import verify_contexts_against_plasmid
+
+    verify_contexts_against_plasmid(
+        Path(path).read_text(encoding="utf-8", errors="replace")
+    )
+    return None
+
+
 def _v_rmsk(path, contexto):
     """El `.out` y el `.tbl`. Del todo, solo se pueden validar JUNTOS.
 
@@ -180,6 +197,7 @@ VALIDATORS = {
     "rmsk": _v_rmsk,
     "transgen": _v_transgen,
     "apa": _v_apa,
+    "plasmido_andamio": _v_plasmido_andamio,
 }
 
 

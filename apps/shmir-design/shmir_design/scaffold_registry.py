@@ -301,3 +301,163 @@ def inventory() -> list[dict]:
         }
         for nombre, andamio in SCAFFOLDS.items()
     ]
+
+
+# ═══════ DÓNDE CAE EL ANDAMIO EN SU PLÁSMIDO: derivado, no tecleado ═══════
+#
+# **El fallo que cierra.** `gblock.verify_contexts_against_plasmid` leia el plasmido en
+# `1739-1758` y `1856-1875` —COORDENADAS ESCRITAS— y comparaba lo que hubiera ahi con
+# nuestros contextos. Eso comprueba menos de lo que parece:
+#
+#   - si las coordenadas estuvieran corridas, la comprobacion fallaria contra un plasmido
+#     CORRECTO, y el arreglo obvio seria mover las coordenadas hasta que cuadraran —con lo
+#     que pasaria siempre y no comprobaria nada;
+#   - y un numero escrito NO PUEDE VALIDAR el fichero del que salio (principio nº 13).
+#
+# **Las dos vias, y tienen que coincidir.** El ANCLA es la anotacion del propio fichero
+# —la feature que el andamio declara en `loop_feature`— y el andamio se localiza POR
+# SECUENCIA a su alrededor; se exige que la anotacion caiga DENTRO de lo localizado. La
+# anotacion dice donde mirar y la secuencia dice que hay; si discrepan, una de las dos
+# esta mal y no se elige por nuestra cuenta.
+#
+# **Los contextos son lo que FLANQUEA al 97-mero**, y su longitud sale de la del propio
+# contexto del modulo — que es la pregunta de verdad: ¿lo que nuestro modulo lleva como
+# contexto es lo que SGEP tiene ahi de forma nativa?
+#
+# Las coordenadas dejan de ser una ENTRADA y pasan a ser un RESULTADO.
+
+
+@dataclass(frozen=True)
+class PlasmidAnchor:
+    """Dónde cae el andamio dentro de su plásmido, todo DERIVADO del fichero."""
+
+    scaffold: str
+    plasmid: str
+    #: (inicio, fin) 1-based inclusivos del 97-mero completo: flanco 5' → flanco 3'.
+    scaffold_span: tuple[int, int]
+    #: Lo que la ANOTACIÓN del fichero dice, para poder contrastarlo. `None` si el
+    #: andamio no declara ninguna feature de la que anclarse.
+    annotated_loop: tuple[int, int] | None
+    context_5: str
+    context_5_span: tuple[int, int]
+    context_3: str
+    context_3_span: tuple[int, int]
+
+    def describe(self) -> list[str]:
+        return [
+            f"{self.scaffold} en su plásmido ({len(self.plasmid)} pb):",
+            f"  andamio    {self.scaffold_span[0]}-{self.scaffold_span[1]}"
+            + (
+                f"  (anotación «loop» {self.annotated_loop[0]}-{self.annotated_loop[1]},"
+                f" dentro)"
+                if self.annotated_loop
+                else "  (sin feature anotada de la que anclarse)"
+            ),
+            f"  contexto 5' {self.context_5_span[0]}-{self.context_5_span[1]}  "
+            f"{self.context_5}",
+            f"  contexto 3' {self.context_3_span[0]}-{self.context_3_span[1]}  "
+            f"{self.context_3}",
+        ]
+
+
+def _unica(secuencia: str, aguja: str, *, que: str, donde: str) -> tuple[int, int]:
+    """Dónde está `aguja`, exigiendo que esté UNA sola vez. 1-based inclusivo."""
+    encontradas = []
+    desde = 0
+    while True:
+        i = secuencia.find(aguja, desde)
+        if i < 0:
+            break
+        encontradas.append(i + 1)
+        desde = i + 1
+    if not encontradas:
+        raise ShmirDesignError(
+            f"{donde}: no aparece {que} ({len(aguja)} nt). Se aborta: sin él no se sabe "
+            f"dónde está el andamio, y buscarlo de otra forma sería elegir un sitio por "
+            f"nuestra cuenta."
+        )
+    if len(encontradas) > 1:
+        raise ShmirDesignError(
+            f"{donde}: {que} aparece {len(encontradas)} veces (en "
+            f"{', '.join(str(p) for p in encontradas)}). Elegir una sería inventarse "
+            f"cuál; se aborta."
+        )
+    inicio = encontradas[0]
+    return inicio, inicio + len(aguja) - 1
+
+
+def anchor_scaffold(entry: "RegisteredScaffold", text: str, *,
+                    context_length: int) -> PlasmidAnchor:
+    """Localiza el andamio en su plásmido y DERIVA sus contextos. Ver el bloque de arriba.
+
+    `text` es el GenBank entero. `context_length` es lo que mide el contexto del módulo:
+    la pregunta es si ESE tramo es el nativo del plásmido, así que la longitud la pone
+    quien pregunta y no hay ningún número escrito aquí.
+    """
+    from .genbank import parse_plasmid_feature  # noqa: PLC0415
+
+    if entry.spec is None:
+        raise ShmirDesignError(
+            f"El andamio {entry.name!r} no tiene secuencia verificada, así que no hay "
+            f"nada que localizar en su plásmido. {entry.why_missing or ''}".strip()
+        )
+    if entry.loop_feature is None:
+        raise ShmirDesignError(
+            f"El andamio {entry.name!r} no declara ninguna feature de la que anclarse en "
+            f"su plásmido. Buscarlo sólo por secuencia dejaría la anotación del fichero "
+            f"sin contrastar, que es justo la mitad que hace que esto valga."
+        )
+
+    clave, etiqueta = entry.loop_feature
+    anotada = parse_plasmid_feature(
+        text, key=clave, label=etiqueta, source=str(entry.plasmid or "GenBank")
+    )
+    plasmido = anotada.plasmid
+    donde = f"{entry.plasmid or 'el plásmido'} de {entry.name}"
+
+    flanco5 = _unica(plasmido, entry.spec.flank5, que="el flanco 5' del andamio", donde=donde)
+    flanco3 = _unica(plasmido, entry.spec.flank3, que="el flanco 3' del andamio", donde=donde)
+    if flanco3[0] <= flanco5[1]:
+        raise ShmirDesignError(
+            f"{donde}: el flanco 3' empieza en {flanco3[0]} y el 5' acaba en "
+            f"{flanco5[1]}, o sea que van al revés. Se aborta en vez de emitir un "
+            f"intervalo dado la vuelta."
+        )
+    span = (flanco5[0], flanco3[1])
+
+    # LA ANOTACION TIENE QUE CAER DENTRO. Es lo que ata las dos vias: si el fichero
+    # anota el loop en otro sitio, o el andamio localizado no lo contiene, una de las
+    # dos esta mal y no se elige por nuestra cuenta.
+    if not (span[0] < anotada.start and anotada.end < span[1]):
+        raise ShmirDesignError(
+            f"{donde}: la feature {clave} «{etiqueta}» está anotada en "
+            f"{anotada.start}-{anotada.end} y el andamio localizado por secuencia va de "
+            f"{span[0]} a {span[1]}: la anotación NO cae dentro. Una de las dos está "
+            f"mal y no se elige por nuestra cuenta. Se aborta."
+        )
+
+    if context_length <= 0:
+        raise ShmirDesignError(
+            "Un contexto de longitud cero no es un contexto: se aborta en vez de "
+            "devolver dos cadenas vacías que cuadrarían con cualquier cosa."
+        )
+    if span[0] - 1 < context_length:
+        raise ShmirDesignError(
+            f"{donde}: el andamio empieza en {span[0]} y no caben {context_length} nt "
+            f"de contexto por delante. Se aborta en vez de dar menos sin decirlo."
+        )
+    if span[1] + context_length > len(plasmido):
+        raise ShmirDesignError(
+            f"{donde}: el andamio acaba en {span[1]} de {len(plasmido)} y no caben "
+            f"{context_length} nt de contexto por detrás. Se aborta."
+        )
+    return PlasmidAnchor(
+        scaffold=entry.name,
+        plasmid=plasmido,
+        scaffold_span=span,
+        annotated_loop=(anotada.start, anotada.end),
+        context_5=plasmido[span[0] - 1 - context_length:span[0] - 1],
+        context_5_span=(span[0] - context_length, span[0] - 1),
+        context_3=plasmido[span[1]:span[1] + context_length],
+        context_3_span=(span[1] + 1, span[1] + context_length),
+    )

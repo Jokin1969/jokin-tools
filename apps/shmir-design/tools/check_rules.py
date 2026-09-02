@@ -393,6 +393,15 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
+    # LA PROCEDENCIA DE LAS PIEZAS DEL MODULO (2026-09-02). INFORME, no guardia: aqui
+    # el numero correcto NO es cero —una diana de clonaje no esta en el receptor y eso es
+    # coherente—. Existe para que una pieza nueva con una procedencia que ningun fichero
+    # sostiene salga a la vista el dia que se añade, no tres meses despues.
+    from auditar_piezas import auditar as auditar_piezas
+    from auditar_piezas import render as render_piezas
+
+    print(render_piezas(auditar_piezas()))
+
     # SECUENCIAS EMPAREJADAS (2026-08-30). El otro lado del principio nº 19, y el que
     # NO lleva ninguna condicion: `zip` trunca al mas corto en silencio, asi que ninguna
     # busqueda de `if` lo encuentra y lo que sale no es un error sino un informe corto

@@ -140,6 +140,30 @@ class _Omitir(Exception):
     """Este recurso no se puede cargar todavia, y el motivo no es un fallo."""
 
 
+def _plasmido_andamio(path, entry, contexto):
+    """El plásmido del andamio. Se CARGA comprobándolo, que es su única razón de ser.
+
+    No devuelve un objeto que luego alimente un filtro —el diseño no lo usa— sino que
+    corre la comprobación que de él depende: que los contextos del módulo sean los nativos
+    del plásmido. Devolver la ruta y no un dato es correcto aquí: lo que este fichero
+    aporta es un VEREDICTO, no una tabla.
+    """
+    from .gblock import verify_contexts_against_plasmid  # noqa: PLC0415
+    from .identidad import file_fingerprint  # noqa: PLC0415
+
+    ruta = Path(path)
+    md5 = file_fingerprint(ruta.read_bytes())
+    if entry.md5 and md5 != entry.md5:
+        raise ShmirDesignError(
+            f"{ruta}: el manifiesto registra md5 {entry.md5} y el fichero da {md5}. Se "
+            f"aborta: los contextos que se contrastarían serían los de OTRO plásmido."
+        )
+    verify_contexts_against_plasmid(
+        ruta.read_text(encoding="utf-8", errors="replace")
+    )
+    return ruta
+
+
 #: Un cargador por rol. Unico sitio donde vive esa correspondencia; hay test de que
 #: cubre exactamente los roles declarados en `manifest.ROLES`, ni uno mas ni uno menos.
 LOADERS = {
@@ -152,6 +176,7 @@ LOADERS = {
     "transgen": _transgen,
     "apa": _apa,
     "polyadb": _polyadb,
+    "plasmido_andamio": _plasmido_andamio,
 }
 
 #: Donde acaba cada rol dentro de `ResourceSet`. El orden importa: la abundancia

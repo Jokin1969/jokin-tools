@@ -200,11 +200,17 @@ class TestElPanelDeRefinamiento(unittest.TestCase):
 
     def test_el_contador_va_en_el_encabezado_con_su_fraccion_para_la_barra(self):
         progreso = self.panel["progreso"]
-        self.assertEqual(progreso["total"], 7)
+        # OCHO desde 2026-09-02: el plásmido del andamio pasa a ser un fichero de
+        # primera clase y cierra el frente de los contextos del módulo.
+        self.assertEqual(progreso["total"], 8)
         self.assertEqual(
-            progreso["texto"], f"{progreso['cerrados']} de 7 frentes cerrados"
+            progreso["texto"], f"{progreso['cerrados']} de 8 frentes cerrados"
         )
-        self.assertAlmostEqual(progreso["fraccion"], progreso["cerrados"] / 7)
+        # La fraccion se DERIVA del total, no de un 7 escrito: con el frente
+        # nuevo el denominador cambio solo y esto lo habria cazado igual.
+        self.assertAlmostEqual(
+            progreso["fraccion"], progreso["cerrados"] / progreso["total"]
+        )
 
     def test_el_contador_se_MUEVE_con_lo_que_hay(self):
         self.assertGreater(
@@ -365,7 +371,7 @@ class TestCincoPasos(unittest.TestCase):
     def test_el_paso_5_lleva_el_contador_en_su_TITULO_y_no_en_una_nota(self):
         quinto = self._pasos(designed=True)[4]
         self.assertEqual(quinto["titulo"], "Refinamiento")
-        self.assertIn("de 7 frentes cerrados", quinto["detalle"])
+        self.assertIn("de 8 frentes cerrados", quinto["detalle"])
 
     def test_el_paso_4_sigue_siendo_DISEÑAR(self):
         self.assertEqual(self._pasos()[3]["titulo"], "Diseñar")
@@ -391,7 +397,7 @@ class TestElCriterioDeAceptacion(unittest.TestCase):
         self.assertTrue(self.pasos[2]["hecho"])
 
     def test_2_que_tengo_cerrado(self):
-        self.assertIn("de 7 frentes cerrados", self.panel["progreso"]["texto"])
+        self.assertIn("de 8 frentes cerrados", self.panel["progreso"]["texto"])
 
     def test_3_que_me_falta_y_para_que(self):
         faltan = [f for f in self.panel["filas"] if f["bloquea"]]
