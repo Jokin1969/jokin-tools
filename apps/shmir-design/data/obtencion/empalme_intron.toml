@@ -17,16 +17,22 @@ url = "—"
 tamano = "—"
 validacion = """\
 Lo que cierra el frente es la SECUENCIA DE LA UNION EXON-EXON, no la altura de una banda \
-en un gel. Sin secuenciar, ver una banda corta no descarta el donante críptico."""
+en un gel. Sin secuenciar, ver una banda corta no descarta el donante críptico. Y la \
+banda LARGA no cierra nada en ninguna dirección: sale con el empalme perfecto."""
 
 pasos = [
-  "RT-PCR de empalme con cebadores en los exones que flanquean el intrón MVM. Banda CORTA = empalmado, banda LARGA = retenido, y la PROPORCIÓN es la eficiencia. La app emite las VENTANAS donde buscar los cebadores, derivadas del casete, no los cebadores: Tm, especificidad y horquillas no se improvisan.",
+  "RT-PCR de empalme con cebadores en los exones que flanquean el intrón MVM. La app emite las VENTANAS donde buscar los cebadores, derivadas del casete, no los cebadores: Tm, especificidad y horquillas no se improvisan.",
+  "PARTE DE RNA CITOPLÁSMICO, NO TOTAL. El pre-mRNA sin empalmar es NUCLEAR: en RNA total sale siempre y no dice nada. Lo que sí es un fallo de empalme es encontrar el intrón retenido en el CITOPLASMA, que es donde se traduce.",
+  "SELECCIONA POR polyA. Excluye la mayor parte del transcrito naciente, que es la otra fuente de banda larga que no es retención.",
+  "TRATA CON DNasa Y CORRE UN CONTROL SIN RETROTRANSCRIPTASA (−RT). El genoma del AAV LLEVA el intrón dentro, así que una traza de ADN del vector amplifica y da una banda larga INDISTINGUIBLE de la retención. El control −RT tiene que salir vacío; si sale banda, lo que se está midiendo es ADN.",
+  "LEE LA PROPORCIÓN corta/larga, NO la presencia de la larga. Y no se lee sola: hacen falta DOS referencias en la MISMA TANDA — el control sin intrón, que es el 100 % corta y fija dónde está el cero, y el terapéutico. Sin las dos, una proporción no se puede interpretar.",
   "SECUENCIA LA BANDA CORTA. Es la lectura que cierra el frente: el donante críptico `GTGAGCG` del andamio compite por el aceptor legítimo del MVM y produce una banda INTERMEDIA (+97 pb) que en un gel se confunde con la buena.",
   "Western con L42 NORMALIZADO POR vg-qPCR. Sin normalizar, «no hay proteina» no se distingue de «no llego el vector»: los dos dan una membrana vacía y solo uno culpa al empalme.",
   "Corre en la MISMA TANDA el parental SIN INTRÓN, como techo de expresión. Sin techo, un western flojo no dice si el empalme va mal o si la construcción expresa poco.",
 ]
 
 avisos = [
+  "LA PRESENCIA DE BANDA LARGA NO ES EVIDENCIA DE RETENCIÓN, y esto invalida la lectura ingenua del gel. El pre-mRNA sin empalmar EXISTE SIEMPRE: el splicing es cotranscripcional pero NO instantáneo, así que en cualquier población de transcritos hay nacientes a medio procesar y dan banda larga aunque el empalme sea PERFECTO. Aquí estuvo escrito «banda CORTA = empalmado, banda LARGA = retenido» y es FALSO. Por eso el ensayo lleva las cuatro condiciones de los pasos —citoplasma, polyA, DNasa con control −RT, y proporción con dos referencias— y no una de ellas: las tres primeras quitan del medio lo que no es retención, y la cuarta cambia lo que se lee.",
   "UN small RNA-seq PERFECTO NO ES EVIDENCIA DE QUE HAYA PROTEINA. Drosha procesa el pri-miR COTRANSCRIPCIONALMENTE, o sea ANTES del splicing: la horquilla se corta igual este el intrón escindido o no. Son dos sucesos en orden y esa lectura solo mide el primero. Por eso este frente no estaba en la lista.",
   "EL CEBADOR DE AGUAS ABAJO CAE DENTRO DEL ORF DE PrP. La especificidad de vector la da el cebador de aguas ARRIBA, y SOLO ese: un par con los dos cebadores aguas abajo amplificaria también el Prnp ENDOGENO del tejido — saldria banda, del tamaño esperado, y no sería del vector. Es el error que arruinaria el ensayo sin dar ninguna señal.",
   "El casete que hay (`aav_casete.fa`) NO sirve como parental sin intrón: es el parental sin MÓDULO pero CON el intrón vacío de 82 nt, así que arrastra el mismo problema que se quiere medir. Y el intrón del terapeutico son 296 nt, no 82: la eficiencia de uno no dice nada del otro. La app específica el control sin intrón —donante y aceptor eliminados, todo lo demas conservado base a base— y sale en la hoja de pedido.",

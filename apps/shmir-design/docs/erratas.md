@@ -2268,3 +2268,61 @@ las dos sobre quién calcula un digesto — con lo que hay que actualizar **las 
 añadir un sitio que hashea. Eso ya se había olvidado dos veces en un solo día
 (`result_fingerprint` y `file_fingerprint`), y las dos se cazaron por casualidad al correr
 la suite.
+
+## 53 — «Banda larga = retenido» era falso, y estaba escrito sobre el único frente binario
+
+**Corregido por Joaquín Castilla (2026-09-02)**, y va con su nombre por la misma razón que
+la predicción refutada de la carrera de A y la rectificación del rol de APA: si sólo se
+anotan las correcciones ajenas, el registro deja de ser un registro.
+
+La ficha del frente de empalme y `splicing.splicing_readouts` decían, con esas palabras:
+
+> Banda **CORTA** = empalmado, banda **LARGA** = retenido, y la **proporción** es la
+> eficiencia.
+
+**Y es falso.** El pre-mRNA sin empalmar **existe siempre**: el splicing es
+cotranscripcional pero **no instantáneo**, así que en cualquier población de transcritos
+hay nacientes a medio procesar. La banda larga sale **con el empalme perfecto**. Presencia
+de banda larga no es evidencia de retención — es evidencia de que la célula estaba
+transcribiendo.
+
+### Por qué esto es grave y no un matiz
+
+Es el **único frente binario** del proyecto: si el intrón no se escinde no hay proteína DN
+en absoluto. Un ensayo mal especificado ahí no da un número peor, da un **veredicto
+invertido** — y el modo de fallo es el peor de todos: la banda larga aparece, se lee como
+retención, y se descarta una arquitectura que funciona. Al revés también: sin las
+condiciones, una retención real queda enterrada en el naciente.
+
+Y es la familia del **«Alu 0 %» al revés**. Allí se afirmaba una **ausencia** sin haber
+buscado; aquí una **presencia** sin haber separado las dos causas que la producen. En los
+dos casos el resultado sale, tiene la forma correcta, y no dice lo que se cree.
+
+### Las cuatro condiciones, y ninguna es opcional
+
+Tres quitan del medio lo que **no** es retención; la cuarta cambia **lo que se lee**:
+
+1. **RNA CITOPLÁSMICO, no total.** El pre-mRNA sin empalmar es nuclear. Lo que sí es un
+   fallo de empalme es encontrar el intrón retenido **en el citoplasma**, que es donde se
+   traduce.
+2. **Selección por polyA**, que excluye la mayor parte del naciente.
+3. **DNasa y control SIN retrotranscriptasa.** El **genoma del AAV lleva el intrón
+   dentro**, así que una traza de ADN del vector amplifica y da una banda larga
+   **indistinguible** de la retención. El −RT tiene que salir vacío; si sale banda, lo que
+   se está midiendo es ADN.
+4. **La lectura es la PROPORCIÓN corta/larga, NO la presencia**, y no se lee sola:
+   **dos referencias en la misma tanda** — el control sin intrón, que es el **100 % corta**
+   y fija dónde está el cero, y el terapéutico.
+
+La cuarta se apoya en algo que el proyecto ya tenía: el control sin intrón está
+**especificado** (`splicing.intronless_control`, 82 pb, md5 `d72c574d…`) y sale en la hoja
+de pedido. Lo que no estaba dicho es que **es la referencia de esta lectura**, no sólo el
+techo de expresión del Western.
+
+### Y la frase falsa no se borra: se marca
+
+Vive citada entre comillas como lo que fue —el registro es para eso— y
+`tests/test_rtpcr_no_confunde_naciente.py` comprueba que **no se vuelve a afirmar**, ni en
+el código ni en la ficha, y que las cuatro condiciones están **en los dos sitios**. Es el
+principio nº 11 aplicado por adelantado: la prosa que se queda atrás es la que alguien va a
+leer, y ésta se iba a leer en una libreta de laboratorio.

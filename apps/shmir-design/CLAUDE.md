@@ -1300,8 +1300,24 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **cuatro** lecturas son de banco, las cuatro `NOT_RUN`, y este software no corre
     ninguna.
     1. **RT-PCR de empalme** con cebadores en los exones que flanquean el intrón MVM.
-       Banda **corta** = empalmado, banda **larga** = retenido, y la **proporción** es la
-       eficiencia.
+       **CORREGIDA (2026-09-02) por Joaquín Castilla**, y no es un matiz: aquí ponía
+       «banda corta = empalmado, banda larga = retenido», **y es falso**.
+       **La PRESENCIA de banda larga no es evidencia de retención.** El pre-mRNA sin
+       empalmar **existe siempre** —el splicing es cotranscripcional pero **no
+       instantáneo**—, así que hay transcritos **nacientes** a medio procesar y dan banda
+       larga con el empalme **perfecto**. Es el «Alu 0 %» al revés: allí se afirmaba una
+       ausencia sin haber buscado; aquí una presencia sin haber separado las dos causas
+       que la producen — y el número sale igual, con la forma correcta.
+       **Cuatro condiciones, y ninguna es opcional** (`splicing.RTPCR_CONDITIONS`):
+       - **RNA CITOPLÁSMICO, no total.** El pre-mRNA sin empalmar es **nuclear**; lo que
+         sí es fallo es encontrarlo retenido en el **citoplasma**, que es donde se traduce.
+       - **Selección por polyA**, que excluye la mayor parte del naciente.
+       - **DNasa y control SIN retrotranscriptasa.** El genoma del AAV **lleva el intrón**,
+         así que una traza de ADN da una banda larga **indistinguible** de la retención. El
+         −RT tiene que salir vacío; si sale banda, lo que se mide es ADN.
+       - **La lectura es la PROPORCIÓN corta/larga, no la presencia**, y no se lee sola:
+         **dos referencias en la MISMA tanda** — el control sin intrón (100 % corta, que
+         fija dónde está el cero) y el terapéutico.
     2. **Western L42 normalizado por vg-qPCR.** Sin normalizar, «no hay proteína» no se
        distingue de «no llegó el vector»: los dos dan una membrana vacía y solo uno culpa
        al empalme.

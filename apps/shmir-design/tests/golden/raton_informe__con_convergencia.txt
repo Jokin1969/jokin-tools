@@ -528,8 +528,18 @@
 
   LAS CUATRO LECTURAS QUE LO CIERRAN. Ninguna la corre este software:
     · rtpcr_empalme [NOT_RUN]: RT-PCR con cebadores en los exones que flanquean el intrón
-      MVM. Banda CORTA = empalmado, banda LARGA = retenido, y la PROPORCIÓN es la
-      eficiencia. Coordenadas NO emitidas: falta el casete (--transgen).
+      MVM. OJO, y esto invalida la lectura ingenua: la PRESENCIA de banda larga NO ES
+      EVIDENCIA de retención. El pre-mRNA sin empalmar existe SIEMPRE —el splicing es
+      cotranscripcional pero no instantáneo—, así que hay transcritos NACIENTES a medio
+      procesar aunque el empalme sea perfecto, y dan banda larga igual. Por eso el ensayo
+      lleva CUATRO condiciones y ninguna es opcional: (1) RNA CITOPLÁSMICO, no total — el
+      pre-mRNA sin empalmar es NUCLEAR, y lo que sí es fallo es encontrarlo retenido en el
+      citoplasma; (2) SELECCIÓN POR polyA, que excluye la mayor parte del naciente; (3)
+      DNasa y CONTROL SIN RETROTRANSCRIPTASA, porque el genoma del AAV LLEVA el intrón y
+      una traza de ADN da una banda larga indistinguible de la retención; (4) la lectura
+      es la PROPORCIÓN corta/larga, NO la presencia, y no se lee sola: necesita DOS
+      referencias en la MISMA TANDA —el control sin intrón, que es el 100 % corta, y el
+      terapéutico—. Coordenadas NO emitidas: falta el casete (--transgen).
     · western_L42_por_vg [NOT_RUN]: Western L42 NORMALIZADO por vg-qPCR. Sin normalizar,
       «no hay proteina» no se distingue de «no llego el vector»: los dos dan una membrana
       vacía, y solo uno de los dos culpa al empalme. La vg-qPCR es la que separa las dos
