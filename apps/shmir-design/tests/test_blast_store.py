@@ -20,9 +20,19 @@ from shmir_design.blast_store import (
 from shmir_design.errors import ShmirDesignError
 from shmir_design.filters import FilterState
 
+from shmir_design.presentation import query_name
+
+# EL NOMBRE DE UNA CONSULTA SE PIDE, NO SE ESCRIBE. Estos tests transcribian
+# `raton_pos200_guia`, que es un formato que la app YA NO PRODUCE —el slug de la especie
+# es `mouse`, no `raton`—: coincidian consigo mismos, asi que el desfase no se veia. Es
+# la mitad que dejo pasar la errata nº 44. Ver `data/claves_derivadas.toml`.
+def Q(inicio, hebra="guia", especie="mouse"):
+    return query_name(especie, inicio, hebra)
+
+
 CRUDO = (
-    "raton_pos200_guia\tNM_011170.3\t100.000\t22\t0\t0\t1\t22\t1170\t1191\t1e-05\t44.1\n"
-    "raton_pos200_pasajera\tNM_011170.3\t100.000\t22\t0\t0\t1\t22\t1170\t1191\t1e-05\t44.1\n"
+    f"{Q(200)}\tNM_011170.3\t100.000\t22\t0\t0\t1\t22\t1170\t1191\t1e-05\t44.1\n"
+    f"{Q(200, 'pasajera')}\tNM_011170.3\t100.000\t22\t0\t0\t1\t22\t1170\t1191\t1e-05\t44.1\n"
 )
 
 LOCAL = BlastDatabase(
@@ -34,8 +44,8 @@ REMOTA = BlastDatabase(name="refseq_rna", version="", md5=None, remote=True)
 def _consulta():
     return blast.QueryFasta.from_records(
         (
-            ("raton_pos200_guia", "TTATATTCTTATTGGCCCGGTG"),
-            ("raton_pos200_pasajera", "CACCGGGCCAATAAGAATATAA"),
+            (Q(200), "TTATATTCTTATTGGCCCGGTG"),
+            (Q(200, "pasajera"), "CACCGGGCCAATAAGAATATAA"),
         )
     )
 
@@ -164,14 +174,14 @@ class TestCriterio2_ElMd5DeConsulta(unittest.TestCase):
     def test_una_guia_del_resultado_que_NO_esta_en_el_panel_se_rechaza(self):
         consulta = _consulta()
         ajeno = CRUDO + (
-            "humano_pos999_guia\tNM_000311.5\t100.000\t22\t0\t0\t1\t22\t1\t22\t1e-05\t44.1\n"
+            f"{Q(999, especie='human')}\tNM_000311.5\t100.000\t22\t0\t0\t1\t22\t1\t22\t1e-05\t44.1\n"
         )
         with self.assertRaises(ShmirDesignError) as ctx:
             validate_upload(
                 raw=ajeno, query=consulta, declared_query_md5=consulta.md5,
                 panel_names=consulta.names,
             )
-        self.assertIn("humano_pos999_guia", str(ctx.exception))
+        self.assertIn(Q(999, especie="human"), str(ctx.exception))
 
     def test_es_el_fallo_del_CSV_de_miRarchitect_y_lo_dice(self):
         consulta = _consulta()
@@ -228,12 +238,12 @@ class TestNadaSeSOBRESCRIBE(unittest.TestCase):
     def test_dos_corridas_del_mismo_candidato_se_SUMAN(self):
         self.almacen.add(_corrida(run_id="r1"))
         self.almacen.add(_corrida(run_id="r2", date="2026-08-27"))
-        self.assertEqual(len(self.almacen.history("raton_pos200_guia")), 2)
+        self.assertEqual(len(self.almacen.history(Q(200))), 2)
 
     def test_la_ficha_muestra_la_ULTIMA(self):
         self.almacen.add(_corrida(run_id="r1", date="2026-08-26"))
         self.almacen.add(_corrida(run_id="r2", date="2026-08-27"))
-        self.assertEqual(self.almacen.latest("raton_pos200_guia").run_id, "r2")
+        self.assertEqual(self.almacen.latest(Q(200)).run_id, "r2")
 
     def test_repetir_un_run_id_ABORTA(self):
         self.almacen.add(_corrida(run_id="r1"))
@@ -244,7 +254,7 @@ class TestNadaSeSOBRESCRIBE(unittest.TestCase):
         self.almacen.add(_corrida(run_id="r2", date="2026-08-27"))
         self.almacen.add(_corrida(run_id="r1", date="2026-08-26"))
         self.assertEqual(
-            [c.run_id for c in self.almacen.history("raton_pos200_guia")], ["r1", "r2"]
+            [c.run_id for c in self.almacen.history(Q(200))], ["r1", "r2"]
         )
 
 
@@ -254,11 +264,11 @@ class TestCriterio4_SinCorridaSigueEnNOT_RUN(unittest.TestCase):
         self.almacen = BlastStore()
 
     def test_un_candidato_sin_corrida_es_NOT_RUN(self):
-        resultado = self.almacen.verdict_for("raton_pos999_guia")
+        resultado = self.almacen.verdict_for(Q(999))
         self.assertIs(resultado.state, FilterState.NOT_RUN)
 
     def test_y_es_VISIBLE_no_una_ausencia(self):
-        motivo = self.almacen.verdict_for("raton_pos999_guia").reason
+        motivo = self.almacen.verdict_for(Q(999)).reason
         self.assertIn("ninguna corrida", motivo.lower())
         self.assertIn("NOT_RUN no es PASS", motivo)
 
@@ -266,13 +276,13 @@ class TestCriterio4_SinCorridaSigueEnNOT_RUN(unittest.TestCase):
         # Meter una corrida de OTRO candidato no cambia el de este.
         self.almacen.add(_corrida())
         self.assertIs(
-            self.almacen.verdict_for("raton_pos999_guia").state, FilterState.NOT_RUN
+            self.almacen.verdict_for(Q(999)).state, FilterState.NOT_RUN
         )
 
     def test_con_corrida_estandar_local_SI_hay_veredicto(self):
         self.almacen.add(_corrida())
         self.assertIsNot(
-            self.almacen.verdict_for("raton_pos200_guia").state, FilterState.NOT_RUN
+            self.almacen.verdict_for(Q(200)).state, FilterState.NOT_RUN
         )
 
     def test_con_corrida_remota_pasa_a_NO_CIERRA(self):
@@ -285,7 +295,7 @@ class TestCriterio4_SinCorridaSigueEnNOT_RUN(unittest.TestCase):
         self.almacen.add(
             _corrida(params=blast.DEFAULTS.with_changes(remote=True), database=REMOTA)
         )
-        resultado = self.almacen.verdict_for("raton_pos200_guia")
+        resultado = self.almacen.verdict_for(Q(200))
         self.assertIs(resultado.state, FilterState.NO_CIERRA)
         self.assertIn("REPITIENDO", resultado.reason)
 

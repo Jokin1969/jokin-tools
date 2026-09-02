@@ -21,11 +21,11 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass, field
 
 from . import blast
 from .errors import ShmirDesignError
+from .identidad import mensaje_de_id_repetido, result_fingerprint
 from .filters import FilterResult, FilterState
 
 FILTER_NAME = "especificidad"
@@ -104,7 +104,7 @@ class BlastRun:
         return cls(
             run_id=str(run_id), date=str(date), uploaded_by=str(uploaded_by),
             query_md5=query.md5,
-            result_md5=hashlib.md5(str(raw).encode("utf-8")).hexdigest(),
+            result_md5=result_fingerprint(raw),
             params=params, database=database, raw=str(raw),
             hits=blast.parse_outfmt6(raw), query_names=query.names,
         )
@@ -209,12 +209,20 @@ class BlastStore:
     runs: list[BlastRun] = field(default_factory=list)
 
     def add(self, run: BlastRun) -> None:
-        if any(r.run_id == run.run_id for r in self.runs):
-            raise ShmirDesignError(
-                f"Ya hay una corrida con id {run.run_id!r}. Nada se sobrescribe: una "
-                f"corrida nueva se AÑADE con su propio id, y la ficha enseña la última. "
-                f"Pisar la anterior perderia por que se volvio a correr. Se aborta."
-            )
+        ya = next((r for r in self.runs if r.run_id == run.run_id), None)
+        if ya is not None:
+            # El id lleva el md5 del RESULTADO (errata nº 48), asi que un choque
+            # significa una sola cosa y el mensaje puede DECIR COMO SALIR en vez de
+            # abortar a secas.
+            raise ShmirDesignError(mensaje_de_id_repetido(
+                run_id=ya.run_id, date=ya.date, by=ya.uploaded_by,
+                que_es="corrida de BLAST",
+                como_repetir=(
+                    "Casi seguro has cogido el fichero de resultados viejo: "
+                    "comprueba la ruta del `-out`, o vuelve a lanzar el `blastn` y "
+                    "sube ESE."
+                ),
+            ))
         self.runs.append(run)
 
     def history(self, query_name: str) -> tuple[BlastRun, ...]:

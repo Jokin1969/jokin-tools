@@ -3569,6 +3569,59 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     a salir NOT_RUN» era cierta al plantearse y dejó de serlo cuando la tabla empezó a
     leer los almacenes. No bloquea.
 
+- **EL `run_id` NO ADMITÍA DOS CORRIDAS EL MISMO DÍA (2026-09-02)**, errata nº 48.
+  Reportado **tres veces en un día**: `Mus musculus-blast-02/09/2026` ya existe y la
+  subida aborta. Repetir el mismo día **es lo normal** —ese día hubo cuatro corridas,
+  todas por fallos de la app— y el id era `especie + tipo + fecha`.
+  - **El daño no era el aborto: era la salida que dejaba.** Inventarse una fecha, o abrir
+    un proyecto nuevo — y lo segundo **parte el historial de por qué se volvió a correr**,
+    que es justo lo que el log existe para conservar. El identificador estaba destruyendo
+    el registro que protege.
+  - **La pieza es el `result_md5`**, y la propiedad es exactamente la que hace falta: dos
+    resultados **distintos** no chocan, dos **idénticos** sí — y ahí abortar es correcto,
+    porque eso no es repetir una corrida, es subir dos veces el mismo fichero.
+    `identidad.run_id` → `blast-2026-09-02-<md5>`. **La especie sale del id**: el proyecto
+    ya la declara en `proyecto.json`.
+  - **Un solo sitio calcula el md5** (`identidad.result_fingerprint`). Los cuatro
+    almacenes tenían su propio `hashlib.md5(raw)` —cuatro definiciones del mismo número— y
+    aquí el id TERMINA en él: separados, una corrida podría tener dos identidades.
+  - **Lo montaba la PÁGINA, y eso era regla 6**: el id decide si una corrida entra o se
+    rechaza, así que no es pintar. Lo derivan los cuatro `*_run_from_*`, con test de que
+    la página no escribe ninguno.
+  - **Y EL MENSAJE DICE CÓMO SALIR**, que pesa igual que lo anterior: nombra las dos
+    salidas falsas (**no** cambies la fecha, **no** abras un proyecto) y dice que la
+    tercera no existe (el log es **append-only**). Un aborto a secas deja al usuario
+    buscando una salida, y la que encuentra es la que rompe el historial.
+
+- **LOS TESTS QUE NO PUEDEN FALLAR, BUSCADOS TODOS (2026-09-02)**
+  (`tools/auditar_claves.py`, `data/claves_derivadas.toml`, dentro de
+  `npm run check:shmir`). Errata nº 49 y principio nº 25. Sale de tres erratas seguidas
+  con la misma anatomía —la clave del dossier, las cinco copias del formato y la clave de
+  insumos— y de la consecuencia que sacó el responsable: **no basta con arreglarlas de una
+  en una**.
+  - **Guardia, no trinquete**: el número correcto es cero. Un test que escribe la clave
+    por la que pregunta coincide **por construcción**, y no es deuda pendiente — es una
+    comprobación que no comprueba (errata nº 29).
+  - **Lo que lo hace aplicable es la distinción**: el barrido ancho da **294** literales
+    de test que nombran un fichero del depósito y **casi todos son correctos** —abrir el
+    fichero real por su nombre lo es—. Sólo cuentan (a) el valor exacto usado como CLAVE
+    de un diccionario o conjunto que el test pasa a una llamada, y (b) la FORMA de una
+    familia de claves, sin docstrings. Con eso: **12 hallazgos, todos reales**.
+  - **Lo que encontró**: seis sitios de `test_recursos.py` construyendo el manifiesto con
+    los nombres escritos y pidiendo luego que se conectaran **por rol** —el agujero de
+    `rmsk_mouse.out` dentro del test que debía cazarlo—, dos más con el `.out`/`.tbl` y el
+    casete, y **cuatro ficheros transcribiendo `raton_pos200_guia`, un formato que la app
+    YA NO PRODUCE** (el slug es `mouse`): coincidían consigo mismos, así que el desfase no
+    se veía.
+  - **Y UN FALLO DEL NÚCLEO destapado por lo anterior**: al pedir el nombre en vez de
+    escribirlo salió que `query_name(resolve("raton"), …)` —con un `Species` ya resuelto—
+    devolvía `species_scientific_mus_musculus_slug_mouse_..._pos200_guia`.
+    `species.resolve` terminaba en `Species(scientific=str(name))`, así que con
+    **cualquier objeto** fabricaba una especie de su `repr`, con la forma correcta y sin
+    ningún error. Ahora es **idempotente** con un `Species` y **aborta** con otro tipo. Ese
+    fallo sólo aparece cuando alguien **pide** la clave: es el argumento de que la
+    auditoría hacía falta.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

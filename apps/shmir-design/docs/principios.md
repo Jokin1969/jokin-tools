@@ -1179,3 +1179,48 @@ escrito **pregunta por su propia respuesta**: coincide siempre, por construcció
 verde no dice nada del emparejamiento real. La clave se le pide al productor —aquí
 `insumos.fichero_de` o `presentation.reference_md5s`— o el test se escribe **de punta a
 punta**, poniendo el fichero en un directorio y mirando qué sale.
+
+## 25 — Un test que ESCRIBE la clave por la que pregunta no puede fallar, y hay que poder buscarlos todos
+
+**Formulado por el responsable del proyecto (2026-09-02)**, después de tres erratas
+seguidas con la misma anatomía y con la consecuencia dicha en una frase: *«no basta con
+arreglarlas de una en una»*. Es el principio nº 24 —los dos lados de una comparación
+salen de la misma fuente— **convertido en auditoría**, con el segundo lado siendo el test.
+
+### El patrón
+
+```python
+insumos.obsoleta("corrida_blast", payload, actuales={"base de datos de BLAST": "d" * 32})
+```
+
+El test construye el diccionario de entrada con el mismo nombre por el que el código va a
+buscar. Coincide **por construcción**: pase lo que pase con el productor real de esa clave
+—que la sufije por especie, que la normalice, que cambie de formato—, este test sigue en
+verde. Su verde no dice nada del emparejamiento real, y mientras tanto **tapa** el fallo
+estructural que habría destapado.
+
+### Por qué es peor que un test que falta
+
+Un test que falta se ve: alguien pregunta por la cobertura y aparece. Éste **ocupa el
+sitio** del test que haría falta y da la señal contraria — es la familia de la errata
+nº 29, donde `verify()` producía confianza infundada en vez de ausencia de información.
+
+### La regla
+
+Una clave que **algo produce** —un nombre de fichero, un identificador de consulta, un id
+de corrida— se le **pide al productor**, también en los tests. Escribirla es admisible
+sólo con el motivo declarado, y ese motivo caduca.
+
+### Y la auditoría, porque una regla que no se puede buscar no se aplica
+
+`tools/auditar_claves.py` la busca de dos formas, y la distinción entre ellas es lo que
+la hace aplicable en vez de ruidosa (el barrido ancho daba 294 hallazgos, casi todos
+correctos, y un auditor así se apaga el primer día):
+
+- **VALORES** — el valor exacto usado como **clave** de un diccionario o conjunto que el
+  test pasa a una llamada. Un literal suelto no cuenta: abrir el fichero real por su
+  nombre es lo correcto.
+- **FORMATO** — la **forma** de la familia, en literales y f-strings, sin docstrings.
+
+Es un **guardia**: el número correcto es cero. Un test que no puede fallar no es deuda
+pendiente que se salda cuando se pueda; es una comprobación que no comprueba.

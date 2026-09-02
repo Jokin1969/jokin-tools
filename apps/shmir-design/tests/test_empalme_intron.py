@@ -310,7 +310,13 @@ class TestElPlanSaleDeLaBaseDelTransgen(unittest.TestCase):
 
     @unittest.skipUnless(CASETE.is_file(), "NOT_RUN: falta aav_casete.fa")
     def test_con_el_casete_de_verdad_SI_hay_plan(self):
-        plan, motivo = splicing.plan_from_records({"aav_casete.fa": _plasmido()})
+        # El nombre lo pone el gestor, no este test: `plan_from_records` busca por él.
+        from shmir_design.species import required_files, resolve
+
+        casete = next(
+            f.filename for f in required_files(resolve("mouse")) if f.role == "transgen"
+        )
+        plan, motivo = splicing.plan_from_records({casete: _plasmido()})
         self.assertIsNotNone(plan)
         self.assertEqual(plan.location.donor_start, 3134)
         self.assertEqual(motivo, "")

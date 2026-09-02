@@ -19,6 +19,16 @@ from shmir_design import blast
 from shmir_design.errors import ShmirDesignError
 from shmir_design.filters import FilterState
 
+from shmir_design.presentation import query_name
+
+# EL NOMBRE DE UNA CONSULTA SE PIDE, NO SE ESCRIBE. Estos tests transcribian
+# `raton_pos200_guia`, que es un formato que la app YA NO PRODUCE —el slug de la especie
+# es `mouse`, no `raton`—: coincidian consigo mismos, asi que el desfase no se veia. Es
+# la mitad que dejo pasar la errata nº 44. Ver `data/claves_derivadas.toml`.
+def Q(inicio, hebra="guia", especie="mouse"):
+    return query_name(especie, inicio, hebra)
+
+
 
 class TestLosParametrosPorDefecto(unittest.TestCase):
 
@@ -143,8 +153,8 @@ class TestElFASTADeConsulta(unittest.TestCase):
     def setUp(self):
         self.consulta = blast.QueryFasta.from_records(
             (
-                ("raton_pos200_guia", "TTATATTCTTATTGGCCCGGTG"),
-                ("raton_pos200_pasajera", "CACCGGGCCAATAAGAATATAA"),
+                (Q(200), "TTATATTCTTATTGGCCCGGTG"),
+                (Q(200, "pasajera"), "CACCGGGCCAATAAGAATATAA"),
             )
         )
 
@@ -231,14 +241,14 @@ class TestElEjecutorEstaDetrasDeUnaINTERFAZ(unittest.TestCase):
 class TestElParseoDelOutfmt6(unittest.TestCase):
 
     CRUDO = (
-        "raton_pos200_guia\tNM_011170.3\t100.000\t22\t0\t0\t1\t22\t1170\t1191\t1e-05\t44.1\n"
-        "raton_pos200_guia\tXM_006498000.1\t95.455\t22\t1\t0\t1\t22\t500\t521\t0.002\t36.2\n"
+        f"{Q(200)}\tNM_011170.3\t100.000\t22\t0\t0\t1\t22\t1170\t1191\t1e-05\t44.1\n"
+        f"{Q(200)}\tXM_006498000.1\t95.455\t22\t1\t0\t1\t22\t500\t521\t0.002\t36.2\n"
     )
 
     def test_lee_las_doce_columnas(self):
         hits = blast.parse_outfmt6(self.CRUDO)
         self.assertEqual(len(hits), 2)
-        self.assertEqual(hits[0].query, "raton_pos200_guia")
+        self.assertEqual(hits[0].query, Q(200))
         self.assertEqual(hits[0].subject, "NM_011170.3")
         self.assertAlmostEqual(hits[0].identity, 100.0)
         self.assertEqual(hits[0].length, 22)

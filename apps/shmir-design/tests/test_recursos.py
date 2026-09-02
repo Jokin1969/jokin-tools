@@ -15,6 +15,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from shmir_design import species as _species
 from shmir_design.errors import ShmirDesignError
 from shmir_design.manifest import (
     LEGACY_COLUMNS,
@@ -26,6 +27,18 @@ from shmir_design.resources import LOADERS, ResourceSet, load_from_manifest
 
 SONDA = "GCGTCAGTACGATCGAATTACT" * 20
 CASETE = "GGCCATACTAGCATCGGATCAG" * 8
+
+
+# LOS NOMBRES SE PIDEN AL GESTOR, no se escriben. `species.required_files` es la unica
+# fuente de los nombres del deposito y sufija por especie; escribirlos aqui haria que
+# estos tests preguntaran por el nombre murino aunque el codigo buscara otro — que es la
+# forma exacta de las erratas nº 47 y nº 48. Ver `data/claves_derivadas.toml`.
+_DEPOSITO = {
+    fila.role: fila.filename
+    for fila in _species.required_files(_species.resolve("mouse"))
+}
+CASETE_FA = _DEPOSITO["transgen"]
+REFSEQ_FA = _DEPOSITO["refseq"]
 
 
 class TestCadaRolTieneCargador(unittest.TestCase):
@@ -64,7 +77,7 @@ class TestCarga(unittest.TestCase):
         d = Path(tmp.name)
         (d / MANIFEST_NAME).write_text(
             "\t".join(LEGACY_COLUMNS) + "\n"
-            "aav_casete.fa\ttransgen\t\t\t\tno descargado todavia\n",
+            f"{CASETE_FA}\ttransgen\t\t\t\tno descargado todavia\n",
             encoding="utf-8",
         )
         recursos = load_from_manifest(d)
@@ -72,23 +85,23 @@ class TestCarga(unittest.TestCase):
         self.assertEqual(recursos.connected, ())
 
     def test_carga_el_casete_del_transgen(self):
-        d = self._directorio({"aav_casete.fa": ">c\n" + CASETE + "\n"})
+        d = self._directorio({CASETE_FA: ">c\n" + CASETE + "\n"})
         recursos = load_from_manifest(d)
         self.assertIsNotNone(recursos.transgene_db)
-        self.assertIn("aav_casete.fa", recursos.connected)
+        self.assertIn(CASETE_FA, recursos.connected)
 
     def test_la_version_sale_del_manifiesto(self):
-        d = self._directorio({"aav_casete.fa": ">c\n" + CASETE + "\n"})
+        d = self._directorio({CASETE_FA: ">c\n" + CASETE + "\n"})
         self.assertIn("2026-08-25", load_from_manifest(d).transgene_db.provenance)
 
     def test_el_refseq_necesita_el_gen_diana(self):
-        d = self._directorio({"refseq_rna.fa": ">diana\n" + SONDA + "\n"})
+        d = self._directorio({REFSEQ_FA: ">diana\n" + SONDA + "\n"})
         recursos = load_from_manifest(d)
         self.assertIsNone(recursos.specificity_db)
         self.assertTrue(any("target" in n for n in recursos.notes))
 
     def test_con_gen_diana_si_lo_carga(self):
-        d = self._directorio({"refseq_rna.fa": ">diana\n" + SONDA + "\n"})
+        d = self._directorio({REFSEQ_FA: ">diana\n" + SONDA + "\n"})
         recursos = load_from_manifest(d, target="diana")
         self.assertIsNotNone(recursos.specificity_db)
         self.assertEqual(recursos.specificity_target, "diana")
@@ -97,9 +110,9 @@ class TestCarga(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         d = Path(tmp.name)
-        (d / "aav_casete.fa").write_text(">c\n" + CASETE + "\n", encoding="utf-8")
+        (d / CASETE_FA).write_text(">c\n" + CASETE + "\n", encoding="utf-8")
         (d / MANIFEST_NAME).write_text(
-            "\t".join(LEGACY_COLUMNS) + "\naav_casete.fa\tt\t\t\t\tsin registrar\n",
+            f"{chr(9).join(LEGACY_COLUMNS)}\n{CASETE_FA}\tt\t\t\t\tsin registrar\n",
             encoding="utf-8",
         )
         recursos = load_from_manifest(d)
@@ -112,11 +125,11 @@ class TestCarga(unittest.TestCase):
             self.assertIn(MANIFEST_NAME, str(ctx.exception))
 
     def test_el_estado_del_directorio_viaja_con_los_recursos(self):
-        d = self._directorio({"aav_casete.fa": ">c\n" + CASETE + "\n"})
+        d = self._directorio({CASETE_FA: ">c\n" + CASETE + "\n"})
         self.assertIsNotNone(load_from_manifest(d).status)
 
     def test_las_notas_dicen_que_se_conecto(self):
-        d = self._directorio({"aav_casete.fa": ">c\n" + CASETE + "\n"})
+        d = self._directorio({CASETE_FA: ">c\n" + CASETE + "\n"})
         self.assertTrue(load_from_manifest(d).format_text())
 
 

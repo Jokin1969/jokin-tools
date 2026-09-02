@@ -3074,15 +3074,20 @@ def anatomy_payload(anatomy) -> tuple[dict | None, str]:
 
 
 def blast_run_from_upload(*, raw: str, query, params, declared_query_md5: str,
-                          panel_names, database: dict, date: str, uploaded_by: str,
-                          run_id: str):
+                          panel_names, database: dict, date: str, uploaded_by: str):
     """Valida el `-outfmt 6` y construye la corrida. La pagina no valida nada.
 
     Las DOS comprobaciones de `blast_store.validate_upload` abortan: el md5 del FASTA de
     consulta declarado tiene que ser el que genero la app, y toda `query` del resultado
     tiene que estar en el panel. Es el fallo del CSV de miRarchitect.
+
+    EL `run_id` SE DERIVA aqui y no lo pasa la pagina (errata nº 48): lleva el md5 del
+    resultado, asi que repetir la corrida el mismo dia entra sin chocar y subir dos veces
+    el MISMO fichero si aborta. Que lo montara la pagina era ademas logica en la pagina
+    —el id decide si una corrida entra o se rechaza— o sea regla 6.
     """
     from .blast_store import BlastDatabase, BlastRun, validate_upload
+    from .identidad import result_fingerprint, run_id as _run_id
 
     validate_upload(
         raw=raw, query=query, declared_query_md5=declared_query_md5,
@@ -3095,32 +3100,56 @@ def blast_run_from_upload(*, raw: str, query, params, declared_query_md5: str,
         remote=bool(database.get("remota", False)),
     )
     return BlastRun.create(
-        run_id=run_id, date=date, uploaded_by=uploaded_by, params=params,
+        run_id=_run_id(
+            kind="corrida_blast", date=date, result_md5=result_fingerprint(raw),
+        ),
+        date=date, uploaded_by=uploaded_by, params=params,
         database=base, query=query, raw=raw,
     )
 
 
-def seed_run_from_scan(scan, *, date: str, ran_by: str, run_id: str):
-    """La corrida de colision de seed, lista para guardar."""
+def seed_run_from_scan(scan, *, date: str, ran_by: str):
+    """La corrida de colision de seed, lista para guardar. El id se DERIVA."""
+    from .identidad import result_fingerprint, run_id as _run_id
     from .seed_store import SeedRun
 
-    return SeedRun.create(run_id=run_id, date=date, ran_by=ran_by, scan=scan)
+    return SeedRun.create(
+        run_id=_run_id(
+            kind="corrida_seed", date=date, result_md5=result_fingerprint(scan.raw),
+        ),
+        date=date, ran_by=ran_by, scan=scan,
+    )
 
 
-def offtarget_run_from_scan(scan, *, date: str, ran_by: str, run_id: str):
-    """La corrida de carga de off-targets, lista para guardar."""
+def offtarget_run_from_scan(scan, *, date: str, ran_by: str):
+    """La corrida de carga de off-targets, lista para guardar. El id se DERIVA."""
+    from .identidad import result_fingerprint, run_id as _run_id
     from .offtarget_store import OfftargetRun
 
-    return OfftargetRun.create(run_id=run_id, date=date, ran_by=ran_by, scan=scan)
+    return OfftargetRun.create(
+        run_id=_run_id(
+            kind="corrida_offtarget", date=date, result_md5=result_fingerprint(scan.raw),
+        ),
+        date=date, ran_by=ran_by, scan=scan,
+    )
 
 
-def splice_run_from_scan(scan, *, raw: str, date: str, ran_by: str, run_id: str,
+def splice_run_from_scan(scan, *, raw: str, date: str, ran_by: str,
                          executor: str, folding=None):
-    """La corrida del cuarto modal, lista para guardar. La pagina no construye objetos."""
+    """La corrida del cuarto modal, lista para guardar. La pagina no construye objetos.
+
+    El id se DERIVA, igual que en los otros tres: el de este modal era el unico que ni
+    siquiera llevaba el tipo (`especie-fecha` a secas), asi que ademas de no admitir dos
+    corridas al dia habria chocado con cualquier otro modal que usara ese formato.
+    """
+    from .identidad import result_fingerprint, run_id as _run_id
     from .splice_store import SpliceRun
 
     return SpliceRun.create(
-        run_id=run_id, date=date, ran_by=ran_by, executor=executor,
+        run_id=_run_id(
+            kind="corrida_empalme", date=date, result_md5=result_fingerprint(raw),
+        ),
+        date=date, ran_by=ran_by, executor=executor,
         scan=scan, raw=raw, folding=folding,
     )
 

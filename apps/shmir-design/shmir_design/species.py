@@ -67,8 +67,26 @@ def _slugify(nombre: str) -> str:
     return limpio or "sin_nombre"
 
 
-def resolve(name: str) -> Species:
-    """La especie a partir de su nombre. Si no se conoce, se dice — no se inventa."""
+def resolve(name) -> Species:
+    """La especie a partir de su nombre. Si no se conoce, se dice — no se inventa.
+
+    IDEMPOTENTE con un `Species` ya resuelto, y ABORTA con cualquier otra cosa. Lo
+    segundo no es una precaucion: `resolve` acababa en `Species(scientific=str(name))`,
+    asi que pasarle un objeto devolvia una especie inventada de su `repr` —
+    `species_scientific_mus_musculus_slug_mouse_..._pos200_guia` como nombre de consulta,
+    con la forma correcta y sin ningun error—. Lo destapo la auditoria de claves
+    (`tools/auditar_claves.py`): un test que escribia el nombre de consulta a mano nunca
+    podia ver que el que produce la app no era ese.
+    """
+    if isinstance(name, Species):
+        return name
+    if not isinstance(name, str):
+        raise ShmirDesignError(
+            f"`resolve` espera el NOMBRE de una especie y ha recibido un "
+            f"{type(name).__name__}. Se aborta en vez de resolver sobre su texto: eso "
+            f"devolveria una especie inventada con la forma correcta, que es peor que "
+            f"un error."
+        )
     if not str(name).strip():
         raise ShmirDesignError(
             "No hay especie declarada. Sin ella no se puede decir que fixtures faltan "

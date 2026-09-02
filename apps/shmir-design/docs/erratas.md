@@ -2030,3 +2030,132 @@ punta —guardar la corrida, depósito vacío, depositar el fichero, quitarlo—
 estado cambie en cada paso, con la mitad adversaria (si el fichero cambia, `OBSOLETO`).
 Y cierra lo que lo escondía: ningún test de esta familia puede volver a escribir a mano la
 clave de `actuales`.
+
+## 48 — El `run_id` no admitía dos corridas el mismo día, y repetir es lo normal
+
+**Reportado tres veces en un solo día (2026-09-02)**, la tercera con la frase que lo
+resume: *«no te lo he pedido dos veces por gusto»*. `Mus musculus-blast-02/09/2026` ya
+existía y la subida abortaba.
+
+El id era `especie + tipo + fecha`. Repetir una corrida el mismo día **es lo normal**
+cuando algo falla — ese día hubo **cuatro**, todas por fallos de la app, no por capricho —
+y el único identificador que la app sabía construir no lo admitía.
+
+### El daño no era el aborto: era la salida que dejaba
+
+Con un id que no admite el segundo intento, las salidas que quedan son **inventarse una
+fecha** o **abrir un proyecto nuevo**. La segunda parte el historial en dos, y el
+historial de por qué se volvió a correr **es exactamente lo que el log existe para
+conservar**. O sea: el identificador estaba destruyendo el registro que protege.
+
+### La pieza que faltaba, y la nombró quien lo reportó: el `result_md5`
+
+Tiene la propiedad correcta y no hace falta ninguna otra:
+
+- dos resultados **distintos** no chocan → se puede repetir cuantas veces haga falta;
+- dos resultados **idénticos** sí → y ahí abortar es lo correcto, porque eso no es
+  repetir una corrida, es subir dos veces el mismo fichero.
+
+`identidad.run_id` emite `blast-2026-09-02-<md5 del resultado>`. **La especie sale del
+id**: el log es de un proyecto y el proyecto ya declara su especie en `proyecto.json`.
+
+### Y el md5 se calcula en UN solo sitio
+
+Los cuatro almacenes tenían su propio `hashlib.md5(raw)` — cuatro definiciones del mismo
+número, el patrón de las cinco copias de la clave de consulta. Aquí además el id
+**termina** en ese md5: calculados por separado, una corrida podría acabar con dos
+identidades y nada obligaría a que coincidieran. Ahora es `identidad.result_fingerprint`,
+con test de que ningún almacén vuelve a llamar a `hashlib`.
+
+### El id lo montaba la PÁGINA, y eso era regla 6
+
+Los cuatro modales lo construían con una f-string en `ui/streamlit_app.py`. El id decide
+si una corrida entra o se rechaza: eso no es pintar, es decidir. Ahora lo derivan los
+cuatro `*_run_from_*` de `presentation.py` y hay un test de que la página no vuelve a
+escribir ninguno. (El del cuarto modal ni siquiera llevaba el tipo — `especie-fecha` a
+secas — así que además de no admitir dos al día habría chocado con cualquier otro modal
+que usara ese formato.)
+
+### La segunda mitad, y pesa igual: el mensaje dice CÓMO SALIR
+
+*«Hoy dice que aborta y nada más; el usuario acaba inventándose una fecha falsa o creando
+proyectos que no necesita.»* Con el md5 dentro del id, un choque significa **una sola
+cosa**, así que el mensaje puede decirla sin adivinar (principio nº 3):
+
+> ESTE RESULTADO YA ESTÁ GUARDADO. No es una corrida nueva: el fichero que acabas de
+> soltar es **byte a byte** el de la corrida `blast-2026-09-02-…`, del …, subida por … El
+> id lleva el md5 del resultado, así que dos corridas DISTINTAS del mismo día entran las
+> dos sin problema — sólo choca subir dos veces lo mismo.
+>
+> QUÉ HACER: si querías guardar ESTA corrida, ya está guardada — míra la en el historial y
+> en la ficha, su veredicto ya cuenta. Si querías registrar OTRA, el resultado es idéntico
+> al anterior, así que casi seguro has cogido el fichero viejo.
+>
+> LO QUE NO HAY QUE HACER: NO cambies la fecha y NO abras un proyecto nuevo. Y no hay nada
+> que borrar: el log es **append-only** a propósito.
+
+Las dos salidas falsas se nombran **por su nombre**, y la tercera —«borra la anterior»—
+se dice que no existe. Un mensaje que sólo dice que aborta deja al usuario buscando una
+salida, y la que encuentra es la que rompe el historial.
+
+## 49 — La auditoría de los tests que no pueden fallar, y lo que encontró
+
+**Pedida por el responsable del proyecto (2026-09-02)** después de tres erratas seguidas
+con la misma anatomía —la clave del dossier, las cinco copias del formato de consulta
+(las dos en la nº 44) y la clave de insumos (nº 47)—:
+
+> *No basta con arreglarlas de una en una. Busca todos los sitios donde un test construya
+> un diccionario o un fixture cuya clave sea también la que el código bajo prueba usa para
+> buscar. Ésos son los tests que no pueden fallar, y cada uno tapa un fallo estructural.*
+
+`tools/auditar_claves.py` + `data/claves_derivadas.toml`, dentro de `npm run check:shmir`.
+**Guardia, no trinquete**: el número correcto es cero.
+
+### Cómo se hace aplicable, que es la mitad del trabajo
+
+El barrido ancho da **294** literales de test que nombran un fichero del depósito, y casi
+todos son correctos: abrir `data/reference/mature.fa` por su nombre **es** usar el fichero
+real. Un auditor con 294 hallazgos se apaga el primer día. La distinción que lo hace útil:
+
+- **VALORES** — sólo cuenta el valor exacto usado como **clave de un diccionario o
+  elemento de un conjunto que el test pasa a una llamada**. Ahí el test está construyendo
+  el índice por el que el código va a buscar. Un literal suelto no cuenta.
+- **FORMATO** — la **forma** de una familia de claves (`_pos\d+_(guia|pasajera)`,
+  `blast-AAAA-MM-DD-<md5>`), en cualquier literal o f-string, sin los docstrings: citar el
+  formato en prosa es documentarlo, no transcribirlo.
+
+Con eso: **12 hallazgos**, todos reales. Los 294 quedaron en 10 + 4 ficheros.
+
+### Lo que encontró, y no era sólo lo esperado
+
+- **6 sitios en `test_recursos.py`** construían el directorio del manifiesto con
+  `{"aav_casete.fa": …}` y `{"refseq_rna.fa": …}`, y luego pedían a `load_from_manifest`
+  que los conectara **por rol**. Es el agujero de `rmsk_mouse.out` conectado por rol,
+  dentro del test que debía cazarlo.
+- **`test_corrida_de_la_pagina.py`** y **`test_empalme_intron.py`**: lo mismo con el par
+  `.out`/`.tbl` y con el casete.
+- **4 ficheros transcribían el nombre de consulta** — y ahí salió el hallazgo de verdad:
+  escribían **`raton_pos200_guia`**, que es un formato que **la app ya no produce**. El
+  slug de la especie es `mouse`. Los tests coincidían consigo mismos, así que el desfase
+  entre lo que probaban y lo que la app emite llevaba ahí desde que `query_name` normaliza
+  por slug, **sin que nada lo dijera**.
+
+### Y un fallo del NÚCLEO, destapado por lo anterior
+
+Al pedirle el nombre a `query_name` en vez de escribirlo salió que
+`presentation.query_name(resolve("raton"), 200, "guia")` —con un `Species` ya resuelto en
+vez del nombre— devolvía:
+
+```
+species_scientific_mus_musculus_slug_mouse_mirbase_prefix_mmu_taxid_txid10090_ucsc_assembly_mm39_pos200_guia
+```
+
+`species.resolve` terminaba en `Species(scientific=str(name), slug=_slugify(str(name)))`,
+así que con **cualquier objeto** fabricaba una especie a partir de su `repr` — con la
+forma correcta y sin ningún error. Es la regla 4 aplicada a algo que no es una URL:
+inventar una identidad en vez de abortar. Ahora `resolve` es **idempotente** con un
+`Species` y **aborta** con cualquier otro tipo.
+
+Ese fallo no lo podía ver ningún test que escribiera el nombre a mano: sólo aparece
+cuando alguien **pide** la clave. Que sea lo primero que salió al aplicar la auditoría es
+el argumento de que la auditoría hacía falta.

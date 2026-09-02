@@ -1535,7 +1535,6 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
                         "md5": base_md5, "remota": remota,
                     },
                     date=fecha, uploaded_by=quien,
-                    run_id=f"{nombre}-blast-{fecha}",
                 ),
                 guardar=save_blast_run, clave="blast",
                 tiling=tiling, seleccion=seleccion,
@@ -1629,7 +1628,7 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None) -> None:
         _guardar_corrida(
             proyecto, nombre,
             construir=lambda fecha, quien: seed_run_from_scan(
-                scan, date=fecha, ran_by=quien, run_id=f"{nombre}-seed-{fecha}"
+                scan, date=fecha, ran_by=quien
             ),
             guardar=save_seed_run, clave="seed",
         )
@@ -1844,7 +1843,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None) ->
         proyecto, nombre,
         construir=lambda fecha, quien: splice_run_from_scan(
             scan, raw=_read_upload(subido), date=fecha, ran_by=quien,
-            run_id=f"{nombre}-{fecha}", executor=splice_executor_text(),
+            executor=splice_executor_text(),
         ),
         guardar=save_splice_run, clave="sp",
     )
@@ -1991,7 +1990,7 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         _guardar_corrida(
             proyecto, nombre,
             construir=lambda fecha, quien: offtarget_run_from_scan(
-                scan, date=fecha, ran_by=quien, run_id=f"{nombre}-ot-{fecha}"
+                scan, date=fecha, ran_by=quien
             ),
             guardar=save_offtarget_run, clave="ot",
         )

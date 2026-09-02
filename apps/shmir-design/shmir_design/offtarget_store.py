@@ -18,10 +18,10 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass, field
 
 from .errors import ShmirDesignError
+from .identidad import mensaje_de_id_repetido, result_fingerprint
 from .filters import FilterResult, FilterState
 from .offtarget import (
     MISSING_FILE,
@@ -57,9 +57,7 @@ class OfftargetRun:
         return cls(
             run_id=str(run_id), date=str(date), ran_by=str(ran_by),
             source=scan.source,
-            result_md5=hashlib.md5(
-                scan.raw.encode("utf-8"), usedforsecurity=False
-            ).hexdigest(),
+            result_md5=result_fingerprint(scan.raw),
             scan=scan,
         )
 
@@ -137,12 +135,17 @@ class OfftargetStore:
     runs: list[OfftargetRun] = field(default_factory=list)
 
     def add(self, run: OfftargetRun) -> None:
-        if any(r.run_id == run.run_id for r in self.runs):
-            raise ShmirDesignError(
-                f"Ya hay una corrida de carga de off-targets con id {run.run_id!r}. "
-                f"Nada se sobrescribe: una corrida nueva se AÑADE con su propio id. Se "
-                f"aborta."
-            )
+        ya = next((r for r in self.runs if r.run_id == run.run_id), None)
+        if ya is not None:
+            raise ShmirDesignError(mensaje_de_id_repetido(
+                run_id=ya.run_id, date=ya.date, by=ya.ran_by,
+                que_es="corrida de carga de off-targets",
+                como_repetir=(
+                    "Este modal calcula, así que con el mismo panel, los mismos "
+                    "ajustes y la misma semilla sale lo mismo. Cambia lo que quieras "
+                    "comparar y el id ya no choca."
+                ),
+            ))
         self.runs.append(run)
 
     def history(self, query_name: str) -> tuple[OfftargetRun, ...]:

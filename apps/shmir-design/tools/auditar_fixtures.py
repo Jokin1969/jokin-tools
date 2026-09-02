@@ -58,20 +58,64 @@ def artefactos_reales() -> list[str]:
     return sorted(p.name for p in REFERENCIA.iterdir() if p.is_file())
 
 
+def _alias_por_rol(texto: str) -> dict[str, set[str]]:
+    """`CASETE_FA = _DEPOSITO["transgen"]` → {"CASETE_FA": {"aav_casete.fa", ...}}.
+
+    El alias sale de un ROL y un rol tiene un nombre POR ESPECIE, asi que se devuelven
+    todos: aqui no se sabe con que especie se construyo el diccionario del test, y quedarse
+    con uno daria el de la ultima especie recorrida — que fue el fallo de la primera
+    version (el humano pisaba al murino y la fabricacion volvia a no verse).
+
+    Existe porque las dos auditorias se pisaban: `auditar_claves` PROHIBE escribir el
+    nombre del fichero en un test —tiene que pedirselo a `species.required_files`— y esta
+    reconocia la fabricacion justamente por ese nombre escrito. Con el nombre derivado, la
+    fabricacion seguia ahi y la justificacion declarada pasaba a leerse como CADUCADA.
+    Un auditor que deja de ver lo que existe es el fallo hacia el silencio.
+    """
+    import ast  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+
+    sys.path.insert(0, str(RAIZ))
+    from shmir_design import species  # noqa: PLC0415
+
+    por_rol_todos: dict[str, set[str]] = {}
+    for nombre in species.SPECIES:
+        for fila in species.required_files(species.resolve(nombre)):
+            por_rol_todos.setdefault(fila.role, set()).add(fila.filename)
+    alias: dict[str, set[str]] = {}
+    for nodo in ast.parse(texto).body:
+        if not isinstance(nodo, ast.Assign) or len(nodo.targets) != 1:
+            continue
+        destino, valor = nodo.targets[0], nodo.value
+        if not isinstance(destino, ast.Name):
+            continue
+        if (
+            isinstance(valor, ast.Subscript)
+            and isinstance(valor.slice, ast.Constant)
+            and valor.slice.value in por_rol_todos
+        ):
+            alias[destino.id] = por_rol_todos[valor.slice.value]
+    return alias
+
+
 def fabricados() -> list[tuple[str, str]]:
     """(fichero de test, artefacto) de cada fabricacion detectada."""
     reales = artefactos_reales()
     salida: list[tuple[str, str]] = []
     for ruta in sorted((RAIZ / "tests").glob("*.py")):
-        lineas = ruta.read_text(encoding="utf-8").splitlines()
+        texto = ruta.read_text(encoding="utf-8")
+        alias = _alias_por_rol(texto)
+        lineas = texto.splitlines()
         escrituras = [i for i, l in enumerate(lineas) if ESCRITURA.search(l)]
         if not escrituras:
             continue
         for nombre in reales:
+            # El nombre escrito, o el ALIAS que lo deriva del gestor.
+            formas = [nombre] + [a for a, v in alias.items() if nombre in v]
             cerca = any(
                 abs(i - j) <= CERCA
                 for i, l in enumerate(lineas)
-                if nombre in l
+                if any(forma in l for forma in formas)
                 for j in escrituras
             )
             if cerca:

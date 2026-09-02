@@ -19,6 +19,16 @@ from shmir_design.errors import ShmirDesignError
 from shmir_design.filters import FilterState
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 
+from shmir_design.presentation import query_name
+
+# EL NOMBRE DE UNA CONSULTA SE PIDE, NO SE ESCRIBE. Estos tests transcribian
+# `raton_pos200_guia`, que es un formato que la app YA NO PRODUCE —el slug de la especie
+# es `mouse`, no `raton`—: coincidian consigo mismos, asi que el desfase no se veia. Es
+# la mitad que dejo pasar la errata nº 44. Ver `data/claves_derivadas.toml`.
+def Q(inicio, hebra="guia", especie="mouse"):
+    return query_name(especie, inicio, hebra)
+
+
 DATOS = Path(__file__).resolve().parent.parent / "data" / "reference"
 MATURE = DATOS / "mature.fa"
 RATON = REFERENCES["NM_011170.3"]
@@ -71,13 +81,13 @@ class TestElNombreDelFrente(unittest.TestCase):
 
     def test_sin_corrida_el_veredicto_es_NOT_RUN_y_nombra_el_fichero(self):
         almacen = offtarget_store.OfftargetStore()
-        veredicto = almacen.verdict_for("raton_pos10_guia")
+        veredicto = almacen.verdict_for(Q(10))
         self.assertIs(veredicto.state, FilterState.NOT_RUN)
         self.assertIn(offtarget.MISSING_FILE, veredicto.reason)
 
     def test_y_NOT_RUN_no_es_cero(self):
         almacen = offtarget_store.OfftargetStore()
-        texto = almacen.verdict_for("raton_pos10_guia").reason.lower()
+        texto = almacen.verdict_for(Q(10)).reason.lower()
         self.assertIn("no es cero", texto)
 
     def test_NO_existe_un_veredicto_por_candidato(self):
@@ -161,7 +171,7 @@ class TestElAlmacen(unittest.TestCase):
         almacen = offtarget_store.OfftargetStore()
         almacen.add(self._run())
         self.assertIs(
-            almacen.verdict_for("raton_pos99999_guia").state, FilterState.NOT_RUN
+            almacen.verdict_for(Q(99999)).state, FilterState.NOT_RUN
         )
 
     def test_el_md5_del_resultado_y_la_procedencia_del_fichero_quedan_guardados(self):

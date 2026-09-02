@@ -392,6 +392,40 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
+    # CLAVES QUE UN TEST ESCRIBE Y ALGUIEN PRODUCE (2026-09-02). Principio nº 24 hecho
+    # auditoria, y GUARDIA como los dos anteriores: un test que construye el diccionario
+    # de entrada con la clave que el codigo va a buscar no puede fallar — coincide por
+    # construccion. Tres erratas seguidas con esa anatomia (nº 44, nº 47 y nº 48).
+    from auditar_claves import cargar_tabla as cargar_claves
+    from auditar_claves import exenciones_caducadas, revisar as revisar_claves
+
+    tabla_claves = cargar_claves()
+    claves = revisar_claves(tabla=tabla_claves)
+    caducadas = exenciones_caducadas(tabla=tabla_claves)
+    print("\n── Claves que un test ESCRIBE y alguien PRODUCE ──\n")
+    for productor in tabla_claves.get("productor", []):
+        print(f"  {productor['nombre']}  [{productor['modo']}]")
+    print()
+    if claves or caducadas:
+        for h in claves:
+            print(f"  · {h['fichero']}:{h['linea']}  {h['clave']!r}  → {h['productor']}")
+        for e in caducadas:
+            print(f"  · EXENCIÓN CADUCADA: {e}")
+    else:
+        print("  0 — el número correcto. Ningún test pregunta por la clave que él mismo")
+        print("      ha escrito.")
+    print(
+        "\n  Se le pide la clave al productor. Un test que la escribe coincide por\n"
+        "  construcción: su verde no dice nada del emparejamiento real.\n"
+    )
+    if claves or caducadas:
+        print(
+            f"\ncheck_rules: {len(claves) + len(caducadas)} clave(s) que un test "
+            f"escribe y alguien produce.",
+            file=sys.stderr,
+        )
+        return 1
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "
