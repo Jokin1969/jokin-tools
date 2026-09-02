@@ -2843,3 +2843,42 @@ guardado, la fila de la tabla y el bloque exportable— dan **7 nt**, medido sob
 real con `mature.fa`: `AATGCGA`, `TTAGTAA`, `TTTCCCA`, `AGAAGTA`. La comparación es 2-8
 sobre un espacio de 16.384 con tasa base del 10 %, así que **los `LIMPIO` valen** — es la
 mitad que no invalida el resultado. Dónde se pierde el carácter queda **abierto**.
+
+## 61 — El fichero decía OPCIONAL y el filtro no cerraba sin él
+
+**Contradicción señalada por el responsable del proyecto (2026-09-02)**, sobre el hallazgo
+de la errata anterior:
+
+> `seed_colision` no cierra sin `mirgenedb_cerebro.txt`, y ese fichero está marcado
+> OPCIONAL en el panel — «No bloquea nada: el filtro corre sin él y con él afina». Las dos
+> cosas no pueden ser ciertas.
+
+**La que cede es el filtro**, y no por comodidad: lo dice la decisión escrita de
+2026-08-26. Son **dos capas y hacen cosas distintas** — el **núcleo** son diez miARN
+abundantes de cerebro, va en código, corre **siempre** sin fichero y es el que da `FAIL`;
+la **ampliada** es de fichero y su producto es un **AVISO**.
+
+Un aviso que falta **no puede convertir un `PASS` en `INCOMPLETE`**, porque nunca habría
+podido convertirlo en `FAIL`. Salir `NOT_RUN` bloqueaba el frente por una capa que no
+emite veredicto — y dejaba al panel mintiendo sobre el fichero.
+
+Medido en el golden: `seed_colision` pasa de `NOT_RUN` en **2167** ventanas a **1790**,
+que son exactamente las no escaneables. Las 377 que sí lo son cierran ahora a nivel
+núcleo.
+
+### Lo que no se relaja, y es la mitad que importa
+
+El `PASS` **no se presenta como «limpio contra todo»**. Dice que el núcleo corrió y está
+limpio y que la capa de aviso **no se ejecutó**, así que de las colisiones restantes no se
+sabe cuáles superan el umbral. Y va además como **campo** (`ampliada_sin_correr`), no sólo
+como una frase: quien lee el estado puede saberlo sin parsear el motivo. Un `PASS` mudo
+aquí sería el «Alu 0 %».
+
+### Y el par que lo destapó
+
+Esta contradicción llevaba puesta desde que existen las dos capas, y sólo se vio al
+cerrar la errata nº 60: mientras `seed` decía `NO_APLICA` y `seed_colision` decía
+`NOT_RUN`, **nada bloqueaba y nadie contestaba**, así que el `NOT_RUN` de más no tenía
+consecuencia visible. Arreglar el estado de una columna hizo visible el error de la otra
+— que es el argumento entero de por qué un estado tiene que decir la verdad aunque «no
+cambie nada».

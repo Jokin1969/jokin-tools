@@ -460,6 +460,10 @@ class SeedCollisionResult:
     abundant_hits: tuple[str, ...] = ()
     mature: MatureSet | None = None
     abundance: AbundanceList | None = None
+    #: El veredicto es del NUCLEO y la capa de AVISO no se ejecuto. Va como campo y no
+    #: como una frase suelta para que quien lea el estado pueda saberlo sin parsear el
+    #: motivo: un `PASS` aqui NO es «limpio contra todo».
+    ampliada_sin_correr: bool = False
 
     def as_filter(self) -> FilterResult:
         return FilterResult(name=FILTER_NAME, state=self.state, reason=self.reason)
@@ -575,7 +579,20 @@ def filter_seed_collision(
             abundance=abundance,
         )
 
-    # CAPA 2 — la ampliada, de fichero. Sin ella (o sin su cabecera) queda NOT_RUN.
+    # CAPA 2 — la ampliada, de fichero. Sin ella NO hay AVISO, y eso NO es no tener
+    # veredicto.
+    #
+    # SALIA `NOT_RUN` Y ERA UNA CONTRADICCION (2026-09-02). El panel de referencia marca
+    # `mirgenedb_cerebro.txt` como OPCIONAL —«no bloquea nada: el filtro corre sin el y
+    # con el afina»— y este filtro no cerraba sin el. Las dos cosas no podian ser
+    # ciertas, y la que cede es esta: la decision escrita de 2026-08-26 dice que el
+    # NUCLEO es `FAIL` duro y corre SIEMPRE, y que la ampliada es **AVISO**. Un aviso que
+    # falta no puede convertir un PASS en un INCOMPLETE, porque nunca habria podido
+    # convertirlo en FAIL.
+    #
+    # LO QUE NO SE RELAJA: el PASS no se presenta como «limpio contra todo». Dice que el
+    # nucleo corrio y esta limpio, y que la capa de AVISO no se ejecuto — que es
+    # exactamente lo que se sabe. Un `PASS` mudo aqui seria el «Alu 0 %».
     if abundance is None or not abundance.usable:
         detalle = (
             "No hay lista ampliada de abundancia cargada"
@@ -584,16 +601,19 @@ def filter_seed_collision(
         )
         avisos = tuple(etiqueta(n) for n in colisiones)
         return SeedCollisionResult(
-            state=FilterState.NOT_RUN,
+            state=FilterState.PASS,
             reason=(
-                f"{detalle}, así que la capa AMPLIADA del filtro no se puede ejecutar: "
-                f"sin ella no se sabe cuales de las {len(colisiones)} colisión(es) "
-                f"restantes están por encima del umbral. El NÚCLEO si ha corrido y no "
-                f"hay ninguna colisión con el. NOT_RUN no es PASS.{procedencia}"
+                f"NÚCLEO limpio: ninguna de las {len(colisiones)} colisión(es) es con un "
+                f"miARN del núcleo abundante, que es la capa que da FAIL y corre siempre "
+                f"sin fichero. {detalle}, así que la capa AMPLIADA —que sólo AVISA, no "
+                f"veta— no se ha ejecutado: de esas colisiones no se sabe cuáles están "
+                f"por encima del umbral, y por eso este PASS NO dice «limpio contra "
+                f"todo».{procedencia}"
             ),
             warnings=avisos,
             hits=colisiones,
             mature=mature,
+            ampliada_sin_correr=True,
         )
 
     abundantes = tuple(n for n in colisiones if n in abundance.names)

@@ -194,14 +194,20 @@ class TestElScrambledPASAlosMISMOSfiltros(unittest.TestCase):
             self.assertIsNotNone(control.asymmetry_origin)
 
     @unittest.skipUnless(HAY_MADUROS, "falta mature.fa")
-    def test_con_maduros_corre_el_NUCLEO_y_la_capa_ampliada_sigue_NOT_RUN(self):
+    def test_con_maduros_el_NUCLEO_cierra_y_se_DICE_que_la_ampliada_no_corrio(self):
         """Y esa distincion es la que el control necesita que se vea.
 
-        El nucleo va en codigo y corre siempre que haya maduros; la capa AMPLIADA
-        necesita la lista de abundancia con su referencia y su umbral. Sin ella el
-        frente sigue en NOT_RUN — que no es PASS — aunque el nucleo haya corrido limpio.
-        Dar el frente por cerrado porque «el nucleo no dio nada» seria exactamente el
-        control aprobado a medias.
+        CAMBIADO (2026-09-02) al resolver una contradiccion: `mirgenedb_cerebro.txt`
+        esta marcado OPCIONAL en el panel —«no bloquea nada»— y este filtro no cerraba
+        sin el. La que cede es el filtro, y lo dice la decision escrita: el NUCLEO va en
+        codigo, corre siempre que haya maduros y es el que da `FAIL`; la capa AMPLIADA
+        solo **AVISA**. Un aviso que falta no puede convertir un `PASS` en `INCOMPLETE`,
+        porque nunca habria podido convertirlo en `FAIL`.
+
+        LO QUE SE CONSERVA es justo lo que este test protegia: el `PASS` NO se presenta
+        como «limpio contra todo». El motivo dice que el nucleo corrio limpio y que la
+        capa de aviso no se ejecuto — y `ampliada_sin_correr` lo deja como CAMPO para
+        que no haya que parsearlo.
         """
         from shmir_design.controles import scrambled_candidates
 
@@ -211,10 +217,12 @@ class TestElScrambledPASAlosMISMOSfiltros(unittest.TestCase):
         )
         for control in candidatos:
             estados = {f.name: f.state for f in control.filters}
-            self.assertEqual(estados["seed_colision"], FilterState.NOT_RUN)
+            self.assertEqual(estados["seed_colision"], FilterState.PASS)
             motivo = estados_motivo(control, "seed_colision")
             self.assertIn("NÚCLEO", motivo)
-            self.assertIn("ampliada", motivo)
+            self.assertIn("AMPLIADA", motivo)
+            # Y la frase que impide leer la ausencia como una comprobacion hecha.
+            self.assertIn("limpio contra todo", motivo)
 
 
 @unittest.skipUnless(HAY_UTR3, "falta el fixture del 3'UTR murino")

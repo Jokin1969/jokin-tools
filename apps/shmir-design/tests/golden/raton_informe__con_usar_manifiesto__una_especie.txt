@@ -552,8 +552,8 @@
 
 ── FILTROS QUE NO SE EJECUTARON ──
   especificidad: NOT_RUN en 2170 de 2170 ventanas
-  seed: NOT_RUN en 2167 de 2170 ventanas
-  seed_colision: NOT_RUN en 2167 de 2170 ventanas
+  seed: NOT_RUN en 1790 de 2170 ventanas
+  seed_colision: NOT_RUN en 1790 de 2170 ventanas
   transgen: NOT_RUN en 1790 de 2170 ventanas
   GC: NOT_RUN en 66 de 2170 ventanas
   asimetria: NOT_RUN en 66 de 2170 ventanas

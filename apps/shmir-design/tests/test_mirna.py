@@ -223,9 +223,17 @@ class TestDosNiveles(unittest.TestCase):
         self.assertIs(r.state, FilterState.PASS)
         self.assertEqual(r.warnings, ())
 
-    def test_sin_lista_de_abundancia_el_nivel_FAIL_queda_NOT_RUN(self):
+    def test_sin_lista_de_abundancia_el_frente_CIERRA_a_nivel_NUCLEO(self):
+        # CAMBIADO (2026-09-02) al resolver una contradiccion: `mirgenedb_cerebro.txt`
+        # esta marcado OPCIONAL en el panel —«no bloquea nada»— y este filtro no cerraba
+        # sin el. La que cede es esta, y lo dice la decision escrita: el NUCLEO es el
+        # `FAIL` duro y corre siempre; la ampliada solo AVISA. Un aviso que falta no
+        # puede convertir un PASS en INCOMPLETE, porque nunca habria podido convertirlo
+        # en FAIL. Aqui la seed es la de `mmu-sonda-124`, que en este fixture NO esta en
+        # el nucleo: el nucleo corre, sale limpio, y el frente cierra.
         r = filter_seed_collision(_guia(SEED_124), _maduros(), None)
-        self.assertIs(r.state, FilterState.NOT_RUN)
+        self.assertIs(r.state, FilterState.PASS)
+        self.assertTrue(r.ampliada_sin_correr)
 
     def test_sin_lista_de_abundancia_el_WARN_corre_igual(self):
         r = filter_seed_collision(_guia(SEED_124), _maduros(), None)
@@ -233,9 +241,12 @@ class TestDosNiveles(unittest.TestCase):
         self.assertIn("mmu-sonda-124", " ".join(r.warnings))
 
     def test_sin_lista_de_abundancia_el_motivo_dice_que_falta(self):
+        # Y que el PASS es del NUCLEO, no «limpio contra todo»: una ausencia no puede
+        # leerse como una comprobacion hecha.
         r = filter_seed_collision(_guia(SEED_124), _maduros(), None)
         self.assertIn("abundancia", r.reason.lower())
-        self.assertIn("NOT_RUN no es PASS", r.reason)
+        self.assertIn("NÚCLEO", r.reason)
+        self.assertIn("limpio contra todo", r.reason)
 
     def test_una_seed_con_N_no_se_puede_comparar(self):
         r = filter_seed_collision("TAAGGNACGGGGGGGGGGGGG", _maduros(), self.ABUNDANTES)

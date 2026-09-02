@@ -4379,6 +4379,32 @@ UPLOAD_NEEDS_PROJECT = (
 )
 
 
+#: Lo mismo para CALCULAR. Los tres modales que ejecutan —colision de seed, carga de
+#: off-targets y empalme— corrian sin proyecto y avisaban DESPUES con un `st.caption`, que
+#: es el elemento mas silencioso que hay y aparece justo despues de un resultado. Quien lo
+#: pasa por alto cierra la pestaña y pierde el trabajo sin enterarse.
+#:
+#: El de BLAST ya se negaba ANTES —no pinta el `file_uploader` sin proyecto—, y esa es la
+#: forma correcta: no dejar empezar algo que no se va a poder guardar.
+RUN_NEEDS_PROJECT = (
+    "**Abre un proyecto antes de lanzar esta corrida.** Sin proyecto no hay dónde "
+    "guardarla: se calcularía, se pintaría, y al cerrar la pestaña no quedaría nada — y "
+    "el resultado no se distingue de uno guardado mientras está en pantalla. Se activa en "
+    "la barra lateral, en «Guardar esta corrida en un proyecto»."
+)
+
+
+def run_allowed(project) -> dict[str, object]:
+    """¿Se puede LANZAR una corrida ahora? Un booleano y su motivo, resueltos aqui.
+
+    Misma forma que `upload_allowed` a proposito: son la misma decision sobre dos verbos,
+    y tenerlas iguales es lo que evita que los cuatro modales vuelvan a divergir.
+    """
+    if project is None:
+        return {"permitido": False, "motivo": RUN_NEEDS_PROJECT}
+    return {"permitido": True, "motivo": ""}
+
+
 def upload_allowed(project) -> dict[str, object]:
     """¿Se puede aceptar un fichero de resultado en este momento?
 

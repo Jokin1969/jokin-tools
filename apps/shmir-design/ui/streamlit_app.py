@@ -43,6 +43,7 @@ from shmir_design.presentation import (  # noqa: E402
     anatomy_payload,
     load_stores,
     cached_run,
+    run_allowed,
     run_fingerprint,
     intron_geometry_text,
     stored_runs_note,
@@ -565,9 +566,14 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         st.caption(stored_runs_note(almacenes))
 
     _modal_blast(seleccion, nombre, proyecto, tiling)
-    _modal_seed(seleccion, nombre, tiling.mature, proyecto)
-    _modal_offtarget(seleccion, nombre, tiling.mature, utr3, proyecto)
-    _modal_empalme(seleccion, nombre, utr3, cassette_sequence(tiling), proyecto)
+    # LOS CUATRO RECIBEN EL TILADO. Sin el, `_guardar_corrida` no podia decir cuantos
+    # veredictos movia el guardado y los tres de aqui daban un «Guardada» plano — el
+    # CERO, que es la señal de que no ha cambiado nada, solo se veia en BLAST.
+    _modal_seed(seleccion, nombre, tiling.mature, proyecto, tiling=tiling)
+    _modal_offtarget(seleccion, nombre, tiling.mature, utr3, proyecto, tiling=tiling)
+    _modal_empalme(
+        seleccion, nombre, utr3, cassette_sequence(tiling), proyecto, tiling=tiling,
+    )
     _guardar_seleccion(proyecto, seleccion, nombre)
 
     with st.expander(f"Todas las ventanas de {nombre} ({len(tiling.windows)})"):
@@ -1598,7 +1604,8 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
         )
 
 
-def _modal_seed(seleccion, nombre: str, maduros, proyecto=None) -> None:
+def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
+                *, tiling=None) -> None:
     """Colision de seed. Este SI ejecuta: es subcadena contra `mature.fa`.
 
     Como el de BLAST, la pagina no decide nada: recibe filas con `modificado`, `fijo` y
@@ -1648,6 +1655,14 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None) -> None:
             )
 
     starts = chosen_starts(seleccion)
+    # SE NIEGA ANTES DE CALCULAR, no despues. Calculaba, pintaba, y avisaba con un
+    # `st.caption` —el elemento mas silencioso que hay— justo detras de un resultado:
+    # quien lo pasa por alto cierra la pestaña y pierde el trabajo sin enterarse. El
+    # modal de BLAST ya lo hacia asi, y esa es la forma correcta.
+    permiso = run_allowed(proyecto)
+    if not permiso["permitido"]:
+        st.error(permiso["motivo"])
+        return
     # La HUELLA del panel y los ajustes. Ver `WHY_A_RUN_FINGERPRINT`: sin ella, cambiar
     # la selección o un ajuste dejaba en pantalla el resultado viejo y lo ofrecía para
     # guardar — una corrida con una procedencia que no era la suya.
@@ -1684,6 +1699,11 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None) -> None:
                 scan, date=fecha, ran_by=quien
             ),
             guardar=save_seed_run, clave="seed",
+            # QUE VEREDICTOS CAMBIA, tambien aqui. Sin `tiling` y `seleccion` la
+            # confirmacion era un «Guardada en el log» plano, y el CERO —que es la señal
+            # de que el guardado no ha movido nada— no se veia en tres de los cuatro
+            # modales. Ahora hay columnas a las que apuntar (`STORE_FOR_FRONT`).
+            tiling=tiling, seleccion=seleccion,
         )
 
     hueco = seed_load_placeholder(None)
@@ -1757,7 +1777,8 @@ def _panel_controles(seleccion, nombre: str, tiling, diana: str) -> None:
 
 
 
-def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None) -> None:
+def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
+                   *, tiling=None) -> None:
     """CUARTO modal: predicción de sitios de splicing sobre el cassette montado.
 
     Es distinto de los otros tres en dos cosas, y las dos se pintan aquí arriba:
@@ -1899,11 +1920,12 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None) ->
             executor=splice_executor_text(),
         ),
         guardar=save_splice_run, clave="sp",
+        tiling=tiling, seleccion=seleccion,
     )
 
 
 def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
-                     proyecto=None) -> None:
+                     proyecto=None, *, tiling=None) -> None:
     """Carga de off-targets por seed. El fichero NO lo tenemos: se sube aquí.
 
     Es el tercer modal y el que cierra `offtarget_seed`. Como los otros dos, la página
@@ -2000,6 +2022,10 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
 
     starts = chosen_starts(seleccion)
     huella = run_fingerprint(tuple(starts), params)
+    permiso = run_allowed(proyecto)
+    if not permiso["permitido"]:
+        st.error(permiso["motivo"])
+        return
     if st.button(f"Contar off-targets — {nombre}", key=f"ot_go_{nombre}"):
         # Mismo motivo que en el modal de seed: el scan tiene que sobrevivir al rerun.
         # Y con la misma HUELLA, por el mismo motivo: ver `WHY_A_RUN_FINGERPRINT`.
@@ -2046,6 +2072,7 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
                 scan, date=fecha, ran_by=quien
             ),
             guardar=save_offtarget_run, clave="ot",
+            tiling=tiling, seleccion=seleccion,
         )
 
 
