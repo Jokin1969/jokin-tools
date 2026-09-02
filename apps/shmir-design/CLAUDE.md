@@ -3895,6 +3895,29 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     `BlastHit` y campo en `Hit` — ahí la asimetría es de forma y no de significado, y se
     dice dentro de la entrada de `antisense`, que es donde lo va a leer quien mire ese par.
 
+- **LA CARGA DE SEED SE CUENTA EN EL PANEL, NO EN LAS 407 ELEGIBLES (2026-09-02)**,
+  errata nº 59. Apareció al entrar el transcriptoma: `tile_utr` llamaba a `seed_load` por
+  **cada ventana escaneable** y cada una barría el fichero **entero**.
+  - **MEDIDO**: 226 M nt/s de barrido; 0,4-0,7 s por ventana contra 84 MB; **× 407 = 3-4
+    minutos**, y **en cada rerun** de la página. Sin el transcriptoma la corrida entera
+    tarda **0,33 s** — ése es el dato que descarta que fuera el servidor.
+  - **SE PUEDE ACOTAR porque `carga_seed` no alimenta ninguna selección ni ningún
+    veredicto**: es una COLUMNA, y sus únicos consumidores son el TSV comparativo y la
+    tabla de la página. El precedente está en la misma función tres líneas más arriba —la
+    colisión de seed ya se acota «por coste»—.
+  - **DOS PASADAS**: `page_run` tila sin contar ninguna, selecciona, y vuelve a tilar
+    contando **sólo en el panel**. Cada tilado cuesta 0,33 s, la función es determinista y
+    las entradas son las mismas, así que el segundo informe es idéntico salvo esa columna.
+    **`frozenset()` («en ninguna») NO es `None` («en todas»)**: son dos valores porque son
+    dos cosas, y el CLI sigue contándolas todas — una corrida por lotes se lo permite.
+  - **De ~200 s a ~9 s** extrapolado a 84 MB, con el número en las 10 del panel.
+  - **Y el fallo que cometí al arreglarlo lo cazó volver a medir**: la primera versión
+    acotaba sólo la SEGUNDA pasada y dejaba la primera contándolas todas, así que seguía
+    tardando 200 s. Un arreglo que no se mide es una hipótesis.
+  - Donde no se cuenta sale **`NOT_RUN` con el motivo** (`seed_load.SEED_LOAD_SKIPPED`),
+    nunca un cero ni una celda que se lea como cero; donde sí, el número es **el mismo**,
+    con test de que coincide con el de la pasada sin acotar.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

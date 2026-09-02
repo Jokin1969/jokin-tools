@@ -3746,10 +3746,15 @@ def page_run(
     # se pasa nada: la regla entra sola y el dato sale del deposito. Antes esto llamaba
     # a `resolve_measured` con la constante `apa.POLYA_DB_PRNP`, asi que la pagina
     # tenia que acordarse —y en otra especie no habia forma de meter los numeros—.
+    # LA PRIMERA PASADA NO CUENTA NINGUNA carga de seed: solo hace falta para SELECCIONAR,
+    # y la seleccion no la mira. Contarlas aqui era el gasto entero —medido: 200 s con un
+    # transcriptoma de 84 MB, contra 10 s acotando—; la segunda pasada la cuenta en el
+    # panel, que es donde se lee. `frozenset()` es «en ninguna», que NO es lo mismo que
+    # `None` («en todas»): son dos valores porque son dos cosas.
     tiling = tile_utr(
         sequence, anatomy=anatomy, seeds=seeds, thresholds=thresholds,
         accessibility=accessibility, species=species, tile_range=tile_range,
-        **extra,
+        seed_load_starts=frozenset(), **extra,
     )
     # `default_config()` es la configuracion DEL PROYECTO: panel de 10 y cuota de
     # inmunes emparejada con su frontera. `SelectionConfig()` a secas no la lleva, y
@@ -3757,6 +3762,29 @@ def page_run(
     seleccion = select_from_report(
         tiling, config if config is not None else default_config()
     )
+    # LA CARGA DE SEED SE CUENTA EN EL PANEL Y NO EN LAS 407 ELEGIBLES, y por eso se
+    # tila DOS veces. Medido el 2026-09-02: cada ventana barre el transcriptoma entero
+    # —0,4-0,7 s sobre 84 MB— asi que hacerlo en todas son 3-4 MINUTOS, y la pagina
+    # rehace la corrida en CADA repintado: cada tecla, cada boton, cada subida. Con el
+    # panel son diez, unos segundos.
+    #
+    # Dos tilados cuestan 0,33 s cada uno y el resultado es identico —la funcion es
+    # determinista y las entradas son las mismas—; el segundo solo añade la columna.
+    # No se cuela ningun criterio nuevo: la seleccion se rehace sobre el informe que YA
+    # lleva la carga, con la misma configuracion.
+    #
+    # Y no se hace nada de esto si no hay transcriptoma cargado: sin el, `carga_seed`
+    # ya salia `None` y la segunda pasada no aportaria nada.
+    if extra.get("utr3_set") is not None:
+        panel = frozenset(chosen_starts(seleccion))
+        tiling = tile_utr(
+            sequence, anatomy=anatomy, seeds=seeds, thresholds=thresholds,
+            accessibility=accessibility, species=species, tile_range=tile_range,
+            seed_load_starts=panel, **extra,
+        )
+        seleccion = select_from_report(
+            tiling, config if config is not None else default_config()
+        )
     inicio, fin = anatomy.utr3
     return PageRun(
         species=species,

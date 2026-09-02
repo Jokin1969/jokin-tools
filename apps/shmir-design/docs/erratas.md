@@ -2722,3 +2722,59 @@ rediseñe en cada rerun; y el límite de subida de Streamlit (200 MB) no se toca
 sospecha pendiente de confirmar es de interfaz: el widget se **llama** «Subir
 aav_casete.fa» y soltar el fichero ahí no sube nada — hay que rellenar dos campos y pulsar
 un segundo botón más abajo. Si se confirma, la etiqueta promete una acción que no hace.
+
+## 59 — Cuatro minutos por clic: la carga de seed barría 84 MB por cada una de 407 ventanas
+
+**Reportado el 2026-09-02**, con la pregunta bien planteada: *«¿esto es achacable a la
+aplicación o al servidor?»*. **A la aplicación**, y medido antes de tocar nada.
+
+Apareció justo cuando el transcriptoma por fin entró (errata nº 58). Desde ese momento
+`tile_utr` llamaba a `seed_load` **una vez por cada ventana escaneable** —407 en la
+corrida murina— y **cada una barría el fichero entero**:
+
+| | medido |
+|---|---|
+| barrido puro | 226 M nt/s |
+| una ventana contra 84 MB | 0,4 s; 0,7 s troceado en registros pequeños, que es la forma real |
+| × 407 ventanas | **3–4 minutos** |
+| y eso | **en cada rerun**: cada tecla, cada botón, cada subida |
+
+**Sin el transcriptoma la corrida entera tarda 0,33 s.** Ése es el dato que descarta el
+servidor: no se ha vuelto lento, es que se conectó un trabajo que crece con el tamaño del
+fichero y se repetía por ventana.
+
+### Por qué se puede acotar, y no es una excusa
+
+`carga_seed` **no alimenta ninguna selección ni ningún veredicto**. Lo dice `selection.py`
+en su propio comentario —«es un número comparativo y por eso nunca estuvo en
+`not_run_filters`»— y se comprobó: sus únicos consumidores son la columna del TSV
+comparativo y la de la tabla de la página.
+
+**Y el precedente está en la misma función, tres líneas más arriba**: la colisión de seed
+ya se acota «por coste» a las ventanas que superan los biofísicos, con su `NOT_RUN` y su
+motivo escrito. Esto es ese mismo escalón una vez más.
+
+### Dos pasadas, y por qué son exactas
+
+`page_run` tila **sin contar ninguna** —la selección no la mira—, selecciona, y vuelve a
+tilar contando **sólo en el panel**. Dos tilados cuestan 0,33 s cada uno, la función es
+determinista y las entradas son las mismas, así que el segundo informe es idéntico salvo
+esa columna. Y `frozenset()` («en ninguna») **no es** `None` («en todas»): son dos valores
+porque son dos cosas — el CLI sigue contándolas todas, que para una corrida por lotes está
+bien.
+
+Medido después: de **~200 s a ~9 s** extrapolado a 84 MB, con el número en las **10** del
+panel y en ninguna más.
+
+### El fallo que cometí al arreglarlo, y lo cazó medir otra vez
+
+La primera versión acotaba **sólo la segunda pasada** y dejaba la primera contándolas
+todas: seguía tardando 200 s. Un arreglo que no se mide es una hipótesis — y aquí la
+medida posterior es lo único que lo distinguió de estar arreglado.
+
+### Lo que no se relaja
+
+Donde no se cuenta sale **`NOT_RUN` con el motivo**, nunca un cero ni una celda vacía que
+se lea como cero: no haber contado y contar cero son cosas distintas, y ésa es la regla 3
+desde el primer día. Donde sí se cuenta, **el número es el mismo** — misma función, mismas
+entradas—, y hay test de que coincide con el de la pasada sin acotar.

@@ -59,7 +59,7 @@ from .polya import (
 )
 from .mirna import AbundanceList, MatureSet, filter_seed_collision
 from .scaffold import passenger_from_guide
-from .seed_load import SeedLoad, Utr3Set, seed_load
+from .seed_load import SEED_LOAD_SKIPPED, SeedLoad, Utr3Set, seed_load
 from .seeds import SeedSet, bootstrap_expiry_note, filter_seed
 from .specificity import (
     SpecificityDatabase,
@@ -460,6 +460,19 @@ def tile_utr(
     mature: MatureSet | None = None,
     abundance: AbundanceList | None = None,
     utr3_set: Utr3Set | None = None,
+    #: DONDE contar la carga de seed. `None` = en todas las escaneables, que es lo que
+    #: hace el CLI: una corrida por lotes se lo puede permitir. La PAGINA acota al panel.
+    #:
+    #: POR QUE HAY QUE ACOTARLO, medido el 2026-09-02 con el transcriptoma ya dentro:
+    #: cada ventana barre el fichero ENTERO —0,4-0,7 s sobre 84 MB— y son 407 las que
+    #: pasan los biofisicos, o sea 3-4 MINUTOS, y en CADA rerun de la pagina. Sin el
+    #: fichero la corrida entera tarda 0,33 s.
+    #:
+    #: Y SE PUEDE ACOTAR porque `carga_seed` no alimenta ninguna seleccion ni ningun
+    #: veredicto —es un numero comparativo, una COLUMNA—. Mismo escalon que la colision
+    #: de seed, que ya se acota «por coste» unas lineas mas abajo. Donde no se cuenta
+    #: sale `NOT_RUN` con el motivo: nunca un cero, nunca una celda que se lea como cero.
+    seed_load_starts: frozenset[int] | None = None,
     expression: dict[str, float] | None = None,
     accessibility: bool = False,
     #: Especie del DISEÑO. VACIA = no declarada, y eso es un estado propio: el nucleo de
@@ -682,7 +695,14 @@ def tile_utr(
 
         carga = None
         if utr3_set is not None and escaneable:
-            carga = seed_load(guia_adn, utr3_set, expression)
+            if seed_load_starts is None or anotada.window.start in seed_load_starts:
+                carga = seed_load(guia_adn, utr3_set, expression)
+            else:
+                carga = SeedLoad(
+                    state=FilterState.NOT_RUN,
+                    reason=SEED_LOAD_SKIPPED,
+                    utrs=utr3_set,
+                )
 
         transgen = None
         transgen_detalle = None

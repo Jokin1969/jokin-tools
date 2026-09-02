@@ -139,6 +139,18 @@ class Utr3Set:
         )
 
 
+#: Lo que sale donde la carga NO se cuenta. Un `NOT_RUN` con su motivo, nunca un cero
+#: ni una celda vacia que se lea como cero — no haber contado y contar cero son cosas
+#: distintas, y esa es la regla 3 de este proyecto desde el primer dia.
+SEED_LOAD_SKIPPED = (
+    "No contada POR COSTE: cada ventana barre el transcriptoma ENTERO, y con un fichero "
+    "de 84 MB eso son 3-4 minutos por corrida si se hace en las 407 ventanas que pasan "
+    "los filtros biofísicos — en cada repintado de la página. Se cuenta en el PANEL, que "
+    "es donde alguien la lee para decidir. NOT_RUN no es PASS y no es cero: es que no se "
+    "ha contado aquí."
+)
+
+
 def _count_in(sequence: str, patterns: dict[str, str]) -> dict[str, int]:
     """Cuenta los tres tipos sin contar dos veces el mismo sitio.
 
