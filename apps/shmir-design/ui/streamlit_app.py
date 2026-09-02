@@ -121,7 +121,10 @@ from shmir_design.presentation import (  # noqa: E402
     informe_files,
     informe_state_text,
     obtencion_rows,
-    offtarget_catalog_from_upload,
+    offtarget_catalog_from_deposit,
+    blast_database_from_deposit,
+    deposit_for_run,
+    deposit_note,
     offtarget_control_rows,
     offtarget_highlights,
     offtarget_limitation_rows,
@@ -817,12 +820,17 @@ def _fila_presente(fila, directorio) -> None:
             (st.warning if plan["invalida"] else st.info)(plan["texto"])
             fecha = st.text_input("Fecha", "", key=f"g_fecha_{nombre}")
             origen = st.text_input("De dónde salió", "", key=f"g_org_{nombre}")
+            # El reemplazo las pide IGUAL: el fichero nuevo puede venir de otra tabla o
+            # de otra fecha, y heredar la procedencia del anterior seria declarar una
+            # procedencia que nadie ha comprobado.
+            procedencia = _casillas_de_procedencia(fila, prefijo="g_rp")
             if st.button(f"Confirmar reemplazo de {nombre}", key=f"g_ok_{nombre}"):
                 try:
                     hecho = accept_reference_upload(
                         fila["especie"], directory=directorio, filename=nombre,
                         payload=subido.getvalue(), date=fecha,
                         origin=origen or "reemplazado por la interfaz",
+                        **procedencia,
                     )
                 except (ShmirDesignError, ValueError, OSError) as exc:
                     # rule2-ok: no se ha escrito nada y el motivo se enseña entero.
@@ -847,6 +855,30 @@ def _fila_presente(fila, directorio) -> None:
                 st.rerun()
 
 
+def _casillas_de_procedencia(fila, *, prefijo: str) -> dict[str, str]:
+    """Las casillas que este fichero exige para poder entrar, si exige alguna.
+
+    CUALES son y como se llaman lo decide `presentation`/`gestor` (regla 6): aqui solo
+    se pintan. Se piden UNA VEZ, al subir el fichero — son procedencia del FICHERO, no
+    de una corrida, asi que el modal que las usa las lee luego del manifiesto en vez de
+    volver a preguntarlas.
+    """
+    campos = fila.get("procedencia") or []
+    if not campos:
+        return {}
+    st.caption(
+        "Procedencia de la tabla — obligatoria: sin ella el fichero no entra al "
+        "depósito, porque su frente no podría dar veredicto."
+    )
+    valores = {}
+    for campo in campos:
+        valores[campo["clave"]] = st.text_input(
+            campo["etiqueta"], "", help=campo["ayuda"],
+            key=f"{prefijo}_{campo['clave']}_{fila['nombre']}",
+        )
+    return valores
+
+
 def _fila_ausente(fila, directorio) -> None:
     """Subir, con la ficha de obtención desplegable justo debajo."""
     nombre = fila["nombre"]
@@ -855,12 +887,14 @@ def _fila_ausente(fila, directorio) -> None:
     )
     fecha = st.text_input("Fecha de descarga (AAAA-MM-DD)", "", key=f"g_nf_{nombre}")
     origen = st.text_input("De dónde salió", "", key=f"g_no_{nombre}")
+    procedencia = _casillas_de_procedencia(fila, prefijo="g_np")
     if subido is not None and st.button(f"Validar y registrar {nombre}", key=f"g_nb_{nombre}"):
         try:
             hecho = accept_reference_upload(
                 fila["especie"], directory=directorio, filename=nombre,
                 payload=subido.getvalue(), date=fecha,
                 origin=origen or "subido por la interfaz",
+                **procedencia,
             )
         except (ShmirDesignError, ValueError, OSError) as exc:
             # rule2-ok: el fichero NO se ha escrito y el motivo se enseña entero.
@@ -1466,6 +1500,33 @@ def _guardar_seleccion(proyecto, seleccion, nombre: str) -> None:
 
 
 
+def _panel_deposito(tipo: str, nombre: str, *, clave: str) -> list[dict]:
+    """Lo que el DEPOSITO ya tiene para esta corrida, en vez de volver a preguntarlo.
+
+    Los cuatro modales llaman aqui. Que ficheros consume cada corrida lo declara
+    `insumos.CONSUMIDOS` por ROL, y la lectura entera pasa por
+    `deposito.read_deposit`: la pagina no abre el manifiesto ni calcula ningun md5
+    (regla 6). Si cada modal lo abriera por su cuenta, el quinto se quedaria fuera sin
+    que nadie lo note — la leccion de `offtarget_seed`.
+
+    Devuelve las filas para que el modal sepa que sigue faltando; la SUBIDA solo se
+    ofrece donde `ofrecer_subida` lo diga.
+    """
+    filas = deposit_for_run(tipo, species=nombre, directory=reference_dir())
+    nota = deposit_note(tipo)
+    if nota:
+        st.caption(nota)
+        return filas
+    st.markdown("**Del depósito** — ya está declarado, no hay que volver a escribirlo")
+    for fila in filas:
+        (st.warning if fila["avisa"] else (st.caption if fila["presente"] else st.info))(
+            fila["texto"]
+        )
+        for campo in fila["procedencia"]:
+            st.caption(f"· {campo['campo']}: {campo['valor']}")
+    return filas
+
+
 def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
     """El modal de especificidad. NO decide nada: todo viene de `presentation`.
 
@@ -1486,6 +1547,8 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
 
     st.caption(blast_executor_text())
     st.caption(BLAST_MODAL_NOTE)
+
+    _panel_deposito("corrida_blast", nombre, clave="blast")
 
     # ANTES de nada, no despues de guardar: detras de este modal hay una descarga de
     # decenas de GB y horas de BLAST. `presentation` decide (regla 6).
@@ -1566,33 +1629,29 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
             ),
         )
         if subido is not None:
+            # LA PROCEDENCIA DE LA CORRIDA, que es fecha, quien y parametros — y el md5
+            # de la consulta, que la app genero. Los TRES campos de la base ya NO se
+            # teclean: son procedencia del FICHERO y salen del deposito.
             st.markdown("**Procedencia de la corrida** — sin ella no hay veredicto")
-            campos = st.columns(4)
-            with campos[0]:
-                md5_declarado = st.text_input(
-                    "md5 del FASTA de consulta", "", key=f"blast_md5_{nombre}"
-                )
-            with campos[1]:
-                base_nombre = st.text_input("Base", "", key=f"blast_bn_{nombre}")
-            with campos[2]:
-                base_version = st.text_input("Versión", "", key=f"blast_bv_{nombre}")
-            with campos[3]:
-                base_md5 = st.text_input("md5 de la base", "", key=f"blast_bm_{nombre}")
+            md5_declarado = st.text_input(
+                "md5 del FASTA de consulta", "", key=f"blast_md5_{nombre}"
+            )
             remota = st.checkbox(
                 "Fue `-remote` (exploración, NUNCA veredicto)", key=f"blast_rm_{nombre}",
                 help="La base de NCBI cambia entre corridas, así que un resultado remoto "
                      "no es reproducible y no cierra el frente.",
             )
+            base = blast_database_from_deposit(
+                species=nombre, directory=reference_dir(), remote=remota
+            )
+            st.caption(base["texto"])
             _guardar_corrida(
                 proyecto, nombre,
                 construir=lambda fecha, quien: blast_run_from_upload(
                     raw=_read_upload(subido), query=consulta, params=params,
                     declared_query_md5=md5_declarado,
                     panel_names=consulta.names,
-                    database={
-                        "nombre": base_nombre, "version": base_version,
-                        "md5": base_md5, "remota": remota,
-                    },
+                    database=base,
                     date=fecha, uploaded_by=quien,
                 ),
                 guardar=save_blast_run, clave="blast",
@@ -1621,6 +1680,7 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
     ):
         return
 
+    _panel_deposito("corrida_seed", nombre, clave="seed")
     st.caption(seed_source_text(maduros))
 
     st.subheader("Lo que se va a comparar")
@@ -1870,6 +1930,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         key=f"sp_fasta_{nombre}",
     )
     st.caption(splice_executor_text())
+    _panel_deposito("corrida_empalme", nombre, clave="sp")
 
     st.subheader("Accesibilidad estructural del intrón")
     st.caption(
@@ -1944,51 +2005,67 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
     ):
         return
 
+    # EL DEPOSITO PRIMERO. Este modal no lo veia: pedia soltar el fichero aunque
+    # estuviera dentro, y ademas los SEIS campos de procedencia que ya se declararon al
+    # subirlo. Dos copias del mismo dato, y ninguna dice cual manda.
+    filas = _panel_deposito("corrida_offtarget", nombre, clave="ot")
     st.caption(offtarget_route_text(nombre))
 
-    st.subheader("Procedencia del fichero")
-    st.caption(
-        "Los seis campos son obligatorios: sin ensamblaje, tabla y fecha, el conteo no "
-        "es reproducible — la misma regla que la versión de miRBase y la biblioteca de "
-        "Dfam."
+    catalogo = offtarget_catalog_from_deposit(
+        species=nombre, directory=reference_dir()
     )
-    formulario = {}
-    for campo, ayuda in (
-        ("source", "de dónde se descargó"),
-        ("assembly", "mm39, mm10…"),
-        ("table", "NCBI RefSeq / RefSeq All"),
-        ("table_date", "fecha de la tabla, no la de hoy"),
-        ("representative", "criterio de representante por gen"),
-        ("version", "cómo se llama esta versión en el manifiesto"),
-    ):
-        formulario[campo] = st.text_input(
-            campo, key=f"ot_p_{nombre}_{campo}", help=ayuda
+    if catalogo is None:
+        # SOLO se ofrece subida si el fichero NO esta. `presentation` lo decide.
+        if not any(f["ofrecer_subida"] for f in filas):
+            st.warning(offtarget_placeholder(None)["texto"])
+            return
+        st.subheader("Subir el catálogo")
+        st.caption(
+            "Su procedencia se pide UNA VEZ, aquí mismo, y se queda en el manifiesto: "
+            "las corridas siguientes la leen de ahí en vez de volver a preguntarla."
         )
-
-    veredicto = upload_allowed(proyecto)
-    if not veredicto["permitido"]:
-        st.error(veredicto["motivo"])
+        veredicto = upload_allowed(proyecto)
+        if not veredicto["permitido"]:
+            st.error(veredicto["motivo"])
+            return
+        fila = next(f for f in filas if f["ofrecer_subida"])
+        subido = st.file_uploader(
+            f"Soltar aquí `{fila['nombre']}`",
+            key=f"ot_up_{nombre}",
+            help=(
+                "Se valida al recibirlo: que sea FASTA, cuántas secuencias, longitud "
+                "total, md5 y si hay varias isoformas por gen. Si algo no cuadra, se "
+                "rechaza y no se escribe nada."
+            ),
+        )
+        if subido is None:
+            st.warning(offtarget_placeholder(None)["texto"])
+            return
+        crudo = _read_upload(subido)
+        for aviso in offtarget_upload_rows(crudo):
+            if aviso["avisa"]:
+                st.warning(f"{aviso['campo']}: {aviso['valor']}")
+            else:
+                st.caption(f"{aviso['campo']}: {aviso['valor']}")
+        fecha = st.text_input("Fecha de descarga (AAAA-MM-DD)", "", key=f"ot_f_{nombre}")
+        origen = st.text_input("De dónde salió", "", key=f"ot_o_{nombre}")
+        procedencia = _casillas_de_procedencia(fila, prefijo="ot_p")
+        if st.button(f"Registrar {fila['nombre']}", key=f"ot_reg_{nombre}"):
+            try:
+                hecho = accept_reference_upload(
+                    nombre, directory=reference_dir(), filename=fila["nombre"],
+                    payload=subido.getvalue(), date=fecha,
+                    origin=origen or "subido por el modal de off-targets",
+                    **procedencia,
+                )
+            except (ShmirDesignError, ValueError, OSError) as exc:
+                # rule2-ok: no se ha escrito nada y el motivo se enseña entero.
+                st.error(f"**RECHAZADO** — {exc}")
+            else:
+                st.success(hecho["texto"])
+                st.rerun()
         return
-    subido = st.file_uploader(
-        "Soltar aquí `transcriptoma_3utr.fa`",
-        key=f"ot_up_{nombre}",
-        help=(
-            "Se valida al recibirlo: que sea FASTA, cuántas secuencias, longitud total, "
-            "md5 y si hay varias isoformas por gen. Si algo no cuadra, se rechaza."
-        ),
-    )
-    if subido is None:
-        st.warning(offtarget_placeholder(None)["texto"])
-        return
 
-    crudo = _read_upload(subido)
-    for fila in offtarget_upload_rows(crudo):
-        if fila["avisa"]:
-            st.warning(f"{fila['campo']}: {fila['valor']}")
-        else:
-            st.caption(f"{fila['campo']}: {fila['valor']}")
-
-    catalogo = offtarget_catalog_from_upload(crudo, form=formulario)
     st.success(offtarget_placeholder(catalogo)["texto"])
 
     st.subheader("Ajustes")

@@ -290,6 +290,28 @@ ACTIONS = MappingProxyType(
 )
 
 
+def _procedencia_pedida(role: str) -> list[dict[str, str]]:
+    """Las casillas de procedencia de la TABLA que este rol exige, ya con su texto.
+
+    Vacia en casi todos: la mayoria de los ficheros no salen de ninguna tabla y ahi la
+    columna vacia del manifiesto es la VERDAD, no un hueco.
+    """
+    from .deposito import (  # noqa: PLC0415
+        PROVENANCE_FIELDS, PROVENANCE_LABELS, PROVENANCE_REQUIRED,
+    )
+
+    if role not in PROVENANCE_REQUIRED:
+        return []
+    return [
+        {
+            "clave": campo,
+            "etiqueta": PROVENANCE_LABELS[campo][0],
+            "ayuda": PROVENANCE_LABELS[campo][1],
+        }
+        for campo in PROVENANCE_FIELDS
+    ]
+
+
 def manager_rows(species: str, *, directory) -> list[dict]:
     """Una fila por fichero, PRESENTES Y AUSENTES juntos, ordenadas por frente."""
     from .manifest import load_manifest  # noqa: PLC0415
@@ -333,6 +355,10 @@ def manager_rows(species: str, *, directory) -> list[dict]:
                     "hermano": nombre != fila.filename,
                     "que_desbloquea": fila.what,
                     "extensiones": list(fila.extensions),
+                    # Que casillas de PROCEDENCIA hay que rellenar para que este fichero
+                    # pueda entrar. Sale de `deposito.PROVENANCE_REQUIRED`, que es quien
+                    # las exige: la pagina las pinta y no decide cuales son (regla 6).
+                    "procedencia": _procedencia_pedida(fila.role),
                     "acciones": list(ACTIONS[estado]),
                     "ficha": ficha,
                     "md5": _md5(ruta.read_bytes()) if presente else "",

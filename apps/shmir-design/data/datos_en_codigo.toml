@@ -285,3 +285,17 @@ una decision del proyecto sobre como se explica lo que hace, del mismo tipo que 
 diff, y lo que se leeria distinto seria la primera pantalla de todo el que abre la app. \
 Ademas lo cruza `tests/test_lenguaje_llano.py` en las dos direcciones: un paso sin \
 explicacion ABORTA, y la explicacion no puede usar jerga."""
+
+[[constante]]
+simbolo = "deposito.PROVENANCE_LABELS"
+categoria = "declaracion"
+motivo = """\
+La ETIQUETA y la AYUDA de cada casilla de procedencia de tabla. No es dato de ninguna \
+especie —no cambia al pasar de raton a conejo— y no describe el material sino que \
+EXPLICA que hay que escribir para que el conteo sea reproducible: «el ensamblaje de la \
+especie que se esta analizando», «la tabla exacta, porque una curada y una con predichos \
+no dan el mismo conteo», «que se hizo con las isoformas». Mismo tipo que \
+`presentation._STEP_PLAIN`, y por la misma razon: en un fichero se podria reescribir sin \
+que se viera en el diff, y lo que se leeria distinto es el texto que decide si alguien \
+pone el ensamblaje bueno o el de otra especie — que es el modo de fallo que estas cuatro \
+columnas existen para cerrar. El VALOR que se escribe si es dato, y va al manifiesto."""

@@ -3918,6 +3918,81 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     nunca un cero ni una celda que se lea como cero; donde sí, el número es **el mismo**,
     con test de que coincide con el de la pasada sin acotar.
 
+- **LA PROCEDENCIA DE UN FICHERO ES DEL DEPÓSITO, NO DE CADA CORRIDA (2026-09-02)**,
+  errata nº 62 (`deposito.read_deposit`, `presentation.deposit_for_run`, las cuatro
+  columnas nuevas del manifiesto). El modal de off-targets **no veía el depósito**: pedía
+  soltar `transcriptoma_3utr.fa` con el fichero ya dentro, y encima los SEIS campos de
+  `offtarget.Provenance` que se habían declarado al subirlo. El de BLAST tecleaba nombre,
+  versión y md5 de la base con la línea del manifiesto delante — y ese md5 es el que
+  marca una corrida OBSOLETA al reemplazar el fichero, así que tecleado no ata nada.
+  - **La frase que lo ordena**: *está pidiendo procedencia de un FICHERO, no de una
+    corrida. La del fichero pertenece al depósito; la de la corrida es fecha, quién y
+    parámetros.*
+  - **Son DOS COPIAS DEL MISMO DATO** —la escribe quien sube, la teclea quien corre— y
+    cuando divergen ninguna dice cuál manda: errata nº 28 otra vez. Y hay un modo peor:
+    quien no se acuerda del ensamblaje **se lo inventa**, y `mm10` es tan plausible como
+    `mm39` — conteo con la forma correcta sobre el genoma equivocado, sin ningún error.
+  - **CUATRO COLUMNAS NUEVAS EN EL MANIFIESTO** —`ensamblaje`, `tabla`, `fecha_tabla`,
+    `representante`—, que son los de `Provenance` que no tenía. Los otros tres los tenía
+    desde siempre: `source` es el origen, `version` sale de la fecha **con la misma regla
+    que `resources`** (`date or md5`, no otra) y `md5` se calcula del fichero. Una
+    cabecera corta se sigue leyendo (`BEFORE_TABLE_COLUMNS`) y las cuatro salen vacías,
+    que es la verdad — y `missing_provenance` lo DICE en vez de dejarlo pasar por
+    completa.
+  - **OBLIGATORIAS EN LA SUBIDA, no opcionales con casilla vacía**, con la condición con
+    la que se pidió: si `Provenance` las exige para dar veredicto, un fichero sin ellas
+    no puede entrar al depósito y **bloquear el frente tres pantallas después sin decir
+    por qué**. El rechazo va donde entra el fichero, **antes de escribir nada**, nombrando
+    los que faltan; una casilla en blanco cuenta como no puesta.
+    - **Y sólo donde hacen falta** (`deposito.PROVENANCE_REQUIRED`, hoy un rol): un casete
+      de AAV no sale de ninguna tabla, así que ahí la columna vacía es la VERDAD y pedirla
+      sería inventarse un hueco.
+  - **LA LECTURA DEL DEPÓSITO SALE DE UN SOLO SITIO**, como `_filter_columns` con el
+    estado por filtro: `deposito.read_deposit` es el único que abre el manifiesto para
+    esto. **Qué ficheros consume cada corrida ya estaba declarado POR ROL** en
+    `insumos.CONSUMIDOS` —la tabla que existe para que un quinto modal no se quede fuera—,
+    así que `deposit_for_run` la usa en vez de repetirla. Si cada modal lo abriera por su
+    cuenta, el quinto se quedaría fuera sin que nadie lo note: la lección de
+    `offtarget_seed`.
+  - **Los CUATRO modales**, que es lo que se pidió comprobar. Los tres que consumen
+    fichero lo enseñan en vez de pedirlo; el de empalme sale **vacío y diciendo por qué**
+    (`POR_QUE_EMPALME_NO_TIENE`). Vacío es una decisión tomada; ausente sería una que
+    nadie miró.
+  - **La subida sólo se ofrece si el fichero NO está**, y lo decide `presentation`
+    (regla 6). Cuando falta, el modal la ofrece **con las mismas casillas del gestor**,
+    sacadas de la misma declaración, y a partir de ahí ya no vuelve a preguntar nada.
+  - **Lo que salió al escribirlo**: `DepositFile.stale_md5` — el fichero de disco puede no
+    ser el que su línea registra. No aborta (quien aborta es el cargador, en cada corrida)
+    pero **se dice**, porque la procedencia que viajaría al veredicto sería la de OTRO
+    fichero. Declarado en `guardias.toml`, `[solo_informan]`, al lado de
+    `manifest.check_directory`.
+
+- **NINGUNA TABLA EXPORTADA ACORTA UNA SECUENCIA (2026-09-02)**
+  (`tools/auditar_truncamiento.py`, `audit.check_no_truncation`, dentro de
+  `npm run check:shmir`), errata nº 63. Se reportó un heptámero de **seis** en la columna
+  `heptamero` del CSV descargable; se midieron **los tres productores** y los tres dan
+  siete, así que **el caso no se reprodujo y no se le asigna causa** — decir «era esto»
+  sin comprobarlo es el principio nº 3. Lo que sí se hizo es darle mecanismo a la clase.
+  - **Por qué la merece**: *un heptámero truncado a seis es una seed válida y DISTINTA*.
+    O sea, **no da ningún error**: el conteo que sale a su lado es correcto para otra
+    pregunta. La familia del «Alu 0 %».
+  - **GUARDIA, no trinquete** — el número correcto es cero — **y CORRE las tablas en vez
+    de leer el fuente**: un barrido de AST no distingue `guia[:8]` de una etiqueta
+    cortada, y lo que importa es lo que sale. Tila el 3'UTR murino de verdad y mira las
+    cinco tablas que se exportan, la comparativa descargable incluida; la sexta —la del
+    modal de seed— la cubre el test, que necesita barrer `mature.fa`.
+  - **La columna de secuencia NO se declara por su nombre: se DERIVA del contenido**, así
+    que una columna nueva entra sola. Declararlas a mano habría reproducido el fallo un
+    piso más arriba — la tabla cubriría las columnas de las que alguien se acordó.
+  - **Lo que sí se declara es de dónde sale su LONGITUD, y sin eso aborta.** Se deriva del
+    objeto que produjo la tabla y **nunca se escribe**: poner un `7` afirmaría que la
+    ventana es 2-8, que es justo lo que hay que comprobar (principio nº 13). Con `2-7` el
+    heptámero mide seis **y eso es correcto**.
+  - **Encontró dos columnas de secuencia que no miraba nadie** —`feat_seed` y
+    `polyA_hexamero`, las dos en la comparativa— y **cero truncamientos**, que confirma la
+    medida con mecanismo detrás. Con control adversario: sin él, «ninguna trunca» y «el
+    guardia no mira nada» darían el mismo verde (errata nº 29).
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

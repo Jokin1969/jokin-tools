@@ -130,3 +130,10 @@ lee = "las magnitudes derivadas (`@property`) del paquete y en qué clases se de
 opina = "ese nombre denota dos cantidades distintas en dos módulos, y el nombre igual las hace parecer la misma (principio nº 27)"
 reconoce_por = "las `@property` del AST agrupadas por nombre, contrastadas con `data/homonimos.toml`"
 instrumento = "GUARDIA"
+
+[[auditoria]]
+nombre = "auditar_truncamiento"
+lee = "las celdas de las tablas que la app exporta, CORRIDAS de verdad"
+opina = "esa columna lleva secuencia y no mide lo que su fuente declara — o no declara nada, que es lo mismo dentro de un año"
+reconoce_por = "el contenido de la columna (alfabeto de ácidos nucleicos, ≥ 6 nt) contrastado con la longitud DERIVADA del objeto que produjo la tabla"
+instrumento = "GUARDIA"

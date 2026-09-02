@@ -2374,6 +2374,136 @@ def reference_panel_summary(species: str, *, directory) -> dict[str, object]:
     }
 
 
+# ═══════════ EL DEPOSITO, LEIDO DE UN SOLO SITIO PARA LOS CUATRO MODALES ═══════════
+#
+# Un modal que pide lo que el deposito ya tiene crea DOS COPIAS del mismo dato: la que
+# escribio quien subio el fichero y la que teclea quien corre. Nada las ata, y cuando
+# divergen ninguna dice cual manda — o peor, quien no se acuerda del ensamblaje se lo
+# inventa y el conteo sale con la forma correcta sobre el genoma equivocado.
+#
+# QUE ficheros consume cada corrida ya estaba declarado, por ROL, en `insumos.CONSUMIDOS`
+# — la tabla que existe para que un quinto modal no se quede fuera sin que nadie lo note.
+# Esto la usa en vez de repetirla: la lectura pasa entera por `deposito.read_deposit`,
+# como el estado por filtro pasa entero por `_filter_columns`.
+
+#: Que hacer cuando la corrida no consume ningun fichero de referencia. NO es un hueco:
+#: `insumos` lo declara VACIO a proposito, y la diferencia entre «se miro y no hay» y
+#: «nadie lo miro» es justo lo que este texto conserva.
+def deposit_note(kind: str) -> str:
+    """La frase del panel cuando esa corrida no consume ningun fichero del depósito."""
+    from .insumos import POR_QUE_EMPALME_NO_TIENE, insumos_de  # noqa: PLC0415
+
+    if insumos_de(kind):
+        return ""
+    return POR_QUE_EMPALME_NO_TIENE
+
+
+def deposit_file(role: str, *, species: str, directory) -> dict[str, object]:
+    """Lo que el depósito sabe de ese rol, en una fila para pintar.
+
+    La página no abre el manifiesto, no calcula ningún md5 y no decide si ofrece subida:
+    recibe esta fila y la pinta (regla 6).
+    """
+    from .deposito import read_deposit  # noqa: PLC0415
+    from .species import resolve  # noqa: PLC0415
+
+    fichero = read_deposit(role, species=resolve(species), directory=directory)
+    procedencia = [
+        {"campo": campo, "valor": valor}
+        for campo, valor in fichero.provenance_fields().items()
+        if str(valor).strip()
+    ] if fichero.present else []
+    return {
+        "rol": fichero.role,
+        "nombre": fichero.filename,
+        "presente": fichero.present,
+        "registrado": fichero.registered,
+        "md5": fichero.md5,
+        "tamano": fichero.size,
+        "procedencia": procedencia,
+        "falta_procedencia": list(fichero.missing_provenance),
+        # SOLO se ofrece subida si el fichero NO esta. Ofrecerla teniendolo dentro es lo
+        # que hacia el modal de off-targets, y con ello volvia a pedir la procedencia.
+        "ofrecer_subida": not fichero.present,
+        "avisa": fichero.stale_md5 or bool(fichero.missing_provenance),
+        "texto": fichero.describe(),
+    }
+
+
+def deposit_for_run(kind: str, *, species: str, directory) -> list[dict[str, object]]:
+    """Una fila por INSUMO declarado de esa corrida. Los cuatro modales llaman aquí."""
+    from .insumos import insumos_de  # noqa: PLC0415
+
+    return [
+        deposit_file(insumo.rol, species=species, directory=directory)
+        for insumo in insumos_de(kind)
+    ]
+
+
+def offtarget_catalog_from_deposit(*, species: str, directory, gene_map=None):
+    """El catálogo Y SU PROCEDENCIA, del depósito. Cero campos que rellenar.
+
+    La procedencia se DERIVA de la línea del manifiesto —los cuatro campos de tabla se
+    declararon al subir el fichero y los otros tres los tenía desde siempre—, así que
+    `Provenance` se monta sin que nadie vuelva a teclear nada. Si le falta alguno,
+    `Provenance` aborta con el campo por su nombre: no se rellena por nuestra cuenta.
+    """
+    from pathlib import Path  # noqa: PLC0415
+
+    from .deposito import read_deposit  # noqa: PLC0415
+    from .offtarget import Provenance, build_catalog, validate_upload  # noqa: PLC0415
+    from .species import resolve  # noqa: PLC0415
+
+    fichero = read_deposit(
+        "transcriptoma", species=resolve(species), directory=directory
+    )
+    if not fichero.present:
+        return None
+    crudo = (Path(directory) / fichero.filename).read_text(
+        encoding="utf-8", errors="replace"
+    )
+    informe = validate_upload(crudo, declared_md5=fichero.md5, gene_map=gene_map)
+    return build_catalog(
+        informe.parsed,
+        provenance=Provenance(**fichero.provenance_fields()),
+        gene_map=gene_map,
+    )
+
+
+def blast_database_from_deposit(*, species: str, directory, remote: bool = False):
+    """La base de BLAST tal como la registra el depósito, para la corrida.
+
+    Los tres campos —nombre, versión y md5— se tecleaban en el modal con la línea del
+    manifiesto delante. El md5 es el que decide si una corrida queda OBSOLETA cuando el
+    fichero se reemplaza, así que tecleado a mano no ata nada.
+
+    Sin fichero en el depósito la corrida se sigue pudiendo guardar —la base pudo correr
+    en otra máquina, que es el caso normal de este frente— pero entonces el nombre lo
+    dice y el md5 va VACÍO, que es la verdad: sin md5 no hay veredicto reproducible, y
+    `blast_readiness` ya lo avisa ANTES de la descarga.
+    """
+    from .deposito import read_deposit  # noqa: PLC0415
+    from .species import resolve  # noqa: PLC0415
+
+    fichero = read_deposit("refseq", species=resolve(species), directory=directory)
+    if not fichero.present:
+        return {
+            "nombre": fichero.filename,
+            "version": "",
+            "md5": "",
+            "remota": remote,
+            "texto": fichero.describe(),
+        }
+    entrada = fichero.provenance_fields()
+    return {
+        "nombre": fichero.filename,
+        "version": entrada.get("version", ""),
+        "md5": fichero.md5,
+        "remota": remote,
+        "texto": fichero.describe(),
+    }
+
+
 def accept_reference_upload(
     species: str, *, directory, filename: str, payload: bytes, date: str,
     origin: str = "subido por la interfaz", **procedencia,

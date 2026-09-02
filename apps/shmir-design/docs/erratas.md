@@ -2882,3 +2882,143 @@ cerrar la errata nº 60: mientras `seed` decía `NO_APLICA` y `seed_colision` de
 consecuencia visible. Arreglar el estado de una columna hizo visible el error de la otra
 — que es el argumento entero de por qué un estado tiene que decir la verdad aunque «no
 cambie nada».
+
+---
+
+## 62 — El modal pedía la procedencia de un FICHERO en cada corrida, y el depósito la tenía delante
+
+**Reportado el 2026-09-02 con el modal abierto**, y con las dos mitades separadas:
+
+> El modal de carga de off-targets no ve el depósito… Y además pide los seis campos de
+> procedencia —source, assembly, table, table_date, representative, version— que ya
+> declaré al subir el fichero.
+
+Las dos mitades son el mismo fallo visto desde dos sitios, y la frase que lo ordena vino
+después:
+
+> está pidiendo procedencia de un fichero, no de una corrida. La procedencia del fichero
+> pertenece al depósito; la de la corrida es fecha, quién y parámetros.
+
+### Qué hacía
+
+`_modal_offtarget` pintaba seis `text_input` y un `file_uploader` **sin mirar el
+directorio de referencia**. Así que con `transcriptoma_3utr.fa` ya dentro:
+
+- pedía volver a soltarlo, y
+- pedía volver a teclear su ensamblaje, su tabla, su fecha y su criterio de
+  representante.
+
+El de BLAST hacía lo mismo con la base: **Base**, **Versión** y **md5 de la base**, tres
+campos tecleados a mano con la línea del manifiesto delante. Y ese md5 no es decorativo:
+es el que `insumos.obsoleta` compara para marcar una corrida OBSOLETA cuando el fichero
+se reemplaza. Tecleado, no ata nada.
+
+### Por qué es peor que teclear de más
+
+**Son dos copias del mismo dato.** La del depósito la escribió quien subió el fichero; la
+del modal la teclea quien corre. Nada las ata, así que cuando divergen ninguna de las dos
+dice cuál manda — y el veredicto se guarda con la que se tecleó. Es la errata nº 28 otra
+vez: *un dato transcrito en lugar de derivado no se desincroniza en un sitio, se
+desincroniza en todos los que lo copiaron*.
+
+Y hay un modo peor, que es el que lo hace urgente: **quien no se acuerda del ensamblaje se
+lo inventa**. `mm39` es plausible, `mm10` también, y el conteo sale con la **forma
+correcta** sobre el genoma equivocado. Sin ningún error.
+
+### Lo que se ha hecho
+
+**1. La procedencia de la tabla es del FICHERO y va al manifiesto**, cuatro columnas
+nuevas —`ensamblaje`, `tabla`, `fecha_tabla`, `representante`—. Los otros tres campos de
+`offtarget.Provenance` ya los tenía: `source` es el origen, `version` sale de la fecha
+—la misma regla que usa `resources`, no otra— y `md5` se calcula del fichero.
+
+**2. Se piden UNA VEZ, al subir, y son OBLIGATORIAS**, con la condición escrita con la
+que se pidieron: *si `Provenance` las exige para dar veredicto, un fichero sin ellas no
+puede entrar al depósito y bloquear el frente tres pantallas después sin decir por qué*.
+`deposito.PROVENANCE_REQUIRED` declara en qué roles hacen falta —hoy uno, el catálogo de
+3'UTR— y el rechazo va **donde entra el fichero**, antes de escribir nada, nombrando los
+campos que faltan. Una casilla en blanco cuenta como no puesta.
+
+Y **no son obligatorias en todos**: un casete de AAV no sale de ninguna tabla, así que
+ahí la columna vacía es la VERDAD y pedirla sería inventarse un hueco.
+
+**3. La lectura del depósito sale de UN SOLO SITIO**, como se pidió. `deposito.read_deposit`
+es el único que abre el manifiesto para esto, `presentation.deposit_file` monta la fila y
+`deposit_for_run` la repite por cada insumo de esa corrida. **Qué ficheros consume cada
+corrida ya estaba declarado por ROL en `insumos.CONSUMIDOS`** —la tabla que existe para
+que un quinto modal no se quede fuera—, así que esto la usa en vez de repetirla.
+
+**4. Los cuatro modales**, que es lo que se pidió comprobar. Los tres que consumen un
+fichero lo enseñan en vez de pedirlo; el de empalme sale **vacío y diciendo por qué**
+(`insumos.POR_QUE_EMPALME_NO_TIENE`: monta el cassette con piezas del paquete). Vacío es
+una decisión tomada; ausente sería una que nadie miró.
+
+**5. La subida sólo se ofrece si el fichero NO está**, y lo decide `presentation`, no la
+página (regla 6). Cuando falta, el modal la ofrece **con sus casillas de procedencia** —
+las mismas del gestor, sacadas de la misma declaración— y el fichero queda registrado
+para que la corrida siguiente ya no pregunte nada.
+
+### Lo que salió al escribirlo, y no estaba en el reporte
+
+`DepositFile.stale_md5`: el fichero que hay en el directorio puede no ser el que su línea
+del manifiesto registra. No aborta —quien aborta es el cargador, en cada corrida— pero
+**se dice**, porque la procedencia que se adjuntaría al veredicto sería la de OTRO
+fichero, con la forma correcta. Queda declarado en `data/guardias.toml`, en
+`[solo_informan]`, al lado de `manifest.check_directory`, que es el mismo criterio un piso
+más abajo.
+
+---
+
+## 63 — El guardia del truncamiento: la clase de fallo tiene mecanismo aunque el caso no se reprodujera
+
+**Reportado el 2026-09-02**: un heptámero de **seis** caracteres en la columna
+`heptamero` del CSV descargable, con la petición de decir si compara 2-7 y lo etiqueta
+2-8, o compara 2-8 y enseña seis. Se midieron **los tres productores** del heptámero y
+los tres dan siete. **El caso no se reprodujo y no se le asigna causa**: decir «era esto»
+sin haberlo comprobado es el principio nº 3, que este proyecto ya ha pagado cuatro veces.
+
+Lo que sí se decidió —y es la parte que vale— es que **la clase de fallo tenga guardia**,
+con el argumento con el que se pidió:
+
+> un heptámero truncado a seis es una seed válida y distinta. Es la familia del Alu 0 %.
+
+Ese es exactamente el motivo: **no da ningún error**. El conteo que sale al lado de un
+heptámero truncado es un número correcto **para otra pregunta**, así que la tabla se lee
+igual y lo que describe es otra cosa.
+
+### Qué comprueba, y por qué se corren las tablas en vez de leer el fuente
+
+`tools/auditar_truncamiento.py`, dentro de `npm run check:shmir`. **Guardia, no
+trinquete**: el número correcto es cero.
+
+Un barrido de AST buscando rebanadas no distingue `guia[:8]` de una etiqueta cortada, y
+lo que importa no es el código sino **lo que sale**. Así que el auditor tila el 3'UTR
+murino de verdad, monta las cinco tablas que se exportan —incluida la comparativa que se
+descarga— y las mira. La sexta, la del modal de colisión de seed, la cubre
+`tests/test_ninguna_tabla_TRUNCA_una_secuencia.py` con el mismo criterio: necesita barrer
+`mature.fa` y no se le pone eso a cada `check:shmir`.
+
+### Las dos decisiones que lo hacen aplicable
+
+**La columna de secuencia NO se declara por su nombre: se DERIVA del contenido** —todas
+sus celdas no vacías con alfabeto de ácidos nucleicos y al menos 6 nt—, así que una
+columna nueva entra sola. Declararlas a mano habría reproducido el fallo original un
+nivel más arriba: la tabla sólo cubriría las columnas de las que alguien se acordó.
+
+**Y lo que sí hay que declarar es de dónde sale su longitud esperada**: una columna de
+secuencia sin esa declaración **aborta**. La longitud se deriva del objeto que produjo la
+tabla —la ventana de la corrida, la longitud de la guía, el hexámero de polyA— y **nunca
+se escribe**: poner un `7` para el heptámero sería afirmar que la ventana es 2-8, que es
+justo lo que hay que comprobar (principio nº 13). Con `2-7` mide seis **y eso es
+correcto**, y el guardia lo sabe porque compara contra lo que esa corrida declara.
+
+### Lo que encontró al estrenarse
+
+**Ninguna tabla trunca nada** — que confirma la medida de los tres productores, ahora con
+mecanismo detrás. Lo que sí apareció son **dos columnas de secuencia que no miraba nadie**:
+`feat_seed` (la feature de SplashRNA, la misma ventana 2-8) y `polyA_hexamero`, las dos en
+la tabla comparativa que se descarga. No estaban mal; estaban sin nadie mirándolas, que es
+la situación en la que este fallo aparece.
+
+Y lleva **control adversario**: sin él, «ninguna tabla trunca» y «el guardia no mira nada»
+darían el mismo verde — la lección del `verify()` de la errata nº 29.

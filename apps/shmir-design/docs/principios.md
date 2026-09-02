@@ -1352,3 +1352,39 @@ inclusivo. Leída como final, dejaba el sitio 21 nt más corto. **Ninguna salida
 afirmaba como final de intervalo: `(10, 12)` para tres ventanas de 22 nt. Código y test
 compartían la confusión, así que ninguno de los dos podía delatarla (principio nº 22), y
 renombrarla salía gratis porque no había producción que romper.
+
+---
+
+## 28 — Un estado tiene que decir la verdad aunque no cambie nada, porque el día que cambie el de al lado empieza a decidir
+
+Lo formuló quien reportó la errata nº 61, y es la generalización de aquel arreglo:
+
+> un estado tiene que decir la verdad aunque no cambie nada, porque el día que cambie el
+> de al lado ese estado empieza a decidir.
+
+**El caso que lo enseña.** `seed` salía `NO_APLICA` en los diez candidatos cuando lo
+honesto era `NOT_RUN` — faltaba el fichero, no es que la pregunta no fuera con ellos—.
+Mientras `seed_colision` decía `NOT_RUN` a su lado, ese `NO_APLICA` **no cambiaba ningún
+veredicto**: el candidato salía `INCOMPLETE` por la otra columna igual. Era un error sin
+consecuencia visible, así que nadie lo miró. En cuanto `seed_colision` pasó a cerrar con
+el núcleo de diez miARN —un cambio que no tocó `seed` ni de lejos—, aquel `NO_APLICA`
+empezó a ser el que decidía, y decidía mal.
+
+**Por qué no es «arreglar los errores aunque sean pequeños».** Es más concreto que eso:
+un estado con la verdad cambiada NO ES un error latente que quizá algún día importe. Es
+un error que **cambia de consecuencia** cuando cambia algo que no lo toca. Y el momento
+en que empieza a decidir es exactamente el momento en que nadie está mirando esa columna:
+se estaba mirando la de al lado, que es la que se acaba de arreglar.
+
+**Corolario de método**: arreglar el estado de una columna es el mejor momento para
+releer las de su misma agregación. No porque las haya roto —no las ha tocado— sino porque
+acaba de cambiar **quién manda** entre ellas, y un error que estaba tapado por la anterior
+sale a la superficie en la misma tanda. Fue así como se encontró el segundo estado
+equivocado de la errata nº 61: no lo cazó ningún test, lo cazó preguntarse qué había
+quedado debajo.
+
+**En qué se aplica esto.** En un `PASS`/`FAIL`/`NOT_RUN`/`NO_APLICA` que no bloquea hoy,
+en un contador que hoy nadie suma, en una fecha que hoy nadie compara. Todos son datos
+que alguien va a leer después con otra regla de agregación. La regla es que el valor sea
+el que corresponde al hecho, no el que produce la salida correcta con las reglas de hoy —
+que es lo mismo que decir que un estado se decide mirando el hecho, no la consecuencia.

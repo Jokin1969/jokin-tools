@@ -374,6 +374,25 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
+    # TRUNCAMIENTO EN LAS TABLAS QUE SE EXPORTAN (2026-09-02). Guardia tambien, y el
+    # unico de esta lista que CORRE las tablas en vez de leer el fuente: un barrido de
+    # AST no distingue `guia[:8]` de una etiqueta cortada, y lo que importa es lo que
+    # sale. Un heptamero truncado a seis no da ningun error — sigue siendo una seed
+    # valida y distinta.
+    from auditar_truncamiento import auditar as auditar_truncamiento
+    from auditar_truncamiento import render as render_truncamiento
+
+    truncamiento = auditar_truncamiento()
+    print(render_truncamiento(truncamiento))
+
+    if truncamiento.hallazgos:
+        print(
+            f"\ncheck_rules: {len(truncamiento.hallazgos)} tabla(s) con una columna de "
+            f"secuencia truncada o sin longitud declarada.",
+            file=sys.stderr,
+        )
+        return 1
+
     # SECUENCIAS EMPAREJADAS (2026-08-30). El otro lado del principio nº 19, y el que
     # NO lleva ninguna condicion: `zip` trunca al mas corto en silencio, asi que ninguna
     # busqueda de `if` lo encuentra y lo que sale no es un error sino un informe corto
