@@ -110,6 +110,8 @@ from shmir_design.presentation import (  # noqa: E402
     blast_defaults_for,
     front_help_rows,
     front_card_rows,
+    fronts_closed_by_runs,
+    store_states_by_front,
     verdicts_changed,
     folding_capability,
     check_can_emit_dna,
@@ -451,7 +453,17 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     )
     tiling, seleccion, utr3 = corrida.tiling, corrida.selection, corrida.utr3
 
-    semaforo(status_light(seleccion))
+    # EL SEMAFORO TAMBIEN LEE LOS ALMACENES. Contaba los filtros de la ventana, que no
+    # saben nada del registro del proyecto: decia «6 de 10» con una corrida de BLAST
+    # valida guardada. Los almacenes se cargan UNA vez y los usan los cuatro
+    # consumidores —semaforo, tabla, tarjetas e informe—, que es lo que faltaba.
+    almacenes = load_stores(proyecto) if proyecto is not None else None
+    panel_abierto = chosen_starts(seleccion)
+    frentes_cerrados = fronts_closed_by_runs(
+        store_states_by_front(almacenes, species=nombre, starts=panel_abierto),
+        starts=panel_abierto,
+    )
+    semaforo(status_light(seleccion, resueltos=tuple(frentes_cerrados)))
 
     st.markdown("**Anatomía del transcrito**")
     st.dataframe(
@@ -493,7 +505,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             # de `especificidad` seguía en NOT_RUN con la corrida guardada y en PASS.
             site_table_rows(
                 tiling, seleccion, species=nombre, selected=marcados,
-                stores=load_stores(proyecto) if proyecto is not None else None,
+                stores=almacenes,
             ),
             hide_index=True,
         )
@@ -512,7 +524,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     if not st.session_state.get(f"tramo2_{nombre}"):
         return {}
 
-    _tarjetas_de_comprobacion(corrida, nombre, tiling, seleccion, proyecto)
+    _tarjetas_de_comprobacion(corrida, nombre, tiling, seleccion, almacenes)
 
     # EL INFORME VA AQUI, justo debajo de los frentes. Estaba mas abajo, detras del
     # generador de bloques, y ahi es lo ultimo que se ve: quien acaba de leer que le
@@ -529,7 +541,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         # y decia `NOT_RUN` de frentes cerrados — sobre el artefacto que defiende la
         # seleccion. Con proyecto cerrado va `None`, que es la verdad: no hay corridas
         # que leer, y la huella del registro lo dice con 0 corridas.
-        stores=load_stores(proyecto) if proyecto is not None else None,
+        stores=almacenes,
     )
     (st.warning if documento.state == "PARCIAL" else st.success)(
         informe_state_text(documento)
@@ -548,7 +560,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     # nuevo NOT_RUN**, así que la persistencia servía para la mitad de lo que dice servir.
     # Es el mismo patrón que `store.save_*` y que `page_run`, tercera vez en dos días.
     if proyecto is not None:
-        st.caption(stored_runs_note(load_stores(proyecto)))
+        st.caption(stored_runs_note(almacenes))
 
     _modal_blast(seleccion, nombre, proyecto, tiling)
     _modal_seed(seleccion, nombre, tiling.mature, proyecto)
@@ -605,7 +617,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
 
 
 def _tarjetas_de_comprobacion(
-    corrida, nombre: str, tiling, seleccion, proyecto=None
+    corrida, nombre: str, tiling, seleccion, almacenes=None
 ) -> None:
     """Una tarjeta por comprobacion, con su color y su estado.
 
@@ -615,13 +627,12 @@ def _tarjetas_de_comprobacion(
     dejaria fuera a la numero once— y el color lo pone `presentation.CARD_STATES`.
     """
     _cabecera_paso(4, step_plain(5))
-    almacenes = load_stores(proyecto) if proyecto is not None else None
-    progreso = front_progress(
-        front_card_rows(corrida, species=nombre, stores=almacenes)
-    )
-    st.progress(progreso["fraccion"], text=progreso["texto"])
-
+    # Las tarjetas se piden UNA vez: pedirlas dos era volver a montar el mismo dato y
+    # dejar que las dos copias pudieran discrepar — la barra decia una cosa y las
+    # tarjetas de debajo otra.
     tarjetas = front_card_rows(corrida, species=nombre, stores=almacenes)
+    progreso = front_progress(tarjetas)
+    st.progress(progreso["fraccion"], text=progreso["texto"])
     motivos = {f["frente"]: f for f in front_help_rows(tiling, seleccion, species=nombre)}
     columnas = st.columns(2)
     for indice, tarjeta in enumerate(tarjetas):
@@ -631,6 +642,12 @@ def _tarjetas_de_comprobacion(
                     f":{tarjeta['color']}[●] **{tarjeta['titulo']}**"
                 )
                 st.caption(tarjeta["en_cristiano"])
+                # LA COBERTURA PARCIAL SE VE. Un frente con corrida para 6 de 10
+                # candidatos salia identico a uno que nadie ha tocado, y quien acababa
+                # de subir una corrida de horas concluia que la app no la habia
+                # recogido. Errata nº 54.
+                if tarjeta["avance"]:
+                    st.warning(tarjeta["avance"])
                 detalle = motivos.get(tarjeta["frente"])
                 if detalle is not None:
                     with st.expander("Cómo se hace"):

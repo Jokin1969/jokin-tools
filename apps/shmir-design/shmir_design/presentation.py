@@ -67,8 +67,13 @@ class StatusLight:
     undecided: tuple[str, ...] = ()
 
 
-def status_light(selection: ReportSelection) -> StatusLight:
+def status_light(selection: ReportSelection, *, resueltos=()) -> StatusLight:
     """Verde si todos los filtros corrieron para los candidatos seleccionados.
+
+    `resueltos` son los filtros que una CORRIDA GUARDADA ha cerrado para todo el panel.
+    Entra por parametro y no se adivina: este semaforo cuenta los filtros de la ventana,
+    que no saben nada del registro del proyecto — y sin esto decia «6 de 10» con una
+    corrida de BLAST valida encima, que es lo que se reporto el 2026-09-02.
 
     Mira los CANDIDATOS, no todas las ventanas del 3'UTR: una ventana enmascarada nunca
     se evalua —tiene N— y eso no significa que un filtro no haya llegado a correr. Lo
@@ -148,12 +153,13 @@ def status_light(selection: ReportSelection) -> StatusLight:
             **conteos,
         )
 
+    ya_resueltos = set(resueltos or ())
     pendientes = sorted(
         {
             r.name
             for choice in selection.selection.chosen
             for r in selection.window_of(choice).filters
-            if r.state is FilterState.NOT_RUN
+            if r.state is FilterState.NOT_RUN and r.name not in ya_resueltos
         }
     )
     if not pendientes:
@@ -1737,21 +1743,59 @@ def fronts_closed_by_runs(estados_por_frente, *, starts) -> dict[str, str]:
     comprobados cuatro que nadie miro. Es la misma regla que un `NOT_RUN` que no puede
     reportarse como aprobado, un piso mas arriba.
     """
-    if not estados_por_frente or not starts:
+    return {
+        frente: datos["motivo"]
+        for frente, datos in run_coverage(estados_por_frente, starts=starts).items()
+        if datos["cerrado"]
+    }
+
+
+def run_coverage(estados_por_frente, *, starts) -> dict[str, dict]:
+    """CUANTOS candidatos del panel cubre cada frente, y si eso lo cierra.
+
+    LA COBERTURA PARCIAL SE DICE. Sin esto, un frente consultado para 6 de 10 candidatos
+    sale exactamente igual que uno que nadie ha tocado —tarjeta gris, «sin hacer»— y quien
+    acaba de subir una corrida de horas ve la pantalla sin cambiar y concluye que la app
+    no la ha recogido. La corrida SI esta y su celda de la tabla lo dice; lo que falta es
+    que la tarjeta diga cuanto falta.
+
+    Es la misma distincion de siempre —«no comprobado» y «comprobado a medias» no son lo
+    mismo— aplicada al progreso en vez de al veredicto.
+    """
+    if not starts:
         return {}
     panel = sorted({int(s) for s in starts})
-    cerrados = {}
-    for frente, por_candidato in estados_por_frente.items():
+    salida: dict[str, dict] = {}
+    for frente, por_candidato in (estados_por_frente or {}).items():
         cubiertos = [
             inicio for inicio in panel
             if por_candidato.get(inicio) in ESTADOS_QUE_RESPONDEN
         ]
-        if len(cubiertos) == len(panel):
-            cerrados[frente] = (
+        cerrado = len(cubiertos) == len(panel)
+        if cerrado:
+            motivo = (
                 f"CERRADO por corrida guardada: los {len(panel)} candidatos del panel "
                 f"tienen veredicto de este frente en el registro del proyecto."
             )
-    return cerrados
+        elif cubiertos:
+            faltan = [i for i in panel if i not in cubiertos]
+            motivo = (
+                f"HAY CORRIDA, PERO NO CUBRE EL PANEL: {len(cubiertos)} de "
+                f"{len(panel)} candidatos tienen veredicto de este frente y "
+                f"{len(faltan)} no. El frente NO se cierra con eso —darlo por cerrado "
+                f"daría por comprobados los que nadie miró—, y la corrida que hay no se "
+                f"pierde: su veredicto está en la celda de cada candidato cubierto. "
+                f"Faltan: {', '.join(str(i) for i in faltan)}."
+            )
+        else:
+            motivo = ""
+        salida[frente] = {
+            "cerrado": cerrado,
+            "cubiertos": len(cubiertos),
+            "panel": len(panel),
+            "motivo": motivo,
+        }
+    return salida
 
 
 def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int, str]]:
@@ -4364,19 +4408,18 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
     from .species import resolve
 
     especie = resolve(species)
-    cerrados = fronts_closed_by_runs(
-        store_states_by_front(
-            stores, species=species, starts=chosen_starts(run.selection)
-        ),
-        starts=chosen_starts(run.selection),
+    panel = chosen_starts(run.selection)
+    cobertura = run_coverage(
+        store_states_by_front(stores, species=species, starts=panel), starts=panel
     )
+    cerrados = {f: d["motivo"] for f, d in cobertura.items() if d["cerrado"]}
     tarjetas = []
-    for frente in blocking_fronts(run.tiling, run.selection):
+    for frente in blocking_fronts(
+        run.tiling, run.selection, closed_by_runs=cerrados
+    ):
         ficha = resolve_ficha(frente.name, species=especie)
-        estado = (
-            "HECHO" if (not frente.blocking or frente.name in cerrados)
-            else "SIN_HACER"
-        )
+        estado = "HECHO" if not frente.blocking else "SIN_HACER"
+        parcial = cobertura.get(frente.name)
         tarjetas.append(
             {
                 "frente": frente.name,
@@ -4384,6 +4427,11 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
                 "en_cristiano": ficha.plain,
                 "estado": estado,
                 "color": CARD_STATES[estado],
+                # LA COBERTURA PARCIAL SE VE. Un frente con corrida para 6 de 10 no
+                # puede pintarse igual que uno que nadie ha tocado.
+                "cubiertos": (parcial or {}).get("cubiertos", 0),
+                "panel": (parcial or {}).get("panel", len(panel)),
+                "avance": (parcial or {}).get("motivo", ""),
                 "que_hace_falta": [f.name for f in ficha.files],
                 "donde": ficha.url,
             }

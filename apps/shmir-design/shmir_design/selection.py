@@ -1781,9 +1781,15 @@ class BlockingFront:
 
 
 def blocking_fronts(
-    report: TilingReport, selection: ReportSelection
+    report: TilingReport, selection: ReportSelection, *, closed_by_runs=None,
 ) -> list[BlockingFront]:
     """Los frentes abiertos: los filtros que no han corrido POR FALTA DE RECURSO.
+
+    `closed_by_runs` es `{frente: motivo}` con lo que cierran las CORRIDAS GUARDADAS del
+    proyecto, y entra POR AQUI a proposito. Estuvo dos tandas entrando por cada consumidor
+    —la tarjeta, el semaforo, el informe, la ficha— y el resultado fue arreglarlos de uno
+    en uno y que los otros cinco siguieran igual: hay SEIS llamadores de esta funcion.
+    Un frente cerrado por una corrida se cierra AQUI, y todos se enteran a la vez.
 
     NO todo `NOT_RUN` es un frente, y confundirlos costo un aborto en la segunda corrida
     real de la pagina. Con la mascara puesta, 66 ventanas quedan con `N` y sus filtros de
@@ -1811,10 +1817,12 @@ def blocking_fronts(
     #     fichero. Lo que les falta es que alguien decida su criterio, y eso no tiene
     #     ficha de obtencion — tiene una entrada en `justificacion.py`.
     sin_frente = BIOPHYSICAL_FILTERS
+    cerrados = dict(closed_by_runs or {})
     frentes = [
         BlockingFront(
             name=nombre,
-            reason=(
+            blocking=nombre not in cerrados,
+            reason=cerrados.get(nombre) or (
                 f"NOT_RUN en {cuenta} de {selection.total} ventanas: falta el recurso. "
                 f"NOT_RUN no es PASS."
                 + (

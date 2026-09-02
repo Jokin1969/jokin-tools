@@ -3715,6 +3715,33 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     que no lo necesita —acaba de mirar ese código— y aun así falló dos veces en unas
     horas. La disciplina no sustituye al mecanismo, ni siquiera la de quien lo escribe.
 
+- **«6 DE 10» ERA LA CORRIDA CUBRIENDO 6 DE 10, Y LA APP NO LO DECÍA (2026-09-02)**,
+  errata nº 54. Reportado **tres veces** con los mismos números, y lo resolvió el
+  argumento de quien lo reportaba: *son tres caminos distintos y los tres siguen igual,
+  así que la causa es común y anterior a los tres*.
+  - **`blocking_fronts` tiene SEIS llamadores** (`presentation` ×3, `informe_doc`,
+    `dossier`, `outputs`) y los almacenes entraban **por el consumidor**: se arregla uno y
+    los otros cinco siguen igual. Ahora entran **por `blocking_fronts`**.
+  - Los dos que nunca los leyeron: **`status_light`** —el semáforo cuenta filtros de la
+    ventana, que no saben nada del registro— y el **bloque de frentes del informe**, que
+    leía los almacenes para la FICHA de cada candidato y no para la lista de frentes: podía
+    decir `especificidad: PASS` en la ficha y listarla abierta tres secciones más arriba.
+    El principio nº 23 **dentro de un solo documento**.
+  - **Y LO QUE HABÍA DEBAJO**: con una corrida que cubre **6 de 10** candidatos, el
+    semáforo dice exactamente «6 de 10» — el número del informe, clavado. El estado era
+    **correcto** (un frente no se cierra con 6 de 10) y **la app lo callaba**: una corrida
+    parcial salía **idéntica** a no tener ninguna. Quien acaba de subir una corrida de
+    horas ve la pantalla sin cambiar y concluye que no se recogió.
+    `presentation.run_coverage` lo emite y la tarjeta lo pinta: cuántos cubre, cuáles
+    faltan, y que **la corrida no se pierde**.
+  - **NOTA DE MÉTODO**: probar las funciones por separado NO lo enseñaba —llamando a
+    `site_table_rows` y `front_card_rows` con un almacén salían `PASS` y `HECHO`, y eso
+    fue lo que medí y contesté—. El fallo vivía en la **juntura**: qué consumidores hay,
+    cuál se quedó fuera, y qué pasa con el panel cubierto a medias. Principio nº 17, y
+    hasta reproducir el flujo real con cobertura parcial no salió.
+  - Los almacenes se cargan **una sola vez** en `bloque_especie` y los usan los cuatro, con
+    test de que no vuelve a haber dos cargas.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

@@ -116,3 +116,69 @@ class TestUnFrenteSoloSeCierraSiLOCUBRETODOelPanel(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLaCOBERTURAPARCIALseDICE(unittest.TestCase):
+    """Errata nº 54: «6 de 10» reproducido, y era la corrida cubriendo 6 de 10.
+
+    Reportado tres veces con los mismos números —semáforo «6 de 10», tarjetas «1 de 8»—
+    y con el argumento correcto: son tres caminos distintos, así que la causa es común y
+    anterior a los tres. Lo era: `blocking_fronts` tiene SEIS llamadores y los almacenes
+    entraban por el consumidor, uno a uno.
+
+    Y lo que quedaba debajo: **una corrida que cubre parte del panel salía IDÉNTICA a no
+    tener ninguna.** El estado era correcto —un frente no se cierra con 6 de 10— y la app
+    no lo decía, así que quien acababa de subir una corrida de horas veía la pantalla sin
+    cambiar y concluía que no se había recogido.
+    """
+
+    def test_una_corrida_parcial_NO_cierra_pero_DICE_cuanto_cubre(self):
+        cobertura = presentation.run_coverage(
+            {"especificidad": {10: "PASS", 20: "PASS", 30: "PASS"}},
+            starts=(10, 20, 30, 40, 50),
+        )["especificidad"]
+        self.assertFalse(cobertura["cerrado"])
+        self.assertEqual((cobertura["cubiertos"], cobertura["panel"]), (3, 5))
+        self.assertIn("3 de 5", cobertura["motivo"])
+        self.assertIn("40", cobertura["motivo"])
+
+    def test_y_dice_que_la_corrida_NO_se_pierde(self):
+        motivo = presentation.run_coverage(
+            {"especificidad": {10: "PASS"}}, starts=(10, 20)
+        )["especificidad"]["motivo"]
+        self.assertIn("no se pierde", motivo)
+
+    def test_sin_ninguna_corrida_NO_hay_texto_de_avance(self):
+        # Control adversario: si el aviso saliera siempre, no distinguiría «a medias» de
+        # «sin tocar», que es exactamente lo que se está arreglando.
+        cobertura = presentation.run_coverage(
+            {"especificidad": {}}, starts=(10, 20)
+        )["especificidad"]
+        self.assertEqual(cobertura["motivo"], "")
+
+    def test_el_SEMAFORO_deja_de_contar_un_frente_que_la_corrida_cierra(self):
+        # Era el consumidor que faltaba: `status_light` cuenta los filtros de la ventana,
+        # que no saben nada del registro del proyecto.
+        import inspect
+
+        firma = inspect.signature(presentation.status_light)
+        self.assertIn("resueltos", firma.parameters)
+
+    def test_blocking_fronts_recibe_los_cerrados_POR_AHI(self):
+        # La causa común: seis llamadores. Si esto vuelve a entrar por el consumidor, se
+        # arregla uno y los otros cinco siguen igual.
+        import inspect
+
+        from shmir_design.selection import blocking_fronts
+
+        self.assertIn("closed_by_runs", inspect.signature(blocking_fronts).parameters)
+
+    def test_la_pagina_carga_los_almacenes_UNA_vez_para_los_cuatro(self):
+        fuente = TestLaPaginaPASAlosAlmacenes.FUENTE
+        cuerpo = fuente[fuente.index("def bloque_especie"):]
+        cuerpo = cuerpo[: cuerpo.index("\ndef ")]
+        self.assertEqual(
+            cuerpo.count("load_stores("), 1,
+            "cada consumidor volvía a cargarlos por su cuenta: cuatro copias del mismo "
+            "estado, y la que se olvidara pintaría otra cosa.",
+        )

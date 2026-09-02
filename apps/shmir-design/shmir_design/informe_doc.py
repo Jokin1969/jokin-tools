@@ -798,7 +798,13 @@ def build_document(
     cuanto lee estado MUTABLE, el documento tiene que declarar contra QUE estado se
     genero: la fecha no basta, dos corridas del mismo dia son dos documentos distintos.
     """
-    from .presentation import log_fingerprint, run_provenance_rows
+    from .presentation import (
+        chosen_starts,
+        fronts_closed_by_runs,
+        log_fingerprint,
+        run_provenance_rows,
+        store_states_by_front,
+    )
     from .selection import blocking_fronts
 
     huella = log_fingerprint(stores)
@@ -811,7 +817,19 @@ def build_document(
         for fila in run_provenance_rows(stores)
     )
 
-    frentes = blocking_fronts(tiling, selection)
+    # LOS FRENTES CERRADOS POR CORRIDA ENTRAN AQUI TAMBIEN. El documento leia los
+    # almacenes para la FICHA de cada candidato y no para el bloque de frentes, asi que
+    # podia decir «especificidad: PASS» en la ficha y listarla entre los frentes abiertos
+    # tres secciones mas arriba. Es el mismo desacuerdo del principio nº 23 dentro de un
+    # solo documento.
+    panel_para_frentes = chosen_starts(selection)
+    cerrados = fronts_closed_by_runs(
+        store_states_by_front(
+            stores, species=species, starts=panel_para_frentes
+        ),
+        starts=panel_para_frentes,
+    )
+    frentes = blocking_fronts(tiling, selection, closed_by_runs=cerrados)
     abiertos = tuple(f.name for f in frentes if f.blocking)
     if dossier_starts is None:
         dossier_starts = tuple(c.start for c in selection.selection.chosen)

@@ -2326,3 +2326,61 @@ Vive citada entre comillas como lo que fue —el registro es para eso— y
 el código ni en la ficha, y que las cuatro condiciones están **en los dos sitios**. Es el
 principio nº 11 aplicado por adelantado: la prosa que se queda atrás es la que alguien va a
 leer, y ésta se iba a leer en una libreta de laboratorio.
+
+## 54 — «6 de 10» era la corrida cubriendo 6 de 10, y la app no lo decía
+
+**Reportado tres veces con los mismos números (2026-09-02)** y con el argumento que
+resolvió el caso, que no era mío:
+
+> Son tres caminos distintos —el semáforo, las tarjetas y el bloque de frentes del
+> informe— y los tres siguen sin cambiar, **así que el fallo es común y anterior a los
+> tres**.
+
+Y era exactamente eso. Mi diagnóstico anterior (errata nº 51) explicaba **un** camino —el
+argumento `stores=` que faltaba en la tabla— y arreglaba **un** consumidor. `blocking_fronts`
+tiene **SEIS llamadores** (`presentation` ×3, `informe_doc`, `dossier`, `outputs`), y yo
+estaba metiendo los almacenes **por el consumidor**: se arregla uno y los otros cinco
+siguen igual. Ahora entran por `blocking_fronts` y todos se enteran a la vez.
+
+Los dos que quedaban vivos y que nunca los leyeron:
+
+- **`status_light`** — el semáforo de arriba. Cuenta los filtros de la ventana, que no
+  saben nada del registro del proyecto. Decía «6 de 10» con una corrida válida encima.
+- **el bloque de frentes de `informe_doc`** — el documento leía los almacenes para la
+  **ficha** de cada candidato y no para la lista de frentes, así que podía decir
+  `especificidad: PASS` en la ficha y listarla entre los frentes abiertos tres secciones
+  más arriba. El principio nº 23 **dentro de un solo documento**.
+
+### Y lo que había debajo, que es lo que más costaba ver
+
+Reproducido el flujo real con el fixture murino: con una corrida que cubre **6 de los 10**
+candidatos del panel, el semáforo dice exactamente **«6 de 10»**. Es el número del informe
+del usuario, clavado.
+
+El estado era **correcto** —un frente no se cierra con 6 de 10, porque daría por
+comprobados cuatro que nadie miró— y **la app no lo decía**. Una corrida que cubre parte
+del panel salía **idéntica** a no tener ninguna: tarjeta gris, «sin hacer», nada. Quien
+acaba de subir una corrida de horas ve la pantalla sin cambiar y concluye que no se ha
+recogido — que es lo que pasó tres veces.
+
+Es la distinción de siempre —«no comprobado» y «comprobado a medias» no son lo mismo—
+aplicada al **progreso** en vez de al veredicto, y con la misma consecuencia: el silencio
+se lee como el estado peor. `presentation.run_coverage` la emite y la tarjeta la pinta:
+
+> **HAY CORRIDA, PERO NO CUBRE EL PANEL:** 6 de 10 candidatos tienen veredicto de este
+> frente y 4 no. El frente NO se cierra con eso —darlo por cerrado daría por comprobados
+> los que nadie miró—, y **la corrida que hay no se pierde**: su veredicto está en la
+> celda de cada candidato cubierto. Faltan: …
+
+### Nota de método, y va al registro
+
+**Probar las funciones por separado no lo enseñaba.** Llamando a `site_table_rows` y a
+`front_card_rows` con un almacén salían `PASS` y `HECHO`, y eso es lo que yo medí y
+respondí. El fallo vivía en la **juntura**: qué consumidores existen, cuál se quedó fuera,
+y qué pasa cuando el panel está cubierto a medias. Lo dijo el principio nº 17 y lo repitió
+quien lo reportó — *reproduce el flujo real, no llames a las funciones*—, y hasta que no lo
+hice con el panel entero y una cobertura parcial no salió.
+
+Los almacenes se cargan ahora **una sola vez** en `bloque_especie` y los usan los cuatro
+consumidores, con test de que no vuelve a haber dos cargas: cuatro copias del mismo estado
+son cuatro cosas que pueden discrepar.
