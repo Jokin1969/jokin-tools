@@ -4115,6 +4115,40 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     se anclaba en el **docstring** que explica por qué van en ese orden. Los dos
     sustituidos; el segundo es la errata nº 54 con el signo cambiado.
 
+- **EL ALCANCE DE UNA CORRIDA SE ELIGE, Y `n_candidates` DEJA DE MENTIR (2026-09-02)**,
+  errata nº 67 (`presentation.scope_rows` / `scope_starts` / `selection_notes`,
+  `COSTE_POR_ALCANCE`). Sale de preguntar cómo analizar todos los candidatos, y la
+  distinción que lo ordena es: **lo que cambia es a cuántos se PREGUNTA, no cuántos se
+  ELIGEN**.
+  - **`n_candidates` no era la palanca**: pides 20, 50 o 500 y salen **14** — lo topa el
+    espaciado de 50 nt, no el código. Con 22 nt salen 25; con 1 nt, los 86.
+  - **Y la página no lo decía.** El núcleo lo apunta desde siempre en `Selection.notes`
+    —«se pedían 50 y sólo salen 14»— y **sólo lo emitía el informe del CLI**: quien subía
+    el número veía la MISMA tabla y concluía, con razón, que la app no le hacía caso.
+    Principio nº 23, y ahora la nota se pinta junto al control que la produce.
+  - **Dos alcances, POR MODAL**: el panel (10) o **todos los sitios elegibles (86)**.
+    **Sitios, no ventanas**: tres ventanas solapadas de la misma región dan el mismo
+    resultado repetido y **ensucian el recuento**; el representante es `Site.best`, el
+    criterio con el que la selección ya ordena — otro sería una segunda definición de «el
+    mejor».
+  - **NO toca la selección**: el panel sigue en 10 con sus cuotas, y es **subconjunto** del
+    alcance grande, así que cambiar de alcance no pierde lo ya consultado. Bajar el
+    espaciado para tener un panel mayor es otra decisión, con su coste en independencia
+    entre apuestas, y se discute aparte.
+  - **El coste va declarado por modal, y donde NO está medido la etiqueta LO DICE**: BLAST
+    no cuesta nada aquí (la corrida es fuera y el FASTA da igual de grande), seed está
+    medido y es barato, y **off-targets y empalme NO están medidos** —la nula son 10.000
+    sorteos por consulta; el plegado es lo caro—. Un número inventado es peor que «no lo
+    sé»: quien lo lee lo trata como una medida. Errata nº 59 delante.
+  - **El empalme no puede derivar su recuento y por eso lo EXIGE**: su unidad es el par
+    candidato × intrón y cuántos intrones se consultan lo elige quien corre. Derivarlo del
+    registro anunciaría 172 consultas para hacer 86, así que `scope_rows` aborta sin
+    ellos y el selector va **después** del multiselect de intrones.
+  - **Y la casilla inerte de BLAST se va**: «Sólo los del panel» no filtraba nada —las
+    filas salían ya sólo del panel y llevaban `panel: True` ESCRITO—. Errata nº 32 otra
+    vez. Ahora `panel` se **deriva**, que es lo que lo hace significar algo: con el alcance
+    grande hay filas que no son del panel y esa marca es lo único que las distingue.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

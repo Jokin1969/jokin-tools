@@ -766,10 +766,39 @@ BLAST_MODAL_NOTE = (
 )
 
 
-def blast_candidate_rows(selection, *, species: str) -> list[dict[str, object]]:
-    """Una fila por candidato, con los dos nombres de consulta ya construidos."""
+def _choices_de(selection, starts) -> list:
+    """Los `Choice` de esos inicios, del panel o de cualquier sitio elegible.
+
+    Un inicio que no corresponda a ninguna ventana elegible ABORTA: emitir una consulta
+    menos de las que la etiqueta anuncia es una corrida que dice cubrir lo que no cubre.
+    """
+    por_inicio = {c.start: c for c in selection.selection.chosen}
+    for sitio in selection.selection.sites:
+        for choice in sitio.choices:
+            por_inicio.setdefault(choice.start, choice)
+    faltan = sorted(set(starts) - set(por_inicio))
+    if faltan:
+        raise ShmirDesignError(
+            f"No hay ninguna ventana elegible que empiece en {faltan}: se aborta en vez "
+            f"de emitir menos consultas de las que la etiqueta del alcance anuncia."
+        )
+    return [por_inicio[s] for s in sorted(starts)]
+
+
+def blast_candidate_rows(selection, *, species: str,
+                         starts=None) -> list[dict[str, object]]:
+    """Una fila por candidato, con los dos nombres de consulta ya construidos.
+
+    `starts` es el ALCANCE (`scope_starts`). Sin él, el panel — que es lo que hacía antes
+    y lo único que podía hacer: la lista salía del panel elegido y cada fila llevaba
+    `panel: True` ESCRITO, así que la casilla «sólo los del panel» de la página no
+    filtraba nada. Un control que no se distingue de uno que funciona es la errata nº 32.
+    Ahora `panel` se DERIVA, que es lo que lo hace significar algo.
+    """
+    del_panel = {c.start for c in selection.selection.chosen}
+    pedidos = del_panel if starts is None else set(starts)
     filas = []
-    for choice in selection.selection.chosen:
+    for choice in _choices_de(selection, pedidos):
         ventana = selection.window_of(choice)
         bloque = None
         filas.append(
@@ -783,9 +812,9 @@ def blast_candidate_rows(selection, *, species: str) -> list[dict[str, object]]:
                 "pasajera": _passenger_dna(ventana.evaluation.guide),
                 "asimetria": f"{choice.asymmetry:+.2f}",
                 "veredicto": ventana.verdict.value,
-                # Todo lo que sale del panel de esta corrida ES del panel. La casilla
-                # «solo los del panel» existe para cuando se listan mas.
-                "panel": True,
+                # DERIVADO, no escrito: con el alcance grande hay filas que NO son
+                # del panel, y esa marca es lo unico que las distingue en pantalla.
+                "panel": choice.start in del_panel,
             }
         )
     return filas
@@ -2563,6 +2592,171 @@ def build_backup(*, directory, projects=None, date: str) -> dict[str, object]:
             f"el inventario, los md5 y cómo se restaura."
         ),
     }
+
+
+# ════════ A CUÁNTOS SE PREGUNTA: el alcance de una corrida ════════
+#
+# **No es lo mismo que cuántos se ELIGEN**, y la distincion es la que ordena todo esto:
+# el panel sigue siendo de 10 con sus cuotas —4 inmunes, reparto por tercios, 50 nt de
+# espaciado— y lo que cambia es a cuantos candidatos se les hace la pregunta. Bajar el
+# espaciado para tener un panel mayor es OTRA decision, con su coste en independencia
+# entre apuestas, y se discute aparte.
+#
+# **La unidad son los SITIOS, no las ventanas.** Ventanas solapadas de la misma region
+# comparten casi toda su secuencia, asi que preguntar por las tres daria el mismo
+# resultado repetido y ensuciaria cualquier recuento. «Cada region una vez» es lo correcto
+# para especificidad, seed y off-targets. El representante de cada sitio es `Site.best`,
+# que es el criterio con el que la seleccion YA ordena: elegir otro seria una segunda
+# definicion de «el mejor».
+#
+# **Y el coste va POR MODAL, con lo NO MEDIDO dicho.** Un numero inventado es peor que
+# «no lo se»: quien lo lee lo trata como una medida. Con la leccion de los cuatro minutos
+# por clic delante (errata nº 59).
+
+#: Los dos alcances. `panel` primero porque es el defecto: preguntar por los 86 es la
+#: excepcion, no al reves.
+SCOPES = ("panel", "elegibles")
+
+
+@dataclass(frozen=True)
+class CosteDelAlcance:
+    """Lo que cuesta ampliar el alcance en ese modal, y si esta MEDIDO."""
+
+    #: Cuantas consultas salen por candidato, y de donde sale ese numero. `None` = se
+    #: deriva de otra cosa (los intrones disponibles) y no es una constante.
+    #: Como se llama lo que se cuenta, en singular y en plural. Las DOS: pegarle una
+    #: «s» al singular daba «par candidato x intróns», que es lo que pasa cuando se
+    #: deriva algo que no es derivable.
+    unidad: str
+    unidad_plural: str
+    medido: bool
+    texto: str
+
+
+COSTE_POR_ALCANCE: dict[str, CosteDelAlcance] = {
+    "corrida_blast": CosteDelAlcance(
+        unidad="secuencia en el FASTA de consulta",
+        unidad_plural="secuencias en el FASTA de consulta", medido=True,
+        texto=(
+            "No cuesta nada aquí: la corrida la haces FUERA, y mandar más secuencias en "
+            "un solo BLAST cuesta lo mismo que mandar menos. Lo único que crece es el "
+            "FASTA."
+        ),
+    ),
+    "corrida_seed": CosteDelAlcance(
+        unidad="consulta de seed", unidad_plural="consultas de seed", medido=True,
+        texto=(
+            "Medido y barato: es búsqueda de subcadena contra `mature.fa`, que ya está "
+            "cargado. Crece de forma lineal con las consultas."
+        ),
+    ),
+    "corrida_offtarget": CosteDelAlcance(
+        unidad="consulta de off-target", unidad_plural="consultas de off-target",
+        medido=False,
+        texto=(
+            "El coste NO está medido con el catálogo delante: el índice se construye una "
+            "vez, pero la distribución nula son 10.000 sorteos POR CONSULTA. Con el "
+            "alcance grande eso se multiplica, y aquí nadie ha cronometrado cuánto. Se "
+            "dice en vez de dar un número inventado."
+        ),
+    ),
+    "corrida_empalme": CosteDelAlcance(
+        unidad="par candidato × intrón", unidad_plural="pares candidato × intrón",
+        medido=False,
+        texto=(
+            "El coste NO está medido: cada par candidato × intrón se PLIEGA, y el plegado "
+            "es lo caro de todo el pipeline. Se dice en vez de dar un número inventado."
+        ),
+    ),
+}
+
+
+def _consultas_por_candidato(kind: str, units) -> int:
+    """Cuántas consultas salen de un candidato en ese modal.
+
+    Para los tres primeros son las HEBRAS, y esa cifra sale de `STRANDS`: escribir un 2
+    aquí sería afirmar que son dos, que es algo que el núcleo ya declara.
+
+    Para el EMPALME no se puede derivar y por eso se exige: la unidad es el par candidato
+    × intrón, y cuántos intrones se consultan lo elige quien corre en ese mismo modal.
+    Derivarlo de «los que tienen secuencia» daría un número que el usuario no ha pedido —
+    una etiqueta que promete 172 cuando va a hacer 86.
+    """
+    if units is not None:
+        return len(units)
+    if kind == "corrida_empalme":
+        raise ShmirDesignError(
+            "El alcance del modal de empalme se cuenta en pares candidato × intrón, así "
+            "que hay que decir QUÉ intrones se van a consultar: no se deriva del registro "
+            "porque eso anunciaría consultas que nadie ha pedido. Se aborta."
+        )
+    return len(STRANDS)
+
+
+def scope_starts(selection, scope: str) -> tuple[int, ...]:
+    """Los candidatos a los que se pregunta con ese alcance.
+
+    Un alcance desconocido ABORTA: devolver el panel por defecto daría una corrida de 10
+    etiquetada como de 86, que es una procedencia falsa con la forma correcta.
+    """
+    if scope == "panel":
+        return tuple(chosen_starts(selection))
+    if scope == "elegibles":
+        return tuple(sorted(s.best.start for s in selection.selection.sites))
+    raise ShmirDesignError(
+        f"Alcance {scope!r} desconocido; los que hay son {', '.join(SCOPES)}. Se aborta "
+        f"en vez de coger uno por nuestra cuenta."
+    )
+
+
+def scope_rows(selection, *, kind: str, units=None) -> list[dict[str, object]]:
+    """Las dos opciones de alcance, con su recuento y su coste ya montados.
+
+    `units` son las unidades que se consultan por candidato cuando NO son las hebras:
+    hoy, los intrones elegidos en el modal de empalme.
+    """
+    if kind not in COSTE_POR_ALCANCE:
+        raise ShmirDesignError(
+            f"No hay coste declarado para {kind!r}; los declarados son "
+            f"{', '.join(sorted(COSTE_POR_ALCANCE))}. Se aborta: un modal cuyo coste "
+            f"nadie ha decidido no puede ofrecer el alcance grande como si fuera gratis."
+        )
+    coste = COSTE_POR_ALCANCE[kind]
+    por_candidato = _consultas_por_candidato(kind, units)
+    filas = []
+    for clave, nombre in (
+        ("panel", "El panel"), ("elegibles", "Todos los sitios elegibles"),
+    ):
+        starts = scope_starts(selection, clave)
+        consultas = len(starts) * por_candidato
+        filas.append({
+            "clave": clave,
+            "candidatos": len(starts),
+            "consultas": consultas,
+            "starts": starts,
+            "coste": coste.texto,
+            "coste_medido": coste.medido,
+            "etiqueta": (
+                f"{nombre} — {len(starts)} candidatos, {consultas} "
+                f"{coste.unidad if consultas == 1 else coste.unidad_plural}"
+            ),
+        })
+    return filas
+
+
+def selection_notes(selection) -> list[dict[str, object]]:
+    """Lo que la selección tiene que decir de sí misma, para pintarlo JUNTO AL CONTROL.
+
+    La más importante: **«se pedían 50 candidatos y sólo salen 14»**. El núcleo lo apunta
+    desde siempre en `Selection.notes` y hasta hoy sólo lo emitía el informe de texto del
+    CLI — así que quien sube el número en la barra lateral veía la MISMA tabla y concluía,
+    con razón, que la app no le hacía caso. Un parámetro que no hace lo que dice y no lo
+    dice es un parámetro que miente. Principio nº 23: dos artefactos leen el mismo estado
+    y sólo uno lo cuenta.
+    """
+    return [
+        {"texto": nota, "avisa": True} for nota in selection.selection.notes
+    ]
 
 
 def accept_reference_upload(

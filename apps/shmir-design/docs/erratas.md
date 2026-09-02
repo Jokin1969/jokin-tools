@@ -3268,3 +3268,83 @@ También cayó ahí un **rojo falso por anclar un guardia a la prosa**: el test 
 que el botón de preparar va antes del de descargar encontraba `st.download_button` **dentro
 del docstring** que explica precisamente por qué va detrás. Es la errata nº 54 con el signo
 cambiado, y el arreglo es el mismo: se mira el código, no el texto que lo explica.
+
+---
+
+## 67 — El alcance de una corrida no era elegible, y `n_candidates` mentía
+
+**Pedido el 2026-09-02**: cómo analizar todos los candidatos en vez de diez. La pregunta
+destapó tres cosas, y la más importante es la distinción que puso quien la hizo:
+
+> El panel sigue en 10 con sus cuotas. **Lo que cambia es a cuántos se pregunta, no
+> cuántos se eligen.** Bajar el espaciado es otra decisión, con su coste en independencia
+> entre apuestas, y merece discutirse aparte y por escrito.
+
+### 1. `n_candidates` no era la palanca, y encima mentía
+
+Medido: pides 20 y salen **14**; pides 50 y salen **14**; pides 500 y salen **14**. No es
+un límite del código — es el **espaciado de 50 nt**, que sólo deja catorce sitios que lo
+respeten en 1242 nt. Con 22 nt salen 25; con 1 nt salen los 86.
+
+Y lo peor no es el tope: es que **la página no lo decía**. El núcleo lo apuntaba desde
+siempre en `Selection.notes` —«se pedían 50 candidatos y sólo salen 14: no hay más sitios
+elegibles que respeten el espaciado de 50 nt»— y **sólo lo emitía el informe de texto del
+CLI**. Quien sube el número en la barra lateral veía la misma tabla y concluía, con razón,
+que la app no le hace caso. Es el **principio nº 23**: dos artefactos leen el mismo estado
+y sólo uno lo cuenta. La nota se pinta ahora junto al control que la produce.
+
+### 2. El alcance, por modal, y en SITIOS
+
+`presentation.scope_rows` / `scope_starts`: dos opciones —el panel (10) o **todos los
+sitios elegibles (86)**— por modal y no globales, porque el coste no se parece.
+
+**Sitios, no ventanas**, y el motivo lo dio quien lo pidió: ventanas solapadas de la misma
+región comparten casi toda su secuencia, así que preguntar por las 270 daría el mismo
+resultado repetido y **ensuciaría cualquier recuento**. El representante de cada sitio es
+`Site.best`, que es el criterio con el que la selección ya ordena — elegir otro sería una
+segunda definición de «el mejor».
+
+**Y no toca la selección**: el panel sigue siendo de 10 con sus cuotas, y hay test de que
+pedir el alcance grande no lo cambia. El panel es además **subconjunto** del alcance
+grande, así que cambiar de alcance no pierde candidatos ya consultados.
+
+### 3. El coste, con lo NO medido dicho
+
+`COSTE_POR_ALCANCE`, una entrada por tipo de corrida, cruzada contra `insumos.CONSUMIDOS`
+para que un quinto modal sin coste declarado falle en la suite:
+
+- **BLAST** — no cuesta nada aquí: la corrida es fuera, y mandar 172 secuencias en un solo
+  BLAST cuesta lo mismo que mandar 20. Lo único que crece es el FASTA.
+- **Seed** — medido y barato: subcadena contra `mature.fa`, ya cargado.
+- **Off-targets** — **NO medido**, y la etiqueta lo dice: el índice se construye una vez,
+  pero la nula son 10.000 sorteos **por consulta**.
+- **Empalme** — **NO medido**: cada par candidato × intrón se **pliega**, y el plegado es
+  lo caro del pipeline.
+
+Un número inventado es peor que «no lo sé», porque quien lo lee lo trata como una medida.
+Con la lección de los cuatro minutos por clic delante (errata nº 59).
+
+**Y el empalme no puede derivar su recuento**: su unidad es el par candidato × intrón, y
+cuántos intrones se consultan lo elige quien corre, en ese mismo modal. Derivarlo de «los
+que tienen secuencia» anunciaría 172 consultas cuando se van a hacer 86, así que
+`scope_rows` **exige** que se le digan y aborta sin ellos. Por eso el selector va, en ese
+modal, **después** del multiselect de intrones.
+
+### La casilla inerte de BLAST
+
+El modal tenía **«Todos»** y **«Sólo los del panel»**. La segunda **no filtraba nada**: las
+filas salían ya sólo del panel y cada una llevaba `"panel": True` **escrito**, así que la
+condición nunca descartaba ninguna. El propio comentario lo decía —«existe para cuando se
+listen más»—: se dejó preparada la mitad de arriba y nunca llegó la de abajo.
+
+Es la **errata nº 32** otra vez: un control que no se distingue de uno que funciona. Se ha
+ido, y lo que hacía falta de verdad —preguntar por más candidatos— es el alcance. `panel`
+pasa a **derivarse** (`choice.start in del_panel`), que es lo que lo hace significar algo:
+con el alcance grande hay filas que no son del panel, y esa marca es lo único que las
+distingue en pantalla.
+
+### Un detalle que salió al escribirlo
+
+La primera versión de la etiqueta pegaba una «s» al nombre de la unidad y salía **«par
+candidato × intróns»** y «consulta de seeds». Derivar un plural pegando una letra es
+derivar algo que no es derivable: cada unidad declara su singular y su plural.

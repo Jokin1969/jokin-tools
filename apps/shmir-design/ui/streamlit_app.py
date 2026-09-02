@@ -49,6 +49,8 @@ from shmir_design.presentation import (  # noqa: E402
     upload_path,
     anatomy_source_label,
     chosen_starts,
+    scope_rows,
+    selection_notes,
     obsolete_rows,
     has_selection,
     project_banner,
@@ -463,6 +465,15 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         resources=recursos,
     )
     tiling, seleccion, utr3 = corrida.tiling, corrida.selection, corrida.utr3
+
+    # LO QUE LA SELECCION TIENE QUE DECIR DE SI MISMA, y sobre todo: «se pedian 50
+    # candidatos y solo salen 14, el espaciado no deja mas». El nucleo lo apuntaba desde
+    # siempre y solo lo emitia el informe de texto del CLI, asi que quien subia el numero
+    # en la barra lateral veia la MISMA tabla y concluia, con razon, que la app no le
+    # hacia caso. Un parametro que no hace lo que dice y no lo dice es un parametro que
+    # miente (principio nº 23).
+    for nota in selection_notes(seleccion):
+        st.warning(nota["texto"])
 
     # EL SEMAFORO TAMBIEN LEE LOS ALMACENES. Contaba los filtros de la ventana, que no
     # saben nada del registro del proyecto: decia «6 de 10» con una corrida de BLAST
@@ -1692,6 +1703,31 @@ def _panel_deposito(tipo: str, nombre: str, *, clave: str) -> list[dict]:
     return filas
 
 
+def _selector_de_alcance(seleccion, nombre: str, *, tipo: str, clave: str,
+                         unidades=None):
+    """A cuántos candidatos se pregunta. Devuelve los `starts` elegidos.
+
+    NO cambia la selección: el panel sigue siendo el panel, con sus cuotas. Lo que cambia
+    es el alcance de ESTA corrida. Bajar el espaciado para tener un panel mayor es otra
+    decisión, con su coste en independencia entre apuestas.
+
+    Las opciones, su recuento y su coste los monta `presentation.scope_rows` (regla 6).
+    Donde el coste NO está medido, la etiqueta lo dice: un número inventado es peor que
+    «no lo sé», porque quien lo lee lo trata como una medida.
+    """
+    filas = scope_rows(seleccion, kind=tipo, units=unidades)
+    elegida = st.radio(
+        "Alcance",
+        options=filas,
+        format_func=lambda f: f["etiqueta"],
+        key=f"{clave}_alcance_{nombre}",
+        horizontal=True,
+        help="El panel es el defecto. Preguntar por todos los sitios no cambia el panel.",
+    )
+    (st.caption if elegida["coste_medido"] else st.warning)(elegida["coste"])
+    return elegida["starts"]
+
+
 def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
     """El modal de especificidad. NO decide nada: todo viene de `presentation`.
 
@@ -1720,20 +1756,23 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
     for aviso in blast_readiness(species=nombre, directory=reference_dir()):
         (st.error if aviso["bloquea"] else st.warning)(aviso["texto"])
 
-    filas = blast_candidate_rows(seleccion, species=nombre)
-    todos = st.checkbox("Todos", key=f"blast_todos_{nombre}", value=True)
-    solo_panel = st.checkbox(
-        "Sólo los del panel", key=f"blast_panel_{nombre}", value=False
+    # LA CASILLA «Sólo los del panel» ESTABA INERTE y se ha ido: las filas salían ya sólo
+    # del panel y todas llevaban `panel: True` escrito, así que no filtraba nada. Un
+    # control que no se distingue de uno que funciona es la errata nº 32. Lo que hace
+    # falta de verdad —preguntar por más candidatos— es el alcance, y ahora está.
+    alcance = _selector_de_alcance(
+        seleccion, nombre, tipo="corrida_blast", clave="blast"
     )
+    filas = blast_candidate_rows(seleccion, species=nombre, starts=alcance)
+    todos = st.checkbox("Todos", key=f"blast_todos_{nombre}", value=True)
     guias = st.checkbox("Guías", key=f"blast_guias_{nombre}", value=True)
     pasajeras = st.checkbox("Pasajeras", key=f"blast_pas_{nombre}", value=True)
 
     marcados = []
     for fila in filas:
-        if solo_panel and not fila["panel"]:
-            continue
         if st.checkbox(
-            f"3utr:{fila['start']}  asim {fila['asimetria']}  {fila['veredicto']}",
+            f"3utr:{fila['start']}  asim {fila['asimetria']}  {fila['veredicto']}"
+            + ("  · panel" if fila["panel"] else ""),
             key=f"blast_c_{nombre}_{fila['start']}",
             value=todos,
         ):
@@ -1879,7 +1918,9 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
                 f"(por defecto {fila['por_defecto']})"
             )
 
-    starts = chosen_starts(seleccion)
+    starts = _selector_de_alcance(
+        seleccion, nombre, tipo="corrida_seed", clave="seed"
+    )
     # SE NIEGA ANTES DE CALCULAR, no despues. Calculaba, pintaba, y avisaba con un
     # `st.caption` —el elemento mas silencioso que hay— justo detras de un resultado:
     # quien lo pasa por alto cierra la pestaña y pierde el trabajo sin enterarse. El
@@ -2061,6 +2102,14 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         st.info("Elige al menos un intrón: sin intrón no hay cassette que montar.")
         return
 
+    # EL ALCANCE VA DESPUES DE ELEGIR LOS INTRONES, y no es colocación: aquí la unidad es
+    # el par candidato × intrón, así que el recuento no se puede montar sin saber cuántos
+    # intrones se van a consultar. Derivarlo del registro anunciaría pares que nadie ha
+    # pedido.
+    starts = _selector_de_alcance(
+        seleccion, nombre, tipo="corrida_empalme", clave="sp", unidades=elegidos,
+    )
+
     # El contexto exónico sale del CASETE si está cargado; si no, de las dos piezas de
     # 5 nt, que para un modelo entrenado con ventana de 10.000 es casi nada. La app lo
     # dice en vez de rellenarlo.
@@ -2073,7 +2122,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
     try:
         construcciones = splice_constructions(
             seleccion, target=diana, intron_names=elegidos, scaffold=SGEP_SCAFFOLD,
-            cassette=casete, context_nt=contexto,
+            starts=starts, cassette=casete, context_nt=contexto,
         )
     except (ShmirDesignError, ValueError) as exc:
         # rule2-ok: frontera de la interfaz. El fallo se enseña entero.
@@ -2268,7 +2317,9 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         )
     st.error(offtarget_upper_bound()["texto"])
 
-    starts = chosen_starts(seleccion)
+    starts = _selector_de_alcance(
+        seleccion, nombre, tipo="corrida_offtarget", clave="ot"
+    )
     huella = run_fingerprint(tuple(starts), params)
     permiso = run_allowed(proyecto)
     if not permiso["permitido"]:
