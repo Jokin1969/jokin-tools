@@ -188,6 +188,41 @@ class BlastParams:
             trozos.append(f"-out {out_path}")
         return " ".join(trozos)
 
+    def predicted_state(self):
+        """El estado del ajuste «incluir predichos». En LOCAL, `NOT_RUN`.
+
+        `include_predicted` solo tiene efecto dentro de `-entrez_query`, y desde la
+        errata nº 40 ese filtro va SOLO con `-remote`. En una corrida local el ajuste no
+        aparece en la orden: no filtra nada, ni a favor ni en contra. Lo que decide si
+        hay predichos en el resultado es LA BASE, y eso este campo no lo sabe.
+
+        Se elige `NOT_RUN` y no una nota al lado, y no es una preferencia de estilo: una
+        nota deja el campo AFIRMANDO algo que la corrida no puede cumplir. El riesgo es
+        concreto — dos corridas, una remota y otra local, las dos registradas como
+        «predichos: si», comparadas dentro de un año como si fueran equivalentes.
+        """
+        from .filters import FilterState
+
+        return FilterState.PASS if self.remote else FilterState.NOT_RUN
+
+    def predicted_reason(self) -> str:
+        """Por que no se puede afirmar. NO es un fichero que falte: es que no aplica."""
+        if self.remote:
+            return (
+                f"`-entrez_query` lo aplica el servicio de NCBI, y esta corrida es "
+                f"`-remote`: los modelos predichos "
+                f"{'entran' if self.include_predicted else 'quedan EXCLUIDOS'} por la "
+                f"propia orden."
+            )
+        return (
+            "NO SE PUEDE AFIRMAR EN UNA CORRIDA LOCAL. Este ajuste sólo actúa dentro de "
+            "`-entrez_query`, que únicamente funciona con `-remote`, así que aquí no "
+            "aparece en la orden y no filtra nada. Si en el resultado hay o no modelos "
+            "predichos lo decide LA BASE contra la que se corrió — y eso este campo no "
+            "lo sabe. Marcarlo como cumplido dejaría dos corridas, una remota y una "
+            "local, registradas igual y comparables dentro de un año como si lo fueran."
+        )
+
     def organism_note(self) -> str:
         """De donde sale la restriccion a la especie en ESTA corrida.
 
@@ -230,6 +265,18 @@ class BlastParams:
         if not self.can_give_verdict:
             lineas.append(f"NO CIERRA EL FRENTE: {self.why_no_verdict}")
         return lineas
+
+
+#: EL UNIVERSO CONTRA EL QUE SE COMPROBO, pegado al veredicto. Es lo que hace
+#: interpretable un cero: «0 aciertos» contra un catalogo curado de una especie no dice
+#: lo mismo que «0 aciertos» contra RefSeq entera. Sin esta frase, un cero obtenido
+#: contra una base sin modelos predichos se lee como «no hay off-targets contra
+#: predichos» — el «Alu 0 %» otra vez.
+UNIVERSE_NOTE = (
+    "El universo de esta comprobación es la BASE que se declara arriba, y nada más. Si "
+    "esa base no incluye modelos predichos (`XM_`/`XR_`), cero aciertos contra ellos NO "
+    "significa que no los haya: significa que no estaban."
+)
 
 
 DEFAULTS = BlastParams()

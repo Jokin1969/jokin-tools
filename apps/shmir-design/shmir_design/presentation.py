@@ -876,6 +876,19 @@ def blast_warnings(params) -> list[dict[str, object]]:
         })
     if not params.can_give_verdict:
         avisos.append({"bloquea": True, "texto": params.why_no_verdict})
+    # LOS PREDICHOS, en LOCAL, no se pueden afirmar. NO bloquea la corrida —una base
+    # curada es perfectamente valida— pero el ajuste sale como `NOT_RUN` y con el motivo,
+    # porque marcarlo como cumplido dejaria dos corridas, una remota y una local,
+    # registradas igual. Ver `BlastParams.predicted_state`.
+    from .filters import FilterState
+
+    if params.predicted_state() is FilterState.NOT_RUN:
+        avisos.append({
+            "bloquea": False,
+            "texto": (
+                f"**predichos (`XM_`/`XR_`): NOT_RUN.** {params.predicted_reason()}"
+            ),
+        })
     # DE DONDE SALE EL FILTRO DE ORGANISMO en esta corrida. Sale siempre y no bloquea:
     # las dos vias son defendibles, y lo que no lo es es creer que la orden filtra
     # cuando no filtra. Ver `blast.BlastParams.organism_note`.
@@ -1606,8 +1619,30 @@ def front_columns(tiling, selection) -> list[str]:
     return sorted(dict.fromkeys(nombres))
 
 
+#: Que almacen contesta a que columna. Se declara —no se adivina por el nombre— porque
+#: una corrida de BLAST cierra `especificidad` y NADA MAS: si se propagara a otra
+#: columna, estaria contagiando un veredicto que nadie ha ganado.
+STORE_FOR_FRONT = {"especificidad": "blast"}
+
+
+def _store_state(stores, front: str, species: str, start: int) -> str | None:
+    """El estado de ESE frente para ESE candidato segun los almacenes, o `None`.
+
+    `None` significa «los almacenes no dicen nada de esto», que no es lo mismo que
+    `NOT_RUN`: quien decide entonces es el filtro de la ventana, como siempre.
+    """
+    clave = STORE_FOR_FRONT.get(front)
+    if not clave or not stores:
+        return None
+    almacen = stores.get(clave)
+    if almacen is None:
+        return None
+    resultado = almacen.verdict_for(query_name(species, start, "guia"))
+    return resultado.state.value
+
+
 def site_table_rows(tiling, selection, *, species: str = "",
-                    selected=None) -> list[dict[str, object]]:
+                    selected=None, stores=None) -> list[dict[str, object]]:
     """TODOS los sitios elegibles, con UNA COLUMNA POR FRENTE.
 
     No solo los elegidos: la piscina entera. Un candidato que no esta en el panel sigue
@@ -1615,6 +1650,11 @@ def site_table_rows(tiling, selection, *, species: str = "",
     seleccion.
 
     `selected` son los inicios marcados a mano; si es `None`, se marcan los del panel.
+
+    `stores` son los almacenes del proyecto. SIN ellos la tabla decia `NOT_RUN` de
+    frentes que el informe ya daba por cerrados —dos artefactos del mismo proyecto
+    afirmando cosas distintas del mismo frente (principio nº 23)— y el desacuerdo habia
+    que declararlo en pantalla. Con ellos, ese aviso sobra y se ha borrado.
     """
     from .selection import is_eligible
 
@@ -1651,8 +1691,14 @@ def site_table_rows(tiling, selection, *, species: str = "",
                     selection.selection.rank_of(ventana.window.start)
                     if elegido is not None else ""
                 ),
+                # El almacen MANDA donde tiene algo que decir; donde no, decide el
+                # filtro de la ventana. Y sólo sobre SU columna: `STORE_FOR_FRONT`.
                 **{
-                    nombre: estados.get(nombre, "NOT_RUN") for nombre in columnas
+                    nombre: (
+                        _store_state(stores, nombre, species, ventana.window.start)
+                        or estados.get(nombre, "NOT_RUN")
+                    )
+                    for nombre in columnas
                 },
                 "veredicto": ventana.verdict.value,
                 "guia": ventana.evaluation.guide,
@@ -4330,17 +4376,39 @@ def run_provenance_rows(stores) -> list[dict[str, str]]:
     return filas
 
 
-#: MIENTRAS EL INFORME LEA LOS ALMACENES Y LA TABLA NO. Es una inconsistencia NUEVA, no
-#: una tanda a medias: antes los dos artefactos callaban y eran coherentes en su
-#: ignorancia. Ahora el documento puede decir `PASS` de un frente que la pantalla enseña
-#: en `NOT_RUN` — y el que se entrega es el documento. Un desacuerdo DECLARADO es
-#: manejable; uno silencioso hace que quien vea los dos concluya que uno esta mal sin
-#: saber cual. Se BORRA cuando `site_table_rows` lea los almacenes, y
-#: `tests/test_desacuerdo_declarado.py` obliga a borrarlo: un aviso que sobrevive a su
-#: causa manda a desconfiar de una tabla que ya es correcta.
-TABLE_LAGS_REPORT = (
-    "**Esta tabla todavía no lee las corridas guardadas; el informe sí.** Si has subido "
-    "el resultado de una comprobación, aquí puede seguir saliendo `NOT_RUN` mientras el "
-    "informe descargable ya trae su veredicto. **Manda el informe**, que es el que lleva "
-    "la corrida con su procedencia. En cuanto la tabla las lea, este aviso desaparece."
-)
+
+def verdicts_changed(tiling, selection, *, species: str, before, after
+                     ) -> dict[str, object]:
+    """Cuantos veredictos cambia una corrida al guardarla. CON EL CERO VISIBLE.
+
+    «Guardada en el log del proyecto» se lee como «hecho», y durante dias fue un guardado
+    que no cambiaba ningun veredicto porque nadie consultaba el almacen. Un guardado que
+    no cambia nada no es util: **o la confirmacion dice que cambio, o dice que no cambio
+    nada**, y el cero es justo la señal que faltaba.
+
+    Se DERIVA comparando las dos tablas — no se cuenta aparte. Un contador propio seria
+    otro contador del mismo suceso, y ya se sabe como acaban.
+    """
+    antes = {
+        (f["inicio"], c): f[c]
+        for f in site_table_rows(tiling, selection, species=species, stores=before)
+        for c in front_columns(tiling, selection)
+    }
+    despues = {
+        (f["inicio"], c): f[c]
+        for f in site_table_rows(tiling, selection, species=species, stores=after)
+        for c in front_columns(tiling, selection)
+    }
+    cambiados = sum(1 for clave, valor in despues.items() if antes.get(clave) != valor)
+    if cambiados:
+        texto = (
+            f"Guardada. **{cambiados} veredicto(s) actualizado(s)** en la tabla."
+        )
+    else:
+        texto = (
+            "Guardada, y **0 veredictos actualizados**. Si esperabas que cerrara un "
+            "frente, algo no encaja: mira el motivo en la columna de ese frente — puede "
+            "que la corrida no cierre (fue `-remote`, o llevaba algún ajuste cambiado) o "
+            "que sus consultas no sean las de este panel."
+        )
+    return {"cambiados": cambiados, "texto": texto}

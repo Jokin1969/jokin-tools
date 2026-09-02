@@ -110,7 +110,7 @@ from shmir_design.presentation import (  # noqa: E402
     blast_defaults_for,
     front_help_rows,
     front_card_rows,
-    TABLE_LAGS_REPORT,
+    verdicts_changed,
     folding_capability,
     check_can_emit_dna,
     front_progress,
@@ -486,10 +486,6 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "La selección de la app viene marcada. Se puede cambiar a mano: los avisos "
             "de abajo se recalculan con lo que esté marcado."
         )
-        # EL DESACUERDO, DECLARADO. Sólo con proyecto abierto: sin él no hay corridas
-        # guardadas y el aviso sembraría una duda que no existe.
-        if proyecto is not None:
-            st.warning(TABLE_LAGS_REPORT)
         st.dataframe(
             site_table_rows(tiling, seleccion, species=nombre, selected=marcados),
             hide_index=True,
@@ -547,7 +543,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     if proyecto is not None:
         st.caption(stored_runs_note(load_stores(proyecto)))
 
-    _modal_blast(seleccion, nombre, proyecto)
+    _modal_blast(seleccion, nombre, proyecto, tiling)
     _modal_seed(seleccion, nombre, tiling.mature, proyecto)
     _modal_offtarget(seleccion, nombre, tiling.mature, utr3, proyecto)
     _modal_empalme(seleccion, nombre, utr3, cassette_sequence(tiling), proyecto)
@@ -1339,7 +1335,8 @@ def main() -> None:
 
 
 
-def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str) -> None:
+def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
+                     tiling=None, seleccion=None) -> None:
     """Guarda la corrida de un modal en el log del proyecto.
 
     Es el mismo formulario para los cuatro: sin fecha y sin quién la corrió el registro
@@ -1358,13 +1355,25 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str) -
         quien = st.text_input("Quién la corrió", "", key=f"{clave}_gq_{nombre}")
     with columnas[2]:
         if st.button("Guardar en el proyecto", key=f"{clave}_gb_{nombre}"):
+            # QUE VEREDICTOS CAMBIA. «Guardada en el log» se lee como «hecho», y
+            # durante dias fue un guardado que no cambiaba ninguno porque nadie
+            # consultaba el almacen. O la confirmacion dice que cambio, o dice que no
+            # cambio nada — y el CERO es la señal que faltaba.
+            antes = load_stores(proyecto)
             try:
                 guardar(proyecto, construir(fecha, quien))
             except (ShmirDesignError, ValueError, OSError) as exc:
                 # rule2-ok: frontera de la interfaz. Nada se guarda y se dice por qué.
                 st.error(f"**PARA** — {exc}")
             else:
-                st.success("Guardada en el log del proyecto.")
+                if tiling is None or seleccion is None:
+                    st.success("Guardada en el log del proyecto.")
+                    return
+                resumen = verdicts_changed(
+                    tiling, seleccion, species=nombre,
+                    before=antes, after=load_stores(proyecto),
+                )
+                (st.success if resumen["cambiados"] else st.warning)(resumen["texto"])
 
 
 
@@ -1397,7 +1406,7 @@ def _guardar_seleccion(proyecto, seleccion, nombre: str) -> None:
 
 
 
-def _modal_blast(seleccion, nombre: str, proyecto=None) -> None:
+def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
     """El modal de especificidad. NO decide nada: todo viene de `presentation`.
 
     La pagina no ordena, no marca en rojo y no elige ningun estado — recibe filas con un
@@ -1523,6 +1532,7 @@ def _modal_blast(seleccion, nombre: str, proyecto=None) -> None:
                     run_id=f"{nombre}-blast-{fecha}",
                 ),
                 guardar=save_blast_run, clave="blast",
+                tiling=tiling, seleccion=seleccion,
             )
     else:
         st.info(
