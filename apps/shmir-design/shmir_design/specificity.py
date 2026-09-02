@@ -114,6 +114,11 @@ class Hit:
     strand: Strand
     queries: tuple[str, ...] = ()
 
+    @property
+    def antisense(self) -> bool:
+        """Lo que mira el criterio comun. Un hit en SENTIDO no es un off-target."""
+        return self.strand is Strand.ANTISENSE
+
     def describe(self) -> str:
         origen = "+".join(self.queries) if self.queries else "?"
         return (
@@ -295,6 +300,124 @@ def _dedupe(hits: list[tuple[str, Hit]]) -> list[Hit]:
     ]
 
 
+# ─── EL CRITERIO, EN UN SOLO SITIO ──────────────────────────────────────────────
+#
+# HABIA DOS IMPLEMENTACIONES DEL MISMO FRENTE con criterios distintos, y la que daba el
+# veredicto de la corrida SUBIDA era la que NO tenia el concepto de diana (errata nº 56).
+# Las tres diferencias, medidas:
+#
+#   · `filter_specificity` descarta los hits en SENTIDO —«un hit en la misma orientacion
+#     que la sonda no es un off-target»— y `BlastRun.verdict` no miraba la orientacion;
+#   · `filter_specificity` exige `target` y ABORTA sin el; `verdict` no miraba `subject`
+#     siquiera, comprobado sobre su bytecode;
+#   · `filter_specificity` falla con CUALQUIER acierto grave fuera de la diana; `verdict`
+#     fallaba con MAS DE UNO.
+#
+# El coste ya se habia materializado: diez `FAIL` falsos, uno por candidato, porque la
+# diana tiene dos variantes de transcrito y las dos aciertan.
+#
+# Asi que el criterio vive aqui y las dos lo LLAMAN. No se arreglan por separado: eso es
+# lo que produce el cuarto par duplicado del proyecto.
+
+
+@dataclass(frozen=True)
+class SpecificityCall:
+    """Lo que dice el criterio, sin prosa: los dos lados lo visten a su manera."""
+
+    state: FilterState
+    graves: tuple = ()
+    leves: tuple = ()
+    exentos: tuple = ()
+    sentido: int = 0
+    #: Ningun acierto contra la propia diana. Ver `NO_TARGET_HIT_NOTE`.
+    sin_diana: bool = False
+
+
+#: EL SUPUESTO QUE ESTABA ESCONDIDO EN UN NUMERO. `verdict` fallaba con «mas de un»
+#: acierto grave, y ese `> 1` significaba «uno es tuyo» — un supuesto sobre los datos que
+#: no estaba escrito en ninguna parte. Falla en DOS direcciones y las dos son invisibles:
+#: con dos variantes del gen cuenta la segunda como off-target (lo que paso), y con una
+#: guia que NO acierta a su propia diana da PASS a algo que quiza no reconoce su blanco.
+#:
+#: El criterio ya no lleva ningun supuesto dentro: la diana se DECLARA y el umbral es
+#: «ningun acierto grave fuera de ella», que es lo que dice que es.
+WHY_NOT_MORE_THAN_ONE = (
+    "El criterio NO es «más de un acierto»: ese umbral escondía el supuesto de que la "
+    "diana produce exactamente UN acierto, y con dos variantes del mismo gen contaba la "
+    "segunda como off-target. La diana se declara y el umbral es «ningún acierto grave "
+    "fuera de ella»."
+)
+
+#: Que no haya NINGUN acierto contra la propia diana no es un off-target y no veta: es
+#: informacion sobre la CORRIDA. Se dice porque el umbral viejo la daba por buena en
+#: silencio — una guia que no reconoce su blanco salia `PASS` por no tener con que
+#: compararse. Que funcione o no es el frente de POTENCIA, que este software no mide.
+NO_TARGET_HIT_NOTE = (
+    "OJO: esta consulta no tiene NINGÚN acierto contra su propia diana. Eso no es un "
+    "off-target y no veta este frente —la potencia es otra pregunta y este software no "
+    "la mide—, pero sí dice que algo raro pasa con la corrida o con la base: la diana "
+    "declarada tendría que estar ahí."
+)
+
+
+def judge_hits(hits, *, target_accessions) -> SpecificityCall:
+    """El veredicto de especificidad a partir de los aciertos. UN solo criterio.
+
+    `hits` son objetos con `transcript`, `mismatches`, `antisense` y `describe()`; cada
+    implementacion adapta los suyos. `target_accessions` son TODAS las variantes de
+    transcrito de la diana: un gen tiene varias y todas son la diana.
+    """
+    diana = {str(a).strip() for a in target_accessions if str(a).strip()}
+    if not diana:
+        raise ValueError(
+            "Hay que declarar las variantes de transcrito de la diana: sin ellas, un "
+            "acierto perfecto contra el propio blanco se cuenta como off-target y el "
+            "filtro no significa nada. Se aborta."
+        )
+    todos = list(hits)
+    antisentido = [h for h in todos if h.antisense]
+    sentido = [h for h in todos if not h.antisense]
+    exentos = [h for h in antisentido if h.transcript in diana]
+    fuera = [h for h in antisentido if h.transcript not in diana]
+    graves = [h for h in fuera if h.mismatches <= 1]
+    leves = [h for h in fuera if h.mismatches == 2]
+    return SpecificityCall(
+        state=FilterState.FAIL if graves else FilterState.PASS,
+        graves=tuple(graves),
+        leves=tuple(leves),
+        exentos=tuple(exentos),
+        sentido=len(sentido),
+        sin_diana=not exentos,
+    )
+
+
+def target_accessions(species) -> tuple[str, ...]:
+    """Las variantes de transcrito declaradas para la diana de esa especie.
+
+    ABORTA si la especie no las declara. Es la condicion sin la cual esta exencion seria
+    un colador: nunca un `PASS` por una lista vacia.
+    """
+    import tomllib  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    from .species import resolve  # noqa: PLC0415
+
+    ruta = Path(__file__).resolve().parent.parent / "data" / "diana" / "variantes.toml"
+    with ruta.open("rb") as f:
+        tabla = tomllib.load(f)
+    slug = resolve(species).slug
+    entrada = tabla.get(slug)
+    if not entrada or not entrada.get("accessions"):
+        raise ShmirDesignError(
+            f"No hay variantes de transcrito declaradas para {slug!r} en "
+            f"{ruta.parent.name}/{ruta.name}. Sin ellas no se puede dar veredicto de "
+            f"especificidad: un acierto perfecto contra el propio blanco se contaría "
+            f"como off-target y todos los candidatos fallarían contra su propia diana. "
+            f"Se declaran ahí, con su procedencia — nunca se deducen."
+        )
+    return tuple(entrada["accessions"])
+
+
 def filter_specificity(
     guide: str,
     passenger: str | None,
@@ -324,11 +447,14 @@ def filter_specificity(
             crudos.extend((origen, hit) for hit in scan_database(sonda, database))
 
     todos = _dedupe(crudos)
+    # EL CRITERIO ES EL MISMO QUE EL DE LA CORRIDA SUBIDA, y se llama, no se repite:
+    # habia dos y la que daba el veredicto de la corrida no tenia concepto de diana
+    # (errata nº 56). `target` sigue siendo un accession aqui; el criterio acepta el
+    # conjunto de variantes.
+    fallo = judge_hits(todos, target_accessions=(target,))
     antisentido = [h for h in todos if h.strand is Strand.ANTISENSE]
     sentido = [h for h in todos if h.strand is Strand.SENSE]
-    fuera = [h for h in antisentido if h.transcript != target]
-    graves = [h for h in fuera if h.mismatches <= 1]
-    leves = [h for h in fuera if h.mismatches == 2]
+    graves, leves = list(fallo.graves), list(fallo.leves)
 
     orientacion = (
         f" Descartados {len(sentido)} hit(s) en orientacion SENTIDO (misma hebra que "

@@ -116,3 +116,10 @@ lee = "las cadenas de atributos de profundidad ≥ 2 en la página"
 opina = "esa navegación es una suposición sobre el modelo que ningún test comprueba"
 reconoce_por = "el AST de la página, separando lo que se pinta siempre de lo que sólo se ejecuta bajo clic"
 instrumento = "INFORME"
+
+[[auditoria]]
+nombre = "auditar_umbrales"
+lee = "los umbrales del paquete dentro de una función que emite veredicto"
+opina = "ese número codifica un supuesto sobre los datos y lo esconde (errata nº 56)"
+reconoce_por = "una comparación contra un literal numérico dentro de una función que nombra `FilterState`, `FilterResult` o `Verdict`, contrastada con `data/umbrales_con_supuesto.toml`"
+instrumento = "GUARDIA"

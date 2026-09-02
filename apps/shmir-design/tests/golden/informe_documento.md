@@ -66,7 +66,7 @@ Los seis filtros biofísicos de ventana NO dependen de ningún fichero ni de nin
 
 **Fuente de datos.** NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero.
 
-**Criterio.** Este frente no tiene umbral numérico: su veredicto es una comprobación, no una comparación contra un corte.
+**Criterio.** Un acierto cuenta como GRAVE si tiene 0 o 1 desapareamiento, va en ANTISENTIDO —que es como una guía acierta contra un mRNA; `-outfmt 6` no trae columna de hebra, así que la orientación es el signo de `sstart`→`send`— y su transcrito NO es una de las variantes declaradas de la diana. Un solo acierto grave da FAIL. Las variantes de la diana se declaran en `data/diana/variantes.toml` con su procedencia, y una especie que no las declare NO recibe veredicto: sale `NO_CIERRA`, nunca un PASS por una lista vacía. El criterio NO es «más de un acierto»: ese umbral escondía el supuesto de que la diana produce exactamente UN acierto, y con dos variantes del mismo gen contaba la segunda como off-target. La diana se declara y el umbral es «ningún acierto grave fuera de ella».
 
 **Como se cierra.** (ficha de obtencion, integra)
 

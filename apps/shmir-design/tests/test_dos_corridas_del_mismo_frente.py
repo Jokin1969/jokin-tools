@@ -32,15 +32,30 @@ from shmir_design import blast
 from shmir_design.blast_store import BlastDatabase, BlastRun, BlastStore
 from shmir_design.filters import FilterState
 from shmir_design.presentation import query_name
+from shmir_design.specificity import target_accessions
 
 CONSULTA = query_name("raton", 200, "guia")
 GUIA = "TTATATTCTTATTGGCCCGGTG"
 
 
-def _corrida(run_id, *, fecha="2026-09-01", remota=False, hits=1):
+#: Los sujetos se PIDEN a la tabla de la diana: una corrida limpia acierta contra su
+#: propio blanco y contra nada mas, y escribir aqui un `NM_1` cualquiera era codificar el
+#: supuesto que la errata nº 56 quito de en medio — con el umbral viejo (`> 1`) un solo
+#: acierto pasaba fuese contra lo que fuese.
+DIANA = target_accessions("raton")[0]
+
+
+def _corrida(run_id, *, fecha="2026-09-01", remota=False, hits=1, fuera=0):
+    """`hits` aciertos contra la DIANA y `fuera` contra otros transcritos.
+
+    En ANTISENTIDO (`send < sstart`), que es como BLAST devuelve el acierto de una guia
+    contra un mRNA: el mensajero lleva el complemento inverso de la sonda. Estaban
+    escritos en SENTIDO — una orientacion que esa corrida no puede producir.
+    """
+    sujetos = [DIANA] * hits + [f"NM_offtarget_{i}" for i in range(fuera)]
     crudo = "".join(
-        f"{CONSULTA}\tNM_{i}\t100.000\t22\t0\t0\t1\t22\t1170\t1191\t1e-05\t44.1\n"
-        for i in range(hits)
+        f"{CONSULTA}\t{s}\t100.000\t22\t0\t0\t1\t22\t1191\t1170\t1e-05\t44.1\n"
+        for s in sujetos
     )
     return BlastRun.create(
         run_id=run_id, date=fecha, uploaded_by="responsable",
@@ -62,15 +77,15 @@ class TestUnaEXPLORACIONposteriorNOdegrada(unittest.TestCase):
         self.almacen.add(_corrida("exploracion", fecha="2026-09-02", remota=True))
 
     def test_el_frente_SIGUE_cerrado(self):
-        resultado = self.almacen.verdict_for(CONSULTA)
+        resultado = self.almacen.verdict_for(CONSULTA, species="mouse")
         self.assertIs(resultado.state, FilterState.PASS)
 
     def test_y_manda_la_corrida_BUENA_por_su_id(self):
-        self.assertIn("buena", self.almacen.verdict_for(CONSULTA).reason)
+        self.assertIn("buena", self.almacen.verdict_for(CONSULTA, species="mouse").reason)
 
     def test_pero_la_exploracion_posterior_NO_se_calla(self):
         # Sin esto, quien subio la remota se queda creyendo que es la que cuenta.
-        motivo = self.almacen.verdict_for(CONSULTA).reason
+        motivo = self.almacen.verdict_for(CONSULTA, species="mouse").reason
         self.assertIn("exploracion", motivo)
 
 
@@ -80,8 +95,8 @@ class TestEntreLasQuePUEDEN_mandaLaULTIMA(unittest.TestCase):
     def test_una_FAIL_posterior_DEGRADA_un_PASS(self):
         almacen = BlastStore()
         almacen.add(_corrida("limpia", fecha="2026-09-01", hits=1))
-        almacen.add(_corrida("sucia", fecha="2026-09-02", hits=5))
-        resultado = almacen.verdict_for(CONSULTA)
+        almacen.add(_corrida("sucia", fecha="2026-09-02", hits=1, fuera=4))
+        resultado = almacen.verdict_for(CONSULTA, species="mouse")
         self.assertIs(resultado.state, FilterState.FAIL)
         self.assertIn("sucia", resultado.reason)
 
@@ -91,7 +106,7 @@ class TestSiNINGUNApuede(unittest.TestCase):
     def test_se_enseña_la_ultima_con_su_motivo(self):
         almacen = BlastStore()
         almacen.add(_corrida("r1", remota=True))
-        resultado = almacen.verdict_for(CONSULTA)
+        resultado = almacen.verdict_for(CONSULTA, species="mouse")
         self.assertIs(resultado.state, FilterState.NO_CIERRA)
         self.assertIn("REPITIENDO", resultado.reason)
 

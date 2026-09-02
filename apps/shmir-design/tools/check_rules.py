@@ -507,6 +507,25 @@ def main(argv: list[str]) -> int:
         return 1
     print("  Ninguna magnitud se calcula dos veces sin decir por qué.\n")
 
+    # UMBRALES QUE ESCONDEN UN SUPUESTO (2026-09-02). Categoria PROPIA y distinta de la
+    # de `justificacion.py`: alli son numeros SIN respaldo; aqui, numeros CON respaldo
+    # aparente que significan otra cosa de la que parecen. GUARDIA, cero — un umbral que
+    # decide y no dice de que supuesto depende su lectura es un veredicto equivocado
+    # esperando (errata nº 56, el `> 1` que codificaba «uno es tuyo»).
+    from auditar_umbrales import auditar as auditar_umbrales
+    from auditar_umbrales import render as render_umbrales
+
+    umbrales = auditar_umbrales()
+    print(render_umbrales(umbrales))
+    fallos_umbral = len(umbrales["sin_declarar"]) + len(umbrales["muertos"])
+    if fallos_umbral:
+        print(
+            f"\ncheck_rules: {fallos_umbral} umbral(es) que decide(n) sin declarar de "
+            f"qué supuesto depende su lectura.",
+            file=sys.stderr,
+        )
+        return 1
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "

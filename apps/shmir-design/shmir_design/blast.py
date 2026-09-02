@@ -465,6 +465,30 @@ class BlastHit:
     def predicted(self) -> bool:
         return self.subject.upper().startswith(PREDICTED_PREFIXES)
 
+    @property
+    def transcript(self) -> str:
+        """El nombre que usa el criterio comun. En `-outfmt 6` es la columna `sseqid`."""
+        return self.subject
+
+    @property
+    def antisense(self) -> bool:
+        """La sonda alinea en la hebra CONTRARIA del transcrito. Se DERIVA del acierto.
+
+        En `-outfmt 6` la orientacion no viene como columna: esta en el SIGNO del
+        intervalo del sujeto — `send < sstart` es hebra menos. `verdict` no la miraba, y
+        `filter_specificity` lleva desde siempre descartando los hits en sentido con el
+        motivo escrito: «un hit en la misma orientacion que la sonda no es un
+        off-target», porque el mRNA contiene el complemento inverso de la guia. Eran dos
+        criterios para la misma pregunta (errata nº 56).
+        """
+        return self.send < self.sstart
+
+    def describe(self) -> str:
+        return (
+            f"{self.subject} {self.sstart}-{self.send} "
+            f"({self.mismatches} desapareamiento(s))"
+        )
+
 
 def parse_outfmt6(text: str) -> tuple[BlastHit, ...]:
     """Lee un `-outfmt 6`. Un fichero vacio ABORTA: cero hits no es «no corrio»."""

@@ -117,8 +117,14 @@ class BlastRun:
     def hits_for(self, query_name: str) -> tuple[blast.BlastHit, ...]:
         return tuple(h for h in self.hits if h.query == query_name)
 
-    def verdict(self, query_name: str | None = None) -> FilterResult:
-        """El estado del frente segun ESTA corrida. `NOT_RUN` si no puede cerrarlo."""
+    def verdict(
+        self, query_name: str | None = None, *, species: str = "",
+    ) -> FilterResult:
+        """El estado del frente segun ESTA corrida. `NOT_RUN` si no puede cerrarlo.
+
+        `species` decide QUE variantes de transcrito son la diana. Sin ella no se puede
+        eximir el propio blanco, asi que la corrida sale `NO_CIERRA` con el motivo.
+        """
         if not self.gives_verdict:
             motivos = self.params.why_no_verdict
             if not self.database.reproducible:
@@ -139,17 +145,64 @@ class BlastRun:
                     f"volver a empezar."
                 ),
             )
+        from .specificity import (  # noqa: PLC0415
+            NO_TARGET_HIT_NOTE, judge_hits, target_accessions,
+        )
+
         hits = self.hits if query_name is None else self.hits_for(query_name)
-        fuera = [h for h in hits if h.mismatches <= 1]
-        estado = FilterState.FAIL if len(fuera) > 1 else FilterState.PASS
+        # LA DIANA SE DECLARA Y SIN ELLA NO HAY VEREDICTO. Un gen tiene varias variantes
+        # de transcrito y TODAS son la diana: sin esta lista, cada candidato fallaba
+        # contra su propio blanco (errata nº 56). Si la especie no las declara, esto sale
+        # `NO_CIERRA` con el motivo — nunca un `PASS` por una lista vacia.
+        try:
+            diana = target_accessions(species)
+        except ShmirDesignError as exc:
+            # rule2-ok: NO se traga nada — el motivo entero viaja DENTRO del veredicto,
+            # que es donde lo lee quien mira la celda. Relanzar aqui tiraria la pagina
+            # por una especie sin variantes declaradas, y el estado correcto de ese caso
+            # existe y es `NO_CIERRA`: hay corrida y no puede dar veredicto.
+            return FilterResult(
+                name=FILTER_NAME,
+                state=FilterState.NO_CIERRA,
+                reason=(
+                    f"Hay corrida ({self.run_id}, {self.date}) y NO PUEDE dar veredicto: "
+                    f"{exc}"
+                ),
+            )
+        fallo = judge_hits(hits, target_accessions=diana)
+        # EL MOTIVO DICE CONTRA QUE ACERTO. Antes decia `FAIL` y un recuento, asi que un
+        # fallo contra la propia diana era indistinguible de uno real — y se vio en un
+        # intercambio en vez de en dos segundos.
+        detalle = (
+            " Aciertos fuera de la diana: "
+            + "; ".join(h.describe() for h in fallo.graves) + "."
+            if fallo.graves else ""
+        )
+        exentos = (
+            f" Eximidos por ser la propia diana ({', '.join(sorted(diana))}): "
+            + "; ".join(h.describe() for h in fallo.exentos) + "."
+            if fallo.exentos else ""
+        )
+        leves = (
+            f" AVISO: {len(fallo.leves)} sitio(s) con 2 desapareamientos fuera de la "
+            f"diana: " + "; ".join(h.describe() for h in fallo.leves) + "."
+            if fallo.leves else ""
+        )
+        orientacion = (
+            f" Descartados {fallo.sentido} hit(s) en orientación SENTIDO (misma hebra "
+            f"que la sonda): no son off-targets."
+            if fallo.sentido else ""
+        )
+        sin_diana = f" {NO_TARGET_HIT_NOTE}" if fallo.sin_diana else ""
         return FilterResult(
             name=FILTER_NAME,
-            state=estado,
+            state=fallo.state,
             reason=(
                 f"Corrida {self.run_id} ({self.date}, {self.uploaded_by}) sobre "
                 f"{self.database.describe()} Parámetros estándar. "
-                f"{len(hits)} hit(s), {len(fuera)} a <=1 desapareamiento. "
-                f"OJO: esto NO cubre los off-targets mediados por seed — son un frente "
+                f"{len(hits)} hit(s) en total."
+                f"{detalle}{exentos}{leves}{orientacion}{sin_diana}"
+                f" OJO: esto NO cubre los off-targets mediados por seed — son un frente "
                 f"aparte y ningún alineador los ve."
             ),
         )
@@ -267,7 +320,7 @@ class BlastStore:
         )
         return manda, posteriores
 
-    def verdict_for(self, query_name: str) -> FilterResult:
+    def verdict_for(self, query_name: str, *, species: str = "") -> FilterResult:
         """`NOT_RUN` VISIBLE cuando no hay corrida. El almacen no relaja la regla 3."""
         ultima, posteriores = self.deciding_run(query_name)
         if ultima is None:
@@ -280,7 +333,7 @@ class BlastStore:
                     f"parecen en nada, y el almacen no cambia esa disciplina."
                 ),
             )
-        resultado = ultima.verdict(query_name)
+        resultado = ultima.verdict(query_name, species=species)
         if not posteriores:
             return resultado
         ids = ", ".join(r.run_id for r in posteriores)

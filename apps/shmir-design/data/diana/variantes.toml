@@ -1,0 +1,39 @@
+# LAS VARIANTES DE TRANSCRITO DE LA DIANA — la exención del filtro de especificidad.
+#
+# **Un gen tiene varias variantes de transcrito y TODAS son la diana.** Un acierto
+# perfecto de la guía contra otra variante del mismo gen no es un off-target: es la diana
+# otra vez. Sin esta lista, cada candidato fallaba contra su propio blanco — diez `FAIL`
+# falsos de diez, reportado el 2026-09-02 (errata nº 56).
+#
+# POR QUÉ UNA LISTA Y NO UN MAPA transcrito→gen, decidido con los tres argumentos
+# delante: el mapa es lo correcto **como modelo** y necesita un fichero que no tenemos, así
+# que hasta que llegue el frente seguiría dando `FAIL`; y sobre todo —éste es el que
+# decide— **una lista dice QUÉ se eximió; un mapa dice POR QUÉ, pero sólo si es correcto,
+# y un mapa equivocado exime de más sin que se vea**.
+#
+# LA CONDICIÓN, y sin ella esto sería un colador: una especie **sin entrada aquí no
+# recibe veredicto**. La corrida sale `NO_CIERRA` con el motivo, igual que
+# `filter_specificity` aborta sin `target`. **Nunca un `PASS` por una lista vacía.**
+#
+# LA LISTA ES DECLARADA, NO EXHAUSTIVA, y se dice a propósito: aquí no hay red ni un
+# catálogo de RefSeq que consultar, así que **no se inventa ninguna accession**. Lo que
+# hay es lo verificado, con su procedencia. Si una corrida falla contra una variante que
+# no está, el motivo del `FAIL` la nombra —lleva los accessions dentro— y se añade aquí
+# con su procedencia. Ese es el ciclo previsto, no un fallo.
+
+[mouse]
+gen = "Prnp"
+organismo = "Mus musculus"
+accessions = ["NM_011170.3", "NM_001278256.1"]
+procedencia = """\
+`NM_011170.3` es el transcrito del diseño: es la referencia versionada del proyecto \
+(`reference.REFERENCES`, 2191 nt, md5 canónico 44fb8cd8…). `NM_001278256.1` lo aportó el \
+responsable del proyecto el 2026-09-02 a partir de su propia corrida de BLAST, donde \
+aparece con acierto perfecto para las veinte consultas; es además el transcrito que \
+PolyA_DB usa como representante de Prnp, y ya había salido en el anclaje del APA."""
+verificado = "no comprobado contra RefSeq desde este proyecto: aquí no hay red saliente (regla 4). Las dos accessions vienen de material que sí se ha visto — la referencia versionada y la corrida real."
+
+# El humano NO tiene entrada, y eso NO es un descuido: es lo que hace que la condición
+# signifique algo. Un diseño sobre PRNP humano sale hoy `NO_CIERRA` con el motivo, en vez
+# de dar `PASS` porque nadie declaró nada. Se añade cuando haya una corrida humana de la
+# que sacar las variantes con su procedencia — igual que se hizo con el ratón.

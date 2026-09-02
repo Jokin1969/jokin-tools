@@ -65,9 +65,13 @@ class TestElVEREDICTOdeclaraElUNIVERSO(unittest.TestCase):
                 remote=False,
             ),
             query=blast.QueryFasta.from_records(((consulta, "TTATATTCTTATTGGCCCGGTG"),)),
-            raw=f"{consulta}\tNM_1\t100.000\t22\t0\t0\t1\t22\t1\t22\t1e-05\t44.1\n",
+            # EN ANTISENTIDO (`send < sstart`), que es como BLAST devuelve el acierto de
+            # una guia contra un mRNA. Estaba escrito en sentido — una orientacion que
+            # esa corrida no puede producir, y desde la errata nº 56 el criterio la
+            # descarta: el hit no llegaba a contar para nada.
+            raw=f"{consulta}\tNM_1\t100.000\t22\t0\t0\t1\t22\t1191\t1170\t1e-05\t44.1\n",
         )
-        motivo = corrida.verdict(consulta).reason
+        motivo = corrida.verdict(consulta, species="mouse").reason
         self.assertIn("refseq_mouse_curated", motivo)
 
     def test_y_dice_que_los_PREDICHOS_dependen_de_la_base(self):

@@ -10,6 +10,7 @@ Python 3.11+ (regla 6).
 
 from __future__ import annotations
 
+import inspect
 import re
 from dataclasses import dataclass, field
 from html import escape
@@ -1749,6 +1750,14 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
         # consiguiendo un fichero. Sin corridas de ningun tipo se devuelve `None` y manda
         # el filtro de la ventana, como siempre.
         return SIN_CONSULTAR if getattr(almacen, "runs", None) else None
+    # LA ESPECIE VIAJA: decide que variantes de transcrito son la diana, y sin ella la
+    # corrida no puede eximir su propio blanco (errata nº 56). Los otros tres almacenes
+    # no tienen especie que pasar, asi que se MIRA LA FIRMA en vez de probar y cazar el
+    # `TypeError`: eso se tragaria un `TypeError` de dentro del veredicto y repetiria la
+    # llamada sin especie — un veredicto con la forma correcta, calculado con menos
+    # informacion y sin que nadie se entere (regla 2).
+    if "species" in inspect.signature(almacen.verdict_for).parameters:
+        return almacen.verdict_for(consulta, species=species).state.value
     return almacen.verdict_for(consulta).state.value
 
 

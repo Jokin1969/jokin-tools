@@ -259,7 +259,8 @@ def build_dossier(
         fecha_de[frente.name] = SIN_FECHA
     # La especificidad de ESTE candidato sale del almacen, que es quien tiene la fecha
     # y quien sabe si la corrida cierra el frente o no.
-    resultado = almacen.verdict_for(consulta)
+    # La especie decide que variantes de transcrito son la diana (errata nº 56).
+    resultado = almacen.verdict_for(consulta, species=species)
     ultima = almacen.latest(consulta)
     estados["especificidad"] = (resultado.state, resultado.reason)
     procedencia_de["especificidad"] = (

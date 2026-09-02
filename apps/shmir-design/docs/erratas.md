@@ -2463,3 +2463,91 @@ tres veces la corrección vino de fuera y las tres veces el argumento fue el mis
 **varios síntomas a la vez significan una causa arriba, no varios arreglos abajo**. El
 guardia de `_filter_columns` es la primera contramedida de esta serie que no depende de
 que yo mire en el sitio correcto.
+
+## 56 — Un `> 1` que codificaba «uno es tuyo», y el frente tenía DOS implementaciones
+
+**Reportado con la hipótesis ya construida (2026-09-02)**, y era la correcta:
+
+> sale FAIL en los diez, y diez de diez apunta a criterio mal aplicado, no a diez guías
+> malas. […] el `.tsv` tiene dos aciertos al 100 % por guía, y los dos son Prnp:
+> `NM_011170.3` y `NM_001278256.1`. […] La exención tiene que ser por gen, no por
+> accession.
+
+**Confirmada midiendo, no leyendo.** `BlastRun.verdict` no miraba el sujeto en ninguna
+parte —comprobado sobre `co_names`, no de vista—: contaba los aciertos a ≤1
+desapareamiento y emitía
+
+```python
+estado = FilterState.FAIL if len(fuera) > 1 else FilterState.PASS
+```
+
+Con dos variantes de transcrito de la propia diana eso son dos, así que **cada candidato
+fallaba contra su propio blanco**. Diez de diez.
+
+### El `> 1` no era un umbral flojo: era un supuesto escondido en un número
+
+Ese `1` no es una tolerancia. Es la afirmación **«la diana produce exactamente un
+acierto»**, que nadie escribió y que no es cierta para ningún gen con más de una variante
+anotada. Y falla en **las dos direcciones, las dos invisibles**:
+
+- **hacia el FAIL** — el caso de arriba;
+- **hacia el PASS** — una guía que **no acierta a su propia diana** sale `PASS`, porque
+  cero aciertos también es «no más de uno». Un candidato que quizá no reconoce su blanco
+  aprueba el frente por no tener con qué compararse.
+
+Eso es **categoría propia** y no lo cubría nada: `justificacion.py` vigila los umbrales
+**sin base medida** —números sin respaldo, declarados como tales— y éste tenía respaldo
+aparente y **significaba otra cosa de la que parecía**. Entran
+`data/umbrales_con_supuesto.toml` y `tools/auditar_umbrales.py`, GUARDIA con cero: un
+umbral dentro de una función que emite veredicto declara **de qué supuesto depende su
+lectura** y **dónde está declarado ese supuesto**. Si no se puede escribir, el umbral está
+mal planteado — que es exactamente lo que le pasaba a éste.
+
+- El recorte es lo que lo hace aplicable: el barrido ancho da **123** comparaciones contra
+  literales en el paquete y casi todas son formato o guardias de entrada. Acotado a lo que
+  **decide**, son **ocho**, y se revisan una a una.
+- Y lleva **control adversario**: el test le da el fuente de **antes** y exige que señale
+  el `> 1`. Salir a cero sobre el código ya arreglado no demuestra que muerda — errata
+  nº 29.
+
+### Había DOS implementaciones del mismo frente, y no coincidían en nada
+
+`specificity.filter_specificity` y `BlastRun.verdict` contestan la misma pregunta y
+diferían en **tres** cosas a la vez:
+
+| | `filter_specificity` | `verdict` (antes) |
+|---|---|---|
+| hits en **sentido** | los descarta | los contaba |
+| exención de la diana | por `target`, exacto | ninguna |
+| criterio | ningún acierto grave fuera | `> 1` en total |
+
+Lo del sentido no es un detalle: `-outfmt 6` **no tiene columna de hebra**, la orientación
+es el signo de `sstart`→`send`, y un acierto en sentido contra un mRNA **no es un
+off-target de una guía** — es la otra hebra. `verdict` los contaba.
+
+**No se arreglan por separado**, que es lo que pedía el encargo: las dos llaman ahora a
+`specificity.judge_hits`, que es el único sitio donde vive el criterio, y hay un test que
+les da los mismos hits y exige el mismo estado. Un criterio en dos sitios es la errata
+nº 52 con otro traje.
+
+### La lista de la diana es DATO, y sin ella NO hay veredicto
+
+Se eligió la segunda de las dos opciones planteadas —lista declarada de accessions, en
+`data/diana/variantes.toml`, no un mapa transcrito→gen— y **la condición es la que decide**:
+sin declaración **no hay veredicto**, nunca un `PASS` desde una lista vacía. Una exención
+vacía convertiría «no sé cuáles son las variantes» en «ninguna es tuya», que es el error de
+antes con el signo cambiado.
+
+- El fichero lleva **procedencia y verificación** por especie, como todo lo demás.
+- El **humano está deliberadamente ausente**: si todas las especies estuvieran declaradas,
+  la condición no se ejercitaría nunca y sería una frase. Sobre humano, el veredicto sale
+  `NO_CIERRA` con el motivo, que es lo honesto — hay corrida y no puede cerrar.
+
+### Y el motivo dice contra qué acertó
+
+Iba en el mismo cambio porque es lo que convierte esta errata en cinco segundos la próxima
+vez: el `FAIL` nombra los accessions de fuera, el `PASS` nombra **los eximidos por ser la
+propia diana**, y hay nota aparte para los 2 desapareamientos, para los hits en sentido
+descartados y para el caso «ningún acierto contra la propia diana», que **no** es una buena
+noticia. Antes decía `FAIL` y un recuento: un fallo contra el propio blanco era
+indistinguible de uno real, y por eso costó un intercambio en vez de una mirada.

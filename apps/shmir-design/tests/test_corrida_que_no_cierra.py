@@ -68,26 +68,26 @@ class TestLasTRESconDICIONES(unittest.TestCase):
     """Las tres, por separado, cada una degradando por su cuenta."""
 
     def test_una_corrida_ESTANDAR_y_LOCAL_cierra(self):
-        self.assertIs(_corrida().verdict(CONSULTA).state, FilterState.PASS)
+        self.assertIs(_corrida().verdict(CONSULTA, species="mouse").state, FilterState.PASS)
 
     def test_REMOTA_no_cierra_NUNCA(self):
         resultado = _corrida(
             params=blast.BlastParams.for_species("raton", remote=True), remota=True,
-        ).verdict(CONSULTA)
+        ).verdict(CONSULTA, species="mouse")
         self.assertIs(resultado.state, FilterState.NO_CIERRA)
         self.assertIn("remote", resultado.reason)
 
     def test_un_parametro_CAMBIADO_la_degrada(self):
         resultado = _corrida(
             params=blast.BlastParams.for_species("raton", word_size=11)
-        ).verdict(CONSULTA)
+        ).verdict(CONSULTA, species="mouse")
         self.assertIs(resultado.state, FilterState.NO_CIERRA)
         self.assertIn("word_size", resultado.reason)
 
     def test_y_el_MOTIVO_va_en_el_veredicto_no_en_una_nota(self):
         motivo = _corrida(
             params=blast.BlastParams.for_species("raton", remote=True), remota=True,
-        ).verdict(CONSULTA).reason
+        ).verdict(CONSULTA, species="mouse").reason
         # Que se hizo, y por que no vale: las dos cosas, en el propio veredicto.
         self.assertIn("r1", motivo)
         self.assertIn("NO CIERRA", motivo)
@@ -97,16 +97,16 @@ class TestSINcorridaSIGUEsiendoNOT_RUN(unittest.TestCase):
     """El control adversario: si todo saliera NO_CIERRA, el estado no distinguiria nada."""
 
     def test_un_candidato_sin_corrida_es_NOT_RUN(self):
-        resultado = BlastStore().verdict_for(CONSULTA)
+        resultado = BlastStore().verdict_for(CONSULTA, species="mouse")
         self.assertIs(resultado.state, FilterState.NOT_RUN)
 
     def test_y_los_dos_motivos_dicen_COSAS_DISTINTAS(self):
-        sin = BlastStore().verdict_for(CONSULTA).reason
+        sin = BlastStore().verdict_for(CONSULTA, species="mouse").reason
         almacen = BlastStore()
         almacen.add(_corrida(
             params=blast.BlastParams.for_species("raton", remote=True), remota=True,
         ))
-        no_vale = almacen.verdict_for(CONSULTA).reason
+        no_vale = almacen.verdict_for(CONSULTA, species="mouse").reason
         self.assertNotEqual(sin, no_vale)
         # Uno manda a EMPEZAR y el otro a REPETIR: es toda la diferencia.
         self.assertIn("No hay ninguna corrida", sin)

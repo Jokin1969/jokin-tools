@@ -3778,6 +3778,49 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     la identificación decisiva fue **por un dato interno** —`bandera_polyA_debil` marcada
     en la última fila, que es `3utr:1018`— no por la captura.
 
+- **LA DIANA NO ES UN OFF-TARGET, Y EL `> 1` ERA UN SUPUESTO ESCONDIDO EN UN NÚMERO
+  (2026-09-02)**, errata nº 56. Salían `FAIL` los diez, y diez de diez es criterio mal
+  aplicado, no diez guías malas.
+  - **`BlastRun.verdict` NO MIRABA EL SUJETO** —comprobado sobre `co_names`, no de
+    vista—: contaba aciertos a ≤1 desapareamiento y hacía
+    `FAIL if len(fuera) > 1`. El gen tiene **dos variantes de transcrito**
+    (`NM_011170.3`, `NM_001278256.1`) y las dos aciertan al 100 %, así que **cada
+    candidato fallaba contra su propio blanco**.
+  - **Ese `1` no es una tolerancia: es la afirmación «la diana produce exactamente un
+    acierto»**, que nadie escribió. Y falla en **las dos direcciones, las dos
+    invisibles**: con dos variantes, `FAIL` falsos; y una guía que **no acierta a su
+    propia diana** salía `PASS`, porque cero también es «no más de uno».
+  - **CATEGORÍA PROPIA, distinta de la que ya había** (`data/umbrales_con_supuesto.toml`,
+    `tools/auditar_umbrales.py`, dentro de `npm run check:shmir`). `justificacion.py`
+    cubre los umbrales **sin base medida** —números sin respaldo—; éstos tienen respaldo
+    aparente y **significan otra cosa de la que parecen**. **GUARDIA, cero**: un umbral
+    dentro de una función que emite veredicto declara **de qué supuesto depende su
+    lectura** y **dónde está declarado ese supuesto**; si no se puede escribir, el umbral
+    está mal planteado. El recorte es lo que lo hace aplicable —el barrido ancho da
+    **123** comparaciones y son casi todas formato, acotado a lo que decide son **ocho**—
+    y lleva **control adversario**: el test le da el fuente de antes y exige que señale el
+    `> 1`.
+  - **HABÍA DOS IMPLEMENTACIONES DEL MISMO FRENTE y no coincidían en NADA**:
+    `filter_specificity` descartaba los hits en **sentido**, eximía la diana y exigía
+    ningún acierto grave fuera; `verdict` no hacía ninguna de las tres. Lo del sentido no
+    es un detalle — `-outfmt 6` **no tiene columna de hebra** y la orientación es el signo
+    de `sstart`→`send`, así que un acierto en sentido contra un mRNA **no es un off-target
+    de una guía**. **No se arreglaron por separado**: las dos llaman a
+    `specificity.judge_hits`, y un test les da los mismos hits y exige el mismo estado.
+  - **LA LISTA DE LA DIANA ES DATO, Y SIN ELLA NO HAY VEREDICTO**
+    (`data/diana/variantes.toml`, `specificity.target_accessions`). Se eligió la lista
+    declarada de accessions y **no** un mapa transcrito→gen, bajo la condición que lo
+    decide: **nunca un `PASS` desde una lista vacía** — una exención vacía convierte «no
+    sé cuáles son las variantes» en «ninguna es tuya», que es el error de antes con el
+    signo cambiado. Sin declaración, el veredicto sale `NO_CIERRA` con el motivo.
+    **El humano está deliberadamente ausente**: con todas las especies declaradas, la
+    condición no se ejercitaría nunca y sería una frase.
+  - **Y EL MOTIVO DICE CONTRA QUÉ ACERTÓ**, en el mismo cambio: el `FAIL` nombra los
+    accessions de fuera, el `PASS` nombra **los eximidos por ser la propia diana**, y hay
+    nota aparte para los 2 desapareamientos, para los hits en sentido descartados y para
+    «ningún acierto contra la propia diana», que **no es una buena noticia**. Antes decía
+    `FAIL` y un recuento: un fallo contra el propio blanco era indistinguible de uno real.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
