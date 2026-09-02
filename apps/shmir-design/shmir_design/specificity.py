@@ -116,8 +116,29 @@ class Hit:
 
     @property
     def antisense(self) -> bool:
-        """Lo que mira el criterio comun. Un hit en SENTIDO no es un off-target."""
+        """En ESTE escaner, «la sonda puede aparearse con este transcrito».
+
+        OJO: NO es la misma cantidad que el signo de `sstart`→`send` de `-outfmt 6`,
+        aunque coincidan para una guia. Aqui lo pone nuestro escaner segun haya casado el
+        complemento inverso de la sonda o la sonda tal cual; alli es la hebra del sujeto
+        tal como esta depositado. Confundirlas es la errata nº 57.
+        """
         return self.strand is Strand.ANTISENSE
+
+    @property
+    def aligned(self) -> int:
+        """Siempre la sonda ENTERA: `_scan_one` casa ventanas de `len(pattern)`.
+
+        Por eso este lado nunca tuvo el fallo de los parciales — y por eso el supuesto no
+        viajo con el criterio cuando se llevo a la corrida de BLAST.
+
+        La longitud se le PIDE a `Span`, que es quien la deriva: restarla aqui a mano
+        seria el sitio 24 de la formula que el trinquete de `data/magnitudes.toml` tiene
+        marcada como PRIORITARIA, y ese techo solo puede bajar.
+        """
+        from .audit import Span  # noqa: PLC0415
+
+        return Span(self.start, self.end).length
 
     def describe(self) -> str:
         origen = "+".join(self.queries) if self.queries else "?"
@@ -328,9 +349,58 @@ class SpecificityCall:
     graves: tuple = ()
     leves: tuple = ()
     exentos: tuple = ()
-    sentido: int = 0
+    #: Aciertos descartados por ser PARCIALES. Ver `WHY_LENGTH_AND_NOT_MISMATCHES`.
+    parciales: int = 0
     #: Ningun acierto contra la propia diana. Ver `NO_TARGET_HIT_NOTE`.
     sin_diana: bool = False
+    #: Aciertos contra la propia diana con la orientacion que esa hebra NO puede dar.
+    #: Ver `EXPECTED_ORIENTATION`: es una comprobacion, no un descarte.
+    orientacion_rara: tuple = ()
+
+
+#: `ALLOWED_TRUNCATION` es lo unico que se le perdona a un alineamiento para seguir
+#: contando: un extremo recortado. El minimo NO se escribe —seria un `21` con el supuesto
+#: «la sonda mide 22» metido dentro, que es la errata nº 56 exacta— sino que se DERIVA de
+#: la sonda de cada consulta (principio nº 13).
+ALLOWED_TRUNCATION = 1
+
+
+#: LA COLUMNA `mismatch` DE `-outfmt 6` NO DICE QUE EL ACIERTO SEA PERFECTO: dice que es
+#: perfecto EN EL SEGMENTO QUE ALINEO. Un parcial de 13 nt clavado trae `mismatches = 0`,
+#: y con `blastn-short`, `word_size 7` y `evalue 1000` la corrida esta llena de ellos.
+#: Sin mirar la longitud, ese ruido entraba como acierto grave y tumbaba el panel entero
+#: (errata nº 57).
+#:
+#: POR QUE `filter_specificity` NO LO TENIA aunque comparta el criterio: su escaner casa
+#: ventanas de EXACTAMENTE `len(sonda)`, asi que todos sus hits son de longitud completa
+#: y la condicion se cumplia sola. Al mover el criterio a la corrida de BLAST —que
+#: devuelve alineamientos LOCALES— no viajo el supuesto que lo sostenia.
+WHY_LENGTH_AND_NOT_MISMATCHES = (
+    "Un acierto cuenta si alinea casi la sonda ENTERA: `mismatch` de `-outfmt 6` sólo "
+    "cuenta desapareamientos dentro del segmento alineado, así que un parcial de 13 nt "
+    "clavado trae 0 y no es un off-target."
+)
+
+
+#: LA ORIENTACION ES LA FIRMA DE QUE HEBRA ES, NO UN FILTRO. Correccion del responsable
+#: del proyecto (2026-09-02), y da un invariante mas fuerte que descartar:
+#:
+#:   guia      → ANTISENTIDO contra su diana (el mRNA lleva su complemento inverso);
+#:   pasajera  → SENTIDO (lleva la misma secuencia que el blanco).
+#:
+#: Descartar los hits en sentido tiraba, en la PASAJERA, su acierto legitimo contra la
+#: propia diana — y con el la exencion de variantes, que no llegaba a aplicarse. Como
+#: comprobacion en cambio caza algo que ningun otro guardia ve: una guia cuyo acierto
+#: contra su diana salga en sentido esta MAL MONTADA (guia y pasajera intercambiadas).
+EXPECTED_ORIENTATION = {"guia": True, "pasajera": False}
+
+WRONG_ORIENTATION_NOTE = (
+    "OJO: el acierto contra la propia diana sale con la ORIENTACIÓN que esta hebra no "
+    "puede dar. Una guía es antisentido a su blanco por definición y una pasajera lleva "
+    "su misma secuencia, así que esto no es un off-target: es que la construcción está "
+    "MAL MONTADA —guía y pasajera intercambiadas, o el FASTA de consulta montado al "
+    "revés—. No cambia el veredicto de este frente, que mide otra cosa."
+)
 
 
 #: EL SUPUESTO QUE ESTABA ESCONDIDO EN UN NUMERO. `verdict` fallaba con «mas de un»
@@ -360,12 +430,21 @@ NO_TARGET_HIT_NOTE = (
 )
 
 
-def judge_hits(hits, *, target_accessions) -> SpecificityCall:
+def judge_hits(
+    hits, *, target_accessions, min_aligned, expected_antisense=None,
+) -> SpecificityCall:
     """El veredicto de especificidad a partir de los aciertos. UN solo criterio.
 
-    `hits` son objetos con `transcript`, `mismatches`, `antisense` y `describe()`; cada
-    implementacion adapta los suyos. `target_accessions` son TODAS las variantes de
-    transcrito de la diana: un gen tiene varias y todas son la diana.
+    `hits` son objetos con `transcript`, `aligned`, `mismatches`, `antisense` y
+    `describe()`; cada implementacion adapta los suyos. `target_accessions` son TODAS
+    las variantes de transcrito de la diana: un gen tiene varias y todas son la diana.
+
+    `min_aligned` es cuantos nucleotidos tiene que alinear un acierto para contar, y lo
+    DERIVA quien llama de la sonda de esa consulta — no se escribe aqui (errata nº 57).
+
+    `expected_antisense` es la orientacion que esa hebra tiene que dar contra su PROPIA
+    diana. Es una COMPROBACION y no un filtro: no descarta ningun acierto y no cambia el
+    estado. `None` = no se comprueba, y eso NO es «coincide».
     """
     diana = {str(a).strip() for a in target_accessions if str(a).strip()}
     if not diana:
@@ -375,19 +454,27 @@ def judge_hits(hits, *, target_accessions) -> SpecificityCall:
             "filtro no significa nada. Se aborta."
         )
     todos = list(hits)
-    antisentido = [h for h in todos if h.antisense]
-    sentido = [h for h in todos if not h.antisense]
-    exentos = [h for h in antisentido if h.transcript in diana]
-    fuera = [h for h in antisentido if h.transcript not in diana]
+    # LA LONGITUD PRIMERO, Y LA ORIENTACION NO ENTRA. Un parcial no es un off-target
+    # mire a donde mire; y descartar por orientacion tiraba el acierto legitimo de la
+    # pasajera contra su propia diana. Ver `WHY_LENGTH_AND_NOT_MISMATCHES` y
+    # `EXPECTED_ORIENTATION`.
+    completos = [h for h in todos if h.aligned >= min_aligned]
+    exentos = [h for h in completos if h.transcript in diana]
+    fuera = [h for h in completos if h.transcript not in diana]
     graves = [h for h in fuera if h.mismatches <= 1]
     leves = [h for h in fuera if h.mismatches == 2]
+    raras = (
+        [h for h in exentos if h.antisense is not expected_antisense]
+        if expected_antisense is not None else []
+    )
     return SpecificityCall(
         state=FilterState.FAIL if graves else FilterState.PASS,
         graves=tuple(graves),
         leves=tuple(leves),
         exentos=tuple(exentos),
-        sentido=len(sentido),
+        parciales=len(todos) - len(completos),
         sin_diana=not exentos,
+        orientacion_rara=tuple(raras),
     )
 
 
@@ -451,9 +538,29 @@ def filter_specificity(
     # habia dos y la que daba el veredicto de la corrida no tenia concepto de diana
     # (errata nº 56). `target` sigue siendo un accession aqui; el criterio acepta el
     # conjunto de variantes.
-    fallo = judge_hits(todos, target_accessions=(target,))
     antisentido = [h for h in todos if h.strand is Strand.ANTISENSE]
     sentido = [h for h in todos if h.strand is Strand.SENSE]
+    # SE LE SOMETEN SOLO LOS APAREABLES, y eso NO es «filtrar por orientacion»: en ESTE
+    # escaner un hit en SENTIDO es un transcrito que contiene la sonda TAL CUAL, con la
+    # que la sonda no puede aparearse — no es un off-target suyo, y esta medido, no
+    # supuesto (`_scan_one` casa el complemento inverso para ANTISENTIDO y la sonda para
+    # SENTIDO). En `-outfmt 6` el signo de `sstart`→`send` NO es esta cantidad, y por eso
+    # alli se le someten TODOS. La orientacion no entra en el criterio; lo que entra es
+    # que cada llamador declare que puede probar.
+    #
+    # `expected_antisense=None`: aqui la etiqueta es «aparea», no «que hebra es», asi que
+    # el invariante de montaje no aplica — y no haberlo comprobado no es que coincida.
+    fallo = judge_hits(
+        antisentido,
+        target_accessions=(target,),
+        # De la sonda MAS CORTA de las que se escanearon: aqui todo hit mide lo que su
+        # sonda, asi que este minimo no puede descartar ninguno legitimo — y sigue
+        # derivandose en vez de escribirse.
+        min_aligned=min(
+            len("".join(str(x).split())) for x in (guide, passenger) if x
+        ) - ALLOWED_TRUNCATION,
+        expected_antisense=None,
+    )
     graves, leves = list(fallo.graves), list(fallo.leves)
 
     orientacion = (

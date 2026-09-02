@@ -305,6 +305,10 @@ def save_blast_run(store: ProjectStore, run) -> Record:
             "query_md5": run.query_md5,
             "result_md5": run.result_md5,
             "query_names": list(run.query_names),
+            # LA LONGITUD DE CADA SONDA, que es de donde sale cuanto tiene que alinear un
+            # acierto para contar. Sin ella, una corrida recargada no puede rederivar su
+            # propio veredicto (errata nº 57).
+            "query_lengths": [list(par) for par in run.query_lengths],
             "params": {
                 campo: getattr(run.params, campo)
                 for campo in (
@@ -349,6 +353,11 @@ def load_blast_store(store: ProjectStore):
                 raw=datos["raw"],
                 hits=_parse(datos["raw"]),
                 query_names=consulta.names,
+                # Vacio en las corridas anteriores a este campo: `verdict` lo acota
+                # entonces con el propio resultado y LO DICE.
+                query_lengths=tuple(
+                    (str(n), int(l)) for n, l in datos.get("query_lengths", ())
+                ),
             )
         )
     return almacen

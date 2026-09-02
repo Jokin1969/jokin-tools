@@ -103,13 +103,26 @@ class TestElUmbralYaNOesconde_unSupuesto(unittest.TestCase):
 
 
 class TestLaORIENTACION(unittest.TestCase):
-    """`filter_specificity` descartaba los hits en sentido; `verdict` no los miraba."""
+    """CORREGIDO por la errata nº 57: la orientacion NO filtra en la corrida de BLAST.
 
-    def test_un_hit_en_SENTIDO_no_es_un_off_target(self):
+    Aqui habia un test que exigia `PASS` con un acierto largo en sentido fuera de la
+    diana, «porque un hit en sentido no es un off-target». Esa frase es cierta en el
+    ESCANER de `filter_specificity` —donde SENTIDO significa que el transcrito contiene
+    la sonda tal cual, con la que no puede aparearse— y NO es la misma cantidad que el
+    signo de `sstart`→`send` de `-outfmt 6`. Al llevarla de un sitio al otro, el descarte
+    tiraba el acierto legitimo de la PASAJERA contra su propia diana.
+
+    Lo que queda de la orientacion es lo que si compra: un INVARIANTE de montaje. Vive
+    en `tests/test_un_parcial_no_es_un_offtarget.py`, con las dos hebras.
+    """
+
+    def test_un_acierto_LARGO_en_sentido_fuera_de_la_diana_SI_cuenta(self):
+        # Direccion segura: en la corrida real no existe —las guias solo aciertan
+        # antisentido— y si apareciera uno, contarlo sobra por arriba y nunca por abajo.
         corrida = _corrida(_hit(DIANA[0]) + _hit("NM_999999.1", antisentido=False))
-        resultado = corrida.verdict(CONSULTA, species="mouse")
-        self.assertIs(resultado.state, FilterState.PASS)
-        self.assertIn("SENTIDO", resultado.reason)
+        self.assertIs(
+            corrida.verdict(CONSULTA, species="mouse").state, FilterState.FAIL
+        )
 
     def test_la_orientacion_se_DERIVA_del_intervalo_del_sujeto(self):
         # En `-outfmt 6` no hay columna de hebra: está en el signo de `sstart`→`send`.
@@ -132,7 +145,7 @@ class TestSinDIANAdeclaradaNOhayVEREDICTO(unittest.TestCase):
 
     def test_el_criterio_ABORTA_con_la_lista_vacia(self):
         with self.assertRaises(ValueError):
-            specificity.judge_hits((), target_accessions=())
+            specificity.judge_hits((), target_accessions=(), min_aligned=21)
 
     def test_la_tabla_declara_procedencia_de_cada_especie(self):
         import tomllib
@@ -168,18 +181,24 @@ class TestUNsoloCRITERIO(unittest.TestCase):
         # El cruce que ata los dos contadores del mismo suceso: mismos hits, mismo
         # veredicto. Sin esto vuelven a separarse.
         class _Falso:
-            def __init__(self, transcript, mismatches, antisense):
+            def __init__(self, transcript, aligned, mismatches, antisense):
                 self.transcript, self.mismatches = transcript, mismatches
-                self.antisense = antisense
+                self.aligned, self.antisense = aligned, antisense
 
             def describe(self):
                 return self.transcript
 
         propios = blast.parse_outfmt6(_hit(DIANA[0]) + _hit("NM_999999.1"))
-        ajenos = [_Falso(h.transcript, h.mismatches, h.antisense) for h in propios]
+        ajenos = [
+            _Falso(h.transcript, h.aligned, h.mismatches, h.antisense) for h in propios
+        ]
         self.assertEqual(
-            specificity.judge_hits(propios, target_accessions=DIANA).state,
-            specificity.judge_hits(ajenos, target_accessions=DIANA).state,
+            specificity.judge_hits(
+                propios, target_accessions=DIANA, min_aligned=21,
+            ).state,
+            specificity.judge_hits(
+                ajenos, target_accessions=DIANA, min_aligned=21,
+            ).state,
         )
 
 

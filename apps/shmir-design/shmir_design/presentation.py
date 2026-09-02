@@ -4317,6 +4317,32 @@ def query_name(species: str, start: int, strand: str) -> str:
     return f"{resolve(species).slug}_pos{int(start)}_{strand}"
 
 
+#: Las dos hebras que produce `query_name`, y NO son intercambiables en una comparacion
+#: contra la diana: la guia es antisentido a su blanco POR DEFINICION —el mRNA lleva su
+#: complemento inverso— y la pasajera lleva la MISMA secuencia que el blanco, asi que
+#: acierta en sentido. Ver `specificity.EXPECTED_ORIENTATION`.
+STRANDS = ("guia", "pasajera")
+
+
+def strand_of(name: str) -> str:
+    """La hebra de una consulta, PEDIDA a quien monta el nombre.
+
+    Simetrica de `query_name`: el formato vive en un solo sitio. Transcribir el sufijo
+    donde haga falta es la errata nº 49 —cinco copias del mismo formato, y dos tests que
+    preguntaban por la clave que ellos mismos escribian—, con el agravante de que aqui de
+    la hebra cuelga que orientacion se espera del acierto contra la propia diana.
+    """
+    texto = str(name)
+    for hebra in STRANDS:
+        if texto.endswith(f"_{hebra}"):
+            return hebra
+    raise ShmirDesignError(
+        f"No se puede saber de que hebra es la consulta {name!r}: no acaba en ninguna de "
+        f"{STRANDS}. Se aborta en vez de suponer «guía», que es lo que haría pasar por "
+        f"buena una pasajera con la orientacion al reves."
+    )
+
+
 # ─── LENGUAJE LLANO: lo que lee quien NO ha estado en estas conversaciones ──────────
 #
 # El criterio de aceptacion de la primera pantalla ya decia «alguien que no haya estado

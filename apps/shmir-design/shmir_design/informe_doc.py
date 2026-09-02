@@ -28,7 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .errors import ShmirDesignError
-from .specificity import WHY_NOT_MORE_THAN_ONE
+from .specificity import WHY_LENGTH_AND_NOT_MISMATCHES, WHY_NOT_MORE_THAN_ONE
 
 #: Los dos grados de completitud. No son dos documentos.
 STATES = ("PARCIAL", "COMPLETO")
@@ -219,14 +219,19 @@ RELATIVE_CRITERION = {
     # entero contra su propia diana (errata nº 56). Se escribe entero, con el supuesto
     # que se quito de en medio.
     "especificidad": (
-        "Un acierto cuenta como GRAVE si tiene 0 o 1 desapareamiento, va en ANTISENTIDO "
-        "—que es como una guía acierta contra un mRNA; `-outfmt 6` no trae columna de "
-        "hebra, así que la orientación es el signo de `sstart`→`send`— y su transcrito "
-        "NO es una de las variantes declaradas de la diana. Un solo acierto grave da "
-        "FAIL. Las variantes de la diana se declaran en `data/diana/variantes.toml` con "
-        "su procedencia, y una especie que no las declare NO recibe veredicto: sale "
-        "`NO_CIERRA`, nunca un PASS por una lista vacía. "
+        "Un acierto cuenta como GRAVE si alinea casi la sonda ENTERA —el mínimo se "
+        "deriva de la propia sonda, un extremo recortado— tiene 0 o 1 desapareamiento, y "
+        "su transcrito NO es una de las variantes declaradas de la diana. Un solo "
+        "acierto grave da FAIL. Las variantes de la diana se declaran en "
+        "`data/diana/variantes.toml` con su procedencia, y una especie que no las "
+        "declare NO recibe veredicto: sale `NO_CIERRA`, nunca un PASS por una lista "
+        "vacía. "
         + WHY_NOT_MORE_THAN_ONE
+        + " "
+        + WHY_LENGTH_AND_NOT_MISMATCHES
+        + " La ORIENTACIÓN no filtra: dice qué hebra es —la guía es antisentido a su "
+        "diana y la pasajera lleva su misma secuencia— y se usa como comprobación de "
+        "montaje, no como descarte."
     ),
     "empalme_sitios": (
         "Este frente NO tiene umbral ABSOLUTO, y no se puede inventar uno: SpliceAI se "

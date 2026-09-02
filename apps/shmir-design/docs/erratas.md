@@ -2551,3 +2551,93 @@ propia diana**, y hay nota aparte para los 2 desapareamientos, para los hits en 
 descartados y para el caso «ningún acierto contra la propia diana», que **no** es una buena
 noticia. Antes decía `FAIL` y un recuento: un fallo contra el propio blanco era
 indistinguible de uno real, y por eso costó un intercambio en vez de una mirada.
+
+## 57 — Un parcial de 13 nt no es un off-target, y la orientación no era un filtro
+
+**Reportado con el `.tsv` contado a mano (2026-09-02)**, un día después de la nº 56 y
+sobre el arreglo de la nº 56. Son **dos fallos independientes** en el mismo criterio, y
+cada uno tumba una hebra distinta.
+
+> De las 20 consultas, ninguna tiene un solo acierto fuerte fuera de Prnp. Los únicos
+> hits con ≥21 nt alineados y ≤1 desapareamiento son, en las 20, `NM_011170.3` y
+> `NM_001278256.1`. Todo lo demás son parciales de 10-16 nt.
+
+### 1. El `FAIL` de la tabla: `mismatches` no dice que el acierto sea perfecto
+
+Dice que es perfecto **en el segmento que alineó**. Con `blastn-short`, `word_size 7` y
+`evalue 1000` la corrida viene llena de parciales de 10-16 nt clavados, y **todos traen
+`mismatches = 0`**. El criterio miraba `mismatches` y **no miraba la longitud**, así que
+cada uno de esos entraba como acierto grave.
+
+Medido sobre la misma corrida, cambiando **sólo** la orientación del ruido:
+
+| parciales de 10-16 nt | veredicto |
+|---|---|
+| en sentido | `PASS` |
+| antisentido | `FAIL` |
+
+Un veredicto que depende de la orientación de un ruido que no debía contar en ningún
+caso. Ésa es la causa del `FAIL` de las diez filas de la tabla, que lee la consulta
+`…_guia`.
+
+**Por qué `filter_specificity` no lo tenía, compartiendo el criterio**: su escáner
+(`_scan_one`) casa ventanas de **exactamente `len(pattern)`**, así que todos sus hits son
+de longitud completa y la condición se cumplía sola. BLAST devuelve alineamientos
+**locales**. **Al mover el criterio de un sitio al otro no viajó el supuesto que lo
+sostenía** — que es la nº 56 otra vez, un piso más abajo, y por eso el mínimo ahora se
+**deriva de la sonda de cada consulta** en vez de escribirse: un `21` llevaría dentro «la
+sonda mide 22».
+
+### 2. La orientación: dos cantidades distintas con el mismo nombre
+
+> La orientación no es un filtro, es la firma de qué hebra es.
+
+Correcto, y el diagnóstico es más fino que «estaba mal»: **`ANTISENSE` no significa lo
+mismo en los dos sitios**.
+
+- En **`filter_specificity`** lo pone nuestro escáner: `ANTISENSE` = casó el complemento
+  inverso de la sonda, o sea **la sonda puede aparearse con ese transcrito**. Un hit
+  `SENSE` es un transcrito que contiene la sonda **tal cual**, con el que no puede
+  aparearse. Descartarlos ahí es **correcto**, está medido y no se toca.
+- En **`-outfmt 6`** el signo de `sstart`→`send` es la **hebra del sujeto tal como está
+  depositado**. Para una guía coincide con lo anterior; **para la pasajera, no**: la
+  pasajera lleva la misma secuencia que su blanco, así que acierta **en sentido**.
+
+Al copiar el descarte de un sitio al otro se tiraba **el acierto legítimo de la pasajera
+contra su propia diana**, y con él la exención de variantes. Medido sobre el código
+desplegado, con las cuentas del `.tsv`:
+
+| consulta | estado | ¿eximió la diana? | ¿dispara «ningún acierto contra su propia diana»? |
+|---|---|---|---|
+| guía | FAIL | **sí** | no |
+| pasajera | FAIL | **no** | **sí** |
+
+O sea: la predicción de que las diez estarían disparando esa nota es **cierta en las
+pasajeras y falsa en las guías** — y la tabla sólo pide la consulta `…_guia`
+(`presentation._store_state`), que es por lo que no se veía. Las dos mitades del
+diagnóstico eran correctas y apuntaban a filas distintas.
+
+### Lo que la orientación sí compra, que es más que descartar
+
+Un **invariante de montaje** (`specificity.EXPECTED_ORIENTATION`): guía → antisentido,
+pasajera → sentido, contra su **propia** diana. Un acierto con la orientación que esa
+hebra no puede dar no es un off-target: es que **guía y pasajera están intercambiadas**, o
+el FASTA de consulta se montó al revés. **No cambia el veredicto** —mezclarlo sería
+confundir «esta guía tiene off-targets» con «esta construcción está mal montada»— y no lo
+detecta ningún otro guardia.
+
+### Y el criterio ya no mira la orientación
+
+Cada llamador declara **qué puede probar** y le somete ese conjunto: `filter_specificity`
+sólo los apareables, porque en su escáner eso está medido; `BlastRun.verdict` **todos**,
+porque allí el signo del intervalo no es esa cantidad. El criterio en sí —longitud,
+desapareamientos, fuera de la diana declarada— vive en un solo sitio. Contar de más en la
+corrida de BLAST es la dirección segura: sobra por arriba, nunca por abajo.
+
+### Una consecuencia en el registro, no sólo en el código
+
+La longitud de cada sonda **viaja ahora con la corrida** (`BlastRun.query_lengths`, y en
+el `registro.jsonl`): un veredicto tiene que poder rederivarse de lo que el log guarda, y
+sin ese dato no se puede decir qué cuenta como alineamiento completo. Las corridas ya
+escritas no se quedan sin veredicto — se acota con el propio resultado, porque `qend`
+nunca pasa de la sonda, **y el motivo lo dice**, con la dirección del error posible.

@@ -3821,6 +3821,47 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     «ningún acierto contra la propia diana», que **no es una buena noticia**. Antes decía
     `FAIL` y un recuento: un fallo contra el propio blanco era indistinguible de uno real.
 
+- **UN PARCIAL DE 13 nt NO ES UN OFF-TARGET, Y LA ORIENTACIÓN NO ERA UN FILTRO
+  (2026-09-02)**, errata nº 57. Dos fallos independientes en el mismo criterio, un día
+  después de la nº 56 y sobre su arreglo, y cada uno tumba una hebra distinta.
+  - **`mismatches` NO dice que el acierto sea perfecto: dice que es perfecto EN EL
+    SEGMENTO QUE ALINEÓ.** Con `blastn-short`, `word_size 7` y `evalue 1000` la corrida
+    viene llena de parciales de 10-16 nt clavados, todos con `mismatches = 0`, y el
+    criterio miraba los desapareamientos y **no la longitud**. Medido cambiando **sólo**
+    la orientación del ruido: parciales en sentido → `PASS`, antisentido → `FAIL`. Ésa es
+    la causa del FAIL de la tabla, que pide la consulta `…_guia`.
+    - **Por qué `filter_specificity` no lo tenía**, compartiendo el criterio: su escáner
+      casa ventanas de **exactamente `len(pattern)`**, así que todos sus hits son de
+      longitud completa y la condición se cumplía sola; BLAST devuelve alineamientos
+      **locales**. **Al mover el criterio no viajó el supuesto que lo sostenía.**
+    - El mínimo **se DERIVA de la sonda de cada consulta** (`ALLOWED_TRUNCATION`, un
+      extremo recortado). Un `21` escrito llevaría dentro «la sonda mide 22», que es la
+      errata nº 56 exacta.
+  - **`ANTISENSE` NO SIGNIFICA LO MISMO EN LOS DOS SITIOS**, y ahí estaba el segundo
+    fallo. En `filter_specificity` lo pone nuestro escáner y quiere decir **«la sonda
+    puede aparearse con este transcrito»** —un hit en sentido es un transcrito que
+    contiene la sonda tal cual, y descartarlo **es correcto y no se toca**—. En
+    `-outfmt 6` el signo de `sstart`→`send` es la **hebra del sujeto tal como está
+    depositado**: para una guía coincide, **para la pasajera no**, porque la pasajera
+    lleva la misma secuencia que su blanco y acierta **en sentido**. Copiar el descarte
+    de un sitio al otro tiraba **el acierto legítimo de la pasajera contra su propia
+    diana**, y con él la exención.
+  - **LO QUE LA ORIENTACIÓN SÍ COMPRA es un INVARIANTE DE MONTAJE**
+    (`specificity.EXPECTED_ORIENTATION`): guía → antisentido, pasajera → sentido, contra
+    su **propia** diana. Con la orientación que esa hebra no puede dar, lo que hay es
+    **guía y pasajera intercambiadas** o el FASTA montado al revés — y eso no lo ve
+    ningún otro guardia. **No cambia el veredicto**: mezclarlo confundiría «esta guía
+    tiene off-targets» con «esta construcción está mal montada».
+  - **EL CRITERIO YA NO MIRA LA ORIENTACIÓN.** Cada llamador declara **qué puede probar**
+    y le somete ese conjunto: `filter_specificity` sólo los apareables (medido en su
+    escáner), `verdict` **todos**, porque allí el signo no es esa cantidad. Contar de más
+    en la corrida de BLAST es la dirección segura — sobra por arriba, nunca por abajo.
+  - **Y LA SONDA VIAJA CON LA CORRIDA** (`BlastRun.query_lengths`, también en el
+    `registro.jsonl`): un veredicto tiene que poder rederivarse de lo que el log guarda.
+    Las corridas ya escritas no se quedan sin veredicto —se acota con el propio
+    resultado, porque `qend` nunca pasa de la sonda— **y el motivo lo dice**, con la
+    dirección del error posible.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

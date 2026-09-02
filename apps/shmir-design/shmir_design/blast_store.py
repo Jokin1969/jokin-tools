@@ -80,6 +80,10 @@ class BlastRun:
     raw: str
     hits: tuple[blast.BlastHit, ...]
     query_names: tuple[str, ...] = ()
+    #: `(nombre, longitud)` de cada sonda del FASTA de consulta. De aqui sale cuanto
+    #: tiene que alinear un acierto para contar, y por eso viaja CON la corrida: un
+    #: veredicto tiene que poder rederivarse de lo que el log guarda (errata nº 57).
+    query_lengths: tuple[tuple[str, int], ...] = ()
 
     @classmethod
     def create(
@@ -107,6 +111,9 @@ class BlastRun:
             result_md5=result_fingerprint(raw),
             params=params, database=database, raw=str(raw),
             hits=blast.parse_outfmt6(raw), query_names=query.names,
+            query_lengths=tuple(
+                (nombre, len(secuencia)) for nombre, secuencia in query.records
+            ),
         )
 
     @property
@@ -145,8 +152,10 @@ class BlastRun:
                     f"volver a empezar."
                 ),
             )
+        from .presentation import strand_of  # noqa: PLC0415
         from .specificity import (  # noqa: PLC0415
-            NO_TARGET_HIT_NOTE, judge_hits, target_accessions,
+            ALLOWED_TRUNCATION, EXPECTED_ORIENTATION, NO_TARGET_HIT_NOTE,
+            WRONG_ORIENTATION_NOTE, judge_hits, target_accessions,
         )
 
         hits = self.hits if query_name is None else self.hits_for(query_name)
@@ -169,7 +178,42 @@ class BlastRun:
                     f"{exc}"
                 ),
             )
-        fallo = judge_hits(hits, target_accessions=diana)
+        # EL MINIMO SE DERIVA DE LA SONDA DE CADA CONSULTA, no se escribe: un `21` seria
+        # el `> 1` otra vez, un numero con «la sonda mide 22» metido dentro. Con varias
+        # consultas manda la mas corta, que no puede descartar ninguna entera.
+        sondas = dict(self.query_lengths)
+        implicadas = [sondas[h.query] for h in hits if h.query in sondas]
+        # CORRIDAS ANTERIORES A QUE SE REGISTRARA LA SONDA. No se les niega el veredicto
+        # —estan guardadas y son buenas— sino que se acota la longitud con el propio
+        # resultado: `qend` nunca pasa de la sonda, y el acierto contra la diana la
+        # recorre entera, asi que el maximo la clava. Si ningun acierto llegara al
+        # extremo, la cota sale CORTA y el error va hacia CONTAR DE MAS, que es la
+        # direccion segura. Se dice en el motivo, no se calla.
+        acotada = not implicadas
+        if acotada:
+            implicadas = [max(h.qend for h in hits)] if hits else []
+        if not implicadas:
+            return FilterResult(
+                name=FILTER_NAME,
+                state=FilterState.NO_CIERRA,
+                reason=(
+                    f"Hay corrida ({self.run_id}, {self.date}) y NO PUEDE dar veredicto: "
+                    f"no hay ningún acierto del que derivar cuánto tiene que alinear uno "
+                    f"para contar, y ese mínimo no se escribe a mano."
+                ),
+            )
+        # LA ORIENTACION ES UNA COMPROBACION, NO UN DESCARTE (errata nº 57). La hebra se
+        # le PIDE a quien monta el nombre de la consulta.
+        esperada = (
+            EXPECTED_ORIENTATION[strand_of(query_name)]
+            if query_name is not None else None
+        )
+        fallo = judge_hits(
+            hits,
+            target_accessions=diana,
+            min_aligned=min(implicadas) - ALLOWED_TRUNCATION,
+            expected_antisense=esperada,
+        )
         # EL MOTIVO DICE CONTRA QUE ACERTO. Antes decia `FAIL` y un recuento, asi que un
         # fallo contra la propia diana era indistinguible de uno real — y se vio en un
         # intercambio en vez de en dos segundos.
@@ -188,10 +232,22 @@ class BlastRun:
             f"diana: " + "; ".join(h.describe() for h in fallo.leves) + "."
             if fallo.leves else ""
         )
+        parciales = (
+            f" Descartados {fallo.parciales} acierto(s) PARCIALES (alinean menos de "
+            f"{min(implicadas) - ALLOWED_TRUNCATION} nt de la sonda): un parcial clavado "
+            f"trae `mismatches` 0 y no es un off-target."
+            + (
+                " La longitud de la sonda no está registrada en esta corrida —es "
+                "anterior— así que se acotó con el propio resultado; el error posible "
+                "va hacia contar de más."
+                if acotada else ""
+            )
+            if fallo.parciales else ""
+        )
         orientacion = (
-            f" Descartados {fallo.sentido} hit(s) en orientación SENTIDO (misma hebra "
-            f"que la sonda): no son off-targets."
-            if fallo.sentido else ""
+            f" {WRONG_ORIENTATION_NOTE} Acierto(s) afectado(s): "
+            + "; ".join(h.describe() for h in fallo.orientacion_rara) + "."
+            if fallo.orientacion_rara else ""
         )
         sin_diana = f" {NO_TARGET_HIT_NOTE}" if fallo.sin_diana else ""
         return FilterResult(
@@ -201,7 +257,7 @@ class BlastRun:
                 f"Corrida {self.run_id} ({self.date}, {self.uploaded_by}) sobre "
                 f"{self.database.describe()} Parámetros estándar. "
                 f"{len(hits)} hit(s) en total."
-                f"{detalle}{exentos}{leves}{orientacion}{sin_diana}"
+                f"{detalle}{exentos}{leves}{parciales}{orientacion}{sin_diana}"
                 f" OJO: esto NO cubre los off-targets mediados por seed — son un frente "
                 f"aparte y ningún alineador los ve."
             ),

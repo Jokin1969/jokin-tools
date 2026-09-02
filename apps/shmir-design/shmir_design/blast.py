@@ -471,6 +471,16 @@ class BlastHit:
         return self.subject
 
     @property
+    def aligned(self) -> int:
+        """Cuantos nucleotidos ALINEARON — la columna `length` de `-outfmt 6`.
+
+        Es la que faltaba: BLAST devuelve alineamientos LOCALES, asi que un parcial de
+        13 nt de una sonda de 22 llega con `mismatches = 0` y sin esto entraba como
+        acierto grave (errata nº 57).
+        """
+        return self.length
+
+    @property
     def antisense(self) -> bool:
         """La sonda alinea en la hebra CONTRARIA del transcrito. Se DERIVA del acierto.
 
