@@ -552,13 +552,14 @@
 
 ── FILTROS QUE NO SE EJECUTARON ──
   especificidad: NOT_RUN en 2170 de 2170 ventanas
+  seed: NOT_RUN en 2167 de 2170 ventanas
   seed_colision: NOT_RUN en 2167 de 2170 ventanas
   transgen: NOT_RUN en 1790 de 2170 ventanas
   GC: NOT_RUN en 66 de 2170 ventanas
   asimetria: NOT_RUN en 66 de 2170 ventanas
   homopolimero: NOT_RUN en 66 de 2170 ventanas
   NOT_RUN no es PASS. Mientras haya filtros sin correr, la selección es PROVISIONAL y ningún candidato está aprobado: su veredicto es INCOMPLETE.
-  EL PANEL ES PROVISIONAL EN 6 FRENTE(S): empalme_intron, empalme_sitios, especificidad, offtarget_seed, seed_colision, transgen.
+  EL PANEL ES PROVISIONAL EN 7 FRENTE(S): empalme_intron, empalme_sitios, especificidad, offtarget_seed, seed, seed_colision, transgen.
     offtarget_seed: NOT_RUN: falta `transcriptoma_3utr.fa`, así que los sitios de seed no
     se han contado. NOT_RUN no es PASS. EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON
     BLAST, y no es una preferencia: 7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, así
@@ -605,7 +606,7 @@
     dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, así que
     estas cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos
     amplicones sigue en pie y puede MEJORARLAS.
-  NO SE PIDE OLIGO hasta que los seis tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
+  NO SE PIDE OLIGO hasta que los siete tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
   y otro necesite una base entera no cambia nada: los dos bloquean igual, y llamar «único
   bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin correr.
   Y uno de ellos NO SE CIERRA CON NINGÚN FICHERO: el empalme del intrón solo se cierra en el

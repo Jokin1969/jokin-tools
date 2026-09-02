@@ -284,6 +284,16 @@ class BaseRate:
     def fraction(self) -> float:
         return self.distinct / self.space
 
+    @property
+    def short(self) -> str:
+        """La tasa base en UNA CELDA, para que viaje con la fila y con el CSV.
+
+        `describe()` es el parrafo que se pinta encima de la tabla; ese se lee una vez y
+        no viaja en la descarga. La fila se lee siempre, y sin la tasa al lado un LIMPIO
+        no dice si es notable o es lo que predice el azar.
+        """
+        return f"{self.fraction * 100:.0f}% ({self.distinct}/{self.space}, {self.window})"
+
     def describe(self) -> str:
         return (
             f"TASA BASE: {self.matures} maduro(s) "

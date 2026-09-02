@@ -67,6 +67,21 @@ class FilterState(StrEnum):
     #: fichero que ya no existe. Se DERIVA comparando md5 (`insumos.obsoleta`), no se
     #: anota a mano. Ver `OBSOLETO_NOTE`.
     OBSOLETO = "OBSOLETO"
+    #: LA PREGUNTA SE HACE, Y LA CONTESTA OTRA COLUMNA. No es `NO_APLICA` —esa dice
+    #: «a este candidato no se le hace esta pregunta», y aqui SI se le hace— ni
+    #: `NOT_RUN`, que diria que hay una laguna cuando lo que hay es una respuesta al
+    #: lado. Pasa cuando dos implementaciones contestan lo mismo con distinta
+    #: profundidad y la peor se retira: el filtro `seed` de la lista de arranque cede
+    #: ante `seed_colision` en cuanto hay `mature.fa`.
+    #:
+    #: DOS CONDICIONES, y sin ellas este estado seria un agujero (decididas por el
+    #: responsable del proyecto, 2026-09-02):
+    #:   · el motivo NOMBRA al sustituto — si no, «sustituido» manda a buscar a ciegas;
+    #:   · un SUSTITUIDO cuyo sustituto este en `NOT_RUN` NO PUEDE EXISTIR. Se degrada a
+    #:     `NOT_RUN`, porque si no la pregunta se pierde en el hueco entre las dos
+    #:     columnas y las dos parecen resueltas.
+    #: Lo comprueba `filters.check_substitution`, y no se anota a mano.
+    SUSTITUIDO = "SUSTITUIDO"
     #: LA CORRIDA SE HIZO Y NO CIERRA EL FRENTE. No es `NOT_RUN` —hay resultado y se
     #: puede leer— y no es `PASS`: una corrida `-remote`, o con un parametro cambiado, o
     #: cuyo FASTA de consulta no es el que emitio la app, no defiende un veredicto.
@@ -144,9 +159,42 @@ def overall_verdict(results: list[FilterResult]) -> Verdict:
     ):
         return Verdict.INCOMPLETE
     if not any(r.state is FilterState.PASS for r in results):
-        # Todo NO_APLICA: no se llego a preguntar nada, asi que no hay nada aprobado.
+        # Todo NO_APLICA (o SUSTITUIDO): no se llego a preguntar nada AQUI, asi que no
+        # hay nada aprobado. Un SUSTITUIDO no aporta un PASS propio — el PASS lo pone su
+        # sustituto, que esta en su columna.
         return Verdict.INCOMPLETE
     return Verdict.PASS
+
+
+def check_substitution(
+    sustituido: "FilterResult", *, sustituto: "FilterResult | None"
+) -> "FilterResult":
+    """Aplica las DOS condiciones de `SUSTITUIDO`. Nunca se anota a mano.
+
+    Devuelve el resultado tal cual si el sustituto puede sostenerlo, y lo DEGRADA a
+    `NOT_RUN` si no — con el motivo, que es lo que impide que la pregunta se pierda en el
+    hueco entre las dos columnas.
+    """
+    if sustituido.state is not FilterState.SUSTITUIDO:
+        return sustituido
+    if sustituto is None or sustituto.state is FilterState.NOT_RUN:
+        falta = "no existe" if sustituto is None else f"`{sustituto.name}` está NOT_RUN"
+        return FilterResult(
+            name=sustituido.name,
+            state=FilterState.NOT_RUN,
+            reason=(
+                f"Se iba a dar por SUSTITUIDO y su sustituto {falta}, así que la "
+                f"pregunta se quedaría sin contestar en las DOS columnas pareciendo "
+                f"resuelta en ambas. Se degrada a NOT_RUN: hay laguna y bloquea."
+            ),
+        )
+    if f"`{sustituto.name}`" not in sustituido.reason:
+        raise ValueError(
+            f"El motivo de un SUSTITUIDO tiene que NOMBRAR al sustituto, y el de "
+            f"{sustituido.name!r} no nombra a `{sustituto.name}`: «sustituido» a secas "
+            f"manda a buscar a ciegas. Se aborta."
+        )
+    return sustituido
 
 
 def biophysical_ok(results: list[FilterResult]) -> bool:
@@ -161,6 +209,8 @@ def biophysical_ok(results: list[FilterResult]) -> bool:
     superar una prueba que no se le hace. En una corrida solo-3'UTR no aparece ni un
     NO_APLICA, asi que el contador de referencia del proyecto no cambia de valor.
     """
-    aceptables = (FilterState.PASS, FilterState.NO_APLICA)
+    # `SUSTITUIDO` no estorba por la misma razon que `NO_APLICA`: la pregunta la
+    # contesta otra columna, y su `NOT_RUN` —si lo hubiera— ya bloquea por su cuenta.
+    aceptables = (FilterState.PASS, FilterState.NO_APLICA, FilterState.SUSTITUIDO)
     estados = {r.name: r.state for r in results}
     return all(estados.get(name) in aceptables for name in BIOPHYSICAL_FILTERS)

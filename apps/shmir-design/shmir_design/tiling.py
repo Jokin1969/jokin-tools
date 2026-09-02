@@ -33,7 +33,14 @@ from .anatomy import Anatomy, Region, RegionSource, TileRange
 from .coords import Frame, frame_of, label
 from .apa import ApaAssessment, ApaSites, MeasuredApa, apa_assessment
 from .errors import ShmirDesignError
-from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
+from .filters import (
+    FilterResult,
+    FilterState,
+    Verdict,
+    biophysical_ok,
+    check_substitution,
+    overall_verdict,
+)
 from .masking import RepeatMask, apply_mask, filter_polymorphic, filter_repeats
 from .hard_filters import (
     DEFAULT_THRESHOLDS,
@@ -106,24 +113,35 @@ _TRANSGEN_SIN_BASE = FilterResult(
 
 
 def _seed_bootstrap(
-    guide: str, seeds: SeedSet | None, mature: MatureSet | None
+    guide: str, seeds: SeedSet | None, mature: MatureSet | None,
+    *, sustituto: FilterResult | None = None,
 ) -> FilterResult:
-    """El filtro `seed` de la lista de arranque, o NO_APLICA si esta el de verdad.
+    """El filtro `seed` de la lista de arranque, o SUSTITUIDO si esta el de verdad.
 
     `seed` y `seed_colision` responden a la MISMA pregunta con distinta profundidad. Si
     hay tabla de maduros de miRBase cargada, dejar los dos daria dos columnas que pueden
     contradecirse, y la peor de las dos —la de doce seeds— parece igual de autorizada.
     Asi que cuando esta el filtro real, este se retira diciendolo.
+
+    SALIA `NO_APLICA` Y ERA EL ESTADO EQUIVOCADO (2026-09-02): `NO_APLICA` dice «a este
+    candidato NO se le hace esta pregunta», y aqui si se le hace — la contesta la columna
+    de al lado. `SUSTITUIDO` lo dice, NOMBRA al sustituto, y `check_substitution` impide
+    que exista uno cuyo sustituto este en `NOT_RUN`: ahi la pregunta se perderia entre
+    las dos columnas pareciendo resuelta en las dos.
     """
     if mature is not None:
-        return FilterResult(
-            name="seed",
-            state=FilterState.NO_APLICA,
-            reason=(
-                "Sustituido por `seed_colision`, que usa la tabla de maduros completa y "
-                "distingue colisión abundante (FAIL) de colisión anotada (aviso). "
-                "NO_APLICA no es PASS: mira la columna seed_colision."
+        return check_substitution(
+            FilterResult(
+                name="seed",
+                state=FilterState.SUSTITUIDO,
+                reason=(
+                    "La contesta `seed_colision`, que usa la tabla de maduros completa "
+                    "y distingue colisión abundante (FAIL) de colisión anotada (aviso). "
+                    "SUSTITUIDO no es PASS ni es «no aplica»: la pregunta SÍ se hace y "
+                    "la respuesta está en la columna seed_colision."
+                ),
             ),
+            sustituto=sustituto,
         )
     return filter_seed(guide, seeds)
 
@@ -752,7 +770,9 @@ def tile_utr(
                 window=anotada.window,
                 evaluation=evaluation,
                 zona_prohibida=zona_prohibida,
-                seed=_seed_bootstrap(evaluation.guide, seeds, mature),
+                seed=_seed_bootstrap(
+                    evaluation.guide, seeds, mature, sustituto=colision,
+                ),
                 repeticiones=filter_repeats(start, anotada.window.end, mask),
                 repeticion_polimorfica=filter_polymorphic(
                     start, anotada.window.end, mask

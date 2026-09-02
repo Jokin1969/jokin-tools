@@ -2778,3 +2778,68 @@ Donde no se cuenta sale **`NOT_RUN` con el motivo**, nunca un cero ni una celda 
 se lea como cero: no haber contado y contar cero son cosas distintas, y ésa es la regla 3
 desde el primer día. Donde sí se cuenta, **el número es el mismo** — misma función, mismas
 entradas—, y hay test de que coincide con el de la pasada sin acotar.
+
+## 60 — `NO_APLICA` escondía cuál de los tres era, y la tabla de almacenes tenía una fila
+
+**Reportado el 2026-09-02** con cuatro cosas a la vez. Las tres que se cierran aquí
+comparten forma: **una declaración incompleta que no se lee como incompleta**.
+
+### `seed` salía `NO_APLICA`, y la pregunta se perdía entre dos columnas
+
+`NO_APLICA` es «esta pregunta no se le hace a este candidato», y a una guía de 22 nt con
+`mature.fa` cargado **sí se le hace** — la contesta `seed_colision`. El retiro del filtro
+de arranque era deliberado y estaba escrito; el **estado** era el equivocado.
+
+Entra `FilterState.SUSTITUIDO`, con las dos condiciones que lo hacen honesto:
+
+1. **el motivo NOMBRA al sustituto** — «sustituido» a secas manda a buscar a ciegas;
+2. **un `SUSTITUIDO` cuyo sustituto esté en `NOT_RUN` no puede existir**: se degrada a
+   `NOT_RUN` con el motivo. Sin eso, la pregunta se pierde en el hueco entre las dos
+   columnas y **las dos parecen resueltas**.
+
+**Y ese hueco no era hipotético: era el estado real.** `seed_colision` sale `NOT_RUN`
+mientras falte la lista ampliada de abundancia, así que la pareja era
+`seed: NO_APLICA` + `seed_colision: NOT_RUN` — nada bloqueaba y nadie había contestado.
+El diff del golden lo enseña entero: `seed` **aparece** ahora entre los filtros sin
+ejecutar y los frentes provisionales pasan de **6 a 7**.
+
+Lo aplica `filters.check_substitution`, nunca se anota a mano.
+
+### `offtarget_seed` no tenía columna: la tabla de almacenes tenía UNA fila
+
+`load_stores` reconstruye **cuatro** almacenes y `STORE_FOR_FRONT` declaraba **uno**. Con
+el transcriptoma ya en el depósito, su frente no llegaba a ninguna de las cuatro tablas —
+y `verdicts_changed` decía 0 en tres de los cuatro modales porque no había columna a la
+que llevar el veredicto.
+
+> Una tabla de declaración con una sola fila parece configurada. Es el mismo disfraz que
+> `UNDECIDED_FILTERS` con un miembro.
+
+`tests/test_almacenes_declarados.py` lo cierra por el modo de fallo y no por el caso:
+**todo almacén llega a una columna o declara por qué no**, con el conjunto de almacenes
+**pedido** a `presentation.STORES` en vez de escrito en el test — que sería preguntar por
+la clave que uno mismo ha puesto (principio nº 25). El único sin columna es el de
+`empalme_sitios`, y su motivo está declarado: su unidad es el par candidato × intrón, así
+que una columna por candidato colapsaría justo la comparación entre intrones para la que
+existe.
+
+### Dos columnas por hebra, y no es formato
+
+`offtarget_seed` y `seed_colision` dan ahora `<frente>:guia` y `<frente>:pasajera`. La
+ficha ya las partía y la tabla no: **la pasajera es el eje donde menos datos hay**, y
+fundirla con la guía la hace invisible — el estado de la guía pasaría por el de las dos.
+
+### La tasa base, en la fila
+
+Estaba sólo en el aviso de encima de la tabla. Ése se lee una vez; **la fila se lee
+siempre**, y quien se lleva el CSV se lleva las filas y no el aviso. Sin ella no se sabe
+si un `LIMPIO` es notable o es lo que predice el azar — que es lo que este proyecto tiene
+decidido que no puede faltar «también en los LIMPIO, para no dar una falsa calma».
+
+### Lo que NO se reproduce, y no se le pone causa
+
+El heptámero de **6 nt** del CSV. Los **tres** productores de esa columna —el resultado
+guardado, la fila de la tabla y el bloque exportable— dan **7 nt**, medido sobre el panel
+real con `mature.fa`: `AATGCGA`, `TTAGTAA`, `TTTCCCA`, `AGAAGTA`. La comparación es 2-8
+sobre un espacio de 16.384 con tasa base del 10 %, así que **los `LIMPIO` valen** — es la
+mitad que no invalida el resultado. Dónde se pierde el carácter queda **abierto**.

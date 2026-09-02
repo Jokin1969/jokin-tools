@@ -1211,6 +1211,13 @@ def seed_result_rows(scan):
             "hebra": r.strand,
             "heptamero": r.heptamer,
             "ventana": r.window,
+            # LA TASA BASE, EN LA FILA. Estaba solo en el aviso de encima de la tabla, y
+            # ese se lee UNA vez mientras la fila se lee siempre — y peor: quien se lleva
+            # el CSV se lleva las filas y no el aviso. Sin ella no se sabe si un LIMPIO
+            # es notable o es lo que predice el azar, que es justo lo que este proyecto
+            # tiene decidido que no puede faltar «tambien en los LIMPIO, para no dar una
+            # falsa calma».
+            "tasa_base": scan.base_rate.short,
             "nivel": r.level,
             "miR-30": "SI" if r.mir30 else "",
             "colisiones": ", ".join(c.name for c in r.collisions),
@@ -1690,17 +1697,50 @@ def front_columns(tiling, selection) -> list[str]:
     """Los frentes que van a ser columna. Se DERIVAN, no se listan a mano."""
     from .selection import blocking_fronts
 
-    nombres = [f.name for f in blocking_fronts(tiling, selection)]
-    # `seed_colision` y `offtarget_seed` son por HEBRA en la ficha, pero en la tabla de
-    # sitios la fila es el sitio: aqui va el estado del filtro de la ventana, que es lo
-    # que la tabla puede decir. La ficha sigue siendo quien parte las dos hebras.
+    nombres: list[str] = []
+    for frente in blocking_fronts(tiling, selection):
+        declarado = STORE_FOR_FRONT.get(frente.name)
+        if declarado and declarado["por_hebra"]:
+            # DOS COLUMNAS, y no es formato: la pasajera es el eje donde menos datos hay
+            # y fundirla con la guia la hace invisible. La ficha ya las partia; la tabla
+            # decia «aqui la fila es el sitio» y con eso perdia una de las dos.
+            nombres.extend(f"{frente.name}:{hebra}" for hebra in STRANDS)
+        else:
+            nombres.append(frente.name)
     return sorted(dict.fromkeys(nombres))
 
 
-#: Que almacen contesta a que columna. Se declara —no se adivina por el nombre— porque
-#: una corrida de BLAST cierra `especificidad` y NADA MAS: si se propagara a otra
-#: columna, estaria contagiando un veredicto que nadie ha ganado.
-STORE_FOR_FRONT = {"especificidad": "blast"}
+#: Que almacen contesta a que columna, y si su veredicto es POR HEBRA. Se declara —no se
+#: adivina por el nombre— porque una corrida de BLAST cierra `especificidad` y NADA MAS:
+#: si se propagara a otra columna, estaria contagiando un veredicto que nadie ha ganado.
+#:
+#: TENIA UNA SOLA FILA Y ESO PARECIA CONFIGURADO (2026-09-02). Los cuatro almacenes se
+#: cargaban y solo BLAST llegaba a una columna, asi que `offtarget_seed` no tenia columna
+#: con el transcriptoma delante y `verdicts_changed` decia 0 en tres de los cuatro
+#: modales. Es el mismo disfraz que `UNDECIDED_FILTERS` con un miembro: una tabla de
+#: declaracion con una fila no se lee como incompleta, se lee como decidida.
+#: `tests/test_almacenes_declarados.py` lo cierra: todo frente con almacen tiene su fila.
+#:
+#: `por_hebra` NO es formato. La pasajera es el eje donde menos datos hay, y fundirla con
+#: la guia en una columna la haria invisible — la ficha ya las parte y la tabla no lo
+#: hacia. Un frente por hebra da DOS columnas, `<frente>:guia` y `<frente>:pasajera`.
+STORE_FOR_FRONT = {
+    "especificidad": {"almacen": "blast", "por_hebra": False},
+    "seed_colision": {"almacen": "seed", "por_hebra": True},
+    "offtarget_seed": {"almacen": "offtarget", "por_hebra": True},
+}
+
+#: Frentes con almacen que NO caben aqui, con el motivo. `empalme_sitios` se consulta por
+#: PAR candidato x intron —`splice_store.verdict_for(start, intron)`—, que no es la clave
+#: de consulta que usan los otros tres; darle una columna por candidato colapsaria justo
+#: lo que ese frente existe para comparar. Se declara para que el test no lo eche de
+#: menos en silencio, que es lo que dejo a `offtarget_seed` sin columna.
+FRONTS_WITHOUT_COLUMN = {
+    "empalme_sitios": (
+        "su unidad es el par candidato x intrón, no el candidato: una columna por "
+        "candidato colapsaria la comparación entre intrones, que es para lo que existe"
+    ),
+}
 
 
 #: LO QUE FALTABA PARA QUE LA TABLA DE 270 FILAS SE PUEDA LEER (errata nº 55). «No se le
@@ -1731,13 +1771,20 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
     `None` significa «los almacenes no dicen nada de esto», que no es lo mismo que
     `NOT_RUN`: quien decide entonces es el filtro de la ventana, como siempre.
     """
-    clave = STORE_FOR_FRONT.get(front)
-    if not clave or not stores:
+    # Una columna por hebra llega como `<frente>:guia`. La hebra se saca del NOMBRE de la
+    # columna, que es quien la lleva; el frente es lo de delante.
+    nombre, _, hebra = front.partition(":")
+    declarado = STORE_FOR_FRONT.get(nombre)
+    if not declarado or not stores:
         return None
-    almacen = stores.get(clave)
+    if declarado["por_hebra"] and hebra not in STRANDS:
+        # Un frente por hebra SIN hebra en la columna no se contesta: fundir las dos
+        # seria dar por buena la de la pasajera con el estado de la guia.
+        return None
+    almacen = stores.get(declarado["almacen"])
     if almacen is None:
         return None
-    consulta = query_name(species, start, "guia")
+    consulta = query_name(species, start, hebra if declarado["por_hebra"] else "guia")
     # SIN CORRIDA PARA ESTE CANDIDATO, el almacen no dice nada — y `None` no es
     # `NOT_RUN`. Devolver su `NOT_RUN` lo hacia PISAR al filtro de la ventana: hoy no se
     # nota porque sin base cargada ese filtro tambien sale `NOT_RUN`, pero en cuanto
@@ -3594,8 +3641,15 @@ def project_open(base, slug: str, *, expect_md5: str | None = None):
     return almacen
 
 
+#: LOS ALMACENES QUE HAY, en un solo sitio. `load_stores` los construye de aqui y
+#: `STORE_FOR_FRONT` se cruza contra esto: asi un quinto almacen no puede entrar sin que
+#: el test note que no llega a ninguna columna — que es como `offtarget_seed` se quedo
+#: sin la suya.
+STORES = ("blast", "seed", "offtarget", "splice")
+
+
 def load_stores(store) -> dict[str, object]:
-    """Los CUATRO almacenes reconstruidos desde el log. Un solo sitio, no cuatro."""
+    """Los almacenes de `STORES`, reconstruidos desde el log. Un solo sitio, no cuatro."""
     from .store import (
         load_blast_store,
         load_offtarget_store,
@@ -3603,12 +3657,19 @@ def load_stores(store) -> dict[str, object]:
         load_splice_store,
     )
 
-    return {
-        "blast": load_blast_store(store),
-        "seed": load_seed_store(store),
-        "offtarget": load_offtarget_store(store),
-        "splice": load_splice_store(store),
+    cargadores = {
+        "blast": load_blast_store,
+        "seed": load_seed_store,
+        "offtarget": load_offtarget_store,
+        "splice": load_splice_store,
     }
+    if set(cargadores) != set(STORES):
+        raise ShmirDesignError(
+            f"`STORES` dice {sorted(STORES)} y aquí hay cargador para "
+            f"{sorted(cargadores)}. Se aborta: un almacen que se carga sin estar "
+            f"declarado no pasa por el cruce que le exige una columna."
+        )
+    return {nombre: cargadores[nombre](store) for nombre in STORES}
 
 
 def save_blast_run(store, run):
