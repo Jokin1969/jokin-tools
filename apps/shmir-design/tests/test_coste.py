@@ -31,7 +31,9 @@ def _base():
 
 def _utrs():
     return Utr3Set(
-        records={"t1": SONDA}, source="sonda", version="v", checksum="0" * 32
+        # Pares, no diccionario: un identificador se repite legitimamente en este
+        # fichero (errata nº 58).
+        records=(("t1", SONDA),), source="sonda", version="v", checksum="0" * 32
     )
 
 

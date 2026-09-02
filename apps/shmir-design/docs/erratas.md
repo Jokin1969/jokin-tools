@@ -2662,3 +2662,63 @@ Había uno que la afirmaba como final de intervalo, `(10, 12)` para tres ventana
 nt. Código y test compartían la confusión, así que **ninguno de los dos podía delatarla**
 — es el principio nº 22 en su forma más limpia, y la razón de que un homónimo así
 sobreviva años: no hay nada que falle.
+
+## 58 — El fichero que la propia app manda descargar no podía entrar
+
+**Reportado el 2026-09-02** con el mensaje literal de la app:
+
+> RECHAZADO — `/data/shmir/reference/.transcriptoma_3utr.fa.subiendo`: el identificador
+> `'mm39_ncbiRefSeqCurated_NR_189043.1_0'` aparece dos veces; se aborta en vez de quedarse
+> con una de las dos secuencias.
+
+**No era el tamaño.** Los 84 MB suben bien: lo que rechaza el fichero es el validador, y
+lo rechaza por tener **exactamente la forma que la ficha de obtención manda conseguir**.
+
+La ruta que la propia app escribe es UCSC Table Browser → **«3' UTR Exons»**, que da **un
+registro por exón**: un 3'UTR troceado sale varias veces con el mismo accession y un
+sufijo `_0`, `_1`. Y la ficha dice además, con esas palabras, que **no** se filtren las
+isoformas a mano.
+
+### Estaba decidido, y arreglado en el lado que no corre
+
+`offtarget.parse_fasta_pairs` lleva la decisión escrita en su propio docstring:
+
+> No se reutiliza `seed_load.parse_fasta_records` a propósito: aquel ABORTA con un
+> identificador repetido, y aquí repetirse es un caso legítimo y esperado […] Abortar
+> escondería justo lo que hay que auditar.
+
+El camino vivo —el panel de subida (`deposito._v_transcriptoma`) y `resources`— usaba
+**el otro**. Es la familia de las erratas nº 56 y nº 57 por tercera vez en dos días: dos
+implementaciones de lo mismo, y la del camino que se ejecuta es la equivocada.
+
+**Y `parse_fasta_records` tenía UN SOLO llamador**: precisamente el fichero cuya forma
+documentada lo viola. El guardia estricto no protegía a nadie más.
+
+### No bastaba con arreglar el panel
+
+`resources._transcriptoma` conecta el fichero con el **mismo** cargador. Aceptarlo sólo en
+la subida habría movido el fallo al diseño — y ahí es peor, porque el fichero ya figuraría
+como **presente** mientras su frente revienta al conectarlo. Los dos cuelgan ahora de un
+único parser.
+
+### Lo que el arreglo NO relaja
+
+El motivo del parser estricto era bueno: un diccionario se habría quedado con **una** de
+las dos secuencias y el conteo saldría corto **sin avisar**. Lo que estaba mal era la
+salida elegida. `Utr3Set.records` pasa a ser una secuencia de pares —no se pierde nada— y
+la procedencia **dice** cuántos identificadores se repiten y que por tanto hay **menos
+transcritos que entradas**, con el conteo por transcrito inflado. Un fichero sin
+repetidos no avisa de nada: hay control adversario de las dos mitades. Y cero entradas
+sigue abortando: un fichero vacío y un transcriptoma sin sitios dan el mismo cero y no
+son lo mismo.
+
+### Lo que queda ABIERTO, y va escrito porque no está comprobado
+
+En la misma sesión se reportó que **`aav_casete.fa` tampoco «entra»**. Eso **no está
+reproducido** y no se le pone causa. Lo que sí está medido, y descartado: su validador
+pasa contra el fichero real; `accept_upload` entero funciona con la fecha vacía tal como
+lo deja el formulario; la corrida de la página tarda **0,33 s**, así que no es que se
+rediseñe en cada rerun; y el límite de subida de Streamlit (200 MB) no se toca. La
+sospecha pendiente de confirmar es de interfaz: el widget se **llama** «Subir
+aav_casete.fa» y soltar el fichero ahí no sube nada — hay que rellenar dos campos y pulsar
+un segundo botón más abajo. Si se confirma, la etiqueta promete una acción que no hace.

@@ -37,7 +37,9 @@ SITIO_A1 = "TGCCTTA"
 
 def _utrs(**secuencias) -> Utr3Set:
     return Utr3Set(
-        records=dict(secuencias),
+        # PARES, no diccionario: «3' UTR Exons» da un registro POR EXON y un
+        # identificador se repite legitimamente (errata nº 58).
+        records=tuple(secuencias.items()),
         source="sonda",
         version="sonda",
         checksum="0" * 32,
@@ -194,7 +196,7 @@ class TestProcedencia(unittest.TestCase):
 
     def test_un_conjunto_vacio_aborta(self):
         with self.assertRaises(Exception):
-            Utr3Set(records={}, source="s", version="v", checksum="0" * 32)
+            Utr3Set(records=(), source="s", version="v", checksum="0" * 32)
 
 
 if __name__ == "__main__":

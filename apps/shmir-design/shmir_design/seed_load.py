@@ -108,11 +108,34 @@ class Utr3Set:
             )
 
     @property
+    def repeated(self) -> tuple[str, ...]:
+        """Identificadores que salen mas de una vez. NO es un fallo: es un dato.
+
+        «3\' UTR Exons» del Table Browser da un registro POR EXON, asi que un 3\'UTR
+        troceado aparece varias veces con el mismo accession. Se conservan todos —perder
+        uno dejaria el conteo corto sin avisar— y se avisa de que el numero de entradas
+        no es el numero de transcritos (errata nº 58).
+        """
+        vistos, repes = set(), []
+        for nombre, _ in self.records:
+            if nombre in vistos and nombre not in repes:
+                repes.append(nombre)
+            vistos.add(nombre)
+        return tuple(repes)
+
+    @property
     def provenance(self) -> str:
-        total = sum(len(s) for s in self.records.values())
+        total = sum(len(s) for _, s in self.records)
+        repes = self.repeated
+        aviso = (
+            f" — OJO: {len(repes)} identificador(es) repetido(s), así que hay MENOS "
+            f"transcritos que entradas y el conteo por transcrito sale inflado; es lo "
+            f"normal en «3'UTR Exons», que da un registro por exón"
+            if repes else ""
+        )
         return (
             f"{self.source}, versión {self.version}, checksum {self.checksum}, "
-            f"{len(self.records)} 3'UTR ({total} nt)"
+            f"{len(self.records)} 3'UTR ({total} nt){aviso}"
         )
 
 
@@ -211,7 +234,7 @@ def seed_load(
     ponderado = 0.0
     sin_dato: list[str] = []
 
-    for nombre, secuencia in utrs.records.items():
+    for nombre, secuencia in utrs.records:
         conteo = _count_in(secuencia, patterns)
         sitios = sum(conteo.values())
         if not sitios:
@@ -302,8 +325,15 @@ def load_utr3_set(
         texto = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ShmirDesignError(f"{path}: no es UTF-8 ({exc}); se aborta.") from exc
+    # UN SOLO PARSER, Y ES EL QUE CONSERVA LOS REPETIDOS (errata nº 58). El otro
+    # —`parse_fasta_records`— ABORTA con un identificador repetido, y repetirse es la
+    # forma NORMAL del fichero que la ficha de obtencion manda descargar. Ya existia
+    # `offtarget.parse_fasta_pairs` con esa decision escrita en su docstring; lo que
+    # faltaba es que la usara el camino vivo, que es este.
+    from .offtarget import parse_fasta_pairs  # noqa: PLC0415
+
     return Utr3Set(
-        records=parse_fasta_records(texto, source=str(path)),
+        records=parse_fasta_pairs(texto, source=str(path)),
         source=str(path),
         version=version,
         checksum=md5,
