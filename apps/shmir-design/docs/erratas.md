@@ -1945,3 +1945,88 @@ de una cadena de comandos y la escritura se saltó, mientras el commit y el merg
 adelante. El código entró, el registro no. Es la misma familia que todo lo demás de este
 documento —algo que se da por hecho y no se comprueba— y se anota aquí porque el registro
 sirve para eso también.
+
+## 47 — La comparación de md5 no estaba congelada: NO PODÍA DARSE NUNCA
+
+**Reportado por el responsable del proyecto (2026-09-02)**, con la secuencia entera y el
+diagnóstico apuntando al sitio correcto: subió el `.tsv` sin `refseq_rna.fa` en el
+depósito, la corrida se guardó y salió `NOT_RUN` con el motivo «no hay md5 de hoy con el
+que comparar»; después subió `refseq_rna.fa`, cuyo md5 (`ade3c2e4…`) es **el mismo que la
+corrida registró**; y tras refrescar, nada cambió.
+
+Su lectura fue que el resultado de la comparación se quedaba **congelado** y que debía
+recalcularse en cada consulta, «exactamente la lógica de OBSOLETO».
+
+**No estaba congelado.** `insumos.obsoleta` se recalcula en cada consulta desde el primer
+día: recibe los md5 de hoy, leídos del directorio en esa misma llamada
+(`presentation.reference_md5s`), y no guarda nada. Lo que pasaba es peor:
+
+> **la comparación preguntaba por una clave que no existe en el diccionario, y no podía
+> existir.**
+
+`insumos.CONSUMIDOS` nombraba el insumo de BLAST **en prosa** —`"base de datos de
+BLAST"`— y `actuales` viene indexado por el **nombre del fichero en el depósito**, que es
+`refseq_rna.fa`. Así que `actuales.get("base de datos de BLAST")` devolvía `None` con el
+fichero delante, con el md5 correcto y con el usuario mirando. **Toda** corrida de BLAST
+salía «no se ha podido comprobar», siempre, desde que existe la tabla.
+
+### Los otros dos acertaban por casualidad, y sólo en ratón
+
+`corrida_seed` y `corrida_offtarget` escribían `mature.fa` y `transcriptoma_3utr.fa`, que
+**sí** son nombres de fichero. Pero son los nombres **murinos**: `species.required_files`
+sufija por especie, así que en humano el catálogo se llama `transcriptoma_3utr_human.fa` y
+esas dos entradas fallaban igual. No era un nombre mal escrito de tres: era **el mismo
+fallo tres veces**, tapado dos de ellas por que la especie de trabajo es el ratón.
+
+### Lo que lo dejó pasar es la errata nº 44, un piso más abajo
+
+Los tests de `obsoleta` **construían `actuales` con la clave que ellos mismos habían
+escrito**:
+
+```python
+insumos.obsoleta("corrida_blast", PAYLOAD, actuales={"base de datos de BLAST": "d" * 32})
+```
+
+Un test así pregunta por su propia respuesta. Coincide siempre, no puede discrepar del
+depósito, y por eso once tests en verde convivían con una comparación que no se daba
+nunca. Es literalmente la frase que quedó escrita en la errata nº 44 —*dos tests
+transcribían el formato; preguntaban por la clave que ellos mismos habían escrito*—
+aplicada a otra clave, tres días después.
+
+### El arreglo es derivar, no corregir el nombre
+
+Cambiar `"base de datos de BLAST"` por `"refseq_rna.fa"` habría arreglado **este** caso y
+dejado el mecanismo entero en pie: seguiría habiendo dos sitios escribiendo el nombre del
+mismo fichero, y seguirían envejeciendo por separado (principio nº 13, y la lección de la
+errata nº 28). Así que el insumo declara su **ROL** —`refseq`, `mirbase`,
+`transcriptoma`— y el nombre lo pone `insumos.fichero_de` contra `species.required_files`,
+que es **la única fuente de los nombres del depósito**. Un rol que el gestor no declare
+**aborta**, con el motivo escrito: un nombre inventado no da un error, deja la corrida en
+«no se ha podido comprobar» para siempre.
+
+Con eso la discrepancia no es que esté arreglada: **es que no se puede escribir**.
+
+### Y el aviso que el responsable pidió DOS veces, ahora sí
+
+«El modal debería avisar antes de subir, no después de guardar.»
+`presentation.blast_readiness` sale **arriba del modal**, antes del comando y antes del
+`file_uploader`, y dice las **tres** cosas medidas, no la que se suponía:
+
+- la corrida **sí** sirve — su celda de la tabla pasa a tener veredicto;
+- el **frente** se queda abierto, porque eso lo cierra el filtro de la ventana contra el
+  catálogo cargado, no la corrida;
+- y la corrida **no se podrá revalidar** mientras el fichero no esté.
+
+La primera cláusula es la que hace que el aviso no sea un diagnóstico equivocado: la
+premisa original —«cualquier corrida de BLAST va a salir `NOT_RUN` haga lo que haga el
+usuario»— **era cierta cuando se planteó y dejó de serlo** en cuanto la tabla empezó a
+leer los almacenes. Se midió antes de escribirla. Un aviso que afirma una causa sin
+comprobarla es el principio nº 3, y este proyecto lleva cinco.
+
+### La regresión
+
+`tests/test_la_corrida_se_reevalua.py` reproduce la secuencia del usuario de punta a
+punta —guardar la corrida, depósito vacío, depositar el fichero, quitarlo— y exige que el
+estado cambie en cada paso, con la mitad adversaria (si el fichero cambia, `OBSOLETO`).
+Y cierra lo que lo escondía: ningún test de esta familia puede volver a escribir a mano la
+clave de `actuales`.

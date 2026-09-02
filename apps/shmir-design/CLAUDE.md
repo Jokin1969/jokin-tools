@@ -3534,6 +3534,41 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     formato y dos tests que **transcribían** el suyo. Ese fallo habría producido el mismo
     síntoma que el bug real, así que habríamos culpado al cableado.
 
+- **LA COMPARACIÓN DE md5 NO ESTABA CONGELADA: NO PODÍA DARSE NUNCA (2026-09-02)**,
+  errata nº 47 y principio nº 24. Reportado con la secuencia entera: corrida guardada sin
+  `refseq_rna.fa` en el depósito → `NOT_RUN` «no hay md5 de hoy con el que comparar»;
+  luego el fichero, con **el mismo md5 que la corrida registró**; y tras refrescar, nada.
+  - **`insumos.obsoleta` se recalculaba en cada consulta desde el primer día** — no había
+    nada cacheado que revalidar. Lo que fallaba es que **preguntaba por una clave que no
+    existe y no podía existir**: la tabla de insumos nombraba el fichero **en prosa**
+    («base de datos de BLAST») y `actuales` viene indexado por el **nombre del fichero en
+    el depósito** (`refseq_rna.fa`). Toda corrida de BLAST salía «no se ha podido
+    comprobar», siempre, con el fichero delante.
+  - **Y los otros dos acertaban por casualidad**: `mature.fa` y `transcriptoma_3utr.fa`
+    son nombres de fichero, pero los **murinos** — en humano el catálogo se llama
+    `transcriptoma_3utr_human.fa` y fallaban igual. Un fallo tres veces, tapado dos por
+    trabajar en ratón.
+  - **Se arregla DERIVANDO, no corrigiendo el nombre.** El insumo declara su **ROL** y el
+    nombre lo pone `insumos.fichero_de` contra `species.required_files`, que es la única
+    fuente de los nombres del depósito. Un rol no declarado **aborta**. Así la
+    discrepancia no está arreglada: **no se puede escribir**.
+  - **Lo que lo escondía es la errata nº 44 un piso más abajo**: los tests construían
+    `actuales={"base de datos de BLAST": …}` — **preguntaban por la clave que ellos
+    mismos habían escrito**, así que coincidían por construcción. Hay regresión de que
+    ningún test de esta familia vuelva a hacerlo.
+  - **Por qué es invisible y no un fallo más** (principio nº 24): una comparación que no
+    puede ser verdadera produce **exactamente la salida honesta** de una que sale que no.
+    El producto normal del fallo es un mensaje bien redactado que parece un resultado —
+    familia de la errata nº 29.
+  - **El aviso ANTES de correr, que se había pedido dos veces**
+    (`presentation.blast_readiness`, arriba del modal): sin `refseq_rna.fa` en el
+    depósito dice las **tres** cosas medidas — la corrida **sí** sirve (su celda de la
+    tabla pasa a tener veredicto), el **frente** se queda abierto (eso lo cierra el
+    filtro de la ventana contra el catálogo cargado, no la corrida) y la corrida **no se
+    podrá revalidar**. La primera cláusula se **midió**: la premisa «cualquier corrida va
+    a salir NOT_RUN» era cierta al plantearse y dejó de serlo cuando la tabla empezó a
+    leer los almacenes. No bloquea.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

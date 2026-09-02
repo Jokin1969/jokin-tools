@@ -858,6 +858,50 @@ def blast_setting_rows(params) -> list[dict[str, object]]:
     ]
 
 
+def blast_readiness(*, species, directory) -> list[dict[str, object]]:
+    """Lo que le falta a ESTA corrida, dicho ANTES de pedir el fichero.
+
+    Lo pide el responsable del proyecto con el caso delante: si algo va a quedarse sin
+    cerrar, decirlo **antes** de bajarse una base de decenas de GB y echar horas de
+    BLAST, no despues de guardar el resultado.
+
+    Y lo que dice esta MEDIDO, no supuesto — que es la diferencia entre un aviso y el
+    principio nº 3. Sin `refseq_rna.fa` en el deposito:
+
+    - la corrida **si** llega a la tabla: su celda de `especificidad` pasa a tener
+      veredicto. La corrida NO es inutil y el aviso no dice que lo sea;
+    - el **frente** se queda abierto —la tarjeta, el semaforo y el bloque de frentes del
+      informe—, porque eso lo cierra el filtro de la ventana, que necesita el catalogo
+      cargado;
+    - y la corrida no se puede **revalidar**: sin md5 de hoy con el que comparar, sale
+      «no se ha podido comprobar» cada vez que se mire (`insumos.obsoleta`).
+
+    No BLOQUEA. Bloquear seria peor que el aviso al que sustituye: la corrida sirve.
+    """
+    from .insumos import fichero_de, insumos_de  # noqa: PLC0415
+    from .presencia import ficheros_con_contenido  # noqa: PLC0415
+
+    fichero = fichero_de(insumos_de("corrida_blast")[0], species)
+    if directory is not None and fichero in ficheros_con_contenido(directory):
+        return []
+    return [{
+        "bloquea": False,
+        "texto": (
+            f"**`{fichero}` NO está en el depósito**, y conviene saber qué cambia eso "
+            f"ANTES de bajarse la base y lanzar el BLAST. La corrida **sí** sirve: al "
+            f"subirla, los candidatos que consulte pasan a tener veredicto de "
+            f"especificidad en la tabla. Lo que NO se cierra es el **frente** —la "
+            f"tarjeta, el semáforo y el bloque de frentes del informe siguen abiertos y "
+            f"los candidatos, en INCOMPLETE—, porque eso lo cierra el filtro de la "
+            f"ventana contra el catálogo cargado, no la corrida. Y la corrida quedará "
+            f"sin poder revalidarse: sin el fichero no hay md5 de hoy con el que "
+            f"comparar el que se registre, así que saldrá «no se ha podido comprobar» "
+            f"cada vez que se mire. Es el mismo `{fichero}` del que sale la base: se "
+            f"sube por el gestor y la ficha del frente dice de dónde bajarlo."
+        ),
+    }]
+
+
 def blast_warnings(params) -> list[dict[str, object]]:
     """Los avisos del modal. `bloquea` = esta corrida no puede cerrar el frente."""
     from .seed_load import WHY_NOT_BLAST
@@ -1637,8 +1681,16 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
     almacen = stores.get(clave)
     if almacen is None:
         return None
-    resultado = almacen.verdict_for(query_name(species, start, "guia"))
-    return resultado.state.value
+    consulta = query_name(species, start, "guia")
+    # SIN CORRIDA PARA ESTE CANDIDATO, el almacen no dice nada — y `None` no es
+    # `NOT_RUN`. Devolver su `NOT_RUN` lo hacia PISAR al filtro de la ventana: hoy no se
+    # nota porque sin base cargada ese filtro tambien sale `NOT_RUN`, pero en cuanto
+    # alguien deposite `refseq_rna.fa` un veredicto local de verdad quedaria sustituido
+    # por un `NOT_RUN` del almacen. Es el mismo fallo latente que las cinco claves: no
+    # se ve hasta que otra cosa cambia.
+    if not almacen.history(consulta):
+        return None
+    return almacen.verdict_for(consulta).state.value
 
 
 def site_table_rows(tiling, selection, *, species: str = "",
@@ -2537,7 +2589,9 @@ def reference_md5s(directory) -> dict[str, str]:
     return salida
 
 
-def run_freshness(kind: str, payload, *, actuales: dict[str, str]) -> dict[str, object]:
+def run_freshness(
+    kind: str, payload, *, actuales: dict[str, str], especie,
+) -> dict[str, object]:
     """¿Sigue valiendo esta corrida? PASS / OBSOLETO / NOT_RUN, DERIVADO de los md5.
 
     La tabla de `insumos.CONSUMIDOS` dice qué consume cada tipo de corrida y dónde vive
@@ -2548,7 +2602,7 @@ def run_freshness(kind: str, payload, *, actuales: dict[str, str]) -> dict[str, 
     from .filters import FilterState  # noqa: PLC0415
     from .insumos import obsoleta  # noqa: PLC0415
 
-    motivos = list(obsoleta(kind, payload, actuales=actuales))
+    motivos = list(obsoleta(kind, payload, actuales=actuales, especie=especie))
     if not motivos:
         return {"estado": FilterState.PASS, "motivos": []}
     if all("no se ha podido comprobar" in m for m in motivos):
@@ -2566,18 +2620,26 @@ def obsolete_rows(store, *, directory) -> list[dict[str, object]]:
     from .insumos import CONSUMIDOS, md5s_de_corrida  # noqa: PLC0415
 
     hoy = reference_md5s(directory)
+    # La especie sale del PROYECTO: es la que decide como se llama cada fichero en el
+    # deposito (`refseq_rna.fa` en raton, `refseq_rna_human.fa` en humano). Escribir el
+    # nombre aqui seria la errata nº 47 otra vez, un piso mas arriba.
+    especie = store.project.species
     filas = []
     for registro in store.records():
         if registro.kind not in CONSUMIDOS:
             continue
-        frescura = run_freshness(registro.kind, registro.payload, actuales=hoy)
+        frescura = run_freshness(
+            registro.kind, registro.payload, actuales=hoy, especie=especie,
+        )
         filas.append(
             {
                 "tipo": registro.kind,
                 "fecha": registro.date,
                 "estado": frescura["estado"],
                 "motivos": frescura["motivos"],
-                "insumos": md5s_de_corrida(registro.kind, registro.payload),
+                "insumos": md5s_de_corrida(
+                    registro.kind, registro.payload, especie=especie,
+                ),
             }
         )
     return filas
@@ -4379,36 +4441,67 @@ def run_provenance_rows(stores) -> list[dict[str, str]]:
 
 def verdicts_changed(tiling, selection, *, species: str, before, after
                      ) -> dict[str, object]:
-    """Cuantos veredictos cambia una corrida al guardarla. CON EL CERO VISIBLE.
+    """Que cambia una corrida al guardarla. Y DISTINGUE ganar un veredicto de no ganarlo.
 
-    «Guardada en el log del proyecto» se lee como «hecho», y durante dias fue un guardado
-    que no cambiaba ningun veredicto porque nadie consultaba el almacen. Un guardado que
-    no cambia nada no es util: **o la confirmacion dice que cambio, o dice que no cambio
-    nada**, y el cero es justo la señal que faltaba.
+    «Guardada en el log del proyecto» se leia como «hecho», y durante dias fue un guardado
+    que no cambiaba ningun veredicto porque nadie consultaba el almacen. Pero contar
+    CAMBIOS DE VALOR tampoco vale: una corrida que no cierra mueve los diez candidatos de
+    `NOT_RUN` a `NO_CIERRA` —de **no comprobado a no comprobado por otro motivo**— y
+    «10 veredictos actualizados» en verde hace creer que se cerro un frente.
+
+    Asi que se cuentan DOS cosas: cuantos pasan a TENER veredicto (`PASS`/`FAIL`) y
+    cuantos siguen sin el. El verde se reserva a los primeros.
 
     Se DERIVA comparando las dos tablas — no se cuenta aparte. Un contador propio seria
     otro contador del mismo suceso, y ya se sabe como acaban.
     """
-    antes = {
-        (f["inicio"], c): f[c]
-        for f in site_table_rows(tiling, selection, species=species, stores=before)
-        for c in front_columns(tiling, selection)
-    }
-    despues = {
-        (f["inicio"], c): f[c]
-        for f in site_table_rows(tiling, selection, species=species, stores=after)
-        for c in front_columns(tiling, selection)
-    }
-    cambiados = sum(1 for clave, valor in despues.items() if antes.get(clave) != valor)
-    if cambiados:
+    from .filters import FilterState
+
+    decisivos = {FilterState.PASS.value, FilterState.FAIL.value}
+    columnas = front_columns(tiling, selection)
+
+    def _tabla(stores):
+        return {
+            (f["inicio"], c): f[c]
+            for f in site_table_rows(tiling, selection, species=species, stores=stores)
+            for c in columnas
+        }
+
+    antes, despues = _tabla(before), _tabla(after)
+    cambiados = [k for k, v in despues.items() if antes.get(k) != v]
+    con_veredicto = sum(
+        1 for k in cambiados
+        if despues[k] in decisivos and antes.get(k) not in decisivos
+    )
+    sin_veredicto = len(cambiados) - con_veredicto
+
+    if con_veredicto:
         texto = (
-            f"Guardada. **{cambiados} veredicto(s) actualizado(s)** en la tabla."
+            f"Guardada. **{con_veredicto} candidato(s) pasan a tener veredicto** en "
+            f"este frente."
+        )
+        if sin_veredicto:
+            texto += (
+                f" Otros {sin_veredicto} cambian de motivo pero **siguen sin "
+                f"veredicto**."
+            )
+    elif sin_veredicto:
+        texto = (
+            f"Guardada, y **0 candidatos pasan a tener veredicto**. "
+            f"{sin_veredicto} cambian de motivo y **siguen sin veredicto**: la corrida "
+            f"se registró, pero no cierra nada. Mira la columna de ese frente — dirá si "
+            f"fue `-remote`, si llevaba algún ajuste cambiado, o si sus consultas no son "
+            f"las de este panel."
         )
     else:
         texto = (
             "Guardada, y **0 veredictos actualizados**. Si esperabas que cerrara un "
-            "frente, algo no encaja: mira el motivo en la columna de ese frente — puede "
-            "que la corrida no cierre (fue `-remote`, o llevaba algún ajuste cambiado) o "
-            "que sus consultas no sean las de este panel."
+            "frente, algo no encaja: puede que sus consultas no sean las de este panel."
         )
-    return {"cambiados": cambiados, "texto": texto}
+    return {
+        "cambiados": len(cambiados),
+        "con_veredicto": con_veredicto,
+        "sin_veredicto": sin_veredicto,
+        "verde": bool(con_veredicto),
+        "texto": texto,
+    }

@@ -1135,3 +1135,47 @@ Al repartir un cambio que toca varios artefactos que leen el mismo estado:
 deja algo **nuevo y roto** que antes no existía. La pregunta antes de partir un cambio no
 es *¿qué parte entra?* sino *¿el estado intermedio afirma algo falso?* — y si lo afirma,
 o entra entero, o entra con el desfase declarado.
+
+## 24 — Los dos lados de una comparación salen de la MISMA fuente, o la comparación puede no darse nunca
+
+**Sale de la errata nº 47 (2026-09-02)**, y generaliza algo que este proyecto ya había
+tocado por dos puertas distintas sin nombrarlo: el principio nº 13 (derivar en vez de
+transcribir) dice de dónde sale **un** dato; éste dice qué pasa cuando **dos** datos que
+tienen que casar salen de sitios distintos.
+
+### El caso
+
+`insumos.obsoleta` compara el md5 que una corrida registró con el md5 del fichero que hay
+hoy. Los dos lados se emparejan por un **nombre**: la tabla de insumos escribía «base de
+datos de BLAST» y el diccionario de md5 de hoy venía indexado por `refseq_rna.fa`. La
+comparación no fallaba: **no llegaba a hacerse**, y con el fichero delante y el md5
+correcto la corrida salía «no se ha podido comprobar» para siempre.
+
+### Por qué es invisible, y no un fallo más
+
+Una comparación que no puede ser verdadera **produce exactamente la salida honesta de una
+comparación que sale que no**: aquí, «no se ha podido comprobar». Ese estado existe, es
+correcto en su caso, y está bien redactado — así que nadie lo lee como un fallo. Es la
+familia de la errata nº 29 (`verify()` que no comprobaba nada) con otra forma: **el
+producto normal del fallo es un mensaje que parece un resultado.**
+
+Y no lo caza ningún guardia de los que hay: no es un `except` que se traga nada, ni una
+condición que no puede ser falsa, ni una función sin llamador. Se ejecuta entera, cada
+vez, y devuelve algo plausible.
+
+### La regla
+
+Cuando dos valores se emparejan por una clave —un nombre de fichero, un rol, un
+identificador de consulta—, **esa clave la produce UNA sola función**, y los dos lados la
+piden. No se escribe en ninguno de los dos. Si el emparejamiento no se puede resolver, se
+**aborta** diciéndolo: devolver el estado de «no se sabe» hace indistinguible un fallo de
+cableado de una laguna legítima.
+
+### Y el test no puede escribir la clave
+
+Es la mitad que dejó pasar el fallo, y ya había dejado pasar otro tres días antes (errata
+nº 44). Un test que construye el diccionario de entrada con el nombre que él mismo ha
+escrito **pregunta por su propia respuesta**: coincide siempre, por construcción, y su
+verde no dice nada del emparejamiento real. La clave se le pide al productor —aquí
+`insumos.fichero_de` o `presentation.reference_md5s`— o el test se escribe **de punta a
+punta**, poniendo el fichero en un directorio y mirando qué sale.

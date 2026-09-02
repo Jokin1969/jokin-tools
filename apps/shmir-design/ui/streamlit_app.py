@@ -148,6 +148,7 @@ from shmir_design.presentation import (  # noqa: E402
     blast_run_from_upload,
     blast_executor_text,
     blast_query,
+    blast_readiness,
     blast_setting_rows,
     blast_warnings,
     anatomy_reliability,
@@ -1426,6 +1427,11 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
 
     st.caption(blast_executor_text())
     st.caption(BLAST_MODAL_NOTE)
+
+    # ANTES de nada, no despues de guardar: detras de este modal hay una descarga de
+    # decenas de GB y horas de BLAST. `presentation` decide (regla 6).
+    for aviso in blast_readiness(species=nombre, directory=reference_dir()):
+        (st.error if aviso["bloquea"] else st.warning)(aviso["texto"])
 
     filas = blast_candidate_rows(seleccion, species=nombre)
     todos = st.checkbox("Todos", key=f"blast_todos_{nombre}", value=True)
