@@ -2641,3 +2641,24 @@ el `registro.jsonl`): un veredicto tiene que poder rederivarse de lo que el log 
 sin ese dato no se puede decir qué cuenta como alineamiento completo. Las corridas ya
 escritas no se quedan sin veredicto — se acota con el propio resultado, porque `qend`
 nunca pasa de la sonda, **y el motivo lo dice**, con la dirección del error posible.
+
+### Coda: la generalización, y una tercera cosa que salió al buscarla
+
+`ANTISENSE` no era el único. Al derivar del AST **qué magnitudes se calculan con el mismo
+nombre en más de un módulo** —principio nº 27, `tools/auditar_homonimos.py`— salieron
+siete cantidades distintas compartiendo nombre: además de `antisense` y `aligned`,
+`usable` («este dato se puede usar» en tres clases, «esta ventana es única en el
+plásmido» en la cuarta), `md5` (el del texto frente al de la secuencia: la trampa de los
+tres checksums, dentro del código), `conclusive`, `ambiguous` y `fraction`.
+
+Y una que no llegó a la tabla porque se arregló al encontrarla: **`selection.Site.end`
+devolvía el inicio de la última ventana del bloque**, mientras en todo el resto del
+paquete `end` es un final de intervalo inclusivo. Leído como final, el sitio salía 21 nt
+más corto.
+
+**Lo que enseña es lo que pasó al renombrarla.** Dije que no la leía nadie: es cierto de
+la producción —el número equivocado nunca llegó a una pantalla— y **falso de los tests**.
+Había uno que la afirmaba como final de intervalo, `(10, 12)` para tres ventanas de 22
+nt. Código y test compartían la confusión, así que **ninguno de los dos podía delatarla**
+— es el principio nº 22 en su forma más limpia, y la razón de que un homónimo así
+sobreviva años: no hay nada que falle.

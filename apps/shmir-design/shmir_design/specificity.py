@@ -399,7 +399,10 @@ WRONG_ORIENTATION_NOTE = (
     "puede dar. Una guía es antisentido a su blanco por definición y una pasajera lleva "
     "su misma secuencia, así que esto no es un off-target: es que la construcción está "
     "MAL MONTADA —guía y pasajera intercambiadas, o el FASTA de consulta montado al "
-    "revés—. No cambia el veredicto de este frente, que mide otra cosa."
+    "revés—. No cambia el veredicto de este frente, que mide otra cosa. Y NO ES UN "
+    "PROBLEMA DE ESTE CANDIDATO: es un fallo de CONSTRUCCIÓN, así que se arregla "
+    "rehaciendo el FASTA de consulta y volviendo a correr, no cambiando de candidato — "
+    "el que hay puede estar perfectamente bien y no se sabrá hasta rehacerlo."
 )
 
 

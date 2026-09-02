@@ -176,6 +176,18 @@ class TestLaORIENTACIONesUnaFIRMA_noUnFiltro(unittest.TestCase):
         ).verdict_for(PASAJERA, species="mouse").reason
         self.assertIn("ORIENTACIÓN", motivo.upper())
 
+    def test_el_aviso_dice_que_es_de_CONSTRUCCION_y_como_se_arregla(self):
+        # Pedido explicitamente: guia y pasajera intercambiadas es un fallo de
+        # CONSTRUCCION, no de diseño. Sin esa frase, quien lo lea al lado de una columna
+        # de veredictos concluye que el candidato es malo y lo cambia — y el candidato
+        # puede estar perfectamente bien. Se arregla rehaciendo el fichero.
+        motivo = _almacen(_corrida_real(
+            GUIA, antisentido_diana=False, antisentido_parciales=False,
+        )).verdict_for(GUIA, species="mouse").reason
+        self.assertIn("CONSTRUCCIÓN", motivo.upper())
+        self.assertIn("rehaciendo el FASTA", motivo)
+        self.assertIn("no cambiando de candidato", motivo)
+
     def test_el_AVISO_no_cambia_el_veredicto(self):
         # Es una comprobacion, no un descarte: sigue siendo PASS y lo que hace es DECIR
         # que algo no cuadra. Convertirlo en FAIL mezclaria «esta guia tiene off-targets»

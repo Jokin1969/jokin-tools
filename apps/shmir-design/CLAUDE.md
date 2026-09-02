@@ -3862,6 +3862,39 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     resultado, porque `qend` nunca pasa de la sonda— **y el motivo lo dice**, con la
     dirección del error posible.
 
+- **EL MISMO NOMBRE PARA DOS CANTIDADES DISTINTAS (2026-09-02)**
+  (`tools/auditar_homonimos.py`, `data/homonimos.toml`, dentro de `npm run check:shmir`),
+  **principio nº 27**. Es la generalización de los cuatro pares duplicados y de la errata
+  nº 57: **no es código repetido —eso se ve en un `grep`— sino una cantidad que se mueve
+  de contexto sin el supuesto que la sostenía**, con el nombre igual haciendo que parezca
+  la misma.
+  - **EL COROLARIO, y es la regla operativa**: un criterio que se copia entre módulos
+    lleva sus supuestos **escritos**, y **si no se pueden escribir es que no se puede
+    copiar**. La forma que toma aquí: el criterio vive en un sitio y **cada llamador
+    declara qué puede probar** antes de someterle sus datos, en vez de compartir además
+    el descarte.
+  - **El recorte está MEDIDO**: «cualquier nombre definido en más de un módulo» da
+    **207** y son casi todas etiquetas (`name`, `date`, `reason`) — un auditor así se
+    apaga el primer día. Acotado a las magnitudes **DERIVADAS** (`@property`) son **23**,
+    y **siete son cantidades distintas**. Un campo guardado es una etiqueta; **una
+    derivación lleva supuestos dentro**.
+  - **Lo que encontró al estrenarse**, además de `antisense` y `aligned`: `usable` —«este
+    dato se puede usar» en tres clases y «esta ventana es ÚNICA en el plásmido» en
+    `splicing.PrimerWindow`—, `md5` —el del texto frente al de la secuencia, la trampa de
+    los tres checksums dentro del código—, `conclusive`, `ambiguous` y `fraction`.
+  - **Y una que ya no sale porque se arregló: `selection.Site.end` devolvía el INICIO de
+    la última ventana** del bloque, mientras en todo el resto del paquete `end` es un
+    final de intervalo inclusivo — leída como final dejaba el sitio 21 nt más corto.
+    **Ninguna salida la leía** —nunca llegó a una pantalla— **pero sí la leía un
+    test**, que la afirmaba como final de intervalo (`(10, 12)` para tres ventanas de
+    22 nt): código y test compartían la confusión, así que ninguno de los dos podía
+    delatarla (principio nº 22). Renombrarla a `last_start` salía gratis porque no había
+    producción que romper.
+  - **Dos declaraciones caducadas se cazaron el primer día**, las dos correctas: `end`,
+    que dejó de ser homónimo con ese renombrado, y `transcript`, que es propiedad en
+    `BlastHit` y campo en `Hit` — ahí la asimetría es de forma y no de significado, y se
+    dice dentro de la entrada de `antisense`, que es donde lo va a leer quien mire ese par.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

@@ -248,7 +248,17 @@ class Site:
         return self.choices[0].start
 
     @property
-    def end(self) -> int:
+    def last_start(self) -> int:
+        """El INICIO de la ultima ventana del bloque, que NO es el final del sitio.
+
+        Se llamaba `end`, y en todo el resto del paquete `end` es un final de intervalo
+        inclusivo: leido asi, el sitio salia 21 nt mas corto de lo que es. Ninguna salida lo
+        leia —por eso el numero equivocado nunca llego a una pantalla— pero SI lo leia un
+        test, que lo afirmaba como final de intervalo: el codigo y su test compartian la
+        confusion, asi que ninguno de los dos podia delatarla (principio nº 22). Errata nº 57, la
+        misma familia que `antisense`: un nombre que promete una magnitud y devuelve
+        otra.
+        """
         return self.choices[-1].start
 
     @property

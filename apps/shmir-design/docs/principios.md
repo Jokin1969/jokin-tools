@@ -1289,3 +1289,66 @@ no lo necesita —acaba de mirar ese código— y aun así falló dos veces en u
 disciplina no sustituye al mecanismo, ni siquiera la de quien está escribiendo el
 mecanismo.** Es la razón por la que aquí nada se coordina a mano, dicha con un caso propio
 en vez de con un argumento.
+
+## 27 — El mismo nombre para dos cantidades distintas es peor que el código repetido
+
+**Pedido por el responsable del proyecto (2026-09-02)** como generalización de los cuatro
+pares duplicados, con el diagnóstico ya hecho:
+
+> No es código repetido, es peor — es una cantidad que se mueve de contexto sin el
+> supuesto que la sostenía. Allí todos los hits son de longitud completa por
+> construcción, así que la condición de longitud no hacía falta escribirla; al mover el
+> criterio, el supuesto se quedó atrás.
+
+**Código repetido se ve en un `grep`.** Esto no: los dos sitios se leen bien por separado,
+el nombre es el mismo, y lo que difiere es **qué mide** — que no está escrito en ninguna
+parte porque en su módulo de origen era obvio.
+
+### El caso, con las dos mitades
+
+`antisense` existe en `blast.BlastHit` y en `specificity.Hit`:
+
+- en nuestro escáner significa **«la sonda puede aparearse con este transcrito»**, y por
+  eso descartar los hits en sentido es correcto ahí;
+- en `-outfmt 6` es **«la hebra del sujeto tal como está depositado»**. Coincide para una
+  guía y **no** para la pasajera, que lleva la misma secuencia que su blanco.
+
+Y en el mismo par, `aligned`, que es la mitad más instructiva porque **la unidad es la
+misma y la propiedad estadística es opuesta**: en el escáner vale siempre `len(sonda)`
+—casa ventanas de esa longitud exacta—, en BLAST es un alineamiento **local**. El
+criterio no necesitaba mirarla en un lado, y por eso nadie la escribió; al moverlo, los
+parciales de 13 nt entraron como aciertos graves.
+
+### El corolario, que es la regla operativa
+
+**Un criterio que se copia entre módulos tiene que llevar sus supuestos escritos, y si no
+se pueden escribir es que no se puede copiar.** La forma que toma aquí: el criterio vive
+en un solo sitio y **cada llamador declara qué puede probar** antes de someterle sus
+datos, en vez de compartir además el descarte.
+
+### El mecanismo, porque la disciplina no basta
+
+`data/homonimos.toml` + `tools/auditar_homonimos.py`, guardia con cero. Se declaran las
+**magnitudes derivadas** —`@property`, algo que se calcula— con el mismo nombre en más de
+un módulo, y cada una dice si son la misma magnitud o **cantidades distintas**, con qué
+es cada una.
+
+El recorte es lo que lo hace aplicable, y está medido: el barrido ancho de «cualquier
+nombre definido en más de un módulo» da **207**, casi todas etiquetas (`name`, `date`,
+`reason`). Acotado a lo derivado son **23**, y **siete son cantidades distintas**. Un
+campo guardado es una etiqueta; **una derivación lleva supuestos dentro**, que es
+exactamente lo que se queda atrás al moverla.
+
+### Lo que encontró al estrenarse
+
+Además de `antisense` y `aligned`: `usable`, que en tres clases es «este dato se puede
+usar» y en `splicing.PrimerWindow` es «esta ventana es única en el plásmido»; `md5`, que
+es el del texto en un lado y el de la secuencia en el otro —la trampa de los tres
+checksums, dentro del código—; `conclusive`, `ambiguous` y `fraction`. Y una que ya no
+sale porque se arregló: **`selection.Site.end` devolvía el inicio de la última ventana
+del bloque**, mientras en todo el resto del paquete `end` es un final de intervalo
+inclusivo. Leída como final, dejaba el sitio 21 nt más corto. **Ninguna salida la leía**
+—el número equivocado nunca llegó a una pantalla— **pero sí la leía un test**, que la
+afirmaba como final de intervalo: `(10, 12)` para tres ventanas de 22 nt. Código y test
+compartían la confusión, así que ninguno de los dos podía delatarla (principio nº 22), y
+renombrarla salía gratis porque no había producción que romper.

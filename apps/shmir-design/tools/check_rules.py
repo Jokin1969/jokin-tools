@@ -526,6 +526,27 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
+    # EL MISMO NOMBRE PARA DOS CANTIDADES DISTINTAS (2026-09-02). La generalizacion de
+    # los cuatro pares duplicados: no es codigo repetido, es una cantidad que se mueve de
+    # contexto sin el supuesto que la sostenia (principio nº 27, errata nº 57).
+    from auditar_homonimos import auditar as auditar_homonimos
+    from auditar_homonimos import render as render_homonimos
+
+    homonimos = auditar_homonimos()
+    print(render_homonimos(homonimos))
+    fallos_homonimo = (
+        len(homonimos["sin_declarar"])
+        + len(homonimos["muertos"])
+        + len(homonimos["movidos"])
+    )
+    if fallos_homonimo:
+        print(
+            f"\ncheck_rules: {fallos_homonimo} magnitud(es) derivada(s) con nombre "
+            f"compartido sin declarar qué es cada una.",
+            file=sys.stderr,
+        )
+        return 1
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "

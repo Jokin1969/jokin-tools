@@ -1,0 +1,233 @@
+# EL MISMO NOMBRE PARA DOS CANTIDADES DISTINTAS
+#
+# **La generalización de los cuatro pares duplicados** —`blocks`/`gblock`,
+# `verdict_state`/`SpliceRun`, las cinco copias de la clave, los cuatro `hashlib.md5`— y
+# de la errata nº 57. **No es código repetido: es peor.** Código repetido se ve en un
+# `grep`; esto es una **cantidad que se mueve de contexto sin el supuesto que la
+# sostenía**, y el nombre igual hace que parezca la misma.
+#
+# EL CASO QUE ABRE LA CATEGORÍA. `antisense` existe en `blast.BlastHit` y en
+# `specificity.Hit` y **no es la misma cantidad**:
+#
+#   · en nuestro escáner significa «la sonda PUEDE APAREARSE con este transcrito», y por
+#     eso descartar los hits en sentido es correcto ahí;
+#   · en `-outfmt 6` es «la HEBRA DEL SUJETO tal como está depositado». Para una guía
+#     coincide; para la pasajera, no — lleva la misma secuencia que su blanco.
+#
+# Y en el mismo par, `aligned`: en el escáner **todos** los hits miden `len(sonda)` por
+# construcción, así que la condición de longitud no hacía falta escribirla. Al mover el
+# criterio, el supuesto se quedó atrás y entraron los parciales de 13 nt.
+#
+# EL COROLARIO, que es la regla operativa: **un criterio que se copia entre módulos tiene
+# que llevar sus supuestos escritos, y si no se pueden escribir es que no se puede
+# copiar.**
+#
+# QUÉ SE MIRA, y por qué ese recorte. El barrido ancho —cualquier nombre definido en más
+# de un módulo— da **207**, y son casi todos etiquetas (`name`, `date`, `reason`): un
+# informe así se apaga el primer día. Lo que se declara aquí son las **magnitudes
+# DERIVADAS** —`@property`, o sea algo que se CALCULA— con el mismo nombre en más de un
+# módulo: **23**, de las que **siete son cantidades distintas**. Un campo guardado es una
+# etiqueta; una derivación lleva supuestos
+# dentro, que es exactamente lo que se queda atrás al moverla.
+#
+# CADA ENTRADA DICE:
+#   `donde`    — las clases que la definen, `modulo.Clase`.
+#   `relacion` — MISMA_MAGNITUD (calculan lo mismo) o DISTINTA (mismo nombre, cantidades
+#                distintas). Con DISTINTA hay que escribir QUÉ es cada una.
+#   `que_es`   — la magnitud, y con DISTINTA una frase por cada lado.
+#
+# El número correcto de SIN DECLARAR es CERO. No es un trinquete: un nombre que promete
+# una magnitud y devuelve otra no es deuda pendiente, es un veredicto equivocado
+# esperando a que alguien lo lea.
+
+["antisense"]
+donde = ["blast.BlastHit", "specificity.Hit"]
+relacion = "DISTINTA"
+que_es = """\
+`specificity.Hit`: «la sonda PUEDE APAREARSE con este transcrito» — lo pone nuestro \
+escáner según haya casado el complemento inverso de la sonda o la sonda tal cual. \
+`blast.BlastHit`: la HEBRA DEL SUJETO tal como está depositado, o sea el signo de \
+`sstart`→`send`. Coinciden para una guía y NO para la pasajera, que lleva la misma \
+secuencia que su blanco y acierta en sentido. Confundirlas es la errata nº 57.
+En este mismo par hay un tercer nombre compartido, `transcript`, que NO sale en este \
+informe porque es propiedad en `BlastHit` y campo en `Hit`: ahí sí son la misma \
+magnitud —el identificador del transcrito— y la asimetría es de forma, no de \
+significado."""
+
+["aligned"]
+donde = ["blast.BlastHit", "specificity.Hit"]
+relacion = "DISTINTA"
+que_es = """\
+La misma unidad —nucleótidos alineados— con una propiedad estadística OPUESTA, que es \
+lo que engaña. En `specificity.Hit` vale SIEMPRE `len(sonda)`, porque `_scan_one` casa \
+ventanas de esa longitud exacta; en `blast.BlastHit` es la columna `length` de un \
+alineamiento LOCAL y suele ser menor. Por eso el criterio no necesitaba mirarla en un \
+lado y sí en el otro (errata nº 57)."""
+
+["usable"]
+donde = [
+  "apa.MeasuredFraction", "manifest.EntryResult", "mirna.AbundanceList",
+  "splicing.PrimerWindow",
+]
+relacion = "DISTINTA"
+que_es = """\
+Tres son la misma pregunta —«este DATO se puede usar»—: `apa.MeasuredFraction`, que no \
+le quedan reservas bloqueantes; `manifest.EntryResult`, que la entrada del manifiesto \
+cuadra; `mirna.AbundanceList`, que la lista trae umbral y referencia y por tanto avisa \
+en vez de parecer un veredicto. `splicing.PrimerWindow` es OTRA COSA: «esta ventana \
+aparece UNA SOLA VEZ en el plásmido», o sea que un cebador buscado ahí sería \
+específico. Nada que ver con que un dato sea utilizable."""
+
+["conclusive"]
+donde = ["barrido.Sweep", "masking.RepeatMask"]
+relacion = "DISTINTA"
+que_es = """\
+`barrido.Sweep`: algún eje del barrido DISCRIMINA entre las alternativas. \
+`masking.RepeatMask`: el `.out` se puede leer como resultado —trae filas, o trae el \
+resumen con los ceros explícitos por familia—, que es la contramedida del «Alu 0 %». \
+Una habla de poder decidir; la otra, de poder creerse un cero."""
+
+["ambiguous"]
+donde = ["alignment.Difference", "apa.AnchoredSite"]
+relacion = "DISTINTA"
+que_es = """\
+`alignment.Difference`: el indel cae dentro de una carrera de bases iguales, así que su \
+POSICIÓN exacta no tiene respuesta. `apa.AnchoredSite`: caben VARIOS hexámeros de la \
+clase declarada en la banda, así que no se identifica uno — y no se elige por nuestra \
+cuenta. Una es sobre dónde; la otra, sobre cuál."""
+
+["md5"]
+donde = ["blast.QueryFasta", "splicing.IntronlessControl"]
+relacion = "DISTINTA"
+que_es = """\
+`QueryFasta.md5` es el del TEXTO del FASTA —cabeceras incluidas—, que es lo que se \
+compara al subir el resultado; `IntronlessControl.md5` es el de la SECUENCIA. Es la \
+trampa de los tres checksums del manifiesto, dentro del propio código: copiar uno en el \
+sitio del otro hace que lo bueno se rechace."""
+
+["fraction"]
+donde = ["seed_scan.BaseRate", "selection.ApaCeilingRow"]
+relacion = "DISTINTA"
+que_es = """\
+Las dos son una razón entre 0 y 1 y no miden nada parecido: `BaseRate` es la TASA BASE \
+—seeds distintas sobre el espacio de heptámeros, o sea cuánta colisión da el azar— y \
+`ApaCeilingRow` es qué FRACCIÓN DEL PANEL queda por detrás de un corte."""
+
+["protein_length"]
+donde = ["reference.ReferenceTranscript", "splicing.SplicingRtPcr"]
+relacion = "MISMA_MAGNITUD"
+que_es = """\
+Residuos de la proteína. Una la deriva del CDS (`cds_length // 3 - 1`, sin el codón de \
+parada) y la otra cuenta la traducción que ya tiene. Nada obliga a que coincidan: si \
+algún día se aplican al mismo transcrito, hay que cruzarlas (principio nº 5)."""
+
+["declared"]
+donde = ["anatomy.Anatomy", "mirna.CoreHit", "seed_scan.SeedParams"]
+relacion = "MISMA_MAGNITUD"
+que_es = "«Alguien lo declaró en vez de deducirlo»: el CDS, la especie, el prefijo de miRBase."
+
+["length"]
+donde = [
+  "anatomy.TileRange", "audit.GuideAudit", "audit.Span", "conservation.ConservedBlock",
+  "conservation.Utr3", "orf.Orf", "scaffold.ScaffoldSpec", "seed_scan.SeedParams",
+  "splicing.IntronLocation",
+]
+relacion = "MISMA_MAGNITUD"
+que_es = """\
+Longitud en nucleótidos de lo que describe cada objeto. Cuatro de ellas la restan de sus \
+extremos, y ésas son parte del trinquete PRIORITARIO de `data/magnitudes.toml`: la \
+deriva `audit.Span`.
+Aquí hubo un caso vecino que ya no está: `selection.Site.end` devolvía el INICIO de la \
+última ventana del bloque mientras en todo el resto del paquete `end` es un final de \
+intervalo inclusivo — leído así, el sitio salía 21 nt más corto. Ninguna SALIDA lo leía, \
+así que el número equivocado nunca llegó a una pantalla; sí lo leía un TEST, que lo \
+afirmaba como final de intervalo, de modo que el código y su test compartían la \
+confusión y ninguno podía delatarla (principio nº 22). Renombrado a `last_start`, \
+errata nº 57."""
+
+["utr3_length"]
+donde = ["anatomy.Anatomy", "reference.ReferenceTranscript", "tiling.TilingReport"]
+relacion = "MISMA_MAGNITUD"
+que_es = """\
+Longitud del 3'UTR. `TilingReport` cae a la longitud de LO TILADO cuando no hay \
+anatomía, que es el caso en que ese número no es un 3'UTR — y por eso lo que cuelga de \
+la frontera sale `NO_FIABLE` en vez de con un valor."""
+
+["state"]
+donde = [
+  "blocks.VectorApplicability", "introns.Intron", "scaffold_registry.RegisteredScaffold",
+  "species.FrontAvailability",
+]
+relacion = "MISMA_MAGNITUD"
+que_es = "Un `FilterState` derivado de si esa pieza está o no. Regla 3, la misma en las cuatro."
+
+["verdict"]
+donde = [
+  "controles.Control", "gblock.GBlock", "hard_filters.WindowEvaluation",
+  "polya.AnnotatedWindow", "tiling.TiledWindow",
+]
+relacion = "MISMA_MAGNITUD"
+que_es = """\
+El veredicto agregado de un conjunto de filtros, y las cinco lo delegan en \
+`filters.overall_verdict` — que es justamente lo que impide que se separen."""
+
+["failures"]
+donde = ["gblock.GBlock", "hard_filters.WindowEvaluation"]
+relacion = "MISMA_MAGNITUD"
+que_es = "Los filtros de ese objeto que salieron `FAIL`."
+
+["not_run"]
+donde = ["blocks.Block", "manifest.DirectoryStatus"]
+relacion = "MISMA_MAGNITUD"
+que_es = """\
+Lo que no llegó a comprobarse: comprobaciones en `NOT_RUN`, entradas del directorio no \
+utilizables. Regla 3 en los dos casos."""
+
+["is_standard"]
+donde = ["blast.BlastParams", "offtarget.OfftargetParams", "seed_scan.SeedParams"]
+relacion = "MISMA_MAGNITUD"
+que_es = """\
+Ningún ajuste tocado respecto al defecto, y las tres lo derivan de su propio \
+`modified()`. De aquí cuelga que un veredicto no estándar no pueda presentarse como \
+estándar."""
+
+["provenance"]
+donde = [
+  "apa.ApaSites", "masking.RepeatMask", "mirna.AbundanceList", "mirna.MatureSet",
+  "seed_load.Utr3Set", "specificity.SpecificityDatabase",
+]
+relacion = "MISMA_MAGNITUD"
+que_es = "La línea de procedencia de un fichero cargado: fuente, versión y checksum, para que viaje con el veredicto."
+
+["frame"]
+donde = ["presentation.PageRun", "tiling.TilingReport"]
+relacion = "MISMA_MAGNITUD"
+que_es = """\
+El marco de coordenadas de la corrida, y `PageRun` lo reexpone del informe en vez de \
+volver a decidirlo — que es la lección de las cuatro veces que un bloque puso `UTR3` \
+porque «suele serlo»."""
+
+["bandera_polyA_debil"]
+donde = ["polya.AnnotatedWindow", "tiling.TiledWindow"]
+relacion = "MISMA_MAGNITUD"
+que_es = "La ventana solapa un hexámero de clase variante. Idéntica en las dos: `bool(self.senales_debiles)`."
+
+["params"]
+donde = ["offtarget_store.OfftargetRun", "seed_store.SeedRun"]
+relacion = "MISMA_MAGNITUD"
+que_es = "Los parámetros de la corrida, reexpuestos del scan que envuelven."
+
+["results"]
+donde = ["offtarget_store.OfftargetRun", "seed_store.SeedRun"]
+relacion = "MISMA_MAGNITUD"
+que_es = "Los resultados de la corrida, reexpuestos del scan que envuelven."
+
+["raw"]
+donde = ["offtarget_store.OfftargetRun", "seed_store.SeedRun"]
+relacion = "MISMA_MAGNITUD"
+que_es = "La salida CRUDA de la corrida, sin tocar. Se guarda además de lo interpretado."
+
+["query_names"]
+donde = ["offtarget_store.OfftargetRun", "seed_store.SeedRun"]
+relacion = "MISMA_MAGNITUD"
+que_es = "Las consultas que esa corrida cubre, para saber a qué candidatos habla."

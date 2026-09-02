@@ -123,3 +123,10 @@ lee = "los umbrales del paquete dentro de una función que emite veredicto"
 opina = "ese número codifica un supuesto sobre los datos y lo esconde (errata nº 56)"
 reconoce_por = "una comparación contra un literal numérico dentro de una función que nombra `FilterState`, `FilterResult` o `Verdict`, contrastada con `data/umbrales_con_supuesto.toml`"
 instrumento = "GUARDIA"
+
+[[auditoria]]
+nombre = "auditar_homonimos"
+lee = "las magnitudes derivadas (`@property`) del paquete y en qué clases se definen"
+opina = "ese nombre denota dos cantidades distintas en dos módulos, y el nombre igual las hace parecer la misma (principio nº 27)"
+reconoce_por = "las `@property` del AST agrupadas por nombre, contrastadas con `data/homonimos.toml`"
+instrumento = "GUARDIA"

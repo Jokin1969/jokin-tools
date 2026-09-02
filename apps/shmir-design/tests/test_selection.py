@@ -58,7 +58,12 @@ class TestAgrupacionEnSitios(unittest.TestCase):
     def test_ventanas_contiguas_son_un_sitio(self):
         sites = group_choices([choice(10, 1.0), choice(11, 2.0), choice(12, 0.5)])
         self.assertEqual(len(sites), 1)
-        self.assertEqual((sites[0].start, sites[0].end), (10, 12))
+        # `last_start` es el INICIO de la ultima ventana, no el final del sitio: la
+        # ultima ventana acaba 21 nt mas alla. Se llamaba `end`, y este test lo afirmaba
+        # como si fuera un final de intervalo —`(10, 12)` para tres ventanas de 22 nt—,
+        # asi que el codigo y su test compartian la confusion y ninguno de los dos podia
+        # delatarla. Principios nº 22 y nº 27; errata nº 57.
+        self.assertEqual((sites[0].start, sites[0].last_start), (10, 12))
 
     def test_un_hueco_separa_sitios(self):
         sites = group_choices([choice(10, 1.0), choice(40, 2.0)])
