@@ -106,6 +106,9 @@ from shmir_design.presentation import (  # noqa: E402
     design_files_rows,
     refinement_panel,
     accept_reference_upload,
+    backup_inventory,
+    build_backup,
+    WHY_A_BACKUP_BUTTON,
     reference_panel_rows,
     reference_panel_summary,
     species_choice_note,
@@ -868,6 +871,50 @@ def _gestionar_proyectos(especie: str, raiz, catalogo, fecha: str) -> None:
 
 
 
+def _descargar_todo(directorio) -> None:
+    """La copia de seguridad ENTERA en un zip: depósito, manifiesto y proyectos.
+
+    **Por qué es un botón y no una tarea de disciplina**: el volumen es la única copia de
+    todo lo que pone un frente en verde —esos ficheros no van en git— y con él se iría el
+    manifiesto de trabajo, que es donde están el md5, la fecha, el origen y el ensamblaje
+    de cada uno. O sea, la procedencia. Antes había que bajar ocho cosas de una en una y
+    el manifiesto no tenía botón propio.
+
+    **El zip se monta al PULSAR, no al pintar.** `st.download_button` necesita los datos
+    ya hechos, así que ponerlo directo significaría comprimir 84 MB en cada repintado de
+    la página. Se prepara con un botón y el resultado sobrevive al rerun.
+    """
+    st.markdown("**Copia de seguridad**")
+    st.caption(WHY_A_BACKUP_BUTTON)
+    try:
+        inventario = backup_inventory(directory=directorio, projects=projects_root())
+    except (ShmirDesignError, OSError) as exc:
+        # rule2-ok: frontera de la interfaz. El motivo entero, sin degradar.
+        st.error(f"{exc}")
+        return
+    st.caption(inventario["texto"])
+
+    ranura = "copia_lista"
+    if st.button("Preparar la copia", key="bk_prep"):
+        with st.spinner("Comprimiendo…"):
+            try:
+                st.session_state[ranura] = build_backup(
+                    directory=directorio, projects=projects_root(),
+                    date=today_text(),
+                )
+            except (ShmirDesignError, OSError) as exc:
+                # rule2-ok: no se entrega media copia y se dice por qué.
+                st.session_state.pop(ranura, None)
+                st.error(f"**NO se hizo la copia** — {exc}")
+    copia = st.session_state.get(ranura)
+    if copia is not None:
+        st.success(copia["texto"])
+        st.download_button(
+            "Descargar todo (.zip)", data=copia["datos"],
+            file_name=copia["nombre"], mime="application/zip", key="bk_dl",
+        )
+
+
 def _fila_presente(fila, directorio) -> None:
     """Las CUATRO acciones de un fichero que está. Ninguna escondida tras un menú."""
     nombre = fila["nombre"]
@@ -1059,6 +1106,8 @@ def _panel_refinamiento(especie: str) -> None:
     st.caption(WHY_NO_GLOBAL_TOGGLE)
     if is_declared():
         st.caption(f"Se guardan en `{directorio}`. {WHY_A_WORKING_DIR}")
+
+    _descargar_todo(directorio)
 
     filas = panel["filas"]
     if filas and filas[0]["aviso_manifiesto"]:

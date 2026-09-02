@@ -26,6 +26,7 @@ Python 3.11+, sólo biblioteca estándar (regla 6).
 
 from __future__ import annotations
 
+import io
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -374,3 +375,218 @@ def manager_rows(species: str, *, directory) -> list[dict]:
                 }
             )
     return sorted(filas, key=lambda f: (f["frente"], f["nombre"]))
+
+
+# ═══════════════ «DESCARGAR TODO»: la copia de seguridad, en un botón ═══════════════
+#
+# **El motivo, con las palabras con que se pidio**: *el volumen es la unica copia de todo
+# lo que pone un frente en verde, y con el se iria la procedencia. Que la copia de
+# seguridad sea un boton, no una tarea de disciplina.*
+#
+# Y es exacto. Los ficheros que cierran frentes —`mature.fa`, el casete, el plasmido del
+# andamio, el transcriptoma— NO van en git: no entran en un repositorio, asi que viven
+# solo en el volumen. Con ellos se iria el `manifest.tsv` de TRABAJO, que es donde estan
+# su md5, su fecha, su origen y su ensamblaje — o sea la PROCEDENCIA, que es lo unico que
+# hace auditable un veredicto dentro de un año.
+#
+# Habia un boton por FICHERO y el manifiesto no tenia ninguno. Eso no es una copia de
+# seguridad: es la posibilidad de hacerla, que es otra cosa.
+#
+# **Va con un LEEME dentro**, y no es adorno: un zip sin nada que lo explique es un monton
+# de ficheros dentro de un año. Lleva de donde salio cada cosa, el inventario con md5 —para
+# poder comprobarlo SIN la app— y como se restaura, que importa porque el directorio de
+# trabajo se declara por variable de entorno.
+#
+# **Y si un fichero no se puede leer, ABORTA.** Media copia que parece completa es peor
+# que ninguna, y aqui nadie va a mirar el zip hasta el dia que haga falta. Es el mismo
+# criterio de `trabajo.seed_reference_dir`.
+
+#: Como se llaman los dos directorios dentro del zip. En el zip y en el LEEME salen los
+#: mismos nombres: si divergieran, las instrucciones de restauracion apuntarian a una
+#: carpeta que no existe.
+BACKUP_DIRS = MappingProxyType(
+    {"referencia": "reference", "proyectos": "proyectos", "biblioteca": "biblioteca"}
+)
+
+WHY_A_BACKUP_BUTTON = (
+    "El volumen es la única copia de todo lo que pone un frente en verde, y con él se "
+    "iría la procedencia: el manifiesto de trabajo es donde están el md5, la fecha, el "
+    "origen y el ensamblaje de cada fichero que subiste. Esta copia lo mete todo en un "
+    "zip para que hacerla sea un botón y no una tarea de disciplina."
+)
+
+
+def _bytes_de(ruta: Path, *, que: str) -> bytes:
+    """Los bytes, o ABORTA. Nunca se omite un fichero de la copia en silencio."""
+    try:
+        return ruta.read_bytes()
+    except OSError as exc:
+        raise ShmirDesignError(
+            f"No se pudo leer {que} ({ruta}): {exc}. Se ABORTA la copia entera en vez de "
+            f"dejar fuera un fichero sin decirlo: media copia que parece completa es "
+            f"peor que ninguna, y nadie mira un zip de seguridad hasta el día que lo "
+            f"necesita."
+        ) from exc
+
+
+def _ficheros_del_deposito(directory: Path) -> list[Path]:
+    """Todo lo que hay en la raíz del depósito, el manifiesto incluido.
+
+    NO se filtra por rol: un fichero que esté ahí y no reconozcamos entra igual. Lo que
+    esto copia es el VOLUMEN, no la lista de lo que la app sabe usar — y lo segundo es
+    justo lo que dejaría fuera algo puesto a mano.
+    """
+    return sorted(p for p in directory.iterdir() if p.is_file())
+
+
+def _proyectos_de(base: Path) -> list[Path]:
+    from .store import PROJECT_FILE  # noqa: PLC0415
+
+    if not base.is_dir():
+        return []
+    return sorted(p for p in base.iterdir() if p.is_dir() and (p / PROJECT_FILE).is_file())
+
+
+def backup_inventory(directory, *, projects=None) -> dict[str, object]:
+    """Qué llevaría la copia y cuánto pesa. NO construye el zip.
+
+    Se pinta en cada repintado de la página, así que aquí no se comprime nada: con el
+    transcriptoma dentro —84 MB— montar el zip para enseñar un número costaría un minuto
+    por clic. Es la lección de la errata nº 59.
+    """
+    from .store import LOG_FILE, PROJECT_FILE  # noqa: PLC0415
+
+    raiz = Path(directory)
+    if not raiz.is_dir():
+        raise ShmirDesignError(
+            f"No hay depósito en {raiz}, así que no hay nada que copiar. Se aborta en "
+            f"vez de entregar un zip vacío, que se leería como «no había nada»."
+        )
+    ficheros = _ficheros_del_deposito(raiz)
+    total = sum(p.stat().st_size for p in ficheros)
+
+    proyectos = _proyectos_de(Path(projects)) if projects is not None else []
+    for directorio in proyectos:
+        for nombre in (PROJECT_FILE, LOG_FILE):
+            ruta = directorio / nombre
+            if ruta.is_file():
+                total += ruta.stat().st_size
+
+    biblioteca = raiz / "biblioteca"
+    guardados = (
+        sorted(p for p in biblioteca.rglob("*") if p.is_file())
+        if biblioteca.is_dir() else []
+    )
+    total += sum(p.stat().st_size for p in guardados)
+    return {
+        "ficheros": len(ficheros),
+        "proyectos": len(proyectos),
+        "guardados": len(guardados),
+        "bytes": total,
+        "nombres": tuple(p.name for p in ficheros),
+        "slugs": tuple(p.name for p in proyectos),
+    }
+
+
+def export_all(directory, *, projects=None, date: str) -> bytes:
+    """El depósito entero, los proyectos y la biblioteca en un zip. Con su LEEME.
+
+    `date` es OBLIGATORIA y va dentro: una copia de seguridad sin fecha no se distingue
+    de otra, y lo primero que hace falta saber de un zip encontrado dentro de un año es
+    de cuándo es.
+    """
+    import zipfile  # noqa: PLC0415
+
+    from .store import LOG_FILE, PROJECT_FILE  # noqa: PLC0415
+
+    if not str(date).strip():
+        raise ShmirDesignError(
+            "Una copia de seguridad necesita fecha: sin ella no se distingue de otra, y "
+            "es lo primero que hace falta saber de un zip encontrado dentro de un año. "
+            "Se aborta."
+        )
+    raiz = Path(directory)
+    inventario = backup_inventory(raiz, projects=projects)
+
+    lineas = [
+        f"Copia de seguridad de shmir-design — {date}",
+        "",
+        WHY_A_BACKUP_BUTTON,
+        "",
+        "DE DÓNDE SALIÓ",
+        f"  ficheros de referencia: {raiz}",
+    ]
+    base_proyectos = Path(projects) if projects is not None else None
+    lineas.append(
+        f"  proyectos:              {base_proyectos}"
+        if base_proyectos is not None
+        else "  proyectos:              no se pidieron"
+    )
+    lineas += [
+        "",
+        "CÓMO SE RESTAURA",
+        f"  El contenido de {BACKUP_DIRS['referencia']}/ va al directorio que declare la "
+        f"variable SHMIR_REFERENCE_DIR",
+        f"  (en un despliegue, dentro del volumen). El de "
+        f"{BACKUP_DIRS['proyectos']}/ va al de SHMIR_PROJECT_DIR.",
+        f"  {BACKUP_DIRS['biblioteca']}/ va DENTRO del de referencia, en un "
+        f"subdirectorio con ese mismo nombre.",
+        "  Los ficheros se copian tal cual: el manifiesto lleva su md5 y la app lo "
+        "vuelve a comprobar al cargarlos.",
+        "",
+        "LO QUE ESTA COPIA NO ES",
+        "  Es una FOTO del día que se descargó: no se actualiza sola. Lo que se suba "
+        "después no está aquí.",
+        "  Y no lleva el código: eso está en git. Lleva lo que git NO puede llevar.",
+        "",
+        f"INVENTARIO — {inventario['ficheros']} fichero(s) de referencia, "
+        f"{inventario['proyectos']} proyecto(s), {inventario['guardados']} guardado(s) "
+        f"de la biblioteca",
+        "",
+    ]
+
+    memoria = io.BytesIO()
+    with zipfile.ZipFile(memoria, "w", zipfile.ZIP_DEFLATED) as zf:
+        for ruta in _ficheros_del_deposito(raiz):
+            crudo = _bytes_de(ruta, que=f"el fichero de referencia {ruta.name!r}")
+            zf.writestr(f"{BACKUP_DIRS['referencia']}/{ruta.name}", crudo)
+            lineas.append(
+                f"  {BACKUP_DIRS['referencia']}/{ruta.name:<38} {len(crudo):>12} B  "
+                f"md5 {file_fingerprint(crudo)}"
+            )
+
+        biblioteca = raiz / "biblioteca"
+        if biblioteca.is_dir():
+            for ruta in sorted(p for p in biblioteca.rglob("*") if p.is_file()):
+                crudo = _bytes_de(ruta, que=f"el guardado {ruta.name!r} de la biblioteca")
+                relativa = ruta.relative_to(biblioteca).as_posix()
+                zf.writestr(f"{BACKUP_DIRS['biblioteca']}/{relativa}", crudo)
+                lineas.append(
+                    f"  {BACKUP_DIRS['biblioteca']}/{relativa:<38} {len(crudo):>12} B  "
+                    f"md5 {file_fingerprint(crudo)}"
+                )
+
+        proyectos = _proyectos_de(base_proyectos) if base_proyectos else []
+        if not proyectos:
+            lineas.append(
+                "  (no había ningún proyecto: el primer día es lo normal, no un fallo)"
+            )
+        for directorio in proyectos:
+            for nombre in (PROJECT_FILE, LOG_FILE):
+                ruta = directorio / nombre
+                if not ruta.is_file():
+                    raise ShmirDesignError(
+                        f"Al proyecto {directorio.name!r} le falta {nombre}, así que su "
+                        f"registro no se puede leer entero. Se aborta la copia en vez de "
+                        f"guardar media: un log sin saber sobre qué secuencia es no dice "
+                        f"nada, y una entrada sin su log tampoco."
+                    )
+                crudo = _bytes_de(ruta, que=f"{nombre} del proyecto {directorio.name!r}")
+                destino = f"{BACKUP_DIRS['proyectos']}/{directorio.name}/{nombre}"
+                zf.writestr(destino, crudo)
+                lineas.append(
+                    f"  {destino:<50} {len(crudo):>12} B  md5 {file_fingerprint(crudo)}"
+                )
+
+        zf.writestr("LEEME.txt", "\n".join(lineas) + "\n")
+    return memoria.getvalue()

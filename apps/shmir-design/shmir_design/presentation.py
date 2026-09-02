@@ -2504,6 +2504,67 @@ def blast_database_from_deposit(*, species: str, directory, remote: bool = False
     }
 
 
+from .gestor import WHY_A_BACKUP_BUTTON as _WHY_A_BACKUP_BUTTON  # noqa: E402
+
+
+#: Cómo se lee un tamaño. Vive aquí y no en la página porque elegir la unidad es una
+#: decisión —84.000.000 y «84,0 MB» dicen lo mismo y sólo uno se lee de un vistazo— y la
+#: página no decide (regla 6).
+def size_text(nbytes: int) -> str:
+    """Bytes → una cifra legible. Sin redondear a cero: 0 B es un dato."""
+    valor = float(nbytes)
+    for unidad in ("B", "KB", "MB", "GB"):
+        if valor < 1024 or unidad == "GB":
+            entero = unidad == "B"
+            return f"{valor:.0f} {unidad}" if entero else f"{valor:.1f} {unidad}"
+        valor /= 1024
+    raise AssertionError  # pragma: no cover - el bucle siempre sale por el `return`
+
+
+#: Por que existe el boton. Va a la pagina desde aqui, como todo lo demas.
+WHY_A_BACKUP_BUTTON = _WHY_A_BACKUP_BUTTON
+
+
+def backup_inventory(*, directory, projects=None) -> dict[str, object]:
+    """Qué llevaría la copia de seguridad y cuánto pesa. NO construye el zip.
+
+    Se pinta en CADA repintado, así que aquí no se comprime nada: con el transcriptoma
+    dentro —84 MB— montar el zip sólo para enseñar un número costaría un minuto por clic.
+    Es la lección de la errata nº 59.
+    """
+    from .gestor import backup_inventory as inventario  # noqa: PLC0415
+
+    datos = dict(inventario(directory, projects=projects))
+    trozos = [f"{datos['ficheros']} fichero(s) de referencia"]
+    if datos["proyectos"]:
+        trozos.append(f"{datos['proyectos']} proyecto(s)")
+    if datos["guardados"]:
+        trozos.append(f"{datos['guardados']} guardado(s) de la biblioteca")
+    datos["texto"] = (
+        f"{', '.join(trozos)} — {size_text(int(datos['bytes']))} sin comprimir."
+    )
+    return datos
+
+
+def build_backup(*, directory, projects=None, date: str) -> dict[str, object]:
+    """El zip entero, ya montado, con el nombre con el que se descarga.
+
+    El NOMBRE lleva la fecha porque dos copias sin fecha no se distinguen, y eso es lo
+    primero que hace falta saber de un zip encontrado dentro de un año.
+    """
+    from .gestor import export_all  # noqa: PLC0415
+
+    crudo = export_all(directory, projects=projects, date=date)
+    return {
+        "datos": crudo,
+        "nombre": f"shmir_copia_{date}.zip",
+        "texto": (
+            f"Copia lista: {size_text(len(crudo))} comprimidos. Dentro va el LEEME con "
+            f"el inventario, los md5 y cómo se restaura."
+        ),
+    }
+
+
 def accept_reference_upload(
     species: str, *, directory, filename: str, payload: bytes, date: str,
     origin: str = "subido por la interfaz", **procedencia,

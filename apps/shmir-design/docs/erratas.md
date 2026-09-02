@@ -3201,3 +3201,70 @@ verbo**, así que la entrada nunca acertó y sólo podía fallar. `"medido"` se 
 esta medido» sí aparece— y no es incoherencia: son dos palabras con dos repartos distintos
 en este corpus, que es justo lo que una lista **cerrada y leída** puede decir y una regla
 de participios no.
+
+---
+
+## 66 — La copia de seguridad existía como posibilidad, no como acción
+
+**Pedido el 2026-09-02**, con el motivo delante y mejor formulado de lo que estaba en el
+código:
+
+> El volumen es la única copia de todo lo que pone un frente en verde, y con él se iría la
+> procedencia. **Que la copia de seguridad sea un botón, no una tarea de disciplina.**
+
+Y es exacto. Los ficheros que cierran frentes —`mature.fa`, `aav_casete.fa`,
+`addgene_111170.gb`, `transcriptoma_3utr.fa`, `refseq_rna.fa`— **no van en git**: no
+entran en un repositorio, así que viven **sólo** en el volumen. Con ellos se iría el
+`manifest.tsv` de trabajo, que es donde están su md5, su fecha, su origen y —desde ayer—
+su ensamblaje y su tabla. O sea **la procedencia**, que es lo único que hace auditable un
+veredicto dentro de un año.
+
+Lo que había: un botón «Descargar» **por fichero**, y el manifiesto **sin ninguno**. Ocho
+descargas de una en una y la pieza que las explica sin forma de bajarla. Eso no es una
+copia de seguridad: es la posibilidad de hacerla, que es otra cosa — y depende de que
+alguien se acuerde, que es justo lo que la frase del reporte nombra.
+
+### Lo que entra
+
+`gestor.export_all` monta un zip con **todo lo que el volumen tiene y git no puede
+llevar**: los ficheros del depósito con su `manifest.tsv`, los logs de cada proyecto —las
+**dos** piezas, `proyecto.json` y `registro.jsonl`— y la biblioteca del paso 2, que estaba
+en la misma situación y no se pidió: incluirla es lo coherente con el motivo, y dejarla
+fuera en silencio habría sido entregar una «copia de todo» que no lo es.
+
+**Con un LEEME dentro**, y no es adorno: un zip sin nada que lo explique es un montón de
+ficheros dentro de un año. Lleva de dónde salió cada cosa —las rutas reales—, el
+**inventario con md5** para poder comprobarlo **sin la app**, cómo se restaura (que
+importa, porque el directorio de trabajo se declara por variable de entorno) y lo que esta
+copia **no** es: una foto del día, que **no se actualiza sola**.
+
+### Las dos decisiones que no son obvias
+
+**Si un fichero no se puede leer, ABORTA.** Media copia que parece completa es peor que
+ninguna, y aquí nadie va a abrir el zip hasta el día que lo necesite. Mismo criterio que
+`trabajo.seed_reference_dir`, que aborta antes que dejar un directorio incompleto con
+pinta de completo. Lo mismo con un proyecto al que le falte su log: una entrada sin
+registro no dice nada, y guardar sólo una mitad sería peor que no guardar.
+
+**El zip se monta al PULSAR, no al pintar.** `st.download_button` necesita los datos ya
+hechos, así que ponerlo directo significaría comprimir en **cada repintado** de la página
+— con el transcriptoma dentro, 84 MB por clic. Es la lección de la errata nº 59. Va detrás
+de un botón que lo prepara, y el inventario —cuántos ficheros, cuánto pesan— se calcula
+con `stat`, sin comprimir nada, para que se sepa **antes** de pulsar.
+
+Medido sobre el depósito real: 27 ficheros, 5,5 MB sin comprimir → **1,1 MB** en el zip,
+28 entradas, integridad comprobada.
+
+### Y un control adversario que no corría
+
+El primero que escribí hacía `chmod 000` sobre un fichero para probar que la copia aborta…
+y **como root eso no impide leer**, así que el test se **saltaba**. Un control que no corre
+en el entorno donde se corren los tests es exactamente lo que este proyecto no acepta —es
+la familia del `verify()` de la errata nº 29—. Sustituido por dos deterministas: la pieza
+que decide contra una ruta que de verdad no existe, y un proyecto al que se le borra el
+log.
+
+También cayó ahí un **rojo falso por anclar un guardia a la prosa**: el test que comprueba
+que el botón de preparar va antes del de descargar encontraba `st.download_button` **dentro
+del docstring** que explica precisamente por qué va detrás. Es la errata nº 54 con el signo
+cambiado, y el arreglo es el mismo: se mira el código, no el texto que lo explica.

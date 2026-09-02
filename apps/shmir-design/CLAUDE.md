@@ -4084,6 +4084,37 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     coordenadas por nuestra cuenta, lo que `mir30_original` se niega a hacer— sino que se
     **CONTRASTA** con él, y eso es lo que corre ahora en cada comprobación de contexto.
 
+- **«DESCARGAR TODO»: la copia de seguridad es UN BOTÓN (2026-09-02)**, errata nº 66
+  (`gestor.export_all`, `presentation.backup_inventory` / `build_backup`). El motivo va
+  con las palabras con que se pidió: *el volumen es la única copia de todo lo que pone un
+  frente en verde, y con él se iría la procedencia*.
+  - Los ficheros que cierran frentes **no van en git** —no entran en un repositorio—, así
+    que viven sólo en el volumen; y con ellos se iría el `manifest.tsv` de TRABAJO, que es
+    donde están su md5, su fecha, su origen y su ensamblaje. Había un botón **por
+    fichero** y el manifiesto **sin ninguno**: eso no es una copia de seguridad, es la
+    posibilidad de hacerla — y depende de que alguien se acuerde.
+  - **Lleva lo que git NO puede llevar**: el depósito con su manifiesto, los logs de cada
+    proyecto (las DOS piezas) y la biblioteca del paso 2 — que no se pidió y está en la
+    misma situación: dejarla fuera en silencio habría sido entregar una «copia de todo»
+    que no lo es.
+  - **Con un LEEME dentro**, que no es adorno: un zip sin nada que lo explique es un montón
+    de ficheros dentro de un año. Rutas de origen, **inventario con md5 para comprobarlo
+    SIN la app**, cómo se restaura —importa, porque el directorio se declara por variable
+    de entorno— y lo que NO es: una foto del día, que **no se actualiza sola**.
+  - **Si un fichero no se puede leer, ABORTA**, y lo mismo si a un proyecto le falta su
+    log: media copia que parece completa es peor que ninguna, y nadie abre un zip de
+    seguridad hasta el día que lo necesita. Mismo criterio que `seed_reference_dir`.
+  - **El zip se monta al PULSAR, no al pintar**: `st.download_button` necesita los datos
+    hechos, así que en línea se comprimiría en CADA repintado —84 MB por clic con el
+    transcriptoma dentro, la lección de la errata nº 59—. El inventario previo se calcula
+    con `stat`, sin comprimir, para saber lo que pesa ANTES.
+  - Medido sobre el depósito real: 27 ficheros, 5,5 MB → **1,1 MB** comprimidos, 28
+    entradas, integridad comprobada.
+  - **Y dos controles que no valían**: el `chmod 000` se saltaba como root —un control que
+    no corre donde se corren los tests no es un control— y el que ordena los dos botones
+    se anclaba en el **docstring** que explica por qué van en ese orden. Los dos
+    sustituidos; el segundo es la errata nº 54 con el signo cambiado.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
