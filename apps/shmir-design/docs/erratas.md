@@ -2384,3 +2384,24 @@ hice con el panel entero y una cobertura parcial no salió.
 Los almacenes se cargan ahora **una sola vez** en `bloque_especie` y los usan los cuatro
 consumidores, con test de que no vuelve a haber dos cargas: cuatro copias del mismo estado
 son cuatro cosas que pueden discrepar.
+
+### La última pieza, encontrada revisando antes de prometer nada
+
+Los cuatro consumidores pueden estar perfectos y **el usuario ver exactamente lo mismo que
+si estuvieran rotos**: la tabla, el semáforo y las tarjetas se pintan **arriba** del
+formulario de guardado, o sea **antes** en el mismo script de Streamlit. En el rerun que
+guarda la corrida siguen enseñando el estado de **antes** de guardarla.
+
+Así que el usuario lee «Guardada, 10 veredictos actualizados» y ve la página sin cambiar.
+Y concluye, con razón, que no se ha recogido. Es el fallo que habría reproducido el
+informe de las tres veces anteriores **con todo lo demás ya arreglado**.
+
+`_guardar_corrida` hace ahora `st.rerun()` tras guardar, y la confirmación viaja en
+`session_state` para sobrevivir al repintado — sin eso habría que elegir entre enseñar el
+mensaje y refrescar, y hacen falta las dos cosas.
+
+**Y el test de eso se ancló mal a la primera**: buscaba `st.rerun()` en el cuerpo de la
+función y lo encontraba **dentro del comentario que lo explica**, así que medía el orden
+contra la prosa. Corregido —se quitan los comentarios antes de mirar— y anotado aquí
+porque es la misma familia que un guardia que muerde donde no hay lógica: **un ancla falsa
+da verde sin comprobar nada**.

@@ -182,3 +182,50 @@ class TestLaCOBERTURAPARCIALseDICE(unittest.TestCase):
             "cada consumidor volvía a cargarlos por su cuenta: cuatro copias del mismo "
             "estado, y la que se olvidara pintaría otra cosa.",
         )
+
+
+class TestLaPAGINAsEREPINTAtrasGUARDAR(unittest.TestCase):
+    """La última pieza: guardar y no repintar deja la pantalla mintiendo.
+
+    La tabla, el semáforo y las tarjetas se pintan ARRIBA del formulario de guardado, o
+    sea ANTES en el mismo script de Streamlit. En el rerun que guarda la corrida siguen
+    enseñando el estado de ANTES de guardarla, así que quien acaba de subir una corrida
+    de horas lee «guardada» y ve la página sin cambiar — y concluye, con razón, que no se
+    ha recogido. Los cuatro consumidores pueden estar perfectos y el usuario ve lo mismo
+    que si estuvieran rotos.
+    """
+
+    FUENTE = TestLaPaginaPASAlosAlmacenes.FUENTE
+
+    def _guardar_corrida(self):
+        # Con el prefijo del salto de linea: `_guardar_corrida` se NOMBRA en comentarios
+        # de los modales, y sin el la rebanada empezaba en uno de ellos. Un test que
+        # mira el trozo equivocado del fuente no prueba lo que dice probar.
+        inicio = self.FUENTE.index("\ndef _guardar_corrida(")
+        cuerpo = self.FUENTE[inicio + 1:]
+        cuerpo = cuerpo[: cuerpo.index("\ndef ")]
+        # SIN LOS COMENTARIOS. El comentario que explica el repintado NOMBRA
+        # `st.rerun()`, así que el orden se medía contra la prosa y no contra el código
+        # — un ancla falsa, la misma familia que un guardia que muerde donde no hay
+        # lógica. Lo cazó este test al escribirlo.
+        return "\n".join(
+            l for l in cuerpo.splitlines() if not l.strip().startswith("#")
+        )
+
+    def test_tras_guardar_se_REPINTA(self):
+        self.assertIn(
+            "st.rerun()", self._guardar_corrida(),
+            "sin repintar, lo de arriba sigue mostrando el estado anterior al guardado.",
+        )
+
+    def test_y_la_confirmacion_SOBREVIVE_al_repintado(self):
+        # Si el mensaje se pintara antes del `rerun`, el repintado se lo llevaría: habría
+        # que elegir entre enseñarlo y refrescar, y hacen falta las dos cosas.
+        cuerpo = self._guardar_corrida()
+        self.assertIn("st.session_state[ranura] = resumen", cuerpo)
+        self.assertLess(cuerpo.index("st.session_state.pop(ranura"), cuerpo.index("st.rerun()"))
+
+    def test_el_verde_lo_decide_CON_VEREDICTO_y_no_el_total_de_cambios(self):
+        # Un NOT_RUN que pasa a NO_CIERRA es un cambio y no es una buena noticia.
+        cuerpo = self._guardar_corrida()
+        self.assertIn('bool(resumen["con_veredicto"])', cuerpo)

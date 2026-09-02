@@ -3741,6 +3741,16 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     hasta reproducir el flujo real con cobertura parcial no salió.
   - Los almacenes se cargan **una sola vez** en `bloque_especie` y los usan los cuatro, con
     test de que no vuelve a haber dos cargas.
+  - **Y LA ÚLTIMA PIEZA, encontrada al revisarlo antes de prometer nada**: los cuatro
+    consumidores pueden estar perfectos y el usuario ver **lo mismo que si estuvieran
+    rotos**. La tabla, el semáforo y las tarjetas se pintan **arriba** del formulario de
+    guardado —antes en el mismo script—, así que en el rerun que guarda la corrida siguen
+    enseñando el estado de antes. Se lee «Guardada, 10 veredictos actualizados» y la
+    página no cambia. `_guardar_corrida` hace ahora `st.rerun()` y la confirmación viaja
+    en `session_state` para sobrevivir al repintado.
+  - **El test de eso se ancló mal a la primera**: buscaba `st.rerun()` y lo encontraba
+    **dentro del comentario que lo explica**. Un ancla falsa da verde sin comprobar nada;
+    ahora se quitan los comentarios antes de mirar.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

@@ -1377,6 +1377,13 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
             "pierde. Actívalo en la barra lateral."
         )
         return
+    # LA CONFIRMACION SOBREVIVE AL RERUN. Se guarda aquí y se pinta en el repintado de
+    # después de `st.rerun()`; sin esto habría que elegir entre enseñar el mensaje y
+    # refrescar la página, y hacen falta las dos cosas.
+    ranura = f"{clave}_guardada_{nombre}"
+    hecho = st.session_state.pop(ranura, None)
+    if hecho is not None:
+        (st.success if hecho["verde"] else st.warning)(hecho["texto"])
     columnas = st.columns([2, 2, 3])
     with columnas[0]:
         fecha = st.text_input("Fecha", "", key=f"{clave}_gf_{nombre}")
@@ -1396,13 +1403,26 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
                 st.error(f"**PARA** — {exc}")
             else:
                 if tiling is None or seleccion is None:
-                    st.success("Guardada en el log del proyecto.")
-                    return
-                resumen = verdicts_changed(
-                    tiling, seleccion, species=nombre,
-                    before=antes, after=load_stores(proyecto),
-                )
-                (st.success if resumen["cambiados"] else st.warning)(resumen["texto"])
+                    resumen = {
+                        "verde": True, "texto": "Guardada en el log del proyecto.",
+                    }
+                else:
+                    resumen = verdicts_changed(
+                        tiling, seleccion, species=nombre,
+                        before=antes, after=load_stores(proyecto),
+                    )
+                    resumen = {
+                        "verde": bool(resumen["con_veredicto"]),
+                        "texto": resumen["texto"],
+                    }
+                st.session_state[ranura] = resumen
+                # Y SE REPINTA LA PAGINA ENTERA. La tabla, el semáforo y las tarjetas se
+                # pintan ARRIBA de este formulario, o sea ANTES en el mismo script: en el
+                # rerun que guarda la corrida siguen enseñando el estado de antes de
+                # guardarla. Sin este `rerun`, quien acaba de subir una corrida ve
+                # «guardada» y la página sin cambiar — y concluye, con razón, que no se ha
+                # recogido. Es la última pieza de la errata nº 54.
+                st.rerun()
 
 
 
