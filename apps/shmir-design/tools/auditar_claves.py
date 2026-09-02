@@ -306,6 +306,10 @@ def identificadores_a_mano() -> list[str]:
 def formulas_repetidas() -> dict[str, list[str]]:
     """Expresiones aritmeticas que aparecen literalmente en mas de un modulo.
 
+    Devuelve los SITIOS (`fichero:linea`), no los modulos: el trinquete cuenta sitios
+    porque contar formas de escribirla premiaria unificar la sintaxis sin quitar ni una
+    cuenta a mano.
+
     Se descartan las que llevan un literal de texto —son formato, no aritmetica—, las de
     menos de dos operadores y las anotaciones de tipo (`Path | str | None` es una union,
     no una cuenta).
@@ -336,9 +340,10 @@ def formulas_repetidas() -> dict[str, list[str]]:
             fuente = ast.unparse(nodo)
             if len(fuente) < 12:
                 continue
-            sitios.setdefault(fuente, []).append(fichero.name)
+            sitios.setdefault(fuente, []).append(f"{fichero.name}:{nodo.lineno}")
     return {
-        f: sorted(set(m)) for f, m in sitios.items() if len(set(m)) > 1
+        f: s for f, s in sitios.items()
+        if len({x.split(":")[0] for x in s}) > 1
     }
 
 
@@ -358,7 +363,23 @@ def revisar_magnitudes(ruta: Path = MAGNITUDES) -> dict:
     permisivos = constructores_permisivos()
     declarados_ctor = tabla.get("constructores", {})
     formulas = formulas_repetidas()
-    techo = tabla.get("formulas", {}).get("techo")
+    seccion = tabla.get("formulas", {})
+    clasificacion = seccion.get("clasificacion", {})
+    techos = seccion.get("techos", {})
+    prioridad = seccion.get("prioridad", {})
+    # POR MAGNITUD, no «once fórmulas repetidas». Un número a secas no dice qué hacer;
+    # «23 sitios calculan la longitud de un intervalo a mano» sí.
+    grupos: dict[str, dict] = {}
+    for fuente, lugares in formulas.items():
+        magnitud = clasificacion.get(fuente)
+        if magnitud is None:
+            continue
+        grupo = grupos.setdefault(
+            magnitud, {"sitios": [], "formas": [], "modulos": set()}
+        )
+        grupo["sitios"].extend(lugares)
+        grupo["formas"].append(fuente)
+        grupo["modulos"].update(x.split(":")[0] for x in lugares)
     return {
         "sin_declarar": [s for s in vivos if s not in declarados],
         "muertas": [s for s in declarados if s not in vivos],
@@ -367,8 +388,31 @@ def revisar_magnitudes(ruta: Path = MAGNITUDES) -> dict:
         "permisivos": [c for c in permisivos if c not in declarados_ctor],
         "permisivos_muertos": [c for c in declarados_ctor if c not in permisivos],
         "formulas": formulas,
-        "techo": techo,
-        "techo_roto": techo is not None and len(formulas) != techo,
+        "formulas_sin_clasificar": sorted(
+            f for f in formulas if f not in clasificacion
+        ),
+        "formulas_clasificadas_de_mas": sorted(
+            f for f in clasificacion if f not in formulas
+        ),
+        "grupos": {
+            magnitud: {
+                "sitios": len(datos["sitios"]),
+                "formas": len(datos["formas"]),
+                "modulos": len(datos["modulos"]),
+                "techo": techos.get(magnitud),
+                "prioritaria": magnitud in prioridad,
+                "por_que": prioridad.get(magnitud, ""),
+            }
+            for magnitud, datos in sorted(
+                grupos.items(), key=lambda kv: -len(kv[1]["sitios"])
+            )
+        },
+        "techos_rotos": sorted(
+            magnitud for magnitud, datos in grupos.items()
+            if techos.get(magnitud) is not None
+            and len(datos["sitios"]) != techos[magnitud]
+        ),
+        "techos_sin_grupo": sorted(t for t in techos if t not in grupos),
     }
 
 

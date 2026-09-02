@@ -3658,10 +3658,24 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     acepte.
   - **IDENTIFICADORES**: un `*_id` construido a mano con una f-string. Guardia, cero: es
     la regresión de la errata nº 48.
-  - **FÓRMULAS** repetidas entre módulos: **trinquete** en 11, porque cero no se puede
-    exigir. La que más pesa es la misma escrita de dos formas —`self.end - self.start + 1`
-    en siete módulos y `fin - inicio + 1` en seis—, que es justo la cantidad que
-    `audit.Span.check()` existe para derivar.
+  - **FÓRMULAS** repetidas entre módulos: trinquete, y **POR MAGNITUD, no en total**.
+    «Once fórmulas repetidas» no es accionable; «**23 sitios en 14 módulos calculan la
+    longitud de un intervalo a mano**» sí. Tres grupos, con techo propio en SITIOS —contar
+    formas premiaría unificar la sintaxis sin quitar ni una cuenta—:
+    - **longitud de un intervalo a partir de sus extremos — 23 sitios / 14 módulos /
+      4 formas. PRIORITARIA**, por delante del resto del trinquete. No es una duplicación
+      aceptable: es lo que `audit.Span.check()` existe para derivar —«ningún intervalo se
+      escribe a mano»— y la clase que **ya falló tres veces**: el desplazamiento de 3 nt,
+      las ventanas `269-291`/`222-242` emitidas para guías de 22 nt, y el 405 de la errata
+      nº 35. Dos de sus cuatro formas —`self.end - self.start + 1` y `fin - inicio + 1`—
+      son la misma cuenta con otros nombres. Baja cuando esos sitios le pidan la longitud
+      a `Span` en vez de restarla;
+    - **extremo de un intervalo a partir de inicio y longitud** — 9 / 3 / 3. La operación
+      inversa de la misma geometría, y ya escrita de dos formas (`start + length - 1` y
+      `start - 1 + length`): el patrón otra vez;
+    - **ajuste de línea de un informe** — 9 / 5 / 4. Es **formato**: no decide ningún
+      veredicto, así que duplicarlo cuesta legibilidad, no corrección. Va el último a
+      propósito.
 
 - **DOS AUDITORÍAS CON REGLAS OPUESTAS SOBRE LA MISMA EVIDENCIA (2026-09-02)**
   (`data/auditorias.toml`, `tests/test_auditorias_no_se_pisan.py`), errata nº 52 y
@@ -3676,8 +3690,14 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     nadie ejecuta sería la errata nº 29 otra vez.
   - **Y encontró dos cosas al estrenarse**: `auditar_geometria` y `auditar_navegacion` no
     estaban declaradas en ninguna parte, y `guardias.toml` y `magnitudes.toml` opinan las
-    dos sobre quién calcula un digesto — hay que actualizar **las dos**, y eso ya se había
-    olvidado dos veces en un día.
+    dos sobre quién calcula un digesto — hay que actualizar **las dos**.
+  - **DE LAS TRES AUDITORÍAS NUEVAS DE ESE DÍA, DOS SE ESTRENARON CAZANDO UN DESCUIDO DEL
+    MISMO DÍA DE QUIEN LAS ESTABA ESCRIBIENDO**: las dos declaraciones de digesto que se
+    quedaron sin actualizar (`result_fingerprint` y `file_fingerprint`), las dos cazadas
+    **por casualidad** al fallar la suite por otro motivo. Va al registro y al principio
+    nº 26 porque **es el argumento entero**: quien escribe un guardia es quien más cree
+    que no lo necesita —acaba de mirar ese código— y aun así falló dos veces en unas
+    horas. La disciplina no sustituye al mecanismo, ni siquiera la de quien lo escribe.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

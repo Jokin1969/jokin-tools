@@ -439,10 +439,21 @@ def main(argv: list[str]) -> int:
         f"  constructores permisivos {len(mag['permisivos'])} sin declarar"
         f" (el correcto es 0)"
     )
-    print(
-        f"  fórmulas repetidas       {len(mag['formulas'])} de un techo de {mag['techo']}"
-        f" — sólo puede bajar"
-    )
+    print(f"  fórmulas repetidas       {len(mag['formulas'])}, POR MAGNITUD:")
+    for magnitud, datos in mag["grupos"].items():
+        marca = "  ← PRIORITARIA" if datos["prioritaria"] else ""
+        print(
+            f"      {datos['sitios']:3d} sitios en {datos['modulos']:2d} módulos "
+            f"({datos['formas']} formas de escribirla) · techo {datos['techo']}"
+            f"  «{magnitud}»{marca}"
+        )
+    for magnitud, datos in mag["grupos"].items():
+        if datos["por_que"]:
+            import textwrap
+
+            print()
+            for linea in textwrap.wrap(datos["por_que"], 72):
+                print(f"      {linea}")
     print()
     problemas = []
     for sitio in mag["sin_declarar"]:
@@ -464,12 +475,25 @@ def main(argv: list[str]) -> int:
         problemas.append(
             f"  · {sitio} está declarado como constructor permisivo y ya no lo es"
         )
-    if mag["techo_roto"]:
+    for formula in mag["formulas_sin_clasificar"]:
         problemas.append(
-            f"  · fórmulas repetidas: {len(mag['formulas'])} contra un techo de "
-            f"{mag['techo']}. Si ha subido, alguien duplicó una; si ha bajado, el techo "
-            f"está caducado y se actualiza en data/magnitudes.toml."
+            f"  · la fórmula {formula!r} se repite entre módulos y no dice QUÉ magnitud "
+            f"calcula. Once fórmulas «en general» no es accionable; su magnitud sí."
         )
+    for formula in mag["formulas_clasificadas_de_mas"]:
+        problemas.append(
+            f"  · {formula!r} está clasificada y ya no se repite entre módulos"
+        )
+    for magnitud in mag["techos_rotos"]:
+        datos = mag["grupos"][magnitud]
+        problemas.append(
+            f"  · «{magnitud}»: {datos['sitios']} sitios contra un techo de "
+            f"{datos['techo']}. Si ha subido, alguien la duplicó; si ha bajado —que es "
+            f"lo que se busca— el techo está caducado y se actualiza en "
+            f"data/magnitudes.toml."
+        )
+    for magnitud in mag["techos_sin_grupo"]:
+        problemas.append(f"  · el techo de «{magnitud}» ya no corresponde a ninguna fórmula")
     if problemas:
         print("\n".join(problemas))
         print(

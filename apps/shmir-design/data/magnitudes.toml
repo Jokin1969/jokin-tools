@@ -61,15 +61,50 @@
 # sube, alguien duplicó una fórmula; si baja, el techo está caducado.
 
 [formulas]
-techo = 11
-porque = """\
-Once hoy, y las dos que más pesan son la MISMA magnitud escrita de dos formas: \
-`self.end - self.start + 1` en siete módulos y `fin - inicio + 1` en seis. Es \
-exactamente la cantidad que `audit.Span.check()` existe para derivar —«ningún intervalo \
-se escribe a mano», y la errata del desplazamiento de 3 nt salió de ahí— calculada a \
-mano trece veces. Detrás van `start + length - 1` (3), `SEED_END - SEED_START + 1` (3) y \
-el ajuste de línea de los informes (3+2+2), que es formato y no decide ningún veredicto. \
-El techo baja cuando esos sitios pasen por `Span` o por una función de longitud."""
+# ONCE FÓRMULAS REPETIDAS «EN GENERAL» NO ES ACCIONABLE. Lo dijo el responsable del
+# proyecto (2026-09-02) y tiene razón: un número a secas no dice qué hacer. Lo que sí lo
+# dice es la MAGNITUD, así que cada fórmula repetida se clasifica y el trinquete es POR
+# GRUPO. «Veintitrés sitios calculan la longitud de un intervalo a mano» es una tarea.
+#
+# Y esa es además la PRIORITARIA, por delante del resto del trinquete: es exactamente la
+# cantidad que `audit.Span.check()` existe para derivar —«ningún intervalo se escribe a
+# mano»— y la clase que ya produjo la errata del desplazamiento de 3 nt, las ventanas
+# `269-291`/`222-242` emitidas para guías de 22 nt, y el 405 de la errata nº 35. No es
+# una duplicación aceptable: es la que ya ha fallado tres veces.
+#
+# Los otros dos grupos no se tocan mientras ése baje: el del extremo es la operación
+# INVERSA de la misma geometría —y ya aparece escrita de dos formas, `start + length - 1`
+# y `start - 1 + length`, que es el patrón otra vez—, y el del ajuste de línea es
+# FORMATO: no decide ningún veredicto, así que duplicarlo cuesta legibilidad y no
+# corrección.
+
+[formulas.clasificacion]
+"self.end - self.start + 1" = "longitud de un intervalo a partir de sus extremos"
+"fin - inicio + 1" = "longitud de un intervalo a partir de sus extremos"
+"SEED_END - SEED_START + 1" = "longitud de un intervalo a partir de sus extremos"
+"self.utr3[1] - self.utr3[0] + 1" = "longitud de un intervalo a partir de sus extremos"
+"start + length - 1" = "extremo de un intervalo a partir de inicio y longitud"
+"start - 1 + length" = "extremo de un intervalo a partir de inicio y longitud"
+"start + length - 1 > len(sequence)" = "extremo de un intervalo a partir de inicio y longitud"
+"len(actual) + 1 + len(palabra)" = "ajuste de línea de un informe"
+"len(actual) + 1 + len(palabra) > ancho" = "ajuste de línea de un informe"
+"len(linea) + 1 + len(palabra) > ancho" = "ajuste de línea de un informe"
+"len(linea) + 1 + len(palabra)" = "ajuste de línea de un informe"
+
+# Techo POR GRUPO, en SITIOS —no en formas de escribirla—: contar formas premiaría
+# unificar la sintaxis sin quitar ni una cuenta a mano. Todos sólo pueden bajar.
+[formulas.techos]
+"longitud de un intervalo a partir de sus extremos" = 23
+"extremo de un intervalo a partir de inicio y longitud" = 9
+"ajuste de línea de un informe" = 9
+
+[formulas.prioridad]
+"longitud de un intervalo a partir de sus extremos" = """\
+PRIORITARIA. 23 sitios en 14 módulos, y escrita de cuatro formas — dos de ellas, \
+`self.end - self.start + 1` y `fin - inicio + 1`, son la misma cuenta con otros nombres. \
+Es lo que `audit.Span.check()` deriva y aborta si no cuadra, y la clase que ya produjo la \
+errata del desplazamiento de 3 nt y el 405 de la nº 35. Baja cuando esos sitios pidan la \
+longitud a `Span` en vez de restarla."""
 
 # ───────────────── Constructores permisivos (errata nº 50) ─────────────────
 #

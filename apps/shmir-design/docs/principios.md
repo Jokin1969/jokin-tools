@@ -1266,9 +1266,26 @@ Un campo `cruce = "..."` que nadie ejecuta sería la errata nº 29 otra vez. Aqu
 corre de verdad: da a los dos reconocedores el **mismo** material escrito de las dos
 formas —el nombre literal y el derivado— y exige el **mismo veredicto**.
 
-### Lo que encontró nada más estrenarse
+### Lo que encontró nada más estrenarse — y de quién era
 
-Dos auditorías del repositorio sin declarar en ninguna parte, y que `guardias.toml` y
-`magnitudes.toml` opinan **las dos** sobre quién calcula un digesto: hay que actualizar
-las dos al añadir un sitio que hashea, y eso ya se había olvidado dos veces en un día. Las
-dos veces se cazó por casualidad, al correr la suite entera por otro motivo.
+Dos auditorías del repositorio sin declarar en ninguna parte
+(`auditar_geometria`, `auditar_navegacion`), y que `guardias.toml` y `magnitudes.toml`
+opinan **las dos** sobre quién calcula un digesto: hay que actualizar las dos al añadir un
+sitio que hashea.
+
+**Y eso último se me había olvidado dos veces en el mismo día**, con
+`identidad.result_fingerprint` y con `identidad.file_fingerprint`. Las dos veces se cazó
+**por casualidad**: la suite entera falló por otro motivo y la declaración que faltaba
+apareció de paso. Sin eso habrían quedado dos sitios que hashean sin clasificar en una de
+las dos tablas, y la siguiente duplicación habría entrado por ahí.
+
+**Esto va al principio y no al mensaje del commit**, porque es el argumento entero:
+
+> De las tres auditorías que se estrenaron ese día, **dos cazaron a la primera un
+> descuido del mismo día de quien las estaba escribiendo**.
+
+No es una anécdota simpática. Quien escribe un guardia es exactamente quien más cree que
+no lo necesita —acaba de mirar ese código— y aun así falló dos veces en unas horas. **La
+disciplina no sustituye al mecanismo, ni siquiera la de quien está escribiendo el
+mecanismo.** Es la razón por la que aquí nada se coordina a mano, dicha con un caso propio
+en vez de con un argumento.
