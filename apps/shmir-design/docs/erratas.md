@@ -1901,3 +1901,47 @@ candidato — no lo empeora ni lo mejora, **no habla de él**. Así que:
 
 `BlastStore.deciding_run` la implementa y **no borra nada**: decide cuál manda, no cuál se
 guarda. Las dos siguen en el historial, que es donde se ve que alguien volvió a correr.
+
+## 46 — «Predichos: sí» en una corrida que no puede filtrarlos
+
+**Qué pasó.** `include_predicted` vale `True` por defecto y **sólo actúa dentro de
+`-entrez_query`**. Desde la errata nº 40 ese filtro va **únicamente con `-remote`**, así
+que en una corrida local el ajuste **no aparece en la orden**: no filtra nada, ni a favor
+ni en contra. Y aun así viajaba con el resultado al almacén como «predichos: sí».
+
+**El riesgo, planteado por el responsable del proyecto**: dos corridas —una remota y otra
+local— registradas las dos igual, y comparadas **dentro de un año** como si fueran
+equivalentes. Es un `PASS` falso de la misma familia que un `provided=True` con secuencia
+vacía: el campo afirma algo que la corrida no puede cumplir.
+
+### Se eligió la opción fuerte, y por qué no bastaba una nota
+
+Una nota derivada —del estilo de `organism_note`— habría dicho la verdad **al lado** del
+campo, dejando el campo mintiendo. Y aquí el campo **es** el registro: es lo que queda en
+el log y lo que alguien leerá dentro de un año sin la nota delante. En local sale
+**`NOT_RUN` con el motivo**, y el motivo dice que **no es un fichero que falte** sino que
+el ajuste **no aplica**: lo que decide si hay modelos predichos en el resultado es **la
+base**.
+
+No bloquea la corrida. Una base curada de una especie es perfectamente válida — lo que no
+lo es es registrarla como si hubiera comprobado los predichos.
+
+### Y el veredicto declara el universo
+
+`blast.UNIVERSE_NOTE`, pegado a cada veredicto de especificidad:
+
+> El universo de esta comprobación es la BASE que se declara arriba, y nada más. Si esa
+> base no incluye modelos predichos (`XM_`/`XR_`), cero aciertos contra ellos NO significa
+> que no los haya: significa que no estaban.
+
+Es lo que hace **interpretable un cero**, y cierra el caso que abrió la errata nº 41: la
+vía de UCSC entrega un catálogo curado, y sin esta frase su cero se lee como «no hay
+off-targets contra predichos» — el **«Alu 0 %» por quinta vez**.
+
+### Nota de método sobre esta misma entrada
+
+Esta errata **se escribió dos veces**: la primera se perdió porque un `cd` falló en mitad
+de una cadena de comandos y la escritura se saltó, mientras el commit y el merge siguieron
+adelante. El código entró, el registro no. Es la misma familia que todo lo demás de este
+documento —algo que se da por hecho y no se comprueba— y se anota aquí porque el registro
+sirve para eso también.

@@ -3512,6 +3512,28 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     dependencia está es la mitad; la otra la fija `tests/test_sin_plegado_no_hay_ADN.py`,
     que **simula la imagen de producción** y exige que su ausencia bloquee.
 
+- **LA TABLA, EL INFORME Y EL GUARDADO LEEN LO MISMO. CERRADO (2026-09-01)**, erratas
+  nº 44-46 y principios nº 22-23.
+  - **La tabla lee los almacenes** (`site_table_rows(stores=…)`), y con eso se acaba el
+    desacuerdo con el informe. `STORE_FOR_FRONT` declara **qué almacén contesta a qué
+    columna**: una corrida de BLAST cierra `especificidad` y **nada más** — propagarla
+    contagiaría un veredicto que nadie ha ganado.
+  - **`FilterState.NO_CIERRA`**: la corrida se hizo y no cierra el frente. No es `NOT_RUN`
+    —hay resultado— y no es `PASS`. Impide aprobar igual que `NOT_RUN`; lo que cambia es
+    que dice **cómo se arregla**: repitiendo, no empezando.
+  - **Qué corrida MANDA con dos del mismo frente** (`deciding_run`, errata nº 45): la
+    última que **puede** dar veredicto; entre ésas la última siempre, sea mejor o peor; si
+    ninguna puede, la última con su motivo; y las exploraciones **posteriores se nombran**.
+    Sale de que `NO_CIERRA` **no es un veredicto peor: es ningún veredicto**.
+  - **El guardado dice qué cambió** (`verdicts_changed`), con el **cero visible**:
+    «guardada, 0 veredictos actualizados» es la señal de que algo no encaja, y no existía.
+  - **Predichos en local: `NOT_RUN`** (errata nº 46), y cada veredicto declara el
+    **universo** contra el que se comprobó (`UNIVERSE_NOTE`) — lo que hace interpretable
+    un cero contra un catálogo curado.
+  - **La clave de una consulta se DERIVA** (`query_name`): había **cinco copias** del
+    formato y dos tests que **transcribían** el suyo. Ese fallo habría producido el mismo
+    síntoma que el bug real, así que habríamos culpado al cableado.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
