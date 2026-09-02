@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from .errors import ShmirDesignError
@@ -77,6 +77,19 @@ class Project:
     species: str
     anatomy: dict | None
     anatomy_source: str
+    #: EL NOMBRE VISIBLE, editable. Va aparte del slug a proposito: el slug nombra el
+    #: directorio, viaja en los mensajes y es lo que se teclea para reabrir el proyecto,
+    #: asi que cambiarlo dejaria sin abrir cualquier referencia anterior. Este es el que
+    #: se lee, y cambiarlo NO cambia la identidad de nada.
+    #:
+    #: Vacio significa «nadie le ha puesto nombre», y entonces se enseña el slug. Un
+    #: `proyecto.json` de antes de este campo se sigue abriendo por el valor por defecto.
+    title: str = ""
+
+    @property
+    def display_name(self) -> str:
+        """Como se llama para quien lo lee. Sin nombre puesto, el slug."""
+        return self.title.strip() or self.slug
 
     @property
     def reliable(self) -> bool:
@@ -96,11 +109,13 @@ class Project:
             "species": self.species,
             "anatomy": self.anatomy,
             "anatomy_source": self.anatomy_source,
+            "title": self.title,
         }
 
     def describe(self) -> list[str]:
         lineas = [
-            f"Proyecto {self.slug} — creado {self.created}",
+            f"Proyecto {self.display_name} — creado {self.created}"
+            + (f" (carpeta {self.slug})" if self.title.strip() else ""),
             f"  entrada: {self.sequence_length} nt / md5 {self.sequence_md5}",
             f"  especie: {self.species or 'SIN DECLARAR'}",
             f"  anatomía: {self.anatomy_source}"
@@ -248,6 +263,66 @@ class ProjectStore:
             )
         self._records.append(registro)
         return registro
+
+    # ── el nombre visible ────────────────────────────────────────────────────
+    def rename(self, title: str, *, date: str) -> Record | None:
+        """Cambia el NOMBRE VISIBLE y lo APUNTA en el log. El slug no se toca.
+
+        **Por qué queda en el log y no es un ajuste**: un proyecto que ayer se llamaba
+        otra cosa es justo lo que hace irreconocible un registro de hace un año, y este
+        log existe para poder leer dentro de un año qué se decidió y con qué. Así que el
+        renombrado es un SUCESO, con su fecha, como cualquier otro.
+
+        Devuelve `None` si el nombre no cambia: un `nota` por cada clic sin cambio
+        ensucia lo que se lee para saber qué pasó.
+        """
+        nuevo = str(title).strip()
+        if not nuevo:
+            raise ShmirDesignError(
+                f"Un nombre vacío dejaría el proyecto {self.project.slug!r} enseñando su "
+                f"slug otra vez y SIN ningún rastro de que alguien quiso cambiarlo. Para "
+                f"volver al slug se escribe el slug. Se aborta."
+            )
+        if nuevo == self.project.display_name:
+            return None
+        antes = self.project.display_name
+        registro = self.append(
+            "nota",
+            {
+                "texto": (
+                    f"Renombrado: «{antes}» → «{nuevo}». El slug sigue siendo "
+                    f"{self.project.slug!r} — es lo que nombra la carpeta y lo que se "
+                    f"teclea para reabrirlo."
+                ),
+                "de": antes,
+                "a": nuevo,
+            },
+            date=date,
+        )
+        self.project = replace(self.project, title=nuevo)
+        self.project_path.write_text(
+            json.dumps(self.project.as_dict(), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return registro
+
+    # ── llevarse el registro, y borrarlo ─────────────────────────────────────
+    def export(self) -> str:
+        """Las DOS piezas del proyecto en un texto que se lee con `cat`.
+
+        `proyecto.json` identifica la entrada —md5 y longitud de la secuencia— y
+        `registro.jsonl` lleva lo que se decidió. Uno sin el otro no se puede leer dentro
+        de un año: un log de veredictos sin saber sobre qué secuencia son no dice nada.
+
+        No se empaqueta en un zip: el criterio de este proyecto es que lo que guarda un
+        veredicto sea texto y sobreviva a la app que lo escribió.
+        """
+        return (
+            f"# ==== {PROJECT_FILE} ====\n"
+            f"{self.project_path.read_text(encoding='utf-8')}"
+            f"# ==== {LOG_FILE} ====\n"
+            f"{self.log_path.read_text(encoding='utf-8')}"
+        )
 
     def records(self, kind: str | None = None) -> tuple[Record, ...]:
         if kind is not None and kind not in RECORD_KINDS:

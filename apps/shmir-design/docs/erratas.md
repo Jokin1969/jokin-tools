@@ -3022,3 +3022,77 @@ la situación en la que este fallo aparece.
 
 Y lleva **control adversario**: sin él, «ninguna tabla trunca» y «el guardia no mira nada»
 darían el mismo verde — la lección del `verify()` de la errata nº 29.
+
+---
+
+## 64 — Los proyectos no se podían ni renombrar ni borrar, y la fecha se tecleaba
+
+**Pedido el 2026-09-02**: «mejorar un poco el sistema para guardar proyectos. En especial
+para ir borrando los antiguos y que me permita editar el nombre y añademe un calendario
+(con Hoy) para añadir la fecha».
+
+No es una errata de cálculo: es una capa que se construyó para que un veredicto
+sobreviviera a la app y **no se podía mantener**. Un proyecto entraba y ya no salía.
+
+### Lo que había
+
+Un desplegable con los slugs, un `text_input` para la fecha, y nada más. Sin forma de
+borrar, sin forma de renombrar, y sin ver cuál estaba muerto: la etiqueta era el slug
+pelado, así que `prueba`, `prueba2` y `prueba_bueno` se distinguían de memoria.
+
+### Las tres, y por qué ninguna es trivial
+
+**BORRAR es lo único de la app que DESTRUYE un registro**, y no se parece a borrar un
+fichero de referencia: aquél se vuelve a bajar de UCSC, y una corrida de BLAST son horas
+de cómputo **fuera de esta app** que nadie va a repetir. Así que:
+
+- va con el **plan delante** (`project_delete_plan`), que cuenta los registros por tipo y
+  su rango de fechas, y dice con esas palabras que **no se puede deshacer y no se puede
+  volver a calcular aquí**;
+- un proyecto **vacío** y uno con doce corridas **no suenan igual**: el primero no pierde
+  nada y decirlo con el mismo aviso rojo convierte el aviso en ruido;
+- y lleva la **descarga al lado** (`project_export`), que es el mismo criterio de
+  `gestor.download`: lo que hace que el registro sea tuyo y no de la app. Salen las **dos
+  piezas** —`proyecto.json` y `registro.jsonl`—, porque un log de veredictos sin saber
+  sobre qué secuencia son no dice nada.
+
+**Y el panel de gestión va ANTES de abrir el proyecto, no dentro.** No es colocación:
+`project_open` comprueba el md5 de la secuencia cargada, así que **un proyecto de otra
+entrada NO se puede abrir** — y si borrar colgara de tenerlo abierto, ese proyecto sería
+imposible de quitar. Que es justo el que sobra. Por la misma razón, ni el plan ni el
+borrado pasan por `verify()`: **un log con la cadena rota tiene que poder descargarse y
+borrarse**; lo que exige la cadena sana es escribir en él.
+
+**RENOMBRAR cambia el nombre VISIBLE y no el slug.** El slug nombra la carpeta, viaja en
+los mensajes y es lo que se teclea para reabrir: cambiarlo dejaría sin abrir cualquier
+referencia anterior. `Project.title` es un campo nuevo con valor por defecto, así que un
+`proyecto.json` de antes se sigue abriendo y enseña el slug.
+
+Y **el cambio se APUNTA en el log**, como un `nota` fechado. No es un ajuste: un proyecto
+que ayer se llamaba otra cosa es justo lo que hace irreconocible un registro de hace un
+año, que es para lo que este log existe. Renombrar al mismo nombre **no escribe nada** —
+un `nota` por clic ensucia lo que se lee para saber qué pasó.
+
+**LA FECHA sale de un calendario, con hoy puesto.** Una fecha tecleada se equivoca en
+silencio —`2026-09-02` y `2026-09-20` se parecen— y ya produjo una salida falsa: ante el
+`run_id` repetido de la errata nº 48, la tentación era cambiar la fecha para que entrara.
+
+Con una distinción que **no se colapsa**: las fechas de algo que pasa AHORA —crear el
+proyecto, guardar una corrida, guardar la selección— vienen con **hoy** puesto, porque
+ésa es la verdad; las de un fichero que se **descargó otro día** —los dos huecos del
+gestor y el del modal de off-targets— vienen **vacías**, porque poner hoy sería
+inventarse el dato. Es la misma regla por la que `date_text(None)` devuelve vacío y no
+la fecha de hoy.
+
+El formato lo pone `presentation.date_text` y no la página (regla 6), y **una tupla
+aborta**: `st.date_input` devuelve dos fechas en modo rango, y un rango convertido a texto
+entra en el log con la forma correcta y sin significar nada.
+
+### Lo que salió al hacerlo
+
+`_hoy()` vivía **en la página** —formato en la página, regla 6— y su docstring decía que
+las fechas de procedencia «se teclean, y ahí no hay ningún valor por defecto a propósito».
+Era cierto cuando se escribió y dejó de serlo con este cambio: el **principio nº 11**, la
+prosa que se queda atrás. Se ha ido con la función, y lo que queda es una comprobación
+mecánica — la página no puede convertir ninguna fecha por su cuenta, y hay test de que no
+queda ni un `isoformat()`, ni un `strftime(`, ni un `text_input` de fecha.

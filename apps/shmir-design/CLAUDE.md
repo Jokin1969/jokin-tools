@@ -3993,6 +3993,46 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     medida con mecanismo detrás. Con control adversario: sin él, «ninguna trunca» y «el
     guardia no mira nada» darían el mismo verde (errata nº 29).
 
+- **LOS PROYECTOS SE MANTIENEN: renombrar, llevarse el registro y borrar (2026-09-02)**,
+  errata nº 64 (`store.ProjectStore.rename` / `.export`, `presentation.project_delete_plan`,
+  `_gestionar_proyectos` en la página). La capa de persistencia estaba entera y **no se
+  podía mantener**: un proyecto entraba y ya no salía, y la etiqueta era el slug pelado,
+  así que `prueba`, `prueba2` y `prueba_bueno` se distinguían de memoria.
+  - **BORRAR es lo ÚNICO de la app que destruye un registro**, y no se parece a borrar un
+    fichero de referencia: aquél se vuelve a bajar, y una corrida de BLAST son horas de
+    cómputo **fuera de esta app**. Va con el plan delante —registros por tipo y rango de
+    fechas— diciendo que **no se deshace y no se vuelve a calcular aquí**, y con la
+    **descarga al lado** (las DOS piezas: un log de veredictos sin saber sobre qué
+    secuencia son no dice nada). Un proyecto **vacío** no suena igual que uno con doce
+    corridas: el mismo aviso rojo para los dos convierte el aviso en ruido.
+  - **EL PANEL VA ANTES DE ABRIR EL PROYECTO**, y no es colocación: `project_open`
+    comprueba el md5 de la secuencia cargada, así que **un proyecto de otra entrada no se
+    puede abrir** — y si borrar colgara de tenerlo abierto, ése sería imposible de quitar.
+    Que es justo el que sobra. Por lo mismo, ni el plan ni el borrado pasan por
+    `verify()`: **un log con la cadena rota tiene que poder descargarse y borrarse**; lo
+    que exige la cadena sana es ESCRIBIR en él.
+  - **RENOMBRAR cambia el nombre VISIBLE, NO el slug** (`Project.title`, con
+    `display_name`): el slug nombra la carpeta y es lo que se teclea para reabrir, así que
+    cambiarlo dejaría sin abrir cualquier referencia anterior. Un `proyecto.json` de antes
+    del campo se sigue abriendo. **Y el cambio se APUNTA en el log**, fechado: un proyecto
+    que ayer se llamaba otra cosa es lo que hace irreconocible un registro de hace un año.
+    Renombrar al mismo nombre no escribe nada.
+  - **LA FECHA SALE DE UN CALENDARIO**, y la distinción no se colapsa: lo que pasa AHORA
+    —crear el proyecto, guardar una corrida o la selección— viene con **hoy** puesto,
+    porque ésa es la verdad; lo que se **descargó otro día** —los dos huecos del gestor y
+    el del modal de off-targets— viene **vacío**, porque poner hoy sería inventarse el
+    dato. Misma regla por la que `date_text(None)` devuelve vacío.
+    - El formato lo pone `presentation.date_text` (regla 6) y **una tupla ABORTA**:
+      `st.date_input` devuelve dos fechas en modo rango, y un rango convertido a texto
+      entra en el log con la forma correcta y sin significar nada.
+    - Se quita la vía por la que se colaba un dato equivocado con la forma correcta: una
+      fecha tecleada se equivoca en silencio, y ante el `run_id` repetido de la errata
+      nº 48 la salida falsa era justamente cambiarla.
+  - **Y se llevó por delante `_hoy()`**, que formateaba en la página (regla 6) con un
+    docstring que decía que las fechas de procedencia «se teclean» — cierto al escribirlo
+    y falso desde este cambio: principio nº 11. Ahora hay comprobación mecánica de que la
+    página no convierte ninguna fecha (`isoformat()`, `strftime(`, `text_input` de fecha).
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

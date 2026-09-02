@@ -13,7 +13,6 @@ El nucleo sigue siendo stdlib pura: Streamlit es una dependencia SOLO de esta in
 
 from __future__ import annotations
 
-import datetime
 import io
 import sys
 import tempfile
@@ -72,6 +71,14 @@ from shmir_design.presentation import (  # noqa: E402
     PROJECT_NEW_OPTION,
     upload_allowed,
     project_rows,
+    project_options,
+    project_rename,
+    project_export,
+    project_delete_plan,
+    project_delete,
+    date_text,
+    today_text,
+    DATE_PICKER_NOTE,
     projects_root,
     save_blast_run,
     save_offtarget_run,
@@ -206,17 +213,6 @@ from shmir_design.selection import (  # noqa: E402
 COLORES = {"verde": ("#2f7d5d", "🟢"), "ambar": ("#b58900", "🟠")}
 
 
-def _hoy() -> str:
-    """La fecha de hoy como valor POR DEFECTO del campo, no como dato.
-
-    La biblioteca no es procedencia: es una comodidad para no volver a buscar el mismo
-    fichero. La fecha sirve para reconocerlo en la lista y se puede cambiar. Donde la
-    fecha SI es procedencia —las corridas de los cuatro modales— se teclea, y ahi no hay
-    ningun valor por defecto a proposito.
-    """
-    return datetime.date.today().isoformat()
-
-
 def _panel_biblioteca(ranura: str, subido, *, ayuda: str = ""):
     """Un hueco del paso 2 con su biblioteca: guardar, elegir uno guardado, borrar.
 
@@ -229,9 +225,16 @@ def _panel_biblioteca(ranura: str, subido, *, ayuda: str = ""):
     with st.expander(f"📁 Guardados ({len(filas)})", expanded=False):
         st.caption(library_note())
         if subido is not None:
-            fecha = st.text_input(
-                "Fecha", value=_hoy(), key=f"bib_fecha_{ranura}",
-                help="La que queda registrada junto al fichero.",
+            # Guardar en la biblioteca pasa AHORA, asi que el calendario viene con
+            # hoy. La conversion la hace `date_text`, no la pagina: `_hoy()` vivia aqui
+            # y era formato en la pagina (regla 6), con un docstring que ademas decia
+            # que las fechas de procedencia «se teclean» — que ya no es verdad.
+            fecha = date_text(
+                st.date_input(
+                    "Fecha", value="today", key=f"bib_fecha_{ranura}",
+                    format="YYYY-MM-DD",
+                    help="La que queda registrada junto al fichero.",
+                )
             )
             if st.button(f"Guardar «{subido.name}»", key=f"bib_add_{ranura}"):
                 try:
@@ -706,12 +709,29 @@ def _panel_proyecto(especie: str, secuencia: str, anat):
         st.sidebar.caption(plan["aviso"])
         return None
 
-    opciones = [PROJECT_NEW_OPTION] + [f["slug"] for f in existentes]
-    elegido = st.sidebar.selectbox("Proyecto", opciones, key=f"pr_slug_{especie}")
-    fecha = st.sidebar.text_input(
-        "Fecha (AAAA-MM-DD)", "", key=f"pr_fecha_{especie}",
-        help="Va en cada registro del log. Sin ella no es auditable.",
+    catalogo = project_options(raiz)
+    opciones = [PROJECT_NEW_OPTION] + catalogo["slugs"]
+    elegido = st.sidebar.selectbox(
+        "Proyecto", opciones, key=f"pr_slug_{especie}",
+        # La etiqueta —nombre, registros y ULTIMA ACTIVIDAD— la monta `presentation`:
+        # decidir que se enseña de cada proyecto es una decision, no pintar (regla 6).
+        format_func=lambda s: catalogo["etiquetas"].get(s, s),
     )
+    # LA FECHA SALE DE UN CALENDARIO, con hoy puesto. Tecleada se equivoca en silencio
+    # —`2026-09-02` y `2026-09-20` se parecen— y ante un `run_id` repetido la tentacion
+    # era cambiarla para que entrara (errata nº 48). El formato lo pone `date_text`.
+    fecha = date_text(
+        st.sidebar.date_input(
+            "Fecha", value="today", key=f"pr_fecha_{especie}", format="YYYY-MM-DD",
+            help=DATE_PICKER_NOTE,
+        )
+    )
+    # LA GESTION VA AQUI, ANTES DE ABRIR NADA, y no es colocacion: `project_open`
+    # comprueba el md5 de la secuencia, asi que un proyecto de OTRA entrada NO se puede
+    # abrir — y si borrar colgara de tenerlo abierto, ese proyecto no se podria borrar
+    # nunca. Que es justo el que sobra.
+    _gestionar_proyectos(especie, raiz, catalogo, fecha)
+
     # LOS WIDGETS SE PINTAN SIEMPRE Y LA DECISION SE TOMA DESPUES. Antes el botón de
     # crear estaba dentro de un `if` que devolvía `None`, y un botón de Streamlit vale
     # `True` UN SOLO rerun: al escribir en cualquier campo, el proyecto desaparecía.
@@ -778,7 +798,73 @@ def _panel_proyecto(especie: str, secuencia: str, anat):
                 st.write(f"`{fila['tipo']}` {fila['fecha']} — **{fila['estado']}**")
                 for motivo in fila["motivos"]:
                     st.caption(f"  {motivo}")
+
     return almacen
+
+
+def _gestionar_proyectos(especie: str, raiz, catalogo, fecha: str) -> None:
+    """Renombrar, descargar y borrar. Va DEBAJO del proyecto abierto, no encima.
+
+    Borrar es lo único de la app que destruye un registro, así que no comparte sitio con
+    los controles de uso diario: se entra a propósito.
+    """
+    with st.sidebar.expander("Gestionar proyectos"):
+        if not catalogo["filas"]:
+            st.caption("Todavía no hay ninguno.")
+            return
+        for fila in catalogo["filas"]:
+            slug = str(fila["slug"])
+            st.markdown(f"**{catalogo['etiquetas'][slug]}**")
+            nuevo = st.text_input(
+                "Nombre", value=str(fila["nombre"]), key=f"pr_nom_{especie}_{slug}",
+                help="Cambia el nombre VISIBLE. La carpeta sigue llamándose igual, y el "
+                     "cambio queda apuntado en el log del proyecto.",
+            )
+            columnas = st.columns([2, 2, 2])
+            with columnas[0]:
+                if st.button("Renombrar", key=f"pr_ren_{especie}_{slug}"):
+                    try:
+                        hecho = project_rename(
+                            project_open(raiz, slug), nuevo, date=fecha
+                        )
+                    except (ShmirDesignError, ValueError, OSError) as exc:
+                        # rule2-ok: frontera de la interfaz. Nada cambia y se dice.
+                        st.error(f"**PARA** — {exc}")
+                    else:
+                        st.success(hecho["texto"])
+                        st.rerun()
+            with columnas[1]:
+                try:
+                    st.download_button(
+                        "Descargar", data=project_export(raiz, slug),
+                        file_name=f"{slug}.txt", key=f"pr_dl_{especie}_{slug}",
+                        width="stretch",
+                    )
+                except (ShmirDesignError, OSError) as exc:
+                    # rule2-ok: frontera de la interfaz.
+                    st.error(f"{exc}")
+            with columnas[2]:
+                borrar = st.toggle("Borrar", key=f"pr_del_{especie}_{slug}")
+            if borrar:
+                # EL PLAN, ANTES. Un proyecto vacío y uno con doce corridas no pueden
+                # sonar igual, y lo que se va no se puede volver a calcular aquí.
+                plan = project_delete_plan(raiz, slug)
+                (st.info if plan["vacio"] else st.error)(plan["texto"])
+                if st.button(f"Confirmar borrado de {slug}", key=f"pr_okdel_{especie}_{slug}"):
+                    try:
+                        ido = project_delete(raiz, slug)
+                    except (ShmirDesignError, OSError) as exc:
+                        # rule2-ok: no se ha borrado y se dice por qué.
+                        st.error(f"**NO se borró** — {exc}")
+                    else:
+                        # Si era el que estaba abierto, se OLVIDA: dejarlo recordado
+                        # haría que el siguiente repintado intentara abrir algo que ya
+                        # no está y enseñara un error donde hubo un borrado correcto.
+                        if st.session_state.get(f"pr_abierto_{especie}") == slug:
+                            st.session_state[f"pr_abierto_{especie}"] = ""
+                        st.warning(ido)
+                        st.rerun()
+            st.divider()
 
 
 
@@ -818,7 +904,13 @@ def _fila_presente(fila, directorio) -> None:
                 species=fila["especie"],
             )
             (st.warning if plan["invalida"] else st.info)(plan["texto"])
-            fecha = st.text_input("Fecha", "", key=f"g_fecha_{nombre}")
+            fecha = date_text(
+                st.date_input(
+                    "Fecha de descarga", value=None, key=f"g_fecha_{nombre}",
+                    format="YYYY-MM-DD",
+                    help="El día que se descargó el fichero nuevo, no el de hoy.",
+                )
+            )
             origen = st.text_input("De dónde salió", "", key=f"g_org_{nombre}")
             # El reemplazo las pide IGUAL: el fichero nuevo puede venir de otra tabla o
             # de otra fecha, y heredar la procedencia del anterior seria declarar una
@@ -885,7 +977,16 @@ def _fila_ausente(fila, directorio) -> None:
     subido = st.file_uploader(
         f"Subir {nombre}", type=fila["extensiones"], key=f"g_new_{nombre}"
     )
-    fecha = st.text_input("Fecha de descarga (AAAA-MM-DD)", "", key=f"g_nf_{nombre}")
+    # SIN VALOR POR DEFECTO, y no es un descuido: esta fecha es la del dia que se
+    # DESCARGO el fichero, que no es hoy. Poner hoy seria inventarse el dato — la misma
+    # regla por la que `date_text(None)` devuelve vacio y no la fecha de hoy.
+    fecha = date_text(
+        st.date_input(
+            "Fecha de descarga", value=None, key=f"g_nf_{nombre}",
+            format="YYYY-MM-DD",
+            help="El día que se descargó el fichero, no el de hoy.",
+        )
+    )
     origen = st.text_input("De dónde salió", "", key=f"g_no_{nombre}")
     procedencia = _casillas_de_procedencia(fila, prefijo="g_np")
     if subido is not None and st.button(f"Validar y registrar {nombre}", key=f"g_nb_{nombre}"):
@@ -1431,7 +1532,16 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
         (st.success if hecho["verde"] else st.warning)(hecho["texto"])
     columnas = st.columns([2, 2, 3])
     with columnas[0]:
-        fecha = st.text_input("Fecha", "", key=f"{clave}_gf_{nombre}")
+        # La fecha de una corrida que se guarda AHORA es hoy, asi que el calendario
+        # viene con hoy puesto y se cambia si la corrida es de otro dia. Tecleada se
+        # equivoca en silencio, y ante un `run_id` repetido la salida falsa era
+        # justamente cambiarla (errata nº 48).
+        fecha = date_text(
+            st.date_input(
+                "Fecha", value="today", key=f"{clave}_gf_{nombre}",
+                format="YYYY-MM-DD", help=DATE_PICKER_NOTE,
+            )
+        )
     with columnas[1]:
         quien = st.text_input("Quién la corrió", "", key=f"{clave}_gq_{nombre}")
     with columnas[2]:
@@ -1481,7 +1591,13 @@ def _guardar_seleccion(proyecto, seleccion, nombre: str) -> None:
         st.caption(f"Última selección guardada: {', '.join(str(s) for s in guardada)}")
     columnas = st.columns([2, 2, 3])
     with columnas[0]:
-        fecha = st.text_input("Fecha", "", key=f"sel_fecha_{nombre}")
+        # La seleccion se decide AHORA, asi que el calendario viene con hoy.
+        fecha = date_text(
+            st.date_input(
+                "Fecha", value="today", key=f"sel_fecha_{nombre}",
+                format="YYYY-MM-DD", help=DATE_PICKER_NOTE,
+            )
+        )
     with columnas[1]:
         quien = st.text_input("Quién", "", key=f"sel_quien_{nombre}")
     with columnas[2]:
@@ -2047,7 +2163,13 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
                 st.warning(f"{aviso['campo']}: {aviso['valor']}")
             else:
                 st.caption(f"{aviso['campo']}: {aviso['valor']}")
-        fecha = st.text_input("Fecha de descarga (AAAA-MM-DD)", "", key=f"ot_f_{nombre}")
+        fecha = date_text(
+            st.date_input(
+                "Fecha de descarga", value=None, key=f"ot_f_{nombre}",
+                format="YYYY-MM-DD",
+                help="El día que se descargó el catálogo, no el de hoy.",
+            )
+        )
         origen = st.text_input("De dónde salió", "", key=f"ot_o_{nombre}")
         procedencia = _casillas_de_procedencia(fila, prefijo="ot_p")
         if st.button(f"Registrar {fila['nombre']}", key=f"ot_reg_{nombre}"):

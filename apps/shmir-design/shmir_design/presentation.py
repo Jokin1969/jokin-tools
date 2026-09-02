@@ -3421,6 +3421,12 @@ def projects_root():
     return projects_dir()
 
 
+def _ultima_fecha(store) -> str:
+    """La fecha del ultimo registro, o vacio si no hay ninguno."""
+    registros = store.records()
+    return str(registros[-1].date) if registros else ""
+
+
 def project_list(base) -> list[dict[str, object]]:
     """Los proyectos que hay, con lo que hace falta para ELEGIR uno.
 
@@ -3449,8 +3455,201 @@ def project_list(base) -> list[dict[str, object]]:
             "por_que_no_fiable": almacen.project.why_unreliable,
             "corridas": len(almacen.records()),
             "log": str(directorio / LOG_FILE),
+            # EL NOMBRE VISIBLE, que puede no ser el slug.
+            "nombre": almacen.project.display_name,
+            # LA ULTIMA ACTIVIDAD, que es lo que hace falta para decidir cual borrar.
+            # VACIO si no hay ningun registro: poner ahi la fecha de CREACION mezclaria
+            # «no se ha tocado» con «se toco el dia que se creo», que es justo lo que hay
+            # que distinguir.
+            "ultima": _ultima_fecha(almacen),
+            "vacio": not almacen.records(),
         })
     return filas
+
+
+# ══════════ GESTIONAR LOS PROYECTOS: renombrar, llevarse el registro, borrar ══════════
+#
+# Los tres tocan un log que este proyecto tiene decidido que es **append-only y
+# auditable**, asi que ninguno se hace a la ligera.
+#
+# **BORRAR es lo unico de la app que DESTRUYE un registro**, y no se parece a borrar un
+# fichero de referencia: aquel se vuelve a bajar de UCSC, y una corrida de BLAST son
+# horas de computo fuera de aqui que no se pueden repetir sin volver a correrlas. Por eso
+# va con el plan delante y con la DESCARGA al lado — mismo criterio que `gestor.download`:
+# lo que hace que el registro sea tuyo y no de la app.
+#
+# **RENOMBRAR** cambia el nombre visible y no el slug, y queda apuntado en el log: ver
+# `store.ProjectStore.rename`.
+
+
+def project_options(base) -> dict[str, object]:
+    """Los proyectos para el desplegable, CON su etiqueta ya montada.
+
+    La etiqueta la monta esta capa y no la página (regla 6): decidir qué se enseña de cada
+    proyecto —y sobre todo que la ÚLTIMA ACTIVIDAD salga al lado, que es lo que hace falta
+    para saber cuál se puede borrar— es una decisión, no pintar.
+    """
+    filas = project_list(base)
+    etiquetas = {}
+    for fila in filas:
+        trozos = [str(fila["nombre"])]
+        if fila["nombre"] != fila["slug"]:
+            trozos.append(f"({fila['slug']})")
+        trozos.append(f"· {fila['corridas']} registro(s)")
+        trozos.append(
+            f"· última {fila['ultima']}" if fila["ultima"] else "· SIN tocar"
+        )
+        etiquetas[fila["slug"]] = " ".join(trozos)
+    return {
+        "slugs": [str(f["slug"]) for f in filas],
+        "etiquetas": etiquetas,
+        "filas": filas,
+    }
+
+
+def project_rename(store, title: str, *, date: str) -> dict[str, object]:
+    """Cambia el nombre visible del proyecto. La página no escribe nada."""
+    registro = store.rename(title, date=date)
+    return {
+        "nombre": store.project.display_name,
+        "slug": store.project.slug,
+        "cambio": registro is not None,
+        "texto": (
+            f"Ahora se llama «{store.project.display_name}» (carpeta "
+            f"{store.project.slug}). Queda apuntado en el log."
+            if registro is not None
+            else "Ya se llamaba así: no se ha escrito nada en el log."
+        ),
+    }
+
+
+def project_export(base, slug: str) -> str:
+    """El proyecto entero como TEXTO, para llevárselo antes de borrarlo."""
+    from .store import ProjectStore  # noqa: PLC0415
+
+    return ProjectStore.open(base, check_project_slug(slug)).export()
+
+
+def project_delete_plan(base, slug: str) -> dict[str, object]:
+    """Qué se pierde si se borra. NO borra nada.
+
+    Un proyecto VACÍO y uno con doce corridas no pueden sonar igual: el primero no pierde
+    nada y el segundo se lleva veredictos que no se pueden volver a calcular aquí.
+
+    **NO pasa por `verify()`, y es deliberado**: un log con la cadena rota tiene que poder
+    DESCARGARSE y BORRARSE — es justo el que sobra— y sólo lo que ESCRIBE en él exige que
+    la cadena esté sana. Abortar aquí dejaría un proyecto corrupto imposible de quitar.
+    """
+    from .store import ProjectStore  # noqa: PLC0415
+
+    almacen = ProjectStore.open(base, check_project_slug(slug))
+    registros = almacen.records()
+    por_tipo: dict[str, int] = {}
+    for registro in registros:
+        por_tipo[registro.kind] = por_tipo.get(registro.kind, 0) + 1
+    fechas = [r.date for r in registros if str(r.date).strip()]
+    lineas = [
+        f"Borrar «{almacen.project.display_name}» (carpeta {almacen.project.slug}, "
+        f"creado {almacen.project.created})."
+    ]
+    if registros:
+        lineas.append(
+            f"Se lleva {len(registros)} registro(s): "
+            + ", ".join(f"{n} × {tipo}" for tipo, n in sorted(por_tipo.items()))
+            + f"; del {min(fechas)} al {max(fechas)}." if fechas else "."
+        )
+        lineas.append(
+            "NO SE PUEDE DESHACER y lo que se va NO SE PUEDE VOLVER A CALCULAR aquí: "
+            "una corrida de BLAST son horas de cómputo fuera de esta app, y un veredicto "
+            "guardado es la única prueba de con qué fichero se sacó. Descárgalo antes si "
+            "hay alguna posibilidad de que haga falta."
+        )
+    else:
+        lineas.append(
+            "No tiene ningún registro: no se pierde ningún veredicto. Es el caso normal "
+            "de un proyecto que se creó para probar."
+        )
+    return {
+        "slug": almacen.project.slug,
+        "nombre": almacen.project.display_name,
+        "registros": len(registros),
+        "por_tipo": dict(sorted(por_tipo.items())),
+        "vacio": not registros,
+        "texto": " ".join(lineas),
+    }
+
+
+def project_delete(base, slug: str) -> str:
+    """Borra el proyecto entero. Devuelve lo que se fue.
+
+    Borrar uno que no existe ABORTA: devolver «hecho» sobre algo que no estaba se leería
+    como que se borró, y quien lo lea dejará de buscarlo.
+    """
+    import shutil  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    limpio = check_project_slug(slug)
+    plan = project_delete_plan(base, limpio)
+    ruta = Path(base) / limpio
+    try:
+        shutil.rmtree(ruta)
+    except OSError as exc:
+        raise ShmirDesignError(
+            f"No se pudo borrar {ruta} ({exc}); el proyecto sigue ahí. Se dice en vez de "
+            f"dar por hecho un borrado que no ocurrió."
+        ) from exc
+    return (
+        f"Borrado «{plan['nombre']}» (carpeta {limpio}) con sus {plan['registros']} "
+        f"registro(s). No se puede deshacer."
+    )
+
+
+# ─────────────────────── la fecha, con calendario y con HOY ───────────────────────
+#
+# Una fecha tecleada se equivoca en SILENCIO —`2026-09-02` y `2026-09-20` se parecen— y
+# ya produjo una salida falsa: ante un `run_id` repetido, la tentacion era cambiar la
+# fecha para que entrara (errata nº 48). Un calendario quita esa via.
+#
+# El FORMATO lo pone esta capa y no la pagina (regla 6): la conversion de lo que devuelve
+# el widget a la forma del log es una decision con casos —vacio, rango, texto ya escrito—
+# y una de ellas mete en el log algo con la forma correcta y sin significado.
+
+DATE_PICKER_NOTE = (
+    "La fecha se elige en el calendario. Va en cada registro del log y es lo que hace "
+    "auditable un veredicto dentro de un año, así que no se teclea: una fecha a mano se "
+    "equivoca en silencio."
+)
+
+
+def today_text() -> str:
+    """Hoy, en la forma del log. Se DERIVA: no hay ninguna fecha escrita en el código."""
+    import datetime  # noqa: PLC0415
+
+    return datetime.date.today().isoformat()
+
+
+def date_text(value) -> str:
+    """Lo que devuelve el calendario → la forma del log. Vacío si no hay fecha.
+
+    **Vacío NO es hoy**: el núcleo aborta sin fecha, que es lo correcto, y poner la de hoy
+    sería inventarse el dato — la fecha de descarga de un fichero no es hoy.
+
+    Una TUPLA aborta: `st.date_input` devuelve dos fechas en modo rango, y un rango
+    convertido a texto entra en el log con la forma correcta y sin significado.
+    """
+    import datetime  # noqa: PLC0415
+
+    if value is None or value == "":
+        return ""
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    if isinstance(value, str):
+        return value.strip()
+    raise ShmirDesignError(
+        f"{value!r} no es una fecha: se esperaba una sola fecha del calendario. Un rango "
+        f"—dos fechas— convertido a texto entraría en el log con la forma correcta y sin "
+        f"significar nada. Se aborta."
+    )
 
 
 def anatomy_payload(anatomy) -> tuple[dict | None, str]:
