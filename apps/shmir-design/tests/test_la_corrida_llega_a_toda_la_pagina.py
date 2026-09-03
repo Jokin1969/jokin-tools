@@ -85,19 +85,19 @@ class TestUnFrenteSoloSeCierraSiLOCUBRETODOelPanel(unittest.TestCase):
     """La regla que impide un cierre falso, y es la mitad que no se puede omitir."""
 
     def test_con_todos_los_candidatos_cubiertos_el_frente_se_cierra(self):
-        cerrados = presentation.fronts_closed_by_runs(
+        cerrados = presentation.fronts_closed_over_panel(
             {"especificidad": {10: "PASS", 20: "PASS"}}, starts=(10, 20)
         )
         self.assertIn("especificidad", cerrados)
 
     def test_con_SOLO_ALGUNOS_no_se_cierra_y_dice_cuantos(self):
-        cerrados = presentation.fronts_closed_by_runs(
+        cerrados = presentation.fronts_closed_over_panel(
             {"especificidad": {10: "PASS"}}, starts=(10, 20)
         )
         self.assertNotIn("especificidad", cerrados)
 
     def test_un_NOT_RUN_del_almacen_NO_cierra(self):
-        cerrados = presentation.fronts_closed_by_runs(
+        cerrados = presentation.fronts_closed_over_panel(
             {"especificidad": {10: "NOT_RUN", 20: "PASS"}}, starts=(10, 20)
         )
         self.assertNotIn("especificidad", cerrados)
@@ -105,13 +105,13 @@ class TestUnFrenteSoloSeCierraSiLOCUBRETODOelPanel(unittest.TestCase):
     def test_un_FAIL_SI_cierra_el_frente(self):
         # Un frente se cierra CONSIGUIENDO la respuesta, no consiguiendo un PASS. Un FAIL
         # es una respuesta: el candidato cae, y el frente deja de estar abierto.
-        cerrados = presentation.fronts_closed_by_runs(
+        cerrados = presentation.fronts_closed_over_panel(
             {"especificidad": {10: "FAIL", 20: "PASS"}}, starts=(10, 20)
         )
         self.assertIn("especificidad", cerrados)
 
     def test_sin_almacenes_no_cierra_nada(self):
-        self.assertEqual(presentation.fronts_closed_by_runs(None, starts=(10,)), {})
+        self.assertEqual(presentation.fronts_closed_over_panel(None, starts=(10,)), {})
 
 
 if __name__ == "__main__":
@@ -171,7 +171,7 @@ class TestLaCOBERTURAPARCIALseDICE(unittest.TestCase):
 
         from shmir_design.selection import blocking_fronts
 
-        self.assertIn("closed_by_runs", inspect.signature(blocking_fronts).parameters)
+        self.assertIn("closed_by_panel", inspect.signature(blocking_fronts).parameters)
 
     def test_la_pagina_carga_los_almacenes_UNA_vez_para_los_cuatro(self):
         fuente = TestLaPaginaPASAlosAlmacenes.FUENTE

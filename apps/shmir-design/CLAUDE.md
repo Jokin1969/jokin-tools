@@ -4149,6 +4149,67 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     vez. Ahora `panel` se **deriva**, que es lo que lo hace significar algo: con el alcance
     grande hay filas que no son del panel y esa marca es lo único que las distingue.
 
+- **UN FRENTE CIERRA IGUAL POR FICHERO QUE POR CORRIDA, Y LO DECIDE UN SOLO SITIO
+  (2026-09-03)**, errata nº 68 (`presentation.panel_states_by_front`). Reportado con el
+  export delante: «2 de 7 comprobaciones hechas», una sola tarjeta verde, y los diez
+  candidatos del panel con `transgen: PASS` y `seed_colision: PASS` en su columna — con
+  `aav_casete.fa` y `mature.fa` cargados.
+  - **Había DOS reglas para la misma pregunta.** Un frente cerrado por CORRIDA se decidía
+    sobre el PANEL (`run_coverage`); uno cerrado por FICHERO, sobre las **2170 ventanas
+    tiladas**, vía `ReportSelection.not_run_filters`. Y **1790 de esas ventanas ni llegan
+    a los filtros con recurso porque ya cayeron antes**: un `NOT_RUN` de una ventana
+    descartada no es una laguna de nada — nadie iba a preguntarle.
+  - **No se arregla la tarjeta: se junta el origen.** `panel_states_by_front` es el ÚNICO
+    sitio donde se decide si un frente está contestado, y lo que emite para cada candidato
+    del panel es **la celda de la tabla letra por letra** —`_filter_columns` pasado por
+    `_with_stores`— más lo que digan los almacenes. Así la tarjeta y la columna no pueden
+    discrepar **por construcción**, no por coincidencia. Entra por `blocking_fronts`, que
+    tiene seis llamadores: la lección de la errata nº 54.
+  - **`SUSTITUIDO` y `NO_APLICA` SÍ son respuestas.** `ESTADOS_QUE_RESPONDEN` era
+    `("PASS","FAIL")` escrito a mano, y el filtro `seed` sale `SUSTITUIDO` en todo el panel
+    con `mature.fa` dentro. Ahora se declara **lo que es una laguna** —`NOT_RUN`,
+    `SIN_CONSULTAR`, `NO_CIERRA`, `OBSOLETO`— y el resto se DERIVA de `FilterState`.
+  - **FALLO LATENTE destapado y que NO era la causa**: `store_states_by_front` no
+    contestaba nada de los frentes POR HEBRA —preguntaba con el nombre pelado y
+    `_store_state` devuelve `None` sin hebra—, así que **una corrida de seed o de
+    off-targets que cubriera el panel entero no cerraba su frente nunca**; sólo la de
+    BLAST podía. Coincide con lo observado y no lo explicaba. Un frente por hebra se
+    contesta **con las dos**, o no se contesta.
+  - **Dos causas, dos textos**: «CERRADO con lo que hay en el depósito» no es «CERRADO por
+    corrida guardada» —esto último manda a buscar en un registro donde no hay nada— y «EL
+    FICHERO ESTÁ Y NO ALCANZA A TODO EL PANEL» no es «HAY CORRIDA, PERO NO CUBRE».
+  - **Dos nombres que dejaron de ser ciertos** y se renombran en vez de ampliarles el
+    significado (principio nº 27): `fronts_closed_by_runs` → `fronts_closed_over_panel`, y
+    `blocking_fronts(closed_by_runs=)` → `closed_by_panel=`.
+  - Medido: las tarjetas del ratón pasan de **2 de 7** a **4 de 8**, con `especificidad`
+    todavía en gris —`refseq_rna.fa` no está— que es el control adversario.
+
+- **EL BOTÓN DEL INFORME SE LLAMA POR LO QUE HACE (2026-09-03)**, errata nº 69
+  (`presentation.INFORME_LABELS`). Se reportó como «no encuentro dónde se descarga el
+  informe» **con los tres botones en pantalla**: su etiqueta era el nombre del fichero
+  (`raton_informe_parcial.docx`), así que la sección se leía como una lista de ficheros y
+  no como una descarga. Misma lección que `BUTTON_DESIGN`, aplicada a un botón y no a los
+  otros tres. El nombre del fichero va debajo —es lo que hay que buscar en Descargas— y el
+  orden pasa a ser deliberado: Word, PDF, y el markdown el último porque es la FUENTE, no
+  el entregable. El test que lo fijaba **transcribía** la lista; ahora comprueba además la
+  invariante: la etiqueta de un botón no puede ser el nombre de su fichero.
+
+- **«DESCARGAR TODO (.ZIP)» VACÍO: REPRODUCIDO DE PUNTA A PUNTA Y NO FALLA AQUÍ
+  (2026-09-03).** Se reportó que baja `shmir-design (3).zip` y no contiene nada. Se levantó
+  el proceso de Streamlit detrás del **mismo proxy del hub y con la MISMA CSP de
+  `routes.js`**, y se pulsó el botón con un navegador de verdad (Chromium por Playwright):
+  descarga **1.191.585 bytes, 28 entradas, `shmir_copia_2026-09-03.zip`**. O sea que ni el
+  zip ni el proxy ni la CSP lo explican, y **no se le asigna causa** (principio nº 3).
+  - **El nombre es el dato que más dice, y descarta lo obvio**: `shmir-design` es el
+    `page_title`, no el `file_name` que pone la app. Con un **control adversario** —quitar
+    el `Content-Disposition` en el proxy— Chromium bautiza la descarga con el **hash de la
+    URL** (`4dee3adc….zip`), no con el título. Así que la cabecera perdida NO produce ese
+    nombre: lo que pasó está por encima de la app.
+  - **Lo que sí se midió del zip**: `export_all` no puede salir vacío —siempre escribe el
+    `LEEME.txt`— y sobre un depósito de tamaño de producción (89,8 MB, con un
+    transcriptoma) tarda **0,9 s** con un pico de **99 MB** de RSS. No es un problema de
+    memoria ni de tiempo.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

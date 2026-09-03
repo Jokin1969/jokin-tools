@@ -3348,3 +3348,124 @@ distingue en pantalla.
 La primera versión de la etiqueta pegaba una «s» al nombre de la unidad y salía **«par
 candidato × intróns»** y «consulta de seeds». Derivar un plural pegando una letra es
 derivar algo que no es derivable: cada unidad declara su singular y su plural.
+
+## 68 — Un frente que cierra un FICHERO se decidía sobre 2170 ventanas y uno que cierra una CORRIDA sobre el panel
+
+**Reportado con el export delante (2026-09-03).** El contador decía «2 de 7
+comprobaciones hechas» y sólo una tarjeta estaba en verde, mientras los diez candidatos
+del panel salían en el export con:
+
+```
+especificidad   PASS
+transgen        PASS
+seed_colision   PASS
+seed            SUSTITUIDO
+```
+
+En gris, con su fichero cargado y su columna en `PASS`: «¿Apagaría también el propio
+tratamiento?» (`transgen`, con `aav_casete.fa`) y «¿Se confunde con un microARN de la
+propia célula?» (`seed_colision`, con `mature.fa`).
+
+Y quien lo reportó dio además el diagnóstico, que era el correcto: es el desacuerdo de
+`candidate_rows` un consumidor más allá; los frentes que cierran SIN corrida no llegan a
+las tarjetas, y los que cierran por corrida sí.
+
+### La causa: DOS reglas para la misma pregunta
+
+`blocking_fronts` decide qué frentes están abiertos con `ReportSelection.not_run_filters`,
+que cuenta los `NOT_RUN` sobre **las 2170 ventanas tiladas**. Medido sobre la corrida real
+del ratón con el depósito conectado:
+
+```
+not_run_filters: {'especificidad': 2170, 'seed': 1790, 'seed_colision': 1790,
+                  'transgen': 1790, 'GC': 66, 'asimetria': 66, 'homopolimero': 66}
+```
+
+**1790 de esas ventanas ni llegan a los filtros con recurso porque ya cayeron antes.** Un
+`NOT_RUN` de una ventana descartada no es una laguna de nada: nadie iba a preguntarle.
+
+Un frente cerrado por CORRIDA, en cambio, ya se decidía **sobre el panel** —
+`run_coverage`, con la regla de que sólo cierra si lo cubre entero. O sea que la misma
+pregunta tenía dos unidades según de dónde viniera la respuesta, y por eso la tarjeta y
+la columna podían discrepar.
+
+### El arreglo no es la tarjeta: es que las dos salgan del mismo sitio
+
+`presentation.panel_states_by_front` es ahora **el único sitio donde se decide si un
+frente está contestado**. Junta las dos mitades para cada candidato del panel:
+
+1. lo que dice la celda de la tabla, **letra por letra** — `_filter_columns` pasado por
+   `_with_stores`, la misma expresión que pinta `candidate_rows`, así que no pueden
+   discrepar por construcción y no por coincidencia;
+2. lo que dicen los almacenes, que además **marca el origen**.
+
+Y entra por `blocking_fronts`, que tiene seis llamadores: es la lección de la errata
+nº 54, que se cobró dos tandas arreglando consumidores de uno en uno.
+
+Con eso, las tarjetas del ratón pasan de **2 de 7** a **4 de 8**, y `especificidad` sigue
+en gris —`refseq_rna.fa` no está— que es el control adversario: si todo saliera HECHO,
+esto no distinguiría un frente cerrado de una comprobación que no comprueba.
+
+### Tres cosas más que salieron al escribirlo
+
+- **`SUSTITUIDO` y `NO_APLICA` contaban como laguna.** `ESTADOS_QUE_RESPONDEN` era
+  `("PASS", "FAIL")` escrito a mano. El filtro `seed` sale `SUSTITUIDO` en todo el panel
+  con `mature.fa` cargado —y `check_substitution` impide que exista con su sustituto en
+  `NOT_RUN`—, así que contarlo como hueco dejaba abierto un frente ya contestado. Ahora se
+  declara **lo que es una laguna** y lo demás se DERIVA de `FilterState` (principio nº 13):
+  una lista de «los que responden» escrita a mano deja fuera al estado número siete.
+- **Y UN FALLO LATENTE que este reporte destapó sin ser su causa**:
+  `store_states_by_front` **no contestaba nada de los frentes POR HEBRA**. Preguntaba al
+  almacén con el nombre pelado del frente, y `_store_state` devuelve `None` para un frente
+  por hebra sin hebra —a propósito: fundir las dos daría por buena la de la pasajera con
+  el estado de la guía—. O sea que una corrida de seed o de off-targets que cubriera el
+  panel entero **no cerraba su frente nunca**; sólo la de BLAST podía. Coincide
+  exactamente con lo observado —«la de especificidad es la única verde»— y **no era eso**.
+  Un frente por hebra se contesta con las dos, o no se contesta.
+- **Dos causas, dos textos.** «CERRADO por corrida guardada» sobre un frente que nadie ha
+  corrido manda a buscar en el registro del proyecto, donde no hay nada. El motivo se
+  deriva del ORIGEN: «CERRADO con lo que hay en el depósito» / «por corrida guardada» /
+  las dos. Y la cobertura parcial también: «EL FICHERO ESTÁ Y NO ALCANZA A TODO EL PANEL»
+  no es «HAY CORRIDA, PERO NO CUBRE EL PANEL».
+
+### Y dos nombres que dejaron de ser ciertos
+
+`fronts_closed_by_runs` pasa a `fronts_closed_over_panel` y `blocking_fronts(closed_by_runs=)`
+a `closed_by_panel=`. Los dos eran ciertos mientras sólo llegaban corridas y dejaron de
+serlo en cuanto entraron los frentes que cierra un fichero. Se renombran en vez de
+ampliarles el significado: principio nº 27.
+
+### Los dos guardias del proyecto lo cazaron mientras se escribía
+
+- el que exige que **todo llamador de `_filter_columns` pase por `_with_stores`** señaló
+  la primera versión de `panel_states_by_front`. Tenía razón, y al hacerle caso los
+  estados quedaron **idénticos a los de la celda por construcción**, que es mejor que lo
+  que yo había escrito;
+- el de **símbolos citados** rechazó dos docstrings nuevos que nombraban
+  `not_run_filters` como si fuera un símbolo del módulo `selection`: es un atributo de
+  `ReportSelection`.
+
+## 69 — Los tres botones del informe se llamaban como el fichero, así que la sección no se leía como una descarga
+
+**Reportado (2026-09-03)**: «No encuentro dónde se descarga el informe. Existe la sección
+"Informe — parcial o completo, en cualquier momento" y un bloque "Descargas", pero no veo
+el botón que baja el .docx o el .pdf.»
+
+**Los botones estaban**, los tres, en su sitio y funcionando. Lo que fallaba es que su
+etiqueta era el **nombre del fichero** —`raton_informe_parcial.docx`— así que la sección se
+leía como una lista de ficheros sueltos y no como «aquí se descarga el informe». Es la
+misma lección que ya estaba escrita para `BUTTON_DESIGN` («Diseñar» pasó a «Buscar
+candidatos»): **un botón se llama por lo que HACE**, y estaba aplicada a un botón y no a
+los otros tres.
+
+Ahora las etiquetas las pone `presentation.INFORME_LABELS` (regla 6): «Descargar el
+informe en Word (.docx)», «Descargar el informe en PDF», «Descargar el texto sin maquetar
+(.md)». El nombre del fichero **no se pierde** —va debajo, en la ayuda—, porque es lo que
+luego hay que buscar en la carpeta de Descargas.
+
+Y el **orden pasa a ser deliberado**: Word, PDF y el markdown el último. Los dos primeros
+son los que se mandan y se imprimen; el markdown es la FUENTE, para discutir una frase sin
+maquetar. El orden anterior era el de escritura y dejaba el `.pdf` al final sin ninguna
+razón. El test que lo fijaba **transcribía** la lista, así que sólo comprobaba que nadie
+la tocara; ahora comprueba además la invariante que importa: **la etiqueta de un botón no
+puede ser el nombre de su fichero**.

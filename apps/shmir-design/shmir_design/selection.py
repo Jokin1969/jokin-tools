@@ -1791,12 +1791,21 @@ class BlockingFront:
 
 
 def blocking_fronts(
-    report: TilingReport, selection: ReportSelection, *, closed_by_runs=None,
+    report: TilingReport, selection: ReportSelection, *, closed_by_panel=None,
 ) -> list[BlockingFront]:
     """Los frentes abiertos: los filtros que no han corrido POR FALTA DE RECURSO.
 
-    `closed_by_runs` es `{frente: motivo}` con lo que cierran las CORRIDAS GUARDADAS del
-    proyecto, y entra POR AQUI a proposito. Estuvo dos tandas entrando por cada consumidor
+    `closed_by_panel` es `{frente: motivo}` con lo que esta CONTESTADO EN TODO EL PANEL
+    —lo cierre el fichero del deposito o una corrida guardada—, y entra POR AQUI a
+    proposito. Se llamaba `closed_by_runs` cuando solo llegaban las corridas; el nombre
+    dejo de ser cierto en cuanto entraron los frentes que cierra un fichero, y un nombre
+    que miente es el principio nº 27.
+
+    OJO CON `ReportSelection.not_run_filters`, que es lo que se usa mas abajo: cuenta sobre
+    LAS 2170 VENTANAS TILADAS, y 1790 de ellas ni llegan a los filtros con recurso
+    porque ya cayeron antes. Un `NOT_RUN` de una ventana descartada no es una laguna:
+    nadie iba a preguntarle. Por eso la lista de aqui es solo el punto de partida y
+    quien cierra es `closed_by_panel`, que mira EL PANEL. Estuvo dos tandas entrando por cada consumidor
     —la tarjeta, el semaforo, el informe, la ficha— y el resultado fue arreglarlos de uno
     en uno y que los otros cinco siguieran igual: hay SEIS llamadores de esta funcion.
     Un frente cerrado por una corrida se cierra AQUI, y todos se enteran a la vez.
@@ -1827,7 +1836,7 @@ def blocking_fronts(
     #     fichero. Lo que les falta es que alguien decida su criterio, y eso no tiene
     #     ficha de obtencion — tiene una entrada en `justificacion.py`.
     sin_frente = BIOPHYSICAL_FILTERS
-    cerrados = dict(closed_by_runs or {})
+    cerrados = dict(closed_by_panel or {})
     frentes = [
         BlockingFront(
             name=nombre,

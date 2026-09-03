@@ -123,8 +123,8 @@ from shmir_design.presentation import (  # noqa: E402
     blast_defaults_for,
     front_help_rows,
     front_card_rows,
-    fronts_closed_by_runs,
-    store_states_by_front,
+    fronts_closed_over_panel,
+    panel_states_by_front,
     verdicts_changed,
     folding_capability,
     check_can_emit_dna,
@@ -481,9 +481,16 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     # consumidores —semaforo, tabla, tarjetas e informe—, que es lo que faltaba.
     almacenes = load_stores(proyecto) if proyecto is not None else None
     panel_abierto = chosen_starts(seleccion)
-    frentes_cerrados = fronts_closed_by_runs(
-        store_states_by_front(almacenes, species=nombre, starts=panel_abierto),
+    # Y UN FRENTE CIERRA IGUAL POR FICHERO QUE POR CORRIDA. Con solo los almacenes, el
+    # semaforo daba por abierto `transgen` con `aav_casete.fa` cargado y los diez
+    # candidatos en `PASS` — la tarjeta gris al lado de su propia columna en verde.
+    vista_del_panel = panel_states_by_front(
+        tiling, seleccion, species=nombre, stores=almacenes
+    )
+    frentes_cerrados = fronts_closed_over_panel(
+        vista_del_panel["estados"],
         starts=panel_abierto,
+        origins=vista_del_panel["origenes"],
     )
     semaforo(status_light(seleccion, resueltos=tuple(frentes_cerrados)))
 
@@ -569,14 +576,23 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     (st.warning if documento.state == "PARCIAL" else st.success)(
         informe_state_text(documento)
     )
-    for entregable in informe_files(documento, stem=nombre):
-        st.download_button(
-            entregable["nombre"],
-            data=entregable["datos"],
-            file_name=entregable["nombre"],
-            mime=entregable["mime"],
-            key=f"inf_{nombre}_{entregable['nombre']}",
-        )
+    # EL BOTON SE LLAMA POR LO QUE HACE, no por el nombre del fichero. Los tres se
+    # etiquetaban `raton_informe_parcial.docx`, asi que la seccion se leia como una lista
+    # de ficheros y se reporto como «no encuentro donde se descarga el informe» con los
+    # tres botones delante. La etiqueta la pone `presentation` (regla 6); el nombre del
+    # fichero va debajo, que es lo que luego hay que buscar en la carpeta de Descargas.
+    entregables = informe_files(documento, stem=nombre)
+    for columna, entregable in zip(st.columns(len(entregables)), entregables, strict=True):
+        with columna:
+            st.download_button(
+                entregable["etiqueta"],
+                data=entregable["datos"],
+                file_name=entregable["nombre"],
+                mime=entregable["mime"],
+                key=f"inf_{nombre}_{entregable['nombre']}",
+                width="stretch",
+            )
+            st.caption(entregable["nombre"])
 
     # LO GUARDADO SE RELEE. `load_stores` estaba importado y no se llamaba desde ningún
     # sitio: al reabrir un proyecto volvía la selección y **los cuatro frentes salían de

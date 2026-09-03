@@ -1586,37 +1586,54 @@ def informe_documento(selection, tiling, *, species: str, generated: str,
     )
 
 
-def informe_files(documento, *, stem: str):
-    """Los tres entregables, ya con nombre: markdown (fuente), `.docx` y `.pdf`.
+#: COMO SE LLAMA CADA BOTON DE DESCARGA DEL INFORME, y por que no se llama como el
+#: fichero. Los tres botones se etiquetaban con el nombre del entregable
+#: —`mouse_informe_parcial.docx`— asi que la seccion no se leia como «aqui se descarga el
+#: informe» sino como una lista de ficheros sueltos: se reporto como «no encuentro donde
+#: se descarga el informe» con los tres botones en pantalla. Misma leccion que
+#: `BUTTON_DESIGN`: un boton se llama por lo que HACE. El nombre del fichero no se pierde
+#: —va debajo, en la ayuda— porque es lo que luego hay que buscar en Descargas.
+#:
+#: El orden es Word, PDF y markdown: los dos primeros son los que se mandan y se imprimen,
+#: y el markdown es la FUENTE, para discutir una frase sin maquetar. Alfabetico pondria
+#: `.docx` antes que `.md` por casualidad y `.pdf` el ultimo sin ninguna razon.
+INFORME_LABELS = (
+    (
+        "docx",
+        "Descargar el informe en Word (.docx)",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ),
+    ("pdf", "Descargar el informe en PDF", "application/pdf"),
+    ("md", "Descargar el texto sin maquetar (.md)", "text/markdown"),
+)
 
-    La pagina no decide el nombre ni el formato: recibe `nombre`, `datos` y `mime`. El
-    markdown va tambien porque es la FUENTE de los otros dos — si alguien discute una
-    frase del pdf, ahi esta el texto sin maquetar.
+
+def informe_files(documento, *, stem: str):
+    """Los tres entregables, ya con nombre, ETIQUETA y mime: `.docx`, `.pdf` y markdown.
+
+    La pagina no decide el nombre, ni el formato, ni como se llama el boton: recibe
+    `nombre`, `etiqueta`, `datos` y `mime` (regla 6). El markdown va tambien porque es la
+    FUENTE de los otros dos — si alguien discute una frase del pdf, ahi esta el texto sin
+    maquetar.
     """
     from .docx_writer import to_docx
     from .pdf_writer import to_pdf
 
     marca = "parcial" if documento.state == "PARCIAL" else "completo"
     base = f"{stem}_informe_{marca}"
+    contenido = {
+        "md": lambda: documento.markdown().encode("utf-8"),
+        "docx": lambda: to_docx(documento),
+        "pdf": lambda: to_pdf(documento),
+    }
     return [
         {
-            "nombre": f"{base}.md",
-            "datos": documento.markdown().encode("utf-8"),
-            "mime": "text/markdown",
-        },
-        {
-            "nombre": f"{base}.docx",
-            "datos": to_docx(documento),
-            "mime": (
-                "application/vnd.openxmlformats-officedocument."
-                "wordprocessingml.document"
-            ),
-        },
-        {
-            "nombre": f"{base}.pdf",
-            "datos": to_pdf(documento),
-            "mime": "application/pdf",
-        },
+            "nombre": f"{base}.{extension}",
+            "etiqueta": etiqueta,
+            "datos": contenido[extension](),
+            "mime": mime,
+        }
+        for extension, etiqueta, mime in INFORME_LABELS
     ]
 
 
@@ -1840,7 +1857,20 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
 #: Un frente se cierra CONSIGUIENDO LA RESPUESTA, no consiguiendo un `PASS`. Un `FAIL`
 #: es una respuesta —el candidato cae— y deja el frente cerrado igual. Lo que NO cierra
 #: es `NOT_RUN` ni `NO_CIERRA`: ahi no hay respuesta que leer.
-ESTADOS_QUE_RESPONDEN = ("PASS", "FAIL")
+#: LO QUE ES UNA LAGUNA. Se declara ESTO y lo demas se DERIVA (principio nº 13): una
+#: lista de «los que responden» escrita a mano deja fuera al estado numero siete el dia
+#: que se añada, y lo cuenta como hueco sin que nadie lo note.
+#:
+#: `SUSTITUIDO` y `NO_APLICA` SI son respuestas, y no es un detalle: el filtro `seed` sale
+#: `SUSTITUIDO` en todo el panel cuando esta `mature.fa`, y `check_substitution` impide
+#: que un `SUSTITUIDO` exista con su sustituto en `NOT_RUN`. Contarlos como laguna dejaba
+#: abierto un frente que ya tiene respuesta.
+ESTADOS_SIN_RESPUESTA = ("NOT_RUN", "SIN_CONSULTAR", "NO_CIERRA", "OBSOLETO")
+ESTADOS_QUE_RESPONDEN = tuple(
+    estado.value
+    for estado in FilterState
+    if estado.value not in ESTADOS_SIN_RESPUESTA
+)
 
 
 def verdict_with_stores(estados) -> str:
@@ -1876,26 +1906,33 @@ def verdict_with_stores(estados) -> str:
     return overall_verdict(resultados).value
 
 
-def fronts_closed_by_runs(estados_por_frente, *, starts) -> dict[str, str]:
-    """Que frentes cierran las corridas guardadas, y con que motivo.
+def fronts_closed_over_panel(estados_por_frente, *, starts, origins=None) -> dict[str, str]:
+    """Que frentes estan CONTESTADOS en todo el panel, y con que motivo.
 
-    `estados_por_frente` es `{frente: {inicio: estado}}` — lo que dicen los almacenes de
-    cada candidato del panel.
+    `estados_por_frente` es `{frente: {inicio: estado}}` — lo que dice cada candidato del
+    panel, venga del fichero del deposito o de una corrida guardada. Sale de
+    `panel_states_by_front`, que es el unico sitio donde se junta.
 
     **UN FRENTE SOLO SE CIERRA SI LO CUBRE TODO EL PANEL**, y esa mitad no se puede
-    omitir: con seis candidatos consultados de diez, decir «frente cerrado» daria por
+    omitir: con seis candidatos contestados de diez, decir «frente cerrado» daria por
     comprobados cuatro que nadie miro. Es la misma regla que un `NOT_RUN` que no puede
     reportarse como aprobado, un piso mas arriba.
+
+    Se llamaba `fronts_closed_by_runs` mientras solo miraba corridas. El nombre dejo de
+    ser cierto en cuanto entraron los frentes que cierra un fichero, y un nombre que
+    miente es el principio nº 27: se renombra en vez de ampliarle el significado.
     """
     return {
         frente: datos["motivo"]
-        for frente, datos in run_coverage(estados_por_frente, starts=starts).items()
+        for frente, datos in run_coverage(
+            estados_por_frente, starts=starts, origins=origins
+        ).items()
         if datos["cerrado"]
     }
 
 
-def run_coverage(estados_por_frente, *, starts) -> dict[str, dict]:
-    """CUANTOS candidatos del panel cubre cada frente, y si eso lo cierra.
+def run_coverage(estados_por_frente, *, starts, origins=None) -> dict[str, dict]:
+    """CUANTOS candidatos del panel contesta cada frente, y si eso lo cierra.
 
     LA COBERTURA PARCIAL SE DICE. Sin esto, un frente consultado para 6 de 10 candidatos
     sale exactamente igual que uno que nadie ha tocado —tarjeta gris, «sin hacer»— y quien
@@ -1903,34 +1940,30 @@ def run_coverage(estados_por_frente, *, starts) -> dict[str, dict]:
     no la ha recogido. La corrida SI esta y su celda de la tabla lo dice; lo que falta es
     que la tarjeta diga cuanto falta.
 
-    Es la misma distincion de siempre —«no comprobado» y «comprobado a medias» no son lo
-    mismo— aplicada al progreso en vez de al veredicto.
+    `origins` es `{frente: {inicio: ORIGEN_*}}` y decide QUE TEXTO se escribe. Son dos
+    causas distintas —una se arregla consiguiendo un fichero y la otra lanzando una
+    corrida— asi que no pueden compartir motivo. Sin `origins` se asume corrida, que es
+    lo unico que habia cuando esta funcion se escribio.
     """
     if not starts:
         return {}
     panel = sorted({int(s) for s in starts})
+    origenes_por_frente = origins or {}
     salida: dict[str, dict] = {}
     for frente, por_candidato in (estados_por_frente or {}).items():
         cubiertos = [
             inicio for inicio in panel
             if por_candidato.get(inicio) in ESTADOS_QUE_RESPONDEN
         ]
+        de_donde = {
+            (origenes_por_frente.get(frente) or {}).get(inicio, ORIGEN_CORRIDA)
+            for inicio in cubiertos
+        }
         cerrado = len(cubiertos) == len(panel)
         if cerrado:
-            motivo = (
-                f"CERRADO por corrida guardada: los {len(panel)} candidatos del panel "
-                f"tienen veredicto de este frente en el registro del proyecto."
-            )
+            motivo = _motivo_cerrado(len(panel), de_donde)
         elif cubiertos:
-            faltan = [i for i in panel if i not in cubiertos]
-            motivo = (
-                f"HAY CORRIDA, PERO NO CUBRE EL PANEL: {len(cubiertos)} de "
-                f"{len(panel)} candidatos tienen veredicto de este frente y "
-                f"{len(faltan)} no. El frente NO se cierra con eso —darlo por cerrado "
-                f"daría por comprobados los que nadie miró—, y la corrida que hay no se "
-                f"pierde: su veredicto está en la celda de cada candidato cubierto. "
-                f"Faltan: {', '.join(str(i) for i in faltan)}."
-            )
+            motivo = _motivo_a_medias(panel, cubiertos, de_donde)
         else:
             motivo = ""
         salida[frente] = {
@@ -1942,22 +1975,164 @@ def run_coverage(estados_por_frente, *, starts) -> dict[str, dict]:
     return salida
 
 
-def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int, str]]:
-    """`{frente: {inicio: estado}}` segun los almacenes. Lo que la tabla ya usaba, suelto.
+def _motivo_cerrado(panel: int, de_donde: set[str]) -> str:
+    """De DONDE salio el cierre, con sus palabras. Nunca «corrida» de un fichero."""
+    if de_donde == {ORIGEN_FICHERO}:
+        return (
+            f"CERRADO con lo que hay en el depósito: los {panel} candidatos del panel "
+            f"tienen veredicto de este frente con el fichero que ya está cargado, sin "
+            f"que haga falta ninguna corrida."
+        )
+    if de_donde == {ORIGEN_CORRIDA}:
+        return (
+            f"CERRADO por corrida guardada: los {panel} candidatos del panel "
+            f"tienen veredicto de este frente en el registro del proyecto."
+        )
+    return (
+        f"CERRADO: los {panel} candidatos del panel tienen veredicto de este frente — "
+        f"unos con el fichero del depósito y otros por corrida guardada."
+    )
 
-    Se saca aparte para que lo usen los CUATRO consumidores —celda, veredicto, tarjetas
-    y semaforo— en vez de que cada uno vuelva a preguntarle al almacen a su manera.
+
+def _motivo_a_medias(panel, cubiertos, de_donde: set[str]) -> str:
+    """Contestado a medias. Y quien no contesta NO es siempre una corrida que falta."""
+    faltan = [inicio for inicio in panel if inicio not in cubiertos]
+    cola = (
+        f"El frente NO se cierra con eso —darlo por cerrado daría por comprobados los "
+        f"que nadie miró—, y lo que hay no se pierde: su veredicto está en la celda de "
+        f"cada candidato cubierto. Faltan: "
+        f"{', '.join(str(inicio) for inicio in faltan)}."
+    )
+    if de_donde == {ORIGEN_FICHERO}:
+        return (
+            f"EL FICHERO ESTÁ Y NO ALCANZA A TODO EL PANEL: {len(cubiertos)} de "
+            f"{len(panel)} candidatos tienen veredicto de este frente y "
+            f"{len(faltan)} no. {cola}"
+        )
+    return (
+        f"HAY CORRIDA, PERO NO CUBRE EL PANEL: {len(cubiertos)} de "
+        f"{len(panel)} candidatos tienen veredicto de este frente y "
+        f"{len(faltan)} no. {cola}"
+    )
+
+
+def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int, str]]:
+    """`{frente: {inicio: estado}}` segun los ALMACENES. Una de las dos mitades.
+
+    La otra es lo que dice el filtro de la ventana con el fichero del deposito delante;
+    las dos se juntan en `panel_states_by_front`, que es de donde salen la celda y la
+    tarjeta. Aqui solo esta el registro del proyecto.
+
+    **LOS FRENTES POR HEBRA NO CONTESTABAN NADA** (2026-09-03). Se le preguntaba al
+    almacen con el nombre PELADO del frente, y `_store_state` devuelve `None` para un
+    frente por hebra sin hebra —a proposito: fundir las dos daria por buena la de la
+    pasajera con el estado de la guia—. O sea que una corrida de seed o de off-targets
+    que cubriera el panel entero **no cerraba su frente nunca**; solo la de BLAST podia.
+    Coincide con lo que se observo —«la de especificidad es la unica verde»— y NO era la
+    causa de aquello: es un fallo latente que el mismo reporte destapo.
+
+    Un frente por hebra se contesta **con las dos**, o no se contesta.
     """
     salida: dict[str, dict[int, str]] = {}
-    for frente in STORE_FOR_FRONT:
-        por_candidato = {}
+    for frente, declarado in STORE_FOR_FRONT.items():
+        columnas = (
+            [f"{frente}:{hebra}" for hebra in STRANDS]
+            if declarado["por_hebra"] else [frente]
+        )
+        por_candidato: dict[int, str] = {}
         for inicio in starts:
-            estado = _store_state(stores, frente, species, int(inicio))
-            if estado is not None:
-                por_candidato[int(inicio)] = estado
+            estados = [
+                _store_state(stores, columna, species, int(inicio))
+                for columna in columnas
+            ]
+            if any(estado is None for estado in estados):
+                # Los almacenes no dicen nada de esta hebra: manda el filtro de la
+                # ventana, como siempre. `None` NO es `NOT_RUN`.
+                continue
+            por_candidato[int(inicio)] = _peor_de(estados)
         if por_candidato:
             salida[frente] = por_candidato
     return salida
+
+
+def _peor_de(estados: list[str]) -> str:
+    """El estado de un frente que llega por VARIAS columnas (una por hebra).
+
+    Manda la laguna sobre la respuesta y el `FAIL` sobre el `PASS`. Nunca al reves:
+    quedarse con la mejor de las dos hebras daria por buena la de la pasajera con el
+    estado de la guia, que es lo que la ficha parte en dos filas para no hacer.
+    """
+    for estado in estados:
+        if estado in ESTADOS_SIN_RESPUESTA:
+            return estado
+    return FilterState.FAIL.value if FilterState.FAIL.value in estados else estados[0]
+
+
+#: DE DONDE SALE LA RESPUESTA de un candidato en un frente. Son dos causas distintas y
+#: se arreglan con cosas distintas —una consiguiendo un fichero, la otra lanzando una
+#: corrida—, asi que el motivo que se pinta no puede ser el mismo. Decir «cerrado por
+#: corrida guardada» de un frente que nadie ha corrido manda a buscar en el registro del
+#: proyecto, donde no hay nada.
+ORIGEN_FICHERO = "fichero"
+ORIGEN_CORRIDA = "corrida"
+
+
+def panel_states_by_front(
+    tiling, selection, *, species: str, stores=None,
+) -> dict[str, dict]:
+    """Lo que dice CADA candidato del panel de CADA frente, y de donde sale.
+
+    **ES EL UNICO SITIO donde se decide si un frente esta contestado**, y de aqui salen
+    las dos cosas que discrepaban: la celda de la tabla y la tarjeta.
+
+    El fallo que lo motiva (2026-09-03) es la errata nº 54 un consumidor mas alla. Habia
+    **DOS reglas para la misma pregunta**: un frente cerrado por CORRIDA se decidia sobre
+    el panel (`run_coverage`) y uno cerrado por FICHERO sobre las 2170 ventanas tiladas,
+    via `ReportSelection.not_run_filters`. Y 1790 de esas ventanas ni llegan a los filtros con
+    recurso porque ya cayeron antes — un `NOT_RUN` de una ventana descartada no es una
+    laguna de nada, porque nadie iba a preguntarle. Resultado: `transgen` y
+    `seed_colision` salian `PASS` en los diez del panel y sus tarjetas en gris.
+
+    La unidad de la pregunta es **el panel**, para las dos. Y no se arregla la tarjeta:
+    se junta el origen de las dos aqui, para que no puedan volver a separarse.
+
+    Devuelve `{"estados": {frente: {inicio: estado}}, "origenes": {frente: {inicio: ...}}}`
+    — una sola pasada y dos proyecciones, no dos calculos del mismo numero.
+    """
+    starts = [int(s) for s in chosen_starts(selection)]
+    ventanas = {int(w.window.start): w for w in tiling.windows}
+    estados: dict[str, dict[int, str]] = {}
+    origenes: dict[str, dict[int, str]] = {}
+
+    # 1. LO QUE DICE LA CELDA DE LA TABLA, letra por letra: `_filter_columns` —el unico
+    #    sitio del que sale el estado por filtro de una fila— pasado por `_with_stores`,
+    #    que es la misma expresion que pinta `candidate_rows`. Asi la tarjeta y la
+    #    columna no pueden discrepar por construccion, no por coincidencia. De aqui sale
+    #    lo que cierra un frente cuando su fichero esta en el deposito.
+    for inicio in starts:
+        ventana = ventanas.get(inicio)
+        if ventana is None:
+            continue
+        efectivos = _with_stores(
+            _filter_columns(ventana), stores, species, inicio
+        )
+        for frente, estado in efectivos.items():
+            estados.setdefault(frente, {})[inicio] = estado
+            origenes.setdefault(frente, {})[inicio] = ORIGEN_FICHERO
+
+    # 2. LO QUE DICEN LOS ALMACENES, para dos cosas: MARCAR EL ORIGEN —«lo cerro una
+    #    corrida» y «lo cerro el fichero» son dos causas y no pueden compartir texto— y
+    #    contestar los frentes POR HEBRA, que `_with_stores` deja pasar a proposito
+    #    (fundir las dos hebras en una columna daria por buena la de la pasajera con el
+    #    estado de la guia). Para los demas, el paso 1 ya trae este mismo estado.
+    for frente, por_candidato in store_states_by_front(
+        stores, species=species, starts=starts
+    ).items():
+        for inicio, estado in por_candidato.items():
+            estados.setdefault(frente, {})[inicio] = estado
+            origenes.setdefault(frente, {})[inicio] = ORIGEN_CORRIDA
+
+    return {"estados": estados, "origenes": origenes}
 
 
 #: QUE HAY EN LA TABLA, dicho arriba. Sin esto, sus 270 filas se leen como si todas
@@ -5231,13 +5406,16 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
 
     especie = resolve(species)
     panel = chosen_starts(run.selection)
+    vista = panel_states_by_front(
+        run.tiling, run.selection, species=species, stores=stores
+    )
     cobertura = run_coverage(
-        store_states_by_front(stores, species=species, starts=panel), starts=panel
+        vista["estados"], starts=panel, origins=vista["origenes"]
     )
     cerrados = {f: d["motivo"] for f, d in cobertura.items() if d["cerrado"]}
     tarjetas = []
     for frente in blocking_fronts(
-        run.tiling, run.selection, closed_by_runs=cerrados
+        run.tiling, run.selection, closed_by_panel=cerrados
     ):
         ficha = resolve_ficha(frente.name, species=especie)
         estado = "HECHO" if not frente.blocking else "SIN_HACER"

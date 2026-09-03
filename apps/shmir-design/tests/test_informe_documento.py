@@ -494,14 +494,23 @@ class TestLaPaginaTieneElBoton(unittest.TestCase):
         if doc is None:
             self.skipTest("NOT_RUN: falta el fixture del raton")
         entregables = presentation.informe_files(doc, stem="raton")
+        # EL ORDEN ES DELIBERADO: primero lo que se manda y se imprime, y el markdown
+        # el ultimo porque es la FUENTE —para discutir una frase sin maquetar—, no el
+        # entregable. Alfabetico dejaba el `.pdf` al final sin ninguna razon.
         self.assertEqual(
             [e["nombre"] for e in entregables],
             [
-                "raton_informe_parcial.md",
                 "raton_informe_parcial.docx",
                 "raton_informe_parcial.pdf",
+                "raton_informe_parcial.md",
             ],
         )
+        # Y LA ETIQUETA DEL BOTON NO ES EL NOMBRE DEL FICHERO. Lo era, y por eso la
+        # seccion se leia como una lista de ficheros: se reporto como «no encuentro
+        # donde se descarga el informe» con los tres botones en pantalla.
+        for entregable in entregables:
+            self.assertNotEqual(entregable["etiqueta"], entregable["nombre"])
+            self.assertIn("Descargar", entregable["etiqueta"])
         for entregable in entregables:
             self.assertTrue(entregable["datos"])
             self.assertTrue(entregable["mime"])
