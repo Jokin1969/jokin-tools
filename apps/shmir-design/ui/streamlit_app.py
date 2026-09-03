@@ -156,6 +156,7 @@ from shmir_design.presentation import (  # noqa: E402
     TABLE_SCOPE_NOTE,
     vector_note,
     seed_load_placeholder,
+    seed_load_reference,
     seed_preview_rows,
     seed_setting_rows,
     seed_source_text,
@@ -513,6 +514,19 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         st.dataframe(filas, hide_index=True)
     else:
         st.info("Ningún candidato con estos umbrales.")
+
+    # `carga_seed` SOLA NO SE PUEDE LEER. Es la columna que más discrimina —factor 18
+    # entre el mejor y el peor del panel murino— y hasta ahora salía desnuda: sin el
+    # percentil contra la nula por permutación no se sabe si es raro, y sin los controles
+    # biológicos no se sabe qué es «muchos sitios». Los dos los calcula el modal de
+    # off-targets y se leen de la corrida guardada; aquí no se recalcula nada.
+    referencia_carga = seed_load_reference(
+        stores=almacenes, species=nombre, starts=chosen_starts(seleccion),
+    )
+    (st.caption if referencia_carga["hay"] else st.warning)(referencia_carga["texto"])
+    if referencia_carga["controles"]:
+        st.markdown("**Controles biológicos** — la magnitud, no el percentil")
+        st.dataframe(referencia_carga["controles"], hide_index=True)
 
     # ── Todos los sitios elegibles, con UNA COLUMNA POR FRENTE ───────────────────
     # Es la vista que impide que vuelva a pasar lo de `offtarget_seed`: un frente sin

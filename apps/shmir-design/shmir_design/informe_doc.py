@@ -482,10 +482,14 @@ def _section_3(fronts, *, species, tiling) -> Section:
     return Section(number=3, title="Frente por frente", blocks=tuple(bloques))
 
 
-def _section_4(selection) -> Section:
-    from .presentation import candidate_rows
+def _section_4(selection, *, species: str = "", stores=None) -> Section:
+    from .presentation import candidate_rows, seed_load_reference
 
-    filas = candidate_rows(selection)
+    # LOS ALMACENES ENTRAN AQUI porque `carga_seed` no se puede leer sola: su percentil y
+    # sus controles viven en la corrida guardada. Sin esto, el documento que defiende la
+    # seleccion emitia un 19.020 desnudo, que es justo lo que la regla de redaccion
+    # «toda cifra comparativa con su referencia» existe para impedir.
+    filas = candidate_rows(selection, species=species, stores=stores)
     if not filas:
         return Section(
             number=4,
@@ -529,6 +533,26 @@ def _section_4(selection) -> Section:
                 "MULTIPLEXADO: ninguna pareja del panel comparte el núcleo de seed de "
                 "6 nt. Se dice aunque salga limpio — su ausencia se leeria como que "
                 "nadie lo miro."
+            )
+        )
+    # LA REFERENCIA DE `carga_seed`: percentil por clase y controles biologicos.
+    referencia = seed_load_reference(
+        stores=stores, species=species,
+        starts=[c.start for c in selection.selection.chosen],
+    )
+    bloques.append(para(referencia["texto"]))
+    if referencia["controles"]:
+        cabeceras_control = ("control", "heptamero", *referencia["clases"])
+        bloques.append(
+            table(
+                cabeceras_control,
+                [
+                    (
+                        control["nombre"], control["heptamero"],
+                        *(str(control[clase]) for clase in referencia["clases"]),
+                    )
+                    for control in referencia["controles"]
+                ],
             )
         )
     return Section(number=4, title="Tabla de candidatos", blocks=tuple(bloques))
@@ -871,7 +895,7 @@ def build_document(
             _section_3(frentes, species=species, tiling=tiling),
             *((_seccion_anatomia(anatomy),) if anatomy is not None else ()),
             _seccion_mapa(tiling, selection),
-            _section_4(selection),
+            _section_4(selection, species=species, stores=stores),
             _seccion_elegibles(tiling, selection, species=species),
             _seccion_controles(tiling, selection, species=species, target=target),
             _section_5(

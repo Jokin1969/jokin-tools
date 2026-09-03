@@ -194,10 +194,16 @@ class TestFilasDeTabla(unittest.TestCase):
         """Guardia contra futuras colisiones de nombres al fusionar diccionarios."""
         tiling, seleccion = piezas()
         nombres_filtro = {r.name for r in tiling.windows[0].filters}
+        # Las columnas de la carga por clase se PIDEN, no se escriben: son una por
+        # clase de sitio y transcribirlas aqui dejaria fuera a la quinta el dia que la
+        # haya (principio nº 13).
+        from shmir_design.presentation import seed_load_columns
+
+        carga_por_clase = seed_load_columns(stores=None, species="", start=0)
         otras = {"rango", "inicio", "fin", "region", "inicio_3utr", "fin_3utr",
                  "tercio", "asimetria_kcal", "bandera_polyA_debil",
                  "biofisicos_ok", "riesgo_APA", "veredicto", "diana", "guia",
-                 "carga_seed", "accesibilidad", *POLYA_COLUMNS}
+                 "carga_seed", "accesibilidad", *carga_por_clase, *POLYA_COLUMNS}
         self.assertEqual(nombres_filtro & otras, set())
         self.assertEqual(
             len(candidate_rows(seleccion)[0]), len(nombres_filtro) + len(otras)

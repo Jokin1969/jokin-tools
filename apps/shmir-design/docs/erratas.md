@@ -3469,3 +3469,64 @@ maquetar. El orden anterior era el de escritura y dejaba el `.pdf` al final sin 
 razón. El test que lo fijaba **transcribía** la lista, así que sólo comprobaba que nadie
 la tocara; ahora comprueba además la invariante que importa: **la etiqueta de un botón no
 puede ser el nombre de su fichero**.
+
+## 70 — `carga_seed` salía desnuda: la nula y los controles se calculaban en el modal y no llegaban al export
+
+**Reportado (2026-09-03)**, y con la observación que lo motiva: «carga_seed es la primera
+columna que discrimina de verdad — de 1.054 a 19.020, factor 18 entre el mejor y el peor.
+Pero le falta el percentil contra la nula por permutación y los controles de miR-124,
+miR-9 y let-7: sin ellos, 19.020 no se puede interpretar. Estaba en el diseño del modal y
+no aparece en el export.»
+
+Es la regla de redacción del propio proyecto —**toda cifra comparativa con su
+referencia**— y era la única columna que seguía saliendo sin ella. Y el principio nº 23
+otra vez: la nula por permutación y los controles **se calculan** en el modal de carga de
+off-targets y se guardan en el registro del proyecto; lo que faltaba es que llegaran al
+artefacto que se lee.
+
+### La decisión que hay que dejar escrita: NO hay percentil de `carga_seed`
+
+`carga_seed` es un **total** —la suma de tres clases de sitio— y `offtarget.WHY_NOT_SUMMED`
+prohíbe sumar las clases, porque la represión esperada de un 8mer y la de un 6mer no se
+parecen en nada. Así que el percentil que se pidió **no se puede calcular sobre 19.020**:
+sería el percentil de una cantidad que este proyecto tiene decidido que no se refiere a
+nada. Emitirlo habría sido dar por bueno el total por la puerta de atrás.
+
+Lo que sí se emite, y es lo que hace el trabajo que se pedía: **cada clase con su
+percentil pegado**, en columnas `carga_8mer`, `carga_7mer-m8`, `carga_7mer-A1` y
+`carga_6mer`, con la forma `12 (p97.5)`. Es la misma forma que `describe_sequence`
+(«longitud y md5 JUNTOS»): una cifra comparativa no se separa nunca de su referencia,
+porque quien copia una celda a un correo se lleva el número sin la cabecera.
+
+### Y son DOS referencias, no una
+
+- el **percentil contra la nula por permutación** dice si el número es raro *para esa
+  composición de heptámero* — una nula uniforme declararía «cargada» a cualquier seed rica
+  en A/T por pura composición;
+- los **controles biológicos** (`miR-124-3p`, `miR-9-5p`, `let-7a-5p`) dan la **magnitud**:
+  qué es «muchos sitios» en un cerebro de verdad.
+
+Ninguna sustituye a la otra, y va escrito (`WHY_BOTH_REFERENCES`). Los controles **no
+llevan percentil** a propósito: se calcularía contra la nula de su propia composición, así
+que no sería comparable con el nuestro. Aportan magnitud, no posición.
+
+### Nada se recalcula: se LEE de la corrida guardada
+
+La nula son ≥10.000 sorteos por consulta sobre un índice de 8-meros construido en una
+pasada por un fichero de 84 MB. Hacerlo en cada repintado de la página es exactamente la
+errata nº 59. `presentation.seed_load_reference` lee lo que la corrida ya guardó — que
+además es lo que garantiza que la tabla y el modal digan **el mismo número**: dos cálculos
+del mismo suceso acaban discrepando.
+
+Sin corrida guardada, las cuatro columnas van **vacías** —nunca a cero: no haber contado y
+contar cero son cosas distintas— y el texto dice qué falta, dónde se consigue y por qué el
+total solo no se puede leer. Sale en la página, y **entra en el informe descargable**, que
+es el documento que defiende la selección.
+
+### Un detalle que salió al escribirlo
+
+`candidate_rows` se puede llamar **sin especie** —es el camino del CLI— y al derivar la
+clave de consulta eso abortaba. Sin almacén no hay registro que consultar, así que tampoco
+hay clave que derivar: el corte es explícito y no un `try`. Y el guardia de colisión de
+columnas **transcribía** la lista de nombres; ahora la pide, para que la quinta clase de
+sitio que se añada quede cubierta sin que nadie se acuerde.

@@ -217,6 +217,13 @@ def candidate_rows(
     O sea, eran los diez del panel y no diez cualesquiera. Ver principio nº 23: dos
     artefactos que leen el mismo estado y solo uno actualizado.
     """
+    # LA REFERENCIA DE `carga_seed`, UNA sola vez para toda la tabla: el percentil por
+    # clase y los controles salen de la corrida guardada, no se recalculan aqui (la nula
+    # son ≥10.000 sorteos por consulta — errata nº 59).
+    referencia = seed_load_reference(
+        stores=stores, species=species,
+        starts=[c.start for c in selection.selection.chosen],
+    )
     rows: list[dict[str, object]] = []
     for choice in selection.selection.chosen:
         window = selection.window_of(choice)
@@ -243,6 +250,13 @@ def candidate_rows(
                 # nunca a cero (bloques 1b y 4).
                 "carga_seed": (
                     window.carga_seed.as_column() if window.carga_seed else ""
+                ),
+                # EL TOTAL NO SE PUEDE LEER SOLO. Cada clase con su percentil PEGADO —y
+                # no hay percentil del total, que seria el de una suma que este proyecto
+                # tiene decidido que no se refiere a nada (`WHY_NO_PERCENTILE_FOR_THE_TOTAL`).
+                **seed_load_columns(
+                    stores=stores, species=species, start=choice.start,
+                    reference=referencia,
                 ),
                 "accesibilidad": (
                     window.accesibilidad.as_column() if window.accesibilidad else ""
@@ -1183,6 +1197,132 @@ def seed_highlights(scan):
         },
         "tasa_base": {"activo": True, "texto": scan.base_rate.describe()},
     }
+
+
+#: POR QUE `carga_seed` NO PUEDE LLEVAR UN PERCENTIL PROPIO, y hay que decirlo donde se
+#: pide. `carga_seed` es un TOTAL —la suma de tres clases de sitio— y
+#: `offtarget.WHY_NOT_SUMMED` prohibe sumar las clases porque la represion esperada de un
+#: 8mer y la de un 6mer no se parecen en nada. Un percentil de 19.020 seria el percentil
+#: de una cantidad que este proyecto tiene decidido que no se refiere a nada.
+#:
+#: Lo que si se emite es CADA CLASE CON SU PERCENTIL PEGADO, que es la misma forma de
+#: `reference.describe_sequence` («longitud y md5 JUNTOS»): una cifra comparativa no se
+#: separa nunca de su referencia, porque quien copia una celda a un correo se lleva el
+#: numero sin la cabecera.
+WHY_NO_PERCENTILE_FOR_THE_TOTAL = (
+    "`carga_seed` es la SUMA de tres clases de sitio, y las clases no se suman: la "
+    "represión esperada de un 8mer y la de un 6mer no se parecen en nada. Por eso no hay "
+    "—ni puede haber— un percentil de ese total: el percentil va POR CLASE, pegado a su "
+    "conteo, y es lo que sale en las columnas `carga_<clase>`."
+)
+
+#: LAS DOS REFERENCIAS SON DISTINTAS Y NINGUNA SUSTITUYE A LA OTRA. La nula por
+#: permutacion dice si un numero es RARO para esa composicion de heptamero; los controles
+#: dicen que es «muchos sitios» EN BIOLOGIA. Un percentil alto sobre una carga pequeña y
+#: una carga enorme dentro de lo esperable son cosas distintas, y hacen falta las dos para
+#: leer la cifra.
+WHY_BOTH_REFERENCES = (
+    "Son DOS referencias y ninguna sustituye a la otra: el percentil contra la nula por "
+    "permutación dice si el número es raro PARA ESA COMPOSICIÓN de heptámero, y los "
+    "controles biológicos dan la MAGNITUD — qué es «muchos sitios» en un cerebro de "
+    "verdad. Los controles no llevan percentil a propósito: se calcularía contra la nula "
+    "de su propia composición, así que no sería comparable con el nuestro."
+)
+
+
+def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
+    """El percentil por clase y los controles que hacen legible `carga_seed`.
+
+    **Reportado (2026-09-03)**: «carga_seed es la primera columna que discrimina de verdad
+    —de 1.054 a 19.020, factor 18—. Pero le falta el percentil contra la nula por
+    permutación y los controles de miR-124, miR-9 y let-7: sin ellos, 19.020 no se puede
+    interpretar. Estaba en el diseño del modal y no aparece en el export.»
+
+    Es la regla de redaccion del proyecto —**toda cifra comparativa con su referencia**—
+    aplicada a la unica columna que seguia saliendo desnuda, y el principio nº 23 otra
+    vez: la nula y los controles SE CALCULAN en el modal de off-targets y se guardan en el
+    registro; lo que faltaba es que llegaran al artefacto que se lee.
+
+    **No se recalcula nada aqui**, y no es pereza: la nula son ≥10.000 sorteos por
+    consulta sobre un indice de 8-meros construido en una pasada por un fichero de 84 MB.
+    Hacerlo en cada repintado de la pagina es exactamente la errata nº 59. Se LEE lo que
+    la corrida ya guardo, que ademas es lo que garantiza que la tabla y el modal digan el
+    mismo numero — dos calculos del mismo suceso acaban discrepando.
+
+    Sin corrida, las celdas van VACIAS y el texto dice que falta: un numero comparativo
+    que no se calculo va vacio, nunca a cero.
+    """
+    from .offtarget import CONTROL_NAMES, MISSING_FILE, SITE_CLASSES
+
+    almacen = (stores or {}).get("offtarget")
+    por_candidato: dict[int, dict[str, str]] = {}
+    ultima = None
+    # SIN ALMACEN NO SE PREGUNTA NADA, y por eso tampoco se resuelve la especie: la clave
+    # de consulta la necesita quien busca en el registro, y aqui no hay registro. Sin este
+    # corte, una tabla pedida sin especie —que es un camino legitimo, el del CLI— abortaba
+    # al derivar una clave para la que no hay nada que buscar.
+    for inicio in (starts if almacen is not None else ()):
+        consulta = query_name(species, int(inicio), "guia")
+        corrida = almacen.latest(consulta) if almacen is not None else None
+        if corrida is None:
+            continue
+        resultado = corrida.result_for(consulta)
+        if resultado is None:
+            continue
+        # EL CONTEO Y SU PERCENTIL, EN LA MISMA CELDA. Separarlos en dos columnas es lo
+        # que hace que alguien copie el numero solo, que es el fallo que esto cierra.
+        por_candidato[int(inicio)] = {
+            clase: (
+                f"{resultado.counts.sites[clase]} "
+                f"(p{resultado.percentiles[clase]:.1f})"
+            )
+            for clase in SITE_CLASSES
+        }
+        ultima = corrida
+
+    controles = [
+        {
+            "nombre": control.name,
+            "heptamero": control.heptamer,
+            **{clase: control.sites[clase] for clase in SITE_CLASSES},
+        }
+        for control in (ultima.scan.controls if ultima is not None else ())
+    ]
+
+    if ultima is None:
+        texto = (
+            f"CARGA DE SEED SIN REFERENCIA — NOT_RUN. El número de `carga_seed` está, y "
+            f"solo no se puede leer: falta el PERCENTIL contra la nula por permutación y "
+            f"faltan los controles biológicos ({', '.join(CONTROL_NAMES)}). Los dos los "
+            f"calcula el modal de carga de off-targets, que necesita "
+            f"`{MISSING_FILE}` y una corrida guardada en el proyecto. "
+            f"{WHY_BOTH_REFERENCES} {WHY_NO_PERCENTILE_FOR_THE_TOTAL}"
+        )
+    else:
+        texto = (
+            f"Percentiles y controles de la corrida {ultima.run_id} ({ultima.date}), "
+            f"sobre {ultima.source}. {WHY_BOTH_REFERENCES} "
+            f"{WHY_NO_PERCENTILE_FOR_THE_TOTAL}"
+        )
+
+    return {
+        "hay": ultima is not None,
+        "por_candidato": por_candidato,
+        "controles": controles,
+        "clases": tuple(SITE_CLASSES),
+        "texto": texto,
+    }
+
+
+def seed_load_columns(*, stores, species: str, start: int, reference=None) -> dict[str, str]:
+    """Las celdas `carga_<clase>` de UNA fila. Vacias si no hay corrida, nunca a cero."""
+    from .offtarget import SITE_CLASSES
+
+    vista = reference if reference is not None else seed_load_reference(
+        stores=stores, species=species, starts=(start,)
+    )
+    celdas = vista["por_candidato"].get(int(start), {})
+    return {f"carga_{clase}": celdas.get(clase, "") for clase in SITE_CLASSES}
 
 
 def seed_load_placeholder(utr3_set):

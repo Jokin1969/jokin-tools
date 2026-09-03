@@ -4210,6 +4210,30 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     transcriptoma) tarda **0,9 s** con un pico de **99 MB** de RSS. No es un problema de
     memoria ni de tiempo.
 
+- **`carga_seed` SALE CON SU REFERENCIA O NO SE PUEDE LEER (2026-09-03)**, errata nº 70
+  (`presentation.seed_load_reference`). Es la columna que más discrimina del panel murino
+  —de 1.054 a 19.020, factor 18— y era la única que seguía saliendo desnuda. La nula por
+  permutación y los controles **se calculan** en el modal de off-targets y se guardan en el
+  registro; lo que faltaba es que llegaran al export y al informe (principio nº 23).
+  - **NO HAY PERCENTIL DE `carga_seed`, y no es una omisión**
+    (`WHY_NO_PERCENTILE_FOR_THE_TOTAL`): es un TOTAL, y `WHY_NOT_SUMMED` prohíbe sumar las
+    clases porque la represión esperada de un 8mer y la de un 6mer no se parecen en nada.
+    Un percentil de 19.020 sería el de una cantidad que este proyecto tiene decidido que no
+    se refiere a nada. Lo que se emite es **cada clase con su percentil PEGADO** —
+    `carga_8mer`, `carga_7mer-m8`, `carga_7mer-A1`, `carga_6mer`, con la forma
+    `12 (p97.5)`—, la misma forma que «longitud y md5 JUNTOS».
+  - **SON DOS REFERENCIAS Y NINGUNA SUSTITUYE A LA OTRA** (`WHY_BOTH_REFERENCES`): el
+    percentil dice si el número es raro **para esa composición** de heptámero; los
+    controles (`miR-124-3p`, `miR-9-5p`, `let-7a-5p`) dan la **magnitud** — qué es «muchos
+    sitios» en un cerebro de verdad. Los controles **no llevan percentil** a propósito: se
+    calcularía contra la nula de su propia composición y no sería comparable.
+  - **No se recalcula nada: se LEE de la corrida guardada.** La nula son ≥10.000 sorteos
+    por consulta sobre un índice de 84 MB — recalcularla en cada repintado es la errata
+    nº 59. Y leerla es además lo que garantiza que la tabla y el modal digan el MISMO
+    número.
+  - Sin corrida, las cuatro columnas van **vacías** —nunca a cero— y el texto dice qué
+    falta y de dónde sale. Sale en la página y **entra en el informe descargable**.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
