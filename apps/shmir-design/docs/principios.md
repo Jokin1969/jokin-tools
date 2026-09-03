@@ -1388,3 +1388,56 @@ en un contador que hoy nadie suma, en una fecha que hoy nadie compara. Todos son
 que alguien va a leer después con otra regla de agregación. La regla es que el valor sea
 el que corresponde al hecho, no el que produce la salida correcta con las reglas de hoy —
 que es lo mismo que decir que un estado se decide mirando el hecho, no la consecuencia.
+
+## 29 — Una consulta que omite una DIMENSIÓN del modelo no da error: contesta «no sé», y eso se lee como «no hay»
+
+Sale de la errata nº 71, y generaliza un fallo que costó que **una corrida de colisión de
+seed o de carga de off-targets no pudiera cerrar su frente nunca**.
+
+Cuando el modelo declara que algo tiene partes —por hebra, por par candidato × intrón, por
+clase de sitio— toda consulta que lo atraviese tiene **una dimensión más de la que se ve en
+la firma**. Preguntar sin ella no es un error de tipo ni una excepción: la función devuelve
+lo que devuelve cuando no sabe, y lo que no sabe es indistinguible de lo que no hay.
+
+### Por qué es peor que el código repetido y que el símbolo sin llamador
+
+Las dos mitades pueden ser **correctas por separado**, y en el caso que lo motiva lo eran:
+
+- devolver `None` a un frente por hebra preguntado sin hebra es deliberado, y sigue
+  siendo lo correcto — fundir las dos daría por buena la de la pasajera con el estado de
+  la guía;
+- preguntar por el nombre del frente es su clave natural.
+
+El fallo vive en la **junta**, así que ninguna revisión de una de las dos piezas lo ve. Y
+ninguna de las herramientas que este proyecto ya tiene puede cazarlo:
+
+- **la alcanzabilidad** mira símbolos sin llamador, y aquí las dos funciones tienen
+  llamadores;
+- **el golden** lee lo que se emite, y lo que se emitía era un estado con la forma
+  correcta;
+- **el auditor de homónimos** mira magnitudes con el mismo nombre, y aquí el nombre es el
+  mismo a propósito.
+
+### La regla operativa
+
+**Declarar la dimensión no basta: hay que DERIVAR de la declaración cada consulta que la
+atraviesa, y el test tiene que iterar la declaración, no el caso.** Un test escrito para
+`seed_colision` pasa igual el día que entre un cuarto almacén por hebra.
+
+Y con su mitad adversaria, que aquí es doble: quitar **una** parte de la dimensión tiene
+que impedir la respuesta, y preguntar **sin** la dimensión tiene que seguir sin contestar.
+Sin la primera, «contesta» y «no mira nada» dan el mismo verde; sin la segunda, el arreglo
+obvio —devolver la parte que haya— borraría la otra sin dar ningún error.
+
+### Cómo se reconoce antes de que pase
+
+La pregunta que hay que hacerse al escribir una consulta contra algo que tiene partes:
+**¿qué devuelve esto si le falta una parte, y se distingue de «no hay nada»?** Si la
+respuesta es `None`, `{}`, `0` o una lista vacía, y ese mismo valor es el que sale cuando
+de verdad no hay nada, la consulta no está mal escrita — está **muda**, que es la forma que
+tiene un fallo de durar semanas.
+
+Es el mismo criterio que separa `NOT_RUN` de `NO_APLICA`, y que separa `None` de
+`frozenset()` en el acotado de la carga de seed: **dos cosas distintas no pueden compartir
+valor**. Aquí la que se colaba era una tercera —«no te he entendido la pregunta»—
+compartiendo valor con «no hay corrida».

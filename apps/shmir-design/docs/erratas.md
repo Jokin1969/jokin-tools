@@ -3530,3 +3530,85 @@ clave de consulta eso abortaba. Sin almacén no hay registro que consultar, así
 hay clave que derivar: el corte es explícito y no un `try`. Y el guardia de colisión de
 columnas **transcribía** la lista de nombres; ahora la pide, para que la quinta clase de
 sitio que se añada quede cubierta sin que nadie se acuerde.
+
+## 71 — Los frentes POR HEBRA no contestaban nada: una dimensión entera del modelo, sin respuesta
+
+Salió al arreglar la errata nº 68 y **no era su causa**: es un fallo aparte, latente, que
+ese reporte destapó. Va con entrada propia a petición de quien lo reportó, y por lo que lo
+distingue de las cinco veces anteriores del mismo patrón.
+
+### Qué pasaba
+
+`presentation.store_states_by_front` le preguntaba a cada almacén con el **nombre pelado
+del frente**. Para `seed_colision` y `offtarget_seed` el veredicto es **por hebra**, y
+`_store_state` devuelve `None` cuando se le pregunta por un frente por hebra **sin
+decirle la hebra**. O sea:
+
+> una corrida de colisión de seed o de carga de off-targets **no cerraba su frente nunca**,
+> cubriera lo que cubriera el panel. Sólo BLAST podía — el único frente que no va por hebra.
+
+Coincide exactamente con lo observado en el reporte —«la de especificidad es la única
+verde, y es la única con corrida guardada»— y por eso pasó desapercibido: la explicación
+que se veía era cierta y no era ésta.
+
+### Las dos mitades eran correctas por separado
+
+Ninguna de las dos piezas está mal mirada de cerca:
+
+- que `_store_state` devuelva `None` sin hebra es **deliberado y sigue siendo lo
+  correcto**: fundir las dos daría por buena la de la pasajera con el estado de la guía,
+  que es justo lo que la ficha parte en dos filas para no hacer;
+- que `store_states_by_front` pregunte por el nombre del frente es su clave natural.
+
+Lo que estaba mal es la **junta**, y su producto era `None` — «los almacenes no dicen nada
+de esto»—, indistinguible de «no hay corrida». Un valor que significa *no sé* leído como
+*no hay*: la misma forma que la comparación de md5 de la errata nº 47, donde la salida
+honesta de una comprobación que no podía ser cierta era exactamente la de una que sale
+que no.
+
+### La sexta vez del patrón, y la primera sobre una DIMENSIÓN
+
+Trabajo escrito, probado y que no llega a donde tenía que llegar:
+
+1. `masking.triple_motive_rows` — calculado y sin emitir en ninguna salida;
+2. `intron_folding` — igual;
+3. `store.save_*` — la capa de persistencia entera, sin llamador;
+4. `page_run` — escrita para que la página no divergiera, y la página no la llamaba;
+5. `site_table_rows` — la capacidad cableada y probada, y faltaba el `stores=` en la única
+   llamada que se ejecuta (errata nº 51);
+6. **ésta.**
+
+Las cinco primeras dejaban **un artefacto** sin actualizar: un detalle que no salía, un eje
+que no llegaba a la pantalla, cuatro modales que no guardaban. Ésta deja **un eje entero
+del modelo sin contestar**, para todos sus frentes y para todos los candidatos a la vez. Y
+por eso ninguna de las herramientas que ya hay podía verlo: la alcanzabilidad mira
+símbolos sin llamador y aquí **las dos funciones tienen llamadores**; el golden lee lo que
+se emite y aquí lo que se emitía era un `NOT_RUN` con la forma correcta.
+
+### El mecanismo, y está medido que muerde
+
+`tests/test_TODO_frente_con_almacen_se_puede_cerrar.py` comprueba la propiedad **para
+todos los frentes declarados en `STORE_FOR_FRONT`**, no para el que se probó: si una
+corrida contesta a todas las columnas de un frente en todo el panel, ese frente se cierra.
+Las columnas se **derivan** de `por_hebra`, así que un cuarto almacén por hebra queda
+cubierto sin que nadie se acuerde.
+
+Con sus tres mitades adversarias, porque sin ellas «cierra» y «no mira nada» dan el mismo
+verde: quitando **una columna** no se cierra, dejando **un candidato** sin cubrir tampoco,
+y un frente por hebra preguntado **sin hebra** tiene que seguir devolviendo `None` — si
+alguien lo «arreglara» ahí, la pasajera desaparecería de la tabla sin dar ningún error,
+que es peor que el fallo que esto cerró.
+
+**Comprobado que falla con el código de antes**: devolviendo `store_states_by_front` a
+preguntar con el nombre pelado, el test rompe en los **dos** frentes por hebra
+(`seed_colision` y `offtarget_seed`) y pasa con el arreglo. Un guardia sin prueba de que
+muerde es la errata nº 29 otra vez.
+
+### Y hay un caso hermano que SÍ estaba protegido
+
+`empalme_sitios` también tiene una dimensión propia —su unidad es el par candidato ×
+intrón— y **está declarado** en `FRONTS_WITHOUT_COLUMN` con el motivo escrito, para que
+nadie le dé una columna por candidato y colapse justo lo que ese frente existe para
+comparar. O sea: el proyecto ya tenía una dimensión declarada **y protegida**, y otra
+declarada (`por_hebra`) **y no protegida**. Declararla no basta; hay que derivar de la
+declaración cada consulta que la atraviesa. Eso es el principio nº 29.

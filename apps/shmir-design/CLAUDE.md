@@ -4234,6 +4234,42 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - Sin corrida, las cuatro columnas van **vacías** —nunca a cero— y el texto dice qué
     falta y de dónde sale. Sale en la página y **entra en el informe descargable**.
 
+- **LOS FRENTES POR HEBRA NO CONTESTABAN NADA — UNA DIMENSIÓN ENTERA DEL MODELO
+  (2026-09-03)**, errata nº 71 y **principio nº 29**. Salió al arreglar la nº 68 y no era
+  su causa: es un fallo aparte y latente que aquel reporte destapó.
+  - `store_states_by_front` preguntaba con el **nombre pelado del frente**, y
+    `_store_state` devuelve `None` a un frente por hebra al que no se le dice la hebra. O
+    sea: **una corrida de colisión de seed o de carga de off-targets no cerraba su frente
+    nunca**, cubriera lo que cubriera. Sólo BLAST podía — el único que no va por hebra.
+  - **LAS DOS MITADES ERAN CORRECTAS POR SEPARADO**, y por eso ninguna revisión de una de
+    las dos lo veía: el `None` sin hebra es deliberado y sigue siéndolo —fundir las dos
+    daría por buena la de la pasajera con el estado de la guía— y preguntar por el nombre
+    del frente es su clave natural. El fallo vive en la JUNTA, y su producto era `None`:
+    «no te he entendido la pregunta» compartiendo valor con «no hay corrida».
+  - **Es la SEXTA vez del patrón** —`triple_motive_rows`, `intron_folding`, `store.save_*`,
+    `page_run`, el `stores=` que faltaba en `site_table_rows`— **y la primera sobre una
+    DIMENSIÓN y no sobre un consumidor**: las cinco anteriores dejaban un artefacto sin
+    actualizar; ésta dejaba el eje guía/pasajera sin contestar para todos sus frentes y
+    todos los candidatos a la vez.
+  - **Ninguna herramienta del proyecto podía cazarlo**: la alcanzabilidad mira símbolos sin
+    llamador y aquí las dos funciones tienen llamadores; el golden lee lo que se emite y lo
+    que se emitía tenía la forma correcta; el auditor de homónimos mira nombres repetidos y
+    aquí el nombre es el mismo a propósito.
+  - **EL MECANISMO SE DERIVA DE `STORE_FOR_FRONT`**
+    (`tests/test_TODO_frente_con_almacen_se_puede_cerrar.py`): si una corrida contesta a
+    todas las columnas de un frente en todo el panel, ese frente se cierra — para TODOS los
+    declarados, no para el que se probó, así que un cuarto almacén por hebra queda cubierto
+    sin que nadie se acuerde. Con **tres** mitades adversarias: quitar una columna no
+    cierra, dejar un candidato sin cubrir tampoco, y un frente por hebra preguntado SIN
+    hebra tiene que seguir devolviendo `None` —«arreglarlo» ahí borraría la pasajera de la
+    tabla sin dar ningún error—. **Comprobado que falla con el código de antes**, en los
+    dos frentes por hebra.
+  - **Y hay un caso hermano que SÍ estaba protegido**: `empalme_sitios` tiene su propia
+    dimensión —par candidato × intrón— y está declarado en `FRONTS_WITHOUT_COLUMN` con el
+    motivo. O sea que el proyecto ya tenía una dimensión declarada y protegida y otra
+    declarada y no protegida: **declararla no basta, hay que derivar de la declaración cada
+    consulta que la atraviesa**.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
