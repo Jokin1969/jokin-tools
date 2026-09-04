@@ -86,6 +86,30 @@ class Project:
     #: `proyecto.json` de antes de este campo se sigue abriendo por el valor por defecto.
     title: str = ""
 
+    #: LA ENTRADA, VERBATIM. Sin esto el proyecto guardaba `sequence_md5` y
+    #: `sequence_length`, que sirven para COMPROBAR una secuencia que ya tengas delante y
+    #: no para recuperarla: reabrir exigia volver a subir el mismo fichero, y el md5 solo
+    #: servia para decirte que te habias equivocado de fichero.
+    #:
+    #: Es la regla que este proyecto ya tenia escrita —«un veredicto tiene que sobrevivir
+    #: a la app que lo escribio»— y estaba a medias: sobrevivia el veredicto y NO la
+    #: entrada sobre la que se emitio. Un log de decisiones sobre una secuencia que no
+    #: esta no se puede releer; a lo sumo se puede comprobar.
+    #:
+    #: Va DENTRO de `proyecto.json` y no en un fichero hermano a proposito: asi viaja con
+    #: todo lo que ya trata el proyecto —la copia de seguridad, el listado, la apertura—
+    #: y no hay un artefacto mas del que alguien tenga que acordarse. Las DOS piezas del
+    #: proyecto siguen siendo dos.
+    #:
+    #: Vacio significa **proyecto de antes de este campo**, no «sin secuencia»: se abre
+    #: igual y `reopenable` lo dice. Del md5 no sale la secuencia y no se finge (regla 1).
+    sequence: str = ""
+
+    @property
+    def reopenable(self) -> bool:
+        """¿Se puede volver a sacar el panel sin subir nada? Hace falta la entrada."""
+        return bool(self.sequence) and bool(self.anatomy)
+
     @property
     def display_name(self) -> str:
         """Como se llama para quien lo lee. Sin nombre puesto, el slug."""
@@ -110,6 +134,7 @@ class Project:
             "anatomy": self.anatomy,
             "anatomy_source": self.anatomy_source,
             "title": self.title,
+            "sequence": self.sequence,
         }
 
     def describe(self) -> list[str]:
@@ -169,6 +194,12 @@ class ProjectStore:
                 f"otra corrida, va con otro slug; si es la misma, se abre con `open()`. "
                 f"Se aborta."
             )
+        # LA NORMALIZACION Y EL md5 LOS PONE `reference`, que es de donde salen los de
+        # todo lo demas. Vivian aqui con su propio `hashlib`, y `magnitudes.toml` ya
+        # anotaba que «si algun dia se moviera, delegaria»: hoy hay DOS sitios que
+        # necesitan este numero —crear y abrir— asi que el dia llego.
+        from .reference import canonical_form, sequence_md5  # noqa: PLC0415
+
         limpia = "".join(str(sequence).split()).upper()
         if not limpia:
             raise ShmirDesignError(
@@ -178,9 +209,10 @@ class ProjectStore:
         raiz.mkdir(parents=True)
         proyecto = Project(
             slug=slug, created=created,
-            sequence_md5=hashlib.md5(limpia.encode("ascii")).hexdigest(),
+            sequence_md5=sequence_md5(canonical_form(limpia)),
             sequence_length=len(limpia), species=species,
             anatomy=anatomy, anatomy_source=anatomy_source,
+            sequence=limpia,
         )
         (raiz / PROJECT_FILE).write_text(
             json.dumps(proyecto.as_dict(), ensure_ascii=False, indent=2) + "\n",
@@ -205,7 +237,24 @@ class ProjectStore:
                 f"{fichero} no es JSON válido ({exc}); se aborta la apertura del "
                 f"proyecto en vez de seguir con los campos que se hayan podido leer."
             ) from exc
-        almacen = cls(root=raiz, project=Project(**crudo))
+        proyecto = Project(**crudo)
+        # LA ENTRADA GUARDADA TIENE QUE SER LA QUE EL PROYECTO DECLARA. `proyecto.json`
+        # es un fichero y se puede editar; con la secuencia cambiada, el panel saldria
+        # con la forma correcta sobre OTRA entrada y nada lo delataria. Es la misma
+        # disciplina que la cadena de md5 del log, sobre el otro fichero del par.
+        if proyecto.sequence:
+            from .reference import sequence_md5  # noqa: PLC0415
+
+            calculado = sequence_md5(proyecto.sequence)
+            if calculado != proyecto.sequence_md5:
+                raise ShmirDesignError(
+                    f"La secuencia guardada en {fichero} NO es la que el proyecto "
+                    f"declara: su md5 es {calculado} y el registrado es "
+                    f"{proyecto.sequence_md5}. Se aborta la apertura — con la entrada "
+                    f"cambiada, los candidatos saldrian con la forma correcta sobre otra "
+                    f"secuencia y no habría nada que lo dijera."
+                )
+        almacen = cls(root=raiz, project=proyecto)
         almacen._load()
         return almacen
 

@@ -161,6 +161,15 @@ degrada_como = "El log vive en un volumen y se edita ENTRE sesiones, que es just
 revalida = "`presentation.project_open` llama a `verify()` en cada apertura. CABLEADO 2026-08-27: hasta entonces `verify()` no la llamaba NADIE fuera de sus tests — el guardia estaba escrito, probado y sin correr."
 
 [[guardia]]
+guardia = "La entrada GUARDADA en el proyecto es la que el proyecto declara"
+implementa = ["store.ProjectStore.open"]
+protege = "Que la secuencia que `proyecto.json` guarda siga siendo aquella sobre la que se emitieron los veredictos del log. Desde 2026-09-03 el proyecto guarda la entrada verbatim para poder reabrirse sin subir nada; con ella cambiada a mano, el panel saldria con la forma correcta sobre OTRA secuencia y no habria nada que lo dijera."
+momento = "AL_ABRIR"
+puede_degradar = true
+degrada_como = "`proyecto.json` vive en un volumen y se edita ENTRE sesiones, igual que el log."
+revalida = "Cada apertura: `ProjectStore.open` recalcula el md5 de la secuencia guardada y lo compara con el que el propio fichero declara."
+
+[[guardia]]
 guardia = "Abrir un proyecto con OTRA secuencia se rechaza"
 implementa = ["presentation.project_open"]
 protege = "Que no se sigan apuntando corridas de otra secuencia en el log de ésta. La cadena de md5 no se enteraría: quedaría coherente de forma."

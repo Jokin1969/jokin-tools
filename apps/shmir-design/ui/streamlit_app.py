@@ -68,7 +68,9 @@ from shmir_design.presentation import (  # noqa: E402
     library_save,
     project_create,
     project_list,
+    PAGE_COLORS,
     project_open,
+    project_resume,
     project_target,
     PROJECT_NEW_OPTION,
     upload_allowed,
@@ -174,6 +176,7 @@ from shmir_design.presentation import (  # noqa: E402
     anatomy_reliability,
     anatomy_rows,
     candidate_rows,
+    connected_panel,
     cost_text,
     map_svg,
     page_run,
@@ -1184,23 +1187,119 @@ def _estilo() -> None:
     st.markdown(
         """
         <style>
-          .block-container { max-width: 1180px; padding-top: 2.2rem; }
-          html, body, [class*="css"] { font-size: 17px; line-height: 1.65; }
-          h1 { font-size: 2.1rem; letter-spacing: -0.5px; margin-bottom: .2rem; }
-          h2 { font-size: 1.55rem; margin-top: 2.6rem; margin-bottom: .4rem; }
-          h3 { font-size: 1.2rem; margin-top: 1.6rem; }
-          /* Las explicaciones dejan de ser letra pequeña: son la mitad del producto. */
-          [data-testid="stCaptionContainer"] p { font-size: .97rem; color: #55504a; }
-          [data-testid="stVerticalBlockBorderWrapper"] { padding: .35rem .2rem; }
-          div[data-testid="stExpander"] { border-radius: 8px; }
-          .stButton button { padding: .55rem 1.1rem; font-size: 1rem; }
-          .sd-lede { font-size: 1.12rem; color: #3d3831; max-width: 46rem; }
-          .sd-paso { color: #8a8178; font-size: .82rem; letter-spacing: .12em;
-                     text-transform: uppercase; font-weight: 700; }
+          .block-container {{ max-width: 1180px; padding-top: 2.2rem; }}
+          html, body, [class*="css"] {{ font-size: 17px; line-height: 1.65; }}
+          h1 {{ font-size: 2.1rem; letter-spacing: -0.5px; margin-bottom: .2rem; }}
+          h2 {{ font-size: 1.55rem; margin-top: 2.6rem; margin-bottom: .4rem; }}
+          h3 {{ font-size: 1.2rem; margin-top: 1.6rem; }}
+          /* Las explicaciones dejan de ser letra pequeña: son la mitad del producto.
+             Y dejan de ser grises. El color lo declara `presentation.PAGE_COLORS`: uno
+             elegido aqui seria una decision sin test (regla 6). */
+          [data-testid="stCaptionContainer"] p {{ font-size: .97rem; color: {texto}; }}
+          [data-testid="stVerticalBlockBorderWrapper"] {{ padding: .35rem .2rem; }}
+          div[data-testid="stExpander"] {{ border-radius: 8px; }}
+          .stButton button {{ padding: .55rem 1.1rem; font-size: 1rem; }}
+          .sd-lede {{ font-size: 1.12rem; color: {texto}; max-width: 46rem; }}
+          .sd-paso {{ color: {rotulo}; font-size: .82rem; letter-spacing: .12em;
+                     text-transform: uppercase; font-weight: 700; }}
         </style>
-        """,
+        """.format(**PAGE_COLORS),
         unsafe_allow_html=True,
     )
+
+
+#: La opcion de NO retomar nada. Va la primera y es la de por defecto: quien entra por
+#: primera vez no tiene proyectos, y quien los tiene no siempre quiere el de ayer.
+PROJECT_RESUME_NONE = "— empezar de cero —"
+
+
+def _paso_cero_proyecto():
+    """¿Retomas un proyecto guardado? Lo PRIMERO, antes de la especie.
+
+    **Pedido (2026-09-03)**: «si yo esto ya lo he hecho antes y lo tengo grabado en un
+    proyecto, por qué no me pregunta antes de nada, al principio».
+
+    Tenia razon y el orden estaba al reves: el proyecto vivia en la barra lateral y
+    **despues** de diseñar, asi que para volver a ver lo de ayer habia que repetir hoy
+    los tres pasos de la entrada. Ahora la primera pregunta es la que decide si hay que
+    hacerlos.
+
+    **Si no hay ningun proyecto guardado, esto NO PINTA NADA.** Una pregunta sin ninguna
+    respuesta posible es ruido delante de quien entra por primera vez, que es
+    exactamente a quien esta pantalla tiene que guiar.
+
+    La pagina no decide nada: `presentation.project_resume` dice si un proyecto se puede
+    reabrir solo y, si no, por que.
+    """
+    raiz = projects_root()
+    catalogo = project_options(raiz)
+    if not catalogo["slugs"]:
+        return None
+
+    with st.container(border=True):
+        st.markdown("**¿Retomas un proyecto guardado?**")
+        st.caption(
+            "Un proyecto guarda la secuencia con la que se trabajó, su anatomía y todo "
+            "lo que se decidió después. Al abrirlo salen los mismos candidatos sin "
+            "volver a subir nada."
+        )
+        columnas = st.columns([4, 1])
+        with columnas[0]:
+            elegido = st.selectbox(
+                "Proyecto guardado",
+                [PROJECT_RESUME_NONE] + catalogo["slugs"],
+                key="p0_slug", label_visibility="collapsed",
+                format_func=lambda x: (
+                    x if x == PROJECT_RESUME_NONE
+                    else catalogo["etiquetas"].get(x, x)
+                ),
+            )
+        with columnas[1]:
+            abrir = st.button("Abrir", width="stretch", key="p0_abrir")
+
+        # UN BOTON DE STREAMLIT VALE `True` UN SOLO RERUN, y en Streamlit cada tecla es
+        # un rerun: sin recordar el slug, el proyecto retomado desapareceria al tocar
+        # cualquier control de la pagina. Es la errata nº 42, y aqui se hereda su
+        # solucion — se recuerda el SLUG, no el almacen, para que el md5 se compruebe en
+        # cada repintado.
+        if abrir and elegido != PROJECT_RESUME_NONE:
+            st.session_state["p0_retomado"] = elegido
+        if elegido == PROJECT_RESUME_NONE:
+            st.session_state.pop("p0_retomado", None)
+
+        slug = st.session_state.get("p0_retomado", "")
+        if not slug:
+            return None
+        try:
+            vuelta = project_resume(raiz, slug)
+        except (ShmirDesignError, ValueError, OSError) as exc:
+            # rule2-ok: frontera de la interfaz. El motivo entero, sin degradar.
+            st.error(f"**PARA** — {exc}")
+            st.session_state.pop("p0_retomado", None)
+            return None
+
+        if not vuelta["reabrible"]:
+            # NO se cae a un camino que finja: se dice que falta y se sigue por el
+            # normal, que es el que puede pedirlo.
+            st.warning(f"**{vuelta['nombre']}** — {vuelta['motivo']}")
+            st.session_state.pop("p0_retomado", None)
+            return None
+
+        st.success(
+            f"Retomado **{vuelta['nombre']}** — {vuelta['especie']}, "
+            f"{len(vuelta['secuencia'])} nt. Los pasos 1 y 2 ya están contestados."
+        )
+        # EL PANEL LATERAL ABRE ESTE MISMO, sin volver a preguntarlo: es el proyecto que
+        # se acaba de elegir, y pedir dos veces la misma respuesta invita a dar dos
+        # distintas. Se siembra el estado de sus widgets ANTES de que existan, que es la
+        # via de Streamlit para darles un valor inicial.
+        st.session_state.setdefault(f"pr_activo_{vuelta['especie']}", True)
+        st.session_state.setdefault(f"pr_slug_{vuelta['especie']}", vuelta["slug"])
+        st.session_state[f"pr_abierto_{vuelta['especie']}"] = vuelta["slug"]
+        if st.button("Dejarlo y empezar de cero", key="p0_soltar"):
+            st.session_state.pop("p0_retomado", None)
+            st.rerun()
+        return vuelta
 
 
 def _cabecera_paso(numero: int, guia) -> None:
@@ -1250,57 +1349,70 @@ def main() -> None:
 
     umbrales, config, min_bloque = panel_umbrales()
 
+    # ── PASO 0 · ¿RETOMAS ALGO? ─────────────────────────────────────────────────
+    #
+    # Lo PRIMERO. Antes vivia en la barra lateral y DESPUES de diseñar, asi que para
+    # volver a ver lo de ayer habia que repetir hoy los tres pasos de la entrada.
+    retomado = _paso_cero_proyecto()
+
     # ── PASO 1 · ESPECIE ────────────────────────────────────────────────────────
     #
     # Desplegable, no caja de texto. Y SIN valor por defecto: uno preseleccionado
     # —«modelo»— parece configurado y deja la colision de seed y la especificidad rotas
     # sin decir por que. Las opciones salen de `species.SPECIES`; la pagina no tiene
     # ninguna lista propia.
-    _cabecera_paso(1, step_plain(1))
-    opciones = species_options()
-    # El desplegable, ESTRECHO, y la nota a su derecha. A todo lo ancho, la frase que
-    # explica que pasa con esa especie caia debajo y a 14 px.
-    izquierda, derecha = st.columns([2, 3])
-    with izquierda:
-        elegida = st.selectbox(
-            "Especie",
-            [o["valor"] for o in opciones],
-            index=species_default(),
-            placeholder="elige una",
-            format_func=lambda v: next(
-                o["etiqueta"] for o in opciones if o["valor"] == v
-            ),
-            label_visibility="collapsed",
-        )
-    nombre_modelo = elegida or ""
-    if elegida is not None and species_needs_name(elegida):
-        # Que frentes quedan cerrados se dice AL ELEGIR la opcion, no despues de
-        # teclear un nombre: la pregunta que se esta contestando es «¿me sirve esta app
-        # para mi especie?», y contestarla tarde es no contestarla.
-        generico = species_choice_note(elegida)
-        st.warning(generico["texto"])
-        for cerrado in generico["cerrados"]:
-            st.caption(f"· {cerrado}")
-        st.caption(f"**Como declararla:** {generico['como_declararla']}")
-        nombre_modelo = st.text_input(
-            "Nombre científico de la especie",
-            "",
-            help="Se usa para nombrar sus ficheros. No la declara: eso se hace en species.py.",
-        )
-    if nombre_modelo and not species_needs_name(elegida or ""):
-        nota = species_choice_note(nombre_modelo)
-        llano = species_plain(nombre_modelo)
-        with derecha:
-            # LO LLANO DELANTE, el detalle tecnico un clic mas adentro. No se sustituye:
-            # los tres identificadores deciden contra que catalogos se comprueba, y
-            # borrarlos seria perder la procedencia.
-            (st.warning if llano["bloquea"] else st.success)(llano["texto"])
-            with st.expander("Qué identificadores se van a usar"):
-                st.caption(llano["detalle"])
-        if nota["bloquea"]:
-            for cerrado in nota["cerrados"]:
+    if retomado is not None:
+        # PASO 1 CONTESTADO POR EL PROYECTO. Volver a preguntar la especie dejaria abierto
+        # contestar otra distinta de la que el proyecto guarda, y entonces los catalogos
+        # con los que se contrasta serian los del animal equivocado.
+        nombre_modelo = retomado["especie"]
+        st.caption(f"Paso 1 · especie — **{nombre_modelo}**, del proyecto.")
+    else:
+        _cabecera_paso(1, step_plain(1))
+        opciones = species_options()
+        # El desplegable, ESTRECHO, y la nota a su derecha. A todo lo ancho, la frase que
+        # explica que pasa con esa especie caia debajo y a 14 px.
+        izquierda, derecha = st.columns([2, 3])
+        with izquierda:
+            elegida = st.selectbox(
+                "Especie",
+                [o["valor"] for o in opciones],
+                index=species_default(),
+                placeholder="elige una",
+                format_func=lambda v: next(
+                    o["etiqueta"] for o in opciones if o["valor"] == v
+                ),
+                label_visibility="collapsed",
+            )
+        nombre_modelo = elegida or ""
+        if elegida is not None and species_needs_name(elegida):
+            # Que frentes quedan cerrados se dice AL ELEGIR la opcion, no despues de
+            # teclear un nombre: la pregunta que se esta contestando es «¿me sirve esta app
+            # para mi especie?», y contestarla tarde es no contestarla.
+            generico = species_choice_note(elegida)
+            st.warning(generico["texto"])
+            for cerrado in generico["cerrados"]:
                 st.caption(f"· {cerrado}")
-            st.caption(f"**Como declararla:** {nota['como_declararla']}")
+            st.caption(f"**Como declararla:** {generico['como_declararla']}")
+            nombre_modelo = st.text_input(
+                "Nombre científico de la especie",
+                "",
+                help="Se usa para nombrar sus ficheros. No la declara: eso se hace en species.py.",
+            )
+        if nombre_modelo and not species_needs_name(elegida or ""):
+            nota = species_choice_note(nombre_modelo)
+            llano = species_plain(nombre_modelo)
+            with derecha:
+                # LO LLANO DELANTE, el detalle tecnico un clic mas adentro. No se sustituye:
+                # los tres identificadores deciden contra que catalogos se comprueba, y
+                # borrarlos seria perder la procedencia.
+                (st.warning if llano["bloquea"] else st.success)(llano["texto"])
+                with st.expander("Qué identificadores se van a usar"):
+                    st.caption(llano["detalle"])
+            if nota["bloquea"]:
+                for cerrado in nota["cerrados"]:
+                    st.caption(f"· {cerrado}")
+                st.caption(f"**Como declararla:** {nota['como_declararla']}")
 
 
     st.sidebar.header("Otros ajustes")
@@ -1331,48 +1443,89 @@ def main() -> None:
         return
 
     # ── PASO 2 · SECUENCIA ──────────────────────────────────────────────────────
-    _cabecera_paso(2, step_plain(2))
-    columnas = st.columns(2)
-    with columnas[0]:
-        modelo = _panel_biblioteca(
-            "mrna_diseno",
-            st.file_uploader("mRNA — especie del diseño", type=["fa", "fasta", "txt"]),
+    if retomado is not None:
+        # PASO 2 CONTESTADO POR EL PROYECTO. La secuencia sale de lo guardado, no de un
+        # fichero: eso es lo que hace que retomar no sea repetir. Y NO se ofrece subir
+        # otra encima — seria cambiarle la entrada a un registro de decisiones ya
+        # tomadas, que es justo lo que `project_open` comprueba por md5 para impedir.
+        secuencia_modelo = retomado["secuencia"]
+        modelo = diana = gb_modelo = gb_diana = None
+        nombre_diana = None
+        st.caption(
+            f"Paso 2 · secuencia — **{len(secuencia_modelo)} nt** del proyecto "
+            f"**{retomado['nombre']}**, con su anatomía."
         )
-        gb_modelo = _panel_biblioteca(
-            "genbank_diseno",
-            st.file_uploader(
-                "GenBank de la especie del diseño (.gb, PREFERENTE)",
-                type=["gb", "gbk", "genbank"],
-                help="El CDS anotado del RefSeq. Es la via más fiable de resolver la "
-                     "anatomía: sin el, las coordenadas del CDS las tecleas tu y los "
-                     "tercios salen NO_FIABLE.",
-            ),
-        )
-    with columnas[1]:
+    else:
+        _cabecera_paso(2, step_plain(2))
+        # LA REJILLA ES 2x2 Y NO DOS COLUMNAS DE TRES. Antes, la izquierda llevaba el
+        # mRNA del diseño y su GenBank y la derecha la SEGUNDA especie entera, así que
+        # los dos controles de una misma especie quedaban en columnas distintas y los de
+        # especies distintas, pegados. Ahora la columna es la ESPECIE y la fila es el
+        # TIPO de fichero: arriba lo del diseño, abajo lo de la segunda; a la izquierda
+        # la secuencia, a la derecha su anotación.
+        #
+        # Y LAS CUATRO TARJETAS LLEVAN EL MISMO CONTENIDO —título, subida y biblioteca—
+        # para que el alto lo iguale el navegador solo. El desplegable de la segunda
+        # especie va FUERA, encima de su fila: dentro de una tarjeta la hacía más alta
+        # que su pareja, y clavar una altura a ojo sólo aguanta hasta el primer cambio
+        # de tipografía.
+        arriba = st.columns(2)
+        with arriba[0], st.container(border=True):
+            st.markdown("**Especie del diseño** · secuencia")
+            modelo = _panel_biblioteca(
+                "mrna_diseno",
+                st.file_uploader(
+                    "mRNA — especie del diseño", type=["fa", "fasta", "txt"],
+                ),
+            )
+        with arriba[1], st.container(border=True):
+            st.markdown("**Especie del diseño** · anotación")
+            gb_modelo = _panel_biblioteca(
+                "genbank_diseno",
+                st.file_uploader(
+                    "GenBank de la especie del diseño (.gb, PREFERENTE)",
+                    type=["gb", "gbk", "genbank"],
+                    help="El CDS anotado del RefSeq. Es la via más fiable de resolver la "
+                         "anatomía: sin el, las coordenadas del CDS las tecleas tu y los "
+                         "tercios salen NO_FIABLE.",
+                ),
+            )
         opciones_diana = [o for o in opciones if o["valor"] != nombre_modelo]
-        nombre_diana = st.selectbox(
-            "Segunda especie (opcional, para bloques conservados)",
-            [o["valor"] for o in opciones_diana],
-            index=None,
-            placeholder="ninguna",
-            format_func=lambda v: next(
-                o["etiqueta"] for o in opciones_diana if o["valor"] == v
-            ),
-        )
-        diana = _panel_biblioteca(
-            "mrna_segunda",
-            st.file_uploader(
-                "mRNA — segunda especie (opcional)", type=["fa", "fasta", "txt"]
-            ),
-        )
-        gb_diana = _panel_biblioteca(
-            "genbank_segunda",
-            st.file_uploader(
-                "GenBank de la segunda especie (.gb, opcional)",
-                type=["gb", "gbk", "genbank"],
-                help="Lo mismo para la segunda especie.",
-            ),
-        )
+        segunda = st.columns([2, 3])
+        with segunda[0]:
+            nombre_diana = st.selectbox(
+                "Segunda especie (opcional, para bloques conservados)",
+                [o["valor"] for o in opciones_diana],
+                index=None,
+                placeholder="ninguna",
+                format_func=lambda v: next(
+                    o["etiqueta"] for o in opciones_diana if o["valor"] == v
+                ),
+            )
+        abajo = st.columns(2)
+        with abajo[0], st.container(border=True):
+            st.markdown("**Segunda especie** · secuencia *(opcional)*")
+            diana = _panel_biblioteca(
+                "mrna_segunda",
+                st.file_uploader(
+                    "mRNA — segunda especie (opcional)", type=["fa", "fasta", "txt"],
+                ),
+            )
+        with abajo[1], st.container(border=True):
+            st.markdown("**Segunda especie** · anotación *(opcional)*")
+            gb_diana = _panel_biblioteca(
+                "genbank_segunda",
+                st.file_uploader(
+                    "GenBank de la segunda especie (.gb, opcional)",
+                    type=["gb", "gbk", "genbank"],
+                    help="Lo mismo para la segunda especie.",
+                ),
+            )
+        # UNA sola variable para «la secuencia con la que se va a trabajar», venga de un
+        # fichero subido o de un proyecto retomado. Con dos caminos y dos nombres, todo
+        # lo de abajo tendría que acordarse de cuál mirar — y ése es el patrón que este
+        # proyecto lleva persiguiendo desde `resolve.py`.
+        secuencia_modelo = _fasta_sequence(modelo) if modelo else None
 
     # ── PASO 3 · FICHEROS DE REFERENCIA, LOS DE DISEÑAR ─────────────────────────
     #
@@ -1382,7 +1535,7 @@ def main() -> None:
     # mañana. Ver `presentation.WHY_TWO_MOMENTS`.
     pasos = steps_rows(
         species=nombre_modelo,
-        sequence_loaded=modelo is not None,
+        sequence_loaded=secuencia_modelo is not None,
         directory=reference_dir(),
         designed=st.session_state.get("accion") == "diseñar",
     )
@@ -1392,7 +1545,7 @@ def main() -> None:
     # que si hace falta para refinar se pide DESPUES, en su sitio. Es la doctrina de los
     # dos momentos (`WHY_TWO_MOMENTS`) aplicada tambien a la pantalla, no solo al texto.
 
-    if not modelo:
+    if not secuencia_modelo:
         st.info(
             "Sube la secuencia del mensajero que quieres apagar y podrás continuar. Si "
             "subes también la de otra especie, se buscan además los tramos idénticos "
@@ -1443,7 +1596,7 @@ def main() -> None:
             species=resolve_species(nombre_modelo),
         )
 
-        secuencias = {nombre_modelo: _fasta_sequence(modelo)}
+        secuencias = {nombre_modelo: secuencia_modelo}
         genbanks = {nombre_modelo: gb_modelo}
         if diana:
             secuencias[nombre_diana] = _fasta_sequence(diana)
@@ -1455,11 +1608,16 @@ def main() -> None:
         return
 
     if recursos is not None:
+        panel_conectados = connected_panel(recursos)
+        # EL AVISO VA FUERA DEL DESPLEGABLE, y arriba. Es una tarea pendiente —«falta el
+        # gen diana, y sin el todo sitio parece un off-target»— no una nota al pie de la
+        # lista de lo que sí funcionó; dentro del desplegable colapsado no lo lee nadie.
+        for aviso in panel_conectados["avisos"]:
+            st.warning(aviso)
         with st.expander(
-            f"Ficheros de referencia conectados ({len(recursos.connected)})",
-            expanded=not recursos.connected,
+            panel_conectados["titulo"], expanded=panel_conectados["expandido"],
         ):
-            st.code(recursos.format_text(), language=None)
+            st.code(panel_conectados["texto"], language=None)
 
     if not scaffold.verified:
         st.warning(
@@ -1474,23 +1632,30 @@ def main() -> None:
     # Sin esto la pagina lanzaba el diseño entero en cuanto se subia un FASTA, asi que
     # una corrida de minutos —manifiesto conectado y accesibilidad— empezaba sin avisar
     # y la estimacion no habria servido de nada: llegaba cuando ya estaba corriendo.
-    _cabecera_paso(3, step_plain(3))
-    acciones = st.columns([2, 2, 3])
-    with acciones[0]:
-        if st.button(BUTTON_DESIGN, type="primary", width="stretch"):
-            st.session_state["accion"] = "diseñar"
-    with acciones[1]:
-        if st.button(
-            BUTTON_ESTIMATE,
-            width="stretch",
-            help=(
-                "Cronometra una pasada de los criterios más lentos y multiplica. No "
-                "busca nada: sólo dice si esto son segundos o minutos."
-            ),
-        ):
-            st.session_state["accion"] = "estimar"
+    # EL PASO 3 NO SE PINTA SI SE HA RETOMADO: sus candidatos ya están abajo, y un
+    # «Nada más, dale al botón» encima de una tabla que ya está hecha es un botón que no
+    # tiene nada que hacer. Es la misma regla de la casilla inerte de BLAST — un control
+    # que no se distingue de uno que funciona.
+    if retomado is None:
+        _cabecera_paso(3, step_plain(3))
+        acciones = st.columns([2, 2, 3])
+        with acciones[0]:
+            if st.button(BUTTON_DESIGN, type="primary", width="stretch"):
+                st.session_state["accion"] = "diseñar"
+        with acciones[1]:
+            if st.button(
+                BUTTON_ESTIMATE,
+                width="stretch",
+                help=(
+                    "Cronometra una pasada de los criterios más lentos y multiplica. No "
+                    "busca nada: sólo dice si esto son segundos o minutos."
+                ),
+            ):
+                st.session_state["accion"] = "estimar"
 
-    accion = st.session_state.get("accion")
+    # RETOMAR ES VER EL RESULTADO. Pedir otra vez «Buscar candidatos» sobre un proyecto
+    # que ya los tiene guardados es pedir que se repita lo que se acaba de recuperar.
+    accion = "diseñar" if retomado is not None else st.session_state.get("accion")
     if accion is None:
         st.info(
             "Todo listo. **Estimar coste** dice cuanto va a tardar sin diseñar nada; "
@@ -1502,10 +1667,24 @@ def main() -> None:
     try:
         # La anatomia se resuelve UNA vez por especie: si el mRNA no coincide con una
         # referencia verificada, aqui es donde se piden las coordenadas del 3'UTR.
-        anatomias = {
-            nombre: anatomia(secuencia, nombre, genbanks[nombre])
-            for nombre, secuencia in secuencias.items()
-        }
+        if retomado is not None:
+            # LA ANATOMIA VIENE DEL PROYECTO y no se vuelve a resolver: resolverla otra
+            # vez podria dar una frontera distinta de aquella sobre la que se emitieron
+            # los veredictos que el log guarda, y con ella cambiarian los tercios, la
+            # region de cada ventana y las zonas de polyA. El transcrito de referencia se
+            # busca por md5, igual que lo hace `anatomia()`.
+            md5_entrada = sequence_md5(secuencia_modelo)
+            transcrito_retomado = next(
+                (r for r in REFERENCES.values() if r.md5 == md5_entrada), None
+            )
+            anatomias = {
+                nombre_modelo: (transcrito_retomado, retomado["anatomia"]),
+            }
+        else:
+            anatomias = {
+                nombre: anatomia(secuencia, nombre, genbanks[nombre])
+                for nombre, secuencia in secuencias.items()
+            }
         # El codon de parada es aviso duro, igual que en el CLI: un CDS corrido corre
         # tambien el 3'UTR y con el todos los tercios.
         avisos_anatomia = {

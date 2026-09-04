@@ -4244,6 +4244,136 @@ def anatomy_payload(anatomy) -> tuple[dict | None, str]:
     )
 
 
+#: LOS COLORES DE LA PAGINA, DECLARADOS AQUI. Un color elegido en la pagina es una
+#: decision sin test —es la razon por la que `REFINEMENT_STATES` los trae— y ademas
+#: estaban repartidos en tres sitios del CSS con tres grises distintos y ninguna regla.
+#:
+#: El gris de las explicaciones se cambia por AZUL MARINO a peticion del responsable
+#: (2026-09-03). No es sólo gusto: las explicaciones son la mitad del producto de esta
+#: app —la frase que dice por qué un frente sigue abierto pesa tanto como la tabla— y en
+#: gris claro se leen como letra pequeña, que es justo lo contrario de lo que son.
+PAGE_COLORS = {
+    #: El cuerpo de las explicaciones (`st.caption`) y la entradilla de cada paso.
+    "texto": "#12305c",
+    #: El rotulo pequeño «PASO N». Mismo tono, mas claro, para que ordene sin gritar.
+    "rotulo": "#3a5f9e",
+}
+
+
+def connected_panel(resources) -> dict[str, object]:
+    """La lista de ficheros conectados y, APARTE, lo que no se ha podido conectar.
+
+    **Iban juntos, y no son lo mismo.** `ResourceSet.format_text` metia los avisos al
+    final del mismo bloque que la lista, y ese bloque se pinta dentro de un desplegable
+    COLAPSADO cuando hay algo conectado. O sea que la unica linea accionable de la
+    pantalla —«falta el gen diana, y sin el todo sitio parece un off-target»— quedaba
+    escondida detras de un clic, debajo de la lista de lo que sí funcionó.
+
+    La lista es PROCEDENCIA: dice con qué ficheros se va a correr, y ahí un desplegable
+    está bien — se consulta cuando se duda. Un aviso es una TAREA PENDIENTE: dice que
+    algo no va a correr y qué hacer para que corra. Colapsar el segundo con el primero es
+    la forma de que no se lea.
+    """
+    conectados = tuple(getattr(resources, "connected", ()) or ())
+    avisos = tuple(getattr(resources, "notes", ()) or ())
+    return {
+        "titulo": f"Ficheros de referencia conectados ({len(conectados)})",
+        "texto": resources.format_text(notes=False) if resources is not None else "",
+        "avisos": list(avisos),
+        # Colapsado si hay algo conectado: si no hay nada, la lista ES la noticia.
+        "expandido": not conectados,
+    }
+
+
+def anatomy_from_payload(payload, source: str):
+    """La inversa de `anatomy_payload`. Reconstruye la anatomia GUARDADA, no una nueva.
+
+    Existe para que un proyecto se pueda REABRIR sin volver a subir el GenBank. Es una
+    lectura, no una deduccion: si el payload no trae la frontera del 3'UTR, aqui no se
+    inventa ninguna —`Anatomy` ya se niega a construirse con `SIN_RESOLVER`, y esa
+    negativa es justo la que impide que un tilado corra todas las coordenadas en
+    silencio—. Sin anatomia se devuelve `None` y quien llame lo dira.
+    """
+    from .anatomy import Anatomy, RegionSource
+
+    if not payload:
+        return None
+    utr3 = payload.get("utr3")
+    longitud = payload.get("length")
+    if not utr3 or not longitud:
+        return None
+    try:
+        procedencia = RegionSource(source)
+    except ValueError as exc:
+        raise ShmirDesignError(
+            f"El proyecto declara que su anatomía viene de {source!r}, que no es una "
+            f"procedencia conocida ({', '.join(r.value for r in RegionSource)}). Se "
+            f"aborta: de la procedencia cuelga cuánta confianza darle a los tercios, y "
+            f"elegir una por nuestra cuenta sería inventarla."
+        ) from exc
+    if procedencia is RegionSource.SIN_RESOLVER:
+        return None
+    cds = payload.get("cds")
+    return Anatomy(
+        length=int(longitud),
+        utr3=(int(utr3[0]), int(utr3[1])),
+        cds=(int(cds[0]), int(cds[1])) if cds else None,
+        source=procedencia,
+    )
+
+
+#: LO QUE LE FALTA A UN PROYECTO DE ANTES para poder reabrirse solo, dicho donde se lee.
+#: No es un fallo suyo: se creo cuando el proyecto no guardaba la entrada. Y no se
+#: reconstruye nada — del md5 no sale la secuencia (regla 1).
+PROJECT_WITHOUT_ENTRY = (
+    "Este proyecto se creó antes de que la app guardara la secuencia de entrada, así que "
+    "no se puede volver a sacar su panel sin ella: súbela como siempre y el proyecto se "
+    "abrirá igual, con todo su registro. Del md5 que sí tiene guardado NO se puede "
+    "recuperar la secuencia, y no se inventa."
+)
+
+PROJECT_WITHOUT_ANATOMY = (
+    "Este proyecto no tiene resuelta la frontera del 3'UTR, así que no se puede volver a "
+    "tilar sin decirla: vuelve a subir la secuencia con su GenBank —o declarando el CDS— "
+    "y el proyecto se abrirá igual. Tilar con una frontera supuesta corre todas las "
+    "coordenadas sin dar ningún error."
+)
+
+
+def project_resume(base, slug: str) -> dict[str, object]:
+    """Todo lo que hace falta para volver a sacar el panel de un proyecto guardado.
+
+    **Pedido (2026-09-03)**: que lo primero que pregunte la app sea si hay un proyecto
+    guardado, y que abrirlo enseñe directamente los candidatos.
+
+    Devuelve la ENTRADA —secuencia, especie y anatomía— no el panel: el tilado se vuelve
+    a calcular, porque es determinista y cuesta 0,33 s. Guardar lo derivado daría dos
+    definiciones del panel y ninguna que mande, que es el patrón que este proyecto lleva
+    persiguiendo desde `resolve.py`.
+    """
+    from .store import ProjectStore
+
+    almacen = ProjectStore.open(base, slug)
+    proyecto = almacen.project
+    anatomia = anatomy_from_payload(proyecto.anatomy, proyecto.anatomy_source)
+    if not proyecto.sequence:
+        motivo = PROJECT_WITHOUT_ENTRY
+    elif anatomia is None:
+        motivo = PROJECT_WITHOUT_ANATOMY
+    else:
+        motivo = ""
+    return {
+        "reabrible": not motivo,
+        "motivo": motivo,
+        "slug": proyecto.slug,
+        "nombre": proyecto.display_name,
+        "especie": proyecto.species,
+        "secuencia": proyecto.sequence or None,
+        "anatomia": anatomia if not motivo else None,
+        "almacen": almacen,
+    }
+
+
 def blast_run_from_upload(*, raw: str, query, params, declared_query_md5: str,
                           panel_names, database: dict, date: str, uploaded_by: str):
     """Valida el `-outfmt 6` y construye la corrida. La pagina no valida nada.

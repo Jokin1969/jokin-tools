@@ -229,7 +229,13 @@ class ResourceSet:
             "apa_sites": self.apa_sites,
         }
 
-    def format_text(self) -> str:
+    def format_text(self, *, notes: bool = True) -> str:
+        """La lista de conectados. `notes=False` la deja SIN los avisos.
+
+        Los avisos salen aparte porque no son lo mismo que la lista: la lista es
+        procedencia y se consulta; un aviso es una tarea pendiente y hay que verla. Ver
+        `presentation.connected_panel`.
+        """
         lineas = []
         if self.connected:
             lineas.append("Conectados desde el manifiesto:")
@@ -239,7 +245,7 @@ class ResourceSet:
                 "No se ha conectado ningún fichero de referencia: los filtros que "
                 "dependen de uno quedaran en NOT_RUN."
             )
-        if self.notes:
+        if notes and self.notes:
             lineas.append("")
             lineas.extend(f"  ⚠  {n}" for n in self.notes)
         return "\n".join(lineas)

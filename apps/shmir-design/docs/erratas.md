@@ -3612,3 +3612,110 @@ nadie le dé una columna por candidato y colapse justo lo que ese frente existe 
 comparar. O sea: el proyecto ya tenía una dimensión declarada **y protegida**, y otra
 declarada (`por_hebra`) **y no protegida**. Declararla no basta; hay que derivar de la
 declaración cada consulta que la atraviesa. Eso es el principio nº 29.
+
+## 72 — El proyecto guardaba el md5 de su entrada y no la entrada, así que reabrirlo obligaba a repetir el principio
+
+**Pedido (2026-09-04)**: «si yo esto ya lo he hecho antes y lo tengo grabado en un
+proyecto, por qué no me pregunta antes de nada, al principio... si digo que sí, elijo cuál
+quiero abrir e inmediatamente me mostraría el resultado de la búsqueda de candidatos que
+se guardó en el proyecto.»
+
+**El orden estaba al revés y era lo de menos.** El panel de proyecto vivía en la barra
+lateral y **después** de diseñar, así que para volver a ver lo de ayer había que repetir
+hoy los tres pasos de la entrada. Pero al ir a moverlo salió que **no se podía**: el
+proyecto no guardaba la secuencia.
+
+### Lo que guardaba y lo que eso permite
+
+`proyecto.json` tenía `sequence_md5` y `sequence_length`. Los dos sirven para **comprobar
+una secuencia que ya tengas delante** —y de hecho para eso están, y bien: abrir un
+proyecto con otra entrada se rechaza por ahí— pero **no** para recuperarla. O sea que
+reabrir exigía volver a subir el mismo fichero, y el md5 sólo servía para decirte que te
+habías equivocado de fichero.
+
+Dicho de otra manera: la regla escrita de este proyecto —**«un veredicto tiene que
+sobrevivir a la app que lo escribió»**— estaba a medias. Sobrevivía el veredicto y **no la
+entrada sobre la que se emitió**. Un log de decisiones sobre una secuencia que no está no
+se puede releer; a lo sumo se puede comprobar.
+
+### Lo que se hace, y lo que NO
+
+- La entrada se guarda **verbatim**, dentro de `proyecto.json`. **No** en un fichero
+  hermano: así viaja con todo lo que ya trata el proyecto —la copia de seguridad, el
+  listado, la apertura— y no hay un artefacto más del que alguien tenga que acordarse. Las
+  dos piezas del proyecto siguen siendo dos.
+- **El tilado NO se guarda.** Se vuelve a calcular al abrir, porque es determinista y
+  cuesta 0,33 s. Guardar lo derivado daría dos definiciones del panel y ninguna que mande,
+  que es lo que obligó a escribir `resolve.py`.
+- **No se reconstruye nada.** Guardar una secuencia verbatim es lo contrario de
+  reconstruirla: es la regla 1 por su lado bueno. Y del md5 de un proyecto viejo no sale
+  la secuencia, así que ahí se dice qué falta y se pide como siempre
+  (`PROJECT_WITHOUT_ENTRY`).
+
+### Con guardia, porque `proyecto.json` es un fichero
+
+Al abrir se recalcula el md5 de la secuencia guardada y se compara con el que el propio
+fichero declara. Vive en un volumen y se edita entre sesiones; con la entrada cambiada a
+mano, el panel saldría **con la forma correcta sobre otra secuencia** y no habría nada que
+lo dijera. Es la misma disciplina que la cadena de md5 del log, sobre el otro fichero del
+par, y está declarado en `guardias.toml`.
+
+**Y el md5 lo calcula `reference.sequence_md5`.** `store.create` tenía su propio
+`hashlib`, y `magnitudes.toml` ya lo anotaba con una condición: «si algún día se moviera,
+delegaría». Hoy son dos los sitios que necesitan ese número —crear y abrir— así que el día
+llegó: se delega y **se quita** el `hashlib` de `store`, en vez de añadir un tercero. Lo
+señalaron los tres auditores del propio proyecto en cuanto entró el guardia nuevo.
+
+### El paso 0, y cuándo NO se pinta
+
+**Sin ningún proyecto guardado no pinta nada.** Una pregunta sin ninguna respuesta posible
+es ruido delante de quien entra por primera vez, que es exactamente a quien esta pantalla
+tiene que guiar.
+
+Al retomar, los pasos 1 y 2 no se vuelven a preguntar —la especie y la secuencia las
+contesta el proyecto, y volver a preguntarlas dejaría abierto contestar otra cosa que la
+que el proyecto guarda— y **el paso 3 tampoco se pinta**: sus candidatos ya están abajo, y
+un «Nada más, dale al botón» encima de una tabla ya hecha es la casilla inerte de BLAST
+otra vez.
+
+**Comprobado con un navegador de verdad**, no sólo con tests: se creó un proyecto con el
+Prnp murino, se abrió desde el paso 0, y la página cae directamente en la tabla de
+candidatos sin subir nada.
+
+## 73 — La entrada se pedía en dos columnas de tres, el aviso accionable estaba dentro de un desplegable colapsado, y las explicaciones eran grises
+
+Tres cosas de la misma pantalla, pedidas juntas (2026-09-04).
+
+**La rejilla.** El paso 2 ponía a la izquierda la especie del diseño y su GenBank y a la
+derecha la segunda especie entera, así que los dos ficheros de una misma especie caían en
+columnas distintas y los de especies distintas quedaban pegados. Ahora la **columna es la
+especie** y la **fila es el tipo de fichero**: arriba lo del diseño, abajo lo de la
+segunda; a la izquierda la secuencia, a la derecha su anotación.
+
+Las cuatro tarjetas llevan el **mismo contenido** —título, subida y biblioteca— para que
+el alto lo iguale el navegador solo, y el desplegable de la segunda especie va **fuera**,
+encima de su fila: dentro de una tarjeta la hacía más alta que su pareja. **No se clava
+ninguna altura a ojo**, que aguanta hasta el primer cambio de tipografía.
+
+**Y el primer intento no valía**: envolver las cuatro con un `<div class="sd-caja">` de
+`st.markdown` **no envuelve nada** — Streamlit mete cada markdown en su propio contenedor
+y el div se cierra solo, así que el CSS no llegaba. Se vio midiendo en el navegador (el
+selector devolvía cero elementos), no leyendo el código; y se quitó, en vez de dejarlo ahí
+pareciendo que hacía algo.
+
+**El color.** Las explicaciones eran gris claro y pasan a **azul marino**
+(`presentation.PAGE_COLORS`, medido `rgb(18,48,92)` en el navegador). El color se declara
+en `presentation` y no en la página: uno elegido en la vista es una decisión sin test —es
+la razón por la que `REFINEMENT_STATES` ya los traía— y además estaban repartidos en tres
+sitios del CSS con tres grises distintos y ninguna regla. No es sólo gusto: las
+explicaciones son la mitad del producto de esta app —la frase que dice por qué un frente
+sigue abierto pesa tanto como la tabla— y en gris se leen como letra pequeña.
+
+**El aviso.** «Ficheros de referencia conectados (N)» **sí** es pertinente: es la
+procedencia de lo que va a correr, y es donde se ve la regla del `.tbl` obligatorio. Lo
+que estaba mal es que mezclaba dos cosas. La lista es procedencia y se consulta —ahí un
+desplegable está bien—; un aviso es una **tarea pendiente**. Y ese desplegable está
+**colapsado** cuando hay algo conectado, así que la única línea accionable de la pantalla
+—«falta el gen diana, y sin él todo sitio parece un off-target»— quedaba escondida detrás
+de un clic, debajo de la lista de lo que sí funcionó. Ahora el aviso va **fuera y arriba**
+(`presentation.connected_panel`) y la lista se queda dentro.

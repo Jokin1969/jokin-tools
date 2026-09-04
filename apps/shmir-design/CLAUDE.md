@@ -4270,6 +4270,70 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     declarada y no protegida: **declararla no basta, hay que derivar de la declaración cada
     consulta que la atraviesa**.
 
+- **RETOMAR UN PROYECTO ES LO PRIMERO QUE SE PREGUNTA, Y REABRIRLO NO PIDE NADA
+  (2026-09-04)**, errata nº 72 (`store.Project.sequence`,
+  `presentation.project_resume`, `_paso_cero_proyecto` en la página).
+  - **El orden estaba al revés.** El proyecto vivía en la barra lateral y **después** de
+    diseñar, así que para volver a ver lo de ayer había que repetir hoy los tres pasos de
+    la entrada. Ahora la primera pregunta es la que decide si hay que hacerlos.
+  - **Y no se podía hacer**, porque el proyecto NO guardaba la secuencia: tenía su
+    `sequence_md5` y su `sequence_length`, que sirven para **comprobar** una secuencia que
+    ya tengas delante y no para recuperarla. O sea que la regla escrita de este proyecto
+    —«un veredicto tiene que sobrevivir a la app que lo escribió»— estaba a medias:
+    **sobrevivía el veredicto y no la entrada sobre la que se emitió**. Un log de
+    decisiones sobre una secuencia que no está no se puede releer; a lo sumo comprobar.
+  - **La entrada se guarda VERBATIM**, dentro de `proyecto.json` y no en un fichero
+    hermano: así viaja con todo lo que ya trata el proyecto —la copia de seguridad, el
+    listado, la apertura— y no hay un artefacto más del que alguien tenga que acordarse.
+    Las dos piezas del proyecto siguen siendo dos.
+  - **El TILADO no se guarda**: se vuelve a calcular al abrir, porque es determinista y
+    cuesta 0,33 s. Guardar lo derivado daría dos definiciones del panel y ninguna que
+    mande, que es lo que obligó a escribir `resolve.py`.
+  - **Con guardia** (`guardias.toml`): al abrir se recalcula el md5 de la secuencia
+    guardada y se compara con el que el propio fichero declara. `proyecto.json` vive en un
+    volumen y se edita entre sesiones; con la entrada cambiada a mano, el panel saldría
+    con la forma correcta sobre **otra** secuencia y nada lo diría. Y el md5 lo calcula
+    `reference.sequence_md5` — la duplicación que `magnitudes.toml` ya anticipaba
+    («si algún día se moviera, delegaría») se cierra en vez de añadir un tercer sitio.
+  - **Un proyecto de ANTES se abre igual y se dice qué le falta**
+    (`PROJECT_WITHOUT_ENTRY`, `PROJECT_WITHOUT_ANATOMY`): no es reabrible solo, se pide la
+    secuencia como siempre, y **del md5 no se reconstruye nada** — regla 1 por su lado
+    bueno.
+  - **Sin ningún proyecto guardado, el paso 0 NO PINTA NADA.** Una pregunta sin ninguna
+    respuesta posible es ruido delante de quien entra por primera vez, que es a quien esta
+    pantalla tiene que guiar.
+  - Comprobado con un navegador de verdad, no sólo con tests: abrir un proyecto salta los
+    pasos 1 y 2 y cae directamente en la tabla de candidatos.
+
+- **LA PANTALLA DE LA ENTRADA: rejilla 2×2, azul marino y el aviso donde se actúa
+  (2026-09-04)**.
+  - **El paso 2 era dos columnas de tres controles** —a la izquierda la especie del diseño
+    y su GenBank, a la derecha la segunda especie ENTERA—, así que los dos ficheros de una
+    misma especie caían en columnas distintas. Ahora la **columna es la especie** y la
+    **fila es el tipo de fichero**: arriba lo del diseño, abajo lo de la segunda; a la
+    izquierda la secuencia, a la derecha su anotación. Cuatro tarjetas con borde.
+  - **Las cuatro llevan el MISMO contenido** —título, subida y biblioteca— para que el
+    alto lo iguale el navegador solo. El desplegable de la segunda especie va **fuera**,
+    encima de su fila: dentro de una tarjeta la hacía más alta que su pareja. **No se
+    clava ninguna altura a ojo**: eso aguanta hasta el primer cambio de tipografía.
+  - **Y `.sd-caja` no valía**: envolver varios elementos con un `<div>` de `st.markdown`
+    **no envuelve nada** —Streamlit mete cada markdown en su propio contenedor y el div se
+    cierra solo—, así que el CSS no llegaba a las tarjetas. Medido en el navegador, no
+    supuesto; se quitó en vez de dejarlo pareciendo que hacía algo.
+  - **El gris pasa a AZUL MARINO** (`presentation.PAGE_COLORS`, medido `rgb(18,48,92)` en
+    el navegador). El color se declara en `presentation` y no en la página: uno elegido en
+    la vista es una decisión sin test, y además estaban repartidos en tres sitios del CSS
+    con tres grises distintos y ninguna regla. No es sólo gusto — las explicaciones son la
+    mitad del producto de esta app y en gris claro se leen como letra pequeña.
+  - **EL AVISO SALE DEL DESPLEGABLE** (`presentation.connected_panel`). «Ficheros de
+    referencia conectados (N)» SÍ es pertinente —es la procedencia de lo que va a correr,
+    y es donde se ve la regla del `.tbl` obligatorio— pero mezclaba dos cosas: la lista es
+    procedencia y se consulta; un aviso es una **tarea pendiente**. Y el desplegable está
+    COLAPSADO cuando hay algo conectado, así que la única línea accionable de la pantalla
+    —«falta el gen diana, y sin él todo sitio parece un off-target»— quedaba escondida
+    detrás de un clic, debajo de la lista de lo que sí funcionó. Ahora el aviso va fuera y
+    arriba; la lista se queda dentro.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
