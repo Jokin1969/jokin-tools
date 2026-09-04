@@ -4445,15 +4445,28 @@ def anatomy_from_payload(payload, source: str):
     )
 
 
+#: COMO SE LLAMA LA CASILLA QUE ABRE UN PROYECTO, en un solo sitio. La pinta la barra
+#: lateral y la NOMBRA el aviso de aquí abajo, así que si cada uno escribiera su versión,
+#: el día que cambie el control el aviso mandaría a buscar algo que no existe — con la
+#: forma correcta y sin dar ningún error (principio nº 13).
+PROJECT_SAVE_TOGGLE = "Guardar esta corrida en un proyecto"
+
 #: LO QUE LE FALTA A UN PROYECTO DE ANTES para poder reabrirse solo, dicho donde se lee.
 #: No es un fallo suyo: se creo cuando el proyecto no guardaba la entrada. Y no se
 #: reconstruye nada — del md5 no sale la secuencia (regla 1).
+#:
+#: **Y DICE EL ULTIMO PASO, que es donde estaba el hueco** (2026-09-04): «súbela como
+#: siempre y el proyecto se abrirá igual» describe el 80 % del camino y se calla dónde se
+#: abre. Quien lo lee sube la secuencia y espera que el proyecto se abra solo; el momento
+#: en que se abre —y en que su entrada queda guardada— es al elegirlo en la barra lateral.
 PROJECT_WITHOUT_ENTRY = (
     "A este proyecto le falta guardada la secuencia de entrada, así que no se puede sacar "
-    "su panel sin ella: súbela como siempre —es la misma con la que se creó— y el "
-    "proyecto se abrirá igual, con todo su registro. **Y esta vez se queda guardada**: la "
-    "próxima vez se reabre solo. Del md5 que sí tiene apuntado NO se puede recuperar la "
-    "secuencia, y no se inventa."
+    "su panel sin ella. **Qué hacer**: sigue por los pasos de abajo y sube la misma "
+    "secuencia con la que se creó; después, en la **barra lateral**, marca "
+    f"«{PROJECT_SAVE_TOGGLE}» y elígelo en el desplegable «Proyecto». Ahí es donde se "
+    "abre, con todo su registro, y donde **su secuencia queda guardada**: a partir de esa "
+    "vez se reabre solo desde aquí arriba. Del md5 que sí tiene apuntado NO se puede "
+    "recuperar la secuencia, y no se inventa."
 )
 
 PROJECT_WITHOUT_ANATOMY = (

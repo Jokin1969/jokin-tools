@@ -4485,6 +4485,19 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     y la fecha es **hoy y derivada**: renombrar pasa ahora, y ofrecer un calendario sería
     una vía para apuntar el suceso en un día en que no ocurrió.
 
+- **UN AVISO QUE NO NOMBRA EL PASO QUE LO CIERRA no es una instrucción (2026-09-04)**,
+  errata nº 83. El aviso del proyecto sin entrada decía «súbela como siempre y el proyecto
+  se abrirá igual»: correcto y **no llevaba a donde decía**. Subir la secuencia contesta
+  los pasos 1 y 2; el proyecto se abre **en la barra lateral** —marcando la casilla de
+  guardar y eligiéndolo en el desplegable— y **ése es el momento** en que `project_open`
+  recibe la secuencia y la migración se escribe. La única acción que cerraba el problema
+  era la que no estaba escrita. Familia de la errata nº 28: un texto que se lee correcto
+  de principio a fin y termina en otro sitio que el que anuncia.
+  - **El nombre de la casilla lo pone `presentation.PROJECT_SAVE_TOGGLE`**, no cada texto
+    por su cuenta: la pinta la barra lateral y la nombra el aviso, así que escrita dos
+    veces se desincroniza y el aviso manda a buscar un control que no existe — con la
+    forma correcta y sin dar ningún error (principio nº 13).
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

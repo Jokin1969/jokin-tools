@@ -4023,3 +4023,29 @@ justo cuando no se reconoce cuál es, o sea antes de abrirlo.
 La fecha es **hoy y derivada** (`today_text()`), no un calendario: renombrar pasa ahora, y
 ofrecer elegir la fecha sería una vía para apuntar el suceso en un día en que no ocurrió
 — la misma razón por la que crear un proyecto y guardar una corrida vienen con hoy puesto.
+
+## 83 — El aviso describía el 80 % del camino y se callaba el paso que lo cierra
+
+**Reportado (2026-09-04)**, con el aviso entero pegado: se abre un proyecto guardado
+—«Candidatos shmiR (mouse)»— y sale *«A este proyecto le falta guardada la secuencia de
+entrada… súbela como siempre y el proyecto se abrirá igual… y esta vez se queda
+guardada»*.
+
+**El aviso es el correcto** —ese proyecto se creó antes de que existiera el campo, y la
+errata nº 80 es justo esto— pero **la instrucción no lleva a donde dice**. Quien la lee
+sube la secuencia y espera que el proyecto se abra **solo**, porque el mensaje habla en
+futuro y no nombra ningún sitio. Y no se abre: subir la secuencia sólo contesta los pasos
+1 y 2. El proyecto se abre **en la barra lateral**, marcando «Guardar esta corrida en un
+proyecto» y eligiéndolo en el desplegable — y **ése es exactamente el momento** en que
+`project_open` recibe la secuencia y la migración se escribe.
+
+O sea: la única acción que cierra el problema era la que no estaba escrita. Es la familia
+de la errata nº 28 —la ficha que describe un fichero y el cargador que lee otro—: un texto
+que **se lee correcto de principio a fin** y termina en otro sitio que el que anuncia.
+
+### Y el nombre de la casilla no se transcribe
+
+`presentation.PROJECT_SAVE_TOGGLE`: lo pinta la barra lateral y lo nombra el aviso. Escrito
+dos veces, el día que ese control cambie de nombre el aviso mandaría a buscar algo que no
+existe — con la forma correcta y sin dar ningún error (principio nº 13). Hay test de que la
+página usa la constante y no el literal.

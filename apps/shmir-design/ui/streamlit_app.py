@@ -69,6 +69,7 @@ from shmir_design.presentation import (  # noqa: E402
     PAGE_COLORS,
     PROJECT_ENTRY_HELP,
     PROJECT_RENAME_HELP,
+    PROJECT_SAVE_TOGGLE,
     PROJECT_RESUMED_NOTE,
     PROJECT_RESUME_HELP,
     project_open,
@@ -760,7 +761,10 @@ def _panel_proyecto(especie: str, secuencia: str, anat, *, retomado=None):
 
     if retomado is None:
         if st.sidebar.checkbox(
-            "Guardar esta corrida en un proyecto",
+            # EL NOMBRE SALE DE `presentation`: el aviso del proyecto sin entrada manda
+            # aquí por su nombre, y dos textos que lo escriben por su cuenta se
+            # desincronizan sin dar ningún error.
+            PROJECT_SAVE_TOGGLE,
             key=f"pr_activo_{especie}",
             help="Las corridas de los modales y la selección quedan en un log de texto "
                  "que se lee con `cat` y sobrevive a cerrar la pestaña.",
