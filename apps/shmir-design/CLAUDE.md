@@ -4698,6 +4698,37 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     rechazó el digesto hasta declararlo en `magnitudes.toml` **y** `guardias.toml`, y esta
     última lo rechazó como guardia porque **no aborta** — va a `[solo_informan]`.
 
+- **PRINCIPIO nº 33 — el guardia estaba, y la pregunta no le llegaba.** Variante del nº 29
+  con el fallo un paso antes: allí la consulta omite una dimensión y contesta «no sé»;
+  aquí **la consulta no llega a hacerse**. `comparative_tsv` aceptaba `anatomy`, los dos
+  llamadores se lo pasaban, y no lo reenviaba — así que la cabecera se construía con una
+  anatomía y las filas con otra, y el invariante de rango de `coords` **no podía morder**
+  porque el dato que lo habría activado nunca llegaba a su lado. Sin síntoma: hoy las dos
+  coinciden, así que no producía un número equivocado sino **un guardia dormido**.
+  - **Ninguna herramienta del proyecto lo ve, y ninguna por descuido**: la alcanzabilidad
+    mira símbolos sin llamador y aquí hay llamador; el golden lee lo que se emite y lo
+    emitido tenía la forma correcta; el auditor de banderas cubre los CLI, no los
+    argumentos entre funciones.
+  - **Y NO tiene mecanismo, medido**: «parámetro nunca referenciado» da 35 hallazgos casi
+    todos legítimos **y no habría cazado el caso** —`anatomy` sí se usaba, lo que faltaba
+    era reenviarla—; «no se pasa por nombre» da 686, dominados por el paso posicional. Se
+    queda como regla de lectura y **se dice que no hay red debajo**, en vez de fingir
+    cobertura.
+  - **Cuando un guardia se despierta y algo falla, la primera pregunta no es cómo
+    callarlo: es qué llevaba pasando mientras dormía.** Aquí, un test que declaraba una
+    anatomía incompatible con lo tilado y sólo pasaba porque el argumento no llegaba.
+
+- **PRINCIPIO nº 18, la mitad que más cuesta ver: aplica al PROPIO COMPROBADOR.** Un
+  control adversario que no reproduce la **forma real** del fallo valida el comprobador y
+  no el caso — y es donde menos se nota, porque el test pasa y parece que ha demostrado
+  algo. El control del guardia de sumas probaba un `def total()`; el `total` real era un
+  **campo** con la suma en el constructor, así que un guardia que sólo mirara cuerpos de
+  métodos habría pasado ese control **y no habría cazado el fallo que hubo**. La pregunta
+  no es «¿el control adversario falla?» sino **«¿falla sobre el código que existía?»**: se
+  saca de `git show` del commit anterior o del cuerpo que se acaba de borrar, nunca del
+  recuerdo de lo que hacía — que es el principio nº 13 aplicado a la evidencia de que un
+  guardia sirve.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

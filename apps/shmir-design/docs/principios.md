@@ -838,6 +838,37 @@ ellas sin recorrido de punta a punta; eso no se ve mirando la bandera. Y al rev�
 **parcial** en un temporal — contra el manifiesto de verdad abortaba con un
 `KeyError: 'polyadb'`. Quién llama, y **con qué entrada**.
 
+### Y LA MITAD QUE MÁS CUESTA VER: esto aplica al PROPIO COMPROBADOR
+
+Un control adversario que no reproduce la **forma real** del fallo valida el comprobador,
+no el caso. Es este mismo principio un piso más arriba, y es donde menos se nota — porque
+el test pasa, señala, y parece que ha demostrado algo.
+
+**El caso (2026-09-04, errata nº 90).** Al escribir el guardia que prohíbe que una clase
+de conteos por clase tenga un atributo que los sume, su control adversario probaba con:
+
+```python
+class SeedLoad:
+    counts: dict[str, int]
+    def total(self):
+        return sum(self.counts.values())
+```
+
+Señalaba, y el guardia salía a cero sobre el código arreglado. **Pero el `total` real no
+era eso.** Era un **campo** —`total: int | None = None`— y la suma vivía en el
+**constructor**, `SeedLoad(..., total=sum(totales.values()))`. Un guardia que sólo mirara
+cuerpos de métodos habría pasado ese control adversario **y no habría cazado el fallo que
+de verdad hubo**.
+
+**La comprobación no es «¿el control adversario falla?», es «¿falla sobre el código que
+existía?».** Se le da el fuente de ANTES, tal y como era, no una reconstrucción de memoria
+de cómo era. Escribirlo de memoria es el mismo error que transcribir un dato en vez de
+derivarlo (principio nº 13), aplicado a la evidencia de que un guardia sirve.
+
+**Cómo se hace en la práctica**: el control adversario se saca de `git show` del commit
+anterior, o se copia del cuerpo real que se acaba de borrar — nunca se teclea desde el
+recuerdo de lo que hacía.
+
 ---
 
 ## 19 — Un valor legítimo puede tener la FORMA de la ausencia, y la comprobación mira el continente
@@ -1487,3 +1518,124 @@ seguridad de días distintos tienen que seguir siendo **dos ficheros distintos**
 no hay forma de saber cuál es cuál, y la que se conserva no dice de cuándo es. Lo que se
 quita es la parte que cambia sin que nadie haya cambiado nada; lo que identifica de verdad
 se queda.
+
+---
+
+## 31 — Un comentario protege su clase; un mecanismo protege la siguiente
+
+**El caso, y es literal.** `offtarget.WHY_NOT_SUMMED` termina, escrito semanas antes:
+
+> «`Counts` no tiene ningún atributo que las sume: **si existiera, alguien acabaría
+> imprimiéndolo**.»
+
+El guardia se puso sobre `offtarget.Counts`. **El atributo existía en
+`seed_load.SeedLoad`** —`total = sum(counts.values())`— **y se estaba imprimiendo**, en la
+única columna visible de ese eje. La profecía se cumplió al pie de la letra, en la clase de
+al lado, mientras el comentario que la anunciaba seguía ahí sin que nadie lo relacionara.
+
+### Por qué no es un descuido puntual
+
+Un comentario es un aviso **a quien lee esa clase**. Nadie lee la clase de al lado buscando
+un aviso que está en otro fichero, y menos aún el día que la escribe: quien la escribe cree
+que ya conoce la regla. La disciplina se agota exactamente donde hace falta.
+
+### La regla operativa
+
+**Un guardia no nombra a quién protege: lo DESCUBRE.** El test que sustituyó al comentario
+no pregunta por `Counts` ni por `SeedLoad` — barre el paquete, encuentra qué clases llevan
+conteos por clase y se lo exige a todas. Un contador nuevo queda cubierto **sin que nadie se
+acuerde**, que es la única forma en que un guardia sobrevive a su autor.
+
+Es hermano del principio nº 26 —dos auditorías sobre la misma evidencia se atan— y del
+nº 14: haber comprobado una vez no es seguir comprobando. Aquí: haberlo **escrito** una vez
+no es que proteja.
+
+---
+
+## 32 — Una clave sin escritor no falla: su valor por defecto pasa a ser la configuración
+
+**No se parece al principio nº 24.** Allí —la comparación de md5 que preguntaba por una
+clave que no podía existir— el resultado era una **respuesta falsa**: «no se ha podido
+comprobar» con el fichero delante. Aquí no hay ninguna respuesta falsa: hay **siempre el
+valor por defecto**, y entonces pasa algo distinto y peor.
+
+**El literal escrito como plan B se convierte en la configuración real, y nadie lo revisa
+como tal.** Se escribe pensando «esto es lo que pasa si falta», se lee como una precaución,
+y es lo único que se ejecuta nunca. Un `"sin fecha declarada"` puesto para ser honesto
+acabó siendo el valor con el que se generaban **todos** los informes (errata nº 89).
+
+### Y dos llamadores con dos defaults distintos son dos configuraciones distintas
+
+Para la misma clave, y ninguna declarada en ningún sitio, así que **no hay dónde mirarlas
+juntas**. En el caso real una funcionaba (`"" or today_text()`) y la otra abortaba, y eso
+es justo lo que hizo que el fallo pareciera del zip y no de la fecha.
+
+### La contramedida es mecánica
+
+Ninguna clave de estado de sesión puede leerse sin que alguien la escriba. A cero, con
+control adversario —si el detector dejara de encontrar claves, «ninguna huérfana» y «no he
+mirado» darían el mismo verde (nº 24)— y **quitando los comentarios antes de mirar**: el
+comentario que explica de dónde venía la clave la nombra, y sin la poda el guardia fallaría
+por su propia documentación, con la salida fácil de borrar la explicación.
+
+---
+
+## 33 — El guardia estaba, y la pregunta no le llegaba
+
+Variante del principio nº 29 —una consulta que omite una dimensión contesta «no sé» y se lee
+como «no hay»— con el fallo un paso antes: aquí **la consulta no llega a hacerse**.
+
+**El caso (2026-09-04, errata nº 90).** `comparative_tsv` aceptaba `anatomy`, los **dos**
+llamadores se lo pasaban, y llamaba a `comparative_rows(selection, scaffold)` **sin
+reenviarlo**. Consecuencia: la **cabecera** del TSV se construía con la anatomía que se le
+daba y las **filas** con otra. Y el invariante de rango de `coords` —que existe justo para
+cazar una coordenada en el marco equivocado y ya ha mordido cuatro veces— **no podía
+morder**, porque el dato que lo habría activado nunca llegaba a su lado.
+
+No hubo síntoma. Hoy las dos anatomías coinciden, así que el argumento inerte no producía
+ningún número equivocado; producía **un guardia dormido**, esperando al día en que dejaran
+de coincidir.
+
+### Por qué es su propia categoría
+
+Las herramientas del proyecto no lo ven, y ninguna por descuido:
+
+- la **alcanzabilidad** mira símbolos sin llamador, y aquí hay llamador;
+- el **golden** lee lo que se emite, y lo que se emitía tenía la forma correcta;
+- el auditor de **banderas** cubre los CLI, no los argumentos entre funciones;
+- y el propio invariante no puede quejarse de una pregunta que no recibe.
+
+### Cómo se reconoce
+
+**Un parámetro que se acepta y no se usa es un guardia apagado, no una firma de más.** La
+señal está en la firma: si una función declara un argumento, hay que poder señalar la línea
+donde lo consume. Si esa línea no existe, no sobra el argumento — falta el uso, y lo que
+depende de él lleva dormido desde que se escribió.
+
+### Y NO tiene mecanismo: se midió, y no sale
+
+Este proyecto no escribe un auditor sin medir antes el ruido, porque **un guardia con
+falsos positivos se acaba apagando**. Se probaron las dos formas obvias, sobre el paquete
+entero (2026-09-04):
+
+| detector | hallazgos | qué son |
+|---|---|---|
+| parámetro declarado y **nunca referenciado** | **35** | casi todos legítimos: implementaciones que comparten firma por interfaz (`Executor.run`), validadores con firma común (`deposito._v_*`) |
+| F acepta `P`, llama a G que también acepta `P`, y no se lo pasa **por nombre** | **686** | dominado por el paso **posicional**, que es correcto |
+
+**Y el primero no habría cazado el caso real**, que es lo que lo zanja: `anatomy` **sí se
+usaba** dentro de `comparative_tsv` —construía la cabecera con ella— y lo que faltaba era
+reenviarla a la función que monta las filas. Un detector de «argumento sin usar» lo habría
+dado por bueno.
+
+Así que este principio se queda como **regla de lectura**, no como guardia, y eso va
+escrito para que nadie suponga que hay una red debajo. Lo que sí lo cazó fue **leer el
+diff** de una firma al tocarla, que es donde aparece: la línea que consume el argumento se
+busca a mano cuando se edita esa función. Es la misma categoría que el principio nº 3 —hay
+comprobaciones que hoy sólo hace una persona— y se anota como tal en vez de fingir cobertura.
+
+Y el corolario que lo cerró: **al dejar de tragárselo, un test empezó a abortar.** Ese test
+declaraba en la cabecera una anatomía incompatible con lo tilado, y sólo pasaba porque el
+argumento no llegaba. Cuando un guardia se despierta y algo falla, lo primero que hay que
+preguntarse no es cómo callarlo: es qué llevaba pasando mientras dormía.
+
