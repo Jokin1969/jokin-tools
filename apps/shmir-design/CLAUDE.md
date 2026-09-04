@@ -4498,6 +4498,32 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     veces se desincroniza y el aviso manda a buscar un control que no existe — con la
     forma correcta y sin dar ningún error (principio nº 13).
 
+- **UNA BASE DE RefSeq DE VERDAD NO ENTRA EN EL ESCÁNER POR VENTANA (2026-09-04)**,
+  errata nº 84 (`specificity.scanner_budget`, `MAX_SCANNABLE_NT`). Reportado como «lleva
+  10 min y no muestra nada», y **es una regresión de la errata nº 79**: hasta esa mañana
+  `_refseq` no conectaba el fichero sin un gen diana tecleado, así que `filter_specificity`
+  salía `NOT_RUN` **al instante** y su coste nunca se había medido. Al derivar la diana el
+  fichero se conecta —correcto— y con él se enciende un filtro que **barre la base entera
+  por cada ventana elegible**.
+  - **MEDIDO**: ~37 Mnt/s por ventana (guía y pasajera, las dos hebras) → con las 407
+    elegibles del ratón, **22 MB son 3,8 min; 100 MB, 17 min; 400 MB, 73 min**, y en cada
+    repintado. La carga aparte: 25 MB/s y **~5× el fichero en RAM** (45 MB → 234 MB), así
+    que con varios GB el contenedor se queda sin memoria antes de medir nada.
+  - **La conclusión no es optimizar: es que ese filtro no es para esa base.** Es
+    exactamente la razón de que exista el modal de BLAST —esta app no lanza el BLAST y no
+    puede— y desde la errata nº 68 **una corrida guardada cierra el frente igual que un
+    fichero**, así que no conectarla no deja el frente sin forma de cerrarse.
+  - **El techo se DERIVA** de un presupuesto declarado (60 s por corrida) × la velocidad
+    medida ÷ las ventanas de la corrida de referencia. Si el escáner se acelera, sube solo.
+    Y el motivo lleva **los tres números** —lo que pesa, sobre cuántas ventanas, cuántos
+    minutos— y dice que **el fichero sigue valiendo**: de él sale la procedencia de la
+    corrida.
+  - **Y se mira ANTES de cargar**, no después: cargar ya cuesta memoria, y con una base
+    grande el aborto llegaría tarde.
+  - **Una frase que se quedó atrás, corregida a la vez**: `blast_readiness` decía que el
+    frente «lo cierra el filtro de la ventana contra el catálogo cargado, no la corrida».
+    Falso desde la nº 68 — y con esta errata, además, el consejo al revés. Principio nº 11.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

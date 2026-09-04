@@ -946,9 +946,12 @@ def blast_readiness(*, species, directory) -> list[dict[str, object]]:
 
     - la corrida **si** llega a la tabla: su celda de `especificidad` pasa a tener
       veredicto. La corrida NO es inutil y el aviso no dice que lo sea;
-    - el **frente** se queda abierto —la tarjeta, el semaforo y el bloque de frentes del
-      informe—, porque eso lo cierra el filtro de la ventana, que necesita el catalogo
-      cargado;
+    - el **frente** SI se cierra con la corrida, si cubre todo el panel (errata nº 68).
+      Aqui ponia que lo cerraba «el filtro de la ventana, que necesita el catalogo
+      cargado», y eso dejo de ser cierto ese dia — y ademas era el consejo justo al
+      reves: una base de RefSeq de verdad NO entra en el filtro por ventana (errata
+      nº 84, `specificity.scanner_budget`), asi que el catalogo cargado no cierra nada.
+      Lo que el fichero SI da es la procedencia y la revalidacion de abajo;
     - y la corrida no se puede **revalidar**: sin md5 de hoy con el que comparar, sale
       «no se ha podido comprobar» cada vez que se mire (`insumos.obsoleta`).
 
@@ -966,10 +969,9 @@ def blast_readiness(*, species, directory) -> list[dict[str, object]]:
             f"**`{fichero}` NO está en el depósito**, y conviene saber qué cambia eso "
             f"ANTES de bajarse la base y lanzar el BLAST. La corrida **sí** sirve: al "
             f"subirla, los candidatos que consulte pasan a tener veredicto de "
-            f"especificidad en la tabla. Lo que NO se cierra es el **frente** —la "
-            f"tarjeta, el semáforo y el bloque de frentes del informe siguen abiertos y "
-            f"los candidatos, en INCOMPLETE—, porque eso lo cierra el filtro de la "
-            f"ventana contra el catálogo cargado, no la corrida. Y la corrida quedará "
+            f"especificidad en la tabla, y **el frente se cierra** si la corrida cubre "
+            f"todo el panel. Lo que el fichero da es otra cosa: la **procedencia** de la "
+            f"base con la que se corrió. Y sin él la corrida quedará "
             f"sin poder revalidarse: sin el fichero no hay md5 de hoy con el que "
             f"comparar el que se registre, así que saldrá «no se ha podido comprobar» "
             f"cada vez que se mire. Es el mismo `{fichero}` del que sale la base: se "

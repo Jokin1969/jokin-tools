@@ -4049,3 +4049,70 @@ que **se lee correcto de principio a fin** y termina en otro sitio que el que an
 dos veces, el día que ese control cambie de nombre el aviso mandaría a buscar algo que no
 existe — con la forma correcta y sin dar ningún error (principio nº 13). Hay test de que la
 página usa la constante y no el literal.
+
+## 84 — Derivar la diana encendió un filtro que barre una base de GB por cada ventana
+
+**Reportado (2026-09-04)**: «va muy lento; le doy a Buscar candidatos y lleva 10 min y aún
+no muestra nada… se queda con Mus musculus como epígrafe». **Es una regresión de esa misma
+mañana, y la causa es mía**: la errata nº 79.
+
+### La cadena, en dos pasos
+
+1. hasta ese día, `resources._refseq` **se negaba a conectar** `refseq_rna.fa` sin un gen
+   diana tecleado, así que `specificity_db` llegaba `None` y `filter_specificity` salía
+   `NOT_RUN` **al instante**. El filtro estaba escrito, probado… y nunca corría;
+2. al derivar la diana de su tabla, el fichero pasa a conectarse —que es lo correcto— y
+   con él **se enciende un filtro que barre la base ENTERA por cada ventana elegible**.
+
+O sea: el arreglo era correcto y **destapó un coste que llevaba oculto desde siempre**
+porque la condición que lo tapaba era otro fallo. Familia del principio nº 14 al revés: no
+es que la comprobación dejara de correr, es que **empezó** a correr y nadie había medido lo
+que costaba.
+
+### Lo MEDIDO (2026-09-04, en el contenedor)
+
+Con secuencia real repetida como registros: **~37 Mnt/s por ventana** (guía y pasajera, las
+dos hebras). Sobre las **407 ventanas elegibles** de la corrida murina por defecto:
+
+| base | por corrida |
+|---|---|
+| 22 MB | 3,8 min |
+| 100 MB | 17 min |
+| 400 MB | 73 min |
+
+Y la **carga** aparte: 25 MB/s y **~5× el fichero en memoria** (45 MB de fichero → 234 MB
+de proceso). Con una base de varios GB el contenedor se queda sin memoria antes de que
+nadie llegue a medir nada — y el síntoma es exactamente el reportado: una página que no
+vuelve, sin ningún error.
+
+### La conclusión no es «optimizar»: es que ese filtro NO es para esta base
+
+A cualquier tamaño plausible de un RefSeq real —decenas o cientos de MB por la vía UCSC,
+80 GB por la del NCBI— el escáner en proceso tarda de minutos a horas **por corrida y en
+cada repintado**. **Eso es exactamente la razón por la que existe el modal de BLAST**: este
+software no lanza el BLAST y no puede, así que prepara la orden, se corre fuera contra una
+base local y se recoge el `-outfmt 6`. Y desde la errata nº 68 **una corrida guardada
+cierra el frente igual que un fichero**, así que no conectar la base no deja el frente sin
+forma de cerrarse.
+
+### El techo se DERIVA de un presupuesto declarado
+
+`specificity.SCAN_BUDGET_SECONDS` (60 s por corrida) × la velocidad **medida** ÷ las
+ventanas elegibles de la corrida de referencia → `MAX_SCANNABLE_NT`. No es un número
+escrito: si mañana el escáner es diez veces más rápido, el techo sube solo. Y el motivo que
+sale a pantalla lleva **los tres números** —cuánto pesa, sobre cuántas ventanas, cuántos
+minutos— en vez de una queja.
+
+### Y dice que el fichero SIGUE valiendo
+
+Es la mitad que impide repetir la contradicción de la nº 79 con el signo cambiado: el
+fichero **está en el depósito**, es de donde sale la **procedencia** de una corrida de
+BLAST, y el frente se cierra con el modal. Lo único que no se hace es meterlo en un filtro
+que no puede con él.
+
+### Una frase que se quedó atrás, corregida en el mismo cambio
+
+`blast_readiness` decía que el frente «lo cierra el filtro de la ventana contra el catálogo
+cargado, no la corrida». Dejó de ser cierto con la errata nº 68 —una corrida que cubre el
+panel lo cierra— y con esta errata es además **el consejo justo al revés**: el catálogo
+cargado no puede cerrarlo. Principio nº 11.

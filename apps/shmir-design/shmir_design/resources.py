@@ -24,7 +24,7 @@ from .manifest import ROLES, DirectoryStatus, check_directory, roles_available
 from .masking import load_rmsk
 from .mirna import load_abundance_list, load_mature_fa
 from .seed_load import load_expression_table, load_utr3_set
-from .specificity import load_database
+from .specificity import load_database, scanner_budget
 from .errors import ShmirDesignError
 
 
@@ -39,7 +39,21 @@ def _refseq(path, entry, contexto):
     Son dos preguntas y ahora cada una se contesta donde toca: **el fichero**, aquí; **la
     diana**, en `data/diana/variantes.toml`, y si esa especie no la declara lo dice el
     veredicto del filtro con `NO_CIERRA` — no la lista de conectados.
+
+    **PERO EL TAMAÑO SÍ DECIDE, y por eso se mira ANTES de cargar** (errata nº 84). El
+    escaner de `filter_specificity` barre la base ENTERA por cada ventana elegible: con
+    una base de RefSeq de verdad son horas por corrida, y en cada repintado de la pagina.
+    `specificity.scanner_budget` da el veredicto con los numeros; el fichero se queda en
+    el deposito —lo usa el modal de BLAST y de el sale la procedencia— y lo que no se hace
+    es meterlo en un filtro que no puede con el.
+
+    Se mira ANTES de `load_database` porque cargar ya cuesta: 25 MB/s y ~5x el fichero en
+    memoria. Con una base grande, la propia carga tumba el contenedor antes de que nadie
+    llegue a medir nada.
     """
+    veredicto = scanner_budget(Path(path).stat().st_size, name=entry.name)
+    if not veredicto["cabe"]:
+        raise _Omitir(veredicto["motivo"])
     return load_database(
         path, name="RefSeq RNA", version=entry.date or entry.md5, expected_md5=entry.md5
     )

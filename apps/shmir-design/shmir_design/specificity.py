@@ -80,6 +80,80 @@ TAXIDS = {"raton": "txid10090", "humano": "txid9606"}
 NCBI_SUBMISSION_INTERVAL_S = 10
 NCBI_POLL_INTERVAL_S = 60
 
+# ─────────── LO QUE CABE EN EL ESCANER POR VENTANA, Y LO QUE NO ───────────
+#
+# `filter_specificity` barre la base ENTERA por cada ventana elegible. Con una base
+# pequeña —un casete, un puñado de transcritos— eso es instantaneo; con una base de
+# RefSeq de verdad son HORAS, y hasta hoy nadie lo habia visto porque el filtro no
+# llegaba a correr: se negaba a conectar el fichero sin un gen diana tecleado, asi que
+# `specificity_db` llegaba `None` (errata nº 84).
+#
+# **El techo NO es una limitacion que esconder: es la razon de que exista el modal de
+# BLAST.** Este software no lanza el BLAST y no puede —lo dice la primera linea de
+# `blast.py`—: el modal prepara la orden, se corre fuera contra una base local, y se
+# recoge el `-outfmt 6`. Y desde la errata nº 68 una corrida guardada cierra el frente
+# igual que un fichero, asi que no cerrarlo aqui no deja el frente sin forma de cerrarse.
+
+#: MEDIDO 2026-09-04 en la maquina del contenedor, con secuencia real repetida como
+#: registros: 4,4 Mnt en 124 ms y 21,9 Mnt en 562 ms, o sea ~37 Mnt/s POR VENTANA (dos
+#: sondas —guia y pasajera— por dos hebras cada una). La carga aparte: 25 MB/s y ~5x el
+#: fichero en RAM (45 MB de fichero -> 234 MB de proceso).
+HOW_THE_RATE_WAS_MEASURED = (
+    "MEDIDO 2026-09-04: ~37 Mnt/s por ventana (guía y pasajera, las dos hebras), sobre "
+    "secuencia real repetida como registros. La carga va aparte: 25 MB/s y ~5× el "
+    "fichero en memoria."
+)
+SCAN_RATE_NT_PER_SECOND = 37_000_000
+
+#: Las ventanas elegibles de la corrida murina por defecto. No es un numero redondo
+#: elegido a ojo: es la corrida que este proyecto tiene medida de punta a punta.
+TYPICAL_ELIGIBLE_WINDOWS = 407
+
+#: PRESUPUESTO DECLARADO: lo que puede tardar el filtro de especificidad en una corrida
+#: entera. Es «nuestro» —no sale de ninguna publicacion— y es lo que hay que discutir si
+#: alguien quiere subirlo; el techo en nucleotidos se DERIVA de el, no se escribe.
+SCAN_BUDGET_SECONDS = 60
+MAX_SCANNABLE_NT = (
+    SCAN_BUDGET_SECONDS * SCAN_RATE_NT_PER_SECOND // TYPICAL_ELIGIBLE_WINDOWS
+)
+
+
+def scanner_budget(size_bytes: int | None, *, name: str) -> dict[str, object]:
+    """¿Cabe esta base en el escaner por ventana? Con los numeros, no con una queja.
+
+    El tamaño se mide en BYTES del fichero, que es un techo de los nucleotidos que
+    contiene —las cabeceras y los saltos de linea suman— asi que la proyeccion peca por
+    arriba, que es la direccion segura.
+
+    `None` ABORTA: no haber podido mirar el tamaño y que quepa son cosas distintas, y una
+    de ellas cuelga la app una hora sin decir nada.
+    """
+    if size_bytes is None:
+        raise ShmirDesignError(
+            f"No se sabe cuánto pesa {name!r}, así que no se puede decir si cabe en el "
+            f"escáner por ventana. Se aborta en vez de intentarlo: una base grande "
+            f"tarda HORAS y el único síntoma sería una página que no vuelve."
+        )
+    tamaño = int(size_bytes)
+    minutos = tamaño * TYPICAL_ELIGIBLE_WINDOWS / SCAN_RATE_NT_PER_SECOND / 60
+    if tamaño <= MAX_SCANNABLE_NT:
+        return {"cabe": True, "motivo": "", "minutos": minutos}
+    return {
+        "cabe": False,
+        "minutos": minutos,
+        "motivo": (
+            f"{name} pesa {tamaño / 1e6:.0f} MB y el filtro de especificidad barre la "
+            f"base ENTERA por cada ventana: sobre las {TYPICAL_ELIGIBLE_WINDOWS} "
+            f"ventanas elegibles de una corrida serían unos {minutos:.0f} min, en cada "
+            f"repintado de la página. No se conecta a ese filtro. **El fichero sigue en "
+            f"el depósito y sigue valiendo**: es del que sale la procedencia de una "
+            f"corrida de BLAST, y el frente se cierra con el modal de especificidad — "
+            f"que es para lo que existe, porque esta app no puede correr el BLAST. "
+            f"{HOW_THE_RATE_WAS_MEASURED}"
+        ),
+    }
+
+
 SEED_CAVEAT = (
     "Este filtro NO cubre los off-targets mediados por seed: un sitio complementario "
     "a las posiciones 2-8 aparece por azar cada ~16 kb, hay miles en el transcriptoma "
