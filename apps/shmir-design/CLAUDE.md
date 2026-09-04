@@ -4396,6 +4396,95 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     conseguirlo». Ahora es **➖**, que se lee como «no aplica». Principio nº 11 en la capa
     visual.
 
+- **LA DIANA SALE DE `data/diana/variantes.toml` Y DE NINGÚN OTRO SITIO. DECIDIDO
+  (2026-09-04)**, errata nº 79. Arrancó de una pregunta —«¿por qué pone *refseq_rna.fa no
+  se ha conectado: hace falta el gen diana*?»— y debajo había dos cosas peores que el
+  aviso.
+  - **ERAN DOS DEFINICIONES Y GANABA LA PEOR.** El veredicto de una corrida de BLAST ya
+    usaba `specificity.target_accessions(especie)` —la lista COMPLETA de variantes,
+    declarada con procedencia (errata nº 56)— y `filter_specificity` exigía un `target`
+    **tecleado, uno solo**, y abortaba sin él. Ahora el filtro recibe la ESPECIE y lee la
+    tabla; `--target` se retira del CLI y el campo se va de la barra lateral.
+  - **Sin declaración, `NO_CIERRA` con el motivo**, igual que en BLAST: abortar dejaría sin
+    diseñar por algo que no impide proponer candidatos, y un `PASS` sería el colador que
+    `target_accessions` existe para impedir.
+  - **Y LA PANTALLA SE CONTRADECÍA**, que es un fallo por sí solo: abajo el fichero en
+    verde («está en el depósito») y arriba «no se ha conectado». Las dos ciertas y
+    contestando a cosas distintas, pero juntas se leen como que la app se equivoca. Cada
+    pregunta se contesta ahora donde toca: el FICHERO en la lista de conectados, la DIANA
+    en el veredicto del filtro, que dice qué falta en vez de dejarlo deducir.
+  - **Lo que salió al arreglarlo**: cuatro ficheros de test montaban su base falsa con un
+    registro llamado `"diana"` —el `--target` que le pasaban—, así que al derivar la diana
+    la sonda daba un off-target **contra sí misma**. El nombre se PIDE ahora a
+    `target_accessions("raton")` (principio nº 25). Y en `test_presentacion_coste.py` había
+    **dos tests que construían el mismo `ResourceSet` y afirmaban lo contrario**, y ninguno
+    podía delatar al otro mientras el campo existiera.
+
+- **DOS BOTONES QUE BAJAN COSAS DISTINTAS NO PUEDEN LLAMARSE IGUAL MENOS UN PUNTO
+  (2026-09-04)**, errata nº 78. Eran «Descargar todo (zip)» y «Descargar todo (.zip)»: con
+  esos nombres, un reporte de «no me baja el zip» **no identifica cuál**, y por eso
+  reproduje el que no era. **Es un problema de la interfaz antes que de quien los
+  confunde.** Ahora cada uno se llama por LO QUE BAJA —«Descargar los resultados del
+  diseño (.zip)» y «Descargar la copia de seguridad del depósito (.zip)»—, porque «todo»
+  depende de dónde estés en la página. Con guardia mecánico
+  (`tests/test_dos_botones_NO_se_llaman_igual.py`): ninguna pareja de etiquetas de descarga
+  puede ser la misma tras quitar la puntuación, y mide las que encuentra, así que un tercer
+  zip queda cubierto. Con su control adversario y con un test de que el detector encuentra
+  etiquetas — si dejara de encontrarlas, «ningún par choca» y «no miré» darían el mismo
+  verde.
+
+- **PRINCIPIO nº 30 — un fallo que depende del TAMAÑO no se reproduce con un fixture
+  pequeño, y el determinismo no es estética.** Las dos mitades de la errata nº 76:
+  - una reproducción que sale bien con un fixture pequeño **no descarta** un fallo cuya
+    causa es una carrera que se gana en 200 ms y se pierde en veinte segundos. Antes de dar
+    por bueno un verde: *¿de qué magnitud depende esto, y la he variado?* Es el principio
+    nº 3 por el otro lado — tampoco se da por buena una AUSENCIA de causa medida en un solo
+    punto de un eje que importa;
+  - **un artefacto que cambia de bytes sin cambiar de contenido rompe todo lo que lo
+    identifique por su contenido** — el id de Streamlit, cualquier caché, cualquier
+    comprobación de integridad. Si se va a identificar, transportar o comprobar por su
+    contenido, tiene que ser función de su contenido y de nada más. **El reloj no es
+    contenido.**
+  - Y el corolario: **fijar no es poner a cero.** La marca se deriva de la fecha declarada,
+    porque dos copias de días distintos tienen que seguir siendo dos ficheros distintos.
+
+- **UN PROYECTO DE ANTES SE ARREGLA SOLO, Y SUS LÍNEAS SON «ANOTACIONES» (2026-09-04)**,
+  erratas nº 80-82. Las tres salen de la misma captura, del paso 0 con `Intento_17`
+  delante.
+  - **El aviso fechaba la causa y no se arreglaba nunca.** «Este proyecto se creó ANTES de
+    que la app guardara la secuencia de entrada» era **cierto** —el campo entró el
+    2026-09-04, así que un proyecto de anteayer no lo tiene— y aun así estaba mal por dos
+    razones: manda a comprobar **cuándo se creó**, que no sirve para nada, en vez de decir
+    qué falta y cómo se arregla; y subir la secuencia abría el proyecto **sin guardarla**,
+    así que al día siguiente salía el mismo aviso. **Un mensaje que dice «súbela como
+    siempre» y deja el proyecto igual es una tarea de disciplina, no un arreglo.**
+  - **Ahora se RELLENA sola, y lo que lo hace seguro es el md5**
+    (`ProjectStore.open(..., sequence=…)`): se escribe sólo si el md5 canónico de lo que
+    se pasa es **el que el proyecto declara**, que es la misma comprobación que ya impide
+    abrir un proyecto con otra entrada. Con una secuencia que no sea la suya no se escribe
+    nada **y** se rechaza la apertura. Es una **migración de una vez**: un proyecto que ya
+    la tiene no se reescribe — `proyecto.json` es la mitad del par que el log encadena.
+  - **Y el `sequence=` viaja en el camino de verdad**, que es lo que hace que la migración
+    exista: hay **un solo sitio** donde coinciden un proyecto viejo y su entrada —el
+    `project_open` de la barra lateral, después de subir la secuencia—. Sin eso sería la
+    séptima vez de la familia de `page_run`: la capacidad escrita, probada, y sin llamador
+    donde serviría.
+  - **«3 registro(s)» → «3 anotaciones».** Se preguntó qué eran —*«de qué sirve tener
+    registros diferentes si solo se accede a uno»*— y **la pregunta es la prueba de que el
+    nombre estaba mal**: «registro» se lee como otra cosa que se puede abrir, y un proyecto
+    tiene **un** historial cuyas líneas son una corrida guardada, una selección, un cambio
+    de nombre o una nota. La cuenta la monta `presentation.project_entry_count` con su
+    singular —estaba escrita a mano en **cuatro** sitios— y `PROJECT_ENTRY_HELP` dice qué
+    es una **donde se elige el proyecto**, incluida la mitad que la pregunta pedía: *no es
+    otro proyecto ni algo que se abra por separado*.
+  - **Renombrar existía y estaba en el sitio equivocado**: sólo en «Gestionar proyectos»,
+    en la barra lateral, que no se pinta hasta **haber diseñado** — o sea que cambiar un
+    nombre exigía volver a subir la secuencia y correr el diseño entero. **El sitio donde
+    se pide un nombre es el sitio donde se leen los nombres**: el paso 0. Se renombra el
+    **elegido** y no el abierto —el nombre se cambia justo cuando no se reconoce cuál es—
+    y la fecha es **hoy y derivada**: renombrar pasa ahora, y ofrecer un calendario sería
+    una vía para apuntar el suceso en un día en que no ocurrió.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

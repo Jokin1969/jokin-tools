@@ -686,7 +686,6 @@ def block_rows(
 #: reventaria con TypeError, asi que la lista es explicita y hay test.
 COST_FIELDS = (
     "specificity_db",
-    "specificity_target",
     "transgene_db",
     "mature",
     "abundance",
@@ -3631,7 +3630,10 @@ def project_banner(store) -> dict[str, object]:
     """
     proyecto = store.project
     return {
-        "titulo": f"Proyecto **{proyecto.slug}** — {len(store.records())} registro(s)",
+        "titulo": (
+            f"Proyecto **{proyecto.slug}** — "
+            f"{project_entry_count(len(store.records()))}"
+        ),
         "fiable": bool(proyecto.reliable),
         "aviso": "" if proyecto.reliable else proyecto.why_unreliable,
     }
@@ -4058,6 +4060,36 @@ def project_list(base) -> list[dict[str, object]]:
 # `store.ProjectStore.rename`.
 
 
+#: COMO SE LLAMA UNA LINEA DEL HISTORIAL DE UN PROYECTO, en un solo sitio.
+#:
+#: Se llamaba «registro(s)» —«3 registro(s) · última 2026-09-02»— y se preguntó qué era:
+#: *«de qué sirve tener registros diferentes si solo se accede a uno»*. La pregunta es la
+#: prueba de que el nombre estaba mal: «registro» suena a **otra cosa que se puede
+#: abrir**, y no lo es. Un proyecto tiene UN historial, y esto cuenta sus LINEAS — una
+#: corrida guardada, una selección, un renombrado, una nota—, que es lo que se pierde si
+#: se borra el proyecto y lo que dice si alguien lo ha tocado.
+#:
+#: Y va en una constante, no en cuatro f-strings, porque estaba escrito en cuatro sitios:
+#: el desplegable, el cartel del proyecto abierto, el plan de borrado y su confirmación.
+PROJECT_ENTRY_WORD = "anotaciones"
+PROJECT_ENTRY_WORD_ONE = "anotación"
+
+#: Y qué es una, dicho donde se elige el proyecto. No es una definición de manual: es la
+#: contestación a la pregunta de arriba, y por eso dice también lo que NO es.
+PROJECT_ENTRY_HELP = (
+    "Cada proyecto lleva un historial propio, y una **anotación** es una línea suya: una "
+    "corrida guardada, una selección, un cambio de nombre o una nota. No es otro proyecto "
+    "ni algo que se abra por separado — se abre el proyecto y su historial viene entero."
+)
+
+
+def project_entry_count(n: int) -> str:
+    """«1 anotación» / «3 anotaciones». El singular no se deja para la página."""
+    cuantas = int(n)
+    palabra = PROJECT_ENTRY_WORD_ONE if cuantas == 1 else PROJECT_ENTRY_WORD
+    return f"{cuantas} {palabra}"
+
+
 def project_options(base) -> dict[str, object]:
     """Los proyectos para el desplegable, CON su etiqueta ya montada.
 
@@ -4071,7 +4103,7 @@ def project_options(base) -> dict[str, object]:
         trozos = [str(fila["nombre"])]
         if fila["nombre"] != fila["slug"]:
             trozos.append(f"({fila['slug']})")
-        trozos.append(f"· {fila['corridas']} registro(s)")
+        trozos.append(f"· {project_entry_count(int(fila['corridas']))}")
         trozos.append(
             f"· última {fila['ultima']}" if fila["ultima"] else "· SIN tocar"
         )
@@ -4081,6 +4113,14 @@ def project_options(base) -> dict[str, object]:
         "etiquetas": etiquetas,
         "filas": filas,
     }
+
+
+#: QUE CAMBIA Y QUE NO al renombrar, dicho junto al campo. Se lee antes de escribir el
+#: nombre, que es cuando importa: quien crea que esto mueve la carpeta no lo toca.
+PROJECT_RENAME_HELP = (
+    "Cambia el nombre VISIBLE. La carpeta se sigue llamando igual —es lo que identifica "
+    "al proyecto— y el cambio queda apuntado en su historial, con la fecha de hoy."
+)
 
 
 def project_rename(store, title: str, *, date: str) -> dict[str, object]:
@@ -4130,7 +4170,7 @@ def project_delete_plan(base, slug: str) -> dict[str, object]:
     ]
     if registros:
         lineas.append(
-            f"Se lleva {len(registros)} registro(s): "
+            f"Se lleva {project_entry_count(len(registros))}: "
             + ", ".join(f"{n} × {tipo}" for tipo, n in sorted(por_tipo.items()))
             + f"; del {min(fechas)} al {max(fechas)}." if fechas else "."
         )
@@ -4175,8 +4215,8 @@ def project_delete(base, slug: str) -> str:
             f"dar por hecho un borrado que no ocurrió."
         ) from exc
     return (
-        f"Borrado «{plan['nombre']}» (carpeta {limpio}) con sus {plan['registros']} "
-        f"registro(s). No se puede deshacer."
+        f"Borrado «{plan['nombre']}» (carpeta {limpio}) con sus "
+        f"{project_entry_count(int(plan['registros']))}. No se puede deshacer."
     )
 
 
@@ -4284,6 +4324,21 @@ PROJECT_RESUME_HELP = (
     "decidió después. Al abrirlo salen los mismos candidatos sin volver a subir nada, y "
     "lo que hagas a partir de ahí se sigue guardando en él."
 )
+
+
+#: LOS DOS BOTONES DE ZIP, CON NOMBRES QUE NO SE PUEDEN CONFUNDIR. DECIDIDO
+#: (2026-09-04). Se llamaban «Descargar todo (zip)» y «Descargar todo (.zip)» —**un punto
+#: de diferencia**— y bajan cosas distintas: uno los ficheros que acaba de generar el
+#: diseño, el otro la copia de seguridad del volumen entero.
+#:
+#: No es un detalle de estilo: con esos dos nombres, un reporte de «no me baja el zip» no
+#: identifica cuál, y **yo reproduje el que no era** —de punta a punta y midiendo— antes
+#: de darme cuenta. Que dos botones sólo se distingan por un signo de puntuación es un
+#: problema de la interfaz antes que de quien los confunde.
+#:
+#: Cada uno se llama por LO QUE BAJA, no por «todo»: qué es «todo» depende de dónde estés.
+DOWNLOAD_BUTTON_RESULTS = "Descargar los resultados del diseño (.zip)"
+DOWNLOAD_BUTTON_BACKUP = "Descargar la copia de seguridad del depósito (.zip)"
 
 
 def downloads_zip(ficheros, *, species: str, date: str) -> dict[str, object]:
@@ -4394,10 +4449,11 @@ def anatomy_from_payload(payload, source: str):
 #: No es un fallo suyo: se creo cuando el proyecto no guardaba la entrada. Y no se
 #: reconstruye nada — del md5 no sale la secuencia (regla 1).
 PROJECT_WITHOUT_ENTRY = (
-    "Este proyecto se creó antes de que la app guardara la secuencia de entrada, así que "
-    "no se puede volver a sacar su panel sin ella: súbela como siempre y el proyecto se "
-    "abrirá igual, con todo su registro. Del md5 que sí tiene guardado NO se puede "
-    "recuperar la secuencia, y no se inventa."
+    "A este proyecto le falta guardada la secuencia de entrada, así que no se puede sacar "
+    "su panel sin ella: súbela como siempre —es la misma con la que se creó— y el "
+    "proyecto se abrirá igual, con todo su registro. **Y esta vez se queda guardada**: la "
+    "próxima vez se reabre solo. Del md5 que sí tiene apuntado NO se puede recuperar la "
+    "secuencia, y no se inventa."
 )
 
 PROJECT_WITHOUT_ANATOMY = (
@@ -4708,17 +4764,23 @@ def project_create(base, *, slug: str, date: str, sequence: str, species: str,
     )
 
 
-def project_open(base, slug: str, *, expect_md5: str | None = None):
+def project_open(base, slug: str, *, expect_md5: str | None = None,
+                 sequence: str | None = None):
     """Abre un proyecto. Si se declara `expect_md5` y NO cuadra, se RECHAZA.
 
     Es el fallo del CSV de miRarchitect por la puerta de la persistencia: seguir
     apuntando corridas de OTRA secuencia en el log de esta. El log quedaria coherente de
     forma, la cadena de md5 no se romperia, y el resultado seria un proyecto que mezcla
     dos entradas sin que nada lo delate.
+
+    `sequence` es la entrada que quien abre ya tiene delante, y sirve para RELLENAR la de
+    un proyecto de antes de que se guardara (`ProjectStore.open`). Se rellena solo si su
+    md5 es el que el proyecto declara, que es la misma comprobacion que hay dos lineas
+    mas abajo — asi, una secuencia que no sea la suya no puede escribirse ni entrar.
     """
     from .store import ProjectStore
 
-    almacen = ProjectStore.open(base, check_project_slug(slug))
+    almacen = ProjectStore.open(base, check_project_slug(slug), sequence=sequence)
     # LA CADENA SE RECALCULA AL ABRIR, y hasta 2026-08-27 NO se recalculaba nunca:
     # `verify()` estaba escrita, testada, y sin ningún llamador fuera de sus tests. Es
     # el mismo patrón que `store.save_*` y que `page_run` — la cuarta vez— pero sobre un

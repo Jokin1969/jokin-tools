@@ -32,6 +32,15 @@ SONDA = "GCGTCAGTACGATCGAATTACT" * 30
 BLOQUE = "TTTTCTATATTTGTAACTTTGCATGT"
 
 
+#: EL NOMBRE DEL REGISTRO DE LA BASE FALSA SE PIDE, no se escribe. Desde 2026-09-04 la
+#: diana la declara `data/diana/variantes.toml` y el filtro la lee de ahí; una base de
+#: prueba cuyo único registro se llamara «diana» haría que la sonda diera un off-target
+#: contra sí misma y el test comprobaría lo contrario de lo que dice comprobar.
+def _accession_de_la_diana() -> str:
+    from shmir_design.specificity import target_accessions
+
+    return target_accessions("raton")[0]
+
 def piezas(seeds=None, mask=None, specificity=False, transgene=False, mirna=False):
     """`specificity=True` carga una base minima donde la unica diana es la sonda.
 
@@ -44,7 +53,7 @@ def piezas(seeds=None, mask=None, specificity=False, transgene=False, mirna=Fals
             name="base de prueba",
             version="2026-08-25",
             checksum="0" * 32,
-            records={"diana": SONDA},
+            records={_accession_de_la_diana(): SONDA},
         )
         if specificity
         else None
@@ -82,7 +91,7 @@ def piezas(seeds=None, mask=None, specificity=False, transgene=False, mirna=Fals
         mature=maduros,
         abundance=abundantes,
         specificity_db=base,
-        specificity_target="diana" if base else None,
+        species="raton",
         transgene_db=casete,
     )
     return tiling, select_from_report(tiling, SelectionConfig(n_candidates=3))

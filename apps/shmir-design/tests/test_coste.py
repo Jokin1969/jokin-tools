@@ -19,13 +19,22 @@ from shmir_design.specificity import SpecificityDatabase
 SONDA = "GCGTCAGTACGATCGAATTACT" * 12
 
 
+#: EL NOMBRE DEL REGISTRO DE LA BASE FALSA SE PIDE, no se escribe. Desde 2026-09-04 la
+#: diana la declara `data/diana/variantes.toml` y el filtro la lee de ahí; una base de
+#: prueba cuyo único registro se llamara «diana» haría que la sonda diera un off-target
+#: contra sí misma y el test comprobaría lo contrario de lo que dice comprobar.
+def _accession_de_la_diana() -> str:
+    from shmir_design.specificity import target_accessions
+
+    return target_accessions("raton")[0]
+
 def _anatomia():
     return Anatomy.whole_is_utr3(len(SONDA), source=RegionSource.TODO_3UTR_DECLARADO)
 
 
 def _base():
     return SpecificityDatabase(
-        name="sonda", version="v", checksum="0" * 32, records={"diana": SONDA}
+        name="sonda", version="v", checksum="0" * 32, records={_accession_de_la_diana(): SONDA}
     )
 
 
@@ -62,7 +71,7 @@ class TestConFiltrosCaros(unittest.TestCase):
     def test_la_especificidad_aparece_como_partida(self):
         e = estimate_cost(
             sequence=SONDA, anatomy=_anatomia(),
-            specificity_db=_base(), specificity_target="diana",
+            specificity_db=_base(), species="raton",
         )
         self.assertIn("especificidad", [i.name for i in e.items])
 

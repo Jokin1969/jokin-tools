@@ -170,6 +170,16 @@ degrada_como = "`proyecto.json` vive en un volumen y se edita ENTRE sesiones, ig
 revalida = "Cada apertura: `ProjectStore.open` recalcula el md5 de la secuencia guardada y lo compara con el que el propio fichero declara."
 
 [[guardia]]
+guardia = "Rellenar la entrada de un proyecto VIEJO sólo con la suya"
+implementa = ["store.ProjectStore._rellenar_entrada"]
+como_actua = "RECHAZA"
+protege = "Que la migración que escribe `sequence` en un proyecto de antes de ese campo (errata nº 80) no pueda meterle una secuencia que no sea la suya. Se escribe SOLO si el md5 canónico de lo que se pasa es el que el proyecto DECLARA — la misma comprobación que impide abrirlo con otra entrada, aplicada antes de escribir en vez de después."
+momento = "AL_ABRIR"
+puede_degradar = false
+degrada_como = "No se degrada: es una escritura de una sola vez, y lo escrito queda protegido a partir de ahí por el guardia de la entrada guardada, que corre en CADA apertura. NO ABORTA a propósito: con la secuencia equivocada delante, quien tiene que parar es la APERTURA —`presentation.project_open` la rechaza con su motivo— y abortar aquí daría el mismo error dos veces, una de ellas desde una migración que el usuario no ha pedido. Lo que este guardia impide es ESCRIBIR."
+revalida = "Cada apertura de un proyecto sin entrada. Una vez rellenada, la comprobación que manda es la de `ProjectStore.open`."
+
+[[guardia]]
 guardia = "Abrir un proyecto con OTRA secuencia se rechaza"
 implementa = ["presentation.project_open"]
 protege = "Que no se sigan apuntando corridas de otra secuencia en el log de ésta. La cadena de md5 no se enteraría: quedaría coherente de forma."

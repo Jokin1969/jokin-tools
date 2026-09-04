@@ -94,17 +94,20 @@ class TestCarga(unittest.TestCase):
         d = self._directorio({CASETE_FA: ">c\n" + CASETE + "\n"})
         self.assertIn("2026-08-25", load_from_manifest(d).transgene_db.provenance)
 
-    def test_el_refseq_necesita_el_gen_diana(self):
+    def test_el_refseq_SE_CONECTA_si_esta_el_fichero(self):
+        """La diana ya NO se pide aquí, y la pantalla deja de contradecirse.
+
+        Se negaba a conectarlo mientras el campo «Gen diana» estuviera vacío, así que
+        abajo el fichero salía verde —«está en el depósito»— y arriba «no se ha
+        conectado». Las dos ciertas, contestando a cosas distintas, y juntas se leen
+        como que la app se equivoca. La diana la declara `data/diana/variantes.toml` y
+        quien la lee es el filtro, que dice `NO_CIERRA` si esa especie no la tiene.
+        """
         d = self._directorio({REFSEQ_FA: ">diana\n" + SONDA + "\n"})
         recursos = load_from_manifest(d)
-        self.assertIsNone(recursos.specificity_db)
-        self.assertTrue(any("target" in n for n in recursos.notes))
-
-    def test_con_gen_diana_si_lo_carga(self):
-        d = self._directorio({REFSEQ_FA: ">diana\n" + SONDA + "\n"})
-        recursos = load_from_manifest(d, target="diana")
         self.assertIsNotNone(recursos.specificity_db)
-        self.assertEqual(recursos.specificity_target, "diana")
+        self.assertIn(REFSEQ_FA, recursos.connected)
+        self.assertFalse([n for n in recursos.notes if "diana" in n])
 
     def test_un_fichero_sin_md5_no_se_carga(self):
         tmp = tempfile.TemporaryDirectory()
@@ -142,7 +145,7 @@ class TestLoQueSeLePuedePasarATileUtr(unittest.TestCase):
 
         parametros = set(inspect.signature(tile_utr).parameters)
         for campo in (
-            "specificity_db", "specificity_target", "transgene_db", "mature",
+            "specificity_db", "transgene_db", "mature",
             "abundance", "utr3_set", "expression", "apa_sites", "mask",
         ):
             self.assertIn(campo, parametros, campo)

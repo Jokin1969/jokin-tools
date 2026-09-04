@@ -27,6 +27,15 @@ ANATOMIA = Anatomy.whole_is_utr3(
 )
 
 
+#: EL NOMBRE DEL REGISTRO DE LA BASE FALSA SE PIDE, no se escribe. Desde 2026-09-04 la
+#: diana la declara `data/diana/variantes.toml` y el filtro la lee de ahí; una base de
+#: prueba cuyo único registro se llamara «diana» haría que la sonda diera un off-target
+#: contra sí misma y el test comprobaría lo contrario de lo que dice comprobar.
+def _accession_de_la_diana() -> str:
+    from shmir_design.specificity import target_accessions
+
+    return target_accessions("raton")[0]
+
 def _utrs():
     return Utr3Set(
         # Pares, no diccionario: un identificador se repite legitimamente en este
@@ -37,7 +46,7 @@ def _utrs():
 
 def _base():
     return SpecificityDatabase(
-        name="sonda", version="v", checksum="0" * 32, records={"diana": SONDA}
+        name="sonda", version="v", checksum="0" * 32, records={_accession_de_la_diana(): SONDA}
     )
 
 
@@ -63,15 +72,26 @@ class TestCostText(unittest.TestCase):
         texto = cost_text(SONDA, anatomy=ANATOMIA, resources=ResourceSet(utr3_set=_utrs()))
         self.assertIn("carga_seed", texto)
 
-    def test_la_especificidad_necesita_diana_y_base(self):
-        conjunto = ResourceSet(specificity_db=_base(), specificity_target="diana")
-        self.assertIn("especificidad", cost_text(SONDA, anatomy=ANATOMIA, resources=conjunto))
+    def test_con_la_base_cargada_la_especificidad_SE_ESTIMA(self):
+        """Ya no hace falta una diana tecleada, así que con la base basta.
 
-    def test_una_base_sin_diana_no_estima_especificidad(self):
-        # Es el mismo criterio que aplica `tile_utr`: sin diana el filtro no corre, asi
-        # que estimar su coste seria presupuestar un trabajo que no se va a hacer.
+        Aquí había DOS tests que construían el mismo `ResourceSet` y afirmaban lo
+        contrario —«necesita diana y base» y «una base sin diana no estima»—, porque el
+        segundo se escribió cuando la diana era un campo de la barra lateral. Desde
+        2026-09-04 la declara `data/diana/variantes.toml` y el filtro la lee de ahí, así
+        que una base cargada SIEMPRE se va a recorrer y estimar su coste es presupuestar
+        trabajo que sí se va a hacer.
+        """
+        conjunto = ResourceSet(specificity_db=_base())
+        self.assertIn(
+            "especificidad", cost_text(SONDA, anatomy=ANATOMIA, resources=conjunto)
+        )
+
+    def test_y_SIN_base_no_se_estima(self):
+        # La otra mitad, que es la que de verdad discrimina: lo que quita la partida es
+        # que no haya fichero, no que falte un campo.
         self.assertNotIn(
-            "especificidad", cost_text(SONDA, anatomy=ANATOMIA, resources=ResourceSet(specificity_db=_base()))
+            "especificidad", cost_text(SONDA, anatomy=ANATOMIA, resources=ResourceSet())
         )
 
     def test_avisa_de_que_la_mascara_no_esta_contada(self):

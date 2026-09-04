@@ -117,21 +117,29 @@ class TestFicherosDeReferencia(unittest.TestCase):
         app = self.run_app()
         etiquetas = [w.label for w in app.checkbox] + [w.label for w in app.sidebar.checkbox]
         etiquetas += [w.label for w in app.sidebar.text_input]
-        for esperado in ("Gen diana (accession)", "Calcular accesibilidad (lento)"):
-            with self.subTest(esperado):
-                self.assertIn(esperado, etiquetas)
+        # «Gen diana (accession)» ya no está: la diana la declara
+        # `data/diana/variantes.toml` y pedirla además a mano eran dos respuestas a la
+        # misma pregunta, ganando la peor (una variante, sin procedencia).
+        self.assertIn("Calcular accesibilidad (lento)", etiquetas)
+        self.assertNotIn("Gen diana (accession)", etiquetas)
 
     def test_la_accesibilidad_arranca_apagada(self):
         app = self.run_app()
         valores = {w.label: w.value for w in app.sidebar.checkbox}
         self.assertFalse(valores["Calcular accesibilidad (lento)"])
 
-    def test_el_gen_diana_arranca_vacio(self):
-        # Si trajera un accession por defecto, la especificidad se correria contra una
-        # diana que nadie ha declarado. Vacio significa vacio.
+    def test_la_diana_NO_se_pide_en_ningun_campo(self):
+        """La única forma de declararla es su tabla. Y eso se comprueba, no se supone.
+
+        El campo pedía UN accession a mano para algo que `data/diana/variantes.toml` ya
+        declara por especie, con TODAS sus variantes y con procedencia. Un campo que
+        vuelva a aparecer sería la segunda respuesta otra vez.
+        """
         app = self.run_app()
-        valores = {w.label: w.value for w in app.sidebar.text_input}
-        self.assertEqual(valores["Gen diana (accession)"], "")
+        etiquetas = [w.label for w in app.sidebar.text_input] + [
+            w.label for w in app.text_input
+        ]
+        self.assertFalse([e for e in etiquetas if "diana" in e.lower()], etiquetas)
 
     def test_sin_especie_NO_se_llega_al_gestor_y_se_dice_por_que(self):
         # Con el panel en la barra lateral salía siempre, con un «elige una especie».

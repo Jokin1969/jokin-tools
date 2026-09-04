@@ -31,6 +31,15 @@ from shmir_design.tiling import tile_utr
 SONDA = "GCGTCAGTACGATCGAATTACT" * 20
 
 
+#: EL NOMBRE DEL REGISTRO DE LA BASE FALSA SE PIDE, no se escribe. Desde 2026-09-04 la
+#: diana la declara `data/diana/variantes.toml` y el filtro la lee de ahí; una base de
+#: prueba cuyo único registro se llamara «diana» haría que la sonda diera un off-target
+#: contra sí misma y el test comprobaría lo contrario de lo que dice comprobar.
+def _accession_de_la_diana() -> str:
+    from shmir_design.specificity import target_accessions
+
+    return target_accessions("raton")[0]
+
 def _piezas(**kwargs):
     tiling = tile_utr(SONDA, **kwargs)
     return tiling, select_from_report(tiling, SelectionConfig(n_candidates=3))
@@ -110,9 +119,9 @@ class TestFilas(unittest.TestCase):
     def test_con_especificidad_los_recuentos_salen(self):
         base = SpecificityDatabase(
             name="base de prueba", version="v", checksum="0" * 32,
-            records={"diana": SONDA},
+            records={_accession_de_la_diana(): SONDA},
         )
-        _, seleccion = _piezas(specificity_db=base, specificity_target="diana")
+        _, seleccion = _piezas(specificity_db=base, species="raton")
         filas = comparative_rows(seleccion, SGEP_SCAFFOLD)
         indice = filas[0].index("especificidad_0mm")
         self.assertTrue(any(fila[indice] != "" for fila in filas[1:]))

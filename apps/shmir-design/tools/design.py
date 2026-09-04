@@ -471,9 +471,6 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--refseq-version", help="Versión o fecha de descarga")
     parser.add_argument("--refseq-md5", help="md5 esperado; si no cuadra, PARA")
     parser.add_argument(
-        "--target", help="Accession del gen diana, para no contarlo como off-target"
-    )
-    parser.add_argument(
         "--mirbase", type=Path,
         help="mature.fa de miRBase. Con el corre `seed_colision` en sus dos niveles y "
              "se retira el filtro `seed` de la lista de arranque.",
@@ -787,11 +784,6 @@ def main(argv: list[str]) -> int:
                     "--refseq necesita --refseq-version: sin procedencia el veredicto "
                     "de especificidad no es auditable."
                 )
-            if not args.target:
-                raise ValueError(
-                    "--refseq necesita --target con el accession del gen diana: sin el, "
-                    "todo sitio parece un off-target."
-                )
             refseq = load_database(
                 args.refseq,
                 name=args.refseq_name,
@@ -922,7 +914,6 @@ def main(argv: list[str]) -> int:
                         tile_range=rangos[especie],
                         thresholds=thresholds,
                         specificity_db=refseq,
-                        specificity_target=args.target,
                         transgene_db=transgen_db,
                         mature=maduros,
                         abundance=abundantes,
@@ -973,7 +964,6 @@ def main(argv: list[str]) -> int:
                 expression=expresion,
                 accessibility=args.accesibilidad,
                 apa_sites=apa_sitios,
-                specificity_target=args.target,
                 thresholds=thresholds,
             )
             seleccion = select_from_report(tiling, config)

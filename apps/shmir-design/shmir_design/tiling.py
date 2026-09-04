@@ -473,7 +473,6 @@ def tile_utr(
     tile_range: TileRange | None = None,
     polya_mode: PolyAMode = PolyAMode.ESCALONADO,
     specificity_db: SpecificityDatabase | None = None,
-    specificity_target: str | None = None,
     transgene_db: SpecificityDatabase | None = None,
     mature: MatureSet | None = None,
     abundance: AbundanceList | None = None,
@@ -603,11 +602,10 @@ def tile_utr(
         )
     annotated = annotate_3utr(windows, signals, len(cleaned), anatomy=anatomy)
 
-    if specificity_db is not None and not specificity_target:
-        raise ValueError(
-            "Con base de especificidad hay que declarar el gen diana "
-            "(specificity_target): sin el, todo sitio parece un off-target."
-        )
+    # LA DIANA YA NO SE PASA: sale de `data/diana/variantes.toml` por la ESPECIE, que
+    # es lo que este informe ya lleva. Antes se exigia aqui un accession tecleado y se
+    # abortaba sin el; hoy, sin declaracion, el filtro emite `NO_CIERRA` con el motivo —
+    # que es informacion y no un veto. Ver `specificity.filter_specificity`.
 
     tiled: list[TiledWindow] = []
     for anotada in annotated.windows:
@@ -761,7 +759,7 @@ def tile_utr(
                     evaluation.guide.replace("U", "T"),
                     passenger_from_guide(evaluation.guide).sequence,
                     specificity_db,
-                    target=specificity_target,
+                    species=species,
                 )
                 especificidad = especificidad_detalle.as_filter()
 

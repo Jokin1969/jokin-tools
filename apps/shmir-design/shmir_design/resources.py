@@ -29,12 +29,17 @@ from .errors import ShmirDesignError
 
 
 def _refseq(path, entry, contexto):
-    if not contexto.get("target"):
-        raise _Omitir(
-            "hace falta el gen diana (--target / el campo de la interfaz): es un "
-            "accession, no un fichero, y el manifiesto no lo sabe. Sin el, todo sitio "
-            "parece un off-target."
-        )
+    """La base de RefSeq se conecta si ESTÁ. La diana ya no se pide aquí.
+
+    Se negaba a conectarla mientras el campo «Gen diana» estuviera vacío, y eso producía
+    una pantalla que se contradecía: abajo el fichero en verde («está en el depósito») y
+    arriba «refseq_rna.fa no se ha conectado». Las dos ciertas, contestando a cosas
+    distintas, y juntas se leen como que la app se equivoca.
+
+    Son dos preguntas y ahora cada una se contesta donde toca: **el fichero**, aquí; **la
+    diana**, en `data/diana/variantes.toml`, y si esa especie no la declara lo dice el
+    veredicto del filtro con `NO_CIERRA` — no la lista de conectados.
+    """
     return load_database(
         path, name="RefSeq RNA", version=entry.date or entry.md5, expected_md5=entry.md5
     )
@@ -200,7 +205,6 @@ class ResourceSet:
     """Lo que se le puede pasar a `tile_utr`, mas de donde salio cada cosa."""
 
     specificity_db: object | None = None
-    specificity_target: str | None = None
     transgene_db: object | None = None
     mature: object | None = None
     abundance: object | None = None
@@ -219,7 +223,6 @@ class ResourceSet:
         """Los campos que `tile_utr` entiende, y solo esos."""
         return {
             "specificity_db": self.specificity_db,
-            "specificity_target": self.specificity_target,
             "transgene_db": self.transgene_db,
             "mature": self.mature,
             "abundance": self.abundance,
@@ -275,7 +278,7 @@ def roles_for_species(estado: DirectoryStatus, especie) -> dict:
 
 
 def load_from_manifest(
-    directory: Path | str, *, target: str | None = None, ignore=(), species=None
+    directory: Path | str, *, ignore=(), species=None
 ) -> ResourceSet:
     """Carga todo lo que este en OK en ese directorio. Lo que no, se anota.
 
@@ -304,7 +307,9 @@ def load_from_manifest(
     cargado: dict[str, object] = {}
     conectados: list[str] = []
     notas: list[str] = []
-    contexto: dict[str, object] = {"target": target}
+    # NINGUN cargador pide ya la diana: la unica forma de declararla es
+    # `data/diana/variantes.toml`, y quien la lee es el filtro, no esto.
+    contexto: dict[str, object] = {}
 
     for role, destino in DESTINOS:
         rol = disponibles.get(role)
@@ -327,7 +332,6 @@ def load_from_manifest(
         conectados.append(rol.filename)
 
     return ResourceSet(
-        specificity_target=target if cargado.get("specificity_db") else None,
         connected=tuple(conectados),
         notes=tuple(notas),
         status=estado,

@@ -513,9 +513,22 @@ def filter_specificity(
     passenger: str | None,
     database: SpecificityDatabase | None,
     *,
-    target: str,
+    species: str,
 ) -> SpecificityResult:
-    """Filtro de especificidad. Sin base de datos: NOT_RUN, nunca PASS."""
+    """Filtro de especificidad. Sin base de datos: NOT_RUN, nunca PASS.
+
+    **LA DIANA SALE DE `data/diana/variantes.toml`, no de un campo tecleado. DECIDIDO
+    (2026-09-04).** Antes esto exigia un `target` —UN accession, escrito a mano en la
+    barra lateral— y abortaba sin el; el veredicto de una corrida de BLAST, en cambio, ya
+    usaba `target_accessions(especie)`: la lista COMPLETA de variantes, declarada con su
+    procedencia (errata nº 56). Eran **dos respuestas a la misma pregunta** y ganaba la
+    manual, que ademas es la peor de las dos: una variante en vez de todas y sin
+    procedencia.
+
+    Sin declaracion NO se aborta: se emite `NO_CIERRA` con el motivo, igual que alli.
+    Abortar dejaria sin diseñar a una especie por algo que no impide proponer candidatos,
+    y un `PASS` seria el colador que `target_accessions` existe para impedir.
+    """
     if database is None:
         return SpecificityResult(
             state=FilterState.NOT_RUN,
@@ -525,11 +538,20 @@ def filter_specificity(
                 f"base ausente nunca se convierten en PASS. {SEED_CAVEAT}"
             ),
         )
-    if not target or not target.strip():
-        raise ValueError(
-            "Hay que declarar el gen diana: sin el, todo sitio parece un off-target y "
-            "el filtro no significa nada. Se aborta."
+    try:
+        dianas = target_accessions(species)
+    except ShmirDesignError as exc:
+        # rule2-ok: no se traga nada. El motivo entero viaja al veredicto, y el estado
+        # dice que la corrida se hizo y NO cierra el frente — que es distinto de que
+        # falte el fichero, y aqui el fichero esta.
+        return SpecificityResult(
+            state=FilterState.NO_CIERRA,
+            reason=(
+                f"La base está cargada y el filtro no puede dar veredicto: {exc} "
+                f"{SEED_CAVEAT}"
+            ),
         )
+    target = ", ".join(dianas)
 
     crudos: list[tuple[str, Hit]] = []
     for origen, sonda in (("guia", guide), ("pasajera", passenger)):
@@ -555,7 +577,7 @@ def filter_specificity(
     # el invariante de montaje no aplica — y no haberlo comprobado no es que coincida.
     fallo = judge_hits(
         antisentido,
-        target_accessions=(target,),
+        target_accessions=dianas,
         # De la sonda MAS CORTA de las que se escanearon: aqui todo hit mide lo que su
         # sonda, asi que este minimo no puede descartar ninguno legitimo — y sigue
         # derivandose en vez de escribirse.

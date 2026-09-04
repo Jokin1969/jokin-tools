@@ -3863,3 +3863,163 @@ contradecía a la vez al color declarado al lado y al texto de la propia fila.
 Ahora es **➖**, que se lee como «no aplica» — que es lo que es — y no compite con el ⚪ de
 `OPCIONAL`. Es la lección del principio nº 11 en la capa visual: cuando el código y lo que
 se ve dicen cosas distintas del mismo hecho, lo que alguien va a leer es lo que se ve.
+
+## 78 — Dos botones que bajan cosas distintas se llamaban igual menos un punto
+
+De la errata nº 76, y va aparte porque la lección es de interfaz y no del zip.
+
+«Descargar todo (zip)» y «Descargar todo (.zip)». **Un punto de diferencia**, y bajan
+cosas distintas: uno los ficheros que acaba de generar el diseño, el otro la copia de
+seguridad del volumen entero.
+
+Con esos dos nombres, un reporte de «no me baja el zip» **no identifica cuál**, y por eso
+reproduje el que no era de punta a punta antes de darme cuenta. Que dos botones sólo se
+distingan por un signo de puntuación es **un problema de la interfaz antes que de quien
+los confunde** — lo dijo quien lo reportó y es exactamente así.
+
+Ahora cada uno se llama por **lo que baja**, no por «todo» — qué es «todo» depende de
+dónde estés en la página:
+
+- **«Descargar los resultados del diseño (.zip)»**
+- **«Descargar la copia de seguridad del depósito (.zip)»**
+
+Y con guardia mecánico (`tests/test_dos_botones_NO_se_llaman_igual.py`): **ninguna pareja
+de etiquetas de descarga puede ser la misma tras quitar la puntuación**. No protege sólo a
+estos dos — mide la distancia entre las etiquetas que encuentra, así que el día que entre
+un tercer zip se entera. Con su control adversario: el par de antes tiene que chocar, y hay
+un test de que el detector encuentra etiquetas (si dejara de encontrarlas, «ningún par
+choca» y «no miré» darían el mismo verde).
+
+## 79 — La diana se pedía a mano y ya estaba declarada: dos respuestas y ganaba la peor
+
+**Decidido (2026-09-04)**, y arrancó de una pregunta: «explícame por qué pone
+*refseq_rna.fa no se ha conectado: hace falta el gen diana*».
+
+`refseq_rna.fa` **estaba en el depósito** —salía en verde en el panel de refinamiento— y
+aun así `resources._refseq` se negaba a conectarlo mientras el campo «Gen diana
+(accession)» de la barra lateral estuviera vacío. Al explicarlo salieron dos cosas peores
+que el aviso.
+
+### 1. Eran DOS definiciones de «cuál es mi diana», y la manual ganaba
+
+- El veredicto de una corrida de BLAST usa `specificity.target_accessions(especie)`: la
+  lista **completa** de variantes de transcrito, declarada en `data/diana/variantes.toml`
+  con su procedencia (errata nº 56).
+- `filter_specificity` exigía un `target` **tecleado**, **uno solo**, y abortaba sin él.
+
+El patrón de siempre —un dato declarado que además se pide a mano— con el agravante de que
+**la que se pedía era la peor de las dos**: una variante en vez de todas, escrita sin
+procedencia y sin nada que la ate a la tabla.
+
+Ahora el filtro recibe la **especie** y lee la tabla. `--target` se retira del CLI y el
+campo se va de la barra lateral: **la única forma de declarar la diana es esa tabla**.
+
+### 2. Sin declaración NO se aborta: `NO_CIERRA` con el motivo
+
+Igual que en BLAST. Abortar dejaría sin diseñar a una especie por algo que no impide
+proponer candidatos; un `PASS` sería el colador que `target_accessions` existe para
+impedir. `NO_CIERRA` ya es el estado de «la corrida se hizo y no cierra el frente», y aquí
+es literalmente eso.
+
+### 3. La pantalla se contradecía, y eso es un fallo por sí solo
+
+Abajo el fichero en verde —«está en el depósito»— y arriba «`refseq_rna.fa` no se ha
+conectado». **Las dos ciertas**, contestando a preguntas distintas, y juntas se leen como
+que la app se equivoca. Ahora cada pregunta se contesta donde toca: **el fichero**, en la
+lista de conectados; **la diana**, en el veredicto del filtro, que dice qué falta —la
+declaración, no el fichero— en vez de dejarlo deducir.
+
+### Lo que salió al arreglarlo
+
+Cuatro ficheros de test montaban su base de datos falsa con un único registro llamado
+**`"diana"`**, que era el `--target` que le pasaban. Al derivar la diana de la tabla, esa
+base pasó a no contener ninguna variante declarada — así que la sonda daba un off-target
+**contra sí misma** y el semáforo se ponía ámbar. El nombre del registro se **pide** ahora
+a `target_accessions("raton")` en vez de escribirse: un test que escribe la clave por la
+que pregunta coincide por construcción (principio nº 25).
+
+Y en `test_presentacion_coste.py` había **dos tests que construían el mismo `ResourceSet`
+y afirmaban lo contrario** —«necesita diana y base» y «una base sin diana no estima»—
+porque el segundo se escribió cuando la diana era un campo. Ninguno de los dos podía
+delatar al otro mientras el campo existiera.
+
+## 80 — El aviso fechaba la causa, no decía qué hacer, y encima no se arreglaba nunca
+
+**Reportado con la captura (2026-09-04)**: se elige `Intento_17` —tres líneas de
+historial, última actividad 2026-09-02— y sale «Este proyecto se creó **antes de que la
+app guardara la secuencia de entrada**». Y la pregunta: *«no parece cierto que ese
+proyecto se creara cuando dice el comentario»*.
+
+### El mensaje era CIERTO y aun así estaba mal
+
+Cierto porque el campo `sequence` entró en `proyecto.json` **el 2026-09-04** (errata
+nº 72), así que cualquier proyecto anterior —incluido uno de anteayer— no lo tiene. Que
+suene a «hace mucho» es cosa de la frase, no del hecho.
+
+Y estaba mal por dos razones independientes:
+
+1. **fecha la causa en vez de decir qué hacer.** «Se creó antes de que la app guardara X»
+   invita a comprobar cuándo se creó, que es información que no sirve para nada: lo que
+   hay que saber es que falta la entrada y que se arregla subiéndola. El mensaje mandaba
+   a mirar el sitio equivocado — la misma familia que el «comprueba que Streamlit está
+   instalado» pegado a un conflicto de configuración;
+2. **y no se arreglaba.** Subir la secuencia abría el proyecto, sí, pero **no la
+   guardaba**: al día siguiente salía el mismo aviso. Un mensaje que dice «súbela como
+   siempre» y deja el proyecto igual que estaba es **una tarea de disciplina, no un
+   arreglo**.
+
+### Ahora se rellena sola, y lo que lo hace seguro es el md5
+
+`ProjectStore.open(..., sequence=…)`: si el proyecto no tiene entrada y el md5 canónico
+de la que se le pasa es **el que el proyecto declara**, se escribe. Esa comprobación es la
+misma que ya impide abrir un proyecto con otra entrada, así que rellenar **no puede** meter
+una secuencia que no sea la suya — y con una que no lo sea no se escribe nada y además se
+rechaza la apertura.
+
+Es una **migración de una vez**, no una escritura en cada apertura: un proyecto que ya la
+tiene no se reescribe. `proyecto.json` es la mitad del par que el log encadena, y tocarlo
+sin motivo es ruido en lo que se lee para saber qué pasó.
+
+### Y el argumento que faltaba: la sexta vez de la familia
+
+La capacidad no vale nada si no corre en el camino de verdad, y **hay un solo sitio de la
+app donde coinciden un proyecto viejo y su entrada**: el `project_open` de la barra
+lateral, después de subir la secuencia. Si el `sequence=` no viaja ahí, la migración no
+corre nunca y el aviso sale otra vez mañana — exactamente el patrón de `page_run`,
+`store.save_*` y el `stores=` que no se pasaba.
+
+## 81 — «3 registro(s)»: el nombre hacía la pregunta imposible de no hacerse
+
+**Preguntado (2026-09-04)**: *«me explicas el concepto de "registro(s)". De qué sirve
+tener registros diferentes si solo se accede a uno. O quizás no entiendo su
+significado»*.
+
+**La pregunta es la prueba de que el nombre estaba mal**, y no había ningún malentendido
+que deshacer: en el desplegable de proyectos, «registro» se lee como **otra cosa que se
+puede abrir** —otro proyecto, otra corrida guardada aparte— y no lo es. Un proyecto tiene
+**un** historial, y ese número cuenta sus **líneas**: una corrida guardada, una selección,
+un cambio de nombre, una nota.
+
+Se llaman **anotaciones**, y la cuenta la monta `presentation.project_entry_count` — con
+su singular, que estaba escrito a mano en cuatro sitios (`registro(s)` en el desplegable,
+el cartel del proyecto abierto, el plan de borrado y su confirmación). Y qué es una va
+dicho **donde se elige el proyecto** (`PROJECT_ENTRY_HELP`), con la mitad que la pregunta
+pedía: *no es otro proyecto ni algo que se abra por separado*.
+
+## 82 — Renombrar un proyecto exigía volver a diseñarlo entero
+
+**Pedido (2026-09-04)**: «¿me podrías añadir algo para editar el nombre del proyecto?».
+
+Y la capacidad **existía**: `store.rename` cambia el nombre visible, deja el slug en paz y
+apunta el cambio en el log con su fecha (errata nº 64). Lo que estaba mal era **dónde**:
+el único control vivía en el desplegable «Gestionar proyectos» de la barra lateral, y esa
+barra sólo se pinta **después de haber diseñado**. O sea que para cambiarle el nombre a un
+proyecto había que subir otra vez la secuencia y correr el diseño entero.
+
+**El sitio donde se pide un nombre es el sitio donde se leen los nombres**: el paso 0, con
+el desplegable delante. Y se renombra el **elegido**, no el abierto — el nombre se cambia
+justo cuando no se reconoce cuál es, o sea antes de abrirlo.
+
+La fecha es **hoy y derivada** (`today_text()`), no un calendario: renombrar pasa ahora, y
+ofrecer elegir la fecha sería una vía para apuntar el suceso en un día en que no ocurrió
+— la misma razón por la que crear un proyecto y guardar una corrida vienen con hoy puesto.

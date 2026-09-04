@@ -510,11 +510,6 @@ consecuencia = "VEREDICTO"
 que_hace = "lo desconecta todo: deja los frentes en NOT_RUN"
 
 [[bandera]]
-bandera = "design:--target"
-consecuencia = "VEREDICTO"
-que_hace = "el gen diana, para no contarlo como off-target"
-
-[[bandera]]
 bandera = "design:--tile-coords"
 consecuencia = "VEREDICTO"
 que_hace = "en qué marco van esos límites"

@@ -1441,3 +1441,49 @@ Es el mismo criterio que separa `NOT_RUN` de `NO_APLICA`, y que separa `None` de
 `frozenset()` en el acotado de la carga de seed: **dos cosas distintas no pueden compartir
 valor**. Aquí la que se colaba era una tercera —«no te he entendido la pregunta»—
 compartiendo valor con «no hay corrida».
+
+## 30 — Un fallo que depende del TAMAÑO no se reproduce con un fixture pequeño, y el determinismo no es estética
+
+Sale de la errata nº 76, y son dos lecciones que van juntas porque el mismo fallo las
+enseña por los dos lados.
+
+### La primera: el fixture pequeño da un verde falso
+
+Reproduje la descarga del zip **de punta a punta, con un navegador de verdad, midiendo**,
+y salió perfecta: 1,19 MB, 28 entradas, nombre correcto. Y el fallo estaba ahí todo el
+rato. Lo que separaba mi prueba del caso real no era el camino —era **el tamaño**: la
+carrera entre la descarga en curso y el repintado que borra el fichero la gana la descarga
+cuando dura 200 ms y la pierde cuando dura veinte segundos.
+
+O sea: **una reproducción que sale bien con un fixture pequeño no descarta un fallo que
+depende del tamaño**, y creer que sí es peor que no haber probado — porque cierra la
+investigación. La contramedida es preguntarse siempre, antes de dar por bueno un verde:
+*¿de qué magnitud depende esto, y la he variado?* Si la respuesta es que no, lo que se ha
+comprobado es que el camino existe, no que funcione.
+
+Es hermana del principio nº 3 —no dar por buena una causa sin comprobarla— aplicada al
+otro lado: **tampoco se da por buena una AUSENCIA de causa** medida en un solo punto de un
+eje que sí importa.
+
+### La segunda: un artefacto que cambia de bytes sin cambiar de contenido rompe todo lo
+que lo identifique por su contenido
+
+Poner fecha fija en el zip parece una corrección estética —«que salga igual, queda más
+limpio»— y no lo es. En cuanto **algo identifica ese artefacto por su contenido**, dos
+construcciones del mismo contenido son dos artefactos distintos:
+
+- Streamlit deriva el id de un descargable de su md5, así que el que se está bajando queda
+  huérfano y lo borra el recolector;
+- lo mismo le pasaría a cualquier caché, a cualquier deduplicación y a cualquier
+  comprobación de integridad que alguien quiera hacer sobre el fichero entregado.
+
+**La regla: si un artefacto se va a identificar, transportar o comprobar por su contenido,
+tiene que ser función de su contenido y de nada más.** El reloj no es contenido.
+
+### Y el corolario que salió al aplicarlo: fijar no es poner a cero
+
+La marca de tiempo **no se pone a cero**: se deriva de la fecha declarada. Dos copias de
+seguridad de días distintos tienen que seguir siendo **dos ficheros distintos** — si no,
+no hay forma de saber cuál es cuál, y la que se conserva no dice de cuándo es. Lo que se
+quita es la parte que cambia sin que nadie haya cambiado nada; lo que identifica de verdad
+se queda.

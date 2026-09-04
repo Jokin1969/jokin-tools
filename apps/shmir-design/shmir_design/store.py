@@ -222,7 +222,26 @@ class ProjectStore:
         return cls(root=raiz, project=proyecto)
 
     @classmethod
-    def open(cls, base: Path | str, slug: str) -> "ProjectStore":
+    def open(cls, base: Path | str, slug: str, *,
+             sequence: str | None = None) -> "ProjectStore":
+        """Abre el proyecto y, si es de ANTES de guardar la entrada, la RELLENA.
+
+        `sequence` es la secuencia que quien abre ya tiene delante. Un proyecto creado
+        antes de que existiera el campo `sequence` no se puede reabrir solo, y hasta hoy
+        eso no se arreglaba nunca: se subia la secuencia, el proyecto se abria, y al dia
+        siguiente salia el mismo aviso. Un mensaje que dice «subela como siempre» y deja
+        el proyecto igual que estaba es una tarea de disciplina, no un arreglo.
+
+        **Lo que hace seguro rellenar es el md5**, que es la misma comprobacion que ya
+        impide abrir un proyecto con otra entrada: solo se escribe si el md5 canonico de
+        lo que se pasa es el que el proyecto DECLARA. Con cualquier otra secuencia no se
+        escribe nada — y quien la haya pasado se lleva ademas el rechazo de
+        `presentation.project_open`.
+
+        Es una MIGRACION DE UNA VEZ, no una escritura en cada apertura: un proyecto que
+        ya tiene su entrada no se reescribe. `proyecto.json` es la mitad del par que el
+        log encadena, y tocarlo sin motivo es ruido en lo que se lee para saber que paso.
+        """
         raiz = Path(base) / slug
         fichero = raiz / PROJECT_FILE
         if not fichero.is_file():
@@ -254,9 +273,29 @@ class ProjectStore:
                     f"cambiada, los candidatos saldrian con la forma correcta sobre otra "
                     f"secuencia y no habría nada que lo dijera."
                 )
+        if not proyecto.sequence and sequence:
+            proyecto = cls._rellenar_entrada(fichero, proyecto, sequence)
         almacen = cls(root=raiz, project=proyecto)
         almacen._load()
         return almacen
+
+    @staticmethod
+    def _rellenar_entrada(fichero: Path, proyecto: "Project", sequence: str) -> "Project":
+        """Escribe la entrada en un proyecto que no la tenia, SI es la suya."""
+        from .reference import canonical_form, sequence_md5  # noqa: PLC0415
+
+        limpia = "".join(str(sequence).split()).upper()
+        if not limpia or sequence_md5(canonical_form(limpia)) != proyecto.sequence_md5:
+            # No es la suya: no se escribe. Quien decide que hacer con eso es quien
+            # abre —`presentation.project_open` lo RECHAZA— y aqui lo unico que importa
+            # es no dejar en el fichero una secuencia que el proyecto no declara.
+            return proyecto
+        relleno = replace(proyecto, sequence=limpia)
+        fichero.write_text(
+            json.dumps(relleno.as_dict(), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return relleno
 
     # ── el log ───────────────────────────────────────────────────────────────
     @property

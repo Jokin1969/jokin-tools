@@ -67,6 +67,8 @@ from shmir_design.presentation import (  # noqa: E402
     project_create,
     project_list,
     PAGE_COLORS,
+    PROJECT_ENTRY_HELP,
+    PROJECT_RENAME_HELP,
     PROJECT_RESUMED_NOTE,
     PROJECT_RESUME_HELP,
     project_open,
@@ -81,6 +83,8 @@ from shmir_design.presentation import (  # noqa: E402
     project_delete_plan,
     project_delete,
     date_text,
+    DOWNLOAD_BUTTON_BACKUP,
+    DOWNLOAD_BUTTON_RESULTS,
     downloads_zip,
     today_text,
     DATE_PICKER_NOTE,
@@ -837,8 +841,16 @@ def _panel_proyecto(especie: str, secuencia: str, anat, *, retomado=None):
             # El md5 se comprueba: seguir apuntando corridas de OTRA secuencia en este
             # log lo dejaría coherente de forma y nada lo delataría. Y se comprueba en
             # CADA rerun, que es por lo que se recuerda el slug y no el almacén.
+            # LA SECUENCIA VIAJA, y no es para comprobar —eso ya lo hace `expect_md5`—
+            # sino para RELLENAR la de un proyecto de antes de que se guardara. Es el
+            # único sitio de la app donde hay a la vez un proyecto viejo y su entrada
+            # delante, así que si no se pasa aquí la migración no corre nunca: un aviso
+            # que dice «súbela como siempre» y deja el proyecto igual sale otra vez
+            # mañana. Sexta vez de la familia de `page_run` — la capacidad escrita y sin
+            # llamador en el camino de verdad.
             almacen = project_open(
-                raiz, plan["slug"], expect_md5=sequence_md5(secuencia)
+                raiz, plan["slug"], expect_md5=sequence_md5(secuencia),
+                sequence=secuencia,
             )
     except (ShmirDesignError, ValueError, OSError) as exc:
         # rule2-ok: frontera de la interfaz. El fallo se enseña entero.
@@ -978,7 +990,7 @@ def _descargar_todo(directorio) -> None:
     if copia is not None:
         st.success(copia["texto"])
         st.download_button(
-            "Descargar todo (.zip)", data=copia["datos"],
+            DOWNLOAD_BUTTON_BACKUP, data=copia["datos"],
             file_name=copia["nombre"], mime="application/zip", key="bk_dl",
         )
 
@@ -1287,7 +1299,17 @@ def _paso_cero_proyecto():
         if elegido == PROJECT_RESUME_NONE:
             st.session_state.pop("p0_retomado", None)
 
+        # EL NOMBRE SE CAMBIA AQUI, que es donde se LEEN los nombres. Renombrar existia
+        # solo en «Gestionar proyectos», en la barra lateral — y esa barra no aparece
+        # hasta haber diseñado, asi que para cambiarle el nombre a un proyecto habia que
+        # volver a subir la secuencia y correr el diseño entero.
+        #
+        # Se renombra el ELEGIDO y no el abierto: el nombre se cambia justo cuando no se
+        # reconoce cual es, o sea ANTES de abrirlo.
         slug = st.session_state.get("p0_retomado", "")
+        objetivo = slug or ("" if elegido == PROJECT_RESUME_NONE else elegido)
+        if objetivo:
+            _renombrar(raiz, objetivo, catalogo)
         if not slug:
             return None
         try:
@@ -1317,6 +1339,47 @@ def _paso_cero_proyecto():
             st.session_state.pop("p0_retomado", None)
             st.rerun()
         return vuelta
+
+
+def _renombrar(raiz, slug: str, catalogo) -> None:
+    """Cambiar el nombre visible de un proyecto, donde se elige el proyecto.
+
+    **Pedido (2026-09-04)**: «¿me podrías añadir algo para editar el nombre del
+    proyecto?». Lo que faltaba no era la capacidad —`store.rename` existe y apunta el
+    cambio en el log— sino el SITIO: estaba detrás de haber diseñado.
+
+    La pagina no escribe nada: `presentation.project_rename` es quien toca el proyecto y
+    quien deja el suceso fechado en su historial (regla 6).
+    """
+    nombres = {str(f["slug"]): str(f["nombre"]) for f in catalogo["filas"]}
+    with st.expander(f"Cambiar el nombre de «{nombres.get(slug, slug)}»"):
+        st.caption(PROJECT_ENTRY_HELP)
+        # LA CONFIRMACION SOBREVIVE AL REPINTADO. La etiqueta del desplegable se monta
+        # arriba, asi que hay que repintar para que enseñe el nombre nuevo — y sin esto
+        # el cartel que dice que ha cambiado se iria con el repintado. Mismo mecanismo
+        # que `_guardar_corrida` (errata nº 54).
+        hecho_antes = st.session_state.pop("p0_renombrado", "")
+        if hecho_antes:
+            st.success(hecho_antes)
+        nombre = st.text_input(
+            "Nombre visible", value=nombres.get(slug, slug),
+            key=f"p0_nom_{slug}", help=PROJECT_RENAME_HELP,
+        )
+        if not st.button("Guardar el nombre", key=f"p0_ren_{slug}"):
+            return
+        try:
+            hecho = project_rename(
+                project_open(raiz, slug), nombre, date=today_text()
+            )
+        except (ShmirDesignError, ValueError, OSError) as exc:
+            # rule2-ok: frontera de la interfaz. No se ha cambiado nada y se dice.
+            st.error(f"**PARA** — {exc}")
+            return
+        if not hecho["cambio"]:
+            st.info(hecho["texto"])
+            return
+        st.session_state["p0_renombrado"] = hecho["texto"]
+        st.rerun()
 
 
 def _cabecera_paso(numero: int, guia) -> None:
@@ -1433,11 +1496,10 @@ def main() -> None:
 
 
     st.sidebar.header("Otros ajustes")
-    gen_diana = st.sidebar.text_input(
-        "Gen diana (accession)", "",
-        help="Hace falta para la especificidad: es un accession, no un fichero, y el "
-             "manifiesto no lo sabe.",
-    )
+    # EL CAMPO «GEN DIANA» SE VA (2026-09-04). Pedia teclear UN accession para algo que
+    # `data/diana/variantes.toml` ya declara por especie —y con TODAS sus variantes, y
+    # con procedencia—, asi que eran dos respuestas a la misma pregunta y ganaba la
+    # peor. Sin declaracion, el filtro emite `NO_CIERRA` con el motivo.
     accesibilidad = st.sidebar.checkbox(
         "Calcular accesibilidad (lento)",
         help="Criterio de desempate, nunca filtro. Añade dos plegados por candidato.",
@@ -1608,9 +1670,7 @@ def main() -> None:
         # en un transcrito humano sin salirse de rango. Es el mismo agujero que cierra
         # `RepeatMask.query_length` un nivel mas abajo.
         recursos = load_from_manifest(
-            reference_dir(),
-            target=gen_diana.strip() or None,
-            species=resolve_species(nombre_modelo),
+            reference_dir(), species=resolve_species(nombre_modelo),
         )
 
         secuencias = {nombre_modelo: secuencia_modelo}
@@ -1783,7 +1843,7 @@ def main() -> None:
     )
     if paquete["hay"]:
         st.download_button(
-            "Descargar todo (zip)", paquete["datos"], paquete["nombre"],
+            DOWNLOAD_BUTTON_RESULTS, paquete["datos"], paquete["nombre"],
             "application/zip",
         )
         st.caption(paquete["texto"])
