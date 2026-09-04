@@ -4591,3 +4591,63 @@ distingue de uno que no miraron, que es justo por lo que aquí todo filtro emite
 con su motivo— y **ninguna considera la poliadenilación alternativa**, que en este 3'UTR
 condiciona a seis de los diez candidatos. Un servicio que nadie miró y uno que se miró y se
 descartó se leen igual si lo único que hay es su ausencia.
+
+---
+
+## 94 — La guía se re-recortaba de una secuencia que pasaba la página, y el aborto era la mitad afortunada
+
+**Reportado (2026-09-04)** con el panel guardado delante:
+
+    PARA — La guía mide 0 nt y el andamio miR-E lleva brazos de 22 nt
+
+**La causa.** `build_constructions` sacaba la guía con `target[start - 1:end]`, y la
+página le pasaba el **3'UTR** (1242 nt) mientras los `start` del panel van en el marco de
+**LO TILADO**, que es el transcrito (2191 nt). Medido sobre el panel murino real:
+
+| start | `utr3[start-1:end]` | qué sale |
+|---|---|---|
+| 959, 1009, 1092, 1149 | **22 nt** | **la guía de OTRO SITIO**, con md5 correcto |
+| 1398, 1502, 1601, 1684, 1768, 1967 | **0 nt** | aborta |
+
+**El aborto era la mitad afortunada.** Cuatro de las diez construcciones se habrían
+montado con la guía equivocada y habrían salido hacia SpliceAI sin que nada lo dijera;
+sólo cayeron las seis que se salen del 3'UTR. **Con un panel entero dentro de los primeros
+1242 nt, esto no habría dado ningún error nunca.**
+
+### Por qué ningún test lo veía
+
+Todos los del modal tilan el **3'UTR solo**, y ahí el marco de lo tilado ES el 3'UTR, así
+que `target=utr3` coincidía con los `start`. La página tila el **transcrito entero** con su
+anatomía, como el CLI. Es el principio nº 18 otra vez: los artefactos de verificación
+corrían con una configuración que la app no usa.
+
+### El arreglo es el principio nº 13, no un cambio de argumento
+
+La guía **ya está calculada** en la ventana de la selección. Volver a recortarla de una
+secuencia que pasa el llamador es una segunda definición del mismo dato — y con un `start`
+que no lleva marco, **cualquier secuencia sirve de argumento y ninguna se puede
+comprobar**. Ahora se pide a la ventana, y **`target` se retira**: un parámetro que sólo
+podía traer la secuencia equivocada no se arregla documentándolo (principio nº 33).
+
+### Y las otras dos cosas del reporte, las dos ciertas
+
+**El mensaje describía el síntoma como si fuera la causa.** «La guía mide 0 nt» invita a
+buscar una guía mal formada; lo que había era una guía **que no ha llegado**. Ahora nombra
+**el candidato** y **de dónde se intentó leer** —su ventana en la selección, no el
+andamio—, que es donde hay que mirar.
+
+**Y un fallo en una construcción tumbaba las veinte.** El error salía antes del FASTA, así
+que un candidato sin guía bloqueaba la corrida entera. `build_panel` devuelve **las dos
+mitades**: lo que se pudo montar y lo que no, con su motivo por candidato × intrón, y la
+página pinta el aviso sin dejar de emitir el resto. Lo que sí aborta es que no salga
+**ninguna** — cero construcciones no es una entrega parcial: no hay nada que consultar.
+
+### El contexto por defecto era el que la propia app desaconseja
+
+Estaba en **0**, y con 0 el contexto son las dos piezas de 5 nt que `context_note` califica
+de «esencialmente NINGÚN contexto para un modelo entrenado con ventana de 10.000». **Un
+valor por defecto que la app avisa de que no sirve es una trampa, no un defecto.** Pasa al
+tope del control (`SPLICE_CONTEXT_DEFAULT`): con el casete cargado el contexto sale de
+secuencia real —hasta 3133/2067 nt, el plásmido entero— y pedir más del que hay **no lo
+inventa** (regla 1). Sin casete se cae solo a las piezas, con su aviso, que es el mismo
+sitio de antes pero por haberlo intentado.

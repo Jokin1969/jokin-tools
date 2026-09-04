@@ -4772,6 +4772,28 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     diez. Un servicio que nadie miró y uno que se descartó se leen igual si lo único que
     hay es su ausencia.
 
+- **LA GUÍA DE UNA CONSTRUCCIÓN SALE DE SU VENTANA, NO DE RE-RECORTAR (2026-09-04)**,
+  errata nº 94. `build_constructions` hacía `target[start - 1:end]` y la página pasaba el
+  **3'UTR** (1242 nt) mientras los `start` van en el marco de **lo tilado**, que es el
+  transcrito (2191 nt).
+  - **El aborto era la mitad afortunada**: de los diez del panel, cuatro (959, 1009, 1092,
+    1149) daban **22 nt de OTRO SITIO** —md5 correcto, ningún error— y sólo los seis que
+    se salen del 3'UTR daban cadena vacía. Con un panel entero dentro de los primeros
+    1242 nt esto **no habría fallado nunca**.
+  - **Ningún test lo veía porque todos tilan el 3'UTR SOLO**, donde el marco coincide. La
+    página tila el transcrito entero, como el CLI. Principio nº 18.
+  - **El arreglo es el principio nº 13**: la guía ya está en la ventana, y volver a
+    recortarla de una secuencia que pasa el llamador es una segunda definición — con un
+    `start` sin marco, cualquier secuencia sirve y ninguna se puede comprobar. **`target`
+    se retira** (principio nº 33).
+  - **El mensaje nombra el candidato y de dónde se leyó**: «la guía mide 0 nt» invita a
+    buscar una guía mal formada, y lo que hay es una que **no ha llegado**.
+  - **Un fallo en una no tumba las veinte**: `build_panel` devuelve las dos mitades — lo
+    montado y lo fallido con su motivo por par— y sólo aborta si no sale **ninguna**.
+  - **El contexto por defecto pasa de 0 al tope**: 0 son las dos piezas de 5 nt, que la
+    propia app llama «esencialmente ningún contexto». Un defecto que la app desaconseja es
+    una trampa. Pedir más del que hay no lo inventa (regla 1).
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

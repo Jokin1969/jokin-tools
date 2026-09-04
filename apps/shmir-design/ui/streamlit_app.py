@@ -106,6 +106,8 @@ from shmir_design.presentation import (  # noqa: E402
     splice_construction_rows,
     splice_context_note,
     splice_constructions,
+    SPLICE_CONTEXT_DEFAULT,
+    SPLICE_CONTEXT_MAX,
     splice_exclusive_rows,
     splice_executor_text,
     splice_folding_rows,
@@ -2524,20 +2526,33 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
     # 5 nt, que para un modelo entrenado con ventana de 10.000 es casi nada. La app lo
     # dice en vez de rellenarlo.
     contexto = st.number_input(
-        "Contexto exónico a cada lado (nt)", min_value=0, max_value=5000, value=0,
+        # EL DEFECTO NO PUEDE SER EL QUE LA APP DESACONSEJA. Estaba en 0, y con 0 el
+        # contexto son las dos piezas de 5 nt, que `context_note` llama «esencialmente
+        # ningún contexto». El valor lo pone `presentation` (regla 6).
+        "Contexto exónico a cada lado (nt)", min_value=0,
+        max_value=SPLICE_CONTEXT_MAX, value=SPLICE_CONTEXT_DEFAULT,
         step=50, key=f"sp_ctx_{nombre}",
         help="Del casete, si está cargado. Cambia el resultado, así que viaja con la "
              "consulta. 0 = lo que dan las piezas del plásmido.",
     )
     try:
-        construcciones = splice_constructions(
-            seleccion, target=diana, intron_names=elegidos, scaffold=SGEP_SCAFFOLD,
+        panel = splice_constructions(
+            seleccion, intron_names=elegidos, scaffold=SGEP_SCAFFOLD,
             starts=starts, cassette=casete, context_nt=contexto,
         )
     except (ShmirDesignError, ValueError) as exc:
-        # rule2-ok: frontera de la interfaz. El fallo se enseña entero.
+        # rule2-ok: frontera de la interfaz. El fallo se enseña entero. Aquí sólo se
+        # llega si NO se pudo montar ninguna: una sola rota ya no tumba a las demás.
         st.error(f"**PARA** — {exc}")
         return
+    construcciones = panel.constructions
+    # LO QUE NO SE PUDO MONTAR SE DICE, y no impide lo demás: el error salía ANTES del
+    # FASTA, así que un candidato sin guía bloqueaba las veinte consultas (errata nº 94).
+    for fallo in panel.failed:
+        st.warning(
+            f"**Sin construcción** — 3utr:{fallo.candidate_start} × "
+            f"{fallo.intron}: {fallo.reason}"
+        )
 
     st.caption(
         f"**{len(construcciones)} consulta(s)** = {len(construcciones) // len(elegidos)} "

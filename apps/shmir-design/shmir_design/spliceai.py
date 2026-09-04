@@ -214,21 +214,119 @@ def context_note(constructions) -> str:
     return base
 
 
-def build_constructions(
+@dataclass(frozen=True)
+class FailedConstruction:
+    """Un par que NO se pudo montar, con de quien es y por que."""
+
+    candidate_start: int
+    intron: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class ConstructionPanel:
+    """Lo que se pudo montar y lo que no. Las dos mitades, siempre."""
+
+    constructions: tuple[Construction, ...]
+    failed: tuple[FailedConstruction, ...] = ()
+
+    @property
+    def partial(self) -> bool:
+        return bool(self.failed)
+
+
+def _guia_de(selection, elegido) -> str:
+    """La guia de ESTE candidato, PEDIDA a su ventana.
+
+    **Antes se recortaba de una secuencia que pasaba el llamador**
+    —`target[start - 1:end]`— y esa es la causa entera de la errata nº 94: los `start`
+    van en el marco de LO TILADO y la pagina pasaba el 3'UTR, asi que cuatro de las diez
+    salian con la guia de OTRO SITIO —22 nt, md5 correcto, sin ningun error— y las seis
+    que se salen del 3'UTR daban una cadena vacia. El aborto era la mitad afortunada.
+
+    La guia ya esta calculada en la ventana. Volver a derivarla de una secuencia que
+    puede ser cualquiera es una segunda definicion del mismo dato (principio nº 13), y
+    con un `start` que no lleva marco no hay forma de comprobar cual es la buena.
+    """
+    ventana = selection.window_of(elegido)
+    guia = "".join(str(ventana.evaluation.guide).split()).upper().replace("U", "T")
+    if not guia:
+        raise ShmirDesignError(
+            f"El candidato 3utr:{elegido.start} llega SIN GUÍA: su ventana de la "
+            f"selección trae la guía vacía, así que no hay "
+            f"nada con lo que montar la horquilla. No es una guía mal formada — es una "
+            f"guía que no ha llegado, y el sitio donde mirar es la ventana de ese "
+            f"candidato en el tilado, no el andamio."
+        )
+    return guia
+
+
+def build_panel(
     selection,
     *,
-    target: str,
     intron_names=("mvm_actual",),
     scaffold=None,
     starts=None,
     cassette: str | None = None,
     context_nt: int = 0,
+) -> ConstructionPanel:
+    """Monta todos los pares y dice CUALES no pudo. No aborta por uno.
+
+    **Un fallo en el montaje de UNA construccion no puede impedir las otras
+    diecinueve**: el error salia antes del FASTA, asi que un candidato sin guia
+    bloqueaba la corrida entera. Se emite lo que se puede y se dice lo que falta, que es
+    la misma regla que rige los frentes.
+
+    Lo que si aborta es que no salga NINGUNA: cero construcciones no es una entrega
+    parcial — no hay nada que consultar, y un FASTA vacio no se podria validar despues.
+    """
+    hechas: list[Construction] = []
+    fallidas: list[FailedConstruction] = []
+    for nombre in intron_names:
+        try:
+            hechas.extend(build_constructions(
+                selection, intron_names=(nombre,), scaffold=scaffold, starts=starts,
+                cassette=cassette, context_nt=context_nt, _failures=fallidas,
+            ))
+        except ShmirDesignError as exc:
+            # rule2-ok: no se traga — el motivo entero viaja en `failed` y la pagina lo
+            # pinta. Lo que se evita es que un intron que no se puede montar impida los
+            # demas. Si al final no queda ninguna construccion, se aborta abajo.
+            for elegido in selection.selection.chosen:
+                if starts is None or elegido.start in set(starts):
+                    fallidas.append(FailedConstruction(
+                        candidate_start=elegido.start, intron=nombre, reason=str(exc),
+                    ))
+    if not hechas:
+        raise ShmirDesignError(
+            "No se pudo montar NINGUNA construcción, así que no hay nada que consultar "
+            "y no se emite ningún FASTA:\n"
+            + "\n".join(f"  · 3utr:{f.candidate_start} × {f.intron}: {f.reason}"
+                         for f in fallidas)
+        )
+    return ConstructionPanel(
+        constructions=tuple(hechas), failed=tuple(fallidas),
+    )
+
+
+def build_constructions(
+    selection,
+    *,
+    intron_names=("mvm_actual",),
+    scaffold=None,
+    starts=None,
+    cassette: str | None = None,
+    context_nt: int = 0,
+    _failures: list | None = None,
 ) -> tuple[Construction, ...]:
     """Monta un cassette POR PAR candidato x intron. La unidad de este modal.
 
     `cassette` + `context_nt` sacan el contexto exonico de la SECUENCIA REAL del
     plasmido en vez de las dos piezas de 5 nt. Si se pide mas del que hay, se da lo que
     hay: nunca se rellena (regla 1).
+
+    **La guia se PIDE a la ventana** (`_guia_de`), no se recorta de ninguna secuencia
+    que pase el llamador: ver la errata nº 94.
     """
     elegidos = [
         c for c in selection.selection.chosen
@@ -253,7 +351,17 @@ def build_constructions(
             intron, cassette=cassette, context_nt=context_nt
         )
         for elegido in elegidos:
-            guia = target[elegido.start - 1:elegido.end]
+            try:
+                guia = _guia_de(selection, elegido)
+            except ShmirDesignError as exc:
+                if _failures is None:
+                    raise
+                # rule2-ok: el motivo entero se conserva y viaja al panel; lo que se
+                # evita es que un candidato tumbe a los otros diecinueve.
+                _failures.append(FailedConstruction(
+                    candidate_start=elegido.start, intron=nombre, reason=str(exc),
+                ))
+                continue
             bloque = build_block(guia, scaffold=scaffold)
             montado = intron.with_module(bloque.module)
             elementos = locate_elements(montado, name=nombre)

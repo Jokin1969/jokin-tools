@@ -3859,13 +3859,31 @@ def intron_geometry_text(names=None, *, module_length: int = 149) -> str:
     return "\n".join(lineas).rstrip()
 
 
-def splice_constructions(selection, *, target, intron_names, scaffold, starts=None,
-                         cassette=None, context_nt=0):
-    """Los pares candidato x intron, montados. La pagina no monta nada."""
-    from .spliceai import build_constructions
+#: EL CONTEXTO POR DEFECTO NO PUEDE SER EL QUE LA PROPIA APP DESACONSEJA. Estaba en 0, y
+#: con 0 el contexto son las dos piezas de 5 nt del plasmido — que `context_note` califica
+#: de «esencialmente NINGUN contexto para un modelo entrenado con ventana de 10.000». Un
+#: valor por defecto que la app avisa de que no sirve es una trampa, no un defecto.
+#:
+#: Se pone en el TOPE del control: con `aav_casete.fa` cargado el contexto sale de
+#: secuencia REAL —hasta 3133/2067 nt, o sea el plasmido entero— y pedir mas del que hay
+#: NO lo inventa (regla 1): se da lo que hay. Sin casete se cae solo a las piezas, con su
+#: aviso, que es el mismo sitio donde estaba antes pero por haberlo intentado.
+SPLICE_CONTEXT_MAX = 5000
+SPLICE_CONTEXT_DEFAULT = SPLICE_CONTEXT_MAX
 
-    return build_constructions(
-        selection, target=target, intron_names=tuple(intron_names),
+
+def splice_constructions(selection, *, intron_names, scaffold, starts=None,
+                         cassette=None, context_nt=SPLICE_CONTEXT_DEFAULT):
+    """Los pares candidato x intron, montados, CON lo que no se pudo montar.
+
+    La guia sale de la ventana de cada candidato y no de ninguna secuencia que pase la
+    pagina: ver la errata nº 94. Y un fallo en uno no tumba a los demas — devuelve las
+    dos mitades.
+    """
+    from .spliceai import build_panel
+
+    return build_panel(
+        selection, intron_names=tuple(intron_names),
         scaffold=scaffold, starts=starts, cassette=cassette,
         context_nt=int(context_nt),
     )
