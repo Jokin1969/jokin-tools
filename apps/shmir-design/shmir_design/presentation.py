@@ -3972,17 +3972,29 @@ def splice_exclusive_rows(scan):
     return exclusive_rows(scan)
 
 
-def splice_module_of(construction, *, target, scaffold):
-    """El modulo de 149 nt de una construccion. Se DERIVA de su candidato.
+def splice_module_of(construction, *, selection, scaffold):
+    """El modulo de 149 nt de una construccion. Se DERIVA de la VENTANA de su candidato.
 
     No se guarda dentro de `Construction` a proposito: seria la misma secuencia en dos
     sitios, y dos copias de lo mismo acaban discrepando.
+
+    **Y la guia se PIDE, no se recorta.** Esto hacia
+    `target[candidate_start - 1 : +22]` con `target` pasado por la pagina — el mismo
+    fallo de la errata nº 94, vivo por un segundo camino: la tabla de accesibilidad
+    estructural del modal montaba el modulo con la guia de OTRO SITIO, con la forma
+    correcta y sin ningun error. Un `start` del panel va en el marco de LO TILADO y
+    cualquier otra secuencia produce un recorte valido que no es el suyo.
     """
     from .blocks import build_block
+    from .spliceai import guide_of
 
-    guia = target[construction.candidate_start - 1:
-                  construction.candidate_start - 1 + 22]
-    return build_block(guia, scaffold=scaffold).module
+    elegido = next(
+        c for c in selection.selection.chosen
+        if c.start == construction.candidate_start
+    )
+    return build_block(
+        guide_of(selection, elegido), scaffold=scaffold,
+    ).module
 
 
 def splice_folding_rows(constructions, *, module_of, available=None):

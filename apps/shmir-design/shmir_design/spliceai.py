@@ -235,7 +235,7 @@ class ConstructionPanel:
         return bool(self.failed)
 
 
-def _guia_de(selection, elegido) -> str:
+def guide_of(selection, elegido) -> str:
     """La guia de ESTE candidato, PEDIDA a su ventana.
 
     **Antes se recortaba de una secuencia que pasaba el llamador**
@@ -352,7 +352,7 @@ def build_constructions(
         )
         for elegido in elegidos:
             try:
-                guia = _guia_de(selection, elegido)
+                guia = guide_of(selection, elegido)
             except ShmirDesignError as exc:
                 if _failures is None:
                     raise

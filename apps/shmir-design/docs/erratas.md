@@ -4651,3 +4651,55 @@ tope del control (`SPLICE_CONTEXT_DEFAULT`): con el casete cargado el contexto s
 secuencia real —hasta 3133/2067 nt, el plásmido entero— y pedir más del que hay **no lo
 inventa** (regla 1). Sin casete se cae solo a las piezas, con su aviso, que es el mismo
 sitio de antes pero por haberlo intentado.
+
+---
+
+## 95 — El barrido de la errata nº 94: había un segundo, vivo
+
+**Pedido en el momento**: *«si `build_constructions` recortaba con el marco equivocado,
+busca todos los sitios donde se recorte una secuencia con un start del panel»*.
+
+**Lo había: `presentation.splice_module_of`.** Hacía
+`target[construction.candidate_start - 1 : +22]` con `target` pasado por la página, o sea
+el mismo fallo por un segundo camino — la tabla de **accesibilidad estructural** del modal
+montaba el módulo con la guía de otro sitio, con la forma correcta y sin ningún error.
+Arreglado igual: **pide la guía a la ventana** (`spliceai.guide_of`).
+
+### El criterio del barrido, y por qué éste distingue
+
+Recortes 1-based en el paquete: **50**, y casi todos correctos —la seed sobre su propia
+guía, el 3'UTR sobre su propio transcrito, un plásmido sobre sus propias coordenadas—. Lo
+que separa al fallo **no es la forma** `x[start - 1:end]` sino **de dónde vienen las dos
+cosas**:
+
+| criterio | hallazgos | de ésos, fallos |
+|---|---|---|
+| cualquier recorte indexado por un `.start` ajeno | **10** | 1 |
+| **la secuencia y la posición son DOS PARÁMETROS distintos de la misma función** | **1** | **1** |
+
+En los correctos la posición **se deriva** de la secuencia que se recorta: `Span.of` sobre
+algo que se acaba de buscar ahí, o dos campos del mismo objeto (`self.plasmid` y
+`self.start`). En el fallo llegan por separado, y entonces **nada obliga a que compartan
+marco**. Cero falsos positivos con el criterio fino, así que es un guardia aplicable.
+
+### Y los que se sospechaban están limpios
+
+`blocks.py` y `gblock.py` —el generador de módulo y la hoja de pedido— **no recortan
+nada**: reciben la guía ya hecha. No aparecen en el barrido por eso, y es la razón de que
+no estuvieran afectados.
+
+### El corolario, que es el que generaliza
+
+**Un `start` sin marco declarado no puede indexar una secuencia que llega por otro lado.**
+`coords.Position` ya impide **imprimir** un entero desnudo; esto impide **indexar** con uno.
+Guardia, no trinquete: el número correcto es cero, con control adversario sobre la forma
+**real** que tenían los dos fallos (principio nº 18 aplicado al comprobador).
+
+### Y por qué esta familia es peor que las cuatro confusiones de marco anteriores
+
+Las de `3utr:1784`, `3utr:1185`, `3utr:1398` y el mapa producían **una etiqueta mal
+escrita**: un número en el sitio equivocado de una salida que alguien lee. Ésta produce
+**ADN que se manda a analizar** — un módulo de 149 nt con la guía de otro sitio, con su md5
+correcto, camino de SpliceAI. Y habría **validado al volver**, porque la validación
+comprueba que el md5 del resultado cuadre con el de la construcción que se entregó: la
+construcción equivocada es consistente consigo misma.

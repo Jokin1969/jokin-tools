@@ -2580,7 +2580,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         splice_folding_rows(
             construcciones,
             module_of=lambda c: splice_module_of(
-                c, target=diana, scaffold=SGEP_SCAFFOLD
+                c, selection=seleccion, scaffold=SGEP_SCAFFOLD
             ),
         ),
         width="stretch",

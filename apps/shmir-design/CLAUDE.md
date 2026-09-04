@@ -4794,6 +4794,25 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     propia app llama «esencialmente ningún contexto». Un defecto que la app desaconseja es
     una trampa. Pedir más del que hay no lo inventa (regla 1).
 
+- **EL BARRIDO DE LA ERRATA nº 94: HABÍA UN SEGUNDO, VIVO (2026-09-04)**, errata nº 95.
+  `presentation.splice_module_of` hacía `target[candidate_start - 1 : +22]` con el
+  `target` que pasaba la página: la tabla de **accesibilidad estructural** del modal
+  montaba el módulo con la guía de otro sitio. Arreglado igual — pide la guía a la ventana.
+  - **El criterio que distingue**: recortes 1-based hay **50** y casi todos son correctos.
+    Lo que separa al fallo no es la forma sino que **la secuencia y la posición lleguen
+    como dos parámetros distintos de la misma función** — en los correctos la posición se
+    DERIVA de lo que se recorta. Criterio ancho: 10 hallazgos, 1 fallo. Criterio fino:
+    **1 hallazgo, 1 fallo**. Cero falsos positivos, así que es un guardia aplicable.
+  - **`blocks.py` y `gblock.py` están limpios**: no recortan nada, reciben la guía hecha.
+  - **COROLARIO: un `start` sin marco declarado no puede indexar una secuencia que llega
+    por otro lado.** `coords.Position` impide imprimir un entero desnudo; esto impide
+    **indexar** con uno.
+  - **Y por qué esta familia es peor que las cuatro confusiones de marco anteriores**:
+    aquéllas producían **una etiqueta mal escrita**; ésta produce **ADN que se manda a
+    analizar** — y habría **validado al volver**, porque la validación comprueba que el
+    md5 del resultado cuadre con el de la construcción entregada, y la construcción
+    equivocada es consistente consigo misma.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
