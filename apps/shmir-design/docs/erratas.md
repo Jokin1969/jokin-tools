@@ -3719,3 +3719,75 @@ desplegable está bien—; un aviso es una **tarea pendiente**. Y ese desplegabl
 —«falta el gen diana, y sin él todo sitio parece un off-target»— quedaba escondida detrás
 de un clic, debajo de la lista de lo que sí funcionó. Ahora el aviso va **fuera y arriba**
 (`presentation.connected_panel`) y la lista se queda dentro.
+
+## 74 — Retomar un proyecto y la barra lateral preguntando por él: dos respuestas para la misma pregunta
+
+**Reportado con dos capturas (2026-09-04).** Se abre `Intento_17` desde el paso 0 —«3
+registro(s) · última 2026-09-02»— y la barra lateral sigue enseñando «Guardar esta corrida
+en un proyecto» **sin marcar**, con el aviso «Sin proyecto, lo que calculen los modales se
+pierde al cerrar la pestaña». Y encima la app decía que ese proyecto no tenía la corrida
+guardada, **que sí la tenía**.
+
+Con una pregunta al lado que es la que hay que contestar, no la que hay que arreglar:
+*«¿tengo que darle a guardar esta corrida en un proyecto, o viniendo de uno abierto asumo
+que los cambios que haga se irán guardando?»* **Que esa pregunta se pueda hacer ya es el
+fallo.**
+
+### Dos síntomas y una causa
+
+La casilla nunca se marcaba, así que el almacén **no se abría**; sin almacén, `stores`
+llega `None` a la tabla, a las tarjetas y al semáforo, y todas las corridas guardadas
+desaparecen. O sea que el segundo síntoma —«no tenía la corrida»— **es el primero**, tres
+consumidores más allá. Es el principio nº 23 otra vez, y esta vez la pista la dio quien lo
+reportó al poner las dos capturas juntas.
+
+### Y el mecanismo que elegí estaba mal
+
+Al añadir el paso 0 sembré el estado de la casilla con
+`st.session_state.setdefault(f"pr_activo_{especie}", True)`. **`setdefault` no escribe nada
+si la clave ya existe**, y la de un widget existe desde que se pinta por primera vez — o
+sea desde el primer repintado, antes de que hubiera nada que retomar. Sembrar un valor por
+defecto no sirve cuando el valor ya está puesto.
+
+### Pero el arreglo no es sembrarlo bien: es no preguntar dos veces
+
+La pregunta «¿en qué proyecto guardo esto?» ya la contestó el paso 0. Volver a hacerla
+abajo permite dar **dos respuestas distintas a la misma pregunta**, y cuál manda no lo
+elige nadie. Es la misma razón por la que se quitó la casilla global «Usar los de
+`data/reference/`»: una opción cuyo único efecto posible es dejarlo todo en NOT_RUN sin
+decir por qué no es una opción, es una trampa.
+
+Con un proyecto retomado, la barra lateral **enseña el proyecto abierto** —su historial,
+sus corridas y si siguen valiendo— y no ofrece elegir otro ni crear uno. Y la respuesta a
+la pregunta va donde estaba la pregunta (`PROJECT_RESUMED_NOTE`): **todo lo que hagas a
+partir de aquí se guarda solo, no hay nada que marcar.**
+
+Comprobado en el navegador: tras retomar, la barra lateral no trae ni la casilla ni el
+aviso de «Sin proyecto», y el banner dice el proyecto y cuántos registros tiene.
+
+## 75 — La suite dependía de que la máquina no tuviera proyectos guardados
+
+Salió al comprobar lo anterior, y es una rotura que **introduje yo** en la tanda del paso
+0. Se corrió la suite con un proyecto de prueba en `data/proyectos/` y saltaron **24 tests
+en error**, todos de ficheros que no tenían nada que ver.
+
+**La causa**: desde que la primera pregunta de la app es «¿retomas un proyecto guardado?»,
+lo que se pinta arriba del todo **depende de si hay proyectos**, y sin declarar el
+directorio ése es el del paquete — el de la máquina donde corre la suite. Con uno dentro,
+`app.selectbox[0]` deja de ser el de la especie y pasa a ser el del proyecto.
+
+Un fallo así **no dice lo que pasa**: dice que has roto media app, y el que lo lea irá a
+buscar a un sitio equivocado. Es la familia del diagnóstico que manda al lugar erróneo.
+
+**El arreglo es el de siempre en este proyecto: lo que decide lo que se ve se declara.**
+`tests/pagina.py` da `sin_proyectos()` —y su contrario, `con_proyectos()`— y los tres
+ficheros que pintan la página lo ponen en `setUpModule`. Va ahí y no como gestor de
+contexto alrededor de la construcción porque tiene que estar puesto durante **todos** los
+`.run()`: cada `set_value(...).run()` vuelve a ejecutar el script de la página.
+
+**Medido que muerde**: con un proyecto guardado delante y el `setUpModule` desactivado,
+`test_streamlit_app` rompe en **15 de 22**; con él, pasan las 44 de los tres ficheros. Un
+blindaje sin prueba de que muerde es la errata nº 29 otra vez.
+
+Y `data/proyectos/` pasa a estar en `.gitignore`: son datos de quien usa la app —su
+secuencia y su registro de decisiones—, no del repositorio.

@@ -24,6 +24,8 @@ except ImportError:  # rule2-ok: ausencia de una dependencia OPCIONAL de la inte
     # sigue siendo stdlib pura.
     STREAMLIT = False
 
+from tests.pagina import sin_proyectos
+
 APP = Path(__file__).resolve().parent.parent / "ui" / "streamlit_app.py"
 
 
@@ -273,6 +275,29 @@ class TestAnatomiaEnLaInterfaz(unittest.TestCase):
                 with self.subTest(widget.label):
                     self.assertNotIn(".gb", list(widget.proto.type))
 
+
+
+# EL DIRECTORIO DE PROYECTOS SE DECLARA, no se hereda de la máquina. Desde que la primera
+# pregunta de la app es «¿retomas un proyecto guardado?», lo que se pinta arriba del todo
+# depende de si hay proyectos guardados — y sin declararlo, ése es el del paquete. Con un
+# proyecto de prueba dentro, `app.selectbox[0]` deja de ser el de la especie y saltan 24
+# tests de ficheros que no tienen nada que ver: un fallo así no dice lo que pasa, dice que
+# has roto media app. Ver `tests/pagina.py`.
+#
+# Va como `setUpModule` y no como gestor de contexto porque tiene que estar puesto durante
+# TODOS los `.run()`: cada `set_value(...).run()` vuelve a ejecutar el script de la página.
+_ENTORNO_DE_PAGINA = None
+
+
+def setUpModule():
+    global _ENTORNO_DE_PAGINA
+    _ENTORNO_DE_PAGINA = sin_proyectos()
+    _ENTORNO_DE_PAGINA.__enter__()
+
+
+def tearDownModule():
+    if _ENTORNO_DE_PAGINA is not None:
+        _ENTORNO_DE_PAGINA.__exit__(None, None, None)
 
 if __name__ == "__main__":
     unittest.main()

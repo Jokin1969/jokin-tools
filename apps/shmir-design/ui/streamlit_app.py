@@ -69,6 +69,8 @@ from shmir_design.presentation import (  # noqa: E402
     project_create,
     project_list,
     PAGE_COLORS,
+    PROJECT_RESUMED_NOTE,
+    PROJECT_RESUME_HELP,
     project_open,
     project_resume,
     project_target,
@@ -724,12 +726,25 @@ def _tarjetas_de_comprobacion(
                         )
 
 
-def _panel_proyecto(especie: str, secuencia: str, anat):
-    """El proyecto: crear uno nuevo o abrir el de antes. Devuelve el almacén o `None`.
+def _panel_proyecto(especie: str, secuencia: str, anat, *, retomado=None):
+    """El proyecto: crear uno nuevo, abrir el de antes, o enseñar el ya retomado.
 
     Sin esto, los cuatro modales calculaban, pintaban y **al cerrar la pestaña no quedaba
     nada**: la capa de persistencia estaba entera y nadie escribía en ella. Un veredicto
     tiene que sobrevivir a la app que lo escribió.
+
+    **CON UN PROYECTO RETOMADO NO SE PREGUNTA NADA.** La pregunta «¿en qué proyecto guardo
+    esto?» ya la contestó el paso 0, y volver a hacerla aquí abajo permite dar dos
+    respuestas distintas a la misma pregunta sin que nadie decida cuál manda. Se reportó
+    con captura: se abría `Intento_17` arriba y la barra lateral seguía diciendo «Sin
+    proyecto, lo que calculen los modales se pierde al cerrar la pestaña» — y con la
+    casilla sin marcar el almacén no se abría, así que las corridas que ese proyecto SÍ
+    tenía guardadas desaparecían de la tabla, de las tarjetas y del semáforo. Dos
+    síntomas y una causa.
+
+    Es la misma razón por la que se quitó la casilla global «Usar los de
+    `data/reference/`»: una opción cuyo único efecto posible es dejarlo todo en NOT_RUN
+    sin decir por qué no es una opción, es una trampa.
 
     La página no decide nada: `presentation` crea, abre, lista y comprueba el md5.
     """
@@ -738,32 +753,36 @@ def _panel_proyecto(especie: str, secuencia: str, anat):
     # que el `except` de `main()` no captura, porque no es un error nuestro.
     st.sidebar.header(f"Proyecto — {especie}")
     raiz = projects_root()
-    existentes = project_list(raiz)
-
-    if st.sidebar.checkbox(
-        "Guardar esta corrida en un proyecto",
-        key=f"pr_activo_{especie}",
-        help="Las corridas de los modales y la selección quedan en un log de texto que "
-             "se lee con `cat` y sobrevive a cerrar la pestaña.",
-    ) is False:
-        # Y se OLVIDA lo recordado: volver a marcar la casilla no puede reabrir solo un
-        # proyecto que se cerró a proposito.
-        plan = project_target(
-            active=False, chosen="", new_name="", date="", clicked=False,
-            remembered=st.session_state.get(f"pr_abierto_{especie}", ""),
-        )
-        st.session_state[f"pr_abierto_{especie}"] = plan["recordar"]
-        st.sidebar.caption(plan["aviso"])
-        return None
-
     catalogo = project_options(raiz)
-    opciones = [PROJECT_NEW_OPTION] + catalogo["slugs"]
-    elegido = st.sidebar.selectbox(
-        "Proyecto", opciones, key=f"pr_slug_{especie}",
-        # La etiqueta —nombre, registros y ULTIMA ACTIVIDAD— la monta `presentation`:
-        # decidir que se enseña de cada proyecto es una decision, no pintar (regla 6).
-        format_func=lambda s: catalogo["etiquetas"].get(s, s),
-    )
+
+    if retomado is None:
+        if st.sidebar.checkbox(
+            "Guardar esta corrida en un proyecto",
+            key=f"pr_activo_{especie}",
+            help="Las corridas de los modales y la selección quedan en un log de texto "
+                 "que se lee con `cat` y sobrevive a cerrar la pestaña.",
+        ) is False:
+            # Y se OLVIDA lo recordado: volver a marcar la casilla no puede reabrir solo
+            # un proyecto que se cerró a proposito.
+            plan = project_target(
+                active=False, chosen="", new_name="", date="", clicked=False,
+                remembered=st.session_state.get(f"pr_abierto_{especie}", ""),
+            )
+            st.session_state[f"pr_abierto_{especie}"] = plan["recordar"]
+            st.sidebar.caption(plan["aviso"])
+            return None
+
+        opciones = [PROJECT_NEW_OPTION] + catalogo["slugs"]
+        elegido = st.sidebar.selectbox(
+            "Proyecto", opciones, key=f"pr_slug_{especie}",
+            # La etiqueta —nombre, registros y ULTIMA ACTIVIDAD— la monta `presentation`:
+            # decidir que se enseña de cada proyecto es una decision, no pintar (regla 6).
+            format_func=lambda s: catalogo["etiquetas"].get(s, s),
+        )
+    else:
+        elegido = retomado["slug"]
+        st.sidebar.success(PROJECT_RESUMED_NOTE)
+
     # LA FECHA SALE DE UN CALENDARIO, con hoy puesto. Tecleada se equivoca en silencio
     # —`2026-09-02` y `2026-09-20` se parecen— y ante un `run_id` repetido la tentacion
     # era cambiarla para que entrara (errata nº 48). El formato lo pone `date_text`.
@@ -779,28 +798,34 @@ def _panel_proyecto(especie: str, secuencia: str, anat):
     # nunca. Que es justo el que sobra.
     _gestionar_proyectos(especie, raiz, catalogo, fecha)
 
-    # LOS WIDGETS SE PINTAN SIEMPRE Y LA DECISION SE TOMA DESPUES. Antes el botón de
-    # crear estaba dentro de un `if` que devolvía `None`, y un botón de Streamlit vale
-    # `True` UN SOLO rerun: al escribir en cualquier campo, el proyecto desaparecía.
-    # Ver `WHY_THE_PROJECT_IS_REMEMBERED` y errata nº 42.
-    nombre_nuevo = ""
-    pulsado = False
-    if elegido == PROJECT_NEW_OPTION:
-        nombre_nuevo = st.sidebar.text_input(
-            "Nombre del proyecto nuevo", "", key=f"pr_nuevo_{especie}"
-        )
-        pulsado = st.sidebar.button("Crear proyecto", key=f"pr_crear_{especie}")
+    if retomado is None:
+        # LOS WIDGETS SE PINTAN SIEMPRE Y LA DECISION SE TOMA DESPUES. Antes el botón de
+        # crear estaba dentro de un `if` que devolvía `None`, y un botón de Streamlit vale
+        # `True` UN SOLO rerun: al escribir en cualquier campo, el proyecto desaparecía.
+        # Ver `WHY_THE_PROJECT_IS_REMEMBERED` y errata nº 42.
+        nombre_nuevo = ""
+        pulsado = False
+        if elegido == PROJECT_NEW_OPTION:
+            nombre_nuevo = st.sidebar.text_input(
+                "Nombre del proyecto nuevo", "", key=f"pr_nuevo_{especie}"
+            )
+            pulsado = st.sidebar.button("Crear proyecto", key=f"pr_crear_{especie}")
 
-    clave_abierto = f"pr_abierto_{especie}"
-    plan = project_target(
-        active=True, chosen=elegido, new_name=nombre_nuevo, date=fecha,
-        clicked=pulsado, remembered=st.session_state.get(clave_abierto, ""),
-    )
-    # Se recuerda el SLUG, no el almacén: `WHY_THE_SLUG_AND_NOT_THE_STORE`.
-    st.session_state[clave_abierto] = plan["recordar"]
-    if plan["accion"] == "ninguna":
-        st.sidebar.caption(plan["aviso"])
-        return None
+        clave_abierto = f"pr_abierto_{especie}"
+        plan = project_target(
+            active=True, chosen=elegido, new_name=nombre_nuevo, date=fecha,
+            clicked=pulsado, remembered=st.session_state.get(clave_abierto, ""),
+        )
+        # Se recuerda el SLUG, no el almacén: `WHY_THE_SLUG_AND_NOT_THE_STORE`.
+        st.session_state[clave_abierto] = plan["recordar"]
+        if plan["accion"] == "ninguna":
+            st.sidebar.caption(plan["aviso"])
+            return None
+    else:
+        # Retomado: no hay nada que decidir. Se ABRE, con el mismo guardia de md5 que el
+        # camino normal — el proyecto se reabre en CADA rerun, que es lo que hace que la
+        # comprobación siga corriendo y no se quede en la primera vez (principio nº 14).
+        plan = {"accion": "abrir", "slug": elegido}
 
     try:
         if plan["accion"] == "crear":
@@ -1238,11 +1263,7 @@ def _paso_cero_proyecto():
 
     with st.container(border=True):
         st.markdown("**¿Retomas un proyecto guardado?**")
-        st.caption(
-            "Un proyecto guarda la secuencia con la que se trabajó, su anatomía y todo "
-            "lo que se decidió después. Al abrirlo salen los mismos candidatos sin "
-            "volver a subir nada."
-        )
+        st.caption(PROJECT_RESUME_HELP)
         columnas = st.columns([4, 1])
         with columnas[0]:
             elegido = st.selectbox(
@@ -1289,13 +1310,10 @@ def _paso_cero_proyecto():
             f"Retomado **{vuelta['nombre']}** — {vuelta['especie']}, "
             f"{len(vuelta['secuencia'])} nt. Los pasos 1 y 2 ya están contestados."
         )
-        # EL PANEL LATERAL ABRE ESTE MISMO, sin volver a preguntarlo: es el proyecto que
-        # se acaba de elegir, y pedir dos veces la misma respuesta invita a dar dos
-        # distintas. Se siembra el estado de sus widgets ANTES de que existan, que es la
-        # via de Streamlit para darles un valor inicial.
-        st.session_state.setdefault(f"pr_activo_{vuelta['especie']}", True)
-        st.session_state.setdefault(f"pr_slug_{vuelta['especie']}", vuelta["slug"])
-        st.session_state[f"pr_abierto_{vuelta['especie']}"] = vuelta["slug"]
+        # EL PANEL LATERAL NO VUELVE A PREGUNTAR: recibe lo retomado por parámetro y
+        # enseña este proyecto abierto. Sembrar el estado de su casilla era el mecanismo
+        # equivocado —`setdefault` no escribe nada en cuanto el widget se ha pintado una
+        # vez, que es siempre— y además dejaba la pregunta hecha dos veces.
         if st.button("Dejarlo y empezar de cero", key="p0_soltar"):
             st.session_state.pop("p0_retomado", None)
             st.rerun()
@@ -1734,7 +1752,9 @@ def main() -> None:
         # resuelta, porque el proyecto la guarda — y sin ella el propio proyecto sale
         # marcado NO_FIABLE, que es informacion y no un fallo.
         proyectos = {
-            nombre: _panel_proyecto(nombre, secuencias[nombre], anat)
+            nombre: _panel_proyecto(
+                nombre, secuencias[nombre], anat, retomado=retomado,
+            )
             for nombre, (_, anat) in anatomias.items()
         }
 

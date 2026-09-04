@@ -4260,6 +4260,26 @@ PAGE_COLORS = {
 }
 
 
+#: LO QUE PASA CUANDO SE HA RETOMADO UN PROYECTO, dicho donde estaba la pregunta.
+#:
+#: Se preguntó con la captura delante: «¿tengo que darle a guardar esta corrida en un
+#: proyecto, o viniendo de uno abierto asumo que los cambios que haga se irán guardando?»
+#: Que la pregunta se pueda hacer YA ES EL FALLO — la app la estaba haciendo dos veces, y
+#: la segunda con la casilla sin marcar. Aquí se contesta una y en el sitio donde estaba.
+PROJECT_RESUMED_NOTE = (
+    "Proyecto abierto: **todo lo que hagas a partir de aquí se guarda solo** — las "
+    "corridas de los modales y la selección van a su registro, con la fecha de abajo. No "
+    "hay nada que marcar."
+)
+
+#: Y lo mismo arriba, en la tarjeta del paso 0, porque es donde se decide.
+PROJECT_RESUME_HELP = (
+    "Un proyecto guarda la secuencia con la que se trabajó, su anatomía y todo lo que se "
+    "decidió después. Al abrirlo salen los mismos candidatos sin volver a subir nada, y "
+    "lo que hagas a partir de ahí se sigue guardando en él."
+)
+
+
 def connected_panel(resources) -> dict[str, object]:
     """La lista de ficheros conectados y, APARTE, lo que no se ha podido conectar.
 

@@ -4334,6 +4334,39 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     detrás de un clic, debajo de la lista de lo que sí funcionó. Ahora el aviso va fuera y
     arriba; la lista se queda dentro.
 
+- **CON UN PROYECTO RETOMADO, LA BARRA LATERAL NO VUELVE A PREGUNTAR POR ÉL (2026-09-04)**,
+  errata nº 74. Se reportó con captura: se abre `Intento_17` desde el paso 0 y abajo sigue
+  «Guardar esta corrida en un proyecto» sin marcar, con «Sin proyecto, lo que calculen los
+  modales se pierde al cerrar la pestaña».
+  - **DOS SÍNTOMAS Y UNA CAUSA.** Sin la casilla marcada el almacén no se abre; sin
+    almacén, `stores` llega `None` a la tabla, a las tarjetas y al semáforo, y las corridas
+    que el proyecto SÍ tenía desaparecen. El segundo síntoma —«no tenía la corrida»— **es
+    el primero, tres consumidores más allá**.
+  - **Y el mecanismo que había elegido estaba mal**: `st.session_state.setdefault` sobre la
+    clave de un widget **no escribe nada** en cuanto el widget se ha pintado una vez, que
+    es siempre. Sembrar un valor por defecto no sirve cuando el valor ya está puesto.
+  - **El arreglo no es sembrarlo bien: es NO PREGUNTAR DOS VECES.** La pregunta la contestó
+    el paso 0; repetirla abajo permite dos respuestas distintas a la misma pregunta sin que
+    nadie decida cuál manda — la misma razón por la que se quitó la casilla global «Usar
+    los de `data/reference/`». Con proyecto retomado se enseña el proyecto ABIERTO y punto,
+    y la respuesta va donde estaba la pregunta (`PROJECT_RESUMED_NOTE`): **todo lo que
+    hagas a partir de aquí se guarda solo, no hay nada que marcar.**
+
+- **LA SUITE DEPENDÍA DE QUE LA MÁQUINA NO TUVIERA PROYECTOS GUARDADOS (2026-09-04)**,
+  errata nº 75 (`tests/pagina.py`). Rotura introducida al añadir el paso 0: desde que la
+  primera pregunta depende de si hay proyectos, lo que se pinta arriba depende del
+  directorio de proyectos — y sin declararlo, es el del paquete. Con uno dentro,
+  `app.selectbox[0]` deja de ser el de la especie y **saltan 24 tests de ficheros que no
+  tienen nada que ver**: un fallo así no dice lo que pasa, dice que has roto media app.
+  - **Lo que decide lo que se ve, se declara**: `sin_proyectos()` —y su contrario
+    `con_proyectos()`— en `setUpModule` de los tres ficheros que pintan la página. Va ahí y
+    no como gestor de contexto porque tiene que estar puesto durante TODOS los `.run()`:
+    cada `set_value(...).run()` vuelve a ejecutar el script.
+  - **Medido que muerde**: con un proyecto delante y el `setUpModule` desactivado,
+    `test_streamlit_app` rompe en 15 de 22; con él, pasan las 44 de los tres ficheros.
+  - Y `data/proyectos/` pasa a `.gitignore`: son datos de quien usa la app, no del
+    repositorio.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
