@@ -69,6 +69,7 @@ from shmir_design.presentation import (  # noqa: E402
     PAGE_COLORS,
     PROJECT_ENTRY_HELP,
     PROJECT_PENDING_NOTE,
+    DOWNLOAD_FAILED_NOTE,
     PROVENANCE_MISSING_NOTE,
     PROJECT_RENAME_HELP,
     PROJECT_SAVE_TOGGLE,
@@ -590,7 +591,13 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     st.markdown("**Informe** — parcial o completo, en cualquier momento")
     documento = informe_documento(
         seleccion, tiling, species=nombre,
-        generated=st.session_state.get("fecha_informe", "sin fecha declarada"),
+        # LA FECHA SE DERIVA. Venia de `st.session_state.get("fecha_informe", ...)`, una
+        # clave que NADIE escribia nunca, leida ademas en dos sitios con dos valores por
+        # defecto DISTINTOS: aqui el literal «sin fecha declarada» —que llega al `.docx`,
+        # que es un zip, y `deterministic_zip` rechaza con razon— y en el zip de
+        # resultados `"" or today_text()`, que si valia. Generar el informe pasa AHORA,
+        # asi que su fecha es hoy y se deriva (errata nº 89).
+        generated=today_text(),
         anatomy_source=anatomy_source_label(anat),
         anatomy=anat,
         # LOS ALMACENES. Sin ellos las fichas del documento se construian con uno vacio
@@ -610,6 +617,14 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     entregables = informe_files(documento, stem=nombre)
     for columna, entregable in zip(st.columns(len(entregables)), entregables, strict=True):
         with columna:
+            # UN FORMATO ROTO SE QUEDA EN SU COLUMNA. `informe_files` construye los tres
+            # por separado, asi que aqui no hay nada que pueda reventar: o hay datos, o
+            # hay motivo. El boton roto NO se esconde — seria quitar la unica señal de
+            # que algo falla. Ver `presentation.DOWNLOAD_FAILED_NOTE`.
+            if entregable["error"]:
+                st.error(f"**{entregable['etiqueta']}** — {entregable['error']}")
+                st.caption(DOWNLOAD_FAILED_NOTE)
+                continue
             st.download_button(
                 entregable["etiqueta"],
                 data=entregable["datos"],
@@ -1911,7 +1926,7 @@ def main() -> None:
     # `gestor.WHY_A_ZIP_MUST_NOT_CHANGE`.
     paquete = downloads_zip(
         ficheros, species=nombre_modelo,
-        date=st.session_state.get("fecha_informe", "") or today_text(),
+        date=today_text(),
     )
     if paquete["hay"]:
         st.download_button(

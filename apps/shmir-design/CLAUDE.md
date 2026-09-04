@@ -4591,6 +4591,36 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - Al abrirlo con la secuencia delante, `project_open` la recibe y **la migración de la
     entrada se escribe sola** (errata nº 80). Ése es el paso que el aviso nombraba.
 
+- **UNA DESCARGA QUE FALLA NO TUMBA EL RESTO DE LA PÁGINA (2026-09-04)**, errata nº 89
+  (`presentation.DOWNLOAD_FAILED_NOTE`, `informe_files`). Dos fallos independientes.
+  - **La fecha del informe salía de `fecha_informe`, una clave de sesión que NADIE
+    escribe**, leída en dos sitios con **dos valores por defecto distintos**: el literal
+    `«sin fecha declarada»` —que llega al `.docx`, que es un zip, y `deterministic_zip`
+    rechaza con razón— y `"" or today_text()`, que sí valía. La errata nº 76 hizo la
+    fecha obligatoria y no se comprobó de dónde salía en cada llamador: **el `.docx` pasó
+    de corromperse a ser imposible.** Familia de la errata nº 47, con el signo cambiado.
+  - **El guardia estaba bien y el llamador no**, así que no se toca `_fecha_del_zip`: la
+    fecha **se deriva** (`today_text()`), que es el criterio ya escrito en la errata
+    nº 64 — lo que ocurre AHORA lleva hoy, y generar un informe pasa al pulsar.
+  - **Y el aborto se llevaba media página**: sin guardia propio, la excepción subía al
+    `try` de `main()`, que pinta el motivo y **hace `return`**. Dejaban de pintarse los
+    cuatro modales, «Descargas» y el paso 5. El error salía «en la sección del informe»
+    porque ahí es donde el script se paraba, no donde estaba la causa.
+  - **Cada formato se construye por separado** y trae sus `datos` o su `error`; la página
+    pinta el botón o el motivo **en su columna**. El botón roto **no se esconde**: sería
+    quitar la única señal de que algo falla.
+  - **En el CLI aborta, a propósito.** En la página cada entregable tiene su sitio y el
+    motivo se ve; en `tools/informe.py` no hay tres columnas que mirar, y escribir dos
+    ficheros de tres saliendo con 0 deja media entrega que parece completa.
+  - **EL GUARDIA MECÁNICO ES LO QUE GENERALIZA**: ninguna clave de `session_state` se
+    lee sin que alguien la escriba. Una clave así devuelve **siempre** su literal por
+    defecto, así que lo que decide es ese literal. Hoy a cero, con control adversario, y
+    **quitando los comentarios antes de mirar** — el comentario que explica el fallo
+    nombra la clave, y sin la poda el guardia fallaría por su propia documentación.
+  - **LA COPIA DE SEGURIDAD NO ESTABA ROTA, medido antes de decirlo**: `build_backup`
+    recibe `date=today_text()` y su botón ya tenía su propio `try/except`. De los dos
+    botones que pasan por `deterministic_zip`, sólo uno estaba roto.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

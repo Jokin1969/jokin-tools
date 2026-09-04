@@ -4256,3 +4256,75 @@ Hay tres tests, y el primero es el que fija la regla y no el síntoma:
 `tests/test_un_proyecto_A_MEDIAS_no_se_olvida.py` exige que en esa rama no haya ningún
 `pop` fuera de un botón, que la barra lateral tenga una rama para el pendiente, y que el
 aviso nombre lo que pasa cuando se suba la secuencia.
+
+---
+
+## 89 — La fecha del informe salía de una clave que nadie escribe, y su aborto tumbaba media página
+
+**Reportado (2026-09-04)** con el mensaje entero:
+
+    PARA — La fecha del zip tiene que ser AAAA-MM-DD y llegó «sin fecha declarada»
+
+**Son dos fallos independientes, y el segundo es el que convierte una molestia en un
+bloqueo.**
+
+### 1. El zip quedó imposible de generar
+
+La errata nº 76 hizo la fecha del zip **obligatoria y derivada de la declarada**, que es
+correcto. Lo que no se comprobó es de dónde salía la declarada en cada llamador. Salía de
+`st.session_state.get("fecha_informe", …)`, y **`fecha_informe` no la escribe nadie**: se
+lee en dos sitios de la página, con **dos valores por defecto distintos**:
+
+| llamador | por defecto | qué pasa |
+|---|---|---|
+| el informe | `"sin fecha declarada"` | llega a `Document.generated` → `.docx` (que es un zip) → **aborta siempre** |
+| el zip de resultados | `"" or today_text()` | cae en hoy y funciona |
+
+O sea: **la misma clave, dos literales, y sólo uno válido.** Es la familia de la errata
+nº 47 —una comparación que preguntaba por una clave que no existe— con el signo cambiado:
+allí producía un veredicto falso, aquí un aborto seguro. Arreglé que el zip se corrompiera
+y lo dejé imposible.
+
+**El guardia estaba bien; el llamador, no.** No se toca `_fecha_del_zip`: una fecha
+inventada ahí discreparía en silencio de la que va en el nombre del fichero. Lo que se
+arregla es que la fecha **se derive**, que es lo que ya dice el criterio de la errata
+nº 64: lo que ocurre AHORA lleva hoy porque ésa es la verdad, y generar un informe pasa
+al pulsar. `fecha_informe` desaparece.
+
+### 2. Y el aborto se llevaba por delante todo lo que hay debajo
+
+El bloque del informe no tenía guardia propio, así que la excepción subía hasta el `try`
+de `main()`, que pinta el motivo y **hace `return`**. Dejaban de pintarse los cuatro
+modales, «Descargas» y el paso 5 entero. Por eso el error salía «en la sección del
+informe»: ahí es donde el script se paraba, no donde está la causa.
+
+**La regla que queda: un entregable que falla no puede tumbar a los otros dos ni al resto
+de la página.** `informe_files` construye los tres formatos **por separado** y cada uno
+trae sus `datos` o su `error`; la página pinta el botón o el motivo **en su columna**. El
+botón roto **no se esconde** — sería quitar la única señal de que algo falla.
+
+**Y en el CLI aborta, a propósito.** No es incoherencia: en la página cada entregable
+tiene su sitio en pantalla, así que el motivo se ve y los otros dos siguen sirviendo; en
+`tools/informe.py` no hay nadie mirando tres columnas, y escribir dos ficheros de tres
+saliendo con 0 deja media entrega que parece completa.
+
+### El guardia mecánico, que es lo que generaliza
+
+`tests/test_una_descarga_ROTA_no_tumba_la_pagina.py` comprueba que **ninguna clave de
+`session_state` se lee sin que alguien la escriba**. Una clave así devuelve **siempre** su
+literal por defecto, así que lo que decide de verdad es ese literal — y aquí había dos
+para la misma clave, en dos sitios, con resultados opuestos. Hoy sale a cero, y con su
+control adversario: si el detector dejara de encontrar claves, «ninguna huérfana» y «no he
+mirado» darían el mismo verde (errata nº 29).
+
+**El detector quita los comentarios antes de mirar.** El comentario que explica de dónde
+venía `fecha_informe` nombra la clave, y sin esa poda el guardia fallaría por su propia
+documentación — con la salida fácil de borrar la explicación. Errata nº 54 con el signo
+cambiado.
+
+### Lo que NO estaba roto, medido antes de decirlo
+
+**La copia de seguridad no pasa por aquí.** `build_backup` recibe `date=today_text()`,
+que es una fecha derivada y válida, y su botón ya estaba envuelto en su propio
+`try/except`. Comprobado: `deterministic_zip` con `today_text()` produce el zip sin
+problema. De los dos botones que pasan por `deterministic_zip`, **sólo uno estaba roto**.

@@ -1749,6 +1749,23 @@ INFORME_LABELS = (
 )
 
 
+#: UN ENTREGABLE QUE FALLA NO SE LLEVA A LOS DEMAS. Reportado (2026-09-04): el `.docx`
+#: abortaba porque su fecha venia de una clave que nadie escribia, y el aborto subia
+#: hasta el `try` de `main()` —que pinta el motivo y hace `return`—, asi que se dejaban
+#: de pintar los cuatro modales, «Descargas» y el paso 5. El error salia «en la seccion
+#: del informe» porque ahi es donde el script se paraba.
+#:
+#: La regla es la misma que ya rige los frentes: un fallo se DICE, con su motivo entero
+#: y en su sitio, y lo que no depende de el sigue funcionando. Esconder el boton roto
+#: seria peor —quitaria la unica señal de que algo falla— asi que sale, con el motivo
+#: en vez del boton.
+DOWNLOAD_FAILED_NOTE = (
+    "Este formato no se ha podido generar y el motivo va entero, aquí debajo. Los otros "
+    "entregables de esta sección y el resto de la página no dependen de él: un fallo en "
+    "una descarga no interrumpe nada más."
+)
+
+
 def informe_files(documento, *, stem: str):
     """Los tres entregables, ya con nombre, ETIQUETA y mime: `.docx`, `.pdf` y markdown.
 
@@ -1756,6 +1773,11 @@ def informe_files(documento, *, stem: str):
     `nombre`, `etiqueta`, `datos` y `mime` (regla 6). El markdown va tambien porque es la
     FUENTE de los otros dos — si alguien discute una frase del pdf, ahi esta el texto sin
     maquetar.
+
+    **CADA FORMATO SE CONSTRUYE POR SEPARADO Y TRAE SU RESULTADO O SU MOTIVO**
+    (`error`, vacio cuando ha ido bien). Antes se montaban los tres en una comprension,
+    asi que uno que reventara se llevaba a los otros dos — y, sin guardia en la pagina,
+    tambien todo lo que se pinta debajo. Ver `DOWNLOAD_FAILED_NOTE`.
     """
     from .docx_writer import to_docx
     from .pdf_writer import to_pdf
@@ -1767,15 +1789,25 @@ def informe_files(documento, *, stem: str):
         "docx": lambda: to_docx(documento),
         "pdf": lambda: to_pdf(documento),
     }
-    return [
-        {
+    entregables = []
+    for extension, etiqueta, mime in INFORME_LABELS:
+        datos, motivo = None, ""
+        try:
+            datos = contenido[extension]()
+        except (ShmirDesignError, ValueError, OSError) as exc:
+            # rule2-ok: NO se traga nada — el motivo entero sale en `error` y la pagina
+            # lo pinta EN EL SITIO de ese boton. Lo que se evita es que un formato roto
+            # se lleve por delante a los otros dos y al resto de la pagina, que es lo
+            # que pasaba: la excepcion subia al `try` de `main()`, que hace `return`.
+            motivo = str(exc)
+        entregables.append({
             "nombre": f"{base}.{extension}",
             "etiqueta": etiqueta,
-            "datos": contenido[extension](),
+            "datos": datos,
             "mime": mime,
-        }
-        for extension, etiqueta, mime in INFORME_LABELS
-    ]
+            "error": motivo,
+        })
+    return entregables
 
 
 def informe_state_text(documento) -> str:
