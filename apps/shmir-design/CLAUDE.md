@@ -4524,6 +4524,33 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     frente «lo cierra el filtro de la ventana contra el catálogo cargado, no la corrida».
     Falso desde la nº 68 — y con esta errata, además, el consejo al revés. Principio nº 11.
 
+- **NINGUNA DESCARGA LLEGA EN PRODUCCIÓN: dos hipótesis REFUTADAS, un fallo real y una
+  causa SIN ASIGNAR (2026-09-04)**, erratas nº 85 y nº 86. Reportado así: el informe en
+  PDF (70 KB) y el zip empiezan a bajar, dicen «iniciando» y se quedan en 0 bytes horas.
+  - **Lo que se midió y quedó DESCARTADO**, con medida y no con argumento: (a) que la URL
+    del fichero de medios no llevara el prefijo del montaje —con `--server.baseUrlPath` el
+    navegador pide `/shmir/media/<id>` y la descarga cae, comprobado con Chromium—; y (b)
+    que el proceso, ocupado con la base de 175 MB, no atendiera —con el script haciendo
+    `find` sobre 160 Mnt durante 30 s, el servidor contestó las 46 sondas de salud en
+    30-100 ms y la descarga cayó en 0,1 s: Streamlit corre el script en otro hilo—.
+  - **EL FALLO REAL QUE SÍ HABÍA, y no es la causa**: el `.docx` del informe **cambiaba de
+    bytes en cada generación** (medido: 50.766 B, dos md5). Un `.docx` es un zip, así que
+    tenía el problema de la errata nº 76 — `writestr` estampa la hora actual—. Ahora pasa
+    por `gestor.deterministic_zip`, que es el **único constructor de zips del proyecto**, y
+    el **orden va declarado** porque el formato lo exige (`[Content_Types].xml` primero):
+    hoy el alfabético coincide **por casualidad** y eso no es una garantía. El `.pdf` y el
+    `.md` ya eran deterministas — o sea que esto no explica lo reportado, y se dice.
+  - **Y UN FALLO DEL PROXY, del que el síntoma sí encaja**: reenviaba las cabeceras de
+    **salto a salto** del upstream (`{...upRes.headers}` a pelo). `transfer-encoding`
+    describe la conexión que ACABA en el proxy, no la respuesta, y **en HTTP/2 está
+    prohibida**: una respuesta que la lleva se rechaza o se queda colgada — exactamente
+    «empieza y no llega». En local no hay HTTP/2 de por medio, que es por lo que allí baja.
+    **No se declara como la causa**: no se ha reproducido el entorno (principio nº 3).
+  - **Lo que hay que mirar si esto no basta**: la respuesta de `/media/` viene
+    **`content-encoding: gzip`** —Streamlit comprime las descargas de octet-stream a
+    propósito— y con `accept-ranges: bytes`. Una petición con `Range` sobre una respuesta
+    comprimida es la otra forma conocida de que una descarga empiece y no termine.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

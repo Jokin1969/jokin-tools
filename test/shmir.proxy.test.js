@@ -14,7 +14,7 @@ const { useTempDb, makeUser } = require('./helpers');
 
 useTempDb();
 const store = require('../apps/auth/store');
-const { upgradeAllowed, proxyRequest } = require('../apps/shmir/proxy');
+const { upgradeAllowed, proxyRequest, forwardableHeaders } = require('../apps/shmir/proxy');
 
 // ── Un upstream de mentira: responde lo que se le diga y cuenta lo que recibe ──
 function upstream(handler) {
@@ -231,4 +231,83 @@ test('si el upstream no está, contesta 502 y NO deja la petición colgada', asy
   });
   assert.equal(respuesta.status, 502);
   assert.match(respuesta.texto, /shmir/i);
+});
+
+// ─── Cabeceras «salto a salto»: un proxy NO las reenvía ───────────────────────
+//
+// Reportado (2026-09-04): en producción NINGUNA descarga llega — ni el informe en PDF
+// (70 KB) ni el zip. El navegador dice «iniciando» y se queda en 0 bytes. Localmente,
+// con este mismo proxy delante, la misma descarga cae en 0,1 s.
+//
+// Lo que este test cierra NO es «la causa comprobada» —no se ha podido reproducir el
+// entorno de producción desde aquí y no se le asigna causa (principio nº 3)— sino un
+// fallo REAL del proxy que encaja con el síntoma: `{...upRes.headers}` copiaba las
+// cabeceras del upstream ENTERAS, incluidas las de salto a salto. `connection`,
+// `keep-alive` y sobre todo `transfer-encoding` describen la conexión de ESE salto, no
+// la respuesta: reenviarlas hace que la longitud o el troceado que anuncia la respuesta
+// no sea el que va a viajar por la conexión de salida. En HTTP/2 —que es lo que habla
+// el borde de un despliegue moderno— `transfer-encoding` está PROHIBIDA, y una
+// respuesta que la lleva se rechaza o se queda colgada: el navegador ve una descarga
+// que empieza y no llega nunca.
+//
+// Node pone la suya cuando hace falta, así que quitarlas es lo correcto en cualquier
+// caso: la lista es la del RFC 9110 §7.6.1.
+test('`forwardableHeaders` quita las de salto a salto y deja las demás', () => {
+  const salida = forwardableHeaders({
+    'content-type': 'application/octet-stream',
+    'content-disposition': 'attachment; filename="x.bin"',
+    'content-encoding': 'gzip',
+    Connection: 'keep-alive',
+    'keep-alive': 'timeout=5',
+    'Transfer-Encoding': 'chunked',
+    'proxy-authenticate': 'Basic',
+    te: 'trailers',
+  });
+  // Lo que hace que el navegador guarde el fichero SIGUE pasando.
+  assert.equal(salida['content-type'], 'application/octet-stream');
+  assert.match(salida['content-disposition'], /attachment/);
+  assert.equal(salida['content-encoding'], 'gzip');
+  // Y lo del salto anterior no. Se comprueba por nombre en MINÚSCULAS y en mayúsculas:
+  // un upstream puede escribirlas como quiera y una comparación sensible a la caja
+  // dejaría pasar justo la que rompe.
+  for (const fuera of ['Connection', 'keep-alive', 'Transfer-Encoding',
+    'proxy-authenticate', 'te']) {
+    assert.equal(fuera in salida, false, `${fuera} no puede reenviarse`);
+  }
+});
+
+test('y el cuerpo de una descarga troceada llega ENTERO', async () => {
+  // La otra mitad: quitar cabeceras no puede romper lo que sí tiene que llegar. El
+  // upstream trocea y no declara longitud —el caso real de una descarga de Streamlit—
+  // y Node pone su propio troceado en la salida, que es lo correcto: el troceado es de
+  // cada conexión, no de la respuesta.
+  const { server, port } = await upstream((req, res) => {
+    res.writeHead(200, {
+      'content-type': 'application/octet-stream',
+      'content-disposition': 'attachment; filename="x.bin"',
+      connection: 'keep-alive',
+      'transfer-encoding': 'chunked',
+    });
+    res.end('12345');
+  });
+
+  const respuesta = await new Promise((resolve, reject) => {
+    const frente = http.createServer((req, res) => proxyRequest(req, res, { port }));
+    frente.listen(0, '127.0.0.1', () => {
+      http.get({ port: frente.address().port, path: '/shmir/media/x.bin' }, r => {
+        let cuerpo = '';
+        r.on('data', d => { cuerpo += d; });
+        r.on('end', () => { frente.close(); resolve({ headers: r.headers, cuerpo }); });
+      }).on('error', reject);
+    });
+  });
+
+  server.close();
+  assert.equal(respuesta.cuerpo, '12345');
+  assert.match(respuesta.headers['content-disposition'], /attachment/);
+  // NO se comprueba aquí que falten `transfer-encoding` ni `keep-alive`: las pone NODE
+  // en la conexión de salida, y son suyas. Confundir «no la reenviamos» con «no
+  // aparece» daría un test que falla por lo correcto — y el arreglo obvio sería
+  // quitarle a Node su propio troceado, que es peor que el fallo. Lo que se reenvía o
+  // no lo fija el test de `forwardableHeaders`.
 });

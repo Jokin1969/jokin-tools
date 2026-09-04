@@ -167,13 +167,22 @@ def to_docx(document: Document) -> bytes:
         '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/>'
         "</w:sectPr></w:body></w:document>"
     )
-    buffer = BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        # `[Content_Types].xml` va PRIMERO: es lo que exige la especificacion OPC y lo
-        # que algunos lectores comprueban antes de abrir nada.
-        zf.writestr("[Content_Types].xml", _CONTENT_TYPES)
-        zf.writestr("_rels/.rels", _RELS)
-        zf.writestr("word/_rels/document.xml.rels", _DOC_RELS)
-        zf.writestr("word/styles.xml", _styles_xml())
-        zf.writestr("word/document.xml", documento)
-    return buffer.getvalue()
+    # UN `.docx` ES UN ZIP, ASI QUE TIENE EL PROBLEMA DE LOS ZIPS (errata nº 84, la
+    # segunda mitad de la nº 76). `zipfile.writestr` con un nombre estampa la HORA
+    # ACTUAL en cada entrada, asi que el mismo informe generado dos veces daba dos
+    # ficheros distintos —medido: 50.766 bytes, dos md5— y Streamlit deriva el id de su
+    # fichero de medios DEL CONTENIDO: bytes nuevos, id nuevo, y el que el navegador
+    # esta descargando se queda huerfano y lo borra `remove_orphaned_files`.
+    #
+    # Se empaqueta con el UNICO constructor de zips del proyecto, y el orden va
+    # DECLARADO porque aqui lo exige el formato: `[Content_Types].xml` primero (OPC).
+    from .gestor import deterministic_zip  # noqa: PLC0415
+
+    piezas = {
+        "[Content_Types].xml": _CONTENT_TYPES,
+        "_rels/.rels": _RELS,
+        "word/_rels/document.xml.rels": _DOC_RELS,
+        "word/styles.xml": _styles_xml(),
+        "word/document.xml": documento,
+    }
+    return deterministic_zip(piezas, date=document.generated, order=list(piezas))

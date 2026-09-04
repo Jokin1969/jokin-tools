@@ -530,18 +530,40 @@ def _fecha_del_zip(date: str) -> tuple[int, int, int, int, int, int]:
     return (max(anio, 1980), mes, dia, 0, 0, 0)
 
 
-def deterministic_zip(entries, *, date: str) -> bytes:
+def deterministic_zip(entries, *, date: str, order=None) -> bytes:
     """Un zip que sale IGUAL con el mismo contenido. Ver `WHY_A_ZIP_MUST_NOT_CHANGE`.
 
     `entries` es `{nombre: texto o bytes}`. Las entradas van ordenadas por nombre —el
     orden también es contenido— y todas con la misma marca de tiempo.
+
+    `order` es para los formatos donde el orden LO EXIGE la especificación y no lo elige
+    quien empaqueta: un `.docx` es un zip OPC y `[Content_Types].xml` tiene que ir el
+    primero. Se pasa explícito en vez de confiar en que el alfabético coincida — hoy
+    coincide por casualidad (`[` va antes que `_` y que `w` en ASCII) y eso no es una
+    garantía, es una coincidencia que se rompe al renombrar cualquier pieza.
+
+    **Es el ÚNICO constructor de zips del proyecto**, y por eso lo usan la copia de
+    seguridad, la descarga de resultados y el `.docx` del informe: un zip que cambia de
+    bytes sin cambiar de contenido rompe todo lo que lo identifique por su contenido
+    (errata nº 76).
     """
     import zipfile  # noqa: PLC0415
 
     marca = _fecha_del_zip(date)
+    if order is not None:
+        faltan = set(entries) ^ set(order)
+        if faltan:
+            raise ShmirDesignError(
+                f"El orden declarado del zip no cuadra con lo que se le da: sobran o "
+                f"faltan {sorted(faltan)}. Se aborta en vez de escribir un zip con "
+                f"entradas de menos o en un orden que no es el declarado."
+            )
+        pares = [(nombre, entries[nombre]) for nombre in order]
+    else:
+        pares = sorted(entries.items())
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for nombre, contenido in sorted(entries.items()):
+        for nombre, contenido in pares:
             info = zipfile.ZipInfo(nombre, date_time=marca)
             info.compress_type = zipfile.ZIP_DEFLATED
             # Permisos fijos también: el modo va dentro del zip, así que heredarlo del

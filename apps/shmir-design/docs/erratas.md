@@ -4116,3 +4116,63 @@ que no puede con él.
 cargado, no la corrida». Dejó de ser cierto con la errata nº 68 —una corrida que cubre el
 panel lo cierra— y con esta errata es además **el consejo justo al revés**: el catálogo
 cargado no puede cerrarlo. Principio nº 11.
+
+## 85 — El `.docx` del informe cambiaba de bytes en cada generación
+
+**Medido (2026-09-04)** al investigar «no se me descarga nada»: se genera el mismo informe
+dos veces seguidas y
+
+| | bytes | md5 |
+|---|---|---|
+| `.docx` | 50.766 | **dos distintos** |
+| `.pdf` | 70.191 | el mismo |
+| `.md` | 165.428 | el mismo |
+
+**Un `.docx` es un zip**, así que tenía el problema de los zips (errata nº 76):
+`zipfile.writestr(nombre, datos)` estampa la **hora actual** en cada entrada. Y Streamlit
+deriva el id de su fichero de medios **del contenido**: bytes nuevos → id nuevo → el que
+el navegador está descargando se queda huérfano y lo borra `remove_orphaned_files`.
+
+Se empaqueta ahora con `gestor.deterministic_zip`, que pasa a ser el **único constructor
+de zips del proyecto**. Y el orden va **declarado** (`order=`) porque aquí lo exige el
+formato —`[Content_Types].xml` primero, OPC—: hoy el alfabético coincide por casualidad
+(`[` va antes que `_` y que `w` en ASCII) y eso no es una garantía, es una coincidencia
+que se rompe al renombrar cualquier pieza.
+
+**Lo que esto NO explica, y se dice**: el `.pdf` y el `.md` **ya eran deterministas** y
+tampoco se descargan. Así que esto es un fallo real y no es la causa de lo reportado.
+
+## 86 — El proxy reenviaba las cabeceras de salto a salto del upstream
+
+**No es una causa comprobada, y se declara como lo que es**: no se ha podido reproducir el
+entorno de producción desde aquí, así que **no se le asigna causa** a «ninguna descarga
+llega» (principio nº 3). Lo que sí es un fallo real del proxy, encontrado al buscarla:
+
+`proxyRequest` copiaba `{...upRes.headers}` **enteras**. Las cabeceras de **salto a
+salto** (RFC 9110 §7.6.1) describen la conexión que ACABA en el proxy, no la respuesta, y
+un proxy no las reenvía. La que muerde es **`transfer-encoding`**: anuncia un troceado que
+la conexión de salida no usa —Node pone el suyo— y en **HTTP/2**, que es lo que habla el
+borde de cualquier despliegue moderno, **está prohibida**: una respuesta que la lleva se
+rechaza o se queda colgada. El síntoma sería exactamente el reportado — una descarga que el
+navegador da por iniciada y que nunca recibe un byte, mientras la misma descarga cae en
+0,1 s en local, donde no hay HTTP/2 de por medio.
+
+### Lo que se midió y quedó REFUTADO por el camino
+
+Dos hipótesis plausibles, las dos descartadas con una medida en vez de con un argumento:
+
+1. **«La URL del medio no lleva el prefijo del montaje»** — `MemoryMediaFileStorage` monta
+   las URL sobre `/media` sin base. **Falso en la práctica**: con `--server.baseUrlPath`,
+   el navegador pide `/shmir/media/<id>.bin` y la descarga cae. Comprobado con Chromium.
+2. **«El proceso está ocupado y no atiende»** — con la base de 175 MB el escáner tiene el
+   GIL casi todo el rato. **Falso**: con el script haciendo `find` sobre 160 Mnt durante
+   30 s, el servidor contestó las 46 sondas de salud en **30-100 ms** y la descarga cayó
+   en **0,1 s**. Streamlit corre el script en otro hilo y el servidor sigue sirviendo.
+
+### Y un dato que sí acota el problema
+
+La respuesta de `/media/` viene **`content-encoding: gzip`** —Streamlit comprime las
+descargas de `application/octet-stream` a propósito— con `accept-ranges: bytes`. Queda
+anotado porque es lo que hay que mirar primero si el arreglo de las cabeceras no basta:
+una petición con `Range` sobre una respuesta comprimida es la otra forma conocida de que
+una descarga empiece y no termine.
