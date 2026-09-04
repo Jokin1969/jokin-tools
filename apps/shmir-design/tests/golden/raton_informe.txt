@@ -377,12 +377,23 @@
 
   Los dos servicios (direcciones dadas por el responsable del proyecto, no
   verificadas desde aquí):
-    · miRarchitect  https://mirarchitect.cs.put.poznan.pl/
+    · miRarchitect             https://mirarchitect.cs.put.poznan.pl/
       puntua el diseño de la horquilla; es la fuente de `score_externo`; pegar la guía de 22 nt en ADN y el andamio miR-E
-    · SplashRNA     http://splashrna.mskcc.org/
+      Produce guías de 22 nt.
+    · SplashRNA                http://splashrna.mskcc.org/
       predice potencia de shRNA; sus features salen aquí en columnas feat_*; pegar la guía de 22 nt en ADN
-    · GPP Web Portal https://portals.broadinstitute.org/gpp/public/
+      Produce guías de 22 nt.
+    · GPP Web Portal           https://portals.broadinstitute.org/gpp/public/
       portal de la Genetic Perturbation Platform del Broad, con sus herramientas de diseño; sirve para contrastar, NO alimenta score_externo; pegar el gen diana
+      No declara qué longitud de guía produce, así que no se cruza nada con esta fuente. Se declara en `external_score.EXTERNAL_TOOLS`, en su entrada. NO se deduce del nombre ni de la familia de la herramienta: ese número decide cómo se cruza, y uno equivocado no da ningún error — da un cruce con la forma correcta sobre el candidato de al lado.
+    · siDirect                 Sin dirección aportada. No se escribe ninguna de memoria: desde este entorno no se puede verificar (403 en el CONNECT del proxy, que es política de red y no una respuesta del servicio), y una dirección deducida por patrón es exactamente lo que la regla 4 prohíbe. La aporta quien la conozca.
+      diseñador de siRNA con reglas de especificidad; es CONTRASTE de sitio, NO ordena estos candidatos; pegar la secuencia diana (el 3'UTR o el transcrito)
+      Produce guías de 19 nt.
+    · BLOCK-iT RNAi Designer   Sin dirección aportada. No se escribe ninguna de memoria: desde este entorno no se puede verificar (403 en el CONNECT del proxy, que es política de red y no una respuesta del servicio), y una dirección deducida por patrón es exactamente lo que la regla 4 prohíbe. La aporta quien la conozca.
+      diseñador de RNAi de Thermo Fisher; es CONTRASTE de sitio, NO ordena estos candidatos; pegar la secuencia diana (el 3'UTR o el transcrito)
+      No declara qué longitud de guía produce, así que no se cruza nada con esta fuente. Se declara en `external_score.EXTERNAL_TOOLS`, en su entrada. NO se deduce del nombre ni de la familia de la herramienta: ese número decide cómo se cruza, y uno equivocado no da ningún error — da un cruce con la forma correcta sobre el candidato de al lado.
+
+  ESTAS HERRAMIENTAS SE CONOCÍAN Y SE DECIDIÓ NO USARLAS COMO FUENTE PRINCIPAL, sino como CONTRASTE independiente. Dos motivos, y ninguno es que sean malas: (a) devuelven una lista de candidatos y NO DECLARAN qué no han comprobado, así que un sitio que no sale no se distingue de uno que no miraron —que es la misma razón por la que aquí todo filtro emite `NOT_RUN` con su motivo—; y (b) ninguna considera la POLIADENILACIÓN ALTERNATIVA, que en este 3'UTR condiciona a seis de los diez candidatos con un techo de knockdown. Lo que sí aportan es convergencia de sitio: que otro método señale la misma región es información, y por eso están en la lista en vez de fuera de ella.
 
   Para puntuarlas a mano:
     1. Abre https://mirarchitect.cs.put.poznan.pl/.

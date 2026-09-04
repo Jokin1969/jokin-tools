@@ -4729,6 +4729,49 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   recuerdo de lo que hacía — que es el principio nº 13 aplicado a la evidencia de que un
   guardia sirve.
 
+- **CINCO SERVICIOS EXTERNOS, Y LA LONGITUD DE GUÍA ES DE PRIMERA CLASE (2026-09-04)**,
+  errata nº 93. Entran **siDirect** y **BLOCK-iT RNAi Designer** con el mismo trato que
+  los tres de antes: se abren a mano, **ningún código las llama**, y su score sólo entra
+  por `tools/import_scores.py`.
+  - **El GPP Web Portal YA es el del Broad** —`portals.broadinstitute.org`, y su
+    descripción lo dice desde que se escribió—, comprobado antes de añadir nada. **No se
+    duplica**: la misma herramienta dos veces con dos nombres es como se acaba comparando
+    una lista consigo misma y llamándolo convergencia.
+  - **LA PREMISA DEL CRUCE ERA FALSA y va corregida con la medida.** Se pidió dando por
+    hecho que los 19-mers no cruzarían «por identidad de secuencia»: `guide_shift` **no
+    compara cadenas iguales**, busca solapamiento, y sobre el panel murino cruza **120 de
+    120** de los 19-mers que solapan ≥15 nt. **Lo que sí está roto es otra cosa**
+    (principio nº 27): devuelve un DESPLAZAMIENTO que, con longitudes distintas, mezcla
+    cuánto está corrida la ventana con cuánto más corta es la guía —un 19-mer contenido
+    sale con `shift = 2` y se lee como «desplazada»— y de ese número cuelgan
+    `DISPLACED_SHIFT` y `MIN_OVERLAP`, **los dos derivados de 22 contra 22**.
+  - `window_overlap` cruza **por posición sobre la referencia** y emite el
+    **solapamiento**, que sí quiere decir lo mismo con cualquier longitud. Una guía que
+    aparece dos veces en la referencia **ABORTA**: no identifica ninguna posición.
+  - **La longitud se DECLARA en cada entrada** porque es lo que decide cómo se cruza. 22
+    los dos primeros, **19** siDirect. **BLOCK-iT sale `SIN DECLARAR`**: nadie ha dicho
+    cuál produce, y un número de memoria no daría error — daría un cruce con la forma
+    correcta sobre el candidato de al lado.
+  - **`check_guide_lengths` aborta** con longitudes distintas de las declaradas, y vive
+    **dentro de `merge_scores`**, no en el CLI (allí lo tendría un solo llamador). El
+    mensaje dice por qué: sin él no hay error, hay **cero cruces**, y eso se lee como «no
+    hay convergencia» — una conclusión sobre la biología sacada de un desajuste de formato.
+  - **Las direcciones que nadie aportó salen VACÍAS y diciéndolo** (`URL_NOT_PROVIDED`):
+    las tres primeras las dio el responsable, y desde aquí **no se puede verificar
+    ninguna** —comprobado hoy: 403 en el CONNECT del proxy, política de red y no una
+    respuesta del servicio—. Regla 4.
+  - **Ninguna de las dos ORDENA nunca** (`NEVER_ORDERS`): diseñan siRNA, así que su número
+    no puntúa el procesamiento de una horquilla miR-E. Entran como **convergencia de
+    sitio**, y la etiqueta distingue los dos motivos —`_CONVERGENCIA_DE_SITIO_NO_ORDENA`
+    frente a `_andamio_..._NO_ORDENAR`—: uno podría ordenar algún día, el otro no. **No
+    pasan por `lower_is_better`**, que abortaría por falta de registro cuando aquí no falta
+    el registro: **sobra la pregunta**.
+  - **La decisión de no usarlas como fuente principal va ESCRITA** (`WHY_NOT_PRIMARY`, en
+    Limitaciones con la tabla de longitudes): **no declaran qué no han comprobado** y
+    **ninguna considera la poliadenilación alternativa**, que aquí condiciona a seis de los
+    diez. Un servicio que nadie miró y uno que se descartó se leen igual si lo único que
+    hay es su ausencia.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

@@ -28,6 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .errors import ShmirDesignError
+from .external_score import EXTERNAL_TOOLS, WHY_NOT_PRIMARY
 from .specificity import WHY_LENGTH_AND_NOT_MISMATCHES, WHY_NOT_MORE_THAN_ONE
 
 #: Los dos grados de completitud. No son dos documentos.
@@ -634,6 +635,30 @@ def _section_6() -> Section:
             "perfecto con el empalme fallando, porque Drosha procesa el pri-miR "
             "cotranscripcionalmente — o sea ANTES del splicing. Un shmiR correcto no es "
             "evidencia de que haya proteina."
+        ),
+        heading("Las herramientas externas: por qué NO son la fuente principal", level=3),
+        # LA DECISION VA ESCRITA, no deducida de que no aparezcan. Un servicio que nadie
+        # miro y uno que se miro y se descarto se leen igual si lo unico que hay es su
+        # ausencia — y el segundo es una decision que el informe tiene que defender.
+        para(WHY_NOT_PRIMARY),
+        table(
+            ("herramienta", "longitud de guía", "alimenta score_externo"),
+            [
+                (
+                    h.name,
+                    f"{h.guide_length} nt" if h.length_declared else "SIN DECLARAR",
+                    "sí" if h.imports_scores else "no",
+                )
+                for h in EXTERNAL_TOOLS
+            ],
+        ),
+        para(
+            "La longitud NO es un detalle de ficha: es lo que decide cómo se cruza su "
+            "salida con la nuestra. siDirect diseña 19-mers y nuestras ventanas miden "
+            "22, así que sus candidatos son OTRAS ventanas sobre el mismo sitio — se "
+            "cruzan por solapamiento sobre la referencia, y el importador ABORTA si le "
+            "llegan longitudes distintas de las declaradas, en vez de cruzar cero y "
+            "dejar que eso se lea como «no hay convergencia»."
         ),
     ]
     return Section(number=6, title="Limitaciones", blocks=tuple(bloques))

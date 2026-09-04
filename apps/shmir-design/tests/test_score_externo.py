@@ -37,11 +37,11 @@ SGEP_GUIDE = "UAGAUAAGCAUUAUAAUUCCUA"
 
 class TestFuentes(unittest.TestCase):
 
-    def test_las_cuatro_fuentes_y_ninguna_mas(self):
+    def test_las_SEIS_fuentes_y_ninguna_mas(self):
         self.assertEqual(
             {f.value for f in ScoreSource},
             {"mirarchitect_api", "splashrna_api", "splashrna_features",
-             "manual_mirarchitect"},
+             "manual_mirarchitect", "manual_sidirect", "manual_blockit"},
         )
 
 
@@ -429,10 +429,13 @@ class TestEnlacesExternos(unittest.TestCase):
     pagina, porque la interfaz no puede tener datos propios (regla 6).
     """
 
-    def test_son_los_tres_servicios(self):
+    def test_son_los_CINCO_servicios(self):
+        # siDirect y BLOCK-iT entraron el 2026-09-04, con el mismo trato: enlaces que
+        # abre una persona, y su score solo por `tools/import_scores.py`.
         self.assertEqual(
             tuple(h.name for h in EXTERNAL_TOOLS),
-            ("miRarchitect", "SplashRNA", "GPP Web Portal"),
+            ("miRarchitect", "SplashRNA", "GPP Web Portal",
+             "siDirect", "BLOCK-iT RNAi Designer"),
         )
 
     def test_las_urls_son_las_que_dio_el_responsable(self):

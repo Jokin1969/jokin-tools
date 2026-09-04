@@ -1011,6 +1011,20 @@ Ordena candidatos entre si; no es una magnitud fisica y no se debe leer como tal
 
 El empalme del intrón es BINARIO y solo se contesta en el banco. Y la lectura que se hace por defecto NO lo coge: un small RNA-seq puede salir perfecto con el empalme fallando, porque Drosha procesa el pri-miR cotranscripcionalmente — o sea ANTES del splicing. Un shmiR correcto no es evidencia de que haya proteina.
 
+### Las herramientas externas: por qué NO son la fuente principal
+
+ESTAS HERRAMIENTAS SE CONOCÍAN Y SE DECIDIÓ NO USARLAS COMO FUENTE PRINCIPAL, sino como CONTRASTE independiente. Dos motivos, y ninguno es que sean malas: (a) devuelven una lista de candidatos y NO DECLARAN qué no han comprobado, así que un sitio que no sale no se distingue de uno que no miraron —que es la misma razón por la que aquí todo filtro emite `NOT_RUN` con su motivo—; y (b) ninguna considera la POLIADENILACIÓN ALTERNATIVA, que en este 3'UTR condiciona a seis de los diez candidatos con un techo de knockdown. Lo que sí aportan es convergencia de sitio: que otro método señale la misma región es información, y por eso están en la lista en vez de fuera de ella.
+
+| herramienta | longitud de guía | alimenta score_externo |
+|---|---|---|
+| miRarchitect | 22 nt | sí |
+| SplashRNA | 22 nt | no |
+| GPP Web Portal | SIN DECLARAR | no |
+| siDirect | 19 nt | sí |
+| BLOCK-iT RNAi Designer | SIN DECLARAR | sí |
+
+La longitud NO es un detalle de ficha: es lo que decide cómo se cruza su salida con la nuestra. siDirect diseña 19-mers y nuestras ventanas miden 22, así que sus candidatos son OTRAS ventanas sobre el mismo sitio — se cruzan por solapamiento sobre la referencia, y el importador ABORTA si le llegan longitudes distintas de las declaradas, en vez de cruzar cero y dejar que eso se lea como «no hay convergencia».
+
 ## 10. Procedencia
 
 Todos los ficheros que entraron, con versión y md5. Sin esto un veredicto no es auditable dentro de un año — que es la razón por la que el manifiesto se versiona en texto.

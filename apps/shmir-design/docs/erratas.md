@@ -4507,3 +4507,87 @@ rellena.
 (principio nº 26) rechazó el digesto nuevo hasta declararlo en **las dos** tablas,
 `magnitudes.toml` y `guardias.toml`. Y `guardias.toml` lo rechazó como guardia porque **no
 aborta**: va a `[solo_informan]`, con `manifest.check_directory` y `stale_md5`.
+
+---
+
+## 93 — Dos servicios más, y una premisa que había que corregir con la medida
+
+**Pedido (2026-09-04)**: añadir **siDirect** y **BLOCK-iT RNAi Designer** a la fila que ya
+tienen miRarchitect, SplashRNA y el GPP Web Portal, comprobar si el GPP ya es el del
+Broad, y proteger el cruce porque siDirect diseña **19-mers**.
+
+### El GPP ya era el del Broad: comprobado antes de añadir nada
+
+`GPP_URL` es `portals.broadinstitute.org/gpp/public/` y su descripción dice «Genetic
+Perturbation Platform del **Broad**» desde que se escribió. **No se duplica.** Añadirlo
+como entrada aparte habría puesto la misma herramienta dos veces con dos nombres, que es
+como se acaba comparando una lista consigo misma y llamándolo convergencia. Hay test.
+
+### LA PREMISA DEL CRUCE ERA FALSA, y va corregida con el número
+
+Se pidió esto dando por hecho que los 19-mers **no cruzarían** «por identidad de
+secuencia» y darían cero coincidencias. **Medido sobre el panel murino real: no es así.**
+`guide_shift` no compara cadenas iguales — busca el desplazamiento con solapamiento
+exacto de al menos `MIN_OVERLAP` — así que un 19-mer contenido en una ventana de 22 **sí
+cruza**. De los **120** 19-mers que solapan ≥15 nt con alguna de las diez ventanas del
+panel, los cruza **los 120**. Cero fallos.
+
+**Y aun así había un defecto real, de otra familia.** `guide_shift` devuelve un
+**desplazamiento**, y con longitudes distintas ese número **mezcla** cuánto está corrida
+la ventana con cuánto más corta es la guía: un 19-mer perfectamente contenido en nuestra
+ventana sale con un `shift = 2` y se lee como «ventana desplazada 2 nt» cuando no está
+desplazada en absoluto. Es el **principio nº 27** — dos cantidades bajo el mismo nombre —
+y de ese número cuelgan `DISPLACED_SHIFT` y `MIN_OVERLAP`, los dos **derivados de 22
+contra 22**.
+
+Así que el cruce por **solapamiento sobre la referencia** (`window_overlap`) entra igual,
+pero por el motivo correcto: no porque el otro no cruce, sino porque **el número que
+devuelve significa otra cosa**. Emite el solapamiento —una cantidad que sí quiere decir lo
+mismo con cualquier longitud— y aborta si la guía aparece dos veces en la referencia,
+porque entonces no identifica ninguna posición.
+
+### La longitud es de primera clase, y la que no se sabe NO se inventa
+
+Cada servicio declara `guide_length`, porque es **lo que decide cómo se cruza**.
+miRarchitect y SplashRNA, 22. siDirect, **19** —lo dijo quien lo pidió—. **BLOCK-iT sale
+`SIN DECLARAR`**: nadie ha dicho qué longitud produce, y escribir un número de memoria no
+daría ningún error — daría un cruce con la forma correcta sobre el candidato de al lado.
+Es la regla 4 un nivel más abajo: no es una URL, pero es un dato de un servicio ajeno.
+
+`check_guide_lengths` **aborta** si llegan longitudes distintas de las declaradas, y el
+mensaje dice por qué importa: importarlas igual no daría error, daría **cero cruces**, y
+cero cruces se lee como «no hay convergencia» — una conclusión sobre la biología sacada de
+un desajuste de formato. Vive **dentro de `merge_scores`**, no en el CLI: allí la tendría
+un solo llamador y el segundo que cruce se queda fuera (el patrón de `page_run`, ya siete
+veces).
+
+### Las direcciones que nadie ha aportado salen VACÍAS y diciéndolo
+
+Las tres primeras las dio el responsable del proyecto. Para las dos nuevas no hay
+dirección aportada, y **desde aquí no se puede verificar ninguna**: comprobado hoy, las
+dos URL conocidas dan **403 en el CONNECT del proxy**, que es política de red y no una
+respuesta del servicio. Regla 4: si no lo has comprobado, no lo escribas. Salen con
+`URL_NOT_PROVIDED`, que dice qué falta y quién lo aporta — un hueco en blanco se lee como
+un fallo de formato y no manda a nadie a ninguna parte.
+
+### Y ninguna de las dos ORDENA nunca
+
+`NEVER_ORDERS`, con el motivo escrito: diseñan siRNA —otra modalidad, otra longitud— así
+que su número no puntúa el procesamiento de una horquilla miR-E. Entran como
+**convergencia de sitio**, con la misma degradación que un score medido sobre otro
+andamio, y la etiqueta los distingue: `_CONVERGENCIA_DE_SITIO_NO_ORDENA` frente a
+`_andamio_..._NO_ORDENAR`. Uno podría ordenar el día que se puntúe con nuestro andamio; el
+otro no va a ordenar nunca, y son dos cosas.
+
+**No pasan por `lower_is_better`**, que abortaría — y no abortaría por un fallo: abortaría
+porque su dirección no está registrada, y ahí **no falta ese registro, sobra la pregunta**.
+Registrarla daría a entender que algún día ordenarían.
+
+### La decisión de no usarlas como fuente principal, ESCRITA
+
+`WHY_NOT_PRIMARY`, en la sección de Limitaciones del informe con la tabla de longitudes al
+lado. Dos motivos: **no declaran qué no han comprobado** —un sitio que no sale no se
+distingue de uno que no miraron, que es justo por lo que aquí todo filtro emite `NOT_RUN`
+con su motivo— y **ninguna considera la poliadenilación alternativa**, que en este 3'UTR
+condiciona a seis de los diez candidatos. Un servicio que nadie miró y uno que se miró y se
+descartó se leen igual si lo único que hay es su ausencia.
