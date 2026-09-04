@@ -4813,6 +4813,36 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     md5 del resultado cuadre con el de la construcción entregada, y la construcción
     equivocada es consistente consigo misma.
 
+- **EL DESEMPATE DE `mvm_sin_criptico` SE APLICA A LOS DIEZ (2026-09-04)**, errata nº 96.
+  **La regla ya existía** —`TIEBREAK_MOTIF`, su racional con las palabras de quien la
+  decidió, la descartada con su motivo, y `apply_tiebreak` abortando si la decisión no
+  está entre las que empatan— y **el modal no la aplicaba**: sólo enseñaba la propuesta
+  del PRIMER elegido. **Novena vez del patrón**: la capacidad escrita y probada, el
+  consumidor sin cablear. A estas alturas no es una serie de casos aislados — **es la
+  forma en que este proyecto falla**.
+  - **MEDIDO antes de aplicar nada**: los **diez** empatan y siempre entre **las mismas
+    dos**, `C@4` y `T@4`, que es el par sobre el que se decidió con `3utr:60`. Ninguno sin
+    empate, ninguno entre alternativas distintas: **ninguna salvaguarda se dispara**.
+  - **`base` y `empate` salen en cada fila aunque el resultado repita**: es lo único que
+    dirá algo el día que entre un candidato que NO empate. Un valor constante que se
+    calcula y no se enseña es indistinguible de uno que nadie ha mirado. Y el criterio
+    viaja pegado, porque la app **no lo mide**.
+  - **Prosa que se quedó atrás** (principio nº 11): `why_missing` decía «la app no elige:
+    hace falta una decisión», cierto al escribirlo y falso desde que se registró. Lo que
+    falta no es la decisión: es que la variante **se monte como intrón de la corrida** —
+    sigue en 20 pares, no en 30.
+
+- **PRINCIPIO nº 34 — un guardia se CALIBRA midiendo, no eligiendo el criterio que suena
+  bien.** Del barrido de la errata nº 95: «cualquier recorte 1-based» da **50** hallazgos
+  y **49 correctos** —inservible, y es literalmente la forma del fallo—; «indexado por un
+  `.start` ajeno» da **10** y 9 correctos; **«la secuencia y la posición son dos
+  parámetros distintos de la misma función»** da **1**, que es el fallo. **La forma del
+  fallo y la condición que lo hace posible no son la misma cosa**, y sólo la segunda sirve
+  para un guardia: en los correctos la posición se DERIVA de lo que se recorta; en el
+  fallo llegan por separado y nada obliga a que compartan marco. El método —enunciar
+  varios criterios, medir cada uno contando hallazgos **y fallos**, quedarse con el que
+  discrimina, y escribir la formulación ganadora— es lo que se conserva.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

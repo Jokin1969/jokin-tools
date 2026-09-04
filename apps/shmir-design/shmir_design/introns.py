@@ -1095,8 +1095,12 @@ INTRONS: dict[str, Intron] = {
             "`intron_design.design_variant()`, que necesita el 97-mero del candidato "
             "para poder aplicar el criterio estructural: las dos decisiones son "
             "estructurales, así que no hay una variante «del proyecto» sino una POR "
-            "CANDIDATO. Con la guía de referencia, el primer paso EMPATA entre dos "
-            "alternativas y la app no elige: hace falta una decisión."
+            "CANDIDATO. El primer paso EMPATA —medido: en los diez del panel murino, "
+            "siempre entre las mismas dos, `C@4` y `T@4`— y ese empate LO RESUELVE el "
+            "desempate registrado (`intron_design.TIEBREAK_MOTIF`), que gana a igualdad "
+            "de lo medido por conservar la composición AT del flanco nativo. Lo que "
+            "sigue faltando NO es la decisión: es que la variante se monte como intrón "
+            "de esta corrida."
         ),
         ficha="intron_sin_criptico",
     ),

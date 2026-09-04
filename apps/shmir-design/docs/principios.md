@@ -1639,3 +1639,44 @@ declaraba en la cabecera una anatomía incompatible con lo tilado, y sólo pasab
 argumento no llegaba. Cuando un guardia se despierta y algo falla, lo primero que hay que
 preguntarse no es cómo callarlo: es qué llevaba pasando mientras dormía.
 
+---
+
+## 34 — Un guardia se CALIBRA midiendo, no eligiendo el criterio que suena bien
+
+Sale del barrido de la errata nº 95, y el método importa más que el hallazgo.
+
+### Los tres pasos, con sus números
+
+Buscando «recortes de una secuencia con una posición ajena» sobre el paquete entero:
+
+| criterio | hallazgos | de ésos, fallos | sirve |
+|---|---|---|---|
+| cualquier recorte 1-based, `x[start - 1:end]` | **50** | 1 | **no**: 49 correctos, se apaga el primer día |
+| indexado por un `.start` de otro objeto | **10** | 1 | **no**: 9 correctos |
+| **la secuencia y la posición son dos parámetros distintos de la misma función** | **1** | **1** | **sí**: cero falsos positivos |
+
+El primero es el que «suena bien» —es literalmente la forma del fallo— y es inservible.
+El tercero no describe la forma: describe **de dónde vienen las dos cosas**.
+
+### La formulación que discrimina, y por qué
+
+En los 49 correctos la posición **se deriva** de la secuencia que se recorta: un `Span.of`
+sobre algo que se acaba de buscar ahí, o dos campos del mismo objeto (`self.plasmid` y
+`self.start`). En el fallo **llegan como dos argumentos independientes**, y entonces nada
+—ni un tipo, ni un invariante, ni el propio código— obliga a que compartan marco.
+
+**La forma del fallo y la condición que lo hace posible no son la misma cosa**, y sólo la
+segunda sirve para un guardia. Buscar la forma da todos los usos legítimos de esa forma;
+buscar la condición da los sitios donde el fallo **puede** ocurrir.
+
+### El método, que es lo que se conserva
+
+1. **enunciar varios criterios**, del ancho al estrecho;
+2. **medir cada uno sobre el código real**, contando hallazgos **y cuántos son fallos;**
+3. **quedarse con el que discrimina**, no con el que describe mejor el síntoma;
+4. y **escribir la formulación ganadora**, porque es lo que hay que reconocer la próxima
+   vez — no el número.
+
+Un guardia con falsos positivos se acaba apagando, así que **un criterio sin medir no se
+publica**. Y el corolario: si ningún criterio discrimina, el resultado honesto es que **no
+hay mecanismo** y se dice (principio nº 33), no un auditor ruidoso que nadie mirará.

@@ -3765,6 +3765,75 @@ def variant_proposal_for(selection, *, available=None) -> str:
     return variant_proposal_text(guia, available=available)
 
 
+def variant_rows(selection, *, available=None) -> list[dict[str, object]]:
+    """El desempate de `mvm_sin_criptico` resuelto POR CANDIDATO, con su columna.
+
+    **La regla ya estaba en el codigo y el modal no la aplicaba** —`apply_tiebreak` vive
+    en `intron_design` desde que se tomo la decision— y lo unico que se enseñaba era la
+    propuesta del PRIMER elegido. Novena vez del patron: la capacidad escrita y probada,
+    el consumidor sin cablear.
+
+    **Medido antes de aplicarla** (2026-09-04): sobre el panel murino los DIEZ empatan, y
+    siempre entre las mismas dos alternativas —`C@4` y `T@4`—, que son el par sobre el que
+    se decidio con la guia de `3utr:60`. Ninguno queda sin empate y ninguno empata entre
+    alternativas distintas, asi que ninguna de las dos salvaguardas se dispara.
+
+    **Y `empate` sale igual aunque el resultado repita.** Es la columna que sólo servira
+    el dia que entre un candidato que NO empate — y ese dia es lo unico que lo dira. Un
+    valor constante que se calcula y no se enseña es indistinguible de uno que nadie ha
+    mirado.
+    """
+    from .intron_design import (  # noqa: PLC0415
+        TIEBREAK_RATIONALE, apply_tiebreak, choose_break,
+    )
+    from .scaffold import SGEP_SCAFFOLD  # noqa: PLC0415
+
+    filas: list[dict[str, object]] = []
+    for elegido in selection.selection.chosen:
+        guia = selection.window_of(elegido).evaluation.guide.replace("U", "T")
+        fila: dict[str, object] = {
+            "inicio": elegido.start,
+            "base": "",
+            "posicion": "",
+            "motivo_flanco": "",
+            "empate": False,
+            "alternativas": "",
+            "motivo": "",
+            "estado": "",
+        }
+        try:
+            corte = choose_break(SGEP_SCAFFOLD, guide=guia, available=available)
+            elegida = apply_tiebreak(corte)
+        except ShmirDesignError as exc:
+            # rule2-ok: no se traga — el motivo entero va en la fila y la pagina lo
+            # pinta. Y NO tumba a los demas candidatos: es la leccion de la errata nº 94.
+            fila["estado"] = "PARA"
+            fila["motivo"] = str(exc)
+            filas.append(fila)
+            continue
+        if elegida is None:
+            fila["estado"] = "NOT_RUN"
+            fila["motivo"] = corte.reason
+            filas.append(fila)
+            continue
+        fila["base"] = elegida.replacement
+        fila["posicion"] = elegida.position
+        fila["motivo_flanco"] = elegida.motif
+        fila["empate"] = corte.chosen is None
+        fila["alternativas"] = ", ".join(
+            sorted(f"{c.replacement}@{c.position}" for c in corte.tied)
+        )
+        fila["estado"] = "EMPATE" if fila["empate"] else "SIN EMPATE"
+        # EL CRITERIO VIAJA CON LA FILA: la app NO lo mide, y un valor que sale sin decirlo
+        # se lee como si lo hubiera medido.
+        fila["motivo"] = (
+            TIEBREAK_RATIONALE if fila["empate"]
+            else "Sin empate: gana en lo que la app SÍ mide, no hace falta el desempate."
+        )
+        filas.append(fila)
+    return filas
+
+
 def splice_intron_rows(names=None):
     """Estado de cada intron del registro. Los que faltan salen VISIBLES."""
     from .introns import INTRONS

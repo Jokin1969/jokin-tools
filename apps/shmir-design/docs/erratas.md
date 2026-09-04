@@ -4703,3 +4703,54 @@ escrita**: un número en el sitio equivocado de una salida que alguien lee. Ést
 correcto, camino de SpliceAI. Y habría **validado al volver**, porque la validación
 comprueba que el md5 del resultado cuadre con el de la construcción que se entregó: la
 construcción equivocada es consistente consigo misma.
+
+---
+
+## 96 — La regla del desempate existía y el modal no la aplicaba: la NOVENA del patrón
+
+**Pedido (2026-09-04)**: declarar el desempate de `mvm_sin_criptico` como regla y
+**aplicarla por candidato**, emitiendo qué base salió y si hubo empate.
+
+**Al ir a escribirla resultó que ya estaba.** `intron_design.TIEBREAK_MOTIF`,
+`TIEBREAK_RATIONALE` con las palabras de quien la decidió, `TIEBREAK_REJECTED` con el
+motivo de descartar `GTGCGCG`, y `apply_tiebreak` **abortando** si la decisión registrada
+no está entre las que empatan — que es la salvaguarda de «para y pregunta», escrita hace
+semanas. Lo que faltaba era **el consumidor**: `variant_proposal_for` resolvía **el primer
+candidato** y el modal enseñaba ese texto y nada más.
+
+**Es la NOVENA vez del mismo patrón** —`triple_motive_rows`, `intron_folding`,
+`store.save_*`, `page_run`, el `stores=` de `site_table_rows`, las tres tablas de la
+errata nº 55, la dimensión guía/pasajera, las cuatro `carga_<clase>` que no llegaron al
+TSV— y a estas alturas **no es una serie de casos aislados: es la forma en que este
+proyecto falla.** La capacidad se escribe, se prueba, se documenta, y el sitio donde
+serviría no la llama. Ninguna de las herramientas la caza sola: la alcanzabilidad no la ve
+si hay algún llamador (aquí lo había, `design_variant`), el golden lee lo que se emite, y
+lo emitido tenía la forma correcta.
+
+### La tabla, medida ANTES de aplicar nada
+
+| candidatos | estado | alternativas que empatan |
+|---|---|---|
+| los **diez** (959, 1009, 1092, 1149, 1398, 1502, 1601, 1684, 1768, 1967) | **EMPATE (2)** | **`C@4`, `T@4`** |
+
+Los diez empatan, y siempre entre **las mismas dos** — exactamente el par sobre el que se
+decidió con la guía de `3utr:60`. Ninguno queda sin empate y ninguno empata entre
+alternativas distintas de T/C, así que **ninguna de las dos salvaguardas llega a
+dispararse**. La regla aplica limpia a los diez.
+
+### Y la columna sale aunque el resultado repita
+
+`empate` y `base` van en **cada fila** de `presentation.variant_rows`, con el criterio
+pegado —la app **no lo mide**, y un valor que sale sin decirlo se lee como si lo hubiera
+medido—. El resultado es idéntico en los diez, así que emitirlo parece redundante y es al
+revés: **el día que entre un candidato que no empate, esa columna es lo único que lo
+dirá.** Un valor constante que se calcula y no se enseña es indistinguible de uno que
+nadie ha mirado.
+
+### Y una prosa que se quedó atrás
+
+`introns.INTRONS["mvm_sin_criptico"].why_missing` decía «el primer paso EMPATA … **y la
+app no elige: hace falta una decisión**». Cierto cuando se escribió y **falso desde que la
+decisión se registró**. Principio nº 11. Ahora dice lo que de verdad falta, que no es la
+decisión: es que la variante **se monte como intrón de esta corrida**, que es el paso
+siguiente y no está hecho — la corrida sigue en 20 pares, no en 30.

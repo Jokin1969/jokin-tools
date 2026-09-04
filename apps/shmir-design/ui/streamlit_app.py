@@ -53,6 +53,7 @@ from shmir_design.presentation import (  # noqa: E402
     has_selection,
     project_banner,
     variant_proposal_for,
+    variant_rows,
     reference_delete,
     reference_delete_plan,
     reference_download,
@@ -2503,6 +2504,14 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
     # La variante que la app DISEÑA, para esta guía. Se enseña aquí porque es donde se
     # decide con qué intrón se consulta: uno que se propone y nadie ve no existe.
     with st.expander("Variante propuesta — mvm_sin_criptico", expanded=False):
+        # EL DESEMPATE, RESUELTO POR CANDIDATO. Antes sólo se enseñaba la propuesta del
+        # PRIMER elegido, y `apply_tiebreak` —la regla, que existe desde que se tomó la
+        # decisión— no la aplicaba nadie: novena vez del patrón, la capacidad escrita y
+        # el consumidor sin cablear.
+        #
+        # La columna `empate` sale aunque el resultado repita en los diez: es lo único
+        # que dirá algo el día que entre un candidato que NO empate.
+        st.dataframe(variant_rows(seleccion), width="stretch")
         st.text(variant_proposal_for(seleccion))
 
     disponibles = [f["intron"] for f in splice_intron_rows() if f["estado"] is FilterState.PASS]
