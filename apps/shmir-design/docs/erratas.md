@@ -4176,3 +4176,34 @@ descargas de `application/octet-stream` a propósito— con `accept-ranges: byte
 anotado porque es lo que hay que mirar primero si el arreglo de las cabeceras no basta:
 una petición con `Range` sobre una respuesta comprimida es la otra forma conocida de que
 una descarga empiece y no termine.
+
+## 87 — La procedencia de un fichero que YA está exigía volver a subirlo
+
+**Reportado (2026-09-04)** con el modal de carga de off-targets abortando en rojo:
+`transcriptoma_3utr.fa` está en el depósito, es válido, tiene su md5 — y **PARA**, porque
+a su línea le faltan las cuatro columnas de procedencia de tabla.
+
+**El aviso decía la verdad.** Ese fichero entró el **2026-09-02**, y las cuatro columnas
+entraron ese mismo día **más tarde** (errata nº 62). Así que no es un descuido de quien lo
+subió: es una regla que llegó después que el fichero.
+
+**Lo que estaba mal era la única salida que ofrecía**: «reemplázalo por el gestor para
+declararla» — decenas de MB otra vez por cuatro metadatos. Lo que falta no es el fichero,
+son cuatro campos de su **línea**. Así que se declaran sobre la línea y el fichero no se
+toca (`deposito.declare_provenance`, con su control en la fila del gestor).
+
+### Lo que lo hace seguro, y no un atajo
+
+Se comprueba que **el fichero de disco siga siendo el que la fila registra** (md5). Con el
+fichero cambiado debajo, declarar el ensamblaje se lo pegaría a **otra** tabla, con la
+forma correcta y sin dar ningún error. Va declarado en `guardias.toml` — y la auditoría de
+guardias **lo cazó sola al estrenarlo**: es de la clase «compara una identidad declarada
+contra lo entregado» y no estaba en la tabla.
+
+### Y lo que NO hace, a propósito
+
+**No revalida el contenido.** El fichero pasó su validación al entrar, y volver a correrla
+sobre decenas de MB para añadir metadatos es exactamente el coste que esto quita. Y sólo
+se ofrece donde la procedencia hace falta (`PROVENANCE_REQUIRED`): un casete de AAV no sale
+de ninguna tabla, así que ahí la columna vacía es la **verdad** y rellenarla sería
+inventarse un dato — declararla en ese rol **aborta**.

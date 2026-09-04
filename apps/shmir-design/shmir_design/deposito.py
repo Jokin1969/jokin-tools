@@ -24,12 +24,19 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .errors import ShmirDesignError
 from .identidad import file_fingerprint
-from .manifest import MANIFEST_NAME, ROLES, ManifestEntry, Role, register_entry
+from .manifest import (
+    MANIFEST_NAME,
+    ROLES,
+    ManifestEntry,
+    Role,
+    check_directory,
+    register_entry,
+)
 from .species import RequiredFile, Species, file_for, fixture_report, required_files
 
 #: Por que no hay una casilla global. Va en la interfaz, no en un comentario.
@@ -473,6 +480,95 @@ def accept_upload(
         replaced=actualizacion.replaced,
         what=fila.what,
     )
+
+
+def declare_provenance(
+    directory: Path | str,
+    *,
+    filename: str,
+    species: Species,
+    assembly: str,
+    table: str,
+    table_date: str,
+    representative: str,
+) -> DepositFile:
+    """Declara la procedencia de tabla de un fichero que YA está, sin volver a subirlo.
+
+    **El caso que lo motiva (errata nº 87)**: `transcriptoma_3utr.fa` entró el
+    2026-09-02, y las cuatro columnas de procedencia de tabla entraron ese mismo día
+    **más tarde** (errata nº 62). Así que el fichero está, es válido y tiene su md5 — y
+    su línea no lleva ensamblaje, tabla, fecha ni criterio de representante, con lo que
+    el modal de off-targets aborta. La única salida que ofrecía la app era
+    **reemplazarlo**: decenas de MB otra vez por cuatro metadatos.
+
+    Lo que falta no es el fichero: son cuatro campos de su LÍNEA. Se declaran sobre la
+    línea y **el fichero no se toca**.
+
+    **NO revalida el contenido, y es deliberado**: el fichero pasó su validación al
+    entrar y volver a correrla sobre decenas de MB para añadir metadatos es justo el
+    coste que esto quita. Lo que sí se comprueba —y es lo que lo hace seguro— es que el
+    fichero de disco **siga siendo el que la fila registra**: con el fichero cambiado
+    debajo, declarar el ensamblaje se lo pegaría a OTRA tabla, con la forma correcta y
+    sin dar ningún error.
+
+    Y sólo donde la procedencia hace falta (`PROVENANCE_REQUIRED`): un casete de AAV no
+    sale de ninguna tabla, así que ahí la columna vacía es la VERDAD y rellenarla sería
+    inventarse un dato.
+    """
+    directory = Path(directory)
+    rol = role_for(species, filename)
+    if rol is None:
+        raise ShmirDesignError(
+            f"{filename!r} no es un fichero que {species.scientific} necesite, así que "
+            f"no tiene ninguna línea en el manifiesto sobre la que declarar nada."
+        )
+    if rol.role not in PROVENANCE_REQUIRED:
+        raise ShmirDesignError(
+            f"{filename!r} no sale de ninguna tabla: su frente no pide ensamblaje ni "
+            f"fecha de tabla, y ahí una columna vacía es la VERDAD y no un hueco. "
+            f"Rellenarla sería inventarse un dato. Los roles que sí la piden son: "
+            f"{', '.join(sorted(PROVENANCE_REQUIRED))}."
+        )
+
+    # Los cuatro, ANTES de tocar el manifiesto. Mismo guardia que en la subida: si se
+    # aceptara una declaración a medias, la línea quedaría igual de incompleta y el
+    # frente seguiría bloqueado tres pantallas después sin decir por qué.
+    _exigir_procedencia(rol.role, {
+        "assembly": assembly, "table": table,
+        "table_date": table_date, "representative": representative,
+    })
+
+    ruta = directory / filename
+    if not ruta.is_file():
+        raise ShmirDesignError(
+            f"{filename!r} no está en {directory}: no se puede declarar la procedencia "
+            f"de un fichero que no está. Súbelo por el gestor, que es donde se declara "
+            f"al entrar."
+        )
+    estado = check_directory(directory)
+    entrada = estado.result_of(filename).entry
+    if entrada is None:
+        raise ShmirDesignError(
+            f"{filename!r} está en {directory} pero no tiene línea en el manifiesto, "
+            f"así que no hay procedencia que completar: lo que falta es registrarlo "
+            f"entero. Súbelo por el gestor."
+        )
+    actual = file_fingerprint(ruta.read_bytes())
+    if actual != entrada.md5:
+        raise ShmirDesignError(
+            f"El md5 de {filename!r} en disco es {actual} y su línea registra "
+            f"{entrada.md5}: el fichero ha cambiado debajo. Se aborta — declarar esta "
+            f"procedencia le pegaría el ensamblaje y la fecha de una tabla a OTRA "
+            f"distinta, con la forma correcta y sin dar ningún error. Súbelo por el "
+            f"gestor, que registra el fichero nuevo con su procedencia."
+        )
+
+    register_entry(directory, replace(
+        entrada,
+        assembly=assembly, table=table,
+        table_date=table_date, representative=representative,
+    ))
+    return read_deposit(rol.role, species=species, directory=directory)
 
 
 # ══════════════════ EL LECTOR DEL DEPOSITO: UN SOLO SITIO ══════════════════

@@ -189,6 +189,15 @@ degrada_como = "No se degrada: se compara contra la secuencia cargada en esa ses
 revalida = "Cada apertura."
 
 [[guardia]]
+guardia = "La procedencia se declara sobre el fichero que la fila REGISTRA"
+implementa = ["deposito.declare_provenance"]
+protege = "Que completar las cuatro columnas de procedencia de un fichero que ya está (errata nº 87) no se las pegue a OTRO fichero. Se recalcula el md5 del que hay en disco y se compara con el que su línea registra; si no cuadra, el fichero ha cambiado debajo y se aborta. Sin eso, el ensamblaje y la fecha de una tabla acabarían describiendo otra distinta, con la forma correcta y sin dar ningún error."
+momento = "INGESTA"
+puede_degradar = true
+degrada_como = "El fichero puede reemplazarse DESPUÉS de declarar la procedencia. Ese caso no lo cubre este guardia: lo cubre la subida, que registra la fila entera del fichero nuevo — y mientras tanto `DepositFile.stale_md5` lo dice en cada lectura del depósito."
+revalida = "Cada declaración recalcula el md5; y `deposito.read_deposit` compara en cada lectura y marca `stale_md5` para que el panel lo pinte."
+
+[[guardia]]
 guardia = "El nombre de un fichero subido lo pone el navegador"
 implementa = ["presentation.upload_path", "presentation.check_project_slug"]
 protege = "Que la escritura no salga del directorio temporal creado para contenerla. Sobrevive el nombre, se cae toda la ruta, y la comprobación final va sobre la ruta RESUELTA."

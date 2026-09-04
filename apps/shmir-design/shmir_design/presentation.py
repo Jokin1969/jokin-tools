@@ -2743,6 +2743,42 @@ def deposit_note(kind: str) -> str:
     return POR_QUE_EMPALME_NO_TIENE
 
 
+#: LO QUE LE PASA A UN FICHERO QUE ESTA Y NO TIENE PROCEDENCIA, dicho donde se arregla.
+#:
+#: No es un fallo suyo ni de quien lo subio: entro antes de que su frente exigiera las
+#: cuatro columnas (errata nº 62), asi que esta, es valido, y su linea esta a medias.
+#: Lo que se dice es QUE FALTA y que se arregla aqui — sin resubir el fichero, que era
+#: la unica salida que ofrecia la app y que para un catalogo son decenas de MB.
+PROVENANCE_MISSING_NOTE = (
+    "A la línea de este fichero le falta {faltan}. El fichero está y es válido: entró "
+    "antes de que su frente exigiera la procedencia de la tabla. Sin ella el conteo no "
+    "es reproducible y el modal no puede dar veredicto — así que se declara aquí, y "
+    "**el fichero no se vuelve a subir**."
+)
+
+
+def declare_provenance(directory, *, filename: str, species: str,
+                       **valores: str) -> dict[str, object]:
+    """Completa la procedencia de tabla de un fichero que ya está. La página no escribe.
+
+    Los cuatro campos llegan por nombre (`assembly`, `table`, `table_date`,
+    `representative`), que es como los declara `deposito.PROVENANCE_FIELDS`: la página
+    los pinta con la etiqueta que le da `gestor` y no los renombra por el camino.
+    """
+    from .deposito import declare_provenance as declarar  # noqa: PLC0415
+    from .species import resolve  # noqa: PLC0415
+
+    fichero = declarar(directory, filename=filename, species=resolve(species), **valores)
+    return {
+        "nombre": fichero.filename,
+        "falta": list(fichero.missing_provenance),
+        "texto": (
+            f"Procedencia declarada para {fichero.filename}. El fichero no se ha tocado "
+            f"—sigue con su md5 {fichero.md5[:8]}…— y su frente ya puede dar veredicto."
+        ),
+    }
+
+
 def deposit_file(role: str, *, species: str, directory) -> dict[str, object]:
     """Lo que el depósito sabe de ese rol, en una fila para pintar.
 

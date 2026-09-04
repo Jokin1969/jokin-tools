@@ -317,6 +317,21 @@ def _procedencia_pedida(role: str) -> list[dict[str, str]]:
     ]
 
 
+def _procedencia_que_falta(role: str, entry) -> list[str]:
+    """Cuales de los cuatro le faltan a la LINEA de este fichero. Vacia si no aplica."""
+    from .deposito import (  # noqa: PLC0415
+        MANIFEST_COLUMN_FOR, PROVENANCE_FIELDS, PROVENANCE_REQUIRED,
+    )
+
+    if role not in PROVENANCE_REQUIRED or entry is None:
+        return []
+    return [
+        MANIFEST_COLUMN_FOR[campo]
+        for campo in PROVENANCE_FIELDS
+        if not str(getattr(entry, campo, "") or "").strip()
+    ]
+
+
 def manager_rows(species: str, *, directory) -> list[dict]:
     """Una fila por fichero, PRESENTES Y AUSENTES juntos, ordenadas por frente."""
     from .manifest import load_manifest  # noqa: PLC0415
@@ -353,6 +368,9 @@ def manager_rows(species: str, *, directory) -> list[dict]:
                 {
                     "nombre": nombre,
                     "role": fila.role,
+                    # La especie viaja EN LA FILA: quien la pinta no la tiene a mano y
+                    # deducirla del nombre del fichero es lo que este proyecto prohibe.
+                    "especie": species,
                     "frente": fila.fronts[0] if fila.fronts else "",
                     "frentes": list(fila.fronts),
                     "estado": estado,
@@ -364,6 +382,15 @@ def manager_rows(species: str, *, directory) -> list[dict]:
                     # pueda entrar. Sale de `deposito.PROVENANCE_REQUIRED`, que es quien
                     # las exige: la pagina las pinta y no decide cuales son (regla 6).
                     "procedencia": _procedencia_pedida(fila.role),
+                    # Y CUALES LE FALTAN A UNO QUE YA ESTA. No es lo mismo que la lista
+                    # de arriba: aquella dice que se le pide a este rol, esta dice que
+                    # le falta a ESTE fichero. Un fichero que entro antes de que su
+                    # frente exigiera procedencia esta, es valido, y su linea no la
+                    # lleva — y la unica salida que habia era resubirlo entero
+                    # (errata nº 87). La pagina no lo deduce: lo recibe.
+                    "falta_procedencia": (
+                        _procedencia_que_falta(fila.role, entrada) if presente else []
+                    ),
                     "acciones": list(ACTIONS[estado]),
                     "ficha": ficha,
                     "md5": _md5(ruta.read_bytes()) if presente else "",

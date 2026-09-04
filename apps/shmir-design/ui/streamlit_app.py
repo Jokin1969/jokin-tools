@@ -68,6 +68,7 @@ from shmir_design.presentation import (  # noqa: E402
     project_list,
     PAGE_COLORS,
     PROJECT_ENTRY_HELP,
+    PROVENANCE_MISSING_NOTE,
     PROJECT_RENAME_HELP,
     PROJECT_SAVE_TOGGLE,
     PROJECT_RESUMED_NOTE,
@@ -79,6 +80,7 @@ from shmir_design.presentation import (  # noqa: E402
     upload_allowed,
     project_rows,
     project_options,
+    declare_provenance,
     project_rename,
     project_export,
     project_delete_plan,
@@ -999,9 +1001,43 @@ def _descargar_todo(directorio) -> None:
         )
 
 
+def _declarar_procedencia(fila, directorio) -> None:
+    """Completar la procedencia de un fichero que YA está, sin volver a subirlo.
+
+    **Reportado (2026-09-04)**: `transcriptoma_3utr.fa` entró antes de que su frente
+    exigiera las cuatro columnas de tabla, así que está, es válido, y el modal aborta.
+    La única salida que ofrecía la app era reemplazarlo: decenas de MB por cuatro
+    metadatos.
+
+    La página no decide nada: `fila["falta_procedencia"]` dice qué falta,
+    `fila["procedencia"]` con qué texto se pide, y `presentation.declare_provenance`
+    escribe — comprobando que el fichero de disco siga siendo el que su línea registra.
+    """
+    faltan = fila.get("falta_procedencia") or []
+    if not faltan:
+        return
+    with st.expander(f"Completar la procedencia de {fila['nombre']} ({len(faltan)})",
+                     expanded=True):
+        st.warning(PROVENANCE_MISSING_NOTE.format(faltan=", ".join(faltan)))
+        valores = _casillas_de_procedencia(fila, prefijo="g_dp")
+        if not st.button("Declarar la procedencia", key=f"g_decl_{fila['nombre']}"):
+            return
+        try:
+            hecho = declare_provenance(
+                directorio, filename=fila["nombre"], species=fila["especie"], **valores
+            )
+        except (ShmirDesignError, ValueError, OSError) as exc:
+            # rule2-ok: frontera de la interfaz. No se ha escrito nada y se dice.
+            st.error(f"**PARA** — {exc}")
+            return
+        st.success(hecho["texto"])
+        st.rerun()
+
+
 def _fila_presente(fila, directorio) -> None:
     """Las CUATRO acciones de un fichero que está. Ninguna escondida tras un menú."""
     nombre = fila["nombre"]
+    _declarar_procedencia(fila, directorio)
     botones = st.columns(4)
     with botones[0]:
         ver = st.button("Ver", key=f"g_ver_{nombre}", width="stretch")

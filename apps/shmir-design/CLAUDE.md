@@ -4551,6 +4551,21 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     propósito— y con `accept-ranges: bytes`. Una petición con `Range` sobre una respuesta
     comprimida es la otra forma conocida de que una descarga empiece y no termine.
 
+- **LA PROCEDENCIA DE UN FICHERO QUE YA ESTÁ SE DECLARA SOBRE SU LÍNEA (2026-09-04)**,
+  errata nº 87 (`deposito.declare_provenance`). El modal de off-targets abortaba con
+  `transcriptoma_3utr.fa` dentro: entró el 2026-09-02 y las cuatro columnas de procedencia
+  de tabla entraron ese mismo día **más tarde** (errata nº 62), así que su línea está a
+  medias. **El aviso decía la verdad y su única salida era reemplazar el fichero**: decenas
+  de MB por cuatro metadatos. Lo que falta no es el fichero, son cuatro campos de su línea.
+  - **Lo que lo hace seguro es el md5**: se comprueba que el de disco siga siendo el que la
+    fila registra. Con el fichero cambiado debajo, declarar el ensamblaje se lo pegaría a
+    OTRA tabla — con la forma correcta y sin dar ningún error. Declarado en
+    `guardias.toml`, y **la auditoría de guardias lo cazó sola al estrenarlo**.
+  - **NO revalida el contenido**, a propósito: ya pasó su validación al entrar, y volver a
+    correrla sobre decenas de MB para añadir metadatos es el coste que esto quita.
+  - **Y sólo donde la procedencia hace falta**: en un rol que no sale de ninguna tabla,
+    declararla **aborta** — ahí la columna vacía es la verdad y rellenarla sería inventar.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
