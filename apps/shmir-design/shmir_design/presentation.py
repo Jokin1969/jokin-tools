@@ -3190,8 +3190,14 @@ REFINEMENT_STATES = (
     },
     {
         "estado": "NO USADO",
-        "color": "gris claro",
-        "marca": "⚫",
+        # LA MARCA DECIA LO CONTRARIO QUE EL TEXTO. Era «⚫», un círculo NEGRO, al lado
+        # de una frase que dice «no hace falta conseguirlo». Se preguntó con la captura
+        # delante —«¿por qué está en negro? parece como si faltara algo»— y es que en una
+        # columna de 🟢 y 🟠 el negro es el que más grita: se lee como el peor estado, no
+        # como el que no pide nada. Una raya se lee como «no aplica», que es lo que es.
+        "estado_declarado_como": "gris claro",
+        "color": "raya",
+        "marca": "➖",
         "significa": (
             "no está y NO hace falta: otro fichero ya cierra su frente. No es trabajo "
             "pendiente."
@@ -4278,6 +4284,48 @@ PROJECT_RESUME_HELP = (
     "decidió después. Al abrirlo salen los mismos candidatos sin volver a subir nada, y "
     "lo que hagas a partir de ahí se sigue guardando en él."
 )
+
+
+def downloads_zip(ficheros, *, species: str, date: str) -> dict[str, object]:
+    """El zip de los ficheros GENERADOS: si no hay ninguno, NO se ofrece.
+
+    **Reportado dos veces sobre el mismo botón (2026-09-04).** Primero: bajaba
+    `shmir-design (3).zip` y no contenía nada — porque `ficheros` está vacío hasta que se
+    pulsa «Seguir: las comprobaciones que faltan», y la sección se pintaba igual. Un zip
+    de cero entradas son **22 bytes** y se abre sin nada dentro: peor que no tener el
+    botón, porque parece una descarga hecha.
+
+    Y después: la descarga empieza y no llega. Eso es lo otro —el zip cambiaba de bytes en
+    cada repintado— y lo cierra `gestor.deterministic_zip`. Ver
+    `WHY_A_ZIP_MUST_NOT_CHANGE`.
+
+    **El nombre lleva especie y fecha.** Era la constante `shmir-design.zip`, así que dos
+    corridas de dos días distintos bajaban con el mismo nombre y el navegador las numeraba
+    `(1)`, `(2)`, `(3)` — que es exactamente cómo llegó el reporte, y no dice de qué
+    corrida es ninguna.
+    """
+    from .gestor import deterministic_zip
+    from .species import resolve
+
+    if not ficheros:
+        return {
+            "hay": False,
+            "datos": None,
+            "nombre": "",
+            "texto": (
+                "Todavía no hay nada que descargar: los ficheros del diseño —FASTA de "
+                "guías, tablas y hoja de pedido— se generan al pulsar **«Seguir: las "
+                "comprobaciones que faltan»**. Antes de eso el zip saldría vacío, y un "
+                "zip vacío parece una descarga hecha."
+            ),
+        }
+    slug = resolve(species).slug if species else "sin_especie"
+    return {
+        "hay": True,
+        "datos": deterministic_zip(ficheros, date=date),
+        "nombre": f"shmir-design_{slug}_{date}.zip",
+        "texto": f"{len(ficheros)} fichero(s) del diseño.",
+    }
 
 
 def connected_panel(resources) -> dict[str, object]:

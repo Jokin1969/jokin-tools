@@ -488,6 +488,72 @@ def backup_inventory(directory, *, projects=None) -> dict[str, object]:
     }
 
 
+#: POR QUE UN ZIP TIENE QUE SALIR IGUAL DOS VECES, y no es manía de reproducibilidad.
+#:
+#: `zipfile` estampa LA HORA ACTUAL en cada entrada, así que los mismos ficheros dan
+#: bytes distintos en cada construcción. Y Streamlit deriva el id de un fichero
+#: descargable **de su contenido** (`MemoryMediaFileStorage.load_and_get_id` →
+#: `_calculate_file_id(file_data, ...)`), así que bytes distintos son un id distinto.
+#:
+#: Pulsar un `download_button` provoca un rerun; al terminar, `clear_session_refs` +
+#: `remove_orphaned_files` borran el id que ya no referencia nadie — **el que el navegador
+#: está descargando en ese momento**. El síntoma es exactamente el que se reportó: la
+#: descarga empieza y no llega, «un error de internet cuando no lo hay». Y cuanto más
+#: grande el zip, más probable, porque hay más rato para que se lo lleven por delante.
+WHY_A_ZIP_MUST_NOT_CHANGE = (
+    "Un zip que se reconstruye con bytes distintos cada vez desaparece del servidor a "
+    "media descarga: Streamlit identifica lo descargable por su CONTENIDO y borra lo que "
+    "deja de estar referenciado en el repintado siguiente. Con la fecha fija, el mismo "
+    "contenido da el mismo identificador y no hay nada que quede huérfano."
+)
+
+
+def _fecha_del_zip(date: str) -> tuple[int, int, int, int, int, int]:
+    """La marca de tiempo de las entradas, DERIVADA de la fecha declarada.
+
+    Se deriva y no se pone a cero: dos copias de días distintos tienen que ser dos
+    ficheros distintos —si no, no hay forma de saber cuál es cuál— y la fecha ya viaja
+    dentro del zip y en su nombre. Lo que NO puede entrar es la hora del reloj, que
+    cambia entre un repintado y el siguiente sin que nadie haya tocado nada.
+
+    Un `date` que no sea `AAAA-MM-DD` no se adivina: se aborta. El zip lleva la fecha
+    dentro y en el nombre, y una inventada aquí las haría discrepar en silencio.
+    """
+    try:
+        anio, mes, dia = (int(x) for x in str(date).split("-"))
+    except ValueError as exc:
+        raise ShmirDesignError(
+            f"La fecha del zip tiene que ser AAAA-MM-DD y llegó {date!r}: se aborta en "
+            f"vez de poner una cualquiera. {WHY_A_ZIP_MUST_NOT_CHANGE}"
+        ) from exc
+    # `zipfile` no admite años anteriores a 1980 (el formato no los representa).
+    return (max(anio, 1980), mes, dia, 0, 0, 0)
+
+
+def deterministic_zip(entries, *, date: str) -> bytes:
+    """Un zip que sale IGUAL con el mismo contenido. Ver `WHY_A_ZIP_MUST_NOT_CHANGE`.
+
+    `entries` es `{nombre: texto o bytes}`. Las entradas van ordenadas por nombre —el
+    orden también es contenido— y todas con la misma marca de tiempo.
+    """
+    import zipfile  # noqa: PLC0415
+
+    marca = _fecha_del_zip(date)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for nombre, contenido in sorted(entries.items()):
+            info = zipfile.ZipInfo(nombre, date_time=marca)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            # Permisos fijos también: el modo va dentro del zip, así que heredarlo del
+            # fichero de disco volvería a hacer que el resultado dependa del entorno.
+            info.external_attr = 0o644 << 16
+            zf.writestr(
+                info,
+                contenido.encode("utf-8") if isinstance(contenido, str) else contenido,
+            )
+    return buffer.getvalue()
+
+
 def export_all(directory, *, projects=None, date: str) -> bytes:
     """El depósito entero, los proyectos y la biblioteca en un zip. Con su LEEME.
 
@@ -545,48 +611,50 @@ def export_all(directory, *, projects=None, date: str) -> bytes:
         "",
     ]
 
-    memoria = io.BytesIO()
-    with zipfile.ZipFile(memoria, "w", zipfile.ZIP_DEFLATED) as zf:
-        for ruta in _ficheros_del_deposito(raiz):
-            crudo = _bytes_de(ruta, que=f"el fichero de referencia {ruta.name!r}")
-            zf.writestr(f"{BACKUP_DIRS['referencia']}/{ruta.name}", crudo)
+    # SE RECOGEN Y LUEGO SE EMPAQUETAN, con `deterministic_zip`: si esto escribiera
+    # el zip por su cuenta volvería a haber dos constructores y sólo uno con la
+    # fecha fija. Ver `WHY_A_ZIP_MUST_NOT_CHANGE`.
+    entradas: dict[str, bytes] = {}
+    for ruta in _ficheros_del_deposito(raiz):
+        crudo = _bytes_de(ruta, que=f"el fichero de referencia {ruta.name!r}")
+        entradas[f"{BACKUP_DIRS['referencia']}/{ruta.name}"] = crudo
+        lineas.append(
+            f"  {BACKUP_DIRS['referencia']}/{ruta.name:<38} {len(crudo):>12} B  "
+            f"md5 {file_fingerprint(crudo)}"
+        )
+
+    biblioteca = raiz / "biblioteca"
+    if biblioteca.is_dir():
+        for ruta in sorted(p for p in biblioteca.rglob("*") if p.is_file()):
+            crudo = _bytes_de(ruta, que=f"el guardado {ruta.name!r} de la biblioteca")
+            relativa = ruta.relative_to(biblioteca).as_posix()
+            entradas[f"{BACKUP_DIRS['biblioteca']}/{relativa}"] = crudo
             lineas.append(
-                f"  {BACKUP_DIRS['referencia']}/{ruta.name:<38} {len(crudo):>12} B  "
+                f"  {BACKUP_DIRS['biblioteca']}/{relativa:<38} {len(crudo):>12} B  "
                 f"md5 {file_fingerprint(crudo)}"
             )
 
-        biblioteca = raiz / "biblioteca"
-        if biblioteca.is_dir():
-            for ruta in sorted(p for p in biblioteca.rglob("*") if p.is_file()):
-                crudo = _bytes_de(ruta, que=f"el guardado {ruta.name!r} de la biblioteca")
-                relativa = ruta.relative_to(biblioteca).as_posix()
-                zf.writestr(f"{BACKUP_DIRS['biblioteca']}/{relativa}", crudo)
-                lineas.append(
-                    f"  {BACKUP_DIRS['biblioteca']}/{relativa:<38} {len(crudo):>12} B  "
-                    f"md5 {file_fingerprint(crudo)}"
+    proyectos = _proyectos_de(base_proyectos) if base_proyectos else []
+    if not proyectos:
+        lineas.append(
+            "  (no había ningún proyecto: el primer día es lo normal, no un fallo)"
+        )
+    for directorio in proyectos:
+        for nombre in (PROJECT_FILE, LOG_FILE):
+            ruta = directorio / nombre
+            if not ruta.is_file():
+                raise ShmirDesignError(
+                    f"Al proyecto {directorio.name!r} le falta {nombre}, así que su "
+                    f"registro no se puede leer entero. Se aborta la copia en vez de "
+                    f"guardar media: un log sin saber sobre qué secuencia es no dice "
+                    f"nada, y una entrada sin su log tampoco."
                 )
-
-        proyectos = _proyectos_de(base_proyectos) if base_proyectos else []
-        if not proyectos:
+            crudo = _bytes_de(ruta, que=f"{nombre} del proyecto {directorio.name!r}")
+            destino = f"{BACKUP_DIRS['proyectos']}/{directorio.name}/{nombre}"
+            entradas[destino] = crudo
             lineas.append(
-                "  (no había ningún proyecto: el primer día es lo normal, no un fallo)"
+                f"  {destino:<50} {len(crudo):>12} B  md5 {file_fingerprint(crudo)}"
             )
-        for directorio in proyectos:
-            for nombre in (PROJECT_FILE, LOG_FILE):
-                ruta = directorio / nombre
-                if not ruta.is_file():
-                    raise ShmirDesignError(
-                        f"Al proyecto {directorio.name!r} le falta {nombre}, así que su "
-                        f"registro no se puede leer entero. Se aborta la copia en vez de "
-                        f"guardar media: un log sin saber sobre qué secuencia es no dice "
-                        f"nada, y una entrada sin su log tampoco."
-                    )
-                crudo = _bytes_de(ruta, que=f"{nombre} del proyecto {directorio.name!r}")
-                destino = f"{BACKUP_DIRS['proyectos']}/{directorio.name}/{nombre}"
-                zf.writestr(destino, crudo)
-                lineas.append(
-                    f"  {destino:<50} {len(crudo):>12} B  md5 {file_fingerprint(crudo)}"
-                )
 
-        zf.writestr("LEEME.txt", "\n".join(lineas) + "\n")
-    return memoria.getvalue()
+    entradas["LEEME.txt"] = "\n".join(lineas) + "\n"
+    return deterministic_zip(entradas, date=date)

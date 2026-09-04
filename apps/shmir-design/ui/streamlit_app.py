@@ -13,10 +13,8 @@ El nucleo sigue siendo stdlib pura: Streamlit es una dependencia SOLO de esta in
 
 from __future__ import annotations
 
-import io
 import sys
 import tempfile
-import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -83,6 +81,7 @@ from shmir_design.presentation import (  # noqa: E402
     project_delete_plan,
     project_delete,
     date_text,
+    downloads_zip,
     today_text,
     DATE_PICKER_NOTE,
     projects_root,
@@ -1773,15 +1772,25 @@ def main() -> None:
         return
 
     st.subheader("Descargas")
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for nombre, contenido in sorted(ficheros.items()):
-            zf.writestr(nombre, contenido)
-    st.download_button(
-        "Descargar todo (zip)", buffer.getvalue(), "shmir-design.zip", "application/zip"
+    # EL ZIP LO MONTA EL NUCLEO, y con fecha fija. La pagina lo armaba aqui con
+    # `zipfile` directamente, asi que (a) se ofrecia aunque `ficheros` estuviera vacio
+    # —22 bytes que parecen una copia hecha— y (b) cambiaba de bytes en cada repintado,
+    # que es lo que hace que la descarga empiece y no llegue. Ver
+    # `gestor.WHY_A_ZIP_MUST_NOT_CHANGE`.
+    paquete = downloads_zip(
+        ficheros, species=nombre_modelo,
+        date=st.session_state.get("fecha_informe", "") or today_text(),
     )
-    for nombre, contenido in sorted(ficheros.items()):
-        st.download_button(nombre, contenido, nombre, "text/plain", key=f"dl_{nombre}")
+    if paquete["hay"]:
+        st.download_button(
+            "Descargar todo (zip)", paquete["datos"], paquete["nombre"],
+            "application/zip",
+        )
+        st.caption(paquete["texto"])
+        for nombre, contenido in sorted(ficheros.items()):
+            st.download_button(nombre, contenido, nombre, "text/plain", key=f"dl_{nombre}")
+    else:
+        st.info(paquete["texto"])
 
     # ── PASO 5 · REFINAMIENTO ───────────────────────────────────────────────────
     #

@@ -3791,3 +3791,75 @@ blindaje sin prueba de que muerde es la errata nº 29 otra vez.
 
 Y `data/proyectos/` pasa a estar en `.gitignore`: son datos de quien usa la app —su
 secuencia y su registro de decisiones—, no del repositorio.
+
+## 76 — Eran DOS botones con casi el mismo nombre, y diagnostiqué el que no era
+
+**Reportado dos veces (2026-09-03 y 2026-09-04)**: «Descargar todo (zip) produce un
+fichero vacío... baja `shmir-design (3).zip` y no contiene nada», y luego «empieza lo que
+parece la descarga pero luego parece que no llega porque da un error de internet, cuando
+no lo hay».
+
+**Yo di por supuesto cuál era el botón.** Reproduje el de la copia de seguridad de punta a
+punta, midiendo, y funcionaba — porque no era ése. `shmir-design (3).zip` sale de
+`file_name="shmir-design.zip"`, que es el botón **«Descargar todo (zip)»** de la sección
+*Descargas*: el que empaqueta los ficheros GENERADOS del diseño. El de la copia se llama
+«Descargar todo (**.**zip)» y baja `shmir_copia_<fecha>.zip`. **Dos botones con el mismo
+nombre a un punto de distancia**, y el principio nº 3 —no dar por buena una causa sin
+comprobarla— cometido por mí, sobre el propio botón.
+
+Lo que lo cerró fue el nombre del fichero: `shmir-design.zip` está escrito en una sola
+línea del código y no hay otra.
+
+### Y en ese botón había DOS fallos distintos
+
+**1. El zip vacío.** `ficheros` está vacío hasta que se pulsa «Seguir: las comprobaciones
+que faltan» —`bloque_especie` devuelve `{}` antes— y la sección *Descargas* pintaba el
+botón igual. Un zip de cero entradas son **22 bytes** y se abre sin nada dentro. Medido.
+Es la misma frase que se dijo de la copia de seguridad: **parece una descarga hecha cuando
+no hay ninguna**, y eso es peor que no tener el botón.
+
+**2. La descarga que empieza y no llega**, y el mecanismo está comprobado en el código de
+Streamlit, no supuesto:
+
+- `zipfile` estampa **la hora actual** en cada entrada, así que los mismos ficheros dan
+  bytes distintos en cada construcción. **Medido**: dos llamadas seguidas, dos md5. Y le
+  pasaba también a la copia de seguridad.
+- `MemoryMediaFileStorage.load_and_get_id` deriva el id de un descargable **de su
+  contenido** (`_calculate_file_id(file_data, ...)`): bytes distintos, id distinto.
+- Pulsar un `download_button` provoca un rerun; al terminar, `clear_session_refs` +
+  `remove_orphaned_files` **borran el id que ya no referencia nadie** — que es justo el que
+  el navegador está descargando.
+
+O sea: **el fichero desaparece del servidor a media descarga**. Cuanto más grande, más
+rato para que se lo lleven por delante — por eso «empieza y no llega» en vez de fallar del
+todo, y por eso mi prueba con 1,1 MB en local no lo vio.
+
+### El arreglo
+
+`gestor.deterministic_zip` es ahora el **único** constructor de zips y pone **fecha fija**
+en cada entrada, derivada de la fecha declarada — no a cero: dos copias de días distintos
+tienen que seguir siendo dos ficheros distintos. `export_all` pasa por él también, así que
+la copia de seguridad deja de cambiar de bytes entre repintados.
+
+Y el botón: no se ofrece si no hay nada (`presentation.downloads_zip` dice qué falta y
+que se genera al pulsar «Seguir»), y el nombre lleva **especie y fecha** en vez de la
+constante `shmir-design.zip` — que es por lo que el navegador los numeraba `(1)`, `(2)`,
+`(3)` sin que ninguno dijera de qué corrida era.
+
+## 77 — El punto de «no hace falta» era NEGRO, el que más grita de la columna
+
+**Preguntado con la captura (2026-09-04)**: «¿por qué está en negro lo de
+`apa_medido.tsv`? Parece como si faltara algo.»
+
+La fila decía exactamente lo contrario que su marca: *«Su frente ya está cerrado por
+`polya_db_mouse.tsv`. Es una ALTERNATIVA que no hace falta conseguir, no algo pendiente»*
+— con un **⚫** delante.
+
+`REFINEMENT_STATES` declaraba ese estado como **«gris claro»** y le había puesto un
+círculo **negro**. En una columna de 🟢 y 🟠, el negro no se lee como «el más apagado»: se
+lee como **el peor**, más grave incluso que el ámbar de lo que falta de verdad. La marca
+contradecía a la vez al color declarado al lado y al texto de la propia fila.
+
+Ahora es **➖**, que se lee como «no aplica» — que es lo que es — y no compite con el ⚪ de
+`OPCIONAL`. Es la lección del principio nº 11 en la capa visual: cuando el código y lo que
+se ve dicen cosas distintas del mismo hecho, lo que alguien va a leer es lo que se ve.

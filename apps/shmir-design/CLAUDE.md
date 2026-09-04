@@ -4367,6 +4367,35 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - Y `data/proyectos/` pasa a `.gitignore`: son datos de quien usa la app, no del
     repositorio.
 
+- **UN ZIP QUE CAMBIA DE BYTES DESAPARECE A MEDIA DESCARGA (2026-09-04)**, erratas nº 76 y
+  nº 77 (`gestor.deterministic_zip`, `WHY_A_ZIP_MUST_NOT_CHANGE`).
+  - **PRIMERO, UN ERROR MÍO**: eran DOS botones con casi el mismo nombre —«Descargar todo
+    (zip)» de *Descargas* y «Descargar todo (.zip)» de la copia de seguridad— y reproduje
+    el que no era, de punta a punta y midiendo. Lo cerró el nombre del fichero:
+    `shmir-design.zip` está escrito en UNA línea. Principio nº 3, cometido sobre el propio
+    botón.
+  - **EL MECANISMO, comprobado en el código de Streamlit y no supuesto**: `zipfile`
+    estampa la hora actual en cada entrada → los mismos ficheros dan bytes distintos cada
+    vez (medido: dos llamadas seguidas, dos md5); `MemoryMediaFileStorage.load_and_get_id`
+    deriva el id **del contenido**; pulsar un `download_button` provoca un rerun y al
+    terminar `clear_session_refs` + `remove_orphaned_files` **borran el id que el navegador
+    está descargando**. Cuanto más grande el zip, más rato para que se lo lleven por
+    delante — por eso «empieza y no llega» y por eso 1,1 MB en local no lo veía.
+  - **Fecha FIJA, derivada de la declarada** y no a cero: dos copias de días distintos
+    tienen que seguir siendo dos ficheros distintos. Un `date` que no sea `AAAA-MM-DD`
+    aborta.
+  - **UN SOLO constructor de zips**: `export_all` pasa por él, así que la copia de
+    seguridad —que tenía el mismo defecto— deja de cambiar entre repintados.
+  - **Y el zip VACÍO deja de ofrecerse**: `ficheros` está vacío hasta pulsar «Seguir», y
+    un zip de cero entradas son **22 bytes** que se abren sin nada — parece una descarga
+    hecha. `presentation.downloads_zip` dice qué falta. El nombre lleva especie y fecha, en
+    vez de la constante que hacía que el navegador los numerara `(1)`, `(2)`, `(3)`.
+  - **Y el punto de «no hace falta» era NEGRO** (errata nº 77): `REFINEMENT_STATES`
+    declaraba `NO USADO` como «gris claro» y le ponía un **⚫**, que en una columna de 🟢 y
+    🟠 se lee como el PEOR estado — al lado de una frase que dice «no hace falta
+    conseguirlo». Ahora es **➖**, que se lee como «no aplica». Principio nº 11 en la capa
+    visual.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su
