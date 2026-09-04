@@ -56,7 +56,7 @@ class TestColumnas(unittest.TestCase):
             "polyA_solapa_seed", "polyA_veredicto",
             "riesgo_APA",
             "especificidad_0mm", "especificidad_1mm", "especificidad_2mm",
-            "transgen", "seed_colision", "carga_seed", "accesibilidad",
+            "transgen", "seed_colision", "tilado_8mer", "carga_8mer", "accesibilidad",
             "veredicto", "knockdown_medido",
         )
         for columna in esperadas:
@@ -111,7 +111,9 @@ class TestFilas(unittest.TestCase):
         """Sin base de datos, la especificidad no es 0 hits: es que no se conto."""
         _, seleccion = _piezas()
         filas = comparative_rows(seleccion, SGEP_SCAFFOLD)
-        for columna in ("especificidad_0mm", "carga_seed", "accesibilidad"):
+        for columna in (
+            "especificidad_0mm", "tilado_8mer", "carga_8mer", "accesibilidad",
+        ):
             indice = filas[0].index(columna)
             for fila in filas[1:]:
                 self.assertEqual(fila[indice], "", columna)
@@ -366,7 +368,14 @@ class TestNotaDeCoordenadas(unittest.TestCase):
     """
 
     def tsv(self, anatomia):
-        _, seleccion = _piezas()
+        # LA MISMA ANATOMIA PARA LA CABECERA Y PARA LAS FILAS. Antes se tilaba SIN ella
+        # y se pasaba solo aqui, y colaba porque `comparative_tsv` se TRAGABA el
+        # argumento: la cabecera declaraba una anatomia y las filas se calculaban con
+        # otra. Al dejar de tragarselo (2026-09-04) el desajuste salio a la luz — con un
+        # aborto de `coords`, que es el guardia haciendo su trabajo: `3utr:306` no cabe
+        # en un 3'UTR de 294 nt. Una tabla cuya cabecera dice una cosa y cuyas filas se
+        # calculan con otra es justo lo que este proyecto persigue.
+        _, seleccion = _piezas(anatomy=anatomia)
         return comparative_tsv(
             seleccion, SGEP_SCAFFOLD, with_header=True, anatomy=anatomia
         )

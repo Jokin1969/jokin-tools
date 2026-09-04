@@ -61,7 +61,7 @@ class TestCostText(unittest.TestCase):
 
     def test_sin_recursos_no_aparece_ninguna_partida_cara(self):
         texto = cost_text(SONDA, anatomy=ANATOMIA)
-        for partida in ("especificidad", "transgen", "seed_colision", "carga_seed"):
+        for partida in ("especificidad", "transgen", "seed_colision", "sitios_de_seed"):
             with self.subTest(partida):
                 self.assertNotIn(partida, texto)
 
@@ -70,7 +70,7 @@ class TestCostText(unittest.TestCase):
 
     def test_los_recursos_del_manifiesto_entran_en_la_cuenta(self):
         texto = cost_text(SONDA, anatomy=ANATOMIA, resources=ResourceSet(utr3_set=_utrs()))
-        self.assertIn("carga_seed", texto)
+        self.assertIn("sitios_de_seed", texto)
 
     def test_con_la_base_cargada_la_especificidad_SE_ESTIMA(self):
         """Ya no hace falta una diana tecleada, así que con la base basta.
@@ -115,7 +115,7 @@ class TestCostText(unittest.TestCase):
             expression={"t1": 1.0},
             mask=RepeatMask(intervals=((1, 2),), source="sonda"),
         )
-        self.assertIn("carga_seed", cost_text(SONDA, anatomy=ANATOMIA, resources=conjunto))
+        self.assertIn("sitios_de_seed", cost_text(SONDA, anatomy=ANATOMIA, resources=conjunto))
 
 
 if __name__ == "__main__":

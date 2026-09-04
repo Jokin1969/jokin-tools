@@ -83,7 +83,7 @@
     NM_011170.3.gb — anatomia del transcrito de raton (CDS 185..949) — 15224 B — md5 d8ad1a73ae90f29b4e98b60382231d6a — 2026-08-26 — NCBI, registro GenBank completo aportado por el responsable del proyecto; se pasa con --genbank. Es la via mas fiable de resolver la anatomia: el CDS lo declara la anotacion, no nosotros
 
 ── Tabla comparativa de los candidatos ──
-  inicio_transcrito  inicio_3utr  region  tercio    GC     asimetria  penalizacion  asimetria_penalizada  polyA_solapa_seed  riesgo_APA     carga_seed  accesibilidad  veredicto 
+  inicio_transcrito  inicio_3utr  region  tercio    GC     asimetria  penalizacion  asimetria_penalizada  polyA_solapa_seed  riesgo_APA     carga_8mer  accesibilidad  veredicto 
   tx:959             3utr:10      3'UTR   proximal  0.500  +4.33      0.00          +4.33                 no                 prediccion:no                             INCOMPLETE
   tx:1009            3utr:60      3'UTR   proximal  0.455  +5.15      0.00          +5.15                 no                 prediccion:no                             INCOMPLETE
   tx:1092            3utr:143     3'UTR   proximal  0.500  +5.08      0.00          +5.08                 no                 prediccion:no                             INCOMPLETE

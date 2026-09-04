@@ -101,17 +101,22 @@ class TestRecuento(unittest.TestCase):
         )
         self.assertEqual(carga.counts["7mer-m8"], 2)
 
-    def test_sin_ningun_sitio_el_total_es_cero(self):
+    def test_sin_ningun_sitio_cada_clase_es_cero(self):
         carga = seed_load(GUIA, _utrs(t1="CCCCCCCCCCCCCCCCCCCC"))
-        self.assertEqual(carga.total, 0)
+        self.assertEqual(carga.counts, {"8mer": 0, "7mer-m8": 0, "7mer-A1": 0})
 
-    def test_el_total_suma_los_tres_tipos(self):
+    def test_las_tres_clases_van_POR_SEPARADO_y_no_hay_total(self):
+        """El total se retiro (2026-09-04): ver `seed_load.WHERE_THE_TOTAL_WENT`.
+
+        Las clases no se suman —`offtarget.WHY_NOT_SUMMED`— y este contador emitia
+        justamente la suma, sin sus sumandos, como unica columna del eje.
+        """
         carga = seed_load(
             GUIA,
             _utrs(t1=SITIO_M8 + "CCC" + SITIO_A1 + "CCC" + SITIO_M8 + "A"),
         )
-        self.assertEqual(carga.total, sum(carga.counts.values()))
-        self.assertEqual(carga.total, 3)
+        self.assertEqual(carga.counts, {"8mer": 1, "7mer-m8": 1, "7mer-A1": 1})
+        self.assertFalse(hasattr(carga, "total"))
 
     def test_cuenta_tambien_los_transcritos_tocados(self):
         carga = seed_load(
@@ -132,13 +137,13 @@ class TestPonderacionPorExpresion(unittest.TestCase):
             _utrs(t1=SITIO_M8, t2=SITIO_M8),
             expression={"t1": 100.0, "t2": 1.0},
         )
-        self.assertEqual(carga.weighted, 101.0)
+        self.assertEqual(carga.weighted["7mer-m8"], 101.0)
 
     def test_un_transcrito_sin_dato_de_expresion_no_se_inventa(self):
         carga = seed_load(
             GUIA, _utrs(t1=SITIO_M8, t2=SITIO_M8), expression={"t1": 100.0}
         )
-        self.assertEqual(carga.weighted, 100.0)
+        self.assertEqual(carga.weighted["7mer-m8"], 100.0)
         self.assertIn("t2", carga.sin_expresion)
 
     def test_lo_que_falta_se_dice_en_el_texto(self):
@@ -154,8 +159,8 @@ class TestEstadoYSalida(unittest.TestCase):
         carga = seed_load(GUIA, None)
         self.assertIs(carga.state, FilterState.NOT_RUN)
 
-    def test_sin_transcriptoma_no_hay_numero(self):
-        self.assertIsNone(seed_load(GUIA, None).total)
+    def test_sin_transcriptoma_no_hay_ningun_conteo(self):
+        self.assertEqual(seed_load(GUIA, None).counts, {})
 
     def test_con_transcriptoma_el_estado_es_PASS_nunca_FAIL(self):
         """Es un numero comparativo, no un veredicto: nunca descarta a nadie."""
@@ -163,12 +168,23 @@ class TestEstadoYSalida(unittest.TestCase):
             carga = seed_load(GUIA, _utrs(t1=secuencia))
             self.assertIs(carga.state, FilterState.PASS)
 
-    def test_el_campo_de_la_tabla_va_vacio_si_no_corrio(self):
-        self.assertEqual(seed_load(GUIA, None).as_column(), "")
+    def test_los_campos_de_la_tabla_van_VACIOS_si_no_corrio(self):
+        self.assertEqual(
+            seed_load(GUIA, None).as_columns(),
+            {"tilado_8mer": "", "tilado_7mer-m8": "", "tilado_7mer-A1": ""},
+        )
 
-    def test_el_campo_de_la_tabla_es_el_numero(self):
+    def test_los_campos_de_la_tabla_son_UNO_POR_CLASE(self):
         carga = seed_load(GUIA, _utrs(t1=SITIO_M8))
-        self.assertEqual(carga.as_column(), "1")
+        self.assertEqual(
+            carga.as_columns(),
+            {"tilado_8mer": "0", "tilado_7mer-m8": "1", "tilado_7mer-A1": "0"},
+        )
+
+    def test_y_NO_existe_una_celda_con_el_total(self):
+        """`as_column()` en singular seria el total otra vez, y por eso no existe."""
+        carga = seed_load(GUIA, _utrs(t1=SITIO_M8))
+        self.assertFalse(hasattr(carga, "as_column"))
 
     def test_el_texto_lleva_la_procedencia(self):
         self.assertIn("sonda", seed_load(GUIA, _utrs(t1="CC")).format_text())

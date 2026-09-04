@@ -92,7 +92,10 @@ class TestElFicheroDeUCSC_ENTRA(unittest.TestCase):
         )
         self.assertEqual(len(completo.utrs.records), 3)
         self.assertEqual(len(sin_el_segundo.utrs.records), 2)
-        self.assertGreaterEqual(completo.total, sin_el_segundo.total)
+        self.assertGreaterEqual(
+            sum(completo.counts.values()),
+            sum(sin_el_segundo.counts.values()),
+        )
 
 
 class TestElCONTEO_INFLADO_se_DICE(unittest.TestCase):

@@ -231,7 +231,7 @@ def estimate_cost(
         if utr3_set is not None:
             items.append(
                 CostItem(
-                    name="carga_seed",
+                    name="sitios_de_seed",
                     per_window=_measure(
                         lambda w: seed_load(_guia(w), utr3_set), muestras
                     ),

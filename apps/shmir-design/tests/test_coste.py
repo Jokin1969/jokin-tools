@@ -77,11 +77,11 @@ class TestConFiltrosCaros(unittest.TestCase):
 
     def test_la_carga_de_seed_aparece(self):
         e = estimate_cost(sequence=SONDA, anatomy=_anatomia(), utr3_set=_utrs())
-        self.assertIn("carga_seed", [i.name for i in e.items])
+        self.assertIn("sitios_de_seed", [i.name for i in e.items])
 
     def test_cada_partida_multiplica_por_las_ventanas_elegibles(self):
         e = estimate_cost(sequence=SONDA, anatomy=_anatomia(), utr3_set=_utrs())
-        item = next(i for i in e.items if i.name == "carga_seed")
+        item = next(i for i in e.items if i.name == "sitios_de_seed")
         self.assertEqual(item.windows, e.eligible)
         self.assertAlmostEqual(item.total_seconds, item.per_window * e.eligible)
 

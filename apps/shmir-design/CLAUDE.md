@@ -4621,6 +4621,45 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     recibe `date=today_text()` y su botón ya tenía su propio `try/except`. De los dos
     botones que pasan por `deterministic_zip`, sólo uno estaba roto.
 
+- **`carga_seed` SE RETIRA: era la suma prohibida y la única columna visible del eje
+  (2026-09-04)**, errata nº 90 y **principio nº 31**.
+  - **Son DOS contadores y no la misma cantidad ni en principio**: `carga_seed` salía de
+    **tilar** y sumaba **tres** clases; `carga_<clase>` sale de la **corrida guardada**,
+    trae **cuatro** —con el `6mer`— y lleva percentil pegado. Las cuatro salían vacías
+    por no haber corrida, así que lo único visible era `sum(counts.values())`, que es
+    justo lo que `offtarget.WHY_NOT_SUMMED` prohíbe.
+  - **Y el desglose estaba CALCULADO**: `SeedLoad.counts` lleva los tres sumandos y
+    `as_column()` devolvía sólo el total. No había que calcular nada — había que dejar de
+    tirarlo. Salen como `tilado_<clase>`, con el prefijo diciendo de dónde vienen.
+  - **El total no se sustituye por otro número** y queda la frase de dirección
+    (`WHERE_THE_TOTAL_WENT`), como con `POLYA_DB_PRNP`. **`weighted` era el mismo pecado**
+    —ponderaba la suma— y ahora pondera por clase.
+  - **SÉPTIMA DEL PATRÓN DE `page_run`**: las cuatro `carga_<clase>` se cablearon a
+    `candidate_rows` y no a `comparative.COLUMNS`, que es el TSV que se descarga. `stores`
+    entra ahora por **`comparative_rows`** y pide las columnas al MISMO `seed_load_columns`
+    que la página: reimplementarlo sería la segunda definición del mismo número.
+  - **Y salió un argumento inerte**: `comparative_tsv` aceptaba `anatomy` y no lo
+    reenviaba, así que la cabecera se construía con una anatomía y las filas con otra. Al
+    dejar de tragárselo, un test que declaraba una anatomía incompatible con lo tilado
+    empezó a abortar — `coords` haciendo su trabajo.
+  - **PRINCIPIO nº 31 — un comentario protege su clase; un mecanismo protege la
+    siguiente.** `WHY_NOT_SUMMED` decía «si existiera, alguien acabaría imprimiéndolo», el
+    guardia se puso sobre `offtarget.Counts`, y **el atributo existía en
+    `seed_load.SeedLoad` y se estaba imprimiendo**. El guardia nuevo **descubre** qué
+    clases llevan conteos por clase en vez de nombrarlas.
+  - **Su control adversario tuvo que corregirse**, y esa es la mitad que enseña: la
+    primera versión probaba un `def total()`, y el `total` real era un **campo** con la
+    suma en el constructor — un guardia que sólo mirara cuerpos **no habría cazado el
+    fallo que hubo**. Principio nº 18 aplicado al propio comprobador.
+
+- **PRINCIPIO nº 32 — una clave sin escritor no falla: su valor por defecto pasa a ser la
+  configuración.** Sale de la errata nº 89 y no se parece a la nº 47: allí la clave
+  inexistente producía una **respuesta falsa**; aquí produce **siempre el default**, y
+  entonces el literal escrito como plan B se convierte en lo único que se ejecuta — y
+  nadie lo revisa como configuración, porque se lee como una precaución. **Dos llamadores
+  con dos defaults distintos son dos configuraciones distintas para la misma cosa**, y no
+  hay ningún sitio donde mirarlas juntas.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

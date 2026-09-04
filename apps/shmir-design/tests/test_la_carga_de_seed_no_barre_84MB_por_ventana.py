@@ -85,7 +85,7 @@ class TestSoloSeCuentaDondeSeLEE(unittest.TestCase):
             SECUENCIA, utr3_set=UTRS, seed_load_starts=objetivo).windows}
         for inicio in objetivo:
             self.assertEqual(todo[inicio].counts, acotado[inicio].counts)
-            self.assertEqual(todo[inicio].total, acotado[inicio].total)
+            self.assertEqual(todo[inicio].counts, acotado[inicio].counts)
 
 
 @unittest.skipUnless(HAY, "falta data/reference/NM_011170.3.fa")
@@ -115,11 +115,13 @@ class TestLoQueSaleDondeNoSeCUENTA(unittest.TestCase):
 
     def test_su_columna_va_VACIA_y_no_a_cero(self):
         # Regla de siempre: no haber contado y contar cero son cosas distintas.
-        self.assertEqual(self.fuera[0].carga_seed.as_column(), "")
+        self.assertEqual(
+            set(self.fuera[0].carga_seed.as_columns().values()), {""}
+        )
 
 
 def _tiene_numero(w) -> bool:
-    return w.carga_seed is not None and w.carga_seed.total is not None
+    return w.carga_seed is not None and bool(w.carga_seed.counts)
 
 
 def _elegibles(secuencia):

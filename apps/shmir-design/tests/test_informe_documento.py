@@ -183,8 +183,12 @@ class TestLasSieteSecciones(unittest.TestCase):
         tabla = next(
             b for b in self._seccion("Tabla de candidatos").blocks if b.kind == "table"
         )
-        for columna in ("inicio", "asimetria_kcal", "carga_seed", "veredicto"):
+        # `carga_seed` se retiro (2026-09-04): era la SUMA de tres clases y salia sin
+        # sus sumandos. Ahora estan los tres, y las cuatro del frente al lado.
+        for columna in ("inicio", "asimetria_kcal", "tilado_8mer", "carga_8mer",
+                        "veredicto"):
             self.assertIn(columna, tabla.headers)
+        self.assertNotIn("carga_seed", tabla.headers)
 
     def test_5_trae_la_ficha_entera_del_seleccionado(self):
         texto = "\n".join(_markdown_of(self._seccion("Fichas de los seleccionados")))

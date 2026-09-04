@@ -21,6 +21,7 @@ from .anatomy import Anatomy
 from .coords import Frame
 from .blocks import blocks_fasta, blocks_tsv, build_block, order_sheet
 from .comparative import comparative_tsv
+from .seed_load import LOAD_COLUMNS as SEED_LOAD_COLUMNS
 from .cost import estimate_cost
 from .conservation import (
     MIN_BLOCK_LENGTH,
@@ -248,12 +249,17 @@ def candidate_rows(
                 ),
                 # Numeros comparativos, no veredictos: vacios cuando no se calcularon,
                 # nunca a cero (bloques 1b y 4).
-                "carga_seed": (
-                    window.carga_seed.as_column() if window.carga_seed else ""
+                # LOS SUMANDOS, NO LA SUMA. `carga_seed` era `sum(counts.values())`
+                # y salia sin sus tres sumandos —que estaban CALCULADOS en `counts` y se
+                # tiraban en la celda—, sin percentil y sin el 6mer. O sea: la unica
+                # columna visible de este eje era la unica que `WHY_NOT_SUMMED` prohibe.
+                # Ver `seed_load.WHERE_THE_TOTAL_WENT`.
+                **(
+                    window.carga_seed.as_columns() if window.carga_seed
+                    else dict.fromkeys(SEED_LOAD_COLUMNS, "")
                 ),
-                # EL TOTAL NO SE PUEDE LEER SOLO. Cada clase con su percentil PEGADO —y
-                # no hay percentil del total, que seria el de una suma que este proyecto
-                # tiene decidido que no se refiere a nada (`WHY_NO_PERCENTILE_FOR_THE_TOTAL`).
+                # Y LAS DEL FRENTE, que son OTRO contador: cuatro clases —con el 6mer—,
+                # de la corrida guardada y con su percentil PEGADO en la misma celda.
                 **seed_load_columns(
                     stores=stores, species=species, start=choice.start,
                     reference=referencia,
@@ -1200,21 +1206,23 @@ def seed_highlights(scan):
     }
 
 
-#: POR QUE `carga_seed` NO PUEDE LLEVAR UN PERCENTIL PROPIO, y hay que decirlo donde se
-#: pide. `carga_seed` es un TOTAL —la suma de tres clases de sitio— y
-#: `offtarget.WHY_NOT_SUMMED` prohibe sumar las clases porque la represion esperada de un
-#: 8mer y la de un 6mer no se parecen en nada. Un percentil de 19.020 seria el percentil
-#: de una cantidad que este proyecto tiene decidido que no se refiere a nada.
+#: POR QUE NO HAY —NI PUEDE HABER— UN PERCENTIL DE UN TOTAL, y hay que decirlo donde se
+#: pide. `offtarget.WHY_NOT_SUMMED` prohibe sumar las clases porque la represion esperada
+#: de un 8mer y la de un 6mer no se parecen en nada, asi que el percentil de una suma
+#: seria el de una cantidad que este proyecto tiene decidido que no se refiere a nada.
 #:
 #: Lo que si se emite es CADA CLASE CON SU PERCENTIL PEGADO, que es la misma forma de
 #: `reference.describe_sequence` («longitud y md5 JUNTOS»): una cifra comparativa no se
 #: separa nunca de su referencia, porque quien copia una celda a un correo se lleva el
 #: numero sin la cabecera.
+#:
+#: LA COLUMNA `carga_seed` YA NO EXISTE (2026-09-04). Era ese total, salia sin sus
+#: sumandos y era la unica visible de este eje: ver `seed_load.WHERE_THE_TOTAL_WENT`.
 WHY_NO_PERCENTILE_FOR_THE_TOTAL = (
-    "`carga_seed` es la SUMA de tres clases de sitio, y las clases no se suman: la "
-    "represión esperada de un 8mer y la de un 6mer no se parecen en nada. Por eso no hay "
-    "—ni puede haber— un percentil de ese total: el percentil va POR CLASE, pegado a su "
-    "conteo, y es lo que sale en las columnas `carga_<clase>`."
+    "Las clases no se suman: la represión esperada de un 8mer y la de un 6mer no se "
+    "parecen en nada. Por eso no hay —ni puede haber— un percentil de un total: el "
+    "percentil va POR CLASE, pegado a su conteo, y es lo que sale en las columnas "
+    "`carga_<clase>`."
 )
 
 #: LAS DOS REFERENCIAS SON DISTINTAS Y NINGUNA SUSTITUYE A LA OTRA. La nula por
@@ -1292,8 +1300,9 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
 
     if ultima is None:
         texto = (
-            f"CARGA DE SEED SIN REFERENCIA — NOT_RUN. El número de `carga_seed` está, y "
-            f"solo no se puede leer: falta el PERCENTIL contra la nula por permutación y "
+            f"CARGA DE SEED SIN REFERENCIA — NOT_RUN. Los conteos por clase del tilado "
+            f"(`tilado_<clase>`) están, y solos no se pueden leer: falta el PERCENTIL "
+            f"contra la nula por permutación, falta el `6mer` y "
             f"faltan los controles biológicos ({', '.join(CONTROL_NAMES)}). Los dos los "
             f"calcula el modal de carga de off-targets, que necesita "
             f"`{MISSING_FILE}` y una corrida guardada en el proyecto. "

@@ -4328,3 +4328,107 @@ cambiado.
 que es una fecha derivada y válida, y su botón ya estaba envuelto en su propio
 `try/except`. Comprobado: `deterministic_zip` con `today_text()` produce el zip sin
 problema. De los dos botones que pasan por `deterministic_zip`, **sólo uno estaba roto**.
+
+---
+
+## 90 — El total prohibido era la única columna visible, y sus tres sumandos estaban calculados
+
+**Reportado (2026-09-04)**, con la tabla delante: las cuatro `carga_<clase>` vacías y
+`carga_seed` con valores de 1.054 a 19.020. *«No puede haber suma sin sumandos.»*
+
+**Las dos hipótesis que se plantearon eran ciertas a la vez, en sitios distintos.**
+
+### Son dos contadores, y no la misma cantidad ni en principio
+
+| | de dónde sale | clases | percentil |
+|---|---|---|---|
+| `carga_seed` | de **tilar**, `seed_load.seed_load` | **tres** (8mer, 7mer-m8, 7mer-A1) | no |
+| `carga_<clase>` | de la **corrida guardada**, `seed_load_reference` | **cuatro** (con `6mer`) | sí, pegado |
+
+`carga_seed` era literalmente `total=sum(totales.values())`. Las cuatro estaban vacías
+porque no había ninguna corrida de off-targets guardada. O sea: **la única columna
+visible de este eje era la única que `offtarget.WHY_NOT_SUMMED` prohíbe usar.**
+
+### Y el desglose estaba calculado y se tiraba
+
+`SeedLoad.counts` lleva los tres sumandos, por ventana. `as_column()` devolvía
+`str(self.total)`. **No hacía falta calcular nada: había que dejar de tirarlo.**
+
+### El total se retira, no se sustituye
+
+No hay ningún número que signifique lo que aquél parecía significar. Salen los tres
+sumandos —`tilado_8mer`, `tilado_7mer-m8`, `tilado_7mer-A1`— con el prefijo diciendo de
+dónde vienen, para que no se confundan con las cuatro del frente que están al lado. Y
+queda la **frase de dirección** (`WHERE_THE_TOTAL_WENT`), como con `POLYA_DB_PRNP`: sin
+ella, quien busque `carga_seed` y no la encuentre pensará que el dato se perdió.
+
+**`weighted` era el mismo pecado y también se arregla**: multiplicaba la expresión por
+`sum(conteo.values())`, o sea ponderaba el total. Ahora pondera **por clase**. Hoy no se
+calcula nunca —`expresion_cerebro.tsv` no existe— y por eso importa que nazca bien.
+
+### La séptima del patrón de `page_run`: el TSV nunca recibió el arreglo
+
+Las cuatro `carga_<clase>` se cablearon a `presentation.candidate_rows` (errata nº 70) y
+**no llegaron a `comparative.COLUMNS`**, que es el TSV que se descarga y se discute. Se
+cierra por donde había que cerrarlo: `stores` entra por **`comparative_rows`**, y las
+columnas se piden al **mismo** `seed_load_columns` que usa la página — reimplementarlo
+sería la segunda definición del mismo número.
+
+**Y al hacerlo salió un argumento inerte**: `comparative_tsv` acepta `anatomy` y llamaba
+a `comparative_rows(selection, scaffold)` **sin pasarlo**. Los dos llamadores lo pasan.
+No había síntoma porque hoy coincide con la de la selección, pero la cabecera se
+construía con una anatomía y las filas con otra. Al dejar de tragárselo, un test que
+pasaba una anatomía incompatible con lo tilado **empezó a abortar** — el guardia de
+`coords` haciendo su trabajo: `3utr:306` no cabe en un 3'UTR de 294 nt. Ese test tilaba
+sin la anatomía que declaraba en la cabecera.
+
+### PRINCIPIO nº 31 — un comentario protege su clase; un mecanismo protege la siguiente
+
+`offtarget.WHY_NOT_SUMMED` termina, escrito hace semanas:
+
+> «`Counts` no tiene ningún atributo que las sume: **si existiera, alguien acabaría
+> imprimiéndolo**.»
+
+El guardia se puso sobre `offtarget.Counts`. **El atributo existía en
+`seed_load.SeedLoad` y se estaba imprimiendo.** La profecía se cumplió al pie de la
+letra, en la clase de al lado, mientras el comentario que la anunciaba seguía ahí.
+
+`tests/test_ninguna_clase_de_conteos_SUMA.py` **descubre** qué clases del paquete llevan
+conteos por clase y se lo exige a todas, así que un contador nuevo queda cubierto sin que
+nadie se acuerde. Guardia, no trinquete: el número correcto es cero.
+
+**Y su control adversario tuvo que corregirse.** La primera versión probaba con un
+`def total(self): return sum(...)` — una forma **parecida** a la real. El `total` de
+verdad era un **campo** (`total: int | None = None`) y la suma vivía en el constructor,
+así que un guardia que sólo mirara cuerpos de métodos **no habría cazado el fallo que de
+verdad hubo**. Es el principio nº 18 aplicado al propio comprobador: un control adversario
+que no reproduce la forma real valida el comprobador, no el caso.
+
+---
+
+## PRINCIPIO nº 32 — una clave sin escritor no falla: su valor por defecto pasa a ser la configuración
+
+Sale de la errata nº 89 y merece entrada propia porque **no se parece a los fallos de
+clave anteriores**.
+
+La errata nº 47 —la comparación de md5 que preguntaba por una clave que no existía—
+producía una **respuesta falsa**: «no se ha podido comprobar» con el fichero delante.
+Ésta no produce ninguna respuesta falsa: produce **siempre el valor por defecto**, y
+entonces pasa algo distinto y peor.
+
+**El literal por defecto deja de ser un plan B y se convierte en la configuración real.**
+Y nadie lo revisa como tal: se escribe pensando «esto es lo que pasa si falta», se lee
+como una precaución, y es lo único que se ejecuta. Un `"sin fecha declarada"` puesto para
+ser honesto acabó siendo el valor con el que se generaba **todos** los informes.
+
+**Dos llamadores con dos defaults distintos son dos configuraciones distintas para la
+misma cosa** — y ninguna de las dos está declarada en ningún sitio, así que no hay dónde
+mirarlas juntas. Aquí una funcionaba y la otra abortaba, y eso es lo que hizo que el
+fallo pareciera del zip y no de la fecha.
+
+**La contramedida es mecánica y va en `tests/test_una_descarga_ROTA_no_tumba_la_pagina.py`**:
+ninguna clave de `session_state` puede leerse sin que alguien la escriba. A cero, con
+control adversario, y **quitando los comentarios antes de mirar** — el comentario que
+explica de dónde venía la clave la nombra, y sin la poda el guardia fallaría por su propia
+documentación, con la salida fácil de borrar la explicación (errata nº 54 con el signo
+cambiado).

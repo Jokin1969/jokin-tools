@@ -12,6 +12,7 @@ from shmir_design.anatomy import Anatomy, RegionSource
 from shmir_design.conservation import Utr3, build_conservation_report
 from shmir_design.masking import RepeatMask
 from shmir_design.polya import POLYA_COLUMNS
+from shmir_design.seed_load import LOAD_COLUMNS as SEED_LOAD_COLUMNS
 from shmir_design.presentation import (
     anatomy_rows,
     candidate_rows,
@@ -212,7 +213,8 @@ class TestFilasDeTabla(unittest.TestCase):
         otras = {"rango", "inicio", "fin", "region", "inicio_3utr", "fin_3utr",
                  "tercio", "asimetria_kcal", "bandera_polyA_debil",
                  "biofisicos_ok", "riesgo_APA", "veredicto", "diana", "guia",
-                 "carga_seed", "accesibilidad", *carga_por_clase, *POLYA_COLUMNS}
+                 "accesibilidad", *carga_por_clase, *SEED_LOAD_COLUMNS,
+                 *POLYA_COLUMNS}
         self.assertEqual(nombres_filtro & otras, set())
         self.assertEqual(
             len(candidate_rows(seleccion)[0]), len(nombres_filtro) + len(otras)
@@ -378,15 +380,19 @@ class TestColumnasNuevasEnLaTabla(unittest.TestCase):
             self.assertIn(campo, fila)
 
     def test_la_carga_de_seed_y_la_accesibilidad_tienen_columna(self):
+        """La carga sale POR CLASE, nunca como un total (`WHERE_THE_TOTAL_WENT`)."""
         _, seleccion = piezas()
         fila = candidate_rows(seleccion)[0]
-        self.assertIn("carga_seed", fila)
+        for columna in SEED_LOAD_COLUMNS:
+            self.assertIn(columna, fila)
+        self.assertNotIn("carga_seed", fila)
         self.assertIn("accesibilidad", fila)
 
     def test_sin_calcular_van_vacias_y_no_a_cero(self):
         _, seleccion = piezas()
         fila = candidate_rows(seleccion)[0]
-        self.assertEqual(fila["carga_seed"], "")
+        for columna in SEED_LOAD_COLUMNS:
+            self.assertEqual(fila[columna], "", columna)
         self.assertEqual(fila["accesibilidad"], "")
 
     def test_el_riesgo_APA_dice_si_es_prediccion(self):
