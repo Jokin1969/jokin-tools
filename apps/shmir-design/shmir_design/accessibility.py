@@ -60,6 +60,18 @@ def context_slice(
     return sequence[desde:hasta], start - 1 - desde
 
 
+#: LO QUE SALE CUANDO NADIE LO PIDIO. La accesibilidad es un DESEMPATE caro —dos plegados
+#: por candidato— y por eso va detras de una casilla; que este apagada es lo normal y no
+#: es un fallo. Lo que si era un fallo es que su celda vacia se leyera igual que la de un
+#: calculo que se pidio y no pudo correr.
+NOT_ASKED = (
+    "No se pidió: la accesibilidad va detrás de la casilla «Calcular accesibilidad "
+    "(lento)» de la barra lateral, apagada por defecto porque añade dos plegados por "
+    "candidato. NO es que no se haya podido calcular — es que nadie lo ha pedido, y eso "
+    "se arregla marcando la casilla, no consiguiendo ningún fichero."
+)
+
+
 @dataclass(frozen=True)
 class Accessibility:
     """Numero comparativo, nunca veredicto."""
@@ -80,8 +92,16 @@ class Accessibility:
         return max(valores) - min(valores) >= DISCREPANCY
 
     def as_column(self) -> str:
+        """El numero, o el motivo por el que no lo hay. Vacio ya no es una opcion.
+
+        Vacio no distinguia «no se pidio» de «se pidio y no se pudo», y son dos cosas:
+        una se arregla marcando una casilla y la otra consiguiendo algo — y la primera ni
+        siquiera es un problema. Ver `FilterState.NO_PEDIDO`.
+        """
+        if self.state is FilterState.NO_PEDIDO:
+            return FilterState.NO_PEDIDO.value
         if not self.unpaired_fraction:
-            return ""
+            return FilterState.NOT_RUN.value if self.reason else ""
         return f"{self.unpaired_fraction[CONTEXT_WINDOWS[0]]:.2f}"
 
     def format_text(self) -> str:

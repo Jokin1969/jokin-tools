@@ -93,6 +93,20 @@ class FilterState(StrEnum):
     #: de cero un trabajo que ya esta hecho — y detras de una corrida de BLAST hay una
     #: descarga de decenas de GB. Misma familia que `OBSOLETO`, y se DERIVA igual: de
     #: `can_give_verdict`, nunca anotado a mano.
+    #: NO SE PIDIO, que no es «no se pudo». Reportado (2026-09-04): la columna
+    #: `accesibilidad` sale vacia en las diez del panel, y vacia no distingue «la casilla
+    #: de la barra lateral esta sin marcar» de «se pidio y el calculo no pudo correr».
+    #: Son dos cosas y se arreglan con cosas distintas —una marcando una casilla, la otra
+    #: consiguiendo algo— y la primera ni siquiera es un problema.
+    #:
+    #: Es la leccion de `SIN_CONSULTAR` (errata nº 55) aplicada a la familia de los
+    #: NUMEROS COMPARATIVOS, que no tienen columna de estado: el estado va DENTRO de la
+    #: celda porque no hay otro sitio donde ponerlo.
+    #:
+    #: NO es `NO_APLICA` —esa dice «a este candidato no se le hace esta pregunta», y aqui
+    #: se le hace— ni `NOT_RUN`, que anuncia una laguna donde no la hay: nadie pidio que
+    #: se llenara.
+    NO_PEDIDO = "NO_PEDIDO"
     NO_CIERRA = "NO_CIERRA"
 
 

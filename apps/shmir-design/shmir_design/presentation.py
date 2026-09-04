@@ -4957,11 +4957,136 @@ def save_splice_run(store, run):
     return _guardar(store, run)
 
 
-def save_selection(store, *, starts, date: str, by: str):
+#: LOS AJUSTES SON DE SESION, Y ESO SE DICE. Los controles de la barra lateral son estado
+#: de Streamlit: al recargar vuelven a su valor por defecto. NO se restauran desde el
+#: proyecto a proposito —restaurarlos daria dos fuentes de verdad en la barra lateral, que
+#: es la casilla global «Usar los de data/reference/» otra vez— pero callarlo hace creer
+#: que se corrio con una configuracion cuando se corrio con otra.
+SETTINGS_ARE_SESSION_ONLY = (
+    "Los ajustes de la barra lateral son **de esta sesión**: al recargar la página "
+    "vuelven a su valor por defecto y NO se restauran desde el proyecto. Lo que sí queda "
+    "registrado es la configuración con la que se guardó cada selección, atada a ella."
+)
+
+#: LO QUE PASA CUANDO LA CONFIGURACION DE AHORA NO ES LA DE LA SELECCION GUARDADA. Mismo
+#: caso que `OBSOLETO`: se hizo, y ya no vale con lo que hay ahora.
+CONFIGURATION_DRIFTED = (
+    "**La configuración de ahora NO es la que produjo la selección guardada.** El panel "
+    "que se ve en pantalla se ha calculado con otros ajustes, así que ya no corresponde "
+    "a lo registrado — y eso no da ningún error por sí solo. O se vuelve a la "
+    "configuración de la selección, o se guarda una selección nueva con ésta."
+)
+
+#: Y lo que pasa con una seleccion de ANTES de que esto existiera.
+CONFIGURATION_NOT_RECORDED = (
+    "La selección guardada no registró con qué configuración se produjo: es anterior a "
+    "que se guardara. NO se puede comprobar si coincide con la de ahora, y no haber "
+    "podido comprobarlo no es que coincida."
+)
+
+
+def run_configuration(*, config, thresholds, accessibility: bool, scaffold,
+                      resources=None) -> dict:
+    """Lo que hay que saber para reproducir un panel, en una estructura serializable.
+
+    Es lo que va atado a la seleccion. Todo lo que puede mover QUE candidatos salen o en
+    que orden: los umbrales, la configuracion de seleccion, si se pidio la accesibilidad,
+    el andamio, y los ficheros conectados CON SU md5 —un fichero cambiado debajo cambia
+    el resultado igual que un umbral—.
+    """
+    from dataclasses import fields, is_dataclass  # noqa: PLC0415
+
+    def _plano(objeto):
+        if objeto is None:
+            return None
+        if not is_dataclass(objeto):
+            return str(objeto)
+        salida = {}
+        for campo in fields(objeto):
+            valor = getattr(objeto, campo.name)
+            # Enums y tuplas de enums a texto: su `repr` cambiaria con el codigo.
+            if isinstance(valor, tuple):
+                valor = [
+                    [getattr(x, "value", str(x)) for x in v]
+                    if isinstance(v, tuple) else getattr(v, "value", v)
+                    for v in valor
+                ]
+            else:
+                valor = getattr(valor, "value", valor)
+            salida[campo.name] = valor
+        return salida
+
+    return {
+        "seleccion": _plano(config),
+        "umbrales": _plano(thresholds),
+        "accesibilidad": bool(accessibility),
+        "andamio": {
+            "nombre": getattr(scaffold, "name", ""),
+            "verificado": bool(getattr(scaffold, "verified", False)),
+        },
+        # LOS FICHEROS CONECTADOS, con lo que los identifique. Se admite un mapa
+        # nombre→md5 y tambien la lista de descripciones que ya trae `ResourceSet`
+        # —`describe_connected` las emite con version y md5 dentro—, porque lo que hace
+        # falta es que la huella cambie cuando cambie el fichero, no un formato concreto.
+        "ficheros": _ficheros_de(resources),
+    }
+
+
+def _ficheros_de(resources) -> list[str] | dict[str, str]:
+    if not resources:
+        return []
+    if hasattr(resources, "connected"):
+        resources = resources.connected
+    if isinstance(resources, dict):
+        return dict(sorted((str(k), str(v)) for k, v in resources.items()))
+    return sorted(str(x) for x in resources)
+
+
+def selection_configuration_state(store, *, actual: dict | None) -> dict[str, object]:
+    """¿La configuracion de ahora es la que produjo la seleccion guardada?
+
+    Se DERIVA comparando huellas, igual que `insumos.obsoleta`. Guardar la configuracion
+    al lado sin atarla no habria servido: la discrepancia seguiria siendo invisible.
+    """
+    from .identidad import configuration_fingerprint  # noqa: PLC0415
+    from .store import selected_configuration  # noqa: PLC0415
+
+    if store is None:
+        return {"estado": "", "coincide": None, "texto": SETTINGS_ARE_SESSION_ONLY}
+    guardada, huella = selected_configuration(store)
+    if not huella:
+        if not store.records("seleccion"):
+            return {"estado": "", "coincide": None, "texto": SETTINGS_ARE_SESSION_ONLY}
+        return {
+            "estado": "NO_REGISTRADA",
+            "coincide": None,
+            "texto": f"{CONFIGURATION_NOT_RECORDED} {SETTINGS_ARE_SESSION_ONLY}",
+        }
+    if actual is None:
+        return {
+            "estado": "NO_REGISTRADA",
+            "coincide": None,
+            "texto": f"{CONFIGURATION_NOT_RECORDED} {SETTINGS_ARE_SESSION_ONLY}",
+        }
+    coincide = configuration_fingerprint(actual) == huella
+    return {
+        "estado": "" if coincide else "CAMBIADA",
+        "coincide": coincide,
+        "texto": (
+            SETTINGS_ARE_SESSION_ONLY if coincide
+            else f"{CONFIGURATION_DRIFTED} {SETTINGS_ARE_SESSION_ONLY}"
+        ),
+        "guardada": guardada,
+    }
+
+
+def save_selection(store, *, starts, date: str, by: str, configuration=None):
     """La seleccion manual. Una nueva NO pisa la vieja: la SUCEDE."""
     from .store import save_selection as _guardar
 
-    return _guardar(store, starts=starts, date=date, by=by)
+    return _guardar(
+        store, starts=starts, date=date, by=by, configuration=configuration,
+    )
 
 
 def selected_starts(store):

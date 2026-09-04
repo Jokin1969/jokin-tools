@@ -84,16 +84,16 @@
 
 ── Tabla comparativa de los candidatos ──
   inicio_transcrito  inicio_3utr  region  tercio    GC     asimetria  penalizacion  asimetria_penalizada  polyA_solapa_seed  riesgo_APA     carga_8mer  accesibilidad  veredicto 
-  tx:959             3utr:10      3'UTR   proximal  0.500  +4.33      0.00          +4.33                 no                 prediccion:no                             INCOMPLETE
-  tx:1009            3utr:60      3'UTR   proximal  0.455  +5.15      0.00          +5.15                 no                 prediccion:no                             INCOMPLETE
-  tx:1092            3utr:143     3'UTR   proximal  0.500  +5.08      0.00          +5.08                 no                 prediccion:no                             INCOMPLETE
-  tx:1149            3utr:200     3'UTR   proximal  0.500  +3.80      0.00          +3.80                 no                 prediccion:no                             INCOMPLETE
-  tx:1398            3utr:449     3'UTR   medio     0.318  +5.32      0.00          +5.32                 no                 prediccion:si                             INCOMPLETE
-  tx:1502            3utr:553     3'UTR   medio     0.409  +5.86      0.00          +5.86                 no                 prediccion:si                             INCOMPLETE
-  tx:1601            3utr:652     3'UTR   medio     0.455  +5.80      0.00          +5.80                 no                 prediccion:si                             INCOMPLETE
-  tx:1684            3utr:735     3'UTR   medio     0.409  +5.08      0.00          +5.08                 no                 prediccion:si                             INCOMPLETE
-  tx:1768            3utr:819     3'UTR   distal    0.500  +5.96      0.00          +5.96                 no                 prediccion:si                             INCOMPLETE
-  tx:1967            3utr:1018    3'UTR   distal    0.500  +7.65      1.00          +6.65                 si                 prediccion:si                             INCOMPLETE
+  tx:959             3utr:10      3'UTR   proximal  0.500  +4.33      0.00          +4.33                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1009            3utr:60      3'UTR   proximal  0.455  +5.15      0.00          +5.15                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1092            3utr:143     3'UTR   proximal  0.500  +5.08      0.00          +5.08                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1149            3utr:200     3'UTR   proximal  0.500  +3.80      0.00          +3.80                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1398            3utr:449     3'UTR   medio     0.318  +5.32      0.00          +5.32                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:1502            3utr:553     3'UTR   medio     0.409  +5.86      0.00          +5.86                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:1601            3utr:652     3'UTR   medio     0.455  +5.80      0.00          +5.80                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:1684            3utr:735     3'UTR   medio     0.409  +5.08      0.00          +5.08                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:1768            3utr:819     3'UTR   distal    0.500  +5.96      0.00          +5.96                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:1967            3utr:1018    3'UTR   distal    0.500  +7.65      1.00          +6.65                 si                 prediccion:si              NO_PEDIDO      INCOMPLETE
   La tabla COMPLETA —con la pasajera, el módulo de 149 nt, los cinco campos de
   polyA, los recuentos de especificidad y una columna por filtro— está en el TSV comparativo,
   con la columna knockdown_medido vacía para que vuelva rellena del laboratorio.

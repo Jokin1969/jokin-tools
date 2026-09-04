@@ -168,11 +168,25 @@ class TestEstadoYSalida(unittest.TestCase):
             carga = seed_load(GUIA, _utrs(t1=secuencia))
             self.assertIs(carga.state, FilterState.PASS)
 
-    def test_los_campos_de_la_tabla_van_VACIOS_si_no_corrio(self):
+    def test_los_campos_de_la_tabla_DICEN_que_no_corrio(self):
+        """Nunca a cero, y ademas diciendo cual de los dos casos es (errata nº 91)."""
         self.assertEqual(
             seed_load(GUIA, None).as_columns(),
-            {"tilado_8mer": "", "tilado_7mer-m8": "", "tilado_7mer-A1": ""},
+            {
+                "tilado_8mer": "NOT_RUN",
+                "tilado_7mer-m8": "NOT_RUN",
+                "tilado_7mer-A1": "NOT_RUN",
+            },
         )
+
+    def test_y_ACOTADO_POR_COSTE_es_NO_PEDIDO_no_NOT_RUN(self):
+        """Acotar al panel es una DECISION, no una laguna: no hay nada que conseguir."""
+        from shmir_design.seed_load import SEED_LOAD_SKIPPED, SeedLoad
+
+        acotado = SeedLoad(
+            state=FilterState.NO_PEDIDO, reason=SEED_LOAD_SKIPPED,
+        )
+        self.assertEqual(set(acotado.as_columns().values()), {"NO_PEDIDO"})
 
     def test_los_campos_de_la_tabla_son_UNO_POR_CLASE(self):
         carga = seed_load(GUIA, _utrs(t1=SITIO_M8))

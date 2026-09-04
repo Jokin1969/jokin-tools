@@ -111,12 +111,15 @@ class TestFilas(unittest.TestCase):
         """Sin base de datos, la especificidad no es 0 hits: es que no se conto."""
         _, seleccion = _piezas()
         filas = comparative_rows(seleccion, SGEP_SCAFFOLD)
-        for columna in (
-            "especificidad_0mm", "tilado_8mer", "carga_8mer", "accesibilidad",
-        ):
+        for columna in ("especificidad_0mm", "tilado_8mer", "carga_8mer"):
             indice = filas[0].index(columna)
             for fila in filas[1:]:
                 self.assertEqual(fila[indice], "", columna)
+        # La accesibilidad NO va vacia: dice cual de los dos casos es. Vacia se leia
+        # igual que «se pidio y no se pudo», y son cosas distintas (errata nº 91).
+        indice = filas[0].index("accesibilidad")
+        for fila in filas[1:]:
+            self.assertEqual(fila[indice], "NO_PEDIDO")
 
     def test_con_especificidad_los_recuentos_salen(self):
         base = SpecificityDatabase(

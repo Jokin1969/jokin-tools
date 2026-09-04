@@ -229,8 +229,15 @@ class SeedLoad:
         # SE MIRA EL ESTADO, no si hay fichero. Una ventana acotada por coste
         # (`SEED_LOAD_SKIPPED`) trae `utrs` y NO trae `counts`: preguntar por el fichero
         # daria un `KeyError` justo en el caso que la acotacion existe para producir.
+        if self.state is FilterState.NO_PEDIDO:
+            # NO SE PIDIO no es NO SE PUDO. Aqui pasa cuando el conteo se acota al panel
+            # por coste (`SEED_LOAD_SKIPPED`): es una decision, no una laguna.
+            return dict.fromkeys(LOAD_COLUMNS, FilterState.NO_PEDIDO.value)
         if self.state is not FilterState.PASS:
-            return dict.fromkeys(LOAD_COLUMNS, "")
+            return dict.fromkeys(
+                LOAD_COLUMNS,
+                FilterState.NOT_RUN.value if self.reason else "",
+            )
         return {
             f"{COLUMN_PREFIX}{tipo}": str(self.counts[tipo]) for tipo in SITE_TYPES
         }

@@ -4432,3 +4432,78 @@ control adversario, y **quitando los comentarios antes de mirar** — el comenta
 explica de dónde venía la clave la nombra, y sin la poda el guardia fallaría por su propia
 documentación, con la salida fácil de borrar la explicación (errata nº 54 con el signo
 cambiado).
+
+---
+
+## 91 — «No se pidió» y «no se pudo» daban la misma celda vacía
+
+**Reportado (2026-09-04)**: *«la columna `accesibilidad` sale vacía en las diez»*.
+
+**No era un fallo del cálculo: la casilla «Calcular accesibilidad (lento)» está apagada
+por defecto**, así que `accessibility=False` → `acceso = None` → celda vacía. Y ViennaRNA
+sí está instalado (2.7.2 aquí, y `nixpacks.toml` lo mete en la imagen con comprobación en
+el build). Lo que estaba mal es que **esa celda vacía era indistinguible de la de un
+cálculo que se pidió y no pudo correr** — y son dos cosas que se arreglan con cosas
+distintas: una marcando una casilla, la otra consiguiendo algo. **Y la primera ni siquiera
+es un problema.**
+
+Es la lección de `SIN_CONSULTAR` (errata nº 55) aplicada a una familia que no la tenía:
+**los números comparativos**. No tienen columna de estado, así que el estado va **dentro
+de la celda**, porque no hay otro sitio.
+
+`FilterState.NO_PEDIDO`. No es `NO_APLICA` —esa dice «a este candidato no se le hace esta
+pregunta», y aquí sí se le hace— ni `NOT_RUN`, que anuncia una laguna donde no la hay:
+nadie pidió que se llenara.
+
+### Y al revisar la familia salió un segundo caso, del mismo tipo
+
+`carga_seed` acotada por coste (errata nº 59) salía **`NOT_RUN`**, y `NOT_RUN` manda a
+conseguir algo. Ahí no hay nada que conseguir: acotar el conteo al panel es una
+**decisión**, tomada y escrita, no una laguna. Pasa a `NO_PEDIDO`.
+
+Las tres celdas quedan distinguibles: **vacía** (no aplica / no hay dato de fuera),
+**`NOT_RUN`** (se pidió y faltó un recurso), **`NO_PEDIDO`** (nadie lo pidió). Ninguna es
+cero, que sigue siendo la regla de siempre.
+
+---
+
+## 92 — La configuración no viajaba con el panel, y nada avisaba cuando dejaban de corresponder
+
+**Preguntado y luego acotado por el responsable del proyecto (2026-09-04)**: *«¿los
+ajustes se guardan en el proyecto o son sólo de sesión?»* y, después, *«la configuración
+tiene que quedar ATADA al panel, no sólo guardada al lado»*.
+
+**Los ajustes eran sólo de sesión, y no se decía.** `Project` tiene slug, fecha, md5,
+longitud, especie, anatomía, título y secuencia — **ningún campo de configuración**. Y
+`save_selection` guardaba `{"starts": [...], "by": ...}` y nada más. Umbrales,
+`SelectionConfig`, accesibilidad y andamio viven en widgets de Streamlit y vuelven a su
+valor por defecto al recargar. Es el `--inmunes 4` del golden (principio nº 18) **del lado
+del usuario**: una configuración que produce un número y que no viaja con él.
+
+**Guardarla al lado no habría bastado**, y ése es el punto que lo cierra: si alguien cambia
+un umbral y vuelve a diseñar sin guardar selección nueva, el panel de la pantalla deja de
+corresponder a la configuración registrada **y nada lo dice**. Va **atada por huella**
+(`identidad.configuration_fingerprint`), y la discrepancia **se deriva** — exactamente lo
+que hace `OBSOLETO` con los ficheros de una corrida: se hizo, y ya no vale con lo que hay
+ahora.
+
+**Y NO se restaura al reabrir. DECIDIDO.** Restaurar los controles desde el proyecto daría
+**dos fuentes de verdad** en la barra lateral —lo guardado y lo que el widget diga— sin
+nada que dijera cuál manda: es la casilla global «Usar los de `data/reference/`» otra vez.
+Registrar sí; restaurar no. Hay un test mecánico de que la página no lee la configuración
+guardada.
+
+**Tres estados y ninguno se colapsa**: coincide (sólo se recuerda que los ajustes son de
+sesión), **`CAMBIADA`** (aviso, y dice qué hacer: volver a la configuración o guardar
+selección nueva), y **`NO_REGISTRADA`** para una selección anterior a este campo — *no
+haber podido comprobarlo no es que coincida*, que es el `.out` sin resumen otra vez.
+
+**Y una aclaración que sí es buena noticia**: marcar la accesibilidad **no exige volver a
+pulsar «Diseñar»**. `st.session_state["accion"]` es pegajoso, así que cada repintado vuelve
+a correr `page_run` con lo que la barra lateral diga en ese momento. Tardará, pero se
+rellena.
+
+**Lo que la propia maquinaria del proyecto cazó al escribirlo**: el cruce de auditorías
+(principio nº 26) rechazó el digesto nuevo hasta declararlo en **las dos** tablas,
+`magnitudes.toml` y `guardias.toml`. Y `guardias.toml` lo rechazó como guardia porque **no
+aborta**: va a `[solo_informan]`, con `manifest.check_directory` y `stale_md5`.

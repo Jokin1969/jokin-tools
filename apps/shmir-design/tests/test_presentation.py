@@ -393,7 +393,8 @@ class TestColumnasNuevasEnLaTabla(unittest.TestCase):
         fila = candidate_rows(seleccion)[0]
         for columna in SEED_LOAD_COLUMNS:
             self.assertEqual(fila[columna], "", columna)
-        self.assertEqual(fila["accesibilidad"], "")
+        # NO SE PIDIO no es NO SE PUDO: la celda lo dice (errata nº 91).
+        self.assertEqual(fila["accesibilidad"], "NO_PEDIDO")
 
     def test_el_riesgo_APA_dice_si_es_prediccion(self):
         _, seleccion = piezas()

@@ -84,6 +84,34 @@ def file_fingerprint(datos: bytes) -> str:
     return hashlib.md5(datos, usedforsecurity=False).hexdigest()
 
 
+def configuration_fingerprint(configuracion: dict) -> str:
+    """md5 de la CONFIGURACION con la que se produjo un panel.
+
+    **Por que la configuracion necesita huella y no basta con guardarla al lado**
+    (pedido por el responsable del proyecto, 2026-09-04): si alguien cambia un umbral y
+    vuelve a diseñar sin guardar seleccion nueva, el panel en pantalla deja de
+    corresponder a la configuracion registrada **y nada lo dice**. Guardada al lado, la
+    discrepancia es invisible; atada por huella, se DERIVA — es el mismo caso que
+    `OBSOLETO`, donde una corrida se hizo y ya no vale con lo que hay ahora.
+
+    Se serializa ORDENADO y sin espacios variables: la huella es de lo que se
+    configuro, no de como se escribio el diccionario. Un valor que no se pueda serializar
+    ABORTA en vez de irse por `str()` — un `repr` dentro de una huella la haria depender
+    de la version del codigo y no de la configuracion (la leccion de `species.resolve`).
+    """
+    import json  # noqa: PLC0415
+
+    try:
+        texto = json.dumps(configuracion, sort_keys=True, separators=(",", ":"))
+    except TypeError as exc:
+        raise ShmirDesignError(
+            f"La configuración de la corrida lleva un valor que no se puede serializar "
+            f"({exc}); se aborta en vez de meter su `repr` en la huella, que la haría "
+            f"depender de la versión del código en vez de la configuración."
+        ) from exc
+    return hashlib.md5(texto.encode("utf-8"), usedforsecurity=False).hexdigest()
+
+
 def run_id(*, kind: str, date: str, result_md5: str) -> str:
     """El identificador de una corrida: tipo, fecha y md5 del resultado.
 

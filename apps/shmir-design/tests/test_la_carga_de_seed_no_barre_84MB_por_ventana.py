@@ -90,7 +90,11 @@ class TestSoloSeCuentaDondeSeLEE(unittest.TestCase):
 
 @unittest.skipUnless(HAY, "falta data/reference/NM_011170.3.fa")
 class TestLoQueSaleDondeNoSeCUENTA(unittest.TestCase):
-    """Ni un cero ni una celda vacia: `NOT_RUN` con el motivo."""
+    """Ni un cero ni una celda vacia: `NO_PEDIDO` con el motivo.
+
+    Era `NOT_RUN`, y `NOT_RUN` manda a conseguir algo. Aqui no hay nada que conseguir:
+    acotar el conteo al panel es una DECISION por coste, no una laguna (errata nº 91).
+    """
 
     def setUp(self):
         objetivo = frozenset(w.window.start for w in _elegibles(SECUENCIA)[:1])
@@ -102,21 +106,22 @@ class TestLoQueSaleDondeNoSeCUENTA(unittest.TestCase):
             if w.carga_seed is not None and w.window.start not in objetivo
         ]
 
-    def test_las_demas_salen_NOT_RUN(self):
+    def test_las_demas_salen_NO_PEDIDO(self):
         self.assertTrue(self.fuera)
         for w in self.fuera:
             with self.subTest(w.window.start):
-                self.assertIs(w.carga_seed.state, FilterState.NOT_RUN)
+                self.assertIs(w.carga_seed.state, FilterState.NO_PEDIDO)
 
     def test_y_el_motivo_dice_POR_COSTE_y_donde_SI_se_cuenta(self):
         motivo = self.fuera[0].carga_seed.reason
         self.assertIn("coste", motivo.lower())
         self.assertIn("panel", motivo.lower())
 
-    def test_su_columna_va_VACIA_y_no_a_cero(self):
-        # Regla de siempre: no haber contado y contar cero son cosas distintas.
+    def test_su_columna_DICE_que_no_se_pidio_y_no_va_a_cero(self):
+        # Regla de siempre: no haber contado y contar cero son cosas distintas. Y
+        # ademas: no haberlo pedido y no haber podido tambien lo son.
         self.assertEqual(
-            set(self.fuera[0].carga_seed.as_columns().values()), {""}
+            set(self.fuera[0].carga_seed.as_columns().values()), {"NO_PEDIDO"}
         )
 
 

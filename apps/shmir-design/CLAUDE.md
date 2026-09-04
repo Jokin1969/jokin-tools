@@ -4660,6 +4660,44 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   con dos defaults distintos son dos configuraciones distintas para la misma cosa**, y no
   hay ningún sitio donde mirarlas juntas.
 
+- **`NO_PEDIDO`: «no se pidió» deja de dar la misma celda que «no se pudo» (2026-09-04)**,
+  errata nº 91. La columna `accesibilidad` salía vacía en las diez, y no era un fallo del
+  cálculo —la casilla «Calcular accesibilidad (lento)» está apagada por defecto y
+  ViennaRNA sí está instalado—: era que esa celda vacía **no se distinguía** de la de un
+  cálculo que se pidió y falló. Son dos cosas y se arreglan con cosas distintas: una
+  marcando una casilla, la otra consiguiendo algo. Es `SIN_CONSULTAR` (errata nº 55)
+  aplicado a la familia de los **números comparativos**, que no tienen columna de estado —
+  así que el estado va DENTRO de la celda, porque no hay otro sitio.
+  - **Al revisar la familia salió un segundo caso**: `carga_seed` acotada por coste
+    (errata nº 59) salía `NOT_RUN`, y `NOT_RUN` manda a conseguir algo. Ahí no hay nada
+    que conseguir: acotar al panel es una decisión escrita. Pasa a `NO_PEDIDO`.
+  - Tres celdas distinguibles: **vacía**, **`NOT_RUN`** (se pidió, faltó un recurso) y
+    **`NO_PEDIDO`**. Ninguna es cero.
+
+- **LOS AJUSTES SON DE SESIÓN, Y LA CONFIGURACIÓN VA ATADA AL PANEL. DECIDIDO
+  (2026-09-04)**, errata nº 92 (`presentation.run_configuration`,
+  `selection_configuration_state`, `identidad.configuration_fingerprint`).
+  - **`Project` no tiene ningún campo de configuración y `save_selection` guardaba
+    `starts` y `by`.** Umbrales, `SelectionConfig`, accesibilidad y andamio viven en
+    widgets de Streamlit y vuelven al defecto al recargar. Es el `--inmunes 4` del golden
+    **del lado del usuario**: una configuración que produce un número y no viaja con él.
+  - **Guardarla al lado no basta**: cambiar un umbral y volver a diseñar sin guardar
+    selección nueva deja el panel de la pantalla sin corresponder a lo registrado, y nada
+    lo decía. Va **atada por huella** y la discrepancia **se deriva** — el mismo caso que
+    `OBSOLETO`.
+  - **NO se restaura al reabrir.** Restaurar los controles daría **dos fuentes de verdad**
+    en la barra lateral sin nada que diga cuál manda: la casilla global otra vez.
+    Registrar sí; restaurar no, con test mecánico de que la página no lo hace.
+  - **Tres estados**: coincide, **`CAMBIADA`** (avisa y dice qué hacer) y
+    **`NO_REGISTRADA`** para una selección anterior — no haber podido comprobarlo no es
+    que coincida.
+  - **Marcar la accesibilidad NO exige volver a pulsar «Diseñar»**: `session_state`
+    guarda la acción, así que cada repintado vuelve a correr `page_run` con lo que diga la
+    barra lateral. Tarda, pero se rellena.
+  - **La maquinaria del proyecto lo cazó sola**: el cruce de auditorías (principio nº 26)
+    rechazó el digesto hasta declararlo en `magnitudes.toml` **y** `guardias.toml`, y esta
+    última lo rechazó como guardia porque **no aborta** — va a `[solo_informan]`.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

@@ -97,7 +97,9 @@ from shmir_design.presentation import (  # noqa: E402
     save_blast_run,
     save_offtarget_run,
     save_seed_run,
+    run_configuration,
     save_selection,
+    selection_configuration_state,
     save_splice_run,
     splice_run_from_scan,
     selected_starts,
@@ -651,7 +653,18 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     _modal_empalme(
         seleccion, nombre, utr3, cassette_sequence(tiling), proyecto, tiling=tiling,
     )
-    _guardar_seleccion(proyecto, seleccion, nombre)
+    # LA CONFIGURACION CON LA QUE SALIO ESTE PANEL. Los controles de la barra lateral
+    # son estado de Streamlit y no se restauran al reabrir —eso daria dos fuentes de
+    # verdad—, asi que lo que queda es esto: atado a la seleccion que se guarde, para
+    # que la app pueda AVISAR cuando el panel de la pantalla deje de corresponder a lo
+    # registrado (errata nº 92).
+    configuracion = run_configuration(
+        config=config, thresholds=umbrales, accessibility=accesibilidad,
+        scaffold=scaffold, resources=recursos,
+    )
+    _guardar_seleccion(
+        proyecto, seleccion, nombre, configuracion=configuracion,
+    )
 
     with st.expander(f"Todas las ventanas de {nombre} ({len(tiling.windows)})"):
         st.dataframe(
@@ -2026,7 +2039,8 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
 
 
 
-def _guardar_seleccion(proyecto, seleccion, nombre: str) -> None:
+def _guardar_seleccion(proyecto, seleccion, nombre: str, *,
+                       configuracion=None) -> None:
     """La selección manual, al log. Antes se recalculaba en pantalla y se perdía."""
     if proyecto is None:
         return
@@ -2034,6 +2048,12 @@ def _guardar_seleccion(proyecto, seleccion, nombre: str) -> None:
     guardada = selected_starts(proyecto)
     if guardada:
         st.caption(f"Última selección guardada: {', '.join(str(s) for s in guardada)}")
+    # ¿LA CONFIGURACION DE AHORA ES LA QUE PRODUJO LO GUARDADO? Se DERIVA comparando
+    # huellas, igual que `insumos.obsoleta`. Los ajustes NO se restauran al reabrir —eso
+    # daria dos fuentes de verdad en la barra lateral— asi que decirlo es la mitad del
+    # trato.
+    deriva = selection_configuration_state(proyecto, actual=configuracion)
+    (st.warning if deriva["estado"] == "CAMBIADA" else st.caption)(deriva["texto"])
     columnas = st.columns([2, 2, 3])
     with columnas[0]:
         # La seleccion se decide AHORA, asi que el calendario viene con hoy.
@@ -2052,6 +2072,11 @@ def _guardar_seleccion(proyecto, seleccion, nombre: str) -> None:
                     proyecto,
                     starts=chosen_starts(seleccion),
                     date=fecha, by=quien,
+                    # LA CONFIGURACION VA ATADA AL PANEL, no guardada al lado: sin la
+                    # huella, cambiar un umbral y volver a diseñar sin guardar seleccion
+                    # nueva deja el panel de la pantalla sin corresponder a lo
+                    # registrado y NADA lo dice (errata nº 92).
+                    configuration=configuracion,
                 )
             except (ShmirDesignError, ValueError, OSError) as exc:
                 # rule2-ok: frontera de la interfaz, el motivo se enseña entero.

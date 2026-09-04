@@ -32,6 +32,7 @@ import json
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
+from .identidad import configuration_fingerprint
 from .errors import ShmirDesignError
 
 PROJECT_FILE = "proyecto.json"
@@ -799,13 +800,39 @@ def load_offtarget_store(store: ProjectStore):
     return almacen
 
 
-def save_selection(store: ProjectStore, *, starts, date: str, by: str) -> Record:
-    """La seleccion a mano. Una nueva se AÑADE; la vigente es la ultima."""
-    return store.append(
-        "seleccion",
-        {"starts": sorted(int(s) for s in starts), "by": str(by)},
-        date=date,
-    )
+def save_selection(
+    store: ProjectStore, *, starts, date: str, by: str, configuration=None,
+) -> Record:
+    """La seleccion a mano. Una nueva se AÑADE; la vigente es la ultima.
+
+    **LA CONFIGURACION VA ATADA AL PANEL, no guardada al lado** (decidido con el
+    responsable del proyecto, 2026-09-04). Los controles de la barra lateral son estado
+    de Streamlit: vuelven a su valor por defecto al recargar y no se restauran a
+    proposito —restaurarlos daria DOS fuentes de verdad, que es la casilla global otra
+    vez—. Lo que si hace falta es que dentro de un año se pueda saber con que umbrales
+    salio este panel, y sobre todo que la app AVISE si la configuracion de ahora ya no es
+    la de la seleccion guardada: cambiar un umbral y volver a diseñar sin guardar
+    seleccion nueva deja el panel de la pantalla sin corresponder a lo registrado, y nada
+    lo decia. Es el mismo caso que `OBSOLETO` — se hizo, y ya no vale con lo que hay.
+
+    `configuration=None` significa **no registrada**: una seleccion de antes de este
+    campo se sigue leyendo, y `selection_configuration_state` lo dice con esas palabras
+    en vez de fingir que coincide.
+    """
+    payload = {"starts": sorted(int(s) for s in starts), "by": str(by)}
+    if configuration is not None:
+        payload["configuracion"] = configuration
+        payload["configuracion_md5"] = configuration_fingerprint(configuration)
+    return store.append("seleccion", payload, date=date)
+
+
+def selected_configuration(store: ProjectStore) -> tuple[dict | None, str]:
+    """La configuracion de la seleccion VIGENTE, y su huella. Vacias si no se registro."""
+    registros = store.records("seleccion")
+    if not registros:
+        return None, ""
+    payload = registros[-1].payload
+    return payload.get("configuracion"), str(payload.get("configuracion_md5", ""))
 
 
 def selected_starts(store: ProjectStore) -> tuple[int, ...]:

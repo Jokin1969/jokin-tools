@@ -28,7 +28,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from .accessibility import Accessibility, accessibility_of
+from .accessibility import NOT_ASKED, Accessibility, accessibility_of
 from .anatomy import Anatomy, Region, RegionSource, TileRange
 from .coords import Frame, frame_of, label
 from .apa import ApaAssessment, ApaSites, MeasuredApa, apa_assessment
@@ -703,7 +703,12 @@ def tile_utr(
                 )
             )
 
-        acceso = None
+        # NO SE PIDIO NO ES NO SE PUDO. Antes esto dejaba `acceso = None` en los dos
+        # casos y la celda salia vacia en los dos: la casilla sin marcar era
+        # indistinguible de un calculo que se pidio y fallo. Ver `NOT_ASKED`.
+        acceso = None if not escaneable else Accessibility(
+            state=FilterState.NO_PEDIDO, reason=NOT_ASKED,
+        )
         if accessibility and escaneable:
             acceso = accessibility_of(
                 original, start=anotada.window.start, length=window_size
@@ -714,8 +719,12 @@ def tile_utr(
             if seed_load_starts is None or anotada.window.start in seed_load_starts:
                 carga = seed_load(guia_adn, utr3_set, expression)
             else:
+                # NO_PEDIDO, no NOT_RUN: acotar por coste es una DECISION —solo se
+                # cuenta donde se lee, el panel— y no una laguna. `NOT_RUN` aqui manda a
+                # conseguir algo, y no hay nada que conseguir. Misma distincion que la
+                # accesibilidad sin marcar (errata nº 91).
                 carga = SeedLoad(
-                    state=FilterState.NOT_RUN,
+                    state=FilterState.NO_PEDIDO,
                     reason=SEED_LOAD_SKIPPED,
                     utrs=utr3_set,
                 )
