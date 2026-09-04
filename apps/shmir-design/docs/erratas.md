@@ -4207,3 +4207,52 @@ sobre decenas de MB para añadir metadatos es exactamente el coste que esto quit
 se ofrece donde la procedencia hace falta (`PROVENANCE_REQUIRED`): un casete de AAV no sale
 de ninguna tabla, así que ahí la columna vacía es la **verdad** y rellenarla sería
 inventarse un dato — declararla en ese rol **aborta**.
+
+---
+
+## 88 — El proyecto elegido se olvidaba al avisar de que le faltaba la entrada
+
+**Reportado (2026-09-04)**, con la secuencia entera: *«después de llegar donde llegué,
+habiendo empezado desde cero, luego seleccionado el proyecto que tenía y metiendo el
+tsv… sigue pidiéndote lo de la especie para avanzar. A pesar de que ya le he metido el
+proyecto que tiene esa información»*. Y pegado: *«ahora no te sale eso en amarillo de que
+le falta»*.
+
+**Las dos observaciones son un solo fallo, y la segunda es la peor de las dos.**
+
+En `_paso_cero_proyecto`, la rama de «este proyecto no se puede reabrir solo» pintaba el
+aviso y **acto seguido hacía `session_state.pop("p0_retomado")`**. O sea, avisaba y se
+olvidaba en el mismo gesto. De ahí salen los dos síntomas:
+
+1. **El aviso duraba UN repintado.** En Streamlit cada tecla es un repintado, así que
+   escribir cualquier cosa lo borraba — y la exigencia de contestar los pasos 1 y 2 se
+   quedaba. **La app dejaba de explicar por qué seguía preguntando.** Un aviso que
+   desaparece se lee como «ya está resuelto», así que esto es peor que no haber avisado:
+   es lo que hace que la pregunta parezca un fallo de la app en vez de una consecuencia.
+2. **El proyecto elegido no era el que se abría.** Al subir la secuencia había que ir a la
+   barra lateral, marcar la casilla de guardar y **volver a elegir a mano el proyecto que
+   ya se había elegido arriba**. Es la errata nº 83 con el signo cambiado: allí el texto
+   no nombraba el paso que cierra el problema; aquí lo nombra y **la app no da ese paso**.
+
+**Y es una consecuencia de haber modelado un estado con dos valores donde hacían falta
+tres.** El paso 0 devolvía «un proyecto retomado» o `None`, y son **tres** cosas: no hay
+proyecto elegido, hay uno **elegido y reabrible** —que contesta los pasos 1 y 2—, y hay
+uno **elegido y sin entrada**, que no contesta nada y aun así es el proyecto en el que
+hay que guardar. El tercero se estaba colapsando contra el primero, y colapsarlos es lo
+que hacía que «elegido» y «no elegido» se comportaran igual.
+
+Ahora se devuelve `pendiente` además de `reabrible`, y con eso:
+
+- **olvidar el proyecto sólo puede ser una decisión de quien mira**, nunca automático:
+  el `pop` vive dentro del botón «Elegir otro proyecto» y en ningún otro sitio. El aviso
+  dura lo que dura el motivo;
+- **la barra lateral no vuelve a preguntar por él** (`PROJECT_PENDING_NOTE`), igual que
+  con uno retomado y por la misma razón que se quitó la casilla global de ficheros: dos
+  respuestas posibles a la misma pregunta, sin nada que diga cuál manda;
+- y al abrirlo con la secuencia delante, `project_open` la recibe y **la migración de la
+  entrada se escribe sola** (errata nº 80). Ese es el paso que el aviso nombraba.
+
+Hay tres tests, y el primero es el que fija la regla y no el síntoma:
+`tests/test_un_proyecto_A_MEDIAS_no_se_olvida.py` exige que en esa rama no haya ningún
+`pop` fuera de un botón, que la barra lateral tenga una rama para el pendiente, y que el
+aviso nombre lo que pasa cuando se suba la secuencia.

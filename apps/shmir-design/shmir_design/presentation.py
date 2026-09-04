@@ -4356,6 +4356,16 @@ PROJECT_RESUMED_NOTE = (
     "hay nada que marcar."
 )
 
+#: LO QUE PASA CON UN PROYECTO ELEGIDO AL QUE LE FALTA LA ENTRADA. No contesta los
+#: pasos 1 y 2 —no puede: no tiene la secuencia— pero sigue elegido, y se abre en cuanto
+#: la haya. Sin esto habia que volver a elegirlo a mano aqui abajo: el aviso de arriba
+#: nombraba el paso y la app no lo daba (erratas nº 80 y nº 83).
+PROJECT_PENDING_NOTE = (
+    "Proyecto elegido arriba. Le falta su secuencia de entrada, así que los pasos de "
+    "arriba hay que contestarlos — pero **el proyecto ya está elegido**: en cuanto subas "
+    "la secuencia se abre solo, y **su entrada se queda guardada** para la próxima."
+)
+
 #: Y lo mismo arriba, en la tarjeta del paso 0, porque es donde se decide.
 PROJECT_RESUME_HELP = (
     "Un proyecto guarda la secuencia con la que se trabajó, su anatomía y todo lo que se "

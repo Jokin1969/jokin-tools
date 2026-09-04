@@ -4566,6 +4566,31 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - **Y sólo donde la procedencia hace falta**: en un rol que no sale de ninguna tabla,
     declararla **aborta** — ahí la columna vacía es la verdad y rellenarla sería inventar.
 
+- **UN PROYECTO ELEGIDO SE QUEDA ELEGIDO AUNQUE NO SE PUEDA REABRIR SOLO (2026-09-04)**,
+  errata nº 88 (`presentation.PROJECT_PENDING_NOTE`, `pendiente` en `_paso_cero_proyecto`).
+  Reportado como dos cosas —«sigue pidiéndome la especie con el proyecto ya metido» y
+  «ahora no sale eso en amarillo de que le falta»— y **es un solo fallo**: la rama del
+  proyecto sin entrada avisaba y hacía `session_state.pop` en el mismo gesto.
+  - **El aviso duraba UN repintado**, o sea hasta la primera tecla, mientras la exigencia
+    de contestar los pasos 1 y 2 seguía. **Un aviso que desaparece se lee como resuelto**,
+    así que eso es peor que no avisar: deja la pregunta pareciendo un fallo de la app en
+    vez de una consecuencia.
+  - **Y el proyecto elegido no era el que se abría**: había que ir a la barra lateral y
+    volver a elegirlo a mano. Es la errata nº 83 con el signo cambiado — allí el texto no
+    nombraba el paso que cierra el problema, aquí lo nombra y **la app no lo daba**.
+  - **DEBAJO había un estado modelado con dos valores donde hacen falta tres**: no hay
+    proyecto, hay uno **elegido y reabrible** (contesta los pasos 1 y 2) y hay uno
+    **elegido y sin entrada** (no contesta nada y aun así es donde hay que guardar). El
+    tercero se colapsaba contra el primero, y por eso «elegido» y «no elegido» se
+    comportaban igual. Es el principio nº 29 en pequeño: una dimensión del estado que la
+    app no podía expresar.
+  - **Olvidarlo sólo puede ser una DECISIÓN**: el `pop` vive dentro del botón «Elegir otro
+    proyecto» y en ningún otro sitio. Y la barra lateral **no vuelve a preguntar por él**,
+    por la misma razón que se quitó la casilla global de ficheros: dos respuestas posibles
+    a la misma pregunta sin nada que diga cuál manda.
+  - Al abrirlo con la secuencia delante, `project_open` la recibe y **la migración de la
+    entrada se escribe sola** (errata nº 80). Ése es el paso que el aviso nombraba.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

@@ -68,6 +68,7 @@ from shmir_design.presentation import (  # noqa: E402
     project_list,
     PAGE_COLORS,
     PROJECT_ENTRY_HELP,
+    PROJECT_PENDING_NOTE,
     PROVENANCE_MISSING_NOTE,
     PROJECT_RENAME_HELP,
     PROJECT_SAVE_TOGGLE,
@@ -732,7 +733,8 @@ def _tarjetas_de_comprobacion(
                         )
 
 
-def _panel_proyecto(especie: str, secuencia: str, anat, *, retomado=None):
+def _panel_proyecto(especie: str, secuencia: str, anat, *, retomado=None,
+                    pendiente: str = ""):
     """El proyecto: crear uno nuevo, abrir el de antes, o enseñar el ya retomado.
 
     Sin esto, los cuatro modales calculaban, pintaban y **al cerrar la pestaña no quedaba
@@ -761,7 +763,16 @@ def _panel_proyecto(especie: str, secuencia: str, anat, *, retomado=None):
     raiz = projects_root()
     catalogo = project_options(raiz)
 
-    if retomado is None:
+    if retomado is None and pendiente:
+        # ELEGIDO ARRIBA Y SIN ENTRADA. La pregunta «¿en qué proyecto guardo esto?» ya
+        # está contestada en el paso 0, así que aquí no se vuelve a hacer — misma razón
+        # que con un proyecto retomado. Lo que falta es la secuencia, y ahora la hay:
+        # `project_open` la recibe y, si su md5 es el que el proyecto declara, la
+        # escribe (errata nº 80). Ése es el paso que el aviso nombraba y que la app no
+        # daba (errata nº 83).
+        elegido = pendiente
+        st.sidebar.info(PROJECT_PENDING_NOTE)
+    elif retomado is None:
         if st.sidebar.checkbox(
             # EL NOMBRE SALE DE `presentation`: el aviso del proyecto sin entrada manda
             # aquí por su nombre, y dos textos que lo escriben por su cuenta se
@@ -1363,9 +1374,21 @@ def _paso_cero_proyecto():
         if not vuelta["reabrible"]:
             # NO se cae a un camino que finja: se dice que falta y se sigue por el
             # normal, que es el que puede pedirlo.
+            #
+            # Y EL PROYECTO SE QUEDA ELEGIDO. Aqui se hacia `pop`, y eso tenia dos
+            # consecuencias que se reportaron juntas: el aviso se pintaba UNA vez y
+            # desaparecia al primer repintado —o sea a la primera tecla— mientras la
+            # exigencia de contestar los pasos 1 y 2 seguia ahi, asi que la app dejaba
+            # de explicar por que preguntaba; y al subir la secuencia habia que ir a la
+            # barra lateral a elegir a mano el proyecto que YA se habia elegido aqui.
+            # Devolverlo como PENDIENTE cierra las dos: el aviso dura lo que dura el
+            # motivo, y la barra lateral lo abre en cuanto haya entrada — que es cuando
+            # la migracion se escribe sola (errata nº 80).
             st.warning(f"**{vuelta['nombre']}** — {vuelta['motivo']}")
-            st.session_state.pop("p0_retomado", None)
-            return None
+            if st.button("Elegir otro proyecto", key="p0_soltar_pendiente"):
+                st.session_state.pop("p0_retomado", None)
+                st.rerun()
+            return {**vuelta, "pendiente": slug}
 
         st.success(
             f"Retomado **{vuelta['nombre']}** — {vuelta['especie']}, "
@@ -1378,7 +1401,7 @@ def _paso_cero_proyecto():
         if st.button("Dejarlo y empezar de cero", key="p0_soltar"):
             st.session_state.pop("p0_retomado", None)
             st.rerun()
-        return vuelta
+        return {**vuelta, "pendiente": ""}
 
 
 def _renombrar(raiz, slug: str, catalogo) -> None:
@@ -1473,7 +1496,15 @@ def main() -> None:
     #
     # Lo PRIMERO. Antes vivia en la barra lateral y DESPUES de diseñar, asi que para
     # volver a ver lo de ayer habia que repetir hoy los tres pasos de la entrada.
-    retomado = _paso_cero_proyecto()
+    # DOS COSAS DISTINTAS SALEN DEL PASO 0, y confundirlas es lo que hacía que un
+    # proyecto elegido y sin entrada se comportara como si no se hubiera elegido:
+    #   · `retomado`  — se puede reabrir SOLO: contesta los pasos 1 y 2;
+    #   · `pendiente` — se eligió, y le falta la entrada. NO contesta nada, pero es el
+    #                   proyecto que hay que abrir en cuanto la haya, sin volver a
+    #                   preguntar por él en la barra lateral.
+    resumen = _paso_cero_proyecto()
+    pendiente = str((resumen or {}).get("pendiente", ""))
+    retomado = resumen if resumen and resumen["reabrible"] else None
 
     # ── PASO 1 · ESPECIE ────────────────────────────────────────────────────────
     #
@@ -1852,7 +1883,8 @@ def main() -> None:
         # marcado NO_FIABLE, que es informacion y no un fallo.
         proyectos = {
             nombre: _panel_proyecto(
-                nombre, secuencias[nombre], anat, retomado=retomado,
+                nombre, secuencias[nombre], anat,
+                retomado=retomado, pendiente=pendiente,
             )
             for nombre, (_, anat) in anatomias.items()
         }
