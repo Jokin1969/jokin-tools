@@ -438,6 +438,130 @@ class SpecificityCall:
 #: la sonda de cada consulta (principio nº 13).
 ALLOWED_TRUNCATION = 1
 
+#: CUANTO se le perdona a un acierto contra la PROPIA DIANA, POR HEBRA. No es el mismo
+#: numero que `ALLOWED_TRUNCATION` porque no contesta la misma pregunta: aquel dice
+#: cuando un acierto AJENO es lo bastante largo para contar; este, cuando un acierto
+#: contra el BLANCO PRETENDIDO se reconoce como tal.
+#:
+#: Y son distintas porque los CONVENIOS de este pipeline se definen respecto de la diana
+#: pretendida y no existen fuera de ella (principio nº 27, su corolario: el criterio vive
+#: en un sitio y cada llamador declara que puede probar).
+OWN_TARGET_TRUNCATION = {"guia": 1, "pasajera": 2}
+
+WHY_THE_PASSENGER_LOSES_TWO = (
+    "La pasajera pierde DOS posiciones contra su propia diana y las dos son CONVENIO, "
+    "no error: su posición 1 es el desapareamiento deliberado del bulge basal, y su "
+    "posición 22 es el complemento de la posición 1 de la guía, que el pipeline fuerza "
+    "a T para que AGO2 cargue la hebra — así que sólo casa con el genoma cuando el "
+    "genoma ya tenía una T ahí. MEDIDO sobre las 88 consultas del 2026-09-05: la "
+    "pasajera alinea 20 nt contra su diana en 75 casos y 21 en los 13 en que la T ya "
+    "estaba. Con un solo nucleótido de holgura, esas 75 no encontraban su blanco y la "
+    "app avisaba de que no lo tenían — una alarma sobre una construcción impecable, en "
+    "el 85 % de las pasajeras. La guía pierde SOLO su posición 1."
+)
+
+
+#: POR QUE IMPORTA EL GEN QUE SE ATRAPA, no solo su accession. Un `NM_...` en un motivo
+#: de FAIL no dice nada: quien lo lee tiene que ir a buscarlo, y lo que decide si el
+#: candidato se descarta o se discute es QUE gen es.
+#:
+#: EN CODIGO Y NO EN UN FICHERO, con el mismo criterio que `mirna.CORE_ABUNDANT`: esto
+#: cambia la lectura de todos los informes a la vez, y en un fichero se cambiaria sin que
+#: se viera en el diff. Lo que SI es dato —contra que acerto cada guia— sale de la
+#: corrida; esto es la consecuencia biologica, que la app no puede derivar.
+CONSEQUENCE_AUTHORIZATION = (
+    "Autorizado el 2026-09-05 por el responsable del proyecto, con la corrida de 88 "
+    "candidatos delante y sobre el único que cayó. Cada entrada dice POR QUE ese gen "
+    "convierte un acierto en un problema, no que lo sea: la consecuencia se declara, y "
+    "un gen sin declarar sale por su accession y nada más."
+)
+
+#: Las OCHO variantes de transcrito de Adar que atrapo la corrida del 2026-09-05,
+#: IDENTIFICADAS POR EL RESPONSABLE DEL PROYECTO —desde aqui no hay red para resolver un
+#: accession, asi que se declara con su procedencia y no se deduce—. Van todas al mismo
+#: motivo: son el mismo gen, y repetir el texto ocho veces lo lee como ocho hallazgos.
+ADAR_VARIANTS = (
+    "NM_019655.4", "NM_001038587.5", "NM_001146296.2", "NM_001357958.2",
+    "NM_001410658.1", "NM_001410659.1", "NM_001410660.1", "NM_001410661.1",
+)
+
+_ADAR = (
+    "ADAR — adenosina deaminasa específica de ARN de DOBLE CADENA (Q3UH31). Tres "
+    "razones, y ninguna sobra: (1) es MAQUINARIA DEL PROPIO SISTEMA de ARN de doble "
+    "cadena, que es justo lo que el vector produce; (2) es ESENCIAL EN NEURONA — "
+    "edita GluA2 en el sitio Q/R, y sin esa edición el receptor se vuelve permeable "
+    "a calcio; y (3) su pérdida daría NEURODEGENERACIÓN, que en un experimento de "
+    "priones se leería como toxicidad del shmiR o como la enfermedad progresando. "
+    "O sea: el modo de fallo no es «algo de ruido», es un resultado que se "
+    "interpretaría mal."
+)
+
+CONSEQUENCE_DECLARED = {accession: _ADAR for accession in ADAR_VARIANTS}
+
+
+def consequence_of(accession: str) -> str:
+    """Por que importa ese gen. Cadena vacia = no declarado, y NO se deduce."""
+    return CONSEQUENCE_DECLARED.get(str(accession).strip(), "")
+
+
+#: LAS DOS FRASES VAN JUNTAS O SE LEEN MAL, y es la misma forma que «rebaja, no descarta»
+#: y que el «QUE MIDE / QUE NO MIDE» del ensayo de RT-qPCR. Por separado: la tasa suena a
+#: filtro inutil y la captura a filtro decisivo. Es las dos cosas.
+DISCRIMINATION_BOTH_CLAUSES = (
+    "Este frente NO ES LO QUE DISCRIMINA entre candidatos —muerde {caidos} de cada "
+    "{total}— Y AUN ASÍ es el que hay que correr, porque lo que atrapa es esto:"
+)
+
+NOTHING_CAUGHT = (
+    "Este frente ha corrido sobre {total} candidato(s) y no ha caído NINGUNO. Eso no es "
+    "que no discrimine: es que en este panel no hay ninguna guía con complementariedad "
+    "extensa fuera de su diana. La cifra se da para poder leer la siguiente."
+)
+
+
+def discrimination_reading(*, total: int, caidos: int, atrapados) -> str:
+    """La tasa y LO QUE ATRAPA, en el mismo texto. Nunca una sin la otra.
+
+    `atrapados` es `{consulta: (accession, ...)}` — lo DERIVA quien llama de la corrida.
+    """
+    if not atrapados:
+        return NOTHING_CAUGHT.format(total=int(total))
+    lineas = [DISCRIMINATION_BOTH_CLAUSES.format(caidos=int(caidos), total=int(total))]
+    for consulta in sorted(atrapados):
+        # AGRUPADO POR CONSECUENCIA: ocho variantes de transcrito del MISMO gen son UN
+        # hallazgo, y repetir su motivo ocho veces lo lee como ocho. Los que no declaran
+        # consecuencia salen por su accession, cada uno en su linea.
+        por_motivo: dict[str, list[str]] = {}
+        for accession in sorted(dict.fromkeys(atrapados[consulta])):
+            por_motivo.setdefault(consequence_of(accession), []).append(accession)
+        for motivo, accessions in sorted(por_motivo.items(), key=lambda kv: not kv[0]):
+            cuantos = (
+                f"{len(accessions)} variantes de transcrito "
+                f"({', '.join(accessions)})" if len(accessions) > 1
+                else accessions[0]
+            )
+            lineas.append(
+                f"  · {consulta} → {cuantos}"
+                + (f": {motivo}" if motivo else " (consecuencia sin declarar).")
+            )
+    return "\n".join(lineas)
+
+
+def own_target_minimum(probe_length: int, *, strand: str) -> int:
+    """Cuantos nt tiene que alinear un acierto para reconocerse como LA PROPIA DIANA.
+
+    Se DERIVA de la sonda y de los convenios de esa hebra; no se escribe. Una hebra sin
+    convenio declarado ABORTA: deducirlo daria un umbral con la forma correcta y el
+    convenio equivocado, que es la errata nº 56 exacta.
+    """
+    if strand not in OWN_TARGET_TRUNCATION:
+        raise ValueError(
+            f"Hebra {strand!r} sin convenio declarado en `OWN_TARGET_TRUNCATION`; las "
+            f"que hay son {', '.join(sorted(OWN_TARGET_TRUNCATION))}. Se aborta en vez "
+            f"de suponer una holgura: {WHY_THE_PASSENGER_LOSES_TWO}"
+        )
+    return int(probe_length) - OWN_TARGET_TRUNCATION[strand]
+
 
 #: LA COLUMNA `mismatch` DE `-outfmt 6` NO DICE QUE EL ACIERTO SEA PERFECTO: dice que es
 #: perfecto EN EL SEGMENTO QUE ALINEO. Un parcial de 13 nt clavado trae `mismatches = 0`,
@@ -509,6 +633,7 @@ NO_TARGET_HIT_NOTE = (
 
 def judge_hits(
     hits, *, target_accessions, min_aligned, expected_antisense=None,
+    strand=None, probe_length=None,
 ) -> SpecificityCall:
     """El veredicto de especificidad a partir de los aciertos. UN solo criterio.
 
@@ -536,8 +661,19 @@ def judge_hits(
     # pasajera contra su propia diana. Ver `WHY_LENGTH_AND_NOT_MISMATCHES` y
     # `EXPECTED_ORIENTATION`.
     completos = [h for h in todos if h.aligned >= min_aligned]
-    exentos = [h for h in completos if h.transcript in diana]
     fuera = [h for h in completos if h.transcript not in diana]
+    # RECONOCER LA PROPIA DIANA ES OTRA PREGUNTA, y por eso tiene otro minimo. Con el de
+    # los ajenos, 75 de las 88 pasajeras del 2026-09-05 «no acertaban contra su blanco»
+    # — y lo que pasaba es que pierden DOS posiciones de convenio, no que fallaran.
+    # Sin hebra declarada NO se afloja nada: se sigue usando `min_aligned`, que es el
+    # comportamiento de siempre y nunca es mas permisivo.
+    propio = (
+        own_target_minimum(probe_length, strand=strand)
+        if strand is not None and probe_length is not None else min_aligned
+    )
+    exentos = [
+        h for h in todos if h.transcript in diana and h.aligned >= propio
+    ]
     graves = [h for h in fuera if h.mismatches <= 1]
     leves = [h for h in fuera if h.mismatches == 2]
     raras = (

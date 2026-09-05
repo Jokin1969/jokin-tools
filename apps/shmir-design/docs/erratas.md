@@ -5398,3 +5398,89 @@ tarjetas de verdad y en los dos estados. Con su control adversario: una tarjeta 
 texto duplicado tiene que ser señalada, porque si no «ninguna repite» y «el detector no
 mira nada» dan el mismo verde. Un campo nuevo entra en la comprobación con sólo añadirlo a
 la lista de lo que se pinta.
+
+## 109 — La pasajera «no acertaba contra su propia diana» en 75 de 88, y era nuestro umbral
+
+**Salió el 2026-09-05**, verificando la corrida de 88 candidatos: la nota «OJO: esta
+consulta no tiene NINGÚN acierto contra su propia diana — eso NO es una buena noticia»
+saltaba en **75 de las 88 pasajeras**. No es una propiedad de esos candidatos.
+
+### La pasajera pierde DOS posiciones contra su blanco, y las dos son CONVENIO
+
+- su **posición 1** es el desapareamiento deliberado del bulge basal;
+- su **posición 22** es el complemento de la posición 1 de la guía, que el pipeline
+  **fuerza a T** para que AGO2 cargue la hebra — así que sólo casa con el genoma cuando
+  el genoma ya tenía una T ahí.
+
+Medido sobre las 88: la pasajera alinea **20 nt** contra su diana en **75** casos y 21 en
+los **13** en que la T ya estaba. Con `ALLOWED_TRUNCATION = 1` para las dos hebras, esas
+75 no encontraban su blanco y la app avisaba de que no lo tenían — **una alarma sobre una
+construcción impecable, en el 85 % de las pasajeras**.
+
+### Son DOS preguntas, no un umbral mal puesto
+
+«¿Este acierto ajeno es lo bastante largo para contar?» y «¿este acierto es mi propia
+diana?» no son la misma pregunta, y los convenios que aflojan la segunda **se definen
+respecto de la diana pretendida: fuera de ella no existen**. Es el principio nº 27 y su
+corolario — el criterio vive en un sitio y cada llamador declara qué puede probar.
+
+`OWN_TARGET_TRUNCATION = {"guia": 1, "pasajera": 2}` se DERIVA de los dos convenios que
+este proyecto ya tenía escritos, no es un número elegido; una hebra sin convenio declarado
+**aborta**, porque deducirlo daría un umbral con la forma correcta y el convenio
+equivocado, que es la errata nº 56 exacta.
+
+**Y los veredictos no se mueven**, medido sobre las 176 consultas: 174 `PASS` / 2 `FAIL`
+antes y después. Lo que cambia es que las falsas alarmas pasan de 75 a **0**.
+
+### Por qué importa aunque no cambie ningún veredicto
+
+Es la familia de la errata nº 24: una salida bien redactada que **parece una medida**. La
+nota existe para un caso real —una hebra que no sale de su propia diana está mal montada—
+y disparándose en el 85 % de las pasajeras deja de significar eso: se lee en diagonal, y
+el día que sea verdad no la mira nadie. Un aviso que salta siempre es un aviso apagado.
+
+## 110 — Un accession no dice qué gen es, y eso es lo que decide
+
+**Reportado (2026-09-05)** sobre el primer candidato que cae por un motivo real: *«que sea
+ADAR y no un gen cualquiera es lo que hay que escribir, no sólo el accession»*.
+
+El motivo del `FAIL` nombraba los transcritos contra los que acertó —que es lo que la
+errata nº 56 arregló— y ahí se paraba. Quien lo lee tiene que ir a buscar el accession
+fuera de la app para saber si el candidato se descarta o se discute, y **la app tiene ese
+hueco justo donde se toma la decisión**.
+
+### La consecuencia se DECLARA, con autorización escrita
+
+`CONSEQUENCE_DECLARED`, en código y no en un fichero, con el mismo criterio que
+`mirna.CORE_ABUNDANT`: cambia la lectura de todos los informes a la vez, y en un fichero se
+cambiaría **sin que se viera en el diff**. Un gen sin declarar sale por su accession y nada
+más — deducir la consecuencia de un gen por su número es la regla 1 con otra cara.
+
+Las **ocho variantes de transcrito de Adar** las identificó el responsable del proyecto:
+desde aquí no hay red para resolver un accession, así que se declaran **con su
+procedencia**. Y van al mismo motivo, agrupadas: ocho variantes del mismo gen son **un**
+hallazgo, y repetir su texto ocho veces lo lee como ocho.
+
+## 111 — «Descarta 1 de 88» y «atrapó un shmiR anti-ADAR» van juntas o mienten las dos
+
+**Decidido (2026-09-05)**, con las palabras con que se pidió: *«separadas se leen mal:
+"descarta 1 de 88" suena a filtro inútil, y "atrapó un shmiR anti-ADAR" suena a filtro
+decisivo. Es las dos cosas»*.
+
+Es la misma forma que **«rebaja, no descarta»** del dato humano de APA y que el **«QUÉ MIDE
+/ QUÉ NO MIDE»** del ensayo de RT-qPCR: dos cláusulas que sólo dicen la verdad juntas, y
+que por eso viven en una sola constante y no en dos frases que alguien podría separar.
+
+`discrimination_reading` emite las dos: la **tasa** la deriva de la corrida guardada —no se
+teclea— y la **consecuencia** de cada gen atrapado la declara `CONSEQUENCE_DECLARED`, que
+es lo único que la app no puede derivar. Sin nada atrapado **no se emite la tasa sola**: se
+dice que no ha caído ninguno, que es otra cosa — la mitad que suena a filtro inútil no sale
+nunca por su cuenta.
+
+### Y el juicio se extrae para que haya UNA definición
+
+El informe necesita los aciertos **graves** para decir contra qué gen acertó, y
+recalcularlos por su cuenta habría sido la segunda definición del mismo número: bastaría
+con que uno derivara el mínimo de otra forma para que la celda y el informe dijeran cosas
+distintas. `BlastRun._judge` es ese sitio único, y `verdict` y `judged_call` lo llaman los
+dos.

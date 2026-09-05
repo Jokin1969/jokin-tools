@@ -124,6 +124,58 @@ class BlastRun:
     def hits_for(self, query_name: str) -> tuple[blast.BlastHit, ...]:
         return tuple(h for h in self.hits if h.query == query_name)
 
+    def _judge(self, hits, *, diana, sonda, hebra, esperada):
+        """El juicio, en UN SOLO SITIO. Lo llaman `verdict` y `judged_call`.
+
+        Existe porque el informe necesita los aciertos GRAVES —para decir contra QUE gen
+        acerto, que es lo unico accionable— y recalcularlos por su cuenta seria la
+        segunda definicion del mismo numero: bastaria con que uno derivara el minimo de
+        otra forma para que la celda y el informe dijeran cosas distintas.
+        """
+        from .specificity import (  # noqa: PLC0415
+            ALLOWED_TRUNCATION, judge_hits,
+        )
+
+        return judge_hits(
+            hits,
+            target_accessions=diana,
+            min_aligned=sonda - ALLOWED_TRUNCATION,
+            expected_antisense=esperada,
+            strand=hebra,
+            probe_length=sonda if hebra is not None else None,
+        )
+
+    def judged_call(self, query_name: str, *, species: str = ""):
+        """El `SpecificityCall` de esa consulta, o `None` si esta corrida no puede juzgar.
+
+        `None` NO es «limpio»: es que aqui no hay veredicto, y quien llama lo dice.
+        """
+        from .presentation import strand_of  # noqa: PLC0415
+        from .specificity import (  # noqa: PLC0415
+            EXPECTED_ORIENTATION, target_accessions,
+        )
+
+        if not self.gives_verdict:
+            return None
+        hits = self.hits_for(query_name)
+        try:
+            diana = target_accessions(species)
+        except ShmirDesignError:
+            # rule2-ok: sin diana declarada no hay juicio posible, y el motivo entero ya
+            # lo emite `verdict`. Aqui se devuelve `None`, que quien llama distingue.
+            return None
+        sondas = dict(self.query_lengths)
+        implicadas = [sondas[h.query] for h in hits if h.query in sondas]
+        if not implicadas:
+            implicadas = [max(h.qend for h in hits)] if hits else []
+        if not implicadas:
+            return None
+        hebra = strand_of(query_name)
+        return self._judge(
+            hits, diana=diana, sonda=min(implicadas), hebra=hebra,
+            esperada=EXPECTED_ORIENTATION[hebra],
+        )
+
     def verdict(
         self, query_name: str | None = None, *, species: str = "",
     ) -> FilterResult:
@@ -208,11 +260,14 @@ class BlastRun:
             EXPECTED_ORIENTATION[strand_of(query_name)]
             if query_name is not None else None
         )
-        fallo = judge_hits(
-            hits,
-            target_accessions=diana,
-            min_aligned=min(implicadas) - ALLOWED_TRUNCATION,
-            expected_antisense=esperada,
+        # Y LA HEBRA VIAJA TAMBIEN AL MINIMO DE LA PROPIA DIANA. La pasajera pierde DOS
+        # posiciones de convenio contra su blanco —el bulge basal y la T forzada de la
+        # posicion 1 de la guia—, asi que con el minimo de los ajenos «no acertaba contra
+        # su diana» en 75 de las 88 consultas del 2026-09-05. Es otra pregunta y lleva
+        # otro minimo; el de los ajenos no se afloja y los veredictos no se mueven.
+        hebra = strand_of(query_name) if query_name is not None else None
+        fallo = self._judge(
+            hits, diana=diana, sonda=min(implicadas), hebra=hebra, esperada=esperada,
         )
         # EL MOTIVO DICE CONTRA QUE ACERTO. Antes decia `FAIL` y un recuento, asi que un
         # fallo contra la propia diana era indistinguible de uno real — y se vio en un

@@ -6378,6 +6378,51 @@ FICHA_TITLES = {
 }
 
 
+def specificity_reading(stores, *, species: str) -> str:
+    """LAS DOS FRASES JUNTAS, derivadas de la corrida guardada.
+
+    La TASA sale del registro —cuantas consultas se juzgaron y cuantas cayeron— y la
+    consecuencia de cada gen atrapado la declara `specificity.CONSEQUENCE_DECLARED`, que
+    es lo unico que la app no puede derivar. Separadas se leen mal: la tasa suena a
+    filtro inutil y la captura a filtro decisivo, y es las dos cosas.
+    """
+    from .specificity import discrimination_reading
+
+    almacen = getattr(stores, "blast", None) if stores is not None else None
+    corridas = list(getattr(almacen, "runs", ()) or ())
+    if not corridas:
+        return ""
+    # SE PIDE EL VEREDICTO, no se recalcula: `verdict_for` ya sabe que corrida manda
+    # entre varias (errata nº 45) y reimplementarlo aqui seria la segunda definicion del
+    # mismo numero. De el sale la TASA; los genes atrapados salen de sus aciertos graves.
+    consultas: set[str] = set()
+    for corrida in corridas:
+        consultas.update(corrida.query_names)
+    atrapados: dict[str, tuple[str, ...]] = {}
+    for consulta in sorted(consultas):
+        veredicto = almacen.verdict_for(consulta, species=species)
+        if veredicto.state is not FilterState.FAIL:
+            continue
+        candidato = consulta.rsplit("_", 1)[0]
+        ultima, _ = almacen.deciding_run(consulta)
+        if ultima is None:
+            continue
+        fallo = ultima.judged_call(consulta, species=species)
+        if fallo is None:
+            continue
+        # POR CANDIDATO, no por hebra: las dos hebras del mismo candidato atrapan el
+        # mismo gen y repetirlo lo lee como dos hallazgos.
+        atrapados[candidato] = atrapados.get(candidato, ()) + tuple(
+            h.transcript for h in fallo.graves
+        )
+    candidatos = {c.rsplit("_", 1)[0] for c in consultas}
+    if not candidatos:
+        return ""
+    return discrimination_reading(
+        total=len(candidatos), caidos=len(atrapados), atrapados=atrapados,
+    )
+
+
 def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]]:
     """Una tarjeta por comprobacion, DERIVADA de `blocking_fronts`.
 

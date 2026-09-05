@@ -3417,6 +3417,41 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - **Un motivo de retirada tiene que decir QUÉ SE MIDIÓ y QUÉ LO DEVOLVERÍA**, y hay test
     de las dos cosas: un retirado sin condición de vuelta se lee como un borrado.
 
+- **EL PRIMER CANDIDATO QUE CAE POR UN MOTIVO REAL: `tx:1746` CONTRA ADAR (2026-09-05)**,
+  erratas nº 109-111. Corrida de BLAST sobre el alcance grande — **88 candidatos, 176
+  consultas** — y **cae UNO**, con las dos hebras.
+  - **Los ocho aciertos son 21 de 22 CON UN HUECO**, no complementariedad perfecta:
+    `identity 95.455`, `mismatches 0`, `gapopen 1`. **`mismatches = 0` no dice que el
+    acierto sea perfecto** — es la errata nº 57 otra vez, allí por longitud parcial y aquí
+    por un hueco. No rescata al candidato: nuestro criterio lo tumba igual y con razón,
+    pero el motivo tiene que decir lo que hay.
+  - **Los OCHO son variantes de transcrito de Adar**, identificadas por el responsable del
+    proyecto —desde aquí no hay red para resolver un accession—, y por eso se declaran con
+    su procedencia y se agrupan en UN hallazgo (errata nº 110).
+  - **QUE SEA ADAR ES LO QUE DECIDE, y va escrito**: es maquinaria del propio sistema de
+    ARN de doble cadena —lo que el vector produce—, es esencial en neurona —edita GluA2 en
+    Q/R, y sin esa edición el receptor se vuelve permeable a calcio— y su pérdida daría
+    **neurodegeneración**, que en un experimento de priones **se leería como toxicidad del
+    shmiR o como la enfermedad progresando**. El modo de fallo no es ruido: es un
+    resultado que se interpretaría mal.
+  - **LAS DOS FRASES VAN JUNTAS O MIENTEN LAS DOS** (errata nº 111): *«descarta 1 de 88»
+    suena a filtro inútil y «atrapó un shmiR anti-ADAR» suena a filtro decisivo — **es las
+    dos cosas**.* Misma forma que «rebaja, no descarta» y que el «QUÉ MIDE / QUÉ NO MIDE»
+    del ensayo de RT-qPCR, y por eso viven en una sola constante. Sin nada atrapado la tasa
+    **no se emite sola**.
+  - **`tx:1746` NO está en el panel: los diez siguen limpios.** El alcance grande —el que
+    no funcionó nunca hasta la errata nº 107— es lo que hizo aparecer este candidato.
+  - **Y LA NOTA DE «SIN ACIERTO CONTRA SU PROPIA DIANA» ERA NUESTRA** (errata nº 109):
+    saltaba en **75 de las 88 pasajeras**, porque la pasajera pierde **DOS** posiciones de
+    convenio contra su blanco —el bulge basal y la T forzada de la posición 1 de la guía— y
+    el mínimo se derivaba sin mirar la hebra. `OWN_TARGET_TRUNCATION` lo separa: reconocer
+    la propia diana y contar un off-target son dos preguntas, y los convenios sólo existen
+    respecto de la diana pretendida. **Los veredictos no se mueven** —174 PASS / 2 FAIL
+    antes y después— y las falsas alarmas pasan de 75 a **0**.
+  - **El alcance de su corrida son 88 y hoy la app emite 86**, y no se le asigna causa: sus
+    88 traen `1612`, `1614` y `1761` y no `1613`. Está medido y anotado; lo que sí está
+    comprobado es que `tx:1746` está en los dos.
+
 - **UNA TARJETA NO DICE LO MISMO DOS VECES (2026-09-05)**, errata nº 108. Reportado con
   la tarjeta delante: *«se repite el mensaje que dice que ya está hecho. Uno en verde y
   otro en amarillo»*, y **«pasa en casi todas»** — en todas las cerradas por corrida
