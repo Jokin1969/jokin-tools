@@ -138,19 +138,27 @@ class TestElFlagExplicitoManda(_Base):
         self.assertIn("manda", salida.lower())
 
 
-class TestLoQueNoPuedeVenirDelManifiesto(_Base):
+class TestLaDianaYANOsePideAparte(_Base):
+    """Era lo único del manifiesto que además había que teclear. Ya no.
 
-    def test_el_refseq_sin_gen_diana_aborta_diciendo_por_que(self):
-        """`--target` es un accession, no un fichero: el manifiesto no lo sabe."""
-        self._manifiesto(self._poner("refseq_rna.fa", ">diana\n" + SONDA + "\n", "especificidad"))
+    `--target` existía porque la diana es un accession y el manifiesto lista ficheros. Y
+    era cierto — pero la diana ya estaba declarada en `data/diana/variantes.toml`, con
+    todas sus variantes y con procedencia, y ésa es la que usa el veredicto de BLAST. Eran
+    dos respuestas a la misma pregunta y ganaba la peor.
+    """
+
+    def test_el_refseq_CORRE_sin_teclear_nada(self):
+        self._manifiesto(
+            self._poner("refseq_rna.fa", ">diana\n" + SONDA + "\n", "especificidad")
+        )
         codigo, salida = self._correr(["--usar-manifiesto"])
-        self.assertEqual(codigo, 2)
-        self.assertIn("--target", salida)
-
-    def test_con_target_si_corre(self):
-        self._manifiesto(self._poner("refseq_rna.fa", ">diana\n" + SONDA + "\n", "especificidad"))
-        codigo, salida = self._correr(["--usar-manifiesto", "--target", "diana"])
         self.assertEqual(codigo, 0, salida)
+
+    def test_y_la_bandera_ya_no_existe(self):
+        # `argparse` sale con `SystemExit(2)` ante una bandera que no conoce, y eso es
+        # lo que se comprueba: que no quede una segunda forma de contestar la pregunta.
+        with self.assertRaises(SystemExit):
+            self._correr(["--usar-manifiesto", "--target", "loquesea"])
 
 
 class TestSinManifiesto(_Base):

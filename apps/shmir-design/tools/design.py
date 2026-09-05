@@ -200,6 +200,12 @@ DESTINOS = {
     # vuelve a ser el KeyError, y `tests/test_roles_del_manifiesto.py` cruza las dos
     # listas en las dos direcciones para que no pueda volver a pasar.
     "polyadb": None,
+    # TAMPOCO SE CONECTA, y por el mismo mecanismo: el plasmido del andamio no alimenta
+    # ningun filtro del DISEÑO. Lo consume la EMISION del modulo de 149 nt
+    # (`gblock.verify_contexts_against_plasmid`), que lo lee del directorio de referencia
+    # cuando hay que emitir ADN. Un rol que faltara aqui vuelve a ser el KeyError de
+    # `polyadb`, y por eso se declara `None` en vez de omitirlo.
+    "plasmido_andamio": None,
 }
 
 
@@ -404,7 +410,11 @@ def main(argv: list[str]) -> int:
         "--usar-manifiesto", action="store_true",
         help="Conecta solo cada fichero de --datos que este en OK con el filtro que le "
              "toca, con la versión y el md5 del propio manifiesto. Sustituye a las 31 "
-             "flags de fontaneria; una flag explicita sigue mandando sobre esto.",
+             "flags de fontaneria; una flag explicita sigue mandando sobre esto. "
+             "UNA SOLA ESPECIE: el manifiesto conecta la máscara POR SU ROL, sin mirar "
+             "qué se está diseñando, así que con --fasta-b la máscara murina se le "
+             "aplicaría al transcrito humano y el guardia lo aborta. Con dos especies, "
+             "conecta los ficheros con sus flags.",
     )
     parser.add_argument(
         "--sin-manifiesto", action="store_true",
@@ -460,9 +470,6 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--refseq-name", default="RefSeq RNA")
     parser.add_argument("--refseq-version", help="Versión o fecha de descarga")
     parser.add_argument("--refseq-md5", help="md5 esperado; si no cuadra, PARA")
-    parser.add_argument(
-        "--target", help="Accession del gen diana, para no contarlo como off-target"
-    )
     parser.add_argument(
         "--mirbase", type=Path,
         help="mature.fa de miRBase. Con el corre `seed_colision` en sus dos niveles y "
@@ -777,11 +784,6 @@ def main(argv: list[str]) -> int:
                     "--refseq necesita --refseq-version: sin procedencia el veredicto "
                     "de especificidad no es auditable."
                 )
-            if not args.target:
-                raise ValueError(
-                    "--refseq necesita --target con el accession del gen diana: sin el, "
-                    "todo sitio parece un off-target."
-                )
             refseq = load_database(
                 args.refseq,
                 name=args.refseq_name,
@@ -912,7 +914,6 @@ def main(argv: list[str]) -> int:
                         tile_range=rangos[especie],
                         thresholds=thresholds,
                         specificity_db=refseq,
-                        specificity_target=args.target,
                         transgene_db=transgen_db,
                         mature=maduros,
                         abundance=abundantes,
@@ -963,7 +964,6 @@ def main(argv: list[str]) -> int:
                 expression=expresion,
                 accessibility=args.accesibilidad,
                 apa_sites=apa_sitios,
-                specificity_target=args.target,
                 thresholds=thresholds,
             )
             seleccion = select_from_report(tiling, config)

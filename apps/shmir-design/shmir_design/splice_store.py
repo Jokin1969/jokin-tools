@@ -23,10 +23,10 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass, field
 
 from .errors import ShmirDesignError
+from .identidad import mensaje_de_id_repetido, result_fingerprint
 from .filters import FilterResult, FilterState
 from .spliceai import (
     NO_ABSOLUTE_THRESHOLD,
@@ -67,9 +67,7 @@ class SpliceRun:
         return cls(
             run_id=str(run_id), date=str(date), ran_by=str(ran_by),
             executor=str(executor),
-            result_md5=hashlib.md5(
-                raw.encode("utf-8"), usedforsecurity=False
-            ).hexdigest(),
+            result_md5=result_fingerprint(raw),
             scan=scan, raw=raw, folding=dict(folding or {}),
         )
 
@@ -135,11 +133,16 @@ class SpliceStore:
     runs: list[SpliceRun] = field(default_factory=list)
 
     def add(self, run: SpliceRun) -> None:
-        if any(r.run_id == run.run_id for r in self.runs):
-            raise ShmirDesignError(
-                f"Ya hay una corrida con id {run.run_id!r}. Se aborta: el almacen es "
-                f"INMUTABLE y una corrida nueva se AÑADE, nunca pisa a otra."
-            )
+        ya = next((r for r in self.runs if r.run_id == run.run_id), None)
+        if ya is not None:
+            raise ShmirDesignError(mensaje_de_id_repetido(
+                run_id=ya.run_id, date=ya.date, by=ya.ran_by,
+                que_es="corrida de empalme",
+                como_repetir=(
+                    "Casi seguro has cogido el resultado viejo de SpliceAI: "
+                    "comprueba el fichero, o vuelve a correrlo y sube ESE."
+                ),
+            ))
         self.runs.append(run)
 
     @property

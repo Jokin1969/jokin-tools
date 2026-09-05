@@ -29,9 +29,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
+from .identidad import configuration_fingerprint
 from .errors import ShmirDesignError
 
 PROJECT_FILE = "proyecto.json"
@@ -77,6 +78,43 @@ class Project:
     species: str
     anatomy: dict | None
     anatomy_source: str
+    #: EL NOMBRE VISIBLE, editable. Va aparte del slug a proposito: el slug nombra el
+    #: directorio, viaja en los mensajes y es lo que se teclea para reabrir el proyecto,
+    #: asi que cambiarlo dejaria sin abrir cualquier referencia anterior. Este es el que
+    #: se lee, y cambiarlo NO cambia la identidad de nada.
+    #:
+    #: Vacio significa «nadie le ha puesto nombre», y entonces se enseña el slug. Un
+    #: `proyecto.json` de antes de este campo se sigue abriendo por el valor por defecto.
+    title: str = ""
+
+    #: LA ENTRADA, VERBATIM. Sin esto el proyecto guardaba `sequence_md5` y
+    #: `sequence_length`, que sirven para COMPROBAR una secuencia que ya tengas delante y
+    #: no para recuperarla: reabrir exigia volver a subir el mismo fichero, y el md5 solo
+    #: servia para decirte que te habias equivocado de fichero.
+    #:
+    #: Es la regla que este proyecto ya tenia escrita —«un veredicto tiene que sobrevivir
+    #: a la app que lo escribio»— y estaba a medias: sobrevivia el veredicto y NO la
+    #: entrada sobre la que se emitio. Un log de decisiones sobre una secuencia que no
+    #: esta no se puede releer; a lo sumo se puede comprobar.
+    #:
+    #: Va DENTRO de `proyecto.json` y no en un fichero hermano a proposito: asi viaja con
+    #: todo lo que ya trata el proyecto —la copia de seguridad, el listado, la apertura—
+    #: y no hay un artefacto mas del que alguien tenga que acordarse. Las DOS piezas del
+    #: proyecto siguen siendo dos.
+    #:
+    #: Vacio significa **proyecto de antes de este campo**, no «sin secuencia»: se abre
+    #: igual y `reopenable` lo dice. Del md5 no sale la secuencia y no se finge (regla 1).
+    sequence: str = ""
+
+    @property
+    def reopenable(self) -> bool:
+        """¿Se puede volver a sacar el panel sin subir nada? Hace falta la entrada."""
+        return bool(self.sequence) and bool(self.anatomy)
+
+    @property
+    def display_name(self) -> str:
+        """Como se llama para quien lo lee. Sin nombre puesto, el slug."""
+        return self.title.strip() or self.slug
 
     @property
     def reliable(self) -> bool:
@@ -96,11 +134,14 @@ class Project:
             "species": self.species,
             "anatomy": self.anatomy,
             "anatomy_source": self.anatomy_source,
+            "title": self.title,
+            "sequence": self.sequence,
         }
 
     def describe(self) -> list[str]:
         lineas = [
-            f"Proyecto {self.slug} — creado {self.created}",
+            f"Proyecto {self.display_name} — creado {self.created}"
+            + (f" (carpeta {self.slug})" if self.title.strip() else ""),
             f"  entrada: {self.sequence_length} nt / md5 {self.sequence_md5}",
             f"  especie: {self.species or 'SIN DECLARAR'}",
             f"  anatomía: {self.anatomy_source}"
@@ -154,6 +195,12 @@ class ProjectStore:
                 f"otra corrida, va con otro slug; si es la misma, se abre con `open()`. "
                 f"Se aborta."
             )
+        # LA NORMALIZACION Y EL md5 LOS PONE `reference`, que es de donde salen los de
+        # todo lo demas. Vivian aqui con su propio `hashlib`, y `magnitudes.toml` ya
+        # anotaba que «si algun dia se moviera, delegaria»: hoy hay DOS sitios que
+        # necesitan este numero —crear y abrir— asi que el dia llego.
+        from .reference import canonical_form, sequence_md5  # noqa: PLC0415
+
         limpia = "".join(str(sequence).split()).upper()
         if not limpia:
             raise ShmirDesignError(
@@ -163,9 +210,10 @@ class ProjectStore:
         raiz.mkdir(parents=True)
         proyecto = Project(
             slug=slug, created=created,
-            sequence_md5=hashlib.md5(limpia.encode("ascii")).hexdigest(),
+            sequence_md5=sequence_md5(canonical_form(limpia)),
             sequence_length=len(limpia), species=species,
             anatomy=anatomy, anatomy_source=anatomy_source,
+            sequence=limpia,
         )
         (raiz / PROJECT_FILE).write_text(
             json.dumps(proyecto.as_dict(), ensure_ascii=False, indent=2) + "\n",
@@ -175,7 +223,26 @@ class ProjectStore:
         return cls(root=raiz, project=proyecto)
 
     @classmethod
-    def open(cls, base: Path | str, slug: str) -> "ProjectStore":
+    def open(cls, base: Path | str, slug: str, *,
+             sequence: str | None = None) -> "ProjectStore":
+        """Abre el proyecto y, si es de ANTES de guardar la entrada, la RELLENA.
+
+        `sequence` es la secuencia que quien abre ya tiene delante. Un proyecto creado
+        antes de que existiera el campo `sequence` no se puede reabrir solo, y hasta hoy
+        eso no se arreglaba nunca: se subia la secuencia, el proyecto se abria, y al dia
+        siguiente salia el mismo aviso. Un mensaje que dice «subela como siempre» y deja
+        el proyecto igual que estaba es una tarea de disciplina, no un arreglo.
+
+        **Lo que hace seguro rellenar es el md5**, que es la misma comprobacion que ya
+        impide abrir un proyecto con otra entrada: solo se escribe si el md5 canonico de
+        lo que se pasa es el que el proyecto DECLARA. Con cualquier otra secuencia no se
+        escribe nada — y quien la haya pasado se lleva ademas el rechazo de
+        `presentation.project_open`.
+
+        Es una MIGRACION DE UNA VEZ, no una escritura en cada apertura: un proyecto que
+        ya tiene su entrada no se reescribe. `proyecto.json` es la mitad del par que el
+        log encadena, y tocarlo sin motivo es ruido en lo que se lee para saber que paso.
+        """
         raiz = Path(base) / slug
         fichero = raiz / PROJECT_FILE
         if not fichero.is_file():
@@ -190,9 +257,46 @@ class ProjectStore:
                 f"{fichero} no es JSON válido ({exc}); se aborta la apertura del "
                 f"proyecto en vez de seguir con los campos que se hayan podido leer."
             ) from exc
-        almacen = cls(root=raiz, project=Project(**crudo))
+        proyecto = Project(**crudo)
+        # LA ENTRADA GUARDADA TIENE QUE SER LA QUE EL PROYECTO DECLARA. `proyecto.json`
+        # es un fichero y se puede editar; con la secuencia cambiada, el panel saldria
+        # con la forma correcta sobre OTRA entrada y nada lo delataria. Es la misma
+        # disciplina que la cadena de md5 del log, sobre el otro fichero del par.
+        if proyecto.sequence:
+            from .reference import sequence_md5  # noqa: PLC0415
+
+            calculado = sequence_md5(proyecto.sequence)
+            if calculado != proyecto.sequence_md5:
+                raise ShmirDesignError(
+                    f"La secuencia guardada en {fichero} NO es la que el proyecto "
+                    f"declara: su md5 es {calculado} y el registrado es "
+                    f"{proyecto.sequence_md5}. Se aborta la apertura — con la entrada "
+                    f"cambiada, los candidatos saldrian con la forma correcta sobre otra "
+                    f"secuencia y no habría nada que lo dijera."
+                )
+        if not proyecto.sequence and sequence:
+            proyecto = cls._rellenar_entrada(fichero, proyecto, sequence)
+        almacen = cls(root=raiz, project=proyecto)
         almacen._load()
         return almacen
+
+    @staticmethod
+    def _rellenar_entrada(fichero: Path, proyecto: "Project", sequence: str) -> "Project":
+        """Escribe la entrada en un proyecto que no la tenia, SI es la suya."""
+        from .reference import canonical_form, sequence_md5  # noqa: PLC0415
+
+        limpia = "".join(str(sequence).split()).upper()
+        if not limpia or sequence_md5(canonical_form(limpia)) != proyecto.sequence_md5:
+            # No es la suya: no se escribe. Quien decide que hacer con eso es quien
+            # abre —`presentation.project_open` lo RECHAZA— y aqui lo unico que importa
+            # es no dejar en el fichero una secuencia que el proyecto no declara.
+            return proyecto
+        relleno = replace(proyecto, sequence=limpia)
+        fichero.write_text(
+            json.dumps(relleno.as_dict(), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return relleno
 
     # ── el log ───────────────────────────────────────────────────────────────
     @property
@@ -248,6 +352,66 @@ class ProjectStore:
             )
         self._records.append(registro)
         return registro
+
+    # ── el nombre visible ────────────────────────────────────────────────────
+    def rename(self, title: str, *, date: str) -> Record | None:
+        """Cambia el NOMBRE VISIBLE y lo APUNTA en el log. El slug no se toca.
+
+        **Por qué queda en el log y no es un ajuste**: un proyecto que ayer se llamaba
+        otra cosa es justo lo que hace irreconocible un registro de hace un año, y este
+        log existe para poder leer dentro de un año qué se decidió y con qué. Así que el
+        renombrado es un SUCESO, con su fecha, como cualquier otro.
+
+        Devuelve `None` si el nombre no cambia: un `nota` por cada clic sin cambio
+        ensucia lo que se lee para saber qué pasó.
+        """
+        nuevo = str(title).strip()
+        if not nuevo:
+            raise ShmirDesignError(
+                f"Un nombre vacío dejaría el proyecto {self.project.slug!r} enseñando su "
+                f"slug otra vez y SIN ningún rastro de que alguien quiso cambiarlo. Para "
+                f"volver al slug se escribe el slug. Se aborta."
+            )
+        if nuevo == self.project.display_name:
+            return None
+        antes = self.project.display_name
+        registro = self.append(
+            "nota",
+            {
+                "texto": (
+                    f"Renombrado: «{antes}» → «{nuevo}». El slug sigue siendo "
+                    f"{self.project.slug!r} — es lo que nombra la carpeta y lo que se "
+                    f"teclea para reabrirlo."
+                ),
+                "de": antes,
+                "a": nuevo,
+            },
+            date=date,
+        )
+        self.project = replace(self.project, title=nuevo)
+        self.project_path.write_text(
+            json.dumps(self.project.as_dict(), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return registro
+
+    # ── llevarse el registro, y borrarlo ─────────────────────────────────────
+    def export(self) -> str:
+        """Las DOS piezas del proyecto en un texto que se lee con `cat`.
+
+        `proyecto.json` identifica la entrada —md5 y longitud de la secuencia— y
+        `registro.jsonl` lleva lo que se decidió. Uno sin el otro no se puede leer dentro
+        de un año: un log de veredictos sin saber sobre qué secuencia son no dice nada.
+
+        No se empaqueta en un zip: el criterio de este proyecto es que lo que guarda un
+        veredicto sea texto y sobreviva a la app que lo escribió.
+        """
+        return (
+            f"# ==== {PROJECT_FILE} ====\n"
+            f"{self.project_path.read_text(encoding='utf-8')}"
+            f"# ==== {LOG_FILE} ====\n"
+            f"{self.log_path.read_text(encoding='utf-8')}"
+        )
 
     def records(self, kind: str | None = None) -> tuple[Record, ...]:
         if kind is not None and kind not in RECORD_KINDS:
@@ -305,6 +469,10 @@ def save_blast_run(store: ProjectStore, run) -> Record:
             "query_md5": run.query_md5,
             "result_md5": run.result_md5,
             "query_names": list(run.query_names),
+            # LA LONGITUD DE CADA SONDA, que es de donde sale cuanto tiene que alinear un
+            # acierto para contar. Sin ella, una corrida recargada no puede rederivar su
+            # propio veredicto (errata nº 57).
+            "query_lengths": [list(par) for par in run.query_lengths],
             "params": {
                 campo: getattr(run.params, campo)
                 for campo in (
@@ -349,6 +517,11 @@ def load_blast_store(store: ProjectStore):
                 raw=datos["raw"],
                 hits=_parse(datos["raw"]),
                 query_names=consulta.names,
+                # Vacio en las corridas anteriores a este campo: `verdict` lo acota
+                # entonces con el propio resultado y LO DICE.
+                query_lengths=tuple(
+                    (str(n), int(l)) for n, l in datos.get("query_lengths", ())
+                ),
             )
         )
     return almacen
@@ -627,13 +800,39 @@ def load_offtarget_store(store: ProjectStore):
     return almacen
 
 
-def save_selection(store: ProjectStore, *, starts, date: str, by: str) -> Record:
-    """La seleccion a mano. Una nueva se AÑADE; la vigente es la ultima."""
-    return store.append(
-        "seleccion",
-        {"starts": sorted(int(s) for s in starts), "by": str(by)},
-        date=date,
-    )
+def save_selection(
+    store: ProjectStore, *, starts, date: str, by: str, configuration=None,
+) -> Record:
+    """La seleccion a mano. Una nueva se AÑADE; la vigente es la ultima.
+
+    **LA CONFIGURACION VA ATADA AL PANEL, no guardada al lado** (decidido con el
+    responsable del proyecto, 2026-09-04). Los controles de la barra lateral son estado
+    de Streamlit: vuelven a su valor por defecto al recargar y no se restauran a
+    proposito —restaurarlos daria DOS fuentes de verdad, que es la casilla global otra
+    vez—. Lo que si hace falta es que dentro de un año se pueda saber con que umbrales
+    salio este panel, y sobre todo que la app AVISE si la configuracion de ahora ya no es
+    la de la seleccion guardada: cambiar un umbral y volver a diseñar sin guardar
+    seleccion nueva deja el panel de la pantalla sin corresponder a lo registrado, y nada
+    lo decia. Es el mismo caso que `OBSOLETO` — se hizo, y ya no vale con lo que hay.
+
+    `configuration=None` significa **no registrada**: una seleccion de antes de este
+    campo se sigue leyendo, y `selection_configuration_state` lo dice con esas palabras
+    en vez de fingir que coincide.
+    """
+    payload = {"starts": sorted(int(s) for s in starts), "by": str(by)}
+    if configuration is not None:
+        payload["configuracion"] = configuration
+        payload["configuracion_md5"] = configuration_fingerprint(configuration)
+    return store.append("seleccion", payload, date=date)
+
+
+def selected_configuration(store: ProjectStore) -> tuple[dict | None, str]:
+    """La configuracion de la seleccion VIGENTE, y su huella. Vacias si no se registro."""
+    registros = store.records("seleccion")
+    if not registros:
+        return None, ""
+    payload = registros[-1].payload
+    return payload.get("configuracion"), str(payload.get("configuracion_md5", ""))
 
 
 def selected_starts(store: ProjectStore) -> tuple[int, ...]:

@@ -1,0 +1,133 @@
+# UNA MAGNITUD, UN SITIO QUE LA CALCULA
+#
+# Cuarto par del mismo tipo en pocos días —`blocks`/`gblock` montando el módulo,
+# `verdict_state`/`SpliceRun.verdict`, las cinco copias de la clave de consulta y los
+# cuatro `hashlib.md5(raw)` de los almacenes—, y el patrón es siempre el mismo: **una
+# magnitud que decide algo, calculada en más de un sitio**. Nada obliga a que coincidan,
+# así que se separan sin dar ningún error: lo que sale es un número con la forma correcta.
+#
+# Es el principio nº 24 aplicado al código de producción en vez de a los tests: los dos
+# lados salen de la misma fuente, o pueden dejar de coincidir.
+#
+# Cada sitio que calcula un DIGESTO declara aquí QUÉ magnitud calcula. La regla, y el
+# número correcto es cero:
+#
+#   **dos sitios no pueden declarar la misma `magnitud`.**
+#
+# Hay dos salidas y ninguna tercera: o uno DELEGA en el otro —y entonces desaparece de
+# esta tabla, porque ya no calcula— o son magnitudes DISTINTAS y cada una dice, en su
+# motivo, **por qué no es el mismo número**. Esa segunda salida no es un escape: es la
+# distinción que este proyecto ya tenía escrita para el manifiesto —el md5 del FICHERO en
+# disco y el de la SECUENCIA canónica son cantidades distintas, y copiar una en el sitio
+# de la otra hace que el fichero bueno se rechace—, ahora exigida en cada sitio nuevo.
+
+[digestos]
+
+"identidad.file_fingerprint" = { magnitud = "md5 de los bytes de un fichero", porque = "Lo pedían SEIS sitios —`biblioteca` dos veces, `gestor`, `deposito`, `manifest` y `presentation`—. Decide si un fichero subido es el que dice ser y si una corrida quedó obsoleta." }
+"identidad.result_fingerprint" = { magnitud = "md5 del crudo de una corrida", porque = "Lo pedían los CUATRO almacenes. Es la identidad del resultado y ENTRA en el `run_id`, así que dos cálculos separados podrían dar dos identidades de la misma corrida (errata nº 48)." }
+"reference.sequence_md5" = { magnitud = "md5 de la secuencia canónica", porque = "Sobre la forma canónica —sin blancos, en mayúsculas—, no sobre el fichero. NO es `file_fingerprint`: el mismo transcrito en dos ficheros con saltos distintos da el mismo número aquí y distinto allí. `genbank.sequence_md5` DELEGA en ésta desde 2026-09-02; antes hasheaba la cadena tal cual y no coincidían salvo con la entrada ya normalizada." }
+"identidad.configuration_fingerprint" = { magnitud = "md5 de la configuración de una corrida", porque = "De la configuración serializada y ORDENADA —umbrales, SelectionConfig, accesibilidad, andamio y los md5 de los ficheros conectados—, no de ningún fichero ni de ningún resultado. Ata el panel guardado a la configuración con la que salió: si alguien cambia un umbral y vuelve a diseñar sin guardar selección nueva, la discrepancia se DERIVA en vez de quedar invisible." }
+"blast.md5" = { magnitud = "md5 del FASTA de consulta", porque = "Del texto del FASTA que genera la app, con sus cabeceras. Es lo que se declara al subir el resultado y lo que `validate_upload` compara: no es la secuencia ni el fichero de referencia." }
+"store._line_md5" = { magnitud = "eslabón de la cadena del log", porque = "Cubre número de línea, tipo, fecha, payload Y el eslabón anterior. Es una cadena, no la identidad de un contenido: cambia si cambia lo que hay DELANTE." }
+"presentation.run_fingerprint" = { magnitud = "huella del panel y los ajustes de un modal", porque = "De lo que se ve en pantalla, no de ningún resultado. Existe para no enseñar una corrida vieja tras cambiar un ajuste." }
+"presentation.log_fingerprint" = { magnitud = "huella del estado del registro", porque = "De la LISTA de `run_id` del log, para que el informe declare contra qué estado se generó (principio nº 22). No identifica ningún contenido." }
+"spliceai._md5" = { magnitud = "md5 de una construcción enviada a SpliceAI", porque = "Del texto de la construcción que se entrega, para validar que el resultado que vuelve es de ESA. Análogo al del FASTA de consulta y distinto de él." }
+"splicing.md5" = { magnitud = "md5 del control sin intrón", porque = "Del fragmento que se manda a sintetizar, para la hoja de pedido. Es una secuencia ya normalizada por construcción." }
+"offtarget.validate_upload" = { magnitud = "md5 del catálogo de 3'UTR subido", porque = "Del texto recibido, para contrastarlo con el md5 declarado por quien lo sube. Se calcula ANTES de que el fichero llegue al depósito, así que no puede ser `file_fingerprint`." }
+"controles._seed_for" = { magnitud = "semilla del sorteo de permutaciones", porque = "sha256 de la guía usado como SEMILLA, no como identidad: sirve para que la misma guía dé siempre los mismos controles. No se compara con nada." }
+"spacers.choose_spacers" = { magnitud = "semilla del generador de espaciadores", porque = "Mismo caso que el anterior con la horquilla: reproducibilidad de una elección, no identidad." }
+
+# Los cargadores de referencia: cada uno calcula el md5 del CRUDO que acaba de leer para
+# contrastarlo con el que declara el manifiesto. Son el mismo GESTO pero sobre ficheros
+# distintos y en formatos distintos (texto ya decodificado, no bytes), así que no son
+# `file_fingerprint` — y cada uno lo dice.
+"apa.load_apa_sites" = { magnitud = "md5 del crudo de apa_medido", porque = "Del texto leído del fichero de APA medido, contra el declarado. Texto ya decodificado, no bytes." }
+"apa.load_polyadb" = { magnitud = "md5 del crudo de PolyA_DB", porque = "Ídem con la tabla de PolyA_DB, que es OTRO fichero y otro formato." }
+"masking.load_rmsk" = { magnitud = "md5 del crudo del .out de RepeatMasker", porque = "Ídem con la máscara." }
+"mirna._read" = { magnitud = "md5 del crudo de mature.fa", porque = "Ídem con los maduros de miRBase, y este viaja además con cada corrida de seed." }
+"seed_load.load_utr3_set" = { magnitud = "md5 del crudo del transcriptoma de 3'UTR", porque = "Ídem con el catálogo de 3'UTR." }
+"specificity.load_database" = { magnitud = "md5 del crudo de la base de especificidad", porque = "Ídem con el FASTA de transcritos." }
+"guide_fixture.load_guide_fixture" = { magnitud = "md5 del crudo del fixture de guías", porque = "Ídem, y sólo corre en la suite: protege los tests, no un camino de la app." }
+"genbank.load_genbank_cds" = { magnitud = "md5 del crudo de un GenBank", porque = "Del registro entero tal como se leyó, no de la secuencia que contiene — que es `reference.sequence_md5` y es otro número." }
+
+# ─────────────────────────── Fórmulas repetidas ───────────────────────────
+#
+# Una expresión aritmética que aparece literalmente en más de un módulo. Aquí NO se
+# puede exigir cero: `fin - inicio + 1` es la longitud de un intervalo y aparece en seis
+# sitios sin que ninguno sea sospechoso por sí mismo. Lo que sí se puede exigir es que el
+# número **no suba**: es un trinquete, como el de banderas, y sólo puede bajar.
+#
+# El techo se declara aquí y `tests/test_magnitudes.py` falla en las DOS direcciones: si
+# sube, alguien duplicó una fórmula; si baja, el techo está caducado.
+
+[formulas]
+# ONCE FÓRMULAS REPETIDAS «EN GENERAL» NO ES ACCIONABLE. Lo dijo el responsable del
+# proyecto (2026-09-02) y tiene razón: un número a secas no dice qué hacer. Lo que sí lo
+# dice es la MAGNITUD, así que cada fórmula repetida se clasifica y el trinquete es POR
+# GRUPO. «Veintitrés sitios calculan la longitud de un intervalo a mano» es una tarea.
+#
+# Y esa es además la PRIORITARIA, por delante del resto del trinquete: es exactamente la
+# cantidad que `audit.Span.check()` existe para derivar —«ningún intervalo se escribe a
+# mano»— y la clase que ya produjo la errata del desplazamiento de 3 nt, las ventanas
+# `269-291`/`222-242` emitidas para guías de 22 nt, y el 405 de la errata nº 35. No es
+# una duplicación aceptable: es la que ya ha fallado tres veces.
+#
+# Los otros dos grupos no se tocan mientras ése baje: el del extremo es la operación
+# INVERSA de la misma geometría —y ya aparece escrita de dos formas, `start + length - 1`
+# y `start - 1 + length`, que es el patrón otra vez—, y el del ajuste de línea es
+# FORMATO: no decide ningún veredicto, así que duplicarlo cuesta legibilidad y no
+# corrección.
+
+[formulas.clasificacion]
+"self.end - self.start + 1" = "longitud de un intervalo a partir de sus extremos"
+"fin - inicio + 1" = "longitud de un intervalo a partir de sus extremos"
+"SEED_END - SEED_START + 1" = "longitud de un intervalo a partir de sus extremos"
+"self.utr3[1] - self.utr3[0] + 1" = "longitud de un intervalo a partir de sus extremos"
+"start + length - 1" = "extremo de un intervalo a partir de inicio y longitud"
+"start - 1 + length" = "extremo de un intervalo a partir de inicio y longitud"
+"start + length - 1 > len(sequence)" = "extremo de un intervalo a partir de inicio y longitud"
+"len(actual) + 1 + len(palabra)" = "ajuste de línea de un informe"
+"len(actual) + 1 + len(palabra) > ancho" = "ajuste de línea de un informe"
+"len(linea) + 1 + len(palabra) > ancho" = "ajuste de línea de un informe"
+"len(linea) + 1 + len(palabra)" = "ajuste de línea de un informe"
+
+# Techo POR GRUPO, en SITIOS —no en formas de escribirla—: contar formas premiaría
+# unificar la sintaxis sin quitar ni una cuenta a mano. Todos sólo pueden bajar.
+[formulas.techos]
+"longitud de un intervalo a partir de sus extremos" = 23
+"extremo de un intervalo a partir de inicio y longitud" = 9
+"ajuste de línea de un informe" = 9
+
+[formulas.prioridad]
+"longitud de un intervalo a partir de sus extremos" = """\
+PRIORITARIA. 23 sitios en 14 módulos, y escrita de cuatro formas — dos de ellas, \
+`self.end - self.start + 1` y `fin - inicio + 1`, son la misma cuenta con otros nombres. \
+Es lo que `audit.Span.check()` deriva y aborta si no cuadra, y la clase que ya produjo la \
+errata del desplazamiento de 3 nt y el 405 de la nº 35. Baja cuando esos sitios pidan la \
+longitud a `Span` en vez de restarla."""
+
+# ───────────────── Constructores permisivos (errata nº 50) ─────────────────
+#
+# `str(argumento)` que acaba construyendo un objeto o un digesto, **sin comprobar antes
+# el tipo**. Es el fallo de `species.resolve`: terminaba en
+# `Species(scientific=str(name))`, así que con CUALQUIER objeto fabricaba una especie a
+# partir de su `repr` — con la forma correcta y sin ningún error.
+#
+# **Un constructor permisivo convierte un error de tipo en un dato con forma correcta**, y
+# eso es peor que una excepción: la excepción se ve. La regla es la misma que la regla 4
+# con los endpoints —no se deduce, se comprueba o se aborta— aplicada al tipo.
+#
+# Se reconoce que hay comprobación por un `isinstance` sobre ese mismo argumento. Cada
+# sitio que no la tenga se declara aquí con su motivo, o se arregla. El número correcto
+# es cero SIN CONTAR los declarados, y una declaración que ya no corresponde caduca.
+
+[constructores]
+"biblioteca.py:guardar" = "`str(date)` va a un campo de texto de la entrada del índice, no a una identidad: la identidad es el md5 del contenido. Una fecha rara sale escrita tal cual y se ve."
+"genbank.py:load_genbank_cds" = "`str(path)` es la ETIQUETA de procedencia que se enseña, no la clave de nada. La identidad de ese fichero es su md5, que se calcula aparte."
+"manifest.py:check_directory" = "`str(directory)` se guarda para poder decir QUÉ directorio se miró. No indexa nada."
+"obtencion.py:load_ficha" = "Ídem: la ruta de la ficha se guarda para nombrarla en el error si algo falla."
+"offtarget.py:validate_upload" = "`str(declared_md5)` va dentro del MENSAJE de un aborto, y ahí lo que hace falta es enseñar lo que llegó, sea lo que sea."
+"presentation.py:project_open" = "Ídem: `str(expect_md5)` dentro del texto del rechazo."
+"presentation.py:upload_path" = "`str(nombre)` es el nombre que manda el NAVEGADOR y por definición puede ser cualquier cosa; lo que protege ese código es quedarse sólo con el último segmento, no el tipo. Ver `UPLOAD_NAME_RULE`."
+"seed_load.py:load_utr3_set" = "`str(path)` es la procedencia que se imprime junto al conteo, no una clave."
+"store.py:append" = "`str(date)` es el campo de fecha del registro. La identidad de la línea es su eslabón de md5, que se calcula con el payload ya serializado."

@@ -1,4 +1,8 @@
 frente = "fraccion_isoforma_larga"
+se_cierra_en = "la app"
+titulo_llano = "¿Tu sitio está en todas las copias del mensajero?"
+en_cristiano = """\
+El mismo gen produce mensajeros de distinta longitud, y los más cortos se quedan sin el tramo final. Si tu sitio cae en ese tramo, sólo lo llevan algunas copias — y eso pone un techo a cuánto puedes apagar el gen, por bueno que sea el diseño."""
 pregunta = """\
 ¿Que fracción de los transcritos conserva la diana? Un sitio de poliadenilación \
 alternativa proximal corta el 3'UTR, así que un candidato por detrás de ese corte solo \

@@ -173,3 +173,114 @@ class TestLasVariantesTambienSeComparanENTERAS(unittest.TestCase):
             f"El golden por defecto lleva {puestas} puesto a mano. Si hace falta esa "
             f"configuración, va en una VARIANTE que la declare en su nombre.",
         )
+
+
+# ──────────────────────────── la regla de los INERTES ────────────────────────────
+
+
+class TestNingunGeneradorPONEunParametro(unittest.TestCase):
+    """La regla de los inertes, comprobada sobre TODOS los generadores.
+
+    No se ponen parámetros en un artefacto de verificación **ni siquiera los que
+    coinciden con el defecto**. De los cuatro que llevaba el golden por defecto, tres
+    eran inertes —`--candidates 10` es el defecto, `--min-block 22` daba lo mismo que 15
+    en ese par y `--sin-manifiesto` no cambiaba nada— y sólo `--inmunes 4` tenía efecto.
+    Eso es exactamente el problema: **un parámetro que no hace nada no se distingue de
+    uno que sí**, así que nadie los volvió a mirar y el que rompía viajó de polizón entre
+    los otros tres.
+
+    La clase anterior cubre los generadores que llaman al CLI. Ésta cubre los que
+    construyen EN PROCESO —la ficha, el documento y la página—, donde el parámetro no se
+    teclea como bandera sino como argumento: `SelectionConfig(n_candidates=10)` es
+    `--candidates 10` con otra forma.
+    """
+
+    FUENTE = Path(__file__).resolve().parent.parent / "tools" / "regenerar_golden.py"
+
+    def setUp(self):
+        import ast
+
+        self.arbol = ast.parse(self.FUENTE.read_text(encoding="utf-8"))
+        self.ast = ast
+
+    def _llamadas(self, nombre):
+        return [
+            n
+            for n in self.ast.walk(self.arbol)
+            if isinstance(n, self.ast.Call)
+            and isinstance(n.func, self.ast.Name)
+            and n.func.id == nombre
+        ]
+
+    def test_default_config_se_llama_SIN_NADA(self):
+        """Con un solo argumento deja de ser «la configuración del proyecto» y pasa a ser
+        una configuración de este fichero, que es lo que nadie mira."""
+        llamadas = self._llamadas("default_config")
+        self.assertTrue(llamadas, "ningún generador usa `default_config()`")
+        for llamada in llamadas:
+            self.assertEqual(llamada.args, [], self.ast.unparse(llamada))
+            self.assertEqual(llamada.keywords, [], self.ast.unparse(llamada))
+
+    def test_NINGUN_generador_construye_un_SelectionConfig_a_mano(self):
+        self.assertEqual(
+            [self.ast.unparse(c) for c in self._llamadas("SelectionConfig")], []
+        )
+
+    def test_tile_utr_recibe_la_SECUENCIA_y_nada_mas(self):
+        """Sus parámetros son todos de palabra clave y todos son configuración o
+        recursos. Pasar uno aquí abre el segundo camino: el golden se generaría con lo
+        tecleado mientras la app lee el fichero del gestor."""
+        llamadas = self._llamadas("tile_utr")
+        self.assertTrue(llamadas, "ningún generador tila")
+        for llamada in llamadas:
+            self.assertEqual(len(llamada.args), 1, self.ast.unparse(llamada))
+            self.assertEqual(llamada.keywords, [], self.ast.unparse(llamada))
+
+    def test_ningun_campo_de_la_CONFIGURACION_aparece_como_argumento(self):
+        """El trinquete derivado (principio nº 13): la lista de lo prohibido sale de los
+        campos de `SelectionConfig`, así que un ajuste nuevo queda cubierto sin que nadie
+        se acuerde de añadirlo aquí."""
+        from shmir_design.selection import SelectionConfig
+
+        prohibidos = set(SelectionConfig.__dataclass_fields__)
+        puestos = sorted(
+            {
+                n.arg
+                for n in self.ast.walk(self.arbol)
+                if isinstance(n, self.ast.keyword) and n.arg in prohibidos
+            }
+        )
+        self.assertEqual(
+            puestos,
+            [],
+            f"Los generadores teclean {puestos}. Aunque coincida con el defecto: un "
+            f"parámetro inerte no se distingue de uno con efecto.",
+        )
+
+    def test_y_tampoco_como_BANDERA_en_ninguno_de_los_argv(self):
+        """La misma prohibición del otro lado: `apa_immune_quota` es `--inmunes`.
+
+        Lo permitido en una VARIANTE no es una lista escrita aquí —eso sería un permiso
+        que crece solo—: sale de su propio NOMBRE. Una variante puede llevar la bandera
+        que declara y ninguna más, así que ninguna otra puede viajar de polizón dentro
+        del artefacto que existe para fijar otra cosa.
+        """
+        from tools.regenerar_golden import ARGV, VARIANTES
+
+        de_entrada = {"--fasta", "--fasta-b", "--name", "--name-b", "--genbank",
+                      "--genbank-b", "--out"}
+        for nombre, argv in [(None, ARGV), *VARIANTES.items()]:
+            etiqueta = nombre or "el golden por defecto"
+            with self.subTest(etiqueta):
+                # El de por defecto no declara NINGUNA: no tiene nombre donde hacerlo.
+                declaradas = {
+                    a
+                    for a in argv
+                    if nombre and a.lstrip("-").replace("-", "_") in nombre
+                }
+                sobran = [
+                    a
+                    for a in argv
+                    if a.startswith("--") and a not in de_entrada | declaradas
+                ]
+                self.assertEqual(sobran, [], f"{etiqueta} lleva {sobran} a mano")

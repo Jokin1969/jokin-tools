@@ -127,58 +127,82 @@ class TestElModelo(unittest.TestCase):
 
 @unittest.skipUnless(HAY, "NOT_RUN: falta data/reference/NM_011170.3.fa")
 class TestLasSieteSecciones(unittest.TestCase):
+    """Cada sección es lo que dice ser, y se busca POR TÍTULO.
+
+    Estaban buscadas por NÚMERO —`section(4)`, `section(6)`— y eso las ataba al orden:
+    insertar una sección en medio las rompía todas, que es el mismo acoplamiento que
+    tenían los propios números antes de derivarlos por posición. Ahora el número es una
+    consecuencia del orden y el test no lo usa para nada.
+    """
 
     @classmethod
     def setUpClass(cls):
         cls.doc = _documento()
         cls.md = cls.doc.markdown()
 
-    def test_son_SIETE_y_en_su_orden(self):
-        self.assertEqual(
-            [s.number for s in self.doc.sections], [1, 2, 3, 4, 5, 6, 7]
+    def _seccion(self, fragmento):
+        for seccion in self.doc.sections:
+            if fragmento.lower() in seccion.title.lower():
+                return seccion
+        raise AssertionError(
+            f"sin sección {fragmento!r}; las que hay: "
+            f"{[s.title for s in self.doc.sections]}"
         )
 
+    def test_los_numeros_son_CONSECUTIVOS_y_empiezan_en_uno(self):
+        numeros = [s.number for s in self.doc.sections]
+        self.assertEqual(numeros, list(range(1, len(numeros) + 1)))
+
+    def test_ninguna_seccion_se_queda_con_el_CERO_del_constructor(self):
+        """Las secciones nuevas se construyen con `number=0` y lo asigna el ensamblado.
+        Un cero que llegara al documento sería una sección sin numerar."""
+        self.assertNotIn(0, [s.number for s in self.doc.sections])
+
     def test_1_dice_QUE_se_analizo_con_longitud_y_md5_JUNTOS(self):
-        texto = "\n".join(_markdown_of(self.doc.section(1)))
+        texto = "\n".join(_markdown_of(self._seccion("Que se analizo")))
         self.assertIn("1242 nt / 19f5fa2a", texto)
 
     def test_2_dice_que_frentes_faltan_y_DONDE_conseguirlos(self):
-        texto = "\n".join(_markdown_of(self.doc.section(2)))
+        texto = "\n".join(_markdown_of(self._seccion("Estado de los frentes")))
         self.assertIn("NOT_RUN", texto)
         self.assertIn("mirbase.org", texto)
         self.assertIn("repeatmasker.org", texto)
 
     def test_3_trae_por_frente_que_mide_por_que_importa_y_el_criterio(self):
-        texto = "\n".join(_markdown_of(self.doc.section(3)))
+        texto = "\n".join(_markdown_of(self._seccion("Frente por frente")))
         self.assertIn("Que mide", texto)
         self.assertIn("Por que importa", texto)
         self.assertIn("Fuente de datos", texto)
 
     def test_3_trae_la_ficha_de_obtencion_de_cada_frente_ABIERTO(self):
-        texto = "\n".join(_markdown_of(self.doc.section(3)))
+        texto = "\n".join(_markdown_of(self._seccion("Frente por frente")))
         self.assertIn("COMO CERRAR EL FRENTE", texto)
         self.assertIn("3' UTR Exons", texto)
 
     def test_4_es_la_tabla_de_candidatos_CON_TODAS_las_columnas(self):
         tabla = next(
-            b for b in self.doc.section(4).blocks if b.kind == "table"
+            b for b in self._seccion("Tabla de candidatos").blocks if b.kind == "table"
         )
-        for columna in ("inicio", "asimetria_kcal", "carga_seed", "veredicto"):
+        # `carga_seed` se retiro (2026-09-04): era la SUMA de tres clases y salia sin
+        # sus sumandos. Ahora estan los tres, y las cuatro del frente al lado.
+        for columna in ("inicio", "asimetria_kcal", "tilado_8mer", "carga_8mer",
+                        "veredicto"):
             self.assertIn(columna, tabla.headers)
+        self.assertNotIn("carga_seed", tabla.headers)
 
     def test_5_trae_la_ficha_entera_del_seleccionado(self):
-        texto = "\n".join(_markdown_of(self.doc.section(5)))
+        texto = "\n".join(_markdown_of(self._seccion("Fichas de los seleccionados")))
         self.assertIn("3utr:200", texto)
         self.assertIn("Frentes (", texto)
 
     def test_6_es_una_SECCION_propia_y_no_un_pie(self):
-        self.assertEqual(self.doc.section(6).title, "Limitaciones")
-        self.assertLess(
-            self.md.index("## 6. Limitaciones"), self.md.index("## 7.")
-        )
+        limitaciones = self._seccion("Limitaciones")
+        self.assertEqual(limitaciones.title, "Limitaciones")
+        procedencia = self._seccion("Procedencia")
+        self.assertLess(limitaciones.number, procedencia.number)
 
     def test_7_lista_la_procedencia_de_TODOS_los_recursos(self):
-        texto = "\n".join(_markdown_of(self.doc.section(7)))
+        texto = "\n".join(_markdown_of(self._seccion("Procedencia")))
         for recurso in ("máscara de repetitivos", "maduros de miRBase", "APA medido"):
             self.assertIn(recurso, texto)
 
@@ -201,16 +225,16 @@ class TestLasTresReglasDeRedaccion(unittest.TestCase):
                     self.assertIn(fila[indice], justificacion.ORIGINS, fila)
 
     def test_los_umbrales_sin_base_medida_salen_JUNTOS_en_limitaciones(self):
-        texto = "\n".join(_markdown_of(self.doc.section(6)))
+        texto = "\n".join(_markdown_of(_por_titulo(self.doc, "Limitaciones")))
         for umbral in justificacion.unmeasured():
             self.assertIn(umbral.label, texto, umbral.key)
 
     def test_la_carga_de_offtargets_va_con_su_PERCENTIL(self):
-        texto = "\n".join(_markdown_of(self.doc.section(3)))
+        texto = "\n".join(_markdown_of(_por_titulo(self.doc, "Frente por frente")))
         self.assertIn("percentil", texto.lower())
 
     def test_la_colision_de_seed_va_con_su_TASA_BASE(self):
-        texto = "\n".join(_markdown_of(self.doc.section(3)))
+        texto = "\n".join(_markdown_of(_por_titulo(self.doc, "Frente por frente")))
         self.assertIn("tasa base", texto.lower())
 
     def test_NOT_RUN_esta_en_el_CUERPO_y_no_solo_al_final(self):
@@ -239,10 +263,46 @@ class TestParcialYCompletoSonELMISMO(unittest.TestCase):
         self.assertIn("no es un borrador", texto)
         self.assertIn("incomplete", texto)
 
+    #: El ESQUELETO: las secciones que salen siempre, con frentes abiertos o cerrados.
+    #: Se comprueban por TITULO. Estaba escrito como `len(doc.sections) == 7`, que no es
+    #: la invariante que el test dice comprobar —«el completo no gana ni pierde
+    #: secciones»— sino un recuento: añadir una seccion lo rompia sin que hubiera pasado
+    #: nada de lo que vigila.
+    ESQUELETO = (
+        "Que se analizo",
+        "Estado de los frentes",
+        "Frente por frente",
+        "Mapa del 3'UTR",
+        "Tabla de candidatos",
+        "Todos los sitios elegibles",
+        "Controles del experimento",
+        # AÑADIDA (2026-09-05). Compara las dos arquitecturas de intrón eje a eje, y
+        # entra porque eso DECIDE QUE SE SINTETIZA: vivía en un desplegable de la
+        # interfaz, que es donde no lo lee quien recibe el documento.
+        "Arquitecturas de intrón",
+        "Fichas de los seleccionados",
+        "Limitaciones",
+        "Procedencia",
+    )
+
     def test_las_secciones_son_LAS_MISMAS_en_los_dos_estados(self):
-        """No son dos productos: el completo no gana ni pierde secciones."""
+        """No son dos productos: el completo no gana ni pierde secciones.
+
+        Hoy NO se puede construir un COMPLETO —ningun frente cierra sin ficheros— asi
+        que lo que se puede afirmar es que las secciones no dependen del estado: el
+        esqueleto sale entero con el documento en PARCIAL. El dia que uno cierre, este
+        mismo test lo comprueba sobre el otro estado sin tocar nada.
+        """
         doc = _documento()
-        self.assertEqual(len(doc.sections), 7)
+        self.assertEqual(doc.state, "PARCIAL")
+        titulos = [s.title for s in doc.sections]
+        for esperado in self.ESQUELETO:
+            with self.subTest(esperado):
+                self.assertTrue(
+                    any(esperado in t for t in titulos),
+                    f"falta {esperado!r}; hay {titulos}",
+                )
+        self.assertEqual(len(titulos), len(self.ESQUELETO))
 
 
 @unittest.skipUnless(HAY, "NOT_RUN: falta data/reference/NM_011170.3.fa")
@@ -442,17 +502,38 @@ class TestLaPaginaTieneElBoton(unittest.TestCase):
         if doc is None:
             self.skipTest("NOT_RUN: falta el fixture del raton")
         entregables = presentation.informe_files(doc, stem="raton")
+        # EL ORDEN ES DELIBERADO: primero lo que se manda y se imprime, y el markdown
+        # el ultimo porque es la FUENTE —para discutir una frase sin maquetar—, no el
+        # entregable. Alfabetico dejaba el `.pdf` al final sin ninguna razon.
         self.assertEqual(
             [e["nombre"] for e in entregables],
             [
-                "raton_informe_parcial.md",
                 "raton_informe_parcial.docx",
                 "raton_informe_parcial.pdf",
+                "raton_informe_parcial.md",
             ],
         )
+        # Y LA ETIQUETA DEL BOTON NO ES EL NOMBRE DEL FICHERO. Lo era, y por eso la
+        # seccion se leia como una lista de ficheros: se reporto como «no encuentro
+        # donde se descarga el informe» con los tres botones en pantalla.
+        for entregable in entregables:
+            self.assertNotEqual(entregable["etiqueta"], entregable["nombre"])
+            self.assertIn("Descargar", entregable["etiqueta"])
         for entregable in entregables:
             self.assertTrue(entregable["datos"])
             self.assertTrue(entregable["mime"])
+
+
+def _por_titulo(documento, fragmento):
+    """La sección POR TÍTULO. Buscarla por número la ata al orden, y el número es ahora
+    una consecuencia del orden: insertar una sección en medio rompía todos estos tests
+    sin que hubiera pasado nada de lo que vigilan."""
+    for seccion in documento.sections:
+        if fragmento.lower() in seccion.title.lower():
+            return seccion
+    raise AssertionError(
+        f"sin sección {fragmento!r}; hay {[s.title for s in documento.sections]}"
+    )
 
 
 def _markdown_of(section) -> list[str]:

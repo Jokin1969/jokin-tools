@@ -274,18 +274,35 @@ def build_gblock(hairpin: Hairpin, *, plasmid: str | None = None) -> GBlock:
 
 
 def verify_contexts_against_plasmid(plasmid: str) -> None:
-    """Contrasta los contextos con el plasmido depositado. Aborta si no coinciden."""
-    cleaned = "".join(str(plasmid).split()).upper()
-    for nombre, (inicio, fin) in CONTEXT_POSITIONS.items():
-        esperado = CONTEXT_5 if nombre == "contexto_5" else CONTEXT_3
-        if len(cleaned) < fin:
-            raise ShmirDesignError(
-                f"El plásmido mide {len(cleaned)} nt y {nombre} deberia estar en "
-                f"{inicio}-{fin}; se aborta la verificación en vez de darla por buena."
-            )
-        encontrado = cleaned[inicio - 1 : fin]
+    """Contrasta los contextos con el plasmido depositado. Aborta si no coinciden.
+
+    **YA NO LEE COORDENADAS.** Hasta 2026-09-02 miraba el plasmido en `1739-1758` y
+    `1856-1875` —numeros ESCRITOS— y comparaba lo que hubiera ahi. Eso comprueba menos de
+    lo que parece: con las coordenadas corridas fallaria contra un plasmido CORRECTO, y
+    el arreglo obvio —moverlas hasta que cuadren— lo dejaria pasando siempre. Un numero
+    escrito no puede validar el fichero del que salio (principio nº 13).
+
+    Ahora el ancla es la ANOTACION del propio fichero y el andamio se localiza POR
+    SECUENCIA a su alrededor (`scaffold_registry.anchor_scaffold`); los contextos son lo
+    que flanquea al 97-mero, y la longitud que se pide es la del contexto del MODULO —que
+    es la pregunta: ¿lo que llevamos es lo nativo de SGEP?
+
+    Recibe el GenBank ENTERO, no la secuencia pelada: sin el bloque FEATURES no hay
+    anotacion de la que anclarse, y anclarse solo por secuencia es la mitad que se acaba
+    de quitar.
+    """
+    from .scaffold_registry import SCAFFOLDS, anchor_scaffold  # noqa: PLC0415
+
+    ancla = anchor_scaffold(
+        SCAFFOLDS["mir_e"], str(plasmid), context_length=len(CONTEXT_5)
+    )
+    for nombre, esperado, encontrado, span in (
+        ("contexto_5", CONTEXT_5, ancla.context_5, ancla.context_5_span),
+        ("contexto_3", CONTEXT_3, ancla.context_3, ancla.context_3_span),
+    ):
         if encontrado != esperado:
             raise ShmirDesignError(
-                f"{nombre}: en {inicio}-{fin} del plásmido hay {encontrado!r} y el "
-                f"módulo usa {esperado!r}. PARA: no pidas el gBlock hasta aclararlo."
+                f"{nombre}: pegado al andamio, en {span[0]}-{span[1]} del plásmido, hay "
+                f"{encontrado!r} y el módulo usa {esperado!r}. PARA: no pidas el gBlock "
+                f"hasta aclararlo."
             )

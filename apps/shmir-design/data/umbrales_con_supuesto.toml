@@ -1,0 +1,87 @@
+# UMBRALES CUYA LECTURA CORRECTA DEPENDE DE UN SUPUESTO SOBRE LOS DATOS
+#
+# **Categoría propia, y distinta de la que ya hay.** `justificacion.py` cubre los umbrales
+# **sin base medida** —números sin respaldo, que se declaran como tales—. Éstos son otra
+# cosa: números **con** respaldo aparente que **significan otra cosa de la que parecen**,
+# porque llevan dentro un supuesto sobre los datos que no está escrito en ninguna parte.
+#
+# EL CASO QUE ABRE LA CATEGORÍA (errata nº 56). `BlastRun.verdict` fallaba con «más de un»
+# acierto grave:
+#
+#     estado = FAIL if len(fuera) > 1 else PASS
+#
+# Ese `> 1` codificaba **«uno es tuyo»**: el supuesto de que la diana produce exactamente
+# un acierto. No estaba escrito, y falla en **dos direcciones, las dos invisibles**:
+#
+#   · con DOS variantes de transcrito del mismo gen, cuenta la segunda como off-target —
+#     y cada candidato falla contra su propio blanco. Diez `FAIL` falsos de diez;
+#   · con una guía que **no acierta a su propia diana**, da `PASS` a algo que quizá no
+#     reconoce su blanco, por no tener con qué compararse.
+#
+# LA REGLA: un umbral dentro de una función que emite veredicto declara aquí **de qué
+# supuesto depende su lectura** y **dónde está declarado ese supuesto**. Si el supuesto no
+# se puede declarar, el umbral está mal planteado y hay que cambiarlo — que es lo que se
+# hizo con el `> 1`: la diana se declara y el umbral pasa a ser «ningún acierto grave
+# fuera de ella», que dice lo que es.
+#
+# El número correcto de umbrales SIN declarar es CERO. No es un trinquete: un número que
+# significa otra cosa de la que parece no es deuda pendiente, es un veredicto equivocado
+# esperando.
+
+["specificity.judge_hits:h.mismatches <= 1"]
+que_decide = "qué acierto cuenta como GRAVE, o sea cuál produce FAIL."
+supuesto = "ninguno sobre los datos: es un criterio declarado —0 o 1 desapareamiento es complementariedad suficiente para cortar— y viaja escrito en el motivo de cada veredicto."
+donde_se_declara = "`specificity.MAX_MISMATCHES` y el propio motivo, que dice «sitio(s) de 0 o 1 desapareamiento fuera de la diana»."
+
+["specificity.filter_transgene:h.mismatches <= 1"]
+que_decide = "lo mismo, sobre el casete del vector en vez de sobre el transcriptoma."
+supuesto = "ninguno: el mismo criterio, y el motivo dice por qué es más duro aquí — una guía a un solo desapareamiento apaga la construcción terapéutica casi igual que a su diana."
+donde_se_declara = "el motivo del filtro y el bloque del transgén en CLAUDE.md."
+
+["selection.is_eligible:n > 0"]
+que_decide = "si un contador de ventanas es no vacío."
+supuesto = "ninguno: es una comprobación de vacuidad, no un umbral. Aparece aquí porque el detector la ve; se declara para que la lista no tenga huecos sin mirar."
+donde_se_declara = "—"
+
+["polya.annotate_3utr:utr_length < 1"]
+que_decide = "aborta con un 3'UTR de longitud cero."
+supuesto = "ninguno: es un guardia de entrada, no un criterio."
+donde_se_declara = "—"
+
+["outputs.text_report:len(techos) > 1"]
+que_decide = "si el informe imprime el techo de APA en singular o por tramos."
+supuesto = "ninguno sobre los datos: es formato del texto."
+donde_se_declara = "—"
+
+["outputs.text_report:config.min_per_tercio > 1"]
+que_decide = "si el informe menciona la cuota por tercio en plural."
+supuesto = "ninguno: formato."
+donde_se_declara = "—"
+
+["outputs.text_report:len(inmunes) + len(alternativas) < 3"]
+que_decide = "si el informe avisa de que quedan pocos inmunes de reserva."
+supuesto = "SÍ, y está declarado: que la reserva útil son los inmunes MÁS las alternativas por delante del corte. El «3» es un aviso, no un veredicto — no cambia ningún estado."
+donde_se_declara = "el bloque de inmunes de CLAUDE.md, con la cuenta de sitios elegibles por tramo (16/0/0) de la que sale."
+
+["intron_folding.describe:len(self.branch_detail) > 1"]
+que_decide = "si el texto lista un punto de ramificación o varios."
+supuesto = "ninguno sobre los datos: formato. El criterio de verdad —que varios candidatos NO se desempatan por nuestra cuenta— vive en `introns.py`."
+donde_se_declara = "`introns` y el bloque del cuarto modal en CLAUDE.md."
+
+# ─────────── UNA CEGUERA DE ESTE DETECTOR, MEDIDA (errata nº 99) ───────────
+#
+# El detector sólo mira umbrales DENTRO de algo que emite veredicto. El que más caro ha
+# salido en este proyecto no estaba ahí: `spliceai.scan_from_result` aborta si el donante
+# legítimo `<= 0`, y eso es una ruta de INGESTA, no un veredicto. Se intentó declararlo
+# aquí y el propio auditor lo marcó como DECLARACIÓN CADUCADA —«ya no existe»—, que es la
+# respuesta correcta: una entrada sin nada que la ancle al código se pudre igual que la
+# prosa.
+#
+# El caso, entero, está en la errata nº 99. En resumen: el umbral suponía —sin
+# declararlo— que un donante mal identificado puntuaría CERO, y medido valía `2e-07`, así
+# que no mordió y se normalizó un análisis de 107.680 filas contra un referente
+# inexistente. Lo que protege ese caso hoy NO es un umbral: es `spliceai.require_frame`,
+# que compara la base declarada con su vecindario, y está declarado en `guardias.toml`.
+#
+# Lo que esto deja escrito: **un umbral en una ruta de ingesta no lo ve nadie**. Si algún
+# día se amplía el detector, éste es el ejemplo con el que calibrarlo.

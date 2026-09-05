@@ -27,7 +27,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from . import obtencion as _obtencion
 from .errors import ShmirDesignError
+from .external_score import EXTERNAL_TOOLS, WHY_NOT_PRIMARY
+from .specificity import WHY_LENGTH_AND_NOT_MISMATCHES, WHY_NOT_MORE_THAN_ONE
 
 #: Los dos grados de completitud. No son dos documentos.
 STATES = ("PARCIAL", "COMPLETO")
@@ -212,6 +215,26 @@ _FRONT_THRESHOLDS = {
 #: umbral numerico» seria otra media verdad: lo tienen, y lo que no existe es el
 #: absoluto — que en el cuarto modal es justo el punto.
 RELATIVE_CRITERION = {
+    # La especificidad SI tiene criterio, y caia en el `else` diciendo que no tenia
+    # ninguno — media verdad de la misma familia. Y no es academico: el criterio que
+    # tenia ANTES (`> 1` acierto) escondia un supuesto sobre los datos y tumbo el panel
+    # entero contra su propia diana (errata nº 56). Se escribe entero, con el supuesto
+    # que se quito de en medio.
+    "especificidad": (
+        "Un acierto cuenta como GRAVE si alinea casi la sonda ENTERA —el mínimo se "
+        "deriva de la propia sonda, un extremo recortado— tiene 0 o 1 desapareamiento, y "
+        "su transcrito NO es una de las variantes declaradas de la diana. Un solo "
+        "acierto grave da FAIL. Las variantes de la diana se declaran en "
+        "`data/diana/variantes.toml` con su procedencia, y una especie que no las "
+        "declare NO recibe veredicto: sale `NO_CIERRA`, nunca un PASS por una lista "
+        "vacía. "
+        + WHY_NOT_MORE_THAN_ONE
+        + " "
+        + WHY_LENGTH_AND_NOT_MISMATCHES
+        + " La ORIENTACIÓN no filtra: dice qué hebra es —la guía es antisentido a su "
+        "diana y la pasajera lleva su misma secuencia— y se usa como comprobación de "
+        "montaje, no como descarte."
+    ),
     "empalme_sitios": (
         "Este frente NO tiene umbral ABSOLUTO, y no se puede inventar uno: SpliceAI se "
         "entreno sobre secuencia genomica humana con ventana de 10.000 nt para predecir "
@@ -225,7 +248,11 @@ RELATIVE_CRITERION = {
 }
 
 #: Frentes que NO se contestan con un fichero: se contestan en el banco.
-BENCH_FRONTS = frozenset({"empalme_intron"})
+#:
+#: **Se DERIVA de las fichas**, que es donde cada frente lo declara (`se_cierra_en`).
+#: Estaba escrito aqui a mano y ademas dicho en la prosa de la ficha: dos definiciones
+#: del mismo hecho, y la que se usaba no era la versionada.
+BENCH_FRONTS = frozenset(_obtencion.bench_fronts())
 
 #: Frentes cuyo dato se SUBE en su modal en vez de venir del informe de tilado.
 UPLOADED_FRONTS = {
@@ -297,7 +324,8 @@ def _threshold_rows(claves):
 _THRESHOLD_HEADERS = ("umbral", "valor", "origen", "de donde sale")
 
 
-def _section_1(*, species, tiling, generated, anatomy_source) -> Section:
+def _section_1(*, species, tiling, generated, anatomy_source,
+               fingerprint=None) -> Section:
     filas = [
         (
             "secuencia analizada",
@@ -309,6 +337,16 @@ def _section_1(*, species, tiling, generated, anatomy_source) -> Section:
         ("tamaño de ventana", f"{tiling.window_size} nt"),
         ("fecha del informe", generated),
     ]
+    # LA HUELLA DEL LOG, en la CABECERA y no en un anexo. Identifica el ESTADO con el
+    # que se genero: dos informes con la misma huella son el mismo documento. La fecha
+    # sola no lo hace — dos corridas del mismo dia son dos documentos distintos.
+    if fingerprint is not None:
+        filas.append(
+            (
+                "estado del registro",
+                f"{fingerprint['huella']} · {fingerprint['corridas']} corrida(s)",
+            )
+        )
     return Section(
         number=1,
         title="Que se analizo",
@@ -450,10 +488,14 @@ def _section_3(fronts, *, species, tiling) -> Section:
     return Section(number=3, title="Frente por frente", blocks=tuple(bloques))
 
 
-def _section_4(selection) -> Section:
-    from .presentation import candidate_rows
+def _section_4(selection, *, species: str = "", stores=None) -> Section:
+    from .presentation import candidate_rows, seed_load_reference
 
-    filas = candidate_rows(selection)
+    # LOS ALMACENES ENTRAN AQUI porque `carga_seed` no se puede leer sola: su percentil y
+    # sus controles viven en la corrida guardada. Sin esto, el documento que defiende la
+    # seleccion emitia un 19.020 desnudo, que es justo lo que la regla de redaccion
+    # «toda cifra comparativa con su referencia» existe para impedir.
+    filas = candidate_rows(selection, species=species, stores=stores)
     if not filas:
         return Section(
             number=4,
@@ -499,10 +541,31 @@ def _section_4(selection) -> Section:
                 "nadie lo miro."
             )
         )
+    # LA REFERENCIA DE `carga_seed`: percentil por clase y controles biologicos.
+    referencia = seed_load_reference(
+        stores=stores, species=species,
+        starts=[c.start for c in selection.selection.chosen],
+    )
+    bloques.append(para(referencia["texto"]))
+    if referencia["controles"]:
+        cabeceras_control = ("control", "heptamero", *referencia["clases"])
+        bloques.append(
+            table(
+                cabeceras_control,
+                [
+                    (
+                        control["nombre"], control["heptamero"],
+                        *(str(control[clase]) for clase in referencia["clases"]),
+                    )
+                    for control in referencia["controles"]
+                ],
+            )
+        )
     return Section(number=4, title="Tabla de candidatos", blocks=tuple(bloques))
 
 
-def _section_5(*, species, tiling, selection, starts, target=None) -> Section:
+def _section_5(*, species, tiling, selection, starts, target=None,
+               stores=None) -> Section:
     from .dossier import build_dossier
 
     bloques = [
@@ -512,9 +575,18 @@ def _section_5(*, species, tiling, selection, starts, target=None) -> Section:
         )
     ]
     for inicio in starts:
+        # CON LOS ALMACENES. Esto se llamaba sin ellos, asi que `build_dossier`
+        # construia un `BlastStore()` vacio y el documento que se entrega decia
+        # `NOT_RUN` de frentes que podian estar cerrados — sobre el artefacto que
+        # defiende la seleccion.
+        almacenes = stores or {}
         ficha = build_dossier(
             species=species, tiling=tiling, selection=selection, start=inicio,
             target=target,
+            store=almacenes.get("blast"),
+            seed_store=almacenes.get("seed"),
+            offtarget_store=almacenes.get("offtarget"),
+            splice_store=almacenes.get("splice"),
         )
         bloques.append(heading(f"3utr:{inicio}", level=3))
         bloques.append(pre(ficha.render()))
@@ -569,6 +641,30 @@ def _section_6() -> Section:
             "cotranscripcionalmente — o sea ANTES del splicing. Un shmiR correcto no es "
             "evidencia de que haya proteina."
         ),
+        heading("Las herramientas externas: por qué NO son la fuente principal", level=3),
+        # LA DECISION VA ESCRITA, no deducida de que no aparezcan. Un servicio que nadie
+        # miro y uno que se miro y se descarto se leen igual si lo unico que hay es su
+        # ausencia — y el segundo es una decision que el informe tiene que defender.
+        para(WHY_NOT_PRIMARY),
+        table(
+            ("herramienta", "longitud de guía", "alimenta score_externo"),
+            [
+                (
+                    h.name,
+                    f"{h.guide_length} nt" if h.length_declared else "SIN DECLARAR",
+                    "sí" if h.imports_scores else "no",
+                )
+                for h in EXTERNAL_TOOLS
+            ],
+        ),
+        para(
+            "La longitud NO es un detalle de ficha: es lo que decide cómo se cruza su "
+            "salida con la nuestra. siDirect diseña 19-mers y nuestras ventanas miden "
+            "22, así que sus candidatos son OTRAS ventanas sobre el mismo sitio — se "
+            "cruzan por solapamiento sobre la referencia, y el importador ABORTA si le "
+            "llegan longitudes distintas de las declaradas, en vez de cruzar cero y "
+            "dejar que eso se lea como «no hay convergencia»."
+        ),
     ]
     return Section(number=6, title="Limitaciones", blocks=tuple(bloques))
 
@@ -601,16 +697,250 @@ def _section_7(tiling, *, extra=()) -> Section:
     )
 
 
+def _seccion_anatomia(anatomy) -> Section:
+    """La anatomía del transcrito, la MISMA tabla que pinta la página.
+
+    Sale de `presentation.anatomy_rows`, no de una copia: si la página gana una columna,
+    el informe la gana con ella. Dos tablas para lo mismo divergen — y aquí el que
+    diverge es el que acaba en una libreta de laboratorio.
+    """
+    from .presentation import anatomy_rows  # noqa: PLC0415
+
+    filas = anatomy_rows(None, utr3_length=anatomy.utr3_length, anatomy=anatomy)
+    return Section(
+        number=0,   # lo asigna `build_document` por POSICION; ver `_numerar`.
+        title="Anatomía del transcrito",
+        blocks=(
+            para(
+                "De dónde sale cada frontera. La procedencia de la anotación importa "
+                "tanto como el número: una frontera declarada y una anotada no "
+                "sostienen lo mismo."
+            ),
+            table(tuple(filas[0]), tuple(tuple(str(f[c]) for c in filas[0]) for f in filas)),
+        ),
+    )
+
+
+def _seccion_mapa(tiling, selection) -> Section:
+    """El mapa del 3'UTR. En el PDF va su RESUMEN, no el SVG.
+
+    El PDF es monoespaciado: mil coordenadas con decimales no se leen. Lo que entra es
+    el conteo por tipo y la leyenda —lo mismo que se fija en el golden—, que es lo que
+    permite ver que un mapa se quedó sin candidatos o dibuja el triple de señales.
+    """
+    from .presentation import _mapa_resumen, map_svg  # noqa: PLC0415
+
+    lineas = _mapa_resumen(map_svg(tiling, selection))
+    return Section(
+        number=0,
+        title="Mapa del 3'UTR",
+        blocks=(
+            para(
+                "Resumen del mapa: cuántos elementos dibuja por tipo, y su leyenda. El "
+                "dibujo entero se ve en la página; aquí va lo que se puede leer en "
+                "monoespaciado y comparar entre dos corridas."
+            ),
+            pre("\n".join(lineas)),
+        ),
+    )
+
+
+def _seccion_elegibles(tiling, selection, *, species: str) -> Section:
+    """Todos los sitios elegibles, con UNA COLUMNA POR FRENTE.
+
+    Es la vista que impide que vuelva a pasar lo de `offtarget_seed`: un frente sin
+    columna no se ve, y lo que no se ve no existe. Las columnas se derivan de los frentes
+    que el informe conoce, así que uno nuevo aparece solo — también aquí.
+    """
+    from .presentation import site_table_rows  # noqa: PLC0415
+
+    filas = site_table_rows(tiling, selection, species=species)
+    if not filas:
+        return Section(
+            number=0,
+            title="Todos los sitios elegibles",
+            blocks=(para("Ningún sitio elegible con estos umbrales."),),
+        )
+    return Section(
+        number=0,
+        title=f"Todos los sitios elegibles, con una columna por frente — {species}",
+        blocks=(
+            para(
+                "Todos, no sólo los seleccionados: la selección es una propuesta y esta "
+                "tabla es el conjunto sobre el que se hizo. Una columna por frente, "
+                "derivada de los frentes que el informe conoce."
+            ),
+            table(tuple(filas[0]), tuple(tuple(str(f[c]) for c in filas[0]) for f in filas)),
+        ),
+    )
+
+
+def _seccion_controles(tiling, selection, *, species: str, target=None) -> Section:
+    """Los controles del experimento: los seis brazos y las dos construcciones.
+
+    QUE ENTRA Y QUE NO. Entran los seis brazos con lo que AISLA cada uno, los criterios
+    de las dos construcciones y la tabla que decide entre 2 y 3 cambios. NO entran las
+    secuencias generadas: una secuencia que se va a sintetizar se emite donde se pide,
+    con su ficha y su marca de generada, no en un documento que se lee. Un informe con
+    oligos dentro invita a copiarlos de una pantalla, que es justo lo que este proyecto
+    tiene prohibido (`tools/export_utr3.py`).
+    """
+    from .controles import (ARMS, CUANTOS_CAMBIOS_SIN_DECIDIR,
+                            EQUIVALENCIA_NO_ES_ADMISION, LOS_DOS_NO_SE_SUSTITUYEN,
+                            PLEGADO_NO_DISCRIMINA, mismatch_comparison)
+
+    bloques = [
+        para(
+            "Un control sin veredictos no es un control, es una secuencia. Los dos que "
+            "diseña la app pasan por los mismos filtros que un candidato y salen "
+            "INCOMPLETE mientras les quede un frente sin correr."
+        ),
+        para(LOS_DOS_NO_SE_SUSTITUYEN),
+        table(
+            ("brazo", "qué aísla"),
+            tuple((brazo.label, brazo.isolates) for brazo in ARMS),
+        ),
+        para(EQUIVALENCIA_NO_ES_ADMISION),
+        para(PLEGADO_NO_DISCRIMINA),
+    ]
+    elegidos = selection.selection.chosen
+    if target is None or not elegidos:
+        # Sin la secuencia no se puede decir que una variante NO tiene diana, y eso es
+        # media tabla. NOT_RUN con el motivo, no una tabla a medias.
+        bloques.append(para(
+            "La tabla de 2 contra 3 cambios NO se ha calculado en este informe: hace "
+            "falta la secuencia analizada para poder decir qué variantes se quedan sin "
+            "sitio de seed en ella, y este camino no la recibe. NOT_RUN no es PASS."
+        ))
+    else:
+        primero = elegidos[0]
+        guia = selection.window_of(primero).evaluation.guide
+        filas = mismatch_comparison(
+            guia, origin_label=f"3utr:{primero.start}",
+            target=target, target_label=f"3'UTR de {species}",
+            mature=getattr(tiling, "mature", None), species=species,
+        )
+        bloques += [
+            para(
+                f"2 o 3 cambios en la seed, medido sobre la guía de "
+                f"3utr:{primero.start} —el primero del panel—. La «racha intacta» es el "
+                f"tramo contiguo de seed que queda sin tocar, y es lo que mide el "
+                f"residuo de reconocimiento: importa más DÓNDE caen los cambios que "
+                f"cuántos son."
+            ),
+            table(
+                ("cambios", "variantes", "limpias", "racha mínima",
+                 "con esa racha", "chocan con el núcleo"),
+                tuple(
+                    (str(f["cambios"]), str(f["variantes"]), str(f["limpias"]),
+                     str(f["racha_minima"]), str(f["con_la_racha_minima"]),
+                     "no comprobado" if f["chocan_nucleo"] is None
+                     else str(f["chocan_nucleo"]))
+                    for f in filas
+                ),
+            ),
+            para(CUANTOS_CAMBIOS_SIN_DECIDIR),
+        ]
+    return Section(number=0, title="Controles del experimento", blocks=tuple(bloques))
+
+
+def _seccion_arquitecturas() -> Section:
+    """Las dos arquitecturas de intrón, comparadas eje a eje.
+
+    Va en el INFORME y no solo en la pagina porque decide QUE SE SINTETIZA: la
+    comparacion vivia en un desplegable de la interfaz, o sea en el sitio donde no la lee
+    quien recibe el documento (principio nº 23). No depende de la corrida —son propiedades
+    de los dos intrones y de la corrida de SpliceAI guardada—, asi que no recibe nada.
+    """
+    from .introns import (
+        THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES, WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
+    )
+    from .presentation import INTRON_AXES_MEASURED
+
+    bloques = [
+        para(
+            "Los diez candidatos del panel se han consultado con LAS DOS arquitecturas "
+            "de intrón —20 construcciones— y estos son los ejes en los que se "
+            "diferencian. Las puntuaciones salen de la corrida de SpliceAI del "
+            "2026-09-05, guardada con su procedencia; la geometria la deriva esta app."
+        ),
+        table(
+            ("eje", "mvm_actual", "intron_quimerico", "gana"),
+            tuple(INTRON_AXES_MEASURED),
+        ),
+        para(WHY_THE_COUNTERWEIGHT_WAS_RETIRED),
+        para(THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES),
+    ]
+    return Section(
+        number=0,   # lo asigna `build_document` por POSICION; ver `_numerar`.
+        title="Arquitecturas de intrón", blocks=tuple(bloques),
+    )
+
+
+def _numerar(secciones: tuple[Section, ...]) -> tuple[Section, ...]:
+    """Numera las secciones POR POSICION, no por lo que cada una traiga escrito.
+
+    Estaban numeradas a mano, una a una, y eso hace que insertar una en medio obligue a
+    tocar todas las de detras — y el dia que alguien no las toque, el informe tiene dos
+    secciones «4». El numero es una CONSECUENCIA del orden, asi que se deriva de el.
+    """
+    from dataclasses import replace  # noqa: PLC0415
+
+    return tuple(
+        replace(seccion, number=indice)
+        for indice, seccion in enumerate(secciones, start=1)
+    )
+
+
 def build_document(
     *, species: str, tiling, selection, generated: str,
     anatomy_source: str = "no declarada en esta corrida",
     dossier_starts=None, extra_provenance=(), title: str | None = None,
-    target: str | None = None,
+    target: str | None = None, anatomy=None, stores=None,
 ) -> Document:
-    """El informe entero. Parcial o completo segun los frentes, nunca dos documentos."""
+    """El informe entero. Parcial o completo segun los frentes, nunca dos documentos.
+
+    `stores` son los almacenes del proyecto. Con ellos las fichas leen las corridas de
+    verdad — antes `_section_5` llamaba a `build_dossier` SIN almacen, asi que construia
+    uno vacio y el documento decia `NOT_RUN` de frentes que podian estar cerrados. Y en
+    cuanto lee estado MUTABLE, el documento tiene que declarar contra QUE estado se
+    genero: la fecha no basta, dos corridas del mismo dia son dos documentos distintos.
+    """
+    from .presentation import (
+        chosen_starts,
+        fronts_closed_over_panel,
+        log_fingerprint,
+        panel_states_by_front,
+        run_provenance_rows,
+    )
     from .selection import blocking_fronts
 
-    frentes = blocking_fronts(tiling, selection)
+    huella = log_fingerprint(stores)
+    procedencia_corridas = tuple(
+        (
+            f"corrida {fila['almacen']} {fila['run_id']}",
+            f"{fila['fecha']} · subido md5 {fila['md5_subido']}"
+            + (f" · base md5 {fila['md5_base']}" if fila["md5_base"] else ""),
+        )
+        for fila in run_provenance_rows(stores)
+    )
+
+    # LOS FRENTES CERRADOS ENTRAN AQUI TAMBIEN, y desde 2026-09-03 los cierra IGUAL un
+    # fichero del deposito que una corrida guardada. El documento leia los almacenes para
+    # la FICHA de cada candidato y no para el bloque de frentes, asi que podia decir
+    # «especificidad: PASS» en la ficha y listarla entre los frentes abiertos tres
+    # secciones mas arriba — el principio nº 23 dentro de un solo documento. Y con solo
+    # los almacenes seguia listando `transgen` abierto con los diez candidatos en `PASS`.
+    panel_para_frentes = chosen_starts(selection)
+    vista_del_panel = panel_states_by_front(
+        tiling, selection, species=species, stores=stores
+    )
+    cerrados = fronts_closed_over_panel(
+        vista_del_panel["estados"],
+        starts=panel_para_frentes,
+        origins=vista_del_panel["origenes"],
+    )
+    frentes = blocking_fronts(tiling, selection, closed_by_panel=cerrados)
     abiertos = tuple(f.name for f in frentes if f.blocking)
     if dossier_starts is None:
         dossier_starts = tuple(c.start for c in selection.selection.chosen)
@@ -619,19 +949,26 @@ def build_document(
         state="PARCIAL" if abiertos else "COMPLETO",
         generated=generated,
         open_fronts=abiertos,
-        sections=(
+        sections=_numerar((
             _section_1(
                 species=species, tiling=tiling, generated=generated,
-                anatomy_source=anatomy_source,
+                anatomy_source=anatomy_source, fingerprint=huella,
             ),
             _section_2(frentes, species=species),
             _section_3(frentes, species=species, tiling=tiling),
-            _section_4(selection),
+            *((_seccion_anatomia(anatomy),) if anatomy is not None else ()),
+            _seccion_mapa(tiling, selection),
+            _section_4(selection, species=species, stores=stores),
+            _seccion_elegibles(tiling, selection, species=species),
+            _seccion_controles(tiling, selection, species=species, target=target),
+            _seccion_arquitecturas(),
             _section_5(
                 species=species, tiling=tiling, selection=selection,
-                starts=tuple(dossier_starts), target=target,
+                starts=tuple(dossier_starts), target=target, stores=stores,
             ),
             _section_6(),
-            _section_7(tiling, extra=extra_provenance),
-        ),
+            _section_7(
+                tiling, extra=tuple(extra_provenance) + procedencia_corridas
+            ),
+        )),
     )

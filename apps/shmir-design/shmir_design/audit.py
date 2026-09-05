@@ -330,3 +330,90 @@ def _parte_ajena(guide: str, utr3: str) -> tuple[str, str]:
         if _rc(cola) in utr3:
             return guide[: len(guide) - largo], cola
     return "", ""
+
+
+# ═════════════ EL GUARDIA DEL TRUNCAMIENTO EN LAS TABLAS QUE SE EXPORTAN ═════════════
+#
+# **De donde sale.** Se reporto un heptamero de SEIS caracteres en la columna
+# `heptamero` del CSV descargable. Los tres productores del heptamero se midieron y los
+# tres dan siete, asi que el caso concreto NO se reprodujo y no se le asigna causa. Lo
+# que si se decidio es que la clase de fallo tenga guardia, porque es de las que no dan
+# ningun error: un heptamero truncado a seis SIGUE SIENDO una seed valida y DISTINTA
+# —la familia del «Alu 0 %»—, asi que el numero que sale al lado es correcto para otra
+# pregunta.
+#
+# **Que comprueba.** Que ninguna celda de una columna de SECUENCIA mida menos de lo que
+# su fuente declara. La columna no se declara por su nombre: se DERIVA del contenido —una
+# columna cuyas celdas no vacias son todas alfabeto de acidos nucleicos y miden al menos
+# `MIN_SEQUENCE`—, asi que una columna de secuencia NUEVA entra en el guardia sola.
+#
+# **Y por eso hay que declarar la longitud esperada**: una columna de secuencia sin
+# longitud declarada ABORTA. La alternativa —ignorarla— convierte al guardia en una
+# lista de las columnas de las que alguien se acordo, que es como no tenerlo.
+
+#: El alfabeto. `U` entra porque las tablas de ARN existen; las minusculas se normalizan.
+SEQUENCE_ALPHABET = frozenset("ACGTU")
+
+#: Por debajo de esto, una celda no es una secuencia: `AT`, `GC` y `CG` son etiquetas.
+#: Seis es el minimo con sentido biologico aqui —es el nucleo de seed— y ademas es
+#: justo la longitud que se reporto, asi que el guardia lo cubre.
+MIN_SEQUENCE = 6
+
+WHY_TRUNCATION_IS_SILENT = (
+    "Un heptámero truncado a seis sigue siendo una seed válida y DISTINTA, así que el "
+    "conteo que sale a su lado es correcto para otra pregunta y no da ningún error. Lo "
+    "mismo con una guía a la que le falte la última base: la tabla se lee igual y lo que "
+    "describe es otra cosa."
+)
+
+
+def _es_secuencia(valor) -> bool:
+    texto = str(valor).strip().upper()
+    return len(texto) >= MIN_SEQUENCE and set(texto) <= SEQUENCE_ALPHABET
+
+
+def sequence_columns(rows) -> tuple[str, ...]:
+    """Las columnas de una tabla que llevan SECUENCIA. Se derivan del contenido.
+
+    Una columna cuenta si TODAS sus celdas no vacias son secuencia: con «alguna» bastaria
+    un md5 que por azar solo tuviera a/c/g/t para meter una columna de checksums.
+    """
+    if not rows:
+        return ()
+    columnas = []
+    for clave in rows[0]:
+        valores = [f[clave] for f in rows if str(f.get(clave, "")).strip()]
+        if valores and all(_es_secuencia(v) for v in valores):
+            columnas.append(clave)
+    return tuple(columnas)
+
+
+def check_no_truncation(rows, *, expected: dict[str, int], table: str) -> None:
+    """Aborta si una columna de secuencia no mide lo que su fuente declara.
+
+    `expected` es longitud POR COLUMNA, y quien llama la saca del objeto que produjo la
+    tabla —la ventana de la corrida, la longitud de la guia—, nunca de un numero escrito:
+    escribir un 7 aqui seria afirmar que la ventana es 2-8, que es justo lo que el
+    guardia tiene que comprobar y no suponer (principio nº 13).
+    """
+    from .errors import ShmirDesignError
+
+    columnas = sequence_columns(rows)
+    sin_declarar = [c for c in columnas if c not in expected]
+    if sin_declarar:
+        raise ShmirDesignError(
+            f"{table}: la(s) columna(s) {', '.join(sin_declarar)} llevan secuencia y no "
+            f"declaran su longitud esperada, así que nada impide que salgan truncadas. "
+            f"{WHY_TRUNCATION_IS_SILENT} Se declara de dónde sale su longitud, no un "
+            f"número escrito."
+        )
+    for clave, largo in expected.items():
+        for fila in rows:
+            valor = str(fila.get(clave, "")).strip()
+            if not valor:
+                continue
+            if len(valor) != largo:
+                raise ShmirDesignError(
+                    f"{table}, columna {clave}: {valor!r} mide {len(valor)} y su fuente "
+                    f"declara {largo}. {WHY_TRUNCATION_IS_SILENT}"
+                )

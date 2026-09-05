@@ -111,7 +111,11 @@ def _table_lines(headers, rows) -> list[str]:
 
     def fila(celdas):
         piezas = []
-        for ancho, celda in zip(anchos, celdas):
+        # Una fila con MAS celdas que cabeceras perderia las de mas y el PDF
+        # saldria con una columna menos, sin ningun error. `Block.__post_init__`
+        # ya lo impide al construir la tabla; esto lo dice tambien aqui, que es
+        # donde se lee.
+        for ancho, celda in zip(anchos, celdas, strict=True):
             texto = str(celda)
             if len(texto) > ancho:
                 texto = texto[: ancho - 1] + "..."

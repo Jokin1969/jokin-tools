@@ -53,7 +53,7 @@ guardia = "Cada cargador reverifica el md5 del fichero que abre"
 implementa = [
   "resources._refseq", "resources._mirbase", "resources._abundancia",
   "resources._transcriptoma", "resources._rmsk", "resources._transgen",
-  "resources._apa", "resources._polyadb",
+  "resources._apa", "resources._polyadb", "resources._plasmido_andamio",
   "mirna.load_mature_fa", "mirna.load_abundance_list", "mirna._read",
   "seed_load.load_utr3_set", "specificity.load_database",
   "apa.load_apa_sites", "apa.load_polyadb", "masking.load_rmsk",
@@ -161,6 +161,25 @@ degrada_como = "El log vive en un volumen y se edita ENTRE sesiones, que es just
 revalida = "`presentation.project_open` llama a `verify()` en cada apertura. CABLEADO 2026-08-27: hasta entonces `verify()` no la llamaba NADIE fuera de sus tests — el guardia estaba escrito, probado y sin correr."
 
 [[guardia]]
+guardia = "La entrada GUARDADA en el proyecto es la que el proyecto declara"
+implementa = ["store.ProjectStore.open"]
+protege = "Que la secuencia que `proyecto.json` guarda siga siendo aquella sobre la que se emitieron los veredictos del log. Desde 2026-09-03 el proyecto guarda la entrada verbatim para poder reabrirse sin subir nada; con ella cambiada a mano, el panel saldria con la forma correcta sobre OTRA secuencia y no habria nada que lo dijera."
+momento = "AL_ABRIR"
+puede_degradar = true
+degrada_como = "`proyecto.json` vive en un volumen y se edita ENTRE sesiones, igual que el log."
+revalida = "Cada apertura: `ProjectStore.open` recalcula el md5 de la secuencia guardada y lo compara con el que el propio fichero declara."
+
+[[guardia]]
+guardia = "Rellenar la entrada de un proyecto VIEJO sólo con la suya"
+implementa = ["store.ProjectStore._rellenar_entrada"]
+como_actua = "RECHAZA"
+protege = "Que la migración que escribe `sequence` en un proyecto de antes de ese campo (errata nº 80) no pueda meterle una secuencia que no sea la suya. Se escribe SOLO si el md5 canónico de lo que se pasa es el que el proyecto DECLARA — la misma comprobación que impide abrirlo con otra entrada, aplicada antes de escribir en vez de después."
+momento = "AL_ABRIR"
+puede_degradar = false
+degrada_como = "No se degrada: es una escritura de una sola vez, y lo escrito queda protegido a partir de ahí por el guardia de la entrada guardada, que corre en CADA apertura. NO ABORTA a propósito: con la secuencia equivocada delante, quien tiene que parar es la APERTURA —`presentation.project_open` la rechaza con su motivo— y abortar aquí daría el mismo error dos veces, una de ellas desde una migración que el usuario no ha pedido. Lo que este guardia impide es ESCRIBIR."
+revalida = "Cada apertura de un proyecto sin entrada. Una vez rellenada, la comprobación que manda es la de `ProjectStore.open`."
+
+[[guardia]]
 guardia = "Abrir un proyecto con OTRA secuencia se rechaza"
 implementa = ["presentation.project_open"]
 protege = "Que no se sigan apuntando corridas de otra secuencia en el log de ésta. La cadena de md5 no se enteraría: quedaría coherente de forma."
@@ -168,6 +187,15 @@ momento = "AL_ABRIR"
 puede_degradar = false
 degrada_como = "No se degrada: se compara contra la secuencia cargada en esa sesión."
 revalida = "Cada apertura."
+
+[[guardia]]
+guardia = "La procedencia se declara sobre el fichero que la fila REGISTRA"
+implementa = ["deposito.declare_provenance"]
+protege = "Que completar las cuatro columnas de procedencia de un fichero que ya está (errata nº 87) no se las pegue a OTRO fichero. Se recalcula el md5 del que hay en disco y se compara con el que su línea registra; si no cuadra, el fichero ha cambiado debajo y se aborta. Sin eso, el ensamblaje y la fecha de una tabla acabarían describiendo otra distinta, con la forma correcta y sin dar ningún error."
+momento = "INGESTA"
+puede_degradar = true
+degrada_como = "El fichero puede reemplazarse DESPUÉS de declarar la procedencia. Ese caso no lo cubre este guardia: lo cubre la subida, que registra la fila entera del fichero nuevo — y mientras tanto `DepositFile.stale_md5` lo dice en cada lectura del depósito."
+revalida = "Cada declaración recalcula el md5; y `deposito.read_deposit` compara en cada lectura y marca `stale_md5` para que el panel lo pinte."
 
 [[guardia]]
 guardia = "El nombre de un fichero subido lo pone el navegador"
@@ -328,6 +356,9 @@ revalida = "Cada corrida."
 "gestor._md5" = "El md5 de un fichero del gestor. Lo comparan `biblioteca.guardar` y `biblioteca.leer`."
 "spacers.choose_spacers" = "Usa un md5 como SEMILLA del generador de espaciadores, no como identidad: sirve para que la elección sea reproducible."
 "presentation.run_fingerprint" = "Calcula la huella del panel y los ajustes. Quien la COMPARA es `cached_run`."
+"controles._seed_for" = "Usa un sha256 de la guía como SEMILLA del sorteo de permutaciones, no como identidad: sirve para que la misma guía dé siempre los mismos controles, igual que `spacers.choose_spacers`. No compara nada y no hay nada que abortar."
+"identidad.result_fingerprint" = "Calcula el md5 del CRUDO de una corrida. No compara nada: es la IDENTIDAD que se guarda y que entra en el `run_id`. Quien compara es `*Store.add`, que aborta si ese id ya está — y eso es lo que hace que subir dos veces el mismo fichero se rechace y repetir la corrida el mismo día no (errata nº 48). Existe en un solo sitio porque los cuatro almacenes tenían su propia copia."
+"identidad.file_fingerprint" = "Calcula el md5 de los BYTES de un fichero. No compara: lo comparan `biblioteca.leer`, `manifest.check_directory`, el gestor y los cargadores. Existe en un solo sitio desde 2026-09-02 — lo pedian SEIS, y es el numero que decide si un fichero subido es el que dice ser. NO es el md5 de la SECUENCIA canonica (`reference.sequence_md5`): son cantidades distintas y confundirlas rechaza el fichero bueno."
 
 # ─────────────── Comparan una identidad y NO abortan: son INFORMES ───────────────
 #
@@ -337,6 +368,10 @@ revalida = "Cada corrida."
 
 [solo_informan]
 "guide_fixture.load_guide_fixture" = "COMPARA el md5, y protege el fixture de los TESTS —80 ficheros lo usan como `skipUnless`—, no ningún camino de la app. Se saca de la tabla de guardias a propósito: mezclarlo con los cargadores de producción hacía parecer que el md5 de un fichero de referencia lo comprobaba algo que sólo corre en la suite. Su justificación de alcanzabilidad ya estaba escrita y sigue valiendo."
+"presentation.log_fingerprint" = "Deriva un md5 de la lista de `run_id` presentes al generar un informe, y NO impide nada: identifica el ESTADO DEL LOG con el que se genero el documento. Va en `[solo_informan]` porque su producto es una CIFRA que se compara a mano entre dos informes —misma huella, mismo documento— y no un aborto. Lo que si obliga es a que el informe la lleve: un documento que lee estado mutable y no declara contra que estado se genero no se puede comparar con otro, y la fecha no basta porque dos corridas del mismo dia son dos documentos distintos. Lo fija `tests/test_informe_contra_estado.py`, con el control de que el ORDEN de llegada no la cambia: dos logs con las mismas corridas son el mismo estado."
+"deposito.DepositFile.stale_md5" = "Compara el md5 del fichero que HAY en el deposito contra el que su linea del manifiesto registra, y NO aborta: lo DICE. Va aqui y no entre los guardias porque el modal tiene que poder seguir —quien decide si la corrida entra es el cargador, en cada corrida, que es quien si aborta—. Lo que esto protege es otra cosa y no la cubria nadie: la PROCEDENCIA que se adjunta al veredicto sale de la linea del manifiesto, asi que con los dos md5 distintos lo que viajaria es la procedencia de OTRO fichero, con la forma correcta. Misma familia que `manifest.check_directory`, un piso mas arriba: aquel compara para pintar el panel, este para no atribuirle a una corrida un origen que no es el suyo."
+"identidad.configuration_fingerprint" = "Deriva el md5 de la configuración con la que se produjo un panel —umbrales, `SelectionConfig`, accesibilidad, andamio y los ficheros conectados— y NO impide nada: es la cifra con la que `selection_configuration_state` compara. Va en `[solo_informan]` por lo mismo que aquélla, y se declara aparte porque `magnitudes.toml` opina sobre ella como DIGESTO: las dos tablas miran el mismo hecho y las dos tienen que decirlo (principio nº 26)."
+"presentation.selection_configuration_state" = "Compara la HUELLA de la configuración de ahora contra la que la selección guardada registró, y NO impide nada: lo DICE, como `OBSOLETO`. Va aquí y no entre los guardias porque cambiar un ajuste tiene que poder seguir —quien decide es quien guarda una selección nueva—. Lo que protege no lo cubría nadie: los controles de la barra lateral son estado de Streamlit y NO se restauran al reabrir (restaurarlos daría dos fuentes de verdad, la casilla global otra vez), así que sin esto el panel de la pantalla podía dejar de corresponder a la configuración registrada sin que nada lo dijera. Se DERIVA en cada repintado; no hay nada cacheado."
 "manifest.check_directory" = "Compara el md5 de cada fichero del directorio contra el manifiesto y devuelve `EntryStatus.NO_COINCIDE`. Es lo que pinta el panel de ficheros — y NO aborta. Quien aborta es el cargador del filtro, en cada corrida."
 
 # ─────────── Existen, y NO PUEDEN correr por ningun camino que haya hoy ───────────
@@ -350,3 +385,15 @@ revalida = "Cada corrida."
 
 [sin_camino]
 "mirarchitect.Export.check_scaffold" = "Compara el LOOP del fichero contra el del andamio, que es como este proyecto dice que se decide el andamio. Necesita un EXPORT COMPLETO de miRarchitect, y el unico camino que existe —`tools/import_scores.py`— recibe un TSV de dos columnas `guia<TAB>score`, donde no hay loop. QUE HARIA FALTA: que ese CLI acepte tambien el CSV entero. Es una decision de interfaz, no un cableado, y por eso no se toma de paso. MIENTRAS TANTO el veredicto dice que el andamio se comprobo por ETIQUETA (`external_score.SCAFFOLD_BY_LABEL`)."
+
+# ─────────────── El MARCO de las posiciones de un resultado externo ───────────────
+
+[[guardia]]
+guardia = "La base declarada tiene que ser el MÁXIMO de su vecindario (±3)"
+implementa = ["spliceai.require_frame"]
+protege = "Que el resultado de SpliceAI y la app hablen del MISMO sitio. La app apunta a la G de GT y a la A de AG; SpliceAI a la última base exónica y a la primera base exónica. Sin esto, las puntuaciones se leen en la posición equivocada y todo lo que sale de ahí es aritmética correcta sobre el dato equivocado."
+momento = "INGESTA"
+como_actua = "ABORTA"
+puede_degradar = false
+degrada_como = "—. Lo comprobado es el propio fichero que se está leyendo, y no cambia entre la comprobación y el uso: `require_frame` corre dentro del mismo bucle que después lee las puntuaciones."
+revalida = "No hace falta: corre POR CONSTRUCCIÓN en cada `scan_from_result`, sobre el mismo fichero que se va a leer. No hay ventana entre la comprobación y el uso."

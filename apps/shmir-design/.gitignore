@@ -1,0 +1,6 @@
+
+# Los PROYECTOS son datos de quien usa la app, no del repositorio: el registro de lo que
+# alguien decidió con su secuencia. En un despliegue viven en el volumen
+# (`SHMIR_PROJECT_DIR`); en local, aquí. Que uno de pruebas se cuele en un commit sería
+# meter la entrada y el log de otra persona en el árbol.
+data/proyectos/

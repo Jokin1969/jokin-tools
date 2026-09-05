@@ -80,6 +80,80 @@ TAXIDS = {"raton": "txid10090", "humano": "txid9606"}
 NCBI_SUBMISSION_INTERVAL_S = 10
 NCBI_POLL_INTERVAL_S = 60
 
+# ─────────── LO QUE CABE EN EL ESCANER POR VENTANA, Y LO QUE NO ───────────
+#
+# `filter_specificity` barre la base ENTERA por cada ventana elegible. Con una base
+# pequeña —un casete, un puñado de transcritos— eso es instantaneo; con una base de
+# RefSeq de verdad son HORAS, y hasta hoy nadie lo habia visto porque el filtro no
+# llegaba a correr: se negaba a conectar el fichero sin un gen diana tecleado, asi que
+# `specificity_db` llegaba `None` (errata nº 84).
+#
+# **El techo NO es una limitacion que esconder: es la razon de que exista el modal de
+# BLAST.** Este software no lanza el BLAST y no puede —lo dice la primera linea de
+# `blast.py`—: el modal prepara la orden, se corre fuera contra una base local, y se
+# recoge el `-outfmt 6`. Y desde la errata nº 68 una corrida guardada cierra el frente
+# igual que un fichero, asi que no cerrarlo aqui no deja el frente sin forma de cerrarse.
+
+#: MEDIDO 2026-09-04 en la maquina del contenedor, con secuencia real repetida como
+#: registros: 4,4 Mnt en 124 ms y 21,9 Mnt en 562 ms, o sea ~37 Mnt/s POR VENTANA (dos
+#: sondas —guia y pasajera— por dos hebras cada una). La carga aparte: 25 MB/s y ~5x el
+#: fichero en RAM (45 MB de fichero -> 234 MB de proceso).
+HOW_THE_RATE_WAS_MEASURED = (
+    "MEDIDO 2026-09-04: ~37 Mnt/s por ventana (guía y pasajera, las dos hebras), sobre "
+    "secuencia real repetida como registros. La carga va aparte: 25 MB/s y ~5× el "
+    "fichero en memoria."
+)
+SCAN_RATE_NT_PER_SECOND = 37_000_000
+
+#: Las ventanas elegibles de la corrida murina por defecto. No es un numero redondo
+#: elegido a ojo: es la corrida que este proyecto tiene medida de punta a punta.
+TYPICAL_ELIGIBLE_WINDOWS = 407
+
+#: PRESUPUESTO DECLARADO: lo que puede tardar el filtro de especificidad en una corrida
+#: entera. Es «nuestro» —no sale de ninguna publicacion— y es lo que hay que discutir si
+#: alguien quiere subirlo; el techo en nucleotidos se DERIVA de el, no se escribe.
+SCAN_BUDGET_SECONDS = 60
+MAX_SCANNABLE_NT = (
+    SCAN_BUDGET_SECONDS * SCAN_RATE_NT_PER_SECOND // TYPICAL_ELIGIBLE_WINDOWS
+)
+
+
+def scanner_budget(size_bytes: int | None, *, name: str) -> dict[str, object]:
+    """¿Cabe esta base en el escaner por ventana? Con los numeros, no con una queja.
+
+    El tamaño se mide en BYTES del fichero, que es un techo de los nucleotidos que
+    contiene —las cabeceras y los saltos de linea suman— asi que la proyeccion peca por
+    arriba, que es la direccion segura.
+
+    `None` ABORTA: no haber podido mirar el tamaño y que quepa son cosas distintas, y una
+    de ellas cuelga la app una hora sin decir nada.
+    """
+    if size_bytes is None:
+        raise ShmirDesignError(
+            f"No se sabe cuánto pesa {name!r}, así que no se puede decir si cabe en el "
+            f"escáner por ventana. Se aborta en vez de intentarlo: una base grande "
+            f"tarda HORAS y el único síntoma sería una página que no vuelve."
+        )
+    tamaño = int(size_bytes)
+    minutos = tamaño * TYPICAL_ELIGIBLE_WINDOWS / SCAN_RATE_NT_PER_SECOND / 60
+    if tamaño <= MAX_SCANNABLE_NT:
+        return {"cabe": True, "motivo": "", "minutos": minutos}
+    return {
+        "cabe": False,
+        "minutos": minutos,
+        "motivo": (
+            f"{name} pesa {tamaño / 1e6:.0f} MB y el filtro de especificidad barre la "
+            f"base ENTERA por cada ventana: sobre las {TYPICAL_ELIGIBLE_WINDOWS} "
+            f"ventanas elegibles de una corrida serían unos {minutos:.0f} min, en cada "
+            f"repintado de la página. No se conecta a ese filtro. **El fichero sigue en "
+            f"el depósito y sigue valiendo**: es del que sale la procedencia de una "
+            f"corrida de BLAST, y el frente se cierra con el modal de especificidad — "
+            f"que es para lo que existe, porque esta app no puede correr el BLAST. "
+            f"{HOW_THE_RATE_WAS_MEASURED}"
+        ),
+    }
+
+
 SEED_CAVEAT = (
     "Este filtro NO cubre los off-targets mediados por seed: un sitio complementario "
     "a las posiciones 2-8 aparece por azar cada ~16 kb, hay miles en el transcriptoma "
@@ -113,6 +187,32 @@ class Hit:
     mismatches: int
     strand: Strand
     queries: tuple[str, ...] = ()
+
+    @property
+    def antisense(self) -> bool:
+        """En ESTE escaner, «la sonda puede aparearse con este transcrito».
+
+        OJO: NO es la misma cantidad que el signo de `sstart`→`send` de `-outfmt 6`,
+        aunque coincidan para una guia. Aqui lo pone nuestro escaner segun haya casado el
+        complemento inverso de la sonda o la sonda tal cual; alli es la hebra del sujeto
+        tal como esta depositado. Confundirlas es la errata nº 57.
+        """
+        return self.strand is Strand.ANTISENSE
+
+    @property
+    def aligned(self) -> int:
+        """Siempre la sonda ENTERA: `_scan_one` casa ventanas de `len(pattern)`.
+
+        Por eso este lado nunca tuvo el fallo de los parciales — y por eso el supuesto no
+        viajo con el criterio cuando se llevo a la corrida de BLAST.
+
+        La longitud se le PIDE a `Span`, que es quien la deriva: restarla aqui a mano
+        seria el sitio 24 de la formula que el trinquete de `data/magnitudes.toml` tiene
+        marcada como PRIORITARIA, y ese techo solo puede bajar.
+        """
+        from .audit import Span  # noqa: PLC0415
+
+        return Span(self.start, self.end).length
 
     def describe(self) -> str:
         origen = "+".join(self.queries) if self.queries else "?"
@@ -159,7 +259,10 @@ class SpecificityDatabase:
 def _count_mismatches(pattern: str, window: str, limit: int) -> int | None:
     """Desapareamientos, o None si pasan del limite o hay una base desconocida."""
     total = 0
-    for a, b in zip(pattern, window):
+    # Una ventana mas corta que el patron contaria MENOS desapareamientos, o sea
+    # un impacto que parece mejor de lo que es — y de ahi sale un veredicto de
+    # especificidad. El unico llamador recorta a `largo` exacto; esto lo exige.
+    for a, b in zip(pattern, window, strict=True):
         if b == "N" or a == "N":
             return None
         if a != b:
@@ -292,14 +395,350 @@ def _dedupe(hits: list[tuple[str, Hit]]) -> list[Hit]:
     ]
 
 
+# ─── EL CRITERIO, EN UN SOLO SITIO ──────────────────────────────────────────────
+#
+# HABIA DOS IMPLEMENTACIONES DEL MISMO FRENTE con criterios distintos, y la que daba el
+# veredicto de la corrida SUBIDA era la que NO tenia el concepto de diana (errata nº 56).
+# Las tres diferencias, medidas:
+#
+#   · `filter_specificity` descarta los hits en SENTIDO —«un hit en la misma orientacion
+#     que la sonda no es un off-target»— y `BlastRun.verdict` no miraba la orientacion;
+#   · `filter_specificity` exige `target` y ABORTA sin el; `verdict` no miraba `subject`
+#     siquiera, comprobado sobre su bytecode;
+#   · `filter_specificity` falla con CUALQUIER acierto grave fuera de la diana; `verdict`
+#     fallaba con MAS DE UNO.
+#
+# El coste ya se habia materializado: diez `FAIL` falsos, uno por candidato, porque la
+# diana tiene dos variantes de transcrito y las dos aciertan.
+#
+# Asi que el criterio vive aqui y las dos lo LLAMAN. No se arreglan por separado: eso es
+# lo que produce el cuarto par duplicado del proyecto.
+
+
+@dataclass(frozen=True)
+class SpecificityCall:
+    """Lo que dice el criterio, sin prosa: los dos lados lo visten a su manera."""
+
+    state: FilterState
+    graves: tuple = ()
+    leves: tuple = ()
+    exentos: tuple = ()
+    #: Aciertos descartados por ser PARCIALES. Ver `WHY_LENGTH_AND_NOT_MISMATCHES`.
+    parciales: int = 0
+    #: Ningun acierto contra la propia diana. Ver `NO_TARGET_HIT_NOTE`.
+    sin_diana: bool = False
+    #: Aciertos contra la propia diana con la orientacion que esa hebra NO puede dar.
+    #: Ver `EXPECTED_ORIENTATION`: es una comprobacion, no un descarte.
+    orientacion_rara: tuple = ()
+
+
+#: `ALLOWED_TRUNCATION` es lo unico que se le perdona a un alineamiento para seguir
+#: contando: un extremo recortado. El minimo NO se escribe —seria un `21` con el supuesto
+#: «la sonda mide 22» metido dentro, que es la errata nº 56 exacta— sino que se DERIVA de
+#: la sonda de cada consulta (principio nº 13).
+ALLOWED_TRUNCATION = 1
+
+#: CUANTO se le perdona a un acierto contra la PROPIA DIANA, POR HEBRA. No es el mismo
+#: numero que `ALLOWED_TRUNCATION` porque no contesta la misma pregunta: aquel dice
+#: cuando un acierto AJENO es lo bastante largo para contar; este, cuando un acierto
+#: contra el BLANCO PRETENDIDO se reconoce como tal.
+#:
+#: Y son distintas porque los CONVENIOS de este pipeline se definen respecto de la diana
+#: pretendida y no existen fuera de ella (principio nº 27, su corolario: el criterio vive
+#: en un sitio y cada llamador declara que puede probar).
+OWN_TARGET_TRUNCATION = {"guia": 1, "pasajera": 2}
+
+WHY_THE_PASSENGER_LOSES_TWO = (
+    "La pasajera pierde DOS posiciones contra su propia diana y las dos son CONVENIO, "
+    "no error: su posición 1 es el desapareamiento deliberado del bulge basal, y su "
+    "posición 22 es el complemento de la posición 1 de la guía, que el pipeline fuerza "
+    "a T para que AGO2 cargue la hebra — así que sólo casa con el genoma cuando el "
+    "genoma ya tenía una T ahí. MEDIDO sobre las 88 consultas del 2026-09-05: la "
+    "pasajera alinea 20 nt contra su diana en 75 casos y 21 en los 13 en que la T ya "
+    "estaba. Con un solo nucleótido de holgura, esas 75 no encontraban su blanco y la "
+    "app avisaba de que no lo tenían — una alarma sobre una construcción impecable, en "
+    "el 85 % de las pasajeras. La guía pierde SOLO su posición 1."
+)
+
+
+#: POR QUE IMPORTA EL GEN QUE SE ATRAPA, no solo su accession. Un `NM_...` en un motivo
+#: de FAIL no dice nada: quien lo lee tiene que ir a buscarlo, y lo que decide si el
+#: candidato se descarta o se discute es QUE gen es.
+#:
+#: EN CODIGO Y NO EN UN FICHERO, con el mismo criterio que `mirna.CORE_ABUNDANT`: esto
+#: cambia la lectura de todos los informes a la vez, y en un fichero se cambiaria sin que
+#: se viera en el diff. Lo que SI es dato —contra que acerto cada guia— sale de la
+#: corrida; esto es la consecuencia biologica, que la app no puede derivar.
+CONSEQUENCE_AUTHORIZATION = (
+    "Autorizado el 2026-09-05 por el responsable del proyecto, con la corrida de 88 "
+    "candidatos delante y sobre el único que cayó. Cada entrada dice POR QUE ese gen "
+    "convierte un acierto en un problema, no que lo sea: la consecuencia se declara, y "
+    "un gen sin declarar sale por su accession y nada más."
+)
+
+#: Las OCHO variantes de transcrito de Adar que atrapo la corrida del 2026-09-05,
+#: IDENTIFICADAS POR EL RESPONSABLE DEL PROYECTO —desde aqui no hay red para resolver un
+#: accession, asi que se declara con su procedencia y no se deduce—. Van todas al mismo
+#: motivo: son el mismo gen, y repetir el texto ocho veces lo lee como ocho hallazgos.
+ADAR_VARIANTS = (
+    "NM_019655.4", "NM_001038587.5", "NM_001146296.2", "NM_001357958.2",
+    "NM_001410658.1", "NM_001410659.1", "NM_001410660.1", "NM_001410661.1",
+)
+
+_ADAR = (
+    "ADAR — adenosina deaminasa específica de ARN de DOBLE CADENA (Q3UH31). Tres "
+    "razones, y ninguna sobra: (1) es MAQUINARIA DEL PROPIO SISTEMA de ARN de doble "
+    "cadena, que es justo lo que el vector produce; (2) es ESENCIAL EN NEURONA — "
+    "edita GluA2 en el sitio Q/R, y sin esa edición el receptor se vuelve permeable "
+    "a calcio; y (3) su pérdida daría NEURODEGENERACIÓN, que en un experimento de "
+    "priones se leería como toxicidad del shmiR o como la enfermedad progresando. "
+    "O sea: el modo de fallo no es «algo de ruido», es un resultado que se "
+    "interpretaría mal."
+)
+
+CONSEQUENCE_DECLARED = {accession: _ADAR for accession in ADAR_VARIANTS}
+
+
+def consequence_of(accession: str) -> str:
+    """Por que importa ese gen. Cadena vacia = no declarado, y NO se deduce."""
+    return CONSEQUENCE_DECLARED.get(str(accession).strip(), "")
+
+
+#: LAS DOS FRASES VAN JUNTAS O SE LEEN MAL, y es la misma forma que «rebaja, no descarta»
+#: y que el «QUE MIDE / QUE NO MIDE» del ensayo de RT-qPCR. Por separado: la tasa suena a
+#: filtro inutil y la captura a filtro decisivo. Es las dos cosas.
+DISCRIMINATION_BOTH_CLAUSES = (
+    "Este frente NO ES LO QUE DISCRIMINA entre candidatos —muerde {caidos} de cada "
+    "{total}— Y AUN ASÍ es el que hay que correr, porque lo que atrapa es esto:"
+)
+
+NOTHING_CAUGHT = (
+    "Este frente ha corrido sobre {total} candidato(s) y no ha caído NINGUNO. Eso no es "
+    "que no discrimine: es que en este panel no hay ninguna guía con complementariedad "
+    "extensa fuera de su diana. La cifra se da para poder leer la siguiente."
+)
+
+
+def discrimination_reading(*, total: int, caidos: int, atrapados) -> str:
+    """La tasa y LO QUE ATRAPA, en el mismo texto. Nunca una sin la otra.
+
+    `atrapados` es `{consulta: (accession, ...)}` — lo DERIVA quien llama de la corrida.
+    """
+    if not atrapados:
+        return NOTHING_CAUGHT.format(total=int(total))
+    lineas = [DISCRIMINATION_BOTH_CLAUSES.format(caidos=int(caidos), total=int(total))]
+    for consulta in sorted(atrapados):
+        # AGRUPADO POR CONSECUENCIA: ocho variantes de transcrito del MISMO gen son UN
+        # hallazgo, y repetir su motivo ocho veces lo lee como ocho. Los que no declaran
+        # consecuencia salen por su accession, cada uno en su linea.
+        por_motivo: dict[str, list[str]] = {}
+        for accession in sorted(dict.fromkeys(atrapados[consulta])):
+            por_motivo.setdefault(consequence_of(accession), []).append(accession)
+        for motivo, accessions in sorted(por_motivo.items(), key=lambda kv: not kv[0]):
+            cuantos = (
+                f"{len(accessions)} variantes de transcrito "
+                f"({', '.join(accessions)})" if len(accessions) > 1
+                else accessions[0]
+            )
+            lineas.append(
+                f"  · {consulta} → {cuantos}"
+                + (f": {motivo}" if motivo else " (consecuencia sin declarar).")
+            )
+    return "\n".join(lineas)
+
+
+def own_target_minimum(probe_length: int, *, strand: str) -> int:
+    """Cuantos nt tiene que alinear un acierto para reconocerse como LA PROPIA DIANA.
+
+    Se DERIVA de la sonda y de los convenios de esa hebra; no se escribe. Una hebra sin
+    convenio declarado ABORTA: deducirlo daria un umbral con la forma correcta y el
+    convenio equivocado, que es la errata nº 56 exacta.
+    """
+    if strand not in OWN_TARGET_TRUNCATION:
+        raise ValueError(
+            f"Hebra {strand!r} sin convenio declarado en `OWN_TARGET_TRUNCATION`; las "
+            f"que hay son {', '.join(sorted(OWN_TARGET_TRUNCATION))}. Se aborta en vez "
+            f"de suponer una holgura: {WHY_THE_PASSENGER_LOSES_TWO}"
+        )
+    return int(probe_length) - OWN_TARGET_TRUNCATION[strand]
+
+
+#: LA COLUMNA `mismatch` DE `-outfmt 6` NO DICE QUE EL ACIERTO SEA PERFECTO: dice que es
+#: perfecto EN EL SEGMENTO QUE ALINEO. Un parcial de 13 nt clavado trae `mismatches = 0`,
+#: y con `blastn-short`, `word_size 7` y `evalue 1000` la corrida esta llena de ellos.
+#: Sin mirar la longitud, ese ruido entraba como acierto grave y tumbaba el panel entero
+#: (errata nº 57).
+#:
+#: POR QUE `filter_specificity` NO LO TENIA aunque comparta el criterio: su escaner casa
+#: ventanas de EXACTAMENTE `len(sonda)`, asi que todos sus hits son de longitud completa
+#: y la condicion se cumplia sola. Al mover el criterio a la corrida de BLAST —que
+#: devuelve alineamientos LOCALES— no viajo el supuesto que lo sostenia.
+WHY_LENGTH_AND_NOT_MISMATCHES = (
+    "Un acierto cuenta si alinea casi la sonda ENTERA: `mismatch` de `-outfmt 6` sólo "
+    "cuenta desapareamientos dentro del segmento alineado, así que un parcial de 13 nt "
+    "clavado trae 0 y no es un off-target."
+)
+
+
+#: LA ORIENTACION ES LA FIRMA DE QUE HEBRA ES, NO UN FILTRO. Correccion del responsable
+#: del proyecto (2026-09-02), y da un invariante mas fuerte que descartar:
+#:
+#:   guia      → ANTISENTIDO contra su diana (el mRNA lleva su complemento inverso);
+#:   pasajera  → SENTIDO (lleva la misma secuencia que el blanco).
+#:
+#: Descartar los hits en sentido tiraba, en la PASAJERA, su acierto legitimo contra la
+#: propia diana — y con el la exencion de variantes, que no llegaba a aplicarse. Como
+#: comprobacion en cambio caza algo que ningun otro guardia ve: una guia cuyo acierto
+#: contra su diana salga en sentido esta MAL MONTADA (guia y pasajera intercambiadas).
+EXPECTED_ORIENTATION = {"guia": True, "pasajera": False}
+
+WRONG_ORIENTATION_NOTE = (
+    "OJO: el acierto contra la propia diana sale con la ORIENTACIÓN que esta hebra no "
+    "puede dar. Una guía es antisentido a su blanco por definición y una pasajera lleva "
+    "su misma secuencia, así que esto no es un off-target: es que la construcción está "
+    "MAL MONTADA —guía y pasajera intercambiadas, o el FASTA de consulta montado al "
+    "revés—. No cambia el veredicto de este frente, que mide otra cosa. Y NO ES UN "
+    "PROBLEMA DE ESTE CANDIDATO: es un fallo de CONSTRUCCIÓN, así que se arregla "
+    "rehaciendo el FASTA de consulta y volviendo a correr, no cambiando de candidato — "
+    "el que hay puede estar perfectamente bien y no se sabrá hasta rehacerlo."
+)
+
+
+#: EL SUPUESTO QUE ESTABA ESCONDIDO EN UN NUMERO. `verdict` fallaba con «mas de un»
+#: acierto grave, y ese `> 1` significaba «uno es tuyo» — un supuesto sobre los datos que
+#: no estaba escrito en ninguna parte. Falla en DOS direcciones y las dos son invisibles:
+#: con dos variantes del gen cuenta la segunda como off-target (lo que paso), y con una
+#: guia que NO acierta a su propia diana da PASS a algo que quiza no reconoce su blanco.
+#:
+#: El criterio ya no lleva ningun supuesto dentro: la diana se DECLARA y el umbral es
+#: «ningun acierto grave fuera de ella», que es lo que dice que es.
+WHY_NOT_MORE_THAN_ONE = (
+    "El criterio NO es «más de un acierto»: ese umbral escondía el supuesto de que la "
+    "diana produce exactamente UN acierto, y con dos variantes del mismo gen contaba la "
+    "segunda como off-target. La diana se declara y el umbral es «ningún acierto grave "
+    "fuera de ella»."
+)
+
+#: Que no haya NINGUN acierto contra la propia diana no es un off-target y no veta: es
+#: informacion sobre la CORRIDA. Se dice porque el umbral viejo la daba por buena en
+#: silencio — una guia que no reconoce su blanco salia `PASS` por no tener con que
+#: compararse. Que funcione o no es el frente de POTENCIA, que este software no mide.
+NO_TARGET_HIT_NOTE = (
+    "OJO: esta consulta no tiene NINGÚN acierto contra su propia diana. Eso no es un "
+    "off-target y no veta este frente —la potencia es otra pregunta y este software no "
+    "la mide—, pero sí dice que algo raro pasa con la corrida o con la base: la diana "
+    "declarada tendría que estar ahí."
+)
+
+
+def judge_hits(
+    hits, *, target_accessions, min_aligned, expected_antisense=None,
+    strand=None, probe_length=None,
+) -> SpecificityCall:
+    """El veredicto de especificidad a partir de los aciertos. UN solo criterio.
+
+    `hits` son objetos con `transcript`, `aligned`, `mismatches`, `antisense` y
+    `describe()`; cada implementacion adapta los suyos. `target_accessions` son TODAS
+    las variantes de transcrito de la diana: un gen tiene varias y todas son la diana.
+
+    `min_aligned` es cuantos nucleotidos tiene que alinear un acierto para contar, y lo
+    DERIVA quien llama de la sonda de esa consulta — no se escribe aqui (errata nº 57).
+
+    `expected_antisense` es la orientacion que esa hebra tiene que dar contra su PROPIA
+    diana. Es una COMPROBACION y no un filtro: no descarta ningun acierto y no cambia el
+    estado. `None` = no se comprueba, y eso NO es «coincide».
+    """
+    diana = {str(a).strip() for a in target_accessions if str(a).strip()}
+    if not diana:
+        raise ValueError(
+            "Hay que declarar las variantes de transcrito de la diana: sin ellas, un "
+            "acierto perfecto contra el propio blanco se cuenta como off-target y el "
+            "filtro no significa nada. Se aborta."
+        )
+    todos = list(hits)
+    # LA LONGITUD PRIMERO, Y LA ORIENTACION NO ENTRA. Un parcial no es un off-target
+    # mire a donde mire; y descartar por orientacion tiraba el acierto legitimo de la
+    # pasajera contra su propia diana. Ver `WHY_LENGTH_AND_NOT_MISMATCHES` y
+    # `EXPECTED_ORIENTATION`.
+    completos = [h for h in todos if h.aligned >= min_aligned]
+    fuera = [h for h in completos if h.transcript not in diana]
+    # RECONOCER LA PROPIA DIANA ES OTRA PREGUNTA, y por eso tiene otro minimo. Con el de
+    # los ajenos, 75 de las 88 pasajeras del 2026-09-05 «no acertaban contra su blanco»
+    # — y lo que pasaba es que pierden DOS posiciones de convenio, no que fallaran.
+    # Sin hebra declarada NO se afloja nada: se sigue usando `min_aligned`, que es el
+    # comportamiento de siempre y nunca es mas permisivo.
+    propio = (
+        own_target_minimum(probe_length, strand=strand)
+        if strand is not None and probe_length is not None else min_aligned
+    )
+    exentos = [
+        h for h in todos if h.transcript in diana and h.aligned >= propio
+    ]
+    graves = [h for h in fuera if h.mismatches <= 1]
+    leves = [h for h in fuera if h.mismatches == 2]
+    raras = (
+        [h for h in exentos if h.antisense is not expected_antisense]
+        if expected_antisense is not None else []
+    )
+    return SpecificityCall(
+        state=FilterState.FAIL if graves else FilterState.PASS,
+        graves=tuple(graves),
+        leves=tuple(leves),
+        exentos=tuple(exentos),
+        parciales=len(todos) - len(completos),
+        sin_diana=not exentos,
+        orientacion_rara=tuple(raras),
+    )
+
+
+def target_accessions(species) -> tuple[str, ...]:
+    """Las variantes de transcrito declaradas para la diana de esa especie.
+
+    ABORTA si la especie no las declara. Es la condicion sin la cual esta exencion seria
+    un colador: nunca un `PASS` por una lista vacia.
+    """
+    import tomllib  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    from .species import resolve  # noqa: PLC0415
+
+    ruta = Path(__file__).resolve().parent.parent / "data" / "diana" / "variantes.toml"
+    with ruta.open("rb") as f:
+        tabla = tomllib.load(f)
+    slug = resolve(species).slug
+    entrada = tabla.get(slug)
+    if not entrada or not entrada.get("accessions"):
+        raise ShmirDesignError(
+            f"No hay variantes de transcrito declaradas para {slug!r} en "
+            f"{ruta.parent.name}/{ruta.name}. Sin ellas no se puede dar veredicto de "
+            f"especificidad: un acierto perfecto contra el propio blanco se contaría "
+            f"como off-target y todos los candidatos fallarían contra su propia diana. "
+            f"Se declaran ahí, con su procedencia — nunca se deducen."
+        )
+    return tuple(entrada["accessions"])
+
+
 def filter_specificity(
     guide: str,
     passenger: str | None,
     database: SpecificityDatabase | None,
     *,
-    target: str,
+    species: str,
 ) -> SpecificityResult:
-    """Filtro de especificidad. Sin base de datos: NOT_RUN, nunca PASS."""
+    """Filtro de especificidad. Sin base de datos: NOT_RUN, nunca PASS.
+
+    **LA DIANA SALE DE `data/diana/variantes.toml`, no de un campo tecleado. DECIDIDO
+    (2026-09-04).** Antes esto exigia un `target` —UN accession, escrito a mano en la
+    barra lateral— y abortaba sin el; el veredicto de una corrida de BLAST, en cambio, ya
+    usaba `target_accessions(especie)`: la lista COMPLETA de variantes, declarada con su
+    procedencia (errata nº 56). Eran **dos respuestas a la misma pregunta** y ganaba la
+    manual, que ademas es la peor de las dos: una variante en vez de todas y sin
+    procedencia.
+
+    Sin declaracion NO se aborta: se emite `NO_CIERRA` con el motivo, igual que alli.
+    Abortar dejaria sin diseñar a una especie por algo que no impide proponer candidatos,
+    y un `PASS` seria el colador que `target_accessions` existe para impedir.
+    """
     if database is None:
         return SpecificityResult(
             state=FilterState.NOT_RUN,
@@ -309,11 +748,20 @@ def filter_specificity(
                 f"base ausente nunca se convierten en PASS. {SEED_CAVEAT}"
             ),
         )
-    if not target or not target.strip():
-        raise ValueError(
-            "Hay que declarar el gen diana: sin el, todo sitio parece un off-target y "
-            "el filtro no significa nada. Se aborta."
+    try:
+        dianas = target_accessions(species)
+    except ShmirDesignError as exc:
+        # rule2-ok: no se traga nada. El motivo entero viaja al veredicto, y el estado
+        # dice que la corrida se hizo y NO cierra el frente — que es distinto de que
+        # falte el fichero, y aqui el fichero esta.
+        return SpecificityResult(
+            state=FilterState.NO_CIERRA,
+            reason=(
+                f"La base está cargada y el filtro no puede dar veredicto: {exc} "
+                f"{SEED_CAVEAT}"
+            ),
         )
+    target = ", ".join(dianas)
 
     crudos: list[tuple[str, Hit]] = []
     for origen, sonda in (("guia", guide), ("pasajera", passenger)):
@@ -321,11 +769,34 @@ def filter_specificity(
             crudos.extend((origen, hit) for hit in scan_database(sonda, database))
 
     todos = _dedupe(crudos)
+    # EL CRITERIO ES EL MISMO QUE EL DE LA CORRIDA SUBIDA, y se llama, no se repite:
+    # habia dos y la que daba el veredicto de la corrida no tenia concepto de diana
+    # (errata nº 56). `target` sigue siendo un accession aqui; el criterio acepta el
+    # conjunto de variantes.
     antisentido = [h for h in todos if h.strand is Strand.ANTISENSE]
     sentido = [h for h in todos if h.strand is Strand.SENSE]
-    fuera = [h for h in antisentido if h.transcript != target]
-    graves = [h for h in fuera if h.mismatches <= 1]
-    leves = [h for h in fuera if h.mismatches == 2]
+    # SE LE SOMETEN SOLO LOS APAREABLES, y eso NO es «filtrar por orientacion»: en ESTE
+    # escaner un hit en SENTIDO es un transcrito que contiene la sonda TAL CUAL, con la
+    # que la sonda no puede aparearse — no es un off-target suyo, y esta medido, no
+    # supuesto (`_scan_one` casa el complemento inverso para ANTISENTIDO y la sonda para
+    # SENTIDO). En `-outfmt 6` el signo de `sstart`→`send` NO es esta cantidad, y por eso
+    # alli se le someten TODOS. La orientacion no entra en el criterio; lo que entra es
+    # que cada llamador declare que puede probar.
+    #
+    # `expected_antisense=None`: aqui la etiqueta es «aparea», no «que hebra es», asi que
+    # el invariante de montaje no aplica — y no haberlo comprobado no es que coincida.
+    fallo = judge_hits(
+        antisentido,
+        target_accessions=dianas,
+        # De la sonda MAS CORTA de las que se escanearon: aqui todo hit mide lo que su
+        # sonda, asi que este minimo no puede descartar ninguno legitimo — y sigue
+        # derivandose en vez de escribirse.
+        min_aligned=min(
+            len("".join(str(x).split())) for x in (guide, passenger) if x
+        ) - ALLOWED_TRUNCATION,
+        expected_antisense=None,
+    )
+    graves, leves = list(fallo.graves), list(fallo.leves)
 
     orientacion = (
         f" Descartados {len(sentido)} hit(s) en orientacion SENTIDO (misma hebra que "

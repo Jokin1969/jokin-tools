@@ -18,6 +18,7 @@ import unittest
 from shmir_design.errors import ShmirDesignError
 from shmir_design.filters import FilterState
 from shmir_design.specificity import (
+    target_accessions,
     MAX_MISMATCHES,
     SpecificityDatabase,
     Strand,
@@ -28,7 +29,10 @@ from shmir_design.specificity import (
 
 GUIA_1018 = "TTTAGTACTGGATGGAACGGCC"
 SITIO_1018 = "GGCCGTTCCATCCAGTACTAAA"          # revcomp: el tramo real del mRNA
-DIANA = "NM_011170.3"
+#: Se PIDE a la tabla que declara la diana, no se escribe: si se transcribe,
+#: el día que la tabla cambie estos tests seguirán en verde contra un
+#: accession que la app ya no usa (principio nº 25).
+DIANA = target_accessions("raton")[0]
 
 
 def transcrito(secuencia_por_posicion: dict[int, str], longitud: int = 2191) -> str:
@@ -85,13 +89,13 @@ class TestOrientacion(unittest.TestCase):
 
     def test_los_hits_sentido_no_cuentan_para_el_veredicto(self):
         base = base_de_datos({"otro": transcrito({100: GUIA_1018}, longitud=500)})
-        resultado = filter_specificity(GUIA_1018, None, base, target=DIANA)
+        resultado = filter_specificity(GUIA_1018, None, base, species="raton")
         self.assertIs(resultado.state, FilterState.PASS)
         self.assertIn("sentido", resultado.reason.lower())
 
     def test_la_salida_dice_cuantos_se_han_descartado_por_orientacion(self):
         base = base_de_datos({"otro": transcrito({100: GUIA_1018}, longitud=500)})
-        resultado = filter_specificity(GUIA_1018, None, base, target=DIANA)
+        resultado = filter_specificity(GUIA_1018, None, base, species="raton")
         self.assertIn("1", resultado.reason)
 
 
@@ -129,7 +133,7 @@ class TestVeredicto(unittest.TestCase):
 
     def test_solo_el_gen_diana_pasa(self):
         base = base_de_datos({DIANA: transcrito({1967: SITIO_1018})})
-        resultado = filter_specificity(GUIA_1018, None, base, target=DIANA)
+        resultado = filter_specificity(GUIA_1018, None, base, species="raton")
         self.assertIs(resultado.state, FilterState.PASS)
 
     def test_un_sitio_de_0_fuera_de_la_diana_es_FAIL(self):
@@ -137,7 +141,7 @@ class TestVeredicto(unittest.TestCase):
             DIANA: transcrito({1967: SITIO_1018}),
             "NM_otro.1": transcrito({100: SITIO_1018}, 500),
         })
-        resultado = filter_specificity(GUIA_1018, None, base, target=DIANA)
+        resultado = filter_specificity(GUIA_1018, None, base, species="raton")
         self.assertIs(resultado.state, FilterState.FAIL)
         self.assertIn("NM_otro.1", resultado.reason)
 
@@ -145,7 +149,7 @@ class TestVeredicto(unittest.TestCase):
         sitio = "A" + SITIO_1018[1:]
         base = base_de_datos({DIANA: transcrito({1967: SITIO_1018}),
                               "NM_otro.1": transcrito({100: sitio}, 500)})
-        resultado = filter_specificity(GUIA_1018, None, base, target=DIANA)
+        resultado = filter_specificity(GUIA_1018, None, base, species="raton")
         self.assertIs(resultado.state, FilterState.FAIL)
 
     def test_un_sitio_de_2_es_aviso_pero_no_FAIL(self):
@@ -153,20 +157,30 @@ class TestVeredicto(unittest.TestCase):
         bases[3], bases[15] = "A", "A"
         base = base_de_datos({DIANA: transcrito({1967: SITIO_1018}),
                               "NM_otro.1": transcrito({100: "".join(bases)}, 500)})
-        resultado = filter_specificity(GUIA_1018, None, base, target=DIANA)
+        resultado = filter_specificity(GUIA_1018, None, base, species="raton")
         self.assertIs(resultado.state, FilterState.PASS)
         self.assertIn("2 desapareamientos", resultado.reason)
         self.assertIn("NM_otro.1", resultado.reason)
 
     def test_sin_base_de_datos_es_NOT_RUN(self):
-        resultado = filter_specificity(GUIA_1018, None, None, target=DIANA)
+        resultado = filter_specificity(GUIA_1018, None, None, species="raton")
         self.assertIs(resultado.state, FilterState.NOT_RUN)
         self.assertIn("NOT_RUN no es PASS", resultado.reason)
 
-    def test_sin_gen_diana_declarado_aborta(self):
+    def test_una_especie_SIN_diana_declarada_da_NO_CIERRA(self):
+        """Antes abortaba con un `target` vacío. Ya no hay `target` que vaciar.
+
+        La diana la declara `data/diana/variantes.toml`; si una especie no la tiene, el
+        filtro emite `NO_CIERRA` con el motivo — la corrida se hizo y no cierra el
+        frente. Abortar dejaría sin diseñar por algo que no impide proponer candidatos, y
+        un `PASS` sería el colador que `target_accessions` existe para impedir.
+        """
+        from shmir_design.filters import FilterState
+
         base = base_de_datos({DIANA: transcrito({1967: SITIO_1018})})
-        with self.assertRaises(ValueError):
-            filter_specificity(GUIA_1018, None, base, target="")
+        resultado = filter_specificity(GUIA_1018, None, base, species="conejo")
+        self.assertIs(resultado.state, FilterState.NO_CIERRA)
+        self.assertIn("variantes.toml", resultado.reason)
 
 
 class TestGuiaYPasajeraPorSeparado(unittest.TestCase):
@@ -178,20 +192,20 @@ class TestGuiaYPasajeraPorSeparado(unittest.TestCase):
             DIANA: transcrito({1967: SITIO_1018}),
             "NM_otro.1": transcrito({100: reverse_complement(pasajera)}, 500),
         })
-        resultado = filter_specificity(GUIA_1018, pasajera, base, target=DIANA)
+        resultado = filter_specificity(GUIA_1018, pasajera, base, species="raton")
         origenes = {origen for hit in resultado.hits for origen in hit.queries}
         self.assertIn("pasajera", origenes)
 
     def test_los_hits_compartidos_salen_una_sola_vez(self):
         pasajera = "C" + reverse_complement(GUIA_1018)[1:]
         base = base_de_datos({DIANA: transcrito({1967: SITIO_1018})})
-        resultado = filter_specificity(GUIA_1018, pasajera, base, target=DIANA)
+        resultado = filter_specificity(GUIA_1018, pasajera, base, species="raton")
         posiciones = [(h.transcript, h.start, h.strand) for h in resultado.hits]
         self.assertEqual(len(posiciones), len(set(posiciones)))
 
     def test_sin_pasajera_solo_se_evalua_la_guia(self):
         base = base_de_datos({DIANA: transcrito({1967: SITIO_1018})})
-        resultado = filter_specificity(GUIA_1018, None, base, target=DIANA)
+        resultado = filter_specificity(GUIA_1018, None, base, species="raton")
         self.assertTrue(all(hit.queries == ("guia",) for hit in resultado.hits))
 
 
@@ -205,13 +219,13 @@ class TestProcedencia(unittest.TestCase):
 
     def test_la_procedencia_sale_en_el_motivo(self):
         base = base_de_datos({DIANA: transcrito({1967: SITIO_1018})})
-        resultado = filter_specificity(GUIA_1018, None, base, target=DIANA)
+        resultado = filter_specificity(GUIA_1018, None, base, species="raton")
         self.assertIn("RefSeq RNA de prueba", resultado.reason)
         self.assertIn("2026-08-25", resultado.reason)
 
     def test_los_parametros_exactos_salen_en_el_informe(self):
         base = base_de_datos({DIANA: transcrito({1967: SITIO_1018})})
-        texto = filter_specificity(GUIA_1018, None, base, target=DIANA).format_text()
+        texto = filter_specificity(GUIA_1018, None, base, species="raton").format_text()
         self.assertIn("22 nt", texto)
         self.assertIn("2 desapareamientos", texto)
         self.assertIn("0" * 32, texto)
@@ -226,13 +240,13 @@ class TestLoQueEsteFiltroNoResuelve(unittest.TestCase):
 
     def test_el_informe_lo_dice(self):
         base = base_de_datos({DIANA: transcrito({1967: SITIO_1018})})
-        texto = filter_specificity(GUIA_1018, None, base, target=DIANA).format_text()
+        texto = filter_specificity(GUIA_1018, None, base, species="raton").format_text()
         self.assertIn("seed", texto.lower())
         self.assertIn("7mer", texto)
 
     def test_y_dice_que_ningun_alineador_los_devuelve(self):
         base = base_de_datos({DIANA: transcrito({1967: SITIO_1018})})
-        texto = filter_specificity(GUIA_1018, None, base, target=DIANA).format_text()
+        texto = filter_specificity(GUIA_1018, None, base, species="raton").format_text()
         self.assertIn("alineador", texto.lower())
 
 

@@ -232,7 +232,16 @@ def build_dossier(
         desfase = tiling.anatomy.utr3[0] - 1
 
     almacen = store or BlastStore()
-    consulta = f"{species}_pos{start}_guia"
+    # LA CLAVE SE DERIVA, no se vuelve a escribir. La armaba aqui a mano con la especie
+    # tal cual llegara, y el FASTA de consulta la arma con el SLUG desde la errata nº 42:
+    # con `species="Mus musculus"` una decia `Mus musculus_pos959_guia` y la otra
+    # `mouse_pos959_guia`. No se notaba porque nadie llama a esto con un almacen lleno —
+    # o sea que el fallo estaba esperando a que alguien cableara el almacen, y entonces
+    # `verdict_for` no habria encontrado nada y el sintoma habria sido identico al de
+    # antes de cablearlo. Principio nº 13 sobre una CLAVE.
+    from .presentation import query_name
+
+    consulta = query_name(species, start, "guia")
 
     fecha_de = {}
     procedencia_de = {}
@@ -250,7 +259,8 @@ def build_dossier(
         fecha_de[frente.name] = SIN_FECHA
     # La especificidad de ESTE candidato sale del almacen, que es quien tiene la fecha
     # y quien sabe si la corrida cierra el frente o no.
-    resultado = almacen.verdict_for(consulta)
+    # La especie decide que variantes de transcrito son la diana (errata nº 56).
+    resultado = almacen.verdict_for(consulta, species=species)
     ultima = almacen.latest(consulta)
     estados["especificidad"] = (resultado.state, resultado.reason)
     procedencia_de["especificidad"] = (
@@ -269,7 +279,7 @@ def build_dossier(
     fecha_de.pop("seed_colision", None)
     for hebra in ("guia", "pasajera"):
         nombre = f"seed_colision:{hebra}"
-        consulta_hebra = f"{species}_pos{start}_{hebra}"
+        consulta_hebra = query_name(species, start, hebra)
         resultado_hebra = seeds.verdict_for(consulta_hebra)
         corrida = seeds.latest(consulta_hebra)
         estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)
@@ -290,7 +300,7 @@ def build_dossier(
     fecha_de.pop("offtarget_seed", None)
     for hebra in ("guia", "pasajera"):
         nombre = f"offtarget_seed:{hebra}"
-        consulta_hebra = f"{species}_pos{start}_{hebra}"
+        consulta_hebra = query_name(species, start, hebra)
         resultado_hebra = cargas.verdict_for(consulta_hebra)
         corrida = cargas.latest(consulta_hebra)
         estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)

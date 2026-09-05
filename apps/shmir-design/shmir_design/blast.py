@@ -150,7 +150,25 @@ class BlastParams:
         return " AND ".join(partes)
 
     def command(self, *, query_path: str, out_path: str | None = None) -> str:
-        """La orden `blastn` COMPLETA. Todos los parametros, no solo los cambiados."""
+        """La orden `blastn` COMPLETA. Todos los parametros, no solo los cambiados.
+
+        **`-entrez_query` SOLO va con `-remote`**, y esto se aprendio de la peor manera:
+        la orden lo llevaba siempre, asi que contra una base LOCAL `blastn` la rechaza —
+        y la ficha, dos lineas mas abajo, mandaba correrla en local. Las dos
+        instrucciones se contradecian y quien copiaba la orden se estrellaba DESPUES de
+        bajarse varios GB de base. Ver errata nº 40.
+
+        En local la restriccion a la especie no desaparece: **pasa a ser una propiedad de
+        la BASE**, y eso se dice en los avisos en vez de dejar que se pierda en silencio.
+        El organismo sigue viajando con la corrida (`describe()`), que es lo que se
+        guarda: lo que cambia es de donde sale el filtro, no si se sabe cual era.
+        """
+        # El ORGANISMO se exige SIEMPRE, tambien en local, aunque en local no salga en la
+        # orden: es la IDENTIDAD de la corrida y viaja con ella al almacen. Sin el, la
+        # corrida no se puede leer dentro de un año — «¿contra que organismo era esto?».
+        # Antes lo exigia `entrez_expression()` de rebote, asi que al dejar de llamarse
+        # en local el guardia se habria caido con el filtro.
+        self.entrez_expression()
         trozos = [
             "blastn",
             f"-task {self.task}",
@@ -159,14 +177,73 @@ class BlastParams:
             f"-evalue {self.evalue:g}",
             f"-dust {self.dust}",
             f"-outfmt {self.outfmt}",
-            f'-entrez_query "{self.entrez_expression()}"',
             f"-query {query_path}",
         ]
         if self.remote:
             trozos.insert(3, "-remote")
+            # El filtro de Entrez es del servicio de NCBI, no de `blastn`: sin `-remote`
+            # no hay a quien preguntarselo.
+            trozos.insert(-1, f'-entrez_query "{self.entrez_expression()}"')
         if out_path:
             trozos.append(f"-out {out_path}")
         return " ".join(trozos)
+
+    def predicted_state(self):
+        """El estado del ajuste «incluir predichos». En LOCAL, `NOT_RUN`.
+
+        `include_predicted` solo tiene efecto dentro de `-entrez_query`, y desde la
+        errata nº 40 ese filtro va SOLO con `-remote`. En una corrida local el ajuste no
+        aparece en la orden: no filtra nada, ni a favor ni en contra. Lo que decide si
+        hay predichos en el resultado es LA BASE, y eso este campo no lo sabe.
+
+        Se elige `NOT_RUN` y no una nota al lado, y no es una preferencia de estilo: una
+        nota deja el campo AFIRMANDO algo que la corrida no puede cumplir. El riesgo es
+        concreto — dos corridas, una remota y otra local, las dos registradas como
+        «predichos: si», comparadas dentro de un año como si fueran equivalentes.
+        """
+        from .filters import FilterState
+
+        return FilterState.PASS if self.remote else FilterState.NOT_RUN
+
+    def predicted_reason(self) -> str:
+        """Por que no se puede afirmar. NO es un fichero que falte: es que no aplica."""
+        if self.remote:
+            return (
+                f"`-entrez_query` lo aplica el servicio de NCBI, y esta corrida es "
+                f"`-remote`: los modelos predichos "
+                f"{'entran' if self.include_predicted else 'quedan EXCLUIDOS'} por la "
+                f"propia orden."
+            )
+        return (
+            "NO SE PUEDE AFIRMAR EN UNA CORRIDA LOCAL. Este ajuste sólo actúa dentro de "
+            "`-entrez_query`, que únicamente funciona con `-remote`, así que aquí no "
+            "aparece en la orden y no filtra nada. Si en el resultado hay o no modelos "
+            "predichos lo decide LA BASE contra la que se corrió — y eso este campo no "
+            "lo sabe. Marcarlo como cumplido dejaría dos corridas, una remota y una "
+            "local, registradas igual y comparables dentro de un año como si lo fueran."
+        )
+
+    def organism_note(self) -> str:
+        """De donde sale la restriccion a la especie en ESTA corrida.
+
+        No es cosmetico: sin esta frase, una corrida local contra `refseq_rna` entero se
+        leeria como si estuviera restringida al organismo declarado, que es justo lo que
+        el aviso del `.out` sin especie existe para impedir.
+        """
+        if self.remote:
+            return (
+                f"El filtro de ORGANISMO ({self.entrez_query}) va en la orden, en "
+                f"`-entrez_query`, y lo aplica el servicio de NCBI."
+            )
+        return (
+            f"El filtro de ORGANISMO ({self.entrez_query}) NO va en la orden: "
+            f"`-entrez_query` sólo funciona con `-remote`. En una corrida LOCAL la "
+            f"restricción tiene que venir de la BASE — o construyes una sólo con "
+            f"transcritos de esa especie (`makeblastdb`), o corres contra la base "
+            f"completa y lees que los aciertos de otros organismos están DENTRO del "
+            f"resultado. Los dos son defendibles; lo que no lo es es creer que la orden "
+            f"filtra cuando no filtra."
+        )
 
     def describe(self) -> list[str]:
         tocados = self.modified()
@@ -188,6 +265,18 @@ class BlastParams:
         if not self.can_give_verdict:
             lineas.append(f"NO CIERRA EL FRENTE: {self.why_no_verdict}")
         return lineas
+
+
+#: EL UNIVERSO CONTRA EL QUE SE COMPROBO, pegado al veredicto. Es lo que hace
+#: interpretable un cero: «0 aciertos» contra un catalogo curado de una especie no dice
+#: lo mismo que «0 aciertos» contra RefSeq entera. Sin esta frase, un cero obtenido
+#: contra una base sin modelos predichos se lee como «no hay off-targets contra
+#: predichos» — el «Alu 0 %» otra vez.
+UNIVERSE_NOTE = (
+    "El universo de esta comprobación es la BASE que se declara arriba, y nada más. Si "
+    "esa base no incluye modelos predichos (`XM_`/`XR_`), cero aciertos contra ellos NO "
+    "significa que no los haya: significa que no estaban."
+)
 
 
 DEFAULTS = BlastParams()
@@ -216,6 +305,20 @@ class QueryFasta:
                 raise ShmirDesignError(
                     f"La consulta {nombre!r} no trae secuencia; se aborta en vez de "
                     f"emitir un registro vacío (regla 1)."
+                )
+            # NINGUN BLANCO EN EL NOMBRE. BLAST corta `qseqid` en el primer espacio y
+            # `-outfmt 6` es un TSV, asi que un espacio colapsa consultas distintas en un
+            # mismo identificador y un tabulador parte la fila. El fichero sale con la
+            # forma correcta y no se puede recuperar: no dice de que consulta viene cada
+            # fila. El guardia va AQUI y no en quien construye el nombre — un comentario
+            # protege su tabla, un mecanismo protege la siguiente (errata nº 42).
+            if nombre != "".join(nombre.split()):
+                raise ShmirDesignError(
+                    f"El nombre de consulta {nombre!r} lleva un espacio en blanco. BLAST "
+                    f"corta `qseqid` en el primer blanco, así que en el `-outfmt 6` esta "
+                    f"consulta saldria como {nombre.split()[0]!r} — igual que todas las "
+                    f"demas que empiecen igual, y sin forma de distinguirlas. Se aborta "
+                    f"antes de emitir el FASTA."
                 )
             if nombre in vistos:
                 raise ShmirDesignError(
@@ -361,6 +464,40 @@ class BlastHit:
     @property
     def predicted(self) -> bool:
         return self.subject.upper().startswith(PREDICTED_PREFIXES)
+
+    @property
+    def transcript(self) -> str:
+        """El nombre que usa el criterio comun. En `-outfmt 6` es la columna `sseqid`."""
+        return self.subject
+
+    @property
+    def aligned(self) -> int:
+        """Cuantos nucleotidos ALINEARON — la columna `length` de `-outfmt 6`.
+
+        Es la que faltaba: BLAST devuelve alineamientos LOCALES, asi que un parcial de
+        13 nt de una sonda de 22 llega con `mismatches = 0` y sin esto entraba como
+        acierto grave (errata nº 57).
+        """
+        return self.length
+
+    @property
+    def antisense(self) -> bool:
+        """La sonda alinea en la hebra CONTRARIA del transcrito. Se DERIVA del acierto.
+
+        En `-outfmt 6` la orientacion no viene como columna: esta en el SIGNO del
+        intervalo del sujeto — `send < sstart` es hebra menos. `verdict` no la miraba, y
+        `filter_specificity` lleva desde siempre descartando los hits en sentido con el
+        motivo escrito: «un hit en la misma orientacion que la sonda no es un
+        off-target», porque el mRNA contiene el complemento inverso de la guia. Eran dos
+        criterios para la misma pregunta (errata nº 56).
+        """
+        return self.send < self.sstart
+
+    def describe(self) -> str:
+        return (
+            f"{self.subject} {self.sstart}-{self.send} "
+            f"({self.mismatches} desapareamiento(s))"
+        )
 
 
 def parse_outfmt6(text: str) -> tuple[BlastHit, ...]:

@@ -36,6 +36,33 @@ SEED_START = 2
 SEED_END = 8
 SITE_TYPES = ("8mer", "7mer-m8", "7mer-A1")
 
+#: EL PREFIJO LLEVA LA PROCEDENCIA. Este contador se calcula AL TILAR y ve tres clases;
+#: el del frente (`offtarget.py`) sale de una corrida guardada, ve CUATRO —lleva el
+#: `6mer`— y ademas trae percentil. No son la misma cantidad ni en principio, asi que sus
+#: columnas no se pueden confundir: `tilado_8mer` y `carga_8mer` estan una al lado de la
+#: otra y hay que poder saber cual es cual sin abrir el codigo.
+COLUMN_PREFIX = "tilado_"
+LOAD_COLUMNS = tuple(f"{COLUMN_PREFIX}{tipo}" for tipo in SITE_TYPES)
+
+#: POR QUE ESTE CONTADOR YA NO EMITE UN TOTAL, y donde se fue el que habia.
+#:
+#: `carga_seed` era `sum(counts.values())` y salia SOLO en la tabla, sin sus sumandos y
+#: sin percentil: era la unica columna visible de este eje y la unica que
+#: `offtarget.WHY_NOT_SUMMED` prohibe usar —la represion esperada de un 8mer y la de un
+#: 6mer no se parecen en nada, asi que un total mezcla señal con ruido—. Lo peor no era
+#: sumar: era que el desglose **estaba calculado en `counts`** y se tiraba en la celda.
+#:
+#: Ahora salen los tres sumandos. El total NO se sustituye por otro numero: no hay
+#: ninguno que signifique lo que aquel parecia significar.
+WHERE_THE_TOTAL_WENT = (
+    "La columna `carga_seed` ya no existe. Era la SUMA de las tres clases de sitio, y "
+    "las clases no se suman: la represión esperada de un 8mer y la de un 6mer no se "
+    "parecen en nada. En su sitio salen los tres sumandos —`tilado_8mer`, "
+    "`tilado_7mer-m8` y `tilado_7mer-A1`—, que es lo que este contador sabe de verdad. "
+    "El percentil por clase y el `6mer` los da el modal de carga de off-targets, en las "
+    "columnas `carga_<clase>`: son OTRO contador, sobre cuatro clases y con su nula."
+)
+
 #: Cada cuantos nt aparece por azar el sitio complementario de un 7-mero.
 AZAR_CADA_NT = 4 ** 7 // 1000 * 1000  # 16 kb, redondeado a la baja
 
@@ -108,12 +135,47 @@ class Utr3Set:
             )
 
     @property
+    def repeated(self) -> tuple[str, ...]:
+        """Identificadores que salen mas de una vez. NO es un fallo: es un dato.
+
+        «3\' UTR Exons» del Table Browser da un registro POR EXON, asi que un 3\'UTR
+        troceado aparece varias veces con el mismo accession. Se conservan todos —perder
+        uno dejaria el conteo corto sin avisar— y se avisa de que el numero de entradas
+        no es el numero de transcritos (errata nº 58).
+        """
+        vistos, repes = set(), []
+        for nombre, _ in self.records:
+            if nombre in vistos and nombre not in repes:
+                repes.append(nombre)
+            vistos.add(nombre)
+        return tuple(repes)
+
+    @property
     def provenance(self) -> str:
-        total = sum(len(s) for s in self.records.values())
+        total = sum(len(s) for _, s in self.records)
+        repes = self.repeated
+        aviso = (
+            f" — OJO: {len(repes)} identificador(es) repetido(s), así que hay MENOS "
+            f"transcritos que entradas y el conteo por transcrito sale inflado; es lo "
+            f"normal en «3'UTR Exons», que da un registro por exón"
+            if repes else ""
+        )
         return (
             f"{self.source}, versión {self.version}, checksum {self.checksum}, "
-            f"{len(self.records)} 3'UTR ({total} nt)"
+            f"{len(self.records)} 3'UTR ({total} nt){aviso}"
         )
+
+
+#: Lo que sale donde la carga NO se cuenta. Un `NOT_RUN` con su motivo, nunca un cero
+#: ni una celda vacia que se lea como cero — no haber contado y contar cero son cosas
+#: distintas, y esa es la regla 3 de este proyecto desde el primer dia.
+SEED_LOAD_SKIPPED = (
+    "No contada POR COSTE: cada ventana barre el transcriptoma ENTERO, y con un fichero "
+    "de 84 MB eso son 3-4 minutos por corrida si se hace en las 407 ventanas que pasan "
+    "los filtros biofísicos — en cada repintado de la página. Se cuenta en el PANEL, que "
+    "es donde alguien la lee para decidir. NOT_RUN no es PASS y no es cero: es que no se "
+    "ha contado aquí."
+)
 
 
 def _count_in(sequence: str, patterns: dict[str, str]) -> dict[str, int]:
@@ -149,31 +211,53 @@ class SeedLoad:
 
     state: FilterState
     counts: dict[str, int] = field(default_factory=dict)
-    total: int | None = None
     transcripts_hit: int = 0
-    weighted: float | None = None
+    #: PONDERADO POR CLASE, no un solo numero: ponderar la suma es sumar primero, que es
+    #: justo lo prohibido. Hoy no se calcula nunca —`expresion_cerebro.tsv` no existe— y
+    #: por eso importa que naciera bien: cuando llegue, lo hara ya por clase.
+    weighted: dict[str, float] | None = None
     sin_expresion: tuple[str, ...] = ()
     utrs: Utr3Set | None = None
     reason: str = ""
 
-    def as_column(self) -> str:
-        return "" if self.total is None else str(self.total)
+    def as_columns(self) -> dict[str, str]:
+        """Una celda POR CLASE. Vacias si no se conto, nunca a cero.
+
+        No hay `as_column()` en singular y no puede haberla: seria el total otra vez.
+        Ver `WHERE_THE_TOTAL_WENT`.
+        """
+        # SE MIRA EL ESTADO, no si hay fichero. Una ventana acotada por coste
+        # (`SEED_LOAD_SKIPPED`) trae `utrs` y NO trae `counts`: preguntar por el fichero
+        # daria un `KeyError` justo en el caso que la acotacion existe para producir.
+        if self.state is FilterState.NO_PEDIDO:
+            # NO SE PIDIO no es NO SE PUDO. Aqui pasa cuando el conteo se acota al panel
+            # por coste (`SEED_LOAD_SKIPPED`): es una decision, no una laguna.
+            return dict.fromkeys(LOAD_COLUMNS, FilterState.NO_PEDIDO.value)
+        if self.state is not FilterState.PASS:
+            return dict.fromkeys(
+                LOAD_COLUMNS,
+                FilterState.NOT_RUN.value if self.reason else "",
+            )
+        return {
+            f"{COLUMN_PREFIX}{tipo}": str(self.counts[tipo]) for tipo in SITE_TYPES
+        }
 
     def format_text(self) -> str:
-        if self.utrs is None:
+        if self.state is not FilterState.PASS:
             return (
                 "Carga de seed — NOT_RUN\n"
                 f"  {self.reason}"
             )
         lines = [
-            f"Carga de seed — {self.total} sitio(s) en "
-            f"{self.transcripts_hit} transcrito(s)",
-            "  Desglose: "
+            f"Sitios de seed en {self.transcripts_hit} transcrito(s), POR CLASE: "
             + ", ".join(f"{t}={self.counts[t]}" for t in SITE_TYPES),
             f"  3'UTR: {self.utrs.provenance}",
         ]
         if self.weighted is not None:
-            lines.append(f"  Ponderado por expresión: {self.weighted:.1f}")
+            lines.append(
+                "  Ponderado por expresión: "
+                + ", ".join(f"{t}={self.weighted[t]:.1f}" for t in SITE_TYPES)
+            )
         if self.sin_expresion:
             lines.append(
                 f"  {len(self.sin_expresion)} transcrito(s) con sitios pero sin dato de "
@@ -208,13 +292,14 @@ def seed_load(
     patterns = site_patterns(guide)
     totales = {t: 0 for t in SITE_TYPES}
     tocados = 0
-    ponderado = 0.0
+    # PONDERADO POR CLASE. Antes era un solo acumulador multiplicado por `sitios`, o sea
+    # por la suma de las tres — ponderar un total es sumar primero.
+    ponderado = {t: 0.0 for t in SITE_TYPES}
     sin_dato: list[str] = []
 
-    for nombre, secuencia in utrs.records.items():
+    for nombre, secuencia in utrs.records:
         conteo = _count_in(secuencia, patterns)
-        sitios = sum(conteo.values())
-        if not sitios:
+        if not any(conteo.values()):
             continue
         tocados += 1
         for tipo, n in conteo.items():
@@ -224,19 +309,21 @@ def seed_load(
             if valor is None:
                 sin_dato.append(nombre)
             else:
-                ponderado += valor * sitios
+                for tipo, n in conteo.items():
+                    ponderado[tipo] += valor * n
 
     return SeedLoad(
         state=FilterState.PASS,
         counts=totales,
-        total=sum(totales.values()),
         transcripts_hit=tocados,
         weighted=ponderado if expression is not None else None,
         sin_expresion=tuple(sin_dato),
         utrs=utrs,
         reason=(
-            f"{sum(totales.values())} sitio(s) de seed en {tocados} transcrito(s). "
-            f"Número comparativo, no veredicto."
+            "Sitios de seed en "
+            + f"{tocados} transcrito(s), POR CLASE: "
+            + ", ".join(f"{t}={totales[t]}" for t in SITE_TYPES)
+            + ". Números comparativos, no veredicto — y no se suman."
         ),
     )
 
@@ -302,8 +389,15 @@ def load_utr3_set(
         texto = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ShmirDesignError(f"{path}: no es UTF-8 ({exc}); se aborta.") from exc
+    # UN SOLO PARSER, Y ES EL QUE CONSERVA LOS REPETIDOS (errata nº 58). El otro
+    # —`parse_fasta_records`— ABORTA con un identificador repetido, y repetirse es la
+    # forma NORMAL del fichero que la ficha de obtencion manda descargar. Ya existia
+    # `offtarget.parse_fasta_pairs` con esa decision escrita en su docstring; lo que
+    # faltaba es que la usara el camino vivo, que es este.
+    from .offtarget import parse_fasta_pairs  # noqa: PLC0415
+
     return Utr3Set(
-        records=parse_fasta_records(texto, source=str(path)),
+        records=parse_fasta_pairs(texto, source=str(path)),
         source=str(path),
         version=version,
         checksum=md5,

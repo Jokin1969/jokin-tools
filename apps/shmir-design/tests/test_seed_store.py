@@ -13,6 +13,20 @@ CRITERIOS DE ACEPTACION:
 import unittest
 from pathlib import Path
 
+from shmir_design.presentation import query_name
+
+
+def CLAVE(inicio, hebra):
+    """La clave de una consulta, DERIVADA — nunca transcrita.
+
+    Estaba escrita a mano (`"raton_pos10_guia"`) y `run_scan` la emite con el SLUG desde
+    la errata nº 42, asi que este fichero preguntaba por una clave que ya no existia. Un
+    fixture que transcribe un formato es la tercera copia del mismo dato, y es la que
+    hace parecer que todo cuadra.
+    """
+    return query_name("raton", inicio, hebra)
+
+
 from shmir_design import seed_scan
 from shmir_design.errors import ShmirDesignError
 from shmir_design.filters import FilterState
@@ -84,7 +98,7 @@ class TestCriterio1_LaVentanaVIAJA(unittest.TestCase):
 
     def test_la_de_2_7_lo_dice_en_su_veredicto(self):
         corrida = _corrida("2-7")
-        motivo = corrida.verdict("raton_pos10_guia").reason
+        motivo = corrida.verdict(CLAVE(10, "guia")).reason
         self.assertIn("2-7", motivo)
 
     def test_y_NO_puede_presentarse_como_estandar(self):
@@ -107,8 +121,8 @@ class TestCriterio2_GuiaYPasajeraNoSeFunden(unittest.TestCase):
         self.almacen.add(_corrida())
 
     def test_hay_veredicto_por_HEBRA_y_son_consultas_distintas(self):
-        guia = self.almacen.verdict_for("raton_pos10_guia")
-        pasajera = self.almacen.verdict_for("raton_pos10_pasajera")
+        guia = self.almacen.verdict_for(CLAVE(10, "guia"))
+        pasajera = self.almacen.verdict_for(CLAVE(10, "pasajera"))
         self.assertIsNot(guia.state, FilterState.NOT_RUN)
         self.assertIsNot(pasajera.state, FilterState.NOT_RUN)
 
@@ -116,9 +130,9 @@ class TestCriterio2_GuiaYPasajeraNoSeFunden(unittest.TestCase):
         self.assertFalse(hasattr(self.almacen, "verdict_for_candidate"))
 
     def test_el_motivo_dice_de_QUE_hebra_es(self):
-        self.assertIn("guia", self.almacen.verdict_for("raton_pos10_guia").reason)
+        self.assertIn("guia", self.almacen.verdict_for(CLAVE(10, "guia")).reason)
         self.assertIn(
-            "pasajera", self.almacen.verdict_for("raton_pos10_pasajera").reason
+            "pasajera", self.almacen.verdict_for(CLAVE(10, "pasajera")).reason
         )
 
 
@@ -126,7 +140,7 @@ class TestCriterio2_GuiaYPasajeraNoSeFunden(unittest.TestCase):
 class TestCriterio3_SinCorridaSigueEnNOT_RUN(unittest.TestCase):
 
     def test_sin_corrida_es_NOT_RUN_visible(self):
-        motivo = SeedStore().verdict_for("raton_pos999_guia")
+        motivo = SeedStore().verdict_for(CLAVE(999, "guia"))
         self.assertIs(motivo.state, FilterState.NOT_RUN)
         self.assertIn("ninguna corrida", motivo.reason.lower())
         self.assertIn("NOT_RUN no es PASS", motivo.reason)
@@ -135,7 +149,7 @@ class TestCriterio3_SinCorridaSigueEnNOT_RUN(unittest.TestCase):
         almacen = SeedStore()
         almacen.add(_corrida())
         self.assertIs(
-            almacen.verdict_for("raton_pos999_pasajera").state, FilterState.NOT_RUN
+            almacen.verdict_for(CLAVE(999, "pasajera")).state, FilterState.NOT_RUN
         )
 
 
@@ -172,13 +186,13 @@ class TestNadaSeSOBRESCRIBE(unittest.TestCase):
         almacen = SeedStore()
         almacen.add(_corrida(run_id="s1"))
         almacen.add(_corrida(run_id="s2", date="2026-08-27"))
-        self.assertEqual(len(almacen.history("raton_pos10_guia")), 2)
+        self.assertEqual(len(almacen.history(CLAVE(10, "guia"))), 2)
 
     def test_la_ficha_enseña_la_ultima(self):
         almacen = SeedStore()
         almacen.add(_corrida(run_id="s1", date="2026-08-26"))
         almacen.add(_corrida(run_id="s2", date="2026-08-27"))
-        self.assertEqual(almacen.latest("raton_pos10_guia").run_id, "s2")
+        self.assertEqual(almacen.latest(CLAVE(10, "guia")).run_id, "s2")
 
     def test_repetir_un_run_id_ABORTA(self):
         almacen = SeedStore()

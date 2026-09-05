@@ -34,24 +34,38 @@ class TestElEstadoExiste(unittest.TestCase):
 
 
 class TestLaDerivacion(unittest.TestCase):
-    """De la tabla de insumos y de los md5, sin una nota escrita a mano."""
+    """De la tabla de insumos y de los md5, sin una nota escrita a mano.
+
+    El nombre del fichero tampoco se escribe aqui: se pide a `insumos.fichero_de`, que
+    es quien lo resuelve contra el gestor. Escribirlo haria que el test preguntase por
+    la clave que el mismo ha puesto — que es lo que dejo pasar la errata nº 47.
+    """
 
     PAYLOAD = {"mature_md5": "a" * 32, "result_md5": "r" * 32}
+    ESPECIE = "mouse"
+
+    @property
+    def MADUROS(self):
+        from shmir_design import insumos
+
+        return insumos.fichero_de(insumos.insumos_de("corrida_seed")[0], self.ESPECIE)
 
     def _estado(self, actuales):
         from shmir_design.presentation import run_freshness
 
-        return run_freshness("corrida_seed", self.PAYLOAD, actuales=actuales)
+        return run_freshness(
+            "corrida_seed", self.PAYLOAD, actuales=actuales, especie=self.ESPECIE,
+        )
 
     def test_mismo_md5_es_PASS(self):
-        estado = self._estado({"mature.fa": "a" * 32})
+        estado = self._estado({self.MADUROS: "a" * 32})
         self.assertIs(estado["estado"], FilterState.PASS)
         self.assertEqual(estado["motivos"], [])
 
     def test_md5_distinto_es_OBSOLETO_y_NOMBRA_el_fichero(self):
-        estado = self._estado({"mature.fa": "b" * 32})
+        estado = self._estado({self.MADUROS: "b" * 32})
         self.assertIs(estado["estado"], FilterState.OBSOLETO)
-        self.assertIn("mature.fa", estado["motivos"][0])
+        self.assertIn(self.MADUROS, estado["motivos"][0])
 
     def test_sin_md5_de_hoy_es_NOT_RUN_y_NO_pasa_por_vigente(self):
         estado = self._estado({})
@@ -62,7 +76,8 @@ class TestLaDerivacion(unittest.TestCase):
         from shmir_design.presentation import run_freshness
 
         estado = run_freshness(
-            "corrida_seed", {"result_md5": "r" * 32}, actuales={"mature.fa": "a" * 32}
+            "corrida_seed", {"result_md5": "r" * 32},
+            actuales={self.MADUROS: "a" * 32}, especie=self.ESPECIE,
         )
         self.assertIs(estado["estado"], FilterState.NOT_RUN)
 
@@ -70,7 +85,9 @@ class TestLaDerivacion(unittest.TestCase):
         from shmir_design.presentation import run_freshness
 
         self.assertIs(
-            run_freshness("corrida_empalme", {}, actuales={})["estado"],
+            run_freshness(
+                "corrida_empalme", {}, actuales={}, especie=self.ESPECIE,
+            )["estado"],
             FilterState.PASS,
         )
 

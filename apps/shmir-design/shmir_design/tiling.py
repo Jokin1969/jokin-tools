@@ -28,12 +28,19 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from .accessibility import Accessibility, accessibility_of
+from .accessibility import NOT_ASKED, Accessibility, accessibility_of
 from .anatomy import Anatomy, Region, RegionSource, TileRange
 from .coords import Frame, frame_of, label
 from .apa import ApaAssessment, ApaSites, MeasuredApa, apa_assessment
 from .errors import ShmirDesignError
-from .filters import FilterResult, FilterState, Verdict, biophysical_ok, overall_verdict
+from .filters import (
+    FilterResult,
+    FilterState,
+    Verdict,
+    biophysical_ok,
+    check_substitution,
+    overall_verdict,
+)
 from .masking import RepeatMask, apply_mask, filter_polymorphic, filter_repeats
 from .hard_filters import (
     DEFAULT_THRESHOLDS,
@@ -59,7 +66,7 @@ from .polya import (
 )
 from .mirna import AbundanceList, MatureSet, filter_seed_collision
 from .scaffold import passenger_from_guide
-from .seed_load import SeedLoad, Utr3Set, seed_load
+from .seed_load import SEED_LOAD_SKIPPED, SeedLoad, Utr3Set, seed_load
 from .seeds import SeedSet, bootstrap_expiry_note, filter_seed
 from .specificity import (
     SpecificityDatabase,
@@ -106,24 +113,35 @@ _TRANSGEN_SIN_BASE = FilterResult(
 
 
 def _seed_bootstrap(
-    guide: str, seeds: SeedSet | None, mature: MatureSet | None
+    guide: str, seeds: SeedSet | None, mature: MatureSet | None,
+    *, sustituto: FilterResult | None = None,
 ) -> FilterResult:
-    """El filtro `seed` de la lista de arranque, o NO_APLICA si esta el de verdad.
+    """El filtro `seed` de la lista de arranque, o SUSTITUIDO si esta el de verdad.
 
     `seed` y `seed_colision` responden a la MISMA pregunta con distinta profundidad. Si
     hay tabla de maduros de miRBase cargada, dejar los dos daria dos columnas que pueden
     contradecirse, y la peor de las dos —la de doce seeds— parece igual de autorizada.
     Asi que cuando esta el filtro real, este se retira diciendolo.
+
+    SALIA `NO_APLICA` Y ERA EL ESTADO EQUIVOCADO (2026-09-02): `NO_APLICA` dice «a este
+    candidato NO se le hace esta pregunta», y aqui si se le hace — la contesta la columna
+    de al lado. `SUSTITUIDO` lo dice, NOMBRA al sustituto, y `check_substitution` impide
+    que exista uno cuyo sustituto este en `NOT_RUN`: ahi la pregunta se perderia entre
+    las dos columnas pareciendo resuelta en las dos.
     """
     if mature is not None:
-        return FilterResult(
-            name="seed",
-            state=FilterState.NO_APLICA,
-            reason=(
-                "Sustituido por `seed_colision`, que usa la tabla de maduros completa y "
-                "distingue colisión abundante (FAIL) de colisión anotada (aviso). "
-                "NO_APLICA no es PASS: mira la columna seed_colision."
+        return check_substitution(
+            FilterResult(
+                name="seed",
+                state=FilterState.SUSTITUIDO,
+                reason=(
+                    "La contesta `seed_colision`, que usa la tabla de maduros completa "
+                    "y distingue colisión abundante (FAIL) de colisión anotada (aviso). "
+                    "SUSTITUIDO no es PASS ni es «no aplica»: la pregunta SÍ se hace y "
+                    "la respuesta está en la columna seed_colision."
+                ),
             ),
+            sustituto=sustituto,
         )
     return filter_seed(guide, seeds)
 
@@ -455,11 +473,23 @@ def tile_utr(
     tile_range: TileRange | None = None,
     polya_mode: PolyAMode = PolyAMode.ESCALONADO,
     specificity_db: SpecificityDatabase | None = None,
-    specificity_target: str | None = None,
     transgene_db: SpecificityDatabase | None = None,
     mature: MatureSet | None = None,
     abundance: AbundanceList | None = None,
     utr3_set: Utr3Set | None = None,
+    #: DONDE contar la carga de seed. `None` = en todas las escaneables, que es lo que
+    #: hace el CLI: una corrida por lotes se lo puede permitir. La PAGINA acota al panel.
+    #:
+    #: POR QUE HAY QUE ACOTARLO, medido el 2026-09-02 con el transcriptoma ya dentro:
+    #: cada ventana barre el fichero ENTERO —0,4-0,7 s sobre 84 MB— y son 407 las que
+    #: pasan los biofisicos, o sea 3-4 MINUTOS, y en CADA rerun de la pagina. Sin el
+    #: fichero la corrida entera tarda 0,33 s.
+    #:
+    #: Y SE PUEDE ACOTAR porque `carga_seed` no alimenta ninguna seleccion ni ningun
+    #: veredicto —es un numero comparativo, una COLUMNA—. Mismo escalon que la colision
+    #: de seed, que ya se acota «por coste» unas lineas mas abajo. Donde no se cuenta
+    #: sale `NOT_RUN` con el motivo: nunca un cero, nunca una celda que se lea como cero.
+    seed_load_starts: frozenset[int] | None = None,
     expression: dict[str, float] | None = None,
     accessibility: bool = False,
     #: Especie del DISEÑO. VACIA = no declarada, y eso es un estado propio: el nucleo de
@@ -572,11 +602,10 @@ def tile_utr(
         )
     annotated = annotate_3utr(windows, signals, len(cleaned), anatomy=anatomy)
 
-    if specificity_db is not None and not specificity_target:
-        raise ValueError(
-            "Con base de especificidad hay que declarar el gen diana "
-            "(specificity_target): sin el, todo sitio parece un off-target."
-        )
+    # LA DIANA YA NO SE PASA: sale de `data/diana/variantes.toml` por la ESPECIE, que
+    # es lo que este informe ya lleva. Antes se exigia aqui un accession tecleado y se
+    # abortaba sin el; hoy, sin declaracion, el filtro emite `NO_CIERRA` con el motivo —
+    # que es informacion y no un veto. Ver `specificity.filter_specificity`.
 
     tiled: list[TiledWindow] = []
     for anotada in annotated.windows:
@@ -674,7 +703,12 @@ def tile_utr(
                 )
             )
 
-        acceso = None
+        # NO SE PIDIO NO ES NO SE PUDO. Antes esto dejaba `acceso = None` en los dos
+        # casos y la celda salia vacia en los dos: la casilla sin marcar era
+        # indistinguible de un calculo que se pidio y fallo. Ver `NOT_ASKED`.
+        acceso = None if not escaneable else Accessibility(
+            state=FilterState.NO_PEDIDO, reason=NOT_ASKED,
+        )
         if accessibility and escaneable:
             acceso = accessibility_of(
                 original, start=anotada.window.start, length=window_size
@@ -682,7 +716,18 @@ def tile_utr(
 
         carga = None
         if utr3_set is not None and escaneable:
-            carga = seed_load(guia_adn, utr3_set, expression)
+            if seed_load_starts is None or anotada.window.start in seed_load_starts:
+                carga = seed_load(guia_adn, utr3_set, expression)
+            else:
+                # NO_PEDIDO, no NOT_RUN: acotar por coste es una DECISION —solo se
+                # cuenta donde se lee, el panel— y no una laguna. `NOT_RUN` aqui manda a
+                # conseguir algo, y no hay nada que conseguir. Misma distincion que la
+                # accesibilidad sin marcar (errata nº 91).
+                carga = SeedLoad(
+                    state=FilterState.NO_PEDIDO,
+                    reason=SEED_LOAD_SKIPPED,
+                    utrs=utr3_set,
+                )
 
         transgen = None
         transgen_detalle = None
@@ -723,7 +768,7 @@ def tile_utr(
                     evaluation.guide.replace("U", "T"),
                     passenger_from_guide(evaluation.guide).sequence,
                     specificity_db,
-                    target=specificity_target,
+                    species=species,
                 )
                 especificidad = especificidad_detalle.as_filter()
 
@@ -732,7 +777,9 @@ def tile_utr(
                 window=anotada.window,
                 evaluation=evaluation,
                 zona_prohibida=zona_prohibida,
-                seed=_seed_bootstrap(evaluation.guide, seeds, mature),
+                seed=_seed_bootstrap(
+                    evaluation.guide, seeds, mature, sustituto=colision,
+                ),
                 repeticiones=filter_repeats(start, anotada.window.end, mask),
                 repeticion_polimorfica=filter_polymorphic(
                     start, anotada.window.end, mask

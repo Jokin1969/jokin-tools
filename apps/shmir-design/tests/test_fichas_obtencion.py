@@ -62,6 +62,18 @@ def _frentes_de_verdad() -> set[str]:
     from shmir_design.introns import INTRONS
 
     nombres |= {i.ficha for i in INTRONS.values() if i.ficha}
+
+    # Y TERCERA FAMILIA (2026-09-02): las fichas que declara el GESTOR. `blocking_fronts`
+    # sale de los filtros de un CANDIDATO, asi que no ve un frente que se cierra con un
+    # fichero y no se le pregunta a cada ventana — el plasmido del andamio es el primero.
+    # Se toma de `species.required_files`, que es la unica fuente de los ficheros del
+    # deposito: asi un fichero nuevo cuya ficha no exista rompe la suite, que es de lo
+    # que va este test.
+    from shmir_design.species import required_files, resolve
+
+    nombres |= {
+        f.ficha for f in required_files(resolve("raton")) if f.ficha
+    }
     return nombres
 
 
@@ -132,10 +144,10 @@ class TestTodoFrenteTieneFicha(unittest.TestCase):
             f"que no esta engaña igual que la ausencia.",
         )
 
-    def test_hay_una_por_cada_uno_de_los_DOCE_de_hoy(self):
-        """Diez frentes —el cuarto modal añadio `empalme_sitios`— mas los DOS intrones
-        que faltan del registro."""
-        self.assertEqual(len(obtencion.load_all()), 12)
+    def test_hay_una_por_cada_uno_de_los_TRECE_de_hoy(self):
+        """Once frentes —el cuarto modal añadio `empalme_sitios` y el plasmido de SGEP
+        añade `contextos_del_andamio`— mas los DOS intrones que faltan del registro."""
+        self.assertEqual(len(obtencion.load_all()), 13)
 
 
 class TestElContenidoDeCadaFicha(unittest.TestCase):
@@ -263,6 +275,177 @@ class TestElContenidoQueYaEstaResuelto(unittest.TestCase):
         texto = self._ficha("fraccion_isoforma_larga").render().lower()
         self.assertIn("genomica", texto)
         self.assertIn("resta", texto)
+
+
+class TestLasDOSviasDeESPECIFICIDAD(unittest.TestCase):
+    """La base de BLAST se consigue por DOS caminos, y elegir mal cuesta 80 GB.
+
+    LO QUE LO OBLIGA, y es una descarga real de este proyecto: la ficha mandaba al FTP
+    de BLAST del NCBI y punto, asi que la unica via escrita era la EXHAUSTIVA — decenas
+    de GB de transcritos de TODOS los organismos para consultar veinte guias de una sola
+    especie. La via barata existia y estaba a la vista: el mismo Table Browser del que ya
+    sale `transcriptoma_3utr.fa`, con la especie del diseño y decenas de MB.
+
+    Y las dos comparten el paso que NO ESTABA EN NINGUNA: `makeblastdb`. Un FASTA no es
+    una base de BLAST, asi que sin el la orden que da la app no puede correr — y eso se
+    descubre DESPUES de la descarga, que es cuando ya no tiene arreglo barato.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raton = species_mod.resolve("mouse")
+        cls.ficha = obtencion.resolve_ficha("especificidad", species=cls.raton)
+        cls.texto = cls.ficha.render()
+
+    def _pasos_de(self, via):
+        return [p for p in self.ficha.steps if via in p]
+
+    # ── las dos vias existen, y una esta RECOMENDADA ──────────────────────────────
+
+    def test_hay_DOS_vias_declaradas_y_las_dos_tienen_pasos(self):
+        self.assertTrue(self._pasos_de("VÍA A"), "no hay pasos de la via de UCSC")
+        self.assertTrue(self._pasos_de("VÍA B"), "no hay pasos de la via de NCBI")
+
+    def test_la_RECOMENDADA_es_la_de_UCSC_y_es_la_URL_de_la_ficha(self):
+        self.assertIn("RECOMENDADA", " ".join(self._pasos_de("VÍA A")))
+        # La URL de cabecera es la que se sigue por defecto: si apuntara al FTP, la via
+        # cara volveria a ser la primera que se lee.
+        self.assertIn("genome.ucsc.edu", self.ficha.url)
+
+    def test_y_la_de_NCBI_sigue_ESCRITA_con_su_URL(self):
+        # No se borra: es la exhaustiva, y la unica que trae los PREDICHOS.
+        self.assertIn("ftp.ncbi.nlm.nih.gov/blast/db", self.texto)
+
+    def test_las_DOS_dicen_lo_que_PESAN_porque_es_lo_que_decide(self):
+        self.assertIn("MB", self.texto)
+        self.assertIn("GB", self.texto)
+        self.assertIn("80 GB", self.texto)
+
+    # ── lo que cada via NO da ─────────────────────────────────────────────────────
+
+    def test_UCSC_avisa_de_que_CURATED_no_trae_los_PREDICHOS(self):
+        via = " ".join(self._pasos_de("VÍA A")) + " " + " ".join(self.ficha.warnings)
+        self.assertIn("Curated", via)
+        self.assertIn("XM_", via)
+        self.assertIn("XR_", via)
+
+    def test_y_dice_la_CONSECUENCIA_no_solo_el_hecho(self):
+        """Cero predichos en el resultado no es «no hay off-targets contra predichos».
+
+        Es el «Alu 0 %» otra vez: un cero obtenido sin buscar. Decir que Curated no los
+        trae y no decir como se lee el resultado deja el numero listo para leerse mal.
+        """
+        avisos = " ".join(self.ficha.warnings)
+        self.assertIn("no es", avisos.lower())
+        self.assertIn("predich", avisos.lower())
+
+    def test_NCBI_avisa_de_que_hay_que_FILTRAR_y_por_que(self):
+        via = " ".join(self._pasos_de("VÍA B")) + " " + " ".join(self.ficha.warnings)
+        self.assertIn("-entrez_query", via)
+        self.assertIn("local", via.lower())
+
+    # ── el paso que faltaba, y esta en LAS DOS ────────────────────────────────────
+
+    def test_makeblastdb_esta_en_LAS_DOS_vias(self):
+        for via in ("VÍA A", "VÍA B"):
+            with self.subTest(via=via):
+                self.assertTrue(
+                    any("makeblastdb" in p for p in self._pasos_de(via)),
+                    f"{via} no construye la base: un FASTA no es una base de BLAST y la "
+                    f"orden de la app no puede correr contra el.",
+                )
+
+    def test_y_va_en_los_PASOS_no_solo_en_un_AVISO(self):
+        """Un aviso se lee en diagonal; un paso se ejecuta.
+
+        Control adversario de la comprobacion de arriba: si `makeblastdb` viviera solo
+        en los avisos, aquel test pasaria igual buscando en el render entero.
+        """
+        self.assertIn("makeblastdb", " ".join(self.ficha.steps))
+
+    def test_dice_con_esas_palabras_que_un_FASTA_no_es_una_BASE(self):
+        self.assertIn("no es una base de BLAST", self.texto)
+
+    def test_las_dos_vias_acaban_en_el_MISMO_artefacto_declarable(self):
+        """Las dos producen un FASTA, y por eso el md5 del manifiesto significa algo.
+
+        La base preformateada del NCBI no da ningun FASTA que registrar, asi que por esa
+        via sin el paso de filtrado no habria nada que apuntar en el manifiesto — y la
+        procedencia del veredicto se quedaria sin su unica ancla.
+        """
+        fichero = next(f for f in self.ficha.files if f.name.endswith(".fa"))
+        self.assertEqual(fichero.name, "refseq_rna.fa")
+        for via in ("VÍA A", "VÍA B"):
+            with self.subTest(via=via):
+                self.assertTrue(
+                    any("refseq_rna.fa" in p for p in self._pasos_de(via)),
+                    f"{via} no dice que lo que se guarda y se declara es ese FASTA.",
+                )
+
+    def test_el_comando_de_FILTRADO_se_puede_PEGAR_sin_editarlo(self):
+        """`-taxids` quiere el numero pelado, y `{taxid}` trae el prefijo `txid`.
+
+        Es la leccion de la errata nº 40 un piso mas abajo: un comando que la ficha da
+        para copiar y que hay que editar antes de pegarlo no es un comando, es un
+        ejercicio — y el que lo edite mal se entera al final. Por eso el numero se
+        DERIVA del taxid declarado (`{taxid_numero}`) en vez de pedirle al lector que lo
+        recorte.
+        """
+        paso = next(p for p in self.ficha.steps if "-taxids" in p)
+        self.assertIn("-taxids 10090", paso)
+        self.assertNotIn("-taxids txid", paso)
+        self.assertNotIn("<", paso)
+
+    def test_y_avisa_de_que_el_NOMBRE_de_la_base_viaja_con_el_resultado(self):
+        # La base construida no se llama `refseq_rna` de serie, asi que `-db` cambia —
+        # y un ajuste cambiado se marca y viaja. Aqui eso es CORRECTO, no un descuido.
+        self.assertIn("-db", self.texto)
+
+
+class TestElNUMERO_del_TAXID_es_UN_MARCADOR_MAS(unittest.TestCase):
+    """Se DERIVA del taxid declarado; no es una segunda fuente del mismo dato."""
+
+    def test_con_raton_sale_el_numero_pelado(self):
+        raton = species_mod.resolve("mouse")
+        self.assertEqual(raton.taxid, "txid10090")
+        valores = obtencion._values(raton)
+        self.assertEqual(valores["taxid_numero"], "10090")
+
+    def test_con_una_especie_SIN_taxid_dice_que_NO_esta_declarado(self):
+        conejo = species_mod.resolve("conejo")
+        valores = obtencion._values(conejo)
+        self.assertEqual(valores["taxid_numero"], "")
+        # Y el hueco se explica con el MISMO texto que el del taxid: dos redacciones del
+        # mismo agujero acaban discrepando, y una diria donde se declara y la otra no.
+        self.assertEqual(
+            obtencion.undeclared_note("taxid_numero", cientifico=conejo.scientific),
+            obtencion.undeclared_note("taxid", cientifico=conejo.scientific),
+        )
+
+
+class TestUnHUECO_se_avisa_UNA_vez(unittest.TestCase):
+    """Dos marcadores del mismo dato son un solo agujero, y un solo aviso.
+
+    `{taxid}` y `{taxid_numero}` salen del mismo campo declarado, asi que una especie sin
+    taxid abria DOS huecos con el mismo texto y el panel lo pintaba dos veces. Dos avisos
+    identicos se leen como dos problemas, y el segundo no dice nada que no dijera el
+    primero: es ruido en la unica pantalla que existe para decir que falta.
+    """
+
+    def test_el_taxid_sin_declarar_avisa_UNA_sola_vez(self):
+        conejo = species_mod.resolve("conejo")
+        ficha = obtencion.resolve_ficha("especificidad", species=conejo)
+        nota = obtencion.undeclared_note("taxid", cientifico=conejo.scientific)
+        self.assertEqual(list(ficha.warnings).count(nota), 1)
+
+    def test_y_los_dos_huecos_SIGUEN_declarados(self):
+        # Deduplicar el AVISO no es tapar el hueco: los dos siguen en `undeclared`, que
+        # es lo que dice que marcadores se quedaron sin resolver.
+        ficha = obtencion.resolve_ficha(
+            "especificidad", species=species_mod.resolve("conejo")
+        )
+        self.assertIn("taxid", ficha.undeclared)
+        self.assertIn("taxid_numero", ficha.undeclared)
 
 
 class TestLaFichaSeADAPTA_A_LA_ESPECIE(unittest.TestCase):

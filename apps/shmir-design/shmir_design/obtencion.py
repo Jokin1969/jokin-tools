@@ -34,7 +34,35 @@ NO_URL = "—"
 
 #: Campos obligatorios de toda ficha. Que falte uno ABORTA al cargarla: una ficha a
 #: medias es peor que ninguna, porque parece que la pregunta esta contestada.
-REQUIRED = ("frente", "pregunta", "fuente", "url", "tamano", "validacion", "pasos")
+#: `titulo_llano` y `en_cristiano` son OBLIGATORIOS y van los primeros: son lo que lee
+#: quien abre la app sin haber estado en estas conversaciones. `pregunta` no se
+#: sustituye —es la version tecnica y hace falta— pero deja de ser lo PRIMERO.
+REQUIRED = (
+    "frente", "se_cierra_en", "titulo_llano", "en_cristiano", "pregunta", "fuente",
+    "url", "tamano", "validacion", "pasos",
+)
+
+#: DONDE se contesta este frente, y es un vocabulario CERRADO de dos.
+#:
+#: **No se deduce de `sin_fichero`**, y esa es la razon de que exista: `sin_fichero`
+#: significa dos cosas OPUESTAS segun la ficha. En `empalme_intron` quiere decir «no hay
+#: descarga que valga, hay que ir al laboratorio»; en `intron_sin_criptico` quiere decir
+#: «no se consigue: LO DISEÑA LA APP». Derivar el banco de ahi habria sacado de la
+#: cuadricula un intron que la app resuelve sola — el principio nº 27 en su version mas
+#: cara, el mismo nombre para dos cantidades distintas.
+CLOSED_IN_APP = "la app"
+CLOSED_AT_BENCH = "el banco"
+CLOSING_PLACES = (CLOSED_IN_APP, CLOSED_AT_BENCH)
+
+#: Y NO tiene valor por defecto: un frente de banco al que se le olvide esta linea
+#: entraria en la cuadricula y en el contador sin que nadie lo notara, que es el
+#: principio nº 32 — una clave sin escritor convierte su defecto en la configuracion.
+WHY_DECLARED = (
+    "Cada ficha declara DONDE se cierra su frente porque la pagina tiene que poder "
+    "separar «lo que puedes hacer tu» de «lo que hay que medir en el banco» sin "
+    "nombrar ningún frente. Con una lista escrita en el código, el segundo frente de "
+    "banco entraria en la cuadricula sin que nadie lo viera."
+)
 
 _PLACEHOLDER = re.compile(r"\{([a-z_]+)\}")
 
@@ -57,6 +85,11 @@ class Ficha:
     """La ficha de UN frente. `resolved` dice si ya se ha atado a una especie."""
 
     front: str
+    #: El titulo en lenguaje llano: la pregunta que se hace alguien que quiere apagar un
+    #: gen, no la que se hace quien ya conoce el pipeline.
+    plain_title: str
+    #: Que comprueba este frente, explicado sin jerga. Va ANTES de `question`.
+    plain: str
     question: str
     source: str
     url: str
@@ -68,12 +101,36 @@ class Ficha:
     warnings: tuple[str, ...] = ()
     no_file: bool = False
     why_no_file: str = ""
+    #: `CLOSED_IN_APP` o `CLOSED_AT_BENCH`. Ver `WHY_DECLARED`: es lo que separa la
+    #: cuadricula de comprobaciones de lo que no depende de esta app en absoluto.
+    closed_at: str = CLOSED_IN_APP
     resolved: bool = False
     #: Que valores pedia esta ficha y la especie no tiene declarados.
     undeclared: tuple[str, ...] = ()
 
-    def render(self) -> str:
-        """El texto de la ficha. Sin resolver contra una especie, ABORTA."""
+    #: Los tres encabezados posibles, y son TRES estados que no se pueden confundir.
+    #: Un frente abierto manda a conseguir algo; uno CERRADO ya no —enseñar el mismo
+    #: texto es el `why_missing` que envejece (principio nº 11) en su version de
+    #: interfaz: correcto cuando se escribio y hoy manda a hacer algo ya hecho—; y uno
+    #: de BANCO no se cierra aqui con nada.
+    HEADINGS = {
+        "abierto": "COMO CERRAR EL FRENTE «{frente}»",
+        "cerrado": "CÓMO SE CONSIGUIÓ CERRAR EL FRENTE «{frente}» (referencia)",
+        "banco": "QUÉ HAY QUE MEDIR EN EL BANCO PARA CERRAR «{frente}»",
+    }
+
+    def heading_kind(self, *, closed: bool = False) -> str:
+        if self.closed_at == CLOSED_AT_BENCH:
+            return "banco"
+        return "cerrado" if closed else "abierto"
+
+    def render(self, *, closed: bool = False) -> str:
+        """El texto de la ficha. Sin resolver contra una especie, ABORTA.
+
+        `closed` cambia el TIEMPO VERBAL, no el contenido: los pasos siguen enteros
+        porque son la procedencia de lo que se cargo —de ahi «(referencia)»— y quitarlos
+        dejaria un frente cerrado sin poder decir con que se cerro.
+        """
         if not self.resolved:
             raise ShmirDesignError(
                 f"La ficha de {self.front!r} no se ha resuelto contra ninguna especie, "
@@ -82,8 +139,12 @@ class Ficha:
                 f"fichero— y esos textos se copian. Usa `resolve_ficha(frente, "
                 f"species=…)`."
             )
+        clase = self.heading_kind(closed=closed)
         lineas = [
-            f"COMO CERRAR EL FRENTE «{self.front}»",
+            self.HEADINGS[clase].format(frente=self.front),
+            "",
+            f"  {self.plain_title}",
+            f"  {self.plain}",
             "",
             f"  QUE PREGUNTA RESPONDE: {self.question}",
             "",
@@ -95,18 +156,27 @@ class Ficha:
                 "",
             ])
         else:
-            lineas.append("  FICHERO(S) QUE HACEN FALTA:")
+            lineas.append(
+                "  FICHERO(S) CON LOS QUE SE CERRÓ:" if clase == "cerrado"
+                else "  FICHERO(S) QUE HACEN FALTA:"
+            )
             for fichero in self.files:
                 marca = "OBLIGATORIO" if fichero.required else "opcional"
                 lineas.append(f"    · {fichero.name}  [{marca}]")
                 lineas.append(f"      {fichero.why}")
             lineas.append("")
         lineas.extend([f"  FUENTE: {self.source}", f"  URL: {self.url}", ""])
-        lineas.append("  PASOS:")
+        lineas.append(
+            "  PASOS QUE SE SIGUIERON (referencia, ya hecho):" if clase == "cerrado"
+            else "  PASOS:"
+        )
         lineas.extend(f"    {i}. {paso}" for i, paso in enumerate(self.steps, start=1))
         lineas.append("")
         if self.metadata:
-            lineas.append("  QUE ANOTAR AL DESCARGARLO (sin esto no es reproducible):")
+            lineas.append(
+                "  LO QUE SE ANOTÓ AL DESCARGARLO:" if clase == "cerrado"
+                else "  QUE ANOTAR AL DESCARGARLO (sin esto no es reproducible):"
+            )
             for metadato in self.metadata:
                 lineas.append(f"    · {metadato.name}")
                 lineas.append(f"      {metadato.why}")
@@ -114,7 +184,8 @@ class Ficha:
         lineas.extend([
             f"  TAMAÑO APROXIMADO: {self.size}",
             "",
-            f"  COMO SE VALIDA AL SUBIRLO: {self.validation}",
+            (f"  COMO SE VALIDÓ AL SUBIRLO: {self.validation}" if clase == "cerrado"
+             else f"  COMO SE VALIDA AL SUBIRLO: {self.validation}"),
         ])
         if self.warnings:
             lineas.append("")
@@ -174,6 +245,13 @@ def load_ficha(path: Path | str) -> Ficha:
             f"fichero desconectaria la ficha de su frente sin que nadie lo viera."
         )
 
+    sitio = str(datos["se_cierra_en"]).strip()
+    if sitio not in CLOSING_PLACES:
+        raise ShmirDesignError(
+            f"{path}: dice `se_cierra_en = {sitio!r}` y los sitios que este proyecto "
+            f"conoce son {CLOSING_PLACES}. No se adivina: se aborta. {WHY_DECLARED}"
+        )
+
     sin_fichero = bool(datos.get("sin_fichero", False))
     ficheros = _rows(datos, "ficheros", FichaFile, _FILE_KEYS, source=str(path))
     if sin_fichero and ficheros:
@@ -194,6 +272,8 @@ def load_ficha(path: Path | str) -> Ficha:
 
     return Ficha(
         front=datos["frente"],
+        plain_title=datos["titulo_llano"],
+        plain=datos["en_cristiano"],
         question=datos["pregunta"],
         source=datos["fuente"],
         url=datos["url"],
@@ -205,6 +285,7 @@ def load_ficha(path: Path | str) -> Ficha:
         warnings=tuple(datos.get("avisos", ())),
         no_file=sin_fichero,
         why_no_file=str(datos.get("por_que_sin_fichero", "")),
+        closed_at=sitio,
     )
 
 
@@ -235,6 +316,12 @@ def _values(species) -> dict[str, str]:
         "cientifico": species.scientific,
         "prefijo": species.mirbase_prefix,
         "taxid": species.taxid,
+        # El taxid SIN el prefijo `txid`, que es lo que quiere `blastdbcmd -taxids`. Se
+        # DERIVA del declarado y no se escribe aparte: dos fuentes del mismo numero
+        # envejecen cada una por su lado (principio nº 13). Y no es cosmetico — una
+        # ficha que da un comando para copiar y obliga a recortarlo antes de pegarlo no
+        # esta dando un comando, y quien lo recorte mal se entera al final (errata nº 40).
+        "taxid_numero": species.taxid.removeprefix("txid"),
         "ensamblaje": getattr(species, "ucsc_assembly", ""),
         # El gen diana de esta especie. Sale de `reference.REFERENCES`, que es DATO
         # declarado —`Prnp` en raton, `PRNP` en humano—, no del nombre de la especie ni
@@ -300,6 +387,11 @@ _UNDECLARED = {
     ),
 }
 
+#: El numero del taxid y el taxid son EL MISMO hueco, asi que comparten texto. Dos
+#: redacciones del mismo agujero acaban discrepando: una diria donde se declara y la
+#: otra no.
+_UNDECLARED["taxid_numero"] = _UNDECLARED["taxid"]
+
 
 def undeclared_note(clave: str, *, cientifico: str) -> str:
     """El texto de «esto NO ESTA DECLARADO» para un marcador, ya resuelto.
@@ -330,6 +422,20 @@ def _substitute(texto: str, valores: dict[str, str], huecos: set[str]) -> str:
     return _PLACEHOLDER.sub(cambia, texto)
 
 
+def bench_fronts(directory: Path | str = FICHA_DIR) -> set[str]:
+    """Los frentes que NO se cierran aqui: se contestan en el banco.
+
+    **Se DERIVA de las fichas**, que son datos versionados, en vez de vivir como una
+    lista en el codigo (principio nº 13). Habia una escrita en `informe_doc.BENCH_FRONTS`
+    y la prosa de la ficha decia lo mismo con otras palabras: dos definiciones del mismo
+    hecho, y nada que las atara.
+    """
+    return {
+        nombre for nombre, ficha in load_all(directory).items()
+        if ficha.closed_at == CLOSED_AT_BENCH
+    }
+
+
 def resolve_ficha(front: str, *, species) -> Ficha:
     """La ficha de un frente, atada a una especie concreta."""
     fichas = load_all()
@@ -348,6 +454,8 @@ def resolve_ficha(front: str, *, species) -> Ficha:
 
     resuelta = Ficha(
         front=ficha.front,
+        plain_title=sub(ficha.plain_title),
+        plain=sub(ficha.plain),
         question=sub(ficha.question),
         source=sub(ficha.source),
         url=ficha.url,
@@ -363,6 +471,7 @@ def resolve_ficha(front: str, *, species) -> Ficha:
         ),
         warnings=tuple(sub(a) for a in ficha.warnings),
         no_file=ficha.no_file,
+        closed_at=ficha.closed_at,
         why_no_file=sub(ficha.why_no_file),
         resolved=True,
         undeclared=tuple(sorted(huecos)),
@@ -371,9 +480,14 @@ def resolve_ficha(front: str, *, species) -> Ficha:
         return resuelta
     # Un hueco NO se queda solo dentro de un paso: sale ademas como aviso, porque un
     # paso largo se lee en diagonal y esto es lo que impide cerrar el frente.
+    # SIN REPETIR: dos marcadores del mismo dato —`{taxid}` y `{taxid_numero}`— son un
+    # solo agujero y comparten texto, asi que a pelo el mismo aviso salia dos veces. Dos
+    # avisos identicos se leen como dos problemas. `dict.fromkeys` conserva el orden.
     avisos = tuple(
-        _UNDECLARED[clave].format(cientifico=valores["cientifico"])
-        for clave in sorted(huecos)
-        if clave in _UNDECLARED
+        dict.fromkeys(
+            _UNDECLARED[clave].format(cientifico=valores["cientifico"])
+            for clave in sorted(huecos)
+            if clave in _UNDECLARED
+        )
     )
     return Ficha(**{**resuelta.__dict__, "warnings": avisos + resuelta.warnings})

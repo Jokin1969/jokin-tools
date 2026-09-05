@@ -149,7 +149,7 @@ def estimate_cost(
     tile_range: TileRange | None = None,
     thresholds: Thresholds = DEFAULT_THRESHOLDS,
     specificity_db=None,
-    specificity_target: str | None = None,
+    species: str = "",
     transgene_db=None,
     mature=None,
     abundance=None,
@@ -188,14 +188,14 @@ def estimate_cost(
         def _pasajera(w) -> str:
             return passenger_from_guide(w.evaluation.guide).sequence
 
-        if specificity_db is not None and specificity_target:
+        if specificity_db is not None:
             items.append(
                 CostItem(
                     name="especificidad",
                     per_window=_measure(
                         lambda w: filter_specificity(
                             _guia(w), _pasajera(w), specificity_db,
-                            target=specificity_target,
+                            species=species,
                         ),
                         muestras,
                     ),
@@ -231,7 +231,7 @@ def estimate_cost(
         if utr3_set is not None:
             items.append(
                 CostItem(
-                    name="carga_seed",
+                    name="sitios_de_seed",
                     per_window=_measure(
                         lambda w: seed_load(_guia(w), utr3_set), muestras
                     ),

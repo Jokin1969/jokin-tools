@@ -1,0 +1,41 @@
+frente = "contextos_del_andamio"
+se_cierra_en = "la app"
+titulo_llano = "¿Los 20 nt que rodean a la horquilla son los de verdad?"
+en_cristiano = """\
+El fragmento que se manda a sintetizar no es sólo la horquilla: lleva 20 nucleótidos a cada lado que vienen del plásmido original de SGEP y que no son decoración —el de la derecha lleva la señal que hace que la célula procese bien la horquilla—. Sin ese plásmido delante, esos 40 nucleótidos son secuencia copiada de un sitio que nadie ha vuelto a mirar."""
+pregunta = """\
+¿Los contextos 5' y 3' del módulo de 149 nt son los NATIVOS del plásmido del andamio? \
+Se comprueba anclando el andamio a la anotación del propio fichero y leyendo lo que hay \
+pegado a él, no en unas coordenadas escritas: un número escrito no puede validar el \
+fichero del que salió."""
+fuente = "Addgene: SGEP #111170 (Fellmann et al., Cell Rep 2013)"
+url = "https://www.addgene.org/111170/"
+tamano = "unos 25 KB (un plásmido de 8968 pb con sus anotaciones)"
+validacion = """\
+Al subirlo se corre la comprobación ENTERA, que es la misma que luego emite el módulo: \
+tiene que traer la anotación del loop, el andamio tiene que aparecer UNA sola vez por \
+secuencia, la anotación tiene que caer DENTRO de lo localizado, y los 20 nt de cada lado \
+tienen que ser los del módulo. Si algo de eso no cuadra, el fichero NO ENTRA — uno que \
+pasara aquí y fallara al pedir el gBlock sería peor que no validarlo."""
+
+pasos = [
+  "Entra en la ficha de Addgene del plásmido #111170 (SGEP).",
+  "Descarga el mapa completo con anotaciones: «Full Sequences» → GenBank (.gb). Vale también el .dna de SnapGene.",
+  "COMPRUEBA QUE TRAE LAS ANOTACIONES: un export de sólo secuencia no sirve, porque el ancla es la feature del loop. Si lo abres y no hay bloque FEATURES, vuelve a descargarlo con el mapa.",
+  "Súbelo por el gestor. El md5 lo calcula la app y queda en el manifiesto.",
+]
+
+avisos = [
+  "Este fichero NO es de ninguna especie: es el vector del ANDAMIO. Cambia si se cambia de andamio —a miR-30a original o a miR-155—, no si se cambia de organismo. Es el único del depósito del que eso es cierto.",
+  "Las coordenadas 1739-1758 y 1856-1875 que salen en la hoja de pedido son un RESULTADO de la comprobación, no una entrada: se derivan del fichero cada vez. Si un día no coinciden, lo que hay que revisar es el fichero, no el número.",
+  "El casete de AAV que ya está en el depósito NO sirve para esto y está comprobado con test: no contiene ninguno de los dos contextos. Son dos plásmidos distintos con dos papeles distintos.",
+]
+
+[[ficheros]]
+nombre = "{fichero_plasmido_andamio}"
+por_que = "El plásmido del andamio con sus anotaciones. De él se derivan los contextos del módulo; sin él, esos 40 nt van sin contrastar y el módulo sale INCOMPLETE."
+obligatorio = true
+
+[[metadatos]]
+nombre = "el número de Addgene y la fecha de descarga"
+por_que = "Un depósito de Addgene se puede actualizar. Sin saber qué versión se bajó, un módulo emitido hace meses no se puede volver a justificar."

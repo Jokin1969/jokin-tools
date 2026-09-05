@@ -50,7 +50,6 @@ class TestLaUnidadEsElPar(unittest.TestCase):
     def _construcciones(self, nombres=("mvm_actual",)):
         return spliceai.build_constructions(
             self.seleccion,
-            target=self.utr3,
             intron_names=nombres,
             scaffold=SGEP_SCAFFOLD,
         )
@@ -122,7 +121,7 @@ class TestLaUnidadEsElPar(unittest.TestCase):
             casete.read_text(encoding="utf-8"), source="aav_casete.fa"
         )
         cs = spliceai.build_constructions(
-            self.seleccion, target=self.utr3, intron_names=("mvm_actual",),
+            self.seleccion, intron_names=("mvm_actual",),
             scaffold=SGEP_SCAFFOLD, cassette=secuencia, context_nt=100,
         )
         self.assertEqual((cs[0].context_5, cs[0].context_3), (100, 100))
@@ -140,7 +139,7 @@ class TestLaUnidadEsElPar(unittest.TestCase):
             casete.read_text(encoding="utf-8"), source="aav_casete.fa"
         )
         cs = spliceai.build_constructions(
-            self.seleccion, target=self.utr3, intron_names=("mvm_actual",),
+            self.seleccion, intron_names=("mvm_actual",),
             scaffold=SGEP_SCAFFOLD, cassette=secuencia, context_nt=100000,
         )
         # Se recorta a lo que el casete da; nunca se rellena.
@@ -249,7 +248,7 @@ class TestLaValidacionDelResultado(unittest.TestCase):
     def setUpClass(cls):
         cls.utr3, cls.seleccion = _panel(2)
         cls.construcciones = spliceai.build_constructions(
-            cls.seleccion, target=cls.utr3, intron_names=("mvm_actual",),
+            cls.seleccion, intron_names=("mvm_actual",),
             scaffold=SGEP_SCAFFOLD,
         )
 
@@ -325,7 +324,7 @@ class TestElResultado(unittest.TestCase):
     def setUpClass(cls):
         cls.utr3, cls.seleccion = _panel(3)
         cls.construcciones = spliceai.build_constructions(
-            cls.seleccion, target=cls.utr3, intron_names=("mvm_actual",),
+            cls.seleccion, intron_names=("mvm_actual",),
             scaffold=SGEP_SCAFFOLD,
         )
 
@@ -413,7 +412,7 @@ class TestLaColumnaCOMPARATIVA(unittest.TestCase):
     def setUpClass(cls):
         cls.utr3, cls.seleccion = _panel(3)
         cls.construcciones = spliceai.build_constructions(
-            cls.seleccion, target=cls.utr3, intron_names=("mvm_actual",),
+            cls.seleccion, intron_names=("mvm_actual",),
             scaffold=SGEP_SCAFFOLD,
         )
 

@@ -181,11 +181,18 @@ class TestElCOMPAÑERO_obligatorio_SE_VE(unittest.TestCase):
 
     def test_la_lista_de_conectados_nombra_el_compañero(self):
         from shmir_design.resources import describe_connected
+        from shmir_design.species import required_files, resolve
 
-        texto = describe_connected(("rmsk_mouse.out",), companions={
-            "rmsk_mouse.out": ("rmsk_mouse.tbl",)
-        })
-        self.assertIn("rmsk_mouse.tbl", texto)
+        # Los dos nombres se PIDEN al gestor. Escribirlos aquí haría que este test
+        # preguntara por el par murino aunque el código buscara el de otra especie
+        # (`data/claves_derivadas.toml`).
+        fila = next(
+            f for f in required_files(resolve("mouse")) if f.role == "rmsk"
+        )
+        texto = describe_connected(
+            (fila.filename,), companions={fila.filename: (fila.companion,)}
+        )
+        self.assertIn(fila.companion, texto)
 
     def test_y_dice_PARA_QUE_hace_falta(self):
         from shmir_design.masking import INDISTINGUISHABLE_OUTS

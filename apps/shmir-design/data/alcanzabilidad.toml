@@ -110,7 +110,13 @@ seed_reference_dir = "La invoca el hub, no Python: `apps/shmir/routes.js` la eje
 
 
 # ── Categoría 2: LEGÍTIMAS ──
-fixture_available = "La usan 80 ficheros de tests como `skipUnless`: es la que hace que un test se salte de forma VISIBLE cuando falta un fixture, en vez de fallar. Vive en el paquete y no en los tests porque la comparten los tests y `tools/check_data.py`."
+# `fixture_available` SALIO de esta lista el 2026-09-02, y no porque cambiara
+# su motivo —los 80 `skipUnless` siguen ahi— sino porque le aparecio un llamador
+# de produccion: `tools/auditar_truncamiento.py` la usa para decir NO COMPROBADO
+# cuando falta el fixture del raton, en vez de imprimir cero hallazgos. Una
+# excepcion para algo que ya tiene llamador es ruido que tapa el siguiente
+# hallazgo, asi que se quita: si ese llamador desaparece, el informe la vuelve a
+# sacar y habra que decidirla otra vez.
 declare_utr3_length = "API pública documentada en CLAUDE.md: la llama quien trabaja con una especie no declarada, desde una consola o un cuaderno. Es la contramedida que hace utilizable el invariante de rango fuera del ratón; sin ella, un 3'UTR de conejo aborta."
 reset_declared_lengths = "Compañera de `declare_utr3_length`, y la usan los tests para no dejar el techo subido entre casos. Borrarla dejaría el estado global sin forma de limpiarse."
 fixture_path = "Herramienta de `guide_fixture` para localizar el FASTA de guías. La usan los tests de la regresión de la pasajera; su par `load_guide_fixture` es la puerta de entrada."
@@ -120,3 +126,7 @@ parse_guide_fasta = "Parser público del fixture de guías: se prueba por separa
 load_guide_fixture = "Puerta de entrada del fixture de guías, y comprueba su md5 antes de dejar fijar ninguna regresión con él. La usa `tests/test_pasajera_regresion.py`, que es para lo que existe; vive en el paquete y no en los tests por lo mismo que `fixture_available`. Salió al informe al cambiar la clave a `(módulo, nombre)`: antes la tapaba un homónimo."
 passenger_of = "La pasajera que emite MiRArchitect para una guía. Se calcula PARA PODER DESCARTARLA, no para diseñar: su único uso es la comprobación de que la nuestra, la del criterio estructural, no coincide con la suya. Sin ella esa comparación se haría a ojo, que es como se coló la primera vez."
 extended_cassette = "Existe para NEGARSE: levanta `NotImplementedError` diciendo que los flancos extendidos del pri-miR no están verificados y que no se inventan para completar un cassette AAV. Un símbolo que sólo sabe abortar no va a tener llamador nunca — y borrarlo dejaría el hueco sin nadie que lo custodie, que es justo lo contrario de lo que hace falta."
+
+# Añadida con el bloque de controles (2026-08-31):
+adversarial_guide = "El CONTROL ADVERSARIO del criterio de plegado, y no tiene llamador porque no puede tenerlo: existe para que un test pueda comprobar que el criterio no muerde ni siquiera con una guía derivada del propio andamio para competir con el loop. Sin ella, «las 2000 permutaciones pliegan igual» y «esto no mide nada» serían el mismo resultado — la lección de `intron_folding`. Es la misma familia que `extended_cassette`: un símbolo cuyo trabajo es demostrar algo sobre otro, no participar en el camino."
+

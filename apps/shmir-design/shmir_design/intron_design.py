@@ -54,6 +54,8 @@ from .hard_filters import gc_fraction
 from .hard_filters import longest_homopolymer as _longest_homopolymer
 from .spacers import WHY_FIXED_LENGTHS
 from .spacers import spacer_rejections as _spacer_rejections
+from .introns import BRANCH_A_OFFSET
+from .introns import get as _get_intron
 from .splicing import CRYPTIC_DONOR
 
 AUTHORIZATION = (
@@ -126,6 +128,11 @@ def locate_cryptic(scaffold, *, motif: str = CRYPTIC_DONOR) -> CrypticSite:
 
 def _donor_score(motivo: str) -> int:
     """Cuantas posiciones siguen coincidiendo con el consenso. Menos = mas degradado."""
+    # zip-ok: el motivo criptico son 7 nt y el consenso del donante son 5
+    # posiciones; se puntuan las cinco A PROPOSITO, que es lo que mide un consenso.
+    # Consecuencia MEDIDA, y va escrita porque no es obvia: cambiar una base en la
+    # posicion 6 o la 7 NO baja la puntuacion, asi que esas alternativas salen con
+    # el mismo numero que el motivo intacto y nunca se eligen — el minimo gana.
     return sum(
         1 for base, esperado in zip(motivo, DONOR_CONSENSUS) if base in esperado
     )
@@ -181,6 +188,28 @@ class BreakChoice:
     tied: tuple[BreakCandidate, ...] = ()
     reason: str = ""
 
+    def __post_init__(self) -> None:
+        """Las dos tuplas van EN PARALELO, y eso no se puede dejar a la buena fe.
+
+        `rows()`, `_eligible_set()` y el minimo recorren `zip(candidates, folding_ok)`, y
+        **`zip` trunca al mas corto sin decir nada**. Con `folding_ok` en su defecto —una
+        tupla vacia— el informe saldria SIN NINGUNA FILA y sin ningun error: se leeria
+        como «no hay alternativas» cuando lo que pasa es que no se midio ninguna.
+
+        Los dos sitios que construyen esto hoy rellenan los dos campos. El guardia esta
+        para el tercero. Es el principio nº 19 en su version silenciosa: un valor
+        legitimo —la tupla vacia del defecto— tiene la forma de otra cosa, y quien lo lee
+        mira el contenedor.
+        """
+        if len(self.folding_ok) != len(self.candidates):
+            raise ShmirDesignError(
+                f"BreakChoice: {len(self.candidates)} alternativa(s) y "
+                f"{len(self.folding_ok)} veredicto(s) de plegado. Van en paralelo y `zip`"
+                f" truncaría al más corto EN SILENCIO, dejando alternativas fuera del "
+                f"informe sin decirlo. Se aborta: cada alternativa lleva su `folding_ok`,"
+                f" y si no se pudo medir el plegado va `False` con su motivo en `reason`."
+            )
+
     @property
     def tie(self) -> bool:
         return len(self.tied) > 1
@@ -196,20 +225,25 @@ class BreakChoice:
                 "plegado_ok": ok,
                 "elegible": c in elegibles,
             }
-            for c, ok in zip(self.candidates, self.folding_ok)
+            for c, ok in zip(self.candidates, self.folding_ok, strict=True)
         ]
 
     def _eligible_set(self):
         if self.state is not FilterState.PASS:
             return set()
         minimo = min(
-            (c.donor_score for c, ok in zip(self.candidates, self.folding_ok) if ok),
+            (
+                c.donor_score
+                for c, ok in zip(self.candidates, self.folding_ok, strict=True)
+                if ok
+            ),
             default=None,
         )
         if minimo is None:
             return set()
         return {
-            c for c, ok in zip(self.candidates, self.folding_ok)
+            c
+            for c, ok in zip(self.candidates, self.folding_ok, strict=True)
             if ok and c.donor_score == minimo
         }
 
@@ -544,3 +578,141 @@ def design_variant(
                  "y no se propone entera."
         ),
     )
+
+
+# ─── DONDE VA EL MODULO dentro de un intron que llega ENTERO ──────────────────
+#
+# `intron_quimerico` sale de la anotacion de su plasmido y no declara sus puntos de
+# insercion, asi que no se puede montar con ningun andamio. Eso NO es un fichero que
+# falte: es una decision con criterio, y el criterio es computable.
+
+VENTANA_ADMISIBLE = (
+    "El módulo va DESPUÉS del donante y ANTES del primer candidato a punto de "
+    "ramificación: los dos límites salen de los elementos del propio intrón, no de un "
+    "número escrito. Y dentro de esa ventana hay dos criterios que NO coinciden — la "
+    "separación de los elementos y la conservación de la horquilla— así que se emiten "
+    "las posiciones con sus dos medidas y se decide mirándolas."
+)
+
+
+@dataclass(frozen=True)
+class InsertionCandidate:
+    """Una posición de inserción con TODAS sus distancias. No trae veredicto."""
+
+    position: int
+    to_donor: int
+    to_branch: int
+    to_tract: int
+    dg: float
+    hairpin_intact: bool
+
+    @property
+    def min_separation(self) -> int:
+        """La separación MÍNIMA de los dos extremos: el criterio de «máxima separación»
+        es maximizar este número, no la suma — una suma alta puede esconder un extremo
+        pegado."""
+        return min(self.to_donor, self.to_branch)
+
+
+def insertion_candidates(
+    intron, module: str, *, hairpin: str
+) -> tuple[InsertionCandidate, ...]:
+    """Toda la ventana admisible, medida. Sin elegir: quien decide mira la tabla.
+
+    `hairpin` va EXPLÍCITO porque el criterio estructural del proyecto es sobre la
+    HORQUILLA, no sobre el módulo entero. La primera versión comparaba el módulo y daba
+    CERO posiciones que conservan la estructura — un cero que se lee como «ninguna vale»
+    cuando lo que pasaba es que se medía otra cosa. El módulo lleva sitios de restricción
+    y contextos a los dos lados que replegan con el intrón; los 97 nt de la horquilla son
+    lo que tiene que sobrevivir.
+    """
+    from .folding import VIENNA_AVAILABLE, dot_bracket
+
+    if not intron.raw_sequence:
+        raise ShmirDesignError(
+            f"El intrón {intron.name!r} no llega entero, así que sus puntos de "
+            f"inserción salen de sus piezas y no hay nada que elegir. Se aborta."
+        )
+    if not VIENNA_AVAILABLE:
+        raise ShmirDesignError(
+            "Sin ViennaRNA no se puede decir si la horquilla conserva su estructura "
+            "dentro del intrón, y ése es uno de los dos criterios. Se aborta en vez de "
+            "emitir media tabla que se leería como la tabla entera."
+        )
+    secuencia = intron.raw_sequence
+    elementos = intron.elements()
+    fin_donante = elementos.donor.end
+    ramas = [c.branch_a for c in elementos.branch_candidates if c.branch_a is not None]
+    if not ramas:
+        raise ShmirDesignError(
+            f"El intrón {intron.name!r} no tiene ningún candidato a punto de "
+            f"ramificación, así que no hay límite superior para la ventana. Se aborta: "
+            f"insertar aguas abajo del punto es lo que la regla del módulo prohíbe."
+        )
+    primera_rama, tracto = min(ramas), elementos.ppt.start
+    # El limite superior es el INICIO DEL MOTIVO, no la A: invadir el motivo lo rompe.
+    tope = min(primera_rama - BRANCH_A_OFFSET, tracto) - 1
+    horquilla_sola = None
+    salida = []
+    for posicion in range(fin_donante + 1, tope + 1):
+        montado = secuencia[:posicion] + module + secuencia[posicion:]
+        estructura, energia = dot_bracket(montado)
+        if horquilla_sola is None:
+            horquilla_sola = dot_bracket(hairpin)[0]
+        inicio = posicion + module.find(hairpin)
+        dentro = estructura[inicio : inicio + len(hairpin)]
+        salida.append(InsertionCandidate(
+            position=posicion,
+            to_donor=posicion - fin_donante,
+            to_branch=primera_rama - posicion,
+            to_tract=tracto - posicion,
+            dg=energia,
+            hairpin_intact=dentro == horquilla_sola,
+        ))
+    return tuple(salida)
+
+
+# ─── LA POSICION ELEGIDA para `intron_quimerico`, y la descartada ─────────────
+#
+# Mismo patron que el desempate del criptico: la decision es del responsable del
+# proyecto, va con SUS palabras, y la alternativa queda REGISTRADA con su motivo para
+# que no haya que volver a razonarla.
+
+#: Se DERIVA del registro del intrón, que es donde vive (principio nº 13). Estuvo
+#: escrito aquí y ahí; dos definiciones del mismo número, y la que montaba el intrón no
+#: era ésta — porque durante meses no lo montaba nadie.
+INSERTION_POSITION = _get_intron("intron_quimerico").insertion_point
+INSERTION_REJECTED = 69
+
+#: El criterio, con las palabras de quien lo decidio (2026-08-30).
+INSERTION_RATIONALE = (
+    "Decisión del responsable del proyecto (2026-08-30). LOS DOS CRITERIOS NO PESAN "
+    "IGUAL: conservar la horquilla es BINARIO y las dos posiciones lo cumplen, y ΔG "
+    "−106,5 frente a −109,2 no acerca a ninguna a fallar — así que el ΔG no discrimina "
+    "aquí. La SEPARACIÓN sí: el elemento más cercano de la 69 es el PUNTO DE "
+    "RAMIFICACIÓN, a 34 nt, y el punto es el elemento frágil. La 49 lo deja a 54. "
+    "Además la 49 deja 70 nt al tracto de polipirimidinas frente a 50, y eso cuenta "
+    "porque ese tracto ya viene interrumpido: la carrera contigua son 11 nt (119-129) "
+    "entre una G en 118 y una A en 130, con más purinas aguas arriba en 113 y 118. Un "
+    "tracto que ya no es una carrera limpia agradece el sitio."
+)
+
+#: La DESCARTADA, con su motivo. Si la 49 da problemas, esta esta a un gBlock.
+INSERTION_REJECTED_WHY = (
+    "La 69 queda DESCARTADA, no eliminada: conserva la horquilla igual que la 49 y tiene "
+    "el MEJOR ΔG de las quince (−109,20 frente a −106,50). Pierde en lo que discrimina: "
+    "deja el punto de ramificación a 34 nt en vez de 54, y el punto es el elemento "
+    "frágil. Si la 49 diera problemas, ésta está a un gBlock de distancia y no hay que "
+    "volver a razonarla."
+)
+
+
+def insertion_note() -> str:
+    """La decisión entera, para que viaje con la construcción."""
+    return "\n".join([
+        f"Posición de inserción del módulo en `intron_quimerico`: "
+        f"{INSERTION_POSITION}.",
+        f"  {INSERTION_RATIONALE}",
+        f"  DESCARTADA: {INSERTION_REJECTED}. {INSERTION_REJECTED_WHY}",
+        f"  {VENTANA_ADMISIBLE}",
+    ])

@@ -1,0 +1,70 @@
+# QUÉ CLAVES NO PUEDE ESCRIBIR UN TEST
+#
+# Tres erratas seguidas con la misma anatomía —la clave del dossier (nº 44), las cinco
+# copias del formato de consulta (nº 44) y la clave de insumos (nº 47)— y en las tres el
+# test ESCRIBÍA la clave por la que luego preguntaba. Un test así **no puede fallar**:
+# coincide por construcción, su verde no dice nada del emparejamiento real, y mientras
+# tanto tapa un fallo estructural en el código.
+#
+# Lo pidió el responsable del proyecto (2026-09-02) como AUDITORÍA y no como tres
+# arreglos sueltos: «busca todos los sitios donde un test construya un diccionario o un
+# fixture cuya clave sea también la que el código bajo prueba usa para buscar».
+#
+# Esta tabla declara los PRODUCTORES: las funciones que emiten una clave. Un test puede
+# usar la clave — lo que no puede es escribirla. Se la pide al productor, o el sitio se
+# declara aquí abajo con su motivo.
+#
+# DOS MODOS, y son dos formas distintas de escribir una clave:
+#
+#   VALORES  el productor emite un conjunto CERRADO de cadenas (los nombres de fichero
+#            del depósito). Se busca ese valor exacto como CLAVE de un diccionario o
+#            elemento de un conjunto que el test pasa a una llamada. Un literal suelto no
+#            cuenta: abrir `data/reference/mature.fa` por su nombre es usar el fichero
+#            real, que es lo correcto.
+#   FORMATO  el productor emite una FAMILIA de cadenas con una forma reconocible
+#            (`raton_pos200_guia`, `blast-2026-09-02-<md5>`). Se busca esa forma en
+#            cualquier literal o f-string. Los docstrings no cuentan: citar el formato en
+#            prosa es documentarlo, no transcribirlo.
+#
+# El número correcto es CERO. No es un trinquete: un test que no puede fallar no es una
+# deuda, es una comprobación que no comprueba (errata nº 29).
+
+[[productor]]
+nombre = "species.required_files"
+modo = "VALORES"
+enumerador = "nombres_del_deposito"
+llamadas = ["required_files", "fichero_de", "deposito_completo", "deposito_vacio"]
+porque = """\
+Es la ÚNICA fuente de los nombres del depósito, y sufija por especie: `refseq_rna.fa` en \
+ratón y `refseq_rna_human.fa` en humano. Un test que escribe el nombre pregunta por el \
+murino aunque el código busque el de otra especie — que es exactamente la errata nº 47, \
+donde la comparación de md5 no podía darse nunca y once tests seguían en verde."""
+
+[[productor]]
+nombre = "presentation.query_name"
+modo = "FORMATO"
+patron = '_pos\d*\{?\w*\}?_(guia|pasajera)'
+llamadas = ["query_name"]
+porque = """\
+La clave con la que se cruzan las corridas y el panel. Hubo CINCO copias del formato y \
+dos tests que transcribían el suyo (errata nº 44); el bug real —cabeceras con espacio, \
+que BLAST corta— habría dado el mismo síntoma que un fallo de cableado, así que se habría \
+culpado al sitio equivocado."""
+
+[[productor]]
+nombre = "identidad.run_id"
+modo = "FORMATO"
+patron = '(^|-)(blast|seed|ot|empalme)-\d{4}-\d{2}-\d{2}'
+llamadas = ["run_id"]
+porque = """\
+La identidad de una corrida decide si entra o se rechaza. Lo montaba la PÁGINA como \
+`especie-tipo-fecha` y no admitía dos corridas el mismo día (errata nº 48); un test que \
+escriba ese formato vuelve a fijar el que se acaba de quitar."""
+
+# ─────────────────────────── Exentos, con motivo ───────────────────────────
+#
+# Vacío a propósito. Una exención se escribe cuando la haya, con el fichero, la línea y
+# por qué ahí escribir la clave es lo correcto. Una lista con entradas muertas deja de
+# leerse, así que `tests/test_claves_derivadas.py` falla también si una exención sobra.
+
+[exentos]

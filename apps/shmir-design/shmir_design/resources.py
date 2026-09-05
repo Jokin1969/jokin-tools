@@ -24,17 +24,36 @@ from .manifest import ROLES, DirectoryStatus, check_directory, roles_available
 from .masking import load_rmsk
 from .mirna import load_abundance_list, load_mature_fa
 from .seed_load import load_expression_table, load_utr3_set
-from .specificity import load_database
+from .specificity import load_database, scanner_budget
 from .errors import ShmirDesignError
 
 
 def _refseq(path, entry, contexto):
-    if not contexto.get("target"):
-        raise _Omitir(
-            "hace falta el gen diana (--target / el campo de la interfaz): es un "
-            "accession, no un fichero, y el manifiesto no lo sabe. Sin el, todo sitio "
-            "parece un off-target."
-        )
+    """La base de RefSeq se conecta si ESTÁ. La diana ya no se pide aquí.
+
+    Se negaba a conectarla mientras el campo «Gen diana» estuviera vacío, y eso producía
+    una pantalla que se contradecía: abajo el fichero en verde («está en el depósito») y
+    arriba «refseq_rna.fa no se ha conectado». Las dos ciertas, contestando a cosas
+    distintas, y juntas se leen como que la app se equivoca.
+
+    Son dos preguntas y ahora cada una se contesta donde toca: **el fichero**, aquí; **la
+    diana**, en `data/diana/variantes.toml`, y si esa especie no la declara lo dice el
+    veredicto del filtro con `NO_CIERRA` — no la lista de conectados.
+
+    **PERO EL TAMAÑO SÍ DECIDE, y por eso se mira ANTES de cargar** (errata nº 84). El
+    escaner de `filter_specificity` barre la base ENTERA por cada ventana elegible: con
+    una base de RefSeq de verdad son horas por corrida, y en cada repintado de la pagina.
+    `specificity.scanner_budget` da el veredicto con los numeros; el fichero se queda en
+    el deposito —lo usa el modal de BLAST y de el sale la procedencia— y lo que no se hace
+    es meterlo en un filtro que no puede con el.
+
+    Se mira ANTES de `load_database` porque cargar ya cuesta: 25 MB/s y ~5x el fichero en
+    memoria. Con una base grande, la propia carga tumba el contenedor antes de que nadie
+    llegue a medir nada.
+    """
+    veredicto = scanner_budget(Path(path).stat().st_size, name=entry.name)
+    if not veredicto["cabe"]:
+        raise _Omitir(veredicto["motivo"])
     return load_database(
         path, name="RefSeq RNA", version=entry.date or entry.md5, expected_md5=entry.md5
     )
@@ -140,6 +159,30 @@ class _Omitir(Exception):
     """Este recurso no se puede cargar todavia, y el motivo no es un fallo."""
 
 
+def _plasmido_andamio(path, entry, contexto):
+    """El plásmido del andamio. Se CARGA comprobándolo, que es su única razón de ser.
+
+    No devuelve un objeto que luego alimente un filtro —el diseño no lo usa— sino que
+    corre la comprobación que de él depende: que los contextos del módulo sean los nativos
+    del plásmido. Devolver la ruta y no un dato es correcto aquí: lo que este fichero
+    aporta es un VEREDICTO, no una tabla.
+    """
+    from .gblock import verify_contexts_against_plasmid  # noqa: PLC0415
+    from .identidad import file_fingerprint  # noqa: PLC0415
+
+    ruta = Path(path)
+    md5 = file_fingerprint(ruta.read_bytes())
+    if entry.md5 and md5 != entry.md5:
+        raise ShmirDesignError(
+            f"{ruta}: el manifiesto registra md5 {entry.md5} y el fichero da {md5}. Se "
+            f"aborta: los contextos que se contrastarían serían los de OTRO plásmido."
+        )
+    verify_contexts_against_plasmid(
+        ruta.read_text(encoding="utf-8", errors="replace")
+    )
+    return ruta
+
+
 #: Un cargador por rol. Unico sitio donde vive esa correspondencia; hay test de que
 #: cubre exactamente los roles declarados en `manifest.ROLES`, ni uno mas ni uno menos.
 LOADERS = {
@@ -152,6 +195,7 @@ LOADERS = {
     "transgen": _transgen,
     "apa": _apa,
     "polyadb": _polyadb,
+    "plasmido_andamio": _plasmido_andamio,
 }
 
 #: Donde acaba cada rol dentro de `ResourceSet`. El orden importa: la abundancia
@@ -175,7 +219,6 @@ class ResourceSet:
     """Lo que se le puede pasar a `tile_utr`, mas de donde salio cada cosa."""
 
     specificity_db: object | None = None
-    specificity_target: str | None = None
     transgene_db: object | None = None
     mature: object | None = None
     abundance: object | None = None
@@ -194,7 +237,6 @@ class ResourceSet:
         """Los campos que `tile_utr` entiende, y solo esos."""
         return {
             "specificity_db": self.specificity_db,
-            "specificity_target": self.specificity_target,
             "transgene_db": self.transgene_db,
             "mature": self.mature,
             "abundance": self.abundance,
@@ -204,7 +246,13 @@ class ResourceSet:
             "apa_sites": self.apa_sites,
         }
 
-    def format_text(self) -> str:
+    def format_text(self, *, notes: bool = True) -> str:
+        """La lista de conectados. `notes=False` la deja SIN los avisos.
+
+        Los avisos salen aparte porque no son lo mismo que la lista: la lista es
+        procedencia y se consulta; un aviso es una tarea pendiente y hay que verla. Ver
+        `presentation.connected_panel`.
+        """
         lineas = []
         if self.connected:
             lineas.append("Conectados desde el manifiesto:")
@@ -214,7 +262,7 @@ class ResourceSet:
                 "No se ha conectado ningún fichero de referencia: los filtros que "
                 "dependen de uno quedaran en NOT_RUN."
             )
-        if self.notes:
+        if notes and self.notes:
             lineas.append("")
             lineas.extend(f"  ⚠  {n}" for n in self.notes)
         return "\n".join(lineas)
@@ -244,7 +292,7 @@ def roles_for_species(estado: DirectoryStatus, especie) -> dict:
 
 
 def load_from_manifest(
-    directory: Path | str, *, target: str | None = None, ignore=(), species=None
+    directory: Path | str, *, ignore=(), species=None
 ) -> ResourceSet:
     """Carga todo lo que este en OK en ese directorio. Lo que no, se anota.
 
@@ -273,7 +321,9 @@ def load_from_manifest(
     cargado: dict[str, object] = {}
     conectados: list[str] = []
     notas: list[str] = []
-    contexto: dict[str, object] = {"target": target}
+    # NINGUN cargador pide ya la diana: la unica forma de declararla es
+    # `data/diana/variantes.toml`, y quien la lee es el filtro, no esto.
+    contexto: dict[str, object] = {}
 
     for role, destino in DESTINOS:
         rol = disponibles.get(role)
@@ -296,7 +346,6 @@ def load_from_manifest(
         conectados.append(rol.filename)
 
     return ResourceSet(
-        specificity_target=target if cargado.get("specificity_db") else None,
         connected=tuple(conectados),
         notes=tuple(notas),
         status=estado,

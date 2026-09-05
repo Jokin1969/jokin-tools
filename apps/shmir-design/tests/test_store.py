@@ -28,6 +28,16 @@ from pathlib import Path
 from shmir_design.errors import ShmirDesignError
 from shmir_design.store import Project, ProjectStore
 
+from shmir_design.presentation import query_name
+
+# EL NOMBRE DE UNA CONSULTA SE PIDE, NO SE ESCRIBE. Estos tests transcribian
+# `raton_pos200_guia`, que es un formato que la app YA NO PRODUCE —el slug de la especie
+# es `mouse`, no `raton`—: coincidian consigo mismos, asi que el desfase no se veia. Es
+# la mitad que dejo pasar la errata nº 44. Ver `data/claves_derivadas.toml`.
+def Q(inicio, hebra="guia", especie="mouse"):
+    return query_name(especie, inicio, hebra)
+
+
 
 def _abrir(tmp, **cambios):
     base = dict(
@@ -235,13 +245,13 @@ class TestLosDosAlmacenesGuardanAHI(unittest.TestCase):
         from shmir_design.blast_store import BlastDatabase, BlastRun
         from shmir_design.store import load_blast_store, save_blast_run
 
-        consulta = blast.QueryFasta.from_records((("raton_pos10_guia", "ACGTACGTACGT"),))
+        consulta = blast.QueryFasta.from_records(((Q(10), "ACGTACGTACGT"),))
         corrida = BlastRun.create(
             run_id="r1", date="2026-08-26", uploaded_by="responsable",
             params=blast.DEFAULTS,
             database=BlastDatabase("refseq_rna", "2026-08-26", "a" * 32, False),
             query=consulta,
-            raw="raton_pos10_guia\tNM_1\t100.0\t12\t0\t0\t1\t12\t1\t12\t1e-5\t24.0\n",
+            raw=f"{Q(10)}\tNM_1\t100.0\t12\t0\t0\t1\t12\t1\t12\t1e-5\t24.0\n",
         )
         with tempfile.TemporaryDirectory() as tmp:
             almacen = self._proyecto(tmp)
@@ -257,13 +267,13 @@ class TestLosDosAlmacenesGuardanAHI(unittest.TestCase):
         from shmir_design.blast_store import BlastDatabase, BlastRun
         from shmir_design.store import load_blast_store, save_blast_run
 
-        consulta = blast.QueryFasta.from_records((("raton_pos10_guia", "ACGTACGTACGT"),))
+        consulta = blast.QueryFasta.from_records(((Q(10), "ACGTACGTACGT"),))
         corrida = BlastRun.create(
             run_id="r1", date="2026-08-26", uploaded_by="responsable",
             params=blast.DEFAULTS,
             database=BlastDatabase("refseq_rna", "2026-08-26", "a" * 32, False),
             query=consulta,
-            raw="raton_pos10_guia\tNM_1\t100.0\t12\t0\t0\t1\t12\t1\t12\t1e-5\t24.0\n",
+            raw=f"{Q(10)}\tNM_1\t100.0\t12\t0\t0\t1\t12\t1\t12\t1e-5\t24.0\n",
         )
         with tempfile.TemporaryDirectory() as tmp:
             save_blast_run(self._proyecto(tmp), corrida)
@@ -271,7 +281,7 @@ class TestLosDosAlmacenesGuardanAHI(unittest.TestCase):
             from shmir_design.filters import FilterState
 
             self.assertIsNot(
-                recuperado.verdict_for("raton_pos10_guia").state, FilterState.NOT_RUN
+                recuperado.verdict_for(Q(10)).state, FilterState.NOT_RUN
             )
 
     def test_los_parametros_MODIFICADOS_sobreviven_tambien(self):
@@ -280,13 +290,13 @@ class TestLosDosAlmacenesGuardanAHI(unittest.TestCase):
         from shmir_design.blast_store import BlastDatabase, BlastRun
         from shmir_design.store import load_blast_store, save_blast_run
 
-        consulta = blast.QueryFasta.from_records((("raton_pos10_guia", "ACGTACGTACGT"),))
+        consulta = blast.QueryFasta.from_records(((Q(10), "ACGTACGTACGT"),))
         corrida = BlastRun.create(
             run_id="r1", date="2026-08-26", uploaded_by="responsable",
             params=blast.DEFAULTS.with_changes(word_size=11),
             database=BlastDatabase("refseq_rna", "2026-08-26", "a" * 32, False),
             query=consulta,
-            raw="raton_pos10_guia\tNM_1\t100.0\t12\t0\t0\t1\t12\t1\t12\t1e-5\t24.0\n",
+            raw=f"{Q(10)}\tNM_1\t100.0\t12\t0\t0\t1\t12\t1\t12\t1e-5\t24.0\n",
         )
         with tempfile.TemporaryDirectory() as tmp:
             save_blast_run(self._proyecto(tmp), corrida)

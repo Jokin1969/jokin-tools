@@ -38,8 +38,12 @@ from shmir_design.scaffold import SGEP_SCAFFOLD  # noqa: E402
 #: Lo que se puede importar y con que etiqueta queda. Solo hay puntuaciones HECHAS A
 #: MANO en un servicio externo: no existe ninguna opcion que escriba `splashrna_features`
 #: ni nada calculado en este repositorio.
-FUENTES = {"mirarchitect": ScoreSource.MANUAL_MIRARCHITECT}
-
+FUENTES = {
+    "mirarchitect": ScoreSource.MANUAL_MIRARCHITECT,
+    # CONTRASTE DE SITIO, nunca orden. Salen marcadas `NO_ORDENA` en cada fila.
+    "sidirect": ScoreSource.MANUAL_SIDIRECT,
+    "blockit": ScoreSource.MANUAL_BLOCKIT,
+}
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(

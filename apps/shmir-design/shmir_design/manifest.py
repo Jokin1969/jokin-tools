@@ -25,13 +25,13 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-import hashlib
 import re
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
 from .errors import ShmirDesignError
+from .identidad import file_fingerprint
 
 MANIFEST_NAME = "manifest.tsv"
 MANIFEST_COLUMNS = (
@@ -70,6 +70,21 @@ MANIFEST_COLUMNS = (
     "cds",
     "md5_secuencia",
     "md5_utr3",
+    # LA PROCEDENCIA DE LA TABLA, añadida 2026-09-02. Es la del FICHERO, no la de una
+    # corrida — y esa distincion es la que motiva estas cuatro columnas: el modal de
+    # off-targets las pedia AL CORRER, cada vez, siendo un dato del fichero que el
+    # deposito ya tenia delante. Dos copias del mismo dato acaban divergiendo y nadie
+    # sabe cual manda; o eso, o el modal se las inventa.
+    #
+    # Van vacias en todo lo que no sea una tabla descargada de un navegador de genomas.
+    # Donde HACEN FALTA son obligatorias EN LA SUBIDA (`deposito.PROVENANCE_REQUIRED`):
+    # si `offtarget.Provenance` las exige para dar veredicto, un fichero sin ellas no
+    # puede entrar al deposito y bloquear el frente tres pantallas despues sin decir por
+    # que. El rechazo va donde entra el fichero.
+    "ensamblaje",
+    "tabla",
+    "fecha_tabla",
+    "representante",
 )
 
 #: El ancho de antes de las columnas de procedencia. Se sigue leyendo.
@@ -81,6 +96,11 @@ PREVIOUS_COLUMNS = MANIFEST_COLUMNS[:9]
 #: La cabecera de antes de que la ANATOMIA entrara en el manifiesto (2026-08-27). Misma
 #: regla: se sigue leyendo y las tres columnas nuevas salen vacias.
 BEFORE_ANATOMY_COLUMNS = MANIFEST_COLUMNS[:10]
+
+#: La cabecera de antes de que existiera la procedencia de la TABLA (2026-09-02). Un
+#: manifiesto de entonces se lee igual y las cuatro columnas salen vacias, que es la
+#: verdad: nadie las registro.
+BEFORE_TABLE_COLUMNS = MANIFEST_COLUMNS[:13]
 
 #: Ficheros del directorio que no son datos y no cuentan como sobrantes.
 _NO_SON_DATOS = frozenset({MANIFEST_NAME, ".gitignore"})
@@ -169,6 +189,16 @@ ROLES: tuple[Role, ...] = (
     # fraccion, nombre— y esta es la de PolyA_DB, con clase, PSE y AvgRPM por PAS: es la
     # que promueve señales por MEDIDA y la que da el techo por tramos. Fundirlas en un
     # solo fichero seria el patron de los dos contadores que discrepan.
+    # EL PLASMIDO DEL ANDAMIO. No lleva sufijo de especie y no es un descuido: SGEP es
+    # el vector del ANDAMIO, no de ninguna especie — al reves que `aav_casete.fa`, que es
+    # pAAV con PrP MURINO y por eso si lo lleva. No sustituye ninguna flag: nunca hubo
+    # una, que es justo de lo que se queja este bloque.
+    Role(
+        role="plasmido_andamio",
+        filename="addgene_111170.gb",
+        what="los contextos nativos del módulo de 149 nt, contrastados contra SGEP",
+        replaces=(),
+    ),
     Role(
         role="polyadb",
         filename="polya_db_mouse.tsv",
@@ -211,6 +241,14 @@ class ManifestEntry:
     sequence_md5: str = ""
     #: md5 del 3'UTR canonico. Es el que decide si la tabla de APA medido se aplica.
     utr3_md5: str = ""
+    #: LA PROCEDENCIA DE LA TABLA de la que salio el fichero, cuando lo es. Sin
+    #: ensamblaje, tabla, fecha y criterio de representante un conteo NO es
+    #: reproducible — la misma regla que la version de miRBase y la biblioteca de Dfam.
+    #: Vacias en todo lo demas; donde hacen falta, la SUBIDA las exige.
+    assembly: str = ""
+    table: str = ""
+    table_date: str = ""
+    representative: str = ""
 
     def usable(self, status: EntryStatus) -> bool:
         """¿Se puede correr el filtro que depende de este fichero?
@@ -329,7 +367,8 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
     # ficheros que no son transcritos no tienen accession— pero deja esas columnas
     # vacias, y vacio significa "no registrado", nunca un valor por defecto.
     if cabecera not in (
-        MANIFEST_COLUMNS, BEFORE_ANATOMY_COLUMNS, PREVIOUS_COLUMNS, LEGACY_COLUMNS,
+        MANIFEST_COLUMNS, BEFORE_TABLE_COLUMNS, BEFORE_ANATOMY_COLUMNS,
+        PREVIOUS_COLUMNS, LEGACY_COLUMNS,
     ):
         raise ShmirDesignError(
             f"{source}: la cabecera del manifiesto es {cabecera} y se esperaba "
@@ -354,7 +393,8 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
         rellenos = [*(c.strip() for c in campos), *([""] * (len(MANIFEST_COLUMNS) - ancho))]
         (nombre, filtro, tamaño, md5, fecha, origen,
          accession, longitud, url, biblioteca,
-         cds, md5_secuencia, md5_utr3) = rellenos
+         cds, md5_secuencia, md5_utr3,
+         ensamblaje, tabla, fecha_tabla, representante) = rellenos
         if not nombre:
             raise ShmirDesignError(f"{source}, fila {numero}: sin nombre de fichero.")
         if nombre in vistos:
@@ -388,6 +428,8 @@ def parse_manifest(text: str, *, source: str) -> Manifest:
                 library=biblioteca,
                 cds=_cds(cds, source=source, fila=numero),
                 sequence_md5=md5_secuencia, utr3_md5=md5_utr3,
+                assembly=ensamblaje, table=tabla, table_date=fecha_tabla,
+                representative=representante,
             )
         )
     return Manifest(entries=tuple(entradas), source=source)
@@ -533,7 +575,7 @@ def check_directory(directory: Path | str) -> DirectoryStatus:
             resultados.append(EntryResult(entry=entrada, status=EntryStatus.AUSENTE))
             continue
         datos = ruta.read_bytes()
-        md5 = hashlib.md5(datos, usedforsecurity=False).hexdigest()
+        md5 = file_fingerprint(datos)
         if not entrada.md5:
             estado = EntryStatus.SIN_REGISTRAR
         elif md5 == entrada.md5:
@@ -599,6 +641,7 @@ def entry_row(entry: ManifestEntry) -> str:
             entry.name, entry.filter_name, entry.size, entry.md5, entry.date,
             entry.origin, entry.accession, entry.length, entry.url, entry.library,
             _cds_texto(entry.cds), entry.sequence_md5, entry.utr3_md5,
+            entry.assembly, entry.table, entry.table_date, entry.representative,
         )
     )
     if len(fila.split("\t")) != len(MANIFEST_COLUMNS):

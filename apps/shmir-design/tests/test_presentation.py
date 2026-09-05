@@ -12,6 +12,7 @@ from shmir_design.anatomy import Anatomy, RegionSource
 from shmir_design.conservation import Utr3, build_conservation_report
 from shmir_design.masking import RepeatMask
 from shmir_design.polya import POLYA_COLUMNS
+from shmir_design.seed_load import LOAD_COLUMNS as SEED_LOAD_COLUMNS
 from shmir_design.presentation import (
     anatomy_rows,
     candidate_rows,
@@ -32,6 +33,15 @@ SONDA = "GCGTCAGTACGATCGAATTACT" * 30
 BLOQUE = "TTTTCTATATTTGTAACTTTGCATGT"
 
 
+#: EL NOMBRE DEL REGISTRO DE LA BASE FALSA SE PIDE, no se escribe. Desde 2026-09-04 la
+#: diana la declara `data/diana/variantes.toml` y el filtro la lee de ahí; una base de
+#: prueba cuyo único registro se llamara «diana» haría que la sonda diera un off-target
+#: contra sí misma y el test comprobaría lo contrario de lo que dice comprobar.
+def _accession_de_la_diana() -> str:
+    from shmir_design.specificity import target_accessions
+
+    return target_accessions("raton")[0]
+
 def piezas(seeds=None, mask=None, specificity=False, transgene=False, mirna=False):
     """`specificity=True` carga una base minima donde la unica diana es la sonda.
 
@@ -44,7 +54,7 @@ def piezas(seeds=None, mask=None, specificity=False, transgene=False, mirna=Fals
             name="base de prueba",
             version="2026-08-25",
             checksum="0" * 32,
-            records={"diana": SONDA},
+            records={_accession_de_la_diana(): SONDA},
         )
         if specificity
         else None
@@ -82,7 +92,7 @@ def piezas(seeds=None, mask=None, specificity=False, transgene=False, mirna=Fals
         mature=maduros,
         abundance=abundantes,
         specificity_db=base,
-        specificity_target="diana" if base else None,
+        species="raton",
         transgene_db=casete,
     )
     return tiling, select_from_report(tiling, SelectionConfig(n_candidates=3))
@@ -194,10 +204,17 @@ class TestFilasDeTabla(unittest.TestCase):
         """Guardia contra futuras colisiones de nombres al fusionar diccionarios."""
         tiling, seleccion = piezas()
         nombres_filtro = {r.name for r in tiling.windows[0].filters}
+        # Las columnas de la carga por clase se PIDEN, no se escriben: son una por
+        # clase de sitio y transcribirlas aqui dejaria fuera a la quinta el dia que la
+        # haya (principio nº 13).
+        from shmir_design.presentation import seed_load_columns
+
+        carga_por_clase = seed_load_columns(stores=None, species="", start=0)
         otras = {"rango", "inicio", "fin", "region", "inicio_3utr", "fin_3utr",
                  "tercio", "asimetria_kcal", "bandera_polyA_debil",
                  "biofisicos_ok", "riesgo_APA", "veredicto", "diana", "guia",
-                 "carga_seed", "accesibilidad", *POLYA_COLUMNS}
+                 "accesibilidad", *carga_por_clase, *SEED_LOAD_COLUMNS,
+                 *POLYA_COLUMNS}
         self.assertEqual(nombres_filtro & otras, set())
         self.assertEqual(
             len(candidate_rows(seleccion)[0]), len(nombres_filtro) + len(otras)
@@ -363,16 +380,21 @@ class TestColumnasNuevasEnLaTabla(unittest.TestCase):
             self.assertIn(campo, fila)
 
     def test_la_carga_de_seed_y_la_accesibilidad_tienen_columna(self):
+        """La carga sale POR CLASE, nunca como un total (`WHERE_THE_TOTAL_WENT`)."""
         _, seleccion = piezas()
         fila = candidate_rows(seleccion)[0]
-        self.assertIn("carga_seed", fila)
+        for columna in SEED_LOAD_COLUMNS:
+            self.assertIn(columna, fila)
+        self.assertNotIn("carga_seed", fila)
         self.assertIn("accesibilidad", fila)
 
     def test_sin_calcular_van_vacias_y_no_a_cero(self):
         _, seleccion = piezas()
         fila = candidate_rows(seleccion)[0]
-        self.assertEqual(fila["carga_seed"], "")
-        self.assertEqual(fila["accesibilidad"], "")
+        for columna in SEED_LOAD_COLUMNS:
+            self.assertEqual(fila[columna], "", columna)
+        # NO SE PIDIO no es NO SE PUDO: la celda lo dice (errata nº 91).
+        self.assertEqual(fila["accesibilidad"], "NO_PEDIDO")
 
     def test_el_riesgo_APA_dice_si_es_prediccion(self):
         _, seleccion = piezas()

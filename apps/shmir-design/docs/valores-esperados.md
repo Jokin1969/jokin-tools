@@ -138,3 +138,63 @@ y los no cubiertos A y G, que avisan sin tocar la base).
 
 La regla de la pasajera sigue marcada como `REGLA_NO_CONFIRMADA`: ver
 `preguntas-abiertas.md`.
+
+## SpliceAI sobre las diez construcciones `mvm_actual` — **medido (2026-09-05)**
+
+Primera corrida real de este frente. El fichero está en
+`data/medido/spliceai_mvm_actual_2026-09-05.tsv` con su procedencia; **las posiciones de
+esta tabla van en NUESTRA convención** (la `G` de `GT`, la `A` de `AG`), no en la de
+SpliceAI — ver la errata nº 99.
+
+### El referente interno, y cuánto lo mueve la guía
+
+| construcción | donante 3134 | aceptor 3428 |
+|---|---|---|
+| `3utr:959` | **0,6638** ← el más bajo | 0,7979 |
+| `3utr:1009` | 0,8011 | 0,8741 |
+| `3utr:1092` | 0,8006 | 0,8403 |
+| `3utr:1149` | 0,7798 | 0,8793 |
+| `3utr:1398` | 0,7891 | 0,8539 |
+| `3utr:1502` | 0,8443 | 0,8850 |
+| `3utr:1601` | 0,8480 | 0,8844 |
+| `3utr:1684` | **0,8714** ← el más alto | 0,8714 |
+| `3utr:1768` | 0,7897 | 0,8661 |
+| `3utr:1967` | 0,7324 | 0,8034 |
+
+**Recorrido del donante legítimo: 31 %** sobre el mismo sitio, con el módulo a más de
+100 nt. Ninguna baja hasta preocupar, pero el efecto existe y es medible: sale como
+columna (`donante_vs_hermanas`) y con su tabla por intrón (`splice_modulation_rows`).
+
+### El contraste que le da sentido
+
+| sitio | región | recorrido entre las diez |
+|---|---|---|
+| donante legítimo (3134) | intrón | **31 %** |
+| donante del contexto (1517; 1516 en el marco de SpliceAI) | contexto 5' | **3 %** |
+| `GTGAGCG`, el críptico conocido (3232) | intrón | — (todo por debajo de 3e-07) |
+
+Lo que está en el intrón lo mueve la guía; lo que viene con el plásmido, no.
+
+### Lo que hay por encima de 0,01 dentro del intrón, aparte de los legítimos
+
+Casi nada, y **nada constante**:
+
+| sitio (marco de SpliceAI) | en cuántas de las diez | rango |
+|---|---|---|
+| 3352 (donante) | 4 | 0,012 – 0,046 |
+| 3263 (aceptor) | 2 | 0,012 – 0,075 |
+| 3298 (aceptor) | 1 | 0,017 |
+
+El **3263** merece una nota: cae **dentro del módulo** (3194-3342) y sobre un `AG` real —
+en nuestra convención, la `A` está en 3261—. Es el único críptico de esta corrida que
+depende de qué guía lleva la construcción, que es literalmente lo que este frente busca
+(`exclusive_rows`). Sigue siendo un 11 % del legítimo en el peor caso, muy por debajo del
+50 % que dispara el aviso.
+
+### El donante fuerte del contexto: **1517** (1516 en el marco de SpliceAI)
+
+0,744 – 0,766 en las diez, más alto que el donante legítimo en dos de ellas
+(`3utr:959` y `3utr:1967`). Cae en el **contexto 5'**, 1.617 nt aguas arriba del intrón:
+viene con el casete, está en las diez y **no lo introduce ninguna guía**, así que cambiar
+de candidato no lo quita. Por eso la fila del informe lleva `mejor_criptico_region`: sin
+esa columna, el sitio más fuerte de la tabla se lee como si lo hubiera puesto el módulo.

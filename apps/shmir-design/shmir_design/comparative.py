@@ -31,9 +31,16 @@ from .external_score import (
     splashrna_features,
 )
 from .gblock import build_gblock
+from .offtarget import SITE_CLASSES
 from .polya import POLYA_COLUMNS
+from .seed_load import LOAD_COLUMNS
 from .scaffold import ScaffoldSpec, build_hairpin
 from .selection import ReportSelection
+
+#: LAS CUATRO COLUMNAS DEL FRENTE, derivadas de sus clases y no escritas: si mañana entra
+#: una quinta clase, entra aqui sola. Llevan percentil pegado y las pone la CORRIDA
+#: guardada, no el tilado — por eso su prefijo es distinto del de `LOAD_COLUMNS`.
+OFFTARGET_COLUMNS = tuple(f"carga_{clase}" for clase in SITE_CLASSES)
 
 #: Columnas fijas, en el orden en que se leen. Las de `filtro:<nombre>` se añaden
 #: detras, una por filtro, y las tres columnas que esperan un dato de fuera
@@ -61,7 +68,13 @@ COMPARATIVE_COLUMNS = (
     "especificidad_2mm",
     "transgen",
     "seed_colision",
-    "carga_seed",
+    # LOS SUMANDOS, NO LA SUMA. `carga_seed` era el total de las tres clases y salia sin
+    # ellas; ver `seed_load.WHERE_THE_TOTAL_WENT`. Y las cuatro `carga_<clase>` —con
+    # percentil y con el 6mer— venian saliendo en la tabla de la pagina y NO aqui: la
+    # errata nº 70 llego a `candidate_rows` y no al TSV, que es el artefacto que se
+    # descarga y se discute (septima vez del patron de `page_run`).
+    *LOAD_COLUMNS,
+    *OFFTARGET_COLUMNS,
     "accesibilidad",
     "accesibilidad_seed",
     *FEATURE_COLUMNS,
@@ -164,14 +177,31 @@ def comparative_rows(
     scaffold: ScaffoldSpec,
     *,
     anatomy: Anatomy | None = None,
+    stores=None,
+    species: str = "",
 ) -> list[list[str]]:
     """Cabecera y una fila por candidato elegido.
 
     Toda coordenada sale ETIQUETADA con su espacio (`3utr:449`, `tx:1398`). En la
     cabecera de la columna no basta: quien copia una celda a un correo se lleva el
     numero sin la cabecera, y `1018` en dos espacios son dos sitios distintos.
+
+    **`stores` ENTRA POR AQUI Y NO POR CADA CONSUMIDOR** (principio nº 23). Las cuatro
+    columnas del frente de off-targets —conteo por clase con su percentil— se cablearon
+    a `presentation.candidate_rows` y no llegaron nunca a este TSV, que es el artefacto
+    que se descarga y se discute. Se pide la referencia al MISMO sitio que la tabla de
+    la pagina: dos calculos del mismo numero acaban discrepando.
     """
+    # Import perezoso: `presentation` importa este modulo, asi que al reves solo puede
+    # ser aqui dentro. Lo que NO se hace es reimplementar `seed_load_columns` — seria la
+    # segunda definicion del mismo numero, que es el fallo que esto viene a cerrar.
+    from .presentation import seed_load_columns, seed_load_reference  # noqa: PLC0415
+
     anatomy = anatomy or selection.anatomy
+    referencia = seed_load_reference(
+        stores=stores, species=species,
+        starts=[c.start for c in selection.selection.chosen],
+    )
     marco = frame_of(anatomy) if anatomy is not None else Frame.UTR3
     # Cada fila convierte a 3'UTR restando el desfase. Con el tope real,
     # una resta mal hecha aborta en la fila en vez de salir en el TSV.
@@ -232,8 +262,13 @@ def comparative_rows(
             "especificidad_2mm": especificidad[2],
             "transgen": window.filter("transgen").state.value,
             "seed_colision": window.filter("seed_colision").state.value,
-            "carga_seed": (
-                window.carga_seed.as_column() if window.carga_seed is not None else ""
+            **(
+                window.carga_seed.as_columns() if window.carga_seed is not None
+                else dict.fromkeys(LOAD_COLUMNS, "")
+            ),
+            **seed_load_columns(
+                stores=stores, species=species, start=choice.start,
+                reference=referencia,
             ),
             "accesibilidad": (
                 window.accesibilidad.as_column()
@@ -285,10 +320,20 @@ def comparative_tsv(
     *,
     with_header: bool = False,
     anatomy: Anatomy | None = None,
+    stores=None,
+    species: str = "",
 ) -> str:
-    """La tabla en TSV. `with_header` añade los comentarios que la explican."""
+    """La tabla en TSV. `with_header` añade los comentarios que la explican.
+
+    **`anatomy` NO se reenviaba**, y los dos llamadores la pasan: se caia siempre a la
+    anatomia que trae la propia seleccion. Hoy son la misma, asi que no habia sintoma — pero era un
+    argumento inerte, que es lo que hace que nadie vuelva a mirarlo (errata nº 32).
+    """
     cuerpo = "\n".join(
-        "\t".join(fila) for fila in comparative_rows(selection, scaffold)
+        "\t".join(fila)
+        for fila in comparative_rows(
+            selection, scaffold, anatomy=anatomy, stores=stores, species=species,
+        )
     )
     if not with_header:
         return cuerpo
@@ -312,7 +357,10 @@ RESUMEN_COLUMNS = (
     "asimetria_penalizada",
     "polyA_solapa_seed",
     "riesgo_APA",
-    "carga_seed",
+    # EN EL RESUMEN VA UNA SOLA CLASE, la que mas discrimina, y con su nombre completo:
+    # meter las siete columnas de este eje en un bloque alineado lo haria ilegible, y
+    # meter un total volveria a ser la suma prohibida.
+    "carga_8mer",
     "accesibilidad",
     "veredicto",
 )
@@ -323,9 +371,13 @@ def comparative_text(
     scaffold: ScaffoldSpec,
     *,
     anatomy: Anatomy | None = None,
+    stores=None,
+    species: str = "",
 ) -> str:
     """Bloque legible: las columnas que sirven para decidir, alineadas."""
-    filas = comparative_rows(selection, scaffold, anatomy=anatomy)
+    filas = comparative_rows(
+        selection, scaffold, anatomy=anatomy, stores=stores, species=species,
+    )
     if len(filas) < 2:
         return "  (no hay candidatos seleccionados)"
     indices = [filas[0].index(c) for c in RESUMEN_COLUMNS]
@@ -334,12 +386,16 @@ def comparative_text(
         for i, indice in enumerate(indices)
     ]
     lineas = [
-        "  " + "  ".join(c.ljust(a) for c, a in zip(RESUMEN_COLUMNS, anchos))
+        "  " + "  ".join(
+            c.ljust(a) for c, a in zip(RESUMEN_COLUMNS, anchos, strict=True)
+        )
     ]
     for fila in filas[1:]:
         lineas.append(
             "  "
-            + "  ".join(fila[i].ljust(a) for i, a in zip(indices, anchos))
+            + "  ".join(
+                fila[i].ljust(a) for i, a in zip(indices, anchos, strict=True)
+            )
         )
     lineas.append(
         "  La tabla COMPLETA —con la pasajera, el módulo de 149 nt, los cinco campos de"

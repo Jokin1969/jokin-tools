@@ -25,6 +25,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
 from shmir_design.presentation import informe_documento, informe_files  # noqa: E402
+from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.fetch import parse_fasta_payload  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.resolve import check_boundaries, resolve_anatomy  # noqa: E402
@@ -79,14 +80,31 @@ def main(argv=None) -> int:
     seleccion = select_from_report(
         informe, SelectionConfig(n_candidates=args.candidatos, apa_immune_quota=4)
     )
+    # La anatomia se PASA, no se deduce: el CLI la tiene resuelta y la pagina tambien,
+    # asi que el mismo documento sale con la misma seccion por los dos caminos. Sin esto,
+    # el informe descargado desde el navegador traeria una tabla que el del CLI no, que es
+    # justo la divergencia entre frontales que este proyecto lleva cazando.
     documento = informe_documento(
         seleccion, informe, species=args.especie, generated=args.fecha,
-        anatomy_source=anat.source.value,
+        anatomy_source=anat.source.value, anatomy=anat,
     )
 
     destino = Path(args.salida)
     destino.parent.mkdir(parents=True, exist_ok=True)
-    for entregable in informe_files(documento, stem=destino.name):
+    entregables = informe_files(documento, stem=destino.name)
+    # AQUI UN FORMATO ROTO ABORTA, y en la pagina no. No es incoherencia: son dos
+    # situaciones distintas. En la pagina cada entregable tiene su sitio en pantalla, asi
+    # que el motivo se ve y los otros dos siguen sirviendo; aqui no hay nadie mirando
+    # tres columnas — un CLI que escribe dos ficheros de tres y sale con 0 deja media
+    # entrega que parece completa.
+    rotos = [e for e in entregables if e["error"]]
+    if rotos:
+        raise ShmirDesignError(
+            "No se han podido generar todos los formatos del informe, así que no se "
+            "escribe ninguno: una entrega a medias no se distingue de una completa.\n"
+            + "\n".join(f"  {e['nombre']}: {e['error']}" for e in rotos)
+        )
+    for entregable in entregables:
         ruta = destino.parent / entregable["nombre"]
         ruta.write_bytes(entregable["datos"])
         print(f"{ruta}  ({len(entregable['datos'])} bytes)")

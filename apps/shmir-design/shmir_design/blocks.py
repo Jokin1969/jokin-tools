@@ -94,6 +94,13 @@ class Piece:
 
 
 _PLASMIDO = "plásmido receptor"
+#: MEDIDO (2026-09-02), y por eso NheI y SacI dejan de decir «plásmido receptor»: NO
+#: ESTÁN en el receptor depositado (`aav_casete.fa`, comprobado con test). Y tiene
+#: sentido — el parental lleva el intrón VACÍO, sin sitio de clonaje. Las secuencias no
+#: estaban mal: son las dianas canónicas de esas dos enzimas, que es un hecho del catálogo
+#: y no de ningún plásmido. Lo que estaba mal era la frase, que afirmaba un ORIGEN que
+#: ningún fichero sostiene. Ver `audit_pieces_against_plasmids`.
+_DIANA = "diana canónica de la enzima; sitio de clonaje del módulo"
 _SGEP = "SGEP #111170"
 _NOVO = "diseño de novo"
 
@@ -160,14 +167,14 @@ PIECES: MappingProxyType[str, Piece] = MappingProxyType(
         "exon5": Piece("AAGAG", _PLASMIDO),
         "MVM5": Piece("GTAAGGGTTTAAGGGATGGTTGGTTGGTGGGGTATTAATG", _PLASMIDO),
         "espaciador5": Piece("TACAATGATCCAAATCAAGA", _NOVO),
-        "NheI": Piece("GCTAGC", _PLASMIDO),
+        "NheI": Piece("GCTAGC", _DIANA),
         "contexto5": Piece(
             "GAAGGCTCGAGAAGGTATAT", f"{_SGEP} posiciones 1739-1758", span=(1739, 1758)
         ),
         "contexto3": Piece(
             "CTTCAAGGGGCTAGAATTCG", f"{_SGEP} posiciones 1856-1875", span=(1856, 1875)
         ),
-        "SacI": Piece("GAGCTC", _PLASMIDO),
+        "SacI": Piece("GAGCTC", _DIANA),
         "espaciador3": Piece(
             "ATGGATTTGTGTAAAGATCCAGTGCCTATGTATTGTTGGAAAGTA", _NOVO
         ),
@@ -797,3 +804,174 @@ def _extras(lineas: list[str], intronless, rtpcr) -> None:
         lineas.append(f"  {rtpcr.upstream.describe()}")
         lineas.append(f"  {rtpcr.downstream.describe()}")
         lineas.append(f"  ⚠  {PRIMER_WARNING}")
+
+
+# ═════ LA AUDITORÍA DE LAS PIEZAS: ¿lo que dicen de dónde vienen se sostiene? ═════
+#
+# Se pidió «de paso» al hacer del plásmido de SGEP un fichero de primera clase: **audita
+# si queda algún dato más en esa situación**. Y la había, aunque de otra clase.
+#
+# De las 12 piezas, sólo DOS declaraban coordenadas en un plásmido —los dos contextos de
+# SGEP— y ésas ya se DERIVAN (`scaffold_registry.anchor_scaffold`). Lo que apareció al
+# mirar las otras diez es esto: **diez dicen de dónde vienen y nadie lo estaba
+# comprobando**, teniendo el fichero en el depósito.
+#
+# **Lo que salió, medido** (2026-09-02, sobre `aav_casete.fa` y `addgene_111170.gb`):
+#
+#   - `MluI`, `MVM5`, `MVM3`, `AgeI` — están en el receptor y son ÚNICAS. Confirmadas.
+#   - `exon5` y `exon3` miden 5 nt y aparecen 3 y 8 veces: a solas no identifican nada.
+#     Lo que sí se puede exigir es que estén PEGADAS a su MVM, y eso se comprueba. Decir
+#     «confirmada» de una coincidencia de 5 nt sería el «Alu 0 %» al revés.
+#   - `NheI` y `SacI` **NO están** en el receptor depositado, y su procedencia decía
+#     «plásmido receptor». El parental lleva el intrón VACÍO, sin sitio de clonaje, así
+#     que es coherente — lo que no lo era es la frase. Corregida: son las dianas
+#     canónicas de las dos enzimas, un hecho del catálogo y no de ningún plásmido.
+#   - `espaciador5` y `espaciador3` son de novo y no se les busca: `NO_APLICA`.
+#
+# **Es un informe, no un guardia**: lo que aborta es el test, que fija los estados
+# medidos. Aquí el número correcto no es cero — `NO_ESTA` es un estado legítimo con la
+# procedencia bien escrita.
+
+#: Qué plásmido tiene que confirmar cada procedencia. El rol, no el nombre: el nombre lo
+#: pone `species.required_files`, que es la única fuente de los nombres del depósito.
+PIECE_PLASMID_ROLE = MappingProxyType(
+    {_PLASMIDO: "transgen", _SGEP: "plasmido_andamio", _DIANA: "transgen"}
+)
+
+#: Las dianas de clonaje se siguen BUSCANDO en el receptor aunque su procedencia ya no
+#: diga que vienen de ahí. Si al corregir la frase dejaran de mirarse, el informe perdería
+#: justo la medida que la motivó — mismo criterio que un frente CERRADO que sigue saliendo
+#: en el informe.
+_NO_LO_AFIRMAN = frozenset({_DIANA})
+
+
+def audit_pieces_against_plasmids(
+    *, receptor: str | None = None, sgep: str | None = None
+) -> list[dict[str, object]]:
+    """Una fila por pieza: qué dice de dónde viene, y si el fichero lo sostiene.
+
+    Sin fichero para una procedencia, la fila sale `NO_COMPROBADA` — que no es «no está»
+    y no es «está»: es que no se ha podido mirar. Es la misma distinción del `.out` sin
+    resumen.
+    """
+    from pathlib import Path  # noqa: PLC0415
+
+    from .trabajo import reference_dir  # noqa: PLC0415
+
+    def _leer(texto, nombre):
+        if texto is not None:
+            return texto
+        ruta = Path(reference_dir()) / nombre
+        if not ruta.is_file():
+            return None
+        crudo = ruta.read_text(encoding="utf-8", errors="replace")
+        if nombre.endswith((".gb", ".gbk")):
+            origen = crudo.split("ORIGIN", 1)
+            crudo = origen[1] if len(origen) > 1 else ""
+            return "".join(c for c in crudo if c.isalpha()).upper()
+        return "".join(
+            l.strip() for l in crudo.splitlines() if not l.startswith(">")
+        ).upper()
+
+    #: Contra QUE fichero se contrasta cada procedencia, con el nombre a la vista: el
+    #: mensaje tiene que decir DONDE se buscó, no repetir la frase de la procedencia —que
+    #: para las dianas de clonaje ni siquiera nombra un plásmido.
+    ficheros = {
+        _PLASMIDO: "aav_casete.fa", _DIANA: "aav_casete.fa",
+        _SGEP: "addgene_111170.gb",
+    }
+    plasmidos = {clave: _leer(
+        sgep if clave is _SGEP else receptor, nombre
+    ) for clave, nombre in ficheros.items()}
+    #: Una pieza de 5 nt aparece por azar; lo que se puede exigir es que esté PEGADA a
+    #: la pieza larga de su lado. El vecino se declara aquí porque es una propiedad del
+    #: montaje —qué va junto a qué— y no algo que se pueda derivar de la secuencia.
+    vecinos = {"exon5": ("MVM5", "antes"), "exon3": ("MVM3", "despues")}
+
+    filas: list[dict[str, object]] = []
+    for nombre, pieza in PIECES.items():
+        origen = next(
+            (clave for clave in plasmidos if pieza.source.startswith(clave)), None
+        )
+        if origen is None:
+            filas.append({
+                "pieza": nombre, "estado": "NO_APLICA", "procedencia": pieza.source,
+                "donde": (), "detalle": (
+                    "No dice venir de ningún plásmido del depósito, así que no hay nada "
+                    "contra qué contrastarla."
+                ),
+            })
+            continue
+        secuencia = plasmidos[origen]
+        if secuencia is None:
+            filas.append({
+                "pieza": nombre, "estado": "NO_COMPROBADA", "procedencia": pieza.source,
+                "donde": (), "detalle": (
+                    f"No está {ficheros[origen]} en el depósito, así que no se ha podido "
+                    f"mirar. NO comprobada no es «no está»."
+                ),
+            })
+            continue
+        posiciones = tuple(_posiciones(secuencia, pieza.sequence))
+        if not posiciones:
+            filas.append({
+                "pieza": nombre, "estado": "NO_ESTA", "procedencia": pieza.source,
+                "donde": (), "detalle": (
+                    (
+                        f"No aparece en {ficheros[origen]}. Su procedencia YA NO dice "
+                        f"que venga de ahí —lo decía, y esto es lo que lo corrigió— y se "
+                        f"sigue buscando para no perder el dato: el parental lleva el "
+                        f"intrón VACÍO, sin sitio de clonaje, así que es coherente."
+                    )
+                    if pieza.source in _NO_LO_AFIRMAN
+                    else (
+                        f"No aparece en {ficheros[origen]}, y su procedencia dice que "
+                        f"viene de ahí."
+                    )
+                ),
+            })
+            continue
+        if len(posiciones) == 1:
+            filas.append({
+                "pieza": nombre, "estado": "CONFIRMADA", "procedencia": pieza.source,
+                "donde": posiciones, "detalle": f"Única en {ficheros[origen]}.",
+            })
+            continue
+        vecino = vecinos.get(nombre)
+        pegadas = ()
+        if vecino is not None:
+            largo = PIECES[vecino[0]].sequence
+            for inicio in _posiciones(secuencia, largo):
+                fin = inicio + len(largo) - 1
+                esperada = (
+                    inicio - len(pieza.sequence) if vecino[1] == "antes" else fin + 1
+                )
+                if esperada in posiciones:
+                    pegadas += (esperada,)
+        filas.append({
+            "pieza": nombre,
+            "estado": "CONFIRMADA_EN_POSICION" if pegadas else "AMBIGUA",
+            "procedencia": pieza.source,
+            "donde": pegadas or posiciones,
+            "detalle": (
+                f"Mide {len(pieza.sequence)} nt y aparece {len(posiciones)} veces en "
+                f"{ficheros[origen]}: a solas no identifica nada. "
+                + (
+                    f"Confirmada por POSICIÓN, pegada a {vecino[0]}."
+                    if pegadas
+                    else "Y no hay vecino declarado con el que fijarla."
+                )
+            ),
+        })
+    return filas
+
+
+def _posiciones(secuencia: str, aguja: str) -> list[int]:
+    """Todas las posiciones (1-based) de `aguja`. Se cuentan TODAS, no la primera."""
+    encontradas, desde = [], 0
+    while True:
+        i = secuencia.find(aguja, desde)
+        if i < 0:
+            return encontradas
+        encontradas.append(i + 1)
+        desde = i + 1

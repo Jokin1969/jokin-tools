@@ -1,0 +1,199 @@
+"""Como se identifica una corrida, y por que el id lleva el md5 del resultado.
+
+**Reportado tres veces en un solo dia (2026-09-02), errata nº 48.** El id era
+`especie + tipo + fecha`, asi que `Mus musculus-blast-02/09/2026` ya existia y la segunda
+corrida del dia abortaba. Y repetir el mismo dia **es lo normal**: quien lo reporto corrio
+el BLAST cuatro veces, todas por fallos de la app. La salida que quedaba era inventarse
+una fecha o abrir un proyecto nuevo, y lo segundo **tira el historial que el log existe
+para conservar**: por que se volvio a correr.
+
+LA PIEZA QUE FALTABA es el `result_md5`, y la propiedad es exactamente la que hace falta:
+
+  · dos resultados DISTINTOS no chocan — se puede repetir cuantas veces haga falta;
+  · dos resultados IDENTICOS si — que es cuando abortar es lo correcto, porque eso no es
+    repetir una corrida: es subir dos veces el mismo fichero.
+
+LA ESPECIE SALE DEL ID. El log es de UN proyecto y el proyecto ya declara su especie en
+`proyecto.json`; repetirla en cada linea no identificaba nada mas.
+
+Y EL MD5 SE CALCULA EN UN SOLO SITIO (`result_fingerprint`). Los cuatro almacenes tenian
+su propio `hashlib.md5(raw)` — cuatro definiciones del mismo numero, que es el patron de
+las cinco copias de la clave de consulta (errata nº 44). Aqui ademas importa porque el id
+TERMINA en ese md5: si se calcularan por separado, una corrida podria tener dos
+identidades y nada obligaria a que coincidieran.
+
+Python 3.11+, solo libreria estandar (regla 6).
+"""
+
+from __future__ import annotations
+
+import hashlib
+
+from .errors import ShmirDesignError
+
+__all__ = [
+    "ETIQUETAS", "file_fingerprint", "mensaje_de_id_repetido",
+    "result_fingerprint", "run_id",
+]
+
+
+#: Tipo de registro (`store.RECORD_KINDS`) → la etiqueta corta que va en el id. El
+#: conjunto es CERRADO y se cruza con `RECORD_KINDS` en `tests/test_id_de_corrida.py`:
+#: un quinto modal que no la declare falla ahi, no el dia que dos corridas de tipos
+#: distintos se pisen por tener la misma salida.
+ETIQUETAS: dict[str, str] = {
+    "corrida_blast": "blast",
+    "corrida_seed": "seed",
+    "corrida_offtarget": "ot",
+    "corrida_empalme": "empalme",
+}
+
+
+def result_fingerprint(raw) -> str:
+    """El md5 del CRUDO, tal cual. UN solo sitio para los cuatro almacenes y el id.
+
+    ABORTA si no es texto, y no es una precaucion: llevaba `str(raw)`, asi que con un
+    `Path`, una lista o un objeto cualquiera habria hasheado su `repr` y devuelto un md5
+    con la forma correcta — y ese md5 ENTRA en el `run_id`. Es el mismo fallo que
+    `species.resolve` fabricando una especie del `repr` (errata nº 50): un constructor
+    permisivo convierte un error de tipo en un dato con forma correcta.
+    """
+    if not isinstance(raw, str):
+        raise ShmirDesignError(
+            f"`result_fingerprint` espera el CRUDO de la corrida como texto y ha "
+            f"recibido un {type(raw).__name__}. Se aborta en vez de hashear su texto: "
+            f"eso daría un md5 válido de una cosa que no es el resultado, y ese md5 "
+            f"identifica la corrida."
+        )
+    return hashlib.md5(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
+
+
+def file_fingerprint(datos: bytes) -> str:
+    """El md5 de los BYTES de un fichero. UN solo sitio, y son seis los que lo pedian.
+
+    Lo destapo la auditoria de magnitudes (`tools/auditar_claves.py`): `biblioteca` dos
+    veces, `gestor`, `deposito`, `manifest` y `presentation` calculaban cada uno su
+    `hashlib.md5(datos)`. Es el mismo numero y decide cosas —si un fichero subido es el
+    que dice ser, si el indice de la biblioteca sigue valiendo, si una corrida quedo
+    obsoleta—, asi que seis copias son seis definiciones que pueden separarse.
+
+    OJO, y esta advertencia ya estaba escrita para el manifiesto: NO es el md5 de la
+    SECUENCIA canonica (`reference.sequence_md5`). Son cantidades distintas y copiar una
+    en el sitio de la otra hace que el fichero BUENO se rechace.
+    """
+    return hashlib.md5(datos, usedforsecurity=False).hexdigest()
+
+
+def configuration_fingerprint(configuracion: dict) -> str:
+    """md5 de la CONFIGURACION con la que se produjo un panel.
+
+    **Por que la configuracion necesita huella y no basta con guardarla al lado**
+    (pedido por el responsable del proyecto, 2026-09-04): si alguien cambia un umbral y
+    vuelve a diseñar sin guardar seleccion nueva, el panel en pantalla deja de
+    corresponder a la configuracion registrada **y nada lo dice**. Guardada al lado, la
+    discrepancia es invisible; atada por huella, se DERIVA — es el mismo caso que
+    `OBSOLETO`, donde una corrida se hizo y ya no vale con lo que hay ahora.
+
+    Se serializa ORDENADO y sin espacios variables: la huella es de lo que se
+    configuro, no de como se escribio el diccionario. Un valor que no se pueda serializar
+    ABORTA en vez de irse por `str()` — un `repr` dentro de una huella la haria depender
+    de la version del codigo y no de la configuracion (la leccion de `species.resolve`).
+    """
+    import json  # noqa: PLC0415
+
+    try:
+        texto = json.dumps(configuracion, sort_keys=True, separators=(",", ":"))
+    except TypeError as exc:
+        raise ShmirDesignError(
+            f"La configuración de la corrida lleva un valor que no se puede serializar "
+            f"({exc}); se aborta en vez de meter su `repr` en la huella, que la haría "
+            f"depender de la versión del código en vez de la configuración."
+        ) from exc
+    return hashlib.md5(texto.encode("utf-8"), usedforsecurity=False).hexdigest()
+
+
+def run_id(*, kind: str, date: str, result_md5: str) -> str:
+    """El identificador de una corrida: tipo, fecha y md5 del resultado.
+
+    La fecha se conserva porque es lo que se lee de un vistazo en el historial; lo que
+    hace unico al id es el md5, no ella.
+    """
+    if kind not in ETIQUETAS:
+        raise ShmirDesignError(
+            f"No hay ninguna corrida {kind!r} en la tabla de identidades; las que hay "
+            f"son {', '.join(sorted(ETIQUETAS))}. Se aborta en vez de inventar una "
+            f"etiqueta: dos tipos de corrida con la misma etiqueta se pisarian el id."
+        )
+    for campo, valor in (("date", date), ("result_md5", result_md5)):
+        if not str(valor).strip():
+            raise ShmirDesignError(
+                f"Un identificador de corrida necesita {campo}: sin el el registro no "
+                f"es auditable. Se aborta."
+            )
+    return f"{ETIQUETAS[kind]}-{date}-{result_md5}"
+
+
+def mensaje_de_id_repetido(
+    *, run_id: str, date: str, by: str, que_es: str, como_repetir: str,
+) -> str:
+    """El mensaje de un id repetido, y DICE COMO SALIR.
+
+    Un mensaje que solo dice que aborta empuja a inventarse una fecha falsa o a abrir un
+    proyecto que nadie necesita — que es lo que acaba de pasar tres veces. Con el md5
+    dentro del id, un choque significa UNA sola cosa y se puede decir sin adivinar: el
+    fichero que se acaba de soltar es **byte a byte** el que ya esta guardado.
+    """
+    return (
+        f"ESTE RESULTADO YA ESTÁ GUARDADO. No es una corrida nueva: el fichero que "
+        f"acabas de soltar es **byte a byte** el de la corrida {run_id!r} ({que_es}), "
+        f"del {date}, subida por {by}. El id lleva el md5 del resultado, así que dos "
+        f"corridas DISTINTAS del mismo día entran las dos sin problema — sólo choca "
+        f"subir dos veces lo mismo.\n"
+        f"\n"
+        f"QUÉ HACER:\n"
+        f"· Si querías guardar ESTA corrida: ya está guardada. Mírala en el historial "
+        f"del proyecto y en la ficha del candidato; su veredicto ya cuenta.\n"
+        f"· Si querías registrar OTRA corrida: el resultado es idéntico al anterior, "
+        f"así que no hay nada nuevo que guardar todavía. {como_repetir}\n"
+        f"\n"
+        f"LO QUE NO HAY QUE HACER, y se dice porque es lo que invita a hacer un aborto "
+        f"a secas: NO cambies la fecha y NO abras un proyecto nuevo. Ninguna de las dos "
+        f"arregla nada aquí y la segunda parte en dos el historial, que es justo lo que "
+        f"el log existe para conservar. Y no hay nada que borrar: el log es "
+        f"**append-only** a propósito, así que la corrida anterior no se puede pisar — "
+        f"ni hace falta."
+    )
+
+
+# ─────────────────────────── el SELLO de la version que produjo algo ───────────────────
+
+#: La variable por la que el hub pasa el commit desplegado al proceso hijo. Si no llega,
+#: NO se inventa nada.
+BUILD_ENV = "SHMIR_BUILD"
+
+BUILD_NOT_DECLARED = "sin declarar"
+
+BUILD_NOTE = (
+    "EL SELLO DE LA VERSIÓN VIAJA CON EL ARTEFACTO. Un fichero que sale de la app llega a "
+    "quien no tuvo la pantalla delante, y la primera pregunta cuando algo no cuadra es "
+    "«¿qué versión lo produjo?». Sin el sello, contestarla cuesta medir el propio "
+    "fichero y aun así puede no salir: el 2026-09-05 un FASTA venía con un contexto 3' "
+    "de 112 nt menos que el que da el código de hoy, y no hubo forma de saber si era "
+    "otra versión o otra entrada. Cuando el hub no declara ninguna —en local, por "
+    "ejemplo— se dice «sin declarar»: eso es información, y un valor inventado no."
+)
+
+
+def build_stamp() -> str:
+    """Qué versión está produciendo esto, si el entorno lo declara.
+
+    No se deriva de git ni de ningún fichero del paquete: el proceso que sirve `/shmir` es
+    un hijo del hub y el único que sabe qué commit está desplegado es el hub. Lo pasa por
+    `SHMIR_BUILD` (ver `apps/shmir/process.js`). Sin la variable, `sin declarar` — que es
+    exactamente el principio nº 32: aquí el valor por defecto NO se puede confundir con
+    una versión real.
+    """
+    import os  # noqa: PLC0415
+
+    valor = str(os.environ.get(BUILD_ENV, "")).strip()
+    return valor or BUILD_NOT_DECLARED

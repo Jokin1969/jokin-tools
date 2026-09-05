@@ -59,6 +59,22 @@ CORRIDA = ("SIN_DISEÑAR", "DISEÑADO_SIN_SELECCION", "DISEÑADO_CON_SELECCION")
 #: sea PINTADO o solo CONSTRUIDO lo decide el fichero donde aparece.
 NIVELES = ("PINTADO", "CONSTRUIDO", "NADA")
 
+#: Los dos ayudantes que llevan el deposito entero a un lado o al otro. Un test que los
+#: use pinta los NUEVE roles de golpe, que es lo que los desbloqueo: la causa era una
+#: sola y la respuesta tambien.
+DEPOSITO_COMPLETO = "deposito_completo("
+DEPOSITO_VACIO = "deposito_vacio("
+
+#: El ayudante que pinta la pagina, TOCA un widget y la vuelve a pintar. El eje `rerun`
+#: no estaba, y ahi vivia la errata nº 42: en Streamlit cada tecla es un rerun, asi que
+#: el segundo render es el caso NORMAL — y los 29 estados de antes describian todos el
+#: PRIMERO. Un inventario que solo mira el primer render no puede ver esa familia.
+SEGUNDO_RERUN = "segundo_rerun("
+
+#: El proyecto abierto era un estado de la pagina que el inventario no tenia en ningun
+#: eje, y de el cuelga si un modal puede guardar. Hoy no hay ayudante que lo monte.
+PROYECTO_ABIERTO = "proyecto_abierto("
+
 
 @dataclass(frozen=True)
 class Estado:
@@ -90,21 +106,38 @@ def espacio_de_estados() -> list[Estado]:
         Estado("corrida", "SIN_DISEÑAR", (), presente=True),
         Estado("corrida", "DISEÑADO_SIN_SELECCION", (), presente=False),
         Estado("corrida", "DISEÑADO_CON_SELECCION", (), presente=False),
+        # EL EJE DEL RERUN. `PRIMERA` es un hecho: toda corrida de `AppTest` pinta una
+        # vez. `SEGUNDA` necesita que alguien toque un widget y vuelva a pintar, y hasta
+        # la errata nº 42 no lo hacia nadie.
+        Estado("rerun", "PRIMERA", (), presente=True),
+        Estado("rerun", "SEGUNDA", (SEGUNDO_RERUN,), presente=False),
+        # EL EJE DEL PROYECTO. `SIN_ABRIR` es el estado de toda corrida de hoy.
+        Estado("proyecto", "SIN_ABRIR", (), presente=True),
+        Estado("proyecto", "ABIERTO", (PROYECTO_ABIERTO,), presente=False),
     ]
     # UN ROL, DOS ESTADOS. Y NO se reconocen por el nombre del fichero en el fuente: ese
     # nombre aparece IGUAL en un test que lo pone y en uno que comprueba que falta
     # («Subir transcriptoma_3utr.fa»). La primera version lo hacia asi y daba PINTADO a
     # cuatro ficheros que no estan en el repositorio.
     #
-    # Se deriva de la PRESENCIA REAL: durante una corrida de `AppTest` el directorio de
-    # referencia es el del paquete, asi que el estado de cada rol lo decide si su fichero
-    # esta ahi o no. Eso no es un marcador, es el hecho.
+    # DOS VIAS, y la segunda es nueva. La primera es el HECHO: una corrida de `AppTest`
+    # que no diga nada usa el directorio del paquete, asi que el estado de cada rol lo
+    # decide si su fichero esta ahi o no —cuatro roles siempre CON, cinco siempre SIN, y
+    # el otro lado de cada uno sin pintar—. La segunda es que `SHMIR_REFERENCE_DIR` se lee
+    # EN CADA LLAMADA, asi que un test puede apuntar la pagina a un deposito de prueba y
+    # pintar los nueve roles en el lado que quiera. Eso ya no es un hecho del repositorio:
+    # se reconoce por el ayudante que lo monta, y lo que el ayudante dice que hace lo
+    # comprueban los tests de `tests/test_estados_de_fichero.py` pintando la pagina.
     for fila in required_files(resolve("raton")):
         presentes = all(
             (RAIZ / "data" / "reference" / n).is_file() for n in fila.filenames
         )
-        estados.append(Estado(f"fichero:{fila.role}", "CON", (), presente=presentes))
-        estados.append(Estado(f"fichero:{fila.role}", "SIN", (), presente=not presentes))
+        estados.append(
+            Estado(f"fichero:{fila.role}", "CON", (DEPOSITO_COMPLETO,), presente=presentes)
+        )
+        estados.append(
+            Estado(f"fichero:{fila.role}", "SIN", (DEPOSITO_VACIO,), presente=not presentes)
+        )
     # UN MODAL, DOS ESTADOS. La corrida guardada se reconoce por la llamada que la
     # guarda, que es la unica forma de llegar a «este modal tiene veredicto».
     for tipo in sorted(k for k in RECORD_KINDS if k.startswith("corrida_")):
@@ -135,10 +168,20 @@ def cobertura() -> dict[str, str]:
     hay_apptest = any(_pinta(f) for f in fuentes.values())
     for estado in espacio_de_estados():
         if estado.presente is not None:
-            # El estado del deposito durante una corrida de la pagina es un HECHO, no un
-            # marcador: si el fichero esta, toda corrida de `AppTest` pinta ese rol en
-            # CON; si no esta, en SIN. El otro estado no lo pinta nadie.
-            salida[estado.clave] = "PINTADO" if (hay_apptest and estado.presente) else "NADA"
+            # POR EL HECHO: si el fichero esta, toda corrida de `AppTest` que no diga
+            # nada pinta ese rol en CON; si no esta, en SIN.
+            if hay_apptest and estado.presente:
+                salida[estado.clave] = "PINTADO"
+                continue
+            # O POR EL AYUDANTE: un test que apunta la pagina a un deposito de prueba
+            # pinta el lado que ese deposito monta, este o no el fichero en el repo.
+            if estado.marcadores and any(
+                _pinta(f) and any(m in f for m in estado.marcadores)
+                for f in fuentes.values()
+            ):
+                salida[estado.clave] = "PINTADO"
+                continue
+            salida[estado.clave] = "NADA"
             continue
         # OJO: el nivel NO se compara con `max()` de cadenas. Se hizo asi en la primera
         # version y `max("NADA", "CONSTRUIDO")` da "NADA" —la N va despues de la C—, o

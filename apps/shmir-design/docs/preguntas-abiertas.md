@@ -75,6 +75,30 @@ hueco entre las ventanas (que con ventanas de 22 nt daría 28 nt de separación 
 el mismo umbral). Si querías la segunda, es un cambio de una línea en
 `selection._respects_spacing`.
 
+### El casete de la corrida del 2026-09-05 no es el versionado — 112 nt
+
+**Medido, sin causa asignada.** Las construcciones de aquella corrida miden **5.384 nt**
+con un contexto 3' de **1.955**; montadas hoy con el `aav_casete.fa` que hay en
+`data/reference/` miden **5.496** con contexto 3' de **2.067**. La diferencia son 112 nt
+y está **sólo en el flanco 3'**: el contexto 5' (3.133), el donante (3134) y el aceptor
+(3428) coinciden exactamente.
+
+Consecuencia práctica: los `md5` de aquel resultado **no validan** contra un panel montado
+hoy, que es el guardia funcionando — un resultado de otra corrida no puede entrar.
+
+Lo que NO se ha podido comprobar desde aquí, y por eso no se declara:
+
+- si el casete que sirvió aquella corrida es otro fichero (el panel permite subirlo, y lo
+  subido al volumen **se respeta** y no se pisa con lo versionado);
+- si `/shmir` estaba sirviendo un commit distinto del actual;
+- si el fichero de `data/reference/` cambió después. **No se versiona en git** (material
+  de laboratorio, así declarado en el manifiesto), así que no hay historia que mirar.
+
+Lo que sí queda hecho para que la próxima vez no haya que preguntarlo: el FASTA declara
+ahora su convención y el estado del panel dentro del propio fichero. **Falta** que declare
+también la procedencia del casete (md5 y longitud) y la versión de lo que lo produjo —
+que es lo que habría contestado esto sin medir nada.
+
 ## Resueltas
 
 ### Definición de la asimetría — resuelta 2026-08-25

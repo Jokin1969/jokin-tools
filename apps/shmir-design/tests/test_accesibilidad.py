@@ -113,10 +113,25 @@ class TestSinViennaRNA(unittest.TestCase):
         a = accessibility_of(SONDA, start=200, length=22, available=False)
         self.assertIs(a.state, FilterState.NOT_RUN)
 
-    def test_NOT_RUN_no_es_cero(self):
+    def test_NOT_RUN_no_es_cero_Y_LO_DICE(self):
+        """Sigue sin ser cero, y ademas la celda dice cual de los dos casos es.
+
+        Vacia se leia igual que «no se pidio», y son dos cosas: esta se arregla
+        instalando ViennaRNA, la otra marcando una casilla. Ver `FilterState.NO_PEDIDO`.
+        """
         a = accessibility_of(SONDA, start=200, length=22, available=False)
         self.assertEqual(a.unpaired_fraction, {})
-        self.assertEqual(a.as_column(), "")
+        self.assertEqual(a.as_column(), "NOT_RUN")
+        self.assertNotEqual(a.as_column(), "0")
+
+    def test_y_NO_PEDIDO_es_OTRA_celda(self):
+        from shmir_design.accessibility import NOT_ASKED, Accessibility
+
+        sin_pedir = Accessibility(state=FilterState.NO_PEDIDO, reason=NOT_ASKED)
+        self.assertEqual(sin_pedir.as_column(), "NO_PEDIDO")
+        # La distincion entera: las dos celdas tienen que poder leerse aparte.
+        pedida = accessibility_of(SONDA, start=200, length=22, available=False)
+        self.assertNotEqual(sin_pedir.as_column(), pedida.as_column())
 
     def test_el_motivo_dice_como_arreglarlo(self):
         a = accessibility_of(SONDA, start=200, length=22, available=False)

@@ -1,4 +1,8 @@
 frente = "seed"
+se_cierra_en = "la app"
+titulo_llano = "¿Empieza igual que una familia de microARN conocida?"
+en_cristiano = """\
+Es la versión rápida de la comprobación anterior: mira las primeras letras contra una lista corta de familias, antes de compararlas una a una con el catálogo completo."""
 pregunta = """\
 ¿La seed de la guía coincide con la de alguna familia de miARN de la tabla de seeds que \
 se le haya pasado al diseño? Es el filtro de ventana, previo y más grueso que \

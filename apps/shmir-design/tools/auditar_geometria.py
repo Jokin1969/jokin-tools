@@ -27,11 +27,17 @@ from shmir_design.introns import (  # noqa: E402
     PPT_WINDOW,
     TYPICAL_DONOR_TO_BRANCH,
     donor_to_branch,
+    get as get_intron,
     locate_elements,
 )
 
-#: Lo que se intercala hoy: modulo 149 + los dos espaciadores.
-INSERTADO = 149 + spacers.SPACER5_LENGTH + spacers.SPACER3_LENGTH
+#: EL MODULO, que es lo unico comun a los dos intrones. CUANTO se intercala en cada uno
+#: NO es este numero: lo dice el propio intron (`Intron.inserted_length`), porque el que
+#: se ensambla de piezas lleva ademas los dos espaciadores y el que llega entero no —
+#: `_insert_module` aborta si se le piden. Aqui habia un `INSERTADO` global de
+#: 149+20+45 aplicado a los DOS, y sobre el quimerico daba donante→punto 314-318 cuando
+#: el intron que se monta lo tiene en 249-253 (errata nº 106).
+MODULO = 149
 
 
 def _secuencias():
@@ -108,10 +114,14 @@ def main() -> int:
     print("    · La ventana GC 0.28-0.45 es de ESPACIADORES. Que los dos intrones caigan")
     print("      dentro es casualidad, no validación: nadie la calibró sobre intrones.")
 
-    print(f"\n  DONANTE→PUNTO con los {INSERTADO} nt intercalados "
-          f"(rango típico {TYPICAL_DONOR_TO_BRANCH[0]}-{TYPICAL_DONOR_TO_BRANCH[1]}):")
+    print(f"\n  DONANTE→PUNTO con el módulo de {MODULO} nt dentro, y lo intercalado "
+          f"DERIVADO de cada intrón\n  (rango típico "
+          f"{TYPICAL_DONOR_TO_BRANCH[0]}-{TYPICAL_DONOR_TO_BRANCH[1]}):")
     for nombre, elem in elementos.items():
-        d = donor_to_branch(elem, name=nombre, inserted=INSERTADO)
+        insertado = get_intron(nombre).inserted_length(MODULO)
+        print(f"    {nombre}: se intercalan {insertado} nt "
+              f"({'módulo solo' if insertado == MODULO else 'módulo + los dos espaciadores'})")
+        d = donor_to_branch(elem, name=nombre, inserted=insertado)
         if d is None:
             print(f"    {nombre}: sin candidatos, NO CALCULABLE")
             continue

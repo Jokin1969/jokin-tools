@@ -129,6 +129,24 @@ Lo que hay que saber para tocarlo:
   404 **sin ningún error en ningún log**: la app simplemente no aparece. Se reenvía
   `req.originalUrl`. Lo cazó una prueba de punta a punta, no un test unitario; hay
   regresión escrita.
+- **COMPROBADO (2026-08-30) que lo subido AGUANTA UN REDESPLIEGUE**, de punta a punta:
+  la subida escribe en `reference_dir()`; en producción esa ruta se **DERIVA de
+  `DB_PATH`** —`/data/shmir/reference`, el mismo volumen que la base de datos—;
+  `routes.js` la pasa al proceso hijo por `SHMIR_REFERENCE_DIR`; y la siembra es **por
+  fichero**, no «una sola vez»: copia lo que no está y **respeta lo que ya está**.
+  Medido, no leído: 27 copiados la primera vez; 0 copiados y 27 respetados en el
+  redespliegue, con un fichero subido y otro reemplazado a mano sobreviviendo los dos. Y
+  un versionado NUEVO sí entra —los tres plásmidos de hoy llegarán solos—, que es lo que
+  una siembra de una sola vez no haría.
+  - **Si la siembra falla, la app NO arranca**: 503 con el motivo, a propósito. Arrancar
+    dejaría subir ficheros a un sitio que los pierde, y el único síntoma sería un frente
+    que vuelve a salir NOT_RUN semanas después.
+  - **Faltaba un test, y era del principio 18**: los que había pasaban
+    `/data/shmir/reference` **como argumento** a `buildEnv`, así que probaban que la
+    variable llega al hijo, no que la ruta se derive. `test/shmir.volumen.test.js` lo
+    cierra: con `DB_PATH=/vol/otro/hub.db` los ficheros siguen al volumen. Eso es lo que
+    convierte `/data` en una consecuencia y no en una coincidencia.
+
 - **Los ficheros de referencia viven en el VOLUMEN, no en la imagen**
   (`SHMIR_REFERENCE_DIR`, por defecto `/data/shmir/reference` en producción). El sistema
   de ficheros de la imagen es efímero: dentro de ella, todo lo subido por el panel
@@ -154,6 +172,14 @@ Lo que hay que saber para tocarlo:
   delante pandas, pyarrow, numpy, altair y tornado: un par de cientos de MB. Si eso
   llegara a pesar demasiado, la salida **no** es quitarle dependencias a Streamlit, es
   desplegar esa interfaz como servicio aparte.
+- **El hub le pasa al hijo QUÉ COMMIT está sirviendo** (`SHMIR_BUILD`, desde
+  `RAILWAY_GIT_COMMIT_SHA`, en `buildEnv`). El proceso hijo no puede saberlo —no hay
+  `.git` en la imagen y el paquete no lleva versión— y sin eso un fichero descargado de
+  la app no puede decir de qué versión viene. Hizo falta el 2026-09-05: un FASTA de
+  producción no coincidía con lo que produce `main` y no hubo forma de distinguir «el
+  despliegue va por detrás» de «las entradas eran otras». Si la plataforma no da la
+  variable **no se inventa ninguna**: el lado Python escribe «sin declarar», que es
+  información.
 - **Sin dependencias nuevas en el hub**: el proxy son ~130 líneas sobre `node:http`
   porque hay un único upstream, es nuestro y está en `127.0.0.1`.
 

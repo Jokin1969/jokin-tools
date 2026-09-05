@@ -1289,11 +1289,14 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
     # La ventana de cada candidato EN COORDENADAS DE 3'UTR, que es el marco de `target`.
     # Es lo unico que permite decir cual de los sitios de la propia diana es EL SUYO; sin
     # ella no se marca ninguno, porque deducirlo del orden seria un supuesto.
+    # DE LOS PEDIDOS, no del panel: con el alcance grande, un candidato de fuera se
+    # quedaba sin ventana y por tanto sin poder marcar CUAL de los sitios de la propia
+    # diana es el suyo — el autoconteo perderia justo su referencia (errata nº 107).
     ventanas = {
         c.start: (
             selection.window_of(c).inicio_3utr, selection.window_of(c).fin_3utr
         )
-        for c in selection.selection.chosen
+        for c in selection.choices_for(pedidos)
     }
     nulas: dict[str, Null] = {}
     resultados: list[LoadResult] = []
@@ -1317,7 +1320,14 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
             clase: nula.percentile(clase, cuentas.sites[clase])
             for clase in SITE_CLASSES
         }
-        consulta = f"{species}_pos{inicio}_{hebra}"
+        # LA CLAVE SE DERIVA. Habia CUATRO sitios armando este identificador —el
+        # FASTA de consulta, la ficha, este scan y el de off-targets— y al pasar el
+        # FASTA al slug (errata nº 42) los demas se quedaron atras. Una corrida
+        # guardada con una clave y buscada con otra no se encuentra, y el sintoma es
+        # identico al de no haberla guardado. Principio nº 13 sobre una CLAVE.
+        from .presentation import query_name
+
+        consulta = query_name(species, inicio, hebra)
         resultados.append(
             LoadResult(
                 start=inicio, strand=hebra, query=consulta, sequence=secuencia,

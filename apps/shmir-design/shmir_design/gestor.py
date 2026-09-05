@@ -26,12 +26,13 @@ Python 3.11+, sólo biblioteca estándar (regla 6).
 
 from __future__ import annotations
 
-import hashlib
+import io
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
 from .errors import ShmirDesignError
+from .identidad import file_fingerprint
 from .presencia import hay_fichero
 
 #: QUE CORRIDAS INVALIDA CAMBIAR CADA FICHERO. Declarado en UN SOLO SITIO y con test de
@@ -57,6 +58,10 @@ ROLE_INVALIDATES = MappingProxyType(
         # ninguna corrida del log. Lo que SI cambia al reemplazarla es el panel entero
         # —y eso se ve al volver a diseñar, no en una corrida vieja.
         "polyadb": (),
+        # Tampoco: los contextos se contrastan al EMITIR el modulo, en cada corrida. Lo
+        # que si cambia al reemplazarlo es si el modulo se puede emitir, y eso se ve al
+        # volver a pedirlo — no en una corrida guardada.
+        "plasmido_andamio": (),
     }
 )
 
@@ -85,7 +90,7 @@ def _ruta(directory, name: str) -> Path:
 
 
 def _md5(data: bytes) -> str:
-    return hashlib.md5(data, usedforsecurity=False).hexdigest()
+    return file_fingerprint(data)
 
 
 @dataclass(frozen=True)
@@ -290,6 +295,43 @@ ACTIONS = MappingProxyType(
 )
 
 
+def _procedencia_pedida(role: str) -> list[dict[str, str]]:
+    """Las casillas de procedencia de la TABLA que este rol exige, ya con su texto.
+
+    Vacia en casi todos: la mayoria de los ficheros no salen de ninguna tabla y ahi la
+    columna vacia del manifiesto es la VERDAD, no un hueco.
+    """
+    from .deposito import (  # noqa: PLC0415
+        PROVENANCE_FIELDS, PROVENANCE_LABELS, PROVENANCE_REQUIRED,
+    )
+
+    if role not in PROVENANCE_REQUIRED:
+        return []
+    return [
+        {
+            "clave": campo,
+            "etiqueta": PROVENANCE_LABELS[campo][0],
+            "ayuda": PROVENANCE_LABELS[campo][1],
+        }
+        for campo in PROVENANCE_FIELDS
+    ]
+
+
+def _procedencia_que_falta(role: str, entry) -> list[str]:
+    """Cuales de los cuatro le faltan a la LINEA de este fichero. Vacia si no aplica."""
+    from .deposito import (  # noqa: PLC0415
+        MANIFEST_COLUMN_FOR, PROVENANCE_FIELDS, PROVENANCE_REQUIRED,
+    )
+
+    if role not in PROVENANCE_REQUIRED or entry is None:
+        return []
+    return [
+        MANIFEST_COLUMN_FOR[campo]
+        for campo in PROVENANCE_FIELDS
+        if not str(getattr(entry, campo, "") or "").strip()
+    ]
+
+
 def manager_rows(species: str, *, directory) -> list[dict]:
     """Una fila por fichero, PRESENTES Y AUSENTES juntos, ordenadas por frente."""
     from .manifest import load_manifest  # noqa: PLC0415
@@ -326,6 +368,9 @@ def manager_rows(species: str, *, directory) -> list[dict]:
                 {
                     "nombre": nombre,
                     "role": fila.role,
+                    # La especie viaja EN LA FILA: quien la pinta no la tiene a mano y
+                    # deducirla del nombre del fichero es lo que este proyecto prohibe.
+                    "especie": species,
                     "frente": fila.fronts[0] if fila.fronts else "",
                     "frentes": list(fila.fronts),
                     "estado": estado,
@@ -333,6 +378,19 @@ def manager_rows(species: str, *, directory) -> list[dict]:
                     "hermano": nombre != fila.filename,
                     "que_desbloquea": fila.what,
                     "extensiones": list(fila.extensions),
+                    # Que casillas de PROCEDENCIA hay que rellenar para que este fichero
+                    # pueda entrar. Sale de `deposito.PROVENANCE_REQUIRED`, que es quien
+                    # las exige: la pagina las pinta y no decide cuales son (regla 6).
+                    "procedencia": _procedencia_pedida(fila.role),
+                    # Y CUALES LE FALTAN A UNO QUE YA ESTA. No es lo mismo que la lista
+                    # de arriba: aquella dice que se le pide a este rol, esta dice que
+                    # le falta a ESTE fichero. Un fichero que entro antes de que su
+                    # frente exigiera procedencia esta, es valido, y su linea no la
+                    # lleva — y la unica salida que habia era resubirlo entero
+                    # (errata nº 87). La pagina no lo deduce: lo recibe.
+                    "falta_procedencia": (
+                        _procedencia_que_falta(fila.role, entrada) if presente else []
+                    ),
                     "acciones": list(ACTIONS[estado]),
                     "ficha": ficha,
                     "md5": _md5(ruta.read_bytes()) if presente else "",
@@ -344,3 +402,308 @@ def manager_rows(species: str, *, directory) -> list[dict]:
                 }
             )
     return sorted(filas, key=lambda f: (f["frente"], f["nombre"]))
+
+
+# ═══════════════ «DESCARGAR TODO»: la copia de seguridad, en un botón ═══════════════
+#
+# **El motivo, con las palabras con que se pidio**: *el volumen es la unica copia de todo
+# lo que pone un frente en verde, y con el se iria la procedencia. Que la copia de
+# seguridad sea un boton, no una tarea de disciplina.*
+#
+# Y es exacto. Los ficheros que cierran frentes —`mature.fa`, el casete, el plasmido del
+# andamio, el transcriptoma— NO van en git: no entran en un repositorio, asi que viven
+# solo en el volumen. Con ellos se iria el `manifest.tsv` de TRABAJO, que es donde estan
+# su md5, su fecha, su origen y su ensamblaje — o sea la PROCEDENCIA, que es lo unico que
+# hace auditable un veredicto dentro de un año.
+#
+# Habia un boton por FICHERO y el manifiesto no tenia ninguno. Eso no es una copia de
+# seguridad: es la posibilidad de hacerla, que es otra cosa.
+#
+# **Va con un LEEME dentro**, y no es adorno: un zip sin nada que lo explique es un monton
+# de ficheros dentro de un año. Lleva de donde salio cada cosa, el inventario con md5 —para
+# poder comprobarlo SIN la app— y como se restaura, que importa porque el directorio de
+# trabajo se declara por variable de entorno.
+#
+# **Y si un fichero no se puede leer, ABORTA.** Media copia que parece completa es peor
+# que ninguna, y aqui nadie va a mirar el zip hasta el dia que haga falta. Es el mismo
+# criterio de `trabajo.seed_reference_dir`.
+
+#: Como se llaman los dos directorios dentro del zip. En el zip y en el LEEME salen los
+#: mismos nombres: si divergieran, las instrucciones de restauracion apuntarian a una
+#: carpeta que no existe.
+BACKUP_DIRS = MappingProxyType(
+    {"referencia": "reference", "proyectos": "proyectos", "biblioteca": "biblioteca"}
+)
+
+WHY_A_BACKUP_BUTTON = (
+    "El volumen es la única copia de todo lo que pone un frente en verde, y con él se "
+    "iría la procedencia: el manifiesto de trabajo es donde están el md5, la fecha, el "
+    "origen y el ensamblaje de cada fichero que subiste. Esta copia lo mete todo en un "
+    "zip para que hacerla sea un botón y no una tarea de disciplina."
+)
+
+
+def _bytes_de(ruta: Path, *, que: str) -> bytes:
+    """Los bytes, o ABORTA. Nunca se omite un fichero de la copia en silencio."""
+    try:
+        return ruta.read_bytes()
+    except OSError as exc:
+        raise ShmirDesignError(
+            f"No se pudo leer {que} ({ruta}): {exc}. Se ABORTA la copia entera en vez de "
+            f"dejar fuera un fichero sin decirlo: media copia que parece completa es "
+            f"peor que ninguna, y nadie mira un zip de seguridad hasta el día que lo "
+            f"necesita."
+        ) from exc
+
+
+def _ficheros_del_deposito(directory: Path) -> list[Path]:
+    """Todo lo que hay en la raíz del depósito, el manifiesto incluido.
+
+    NO se filtra por rol: un fichero que esté ahí y no reconozcamos entra igual. Lo que
+    esto copia es el VOLUMEN, no la lista de lo que la app sabe usar — y lo segundo es
+    justo lo que dejaría fuera algo puesto a mano.
+    """
+    return sorted(p for p in directory.iterdir() if p.is_file())
+
+
+def _proyectos_de(base: Path) -> list[Path]:
+    from .store import PROJECT_FILE  # noqa: PLC0415
+
+    if not base.is_dir():
+        return []
+    return sorted(p for p in base.iterdir() if p.is_dir() and (p / PROJECT_FILE).is_file())
+
+
+def backup_inventory(directory, *, projects=None) -> dict[str, object]:
+    """Qué llevaría la copia y cuánto pesa. NO construye el zip.
+
+    Se pinta en cada repintado de la página, así que aquí no se comprime nada: con el
+    transcriptoma dentro —84 MB— montar el zip para enseñar un número costaría un minuto
+    por clic. Es la lección de la errata nº 59.
+    """
+    from .store import LOG_FILE, PROJECT_FILE  # noqa: PLC0415
+
+    raiz = Path(directory)
+    if not raiz.is_dir():
+        raise ShmirDesignError(
+            f"No hay depósito en {raiz}, así que no hay nada que copiar. Se aborta en "
+            f"vez de entregar un zip vacío, que se leería como «no había nada»."
+        )
+    ficheros = _ficheros_del_deposito(raiz)
+    total = sum(p.stat().st_size for p in ficheros)
+
+    proyectos = _proyectos_de(Path(projects)) if projects is not None else []
+    for directorio in proyectos:
+        for nombre in (PROJECT_FILE, LOG_FILE):
+            ruta = directorio / nombre
+            if ruta.is_file():
+                total += ruta.stat().st_size
+
+    biblioteca = raiz / "biblioteca"
+    guardados = (
+        sorted(p for p in biblioteca.rglob("*") if p.is_file())
+        if biblioteca.is_dir() else []
+    )
+    total += sum(p.stat().st_size for p in guardados)
+    return {
+        "ficheros": len(ficheros),
+        "proyectos": len(proyectos),
+        "guardados": len(guardados),
+        "bytes": total,
+        "nombres": tuple(p.name for p in ficheros),
+        "slugs": tuple(p.name for p in proyectos),
+    }
+
+
+#: POR QUE UN ZIP TIENE QUE SALIR IGUAL DOS VECES, y no es manía de reproducibilidad.
+#:
+#: `zipfile` estampa LA HORA ACTUAL en cada entrada, así que los mismos ficheros dan
+#: bytes distintos en cada construcción. Y Streamlit deriva el id de un fichero
+#: descargable **de su contenido** (`MemoryMediaFileStorage.load_and_get_id` →
+#: `_calculate_file_id(file_data, ...)`), así que bytes distintos son un id distinto.
+#:
+#: Pulsar un `download_button` provoca un rerun; al terminar, `clear_session_refs` +
+#: `remove_orphaned_files` borran el id que ya no referencia nadie — **el que el navegador
+#: está descargando en ese momento**. El síntoma es exactamente el que se reportó: la
+#: descarga empieza y no llega, «un error de internet cuando no lo hay». Y cuanto más
+#: grande el zip, más probable, porque hay más rato para que se lo lleven por delante.
+WHY_A_ZIP_MUST_NOT_CHANGE = (
+    "Un zip que se reconstruye con bytes distintos cada vez desaparece del servidor a "
+    "media descarga: Streamlit identifica lo descargable por su CONTENIDO y borra lo que "
+    "deja de estar referenciado en el repintado siguiente. Con la fecha fija, el mismo "
+    "contenido da el mismo identificador y no hay nada que quede huérfano."
+)
+
+
+def _fecha_del_zip(date: str) -> tuple[int, int, int, int, int, int]:
+    """La marca de tiempo de las entradas, DERIVADA de la fecha declarada.
+
+    Se deriva y no se pone a cero: dos copias de días distintos tienen que ser dos
+    ficheros distintos —si no, no hay forma de saber cuál es cuál— y la fecha ya viaja
+    dentro del zip y en su nombre. Lo que NO puede entrar es la hora del reloj, que
+    cambia entre un repintado y el siguiente sin que nadie haya tocado nada.
+
+    Un `date` que no sea `AAAA-MM-DD` no se adivina: se aborta. El zip lleva la fecha
+    dentro y en el nombre, y una inventada aquí las haría discrepar en silencio.
+    """
+    try:
+        anio, mes, dia = (int(x) for x in str(date).split("-"))
+    except ValueError as exc:
+        raise ShmirDesignError(
+            f"La fecha del zip tiene que ser AAAA-MM-DD y llegó {date!r}: se aborta en "
+            f"vez de poner una cualquiera. {WHY_A_ZIP_MUST_NOT_CHANGE}"
+        ) from exc
+    # `zipfile` no admite años anteriores a 1980 (el formato no los representa).
+    return (max(anio, 1980), mes, dia, 0, 0, 0)
+
+
+def deterministic_zip(entries, *, date: str, order=None) -> bytes:
+    """Un zip que sale IGUAL con el mismo contenido. Ver `WHY_A_ZIP_MUST_NOT_CHANGE`.
+
+    `entries` es `{nombre: texto o bytes}`. Las entradas van ordenadas por nombre —el
+    orden también es contenido— y todas con la misma marca de tiempo.
+
+    `order` es para los formatos donde el orden LO EXIGE la especificación y no lo elige
+    quien empaqueta: un `.docx` es un zip OPC y `[Content_Types].xml` tiene que ir el
+    primero. Se pasa explícito en vez de confiar en que el alfabético coincida — hoy
+    coincide por casualidad (`[` va antes que `_` y que `w` en ASCII) y eso no es una
+    garantía, es una coincidencia que se rompe al renombrar cualquier pieza.
+
+    **Es el ÚNICO constructor de zips del proyecto**, y por eso lo usan la copia de
+    seguridad, la descarga de resultados y el `.docx` del informe: un zip que cambia de
+    bytes sin cambiar de contenido rompe todo lo que lo identifique por su contenido
+    (errata nº 76).
+    """
+    import zipfile  # noqa: PLC0415
+
+    marca = _fecha_del_zip(date)
+    if order is not None:
+        faltan = set(entries) ^ set(order)
+        if faltan:
+            raise ShmirDesignError(
+                f"El orden declarado del zip no cuadra con lo que se le da: sobran o "
+                f"faltan {sorted(faltan)}. Se aborta en vez de escribir un zip con "
+                f"entradas de menos o en un orden que no es el declarado."
+            )
+        pares = [(nombre, entries[nombre]) for nombre in order]
+    else:
+        pares = sorted(entries.items())
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for nombre, contenido in pares:
+            info = zipfile.ZipInfo(nombre, date_time=marca)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            # Permisos fijos también: el modo va dentro del zip, así que heredarlo del
+            # fichero de disco volvería a hacer que el resultado dependa del entorno.
+            info.external_attr = 0o644 << 16
+            zf.writestr(
+                info,
+                contenido.encode("utf-8") if isinstance(contenido, str) else contenido,
+            )
+    return buffer.getvalue()
+
+
+def export_all(directory, *, projects=None, date: str) -> bytes:
+    """El depósito entero, los proyectos y la biblioteca en un zip. Con su LEEME.
+
+    `date` es OBLIGATORIA y va dentro: una copia de seguridad sin fecha no se distingue
+    de otra, y lo primero que hace falta saber de un zip encontrado dentro de un año es
+    de cuándo es.
+    """
+    import zipfile  # noqa: PLC0415
+
+    from .store import LOG_FILE, PROJECT_FILE  # noqa: PLC0415
+
+    if not str(date).strip():
+        raise ShmirDesignError(
+            "Una copia de seguridad necesita fecha: sin ella no se distingue de otra, y "
+            "es lo primero que hace falta saber de un zip encontrado dentro de un año. "
+            "Se aborta."
+        )
+    raiz = Path(directory)
+    inventario = backup_inventory(raiz, projects=projects)
+
+    lineas = [
+        f"Copia de seguridad de shmir-design — {date}",
+        "",
+        WHY_A_BACKUP_BUTTON,
+        "",
+        "DE DÓNDE SALIÓ",
+        f"  ficheros de referencia: {raiz}",
+    ]
+    base_proyectos = Path(projects) if projects is not None else None
+    lineas.append(
+        f"  proyectos:              {base_proyectos}"
+        if base_proyectos is not None
+        else "  proyectos:              no se pidieron"
+    )
+    lineas += [
+        "",
+        "CÓMO SE RESTAURA",
+        f"  El contenido de {BACKUP_DIRS['referencia']}/ va al directorio que declare la "
+        f"variable SHMIR_REFERENCE_DIR",
+        f"  (en un despliegue, dentro del volumen). El de "
+        f"{BACKUP_DIRS['proyectos']}/ va al de SHMIR_PROJECT_DIR.",
+        f"  {BACKUP_DIRS['biblioteca']}/ va DENTRO del de referencia, en un "
+        f"subdirectorio con ese mismo nombre.",
+        "  Los ficheros se copian tal cual: el manifiesto lleva su md5 y la app lo "
+        "vuelve a comprobar al cargarlos.",
+        "",
+        "LO QUE ESTA COPIA NO ES",
+        "  Es una FOTO del día que se descargó: no se actualiza sola. Lo que se suba "
+        "después no está aquí.",
+        "  Y no lleva el código: eso está en git. Lleva lo que git NO puede llevar.",
+        "",
+        f"INVENTARIO — {inventario['ficheros']} fichero(s) de referencia, "
+        f"{inventario['proyectos']} proyecto(s), {inventario['guardados']} guardado(s) "
+        f"de la biblioteca",
+        "",
+    ]
+
+    # SE RECOGEN Y LUEGO SE EMPAQUETAN, con `deterministic_zip`: si esto escribiera
+    # el zip por su cuenta volvería a haber dos constructores y sólo uno con la
+    # fecha fija. Ver `WHY_A_ZIP_MUST_NOT_CHANGE`.
+    entradas: dict[str, bytes] = {}
+    for ruta in _ficheros_del_deposito(raiz):
+        crudo = _bytes_de(ruta, que=f"el fichero de referencia {ruta.name!r}")
+        entradas[f"{BACKUP_DIRS['referencia']}/{ruta.name}"] = crudo
+        lineas.append(
+            f"  {BACKUP_DIRS['referencia']}/{ruta.name:<38} {len(crudo):>12} B  "
+            f"md5 {file_fingerprint(crudo)}"
+        )
+
+    biblioteca = raiz / "biblioteca"
+    if biblioteca.is_dir():
+        for ruta in sorted(p for p in biblioteca.rglob("*") if p.is_file()):
+            crudo = _bytes_de(ruta, que=f"el guardado {ruta.name!r} de la biblioteca")
+            relativa = ruta.relative_to(biblioteca).as_posix()
+            entradas[f"{BACKUP_DIRS['biblioteca']}/{relativa}"] = crudo
+            lineas.append(
+                f"  {BACKUP_DIRS['biblioteca']}/{relativa:<38} {len(crudo):>12} B  "
+                f"md5 {file_fingerprint(crudo)}"
+            )
+
+    proyectos = _proyectos_de(base_proyectos) if base_proyectos else []
+    if not proyectos:
+        lineas.append(
+            "  (no había ningún proyecto: el primer día es lo normal, no un fallo)"
+        )
+    for directorio in proyectos:
+        for nombre in (PROJECT_FILE, LOG_FILE):
+            ruta = directorio / nombre
+            if not ruta.is_file():
+                raise ShmirDesignError(
+                    f"Al proyecto {directorio.name!r} le falta {nombre}, así que su "
+                    f"registro no se puede leer entero. Se aborta la copia en vez de "
+                    f"guardar media: un log sin saber sobre qué secuencia es no dice "
+                    f"nada, y una entrada sin su log tampoco."
+                )
+            crudo = _bytes_de(ruta, que=f"{nombre} del proyecto {directorio.name!r}")
+            destino = f"{BACKUP_DIRS['proyectos']}/{directorio.name}/{nombre}"
+            entradas[destino] = crudo
+            lineas.append(
+                f"  {destino:<50} {len(crudo):>12} B  md5 {file_fingerprint(crudo)}"
+            )
+
+    entradas["LEEME.txt"] = "\n".join(lineas) + "\n"
+    return deterministic_zip(entradas, date=date)

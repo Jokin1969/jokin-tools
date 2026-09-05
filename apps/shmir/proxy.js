@@ -73,6 +73,27 @@ function rewriteOrigin(headers, { port }) {
   return { ...headers, origin: `http://${HOST}:${port}` };
 }
 
+// Las cabeceras «salto a salto» describen la conexión de ESE salto, no la respuesta, y
+// un proxy no las reenvía (RFC 9110 §7.6.1). Se copiaban enteras con `{...upRes.headers}`.
+//
+// La que muerde es `transfer-encoding`: dice cómo va troceado el cuerpo en la conexión
+// que ACABA aquí. Reenviarla anuncia un troceado que la conexión de salida no usa —Node
+// pone el suyo— y en HTTP/2, que es lo que habla el borde de cualquier despliegue
+// moderno, está PROHIBIDA: una respuesta que la lleva se rechaza o se queda colgada.
+// Síntoma: una descarga que el navegador da por iniciada y que nunca recibe un byte.
+const SALTO_A_SALTO = new Set([
+  'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
+  'te', 'trailer', 'transfer-encoding', 'upgrade',
+]);
+
+function forwardableHeaders(headers) {
+  const salida = {};
+  for (const [nombre, valor] of Object.entries(headers || {})) {
+    if (!SALTO_A_SALTO.has(nombre.toLowerCase())) salida[nombre] = valor;
+  }
+  return salida;
+}
+
 function rewriteLocation(location, { port }) {
   if (!location) return location;
   const prefijos = [`http://${HOST}:${port}`, `https://${HOST}:${port}`];
@@ -100,7 +121,7 @@ function proxyRequest(req, res, { port, timeoutMs = 120000, path = null }) {
       headers: rewriteOrigin({ ...req.headers, host: `${HOST}:${port}` }, { port }),
     },
     upRes => {
-      const cabeceras = { ...upRes.headers };
+      const cabeceras = forwardableHeaders(upRes.headers);
       if (cabeceras.location) {
         cabeceras.location = rewriteLocation(cabeceras.location, { port });
       }
@@ -182,5 +203,6 @@ function denySocket(socket, status, reason) {
 
 module.exports = {
   upgradeAllowed, proxyRequest, proxyUpgrade, denySocket, rewriteLocation, rewriteOrigin,
+  forwardableHeaders,
   COOKIE_NAME,
 };

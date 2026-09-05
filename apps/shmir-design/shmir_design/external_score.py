@@ -70,19 +70,86 @@ MANUAL_URL = MIRARCHITECT_URL
 MANUAL_SCAFFOLD = "miR-E"
 
 
+#: POR QUE ESTAS HERRAMIENTAS NO SON LA FUENTE PRINCIPAL, y por que la decision va
+#: ESCRITA. Un servicio que nadie miro y uno que se miro y se descarto se leen igual si
+#: lo unico que hay es su ausencia — y el segundo es una decision, que es justo lo que un
+#: informe tiene que poder defender dentro de un año.
+WHY_NOT_PRIMARY = (
+    "ESTAS HERRAMIENTAS SE CONOCÍAN Y SE DECIDIÓ NO USARLAS COMO FUENTE PRINCIPAL, sino "
+    "como CONTRASTE independiente. Dos motivos, y ninguno es que sean malas: (a) "
+    "devuelven una lista de candidatos y NO DECLARAN qué no han comprobado, así que un "
+    "sitio que no sale no se distingue de uno que no miraron —que es la misma razón por "
+    "la que aquí todo filtro emite `NOT_RUN` con su motivo—; y (b) ninguna considera la "
+    "POLIADENILACIÓN ALTERNATIVA, que en este 3'UTR condiciona a seis de los diez "
+    "candidatos con un techo de knockdown. Lo que sí aportan es convergencia de sitio: "
+    "que otro método señale la misma región es información, y por eso están en la lista "
+    "en vez de fuera de ella."
+)
+
+#: Lo que se dice de una direccion que NADIE ha aportado. No se adivina: las tres
+#: primeras las dio el responsable del proyecto, y desde aqui no se puede verificar
+#: ninguna —las comprobaciones dan 403 en el CONNECT del proxy, que es politica de red y
+#: no una respuesta del servicio—. Regla 4: si no lo has comprobado, no lo escribas.
+URL_NOT_PROVIDED = (
+    "Sin dirección aportada. No se escribe ninguna de memoria: desde este entorno no se "
+    "puede verificar (403 en el CONNECT del proxy, que es política de red y no una "
+    "respuesta del servicio), y una dirección deducida por patrón es exactamente lo que "
+    "la regla 4 prohíbe. La aporta quien la conozca."
+)
+
+#: Y lo que se dice de una longitud de guia sin declarar. Es el dato que decide COMO se
+#: cruza, asi que inventarlo no da un error: da un cruce con la forma correcta.
+LENGTH_NOT_DECLARED = (
+    "No declara qué longitud de guía produce, así que no se cruza nada con esta fuente. "
+    "Se declara en `external_score.EXTERNAL_TOOLS`, en su entrada. NO se deduce del "
+    "nombre ni de la familia de la herramienta: ese número decide cómo se cruza, y uno "
+    "equivocado no da ningún error — da un cruce con la forma correcta sobre el "
+    "candidato de al lado."
+)
+
+
 @dataclass(frozen=True)
 class ExternalTool:
-    """Un servicio externo al que se manda a una persona, con que pegarle."""
+    """Un servicio externo al que se manda a una persona, con que pegarle.
+
+    `guide_length` es de PRIMERA CLASE y no un adorno: es lo que decide como se cruza su
+    salida con la nuestra. Con 22 nt a los dos lados vale el cruce por secuencia; con
+    otra longitud —siDirect diseña 19-mers— la igualdad de cadena da CERO coincidencias
+    aunque las dos partes señalen el mismo sitio, y un cero asi se lee como «no hay
+    convergencia». Ver `window_overlap` y `check_guide_lengths`.
+
+    `guide_length = 0` significa **sin declarar**, que NO es «no produce guias»: es que
+    nadie ha dicho cual, y entonces no se cruza (`LENGTH_NOT_DECLARED`).
+    """
 
     name: str
     url: str
     what: str
     paste: str
+    #: Cuantos nt mide la guia que produce. 0 = sin declarar.
+    guide_length: int = 0
+    #: `True` si su salida puede entrar por `tools/import_scores.py`. El GPP no: no
+    #: emite guias que se crucen con las nuestras, y decirlo es distinto de callarlo.
+    imports_scores: bool = False
+
+    @property
+    def length_declared(self) -> bool:
+        return self.guide_length > 0
+
+    @property
+    def length_note(self) -> str:
+        if not self.length_declared:
+            return LENGTH_NOT_DECLARED
+        return f"Produce guías de {self.guide_length} nt."
+
+    @property
+    def url_note(self) -> str:
+        return URL_NOT_PROVIDED if not self.url else self.url
 
     @property
     def tooltip(self) -> str:
         """El texto de ayuda ya montado: la pagina no compone nada (regla 6)."""
-        return f"{self.what}. Que pegar: {self.paste}."
+        return f"{self.what}. Que pegar: {self.paste}. {self.length_note}"
 
 
 EXTERNAL_TOOLS = (
@@ -91,12 +158,16 @@ EXTERNAL_TOOLS = (
         url=MIRARCHITECT_URL,
         what="puntua el diseño de la horquilla; es la fuente de `score_externo`",
         paste="la guía de 22 nt en ADN y el andamio miR-E",
+        guide_length=22,
+        imports_scores=True,
     ),
     ExternalTool(
         name="SplashRNA",
         url=SPLASHRNA_URL,
         what="predice potencia de shRNA; sus features salen aquí en columnas feat_*",
         paste="la guía de 22 nt en ADN",
+        guide_length=22,
+        imports_scores=False,
     ),
     ExternalTool(
         name="GPP Web Portal",
@@ -106,6 +177,45 @@ EXTERNAL_TOOLS = (
             "herramientas de diseño; sirve para contrastar, NO alimenta score_externo"
         ),
         paste="el gen diana",
+        # NO se cruza con nuestras ventanas y por eso no declara longitud: se le pega el
+        # GEN, no una guia. Va con `imports_scores=False` explicito en vez de callarlo:
+        # «no alimenta la columna» es una propiedad del servicio, no un olvido.
+        imports_scores=False,
+    ),
+    # ── AÑADIDAS 2026-09-04, con el mismo trato que las tres de arriba ────────────
+    #
+    # EL GPP NO SE DUPLICA: se comprobo antes de añadir nada y el «GPP Web Portal» de
+    # arriba YA es el del Broad —`portals.broadinstitute.org`, y su descripcion lo dice
+    # desde que se escribio—. Meter «Broad» como entrada aparte habria puesto la misma
+    # herramienta dos veces con dos nombres, que es como se acaba comparando una lista
+    # consigo misma y llamandolo convergencia.
+    ExternalTool(
+        name="siDirect",
+        url="",
+        what=(
+            "diseñador de siRNA con reglas de especificidad; es CONTRASTE de sitio, "
+            "NO ordena estos candidatos"
+        ),
+        paste="la secuencia diana (el 3'UTR o el transcrito)",
+        # 19 nt: LO DIJO quien lo pidio, y es lo que obliga a cruzar por ventana. Con
+        # nuestras ventanas de 22 la igualdad de cadena da CERO aunque señalen el mismo
+        # sitio.
+        guide_length=19,
+        imports_scores=True,
+    ),
+    ExternalTool(
+        name="BLOCK-iT RNAi Designer",
+        url="",
+        what=(
+            "diseñador de RNAi de Thermo Fisher; es CONTRASTE de sitio, NO ordena "
+            "estos candidatos"
+        ),
+        paste="la secuencia diana (el 3'UTR o el transcrito)",
+        # SIN DECLARAR a proposito: nadie ha dicho que longitud produce, y ese numero
+        # decide como se cruza. Escribir uno de memoria no daria ningun error — daria un
+        # cruce con la forma correcta. Ver `LENGTH_NOT_DECLARED`.
+        guide_length=0,
+        imports_scores=True,
     ),
 )
 
@@ -127,6 +237,93 @@ MIN_OVERLAP = 7
 DISPLACED_SHIFT = 5
 #: Por DEBAJO de esto miRarchitect da la guia por buena. Ojo: su escala esta INVERTIDA.
 CONFIRMED_BELOW = 20.0
+
+@dataclass(frozen=True)
+class WindowOverlap:
+    """Dos ventanas de LONGITUD DISTINTA que caen sobre el mismo sitio."""
+
+    ours_start: int
+    theirs_start: int
+    overlap: int
+
+    @property
+    def shift(self) -> int:
+        """Cuanto esta corrida la suya respecto de la nuestra, con signo."""
+        return self.theirs_start - self.ours_start
+
+
+def _unica(secuencia: str, reference: str, *, que: str) -> int:
+    """Donde cae `secuencia` en la referencia. Ambigua o ausente: se dice."""
+    inicio = reference.find(secuencia)
+    if inicio < 0:
+        return -1
+    if reference.find(secuencia, inicio + 1) >= 0:
+        raise ShmirDesignError(
+            f"{que} aparece MÁS DE UNA VEZ en la referencia, así que no identifica "
+            f"ninguna posición. Elegir la primera sería fabricar una coordenada; se "
+            f"aborta, igual que el anclaje del andamio cuando su secuencia no es única."
+        )
+    return inicio
+
+
+def window_overlap(
+    ours: str, theirs: str, *, reference: str, min_overlap: int = MIN_OVERLAP,
+) -> WindowOverlap | None:
+    """Cruza dos ventanas POR POSICION SOBRE LA REFERENCIA, no por igualdad de cadena.
+
+    **Por que hace falta, y es el punto entero.** `guide_shift` cruza por SECUENCIA con
+    solapamiento exacto, y eso funciona mientras las dos partes emitan ventanas de la
+    MISMA longitud. siDirect diseña **19-mers**; nuestras ventanas miden **22**. Un
+    19-mer contenido en una ventana nuestra no es igual a ella, ni corrido respecto de
+    ella: es OTRA ventana sobre el mismo sitio. Cruzarlas por igualdad da **cero
+    coincidencias** aunque las dos señalen exactamente el mismo tramo — y un cero así no
+    se lee como «no se ha podido cruzar», se lee como **«no hay convergencia»**, que es
+    una conclusión. Es la familia del «Alu 0 %»: un cero obtenido sin poder buscar.
+
+    Las dos se localizan en la referencia y se comparan sus INTERVALOS. Una guía que no
+    esté en la referencia no cruza —y eso es información, no un fallo—; una que aparezca
+    dos veces ABORTA, porque entonces no identifica ninguna posición.
+    """
+    limpia_a = _rna(ours).replace("U", "T")
+    limpia_b = _rna(theirs).replace("U", "T")
+    limpia_ref = "".join(str(reference).split()).upper().replace("U", "T")
+    a = _unica(limpia_a, limpia_ref, que="La ventana de esta corrida")
+    b = _unica(limpia_b, limpia_ref, que="La guía de la fuente externa")
+    if a < 0 or b < 0:
+        return None
+    fin_a, fin_b = a + len(limpia_a), b + len(limpia_b)
+    solape = min(fin_a, fin_b) - max(a, b)
+    if solape < min_overlap:
+        return None
+    return WindowOverlap(ours_start=a, theirs_start=b, overlap=solape)
+
+
+def check_guide_lengths(guides, *, expected: int, source_name: str) -> None:
+    """Las guias que llegan miden LO QUE LA FUENTE DECLARA, o se aborta.
+
+    **Abortar es lo que separa esto de un fallo silencioso.** Sin esta comprobación, un
+    fichero de 21-mers importado como si fuera de 19 no da ningún error: da **cero
+    cruces**, y cero cruces se lee como «estas dos herramientas no coinciden en nada» —
+    una conclusión sobre la biología sacada de un desajuste de formato.
+    """
+    if expected <= 0:
+        raise ShmirDesignError(
+            f"{source_name} no declara qué longitud de guía produce, así que no se "
+            f"puede cruzar su salida con la de esta corrida. {LENGTH_NOT_DECLARED}"
+        )
+    medidas = sorted({len(_rna(g).replace("U", "T")) for g in guides})
+    distintas = [m for m in medidas if m != expected]
+    if distintas:
+        raise ShmirDesignError(
+            f"{source_name} declara guías de {expected} nt y en el fichero vienen de "
+            f"{', '.join(str(m) for m in medidas)} nt. Se aborta: importarlas igual no "
+            f"daría ningún error, daría CERO cruces — y cero cruces se lee como «no hay "
+            f"convergencia» entre los dos métodos, que es una conclusión sobre la "
+            f"biología sacada de un desajuste de formato. O el fichero no es de "
+            f"{source_name}, o la longitud declarada en `external_score.EXTERNAL_TOOLS` "
+            f"se ha quedado atrás."
+        )
+
 
 def guide_shift(ours: str, theirs: str, *, max_shift: int = MAX_SHIFT) -> int | None:
     """Cuantos nt esta corrida una ventana respecto de la otra, o `None`.
@@ -171,6 +368,12 @@ class ScoreSource(StrEnum):
     #: publicado de SplashRNA.
     SPLASHRNA_FEATURES = "splashrna_features"
     MANUAL_MIRARCHITECT = "manual_mirarchitect"
+    #: CONTRASTE DE SITIO, nunca orden. Diseñan siRNA —otra modalidad y otra longitud—
+    #: asi que su numero no puede ordenar candidatos de shmiR: es el mismo criterio con
+    #: el que un score de OTRO ANDAMIO se degrada a convergencia (`check_orderable`).
+    #: Lo que aportan es que otro metodo señale la misma region.
+    MANUAL_SIDIRECT = "manual_sidirect"
+    MANUAL_BLOCKIT = "manual_blockit"
 
 
 #: El fichero VERSIONADO del que salen los pares de la corrida manual. Lo que se
@@ -262,6 +465,55 @@ EVIDENCE = {
             "Se hereda de la corrida manual: es el mismo servicio. Sin endpoint "
             "verificado no hay evidencia propia."
         ),
+    ),
+}
+
+
+#: DE QUE HERRAMIENTA SALE CADA FUENTE. Sirve para una cosa y es la importante: pedirle
+#: su LONGITUD DE GUIA declarada, que es lo que se le exige al fichero. El numero NO se
+#: escribe aqui — seria la segunda definicion del mismo dato (principio nº 13).
+TOOL_FOR_SOURCE = {
+    ScoreSource.MANUAL_MIRARCHITECT: "miRarchitect",
+    ScoreSource.MANUAL_SIDIRECT: "siDirect",
+    ScoreSource.MANUAL_BLOCKIT: "BLOCK-iT RNAi Designer",
+}
+
+
+def declared_guide_length(source: ScoreSource) -> tuple[int, str]:
+    """La longitud que declara la herramienta de esta fuente, PEDIDA a `EXTERNAL_TOOLS`."""
+    nombre = TOOL_FOR_SOURCE.get(source)
+    if nombre is None:
+        raise ShmirDesignError(
+            f"{source.value} no dice de qué herramienta sale, así que no se puede "
+            f"saber qué longitud de guía produce. Se declara en "
+            f"`external_score.TOOL_FOR_SOURCE`."
+        )
+    for herramienta in EXTERNAL_TOOLS:
+        if herramienta.name == nombre:
+            return herramienta.guide_length, herramienta.name
+    raise ShmirDesignError(
+        f"{source.value} dice venir de {nombre!r} y esa herramienta no está en "
+        f"`external_score.EXTERNAL_TOOLS`. Se aborta en vez de cruzar sin saber qué "
+        f"longitud de guía produce."
+    )
+
+
+#: FUENTES QUE NUNCA ORDENAN, con el motivo escrito. No es que les falte la direccion
+#: registrada —eso se arregla registrandola— es que su numero NO PUEDE ordenar estos
+#: candidatos: diseñan siRNA, otra modalidad y otra longitud de guia, asi que lo que
+#: puntuan no es el procesamiento de una horquilla miR-E. Mismo trato que un score
+#: medido sobre otro andamio: se degrada a CONVERGENCIA DE SITIO y se dice en cada fila.
+NEVER_ORDERS = {
+    ScoreSource.MANUAL_SIDIRECT: (
+        "siDirect diseña siRNA de 19 nt con sus propias reglas de especificidad. Su "
+        "número puntúa un siRNA, no el procesamiento de una horquilla miR-E, así que NO "
+        "ordena estos candidatos. Entra como CONVERGENCIA DE SITIO: que otro método "
+        "señale la misma región es información, y ordenar por él no lo es."
+    ),
+    ScoreSource.MANUAL_BLOCKIT: (
+        "BLOCK-iT RNAi Designer diseña RNAi con sus propias reglas. Su número no puntúa "
+        "el procesamiento de una horquilla miR-E, así que NO ordena estos candidatos. "
+        "Entra como CONVERGENCIA DE SITIO."
     ),
 }
 
@@ -511,8 +763,14 @@ def manual_instructions(guides: list[str] | tuple[str, ...]) -> str:
         "",
         "  Los dos servicios (direcciones dadas por el responsable del proyecto, no",
         "  verificadas desde aquí):",
-        *(f"    · {h.name:<13} {h.url}\n      {h.what}; pegar {h.paste}"
+        # LA DIRECCION QUE FALTA SE DICE, no se deja en blanco: un hueco se lee como
+        # un fallo de formato y manda a nadie. Y la LONGITUD va pegada, porque es lo
+        # que decide como se cruza su salida con la nuestra.
+        *(f"    · {h.name:<24} {h.url_note}\n      {h.what}; pegar {h.paste}\n"
+          f"      {h.length_note}"
           for h in EXTERNAL_TOOLS),
+        "",
+        f"  {WHY_NOT_PRIMARY}",
         "",
         "  Para puntuarlas a mano:",
         f"    1. Abre {MANUAL_URL}.",
@@ -721,18 +979,36 @@ def merge_scores(
     distancia queda escrita. Mas alla, no se asigna: la columna se queda vacia.
     """
     scores = _parse_results(results, source_name=source_name)
+    # LAS LONGITUDES SE COMPRUEBAN AQUI Y NO EN EL CLI. Si viviera en `import_scores.py`
+    # la tendria un solo llamador, y el segundo que cruce se queda fuera sin que nadie
+    # lo note — es el patron de `page_run`, ya siete veces. Ver `check_guide_lengths`:
+    # lo que evita es cruzar CERO y que ese cero se lea como «no hay convergencia».
+    esperada, herramienta = declared_guide_length(source)
+    check_guide_lengths([g for g, _ in scores], expected=esperada,
+                        source_name=herramienta)
     # La direccion NO se supone: se deriva del orden de las filas y se contrasta con la
     # registrada. Si el fichero no viene ordenado, `file_order_direction` aborta.
     derivada = file_order_direction(scores)
-    lower_better = lower_is_better(source)
-    ordenable, motivo = True, ""
+    # UNA FUENTE QUE NUNCA ORDENA NO PASA POR `lower_is_better`, que abortaria. Y no
+    # abortaria por un fallo: abortaria porque su direccion no esta REGISTRADA, y aqui
+    # no falta ese registro — sobra la pregunta. Ordenar por este numero no se va a
+    # hacer nunca, asi que su direccion no decide nada y registrarla seria dar a
+    # entender que algun dia ordenaria.
+    #
+    # NO se bifurca a otra funcion de cruce: el cuerpo del cruce es UNO, y tener dos
+    # seria la segunda definicion del mismo procedimiento (principio nº 27). Lo unico
+    # que cambia es que sale marcada NO ORDENAR desde el principio.
+    nunca_ordena = source in NEVER_ORDERS
+    lower_better = False if nunca_ordena else lower_is_better(source)
+    ordenable, motivo = not nunca_ordena, NEVER_ORDERS.get(source, "")
     try:
-        check_orderable(
-            source,
-            derived_lower_is_better=derivada,
-            file_scaffold=file_scaffold,
-            design_scaffold=design_scaffold,
-        )
+        if not nunca_ordena:
+            check_orderable(
+                source,
+                derived_lower_is_better=derivada,
+                file_scaffold=file_scaffold,
+                design_scaffold=design_scaffold,
+            )
     except ShmirDesignError as exc:
         # rule2-ok: no es un fallo del proceso, es un VEREDICTO sobre el dato. No se
         # traga: se propaga entero a la salida y a la columna `fuente_score`, y el
@@ -746,8 +1022,13 @@ def merge_scores(
     anotacion = "" if offset is None else f"_offset{offset:+d}"
     if not ordenable:
         # Viaja en CADA fila: quien abra el TSV dentro de un año tiene que verlo sin
-        # leer ningun informe.
-        anotacion += f"_andamio_{file_scaffold or 'SIN_DECLARAR'}_NO_ORDENAR"
+        # leer ningun informe. Y los DOS motivos se distinguen en la etiqueta: un score
+        # de otro andamio podria ordenar el dia que se puntue con el nuestro; uno de
+        # siDirect no va a ordenar nunca, y eso es otra cosa.
+        anotacion += (
+            "_CONVERGENCIA_DE_SITIO_NO_ORDENA" if nunca_ordena
+            else f"_andamio_{file_scaffold or 'SIN_DECLARAR'}_NO_ORDENAR"
+        )
 
     lineas = table.splitlines()
     comentarios = [l for l in lineas if l.startswith("#")]

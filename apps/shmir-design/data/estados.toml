@@ -40,7 +40,6 @@ que_pinta = "El rol `rmsk` sale CERRADO en el panel de refinamiento y su frente 
 estado = "fichero:rmsk:SIN"
 destino = "CUBRIR"
 que_pinta = "El rol `rmsk` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
-bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
 
 [[estado]]
 estado = "fichero:mirbase:CON"
@@ -51,13 +50,11 @@ que_pinta = "El rol `mirbase` sale CERRADO en el panel de refinamiento y su fren
 estado = "fichero:mirbase:SIN"
 destino = "CUBRIR"
 que_pinta = "El rol `mirbase` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
-bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
 
 [[estado]]
 estado = "fichero:abundancia:CON"
 destino = "CUBRIR"
 que_pinta = "El rol `abundancia` sale CERRADO en el panel de refinamiento y su frente puede correr."
-bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
 
 [[estado]]
 estado = "fichero:abundancia:SIN"
@@ -68,7 +65,6 @@ que_pinta = "El rol `abundancia` sale FALTA u OPCIONAL, y su frente queda NOT_RU
 estado = "fichero:transcriptoma:CON"
 destino = "CUBRIR"
 que_pinta = "El rol `transcriptoma` sale CERRADO en el panel de refinamiento y su frente puede correr."
-bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
 
 [[estado]]
 estado = "fichero:transcriptoma:SIN"
@@ -79,7 +75,6 @@ que_pinta = "El rol `transcriptoma` sale FALTA u OPCIONAL, y su frente queda NOT
 estado = "fichero:expresion:CON"
 destino = "CUBRIR"
 que_pinta = "El rol `expresion` sale CERRADO en el panel de refinamiento y su frente puede correr."
-bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
 
 [[estado]]
 estado = "fichero:expresion:SIN"
@@ -90,7 +85,6 @@ que_pinta = "El rol `expresion` sale FALTA u OPCIONAL, y su frente queda NOT_RUN
 estado = "fichero:refseq:CON"
 destino = "CUBRIR"
 que_pinta = "El rol `refseq` sale CERRADO en el panel de refinamiento y su frente puede correr."
-bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
 
 [[estado]]
 estado = "fichero:refseq:SIN"
@@ -106,13 +100,11 @@ que_pinta = "El rol `transgen` sale CERRADO en el panel de refinamiento y su fre
 estado = "fichero:transgen:SIN"
 destino = "CUBRIR"
 que_pinta = "El rol `transgen` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
-bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
 
 [[estado]]
 estado = "fichero:apa:CON"
 destino = "CUBRIR"
 que_pinta = "El rol `apa` sale CERRADO en el panel de refinamiento y su frente puede correr."
-bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
 
 [[estado]]
 estado = "fichero:apa:SIN"
@@ -128,7 +120,16 @@ que_pinta = "El rol `polyadb` sale CERRADO en el panel de refinamiento y su fren
 estado = "fichero:polyadb:SIN"
 destino = "CUBRIR"
 que_pinta = "El rol `polyadb` sale FALTA u OPCIONAL, y su frente queda NOT_RUN con los candidatos INCOMPLETE."
-bloqueado_por = "Haría falta apuntar la página a un directorio de referencia de prueba: hoy usa el del paquete, así que el estado de cada rol lo fija lo que haya en el repositorio."
+
+[[estado]]
+estado = "fichero:plasmido_andamio:CON"
+destino = "CUBRIR"
+que_pinta = "El rol `plasmido_andamio` sale CERRADO y el módulo de 149 nt puede emitirse: sus contextos quedan contrastados contra el plásmido de SGEP."
+
+[[estado]]
+estado = "fichero:plasmido_andamio:SIN"
+destino = "CUBRIR"
+que_pinta = "El rol `plasmido_andamio` sale FALTA, y `contextos_vs_plasmido` queda NOT_RUN: el módulo entero sale INCOMPLETE y NO se emite ADN."
 
 [[estado]]
 estado = "modal:blast:CON_CORRIDA"
@@ -188,10 +189,56 @@ bloqueado_por = "`AppTest` no puede rellenar un `file_uploader`, así que ningú
 # pintar — un informe que se lee como «pendiente» y no obliga a nada (principio nº 15).
 # `bloqueado_por` dice POR QUÉ no se puede hoy; no exime de contarlo.
 #
-# HOY ESTÁ EN 19 sobre 29, y las causas son DOS, no diecinueve: `AppTest` no puede
-# rellenar un `file_uploader` (18 estados, entre ellos los OCHO de los cuatro modales) y
-# la página no acepta un directorio de referencia de prueba (9 estados). Abrir cualquiera
-# de las dos desbloquea todas las suyas de golpe. Lo que hay que hacer NO es escribir
-# tests sueltos: es abrir esas dos vías.
+# HOY ESTÁ EN 10 sobre 29. Estaba en 19, y las causas eran DOS, no diecinueve. Se abrió
+# la segunda —`SHMIR_REFERENCE_DIR` se lee en cada llamada, así que un test puede apuntar
+# la página a un depósito de prueba— y con ella cayeron los NUEVE estados de fichero de
+# golpe: `tests/test_estados_de_fichero.py` pinta la página con el depósito vacío y con
+# el completo. Eso es lo que quería decir «la causa es una»: no hacían falta nueve tests.
+#
+# Y al pintarlos apareció lo que ninguna suite veía: una fila COLAPSADA Y AUSENTE
+# —`apa_medido.tsv`, cuyo frente ya cierra PolyA_DB— salía con las cuatro acciones de un
+# fichero presente. El panel enseñaba un error rojo al abrir la app y «Ver» tiraba la
+# página entera. Errata nº 34.
+#
+# Y EL 2026-08-30 ESE BLOQUEO SE COBRO UNO: `NameError: _modal_blast` en produccion, al
+# pulsar Disenar, en el estado DISENADO_CON_SELECCION — el que esta tabla decia sin pintar.
+# El inventario acerto. Lo que enseño el fallo es otra cosa: NO HACIA FALTA pintarlo. La
+# llamada a `main()` estaba a mitad del fichero con los cuatro modales definidos debajo, y
+# eso se ve con un `ast.parse` de veinte lineas, sin Streamlit y sin ejecutar nada
+# (errata nº 36). UN BLOQUEO DECLARADO INVITA A DEJAR DE BUSCAR POR OTRO LADO: la
+# explicacion de por que no se puede hacer lo caro ocupo el sitio de la pregunta de si
+# habia algo barato. A cada `bloqueado_por` le falta esa pregunta al lado.
+#
+# LOS DIEZ QUE QUEDAN son todos la MISMA causa: `AppTest` no puede rellenar un
+# `file_uploader`, así que la página no llega a DISEÑADO — y con ella se quedan fuera los
+# ocho de los cuatro modales. Es un límite de la herramienta, no de la app, así que
+# cerrarlo pide un rodeo: una vía para inyectar la secuencia sin pasar por el widget.
 [umbral]
-sin_pintar = 19
+sin_pintar = 11
+# ─── El eje del RERUN y el del PROYECTO. AÑADIDOS (2026-09-01), errata nº 42 ─────────
+#
+# Los 29 estados de antes describian TODOS la pagina recien pintada. En Streamlit cada
+# tecla que el usuario escribe es un rerun, asi que el segundo render no es un caso raro:
+# es el normal — y ahi vivia el fallo que dejo el formulario de guardar imposible de
+# completar. El inventario no podia verlo porque el eje no existia.
+
+[[estado]]
+estado = "rerun:PRIMERA"
+destino = "CUBRIR"
+que_pinta = "La pagina recien cargada. Es lo que pintaban los 29 estados anteriores, todos."
+
+[[estado]]
+estado = "rerun:SEGUNDA"
+destino = "CUBRIR"
+que_pinta = "La pagina DESPUES de tocar un widget. Aqui es donde se cae lo que colgaba de un booleano de un solo rerun — un boton pulsado, una corrida cacheada sin huella."
+
+[[estado]]
+estado = "proyecto:SIN_ABRIR"
+destino = "CUBRIR"
+que_pinta = "Los modales calculan y no ofrecen guardar. Es el estado de toda corrida de `AppTest` de hoy."
+
+[[estado]]
+estado = "proyecto:ABIERTO"
+destino = "CUBRIR"
+que_pinta = "El cartel del proyecto en la barra lateral, el historial, y en cada modal el formulario de «Guardar en el proyecto» con fecha y quien la corrio. De este estado cuelga si una corrida se puede guardar, que es para lo que existe la persistencia."
+bloqueado_por = "El panel de proyecto se pinta DESPUES de diseñar, y `AppTest` no rellena un `file_uploader`. Lo cerraría la misma vía que los otros diez: inyectar la secuencia sin pasar por el widget. Es el mismo bloqueo, no uno nuevo."

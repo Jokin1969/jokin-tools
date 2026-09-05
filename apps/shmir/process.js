@@ -96,6 +96,20 @@ function buildEnv({ referenceDir = '', projectDir = '', base = process.env } = {
   } else {
     delete env.SHMIR_PROJECT_DIR;
   }
+  // QUÉ COMMIT ESTÁ SIRVIENDO ESTO. El proceso hijo no puede saberlo: no hay `.git` en la
+  // imagen y el paquete no lleva versión. El único que lo sabe es la plataforma, y lo
+  // pone en `RAILWAY_GIT_COMMIT_SHA`. Se pasa TAL CUAL para que los ficheros que salen de
+  // la app —el FASTA de construcciones, el informe— puedan decir de qué versión vienen.
+  // El 2026-09-05 un FASTA descargado de producción no coincidía con lo que produce el
+  // código de `main`, y no hubo forma de saber si era el despliegue o las entradas.
+  // Si la plataforma no la da, NO se inventa ninguna: el lado Python dice «sin declarar»,
+  // que es información, y un valor puesto aquí a mano no lo sería.
+  const commit = String(base.RAILWAY_GIT_COMMIT_SHA || '').trim();
+  if (commit) {
+    env.SHMIR_BUILD = commit;
+  } else {
+    delete env.SHMIR_BUILD;
+  }
   return env;
 }
 

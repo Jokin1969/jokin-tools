@@ -1,0 +1,96 @@
+# Tests que FABRICAN un artefacto que existe de verdad en `data/reference/`.
+#
+# La lista la deriva `tools/auditar_fixtures.py`; aquí sólo vive lo que no se puede
+# derivar: POR QUÉ ese test no usa el real.
+#
+# Fabricar no está prohibido —probar el caso malo, la cabecera corta, un md5 que no
+# cuadra o un fichero de 5,6 MB que no hace falta son motivos buenos—. Lo que no vale es
+# no decirlo: un fixture sintético donde existe el real valida un camino que nadie
+# recorre, que es la segunda mitad del principio nº 18.
+#
+# `usa_el_real = true` es para el caso en que alguien cablee el real y la entrada se
+# quede: entonces la justificación caduca y el test lo dice.
+
+[[fixture]]
+test = "test_directorio_trabajo.py"
+artefacto = "NM_011170.3.fa"
+usa_el_real = false
+por_que_no_el_real = "La siembra tiene que comprobar que NO PISA lo ya subido, y para eso el fichero de destino tiene que ser DISTINTO del versionado: se escribe «MIO» y se exige que siga ahí después de sembrar. Con el real, un fichero idéntico no distinguiría «no lo pisó» de «lo pisó con lo mismo»."
+
+[[fixture]]
+test = "test_gestor_referencias.py"
+artefacto = "mature.fa"
+usa_el_real = false
+por_que_no_el_real = "El real son 5,6 MB y aquí sólo se prueban las CUATRO ACCIONES del gestor —ver, reemplazar, borrar, descargar—, que no miran el contenido. Copiarlo en cada uno de los tests de este fichero multiplicaría el tiempo de la suite sin comprobar nada más."
+
+[[fixture]]
+test = "test_gestor_referencias.py"
+artefacto = "rmsk_mouse.out"
+usa_el_real = false
+por_que_no_el_real = "Igual: lo que se prueba es el plan de reemplazo y qué corridas invalida, no el parseo del `.out` —que tiene sus propios tests con el fichero real."
+
+[[fixture]]
+test = "test_manifiesto.py"
+artefacto = "NM_011170.3.fa"
+usa_el_real = false
+por_que_no_el_real = "Se prueba el ESCRITOR del manifiesto sobre un directorio controlado: hacen falta ficheros cuyos md5 y tamaños se conozcan de antemano para poder afirmar qué línea sale. Con los reales el test comprobaría el manifiesto real, que ya tiene su propio test."
+
+[[fixture]]
+test = "test_manifiesto.py"
+artefacto = "PROCEDENCIA.md"
+usa_el_real = false
+por_que_no_el_real = "Es un fichero de una línea que sólo existe para comprobar que NO sale en `unlisted`. Su contenido real no interviene."
+
+[[fixture]]
+test = "test_manifiesto.py"
+artefacto = "mature.fa"
+usa_el_real = false
+por_que_no_el_real = "Lo mismo: md5 y tamaño conocidos para poder afirmar la línea que escribe el manifiesto."
+
+[[fixture]]
+test = "test_mirna.py"
+artefacto = "mature.fa"
+usa_el_real = false
+por_que_no_el_real = "Se prueba el PARSER con casos concretos —alfabeto ARN y ADN, prefijos, un maduro corto— que en el fichero real habría que ir a buscar y que podrían desaparecer en el siguiente release de miRBase. Las cifras del fichero real se fijan aparte, en `test_abundancia_dos_capas.py`."
+
+[[fixture]]
+test = "test_obsoleto.py"
+artefacto = "mature.fa"
+usa_el_real = false
+por_que_no_el_real = "Sólo hace falta un md5 distinto del registrado para que una corrida quede obsoleta. El contenido no interviene: lo que se prueba es la comparación de checksums."
+
+[[fixture]]
+test = "test_polyadb_es_un_fichero.py"
+artefacto = "polya_db_mouse.tsv"
+usa_el_real = false
+por_que_no_el_real = "Se prueban los RECHAZOS del parser —columna que falta, PSE fuera de rango, fichero vacío—, y para eso hace falta un fichero MAL. El bueno se carga del real en el mismo módulo, que es lo que fija las cifras."
+
+[[fixture]]
+test = "test_recursos.py"
+artefacto = "aav_casete.fa"
+usa_el_real = false
+por_que_no_el_real = "El casete real son 5282 pb y aquí se prueba el CABLEADO rol→cargador, no la secuencia. Se usa un casete corto declarado en el propio test."
+
+[[fixture]]
+test = "test_roles_manifiesto.py"
+artefacto = "mature.fa"
+usa_el_real = false
+por_que_no_el_real = "Se prueba que el rol conecta con su cargador; el contenido sólo tiene que ser un FASTA válido."
+
+[[fixture]]
+test = "test_usar_manifiesto.py"
+artefacto = "aav_casete.fa"
+usa_el_real = false
+por_que_no_el_real = "MOTIVO DE PESO, y es el que enseñó la errata nº 33: este fichero monta manifiestos PARCIALES a propósito, para probar qué pasa cuando falta un rol, cuando un md5 no cuadra, o cuando una bandera explícita manda sobre el manifiesto. Con el real no se pueden montar esos casos. LO QUE FALTABA no era dejar de fabricarlos: era que ADEMÁS hubiera una corrida contra el manifiesto REAL — y esa está ahora en `test_roles_del_manifiesto.py`, donde se vio el `KeyError: polyadb`."
+
+[[fixture]]
+test = "test_auditorias_no_se_pisan.py"
+artefacto = "aav_casete.fa"
+usa_el_real = false
+por_que_no_el_real = "NO fabrica nada: el nombre está dentro de un FUENTE SINTÉTICO que se le da al reconocedor de `auditar_fixtures` para comprobar que muerde igual con el nombre literal y con el derivado. El material de prueba de un detector tiene que contener justo lo que el detector busca — es el mismo caso que el fuente de antes del arreglo con el que se prueba `auditar_condiciones`. Y que ESTA entrada exista es además la demostración del principio nº 26: el cruce entre las dos auditorías lo detecta la otra auditoría, así que las dos siguen mirando el mismo hecho."
+
+[[fixture]]
+test = "test_la_procedencia_SE_DECLARA_sin_resubir.py"
+artefacto = "aav_casete.fa"
+usa_el_real = false
+por_que_no_el_real = "Aquí el casete no es un casete: es el NOMBRE de un rol que NO pide procedencia de tabla, y lo que se comprueba es que declarársela ABORTE — «un casete de AAV no sale de ninguna tabla, así que ahí la columna vacía es la verdad». `declare_provenance` no abre el fichero: rechaza por el rol antes de mirar nada, así que copiar los 5,3 kB del real no probaría ni una línea más. Lo que sí es del real es el rol, que sale de `species.required_files`."

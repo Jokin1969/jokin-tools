@@ -43,7 +43,9 @@ class ScaffoldModuleWarning:
             )
         detalle = "; ".join(
             f"{nombre} ({loop}) en {registro}"
-            for (nombre, loop), registro in zip(self.found, self.records)
+            for (nombre, loop), registro in zip(
+                self.found, self.records, strict=True
+            )
         )
         return (
             f"AVISO DURO — el casete YA LLEVA un módulo de shmiR: {detalle}. "

@@ -24,6 +24,8 @@ except ImportError:  # rule2-ok: ausencia de una dependencia OPCIONAL de la inte
     # sigue siendo stdlib pura.
     STREAMLIT = False
 
+from tests.pagina import sin_proyectos
+
 APP = Path(__file__).resolve().parent.parent / "ui" / "streamlit_app.py"
 
 
@@ -48,11 +50,21 @@ class TestArranque(unittest.TestCase):
         textos = " ".join(info.value for info in app.info)
         self.assertIn("Elige una especie", textos)
 
-    def test_y_el_FASTA_se_pide_DESPUES_de_elegirla(self):
+    def test_y_la_SECUENCIA_se_pide_DESPUES_de_elegirla(self):
+        """La invariante es el ORDEN, no la palabra.
+
+        Este test decia `assertIn("FASTA", ...)` y empezo a fallar cuando el mensaje paso
+        a hablar de «la secuencia del mensajero» en vez del formato del fichero — que es
+        una mejora, no una regresion. Anclar una invariante a una palabra concreta la
+        rompe cada vez que alguien escribe mejor la frase, y el arreglo comodo habria
+        sido devolver la jerga.
+        """
         app = self.run_app()
         app.selectbox[0].set_value("Mus musculus").run()
-        textos = " ".join(info.value for info in app.info)
-        self.assertIn("FASTA", textos)
+        textos = " ".join(info.value for info in app.info).lower()
+        self.assertIn("sube la secuencia", textos)
+        # Y que ya NO pide la especie: eso es lo que demuestra que se paso de paso.
+        self.assertNotIn("elige una especie", textos)
 
     def test_los_umbrales_muestran_su_valor_por_defecto(self):
         app = self.run_app()
@@ -105,21 +117,29 @@ class TestFicherosDeReferencia(unittest.TestCase):
         app = self.run_app()
         etiquetas = [w.label for w in app.checkbox] + [w.label for w in app.sidebar.checkbox]
         etiquetas += [w.label for w in app.sidebar.text_input]
-        for esperado in ("Gen diana (accession)", "Calcular accesibilidad (lento)"):
-            with self.subTest(esperado):
-                self.assertIn(esperado, etiquetas)
+        # «Gen diana (accession)» ya no está: la diana la declara
+        # `data/diana/variantes.toml` y pedirla además a mano eran dos respuestas a la
+        # misma pregunta, ganando la peor (una variante, sin procedencia).
+        self.assertIn("Calcular accesibilidad (lento)", etiquetas)
+        self.assertNotIn("Gen diana (accession)", etiquetas)
 
     def test_la_accesibilidad_arranca_apagada(self):
         app = self.run_app()
         valores = {w.label: w.value for w in app.sidebar.checkbox}
         self.assertFalse(valores["Calcular accesibilidad (lento)"])
 
-    def test_el_gen_diana_arranca_vacio(self):
-        # Si trajera un accession por defecto, la especificidad se correria contra una
-        # diana que nadie ha declarado. Vacio significa vacio.
+    def test_la_diana_NO_se_pide_en_ningun_campo(self):
+        """La única forma de declararla es su tabla. Y eso se comprueba, no se supone.
+
+        El campo pedía UN accession a mano para algo que `data/diana/variantes.toml` ya
+        declara por especie, con TODAS sus variantes y con procedencia. Un campo que
+        vuelva a aparecer sería la segunda respuesta otra vez.
+        """
         app = self.run_app()
-        valores = {w.label: w.value for w in app.sidebar.text_input}
-        self.assertEqual(valores["Gen diana (accession)"], "")
+        etiquetas = [w.label for w in app.sidebar.text_input] + [
+            w.label for w in app.text_input
+        ]
+        self.assertFalse([e for e in etiquetas if "diana" in e.lower()], etiquetas)
 
     def test_sin_especie_NO_se_llega_al_gestor_y_se_dice_por_que(self):
         # Con el panel en la barra lateral salía siempre, con un «elige una especie».
@@ -191,7 +211,7 @@ class TestFicherosDeReferencia(unittest.TestCase):
         con barra—, pero se sigue pudiendo ver sin haber corrido nada."""
         app = self.run_app()
         textos = " ".join(p.proto.text for p in app.get("progress"))
-        self.assertIn("de 7 frentes cerrados", textos)
+        self.assertIn("de 8 frentes cerrados", textos)
 
 
 @unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no está instalado (pip install -r requirements-ui.txt)")
@@ -263,6 +283,29 @@ class TestAnatomiaEnLaInterfaz(unittest.TestCase):
                 with self.subTest(widget.label):
                     self.assertNotIn(".gb", list(widget.proto.type))
 
+
+
+# EL DIRECTORIO DE PROYECTOS SE DECLARA, no se hereda de la máquina. Desde que la primera
+# pregunta de la app es «¿retomas un proyecto guardado?», lo que se pinta arriba del todo
+# depende de si hay proyectos guardados — y sin declararlo, ése es el del paquete. Con un
+# proyecto de prueba dentro, `app.selectbox[0]` deja de ser el de la especie y saltan 24
+# tests de ficheros que no tienen nada que ver: un fallo así no dice lo que pasa, dice que
+# has roto media app. Ver `tests/pagina.py`.
+#
+# Va como `setUpModule` y no como gestor de contexto porque tiene que estar puesto durante
+# TODOS los `.run()`: cada `set_value(...).run()` vuelve a ejecutar el script de la página.
+_ENTORNO_DE_PAGINA = None
+
+
+def setUpModule():
+    global _ENTORNO_DE_PAGINA
+    _ENTORNO_DE_PAGINA = sin_proyectos()
+    _ENTORNO_DE_PAGINA.__enter__()
+
+
+def tearDownModule():
+    if _ENTORNO_DE_PAGINA is not None:
+        _ENTORNO_DE_PAGINA.__exit__(None, None, None)
 
 if __name__ == "__main__":
     unittest.main()

@@ -77,23 +77,23 @@
 ── Procedencia de los ficheros de referencia usados ──
   Copiado del manifiesto de data/reference/. Sin estas líneas, dentro de un año
   nadie podra saber con que versión de cada base se saco este veredicto.
-    mature.fa — colision de seed, nivel aviso (paso 10a) — 5659566 B — md5 320a5a535c75bff442dbdc7bbccfff4c — 2026-08-26 — miRBase, fichero de maduros de TODAS las especies (69020 registros), aportado por el responsable del proyecto. No se versiona en git: 5,6 MB de base de datos. La version de miRBase hay que declararla con --mirbase-version: el fichero no la trae dentro
-    aav_casete.fa — filtro del transgen (paso 12b) — 5467 B — md5 e49521f7d7cdbd560122fbec2707e6c0 — 2026-08-26 — pAAV_G130E_W144Y_mouse_PrP_4xmiR-183T, aportado por el laboratorio. 5282 pb, secuencia canonica 74f3fd79fa9547a59ca439d73e387c3d. ATENCION: es el PARENTAL, SIN el modulo del shmiR. Cuando se sustituya por el terapeutico hay que dar el TRANSCRITO MADURO, no el genoma con el intron dentro: con el intron, toda guia da impacto contra su propia horquilla y el filtro tumba el panel entero por un artefacto. No se versiona en git (material de laboratorio)
+    mature.fa — colision de seed, nivel aviso (paso 10a) — 5659566 B — md5 320a5a535c75bff442dbdc7bbccfff4c — 2026-08-26 — miRBase, fichero de maduros de TODAS las especies (69020 registros), aportado por el responsable del proyecto. No se versiona en git: 5,6 MB de base de datos. release 23 de miRBase, declarada por el responsable del proyecto el 2026-08-30: el fichero NO la trae dentro. `hairpin.fa` tiene que llegar con la MISMA release y `mirbase_release.comprobar_release` aborta si no
+    aav_casete.fa — filtro del transgen (paso 12b) — 5467 B — md5 e49521f7d7cdbd560122fbec2707e6c0 — 2026-08-26 — pAAV_G130E_W144Y_mouse_PrP_4xmiR-183T, aportado por el laboratorio. 5282 pb, secuencia canonica 74f3fd79fa9547a59ca439d73e387c3d. ATENCION: es el PARENTAL, SIN el modulo del shmiR. Cuando se sustituya por el terapeutico hay que dar el TRANSCRITO MADURO, no el genoma con el intron dentro: con el intron, toda guia da impacto contra su propia horquilla y el filtro tumba el panel entero por un artefacto. SE VERSIONA en git desde 2026-09-05: son 5,3 kB y de el sale el contexto exonico de cada construccion, asi que sin el una corrida no se rehace clonando el repositorio. Revierte la decision anterior de dejarlo fuera
     rmsk_mouse.out — elementos repetitivos (paso 2, raton) — 317 B — md5 16825306151e5da3d103207c5ad3e483 — 2026-08-26 — RepeatMasker open-4.0.9 · rmblastn 2.17.1+ · Dfam_3.0 sobre NM_011170.3, corrida por el responsable del proyecto. UNA repeticion: (CTC)n en tx:892-936, DENTRO del CDS (185-949): no toca el 3'UTR ni la ventana del ORF conservado (tx:707-728). El .out NO declara la especie — ninguno lo hace: eso vive en el .tbl, que es obligatorio
     NM_011170.3.gb — anatomia del transcrito de raton (CDS 185..949) — 15224 B — md5 d8ad1a73ae90f29b4e98b60382231d6a — 2026-08-26 — NCBI, registro GenBank completo aportado por el responsable del proyecto; se pasa con --genbank. Es la via mas fiable de resolver la anatomia: el CDS lo declara la anotacion, no nosotros
 
 ── Tabla comparativa de los candidatos ──
-  inicio_transcrito  inicio_3utr  region  tercio    GC     asimetria  penalizacion  asimetria_penalizada  polyA_solapa_seed  riesgo_APA     carga_seed  accesibilidad  veredicto 
-  tx:959             3utr:10      3'UTR   proximal  0.500  +4.33      0.00          +4.33                 no                 prediccion:no                             INCOMPLETE
-  tx:1009            3utr:60      3'UTR   proximal  0.455  +5.15      0.00          +5.15                 no                 prediccion:no                             INCOMPLETE
-  tx:1092            3utr:143     3'UTR   proximal  0.500  +5.08      0.00          +5.08                 no                 prediccion:no                             INCOMPLETE
-  tx:1149            3utr:200     3'UTR   proximal  0.500  +3.80      0.00          +3.80                 no                 prediccion:no                             INCOMPLETE
-  tx:1398            3utr:449     3'UTR   medio     0.318  +5.32      0.00          +5.32                 no                 prediccion:si                             INCOMPLETE
-  tx:1502            3utr:553     3'UTR   medio     0.409  +5.86      0.00          +5.86                 no                 prediccion:si                             INCOMPLETE
-  tx:1601            3utr:652     3'UTR   medio     0.455  +5.80      0.00          +5.80                 no                 prediccion:si                             INCOMPLETE
-  tx:1684            3utr:735     3'UTR   medio     0.409  +5.08      0.00          +5.08                 no                 prediccion:si                             INCOMPLETE
-  tx:1768            3utr:819     3'UTR   distal    0.500  +5.96      0.00          +5.96                 no                 prediccion:si                             INCOMPLETE
-  tx:1967            3utr:1018    3'UTR   distal    0.500  +7.65      1.00          +6.65                 si                 prediccion:si                             INCOMPLETE
+  inicio_transcrito  inicio_3utr  region  tercio    GC     asimetria  penalizacion  asimetria_penalizada  polyA_solapa_seed  riesgo_APA     carga_8mer  accesibilidad  veredicto 
+  tx:959             3utr:10      3'UTR   proximal  0.500  +4.33      0.00          +4.33                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1009            3utr:60      3'UTR   proximal  0.455  +5.15      0.00          +5.15                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1092            3utr:143     3'UTR   proximal  0.500  +5.08      0.00          +5.08                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1149            3utr:200     3'UTR   proximal  0.500  +3.80      0.00          +3.80                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1398            3utr:449     3'UTR   medio     0.318  +5.32      0.00          +5.32                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:1502            3utr:553     3'UTR   medio     0.409  +5.86      0.00          +5.86                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:1601            3utr:652     3'UTR   medio     0.455  +5.80      0.00          +5.80                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:1684            3utr:735     3'UTR   medio     0.409  +5.08      0.00          +5.08                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:1768            3utr:819     3'UTR   distal    0.500  +5.96      0.00          +5.96                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:1967            3utr:1018    3'UTR   distal    0.500  +7.65      1.00          +6.65                 si                 prediccion:si              NO_PEDIDO      INCOMPLETE
   La tabla COMPLETA —con la pasajera, el módulo de 149 nt, los cinco campos de
   polyA, los recuentos de especificidad y una columna por filtro— está en el TSV comparativo,
   con la columna knockdown_medido vacía para que vuelva rellena del laboratorio.
@@ -316,12 +316,23 @@
 
   Los dos servicios (direcciones dadas por el responsable del proyecto, no
   verificadas desde aquí):
-    · miRarchitect  https://mirarchitect.cs.put.poznan.pl/
+    · miRarchitect             https://mirarchitect.cs.put.poznan.pl/
       puntua el diseño de la horquilla; es la fuente de `score_externo`; pegar la guía de 22 nt en ADN y el andamio miR-E
-    · SplashRNA     http://splashrna.mskcc.org/
+      Produce guías de 22 nt.
+    · SplashRNA                http://splashrna.mskcc.org/
       predice potencia de shRNA; sus features salen aquí en columnas feat_*; pegar la guía de 22 nt en ADN
-    · GPP Web Portal https://portals.broadinstitute.org/gpp/public/
+      Produce guías de 22 nt.
+    · GPP Web Portal           https://portals.broadinstitute.org/gpp/public/
       portal de la Genetic Perturbation Platform del Broad, con sus herramientas de diseño; sirve para contrastar, NO alimenta score_externo; pegar el gen diana
+      No declara qué longitud de guía produce, así que no se cruza nada con esta fuente. Se declara en `external_score.EXTERNAL_TOOLS`, en su entrada. NO se deduce del nombre ni de la familia de la herramienta: ese número decide cómo se cruza, y uno equivocado no da ningún error — da un cruce con la forma correcta sobre el candidato de al lado.
+    · siDirect                 Sin dirección aportada. No se escribe ninguna de memoria: desde este entorno no se puede verificar (403 en el CONNECT del proxy, que es política de red y no una respuesta del servicio), y una dirección deducida por patrón es exactamente lo que la regla 4 prohíbe. La aporta quien la conozca.
+      diseñador de siRNA con reglas de especificidad; es CONTRASTE de sitio, NO ordena estos candidatos; pegar la secuencia diana (el 3'UTR o el transcrito)
+      Produce guías de 19 nt.
+    · BLOCK-iT RNAi Designer   Sin dirección aportada. No se escribe ninguna de memoria: desde este entorno no se puede verificar (403 en el CONNECT del proxy, que es política de red y no una respuesta del servicio), y una dirección deducida por patrón es exactamente lo que la regla 4 prohíbe. La aporta quien la conozca.
+      diseñador de RNAi de Thermo Fisher; es CONTRASTE de sitio, NO ordena estos candidatos; pegar la secuencia diana (el 3'UTR o el transcrito)
+      No declara qué longitud de guía produce, así que no se cruza nada con esta fuente. Se declara en `external_score.EXTERNAL_TOOLS`, en su entrada. NO se deduce del nombre ni de la familia de la herramienta: ese número decide cómo se cruza, y uno equivocado no da ningún error — da un cruce con la forma correcta sobre el candidato de al lado.
+
+  ESTAS HERRAMIENTAS SE CONOCÍAN Y SE DECIDIÓ NO USARLAS COMO FUENTE PRINCIPAL, sino como CONTRASTE independiente. Dos motivos, y ninguno es que sean malas: (a) devuelven una lista de candidatos y NO DECLARAN qué no han comprobado, así que un sitio que no sale no se distingue de uno que no miraron —que es la misma razón por la que aquí todo filtro emite `NOT_RUN` con su motivo—; y (b) ninguna considera la POLIADENILACIÓN ALTERNATIVA, que en este 3'UTR condiciona a seis de los diez candidatos con un techo de knockdown. Lo que sí aportan es convergencia de sitio: que otro método señale la misma región es información, y por eso están en la lista en vez de fuera de ella.
 
   Para puntuarlas a mano:
     1. Abre https://mirarchitect.cs.put.poznan.pl/.
@@ -500,8 +511,18 @@
 
   LAS CUATRO LECTURAS QUE LO CIERRAN. Ninguna la corre este software:
     · rtpcr_empalme [NOT_RUN]: RT-PCR con cebadores en los exones que flanquean el intrón
-      MVM. Banda CORTA = empalmado, banda LARGA = retenido, y la PROPORCIÓN es la
-      eficiencia. Coordenadas emitidas: ventanas casete:3064-3123 y casete:3226-3285;
+      MVM. OJO, y esto invalida la lectura ingenua: la PRESENCIA de banda larga NO ES
+      EVIDENCIA de retención. El pre-mRNA sin empalmar existe SIEMPRE —el splicing es
+      cotranscripcional pero no instantáneo—, así que hay transcritos NACIENTES a medio
+      procesar aunque el empalme sea perfecto, y dan banda larga igual. Por eso el ensayo
+      lleva CUATRO condiciones y ninguna es opcional: (1) RNA CITOPLÁSMICO, no total — el
+      pre-mRNA sin empalmar es NUCLEAR, y lo que sí es fallo es encontrarlo retenido en el
+      citoplasma; (2) SELECCIÓN POR polyA, que excluye la mayor parte del naciente; (3)
+      DNasa y CONTROL SIN RETROTRANSCRIPTASA, porque el genoma del AAV LLEVA el intrón y
+      una traza de ADN da una banda larga indistinguible de la retención; (4) la lectura
+      es la PROPORCIÓN corta/larga, NO la presencia, y no se lee sola: necesita DOS
+      referencias en la MISMA TANDA —el control sin intrón, que es el 100 % corta, y el
+      terapéutico—. Coordenadas emitidas: ventanas casete:3064-3123 y casete:3226-3285;
       diferencia entre bandas 296 pb.
     · western_L42_por_vg [NOT_RUN]: Western L42 NORMALIZADO por vg-qPCR. Sin normalizar,
       «no hay proteina» no se distingue de «no llego el vector»: los dos dan una membrana
@@ -542,13 +563,14 @@
 
 ── FILTROS QUE NO SE EJECUTARON ──
   especificidad: NOT_RUN en 2170 de 2170 ventanas
-  seed_colision: NOT_RUN en 2167 de 2170 ventanas
+  seed: NOT_RUN en 1790 de 2170 ventanas
+  seed_colision: NOT_RUN en 1790 de 2170 ventanas
   transgen: NOT_RUN en 1790 de 2170 ventanas
   GC: NOT_RUN en 66 de 2170 ventanas
   asimetria: NOT_RUN en 66 de 2170 ventanas
   homopolimero: NOT_RUN en 66 de 2170 ventanas
   NOT_RUN no es PASS. Mientras haya filtros sin correr, la selección es PROVISIONAL y ningún candidato está aprobado: su veredicto es INCOMPLETE.
-  EL PANEL ES PROVISIONAL EN 6 FRENTE(S): empalme_intron, empalme_sitios, especificidad, offtarget_seed, seed_colision, transgen.
+  EL PANEL ES PROVISIONAL EN 7 FRENTE(S): empalme_intron, empalme_sitios, especificidad, offtarget_seed, seed, seed_colision, transgen.
     offtarget_seed: NOT_RUN: falta `transcriptoma_3utr.fa`, así que los sitios de seed no
     se han contado. NOT_RUN no es PASS. EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON
     BLAST, y no es una preferencia: 7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, así
@@ -595,7 +617,7 @@
     dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, así que
     estas cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos
     amplicones sigue en pie y puede MEJORARLAS.
-  NO SE PIDE OLIGO hasta que los seis tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
+  NO SE PIDE OLIGO hasta que los siete tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
   y otro necesite una base entera no cambia nada: los dos bloquean igual, y llamar «único
   bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin correr.
   Y uno de ellos NO SE CIERRA CON NINGÚN FICHERO: el empalme del intrón solo se cierra en el

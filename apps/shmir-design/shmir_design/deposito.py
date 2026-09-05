@@ -24,12 +24,19 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .errors import ShmirDesignError
-from .manifest import ROLES, ManifestEntry, Role, register_entry
+from .identidad import file_fingerprint
+from .manifest import (
+    MANIFEST_NAME,
+    ROLES,
+    ManifestEntry,
+    Role,
+    check_directory,
+    register_entry,
+)
 from .species import RequiredFile, Species, file_for, fixture_report, required_files
 
 #: Por que no hay una casilla global. Va en la interfaz, no en un comentario.
@@ -119,6 +126,23 @@ def _v_apa(path, contexto):
     return load_apa_sites(path, version="subido por la interfaz")
 
 
+def _v_plasmido_andamio(path, contexto):
+    """El plásmido del andamio: se valida ANCLÁNDOLO, que es para lo que sirve.
+
+    No basta con que sea un GenBank legible. Lo que hace útil a este fichero es que sus
+    contextos sean los del módulo que se manda a sintetizar, así que la validación de la
+    subida es exactamente la comprobación que luego va a correr: si el fichero no lleva la
+    anotación del loop, o el andamio no está, o los contextos no coinciden, **no entra**.
+    Un fichero que pasara aquí y fallara al emitir el módulo sería peor que no validarlo.
+    """
+    from .gblock import verify_contexts_against_plasmid
+
+    verify_contexts_against_plasmid(
+        Path(path).read_text(encoding="utf-8", errors="replace")
+    )
+    return None
+
+
 def _v_rmsk(path, contexto):
     """El `.out` y el `.tbl`. Del todo, solo se pueden validar JUNTOS.
 
@@ -180,6 +204,7 @@ VALIDATORS = {
     "rmsk": _v_rmsk,
     "transgen": _v_transgen,
     "apa": _v_apa,
+    "plasmido_andamio": _v_plasmido_andamio,
 }
 
 
@@ -197,6 +222,99 @@ def role_for(species: Species, filename: str) -> Role | None:
         if rol.role == fila.role:
             return rol
     return None
+
+
+# ─────────────────── la procedencia de una TABLA, pedida al SUBIR ───────────────────
+#
+# **Es la procedencia de un FICHERO, no la de una corrida**, y esa distincion es la que
+# ordena todo lo de abajo. La del fichero —de que ensamblaje, de que tabla, de que fecha
+# y con que criterio de representante— pertenece al DEPOSITO y se pide UNA VEZ, al
+# entrar; la de la corrida es fecha, quien y parametros, y esa si va con cada corrida.
+#
+# El modal de carga de off-targets pedia los seis campos de `offtarget.Provenance` EN
+# CADA CORRIDA, siendo cuatro de ellos un dato del fichero que el deposito ya tenia
+# delante. Dos copias del mismo dato acaban divergiendo y nadie sabe cual manda.
+#
+# **Y por eso son OBLIGATORIAS AQUI y no opcionales con casilla vacia**: si
+# `offtarget.Provenance` las exige para dar veredicto, un fichero sin ellas entraria al
+# deposito, figuraria como PRESENTE, y bloquearia el frente tres pantallas despues sin
+# decir por que. El rechazo va donde entra el fichero, con el motivo.
+
+#: Los cuatro campos. NO se eligen aqui: son los de `offtarget.Provenance` que el
+#: manifiesto no tenia ya. Los otros tres de esa clase los tiene desde siempre —`source`
+#: es el origen, `version` sale de la fecha y `md5` se calcula del fichero—, y hay un
+#: test que lo cruza: si esa lista creciera, esta se quedaria corta y el modal tendria
+#: que seguir preguntando.
+PROVENANCE_FIELDS = ("assembly", "table", "table_date", "representative")
+
+#: Como se llama cada uno en el manifiesto. La columna es castellano porque el
+#: manifiesto se lee con `cat`; el campo es el de `Provenance`, para poder cruzarlos.
+MANIFEST_COLUMN_FOR = {
+    "assembly": "ensamblaje",
+    "table": "tabla",
+    "table_date": "fecha_tabla",
+    "representative": "representante",
+}
+
+#: Que se le pide a quien sube, con la ayuda que necesita para contestarlo. La ETIQUETA
+#: y la AYUDA viven aqui y no en la pagina: son texto que decide si alguien pone el dato
+#: bueno o el de otra especie (regla 6).
+PROVENANCE_LABELS = {
+    "assembly": (
+        "Ensamblaje",
+        "El de la especie que se está analizando, tal como lo nombra el navegador de "
+        "genomas (mm39, hg38…). El de otra especie da un conteo con la forma correcta "
+        "sobre el genoma equivocado.",
+    ),
+    "table": (
+        "Tabla",
+        "El grupo y la tabla exactos del Table Browser, por su nombre — «NCBI RefSeq» y "
+        "la región «3' UTR Exons». Una tabla curada y una con predichos NO dan el mismo "
+        "conteo.",
+    ),
+    "table_date": (
+        "Fecha de la tabla",
+        "Cuando se descargo (AAAA-MM-DD). Las tablas se actualizan, así que sin fecha el "
+        "conteo no se puede repetir.",
+    ),
+    "representative": (
+        "Criterio de representante",
+        "Que se hizo con las varias isoformas de un mismo gen. Si no se filtro nada "
+        "—que es lo que la ficha manda—, se escribe eso: el conteo sale inflado y hay "
+        "que poder saberlo.",
+    ),
+}
+
+#: EN QUE ROLES son obligatorias, con el motivo escrito. Es una tabla y no una regla
+#: general porque la mayoria de los ficheros no salen de ninguna tabla: un casete de AAV
+#: no tiene ensamblaje, y ahi la columna vacia es la VERDAD, no un hueco.
+PROVENANCE_REQUIRED = {
+    "transcriptoma": (
+        "El catalogo de 3'UTR es el ÚNICO fichero de hoy del que se cuenta algo: la "
+        "carga de off-targets por seed sale de barrerlo entero, y `offtarget.Provenance` "
+        "EXIGE los cuatro para poder emitir veredicto."
+    ),
+}
+
+
+def _exigir_procedencia(rol: str, valores: dict[str, str]) -> None:
+    """Aborta si al rol le falta alguno de los cuatro. ANTES de escribir nada."""
+    motivo = PROVENANCE_REQUIRED.get(rol)
+    if motivo is None:
+        return
+    faltan = [c for c in PROVENANCE_FIELDS if not str(valores.get(c, "")).strip()]
+    if not faltan:
+        return
+    nombres = ", ".join(MANIFEST_COLUMN_FOR[c] for c in faltan)
+    raise ShmirDesignError(
+        f"Falta la procedencia de la tabla: {nombres}. {motivo} Sin ensamblaje, tabla, "
+        f"fecha y criterio de representante el conteo NO es reproducible — la misma "
+        f"regla que la versión de miRBase y la biblioteca de Dfam. Se rechaza AQUÍ, en "
+        f"la subida, y no al pedir el veredicto: un fichero sin procedencia entraria al "
+        f"deposito, figuraria como presente, y dejaria el frente bloqueado tres "
+        f"pantallas después sin decir por que. Una casilla en blanco cuenta como no "
+        f"puesta."
+    )
 
 
 @dataclass(frozen=True)
@@ -261,6 +379,10 @@ def accept_upload(
     length: int | None = None,
     url: str = "",
     library: str = "",
+    assembly: str = "",
+    table: str = "",
+    table_date: str = "",
+    representative: str = "",
 ) -> UploadResult:
     """Recibe un fichero de referencia por la interfaz: valida, escribe y registra.
 
@@ -290,6 +412,18 @@ def accept_upload(
             f"al que conectar {filename!r}. Se aborta."
         )
 
+    # ANTES de escribir nada: un fichero sin la procedencia que su frente exige no
+    # entra. Va aqui y no tras la validacion porque no depende del contenido —es lo que
+    # el usuario declara— y porque rechazar despues de escribir el provisional seria
+    # trabajo tirado.
+    _exigir_procedencia(
+        rol.role,
+        {
+            "assembly": assembly, "table": table,
+            "table_date": table_date, "representative": representative,
+        },
+    )
+
     antes = _cerrados(species, _presentes(directory))
 
     # Se escribe a un temporal AL LADO: el validador necesita una ruta, y el directorio
@@ -311,7 +445,7 @@ def accept_upload(
         provisional.unlink(missing_ok=True)
         raise
 
-    md5 = hashlib.md5(payload, usedforsecurity=False).hexdigest()
+    md5 = file_fingerprint(payload)
     destino = directory / filename
     provisional.replace(destino)
 
@@ -326,6 +460,10 @@ def accept_upload(
         length=length,
         url=url,
         library=library,
+        assembly=assembly,
+        table=table,
+        table_date=table_date,
+        representative=representative,
     )
     actualizacion = register_entry(directory, entrada)
 
@@ -341,4 +479,258 @@ def accept_upload(
         still_missing=faltan,
         replaced=actualizacion.replaced,
         what=fila.what,
+    )
+
+
+def declare_provenance(
+    directory: Path | str,
+    *,
+    filename: str,
+    species: Species,
+    assembly: str,
+    table: str,
+    table_date: str,
+    representative: str,
+) -> DepositFile:
+    """Declara la procedencia de tabla de un fichero que YA está, sin volver a subirlo.
+
+    **El caso que lo motiva (errata nº 87)**: `transcriptoma_3utr.fa` entró el
+    2026-09-02, y las cuatro columnas de procedencia de tabla entraron ese mismo día
+    **más tarde** (errata nº 62). Así que el fichero está, es válido y tiene su md5 — y
+    su línea no lleva ensamblaje, tabla, fecha ni criterio de representante, con lo que
+    el modal de off-targets aborta. La única salida que ofrecía la app era
+    **reemplazarlo**: decenas de MB otra vez por cuatro metadatos.
+
+    Lo que falta no es el fichero: son cuatro campos de su LÍNEA. Se declaran sobre la
+    línea y **el fichero no se toca**.
+
+    **NO revalida el contenido, y es deliberado**: el fichero pasó su validación al
+    entrar y volver a correrla sobre decenas de MB para añadir metadatos es justo el
+    coste que esto quita. Lo que sí se comprueba —y es lo que lo hace seguro— es que el
+    fichero de disco **siga siendo el que la fila registra**: con el fichero cambiado
+    debajo, declarar el ensamblaje se lo pegaría a OTRA tabla, con la forma correcta y
+    sin dar ningún error.
+
+    Y sólo donde la procedencia hace falta (`PROVENANCE_REQUIRED`): un casete de AAV no
+    sale de ninguna tabla, así que ahí la columna vacía es la VERDAD y rellenarla sería
+    inventarse un dato.
+    """
+    directory = Path(directory)
+    rol = role_for(species, filename)
+    if rol is None:
+        raise ShmirDesignError(
+            f"{filename!r} no es un fichero que {species.scientific} necesite, así que "
+            f"no tiene ninguna línea en el manifiesto sobre la que declarar nada."
+        )
+    if rol.role not in PROVENANCE_REQUIRED:
+        raise ShmirDesignError(
+            f"{filename!r} no sale de ninguna tabla: su frente no pide ensamblaje ni "
+            f"fecha de tabla, y ahí una columna vacía es la VERDAD y no un hueco. "
+            f"Rellenarla sería inventarse un dato. Los roles que sí la piden son: "
+            f"{', '.join(sorted(PROVENANCE_REQUIRED))}."
+        )
+
+    # Los cuatro, ANTES de tocar el manifiesto. Mismo guardia que en la subida: si se
+    # aceptara una declaración a medias, la línea quedaría igual de incompleta y el
+    # frente seguiría bloqueado tres pantallas después sin decir por qué.
+    _exigir_procedencia(rol.role, {
+        "assembly": assembly, "table": table,
+        "table_date": table_date, "representative": representative,
+    })
+
+    ruta = directory / filename
+    if not ruta.is_file():
+        raise ShmirDesignError(
+            f"{filename!r} no está en {directory}: no se puede declarar la procedencia "
+            f"de un fichero que no está. Súbelo por el gestor, que es donde se declara "
+            f"al entrar."
+        )
+    estado = check_directory(directory)
+    entrada = estado.result_of(filename).entry
+    if entrada is None:
+        raise ShmirDesignError(
+            f"{filename!r} está en {directory} pero no tiene línea en el manifiesto, "
+            f"así que no hay procedencia que completar: lo que falta es registrarlo "
+            f"entero. Súbelo por el gestor."
+        )
+    actual = file_fingerprint(ruta.read_bytes())
+    if actual != entrada.md5:
+        raise ShmirDesignError(
+            f"El md5 de {filename!r} en disco es {actual} y su línea registra "
+            f"{entrada.md5}: el fichero ha cambiado debajo. Se aborta — declarar esta "
+            f"procedencia le pegaría el ensamblaje y la fecha de una tabla a OTRA "
+            f"distinta, con la forma correcta y sin dar ningún error. Súbelo por el "
+            f"gestor, que registra el fichero nuevo con su procedencia."
+        )
+
+    register_entry(directory, replace(
+        entrada,
+        assembly=assembly, table=table,
+        table_date=table_date, representative=representative,
+    ))
+    return read_deposit(rol.role, species=species, directory=directory)
+
+
+# ══════════════════ EL LECTOR DEL DEPOSITO: UN SOLO SITIO ══════════════════
+#
+# **El fallo que cierra.** El modal de carga de off-targets NO VEIA EL DEPOSITO: pedia
+# soltar `transcriptoma_3utr.fa` aunque ya estuviera dentro, y ademas pedia los SEIS
+# campos de `offtarget.Provenance` —fuente, ensamblaje, tabla, fecha, representante y
+# version— que ya se habian declarado al subirlo. El de BLAST hacia lo mismo con la
+# base: nombre, version y md5 tecleados a mano teniendo la linea del manifiesto delante.
+#
+# Eso es DOS COPIAS DEL MISMO DATO. La del deposito la escribio quien subio el fichero;
+# la del modal la teclea quien corre, sin nada que las ate — y cuando divergen, ninguna
+# de las dos dice cual manda. O peor: quien no se acuerda del ensamblaje se lo inventa,
+# y el conteo sale con la forma correcta sobre el genoma equivocado.
+#
+# **La lectura sale de UN SOLO SITIO**, como `_filter_columns` con el estado por filtro.
+# Los cuatro modales preguntan aqui; ninguno abre el manifiesto por su cuenta. Si cada
+# uno lo abriera, el quinto se quedaria fuera sin que nadie lo note — la leccion de
+# `offtarget_seed`.
+
+
+@dataclass(frozen=True)
+class DepositFile:
+    """Lo que el deposito sabe de UN fichero: si esta, su md5 y su procedencia."""
+
+    role: str
+    filename: str
+    present: bool
+    size: int = 0
+    md5: str = ""
+    entry: ManifestEntry | None = None
+
+    @property
+    def registered(self) -> bool:
+        """¿Tiene linea en el manifiesto? Estar y estar registrado son cosas distintas."""
+        return self.entry is not None
+
+    @property
+    def stale_md5(self) -> bool:
+        """El fichero de disco NO es el que el manifiesto registra.
+
+        No es un detalle de presentacion: el md5 del manifiesto es el que viaja con el
+        veredicto, asi que si no coincide lo que se guardaria seria la procedencia de
+        OTRO fichero.
+        """
+        return bool(self.entry) and bool(self.md5) and self.entry.md5 != self.md5
+
+    @property
+    def missing_provenance(self) -> tuple[str, ...]:
+        """Los campos de procedencia de tabla que este rol exige y no tiene.
+
+        Sale VACIO en dos casos que no se confunden: el rol no las exige (un casete no
+        sale de ninguna tabla), o las tiene todas. Lo que lo distingue es
+        `PROVENANCE_REQUIRED`, no esta lista.
+        """
+        if self.role not in PROVENANCE_REQUIRED or self.entry is None:
+            return ()
+        return tuple(
+            MANIFEST_COLUMN_FOR[c]
+            for c in PROVENANCE_FIELDS
+            if not str(getattr(self.entry, c, "")).strip()
+        )
+
+    def provenance_fields(self) -> dict[str, str]:
+        """Los SIETE de `offtarget.Provenance`, sacados de la linea del manifiesto.
+
+        Cuatro son las columnas nuevas; los otros tres los tenia desde siempre —`source`
+        es el origen, `version` sale de la fecha (o del md5 si no la hay, igual que
+        `resources`) y `md5` es el del fichero—. Se derivan aqui para que nadie los
+        vuelva a teclear.
+        """
+        if self.entry is None:
+            return {}
+        return {
+            "source": self.entry.origin,
+            "assembly": self.entry.assembly,
+            "table": self.entry.table,
+            "table_date": self.entry.table_date,
+            "representative": self.entry.representative,
+            "version": self.entry.date or self.entry.md5,
+            "md5": self.entry.md5,
+        }
+
+    def describe(self) -> str:
+        if not self.present:
+            return (
+                f"{self.filename} NO está en el depósito. Mientras falte, el frente que "
+                f"depende de él se queda en NOT_RUN — y NOT_RUN no es PASS."
+            )
+        lineas = [f"{self.filename} — {self.size} B — md5 {self.md5}"]
+        if not self.registered:
+            lineas.append(
+                "Está en el directorio y NO tiene línea en el manifiesto, así que no "
+                "hay procedencia que adjuntar al veredicto. Vuelve a subirlo por el "
+                "gestor para registrarlo."
+            )
+            return " ".join(lineas)
+        if self.stale_md5:
+            lineas.append(
+                f"OJO: el manifiesto registra md5 {self.entry.md5}, que NO es el del "
+                f"fichero que hay. La procedencia registrada es la de OTRO fichero."
+            )
+        if self.entry.origin:
+            lineas.append(f"Origen: {self.entry.origin}.")
+        if self.entry.date:
+            lineas.append(f"Registrado el {self.entry.date}.")
+        procedencia = [
+            f"{MANIFEST_COLUMN_FOR[c]}: {getattr(self.entry, c)}"
+            for c in PROVENANCE_FIELDS
+            if str(getattr(self.entry, c, "")).strip()
+        ]
+        if procedencia:
+            lineas.append(" · ".join(procedencia) + ".")
+        if self.missing_provenance:
+            lineas.append(
+                f"Le falta procedencia de tabla ({', '.join(self.missing_provenance)}): "
+                f"se registró antes de que se pidiera. Reemplázalo por el gestor para "
+                f"declararla."
+            )
+        return " ".join(lineas)
+
+
+def read_deposit(role: str, *, species: Species, directory: Path | str) -> DepositFile:
+    """QUE HAY en el depósito para ese rol, con su procedencia. Un solo sitio.
+
+    El NOMBRE lo pone `species.required_files` —la única fuente de los nombres del
+    depósito— y no se escribe: escribirlo aquí sería la tercera copia, y ya se sabe cómo
+    acaban (errata nº 47, la comparación de md5 que no podía darse nunca).
+    """
+    from .manifest import load_manifest
+    from .presencia import hay_fichero
+    from .species import required_files
+
+    directory = Path(directory)
+    fila = next((f for f in required_files(species) if f.role == role), None)
+    if fila is None:
+        raise ShmirDesignError(
+            f"El rol {role!r} no está entre los ficheros que "
+            f"{species.scientific} necesita, así que no hay nada que leer del depósito. "
+            f"Se aborta en vez de devolver «no está», que se leería como que el fichero "
+            f"existe y falta."
+        )
+    nombre = fila.filename
+    ruta = directory / nombre
+    presente = hay_fichero(ruta)
+
+    entrada = None
+    manifiesto = directory / MANIFEST_NAME
+    if manifiesto.is_file():
+        try:
+            entrada = load_manifest(manifiesto).entry(nombre)
+        except ShmirDesignError:
+            # rule2-ok: que el fichero no tenga linea es un HECHO sobre el deposito, no
+            # un fallo del paso — `Manifest.entry` aborta con el que no esta. La lectura
+            # sigue: `registered` lo dice, y `describe()` lo escribe.
+            entrada = None
+
+    return DepositFile(
+        role=role,
+        filename=nombre,
+        present=presente,
+        size=ruta.stat().st_size if presente else 0,
+        md5=file_fingerprint(ruta.read_bytes()) if presente else "",
+        entry=entrada,
     )

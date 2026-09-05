@@ -37,6 +37,7 @@ from types import MappingProxyType
 from .accessibility import CONTEXT_WINDOWS as _CTX
 from .anatomy import Anatomy, Region
 from .coords import Frame, frame_of, label
+from .errors import ShmirDesignError
 from .filters import FilterState, Verdict
 from .hard_filters import gc_fraction
 from .polya import CLEAVAGE_MAX, CLEAVAGE_MIN, PolyASignal, Tercio
@@ -248,7 +249,17 @@ class Site:
         return self.choices[0].start
 
     @property
-    def end(self) -> int:
+    def last_start(self) -> int:
+        """El INICIO de la ultima ventana del bloque, que NO es el final del sitio.
+
+        Se llamaba `end`, y en todo el resto del paquete `end` es un final de intervalo
+        inclusivo: leido asi, el sitio salia 21 nt mas corto de lo que es. Ninguna salida lo
+        leia —por eso el numero equivocado nunca llego a una pantalla— pero SI lo leia un
+        test, que lo afirmaba como final de intervalo: el codigo y su test compartian la
+        confusion, asi que ninguno de los dos podia delatarla (principio nº 22). Errata nº 57, la
+        misma familia que `antisense`: un nombre que promete una magnitud y devuelve
+        otra.
+        """
         return self.choices[-1].start
 
     @property
@@ -273,7 +284,16 @@ class Selection:
 
 
 def group_choices(choices: list[Choice]) -> list[Site]:
-    """Agrupa ventanas elegibles contiguas en sitios independientes (paso 4)."""
+    """Agrupa ventanas elegibles contiguas en sitios independientes (paso 4).
+
+    **EL RECUENTO DE SITIOS MIDE FRAGMENTACIÓN, NO OPORTUNIDAD, Y NO ES COMPARABLE ENTRE
+    CRITERIOS.** Un sitio es un bloque de posiciones de inicio CONTIGUAS que pasan, así
+    que al pasar más ventanas los bloques **se funden** y el recuento BAJA. Medido sobre
+    el 3'UTR murino poniendo la asimetría en `NO_APLICA` —el criterio de miR-451—: las
+    ventanas suben de 270 a 554 y los sitios bajan de 86 a 40, con el tamaño medio
+    pasando de 3,1 a 13,8 ventanas y los cortes de 85 a 39. No se perdieron 46 sitios: se
+    unieron. Para comparar dos criterios el número es el de VENTANAS.
+    """
     ordenadas = sorted(choices, key=lambda c: c.start)
     if not ordenadas:
         return []
@@ -608,6 +628,37 @@ class ReportSelection:
 
     def window_of(self, choice: Choice) -> TiledWindow:
         return self.windows[choice.label]
+
+    def choices_for(self, starts) -> list[Choice]:
+        """Los candidatos de esos inicios: del PANEL o de CUALQUIER sitio elegible.
+
+        **Es el unico sitio donde un inicio se resuelve a su candidato**, y vive aqui
+        porque este objeto es el que tiene los dos conjuntos. Habia dos definiciones en
+        el mismo flujo —el selector de alcance ofrecia los 86 elegibles y los cuatro
+        modales resolvian contra los 10 del panel— y ganaba la restrictiva:
+        tres abortaban y el de empalme emitia el panel EN SILENCIO mientras la etiqueta
+        anunciaba 172 consultas (errata nº 107).
+
+        El panel va primero a proposito: un inicio elegido esta ademas en su sitio, y el
+        `Choice` que manda es el que la seleccion escogio.
+
+        Un inicio que no corresponda a NINGUNA ventana elegible aborta, y el motivo habla
+        de ventanas elegibles y no del panel: el que pide no ha pedido nada raro.
+        """
+        por_inicio = {c.start: c for c in self.selection.chosen}
+        for sitio in self.selection.sites:
+            for choice in sitio.choices:
+                por_inicio.setdefault(choice.start, choice)
+        faltan = sorted(set(int(s) for s in starts) - set(por_inicio))
+        if faltan:
+            raise ShmirDesignError(
+                f"No hay ninguna ventana elegible que empiece en "
+                f"{', '.join(str(f) for f in faltan)}: se aborta en vez de emitir menos "
+                f"consultas de las que la etiqueta del alcance anuncia. El alcance de "
+                f"esta corrida son los {len(por_inicio)} sitios elegibles, de los que "
+                f"{len(self.selection.chosen)} están en el panel."
+            )
+        return [por_inicio[s] for s in sorted(int(s) for s in starts)]
 
     @property
     def provisional(self) -> bool:
@@ -1682,7 +1733,7 @@ def tercio_counts(
     nombres = ("proximal", "medio", "distal")
 
     def por_inicio(posicion: int) -> str:
-        for nombre, (a, b) in zip(nombres, limites):
+        for nombre, (a, b) in zip(nombres, limites, strict=True):
             if a <= posicion <= b:
                 return nombre
         return nombres[-1]
@@ -1772,9 +1823,24 @@ class BlockingFront:
 
 
 def blocking_fronts(
-    report: TilingReport, selection: ReportSelection
+    report: TilingReport, selection: ReportSelection, *, closed_by_panel=None,
 ) -> list[BlockingFront]:
     """Los frentes abiertos: los filtros que no han corrido POR FALTA DE RECURSO.
+
+    `closed_by_panel` es `{frente: motivo}` con lo que esta CONTESTADO EN TODO EL PANEL
+    —lo cierre el fichero del deposito o una corrida guardada—, y entra POR AQUI a
+    proposito. Se llamaba `closed_by_runs` cuando solo llegaban las corridas; el nombre
+    dejo de ser cierto en cuanto entraron los frentes que cierra un fichero, y un nombre
+    que miente es el principio nº 27.
+
+    OJO CON `ReportSelection.not_run_filters`, que es lo que se usa mas abajo: cuenta sobre
+    LAS 2170 VENTANAS TILADAS, y 1790 de ellas ni llegan a los filtros con recurso
+    porque ya cayeron antes. Un `NOT_RUN` de una ventana descartada no es una laguna:
+    nadie iba a preguntarle. Por eso la lista de aqui es solo el punto de partida y
+    quien cierra es `closed_by_panel`, que mira EL PANEL. Estuvo dos tandas entrando por cada consumidor
+    —la tarjeta, el semaforo, el informe, la ficha— y el resultado fue arreglarlos de uno
+    en uno y que los otros cinco siguieran igual: hay SEIS llamadores de esta funcion.
+    Un frente cerrado por una corrida se cierra AQUI, y todos se enteran a la vez.
 
     NO todo `NOT_RUN` es un frente, y confundirlos costo un aborto en la segunda corrida
     real de la pagina. Con la mascara puesta, 66 ventanas quedan con `N` y sus filtros de
@@ -1802,10 +1868,12 @@ def blocking_fronts(
     #     fichero. Lo que les falta es que alguien decida su criterio, y eso no tiene
     #     ficha de obtencion — tiene una entrada en `justificacion.py`.
     sin_frente = BIOPHYSICAL_FILTERS
+    cerrados = dict(closed_by_panel or {})
     frentes = [
         BlockingFront(
             name=nombre,
-            reason=(
+            blocking=nombre not in cerrados,
+            reason=cerrados.get(nombre) or (
                 f"NOT_RUN en {cuenta} de {selection.total} ventanas: falta el recurso. "
                 f"NOT_RUN no es PASS."
                 + (

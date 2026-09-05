@@ -106,6 +106,9 @@ def main(argv: list[str]) -> int:
             alineado = con_diferencias[0] if con_diferencias else alineados[0]
             perfil = "\n\n".join(
                 f"── Entrada {letra} contra la referencia ──\n" + a.format_text()
+                # zip-ok: esta herramienta compara DOS exportaciones y las letras
+                # son sus etiquetas. Con una sola entrada, la "B" sobra y se cae
+                # sola; con mas de dos, el aviso de tres lineas mas abajo lo dice.
                 for letra, a in zip("AB", alineados)
                 if a.differences
             )

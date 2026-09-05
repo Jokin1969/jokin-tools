@@ -1,4 +1,8 @@
 frente = "empalme_sitios"
+se_cierra_en = "la app"
+titulo_llano = "¿La guía crea un corte donde no debería?"
+en_cristiano = """\
+Al meter tu guía dentro de esa pieza puede aparecer por casualidad una señal de corte nueva. Si la célula la usa, corta por donde no toca y el tratamiento sale mal montado."""
 pregunta = """\
 ¿El módulo de esta guía introduce un sitio de splicing críptico dentro del intrón? La \
 unidad no es la guía: es el CASSETTE MONTADO —intrón completo, módulo dentro, guía y \

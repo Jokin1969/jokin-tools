@@ -449,6 +449,42 @@ class SplicingReadout:
 CRYPTIC_RETAINED = 97
 
 
+#: LO QUE ESTABA ESCRITO Y ERA FALSO. Aqui ponia «Banda CORTA = empalmado, banda LARGA =
+#: retenido». Lo corrigio el responsable del proyecto (2026-09-02) y es una correccion de
+#: fondo sobre el UNICO frente binario del proyecto — el que decide si hay proteina.
+#:
+#: **El pre-mRNA sin empalmar existe SIEMPRE.** El splicing es cotranscripcional pero no
+#: instantaneo, asi que en cualquier poblacion de transcritos hay nacientes a medio
+#: procesar: la banda larga sale con el empalme PERFECTO. Presencia de banda larga no es
+#: evidencia de retencion — es evidencia de que la celula estaba transcribiendo.
+#:
+#: Es la misma forma que el «Alu 0 %» al reves: alli se afirmaba una ausencia sin haber
+#: buscado; aqui se afirma una presencia sin haber separado las dos causas que la
+#: producen. En los dos casos el numero sale, tiene la forma correcta, y no dice lo que
+#: se cree que dice.
+WHY_PRESENCE_IS_NOT_EVIDENCE = (
+    "OJO, y esto invalida la lectura ingenua: la PRESENCIA de banda larga NO ES "
+    "EVIDENCIA de retención. El pre-mRNA sin empalmar existe SIEMPRE —el splicing es "
+    "cotranscripcional pero no instantáneo—, así que hay transcritos NACIENTES a medio "
+    "procesar aunque el empalme sea perfecto, y dan banda larga igual."
+)
+
+#: Las CUATRO condiciones sin las cuales el ensayo no separa esas dos causas. Van juntas
+#: y ninguna es opcional: tres quitan el naciente y el ADN del medio, y la cuarta cambia
+#: lo que se lee — de una presencia a una proporcion con dos referencias.
+RTPCR_CONDITIONS = (
+    "Por eso el ensayo lleva CUATRO condiciones y ninguna es opcional: "
+    "(1) RNA CITOPLÁSMICO, no total — el pre-mRNA sin empalmar es NUCLEAR, y lo que sí "
+    "es fallo es encontrarlo retenido en el citoplasma; "
+    "(2) SELECCIÓN POR polyA, que excluye la mayor parte del naciente; "
+    "(3) DNasa y CONTROL SIN RETROTRANSCRIPTASA, porque el genoma del AAV LLEVA el "
+    "intrón y una traza de ADN da una banda larga indistinguible de la retención; "
+    "(4) la lectura es la PROPORCIÓN corta/larga, NO la presencia, y no se lee sola: "
+    "necesita DOS referencias en la MISMA TANDA —el control sin intrón, que es el "
+    "100 % corta, y el terapéutico—."
+)
+
+
 def splicing_readouts(plan: SplicingRtPcr | None = None) -> tuple[SplicingReadout, ...]:
     """Las CUATRO lecturas que cierran el frente. Todas `NOT_RUN`, y por eso bloquea."""
     crypticos = CRYPTIC_RETAINED
@@ -464,9 +500,8 @@ def splicing_readouts(plan: SplicingRtPcr | None = None) -> tuple[SplicingReadou
             name="rtpcr_empalme",
             state=FilterState.NOT_RUN,
             requirement=(
-                "RT-PCR con cebadores en los exones que flanquean el intrón MVM. Banda "
-                "CORTA = empalmado, banda LARGA = retenido, y la PROPORCIÓN es la "
-                f"eficiencia. {coordenadas}"
+                "RT-PCR con cebadores en los exones que flanquean el intrón MVM. "
+                f"{WHY_PRESENCE_IS_NOT_EVIDENCE} {RTPCR_CONDITIONS} {coordenadas}"
             ),
         ),
         SplicingReadout(

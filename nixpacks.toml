@@ -16,9 +16,23 @@ cmds = [
   # par de cientos de MB de imagen. Si algún día eso pesa demasiado, la alternativa NO es
   # quitarle dependencias a Streamlit: es desplegar esa interfaz como un servicio aparte.
   "pip3 install --target=/app/python_libs --no-cache-dir 'streamlit>=1.30'",
+  # ViennaRNA NO es opcional en esta imagen, y el motivo es que su ausencia no se nota.
+  # El nucleo esta escrito para correr sin el —`check_fold` sale NOT_RUN, nunca PASS— y
+  # eso es correcto. Lo que NO degrada igual es la regla de la hebra PASAJERA: se elige
+  # plegando el 97-mero contra la estructura de SGEP, y sin plegado cae a la tabla por
+  # terminacion, que este proyecto descarto POR ESCRITO (falla con guias acabadas en G,
+  # por el apareamiento tambaleante G:U). Esa pasajera va dentro del modulo de 149 nt,
+  # o sea dentro de lo que se manda a sintetizar: un gBlock pedido desde la app
+  # desplegada llevaria la base equivocada. Autorizada en
+  # `apps/shmir-design/docs/dependencias-autorizadas.md` desde 2026-08-25.
+  "pip3 install --target=/app/python_libs --no-cache-dir 'ViennaRNA>=2.6'",
   # La comprobación va en el BUILD a propósito: un fallo de instalación tiene que verse
   # al desplegar y no la primera vez que alguien abre la app.
   "PYTHONPATH=/app/python_libs python3 -c 'import streamlit; print(\"Streamlit OK\", streamlit.__version__)'",
+  # La comprobacion va en el BUILD, igual que la de Streamlit y por la misma razon: un
+  # fallo de instalacion tiene que verse al desplegar. Y aqui pesa mas — si ViennaRNA no
+  # entra, la app NO avisa a gritos: sigue funcionando y deja de poder emitir oligos.
+  "PYTHONPATH=/app/python_libs python3 -c 'import RNA; print(\"ViennaRNA OK\", RNA.__version__)'",
   "PYTHONPATH=/app/python_libs python3 -c 'import PIL, pypdf, svglib, reportlab; print(\"Core Python deps OK; PIL\", PIL.__version__)'"
 ]
 

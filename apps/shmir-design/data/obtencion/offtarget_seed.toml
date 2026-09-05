@@ -1,4 +1,8 @@
 frente = "offtarget_seed"
+se_cierra_en = "la app"
+titulo_llano = "¿A cuántos genes puede afectar de rebote?"
+en_cristiano = """\
+A un shmiR le bastan siete letras del principio para frenar un mensajero, aunque el resto no encaje. Esto cuenta cuántos mensajeros de tu especie llevan esas siete letras. No es un aprobado ni un suspenso: es una cifra para comparar unos candidatos con otros."""
 pregunta = """\
 ¿Cuántos mensajeros del transcriptoma llevan un sitio para la seed de esta hebra? Es la \
 CARGA de off-targets, y es otra pregunta que la colisión con un miARN conocido. No la \

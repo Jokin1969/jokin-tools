@@ -130,14 +130,25 @@ Por eso, siempre que se emite un veredicto sobre un eje así:
 
 Y si no la ha comprobado, **describe el síntoma y calla la causa**.
 
-Es la tercera vez que el mismo fallo sale en esta app, siempre igual: un texto plausible,
-escrito a mano junto a un dato, que nombra una causa que nadie ha mirado.
+Es la **cuarta** vez que el mismo fallo sale en esta app, siempre igual: un dato plausible
+—un texto o un número— que se lee como una causa que nadie ha mirado.
 
-| mensaje | lo que decía | lo que era |
+| mensaje o dato | lo que decía | lo que era |
 |---|---|---|
 | `/shmir` no arranca | «comprueba que Streamlit está instalado» | Streamlit estaba instalado y corriendo: era un conflicto de configuración |
 | máscara de RepeatMasker | «Alu 0 %» | 0 % obtenido **sin buscar Alu**: la corrida era contra otra biblioteca |
 | 1773 ventanas descartadas | «bases desconocidas o enmascaradas» | ninguna tenía `N` ni estaba enmascarada: fallaban GC y homopolímero |
+| posiciones de inserción válidas en `intron_quimerico` | **«cero»**, que se lee como «ninguna vale» | se comparaba la estructura del MÓDULO entero en vez de la de la HORQUILLA. Con el criterio bueno son **15 de 97** |
+
+**El cuarto es un CERO, no una frase, y por eso vale la pena tenerlo aquí**: un cero no
+parece un diagnóstico, parece una medida. Pero «cero encontrados» dice una causa —«no
+hay»— y esa causa hay que haberla comprobado igual que cualquier otra. Aquí la verdadera
+era «se midió otra cosa».
+
+Y el arreglo enseña dónde estaba la grieta: el criterio se **deducía** —la función recibía
+el módulo y decidía por su cuenta qué comparar—. Ahora `hairpin` va **explícito en la
+firma**. **Un criterio no se deduce, se pasa**: deducido, el día que se deduzca mal no hay
+error, hay un número.
 
 **Un diagnóstico plausible y falso cuesta más que ninguno.** Manda a mirar al sitio
 equivocado, y quien lo lee gasta el tiempo ahí antes de sospechar del mensaje — que es
@@ -407,6 +418,38 @@ tiene que estar atada de una de estas dos formas:
 Lo que **no** vale es corregir la frase y seguir. Eso deja el mismo mecanismo intacto, y
 el mecanismo es lo que produjo las otras dos de esta misma familia: el «comprueba que
 Streamlit está instalado» pegado a todo fallo, y el «Alu 0 %» obtenido sin buscar Alu.
+
+### Y una prosa obsoleta que PIDE algo ya hecho es peor que una que describe mal
+
+Formulado por el responsable del proyecto (2026-09-04) sobre el caso de
+`introns.INTRONS["mvm_sin_criptico"].why_missing`, que decía:
+
+> «el primer paso EMPATA entre dos alternativas y **la app no elige: hace falta una
+> decisión**»
+
+Cierto cuando se escribió. Falso desde que la decisión se registró en
+`intron_design.TIEBREAK_MOTIF`, con su racional y su alternativa descartada.
+
+**Las dos clases de texto obsoleto no cuestan lo mismo**:
+
+- el que **describe mal** un hecho hace que alguien entienda algo equivocado, y se
+  descubre al contrastarlo con lo que el código emite;
+- el que **pide una decisión ya tomada GENERA TRABAJO**: manda a razonar otra vez lo que
+  está razonado, a comparar alternativas que ya se compararon, y —lo peor— **a decidir de
+  nuevo**, con el riesgo de decidir distinto y quedarse con dos decisiones. No se descubre
+  contrastando nada, porque no afirma ningún hecho falso: afirma una *carencia* que ya no
+  existe.
+
+**La regla operativa**: un texto que pide algo —«hace falta X», «queda por decidir Y»,
+«falta aportar Z»— es una **deuda declarada**, y una deuda saldada hay que darla de baja
+igual que se da de baja una excepción de alcanzabilidad caducada o una entrada muerta de
+una tabla de auditoría. Este proyecto ya lo hace con las tablas —una justificación
+caducada hace fallar la suite— y la prosa que declara carencias está en la misma
+situación sin la misma protección.
+
+Y el corolario que lo hace revisable: **cuando algo se resuelve, se busca quién lo pedía**.
+El commit que registra una decisión tiene que tocar también los textos que la reclamaban;
+si no, la decisión existe y el proyecto sigue pidiéndola.
 
 ### Un aviso: no todo lo que parece discrepar lo es
 
@@ -719,7 +762,17 @@ hacia el silencio es peor que no tenerlo: no avisa y además tranquiliza.
 
 ---
 
-## 18 — Un artefacto de verificación generado con parámetros distintos a los de uso valida una configuración fantasma
+## 18 — Un artefacto de verificación se genera con la CONFIGURACIÓN DE USO y con los DATOS DE USO
+
+Tenía dos mitades y al principio sólo se escribió una. **Un parámetro tecleado y un
+fixture sintético son la misma enfermedad:** los dos validan un camino que nadie recorre.
+El golden llevaba `--inmunes 4` a mano y validaba un panel que ningún usuario ve;
+`test_usar_manifiesto.py` pasaba de punta a punta sobre un manifiesto **parcial** montado
+en un temporal, y el manifiesto **real** abortaba con un `KeyError: 'polyadb'`
+(errata nº 33). Una configuración fantasma y una entrada fantasma, y el mismo agujero.
+
+### La mitad de la configuración
+
 
 El golden del informe se generaba con `--inmunes 4` **tecleado a mano** en
 `regenerar_golden.py`. Así que la única corrida del CLI que alguien miraba llevaba una
@@ -767,6 +820,47 @@ constante mientras la app leía el fichero — dos caminos, y el golden dejaba d
 el de verdad». La misma lección, aplicada al dato y no a la configuración, en el mismo
 bloque de código.
 
+### La mitad de los DATOS, y su corolario accionable
+
+**Todo test que monte un fixture donde exista el artefacto real debe justificar por qué
+no usa el real, y esa justificación va ESCRITA.** No es una prohibición: fabricar tiene
+motivos buenos —probar el fichero corrupto, la cabecera corta, un md5 que no cuadra, un
+manifiesto al que le falta un rol a propósito— y ninguno de ellos se puede montar con el
+real. Lo que no vale es no decirlo.
+
+Se revisó cuántos había, y el del manifiesto no era el único: **doce fabricaciones en
+nueve ficheros**. Están en `data/fixtures_sinteticos.toml`, cada una con su motivo, y
+`tools/auditar_fixtures.py` cruza la tabla con el código en las dos direcciones: una
+fabricación sin entrada falla, y una entrada que ya no corresponde a ningún test también
+—una justificación caducada es peor que ninguna, porque se lee como vigente.
+
+Y lo que faltaba en el caso del manifiesto **no era dejar de fabricarlo**: era que
+ADEMÁS hubiera una corrida contra el real. Las dos cosas, no una en lugar de la otra.
+
+### La regla de los INERTES
+
+**No se ponen parámetros en un artefacto de verificación, ni siquiera los que coinciden
+con el defecto.** De los cuatro que llevaba el golden, tres no hacían nada — y ése es
+exactamente el problema: **un parámetro que no hace nada no se distingue de uno que sí**,
+así que nadie los volvió a mirar y el que rompía viajó de polizón entre los otros tres.
+
+Lo comprueba un test sobre **todos** los generadores, no sólo sobre el del CLI:
+`default_config()` se llama sin nada, `tile_utr` recibe la secuencia y nada más, no se
+construye ningún `SelectionConfig` a mano, y **ningún campo de `SelectionConfig` aparece
+como argumento** en el fichero — esa última lista se deriva de la propia clase, así que un
+ajuste nuevo queda cubierto sin que nadie se acuerde de añadirlo. Lo permitido en una
+variante tampoco es una lista escrita: sale de su propio nombre.
+
+### La ironía de los dos generadores
+
+Dos de ellos llevaban escrito, **dos líneas más arriba**, que la tabla de PolyA_DB no se
+pasa a mano porque eso hacía que el golden se generara con la constante mientras la app
+leía el fichero. Tenían la regla delante, redactada, para el **dato** — y no la vieron
+para la **configuración**, en el mismo bloque de código.
+
+**Saber la regla no basta si no se aplica al eje que toca.** Una regla escrita para un eje
+no se transfiere sola al de al lado; hay que ir a buscarla.
+
 ### El corolario de la clasificación
 
 **Al clasificar una bandera —o un estado— hay que mirar QUIÉN LA LLAMA, no sólo qué
@@ -775,3 +869,1121 @@ ellas sin recorrido de punta a punta; eso no se ve mirando la bandera. Y al rev�
 `--usar-manifiesto` figuraba como recorrida porque sus tests montan un manifiesto
 **parcial** en un temporal — contra el manifiesto de verdad abortaba con un
 `KeyError: 'polyadb'`. Quién llama, y **con qué entrada**.
+
+### Y LA MITAD QUE MÁS CUESTA VER: esto aplica al PROPIO COMPROBADOR
+
+Un control adversario que no reproduce la **forma real** del fallo valida el comprobador,
+no el caso. Es este mismo principio un piso más arriba, y es donde menos se nota — porque
+el test pasa, señala, y parece que ha demostrado algo.
+
+**El caso (2026-09-04, errata nº 90).** Al escribir el guardia que prohíbe que una clase
+de conteos por clase tenga un atributo que los sume, su control adversario probaba con:
+
+```python
+class SeedLoad:
+    counts: dict[str, int]
+    def total(self):
+        return sum(self.counts.values())
+```
+
+Señalaba, y el guardia salía a cero sobre el código arreglado. **Pero el `total` real no
+era eso.** Era un **campo** —`total: int | None = None`— y la suma vivía en el
+**constructor**, `SeedLoad(..., total=sum(totales.values()))`. Un guardia que sólo mirara
+cuerpos de métodos habría pasado ese control adversario **y no habría cazado el fallo que
+de verdad hubo**.
+
+**La comprobación no es «¿el control adversario falla?», es «¿falla sobre el código que
+existía?».** Se le da el fuente de ANTES, tal y como era, no una reconstrucción de memoria
+de cómo era. Escribirlo de memoria es el mismo error que transcribir un dato en vez de
+derivarlo (principio nº 13), aplicado a la evidencia de que un guardia sirve.
+
+**Cómo se hace en la práctica**: el control adversario se saca de `git show` del commit
+anterior, o se copia del cuerpo real que se acaba de borrar — nunca se teclea desde el
+recuerdo de lo que hacía.
+
+---
+
+## 19 — Un valor legítimo puede tener la FORMA de la ausencia, y la comprobación mira el continente
+
+Van **cuatro** fallos con la misma anatomía, en años de código distinto:
+
+1. **`x or defecto` con la cadena vacía** (errata nº 18). `""` es un valor —«todas las
+   especies, a propósito»— y `None` es «nadie lo declaró». El `or` los hace uno.
+2. **`Path.is_file()` sobre un fichero de 0 bytes** (errata nº 15). El fichero **existe**
+   y no tiene nada dentro; el panel lo daba por presente y «Ver» enseñaba el vacío.
+3. **`if fila["acciones"]` sobre una lista que nunca está vacía** (errata nº 34). Valía
+   `["ver", …]` o `["subir"]`: dos cosas distintas, las dos verdaderas.
+4. **`zip(candidates, folding_ok)` con el segundo vacío por defecto.** `zip` trunca al
+   más corto **sin decir nada**, así que el informe habría salido **sin ninguna fila y
+   sin ningún error** — «no hay alternativas» cuando lo que pasa es que no se midió
+   ninguna.
+
+En los cuatro, **la pregunta era por el contenido y la comprobación miró el continente**.
+Y en los cuatro el resultado fue el peor posible: no un error, sino una respuesta
+plausible.
+
+**El cuarto no está de adorno, y es el que más enseña**: no lleva **ninguna condición**.
+Los tres primeros se encuentran mirando los `if`; a éste ninguna búsqueda de `if` lo
+habría encontrado nunca. Y donde los otros devuelven un valor equivocado, éste devuelve
+**un informe vacío, que se lee como un resultado** — la forma más callada que hay de leer
+el continente. Un barrido que sólo mire condiciones deja fuera media familia.
+
+### La forma de la enfermedad
+
+Python —y cualquier lenguaje con verdad implícita— colapsa cosas distintas en «falso»:
+`None`, `""`, `0`, `[]`, `{}`. **El colapso es cómodo mientras ninguno de ellos signifique
+algo**, y deja de serlo en cuanto uno significa. Y el caso 3 enseña que el colapso también
+va al revés: dos valores distintos pueden ser los dos **verdaderos**, y entonces el `if`
+no separa nada aunque lo parezca.
+
+Así que la regla no es «no uses la verdad implícita» — sería inaplicable y falsa, porque
+en `if not filas` la vacuidad **es** la pregunta. La regla es:
+
+> **Antes de escribir `if x:`, di en voz alta qué pregunta estás haciendo. Si la pregunta
+> no es literalmente «¿está vacío?», el `if` no es la comprobación que necesitas.**
+
+«¿Me lo dieron?» es `x is None`. «¿Hay algo dentro?» es `hay_fichero(ruta)`. «¿Está
+presente?» es `fila["presente"]` — un dato que alguien calculó y que se puede probar.
+
+### La contramedida, y por qué es más estrecha de lo que parece
+
+Se barrió el paquete entero por los tres ejes. **El barrido ancho no sirve**: da 187
+posiciones sólo en el eje de las colecciones y casi todas son correctas. Un auditor así
+se apaga el primer día, y un auditor apagado es peor que ninguno — es la lección de
+`shutil.copy` en el de fixtures, con otra ropa.
+
+Lo que sí se decide sin discusión es el caso extremo: **una condición que no puede ser
+falsa nunca**. Eso no es un criterio opinable, es una rama muerta con forma de decisión.
+`tools/auditar_condiciones.py` la busca derivando qué claves valen siempre algo no vacío,
+y **no es un trinquete sino un guardia**: el número correcto es cero.
+
+Está probado contra el fallo que lo originó — se le da el fuente **de antes** del arreglo
+y se exige que lo señale. Un detector que sale a cero sobre el código ya arreglado no ha
+demostrado nada; es el `verify()` de la errata nº 29 otra vez.
+
+### La contramedida del cuarto: dos salidas y ninguna tercera
+
+Se barrió el paquete entero por `zip`, por `map` de dos iterables y por las comprensiones
+sobre dos secuencias: **catorce**, descontando las ventanas del tipo `zip(x, x[1:])`, que
+recorren pares consecutivos de **una** lista y no emparejan nada.
+
+Y la lectura de los catorce da la regla, porque son **dos cosas distintas** y sólo quien
+escribe la línea sabe cuál:
+
+- **van en paralelo** —una fila y su ancho, un candidato y su veredicto de plegado, un
+  patrón y su ventana— y entonces que difieran es un fallo: **`strict=True`**, biblioteca
+  estándar desde 3.10, que aborta en vez de acortar. **Diez.**
+- **la truncación ES la intención** —cinco columnas de layout para tres herramientas, un
+  motivo de 7 nt contra un consenso de 5 posiciones— y entonces se escribe
+  **`# zip-ok: <motivo>`**, la misma convención que `# rule2-ok`. **Cuatro.**
+
+Dejarlo implícito no es una tercera opción: es que el lector adivine. Lo hace cumplir
+`tools/auditar_pares.py`, y es un **guardia**, no un trinquete.
+
+Que la regla tenga dos salidas no es una concesión: es lo que la hace aplicable. «Pon
+`strict` en todos» habría roto cuatro sitios correctos, y una regla que rompe lo correcto
+se retira a la semana.
+
+**Donde dos secuencias van en paralelo, que vayan en paralelo es una invariante y se hace
+cumplir.** Y donde no van en paralelo, eso se dice.
+
+
+---
+
+## 20 — Dos errores independientes pueden cancelarse hacia un resultado CREÍBLE, y entonces la plausibilidad deja de ser señal
+
+`donor_to_branch` empezó a dar **405** donde llevaba todo el proyecto dando **256**, sin
+que nadie hubiera tocado el intrón. Eran **dos** errores en la misma llamada:
+
+1. recibía los elementos del intrón **ya montado**, cuyo campo `empty` vale ya la
+   distancia montada — y la función le sumaba la inserción otra vez;
+2. y recibía `inserted = len(módulo)`, cuando `inserted` es **todo lo insertado**: el
+   módulo **más los dos espaciadores**, 149 + 20 + 45 = 214.
+
+Lo que hace este caso distinto de un descuido es la aritmética. Los tres resultados
+posibles eran:
+
+| errores | resultado | ¿habría chirriado? |
+|---|---|---|
+| sólo (1) | 470 | **sí** — casi el doble |
+| sólo (2) | 191 | **sí** — por debajo del conocido |
+| los dos | **405** | **no** |
+
+**Cada error por separado producía un número inverosímil. Juntos produjeron el más
+creíble de los tres.** Así que el filtro que normalmente salva —«esto no puede ser»— no
+disparó, y no por descuido de quien lo leyó: porque el número no daba motivo.
+
+### Lo que se pierde, y hay que decirlo
+
+La plausibilidad es el detector barato que se usa todo el rato, y **contra errores
+compuestos no funciona**. No es que falle a veces: es que la composición **tiende** a
+llevar el resultado hacia el centro, porque los extremos se cancelan entre sí. Cuantos
+más errores independientes, más creíble el resultado y menos fiable el olfato.
+
+### El corolario operativo, y es el que lo cazó
+
+**Cuando una magnitud cambia sin que nadie haya cambiado su entrada, la DIFERENCIA es el
+diagnóstico.** Antes de buscar en otro sitio, comprobar si esa diferencia **coincide con
+la longitud de alguna pieza conocida**. Aquí 405 − 256 = **149**, que es exactamente la
+longitud del módulo — y una diferencia que coincide con una constante del proyecto casi
+nunca es una coincidencia: es una suma de más, una resta de menos o una unidad confundida.
+
+No lo cazó ninguna comprobación. Lo cazó alguien que recordaba el número anterior. Eso no
+es un método, así que hace falta uno.
+
+### La contramedida general
+
+**Toda magnitud compuesta sale por DOS DERIVACIONES INDEPENDIENTES que se cruzan.** No
+«se comprueba»: se calcula dos veces por caminos distintos y el test exige que coincidan.
+Donante→punto se **mide** ahora sobre la secuencia del intrón montado y se cruza contra la
+ruta aritmética `donor_to_branch(vacío, inserted=214)`.
+
+Una sola ruta no podía cazar esto **porque el fallo estaba en la ruta**. Es el principio
+nº 5 —dos implementaciones del mismo número se cruzan— aplicado donde más falta hace: no
+a los números que dos módulos calculan por separado, sino a los que un módulo calcula
+componiendo, que es donde los errores se suman en silencio.
+
+---
+
+## 21 — Pasar un umbral no es ser EQUIVALENTE, y un control necesita lo segundo
+
+Un filtro del pipeline contesta *«¿sirve esto?»*. Un control contesta otra pregunta:
+*«¿se comporta esto como aquello?»*. **La primera es un mínimo y la segunda es una
+distancia**, y quien tiene la primera puesta cree que tiene las dos.
+
+### De dónde sale
+
+El scrambled de un shmiR se genera permutando la guía original para conservar su
+composición. Las cinco primeras permutaciones que salieron pasaban **todos** los filtros
+—GC, homopolímero, asimetría, sin diana, sin sitio de seed— y tenían una asimetría de
+**+0,8 a +3,9 kcal/mol frente a los +7,65 del original**. El umbral del proyecto
+(`MIN_ASYMMETRY`, 0,5) dice si una hebra se carga en AGO2; no dice si se carga **igual**.
+
+Con esos controles, la diferencia entre el brazo tratado y el brazo control mezclaría dos
+cosas —la diana y el procesamiento— y no separaría ninguna. O sea: el control mediría
+justo lo que existe para descartar.
+
+Medido sobre la guía de `3utr:1018`: las permutaciones tienen **mediana 0,67** y rango de
+−6,45 a 8,05. **Casi todas pasan el filtro y casi ninguna es comparable.**
+
+### La forma general
+
+Cuando una construcción existe para ser **el mismo experimento menos una cosa**, sus
+criterios de admisión no son los del objeto que imita:
+
+- el objeto necesita **estar por encima de un mínimo**;
+- su control necesita **estar cerca de él** en todo lo que no se quiso cambiar.
+
+Los dos criterios se parecen lo bastante como para que el segundo parezca cubierto por el
+primero, y no lo está. Un control admitido por el umbral del original es un control que
+pasa todo y no controla nada.
+
+### La contramedida
+
+**Dos umbrales, dos nombres, dos frentes.** El del pipeline se queda donde está;
+la equivalencia va en su propio filtro (`equivalencia_asimetria`) con la magnitud del
+original **al lado**, para que un lector acostumbrado a que «más es mejor» vea que aquí
+lo que se busca es **parecerse**. La tolerancia va declarada como parámetro, con la
+distribución medida detrás —de 1380 permutaciones admisibles, 1 a ≤0,5, 4 a ≤1,0 y 17 a
+≤1,5— para que el número no sea una elección de despacho, y con la nota de que no sale de
+ningún artículo.
+
+### Corolario: el criterio que no puede fallar tampoco es equivalencia
+
+Al medirlo apareció el otro lado. El criterio estructural —«el 97-mero pliega igual que el
+original»— **no rechaza nada y no puede**: `passenger_from_guide` ELIGE la base de la
+posición 1 de la pasajera para que el 97-mero reproduzca la estructura de SGEP y ABORTA si
+ninguna lo consigue, así que la comprobación posterior vuelve a preguntar lo que ya era
+condición para haber montado la horquilla. **0 de 2000** permutaciones, **0 de 1134**
+variantes de seed, y tampoco una guía derivada del propio andamio para competir con el
+loop.
+
+No se quita —sigue siendo el guardia del caso en que una guía no admita pasajera— pero
+sale con esa frase pegada: **un PASS que no puede fallar no es evidencia, es la
+definición**. Es la cuarta vez que este proyecto se encuentra un criterio que da el mismo
+resultado a todo el mundo (el `donante 1,00 / aceptor 0,00` de MFE, el `)(` del
+discriminante de horquillas, el GC de una permutación, y éste), y la regla que queda es la
+misma: **antes de creerse un criterio, hay que enseñarle un caso que deba suspender.**
+
+---
+
+## 22 — Un informe que lee estado MUTABLE declara contra QUÉ estado se generó, no sólo cuándo
+
+**Formulado por el responsable del proyecto (2026-09-01)**, al cablear los almacenes al
+documento. En una frase: **la fecha no basta — dos corridas del mismo día son dos
+documentos distintos.**
+
+### De dónde sale
+
+Mientras el informe se calculaba **sólo del tilado**, «generado el 1 de septiembre» lo
+identificaba: la entrada era la misma y el resultado también. En cuanto empieza a leer los
+almacenes del proyecto, la entrada deja de ser una — el mismo día, la misma secuencia y el
+mismo panel dan **dos documentos distintos** según si se subió un BLAST entre uno y otro.
+
+Y el que los compara no tiene forma de saberlo. «Este informe es de después de subir el
+BLAST» pasa a ser **algo que alguien tiene que recordar**, que es exactamente la clase de
+cosa que este proyecto no deja en la memoria de nadie.
+
+### La contramedida, en dos piezas
+
+- **La HUELLA, en la cabecera** (`presentation.log_fingerprint`): un md5 de la lista de
+  `run_id` presentes al generar. **Dos informes con la misma huella son el mismo
+  documento; con huellas distintas, la diferencia se explica sola.** Va **ordenada**,
+  porque el orden de llegada no es estado: dos logs con las mismas corridas son el mismo
+  estado, y si el orden contara, dos documentos idénticos saldrían con huellas distintas y
+  la señal dejaría de servir para lo único que sirve. Hay test de eso.
+- **La PROCEDENCIA de cada corrida** (`run_provenance_rows`), en la sección que ya lleva
+  la de los ficheros: `run_id`, fecha, **md5 del fichero subido** y md5 de la base o
+  catálogo. Es **lo mismo que se le exige a un fichero de referencia, aplicado a un
+  resultado** — y sin ello un frente que sale cerrado en el documento no se puede cotejar
+  con nada.
+
+### El detalle que no es un detalle
+
+De una corrida de BLAST hay **dos** md5 y sólo uno sirve aquí: `query_md5` es el del FASTA
+que **generó la app** —regenerable, no prueba nada de fuera— y `result_md5` el del fichero
+que **llegó**. La procedencia lleva el segundo. Confundirlos deja el documento apuntando a
+lo que él mismo produjo.
+
+### La forma general
+
+Vale para cualquier artefacto que se entregue y lea algo que cambia debajo. **Fechar no es
+identificar.** Si dos ejecuciones con la misma fecha pueden dar productos distintos, el
+producto tiene que llevar **de qué estado salió** — y llevarlo donde se lee, no en un
+anexo.
+
+---
+
+## 23 — Cuando dos artefactos leen el mismo estado y sólo uno se actualiza, el intermedio es PEOR que el punto de partida
+
+**Formulado por el responsable del proyecto (2026-09-01)**, sobre una tanda propia. No es
+una observación de gestión: es una regla técnica sobre cómo se reparte un cambio.
+
+### El caso
+
+El informe descargable pasó a leer los almacenes del proyecto. La tabla de la pantalla no,
+todavía. Antes de la tanda los dos **callaban** —`NOT_RUN` los dos— y eran coherentes en su
+ignorancia. Después, el documento puede decir `PASS` de un frente que la pantalla sigue
+enseñando en `NOT_RUN`.
+
+**Y el que se entrega es el documento.**
+
+### Por qué el estado intermedio es peor que el inicial
+
+Antes había **una laguna**: los dos artefactos decían menos de lo que se sabía, y quien los
+leía sabía a qué atenerse. Ahora hay una **contradicción**: dos artefactos del mismo
+proyecto afirman cosas distintas del mismo frente, y quien los ponga uno al lado del otro
+**concluirá que uno está mal sin poder saber cuál**. Eso no es «media mejora»: es
+información nueva y falsa sobre la fiabilidad de las dos.
+
+Es la familia del principio nº 11 —código y prosa que discrepan— con los dos lados siendo
+**salidas del código**, y con el agravante de que ninguna se ha quedado atrás por descuido:
+el desfase lo introdujo una mejora.
+
+### La regla operativa
+
+Al repartir un cambio que toca varios artefactos que leen el mismo estado:
+
+1. **Preferible: en la misma tanda.** Si los dos leen, no hay desfase que declarar.
+2. **Si no cabe: el desfase se DECLARA en el artefacto que se ha quedado atrás**, diciendo
+   quién sabe más y **a cuál creer** — un aviso que sólo siembra duda es peor que ninguno.
+   Aquí es `presentation.TABLE_LAGS_REPORT`, pintado sobre la tabla.
+3. **Y el aviso CADUCA con un test.** `tests/test_desacuerdo_declarado.py` falla el día que
+   `site_table_rows` lea los almacenes, obligando a borrarlo: **un aviso que sobrevive a su
+   causa manda a desconfiar de algo que ya es correcto**, que es el mismo daño al revés.
+
+### El corolario que no es obvio
+
+**«Está a medias» no describe este estado.** Una tanda a medias deja cosas sin hacer; ésta
+deja algo **nuevo y roto** que antes no existía. La pregunta antes de partir un cambio no
+es *¿qué parte entra?* sino *¿el estado intermedio afirma algo falso?* — y si lo afirma,
+o entra entero, o entra con el desfase declarado.
+
+## 24 — Los dos lados de una comparación salen de la MISMA fuente, o la comparación puede no darse nunca
+
+**Sale de la errata nº 47 (2026-09-02)**, y generaliza algo que este proyecto ya había
+tocado por dos puertas distintas sin nombrarlo: el principio nº 13 (derivar en vez de
+transcribir) dice de dónde sale **un** dato; éste dice qué pasa cuando **dos** datos que
+tienen que casar salen de sitios distintos.
+
+### El caso
+
+`insumos.obsoleta` compara el md5 que una corrida registró con el md5 del fichero que hay
+hoy. Los dos lados se emparejan por un **nombre**: la tabla de insumos escribía «base de
+datos de BLAST» y el diccionario de md5 de hoy venía indexado por `refseq_rna.fa`. La
+comparación no fallaba: **no llegaba a hacerse**, y con el fichero delante y el md5
+correcto la corrida salía «no se ha podido comprobar» para siempre.
+
+### Por qué es invisible, y no un fallo más
+
+Una comparación que no puede ser verdadera **produce exactamente la salida honesta de una
+comparación que sale que no**: aquí, «no se ha podido comprobar». Ese estado existe, es
+correcto en su caso, y está bien redactado — así que nadie lo lee como un fallo. Es la
+familia de la errata nº 29 (`verify()` que no comprobaba nada) con otra forma: **el
+producto normal del fallo es un mensaje que parece un resultado.**
+
+Y no lo caza ningún guardia de los que hay: no es un `except` que se traga nada, ni una
+condición que no puede ser falsa, ni una función sin llamador. Se ejecuta entera, cada
+vez, y devuelve algo plausible.
+
+### La regla
+
+Cuando dos valores se emparejan por una clave —un nombre de fichero, un rol, un
+identificador de consulta—, **esa clave la produce UNA sola función**, y los dos lados la
+piden. No se escribe en ninguno de los dos. Si el emparejamiento no se puede resolver, se
+**aborta** diciéndolo: devolver el estado de «no se sabe» hace indistinguible un fallo de
+cableado de una laguna legítima.
+
+### Y el test no puede escribir la clave
+
+Es la mitad que dejó pasar el fallo, y ya había dejado pasar otro tres días antes (errata
+nº 44). Un test que construye el diccionario de entrada con el nombre que él mismo ha
+escrito **pregunta por su propia respuesta**: coincide siempre, por construcción, y su
+verde no dice nada del emparejamiento real. La clave se le pide al productor —aquí
+`insumos.fichero_de` o `presentation.reference_md5s`— o el test se escribe **de punta a
+punta**, poniendo el fichero en un directorio y mirando qué sale.
+
+## 25 — Un test que ESCRIBE la clave por la que pregunta no puede fallar, y hay que poder buscarlos todos
+
+**Formulado por el responsable del proyecto (2026-09-02)**, después de tres erratas
+seguidas con la misma anatomía y con la consecuencia dicha en una frase: *«no basta con
+arreglarlas de una en una»*. Es el principio nº 24 —los dos lados de una comparación
+salen de la misma fuente— **convertido en auditoría**, con el segundo lado siendo el test.
+
+### El patrón
+
+```python
+insumos.obsoleta("corrida_blast", payload, actuales={"base de datos de BLAST": "d" * 32})
+```
+
+El test construye el diccionario de entrada con el mismo nombre por el que el código va a
+buscar. Coincide **por construcción**: pase lo que pase con el productor real de esa clave
+—que la sufije por especie, que la normalice, que cambie de formato—, este test sigue en
+verde. Su verde no dice nada del emparejamiento real, y mientras tanto **tapa** el fallo
+estructural que habría destapado.
+
+### Por qué es peor que un test que falta
+
+Un test que falta se ve: alguien pregunta por la cobertura y aparece. Éste **ocupa el
+sitio** del test que haría falta y da la señal contraria — es la familia de la errata
+nº 29, donde `verify()` producía confianza infundada en vez de ausencia de información.
+
+### La regla
+
+Una clave que **algo produce** —un nombre de fichero, un identificador de consulta, un id
+de corrida— se le **pide al productor**, también en los tests. Escribirla es admisible
+sólo con el motivo declarado, y ese motivo caduca.
+
+### Y la auditoría, porque una regla que no se puede buscar no se aplica
+
+`tools/auditar_claves.py` la busca de dos formas, y la distinción entre ellas es lo que
+la hace aplicable en vez de ruidosa (el barrido ancho daba 294 hallazgos, casi todos
+correctos, y un auditor así se apaga el primer día):
+
+- **VALORES** — el valor exacto usado como **clave** de un diccionario o conjunto que el
+  test pasa a una llamada. Un literal suelto no cuenta: abrir el fichero real por su
+  nombre es lo correcto.
+- **FORMATO** — la **forma** de la familia, en literales y f-strings, sin docstrings.
+
+Es un **guardia**: el número correcto es cero. Un test que no puede fallar no es deuda
+pendiente que se salda cuando se pueda; es una comprobación que no comprueba.
+
+## 26 — Dos guardias que opinan sobre el mismo hecho tienen que estar atados, o se separan
+
+**Formulado por el responsable del proyecto (2026-09-02)** sobre un caso propio y con la
+predicción incluida: *«con tres auditorías ya conviviendo, esto va a volver a pasar»*.
+
+### El caso
+
+`auditar_fixtures` reconocía que un test fabrica un artefacto **por el nombre del fichero
+escrito en el test**. `auditar_claves`, estrenada el mismo día, **prohíbe escribirlo**: hay
+que pedírselo al gestor. Dos guardias con reglas **opuestas** sobre la misma evidencia.
+
+Al derivar el nombre, la fabricación siguió existiendo y su justificación —viva y
+correcta— pasó a leerse como **caducada**. Ninguno de los dos falló; uno **dejó de ver** lo
+que sí estaba.
+
+### Por qué no basta con arreglarlo
+
+El arreglo evidente es enseñarle a la primera a reconocer el alias. Eso cierra este caso y
+deja el mecanismo entero en pie: la próxima auditoría que mire una evidencia ya vigilada
+volverá a separarse, y el síntoma volverá a ser una justificación que se lee como
+caducada, o un guardia que calla. **Es una condición que alguien tiene que recordar, y las
+que hay que recordar se olvidan** — el mismo argumento por el que aquí nada se coordina a
+mano.
+
+### La regla
+
+Cada auditoría declara **sobre qué evidencia opina** (`data/auditorias.toml`), escrita
+igual cuando es la misma, junto con **cómo la reconoce** — que es donde dos criterios se
+separan sin que nadie lo note. Dos entradas que comparten evidencia **tienen que declarar
+un cruce**, y el cruce es un test que comprueba que las dos siguen de acuerdo sobre el
+mismo material. `tests/test_auditorias_no_se_pisan.py` falla si falta.
+
+Compartir evidencia no es un fallo: a menudo es lo correcto. Lo que no vale es compartirla
+**sin nada que ate los dos criterios**.
+
+### Y el cruce tiene que ser una comprobación, no una declaración
+
+Un campo `cruce = "..."` que nadie ejecuta sería la errata nº 29 otra vez. Aquí el cruce
+corre de verdad: da a los dos reconocedores el **mismo** material escrito de las dos
+formas —el nombre literal y el derivado— y exige el **mismo veredicto**.
+
+### Lo que encontró nada más estrenarse — y de quién era
+
+Dos auditorías del repositorio sin declarar en ninguna parte
+(`auditar_geometria`, `auditar_navegacion`), y que `guardias.toml` y `magnitudes.toml`
+opinan **las dos** sobre quién calcula un digesto: hay que actualizar las dos al añadir un
+sitio que hashea.
+
+**Y eso último se me había olvidado dos veces en el mismo día**, con
+`identidad.result_fingerprint` y con `identidad.file_fingerprint`. Las dos veces se cazó
+**por casualidad**: la suite entera falló por otro motivo y la declaración que faltaba
+apareció de paso. Sin eso habrían quedado dos sitios que hashean sin clasificar en una de
+las dos tablas, y la siguiente duplicación habría entrado por ahí.
+
+**Esto va al principio y no al mensaje del commit**, porque es el argumento entero:
+
+> De las tres auditorías que se estrenaron ese día, **dos cazaron a la primera un
+> descuido del mismo día de quien las estaba escribiendo**.
+
+No es una anécdota simpática. Quien escribe un guardia es exactamente quien más cree que
+no lo necesita —acaba de mirar ese código— y aun así falló dos veces en unas horas. **La
+disciplina no sustituye al mecanismo, ni siquiera la de quien está escribiendo el
+mecanismo.** Es la razón por la que aquí nada se coordina a mano, dicha con un caso propio
+en vez de con un argumento.
+
+## 27 — El mismo nombre para dos cantidades distintas es peor que el código repetido
+
+**Pedido por el responsable del proyecto (2026-09-02)** como generalización de los cuatro
+pares duplicados, con el diagnóstico ya hecho:
+
+> No es código repetido, es peor — es una cantidad que se mueve de contexto sin el
+> supuesto que la sostenía. Allí todos los hits son de longitud completa por
+> construcción, así que la condición de longitud no hacía falta escribirla; al mover el
+> criterio, el supuesto se quedó atrás.
+
+**Código repetido se ve en un `grep`.** Esto no: los dos sitios se leen bien por separado,
+el nombre es el mismo, y lo que difiere es **qué mide** — que no está escrito en ninguna
+parte porque en su módulo de origen era obvio.
+
+### El caso, con las dos mitades
+
+`antisense` existe en `blast.BlastHit` y en `specificity.Hit`:
+
+- en nuestro escáner significa **«la sonda puede aparearse con este transcrito»**, y por
+  eso descartar los hits en sentido es correcto ahí;
+- en `-outfmt 6` es **«la hebra del sujeto tal como está depositado»**. Coincide para una
+  guía y **no** para la pasajera, que lleva la misma secuencia que su blanco.
+
+Y en el mismo par, `aligned`, que es la mitad más instructiva porque **la unidad es la
+misma y la propiedad estadística es opuesta**: en el escáner vale siempre `len(sonda)`
+—casa ventanas de esa longitud exacta—, en BLAST es un alineamiento **local**. El
+criterio no necesitaba mirarla en un lado, y por eso nadie la escribió; al moverlo, los
+parciales de 13 nt entraron como aciertos graves.
+
+### El corolario, que es la regla operativa
+
+**Un criterio que se copia entre módulos tiene que llevar sus supuestos escritos, y si no
+se pueden escribir es que no se puede copiar.** La forma que toma aquí: el criterio vive
+en un solo sitio y **cada llamador declara qué puede probar** antes de someterle sus
+datos, en vez de compartir además el descarte.
+
+### El mecanismo, porque la disciplina no basta
+
+`data/homonimos.toml` + `tools/auditar_homonimos.py`, guardia con cero. Se declaran las
+**magnitudes derivadas** —`@property`, algo que se calcula— con el mismo nombre en más de
+un módulo, y cada una dice si son la misma magnitud o **cantidades distintas**, con qué
+es cada una.
+
+El recorte es lo que lo hace aplicable, y está medido: el barrido ancho de «cualquier
+nombre definido en más de un módulo» da **207**, casi todas etiquetas (`name`, `date`,
+`reason`). Acotado a lo derivado son **23**, y **siete son cantidades distintas**. Un
+campo guardado es una etiqueta; **una derivación lleva supuestos dentro**, que es
+exactamente lo que se queda atrás al moverla.
+
+### Lo que encontró al estrenarse
+
+Además de `antisense` y `aligned`: `usable`, que en tres clases es «este dato se puede
+usar» y en `splicing.PrimerWindow` es «esta ventana es única en el plásmido»; `md5`, que
+es el del texto en un lado y el de la secuencia en el otro —la trampa de los tres
+checksums, dentro del código—; `conclusive`, `ambiguous` y `fraction`. Y una que ya no
+sale porque se arregló: **`selection.Site.end` devolvía el inicio de la última ventana
+del bloque**, mientras en todo el resto del paquete `end` es un final de intervalo
+inclusivo. Leída como final, dejaba el sitio 21 nt más corto. **Ninguna salida la leía**
+—el número equivocado nunca llegó a una pantalla— **pero sí la leía un test**, que la
+afirmaba como final de intervalo: `(10, 12)` para tres ventanas de 22 nt. Código y test
+compartían la confusión, así que ninguno de los dos podía delatarla (principio nº 22), y
+renombrarla salía gratis porque no había producción que romper.
+
+---
+
+## 28 — Un estado tiene que decir la verdad aunque no cambie nada, porque el día que cambie el de al lado empieza a decidir
+
+Lo formuló quien reportó la errata nº 61, y es la generalización de aquel arreglo:
+
+> un estado tiene que decir la verdad aunque no cambie nada, porque el día que cambie el
+> de al lado ese estado empieza a decidir.
+
+**El caso que lo enseña.** `seed` salía `NO_APLICA` en los diez candidatos cuando lo
+honesto era `NOT_RUN` — faltaba el fichero, no es que la pregunta no fuera con ellos—.
+Mientras `seed_colision` decía `NOT_RUN` a su lado, ese `NO_APLICA` **no cambiaba ningún
+veredicto**: el candidato salía `INCOMPLETE` por la otra columna igual. Era un error sin
+consecuencia visible, así que nadie lo miró. En cuanto `seed_colision` pasó a cerrar con
+el núcleo de diez miARN —un cambio que no tocó `seed` ni de lejos—, aquel `NO_APLICA`
+empezó a ser el que decidía, y decidía mal.
+
+**Por qué no es «arreglar los errores aunque sean pequeños».** Es más concreto que eso:
+un estado con la verdad cambiada NO ES un error latente que quizá algún día importe. Es
+un error que **cambia de consecuencia** cuando cambia algo que no lo toca. Y el momento
+en que empieza a decidir es exactamente el momento en que nadie está mirando esa columna:
+se estaba mirando la de al lado, que es la que se acaba de arreglar.
+
+**Corolario de método**: arreglar el estado de una columna es el mejor momento para
+releer las de su misma agregación. No porque las haya roto —no las ha tocado— sino porque
+acaba de cambiar **quién manda** entre ellas, y un error que estaba tapado por la anterior
+sale a la superficie en la misma tanda. Fue así como se encontró el segundo estado
+equivocado de la errata nº 61: no lo cazó ningún test, lo cazó preguntarse qué había
+quedado debajo.
+
+**En qué se aplica esto.** En un `PASS`/`FAIL`/`NOT_RUN`/`NO_APLICA` que no bloquea hoy,
+en un contador que hoy nadie suma, en una fecha que hoy nadie compara. Todos son datos
+que alguien va a leer después con otra regla de agregación. La regla es que el valor sea
+el que corresponde al hecho, no el que produce la salida correcta con las reglas de hoy —
+que es lo mismo que decir que un estado se decide mirando el hecho, no la consecuencia.
+
+## 29 — Una consulta que omite una DIMENSIÓN del modelo no da error: contesta «no sé», y eso se lee como «no hay»
+
+Sale de la errata nº 71, y generaliza un fallo que costó que **una corrida de colisión de
+seed o de carga de off-targets no pudiera cerrar su frente nunca**.
+
+Cuando el modelo declara que algo tiene partes —por hebra, por par candidato × intrón, por
+clase de sitio— toda consulta que lo atraviese tiene **una dimensión más de la que se ve en
+la firma**. Preguntar sin ella no es un error de tipo ni una excepción: la función devuelve
+lo que devuelve cuando no sabe, y lo que no sabe es indistinguible de lo que no hay.
+
+### Por qué es peor que el código repetido y que el símbolo sin llamador
+
+Las dos mitades pueden ser **correctas por separado**, y en el caso que lo motiva lo eran:
+
+- devolver `None` a un frente por hebra preguntado sin hebra es deliberado, y sigue
+  siendo lo correcto — fundir las dos daría por buena la de la pasajera con el estado de
+  la guía;
+- preguntar por el nombre del frente es su clave natural.
+
+El fallo vive en la **junta**, así que ninguna revisión de una de las dos piezas lo ve. Y
+ninguna de las herramientas que este proyecto ya tiene puede cazarlo:
+
+- **la alcanzabilidad** mira símbolos sin llamador, y aquí las dos funciones tienen
+  llamadores;
+- **el golden** lee lo que se emite, y lo que se emitía era un estado con la forma
+  correcta;
+- **el auditor de homónimos** mira magnitudes con el mismo nombre, y aquí el nombre es el
+  mismo a propósito.
+
+### La regla operativa
+
+**Declarar la dimensión no basta: hay que DERIVAR de la declaración cada consulta que la
+atraviesa, y el test tiene que iterar la declaración, no el caso.** Un test escrito para
+`seed_colision` pasa igual el día que entre un cuarto almacén por hebra.
+
+Y con su mitad adversaria, que aquí es doble: quitar **una** parte de la dimensión tiene
+que impedir la respuesta, y preguntar **sin** la dimensión tiene que seguir sin contestar.
+Sin la primera, «contesta» y «no mira nada» dan el mismo verde; sin la segunda, el arreglo
+obvio —devolver la parte que haya— borraría la otra sin dar ningún error.
+
+### Cómo se reconoce antes de que pase
+
+La pregunta que hay que hacerse al escribir una consulta contra algo que tiene partes:
+**¿qué devuelve esto si le falta una parte, y se distingue de «no hay nada»?** Si la
+respuesta es `None`, `{}`, `0` o una lista vacía, y ese mismo valor es el que sale cuando
+de verdad no hay nada, la consulta no está mal escrita — está **muda**, que es la forma que
+tiene un fallo de durar semanas.
+
+Es el mismo criterio que separa `NOT_RUN` de `NO_APLICA`, y que separa `None` de
+`frozenset()` en el acotado de la carga de seed: **dos cosas distintas no pueden compartir
+valor**. Aquí la que se colaba era una tercera —«no te he entendido la pregunta»—
+compartiendo valor con «no hay corrida».
+
+## 30 — Un fallo que depende del TAMAÑO no se reproduce con un fixture pequeño, y el determinismo no es estética
+
+Sale de la errata nº 76, y son dos lecciones que van juntas porque el mismo fallo las
+enseña por los dos lados.
+
+### La primera: el fixture pequeño da un verde falso
+
+Reproduje la descarga del zip **de punta a punta, con un navegador de verdad, midiendo**,
+y salió perfecta: 1,19 MB, 28 entradas, nombre correcto. Y el fallo estaba ahí todo el
+rato. Lo que separaba mi prueba del caso real no era el camino —era **el tamaño**: la
+carrera entre la descarga en curso y el repintado que borra el fichero la gana la descarga
+cuando dura 200 ms y la pierde cuando dura veinte segundos.
+
+O sea: **una reproducción que sale bien con un fixture pequeño no descarta un fallo que
+depende del tamaño**, y creer que sí es peor que no haber probado — porque cierra la
+investigación. La contramedida es preguntarse siempre, antes de dar por bueno un verde:
+*¿de qué magnitud depende esto, y la he variado?* Si la respuesta es que no, lo que se ha
+comprobado es que el camino existe, no que funcione.
+
+Es hermana del principio nº 3 —no dar por buena una causa sin comprobarla— aplicada al
+otro lado: **tampoco se da por buena una AUSENCIA de causa** medida en un solo punto de un
+eje que sí importa.
+
+### La segunda: un artefacto que cambia de bytes sin cambiar de contenido rompe todo lo
+que lo identifique por su contenido
+
+Poner fecha fija en el zip parece una corrección estética —«que salga igual, queda más
+limpio»— y no lo es. En cuanto **algo identifica ese artefacto por su contenido**, dos
+construcciones del mismo contenido son dos artefactos distintos:
+
+- Streamlit deriva el id de un descargable de su md5, así que el que se está bajando queda
+  huérfano y lo borra el recolector;
+- lo mismo le pasaría a cualquier caché, a cualquier deduplicación y a cualquier
+  comprobación de integridad que alguien quiera hacer sobre el fichero entregado.
+
+**La regla: si un artefacto se va a identificar, transportar o comprobar por su contenido,
+tiene que ser función de su contenido y de nada más.** El reloj no es contenido.
+
+### Y el corolario que salió al aplicarlo: fijar no es poner a cero
+
+La marca de tiempo **no se pone a cero**: se deriva de la fecha declarada. Dos copias de
+seguridad de días distintos tienen que seguir siendo **dos ficheros distintos** — si no,
+no hay forma de saber cuál es cuál, y la que se conserva no dice de cuándo es. Lo que se
+quita es la parte que cambia sin que nadie haya cambiado nada; lo que identifica de verdad
+se queda.
+
+---
+
+## 31 — Un comentario protege su clase; un mecanismo protege la siguiente
+
+**El caso, y es literal.** `offtarget.WHY_NOT_SUMMED` termina, escrito semanas antes:
+
+> «`Counts` no tiene ningún atributo que las sume: **si existiera, alguien acabaría
+> imprimiéndolo**.»
+
+El guardia se puso sobre `offtarget.Counts`. **El atributo existía en
+`seed_load.SeedLoad`** —`total = sum(counts.values())`— **y se estaba imprimiendo**, en la
+única columna visible de ese eje. La profecía se cumplió al pie de la letra, en la clase de
+al lado, mientras el comentario que la anunciaba seguía ahí sin que nadie lo relacionara.
+
+### Por qué no es un descuido puntual
+
+Un comentario es un aviso **a quien lee esa clase**. Nadie lee la clase de al lado buscando
+un aviso que está en otro fichero, y menos aún el día que la escribe: quien la escribe cree
+que ya conoce la regla. La disciplina se agota exactamente donde hace falta.
+
+### La regla operativa
+
+**Un guardia no nombra a quién protege: lo DESCUBRE.** El test que sustituyó al comentario
+no pregunta por `Counts` ni por `SeedLoad` — barre el paquete, encuentra qué clases llevan
+conteos por clase y se lo exige a todas. Un contador nuevo queda cubierto **sin que nadie se
+acuerde**, que es la única forma en que un guardia sobrevive a su autor.
+
+Es hermano del principio nº 26 —dos auditorías sobre la misma evidencia se atan— y del
+nº 14: haber comprobado una vez no es seguir comprobando. Aquí: haberlo **escrito** una vez
+no es que proteja.
+
+---
+
+## 32 — Una clave sin escritor no falla: su valor por defecto pasa a ser la configuración
+
+**No se parece al principio nº 24.** Allí —la comparación de md5 que preguntaba por una
+clave que no podía existir— el resultado era una **respuesta falsa**: «no se ha podido
+comprobar» con el fichero delante. Aquí no hay ninguna respuesta falsa: hay **siempre el
+valor por defecto**, y entonces pasa algo distinto y peor.
+
+**El literal escrito como plan B se convierte en la configuración real, y nadie lo revisa
+como tal.** Se escribe pensando «esto es lo que pasa si falta», se lee como una precaución,
+y es lo único que se ejecuta nunca. Un `"sin fecha declarada"` puesto para ser honesto
+acabó siendo el valor con el que se generaban **todos** los informes (errata nº 89).
+
+### Y dos llamadores con dos defaults distintos son dos configuraciones distintas
+
+Para la misma clave, y ninguna declarada en ningún sitio, así que **no hay dónde mirarlas
+juntas**. En el caso real una funcionaba (`"" or today_text()`) y la otra abortaba, y eso
+es justo lo que hizo que el fallo pareciera del zip y no de la fecha.
+
+### La contramedida es mecánica
+
+Ninguna clave de estado de sesión puede leerse sin que alguien la escriba. A cero, con
+control adversario —si el detector dejara de encontrar claves, «ninguna huérfana» y «no he
+mirado» darían el mismo verde (nº 24)— y **quitando los comentarios antes de mirar**: el
+comentario que explica de dónde venía la clave la nombra, y sin la poda el guardia fallaría
+por su propia documentación, con la salida fácil de borrar la explicación.
+
+---
+
+## 33 — El guardia estaba, y la pregunta no le llegaba
+
+Variante del principio nº 29 —una consulta que omite una dimensión contesta «no sé» y se lee
+como «no hay»— con el fallo un paso antes: aquí **la consulta no llega a hacerse**.
+
+**El caso (2026-09-04, errata nº 90).** `comparative_tsv` aceptaba `anatomy`, los **dos**
+llamadores se lo pasaban, y llamaba a `comparative_rows(selection, scaffold)` **sin
+reenviarlo**. Consecuencia: la **cabecera** del TSV se construía con la anatomía que se le
+daba y las **filas** con otra. Y el invariante de rango de `coords` —que existe justo para
+cazar una coordenada en el marco equivocado y ya ha mordido cuatro veces— **no podía
+morder**, porque el dato que lo habría activado nunca llegaba a su lado.
+
+No hubo síntoma. Hoy las dos anatomías coinciden, así que el argumento inerte no producía
+ningún número equivocado; producía **un guardia dormido**, esperando al día en que dejaran
+de coincidir.
+
+### Por qué es su propia categoría
+
+Las herramientas del proyecto no lo ven, y ninguna por descuido:
+
+- la **alcanzabilidad** mira símbolos sin llamador, y aquí hay llamador;
+- el **golden** lee lo que se emite, y lo que se emitía tenía la forma correcta;
+- el auditor de **banderas** cubre los CLI, no los argumentos entre funciones;
+- y el propio invariante no puede quejarse de una pregunta que no recibe.
+
+### Cómo se reconoce
+
+**Un parámetro que se acepta y no se usa es un guardia apagado, no una firma de más.** La
+señal está en la firma: si una función declara un argumento, hay que poder señalar la línea
+donde lo consume. Si esa línea no existe, no sobra el argumento — falta el uso, y lo que
+depende de él lleva dormido desde que se escribió.
+
+### Y NO tiene mecanismo: se midió, y no sale
+
+Este proyecto no escribe un auditor sin medir antes el ruido, porque **un guardia con
+falsos positivos se acaba apagando**. Se probaron las dos formas obvias, sobre el paquete
+entero (2026-09-04):
+
+| detector | hallazgos | qué son |
+|---|---|---|
+| parámetro declarado y **nunca referenciado** | **35** | casi todos legítimos: implementaciones que comparten firma por interfaz (`Executor.run`), validadores con firma común (`deposito._v_*`) |
+| F acepta `P`, llama a G que también acepta `P`, y no se lo pasa **por nombre** | **686** | dominado por el paso **posicional**, que es correcto |
+
+**Y el primero no habría cazado el caso real**, que es lo que lo zanja: `anatomy` **sí se
+usaba** dentro de `comparative_tsv` —construía la cabecera con ella— y lo que faltaba era
+reenviarla a la función que monta las filas. Un detector de «argumento sin usar» lo habría
+dado por bueno.
+
+Así que este principio se queda como **regla de lectura**, no como guardia, y eso va
+escrito para que nadie suponga que hay una red debajo. Lo que sí lo cazó fue **leer el
+diff** de una firma al tocarla, que es donde aparece: la línea que consume el argumento se
+busca a mano cuando se edita esa función. Es la misma categoría que el principio nº 3 —hay
+comprobaciones que hoy sólo hace una persona— y se anota como tal en vez de fingir cobertura.
+
+Y el corolario que lo cerró: **al dejar de tragárselo, un test empezó a abortar.** Ese test
+declaraba en la cabecera una anatomía incompatible con lo tilado, y sólo pasaba porque el
+argumento no llegaba. Cuando un guardia se despierta y algo falla, lo primero que hay que
+preguntarse no es cómo callarlo: es qué llevaba pasando mientras dormía.
+
+---
+
+## 34 — Un guardia se CALIBRA midiendo, no eligiendo el criterio que suena bien
+
+Sale del barrido de la errata nº 95, y el método importa más que el hallazgo.
+
+### Los tres pasos, con sus números
+
+Buscando «recortes de una secuencia con una posición ajena» sobre el paquete entero:
+
+| criterio | hallazgos | de ésos, fallos | sirve |
+|---|---|---|---|
+| cualquier recorte 1-based, `x[start - 1:end]` | **50** | 1 | **no**: 49 correctos, se apaga el primer día |
+| indexado por un `.start` de otro objeto | **10** | 1 | **no**: 9 correctos |
+| **la secuencia y la posición son dos parámetros distintos de la misma función** | **1** | **1** | **sí**: cero falsos positivos |
+
+El primero es el que «suena bien» —es literalmente la forma del fallo— y es inservible.
+El tercero no describe la forma: describe **de dónde vienen las dos cosas**.
+
+### La formulación que discrimina, y por qué
+
+En los 49 correctos la posición **se deriva** de la secuencia que se recorta: un `Span.of`
+sobre algo que se acaba de buscar ahí, o dos campos del mismo objeto (`self.plasmid` y
+`self.start`). En el fallo **llegan como dos argumentos independientes**, y entonces nada
+—ni un tipo, ni un invariante, ni el propio código— obliga a que compartan marco.
+
+**La forma del fallo y la condición que lo hace posible no son la misma cosa**, y sólo la
+segunda sirve para un guardia. Buscar la forma da todos los usos legítimos de esa forma;
+buscar la condición da los sitios donde el fallo **puede** ocurrir.
+
+### El método, que es lo que se conserva
+
+1. **enunciar varios criterios**, del ancho al estrecho;
+2. **medir cada uno sobre el código real**, contando hallazgos **y cuántos son fallos;**
+3. **quedarse con el que discrimina**, no con el que describe mejor el síntoma;
+4. y **escribir la formulación ganadora**, porque es lo que hay que reconocer la próxima
+   vez — no el número.
+
+Un guardia con falsos positivos se acaba apagando, así que **un criterio sin medir no se
+publica**. Y el corolario: si ningún criterio discrimina, el resultado honesto es que **no
+hay mecanismo** y se dice (principio nº 33), no un auditor ruidoso que nadie mirará.
+
+## 35 — Lo que viaja pegado a los datos sobrevive; el nombre del fichero no
+
+Sale de la errata nº 101, y de un `mv` real: *«un nombre se pierde en el primer `mv` — a
+mí me pasó hoy mismo renombrando el fichero para quitarle un espacio»*.
+
+Un artefacto que sale de la app **viaja solo**. Se descarga, se renombra, se mueve, se
+comprime, se adjunta, se sube a otra máquina, y en algún punto llega a alguien que **no
+tuvo la pantalla delante** cuando se generó. Todo lo que sepa de él, lo tiene que sacar del
+propio fichero.
+
+### La jerarquía, de lo más frágil a lo más resistente
+
+| canal | sobrevive a | lo tira |
+|---|---|---|
+| el nombre del fichero | nada | cualquier `mv`, cualquier descarga que resuelva un choque de nombres |
+| una carpeta, un ZIP, un correo alrededor | poco | descomprimir, reenviar |
+| un bloque de comentario dentro | renombrar, mover, comprimir | un lector estricto del formato |
+| **un campo del propio formato** | **todo lo anterior** | nada que siga leyendo ese formato |
+
+**El nombre es documentación; el contenido es dato.** Un estado, una convención, una
+procedencia o una versión que sólo viven en el nombre están escritos en el canal más
+frágil de todos.
+
+### La regla
+
+Todo lo que haga falta para **interpretar** un artefacto va DENTRO del artefacto, en el
+canal más resistente que el formato permita, y se repite en los más cómodos de leer. En un
+FASTA: el bloque `#` para leerlo de un vistazo **y** la cabecera `>` de cada registro, que
+es la que no se puede perder. En un TSV: una línea de comentario declarada **y** columnas
+que no dependan de ella.
+
+Qué entra en «hace falta para interpretarlo»: la **convención** de cualquier posición
+(errata nº 99), el **estado** de la corrida —si está entera o falta la mitad—, la
+**procedencia** de las entradas y la **versión** de lo que lo produjo.
+
+### Y el límite, que es la otra mitad
+
+**Lo que no se sabe no se declara.** Un FASTA construido sin saber de qué panel viene no
+pone «COMPLETO» por defecto: no pone nada. Rellenar el hueco con la mitad tranquilizadora
+es peor que dejarlo vacío, porque un campo presente se lee como comprobado — es el
+principio nº 32 aplicado al artefacto en vez de a la configuración.
+
+## 36 — Si dos estados pintan lo mismo, uno de los dos está mintiendo
+
+Sale de las erratas nº 102 y nº 103, y las dos son el mismo defecto por dos caras: un
+frente **cerrado** enseñaba lo mismo que uno abierto, y uno que **no se cierra aquí**
+enseñaba lo mismo que los que sí.
+
+**Lo que se muestra tiene que ser función del estado.** Cuando dos estados distintos
+producen la misma pantalla, el que sobra no es la pantalla: es que uno de los dos estados
+**no se está usando para nada**, y entonces el usuario tiene que deducirlo — o no lo
+deduce, que es lo normal.
+
+### Cómo se reconoce
+
+Preguntar, por cada cosa que se pinta: **¿qué estado la cambiaría?** Si la respuesta es
+«ninguno», o es un texto fijo (y entonces está bien) o es un texto que **se escribió para
+un estado y se pinta en todos**. El segundo caso es el principio nº 11 en la interfaz: una
+prosa correcta el día que se escribió, delante de un estado que ya no es el suyo.
+
+Y hay una pista mecánica: **el tiempo verbal**. «Cómo se consigue» sólo puede ser cierto
+mientras no se haya conseguido. Un texto en presente sobre algo ya hecho no es un matiz de
+estilo — es una instrucción para repetir trabajo.
+
+### El corolario del contador
+
+**Un contador sólo cuenta lo que puede llegar a su máximo.** Si un elemento nunca puede
+pasar a hecho, sumarlo al denominador convierte el contador en una distancia a un sitio al
+que no se va, y esconde además que ese elemento se resuelve de otra manera. Va **aparte y
+nombrado**, no dentro y en silencio.
+
+### Y el límite, que es la otra mitad
+
+**Separar no es esconder.** El elemento que no encaja no se quita de la pantalla: se saca
+de la cuadrícula y se le pone un encabezado que diga qué lo distingue. Quitarlo sería la
+otra forma de que nadie lo vea, y aquí lo que está en juego es el único frente binario del
+proyecto — el que ninguno de los otros detecta.
+
+## 37 — Para validar una traducción de coordenadas, el criterio que NO depende del valor traducido gana siempre
+
+Sale de la errata nº 99, y la formulación es de quien la reportó: *«cuando hay que validar
+una traducción de coordenadas, el criterio que no depende del valor traducido es siempre
+mejor que el que sí»*.
+
+### El caso, con sus dos criterios
+
+Había que comprobar que las posiciones de SpliceAI y las de la app hablan del mismo sitio.
+Dos formas de hacerlo:
+
+| criterio | de qué depende | qué pasó |
+|---|---|---|
+| «el donante legítimo no puede valer **cero**» | del **valor** en la posición traducida | **no mordió**: valía `2e-07`, que no es cero. Se normalizó un análisis de 107.680 filas contra un referente inexistente |
+| «la base declarada es el **máximo de su vecindario** (±3)» | de la **relación** entre valores vecinos | discrimina por **cuatro órdenes de magnitud** por un lado y **seis** por el otro, y no necesita ningún corte |
+| «traducida, la posición cae sobre **`GT`** / **`AG`**» | **de nada que el modelo diga** | cierra la pregunta aunque el modelo diera cero en todas |
+
+### Por qué el tercero es el bueno
+
+**Un umbral sobre el valor traducido comparte destino con la traducción**: si el marco está
+mal, el número que se mira también, y entonces el guardia está preguntándole al dato
+sospechoso si es de fiar. Cualquier corte que se ponga tiene que ser lo bastante alto para
+cazar el fallo y lo bastante bajo para no cazar un caso legítimo — y no hay forma de
+calibrarlo sin conocer de antemano lo que se está buscando.
+
+**Un criterio estructural no depende del modelo.** Un donante empieza por `GT` y un aceptor
+termina en `AG`: eso es la definición del sitio, no una predicción sobre él. Si la posición
+traducida cae ahí, el desplazamiento es el correcto **con independencia de qué puntuación
+salga** — y si no cae, no hay número que lo arregle.
+
+### La jerarquía, de peor a mejor
+
+1. **un umbral sobre el valor traducido** — comparte el fallo con lo que valida;
+2. **una comparación entre valores** (vecindario, referente interno) — sobrevive a que la
+   escala sea otra, pero sigue necesitando que el modelo diga algo;
+3. **una propiedad estructural de la secuencia** — no depende de ninguna puntuación.
+
+Se implementan las tres, porque cada una caza lo que la anterior deja pasar, y **la tercera
+es la que se escribe como test**: es la única que sigue valiendo el día que el modelo
+cambie de versión, de escala o de signo.
+
+## 38 — Un criterio derivado de la AUSENCIA de algo no distingue por qué falta
+
+Sale de la errata nº 102, y la formulación es de quien lo reportó: *«un criterio derivado
+de la ausencia de algo no distingue por qué falta, y ahí es donde se cuela»*.
+
+### El caso
+
+Había que separar en la pantalla el frente que **no se cierra en esta app** —el empalme del
+intrón, que se responde en el banco— de los que se cierran con un fichero. El criterio
+evidente estaba ya en los datos: `empalme_intron` declara `sin_fichero = true`, así que
+bastaba con leerlo.
+
+**Y `intron_sin_criptico` también lo declara, queriendo decir lo contrario**: ahí no hay
+fichero porque **la app lo diseña sola** —lo deriva de `mvm_actual`—. La misma clave, dos
+situaciones opuestas: una que ninguna descarga puede resolver y otra que ya está resuelta.
+Derivar de ahí habría sacado de la cuadrícula justo lo que la app hace por su cuenta.
+
+### Por qué pasa siempre
+
+Una ausencia es **un solo bit y muchas causas**. `sin_fichero` es cierto cuando no hay
+fichero, y no hay fichero cuando:
+
+- no existe ninguno que sirva (se responde en el banco);
+- existe y no lo tenemos (hay que conseguirlo);
+- **no hace falta**, porque se deriva de otra cosa que ya está.
+
+Las tres se resuelven con acciones distintas —una tanda de laboratorio, una descarga, y
+nada— y el criterio las une en un `true`. **Nada en el dato dice cuál de las tres es**, y
+por eso el que lo lee elige la que tiene en la cabeza, que es la que motivó escribirlo.
+
+Es la misma raíz que el `None` que significa a la vez «no se ha medido» y «no se puede
+comprobar», que el `NOT_RUN` que se leía como «falta un recurso» sobre un filtro que no
+tiene ninguno, y que el «Alu 0 %» obtenido sin buscar Alu: **la falta de un dato tiene
+tantas lecturas como razones puede tener, y el hueco es idéntico en todas.**
+
+### La regla
+
+**Lo que se quiere saber se DECLARA; no se deduce de que falte algo.** La clave nueva dice
+lo que se pregunta —`se_cierra_en = "la app"` / `"el banco"`— con **vocabulario cerrado** y
+**sin valor por defecto**, así que una ficha que se la salte aborta al cargarse en vez de
+entrar donde no toca (principio nº 32). Y ninguna ausencia hereda significado: `sin_fichero`
+sigue existiendo y sigue queriendo decir sólo lo que dice.
+
+### Cómo se reconoce antes de escribirlo
+
+La pregunta es: **¿de cuántas maneras puede ser cierta esta condición?** Si la respuesta es
+más de una y llevan a acciones distintas, el criterio no vale — por muy bien que separe los
+casos que hay hoy. `sin_fichero` separaba correctamente **los dos ejemplos que se miraron**;
+el tercero estaba en el mismo directorio.
+
+## 39 — «¿Es exclusivo de una?» y «¿cuánto se mueve entre hermanas?» no son la misma pregunta: la primera se cae con dos
+
+Sale de la corrida de SpliceAI del 2026-09-05 (errata nº 104), y la formulación es de quien
+lo señaló: *«"¿Es exclusivo de una?" y "¿cuánto se mueve entre hermanas?" parecen la misma
+pregunta y no lo son — la primera se cae con dos»*. Es un **hallazgo de método**: no falló
+ningún cálculo, falló la forma de la pregunta.
+
+### El caso
+
+`exclusive_rows` contesta: *¿qué guías introducen crípticos que las otras no?* Es una
+pregunta binaria sobre pertenencia a un conjunto, y el corte lo pone el umbral relativo con
+el que se listan los sitios. El **hallazgo de la corrida** —un aceptor dentro del módulo,
+en `construccion:3261`, que llega al 11 % del donante legítimo— aparece **listado en una de
+diez**, y sobre el dato crudo está por encima de 0,01 **en dos**.
+
+Con una sola hermana más pasando el umbral, `exclusive_rows` deja de devolverlo. **La
+respuesta cambia de "aquí está" a "no hay nada" por un caso**, y el sitio sigue siendo
+exactamente igual de dependiente de la guía. La pregunta no es robusta a su propio corte.
+
+### La versión continua de la misma idea
+
+«¿Cuánto se mueve entre hermanas?» pregunta por la **razón entre el máximo y el mínimo**
+del mismo sitio en construcciones que sólo se diferencian en la guía. No hay conjunto al
+que pertenecer, así que dos, tres o diez casos no la rompen: sólo cambian el valor.
+
+| | qué mide | qué la rompe |
+|---|---|---|
+| exclusividad | pertenencia a un conjunto definido por un umbral | **un segundo caso** |
+| razón entre hermanas | cuánto varía un mismo sitio con el módulo | nada: es un número continuo |
+
+### Y el criterio es una RAZÓN, no un corte absoluto
+
+`GUIDE_DEPENDENT_RATIO = 2` está **declarado como parámetro**, y lo que le da sentido es
+que la comparación es **interna**: cada sitio contra sí mismo en sus propias hermanas. Un
+sitio que **dobla** dice algo aunque los dos números sean pequeños; uno que no se mueve no
+dice nada aunque sea el más alto de la molécula — que es literalmente el caso del donante
+del contexto 5', el más fuerte de las veinte y con un 3 % de variación.
+
+Es la misma familia que el aceptor críptico juzgado **contra las nueve pirimidinas del
+legítimo del mismo intrón** en vez de contra un umbral traído de fuera: cuando el modelo no
+está calibrado para lo que se le da —y SpliceAI no lo está para un casete de AAV—, **lo
+único interpretable es la comparación con un referente interno**.
+
+### La regla
+
+Antes de escribir un criterio, **preguntar qué le pasa si el caso aparece dos veces**. Si
+la respuesta es que desaparece, lo que se ha escrito es una pregunta sobre el **conjunto**
+y no sobre el **fenómeno**, y hay que buscar su versión continua. Un criterio de
+exclusividad no es una versión estricta de uno gradual: es una pregunta distinta, y su modo
+de fallo es devolver **vacío** — que se lee como «no hay nada que mirar».
+
+## 40 — Dos magnitudes derivadas no se comparan sin comprobar que sus construcciones se montan igual
+
+Sale de la errata nº 106, y la formulación es de quien cometió el fallo y lo retiró:
+*«una magnitud derivada de dos construcciones distintas no se compara sin comprobar que
+ambas se montan igual. Yo di por hecho que lo intercalado era lo mismo porque el módulo lo
+es»*.
+
+### El caso
+
+Se comparó el donante→punto de ramificación de los dos intrones: **314-318 nt en el
+quimérico frente a 256 en el MVM**, y de ahí salió un contrapeso —«el quimérico es peor en
+geometría»— que llegó a estar escrito en dos constantes del proyecto.
+
+Los dos números salen de la misma función y de la misma fórmula. Lo que no es el mismo es
+**lo que se intercala**: el MVM lleva el módulo **más los dos espaciadores** (214 nt) y el
+quimérico lleva **el módulo solo** (149), porque su posición de inserción se decidió
+midiendo sin ellos y montarlo con ellos aborta. Medido sobre el intrón que de verdad se
+monta, el quimérico está en **249-253**: no es peor, empata.
+
+### Por qué el error es fácil y no es tonto
+
+**El módulo SÍ es el mismo.** Los 149 nt son idénticos en las dos, y de ahí sale el paso
+que nadie da: *si el módulo es el mismo, lo intercalado es lo mismo*. Y no lo es, porque
+alrededor del módulo hay piezas que dependen de **cómo entra en cada intrón**, no de qué
+módulo es.
+
+Es la familia de la errata nº 35 —dos magnitudes distintas cuya composición da algo
+plausible— con una vuelta más: aquí las dos magnitudes son **la misma cantidad calculada
+sobre dos objetos que no son comparables en el eje que importa**.
+
+### La señal, y es la misma de siempre
+
+318 − 253 = **65** = 20 + 45. La diferencia coincidía exactamente con la longitud de dos
+piezas conocidas, que es el corolario operativo de la errata nº 35: **antes de buscar en
+otro sitio, mirar si la diferencia es una pieza**.
+
+### La regla
+
+Antes de poner dos magnitudes derivadas una al lado de la otra: **¿qué entra en cada una
+que no entra en la otra?** Si la respuesta no es «nada», la comparación es de dos cosas
+distintas con el mismo nombre — principio nº 27 aplicado a magnitudes en vez de a
+símbolos.
+
+Y la contramedida es la de siempre: **lo que cambia entre construcciones se DERIVA de cada
+construcción**, nunca de una constante global. `Intron.inserted_length` lo dice el intrón;
+el auditor pregunta en vez de aplicar el mismo número a los dos. Con una constante por
+intrón habría dos valores que mantener a mano, y el tercer intrón heredaría el que no le
+toca.
+
+### Y no ahorra tener razón
+
+El número correcto **también** cae fuera del rango típico de mamífero, así que el 314-318
+encajaba en la historia que se estaba contando y no chirriaba por ningún lado. La
+plausibilidad no era señal: es exactamente lo que hace falta comprobar.

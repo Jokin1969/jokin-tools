@@ -346,6 +346,235 @@ def main(argv: list[str]) -> int:
 
     print(render_estados(auditar_estados()))
 
+    # LOS FIXTURES SINTETICOS DONDE EXISTE EL ARTEFACTO REAL (2026-08-29). Segunda mitad
+    # del principio nº 18: un parametro tecleado y un fixture sintetico son la misma
+    # enfermedad —los dos validan un camino que nadie recorre—. Va aqui por lo mismo que
+    # los otros cuatro. No decide nada salvo lo que ya decide su test: fabricar esta
+    # permitido, no decir POR QUE no.
+    from auditar_fixtures import auditar as auditar_fixtures
+    from auditar_fixtures import render as render_fixtures
+
+    print(render_fixtures(auditar_fixtures()))
+
+    # CONDICIONES QUE NO PUEDEN SER FALSAS (2026-08-29). Principio nº 19. A diferencia de
+    # los otros cinco, este NO es un informe ni un trinquete: es un GUARDIA. Una rama que
+    # no puede ejecutarse no es una decision, asi que el numero correcto es cero y
+    # cualquier hallazgo aborta.
+    from auditar_condiciones import auditar as auditar_condiciones
+    from auditar_condiciones import render as render_condiciones
+
+    condiciones = auditar_condiciones()
+    print(render_condiciones(condiciones))
+
+    if condiciones.hallazgos:
+        print(
+            f"\ncheck_rules: {len(condiciones.hallazgos)} condición(es) que no pueden "
+            f"ser falsas.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # TRUNCAMIENTO EN LAS TABLAS QUE SE EXPORTAN (2026-09-02). Guardia tambien, y el
+    # unico de esta lista que CORRE las tablas en vez de leer el fuente: un barrido de
+    # AST no distingue `guia[:8]` de una etiqueta cortada, y lo que importa es lo que
+    # sale. Un heptamero truncado a seis no da ningun error — sigue siendo una seed
+    # valida y distinta.
+    from auditar_truncamiento import auditar as auditar_truncamiento
+    from auditar_truncamiento import render as render_truncamiento
+
+    truncamiento = auditar_truncamiento()
+    print(render_truncamiento(truncamiento))
+
+    if truncamiento.hallazgos:
+        print(
+            f"\ncheck_rules: {len(truncamiento.hallazgos)} tabla(s) con una columna de "
+            f"secuencia truncada o sin longitud declarada.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # LA PROCEDENCIA DE LAS PIEZAS DEL MODULO (2026-09-02). INFORME, no guardia: aqui
+    # el numero correcto NO es cero —una diana de clonaje no esta en el receptor y eso es
+    # coherente—. Existe para que una pieza nueva con una procedencia que ningun fichero
+    # sostiene salga a la vista el dia que se añade, no tres meses despues.
+    from auditar_piezas import auditar as auditar_piezas
+    from auditar_piezas import render as render_piezas
+
+    print(render_piezas(auditar_piezas()))
+
+    # SECUENCIAS EMPAREJADAS (2026-08-30). El otro lado del principio nº 19, y el que
+    # NO lleva ninguna condicion: `zip` trunca al mas corto en silencio, asi que ninguna
+    # busqueda de `if` lo encuentra y lo que sale no es un error sino un informe corto
+    # que se lee como un resultado. Guardia tambien: o `strict=`, o el motivo escrito.
+    from auditar_pares import auditar as auditar_pares
+    from auditar_pares import render as render_pares
+
+    pares = auditar_pares()
+    print(render_pares(pares))
+
+    if pares.mudos:
+        print(
+            f"\ncheck_rules: {len(pares.mudos)} `zip`/`map` de dos secuencias sin "
+            f"declarar si van emparejadas.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # CLAVES QUE UN TEST ESCRIBE Y ALGUIEN PRODUCE (2026-09-02). Principio nº 24 hecho
+    # auditoria, y GUARDIA como los dos anteriores: un test que construye el diccionario
+    # de entrada con la clave que el codigo va a buscar no puede fallar — coincide por
+    # construccion. Tres erratas seguidas con esa anatomia (nº 44, nº 47 y nº 48).
+    from auditar_claves import cargar_tabla as cargar_claves
+    from auditar_claves import exenciones_caducadas, revisar as revisar_claves
+
+    tabla_claves = cargar_claves()
+    claves = revisar_claves(tabla=tabla_claves)
+    caducadas = exenciones_caducadas(tabla=tabla_claves)
+    print("\n── Claves que un test ESCRIBE y alguien PRODUCE ──\n")
+    for productor in tabla_claves.get("productor", []):
+        print(f"  {productor['nombre']}  [{productor['modo']}]")
+    print()
+    if claves or caducadas:
+        for h in claves:
+            print(f"  · {h['fichero']}:{h['linea']}  {h['clave']!r}  → {h['productor']}")
+        for e in caducadas:
+            print(f"  · EXENCIÓN CADUCADA: {e}")
+    else:
+        print("  0 — el número correcto. Ningún test pregunta por la clave que él mismo")
+        print("      ha escrito.")
+    print(
+        "\n  Se le pide la clave al productor. Un test que la escribe coincide por\n"
+        "  construcción: su verde no dice nada del emparejamiento real.\n"
+    )
+    if claves or caducadas:
+        print(
+            f"\ncheck_rules: {len(claves) + len(caducadas)} clave(s) que un test "
+            f"escribe y alguien produce.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # UNA MAGNITUD, UN SITIO QUE LA CALCULA (2026-09-02). La otra cara del principio
+    # nº 24: los digestos y los identificadores son GUARDIA —dos sitios calculando el
+    # mismo numero es un fallo— y las formulas repetidas entre modulos, TRINQUETE.
+    from auditar_claves import digestos, revisar_magnitudes
+
+    mag = revisar_magnitudes()
+    print("\n── Una magnitud, un sitio que la calcula ──\n")
+    print(f"  digestos declarados      {len(digestos())}")
+    print(f"  identificadores a mano   {len(mag['identificadores'])} (el correcto es 0)")
+    print(
+        f"  constructores permisivos {len(mag['permisivos'])} sin declarar"
+        f" (el correcto es 0)"
+    )
+    print(f"  fórmulas repetidas       {len(mag['formulas'])}, POR MAGNITUD:")
+    for magnitud, datos in mag["grupos"].items():
+        marca = "  ← PRIORITARIA" if datos["prioritaria"] else ""
+        print(
+            f"      {datos['sitios']:3d} sitios en {datos['modulos']:2d} módulos "
+            f"({datos['formas']} formas de escribirla) · techo {datos['techo']}"
+            f"  «{magnitud}»{marca}"
+        )
+    for magnitud, datos in mag["grupos"].items():
+        if datos["por_que"]:
+            import textwrap
+
+            print()
+            for linea in textwrap.wrap(datos["por_que"], 72):
+                print(f"      {linea}")
+    print()
+    problemas = []
+    for sitio in mag["sin_declarar"]:
+        problemas.append(f"  · {sitio} calcula un digesto y no dice QUÉ magnitud")
+    for sitio in mag["muertas"]:
+        problemas.append(f"  · {sitio} está declarado y ya no calcula nada")
+    for magnitud, sitios in mag["repetidas"].items():
+        problemas.append(
+            f"  · «{magnitud}» la calculan {len(sitios)} sitios: {', '.join(sitios)}"
+        )
+    for sitio in mag["identificadores"]:
+        problemas.append(f"  · {sitio} construye un `*_id` a mano (errata nº 48)")
+    for sitio in mag["permisivos"]:
+        problemas.append(
+            f"  · {sitio} hace `str(argumento)` y con eso construye algo, sin comprobar "
+            f"el tipo (errata nº 50)"
+        )
+    for sitio in mag["permisivos_muertos"]:
+        problemas.append(
+            f"  · {sitio} está declarado como constructor permisivo y ya no lo es"
+        )
+    for formula in mag["formulas_sin_clasificar"]:
+        problemas.append(
+            f"  · la fórmula {formula!r} se repite entre módulos y no dice QUÉ magnitud "
+            f"calcula. Once fórmulas «en general» no es accionable; su magnitud sí."
+        )
+    for formula in mag["formulas_clasificadas_de_mas"]:
+        problemas.append(
+            f"  · {formula!r} está clasificada y ya no se repite entre módulos"
+        )
+    for magnitud in mag["techos_rotos"]:
+        datos = mag["grupos"][magnitud]
+        problemas.append(
+            f"  · «{magnitud}»: {datos['sitios']} sitios contra un techo de "
+            f"{datos['techo']}. Si ha subido, alguien la duplicó; si ha bajado —que es "
+            f"lo que se busca— el techo está caducado y se actualiza en "
+            f"data/magnitudes.toml."
+        )
+    for magnitud in mag["techos_sin_grupo"]:
+        problemas.append(f"  · el techo de «{magnitud}» ya no corresponde a ninguna fórmula")
+    if problemas:
+        print("\n".join(problemas))
+        print(
+            "\n  O uno DELEGA en el otro, o son números distintos y el motivo lo dice."
+            "\n  Nada obliga a que dos cálculos del mismo número coincidan.\n"
+        )
+        print(
+            f"\ncheck_rules: {len(problemas)} magnitud(es) calculada(s) por duplicado.",
+            file=sys.stderr,
+        )
+        return 1
+    print("  Ninguna magnitud se calcula dos veces sin decir por qué.\n")
+
+    # UMBRALES QUE ESCONDEN UN SUPUESTO (2026-09-02). Categoria PROPIA y distinta de la
+    # de `justificacion.py`: alli son numeros SIN respaldo; aqui, numeros CON respaldo
+    # aparente que significan otra cosa de la que parecen. GUARDIA, cero — un umbral que
+    # decide y no dice de que supuesto depende su lectura es un veredicto equivocado
+    # esperando (errata nº 56, el `> 1` que codificaba «uno es tuyo»).
+    from auditar_umbrales import auditar as auditar_umbrales
+    from auditar_umbrales import render as render_umbrales
+
+    umbrales = auditar_umbrales()
+    print(render_umbrales(umbrales))
+    fallos_umbral = len(umbrales["sin_declarar"]) + len(umbrales["muertos"])
+    if fallos_umbral:
+        print(
+            f"\ncheck_rules: {fallos_umbral} umbral(es) que decide(n) sin declarar de "
+            f"qué supuesto depende su lectura.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # EL MISMO NOMBRE PARA DOS CANTIDADES DISTINTAS (2026-09-02). La generalizacion de
+    # los cuatro pares duplicados: no es codigo repetido, es una cantidad que se mueve de
+    # contexto sin el supuesto que la sostenia (principio nº 27, errata nº 57).
+    from auditar_homonimos import auditar as auditar_homonimos
+    from auditar_homonimos import render as render_homonimos
+
+    homonimos = auditar_homonimos()
+    print(render_homonimos(homonimos))
+    fallos_homonimo = (
+        len(homonimos["sin_declarar"])
+        + len(homonimos["muertos"])
+        + len(homonimos["movidos"])
+    )
+    if fallos_homonimo:
+        print(
+            f"\ncheck_rules: {fallos_homonimo} magnitud(es) derivada(s) con nombre "
+            f"compartido sin declarar qué es cada una.",
+            file=sys.stderr,
+        )
+        return 1
+
     if informe.stale:
         print(
             f"\ncheck_rules: {len(informe.stale)} excepción(es) de alcanzabilidad que "

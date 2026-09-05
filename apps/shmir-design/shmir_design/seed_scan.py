@@ -208,13 +208,13 @@ def _strands(selection, species: str, starts, guides: bool, passengers: bool):
     from .blocks import build_block
     from .scaffold import SGEP_SCAFFOLD
 
-    por_inicio = {c.start: c for c in selection.selection.chosen}
+    # Panel MAS sitios elegibles, resuelto por el UNICO sitio que lo hace. Aqui se
+    # resolvia contra `chosen` y se abortaba, asi que este modal y el de off-targets
+    # —que usa estas mismas hebras— rechazaban el alcance grande que la propia app
+    # ofrece (errata nº 107). Un inicio que no sea de ninguna ventana elegible sigue
+    # abortando, y lo dice `choices_for`.
+    por_inicio = {c.start: c for c in selection.choices_for(starts)}
     for inicio in starts:
-        if inicio not in por_inicio:
-            raise ShmirDesignError(
-                f"3utr:{inicio} no está en el panel de esta corrida; se aborta en vez "
-                f"de comparar una guía que no existe aquí."
-            )
         ventana = selection.window_of(por_inicio[inicio])
         guia = ventana.evaluation.guide
         if guides:
@@ -283,6 +283,16 @@ class BaseRate:
     @property
     def fraction(self) -> float:
         return self.distinct / self.space
+
+    @property
+    def short(self) -> str:
+        """La tasa base en UNA CELDA, para que viaje con la fila y con el CSV.
+
+        `describe()` es el parrafo que se pinta encima de la tabla; ese se lee una vez y
+        no viaja en la descarga. La fila se lee siempre, y sin la tasa al lado un LIMPIO
+        no dice si es notable o es lo que predice el azar.
+        """
+        return f"{self.fraction * 100:.0f}% ({self.distinct}/{self.space}, {self.window})"
 
     def describe(self) -> str:
         return (
@@ -477,7 +487,14 @@ def run_scan(
             "FAIL" if any(c.core for c in colisiones)
             else "AVISO" if colisiones else "LIMPIO"
         )
-        consulta = f"{species}_pos{inicio}_{hebra}"
+        # LA CLAVE SE DERIVA. Habia CUATRO sitios armando este identificador —el
+        # FASTA de consulta, la ficha, este scan y el de off-targets— y al pasar el
+        # FASTA al slug (errata nº 42) los demas se quedaron atras. Una corrida
+        # guardada con una clave y buscada con otra no se encuentra, y el sintoma es
+        # identico al de no haberla guardado. Principio nº 13 sobre una CLAVE.
+        from .presentation import query_name
+
+        consulta = query_name(species, inicio, hebra)
         resultados.append(
             SeedResult(
                 start=inicio, strand=hebra, query=consulta, sequence=secuencia,

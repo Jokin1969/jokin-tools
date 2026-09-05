@@ -221,8 +221,19 @@ class PlasmidFeature:
 
 
 def sequence_md5(sequence: str) -> str:
-    """md5 de una secuencia ya normalizada. Es el ancla de todas las comprobaciones."""
-    return hashlib.md5(sequence.encode("utf-8"), usedforsecurity=False).hexdigest()
+    """md5 de una secuencia. DELEGA en `reference.sequence_md5` (2026-09-02).
+
+    Habia DOS funciones con este nombre y este proposito —aqui y en `reference`— y no
+    daban lo mismo: aquella CANONIZA antes (sin blancos, en mayusculas) y esta hasheaba
+    la cadena tal cual. Con una secuencia ya normalizada coinciden, que es por lo que
+    nadie lo vio; con un salto de linea dentro, no. Y de ese numero depende que un
+    fichero BUENO se acepte o se rechace.
+
+    Lo destapo la auditoria de magnitudes: la misma cantidad calculada en dos sitios.
+    """
+    from .reference import sequence_md5 as canonico  # noqa: PLC0415
+
+    return canonico(sequence)
 
 
 def parse_plasmid_feature(

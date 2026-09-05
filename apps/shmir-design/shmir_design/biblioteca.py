@@ -34,12 +34,12 @@ Python 3.11+, sólo biblioteca estándar (regla 6).
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
 from .errors import ShmirDesignError
+from .identidad import file_fingerprint
 
 
 @dataclass(frozen=True)
@@ -75,10 +75,23 @@ SLOTS = MappingProxyType(
     }
 )
 
-WHY_THE_VOLUME = (
-    "La biblioteca vive en el volumen y no en la imagen. Dentro de la imagen, todo lo "
-    "guardado desaparecería en el siguiente redespliegue y el único síntoma sería una "
-    "biblioteca vacía sin ninguna explicación."
+#: EL TEXTO DICE LO QUE PASA, NO LO QUE SE EVITÓ. La versión anterior explicaba el
+#: contrafactual —«dentro de la imagen, todo lo guardado desaparecería en el siguiente
+#: redespliegue»— que es cierto y es la RAZÓN de que la biblioteca viva en el volumen,
+#: pero leído en pantalla dice que lo guardado se borra, o sea lo contrario de lo que
+#: hace la app. Un usuario lo leyó así. Ahora la frase se DERIVA del estado
+#: (`presentation.library_note`) en vez de ser una cadena fija, porque cuál de las dos
+#: cosas es verdad depende de si el directorio de trabajo está declarado.
+SURVIVES = (
+    "Lo guardado aquí SOBREVIVE a los redespliegues: la biblioteca vive en el volumen, "
+    "fuera de la imagen del contenedor, que es lo que se borra al desplegar. La siembra "
+    "de lo versionado no la toca."
+)
+
+NOT_ON_A_VOLUME = (
+    "Estás en LOCAL: no hay volumen declarado, así que la biblioteca vive junto al "
+    "paquete. En un despliegue va al volumen y lo guardado sobrevive; aquí depende de "
+    "que no se borre el directorio de instalación."
 )
 
 _INDICE = "indice.tsv"
@@ -99,7 +112,7 @@ class Entrada:
 
 
 def base_por_defecto() -> Path:
-    """`SHMIR_REFERENCE_DIR/biblioteca`. Ver `WHY_THE_VOLUME`.
+    """`SHMIR_REFERENCE_DIR/biblioteca`. Ver `SURVIVES` y `NOT_ON_A_VOLUME`.
 
     Sale de `trabajo.reference_dir()`, que es el que LEE LA VARIABLE, y no de
     `reference.reference_dirs()`, que devuelve los directorios del paquete y del
@@ -207,7 +220,7 @@ def guardar(
             f".gb en el hueco del FASTA es justo el error que esto evita."
         )
 
-    ident = hashlib.md5(data, usedforsecurity=False).hexdigest()
+    ident = file_fingerprint(data)
     entrada = Entrada(ident, limpio, str(date), len(data))
     ruta_de(clave, ident, base=base).write_bytes(data)
     otras = [e for e in _leer_indice(directorio) if e.id != ident]
@@ -232,7 +245,7 @@ def leer(clave: str, ident: str, *, base: Path | str | None = None) -> bytes:
             f"fichero a mano. Se aborta en vez de seguir sin él."
         )
     datos = ruta.read_bytes()
-    real = hashlib.md5(datos, usedforsecurity=False).hexdigest()
+    real = file_fingerprint(datos)
     if real != ident:
         raise ShmirDesignError(
             f"{ruta}: el md5 del fichero es {real} y el índice dice {ident}. Ya NO es el "

@@ -401,6 +401,10 @@ def choose_spacers(
     parejas: list[tuple[str, str]] = []
     parejas.extend((c, STANDARD_3) for c in cinco)
     parejas.extend((STANDARD_5, t) for t in tres)
+    # zip-ok: `cinco` y `tres` son dos POOLES de candidatos, no dos columnas de lo
+    # mismo, y el aviso de arriba ya dice que pueden salir en distinto numero. Aqui
+    # se anaden parejas combinadas hasta donde llega el mas corto; ninguna de las
+    # dos listas pierde candidatos, que ya van enteras en los dos `extend` de antes.
     parejas.extend(zip(cinco, tres))
 
     validos: list[SpacerChoice] = []

@@ -363,7 +363,16 @@ _TRAS_ESTA = (
     "calibrado", "cerrado", "comprobada", "comprobado", "condicionado", "conservada",
     "conservado", "contestada", "cubierto", "dando", "dañado", "declarada",
     "declarado", "definida", "derivada", "desplazada", "dicho", "escrito", "guardado",
-    "hecho", "inflado", "instalado", "invertido", "medida", "medido", "muerto",
+    # «medida» SE QUITO el 2026-09-02, y la lista se contradecia a si misma: el
+    # comentario de arriba la nombra COMO EJEMPLO de lo que no hay que meter —«esta
+    # medida» es demostrativo + sustantivo, una medida de PolyA_DB— y estaba dentro.
+    # Salto sobre «lo decia y esta medida es lo que lo corrigio», que esta bien escrito.
+    # Medido antes de quitarla: en literales de prosa NO habia ni un solo «esta medida»
+    # como verbo, asi que la entrada nunca acerto y solo podia fallar. «medido» se queda
+    # —«el APA esta medido» si aparece— y no es incoherente: son dos palabras distintas
+    # con dos repartos distintos en este corpus, y eso es justo lo que una lista cerrada
+    # y LEIDA puede decir y una regla de participios no.
+    "hecho", "inflado", "instalado", "invertido", "medido", "muerto",
     "ordenado", "publicada", "puesto", "recortada", "registrado", "repetida",
     "resuelta", "resuelto", "rota", "roto", "saturado", "tecleada", "tocada", "vacia",
     "vacía", "vacio", "vacío", "visto", "vuelto",

@@ -110,18 +110,31 @@ class TestLaTablaDeSitios(unittest.TestCase):
         cls.informe, cls.seleccion = _piezas()
 
     def test_las_columnas_de_frente_se_DERIVAN_no_se_listan(self):
+        # Y un frente POR HEBRA da DOS columnas (2026-09-02): la pasajera es el eje donde
+        # menos datos hay, y fundirla con la guia la hacia invisible — la ficha ya las
+        # partia y la tabla no. Las esperadas se derivan del mismo sitio que las emite:
+        # `blocking_fronts` mas `STORE_FOR_FRONT`, no una lista escrita aqui.
         from shmir_design.selection import blocking_fronts
 
-        esperadas = sorted({f.name for f in blocking_fronts(self.informe, self.seleccion)})
+        esperadas = set()
+        for frente in blocking_fronts(self.informe, self.seleccion):
+            declarado = presentation.STORE_FOR_FRONT.get(frente.name)
+            if declarado and declarado["por_hebra"]:
+                esperadas.update(
+                    f"{frente.name}:{hebra}" for hebra in presentation.STRANDS
+                )
+            else:
+                esperadas.add(frente.name)
         self.assertEqual(
-            presentation.front_columns(self.informe, self.seleccion), esperadas
+            presentation.front_columns(self.informe, self.seleccion), sorted(esperadas)
         )
 
     def test_hay_columna_para_offtarget_seed_que_es_el_que_estuvo_invisible(self):
-        self.assertIn(
-            "offtarget_seed",
-            presentation.front_columns(self.informe, self.seleccion),
-        )
+        # DOS, una por hebra. Con una sola, el estado de la guia pasaria por el de las
+        # dos justo en el frente donde menos datos hay.
+        columnas = presentation.front_columns(self.informe, self.seleccion)
+        self.assertIn("offtarget_seed:guia", columnas)
+        self.assertIn("offtarget_seed:pasajera", columnas)
 
     def test_salen_TODOS_los_elegibles_no_solo_los_elegidos(self):
         filas = presentation.site_table_rows(self.informe, self.seleccion)
