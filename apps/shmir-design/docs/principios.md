@@ -419,6 +419,38 @@ Lo que **no** vale es corregir la frase y seguir. Eso deja el mismo mecanismo in
 el mecanismo es lo que produjo las otras dos de esta misma familia: el «comprueba que
 Streamlit está instalado» pegado a todo fallo, y el «Alu 0 %» obtenido sin buscar Alu.
 
+### Y una prosa obsoleta que PIDE algo ya hecho es peor que una que describe mal
+
+Formulado por el responsable del proyecto (2026-09-04) sobre el caso de
+`introns.INTRONS["mvm_sin_criptico"].why_missing`, que decía:
+
+> «el primer paso EMPATA entre dos alternativas y **la app no elige: hace falta una
+> decisión**»
+
+Cierto cuando se escribió. Falso desde que la decisión se registró en
+`intron_design.TIEBREAK_MOTIF`, con su racional y su alternativa descartada.
+
+**Las dos clases de texto obsoleto no cuestan lo mismo**:
+
+- el que **describe mal** un hecho hace que alguien entienda algo equivocado, y se
+  descubre al contrastarlo con lo que el código emite;
+- el que **pide una decisión ya tomada GENERA TRABAJO**: manda a razonar otra vez lo que
+  está razonado, a comparar alternativas que ya se compararon, y —lo peor— **a decidir de
+  nuevo**, con el riesgo de decidir distinto y quedarse con dos decisiones. No se descubre
+  contrastando nada, porque no afirma ningún hecho falso: afirma una *carencia* que ya no
+  existe.
+
+**La regla operativa**: un texto que pide algo —«hace falta X», «queda por decidir Y»,
+«falta aportar Z»— es una **deuda declarada**, y una deuda saldada hay que darla de baja
+igual que se da de baja una excepción de alcanzabilidad caducada o una entrada muerta de
+una tabla de auditoría. Este proyecto ya lo hace con las tablas —una justificación
+caducada hace fallar la suite— y la prosa que declara carencias está en la misma
+situación sin la misma protección.
+
+Y el corolario que lo hace revisable: **cuando algo se resuelve, se busca quién lo pedía**.
+El commit que registra una decisión tiene que tocar también los textos que la reclamaban;
+si no, la decisión existe y el proyecto sigue pidiéndola.
+
 ### Un aviso: no todo lo que parece discrepar lo es
 
 La prosa dice además cosas que el código **no** calcula —por qué se decidió algo, qué
