@@ -558,20 +558,31 @@ DONOR_TO_BRANCH_CONTEXT = (
 #: perfecto), mejor tracto (11 pirimidinas frente a 9) y 97 posiciones de insercion frente
 #: a 39. Lo que significa es que LOS TRES SON MEJORES EN EJES DISTINTOS y que NINGUNO DE
 #: LOS TRES NUMEROS PREDICE EL EMPALME. Las tres opciones van a sintesis; el gel decide.
+#: CORREGIDO (2026-09-05), errata nº 106. Aquí ponía que el quimérico es PEOR en el eje
+#: donante→punto, y eso es cierto del intrón VACÍO y NO SOBREVIVE AL MONTAJE: el MVM
+#: intercala 214 nt (módulo + los dos espaciadores) y el quimérico 149 (módulo solo,
+#: porque su posición se decidió sin ellos). Medido sobre los intrones que van en el
+#: FASTA: MVM 256 nt, quimérico 249-253. Los dos siguen fuera del rango típico.
 THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES = (
-    "Los 51 pb de más del quimérico están donde estorban: en el eje donante→punto es "
-    "PEOR que el MVM, no mejor. No lo descarta —mejor donante, mejor tracto, 97 "
-    "posiciones de inserción frente a 39— pero significa que los tres son mejores en "
-    "ejes distintos y que ninguno de los tres números predice el empalme. Las tres "
-    "opciones van a síntesis; el gel decide."
+    "En el intrón VACÍO el quimérico tiene el punto de ramificación mucho más lejos del "
+    "donante (100-104 nt frente a 42), pero MONTADOS empatan: el MVM lleva además los "
+    "dos espaciadores, así que intercala 214 nt frente a 149 y acaba en 256 nt frente a "
+    "los 249-253 del quimérico. Los dos quedan fuera del rango típico de mamífero y la "
+    "diferencia entre ellos es de unos pocos nucleótidos, así que ESTE EJE NO "
+    "DISCRIMINA. Lo que sí separa a los dos es lo demás —el quimérico tiene mejor "
+    "donante, mejor tracto y 97 posiciones de inserción frente a 39—, y ninguno de esos "
+    "números predice el empalme. Las opciones van a síntesis; el gel decide."
 )
 
 OPEN_QUESTION_DONOR_TO_BRANCH = (
     "Si donante→punto resulta ser el problema, la salida no es cambiar de intrón sino "
-    "acortar el módulo o buscar un intrón cuyo punto de ramificación esté más cerca del "
-    "donante de partida. Un intrón más largo NO ayuda si la longitud de más está aguas "
-    "arriba del punto: el quimérico tiene el punto a 100-104 nt del donante y el MVM a "
-    "42, así que en este eje el quimérico es peor."
+    "acortar LO QUE SE INTERCALA. Y no es el módulo lo que más pesa: entre los dos "
+    "intrones que hay, la diferencia de lo intercalado (214 frente a 149 nt) CANCELA "
+    "casi entera la diferencia de sus puntos de ramificación en el intrón vacío "
+    "(100-104 frente a 42), y montados quedan en 249-253 y 256. Los dos siguen a más "
+    "del doble del extremo alto del rango típico, así que cambiar de intrón no saca a "
+    "nadie de ahí: lo haría acortar el módulo o los espaciadores, o un intrón cuyo "
+    "punto esté a menos de 20 nt del donante."
 )
 
 
@@ -886,6 +897,18 @@ class Intron:
     three_piece: str = ""
     #: La secuencia entera, para los aportados. Vacia si no se ha aportado.
     raw_sequence: str = ""
+    #: DONDE va el modulo dentro de un intron que llega ENTERO, 1-based sobre su
+    #: secuencia. Cero = no declarado, y entonces `with_module` ABORTA en vez de pegarlo
+    #: en un sitio cualquiera.
+    #:
+    #: Un intron que se ensambla de piezas no lo necesita: el modulo va entre sus dos
+    #: mitades y no hay nada que elegir. Uno que llega entero **no lo dice**, y esa es
+    #: una DECISION con criterio computable, no un fichero que falte — la de
+    #: `intron_quimerico` esta registrada en `intron_design.INSERTION_RATIONALE` con la
+    #: alternativa descartada. Vive aqui, en el registro del intron, porque es una
+    #: propiedad SUYA; `intron_design.INSERTION_POSITION` la DERIVA de aqui en vez de
+    #: repetirla (principio nº 13).
+    insertion_point: int = 0
     #: `True` si lo DISEÑA la app en vez de venir de fuera.
     derived: bool = False
     derived_from: str = ""
@@ -896,6 +919,17 @@ class Intron:
     #: sin declararlo eso no se puede derivar. Un test lo cruza con el motivo que
     #: `intron_design.break_candidates` rompe de verdad, para que no se separen.
     breaks_motif: str = ""
+    #: POR QUE se retiro de la matriz. Cadena vacia = vigente.
+    #:
+    #: Retirar NO es borrar, y es la misma disciplina que un frente CERRADO que sigue
+    #: saliendo en el informe: el intron se queda en el registro con su motivo, porque
+    #: quitarlo dejaria al siguiente lector sin saber si se resolvio o si nadie lo miro.
+    #: Lo que cambia es que deja de ser una arquitectura que montar — no cuenta como
+    #: pendiente ni sale en `buildable()`.
+    #:
+    #: El motivo tiene que decir QUE SE MIDIO y QUE LO DEVOLVERIA: un retirado sin
+    #: condicion de vuelta se lee como borrado.
+    retired: str = ""
     why_missing: str = ""
     ficha: str = ""
     #: Contexto exonico declarado a los dos lados, tambien de piezas versionadas.
@@ -965,11 +999,7 @@ class Intron:
         if not self.provided:
             self.require_sequence()
         if self.raw_sequence:
-            raise ShmirDesignError(
-                f"El intrón {self.name!r} llego entero, así que no se sabe DONDE va el "
-                f"módulo dentro. Hace falta declarar sus puntos de inserción antes de "
-                f"montarlo; se aborta en vez de pegarlo en un sitio cualquiera."
-            )
+            return self._insert_module(module, spacer5=spacer5, spacer3=spacer3)
         montado = (
             PIECES[self.five_piece].sequence
             + (PIECES["espaciador5"].sequence if spacer5 is None else _clean(spacer5))
@@ -977,6 +1007,72 @@ class Intron:
             + (PIECES["espaciador3"].sequence if spacer3 is None else _clean(spacer3))
             + PIECES[self.three_piece].sequence
         )
+        check_length(montado, name=self.name)
+        return montado
+
+    def inserted_length(self, module_length: int) -> int:
+        """CUANTO se intercala en ESTE intron: no es el mismo numero para todos.
+
+        Un intron que se ensambla de piezas lleva el modulo MAS los dos espaciadores,
+        que separan la horquilla de sus extremos; uno que llega entero lleva el modulo
+        SOLO — `_insert_module` aborta si se le piden espaciadores, porque su posicion
+        se eligio midiendo sin ellos.
+
+        Existe porque un unico `insertado = modulo + espaciadores` aplicado a los dos da
+        un numero PLAUSIBLE Y FALSO para el segundo: sobre el quimerico ponia el
+        donante→punto en 314-318 nt cuando el intron que se monta lo tiene en 249-253.
+        Los 65 de diferencia son exactamente los dos espaciadores — la firma de la
+        errata nº 35, donde la diferencia entre lo esperado y lo obtenido ES el
+        diagnostico. La longitud se DERIVA del intron; no la elige quien llama.
+        """
+        if self.raw_sequence:
+            return int(module_length)
+        from .spacers import SPACER3_LENGTH, SPACER5_LENGTH
+
+        return int(module_length) + SPACER5_LENGTH + SPACER3_LENGTH
+
+    def _insert_module(
+        self, module: str, *, spacer5: str | None, spacer3: str | None
+    ) -> str:
+        """El modulo DENTRO de un intron que llego entero, en la posicion declarada.
+
+        Un intron que se ensambla de piezas pone el modulo entre sus dos mitades y no
+        hay nada que elegir; uno que llega entero **no dice donde va**, y pegarlo en un
+        sitio cualquiera es lo que esto abortaba. Lo que faltaba no era un calculo: era
+        DECLARAR la posicion — y la decision de `intron_quimerico` esta registrada desde
+        el 2026-08-30 con su criterio y con la alternativa descartada
+        (`intron_design.INSERTION_RATIONALE`).
+
+        **NO se ponen espaciadores, y pedirlos ABORTA.** La posicion se eligio midiendo
+        `secuencia[:p] + modulo + secuencia[p:]` sobre las 97 posiciones de la ventana
+        admisible: meter 20 y 45 nt mas cambia la geometria sobre la que se decidio, asi
+        que el numero dejaria de referirse a lo que se monta. Los espaciadores del MVM
+        existen para separar la horquilla de los extremos del intron, y aqui esa
+        separacion es lo que la posicion compra.
+        """
+        if not self.insertion_point:
+            raise ShmirDesignError(
+                f"El intrón {self.name!r} llego entero, así que no se sabe DONDE va el "
+                f"módulo dentro. Hace falta declarar su punto de inserción "
+                f"(`insertion_point`) antes de montarlo; se aborta en vez de pegarlo en "
+                f"un sitio cualquiera."
+            )
+        if spacer5 or spacer3:
+            raise ShmirDesignError(
+                f"Se han pedido espaciadores para {self.name!r}, que llega entero y "
+                f"lleva su posición de inserción DECLARADA ({self.insertion_point}). Esa "
+                f"posición se eligió midiendo el módulo insertado SIN espaciadores, así "
+                f"que ponerlos cambiaría la geometría sobre la que se decidió y el "
+                f"número dejaría de referirse a lo que se monta. Se aborta."
+            )
+        entero = self.empty_sequence
+        corte = self.insertion_point
+        if not 1 <= corte < len(entero):
+            raise ShmirDesignError(
+                f"El punto de inserción declarado para {self.name!r} es {corte} y el "
+                f"intrón mide {len(entero)} nt: no cae dentro. Se aborta."
+            )
+        montado = entero[:corte] + _clean(module) + entero[corte:]
         check_length(montado, name=self.name)
         return montado
 
@@ -1063,11 +1159,18 @@ INTRONS: dict[str, Intron] = {
         ),
         source="Addgene #198131 (pCI_mini-mAgrin-AviTag), feature `intron` 1216-1348",
         raw_sequence=_QUIMERICO,
+        # DONDE VA EL MODULO. Decision del responsable del proyecto (2026-08-30), de la
+        # ventana admisible 3-99 y con la 69 registrada como descartada: el criterio
+        # entero esta en `intron_design.INSERTION_RATIONALE`. Aqui va el numero porque
+        # es propiedad del intron; alli va el porque.
+        insertion_point=49,
         why_missing=(
             f"No está {QUIMERICO_PLASMID} en el directorio de referencia, y este "
             f"intrón SALE de él: se extrae de su feature «{QUIMERICO_FEATURE[1]}» "
             f"comprobando md5 y coordenadas. Sin el fichero no hay secuencia y no se "
-            f"teclea (regla 1). Se sube por el gestor de referencia del paso 2."
+            f"teclea (regla 1). Se sube por el gestor de referencia del paso 2. Lo que "
+            f"YA NO falta es dónde va el módulo: se monta en la posición 49, decidida "
+            f"el 2026-08-30 con su criterio y con la 69 registrada como descartada."
         ),
         ficha="intron_quimerico",
     ),
@@ -1086,6 +1189,23 @@ INTRONS: dict[str, Intron] = {
         exon3_piece="exon3",
         derived=True,
         derived_from="mvm_actual",
+        # RETIRADO DE LA MATRIZ (2026-09-05), decision del responsable del proyecto. El
+        # motivo NO es que sobrara codigo: es que la premisa que lo justificaba se midio
+        # y resulto falsa. Ver la errata nº 100 y el bloque de este intron en CLAUDE.md.
+        retired=(
+            "Se diseñó para eliminar el donante críptico GTGAGCG del flanco 5' de "
+            "miR-E, y ese sitio puntúa 0,0000 en las veinte construcciones — los diez "
+            "candidatos con las DOS arquitecturas de intrón—: SpliceAI le da como mucho "
+            "9,9e-04, tres órdenes por debajo del donante legítimo. Es un intrón que "
+            "arregla un problema que no existe, así que sale de la matriz. LA LECCIÓN NO "
+            "ES QUE SOBRARA: es por qué se creyó que hacía falta. El criterio de "
+            "SECUENCIA le daba un empate 5-5 con el donante legítimo sobre "
+            "`MAG|GTRAGT`, y un modelo entrenado sobre intrones reales lo puntúa en "
+            "cero — el consenso posicional SOBRESTIMA porque cuenta coincidencias sin "
+            "contexto. La decisión que lo diseñó NO se borra: la regla del desempate, la "
+            "base elegida y su motivo siguen registrados en `intron_design`, y la "
+            "variante está a UN gBLOCK si el gel muestra que el MVM empalma mal."
+        ),
         # Import local: `splicing` importa `blocks`, que importa esto.
         breaks_motif=__import__(
             "shmir_design.splicing", fromlist=["CRYPTIC_DONOR"]
@@ -1125,6 +1245,21 @@ def get(name: str) -> Intron:
 
 def available() -> tuple[Intron, ...]:
     return tuple(i for i in INTRONS.values() if i.provided)
+
+
+def buildable() -> tuple[Intron, ...]:
+    """Los que son arquitecturas VIVAS: tenemos su secuencia y no estan retirados.
+
+    `available()` contesta «¿tenemos la secuencia?» y esta contesta «¿lo montamos?».
+    Son dos preguntas y por eso son dos funciones: un intron retirado sigue teniendo su
+    secuencia, y confundirlas lo devolveria a la matriz por la puerta de atras.
+    """
+    return tuple(i for i in INTRONS.values() if i.provided and not i.retired)
+
+
+def retired() -> tuple[Intron, ...]:
+    """Los retirados, SIEMPRE con su motivo. Un retirado que no se ve es un borrado."""
+    return tuple(i for i in INTRONS.values() if i.retired)
 
 
 def missing() -> tuple[Intron, ...]:

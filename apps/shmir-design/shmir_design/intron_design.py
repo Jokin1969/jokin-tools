@@ -55,6 +55,7 @@ from .hard_filters import longest_homopolymer as _longest_homopolymer
 from .spacers import WHY_FIXED_LENGTHS
 from .spacers import spacer_rejections as _spacer_rejections
 from .introns import BRANCH_A_OFFSET
+from .introns import get as _get_intron
 from .splicing import CRYPTIC_DONOR
 
 AUTHORIZATION = (
@@ -677,7 +678,10 @@ def insertion_candidates(
 # proyecto, va con SUS palabras, y la alternativa queda REGISTRADA con su motivo para
 # que no haya que volver a razonarla.
 
-INSERTION_POSITION = 49
+#: Se DERIVA del registro del intrón, que es donde vive (principio nº 13). Estuvo
+#: escrito aquí y ahí; dos definiciones del mismo número, y la que montaba el intrón no
+#: era ésta — porque durante meses no lo montaba nadie.
+INSERTION_POSITION = _get_intron("intron_quimerico").insertion_point
 INSERTION_REJECTED = 69
 
 #: El criterio, con las palabras de quien lo decidio (2026-08-30).

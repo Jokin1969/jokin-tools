@@ -4993,6 +4993,9 @@ sobra por no encajar con lo que hace la app»*.
    **siempre bloquea** —`blocking_fronts` lo emite con `blocking=True` por construcción,
    porque no hay nada en la app que pueda cerrarlo—. Así que el máximo del contador era
    **INALCANZABLE**: «8 de 8» no podía salir nunca, y nadie podía saber por qué.
+   **Eso tiene errata propia, la nº 105**: es otra familia —un contador bien calculado y
+   mal acotado, que no se contradice con nada— y aquí se leía como una consecuencia de la
+   presentación.
 
 Un contador que no puede llegar a su máximo no mide progreso: mide una distancia a un
 sitio al que no se va. Y mezclaba dos cosas que se resuelven de forma distinta —una
@@ -5118,3 +5121,183 @@ El **donante legítimo** —el mismo sitio en las diez— va de **0,664 a 0,871*
 con el módulo a más de 100 nt. Sale como columna (`donante_vs_hermanas`), con su tabla por
 intrón y ahora también destacado. El contraste es lo que le da sentido: el sitio del
 contexto se mueve un 3 %.
+
+## 105 — Un contador con el máximo INALCANZABLE no informa de nada, y parece que informa
+
+**Reportado (2026-09-05)**: *«el contador con máximo inalcanzable merece errata propia.
+"10 de 10" no podía salir nunca y nadie podía saber por qué — un número cuyo tope es
+imposible no informa de progreso, informa de nada, y encima parece que informa. Es
+distinto de un contador que miente: éste era correcto y estaba mal acotado»*.
+
+Sale de la errata nº 102 y se separa a propósito: allí el hallazgo es que el frente del
+banco se leía como una comprobación pendiente más. Esto es **otra cosa y otra familia**, y
+mezclado con aquello se leía como una consecuencia de la presentación.
+
+### La distinción, que es todo el punto
+
+| | qué le pasa al número | cómo se ve | cómo se caza |
+|---|---|---|---|
+| un contador que **miente** | el numerador o el denominador están mal calculados | dice 5 donde hay 10 | cruzando con la otra cuenta del mismo suceso |
+| un contador **mal acotado** | los dos números están **bien** | dice «4 de 8» y es verdad | **no se caza mirando el número** |
+
+Aquí ninguna de las dos cifras era falsa. `front_progress` contaba las tarjetas que había
+y las que estaban cerradas, y las dos eran ciertas. Lo que no existía era el **estado
+final**: `empalme_intron` sale de `blocking_fronts` con `blocking=True` **por
+construcción**, porque no hay nada en la app que pueda cerrarlo. Así que «8 de 8» no era
+improbable ni difícil: era **imposible**, y nada lo decía.
+
+### Por qué es peor que un contador que miente
+
+Un contador que miente se contradice con algo: hay otra cuenta del mismo suceso, o una
+tabla al lado, y en cuanto se ponen juntas salta —así se cazó la errata nº 97, y por eso
+la contramedida de aquélla fue derivar las dos de lo mismo—. **Un contador bien calculado
+y mal acotado no se contradice con nada.** Cada cifra es correcta por separado y la
+propiedad rota —«el máximo se puede alcanzar»— no la comprueba nadie, porque nadie la
+enuncia: se da por supuesta al escribir la barra.
+
+Y produce el síntoma más caro que hay en este registro: **el silencio con forma de dato**.
+Quien lo mira ve una barra que no llega al final, concluye que le faltan cosas por hacer,
+y va a buscar la que falta. La familia del «Alu 0 %» y de la errata nº 24 — una salida que
+parece una medida y no se refiere a nada.
+
+### La regla que deja
+
+**Todo contador declara qué hace falta para llegar a su máximo, y algo lo comprueba.** Si
+el máximo depende de un estado que ninguna acción disponible produce, ese elemento no va en
+ese denominador: va aparte, y se dice por qué. La comprobación es mecánica y no una
+revisión —`test_el_frente_del_BANCO_va_aparte.py` exige que el total del contador sea
+alcanzable, o sea que exista una combinación de estados que lo iguale—, porque una
+propiedad que nadie enuncia es una propiedad que nadie mira.
+
+### Y no se arregla subiendo el numerador
+
+La salida cómoda era contar el frente del banco como cerrado —o darle un estado
+«resuelto»—. Eso convierte un contador mal acotado en uno que **miente**, que es la
+categoría de al lado y peor. Lo que se separa del denominador no desaparece de la pantalla:
+sale con su encabezado propio, diciendo que no se cierra aquí.
+
+## 106 — `inserted` era una constante global sobre dos intrones que insertan distinto
+
+**Salió el 2026-09-05**, al comparar las dos arquitecturas: se dio como contrapeso del
+quimérico que su donante→punto de ramificación es de **314-318 nt** frente a los 256 del
+MVM, o sea 58-62 nt peor. **Medido sobre el intrón que de verdad se monta, son 249-253**:
+el quimérico no es peor en ese eje — empata, y por unos pocos nucleótidos incluso queda por
+debajo.
+
+### De dónde salían los 314-318
+
+`tools/auditar_geometria.py` tenía
+
+```python
+INSERTADO = 149 + spacers.SPACER5_LENGTH + spacers.SPACER3_LENGTH   # 214
+```
+
+y se lo pasaba **a los dos intrones**. Y no es lo que se intercala en los dos:
+
+| intrón | cómo mete el módulo | se intercala |
+|---|---|---|
+| `mvm_actual` | entre sus dos mitades, con los dos espaciadores | **214** nt |
+| `intron_quimerico` | en la posición 49 de su secuencia entera | **149** nt |
+
+Los espaciadores del MVM separan la horquilla de los extremos del intrón; en el quimérico
+esa separación **es lo que compra la posición 49**, y por eso `_insert_module` **aborta** si
+se le piden. O sea: la constante describía a uno de los dos y se aplicaba a los dos.
+
+### La firma, otra vez
+
+318 − 253 = **65** = 20 + 45, los dos espaciadores exactos. Es el corolario operativo de la
+errata nº 35: **cuando una magnitud sale distinta de lo esperado, mirar si la diferencia
+coincide con la longitud de alguna pieza conocida antes de buscar en otro sitio.** Aquí
+apuntaba directamente a la causa.
+
+Y la plausibilidad no ayudaba: 314-318 nt es un número perfectamente creíble para un intrón
+de 282 nt con un módulo dentro. Que estuviera **fuera del rango típico de mamífero** —donde
+también está el número correcto— lo hacía encajar en la historia que se estaba contando.
+
+### El arreglo es una derivación, no un segundo número
+
+`Intron.inserted_length(module_length)` lo dice **el intrón**: módulo solo si llegó entero,
+módulo más los dos espaciadores si se ensambla de piezas. El auditor pide el módulo —lo
+único común— y pregunta. Poner un segundo `INSERTADO_QUIMERICO` al lado habría dejado dos
+constantes que hay que acordarse de mantener, y el tercer intrón volvería a heredar la que
+no le toca.
+
+### Y arrastraba dos frases
+
+`THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES` y `OPEN_QUESTION_DONOR_TO_BRANCH` decían las dos
+que el quimérico es **peor** en este eje. Eso es cierto **del intrón vacío** —100-104 nt
+frente a 42— y **no sobrevive al montaje**, porque el MVM intercala 65 nt más. Las dos
+quedan corregidas con los números medidos, y con lo que sí se sostiene: **este eje no
+discrimina entre los dos**, los dos siguen muy por encima del rango típico, y lo que los
+separa es el donante, el tracto y la ventana de inserción.
+
+## 107 — El alcance de 86 nunca funcionó: una opción de la interfaz sin implementación detrás
+
+**Reportado (2026-09-05)**, en dos partes y con el diagnóstico correcto desde la primera:
+*«el selector de alcance ofrece "Todos los sitios elegibles — 86" y luego lo rechaza …
+Son dos definiciones de qué candidatos valen en el mismo flujo, y gana la restrictiva»*; y
+después, *«si es el mismo `panel` que se pasa aguas abajo sin mirar el alcance elegido,
+están los cuatro»*. **Están los cuatro.**
+
+### Los cuatro, por tres caminos
+
+| modal | cómo resolvía un inicio | con uno de fuera del panel |
+|---|---|---|
+| especificidad | `{c.start: c for c in …chosen}` en `blast_query` | **aborta** |
+| colisión de seed | lo mismo en `seed_scan._strands` | **aborta** |
+| carga de off-targets | usa `_strands` del anterior | **aborta** |
+| empalme | `[c for c in chosen if c.start in starts]` | **NO aborta: emite el panel** |
+
+**El cuarto es el peor.** No rechazaba nada: el selector anunciaba 172 consultas, la app
+montaba 20 y no decía una palabra. Es la errata nº 97 —lo anunciado y lo emitido sin nada
+que los ate— entrando por un eje nuevo, tres días después de haberla cerrado por el otro.
+
+### Por qué esta no es «otro consumidor sin cablear»
+
+La lectura es de quien lo reportó y es la que la separa de las once anteriores: *«no es un
+consumidor que no leía un almacén, es una opción de la interfaz que nunca tuvo
+implementación detrás»*. Las otras eran capacidades que funcionaban y no llegaban a un
+sitio; **ésta no funcionó nunca, en ningún modal, desde que se escribió** (errata nº 67).
+
+Y lo que la hacía creíble es que **las cifras del selector estaban bien**: 86 candidatos,
+172 secuencias en el FASTA. Un selector que contara mal se habría notado; uno que cuenta
+bien y no se puede ejecutar parece una opción de verdad hasta que se pulsa. Es el silencio
+con forma de dato de la errata nº 105, en un control en vez de en un contador.
+
+### El arreglo es UN resolutor, no cuatro parches
+
+Un inicio se resuelve a su candidato en **`ReportSelection.choices_for`**, que es el objeto
+que tiene los dos conjuntos —el panel y los sitios elegibles—. Y la definición buena **ya
+existía**: `presentation._choices_de` hacía exactamente eso, en la capa que el núcleo no
+puede importar. **La versión correcta era inalcanzable justo para quien la necesitaba**, así
+que cada módulo escribió la suya contra lo que tenía a mano.
+
+Arreglar los cuatro por separado habría dejado el mismo hueco para el quinto. El guardia es
+mecánico y está **calibrado midiendo** (principio nº 34), porque la forma del fallo y la
+condición que lo hace posible no son la misma cosa:
+
+| criterio | hallazgos | reales |
+|---|---|---|
+| «indexa el panel por inicio» | 2 | 1 |
+| «recibe `starts` y construye algo sobre el panel» | 2 | 1 |
+| **«recibe `starts` y construye un ÍNDICE inicio→candidato sobre el panel»** | **1** | **1** |
+
+Las dos distinciones son de significado: **recibir el alcance** es lo que hace peligroso
+resolverlo, y **un `dict` inicio→candidato resuelve mientras un `set` de inicios sólo
+marca** — con el conjunto no se puede sacar la guía de nadie, así que no puede rechazar ni
+mentir. Los dos falsos positivos son código correcto (`site_table_rows` marca filas que
+vienen del tilado; `blast_candidate_rows` deriva la marca `panel` que la errata nº 32
+obligó a derivar), y con cualquiera de los criterios anchos el guardia habría acabado
+apagado.
+
+### Y el mensaje culpaba a la entrada
+
+*«"Una guía que no existe aquí" sugiere que pedí algo raro; lo que pasa es que la app me
+ofreció un alcance que ella misma no acepta»*. El motivo nuevo habla de **ventanas
+elegibles** —que es el conjunto de verdad— y dice cuántas hay y cuántas están en el panel.
+Un inicio que no sea de ninguna ventana elegible sigue abortando, que es lo correcto.
+
+### Comprobado con su criterio de aceptación
+
+Con el alcance de 86 marcado: FASTA de consulta **172 registros**, modal de seed **172
+filas**, y el de empalme **172 construcciones con 0 fallidas** en vez de las 20 que emitía.

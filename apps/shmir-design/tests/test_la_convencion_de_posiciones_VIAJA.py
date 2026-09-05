@@ -48,7 +48,14 @@ CASETE = RAIZ / "data" / "reference" / "aav_casete.fa"
 MEDIDO = RAIZ / "data" / "medido" / "spliceai_mvm_actual_2026-09-05.tsv"
 HAY = fixture_available(RATON) and CASETE.exists() and MEDIDO.exists()
 
-DOS = ("mvm_actual", "intron_quimerico")
+# EL CASO PARCIAL DE HOY ES OTRO (2026-09-05). Este par se escribió cuando
+# `intron_quimerico` no declaraba dónde va el módulo y no se podía montar; desde que lo
+# declara (posición 49), `mvm_actual` + `intron_quimerico` da 20 de 20 y ya no prueba
+# nada de lo que estos tests existen para probar. El parcial que QUEDA es
+# `mvm_sin_criptico`, que se diseña por candidato y no se monta como intrón de la
+# corrida. Lo que se prueba es el MECANISMO —que el estado viaja dentro del fichero—, no
+# el intrón concreto, así que se cambia el caso y no el test.
+PARCIAL = ("mvm_actual", "mvm_sin_criptico")
 
 
 def _corrida():
@@ -149,7 +156,7 @@ class TestElESTADO_viaja_DENTRO_del_fichero(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.corrida = _corrida()
-        cls.parcial = _panel(cls.corrida, intrones=DOS)
+        cls.parcial = _panel(cls.corrida, intrones=PARCIAL)
         cls.entero = _panel(cls.corrida)
 
     def _fasta(self, panel, intrones):
@@ -159,16 +166,16 @@ class TestElESTADO_viaja_DENTRO_del_fichero(unittest.TestCase):
         return spliceai.constructions_fasta(panel.constructions, summary=resumen)
 
     def test_el_comentario_dice_CUANTAS_faltan_y_de_que_intron(self):
-        fasta = self._fasta(self.parcial, DOS)
+        fasta = self._fasta(self.parcial, PARCIAL)
         comentario = "\n".join(l for l in fasta.splitlines() if l.startswith("#"))
         self.assertIn("PARCIAL", comentario)
         self.assertIn("10", comentario)
         self.assertIn("20", comentario)
-        self.assertIn("intron_quimerico", comentario)
+        self.assertIn("mvm_sin_criptico", comentario)
 
     def test_y_CADA_cabecera_lo_lleva_tambien(self):
         # El comentario lo puede tirar un parser; una cabecera «>» no la tira ninguno.
-        fasta = self._fasta(self.parcial, DOS)
+        fasta = self._fasta(self.parcial, PARCIAL)
         cabeceras = [l for l in fasta.splitlines() if l.startswith(">")]
         self.assertEqual(len(cabeceras), 10)
         for cabecera in cabeceras:

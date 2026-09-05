@@ -463,10 +463,16 @@ def build_constructions(
     **La guia se PIDE a la ventana** (`_guia_de`), no se recorta de ninguna secuencia
     que pase el llamador: ver la errata nº 94.
     """
-    elegidos = [
-        c for c in selection.selection.chosen
-        if starts is None or c.start in set(starts)
-    ]
+    # EL FILTRO SILENCIOSO QUE HABIA AQUI ERA EL PEOR DE LOS CUATRO (errata nº 107).
+    # Era `[c for c in selection.selection.chosen if c.start in set(starts)]`: con el
+    # alcance «todos los sitios elegibles», `starts` traia 86 inicios, `chosen` 10, y
+    # esto devolvia los 10 SIN ABORTAR — la etiqueta anunciaba 172 consultas y salian
+    # 20. Los otros tres modales al menos abortaban. Es la errata nº 97 entrando por el
+    # eje del alcance: lo anunciado y lo emitido, otra vez sin nada que los ate.
+    elegidos = (
+        list(selection.selection.chosen) if starts is None
+        else selection.choices_for(starts)
+    )
     if not elegidos:
         raise ShmirDesignError(
             "No hay ningún candidato seleccionado para consultar; se aborta en vez de "

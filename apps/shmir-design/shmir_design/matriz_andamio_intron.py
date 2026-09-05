@@ -313,10 +313,19 @@ def fila(intron: str, andamio: str, *, guide: str) -> dict:
 
 
 def matriz(*, guide: str) -> list[dict]:
-    """Todas las combinaciones. Ninguna se elimina: las redundantes se MARCAN."""
+    """Las combinaciones VIVAS. Ninguna se elimina por redundante: ésas se MARCAN.
+
+    Lo que sí sale es un intrón RETIRADO, que es otra cosa: una redundancia sigue siendo
+    una arquitectura construible —la decisión de no sintetizarla es de quien diseña— y un
+    retirado ya no es una opción, porque la premisa que lo justificaba se midió y resultó
+    falsa. Sigue en el registro con su motivo (`introns.retired()`): retirar no es
+    borrar, y un intrón que desaparece sin dejar rastro deja al siguiente lector sin
+    saber si se resolvió o si nadie lo miró.
+    """
     return [
         fila(intron, andamio, guide=guide)
         for intron in INTRONS
+        if not INTRONS[intron].retired
         for andamio in SCAFFOLDS
     ]
 

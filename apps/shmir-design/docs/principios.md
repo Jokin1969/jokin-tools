@@ -1831,3 +1831,104 @@ salga** — y si no cae, no hay número que lo arregle.
 Se implementan las tres, porque cada una caza lo que la anterior deja pasar, y **la tercera
 es la que se escribe como test**: es la única que sigue valiendo el día que el modelo
 cambie de versión, de escala o de signo.
+
+## 38 — Un criterio derivado de la AUSENCIA de algo no distingue por qué falta
+
+Sale de la errata nº 102, y la formulación es de quien lo reportó: *«un criterio derivado
+de la ausencia de algo no distingue por qué falta, y ahí es donde se cuela»*.
+
+### El caso
+
+Había que separar en la pantalla el frente que **no se cierra en esta app** —el empalme del
+intrón, que se responde en el banco— de los que se cierran con un fichero. El criterio
+evidente estaba ya en los datos: `empalme_intron` declara `sin_fichero = true`, así que
+bastaba con leerlo.
+
+**Y `intron_sin_criptico` también lo declara, queriendo decir lo contrario**: ahí no hay
+fichero porque **la app lo diseña sola** —lo deriva de `mvm_actual`—. La misma clave, dos
+situaciones opuestas: una que ninguna descarga puede resolver y otra que ya está resuelta.
+Derivar de ahí habría sacado de la cuadrícula justo lo que la app hace por su cuenta.
+
+### Por qué pasa siempre
+
+Una ausencia es **un solo bit y muchas causas**. `sin_fichero` es cierto cuando no hay
+fichero, y no hay fichero cuando:
+
+- no existe ninguno que sirva (se responde en el banco);
+- existe y no lo tenemos (hay que conseguirlo);
+- **no hace falta**, porque se deriva de otra cosa que ya está.
+
+Las tres se resuelven con acciones distintas —una tanda de laboratorio, una descarga, y
+nada— y el criterio las une en un `true`. **Nada en el dato dice cuál de las tres es**, y
+por eso el que lo lee elige la que tiene en la cabeza, que es la que motivó escribirlo.
+
+Es la misma raíz que el `None` que significa a la vez «no se ha medido» y «no se puede
+comprobar», que el `NOT_RUN` que se leía como «falta un recurso» sobre un filtro que no
+tiene ninguno, y que el «Alu 0 %» obtenido sin buscar Alu: **la falta de un dato tiene
+tantas lecturas como razones puede tener, y el hueco es idéntico en todas.**
+
+### La regla
+
+**Lo que se quiere saber se DECLARA; no se deduce de que falte algo.** La clave nueva dice
+lo que se pregunta —`se_cierra_en = "la app"` / `"el banco"`— con **vocabulario cerrado** y
+**sin valor por defecto**, así que una ficha que se la salte aborta al cargarse en vez de
+entrar donde no toca (principio nº 32). Y ninguna ausencia hereda significado: `sin_fichero`
+sigue existiendo y sigue queriendo decir sólo lo que dice.
+
+### Cómo se reconoce antes de escribirlo
+
+La pregunta es: **¿de cuántas maneras puede ser cierta esta condición?** Si la respuesta es
+más de una y llevan a acciones distintas, el criterio no vale — por muy bien que separe los
+casos que hay hoy. `sin_fichero` separaba correctamente **los dos ejemplos que se miraron**;
+el tercero estaba en el mismo directorio.
+
+## 39 — «¿Es exclusivo de una?» y «¿cuánto se mueve entre hermanas?» no son la misma pregunta: la primera se cae con dos
+
+Sale de la corrida de SpliceAI del 2026-09-05 (errata nº 104), y la formulación es de quien
+lo señaló: *«"¿Es exclusivo de una?" y "¿cuánto se mueve entre hermanas?" parecen la misma
+pregunta y no lo son — la primera se cae con dos»*. Es un **hallazgo de método**: no falló
+ningún cálculo, falló la forma de la pregunta.
+
+### El caso
+
+`exclusive_rows` contesta: *¿qué guías introducen crípticos que las otras no?* Es una
+pregunta binaria sobre pertenencia a un conjunto, y el corte lo pone el umbral relativo con
+el que se listan los sitios. El **hallazgo de la corrida** —un aceptor dentro del módulo,
+en `construccion:3261`, que llega al 11 % del donante legítimo— aparece **listado en una de
+diez**, y sobre el dato crudo está por encima de 0,01 **en dos**.
+
+Con una sola hermana más pasando el umbral, `exclusive_rows` deja de devolverlo. **La
+respuesta cambia de "aquí está" a "no hay nada" por un caso**, y el sitio sigue siendo
+exactamente igual de dependiente de la guía. La pregunta no es robusta a su propio corte.
+
+### La versión continua de la misma idea
+
+«¿Cuánto se mueve entre hermanas?» pregunta por la **razón entre el máximo y el mínimo**
+del mismo sitio en construcciones que sólo se diferencian en la guía. No hay conjunto al
+que pertenecer, así que dos, tres o diez casos no la rompen: sólo cambian el valor.
+
+| | qué mide | qué la rompe |
+|---|---|---|
+| exclusividad | pertenencia a un conjunto definido por un umbral | **un segundo caso** |
+| razón entre hermanas | cuánto varía un mismo sitio con el módulo | nada: es un número continuo |
+
+### Y el criterio es una RAZÓN, no un corte absoluto
+
+`GUIDE_DEPENDENT_RATIO = 2` está **declarado como parámetro**, y lo que le da sentido es
+que la comparación es **interna**: cada sitio contra sí mismo en sus propias hermanas. Un
+sitio que **dobla** dice algo aunque los dos números sean pequeños; uno que no se mueve no
+dice nada aunque sea el más alto de la molécula — que es literalmente el caso del donante
+del contexto 5', el más fuerte de las veinte y con un 3 % de variación.
+
+Es la misma familia que el aceptor críptico juzgado **contra las nueve pirimidinas del
+legítimo del mismo intrón** en vez de contra un umbral traído de fuera: cuando el modelo no
+está calibrado para lo que se le da —y SpliceAI no lo está para un casete de AAV—, **lo
+único interpretable es la comparación con un referente interno**.
+
+### La regla
+
+Antes de escribir un criterio, **preguntar qué le pasa si el caso aparece dos veces**. Si
+la respuesta es que desaparece, lo que se ha escrito es una pregunta sobre el **conjunto**
+y no sobre el **fenómeno**, y hay que buscar su versión continua. Un criterio de
+exclusividad no es una versión estricta de uno gradual: es una pregunta distinta, y su modo
+de fallo es devolver **vacío** — que se lee como «no hay nada que mirar».

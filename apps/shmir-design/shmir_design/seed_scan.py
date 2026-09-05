@@ -208,13 +208,13 @@ def _strands(selection, species: str, starts, guides: bool, passengers: bool):
     from .blocks import build_block
     from .scaffold import SGEP_SCAFFOLD
 
-    por_inicio = {c.start: c for c in selection.selection.chosen}
+    # Panel MAS sitios elegibles, resuelto por el UNICO sitio que lo hace. Aqui se
+    # resolvia contra `chosen` y se abortaba, asi que este modal y el de off-targets
+    # —que usa estas mismas hebras— rechazaban el alcance grande que la propia app
+    # ofrece (errata nº 107). Un inicio que no sea de ninguna ventana elegible sigue
+    # abortando, y lo dice `choices_for`.
+    por_inicio = {c.start: c for c in selection.choices_for(starts)}
     for inicio in starts:
-        if inicio not in por_inicio:
-            raise ShmirDesignError(
-                f"3utr:{inicio} no está en el panel de esta corrida; se aborta en vez "
-                f"de comparar una guía que no existe aquí."
-            )
         ventana = selection.window_of(por_inicio[inicio])
         guia = ventana.evaluation.guide
         if guides:

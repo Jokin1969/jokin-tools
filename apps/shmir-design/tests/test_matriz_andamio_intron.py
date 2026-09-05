@@ -42,15 +42,28 @@ class TestElEspacioSeDERIVA(unittest.TestCase):
         from shmir_design.introns import INTRONS
         from shmir_design.scaffold_registry import SCAFFOLDS
 
+        vivos = [n for n, i in INTRONS.items() if not i.retired]
         filas = matriz(guide=_guia())
-        self.assertEqual(len(filas), len(INTRONS) * len(SCAFFOLDS))
+        self.assertEqual(len(filas), len(vivos) * len(SCAFFOLDS))
 
     def test_y_las_claves_salen_de_los_DOS_registros(self):
         from shmir_design.introns import INTRONS
         from shmir_design.scaffold_registry import SCAFFOLDS
 
+        vivos = [n for n, i in INTRONS.items() if not i.retired]
         pares = {(f["intron"], f["andamio"]) for f in matriz(guide=_guia())}
-        self.assertEqual(pares, {(i, a) for i in INTRONS for a in SCAFFOLDS})
+        self.assertEqual(pares, {(i, a) for i in vivos for a in SCAFFOLDS})
+
+    def test_un_intron_RETIRADO_no_da_filas_y_SIGUE_en_el_registro(self):
+        """Retirar no es borrar: sale de la matriz y se queda con su motivo."""
+        from shmir_design import introns as reg
+
+        retirados = {i.name for i in reg.retired()}
+        self.assertTrue(retirados)
+        en_matriz = {f["intron"] for f in matriz(guide=_guia())}
+        self.assertFalse(retirados & en_matriz)
+        for nombre in retirados:
+            self.assertIn(nombre, reg.INTRONS)
 
 
 class TestLosAndamiosSinSECUENCIA(unittest.TestCase):
@@ -164,11 +177,17 @@ class TestLaREDUNDANCIA(unittest.TestCase):
                 self.assertFalse(fila(nombre, "mir_e", guide=_guia())["redundante"])
 
     def test_la_redundancia_se_MARCA_y_la_fila_sigue_ahi(self):
-        """No se elimina ninguna combinación: la matriz tiene todas las filas."""
+        """Una combinación REDUNDANTE no se elimina: se marca y su fila sigue.
+
+        Es distinto de un intrón RETIRADO, que sí sale: una redundancia sigue siendo una
+        arquitectura construible —no sintetizarla lo decide quien diseña— y un retirado
+        ya no es una opción.
+        """
         from shmir_design.introns import INTRONS
         from shmir_design.scaffold_registry import SCAFFOLDS
 
-        self.assertEqual(len(matriz(guide=_guia())), len(INTRONS) * len(SCAFFOLDS))
+        vivos = [n for n, i in INTRONS.items() if not i.retired]
+        self.assertEqual(len(matriz(guide=_guia())), len(vivos) * len(SCAFFOLDS))
 
 
 class TestLoQueELanalisisNOpuedeHacer(unittest.TestCase):

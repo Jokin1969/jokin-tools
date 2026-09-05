@@ -1289,11 +1289,14 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
     # La ventana de cada candidato EN COORDENADAS DE 3'UTR, que es el marco de `target`.
     # Es lo unico que permite decir cual de los sitios de la propia diana es EL SUYO; sin
     # ella no se marca ninguno, porque deducirlo del orden seria un supuesto.
+    # DE LOS PEDIDOS, no del panel: con el alcance grande, un candidato de fuera se
+    # quedaba sin ventana y por tanto sin poder marcar CUAL de los sitios de la propia
+    # diana es el suyo — el autoconteo perderia justo su referencia (errata nº 107).
     ventanas = {
         c.start: (
             selection.window_of(c).inicio_3utr, selection.window_of(c).fin_3utr
         )
-        for c in selection.selection.chosen
+        for c in selection.choices_for(pedidos)
     }
     nulas: dict[str, Null] = {}
     resultados: list[LoadResult] = []

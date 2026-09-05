@@ -786,22 +786,14 @@ BLAST_MODAL_NOTE = (
 
 
 def _choices_de(selection, starts) -> list:
-    """Los `Choice` de esos inicios, del panel o de cualquier sitio elegible.
+    """DELEGA en `ReportSelection.choices_for`, que es quien tiene los dos conjuntos.
 
-    Un inicio que no corresponda a ninguna ventana elegible ABORTA: emitir una consulta
-    menos de las que la etiqueta anuncia es una corrida que dice cubrir lo que no cubre.
+    Esta funcion resolvia bien —panel MAS sitios elegibles— y vivia en la capa que el
+    nucleo no puede llamar, asi que `seed_scan`, `spliceai` y `blast_query` tenian cada
+    uno la suya contra el panel a secas. La definicion buena era inalcanzable justo para
+    quien la necesitaba (errata nº 107).
     """
-    por_inicio = {c.start: c for c in selection.selection.chosen}
-    for sitio in selection.selection.sites:
-        for choice in sitio.choices:
-            por_inicio.setdefault(choice.start, choice)
-    faltan = sorted(set(starts) - set(por_inicio))
-    if faltan:
-        raise ShmirDesignError(
-            f"No hay ninguna ventana elegible que empiece en {faltan}: se aborta en vez "
-            f"de emitir menos consultas de las que la etiqueta del alcance anuncia."
-        )
-    return [por_inicio[s] for s in sorted(starts)]
+    return selection.choices_for(starts)
 
 
 def blast_candidate_rows(selection, *, species: str,
@@ -861,14 +853,11 @@ def blast_query(selection, *, species: str, starts, guides: bool, passengers: bo
         raise ShmirDesignError(
             "No se ha marcado ningún candidato: no se genera un FASTA vacío. Se aborta."
         )
-    por_inicio = {c.start: c for c in selection.selection.chosen}
-    fuera = [s for s in pedidos if s not in por_inicio]
-    if fuera:
-        raise ShmirDesignError(
-            f"Estos sitios no están en el panel de esta corrida: "
-            f"{', '.join(str(s) for s in fuera)}. Se aborta en vez de consultar una "
-            f"guía que no existe aquí."
-        )
+    # RESUELVE CONTRA LOS ELEGIBLES, no contra el panel. Aqui habia un
+    # `{c.start: c for c in selection.selection.chosen}` y un aborto, asi que el alcance
+    # «todos los sitios elegibles» que ofrece el propio selector se rechazaba — dos
+    # definiciones en el mismo flujo y ganaba la restrictiva (errata nº 107).
+    por_inicio = {c.start: c for c in selection.choices_for(pedidos)}
     registros = []
     for inicio in pedidos:
         ventana = selection.window_of(por_inicio[inicio])

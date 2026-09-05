@@ -34,9 +34,24 @@
 !mirarchitect_prnp_export.csv
 !mirarchitect_prnp_export_buena.csv
 
-# El casete AAV NO entra: es material de laboratorio sin publicar, y la regla de que los
-# datos no se versionan existe tambien para eso. Queda registrado en el manifiesto con
-# su md5, que es lo que hace auditable el veredicto sin publicar la secuencia.
+# EL CASETE AAV SI ENTRA. DECIDIDO (2026-09-05), y REVIERTE lo que ponia aqui: «no
+# entra, es material de laboratorio sin publicar». El argumento que lo cambia es de
+# REPRODUCIBILIDAD y no de tamaño: son 5.282 nt, 5,3 kB, o sea el mismo orden que las
+# demas excepciones de este fichero. Y sin el dentro, una corrida de este proyecto NO SE
+# PUEDE REHACER clonando el repositorio: el contexto exonico de cada construccion sale de
+# aqui, asi que el md5 del manifiesto dice si el fichero cambio y no permite rehacer
+# nada.
+#
+# Lo decidio un caso real. El FASTA del 2026-09-05 traia construcciones de 5.384 nt y hoy
+# salen 5.496 — 112 nt de diferencia SOLO en el flanco 3', con contexto 5', donante y
+# aceptor coincidiendo exactos. O sea otra ENTRADA, no otro codigo. Y no hubo forma de
+# comprobarlo, porque el unico md5 del casete vivia en el deposito de UN VOLUMEN: no hay
+# historia que mirar de un fichero que no esta en git.
+#
+# La alternativa que se descarto era su md5 y su longitud EN CODIGO, como se hace con la
+# secuencia canonica de las referencias. No vale aqui: un md5 dice si algo cambio y no
+# deja rehacerlo. Lo que hace reproducible la corrida es el fichero.
+!aav_casete.fa
 
 # Las tres corridas de RepeatMasker, con el mismo criterio de tamaño: 317 B de `.out` y
 # 2 kB de `.tbl` no son una base de datos. Y dos de ellas son el FIXTURE NEGATIVO —la

@@ -3332,10 +3332,140 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     comprobar» sobre miR-E —donde el motivo está y está medido— sólo porque la variante
     de intrón todavía no se ha diseñado.
 
+- **EL QUIMÉRICO SE MONTA, Y LA CORRIDA PASA DE 10 A 20 PARES. HECHO (2026-09-05)**
+  (`Intron.insertion_point`, `Intron._insert_module`). La decisión ya estaba tomada
+  —posición 49 de la ventana 3-99, bloque de abajo— y **lo único que faltaba era
+  aplicarla**: `with_module` sólo sabía montar intrones que se ensamblan de dos piezas
+  (el módulo entre `MVM5` y `MVM3`), y un intrón que llega ENTERO no tiene mitades entre
+  las que meterlo. **Décima vez del patrón de `page_run`**: el criterio medido, escrito y
+  registrado, y sin la pieza que lo pone a producir.
+  - **La posición es propiedad del INTRÓN y vive en el registro** (`insertion_point=49`);
+    `intron_design.INSERTION_POSITION` **se deriva** de ahí en vez de repetir el 49
+    (principio nº 13). Los que se ensamblan de piezas declaran **0**: ahí no hay posición
+    que elegir, y un valor por defecto que pareciera una decisión sería peor que ninguno.
+  - **Aborta en tres casos y ninguno sobra**: sin `insertion_point` declarado —no se pega
+    en un sitio cualquiera—, con el corte fuera del intrón, y **si se piden
+    espaciadores**, porque la posición se midió sin ellos y meterlos correría el módulo
+    respecto de los cuatro elementos sobre los que se decidió.
+  - **MEDIDO sobre el montaje, no sobre el criterio**: 133 + 149 = **282 nt**, con el
+    intrón intacto a los dos lados, donante `GTAAGT` en 1-2 (consenso perfecto), aceptor
+    en 281-282, tracto de **11 pirimidinas** frente a las 9 del MVM y los candidatos a
+    punto de ramificación localizados. Los cuatro elementos siguen ahí **después** de
+    insertar, que es lo que la ventana admisible prometía y nadie había comprobado.
+  - **Con esto la corrida son 20 de 20** —10 candidatos × 2 intrones, cero fallidas— y el
+    FASTA sale COMPLETO con `panel=20de20`. Construcciones de **5.496 nt** (`mvm_actual`,
+    intrón 296) y **5.482** (`intron_quimerico`, intrón 282), las 20 con las posiciones
+    traducidas cayendo sobre `GT` y `AG` (principio nº 37). Y por primera vez hay **dos
+    arquitecturas de intrón con el mismo módulo dentro**, que es lo que permite comparar
+    de verdad: donante de consenso y once pirimidinas frente al MVM.
+  - **El caso PARCIAL de los tests se mueve, no se borra.** La maquinaria de reconciliación
+    de la errata nº 97 se escribió con este intrón cuando no se podía montar; ahora ese par
+    da 20 de 20 y no probaría nada. El parcial que queda es `mvm_sin_criptico` —se diseña
+    por candidato y aún no se monta como intrón de la corrida—, así que **se cambia el caso
+    y no el test**: lo que se prueba es el mecanismo, no el intrón.
+
+- **EL ALCANCE DE 86 NUNCA FUNCIONÓ, EN NINGÚN MODAL (2026-09-05)**, errata nº 107
+  (`ReportSelection.choices_for`). El selector ofrecía «Todos los sitios elegibles — 86
+  candidatos, 172 secuencias» y **aguas abajo los cuatro modales resolvían cada inicio
+  contra el panel de 10**: tres abortaban y el de empalme **emitía los 20 del panel sin
+  decir nada**, con la etiqueta anunciando 172. Dos definiciones de qué candidatos valen en
+  el mismo flujo, y ganaba la restrictiva.
+  - **NO es «otro consumidor sin cablear»**, y la distinción es de quien lo reportó: las
+    once anteriores eran capacidades que funcionaban y no llegaban a un sitio; **ésta no
+    funcionó nunca desde que se escribió**. Es una opción de la interfaz sin implementación
+    detrás — y lo que la hacía creíble es que **las cifras del selector eran correctas**.
+  - **La definición buena EXISTÍA y era inalcanzable**: `presentation._choices_de` resolvía
+    contra panel MÁS sitios elegibles, en la capa que el núcleo no puede importar. Así que
+    `seed_scan`, `spliceai` y `blast_query` escribieron cada uno la suya contra lo que tenían
+    a mano. Ahora resuelve **`ReportSelection.choices_for`**, que es el objeto que tiene los
+    dos conjuntos, y `presentation` delega.
+  - **El guardia mecánico está CALIBRADO MIDIENDO** (principio nº 34) y su criterio es de
+    significado: **recibir el alcance** es lo que hace peligroso resolverlo, y **un `dict`
+    inicio→candidato resuelve mientras un `set` de inicios sólo marca**. Los criterios
+    anchos daban un falso positivo cada uno, los dos sobre código correcto — y un guardia
+    con falsos positivos se acaba apagando.
+  - **El mensaje ya no culpa a la entrada**: decía «una guía que no existe aquí», que
+    sugiere que quien pregunta ha pedido algo raro. Ahora habla de **ventanas elegibles**,
+    que es el conjunto de verdad, y dice cuántas hay y cuántas están en el panel.
+  - **Comprobado con el criterio de aceptación que se pidió**: con 86 marcados, FASTA de
+    **172 registros**, seed **172 filas**, empalme **172 construcciones y 0 fallidas**.
+
+- **`mvm_sin_criptico` SALE DE LA MATRIZ. DECIDIDO (2026-09-05)**, y **lo que se registra
+  es por qué se creyó que hacía falta**, no que sobrara. Con las palabras con que se
+  decidió: *«se diseñó para eliminar el GTGAGCG, y ese sitio puntúa 0,0000 en las veinte
+  construcciones con las dos arquitecturas. Un intrón que arregla un problema que no
+  existe»*.
+  - **LA LECCIÓN**: *«el criterio de secuencia decía que GTGAGCG empataba con el donante
+    legítimo —score 5 contra 5 sobre `MAG|GTRAGT`— y un modelo entrenado sobre intrones
+    reales lo puntúa en cero. El consenso posicional SOBRESTIMA porque cuenta coincidencias
+    sin contexto»*. Es la errata nº 100 confirmada sobre el doble de datos y con una
+    arquitectura de intrón que entonces no existía. El criterio de secuencia **no se jubila**
+    —sigue enumerando candidatos a mirar sin nada instalado— pero **no puede afirmar que un
+    sitio es un donante**.
+  - **RETIRAR NO ES BORRAR** (`Intron.retired`, `introns.retired()`). Sigue en el registro
+    con su motivo, la misma disciplina que un frente CERRADO que no desaparece del informe:
+    quitarlo dejaría al siguiente lector sin saber si se resolvió o si nadie lo miró. Lo que
+    cambia es que deja de ser una arquitectura que montar — `buildable()` no lo devuelve y
+    `matriz()` no le da filas.
+  - **La decisión que lo diseñó se queda entera**: la regla del desempate
+    (`intron_design.TIEBREAK_MOTIF`), la base elegida y su motivo. **Está a un gBlock** si el
+    gel muestra que el MVM empalma mal — que con un donante que se mueve un 18 % entre guías
+    no es una hipótesis remota.
+  - **`buildable()` y `available()` son dos preguntas y por eso son dos funciones**:
+    «¿tenemos su secuencia?» y «¿lo montamos?». Un retirado sigue teniendo su secuencia, y
+    fundirlas lo devolvería a la matriz por la puerta de atrás.
+  - **Un motivo de retirada tiene que decir QUÉ SE MIDIÓ y QUÉ LO DEVOLVERÍA**, y hay test
+    de las dos cosas: un retirado sin condición de vuelta se lee como un borrado.
+
+- **LA CORRIDA DE VEINTE: EL HALLAZGO ES LA DISPERSIÓN, NO LA MEDIA (2026-09-05)**
+  (`data/medido/spliceai_dos_intrones_2026-09-05.tsv`). Primera corrida de SpliceAI con las
+  **dos arquitecturas** —los diez candidatos del panel con `mvm_actual` y con
+  `intron_quimerico`—, validada al entrar por md5 y por nombre uno a uno. Reproducido con
+  nuestro código, no transcrito:
+
+  | | donante legítimo | rango | **dispersión** | aceptor legítimo | rango | **dispersión** |
+  |---|---|---|---|---|---|---|
+  | `mvm_actual` | 0,873 | 0,783–0,925 | **18,1 %** | 0,831 | 0,778–0,858 | 10,3 % |
+  | `intron_quimerico` | 0,966 | 0,956–0,973 | **1,8 %** | 0,990 | 0,985–0,994 | 0,9 % |
+
+  - **LO QUE VALE NO ES QUE PUNTÚE MÁS ALTO, ES QUE NO SE MUEVE.** La media es una
+    comparación entre dos moléculas y no dice qué pasa al cambiar de guía; **la dispersión
+    sí**: la guía modula el empalme del MVM —un 18 % con el módulo a más de 100 nt— y **no
+    modula el del quimérico**. Para una matriz de diez guías eso **elimina una variable
+    entera**: con el quimérico, un gel que salga mal no puede achacarse a qué guía llevaba.
+  - **Crípticos por encima del 5 % del donante legítimo, y sólo los INTRÓNICOS son
+    accionables**: en `mvm_actual`, el aceptor de `construccion:3261` (11,9 % en 1 de 10,
+    `3utr:959`) y el donante de `construccion:3353` (6,1 % en 1 de 10). En el quimérico,
+    **ninguno**. Los siete del contexto 5' —el de `construccion:1517` entre ellos, que es el
+    más fuerte de la molécula— salen en las **veinte**: vienen con el plásmido, no los
+    introduce ninguna guía y cambiar de candidato no los quita.
+    - **EL DENOMINADOR NO ES COSMÉTICO**, y aquí se ve: contra el donante legítimo **de su
+      propia construcción** el aceptor da 11,9 %, y contra el legítimo **medio** da 10,7 %.
+      Manda el primero, y no por conservadurismo: el peor caso (`3utr:959`) es justo la
+      construcción con el donante legítimo **más bajo** de las diez (0,783), o sea que el
+      críptico compite dentro de esa molécula y no dentro de un promedio.
+  - **El `GTGAGCG` puntúa CERO en las veinte, con las dos arquitecturas** — localizado por
+    SECUENCIA en cada construcción, no por desfase: intrón +98 en el MVM y +87 en el
+    quimérico, una sola copia en cada una, porque viaja en el flanco 5' del andamio. **Y no
+    es literalmente cero**: el máximo es 9,9e-04 y el mínimo 3,5e-05, o sea tres órdenes por
+    debajo del donante legítimo. Se escribe así y no «0,0000» por la lección de la errata
+    nº 99 — allí un `2e-07` que se leyó como cero dejó sin morder al guardia del marco.
+  - **LAS DOS CORRIDAS NO SON COMPARABLES SITIO A SITIO**, y las dos se conservan: las
+    construcciones de `mvm_actual` de aquélla medían 5.384 nt y éstas 5.496 — los 112 nt del
+    flanco 3' que siguen **sin causa asignada**. Por eso el donante legítimo iba de 0,664 a
+    0,871 y ahora de 0,783 a 0,925.
+  - **EL CONTRAPESO QUE SpliceAI NO VE, y con la geometría corregida**: donante→punto de
+    ramificación **256 nt en el MVM y 249-253 en el quimérico**, los dos muy por encima del
+    rango típico de mamífero. **Este eje NO discrimina entre los dos** — se dio como
+    contrapeso que el quimérico estaba en 314-318, y eso salía de aplicarle lo que se
+    intercala en el MVM; ver la errata nº 106. Lo que sigue en pie es que los dos están
+    fuera de rango y que **eso lo decide el gel, no un modelo**.
+
 - **LOS PUNTOS DE INSERCIÓN DE `intron_quimerico` (2026-08-30)**
-  (`intron_design.insertion_candidates`). Ese intrón llega entero de su plásmido y no
-  declara dónde va el módulo, así que no se monta con ningún andamio — y **eso no es un
-  fichero que falte: es una decisión con criterio**, y el criterio es computable.
+  (`intron_design.insertion_candidates`). Ese intrón llegaba entero de su plásmido y no
+  declaraba dónde va el módulo, así que no se montaba con ningún andamio — y **eso no era
+  un fichero que faltara: era una decisión con criterio**, y el criterio es computable.
+  **Aplicada desde el 2026-09-05**, bloque de arriba.
   - **La ventana se DERIVA**: 3..99, 97 posiciones. Después del donante (1-2) y antes del
     **motivo** del primer candidato a punto, que empieza en 100 — el tope es el inicio del
     motivo, no la A de 103: invadirlo lo rompe.
@@ -4949,5 +5079,5 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | tabla de expresión | ponderar la carga de seed | `--expresion` |
 | **`hairpin.fa` de miRBase** (los PRECURSORES; el que hay es `mature.fa`, los maduros) | **los tres cálculos de miR-451**. El pre-miR-451 nativo es a la vez el andamio y la referencia contra la que se comparan los diez candidatos, y del maduro no se deriva: reconstruirlo es la regla 1. También localizaría el precursor de miR-155 dentro del hueco sin anotar de #78126 | se sube por el gestor |
 | export de **Addgene #20670** con el precursor de miR-30a anotado, o sus coordenadas | el andamio **miR-30 original**. Plegando la ventana de 71 nt centrada en el loop anotado **sí sale horquilla** (−34,70; 73 %; un bucle) frente al control de SGEP (−35,10; 82 %; un bucle): hay base para pedir la anotación, pero anotado no está | se sube por el gestor |
-| **DECISIÓN pendiente, no un fichero: `aav_casete.fa` NO SE VERSIONA** | Hoy el **único md5 del casete vive en el depósito de un volumen**, así que una corrida no se puede reproducir desde el repositorio — y eso ya costó una: el FASTA del 2026-09-05 traía construcciones de **5.384 nt** y hoy salen **5.496**, 112 nt de diferencia **sólo en el flanco 3'** (contexto 5', donante y aceptor coinciden exactos). O sea **otra entrada, no otro código** — y sin historia que mirar, porque el fichero no está en git. La decisión de no versionarlo es deliberada («material de laboratorio») y está anotada en el manifiesto; lo que falta es **decidir qué se pone en su lugar**: el fichero, o su md5 y su longitud **en código** —como ya se hace con la secuencia canónica de las referencias y por la misma razón: la constante no es editable y el manifiesto de trabajo sí—. Mientras tanto, la mitigación ya está: el FASTA que sale de la app declara `contexto_origen=casete:md5=…:5282nt` y `# BUILD: <sha>`, así que la próxima discrepancia se identifica en el propio fichero en vez de medirla | — |
+| ~~**DECISIÓN pendiente: `aav_casete.fa`**~~ — **DECIDIDA (2026-09-05): EL FICHERO VA EN GIT** | Ya no falta nada aquí. La decisión, con las palabras con que se tomó: *«que vaya el fichero, no su md5 en código. Es la única forma de que la corrida sea reproducible por alguien que clone el repositorio, y su tamaño lo permite — son 5.282 nt. Un md5 en código dice si cambió, pero no permite rehacer nada»*. **Revierte** la de dejarlo fuera por «material de laboratorio»: el criterio de este `.gitignore` es el TAMAÑO —«un RefSeq RNA completo no entra»— y 5,3 kB es el mismo orden que las otras siete excepciones. Lo que lo decidió es un caso real: el FASTA del 2026-09-05 traía construcciones de **5.384 nt** y hoy salen **5.496** —112 nt sólo en el flanco 3', con contexto 5', donante y aceptor exactos, o sea **otra entrada y no otro código**— y **no hubo historia que mirar**, porque el único md5 del casete vivía en el depósito de un volumen. La mitigación de aquel día sigue puesta y es complementaria: el FASTA declara `contexto_origen=casete:md5=…:5282nt` y `# BUILD: <sha>` | versionado |
 | **otro plásmido de miR-155** | el andamio **miR-155**. #78126 queda **DESCARTADO con motivo medido**: su único hueco sin anotar es un polilinker vacío — 15 dianas de restricción canónicas en 215 nt, densidad **105×** la del resto — y su mejor ventana de 71 nt se queda en −26,00 y 65 % | se sube por el gestor |

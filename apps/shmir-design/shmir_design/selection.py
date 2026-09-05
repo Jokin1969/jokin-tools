@@ -37,6 +37,7 @@ from types import MappingProxyType
 from .accessibility import CONTEXT_WINDOWS as _CTX
 from .anatomy import Anatomy, Region
 from .coords import Frame, frame_of, label
+from .errors import ShmirDesignError
 from .filters import FilterState, Verdict
 from .hard_filters import gc_fraction
 from .polya import CLEAVAGE_MAX, CLEAVAGE_MIN, PolyASignal, Tercio
@@ -627,6 +628,37 @@ class ReportSelection:
 
     def window_of(self, choice: Choice) -> TiledWindow:
         return self.windows[choice.label]
+
+    def choices_for(self, starts) -> list[Choice]:
+        """Los candidatos de esos inicios: del PANEL o de CUALQUIER sitio elegible.
+
+        **Es el unico sitio donde un inicio se resuelve a su candidato**, y vive aqui
+        porque este objeto es el que tiene los dos conjuntos. Habia dos definiciones en
+        el mismo flujo —el selector de alcance ofrecia los 86 elegibles y los cuatro
+        modales resolvian contra los 10 del panel— y ganaba la restrictiva:
+        tres abortaban y el de empalme emitia el panel EN SILENCIO mientras la etiqueta
+        anunciaba 172 consultas (errata nº 107).
+
+        El panel va primero a proposito: un inicio elegido esta ademas en su sitio, y el
+        `Choice` que manda es el que la seleccion escogio.
+
+        Un inicio que no corresponda a NINGUNA ventana elegible aborta, y el motivo habla
+        de ventanas elegibles y no del panel: el que pide no ha pedido nada raro.
+        """
+        por_inicio = {c.start: c for c in self.selection.chosen}
+        for sitio in self.selection.sites:
+            for choice in sitio.choices:
+                por_inicio.setdefault(choice.start, choice)
+        faltan = sorted(set(int(s) for s in starts) - set(por_inicio))
+        if faltan:
+            raise ShmirDesignError(
+                f"No hay ninguna ventana elegible que empiece en "
+                f"{', '.join(str(f) for f in faltan)}: se aborta en vez de emitir menos "
+                f"consultas de las que la etiqueta del alcance anuncia. El alcance de "
+                f"esta corrida son los {len(por_inicio)} sitios elegibles, de los que "
+                f"{len(self.selection.chosen)} están en el panel."
+            )
+        return [por_inicio[s] for s in sorted(int(s) for s in starts)]
 
     @property
     def provisional(self) -> bool:

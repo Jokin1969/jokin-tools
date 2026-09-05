@@ -44,17 +44,24 @@ from shmir_design.scaffold import SGEP_SCAFFOLD  # noqa: E402
 RATON = REFERENCES["NM_011170.3"]
 HAY = fixture_available(RATON)
 
-DOS = ("mvm_actual", "intron_quimerico")
+# EL CASO PARCIAL DE HOY ES OTRO (2026-09-05). Estos tests se escribieron con
+# `intron_quimerico`, que entonces llegaba entero y no declaraba dónde va el módulo.
+# Desde que lo declara (posición 49, decidida el 2026-08-30), ese par da **20 de 20** y
+# el caso deja de ser parcial — lo fija `test_el_quimerico_SE_MONTA.py`. Lo que estos
+# tests prueban es el MECANISMO de reconciliación, no ese intrón, así que se cambia el
+# caso: el parcial que QUEDA es `mvm_sin_criptico`, que se diseña por candidato y todavía
+# no se monta como intrón de la corrida.
+PARCIAL = ("mvm_actual", "mvm_sin_criptico")
 
 
-def _panel():
+def _panel(intrones=PARCIAL):
     tx = load_reference(RATON)
     anat = Anatomy.from_cds(
         cds=RATON.cds, length=len(tx), source=RegionSource.FIXTURE_VERIFICADO,
     )
     corrida = presentation.page_run(species="raton", sequence=tx, anatomy=anat)
     return spliceai.build_panel(
-        corrida.selection, intron_names=DOS, scaffold=SGEP_SCAFFOLD,
+        corrida.selection, intron_names=intrones, scaffold=SGEP_SCAFFOLD,
     )
 
 
@@ -65,7 +72,7 @@ class TestLaReconciliacion(unittest.TestCase):
     def setUpClass(cls):
         cls.panel = _panel()
         cls.resumen = presentation.splice_panel_summary(
-            cls.panel, introns=DOS, candidates=10,
+            cls.panel, introns=PARCIAL, candidates=10,
         )
 
     def test_el_nucleo_ya_devolvia_las_dos_mitades(self):
@@ -86,15 +93,15 @@ class TestLaReconciliacion(unittest.TestCase):
         # El fallo es del intrón: repetirlo por candidato es lo que lo hace ilegible.
         por_intron = {f["intron"]: f for f in self.resumen["por_intron"]}
         self.assertEqual(por_intron["mvm_actual"]["emitidas"], 10)
-        self.assertEqual(por_intron["intron_quimerico"]["emitidas"], 0)
+        self.assertEqual(por_intron["mvm_sin_criptico"]["emitidas"], 0)
         self.assertEqual(len(self.resumen["por_intron"]), 2)
 
     def test_y_el_motivo_sale_UNA_vez_con_su_intron(self):
-        quimerico = next(
-            f for f in self.resumen["por_intron"] if f["intron"] == "intron_quimerico"
+        variante = next(
+            f for f in self.resumen["por_intron"] if f["intron"] == "mvm_sin_criptico"
         )
-        self.assertIn("módulo", quimerico["motivo"])
-        self.assertEqual(quimerico["motivos_distintos"], 1)
+        self.assertIn("no está disponible", variante["motivo"])
+        self.assertEqual(variante["motivos_distintos"], 1)
 
     def test_es_PARCIAL(self):
         self.assertTrue(self.resumen["parcial"])
@@ -110,7 +117,7 @@ class TestElFicheroLoDiceEnSuNOMBRE(unittest.TestCase):
 
     def test_parcial_lo_lleva_en_el_nombre(self):
         nombre = presentation.splice_fasta_name(
-            self.panel, species="Mus musculus", introns=DOS, candidates=10,
+            self.panel, species="Mus musculus", introns=PARCIAL, candidates=10,
         )
         self.assertIn("PARCIAL", nombre)
         self.assertIn("10", nombre)
