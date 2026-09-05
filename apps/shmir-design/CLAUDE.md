@@ -4843,6 +4843,25 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   varios criterios, medir cada uno contando hallazgos **y fallos**, quedarse con el que
   discrimina, y escribir la formulación ganadora— es lo que se conserva.
 
+- **LO ANUNCIADO Y LO EMITIDO SE RECONCILIAN, Y EL FASTA PARCIAL LO DICE EN SU NOMBRE
+  (2026-09-05)**, errata nº 97. Con los dos intrones, el selector anunciaba **20 pares** y
+  el FASTA traía **10**, sin avisar.
+  - **El núcleo hacía lo correcto**: `build_panel` devuelve 10 construcciones y 10
+    fallidas con su motivo —`intron_quimerico` llega entero y no declara dónde va el
+    módulo—. El fallo estaba en lo que la página hacía con las dos mitades.
+  - **La cuenta MENTÍA**: `len(construcciones) // len(elegidos)` = `10 // 2` imprimía
+    «5 candidatos», y ese 5 no existió nunca — son 10 candidatos × 1 intrón montable.
+  - **Dos contadores del mismo suceso sin nada que los ate**: el del alcance (calculado
+    antes de montar) y el del resultado. Ahora los dos salen de `splice_panel_summary`.
+  - **El desglose va POR INTRÓN, no por par**: diez avisos idénticos son la razón de que
+    se lean como ruido en vez de como «falta media corrida».
+  - **Y el FASTA parcial lo dice en el NOMBRE** (`..._PARCIAL_10de20.fa`): es el fichero
+    el que viaja, y quien lo pasa por SpliceAI no tiene la pantalla delante.
+  - **NO se le asigna causa a por qué no vio ningún aviso**: con el código actual habría
+    visto diez y con el anterior a la errata nº 94 no habría obtenido FASTA, así que
+    ninguna versión produce exactamente lo descrito. Los cuatro defectos son ciertos y
+    están arreglados con independencia de eso.
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

@@ -4754,3 +4754,46 @@ app no elige: hace falta una decisión**». Cierto cuando se escribió y **falso
 decisión se registró**. Principio nº 11. Ahora dice lo que de verdad falta, que no es la
 decisión: es que la variante **se monte como intrón de esta corrida**, que es el paso
 siguiente y no está hecho — la corrida sigue en 20 pares, no en 30.
+
+---
+
+## 97 — La app anunció 20 pares, emitió 10, y no dijo que faltaba la mitad
+
+**Reportado (2026-09-05)**: con los dos intrones marcados y alcance «el panel — 10
+candidatos, **20 pares**», el FASTA trae **10 registros**. *«La propia app anunciaba 20
+pares y ha emitido 10, sin avisar de que faltaba la mitad.»* Y la pregunta correcta: *«que
+no aparezca ni montado ni fallido es peor que cualquiera de las dos cosas»*.
+
+**El núcleo hacía lo correcto, comprobado**: `build_panel` con los dos devuelve **10
+construcciones y 10 fallidas**, cada una con su motivo — `intron_quimerico` llega entero
+de su plásmido y **no declara dónde va el módulo**, que es una carencia conocida y
+declarada, no un fallo nuevo. Lo que estaba mal es lo que la página hacía con las dos
+mitades.
+
+### Cuatro defectos, y el peor es el que viaja
+
+1. **La cuenta MENTÍA.** `len(construcciones) // len(elegidos)` da `10 // 2 = 5`, así que
+   se imprimía «10 consulta(s) = **5 candidato(s)** × 2 intrón(es)». **Ese 5 no existió
+   nunca**: son 10 candidatos por 1 intrón que se pudo montar. Un número derivado que
+   mezcla lo pedido con lo obtenido y sale con la forma correcta.
+2. **Nada reconciliaba lo anunciado con lo emitido.** El selector de alcance dice 20 —de
+   `10 × 2`, calculado antes de montar nada— y el resultado dice 10. **Dos contadores del
+   mismo suceso sin nada que los ate**, que es un patrón que este proyecto ya tiene
+   escrito. Ahora los dos salen de `splice_panel_summary`, que es la única forma de que no
+   puedan discrepar.
+3. **Diez avisos idénticos.** El fallo es **del intrón**, no de cada candidato: repetir el
+   mismo motivo diez veces es exactamente lo que hace que se lea como ruido en vez de como
+   «falta media corrida». El desglose pasa a ser **por intrón**, una línea cada uno.
+4. **Y el FASTA no decía que fuera parcial.** Es el que **viaja**: quien lo descarga y lo
+   pasa por SpliceAI no tiene la pantalla delante. Media entrega con un nombre que no lo
+   dice parece completa. El estado va **en el nombre** —
+   `construcciones_mouse_PARCIAL_10de20.fa`— igual que en el informe.
+
+### Lo que NO se ha podido determinar, y por eso no se le asigna causa
+
+Por qué no vio ningún aviso. Con el código actual habría visto diez, y con el anterior a
+la errata nº 94 no habría obtenido FASTA ninguno —el montaje del quimérico abortaba la
+corrida entera—, así que **ninguna de las dos versiones produce exactamente lo descrito**.
+Puede ser que los diez avisos idénticos pasaran por ruido, que es justo lo que el defecto
+nº 3 produce. No se declara: los cuatro defectos de arriba son ciertos y están arreglados
+con independencia de eso.

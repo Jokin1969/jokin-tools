@@ -3958,6 +3958,77 @@ def splice_constructions(selection, *, intron_names, scaffold, starts=None,
     )
 
 
+def splice_panel_summary(panel, *, introns, candidates: int) -> dict[str, object]:
+    """Reconcilia lo ANUNCIADO con lo EMITIDO, y desglosa POR INTRÓN.
+
+    **Reportado (2026-09-05)**: el selector anuncia «10 candidatos, 20 pares», el FASTA
+    trae 10 registros, y la app no avisa de que falta la mitad. El núcleo ya devolvía las
+    dos mitades —`build_panel` da 10 construcciones y 10 fallidas con su motivo— y lo que
+    faltaba es esto: la línea que las pone una al lado de la otra.
+
+    Son **dos contadores del mismo suceso** —el del alcance y el del resultado— y hasta
+    ahora nada los ataba. Aquí se derivan los dos de lo mismo, que es la única forma de
+    que no puedan discrepar.
+
+    **El desglose va POR INTRÓN, no por par.** El fallo es del intrón —`intron_quimerico`
+    llega entero y no declara dónde va el módulo— así que repetir el mismo motivo diez
+    veces, una por candidato, es lo que hace que se lea como ruido en vez de como «falta
+    la mitad de la corrida».
+    """
+    anunciadas = int(candidates) * len(tuple(introns))
+    emitidas = len(panel.constructions)
+    por_intron = []
+    for nombre in introns:
+        hechas = [c for c in panel.constructions if c.intron == nombre]
+        fallos = [f for f in panel.failed if f.intron == nombre]
+        motivos = sorted({f.reason for f in fallos})
+        por_intron.append({
+            "intron": nombre,
+            "emitidas": len(hechas),
+            "fallidas": len(fallos),
+            "motivo": motivos[0] if motivos else "",
+            "motivos_distintos": len(motivos),
+        })
+    faltan = anunciadas - emitidas
+    texto = (
+        f"**{emitidas} de {anunciadas} consulta(s)** — {candidates} candidato(s) × "
+        f"{len(tuple(introns))} intrón(es)."
+    )
+    if faltan:
+        texto += (
+            f" **FALTAN {faltan}**, y no se emiten: el FASTA de abajo lleva sólo las "
+            f"{emitidas} que se pudieron montar."
+        )
+    return {
+        "anunciadas": anunciadas,
+        "emitidas": emitidas,
+        "faltan": faltan,
+        "parcial": bool(faltan),
+        "por_intron": por_intron,
+        "texto": texto,
+    }
+
+
+def splice_fasta_name(panel, *, species: str, introns, candidates: int) -> str:
+    """El nombre del FASTA, con el ESTADO dentro cuando es parcial.
+
+    **El fichero es el que viaja.** Quien lo descarga y lo pasa por SpliceAI no tiene la
+    pantalla delante, así que un FASTA con la mitad de las consultas y un nombre que no lo
+    dice es media entrega que parece completa. El estado va en el nombre, igual que en el
+    informe (`raton_informe_parcial.docx`).
+    """
+    from .species import resolve  # noqa: PLC0415
+
+    resumen = splice_panel_summary(panel, introns=introns, candidates=candidates)
+    slug = resolve(species).slug if species else "sin_especie"
+    if not resumen["parcial"]:
+        return f"construcciones_{slug}.fa"
+    return (
+        f"construcciones_{slug}_PARCIAL_"
+        f"{resumen['emitidas']}de{resumen['anunciadas']}.fa"
+    )
+
+
 def splice_context_note(constructions) -> str:
     """Que contexto se ha dado, y si es poco lo dice. La pagina no lo juzga."""
     from .spliceai import context_note

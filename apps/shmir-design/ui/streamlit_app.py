@@ -106,6 +106,8 @@ from shmir_design.presentation import (  # noqa: E402
     selected_starts,
     splice_construction_rows,
     splice_context_note,
+    splice_fasta_name,
+    splice_panel_summary,
     splice_constructions,
     SPLICE_CONTEXT_DEFAULT,
     SPLICE_CONTEXT_MAX,
@@ -2555,25 +2557,34 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         st.error(f"**PARA** — {exc}")
         return
     construcciones = panel.constructions
-    # LO QUE NO SE PUDO MONTAR SE DICE, y no impide lo demás: el error salía ANTES del
-    # FASTA, así que un candidato sin guía bloqueaba las veinte consultas (errata nº 94).
-    for fallo in panel.failed:
-        st.warning(
-            f"**Sin construcción** — 3utr:{fallo.candidate_start} × "
-            f"{fallo.intron}: {fallo.reason}"
-        )
-
-    st.caption(
-        f"**{len(construcciones)} consulta(s)** = {len(construcciones) // len(elegidos)} "
-        f"candidato(s) × {len(elegidos)} intrón(es)."
+    # LO ANUNCIADO Y LO EMITIDO SE RECONCILIAN, y el desglose va POR INTRÓN. Antes esto
+    # pintaba un aviso POR PAR —diez copias del mismo motivo, que se leen como ruido— y
+    # una cuenta que MENTÍA: `len(construcciones) // len(elegidos)` daba «5 candidatos»
+    # con 10 construcciones y 2 intrones, y ese 5 no existió nunca (errata nº 97).
+    resumen = splice_panel_summary(
+        panel, introns=elegidos, candidates=len(starts),
     )
+    (st.warning if resumen["parcial"] else st.caption)(resumen["texto"])
+    for fila in resumen["por_intron"]:
+        if fila["fallidas"]:
+            st.warning(
+                f"**{fila['intron']}** — 0 de {fila['emitidas'] + fila['fallidas']}: "
+                f"{fila['motivo']}"
+                + ("" if fila["motivos_distintos"] == 1
+                   else f" (y {fila['motivos_distintos'] - 1} motivo(s) más)")
+            )
     st.caption(splice_context_note(construcciones))
     st.dataframe(splice_construction_rows(construcciones), width="stretch")
 
     st.download_button(
         "Descargar el FASTA de construcciones",
         splice_query_text(construcciones),
-        f"construcciones_{nombre}.fa",
+        # EL ESTADO VA EN EL NOMBRE. El fichero es el que viaja: quien lo pasa por
+        # SpliceAI no tiene esta pantalla delante, y un FASTA con la mitad de las
+        # consultas y un nombre que no lo dice es media entrega que parece completa.
+        splice_fasta_name(
+            panel, species=nombre, introns=elegidos, candidates=len(starts),
+        ),
         "text/plain",
         key=f"sp_fasta_{nombre}",
     )
