@@ -348,6 +348,10 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-relform .qt-field { margin-bottom: 0; }
 .az-relform-hint { grid-column: 1 / -1; margin-top: 0; }
 .az-relform input:disabled { background: var(--bg); color: var(--muted); }
+/* Segunda línea del bloque, solo en el alta: Fecha de caducidad (izq.) + Si precisa (dcha.) */
+.az-relform2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; align-items: center; margin: 0 0 14px; }
+.az-relform2 .qt-field { margin-bottom: 0; }
+.az-relform2 .az-siprecisa-toggle { margin-bottom: 0; }
 .qt-check-row { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; }
 .qt-check-row input { accent-color: var(--brand); width: 17px; height: 17px; }
 .qt-tool-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
@@ -537,8 +541,6 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 /* Toggle de "Si precisa" al añadir un medicamento — resaltado para que se note. */
 .az-siprecisa-toggle { background: #f3ecfd; border: 1px solid #c9a8ec; border-radius: 10px; padding: 9px 12px; margin-bottom: 10px; }
 .az-siprecisa-toggle input { accent-color: #8b5cf6; width: 17px; height: 17px; }
-.az-cnform { margin-top: 14px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 12px; background: #fbfdff; }
-.az-cnform-h { font-weight: 700; color: var(--ink); font-size: 0.9rem; margin-bottom: 8px; }
 .az-cn-row { display: flex; gap: 8px; align-items: stretch; }
 .az-cn-row .qt-input { flex: 1 1 auto; }
 .az-cn-row .qt-btn { flex: 0 0 auto; white-space: nowrap; }

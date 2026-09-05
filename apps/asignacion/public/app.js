@@ -2047,14 +2047,16 @@ function effectiveIso(iso, adv) {
 // medication modals: the third field is never typed by hand, it's always
 // recalculated live as Fecha − Días (disabled input, styled like the other two).
 // A 4th field, independent of the trio, closes the block: Fecha de caducidad de
-// disponibilidad — a plain typed date (nothing calculates it).
+// disponibilidad — a plain typed date (nothing calculates it). Optional: omit
+// expId to render just the trio (the add-medication modal lays out the caducidad
+// field itself, next to «Si precisa», instead of full-width here).
 function releaseFieldsHtml(dateId, advId, effId, expId, dateVal, advVal, expVal) {
   return `<div class="az-relform">
     <div class="qt-field"><label>Fecha</label><input type="date" class="qt-input" id="${dateId}" value="${esc(dateVal || '')}"></div>
     <div class="qt-field"><label>Días</label><input type="number" class="qt-input" id="${advId}" min="0" max="365" step="1" value="${esc(String(advVal != null ? advVal : 15))}"></div>
     <div class="qt-field"><label>Fecha de disponibilidad</label><input type="date" class="qt-input" id="${effId}" disabled></div>
     <small class="az-field-hint az-relform-hint">La fecha de disponibilidad se calcula sola: Fecha menos Días (por defecto 15, los días que la farmacia puede adelantarse a la fecha oficial de Salud).</small>
-    <div class="qt-field"><label>Fecha de caducidad de disponibilidad</label><input type="date" class="qt-input" id="${expId}" value="${esc(expVal || '')}"></div>
+    ${expId ? `<div class="qt-field"><label>Fecha de caducidad de disponibilidad</label><input type="date" class="qt-input" id="${expId}" value="${esc(expVal || '')}"></div>` : ''}
   </div>`;
 }
 function wireReleaseFields(dateId, advId, effId) {
@@ -2180,36 +2182,62 @@ function openEditMed(med) {
 }
 
 // ── Medication picker (add a medication to the plan) ─────────────────────────────
+// Dos caminos, excluyentes, ninguno elegido al abrir (como en "Disponibilidad de
+// medicamentos"): «AEMPS» (CN escrito a mano, con dos ayudas de búsqueda en CIMA —
+// por CN o por nombre/principio activo) y «stock de Data Matrix» (catálogo ya
+// asociado a cajas). Cada camino lleva SUS PROPIOS Fecha/Días/Caducidad/Si precisa,
+// porque cada uno resuelve el alta de forma distinta:
+//  - AEMPS: rellenas el formulario (a mano o con las ayudas de CIMA) y pulsas el
+//    botón azul de abajo — los 5 campos van justo antes, porque es lo último que
+//    se rellena antes de pulsar.
+//  - Data Matrix: clicar una fila de la lista añade al momento (no hay botón que
+//    confirme después), así que los 5 campos van ANTES de la lista: hay que
+//    rellenarlos primero para que se apliquen al clic.
 function openMedPicker() {
   openTool(`<div class="qt-modal-h"><h3>Añadir medicamento al plan</h3><button class="qt-x" id="mp-close">×</button></div>
-    <p class="qt-tool-note">Del <b>catálogo</b> (ya en Data Matrix) o, si aún no lo está, <b>por Código Nacional</b> (información previa, sin caja todavía).</p>
-    <label class="az-shtoggle az-siprecisa-toggle" id="mp-siprecisa-row"><input type="checkbox" id="mp-siprecisa"> <b>🟣 Si precisa</b> <span class="az-form-hint" style="margin:0">medicación eventual, no diaria — se distingue del resto en el plan</span></label>
-    <div class="qt-field-hint" style="margin:0 0 4px">🗓 Opcional: cuándo lo libera Salud (vale para cualquiera de las dos formas de añadir, de abajo).</div>
-    ${releaseFieldsHtml('mp-date', 'mp-adv', 'mp-eff', 'mp-exp')}
-    <div class="qt-search" style="margin-bottom:10px"><span class="ico">🔎</span><input id="mp-q" placeholder="Buscar en el catálogo por nombre, GTIN o CN…" autocomplete="off"></div>
-    <div id="mp-list" class="az-medlist"></div>
-    <div class="qt-tool-row" style="margin:-2px 0 8px"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima-search">🔎 Buscar en CIMA (AEMPS)</button><span class="az-form-hint" style="margin:0">busca el medicamento en la base oficial y trae CN, nombre y código de barras</span></div>
-    <div class="az-cnform">
-      <div class="az-cnform-h">➕ Añadir por Código Nacional (aún sin Data Matrix)</div>
+    <div class="az-tabs"><button type="button" class="az-tab" data-tab="aemps">🔎 A través de la AEMPS</button><button type="button" class="az-tab" data-tab="dm">📦 A través del stock de Data Matrix</button></div>
+    <div id="mp-pane-aemps" class="az-tabpane" hidden>
       <div class="qt-field"><label>Código Nacional (CN)</label>
-        <div class="az-cn-row"><input class="qt-input" id="mp-cn" inputmode="numeric" placeholder="p. ej. 712345" autocomplete="off"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima" title="Traer nombre y código de barras desde CIMA (AEMPS)">🔎 CIMA</button></div></div>
-      <div class="qt-field"><label>Nombre del medicamento</label><input class="qt-input" id="mp-nombre" placeholder="Nombre comercial" autocomplete="off"></div>
+        <div class="az-cn-row"><input class="qt-input" id="mp-cn" inputmode="numeric" placeholder="p. ej. 712345" autocomplete="off"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima" title="Traer nombre y código de barras desde CIMA (AEMPS), a partir de este Código Nacional">🔎 CIMA</button></div></div>
+      <div class="qt-field"><label>Nombre del medicamento</label>
+        <div class="az-cn-row"><input class="qt-input" id="mp-nombre" placeholder="Nombre comercial o principio activo" autocomplete="off"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima-search" title="Buscar en CIMA (AEMPS) por nombre comercial o principio activo">🔎 Buscar</button></div></div>
+      <div id="mp-nombre-results"></div>
       <div class="qt-field"><label>Código de barras (opcional)</label><input class="qt-input" id="mp-barcode" inputmode="numeric" placeholder="EAN / código de barras" autocomplete="off"></div>
       <div class="qt-field"><label>Cajas al mes</label><input class="qt-input" id="mp-qty" type="number" min="1" max="99" value="1"></div>
       <div id="mp-fotos"></div>
+      ${releaseFieldsHtml('mp-date', 'mp-adv', 'mp-eff')}
+      <div class="az-relform2">
+        <div class="qt-field"><label>Fecha de caducidad de disponibilidad</label><input type="date" class="qt-input" id="mp-exp"></div>
+        <label class="az-shtoggle az-siprecisa-toggle" title="Medicación eventual, no diaria — se distingue del resto en el plan"><input type="checkbox" id="mp-siprecisa"> <b>🟣 Si precisa</b></label>
+      </div>
       <div class="qt-tool-row"><button class="qt-btn qt-btn-primary" id="mp-add-cn">➕ Añadir al plan</button></div>
       <div class="az-form-hint">Podrás asociarle una caja real más adelante (eligiéndola del inventario o escaneándola), y quedará pre-asignada.</div>
+    </div>
+    <div id="mp-pane-dm" class="az-tabpane" hidden>
+      ${releaseFieldsHtml('dm-date', 'dm-adv', 'dm-eff')}
+      <div class="az-relform2">
+        <div class="qt-field"><label>Fecha de caducidad de disponibilidad</label><input type="date" class="qt-input" id="dm-exp"></div>
+        <label class="az-shtoggle az-siprecisa-toggle" title="Medicación eventual, no diaria — se distingue del resto en el plan"><input type="checkbox" id="dm-siprecisa"> <b>🟣 Si precisa</b></label>
+      </div>
+      <div class="qt-search" style="margin-bottom:10px"><span class="ico">🔎</span><input id="mp-q" placeholder="Buscar en el catálogo por nombre, GTIN o CN…" autocomplete="off"></div>
+      <div id="mp-list" class="az-medlist"></div>
     </div>`);
   $('mp-close').onclick = closeTool;
   wireReleaseFields('mp-date', 'mp-adv', 'mp-eff');
+  wireReleaseFields('dm-date', 'dm-adv', 'dm-eff');
+  const panes = { aemps: $('mp-pane-aemps'), dm: $('mp-pane-dm') };
+  $('tool-modal-box').querySelectorAll('.az-tab').forEach(t => t.addEventListener('click', () => {
+    $('tool-modal-box').querySelectorAll('.az-tab').forEach(x => x.classList.toggle('sel', x === t));
+    Object.entries(panes).forEach(([k, el]) => el.hidden = k !== t.dataset.tab);
+  }));
   const q = $('mp-q');
   const load = async () => {
     try {
       const { items } = await api('/medications?q=' + encodeURIComponent(q.value || ''));
       const list = $('mp-list');
-      if (!items.length) { list.innerHTML = `<div class="az-noresult">No hay medicamentos en el catálogo que coincidan. Prueba <b>«🔎 Buscar en CIMA»</b> o <b>«Añadir por Código Nacional»</b> abajo.</div>`; return; }
+      if (!items.length) { list.innerHTML = `<div class="az-noresult">No hay medicamentos en el catálogo que coincidan. Prueba <b>«A través de la AEMPS»</b> arriba.</div>`; return; }
       list.innerHTML = items.slice(0, 40).map(m => `<button class="az-medrow" data-gtin="${esc(m.gtin)}"><span class="az-plan-shape">${shapeSvg(m.shape, m.color, 18)}</span><span class="az-medrow-name">${esc(m.nombre || 'Sin nombre')}<small>GTIN ${esc(m.gtin)}${m.cn ? ' · CN ' + esc(m.cn) : ''} · ${m.available} en stock</small></span><span class="az-medrow-add">➕</span></button>`).join('');
-      list.querySelectorAll('[data-gtin]').forEach(b => b.addEventListener('click', () => addMedToPlan({ gtin: b.dataset.gtin })));
+      list.querySelectorAll('[data-gtin]').forEach(b => b.addEventListener('click', () => addMedToPlan({ gtin: b.dataset.gtin }, 'dm')));
     } catch (e) { $('mp-list').innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; }
   };
   let t = null; q.addEventListener('input', () => { if (t) clearTimeout(t); t = setTimeout(load, 200); });
@@ -2227,26 +2255,29 @@ function openMedPicker() {
     if (!$('mp-cn').value.trim() && /^847000\d{7}$/.test(bar)) $('mp-cn').value = bar.slice(6, 12);
   });
   const cimaErr = (e) => (e.offline || (e.data && e.data.offline)) ? 'No se pudo consultar CIMA ahora; escribe los datos a mano.' : (e.message || 'Error al consultar CIMA.');
-  // Look up by the typed Código Nacional.
+  // Búsqueda por el Código Nacional escrito: solo hace caso a ESTE campo, aunque
+  // Nombre o Código de barras tengan algo escrito.
   $('mp-cima').onclick = async () => {
     const cn = $('mp-cn').value.trim();
-    if (!/^\d{5,7}$/.test(cn)) { toast('Escribe un Código Nacional (5–7 dígitos).', 'err'); return; }
+    if (!/^\d{5,7}$/.test(cn)) { toast('Escribe un Código Nacional válido (5–7 dígitos).', 'err'); return; }
     const btn = $('mp-cima'); btn.disabled = true; const prev = btn.textContent; btn.textContent = '…';
     try { const { item } = await api('/cima/cn/' + cn); if (!item) toast('CIMA no encontró ese Código Nacional.', 'err'); else { fillFromCima(item); toast('Datos traídos de CIMA (AEMPS).', 'ok'); } }
     catch (e) { toast(cimaErr(e), 'err'); }
     finally { btn.disabled = false; btn.textContent = prev; }
   };
-  // Search CIMA by name and let the user pick a presentation.
+  // Búsqueda por nombre comercial o principio activo: muestra un listado de CIMA
+  // para elegir. Clicar un resultado solo RELLENA el formulario de arriba (CN,
+  // nombre, código de barras, fotos) — hace falta pulsar «Añadir al plan» después,
+  // igual que con el resto de formas de rellenarlo (a mano o por CN).
   $('mp-cima-search').onclick = async () => {
-    if (t) clearTimeout(t);   // don't let the debounced catalog reload clobber the CIMA results
-    const text = (q.value || $('mp-nombre').value || '').trim();
-    if (text.length < 3) { toast('Escribe al menos 3 letras en el buscador de arriba.', 'err'); return; }
-    const list = $('mp-list'); list.innerHTML = '<div class="az-noresult">Buscando en CIMA…</div>';
+    const text = $('mp-nombre').value.trim();
+    if (text.length < 3) { toast('Escribe al menos 3 letras del nombre o principio activo.', 'err'); return; }
+    const list = $('mp-nombre-results'); list.innerHTML = '<div class="az-noresult">Buscando en CIMA…</div>';
     try {
       const { items } = await api('/cima/search?q=' + encodeURIComponent(text));
       if (!items.length) { list.innerHTML = '<div class="az-noresult">CIMA no devolvió resultados para esa búsqueda.</div>'; return; }
-      list.innerHTML = `<div class="az-form-hint" style="margin:2px 0 6px">Resultados de CIMA (AEMPS) — pulsa uno para rellenar el formulario de abajo:</div>` +
-        items.map((m, i) => `<button class="az-medrow" data-cima="${i}"><span class="az-plan-shape">💊</span><span class="az-medrow-name">${esc(m.nombre || 'Sin nombre')}<small>${m.cn ? 'CN ' + esc(m.cn) : 'sin CN'}${m.barcode ? ' · CB ' + esc(m.barcode) : ''}${m.labtitular ? ' · ' + esc(m.labtitular) : ''}</small></span><span class="az-medrow-add">⬇</span></button>`).join('');
+      list.innerHTML = `<div class="az-form-hint" style="margin:2px 0 6px">Resultados de CIMA (AEMPS) — pulsa uno para rellenar el formulario de arriba:</div>` +
+        `<div class="az-medlist">${items.map((m, i) => `<button class="az-medrow" data-cima="${i}"><span class="az-plan-shape">💊</span><span class="az-medrow-name">${esc(m.nombre || 'Sin nombre')}<small>${m.cn ? 'CN ' + esc(m.cn) : 'sin CN'}${m.barcode ? ' · CB ' + esc(m.barcode) : ''}${m.labtitular ? ' · ' + esc(m.labtitular) : ''}</small></span><span class="az-medrow-add">⬇</span></button>`).join('')}</div>`;
       list.querySelectorAll('[data-cima]').forEach(b => b.addEventListener('click', () => { fillFromCima(items[Number(b.dataset.cima)]); toast('Datos copiados de CIMA. Revisa y pulsa «Añadir al plan».', 'ok'); }));
     } catch (e) { list.innerHTML = `<div class="az-noresult">${esc(cimaErr(e))}</div>`; }
   };
@@ -2255,15 +2286,17 @@ function openMedPicker() {
     const qty = Number($('mp-qty').value) || 1;
     if (!cn) { toast('Indica el Código Nacional.', 'err'); return; }
     if (!nombre) { toast('Indica el nombre del medicamento.', 'err'); return; }
-    addMedToPlan({ cn, nombre, barcode: barcode || undefined, qty });
+    addMedToPlan({ cn, nombre, barcode: barcode || undefined, qty }, 'mp');
   };
   load();
 }
-async function addMedToPlan(payload) {
+// `prefix` selecciona de qué formulario leer Fecha/Días/Caducidad/Si precisa —
+// 'mp' (AEMPS) o 'dm' (stock de Data Matrix): cada camino tiene los suyos.
+async function addMedToPlan(payload, prefix) {
   try {
-    const siEl = $('mp-siprecisa');
+    const siEl = $(prefix + '-siprecisa');
     const si_precisa = !!(siEl && siEl.checked);
-    const dateEl = $('mp-date'), advEl = $('mp-adv'), expEl = $('mp-exp');
+    const dateEl = $(prefix + '-date'), advEl = $(prefix + '-adv'), expEl = $(prefix + '-exp');
     const date = dateEl ? dateEl.value : '';
     const adv = advEl ? Math.round(Number(advEl.value)) : 15;
     const exp = expEl ? expEl.value : '';
