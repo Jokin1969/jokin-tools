@@ -739,18 +739,18 @@ def _seccion_mapa(tiling, selection, conservation=None, *, species: str = "") ->
     """
     from .presentation import (  # noqa: PLC0415
         WHY_THE_MAP_IS_CHARACTERS,
-        _mapa_resumen,
-        map_svg,
         map_text,
+        wrap_for_map,
     )
     from .selection import tercio_coverage  # noqa: PLC0415
 
-    # La cobertura son FRASES, no una figura: van como lista y las parte el escritor
-    # de cada formato. En un bloque preformateado no se partirían y el PDF las cortaría
-    # por la mitad, que es el mismo fallo de alineación que el mapa evita.
+    # La cobertura va en el MISMO bloque preformateado que el mapa y con su sangría:
+    # el tramo y sus detalles son jerarquía, y una lista de puntos la aplana. Lo que sí
+    # hay que hacer es partirla al ancho del mapa (`wrap_for_map`), porque una frase que
+    # el PDF corta por la mitad es el mismo fallo de alineación que el mapa evita.
     cobertura: list[str] = []
     for tramo in tercio_coverage(tiling, selection):
-        cobertura.extend(l.strip() for l in tramo.describe())
+        cobertura.extend(tramo.describe())
     return Section(
         number=0,
         title="Mapa del 3'UTR",
@@ -769,11 +769,7 @@ def _seccion_mapa(tiling, selection, conservation=None, *, species: str = "") ->
                 "espaciado. Un tramo que se ve vacío en el mapa puede estarlo porque "
                 "no hay sitios elegibles o porque no caben: no es lo mismo."
             ),
-            bullets(tuple(cobertura)),
-            para(
-                "Y el conteo del dibujo de la página, que es lo que se compara entre "
-                "dos corridas: " + "; ".join(_mapa_resumen(map_svg(tiling, selection)))
-            ),
+            pre("\n".join(wrap_for_map(cobertura))),
         ),
     )
 

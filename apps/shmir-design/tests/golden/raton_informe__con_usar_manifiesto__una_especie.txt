@@ -67,6 +67,20 @@
       Es hacia donde se puede REBALANCEAR el panel si el APA resulta funcional. Un tramo con
       cero no admite rebalanceo: ahi no hay nada que no lleve techo.
 
+  proximal — 3utr:1-414, 414 nt: 28 sitios elegibles por inicio (28 por punto medio).
+    Panel: 4 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 4 por inicio. Cuota 1: cumplida.
+    Margen: 18 sitio(s) del tramo quedan a 50 nt o más de 3utr:200, y 12 lo cumplen con TODO el panel. El que manda es el segundo: añadir uno exige espaciado con todos.
+    El siguiente, por el mismo orden con que se eligió el panel (asimetría): 3utr:359-380 (asimetría +4.82); 3utr:329-350 (asimetría +4.39); 3utr:338-359 (asimetría +3.79).
+  medio — 3utr:415-828, 414 nt: 44 sitios elegibles por inicio (43 por punto medio).
+    Panel: 4 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 5 por inicio. Cuota 1: cumplida.
+    Margen: 29 sitio(s) del tramo quedan a 50 nt o más de 3utr:735, y 0 lo cumplen con TODO el panel. El que manda es el segundo: añadir uno exige espaciado con todos.
+    No queda ninguno: o no hay más sitios elegibles en el tramo o todos caen a menos de 50 nt de un candidato ya elegido.
+  distal — 3utr:829-1242, 414 nt: 16 sitios elegibles por inicio (17 por punto medio).
+    Panel: 2 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 1 por inicio. Cuota 1: cumplida.
+    OJO, borde: 3utr:819 cuenta(n) en este tercio por punto medio y empieza(n) en el anterior. Cubre(n) el primer nucleótido del tramo, no el tramo.
+    Margen: 13 sitio(s) del tramo quedan a 50 nt o más de 3utr:1018, y 9 lo cumplen con TODO el panel. El que manda es el segundo: añadir uno exige espaciado con todos.
+    El siguiente, por el mismo orden con que se eligió el panel (asimetría): 3utr:1071-1092 (asimetría +4.28); 3utr:1076-1097 (asimetría +4.20); 3utr:900-921 (asimetría +4.15).
+
 ── Especificidad ──
   NOT_RUN: no hay base de RefSeq RNA cargada. NOT_RUN no es PASS — un fallo de red, un timeout o una base ausente nunca se convierten en PASS.
   BLAST remoto de inspeccion (NUNCA fuente del veredicto), solo para los 10 supervivientes:

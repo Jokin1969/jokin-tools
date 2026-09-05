@@ -564,14 +564,53 @@ COMO CERRAR EL FRENTE «empalme_sitios»
 
 ## 4. Mapa del 3'UTR
 
-Resumen del mapa: cuántos elementos dibuja por tipo, y su leyenda. El dibujo entero se ve en la página; aquí va lo que se puede leer en monoespaciado y comparar entre dos corridas.
+Todo a la misma escala: los candidatos numerados por su puesto en el panel, las señales de poliadenilación con su banda de corte, los tercios y —cuando la hay— la conservación. El mapa del informe es de CARACTERES y no el SVG de la página: el PDF de este proyecto se escribe con las fuentes base-14 y no incrusta imágenes, así que un mapa dibujado saldría en un formato y no en los otros. En caracteres se dibuja una vez y sale igual en los tres — todo a la misma escala, y la misma escala en markdown, en `.docx` y en `.pdf`.
 
 ```
-  candidato: 10
-  senal: 10
-  mascara: 0
-  bloque: 0
-  leyenda: 3'UTR de 1242 nt (marco de lo tilado: 3utr) — ▲ señal poliA · ▬ repetición enmascarada · ▬ bloque conservado · ● candidato
+  nt      1         125       249       374       498       622       746       870       995       1119
+          |         |         |         |         |         |         |         |         |         |
+  tercios -------------proximal------------|--------------medio-------------|-------------distal--------------
+  conserv NOT_RUN: no se ha dado informe de conservación para esta especie.
+  polyA                      M   M                                                A   A     A           AA T
+  corte                       === ===                                              === ===    ==         =====
+  cand     1   2     3    4                   5       6       7      8     9               10
+
+  3'UTR de 1242 nt en 100 columnas — 12.4 nt por columna (marco de lo tilado: 3utr).
+  M = señal polyA con uso MEDIDO · A = señal polyA por canonicidad, sin dato de uso · T = terminal probable
+  · = banda de corte (10-30 nt aguas abajo del hexámero) · # = bloque conservado · ~ = repetición
+  enmascarada · dígito = candidato, por su puesto en el panel.
+  2 banda(s) de corte se salen del transcrito anotado: el corte de una terminal cae aguas abajo del final.
+  Van recortadas.
+  1=3utr:10  2=3utr:60  3=3utr:143  4=3utr:200  5=3utr:449  6=3utr:553  7=3utr:652  8=3utr:735  9=3utr:819
+  10=3utr:1018
+```
+
+Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, cuántos candidatos del panel caen ahí con cada una de las dos definiciones de tercio, y cuál sería el siguiente sin romper el espaciado. Un tramo que se ve vacío en el mapa puede estarlo porque no hay sitios elegibles o porque no caben: no es lo mismo.
+
+```
+  proximal — 3utr:1-414, 414 nt: 28 sitios elegibles por inicio (28 por punto medio).
+    Panel: 4 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 4 por inicio. Cuota 1:
+      cumplida.
+    Margen: 18 sitio(s) del tramo quedan a 50 nt o más de 3utr:200, y 12 lo cumplen con TODO el panel. El
+      que manda es el segundo: añadir uno exige espaciado con todos.
+    El siguiente, por el mismo orden con que se eligió el panel (asimetría): 3utr:359-380 (asimetría +4.82);
+      3utr:329-350 (asimetría +4.39); 3utr:338-359 (asimetría +3.79).
+  medio — 3utr:415-828, 414 nt: 42 sitios elegibles por inicio (41 por punto medio).
+    Panel: 4 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 5 por inicio. Cuota 1:
+      cumplida.
+    Margen: 27 sitio(s) del tramo quedan a 50 nt o más de 3utr:735, y 0 lo cumplen con TODO el panel. El que
+      manda es el segundo: añadir uno exige espaciado con todos.
+    No queda ninguno: o no hay más sitios elegibles en el tramo o todos caen a menos de 50 nt de un
+      candidato ya elegido.
+  distal — 3utr:829-1242, 414 nt: 16 sitios elegibles por inicio (17 por punto medio).
+    Panel: 2 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 1 por inicio. Cuota 1:
+      cumplida.
+    OJO, borde: 3utr:819 cuenta(n) en este tercio por punto medio y empieza(n) en el anterior. Cubre(n) el
+      primer nucleótido del tramo, no el tramo.
+    Margen: 13 sitio(s) del tramo quedan a 50 nt o más de 3utr:1018, y 9 lo cumplen con TODO el panel. El
+      que manda es el segundo: añadir uno exige espaciado con todos.
+    El siguiente, por el mismo orden con que se eligió el panel (asimetría): 3utr:1071-1092 (asimetría
+      +4.28); 3utr:1076-1097 (asimetría +4.20); 3utr:900-921 (asimetría +4.15).
 ```
 
 ## 5. Tabla de candidatos

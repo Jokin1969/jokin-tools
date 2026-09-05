@@ -783,7 +783,27 @@ def map_text(
                 actual = "  "
             actual += entrada + "  "
         lineas.append(actual.rstrip())
-    return "\n".join(lineas)
+    return "\n".join(l.rstrip() for l in lineas)
+
+
+def wrap_for_map(lines) -> list[str]:
+    """Parte líneas de prosa al ancho del mapa, RESPETANDO su sangría.
+
+    La cobertura por tercios va al lado del mapa y en el mismo bloque preformateado: su
+    sangría es jerarquía —el tramo y sus detalles— y un `bullets` la aplana, mientras
+    que dejarla sin partir hace que el PDF corte las frases por la mitad. Se parte por
+    el mismo sitio en los tres formatos, que es la misma garantía que da el mapa.
+    """
+    limite = MAP_TEXT_WIDTH + MAP_TEXT_GUTTER
+    salida: list[str] = []
+    for linea in lines:
+        sangria = " " * (len(linea) - len(linea.lstrip()))
+        trozos = textwrap.wrap(
+            linea.strip(), max(20, limite - len(sangria) - 2)
+        ) or [""]
+        salida.append(f"  {sangria}{trozos[0]}".rstrip())
+        salida.extend(f"    {sangria}{t}".rstrip() for t in trozos[1:])
+    return salida
 
 
 # ─── Descargas ───────────────────────────────────────────────────────────────

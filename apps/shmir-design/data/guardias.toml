@@ -404,7 +404,8 @@ implementa = ["montaje.parse_fragments_fasta"]
 protege = "Que lo que se compara con el plásmido montado sea lo que la app emitió y no una copia retocada por el camino. La cabecera de cada registro lleva el md5 de su secuencia y aquí se RECALCULA: si no cuadra, aborta antes de comparar nada."
 momento = "INGESTA"
 puede_degradar = false
-revalida = "No hace falta: el fichero se relee entero en cada comprobación de montaje y el md5 se recalcula cada vez. No hay un intervalo entre la comprobación y el uso en el que algo pueda cambiar."
+degrada_como = "No se degrada: el md5 se recalcula de la secuencia que se acaba de leer, y el fichero se relee entero en cada comprobación de montaje. No hay intervalo entre la comprobación y el uso."
+revalida = "Se revalida a sí mismo en cada comprobación de montaje."
 
 [[guardia]]
 guardia = "El `.dna` de SnapGene cumple lo que él mismo declara"
@@ -412,4 +413,5 @@ implementa = ["montaje.snapgene_sequence"]
 protege = "Que de un binario cuyo formato está DECLARADO y no verificado contra ningún fichero real de este repositorio no salga una secuencia plausible. Se comprueban la cabecera, que la longitud declarada de cada segmento quepa en el fichero y que lo leído sea ADN; cualquiera de las tres que falle ABORTA."
 momento = "INGESTA"
 puede_degradar = false
-revalida = "No hace falta: cada lectura vuelve a comprobar las tres cosas sobre los bytes que tiene delante. Lo que SÍ queda pendiente es la validación del formato con un `.dna` real —hoy sólo lo prueba un fixture sintético declarado—, y eso está escrito en `montaje.SNAPGENE_FORMAT_DECLARED`."
+degrada_como = "No se degrada: las tres comprobaciones corren sobre los bytes que tiene delante, en cada lectura. Lo que SÍ queda pendiente es otra cosa —validar el FORMATO con un `.dna` real, que hoy sólo prueba un fixture sintético declarado— y está escrito en `montaje.SNAPGENE_FORMAT_DECLARED`."
+revalida = "Se revalida a sí mismo en cada lectura."
