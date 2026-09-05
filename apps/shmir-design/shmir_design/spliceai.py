@@ -1214,6 +1214,130 @@ def donor_fraction(scan, pair) -> float:
     return pair.legit_donor / mayor if mayor > 0 else 0.0
 
 
+# ─────────────────────── el sitio que DEPENDE DE LA GUIA ───────────────────────
+
+GUIDE_DEPENDENT_NOTE = (
+    "UN SITIO QUE CAMBIA CON LA GUÍA ES EL HALLAZGO DE ESTE FRENTE, y no se lee por su "
+    "valor. Lo accionable de este modal nunca fue «hay un número alto» —no hay umbral "
+    "absoluto que aplicar— sino «esta construcción tiene un sitio que sus hermanas no "
+    "tienen, o lo tiene mucho más fuerte». El valor no es la alarma: la alarma es que "
+    "EXISTA un eje por el que el módulo modula el empalme, porque eso es lo que se puede "
+    "cambiar eligiendo otro candidato."
+)
+
+#: Cuantas veces tiene que variar un sitio entre hermanas para listarlo. Es una RAZON,
+#: no un corte absoluto: un sitio que dobla entre construcciones dice algo aunque los dos
+#: numeros sean pequeños, y uno que no se mueve no dice nada aunque sea el mas alto de la
+#: molecula. Va DECLARADO como parametro de este analisis, no citado.
+GUIDE_DEPENDENT_RATIO = 2.0
+
+#: Por debajo de esto no se mira: son las colas del modelo, que da numeros diminutos pero
+#: positivos en casi todas las posiciones —y ahi cualquier razon es ruido—. MEDIDO el
+#: 2026-09-05: el `GTGAGCG` y el resto del fondo se quedan en 1e-07/1e-06, tres ordenes
+#: por debajo.
+GUIDE_DEPENDENT_FLOOR = 1e-3
+
+
+@dataclass(frozen=True)
+class GuideDependentSite:
+    """Un sitio de empalme cuya puntuacion CAMBIA segun que guia lleve la construccion."""
+
+    position: int
+    kind: str
+    region: str
+    #: La puntuacion en CADA construccion del intron, por su nombre. Van las diez a
+    #: proposito: un maximo y un minimo no dejan ver si es una sola la que se sale.
+    #:
+    #: **`None` NO es cero**: es «no listado» — por debajo del umbral RELATIVO de la
+    #: corrida, ese sitio no entra en la lista de cripticos de esa construccion, asi que
+    #: lo unico que se sabe de el es que no llega al umbral. Poner un 0,0000 ahi seria
+    #: afirmar una medida que no se tiene, que es la misma regla por la que un numero
+    #: comparativo sin calcular va vacio y nunca a cero.
+    scores: dict[str, float | None]
+    #: La fraccion del donante legitimo de SU construccion, en el caso mas alto. Es la
+    #: unica lectura interpretable de este modelo (`RELATIVE_ONLY`).
+    top_fraction: float
+    intron: str
+
+    @property
+    def listed(self) -> tuple[str, ...]:
+        return tuple(n for n, v in self.scores.items() if v is not None)
+
+    @property
+    def maximum(self) -> float:
+        return max(v for v in self.scores.values() if v is not None)
+
+    @property
+    def minimum(self) -> float:
+        """El menor de los LISTADOS. Los no listados no tienen valor que comparar."""
+        return min(v for v in self.scores.values() if v is not None)
+
+    @property
+    def spread(self) -> float:
+        """Cuantas VECES varia entre hermanas.
+
+        Con alguna hermana **sin listar**, el suelo declarado hace de minimo: no se sabe
+        cuanto vale ahi, solo que no llega al umbral, asi que el recorrido es al menos
+        ese — y decir «infinito» seria inventarse el extremo que falta.
+        """
+        suelo = self.minimum if len(self.listed) == len(self.scores) else (
+            min(self.minimum, GUIDE_DEPENDENT_FLOOR)
+        )
+        return self.maximum / max(suelo, GUIDE_DEPENDENT_FLOOR)
+
+
+def guide_dependent_sites(scan) -> tuple[GuideDependentSite, ...]:
+    """Los sitios que VARIAN entre hermanas del mismo intron, de mas a menos.
+
+    **No es `exclusive_rows` con otro nombre.** Aquella pregunta si un criptico esta en
+    una construccion y en NINGUNA de sus hermanas; ésta pregunta cuanto se MUEVE, que es
+    la version continua de lo mismo y la que caza el caso real: el aceptor de
+    `construccion:3261` aparece en DOS de las diez, asi que no es exclusivo de ninguna y
+    es el unico sitio de la corrida que depende del modulo.
+
+    El donante legitimo se excluye —su modulacion tiene su propia tabla
+    (`donor_modulation`)— y tambien el aceptor legitimo: son el referente, no un hallazgo.
+    """
+    por_intron: dict[str, list] = {}
+    for par in scan.pairs:
+        por_intron.setdefault(par.intron, []).append(par)
+
+    encontrados: list[GuideDependentSite] = []
+    for intron, pares in por_intron.items():
+        if len(pares) < 2:
+            continue
+        claves: set[tuple[int, str]] = set()
+        for par in pares:
+            claves |= {(c.position, c.kind) for c in par.cryptics}
+        for posicion, tipo in claves:
+            puntuaciones: dict[str, float | None] = {}
+            region = ""
+            fraccion = 0.0
+            for par in pares:
+                encontrado = next(
+                    (c for c in par.cryptics
+                     if c.position == posicion and c.kind == tipo),
+                    None,
+                )
+                # `None` = NO LISTADO en esa construccion, que no es cero: ese sitio no
+                # llega al umbral relativo de la corrida y de el no se tiene medida.
+                puntuaciones[par.construction] = (
+                    encontrado.score if encontrado is not None else None
+                )
+                if encontrado is not None:
+                    region = encontrado.region
+                    fraccion = max(fraccion, encontrado.fraction)
+            sitio = GuideDependentSite(
+                position=posicion, kind=tipo, region=region,
+                scores=puntuaciones, top_fraction=fraccion, intron=intron,
+            )
+            if sitio.maximum < GUIDE_DEPENDENT_FLOOR:
+                continue
+            if sitio.spread >= GUIDE_DEPENDENT_RATIO:
+                encontrados.append(sitio)
+    return tuple(sorted(encontrados, key=lambda s: s.spread, reverse=True))
+
+
 def exclusive_rows(scan: SpliceScan) -> list[dict[str, object]]:
     """Que guias introducen cripticos que las OTRAS no. Es lo accionable.
 

@@ -5069,3 +5069,52 @@ La tarjeta calculaba su estado con `closed_by_panel` y el motivo y la ficha lleg
 salir **en verde** con el motivo y la ficha del frente **abierto** al lado, y las dos con
 pinta de dato. Ahora las trae la propia tarjeta —una sola fuente— y `_tarjetas_de_comprobacion`
 ya no recibe el tilado ni la selección, que era lo que pedía la segunda.
+
+## 104 — El hallazgo estaba en la corrida y salía como una nota
+
+**Reportado (2026-09-05)**: *«el aceptor de 3263 es el hallazgo de la corrida y hay que
+tratarlo como tal, no como una nota. Es el único sitio que depende de la guía en las diez
+construcciones — literalmente lo que ese frente existe para encontrar»*.
+
+No es una errata de cálculo: el número estaba bien y **estaba en el sitio equivocado de la
+jerarquía**. Un dato que contesta la pregunta del frente no puede salir con el mismo peso
+que el resto de la tabla.
+
+### Lo medido, y por qué el `GTGAGCG` no era esto
+
+Este modal existe por el donante críptico del andamio. Medido: puntúa **cero en las diez**
+(4e-08 a 3e-07). El que sí depende de la guía es otro, y no lo había buscado nadie:
+
+| sitio (nuestra convención) | región | máximo | del donante legítimo | listado en |
+|---|---|---|---|---|
+| **aceptor `construccion:3261`** | intrón, dentro del módulo | 0,0751 | **11 %** | 1 de 10 |
+| donante `construccion:3353` | intrón | 0,0459 | 7 % | 1 de 10 |
+| donante `construccion:1517` | contexto 5' | 0,766 | 112 % | 10 de 10 |
+
+El tercero es el más fuerte de la molécula y **no es un hallazgo**: viene con el plásmido,
+está en las diez y varía un 3 %. El primero es diez veces más débil y **es el hallazgo**,
+porque cambia con el módulo.
+
+### `exclusive_rows` no podía cazarlo
+
+Aquella pregunta si un críptico está en una construcción y en **ninguna** de sus hermanas.
+Este aparece en dos de diez sobre el dato crudo, así que no es exclusivo de nadie. La
+pregunta correcta no es «¿es exclusivo?» sino **«¿cuánto se mueve?»** — la versión continua
+de la misma idea. `guide_dependent_sites` la contesta, con un criterio que es una **razón
+entre hermanas** (2×, declarado) y no un corte absoluto: un sitio que dobla dice algo
+aunque los dos números sean pequeños, y uno que no se mueve no dice nada aunque sea el más
+alto de la molécula.
+
+### Y una celda vacía no es un cero
+
+Un sitio por debajo del umbral relativo **no entra** en la lista de crípticos de esa
+construcción, así que de ahí no hay medida. Poner `0,0000` afirmaría una que no se tiene:
+va `None`, y el texto dice «listado en 1 de 10; en las demás por debajo del umbral
+relativo, que NO es cero». Misma regla que un número comparativo sin calcular.
+
+### El efecto general, que tampoco se esperaba
+
+El **donante legítimo** —el mismo sitio en las diez— va de **0,664 a 0,871**: un **31 %**,
+con el módulo a más de 100 nt. Sale como columna (`donante_vs_hermanas`), con su tabla por
+intrón y ahora también destacado. El contraste es lo que le da sentido: el sitio del
+contexto se mueve un 3 %.

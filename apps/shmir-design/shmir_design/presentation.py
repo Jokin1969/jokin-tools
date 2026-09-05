@@ -4218,7 +4218,13 @@ def splice_highlights(scan):
         WHAT_IS_ACTIONABLE,
     )
 
+    from .spliceai import (  # noqa: PLC0415
+        GUIDE_DEPENDENT_NOTE, MODULATION_NOTE, donor_modulation, guide_dependent_sites,
+    )
+
     exclusivos = [f for f in splice_exclusive_rows(scan) if f["exclusivos"]]
+    variables = guide_dependent_sites(scan)
+    modulacion = donor_modulation(scan)
     return {
         "entrenamiento": {"texto": NOT_TRAINED_FOR_THIS, "activo": True},
         "sin_umbral": {"texto": NO_ABSOLUTE_THRESHOLD, "activo": True},
@@ -4233,7 +4239,85 @@ def splice_highlights(scan):
             ),
             "activo": bool(exclusivos),
         },
+        # EL HALLAZGO DE LA CORRIDA, y va DESTACADO aunque el número sea pequeño. Lo que
+        # se destaca no es el valor —no hay umbral absoluto que aplicar— sino que exista
+        # un eje por el que el módulo modula el empalme y esté MEDIDO.
+        "depende_de_la_guia": {
+            "texto": (
+                f"{GUIDE_DEPENDENT_NOTE} En esta corrida "
+                + _sitios_que_varian(variables)
+            ),
+            "activo": bool(variables),
+        },
+        # Y el efecto general, que no lo esperaba nadie: el sitio LEGÍTIMO, que es el
+        # mismo en todas, puntúa distinto según qué módulo lleve dentro.
+        "modulacion": {
+            "texto": f"{MODULATION_NOTE} {_modulacion_medida(modulacion)}",
+            "activo": bool(modulacion),
+        },
     }
+
+
+def _sitios_que_varian(sitios) -> str:
+    """La frase de los sitios que dependen de la guía, con LAS DIEZ detrás."""
+    if not sitios:
+        return (
+            "no hay ningún sitio que varíe con la guía por encima del criterio "
+            "declarado — y eso no es «no hay ninguno»: es que ninguno llega al criterio."
+        )
+    trozos = []
+    for sitio in sitios:
+        # LISTADO, no «presente»: en las demás está por debajo del umbral relativo, que
+        # no es lo mismo que valer cero — de ahí no hay medida.
+        trozos.append(
+            f"{sitio.kind} en construcción:{sitio.position} ({sitio.region}), hasta "
+            f"{_coma(sitio.maximum)} = {sitio.top_fraction:.0%} del donante legítimo — "
+            f"listado en {len(sitio.listed)} de {len(sitio.scores)}; en las demás por "
+            f"debajo del umbral relativo, que NO es cero"
+        )
+    return f"{len(sitios)} sitio(s): " + "; ".join(trozos) + "."
+
+
+def _modulacion_medida(modulacion) -> str:
+    trozos = [
+        f"{m.intron}: de {_coma(m.minimum)} ({m.lowest.split('__')[-1]}) a "
+        f"{_coma(m.maximum)} ({m.highest.split('__')[-1]}), un {m.spread:.0%}"
+        for m in modulacion
+    ]
+    return "MEDIDO — " + "; ".join(trozos) + "." if trozos else ""
+
+
+def _coma(valor: float) -> str:
+    """El castellano usa coma decimal, y estos números se leen en pantalla."""
+    return f"{valor:.4f}".replace(".", ",")
+
+
+def splice_guide_dependent_rows(scan):
+    """Una fila por sitio que varía con la guía, CON las diez puntuaciones.
+
+    Van las diez y no un máximo: sin ellas no se ve si es una sola construcción la que
+    se sale o si el sitio sube poco a poco — y eso cambia qué se hace con el dato.
+    """
+    from .spliceai import guide_dependent_sites  # noqa: PLC0415
+
+    return [
+        {
+            "posicion": s.position,
+            "tipo": s.kind,
+            "region": s.region,
+            "intron": s.intron,
+            "minimo": s.minimum,
+            "maximo": s.maximum,
+            "veces": s.spread,
+            "fraccion_del_legitimo": s.top_fraction,
+            # LISTADO, no presente: `None` es «por debajo del umbral relativo», no cero.
+            "listado_en": len(s.listed),
+            "por_construccion": {
+                f"3utr:{n.split('3utr')[-1]}": v for n, v in s.scores.items()
+            },
+        }
+        for s in guide_dependent_sites(scan)
+    ]
 
 
 def splice_variant_rows(scaffold, *, guide, available=None):

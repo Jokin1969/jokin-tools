@@ -1790,3 +1790,44 @@ nombrado**, no dentro y en silencio.
 de la cuadrícula y se le pone un encabezado que diga qué lo distingue. Quitarlo sería la
 otra forma de que nadie lo vea, y aquí lo que está en juego es el único frente binario del
 proyecto — el que ninguno de los otros detecta.
+
+## 37 — Para validar una traducción de coordenadas, el criterio que NO depende del valor traducido gana siempre
+
+Sale de la errata nº 99, y la formulación es de quien la reportó: *«cuando hay que validar
+una traducción de coordenadas, el criterio que no depende del valor traducido es siempre
+mejor que el que sí»*.
+
+### El caso, con sus dos criterios
+
+Había que comprobar que las posiciones de SpliceAI y las de la app hablan del mismo sitio.
+Dos formas de hacerlo:
+
+| criterio | de qué depende | qué pasó |
+|---|---|---|
+| «el donante legítimo no puede valer **cero**» | del **valor** en la posición traducida | **no mordió**: valía `2e-07`, que no es cero. Se normalizó un análisis de 107.680 filas contra un referente inexistente |
+| «la base declarada es el **máximo de su vecindario** (±3)» | de la **relación** entre valores vecinos | discrimina por **cuatro órdenes de magnitud** por un lado y **seis** por el otro, y no necesita ningún corte |
+| «traducida, la posición cae sobre **`GT`** / **`AG`**» | **de nada que el modelo diga** | cierra la pregunta aunque el modelo diera cero en todas |
+
+### Por qué el tercero es el bueno
+
+**Un umbral sobre el valor traducido comparte destino con la traducción**: si el marco está
+mal, el número que se mira también, y entonces el guardia está preguntándole al dato
+sospechoso si es de fiar. Cualquier corte que se ponga tiene que ser lo bastante alto para
+cazar el fallo y lo bastante bajo para no cazar un caso legítimo — y no hay forma de
+calibrarlo sin conocer de antemano lo que se está buscando.
+
+**Un criterio estructural no depende del modelo.** Un donante empieza por `GT` y un aceptor
+termina en `AG`: eso es la definición del sitio, no una predicción sobre él. Si la posición
+traducida cae ahí, el desplazamiento es el correcto **con independencia de qué puntuación
+salga** — y si no cae, no hay número que lo arregle.
+
+### La jerarquía, de peor a mejor
+
+1. **un umbral sobre el valor traducido** — comparte el fallo con lo que valida;
+2. **una comparación entre valores** (vecindario, referente interno) — sobrevive a que la
+   escala sea otra, pero sigue necesitando que el modelo diga algo;
+3. **una propiedad estructural de la secuencia** — no depende de ninguna puntuación.
+
+Se implementan las tres, porque cada una caza lo que la anterior deja pasar, y **la tercera
+es la que se escribe como test**: es la única que sigue valiendo el día que el modelo
+cambie de versión, de escala o de signo.

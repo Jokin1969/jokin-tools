@@ -114,6 +114,7 @@ from shmir_design.presentation import (  # noqa: E402
     splice_exclusive_rows,
     splice_executor_text,
     splice_folding_rows,
+    splice_guide_dependent_rows,
     splice_highlights,
     splice_intron_rows,
     splice_module_of,
@@ -2661,6 +2662,14 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         if bloque["activo"]:
             st.info(bloque["texto"])
     st.dataframe(splice_result_rows(scan), width="stretch")
+
+    # EL HALLAZGO VA CON LAS DIEZ DELANTE. Un máximo y un mínimo no dejan ver si es una
+    # sola construcción la que se sale, y eso cambia qué se hace con el dato. `None` en
+    # una celda es «por debajo del umbral relativo», que no es cero.
+    variables = splice_guide_dependent_rows(scan)
+    if variables:
+        st.subheader("Sitios que dependen de la guía")
+        st.dataframe(variables, width="stretch")
 
     st.markdown("**La guía modula el donante legítimo**")
     st.caption(splice_modulation_note())

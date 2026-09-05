@@ -2284,6 +2284,27 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     legitimo en dos— cae en el **contexto 5'**, 1.617 nt aguas arriba del intron, y varia
     un **3 %** entre hermanas. Sin esa columna, el sitio mas fuerte de la tabla se lee
     como si lo hubiera puesto el modulo.
+  - **EL HALLAZGO DE LA CORRIDA: UN SITIO QUE DEPENDE DE LA GUIA**
+    (`guide_dependent_sites`, destacado propio y tabla con LAS DIEZ). Es literalmente lo
+    que este frente existe para encontrar, y el `GTGAGCG` —el criptico que motivo el
+    modal— **no lo es**: puntua cero en las diez. El que si: un **aceptor en
+    `construccion:3261`**, dentro del modulo de 149 nt y sobre un `AG` real, que llega a
+    **0,075 = 11 % del donante legitimo** en `3utr:959` y no se lista en las demas. Y un
+    **donante en `construccion:3353`**, hasta 0,046 = 7 %.
+    - **EL VALOR NO ES LA ALARMA.** El peor caso se queda muy por debajo del 50 % que
+      dispara el aviso. Lo que vale es que **existe un eje por el que el modulo modula el
+      empalme y ahora esta medido**, asi que sale DESTACADO y no como una nota al pie.
+    - **No es `exclusive_rows` con otro nombre.** Aquella pregunta si un criptico esta en
+      una construccion y en NINGUNA de sus hermanas; ésta pregunta **cuanto se MUEVE**, y
+      es la que caza el caso: en el medido aparece en una de diez por el umbral relativo,
+      pero el dato crudo lo tiene por encima de 0,01 en dos.
+    - **El criterio es una RAZON, no un corte absoluto** (`GUIDE_DEPENDENT_RATIO = 2`,
+      declarado como parametro): un sitio que dobla entre hermanas dice algo aunque los
+      dos numeros sean pequeños, y uno que no se mueve no dice nada aunque sea el mas
+      alto de la molecula.
+    - **`None` en una celda NO es cero**: es «por debajo del umbral relativo», o sea que
+      de ahi no hay medida. La misma regla por la que un numero comparativo sin calcular
+      va vacio y nunca a cero.
   - **LA GUIA MODULA EL DONANTE LEGITIMO**, y sale como COLUMNA. El mismo sitio, el del
     intron, puntua **de 0,664 a 0,871** segun que modulo lleve dentro — un **31 %**, con
     el modulo a mas de 100 nt. Ninguna baja hasta preocupar, pero el efecto es medible.
@@ -4928,4 +4949,5 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | tabla de expresión | ponderar la carga de seed | `--expresion` |
 | **`hairpin.fa` de miRBase** (los PRECURSORES; el que hay es `mature.fa`, los maduros) | **los tres cálculos de miR-451**. El pre-miR-451 nativo es a la vez el andamio y la referencia contra la que se comparan los diez candidatos, y del maduro no se deriva: reconstruirlo es la regla 1. También localizaría el precursor de miR-155 dentro del hueco sin anotar de #78126 | se sube por el gestor |
 | export de **Addgene #20670** con el precursor de miR-30a anotado, o sus coordenadas | el andamio **miR-30 original**. Plegando la ventana de 71 nt centrada en el loop anotado **sí sale horquilla** (−34,70; 73 %; un bucle) frente al control de SGEP (−35,10; 82 %; un bucle): hay base para pedir la anotación, pero anotado no está | se sube por el gestor |
+| **DECISIÓN pendiente, no un fichero: `aav_casete.fa` NO SE VERSIONA** | Hoy el **único md5 del casete vive en el depósito de un volumen**, así que una corrida no se puede reproducir desde el repositorio — y eso ya costó una: el FASTA del 2026-09-05 traía construcciones de **5.384 nt** y hoy salen **5.496**, 112 nt de diferencia **sólo en el flanco 3'** (contexto 5', donante y aceptor coinciden exactos). O sea **otra entrada, no otro código** — y sin historia que mirar, porque el fichero no está en git. La decisión de no versionarlo es deliberada («material de laboratorio») y está anotada en el manifiesto; lo que falta es **decidir qué se pone en su lugar**: el fichero, o su md5 y su longitud **en código** —como ya se hace con la secuencia canónica de las referencias y por la misma razón: la constante no es editable y el manifiesto de trabajo sí—. Mientras tanto, la mitigación ya está: el FASTA que sale de la app declara `contexto_origen=casete:md5=…:5282nt` y `# BUILD: <sha>`, así que la próxima discrepancia se identifica en el propio fichero en vez de medirla | — |
 | **otro plásmido de miR-155** | el andamio **miR-155**. #78126 queda **DESCARTADO con motivo medido**: su único hueco sin anotar es un polilinker vacío — 15 dianas de restricción canónicas en 215 nt, densidad **105×** la del resto — y su mejor ventana de 71 nt se queda en −26,00 y 65 % | se sube por el gestor |
