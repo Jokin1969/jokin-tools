@@ -2244,7 +2244,56 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     invocacion, asi que `LocalCommand` la **recibe** y aborta sin ella — igual que
     `blast.RemoteApi` con su endpoint. Hay un test que lee el fuente y comprueba que no
     hay ni un `http`. Lo que si define este modulo es el **formato del resultado que
-    acepta**, que es nuestro.
+    acepta**, que es nuestro. Lo que SI hay desde el 2026-09-05 es la **procedencia de una
+    corrida real** (`VERIFIED_INVOCATION`, y `data/medido/PROCEDENCIA.md`): SpliceAI 1.3
+    en conda, llamado como **libreria desde Python** —no el ejecutable `spliceai`, que
+    anota variantes sobre un genoma con un VCF y no aplica—, cinco modelos promediados y
+    ventana de 10.000 con relleno de N hasta 5.000 por lado. **No es una orden ejecutable
+    y no se usa como tal**: el script vive en la maquina de quien lo corrio. Sirve para
+    comparar la siguiente corrida con esta, que es lo que faltaba.
+  - **DOS CONVENCIONES DE POSICION PARA EL MISMO SITIO** (errata nº 99). La app apunta a
+    la **G de GT** y a la **A de AG**; SpliceAI apunta a la **ultima base exonica**
+    (`donante − 1`) y a la **primera base exonica** (`aceptor + 2`). Medido: la app
+    declara `donante=3134` y el pico esta en 3133. Y el guardia que habia —«el donante
+    legitimo no puede valer cero»— **NO mordio**: en la posicion equivocada valia
+    `2e-07`, y se normalizo un analisis de 107.680 filas contra un referente inexistente.
+    Tres consecuencias, y las tres son mecanismo:
+      - **la cabecera del FASTA declara la CONVENCION, no solo la posicion**:
+        `donante=3134(G de GT)`, y ademas la misma posicion **ya traducida**
+        (`spliceai_donante=3133`). Quien escriba el siguiente puente no tiene que medirlo;
+      - **el resultado puede declarar la suya** con `# convencion: spliceai`, y se traduce
+        **en la frontera** (`parse_result`), de modo que dentro solo hay una convencion.
+        Una convencion desconocida no se adivina: aborta;
+      - **`check_frame` compara con el VECINDARIO, no con un umbral**: la base declarada
+        tiene que ser el maximo de su ±3. Calibrado midiendo (principio nº 34): con el
+        marco bueno la declarada vale 0,66-0,87 y ninguna vecina pasa de 1,1e-05. Emite
+        `PASS`/`FAIL`/`NOT_RUN` — y `NOT_RUN` cuando el fichero no trae vecinas, que **no
+        es lo mismo que cuadrar**.
+    La comprobacion mas fuerte no depende de ninguna puntuacion: **traducidas, las
+    posiciones caen sobre el dinucleotido** (`GT`/`AG`), y eso esta escrito como test.
+  - **EL CONSENSO POSICIONAL SOBRESTIMA** (errata nº 100). El criterio de secuencia daba
+    al `GTGAGCG` un empate 5-5 con el donante legitimo sobre `MAG|GTRAGT`; SpliceAI le da
+    **entre 4e-08 y 3e-07 en las diez**. Las dos herramientas discrepan de forma limpia y
+    la razon es que el consenso **cuenta coincidencias sin contexto**. No jubila el
+    criterio de secuencia —sigue enumerando candidatos a mirar sin nada instalado— pero
+    **no puede afirmar que un sitio es un donante**. Consecuencia de proyecto:
+    `mvm_sin_criptico` **baja de prioridad y se construye como CONTROL, no como arreglo**.
+  - **CADA SITIO DICE EN QUE REGION CAE** (`region_of`: `contexto5`/`intron`/`contexto3`).
+    No es adorno de la tabla: separa lo que introduce la guia de lo que viene con el
+    plasmido. Medido: el donante mas fuerte de las diez —0,744 a 0,766, mas alto que el
+    legitimo en dos— cae en el **contexto 5'**, 1.617 nt aguas arriba del intron, y varia
+    un **3 %** entre hermanas. Sin esa columna, el sitio mas fuerte de la tabla se lee
+    como si lo hubiera puesto el modulo.
+  - **LA GUIA MODULA EL DONANTE LEGITIMO**, y sale como COLUMNA. El mismo sitio, el del
+    intron, puntua **de 0,664 a 0,871** segun que modulo lleve dentro — un **31 %**, con
+    el modulo a mas de 100 nt. Ninguna baja hasta preocupar, pero el efecto es medible.
+    `donante_vs_hermanas` por par y `splice_modulation_rows` por intron. El contraste es
+    lo que le da sentido: el sitio del contexto se mueve un 3 %.
+  - **EL ESTADO DEL PANEL VIAJA DENTRO DEL FICHERO**, no solo en su nombre (errata nº 101,
+    principio nº 35): *«un nombre se pierde en el primer `mv`»*. Va en el bloque `#` de
+    cabecera **y en cada linea `>`**, que es la que ningun lector de FASTA tira. Y hay un
+    limite: **sin resumen no se declara ningun estado** — un fichero que no sabe de que
+    panel viene no puede decir «COMPLETO».
   - **Validacion al subir, POR md5 y por nombre**: cada construccion tiene que ser una de
     las que genero esta corrida y su md5 tiene que cuadrar. Un resultado de otra corrida
     NO entra aunque encaje de forma — es el fallo del CSV de miRarchitect. Un fichero con

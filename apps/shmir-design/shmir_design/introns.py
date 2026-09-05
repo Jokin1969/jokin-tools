@@ -1100,7 +1100,13 @@ INTRONS: dict[str, Intron] = {
             "desempate registrado (`intron_design.TIEBREAK_MOTIF`), que gana a igualdad "
             "de lo medido por conservar la composición AT del flanco nativo. Lo que "
             "sigue faltando NO es la decisión: es que la variante se monte como intrón "
-            "de esta corrida."
+            "de esta corrida. Y baja de PRIORIDAD, medido el 2026-09-05: se diseñó para "
+            "romper un GTGAGCG que SpliceAI puntúa a CERO en las diez construcciones "
+            "—de 4e-08 a 3e-07, seis órdenes por debajo del donante legítimo—, así que "
+            "el riesgo que venía a quitar no se ha podido medir en ninguna. SE CONSTRUYE "
+            "COMO CONTROL, NO COMO ARREGLO: sigue valiendo para demostrar que romper el "
+            "motivo no rompe el splicing, y deja de ser la respuesta a un peligro. Ver "
+            "la errata nº 100."
         ),
         ficha="intron_sin_criptico",
     ),

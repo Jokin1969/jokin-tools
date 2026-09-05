@@ -67,3 +67,21 @@ donde_se_declara = "el bloque de inmunes de CLAUDE.md, con la cuenta de sitios e
 que_decide = "si el texto lista un punto de ramificación o varios."
 supuesto = "ninguno sobre los datos: formato. El criterio de verdad —que varios candidatos NO se desempatan por nuestra cuenta— vive en `introns.py`."
 donde_se_declara = "`introns` y el bloque del cuarto modal en CLAUDE.md."
+
+# ─────────── UNA CEGUERA DE ESTE DETECTOR, MEDIDA (errata nº 99) ───────────
+#
+# El detector sólo mira umbrales DENTRO de algo que emite veredicto. El que más caro ha
+# salido en este proyecto no estaba ahí: `spliceai.scan_from_result` aborta si el donante
+# legítimo `<= 0`, y eso es una ruta de INGESTA, no un veredicto. Se intentó declararlo
+# aquí y el propio auditor lo marcó como DECLARACIÓN CADUCADA —«ya no existe»—, que es la
+# respuesta correcta: una entrada sin nada que la ancle al código se pudre igual que la
+# prosa.
+#
+# El caso, entero, está en la errata nº 99. En resumen: el umbral suponía —sin
+# declararlo— que un donante mal identificado puntuaría CERO, y medido valía `2e-07`, así
+# que no mordió y se normalizó un análisis de 107.680 filas contra un referente
+# inexistente. Lo que protege ese caso hoy NO es un umbral: es `spliceai.require_frame`,
+# que compara la base declarada con su vecindario, y está declarado en `guardias.toml`.
+#
+# Lo que esto deja escrito: **un umbral en una ruta de ingesta no lo ve nadie**. Si algún
+# día se amplía el detector, éste es el ejemplo con el que calibrarlo.

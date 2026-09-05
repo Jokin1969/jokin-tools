@@ -385,3 +385,15 @@ revalida = "Cada corrida."
 
 [sin_camino]
 "mirarchitect.Export.check_scaffold" = "Compara el LOOP del fichero contra el del andamio, que es como este proyecto dice que se decide el andamio. Necesita un EXPORT COMPLETO de miRarchitect, y el unico camino que existe —`tools/import_scores.py`— recibe un TSV de dos columnas `guia<TAB>score`, donde no hay loop. QUE HARIA FALTA: que ese CLI acepte tambien el CSV entero. Es una decision de interfaz, no un cableado, y por eso no se toma de paso. MIENTRAS TANTO el veredicto dice que el andamio se comprobo por ETIQUETA (`external_score.SCAFFOLD_BY_LABEL`)."
+
+# ─────────────── El MARCO de las posiciones de un resultado externo ───────────────
+
+[[guardia]]
+guardia = "La base declarada tiene que ser el MÁXIMO de su vecindario (±3)"
+implementa = ["spliceai.require_frame"]
+protege = "Que el resultado de SpliceAI y la app hablen del MISMO sitio. La app apunta a la G de GT y a la A de AG; SpliceAI a la última base exónica y a la primera base exónica. Sin esto, las puntuaciones se leen en la posición equivocada y todo lo que sale de ahí es aritmética correcta sobre el dato equivocado."
+momento = "INGESTA"
+como_actua = "ABORTA"
+puede_degradar = false
+degrada_como = "—. Lo comprobado es el propio fichero que se está leyendo, y no cambia entre la comprobación y el uso: `require_frame` corre dentro del mismo bucle que después lee las puntuaciones."
+revalida = "No hace falta: corre POR CONSTRUCCIÓN en cada `scan_from_result`, sobre el mismo fichero que se va a leer. No hay ventana entre la comprobación y el uso."

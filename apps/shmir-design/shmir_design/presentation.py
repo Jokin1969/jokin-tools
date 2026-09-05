@@ -4056,10 +4056,25 @@ def splice_construction_rows(constructions):
     ]
 
 
-def splice_query_text(constructions):
+def splice_query_text(panel, *, introns=None, candidates=None):
+    """El FASTA que se descarga, CON el estado del panel dentro del fichero.
+
+    **Un nombre se pierde en el primer `mv`.** El estado iba sólo en el nombre
+    (`construcciones_raton_PARCIAL_10de20.fa`) y eso dura hasta que alguien lo renombra.
+    Aquí va también en el bloque de comentario y en CADA cabecera `>`, que es lo que
+    ningún lector de FASTA tira.
+
+    Acepta un panel o una lista de construcciones: sin panel no hay estado que declarar,
+    y entonces **no se declara ninguno** — un fichero que no sabe de qué corrida viene no
+    puede decir «COMPLETO».
+    """
     from .spliceai import constructions_fasta
 
-    return constructions_fasta(constructions)
+    construcciones = getattr(panel, "constructions", panel)
+    resumen = None
+    if hasattr(panel, "constructions") and introns is not None and candidates is not None:
+        resumen = splice_panel_summary(panel, introns=introns, candidates=candidates)
+    return constructions_fasta(construcciones, summary=resumen)
 
 
 def splice_executor_text():
@@ -4078,7 +4093,7 @@ def splice_scan_from_result(raw, *, constructions):
 
 def splice_result_rows(scan):
     """Una fila por par, YA comparada contra su propio referente interno."""
-    from .spliceai import RELATIVE_THRESHOLD
+    from .spliceai import RELATIVE_THRESHOLD, donor_fraction
 
     filas = []
     for par in scan.pairs:
@@ -4092,6 +4107,10 @@ def splice_result_rows(scan):
             "mejor_criptico_pos": mejor.position if mejor else None,
             "mejor_criptico_tipo": mejor.kind if mejor else "",
             "mejor_criptico_fraccion": mejor.fraction if mejor else None,
+            # LA REGIÓN SEPARA lo que introduce la guía de lo que viene con el plásmido:
+            # un críptico en `contexto5` está en las diez y cambiar de candidato no lo
+            # quita. Medido: el más fuerte de las diez cae ahí (construcción:1516).
+            "mejor_criptico_region": mejor.region if mejor else "",
             "gtgagcg_fraccion": (
                 par.known_cryptic.fraction if par.known_cryptic else None
             ),
@@ -4101,8 +4120,39 @@ def splice_result_rows(scan):
             # es lo que el propio criterio dice que hay que mirar.
             "avisa": bool(mejor and mejor.fraction >= 0.5),
             "umbral_relativo": RELATIVE_THRESHOLD,
+            # LA GUÍA MODULA EL DONANTE LEGÍTIMO: el mismo sitio puntúa distinto según
+            # qué módulo lleve dentro. Medido: 0,664 a 0,871 entre las diez, un 31 %.
+            "donante_vs_hermanas": donor_fraction(scan, par),
+            # El marco del resultado frente al de la app. Sale a la vista aunque sea
+            # PASS: un guardia que sólo se ve cuando falla no se sabe si corrió.
+            "marco": par.frame_check.state.value,
+            "marco_motivo": par.frame_check.reason,
         })
     return filas
+
+
+def splice_modulation_rows(scan):
+    """Cuánto mueve la guía al donante legítimo, POR INTRÓN. Es un dato, no un veredicto."""
+    from .spliceai import donor_modulation
+
+    return [
+        {
+            "intron": m.intron,
+            "pares": m.pairs,
+            "minimo": m.minimum,
+            "maximo": m.maximum,
+            "recorrido": m.spread,
+            "mas_bajo": m.lowest,
+            "mas_alto": m.highest,
+        }
+        for m in donor_modulation(scan)
+    ]
+
+
+def splice_modulation_note():
+    from .spliceai import MODULATION_NOTE
+
+    return MODULATION_NOTE
 
 
 def splice_exclusive_rows(scan):

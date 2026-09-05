@@ -117,6 +117,8 @@ from shmir_design.presentation import (  # noqa: E402
     splice_highlights,
     splice_intron_rows,
     splice_module_of,
+    splice_modulation_note,
+    splice_modulation_rows,
     splice_query_text,
     splice_result_rows,
     splice_scan_from_result,
@@ -2578,7 +2580,9 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
 
     st.download_button(
         "Descargar el FASTA de construcciones",
-        splice_query_text(construcciones),
+        # EL ESTADO Y LA CONVENCIÓN VAN DENTRO DEL FICHERO, no sólo en su nombre: un
+        # nombre se pierde en el primer `mv` y el FASTA viaja solo.
+        splice_query_text(panel, introns=elegidos, candidates=len(starts)),
         # EL ESTADO VA EN EL NOMBRE. El fichero es el que viaja: quien lo pasa por
         # SpliceAI no tiene esta pantalla delante, y un FASTA con la mitad de las
         # consultas y un nombre que no lo dice es media entrega que parece completa.
@@ -2629,6 +2633,10 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         if bloque["activo"]:
             st.info(bloque["texto"])
     st.dataframe(splice_result_rows(scan), width="stretch")
+
+    st.markdown("**La guía modula el donante legítimo**")
+    st.caption(splice_modulation_note())
+    st.dataframe(splice_modulation_rows(scan), width="stretch")
 
     st.subheader("Qué guías introducen crípticos que las otras no")
     st.dataframe(splice_exclusive_rows(scan), width="stretch")

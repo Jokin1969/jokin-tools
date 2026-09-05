@@ -4797,3 +4797,181 @@ corrida entera—, así que **ninguna de las dos versiones produce exactamente l
 Puede ser que los diez avisos idénticos pasaran por ruido, que es justo lo que el defecto
 nº 3 produce. No se declara: los cuatro defectos de arriba son ciertos y están arreglados
 con independencia de eso.
+
+## 98 — `10 // 2 = 5`: un número derivado que mezcla lo PEDIDO con lo OBTENIDO
+
+Es el defecto nº 1 de la errata nº 97, y se saca aparte porque **la lectura vale más que
+el arreglo**: *«ese 5 no existió nunca: son 10 candidatos × 1 intrón montable. Un número
+derivado que mezcla lo pedido con lo obtenido y sale con la forma correcta es la familia
+del 405 — dos magnitudes distintas cuya composición da algo plausible.»*
+
+### La cuenta
+
+```python
+f"{len(construcciones)} consulta(s) = {len(construcciones) // len(elegidos)} "
+f"candidato(s) × {len(elegidos)} intrón(es)"
+```
+
+Con 10 construcciones y 2 intrones marcados: `10 // 2 = 5`, y la página imprimía **«5
+candidatos × 2 intrones»**. Ninguna de las dos cifras describe nada real:
+
+| lo que dice la línea | de dónde sale | qué es de verdad |
+|---|---|---|
+| 5 candidatos | `len(construcciones) // len(elegidos)` | **10** candidatos, y los diez estaban elegidos |
+| 2 intrones | `len(elegidos)` — lo **pedido** | **1** intrón montable; el otro dio 0 de 10 |
+
+`len(construcciones)` es lo **obtenido**; `len(elegidos)` es lo **pedido**. El cociente no
+es ninguna de las dos cosas, y **el producto vuelve a cuadrar** —5 × 2 = 10— así que la
+línea es internamente consistente y por eso no chirría.
+
+### Por qué es la familia del 405
+
+El 405 de este proyecto era el mismo mecanismo: dos magnitudes distintas cuya composición
+da un número plausible. Aquí la composición es exacta y eso lo empeora — un número que
+**no cuadra** se mira; uno que cuadra por construcción, no. La firma de la familia:
+
+- **hay dos magnitudes**, una de la petición y otra del resultado;
+- **se combinan con una operación que las hace conmensurables** —una división, una suma—
+  cuando no lo son;
+- **el resultado tiene la forma esperada** (un entero pequeño, un porcentaje, un total);
+- **y nada compara la salida con ninguna de las dos entradas**, así que el error no tiene
+  dónde aparecer.
+
+Es la misma raíz que `carga_seed`, la suma prohibida (errata nº 90): una operación
+aritmética entre cantidades que no son de la misma clase. Allí eran tres sumandos de
+clases distintas; aquí son el numerador y el denominador.
+
+### El arreglo, y lo que lo hace estructural
+
+No es cambiar la fórmula: es que **la cuenta y el fichero salgan del mismo sitio**.
+`splice_panel_summary` deriva lo anunciado (`candidatos × intrones`) y lo emitido
+(`len(panel.constructions)`) **por separado y sin componerlos**, y los enseña uno al lado
+del otro. Un número que mezcla las dos no puede existir porque ya no hay ninguna
+operación que las junte.
+
+Hay regresión escrita (`test_el_panel_dice_CUANTAS_faltan.py`) que además comprueba que la
+división no ha vuelto a la página.
+
+## 99 — Dos convenciones de posición para el mismo sitio, y `2e-07` no es cero
+
+**Medido y reportado (2026-09-05)**, con la primera corrida real de SpliceAI sobre las diez
+construcciones: *«la app declara `donante=3134` y el pico está en 3133; declara
+`aceptor=3428` y el pico está en 3430»*.
+
+```
+donante   app → la G de GT      SpliceAI → última base exónica   → donante − 1
+aceptor   app → la A de AG      SpliceAI → primera base exónica  → aceptor + 2
+```
+
+**Ninguno de los dos está mal.** Son dos convenciones, y hasta esa corrida sólo una de
+ellas estaba escrita en alguna parte — la nuestra, y sólo como número, sin decir a qué
+base apuntaba.
+
+### Lo que lo convierte en errata: la salvaguarda no mordió
+
+`scan_from_result` aborta si el donante legítimo *«no viene puntuado o vale cero»*. En la
+posición equivocada la puntuación es **`2e-07`**. No es cero. Así que el guardia dejó
+pasar un análisis entero —**107.680 filas**— normalizado contra un referente inexistente,
+y todo lo que salió de ahí (fracciones, crípticos, avisos) era aritméticamente correcto
+sobre el dato equivocado.
+
+Es el principio nº 33 con otra cara: *el guardia estaba, y el número que le llegaba pasaba
+por encima de su criterio*. Un `<= 0` sólo atrapa el caso en que el modelo no dice nada; no
+atrapa el caso en que dice algo **sobre otra base**.
+
+### El guardia nuevo, calibrado midiendo (principio nº 34)
+
+No hay umbral que poner —en este módulo los absolutos están prohibidos y con razón—, así
+que el criterio es **relativo y sin número**: *la base declarada tiene que ser el máximo de
+su propio vecindario (±3)*. Medido sobre las diez:
+
+| | posición declarada | mejor vecina en ±3 | relación |
+|---|---|---|---|
+| marco bueno (3133 = 3134 − 1) | **0,664 – 0,871** | ≤ 1,1e-05 | ≥ 6·10⁴ a favor |
+| marco ajeno (3134) | **2,0e-07** | 0,664 | 3·10⁶ **en contra** |
+
+Cuatro órdenes de margen por el lado bueno y seis por el malo: la separación es tan grande
+que no hace falta elegir ningún corte, sólo preguntar cuál es el máximo. `FRAME_RADIUS = 3`
+porque el desplazamiento mayor entre las dos convenciones es `+2`.
+
+Y emite **estado**, no un booleano: `FAIL` aborta nombrando el desplazamiento hallado y,
+si coincide con el de SpliceAI, cómo declararlo; `NOT_RUN` cuando el fichero no trae
+vecinas que comparar —**que no es lo mismo que cuadrar**, y decirlo es literalmente el
+principio nº 33.
+
+### Lo que ahora viaja con los datos
+
+1. **La cabecera del FASTA declara la convención, no sólo la posición**:
+   `donante=3134(G de GT) aceptor=3428(A de AG) convencion=app spliceai_donante=3133
+   spliceai_aceptor=3430`. Quien escriba el siguiente puente **no tiene que medirlo**, que
+   es exactamente lo que costó esta corrida.
+2. **El resultado puede declarar la suya** con una línea `# convencion: spliceai`, y
+   entonces se traduce **en la frontera** (`parse_result`), de modo que dentro del módulo
+   sólo existe una convención. Una convención desconocida **no se adivina**: aborta.
+
+### La comprobación que no depende de ninguna puntuación
+
+Hay una verificación independiente y es la más fuerte de todas: **traducidas, las
+posiciones caen sobre el dinucleótido**. `donante → GT`, `aceptor → AG`, las diez
+construcciones y también los crípticos —el del contexto que SpliceAI da en 1516 es, en
+nuestra convención, la `G` de un `GT` en **1517**—. Si el desplazamiento fuera otro,
+caerían en cualquier sitio. Está escrito como test.
+
+## 100 — El consenso posicional SOBRESTIMA: el `GTGAGCG` empataba 5-5 y puntúa cero
+
+**Medido (2026-09-05)**. El criterio de secuencia de este proyecto decía que el donante
+críptico del flanco 5' de miR-E, `GTGAGCG`, **empataba con el donante legítimo**: 5 sobre
+5 contra el consenso `MAG|GTRAGT`. Un modelo entrenado sobre intrones reales **no lo
+considera donante en absoluto**.
+
+| | las diez construcciones |
+|---|---|
+| donante legítimo (nuestro 3134) | 0,664 – 0,871 |
+| `GTGAGCG` (nuestro 3232) | **4,0e-08 – 3,1e-07** |
+
+No es «bajo»: es cero a efectos prácticos, seis órdenes por debajo. Y en toda la zona del
+intrón sólo hay **otra** posición que pase de 0,01: la 3352 en la convención de SpliceAI,
+con **0,046** en el peor caso y 0,003 en el mejor.
+
+### Que quede escrito
+
+**El consenso posicional sobrestima porque cuenta coincidencias sin contexto.** Un
+`GT` con las bases «buenas» en las posiciones «buenas» puntúa alto en una matriz que sólo
+mira esas posiciones; el modelo mira miles de nucleótidos alrededor y decide otra cosa. Y
+aquí **las dos herramientas discrepan de forma limpia** —no es un margen, es 5/5 frente a
+1e-07—, así que no hay forma de leerlo como ruido.
+
+Esto no jubila el criterio de secuencia: sigue siendo lo único que corre sin nada
+instalado y sigue sirviendo para **enumerar candidatos a mirar**. Lo que no puede hacer es
+**afirmar que un sitio es un donante**, que es como se estaba leyendo.
+
+### La consecuencia de proyecto
+
+`mvm_sin_criptico` **baja de prioridad**. Se diseñó para romper un `GTGAGCG` que, medido,
+no compite con nada. **Se construye como CONTROL, no como arreglo**: sigue teniendo valor
+—demuestra que romper el motivo no rompe el splicing— pero deja de ser una respuesta a un
+riesgo, porque el riesgo no se ha podido medir en ninguna de las diez.
+
+## 101 — El estado del panel iba sólo en el NOMBRE del fichero
+
+La errata nº 97 puso el estado en el nombre: `construcciones_raton_PARCIAL_10de20.fa`.
+Bien, e insuficiente: *«un nombre se pierde en el primer `mv` — a mí me pasó hoy mismo
+renombrando el fichero para quitarle un espacio. Lo que viaja pegado a los datos
+sobrevive; el nombre no.»*
+
+El FASTA es lo que sale de la app y **viaja solo**: se renombra, se mueve, se mete en un
+ZIP, se adjunta a un correo, se sube a otra máquina. En cada uno de esos pasos el nombre es
+lo primero que se pierde, y el contenido no.
+
+Ahora el estado va en **tres sitios a la vez**, y los tres a propósito:
+
+| dónde | sobrevive a | lo tira |
+|---|---|---|
+| el nombre del fichero | nada | un `mv` |
+| el bloque `#` de cabecera | renombrar, mover, comprimir | un lector de FASTA estricto |
+| **cada línea `>`** | **todo lo anterior** | nada que siga leyendo FASTA |
+
+Por eso se repite: el bloque de comentario es el que se lee cómodo, y la cabecera `>` es
+la que no se puede perder. Y hay un límite explícito — **sin `summary` no se declara
+ningún estado**: un fichero que no sabe de qué panel viene no puede decir «COMPLETO», que
+sería inventar la mitad tranquilizadora.

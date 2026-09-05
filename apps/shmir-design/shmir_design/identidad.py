@@ -163,3 +163,37 @@ def mensaje_de_id_repetido(
         f"**append-only** a propósito, así que la corrida anterior no se puede pisar — "
         f"ni hace falta."
     )
+
+
+# ─────────────────────────── el SELLO de la version que produjo algo ───────────────────
+
+#: La variable por la que el hub pasa el commit desplegado al proceso hijo. Si no llega,
+#: NO se inventa nada.
+BUILD_ENV = "SHMIR_BUILD"
+
+BUILD_NOT_DECLARED = "sin declarar"
+
+BUILD_NOTE = (
+    "EL SELLO DE LA VERSIÓN VIAJA CON EL ARTEFACTO. Un fichero que sale de la app llega a "
+    "quien no tuvo la pantalla delante, y la primera pregunta cuando algo no cuadra es "
+    "«¿qué versión lo produjo?». Sin el sello, contestarla cuesta medir el propio "
+    "fichero y aun así puede no salir: el 2026-09-05 un FASTA venía con un contexto 3' "
+    "de 112 nt menos que el que da el código de hoy, y no hubo forma de saber si era "
+    "otra versión o otra entrada. Cuando el hub no declara ninguna —en local, por "
+    "ejemplo— se dice «sin declarar»: eso es información, y un valor inventado no."
+)
+
+
+def build_stamp() -> str:
+    """Qué versión está produciendo esto, si el entorno lo declara.
+
+    No se deriva de git ni de ningún fichero del paquete: el proceso que sirve `/shmir` es
+    un hijo del hub y el único que sabe qué commit está desplegado es el hub. Lo pasa por
+    `SHMIR_BUILD` (ver `apps/shmir/process.js`). Sin la variable, `sin declarar` — que es
+    exactamente el principio nº 32: aquí el valor por defecto NO se puede confundir con
+    una versión real.
+    """
+    import os  # noqa: PLC0415
+
+    valor = str(os.environ.get(BUILD_ENV, "")).strip()
+    return valor or BUILD_NOT_DECLARED

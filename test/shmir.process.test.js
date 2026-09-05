@@ -92,6 +92,19 @@ test('y sin declararlo tampoco se inventa uno', () => {
   assert.ok(!('SHMIR_PROJECT_DIR' in env), JSON.stringify(env.SHMIR_PROJECT_DIR));
 });
 
+test('el commit desplegado VIAJA al proceso hijo', () => {
+  // El hijo no puede saberlo: no hay `.git` en la imagen. Sin esto, un fichero que sale
+  // de la app no puede decir de qué versión viene — y el 2026-09-05 hizo falta.
+  const env = proceso.buildEnv({ base: { RAILWAY_GIT_COMMIT_SHA: 'a5fb5e0deadbeef' } });
+  assert.equal(env.SHMIR_BUILD, 'a5fb5e0deadbeef');
+});
+
+test('y si la plataforma no lo da, NO se inventa ninguno', () => {
+  // «sin declarar» es información; un valor puesto aquí a mano no lo sería.
+  const env = proceso.buildEnv({ base: {} });
+  assert.ok(!('SHMIR_BUILD' in env), JSON.stringify(env.SHMIR_BUILD));
+});
+
 test('los dos directorios son DISTINTOS: referencia se siembra, proyectos no', () => {
   // La referencia se siembra desde lo versionado; los proyectos no tienen semilla
   // ninguna. Mezclarlos en un solo directorio haría que la siembra tuviera que

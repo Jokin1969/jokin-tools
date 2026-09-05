@@ -1712,3 +1712,45 @@ buscar la condición da los sitios donde el fallo **puede** ocurrir.
 Un guardia con falsos positivos se acaba apagando, así que **un criterio sin medir no se
 publica**. Y el corolario: si ningún criterio discrimina, el resultado honesto es que **no
 hay mecanismo** y se dice (principio nº 33), no un auditor ruidoso que nadie mirará.
+
+## 35 — Lo que viaja pegado a los datos sobrevive; el nombre del fichero no
+
+Sale de la errata nº 101, y de un `mv` real: *«un nombre se pierde en el primer `mv` — a
+mí me pasó hoy mismo renombrando el fichero para quitarle un espacio»*.
+
+Un artefacto que sale de la app **viaja solo**. Se descarga, se renombra, se mueve, se
+comprime, se adjunta, se sube a otra máquina, y en algún punto llega a alguien que **no
+tuvo la pantalla delante** cuando se generó. Todo lo que sepa de él, lo tiene que sacar del
+propio fichero.
+
+### La jerarquía, de lo más frágil a lo más resistente
+
+| canal | sobrevive a | lo tira |
+|---|---|---|
+| el nombre del fichero | nada | cualquier `mv`, cualquier descarga que resuelva un choque de nombres |
+| una carpeta, un ZIP, un correo alrededor | poco | descomprimir, reenviar |
+| un bloque de comentario dentro | renombrar, mover, comprimir | un lector estricto del formato |
+| **un campo del propio formato** | **todo lo anterior** | nada que siga leyendo ese formato |
+
+**El nombre es documentación; el contenido es dato.** Un estado, una convención, una
+procedencia o una versión que sólo viven en el nombre están escritos en el canal más
+frágil de todos.
+
+### La regla
+
+Todo lo que haga falta para **interpretar** un artefacto va DENTRO del artefacto, en el
+canal más resistente que el formato permita, y se repite en los más cómodos de leer. En un
+FASTA: el bloque `#` para leerlo de un vistazo **y** la cabecera `>` de cada registro, que
+es la que no se puede perder. En un TSV: una línea de comentario declarada **y** columnas
+que no dependan de ella.
+
+Qué entra en «hace falta para interpretarlo»: la **convención** de cualquier posición
+(errata nº 99), el **estado** de la corrida —si está entera o falta la mitad—, la
+**procedencia** de las entradas y la **versión** de lo que lo produjo.
+
+### Y el límite, que es la otra mitad
+
+**Lo que no se sabe no se declara.** Un FASTA construido sin saber de qué panel viene no
+pone «COMPLETO» por defecto: no pone nada. Rellenar el hueco con la mitad tranquilizadora
+es peor que dejarlo vacío, porque un campo presente se lee como comprobado — es el
+principio nº 32 aplicado al artefacto en vez de a la configuración.
