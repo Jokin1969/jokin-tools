@@ -520,6 +520,14 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 /* A CN-only med (info before Data Matrix) is marked with a dashed amber edge. */
 .az-planrow.is-cnonly { border-style: dashed; border-color: #e6c07a; background: #fffdf7; }
 .az-plan-flag { color: #8a5a00; font-weight: 700; }
+/* "Si precisa" (eventual): fondo morado suave, aparte del resto del plan. */
+.az-planrow.is-siprecisa, .az-plan-srow.is-siprecisa, .az-plan-scard.is-siprecisa { background: #f3ecfd; border-color: #c9a8ec; }
+.az-plan-eventual-h { margin-top: 16px; padding-top: 12px; border-top: 1px dashed #c9a8ec; font-weight: 800; color: #6d28d9; font-size: 0.92rem; }
+.qt-toggle-sm { padding: 4px 9px; font-size: 0.76rem; gap: 4px; }
+.qt-toggle-sm.on { background: #8b5cf6; border-color: #8b5cf6; }
+/* Toggle de "Si precisa" al añadir un medicamento — resaltado para que se note. */
+.az-siprecisa-toggle { background: #f3ecfd; border: 1px solid #c9a8ec; border-radius: 10px; padding: 9px 12px; margin-bottom: 10px; }
+.az-siprecisa-toggle input { accent-color: #8b5cf6; width: 17px; height: 17px; }
 .az-cnform { margin-top: 14px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 12px; background: #fbfdff; }
 .az-cnform-h { font-weight: 700; color: var(--ink); font-size: 0.9rem; margin-bottom: 8px; }
 .az-cn-row { display: flex; gap: 8px; align-items: stretch; }

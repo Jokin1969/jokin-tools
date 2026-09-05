@@ -353,7 +353,7 @@ function planView(personId) {
     const dose = db.getDoseScheduleForDate(l.id);   // pauta vigente hoy (Pastillero); null = sin definir
     return {
       id: l.id, gtin: l.gtin || null, cn: l.cn || null, barcode,
-      qty: l.qty, notes: l.notes || null, active: l.active,
+      qty: l.qty, notes: l.notes || null, active: l.active, si_precisa: !!l.si_precisa,
       nombre, color, shape, available, cn_only: !hasGtin,
       release_at: l.release_at || null, advance_days, effective_at, effective_days, release_state,
       foto_caja: !!(cc && cc.has_caja), foto_pastilla: !!(cc && cc.has_pastilla),
@@ -377,19 +377,20 @@ router.post('/api/person/:id(\\d+)/plan', json, (req, res) => {
     const nombre = b.nombre ? String(b.nombre).trim() : null;
     // CN ⇄ barcode se derivan uno del otro: rellena el que falte y valida la pareja.
     const { cn, barcode } = normCnBarcode(b.cn, b.barcode, !gtin);
+    const si_precisa = !!b.si_precisa;
     if (gtin && gtin.replace(/^0+/, '').length >= 8) {
       // Catalogued path: the GTIN must exist in the Data Matrix app.
       const known = dmDb.getProduct(gtin) || dmDb.availableItems(gtin).length || dmDb.listItems('utilizado').some(i => i.gtin === gtin);
       if (!known) throw bad('Ese medicamento no está en la app Data Matrix. Añádelo allí primero (escanea una caja o impórtalo).');
-      db.addPlanMed(p.id, { gtin, qty: b.qty, notes: b.notes, nombre, barcode, cn });
+      db.addPlanMed(p.id, { gtin, qty: b.qty, notes: b.notes, nombre, barcode, cn, si_precisa });
     } else if (cn) {
       // CN-only path (info before Data Matrix). Promote to catalogued if the CN is
       // already known in the medication catalogue; otherwise keep it CN-only.
       const prod = dmDb.listProducts().find(x => x.cn && String(x.cn) === cn);
-      if (prod) db.addPlanMed(p.id, { gtin: prod.gtin, qty: b.qty, notes: b.notes, nombre: nombre || prod.nombre, barcode, cn });
+      if (prod) db.addPlanMed(p.id, { gtin: prod.gtin, qty: b.qty, notes: b.notes, nombre: nombre || prod.nombre, barcode, cn, si_precisa });
       else {
         if (!nombre) throw bad('Indica el nombre del medicamento.');
-        db.addPlanMed(p.id, { cn, nombre, barcode, qty: b.qty, notes: b.notes });
+        db.addPlanMed(p.id, { cn, nombre, barcode, qty: b.qty, notes: b.notes, si_precisa });
       }
     } else {
       throw bad('Indica el GTIN o el Código Nacional del medicamento.');
@@ -403,8 +404,8 @@ router.patch('/api/plan/:id(\\d+)', json, (req, res) => {
     const line = db.getPlanLine(Number(req.params.id));
     if (!line) return res.status(404).json({ error: 'Línea de plan no encontrada.' });
     const b = req.body || {};
-    if (b.qty !== undefined || b.notes !== undefined || b.active !== undefined) {
-      db.updatePlanById(line.id, { qty: b.qty, notes: b.notes, active: b.active });
+    if (b.qty !== undefined || b.notes !== undefined || b.active !== undefined || b.si_precisa !== undefined) {
+      db.updatePlanById(line.id, { qty: b.qty, notes: b.notes, active: b.active, si_precisa: b.si_precisa });
     }
     // Edit the medication itself (name; and CN/barcode for CN-only meds).
     if (b.nombre !== undefined || b.cn !== undefined || b.barcode !== undefined) {

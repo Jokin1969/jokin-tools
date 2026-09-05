@@ -83,6 +83,31 @@ test('add a medication to the plan (must exist in DM)', async () => {
   assert.equal(ok.data.plan[0].qty, 2);
 });
 
+test('"si precisa" (PRN): se guarda al añadir, por defecto false, y se puede cambiar después sin tocar qty', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80900', nombre: 'Prn', apellidos: 'Test', tis: '00080900' }, 1).id;
+
+  // Por defecto, sin indicarlo, queda en false — tanto por GTIN como por CN.
+  const normal = (await call('POST', `/person/${pid}/plan`, { gtin: GTIN, qty: 1 })).data.plan.find(m => m.gtin === GTIN);
+  assert.equal(normal.si_precisa, false);
+  const cnNormal = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Ibuprofeno', qty: 1 })).data.plan.find(m => m.cn === '715000');
+  assert.equal(cnNormal.si_precisa, false);
+
+  // Al añadir con si_precisa:true, queda marcado desde el alta — por CN.
+  const prn = (await call('POST', `/person/${pid}/plan`, { cn: '999333', nombre: 'Paracetamol si precisa', si_precisa: true })).data.plan.find(m => m.cn === '999333');
+  assert.equal(prn.si_precisa, true);
+
+  // PATCH puede cambiarlo después, sin afectar a qty/notes ya guardados.
+  const toggled = (await call('PATCH', `/plan/${normal.id}`, { si_precisa: true })).data.plan.find(m => m.id === normal.id);
+  assert.equal(toggled.si_precisa, true);
+  assert.equal(toggled.qty, 1, 'qty no se toca al marcar si_precisa');
+
+  // Y se puede volver a desmarcar; cambiar qty por separado no lo resetea.
+  await call('PATCH', `/plan/${normal.id}`, { si_precisa: false });
+  const afterQty = (await call('PATCH', `/plan/${normal.id}`, { qty: 3 })).data.plan.find(m => m.id === normal.id);
+  assert.equal(afterQty.qty, 3);
+  assert.equal(afterQty.si_precisa, false, 'un PATCH de qty no reactiva si_precisa');
+});
+
 test('plan CN-only: add a medication by Código Nacional before any Data Matrix, then link a box', async () => {
   const pid = qrDb.createPerson({ pharmacy_no: '80001', nombre: 'Noa', apellidos: 'Cea', tis: '00080001' }, 1).id;
   // Adding by CN requires a name.

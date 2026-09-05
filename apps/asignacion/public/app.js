@@ -1270,18 +1270,30 @@ function sortedPlan(plan) {
 }
 // Plan renderer. Three views: 'full' (default, complete), 'list' and 'cards'
 // (both compact, to see 10-15 medications at a glance). Sorted per S.planSort.
+// Within each view, the "si precisa" (eventual) medications are split into their
+// own block at the bottom, under an epígrafe — never mixed in with the normales.
+const EVENTUAL_HEADING = '<div class="az-plan-eventual-h">Medicación eventual (si precisa)</div>';
 function planHtml(plan, closed) {
   if (!plan.length) return '<div class="az-empty-sm">Sin medicamentos en el plan. Pulsa «➕ Añadir medicamento».</div>';
   const list = sortedPlan(plan);
-  if (S.planView === 'list') return `<div class="az-plan-simple-list">${list.map(planRowSimple).join('')}</div>`;
-  if (S.planView === 'cards') return `<div class="az-plan-simple-cards">${list.map(planCardSimple).join('')}</div>`;
-  return list.map(m => planRowFull(m, closed)).join('');
+  const normal = list.filter(m => !m.si_precisa);
+  const eventual = list.filter(m => m.si_precisa);
+  if (S.planView === 'list') {
+    return `<div class="az-plan-simple-list">${normal.map(planRowSimple).join('')}</div>` +
+      (eventual.length ? EVENTUAL_HEADING + `<div class="az-plan-simple-list">${eventual.map(planRowSimple).join('')}</div>` : '');
+  }
+  if (S.planView === 'cards') {
+    return `<div class="az-plan-simple-cards">${normal.map(planCardSimple).join('')}</div>` +
+      (eventual.length ? EVENTUAL_HEADING + `<div class="az-plan-simple-cards">${eventual.map(planCardSimple).join('')}</div>` : '');
+  }
+  return normal.map(m => planRowFull(m, closed)).join('') +
+    (eventual.length ? EVENTUAL_HEADING + eventual.map(m => planRowFull(m, closed)).join('') : '');
 }
 // Compact one-line row (view: Lista).
 function planRowSimple(m) {
   const done = m.asignada || 0, need = m.qty, ok = done >= need;
   const icon = m.foto_caja ? `<img class="az-plan-sfoto" src="${fotoUrl(m.cn, 'caja')}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{}))">` : shapeSvg(m.shape, m.color, 15);
-  return `<div class="az-plan-srow" data-dupkey="${esc(planDupKey(m))}">
+  return `<div class="az-plan-srow${m.si_precisa ? ' is-siprecisa' : ''}" data-dupkey="${esc(planDupKey(m))}">
     <span class="az-plan-sicon">${icon}</span>
     <span class="az-plan-sname">${esc(m.nombre || 'Sin nombre')}</span>
     <span class="az-plan-scn">${m.cn ? 'CN ' + esc(m.cn) : (m.gtin ? esc(m.gtin) : '—')}</span>
@@ -1294,7 +1306,7 @@ function planRowSimple(m) {
 function planCardSimple(m) {
   const done = m.asignada || 0, need = m.qty, ok = done >= need;
   const icon = m.foto_caja ? `<img class="az-plan-cfoto" src="${fotoUrl(m.cn, 'caja')}" alt="" loading="lazy" onerror="this.style.display='none'">` : shapeSvg(m.shape, m.color, 26);
-  return `<div class="az-plan-scard" data-dupkey="${esc(planDupKey(m))}">
+  return `<div class="az-plan-scard${m.si_precisa ? ' is-siprecisa' : ''}" data-dupkey="${esc(planDupKey(m))}">
     <div class="az-plan-scard-ico">${icon}</div>
     <div class="az-plan-scard-body"><b>${esc(m.nombre || 'Sin nombre')}</b><small>${m.cn ? 'CN ' + esc(m.cn) : (m.gtin ? esc(m.gtin) : '')}</small>
       <span class="az-plan-sprog ${ok ? 'is-ok' : 'is-short'}">×${m.qty} · ${done}/${need}</span>
@@ -1344,7 +1356,7 @@ function planRowFull(m, closed) {
     // Manual "mark assigned in Salud" (by precinto, no box) while units remain and
     // there's no DM box to assign from.
     const canPrecinto = !closed && noDm && done < need;
-    return `<div class="az-planrow${m.cn_only ? ' is-cnonly' : ''}" data-plan-row="${m.id}" data-dupkey="${esc(planDupKey(m))}">
+    return `<div class="az-planrow${m.cn_only ? ' is-cnonly' : ''}${m.si_precisa ? ' is-siprecisa' : ''}" data-plan-row="${m.id}" data-dupkey="${esc(planDupKey(m))}">
       <span class="az-plan-shape">${icon}</span>
       <div class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small><div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${progTxt}</span></div></div>
       ${bcInline}
@@ -1352,6 +1364,7 @@ function planRowFull(m, closed) {
         <span class="az-plan-pillimg" title="${esc(m.nombre || 'Medicamento')}">${pillImgHtml(m.cn, m.shape, m.color, 34, m.nombre)}</span>
         <span class="az-plan-qty">×<input type="number" class="az-qty" data-plan="${m.id}" value="${m.qty}" min="1" max="99" ${closed ? 'disabled' : ''}></span>
         ${doseChip(m)}
+        ${!closed ? `<button type="button" class="qt-toggle qt-toggle-sm${m.si_precisa ? ' on' : ''}" data-siprecisa="${m.id}" title="Medicación eventual: solo se toma si hace falta">🟣 Si precisa</button>` : ''}
         ${(!noDm && m.barcode) ? `<button class="qt-iconbtn" data-precinto="${m.id}" title="Ver el código de barras (precinto)">🏷️</button>` : ''}
         ${m.foto_pastilla ? `<button class="qt-iconbtn" data-pill="${m.id}" title="Ver la pastilla (AEMPS)">💊</button>` : ''}
         ${canPrecinto ? `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assignprec="${m.id}" title="Marcar como asignada en Salud (por precinto, sin caja)">✅ Asignar</button>` : ''}
@@ -1430,6 +1443,10 @@ function wirePlan(closed) {
   }));
   main().querySelectorAll('.az-qty').forEach(inp => inp.addEventListener('change', async () => {
     try { await api('/plan/' + inp.dataset.plan, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ qty: Number(inp.value) }) }); await reloadFicha(); } catch (e) { toast(e.message, 'err'); }
+  }));
+  main().querySelectorAll('[data-siprecisa]').forEach(b => b.addEventListener('click', async () => {
+    const med = (S.ficha.plan || []).find(x => x.id === Number(b.dataset.siprecisa)); if (!med) return;
+    try { await api('/plan/' + med.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ si_precisa: !med.si_precisa }) }); await reloadFicha(); } catch (e) { toast(e.message, 'err'); }
   }));
   main().querySelectorAll('[data-assoc]').forEach(b => b.addEventListener('click', () => {
     const med = (S.ficha.plan || []).find(x => x.id === Number(b.dataset.assoc)); if (med) openAddBox(med);
@@ -2098,6 +2115,7 @@ function openEditMed(med) {
 function openMedPicker() {
   openTool(`<div class="qt-modal-h"><h3>Añadir medicamento al plan</h3><button class="qt-x" id="mp-close">×</button></div>
     <p class="qt-tool-note">Del <b>catálogo</b> (ya en Data Matrix) o, si aún no lo está, <b>por Código Nacional</b> (información previa, sin caja todavía).</p>
+    <label class="az-shtoggle az-siprecisa-toggle" id="mp-siprecisa-row"><input type="checkbox" id="mp-siprecisa"> <b>🟣 Si precisa</b> <span class="az-form-hint" style="margin:0">medicación eventual, no diaria — se distingue del resto en el plan</span></label>
     <div class="qt-search" style="margin-bottom:10px"><span class="ico">🔎</span><input id="mp-q" placeholder="Buscar en el catálogo por nombre, GTIN o CN…" autocomplete="off"></div>
     <div id="mp-list" class="az-medlist"></div>
     <div class="qt-tool-row" style="margin:-2px 0 8px"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima-search">🔎 Buscar en CIMA (AEMPS)</button><span class="az-form-hint" style="margin:0">busca el medicamento en la base oficial y trae CN, nombre y código de barras</span></div>
@@ -2172,8 +2190,10 @@ function openMedPicker() {
 }
 async function addMedToPlan(payload) {
   try {
-    await api(`/person/${S.person.id}/plan`, jbody({ qty: 1, ...payload }));
-    closeTool(); await reloadFicha(); toast('Medicamento añadido al plan.');
+    const siEl = $('mp-siprecisa');
+    const si_precisa = !!(siEl && siEl.checked);
+    await api(`/person/${S.person.id}/plan`, jbody({ qty: 1, si_precisa, ...payload }));
+    closeTool(); await reloadFicha(); toast(si_precisa ? 'Medicamento «si precisa» añadido al plan.' : 'Medicamento añadido al plan.');
   } catch (e) { toast(e.message, 'err'); }
 }
 
