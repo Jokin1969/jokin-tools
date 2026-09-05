@@ -1,4 +1,5 @@
 frente = "contextos_del_andamio"
+se_cierra_en = "la app"
 titulo_llano = "¿Los 20 nt que rodean a la horquilla son los de verdad?"
 en_cristiano = """\
 El fragmento que se manda a sintetizar no es sólo la horquilla: lleva 20 nucleótidos a cada lado que vienen del plásmido original de SGEP y que no son decoración —el de la derecha lleva la señal que hace que la célula procese bien la horquilla—. Sin ese plásmido delante, esos 40 nucleótidos son secuencia copiada de un sitio que nadie ha vuelto a mirar."""

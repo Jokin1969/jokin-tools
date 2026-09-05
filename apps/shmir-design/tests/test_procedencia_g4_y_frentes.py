@@ -88,12 +88,17 @@ class TestUnFiltroBIOFISICO_NO_ES_UN_FRENTE(unittest.TestCase):
         self.assertNotIn("G4_guia", nombres)
 
     def test_y_la_pagina_ya_no_ABORTA_pidiendo_su_ficha(self):
+        """Por el camino de VERDAD: la tarjeta, que es lo que la página pinta.
+
+        Antes preguntaba a `front_help_rows`, que era la SEGUNDA fuente y se retiró con
+        la errata nº 103: pedía la ficha sin saber qué frentes cierra el panel, así que
+        podía contestar la del frente abierto sobre una tarjeta en verde.
+        """
         from shmir_design import presentation
 
-        filas = presentation.front_help_rows(
-            self.corrida.tiling, self.corrida.selection, species="raton"
-        )
-        self.assertTrue(filas)
+        tarjetas = presentation.front_card_rows(self.corrida, species="raton")
+        self.assertTrue(tarjetas)
+        self.assertTrue(all(t["ficha_texto"] for t in tarjetas))
 
     def test_TODO_frente_que_salga_tiene_ficha(self):
         """El test bidireccional de las fichas, ahora sobre una corrida de verdad."""

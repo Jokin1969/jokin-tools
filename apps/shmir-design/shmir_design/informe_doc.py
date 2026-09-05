@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from . import obtencion as _obtencion
 from .errors import ShmirDesignError
 from .external_score import EXTERNAL_TOOLS, WHY_NOT_PRIMARY
 from .specificity import WHY_LENGTH_AND_NOT_MISMATCHES, WHY_NOT_MORE_THAN_ONE
@@ -247,7 +248,11 @@ RELATIVE_CRITERION = {
 }
 
 #: Frentes que NO se contestan con un fichero: se contestan en el banco.
-BENCH_FRONTS = frozenset({"empalme_intron"})
+#:
+#: **Se DERIVA de las fichas**, que es donde cada frente lo declara (`se_cierra_en`).
+#: Estaba escrito aqui a mano y ademas dicho en la prosa de la ficha: dos definiciones
+#: del mismo hecho, y la que se usaba no era la versionada.
+BENCH_FRONTS = frozenset(_obtencion.bench_fronts())
 
 #: Frentes cuyo dato se SUBE en su modal en vez de venir del informe de tilado.
 UPLOADED_FRONTS = {

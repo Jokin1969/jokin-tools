@@ -142,7 +142,6 @@ from shmir_design.presentation import (  # noqa: E402
     blast_candidate_rows,
     blast_command_text,
     blast_defaults_for,
-    front_help_rows,
     front_card_rows,
     fronts_closed_over_panel,
     panel_states_by_front,
@@ -590,7 +589,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     if not st.session_state.get(f"tramo2_{nombre}"):
         return {}
 
-    _tarjetas_de_comprobacion(corrida, nombre, tiling, seleccion, almacenes)
+    _tarjetas_de_comprobacion(corrida, nombre, almacenes)
 
     # EL INFORME VA AQUI, justo debajo de los frentes. Estaba mas abajo, detras del
     # generador de bloques, y ahi es lo ultimo que se ve: quien acaba de leer que le
@@ -724,15 +723,19 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
 
 
 
-def _tarjetas_de_comprobacion(
-    corrida, nombre: str, tiling, seleccion, almacenes=None
-) -> None:
+def _tarjetas_de_comprobacion(corrida, nombre: str, almacenes=None) -> None:
     """Una tarjeta por comprobacion, con su color y su estado.
 
     Sustituye a la lista de «Frentes — y como cerrar los que estan en NOT_RUN», que
     nombraba diez frentes por su nombre interno y pedia al lector que supiera lo que es
     un frente. Las tarjetas se DERIVAN igual que aquella lista —una escrita a mano
     dejaria fuera a la numero once— y el color lo pone `presentation.CARD_STATES`.
+
+    **UNA SOLA FUENTE.** El motivo y la ficha llegaban por `front_help_rows`, calculada
+    aparte y **sin los frentes cerrados por el panel**: una tarjeta podia salir en verde
+    con la ficha y el motivo del frente ABIERTO al lado. Ahora las trae la propia
+    tarjeta, asi que no pueden discrepar — y por eso esta funcion ya no recibe el tilado
+    ni la seleccion: los pedia la segunda fuente.
     """
     _cabecera_paso(4, step_plain(5))
     # Las tarjetas se piden UNA vez: pedirlas dos era volver a montar el mismo dato y
@@ -741,31 +744,56 @@ def _tarjetas_de_comprobacion(
     tarjetas = front_card_rows(corrida, species=nombre, stores=almacenes)
     progreso = front_progress(tarjetas)
     st.progress(progreso["fraccion"], text=progreso["texto"])
-    motivos = {f["frente"]: f for f in front_help_rows(tiling, seleccion, species=nombre)}
+
+    # LA CUADRÍCULA ES SOLO LO QUE SE PUEDE CERRAR AQUÍ. La bandera la pone la ficha de
+    # cada frente (`se_cierra_en`) y la trae la tarjeta: la página no nombra ninguno, así
+    # que un segundo frente de banco saldría aparte sin tocar esto.
+    de_aqui = [t for t in tarjetas if t["cierra_aqui"]]
+    del_banco = [t for t in tarjetas if not t["cierra_aqui"]]
+
     columnas = st.columns(2)
-    for indice, tarjeta in enumerate(tarjetas):
+    for indice, tarjeta in enumerate(de_aqui):
         with columnas[indice % 2]:
             with st.container(border=True):
-                st.markdown(
-                    f":{tarjeta['color']}[●] **{tarjeta['titulo']}**"
-                )
-                st.caption(tarjeta["en_cristiano"])
-                # LA COBERTURA PARCIAL SE VE. Un frente con corrida para 6 de 10
-                # candidatos salia identico a uno que nadie ha tocado, y quien acababa
-                # de subir una corrida de horas concluia que la app no la habia
-                # recogido. Errata nº 54.
-                if tarjeta["avance"]:
-                    st.warning(tarjeta["avance"])
-                detalle = motivos.get(tarjeta["frente"])
-                if detalle is not None:
-                    with st.expander("Cómo se hace"):
-                        st.caption(detalle["motivo"])
-                        st.code(detalle["ficha"]["texto"], language=None)
-                        st.link_button(
-                            f"↗ {detalle['ficha']['fuente']}",
-                            detalle["ficha"]["url"],
-                            disabled=not detalle["ficha"]["url"].startswith("http"),
-                        )
+                _tarjeta_de_frente(tarjeta)
+
+    for tarjeta in del_banco:
+        # FUERA DE LA CUADRÍCULA, a lo ancho y con su propio encabezado. En la rejilla,
+        # con el mismo aspecto y el mismo «Cómo se hace», se lee como una comprobación
+        # pendiente más — y de ahí a concluir que sobra hay un paso.
+        st.markdown("---")
+        st.warning(f"**{tarjeta['titulo']}** — {tarjeta['encabezado']}")
+        with st.container(border=True):
+            _tarjeta_de_frente(tarjeta)
+
+
+def _tarjeta_de_frente(tarjeta) -> None:
+    """El cuerpo de una tarjeta. Lo que va delante depende del ESTADO, no del sitio."""
+    st.markdown(f":{tarjeta['color']}[●] **{tarjeta['titulo']}**")
+    st.caption(tarjeta["en_cristiano"])
+    if tarjeta["por_que_aparte"]:
+        st.caption(tarjeta["por_que_aparte"])
+    # EN UN FRENTE CERRADO, LO PRIMERO ES EL RESULTADO. Iba dentro del desplegable, al
+    # lado de las instrucciones para conseguir un fichero que ya está: un frente abierto
+    # y uno cerrado no pueden enseñar lo mismo en el mismo sitio.
+    if tarjeta["resultado"]:
+        st.success(tarjeta["resultado"])
+    # LA COBERTURA PARCIAL SE VE. Un frente con corrida para 6 de 10 candidatos salia
+    # identico a uno que nadie ha tocado, y quien acababa de subir una corrida de horas
+    # concluia que la app no la habia recogido. Errata nº 54.
+    if tarjeta["avance"]:
+        st.warning(tarjeta["avance"])
+    if not tarjeta["resultado"]:
+        st.caption(tarjeta["motivo"])
+    # El título lo pone `presentation`: «cómo se consigue» sobre un frente cerrado manda
+    # a hacer algo ya hecho.
+    with st.expander(tarjeta["ficha_titulo"]):
+        st.code(tarjeta["ficha_texto"], language=None)
+        st.link_button(
+            f"↗ {tarjeta['fuente']}",
+            tarjeta["url"],
+            disabled=not tarjeta["url"].startswith("http"),
+        )
 
 
 def _panel_proyecto(especie: str, secuencia: str, anat, *, retomado=None,

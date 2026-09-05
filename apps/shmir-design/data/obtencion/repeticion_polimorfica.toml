@@ -1,6 +1,7 @@
 # Ficha de obtencion — se versiona en git. Es documentacion, no un fichero de datos
 # grande: se lee con `cat` y no hace falta la app para consultarla.
 frente = "repeticion_polimorfica"
+se_cierra_en = "la app"
 titulo_llano = "¿Cae en un tramo que mide distinto en cada individuo?"
 en_cristiano = """\
 Algunos tramos repetidos tienen distinto número de repeticiones en cada persona. Un shmiR dirigido ahí funcionaría en unos y en otros no — y no por un cambio de letras, sino de longitud, que es algo que los catálogos de variantes captan mal."""

@@ -171,13 +171,27 @@ class TestLasTARJETASdeCOMPROBACIONES(unittest.TestCase):
         self.assertTrue(any(t["estado"] == "SIN_HACER" for t in self.tarjetas))
 
     def test_el_PROGRESO_se_deriva_de_las_tarjetas(self):
+        """Y cuenta SOLO lo que se puede cerrar aquí (errata nº 102).
+
+        Con el frente de banco dentro del denominador, el máximo era inalcanzable: ese
+        frente siempre bloquea, así que «N de N» no podía salir nunca. Va aparte y se
+        nombra, que no es lo mismo que quitarlo.
+        """
         progreso = presentation.front_progress(self.tarjetas)
-        self.assertEqual(progreso["total"], len(self.tarjetas))
+        aqui = [t for t in self.tarjetas if t["cierra_aqui"]]
+        banco = [t for t in self.tarjetas if not t["cierra_aqui"]]
+        self.assertEqual(progreso["total"], len(aqui))
+        self.assertEqual(progreso["en_el_banco"], len(banco))
+        self.assertEqual(len(aqui) + len(banco), len(self.tarjetas))
         self.assertEqual(
             progreso["hechas"],
-            sum(1 for t in self.tarjetas if t["estado"] == "HECHO"),
+            sum(1 for t in aqui if t["estado"] == "HECHO"),
         )
+        # El máximo tiene que ser ALCANZABLE: ninguna de las que cuentan puede estar
+        # condenada a bloquear.
+        self.assertLessEqual(progreso["hechas"], progreso["total"])
         self.assertTrue(progreso["texto"])
+        self.assertIn("banco", progreso["texto"])
 
 
 class TestTODOfrenteTIENEsuTEXTOllano(unittest.TestCase):

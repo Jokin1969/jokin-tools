@@ -1,4 +1,5 @@
 frente = "empalme_intron"
+se_cierra_en = "el banco"
 titulo_llano = "¿La célula recorta bien la pieza que lleva el shmiR?"
 en_cristiano = """\
 El shmiR viaja dentro de una pieza —un intrón— que la célula tiene que recortar y tirar para poder fabricar la proteína del tratamiento. Si no la recorta, no hay proteína. Es la única comprobación de todo o nada: aquí no hay resultado a medias."""
@@ -6,7 +7,9 @@ sin_fichero = true
 por_que_sin_fichero = """\
 Este frente NO SE CIERRA CON NINGÚN FICHERO, y por eso va aparte de los demas: sus cuatro \
 lecturas son de BANCO y este software no corre ninguna. Conseguir más datos no lo cierra: \
-hay que ir al laboratorio."""
+hay que ir al laboratorio. Y es además el único frente BINARIO del proyecto —los otros son \
+graduales y este no: o el intrón se escinde o no hay proteína DN en absoluto—, así que \
+tampoco se lee como los demás: NINGUNO de los otros ocho lo detecta."""
 pregunta = """\
 ¿Se escinde el intrón? Es el ÚNICO frente BINARIO del proyecto: los otros son graduales \
 —una especificidad regular da off-targets, un techo de APA baja el knockdown— pero aquí, \

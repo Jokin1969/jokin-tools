@@ -456,7 +456,7 @@ COMO CERRAR EL FRENTE «offtarget_seed»
 **Como se cierra.** (ficha de obtencion, integra)
 
 ```
-COMO CERRAR EL FRENTE «empalme_intron»
+QUÉ HAY QUE MEDIR EN EL BANCO PARA CERRAR «empalme_intron»
 
   ¿La célula recorta bien la pieza que lleva el shmiR?
   El shmiR viaja dentro de una pieza —un intrón— que la célula tiene que recortar y tirar para poder fabricar la proteína del tratamiento. Si no la recorta, no hay proteína. Es la única comprobación de todo o nada: aquí no hay resultado a medias.
@@ -464,7 +464,7 @@ COMO CERRAR EL FRENTE «empalme_intron»
   QUE PREGUNTA RESPONDE: ¿Se escinde el intrón? Es el ÚNICO frente BINARIO del proyecto: los otros son graduales —una especificidad regular da off-targets, un techo de APA baja el knockdown— pero aquí, si el intrón no se escinde, la horquilla se queda en el 5'UTR del mRNA maduro y NO HAY PROTEINA DN EN ABSOLUTO. No hay «un poco de proteina» que optimizar.
 
   NO SE CIERRA CON NINGÚN FICHERO.
-  Este frente NO SE CIERRA CON NINGÚN FICHERO, y por eso va aparte de los demas: sus cuatro lecturas son de BANCO y este software no corre ninguna. Conseguir más datos no lo cierra: hay que ir al laboratorio.
+  Este frente NO SE CIERRA CON NINGÚN FICHERO, y por eso va aparte de los demas: sus cuatro lecturas son de BANCO y este software no corre ninguna. Conseguir más datos no lo cierra: hay que ir al laboratorio. Y es además el único frente BINARIO del proyecto —los otros son graduales y este no: o el intrón se escinde o no hay proteína DN en absoluto—, así que tampoco se lee como los demás: NINGUNO de los otros ocho lo detecta.
 
   FUENTE: Banco: RT-PCR, Western y secuenciacion. No hay descarga que valga.
   URL: —

@@ -1,4 +1,5 @@
 frente = "seed"
+se_cierra_en = "la app"
 titulo_llano = "¿Empieza igual que una familia de microARN conocida?"
 en_cristiano = """\
 Es la versión rápida de la comprobación anterior: mira las primeras letras contra una lista corta de familias, antes de compararlas una a una con el catálogo completo."""

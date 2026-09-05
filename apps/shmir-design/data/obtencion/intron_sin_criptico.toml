@@ -1,4 +1,5 @@
 frente = "intron_sin_criptico"
+se_cierra_en = "la app"
 titulo_llano = "Una versión de la pieza sin la señal de corte sobrante"
 en_cristiano = """\
 La pieza que se usa hoy lleva dentro una señal de corte de más, y viaja con cualquier guía. Ésta es la propuesta de quitarla sin romper nada de lo demás."""

@@ -1690,29 +1690,18 @@ def obtencion_rows(front: str, *, species: str):
     }
 
 
-def front_help_rows(tiling, selection, *, species: str):
-    """Los frentes de esta corrida, con su estado y CON su ficha de obtencion.
-
-    Es lo que convierte «falta el recurso» en algo accionable. Sale para TODOS los
-    frentes, tambien los cerrados: un frente cerrado con su ficha delante deja ver con
-    que se cerro.
-    """
-    from .filters import FilterState
-    from .selection import blocking_fronts
-
-    filas = []
-    for frente in blocking_fronts(tiling, selection):
-        ficha = obtencion_rows(frente.name, species=species)
-        filas.append(
-            {
-                "frente": frente.name,
-                "abierto": frente.blocking,
-                "estado": FilterState.NOT_RUN if frente.blocking else FilterState.PASS,
-                "motivo": frente.reason,
-                "ficha": ficha,
-            }
-        )
-    return filas
+#: La SEGUNDA FUENTE que se retiró (errata nº 103). `front_help_rows` emitía el motivo y
+#: la ficha de cada frente llamando a `blocking_fronts` **sin `closed_by_panel`**, así que
+#: sobre una tarjeta pintada en verde ponía el motivo y las instrucciones del frente
+#: ABIERTO — las dos cosas con pinta de dato. Lo que la sustituye no es otra función: es
+#: que la propia tarjeta (`front_card_rows`) traiga su motivo y su ficha, para que no
+#: puedan discrepar por construcción.
+WHERE_THE_HELP_ROWS_WENT = (
+    "`front_help_rows` ya no existe. Emitía el motivo y la ficha de cada frente por su "
+    "cuenta, sin saber cuáles cierra el panel, y era la segunda definición del mismo "
+    "hecho. Los dos campos los trae ahora cada tarjeta de `front_card_rows`: "
+    "`motivo`/`resultado` y `ficha_titulo`/`ficha_texto`."
+)
 
 
 # ─────────────────── el informe como documento: parcial o completo ────────────────
@@ -5589,14 +5578,18 @@ def page_snapshot(
         *_recorte(candidate_rows(seleccion)),
         "",
         "── 6. Frentes ──",
+        # DE LAS TARJETAS, que es lo que la página pinta. Salía de `front_help_rows`, que
+        # era la segunda fuente y no sabía qué frentes cierra el panel: el golden de la
+        # página podía decir NOT_RUN de una tarjeta pintada en verde (errata nº 103).
         *_tabla(
             [
                 {
-                    "frente": f["frente"],
-                    "estado": "NOT_RUN" if f["abierto"] else "CERRADO",
-                    "motivo": f["motivo"],
+                    "frente": t["frente"],
+                    "estado": "CERRADO" if t["estado"] == "HECHO" else "NOT_RUN",
+                    "donde_se_cierra": t["donde_se_cierra"],
+                    "motivo": t["motivo"],
                 }
-                for f in front_help_rows(tiling, seleccion, species=species)
+                for t in front_card_rows(corrida, species=species)
             ],
             vacio="(ninguno)",
         ),
@@ -6234,6 +6227,25 @@ CARD_STATES = {
 }
 
 
+#: Lo que separa la tarjeta del banco de las demas, y va en su ENCABEZADO. No es un
+#: adorno: es el unico frente BINARIO —si el intron no se escinde no hay proteina DN y
+#: ninguno de los otros lo detecta— y el unico que no se cierra con nada de lo que hay
+#: aqui. En la misma cuadricula se lee como una comprobacion pendiente mas, y de ahi a
+#: concluir que sobra hay un paso.
+BENCH_HEADING = (
+    "Esta no se cierra aquí — se responde en el banco. No hay ningún fichero que "
+    "conseguir ni ninguna corrida que subir: son lecturas de laboratorio."
+)
+
+#: El titulo del desplegable de la ficha, por estado. Un frente cerrado NO puede decir
+#: «como se consigue»: manda a hacer algo ya hecho.
+FICHA_TITLES = {
+    "abierto": "Cómo se consigue",
+    "cerrado": "Cómo se consiguió (referencia)",
+    "banco": "Qué hay que medir en el banco",
+}
+
+
 def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]]:
     """Una tarjeta por comprobacion, DERIVADA de `blocking_fronts`.
 
@@ -6247,7 +6259,7 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
     como abierto — mientras la seccion de corridas guardadas decia `PASS` de esa misma
     corrida. Reportado con el proyecto delante; errata nº 51.
     """
-    from .obtencion import resolve_ficha
+    from .obtencion import CLOSED_AT_BENCH, resolve_ficha
     from .selection import blocking_fronts
     from .species import resolve
 
@@ -6267,6 +6279,11 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
         ficha = resolve_ficha(frente.name, species=especie)
         estado = "HECHO" if not frente.blocking else "SIN_HACER"
         parcial = cobertura.get(frente.name)
+        # ESTE FRENTE NO SE CIERRA AQUÍ, y no puede parecerse a los otros. Lo declara su
+        # ficha (`se_cierra_en`), no una lista en el código ni en la página: el día que
+        # haya un segundo de banco, entra solo.
+        cierra_aqui = ficha.closed_at != CLOSED_AT_BENCH
+        cerrado = estado == "HECHO"
         tarjetas.append(
             {
                 "frente": frente.name,
@@ -6274,6 +6291,19 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
                 "en_cristiano": ficha.plain,
                 "estado": estado,
                 "color": CARD_STATES[estado],
+                "cierra_aqui": cierra_aqui,
+                "donde_se_cierra": ficha.closed_at,
+                "encabezado": "" if cierra_aqui else BENCH_HEADING,
+                "por_que_aparte": "" if cierra_aqui else ficha.why_no_file,
+                # LO PRIMERO DE UN FRENTE CERRADO ES EL RESULTADO. Antes el motivo vivía
+                # dentro del desplegable, junto a las instrucciones para conseguir lo que
+                # ya estaba: un frente abierto y uno cerrado enseñaban lo mismo.
+                "resultado": frente.reason if cerrado else "",
+                "motivo": frente.reason,
+                "ficha_titulo": FICHA_TITLES[ficha.heading_kind(closed=cerrado)],
+                "ficha_texto": ficha.render(closed=cerrado),
+                "fuente": ficha.source,
+                "url": ficha.url,
                 # LA COBERTURA PARCIAL SE VE. Un frente con corrida para 6 de 10 no
                 # puede pintarse igual que uno que nadie ha tocado.
                 "cubiertos": (parcial or {}).get("cubiertos", 0),
@@ -6294,13 +6324,28 @@ def front_progress(cards) -> dict[str, object]:
     tarjetas que hay debajo.
     """
     filas = list(cards)
-    hechas = sum(1 for c in filas if c["estado"] == "HECHO")
-    total = len(filas)
+    # SOLO LO QUE SE PUEDE CERRAR AQUÍ. Con el frente de banco dentro, el máximo era
+    # INALCANZABLE —siempre bloquea, así que «8 de 8» no podía salir nunca— y además
+    # mezclaba una lectura de laboratorio con frentes que se cierran con una descarga.
+    aqui = [c for c in filas if c["cierra_aqui"]]
+    banco = [c for c in filas if not c["cierra_aqui"]]
+    hechas = sum(1 for c in aqui if c["estado"] == "HECHO")
+    total = len(aqui)
+    texto = f"{hechas} de {total} comprobaciones hechas"
+    if banco:
+        # El singular importa: con «(n)» la línea se lee como una plantilla sin rellenar,
+        # y esta frase es justo la que tiene que leerse de un vistazo.
+        una = len(banco) == 1
+        texto += (
+            f", y {len(banco)} que no se {'cierra' if una else 'cierran'} aquí — se "
+            f"{'responde' if una else 'responden'} en el banco"
+        )
     return {
         "hechas": hechas,
         "total": total,
+        "en_el_banco": len(banco),
         "fraccion": (hechas / total) if total else 0.0,
-        "texto": f"{hechas} de {total} comprobaciones hechas",
+        "texto": texto,
     }
 
 

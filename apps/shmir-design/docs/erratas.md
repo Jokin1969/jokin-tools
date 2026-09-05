@@ -4975,3 +4975,97 @@ Por eso se repite: el bloque de comentario es el que se lee cómodo, y la cabece
 la que no se puede perder. Y hay un límite explícito — **sin `summary` no se declara
 ningún estado**: un fichero que no sabe de qué panel viene no puede decir «COMPLETO», que
 sería inventar la mitad tranquilizadora.
+
+## 102 — El frente que NO se cierra aquí estaba en la cuadrícula, y sumaba en el contador
+
+**Reportado (2026-09-05)**: *«la tarjeta del empalme del intrón no se quita, pero no puede
+parecerse a las otras siete. Es el único frente que no se cierra con ningún fichero y el
+único binario: si el intrón no se escinde, no hay proteína DN, y ninguno de los otros ocho
+lo detecta. Hoy está en la misma cuadrícula, con el mismo aspecto y el mismo "Cómo se
+hace", así que se lee como una comprobación pendiente más — y alguien puede concluir que
+sobra por no encajar con lo que hace la app»*.
+
+### Dos cosas, y la segunda es aritmética
+
+1. **Mismo aspecto.** Tarjeta idéntica, en la misma rejilla de dos columnas, con el mismo
+   desplegable. Nada en pantalla decía que ese frente no se cierra aquí.
+2. **Mismo contador.** `front_progress` contaba **todas** las tarjetas, y este frente
+   **siempre bloquea** —`blocking_fronts` lo emite con `blocking=True` por construcción,
+   porque no hay nada en la app que pueda cerrarlo—. Así que el máximo del contador era
+   **INALCANZABLE**: «8 de 8» no podía salir nunca, y nadie podía saber por qué.
+
+Un contador que no puede llegar a su máximo no mide progreso: mide una distancia a un
+sitio al que no se va. Y mezclaba dos cosas que se resuelven de forma distinta —una
+descarga y una tanda de laboratorio— en el mismo denominador.
+
+### El arreglo, y por qué no es una lista en el código
+
+Cada ficha declara **dónde se cierra su frente** (`se_cierra_en = "la app"` /
+`"el banco"`), y de ahí sale todo: la bandera `cierra_aqui` de la tarjeta, el encabezado
+propio, y qué entra en el contador. **La página no nombra ningún frente** y hay un test
+mecánico de ello: el día que haya un segundo frente de banco, sale aparte sin tocar la
+interfaz (principio nº 31).
+
+### Y `sin_fichero` NO servía para derivarlo — significa dos cosas opuestas
+
+Era la tentación evidente: `empalme_intron` ya declaraba `sin_fichero = true`. Pero
+`intron_sin_criptico` **también**, y ahí quiere decir lo contrario: *«no se consigue: SE
+DISEÑA — la app lo deriva de `mvm_actual`»*. Derivar el banco de esa clave habría sacado
+de la cuadrícula un intrón que la app resuelve sola.
+
+Es el principio nº 27 en un fichero de datos, donde ningún auditor lo mira: el de
+homónimos recorre propiedades derivadas de Python, no claves de TOML. La clave nueva es
+explícita, **de vocabulario cerrado**, y **sin valor por defecto** — un frente de banco al
+que se le olvide la línea aborta al cargar la ficha, en vez de entrar en la cuadrícula sin
+que nadie lo vea (principio nº 32).
+
+### Lo que había en dos sitios
+
+`informe_doc.BENCH_FRONTS = frozenset({"empalme_intron"})` estaba escrito a mano **y** la
+prosa de la ficha decía lo mismo con otras palabras. Dos definiciones del mismo hecho, y
+la que se usaba no era la versionada. Ahora `BENCH_FRONTS` se **deriva** de las fichas, con
+test de que las dos coinciden.
+
+## 103 — Un frente CERRADO seguía mandando a conseguir lo que ya tenía
+
+**Reportado (2026-09-05)**: *«el de `fraccion_isoforma_larga` está en verde, con
+`polya_db_mouse.tsv` cargado, y aun así muestra instrucciones para conseguir un fichero que
+ya está — incluido `apa_medido.tsv`, que la propia app marca como "no hace falta
+conseguir"»*. Y el diagnóstico, que es el que ordena el arreglo: **es el `why_missing` que
+envejeció, en su versión de interfaz — un texto correcto cuando se escribió que hoy manda a
+hacer algo ya hecho.**
+
+### Era GENERAL, no de ese frente
+
+El texto lo emite `Ficha.render()`, y empezaba **siempre** por `COMO CERRAR EL FRENTE
+«x»`, con `FICHERO(S) QUE HACEN FALTA` y `PASOS:` detrás. Lo pinta la tarjeta de **todos**
+los frentes, así que el defecto lo tenían los cuatro cerrados de la corrida murina, no uno.
+Se comprobó como se pidió, y hay test de que ningún frente cerrado vuelve a decirlo.
+
+### Tres estados, y ninguno puede enseñar lo del otro
+
+| estado | encabezado | el desplegable se llama |
+|---|---|---|
+| abierto | `COMO CERRAR EL FRENTE «x»` | Cómo se consigue |
+| **cerrado** | `CÓMO SE CONSIGUIÓ CERRAR EL FRENTE «x» (referencia)` | **Cómo se consiguió (referencia)** |
+| de banco | `QUÉ HAY QUE MEDIR EN EL BANCO PARA CERRAR «x»` | Qué hay que medir en el banco |
+
+Cambia el **tiempo verbal**, no el contenido: los pasos se quedan enteros porque son la
+**procedencia** de lo que se cargó, y quitarlos dejaría un frente cerrado sin poder decir
+con qué se cerró. De ahí «(referencia)».
+
+### Y lo que va DELANTE cambia con el estado
+
+Ése es el fondo del asunto, con las palabras del reporte: *«cuando el frente está cerrado,
+lo que va delante es el resultado; la ficha de obtención se queda accesible pero plegada»*.
+El motivo —«CERRADO. 6 de 10 candidatos quedan por detrás del corte…»— vivía **dentro** del
+desplegable, junto a las instrucciones. Ahora sale fuera y en verde, y la ficha se pliega
+detrás con su título en pasado.
+
+### La causa de que nadie lo viera: había DOS fuentes
+
+La tarjeta calculaba su estado con `closed_by_panel` y el motivo y la ficha llegaban por
+`front_help_rows`, **calculada aparte y sin ese argumento**. O sea que una tarjeta podía
+salir **en verde** con el motivo y la ficha del frente **abierto** al lado, y las dos con
+pinta de dato. Ahora las trae la propia tarjeta —una sola fuente— y `_tarjetas_de_comprobacion`
+ya no recibe el tilado ni la selección, que era lo que pedía la segunda.

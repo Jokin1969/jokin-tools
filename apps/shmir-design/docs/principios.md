@@ -1754,3 +1754,39 @@ Qué entra en «hace falta para interpretarlo»: la **convención** de cualquier
 pone «COMPLETO» por defecto: no pone nada. Rellenar el hueco con la mitad tranquilizadora
 es peor que dejarlo vacío, porque un campo presente se lee como comprobado — es el
 principio nº 32 aplicado al artefacto en vez de a la configuración.
+
+## 36 — Si dos estados pintan lo mismo, uno de los dos está mintiendo
+
+Sale de las erratas nº 102 y nº 103, y las dos son el mismo defecto por dos caras: un
+frente **cerrado** enseñaba lo mismo que uno abierto, y uno que **no se cierra aquí**
+enseñaba lo mismo que los que sí.
+
+**Lo que se muestra tiene que ser función del estado.** Cuando dos estados distintos
+producen la misma pantalla, el que sobra no es la pantalla: es que uno de los dos estados
+**no se está usando para nada**, y entonces el usuario tiene que deducirlo — o no lo
+deduce, que es lo normal.
+
+### Cómo se reconoce
+
+Preguntar, por cada cosa que se pinta: **¿qué estado la cambiaría?** Si la respuesta es
+«ninguno», o es un texto fijo (y entonces está bien) o es un texto que **se escribió para
+un estado y se pinta en todos**. El segundo caso es el principio nº 11 en la interfaz: una
+prosa correcta el día que se escribió, delante de un estado que ya no es el suyo.
+
+Y hay una pista mecánica: **el tiempo verbal**. «Cómo se consigue» sólo puede ser cierto
+mientras no se haya conseguido. Un texto en presente sobre algo ya hecho no es un matiz de
+estilo — es una instrucción para repetir trabajo.
+
+### El corolario del contador
+
+**Un contador sólo cuenta lo que puede llegar a su máximo.** Si un elemento nunca puede
+pasar a hecho, sumarlo al denominador convierte el contador en una distancia a un sitio al
+que no se va, y esconde además que ese elemento se resuelve de otra manera. Va **aparte y
+nombrado**, no dentro y en silencio.
+
+### Y el límite, que es la otra mitad
+
+**Separar no es esconder.** El elemento que no encaja no se quita de la pantalla: se saca
+de la cuadrícula y se le pone un encabezado que diga qué lo distingue. Quitarlo sería la
+otra forma de que nadie lo vea, y aquí lo que está en juego es el único frente binario del
+proyecto — el que ninguno de los otros detecta.

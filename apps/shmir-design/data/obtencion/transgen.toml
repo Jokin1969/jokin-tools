@@ -1,4 +1,5 @@
 frente = "transgen"
+se_cierra_en = "la app"
 titulo_llano = "¿Apagaría también el propio tratamiento?"
 en_cristiano = """\
 El tratamiento se administra dentro de un virus que lleva su propia copia del gen. Si el shmiR se pega también a esa copia, apaga la terapia a la vez que la diana. No se notaría: parecería sencillamente que el tratamiento no funciona."""

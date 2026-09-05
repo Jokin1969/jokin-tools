@@ -1,4 +1,5 @@
 frente = "seed_colision"
+se_cierra_en = "la app"
 titulo_llano = "¿Se confunde con un microARN de la propia célula?"
 en_cristiano = """\
 La célula fabrica sus propios microARN, y en el cerebro algunos son muy abundantes. Si tu shmiR empieza con las mismas letras que uno de ellos competirá con él, y de paso alterará todos los genes que ese microARN controla."""
