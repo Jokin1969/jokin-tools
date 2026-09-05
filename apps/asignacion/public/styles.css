@@ -1051,6 +1051,13 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-ma-card-l { font-size: 0.86rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
 @media (max-width: 640px) { .az-ma-cards { grid-template-columns: 1fr; } }
 #ma-body:not(:empty) { margin-top: 6px; }
+/* Filtro de grupo (residencia) sobre el listado — excluyente, "Todos" incluido. */
+.az-ma-groupseg { display: inline-flex; flex-wrap: wrap; margin-bottom: 10px; }
+.az-ma-groupseg button { white-space: nowrap; }
+/* Cabeceras y celdas más compactas: la tabla vive dentro del modal (860px como
+   mucho) y no debe forzar scroll horizontal. */
+.az-ma-table th, .az-ma-table td { padding: 7px 9px; font-size: 0.8rem; }
+.az-ma-grupo { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .az-dc-dm { margin: 10px 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #f6fbff; }
 .az-dc-dm-name { font-weight: 800; color: var(--ink); }
 .az-dc-dm-meta { font-size: 0.82rem; color: var(--muted); margin-top: 3px; }

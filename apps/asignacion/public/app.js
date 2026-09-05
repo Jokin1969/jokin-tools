@@ -2266,11 +2266,19 @@ async function addMedToPlan(payload) {
 // Three cards (alguna / toda / eventual disponible); clicking one expands the SAME
 // modal downward into a big sortable list — no card selected = no list, and only
 // one card can be selected at a time (clicking another just swaps the filter).
+// Cabeceras cortas a propósito: la tabla vive dentro de un modal (860px como
+// mucho) y con nombres largos ("Medicamentos disponibles"...) fuerza scroll
+// horizontal — el título completo queda en el atributo title de cada <th>.
 const AVAIL_COLS = [
   ['nombre', 'Nombre'], ['apellidos', 'Apellidos'], ['residencia', 'Grupo'],
-  ['normal_disp', 'Medicamentos disponibles'], ['eventual_disp', 'Eventuales disponibles'],
-  ['oldest', 'Disponible desde'],
+  ['normal_disp', 'Disponibles'], ['eventual_disp', 'Eventuales'],
+  ['oldest', 'Desde'],
 ];
+const AVAIL_COL_TITLES = {
+  normal_disp: 'Medicamentos disponibles hoy (de los normales)',
+  eventual_disp: 'Medicamentos eventuales (si precisa) disponibles hoy',
+  oldest: 'Disponible desde cuándo (el más rezagado)',
+};
 // The "primary" stat for a row depends on which card is active: for alguna/toda it's
 // the normal (non-eventual) medications; for the eventual card it's the eventual ones.
 function availPrimary(r, mode) {
@@ -2310,7 +2318,7 @@ function sortedAvail(rows, mode, sort) {
   });
 }
 function openMedAvailability() {
-  const st = { rows: null, mode: null, sort: { key: 'oldest', dir: 'asc' } };
+  const st = { rows: null, mode: null, group: null, sort: { key: 'oldest', dir: 'asc' } };
   openTool(`<div class="qt-modal-h"><h3>🗓️ Disponibilidad de medicamentos</h3><button class="qt-x" id="ma-x">×</button></div>
     <p class="qt-tool-note">Personas con medicación ya <b>disponible</b> hoy, según su fecha de liberación y anticipación. Elige qué quieres ver.</p>
     <div id="ma-cards" class="az-ma-cards"><div class="az-form-hint">Cargando…</div></div>
@@ -2337,33 +2345,51 @@ function openMedAvailability() {
       card('toda', '✅', 'Personas con toda la medicación disponible') +
       card('eventual', '🟣', 'Personas con medicación eventual disponible');
     $('ma-cards').querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
-      st.mode = b.dataset.mode; st.sort = { key: 'oldest', dir: 'asc' };
+      st.mode = b.dataset.mode; st.group = null; st.sort = { key: 'oldest', dir: 'asc' };
       $('tool-modal-box').classList.add('az-modal-wide');
       renderCards(); renderBody();
     });
   }
+  // Grupos (residencia) presentes ENTRE las personas de la tarjeta elegida — no
+  // todos los grupos del sistema, solo los que de verdad tienen a alguien aquí.
+  // Excluyentes: pulsar uno sustituye al anterior, nunca se combinan.
+  function groupSegHtml(modeRows) {
+    const groups = [...new Set(modeRows.flatMap(r => r.person.groups || []))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+    if (!groups.length) return '';
+    const chip = (g, label) => `<button type="button" class="${!g ? (!st.group ? 'sel' : '') : (st.group === g ? 'sel' : '')}" data-group="${esc(g || '')}">${label}</button>`;
+    return `<div class="qt-seg az-ma-groupseg">${chip(null, 'Todos')}${groups.map(g => chip(g, esc(g))).join('')}</div>`;
+  }
   function renderBody() {
     const body = $('ma-body');
     if (!st.mode) { body.innerHTML = ''; return; }
-    const rows = availFilter(st.rows, st.mode);
-    if (!rows.length) { body.innerHTML = '<div class="az-empty">Nadie encaja con esa opción ahora mismo.</div>'; return; }
+    const modeRows = availFilter(st.rows, st.mode);
+    if (!modeRows.length) { body.innerHTML = '<div class="az-empty">Nadie encaja con esa opción ahora mismo.</div>'; return; }
+    const groupSeg = groupSegHtml(modeRows);
+    const rows = st.group ? modeRows.filter(r => (r.person.groups || []).includes(st.group)) : modeRows;
+    if (!rows.length) {
+      body.innerHTML = groupSeg + '<div class="az-empty">Nadie de ese grupo encaja con esa opción.</div>';
+      wireGroupSeg(body);
+      return;
+    }
     const arrow = k => st.sort.key === k ? (st.sort.dir === 'desc' ? ' ▼' : ' ▲') : '';
     const head = `<thead><tr>${AVAIL_COLS.map(([k, l]) =>
-      `<th data-k="${k}" class="${st.sort.key === k ? 'sorted' : ''}${(k === 'normal_disp' || k === 'eventual_disp') ? ' az-ovt-num' : ''}" title="Ordenar por ${esc(l)}">${l}${arrow(k)}</th>`).join('')}<th></th></tr></thead>`;
+      `<th data-k="${k}" class="${st.sort.key === k ? 'sorted' : ''}${(k === 'normal_disp' || k === 'eventual_disp') ? ' az-ovt-num' : ''}" title="${esc(AVAIL_COL_TITLES[k] || ('Ordenar por ' + l))}">${l}${arrow(k)}</th>`).join('')}<th></th></tr></thead>`;
     const trs = sortedAvail(rows, st.mode, st.sort).map(r => {
       const p = r.person;
       const oldest = r._primary.oldest_at ? fmtDate(r._primary.oldest_at) : '—';
+      const grupoTxt = (p.groups && p.groups.length) ? p.groups.join(' · ') : null;
       return `<tr>
         <td class="az-ovt-name">${esc(p.nombre)}</td>
         <td class="az-ovt-name">${esc(p.apellidos)}</td>
-        <td>${(p.groups && p.groups.length) ? esc(p.groups.join(' · ')) : '<span class="az-ovt-dim">Sin grupo</span>'}</td>
+        <td class="az-ma-grupo" title="${esc(grupoTxt || '')}">${grupoTxt ? esc(grupoTxt) : '<span class="az-ovt-dim">Sin grupo</span>'}</td>
         <td class="az-ovt-num">${r.normal_disp} de ${r.normal_total}</td>
         <td class="az-ovt-num">${r.eventual_total ? r.eventual_disp + ' de ' + r.eventual_total : '<span class="az-ovt-dim">—</span>'}</td>
         <td class="az-ovt-mono">${esc(oldest)}</td>
-        <td class="az-dc-act"><button class="qt-btn qt-btn-ghost qt-btn-sm" data-open="${p.id}">Ficha ↗</button></td>
+        <td class="az-dc-act"><button class="qt-iconbtn" data-open="${p.id}" title="Abrir la ficha de ${esc(p.nombre)} ${esc(p.apellidos)}">↗</button></td>
       </tr>`;
     }).join('');
-    body.innerHTML = `<div class="az-ovt-wrap"><table class="az-ovt">${head}<tbody>${trs}</tbody></table></div>`;
+    body.innerHTML = groupSeg + `<div class="az-ovt-wrap az-ma-table"><table class="az-ovt">${head}<tbody>${trs}</tbody></table></div>`;
+    wireGroupSeg(body);
     body.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
       const k = th.dataset.k;
       if (st.sort.key === k) st.sort.dir = st.sort.dir === 'asc' ? 'desc' : 'asc';
@@ -2371,6 +2397,9 @@ function openMedAvailability() {
       renderBody();
     });
     body.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { closeTool(); openPerson(Number(b.dataset.open)); });
+  }
+  function wireGroupSeg(body) {
+    body.querySelectorAll('[data-group]').forEach(b => b.onclick = () => { st.group = b.dataset.group || null; renderBody(); });
   }
 }
 
