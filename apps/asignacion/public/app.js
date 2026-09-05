@@ -2198,11 +2198,10 @@ function openMedPicker() {
     <div class="az-tabs"><button type="button" class="az-tab" data-tab="aemps">🔎 A través de la AEMPS</button><button type="button" class="az-tab" data-tab="dm">📦 A través del stock de Data Matrix</button></div>
     <div id="mp-pane-aemps" class="az-tabpane" hidden>
       <div class="qt-field"><label>Código Nacional (CN)</label>
-        <div class="az-cn-row"><input class="qt-input" id="mp-cn" inputmode="numeric" placeholder="p. ej. 712345" autocomplete="off"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima" title="Traer nombre y código de barras desde CIMA (AEMPS), a partir de este Código Nacional">🔎 CIMA</button></div></div>
+        <div class="az-cn-row"><input class="qt-input" id="mp-cn" inputmode="numeric" placeholder="p. ej. 712345" autocomplete="off"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima" title="Traer nombre desde CIMA (AEMPS), a partir de este Código Nacional">🔎 CIMA</button></div></div>
       <div class="qt-field"><label>Nombre del medicamento</label>
         <div class="az-cn-row"><input class="qt-input" id="mp-nombre" placeholder="Nombre comercial o principio activo" autocomplete="off"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima-search" title="Buscar en CIMA (AEMPS) por nombre comercial o principio activo">🔎 Buscar</button></div></div>
       <div id="mp-nombre-results"></div>
-      <div class="qt-field"><label>Código de barras (opcional)</label><input class="qt-input" id="mp-barcode" inputmode="numeric" placeholder="EAN / código de barras" autocomplete="off"></div>
       <div class="qt-field"><label>Cajas al mes</label><input class="qt-input" id="mp-qty" type="number" min="1" max="99" value="1"></div>
       <div id="mp-fotos"></div>
       ${releaseFieldsHtml('mp-date', 'mp-adv', 'mp-eff')}
@@ -2241,22 +2240,17 @@ function openMedPicker() {
     } catch (e) { $('mp-list').innerHTML = `<div class="az-noresult">${esc(e.message)}</div>`; }
   };
   let t = null; q.addEventListener('input', () => { if (t) clearTimeout(t); t = setTimeout(load, 200); });
-  // Fill the CN form from a CIMA record (name + derived barcode + photos).
+  // Fill the CN form from a CIMA record (name + CN + photos; el código de barras
+  // no se pide en este modal — se deriva del CN al mostrar el plan).
   const fillFromCima = (it) => {
     if (it.cn) $('mp-cn').value = it.cn;
     if (it.nombre) $('mp-nombre').value = it.nombre;
-    if (it.barcode) $('mp-barcode').value = it.barcode;
     if ($('mp-fotos')) $('mp-fotos').innerHTML = cimaFotosHtml(it.cn, it.fotos);
     $('mp-cn').scrollIntoView({ block: 'nearest' });
   };
-  // Live assist: derive the CN from a typed Spanish barcode when the CN is empty.
-  $('mp-barcode').addEventListener('input', () => {
-    const bar = $('mp-barcode').value.replace(/\D/g, '');
-    if (!$('mp-cn').value.trim() && /^847000\d{7}$/.test(bar)) $('mp-cn').value = bar.slice(6, 12);
-  });
   const cimaErr = (e) => (e.offline || (e.data && e.data.offline)) ? 'No se pudo consultar CIMA ahora; escribe los datos a mano.' : (e.message || 'Error al consultar CIMA.');
   // Búsqueda por el Código Nacional escrito: solo hace caso a ESTE campo, aunque
-  // Nombre o Código de barras tengan algo escrito.
+  // Nombre tenga algo escrito.
   $('mp-cima').onclick = async () => {
     const cn = $('mp-cn').value.trim();
     if (!/^\d{5,7}$/.test(cn)) { toast('Escribe un Código Nacional válido (5–7 dígitos).', 'err'); return; }
@@ -2266,9 +2260,10 @@ function openMedPicker() {
     finally { btn.disabled = false; btn.textContent = prev; }
   };
   // Búsqueda por nombre comercial o principio activo: muestra un listado de CIMA
-  // para elegir. Clicar un resultado solo RELLENA el formulario de arriba (CN,
-  // nombre, código de barras, fotos) — hace falta pulsar «Añadir al plan» después,
-  // igual que con el resto de formas de rellenarlo (a mano o por CN).
+  // para elegir. Clicar un resultado RELLENA el formulario de arriba — CN incluido,
+  // cuando CIMA lo trae para esa presentación — y las fotos; hace falta pulsar
+  // «Añadir al plan» después, igual que con el resto de formas de rellenarlo (a
+  // mano o por CN).
   $('mp-cima-search').onclick = async () => {
     const text = $('mp-nombre').value.trim();
     if (text.length < 3) { toast('Escribe al menos 3 letras del nombre o principio activo.', 'err'); return; }
@@ -2277,16 +2272,16 @@ function openMedPicker() {
       const { items } = await api('/cima/search?q=' + encodeURIComponent(text));
       if (!items.length) { list.innerHTML = '<div class="az-noresult">CIMA no devolvió resultados para esa búsqueda.</div>'; return; }
       list.innerHTML = `<div class="az-form-hint" style="margin:2px 0 6px">Resultados de CIMA (AEMPS) — pulsa uno para rellenar el formulario de arriba:</div>` +
-        `<div class="az-medlist">${items.map((m, i) => `<button class="az-medrow" data-cima="${i}"><span class="az-plan-shape">💊</span><span class="az-medrow-name">${esc(m.nombre || 'Sin nombre')}<small>${m.cn ? 'CN ' + esc(m.cn) : 'sin CN'}${m.barcode ? ' · CB ' + esc(m.barcode) : ''}${m.labtitular ? ' · ' + esc(m.labtitular) : ''}</small></span><span class="az-medrow-add">⬇</span></button>`).join('')}</div>`;
+        `<div class="az-medlist">${items.map((m, i) => `<button class="az-medrow" data-cima="${i}"><span class="az-plan-shape">💊</span><span class="az-medrow-name">${esc(m.nombre || 'Sin nombre')}<small>${m.cn ? 'CN ' + esc(m.cn) : 'sin CN'}${m.labtitular ? ' · ' + esc(m.labtitular) : ''}</small></span><span class="az-medrow-add">⬇</span></button>`).join('')}</div>`;
       list.querySelectorAll('[data-cima]').forEach(b => b.addEventListener('click', () => { fillFromCima(items[Number(b.dataset.cima)]); toast('Datos copiados de CIMA. Revisa y pulsa «Añadir al plan».', 'ok'); }));
     } catch (e) { list.innerHTML = `<div class="az-noresult">${esc(cimaErr(e))}</div>`; }
   };
   $('mp-add-cn').onclick = () => {
-    const cn = $('mp-cn').value.trim(), nombre = $('mp-nombre').value.trim(), barcode = $('mp-barcode').value.trim();
+    const cn = $('mp-cn').value.trim(), nombre = $('mp-nombre').value.trim();
     const qty = Number($('mp-qty').value) || 1;
     if (!cn) { toast('Indica el Código Nacional.', 'err'); return; }
     if (!nombre) { toast('Indica el nombre del medicamento.', 'err'); return; }
-    addMedToPlan({ cn, nombre, barcode: barcode || undefined, qty }, 'mp');
+    addMedToPlan({ cn, nombre, qty }, 'mp');
   };
   load();
 }
