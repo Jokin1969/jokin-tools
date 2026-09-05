@@ -343,6 +343,11 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .qt-import-errs { max-height: 160px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; }
 .qt-import-errs div { padding: 6px 10px; border-bottom: 1px solid #eef3f8; font-size: 0.8rem; }
 .qt-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin: 10px 0; }
+/* Fecha / Días / Fecha de disponibilidad (add + edit medication modals). */
+.az-relform { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 16px; margin: 4px 0 14px; }
+.az-relform .qt-field { margin-bottom: 0; }
+.az-relform-hint { grid-column: 1 / -1; margin-top: 0; }
+.az-relform input:disabled { background: var(--bg); color: var(--muted); }
 .qt-check-row { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; }
 .qt-check-row input { accent-color: var(--brand); width: 17px; height: 17px; }
 .qt-tool-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
@@ -520,6 +525,10 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 /* A CN-only med (info before Data Matrix) is marked with a dashed amber edge. */
 .az-planrow.is-cnonly { border-style: dashed; border-color: #e6c07a; background: #fffdf7; }
 .az-plan-flag { color: #8a5a00; font-weight: 700; }
+/* Botón de editar: arriba a la izquierda de la tarjeta, un poco más grande que un
+   .qt-iconbtn normal para que se note como la acción principal de la fila. */
+.az-plan-edit-btn { flex: 0 0 auto; width: 38px; height: 38px; font-size: 1.15rem; }
+.az-plan-scard-edit { flex: 0 0 auto; align-self: flex-start; }
 /* "Si precisa" (eventual): fondo morado suave, aparte del resto del plan. */
 .az-planrow.is-siprecisa, .az-plan-srow.is-siprecisa, .az-plan-scard.is-siprecisa { background: #f3ecfd; border-color: #c9a8ec; }
 .az-plan-eventual-h { margin-top: 16px; padding-top: 12px; border-top: 1px dashed #c9a8ec; font-weight: 800; color: #6d28d9; font-size: 0.92rem; }
@@ -649,6 +658,8 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-rel-click:hover { filter: brightness(0.97); box-shadow: 0 0 0 2px rgba(0,0,0,0.06); }
 .az-rel-off { font-weight: 600; opacity: 0.75; }
 .az-off { color: #93a1b3; font-weight: 600; }
+/* Compact variant (list/cards): icon (+ date), no descriptive text. */
+.az-rel.is-compact { padding: 2px 6px; font-size: 0.68rem; white-space: nowrap; }
 .az-line.is-ready { border-color: #9bd8b6; background: #f2fbf6; box-shadow: 0 0 0 2px rgba(18,138,91,0.10); }
 .az-rp-med { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink); }
 .az-field-hint { display: block; margin-top: 4px; color: var(--muted); font-size: 0.72rem; }
@@ -948,7 +959,7 @@ table.qt-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 .az-plan .is-dup { outline: 2px solid var(--danger); outline-offset: -2px; border-radius: 10px; background: #fff1f1; }
 /* Compact list */
 .az-plan-simple-list { display: flex; flex-direction: column; gap: 3px; }
-.az-plan-srow { display: grid; grid-template-columns: 22px 1fr auto auto auto auto; align-items: center; gap: 10px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; font-size: 0.86rem; }
+.az-plan-srow { display: grid; grid-template-columns: 22px 1fr auto auto auto auto auto auto; align-items: center; gap: 10px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; font-size: 0.86rem; }
 .az-plan-srow .az-dose-chip { padding: 3px 9px; font-size: 0.74rem; }
 .az-plan-sicon { display: inline-flex; align-items: center; justify-content: center; }
 .az-plan-sfoto { width: 20px; height: 20px; object-fit: contain; border-radius: 4px; }

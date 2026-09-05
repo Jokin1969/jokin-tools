@@ -1279,18 +1279,20 @@ function planHtml(plan, closed) {
   const normal = list.filter(m => !m.si_precisa);
   const eventual = list.filter(m => m.si_precisa);
   if (S.planView === 'list') {
-    return `<div class="az-plan-simple-list">${normal.map(planRowSimple).join('')}</div>` +
-      (eventual.length ? EVENTUAL_HEADING + `<div class="az-plan-simple-list">${eventual.map(planRowSimple).join('')}</div>` : '');
+    const row = m => planRowSimple(m, closed);
+    return `<div class="az-plan-simple-list">${normal.map(row).join('')}</div>` +
+      (eventual.length ? EVENTUAL_HEADING + `<div class="az-plan-simple-list">${eventual.map(row).join('')}</div>` : '');
   }
   if (S.planView === 'cards') {
-    return `<div class="az-plan-simple-cards">${normal.map(planCardSimple).join('')}</div>` +
-      (eventual.length ? EVENTUAL_HEADING + `<div class="az-plan-simple-cards">${eventual.map(planCardSimple).join('')}</div>` : '');
+    const card = m => planCardSimple(m, closed);
+    return `<div class="az-plan-simple-cards">${normal.map(card).join('')}</div>` +
+      (eventual.length ? EVENTUAL_HEADING + `<div class="az-plan-simple-cards">${eventual.map(card).join('')}</div>` : '');
   }
   return normal.map(m => planRowFull(m, closed)).join('') +
     (eventual.length ? EVENTUAL_HEADING + eventual.map(m => planRowFull(m, closed)).join('') : '');
 }
 // Compact one-line row (view: Lista).
-function planRowSimple(m) {
+function planRowSimple(m, closed) {
   const done = m.asignada || 0, need = m.qty, ok = done >= need;
   const icon = m.foto_caja ? `<img class="az-plan-sfoto" src="${fotoUrl(m.cn, 'caja')}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{}))">` : shapeSvg(m.shape, m.color, 15);
   return `<div class="az-plan-srow${m.si_precisa ? ' is-siprecisa' : ''}" data-dupkey="${esc(planDupKey(m))}">
@@ -1299,18 +1301,21 @@ function planRowSimple(m) {
     <span class="az-plan-scn">${m.cn ? 'CN ' + esc(m.cn) : (m.gtin ? esc(m.gtin) : '—')}</span>
     <span class="az-plan-sqty">×${m.qty}</span>
     <span class="az-plan-sprog ${ok ? 'is-ok' : 'is-short'}">${done}/${need}</span>
-    ${doseChip(m)}
+    ${planReleaseChip(m, true)}
+    ${doseChip(m, true)}
+    ${!closed ? `<button class="qt-iconbtn" data-editplan="${m.id}" title="Editar medicamento">✏️</button>` : ''}
   </div>`;
 }
 // Compact small card (view: Tarjetas).
-function planCardSimple(m) {
+function planCardSimple(m, closed) {
   const done = m.asignada || 0, need = m.qty, ok = done >= need;
   const icon = m.foto_caja ? `<img class="az-plan-cfoto" src="${fotoUrl(m.cn, 'caja')}" alt="" loading="lazy" onerror="this.style.display='none'">` : shapeSvg(m.shape, m.color, 26);
   return `<div class="az-plan-scard${m.si_precisa ? ' is-siprecisa' : ''}" data-dupkey="${esc(planDupKey(m))}">
     <div class="az-plan-scard-ico">${icon}</div>
     <div class="az-plan-scard-body"><b>${esc(m.nombre || 'Sin nombre')}</b><small>${m.cn ? 'CN ' + esc(m.cn) : (m.gtin ? esc(m.gtin) : '')}</small>
       <span class="az-plan-sprog ${ok ? 'is-ok' : 'is-short'}">×${m.qty} · ${done}/${need}</span>
-      <div class="az-plan-scard-dose">${doseChip(m)}</div></div>
+      <div class="az-plan-scard-dose">${planReleaseChip(m, true)}${doseChip(m, true)}</div></div>
+    ${!closed ? `<button class="qt-iconbtn az-plan-scard-edit" data-editplan="${m.id}" title="Editar medicamento">✏️</button>` : ''}
   </div>`;
 }
 // State-aware association button for a plan medication (this month):
@@ -1357,6 +1362,7 @@ function planRowFull(m, closed) {
     // there's no DM box to assign from.
     const canPrecinto = !closed && noDm && done < need;
     return `<div class="az-planrow${m.cn_only ? ' is-cnonly' : ''}${m.si_precisa ? ' is-siprecisa' : ''}" data-plan-row="${m.id}" data-dupkey="${esc(planDupKey(m))}">
+      ${!closed ? `<button class="qt-iconbtn az-plan-edit-btn" data-editplan="${m.id}" title="Editar medicamento">✏️</button>` : ''}
       <span class="az-plan-shape">${icon}</span>
       <div class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small><div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${progTxt}</span></div></div>
       ${bcInline}
@@ -1369,7 +1375,6 @@ function planRowFull(m, closed) {
         ${m.foto_pastilla ? `<button class="qt-iconbtn" data-pill="${m.id}" title="Ver la pastilla (AEMPS)">💊</button>` : ''}
         ${canPrecinto ? `<button class="qt-btn qt-btn-teal qt-btn-sm" data-assignprec="${m.id}" title="Marcar como asignada en Salud (por precinto, sin caja)">✅ Asignar</button>` : ''}
         ${planAssocBtn(m, closed)}
-        ${(!closed && m.cn_only) ? `<button class="qt-iconbtn" data-editplan="${m.id}" title="Editar nombre / CN / código de barras">✏️</button>` : ''}
         <button class="qt-iconbtn danger" data-delplan="${m.id}" title="Quitar del plan">🗑</button>
       </div>
     </div>`;
@@ -1384,26 +1389,31 @@ function findPlanDuplicates() {
 }
 // Release-state chip for a plan medication. The state (and colour) is driven by
 // its Salud release date + anticipation. Clickable → set/edit the date.
-function planReleaseChip(m) {
+// `compact` (list/cards views) drops the descriptive text, keeping only the icon
+// (+ the date itself when there is one) so it fits next to the edit button.
+function planReleaseChip(m, compact) {
   const off = m.release_at ? fmtDate(m.release_at) : null;
   const eff = m.effective_at ? fmtDate(m.effective_at) : null;
   const adv = m.advance_days != null ? m.advance_days : 15;
   const sub = (off && adv > 0) ? ` <small class="az-rel-off">(${off})</small>` : '';
+  const cls = compact ? ' is-compact' : '';
   if (m.release_state === 'sin_fecha')
-    return `<button type="button" class="az-rel az-rel-none az-rel-click" data-planrel="${m.id}" title="Poner fecha de liberación (Salud)">🗓 Sin fecha — pendiente</button>`;
+    return `<button type="button" class="az-rel az-rel-none az-rel-click${cls}" data-planrel="${m.id}" title="Poner fecha de liberación (Salud)">${compact ? '🗓' : '🗓 Sin fecha — pendiente'}</button>`;
   if (m.release_state === 'disponible')
-    return `<button type="button" class="az-rel az-rel-ready az-rel-click" data-planrel="${m.id}" title="Cambiar fecha o días de anticipación">✅ Disponible${eff ? ' desde ' + eff : ''}${sub}</button>`;
+    return `<button type="button" class="az-rel az-rel-ready az-rel-click${cls}" data-planrel="${m.id}" title="Cambiar fecha o días de anticipación">${compact ? '✅' + (eff ? ' ' + eff : '') : `✅ Disponible${eff ? ' desde ' + eff : ''}${sub}`}</button>`;
   const when = m.effective_days === 0 ? 'hoy' : m.effective_days === 1 ? 'mañana' : 'faltan ' + m.effective_days + ' días';
-  return `<button type="button" class="az-rel az-rel-soon az-rel-click" data-planrel="${m.id}" title="Cambiar fecha o días de anticipación">🗓 Disponible ${eff} · ${when}${sub}</button>`;
+  return `<button type="button" class="az-rel az-rel-soon az-rel-click${cls}" data-planrel="${m.id}" title="Cambiar fecha o días de anticipación">${compact ? '🗓 ' + eff : `🗓 Disponible ${eff} · ${when}${sub}`}</button>`;
 }
 // Compact "pauta" chip for a plan row: what's set for the Pastillero (residencias).
 // Grey/dashed "Definir pauta" when nothing's configured yet (a clear call to action);
 // once set, shows the 4 franjas as short letters so it stays scannable in the list.
+// `iconOnly` (list/cards views) drops the text, keeping just 🕐 — the full detail
+// stays available as the title tooltip.
 const DOSE_SLOTS = [['desayuno', 'D'], ['comida', 'C'], ['cena', 'Ce'], ['noche', 'N']];
-function doseChip(m) {
-  if (!m.dose) return `<button class="qt-btn qt-btn-sm az-dose-chip is-unset" data-dose="${m.id}" title="Aún no tiene pauta por franja para el Pastillero de las residencias">🕐 Definir pauta</button>`;
+function doseChip(m, iconOnly) {
+  if (!m.dose) return `<button class="qt-btn qt-btn-sm az-dose-chip is-unset" data-dose="${m.id}" title="Aún no tiene pauta por franja para el Pastillero de las residencias">🕐${iconOnly ? '' : ' Definir pauta'}</button>`;
   const parts = DOSE_SLOTS.filter(([k]) => m.dose[k] > 0).map(([k, l]) => `${l}${m.dose[k]}`).join('·');
-  return `<button class="qt-btn qt-btn-sm az-dose-chip" data-dose="${m.id}" title="Pauta vigente desde ${esc(fmtDate(m.dose.effective_from))} — pulsa para cambiarla">🕐 ${parts || 'sin dosis'}</button>`;
+  return `<button class="qt-btn qt-btn-sm az-dose-chip" data-dose="${m.id}" title="Pauta vigente desde ${esc(fmtDate(m.dose.effective_from))} — pulsa para cambiarla">🕐${iconOnly ? '' : ' ' + (parts || 'sin dosis')}</button>`;
 }
 // The pauta editor: 4 franjas (0–9) + the date from which it applies (default
 // today, never retroactive), plus a compact history of previous changes.
@@ -2021,16 +2031,32 @@ function effectiveIso(iso, adv) {
   d.setDate(d.getDate() - Math.min(365, Math.max(0, Math.round(Number(adv) || 0))));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+// Shared "Fecha / Días / Fecha de disponibilidad" trio, reused by the add/edit
+// medication modals: the third field is never typed by hand, it's always
+// recalculated live as Fecha − Días (disabled input, styled like the other two).
+function releaseFieldsHtml(dateId, advId, effId, dateVal, advVal) {
+  return `<div class="az-relform">
+    <div class="qt-field"><label>Fecha</label><input type="date" class="qt-input" id="${dateId}" value="${esc(dateVal || '')}"></div>
+    <div class="qt-field"><label>Días</label><input type="number" class="qt-input" id="${advId}" min="0" max="365" step="1" value="${esc(String(advVal != null ? advVal : 15))}"></div>
+    <div class="qt-field"><label>Fecha de disponibilidad</label><input type="date" class="qt-input" id="${effId}" disabled></div>
+    <small class="az-field-hint az-relform-hint">La fecha de disponibilidad se calcula sola: Fecha menos Días (por defecto 15, los días que la farmacia puede adelantarse a la fecha oficial de Salud).</small>
+  </div>`;
+}
+function wireReleaseFields(dateId, advId, effId) {
+  const dateEl = $(dateId), advEl = $(advId), effEl = $(effId);
+  const update = () => { effEl.value = effectiveIso(dateEl.value, advEl.value) || ''; };
+  dateEl.addEventListener('input', update); advEl.addEventListener('input', update); update();
+}
 // Set the official Salud date AND the days of anticipation for a MEDICATION (plan).
 // The effective date (official − anticipation) drives its state and the bell.
 function openPlanReleasePicker(med) {
   const cur = med.release_at || '';
   const adv = med.advance_days != null ? med.advance_days : 15;
   openTool(`<div class="qt-modal-h"><h3>🗓 Fecha de liberación</h3><button class="qt-x" id="rp-close">×</button></div>
-    <p class="qt-tool-note">La <b>fecha oficial</b> es la que marca Salud para este medicamento. La <b>fecha efectiva</b> (cuando ya se puede coger/asignar y cuando avisa la app) es la oficial menos los <b>días de anticipación</b>. Es del <b>medicamento</b> (recurrente): vale mes a mes hasta que la cambies.</p>
+    <p class="qt-tool-note">La <b>Fecha</b> es la que marca Salud para este medicamento. La <b>fecha de disponibilidad</b> (cuando ya se puede coger/asignar y cuando avisa la app) es esa fecha menos los <b>Días</b>. Es del <b>medicamento</b> (recurrente): vale mes a mes hasta que la cambies.</p>
     <div class="qt-field"><label>Medicamento</label><div class="az-rp-med">${shapeSvg(med.shape, med.color, 18)} ${esc(med.nombre || 'Sin nombre')}</div></div>
-    <div class="qt-field"><label>Fecha oficial de liberación (Salud)</label><input type="date" class="qt-input" id="rp-date" value="${esc(cur)}"></div>
-    <div class="qt-field"><label>Días de anticipación</label><input type="number" class="qt-input" id="rp-adv" min="0" max="365" step="1" value="${esc(String(adv))}"><small class="az-field-hint">Por defecto 15. Se aplica a este medicamento de esta persona.</small></div>
+    <div class="qt-field"><label>Fecha</label><input type="date" class="qt-input" id="rp-date" value="${esc(cur)}"></div>
+    <div class="qt-field"><label>Días</label><input type="number" class="qt-input" id="rp-adv" min="0" max="365" step="1" value="${esc(String(adv))}"><small class="az-field-hint">Por defecto 15. Se aplica a este medicamento de esta persona.</small></div>
     <div class="az-rp-eff" id="rp-eff"></div>
     <div class="qt-modal-actions">
       ${cur ? '<button class="qt-btn qt-btn-ghost" id="rp-clear">Quitar fecha</button>' : ''}
@@ -2083,31 +2109,53 @@ function editFotosHtml(med) {
       ${medFotoSlot(med.cn, 'pastilla', 'Pastilla', med.foto_pastilla)}
     </div></div>`;
 }
-// Edit an existing plan medication (name / CN / barcode) without deleting it.
+// Edit an existing plan medication: name (+ CN / barcode for CN-only meds, since a
+// catalogued med's identity comes from Data Matrix and isn't editable here) and,
+// for ANY medication, its Fecha / Días / Fecha de disponibilidad.
 function openEditMed(med) {
+  const isCnOnly = med.cn_only;
+  const adv = med.advance_days != null ? med.advance_days : 15;
   openTool(`<div class="qt-modal-h"><h3>✏️ Editar medicamento</h3><button class="qt-x" id="em-close">×</button></div>
-    <p class="qt-tool-note">Corrige el <b>nombre</b>, el <b>Código Nacional</b> o el <b>código de barras</b> sin tener que borrar y volver a añadir.</p>
+    <p class="qt-tool-note">${isCnOnly
+      ? 'Corrige el <b>nombre</b>, el <b>Código Nacional</b> o el <b>código de barras</b> sin tener que borrar y volver a añadir.'
+      : 'Corrige el <b>nombre</b> y la <b>fecha de liberación</b> sin tener que borrar y volver a añadir.'}</p>
     <div class="qt-field"><label>Nombre del medicamento</label><input class="qt-input" id="em-nombre" value="${esc(med.nombre || '')}" maxlength="160" autocomplete="off"></div>
-    <div class="qt-field"><label>Código Nacional (CN)</label><div class="az-cn-row"><input class="qt-input" id="em-cn" inputmode="numeric" value="${esc(med.cn || '')}" autocomplete="off"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="em-cima" title="Traer datos desde CIMA (AEMPS)">🔎 CIMA</button></div></div>
+    ${isCnOnly ? `<div class="qt-field"><label>Código Nacional (CN)</label><div class="az-cn-row"><input class="qt-input" id="em-cn" inputmode="numeric" value="${esc(med.cn || '')}" autocomplete="off"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="em-cima" title="Traer datos desde CIMA (AEMPS)">🔎 CIMA</button></div></div>
     <div class="qt-field"><label>Código de barras (opcional)</label><input class="qt-input" id="em-barcode" inputmode="numeric" value="${esc(med.barcode || '')}" autocomplete="off"></div>
-    <div id="em-fotos">${editFotosHtml(med)}</div>
+    <div id="em-fotos">${editFotosHtml(med)}</div>` : ''}
+    ${releaseFieldsHtml('em-date', 'em-adv', 'em-eff', med.release_at, adv)}
     <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" id="em-cancel">Cancelar</button><button class="qt-btn qt-btn-primary" id="em-save">Guardar</button></div>`);
   $('em-close').onclick = closeTool; $('em-cancel').onclick = closeTool;
-  $('em-barcode').addEventListener('input', () => { const bar = $('em-barcode').value.replace(/\D/g, ''); if (!$('em-cn').value.trim() && /^847000\d{7}$/.test(bar)) $('em-cn').value = bar.slice(6, 12); });
-  $('em-cima').onclick = async () => {
-    const cn = $('em-cn').value.trim();
-    if (!/^\d{5,7}$/.test(cn)) { toast('Escribe un Código Nacional (5–7 dígitos).', 'err'); return; }
-    const btn = $('em-cima'); btn.disabled = true; const prev = btn.textContent; btn.textContent = '…';
-    try { const { item } = await api('/cima/cn/' + cn); if (!item) toast('CIMA no encontró ese Código Nacional.', 'err'); else { if (item.nombre) $('em-nombre').value = item.nombre; if (item.barcode) $('em-barcode').value = item.barcode; $('em-fotos').innerHTML = editFotosHtml({ cn: item.cn, foto_caja: !!(item.fotos && item.fotos.caja), foto_pastilla: !!(item.fotos && item.fotos.pastilla) }); toast('Datos traídos de CIMA (AEMPS).', 'ok'); } }
-    catch (e) { toast((e.offline || (e.data && e.data.offline)) ? 'No se pudo consultar CIMA ahora; edítalo a mano.' : e.message, 'err'); }
-    finally { btn.disabled = false; btn.textContent = prev; }
-  };
+  wireReleaseFields('em-date', 'em-adv', 'em-eff');
+  if (isCnOnly) {
+    $('em-barcode').addEventListener('input', () => { const bar = $('em-barcode').value.replace(/\D/g, ''); if (!$('em-cn').value.trim() && /^847000\d{7}$/.test(bar)) $('em-cn').value = bar.slice(6, 12); });
+    $('em-cima').onclick = async () => {
+      const cn = $('em-cn').value.trim();
+      if (!/^\d{5,7}$/.test(cn)) { toast('Escribe un Código Nacional (5–7 dígitos).', 'err'); return; }
+      const btn = $('em-cima'); btn.disabled = true; const prev = btn.textContent; btn.textContent = '…';
+      try { const { item } = await api('/cima/cn/' + cn); if (!item) toast('CIMA no encontró ese Código Nacional.', 'err'); else { if (item.nombre) $('em-nombre').value = item.nombre; if (item.barcode) $('em-barcode').value = item.barcode; $('em-fotos').innerHTML = editFotosHtml({ cn: item.cn, foto_caja: !!(item.fotos && item.fotos.caja), foto_pastilla: !!(item.fotos && item.fotos.pastilla) }); toast('Datos traídos de CIMA (AEMPS).', 'ok'); } }
+      catch (e) { toast((e.offline || (e.data && e.data.offline)) ? 'No se pudo consultar CIMA ahora; edítalo a mano.' : e.message, 'err'); }
+      finally { btn.disabled = false; btn.textContent = prev; }
+    };
+  }
   $('em-save').onclick = async () => {
-    const nombre = $('em-nombre').value.trim(), cn = $('em-cn').value.trim(), barcode = $('em-barcode').value.trim();
-    if (!cn) { toast('Indica el Código Nacional.', 'err'); return; }
+    const nombre = $('em-nombre').value.trim();
     if (!nombre) { toast('Indica el nombre del medicamento.', 'err'); return; }
-    try { const r = await api('/plan/' + med.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre, cn, barcode: barcode || '' }) }); S.ficha.plan = mergePlan(S.ficha.plan, r.plan); renderFicha(); closeTool(); toast('Medicamento actualizado.'); }
-    catch (e) { toast(e.message, 'err'); }
+    const body = { nombre };
+    if (isCnOnly) {
+      const cn = $('em-cn').value.trim();
+      if (!cn) { toast('Indica el Código Nacional.', 'err'); return; }
+      body.cn = cn; body.barcode = $('em-barcode').value.trim() || '';
+    }
+    const date = $('em-date').value;
+    const adv2 = Math.round(Number($('em-adv').value));
+    if (date && (!Number.isFinite(adv2) || adv2 < 0 || adv2 > 365)) { toast('Días no válidos (0–365).', 'err'); return; }
+    try {
+      let r = await api('/plan/' + med.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (date) r = await api('/plan/' + med.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, advance_days: adv2 }) });
+      else if (med.release_at) r = await api('/plan/' + med.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: '' }) });
+      S.ficha.plan = mergePlan(S.ficha.plan, r.plan); renderFicha(); closeTool(); toast('Medicamento actualizado.');
+    } catch (e) { toast(e.message, 'err'); }
   };
 }
 
@@ -2116,6 +2164,8 @@ function openMedPicker() {
   openTool(`<div class="qt-modal-h"><h3>Añadir medicamento al plan</h3><button class="qt-x" id="mp-close">×</button></div>
     <p class="qt-tool-note">Del <b>catálogo</b> (ya en Data Matrix) o, si aún no lo está, <b>por Código Nacional</b> (información previa, sin caja todavía).</p>
     <label class="az-shtoggle az-siprecisa-toggle" id="mp-siprecisa-row"><input type="checkbox" id="mp-siprecisa"> <b>🟣 Si precisa</b> <span class="az-form-hint" style="margin:0">medicación eventual, no diaria — se distingue del resto en el plan</span></label>
+    <div class="qt-field-hint" style="margin:0 0 4px">🗓 Opcional: cuándo lo libera Salud (vale para cualquiera de las dos formas de añadir, de abajo).</div>
+    ${releaseFieldsHtml('mp-date', 'mp-adv', 'mp-eff')}
     <div class="qt-search" style="margin-bottom:10px"><span class="ico">🔎</span><input id="mp-q" placeholder="Buscar en el catálogo por nombre, GTIN o CN…" autocomplete="off"></div>
     <div id="mp-list" class="az-medlist"></div>
     <div class="qt-tool-row" style="margin:-2px 0 8px"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima-search">🔎 Buscar en CIMA (AEMPS)</button><span class="az-form-hint" style="margin:0">busca el medicamento en la base oficial y trae CN, nombre y código de barras</span></div>
@@ -2131,6 +2181,7 @@ function openMedPicker() {
       <div class="az-form-hint">Podrás asociarle una caja real más adelante (eligiéndola del inventario o escaneándola), y quedará pre-asignada.</div>
     </div>`);
   $('mp-close').onclick = closeTool;
+  wireReleaseFields('mp-date', 'mp-adv', 'mp-eff');
   const q = $('mp-q');
   const load = async () => {
     try {
@@ -2192,7 +2243,17 @@ async function addMedToPlan(payload) {
   try {
     const siEl = $('mp-siprecisa');
     const si_precisa = !!(siEl && siEl.checked);
-    await api(`/person/${S.person.id}/plan`, jbody({ qty: 1, si_precisa, ...payload }));
+    const dateEl = $('mp-date'), advEl = $('mp-adv');
+    const date = dateEl ? dateEl.value : '';
+    const adv = advEl ? Math.round(Number(advEl.value)) : 15;
+    const { plan } = await api(`/person/${S.person.id}/plan`, jbody({ qty: 1, si_precisa, ...payload }));
+    if (date) {
+      // Best-effort: identifica la línea recién creada por GTIN o CN (el payload
+      // siempre trae uno de los dos) y le pone la fecha en una segunda llamada — el
+      // alta ya ha tenido éxito aunque esto falle, así que no se deja sin guardar.
+      const added = plan.find(m => (payload.gtin && m.gtin === payload.gtin) || (payload.cn && m.cn === payload.cn));
+      if (added) { try { await api('/plan/' + added.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, advance_days: adv }) }); } catch { /* el medicamento ya quedó añadido; la fecha se puede poner luego editándolo */ } }
+    }
     closeTool(); await reloadFicha(); toast(si_precisa ? 'Medicamento «si precisa» añadido al plan.' : 'Medicamento añadido al plan.');
   } catch (e) { toast(e.message, 'err'); }
 }
