@@ -719,6 +719,9 @@ function renderHome() {
            <button class="qt-btn qt-btn-ghost az-import-btn" id="import-med">📥 Importar medicación (por Código Nacional)</button>
            <button class="qt-btn qt-btn-ghost az-import-btn" id="dm-candidates">🔗 ¿A quién sirve esta DM?</button>
          </div>
+         <div class="az-picker-row">
+           <button class="qt-btn qt-btn-ghost az-import-btn" id="med-availability">🗓️ Disponibilidad de medicamentos</button>
+         </div>
          <div id="pq-results" class="az-results"></div>
        </div>
 
@@ -737,6 +740,7 @@ function renderHome() {
   if (S.searchQuery) searchPeople(S.searchQuery);
   if ($('import-med')) $('import-med').onclick = openMedImport;
   if ($('dm-candidates')) $('dm-candidates').onclick = openDmCandidates;
+  if ($('med-availability')) $('med-availability').onclick = openMedAvailability;
   renderOverviewSection();
   loadStickers(S.stkYm || undefined);
 }
@@ -2256,6 +2260,118 @@ async function addMedToPlan(payload) {
     }
     closeTool(); await reloadFicha(); toast(si_precisa ? 'Medicamento «si precisa» añadido al plan.' : 'Medicamento añadido al plan.');
   } catch (e) { toast(e.message, 'err'); }
+}
+
+// ── Disponibilidad de medicamentos (dashboard) ────────────────────────────────────
+// Three cards (alguna / toda / eventual disponible); clicking one expands the SAME
+// modal downward into a big sortable list — no card selected = no list, and only
+// one card can be selected at a time (clicking another just swaps the filter).
+const AVAIL_COLS = [
+  ['nombre', 'Nombre'], ['apellidos', 'Apellidos'], ['residencia', 'Grupo'],
+  ['normal_disp', 'Medicamentos disponibles'], ['eventual_disp', 'Eventuales disponibles'],
+  ['oldest', 'Disponible desde'],
+];
+// The "primary" stat for a row depends on which card is active: for alguna/toda it's
+// the normal (non-eventual) medications; for the eventual card it's the eventual ones.
+function availPrimary(r, mode) {
+  return mode === 'eventual'
+    ? { disp: r.eventual_disp, total: r.eventual_total, oldest_days: r.eventual_oldest_days, oldest_at: r.eventual_oldest_at }
+    : { disp: r.normal_disp, total: r.normal_total, oldest_days: r.normal_oldest_days, oldest_at: r.normal_oldest_at };
+}
+function availFilter(rows, mode) {
+  if (mode === 'alguna') return rows.filter(r => r.normal_disp >= 1);
+  if (mode === 'toda') return rows.filter(r => r.normal_total >= 1 && r.normal_disp === r.normal_total);
+  if (mode === 'eventual') return rows.filter(r => r.eventual_disp >= 1);
+  return [];
+}
+function availSortVal(r, key) {
+  const p = r.person;
+  switch (key) {
+    case 'nombre': return p.nombre || '';
+    case 'apellidos': return p.apellidos || '';
+    case 'residencia': return (p.groups && p.groups.length) ? p.groups.join(' · ') : '';
+    case 'normal_disp': return r.normal_disp || 0;
+    case 'eventual_disp': return r.eventual_disp || 0;
+    case 'oldest': return r._primary.oldest_days;
+    default: return `${p.apellidos} ${p.nombre}`;
+  }
+}
+function sortedAvail(rows, mode, sort) {
+  const list = rows.map(r => Object.assign({}, r, { _primary: availPrimary(r, mode) }));
+  const { key, dir } = sort, mul = dir === 'desc' ? -1 : 1;
+  const numeric = key === 'normal_disp' || key === 'eventual_disp' || key === 'oldest';
+  return list.sort((a, b) => {
+    const va = availSortVal(a, key), vb = availSortVal(b, key);
+    let c = numeric ? (va - vb) : String(va).localeCompare(String(vb), 'es');
+    if (c !== 0) return c * mul;
+    // Orden por defecto: 2º criterio (más disponibles primero) al empatar en fecha.
+    if (key === 'oldest') { const cd = b._primary.disp - a._primary.disp; if (cd !== 0) return cd; }
+    return `${a.person.apellidos} ${a.person.nombre}`.localeCompare(`${b.person.apellidos} ${b.person.nombre}`, 'es');
+  });
+}
+function openMedAvailability() {
+  const st = { rows: null, mode: null, sort: { key: 'oldest', dir: 'asc' } };
+  openTool(`<div class="qt-modal-h"><h3>🗓️ Disponibilidad de medicamentos</h3><button class="qt-x" id="ma-x">×</button></div>
+    <p class="qt-tool-note">Personas con medicación ya <b>disponible</b> hoy, según su fecha de liberación y anticipación. Elige qué quieres ver.</p>
+    <div id="ma-cards" class="az-ma-cards"><div class="az-form-hint">Cargando…</div></div>
+    <div id="ma-body"></div>`);
+  $('ma-x').onclick = closeTool;
+  load();
+  async function load() {
+    try { const { items } = await api('/plan-availability'); st.rows = items; renderCards(); }
+    catch (e) { $('ma-cards').innerHTML = `<div class="az-empty">${esc(e.message)}</div>`; }
+  }
+  function renderCards() {
+    const n = st.rows || [];
+    const counts = {
+      alguna: availFilter(n, 'alguna').length,
+      toda: availFilter(n, 'toda').length,
+      eventual: availFilter(n, 'eventual').length,
+    };
+    const card = (mode, emoji, label) => `<button type="button" class="az-ma-card${st.mode === mode ? ' sel' : ''}" data-mode="${mode}">
+      <span class="az-ma-card-n">${counts[mode]}</span>
+      <span class="az-ma-card-l">${emoji} ${label}</span>
+    </button>`;
+    $('ma-cards').innerHTML =
+      card('alguna', '🟢', 'Personas con alguna medicación disponible') +
+      card('toda', '✅', 'Personas con toda la medicación disponible') +
+      card('eventual', '🟣', 'Personas con medicación eventual disponible');
+    $('ma-cards').querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
+      st.mode = b.dataset.mode; st.sort = { key: 'oldest', dir: 'asc' };
+      $('tool-modal-box').classList.add('az-modal-wide');
+      renderCards(); renderBody();
+    });
+  }
+  function renderBody() {
+    const body = $('ma-body');
+    if (!st.mode) { body.innerHTML = ''; return; }
+    const rows = availFilter(st.rows, st.mode);
+    if (!rows.length) { body.innerHTML = '<div class="az-empty">Nadie encaja con esa opción ahora mismo.</div>'; return; }
+    const arrow = k => st.sort.key === k ? (st.sort.dir === 'desc' ? ' ▼' : ' ▲') : '';
+    const head = `<thead><tr>${AVAIL_COLS.map(([k, l]) =>
+      `<th data-k="${k}" class="${st.sort.key === k ? 'sorted' : ''}${(k === 'normal_disp' || k === 'eventual_disp') ? ' az-ovt-num' : ''}" title="Ordenar por ${esc(l)}">${l}${arrow(k)}</th>`).join('')}<th></th></tr></thead>`;
+    const trs = sortedAvail(rows, st.mode, st.sort).map(r => {
+      const p = r.person;
+      const oldest = r._primary.oldest_at ? fmtDate(r._primary.oldest_at) : '—';
+      return `<tr>
+        <td class="az-ovt-name">${esc(p.nombre)}</td>
+        <td class="az-ovt-name">${esc(p.apellidos)}</td>
+        <td>${(p.groups && p.groups.length) ? esc(p.groups.join(' · ')) : '<span class="az-ovt-dim">Sin grupo</span>'}</td>
+        <td class="az-ovt-num">${r.normal_disp} de ${r.normal_total}</td>
+        <td class="az-ovt-num">${r.eventual_total ? r.eventual_disp + ' de ' + r.eventual_total : '<span class="az-ovt-dim">—</span>'}</td>
+        <td class="az-ovt-mono">${esc(oldest)}</td>
+        <td class="az-dc-act"><button class="qt-btn qt-btn-ghost qt-btn-sm" data-open="${p.id}">Ficha ↗</button></td>
+      </tr>`;
+    }).join('');
+    body.innerHTML = `<div class="az-ovt-wrap"><table class="az-ovt">${head}<tbody>${trs}</tbody></table></div>`;
+    body.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+      const k = th.dataset.k;
+      if (st.sort.key === k) st.sort.dir = st.sort.dir === 'asc' ? 'desc' : 'asc';
+      else st.sort = { key: k, dir: 'asc' };
+      renderBody();
+    });
+    body.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { closeTool(); openPerson(Number(b.dataset.open)); });
+  }
 }
 
 // ── Add a box to the ficha (pre-assign): from inventory or by scanning ───────────

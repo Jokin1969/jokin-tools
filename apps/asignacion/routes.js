@@ -556,6 +556,44 @@ router.get('/api/overview', (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+// ── Disponibilidad de medicamentos (dashboard: quién puede ya recoger algo) ───────
+// Per person, splits the active plan into normales / eventuales (si_precisa) and,
+// for each side, counts how many are "disponibles" hoy (effective date reached) and
+// the OLDEST such date (the one available the longest — most overdue to dispense).
+router.get('/api/plan-availability', (req, res) => {
+  try {
+    const today = todayIso();
+    const stat = (lines) => {
+      let disp = 0, oldest_days = null, oldest_at = null;
+      for (const l of lines) {
+        const adv = l.advance_days == null ? db.DEFAULT_ADVANCE : l.advance_days;
+        const eff = db.effectiveDate(l.release_at, adv);
+        if (eff && eff <= today) {
+          disp++;
+          const days = daysUntil(eff);
+          if (oldest_days === null || days < oldest_days) { oldest_days = days; oldest_at = eff; }
+        }
+      }
+      return { total: lines.length, disp, oldest_days, oldest_at };
+    };
+    const rows = [];
+    for (const id of db.planPersonIds()) {
+      const p = qrDb.getPerson(id);
+      if (!p) continue; // person deleted from qr-tis
+      const plan = db.listPlan(id).filter(l => l.active);
+      if (!plan.length) continue;
+      const n = stat(plan.filter(l => !l.si_precisa));
+      const e = stat(plan.filter(l => l.si_precisa));
+      rows.push({
+        person: personView(p),
+        normal_total: n.total, normal_disp: n.disp, normal_oldest_days: n.oldest_days, normal_oldest_at: n.oldest_at,
+        eventual_total: e.total, eventual_disp: e.disp, eventual_oldest_days: e.oldest_days, eventual_oldest_at: e.oldest_at,
+      });
+    }
+    res.json({ today, items: rows });
+  } catch (err) { fail(res, err); }
+});
+
 // ── Per-user cart of people ──────────────────────────────────────────────────────
 function cartPayload(userId) {
   const ids = db.cartIds(userId);
