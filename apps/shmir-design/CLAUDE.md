@@ -3417,6 +3417,30 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - **Un motivo de retirada tiene que decir QUÉ SE MIDIÓ y QUÉ LO DEVOLVERÍA**, y hay test
     de las dos cosas: un retirado sin condición de vuelta se lee como un borrado.
 
+- **UNA TARJETA NO DICE LO MISMO DOS VECES (2026-09-05)**, errata nº 108. Reportado con
+  la tarjeta delante: *«se repite el mensaje que dice que ya está hecho. Uno en verde y
+  otro en amarillo»*, y **«pasa en casi todas»** — en todas las cerradas por corrida
+  guardada.
+  - **El texto se escribe UNA vez y lo leían DOS campos**: el `motivo` de `run_coverage`
+    iba a `frente.reason` → `resultado` (verde) **y** a `avance` (ámbar). No es una copia
+    tecleada dos veces, que se vería en un `grep`: es una cantidad leída por dos campos que
+    la pintan distinto — el principio nº 27 en la capa visual.
+  - **Y el ámbar era del color equivocado**: `avance` existe por la errata nº 54 para la
+    cobertura **PARCIAL** —«6 de 10 no se pinta como uno sin tocar»— y de un frente cerrado
+    no falta nada. Un «pendiente» debajo de un «cerrado» es el principio nº 36 dentro de
+    una sola tarjeta.
+  - **Se separan las preguntas, no se esconde un campo**: `run_coverage` emite `motivo`
+    (por qué se cierra o cuánto falta) y `avance` (**sólo** cuánto falta), y en la tarjeta
+    `motivo` deja de duplicar a `resultado`. Los tres estados quedan con **una** línea cada
+    uno: cerrado → verde; 6 de 10 → ámbar; sin tocar → nada.
+  - **Y el arreglo estuvo a punto de tapar lo que el golden mira**: la instantánea imprime
+    **una** columna `motivo`, así que al vaciarlo la fila del frente cerrado se quedaba sin
+    motivo. Lee `resultado or motivo` —excluyentes por construcción— y el golden vuelve a
+    ser idéntico. Lo cazó leer el diff.
+  - **El guardia recorre TODOS los campos de texto que la tarjeta pinta** y exige que
+    ninguno repita a otro, con control adversario: sin él, «ninguna repite» y «el detector
+    no mira nada» dan el mismo verde.
+
 - **LA CORRIDA DE VEINTE: EL HALLAZGO ES LA DISPERSIÓN, NO LA MEDIA (2026-09-05)**
   (`data/medido/spliceai_dos_intrones_2026-09-05.tsv`). Primera corrida de SpliceAI con las
   **dos arquitecturas** —los diez candidatos del panel con `mvm_actual` y con

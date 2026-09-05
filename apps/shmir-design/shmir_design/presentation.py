@@ -2126,11 +2126,19 @@ def run_coverage(estados_por_frente, *, starts, origins=None) -> dict[str, dict]
             motivo = _motivo_a_medias(panel, cubiertos, de_donde)
         else:
             motivo = ""
+        # `motivo` y `avance` SON DOS PREGUNTAS y por eso son dos campos (errata nº 108).
+        # `motivo` dice por que se cierra —y de ahi sale `frente.reason`, o sea el
+        # resultado en VERDE—; `avance` dice CUANTO FALTA, que es para lo que se escribio
+        # (errata nº 54: «6 de 10 no se pinta como uno sin tocar») y se pinta en AMBAR.
+        # De un frente cerrado no falta nada, asi que ahi `avance` esta vacio: con el
+        # mismo texto en los dos, la tarjeta decia lo mismo dos veces y en dos colores —
+        # un ambar que dice «pendiente» debajo de un verde que dice «cerrado».
         salida[frente] = {
             "cerrado": cerrado,
             "cubiertos": len(cubiertos),
             "panel": len(panel),
             "motivo": motivo,
+            "avance": "" if cerrado else motivo,
         }
     return salida
 
@@ -5706,7 +5714,12 @@ def page_snapshot(
                     "frente": t["frente"],
                     "estado": "CERRADO" if t["estado"] == "HECHO" else "NOT_RUN",
                     "donde_se_cierra": t["donde_se_cierra"],
-                    "motivo": t["motivo"],
+                    # LOS DOS, porque son EXCLUYENTES por construccion: el motivo de un
+                    # frente cerrado vive en `resultado` (la tarjeta lo pinta en verde) y
+                    # el de uno abierto en `motivo`. Leer solo uno dejaba la fila del
+                    # cerrado SIN motivo en la instantanea — el arreglo de la errata
+                    # nº 108 se llevaba por delante justo lo que este golden mira.
+                    "motivo": t["resultado"] or t["motivo"],
                 }
                 for t in front_card_rows(corrida, species=species)
             ],
@@ -6418,7 +6431,9 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
                 # dentro del desplegable, junto a las instrucciones para conseguir lo que
                 # ya estaba: un frente abierto y uno cerrado enseñaban lo mismo.
                 "resultado": frente.reason if cerrado else "",
-                "motivo": frente.reason,
+                # Y NO SE REPITE EN `motivo`: cerrado, el motivo ES el resultado y ya
+                # esta pintado arriba. `motivo` es lo que se dice de un frente ABIERTO.
+                "motivo": "" if cerrado else frente.reason,
                 "ficha_titulo": FICHA_TITLES[ficha.heading_kind(closed=cerrado)],
                 "ficha_texto": ficha.render(closed=cerrado),
                 "fuente": ficha.source,
@@ -6427,7 +6442,7 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
                 # puede pintarse igual que uno que nadie ha tocado.
                 "cubiertos": (parcial or {}).get("cubiertos", 0),
                 "panel": (parcial or {}).get("panel", len(panel)),
-                "avance": (parcial or {}).get("motivo", ""),
+                "avance": (parcial or {}).get("avance", ""),
                 "que_hace_falta": [f.name for f in ficha.files],
                 "donde": ficha.url,
             }

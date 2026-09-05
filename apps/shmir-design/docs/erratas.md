@@ -5334,3 +5334,67 @@ Un inicio que no sea de ninguna ventana elegible sigue abortando, que es lo corr
 
 Con el alcance de 86 marcado: FASTA de consulta **172 registros**, modal de seed **172
 filas**, y el de empalme **172 construcciones con 0 fallidas** en vez de las 20 que emitía.
+
+## 108 — La tarjeta decía lo mismo dos veces, y en dos colores
+
+**Reportado (2026-09-05)**, con la tarjeta delante: *«se repite el mensaje que dice que ya
+está hecho. Uno en verde y otro en amarillo»*, y **«pasa en casi todas»** — que es cierto:
+en todas las cerradas por corrida guardada, o sea casi todas en un proyecto trabajado.
+
+```
+CERRADO por corrida guardada: los 10 candidatos del panel tienen veredicto…   ← verde
+CERRADO por corrida guardada: los 10 candidatos del panel tienen veredicto…   ← ámbar
+```
+
+### El texto se escribe UNA vez y lo leen DOS campos
+
+`run_coverage` emite un `motivo` cuando una corrida cubre el panel, y ese mismo objeto
+viajaba a los dos sitios:
+
+- a `cerrados`, que `blocking_fronts` pone en `frente.reason` → `resultado` → `st.success`;
+- a `avance`, que la tarjeta pinta → `st.warning`.
+
+No es una copia que alguien escribió dos veces —eso se ve en un `grep`—: es **una cantidad
+leída por dos campos que la pintan distinto**, que es el principio nº 27 en la capa visual.
+
+### Y el segundo no es sólo redundante: es del color equivocado
+
+`avance` existe por la **errata nº 54**, y su frase fundacional dice para qué: *«un frente
+con corrida para 6 de 10 no puede pintarse igual que uno que nadie ha tocado»*. O sea,
+**cobertura PARCIAL**. Sobre un frente cerrado no falta nada que avanzar, así que el ámbar
+—que en esta app significa «pendiente»— quedaba **justo debajo de un verde que dice
+«cerrado»**. Dos estados pintando lo mismo: el principio nº 36 dentro de una sola tarjeta.
+
+Un lector que se fía del color ve un frente medio hecho; uno que se fía del texto ve el
+mensaje repetido y deja de leer los dos. Las dos lecturas son peores que una sola línea.
+
+### El arreglo es separar las preguntas, no esconder un campo
+
+`run_coverage` emite **dos**: `motivo` (por qué se cierra, o cuánto falta) y `avance`
+(**sólo** cuánto falta, vacío si está cerrado). Y en la tarjeta, `motivo` deja de duplicar
+a `resultado`: cerrado, el motivo **es** el resultado y ya está pintado arriba.
+
+Los tres estados quedan con **una** línea cada uno, medido:
+
+| cobertura | verde (`resultado`) | ámbar (`avance`) |
+|---|---|---|
+| 10 de 10 | «CERRADO por corrida guardada…» | — |
+| 6 de 10 | — | «HAY CORRIDA, PERO NO CUBRE…» |
+| 0 de 10 | — | — |
+
+### Lo que el arreglo estuvo a punto de llevarse por delante
+
+La instantánea de la página imprime la tabla de frentes con **una** columna `motivo`, así
+que al vaciarlo en los cerrados esa fila se quedaba **sin motivo** en el golden — el
+arreglo tapando justo lo que ese golden existe para mirar. Lee ahora `resultado or motivo`,
+que son **excluyentes por construcción**, y el golden vuelve a ser idéntico. Lo cazó leer
+el diff, otra vez.
+
+### El guardia
+
+`tests/test_una_tarjeta_NO_dice_lo_mismo_dos_veces.py` recorre **todos** los campos de
+texto que la tarjeta pinta uno debajo de otro y exige que ninguno repita a otro, sobre las
+tarjetas de verdad y en los dos estados. Con su control adversario: una tarjeta con el
+texto duplicado tiene que ser señalada, porque si no «ninguna repite» y «el detector no
+mira nada» dan el mismo verde. Un campo nuevo entra en la comprobación con sólo añadirlo a
+la lista de lo que se pinta.

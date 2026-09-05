@@ -98,8 +98,16 @@ class TestLaTarjetaYLaColumnaNOpuedenDiscrepar(unittest.TestCase):
     def test_la_tarjeta_dice_que_lo_cerro_el_FICHERO_y_no_una_corrida(self):
         # Dos causas, dos textos: «cerrado por corrida guardada» sobre un frente que
         # nadie ha corrido manda a buscar en el registro del proyecto, donde no hay nada.
+        #
+        # EL CAMPO CAMBIÓ, NO LA INVARIANTE (2026-09-05, errata nº 108). Estaba en
+        # `avance`, que se pintaba en ÁMBAR con el mismo texto que `resultado` en verde
+        # — el mismo mensaje dos veces y en dos colores. Ahora el motivo del cierre vive
+        # sólo en `resultado` y `avance` es únicamente para la cobertura PARCIAL, así
+        # que aquí tiene que estar vacío: de un frente cerrado no falta nada.
         for frente in CERRADOS_POR_FICHERO:
-            self.assertIn("depósito", self.tarjetas[frente]["avance"])
+            with self.subTest(frente):
+                self.assertIn("depósito", self.tarjetas[frente]["resultado"])
+                self.assertEqual(self.tarjetas[frente]["avance"], "")
 
     def test_NINGUN_frente_con_columna_puede_estar_abierto_con_el_panel_contestado(self):
         """La invariante entera, no sólo los dos del reporte."""
