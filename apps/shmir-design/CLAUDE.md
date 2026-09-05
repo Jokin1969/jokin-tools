@@ -3439,11 +3439,13 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **ninguno**. Los siete del contexto 5' —el de `construccion:1517` entre ellos, que es el
     más fuerte de la molécula— salen en las **veinte**: vienen con el plásmido, no los
     introduce ninguna guía y cambiar de candidato no los quita.
-    - **EL DENOMINADOR NO ES COSMÉTICO**, y aquí se ve: contra el donante legítimo **de su
-      propia construcción** el aceptor da 11,9 %, y contra el legítimo **medio** da 10,7 %.
-      Manda el primero, y no por conservadurismo: el peor caso (`3utr:959`) es justo la
-      construcción con el donante legítimo **más bajo** de las diez (0,783), o sea que el
-      críptico compite dentro de esa molécula y no dentro de un promedio.
+    - **EL DENOMINADOR NO ES COSMÉTICO. DECIDIDO (2026-09-05): el de cada construcción.**
+      Contra el donante legítimo **de su propia construcción** el aceptor da **11,9 %**;
+      contra el legítimo **medio**, 10,7 %. Manda el primero, y el argumento es el que lo
+      decide: el peor caso (`3utr:959`) es justo la construcción con el donante legítimo
+      **más bajo** de las diez (0,783), así que **dividir por la media suaviza justamente el
+      caso que importa**. El críptico compite dentro de su propia molécula, no dentro de un
+      promedio. Las cifras del panel son **11,9 % y 6,1 %**.
   - **El `GTGAGCG` puntúa CERO en las veinte, con las dos arquitecturas** — localizado por
     SECUENCIA en cada construcción, no por desfase: intrón +98 en el MVM y +87 en el
     quimérico, una sola copia en cada una, porque viaja en el flanco 5' del andamio. **Y no
@@ -3454,12 +3456,25 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     construcciones de `mvm_actual` de aquélla medían 5.384 nt y éstas 5.496 — los 112 nt del
     flanco 3' que siguen **sin causa asignada**. Por eso el donante legítimo iba de 0,664 a
     0,871 y ahora de 0,783 a 0,925.
-  - **EL CONTRAPESO QUE SpliceAI NO VE, y con la geometría corregida**: donante→punto de
-    ramificación **256 nt en el MVM y 249-253 en el quimérico**, los dos muy por encima del
-    rango típico de mamífero. **Este eje NO discrimina entre los dos** — se dio como
-    contrapeso que el quimérico estaba en 314-318, y eso salía de aplicarle lo que se
-    intercala en el MVM; ver la errata nº 106. Lo que sigue en pie es que los dos están
-    fuera de rango y que **eso lo decide el gel, no un modelo**.
+  - **EL CONTRAPESO QUEDA RETIRADO, y con él la última reserva sobre el quimérico.**
+    Donante→punto de ramificación **256 nt en el MVM y 249-253 en el quimérico**: este eje
+    **NO discrimina**. Se dio como contrapeso que el quimérico estaba en 314-318, y eso
+    salía de aplicarle los 214 nt que se intercalan en el MVM a un intrón que se monta con
+    149 — errata nº 106, **retirada por Joaquín Castilla**, que fue quien la propuso, y
+    anotada con su nombre a petición suya.
+  - **CONSECUENCIA, y va en el informe (`presentation.intron_architecture_note`,
+    sección «Arquitecturas de intron»): el quimérico GANA EN TODO LO MEDIDO, SIN CONTRAPESO
+    CONOCIDO** — donante, aceptor, dispersión en los dos, crípticos intrónicos, tracto, y
+    empate en geometría. Lo que sí se sostiene del contrapeso es que **los dos** quedan muy
+    por encima del rango típico de mamífero, y eso **lo decide el gel, no un modelo**.
+    - **Vivía en un desplegable de la interfaz**, o sea donde no lo lee quien recibe el
+      documento. Decide qué se sintetiza, así que entra en el informe descargable: el
+      principio nº 23 por duodécima vez.
+  - **LA LECCIÓN DEL CONTRAPESO ES UN PRINCIPIO (nº 40)**, con la formulación de quien
+    cometió el fallo: *«una magnitud derivada de dos construcciones distintas no se compara
+    sin comprobar que ambas se montan igual. Yo di por hecho que lo intercalado era lo mismo
+    porque el módulo lo es»*. El módulo **sí** es el mismo; lo que cambia son las piezas que
+    dependen de CÓMO entra en cada intrón.
 
 - **LOS PUNTOS DE INSERCIÓN DE `intron_quimerico` (2026-08-30)**
   (`intron_design.insertion_candidates`). Ese intrón llegaba entero de su plásmido y no

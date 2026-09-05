@@ -42,6 +42,7 @@ from shmir_design.presentation import (  # noqa: E402
     cached_run,
     run_allowed,
     run_fingerprint,
+    intron_architecture_note,
     intron_geometry_text,
     stored_runs_note,
     upload_path,
@@ -2533,6 +2534,11 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
     # no se emitia en ninguna parte. La pagina no calcula: pide el texto ya montado.
     with st.expander("Geometría de los intrones — desglose y sitio de inserción"):
         st.code(intron_geometry_text(), language=None)
+
+    # LA COMPARACION DE LAS DOS ARQUITECTURAS, que es lo que decide que se sintetiza.
+    # NO va colapsada y NO vive solo aqui: entra tambien en el informe descargable
+    # (principio nº 23). La pagina no la formatea — la monta `presentation`.
+    st.code(intron_architecture_note(), language=None)
 
     # La variante que la app DISEÑA, para esta guía. Se enseña aquí porque es donde se
     # decide con qué intrón se consulta: uno que se propone y nadie ve no existe.

@@ -5184,6 +5184,20 @@ MVM, o sea 58-62 nt peor. **Medido sobre el intrón que de verdad se monta, son 
 el quimérico no es peor en ese eje — empata, y por unos pocos nucleótidos incluso queda por
 debajo.
 
+### RETIRADO POR JOAQUÍN CASTILLA, y va con su nombre a petición suya
+
+*«El contrapeso lo retiro entero. Apliqué al quimérico los 214 nt del MVM sin comprobar que
+el quimérico se monta sin espaciadores. La diferencia era exactamente 65 = 20 + 45 — la
+errata 35, cometida por mí esta vez»*.
+
+Va anotado con su nombre por la misma razón que la predicción refutada de la carrera de A y
+que la rectificación del rol de `apa_medido.tsv`: **si sólo se anotan las rectificaciones
+ajenas, el registro deja de ser un registro y pasa a ser un argumento.**
+
+**Consecuencia, y está en el informe**: el quimérico **gana en todo lo medido, sin
+contrapeso conocido**. Lo que sí se sostiene es que **los dos** quedan muy por encima del
+rango típico de mamífero — y eso no lo arregla cambiar de intrón.
+
 ### De dónde salían los 314-318
 
 `tools/auditar_geometria.py` tenía
@@ -5248,9 +5262,16 @@ están los cuatro»*. **Están los cuatro.**
 | carga de off-targets | usa `_strands` del anterior | **aborta** |
 | empalme | `[c for c in chosen if c.start in starts]` | **NO aborta: emite el panel** |
 
-**El cuarto es el peor.** No rechazaba nada: el selector anunciaba 172 consultas, la app
-montaba 20 y no decía una palabra. Es la errata nº 97 —lo anunciado y lo emitido sin nada
-que los ate— entrando por un eje nuevo, tres días después de haberla cerrado por el otro.
+**El cuarto es el peor, y la razón es de grado invertido.** No rechazaba nada: el
+selector anunciaba 172 consultas, la app montaba 20 y no decía una palabra. Dicho por quien
+lo reportó: *«los tres que abortan te dejan sin resultado; ése te deja con un resultado que
+parece completo»*. Un aborto es información —desagradable, inmediata y accionable—; **un
+FASTA de 20 registros con la etiqueta de 172 detrás es un entregable que se pasa por
+SpliceAI, se analiza y se archiva**, y el error sólo aparece si alguien vuelve a contar.
+Es la errata nº 97 —lo anunciado y lo emitido sin nada que los ate— entrando por un eje
+nuevo, tres días después de haberla cerrado por el otro; y es la misma familia que el
+`verify()` de la nº 29 y el contador de la nº 105: **el fallo cuyo producto normal es el
+silencio con forma de dato.**
 
 ### Por qué esta no es «otro consumidor sin cablear»
 
@@ -5269,8 +5290,20 @@ con forma de dato de la errata nº 105, en un control en vez de en un contador.
 Un inicio se resuelve a su candidato en **`ReportSelection.choices_for`**, que es el objeto
 que tiene los dos conjuntos —el panel y los sitios elegibles—. Y la definición buena **ya
 existía**: `presentation._choices_de` hacía exactamente eso, en la capa que el núcleo no
-puede importar. **La versión correcta era inalcanzable justo para quien la necesitaba**, así
-que cada módulo escribió la suya contra lo que tenía a mano.
+puede importar.
+
+**Ésa es la causa estructural, y es lo que explica por qué eran cuatro y no uno**, con las
+palabras de quien lo señaló: *«que la definición correcta viviera en `presentation`, en una
+capa que el núcleo no puede importar, es la causa estructural: cada módulo escribió la suya
+porque la buena estaba donde no se podía usar»*. No fueron cuatro descuidos independientes:
+fue **una pieza colocada en el sitio equivocado de la jerarquía de capas**, y cada módulo
+que la necesitó y no pudo llamarla resolvió lo mismo por su cuenta. Contarlo como cuatro
+fallos lleva a arreglar cuatro sitios; contarlo como uno lleva a mover la pieza — que es lo
+que se ha hecho, con `presentation` delegando en ella.
+
+Y deja una pregunta que vale para el resto del paquete: **¿qué más vive en `presentation`
+que el núcleo necesitaría?** Una utilidad correcta en la capa de arriba no da ningún error
+— produce copias peores abajo.
 
 Arreglar los cuatro por separado habría dejado el mismo hueco para el quinto. El guardia es
 mecánico y está **calibrado midiendo** (principio nº 34), porque la forma del fallo y la

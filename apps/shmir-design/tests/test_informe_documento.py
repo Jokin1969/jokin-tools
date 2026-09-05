@@ -276,6 +276,10 @@ class TestParcialYCompletoSonELMISMO(unittest.TestCase):
         "Tabla de candidatos",
         "Todos los sitios elegibles",
         "Controles del experimento",
+        # AÑADIDA (2026-09-05). Compara las dos arquitecturas de intrón eje a eje, y
+        # entra porque eso DECIDE QUE SE SINTETIZA: vivía en un desplegable de la
+        # interfaz, que es donde no lo lee quien recibe el documento.
+        "Arquitecturas de intrón",
         "Fichas de los seleccionados",
         "Limitaciones",
         "Procedencia",

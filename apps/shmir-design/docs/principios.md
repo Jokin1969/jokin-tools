@@ -1932,3 +1932,58 @@ la respuesta es que desaparece, lo que se ha escrito es una pregunta sobre el **
 y no sobre el **fenómeno**, y hay que buscar su versión continua. Un criterio de
 exclusividad no es una versión estricta de uno gradual: es una pregunta distinta, y su modo
 de fallo es devolver **vacío** — que se lee como «no hay nada que mirar».
+
+## 40 — Dos magnitudes derivadas no se comparan sin comprobar que sus construcciones se montan igual
+
+Sale de la errata nº 106, y la formulación es de quien cometió el fallo y lo retiró:
+*«una magnitud derivada de dos construcciones distintas no se compara sin comprobar que
+ambas se montan igual. Yo di por hecho que lo intercalado era lo mismo porque el módulo lo
+es»*.
+
+### El caso
+
+Se comparó el donante→punto de ramificación de los dos intrones: **314-318 nt en el
+quimérico frente a 256 en el MVM**, y de ahí salió un contrapeso —«el quimérico es peor en
+geometría»— que llegó a estar escrito en dos constantes del proyecto.
+
+Los dos números salen de la misma función y de la misma fórmula. Lo que no es el mismo es
+**lo que se intercala**: el MVM lleva el módulo **más los dos espaciadores** (214 nt) y el
+quimérico lleva **el módulo solo** (149), porque su posición de inserción se decidió
+midiendo sin ellos y montarlo con ellos aborta. Medido sobre el intrón que de verdad se
+monta, el quimérico está en **249-253**: no es peor, empata.
+
+### Por qué el error es fácil y no es tonto
+
+**El módulo SÍ es el mismo.** Los 149 nt son idénticos en las dos, y de ahí sale el paso
+que nadie da: *si el módulo es el mismo, lo intercalado es lo mismo*. Y no lo es, porque
+alrededor del módulo hay piezas que dependen de **cómo entra en cada intrón**, no de qué
+módulo es.
+
+Es la familia de la errata nº 35 —dos magnitudes distintas cuya composición da algo
+plausible— con una vuelta más: aquí las dos magnitudes son **la misma cantidad calculada
+sobre dos objetos que no son comparables en el eje que importa**.
+
+### La señal, y es la misma de siempre
+
+318 − 253 = **65** = 20 + 45. La diferencia coincidía exactamente con la longitud de dos
+piezas conocidas, que es el corolario operativo de la errata nº 35: **antes de buscar en
+otro sitio, mirar si la diferencia es una pieza**.
+
+### La regla
+
+Antes de poner dos magnitudes derivadas una al lado de la otra: **¿qué entra en cada una
+que no entra en la otra?** Si la respuesta no es «nada», la comparación es de dos cosas
+distintas con el mismo nombre — principio nº 27 aplicado a magnitudes en vez de a
+símbolos.
+
+Y la contramedida es la de siempre: **lo que cambia entre construcciones se DERIVA de cada
+construcción**, nunca de una constante global. `Intron.inserted_length` lo dice el intrón;
+el auditor pregunta en vez de aplicar el mismo número a los dos. Con una constante por
+intrón habría dos valores que mantener a mano, y el tercer intrón heredaría el que no le
+toca.
+
+### Y no ahorra tener razón
+
+El número correcto **también** cae fuera del rango típico de mamífero, así que el 314-318
+encajaba en la historia que se estaba contando y no chirriaba por ningún lado. La
+plausibilidad no era señal: es exactamente lo que hace falta comprobar.

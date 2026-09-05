@@ -904,7 +904,23 @@ EL PLEGADO DEL 97-MERO NO DISCRIMINA, y por eso un PASS aquí no es evidencia de
 
 2 o 3 CAMBIOS: no se elige aquí. Se emiten las dos versiones con sus métricas y lo decide quien lee, con la tabla delante. Lo que la medida añade a la intuición es que el número de cambios importa MENOS que dónde caen: lo que deja residuo de reconocimiento es la RACHA de seed que queda intacta, no cuántas bases se tocaron.
 
-## 8. Fichas de los seleccionados
+## 8. Arquitecturas de intrón
+
+Los diez candidatos del panel se han consultado con LAS DOS arquitecturas de intrón —20 construcciones— y estos son los ejes en los que se diferencian. Las puntuaciones salen de la corrida de SpliceAI del 2026-09-05, guardada con su procedencia; la geometria la deriva esta app.
+
+| eje | mvm_actual | intron_quimerico | gana |
+|---|---|---|---|
+| dispersión del donante legítimo entre las 10 guías | 18,1 % (0,783-0,925) | 1,8 % (0,956-0,973) | quimérico |
+| dispersión del aceptor legítimo | 10,3 % (0,778-0,858) | 0,9 % (0,985-0,994) | quimérico |
+| crípticos intrónicos por encima del 5 % del legítimo | 2 (11,9 % y 6,1 %, en 1 de 10) | ninguno | quimérico |
+| tracto de polipirimidinas | 9 pirimidinas | 11 pirimidinas | quimérico |
+| donante→punto de ramificación, MONTADO | 256 nt | 249-253 nt | ninguno: no discrimina |
+
+Retirado por Joaquín Castilla (2026-09-05), que fue quien lo propuso. Se dio como contrapeso del quimérico que su donante→punto de ramificación es de 314-318 nt frente a los 256 del MVM, y con sus palabras: «apliqué al quimérico los 214 nt del MVM sin comprobar que el quimérico se monta sin espaciadores. La diferencia era exactamente 65 = 20 + 45 — la errata nº 35, cometida por mí esta vez». Medido sobre el intrón que de verdad se monta, el quimérico está en 249-253 nt: no es peor en geometría, empata y queda marginalmente por debajo. CONSECUENCIA, y va escrita porque decide qué se sintetiza: el quimérico GANA EN TODO LO MEDIDO, SIN CONTRAPESO CONOCIDO. Lo que sí se sostiene del contrapeso es que LOS DOS quedan muy por encima del rango típico de mamífero, y eso no lo arregla cambiar de intrón.
+
+En el intrón VACÍO el quimérico tiene el punto de ramificación mucho más lejos del donante (100-104 nt frente a 42), pero MONTADOS empatan: el MVM lleva además los dos espaciadores, así que intercala 214 nt frente a 149 y acaba en 256 nt frente a los 249-253 del quimérico. Los dos quedan fuera del rango típico de mamífero y la diferencia entre ellos es de unos pocos nucleótidos, así que ESTE EJE NO DISCRIMINA — era el único contrapeso que se le conocía al quimérico y queda retirado. Lo que sí separa a los dos es lo demás —el quimérico tiene mejor donante, mejor tracto y 97 posiciones de inserción frente a 39—, y ninguno de esos números predice el empalme. Las opciones van a síntesis; el gel decide.
+
+## 9. Fichas de los seleccionados
 
 Una ficha por candidato seleccionado, con el veredicto de CADA frente, su procedencia y su fecha.
 
@@ -968,7 +984,7 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
   SIN CORRIDAS. El frente de especificidad sigue en NOT_RUN, y NOT_RUN no es PASS.
 ```
 
-## 9. Limitaciones
+## 10. Limitaciones
 
 Seccion propia y no un pie: una limitacion al pie se lee después de haber creido el número.
 
@@ -1025,7 +1041,7 @@ ESTAS HERRAMIENTAS SE CONOCÍAN Y SE DECIDIÓ NO USARLAS COMO FUENTE PRINCIPAL, 
 
 La longitud NO es un detalle de ficha: es lo que decide cómo se cruza su salida con la nuestra. siDirect diseña 19-mers y nuestras ventanas miden 22, así que sus candidatos son OTRAS ventanas sobre el mismo sitio — se cruzan por solapamiento sobre la referencia, y el importador ABORTA si le llegan longitudes distintas de las declaradas, en vez de cruzar cero y dejar que eso se lea como «no hay convergencia».
 
-## 10. Procedencia
+## 11. Procedencia
 
 Todos los ficheros que entraron, con versión y md5. Sin esto un veredicto no es auditable dentro de un año — que es la razón por la que el manifiesto se versiona en texto.
 

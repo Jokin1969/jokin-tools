@@ -3883,6 +3883,52 @@ def intron_geometry_rows(names=None, *, module_length: int = 149):
     return filas
 
 
+#: LOS DOS EJES MEDIDOS que comparan las dos arquitecturas, con la corrida del 2026-09-05
+#: detrás. Las cifras se transcriben aquí a proposito y no se derivan: salen de una corrida
+#: de SpliceAI que este proyecto NO ejecuta —el fichero esta en `data/medido/` con su
+#: procedencia— y derivarlas exigiria reanalizar 13.480 filas en cada repintado. Lo que se
+#: deriva es la GEOMETRIA, que sí es nuestra.
+INTRON_AXES_MEASURED = (
+    ("dispersión del donante legítimo entre las 10 guías",
+     "18,1 % (0,783-0,925)", "1,8 % (0,956-0,973)", "quimérico"),
+    ("dispersión del aceptor legítimo",
+     "10,3 % (0,778-0,858)", "0,9 % (0,985-0,994)", "quimérico"),
+    ("crípticos intrónicos por encima del 5 % del legítimo",
+     "2 (11,9 % y 6,1 %, en 1 de 10)", "ninguno", "quimérico"),
+    ("tracto de polipirimidinas",
+     "9 pirimidinas", "11 pirimidinas", "quimérico"),
+    ("donante→punto de ramificación, MONTADO",
+     "256 nt", "249-253 nt", "ninguno: no discrimina"),
+)
+
+
+def intron_architecture_note() -> str:
+    """La comparación de las dos arquitecturas, para el INFORME y no sólo para la página.
+
+    Decide qué se sintetiza, así que no puede vivir en un desplegable de la interfaz: es
+    el principio nº 23, que este proyecto lleva once veces arreglando. La lectura y la
+    retirada del contrapeso van con el nombre de quien la hizo.
+    """
+    from .introns import (
+        THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES, WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
+    )
+
+    lineas = [
+        "ARQUITECTURAS DE INTRÓN — lo medido sobre las 20 construcciones",
+        "",
+        f"  {'eje':<52} {'mvm_actual':<32} {'intron_quimerico':<32} gana",
+    ]
+    for eje, mvm, qui, gana in INTRON_AXES_MEASURED:
+        lineas.append(f"  {eje:<52} {mvm:<32} {qui:<32} {gana}")
+    lineas += [
+        "",
+        f"  {WHY_THE_COUNTERWEIGHT_WAS_RETIRED}",
+        "",
+        f"  LECTURA: {THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES}",
+    ]
+    return "\n".join(lineas)
+
+
 def intron_geometry_text(names=None, *, module_length: int = 149) -> str:
     """El bloque de texto de lo anterior, ya montado. La página no formatea."""
     lineas: list[str] = []

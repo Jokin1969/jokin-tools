@@ -558,6 +558,23 @@ DONOR_TO_BRANCH_CONTEXT = (
 #: perfecto), mejor tracto (11 pirimidinas frente a 9) y 97 posiciones de insercion frente
 #: a 39. Lo que significa es que LOS TRES SON MEJORES EN EJES DISTINTOS y que NINGUNO DE
 #: LOS TRES NUMEROS PREDICE EL EMPALME. Las tres opciones van a sintesis; el gel decide.
+#: POR QUE SE RETIRO EL CONTRAPESO, con el nombre de quien lo retiro y a peticion suya
+#: — misma regla que la prediccion refutada de la carrera de A: si solo se anotan las
+#: rectificaciones ajenas, el registro deja de ser un registro y pasa a ser un argumento.
+WHY_THE_COUNTERWEIGHT_WAS_RETIRED = (
+    "Retirado por Joaquín Castilla (2026-09-05), que fue quien lo propuso. Se dio como "
+    "contrapeso del quimérico que su donante→punto de ramificación es de 314-318 nt "
+    "frente a los 256 del MVM, y con sus palabras: «apliqué al quimérico los 214 nt del "
+    "MVM sin comprobar que el quimérico se monta sin espaciadores. La diferencia era "
+    "exactamente 65 = 20 + 45 — la errata nº 35, cometida por mí esta vez». Medido "
+    "sobre el intrón que de verdad se monta, el quimérico está en 249-253 nt: no es "
+    "peor en geometría, empata y queda marginalmente por debajo. CONSECUENCIA, y va "
+    "escrita porque decide qué se sintetiza: el quimérico GANA EN TODO LO MEDIDO, SIN "
+    "CONTRAPESO CONOCIDO. Lo que sí se sostiene del contrapeso es que LOS DOS quedan "
+    "muy por encima del rango típico de mamífero, y eso no lo arregla cambiar de "
+    "intrón."
+)
+
 #: CORREGIDO (2026-09-05), errata nº 106. Aquí ponía que el quimérico es PEOR en el eje
 #: donante→punto, y eso es cierto del intrón VACÍO y NO SOBREVIVE AL MONTAJE: el MVM
 #: intercala 214 nt (módulo + los dos espaciadores) y el quimérico 149 (módulo solo,
@@ -569,7 +586,8 @@ THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES = (
     "dos espaciadores, así que intercala 214 nt frente a 149 y acaba en 256 nt frente a "
     "los 249-253 del quimérico. Los dos quedan fuera del rango típico de mamífero y la "
     "diferencia entre ellos es de unos pocos nucleótidos, así que ESTE EJE NO "
-    "DISCRIMINA. Lo que sí separa a los dos es lo demás —el quimérico tiene mejor "
+    "DISCRIMINA — era el único contrapeso que se le conocía al quimérico y queda "
+    "retirado. Lo que sí separa a los dos es lo demás —el quimérico tiene mejor "
     "donante, mejor tracto y 97 posiciones de inserción frente a 39—, y ninguno de esos "
     "números predice el empalme. Las opciones van a síntesis; el gel decide."
 )

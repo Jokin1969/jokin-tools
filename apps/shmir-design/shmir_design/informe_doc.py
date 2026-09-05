@@ -844,6 +844,39 @@ def _seccion_controles(tiling, selection, *, species: str, target=None) -> Secti
     return Section(number=0, title="Controles del experimento", blocks=tuple(bloques))
 
 
+def _seccion_arquitecturas() -> Section:
+    """Las dos arquitecturas de intrón, comparadas eje a eje.
+
+    Va en el INFORME y no solo en la pagina porque decide QUE SE SINTETIZA: la
+    comparacion vivia en un desplegable de la interfaz, o sea en el sitio donde no la lee
+    quien recibe el documento (principio nº 23). No depende de la corrida —son propiedades
+    de los dos intrones y de la corrida de SpliceAI guardada—, asi que no recibe nada.
+    """
+    from .introns import (
+        THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES, WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
+    )
+    from .presentation import INTRON_AXES_MEASURED
+
+    bloques = [
+        para(
+            "Los diez candidatos del panel se han consultado con LAS DOS arquitecturas "
+            "de intrón —20 construcciones— y estos son los ejes en los que se "
+            "diferencian. Las puntuaciones salen de la corrida de SpliceAI del "
+            "2026-09-05, guardada con su procedencia; la geometria la deriva esta app."
+        ),
+        table(
+            ("eje", "mvm_actual", "intron_quimerico", "gana"),
+            tuple(INTRON_AXES_MEASURED),
+        ),
+        para(WHY_THE_COUNTERWEIGHT_WAS_RETIRED),
+        para(THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES),
+    ]
+    return Section(
+        number=0,   # lo asigna `build_document` por POSICION; ver `_numerar`.
+        title="Arquitecturas de intrón", blocks=tuple(bloques),
+    )
+
+
 def _numerar(secciones: tuple[Section, ...]) -> tuple[Section, ...]:
     """Numera las secciones POR POSICION, no por lo que cada una traiga escrito.
 
@@ -928,6 +961,7 @@ def build_document(
             _section_4(selection, species=species, stores=stores),
             _seccion_elegibles(tiling, selection, species=species),
             _seccion_controles(tiling, selection, species=species, target=target),
+            _seccion_arquitecturas(),
             _section_5(
                 species=species, tiling=tiling, selection=selection,
                 starts=tuple(dossier_starts), target=target, stores=stores,
