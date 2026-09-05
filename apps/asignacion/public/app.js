@@ -1368,7 +1368,7 @@ function planRowFull(m, closed) {
     return `<div class="az-planrow${m.cn_only ? ' is-cnonly' : ''}${m.si_precisa ? ' is-siprecisa' : ''}" data-plan-row="${m.id}" data-dupkey="${esc(planDupKey(m))}">
       ${!closed ? `<button class="qt-iconbtn az-plan-edit-btn" data-editplan="${m.id}" title="Editar medicamento">✏️</button>` : ''}
       <span class="az-plan-shape">${icon}</span>
-      <div class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small><div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${progTxt}</span></div></div>
+      <div class="az-plan-name">${esc(m.nombre || 'Sin nombre')}<small>${idline}</small><div class="az-plan-meta">${planReleaseChip(m)}<span class="az-plan-prog ${short ? 'is-short' : 'is-ok'}">${progTxt}</span>${planExpiryChip(m)}</div></div>
       ${bcInline}
       <div class="az-plan-actions">
         <span class="az-plan-pillimg" title="${esc(m.nombre || 'Medicamento')}">${pillImgHtml(m.cn, m.shape, m.color, 34, m.nombre)}</span>
@@ -1407,6 +1407,14 @@ function planReleaseChip(m, compact) {
     return `<button type="button" class="az-rel az-rel-ready az-rel-click${cls}" data-planrel="${m.id}" title="Cambiar fecha o días de anticipación">${compact ? '✅' + (eff ? ' ' + eff : '') : `✅ Disponible${eff ? ' desde ' + eff : ''}${sub}`}</button>`;
   const when = m.effective_days === 0 ? 'hoy' : m.effective_days === 1 ? 'mañana' : 'faltan ' + m.effective_days + ' días';
   return `<button type="button" class="az-rel az-rel-soon az-rel-click${cls}" data-planrel="${m.id}" title="Cambiar fecha o días de anticipación">${compact ? '🗓 ' + eff : `🗓 Disponible ${eff} · ${when}${sub}`}</button>`;
+}
+// Caducidad de la disponibilidad, junto a la etiqueta "N/N asignadas": solo icono +
+// fecha, sin texto explicativo — el color ya dice si urge. Verde >30 días, naranja
+// ≤30 días, rojo ya caducada. Nada si el campo está vacío.
+function planExpiryChip(m) {
+  if (!m.expiry_at) return '';
+  const cls = m.expiry_state === 'expired' ? 'is-expired' : m.expiry_state === 'warn' ? 'is-warn' : 'is-ok';
+  return `<span class="az-plan-exp ${cls}" title="Caducidad de la disponibilidad: ${fmtDate(m.expiry_at)}">⏳ ${fmtDate(m.expiry_at)}</span>`;
 }
 // Compact "pauta" chip for a plan row: what's set for the Pastillero (residencias).
 // Grey/dashed "Definir pauta" when nothing's configured yet (a clear call to action);
@@ -2038,12 +2046,15 @@ function effectiveIso(iso, adv) {
 // Shared "Fecha / Días / Fecha de disponibilidad" trio, reused by the add/edit
 // medication modals: the third field is never typed by hand, it's always
 // recalculated live as Fecha − Días (disabled input, styled like the other two).
-function releaseFieldsHtml(dateId, advId, effId, dateVal, advVal) {
+// A 4th field, independent of the trio, closes the block: Fecha de caducidad de
+// disponibilidad — a plain typed date (nothing calculates it).
+function releaseFieldsHtml(dateId, advId, effId, expId, dateVal, advVal, expVal) {
   return `<div class="az-relform">
     <div class="qt-field"><label>Fecha</label><input type="date" class="qt-input" id="${dateId}" value="${esc(dateVal || '')}"></div>
     <div class="qt-field"><label>Días</label><input type="number" class="qt-input" id="${advId}" min="0" max="365" step="1" value="${esc(String(advVal != null ? advVal : 15))}"></div>
     <div class="qt-field"><label>Fecha de disponibilidad</label><input type="date" class="qt-input" id="${effId}" disabled></div>
     <small class="az-field-hint az-relform-hint">La fecha de disponibilidad se calcula sola: Fecha menos Días (por defecto 15, los días que la farmacia puede adelantarse a la fecha oficial de Salud).</small>
+    <div class="qt-field"><label>Fecha de caducidad de disponibilidad</label><input type="date" class="qt-input" id="${expId}" value="${esc(expVal || '')}"></div>
   </div>`;
 }
 function wireReleaseFields(dateId, advId, effId) {
@@ -2127,7 +2138,7 @@ function openEditMed(med) {
     ${isCnOnly ? `<div class="qt-field"><label>Código Nacional (CN)</label><div class="az-cn-row"><input class="qt-input" id="em-cn" inputmode="numeric" value="${esc(med.cn || '')}" autocomplete="off"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="em-cima" title="Traer datos desde CIMA (AEMPS)">🔎 CIMA</button></div></div>
     <div class="qt-field"><label>Código de barras (opcional)</label><input class="qt-input" id="em-barcode" inputmode="numeric" value="${esc(med.barcode || '')}" autocomplete="off"></div>
     <div id="em-fotos">${editFotosHtml(med)}</div>` : ''}
-    ${releaseFieldsHtml('em-date', 'em-adv', 'em-eff', med.release_at, adv)}
+    ${releaseFieldsHtml('em-date', 'em-adv', 'em-eff', 'em-exp', med.release_at, adv, med.expiry_at)}
     <div class="qt-modal-actions"><button class="qt-btn qt-btn-ghost" id="em-cancel">Cancelar</button><button class="qt-btn qt-btn-primary" id="em-save">Guardar</button></div>`);
   $('em-close').onclick = closeTool; $('em-cancel').onclick = closeTool;
   wireReleaseFields('em-date', 'em-adv', 'em-eff');
@@ -2153,11 +2164,16 @@ function openEditMed(med) {
     }
     const date = $('em-date').value;
     const adv2 = Math.round(Number($('em-adv').value));
+    const exp = $('em-exp').value;
     if (date && (!Number.isFinite(adv2) || adv2 < 0 || adv2 > 365)) { toast('Días no válidos (0–365).', 'err'); return; }
     try {
       let r = await api('/plan/' + med.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (date) r = await api('/plan/' + med.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, advance_days: adv2 }) });
-      else if (med.release_at) r = await api('/plan/' + med.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: '' }) });
+      // Fecha/Días y la caducidad de disponibilidad son independientes: cada una se
+      // manda solo si cambió, pero comparten la misma llamada PUT cuando coinciden.
+      const rel = {};
+      if (date) { rel.date = date; rel.advance_days = adv2; } else if (med.release_at) rel.date = '';
+      if (exp !== (med.expiry_at || '')) rel.expiry_at = exp || '';
+      if (Object.keys(rel).length) r = await api('/plan/' + med.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rel) });
       S.ficha.plan = mergePlan(S.ficha.plan, r.plan); renderFicha(); closeTool(); toast('Medicamento actualizado.');
     } catch (e) { toast(e.message, 'err'); }
   };
@@ -2169,7 +2185,7 @@ function openMedPicker() {
     <p class="qt-tool-note">Del <b>catálogo</b> (ya en Data Matrix) o, si aún no lo está, <b>por Código Nacional</b> (información previa, sin caja todavía).</p>
     <label class="az-shtoggle az-siprecisa-toggle" id="mp-siprecisa-row"><input type="checkbox" id="mp-siprecisa"> <b>🟣 Si precisa</b> <span class="az-form-hint" style="margin:0">medicación eventual, no diaria — se distingue del resto en el plan</span></label>
     <div class="qt-field-hint" style="margin:0 0 4px">🗓 Opcional: cuándo lo libera Salud (vale para cualquiera de las dos formas de añadir, de abajo).</div>
-    ${releaseFieldsHtml('mp-date', 'mp-adv', 'mp-eff')}
+    ${releaseFieldsHtml('mp-date', 'mp-adv', 'mp-eff', 'mp-exp')}
     <div class="qt-search" style="margin-bottom:10px"><span class="ico">🔎</span><input id="mp-q" placeholder="Buscar en el catálogo por nombre, GTIN o CN…" autocomplete="off"></div>
     <div id="mp-list" class="az-medlist"></div>
     <div class="qt-tool-row" style="margin:-2px 0 8px"><button class="qt-btn qt-btn-ghost qt-btn-sm" id="mp-cima-search">🔎 Buscar en CIMA (AEMPS)</button><span class="az-form-hint" style="margin:0">busca el medicamento en la base oficial y trae CN, nombre y código de barras</span></div>
@@ -2247,16 +2263,23 @@ async function addMedToPlan(payload) {
   try {
     const siEl = $('mp-siprecisa');
     const si_precisa = !!(siEl && siEl.checked);
-    const dateEl = $('mp-date'), advEl = $('mp-adv');
+    const dateEl = $('mp-date'), advEl = $('mp-adv'), expEl = $('mp-exp');
     const date = dateEl ? dateEl.value : '';
     const adv = advEl ? Math.round(Number(advEl.value)) : 15;
+    const exp = expEl ? expEl.value : '';
     const { plan } = await api(`/person/${S.person.id}/plan`, jbody({ qty: 1, si_precisa, ...payload }));
-    if (date) {
+    if (date || exp) {
       // Best-effort: identifica la línea recién creada por GTIN o CN (el payload
-      // siempre trae uno de los dos) y le pone la fecha en una segunda llamada — el
-      // alta ya ha tenido éxito aunque esto falle, así que no se deja sin guardar.
+      // siempre trae uno de los dos) y le pone la fecha/caducidad en una segunda
+      // llamada — el alta ya ha tenido éxito aunque esto falle, así que no se deja
+      // sin guardar.
       const added = plan.find(m => (payload.gtin && m.gtin === payload.gtin) || (payload.cn && m.cn === payload.cn));
-      if (added) { try { await api('/plan/' + added.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, advance_days: adv }) }); } catch { /* el medicamento ya quedó añadido; la fecha se puede poner luego editándolo */ } }
+      if (added) {
+        const rel = {};
+        if (date) { rel.date = date; rel.advance_days = adv; }
+        if (exp) rel.expiry_at = exp;
+        try { await api('/plan/' + added.id + '/release', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rel) }); } catch { /* el medicamento ya quedó añadido; se puede poner luego editándolo */ }
+      }
     }
     closeTool(); await reloadFicha(); toast(si_precisa ? 'Medicamento «si precisa» añadido al plan.' : 'Medicamento añadido al plan.');
   } catch (e) { toast(e.message, 'err'); }
@@ -2269,16 +2292,24 @@ async function addMedToPlan(payload) {
 // Cabeceras cortas a propósito: la tabla vive dentro de un modal (860px como
 // mucho) y con nombres largos ("Medicamentos disponibles"...) fuerza scroll
 // horizontal — el título completo queda en el atributo title de cada <th>.
-const AVAIL_COLS = [
-  ['nombre', 'Nombre'], ['apellidos', 'Apellidos'], ['residencia', 'Grupo'],
-  ['normal_disp', 'Disponibles'], ['eventual_disp', 'Eventuales'],
-  ['oldest', 'Desde'],
-];
+const AVAIL_COLS_BASE = [['nombre', 'Nombre'], ['apellidos', 'Apellidos'], ['residencia', 'Grupo']];
+const AVAIL_COLS_DISP = [['normal_disp', 'Disponibles'], ['eventual_disp', 'Eventuales'], ['oldest', 'Desde']];
+// La tarjeta "caducada" no habla de disponibilidad sino de caducidad: columnas propias.
+const AVAIL_COLS_EXP = [['exp_count', 'Caducados'], ['exp_worst', 'Caduca']];
+function availCols(mode) { return AVAIL_COLS_BASE.concat(mode === 'caducada' ? AVAIL_COLS_EXP : AVAIL_COLS_DISP); }
 const AVAIL_COL_TITLES = {
   normal_disp: 'Medicamentos disponibles hoy (de los normales)',
   eventual_disp: 'Medicamentos eventuales (si precisa) disponibles hoy',
   oldest: 'Disponible desde cuándo (el más rezagado)',
+  exp_count: 'Medicamentos con la disponibilidad caducada o a caducar en un mes o menos',
+  exp_worst: 'Caducidad de disponibilidad más atrasada',
 };
+// Celda de fecha de caducidad, coloreada igual que la etiqueta del plan (verde/naranja/rojo).
+function availExpCell(at, state) {
+  if (!at) return '—';
+  const cls = state === 'expired' ? 'is-expired' : state === 'warn' ? 'is-warn' : 'is-ok';
+  return `<span class="az-plan-exp ${cls}">${fmtDate(at)}</span>`;
+}
 // The "primary" stat for a row depends on which card is active: for alguna/toda it's
 // the normal (non-eventual) medications; for the eventual card it's the eventual ones.
 function availPrimary(r, mode) {
@@ -2290,6 +2321,7 @@ function availFilter(rows, mode) {
   if (mode === 'alguna') return rows.filter(r => r.normal_disp >= 1);
   if (mode === 'toda') return rows.filter(r => r.normal_total >= 1 && r.normal_disp === r.normal_total);
   if (mode === 'eventual') return rows.filter(r => r.eventual_disp >= 1);
+  if (mode === 'caducada') return rows.filter(r => r.exp_count >= 1);
   return [];
 }
 function availSortVal(r, key) {
@@ -2301,19 +2333,22 @@ function availSortVal(r, key) {
     case 'normal_disp': return r.normal_disp || 0;
     case 'eventual_disp': return r.eventual_disp || 0;
     case 'oldest': return r._primary.oldest_days;
+    case 'exp_count': return r.exp_count || 0;
+    case 'exp_worst': return r.exp_worst_days;
     default: return `${p.apellidos} ${p.nombre}`;
   }
 }
 function sortedAvail(rows, mode, sort) {
   const list = rows.map(r => Object.assign({}, r, { _primary: availPrimary(r, mode) }));
   const { key, dir } = sort, mul = dir === 'desc' ? -1 : 1;
-  const numeric = key === 'normal_disp' || key === 'eventual_disp' || key === 'oldest';
+  const numeric = key === 'normal_disp' || key === 'eventual_disp' || key === 'oldest' || key === 'exp_count' || key === 'exp_worst';
   return list.sort((a, b) => {
     const va = availSortVal(a, key), vb = availSortVal(b, key);
     let c = numeric ? (va - vb) : String(va).localeCompare(String(vb), 'es');
     if (c !== 0) return c * mul;
-    // Orden por defecto: 2º criterio (más disponibles primero) al empatar en fecha.
+    // Orden por defecto: 2º criterio (más disponibles/caducados primero) al empatar en fecha.
     if (key === 'oldest') { const cd = b._primary.disp - a._primary.disp; if (cd !== 0) return cd; }
+    if (key === 'exp_worst') { const cd = b.exp_count - a.exp_count; if (cd !== 0) return cd; }
     return `${a.person.apellidos} ${a.person.nombre}`.localeCompare(`${b.person.apellidos} ${b.person.nombre}`, 'es');
   });
 }
@@ -2335,6 +2370,7 @@ function openMedAvailability() {
       alguna: availFilter(n, 'alguna').length,
       toda: availFilter(n, 'toda').length,
       eventual: availFilter(n, 'eventual').length,
+      caducada: availFilter(n, 'caducada').length,
     };
     const card = (mode, emoji, label) => `<button type="button" class="az-ma-card${st.mode === mode ? ' sel' : ''}" data-mode="${mode}">
       <span class="az-ma-card-n">${counts[mode]}</span>
@@ -2343,9 +2379,11 @@ function openMedAvailability() {
     $('ma-cards').innerHTML =
       card('alguna', '🟢', 'Personas con alguna medicación disponible') +
       card('toda', '✅', 'Personas con toda la medicación disponible') +
-      card('eventual', '🟣', 'Personas con medicación eventual disponible');
+      card('eventual', '🟣', 'Personas con medicación eventual disponible') +
+      card('caducada', '⏳', 'Personas con la disponibilidad de la medicación caducada');
     $('ma-cards').querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
-      st.mode = b.dataset.mode; st.group = null; st.sort = { key: 'oldest', dir: 'asc' };
+      st.mode = b.dataset.mode; st.group = null;
+      st.sort = st.mode === 'caducada' ? { key: 'exp_worst', dir: 'asc' } : { key: 'oldest', dir: 'asc' };
       $('tool-modal-box').classList.add('az-modal-wide');
       renderCards(); renderBody();
     });
@@ -2372,19 +2410,22 @@ function openMedAvailability() {
       return;
     }
     const arrow = k => st.sort.key === k ? (st.sort.dir === 'desc' ? ' ▼' : ' ▲') : '';
-    const head = `<thead><tr>${AVAIL_COLS.map(([k, l]) =>
-      `<th data-k="${k}" class="${st.sort.key === k ? 'sorted' : ''}${(k === 'normal_disp' || k === 'eventual_disp') ? ' az-ovt-num' : ''}" title="${esc(AVAIL_COL_TITLES[k] || ('Ordenar por ' + l))}">${l}${arrow(k)}</th>`).join('')}<th></th></tr></thead>`;
+    const cols = availCols(st.mode);
+    const head = `<thead><tr>${cols.map(([k, l]) =>
+      `<th data-k="${k}" class="${st.sort.key === k ? 'sorted' : ''}${(k === 'normal_disp' || k === 'eventual_disp' || k === 'exp_count') ? ' az-ovt-num' : ''}" title="${esc(AVAIL_COL_TITLES[k] || ('Ordenar por ' + l))}">${l}${arrow(k)}</th>`).join('')}<th></th></tr></thead>`;
     const trs = sortedAvail(rows, st.mode, st.sort).map(r => {
       const p = r.person;
-      const oldest = r._primary.oldest_at ? fmtDate(r._primary.oldest_at) : '—';
       const grupoTxt = (p.groups && p.groups.length) ? p.groups.join(' · ') : null;
+      const statCells = st.mode === 'caducada'
+        ? `<td class="az-ovt-num">${r.exp_count}</td><td class="az-ovt-mono">${availExpCell(r.exp_worst_at, r.exp_worst_state)}</td>`
+        : `<td class="az-ovt-num">${r.normal_disp} de ${r.normal_total}</td>
+           <td class="az-ovt-num">${r.eventual_total ? r.eventual_disp + ' de ' + r.eventual_total : '<span class="az-ovt-dim">—</span>'}</td>
+           <td class="az-ovt-mono">${r._primary.oldest_at ? fmtDate(r._primary.oldest_at) : '—'}</td>`;
       return `<tr>
         <td class="az-ovt-name">${esc(p.nombre)}</td>
         <td class="az-ovt-name">${esc(p.apellidos)}</td>
         <td class="az-ma-grupo" title="${esc(grupoTxt || '')}">${grupoTxt ? esc(grupoTxt) : '<span class="az-ovt-dim">Sin grupo</span>'}</td>
-        <td class="az-ovt-num">${r.normal_disp} de ${r.normal_total}</td>
-        <td class="az-ovt-num">${r.eventual_total ? r.eventual_disp + ' de ' + r.eventual_total : '<span class="az-ovt-dim">—</span>'}</td>
-        <td class="az-ovt-mono">${esc(oldest)}</td>
+        ${statCells}
         <td class="az-dc-act"><button class="qt-iconbtn" data-open="${p.id}" title="Abrir la ficha de ${esc(p.nombre)} ${esc(p.apellidos)}">↗</button></td>
       </tr>`;
     }).join('');

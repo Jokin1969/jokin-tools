@@ -169,6 +169,9 @@ try { db.prepare('ALTER TABLE asig_plan ADD COLUMN release_at TEXT').run(); } ca
 try { db.prepare('ALTER TABLE asig_plan ADD COLUMN advance_days INTEGER NOT NULL DEFAULT 15').run(); } catch { /* already present */ }
 // "Si precisa" (PRN): medicación eventual, no diaria. Se muestra aparte en el plan.
 try { db.prepare('ALTER TABLE asig_plan ADD COLUMN si_precisa INTEGER NOT NULL DEFAULT 0').run(); } catch { /* already present */ }
+// Caducidad de la DISPONIBILIDAD calculada (distinta de la caducidad física de la
+// caja): a partir de esta fecha, esa disponibilidad ya no es de fiar sin revisarla.
+try { db.prepare('ALTER TABLE asig_plan ADD COLUMN expiry_at TEXT').run(); } catch { /* already present */ }
 
 // Plan medications can now exist by Código Nacional before any GTIN/Data Matrix.
 // Old asig_plan had `gtin NOT NULL` + inline UNIQUE(person_id,gtin); rebuild it so
@@ -432,6 +435,11 @@ function clearPlanGtin(id) {
 // Set (or clear, with null) the official Salud release date of a plan medication.
 function setPlanRelease(id, isoDate) {
   db.prepare('UPDATE asig_plan SET release_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(isoDate || null, id);
+  return getPlanLine(id);
+}
+// Set (or clear, with null) the caducidad de disponibilidad of a plan medication.
+function setPlanExpiry(id, isoDate) {
+  db.prepare('UPDATE asig_plan SET expiry_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(isoDate || null, id);
   return getPlanLine(id);
 }
 function setPlanAdvance(id, days) {
@@ -873,7 +881,7 @@ module.exports = {
   listPlan, plansByCnOrGtin, distinctCnCount, allCns, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, clearPlanGtin, deletePlanLine, planPersonIds,
   SLOTS, setDoseSchedule, getDoseScheduleForDate, getDoseHistory,
   createEmptyPlan, personsWithPlanSet,
-  setPlanRelease, setPlanAdvance, plansForRelease, planForItem, findPendingLineForMed,
+  setPlanRelease, setPlanAdvance, setPlanExpiry, plansForRelease, planForItem, findPendingLineForMed,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
   DEFAULT_ADVANCE, clampAdvance, effectiveDate,
   listLines, getLine, findLine, lineByItem, addLine, setLineState, setLineRelease, setLineAdvance, pendingReleaseLines, deleteLine, periodCounts,

@@ -1051,3 +1051,36 @@ test('disponibilidad de medicamentos: alguna / toda / eventual, y el más antigu
   assert.equal(algunaOrdered.length, 2);
   assert.equal(algunaOrdered[0].person.id, b, 'el medicamento disponible desde hace más tiempo va primero');
 });
+
+test('caducidad de disponibilidad: se guarda, colorea (verde/naranja/rojo) y agrega en /plan-availability', async () => {
+  const isoDaysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+  const isoDaysAhead = (n) => isoDaysAgo(-n);
+
+  const d = qrDb.createPerson({ pharmacy_no: '80940', nombre: 'Dora', apellidos: 'Caduca', tis: '00080940', group_name: 'Residencia Caduca' }, 1).id;
+
+  // Verde: caduca dentro de mucho (60 días).
+  const mOk = (await call('POST', `/person/${d}/plan`, { cn: '810010', nombre: 'Med Verde' })).data.plan.find(m => m.cn === '810010');
+  await call('PUT', `/plan/${mOk.id}/release`, { expiry_at: isoDaysAhead(60) });
+
+  // Naranja: caduca dentro de 10 días (≤30, "le queda un mes").
+  const mWarn = (await call('POST', `/person/${d}/plan`, { cn: '810011', nombre: 'Med Naranja' })).data.plan.find(m => m.cn === '810011');
+  await call('PUT', `/plan/${mWarn.id}/release`, { expiry_at: isoDaysAhead(10) });
+
+  // Rojo: ya caducada (hace 2 días) — la "más caducada" de las tres.
+  const mBad = (await call('POST', `/person/${d}/plan`, { cn: '810012', nombre: 'Med Rojo' })).data.plan.find(m => m.cn === '810012');
+  await call('PUT', `/plan/${mBad.id}/release`, { expiry_at: isoDaysAgo(2) });
+
+  const { data: planData } = await call('GET', `/person/${d}/plan`);
+  assert.equal(planData.plan.find(m => m.cn === '810010').expiry_state, 'ok');
+  assert.equal(planData.plan.find(m => m.cn === '810011').expiry_state, 'warn');
+  assert.equal(planData.plan.find(m => m.cn === '810012').expiry_state, 'expired');
+
+  const { data: availData } = await call('GET', '/plan-availability');
+  const row = availData.items.find(r => r.person.id === d);
+  assert.equal(row.exp_count, 2, 'naranja + rojo cuentan como alerta; el verde no');
+  assert.equal(row.exp_worst_at, isoDaysAgo(2), 'la más caducada (más atrasada) es la roja');
+  assert.equal(row.exp_worst_state, 'expired');
+
+  const caducada = availData.items.filter(r => r.exp_count >= 1).map(r => r.person.id);
+  assert.ok(caducada.includes(d));
+});
