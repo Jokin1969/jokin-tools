@@ -59,6 +59,7 @@ from shmir_design.blocks import (  # noqa: E402
     order_sheet,
 )
 from shmir_design.comparative import comparative_tsv  # noqa: E402
+from shmir_design.presentation import fragment_bundle  # noqa: E402
 from shmir_design.cost import estimate_cost  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.manifest import (  # noqa: E402
@@ -587,6 +588,18 @@ def main(argv: list[str]) -> int:
              "por defecto y lo que produce se marca en toda la salida.",
     )
     parser.add_argument(
+        "--fragmento-intron", default="mvm_actual",
+        help="Con --bloques: de qué intrón sale el FRAGMENTO de síntesis (el intrón "
+             "completo con su contexto exónico, para pegar sobre la feature). Por "
+             "defecto el MVM del casete de hoy.",
+    )
+    parser.add_argument(
+        "--fragmento-con-sitios", action="store_true",
+        help="Con --bloques: deja NheI y SacI DENTRO del fragmento. Van fuera por "
+             "defecto — el fragmento se sintetiza entero, así que ahí no cortan nada y "
+             "ocupan sitio en el tramo donante→punto de ramificación.",
+    )
+    parser.add_argument(
         "--reparto-rango", action="store_true",
         help="Reparte los candidatos por los extremos de los parámetros dudosos (GC "
              "alto y bajo, accesibilidad alta y baja, delante y detrás del APA, con y "
@@ -1092,6 +1105,22 @@ def main(argv: list[str]) -> int:
                 salidas[f"{especie}_hoja_de_pedido.txt"] = order_sheet(
                     bloques, species=especie,
                     intronless=control, rtpcr=plan_empalme,
+                )
+                # EL FRAGMENTO DE SINTESIS, que ya no lleva sitios de restriccion: el
+                # intron entero con su contexto exonico, para pegar sobre la feature.
+                # Sale del CASETE porque sus extremos son los de la feature ANOTADA, y
+                # sin casete la hoja lo dice en vez de no aparecer.
+                salidas.update(
+                    fragment_bundle(
+                        seleccion, scaffold, species=especie,
+                        cassette=(
+                            transgen_db.records[plan_empalme.location.plasmid_name]
+                            if plan_empalme is not None
+                            else None
+                        ),
+                        intron=args.fragmento_intron,
+                        with_sites=args.fragmento_con_sitios,
+                    )
                 )
             for nombre, contenido in salidas.items():
                 (args.out / nombre).write_text(contenido + "\n", encoding="utf-8")

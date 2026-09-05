@@ -40,6 +40,7 @@ from .selection import (
     promotion_clearance,
     is_eligible,
     tercio_counts,
+    tercio_coverage,
     coverage_report,
     ReportSelection,
     penalty_sensitivity,
@@ -460,6 +461,11 @@ def text_report(
 
     lines.extend(["", "── Cobertura por tercios ──"])
     lines.extend(f"  {l}" for l in tercio_counts(tiling).describe())
+    # Y el MARGEN, que es otra pregunta: cuánto queda en cada tramo y cuál sería el
+    # siguiente. La cuota se decidió por tercios, así que si se cumple tiene que verse.
+    lines.append("")
+    for tramo in tercio_coverage(tiling, selection, config):
+        lines.extend(f"  {l}" for l in tramo.describe())
 
     lines.extend(["", "── Especificidad ──"])
     if tiling.specificity_db is None:

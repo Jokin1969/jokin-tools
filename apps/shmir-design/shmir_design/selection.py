@@ -1767,6 +1767,243 @@ def tercio_counts(
     )
 
 
+# ─── Cobertura por tercios: cuánto margen queda en cada tramo ────────────────
+#
+# `tercio_counts` cuenta lo que HAY. Esto contesta otra pregunta: ¿está cubierto cada
+# tramo, con qué margen, y cuál sería el siguiente si hiciera falta uno más? Con el
+# panel murino el tercio distal son 414 nt con UN candidato dentro —`3utr:1018`, que
+# además es el penalizado por ACTAAA—, así que ese tramo depende de uno. La cuota se
+# decidió por tercios: si se cumple o no tiene que verse, no deducirse.
+
+
+@dataclass(frozen=True)
+class NextInTercio:
+    """Un sitio elegible que cabría en el panel sin romper el espaciado."""
+
+    start: int
+    end: int
+    asymmetry: float
+
+    def describe(self) -> str:
+        from .coords import Frame, span
+
+        return f"{span(self.start, self.end, Frame.UTR3)} (asimetría {self.asymmetry:+.2f})"
+
+
+@dataclass(frozen=True)
+class TercioCoverage:
+    """Un tercio del 3'UTR: lo que hay, lo que se cogió y lo que quedaría."""
+
+    tercio: str
+    bounds: tuple[int, int]
+    #: Sitios elegibles en el tramo, con las DOS definiciones. No se elige una: la
+    #: cuota usa el punto medio y la partición del 3'UTR el inicio, y con ventanas de
+    #: 22 nt discrepan en el borde.
+    sites_by_start: int
+    sites_by_midpoint: int
+    panel_by_start: tuple[int, ...]
+    panel_by_midpoint: tuple[int, ...]
+    #: Los del panel que caen en este tercio por PUNTO MEDIO y no por inicio: están en
+    #: el borde de entrada del tramo y cubren su primer nucleótido, no el tramo.
+    borderline: tuple[int, ...]
+    quota: int
+    spacing: int
+    #: Candidatos y sitios del panel que NO caen en el 3'UTR. En un tilado de transcrito
+    #: los hay —los del CDS y el 5'UTR— y no tienen tercio: se cuentan y se dicen, en vez
+    #: de meterlos en un tramo por descarte.
+    outside_utr3: int
+    #: Cuántos sitios elegibles del tramo quedan libres respecto de UNA referencia (el
+    #: candidato del panel que ya está en el tramo) y respecto de TODO el panel. Son
+    #: dos números distintos y el segundo es el que manda: añadir uno al panel exige
+    #: espaciado con todos, no solo con su vecino.
+    free_of_reference: int
+    free_of_panel: int
+    reference: int | None
+    next_free: tuple[NextInTercio, ...]
+
+    @property
+    def quota_met(self) -> bool:
+        """Con la definición que USA la cuota, que es el punto medio."""
+        return len(self.panel_by_midpoint) >= self.quota
+
+    @property
+    def length(self) -> int:
+        from .audit import Span
+
+        return Span(*self.bounds).length
+
+    def describe(self) -> list[str]:
+        """TODAS las posiciones que salen de aquí van en el marco del 3'UTR.
+
+        No es un detalle de formato: los tercios se cuentan sobre el 3'UTR y el panel
+        puede venir de un tilado del TRANSCRITO, así que las posiciones se convierten al
+        entrar (`tercio_coverage`) y no al imprimir. Etiquetar `tx:1684` como `3utr:1684`
+        es la familia de fallo que `coords` ya cazó cuatro veces.
+        """
+        from .coords import Frame, label, span
+
+        estado = "cumplida" if self.quota_met else "SIN CUBRIR"
+        lineas = [
+            f"{self.tercio} — {span(*self.bounds, Frame.UTR3)}, {self.length} nt: "
+            f"{self.sites_by_start} sitios elegibles por inicio "
+            f"({self.sites_by_midpoint} por punto medio).",
+            f"  Panel: {len(self.panel_by_midpoint)} candidato(s) por PUNTO MEDIO "
+            f"—la definición que usa la cuota— y {len(self.panel_by_start)} por inicio. "
+            f"Cuota {self.quota}: {estado}.",
+        ]
+        if self.outside_utr3:
+            lineas.append(
+                f"  {self.outside_utr3} candidato(s) del panel NO caen en el 3'UTR "
+                f"—el tilado es del transcrito—, así que no tienen tercio y no se "
+                f"cuentan en ningún tramo."
+            )
+        if self.borderline:
+            lineas.append(
+                "  OJO, borde: "
+                + ", ".join(label(p, Frame.UTR3) for p in self.borderline)
+                + f" cuenta(n) en este tercio por punto medio y empieza(n) en el "
+                f"anterior. Cubre(n) el primer nucleótido del tramo, no el tramo."
+            )
+        if self.reference is not None:
+            lineas.append(
+                f"  Margen: {self.free_of_reference} sitio(s) del tramo quedan a "
+                f"{self.spacing} nt o más de {label(self.reference, Frame.UTR3)}, y "
+                f"{self.free_of_panel} lo cumplen con TODO el panel. El que manda es "
+                f"el segundo: añadir uno exige espaciado con todos."
+            )
+        else:
+            lineas.append(
+                f"  Margen: {self.free_of_panel} sitio(s) del tramo caben en el panel "
+                f"respetando el espaciado de {self.spacing} nt."
+            )
+        if self.next_free:
+            lineas.append(
+                "  El siguiente, por el mismo orden con que se eligió el panel "
+                "(asimetría): "
+                + "; ".join(s.describe() for s in self.next_free)
+                + "."
+            )
+        else:
+            lineas.append(
+                "  No queda ninguno: o no hay más sitios elegibles en el tramo o todos "
+                f"caen a menos de {self.spacing} nt de un candidato ya elegido."
+            )
+        return lineas
+
+
+#: Cuántos «siguientes» se ofrecen por tercio. No es un ranking de reserva: son los
+#: primeros por el MISMO orden con que se eligió el panel, para que la comparación
+#: signifique algo.
+NEXT_PER_TERCIO = 3
+
+
+def tercio_coverage(
+    report: TilingReport,
+    selection,
+    config: SelectionConfig | None = None,
+    *,
+    top: int = NEXT_PER_TERCIO,
+) -> tuple[TercioCoverage, ...]:
+    """Los tres tercios, con su cobertura, su margen y su siguiente candidato.
+
+    `selection` es lo que devuelve `select_from_report` o el propio `Selection`: de él
+    salen los candidatos elegidos, que son contra los que se mide el espaciado.
+    """
+    ajustes = config or SelectionConfig()
+    cuenta = tercio_counts(report, ajustes)
+    nombres = ("proximal", "medio", "distal")
+    limites = cuenta.bounds
+
+    def por_inicio(posicion: int) -> str:
+        for nombre, (a, b) in zip(nombres, limites, strict=True):
+            if a <= posicion <= b:
+                return nombre
+        return nombres[-1]
+
+    elegida = getattr(selection, "selection", selection)
+
+    # AL MARCO DEL 3'UTR, AQUI Y NO AL IMPRIMIR. Los tercios se cuentan sobre el 3'UTR y
+    # el panel puede venir de un tilado del TRANSCRITO: mezclar los dos marcos en la
+    # misma frase da `3utr:1684` sobre un 3'UTR de 1242 — la familia de fallo que
+    # `coords` ya cazo cuatro veces, y que aqui abortaba la corrida entera del CLI.
+    def al_utr3(posicion: int) -> int | None:
+        return report.utr3_of(int(posicion))
+
+    panel_bruto = sorted(int(c.start) for c in elegida.chosen)
+    panel = [p for p in (al_utr3(x) for x in panel_bruto) if p is not None]
+    fuera_del_utr3 = len(panel_bruto) - len(panel)
+    tercio_de_elegido: dict[int, str] = {}
+    for choice in elegida.chosen:
+        convertida = al_utr3(choice.start)
+        if convertida is not None:
+            tercio_de_elegido[convertida] = choice.tercio.value if choice.tercio else ""
+
+    sitios = []
+    for sitio in sorted(
+        group_choices(eligible_choices(report, ajustes)),
+        key=lambda s: (-s.best.asymmetry, s.best.start),
+    ):
+        inicio = al_utr3(sitio.best.start)
+        fin = al_utr3(sitio.best.end)
+        if inicio is None or fin is None:
+            continue
+        sitios.append((sitio, inicio, fin))
+
+    cuotas = dict.fromkeys(nombres, 0)
+    if ajustes.tercio_quota:
+        cuotas.update({t.value: n for t, n in ajustes.tercio_quota})
+    elif ajustes.require_one_per_tercio:
+        cuotas.update(dict.fromkeys(nombres, ajustes.min_per_tercio))
+
+    salida = []
+    for nombre, limite in zip(nombres, limites, strict=True):
+        del_tercio_medio = [
+            (s, a, b) for (s, a, b) in sitios
+            if s.best.tercio is not None and s.best.tercio.value == nombre
+        ]
+        panel_inicio = tuple(p for p in panel if por_inicio(p) == nombre)
+        panel_medio = tuple(p for p in panel if tercio_de_elegido.get(p) == nombre)
+        referencia = panel_medio[-1] if panel_medio else None
+        libres_referencia = (
+            sum(
+                1 for (s, a, _b) in del_tercio_medio
+                if a not in panel
+                and respects_spacing(a, referencia, spacing=ajustes.min_spacing)
+            )
+            if referencia is not None
+            else 0
+        )
+        caben = [
+            (s, a, b) for (s, a, b) in del_tercio_medio
+            if a not in panel
+            and all(
+                respects_spacing(a, p, spacing=ajustes.min_spacing) for p in panel
+            )
+        ]
+        salida.append(
+            TercioCoverage(
+                tercio=nombre,
+                bounds=limite,
+                sites_by_start=cuenta.sites_by_start.get(nombre, 0),
+                sites_by_midpoint=len(del_tercio_medio),
+                panel_by_start=panel_inicio,
+                panel_by_midpoint=panel_medio,
+                borderline=tuple(p for p in panel_medio if p not in panel_inicio),
+                quota=cuotas.get(nombre, 0),
+                spacing=ajustes.min_spacing,
+                outside_utr3=fuera_del_utr3,
+                free_of_reference=libres_referencia,
+                free_of_panel=len(caben),
+                reference=referencia,
+                next_free=tuple(
+                    NextInTercio(start=a, end=b, asymmetry=s.best.asymmetry)
+                    for (s, a, b) in caben[:top]
+                ),
+            )
+        )
+    return tuple(salida)
+
+
 # ─── Los frentes que bloquean el pedido de oligo ─────────────────────────────
 #
 # No son «los filtros en NOT_RUN». Hay uno mas que no es un filtro de ventana y bloquea

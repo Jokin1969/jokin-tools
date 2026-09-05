@@ -97,13 +97,22 @@ clase declarada en la banda, así que no se identifica uno — y no se elige por
 cuenta. Una es sobre dónde; la otra, sobre cuál."""
 
 ["md5"]
-donde = ["blast.QueryFasta", "splicing.IntronlessControl"]
+donde = [
+  "blast.QueryFasta", "fragmento.Fragment", "montaje.EmittedFragment",
+  "splicing.IntronlessControl",
+]
 relacion = "DISTINTA"
 que_es = """\
 `QueryFasta.md5` es el del TEXTO del FASTA —cabeceras incluidas—, que es lo que se \
 compara al subir el resultado; `IntronlessControl.md5` es el de la SECUENCIA. Es la \
 trampa de los tres checksums del manifiesto, dentro del propio código: copiar uno en el \
-sitio del otro hace que lo bueno se rechace."""
+sitio del otro hace que lo bueno se rechace.
+`Fragment.md5` y `EmittedFragment.md5` son los dos de la SECUENCIA —del fragmento de \
+síntesis— y por eso se pueden comparar: los dos DELEGAN en `reference.sequence_md5`, así \
+que no son dos cálculos sino uno leído en dos sitios. Ahí está el sentido del par: uno \
+lo emite en la cabecera del FASTA y el otro lo recalcula al releerlo, y si no coinciden \
+el fichero se retocó por el camino. Ninguno de los dos es `QueryFasta.md5`: ése es de un \
+texto con cabeceras, y aquí las cabeceras son justo lo que no se hashea."""
 
 ["fraction"]
 donde = ["seed_scan.BaseRate", "selection.ApaCeilingRow"]
@@ -129,14 +138,15 @@ que_es = "«Alguien lo declaró en vez de deducirlo»: el CDS, la especie, el pr
 ["length"]
 donde = [
   "anatomy.TileRange", "audit.GuideAudit", "audit.Span", "conservation.ConservedBlock",
-  "conservation.Utr3", "orf.Orf", "scaffold.ScaffoldSpec", "seed_scan.SeedParams",
-  "splicing.IntronLocation",
+  "conservation.Utr3", "fragmento.FeatureDelIntron", "orf.Orf", "scaffold.ScaffoldSpec",
+  "seed_scan.SeedParams", "selection.TercioCoverage", "splicing.IntronLocation",
 ]
 relacion = "MISMA_MAGNITUD"
 que_es = """\
 Longitud en nucleótidos de lo que describe cada objeto. Cuatro de ellas la restan de sus \
 extremos, y ésas son parte del trinquete PRIORITARIO de `data/magnitudes.toml`: la \
-deriva `audit.Span`.
+deriva `audit.Span` — `fragmento.FeatureDelIntron` y `selection.TercioCoverage` ya lo \
+hacen: las dos piden la longitud a `Span` en vez de restarla.
 Aquí hubo un caso vecino que ya no está: `selection.Site.end` devolvía el INICIO de la \
 última ventana del bloque mientras en todo el resto del paquete `end` es un final de \
 intervalo inclusivo — leído así, el sitio salía 21 nt más corto. Ninguna SALIDA lo leía, \
@@ -163,12 +173,12 @@ que_es = "Un `FilterState` derivado de si esa pieza está o no. Regla 3, la mism
 
 ["verdict"]
 donde = [
-  "controles.Control", "gblock.GBlock", "hard_filters.WindowEvaluation",
-  "polya.AnnotatedWindow", "tiling.TiledWindow",
+  "controles.Control", "fragmento.Fragment", "gblock.GBlock",
+  "hard_filters.WindowEvaluation", "polya.AnnotatedWindow", "tiling.TiledWindow",
 ]
 relacion = "MISMA_MAGNITUD"
 que_es = """\
-El veredicto agregado de un conjunto de filtros, y las cinco lo delegan en \
+El veredicto agregado de un conjunto de filtros, y las seis lo delegan en \
 `filters.overall_verdict` — que es justamente lo que impide que se separen."""
 
 ["failures"]
@@ -231,3 +241,52 @@ que_es = "La salida CRUDA de la corrida, sin tocar. Se guarda además de lo inte
 donde = ["offtarget_store.OfftargetRun", "seed_store.SeedRun"]
 relacion = "MISMA_MAGNITUD"
 que_es = "Las consultas que esa corrida cubre, para saber a qué candidatos habla."
+
+["end"]
+donde = ["fragmento.FeatureDelIntron", "polya.PolyASignal", "polya.Window"]
+relacion = "MISMA_MAGNITUD"
+que_es = """\
+Última posición, 1-based e INCLUSIVA, de lo que describe cada objeto. Las tres se \
+derivan de un inicio y una longitud, y las tres son finales de intervalo — la \
+convención que la errata nº 57 dejó escrita después de que `selection.Site.end` \
+devolviera un INICIO con ese nombre.
+En `FeatureDelIntron` el matiz que hay que leer es CUÁL intervalo: es el final de la \
+FEATURE ANOTADA, que incluye contexto exónico, y NO el del intrón de GT a AG — diez \
+nucleótidos más allá en el casete de este proyecto. Confundirlos es exactamente lo que \
+borra exón al pegar."""
+
+["start"]
+donde = ["fragmento.FeatureDelIntron", "selection.Site"]
+relacion = "DISTINTA"
+que_es = """\
+NO son la misma cantidad, y viven en marcos distintos. `FeatureDelIntron.start` es una \
+posición sobre el PLÁSMIDO (`casete:`) y marca dónde empieza la feature anotada del \
+intrón, contexto exónico incluido. `Site.start` es una posición sobre el TRANSCRITO o el \
+3'UTR (`tx:` / `3utr:`) y marca dónde empieza la mejor ventana de un sitio del panel.
+Que no se puedan mezclar no es una recomendación: recortar el casete con un `start` del \
+panel NO da error, da otra secuencia. Es lo que caza \
+`test_ningun_recorte_con_un_start_AJENO`, y por eso `FeatureDelIntron` lleva DENTRO el \
+plásmido del que se derivó en vez de recibirlo como un segundo parámetro."""
+
+["growth"]
+donde = ["fragmento.Fragment", "montaje.EmittedFragment"]
+relacion = "MISMA_MAGNITUD"
+que_es = """\
+Cuánto crece el plásmido al pegar el fragmento sobre la feature del intrón, en pares de \
+bases. En `Fragment` se DERIVA (longitud del fragmento menos longitud de la feature); en \
+`EmittedFragment` se LEE de la cabecera del FASTA que emitió la app. Son el mismo número \
+por construcción y llegan por caminos distintos a propósito: el segundo es lo que \
+declaró quien emitió, y compararlo con el plásmido montado es justo la comprobación.
+Dicho de otro modo: el de `Fragment` es la fuente y el de `EmittedFragment` es la copia \
+que viajó en un fichero. Por eso ese fichero lleva además el md5 de la secuencia, y \
+`parse_fragments_fasta` lo recalcula antes de fiarse de ningún campo de la cabecera."""
+
+["sequence"]
+donde = ["fragmento.FeatureDelIntron", "genbank.PlasmidFeature"]
+relacion = "MISMA_MAGNITUD"
+que_es = """\
+La secuencia que cubre una feature de un plásmido, recortada del plásmido con las \
+coordenadas de la propia feature. `PlasmidFeature` la recorta de lo que se acaba de \
+parsear; `FeatureDelIntron` de lo que lleva dentro. En los dos casos la coordenada y la \
+secuencia salen del mismo sitio, que es la condición para que el recorte signifique \
+algo."""

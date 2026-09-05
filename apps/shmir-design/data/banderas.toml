@@ -814,3 +814,28 @@ cli = "reference_data"
 banderas = ["--fetch", "--efetch-url"]
 por_que = "la descarga sólo existe con un endpoint verificado (regla 4)"
 exento = "Sus dos banderas están exentas por lo mismo: no hay endpoint verificado y escribir uno para un test sería inventarlo."
+
+[[bandera]]
+bandera = "comprobar_montaje:--plasmido"
+consecuencia = "VEREDICTO"
+que_hace = "el vector montado que se comprueba; sin él no hay comprobación"
+
+[[bandera]]
+bandera = "comprobar_montaje:--fragmentos"
+consecuencia = "VEREDICTO"
+que_hace = "el FASTA que emitió la app; es el lado contra el que se compara"
+
+[[bandera]]
+bandera = "comprobar_montaje:--intron-previo"
+consecuencia = "VEREDICTO"
+que_hace = "el intrón que había antes; encontrarlo dentro es el fallo que esto caza"
+
+[[bandera]]
+bandera = "design:--fragmento-intron"
+consecuencia = "VEREDICTO"
+que_hace = "de qué intrón sale el fragmento de síntesis: cambia el ADN que se pide"
+
+[[bandera]]
+bandera = "design:--fragmento-con-sitios"
+consecuencia = "VEREDICTO"
+que_hace = "deja NheI y SacI dentro del fragmento: 12 nt más de ADN sintetizado"

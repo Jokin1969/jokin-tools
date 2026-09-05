@@ -201,6 +201,11 @@ from shmir_design.presentation import (  # noqa: E402
     map_svg,
     page_run,
     block_rows,
+    ASSEMBLY_NEEDS_BOTH,
+    FRAGMENT_NEEDS_CASSETTE,
+    assembly_report,
+    fragment_bundle,
+    fragment_rows,
     conservation_for,
     output_bundle,
     status_light,
@@ -610,6 +615,9 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         generated=today_text(),
         anatomy_source=anatomy_source_label(anat),
         anatomy=anat,
+        # LA CONSERVACION LLEGA AL MAPA. Sin ella el carril sale NOT_RUN, y NOT_RUN no
+        # es «no hay bloques conservados»: es que nadie ha mirado.
+        conservation=conservacion,
         # LOS ALMACENES. Sin ellos las fichas del documento se construian con uno vacio
         # y decia `NOT_RUN` de frentes cerrados — sobre el artefacto que defiende la
         # seleccion. Con proyecto cerrado va `None`, que es la verdad: no hay corridas
@@ -690,6 +698,13 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "brazos de homologia, más la hoja de pedido."
         ),
     )
+    # LO QUE SE AÑADE A LA DESCARGA aparte del paquete estandar. Existe porque este
+    # `return` de emergencia hacia `return ficheros` sobre un nombre QUE NUNCA SE
+    # DEFINIA: sin motor de plegado —que es lo normal, ViennaRNA es opcional— marcar la
+    # casilla de bloques tumbaba la pagina entera con un NameError en vez de enseñar el
+    # «PARA» que el propio codigo habia escrito. El mensaje estaba bien; el camino de
+    # salida, no.
+    extras: dict[str, str] = {}
     if bloques and has_selection(seleccion):
         # SIN MOTOR DE PLEGADO NO SE EMITE ADN. La pasajera de este modulo se elige
         # plegando, y sin plegado se elegiria con la regla que este proyecto descarto
@@ -697,23 +712,75 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         try:
             check_can_emit_dna()
         except ShmirDesignError as exc:
-            # rule2-ok: frontera de la interfaz. No se emite nada y se dice por que.
+            # rule2-ok: frontera de la interfaz. No se emite ADN y se dice por que; el
+            # resto de la corrida sigue descargandose.
             st.error(f"**PARA** — {exc}")
-            return ficheros
-        aviso_vector = vector_note(nombre)
-        if not aviso_vector["aplica"]:
-            st.error(aviso_vector["texto"])
         else:
-            st.caption(aviso_vector["texto"])
-        st.dataframe(block_rows(seleccion, scaffold, species=nombre), hide_index=True)
-        st.caption(
-            "XhoI y EcoRI van DENTRO del módulo, heredadas de SGEP, y en el plásmido "
-            "final no son únicas: el clonaje va por NheI/SacI o por síntesis. "
-            "`modulo_seguro = no` significa que no se ha confirmado que la horquilla "
-            "sobreviva dentro del intrón."
-        )
+            aviso_vector = vector_note(nombre)
+            if not aviso_vector["aplica"]:
+                st.error(aviso_vector["texto"])
+            else:
+                st.caption(aviso_vector["texto"])
+            st.dataframe(
+                block_rows(seleccion, scaffold, species=nombre), hide_index=True
+            )
+            st.caption(
+                "XhoI y EcoRI van DENTRO del módulo, heredadas de SGEP, y en el "
+                "plásmido final no son únicas: el clonaje va por NheI/SacI o por "
+                "síntesis. `modulo_seguro = no` significa que no se ha confirmado que "
+                "la horquilla sobreviva dentro del intrón."
+            )
 
-    return output_bundle(
+            st.markdown("**Fragmento de síntesis — el intrón completo**")
+            casete = cassette_sequence(tiling)
+            filas_fragmento = fragment_rows(seleccion, scaffold, cassette=casete)
+            if not filas_fragmento:
+                st.info(FRAGMENT_NEEDS_CASSETTE)
+            else:
+                st.dataframe(filas_fragmento, hide_index=True)
+                st.caption(
+                    "Se pega SOBRE la feature del intrón en SnapGene: el plásmido "
+                    "crece lo que crece el intrón, sin digerir ni ensamblar. Los 15 nt "
+                    "de cada extremo son para comprobarlos a ojo contra la selección — "
+                    "los 5 de exón son iguales en las dos arquitecturas y los 10 de al "
+                    "lado no. NheI y SacI salen por defecto: dentro de un fragmento "
+                    "sintetizado entero no cortan nada."
+                )
+            paquete = fragment_bundle(
+                seleccion, scaffold, species=nombre, cassette=casete
+            )
+            extras.update(paquete)
+
+            # EL ULTIMO ESLABON: entre lo que la app emite y lo que acaba en el vector
+            # no habia ninguna comprobacion. Aqui no se GENERA el plasmido —un vector de
+            # 5.400 pb ensamblado por codigo es demasiada superficie para un error
+            # silencioso—: se comprueba el que se montó a mano, y por SECUENCIA.
+            with st.expander("Comprobar el plásmido montado a mano"):
+                st.caption(ASSEMBLY_NEEDS_BOTH)
+                subido = st.file_uploader(
+                    "El vector montado",
+                    key=f"montaje_{nombre}",
+                    help=(
+                        "GenBank, FASTA, secuencia pelada o el `.dna` de SnapGene. No "
+                        "se guarda: se lee, se compara y se descarta."
+                    ),
+                )
+                emitido = paquete.get(f"{nombre}_fragmentos.fasta", "")
+                if subido is None or not emitido:
+                    st.info(ASSEMBLY_NEEDS_BOTH)
+                else:
+                    try:
+                        informe_montaje = assembly_report(
+                            subido.getvalue(), emitido, name=subido.name
+                        )
+                    except ShmirDesignError as exc:
+                        # rule2-ok: frontera de la interfaz. No se comprueba nada y se
+                        # dice por que; el resto de la pagina sigue funcionando.
+                        st.error(f"**PARA** — {exc}")
+                    else:
+                        st.code(informe_montaje.render(), language="text")
+
+    salida = output_bundle(
         species=nombre,
         tiling=tiling,
         selection=seleccion,
@@ -722,6 +789,8 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         conservation=conservacion,
         blocks=bloques,
     )
+    salida.update(extras)
+    return salida
 
 
 

@@ -5484,3 +5484,117 @@ recalcularlos por su cuenta habría sido la segunda definición del mismo númer
 con que uno derivara el mínimo de otra forma para que la celda y el informe dijeran cosas
 distintas. `BlastRun._judge` es ese sitio único, y `verdict` y `judged_call` lo llaman los
 dos.
+
+---
+
+## 112 — El «PARA» estaba bien escrito y el camino de salida no existía
+
+Pedido por el responsable del proyecto: el fragmento de síntesis. Al cablearlo en la
+página salió al paso un fallo que llevaba ahí desde que se escribió el aviso de «sin
+motor de plegado no se emite ADN».
+
+El aviso era correcto y estaba bien puesto — la pasajera de este módulo se elige
+plegando, y sin plegado se elegiría con la regla que este proyecto descartó por escrito.
+Lo que estaba mal era la línea de después:
+
+```python
+except ShmirDesignError as exc:
+    st.error(f"**PARA** — {exc}")
+    return ficheros          # `ficheros` NO existe en esta función
+```
+
+`ficheros` no se define en ninguna parte de `bloque_especie`. Marcar la casilla de
+bloques sin ViennaRNA —que **es lo normal: ViennaRNA es opcional y no está en el
+despliegue**— no enseñaba el «PARA»: tumbaba la página entera con un `NameError` justo
+después de pintarlo.
+
+### Por qué ningún test lo veía
+
+Es el bloqueo declarado del propio inventario de estados: `AppTest` no puede rellenar un
+`file_uploader`, así que ningún test lleva la página al estado `DISEÑADO`, y esta rama
+vive detrás de él. El inventario decía «11 estados sin pintar» y aquí estaba el precio.
+
+### Lo que se cambia
+
+El camino de salida deja de existir: se marca que no se emite ADN y el resto de la
+corrida —informe, tablas, descargas— sigue saliendo. Un aviso que se lleva por delante
+todo lo demás no es un aviso, es una caída con texto.
+
+---
+
+## 113 — `selection.report.frame`: el marco pedido a un atributo que no existe
+
+La primera versión de `presentation.fragment_bundle` etiquetaba cada candidato así:
+
+```python
+label=coords.label(choice.start, selection.report.frame)
+```
+
+`ReportSelection` **no tiene** `report`. Lo que lleva es `anatomy`, y de ella sale el
+marco con `coords.frame_of`. El resultado, con un tilado del TRANSCRITO: el marco cayó a
+`3utr`, la posición era del transcrito, y `coords` abortó — con razón — la corrida entera
+del CLI:
+
+```
+PARA — 3utr:1684 no cabe en ningún 3'UTR conocido del proyecto: el más largo mide 1606 nt.
+```
+
+Es la QUINTA vez que aparece la misma familia: una coordenada del transcrito etiquetada
+como 3'UTR. Las cuatro anteriores no daban error; ésta sí, porque `coords` puso el techo
+— la contramedida funcionó exactamente como se diseñó.
+
+### Y el segundo, en el mismo sitio y sin error
+
+`selection.tercio_coverage` tenía la variante silenciosa: contaba los tercios sobre el
+3'UTR y guardaba las posiciones del PANEL **sin convertir**, así que la frase «los 14
+sitios que quedan a 50 nt o más de `3utr:359`» mezclaba dos marcos en la misma línea. Con
+un tilado del 3'UTR coinciden y no se ve; con uno del transcrito, aborta.
+
+Se arregla convirtiendo **al entrar y no al imprimir**: todo lo que guarda
+`TercioCoverage` está ya en el marco del 3'UTR, y lo que no cae en él se cuenta y se dice
+en vez de meterlo en un tramo por descarte.
+
+### Lo que enseña, y por qué no es sólo un despiste
+
+Las dos funciones tenían tests y los dos fallos vivían en la COMBINACIÓN: un panel de
+transcrito y una salida que imprime posiciones. Es la errata nº 31 otra vez —las piezas
+probadas, el camino entero no— y lo que lo cerró fue correr el CLI de verdad, no leer el
+código.
+
+---
+
+## 114 — La feature del intrón son 92 nt y el intrón 82: los diez de diferencia, medidos
+
+No es un fallo del código: es un desajuste que el responsable del proyecto señaló antes
+de pedir el fragmento, y que había que resolver ANTES de emitir nada.
+
+En el `.dna` del casete la feature del intrón MVM va de **3129 a 3220 — 92 nt**. El
+intrón vacío del proyecto son **82** de `GT` a `AG`. Diez de diferencia. La hipótesis era
+«contexto exónico anotado dentro de la feature», y aquí está comprobada contra el casete
+versionado (`aav_casete.fa`, md5 `74f3fd79fa9547a59ca439d73e387c3d`):
+
+```
+3129  AAGAG                                   exon5 (5 nt, pieza versionada)
+3134  GTAAGGGTTTAAGG…TTTTTTTCAG               intrón, 82 nt, de GT a AG
+3216  GTTGG                                   exon3 (5 nt, pieza versionada)
+3220
+```
+
+Los diez son exactamente `blocks.PIECES["exon5"]` y `blocks.PIECES["exon3"]`, una pieza
+versionada a cada lado. **Pegar 82 nt sobre una selección de 92 borraría 10 nt de exón**,
+y no daría ningún error hasta secuenciar.
+
+Por eso el fragmento que se emite lleva ese contexto: sus extremos son los de la FEATURE
+ANOTADA y no los del intrón. Y por eso el tramo se DERIVA del casete —localizando las
+piezas y leyendo los dinucleótidos— en vez de teclear 3129: el número reportado del
+`.dna` entra sólo como cruce (`fragmento.check_declared_span`), que es lo que convierte
+una coincidencia en una comprobación.
+
+### La consecuencia que no se veía, y ahora sale declarada
+
+`splicing.locate_intron` localiza el intrón **por las dos mitades del MVM**. Con el
+intrón quimérico dentro, sobre el plásmido resultante ya no lo encuentra — y de ese
+localizador salen las ventanas de cebador con las que se mide la eficiencia de empalme.
+No es un fallo del fragmento: es lo que cuesta cambiar de arquitectura, y estaba
+invisible. Ahora sale como comprobación `localizable` en `NO_APLICA`, con el motivo, al
+lado del `PASS` que da el MVM por el mismo camino.

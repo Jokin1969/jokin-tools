@@ -795,6 +795,23 @@ def analyze_3utr(
 CLEAVAGE_MIN = 10   # nt aguas abajo del final del hexamero
 CLEAVAGE_MAX = 30
 
+
+def cleavage_band(signal: "PolyASignal") -> tuple[int, int]:
+    """La banda donde CAE EL CORTE que dirige esta señal.
+
+    UNA definición para una cantidad que se usaba en tres sitios —el veredicto de
+    truncamiento, el elemento GU/U-rico de aguas abajo y el mapa—: escrita tres veces,
+    corregir el margen en una y no en las otras dejaría el mapa dibujando una banda que
+    el veredicto no usa, sin que fallara nada.
+
+    La convención es la que YA IMPRIME el veredicto de truncamiento: `end + CLEAVAGE_MIN`
+    a `end + CLEAVAGE_MAX`. Como índices 0-based de la secuencia del 3'UTR, esos dos
+    números son exactamente el corte `secuencia[desde:hasta]`, que es como lee la banda
+    `_dse_downstream`. Y el corte NO ocurre en el hexámero: cae aguas ABAJO de su final,
+    y esa asimetría es justo lo que se pierde al reescribirla.
+    """
+    return (signal.end + CLEAVAGE_MIN, signal.end + CLEAVAGE_MAX)
+
 #: Lo que publica PolyA_DB como «PAS» es el SITIO DE CORTE, NO EL HEXAMERO, y lo dice su
 #: propia leyenda. No es una interpretacion nuestra: si el hexamero se BUSCA aguas arriba
 #: del PAS, el PAS no puede ser el hexamero.
@@ -894,8 +911,7 @@ def _dse_context(
     """
     if sequence is None:
         return None
-    inicio = signal.end + CLEAVAGE_MIN
-    fin = signal.end + CLEAVAGE_MAX
+    inicio, fin = cleavage_band(signal)
     if fin > len(sequence):
         return None
     tramo = sequence[inicio:fin].upper()

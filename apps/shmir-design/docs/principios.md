@@ -1987,3 +1987,59 @@ toca.
 El número correcto **también** cae fuera del rango típico de mamífero, así que el 314-318
 encajaba en la historia que se estaba contando y no chirriaba por ningún lado. La
 plausibilidad no era señal: es exactamente lo que hace falta comprobar.
+
+---
+
+## 41 — Ante una salida grande, generar y comprobar no cuestan lo mismo
+
+Decidido por el responsable del proyecto (2026-09-05), sobre los `.dna` completos:
+
+> *«Un plásmido de 5.400 pb ensamblado por código es demasiada superficie para un error
+> silencioso, y el módulo y el casete ya se emiten. Es el último eslabón sin red: entre
+> lo que la app emite y lo que acaba en el vector no hay hoy ninguna comprobación.»*
+
+**La asimetría.** Un generador de 5.400 pb tiene que acertar en 5.400 sitios y falla en
+silencio: lo que sale tiene la forma correcta. Un comprobador tiene que contestar UNA
+pregunta —«¿está dentro lo que emitimos?»— y cuando se equivoca, se equivoca ruidosamente:
+dice que no está lo que sí está, y eso se mira. **La comprobación es más pequeña que lo
+comprobado, y por eso se puede confiar en ella.**
+
+**No es prudencia genérica.** Aplica cuando (a) la salida es mucho mayor que la decisión
+que la genera, (b) un error en ella no da error sino otro resultado, y (c) el trabajo
+manual que sustituye ya lo hace alguien con la herramienta adecuada. Con esas tres, el
+software rinde más comprobando que produciendo. Es el mismo criterio que
+`gblock.verify_contexts_against_plasmid` con SGEP, ahora escrito.
+
+**Y la comprobación no mira coordenadas.** Busca la secuencia y la contrasta letra por
+letra. Un número escrito no puede validar el fichero del que salió (principio nº 13), así
+que una feature corrida un nucleótido no la engaña y un plásmido con el intrón en otro
+sitio pasa igual — que es lo correcto: la pregunta es «¿está dentro lo que emitimos?», no
+«¿está donde yo creía?».
+
+---
+
+## 42 — Un resumen llega al entregable y aun así deja de contestar la pregunta
+
+El principio nº 23 dice que un análisis que no llega al entregable no existe. Éste es el
+caso vecino y más difícil de ver: **el análisis SÍ llegó, reducido, y lo que se perdió es
+justo para lo que servía.**
+
+El mapa del 3'UTR vivía en la página como SVG. Al informe llegaba su RESUMEN —cuántos
+elementos dibuja por tipo, y la leyenda— con un argumento razonable escrito al lado: un
+PDF monoespaciado no puede pintar mil coordenadas. El resumen permite ver que un mapa se
+quedó sin candidatos o que dibuja el triple de señales, y eso es útil. Lo que NO permite
+ver es lo que dijo el responsable del proyecto al pedirlo:
+
+> *«Es lo único del proyecto que se lee de un vistazo, y hay cosas que sólo se ven
+> mirándolas — si los candidatos están repartidos o apelotonados, y qué tramos quedan
+> vacíos.»*
+
+**Contar elementos y ver su reparto son dos preguntas.** Un conteo es invariante a la
+posición, y la posición era el dato. Un resumen conserva lo que se puede sumar y pierde
+lo que sólo tiene la forma.
+
+**La salida no era el dibujo, era la ESCALA.** Puestos todos los carriles en las mismas
+columnas, un mapa de caracteres contesta las dos preguntas del reparto y sale idéntico en
+markdown, en `.docx` y en `.pdf` — monoespaciado deja de ser el obstáculo y pasa a ser la
+garantía. Lo que había que cambiar no era el formato de salida: era dejar de creer que
+resumir es una forma barata de llegar.

@@ -721,26 +721,59 @@ def _seccion_anatomia(anatomy) -> Section:
     )
 
 
-def _seccion_mapa(tiling, selection) -> Section:
-    """El mapa del 3'UTR. En el PDF va su RESUMEN, no el SVG.
+def _seccion_mapa(tiling, selection, conservation=None, *, species: str = "") -> Section:
+    """El mapa del 3'UTR ENTERO, en caracteres, y la cobertura por tercios al lado.
 
-    El PDF es monoespaciado: mil coordenadas con decimales no se leen. Lo que entra es
-    el conteo por tipo y la leyenda —lo mismo que se fija en el golden—, que es lo que
-    permite ver que un mapa se quedó sin candidatos o dibuja el triple de señales.
+    **Antes iba su RESUMEN** —cuántos elementos dibuja por tipo—, con el argumento de
+    que un PDF monoespaciado no puede pintar coordenadas. El resumen deja ver que un
+    mapa se quedó sin candidatos, y NO deja ver lo único para lo que el mapa sirve: si
+    los candidatos están repartidos o apelotonados y qué tramos quedan vacíos. Lo que
+    faltaba no era el dibujo: era ponerlo todo a la MISMA escala, y para eso
+    monoespaciado no es un obstáculo — es la garantía. Ver
+    `presentation.WHY_THE_MAP_IS_CHARACTERS`.
+
+    La cobertura por tercios va aquí y no en otra sección porque contesta la pregunta
+    que el mapa hace mirar: el tramo que se ve vacío, ¿está vacío porque no hay sitios
+    elegibles o porque no caben por espaciado? Son dos cosas distintas y sólo una tiene
+    arreglo.
     """
-    from .presentation import _mapa_resumen, map_svg  # noqa: PLC0415
+    from .presentation import (  # noqa: PLC0415
+        WHY_THE_MAP_IS_CHARACTERS,
+        _mapa_resumen,
+        map_svg,
+        map_text,
+    )
+    from .selection import tercio_coverage  # noqa: PLC0415
 
-    lineas = _mapa_resumen(map_svg(tiling, selection))
+    # La cobertura son FRASES, no una figura: van como lista y las parte el escritor
+    # de cada formato. En un bloque preformateado no se partirían y el PDF las cortaría
+    # por la mitad, que es el mismo fallo de alineación que el mapa evita.
+    cobertura: list[str] = []
+    for tramo in tercio_coverage(tiling, selection):
+        cobertura.extend(l.strip() for l in tramo.describe())
     return Section(
         number=0,
         title="Mapa del 3'UTR",
         blocks=(
             para(
-                "Resumen del mapa: cuántos elementos dibuja por tipo, y su leyenda. El "
-                "dibujo entero se ve en la página; aquí va lo que se puede leer en "
-                "monoespaciado y comparar entre dos corridas."
+                "Todo a la misma escala: los candidatos numerados por su puesto en el "
+                "panel, las señales de poliadenilación con su banda de corte, los "
+                "tercios y —cuando la hay— la conservación. " +
+                WHY_THE_MAP_IS_CHARACTERS
             ),
-            pre("\n".join(lineas)),
+            pre(map_text(tiling, selection, conservation, species or None)),
+            para(
+                "Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, "
+                "cuántos candidatos del panel caen ahí con cada una de las dos "
+                "definiciones de tercio, y cuál sería el siguiente sin romper el "
+                "espaciado. Un tramo que se ve vacío en el mapa puede estarlo porque "
+                "no hay sitios elegibles o porque no caben: no es lo mismo."
+            ),
+            bullets(tuple(cobertura)),
+            para(
+                "Y el conteo del dibujo de la página, que es lo que se compara entre "
+                "dos corridas: " + "; ".join(_mapa_resumen(map_svg(tiling, selection)))
+            ),
         ),
     )
 
@@ -896,7 +929,7 @@ def build_document(
     *, species: str, tiling, selection, generated: str,
     anatomy_source: str = "no declarada en esta corrida",
     dossier_starts=None, extra_provenance=(), title: str | None = None,
-    target: str | None = None, anatomy=None, stores=None,
+    target: str | None = None, anatomy=None, stores=None, conservation=None,
 ) -> Document:
     """El informe entero. Parcial o completo segun los frentes, nunca dos documentos.
 
@@ -957,7 +990,7 @@ def build_document(
             _section_2(frentes, species=species),
             _section_3(frentes, species=species, tiling=tiling),
             *((_seccion_anatomia(anatomy),) if anatomy is not None else ()),
-            _seccion_mapa(tiling, selection),
+            _seccion_mapa(tiling, selection, conservation, species=species),
             _section_4(selection, species=species, stores=stores),
             _seccion_elegibles(tiling, selection, species=species),
             _seccion_controles(tiling, selection, species=species, target=target),

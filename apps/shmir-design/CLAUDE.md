@@ -5136,6 +5136,136 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     ninguna versión produce exactamente lo descrito. Los cuatro defectos son ciertos y
     están arreglados con independencia de eso.
 
+## El FRAGMENTO de síntesis: el intrón entero, y los sitios de restricción fuera
+
+**Decidido por el responsable del proyecto (2026-09-05).** Lo que se manda a sintetizar
+deja de ser el módulo NheI–SacI y pasa a ser el **intrón completo con su contexto
+exónico**, listo para pegar sobre la feature del intrón en SnapGene. Vive en
+`shmir_design/fragmento.py`.
+
+- **Los sitios de restricción salen, y no se borran.** NheI y SacI existían para digerir
+  y ligar; con el fragmento sintetizado entero no cortan nada — son 12 nt inertes en un
+  tramo donante→punto de ramificación que ya está por encima del rango típico. Siguen
+  disponibles con `with_sites=True` / `--fragmento-con-sitios`: **retirar algo por
+  defecto es una decisión y quitarlo del código es perder la opción.**
+- **El plásmido crece exactamente lo que crece el intrón.** No hay digestión ni
+  ensamblaje: se selecciona la feature entera y se pega encima. Un solo número que
+  comprobar — 202 pb sin sitios, 214 con ellos, sobre el MVM.
+- **Y por eso la condición no es opcional: los extremos del fragmento son los de la
+  FEATURE ANOTADA**, no los del intrón de `GT` a `AG`. Si coinciden, la sustitución no
+  puede descolocarse; si no, sale corrida **sin ningún error hasta secuenciar**.
+
+### Los diez nucleótidos de la feature, MEDIDOS antes de emitir nada
+
+La feature del `.dna` son **92** nt (3129-3220) y el intrón vacío **82**. Los diez de más
+son `exon5` (`AAGAG`) y `exon3` (`GTTGG`), una pieza versionada a cada lado — comprobado
+contra `aav_casete.fa`, no supuesto. **Pegar 82 sobre una selección de 92 borraría 10 nt
+de exón.** El tramo se DERIVA localizando las piezas y leyendo los dinucleótidos; el
+3129-3220 reportado del `.dna` entra sólo como CRUCE (`check_declared_span`), que es lo
+que convierte una coincidencia en una comprobación. Errata nº 114.
+
+### Los 15 nt de cada extremo, y por qué quince y no cinco
+
+La hoja de pedido destaca los primeros y los últimos **15**. Los 5 del exón son **los
+mismos en las dos arquitecturas de intrón** —el exón es del vector, no del intrón—, así
+que con cinco los dos fragmentos se ven idénticos en el extremo. Lo que cambia son los
+diez de al lado. Es lo único que se puede comprobar a ojo contra la selección de SnapGene
+antes de pegar.
+
+### `splicing.locate_intron` es del MVM, y cambiar de intrón deja el empalme sin medida
+
+El localizador busca el intrón **por las dos mitades del MVM**. Con el quimérico dentro
+ya no lo encuentra en el plásmido resultante, y de él salen las ventanas de cebador de la
+RT-qPCR del empalme. No es un fallo del fragmento: es lo que cuesta cambiar de
+arquitectura, y estaba invisible. Sale como comprobación `localizable` en `NO_APLICA` con
+su motivo, al lado del `PASS` que da el MVM por el mismo camino.
+
+## Comprobar el plásmido montado: `montaje.py`. NO se generan los `.dna`
+
+**Decidido por el responsable del proyecto (2026-09-05):** *«los .dna completos: no los
+generes — genera su comprobación»*. Un plásmido de 5.400 pb ensamblado por código es
+demasiada superficie para un error silencioso, y el módulo, el casete y el fragmento ya
+se emiten. Lo que faltaba es el otro extremo, que era **el último eslabón sin red**.
+Principio nº 41.
+
+- **Por SECUENCIA, no por coordenadas.** Busca el fragmento dentro del plásmido y lo
+  contrasta letra por letra. Una feature corrida un nucleótido no lo engaña, y un
+  plásmido con el intrón en otro sitio pasa igual — la pregunta es «¿está dentro lo que
+  emitimos?», no «¿está donde yo creía?».
+- **Lo que caza**, y lo caza sin diagnosticar (principio nº 3): que el fragmento no esté,
+  que aparezca dos veces, y —el fallo real— que **el intrón ANTERIOR siga dentro**, o sea
+  que se pegó al lado en vez de encima.
+- **El FASTA de fragmentos se valida a sí mismo.** Cada cabecera lleva el md5 de su
+  secuencia y `parse_fragments_fasta` lo RECALCULA antes de comparar nada: un FASTA
+  retocado por el camino aborta ahí, en vez de echarle la culpa al montaje. Los dos lados
+  delegan en `reference.sequence_md5`, así que no son dos cálculos sino uno leído en dos
+  sitios.
+- **El `.dna` binario se lee interrogándolo.** El formato está DECLARADO —de su
+  descripción pública— y NO verificado contra ningún `.dna` real de este repositorio: no
+  hay ninguno. Por eso el lector comprueba la cabecera, que la longitud declarada de cada
+  segmento quepa en el fichero y que lo leído sea ADN, y ABORTA si algo no cuadra
+  (`montaje.SNAPGENE_FORMAT_DECLARED`). También se le puede dar GenBank, FASTA o
+  secuencia pelada, que es lo que exporta SnapGene y lo que sí está medido.
+- Se corre con `tools/comprobar_montaje.py --plasmido X --fragmentos Y`, y sale con
+  código 1 si algo FALLA para que valga en un guion.
+
+## El mapa del 3'UTR va al informe y al PDF, todo a la misma escala
+
+Pedido el 2026-09-05: *«es lo único del proyecto que se lee de un vistazo, y hay cosas
+que sólo se ven mirándolas — si los candidatos están repartidos o apelotonados, y qué
+tramos quedan vacíos»*. Al documento llegaba un RESUMEN del SVG —cuántos elementos por
+tipo—, que permite ver que un mapa se quedó sin candidatos y no permite ver el reparto.
+Principio nº 42.
+
+- **Es un mapa de CARACTERES** (`presentation.map_text`), no el SVG: el PDF de este
+  proyecto se escribe con las fuentes base-14 y no incrusta imágenes. En caracteres se
+  dibuja una vez y sale igual en markdown, `.docx` y `.pdf` — monoespaciado deja de ser
+  el obstáculo y pasa a ser la garantía.
+- **Cien columnas, todos los carriles en las mismas**: regla, tercios, máscara,
+  conservación, señales polyA, su banda de corte y los candidatos numerados por su puesto
+  en el panel. La escala se DECLARA (nt por columna) y las coordenadas de los diez van
+  debajo, porque en la pista sólo cabe el número.
+- **Una señal con uso MEDIDO no se dibuja igual que una supuesta**: `M` frente a `A`. Es
+  la distinción que `classification_label` ya llevaba pegada a la clase, traída al mapa —
+  y ahí se ve de un vistazo lo que en una tabla no: en el 3'UTR murino las dos medidas
+  caen en el tramo proximal y **todo lo distal está clasificado por canonicidad, sin un
+  solo dato de uso**.
+- **Ningún carácter puede cambiar de ancho al pasar al PDF.** La comprobación no es «que
+  sea ASCII» —eso prohibiría el castellano sin proteger de nada— sino que
+  `pdf_writer._ascii` no ALARGUE la línea: las tildes y la eñe están en WinAnsi y ocupan
+  uno; una flecha `→` se traduce a `->` y descoloca la columna. Hay test.
+- **La banda de corte sale de `polya.cleavage_band`**, una sola definición para una
+  cantidad que se usaba en tres sitios. Y puede salirse del transcrito anotado —el corte
+  de una terminal cae aguas abajo del final—: se recorta y **se cuenta**, en vez de
+  abortar la conversión con una posición que no existe.
+
+## Cobertura por tercios: cuánto margen queda, y el siguiente candidato
+
+`tercio_counts` contesta «¿cuántos hay?»; `selection.tercio_coverage` contesta «¿está
+cubierto, con cuánto margen, y cuál sería el siguiente?». La cuota se decidió por
+tercios, así que si se cumple tiene que VERSE.
+
+**Medido sobre el panel murino de diez:**
+
+| tramo | sitios elegibles | panel (punto medio / inicio) | caben más | el siguiente |
+|---|---|---|---|---|
+| proximal `3utr:1-414` | 28 | 4 / 4 | 2 | `3utr:200-221` |
+| medio `3utr:415-828` | 42 | 4 / 5 | **0** | — |
+| distal `3utr:829-1242` | 16 | 2 / **1** | 9 | **`3utr:1071-1092`** |
+
+- **El «dos» del distal es del borde.** `3utr:819-840` empieza en el tercio medio y su
+  punto medio (829,5) cae en el distal, que es la definición que usa la cuota. Cubre el
+  primer nucleótido del tramo, no el tramo: **el distal depende de `3utr:1018`**, que
+  además es el penalizado por ACTAAA. Se marca como `borderline` y se dice.
+- **El tercio MEDIO está saturado**: 41 sitios elegibles y CERO caben — los cinco
+  elegidos dejan una franja de ±50 nt que cubre casi los 414. Un tramo se lee lleno y el
+  otro depende de uno, y los dos números salen del mismo sitio.
+- **Dos números, no uno**: 13 sitios del distal quedan a ≥50 nt de `3utr:1018` y **9** lo
+  cumplen con TODO el panel. Manda el segundo — añadir uno exige espaciado con todos.
+- **Las posiciones se convierten al marco del 3'UTR AL ENTRAR, no al imprimir.** Con un
+  tilado del transcrito, guardarlas crudas daba `3utr:1684` y abortaba la corrida entera
+  (errata nº 113).
+
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 
 Ninguno se sustituye por una lista interna ni por nada reconstruido. Mientras falten, su

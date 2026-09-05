@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import inspect
 import re
+import textwrap
 from dataclasses import dataclass, field
 from html import escape
 from pathlib import Path, PurePosixPath
@@ -35,8 +36,8 @@ from .filters import FilterState
 from .outputs import fasta_guides, text_report, tsv_all_windows, tsv_oligos, tsv_selected
 from .reference import ReferenceTranscript
 from .resources import ResourceSet
-from .scaffold import ScaffoldSpec
-from .polya import POLYA_COLUMNS, normalize_sequence
+from .scaffold import ScaffoldSpec, build_hairpin
+from .polya import POLYA_COLUMNS, cleavage_band, normalize_sequence
 from .selection import ReportSelection
 from .tiling import TiledWindow, TilingReport
 
@@ -553,6 +554,238 @@ def map_svg(
     return "\n".join(parts)
 
 
+# ─── El mismo mapa, en caracteres, para el informe ───────────────────────────
+#
+# El SVG se ve en la pagina y no entra en el documento: el informe sale en markdown,
+# `.docx` y `.pdf`, y ese PDF se escribe a mano con las fuentes base-14 — no incrusta
+# imagenes. Al documento llegaba un RESUMEN (cuantos elementos por tipo), que deja ver
+# que un mapa se quedo sin candidatos y NO deja ver lo unico para lo que el mapa sirve:
+# si los candidatos estan repartidos o apelotonados y que tramos quedan vacios.
+#
+# Un mapa de caracteres se dibuja UNA vez y sale igual en los tres formatos, que es
+# exactamente la garantia que se pide: todo a la misma escala, y la misma escala en los
+# tres. Y por eso es ASCII puro — el PDF codifica en WinAnsi y sustituye lo que no
+# tiene, asi que un simbolo fuera de tabla desalinearia las columnas en un formato y no
+# en los otros.
+
+#: Columnas de la pista. Con el `pre` del PDF a cuerpo 7 caben 120 caracteres por linea;
+#: 100 de pista mas la etiqueta del carril entra sin partirse, y una linea partida deja
+#: de estar a escala, que es el mapa roto.
+MAP_TEXT_WIDTH = 100
+
+#: Ancho de la etiqueta del carril. Fijo: si cada carril rotula con lo que le cabe, los
+#: carriles dejan de empezar en la misma columna y la escala se pierde.
+MAP_TEXT_GUTTER = 8
+
+WHY_THE_MAP_IS_CHARACTERS = (
+    "El mapa del informe es de CARACTERES y no el SVG de la página: el PDF de este "
+    "proyecto se escribe con las fuentes base-14 y no incrusta imágenes, así que un "
+    "mapa dibujado saldría en un formato y no en los otros. En caracteres se dibuja una "
+    "vez y sale igual en los tres — todo a la misma escala, y la misma escala en "
+    "markdown, en `.docx` y en `.pdf`."
+)
+
+
+def _map_columns(utr_length: int) -> list[float]:
+    """La escala, en UN solo sitio: nt por columna."""
+    return [utr_length / MAP_TEXT_WIDTH]
+
+
+def map_text(
+    report: TilingReport,
+    selection: ReportSelection,
+    conservation: ConservationReport | None = None,
+    species: str | None = None,
+) -> str:
+    """El mapa del 3'UTR en caracteres. Todos los carriles, a la MISMA escala.
+
+    Mismo marco y misma frontera que `map_svg` —salen de `report.frame` y
+    `report.utr3_of`— y por el mismo motivo: lo tilado puede ser el transcrito entero.
+    Ver `WHY_THE_MAP_RECEIVES_THE_FRAME`.
+    """
+    largo = report.utr3_length
+    marco = report.frame
+    escala = largo / MAP_TEXT_WIDTH
+
+    def columna(posicion: int) -> int:
+        return min(
+            MAP_TEXT_WIDTH - 1,
+            max(0, round((posicion - 1) / max(1, largo - 1) * (MAP_TEXT_WIDTH - 1))),
+        )
+
+    def carril(etiqueta: str, marcas: dict[int, str], relleno: str = " ") -> str:
+        pista = [relleno] * MAP_TEXT_WIDTH
+        for col, ch in sorted(marcas.items()):
+            if 0 <= col < MAP_TEXT_WIDTH:
+                pista[col] = ch
+        return f"  {etiqueta:<{MAP_TEXT_GUTTER}}" + "".join(pista)
+
+    fuera = 0
+
+    def en_utr3(posicion: int) -> int | None:
+        return report.utr3_of(posicion)
+
+    def nota(texto: str) -> list[str]:
+        """Parte una nota para que NINGUNA linea se salga del ancho del mapa.
+
+        Una linea que el PDF parte deja de estar a escala, y con ella se descoloca todo
+        lo que va debajo. El limite es el del mapa, no el del PDF: asi las tres salidas
+        —markdown, `.docx` y `.pdf`— parten por el mismo sitio.
+        """
+        limite = MAP_TEXT_WIDTH + MAP_TEXT_GUTTER - 2
+        return ["  " + l for l in textwrap.wrap(texto, limite) or [""]]
+
+    lineas: list[str] = []
+
+    # Escala: una regla con la posicion cada diez columnas.
+    regla = [" "] * MAP_TEXT_WIDTH
+    numeros = [" "] * MAP_TEXT_WIDTH
+    for col in range(0, MAP_TEXT_WIDTH, 10):
+        regla[col] = "|"
+        texto = str(max(1, round(col * escala) + 1))
+        for i, ch in enumerate(texto):
+            if col + i < MAP_TEXT_WIDTH:
+                numeros[col + i] = ch
+    lineas.append(f"  {'nt':<{MAP_TEXT_GUTTER}}" + "".join(numeros))
+    lineas.append(f"  {'':<{MAP_TEXT_GUTTER}}" + "".join(regla))
+
+    # Tercios, con su frontera EN LA COLUMNA que le toca.
+    # LOS LIMITES SALEN DE `tercio_counts`, no se vuelven a dividir aquí: dos cuentas
+    # del mismo corte pueden separarse, y entonces el mapa dibujaría una frontera que
+    # la cuota no usa. Es el mismo criterio que la banda de corte.
+    from .selection import tercio_counts  # noqa: PLC0415
+
+    limites_tercios = tercio_counts(report).bounds
+    tercios = [" "] * MAP_TEXT_WIDTH
+    cortes = [columna(limites_tercios[0][1]), columna(limites_tercios[1][1])]
+    tramos = [(0, cortes[0]), (cortes[0] + 1, cortes[1]), (cortes[1] + 1, MAP_TEXT_WIDTH - 1)]
+    for (a, b), nombre in zip(tramos, ("proximal", "medio", "distal"), strict=True):
+        ancho = b - a + 1
+        etiqueta = nombre if len(nombre) <= ancho - 2 else nombre[: max(0, ancho - 2)]
+        relleno = "-" * ancho
+        if etiqueta:
+            hueco = (ancho - len(etiqueta)) // 2
+            relleno = "-" * hueco + etiqueta + "-" * (ancho - hueco - len(etiqueta))
+        for i, ch in enumerate(relleno):
+            tercios[a + i] = ch
+    for corte in cortes:
+        tercios[corte] = "|"
+    lineas.append(f"  {'tercios':<{MAP_TEXT_GUTTER}}" + "".join(tercios))
+
+    # Zonas enmascaradas.
+    if report.mask is not None:
+        mascara: dict[int, str] = {}
+        for inicio, fin in report.mask.intervals:
+            u1, u2 = en_utr3(inicio), en_utr3(min(fin, report.utr_length))
+            if u1 is None and u2 is None:
+                fuera += 1
+                continue
+            u1 = 1 if u1 is None else u1
+            u2 = largo if u2 is None else u2
+            for col in range(columna(u1), columna(u2) + 1):
+                mascara[col] = "~"
+        lineas.append(carril("mascara", mascara))
+
+    # Bloques conservados. Sin conservacion el carril NO desaparece: lo dice.
+    if conservation is not None and species is not None:
+        bloques: dict[int, str] = {}
+        for bloque in conservation.blocks:
+            for hit in bloque.hits:
+                if hit.species != species:
+                    continue
+                for col in range(columna(hit.start), columna(min(hit.end, largo)) + 1):
+                    bloques[col] = "#"
+        lineas.append(carril("conserv", bloques))
+    else:
+        lineas.append(
+            f"  {'conserv':<{MAP_TEXT_GUTTER}}"
+            "NOT_RUN: no se ha dado informe de conservación para esta especie."
+        )
+
+    # Señales de poliadenilacion, y SU BANDA DE CORTE en el carril de debajo.
+    señales: dict[int, str] = {}
+    banda: dict[int, str] = {}
+    desbordadas = 0
+    for signal in report.signals:
+        posicion = en_utr3(signal.position)
+        if posicion is None:
+            fuera += 1
+            continue
+        # LA VIA IMPORTA Y SE VE. `A` a secas dice lo mismo de dos cosas que no se
+        # parecen: una señal con uso MEDIDO y una clasificada por canonicidad SIN UN
+        # SOLO DATO de uso. Es la distincion que `classification_label` ya lleva pegada
+        # a la clase, traida al mapa — que es donde se mira el reparto.
+        señales[columna(posicion)] = (
+            "T" if signal.classification.name == "TERMINAL_PROBABLE"
+            else ("M" if signal.evidence == "medida" else "A")
+        )
+        # LA BANDA DE CORTE PUEDE SALIRSE DEL TRANSCRITO, y no es un error: el corte
+        # de una señal terminal cae 10-30 nt aguas abajo de un hexámero que ya está
+        # cerca del final. Se recorta a lo que hay y se CUENTA lo que se sale, en vez
+        # de abortar la conversión con una posición que no existe.
+        desde, hasta = cleavage_band(signal)
+        if desde > report.utr_length:
+            desbordadas += 1
+            continue
+        if hasta > report.utr_length:
+            desbordadas += 1
+            hasta = report.utr_length
+        u1, u2 = en_utr3(desde), en_utr3(hasta)
+        if u1 is None and u2 is None:
+            continue
+        u1 = 1 if u1 is None else u1
+        u2 = largo if u2 is None else u2
+        for col in range(columna(u1), columna(u2) + 1):
+            banda[col] = "="
+    lineas.append(carril("polyA", señales))
+    lineas.append(carril("corte", banda))
+
+    # Candidatos, NUMERADOS por su puesto en el panel.
+    elegidos = sorted(selection.selection.chosen, key=lambda c: c.start)
+    candidatos: dict[int, str] = {}
+    pie: list[str] = []
+    for indice, choice in enumerate(elegidos, start=1):
+        posicion = en_utr3(choice.start)
+        if posicion is None:
+            fuera += 1
+            continue
+        col = columna(posicion)
+        marca = str(indice)
+        for i, ch in enumerate(marca):
+            candidatos.setdefault(col + i, ch)
+        pie.append(f"{indice}={coords.label(choice.start, marco)}")
+    lineas.append(carril("cand", candidatos))
+
+    lineas.append("")
+    lineas.extend(nota(
+        f"3'UTR de {largo} nt en {MAP_TEXT_WIDTH} columnas — "
+        f"{escala:.1f} nt por columna (marco de lo tilado: {marco.value})."
+    ))
+    lineas.extend(nota(
+        "M = señal polyA con uso MEDIDO · A = señal polyA por canonicidad, sin dato "
+        "de uso · T = terminal probable · = banda de corte (10-30 nt aguas abajo del "
+        "hexámero) · # = bloque conservado · ~ = repetición enmascarada · dígito = "
+        "candidato, por su puesto en el panel."
+    ))
+    if fuera:
+        lineas.extend(nota(f"{fuera} elemento(s) FUERA del 3'UTR, no dibujados."))
+    if desbordadas:
+        lineas.extend(nota(
+            f"{desbordadas} banda(s) de corte se salen del transcrito anotado: el "
+            f"corte de una terminal cae aguas abajo del final. Van recortadas."
+        ))
+    # Los candidatos, con su coordenada: en la pista solo cabe el numero.
+    if pie:
+        actual = "  "
+        for entrada in pie:
+            if len(actual) + len(entrada) + 2 > MAP_TEXT_WIDTH + MAP_TEXT_GUTTER:
+                lineas.append(actual.rstrip())
+                actual = "  "
+            actual += entrada + "  "
+        lineas.append(actual.rstrip())
+    return "\n".join(lineas)
+
+
 # ─── Descargas ───────────────────────────────────────────────────────────────
 def output_bundle(
     *,
@@ -635,6 +868,151 @@ def block_bundle(
         f"{species}_bloques.tsv": blocks_tsv(bloques, species=species),
         f"{species}_hoja_de_pedido.txt": order_sheet(bloques, species=species),
     }
+
+
+#: Por que el fragmento NO se emite sin el casete. No es un extra que falte: los
+#: extremos del fragmento son los de la FEATURE ANOTADA, y esos se derivan del casete.
+#: Emitirlo sin el seria emitir un fragmento con unos extremos que nadie ha comprobado,
+#: que es exactamente lo que borra 10 nt de exon al pegar.
+FRAGMENT_NEEDS_CASSETTE = (
+    "NOT_RUN: no hay casete conectado, así que no se emite ningún fragmento de "
+    "síntesis. Los extremos del fragmento son los de la FEATURE ANOTADA del intrón y "
+    "se DERIVAN del casete —contexto exónico incluido—; sin él saldrían unos extremos "
+    "que nadie ha comprobado, y pegar eso sobre la selección de SnapGene borra exón sin "
+    "dar ningún error hasta secuenciar. Se sube `aav_casete.fa` por el panel de "
+    "referencia y sale."
+)
+
+
+def _candidate_label(selection: ReportSelection, choice) -> str:
+    """La etiqueta de un candidato CON su marco, derivado de la anatomía que viaja con
+    la selección.
+
+    No `report.frame` —`ReportSelection` no lleva el informe— ni `Frame.UTR3` a secas:
+    con un tilado del transcrito eso etiqueta `tx:1684` como `3utr:1684` y `coords`
+    aborta la corrida entera, que es exactamente lo que pasó la primera vez que esto se
+    escribió sin mirar de dónde salía el marco.
+    """
+    marco = (
+        coords.frame_of(selection.anatomy)
+        if selection.anatomy is not None
+        else Frame.UTR3
+    )
+    return coords.label(choice.start, marco)
+
+
+def fragment_bundle(
+    selection: ReportSelection,
+    scaffold: ScaffoldSpec,
+    *,
+    species: str,
+    cassette: str | None,
+    intron: str = "mvm_actual",
+    with_sites: bool = False,
+) -> dict[str, str]:
+    """El fragmento de síntesis de cada candidato elegido: FASTA y hoja de pedido.
+
+    Toda la decision vive aqui, no en la pagina (regla 6). Sin casete se emite la hoja
+    IGUAL, diciendo por que esta vacia: un fichero que no aparece no se distingue de uno
+    que nadie ha pedido.
+    """
+    from .fragmento import (
+        build_fragment,
+        fragment_order_sheet,
+        fragments_fasta,
+    )
+
+    if not cassette:
+        return {f"{species}_fragmentos.txt": FRAGMENT_NEEDS_CASSETTE}
+    fragmentos = []
+    for choice in selection.selection.chosen:
+        ventana = selection.window_of(choice)
+        fragmentos.append(
+            build_fragment(
+                build_hairpin(
+                    ventana.evaluation.guide.replace("U", "T"), scaffold=scaffold
+                ),
+                cassette=cassette,
+                intron=intron,
+                with_sites=with_sites,
+                label=_candidate_label(selection, choice),
+            )
+        )
+    return {
+        f"{species}_fragmentos.fasta": fragments_fasta(fragmentos, species=species),
+        f"{species}_fragmentos.txt": "\n\n".join(
+            fragment_order_sheet(f) for f in fragmentos
+        ),
+    }
+
+
+def fragment_rows(
+    selection: ReportSelection,
+    scaffold: ScaffoldSpec,
+    *,
+    cassette: str | None,
+    intron: str = "mvm_actual",
+    with_sites: bool = False,
+) -> list[dict[str, object]]:
+    """Una fila por fragmento, con lo que hay que mirar antes de pegar."""
+    from .fragmento import build_fragment
+
+    if not cassette:
+        return []
+    filas: list[dict[str, object]] = []
+    for choice in selection.selection.chosen:
+        ventana = selection.window_of(choice)
+        fragmento_ = build_fragment(
+            build_hairpin(
+                ventana.evaluation.guide.replace("U", "T"), scaffold=scaffold
+            ),
+            cassette=cassette,
+            intron=intron,
+            with_sites=with_sites,
+            label=_candidate_label(selection, choice),
+        )
+        filas.append(
+            {
+                "candidato": fragmento_.label,
+                "intron": fragmento_.intron_name,
+                "longitud": len(fragmento_.sequence),
+                "crece": fragmento_.growth,
+                "sustituye": (
+                    f"{fragmento_.feature.start}-{fragmento_.feature.end}"
+                ),
+                "inicio_15": fragmento_.head(),
+                "final_15": fragmento_.tail(),
+                "md5": fragmento_.md5,
+                "veredicto": fragmento_.verdict.value,
+                **{f"check:{r.name}": r.state.value for r in fragmento_.checks},
+            }
+        )
+    return filas
+
+
+#: Lo que hace falta para comprobar un montaje, dicho en la pagina. NO es un fallo:
+#: comprobar el vector montado es un paso posterior al diseño y sin sus dos ficheros no
+#: se ha corrido nada — NOT_RUN, no PASS.
+ASSEMBLY_NEEDS_BOTH = (
+    "NOT_RUN: para comprobar el plásmido montado hacen falta las dos cosas — el "
+    "fichero del vector (GenBank, FASTA, secuencia pelada o `.dna` de SnapGene) y el "
+    "FASTA de fragmentos que emitió esta app. Se compara POR SECUENCIA: se busca el "
+    "fragmento dentro del vector y se contrasta letra por letra, así que una feature "
+    "corrida un nucleótido no engaña a la comprobación."
+)
+
+
+def assembly_report(plasmid, fragments_fasta_text: str, *, name: str = ""):
+    """La comprobación del montaje, para que la página sólo tenga que enseñarla.
+
+    Vive aquí y no en la interfaz porque decide cosas: qué se compara, contra qué intrón
+    previo y con qué veredicto (regla 6).
+    """
+    from .montaje import verify_assembly
+
+    return verify_assembly(
+        plasmid, fragments_fasta_text, name=name or "el plásmido montado"
+    )
 
 
 def vector_note(species: str) -> dict[str, object]:
@@ -1698,7 +2076,8 @@ WHERE_THE_HELP_ROWS_WENT = (
 
 def informe_documento(selection, tiling, *, species: str, generated: str,
                       anatomy_source: str = "no declarada en esta corrida",
-                      dossier_starts=None, anatomy=None, stores=None):
+                      dossier_starts=None, anatomy=None, stores=None,
+                      conservation=None):
     """El documento entero. Parcial o completo segun los frentes, nunca dos productos.
 
     `anatomy` es OPCIONAL y no por comodidad: hay caminos que no la tienen —el CLI la
@@ -1710,7 +2089,7 @@ def informe_documento(selection, tiling, *, species: str, generated: str,
     return build_document(
         species=species, tiling=tiling, selection=selection, generated=generated,
         anatomy_source=anatomy_source, dossier_starts=dossier_starts, anatomy=anatomy,
-        stores=stores,
+        stores=stores, conservation=conservation,
     )
 
 
