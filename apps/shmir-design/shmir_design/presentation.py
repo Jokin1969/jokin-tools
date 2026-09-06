@@ -6906,6 +6906,133 @@ def cassette_deposit_check(cassette, *, directory=None) -> dict[str, object]:
     }
 
 
+#: Los estados de una fila de la comparacion deposito ↔ versionado.
+DEPOSITO_IGUAL = "IGUAL"
+DEPOSITO_DISTINTO = "DISTINTO"
+DEPOSITO_SOLO_DEPOSITO = "SOLO_EN_EL_DEPOSITO"
+DEPOSITO_SOLO_VERSIONADO = "SOLO_VERSIONADO"
+#: Estado del INFORME entero cuando no hay dos sitios que comparar (en local).
+DEPOSITO_MISMO_DIRECTORIO = "MISMO_DIRECTORIO"
+
+#: Por que esto es un INFORME y no un guardia.
+WHY_THE_DEPOSIT_MAY_DIFFER = (
+    "Que un fichero del depósito no sea el versionado NO ES UN FALLO: subir uno más "
+    "nuevo por el gestor es exactamente para lo que existe el depósito, y lo versionado "
+    "sólo se siembra la primera vez. Lo que no puede pasar es que no se vea. El número "
+    "correcto aquí no es cero."
+)
+
+#: Por que nadie lo miraba hasta el 2026-09-06, con las palabras con que se dijo.
+WHY_NOBODY_COMPARED = (
+    "La siembra respeta lo que está, el rol valida contra el manifiesto del volumen, y "
+    "nadie compara el depósito con lo versionado. Los dos autoconsistentes, el "
+    "desajuste invisible por construcción."
+)
+
+
+def _secuencia_fasta(datos: bytes) -> str | None:
+    """La secuencia de un FASTA de un solo registro, o `None` si no lo es.
+
+    Existe para separar «otra molécula» de «otro formato»: un FASTA reenvuelto a otro
+    ancho tiene otro md5 de fichero y la MISMA secuencia, y esa es la diferencia entre
+    «hay que reemplazarlo» y «da igual». Para lo que no es FASTA devuelve `None` y no se
+    inventa una respuesta.
+    """
+    try:
+        texto = datos.decode("utf-8")
+    except UnicodeDecodeError:
+        # rule2-ok: no es un fallo que perder — un fichero binario simplemente no es un
+        # FASTA, y eso es la respuesta `None` que el llamador ya sabe leer.
+        return None
+    if not texto.lstrip().startswith(">"):
+        return None
+    cuerpo = [l for l in texto.splitlines() if not l.startswith(">")]
+    return "".join("".join(cuerpo).split()).upper() or None
+
+
+def deposit_vs_versioned(*, directory=None) -> dict[str, object]:
+    """Qué ficheros del DEPÓSITO no son los VERSIONADOS. Informe, no veredicto.
+
+    Nace de la errata nº 129: el casete con el que se emitía no era el del depósito, y
+    lo que permitía que eso viviera indefinidamente es que las dos comprobaciones que
+    había son autoconsistentes —ver `WHY_NOBODY_COMPARED`—. Esto es el tercer eje: el
+    único que mira los dos sitios a la vez.
+
+    En local los dos directorios son EL MISMO, así que no hay nada que comparar y se
+    dice (`MISMO_DIRECTORIO`) en vez de devolver «todos iguales», que sería un verde sin
+    haber mirado (principio nº 51).
+
+    El manifiesto queda fuera: el del depósito se REESCRIBE al subir un fichero, así que
+    que difiera es lo normal y contarlo sería ruido permanente.
+    """
+    from .identidad import file_fingerprint  # noqa: PLC0415
+    from .manifest import _NO_SON_DATOS  # noqa: PLC0415
+    from .reference import PACKAGE_REFERENCE_DIR  # noqa: PLC0415
+    from .trabajo import reference_dir  # noqa: PLC0415
+
+    deposito = Path(directory) if directory is not None else reference_dir()
+    versionado = Path(PACKAGE_REFERENCE_DIR)
+    base = {
+        "deposito": str(deposito),
+        "versionado": str(versionado),
+        "por_que": WHY_THE_DEPOSIT_MAY_DIFFER,
+    }
+    if deposito.resolve() == versionado.resolve():
+        return {
+            **base, "estado": DEPOSITO_MISMO_DIRECTORIO, "filas": [],
+            "motivo": (
+                f"El depósito y lo versionado son el MISMO directorio ({deposito}), así "
+                f"que no hay dos cosas que comparar. Pasa en local, donde "
+                f"`SHMIR_REFERENCE_DIR` no está declarado. No se da por bueno: no haber "
+                f"podido comparar no es haber comparado."
+            ),
+        }
+
+    def _datos(carpeta: Path) -> dict[str, bytes]:
+        if not carpeta.is_dir():
+            return {}
+        return {
+            p.name: p.read_bytes()
+            for p in sorted(carpeta.iterdir())
+            if p.is_file() and p.name not in _NO_SON_DATOS and p.suffix.lower() != ".md"
+        }
+
+    en_deposito, en_versionado = _datos(deposito), _datos(versionado)
+    filas = []
+    for nombre in sorted(set(en_deposito) | set(en_versionado)):
+        a, b = en_deposito.get(nombre), en_versionado.get(nombre)
+        fila = {
+            "fichero": nombre,
+            "md5_deposito": file_fingerprint(a) if a is not None else "",
+            "md5_versionado": file_fingerprint(b) if b is not None else "",
+            "bytes_deposito": len(a) if a is not None else 0,
+            "bytes_versionado": len(b) if b is not None else 0,
+            "misma_secuencia": None,
+        }
+        if a is None:
+            fila["estado"] = DEPOSITO_SOLO_VERSIONADO
+        elif b is None:
+            fila["estado"] = DEPOSITO_SOLO_DEPOSITO
+        elif fila["md5_deposito"] == fila["md5_versionado"]:
+            fila["estado"] = DEPOSITO_IGUAL
+        else:
+            fila["estado"] = DEPOSITO_DISTINTO
+            sa, sb = _secuencia_fasta(a), _secuencia_fasta(b)
+            if sa is not None and sb is not None:
+                fila["misma_secuencia"] = sa == sb
+        filas.append(fila)
+
+    distintos = [f for f in filas if f["estado"] == DEPOSITO_DISTINTO]
+    return {
+        **base, "estado": DEPOSITO_DISTINTO if distintos else DEPOSITO_IGUAL,
+        "filas": filas,
+        "motivo": (
+            f"{len(distintos)} fichero(s) del depósito no son los versionados, de "
+            f"{len(filas)} comparado(s). {WHY_THE_DEPOSIT_MAY_DIFFER}"
+        ),
+    }
+
+
 def arms_rows(present=()) -> list[dict[str, object]]:
     """Los seis brazos, con QUE AISLA cada uno y si esta declarado."""
     from .controles import ARMS

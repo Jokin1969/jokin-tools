@@ -115,8 +115,11 @@ from shmir_design.presentation import (  # noqa: E402
     splice_fasta_name,
     splice_panel_summary,
     CASETE_NO_COINCIDE,
+    DEPOSITO_DISTINTO,
+    DEPOSITO_MISMO_DIRECTORIO,
     CASETE_SIN_COMPROBAR,
     cassette_deposit_check,
+    deposit_vs_versioned,
     splice_constructions,
     SPLICE_CONTEXT_DEFAULT,
     SPLICE_CONTEXT_MAX,
@@ -1132,6 +1135,31 @@ def _gestionar_proyectos(especie: str, raiz, catalogo, fecha: str) -> None:
 
 
 
+def _tambien_para_copiar(texto: str, *, nombre: str, clave: str) -> None:
+    """El MISMO contenido, copiable, al lado del botón de descarga.
+
+    **Por qué existe y por qué no es un parche.** El 2026-09-06 la descarga del FASTA de
+    construcciones se quedó colgada en producción y el frente de empalme quedó bloqueado:
+    sin ese fichero no se puede correr SpliceAI. La causa **no está determinada** — el
+    contenido es determinista y la descarga, reproducida con un navegador de verdad por
+    el proxy real del hub, baja entera (ver la errata nº 130)—. Lo que sí se puede
+    afirmar es que había UNA sola vía para sacar el fichero, y que cuando esa vía falla no
+    queda ninguna.
+
+    Es el principio nº 47: la salida tiene que estar donde está el bloqueo. Y su
+    corolario, que costó tres días: una vía y su alternativa no pueden compartir el
+    mecanismo que falla. Ésta no comparte nada con `st.download_button` — es texto en la
+    página, y el botón de copiar lo pone el navegador.
+    """
+    with st.expander(f"¿No baja el fichero? Copia el contenido de `{nombre}`"):
+        st.caption(
+            f"El mismo contenido que el botón, {len(texto.encode('utf-8')):,} bytes. "
+            f"Pégalo en un fichero llamado `{nombre}`. El botón de copiar está arriba a "
+            f"la derecha del bloque."
+        )
+        st.code(texto, language=None)
+
+
 def _descargar_todo(directorio) -> None:
     """La copia de seguridad ENTERA en un zip: depósito, manifiesto y proyectos.
 
@@ -1401,6 +1429,23 @@ def _panel_refinamiento(especie: str) -> None:
     st.caption(WHY_NO_GLOBAL_TOGGLE)
     if is_declared():
         st.caption(f"Se guardan en `{directorio}`. {WHY_A_WORKING_DIR}")
+
+    # EL DEPÓSITO CONTRA LO VERSIONADO. Es el tercer eje y el único que mira los dos
+    # sitios a la vez: la siembra respeta lo que ya está y el rol valida contra el
+    # manifiesto del propio volumen, así que un fichero viejo aquí es invisible por
+    # construcción (errata nº 129). INFORME, no veredicto: que difieran no es un fallo.
+    comparacion = deposit_vs_versioned()
+    if comparacion["estado"] != DEPOSITO_MISMO_DIRECTORIO:
+        distintos = [
+            f for f in comparacion["filas"] if f["estado"] == DEPOSITO_DISTINTO
+        ]
+        with st.expander(
+            f"Depósito contra lo versionado — {len(distintos)} distinto(s) de "
+            f"{len(comparacion['filas'])}",
+            expanded=bool(distintos),
+        ):
+            st.caption(comparacion["motivo"])
+            st.dataframe(comparacion["filas"], hide_index=True, width="stretch")
 
     _descargar_todo(directorio)
 
@@ -2399,6 +2444,7 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
             file_name=ruta,
             key=f"blast_dl_{nombre}",
         )
+        _tambien_para_copiar(consulta.text, nombre=ruta, clave=f"blast_{nombre}")
         # SIN PROYECTO NO SE ACEPTA EL FICHERO. Antes se aceptaba y se avisaba en gris de
         # que no se guardaba nada — detras de este fichero hay una descarga de decenas de
         # GB y una corrida de horas, asi que dejarlo soltar era una trampa (errata nº 42).
@@ -2535,12 +2581,15 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
             st.error(destacados["mir30"]["texto"])
         st.info(destacados["pasajeras"]["texto"])
         st.dataframe(seed_result_rows(scan), hide_index=True)
+        bloque_seed = scan.export_block()
+        nombre_seed = f"{nombre}_colision_seed.txt"
         st.download_button(
             "Descargar el bloque para el documento",
-            data=scan.export_block(),
-            file_name=f"{nombre}_colision_seed.txt",
+            data=bloque_seed,
+            file_name=nombre_seed,
             key=f"seed_dl_{nombre}",
         )
+        _tambien_para_copiar(bloque_seed, nombre=nombre_seed, clave=f"seed_{nombre}")
         _guardar_corrida(
             proyecto, nombre,
             construir=lambda fecha, quien: seed_run_from_scan(
@@ -2763,20 +2812,26 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
     st.caption(splice_context_note(construcciones))
     st.dataframe(splice_construction_rows(construcciones), width="stretch")
 
+    # EL TEXTO Y EL NOMBRE SE CALCULAN UNA VEZ y los usan los DOS caminos —el botón y
+    # el bloque copiable—. Antes el botón los construía dentro de su propia llamada, así
+    # que la salida alternativa habría podido pintar un contenido distinto del que
+    # descarga el botón, que es la peor forma de tener dos vías.
+    #
+    # EL ESTADO Y LA CONVENCIÓN VAN DENTRO DEL FICHERO, no sólo en su nombre: un nombre
+    # se pierde en el primer `mv` y el FASTA viaja solo. Y el ESTADO VA TAMBIÉN EN EL
+    # NOMBRE, porque quien lo pasa por SpliceAI no tiene esta pantalla delante.
+    texto_fasta = splice_query_text(panel, introns=elegidos, candidates=len(starts))
+    nombre_fasta = splice_fasta_name(
+        panel, species=nombre, introns=elegidos, candidates=len(starts),
+    )
     st.download_button(
         "Descargar el FASTA de construcciones",
-        # EL ESTADO Y LA CONVENCIÓN VAN DENTRO DEL FICHERO, no sólo en su nombre: un
-        # nombre se pierde en el primer `mv` y el FASTA viaja solo.
-        splice_query_text(panel, introns=elegidos, candidates=len(starts)),
-        # EL ESTADO VA EN EL NOMBRE. El fichero es el que viaja: quien lo pasa por
-        # SpliceAI no tiene esta pantalla delante, y un FASTA con la mitad de las
-        # consultas y un nombre que no lo dice es media entrega que parece completa.
-        splice_fasta_name(
-            panel, species=nombre, introns=elegidos, candidates=len(starts),
-        ),
+        texto_fasta,
+        nombre_fasta,
         "text/plain",
         key=f"sp_fasta_{nombre}",
     )
+    _tambien_para_copiar(texto_fasta, nombre=nombre_fasta, clave=f"sp_{nombre}")
     st.caption(splice_executor_text())
     _panel_deposito("corrida_empalme", nombre, clave="sp")
 
@@ -3006,12 +3061,15 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         if destacados["autoconteo"]["activo"]:
             st.error(destacados["autoconteo"]["texto"])
 
+        bloque_ot = scan.export_block()
+        nombre_ot = f"{nombre}_carga_offtarget.txt"
         st.download_button(
             "Descargar el bloque para el documento",
-            data=scan.export_block(),
-            file_name=f"{nombre}_carga_offtarget.txt",
+            data=bloque_ot,
+            file_name=nombre_ot,
             key=f"ot_dl_{nombre}",
         )
+        _tambien_para_copiar(bloque_ot, nombre=nombre_ot, clave=f"ot_{nombre}")
         _guardar_corrida(
             proyecto, nombre,
             construir=lambda fecha, quien: offtarget_run_from_scan(

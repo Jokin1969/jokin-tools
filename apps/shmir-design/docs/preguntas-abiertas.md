@@ -14,6 +14,40 @@ Desde que los datos de referencia son fixtures versionados
 ([`fixtures.md`](./fixtures.md)), esto ha dejado de ser un bloqueante del análisis: solo
 limita el camino opcional `--fetch`.
 
+### 2. NO DETERMINADO: de dónde salió el casete de 5.170 nt (2026-09-06)
+
+**Qué se sabe, medido.** Un FASTA de producción se emitió sobre un casete de **5.170 nt**,
+md5 `a9f6ac140d33f504313dc03ba7805b1f`, mientras el del depósito —`aav_casete.fa`— mide
+**5.282** (md5 `74f3fd79…`, el mismo que declara haber subido su autor). Montando el panel
+murino de verdad con las tres posibilidades:
+
+| casete | contexto5 | contexto3 | construcción |
+|---|---|---|---|
+| el del depósito, entero (5282) | 3133 | 2067 | 5496 nt |
+| ese mismo cortado 112 nt por el 3' (5170) | 3133 | **1955** | **5384** nt |
+| ese mismo cortado 112 nt por el 5' (5170) | 3021 | 2067 | 5384 nt |
+
+La geometría del FASTA de producción —**3133 / 1955 / 5384**— la reproduce **exactamente**
+la segunda fila. Pero el md5 de ese casete cortado sería `0bfe9ea6…` y el de producción es
+`a9f6ac14…`.
+
+**Qué queda NO DETERMINADO, y se deja así a propósito.** La geometría cuadra y el md5 no,
+así que **es otra molécula**: no es el fichero del depósito mal leído ni truncado al
+cargarlo. De dónde salió, no se sabe. No está en el repositorio —barridos todos los
+`.fa`, `.gb`, `.tsv`, `.seq` y `.txt`: ni un fichero de 5.170 nt ni una sola aparición de
+ese md5—, así que vive únicamente en el volumen de producción, que desde el repositorio no
+se ve.
+
+**No se le asigna causa** (principio nº 3). Un diagnóstico equivocado cuesta más que
+ninguno, y lo que hay son dos hechos —la geometría encaja, el md5 no— que juntos dicen
+«otra versión del plásmido» y nada más.
+
+**Qué lo desbloquearía**: el md5 que el panel de ficheros muestre para `aav_casete.fa` en
+producción, y el que declare `contexto_origen` en el siguiente FASTA. Con el arreglo de la
+errata nº 129 los dos salen a la vista sin gastar ninguna corrida, y la comparación
+depósito ↔ versionado (`deposit_vs_versioned`) dice además si el casete era el único
+fichero divergente.
+
 ### (resuelta 2026-08-25) Regla del desapareamiento de la pasajera
 
 **Regla: la posición 1 de la pasajera nunca puede ser el complemento Watson-Crick de la

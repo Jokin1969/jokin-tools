@@ -6381,3 +6381,105 @@ comprobación ya ha calculado.
 Y el veredicto **viaja en cada cabecera del FASTA** (`casete_del_deposito=…`), también
 cuando coincide y también cuando no se pudo mirar: por defecto `SIN_COMPROBAR`, porque el
 silencio se leía como «coincide» — que es exactamente lo que pasó.
+
+### El eje que faltaba, y por qué no lo miraba nadie
+
+Lo más útil de esta errata no es la causa —que queda **no determinada**, ver
+`preguntas-abiertas.md`— sino lo que la hacía imposible de ver. Con las palabras del
+responsable del proyecto:
+
+> *«La siembra respeta lo que está, el rol valida contra el manifiesto del volumen, y
+> nadie compara el depósito con lo versionado. Los dos autoconsistentes, el desajuste
+> invisible por construcción.»*
+
+Queda como **principio nº 52**. Y de ahí salió la pregunta que lo generaliza: *si el
+depósito puede tener un fichero distinto del versionado sin que nada lo diga, ¿pasa con
+los otros?*
+
+`presentation.deposit_vs_versioned()` la contesta: abre los dos directorios y compara
+todos los ficheros que existan en cualquiera de los dos. **INFORME, no guardia** — que el
+depósito tenga un fichero más nuevo es para lo que existe el depósito, así que el número
+correcto no es cero.
+
+Distingue **otra molécula** de **otro formato**: un FASTA reenvuelto a otro ancho tiene
+otro md5 de fichero y la misma secuencia, y esa es la diferencia entre «hay que
+reemplazarlo» y «da igual». Para lo que no es FASTA no se inventa una respuesta.
+
+**En local no puede decir nada y lo dice**: sin `SHMIR_REFERENCE_DIR` los dos directorios
+son EL MISMO, así que devuelve `MISMO_DIRECTORIO` en vez de «todos iguales», que sería un
+verde sin haber mirado (principio nº 51). La respuesta a «¿era el casete el único?» sólo
+se puede leer **en producción**, y por eso la comparación va en el panel de ficheros.
+
+Comprobado sobre un volumen simulado —sembrado desde lo versionado y con el casete de
+5.170—: 24 ficheros comparados, **1 distinto**, y es el casete, con `misma_secuencia=False`.
+
+## 130 — La descarga se queda colgada y no baja nada — NO REPRODUCIDA, sin causa asignada
+
+**Reportada el 2026-09-06**, y bloqueaba el último frente del panel: sin el FASTA de
+construcciones no se puede correr SpliceAI. Con el dato que faltaba desde el 2026-09-05:
+**el botón equivalente del modal de colisión de seed también se colgó**, y antes lo había
+hecho el de off-targets. Tres botones distintos, así que el reporte apunta al patrón y no
+al contenido — que es la lectura correcta y la que hacía falta.
+
+### La hipótesis era la errata nº 76, y está DESCARTADA por medida
+
+La 76 dejó el mecanismo escrito: `zipfile` estampa la hora, los bytes cambian en cada
+construcción, `MemoryMediaFileStorage` deriva el id **del contenido**, y al terminar el
+rerun `remove_orphaned_files` borra el id que ya no referencia nadie — el que el navegador
+está descargando. Si el FASTA se regenerara distinto en cada repintado, sería lo mismo.
+
+**No se regenera distinto.** Recorriendo el camino real de la página —`splice_constructions`
+y `splice_query_text`— tres veces seguidas:
+
+```
+repintado 1: 66893 bytes  md5=09339c06f9e12cf0a3925eb0a00fa80f
+repintado 2: 66893 bytes  md5=09339c06f9e12cf0a3925eb0a00fa80f
+repintado 3: 66893 bytes  md5=09339c06f9e12cf0a3925eb0a00fa80f
+```
+
+Mismos bytes → mismo id → el rerun lo vuelve a referenciar y no queda huérfano. **El
+mecanismo de la 76 no aplica aquí.**
+
+### Y tampoco se reprodujo con el cliente real
+
+Con Chromium de verdad (Playwright), contra una app de Streamlit arrancada **igual que en
+producción** —`--server.baseUrlPath=/shmir`, modo desarrollo apagado— y con un
+`download_button` de **130 kB regenerado en cada repintado**:
+
+| camino | resultado |
+|---|---|
+| directo contra Streamlit | **OK**, 130.004 bytes |
+| **por el proxy real del hub** (`apps/shmir/proxy.js`) | **OK**, 130.004 bytes |
+
+La URL de medios sale correctamente prefijada (`/shmir/media/<id>.txt`) y el proxy la
+reenvía. **No se reprodujo, así que NO SE LE ASIGNA CAUSA** (principio nº 3). Decir «era
+esto» sin comprobarlo es lo que costó la errata nº 76, donde el botón diagnosticado no era
+el que fallaba.
+
+### Lo que SÍ se puede afirmar, y es lo que se arregla
+
+**Había una sola vía para sacar cada uno de esos ficheros.** Cuando esa vía falla, no
+queda ninguna — y el frente entero se para. Es el principio nº 47 con el corolario que
+costó tres días en la errata nº 124: *una vía y su alternativa no pueden compartir el
+mecanismo que falla*.
+
+Los cuatro ficheros que salen de la app hacia un servicio externo y vuelven —BLAST, seed,
+off-targets y empalme— llevan ahora, al lado del botón, un bloque **copiable** con el
+mismo contenido y el nombre que hay que ponerle. No comparte nada con `download_button`:
+es texto en la página.
+
+Y el contenido se calcula **una sola vez** para los dos caminos. Antes el botón lo
+construía dentro de su propia llamada, así que la vía alternativa podría haber pintado un
+contenido distinto del que descarga el botón — que es la peor forma posible de tener dos
+vías (errata nº 47).
+
+`tests/test_una_DESCARGA_no_puede_ser_la_UNICA_via.py` lo fija: cada `download_button` de
+la página o tiene bloque copiable, o está declarado con el motivo por el que no lo
+necesita —los ZIP y los ficheros del depósito, que ya tienen segunda vía—.
+
+### Lo que queda por saber
+
+La causa. Si vuelve a pasar, lo que la distinguiría es **si el navegador llega a pedir la
+URL de medios**: con la pestaña de red abierta, una petición a `/shmir/media/…` que no
+responde señala al transporte; ninguna petición señala al cliente. Hasta entonces, el
+bloque copiable hace que la respuesta a esa pregunta no bloquee ningún frente.

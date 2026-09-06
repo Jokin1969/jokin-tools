@@ -1541,6 +1541,36 @@ renombrarla salía gratis porque no había producción que romper.
 
 ---
 
+### El caso `estado=COMPLETO` (2026-09-06): un nombre de ALCANCE ESTRECHO que se lee como el general
+
+Los cuatro pares que dieron origen a este principio eran **dos cantidades** con el mismo
+nombre. Éste es la otra cara: **una palabra que dice la verdad sobre su eje y se lee como
+el veredicto de todos**.
+
+La cabecera del FASTA del cuarto modal decía `panel=22de22 estado=COMPLETO`. «Completo»
+era cierto y estaba bien medido — habla del PANEL: de las 22 construcciones anunciadas
+salieron las 22, ninguna falló al montarse. Pero en la misma línea iba
+`contexto_origen=casete:md5=a9f6ac14…:5170nt`, que declaraba un casete que **no era el del
+depósito**, y eso no lo decía nadie.
+
+Con las palabras del responsable del proyecto, que es quien leyó el fichero:
+
+> *«"Completo" hablaba del panel y yo lo leí como "todo en orden" — que es exactamente lo
+> que hizo que no mirara el `contexto_origen` que tenía delante.»*
+
+**Ahí está el coste, y es el que no se ve venir**: el dato correcto ESTABA en la línea. El
+nombre de alcance estrecho no ocultó nada — hizo que no hiciera falta mirar. Una etiqueta
+que se lee como un veredicto general **apaga la lectura de todo lo que la rodea**.
+
+**La regla que sale de aquí**: un estado que resume UN eje lleva su eje en el nombre o al
+lado, y los demás ejes tienen su propio campo. La cabecera ahora dice
+`casete_del_deposito=…` **siempre** —también cuando coincide y también cuando no se pudo
+comprobar—, porque el silencio de un eje se lee como el «sí» del otro.
+
+Y el corolario que lo hace accionable: **antes de dar un nombre general a un estado, hay
+que poder contestar «¿de qué exactamente?»**. Si la respuesta necesita una frase, el
+nombre es demasiado ancho para lo que mide.
+
 ## 28 — Un estado tiene que decir la verdad aunque no cambie nada, porque el día que cambie el de al lado empieza a decidir
 
 Lo formuló quien reportó la errata nº 61, y es la generalización de aquel arreglo:
@@ -2705,3 +2735,49 @@ Fíjese en el patrón de la segunda y la cuarta: **la exención declarada hace d
 guardia que TIENE que encontrar algo concreto no puede dar verde por no haber mirado — lo
 que no encontró se lo reclama la tabla. Una excepción bien puesta no es sólo una excepción:
 es la prueba de vida del detector, y sale gratis.
+
+## 52 — Dos comprobaciones autoconsistentes dejan el desajuste invisible por construcción
+
+La formulación es del responsable del proyecto, sobre la errata nº 129:
+
+> *«La siembra respeta lo que está, el rol valida contra el manifiesto del volumen, y
+> nadie compara el depósito con lo versionado. Los dos autoconsistentes, el desajuste
+> invisible por construcción.»*
+
+### El mecanismo, que no es un descuido de nadie
+
+Las dos comprobaciones son **correctas por separado**, y las dos hacen exactamente lo que
+tienen que hacer:
+
+- **la siembra** copia lo que no está y **respeta lo que ya está** — a propósito, para no
+  pisar lo que alguien subió por el gestor;
+- **el rol** valida el fichero contra **el md5 del manifiesto de su propio directorio** —
+  a propósito también: es lo que caza un fichero corrompido o cambiado a mano.
+
+Cada una cierra su bucle sobre sí misma. Y **entre las dos no queda ninguna que mire los
+dos sitios a la vez**, así que un fichero viejo en el volumen no es un fallo que nadie
+haya visto: es un fallo que **no tiene forma de producir un síntoma**. No hay diagnóstico
+posible, porque no hay observación posible.
+
+Esto no es el principio nº 43 —un guardia que aprueba las cuatro casillas sin medir lo que
+promete—: aquí cada guardia mide bien lo que promete. Lo que falta es un guardia que nadie
+escribió porque **la unión de dos coberturas correctas parece cobertura completa**.
+
+### La señal, y es la que hay que aprender a ver
+
+**Cuando dos comprobaciones validan cada una contra su propia copia de la verdad, el
+espacio entre las dos copias no lo mira nadie.** Buscarlo se hace preguntando, por cada
+comprobación: *¿contra qué compara?* Si las respuestas son «contra sí misma» y «contra sí
+misma», falta el eje transversal.
+
+Aquí ese eje es `presentation.deposit_vs_versioned()`: el único que abre los dos
+directorios. Y es un **INFORME, no un guardia** — que un fichero del depósito no sea el
+versionado no es un fallo, es para lo que existe el depósito; el número correcto no es
+cero. Lo que no puede pasar es que no se vea.
+
+### Y el coste tiene una forma reconocible
+
+Un desajuste invisible por construcción no se manifiesta como un error: se manifiesta como
+**un resultado coherente sobre la entrada equivocada**. Aquí, un FASTA con
+`estado=COMPLETO` montado sobre otro plásmido. La misma firma que el «Alu 0 %» y que el
+CSV de miRarchitect: nada falla, todo cuadra, y lo que sale contesta otra pregunta.
