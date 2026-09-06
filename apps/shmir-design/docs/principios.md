@@ -715,11 +715,13 @@ una frase que alguien pueda ir a corregir.
 
 ### El corolario del color
 
-Cuatro estados que decir algo distinto tienen que **verse** distintos, siempre igual, con
+Estados que dicen algo distinto tienen que **verse** distintos, siempre igual, con
 la leyenda al principio y no detrás de un tooltip. Y al revés: dos cosas que no son lo
 mismo no pueden compartir color. `apa_medido.tsv` salía en el mismo ámbar que
 `refseq_rna.fa` —uno no hace falta y el otro sí— y eso manda a buscar un fichero que ya
-sobra (errata nº 30). Por eso `NO USADO` es un estado propio, y por eso el color lo pone
+sobra (errata nº 30). Por eso `NO USADO` es un estado propio —y por eso el 2026-09-06
+entró un quinto, `SIN PROCEDENCIA`, cuando apareció un fichero que ESTÁ y no cierra
+(errata nº 120)—, y por eso el color lo pone
 `presentation.py` con tests y no la página: un color elegido en la página es una decisión
 sin test, y las decisiones sin test es donde reaparece todo esto.
 

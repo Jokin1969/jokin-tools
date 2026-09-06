@@ -2040,10 +2040,17 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **0** y el casete **0**. Ese cero de la máscara es un hecho **del 3'UTR del ratón**
     —su único repetitivo, el `(CTC)n`, está en el CDS— y no una propiedad del fichero:
     sobre el humano la misma máscara tumba cinco. Está en `tests/test_dos_momentos.py`.
-  - **Cuatro estados, constantes, con leyenda al principio**: `CERRADO` (verde), `FALTA`
-    (ámbar), `OPCIONAL` (gris) y `NO USADO` (gris claro). El color lo pone
+  - **Cinco estados, constantes, con leyenda al principio** (eran cuatro hasta el
+    2026-09-06): `CERRADO` (verde), **`SIN PROCEDENCIA`** (ámbar 🟡), `FALTA` (ámbar),
+    `OPCIONAL` (gris) y `NO USADO` (gris claro). El color lo pone
     `presentation.REFINEMENT_STATES`, no la página: un color elegido en la página es una
     decisión sin test (regla 6).
+    - **`SIN PROCEDENCIA` es el quinto y existe por otro fallo real** (errata nº 120):
+      un fichero que **está** en el depósito y aun así **no cierra** su frente, porque a
+      su línea del manifiesto le faltan campos que el veredicto exige. No es `CERRADO`
+      —no cierra nada— y no es `FALTA` —volver a subir 84 MB no es lo que hace falta—.
+      Y **no se colapsa**: `CERRADO` va colapsado, así que con ese estado la salida del
+      problema quedaba detrás de un gesto. Principio nº 46.
     - **`NO USADO` es un estado propio y existe por un fallo real** (errata nº 30):
       `apa_medido.tsv` salía en el mismo ámbar que `refseq_rna.fa` con
       `polya_db_mouse.tsv` ya en el depósito. Uno no hace falta y el otro sí. La fila
