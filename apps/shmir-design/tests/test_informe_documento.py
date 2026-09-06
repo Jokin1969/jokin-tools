@@ -319,8 +319,14 @@ class TestElGolden(unittest.TestCase):
             )
         import difflib
 
+        # SE LE PIDE AL MISMO GENERADOR QUE ESCRIBE EL GOLDEN. Rehacer aqui la corrida
+        # es tenerla definida dos veces, y ya se dio: el test usaba la configuracion por
+        # defecto y el generador `n_candidates=10`, asi que el golden decia 10 y el test
+        # veia 6. Ademas es lo que trae la cabecera que declara sobre que se genera.
+        from tools.regenerar_golden import generar_documento
+
         esperado = GOLDEN.read_text(encoding="utf-8")
-        actual = _documento().markdown()
+        actual = generar_documento()
         if esperado != actual:
             diff = "\n".join(
                 difflib.unified_diff(
