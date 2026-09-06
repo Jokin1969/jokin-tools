@@ -3418,6 +3418,10 @@ def deposit_file(role: str, *, species: str, directory) -> dict[str, object]:
     return {
         "rol": fichero.role,
         "nombre": fichero.filename,
+        # LA ESPECIE VIAJA EN LA FILA. `declare_provenance` la necesita para resolver el
+        # nombre del fichero contra `required_files`, y sin ella la caja del modal se
+        # pinta igual de bien y revienta AL PULSAR — peor que no tenerla.
+        "especie": species,
         "presente": fichero.present,
         "registrado": fichero.registered,
         "md5": fichero.md5,

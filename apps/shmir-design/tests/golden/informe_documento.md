@@ -1010,7 +1010,7 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
 
 ── Sitios de esta seed en la PROPIA diana (esperado: 1) ──
   buscados en 3utr:1-1242
-  3utr:215 7mer-m8 (el suyo)
+  3utr:215 7mer-m8 [3'UTR] (el suyo)
 
 ── Multiplexado: núcleo de seed compartido ──
   Con ningún otro candidato del panel. En este eje es independiente.

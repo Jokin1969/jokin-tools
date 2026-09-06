@@ -2250,6 +2250,13 @@ def _panel_deposito(tipo: str, nombre: str, *, clave: str) -> list[dict]:
         )
         for campo in fila["procedencia"]:
             st.caption(f"· {campo['campo']}: {campo['valor']}")
+        # LA SALIDA VA DONDE APARECE EL PROBLEMA. El modal aborta por los cuatro campos
+        # y hasta hoy sólo decía dónde estaba la caja para declararlos — en el gestor,
+        # que es otro paso y está más abajo. Un aviso que nombra el paso correcto sigue
+        # siendo un aviso: hay que ir a buscarlo, y quien está aquí está bloqueado aquí.
+        # Es la misma caja (`_declarar_procedencia`), no una segunda: dos formularios
+        # para lo mismo acabarían escribiendo cosas distintas.
+        _declarar_procedencia(fila, reference_dir())
     return filas
 
 

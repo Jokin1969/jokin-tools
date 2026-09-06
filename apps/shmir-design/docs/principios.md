@@ -161,6 +161,42 @@ los abre es siempre la misma — *¿sobre qué se midió esto?*. En las cinco: s
 biblioteca, sobre el módulo entero, sobre el filtro equivocado, sobre todos los maduros
 de la especie.
 
+### Y SON TRES PELDAÑOS, no dos. El tercero es el peor y no estaba escrito
+
+Lo cerró el responsable del proyecto el 2026-09-06, sobre el `SEGUNDO SITIO` falso de la
+errata nº 122, poniendo las dos frases una al lado de la otra:
+
+> **Un resultado incómodo se investiga, uno cómodo se archiva, y uno INTERPRETABLE se
+> convierte en hallazgo.**
+
+Es una escalera y cada peldaño tarda más en salir que el anterior:
+
+1. **incómodo** → se investiga. Sale enseguida: molesta.
+2. **cómodo** → se archiva. Sale tarde: no molesta, pero tampoco encaja en nada — es un
+   cero, una tasa, una ausencia. Sigue siendo un dato suelto esperando a que alguien
+   pregunte sobre qué se midió.
+3. **interpretable** → **se explica**, y ahí deja de estar esperando. Un fallo que produce
+   un resultado plausible **en el vocabulario del proyecto** encuentra dueño: se le pone
+   un nombre que ya existe, entra en la conversación como conocimiento, y a partir de ahí
+   nadie vuelve a mirarlo porque ya está entendido.
+
+**El caso**: un cruce de marcos marcaba la PROPIA ventana del candidato como `SEGUNDO
+SITIO`. Eso no se lee como un error de formato — se lee como dos sitios de seed en el
+mismo mensajero, y **en su día se explicó como COOPERATIVIDAD**. La explicación es
+correcta *como fenómeno*: existe, este proyecto la sabe nombrar y predice justo lo que se
+veía. Por eso el fallo no chirriaba.
+
+**La contramedida no es sospechar de las explicaciones buenas**, que es inaplicable. Es
+más concreta: **cuando un dato encaja en un mecanismo conocido, la pregunta de siempre
+—¿sobre qué se midió esto?— hay que hacerla IGUAL, y con más motivo, porque encajar es
+justamente lo que impide que alguien la haga.** Un dato que no encaja se queda abierto y
+tarde o temprano lo abre alguien; uno que encaja se cierra el mismo día.
+
+**Y deja una obligación operativa**: cuando se arregla un fallo de esta clase, no basta
+con arreglarlo — hay que **volver a mirar lo que se interpretó mientras estaba vivo**. En
+la nº 122 se hizo, y el hallazgo de los cuatro segundos sitios **sobrevivió a la
+re-medida** — pero por dónde se había medido, no porque el código estuviera bien.
+
 **El cuarto es un CERO, no una frase, y por eso vale la pena tenerlo aquí**: un cero no
 parece un diagnóstico, parece una medida. Pero «cero encontrados» dice una causa —«no
 hay»— y esa causa hay que haberla comprobado igual que cualquier otra. Aquí la verdadera

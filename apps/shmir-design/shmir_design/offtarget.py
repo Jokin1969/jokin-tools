@@ -866,6 +866,9 @@ class SelfSite:
     position: int
     site_class: str
     own_window: bool
+    #: En qué región del `target` cae. Vacío cuando no se ha declarado la anatomía: no
+    #: haberlo podido decir NO es «está en el 3'UTR» (regla 3 aplicada a una etiqueta).
+    region: str = ""
     #: El marco de `position`, que es el de la secuencia que se pasó como `target`. NO
     #: se pone `3utr` a pelo: con el transcrito entero delante eso etiquetaba `tx:1164`
     #: como `3utr:1164` — una posición válida, sólo que de otro sitio.
@@ -873,11 +876,31 @@ class SelfSite:
 
     def describe(self) -> str:
         marca = "el suyo" if self.own_window else "SEGUNDO SITIO"
-        return f"{label(self.position, self.frame)} {self.site_class} ({marca})"
+        region = f" [{self.region}]" if self.region else ""
+        return f"{label(self.position, self.frame)} {self.site_class}{region} ({marca})"
+
+
+#: POR QUE NO SE SUMAN LAS REGIONES, y es `WHY_NOT_SUMMED` por otro eje. Allí no se
+#: suman las CLASES porque la represión esperada de un 8mer y la de un 6mer no se
+#: parecen; aquí no se pueden mezclar las REGIONES por la misma razón: la represión
+#: mediada por seed opera **sobre todo en el 3'UTR**, así que un 6mer en el CDS no es
+#: comparable con uno en el 3'UTR aunque el conteo los sume.
+#:
+#: Y aquí se lee peor, porque la región no sale en el número: dos fichas con «2 sitios»
+#: pueden ser 2 en el 3'UTR o 1 y 1, y sólo una de las dos lecturas dice algo del
+#: knockdown. Sin esta frase, alguien compara dos números que no miden lo mismo.
+SITES_OUTSIDE_UTR3 = (
+    "OJO: hay sitios FUERA del 3'UTR (CDS o 5'UTR). Son reales y son de OTRA "
+    "naturaleza: la represión mediada por seed opera sobre todo en el 3'UTR, así que "
+    "no se suman con los del 3'UTR ni se comparan con ellos — el conteo total mezclaría "
+    "dos cosas que no miden lo mismo. Misma regla que las cuatro clases de sitio, por "
+    "el eje de la REGIÓN."
+)
 
 
 def self_sites(
     strand: str, *, target: str, window=None, frame: Frame = Frame.UTR3,
+    anatomy=None,
 ) -> tuple[SelfSite, ...]:
     """Los sitios de esta hebra en su propia diana, con posicion y CLASE.
 
@@ -903,6 +926,11 @@ def self_sites(
         sitios.append(
             SelfSite(
                 position=posicion, site_class=clase, own_window=propio, frame=frame,
+                region=(
+                    str(getattr(anatomy.region_of(posicion), "value", ""))
+                    if anatomy is not None
+                    else ("3'UTR" if frame is Frame.UTR3 else "")
+                ),
             )
         )
         i = seq.find(core, i + 1)

@@ -18,6 +18,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
+import textwrap
 from dataclasses import dataclass
 
 from .coords import Frame, frame_of, label, span
@@ -157,6 +158,14 @@ class Dossier:
             )
         else:
             lineas.extend(f"  {s.describe()}" for s in self.self_sites)
+            # EL AVISO SÓLO CUANDO HAY ALGO QUE DISTINGUIR. Uno que sale siempre deja
+            # de leerse, y sobre el 3'UTR pelado no hay ninguna región que separar.
+            if any(s.region and s.region != "3'UTR" for s in self.self_sites):
+                from .offtarget import SITES_OUTSIDE_UTR3
+
+                lineas.extend(
+                    f"  {l}" for l in textwrap.wrap(SITES_OUTSIDE_UTR3, 88)
+                )
             if len(self.self_sites) > 1:
                 lineas.append(
                     "  ⚠  MÁS DE UNO: hay varias dianas en el mismo mensajero, así que "
@@ -407,6 +416,7 @@ def build_dossier(
         target=target if target is not None else "",
         window=(ventana.window.start, ventana.window.end),
         frame=marco,
+        anatomy=tiling.anatomy,
     ) if target is not None else ()
     # EL ALCANCE SE DERIVA de lo que se ha barrido de verdad, no se escribe: si se
     # escribiera, diria «el 3'UTR» sobre una ficha generada con el transcrito delante y
