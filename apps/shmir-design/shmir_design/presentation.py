@@ -3704,8 +3704,10 @@ WHAT_IF_UNUSED_NEVER_ARRIVES = (
 #: el que sobra se leia como trabajo pendiente. Una alternativa que no hace falta y una
 #: cosa que falta de verdad no pueden tener el mismo color.
 #: El estado del fichero QUE ESTÁ y NO CIERRA NADA. En un solo sitio: lo comparan
-#: `_estado_de`, la leyenda y el panel, y tres literales acabarían discrepando.
-INCOMPLETE_PROVENANCE = "SIN PROCEDENCIA"
+#: `_estado_de`, la leyenda y el panel, y tres literales acabarían discrepando. Se
+#: DEFINE en `deposito`, que es donde se calcula el hecho que lo produce, y desde donde
+#: el aviso del modal nombra la fila a la que hay que ir.
+from .deposito import INCOMPLETE_PROVENANCE  # noqa: E402
 
 WHY_PRESENT_IS_NOT_CLOSED = (
     "Un fichero PRESENTE cuya línea del manifiesto no lleva la procedencia que su "
