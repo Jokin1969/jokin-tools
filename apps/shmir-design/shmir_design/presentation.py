@@ -2764,6 +2764,63 @@ def _motivo_de_laguna(frente: str, estado: str, origen) -> str:
     return f"{frente}: {frase}."
 
 
+#: CUÁNTO SHA SE ENSEÑA. Corto para leerlo de un vistazo y comparable a ojo con lo que
+#: dice GitHub; el entero viaja aparte, porque siete caracteres pueden ser ambiguos y
+#: quien va a comparar de verdad necesita el completo.
+BUILD_SHORT = 7
+
+#: QUÉ HACER cuando el sello no cuadra con lo que se espera. Un sha a secas deja a quien
+#: lo lee sin saber contra qué compararlo: es el principio nº 47 —la salida donde está el
+#: bloqueo— aplicado al propio diagnóstico. La app NO puede saber cuál es el commit
+#: «bueno», así que dice dónde mirarlo en vez de inventárselo.
+BUILD_HELP = (
+    "Si esto no coincide con el último commit de `main`, lo que estás viendo NO es lo "
+    "último: el despliegue no se ha refrescado. Compáralo con el historial del "
+    "repositorio; si coincide y aun así falta algo, entonces el problema no es el "
+    "despliegue y hay que mirarlo por otro lado."
+)
+
+#: Y por qué se enseña TAMBIÉN cuando no hay variable. En local no la hay, y decir «sin
+#: declarar» es información: lo que no puede pasar es que la ausencia del sello se lea
+#: como que el sello coincide (principio nº 32).
+BUILD_WHY_ALWAYS = (
+    "El sello sale SIEMPRE, también cuando el entorno no declara ninguno. Un sello "
+    "ausente y un sello que cuadra no se pueden parecer: la ausencia es lo que hay que "
+    "poder ver."
+)
+
+
+def build_banner() -> dict[str, object]:
+    """QUÉ VERSIÓN está sirviendo esta página. Arriba, sin abrir nada.
+
+    EL DATO YA ESTABA: `identidad.build_stamp()` lo lee de `SHMIR_BUILD`, que el hub pasa
+    al proceso hijo desde `RAILWAY_GIT_COMMIT_SHA`. Su único consumidor era la cabecera
+    del FASTA de consulta de SpliceAI — o sea que para saber qué versión servía la app
+    había que generar un artefacto y abrirlo. Es el patrón de `page_run`: la capacidad
+    cableada a un sitio y no al que la necesita.
+
+    Y aquí lo que se pierde no es información, es TIEMPO AJENO: sin el sello en pantalla,
+    «está fusionado» y «lo estás viendo» son indistinguibles desde la página, y la única
+    forma de separarlos es que alguien vaya a mirar el despliegue. Pasó tres veces.
+    """
+    from .identidad import BUILD_NOT_DECLARED, build_stamp  # noqa: PLC0415
+
+    commit = build_stamp()
+    declarado = commit != BUILD_NOT_DECLARED
+    corto = commit[:BUILD_SHORT] if declarado else commit
+    return {
+        "commit": commit,
+        "corto": corto,
+        "declarado": declarado,
+        "texto": (
+            f"Versión servida: **{corto}**" if declarado
+            else f"Versión servida: **{BUILD_NOT_DECLARED}** — el entorno no la declara "
+                 f"(es lo normal en local)."
+        ),
+        "ayuda": BUILD_HELP,
+    }
+
+
 def candidate_fronts(
     tiling, selection, *, species: str, start: int, stores=None,
 ) -> tuple[dict[str, str], ...]:

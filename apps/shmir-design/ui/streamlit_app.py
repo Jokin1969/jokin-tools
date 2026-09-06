@@ -32,6 +32,7 @@ from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     BLAST_MODAL_NOTE,
+    build_banner,
     arms_rows,
     arms_warning,
     control_choices,
@@ -1626,6 +1627,18 @@ def main() -> None:
     st.set_page_config(page_title="shmir-design", layout="wide")
     _estilo()
     st.title("shmir-design")
+
+    # QUE VERSION ESTA SIRVIENDO ESTO, arriba del todo y sin abrir nada. Reportado tres
+    # veces como «esta fusionado pero no lo veo»: sin el sello en pantalla, «esta
+    # desplegado» y «lo estas viendo» son indistinguibles desde aqui, y separarlos exige
+    # que alguien vaya a mirar el despliegue. El dato ya lo tenia la app —`SHMIR_BUILD`,
+    # que el hub pasa desde `RAILWAY_GIT_COMMIT_SHA`— y su unico consumidor era la
+    # cabecera de un FASTA: habia que generar un artefacto para leerlo.
+    sello = build_banner()
+    st.caption(sello["texto"])
+    with st.expander("¿No ves algo que debería estar?", expanded=False):
+        st.markdown(sello["ayuda"])
+        st.code(sello["commit"], language=None)
 
     # EL INICIO, que no existia. Sin el, la primera pantalla es un formulario sin
     # pregunta: quien entra no sabe si esta herramienta hace lo que necesita.
