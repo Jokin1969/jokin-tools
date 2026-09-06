@@ -2076,6 +2076,26 @@ que los primeros 10 nt son idénticos y divergen en el 11; por el otro lado dive
 Es el principio nº 34 (un guardia se CALIBRA midiendo) aplicado a la longitud de la
 comparación.
 
+### EL CASO, tal como lo dejó escrito el responsable del proyecto (2026-09-06)
+
+> *«Los dos donantes empiezan por GTAAG, así que 5 o 10 nt habrían dejado el guardia
+> aprobando todo con otro nombre y pareciendo que discrimina. **Un guardia mal calibrado
+> no se distingue de uno que no mira nada**, y aquí la calibración salió de medir dónde
+> divergen, no de elegir un número redondo.»*
+
+Lo que lo hace un caso y no una anécdota es la palabra **pareciendo**. Un guardia sin
+calibrar y uno bien calibrado tienen el mismo aspecto desde fuera: mismo nombre, mismo
+`PASS`, misma línea en el informe. La diferencia sólo existe en el número que separa los
+dos, y ese número no se puede elegir por ser redondo — 5 y 10 lo son, y los dos habrían
+tapado el hueco en vez de cerrarlo. **La calibración se mide sobre los casos que hay que
+distinguir**, y aquí eso quería decir: buscar en qué nucleótido divergen las dos
+arquitecturas, y coger una longitud que lo cubra con margen.
+
+Corolario operativo: cuando un guardia se calibra, el número elegido va acompañado de la
+medida que lo justifica y del procedimiento para rehacerla. Aquí es
+`montaje.divergence_point`, y está escrito que con un tercer intrón se vuelve a medir en
+vez de heredarse.
+
 **El corolario, que es lo que evita la tentación de prohibir.** Tres de las cuatro
 casillas no son errores: pegar el fragmento de un intrón sobre un plásmido que lleva otro
 **es** cómo se cambia de arquitectura. El trabajo del guardia no era prohibir una casilla,
@@ -2117,3 +2137,22 @@ son las dos verosímiles. Por eso la etiqueta no es cortesía — es lo único q
 **Y se DERIVAN del objeto que se tiene delante**, nunca de una tabla escrita: con otro
 intrón o con los sitios dentro salen otros cinco números y nada que actualizar. Una tabla
 de valores sería la sexta magnitud, y sería la que se queda vieja.
+
+### La confirmación llegó en el mismo mensaje que pedía el principio
+
+Al encargarlo, el responsable del proyecto dio las tres cifras como «82 el intrón, 92 la
+feature, **306** el fragmento». 306 es la variante CON los sitios de restricción dentro;
+por defecto salen fuera —decisión suya del día anterior— y el fragmento son **294**. Lo
+rectificó él mismo al verlo (2026-09-06):
+
+> *«Los 294 los tomo yo: te di 306, que es la variante con los sitios dentro, después de
+> haber decidido quitarlos. Es exactamente lo que tu tabla de cinco magnitudes viene a
+> impedir.»*
+
+Queda anotado **con su nombre**, por la misma razón por la que se anotan las ajenas: si
+sólo se registran las rectificaciones de los demás, el registro deja de ser un registro y
+pasa a ser un argumento. Y porque el caso es el mejor argumento del principio: **quien
+acababa de tomar la decisión de quitar los sitios citó el número de la variante que había
+quitado, en la misma frase en que pedía que cada magnitud llevara su etiqueta.** No fue
+un despiste de quien no conoce la construcción: los dos números son verosímiles, y ésa es
+toda la trampa.

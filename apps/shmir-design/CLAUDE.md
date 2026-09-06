@@ -5288,6 +5288,13 @@ también. Los 15 que destaca la hoja de pedido cubren los dos con margen — y p
 `montaje.WHY_FIFTEEN` es una medida y no una preferencia. Con un tercer intrón se vuelve a
 medir con `montaje.divergence_point`.
 
+Y esto es lo que hay que llevarse, dicho por el responsable del proyecto (2026-09-06):
+**«un guardia mal calibrado no se distingue de uno que no mira nada»**. Desde fuera tienen
+el mismo aspecto —mismo nombre, mismo `PASS`, misma línea del informe— y la única
+diferencia vive en el número que separa los casos. 5 y 10 son números redondos y los dos
+habrían tapado el hueco pareciendo que lo cerraban. La calibración se mide sobre los casos
+que hay que distinguir; ver el principio nº 43.
+
 **Tres de las cuatro casillas no son errores**, y por eso el guardia no prohíbe: DICE en
 cuál se está. Pegar el fragmento del quimérico sobre un plásmido con MVM **es** cómo se
 cambia de arquitectura, así que el cambio se DECLARA — sin declararlo la cruzada es
@@ -5324,7 +5331,13 @@ escribirlas salen **cinco**, y eso es la mitad del hallazgo. Principio nº 44.
 
 **OJO con «el fragmento son 306»**: 306 es la variante CON los sitios de restricción
 dentro. Por defecto salen fuera —la decisión del 2026-09-05— y el fragmento son **294**.
-Es exactamente el tipo de confusión que esta tabla existe para cerrar.
+Es exactamente el tipo de confusión que esta tabla existe para cerrar, y no es
+hipotética: al ENCARGAR el principio, el responsable del proyecto dio las cifras como
+«82, 92 y 306», y lo rectificó él mismo al verlo — *«te di 306, que es la variante con
+los sitios dentro, después de haber decidido quitarlos»*. Queda con su nombre por la
+misma razón que las ajenas. Quien acababa de decidir quitar los sitios citó el número de
+la variante que había quitado, en la misma frase en que pedía las etiquetas: los dos
+números son verosímiles, y ésa es toda la trampa.
 
 Las cinco se DERIVAN del fragmento que se tiene delante (`fragmento.lengths`), nunca de
 una tabla escrita: con otro intrón salen otros cinco números y no hay nada que actualizar
