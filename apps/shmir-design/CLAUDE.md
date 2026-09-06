@@ -5369,6 +5369,62 @@ Dos defectos reportados con la corrida delante (2026-09-06), erratas nº 118 y 1
   vez; el veredicto se lee siempre y se descarga. `SeedResult.verdict` lleva la ventana
   pegada, `level` sigue siendo el estado a secas para los almacenes y el semáforo.
 
+## La hoja de pedido dice EN CADA FILA qué frentes le faltan a ESE candidato
+
+Pedido el 2026-09-06 con el caso delante — el undécimo del panel, `tx:2020`, entró
+**después** del BLAST de los 88, del empalme y de la seed:
+
+> *«Un candidato sin BLAST en una hoja de once verificados es exactamente el hueco donde
+> se cuela algo así.»*
+
+Y «algo así» tiene nombre: **`tx:1746` contra ADAR**, el único candidato que ha caído por
+un motivo real, y lo atrapó el frente de especificidad. Una nota general al principio de
+la hoja describe el CONJUNTO; lo que se copia a un pedido es **el bloque de un fragmento**.
+
+- **`presentation.candidate_fronts`** da los frentes sin contestar de UN candidato. Sale de
+  `panel_states_by_front`, que es el único sitio donde se decide si un frente está
+  contestado: reimplementarlo aquí sería la segunda regla para la misma pregunta (errata
+  nº 68). Y la lista de qué cuenta como laguna se **deriva** de `ESTADOS_SIN_RESPUESTA`.
+- **LOS FRENTES SIN COLUMNA POR CANDIDATO TAMBIÉN SALEN**, derivados de
+  `FRONTS_WITHOUT_COLUMN`. Si `empalme_sitios` faltara, la fila diría «sin contestar:
+  especificidad» y quien la lee concluiría que el empalme SÍ está contestado — el fallo
+  que esta sección existe para impedir, un frente más allá.
+- **`None` NO es `()`**: `fronts=None` es «nadie ha preguntado» y `fronts=()` es «se
+  preguntó y no falta ninguno», con **dos frases distintas** (`FRONTS_NOT_ASKED` /
+  `FRONTS_ALL_ANSWERED`). Con un `= ()` por defecto, la hoja de un candidato que nadie ha
+  comprobado saldría idéntica a la de uno limpio — la trampa de `BreakChoice.folding_ok`
+  sobre lo que se manda a sintetizar.
+- **Y viaja DENTRO del FASTA**, en cada línea `>`: `frentes_sin_correr=…`, con los mismos
+  tres valores posibles (la lista, `ninguno`, `sin_preguntar`). El FASTA es lo que llega al
+  proveedor y a SpliceAI sin la pantalla delante (principio nº 35).
+- Cada laguna lleva **una frase por estado** (`LAGUNA_MEANING`) y se comprueba que no falte
+  ninguno de `ESTADOS_SIN_RESPUESTA`: `origenes` da el ORIGEN («fichero», «corrida»), que
+  no es un motivo — puesto como motivo, la hoja decía «especificidad — fichero».
+
+## Cada golden declara EN SU CABECERA sobre qué se genera
+
+El 2026-09-06, al arreglar el marco del aviso de multiplexado, cambió **un** golden y no
+cambiaron los otros. Esa lectura —*el que no cambia confirma dónde estaba el fallo tanto
+como el que cambia*— sólo se pudo hacer **abriendo `regenerar_golden.py`**. Un artefacto de
+verificación que no declara sobre qué corre **no permite interpretar su silencio**: que no
+cambie puede significar «el fallo no está ahí» o «desde ahí no se puede ver».
+
+- La cabecera sale de `CONFIGURACION` y la escribe el generador; el test la lee **de la
+  misma tabla**, así que no puede describir una entrada y generarse con otra (principio
+  nº 13). Cruzada en las dos direcciones: un golden sin entrada aborta, y una entrada
+  huérfana también.
+- **DOS CONFIGURACIONES, las dos reales.** El transcrito entero es lo que tilan la página y
+  el CLI; el 3'UTR pelado es la vía «lo que subo YA es el 3'UTR», que la app soporta. **No
+  es el caso de `--inmunes 4`**, que era una configuración FANTASMA: aquí mover los goldens
+  al transcrito habría **perdido** cobertura en vez de ganar nada. Por eso se añaden
+  `ficha_raton__transcrito.txt` e `informe_documento__transcrito.md` como **variantes**,
+  que es la regla ya escrita.
+- **Y la variante encontró cuatro fallos en su primera generación** (errata nº 122), todos
+  invisibles con desfase 0 — incluido un `3utr:1149-221`, un intervalo con un extremo en
+  cada marco, y un «SEGUNDO SITIO» que era la propia diana del candidato. El golden del
+  3'UTR pelado **no cambió ni un byte** al arreglarlo, que es lo que demuestra que el
+  arreglo es consistente y no un ajuste para que cuadre la variante nueva.
+
 ## El gestor: estar en el depósito no es cerrar un frente
 
 Errata nº 120, reportada el 2026-09-06. `transcriptoma_3utr.fa` estaba, salía **verde y

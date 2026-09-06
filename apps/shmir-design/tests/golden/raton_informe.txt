@@ -1,3 +1,5 @@
+# GOLDEN — se genera con: el CLI de diseño sobre el TRANSCRITO ENTERO de las dos especies (NM_011170.3 + NM_000311.5, con sus .gb), configuracion POR DEFECTO.
+
 ═══ Diseño de shmiR — raton ═══
 
 ── Anatomía del transcrito ──

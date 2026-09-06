@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .coords import Frame, frame_of, label, span
 from .errors import ShmirDesignError
 from .filters import FilterState
 
@@ -56,13 +57,21 @@ class NearbyHexamer:
     position: int
     classification: str
     distance: int
+    #: El marco de `position`. NO se pone `3utr` a pelo: con un tilado del transcrito
+    #: eso etiquetaba `tx:1185` como `3utr:1185` —una posicion valida, sólo que de otra
+    #: señal— y `coords` no puede abortar porque 1185 cabe en el 3'UTR mas largo que el
+    #: proyecto conoce. Lo cazo la variante del golden sobre el transcrito.
+    frame: Frame = Frame.UTR3
 
     def describe(self) -> str:
         donde = (
             "SOLAPA la ventana" if self.distance == 0
             else f"a {abs(self.distance)} nt {'por delante' if self.distance > 0 else 'por detras'}"
         )
-        return f"{self.motif}  3utr:{self.position}  {self.classification:<12} {donde}"
+        return (
+            f"{self.motif}  {label(self.position, self.frame)}  "
+            f"{self.classification:<12} {donde}"
+        )
 
 
 @dataclass(frozen=True)
@@ -83,6 +92,10 @@ class Dossier:
     module: str
     cassette: str
     blast_history: tuple
+    #: El marco de `start` y `end`, DERIVADO de la anatomia de la corrida. Los dos van
+    #: en el MISMO marco: hasta hoy `start` venia del tilado y `end` convertido al 3'UTR,
+    #: y sobre el 3'UTR pelado coincidian —desfase 0— asi que la mezcla era invisible.
+    frame: Frame = Frame.UTR3
     module_note: str = ""
     #: Otros candidatos ELEGIDOS que comparten el nucleo de seed de 6 nt con este. No
     #: es un veredicto del candidato: es una propiedad de la PAREJA, y por eso va en su
@@ -97,9 +110,10 @@ class Dossier:
         # nombres, y un ancho fijo se queda corto sin que nadie lo note.
         ancho = max([len("frente")] + [len(f.name) for f in self.fronts])
         lineas = [
-            f"═══ Ficha del candidato — {self.species} 3utr:{self.start} ═══",
+            f"═══ Ficha del candidato — {self.species} "
+            f"{label(self.start, self.frame)} ═══",
             "",
-            f"  sitio      3utr:{self.start}-{self.end}",
+            f"  sitio      {span(self.start, self.end, self.frame)}",
             f"  guía       {self.guide}",
             f"  pasajera   {self.passenger}",
             f"  veredicto  {self.verdict}",
@@ -180,7 +194,10 @@ class Dossier:
         return "\n".join(lineas) + "\n"
 
 
-def _hexamers_near(tiling, start: int, end: int, *, offset: int, window: int = 60):
+def _hexamers_near(
+    tiling, start: int, end: int, *, offset: int, window: int = 60,
+    frame: Frame = Frame.UTR3,
+):
     from .polya import SignalClass
 
     salida = []
@@ -201,7 +218,7 @@ def _hexamers_near(tiling, start: int, end: int, *, offset: int, window: int = 6
         salida.append(
             NearbyHexamer(
                 motif=señal.motif, position=pos, classification=etiqueta,
-                distance=distancia,
+                distance=distancia, frame=frame,
             )
         )
     return tuple(sorted(salida, key=lambda h: h.position))
@@ -227,6 +244,11 @@ def build_dossier(
             f"emite una ficha de un sitio que el panel no tiene. Se aborta."
         )
     ventana = selection.window_of(elegido)
+    # EL MARCO SE RECIBE, sacado de la anatomia, y `start` y `end` van los DOS en el.
+    # Antes `end` se convertia al 3'UTR restando el desfase y `start` no: sobre el 3'UTR
+    # pelado el desfase es 0 y los dos coincidian, asi que la ficha salia bien y la
+    # mezcla no se veia. Sobre el transcrito imprimia `3utr:1149-221`.
+    marco = frame_of(tiling.anatomy) if tiling.anatomy is not None else Frame.UTR3
     desfase = 0
     if tiling.anatomy is not None and tiling.anatomy.utr3:
         desfase = tiling.anatomy.utr3[0] - 1
@@ -348,25 +370,27 @@ def build_dossier(
     # con quien NO es independiente, y cuantas dianas tiene en su propio mensajero.
     from .offtarget import core_conflicts, self_sites
 
-    from .coords import Frame, frame_of, label as etiqueta
-
     marco_ficha = (
         frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
     )
     compartido = tuple(
         c.describe(
-            label_a=etiqueta(c.a, marco_ficha), label_b=etiqueta(c.b, marco_ficha)
+            label_a=label(c.a, marco_ficha), label_b=label(c.b, marco_ficha)
         )
         for c in core_conflicts(selection)
         if start in (c.a, c.b)
     )
+    # LA VENTANA VA EN EL MARCO DE `target`, que es lo que se le pasa: con el transcrito
+    # entero delante y una ventana en coordenadas de 3'UTR, el sitio propio caia 949 nt
+    # mas alla y su PROPIA diana salia marcada «SEGUNDO SITIO».
     propios = self_sites(
         ventana.evaluation.guide,
         target=target if target is not None else "",
-        window=(ventana.inicio_3utr, ventana.fin_3utr),
+        window=(ventana.window.start, ventana.window.end),
+        frame=marco,
     ) if target is not None else ()
     return Dossier(
-        species=species, start=start, end=elegido.end - desfase,
+        species=species, start=start, end=elegido.end, frame=marco,
         guide=ventana.evaluation.guide.replace("U", "T"),
         passenger=bloque.passenger,
         verdict=ventana.verdict.value,
@@ -380,7 +404,8 @@ def build_dossier(
             else "sin tabla de APA medido en esta corrida: techo INDETERMINADO"
         ),
         hexamers=_hexamers_near(
-            tiling, ventana.window.start, ventana.window.end, offset=0
+            tiling, ventana.window.start, ventana.window.end, offset=0,
+            frame=marco,
         ),
         core_shared_with=compartido,
         self_sites=propios,

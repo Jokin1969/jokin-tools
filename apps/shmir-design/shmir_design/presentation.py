@@ -968,6 +968,8 @@ def fragment_bundle(
     cassette: str | None,
     intron: str | tuple[str, ...] | None = None,
     with_sites: bool = False,
+    tiling=None,
+    stores=None,
 ) -> dict[str, str]:
     """El fragmento de síntesis de cada candidato elegido: FASTA y hoja de pedido.
 
@@ -992,6 +994,15 @@ def fragment_bundle(
     fragmentos = []
     for choice in selection.selection.chosen:
         ventana = selection.window_of(choice)
+        # SIN `tiling` no se inventa una lista vacia: `None` es «nadie ha preguntado» y
+        # la hoja lo DICE con otra frase. Un `()` aqui haria que un candidato que nadie
+        # ha comprobado saliera identico a uno limpio, y esto es lo que se sintetiza.
+        frentes = (
+            None if tiling is None
+            else candidate_fronts(
+                tiling, selection, species=species, start=choice.start, stores=stores,
+            )
+        )
         for nombre in _intron_names(intron):
             fragmentos.append(
                 build_fragment(
@@ -1002,6 +1013,7 @@ def fragment_bundle(
                     intron=nombre,
                     with_sites=with_sites,
                     label=_candidate_label(selection, choice),
+                    fronts=frentes,
                 )
             )
     return {
@@ -2709,6 +2721,118 @@ def _peor_de(estados: list[str]) -> str:
 #: proyecto, donde no hay nada.
 ORIGEN_FICHERO = "fichero"
 ORIGEN_CORRIDA = "corrida"
+
+
+#: QUE SIGNIFICA cada laguna en la fila de un fragmento, en una línea. `origenes` da el
+#: ORIGEN («fichero», «corrida»), que no es un motivo: puesto como motivo, la hoja decía
+#: «especificidad — fichero» y eso no le dice nada a quien va a pedir el oligo.
+#:
+#: Se declara una frase POR ESTADO y se comprueba que no falte ninguno de
+#: `ESTADOS_SIN_RESPUESTA`: un estado nuevo sin frase saldría mudo en el sitio donde más
+#: caro es —la hoja de lo que se sintetiza— y nadie lo notaría, porque su producto normal
+#: es una línea que parece completa.
+LAGUNA_MEANING = {
+    "NOT_RUN": (
+        "no ha corrido para este candidato: falta el recurso o falta la corrida. "
+        "NOT_RUN no es PASS"
+    ),
+    "SIN_CONSULTAR": (
+        "hay corridas de este frente en el proyecto y a ESTE candidato no se le "
+        "preguntó — que es distinto de que falte el fichero"
+    ),
+    "NO_CIERRA": (
+        "hay corrida y NO cierra el frente: se arregla repitiéndola, no empezándola"
+    ),
+    "OBSOLETO": (
+        "la corrida que lo contestaba quedó obsoleta porque el fichero que consumió "
+        "ya no es el que hay"
+    ),
+}
+_sin_frase = [e for e in ESTADOS_SIN_RESPUESTA if e not in LAGUNA_MEANING]
+if _sin_frase:  # pragma: no cover - lo fija un test
+    raise ShmirDesignError(
+        f"Estos estados cuentan como laguna y no tienen frase en `LAGUNA_MEANING`: "
+        f"{', '.join(_sin_frase)}. Sin ella saldrían mudos en la hoja de pedido."
+    )
+
+
+def _motivo_de_laguna(frente: str, estado: str, origen) -> str:
+    """La línea que lee quien va a pedir el oligo: qué le falta a ESTE candidato."""
+    frase = LAGUNA_MEANING[estado]
+    if origen:
+        return f"{frente}: {frase} (lo decide: {origen})."
+    return f"{frente}: {frase}."
+
+
+def candidate_fronts(
+    tiling, selection, *, species: str, start: int, stores=None,
+) -> tuple[dict[str, str], ...]:
+    """Los frentes SIN CONTESTAR de UN candidato, para su fila de la hoja de pedido.
+
+    La unidad es el CANDIDATO y no el panel, y esa es toda la razón de que exista: el
+    panel puede tener diez candidatos con corrida y uno sin ella —el caso del undécimo,
+    `tx:2020`, que entró después del BLAST de los 88, del empalme y de la seed— y una
+    nota general al principio de la hoja dice la verdad sobre el conjunto mientras cada
+    fila se lee, se copia y se manda por separado.
+
+    POR QUE IMPORTA MAS QUE OTROS `NOT_RUN`, con las palabras con que se pidió: *«un
+    candidato sin BLAST en una hoja de once verificados es exactamente el hueco donde se
+    cuela algo así»*. Y «algo así» tiene nombre — `tx:1746` contra **Adar**, el único
+    candidato que ha caído por un motivo real, y lo atrapó este frente.
+
+    Sale de `panel_states_by_front`, que es EL ÚNICO SITIO donde se decide si un frente
+    está contestado. No se reimplementa aquí: sería la segunda regla para la misma
+    pregunta, que es exactamente la errata nº 68.
+    """
+    inicio = int(start)
+    if inicio not in {int(s) for s in chosen_starts(selection)}:
+        raise ShmirDesignError(
+            f"{inicio} no está en el panel de esta corrida, así que no tiene frentes que "
+            f"emitir. Los del panel son: "
+            f"{', '.join(str(s) for s in sorted(chosen_starts(selection)))}."
+        )
+    resuelto = panel_states_by_front(
+        tiling, selection, species=species, stores=stores
+    )
+    estados, origenes = resuelto["estados"], resuelto["origenes"]
+    filas = []
+    # LOS FRENTES SIN COLUMNA POR CANDIDATO TAMBIEN SALEN, y no es un extra: si
+    # `empalme_sitios` faltara de esta lista, la fila diria «sin contestar:
+    # especificidad» y quien la lee concluye que el empalme SI esta contestado. Es
+    # justo el fallo que esta seccion existe para impedir, un frente mas alla. Se
+    # DERIVAN de `FRONTS_WITHOUT_COLUMN` y de los frentes abiertos, no se escriben.
+    from .selection import blocking_fronts  # noqa: PLC0415
+
+    abiertos = {
+        f.name for f in blocking_fronts(tiling, selection) if f.blocking
+    }
+    for frente, porque in sorted(FRONTS_WITHOUT_COLUMN.items()):
+        if frente not in abiertos:
+            continue
+        filas.append({
+            "frente": frente,
+            "estado": FilterState.NOT_RUN.value,
+            "motivo": (
+                f"{frente}: no tiene columna por candidato porque {porque}. Este "
+                f"fragmento es uno de esos pares, y no consta consultado."
+            ),
+        })
+    for frente in sorted(estados):
+        estado = estados[frente].get(inicio)
+        # `ESTADOS_SIN_RESPUESTA` es la MISMA lista con la que el panel decide si un
+        # frente esta contestado. Escribirla otra vez aqui seria la segunda definicion
+        # de que es una laguna, y la que se queda vieja el dia que entre un estado
+        # nuevo — que es como `SIN_CONSULTAR` habria quedado fuera al nacer.
+        if estado is None or estado not in ESTADOS_SIN_RESPUESTA:
+            continue
+        filas.append({
+            "frente": frente,
+            "estado": estado,
+            "motivo": _motivo_de_laguna(
+                frente, estado, origenes.get(frente, {}).get(inicio)
+            ),
+        })
+    return tuple(filas)
 
 
 def panel_states_by_front(

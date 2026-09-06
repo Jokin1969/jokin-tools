@@ -1,4 +1,4 @@
-<!-- GOLDEN — se genera con: el informe-documento sobre el 3'UTR PELADO del raton, que es la via «lo que subo YA es el 3'UTR». -->
+<!-- GOLDEN — se genera con: el MISMO documento sobre el TRANSCRITO ENTERO, que es lo que tilan la pagina y el CLI: sin ella, esta salida no se leia nunca en el marco de uso. -->
 
 # Diseño de shmiR — mouse
 
@@ -16,10 +16,10 @@ Longitud y md5 van JUNTOS a propósito: «referencia 1246 nt» parece razonable 
 
 | campo | valor |
 |---|---|
-| secuencia analizada | 1242 nt / 19f5fa2a77a87892770e2affdc90e0e4 |
+| secuencia analizada | 2191 nt / 44fb8cd80883844cde5e53bbc367b176 |
 | especie declarada | mouse |
-| anatomia | lo tilado ES el 3'UTR (fixture verificado por md5) |
-| ventanas tiladas | 1221 |
+| anatomia | CDS del fixture verificado por md5 (transcrito entero) |
+| ventanas tiladas | 2170 |
 | tamaño de ventana | 22 nt |
 | fecha del informe | 2026-08-26 |
 | estado del registro | d41d8cd98f00b204e9800998ecf8427e · 0 corrida(s) |
@@ -64,7 +64,7 @@ Los seis filtros biofísicos de ventana NO dependen de ningún fichero ni de nin
 
 **Que mide.** ¿Esta guía tiene complementariedad EXTENSA con algun otro transcrito? Es la pregunta de los alineamientos, y la contesta un BLAST contra una base de transcritos.
 
-**Por que importa / resultado.** NOT_RUN en 1221 de 1221 ventanas: falta el recurso. NOT_RUN no es PASS. Y OJO: este frente NO cubre los off-targets mediados por seed. Eso es `offtarget_seed`, un frente APARTE, porque 7 nt contiguos no dan alineamiento y ningún BLAST los devuelve.
+**Por que importa / resultado.** NOT_RUN en 2170 de 2170 ventanas: falta el recurso. NOT_RUN no es PASS. Y OJO: este frente NO cubre los off-targets mediados por seed. Eso es `offtarget_seed`, un frente APARTE, porque 7 nt contiguos no dan alineamiento y ningún BLAST los devuelve.
 
 **Fuente de datos.** NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero.
 
@@ -130,7 +130,7 @@ COMO CERRAR EL FRENTE «especificidad»
 
 **Que mide.** ¿La ventana cae dentro de una repetición POLIMÓRFICA — un microsatelite, un satelite, un tramo de baja complejidad? Es otra pregunta que la de `repeticiones`, aunque salga del mismo fichero: aquella va de estabilidad del genoma AAV y esta de VIABILIDAD CLINICA. Un microsatelite varia en NÚMERO DE REPETICIONES entre individuos, así que una guía ahi tendría respondedores y no respondedores por variación de LONGITUD, no de secuencia.
 
-**Por que importa / resultado.** NOT_RUN en 1221 de 1221 ventanas: falta el recurso. NOT_RUN no es PASS.
+**Por que importa / resultado.** NOT_RUN en 2170 de 2170 ventanas: falta el recurso. NOT_RUN no es PASS.
 
 **Fuente de datos.** NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero.
 
@@ -185,7 +185,7 @@ COMO CERRAR EL FRENTE «repeticion_polimorfica»
 
 **Que mide.** ¿La ventana cae dentro de un elemento repetitivo? Importa por dos cosas distintas: un tramo repetitivo dentro del casete AAV es sustrato de recombinación, y una guía contra un repetitivo tiene miles de sitios perfectos en el genoma.
 
-**Por que importa / resultado.** NOT_RUN en 1221 de 1221 ventanas: falta el recurso. NOT_RUN no es PASS.
+**Por que importa / resultado.** NOT_RUN en 2170 de 2170 ventanas: falta el recurso. NOT_RUN no es PASS.
 
 **Fuente de datos.** NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero.
 
@@ -238,7 +238,7 @@ COMO CERRAR EL FRENTE «repeticiones»
 
 **Que mide.** ¿La seed de la guía coincide con la de alguna familia de miARN de la tabla de seeds que se le haya pasado al diseño? Es el filtro de ventana, previo y más grueso que `seed_colision`: aquel compara contra los maduros de miRBase uno a uno.
 
-**Por que importa / resultado.** NOT_RUN en 1221 de 1221 ventanas: falta el recurso. NOT_RUN no es PASS.
+**Por que importa / resultado.** NOT_RUN en 2170 de 2170 ventanas: falta el recurso. NOT_RUN no es PASS.
 
 **Fuente de datos.** NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero.
 
@@ -285,7 +285,7 @@ COMO CERRAR EL FRENTE «seed»
 
 **Que mide.** ¿La seed de esta hebra es la de un miARN maduro conocido y abundante? Compartir seed con uno del núcleo no da off-targets dispersos: secuestra un programa regulador neuronal entero.
 
-**Por que importa / resultado.** NOT_RUN en 1221 de 1221 ventanas: falta el recurso. NOT_RUN no es PASS.
+**Por que importa / resultado.** NOT_RUN en 2170 de 2170 ventanas: falta el recurso. NOT_RUN no es PASS.
 
 **Fuente de datos.** NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero.
 
@@ -336,7 +336,7 @@ COMO CERRAR EL FRENTE «seed_colision»
 
 **Que mide.** ¿Esta guía impacta contra el TRANSGÉN del casete terapeutico? Es una segunda base de especificidad, y falla duro con cero o un desapareamiento: una guía a un solo desapareamiento apaga la construcción terapeutica casi igual que a su diana, y eso sería un fallo silencioso.
 
-**Por que importa / resultado.** NOT_RUN en 1221 de 1221 ventanas: falta el recurso. NOT_RUN no es PASS.
+**Por que importa / resultado.** NOT_RUN en 2170 de 2170 ventanas: falta el recurso. NOT_RUN no es PASS.
 
 **Fuente de datos.** NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero.
 
@@ -555,16 +555,26 @@ COMO CERRAR EL FRENTE «empalme_sitios»
 
 **Que mide.** ¿Que fracción de los transcritos conserva la diana? Un sitio de poliadenilación alternativa proximal corta el 3'UTR, así que un candidato por detrás de ese corte solo tiene diana en la isoforma larga. Eso no es un veto: es un TECHO de knockdown.
 
-**Por que importa / resultado.** CERRADO. 7 de 11 candidatos quedan por detrás del corte de 3utr:236: comparten UN ÚNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes por tramo son 16/0/0 —todos en el proximal— y el espaciado deja meter cuatro, que son los 4 que ya están. POR QUE BLOQUEABA: si la fracción de isoforma corta es alta, esos 7 candidatos entran al cribado con un TECHO INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no funciona dan la misma lectura en la placa, y el experimento se gasta en no poder separarlos. ESTADO: MEDIDO. PolyA_DB v4.1, fracción larga 0.86 ponderada / 0.65 sin ponderar. El mapeo genomico↔transcrito que bloqueaba está RESUELTO sin coordenadas genomicas y sobre 4 puntos de apoyo, no sobre una resta. Y el techo no es uno: va POR TRAMOS (0.91, 0.86), porque depende de por detrás de cuántos cortes está cada candidato. Con eso deja de cumplirse lo que hacia bloquear a este frente: un techo de 0.86 NO es indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, así que estas cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos amplicones sigue en pie y puede MEJORARLAS.
+**Por que importa / resultado.** CERRADO. 7 de 11 candidatos quedan por detrás del corte de tx:1185: comparten UN ÚNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes por tramo son 16/0/0 —todos en el proximal— y el espaciado deja meter cuatro, que son los 4 que ya están. POR QUE BLOQUEABA: si la fracción de isoforma corta es alta, esos 7 candidatos entran al cribado con un TECHO INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no funciona dan la misma lectura en la placa, y el experimento se gasta en no poder separarlos. ESTADO: MEDIDO. PolyA_DB v4.1, fracción larga 0.86 ponderada / 0.65 sin ponderar. El mapeo genomico↔transcrito que bloqueaba está RESUELTO sin coordenadas genomicas y sobre 4 puntos de apoyo, no sobre una resta. Y el techo no es uno: va POR TRAMOS (0.91, 0.86), porque depende de por detrás de cuántos cortes está cada candidato. Con eso deja de cumplirse lo que hacia bloquear a este frente: un techo de 0.86 NO es indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, así que estas cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos amplicones sigue en pie y puede MEJORARLAS.
 
-**Fuente de datos.** MAPEO GENOMICO↔TRANSCRITO — RESUELTO SIN COORDENADAS GENOMICAS. ·   PolyA_DB pública el sitio de CORTE, NO EL HEXÁMERO. Su leyenda: «A[A/U]UAAA motif within 40-nt upstream from the PAS» — el hexámero se busca AGUAS ARRIBA del PAS, luego la coordenada publicada es el corte. Con nuestra convención el hexámero cae 10-30 nt por delante, dentro de esos 40 nt. ·   Hipotesis «PAS = hexámero»: DESCARTADA. Un hexámero es un punto, no una banda, así que ·   bajo esa lectura el aterrizaje tiene que ser EXACTO — y no hay ningún desfase que haga ·   aterrizar más de 1 de las 4 coordenadas. Bajo «PAS = corte» aterrizan las 4, ·   con el MISMO desfase y con la CLASE de hexámero que declara la propia base en cada una. ·   No es una resta: son 4 puntos de apoyo independientes. Desfase 3'UTR→mm10 acotado a 131937185-131937193 (9 valores); se deja como INTERVALO ·   porque la banda de corte mide 20 nt y fijarlo en un entero sería inventarse precisión. ·  ·     chr2:+:131937444  Other   → corte 3utr:251-271, hexámero AATATA en 3utr:236  PSE 21.1%, AvgRPM 0.55  ← TERCER sitio de corte, el proximal MÁS USADO de los tres ·     chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexámero AATAAA en 3utr:288  PSE 23.5%, AvgRPM 0.34  ← nuestro AATAAA de 3utr:288 ·     chr2:+:131938392  Other   → AMBIGUO: 2 hexámeros de su clase en la banda (TATAAA en 3utr:1178, TATAAA en 3utr:1189). Ancla, pero NO entra al modelo con banda propia. ·     chr2:+:131938427  AUUAAA  → corte 3utr:1229-1249, hexámero ATTAAA en 3utr:1214  (sin datos de expresión)  ← fuerza 99,9 %, conservado en humano y rata; SIN expresión, así que no entra en la fracción — solo ancla ·  ·   TECHO POR TRAMOS. Con tres sitios de corte medidos el techo ya no es UNO: la pregunta ·   de un candidato no es cuanta isoforma larga hay, es que fracción de transcritos conserva ·   SU diana — y eso depende de por detrás de cuántos cortes esta. ·     3utr:1-251  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE. ·     3utr:252-271  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937444: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     3utr:272-303  techo 0.91           por detrás de chr2:+:131937444 ·     3utr:304-323  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937504: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     3utr:324-1242  techo 0.86           por detrás de chr2:+:131937444, chr2:+:131937504
+**Fuente de datos.** MAPEO GENOMICO↔TRANSCRITO — RESUELTO SIN COORDENADAS GENOMICAS. ·   PolyA_DB pública el sitio de CORTE, NO EL HEXÁMERO. Su leyenda: «A[A/U]UAAA motif within 40-nt upstream from the PAS» — el hexámero se busca AGUAS ARRIBA del PAS, luego la coordenada publicada es el corte. Con nuestra convención el hexámero cae 10-30 nt por delante, dentro de esos 40 nt. ·   Hipotesis «PAS = hexámero»: DESCARTADA. Un hexámero es un punto, no una banda, así que ·   bajo esa lectura el aterrizaje tiene que ser EXACTO — y no hay ningún desfase que haga ·   aterrizar más de 1 de las 4 coordenadas. Bajo «PAS = corte» aterrizan las 4, ·   con el MISMO desfase y con la CLASE de hexámero que declara la propia base en cada una. ·   No es una resta: son 4 puntos de apoyo independientes. Desfase 3'UTR→mm10 acotado a 131937185-131937193 (9 valores); se deja como INTERVALO ·   porque la banda de corte mide 20 nt y fijarlo en un entero sería inventarse precisión. ·  ·     chr2:+:131937444  Other   → corte 3utr:251-271, hexámero AATATA en 3utr:236  PSE 21.1%, AvgRPM 0.55  ← TERCER sitio de corte, el proximal MÁS USADO de los tres ·     chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexámero AATAAA en 3utr:288  PSE 23.5%, AvgRPM 0.34  ← nuestro AATAAA de 3utr:288 ·     chr2:+:131938392  Other   → AMBIGUO: 2 hexámeros de su clase en la banda (TATAAA en 3utr:1178, TATAAA en 3utr:1189). Ancla, pero NO entra al modelo con banda propia. ·     chr2:+:131938427  AUUAAA  → corte 3utr:1229-1249, hexámero ATTAAA en 3utr:1214  (sin datos de expresión)  ← fuerza 99,9 %, conservado en humano y rata; SIN expresión, así que no entra en la fracción — solo ancla ·  ·   TECHO POR TRAMOS. Con tres sitios de corte medidos el techo ya no es UNO: la pregunta ·   de un candidato no es cuanta isoforma larga hay, es que fracción de transcritos conserva ·   SU diana — y eso depende de por detrás de cuántos cortes esta. ·     tx:1-1200  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE. ·     tx:1201-1220  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937444: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     tx:1221-1252  techo 0.91           por detrás de chr2:+:131937444 ·     tx:1253-1272  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937504: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     tx:1273-2191  techo 0.86           por detrás de chr2:+:131937444, chr2:+:131937504
 
 | umbral | valor | origen | de donde sale |
 |---|---|---|---|
 | banda de corte por detrás del hexámero | 10-30 nt aguas abajo | literatura | el corte de poliadenilación ocurre a esa distancia del hexámero; es un resultado clasico del procesamiento del extremo 3' |
 | flanco prohibido alrededor del hexámero (eje esterico) | ±10 nt | convencion | es un umbral OPERATIVO para marcar solapamiento con la señal de poliadenilacion  ⚠ SIN BASE MEDIDA: NO TIENE BASE MEDIDA, y es el caso que obliga a distinguir origenes. La huella real de CPSF/CstF sobre el pre-mRNA es MAYOR que 10 nt, así que una ventana que el filtro deja pasar por 4 nt está probablemente dentro de la zona de competencia. El eje esterico es un GRADIENTE, no una frontera: cualquier umbral en nucleótidos le atribuye una precisión que la biologia no tiene. Por eso el informe emite además la SENSIBILIDAD al flanco |
 
-## 4. Mapa del 3'UTR
+## 4. Anatomía del transcrito
+
+De dónde sale cada frontera. La procedencia de la anotación importa tanto como el número: una frontera declarada y una anotada no sostienen lo mismo.
+
+| tramo | inicio | fin | longitud | origen |
+|---|---|---|---|---|
+| 5'UTR | 1 | 184 | 184 | coordenadas del transcrito de referencia, comprobadas por checksum |
+| CDS | 185 | 949 | 765 | coordenadas del transcrito de referencia, comprobadas por checksum |
+| 3'UTR | 950 | 2191 | 1242 | coordenadas del transcrito de referencia, comprobadas por checksum |
+
+## 5. Mapa del 3'UTR
 
 Todo a la misma escala: los candidatos numerados por su puesto en el panel, las señales de poliadenilación con su banda de corte, los tercios y —cuando la hay— la conservación. El mapa del informe es de CARACTERES y no el SVG de la página: el PDF de este proyecto se escribe con las fuentes base-14 y no incrusta imágenes, así que un mapa dibujado saldría en un formato y no en los otros. En caracteres se dibuja una vez y sale igual en los tres — todo a la misma escala, y la misma escala en markdown, en `.docx` y en `.pdf`.
 
@@ -577,14 +587,14 @@ Todo a la misma escala: los candidatos numerados por su puesto en el panel, las 
   corte                       === ===                                              === ===    ==         =====
   cand     1   2     3    4                   5       6       7      8     9               10  11
 
-  3'UTR de 1242 nt en 100 columnas — 12.4 nt por columna (marco de lo tilado: 3utr).
+  3'UTR de 1242 nt en 100 columnas — 12.4 nt por columna (marco de lo tilado: tx).
   M = señal polyA con uso MEDIDO · A = señal polyA por canonicidad, sin dato de uso · T = terminal probable
   · = banda de corte (10-30 nt aguas abajo del hexámero) · # = bloque conservado · ~ = repetición
   enmascarada · dígito = candidato, por su puesto en el panel.
   2 banda(s) de corte se salen del transcrito anotado: el corte de una terminal cae aguas abajo del final.
   Van recortadas.
-  1=3utr:10  2=3utr:60  3=3utr:143  4=3utr:200  5=3utr:449  6=3utr:553  7=3utr:652  8=3utr:735  9=3utr:819
-  10=3utr:1018  11=3utr:1071
+  1=tx:959  2=tx:1009  3=tx:1092  4=tx:1149  5=tx:1398  6=tx:1502  7=tx:1601  8=tx:1684  9=tx:1768
+  10=tx:1967  11=tx:2020
 ```
 
 Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, cuántos candidatos del panel caen ahí con cada una de las dos definiciones de tercio, y cuál sería el siguiente sin romper el espaciado. Un tramo que se ve vacío en el mapa puede estarlo porque no hay sitios elegibles o porque no caben: no es lo mismo.
@@ -624,310 +634,310 @@ Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, cuántos can
       (asimetría +1.90); 3utr:904-925 (asimetría +1.33).
 ```
 
-## 5. Tabla de candidatos
+## 6. Tabla de candidatos
 
 Todas las columnas, con un estado POR FILTRO. No se colapsan ni se omiten los que no corrieron: un filtro ausente de la tabla es indistinguible de uno superado.
 
 | rango | inicio | fin | region | inicio_3utr | fin_3utr | tercio | asimetria_kcal | polyA_hexamero | polyA_clase | polyA_posicion_rel | polyA_hexamero_pos | polyA_dist_extremo3 | polyA_solapa_seed | polyA_veredicto | polyA_estricto | polyA_escalonado | polyA_truncamiento | polyA_truncamiento_propio | polyA_esterico | polyA_dist_corte | polyA_fraccion_isoforma_larga | tilado_8mer | tilado_7mer-m8 | tilado_7mer-A1 | carga_8mer | carga_7mer-m8 | carga_7mer-A1 | carga_6mer | accesibilidad | GC | homopolimero | asimetria | zona_prohibida_polyA | repeticiones | repeticion_polimorfica | seed | especificidad | transgen | seed_colision | bandera_polyA_debil | biofisicos_ok | riesgo_APA | veredicto | diana | guia |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 9 | 10 | 31 | 3'UTR | 10 | 31 | proximal | 4.33 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCCTGCTTGTTCCTTCGCATTC | UAAUGCGAAGGAACAAGCAGGA |
-| 6 | 60 | 81 | 3'UTR | 60 | 81 | proximal | 5.15 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | CCACCTGTAGCTCTTTCAATTG | UAAUUGAAAGAGCUACAGGUGG |
-| 7 | 143 | 164 | 3'UTR | 143 | 164 | proximal | 5.08 | AATATA | APA_POSIBLE | aguas abajo, 71 nt | 3utr:236 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | GCCCTGGGAAATGTACAGTAGA | UCUACUGUACAUUUCCCAGGGC |
-| 11 | 200 | 221 | 3'UTR | 200 | 221 | proximal | 3.8 | AATATA | APA_POSIBLE | aguas abajo, 14 nt | 3utr:236 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCTGTCATCAGCCAGTGCTAAC | UUUAGCACUGGCUGAUGACAGA |
-| 5 | 449 | 470 | 3'UTR | 449 | 470 | medio | 5.32 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 198 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GTGGAATTCTTTCTTTACTAAC | UUUAGUAAAGAAAGAAUUCCAC |
-| 3 | 553 | 574 | 3'UTR | 553 | 574 | medio | 5.86 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 302 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | AGGGCACTAGAATGATCTTTAG | UUAAAGAUCAUUCUAGUGCCCU |
-| 4 | 652 | 673 | 3'UTR | 652 | 673 | medio | 5.8 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 401 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GAGGGATGGTTAAGGTACAAAG | UUUUGUACCUUAACCAUCCCUC |
-| 8 | 735 | 756 | 3'UTR | 735 | 756 | medio | 5.08 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 484 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCCCTATGTTTCTGTACTTCTA | UAGAAGUACAGAAACAUAGGGC |
-| 2 | 819 | 840 | 3'UTR | 819 | 840 | distal | 5.96 | CATAAA | OTRA | aguas abajo, 66 nt | 3utr:907 | 330 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 568 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCTCCATTCCAAAGTGGGAAAG | UUUUCCCACUUUGGAAUGGAGC |
-| 1 | 1018 | 1039 | 3'UTR | 1018 | 1039 | distal | 6.65 | ACTAAA | OTRA | dentro | 3utr:1034 | 203 nt | si | PASS | FAIL | PASS | TECHO | NO_APLICA | PENALIZADO | 767 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | True | True | prediccion:si | INCOMPLETE | GGCCGTTCCATCCAGTACTAAA | UUUAGUACUGGAUGGAACGGCC |
-| 10 | 1071 | 1092 | 3'UTR | 1071 | 1092 | distal | 4.28 | ACTAAA | OTRA | aguas arriba, 31 nt | 3utr:1034 | 203 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 820 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | TGCACTCAGTTCCGTAGGATTC | UAAUCCUACGGAACUGAGUGCA |
+| 9 | 959 | 980 | 3'UTR | 10 | 31 | proximal | 4.33 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCCTGCTTGTTCCTTCGCATTC | UAAUGCGAAGGAACAAGCAGGA |
+| 6 | 1009 | 1030 | 3'UTR | 60 | 81 | proximal | 5.15 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | CCACCTGTAGCTCTTTCAATTG | UAAUUGAAAGAGCUACAGGUGG |
+| 7 | 1092 | 1113 | 3'UTR | 143 | 164 | proximal | 5.08 | AATATA | APA_POSIBLE | aguas abajo, 71 nt | tx:1185 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | GCCCTGGGAAATGTACAGTAGA | UCUACUGUACAUUUCCCAGGGC |
+| 11 | 1149 | 1170 | 3'UTR | 200 | 221 | proximal | 3.8 | AATATA | APA_POSIBLE | aguas abajo, 14 nt | tx:1185 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCTGTCATCAGCCAGTGCTAAC | UUUAGCACUGGCUGAUGACAGA |
+| 5 | 1398 | 1419 | 3'UTR | 449 | 470 | medio | 5.32 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 198 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GTGGAATTCTTTCTTTACTAAC | UUUAGUAAAGAAAGAAUUCCAC |
+| 3 | 1502 | 1523 | 3'UTR | 553 | 574 | medio | 5.86 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 302 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | AGGGCACTAGAATGATCTTTAG | UUAAAGAUCAUUCUAGUGCCCU |
+| 4 | 1601 | 1622 | 3'UTR | 652 | 673 | medio | 5.8 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 401 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GAGGGATGGTTAAGGTACAAAG | UUUUGUACCUUAACCAUCCCUC |
+| 8 | 1684 | 1705 | 3'UTR | 735 | 756 | medio | 5.08 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 484 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCCCTATGTTTCTGTACTTCTA | UAGAAGUACAGAAACAUAGGGC |
+| 2 | 1768 | 1789 | 3'UTR | 819 | 840 | distal | 5.96 | CATAAA | OTRA | aguas abajo, 66 nt | tx:1856 | 330 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 568 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCTCCATTCCAAAGTGGGAAAG | UUUUCCCACUUUGGAAUGGAGC |
+| 1 | 1967 | 1988 | 3'UTR | 1018 | 1039 | distal | 6.65 | ACTAAA | OTRA | dentro | tx:1983 | 203 nt | si | PASS | FAIL | PASS | TECHO | NO_APLICA | PENALIZADO | 767 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | True | True | prediccion:si | INCOMPLETE | GGCCGTTCCATCCAGTACTAAA | UUUAGUACUGGAUGGAACGGCC |
+| 10 | 2020 | 2041 | 3'UTR | 1071 | 1092 | distal | 4.28 | ACTAAA | OTRA | aguas arriba, 31 nt | tx:1983 | 203 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 820 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | TGCACTCAGTTCCGTAGGATTC | UAAUCCUACGGAACUGAGUGCA |
 
 > **MULTIPLEXADO: hay candidatos que comparten núcleo.**
 
-- 3utr:449 y 3utr:1018 comparten el núcleo TACTAA con heptameros DISTINTOS (TTAGTAA y TTAGTAC): difieren solo en la posición 8, así que la colisión de seed no los empareja y este eje si.
+- tx:1398 y tx:1967 comparten el núcleo TACTAA con heptameros DISTINTOS (TTAGTAA y TTAGTAC): difieren solo en la posición 8, así que la colisión de seed no los empareja y este eje si.
 
 CONSECUENCIA PARA EL MULTIPLEXADO. Dos candidatos que comparten el NÚCLEO de 6 nt no son dos apuestas independientes en el eje de off-targets, aunque su heptamero difiera y aunque el espaciado los de por buenos: las cuatro clases de sitio se construyen sobre ese núcleo, así que casi toda su red de dianas accesorias es la misma. Y el espaciado no lo ve — mide DISTANCIA en el 3'UTR, no parecido de seed. El caso murino es exactamente ese: `3utr:449` y `3utr:1018` son la pareja que el espaciado sugeriria —extremos opuestos del 3'UTR y los dos con buena asimetría— y en este eje serían la PEOR elección posible.
 
 CARGA DE SEED SIN REFERENCIA — NOT_RUN. Los conteos por clase del tilado (`tilado_<clase>`) están, y solos no se pueden leer: falta el PERCENTIL contra la nula por permutación, falta el `6mer` y faltan los controles biológicos (miR-124-3p, miR-9-5p, let-7a-5p). Los dos los calcula el modal de carga de off-targets, que necesita `transcriptoma_3utr.fa` y una corrida guardada en el proyecto. Son DOS referencias y ninguna sustituye a la otra: el percentil contra la nula por permutación dice si el número es raro PARA ESA COMPOSICIÓN de heptámero, y los controles biológicos dan la MAGNITUD — qué es «muchos sitios» en un cerebro de verdad. Los controles no llevan percentil a propósito: se calcularía contra la nula de su propia composición, así que no sería comparable con el nuestro. Las clases no se suman: la represión esperada de un 8mer y la de un 6mer no se parecen en nada. Por eso no hay —ni puede haber— un percentil de un total: el percentil va POR CLASE, pegado a su conteo, y es lo que sale en las columnas `carga_<clase>`.
 
-## 6. Todos los sitios elegibles, con una columna por frente — mouse
+## 7. Todos los sitios elegibles, con una columna por frente — mouse
 
 Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla es el conjunto sobre el que se hizo. Una columna por frente, derivada de los frentes que el informe conoce.
 
 | elegido | sitio | inicio | tercio | asimetria | rango | empalme_intron | empalme_sitios | especificidad | fraccion_isoforma_larga | offtarget_seed:guia | offtarget_seed:pasajera | repeticion_polimorfica | repeticiones | seed | seed_colision:guia | seed_colision:pasajera | transgen | veredicto | guia |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| True | 3utr:1018 | 1018 | NO_FIABLE | 7.65 | 1 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGUACUGGAUGGAACGGCC |
-| True | 3utr:819 | 819 | NO_FIABLE | 5.96 | 2 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUCCCACUUUGGAAUGGAGC |
-| True | 3utr:553 | 553 | NO_FIABLE | 5.86 | 3 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAAGAUCAUUCUAGUGCCCU |
-| True | 3utr:652 | 652 | NO_FIABLE | 5.8 | 4 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGUACCUUAACCAUCCCUC |
-| True | 3utr:449 | 449 | NO_FIABLE | 5.32 | 5 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGUAAAGAAAGAAUUCCAC |
-| True | 3utr:60 | 60 | NO_FIABLE | 5.15 | 6 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUUGAAAGAGCUACAGGUGG |
-| True | 3utr:143 | 143 | NO_FIABLE | 5.08 | 7 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUACUGUACAUUUCCCAGGGC |
-| True | 3utr:735 | 735 | NO_FIABLE | 5.08 | 8 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAGUACAGAAACAUAGGGC |
-| True | 3utr:10 | 10 | NO_FIABLE | 4.33 | 9 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGCGAAGGAACAAGCAGGA |
-| True | 3utr:1071 | 1071 | NO_FIABLE | 4.28 | 10 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCCUACGGAACUGAGUGCA |
-| True | 3utr:200 | 200 | NO_FIABLE | 3.8 | 11 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGCACUGGCUGAUGACAGA |
-| False | 3utr:9 | 9 | NO_FIABLE | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGCGAAGGAACAAGCAGGAA |
-| False | 3utr:11 | 11 | NO_FIABLE | 2.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUGCGAAGGAACAAGCAGG |
-| False | 3utr:12 | 12 | NO_FIABLE | 2.75 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAUGCGAAGGAACAAGCAG |
-| False | 3utr:13 | 13 | NO_FIABLE | 0.62 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAGAAUGCGAAGGAACAAGCA |
-| False | 3utr:20 | 20 | NO_FIABLE | 1.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGACCACGAGAAUGCGAAGGA |
-| False | 3utr:53 | 53 | NO_FIABLE | 3.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAGCUACAGGUGGAUAACCC |
-| False | 3utr:54 | 54 | NO_FIABLE | 2.09 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAGCUACAGGUGGAUAACC |
-| False | 3utr:55 | 55 | NO_FIABLE | 1.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGAGCUACAGGUGGAUAAC |
-| False | 3utr:58 | 58 | NO_FIABLE | 2.74 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGAAAGAGCUACAGGUGGAU |
-| False | 3utr:59 | 59 | NO_FIABLE | 4.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUGAAAGAGCUACAGGUGGA |
-| False | 3utr:61 | 61 | NO_FIABLE | 3.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAUUGAAAGAGCUACAGGUG |
-| False | 3utr:62 | 62 | NO_FIABLE | 2.19 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCAAUUGAAAGAGCUACAGGU |
-| False | 3utr:63 | 63 | NO_FIABLE | 1.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUCAAUUGAAAGAGCUACAGG |
-| False | 3utr:69 | 69 | NO_FIABLE | 3.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAACCACCUCAAUUGAAAGAGC |
-| False | 3utr:70 | 70 | NO_FIABLE | 1.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAACCACCUCAAUUGAAAGAG |
-| False | 3utr:75 | 75 | NO_FIABLE | 2.03 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGAGAACCACCUCAAUUGA |
-| False | 3utr:81 | 81 | NO_FIABLE | 1.31 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGCAAGAAUGAGAACCACCUC |
-| False | 3utr:82 | 82 | NO_FIABLE | 2.79 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGCAAGAAUGAGAACCACCU |
-| False | 3utr:83 | 83 | NO_FIABLE | 3.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGCAAGAAUGAGAACCACC |
-| False | 3utr:84 | 84 | NO_FIABLE | 2.75 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAGCAAGAAUGAGAACCAC |
-| False | 3utr:85 | 85 | NO_FIABLE | 0.62 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAGAAGCAAGAAUGAGAACCA |
-| False | 3utr:86 | 86 | NO_FIABLE | 1.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAGAAGCAAGAAUGAGAACC |
-| False | 3utr:90 | 90 | NO_FIABLE | 1.31 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACACAGAGAAGCAAGAAUGAG |
-| False | 3utr:144 | 144 | NO_FIABLE | 3.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUACUGUACAUUUCCCAGGG |
-| False | 3utr:145 | 145 | NO_FIABLE | 1.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUCUACUGUACAUUUCCCAGG |
-| False | 3utr:146 | 146 | NO_FIABLE | 0.74 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGGUCUACUGUACAUUUCCCAG |
-| False | 3utr:147 | 147 | NO_FIABLE | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGGUCUACUGUACAUUUCCCA |
-| False | 3utr:148 | 148 | NO_FIABLE | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUGGUCUACUGUACAUUUCCC |
-| False | 3utr:149 | 149 | NO_FIABLE | 1.34 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACUGGUCUACUGUACAUUUCC |
-| False | 3utr:155 | 155 | NO_FIABLE | 0.95 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAGCAACUGGUCUACUGUAC |
-| False | 3utr:156 | 156 | NO_FIABLE | 0.89 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAGCAACUGGUCUACUGUA |
-| False | 3utr:157 | 157 | NO_FIABLE | 3.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGAGCAACUGGUCUACUGU |
-| False | 3utr:158 | 158 | NO_FIABLE | 1.49 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAAGAGCAACUGGUCUACUG |
-| False | 3utr:161 | 161 | NO_FIABLE | 0.97 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGCAAAGAGCAACUGGUCUA |
-| False | 3utr:162 | 162 | NO_FIABLE | 1.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGCAAAGAGCAACUGGUCU |
-| False | 3utr:163 | 163 | NO_FIABLE | 3.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGAAGCAAAGAGCAACUGGUC |
-| False | 3utr:164 | 164 | NO_FIABLE | 0.62 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUGAAGCAAAGAGCAACUGGU |
-| False | 3utr:165 | 165 | NO_FIABLE | 0.66 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCCUGAAGCAAAGAGCAACUGG |
-| False | 3utr:171 | 171 | NO_FIABLE | 3.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGGGACCUGAAGCAAAGAGC |
-| False | 3utr:172 | 172 | NO_FIABLE | 3.77 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGGGACCUGAAGCAAAGAG |
-| False | 3utr:176 | 176 | NO_FIABLE | 1.35 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAUCAAAGGGACCUGAAGCAA |
-| False | 3utr:183 | 183 | NO_FIABLE | 0.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAGACUCCAUCAAAGGGACCU |
-| False | 3utr:185 | 185 | NO_FIABLE | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGACAGACUCCAUCAAAGGGAC |
-| False | 3utr:186 | 186 | NO_FIABLE | 3.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGACAGACUCCAUCAAAGGGA |
-| False | 3utr:187 | 187 | NO_FIABLE | 4.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGACAGACUCCAUCAAAGGG |
-| False | 3utr:188 | 188 | NO_FIABLE | 1.16 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAUGACAGACUCCAUCAAAGG |
-| False | 3utr:199 | 199 | NO_FIABLE | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGCACUGGCUGAUGACAGAC |
-| False | 3utr:201 | 201 | NO_FIABLE | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUAGCACUGGCUGAUGACAG |
-| False | 3utr:202 | 202 | NO_FIABLE | 1.87 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUUAGCACUGGCUGAUGACA |
-| False | 3utr:307 | 307 | NO_FIABLE | 2.67 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUACUCUGGGUACAAGUCAGG |
-| False | 3utr:308 | 308 | NO_FIABLE | 1.71 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUACUCUGGGUACAAGUCAG |
-| False | 3utr:309 | 309 | NO_FIABLE | 2.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUACUCUGGGUACAAGUCA |
-| False | 3utr:310 | 310 | NO_FIABLE | 1.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUGUACUCUGGGUACAAGUC |
-| False | 3utr:316 | 316 | NO_FIABLE | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUCACCUUGUACUCUGGGUA |
-| False | 3utr:317 | 317 | NO_FIABLE | 2.22 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUGUCACCUUGUACUCUGGGU |
-| False | 3utr:319 | 319 | NO_FIABLE | 1.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCACUGUCACCUUGUACUCUGG |
-| False | 3utr:320 | 320 | NO_FIABLE | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCACUGUCACCUUGUACUCUG |
-| False | 3utr:322 | 322 | NO_FIABLE | 1.84 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUCACUGUCACCUUGUACUC |
-| False | 3utr:324 | 324 | NO_FIABLE | 1.43 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUGUCACUGUCACCUUGUAC |
-| False | 3utr:325 | 325 | NO_FIABLE | 0.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGUGUCACUGUCACCUUGUA |
-| False | 3utr:328 | 328 | NO_FIABLE | 1.77 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUACAUGUGUCACUGUCACCUU |
-| False | 3utr:329 | 329 | NO_FIABLE | 4.39 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUACAUGUGUCACUGUCACCU |
-| False | 3utr:330 | 330 | NO_FIABLE | 3.23 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUACAUGUGUCACUGUCACC |
-| False | 3utr:331 | 331 | NO_FIABLE | 1.5 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUUACAUGUGUCACUGUCAC |
-| False | 3utr:332 | 332 | NO_FIABLE | 2.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGUUACAUGUGUCACUGUCA |
-| False | 3utr:333 | 333 | NO_FIABLE | 3.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAGUUACAUGUGUCACUGUC |
-| False | 3utr:334 | 334 | NO_FIABLE | 1.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAAGUUACAUGUGUCACUGU |
-| False | 3utr:337 | 337 | NO_FIABLE | 2.16 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGCUAAGUUACAUGUGUCAC |
-| False | 3utr:338 | 338 | NO_FIABLE | 3.79 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAUGCUAAGUUACAUGUGUCA |
-| False | 3utr:339 | 339 | NO_FIABLE | 1.39 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAUGCUAAGUUACAUGUGUC |
-| False | 3utr:343 | 343 | NO_FIABLE | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGCCUAUGCUAAGUUACAUG |
-| False | 3utr:344 | 344 | NO_FIABLE | 2.66 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGCCUAUGCUAAGUUACAU |
-| False | 3utr:352 | 352 | NO_FIABLE | 2.49 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGAACCCUUUGCCUAUGCUA |
-| False | 3utr:353 | 353 | NO_FIABLE | 1.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUAGAACCCUUUGCCUAUGCU |
-| False | 3utr:354 | 354 | NO_FIABLE | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUAGAACCCUUUGCCUAUGC |
-| False | 3utr:355 | 355 | NO_FIABLE | 0.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUAGAACCCUUUGCCUAUG |
-| False | 3utr:358 | 358 | NO_FIABLE | 2.46 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGGUUGUAGAACCCUUUGCCU |
-| False | 3utr:359 | 359 | NO_FIABLE | 4.82 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGGUUGUAGAACCCUUUGCC |
-| False | 3utr:360 | 360 | NO_FIABLE | 4.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGGUUGUAGAACCCUUUGC |
-| False | 3utr:363 | 363 | NO_FIABLE | 2.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCUUUGGUUGUAGAACCCUU |
-| False | 3utr:364 | 364 | NO_FIABLE | 3.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUCUUUGGUUGUAGAACCCU |
-| False | 3utr:365 | 365 | NO_FIABLE | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGCUUCUUUGGUUGUAGAACCC |
-| False | 3utr:373 | 373 | NO_FIABLE | 2.99 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAACAGUGGCUUCUUUGGUUG |
-| False | 3utr:374 | 374 | NO_FIABLE | 1.49 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAACAGUGGCUUCUUUGGUU |
-| False | 3utr:426 | 426 | NO_FIABLE | 2.17 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUGGAUGCUCUAGCUAUCCCA |
-| False | 3utr:434 | 434 | NO_FIABLE | 1.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCCACGUGUGGAUGCUCUAG |
-| False | 3utr:435 | 435 | NO_FIABLE | 2.4 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUCCACGUGUGGAUGCUCUA |
-| False | 3utr:436 | 436 | NO_FIABLE | 3.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUUCCACGUGUGGAUGCUCU |
-| False | 3utr:437 | 437 | NO_FIABLE | 3.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUUCCACGUGUGGAUGCUC |
-| False | 3utr:438 | 438 | NO_FIABLE | 1.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAUUCCACGUGUGGAUGCU |
-| False | 3utr:439 | 439 | NO_FIABLE | 2.29 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAAUUCCACGUGUGGAUGC |
-| False | 3utr:440 | 440 | NO_FIABLE | 3.27 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGAAUUCCACGUGUGGAUG |
-| False | 3utr:441 | 441 | NO_FIABLE | 1.77 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAAGAAUUCCACGUGUGGAU |
-| False | 3utr:442 | 442 | NO_FIABLE | 1.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAAGAAUUCCACGUGUGGA |
-| False | 3utr:443 | 443 | NO_FIABLE | 3.72 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAAAGAAUUCCACGUGUGG |
-| False | 3utr:444 | 444 | NO_FIABLE | 3.72 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGAAAGAAUUCCACGUGUG |
-| False | 3utr:445 | 445 | NO_FIABLE | 3.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAAGAAAGAAUUCCACGUGU |
-| False | 3utr:446 | 446 | NO_FIABLE | 1.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUAAAGAAAGAAUUCCACGUG |
-| False | 3utr:447 | 447 | NO_FIABLE | 1.19 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUAAAGAAAGAAUUCCACGU |
-| False | 3utr:448 | 448 | NO_FIABLE | 2.82 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGUAAAGAAAGAAUUCCACG |
-| False | 3utr:465 | 465 | NO_FIABLE | 2.29 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCAGCUAUCGUUUGUUAGU |
-| False | 3utr:468 | 468 | NO_FIABLE | 0.62 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCAAUCAGCUAUCGUUUGUU |
-| False | 3utr:473 | 473 | NO_FIABLE | 2.53 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGCCUUCAAUCAGCUAUCGU |
-| False | 3utr:474 | 474 | NO_FIABLE | 0.98 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUGCCUUCAAUCAGCUAUCG |
-| False | 3utr:478 | 478 | NO_FIABLE | 0.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCCUGUUGCCUUCAAUCAGCU |
-| False | 3utr:479 | 479 | NO_FIABLE | 3.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCCUGUUGCCUUCAAUCAGC |
-| False | 3utr:512 | 512 | NO_FIABLE | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUCAACGUCAGUAGGACAAU |
-| False | 3utr:515 | 515 | NO_FIABLE | 1.84 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGCUUUCAACGUCAGUAGGAC |
-| False | 3utr:516 | 516 | NO_FIABLE | 3.27 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGCUUUCAACGUCAGUAGGA |
-| False | 3utr:517 | 517 | NO_FIABLE | 4.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGCUUUCAACGUCAGUAGG |
-| False | 3utr:518 | 518 | NO_FIABLE | 1.27 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUUGCUUUCAACGUCAGUAG |
-| False | 3utr:521 | 521 | NO_FIABLE | 2.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGGUUUGCUUUCAACGUCAG |
-| False | 3utr:522 | 522 | NO_FIABLE | 3.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGGUUUGCUUUCAACGUCA |
-| False | 3utr:523 | 523 | NO_FIABLE | 2.46 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAAGGUUUGCUUUCAACGUC |
-| False | 3utr:524 | 524 | NO_FIABLE | 1.16 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACAAAGGUUUGCUUUCAACGU |
-| False | 3utr:525 | 525 | NO_FIABLE | 1.03 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAACAAAGGUUUGCUUUCAACG |
-| False | 3utr:526 | 526 | NO_FIABLE | 0.79 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAACAAAGGUUUGCUUUCAAC |
-| False | 3utr:529 | 529 | NO_FIABLE | 1.3 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGAACAAAGGUUUGCUUUC |
-| False | 3utr:543 | 543 | NO_FIABLE | 1.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUAGUGCCCUGGGAAUGAAC |
-| False | 3utr:544 | 544 | NO_FIABLE | 0.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCUAGUGCCCUGGGAAUGAA |
-| False | 3utr:545 | 545 | NO_FIABLE | 2.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUCUAGUGCCCUGGGAAUGA |
-| False | 3utr:548 | 548 | NO_FIABLE | 1.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCAUUCUAGUGCCCUGGGAA |
-| False | 3utr:549 | 549 | NO_FIABLE | 3.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAUCAUUCUAGUGCCCUGGGA |
-| False | 3utr:550 | 550 | NO_FIABLE | 3.32 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAUCAUUCUAGUGCCCUGGG |
-| False | 3utr:551 | 551 | NO_FIABLE | 3.56 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAUCAUUCUAGUGCCCUGG |
-| False | 3utr:552 | 552 | NO_FIABLE | 5.16 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGAUCAUUCUAGUGCCCUG |
-| False | 3utr:554 | 554 | NO_FIABLE | 5.08 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAAAGAUCAUUCUAGUGCCC |
-| False | 3utr:555 | 555 | NO_FIABLE | 1.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGCUAAAGAUCAUUCUAGUGCC |
-| False | 3utr:558 | 558 | NO_FIABLE | 0.86 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGGCUAAAGAUCAUUCUAGU |
-| False | 3utr:559 | 559 | NO_FIABLE | 1.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAGGCUAAAGAUCAUUCUAG |
-| False | 3utr:566 | 566 | NO_FIABLE | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCAAGCAAGGCUAAAGAUC |
-| False | 3utr:567 | 567 | NO_FIABLE | 2.17 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCCAAGCAAGGCUAAAGAU |
-| False | 3utr:572 | 572 | NO_FIABLE | 1.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUUCAAUCCAAGCAAGGCUA |
-| False | 3utr:573 | 573 | NO_FIABLE | 4.42 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGUUCAAUCCAAGCAAGGCU |
-| False | 3utr:574 | 574 | NO_FIABLE | 3.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAGUUCAAUCCAAGCAAGGC |
-| False | 3utr:578 | 578 | NO_FIABLE | 2.25 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUCCUAGUUCAAUCCAAGCA |
-| False | 3utr:579 | 579 | NO_FIABLE | 1.65 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCUCCUAGUUCAAUCCAAGC |
-| False | 3utr:581 | 581 | NO_FIABLE | 0.99 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAUCUCCUAGUUCAAUCCAA |
-| False | 3utr:582 | 582 | NO_FIABLE | 2.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAUCUCCUAGUUCAAUCCA |
-| False | 3utr:583 | 583 | NO_FIABLE | 1.77 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAGAUCUCCUAGUUCAAUCC |
-| False | 3utr:588 | 588 | NO_FIABLE | 0.66 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAGUCAAGAUCUCCUAGUUC |
-| False | 3utr:593 | 593 | NO_FIABLE | 0.7 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCCUCAGAGUCAAGAUCUCCU |
-| False | 3utr:594 | 594 | NO_FIABLE | 1.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUCCUCAGAGUCAAGAUCUCC |
-| False | 3utr:595 | 595 | NO_FIABLE | 1.87 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUCCUCAGAGUCAAGAUCUC |
-| False | 3utr:650 | 650 | NO_FIABLE | 4.04 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUACCUUAACCAUCCCUCCC |
-| False | 3utr:651 | 651 | NO_FIABLE | 4.17 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUACCUUAACCAUCCCUCC |
-| False | 3utr:653 | 653 | NO_FIABLE | 3.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUGUACCUUAACCAUCCCU |
-| False | 3utr:654 | 654 | NO_FIABLE | 1.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCCUUUGUACCUUAACCAUCCC |
-| False | 3utr:657 | 657 | NO_FIABLE | 2.13 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGCCUUUGUACCUUAACCAU |
-| False | 3utr:658 | 658 | NO_FIABLE | 1.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAGCCUUUGUACCUUAACCA |
-| False | 3utr:659 | 659 | NO_FIABLE | 1.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUAGCCUUUGUACCUUAACC |
-| False | 3utr:663 | 663 | NO_FIABLE | 1.07 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUUUCUAGCCUUUGUACCUU |
-| False | 3utr:664 | 664 | NO_FIABLE | 2.79 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGUUUCUAGCCUUUGUACCU |
-| False | 3utr:665 | 665 | NO_FIABLE | 1.89 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAGUUUCUAGCCUUUGUACC |
-| False | 3utr:666 | 666 | NO_FIABLE | 1.32 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCAAGUUUCUAGCCUUUGUAC |
-| False | 3utr:670 | 670 | NO_FIABLE | 1.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAACUCAAGUUUCUAGCCUUU |
-| False | 3utr:671 | 671 | NO_FIABLE | 1.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAACUCAAGUUUCUAGCCUU |
-| False | 3utr:672 | 672 | NO_FIABLE | 3.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAACUCAAGUUUCUAGCCU |
-| False | 3utr:673 | 673 | NO_FIABLE | 4.42 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAAACUCAAGUUUCUAGCC |
-| False | 3utr:674 | 674 | NO_FIABLE | 1.89 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGAAACUCAAGUUUCUAGC |
-| False | 3utr:675 | 675 | NO_FIABLE | 1.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGAAGAAACUCAAGUUUCUAG |
-| False | 3utr:678 | 678 | NO_FIABLE | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAUGAAGAAACUCAAGUUUC |
-| False | 3utr:684 | 684 | NO_FIABLE | 1.23 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGACAGAAAUGAAGAAACUCA |
-| False | 3utr:689 | 689 | NO_FIABLE | 0.94 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUGAGACAGAAAUGAAGAA |
-| False | 3utr:690 | 690 | NO_FIABLE | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUGUGAGACAGAAAUGAAGA |
-| False | 3utr:691 | 691 | NO_FIABLE | 2.9 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUUGUGAGACAGAAAUGAAG |
-| False | 3utr:693 | 693 | NO_FIABLE | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUAAUUGUGAGACAGAAAUGA |
-| False | 3utr:720 | 720 | NO_FIABLE | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGGGCAGAAGCUAAUUCUAG |
-| False | 3utr:721 | 721 | NO_FIABLE | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUAGGGCAGAAGCUAAUUCUA |
-| False | 3utr:727 | 727 | NO_FIABLE | 1.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAACAUAGGGCAGAAGCUA |
-| False | 3utr:728 | 728 | NO_FIABLE | 0.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAGAAACAUAGGGCAGAAGCU |
-| False | 3utr:729 | 729 | NO_FIABLE | 1.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACAGAAACAUAGGGCAGAAGC |
-| False | 3utr:730 | 730 | NO_FIABLE | 1.31 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUACAGAAACAUAGGGCAGAAG |
-| False | 3utr:732 | 732 | NO_FIABLE | 1.34 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUACAGAAACAUAGGGCAGA |
-| False | 3utr:733 | 733 | NO_FIABLE | 3.72 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGUACAGAAACAUAGGGCAG |
-| False | 3utr:734 | 734 | NO_FIABLE | 3.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGUACAGAAACAUAGGGCA |
-| False | 3utr:736 | 736 | NO_FIABLE | 4.26 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGAAGUACAGAAACAUAGGG |
-| False | 3utr:737 | 737 | NO_FIABLE | 3.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUAGAAGUACAGAAACAUAGG |
-| False | 3utr:748 | 748 | NO_FIABLE | 1.48 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCAGUUCAAAUAGAAGUAC |
-| False | 3utr:750 | 750 | NO_FIABLE | 2.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAUCCAGUUCAAAUAGAAGU |
-| False | 3utr:751 | 751 | NO_FIABLE | 0.98 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUAUCCAGUUCAAAUAGAAG |
-| False | 3utr:760 | 760 | NO_FIABLE | 1.14 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUCUCUCUGUUAUCCAGUUC |
-| False | 3utr:761 | 761 | NO_FIABLE | 0.83 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUCUCUCUGUUAUCCAGUU |
-| False | 3utr:762 | 762 | NO_FIABLE | 3.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUGUCUCUCUGUUAUCCAGU |
-| False | 3utr:763 | 763 | NO_FIABLE | 2.79 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAUUGUCUCUCUGUUAUCCAG |
-| False | 3utr:764 | 764 | NO_FIABLE | 1.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAUUGUCUCUCUGUUAUCCA |
-| False | 3utr:765 | 765 | NO_FIABLE | 2.37 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGAUUGUCUCUCUGUUAUCC |
-| False | 3utr:766 | 766 | NO_FIABLE | 2.04 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGAUUGUCUCUCUGUUAUC |
-| False | 3utr:767 | 767 | NO_FIABLE | 0.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUAGAUUGUCUCUCUGUUAU |
-| False | 3utr:770 | 770 | NO_FIABLE | 1.89 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGUUUAGAUUGUCUCUCUGU |
-| False | 3utr:771 | 771 | NO_FIABLE | 3.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGUUUAGAUUGUCUCUCUG |
-| False | 3utr:772 | 772 | NO_FIABLE | 1.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUGUUUAGAUUGUCUCUCU |
-| False | 3utr:773 | 773 | NO_FIABLE | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAUGUUUAGAUUGUCUCUC |
-| False | 3utr:775 | 775 | NO_FIABLE | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAGAAUGUUUAGAUUGUCUC |
-| False | 3utr:777 | 777 | NO_FIABLE | 3.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAGAGAAUGUUUAGAUUGUC |
-| False | 3utr:788 | 788 | NO_FIABLE | 1.23 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAUCUGCAGCCUAAGAGAAUG |
-| False | 3utr:789 | 789 | NO_FIABLE | 1.64 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAUCUGCAGCCUAAGAGAAU |
-| False | 3utr:791 | 791 | NO_FIABLE | 1.87 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUUAUCUGCAGCCUAAGAGA |
-| False | 3utr:796 | 796 | NO_FIABLE | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACUUCUCUUAUCUGCAGCCUA |
-| False | 3utr:797 | 797 | NO_FIABLE | 4.26 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUACUUCUCUUAUCUGCAGCCU |
-| False | 3utr:798 | 798 | NO_FIABLE | 3.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUACUUCUCUUAUCUGCAGCC |
-| False | 3utr:799 | 799 | NO_FIABLE | 0.82 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCCUACUUCUCUUAUCUGCAGC |
-| False | 3utr:802 | 802 | NO_FIABLE | 1.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAGCCUACUUCUCUUAUCUGC |
-| False | 3utr:810 | 810 | NO_FIABLE | 2.81 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGGAAUGGAGCCUACUUCUC |
-| False | 3utr:811 | 811 | NO_FIABLE | 2.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGGAAUGGAGCCUACUUCU |
-| False | 3utr:812 | 812 | NO_FIABLE | 0.9 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUGGAAUGGAGCCUACUUC |
-| False | 3utr:817 | 817 | NO_FIABLE | 2.22 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCCCACUUUGGAAUGGAGCCU |
-| False | 3utr:818 | 818 | NO_FIABLE | 4.55 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCCCACUUUGGAAUGGAGCC |
-| False | 3utr:820 | 820 | NO_FIABLE | 3.23 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUCCCACUUUGGAAUGGAG |
-| False | 3utr:821 | 821 | NO_FIABLE | 2.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUUUCCCACUUUGGAAUGGA |
-| False | 3utr:822 | 822 | NO_FIABLE | 2.26 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCUUUCCCACUUUGGAAUGG |
-| False | 3utr:823 | 823 | NO_FIABLE | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUCUUUCCCACUUUGGAAUG |
-| False | 3utr:824 | 824 | NO_FIABLE | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUUCUUUCCCACUUUGGAAU |
-| False | 3utr:825 | 825 | NO_FIABLE | 3.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUUUCUUUCCCACUUUGGAA |
-| False | 3utr:826 | 826 | NO_FIABLE | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUUUCUUUCCCACUUUGGA |
-| False | 3utr:827 | 827 | NO_FIABLE | 0.99 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAUUUCUUUCCCACUUUGG |
-| False | 3utr:831 | 831 | NO_FIABLE | 2.09 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGCAGAAUUUCUUUCCCACU |
-| False | 3utr:832 | 832 | NO_FIABLE | 2.75 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAGCAGAAUUUCUUUCCCAC |
-| False | 3utr:833 | 833 | NO_FIABLE | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGCUAGCAGAAUUUCUUUCCCA |
-| False | 3utr:834 | 834 | NO_FIABLE | 2.41 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGCUAGCAGAAUUUCUUUCCC |
-| False | 3utr:835 | 835 | NO_FIABLE | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGCUAGCAGAAUUUCUUUCC |
-| False | 3utr:836 | 836 | NO_FIABLE | 1.3 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGCUAGCAGAAUUUCUUUC |
-| False | 3utr:840 | 840 | NO_FIABLE | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAACAAUGCUAGCAGAAUUUC |
-| False | 3utr:844 | 844 | NO_FIABLE | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUUAAACAAUGCUAGCAGAA |
-| False | 3utr:845 | 845 | NO_FIABLE | 1.43 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAUUUAAACAAUGCUAGCAGA |
-| False | 3utr:846 | 846 | NO_FIABLE | 3.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGAUUUAAACAAUGCUAGCAG |
-| False | 3utr:847 | 847 | NO_FIABLE | 0.62 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUGAUUUAAACAAUGCUAGCA |
-| False | 3utr:851 | 851 | NO_FIABLE | 3.19 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGCCUGAUUUAAACAAUGCU |
-| False | 3utr:898 | 898 | NO_FIABLE | 2.99 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCGCAGUUUAUGUCUGCUGGG |
-| False | 3utr:899 | 899 | NO_FIABLE | 3.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCGCAGUUUAUGUCUGCUGG |
-| False | 3utr:900 | 900 | NO_FIABLE | 5.15 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAUCGCAGUUUAUGUCUGCUG |
-| False | 3utr:901 | 901 | NO_FIABLE | 1.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAUCGCAGUUUAUGUCUGCU |
-| False | 3utr:902 | 902 | NO_FIABLE | 0.9 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGCUAUCGCAGUUUAUGUCUGC |
-| False | 3utr:904 | 904 | NO_FIABLE | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGCUAUCGCAGUUUAUGUCU |
-| False | 3utr:905 | 905 | NO_FIABLE | 1.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGCUAUCGCAGUUUAUGUC |
-| False | 3utr:914 | 914 | NO_FIABLE | 1.43 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUGCAAGCUGAAGCUAUCGCA |
-| False | 3utr:920 | 920 | NO_FIABLE | 0.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCCACAGUGCAAGCUGAAGCU |
-| False | 3utr:921 | 921 | NO_FIABLE | 1.65 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCACAGUGCAAGCUGAAGC |
-| False | 3utr:922 | 922 | NO_FIABLE | 2.9 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCCACAGUGCAAGCUGAAG |
-| False | 3utr:1017 | 1017 | NO_FIABLE | 4.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGUACUGGAUGGAACGGCCA |
-| False | 3utr:1019 | 1019 | NO_FIABLE | 7.15 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUAGUACUGGAUGGAACGGC |
-| False | 3utr:1020 | 1020 | NO_FIABLE | 4.95 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUUAGUACUGGAUGGAACGG |
-| False | 3utr:1024 | 1024 | NO_FIABLE | 2.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGCAUUUAGUACUGGAUGGA |
-| False | 3utr:1025 | 1025 | NO_FIABLE | 3.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAGCAUUUAGUACUGGAUGG |
-| False | 3utr:1026 | 1026 | NO_FIABLE | 0.78 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUAAGCAUUUAGUACUGGAUG |
-| False | 3utr:1029 | 1029 | NO_FIABLE | 1.97 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACGGUAAGCAUUUAGUACUGG |
-| False | 3utr:1070 | 1070 | NO_FIABLE | 3.44 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCUACGGAACUGAGUGCAC |
-| False | 3utr:1075 | 1075 | NO_FIABLE | 2.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGGAAUCCUACGGAACUGAG |
-| False | 3utr:1076 | 1076 | NO_FIABLE | 4.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGGAAUCCUACGGAACUGA |
-| False | 3utr:1077 | 1077 | NO_FIABLE | 1.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUGGAAUCCUACGGAACUG |
-| False | 3utr:1081 | 1081 | NO_FIABLE | 3.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUGCUUUGGAAUCCUACGGA |
-| False | 3utr:1103 | 1103 | NO_FIABLE | 3.29 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAUUCAAAGACCAGCUAGGG |
-| False | 3utr:1107 | 1107 | NO_FIABLE | 2.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGCAGAUUCAAAGACCAGCU |
-| False | 3utr:1108 | 1108 | NO_FIABLE | 2.95 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAUGCAGAUUCAAAGACCAGC |
-| False | 3utr:1109 | 1109 | NO_FIABLE | 2.67 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACAUGCAGAUUCAAAGACCAG |
-| False | 3utr:1110 | 1110 | NO_FIABLE | 2.66 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUACAUGCAGAUUCAAAGACCA |
-| False | 3utr:1111 | 1111 | NO_FIABLE | 3.07 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUACAUGCAGAUUCAAAGACC |
-| False | 3utr:1112 | 1112 | NO_FIABLE | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUACAUGCAGAUUCAAAGAC |
-| False | 3utr:1113 | 1113 | NO_FIABLE | 0.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGUACAUGCAGAUUCAAAGA |
+| True | 3utr:1018 | 1967 | distal | 7.65 | 1 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGUACUGGAUGGAACGGCC |
+| True | 3utr:819 | 1768 | distal | 5.96 | 2 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUCCCACUUUGGAAUGGAGC |
+| True | 3utr:553 | 1502 | medio | 5.86 | 3 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAAGAUCAUUCUAGUGCCCU |
+| True | 3utr:652 | 1601 | medio | 5.8 | 4 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGUACCUUAACCAUCCCUC |
+| True | 3utr:449 | 1398 | medio | 5.32 | 5 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGUAAAGAAAGAAUUCCAC |
+| True | 3utr:60 | 1009 | proximal | 5.15 | 6 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUUGAAAGAGCUACAGGUGG |
+| True | 3utr:143 | 1092 | proximal | 5.08 | 7 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUACUGUACAUUUCCCAGGGC |
+| True | 3utr:735 | 1684 | medio | 5.08 | 8 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAGUACAGAAACAUAGGGC |
+| True | 3utr:10 | 959 | proximal | 4.33 | 9 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGCGAAGGAACAAGCAGGA |
+| True | 3utr:1071 | 2020 | distal | 4.28 | 10 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCCUACGGAACUGAGUGCA |
+| True | 3utr:200 | 1149 | proximal | 3.8 | 11 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGCACUGGCUGAUGACAGA |
+| False | 3utr:9 | 958 | proximal | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGCGAAGGAACAAGCAGGAA |
+| False | 3utr:11 | 960 | proximal | 2.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUGCGAAGGAACAAGCAGG |
+| False | 3utr:12 | 961 | proximal | 2.75 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAUGCGAAGGAACAAGCAG |
+| False | 3utr:13 | 962 | proximal | 0.62 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAGAAUGCGAAGGAACAAGCA |
+| False | 3utr:20 | 969 | proximal | 1.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGACCACGAGAAUGCGAAGGA |
+| False | 3utr:53 | 1002 | proximal | 3.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAGCUACAGGUGGAUAACCC |
+| False | 3utr:54 | 1003 | proximal | 2.09 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAGCUACAGGUGGAUAACC |
+| False | 3utr:55 | 1004 | proximal | 1.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGAGCUACAGGUGGAUAAC |
+| False | 3utr:58 | 1007 | proximal | 2.74 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGAAAGAGCUACAGGUGGAU |
+| False | 3utr:59 | 1008 | proximal | 4.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUGAAAGAGCUACAGGUGGA |
+| False | 3utr:61 | 1010 | proximal | 3.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAUUGAAAGAGCUACAGGUG |
+| False | 3utr:62 | 1011 | proximal | 2.19 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCAAUUGAAAGAGCUACAGGU |
+| False | 3utr:63 | 1012 | proximal | 1.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUCAAUUGAAAGAGCUACAGG |
+| False | 3utr:69 | 1018 | proximal | 3.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAACCACCUCAAUUGAAAGAGC |
+| False | 3utr:70 | 1019 | proximal | 1.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAACCACCUCAAUUGAAAGAG |
+| False | 3utr:75 | 1024 | proximal | 2.03 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGAGAACCACCUCAAUUGA |
+| False | 3utr:81 | 1030 | proximal | 1.31 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGCAAGAAUGAGAACCACCUC |
+| False | 3utr:82 | 1031 | proximal | 2.79 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGCAAGAAUGAGAACCACCU |
+| False | 3utr:83 | 1032 | proximal | 3.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGCAAGAAUGAGAACCACC |
+| False | 3utr:84 | 1033 | proximal | 2.75 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAGCAAGAAUGAGAACCAC |
+| False | 3utr:85 | 1034 | proximal | 0.62 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAGAAGCAAGAAUGAGAACCA |
+| False | 3utr:86 | 1035 | proximal | 1.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAGAAGCAAGAAUGAGAACC |
+| False | 3utr:90 | 1039 | proximal | 1.31 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACACAGAGAAGCAAGAAUGAG |
+| False | 3utr:144 | 1093 | proximal | 3.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUACUGUACAUUUCCCAGGG |
+| False | 3utr:145 | 1094 | proximal | 1.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUCUACUGUACAUUUCCCAGG |
+| False | 3utr:146 | 1095 | proximal | 0.74 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGGUCUACUGUACAUUUCCCAG |
+| False | 3utr:147 | 1096 | proximal | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGGUCUACUGUACAUUUCCCA |
+| False | 3utr:148 | 1097 | proximal | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUGGUCUACUGUACAUUUCCC |
+| False | 3utr:149 | 1098 | proximal | 1.34 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACUGGUCUACUGUACAUUUCC |
+| False | 3utr:155 | 1104 | proximal | 0.95 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAGCAACUGGUCUACUGUAC |
+| False | 3utr:156 | 1105 | proximal | 0.89 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAGCAACUGGUCUACUGUA |
+| False | 3utr:157 | 1106 | proximal | 3.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGAGCAACUGGUCUACUGU |
+| False | 3utr:158 | 1107 | proximal | 1.49 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAAGAGCAACUGGUCUACUG |
+| False | 3utr:161 | 1110 | proximal | 0.97 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGCAAAGAGCAACUGGUCUA |
+| False | 3utr:162 | 1111 | proximal | 1.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGCAAAGAGCAACUGGUCU |
+| False | 3utr:163 | 1112 | proximal | 3.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGAAGCAAAGAGCAACUGGUC |
+| False | 3utr:164 | 1113 | proximal | 0.62 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUGAAGCAAAGAGCAACUGGU |
+| False | 3utr:165 | 1114 | proximal | 0.66 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCCUGAAGCAAAGAGCAACUGG |
+| False | 3utr:171 | 1120 | proximal | 3.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGGGACCUGAAGCAAAGAGC |
+| False | 3utr:172 | 1121 | proximal | 3.77 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGGGACCUGAAGCAAAGAG |
+| False | 3utr:176 | 1125 | proximal | 1.35 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAUCAAAGGGACCUGAAGCAA |
+| False | 3utr:183 | 1132 | proximal | 0.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAGACUCCAUCAAAGGGACCU |
+| False | 3utr:185 | 1134 | proximal | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGACAGACUCCAUCAAAGGGAC |
+| False | 3utr:186 | 1135 | proximal | 3.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGACAGACUCCAUCAAAGGGA |
+| False | 3utr:187 | 1136 | proximal | 4.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGACAGACUCCAUCAAAGGG |
+| False | 3utr:188 | 1137 | proximal | 1.16 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAUGACAGACUCCAUCAAAGG |
+| False | 3utr:199 | 1148 | proximal | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGCACUGGCUGAUGACAGAC |
+| False | 3utr:201 | 1150 | proximal | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUAGCACUGGCUGAUGACAG |
+| False | 3utr:202 | 1151 | proximal | 1.87 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUUAGCACUGGCUGAUGACA |
+| False | 3utr:307 | 1256 | proximal | 2.67 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUACUCUGGGUACAAGUCAGG |
+| False | 3utr:308 | 1257 | proximal | 1.71 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUACUCUGGGUACAAGUCAG |
+| False | 3utr:309 | 1258 | proximal | 2.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUACUCUGGGUACAAGUCA |
+| False | 3utr:310 | 1259 | proximal | 1.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUGUACUCUGGGUACAAGUC |
+| False | 3utr:316 | 1265 | proximal | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUCACCUUGUACUCUGGGUA |
+| False | 3utr:317 | 1266 | proximal | 2.22 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUGUCACCUUGUACUCUGGGU |
+| False | 3utr:319 | 1268 | proximal | 1.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCACUGUCACCUUGUACUCUGG |
+| False | 3utr:320 | 1269 | proximal | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCACUGUCACCUUGUACUCUG |
+| False | 3utr:322 | 1271 | proximal | 1.84 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUCACUGUCACCUUGUACUC |
+| False | 3utr:324 | 1273 | proximal | 1.43 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUGUCACUGUCACCUUGUAC |
+| False | 3utr:325 | 1274 | proximal | 0.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGUGUCACUGUCACCUUGUA |
+| False | 3utr:328 | 1277 | proximal | 1.77 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUACAUGUGUCACUGUCACCUU |
+| False | 3utr:329 | 1278 | proximal | 4.39 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUACAUGUGUCACUGUCACCU |
+| False | 3utr:330 | 1279 | proximal | 3.23 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUACAUGUGUCACUGUCACC |
+| False | 3utr:331 | 1280 | proximal | 1.5 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUUACAUGUGUCACUGUCAC |
+| False | 3utr:332 | 1281 | proximal | 2.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGUUACAUGUGUCACUGUCA |
+| False | 3utr:333 | 1282 | proximal | 3.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAGUUACAUGUGUCACUGUC |
+| False | 3utr:334 | 1283 | proximal | 1.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAAGUUACAUGUGUCACUGU |
+| False | 3utr:337 | 1286 | proximal | 2.16 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGCUAAGUUACAUGUGUCAC |
+| False | 3utr:338 | 1287 | proximal | 3.79 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAUGCUAAGUUACAUGUGUCA |
+| False | 3utr:339 | 1288 | proximal | 1.39 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAUGCUAAGUUACAUGUGUC |
+| False | 3utr:343 | 1292 | proximal | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGCCUAUGCUAAGUUACAUG |
+| False | 3utr:344 | 1293 | proximal | 2.66 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGCCUAUGCUAAGUUACAU |
+| False | 3utr:352 | 1301 | proximal | 2.49 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGAACCCUUUGCCUAUGCUA |
+| False | 3utr:353 | 1302 | proximal | 1.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUAGAACCCUUUGCCUAUGCU |
+| False | 3utr:354 | 1303 | proximal | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUAGAACCCUUUGCCUAUGC |
+| False | 3utr:355 | 1304 | proximal | 0.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUAGAACCCUUUGCCUAUG |
+| False | 3utr:358 | 1307 | proximal | 2.46 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGGUUGUAGAACCCUUUGCCU |
+| False | 3utr:359 | 1308 | proximal | 4.82 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGGUUGUAGAACCCUUUGCC |
+| False | 3utr:360 | 1309 | proximal | 4.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGGUUGUAGAACCCUUUGC |
+| False | 3utr:363 | 1312 | proximal | 2.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCUUUGGUUGUAGAACCCUU |
+| False | 3utr:364 | 1313 | proximal | 3.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUCUUUGGUUGUAGAACCCU |
+| False | 3utr:365 | 1314 | proximal | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGCUUCUUUGGUUGUAGAACCC |
+| False | 3utr:373 | 1322 | proximal | 2.99 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAACAGUGGCUUCUUUGGUUG |
+| False | 3utr:374 | 1323 | proximal | 1.49 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAACAGUGGCUUCUUUGGUU |
+| False | 3utr:426 | 1375 | medio | 2.17 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUGGAUGCUCUAGCUAUCCCA |
+| False | 3utr:434 | 1383 | medio | 1.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCCACGUGUGGAUGCUCUAG |
+| False | 3utr:435 | 1384 | medio | 2.4 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUCCACGUGUGGAUGCUCUA |
+| False | 3utr:436 | 1385 | medio | 3.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUUCCACGUGUGGAUGCUCU |
+| False | 3utr:437 | 1386 | medio | 3.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUUCCACGUGUGGAUGCUC |
+| False | 3utr:438 | 1387 | medio | 1.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAUUCCACGUGUGGAUGCU |
+| False | 3utr:439 | 1388 | medio | 2.29 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAAUUCCACGUGUGGAUGC |
+| False | 3utr:440 | 1389 | medio | 3.27 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGAAUUCCACGUGUGGAUG |
+| False | 3utr:441 | 1390 | medio | 1.77 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAAGAAUUCCACGUGUGGAU |
+| False | 3utr:442 | 1391 | medio | 1.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAAGAAUUCCACGUGUGGA |
+| False | 3utr:443 | 1392 | medio | 3.72 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAAAGAAUUCCACGUGUGG |
+| False | 3utr:444 | 1393 | medio | 3.72 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGAAAGAAUUCCACGUGUG |
+| False | 3utr:445 | 1394 | medio | 3.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAAGAAAGAAUUCCACGUGU |
+| False | 3utr:446 | 1395 | medio | 1.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUAAAGAAAGAAUUCCACGUG |
+| False | 3utr:447 | 1396 | medio | 1.19 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUAAAGAAAGAAUUCCACGU |
+| False | 3utr:448 | 1397 | medio | 2.82 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGUAAAGAAAGAAUUCCACG |
+| False | 3utr:465 | 1414 | medio | 2.29 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCAGCUAUCGUUUGUUAGU |
+| False | 3utr:468 | 1417 | medio | 0.62 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCAAUCAGCUAUCGUUUGUU |
+| False | 3utr:473 | 1422 | medio | 2.53 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGCCUUCAAUCAGCUAUCGU |
+| False | 3utr:474 | 1423 | medio | 0.98 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUGCCUUCAAUCAGCUAUCG |
+| False | 3utr:478 | 1427 | medio | 0.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCCUGUUGCCUUCAAUCAGCU |
+| False | 3utr:479 | 1428 | medio | 3.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCCUGUUGCCUUCAAUCAGC |
+| False | 3utr:512 | 1461 | medio | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUCAACGUCAGUAGGACAAU |
+| False | 3utr:515 | 1464 | medio | 1.84 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGCUUUCAACGUCAGUAGGAC |
+| False | 3utr:516 | 1465 | medio | 3.27 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGCUUUCAACGUCAGUAGGA |
+| False | 3utr:517 | 1466 | medio | 4.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGCUUUCAACGUCAGUAGG |
+| False | 3utr:518 | 1467 | medio | 1.27 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUUGCUUUCAACGUCAGUAG |
+| False | 3utr:521 | 1470 | medio | 2.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGGUUUGCUUUCAACGUCAG |
+| False | 3utr:522 | 1471 | medio | 3.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGGUUUGCUUUCAACGUCA |
+| False | 3utr:523 | 1472 | medio | 2.46 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAAGGUUUGCUUUCAACGUC |
+| False | 3utr:524 | 1473 | medio | 1.16 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACAAAGGUUUGCUUUCAACGU |
+| False | 3utr:525 | 1474 | medio | 1.03 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAACAAAGGUUUGCUUUCAACG |
+| False | 3utr:526 | 1475 | medio | 0.79 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAACAAAGGUUUGCUUUCAAC |
+| False | 3utr:529 | 1478 | medio | 1.3 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGAACAAAGGUUUGCUUUC |
+| False | 3utr:543 | 1492 | medio | 1.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUAGUGCCCUGGGAAUGAAC |
+| False | 3utr:544 | 1493 | medio | 0.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCUAGUGCCCUGGGAAUGAA |
+| False | 3utr:545 | 1494 | medio | 2.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUCUAGUGCCCUGGGAAUGA |
+| False | 3utr:548 | 1497 | medio | 1.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCAUUCUAGUGCCCUGGGAA |
+| False | 3utr:549 | 1498 | medio | 3.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAUCAUUCUAGUGCCCUGGGA |
+| False | 3utr:550 | 1499 | medio | 3.32 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAUCAUUCUAGUGCCCUGGG |
+| False | 3utr:551 | 1500 | medio | 3.56 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAUCAUUCUAGUGCCCUGG |
+| False | 3utr:552 | 1501 | medio | 5.16 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGAUCAUUCUAGUGCCCUG |
+| False | 3utr:554 | 1503 | medio | 5.08 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAAAGAUCAUUCUAGUGCCC |
+| False | 3utr:555 | 1504 | medio | 1.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGCUAAAGAUCAUUCUAGUGCC |
+| False | 3utr:558 | 1507 | medio | 0.86 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGGCUAAAGAUCAUUCUAGU |
+| False | 3utr:559 | 1508 | medio | 1.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAGGCUAAAGAUCAUUCUAG |
+| False | 3utr:566 | 1515 | medio | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCAAGCAAGGCUAAAGAUC |
+| False | 3utr:567 | 1516 | medio | 2.17 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCCAAGCAAGGCUAAAGAU |
+| False | 3utr:572 | 1521 | medio | 1.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUUCAAUCCAAGCAAGGCUA |
+| False | 3utr:573 | 1522 | medio | 4.42 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGUUCAAUCCAAGCAAGGCU |
+| False | 3utr:574 | 1523 | medio | 3.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAGUUCAAUCCAAGCAAGGC |
+| False | 3utr:578 | 1527 | medio | 2.25 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUCCUAGUUCAAUCCAAGCA |
+| False | 3utr:579 | 1528 | medio | 1.65 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCUCCUAGUUCAAUCCAAGC |
+| False | 3utr:581 | 1530 | medio | 0.99 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAUCUCCUAGUUCAAUCCAA |
+| False | 3utr:582 | 1531 | medio | 2.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAUCUCCUAGUUCAAUCCA |
+| False | 3utr:583 | 1532 | medio | 1.77 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAGAUCUCCUAGUUCAAUCC |
+| False | 3utr:588 | 1537 | medio | 0.66 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAGUCAAGAUCUCCUAGUUC |
+| False | 3utr:593 | 1542 | medio | 0.7 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCCUCAGAGUCAAGAUCUCCU |
+| False | 3utr:594 | 1543 | medio | 1.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUCCUCAGAGUCAAGAUCUCC |
+| False | 3utr:595 | 1544 | medio | 1.87 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUCCUCAGAGUCAAGAUCUC |
+| False | 3utr:650 | 1599 | medio | 4.04 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUACCUUAACCAUCCCUCCC |
+| False | 3utr:651 | 1600 | medio | 4.17 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUACCUUAACCAUCCCUCC |
+| False | 3utr:653 | 1602 | medio | 3.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUGUACCUUAACCAUCCCU |
+| False | 3utr:654 | 1603 | medio | 1.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCCUUUGUACCUUAACCAUCCC |
+| False | 3utr:657 | 1606 | medio | 2.13 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGCCUUUGUACCUUAACCAU |
+| False | 3utr:658 | 1607 | medio | 1.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAGCCUUUGUACCUUAACCA |
+| False | 3utr:659 | 1608 | medio | 1.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUAGCCUUUGUACCUUAACC |
+| False | 3utr:663 | 1612 | medio | 1.07 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUUUCUAGCCUUUGUACCUU |
+| False | 3utr:664 | 1613 | medio | 2.79 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGUUUCUAGCCUUUGUACCU |
+| False | 3utr:665 | 1614 | medio | 1.89 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAAGUUUCUAGCCUUUGUACC |
+| False | 3utr:666 | 1615 | medio | 1.32 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCAAGUUUCUAGCCUUUGUAC |
+| False | 3utr:670 | 1619 | medio | 1.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAACUCAAGUUUCUAGCCUUU |
+| False | 3utr:671 | 1620 | medio | 1.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAACUCAAGUUUCUAGCCUU |
+| False | 3utr:672 | 1621 | medio | 3.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAACUCAAGUUUCUAGCCU |
+| False | 3utr:673 | 1622 | medio | 4.42 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAAACUCAAGUUUCUAGCC |
+| False | 3utr:674 | 1623 | medio | 1.89 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGAAACUCAAGUUUCUAGC |
+| False | 3utr:675 | 1624 | medio | 1.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGAAGAAACUCAAGUUUCUAG |
+| False | 3utr:678 | 1627 | medio | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAUGAAGAAACUCAAGUUUC |
+| False | 3utr:684 | 1633 | medio | 1.23 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGACAGAAAUGAAGAAACUCA |
+| False | 3utr:689 | 1638 | medio | 0.94 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUGAGACAGAAAUGAAGAA |
+| False | 3utr:690 | 1639 | medio | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUGUGAGACAGAAAUGAAGA |
+| False | 3utr:691 | 1640 | medio | 2.9 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUUGUGAGACAGAAAUGAAG |
+| False | 3utr:693 | 1642 | medio | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUAAUUGUGAGACAGAAAUGA |
+| False | 3utr:720 | 1669 | medio | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGGGCAGAAGCUAAUUCUAG |
+| False | 3utr:721 | 1670 | medio | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUAGGGCAGAAGCUAAUUCUA |
+| False | 3utr:727 | 1676 | medio | 1.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAACAUAGGGCAGAAGCUA |
+| False | 3utr:728 | 1677 | medio | 0.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAGAAACAUAGGGCAGAAGCU |
+| False | 3utr:729 | 1678 | medio | 1.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACAGAAACAUAGGGCAGAAGC |
+| False | 3utr:730 | 1679 | medio | 1.31 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUACAGAAACAUAGGGCAGAAG |
+| False | 3utr:732 | 1681 | medio | 1.34 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUACAGAAACAUAGGGCAGA |
+| False | 3utr:733 | 1682 | medio | 3.72 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGUACAGAAACAUAGGGCAG |
+| False | 3utr:734 | 1683 | medio | 3.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGUACAGAAACAUAGGGCA |
+| False | 3utr:736 | 1685 | medio | 4.26 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGAAGUACAGAAACAUAGGG |
+| False | 3utr:737 | 1686 | medio | 3.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUAGAAGUACAGAAACAUAGG |
+| False | 3utr:748 | 1697 | medio | 1.48 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCAGUUCAAAUAGAAGUAC |
+| False | 3utr:750 | 1699 | medio | 2.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAUCCAGUUCAAAUAGAAGU |
+| False | 3utr:751 | 1700 | medio | 0.98 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUAUCCAGUUCAAAUAGAAG |
+| False | 3utr:760 | 1709 | medio | 1.14 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUCUCUCUGUUAUCCAGUUC |
+| False | 3utr:761 | 1710 | medio | 0.83 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUCUCUCUGUUAUCCAGUU |
+| False | 3utr:762 | 1711 | medio | 3.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUGUCUCUCUGUUAUCCAGU |
+| False | 3utr:763 | 1712 | medio | 2.79 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAUUGUCUCUCUGUUAUCCAG |
+| False | 3utr:764 | 1713 | medio | 1.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAUUGUCUCUCUGUUAUCCA |
+| False | 3utr:765 | 1714 | medio | 2.37 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGAUUGUCUCUCUGUUAUCC |
+| False | 3utr:766 | 1715 | medio | 2.04 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGAUUGUCUCUCUGUUAUC |
+| False | 3utr:767 | 1716 | medio | 0.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUAGAUUGUCUCUCUGUUAU |
+| False | 3utr:770 | 1719 | medio | 1.89 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGUUUAGAUUGUCUCUCUGU |
+| False | 3utr:771 | 1720 | medio | 3.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGUUUAGAUUGUCUCUCUG |
+| False | 3utr:772 | 1721 | medio | 1.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUGUUUAGAUUGUCUCUCU |
+| False | 3utr:773 | 1722 | medio | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAUGUUUAGAUUGUCUCUC |
+| False | 3utr:775 | 1724 | medio | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAGAAUGUUUAGAUUGUCUC |
+| False | 3utr:777 | 1726 | medio | 3.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAGAGAAUGUUUAGAUUGUC |
+| False | 3utr:788 | 1737 | medio | 1.23 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAUCUGCAGCCUAAGAGAAUG |
+| False | 3utr:789 | 1738 | medio | 1.64 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAUCUGCAGCCUAAGAGAAU |
+| False | 3utr:791 | 1740 | medio | 1.87 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUUAUCUGCAGCCUAAGAGA |
+| False | 3utr:796 | 1745 | medio | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACUUCUCUUAUCUGCAGCCUA |
+| False | 3utr:797 | 1746 | medio | 4.26 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUACUUCUCUUAUCUGCAGCCU |
+| False | 3utr:798 | 1747 | medio | 3.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUACUUCUCUUAUCUGCAGCC |
+| False | 3utr:799 | 1748 | medio | 0.82 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCCUACUUCUCUUAUCUGCAGC |
+| False | 3utr:802 | 1751 | medio | 1.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAGCCUACUUCUCUUAUCUGC |
+| False | 3utr:810 | 1759 | medio | 2.81 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGGAAUGGAGCCUACUUCUC |
+| False | 3utr:811 | 1760 | medio | 2.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGGAAUGGAGCCUACUUCU |
+| False | 3utr:812 | 1761 | medio | 0.9 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUGGAAUGGAGCCUACUUC |
+| False | 3utr:817 | 1766 | medio | 2.22 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCCCACUUUGGAAUGGAGCCU |
+| False | 3utr:818 | 1767 | medio | 4.55 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCCCACUUUGGAAUGGAGCC |
+| False | 3utr:820 | 1769 | distal | 3.23 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUCCCACUUUGGAAUGGAG |
+| False | 3utr:821 | 1770 | distal | 2.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUUUCCCACUUUGGAAUGGA |
+| False | 3utr:822 | 1771 | distal | 2.26 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCUUUCCCACUUUGGAAUGG |
+| False | 3utr:823 | 1772 | distal | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUCUUUCCCACUUUGGAAUG |
+| False | 3utr:824 | 1773 | distal | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUUCUUUCCCACUUUGGAAU |
+| False | 3utr:825 | 1774 | distal | 3.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUUUCUUUCCCACUUUGGAA |
+| False | 3utr:826 | 1775 | distal | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUUUCUUUCCCACUUUGGA |
+| False | 3utr:827 | 1776 | distal | 0.99 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAUUUCUUUCCCACUUUGG |
+| False | 3utr:831 | 1780 | distal | 2.09 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGCAGAAUUUCUUUCCCACU |
+| False | 3utr:832 | 1781 | distal | 2.75 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAGCAGAAUUUCUUUCCCAC |
+| False | 3utr:833 | 1782 | distal | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGCUAGCAGAAUUUCUUUCCCA |
+| False | 3utr:834 | 1783 | distal | 2.41 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGCUAGCAGAAUUUCUUUCCC |
+| False | 3utr:835 | 1784 | distal | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGCUAGCAGAAUUUCUUUCC |
+| False | 3utr:836 | 1785 | distal | 1.3 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGCUAGCAGAAUUUCUUUC |
+| False | 3utr:840 | 1789 | distal | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAACAAUGCUAGCAGAAUUUC |
+| False | 3utr:844 | 1793 | distal | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUUAAACAAUGCUAGCAGAA |
+| False | 3utr:845 | 1794 | distal | 1.43 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAUUUAAACAAUGCUAGCAGA |
+| False | 3utr:846 | 1795 | distal | 3.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGAUUUAAACAAUGCUAGCAG |
+| False | 3utr:847 | 1796 | distal | 0.62 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUGAUUUAAACAAUGCUAGCA |
+| False | 3utr:851 | 1800 | distal | 3.19 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGCCUGAUUUAAACAAUGCU |
+| False | 3utr:898 | 1847 | distal | 2.99 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCGCAGUUUAUGUCUGCUGGG |
+| False | 3utr:899 | 1848 | distal | 3.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCGCAGUUUAUGUCUGCUGG |
+| False | 3utr:900 | 1849 | distal | 5.15 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAUCGCAGUUUAUGUCUGCUG |
+| False | 3utr:901 | 1850 | distal | 1.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAUCGCAGUUUAUGUCUGCU |
+| False | 3utr:902 | 1851 | distal | 0.9 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGCUAUCGCAGUUUAUGUCUGC |
+| False | 3utr:904 | 1853 | distal | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGCUAUCGCAGUUUAUGUCU |
+| False | 3utr:905 | 1854 | distal | 1.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGCUAUCGCAGUUUAUGUC |
+| False | 3utr:914 | 1863 | distal | 1.43 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUGCAAGCUGAAGCUAUCGCA |
+| False | 3utr:920 | 1869 | distal | 0.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCCACAGUGCAAGCUGAAGCU |
+| False | 3utr:921 | 1870 | distal | 1.65 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCACAGUGCAAGCUGAAGC |
+| False | 3utr:922 | 1871 | distal | 2.9 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCCACAGUGCAAGCUGAAG |
+| False | 3utr:1017 | 1966 | distal | 4.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGUACUGGAUGGAACGGCCA |
+| False | 3utr:1019 | 1968 | distal | 7.15 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUAGUACUGGAUGGAACGGC |
+| False | 3utr:1020 | 1969 | distal | 4.95 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUUAGUACUGGAUGGAACGG |
+| False | 3utr:1024 | 1973 | distal | 2.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGCAUUUAGUACUGGAUGGA |
+| False | 3utr:1025 | 1974 | distal | 3.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAGCAUUUAGUACUGGAUGG |
+| False | 3utr:1026 | 1975 | distal | 0.78 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUAAGCAUUUAGUACUGGAUG |
+| False | 3utr:1029 | 1978 | distal | 1.97 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACGGUAAGCAUUUAGUACUGG |
+| False | 3utr:1070 | 2019 | distal | 3.44 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCUACGGAACUGAGUGCAC |
+| False | 3utr:1075 | 2024 | distal | 2.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGGAAUCCUACGGAACUGAG |
+| False | 3utr:1076 | 2025 | distal | 4.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGGAAUCCUACGGAACUGA |
+| False | 3utr:1077 | 2026 | distal | 1.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUGGAAUCCUACGGAACUG |
+| False | 3utr:1081 | 2030 | distal | 3.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUGCUUUGGAAUCCUACGGA |
+| False | 3utr:1103 | 2052 | distal | 3.29 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAUUCAAAGACCAGCUAGGG |
+| False | 3utr:1107 | 2056 | distal | 2.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGCAGAUUCAAAGACCAGCU |
+| False | 3utr:1108 | 2057 | distal | 2.95 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAUGCAGAUUCAAAGACCAGC |
+| False | 3utr:1109 | 2058 | distal | 2.67 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACAUGCAGAUUCAAAGACCAG |
+| False | 3utr:1110 | 2059 | distal | 2.66 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUACAUGCAGAUUCAAAGACCA |
+| False | 3utr:1111 | 2060 | distal | 3.07 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUACAUGCAGAUUCAAAGACC |
+| False | 3utr:1112 | 2061 | distal | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUACAUGCAGAUUCAAAGAC |
+| False | 3utr:1113 | 2062 | distal | 0.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGUACAUGCAGAUUCAAAGA |
 
-## 7. Controles del experimento
+## 8. Controles del experimento
 
 Un control sin veredictos no es un control, es una secuencia. Los dos que diseña la app pasan por los mismos filtros que un candidato y salen INCOMPLETE mientras les quede un frente sin correr.
 
@@ -946,16 +956,16 @@ PASAR EL FILTRO DE ASIMETRÍA NO ES SER EQUIVALENTE. El umbral del pipeline dice
 
 EL PLEGADO DEL 97-MERO NO DISCRIMINA, y por eso un PASS aquí no es evidencia de que el control se procese como el original. `passenger_from_guide` ELIGE la base de la posición 1 de la pasajera para que el 97-mero reproduzca la estructura de SGEP, y ABORTA si ninguna de las cuatro lo consigue: la comprobación posterior vuelve a preguntar algo que ya era condición para haber montado la horquilla. Medido el 2026-08-31: 0 de 2000 permutaciones y 0 de 1134 variantes de seed dan una notación distinta, y tampoco la da una guía derivada del propio andamio para que compita con el loop. Lo que SÍ discrimina es la ASIMETRÍA —falla el 47 % de las permutaciones—, que además es la propiedad que decide qué hebra carga AGO2: un tallo más débil se procesa peor y entonces la comparación no mide la diana, mide el procesamiento.
 
-2 o 3 cambios en la seed, medido sobre la guía de 3utr:10 —el primero del panel—. La «racha intacta» es el tramo contiguo de seed que queda sin tocar, y es lo que mide el residuo de reconocimiento: importa más DÓNDE caen los cambios que cuántos son.
+2 o 3 cambios en la seed, medido sobre la guía de 3utr:959 —el primero del panel—. La «racha intacta» es el tramo contiguo de seed que queda sin tocar, y es lo que mide el residuo de reconocimiento: importa más DÓNDE caen los cambios que cuántos son.
 
 | cambios | variantes | limpias | racha mínima | con esa racha | chocan con el núcleo |
 |---|---|---|---|---|---|
-| 2 | 189 | 128 | 2 | 17 | no comprobado |
-| 3 | 945 | 535 | 1 | 18 | no comprobado |
+| 2 | 189 | 112 | 2 | 14 | no comprobado |
+| 3 | 945 | 453 | 1 | 12 | no comprobado |
 
 2 o 3 CAMBIOS: no se elige aquí. Se emiten las dos versiones con sus métricas y lo decide quien lee, con la tabla delante. Lo que la medida añade a la intuición es que el número de cambios importa MENOS que dónde caen: lo que deja residuo de reconocimiento es la RACHA de seed que queda intacta, no cuántas bases se tocaron.
 
-## 8. Arquitecturas de intrón
+## 9. Arquitecturas de intrón
 
 Los diez candidatos del panel se han consultado con LAS DOS arquitecturas de intrón —20 construcciones— y estos son los ejes en los que se diferencian. Las puntuaciones salen de la corrida de SpliceAI del 2026-09-05, guardada con su procedencia; la geometria la deriva esta app.
 
@@ -971,16 +981,16 @@ Retirado por Joaquín Castilla (2026-09-05), que fue quien lo propuso. Se dio co
 
 En el intrón VACÍO el quimérico tiene el punto de ramificación mucho más lejos del donante (100-104 nt frente a 42), pero MONTADOS empatan: el MVM lleva además los dos espaciadores, así que intercala 214 nt frente a 149 y acaba en 256 nt frente a los 249-253 del quimérico. Los dos quedan fuera del rango típico de mamífero y la diferencia entre ellos es de unos pocos nucleótidos, así que ESTE EJE NO DISCRIMINA — era el único contrapeso que se le conocía al quimérico y queda retirado. Lo que sí separa a los dos es lo demás —el quimérico tiene mejor donante, mejor tracto y 97 posiciones de inserción frente a 39—, y ninguno de esos números predice el empalme. Las opciones van a síntesis; el gel decide.
 
-## 9. Fichas de los seleccionados
+## 10. Fichas de los seleccionados
 
 Una ficha por candidato seleccionado, con el veredicto de CADA frente, su procedencia y su fecha.
 
-### 3utr:200
+### 3utr:1149
 
 ```
-═══ Ficha del candidato — mouse 3utr:200 ═══
+═══ Ficha del candidato — mouse tx:1149 ═══
 
-  sitio      3utr:200-221
+  sitio      tx:1149-1170
   guía       TTTAGCACTGGCTGATGACAGA
   pasajera   CCTGTCATCAGCCAGTGCTAAA
   veredicto  INCOMPLETE
@@ -1006,16 +1016,16 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
   cruda +3.80   penalizacion 0.00   neta +3.80
 
 ── Techo de APA ──
-  sin techo — 3utr:1-251  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE.
+  sin techo — tx:1-1200  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE.
 
 ── Sitios de esta seed en la PROPIA diana (esperado: 1) ──
-  3utr:215 7mer-m8 (el suyo)
+  tx:1164 7mer-m8 (el suyo)
 
 ── Multiplexado: núcleo de seed compartido ──
   Con ningún otro candidato del panel. En este eje es independiente.
 
 ── Hexámeros cercanos ──
-  AATATA  3utr:236  APA_POSIBLE/medida a 15 nt por delante
+  AATATA  tx:1185  APA_POSIBLE/medida a 15 nt por delante
 
 ── Bloques ──
   módulo NheI-SacI (149 nt):
@@ -1035,7 +1045,7 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
   SIN CORRIDAS. El frente de especificidad sigue en NOT_RUN, y NOT_RUN no es PASS.
 ```
 
-## 10. Limitaciones
+## 11. Limitaciones
 
 Seccion propia y no un pie: una limitacion al pie se lee después de haber creido el número.
 
@@ -1092,7 +1102,7 @@ ESTAS HERRAMIENTAS SE CONOCÍAN Y SE DECIDIÓ NO USARLAS COMO FUENTE PRINCIPAL, 
 
 La longitud NO es un detalle de ficha: es lo que decide cómo se cruza su salida con la nuestra. siDirect diseña 19-mers y nuestras ventanas miden 22, así que sus candidatos son OTRAS ventanas sobre el mismo sitio — se cruzan por solapamiento sobre la referencia, y el importador ABORTA si le llegan longitudes distintas de las declaradas, en vez de cruzar cero y dejar que eso se lea como «no hay convergencia».
 
-## 11. Procedencia
+## 12. Procedencia
 
 Todos los ficheros que entraron, con versión y md5. Sin esto un veredicto no es auditable dentro de un año — que es la razón por la que el manifiesto se versiona en texto.
 
@@ -1104,5 +1114,5 @@ Todos los ficheros que entraron, con versión y md5. Sin esto un veredicto no es
 | base de especificidad | NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero. |
 | casete del transgén | NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero. |
 | 3'UTR del transcriptoma | NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero. |
-| APA medido | MAPEO GENOMICO↔TRANSCRITO — RESUELTO SIN COORDENADAS GENOMICAS. ·   PolyA_DB pública el sitio de CORTE, NO EL HEXÁMERO. Su leyenda: «A[A/U]UAAA motif within 40-nt upstream from the PAS» — el hexámero se busca AGUAS ARRIBA del PAS, luego la coordenada publicada es el corte. Con nuestra convención el hexámero cae 10-30 nt por delante, dentro de esos 40 nt. ·   Hipotesis «PAS = hexámero»: DESCARTADA. Un hexámero es un punto, no una banda, así que ·   bajo esa lectura el aterrizaje tiene que ser EXACTO — y no hay ningún desfase que haga ·   aterrizar más de 1 de las 4 coordenadas. Bajo «PAS = corte» aterrizan las 4, ·   con el MISMO desfase y con la CLASE de hexámero que declara la propia base en cada una. ·   No es una resta: son 4 puntos de apoyo independientes. Desfase 3'UTR→mm10 acotado a 131937185-131937193 (9 valores); se deja como INTERVALO ·   porque la banda de corte mide 20 nt y fijarlo en un entero sería inventarse precisión. ·  ·     chr2:+:131937444  Other   → corte 3utr:251-271, hexámero AATATA en 3utr:236  PSE 21.1%, AvgRPM 0.55  ← TERCER sitio de corte, el proximal MÁS USADO de los tres ·     chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexámero AATAAA en 3utr:288  PSE 23.5%, AvgRPM 0.34  ← nuestro AATAAA de 3utr:288 ·     chr2:+:131938392  Other   → AMBIGUO: 2 hexámeros de su clase en la banda (TATAAA en 3utr:1178, TATAAA en 3utr:1189). Ancla, pero NO entra al modelo con banda propia. ·     chr2:+:131938427  AUUAAA  → corte 3utr:1229-1249, hexámero ATTAAA en 3utr:1214  (sin datos de expresión)  ← fuerza 99,9 %, conservado en humano y rata; SIN expresión, así que no entra en la fracción — solo ancla ·  ·   TECHO POR TRAMOS. Con tres sitios de corte medidos el techo ya no es UNO: la pregunta ·   de un candidato no es cuanta isoforma larga hay, es que fracción de transcritos conserva ·   SU diana — y eso depende de por detrás de cuántos cortes esta. ·     3utr:1-251  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE. ·     3utr:252-271  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937444: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     3utr:272-303  techo 0.91           por detrás de chr2:+:131937444 ·     3utr:304-323  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937504: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     3utr:324-1242  techo 0.86           por detrás de chr2:+:131937444, chr2:+:131937504 |
+| APA medido | MAPEO GENOMICO↔TRANSCRITO — RESUELTO SIN COORDENADAS GENOMICAS. ·   PolyA_DB pública el sitio de CORTE, NO EL HEXÁMERO. Su leyenda: «A[A/U]UAAA motif within 40-nt upstream from the PAS» — el hexámero se busca AGUAS ARRIBA del PAS, luego la coordenada publicada es el corte. Con nuestra convención el hexámero cae 10-30 nt por delante, dentro de esos 40 nt. ·   Hipotesis «PAS = hexámero»: DESCARTADA. Un hexámero es un punto, no una banda, así que ·   bajo esa lectura el aterrizaje tiene que ser EXACTO — y no hay ningún desfase que haga ·   aterrizar más de 1 de las 4 coordenadas. Bajo «PAS = corte» aterrizan las 4, ·   con el MISMO desfase y con la CLASE de hexámero que declara la propia base en cada una. ·   No es una resta: son 4 puntos de apoyo independientes. Desfase 3'UTR→mm10 acotado a 131937185-131937193 (9 valores); se deja como INTERVALO ·   porque la banda de corte mide 20 nt y fijarlo en un entero sería inventarse precisión. ·  ·     chr2:+:131937444  Other   → corte 3utr:251-271, hexámero AATATA en 3utr:236  PSE 21.1%, AvgRPM 0.55  ← TERCER sitio de corte, el proximal MÁS USADO de los tres ·     chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexámero AATAAA en 3utr:288  PSE 23.5%, AvgRPM 0.34  ← nuestro AATAAA de 3utr:288 ·     chr2:+:131938392  Other   → AMBIGUO: 2 hexámeros de su clase en la banda (TATAAA en 3utr:1178, TATAAA en 3utr:1189). Ancla, pero NO entra al modelo con banda propia. ·     chr2:+:131938427  AUUAAA  → corte 3utr:1229-1249, hexámero ATTAAA en 3utr:1214  (sin datos de expresión)  ← fuerza 99,9 %, conservado en humano y rata; SIN expresión, así que no entra en la fracción — solo ancla ·  ·   TECHO POR TRAMOS. Con tres sitios de corte medidos el techo ya no es UNO: la pregunta ·   de un candidato no es cuanta isoforma larga hay, es que fracción de transcritos conserva ·   SU diana — y eso depende de por detrás de cuántos cortes esta. ·     tx:1-1200  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE. ·     tx:1201-1220  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937444: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     tx:1221-1252  techo 0.91           por detrás de chr2:+:131937444 ·     tx:1253-1272  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937504: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     tx:1273-2191  techo 0.86           por detrás de chr2:+:131937444, chr2:+:131937504 |
 | lista ampliada de abundancia | NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero. |

@@ -5850,6 +5850,36 @@ el espaciado no ve — el parecido de seed. Quien lo lee no puede recalcularlo d
 encuentra los candidatos que nombra: la salida natural es dar el aviso por roto y seguir,
 que es exactamente perder la advertencia que este aviso existe para dar.
 
+### LA LECTURA BUENA, y no es la que se dio primero
+
+La primera versión de esta entrada decía que el fallo sobrevivió porque los goldens corren
+sobre una configuración que no es la de uso —principio nº 18—. **Es falso, y la corrección
+es de Joaquín Castilla**, que rehízo la cuenta: los goldens sobre el 3'UTR pelado son
+**dos** (`ficha_raton_200.txt` e `informe_documento.md`), no tres, y **`raton_informe.txt`
+corre sobre el transcrito entero y emitía la línea CORRECTA** (`tx:1398 y tx:1967`).
+
+Así que lo que hay debajo es otra cosa, y es peor: **cuatro sitios renderizan este mismo
+conflicto** —`outputs.py`, `informe_doc.py`, `dossier.py` y `presentation.py`— y **tres
+derivaban el marco bien**. Es la familia de los **pares duplicados**: no código repetido
+que se vea en un `grep`, sino la misma cantidad calculada en varios sitios donde el arreglo
+llegó a unos y no a otros.
+
+**Y hay evidencia de que el arreglo ya se había hecho una vez.** `outputs.py` lleva escrito,
+en el sitio exacto, el comentario que lo explica:
+
+> «Las dos etiquetas salen del MARCO del informe, no de un prefijo escrito dentro de
+> `describe()`: sobre un informe del transcrito completo eso imprimía `3utr:` para
+> coordenadas de transcrito, sin dar ningún error.»
+
+O sea: **este fallo se encontró, se entendió y se arregló — en tres llamadores de cuatro.**
+El cuarto se quedó con el código viejo, con el comentario de la lección tres módulos más
+allá. Es el principio nº 31 exacto —*un comentario protege su clase; un mecanismo protege
+la siguiente*— y aquí ni siquiera protegió a las hermanas contemporáneas.
+
+**Consecuencia de método**: cuando aparece un fallo de esta forma, la pregunta no es «¿qué
+artefacto debería haberlo cazado?» sino **«¿cuántos sitios calculan esto, y a cuántos llegó
+el arreglo?»**. La primera lleva a rediseñar los goldens; la segunda, al fallo.
+
 ### El arreglo, y por qué no es cambiar la cadena
 
 La etiqueta se **pide** a `presentation._start_label`, que saca el marco de la anatomía que
@@ -5864,3 +5894,55 @@ que falla con el código de antes** (3 de 5). Y con el control adversario que im
 tilando el 3'UTR pelado, las etiquetas tienen que ser `3utr:` y **no** `tx:`. Sin esa
 segunda mitad, un arreglo que escribiera `tx:` a pelo pasaría el primer test y estaría
 igual de mal — sería el mismo fallo con la otra etiqueta.
+
+---
+
+## 122 — La ficha sobre el transcrito: `3utr:1149-221`, un intervalo con un extremo en cada marco
+
+**Encontrada (2026-09-06) por la propia variante de golden que se acababa de crear**, en
+su primera generación. Es la mejor prueba de que la variante hacía falta, y por eso la
+entrada va con ella y no aparte.
+
+`build_dossier` recibe `start` en el marco de LO TILADO —así encuentra al candidato,
+`c.start == start`— y devolvía `end=elegido.end - desfase`, o sea el final **convertido al
+3'UTR**. Sobre el 3'UTR pelado el desfase es 0 y los dos coincidían, así que la mezcla era
+**invisible**. Sobre el transcrito la ficha imprimía:
+
+```
+═══ Ficha del candidato — raton 3utr:1149 ═══
+  sitio      3utr:1149-221
+```
+
+Un intervalo cuyo inicio es mayor que su final, con la etiqueta equivocada en los dos.
+
+### Y no era uno, eran CUATRO en la misma ficha
+
+Al medirlo salieron cuatro sitios independientes con la misma forma, todos invisibles con
+desfase 0:
+
+1. **la cabecera y el intervalo** — `3utr:` escrito a mano sobre una posición del tilado;
+2. **los hexámeros cercanos** — `NearbyHexamer.describe()` con `3utr:` a pelo: `AATATA`
+   salía en `3utr:1185` cuando es `tx:1185`, o sea `3utr:236`. Es **exactamente** la
+   coordenada de la errata que ya está registrada por este mismo motivo;
+3. **los sitios en la propia diana** — `SelfSite.describe()`, igual;
+4. **y uno que NO era de etiqueta sino de CONTENIDO**: `self_sites` recibía
+   `target=<transcrito entero>` y `window=(inicio_3utr, fin_3utr)`. Con los marcos
+   cruzados, la ventana caía 949 nt más allá y **su propia diana salía marcada «SEGUNDO
+   SITIO»** en vez de «el suyo». Ése no se veía como una etiqueta rara: se leía como un
+   hallazgo biológico — un candidato con un sitio de seed extra en su propio mensajero,
+   que es justo la clase de dato que este proyecto anota y discute.
+
+### Lo que esto añade a la familia del marco
+
+Las seis anteriores producían **una etiqueta mal escrita**. Aquí, además, hay:
+
+- **un intervalo imposible** (`1149-221`), que ningún invariante cazó porque
+  `audit.Span.check()` no interviene en la ficha; y
+- **un cambio de SIGNIFICADO**: «el suyo» frente a «SEGUNDO SITIO» no es una etiqueta —
+  es un veredicto distinto sobre la biología del candidato.
+
+**El arreglo es el mismo de siempre y ya no admite excepción**: el marco se **recibe**,
+`start` y `end` van los **dos** en él, y toda posición se imprime con `coords.label`. Se
+comprobó midiendo que el golden del 3'UTR pelado **no cambia ni un byte** — porque ahí el
+desfase es 0 y las dos lecturas coinciden —, que es lo que demuestra que el arreglo es
+consistente y no un ajuste para que cuadre la variante nueva.

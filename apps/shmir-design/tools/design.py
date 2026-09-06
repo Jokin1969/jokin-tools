@@ -1117,6 +1117,10 @@ def main(argv: list[str]) -> int:
                 salidas.update(
                     fragment_bundle(
                         seleccion, scaffold, species=especie,
+                        # El tilado va para que cada fila diga QUE FRENTES le faltan a
+                        # ESE candidato. Sin el, la hoja dice «nadie ha preguntado», que
+                        # es la verdad y no un hueco.
+                        tiling=tiling,
                         cassette=(
                             transgen_db.records[plan_empalme.location.plasmid_name]
                             if plan_empalme is not None

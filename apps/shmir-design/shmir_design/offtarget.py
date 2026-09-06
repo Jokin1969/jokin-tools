@@ -42,6 +42,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, replace
 
+from .coords import Frame, label
 from .errors import ShmirDesignError
 from .seed_load import FRONT_NAME, WHY_NOT_BLAST  # noqa: F401  (el frente es el mismo)
 
@@ -865,13 +866,19 @@ class SelfSite:
     position: int
     site_class: str
     own_window: bool
+    #: El marco de `position`, que es el de la secuencia que se pasó como `target`. NO
+    #: se pone `3utr` a pelo: con el transcrito entero delante eso etiquetaba `tx:1164`
+    #: como `3utr:1164` — una posición válida, sólo que de otro sitio.
+    frame: Frame = Frame.UTR3
 
     def describe(self) -> str:
         marca = "el suyo" if self.own_window else "SEGUNDO SITIO"
-        return f"3utr:{self.position} {self.site_class} ({marca})"
+        return f"{label(self.position, self.frame)} {self.site_class} ({marca})"
 
 
-def self_sites(strand: str, *, target: str, window=None) -> tuple[SelfSite, ...]:
+def self_sites(
+    strand: str, *, target: str, window=None, frame: Frame = Frame.UTR3,
+) -> tuple[SelfSite, ...]:
     """Los sitios de esta hebra en su propia diana, con posicion y CLASE.
 
     `window` es el intervalo (inicio, fin) de la ventana del candidato, para poder decir
@@ -894,7 +901,9 @@ def self_sites(strand: str, *, target: str, window=None) -> tuple[SelfSite, ...]
         posicion = i + 1
         propio = bool(window) and window[0] <= posicion <= window[1]
         sitios.append(
-            SelfSite(position=posicion, site_class=clase, own_window=propio)
+            SelfSite(
+                position=posicion, site_class=clase, own_window=propio, frame=frame,
+            )
         )
         i = seq.find(core, i + 1)
     return tuple(sitios)

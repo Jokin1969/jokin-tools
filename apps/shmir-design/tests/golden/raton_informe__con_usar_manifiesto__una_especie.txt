@@ -1,3 +1,5 @@
+# GOLDEN — se genera con: el CLI sobre el TRANSCRITO ENTERO del raton con --usar-manifiesto, que es LA FORMA NORMAL DE CORRER; con una sola especie a propósito.
+
 ═══ Diseño de shmiR — raton ═══
 
 ── Anatomía del transcrito ──

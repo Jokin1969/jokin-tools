@@ -62,6 +62,36 @@ from .reference import sequence_md5
 #: `montaje.WHY_FIFTEEN`, que lo MIDE.
 HIGHLIGHT = 15
 
+#: LO QUE SE DICE CUANDO NADIE HA PREGUNTADO por los frentes de este candidato, y lo que
+#: se dice cuando se preguntó y no falta ninguno. Son DOS frases porque son dos cosas, y
+#: con una sola —o con un `fronts=()` por defecto— la hoja de un candidato que nadie ha
+#: comprobado saldría idéntica a la de uno limpio. Es la trampa de `BreakChoice.folding_ok`
+#: (principio nº 19) sobre lo que se manda a sintetizar, que es donde más cara sale.
+FRONTS_NOT_ASKED = (
+    "NO SE HA PREGUNTADO por los frentes de este candidato: esta hoja no dice que estén "
+    "contestados, dice que nadie lo ha mirado. No es lo mismo, y la diferencia es la que "
+    "decide si esto puede entrar a síntesis."
+)
+FRONTS_ALL_ANSWERED = (
+    "Todos los frentes de este candidato tienen respuesta. Comprobado, no supuesto: la "
+    "pregunta se hizo y no quedó ninguno sin contestar."
+)
+
+#: POR QUE VAN EN LA FILA Y NO EN UNA NOTA GENERAL. Con las palabras con que se pidió
+#: (responsable del proyecto, 2026-09-06): «un candidato sin BLAST en una hoja de once
+#: verificados es exactamente el hueco donde se cuela algo así». Y «algo así» tiene
+#: nombre: `tx:1746` contra Adar, el único candidato que ha caído por un motivo real, y
+#: lo atrapó el frente de especificidad. Una nota al principio de la hoja dice la verdad
+#: sobre el CONJUNTO; cada bloque se lee, se copia y se manda por separado — el mismo
+#: motivo por el que el estado del panel viaja dentro del FASTA y en cada línea `>`.
+WHY_FRONTS_GO_IN_THE_ROW = (
+    "Los frentes sin contestar van en la fila de CADA fragmento y no en una nota "
+    "general: una nota se lee una vez y describe el conjunto, y lo que se copia a un "
+    "pedido es este bloque. Un candidato sin BLAST entre diez verificados es donde se "
+    "cuela un off-target que ya nos ha pasado una vez."
+)
+
+
 #: LAS DOS ARQUITECTURAS, que es lo que se pide por defecto desde el 2026-09-06.
 #: Decisión del responsable del proyecto: *«el primer experimento es cruzado por diseño,
 #: y el coste de doblar la síntesis es pequeño frente a descubrir en el gel que el
@@ -302,6 +332,10 @@ class Fragment:
     feature: FeatureDelIntron
     with_sites: bool
     checks: tuple[FilterResult, ...]
+    #: Los frentes SIN CONTESTAR de este candidato. `None` es «nadie ha preguntado» y
+    #: `()` es «se preguntó y no falta ninguno»: dos valores porque son dos cosas, y
+    #: NUNCA un `()` por defecto — eso haría que no haberlo mirado se leyera como limpio.
+    fronts: tuple[dict[str, str], ...] | None = None
 
     @property
     def growth(self) -> int:
@@ -541,6 +575,7 @@ def build_fragment(
     with_sites: bool = False,
     label: str = "",
     name: str = "aav_casete.fa",
+    fronts: tuple[dict[str, str], ...] | None = None,
 ) -> Fragment:
     """Monta el fragmento de síntesis de una horquilla y lo comprueba.
 
@@ -588,6 +623,7 @@ def build_fragment(
             longitudes,
             *_check_paste(fragmento_secuencia, feature, intron=intron),
         ),
+        fronts=None if fronts is None else tuple(fronts),
     )
 
 
@@ -709,6 +745,30 @@ def _wrap(secuencia: str) -> list[str]:
     return [secuencia[i : i + WRAP] for i in range(0, len(secuencia), WRAP)]
 
 
+def _lineas_de_frentes(fragment: Fragment) -> list[str]:
+    """Los frentes sin contestar de ESTE candidato, en SU bloque.
+
+    Tres salidas y ninguna se puede confundir con otra: nadie preguntó, se preguntó y no
+    falta ninguno, o faltan éstos con su estado y su motivo. Ver `FRONTS_NOT_ASKED`.
+    """
+    lineas = ["", "  ── Frentes de ESTE candidato ──"]
+    if fragment.fronts is None:
+        lineas.extend(f"  {l}" for l in textwrap.wrap(FRONTS_NOT_ASKED, 92))
+        return lineas
+    if not fragment.fronts:
+        lineas.extend(f"  {l}" for l in textwrap.wrap(FRONTS_ALL_ANSWERED, 92))
+        return lineas
+    lineas.append(
+        f"  SIN CONTESTAR: {len(fragment.fronts)} frente(s). NOT_RUN no es PASS, y en "
+        f"una hoja donde otros SÍ los tienen la diferencia es lo que se pierde."
+    )
+    for frente in fragment.fronts:
+        lineas.append(f"    · {frente['frente']} — {frente['estado']}")
+        lineas.extend(f"      {l}" for l in textwrap.wrap(str(frente["motivo"]), 88))
+    lineas.extend(f"  {l}" for l in textwrap.wrap(WHY_FRONTS_GO_IN_THE_ROW, 92))
+    return lineas
+
+
 def fragment_order_sheet(fragment: Fragment) -> str:
     """Lo que hay que poder mirar de un vistazo ANTES de pegar.
 
@@ -736,6 +796,8 @@ def fragment_order_sheet(fragment: Fragment) -> str:
         "  ── Las longitudes, cada una con su etiqueta ──",
         *[f"    {m.label:<26} {m.value:>4}  ({m.what})" for m in lengths(fragment)],
         *[f"    {l}" for l in textwrap.wrap(WHY_EACH_LENGTH_IS_LABELLED, 92)],
+        "",
+        *_lineas_de_frentes(fragment),
         "",
         "  ── Cómo se pega ──",
         "  Se selecciona la feature del intrón ENTERA en SnapGene y se pega el",
@@ -779,6 +841,25 @@ def fragment_record_name(fragment: Fragment, *, species: str = "") -> str:
     return "_".join(trozos)
 
 
+#: El valor de `frentes_sin_correr` en la cabecera FASTA cuando nadie preguntó, y cuando
+#: se preguntó y no falta ninguno. TRES valores posibles y ninguno se confunde con otro:
+#: la lista, `ninguno` y `sin_preguntar`. Omitir el campo cuando nadie pregunta sería
+#: exactamente el fallo que las dos frases de la hoja evitan, un nivel más abajo — y aquí
+#: pesa más, porque el FASTA es lo que viaja al proveedor y a SpliceAI sin la pantalla
+#: delante (principio nº 35: un nombre se pierde en el primer `mv`).
+FRONTS_FIELD_NONE_OPEN = "ninguno"
+FRONTS_FIELD_NOT_ASKED = "sin_preguntar"
+
+
+def fronts_field(fragment: "Fragment") -> str:
+    """El valor de `frentes_sin_correr` para la cabecera de este fragmento."""
+    if fragment.fronts is None:
+        return FRONTS_FIELD_NOT_ASKED
+    if not fragment.fronts:
+        return FRONTS_FIELD_NONE_OPEN
+    return ",".join(str(f["frente"]) for f in fragment.fronts)
+
+
 def fragments_fasta(fragments, *, species: str = "") -> str:
     """El FASTA de fragmentos que viaja solo, con lo que hace falta para comprobarlo.
 
@@ -795,6 +876,7 @@ def fragments_fasta(fragments, *, species: str = "") -> str:
             f"sustituye={fragment.feature.plasmid_name}:{fragment.feature.start}-"
             f"{fragment.feature.end} intron={fragment.intron_name} "
             f"sitios={'dentro' if fragment.with_sites else 'fuera'} "
+            f"frentes_sin_correr={fronts_field(fragment)} "
             f"md5={fragment.md5}"
         )
         lineas.extend(

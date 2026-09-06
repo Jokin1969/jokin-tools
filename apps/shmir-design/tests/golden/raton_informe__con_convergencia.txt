@@ -1,3 +1,5 @@
+# GOLDEN — se genera con: lo mismo sobre el TRANSCRITO ENTERO, más --convergencia: sin esta variante el bloque de convergencia no lo lee ningún golden.
+
 ═══ Diseño de shmiR — raton ═══
 
 ── Anatomía del transcrito ──

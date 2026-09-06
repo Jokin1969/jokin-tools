@@ -1,3 +1,5 @@
+# GOLDEN — se genera con: el camino de la PAGINA entero sobre el TRANSCRITO ENTERO del raton, con la anatomía del fixture verificado.
+
 ═══ La pagina, corrida entera — raton ═══
 
   secuencia tilada   2191 nt

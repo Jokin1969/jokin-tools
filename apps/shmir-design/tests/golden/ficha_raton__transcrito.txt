@@ -1,8 +1,8 @@
-# GOLDEN — se genera con: la ficha de un candidato sobre el 3'UTR PELADO del raton, que es la via «lo que subo YA es el 3'UTR».
+# GOLDEN — se genera con: la MISMA ficha sobre el TRANSCRITO ENTERO, que es lo que tilan la pagina y el CLI: sin ella, esta salida no se leia nunca en el marco de uso.
 
-═══ Ficha del candidato — raton 3utr:200 ═══
+═══ Ficha del candidato — raton tx:1149 ═══
 
-  sitio      3utr:200-221
+  sitio      tx:1149-1170
   guía       TTTAGCACTGGCTGATGACAGA
   pasajera   CCTGTCATCAGCCAGTGCTAAA
   veredicto  INCOMPLETE
@@ -28,16 +28,16 @@
   cruda +3.80   penalizacion 0.00   neta +3.80
 
 ── Techo de APA ──
-  sin techo — 3utr:1-251  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE.
+  sin techo — tx:1-1200  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE.
 
 ── Sitios de esta seed en la PROPIA diana (esperado: 1) ──
-  3utr:215 7mer-m8 (el suyo)
+  tx:1164 7mer-m8 (el suyo)
 
 ── Multiplexado: núcleo de seed compartido ──
   Con ningún otro candidato del panel. En este eje es independiente.
 
 ── Hexámeros cercanos ──
-  AATATA  3utr:236  APA_POSIBLE/medida a 15 nt por delante
+  AATATA  tx:1185  APA_POSIBLE/medida a 15 nt por delante
 
 ── Bloques ──
   módulo NheI-SacI (149 nt):
