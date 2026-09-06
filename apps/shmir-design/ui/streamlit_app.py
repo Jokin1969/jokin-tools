@@ -1418,7 +1418,19 @@ def _panel_refinamiento(especie: str) -> None:
         with st.container(border=True):
             st.markdown(titular)
             st.caption(fila["si_no_llega"])
-            _fila_ausente(fila, directorio)
+            # LA RAMA ABIERTA ELIGE IGUAL QUE LA COLAPSADA. Llamaba a `_fila_ausente`
+            # SIEMPRE, asi que un fichero que ESTA y no esta colapsado salia con el
+            # hueco de subida en vez de con sus cuatro acciones. Mientras «presente»
+            # implicaba «CERRADO» —y CERRADO implicaba colapsada— no se notaba: los
+            # botones existian solo dentro del expander, que es lo que hacia que el
+            # gestor se leyera como una lista de nombres. Con `SIN PROCEDENCIA` la
+            # combinacion presente + abierta existe, y es justo donde hay que poder
+            # declarar, ver y reemplazar.
+            if fila["presente"]:
+                st.caption(fila["resumen"])
+                _fila_presente(fila, directorio)
+            else:
+                _fila_ausente(fila, directorio)
 
 
 def _estilo() -> None:

@@ -94,3 +94,16 @@ test = "test_la_procedencia_SE_DECLARA_sin_resubir.py"
 artefacto = "aav_casete.fa"
 usa_el_real = false
 por_que_no_el_real = "Aquí el casete no es un casete: es el NOMBRE de un rol que NO pide procedencia de tabla, y lo que se comprueba es que declarársela ABORTE — «un casete de AAV no sale de ninguna tabla, así que ahí la columna vacía es la verdad». `declare_provenance` no abre el fichero: rechaza por el rol antes de mirar nada, así que copiar los 5,3 kB del real no probaría ni una línea más. Lo que sí es del real es el rol, que sale de `species.required_files`."
+
+[[fixture]]
+test = "test_un_fichero_SIN_PROCEDENCIA_no_esta_cerrado.py"
+artefacto = "manifest.tsv"
+usa_el_real = false
+por_que_no_el_real = """\
+El caso que este test reproduce NO EXISTE en el manifiesto real: es una linea de \
+`transcriptoma_3utr.fa` SIN los cuatro campos de procedencia de la tabla — un fichero \
+que entro antes de que su frente los exigiera. El manifiesto versionado los tiene \
+todos, asi que usarlo no probaria nada; y el fichero real son decenas de megas que no \
+se versionan. Lo que se fabrica es la LINEA, con las columnas que declara \
+`manifest.MANIFEST_COLUMNS` —derivadas, no tecleadas—, y el test comprueba las dos \
+caras: sin los cuatro campos la fila NO sale CERRADA, y declarandolos vuelve a estarlo."""

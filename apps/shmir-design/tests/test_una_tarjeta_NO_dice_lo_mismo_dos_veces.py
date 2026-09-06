@@ -37,7 +37,7 @@ from shmir_design.reference import (  # noqa: E402
 RATON = REFERENCES["NM_011170.3"]
 HAY = fixture_available(RATON)
 
-PANEL = (10, 60, 143, 200, 449, 553, 652, 735, 819, 1018)
+PANEL = (10, 60, 143, 200, 449, 553, 652, 735, 819, 1018, 1071)
 
 
 class TestElAVANCE_es_solo_de_lo_PARCIAL(unittest.TestCase):

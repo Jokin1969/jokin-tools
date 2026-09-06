@@ -904,13 +904,21 @@ FRAGMENT_NEEDS_CASSETTE = (
 )
 
 
-def _intron_names(intron: str | tuple[str, ...]) -> tuple[str, ...]:
+def _intron_names(intron: str | tuple[str, ...] | None) -> tuple[str, ...]:
     """UNA o VARIAS arquitecturas, resueltas en un solo sitio.
 
     Aquí y no en cada llamador porque el CLI las recibe separadas por comas, la página
     por una lista y el núcleo por una cadena: tres formas de decir lo mismo y una sola
     de leerlo.
+
+    `None` = LAS DEL REGISTRO que se pueden montar, que es lo que se pide por defecto
+    desde el 2026-09-06: el primer experimento es cruzado por diseño. Se derivan de
+    `introns.buildable()`, así que un intrón retirado sale solo y uno nuevo entra solo.
     """
+    from .fragmento import default_introns  # noqa: PLC0415
+
+    if intron is None:
+        return default_introns()
     if isinstance(intron, str):
         nombres = [t.strip() for t in intron.split(",") if t.strip()]
     else:
@@ -946,7 +954,7 @@ def fragment_bundle(
     *,
     species: str,
     cassette: str | None,
-    intron: str | tuple[str, ...] = "mvm_actual",
+    intron: str | tuple[str, ...] | None = None,
     with_sites: bool = False,
 ) -> dict[str, str]:
     """El fragmento de síntesis de cada candidato elegido: FASTA y hoja de pedido.
@@ -997,7 +1005,7 @@ def fragment_rows(
     scaffold: ScaffoldSpec,
     *,
     cassette: str | None,
-    intron: str | tuple[str, ...] = "mvm_actual",
+    intron: str | tuple[str, ...] | None = None,
     with_sites: bool = False,
 ) -> list[dict[str, object]]:
     """Una fila por fragmento —candidato x intrón—, con lo que mirar antes de pegar."""
@@ -1829,7 +1837,9 @@ def seed_result_rows(scan):
             # tiene decidido que no puede faltar «tambien en los LIMPIO, para no dar una
             # falsa calma».
             "tasa_base": scan.base_rate.short,
-            "nivel": r.level,
+            # EL VEREDICTO, no el estado a secas: con una ventana no estándar lleva la
+            # ventana pegada. La cabecera se lee una vez y esta celda se descarga.
+            "nivel": r.verdict,
             "miR-30": "SI" if r.mir30 else "",
             "colisiones": ", ".join(c.name for c in r.collisions),
         }
@@ -3179,7 +3189,9 @@ def reference_panel_summary(species: str, *, directory) -> dict[str, object]:
     from .presencia import ficheros_con_contenido
 
     ruta = Path(directory)
-    presentes = tuple(sorted(ficheros_con_contenido(ruta)))
+    # LOS QUE CIERRAN, no los que están: un fichero sin la procedencia que su frente
+    # exige no cierra nada, y contarlo aquí pinta la barra con un frente que no corre.
+    presentes = _cierran(species, directory=ruta)
     informe = fixture_report(resolve(species), have=presentes)
     faltan = [f for f in informe.rows if not f.available]
     return {
@@ -3655,6 +3667,11 @@ WHAT_IF_IT_NEVER_ARRIVES = (
     "Su frente se queda en NOT_RUN y los candidatos, en INCOMPLETE. No bloquea el "
     "diseño: bloquea aprobarlo."
 )
+WHAT_IF_PROVENANCE_NEVER_ARRIVES = (
+    "Su frente se queda en NOT_RUN aunque el fichero esté: el modal aborta al pedir el "
+    "veredicto. La diferencia con FALTA es la salida, no la gravedad — aquí no hay que "
+    "conseguir nada, hay que DECLARAR cuatro campos sobre el fichero que ya está."
+)
 WHAT_IF_OPTIONAL_NEVER_ARRIVES = (
     "Nada se queda sin correr. El filtro corre igual y sin este fichero da un número "
     "menos afinado, no un hueco."
@@ -3672,12 +3689,37 @@ WHAT_IF_UNUSED_NEVER_ARRIVES = (
 #: `polya_db_mouse.tsv` ya en el deposito: dos ficheros que cierran el MISMO frente, y
 #: el que sobra se leia como trabajo pendiente. Una alternativa que no hace falta y una
 #: cosa que falta de verdad no pueden tener el mismo color.
+#: El estado del fichero QUE ESTÁ y NO CIERRA NADA. En un solo sitio: lo comparan
+#: `_estado_de`, la leyenda y el panel, y tres literales acabarían discrepando.
+INCOMPLETE_PROVENANCE = "SIN PROCEDENCIA"
+
+WHY_PRESENT_IS_NOT_CLOSED = (
+    "Un fichero PRESENTE cuya línea del manifiesto no lleva la procedencia que su "
+    "frente EXIGE no cierra nada: el modal aborta y el veredicto sale NOT_RUN. Marcarlo "
+    "verde es la tercera vez que pasa lo mismo —verde en el panel y NOT_RUN en el "
+    "veredicto, como `refseq_rna.fa`— y aquí tenía una segunda consecuencia peor: una "
+    "fila CERRADA va COLAPSADA, así que las cuatro acciones y la caja de «completar la "
+    "procedencia» quedaban detrás de un gesto. EL ESTADO TAPABA SU PROPIO ARREGLO. "
+    "Tampoco es FALTA: el fichero está, y volver a subir 84 MB no es lo que hace falta "
+    "— la salida es declarar los campos sobre el que ya está."
+)
+
 REFINEMENT_STATES = (
     {
         "estado": "CERRADO",
         "color": "verde",
         "marca": "🟢",
         "significa": "está en el depósito y se está usando. Su frente puede correr.",
+    },
+    {
+        "estado": INCOMPLETE_PROVENANCE,
+        "color": "ámbar",
+        "marca": "🟡",
+        "significa": (
+            "está en el depósito y AUN ASÍ no cierra su frente: a su línea del "
+            "manifiesto le faltan campos de procedencia que el veredicto exige. Se "
+            "completan sobre el fichero que ya está, sin volver a subirlo."
+        ),
     },
     {
         "estado": "FALTA",
@@ -3783,11 +3825,21 @@ def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
     from .species import fixture_report, resolve  # noqa: PLC0415
 
     especie = resolve(species)
-    informe = fixture_report(especie, have=_presentes(directory))
+    # Los que CIERRAN, por el mismo motivo que en `reference_panel_summary`: un fichero
+    # sin su procedencia no cierra su frente, así que tampoco puede dejar a una
+    # alternativa en «NO USADO».
+    cierran = _cierran(species, directory=directory)
+    informe = fixture_report(especie, have=cierran)
     # Que frentes estan cerrados y CON QUE fichero. De aqui sale «NO USADO»: una fila
     # cuyo frente ya cierra OTRO fichero que si esta no es trabajo pendiente.
     cerrado_por: dict[str, list[str]] = {}
-    presentes = set(_presentes(directory))
+    # DOS conjuntos, dos preguntas. `cierran` contesta «¿cierra su frente?» y decide
+    # los estados; `en_disco` contesta «¿está el fichero?» y decide QUÉ BOTONES se
+    # pintan. Fundirlos deja un fichero que está sin sus cuatro acciones — que es
+    # justamente lo que hay que poder hacer con él.
+    cierran_set = set(cierran)
+    en_disco = set(_presentes(directory))
+    presentes = cierran_set
     for frente in informe.rows:
         if frente.available:
             for clave in frente.keys:
@@ -3798,7 +3850,7 @@ def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
         estado = _estado_de(fila, cerrado_por, presentes)
         color, marca = _COLOR[estado]
         opcional = not fila["obligatorio"]
-        bloquea = estado == "FALTA"
+        bloquea = estado in {"FALTA", INCOMPLETE_PROVENANCE}
         filas.append(
             {
                 **fila,
@@ -3811,7 +3863,12 @@ def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
                 "marca": marca,
                 "bloquea": bloquea,
                 "grupo": 1 if opcional else 0,
-                "resuelta": 0 if estado in {"FALTA", "OPCIONAL"} else 1,
+                "resuelta": (
+                    0 if estado in {"FALTA", "OPCIONAL", INCOMPLETE_PROVENANCE} else 1
+                ),
+                # NO se colapsa lo que pide trabajo. `SIN PROCEDENCIA` va abierta a
+                # propósito: la caja de declarar los campos vive dentro de la fila, y
+                # colapsarla escondía exactamente la salida del problema.
                 "colapsada": estado in {"CERRADO", "NO USADO"},
                 # ESTA O NO ESTA, dicho aqui y no deducido en la pagina. La pagina
                 # elegia entre las cuatro acciones de lo presente y el hueco de subida
@@ -3821,7 +3878,7 @@ def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
                 # salia con «Ver», «Reemplazar», «Borrar» y «Descargar» sobre un fichero
                 # que no esta: el panel enseñaba un error rojo al abrir la app y «Ver»
                 # tiraba la pagina entera. Regla 6: lo que decide, decidido aqui.
-                "presente": fila["nombre"] in presentes,
+                "presente": fila["nombre"] in en_disco,
                 # Que frentes cierra, EN LA FILA. El panel ya no agrupa por frente
                 # —el orden es por impacto—, asi que si el frente no viaja en la fila
                 # deja de verse: un fichero sin frente visible es un fichero que no se
@@ -3829,7 +3886,9 @@ def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
                 "frentes_texto": ", ".join(fila["frentes"]) or "—",
                 "por_que": _por_que(fila, estado, cerrado_por),
                 "si_no_llega": (
-                    WHAT_IF_IT_NEVER_ARRIVES if bloquea
+                    WHAT_IF_PROVENANCE_NEVER_ARRIVES
+                    if estado == INCOMPLETE_PROVENANCE
+                    else WHAT_IF_IT_NEVER_ARRIVES if bloquea
                     else WHAT_IF_OPTIONAL_NEVER_ARRIVES if estado == "OPCIONAL"
                     else WHAT_IF_UNUSED_NEVER_ARRIVES if estado == "NO USADO"
                     # Un fichero que YA esta no tiene «si no llega»: la pregunta no se
@@ -3855,13 +3914,36 @@ def _presentes(directory):
     return tuple(sorted(ficheros_con_contenido(Path(directory))))
 
 
+def _cierran(species: str, *, directory) -> tuple[str, ...]:
+    """Los ficheros presentes QUE CIERRAN ALGO: los que además traen su procedencia.
+
+    Estar en el depósito no cierra un frente. `transcriptoma_3utr.fa` sin los cuatro
+    campos de la tabla está, se lee, y el modal de off-targets ABORTA — así que contarlo
+    como cerrado pinta la barra de progreso y el semáforo con un frente que no corre.
+    Es el mismo verde equivocado que `_estado_de` deja de dar, un nivel más arriba: si
+    sólo se arregla la fila, la fila dice ámbar y la barra dice cerrado.
+
+    Ver `WHY_PRESENT_IS_NOT_CLOSED`.
+    """
+    sin_procedencia = {
+        fila["nombre"]
+        for fila in reference_manager_rows(species, directory=directory)
+        if fila["estado"] == "presente" and fila.get("falta_procedencia")
+    }
+    return tuple(f for f in _presentes(directory) if f not in sin_procedencia)
+
+
 def _estado_de(fila, cerrado_por, presentes) -> str:
-    """Los cuatro estados, derivados de dos hechos: si está, y si su frente ya cierra.
+    """Los CINCO estados, derivados de tres hechos: si está, si su línea trae la
+    procedencia que su frente exige, y si su frente ya cierra con otro.
 
     El orden de las ramas importa: una alternativa no usada tiene que decidirse ANTES de
-    caer en «FALTA», que es justo lo que pasaba con `apa_medido.tsv`.
+    caer en «FALTA», que es justo lo que pasaba con `apa_medido.tsv`. Y estar presente
+    ya no basta para CERRADO — ver `WHY_PRESENT_IS_NOT_CLOSED`.
     """
     if fila["estado"] == "presente":
+        if fila.get("falta_procedencia"):
+            return INCOMPLETE_PROVENANCE
         return "CERRADO"
     if not fila["obligatorio"]:
         return "OPCIONAL"
@@ -3882,6 +3964,14 @@ def _por_que(fila, estado: str, cerrado_por) -> str:
     """Por que esta fila esta en ese estado, con el nombre del fichero que lo decide."""
     if estado == "CERRADO":
         return f"Está en el depósito. Desbloquea: {fila['que_desbloquea']}."
+    if estado == INCOMPLETE_PROVENANCE:
+        return (
+            f"ESTÁ en el depósito y AUN ASÍ no desbloquea {fila['que_desbloquea']}: a "
+            f"su línea del manifiesto le faltan "
+            f"{', '.join(fila['falta_procedencia'])}. El veredicto sale NOT_RUN hasta "
+            f"que se declaren, y se declaran AQUÍ, sobre el fichero que ya está — no "
+            f"hay que volver a subirlo. {WHY_PRESENT_IS_NOT_CLOSED}"
+        )
     if estado == "OPCIONAL":
         return (
             f"No bloquea nada: {fila['que_desbloquea']}. El filtro corre sin él y con "

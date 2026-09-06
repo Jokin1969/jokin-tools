@@ -124,7 +124,8 @@ class TestSonDosVEREDICTOSNoDosOrdenaciones(unittest.TestCase):
 class TestElPanelDeDIEZ(unittest.TestCase):
     """Lo que cierra la validación: los diez, con los cuatro inmunes."""
 
-    ESPERADO = [10, 60, 143, 200, 449, 553, 652, 735, 819, 1018]
+    # ONCE desde el 2026-09-06: `3utr:1071` es el segundo distal, exigido por cuota.
+    ESPERADO = [10, 60, 143, 200, 449, 553, 652, 735, 819, 1018, 1071]
 
     def test_el_panel_por_defecto_es_el_del_responsable(self):
         from shmir_design.selection import default_config, select_from_report

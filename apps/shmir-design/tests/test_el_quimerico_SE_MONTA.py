@@ -184,39 +184,40 @@ class TestLaCorridaPASA_DE_10_A_20(unittest.TestCase):
         )
 
     def test_salen_las_VEINTE(self):
-        self.assertEqual(len(self.panel.constructions), 20)
+        self.assertEqual(len(self.panel.constructions), 22)
 
     def test_y_NINGUNA_falla(self):
         self.assertEqual(self.panel.failed, ())
         self.assertFalse(self.panel.partial)
 
-    def test_diez_de_cada_intron(self):
+    def test_UNO_DE_CADA_del_panel_por_intron(self):
         from collections import Counter
 
         cuenta = Counter(c.intron for c in self.panel.constructions)
-        self.assertEqual(cuenta["mvm_actual"], 10)
-        self.assertEqual(cuenta["intron_quimerico"], 10)
+        # ONCE por intron desde el 2026-09-06: el panel gano el segundo distal.
+        self.assertEqual(cuenta["mvm_actual"], 11)
+        self.assertEqual(cuenta["intron_quimerico"], 11)
 
     def test_el_resumen_ya_no_dice_que_falte_la_mitad(self):
         resumen = presentation.splice_panel_summary(
-            self.panel, introns=DOS, candidates=10,
+            self.panel, introns=DOS, candidates=11,
         )
-        self.assertEqual(resumen["anunciadas"], 20)
-        self.assertEqual(resumen["emitidas"], 20)
+        self.assertEqual(resumen["anunciadas"], 22)
+        self.assertEqual(resumen["emitidas"], 22)
         self.assertFalse(resumen["parcial"])
 
     def test_y_el_FASTA_sale_COMPLETO(self):
         nombre = presentation.splice_fasta_name(
-            self.panel, species="Mus musculus", introns=DOS, candidates=10,
+            self.panel, species="Mus musculus", introns=DOS, candidates=11,
         )
         self.assertNotIn("PARCIAL", nombre)
         fasta = presentation.splice_query_text(
-            self.panel, introns=DOS, candidates=10,
+            self.panel, introns=DOS, candidates=11,
         )
-        self.assertEqual(fasta.count(">"), 20)
+        self.assertEqual(fasta.count(">"), 22)
         for cabecera in (l for l in fasta.splitlines() if l.startswith(">")):
             self.assertIn("estado=COMPLETO", cabecera)
-            self.assertIn("panel=20de20", cabecera)
+            self.assertIn("panel=22de22", cabecera)
 
     def test_las_DOS_arquitecturas_declaran_sus_posiciones(self):
         """Cada una con su geometría, y las dos con la convención pegada."""

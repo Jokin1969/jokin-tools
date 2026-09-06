@@ -161,7 +161,7 @@ class TestElESTADO_viaja_DENTRO_del_fichero(unittest.TestCase):
 
     def _fasta(self, panel, intrones):
         resumen = presentation.splice_panel_summary(
-            panel, introns=intrones, candidates=10,
+            panel, introns=intrones, candidates=11,
         )
         return spliceai.constructions_fasta(panel.constructions, summary=resumen)
 
@@ -177,15 +177,15 @@ class TestElESTADO_viaja_DENTRO_del_fichero(unittest.TestCase):
         # El comentario lo puede tirar un parser; una cabecera «>» no la tira ninguno.
         fasta = self._fasta(self.parcial, PARCIAL)
         cabeceras = [l for l in fasta.splitlines() if l.startswith(">")]
-        self.assertEqual(len(cabeceras), 10)
+        self.assertEqual(len(cabeceras), 11)
         for cabecera in cabeceras:
-            self.assertIn("panel=10de20", cabecera)
+            self.assertIn("panel=11de22", cabecera)
             self.assertIn("estado=PARCIAL", cabecera)
 
     def test_un_panel_COMPLETO_lo_dice_igual_de_explicito(self):
         fasta = self._fasta(self.entero, ("mvm_actual",))
         for cabecera in (l for l in fasta.splitlines() if l.startswith(">")):
-            self.assertIn("panel=10de10", cabecera)
+            self.assertIn("panel=11de11", cabecera)
             self.assertIn("estado=COMPLETO", cabecera)
 
     def test_sin_resumen_NO_se_inventa_un_estado(self):

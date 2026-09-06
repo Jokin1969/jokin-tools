@@ -432,11 +432,13 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     que la murina se use. **NO LA DESCARTA**: puede ser diferencia real de especie. Las
     dos cláusulas van juntas y ninguna sobra — el informe termina con «rebaja, no
     descarta».
-  - **PANEL CONFIRMADO (2026-08-27)**: con la promoción por medida aplicada siempre, la
-    corrida real por defecto da `3utr:` **10, 60, 143, 200, 449, 553, 652, 735, 819,
-    1018** — los diez, con los **cuatro inmunes**. Coincide con el panel del responsable,
-    así que la app reproduce lo que se sabía antes de construirla y la validación queda
-    **cerrada**. Fijado en `tests/test_promocion_por_defecto.py`.
+  - **PANEL CONFIRMADO (2026-08-27, AMPLIADO A ONCE EL 2026-09-06)**: con la promoción
+    por medida aplicada siempre, la corrida real por defecto da `3utr:` **10, 60, 143,
+    200, 449, 553, 652, 735, 819, 1018, 1071** — con los **cuatro inmunes**. Los diez
+    primeros coincidían con el panel del responsable, así que la app reprodujo lo que se
+    sabía antes de construirla y esa validación quedó **cerrada**; la plaza once es el
+    **segundo distal**, decidida después y con la cuenta delante (ver el bloque de la
+    cobertura por tercios). Fijado en `tests/test_promocion_por_defecto.py`.
   - **Inmunes: 60, 143 y 200**, no solo 60. 60 es el único que salía por asimetría, pero
     la piscina de elegibles tiene 15 sitios más por delante del corte y el informe saca los
     mejores — `3utr:143` (+5,08) y `3utr:200` (+3,80) entre ellos. Con un solo inmune el
@@ -5342,6 +5344,55 @@ números son verosímiles, y ésa es toda la trampa.
 Las cinco se DERIVAN del fragmento que se tiene delante (`fragmento.lengths`), nunca de
 una tabla escrita: con otro intrón salen otros cinco números y no hay nada que actualizar
 — una tabla de valores sería la sexta magnitud, y la que se queda vieja.
+
+## La tasa base y la ventana de seed: la cifra describe LO QUE SE MIDE
+
+Dos defectos reportados con la corrida delante (2026-09-06), erratas nº 118 y 119.
+
+- **La tasa base sigue al NIVEL.** Se calculaba sobre todos los maduros de la especie y
+  el veredicto se emitía sólo contra los del núcleo: la cifra que viajaba pegada al
+  resultado describía otro conjunto. Y **erraba hacia el lado cómodo** —una tasa inflada
+  convierte un `LIMPIO` trivial en uno notable—, que es lo que la hace grave: un error
+  incómodo se investiga, éste se celebra. Ahora `base_rate` recibe el nivel y filtra por
+  el MISMO camino que el veredicto (`mirna.core_hits`), no por una segunda definición de
+  qué es el núcleo. El nivel viaja en el párrafo, en la celda y al almacén.
+- **La ventana no estándar va en el VEREDICTO.** La seed son las posiciones 2-8 por
+  definición del bolsillo de Ago2; en 2-7 el espacio pasa de 16.384 a 4.096 y **un LIMPIO
+  significa mucho menos**. Estaba marcado en la cabecera de parámetros, que se lee una
+  vez; el veredicto se lee siempre y se descarga. `SeedResult.verdict` lleva la ventana
+  pegada, `level` sigue siendo el estado a secas para los almacenes y el semáforo.
+
+## El gestor: estar en el depósito no es cerrar un frente
+
+Errata nº 120, reportada el 2026-09-06. `transcriptoma_3utr.fa` estaba, salía **verde y
+colapsado**, y el modal de off-targets abortaba por falta de los cuatro campos de
+procedencia de la tabla. **Verde en el panel y NOT_RUN en el veredicto, por tercera vez.**
+
+- **Estado propio: `SIN PROCEDENCIA`** (🟡). No es `CERRADO` —no cierra nada— y no es
+  `FALTA` —el fichero está, y volver a subir 84 MB no es lo que hace falta—. La salida es
+  declarar los campos sobre el que ya está, que es lo que `declare_provenance` ya hacía
+  desde la errata nº 87.
+- **NO se colapsa**, y ésta es la parte que más costaba: una fila `CERRADO` va colapsada,
+  así que las cuatro acciones y la caja de declarar quedaban detrás de un gesto. **El
+  estado equivocado escondía exactamente la salida del problema**, y desde fuera el
+  gestor se leía como una lista de nombres.
+- **La barra y el semáforo cuentan los que CIERRAN**, no los que están (`_cierran`). Si
+  sólo se arregla la fila, la fila dice ámbar y la barra sigue diciendo cerrado.
+- **Dos conjuntos, dos preguntas**: `cierran` decide los estados, `en_disco` decide qué
+  botones se pintan. Fundirlos deja un fichero que está sin sus cuatro acciones.
+- Y un tercer eslabón que sólo aparece con el estado nuevo: la rama ABIERTA del panel
+  llamaba a `_fila_ausente` siempre. Era código CORRECTO por una cadena de implicaciones
+  —`presente` ⇒ `CERRADO` ⇒ `colapsada`— que hacía la combinación imposible. Al ganar el
+  modelo un estado, la combinación existe. **Una rama correcta por imposibilidad no es
+  una rama correcta: es una que todavía no ha recibido su caso** — la hermana del
+  principio nº 33, donde el guardia no recibía la pregunta.
+
+**Y el principio que sale de aquí (nº 46): un estado equivocado puede ocultar la
+corrección de sí mismo.** No sólo informa mal: impide llegar a lo que lo arreglaría, y
+desde fuera se lee como una funcionalidad que FALTA. Se reportó como «el gestor ha
+perdido los botones» y no faltaba ninguno. El corolario es viejo — el estado miraba UN
+hecho («está») cuando hacían falta DOS («está» y «sirve»), la misma distinción que
+«existir no es contener».
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

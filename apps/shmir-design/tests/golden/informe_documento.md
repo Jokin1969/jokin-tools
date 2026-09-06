@@ -553,7 +553,7 @@ COMO CERRAR EL FRENTE «empalme_sitios»
 
 **Que mide.** ¿Que fracción de los transcritos conserva la diana? Un sitio de poliadenilación alternativa proximal corta el 3'UTR, así que un candidato por detrás de ese corte solo tiene diana en la isoforma larga. Eso no es un veto: es un TECHO de knockdown.
 
-**Por que importa / resultado.** CERRADO. 6 de 10 candidatos quedan por detrás del corte de 3utr:236: comparten UN ÚNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes por tramo son 16/0/0 —todos en el proximal— y el espaciado deja meter cuatro, que son los 4 que ya están. POR QUE BLOQUEABA: si la fracción de isoforma corta es alta, esos 6 candidatos entran al cribado con un TECHO INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no funciona dan la misma lectura en la placa, y el experimento se gasta en no poder separarlos. ESTADO: MEDIDO. PolyA_DB v4.1, fracción larga 0.86 ponderada / 0.65 sin ponderar. El mapeo genomico↔transcrito que bloqueaba está RESUELTO sin coordenadas genomicas y sobre 4 puntos de apoyo, no sobre una resta. Y el techo no es uno: va POR TRAMOS (0.91, 0.86), porque depende de por detrás de cuántos cortes está cada candidato. Con eso deja de cumplirse lo que hacia bloquear a este frente: un techo de 0.86 NO es indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, así que estas cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos amplicones sigue en pie y puede MEJORARLAS.
+**Por que importa / resultado.** CERRADO. 7 de 11 candidatos quedan por detrás del corte de 3utr:236: comparten UN ÚNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes por tramo son 16/0/0 —todos en el proximal— y el espaciado deja meter cuatro, que son los 4 que ya están. POR QUE BLOQUEABA: si la fracción de isoforma corta es alta, esos 7 candidatos entran al cribado con un TECHO INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no funciona dan la misma lectura en la placa, y el experimento se gasta en no poder separarlos. ESTADO: MEDIDO. PolyA_DB v4.1, fracción larga 0.86 ponderada / 0.65 sin ponderar. El mapeo genomico↔transcrito que bloqueaba está RESUELTO sin coordenadas genomicas y sobre 4 puntos de apoyo, no sobre una resta. Y el techo no es uno: va POR TRAMOS (0.91, 0.86), porque depende de por detrás de cuántos cortes está cada candidato. Con eso deja de cumplirse lo que hacia bloquear a este frente: un techo de 0.86 NO es indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, así que estas cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos amplicones sigue en pie y puede MEJORARLAS.
 
 **Fuente de datos.** MAPEO GENOMICO↔TRANSCRITO — RESUELTO SIN COORDENADAS GENOMICAS. ·   PolyA_DB pública el sitio de CORTE, NO EL HEXÁMERO. Su leyenda: «A[A/U]UAAA motif within 40-nt upstream from the PAS» — el hexámero se busca AGUAS ARRIBA del PAS, luego la coordenada publicada es el corte. Con nuestra convención el hexámero cae 10-30 nt por delante, dentro de esos 40 nt. ·   Hipotesis «PAS = hexámero»: DESCARTADA. Un hexámero es un punto, no una banda, así que ·   bajo esa lectura el aterrizaje tiene que ser EXACTO — y no hay ningún desfase que haga ·   aterrizar más de 1 de las 4 coordenadas. Bajo «PAS = corte» aterrizan las 4, ·   con el MISMO desfase y con la CLASE de hexámero que declara la propia base en cada una. ·   No es una resta: son 4 puntos de apoyo independientes. Desfase 3'UTR→mm10 acotado a 131937185-131937193 (9 valores); se deja como INTERVALO ·   porque la banda de corte mide 20 nt y fijarlo en un entero sería inventarse precisión. ·  ·     chr2:+:131937444  Other   → corte 3utr:251-271, hexámero AATATA en 3utr:236  PSE 21.1%, AvgRPM 0.55  ← TERCER sitio de corte, el proximal MÁS USADO de los tres ·     chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexámero AATAAA en 3utr:288  PSE 23.5%, AvgRPM 0.34  ← nuestro AATAAA de 3utr:288 ·     chr2:+:131938392  Other   → AMBIGUO: 2 hexámeros de su clase en la banda (TATAAA en 3utr:1178, TATAAA en 3utr:1189). Ancla, pero NO entra al modelo con banda propia. ·     chr2:+:131938427  AUUAAA  → corte 3utr:1229-1249, hexámero ATTAAA en 3utr:1214  (sin datos de expresión)  ← fuerza 99,9 %, conservado en humano y rata; SIN expresión, así que no entra en la fracción — solo ancla ·  ·   TECHO POR TRAMOS. Con tres sitios de corte medidos el techo ya no es UNO: la pregunta ·   de un candidato no es cuanta isoforma larga hay, es que fracción de transcritos conserva ·   SU diana — y eso depende de por detrás de cuántos cortes esta. ·     3utr:1-251  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE. ·     3utr:252-271  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937444: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     3utr:272-303  techo 0.91           por detrás de chr2:+:131937444 ·     3utr:304-323  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937504: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     3utr:324-1242  techo 0.86           por detrás de chr2:+:131937444, chr2:+:131937504
 
@@ -573,7 +573,7 @@ Todo a la misma escala: los candidatos numerados por su puesto en el panel, las 
   conserv NOT_RUN: no se ha dado informe de conservación para esta especie.
   polyA                      M   M                                                A   A     A           AA T
   corte                       === ===                                              === ===    ==         =====
-  cand     1   2     3    4                   5       6       7      8     9               10
+  cand     1   2     3    4                   5       6       7      8     9               10  11
 
   3'UTR de 1242 nt en 100 columnas — 12.4 nt por columna (marco de lo tilado: 3utr).
   M = señal polyA con uso MEDIDO · A = señal polyA por canonicidad, sin dato de uso · T = terminal probable
@@ -582,7 +582,7 @@ Todo a la misma escala: los candidatos numerados por su puesto en el panel, las 
   2 banda(s) de corte se salen del transcrito anotado: el corte de una terminal cae aguas abajo del final.
   Van recortadas.
   1=3utr:10  2=3utr:60  3=3utr:143  4=3utr:200  5=3utr:449  6=3utr:553  7=3utr:652  8=3utr:735  9=3utr:819
-  10=3utr:1018
+  10=3utr:1018  11=3utr:1071
 ```
 
 Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, cuántos candidatos del panel caen ahí con cada una de las dos definiciones de tercio, y cuál sería el siguiente sin romper el espaciado. Un tramo que se ve vacío en el mapa puede estarlo porque no hay sitios elegibles o porque no caben: no es lo mismo.
@@ -609,17 +609,17 @@ Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, cuántos can
     No queda ninguno: o no hay más sitios elegibles en el tramo o todos caen a menos de 50 nt de un
       candidato ya elegido.
   distal — 3utr:829-1242, 414 nt: 16 sitios elegibles por inicio (17 por punto medio).
-    Panel: 2 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 1 por inicio. Cuota 1:
+    Panel: 3 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 2 por inicio. Cuota 1:
       cumplida.
     OJO, borde: 3utr:819 cuenta(n) en este tercio por punto medio y empieza(n) en el anterior. Cubre(n) el
       primer nucleótido del tramo, no el tramo.
-    Margen: 13 sitio(s) del tramo quedan a 50 nt o más de 3utr:1018, y 9 lo cumplen con TODO el panel. El
-      que manda es el segundo: añadir uno exige espaciado con todos.
-    Los mejores del tramo a 50 nt o más de 3utr:1018, por el mismo orden con que se eligió el panel
-      (asimetría): 3utr:1071-1092 (asimetría +4.28); 3utr:1076-1097 (asimetría +4.20); 3utr:900-921 (asimetría
-      +4.15).
-    Los tres son también los mejores que caben con TODO el panel, así que aquí las dos preguntas dan la
-      misma respuesta.
+    Margen: 8 sitio(s) del tramo quedan a 50 nt o más de 3utr:1071, y 4 lo cumplen con TODO el panel. El que
+      manda es el segundo: añadir uno exige espaciado con todos.
+    Los mejores del tramo a 50 nt o más de 3utr:1071, por el mismo orden con que se eligió el panel
+      (asimetría): 3utr:900-921 (asimetría +4.15); 3utr:851-872 (asimetría +3.19); 3utr:846-867 (asimetría
+      +3.12).
+    Los que además caben con TODO el panel NO son los mismos: 3utr:900-921 (asimetría +4.15); 3utr:922-943
+      (asimetría +1.90); 3utr:904-925 (asimetría +1.33).
 ```
 
 ## 5. Tabla de candidatos
@@ -631,13 +631,14 @@ Todas las columnas, con un estado POR FILTRO. No se colapsan ni se omiten los qu
 | 9 | 10 | 31 | 3'UTR | 10 | 31 | proximal | 4.33 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCCTGCTTGTTCCTTCGCATTC | UAAUGCGAAGGAACAAGCAGGA |
 | 6 | 60 | 81 | 3'UTR | 60 | 81 | proximal | 5.15 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | CCACCTGTAGCTCTTTCAATTG | UAAUUGAAAGAGCUACAGGUGG |
 | 7 | 143 | 164 | 3'UTR | 143 | 164 | proximal | 5.08 | AATATA | APA_POSIBLE | aguas abajo, 71 nt | 3utr:236 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | GCCCTGGGAAATGTACAGTAGA | UCUACUGUACAUUUCCCAGGGC |
-| 10 | 200 | 221 | 3'UTR | 200 | 221 | proximal | 3.8 | AATATA | APA_POSIBLE | aguas abajo, 14 nt | 3utr:236 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCTGTCATCAGCCAGTGCTAAC | UUUAGCACUGGCUGAUGACAGA |
+| 11 | 200 | 221 | 3'UTR | 200 | 221 | proximal | 3.8 | AATATA | APA_POSIBLE | aguas abajo, 14 nt | 3utr:236 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCTGTCATCAGCCAGTGCTAAC | UUUAGCACUGGCUGAUGACAGA |
 | 5 | 449 | 470 | 3'UTR | 449 | 470 | medio | 5.32 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 198 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GTGGAATTCTTTCTTTACTAAC | UUUAGUAAAGAAAGAAUUCCAC |
 | 3 | 553 | 574 | 3'UTR | 553 | 574 | medio | 5.86 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 302 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | AGGGCACTAGAATGATCTTTAG | UUAAAGAUCAUUCUAGUGCCCU |
 | 4 | 652 | 673 | 3'UTR | 652 | 673 | medio | 5.8 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 401 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GAGGGATGGTTAAGGTACAAAG | UUUUGUACCUUAACCAUCCCUC |
 | 8 | 735 | 756 | 3'UTR | 735 | 756 | medio | 5.08 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 484 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCCCTATGTTTCTGTACTTCTA | UAGAAGUACAGAAACAUAGGGC |
 | 2 | 819 | 840 | 3'UTR | 819 | 840 | distal | 5.96 | CATAAA | OTRA | aguas abajo, 66 nt | 3utr:907 | 330 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 568 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCTCCATTCCAAAGTGGGAAAG | UUUUCCCACUUUGGAAUGGAGC |
 | 1 | 1018 | 1039 | 3'UTR | 1018 | 1039 | distal | 6.65 | ACTAAA | OTRA | dentro | 3utr:1034 | 203 nt | si | PASS | FAIL | PASS | TECHO | NO_APLICA | PENALIZADO | 767 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | True | True | prediccion:si | INCOMPLETE | GGCCGTTCCATCCAGTACTAAA | UUUAGUACUGGAUGGAACGGCC |
+| 10 | 1071 | 1092 | 3'UTR | 1071 | 1092 | distal | 4.28 | ACTAAA | OTRA | aguas arriba, 31 nt | 3utr:1034 | 203 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 820 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | TGCACTCAGTTCCGTAGGATTC | UAAUCCUACGGAACUGAGUGCA |
 
 > **MULTIPLEXADO: hay candidatos que comparten núcleo.**
 
@@ -662,7 +663,8 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | True | 3utr:143 | 143 | NO_FIABLE | 5.08 | 7 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUACUGUACAUUUCCCAGGGC |
 | True | 3utr:735 | 735 | NO_FIABLE | 5.08 | 8 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAGUACAGAAACAUAGGGC |
 | True | 3utr:10 | 10 | NO_FIABLE | 4.33 | 9 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGCGAAGGAACAAGCAGGA |
-| True | 3utr:200 | 200 | NO_FIABLE | 3.8 | 10 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGCACUGGCUGAUGACAGA |
+| True | 3utr:1071 | 1071 | NO_FIABLE | 4.28 | 10 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCCUACGGAACUGAGUGCA |
+| True | 3utr:200 | 200 | NO_FIABLE | 3.8 | 11 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGCACUGGCUGAUGACAGA |
 | False | 3utr:9 | 9 | NO_FIABLE | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGCGAAGGAACAAGCAGGAA |
 | False | 3utr:11 | 11 | NO_FIABLE | 2.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUGCGAAGGAACAAGCAGG |
 | False | 3utr:12 | 12 | NO_FIABLE | 2.75 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAUGCGAAGGAACAAGCAG |
@@ -910,7 +912,6 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:1026 | 1026 | NO_FIABLE | 0.78 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUAAGCAUUUAGUACUGGAUG |
 | False | 3utr:1029 | 1029 | NO_FIABLE | 1.97 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACGGUAAGCAUUUAGUACUGG |
 | False | 3utr:1070 | 1070 | NO_FIABLE | 3.44 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCUACGGAACUGAGUGCAC |
-| False | 3utr:1071 | 1071 | NO_FIABLE | 4.28 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCCUACGGAACUGAGUGCA |
 | False | 3utr:1075 | 1075 | NO_FIABLE | 2.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGGAAUCCUACGGAACUGAG |
 | False | 3utr:1076 | 1076 | NO_FIABLE | 4.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGGAAUCCUACGGAACUGA |
 | False | 3utr:1077 | 1077 | NO_FIABLE | 1.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUGGAAUCCUACGGAACUG |

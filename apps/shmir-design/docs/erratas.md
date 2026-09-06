@@ -5682,3 +5682,137 @@ permite que la próxima vez se vea en qué difieren las dos cuentas en vez de di
 Y las dos listas se emiten por separado, porque son dos preguntas: los mejores del tramo
 a ≥50 de su propio vecino, y los que además caben con todo el panel. En el tercio
 proximal **no coinciden**, que es donde se ve que no eran la misma.
+
+---
+
+## 117 — `mvm_sin_criptico` declara las mitades del MVM y NO EXISTE
+
+Cazado al generalizar `locate_intron`, **antes de que mordiera**. El responsable del
+proyecto lo señaló como el hallazgo de la tanda (2026-09-06):
+
+> *«Declara las mitades del MVM y no existe, así que localizarlo habría devuelto una
+> identificación falsa con la forma correcta.»*
+
+`intron_boundaries(intron)` resuelve por dónde buscar cada intrón: si se ensambla de
+piezas versionadas, por sus dos mitades; si llega entero, por sus extremos. La primera
+versión miraba **cómo se busca** antes de **si existe**:
+
+```python
+if registro.five_piece and registro.three_piece:   # ← mvm_sin_criptico entra aquí
+    return PIECES[...], PIECES[...]
+if not registro.provided:
+    registro.require_sequence()                    # ← nunca llega
+```
+
+`mvm_sin_criptico` declara `five_piece="MVM5"` y `three_piece="MVM3"` porque **es una
+variante del MVM**: cuando exista, tendrá esas dos mitades. Pero **lo diseña la app por
+candidato** y hoy no existe (`provided` es `False`, y se DERIVA precisamente para que
+nadie pueda declararlo a mano). Buscarlo por las mitades del MVM habría encontrado…
+**el MVM**, y devuelto un `IntronLocation` con `intron_name="mvm_sin_criptico"` sobre
+coordenadas del otro.
+
+### Por qué es el patrón del proyecto y no un despiste
+
+El resultado no habría dado error: coordenadas válidas, dinucleótidos `GT`/`AG`
+correctos, longitud plausible. **Un intrón identificado como el que no es, con la forma
+correcta** — la misma familia que el 3'UTR de 1246 nt anunciado como 1242, que el `mmu-`
+por defecto sobre una guía de conejo, y que el «Alu 0 %» obtenido sin buscar Alu.
+
+Y con una vuelta de tuerca: el campo que lo habría delatado —`provided`— **ya estaba
+derivado y no declarado**, justo por esta razón. La contramedida existía y la consulta
+llegaba tarde.
+
+### La contramedida, que es lo que generaliza
+
+**Comprobar que la cosa EXISTE antes de mirar CÓMO se busca.** Dos líneas invertidas:
+
+```python
+if not registro.provided:
+    registro.require_sequence()     # PRIMERO si existe
+if registro.five_piece and registro.three_piece:
+    return ...                      # y LUEGO cómo se busca
+```
+
+No es una comprobación más: es un ORDEN. Toda función que elija una estrategia según las
+propiedades declaradas de un objeto tiene que preguntar primero si el objeto está — o la
+estrategia se aplicará a los campos de algo que no existe, y esos campos suelen ser
+verosímiles porque describen lo que existirá.
+
+---
+
+## 118 — La tasa base describía un conjunto y el veredicto otro
+
+Reportado con la corrida delante (2026-09-06): `window=2-7`, `level=nucleo`, la cabecera
+anunciando que **el 31 % colisionaría por azar** y el resultado **1 de 176**.
+
+> *«La tasa base se calcula sobre los 1.988 maduros mmu- y el veredicto se emite sólo
+> contra los diez del núcleo. La cifra que acompaña al resultado no describe lo que el
+> resultado mide, y engaña en la dirección tranquilizadora.»*
+
+`base_rate` contaba TODOS los maduros de la especie; `run_scan` filtraba las colisiones
+por `level`. Dos conjuntos, y la cifra que viajaba pegada al veredicto era la del grande.
+
+**Y la dirección importa.** Una tasa base inflada convierte un `LIMPIO` trivial en un
+`LIMPIO` notable: hace parecer excepcionalmente limpio algo que sólo se comparó contra
+diez secuencias. Un error hacia el lado incómodo se investiga; éste se celebra.
+
+Ahora `base_rate` recibe el `level` y filtra **por el mismo camino** que el veredicto
+—`mirna.core_hits`—, no por una segunda definición de qué es el núcleo: con dos, la tasa
+podría volver a describir un conjunto y el veredicto otro. La cifra dice contra qué
+conjunto se comparó, en el párrafo y en la celda, y el nivel viaja con ella al almacén.
+
+---
+
+## 119 — La ventana 2-7 estaba en la cabecera y no en el veredicto
+
+Del mismo reporte. La seed son las posiciones 2-8 **por definición del bolsillo de Ago2**;
+en 2-7 el espacio pasa de 16.384 a 4.096, así que **un LIMPIO significa mucho menos** —
+hay cuatro veces más sitio donde no chocar.
+
+Estaba marcado como «ajuste modificado» en la cabecera de parámetros, que se lee una vez.
+El veredicto se lee siempre **y se descarga**: es la misma lección que puso la tasa base
+en la fila, aplicada a la ventana. `SeedResult.verdict` lleva ahora la ventana pegada
+cuando no es la estándar; `level` sigue siendo el estado a secas, que es lo que leen los
+almacenes y el semáforo.
+
+**El hallazgo de esa corrida se sostiene igual**: `3utr:1761` guía, `CTTTGG`, colisión con
+`mmu-miR-9-5p` — que está en `CORE_ABUNDANT`. No está en el panel.
+
+---
+
+## 120 — Verde en el panel y NOT_RUN en el veredicto: la tercera vez
+
+Reportado el 2026-09-06 con la pantalla delante. `transcriptoma_3utr.fa` estaba en el
+depósito, figuraba **conectado y en verde**, y el modal de off-targets **abortaba**: a su
+línea del manifiesto le faltaban los cuatro campos de procedencia de la tabla que
+`offtarget.Provenance` exige.
+
+> *«Es el caso de `refseq_rna.fa` otra vez: verde en el panel y NOT_RUN en el veredicto.»*
+
+`_estado_de` daba `CERRADO` con un solo hecho —«está en el depósito»— y hay dos: estar, y
+traer lo que su frente exige. `manager_rows` YA calculaba cuáles faltan
+(`falta_procedencia`, errata nº 87): el dato estaba y el estado no lo miraba.
+
+### La segunda consecuencia, que es peor que la primera
+
+Una fila `CERRADO` va **colapsada**. Así que las cuatro acciones —Ver, Reemplazar,
+Borrar, Descargar— y la caja de «completar la procedencia» quedaban detrás de un gesto, y
+el gestor se leía desde fuera como una lista de nombres. **El estado equivocado escondía
+exactamente la salida del problema.**
+
+Y había un tercer eslabón: la rama abierta del panel llamaba a `_fila_ausente`
+**siempre**. Mientras «presente» implicaba «CERRADO» y «CERRADO» implicaba «colapsada»,
+la combinación presente + abierta no existía y el fallo no se veía. Al crear el estado
+nuevo aparece, y es justo donde hay que poder declarar y reemplazar.
+
+### Lo que se cambia
+
+- Estado propio, **`SIN PROCEDENCIA`**, con su color y su marca en la leyenda. No es
+  `CERRADO` y no es `FALTA`: el fichero está, y volver a subir 84 MB no es lo que hace
+  falta — la salida es declarar los campos sobre el que ya está.
+- **No se colapsa**, porque su arreglo vive dentro de la fila.
+- La barra de progreso y el semáforo cuentan los que **CIERRAN**, no los que están: si
+  sólo se arregla la fila, la fila dice ámbar y la barra sigue diciendo cerrado.
+- Y dos conjuntos separados donde había uno: `cierran` decide los estados, `en_disco`
+  decide qué botones se pintan. Fundirlos deja un fichero que está sin sus cuatro
+  acciones, que es lo que hay que poder hacer con él.

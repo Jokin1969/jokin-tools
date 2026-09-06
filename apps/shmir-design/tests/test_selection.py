@@ -38,11 +38,13 @@ def choice(start, asymmetry, tercio=Tercio.PROXIMAL, label=None):
 
 class TestValoresPorDefecto(unittest.TestCase):
 
-    def test_diez_candidatos_y_50_nt(self):
-        self.assertEqual(DEFAULT_CANDIDATES, 10)
+    def test_once_candidatos_y_50_nt(self):
+        # ONCE desde el 2026-09-06: la plaza once es el SEGUNDO DISTAL. Fueron diez, y
+        # antes seis; el numero cambia cuando cambia una decision, y va con su fecha.
+        self.assertEqual(DEFAULT_CANDIDATES, 11)
         self.assertEqual(DEFAULT_MIN_SPACING, 50)
         config = SelectionConfig()
-        self.assertEqual(config.n_candidates, 10)  # el panel del proyecto son diez
+        self.assertEqual(config.n_candidates, 11)
         self.assertEqual(config.min_spacing, 50)
         self.assertTrue(config.require_one_per_tercio)
 

@@ -588,12 +588,14 @@ def main(argv: list[str]) -> int:
              "por defecto y lo que produce se marca en toda la salida.",
     )
     parser.add_argument(
-        "--fragmento-intron", default="mvm_actual",
+        "--fragmento-intron", default="",
         help="Con --bloques: de qué intrón sale el FRAGMENTO de síntesis (el intrón "
              "completo con su contexto exónico, para pegar sobre la feature). Admite "
              "VARIOS separados por comas y entonces emite la matriz entera "
              "—candidatos x intrones—, que es como está planteado el primer "
-             "experimento. Por defecto el MVM del casete de hoy.",
+             "experimento. POR DEFECTO LAS DOS del registro: el primer experimento es "
+             "cruzado por diseño, y el coste de doblar la síntesis es pequeño frente a "
+             "descubrir en el gel que el problema era el intrón y no las guías.",
     )
     parser.add_argument(
         "--fragmento-con-sitios", action="store_true",
@@ -1120,7 +1122,7 @@ def main(argv: list[str]) -> int:
                             if plan_empalme is not None
                             else None
                         ),
-                        intron=args.fragmento_intron,
+                        intron=args.fragmento_intron or None,
                         with_sites=args.fragmento_con_sitios,
                     )
                 )

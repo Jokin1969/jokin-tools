@@ -32,14 +32,16 @@ FECHA = "2026-08-26"
 
 def _documento():
     from shmir_design.apa import resolve_measured
-    from shmir_design.selection import SelectionConfig, select_from_report
+    from shmir_design.selection import default_config, select_from_report
     from shmir_design.tiling import tile_utr
 
     utr3 = load_3utr(RATON)
     informe = tile_utr(utr3)
-    seleccion = select_from_report(
-        informe, SelectionConfig(n_candidates=10, apa_immune_quota=4)
-    )
+    # `default_config()`, la MISMA que usa `tools/regenerar_golden.py`. Estaba escrito a
+    # mano con `n_candidates=10` y coincidia por casualidad: el dia que el panel del
+    # proyecto paso a once, el golden y su regenerador construyeron dos documentos
+    # distintos. Dos formas de montar lo mismo divergen (principio nº 24).
+    seleccion = select_from_report(informe, default_config())
     return informe_doc.build_document(
         species="mouse", tiling=informe, selection=seleccion, generated=FECHA,
         anatomy_source="lo tilado ES el 3'UTR (fixture verificado por md5)",

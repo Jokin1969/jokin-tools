@@ -191,10 +191,11 @@ class TestLasDosREGLAS_DE_LA_SELECCION(unittest.TestCase):
         self.assertEqual(default_config().apa_immune_quota, DEFAULT_IMMUNE_QUOTA)
         self.assertEqual(default_config(n_candidates=2).apa_immune_quota, 2)
 
-    def test_el_panel_por_defecto_son_DIEZ_como_el_del_proyecto(self):
+    def test_el_panel_por_defecto_es_el_del_proyecto(self):
         from shmir_design.selection import DEFAULT_CANDIDATES
 
-        self.assertEqual(DEFAULT_CANDIDATES, 10)
+        # ONCE desde el 2026-09-06: la plaza once es el segundo distal.
+        self.assertEqual(DEFAULT_CANDIDATES, 11)
 
     def test_sin_cuota_de_inmunes_el_panel_pierde_uno(self):
         """El hecho que motiva la cuota, medido y fijado."""

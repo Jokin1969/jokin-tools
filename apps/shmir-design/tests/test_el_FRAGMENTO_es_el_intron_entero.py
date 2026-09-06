@@ -350,7 +350,14 @@ class TestElPaqueteQueSaleDeLaCorrida(unittest.TestCase):
         for fila in filas:
             self.assertRegex(str(fila["candidato"]), r"^(tx|3utr):\d+$")
 
-    def test_el_paquete_trae_el_FASTA_y_la_hoja(self):
+    def test_el_paquete_trae_LA_MATRIZ_por_defecto(self):
+        """Por defecto salen LAS DOS arquitecturas: candidatos × intrones.
+
+        Decidido el 2026-09-06. Con el panel de once y los dos intrones del registro
+        son 22 fragmentos, y ése es el pedido del primer experimento.
+        """
+        from shmir_design.fragmento import default_introns
+
         paquete = self.bundle(
             self.corrida.selection, self.scaffold, species="mouse",
             cassette=self.casete,
@@ -359,8 +366,10 @@ class TestElPaqueteQueSaleDeLaCorrida(unittest.TestCase):
         self.assertIn("mouse_fragmentos.txt", paquete)
         self.assertEqual(
             paquete["mouse_fragmentos.fasta"].count(">"),
-            len(self.corrida.selection.selection.chosen),
+            len(self.corrida.selection.selection.chosen) * len(default_introns()),
         )
+        for nombre in default_introns():
+            self.assertIn(f"intron={nombre}", paquete["mouse_fragmentos.fasta"])
 
     def test_LA_MATRIZ_entera_cuando_se_piden_dos_arquitecturas(self):
         """El primer experimento es CRUZADO por diseño: guías × intrones.

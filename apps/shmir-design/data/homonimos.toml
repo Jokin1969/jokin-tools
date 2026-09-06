@@ -175,12 +175,21 @@ que_es = "Un `FilterState` derivado de si esa pieza está o no. Regla 3, la mism
 ["verdict"]
 donde = [
   "controles.Control", "fragmento.Fragment", "gblock.GBlock",
-  "hard_filters.WindowEvaluation", "polya.AnnotatedWindow", "tiling.TiledWindow",
+  "hard_filters.WindowEvaluation", "polya.AnnotatedWindow", "seed_scan.SeedResult",
+  "tiling.TiledWindow",
 ]
-relacion = "MISMA_MAGNITUD"
+relacion = "DISTINTA"
 que_es = """\
-El veredicto agregado de un conjunto de filtros, y las seis lo delegan en \
-`filters.overall_verdict` — que es justamente lo que impide que se separen."""
+Seis de las siete —`controles.Control`, `fragmento.Fragment`, `gblock.GBlock`, \
+`hard_filters.WindowEvaluation`, `polya.AnnotatedWindow` y `tiling.TiledWindow`— son el \
+VEREDICTO AGREGADO de un conjunto de filtros y lo delegan en \
+`filters.overall_verdict`, que es justamente lo que impide que se separen.
+`seed_scan.SeedResult.verdict` NO es eso: es el estado de UNA comprobación —LIMPIO, \
+AVISO o FAIL— con la VENTANA pegada cuando no es la estándar, o sea el texto que se \
+pinta y se descarga. El estado a secas sigue en `level`, que es lo que leen los \
+almacenes y el semáforo. Son dos cosas y por eso son dos campos: si `verdict` fuera \
+aquí un agregado, la ventana no estándar volvería a vivir sólo en la cabecera de \
+parámetros — que se lee una vez, mientras el veredicto se lee siempre."""
 
 ["failures"]
 donde = ["gblock.GBlock", "hard_filters.WindowEvaluation"]

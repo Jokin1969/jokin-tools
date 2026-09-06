@@ -62,15 +62,23 @@ class TestLaCoberturaPorTercios(unittest.TestCase):
         )
 
     def test_sitios_elegibles_por_tercio_MEDIDOS(self):
+        # Los SITIOS no cambian al cambiar el panel: es el conjunto sobre el que se
+        # elige, no lo elegido.
         self.assertEqual(
             {c.tercio: c.sites_by_start for c in self.cobertura},
             {"proximal": 28, "medio": 42, "distal": 16},
         )
 
-    def test_el_distal_tiene_UN_candidato_por_inicio_y_DOS_por_punto_medio(self):
+    def test_el_distal_tiene_DOS_por_inicio_y_TRES_por_punto_medio(self):
+        """Desde el 2026-09-06 el panel lleva `3utr:1071` como SEGUNDO distal.
+
+        El «tres por punto medio» sigue siendo dos de verdad: `3utr:819-840` entra ahí
+        por su punto medio y acaba en el nt 840 de un tramo que llega al 1242. Es la
+        misma discrepancia que hizo que la cuota fuera POR INICIO.
+        """
         distal = self.por_nombre["distal"]
-        self.assertEqual(distal.panel_by_start, (1018,))
-        self.assertEqual(distal.panel_by_midpoint, (819, 1018))
+        self.assertEqual(distal.panel_by_start, (1018, 1071))
+        self.assertEqual(distal.panel_by_midpoint, (819, 1018, 1071))
 
     def test_la_cuota_se_cumple_y_se_dice_con_que_definicion(self):
         distal = self.por_nombre["distal"]
@@ -89,8 +97,9 @@ class TestLaCoberturaPorTercios(unittest.TestCase):
         distal = self.por_nombre["distal"]
         self.assertEqual(distal.spacing, DEFAULT_MIN_SPACING)
         self.assertTrue(distal.next_free)
-        self.assertEqual(distal.next_free[0].start, 1071)
-        self.assertEqual(distal.next_free[0].end, 1092)
+        # 1071 YA está en el panel desde el 2026-09-06, así que el siguiente es otro.
+        self.assertEqual(distal.next_free[0].start, 900)
+        self.assertEqual(distal.next_free[0].end, 921)
         # Todos los que se ofrecen respetan el espaciado con TODO el panel.
         elegidos = [c.start for c in self.seleccion.selection.chosen]
         for siguiente in distal.next_free:
@@ -105,14 +114,18 @@ class TestLaCoberturaPorTercios(unittest.TestCase):
         pide uno. Los tres mejores por asimetría son la lista con la que se decide.
         """
         distal = self.por_nombre["distal"]
+        # Con `3utr:1071` YA en el panel, la referencia del tramo pasa a ser él y el
+        # margen baja de 13 a 8: exactamente lo que cuesta ocupar una plaza. La cuenta
+        # que motivó la decisión —13 de 16 libres respecto de 3utr:1018— está en la
+        # errata nº 116 y ya no se puede reproducir desde aquí, porque el panel cambió.
         self.assertEqual(
             [(s.start, s.end) for s in distal.next_free_of_reference],
-            [(1071, 1092), (1076, 1097), (900, 921)],
+            [(900, 921), (851, 872), (846, 867)],
         )
-        self.assertEqual(distal.free_of_reference, 13)
+        self.assertEqual(distal.free_of_reference, 8)
         texto = "\n".join(distal.describe())
-        self.assertIn("3utr:1071-1092", texto)
-        self.assertIn("3utr:1018", texto)
+        self.assertIn("3utr:900-921", texto)
+        self.assertIn("3utr:1071", texto)
 
     def test_las_DOS_listas_son_dos_preguntas(self):
         """En el proximal NO coinciden, y ahí se ve que no son la misma."""
@@ -122,11 +135,11 @@ class TestLaCoberturaPorTercios(unittest.TestCase):
 
     def test_se_distingue_libre_de_1018_de_libre_del_panel_entero(self):
         distal = self.por_nombre["distal"]
-        self.assertEqual(distal.free_of_reference, 13)
-        self.assertEqual(distal.free_of_panel, 9)
+        self.assertEqual(distal.free_of_reference, 8)
+        self.assertEqual(distal.free_of_panel, 4)
         texto = "\n".join(distal.describe())
-        self.assertIn("13", texto)
-        self.assertIn("9", texto)
+        self.assertIn("8", texto)
+        self.assertIn("4", texto)
 
     def test_el_tercio_MEDIO_esta_saturado_y_tambien_se_dice(self):
         """MEDIDO: 41 sitios elegibles y CERO caben — todos a menos de 50 nt.

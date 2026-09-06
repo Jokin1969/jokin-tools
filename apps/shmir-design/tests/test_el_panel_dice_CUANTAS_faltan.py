@@ -72,27 +72,28 @@ class TestLaReconciliacion(unittest.TestCase):
     def setUpClass(cls):
         cls.panel = _panel()
         cls.resumen = presentation.splice_panel_summary(
-            cls.panel, introns=PARCIAL, candidates=10,
+            cls.panel, introns=PARCIAL, candidates=11,
         )
 
     def test_el_nucleo_ya_devolvia_las_dos_mitades(self):
-        self.assertEqual(len(self.panel.constructions), 10)
-        self.assertEqual(len(self.panel.failed), 10)
+        # ONCE candidatos desde el 2026-09-06: el segundo distal entro en el panel.
+        self.assertEqual(len(self.panel.constructions), 11)
+        self.assertEqual(len(self.panel.failed), 11)
 
     def test_dice_lo_ANUNCIADO_lo_EMITIDO_y_lo_que_FALTA(self):
-        self.assertEqual(self.resumen["anunciadas"], 20)
-        self.assertEqual(self.resumen["emitidas"], 10)
-        self.assertEqual(self.resumen["faltan"], 10)
+        self.assertEqual(self.resumen["anunciadas"], 22)
+        self.assertEqual(self.resumen["emitidas"], 11)
+        self.assertEqual(self.resumen["faltan"], 11)
 
     def test_la_cuenta_YA_NO_inventa_un_recuento_de_candidatos(self):
         """`10 // 2 = 5` decía «5 candidatos», y ese 5 no existió nunca."""
         self.assertNotIn("5 candidato", self.resumen["texto"])
-        self.assertIn("10", self.resumen["texto"])
+        self.assertIn("11", self.resumen["texto"])
 
     def test_el_desglose_es_POR_INTRON_y_no_diez_avisos_iguales(self):
         # El fallo es del intrón: repetirlo por candidato es lo que lo hace ilegible.
         por_intron = {f["intron"]: f for f in self.resumen["por_intron"]}
-        self.assertEqual(por_intron["mvm_actual"]["emitidas"], 10)
+        self.assertEqual(por_intron["mvm_actual"]["emitidas"], 11)
         self.assertEqual(por_intron["mvm_sin_criptico"]["emitidas"], 0)
         self.assertEqual(len(self.resumen["por_intron"]), 2)
 
@@ -117,11 +118,11 @@ class TestElFicheroLoDiceEnSuNOMBRE(unittest.TestCase):
 
     def test_parcial_lo_lleva_en_el_nombre(self):
         nombre = presentation.splice_fasta_name(
-            self.panel, species="Mus musculus", introns=PARCIAL, candidates=10,
+            self.panel, species="Mus musculus", introns=PARCIAL, candidates=11,
         )
         self.assertIn("PARCIAL", nombre)
-        self.assertIn("10", nombre)
-        self.assertIn("20", nombre)
+        self.assertIn("11", nombre)
+        self.assertIn("22", nombre)
         self.assertTrue(nombre.endswith(".fa"))
 
     def test_completo_NO_lo_lleva(self):
@@ -129,7 +130,7 @@ class TestElFicheroLoDiceEnSuNOMBRE(unittest.TestCase):
             _corrida_selection(), intron_names=("mvm_actual",), scaffold=SGEP_SCAFFOLD,
         )
         nombre = presentation.splice_fasta_name(
-            entero, species="Mus musculus", introns=("mvm_actual",), candidates=10,
+            entero, species="Mus musculus", introns=("mvm_actual",), candidates=11,
         )
         self.assertNotIn("PARCIAL", nombre)
 

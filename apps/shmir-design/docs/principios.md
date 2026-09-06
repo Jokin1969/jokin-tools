@@ -140,6 +140,27 @@ Es la **cuarta** vez que el mismo fallo sale en esta app, siempre igual: un dato
 | 1773 ventanas descartadas | «bases desconocidas o enmascaradas» | ninguna tenía `N` ni estaba enmascarada: fallaban GC y homopolímero |
 | posiciones de inserción válidas en `intron_quimerico` | **«cero»**, que se lee como «ninguna vale» | se comparaba la estructura del MÓDULO entero en vez de la de la HORQUILLA. Con el criterio bueno son **15 de 97** |
 
+### POR QUÉ ESTA FAMILIA SOBREVIVE: un error incómodo se investiga, éste se celebra
+
+La formulación la fijó el responsable del proyecto el 2026-09-06, sobre la tasa base de
+seed que describía un conjunto y el veredicto otro, y **vale para las cinco filas de
+arriba**:
+
+> **Un error incómodo se investiga; éste se celebra.**
+
+Es lo que explica que la familia se repita. Los cinco casos yerran hacia el lado cómodo:
+«Alu 0 %» dice que no hay repeticiones, «cero posiciones» dice que no hay dónde insertar
+y cierra el asunto, «1.773 descartadas por bases desconocidas» da una causa que no obliga
+a nada, una tasa base inflada convierte un `LIMPIO` trivial en uno notable. **Un
+resultado que estorba se mira dos veces; uno que tranquiliza se archiva** — y el error se
+queda dentro con la forma de una buena noticia.
+
+**La consecuencia operativa**, y no es «desconfiar de todo»: **un resultado limpio, un
+cero o una tasa favorable se auditan con el mismo rigor que un fallo**, y la pregunta que
+los abre es siempre la misma — *¿sobre qué se midió esto?*. En las cinco: sobre otra
+biblioteca, sobre el módulo entero, sobre el filtro equivocado, sobre todos los maduros
+de la especie.
+
 **El cuarto es un CERO, no una frase, y por eso vale la pena tenerlo aquí**: un cero no
 parece un diagnóstico, parece una medida. Pero «cero encontrados» dice una causa —«no
 hay»— y esa causa hay que haberla comprobado igual que cualquier otra. Aquí la verdadera
@@ -1644,6 +1665,30 @@ señal está en la firma: si una función declara un argumento, hay que poder se
 donde lo consume. Si esa línea no existe, no sobra el argumento — falta el uso, y lo que
 depende de él lleva dormido desde que se escribió.
 
+### La hermana: una RAMA que no puede recibir el caso (2026-09-06, errata nº 120)
+
+Señalado por el responsable del proyecto al cerrar el gestor: *«un guardia que no puede
+recibir la pregunta y una rama que no puede recibir el caso son la misma familia»*.
+
+La rama abierta del panel de ficheros llamaba a `_fila_ausente` **siempre**, sin mirar si
+el fichero estaba. Era código **correcto**, y no por suerte: existía una cadena de
+implicaciones que hacía la combinación imposible —`presente` ⇒ `CERRADO` ⇒ `colapsada`—,
+así que a la rama abierta nunca le llegaba un fichero presente. El día que el modelo ganó
+un estado (`SIN PROCEDENCIA`, presente y NO colapsada) la combinación existió, y la rama
+pintó el hueco de subida sobre un fichero que estaba.
+
+**Es el mismo hallazgo con el sujeto cambiado.** Allí un guardia no recibía la pregunta;
+aquí una rama no recibe el caso. Y en los dos el síntoma es el mismo: **cero**. Cero
+fallos, cero síntomas, y ninguna herramienta se queja — la rama tiene llamador, lo que
+emite tiene la forma correcta, y el golden lee justo lo que sí se emite.
+
+**Cómo se reconoce, y es la misma pregunta de siempre invertida:** cuando dos condiciones
+del modelo están encadenadas —A implica B implica C—, esa cadena es una SUPOSICIÓN sobre
+los estados posibles, no una propiedad del código. Al añadir un estado hay que preguntar
+qué combinaciones pasan a existir, y mirar quién decidía sin comprobarlas porque no
+podían darse. **Una rama correcta por imposibilidad no es una rama correcta: es una que
+todavía no ha recibido su caso.**
+
 ### Y NO tiene mecanismo: se midió, y no sale
 
 Este proyecto no escribe un auditor sin medir antes el ruido, porque **un guardia con
@@ -2156,3 +2201,76 @@ acababa de tomar la decisión de quitar los sitios citó el número de la varian
 quitado, en la misma frase en que pedía que cada magnitud llevara su etiqueta.** No fue
 un despiste de quien no conoce la construcción: los dos números son verosímiles, y ésa es
 toda la trampa.
+
+
+---
+
+## 45 — Preguntar si la cosa EXISTE antes de mirar cómo se busca
+
+Cazado antes de morder, y el responsable del proyecto lo marcó como el hallazgo de su
+tanda (2026-09-06):
+
+> *«`mvm_sin_criptico` declara las mitades del MVM y no existe, así que localizarlo habría
+> devuelto una identificación falsa con la forma correcta.»*
+
+`intron_boundaries` elegía CÓMO buscar un intrón según sus campos declarados —por sus dos
+mitades si se ensambla de piezas, por sus extremos si llega entero— y comprobaba DESPUÉS
+si el intrón tenía secuencia. `mvm_sin_criptico` declara las mitades del MVM porque **es
+una variante del MVM**: cuando exista, las tendrá. Hoy no existe. Buscarlo por esas
+mitades habría encontrado el MVM y devuelto sus coordenadas con el nombre del otro.
+
+**Y no habría dado error.** Coordenadas válidas, `GT`/`AG` correctos, longitud plausible:
+la firma de esta familia entera —el 3'UTR de 1246 anunciado como 1242, el `mmu-` por
+defecto sobre una guía de conejo, el «Alu 0 %» sin buscar Alu—. Lo que sale tiene la
+forma correcta.
+
+**La regla es un ORDEN, no una comprobación más.** Toda función que elija una estrategia
+a partir de las propiedades declaradas de un objeto tiene que preguntar primero si el
+objeto está. Si no, la estrategia se aplica a los campos de algo que no existe — y esos
+campos son verosímiles justamente porque describen lo que existirá.
+
+**El corolario, que es lo que lo hace difícil de ver:** los campos de un objeto que aún
+no existe suelen estar rellenos y ser correctos. `provided` ya se DERIVABA y no se
+declaraba, precisamente por esto; la contramedida estaba puesta y la consulta llegaba
+tarde. Tener el guardia no basta: hay que preguntarle antes de actuar.
+
+---
+
+## 46 — Un estado equivocado puede esconder su propio arreglo
+
+De la errata nº 120. `transcriptoma_3utr.fa` salía `CERRADO` sin traer la procedencia que
+su frente exige: verde en el panel y `NOT_RUN` en el veredicto, que es la familia del
+principio nº 15. Pero tenía una segunda consecuencia que la primera tapaba.
+
+**Una fila `CERRADO` va COLAPSADA.** Así que el estado equivocado no sólo decía algo
+falso: escondía las cuatro acciones del fichero y la caja de «completar la procedencia» —
+o sea, **la salida del problema que el propio estado estaba ocultando**. Desde fuera, el
+gestor se leía como una lista de nombres, y se reportó como «ha perdido los botones».
+
+**La forma general, con las palabras del responsable del proyecto (2026-09-06):**
+
+> *«Un estado equivocado puede ocultar la corrección de sí mismo. No sólo informa mal —
+> impide llegar a lo que lo arreglaría. Desde fuera se lee como una funcionalidad que
+> falta.»*
+
+Y esa última frase es la parte cara: **el informe que llega no describe el fallo**. No se
+reporta «esto no debería estar verde», se reporta «el gestor ha perdido los botones» — y
+se pide reconstruir algo que estaba entero. Un estado que gobierna la visibilidad
+convierte su propio error en una petición de funcionalidad, y quien la atiende puede
+pasarse la tarde añadiendo lo que ya había.
+
+**La auditoría es la pregunta invertida:** si este estado fuera el equivocado, ¿qué
+dejaría de verse? Y en particular, ¿dejaría de verse la vía de corregirlo?
+
+### El corolario, que es uno que ya está escrito
+
+**El estado miraba UN hecho cuando hacían falta DOS.** «Está» y «sirve» no son lo mismo —
+la misma distinción que «existir no es contener», y que la del `.tbl` obligatorio que no
+salía en «conectados». Cada vez que un estado se deriva de una sola condición conviene
+preguntarse si esa condición es la que el consumidor del estado necesita: aquí el panel
+decía «está en el depósito» y quien lo lee pregunta «¿puedo correr el frente?».
+
+**Y arreglar la fila no basta**, porque el mismo hecho se cuenta más arriba: la barra de
+progreso y el semáforo seguían contando el frente como cerrado. Un estado derivado en dos
+sitios se arregla en los dos o no se ha arreglado — la fila diría ámbar y la barra verde,
+que es peor que el fallo original porque ahora se contradicen.

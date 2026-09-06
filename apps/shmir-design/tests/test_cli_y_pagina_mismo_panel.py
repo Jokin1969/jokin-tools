@@ -9,8 +9,8 @@ es lo que llama `presentation.page_run`.
 
 Resultado: los dos frontales daban paneles DISTINTOS sobre la misma secuencia.
 
-    página  →  3utr: 10, 60, 143, **200**, 449, 553, 652, 735, 819, 1018
-    CLI     →  3utr: 10, 60, 143, **359**, 449, 553, 652, 735, 819, 1018
+    página  →  3utr: 10, 60, 143, **200**, 449, 553, 652, 735, 819, 1018, 1071
+    CLI     →  3utr: 10, 60, 143, **359**, 449, 553, 652, 735, 819, 1018, 1071
 
 `3utr:359` (+4,82) desplaza a `3utr:200` (+3,80) por asimetría, así que el panel del CLI
 se quedaba con **TRES inmunes en vez de cuatro** — y no lo decía nadie, porque los dos
@@ -45,7 +45,9 @@ HAY = fixture_available(RATON)
 
 #: El panel CONFIRMADO: coincide con el del responsable y está fijado en
 #: `tests/test_promocion_por_defecto.py`. Si algo lo mueve, lo mueve a propósito.
-PANEL = (10, 60, 143, 200, 449, 553, 652, 735, 819, 1018)
+# ONCE desde el 2026-09-06: la plaza once es el segundo distal, `3utr:1071`, y
+# entra por `tercio_quota_by_start` — no por asimetria, que seria coincidencia.
+PANEL = (10, 60, 143, 200, 449, 553, 652, 735, 819, 1018, 1071)
 
 
 def _sitios(seleccion) -> tuple[int, ...]:

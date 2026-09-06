@@ -50,10 +50,10 @@ class TestLosDosALCANCES(unittest.TestCase):
         filas = presentation.scope_rows(self.sel, kind="corrida_seed")
         self.assertEqual([f["clave"] for f in filas], ["panel", "elegibles"])
 
-    def test_el_panel_son_los_10_de_siempre(self):
+    def test_el_panel_son_los_11_de_hoy(self):
         starts = presentation.scope_starts(self.sel, "panel")
         self.assertEqual(list(starts), presentation.chosen_starts(self.sel))
-        self.assertEqual(len(starts), 10)
+        self.assertEqual(len(starts), 11)
 
     def test_y_TODOS_son_los_SITIOS_no_las_ventanas(self):
         # 86 sitios, no las ~270 ventanas elegibles: tres ventanas solapadas de la misma
@@ -155,9 +155,9 @@ class TestElPANEL_no_se_toca(unittest.TestCase):
         presentation.scope_starts(sel, "elegibles")
         self.assertEqual(presentation.chosen_starts(sel), antes)
 
-    def test_el_panel_sigue_siendo_de_10_con_sus_cuotas(self):
+    def test_el_panel_sigue_siendo_ENTERO_con_sus_cuotas(self):
         sel = _seleccion()
-        self.assertEqual(len(sel.selection.chosen), 10)
+        self.assertEqual(len(sel.selection.chosen), 11)
         self.assertEqual(sel.selection.quota_unfilled, ())
 
 

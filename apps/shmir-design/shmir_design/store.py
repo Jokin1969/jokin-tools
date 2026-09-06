@@ -579,6 +579,10 @@ def save_seed_run(store: ProjectStore, run) -> Record:
                 "space": run.scan.base_rate.space,
                 "window": run.scan.base_rate.window,
                 "species_prefix": run.scan.base_rate.species_prefix,
+                # EL NIVEL VIAJA CON LA TASA. Sin él, una corrida guardada con
+                # `level=nucleo` se relee con la tasa de todos los maduros y vuelve el
+                # defecto que esto cerró: la cifra describiendo otro conjunto.
+                "level": run.scan.base_rate.level,
             },
         },
         date=run.date,

@@ -58,8 +58,18 @@ from .reference import sequence_md5
 
 #: Cuántos nucleótidos de cada extremo se destacan en la hoja de pedido. NO son 5: con
 #: los 5 del exón los dos fragmentos de las dos arquitecturas salen idénticos, y lo que
-#: hay que poder distinguir de un vistazo es justo eso.
+#: hay que poder distinguir de un vistazo es justo eso. Y tampoco 10 — ver
+#: `montaje.WHY_FIFTEEN`, que lo MIDE.
 HIGHLIGHT = 15
+
+#: LAS DOS ARQUITECTURAS, que es lo que se pide por defecto desde el 2026-09-06.
+#: Decisión del responsable del proyecto: *«el primer experimento es cruzado por diseño,
+#: y el coste de doblar la síntesis es pequeño frente a descubrir en el gel que el
+#: problema era el intrón y no las guías»*. Se DERIVA de `introns.buildable()`, no se
+#: teclea: un intrón retirado sale solo, y uno nuevo entra solo.
+def default_introns() -> tuple[str, ...]:
+    """Las arquitecturas VIVAS del registro, en su orden de declaración."""
+    return tuple(i.name for i in introns.buildable())
 
 #: El tramo de la feature del intrón MVM, REPORTADO del `.dna` del casete por el
 #: responsable del proyecto (2026-09-05). No se usa para nada más que para CRUZARLO con
