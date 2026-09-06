@@ -3545,9 +3545,12 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     149 — errata nº 106, **retirada por Joaquín Castilla**, que fue quien la propuso, y
     anotada con su nombre a petición suya.
   - **CONSECUENCIA, y va en el informe (`presentation.intron_architecture_note`,
-    sección «Arquitecturas de intron»): el quimérico GANA EN TODO LO MEDIDO, SIN CONTRAPESO
-    CONOCIDO** — donante, aceptor, dispersión en los dos, crípticos intrónicos, tracto, y
-    empate en geometría. Lo que sí se sostiene del contrapeso es que **los dos** quedan muy
+    sección «Arquitecturas de intron»): ~~el quimérico GANA EN TODO LO MEDIDO, SIN
+    CONTRAPESO CONOCIDO~~** — donante, aceptor, dispersión en los dos, crípticos intrónicos,
+    tracto, y empate en geometría. **Esa frase era cierta de LO MEDIDO ENTONCES y ya no lo
+    es**: el 2026-09-06 el plegado de las 22 le encontró el primero (bloque siguiente). No
+    se borra —se tacha con su fecha— porque una prosa corregida que borra lo que decía deja
+    al siguiente lector sin saber que hubo corrección. Lo que sí se sostiene del contrapeso es que **los dos** quedan muy
     por encima del rango típico de mamífero, y eso **lo decide el gel, no un modelo**.
     - **Vivía en un desplegable de la interfaz**, o sea donde no lo lee quien recibe el
       documento. Decide qué se sintetiza, así que entra en el informe descargable: el
@@ -3557,6 +3560,66 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     sin comprobar que ambas se montan igual. Yo di por hecho que lo intercalado era lo mismo
     porque el módulo lo es»*. El módulo **sí** es el mismo; lo que cambia son las piezas que
     dependen de CÓMO entra en cada intrón.
+
+- **EL PUNTO DE RAMIFICACIÓN ES EL ELEMENTO MÁS FRÁGIL, Y AHÍ GANA EL QUIMÉRICO — CON
+  CONTRAPESO (2026-09-06)** (`intron_folding.weakest_element`, `architecture_contrast`,
+  `contrast_reading`; `presentation.folding_highlights` y `folding_contrast_rows`).
+  Plegadas las **22 construcciones** —el panel de once con las DOS arquitecturas, ViennaRNA
+  por función de partición—, fracción media sin aparear:
+
+  | elemento | `mvm_actual` | `intron_quimerico` | gana |
+  |---|---|---|---|
+  | donante | **0,889** | 0,533 | mvm_actual |
+  | **punto de ramificación** | **0,257** | **0,355** | quimérico |
+  | tracto de polipirimidinas | 0,594 | 0,547 | mvm_actual |
+  | aceptor | 0,836 | **0,994** | quimérico |
+
+  - **El punto de ramificación es el MENOS ACCESIBLE de los cuatro EN LAS DOS
+    arquitecturas**, y por bastante. Eso es lo que lo convierte en una propiedad del
+    elemento y no del intrón: es el eslabón frágil del intrón por estructura, no sólo por
+    secuencia. **Cuál es el más frágil se DERIVA**, no está escrito en el código: con un
+    tercer intrón puede ser otro, y hay control adversario —con unas filas donde el más
+    bajo es el donante, `weakest_element` tiene que decir «donante»—.
+  - **El quimérico lo deja MÁS LIBRE (0,355 frente a 0,257)**, que es el eje a su favor que
+    no estaba medido. Y **no depende de qué lectura se coja**: la cifra es el PEOR de los
+    candidatos a punto de ramificación de cada intrón, y no tienen los mismos —el MVM tiene
+    **uno** (`TTAAT`) y el quimérico **dos** (`CTTAC` 0,355 y `CTGAC` 0,585)—, así que con
+    el mejor de cada uno el quimérico gana todavía más holgado. Por eso salen también
+    cuántos hay y cuál es el mejor: comparar un único candidato contra el peor de dos, sin
+    decirlo, es comparar dos cosas distintas.
+  - **Y LA MISMA MEDIDA TRAE EL PRIMER CONTRAPESO CONOCIDO DEL QUIMÉRICO, que va pegado o
+    mienten los dos**: su **donante** queda bastante más secuestrado (0,533 frente a
+    0,889). El contraste queda **2-2** y no se redondea a un ganador. Misma forma que
+    «rebaja, no descarta» y que el «QUÉ MIDE / QUÉ NO MIDE» del ensayo de RT-qPCR: sola, la
+    primera frase deja la decisión pareciendo tomada.
+  - **NO SE RECONCILIA CON SpliceAI, y no hace falta.** Del **mismo** donante, SpliceAI dice
+    lo contrario: 0,966 en el quimérico frente a 0,873 en el MVM. Son dos preguntas —**la
+    secuencia dice que el sitio existe; el plegado dice si se puede usar**— y promediarlas
+    perdería justo lo que la discrepancia lleva dentro, que es la regla de
+    `apa.EXPECTED_DIRECTION`. Lo que cambia es que **la elección entre las dos arquitecturas
+    deja de ser unánime**; lo que no cambia es que la accesibilidad estructural es
+    **DESEMPATE Y ALERTA, NUNCA FILTRO** y no excluye a nadie.
+  - **LA GUÍA NO MUEVE NINGUNO DE LOS CUATRO**, y decirlo es la mitad del dato: entre las
+    once construcciones de una misma arquitectura la dispersión es del **0,82 %** en el peor
+    caso —el punto de ramificación del MVM— y **0,00 %** en el quimérico. O sea que **este
+    eje NO discrimina entre candidatos**: lo que compara son las ARQUITECTURAS, y venderlo
+    como desempate entre guías sería dar por criterio algo que da el mismo número a todos.
+    Confirma sobre 22 lo que se midió sobre 6 el 2026-08-26. Y **no es que sea ciego**: el
+    control adversario sigue en pie —un módulo complementario al extremo 5' lleva el donante
+    de 0,89 a 0,00—, así que cazaría una guía que secuestrara un elemento; lo que dice esta
+    medida es que ninguna de las once lo hace.
+  - **DÓNDE SE VE**: destacado ARRIBA en el cuarto modal —estaba CALCULADO y había que
+    sacarlo comparando cuatro columnas a ojo en una tabla de 22 filas, que es cómo un
+    hallazgo se queda dentro de una tabla— y en el bloque «Arquitecturas de intrón» del
+    informe descargable, **en su propia sección y no mezclado con la de SpliceAI**: aquéllas
+    son de la corrida del 2026-09-05 con el panel de DIEZ (20 construcciones) y éstas del
+    panel de ONCE (22). Bajo un mismo recuento se leerían como medidas sobre lo mismo.
+  - **Las ocho cifras del informe van ESCRITAS y con un test que las recalcula**, que es la
+    misma disciplina que la mordida de la máscara: derivarlas al pintar cuesta **8,5 s de
+    plegado** y ese bloque se repinta en cada rerun —la errata nº 59 esperando—, así que
+    `tests/test_el_PUNTO_DE_RAMIFICACION_es_el_MAS_FRAGIL.py` las saca de las 22 de verdad y
+    **exige que la prosa las cite**. Si el plegado cambia, la suite falla en vez de que el
+    texto envejezca en silencio (principio nº 13).
 
 - **LOS PUNTOS DE INSERCIÓN DE `intron_quimerico` (2026-08-30)**
   (`intron_design.insertion_candidates`). Ese intrón llegaba entero de su plásmido y no

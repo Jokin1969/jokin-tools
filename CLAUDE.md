@@ -209,6 +209,24 @@ la zona** de quien miraba la suite y se leyó como ruido de fondo. Una suite con
 permanente no dice «hay un fallo», dice «hay un rojo» — y a partir de ahí ningún rojo se
 atiende. **Un rojo ajeno se abre igual: o se arregla, o se dice de quién es.**
 
+Y ese test **corre la suite entera otra vez, así que el hijo compite con el padre por
+todo lo que sea de un solo ejemplar**. El caso real (2026-09-06): el puerto de Streamlit
+está fijo en 8501 (`apps/shmir/process.js`), y las dos corridas levantaban la interfaz
+ahí. Lo que pasa entonces no es un choque limpio y por eso costaba de leer: el segundo
+Streamlit muere con `EADDRINUSE`, **`waitUntilReady` sondea el puerto, encuentra
+contestando al proceso del OTRO y da el arranque por bueno**, así que las dos primeras
+pruebas del test de humo pasan y las dos siguientes sacan **502** en cuanto el otro para
+el suyo. Salía rojo unas veces y verde otras, y el rojo **no señalaba a nada de lo que el
+guardia del calendario existe para vigilar** — que es exactamente cómo un guardia deja de
+leerse. El hijo lleva ahora su propio `SHMIR_PORT`.
+
+**Y queda un cabo suelto, dicho y no arreglado**: que un arranque se dé por bueno porque
+*alguien* contesta en ese puerto es un guardia aprobando lo que no es suyo. En producción
+significaría servir la interfaz de un proceso viejo que quedó vivo —el propio
+`process.diagnose` ya contempla ese caso— sin que nada lo diga. Lo que lo cerraría es
+comprobar que **el hijo propio sigue vivo** además de que el puerto conteste; no se ha
+tocado porque cambia el arranque de producción y eso se decide aparte.
+
 `check:shmir` imprime además el **informe de alcanzabilidad**: qué función pública de
 `apps/shmir-design/` no tiene ningún llamador fuera de su propio módulo y de sus tests.
 No es un fallo automático —hay casos legítimos— pero aparecer ahí obliga a decidir: o se

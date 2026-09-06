@@ -41,6 +41,18 @@ test('la suite entera pasa con el reloj 400 días por delante', { timeout: 30000
   const entorno = { ...process.env, SALTO_DIAS: String(DIAS), CALENDARIO_HIJO: '1' };
   for (const k of Object.keys(entorno)) if (k.startsWith('NODE_TEST')) delete entorno[k];
 
+  // EL HIJO NECESITA SU PROPIO PUERTO PARA STREAMLIT, y esto no es una precaución.
+  // `apps/shmir/process.js` fija el puerto en 8501 y el test de humo levanta la interfaz
+  // de verdad, así que el hijo corría `shmir.smoke.test.js` contra el MISMO puerto que
+  // el padre estaba usando en ese momento. Lo que pasa entonces no es un choque limpio:
+  // el segundo Streamlit muere con `EADDRINUSE`, `waitUntilReady` sondea el puerto,
+  // encuentra contestando al proceso del PADRE y da el arranque por bueno — así que las
+  // dos primeras pruebas pasan, y en cuanto el padre para el suyo las dos siguientes
+  // sacan **502**. Sale rojo a veces y verde a veces, y el rojo no señala a nada de lo
+  // que este test existe para vigilar: es ruido dentro del guardia del calendario, que
+  // es justo lo que lo haría dejar de leerse.
+  entorno.SHMIR_PORT = String(Number(process.env.SHMIR_PORT || 8501) + 1);
+
   const r = spawnSync(
     process.execPath,
     ['--require', path.join(__dirname, 'helpers', 'reloj-adelantado.js'),

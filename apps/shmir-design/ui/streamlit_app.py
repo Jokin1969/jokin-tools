@@ -163,6 +163,8 @@ from shmir_design.presentation import (  # noqa: E402
     panel_states_by_front,
     verdicts_changed,
     folding_capability,
+    folding_contrast_rows,
+    folding_highlights,
     check_can_emit_dna,
     front_progress,
     informe_documento,
@@ -2849,15 +2851,25 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         "Análisis APARTE: da un número propio, no prestado de un modelo entrenado para "
         "otra cosa. Corre entero aquí."
     )
-    st.dataframe(
-        splice_folding_rows(
-            construcciones,
-            module_of=lambda c: splice_module_of(
-                c, selection=seleccion, scaffold=SGEP_SCAFFOLD
-            ),
+    # LAS FILAS SE CALCULAN UNA VEZ y las leen los tres —destacados, contraste y tabla—.
+    # Plegar las construcciones es lo caro de este modal, y pedirlas tres veces seria
+    # triplicarlo; además, tres derivaciones del mismo plegado podrían discrepar.
+    filas_plegado = splice_folding_rows(
+        construcciones,
+        module_of=lambda c: splice_module_of(
+            c, selection=seleccion, scaffold=SGEP_SCAFFOLD
         ),
-        width="stretch",
     )
+    # LO DESTACADO VA ARRIBA, NO EN UNA COLUMNA. Cuál es el elemento menos accesible de
+    # los cuatro y en qué se separan las dos arquitecturas estaba CALCULADO y había que
+    # sacarlo comparando columnas a ojo en una tabla de 22 filas. La página no agrega:
+    # los textos los monta `presentation` (regla 6).
+    for bloque in folding_highlights(filas_plegado).values():
+        if bloque["activo"]:
+            st.info(bloque["texto"])
+    st.markdown("**Contraste entre arquitecturas** — más desapareado es más disponible")
+    st.dataframe(folding_contrast_rows(filas_plegado), width="stretch")
+    st.dataframe(filas_plegado, width="stretch")
 
     st.subheader("Subir el resultado de SpliceAI")
     veredicto = upload_allowed(proyecto)

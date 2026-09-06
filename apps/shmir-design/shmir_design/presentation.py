@@ -4755,6 +4755,37 @@ INTRON_AXES_MEASURED = (
 )
 
 
+#: LOS EJES DEL PLEGADO SON NUESTROS, y por eso van en su propio bloque.
+#: Los de arriba salen de SpliceAI —un modelo que este proyecto NO ejecuta— y por eso
+#: estan transcritos con su procedencia. Estos salen de plegar los dos intrones montados
+#: con ViennaRNA, aqui mismo. Aun asi van ESCRITOS y no derivados en tiempo de pintado,
+#: y el motivo esta medido: plegar las 22 construcciones cuesta **8,5 s**, y este bloque
+#: se pinta en cada repintado de la pagina — es la errata nº 59 esperando. La
+#: contramedida es la misma que en la mordida de la mascara: `tests/test_el_PUNTO_DE_
+#: RAMIFICACION_es_el_MAS_FRAGIL.py` **recalcula las ocho cifras de las 22 de verdad** y
+#: exige que este texto las cite. Si el plegado cambia, la suite falla en vez de que la
+#: prosa envejezca en silencio (principio nº 13).
+#:
+#: OJO: NO ES EL MISMO PANEL QUE EL BLOQUE DE ARRIBA. Aquellas cifras son de la corrida
+#: de SpliceAI del 2026-09-05, con el panel de DIEZ (20 construcciones); estas se
+#: midieron el 2026-09-06 con el panel de ONCE (22). Presentarlos bajo un mismo recuento
+#: seria decir que se midieron sobre lo mismo.
+FOLDING_MEASURED_ON = (
+    "Medido el 2026-09-06 plegando las 22 construcciones del panel de once con las DOS "
+    "arquitecturas (ViennaRNA, función de partición). Es un número PROPIO: sale de "
+    "plegar la construcción real, no de un modelo entrenado para otra cosa."
+)
+
+#: Fraccion media SIN APAREAR de cada elemento, por arquitectura. Mas alto es mejor: un
+#: elemento secuestrado dentro de un tallo no esta disponible para el espliceosoma.
+INTRON_FOLDING_AXES = (
+    ("donante (fracción sin aparear)", "0,889", "0,533", "mvm_actual"),
+    ("punto de ramificación", "0,257", "0,355", "quimérico"),
+    ("tracto de polipirimidinas", "0,594", "0,547", "mvm_actual"),
+    ("aceptor", "0,836", "0,994", "quimérico"),
+)
+
+
 def intron_architecture_note() -> str:
     """La comparación de las dos arquitecturas, para el INFORME y no sólo para la página.
 
@@ -4762,12 +4793,20 @@ def intron_architecture_note() -> str:
     el principio nº 23, que este proyecto lleva once veces arreglando. La lectura y la
     retirada del contrapeso van con el nombre de quien la hizo.
     """
+    from .intron_folding import (
+        BRANCH_IS_A_WORST_CASE, THE_GUIDE_DOES_NOT_MOVE_IT, WEAKEST_IS_DERIVED,
+    )
     from .introns import (
-        THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES, WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
+        THE_FIRST_COUNTERWEIGHT_MEASURED,
+        THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES,
+        WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
     )
 
     lineas = [
-        "ARQUITECTURAS DE INTRÓN — lo medido sobre las 20 construcciones",
+        "ARQUITECTURAS DE INTRÓN",
+        "",
+        "PREDICCIÓN DE SITIOS — corrida de SpliceAI del 2026-09-05, panel de DIEZ",
+        "(20 construcciones). NO es el mismo panel que el bloque de abajo.",
         "",
         f"  {'eje':<52} {'mvm_actual':<32} {'intron_quimerico':<32} gana",
     ]
@@ -4776,6 +4815,22 @@ def intron_architecture_note() -> str:
     lineas += [
         "",
         f"  {WHY_THE_COUNTERWEIGHT_WAS_RETIRED}",
+        "",
+        "ACCESIBILIDAD ESTRUCTURAL — lo medido sobre las 22, y este número es NUESTRO",
+        "",
+        f"  {FOLDING_MEASURED_ON}",
+        "",
+        f"  {'elemento':<52} {'mvm_actual':<32} {'intron_quimerico':<32} gana",
+    ]
+    for eje, mvm, qui, gana in INTRON_FOLDING_AXES:
+        lineas.append(f"  {eje:<52} {mvm:<32} {qui:<32} {gana}")
+    lineas += [
+        "",
+        f"  {WEAKEST_IS_DERIVED}",
+        f"  {BRANCH_IS_A_WORST_CASE}",
+        f"  {THE_GUIDE_DOES_NOT_MOVE_IT}",
+        "",
+        f"  {THE_FIRST_COUNTERWEIGHT_MEASURED}",
         "",
         f"  LECTURA: {THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES}",
     ]
@@ -5087,7 +5142,7 @@ def splice_folding_rows(constructions, *, module_of, available=None):
     Son dos preguntas y no se mezclan: una la contesta un modelo entrenado para otra
     cosa y la otra la contesta plegar la construccion real.
     """
-    from .intron_folding import ELEMENTS, fold_intron
+    from .intron_folding import ELEMENTS, fold_intron, weakest_element
     from .introns import get as get_intron
 
     filas = []
@@ -5107,8 +5162,114 @@ def splice_folding_rows(constructions, *, module_of, available=None):
         }
         for elemento in ELEMENTS:
             fila[elemento] = resultado.unpaired.get(elemento)
+        # CUAL ES EL MENOS ACCESIBLE DE LOS CUATRO, EN LA PROPIA FILA. Estaba calculado
+        # y habia que leerlo comparando cuatro columnas a ojo en una tabla de 22 filas:
+        # eso es lo que hace que un hallazgo se quede dentro de una tabla. Se DERIVA, no
+        # se nombra (`intron_folding.WEAKEST_IS_DERIVED`).
+        fila["menos_accesible"] = weakest_element([fila])
+        # Y LA CIFRA DEL PUNTO DE RAMIFICACION ES EL PEOR DE SUS CANDIDATOS: cuantos hay
+        # y cual es el mejor van al lado, porque las dos arquitecturas no tienen los
+        # mismos y sin eso la comparacion no dice contra que se compara
+        # (`intron_folding.BRANCH_IS_A_WORST_CASE`).
+        fila["rama_candidatos"] = len(resultado.branch_detail)
+        fila["rama_mejor"] = (
+            max(float(d["desapareado"]) for d in resultado.branch_detail)
+            if resultado.branch_detail else None
+        )
         filas.append(fila)
     return filas
+
+
+def folding_contrast_rows(rows):
+    """El contraste entre arquitecturas, ya en forma de tabla. La pagina no agrega."""
+    from .intron_folding import architecture_contrast, element_stats
+
+    contraste = {f["elemento"]: f for f in architecture_contrast(rows)}
+    salida = []
+    for fila in element_stats(rows):
+        elemento = fila["elemento"]
+        salida.append({
+            "elemento": elemento,
+            "arquitectura": fila["arquitectura"],
+            "n": fila["n"],
+            "sin_medir": fila["sin_medir"],
+            "media": fila["media"],
+            "min": fila["min"],
+            "max": fila["max"],
+            "dispersion_pct": fila["dispersion"],
+            "gana": contraste[elemento]["gana"],
+        })
+    return salida
+
+
+def folding_highlights(rows):
+    """Lo que va DESTACADO del plegado, con la misma forma que `splice_highlights`.
+
+    Un hallazgo enterrado en una columna de una tabla de veintidos filas no se ve, y
+    este lo estaba: el elemento mas fragil del intron y el unico eje del plegado en que
+    las dos arquitecturas se separan de verdad.
+
+    **Las dos mitades del contraste van juntas o mienten las dos**: la arquitectura que
+    gana en el elemento mas fragil pierde en otros, y eso es un CONTRAPESO, no una nota
+    al pie. Misma forma que «rebaja, no descarta».
+    """
+    from .intron_folding import (
+        BRANCH_IS_A_WORST_CASE,
+        CONTRAST_NEEDS_TWO,
+        THE_GUIDE_DOES_NOT_MOVE_IT,
+        USE_NOTE,
+        WEAKEST_IS_DERIVED,
+        WHY_IT_MATTERS,
+        contrast_reading,
+    )
+
+    lectura = contrast_reading(rows)
+    fragil = lectura["mas_fragil"]
+    gana = lectura["gana_el_mas_fragil"]
+    contrapesos = lectura["contrapesos"]
+    por_elemento = {f["elemento"]: f for f in lectura["contraste"]}
+
+    if fragil is None:
+        texto_fragil = (
+            "No se ha plegado ninguna construcción, así que no hay elemento más frágil "
+            "que nombrar. NOT_RUN no es «todos accesibles»."
+        )
+    else:
+        medias = por_elemento[fragil]["medias"]
+        detalle = " · ".join(
+            f"{arq} {valor:.3f}".replace(".", ",")
+            for arq, valor in sorted(medias.items())
+        )
+        texto_fragil = (
+            f"EL ELEMENTO MENOS ACCESIBLE DE LOS CUATRO es «{fragil}»: {detalle}. "
+            f"{WEAKEST_IS_DERIVED}"
+        )
+
+    if gana is None:
+        texto_contraste = CONTRAST_NEEDS_TWO
+    elif contrapesos:
+        texto_contraste = (
+            f"{gana} deja «{fragil}» más libre que la otra arquitectura — un eje a su "
+            f"favor. **Y HAY CONTRAPESO**, que va pegado o mienten los dos: pierde en "
+            f"{', '.join(contrapesos)}. No se promedian y no se reconcilian: más "
+            f"desapareado es más disponible para el espliceosoma, y que una "
+            f"arquitectura gane en un elemento y pierda en otro es información, no un "
+            f"empate que resolver."
+        )
+    else:
+        texto_contraste = (
+            f"{gana} deja «{fragil}» más libre que la otra arquitectura, y no pierde en "
+            f"ningún otro elemento: en este eje no se le conoce contrapeso."
+        )
+
+    return {
+        "por_que": {"texto": WHY_IT_MATTERS, "activo": True},
+        "mas_fragil": {"texto": texto_fragil, "activo": True},
+        "contraste": {"texto": texto_contraste, "activo": True},
+        "peor_caso": {"texto": BRANCH_IS_A_WORST_CASE, "activo": True},
+        "la_guia_no_lo_mueve": {"texto": THE_GUIDE_DOES_NOT_MOVE_IT, "activo": True},
+        "uso": {"texto": USE_NOTE, "activo": True},
+    }
 
 
 def splice_highlights(scan):

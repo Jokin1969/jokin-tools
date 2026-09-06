@@ -889,23 +889,45 @@ def _seccion_arquitecturas() -> Section:
     quien recibe el documento (principio nº 23). No depende de la corrida —son propiedades
     de los dos intrones y de la corrida de SpliceAI guardada—, asi que no recibe nada.
     """
-    from .introns import (
-        THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES, WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
+    from .intron_folding import (
+        BRANCH_IS_A_WORST_CASE, THE_GUIDE_DOES_NOT_MOVE_IT, WEAKEST_IS_DERIVED,
     )
-    from .presentation import INTRON_AXES_MEASURED
+    from .introns import (
+        THE_FIRST_COUNTERWEIGHT_MEASURED,
+        THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES,
+        WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
+    )
+    from .presentation import (
+        FOLDING_MEASURED_ON, INTRON_AXES_MEASURED, INTRON_FOLDING_AXES,
+    )
 
     bloques = [
         para(
-            "Los diez candidatos del panel se han consultado con LAS DOS arquitecturas "
-            "de intrón —20 construcciones— y estos son los ejes en los que se "
-            "diferencian. Las puntuaciones salen de la corrida de SpliceAI del "
-            "2026-09-05, guardada con su procedencia; la geometria la deriva esta app."
+            "El panel se ha consultado con LAS DOS arquitecturas de intrón y estos son "
+            "los ejes en los que se diferencian. Van en DOS bloques y NO se mezclan: "
+            "las puntuaciones de predicción de sitios salen de la corrida de SpliceAI "
+            "del 2026-09-05 —panel de DIEZ, 20 construcciones— y este proyecto no "
+            "ejecuta ese modelo, así que viajan con su procedencia; la geometría y la "
+            "accesibilidad estructural las deriva esta app, y la segunda se midió el "
+            "2026-09-06 sobre el panel de ONCE, o sea 22 construcciones. Presentarlas "
+            "bajo un mismo recuento sería decir que se midieron sobre lo mismo."
         ),
+        para("PREDICCIÓN DE SITIOS Y GEOMETRÍA (SpliceAI, 2026-09-05, 20 construcciones)"),
         table(
             ("eje", "mvm_actual", "intron_quimerico", "gana"),
             tuple(INTRON_AXES_MEASURED),
         ),
         para(WHY_THE_COUNTERWEIGHT_WAS_RETIRED),
+        para("ACCESIBILIDAD ESTRUCTURAL — este número es NUESTRO"),
+        para(FOLDING_MEASURED_ON),
+        table(
+            ("elemento", "mvm_actual", "intron_quimerico", "gana"),
+            tuple(INTRON_FOLDING_AXES),
+        ),
+        para(WEAKEST_IS_DERIVED),
+        para(BRANCH_IS_A_WORST_CASE),
+        para(THE_GUIDE_DOES_NOT_MOVE_IT),
+        para(THE_FIRST_COUNTERWEIGHT_MEASURED),
         para(THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES),
     ]
     return Section(

@@ -957,7 +957,9 @@ EL PLEGADO DEL 97-MERO NO DISCRIMINA, y por eso un PASS aquí no es evidencia de
 
 ## 8. Arquitecturas de intrón
 
-Los diez candidatos del panel se han consultado con LAS DOS arquitecturas de intrón —20 construcciones— y estos son los ejes en los que se diferencian. Las puntuaciones salen de la corrida de SpliceAI del 2026-09-05, guardada con su procedencia; la geometria la deriva esta app.
+El panel se ha consultado con LAS DOS arquitecturas de intrón y estos son los ejes en los que se diferencian. Van en DOS bloques y NO se mezclan: las puntuaciones de predicción de sitios salen de la corrida de SpliceAI del 2026-09-05 —panel de DIEZ, 20 construcciones— y este proyecto no ejecuta ese modelo, así que viajan con su procedencia; la geometría y la accesibilidad estructural las deriva esta app, y la segunda se midió el 2026-09-06 sobre el panel de ONCE, o sea 22 construcciones. Presentarlas bajo un mismo recuento sería decir que se midieron sobre lo mismo.
+
+PREDICCIÓN DE SITIOS Y GEOMETRÍA (SpliceAI, 2026-09-05, 20 construcciones)
 
 | eje | mvm_actual | intron_quimerico | gana |
 |---|---|---|---|
@@ -967,9 +969,28 @@ Los diez candidatos del panel se han consultado con LAS DOS arquitecturas de int
 | tracto de polipirimidinas | 9 pirimidinas | 11 pirimidinas | quimérico |
 | donante→punto de ramificación, MONTADO | 256 nt | 249-253 nt | ninguno: no discrimina |
 
-Retirado por Joaquín Castilla (2026-09-05), que fue quien lo propuso. Se dio como contrapeso del quimérico que su donante→punto de ramificación es de 314-318 nt frente a los 256 del MVM, y con sus palabras: «apliqué al quimérico los 214 nt del MVM sin comprobar que el quimérico se monta sin espaciadores. La diferencia era exactamente 65 = 20 + 45 — la errata nº 35, cometida por mí esta vez». Medido sobre el intrón que de verdad se monta, el quimérico está en 249-253 nt: no es peor en geometría, empata y queda marginalmente por debajo. CONSECUENCIA, y va escrita porque decide qué se sintetiza: el quimérico GANA EN TODO LO MEDIDO, SIN CONTRAPESO CONOCIDO. Lo que sí se sostiene del contrapeso es que LOS DOS quedan muy por encima del rango típico de mamífero, y eso no lo arregla cambiar de intrón.
+Retirado por Joaquín Castilla (2026-09-05), que fue quien lo propuso. Se dio como contrapeso del quimérico que su donante→punto de ramificación es de 314-318 nt frente a los 256 del MVM, y con sus palabras: «apliqué al quimérico los 214 nt del MVM sin comprobar que el quimérico se monta sin espaciadores. La diferencia era exactamente 65 = 20 + 45 — la errata nº 35, cometida por mí esta vez». Medido sobre el intrón que de verdad se monta, el quimérico está en 249-253 nt: no es peor en geometría, empata y queda marginalmente por debajo. Lo que sí se sostiene del contrapeso es que LOS DOS quedan muy por encima del rango típico de mamífero, y eso no lo arregla cambiar de intrón. CORREGIDO (2026-09-06): aquí seguía «el quimérico GANA EN TODO LO MEDIDO, SIN CONTRAPESO CONOCIDO», y eso era cierto de lo medido ENTONCES. Ya no: ver el contrapeso medido, más abajo. Lo que se retira sigue retirado — la geometría no discrimina —, y el contrapeso nuevo es de otro eje.
 
-En el intrón VACÍO el quimérico tiene el punto de ramificación mucho más lejos del donante (100-104 nt frente a 42), pero MONTADOS empatan: el MVM lleva además los dos espaciadores, así que intercala 214 nt frente a 149 y acaba en 256 nt frente a los 249-253 del quimérico. Los dos quedan fuera del rango típico de mamífero y la diferencia entre ellos es de unos pocos nucleótidos, así que ESTE EJE NO DISCRIMINA — era el único contrapeso que se le conocía al quimérico y queda retirado. Lo que sí separa a los dos es lo demás —el quimérico tiene mejor donante, mejor tracto y 97 posiciones de inserción frente a 39—, y ninguno de esos números predice el empalme. Las opciones van a síntesis; el gel decide.
+ACCESIBILIDAD ESTRUCTURAL — este número es NUESTRO
+
+Medido el 2026-09-06 plegando las 22 construcciones del panel de once con las DOS arquitecturas (ViennaRNA, función de partición). Es un número PROPIO: sale de plegar la construcción real, no de un modelo entrenado para otra cosa.
+
+| elemento | mvm_actual | intron_quimerico | gana |
+|---|---|---|---|
+| donante (fracción sin aparear) | 0,889 | 0,533 | mvm_actual |
+| punto de ramificación | 0,257 | 0,355 | quimérico |
+| tracto de polipirimidinas | 0,594 | 0,547 | mvm_actual |
+| aceptor | 0,836 | 0,994 | quimérico |
+
+Cuál es el elemento menos accesible se DERIVA de lo plegado, no está escrito en el código: con otro intrón puede ser otro, y una constante que lo nombrara sería cierta hoy y falsa sin avisar.
+
+La cifra del punto de ramificación es el PEOR de sus candidatos, y las dos arquitecturas no tienen los mismos: por eso sale también cuántos hay y cuál es el mejor de cada una. El sentido de la comparación no depende de cuál de las dos lecturas se coja.
+
+La guía NO mueve la accesibilidad de ninguno de los cuatro elementos: entre las construcciones de una misma arquitectura la dispersión se queda por debajo del 1 %. Este eje NO discrimina entre candidatos — lo que compara son las ARQUITECTURAS. Y no es que sea ciego: un módulo complementario al extremo 5' del intrón lleva el donante de 0,89 a 0,00, así que cazaría una guía que secuestrara un elemento. Lo que dice esta medida es que ninguna lo hace.
+
+CONTRAPESO, medido el 2026-09-06 sobre las 22 construcciones: el quimérico deja el punto de ramificación —el menos accesible de los cuatro en las DOS arquitecturas— más libre (0,355 frente a 0,257), y ése es un eje a su favor que no estaba medido; pero en el mismo plegado su donante queda bastante más secuestrado (0,533 frente a 0,889). Las dos frases van juntas: sola, la primera deja la decisión pareciendo tomada. No se reconcilia con SpliceAI, que del mismo donante dice lo contrario (0,966 frente a 0,873) — la secuencia dice que el sitio existe y el plegado dice si se puede usar, y son dos preguntas. Nada de esto excluye a ninguna: sigue siendo desempate y alerta, nunca filtro.
+
+En el intrón VACÍO el quimérico tiene el punto de ramificación mucho más lejos del donante (100-104 nt frente a 42), pero MONTADOS empatan: el MVM lleva además los dos espaciadores, así que intercala 214 nt frente a 149 y acaba en 256 nt frente a los 249-253 del quimérico. Los dos quedan fuera del rango típico de mamífero y la diferencia entre ellos es de unos pocos nucleótidos, así que ESTE EJE NO DISCRIMINA y queda retirado como contrapeso. Lo que sí separa a los dos es lo demás: POR SECUENCIA Y POR SpliceAI el quimérico tiene mejor donante, mejor tracto y 97 posiciones de inserción frente a 39. POR PLEGADO no: el MVM deja el donante y el tracto más accesibles, y el quimérico el punto de ramificación y el aceptor (el contrapeso medido, más arriba). Los dos análisis no se promedian — el de secuencia dice que el sitio existe y el del plegado si se puede usar —, así que la elección deja de ser unánime. Y ninguno de esos números predice el empalme: las opciones van a síntesis; el gel decide.
 
 ## 9. Fichas de los seleccionados
 
