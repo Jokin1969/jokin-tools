@@ -65,14 +65,14 @@ def pintar(fila, directorio):
 '''
 
     def test_la_señala(self):
-        halladas = auditoria.analizar_fuentes({"antes.py": self.ANTES})
+        halladas, _, _ = auditoria.analizar_fuentes({"antes.py": self.ANTES})
         self.assertEqual(len(halladas), 1, halladas)
         self.assertIn("acciones", halladas[0]["fuente"])
 
     def test_y_NO_señala_la_version_arreglada(self):
         """El otro lado: si marcara las dos, no estaría midiendo nada."""
         arreglada = self.ANTES.replace('fila["acciones"]', 'fila["presente"]')
-        self.assertEqual(auditoria.analizar_fuentes({"despues.py": arreglada}), [])
+        self.assertEqual(auditoria.analizar_fuentes({"despues.py": arreglada})[0], [])
 
     def test_ni_marca_la_vacuidad_cuando_ES_la_pregunta(self):
         """`if not filas` es correcto y es el 99 % de lo que hay. Marcarlo sería el
@@ -84,7 +84,7 @@ def leer(ruta):
         raise ValueError("vacío")
     return filas
 '''
-        self.assertEqual(auditoria.analizar_fuentes({"lector.py": fuente}), [])
+        self.assertEqual(auditoria.analizar_fuentes({"lector.py": fuente})[0], [])
 
 
 class TestLoQueELdetectorNOpuedeHacer(unittest.TestCase):
@@ -107,7 +107,7 @@ def c(fila):
     if fila["cosas"]:
         pass
 '''
-        self.assertEqual(auditoria.analizar_fuentes({"m.py": fuente}), [])
+        self.assertEqual(auditoria.analizar_fuentes({"m.py": fuente})[0], [])
 
 
 class TestUnSoloMECANISMO(unittest.TestCase):
@@ -128,7 +128,7 @@ def usar(fila):
     if fila["funcion"]:
         pass
 '''
-        self.assertEqual(auditoria.analizar_fuentes({"v.py": fuente}), [])
+        self.assertEqual(auditoria.analizar_fuentes({"v.py": fuente})[0], [])
 
 
 class TestElOTROdisfrazDeLaMISMAforma(unittest.TestCase):

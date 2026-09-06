@@ -2539,3 +2539,169 @@ parámetro** (`date=`, `generated=`) y sólo hay un sitio que mire el reloj,
 `presentation.today_text()`. `tests/test_el_TIEMPO_llega_por_PARAMETRO.py` es lo que
 mantiene que siga siendo uno. Medido el 2026-09-06: las 4796 pruebas pasan con el reloj
 adelantado 40, 400 y 4000 días.
+
+## 49 — Contar las instancias VISTAS no estima cuántas hay
+
+Es una corrección que hizo el responsable del proyecto sobre su propio diagnóstico, y por
+eso vale más que si la hubiéramos deducido:
+
+> *«Dije "la quinta instancia" y eran treinta y siete. Arreglar el quinto habría dejado
+> treinta y dos. Contar las instancias que se han visto no estima cuántas hay — las vistas
+> son las que produjeron un síntoma, y en esta familia el síntoma es raro por
+> construcción.»*
+
+### Por qué el sesgo es sistemático y no mala suerte
+
+Un `f"3utr:{start}"` tecleado **sólo se nota si se dan las dos cosas a la vez**: que la
+corrida sea sobre un transcrito —si es sobre el 3'UTR pelado el desfase es 0 y la etiqueta
+sale bien— **y** que alguien mire esa línea concreta. Las cinco instancias conocidas eran
+las cinco que habían cumplido las dos. Las otras treinta y dos estaban igual de rotas y
+**no habían tenido ocasión de decirlo**.
+
+Así que la cuenta de lo visto no es una muestra del total: es una muestra de **lo que
+además fue observable**. Y cuanto más raro sea el síntoma, más se separan las dos cifras —
+justo al revés de lo que sugiere la intuición, que trata «sólo han salido cinco» como una
+señal tranquilizadora.
+
+### La regla
+
+**Ante una familia de fallo, antes de arreglar hay que CONTAR** — con un barrido mecánico
+sobre todo el código, no sobre lo reportado. El número que sale de ahí es el que dice si
+lo que toca es un arreglo o una contramedida:
+
+- si las instancias son las que se creían, se arregla y se sigue;
+- si son un orden de magnitud más, **arreglarlas una a una es reproducir el problema**,
+  porque la número treinta y ocho se escribirá mañana. Lo que toca es hacer el fallo
+  **inexpresable**.
+
+Aquí el barrido dio 37 y el arreglo fue un guardia (`tools/auditar_marcos.py`). Con la
+estimación de cinco, la decisión habría sido la contraria y equivocada.
+
+### Y no vale «se arreglan y ya se verá»
+
+Los 37 no eran 37 fallos visibles: eran 37 sitios **capaces** de fallar. La diferencia
+importa para el orden de trabajo — un fallo capaz de darse no obliga a una corrección
+urgente, pero sí obliga a que la contramedida **cubra la clase entera**, y eso sólo se
+sabe habiendo contado.
+
+## 50 — Un literal no puede fallar; una llamada sí
+
+La formulación es del responsable del proyecto, sobre los cuatro fallos que aparecieron
+**al aplicar** la contramedida de la errata nº 121:
+
+> *«No los encontraste leyendo: los encontró el invariante, porque convertir un literal en
+> una llamada convierte un error silencioso en un aborto. Un literal no puede fallar; una
+> llamada sí.»*
+
+### El mecanismo, y por qué generaliza
+
+`f"3utr:{start}"` es texto. Se evalúa siempre, no consulta nada, no puede rechazar nada:
+si `start` es una coordenada del transcrito, produce una etiqueta **válida y falsa**.
+`coords.label(start, marco)` es una llamada: pasa por `Position`, que **comprueba el
+rango**, y ante lo imposible aborta.
+
+Los dos escriben lo mismo el 95 % de las veces. La diferencia entera está en el 5 %
+restante, y es la diferencia entre una línea que se lee sin sospechar nada y un aborto.
+
+**Nada de esto es propio de las coordenadas.** Es la forma general:
+
+| forma literal | forma con llamada | lo que la llamada puede rechazar |
+|---|---|---|
+| `f"3utr:{x}"` | `coords.label(x, marco)` | una posición que no cabe en ningún 3'UTR |
+| `f"{seq[:7]}"` | `patterns.heptamer` | un heptámero que se quedó en seis |
+| `"mmu-"` + nombre | `params.require_prefix()` | una especie sin prefijo declarado |
+| `d["clave"]` escrita | `query_name(...)` | una clave que se armó con otro formato |
+
+### La regla
+
+**Cuando un valor se pueda construir tecleándolo o pidiéndolo, se pide** — aunque el
+resultado sea idéntico hoy y aunque pedirlo sea más largo de escribir. Lo que se está
+comprando no es brevedad ni elegancia: es **la posibilidad de que falle**.
+
+Y el corolario, que es el que gobierna el orden de trabajo: **una contramedida que
+convierte literales en llamadas hay que aplicarla entera antes de darla por terminada**,
+porque la aplicación misma es el barrido. Aquí los cuatro fallos nuevos salieron
+**mientras** se reescribían los 37, no antes ni después. Leer los 37 buscando cuáles
+estaban mal no los habría encontrado: los cuatro se leían perfectamente.
+
+## 51 — Un guardia tiene que demostrar que HIZO TRABAJO, no sólo que no falló
+
+El caso es del guardia del calendario (`test/calendario.test.js`), y lo señaló el
+responsable del proyecto como el mejor control adversario de la sesión:
+
+> *«Verde en 175 ms porque el hijo heredaba `NODE_TEST_*` y salía con 0 sin descubrir
+> nada. Verde sin haber mirado, y sólo se vio porque cronometraste. Que la comprobación de
+> "ha corrido al menos tantas pruebas como ficheros hay" quede como patrón.»*
+
+### El caso
+
+El guardia relanza la suite entera con el reloj adelantado y comprueba que el hijo sale
+con `status === 0`. El hijo heredaba las variables `NODE_TEST_*` que el propio runner pone
+en el proceso padre; con ellas puestas, `node --test` **se cree un fichero de test lanzado
+por un padre**, no descubre nada, no corre nada y **sale con 0**.
+
+El guardia daba verde. La única señal de que no había mirado nada fue el **tiempo**: 175
+milisegundos donde tenía que haber veintiún segundos.
+
+### Por qué es una clase y no un descuido
+
+`status === 0` responde a *«¿falló?»*, y esa no es la pregunta. La pregunta es *«¿lo
+comprobó?»* — y **«no falló» y «no miró» dan exactamente la misma respuesta**. Es la
+errata nº 29 en su forma más pura, la del «Alu 0 % obtenido sin buscar Alu»: un cero que
+no distingue ausencia de hallazgo de ausencia de búsqueda.
+
+Y es peor en un guardia que en cualquier otro sitio, porque un guardia **existe para que
+nadie tenga que volver a mirar**. Uno que aprueba sin mirar no deja el problema como
+estaba: lo deja tapado con un verde.
+
+### La regla
+
+**Todo guardia emite, además de su veredicto, una medida de lo que recorrió — y algo
+comprueba que esa medida no es cero.** Y la cifra contra la que se compara **se deriva**,
+nunca se teclea:
+
+```js
+const corridas = Number((/^# tests (\d+)$/m.exec(r.stdout) || [])[1] || 0);
+const ficheros = fs.readdirSync(__dirname).filter(f => f.endsWith('.test.js')).length;
+assert.ok(corridas >= ficheros, '…no ha descubierto la suite, así que su verde no significa nada');
+```
+
+Escrita a mano, la cifra se queda corta el día que alguien añade un test —y entonces el
+guardia falla por su propia cuenta, que es la otra forma de dejar de servir (principio
+nº 48)—. Derivada, sube sola.
+
+### Lo que salió al aplicarlo hacia atrás, contado (2026-09-06)
+
+Se midió sobre las **quince** auditorías del proyecto antes de escribir nada, que es el
+principio nº 49 aplicándose a sí mismo:
+
+- **dos** no tienen `auditar()` —`auditar_claves` y `auditar_geometria`, que se entran por
+  otra puerta— y quedan declaradas como tales;
+- **doce** ya publicaban un inventario que sería cero si no hubieran leído nada
+  (`filas`, `guardias`, `umbrales`, `tablas`…) y **ninguna lo comprobaba**;
+- **una**, `auditar_condiciones`, ni siquiera lo publicaba: emitía hallazgos y nada más,
+  así que «ninguna condición imposible» y «no he mirado ninguna» daban **el mismo cero**.
+  Ésa se arregló —ahora dice `3579 condición(es) en 112 fichero(s)`—; las otras doce las
+  cierra `tests/test_un_GUARDIA_demuestra_que_ha_mirado.py`.
+
+El campo del inventario se declara **por auditoría**, porque cada una recorre otra cosa, y
+el test comprueba tres cosas sobre esa tabla: que ninguna auditoría se queda fuera —se
+descubren del disco, así que una nueva entra sola—, que ninguna entrada se ha quedado sin
+auditoría, y que **el campo declarado no es el de hallazgos**. Esto último no es paranoia:
+apuntar la tabla al campo de violaciones «cumpliría» la regla dando exactamente el cero que
+la regla existe para no aceptar.
+
+### Y la forma más barata de la prueba de vida: la excepción declarada
+
+| guardia | qué recorre | qué demuestra que lo recorrió |
+|---|---|---|
+| `check_rules` | ficheros Python | imprime `N fichero(s) sin violaciones` |
+| `auditar_marcos` | literales del paquete | las 10 menciones declaradas tienen que **aparecer**: con cero ficheros salen 10 declaraciones muertas y **no pasa** (medido) |
+| `auditar_condiciones` | condiciones en `if` | publica cuántas miró y en cuántos ficheros |
+| `test_el_TIEMPO_llega_por_PARAMETRO` | módulos y tests | tiene que encontrar `today_text`, el único reloj legítimo |
+| `calendario.test.js` | la suite entera | el hijo corrió ≥ tantas pruebas como ficheros de test hay |
+
+Fíjese en el patrón de la segunda y la cuarta: **la exención declarada hace de sonda**. Un
+guardia que TIENE que encontrar algo concreto no puede dar verde por no haber mirado — lo
+que no encontró se lo reclama la tabla. Una excepción bien puesta no es sólo una excepción:
+es la prueba de vida del detector, y sale gratis.

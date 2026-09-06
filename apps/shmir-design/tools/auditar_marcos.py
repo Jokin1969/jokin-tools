@@ -65,6 +65,11 @@ WHY_NOT_THE_TESTS = (
 
 @dataclass
 class Informe:
+    #: CUANTOS ficheros se leyeron. Va primero porque es lo que distingue «no hay
+    #: literales» de «no he mirado»: las dos cosas dan cero hallazgos y sólo una es un
+    #: resultado (principio nº 51). Un guardia declara lo que recorrió, no sólo su
+    #: veredicto.
+    ficheros: int = 0
     #: Literales que FABRICAN una etiqueta. El numero correcto es cero, sin excepciones.
     fabrican: list[dict] = field(default_factory=list)
     #: Menciones en prosa declaradas en la tabla, con su motivo.
@@ -135,7 +140,7 @@ def _simbolo(arbol: ast.AST, linea: int) -> str:
 
 def analizar_fuentes(fuentes: dict[str, str], declaradas: list[dict]) -> Informe:
     prefijos = _prefijos()
-    informe = Informe()
+    informe = Informe(ficheros=len(fuentes))
     vistas: set[tuple[str, str]] = set()
     for nombre, texto in sorted(fuentes.items()):
         arbol = ast.parse(texto, filename=nombre)
@@ -200,7 +205,11 @@ def auditar() -> Informe:
 
 
 def render(informe: Informe) -> str:
-    lineas = ["", "  El prefijo del marco, fuera de `coords`:"]
+    lineas = [
+        "",
+        f"  El prefijo del marco, fuera de `coords` ({informe.ficheros} fichero(s) "
+        f"leído(s)):",
+    ]
     lineas.append(
         f"    {len(informe.prosa):3}  MENCIÓN en prosa — nombra un caso, no etiqueta"
     )

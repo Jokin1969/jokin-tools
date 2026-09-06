@@ -22,6 +22,43 @@ from shmir_design.coords import SEPARATOR, Frame  # noqa: E402
 from tools import auditar_marcos  # noqa: E402
 
 
+class TestElGuardiaDemuestraQueHaMirado(unittest.TestCase):
+    """Principio nº 51: «no falló» y «no miró» dan el mismo verde.
+
+    Sin esto, un barrido que no encuentre ningún fichero —una ruta mal puesta, un filtro
+    de más— diría «cero literales que fabrican etiquetas» y sería indistinguible de un
+    paquete limpio. El caso que lo puso por escrito es el del guardia del calendario del
+    hub: verde en 175 ms porque el hijo salía con 0 sin haber descubierto la suite.
+    """
+
+    def test_ha_leido_TODOS_los_ficheros_del_paquete_menos_los_exentos(self):
+        # La cifra se DERIVA del disco. Escrita a mano se quedaría corta el día que
+        # alguien añada un módulo, y entonces el guardia fallaría por su cuenta — la
+        # otra forma de dejar de servir (principio nº 48).
+        esperados = sum(
+            1 for r in RAIZ.rglob("*.py")
+            if r.relative_to(RAIZ).parts[0] not in auditar_marcos.FUERA
+            and str(r.relative_to(RAIZ)) != auditar_marcos.DUEÑO
+        )
+        self.assertEqual(auditar_marcos.auditar().ficheros, esperados)
+        self.assertGreater(esperados, 50, "el paquete no puede tener cuatro ficheros")
+
+    def test_y_ha_ENCONTRADO_las_menciones_declaradas(self):
+        """La exención hace de sonda: lo que no encuentre se lo reclama la tabla.
+
+        Se comparan SÍMBOLOS, no ocurrencias: un símbolo puede nombrar dos posiciones en
+        la misma frase —`MULTIPLEX_NOTE` dice que `3utr:449` y `3utr:1018` comparten
+        núcleo— y eso es una declaración con dos menciones, no dos declaraciones.
+        """
+        informe = auditar_marcos.auditar()
+        encontrados = {(f["fichero"], f["simbolo"]) for f in informe.prosa}
+        declarados = {
+            (d["fichero"], d["simbolo"]) for d in auditar_marcos.declaraciones()
+        }
+        self.assertEqual(encontrados, declarados)
+        self.assertGreater(len(encontrados), 0, "no ha encontrado NINGUNA: no ha mirado")
+
+
 class TestElGuardiaEstaACero(unittest.TestCase):
 
     def test_ningun_literal_FABRICA_una_etiqueta(self):

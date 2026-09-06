@@ -4323,6 +4323,26 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     eso, una corrida sobre el transcrito se relee como si fuera del 3'UTR — el mismo fallo,
     esta vez desde un fichero y semanas después.
 
+- **UN GUARDIA DEMUESTRA QUE HA MIRADO, no sólo que no ha fallado (2026-09-06)**
+  (`tests/test_un_GUARDIA_demuestra_que_ha_mirado.py`), principio nº 51. **GUARDIA sobre
+  los guardias.**
+  - **El caso es del hub**: `test/calendario.test.js` daba **verde en 175 ms** — el hijo
+    heredaba las variables `NODE_TEST_*` del runner, se creía un fichero de test lanzado
+    por un padre, **no descubría nada** y salía con 0. La única señal fue el **tiempo**.
+  - **La clase**: `hallazgos == 0` contesta «¿falló?», y la pregunta es «¿lo comprobó?».
+    *«No falló» y «no miró» dan el mismo cero* — el «Alu 0 %» aplicado al comprobador.
+  - **Contado antes de arreglar** (principio nº 49 sobre sí mismo): de las **quince**
+    auditorías, dos no tienen `auditar()` y quedan declaradas; **doce** ya publicaban un
+    inventario que sería cero sin leer nada y ninguna lo comprobaba; **una**
+    —`auditar_condiciones`— ni lo publicaba. Ésa se arregló (`ficheros`, `condiciones`);
+    las doce las cierra este test.
+  - **El campo del inventario NO puede ser el de hallazgos**, y hay un test que lo
+    prohíbe: apuntar la tabla a las violaciones «cumpliría» la regla dando justo el cero
+    que la regla existe para no aceptar.
+  - **La forma más barata de la prueba de vida es la excepción declarada.** Medido: con
+    cero ficheros, `auditar_marcos` saca 10 declaraciones muertas y **no pasa**. Una tabla
+    de excepciones bien puesta es la sonda del detector, y sale gratis.
+
 - **EL TIEMPO ENTRA POR PARÁMETRO; el reloj se mira en UN sitio (2026-09-06)**
   (`tests/test_el_TIEMPO_llega_por_PARAMETRO.py`), errata nº 127 y principio nº 48.
   - **El caso es del hub, no de aquí**: una prueba de Asignación **se puso roja sola el 1

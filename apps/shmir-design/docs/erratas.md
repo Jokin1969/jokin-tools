@@ -6231,3 +6231,76 @@ La suite de `apps/shmir-design/` se barrió igual, a mano y a +40, +400 y +4000 
 **4796 pasan**. Lo que lo sostiene es que aquí el tiempo **entra por parámetro** y sólo un
 sitio mira el reloj (`presentation.today_text()`), y eso lo mantiene ahora
 `tests/test_el_TIEMPO_llega_por_PARAMETRO.py`.
+
+## 128 — No eran cinco instancias del prefijo tecleado: eran treinta y siete, y cuatro estaban rotas
+
+**Cerrada el 2026-09-06.** Es el desenlace de la errata nº 121, y empieza por una
+corrección del responsable del proyecto sobre su propio diagnóstico:
+
+> *«Dije "la quinta instancia" y eran treinta y siete. Arreglar el quinto habría dejado
+> treinta y dos.»*
+
+Las cinco conocidas eran las cinco que habían **producido un síntoma**, y el síntoma de
+esta familia es raro por construcción: un `f"3utr:{start}"` sólo delata si la corrida es
+sobre el transcrito —sobre el 3'UTR pelado el desfase es 0 y la etiqueta sale bien— **y**
+alguien mira esa línea. Las otras treinta y dos estaban igual de rotas sin haber tenido
+ocasión de decirlo. Queda como **principio nº 49**: contar lo visto no estima el total,
+porque lo visto es lo que además fue observable.
+
+Con 5 instancias, la decisión correcta es arreglar. Con 37, arreglar una a una **es
+reproducir el problema** — la treinta y ocho se escribe mañana. Por eso el arreglo es un
+guardia (`tools/auditar_marcos.py`) y no seis parches.
+
+### LOS CUATRO QUE NADIE HABÍA VISTO, y cómo aparecieron
+
+No aparecieron leyendo los 37: los cuatro se leían perfectamente. Aparecieron **al
+reescribirlos**, porque el invariante de rango de `coords` los rechazó. Con las palabras
+del responsable del proyecto, que es la formulación que queda (**principio nº 50**):
+
+> *«Un literal no puede fallar; una llamada sí.»*
+
+| dónde | qué imprimía |
+|---|---|
+| `SpliceStore.verdict_for` | `3utr:1684` — ver abajo |
+| `presentation.splice_guide_dependent_rows` | recuperaba el número partiendo el nombre de la construcción por la cadena «3utr» y le volvía a pegar el prefijo a mano. Además de etiquetar mal, ataba el formato del nombre para siempre |
+| `informe_doc._section_5` | titulaba `### 3utr:1149` **encima** de una ficha cuyo cuerpo dice `mouse tx:1149`. El bloque contradiciéndose a sí mismo, igual que la errata nº 126 |
+| `informe_doc`, tabla de 2 contra 3 cambios | «medido sobre la guía de `3utr:959`» |
+
+### El de `SpliceStore.verdict_for` merece mención propia
+
+Es el peor de los cuatro y no por el número. El literal vivía en **el motivo de un
+`NOT_RUN`**:
+
+```
+No hay ninguna corrida de predicción de sitios de splicing para 3utr:1684 x mvm_actual.
+NOT_RUN no es PASS: no se ha consultado, que no es lo mismo que salir limpio.
+```
+
+Con las palabras del responsable del proyecto:
+
+> *«Un error dentro del mensaje de un frente que aún no ha corrido, que es donde menos se
+> mira. Un NOT_RUN con una etiqueta falsa dentro nadie lo lee dos veces.»*
+
+Un `PASS` se contrasta, un `FAIL` se investiga; **un `NOT_RUN` se acepta y se pasa de
+página**, porque su contenido informativo es «aquí todavía no hay nada». El texto que lo
+acompaña se lee una vez, para saber de qué frente habla, y nunca más. Es el sitio del
+informe con menos lectores por línea escrita — y por tanto donde una etiqueta falsa vive
+más tiempo.
+
+Y hay un agravante de mecanismo: el marco de un candidato para el que **no hay corrida**
+no se puede heredar de ninguna corrida. Estaba tecleado porque no había de dónde sacarlo.
+El arreglo no es derivarlo mejor: es que `frame` pase a ser un **parámetro obligatorio** de
+`verdict_for`. Un valor por defecto `UTR3` habría dejado el fallo exactamente igual y con
+mejor aspecto — quien pregunta tiene la anatomía delante y ahora tiene que decir en qué
+espacio pregunta.
+
+### Lo que cambió y lo que no
+
+Un solo golden se movió —`informe_documento__transcrito.md`, dos líneas: el título de la
+sección 5 y el origen de la tabla de cambios— y los otros siete no cambiaron ni un byte.
+Que la configuración sobre el 3'UTR pelado no se moviera es lo que prueba que el arreglo es
+consistente y no una reescritura.
+
+El registro de empalme guarda ahora el marco en disco (`candidate_frame`). Sin eso, una
+corrida sobre el transcrito se relee como si fuera del 3'UTR y vuelve a imprimir el mismo
+fallo semanas después, esta vez desde un fichero.

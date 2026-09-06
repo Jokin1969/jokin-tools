@@ -95,6 +95,31 @@ def _fuentes(subdir: str):
         yield str(ruta.relative_to(RAIZ)), ruta.read_text(encoding="utf-8")
 
 
+class TestElDetectorDemuestraQueHaMirado(unittest.TestCase):
+    """Principio nº 51: «no falló» y «no miró» dan el mismo verde.
+
+    Si `_fuentes` no devolviera nada —una ruta mal puesta, un filtro de más—, la regla
+    de abajo diría «ningún módulo lee el reloj» sin haber abierto un fichero. Aquí la
+    exención declarada hace de sonda: el detector TIENE que encontrar `today_text`.
+    """
+
+    def test_ha_leido_los_modulos_del_paquete(self):
+        leidos = [nombre for nombre, _ in _fuentes("shmir_design")]
+        # La cifra se DERIVA del disco: escrita a mano se quedaría corta con el módulo
+        # siguiente y el guardia fallaría por su cuenta (principio nº 48).
+        self.assertEqual(len(leidos), len(list((RAIZ / "shmir_design").rglob("*.py"))))
+        self.assertGreater(len(leidos), 20)
+
+    def test_y_ENCUENTRA_el_unico_reloj_legitimo(self):
+        fichero, simbolo = UNICO
+        fuente = (RAIZ / fichero).read_text(encoding="utf-8")
+        hallados = _lecturas(fuente, ast.parse(fuente, filename=fichero))
+        self.assertIn(
+            simbolo, [s for _, s in hallados],
+            "el detector no ve ni el reloj que SÍ está: no está mirando nada.",
+        )
+
+
 class TestElRelojSeMiraEnUnSoloSitio(unittest.TestCase):
 
     def test_solo_today_text_le_pregunta_la_hora_al_sistema(self):
