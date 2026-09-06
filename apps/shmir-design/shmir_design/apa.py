@@ -383,10 +383,15 @@ class AnchoredSite:
 
     def _unico(self) -> tuple[int, str]:
         if len(self.candidates) != 1:
+            from .coords import Frame, label
+
+            sitios = ", ".join(
+                f"{m} en {label(p, Frame.UTR3)}" for p, m in self.candidates
+            )
             raise ValueError(
                 f"{self.locus} admite {len(self.candidates)} hexámeros de clase "
                 f"{self.declared_class} dentro de su banda "
-                f"({', '.join(f'{m} en 3utr:{p}' for p, m in self.candidates)}); no "
+                f"({sitios}); no "
                 f"identifica uno solo, así que no se le asigna ninguno. Se aborta en "
                 f"vez de elegir por nuestra cuenta."
             )

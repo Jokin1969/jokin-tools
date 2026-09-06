@@ -393,6 +393,28 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
+    # EL PREFIJO DEL MARCO, FUERA DE `coords` (2026-09-06). GUARDIA, a cero. Nace de que
+    # la errata nº 121 se arreglo CINCO veces en cinco modulos y seguia entrando por el
+    # sexto: `coords.Position` impedia imprimir un entero desnudo, pero no impedia
+    # TECLEAR el prefijo, que es la otra mitad de la etiqueta y la que se salta el
+    # invariante de rango. Un arreglo que hay que acordarse de repetir no es un arreglo.
+    from auditar_marcos import auditar as auditar_marcos
+    from auditar_marcos import render as render_marcos
+
+    marcos = auditar_marcos()
+    print(render_marcos(marcos))
+
+    fallos_marco = (
+        len(marcos.fabrican) + len(marcos.sin_declarar) + len(marcos.muertas)
+    )
+    if fallos_marco:
+        print(
+            f"\ncheck_rules: {fallos_marco} literal(es) del prefijo del marco fuera de "
+            f"`coords` sin arreglar ni declarar.",
+            file=sys.stderr,
+        )
+        return 1
+
     # LA PROCEDENCIA DE LAS PIEZAS DEL MODULO (2026-09-02). INFORME, no guardia: aqui
     # el numero correcto NO es cero —una diana de clonaje no esta en el receptor y eso es
     # coherente—. Existe para que una pieza nueva con una procedencia que ningun fichero

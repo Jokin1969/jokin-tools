@@ -51,6 +51,7 @@ import hashlib
 from dataclasses import dataclass
 
 from .blocks import PIECES, build_block
+from .coords import Frame, label, tiled_frame
 from .errors import ShmirDesignError
 from .filters import FilterState
 from .introns import get as get_intron
@@ -234,6 +235,11 @@ class Construction:
     cryptic_position: int
     #: `True` si el andamio de esta construccion NO es el miR-E verificado.
     scaffold_modified: bool = False
+    #: El marco de `candidate_start`, DERIVADO de la anatomia de la seleccion. Se llama
+    #: `candidate_frame` y no `frame` a proposito: en este modulo «marco» ya significa
+    #: otra cosa —`FrameCheck`, el desfase entre las posiciones del resultado y las de
+    #: la construccion— y dos cosas con el mismo nombre acaban comparandose.
+    candidate_frame: Frame = Frame.UTR3
     #: DE DONDE salio el contexto exonico: el casete con su md5 y su longitud, o las
     #: piezas del plasmido. Va en la cabecera del FASTA porque es lo unico que ata un
     #: resultado a las ENTRADAS con las que se monto — el md5 de la construccion dice
@@ -254,7 +260,8 @@ class Construction:
     def describe(self) -> str:
         lineas = [
             f"{self.name}  ({len(self.sequence)} nt, md5 {self.md5})",
-            f"  candidato 3utr:{self.candidate_start} x intrón {self.intron}",
+            f"  candidato {label(self.candidate_start, self.candidate_frame)} x "
+            f"intrón {self.intron}",
             f"  contexto exonico declarado: {self.context_5} nt por el 5' y "
             f"{self.context_3} nt por el 3'",
             f"  donante legítimo en construcción:{self.donor_position}, "
@@ -356,6 +363,8 @@ class FailedConstruction:
     candidate_start: int
     intron: str
     reason: str
+    #: El marco de `candidate_start`. Ver `Construction.candidate_frame`.
+    candidate_frame: Frame = Frame.UTR3
 
 
 @dataclass(frozen=True)
@@ -386,8 +395,11 @@ def guide_of(selection, elegido) -> str:
     ventana = selection.window_of(elegido)
     guia = "".join(str(ventana.evaluation.guide).split()).upper().replace("U", "T")
     if not guia:
+        etiqueta = label(
+            elegido.start, tiled_frame(getattr(selection, "anatomy", None))
+        )
         raise ShmirDesignError(
-            f"El candidato 3utr:{elegido.start} llega SIN GUÍA: su ventana de la "
+            f"El candidato {etiqueta} llega SIN GUÍA: su ventana de la "
             f"selección trae la guía vacía, así que no hay "
             f"nada con lo que montar la horquilla. No es una guía mal formada — es una "
             f"guía que no ha llegado, y el sitio donde mirar es la ventana de ese "
@@ -427,17 +439,22 @@ def build_panel(
             # rule2-ok: no se traga — el motivo entero viaja en `failed` y la pagina lo
             # pinta. Lo que se evita es que un intron que no se puede montar impida los
             # demas. Si al final no queda ninguna construccion, se aborta abajo.
+            marco_candidato = tiled_frame(getattr(selection, "anatomy", None))
             for elegido in selection.selection.chosen:
                 if starts is None or elegido.start in set(starts):
                     fallidas.append(FailedConstruction(
                         candidate_start=elegido.start, intron=nombre, reason=str(exc),
+                        candidate_frame=marco_candidato,
                     ))
     if not hechas:
+        motivos = "\n".join(
+            f"  · {label(f.candidate_start, f.candidate_frame)} × {f.intron}: "
+            f"{f.reason}"
+            for f in fallidas
+        )
         raise ShmirDesignError(
             "No se pudo montar NINGUNA construcción, así que no hay nada que consultar "
-            "y no se emite ningún FASTA:\n"
-            + "\n".join(f"  · 3utr:{f.candidate_start} × {f.intron}: {f.reason}"
-                         for f in fallidas)
+            "y no se emite ningún FASTA:\n" + motivos
         )
     return ConstructionPanel(
         constructions=tuple(hechas), failed=tuple(fallidas),
@@ -479,6 +496,7 @@ def build_constructions(
             "emitir un FASTA vacío que luego no se podría validar."
         )
 
+    marco_candidato = tiled_frame(getattr(selection, "anatomy", None))
     construcciones: list[Construction] = []
     for nombre in intron_names:
         intron = get_intron(nombre)
@@ -501,6 +519,7 @@ def build_constructions(
                 # evita es que un candidato tumbe a los otros diecinueve.
                 _failures.append(FailedConstruction(
                     candidate_start=elegido.start, intron=nombre, reason=str(exc),
+                    candidate_frame=marco_candidato,
                 ))
                 continue
             bloque = build_block(guia, scaffold=scaffold)
@@ -520,6 +539,7 @@ def build_constructions(
                     context_3=len(contexto3),
                     donor_position=desplazamiento + elementos.donor.start,
                     acceptor_position=desplazamiento + elementos.acceptor.start,
+                    candidate_frame=marco_candidato,
                     cryptic_position=(
                         desplazamiento + criptico + 1 if criptico >= 0 else 0
                     ),
@@ -1022,6 +1042,9 @@ class PairResult:
     context_3: int
     #: Si el marco del resultado y el de la app coinciden. NUNCA es un booleano suelto.
     frame_check: FrameCheck = FrameCheck(state=FilterState.NOT_RUN, reason="sin comprobar")
+    #: El espacio de coordenadas de `candidate_start`, heredado de la construccion con
+    #: la que se consulto. Otra cosa que `frame_check`: ver `Construction`.
+    candidate_frame: Frame = Frame.UTR3
 
     @property
     def best_cryptic(self) -> Cryptic | None:
@@ -1029,7 +1052,8 @@ class PairResult:
 
     def describe(self) -> list[str]:
         lineas = [
-            f"{self.construction}  (3utr:{self.candidate_start} x {self.intron})",
+            f"{self.construction}  "
+            f"({label(self.candidate_start, self.candidate_frame)} x {self.intron})",
             f"  REFERENTE INTERNO — donante legítimo {self.legit_donor:.3f}, "
             f"aceptor legítimo {self.legit_acceptor:.3f}",
             f"  contexto declarado: {self.context_5} nt / {self.context_3} nt",
@@ -1150,6 +1174,7 @@ def scan_from_result(text: str, *, constructions) -> SpliceScan:
                 context_5=construccion.context_5,
                 context_3=construccion.context_3,
                 frame_check=marco,
+                candidate_frame=construccion.candidate_frame,
             )
         )
     return SpliceScan(pairs=tuple(pares))

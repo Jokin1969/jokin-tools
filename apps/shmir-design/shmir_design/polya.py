@@ -31,7 +31,7 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 
-from .coords import Frame, frame_of, label, span
+from .coords import Frame, label, span, tiled_frame
 from .errors import InvalidSequenceError, MissingSequenceError
 from .filters import FilterResult, FilterState, Verdict, overall_verdict
 
@@ -691,7 +691,7 @@ def annotate_3utr(
     # Sin anatomia, quien llama ha declarado que lo que analiza ES un 3'UTR: es el
     # contrato de este modulo (`utr_length`, posiciones 1-based sobre el 3'UTR). Con
     # anatomia, el marco sale de ella.
-    marco = Frame.UTR3 if anatomy is None else frame_of(anatomy)
+    marco = tiled_frame(anatomy)
     return Report(
         utr_length=utr_length,
         signals=tuple(signals or ()),

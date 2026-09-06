@@ -144,3 +144,10 @@ lee = "lo que cada pieza del módulo declara sobre de qué plásmido viene"
 opina = "esa procedencia no la sostiene el fichero que dice, o no se puede comprobar"
 reconoce_por = "buscar la secuencia de la pieza en el plásmido del depósito que su procedencia nombra, exigiendo unicidad — y por POSICIÓN cuando mide 5 nt y aparece por azar"
 instrumento = "INFORME"
+
+[[auditoria]]
+nombre = "auditar_marcos"
+lee = "una cadena literal con el prefijo de un espacio de coordenadas (`3utr:`, `tx:`)"
+opina = "ese literal FABRICA una etiqueta de posición, saltándose `coords` y su invariante de rango (errata nº 121)"
+reconoce_por = "el prefijo al FINAL del literal —lo que venga detrás llega de fuera—, en cualquier módulo salvo `coords.py` y fuera de `tests/`; con el número dentro es una mención en prosa y va declarada en `data/marcos_en_prosa.toml`"
+instrumento = "GUARDIA"

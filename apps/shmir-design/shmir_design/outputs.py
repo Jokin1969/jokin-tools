@@ -21,7 +21,7 @@ from .conservation import ConservationReport, single_shmir_verdict
 from .accessibility import CONTEXT_WINDOWS, DISCREPANCY
 from .filters import FilterState, Verdict
 from .folding import VIENNA_AVAILABLE
-from .coords import bound_of, Frame, frame_of, label, span
+from .coords import bound_of, Frame, label, span, tiled_frame
 from .transgene import carries_scaffold_module
 from .mirna import SEED_SPACE
 from . import splicing
@@ -108,7 +108,7 @@ def tsv_selected(selection: ReportSelection, *, species: str) -> str:
     """
     chosen = list(selection.selection.chosen)
     marco = (
-        frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
+        tiled_frame(selection.anatomy)
     )
     filtros = (
         [r.name for r in selection.window_of(chosen[0]).filters] if chosen else []
@@ -259,7 +259,7 @@ def text_report(
     # El espacio de coordenadas de TODO lo que se imprima aqui. Sale de la anatomia, no
     # se elige: `tx:1018` y `3utr:1018` son dos sitios distintos y el entero solo no
     # distingue cual es.
-    marco = frame_of(anatomia) if anatomia is not None else Frame.UTR3
+    marco = tiled_frame(anatomia)
     desfase = anatomia.utr3[0] - 1 if anatomia is not None and anatomia.utr3 else 0
     # La longitud REAL del 3'UTR de esta especie. Afina el techo global de `coords`:
     # cualquier posicion que se emita en `3utr` y no quepa aqui es un desfase mal

@@ -23,7 +23,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 from .anatomy import Anatomy
-from .coords import Frame, bound_of, frame_of, label
+from .coords import Frame, bound_of, label, tiled_frame
 from .external_score import (
     FEATURE_COLUMNS,
     MIRARCH_COLUMNS,
@@ -202,7 +202,7 @@ def comparative_rows(
         stores=stores, species=species,
         starts=[c.start for c in selection.selection.chosen],
     )
-    marco = frame_of(anatomy) if anatomy is not None else Frame.UTR3
+    marco = tiled_frame(anatomy)
     # Cada fila convierte a 3'UTR restando el desfase. Con el tope real,
     # una resta mal hecha aborta en la fila en vez de salir en el TSV.
     tope_utr3 = bound_of(anatomy)

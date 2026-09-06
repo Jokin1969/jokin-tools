@@ -200,6 +200,30 @@ def label(value: int | None, frame: Frame, *, limit: int | None = None) -> str:
     return str(posicion)
 
 
+def requested(value: int, frame: Frame) -> str:
+    """Una posicion PEDIDA DESDE FUERA, que todavia no se sabe si existe.
+
+    `label` es para las posiciones que el proyecto AFIRMA, y aborta si no caben: eso es
+    lo correcto, porque imprimir una posicion que no existe es justo el fallo que esta
+    contramedida cierra. Pero un mensaje que dice «lo que has pedido no esta ahi» tiene
+    que poder NOMBRAR lo pedido, y lo pedido puede ser cualquier cosa —un 99999 tecleado
+    en `--candidato`—.
+
+    Sin esto, el aborto que explica el error aborta a su vez con OTRO error, y quien lo
+    lee ya no sabe cual de los dos le importa. Es el principio nº 47 dentro de una sola
+    funcion: la salida tiene que estar donde esta el bloqueo.
+
+    Lo que NO hace es callarse: cuando el numero no puede ser una posicion, el motivo
+    entero va en la cadena. Un `99999` a secas se leeria como una coordenada mas.
+    """
+    try:
+        return str(Position(value, frame))
+    except (TypeError, ValueError) as exc:
+        # rule2-ok: no se pierde nada — el motivo entero de `exc` viaja en el texto que
+        # se devuelve, que es el unico sitio donde puede verlo quien lo pidio.
+        return f"{frame.value}{SEPARATOR}{value} — NO ES UNA POSICIÓN: {exc}"
+
+
 def span(start: int, end: int, frame: Frame, *, limit: int | None = None) -> str:
     """Intervalo etiquetado UNA vez: `3utr:158-277`.
 
@@ -271,6 +295,21 @@ def frame_of(anatomy) -> Frame:
             f"que decidir el espacio de coordenadas; se aborta."
         )
     return Frame.UTR3 if utr3[0] == 1 else Frame.TX
+
+
+def tiled_frame(anatomy) -> Frame:
+    """El marco de lo tilado, con `UTR3` cuando NO HAY anatomia.
+
+    `frame_of` aborta sin anatomia y eso sigue siendo lo correcto donde la anatomia es
+    obligatoria. Pero hay cuatro sitios —los cuatro modales— donde la corrida puede
+    venir de un tilado del 3'UTR pelado, sin anatomia ninguna, y ahi el marco no se
+    adivina: es `UTR3` por CONSTRUCCION, porque lo tilado ya es el 3'UTR.
+
+    Existe para que esa decision este escrita UNA vez. Estaba copiada en cuatro, y una
+    regla copiada en cuatro sitios es la que llega al quinto sin copiarse — que es
+    exactamente como la errata nº 121 sobrevivio a su propio arreglo.
+    """
+    return frame_of(anatomy) if anatomy is not None else Frame.UTR3
 
 
 def offset_of(anatomy) -> int:

@@ -21,7 +21,7 @@ from __future__ import annotations
 import textwrap
 from dataclasses import dataclass
 
-from .coords import Frame, frame_of, label, span
+from .coords import Frame, label, requested, span, tiled_frame
 from .errors import ShmirDesignError
 from .filters import FilterState
 
@@ -262,21 +262,29 @@ def build_dossier(
     from .scaffold import SGEP_SCAFFOLD
     from .selection import blocking_fronts
 
-    elegido = next(
-        (c for c in selection.selection.chosen if c.start == start), None
-    )
-    if elegido is None:
-        raise ShmirDesignError(
-            f"3utr:{start} no está entre los candidatos elegidos de esta corrida "
-            f"({', '.join(str(c.start) for c in selection.selection.chosen)}); no se "
-            f"emite una ficha de un sitio que el panel no tiene. Se aborta."
-        )
-    ventana = selection.window_of(elegido)
     # EL MARCO SE RECIBE, sacado de la anatomia, y `start` y `end` van los DOS en el.
     # Antes `end` se convertia al 3'UTR restando el desfase y `start` no: sobre el 3'UTR
     # pelado el desfase es 0 y los dos coincidian, asi que la ficha salia bien y la
     # mezcla no se veia. Sobre el transcrito imprimia `3utr:1149-221`.
-    marco = frame_of(tiling.anatomy) if tiling.anatomy is not None else Frame.UTR3
+    #
+    # Se calcula ANTES del aborto de abajo, no despues: el mensaje de «ese sitio no esta
+    # en el panel» tambien imprime posiciones, y era el ultimo de este fichero que las
+    # etiquetaba a mano.
+    marco = tiled_frame(tiling.anatomy)
+
+    elegido = next(
+        (c for c in selection.selection.chosen if c.start == start), None
+    )
+    if elegido is None:
+        elegidos = ", ".join(
+            label(c.start, marco) for c in selection.selection.chosen
+        )
+        raise ShmirDesignError(
+            f"{requested(start, marco)} no está entre los candidatos elegidos de esta "
+            f"corrida ({elegidos}); no se "
+            f"emite una ficha de un sitio que el panel no tiene. Se aborta."
+        )
+    ventana = selection.window_of(elegido)
     desfase = 0
     if tiling.anatomy is not None and tiling.anatomy.utr3:
         desfase = tiling.anatomy.utr3[0] - 1
@@ -374,7 +382,7 @@ def build_dossier(
     ultima = empalmes.latest
     for intron in INTRONS:
         nombre = f"empalme_sitios:{intron}"
-        resultado_intron = empalmes.verdict_for(start, intron)
+        resultado_intron = empalmes.verdict_for(start, intron, frame=marco)
         estados[nombre] = (resultado_intron.state, resultado_intron.reason)
         procedencia_de[nombre] = (
             f"corrida {ultima.run_id} ({ultima.executor})" if ultima is not None
@@ -398,9 +406,7 @@ def build_dossier(
     # con quien NO es independiente, y cuantas dianas tiene en su propio mensajero.
     from .offtarget import core_conflicts, self_sites
 
-    marco_ficha = (
-        frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
-    )
+    marco_ficha = tiled_frame(selection.anatomy)
     compartido = tuple(
         c.describe(
             label_a=label(c.a, marco_ficha), label_b=label(c.b, marco_ficha)

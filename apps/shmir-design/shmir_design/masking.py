@@ -879,13 +879,17 @@ def mask_bite(report, mask: RepeatMask, *, mask_offset: int, label_offset: int) 
         for e in mask.elements
         if e.end - mask_offset >= inicio_utr3
     )
+    from .coords import Frame, label
+
     etiquetas: list[str] = []
     for ventana in report.windows:
         if not is_eligible(ventana):
             continue
         inicio, fin = ventana.window.start, ventana.window.end
         if mask.elements_overlapping(inicio + mask_offset, fin + mask_offset):
-            etiquetas.append(f"3utr:{inicio - label_offset}")
+            # `label_offset` es justo el desfase que lleva la posicion AL 3'UTR, asi
+            # que aqui el marco no se supone: se acaba de calcular restandolo.
+            etiquetas.append(label(inicio - label_offset, Frame.UTR3))
     return MaskBite(
         elements=len(mask.elements),
         in_utr3=dentro,

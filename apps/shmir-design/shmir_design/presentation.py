@@ -947,12 +947,7 @@ def _start_label(selection: ReportSelection, start: int) -> str:
     invariante caza lo imposible, no lo equivocado (principio nº 9): por eso la etiqueta
     se pide aquí en vez de construirse con una f-string en cada sitio que imprime.
     """
-    marco = (
-        coords.frame_of(selection.anatomy)
-        if selection.anatomy is not None
-        else Frame.UTR3
-    )
-    return coords.label(start, marco)
+    return coords.label(start, coords.tiled_frame(selection.anatomy))
 
 
 def _candidate_label(selection: ReportSelection, choice) -> str:
@@ -1283,6 +1278,7 @@ def blast_candidate_rows(selection, *, species: str,
     """
     del_panel = {c.start for c in selection.selection.chosen}
     pedidos = del_panel if starts is None else set(starts)
+    marco = coords.tiled_frame(getattr(selection, "anatomy", None))
     filas = []
     for choice in _choices_de(selection, pedidos):
         ventana = selection.window_of(choice)
@@ -1290,6 +1286,9 @@ def blast_candidate_rows(selection, *, species: str,
         filas.append(
             {
                 "start": choice.start,
+                # La ETIQUETA sale de aqui y no de la pagina: la casilla la pintaba con
+                # un `3utr:` propio (regla 6 y errata nº 121 a la vez).
+                "etiqueta": coords.label(choice.start, marco),
                 # Derivados, como todo lo demas: estos ids son los que despues busca
                 # la ficha, asi que una quinta copia del formato los desconectaria.
                 "guia_id": query_name(species, choice.start, "guia"),
@@ -1575,17 +1574,19 @@ def seed_preview_rows(selection, *, species: str, params=None, starts=None,
     )
     return [
         {
-            "candidato": f"3utr:{f.start}",
+            "candidato": coords.label(f.start, f.frame),
             "start": f.start,
             "hebra": f.strand,
             "secuencia": f.sequence,
             "heptamero": f.heptamer,
-            "comparte": ", ".join(f"3utr:{s}" for s in f.shared_with),
+            "comparte": ", ".join(
+                coords.label(s, f.frame) for s in f.shared_with
+            ),
             "nucleo": f.core,
             # Columna PROPIA: compartir nucleo sin compartir heptamero es otro eje, y
             # meterlo en «comparte» lo habria escondido debajo de la colision de seed.
             "comparte_nucleo": ", ".join(
-                f"3utr:{s}" for s in f.shared_core_with
+                coords.label(s, f.frame) for s in f.shared_core_with
             ),
             "marcada": f.checked,
         }
@@ -1651,7 +1652,10 @@ def seed_highlights(scan):
             "texto": (
                 (
                     "Colisión con la familia miR-30 en: "
-                    + ", ".join(f"3utr:{r.start} ({r.strand})" for r in con_mir30)
+                    + ", ".join(
+                        f"{coords.label(r.start, r.frame)} ({r.strand})"
+                        for r in con_mir30
+                    )
                     + ". " if con_mir30 else "Sin colisiones con la familia miR-30. "
                 )
                 + MIR30_NOTE
@@ -1850,7 +1854,7 @@ def seed_result_rows(scan):
     """Una fila por consulta. La hebra va en su columna: no se funden."""
     return [
         {
-            "candidato": f"3utr:{r.start}",
+            "candidato": coords.label(r.start, r.frame),
             "hebra": r.strand,
             "heptamero": r.heptamer,
             "ventana": r.window,
@@ -2050,7 +2054,7 @@ def offtarget_result_rows(scan):
     filas = []
     for r in scan.results:
         fila = {
-            "candidato": f"3utr:{r.start}",
+            "candidato": coords.label(r.start, r.frame),
             "hebra": r.strand,
             "seed": r.patterns.heptamer,
         }
@@ -3044,7 +3048,9 @@ def site_table_rows(tiling, selection, *, species: str = "",
         filas.append(
             {
                 "elegido": ventana.window.start in elegidos,
-                "sitio": f"3utr:{ventana.inicio_3utr}",
+                # `inicio_3utr` YA esta convertido al 3'UTR — el nombre lo dice y la
+                # conversion la hace el tilado—, asi que el marco no se supone aqui.
+                "sitio": coords.label(ventana.inicio_3utr, coords.Frame.UTR3),
                 "inicio": ventana.window.start,
                 # Sin frontera fiable, «tercio medio» no se refiere a nada. No se
                 # imprime un valor que parece un dato: se imprime que no es fiable.
@@ -5116,6 +5122,15 @@ def splice_guide_dependent_rows(scan):
     """
     from .spliceai import guide_dependent_sites  # noqa: PLC0415
 
+    # De qué candidato es cada construcción, PEDIDO a la corrida. Antes se sacaba
+    # partiendo el nombre por la cadena «3utr» y volviendo a pegarle el prefijo, así
+    # que una corrida sobre el transcrito salía etiquetada `3utr:` igual (errata
+    # nº 121) y además el nombre tenía que seguir teniendo esa forma para siempre.
+    de_la_construccion = {
+        par.construction: coords.label(par.candidate_start, par.candidate_frame)
+        for par in scan.pairs
+    }
+
     return [
         {
             "posicion": s.position,
@@ -5129,7 +5144,7 @@ def splice_guide_dependent_rows(scan):
             # LISTADO, no presente: `None` es «por debajo del umbral relativo», no cero.
             "listado_en": len(s.listed),
             "por_construccion": {
-                f"3utr:{n.split('3utr')[-1]}": v for n, v in s.scores.items()
+                de_la_construccion.get(n, n): v for n, v in s.scores.items()
             },
         }
         for s in guide_dependent_sites(scan)
@@ -6589,8 +6604,11 @@ def selection_rules_report(*, species: str, sequence, anatomy, thresholds=None) 
                 __import__("shmir_design.selection", fromlist=["derive_immune_cut"])
                 .derive_immune_cut(corrida.tiling) or 0
             ) else ""
+            # `utr3_position` acaba de convertir al 3'UTR: el marco es su resultado,
+            # no un supuesto.
+            posicion = coords.label(u, coords.Frame.UTR3)
             lineas.append(
-                f"    3utr:{u:<5} {choice.asymmetry:+.2f}  "
+                f"    {posicion:<11} {choice.asymmetry:+.2f}  "
                 f"{choice.tercio.value if choice.tercio else '—'}{marca}"
             )
     return "\n".join(lineas)
@@ -6690,8 +6708,9 @@ def control_choices(selection) -> list[dict[str, object]]:
     La eleccion de CUAL se controla es del usuario y no de la app: cualquiera del panel
     vale, y el que se elija cambia las dos construcciones enteras.
     """
+    marco = coords.tiled_frame(getattr(selection, "anatomy", None))
     return [
-        {"inicio": choice.start, "etiqueta": f"3utr:{choice.start}",
+        {"inicio": choice.start, "etiqueta": coords.label(choice.start, marco),
          "guia": selection.window_of(choice).evaluation.guide}
         for choice in selection.selection.chosen
     ]
@@ -6711,18 +6730,21 @@ def control_panel(selection, *, start: int, target: str, target_label: str,
                             mismatch_comparison, scrambled_candidates,
                             seed_mismatch_candidates)
 
+    marco = coords.tiled_frame(getattr(selection, "anatomy", None))
     elegido = next(
         (c for c in selection.selection.chosen if c.start == int(start)), None
     )
     if elegido is None:
         raise ShmirDesignError(
-            f"3utr:{start} no está en el panel de esta corrida, así que no se puede "
+            f"{coords.requested(int(start), marco)} no está en el panel de esta "
+            f"corrida, así que no se puede "
             f"construir un control para él. Se aborta en vez de emitir controles de un "
             f"candidato que nadie eligió."
         )
     guia = selection.window_of(elegido).evaluation.guide
+    origen = coords.label(elegido.start, marco)
     comun = dict(
-        origin_label=f"3utr:{elegido.start}", target=target, target_label=target_label,
+        origin_label=origen, target=target, target_label=target_label,
         mature=mature, abundance=abundance, transgene_db=transgene_db, species=species,
     )
     scrambled = scrambled_candidates(guia, wanted=wanted, **comun)
@@ -6731,12 +6753,12 @@ def control_panel(selection, *, start: int, target: str, target_label: str,
         for cambios in (2, 3)
     }
     return {
-        "origen": f"3utr:{elegido.start}",
+        "origen": origen,
         "guia": guia,
         "scrambled": [c.row() for c in scrambled],
         "seed_mismatch": {k: [c.row() for c in v] for k, v in mismatch.items()},
         "comparacion": mismatch_comparison(
-            guia, origin_label=f"3utr:{elegido.start}", target=target,
+            guia, origin_label=origen, target=target,
             target_label=target_label, mature=mature, species=species,
         ),
         "fichas": [c.render() for c in scrambled[:1]]

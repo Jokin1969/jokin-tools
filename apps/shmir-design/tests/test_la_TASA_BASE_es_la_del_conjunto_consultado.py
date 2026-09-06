@@ -27,7 +27,7 @@ viaja en la descarga. Es la misma lección que puso la tasa base en la fila.
 
 import unittest
 
-from shmir_design import seed_scan
+from shmir_design import coords, seed_scan
 from shmir_design.mirna import MatureSet
 
 
@@ -106,9 +106,13 @@ class TestLaTasaBaseSigueAlNivel(unittest.TestCase):
 class TestLaVentanaNoEstandarVaEnElVeredicto(unittest.TestCase):
 
     def _resultado(self, window: str, level: str = "LIMPIO"):
+        # 1761 es una posicion del TRANSCRITO —el 3'UTR murino mide 1242 nt— y ahora hay
+        # donde decirlo. Antes el campo no existia y la fila salia `3utr:1761`: una
+        # posicion que no existe en ese espacio, en un fixture que nadie miraba.
         return seed_scan.SeedResult(
             start=1761, strand="guia", query="q", sequence="ACGTACGTACGTACGTACGTAC",
             heptamer="CTTTGG", window=window, collisions=(), level=level,
+            frame=coords.Frame.TX,
         )
 
     def test_con_2_8_el_veredicto_va_LIMPIO_a_secas(self):
@@ -126,6 +130,7 @@ class TestLaVentanaNoEstandarVaEnElVeredicto(unittest.TestCase):
             start=1761, strand="guia", query="q", sequence="ACGTACGTACGTACGTACGTAC",
             heptamer="CTTTGG", window="2-7", level="FAIL",
             collisions=(seed_scan.SeedCollision("mmu-miR-9-5p", True, False),),
+            frame=coords.Frame.TX,
         )
         self.assertIn("NO ESTÁNDAR", con.verdict)
         self.assertIn("NO ESTÁNDAR", con.describe())

@@ -1,0 +1,65 @@
+# Menciones del prefijo del marco —`3utr:`, `tx:`— que NO fabrican ninguna etiqueta.
+#
+# La lista de literales la deriva `tools/auditar_marcos.py`; aquí sólo vive lo que no se
+# puede derivar: por qué esa mención es prosa y no un emisor.
+#
+# La diferencia es mecánica y la aplica el propio auditor: un literal que TERMINA en el
+# prefijo fabrica una etiqueta con lo que venga detrás, y eso no se declara — se arregla,
+# pidiéndosela a `coords`. Un literal que lleva el número DENTRO nombra un caso concreto:
+# «`3utr:221` era uno de los cuatro inmunes» explica algo, no etiqueta nada.
+#
+# Que la prosa también se declare no es celo: es que un número escrito a mano en prosa
+# CADUCA —principio nº 11— y esta tabla es la lista de los que hay que volver a mirar
+# cuando cambie la anatomía, la referencia o el panel. Una entrada que ya no corresponde
+# a ningún literal ABORTA, por lo mismo que en las otras tablas: una lista con entradas
+# muertas deja de leerse.
+
+[[mencion]]
+fichero = "shmir_design/comparative.py"
+simbolo = "coordinate_note"
+por_que = "Es la nota que EXPLICA la convención de coordenadas de la tabla comparativa: enseña `3utr:449` y `tx:1398` como ejemplos de lo que el lector va a ver en las celdas. Los dos números son ilustrativos y la nota se lee entera; no salen de ninguna corrida."
+
+[[mencion]]
+fichero = "shmir_design/controles.py"
+simbolo = "EQUIVALENCIA_NO_ES_ADMISION"
+por_que = "Cita el candidato `3utr:1018` como el sitio sobre el que se MIDIÓ el 47 % de permutaciones que fallan la asimetría. Es la procedencia del dato, no una posición emitida: si se borrara, el porcentaje se quedaría sin decir de dónde sale."
+
+[[mencion]]
+fichero = "shmir_design/masking.py"
+simbolo = "WHY_THE_BITE_IS_A_PROPERTY"
+por_que = "Nombra el `(TA)n` de `3utr:1268-1301` como el elemento concreto que motivó medir el mordisco de la máscara sobre el transcrito murino. Es el caso que da origen a la regla."
+
+[[mencion]]
+fichero = "shmir_design/offtarget.py"
+simbolo = "MULTIPLEX_NOTE"
+por_que = "Dice que `3utr:449` y `3utr:1018` comparten núcleo de 6 nt, que es exactamente la consecuencia para el multiplexado que la nota existe para advertir. Dos posiciones del panel murino REAL, en el 3'UTR pelado: sin ellas la advertencia sería abstracta."
+
+[[mencion]]
+fichero = "shmir_design/outputs.py"
+simbolo = "_en_3utr"
+por_que = "El motivo dice que esa ventana no cae en el 3'UTR «así que no tiene coordenada de 3'UTR que imprimir en esta columna, con una etiqueta `3utr:` delante». La mención es del PREFIJO como tal —lo que NO se va a escribir—, no de ninguna posición."
+
+[[mencion]]
+fichero = "shmir_design/presentation.py"
+simbolo = "WHY_THE_MAP_RECEIVES_THE_FRAME"
+por_que = "Explica por qué el mapa recibe el marco en vez de suponerlo, y para eso enseña el resultado de suponerlo: `3utr:1856` sobre un 3'UTR que no llega. Es el contraejemplo de la propia regla."
+
+[[mencion]]
+fichero = "shmir_design/presentation.py"
+simbolo = "page_run"
+por_que = "El aborto por falta de anatomía enseña lo que produciría seguir adelante —un `3utr:1856` sobre un 3'UTR de 1242 nt—, que es la razón de abortar. Un mensaje que sólo dijera «falta la anatomía» no diría qué se está evitando."
+
+[[mencion]]
+fichero = "shmir_design/spliceai.py"
+simbolo = "MODULATION_NOTE"
+por_que = "Registra la medida del 2026-09-05 sobre las diez del panel murino: de 0,664 en `3utr:959` a 0,871 en `3utr:1684`. Son las posiciones de la corrida que sostiene el hallazgo. PENDIENTE de revisar: esa corrida se monta sobre el TRANSCRITO, así que estas dos deberían decir `tx:` — misma familia que la errata nº 121, sólo que aquí en prosa y sin emisor que arreglar."
+
+[[mencion]]
+fichero = "shmir_design/tiling.py"
+simbolo = "tile_utr"
+por_que = "El aborto por `measured_apa=None` cita `3utr:221`, que es el candidato que la tabla de APA medido tumba y que sin ella pasaba: es el caso que convirtió el salto silencioso en un aborto."
+
+[[mencion]]
+fichero = "tools/auditar_marcos.py"
+simbolo = "WHY_NOT_THE_TESTS"
+por_que = "El propio guardia explica por qué los tests SÍ pueden escribir el literal, y para eso lo escribe: «un test que exige `3utr:449` en la salida es el control adversario de esta regla». Que el guardia se declare a sí mismo es lo correcto — la alternativa es una excepción que no se ve."

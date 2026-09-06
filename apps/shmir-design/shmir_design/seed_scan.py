@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+from .coords import Frame, label, tiled_frame
 from .errors import ShmirDesignError
 from .mirna import MIR30_FAMILY, core_hits
 
@@ -209,20 +210,26 @@ class PreviewRow:
     shared_core_with: tuple[int, ...] = ()
     core: str = ""
     checked: bool = True
+    #: El marco de `start` y de los compartidos, DERIVADO de la anatomia de la corrida.
+    #: Aqui iba `3utr:` escrito a mano — el quinto y sexto sitio de la errata nº 121.
+    frame: Frame = Frame.UTR3
 
     def describe(self) -> str:
+        def etiquetas(starts) -> str:
+            return ", ".join(label(s, self.frame) for s in starts)
+
         compartido = (
-            "  ⚠ COMPARTE heptamero con 3utr:"
-            + ", 3utr:".join(str(s) for s in self.shared_with)
+            "  ⚠ COMPARTE heptamero con " + etiquetas(self.shared_with)
             if self.shared_with else ""
         )
         if self.shared_core_with:
             compartido += (
-                "  ⚠ COMPARTE NÚCLEO de 6 nt con 3utr:"
-                + ", 3utr:".join(str(s) for s in self.shared_core_with)
+                "  ⚠ COMPARTE NÚCLEO de 6 nt con "
+                + etiquetas(self.shared_core_with)
             )
+        etiqueta = label(self.start, self.frame)
         return (
-            f"3utr:{self.start:<6} {self.strand:<10} {self.sequence:<24} "
+            f"{etiqueta:<12} {self.strand:<10} {self.sequence:<24} "
             f"{self.heptamer}{compartido}"
         )
 
@@ -272,6 +279,7 @@ def preview_rows(selection, *, species: str, params: SeedParams = DEFAULTS, star
             selection, species, starts, guides, passengers
         )
     ]
+    marco = tiled_frame(getattr(selection, "anatomy", None))
     por_hepta: dict[str, list[int]] = {}
     por_nucleo: dict[str, list[int]] = {}
     for inicio, _, _, hepta, nucleo in crudas:
@@ -288,6 +296,7 @@ def preview_rows(selection, *, species: str, params: SeedParams = DEFAULTS, star
             shared_core_with=tuple(
                 sorted(set(por_nucleo[nucleo]) - set(por_hepta[hepta]))
             ),
+            frame=marco,
         )
         for inicio, hebra, secuencia, hepta, nucleo in crudas
     )
@@ -404,6 +413,8 @@ class SeedResult:
     window: str
     collisions: tuple[SeedCollision, ...]
     level: str
+    #: El marco de `start`, DERIVADO de la anatomía de la corrida (errata nº 121).
+    frame: Frame = Frame.UTR3
 
     @property
     def mir30(self) -> bool:
@@ -428,15 +439,16 @@ class SeedResult:
         return f"{self.level} (ventana {self.window}, NO ESTÁNDAR)"
 
     def describe(self) -> str:
+        etiqueta = label(self.start, self.frame)
         if not self.collisions:
             return (
-                f"3utr:{self.start:<6} {self.strand:<10} {self.heptamer}  "
+                f"{etiqueta:<12} {self.strand:<10} {self.heptamer}  "
                 f"{self.verdict} — ninguna colisión entre los maduros del filtro."
             )
         nombres = ", ".join(c.name for c in self.collisions)
         marca = "  ⚠ miR-30" if self.mir30 else ""
         return (
-            f"3utr:{self.start:<6} {self.strand:<10} {self.heptamer}  {self.verdict}"
+            f"{etiqueta:<12} {self.strand:<10} {self.heptamer}  {self.verdict}"
             f"{marca} — {len(self.collisions)}: {nombres}"
         )
 
@@ -536,6 +548,7 @@ def run_scan(
         if propios:
             indice.setdefault(seed[:largo], []).extend(propios)
 
+    marco = tiled_frame(getattr(selection, "anatomy", None))
     resultados = []
     crudas = []
     for inicio, hebra, secuencia in _strands(
@@ -570,7 +583,7 @@ def run_scan(
             SeedResult(
                 start=inicio, strand=hebra, query=consulta, sequence=secuencia,
                 heptamer=hepta, window=params.window, collisions=colisiones,
-                level=nivel,
+                level=nivel, frame=marco,
             )
         )
         crudas.append(f"{consulta}\t{hepta}\t{nivel}\t{','.join(nombres)}")

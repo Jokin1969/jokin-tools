@@ -518,9 +518,9 @@ def _section_4(selection, *, species: str = "", stores=None) -> Section:
         ),
         table(cabeceras, [tuple(str(f[c]) for c in cabeceras) for f in filas]),
     ]
-    from .coords import Frame, frame_of, label as etiqueta
+    from .coords import Frame, label as etiqueta, tiled_frame
 
-    marco = frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
+    marco = tiled_frame(selection.anatomy)
     conflictos = core_conflicts(selection)
     if conflictos:
         bloques.append(warning("MULTIPLEXADO: hay candidatos que comparten núcleo."))
@@ -574,6 +574,9 @@ def _section_5(*, species, tiling, selection, starts, target=None,
             "procedencia y su fecha."
         )
     ]
+    from .coords import label as etiqueta, tiled_frame
+
+    marco_del_panel = tiled_frame(getattr(tiling, "anatomy", None))
     for inicio in starts:
         # CON LOS ALMACENES. Esto se llamaba sin ellos, asi que `build_dossier`
         # construia un `BlastStore()` vacio y el documento que se entrega decia
@@ -588,7 +591,7 @@ def _section_5(*, species, tiling, selection, starts, target=None,
             offtarget_store=almacenes.get("offtarget"),
             splice_store=almacenes.get("splice"),
         )
-        bloques.append(heading(f"3utr:{inicio}", level=3))
+        bloques.append(heading(etiqueta(inicio, marco_del_panel), level=3))
         bloques.append(pre(ficha.render()))
     return Section(number=5, title="Fichas de los seleccionados", blocks=tuple(bloques))
 
@@ -842,17 +845,22 @@ def _seccion_controles(tiling, selection, *, species: str, target=None) -> Secti
             "sitio de seed en ella, y este camino no la recibe. NOT_RUN no es PASS."
         ))
     else:
+        from .coords import label as etiqueta, tiled_frame
+
         primero = elegidos[0]
         guia = selection.window_of(primero).evaluation.guide
+        origen = etiqueta(
+            primero.start, tiled_frame(getattr(tiling, "anatomy", None))
+        )
         filas = mismatch_comparison(
-            guia, origin_label=f"3utr:{primero.start}",
+            guia, origin_label=origen,
             target=target, target_label=f"3'UTR de {species}",
             mature=getattr(tiling, "mature", None), species=species,
         )
         bloques += [
             para(
                 f"2 o 3 cambios en la seed, medido sobre la guía de "
-                f"3utr:{primero.start} —el primero del panel—. La «racha intacta» es el "
+                f"{origen} —el primero del panel—. La «racha intacta» es el "
                 f"tramo contiguo de seed que queda sin tocar, y es lo que mide el "
                 f"residuo de reconocimiento: importa más DÓNDE caen los cambios que "
                 f"cuántos son."

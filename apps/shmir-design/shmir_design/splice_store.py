@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .coords import Frame, label
 from .errors import ShmirDesignError
 from .identidad import mensaje_de_id_repetido, result_fingerprint
 from .filters import FilterResult, FilterState
@@ -71,13 +72,29 @@ class SpliceRun:
             scan=scan, raw=raw, folding=dict(folding or {}),
         )
 
-    def verdict(self, candidate_start: int, intron: str) -> FilterResult:
+    @property
+    def candidate_frame(self) -> Frame:
+        """El espacio en que van los `candidate_start` de ESTA corrida.
+
+        Sale de los pares, no de un valor tecleado: todos los de una corrida se montaron
+        sobre el mismo tilado, asi que llevan el mismo marco. Sin ningun par —una
+        corrida vacia— queda `UTR3`, que es lo unico que puede haber sido.
+        """
+        return self.scan.pairs[0].candidate_frame if self.scan.pairs else Frame.UTR3
+
+    def verdict(self, candidate_start: int, intron: str, *,
+                frame: Frame | None = None) -> FilterResult:
         par = self.scan.for_candidate(candidate_start, intron)
         if par is None:
+            # El marco de un par que NO esta en la corrida no se puede heredar de el.
+            # Se usa el que pasa quien pregunta —que tiene la anatomia delante— y si no
+            # lo pasa, el de los pares que SI estan: todos los de una corrida van en el
+            # mismo espacio porque salen del mismo tilado.
+            etiqueta = label(candidate_start, frame or self.candidate_frame)
             return FilterResult(
                 name=FILTER_NAME, state=FilterState.NOT_RUN,
                 reason=(
-                    f"La corrida {self.run_id} no incluye el par 3utr:{candidate_start} "
+                    f"La corrida {self.run_id} no incluye el par {etiqueta} "
                     f"x {intron}: ese cassette no se consulto. NOT_RUN no es PASS."
                 ),
             )
@@ -102,7 +119,8 @@ class SpliceRun:
                 + "."
             )
         motivo = (
-            f"[3utr:{candidate_start} x {intron}] REFERENTE INTERNO: donante legítimo "
+            f"[{label(candidate_start, par.candidate_frame)} x {intron}] REFERENTE "
+            f"INTERNO: donante legítimo "
             f"{par.legit_donor:.3f}, aceptor {par.legit_acceptor:.3f}. {cifra}."
             f"{conocido} Contexto declarado {par.context_5}/{par.context_3} nt. "
             f"Corrida {self.run_id} ({self.date}, {self.ran_by}, {self.executor}). "
@@ -149,19 +167,28 @@ class SpliceStore:
     def latest(self) -> SpliceRun | None:
         return self.runs[-1] if self.runs else None
 
-    def verdict_for(self, candidate_start: int, intron: str) -> FilterResult:
-        """El veredicto del par. Sin corrida, NOT_RUN — nunca FAIL."""
+    def verdict_for(self, candidate_start: int, intron: str, *,
+                    frame: Frame) -> FilterResult:
+        """El veredicto del par. Sin corrida, NOT_RUN — nunca FAIL.
+
+        `frame` NO tiene valor por defecto a proposito. Aqui habia un `3utr:` escrito a
+        mano y sobre un tilado del transcrito imprimia `3utr:1684` — la errata nº 121 en
+        un septimo sitio, en el mensaje de un frente que aun no ha corrido, que es donde
+        menos se mira. Un defecto `UTR3` habria dejado el fallo exactamente igual: la
+        unica forma de que no vuelva es que quien pregunta tenga que decir en que
+        espacio esta preguntando.
+        """
         ultima = self.latest
         if ultima is None:
             return FilterResult(
                 name=FILTER_NAME, state=FilterState.NOT_RUN,
                 reason=(
                     f"No hay ninguna corrida de predicción de sitios de splicing para "
-                    f"3utr:{candidate_start} x {intron}. NOT_RUN no es PASS: no se ha "
-                    f"consultado, que no es lo mismo que salir limpio."
+                    f"{label(candidate_start, frame)} x {intron}. NOT_RUN no es "
+                    f"PASS: no se ha consultado, que no es lo mismo que salir limpio."
                 ),
             )
-        return ultima.verdict(candidate_start, intron)
+        return ultima.verdict(candidate_start, intron, frame=frame)
 
     def history(self) -> list[str]:
         lineas: list[str] = []

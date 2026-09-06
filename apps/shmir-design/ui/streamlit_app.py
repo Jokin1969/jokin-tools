@@ -2350,7 +2350,7 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
     marcados = []
     for fila in filas:
         if st.checkbox(
-            f"3utr:{fila['start']}  asim {fila['asimetria']}  {fila['veredicto']}"
+            f"{fila['etiqueta']}  asim {fila['asimetria']}  {fila['veredicto']}"
             + ("  · panel" if fila["panel"] else ""),
             key=f"blast_c_{nombre}_{fila['start']}",
             value=todos,
@@ -2570,10 +2570,11 @@ def _panel_controles(seleccion, nombre: str, tiling, diana: str) -> None:
         return
     with st.expander(f"Controles del experimento — {nombre}"):
         opciones = control_choices(seleccion)
+        etiqueta_de = {o["inicio"]: o["etiqueta"] for o in opciones}
         elegido = st.selectbox(
             "¿Para qué candidato?",
             options=[o["inicio"] for o in opciones],
-            format_func=lambda inicio: f"3utr:{inicio}",
+            format_func=lambda inicio: etiqueta_de[inicio],
             key=f"ctrl_sitio_{nombre}",
             help=(
                 "Las dos construcciones se derivan de LA GUÍA de ese candidato, así que "
@@ -2594,7 +2595,8 @@ def _panel_controles(seleccion, nombre: str, tiling, diana: str) -> None:
         st.dataframe(arms_rows(marcados), hide_index=True)
 
         if not st.button(
-            f"Construir los controles de 3utr:{elegido}", key=f"ctrl_ir_{nombre}"
+            f"Construir los controles de {etiqueta_de[elegido]}",
+            key=f"ctrl_ir_{nombre}",
         ):
             st.caption(
                 "No se construye nada al abrir el panel: cada construcción pliega "

@@ -1428,11 +1428,9 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
     autoconteos: dict[str, SelfCount] = {}
     crudas: list[str] = []
 
-    from .coords import frame_of  # noqa: PLC0415
+    from .coords import tiled_frame  # noqa: PLC0415
 
-    marco = (
-        frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
-    )
+    marco = tiled_frame(selection.anatomy)
     for inicio, hebra, secuencia in _strands(
         selection, species, pedidos, guides, passengers
     ):

@@ -32,6 +32,7 @@ import json
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
+from .coords import Frame
 from .identidad import configuration_fingerprint
 from .errors import ShmirDesignError
 
@@ -866,6 +867,11 @@ def save_splice_run(store: ProjectStore, run) -> Record:
                 {
                     "construction": p.construction,
                     "candidate_start": p.candidate_start,
+                    # El MARCO viaja con la posicion, tambien al disco. Sin el, un
+                    # registro de una corrida sobre el transcrito se relee como si
+                    # fuera del 3'UTR y vuelve a imprimir el `3utr:1398` de la errata
+                    # nº 121 — esta vez desde un fichero, semanas despues.
+                    "candidate_frame": p.candidate_frame.value,
                     "intron": p.intron,
                     "legit_donor": p.legit_donor,
                     "legit_acceptor": p.legit_acceptor,
@@ -923,6 +929,10 @@ def load_splice_store(store: ProjectStore):
             PairResult(
                 construction=p["construction"],
                 candidate_start=p["candidate_start"],
+                # Los registros escritos ANTES de que el marco viajara no lo traen, y
+                # todos son de tilados del 3'UTR pelado: `UTR3` es lo que eran. Lo que
+                # no se hace es adivinarlo para los nuevos — los nuevos lo traen.
+                candidate_frame=Frame(p.get("candidate_frame", Frame.UTR3.value)),
                 intron=p["intron"],
                 legit_donor=p["legit_donor"],
                 legit_acceptor=p["legit_acceptor"],

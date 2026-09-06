@@ -956,7 +956,7 @@ PASAR EL FILTRO DE ASIMETRÍA NO ES SER EQUIVALENTE. El umbral del pipeline dice
 
 EL PLEGADO DEL 97-MERO NO DISCRIMINA, y por eso un PASS aquí no es evidencia de que el control se procese como el original. `passenger_from_guide` ELIGE la base de la posición 1 de la pasajera para que el 97-mero reproduzca la estructura de SGEP, y ABORTA si ninguna de las cuatro lo consigue: la comprobación posterior vuelve a preguntar algo que ya era condición para haber montado la horquilla. Medido el 2026-08-31: 0 de 2000 permutaciones y 0 de 1134 variantes de seed dan una notación distinta, y tampoco la da una guía derivada del propio andamio para que compita con el loop. Lo que SÍ discrimina es la ASIMETRÍA —falla el 47 % de las permutaciones—, que además es la propiedad que decide qué hebra carga AGO2: un tallo más débil se procesa peor y entonces la comparación no mide la diana, mide el procesamiento.
 
-2 o 3 cambios en la seed, medido sobre la guía de 3utr:959 —el primero del panel—. La «racha intacta» es el tramo contiguo de seed que queda sin tocar, y es lo que mide el residuo de reconocimiento: importa más DÓNDE caen los cambios que cuántos son.
+2 o 3 cambios en la seed, medido sobre la guía de tx:959 —el primero del panel—. La «racha intacta» es el tramo contiguo de seed que queda sin tocar, y es lo que mide el residuo de reconocimiento: importa más DÓNDE caen los cambios que cuántos son.
 
 | cambios | variantes | limpias | racha mínima | con esa racha | chocan con el núcleo |
 |---|---|---|---|---|---|
@@ -985,7 +985,7 @@ En el intrón VACÍO el quimérico tiene el punto de ramificación mucho más le
 
 Una ficha por candidato seleccionado, con el veredicto de CADA frente, su procedencia y su fecha.
 
-### 3utr:1149
+### tx:1149
 
 ```
 ═══ Ficha del candidato — mouse tx:1149 ═══

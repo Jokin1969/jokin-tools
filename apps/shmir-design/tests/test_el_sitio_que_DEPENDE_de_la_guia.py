@@ -2,8 +2,15 @@
 
 **Medido (2026-09-05)**, y es literalmente lo que este frente existe para encontrar: un
 **aceptor** en `construccion:3261` —dentro del módulo de 149 nt, sobre un `AG` real—
-puntúa **0,075 en `3utr:959`**, **0,012 en `3utr:1684`** y por debajo de 0,01 en las otras
-ocho. El `GTGAGCG`, que es el críptico que motivó el modal, puntúa **cero en las diez**.
+puntúa **0,075 en `tx:959`**, **0,012 en `tx:1684`** y por debajo de 0,01 en las otras
+ocho.
+
+Este bloque decía `3utr:959` y `3utr:1684` hasta el 2026-09-06, y era **la etiqueta, no
+la medida**: la corrida se monta sobre el TRANSCRITO murino (`load_reference` + anatomía
+del CDS), así que 959 y 1684 son posiciones del transcrito. La fila las etiquetaba
+partiendo el nombre de la construcción y volviendo a pegarle `3utr:` a mano — la errata
+nº 121 en un octavo sitio. Los números y el hallazgo son los mismos; lo que cambia es
+que ahora dicen de qué espacio son. El `GTGAGCG`, que es el críptico que motivó el modal, puntúa **cero en las diez**.
 
 **El valor no es la alarma.** En el peor caso llega al 11 % del donante legítimo, muy por
 debajo del 50 % que dispara el aviso. Lo que vale es que **existe un eje por el que la guía
@@ -146,7 +153,10 @@ class TestSaleDESTACADO_y_no_al_pie(unittest.TestCase):
         fila = next(f for f in filas if f["posicion"] == 3261)
         self.assertEqual(fila["region"], "intron")
         self.assertEqual(len(fila["por_construccion"]), 10)
-        self.assertIn("3utr:959", str(fila["por_construccion"]))
+        # `tx:`, no `3utr:`: esta corrida se monta sobre el transcrito. Un test que
+        # afirmaba `3utr:959` fijaba la etiqueta equivocada del emisor.
+        self.assertIn("tx:959", str(fila["por_construccion"]))
+        self.assertNotIn("3utr:", str(fila["por_construccion"]))
 
 
 if __name__ == "__main__":

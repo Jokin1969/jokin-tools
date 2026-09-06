@@ -36,7 +36,7 @@ from types import MappingProxyType
 
 from .accessibility import CONTEXT_WINDOWS as _CTX
 from .anatomy import Anatomy, Region
-from .coords import Frame, frame_of, label
+from .coords import Frame, label, tiled_frame
 from .errors import ShmirDesignError
 from .filters import FilterState, Verdict
 from .hard_filters import gc_fraction
@@ -1047,7 +1047,7 @@ def polya_mode_comparison(
         selections=selections,
         eligible=elegibles,
         stable=len(set(selections.values())) == 1,
-        frame=frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3,
+        frame=tiled_frame(report.anatomy),
     )
 
 
@@ -1400,7 +1400,7 @@ def measured_promotion_cost(report: TilingReport) -> PromotionCost:
     Solo cuentan las que fallan UNICAMENTE el filtro de polyA: una ventana que ya fallaba
     GC no la tumba la promocion, y contarla inflaria la factura.
     """
-    from .coords import Frame, frame_of
+    from .coords import Frame, tiled_frame
     from .polya import SignalClass
 
     # Solo las que la medida SUBIO. Una señal canonica ya era APA_POSIBLE por la
@@ -1420,7 +1420,7 @@ def measured_promotion_cost(report: TilingReport) -> PromotionCost:
     if not promovidas:
         return PromotionCost()
 
-    marco = frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3
+    marco = tiled_frame(report.anatomy)
     caidas = []
     for ventana in report.windows:
         fallos = [f for f in ventana.filters if f.state is FilterState.FAIL]
@@ -1691,11 +1691,11 @@ def apa_ceiling_table(
     """
     from .polya import SignalClass
 
-    from .coords import Frame, frame_of
+    from .coords import Frame, tiled_frame
 
     elegibles = [w.window.start for w in report.windows if is_eligible(w, config)]
     medido = getattr(report, "measured_apa", None)
-    marco = frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3
+    marco = tiled_frame(report.anatomy)
     filas: list[ApaCeilingRow] = []
     for señal in report.signals:
         if señal.classification is not SignalClass.APA_POSSIBLE:
@@ -2192,7 +2192,7 @@ def blocking_fronts(
     Un frente es un filtro que **se cierra consiguiendo algo**: un fichero, o una lectura
     de banco. Lo demas se cuenta en el semaforo, con las ventanas tiladas.
     """
-    from .coords import Frame, frame_of, label
+    from .coords import Frame, label, tiled_frame
     from .filters import BIOPHYSICAL_FILTERS
     from .polya import CLEAVAGE_MIN, SignalClass
 
@@ -2293,7 +2293,7 @@ def blocking_fronts(
         if con_inmunes
         else "ninguno en ningún tramo"
     )
-    marco = frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3
+    marco = tiled_frame(report.anatomy)
     inmunes = len(selection.selection.chosen) - len(con_techo)
     medido = getattr(report, "measured_apa", None)
     frentes.append(

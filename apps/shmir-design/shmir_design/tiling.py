@@ -30,7 +30,7 @@ from dataclasses import dataclass
 
 from .accessibility import NOT_ASKED, Accessibility, accessibility_of
 from .anatomy import Anatomy, Region, RegionSource, TileRange
-from .coords import Frame, frame_of, label
+from .coords import Frame, label, tiled_frame
 from .apa import ApaAssessment, ApaSites, MeasuredApa, apa_assessment
 from .errors import ShmirDesignError
 from .filters import (
@@ -305,7 +305,7 @@ class TilingReport:
         transcrito etiquetadas como 3'UTR, y ninguna dio error hasta que `coords` puso
         el techo. Quien pinte posiciones de este informe pide el marco aqui.
         """
-        return frame_of(self.anatomy) if self.anatomy is not None else Frame.UTR3
+        return tiled_frame(self.anatomy)
 
     def utr3_of(self, position: int) -> int | None:
         """`position` (en el marco de lo tilado) llevada al 3'UTR, o `None` si no cae.
@@ -658,7 +658,7 @@ def tile_utr(
             ),
             # El marco de LO TILADO. Sin esto, `polyA_hexamero_pos` salia como un entero
             # desnudo en la tabla de la pagina: `1185` es `tx:1185`, o sea `3utr:236`.
-            frame=frame_of(anatomy) if anatomy is not None else Frame.UTR3,
+            frame=tiled_frame(anatomy),
         )
         zona_prohibida = anotacion_polya.veredicto
         if region is not Region.UTR3:
