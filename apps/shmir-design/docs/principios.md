@@ -2312,3 +2312,51 @@ decía «está en el depósito» y quien lo lee pregunta «¿puedo correr el fre
 progreso y el semáforo seguían contando el frente como cerrado. Un estado derivado en dos
 sitios se arregla en los dos o no se ha arreglado — la fila diría ámbar y la barra verde,
 que es peor que el fallo original porque ahora se contradicen.
+
+---
+
+## 47 — La salida va donde está el BLOQUEO, no donde está la causa
+
+Del responsable del proyecto (2026-09-06), después de reportar **dos veces** el mismo
+atasco — la segunda **con el texto ya arreglado delante**:
+
+> **Un aviso que nombra el paso correcto sigue siendo un aviso: la salida tiene que estar
+> donde está el bloqueo, no donde está la causa.**
+
+Es el principio nº 23 y la errata nº 83 **llevados hasta el final**, y conviene ver la
+escalera entera porque el proyecto la subió peldaño a peldaño y creyó haber terminado dos
+veces:
+
+1. **el aviso no decía el paso que cierra el problema** (errata nº 83). Se arregló:
+   ahora lo dice;
+2. **el aviso mandaba al paso equivocado** — «reemplázalo», o sea resubir decenas de
+   megas por cuatro metadatos. Se arregló: ahora nombra el bueno;
+3. **y seguía bloqueando**, porque el paso bueno está **en otra pantalla**. El usuario
+   está en el modal, el modal aborta, y la caja que lo desbloquea vive tres secciones más
+   abajo, en el gestor. Nombrarla correctamente no la trae.
+
+**La distinción que hay que hacer**: la CAUSA vive donde vive —una línea del manifiesto a
+medias, un fichero sin registrar, una corrida que no cubre el panel— y ahí es donde uno
+tiende a poner el arreglo, porque es donde está el modelo mental del que programa. El
+BLOQUEO vive donde alguien se ha quedado parado. **No tienen por qué ser el mismo sitio, y
+casi nunca lo son.**
+
+**La regla operativa** es una pregunta, y se hace mirando la pantalla del que reporta, no
+el código: *¿desde aquí, sin navegar a ningún otro sitio, se puede salir?* Si la respuesta
+es «hay que ir a», el arreglo está a medias por bien redactado que esté el texto.
+
+**Y no se duplica el formulario**: se ofrece **el mismo**. Dos formularios para lo mismo
+acaban escribiendo cosas distintas — es la familia de los pares duplicados (principio
+nº 27), y aquí escribirían en el manifiesto.
+
+### El corolario que costó el arreglo: una salida pintada sobre datos incompletos es peor
+
+Al llevar la caja al modal, **la fila del modal no traía `especie`**, que es lo que
+`declare_provenance` necesita para resolver el nombre del fichero. La caja se habría
+pintado **igual de bien** y habría reventado **al pulsar** — o sea, una salida visible que
+no sale. Peor que no tenerla: la anterior al menos mandaba a un sitio que funciona.
+
+Lo cazó un test cuyas claves **se derivan del código de la caja** en vez de transcribirse,
+así que el día que la caja pida un campo más, la fila que no lo traiga hace fallar la
+suite. Poner la salida donde toca no basta: hay que comprobar que **desde ahí tiene con
+qué funcionar**.

@@ -5383,6 +5383,29 @@ Dos defectos reportados con la corrida delante (2026-09-06), erratas nº 118 y 1
   vez; el veredicto se lee siempre y se descarga. `SeedResult.verdict` lleva la ventana
   pegada, `level` sigue siendo el estado a secas para los almacenes y el semáforo.
 
+## La salida va donde está el BLOQUEO, no donde está la causa
+
+Principio nº 47, y sale de reportar **dos veces** el mismo atasco —la segunda con el texto
+ya arreglado delante—: el modal de off-targets aborta porque a `transcriptoma_3utr.fa` le
+faltan los cuatro campos de procedencia, y el aviso **nombraba el paso correcto** (la fila
+del gestor, en «Ficheros de referencia») y aun así seguía bloqueando.
+
+> *«Un aviso que nombra el paso correcto sigue siendo un aviso.»*
+
+La escalera, subida peldaño a peldaño y dándola por cerrada dos veces: el aviso no decía
+el paso que cierra (errata nº 83) → lo dice; mandaba al paso equivocado, «reemplázalo»
+(errata nº 120) → nombra el bueno; **y el paso bueno está en otra pantalla**.
+
+- **La CAUSA** vive donde vive —una línea del manifiesto a medias— y ahí es donde uno
+  tiende a poner el arreglo, porque es donde está el modelo mental del que programa. **El
+  BLOQUEO** vive donde alguien se quedó parado. Casi nunca son el mismo sitio.
+- **La caja de `declare_provenance` se ofrece AHORA en el modal**, además del gestor, y es
+  **la misma** — dos formularios para lo mismo acabarían escribiendo cosas distintas en el
+  manifiesto (principio nº 27).
+- **Y una salida pintada sobre datos incompletos es PEOR que ninguna**: la fila del modal
+  no traía `especie`, así que la caja se habría pintado igual de bien y habría reventado
+  **al pulsar**. Lo caza un test cuyas claves se **derivan** del código de la caja.
+
 ## La hoja de pedido dice EN CADA FILA qué frentes le faltan a ESE candidato
 
 Pedido el 2026-09-06 con el caso delante — el undécimo del panel, `tx:2020`, entró
