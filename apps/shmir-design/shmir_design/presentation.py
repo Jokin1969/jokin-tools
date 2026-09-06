@@ -904,6 +904,25 @@ FRAGMENT_NEEDS_CASSETTE = (
 )
 
 
+def _intron_names(intron: str | tuple[str, ...]) -> tuple[str, ...]:
+    """UNA o VARIAS arquitecturas, resueltas en un solo sitio.
+
+    Aquí y no en cada llamador porque el CLI las recibe separadas por comas, la página
+    por una lista y el núcleo por una cadena: tres formas de decir lo mismo y una sola
+    de leerlo.
+    """
+    if isinstance(intron, str):
+        nombres = [t.strip() for t in intron.split(",") if t.strip()]
+    else:
+        nombres = [str(t).strip() for t in intron if str(t).strip()]
+    if not nombres:
+        raise ShmirDesignError(
+            "No se ha dado ninguna arquitectura de intrón para el fragmento. Se aborta "
+            "en vez de emitir con una por defecto que nadie pidió."
+        )
+    return tuple(dict.fromkeys(nombres))
+
+
 def _candidate_label(selection: ReportSelection, choice) -> str:
     """La etiqueta de un candidato CON su marco, derivado de la anatomía que viaja con
     la selección.
@@ -927,7 +946,7 @@ def fragment_bundle(
     *,
     species: str,
     cassette: str | None,
-    intron: str = "mvm_actual",
+    intron: str | tuple[str, ...] = "mvm_actual",
     with_sites: bool = False,
 ) -> dict[str, str]:
     """El fragmento de síntesis de cada candidato elegido: FASTA y hoja de pedido.
@@ -935,6 +954,12 @@ def fragment_bundle(
     Toda la decision vive aqui, no en la pagina (regla 6). Sin casete se emite la hoja
     IGUAL, diciendo por que esta vacia: un fichero que no aparece no se distingue de uno
     que nadie ha pedido.
+
+    `intron` admite VARIAS arquitecturas y entonces sale la matriz entera —candidatos x
+    intrones—, que es como esta planteado el primer experimento: *«cruzado por diseño,
+    guías x intrones, para no descubrir con una sola guía que el problema era el
+    intrón»* (responsable del proyecto, 2026-09-06). El defecto sigue siendo UNA, porque
+    doblar lo que se manda a sintetizar es una decision de presupuesto y se pide.
     """
     from .fragmento import (
         build_fragment,
@@ -947,17 +972,18 @@ def fragment_bundle(
     fragmentos = []
     for choice in selection.selection.chosen:
         ventana = selection.window_of(choice)
-        fragmentos.append(
-            build_fragment(
-                build_hairpin(
-                    ventana.evaluation.guide.replace("U", "T"), scaffold=scaffold
-                ),
-                cassette=cassette,
-                intron=intron,
-                with_sites=with_sites,
-                label=_candidate_label(selection, choice),
+        for nombre in _intron_names(intron):
+            fragmentos.append(
+                build_fragment(
+                    build_hairpin(
+                        ventana.evaluation.guide.replace("U", "T"), scaffold=scaffold
+                    ),
+                    cassette=cassette,
+                    intron=nombre,
+                    with_sites=with_sites,
+                    label=_candidate_label(selection, choice),
+                )
             )
-        )
     return {
         f"{species}_fragmentos.fasta": fragments_fasta(fragmentos, species=species),
         f"{species}_fragmentos.txt": "\n\n".join(
@@ -971,10 +997,10 @@ def fragment_rows(
     scaffold: ScaffoldSpec,
     *,
     cassette: str | None,
-    intron: str = "mvm_actual",
+    intron: str | tuple[str, ...] = "mvm_actual",
     with_sites: bool = False,
 ) -> list[dict[str, object]]:
-    """Una fila por fragmento, con lo que hay que mirar antes de pegar."""
+    """Una fila por fragmento —candidato x intrón—, con lo que mirar antes de pegar."""
     from .fragmento import build_fragment
 
     if not cassette:
@@ -982,31 +1008,32 @@ def fragment_rows(
     filas: list[dict[str, object]] = []
     for choice in selection.selection.chosen:
         ventana = selection.window_of(choice)
-        fragmento_ = build_fragment(
-            build_hairpin(
-                ventana.evaluation.guide.replace("U", "T"), scaffold=scaffold
-            ),
-            cassette=cassette,
-            intron=intron,
-            with_sites=with_sites,
-            label=_candidate_label(selection, choice),
-        )
-        filas.append(
-            {
-                "candidato": fragmento_.label,
-                "intron": fragmento_.intron_name,
-                "longitud": len(fragmento_.sequence),
-                "crece": fragmento_.growth,
-                "sustituye": (
-                    f"{fragmento_.feature.start}-{fragmento_.feature.end}"
+        for nombre in _intron_names(intron):
+            fragmento_ = build_fragment(
+                build_hairpin(
+                    ventana.evaluation.guide.replace("U", "T"), scaffold=scaffold
                 ),
-                "inicio_15": fragmento_.head(),
-                "final_15": fragmento_.tail(),
-                "md5": fragmento_.md5,
-                "veredicto": fragmento_.verdict.value,
-                **{f"check:{r.name}": r.state.value for r in fragmento_.checks},
-            }
-        )
+                cassette=cassette,
+                intron=nombre,
+                with_sites=with_sites,
+                label=_candidate_label(selection, choice),
+            )
+            filas.append(
+                {
+                    "candidato": fragmento_.label,
+                    "intron": fragmento_.intron_name,
+                    "longitud": len(fragmento_.sequence),
+                    "crece": fragmento_.growth,
+                    "sustituye": (
+                        f"{fragmento_.feature.start}-{fragmento_.feature.end}"
+                    ),
+                    "inicio_15": fragmento_.head(),
+                    "final_15": fragmento_.tail(),
+                    "md5": fragmento_.md5,
+                    "veredicto": fragmento_.verdict.value,
+                    **{f"check:{r.name}": r.state.value for r in fragmento_.checks},
+                }
+            )
     return filas
 
 

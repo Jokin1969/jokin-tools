@@ -81,6 +81,18 @@ WHY_THE_SITES_LEAVE = (
     "y quitarlo del código es perder la opción."
 )
 
+WHY_LOCATABLE_MATTERS = (
+    "LO QUE CUESTA que un intrón no se localice: de `splicing.locate_intron` salen las "
+    "VENTANAS DE CEBADOR de la RT-qPCR con la que se mide la eficiencia de empalme, así "
+    "que un intrón que la app no puede localizar es un intrón del que NO HAY CON QUÉ "
+    "MEDIR SU EMPALME en el banco — y el empalme es el único frente BINARIO del "
+    "proyecto: o el intrón se escinde o no hay proteína DN en absoluto. No es una "
+    "carencia menor de una casilla: es quedarse sin la lectura que decide si la "
+    "arquitectura sirve. El localizador ya recibe qué intrón busca "
+    "(`splicing.WHY_THE_LOCATOR_TAKES_THE_INTRON`), así que esto sólo sale con un intrón "
+    "que no esté en el registro o que todavía no tenga secuencia."
+)
+
 WHY_THE_ENDS_ARE_THE_CONDITION = (
     "La sustitución se hace seleccionando la feature del intrón y pegando encima, así "
     "que los extremos del fragmento tienen que ser LOS DE LA FEATURE ANOTADA y no los "
@@ -184,7 +196,9 @@ class FeatureDelIntron:
         )
 
 
-def locate_feature(cassette: str, *, name: str) -> FeatureDelIntron:
+def locate_feature(
+    cassette: str, *, name: str, intron: str = "mvm_actual"
+) -> FeatureDelIntron:
     """Deriva el tramo que cubre la feature del intrón. Aborta si el exón no está.
 
     Es la comprobación de la que depende todo lo demás: si el contexto exónico
@@ -193,7 +207,7 @@ def locate_feature(cassette: str, *, name: str) -> FeatureDelIntron:
     unos extremos que nadie ha comprobado.
     """
     limpia = "".join(str(cassette).split()).upper()
-    sitio = splicing.locate_intron(limpia, name=name)
+    sitio = splicing.locate_intron(limpia, name=name, intron=intron)
 
     extremos = {}
     for etiqueta, pieza, inicio in (
@@ -409,11 +423,13 @@ def _check_paste(
         tocaba, el resto del plásmido no se ha movido y el intrón sigue leyendo GT…AG.
         Vale para cualquier arquitectura, porque no supone ninguna.
       - `localizable` — que `splicing.locate_intron` siga encontrando el intrón en el
-        plásmido resultante. Ese localizador busca **las dos mitades del MVM**, así que
-        con otra arquitectura NO_APLICA, y eso hay que decirlo: de él salen las ventanas
-        de cebador con las que se mide la eficiencia de empalme, y un intrón que la app
-        no puede localizar es un frente que se queda sin medida. No es un fallo del
-        fragmento; es una consecuencia de cambiar de intrón, y se ve aquí o no se ve.
+        plásmido resultante, PASANDOLE cuál busca. Hasta el 2026-09-06 ese localizador
+        buscaba las dos mitades del MVM y con el quimérico salía `NO_APLICA`: la
+        arquitectura que gana en las cinco métricas de SpliceAI se quedaba sin ventanas
+        de cebador, o sea sin la única medida de banco del único frente BINARIO del
+        proyecto. Ahora las dos salen `PASS` por el mismo camino, y el `NO_APLICA` sólo
+        queda para un intrón que no esté en el registro — diciendo lo que cuesta
+        (`WHY_LOCATABLE_MATTERS`).
     """
     pegado = feature.paste(fragment_sequence)
     crecimiento = len(fragment_sequence) - feature.length
@@ -469,38 +485,21 @@ def _check_paste(
             ),
         )
 
-    registro = introns.get(intron)
-    de_piezas_mvm = (registro.five_piece, registro.three_piece) == ("MVM5", "MVM3")
-    if not de_piezas_mvm:
+    try:
+        sitio = splicing.locate_intron(
+            pegado, name="el casete con el fragmento pegado", intron=intron
+        )
+    except ShmirDesignError as error:
+        # rule2-ok: el fallo NO se traga — se convierte en el `FilterResult`
+        # `localizable` con estado NO_APLICA y con el mensaje original dentro. Relanzar
+        # tumbaría las otras comprobaciones del fragmento, y aquí lo que se pide es un
+        # veredicto POR comprobación: la regla 3 sobre la 2.
         localizable = FilterResult(
             name="localizable",
             state=FilterState.NO_APLICA,
             reason=(
-                f"`splicing.locate_intron` busca el intrón por las dos mitades del MVM "
-                f"y {intron!r} no las lleva, así que sobre el plásmido con este "
-                f"fragmento NO puede localizarlo. NO es un fallo del fragmento: es una "
-                f"consecuencia de cambiar de arquitectura, y se dice porque de ese "
-                f"localizador salen las ventanas de cebador con las que se mide la "
-                f"eficiencia de empalme. Cambiar a este intrón deja ese frente sin "
-                f"medida mientras el localizador siga siendo el del MVM."
-            ),
-        )
-        return (pegado_resultado, localizable)
-
-    try:
-        sitio = splicing.locate_intron(pegado, name="el casete con el fragmento pegado")
-    except ShmirDesignError as error:
-        # rule2-ok: el fallo NO se traga — se convierte en el FilterResult `localizable`
-        # con estado FAIL y con el mensaje original dentro. Relanzar tumbaría las otras
-        # cuatro comprobaciones del fragmento, y aquí lo que se pide es un veredicto por
-        # comprobación: la regla 3 sobre la 2.
-        localizable = FilterResult(
-            name="localizable",
-            state=FilterState.FAIL,
-            reason=(
-                f"El intrón se ensambla de las piezas del MVM, así que "
-                f"`splicing.locate_intron` tenía que encontrarlo en el plásmido "
-                f"resultante, y no lo encuentra: {error}"
+                f"Sobre el plásmido con este fragmento, `splicing.locate_intron` NO "
+                f"encuentra el intrón {intron!r}: {error} {WHY_LOCATABLE_MATTERS}"
             ),
         )
     else:
@@ -510,11 +509,12 @@ def _check_paste(
                 FilterState.PASS if sitio.length == len(cuerpo) else FilterState.FAIL
             ),
             reason=(
-                f"En el plásmido resultante el intrón se vuelve a localizar por sus "
-                f"piezas: donante {sitio.donor} en {sitio.donor_start}, aceptor "
-                f"{sitio.acceptor} en {sitio.acceptor_end}, {sitio.length} nt "
+                f"En el plásmido resultante el intrón {intron} se vuelve a localizar "
+                f"por sus extremos: donante {sitio.donor} en {sitio.donor_start}, "
+                f"aceptor {sitio.acceptor} en {sitio.acceptor_end}, {sitio.length} nt "
                 + (
-                    "— los mismos que se emitieron."
+                    "— los mismos que se emitieron, así que de aquí salen las ventanas "
+                    "de cebador con las que se mide la eficiencia de empalme."
                     if sitio.length == len(cuerpo)
                     else f"y se emitieron {len(cuerpo)}: NO cuadra."
                 )

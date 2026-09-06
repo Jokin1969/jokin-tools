@@ -43,11 +43,17 @@ from .hard_filters import gc_fraction
 from .polya import CLEAVAGE_MAX, CLEAVAGE_MIN, PolyASignal, Tercio
 from .tiling import TiledWindow, TilingReport
 
-#: El panel del proyecto son DIEZ, no seis. El 6 venia de antes de que se fijaran las
-#: cuotas y ya no coincidia con nada: con 6 se quedan fuera `3utr:10`, `143`, `200` y
-#: `735` — tres de los cuatro inmunes—, asi que el valor por defecto de la interfaz
-#: producia un panel que contradecia lo decidido sin que nadie lo dijera.
-DEFAULT_CANDIDATES = 10
+#: El panel del proyecto son ONCE. Fueron diez hasta el 2026-09-06, y antes seis — el 6
+#: venia de antes de que se fijaran las cuotas y ya no coincidia con nada: se quedaban
+#: fuera `3utr:10`, `143`, `200` y `735`, tres de los cuatro inmunes.
+#:
+#: LA PLAZA ONCE ES EL SEGUNDO DISTAL, y es una decision del responsable del proyecto
+#: (2026-09-06) con la cuenta delante: *«con 414 nt colgando de 3utr:1018 —y siendo este
+#: el penalizado por ACTAAA— un solo candidato en ese tramo es una apuesta innecesaria»*.
+#: Sale `3utr:1071-1092`: asimetria +4,28, cabe con TODO el panel y queda a 53 nt de
+#: 3utr:1018. Y no se apoya en la asimetria para entrar —ahi seria una coincidencia—:
+#: entra por `tercio_quota_by_start`, que la EXIGE.
+DEFAULT_CANDIDATES = 11
 
 #: Minimo de candidatos INMUNES al truncamiento por la señal proximal. Valia 0, o sea
 #: que por defecto NO habia cuota de inmunes y solo mandaba la de tercios — y entonces
@@ -61,6 +67,14 @@ DEFAULT_CANDIDATES = 10
 #: elegido. Ver la entrada de `CLAUDE.md` sobre por que el espaciado no se baja para
 #: meter un quinto.
 DEFAULT_IMMUNE_QUOTA = 4
+
+#: Cuantos candidatos tienen que EMPEZAR en el tercio distal. Decidido por el responsable
+#: del proyecto el 2026-09-06, con la cuenta delante: el tramo son 414 nt y colgaban de
+#: `3utr:1018` — que ademas es el penalizado por ACTAAA—, asi que un solo candidato ahi
+#: era una apuesta innecesaria. Y NO estaba limitado por la geometria: de los 16 sitios
+#: elegibles del tramo, 13 quedan a 50 nt o mas de `3utr:1018`. Lo limitaba la cuota, y
+#: la cuota es esto.
+DEFAULT_DISTAL_BY_START = 2
 DEFAULT_MIN_SPACING = 50
 #: Penalizacion de ranking, en kcal/mol, para una ventana que solapa una variante rara
 #: de poliadenilacion. No excluye: la baja en la lista. El valor es una convencion.
@@ -118,6 +132,17 @@ class SelectionConfig:
     #: resuelve: `Tercio` etiqueta por punto MEDIO de la ventana y la particion simple
     #: va por INICIO, asi que 3utr:819 sale «distal» etiquetado y «medio» por inicio.
     start_window_quota: tuple[tuple[int, int, int], ...] | None = None
+    #: Cuota por tercio POR POSICION DE INICIO, del tipo ((DISTAL, 2),). Es la hermana de
+    #: `tercio_quota`, que va por PUNTO MEDIO, y lleva la definicion en el nombre porque
+    #: las dos discrepan en el borde: `3utr:819-840` empieza en el tercio medio y su punto
+    #: medio cae en el distal, asi que por punto medio el panel «ya tiene dos distales» y
+    #: por inicio tiene uno. Pedir el segundo distal con la definicion equivocada es
+    #: pedir algo que ya se cumple.
+    #:
+    #: La resuelve `select_from_report`, que es quien tiene el informe y por tanto los
+    #: limites del 3'UTR: aqui llega en tercios y baja a `start_window_quota` en
+    #: coordenadas. El nucleo sigue trabajando con datos minimos.
+    tercio_quota_by_start: tuple[tuple[Tercio, int], ...] | None = None
 
     def __post_init__(self) -> None:
         if self.n_candidates < 1:
@@ -762,12 +787,46 @@ def default_config(n_candidates: int = DEFAULT_CANDIDATES, **extra) -> Selection
     """
     return SelectionConfig(
         n_candidates=n_candidates,
+        # LA PLAZA ONCE: un segundo candidato que EMPIECE en el tercio distal. Por
+        # INICIO y no por punto medio, porque por punto medio ya se cumplia con
+        # `3utr:819-840` — que empieza en el tercio medio y acaba en el nt 840 de un
+        # tramo que llega al 1242, o sea que cubre su primer nucleotido y no el tramo.
+        # Pedirlo con la definicion equivocada habria sido pedir algo que ya pasaba.
+        tercio_quota_by_start=((Tercio.DISTAL, DEFAULT_DISTAL_BY_START),),
         apa_immune_quota=min(DEFAULT_IMMUNE_QUOTA, n_candidates),
         # Marcada como DEL PROYECTO, no pedida. Ver `apa_immune_quota_por_defecto`: sin
         # esto, toda corrida sobre una secuencia sin señal de APA aborta por una cuota
         # que quien llama no ha pedido.
         apa_immune_quota_por_defecto=True,
         **extra,
+    )
+
+
+def _ventanas_de_tercio(
+    report: TilingReport, cuota: tuple[tuple[Tercio, int], ...]
+) -> tuple[tuple[int, int, int], ...]:
+    """Los tercios pedidos, bajados a coordenadas DE LO TILADO.
+
+    Los limites de los tercios se calculan sobre el 3'UTR, y `start_window_quota` compara
+    contra `choice.start`, que va en el marco de lo tilado — con un tilado de transcrito
+    los dos no coinciden. Se suma el desfase aqui, una vez, en vez de dejar que cada lado
+    suponga el suyo: es la misma familia de fallo que `3utr:1684`.
+    """
+    anatomia = report.anatomy
+    desfase = anatomia.utr3[0] - 1 if anatomia is not None and anatomia.utr3 else 0
+    largo = (
+        anatomia.utr3_length
+        if anatomia is not None and anatomia.utr3
+        else report.utr_length
+    )
+    limites = {
+        Tercio.PROXIMAL: (1, largo // 3),
+        Tercio.MEDIO: (largo // 3 + 1, 2 * largo // 3),
+        Tercio.DISTAL: (2 * largo // 3 + 1, largo),
+    }
+    return tuple(
+        (limites[tercio][0] + desfase, limites[tercio][1] + desfase, plazas)
+        for tercio, plazas in cuota
     )
 
 
@@ -812,6 +871,17 @@ def select_from_report(
             config = replace(config, apa_immune_quota=0)
         else:
             config = replace(config, apa_immune_before=derivado)
+    # LA CUOTA POR TERCIO POR INICIO SE RESUELVE AQUI, que es donde esta el informe: baja
+    # a `start_window_quota` en coordenadas del 3'UTR. El nucleo (`choose`) sigue
+    # trabajando con datos minimos y sin saber cuanto mide el 3'UTR.
+    if config.tercio_quota_by_start:
+        config = replace(
+            config,
+            start_window_quota=(
+                tuple(config.start_window_quota or ())
+                + _ventanas_de_tercio(report, config.tercio_quota_by_start)
+            ),
+        )
     choices = eligible_choices(report, config)
     sites = group_choices(choices)
     selection = choose(sites, config)

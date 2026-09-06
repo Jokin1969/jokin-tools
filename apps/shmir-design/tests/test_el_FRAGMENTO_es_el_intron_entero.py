@@ -226,18 +226,26 @@ class TestElQuimericoUsaLOS_MISMOS_EXTREMOS(unittest.TestCase):
         self.assertEqual(len(nuevo), len(self.casete) + self.qui.growth)
         self.assertEqual(nuevo.count(self.qui.sequence), 1)
 
-    def test_pero_la_app_YA_NO_LO_LOCALIZA_y_lo_dice(self):
-        """El localizador busca las mitades del MVM: con otro intrón NO_APLICA.
+    def test_la_app_LOCALIZA_LOS_DOS_desde_que_recibe_cuál_busca(self):
+        """Aquí este test decía lo contrario, y el cambio es a propósito.
 
-        No es un fallo del fragmento — es la consecuencia de cambiar de arquitectura, y
-        de ese localizador salen las ventanas de cebador del frente del empalme. El
-        MVM sí sale PASS por el mismo camino, que es lo que hace que la diferencia
-        signifique algo.
+        Hasta el 2026-09-06 `splicing.locate_intron` buscaba las dos mitades del MVM, así
+        que con el quimérico dentro no encontraba nada y esta comprobación salía
+        `NO_APLICA` con su motivo. Eso dejaba a la arquitectura que gana en las cinco
+        métricas de SpliceAI **sin ventanas de cebador**, o sea sin la única medida de
+        banco de su propio frente — y el empalme es el único frente binario del proyecto.
+
+        El localizador recibe ahora qué intrón busca y resuelve por sus extremos, así que
+        las dos salen `PASS` por el mismo camino. El test no se relaja: se invierte,
+        porque lo que cambió es el código y está escrito por qué.
         """
-        self.assertIs(self.mvm.check("localizable").state, FilterState.PASS)
-        aviso = self.qui.check("localizable")
-        self.assertIs(aviso.state, FilterState.NO_APLICA)
-        self.assertIn("eficiencia de empalme", aviso.reason)
+        for fragmento_ in (self.mvm, self.qui):
+            resultado = fragmento_.check("localizable")
+            self.assertIs(
+                resultado.state, FilterState.PASS,
+                f"{fragmento_.intron_name}: {resultado.reason}",
+            )
+            self.assertIn("ventanas de cebador", resultado.reason)
 
     def test_un_intron_retirado_NO_se_emite(self):
         with self.assertRaises(ShmirDesignError):
@@ -353,6 +361,32 @@ class TestElPaqueteQueSaleDeLaCorrida(unittest.TestCase):
             paquete["mouse_fragmentos.fasta"].count(">"),
             len(self.corrida.selection.selection.chosen),
         )
+
+    def test_LA_MATRIZ_entera_cuando_se_piden_dos_arquitecturas(self):
+        """El primer experimento es CRUZADO por diseño: guías × intrones.
+
+        Con las dos arquitecturas salen 2 fragmentos por candidato, no uno: es lo que
+        evita descubrir con una sola guía que el problema era el intrón. Sigue siendo
+        una decisión que se pide — doblar lo que se manda a sintetizar cuesta dinero—,
+        así que el defecto es una sola.
+        """
+        if not introns.get("intron_quimerico").provided:
+            self.skipTest("NOT_RUN: falta el plásmido del intrón quimérico")
+        panel = len(self.corrida.selection.selection.chosen)
+        filas = self.rows(
+            self.corrida.selection, self.scaffold, cassette=self.casete,
+            intron="mvm_actual,intron_quimerico",
+        )
+        self.assertEqual(len(filas), 2 * panel)
+        self.assertEqual(
+            {f["intron"] for f in filas}, {"mvm_actual", "intron_quimerico"}
+        )
+        # Un candidato, dos fragmentos, y NO son el mismo.
+        por_candidato = {}
+        for fila in filas:
+            por_candidato.setdefault(fila["candidato"], set()).add(fila["md5"])
+        for candidato, md5s in por_candidato.items():
+            self.assertEqual(len(md5s), 2, candidato)
 
     def test_sin_casete_la_hoja_SALE_IGUAL_diciendo_por_que(self):
         paquete = self.bundle(

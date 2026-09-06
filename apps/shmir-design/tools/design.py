@@ -590,8 +590,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--fragmento-intron", default="mvm_actual",
         help="Con --bloques: de qué intrón sale el FRAGMENTO de síntesis (el intrón "
-             "completo con su contexto exónico, para pegar sobre la feature). Por "
-             "defecto el MVM del casete de hoy.",
+             "completo con su contexto exónico, para pegar sobre la feature). Admite "
+             "VARIOS separados por comas y entonces emite la matriz entera "
+             "—candidatos x intrones—, que es como está planteado el primer "
+             "experimento. Por defecto el MVM del casete de hoy.",
     )
     parser.add_argument(
         "--fragmento-con-sitios", action="store_true",
