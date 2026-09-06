@@ -291,6 +291,45 @@ Tres consecuencias, y hay que cumplir las tres:
    mitad del arreglo. El diff del golden es la prueba de que llegó: si el golden no se
    mueve, no se ve.
 
+### LA VARIANTE QUE NINGUNA SUITE PUEDE VER (2026-09-06)
+
+La familia lleva doce casos —`triple_motive_rows`, `intron_folding`, `store.save_*`,
+`page_run`, el `stores=` que faltaba, los frentes por hebra, el desempate de
+`mvm_sin_criptico`, el montaje del quimérico…— y **todos producían lo mismo: un veredicto
+falso, un número mal contado, un eje sin contestar**. Cosas que un test puede llegar a
+ver, y de hecho varias las cazó un test o un golden al final.
+
+**`build_stamp()` no.** El sello de la versión —qué commit está sirviendo `/shmir`— estaba
+escrito, probado y razonado desde el 2026-09-05, con **un solo consumidor**: la cabecera
+del FASTA de consulta de SpliceAI. Todo correcto. Ninguna salida equivocada, ningún número
+mal. **Lo que producía era TIEMPO PERDIDO**, y eso no lo mide ninguna suite: tres días de
+«está fusionado pero no lo veo», sin forma de distinguir desde la pantalla si el
+despliegue iba por detrás o si el arreglo no funcionaba.
+
+Con las palabras del responsable del proyecto:
+
+> *«Las anteriores producían un veredicto falso o un número mal contado — algo que un test
+> podría llegar a ver. Ésta producía tiempo perdido, y eso no lo mide ninguna suite.»*
+
+### EL COROLARIO OPERATIVO, que es una segunda pregunta
+
+Ante una capacidad con **un solo consumidor**, la pregunta de siempre es *¿quién más la
+necesita?* — y se contesta leyendo el código, que es donde no está la respuesta. La que
+faltaba es otra:
+
+> **¿QUIÉN LA ESTÁ BUSCANDO A MANO?**
+
+Y no se contesta en el repositorio: se contesta mirando qué está haciendo la gente. En
+este caso, *«el sello lo estaba buscando yo, tres días, sin saber que existía»*. Alguien
+repitiendo un trabajo manual junto a una capacidad que ya lo hace es la señal, y **no deja
+rastro en el código**: ni un símbolo sin llamador, ni un golden que no se mueve, ni una
+rama sin recorrer. Por eso ninguna de las herramientas del proyecto —alcanzabilidad,
+goldens, banderas, estados— puede encontrarlo, y por eso hay que preguntarlo.
+
+**Regla práctica**: cuando un reporte empiece por «no consigo saber si…» o «llevo N veces
+comprobando a mano…», antes de escribir nada nuevo hay que mirar si el dato **ya existe en
+alguna parte del código** y sólo le falta llegar a donde alguien lo está buscando.
+
 ---
 
 ## 7 — Una comprobación compuesta declara sus componentes en un solo sitio
