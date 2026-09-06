@@ -101,6 +101,12 @@ class Dossier:
     #: es un veredicto del candidato: es una propiedad de la PAREJA, y por eso va en su
     #: propia fila y no mezclada con los frentes.
     core_shared_with: tuple[str, ...] = ()
+    #: SOBRE QUE se buscaron esos sitios, con su marco. Sin esto un «SEGUNDO SITIO» no
+    #: es interpretable: `self_sites` barre lo que se le pase como `target`, asi que
+    #: sobre el 3'UTR y sobre el transcrito entero contesta preguntas DISTINTAS — con el
+    #: transcrito aparecen sitios en el CDS y en el 5'UTR, reales y de otra naturaleza,
+    #: porque la represion por seed opera sobre todo en el 3'UTR.
+    self_sites_span: str = ""
     #: Sitios de ESTA hebra en su propia diana, con su clase.
     self_sites: tuple = ()
 
@@ -136,7 +142,15 @@ class Dossier:
             lineas.append(f"  sin techo — {self.ceiling_layer}")
         else:
             lineas.append(f"  {self.ceiling:.2f} — {self.ceiling_layer}")
-        lineas.extend(["", "── Sitios de esta seed en la PROPIA diana (esperado: 1) ──"])
+        alcance = f"  buscados en {self.self_sites_span}" if self.self_sites_span else (
+            "  ALCANCE NO DECLARADO: no se dice sobre qué se buscó, así que un «SEGUNDO "
+            "SITIO» de aquí no es interpretable."
+        )
+        lineas.extend([
+            "",
+            "── Sitios de esta seed en la PROPIA diana (esperado: 1) ──",
+            alcance,
+        ])
         if not self.self_sites:
             lineas.append(
                 "  NO CALCULADO en esta ficha. No es cero: no se ha contado."
@@ -192,6 +206,11 @@ class Dossier:
             for corrida in self.blast_history:
                 lineas.extend(f"  {l}" for l in corrida.describe())
         return "\n".join(lineas) + "\n"
+
+
+def _normalizar(secuencia) -> str:
+    """La secuencia sin blancos, que es sobre la que se cuenta. Una sola definicion."""
+    return "".join(str(secuencia).split())
 
 
 def _hexamers_near(
@@ -389,8 +408,13 @@ def build_dossier(
         window=(ventana.window.start, ventana.window.end),
         frame=marco,
     ) if target is not None else ()
+    # EL ALCANCE SE DERIVA de lo que se ha barrido de verdad, no se escribe: si se
+    # escribiera, diria «el 3'UTR» sobre una ficha generada con el transcrito delante y
+    # nadie se enteraria — que es la forma exacta del fallo que esto viene a hacer legible.
+    alcance = span(1, len(_normalizar(target)), marco) if target is not None else ""
     return Dossier(
         species=species, start=start, end=elegido.end, frame=marco,
+        self_sites_span=alcance,
         guide=ventana.evaluation.guide.replace("U", "T"),
         passenger=bloque.passenger,
         verdict=ventana.verdict.value,

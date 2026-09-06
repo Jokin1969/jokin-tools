@@ -1019,6 +1019,7 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
   sin techo — tx:1-1200  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE.
 
 ── Sitios de esta seed en la PROPIA diana (esperado: 1) ──
+  buscados en tx:1-2191
   tx:1164 7mer-m8 (el suyo)
 
 ── Multiplexado: núcleo de seed compartido ──

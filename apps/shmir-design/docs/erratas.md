@@ -5941,6 +5941,54 @@ Las seis anteriores producían **una etiqueta mal escrita**. Aquí, además, hay
 - **un cambio de SIGNIFICADO**: «el suyo» frente a «SEGUNDO SITIO» no es una etiqueta —
   es un veredicto distinto sobre la biología del candidato.
 
+### EL PEOR DE LOS CUATRO, Y POR QUÉ — y qué hay que volver a mirar
+
+Con las palabras del responsable del proyecto (2026-09-06):
+
+> *«Un fallo de marco que marca la propia diana como SEGUNDO SITIO no se lee como error
+> de formato — se lee como un hallazgo biológico, y en su día lo interpretamos como
+> COOPERATIVIDAD. Que quede anotado que cualquier "segundo sitio" medido antes de este
+> arreglo hay que volver a mirarlo.»*
+
+Es la distinción que separa este caso de los otros tres: una etiqueta con el marco
+equivocado **se ve rara**; un `SEGUNDO SITIO` falso **encaja** en algo que este proyecto
+ya sabe nombrar —dos sitios en el mismo mensajero, cooperatividad, un rendimiento por
+encima de lo esperado— y por eso no se investiga: se explica. Un fallo que produce un
+resultado plausible en el vocabulario del proyecto es el que más tarda en salir.
+
+### LA RE-MEDIDA, hecha y no afirmada
+
+El hallazgo registrado —**4 del panel murino con un segundo sitio de seed en el 3'UTR de
+Prnp**— se volvió a medir con el código arreglado, y **SIGUE EN PIE, idéntico**:
+
+| candidato | sitios (posición, clase, ¿el suyo?) |
+|---|---|
+| `3utr:449` | `464` 7mer-m8 **el suyo** · `1033` 7mer-A1 SEGUNDO |
+| `3utr:553` | `460` 6mer SEGUNDO · `568` 7mer-m8 **el suyo** |
+| `3utr:819` | `148` 7mer-m8 SEGUNDO · `834` 7mer-m8 **el suyo** |
+| `3utr:1018` | `464` 6mer SEGUNDO · `1033` 8mer **el suyo** |
+
+**Y la razón por la que no estaba contaminado es la misma que hacía invisible el fallo**:
+se midió sobre el **3'UTR pelado**, donde el desfase es 0 y el cruce de marcos es
+**inerte**. O sea que el hallazgo se salvó por dónde se midió, no porque el código
+estuviera bien. Queda fijado con test, incluido el control de que **cada uno de los cuatro
+marca exactamente UNA ventana como propia** — que es el síntoma que tendría un caso
+contaminado.
+
+### Y AL VOLVER A MIRARLO SALIÓ LA OTRA MITAD, que no es un fallo
+
+`self_sites` barre **lo que se le pase como `target`**, así que sobre el 3'UTR y sobre el
+transcrito entero contesta preguntas **distintas**: con el transcrito aparecen sitios en el
+CDS y en el 5'UTR —reales, y de otra naturaleza, porque la represión por seed opera sobre
+todo en el 3'UTR—. Medido: `3utr:143` gana un 6mer fuera del 3'UTR que en la lectura del
+3'UTR no existe.
+
+Eso no se arregla eligiendo un alcance: se **declara**. La ficha emite ahora
+`buscados en 3utr:1-1242` o `buscados en tx:1-2191`, **derivado de lo que se barrió de
+verdad** — escrito, diría «el 3'UTR» sobre una ficha generada con el transcrito delante,
+que es la forma exacta del fallo que esto viene a hacer legible. Sin alcance declarado, la
+ficha lo dice con esas palabras en vez de dar un número mudo.
+
 **El arreglo es el mismo de siempre y ya no admite excepción**: el marco se **recibe**,
 `start` y `end` van los **dos** en él, y toda posición se imprime con `coords.label`. Se
 comprobó midiendo que el golden del 3'UTR pelado **no cambia ni un byte** — porque ahí el

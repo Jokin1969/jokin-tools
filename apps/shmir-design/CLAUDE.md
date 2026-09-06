@@ -1702,7 +1702,8 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
       la nula de **su propia composición**, así que el de un control contra nuestra nula
       no querría decir nada. Aportan **magnitud**, no posición.
     - **AUTOCONTEO sobre la propia diana** (`self_count`), esperado **1**.
-  - **HALLAZGO del autoconteo, y no es un detalle**: **4 de los 10** del panel murino
+  - **HALLAZGO del autoconteo, y no es un detalle**: **4 del panel murino** (de 10
+    entonces, de 11 desde el 2026-09-06)
     tienen un **segundo sitio de seed en el propio 3'UTR de Prnp** — `3utr:449` (núcleo en
     `3utr:464` y `1033`), `553` (`460`, `568`), `819` (`148`, `834`) y `1018` (`464`,
     `1033`). No es un fallo: es información que hay que tener **antes** de leer una
@@ -1711,6 +1712,19 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     apuestas independientes. Los otros seis tienen uno solo. Está fijado con un test.
     - Un autoconteo de **CERO** también es anómalo, y hacia el otro lado: significa que
       esa hebra **no sale de esa diana**. Se dice con esas palabras.
+    - **RE-MEDIDO Y EN PIE (2026-09-06)**, después de la errata nº 122: un cruce de
+      marcos hacía que la PROPIA ventana saliera marcada «SEGUNDO SITIO», y eso **no se
+      lee como un error de formato — se lee como cooperatividad**. El hallazgo de los
+      cuatro se salvó por **dónde se midió** (el 3'UTR pelado, donde el desfase es 0 y
+      el fallo es inerte), no porque el código estuviera bien. Fijado con test, con el
+      control de que cada uno marca **exactamente una** ventana como propia. **Cualquier
+      «segundo sitio» medido antes de ese arreglo hay que volver a mirarlo.**
+    - **Y EL ALCANCE SE DECLARA**: `self_sites` barre lo que se le pase como `target`, así
+      que sobre el 3'UTR y sobre el transcrito entero contesta preguntas DISTINTAS —con el
+      transcrito aparecen sitios en el CDS y en el 5'UTR, reales y de otra naturaleza—. La
+      ficha emite `buscados en 3utr:1-1242` o `buscados en tx:1-2191`, **derivado de lo
+      que se barrió**; sin alcance declarado, un «SEGUNDO SITIO» no es interpretable y la
+      ficha lo dice con esas palabras.
   - **LAS TRES LIMITACIONES VAN EN EL RESULTADO, no al pie** (`LIMITATIONS`), y las tres
     llevan `direction = "sobrestima"`: sin ponderación por **conservación** (no tenemos
     alineamientos multiespecie, TargetScan sí: contamos sitios, no sitios probablemente
