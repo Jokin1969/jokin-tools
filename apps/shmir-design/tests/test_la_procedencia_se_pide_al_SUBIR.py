@@ -193,17 +193,17 @@ class TestLaPAGINA_pide_los_campos_que_toquen(unittest.TestCase):
         return next(f for f in filas if f["nombre"] == nombre)
 
     def test_la_fila_del_transcriptoma_TRAE_las_cuatro(self):
-        campos = [c["clave"] for c in self._fila(TRANSCRIPTOMA)["procedencia"]]
+        campos = [c["clave"] for c in self._fila(TRANSCRIPTOMA)["procedencia_pedida"]]
         self.assertEqual(campos, list(deposito.PROVENANCE_FIELDS))
 
     def test_cada_una_con_su_etiqueta_y_su_ayuda(self):
-        for campo in self._fila(TRANSCRIPTOMA)["procedencia"]:
+        for campo in self._fila(TRANSCRIPTOMA)["procedencia_pedida"]:
             with self.subTest(campo["clave"]):
                 self.assertTrue(campo["etiqueta"].strip())
                 self.assertTrue(campo["ayuda"].strip())
 
     def test_y_la_del_casete_NO_pide_ninguna(self):
-        self.assertEqual(self._fila("aav_casete.fa")["procedencia"], [])
+        self.assertEqual(self._fila("aav_casete.fa")["procedencia_pedida"], [])
 
 
 class TestLaPAGINA_las_PINTA_y_no_las_elige(unittest.TestCase):
@@ -216,7 +216,10 @@ class TestLaPAGINA_las_PINTA_y_no_las_elige(unittest.TestCase):
 
     def test_las_saca_de_la_fila(self):
         self.assertIn("_casillas_de_procedencia", self.fuente)
-        self.assertIn('fila.get("procedencia")', self.fuente)
+        # 2026-09-06: la clave se renombro a `procedencia_pedida` (errata nº 123).
+        # `procedencia` a secas nombraba DOS cosas distintas —lo que se pide y lo
+        # que ya esta declarado— con formas incompatibles.
+        self.assertIn('fila.get("procedencia_pedida")', self.fuente)
 
     def test_y_NO_escribe_ni_uno_de_los_cuatro_campos(self):
         # Escribirlos en la pagina seria la tercera copia de la misma lista —la de

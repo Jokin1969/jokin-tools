@@ -999,6 +999,31 @@ derivarlo (principio nº 13), aplicado a la evidencia de que un guardia sirve.
 anterior, o se copia del cuerpo real que se acaba de borrar — nunca se teclea desde el
 recuerdo de lo que hacía.
 
+#### Y VAN VARIAS. La variante más barata de cometer: el FIXTURE no reproduce producción
+
+El 2026-09-06 (errata nº 123) un test comprobaba que la fila del modal trajera todas las
+claves que la caja de procedencia consume. Pasó. Y el modal reventó al pintarse.
+
+Entre otras razones, ésta: **probaba sobre `data/reference/`, el depósito del repositorio,
+donde el transcriptoma NO está.** Sin fichero no hay campos que falten, sin campos que
+falten la caja ni se pinta, y **la rama que revienta no se ejecutaba**. El test recorría el
+camino feliz y salía verde.
+
+Señalado por el responsable del proyecto como lo que más enseña de esa errata:
+
+> *«El test probaba sobre un directorio donde el transcriptoma no está, así que la rama
+> que revienta ni se ejecutaba. Un fixture que no reproduce producción.»*
+
+Es más fácil de cometer que la variante del control adversario, porque **no hay nada que
+teclear mal**: se coge el directorio que ya existe, que es real, que está versionado y que
+parece la elección obvia — y precisamente por estar versionado no puede contener el
+fichero de 84 MB que produce el fallo. **El fixture correcto era el que hay que construir**:
+el fichero dentro y su línea a medias.
+
+**La pregunta operativa**, y se hace ANTES de dar por bueno un verde: *¿en qué estado
+concreto ocurre el fallo, y mi fixture está en ese estado?* Si el fixture es «lo que había
+a mano», casi seguro que no.
+
 ---
 
 ## 19 — Un valor legítimo puede tener la FORMA de la ausencia, y la comprobación mira el continente
@@ -2387,6 +2412,37 @@ es «hay que ir a», el arreglo está a medias por bien redactado que esté el t
 **Y no se duplica el formulario**: se ofrece **el mismo**. Dos formularios para lo mismo
 acaban escribiendo cosas distintas — es la familia de los pares duplicados (principio
 nº 27), y aquí escribirían en el manifiesto.
+
+### Y LA SALIDA TAMBIÉN PUEDE ESTAR ROTA: la pregunta se hace contándolas todas
+
+El 2026-09-06, el mismo día, se juntaron **dos fallos independientes** y entre los dos no
+dejaban ninguna vía:
+
+- la caja del modal **reventaba al pintarse** (`KeyError: 'etiqueta'`, errata nº 123), y
+  se llevaba el modal entero por delante;
+- y el **paso 5 no se pintaba nunca** con un proyecto retomado (errata nº 124), porque
+  había dos definiciones de «se ha diseñado» y la que decidía su visibilidad no conocía
+  ese camino.
+
+Ninguno causó al otro. Uno estaba en la forma de una fila, el otro en un booleano de la
+página, y se arreglan con cosas distintas. **Lo que los une es que el segundo era la
+salida del primero.** El paso 5 es la vía alternativa cuando un modal falla, así que
+mientras el modal reventaba, la alternativa **tampoco existía** — y el usuario se quedó
+sin ninguna.
+
+Con las palabras del responsable del proyecto:
+
+> *«Dos fallos independientes que en conjunto no dejaban ninguna vía. La pregunta "¿desde
+> aquí se puede salir?" hay que hacerla sabiendo que la salida también puede estar rota.»*
+
+**Así que la pregunta del principio no se contesta con una salida: se contesta contándolas
+todas y comprobando que al menos una funciona.** Una salida declarada en un texto y una
+salida que se ha visto funcionar no son lo mismo, y aquí la diferencia fueron tres días.
+
+**El corolario de diseño**: cuando una vía es la alternativa de otra, las dos comparten la
+razón de existir y **ninguna de las dos puede quedarse sin comprobar**. Si el estado en el
+que hace falta la alternativa es justo el que ningún test recorre —aquí, «modal roto»—, la
+alternativa está sin probar por construcción.
 
 ### El corolario que costó el arreglo: una salida pintada sobre datos incompletos es peor
 

@@ -107,3 +107,18 @@ todos, asi que usarlo no probaria nada; y el fichero real son decenas de megas q
 se versionan. Lo que se fabrica es la LINEA, con las columnas que declara \
 `manifest.MANIFEST_COLUMNS` —derivadas, no tecleadas—, y el test comprueba las dos \
 caras: sin los cuatro campos la fila NO sale CERRADA, y declarandolos vuelve a estarlo."""
+
+[[fixture]]
+test = "test_la_CAJA_de_procedencia_esta_donde_ABORTA.py"
+artefacto = "manifest.tsv"
+usa_el_real = false
+por_que_no_el_real = """\
+El mismo caso que `test_un_fichero_SIN_PROCEDENCIA_no_esta_cerrado.py` y por el mismo \
+motivo, aplicado a la CAJA que lo arregla: el estado que se prueba es el fichero DENTRO \
+del deposito con su linea SIN los cuatro campos de tabla, y eso no existe en el \
+manifiesto versionado —que los tiene todos— ni puede existir, porque el fichero real \
+son 84 MB que no van a git. USAR EL DEPOSITO REAL ES LO QUE HIZO FALLAR ESTE TEST LA \
+PRIMERA VEZ (errata nº 123): ahi el transcriptoma NO esta, asi que no falta ninguna \
+procedencia, la caja ni se pinta y la rama que revienta no se ejecuta — el test pasaba \
+recorriendo el camino feliz mientras el modal se caia en produccion. Lo que se fabrica \
+es la LINEA, con las columnas derivadas de `manifest.MANIFEST_COLUMNS`."""
