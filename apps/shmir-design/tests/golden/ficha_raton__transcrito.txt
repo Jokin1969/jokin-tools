@@ -30,7 +30,7 @@
 ── Techo de APA ──
   sin techo — tx:1-1200  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE.
 
-── Sitios de esta seed en la PROPIA diana (esperado: 1) ──
+── Sitios de esta seed en la PROPIA diana ──
   buscados en tx:1-2191
   tx:1164 7mer-m8 [3'UTR] (el suyo)
 

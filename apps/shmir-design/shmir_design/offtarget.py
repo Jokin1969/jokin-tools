@@ -39,6 +39,7 @@ import bisect
 import hashlib
 import random
 import re
+import textwrap
 from collections import Counter
 from dataclasses import dataclass, replace
 
@@ -937,6 +938,46 @@ def self_sites(
     return tuple(sitios)
 
 
+#: CUANTOS SITIOS ESPERA CADA HEBRA EN SU PROPIA DIANA, y no es el mismo número.
+#:
+#: La **guía** es ANTISENTIDO a la diana: su seed encuentra su sitio ahí **por
+#: construcción**, así que 1 es lo esperado y un 0 significa que la secuencia analizada no
+#: es la que se cree.
+#:
+#: La **pasajera** es SENTIDO — lleva la misma secuencia que la diana, no la
+#: complementaria — así que su seed **no tiene por qué encontrar nada** ahí. **CERO ES SU
+#: RESULTADO ESPERADO**, y lo que merece mirarse es una pasajera que SÍ tenga sitio.
+#:
+#: Valía 1 para las dos, y eso daba **siete avisos falsos de once** sobre las pasajeras
+#: del panel murino (errata nº 125). Es `ANTISENSE` en el BLAST otra vez: un criterio
+#: correcto movido a la otra hebra sin el supuesto que lo sostenía.
+EXPECTED_SELF_COUNT = {"guia": 1, "pasajera": 0}
+
+WHY_THE_EXPECTED_DIFFERS = (
+    "El esperado NO es el mismo para las dos hebras. La guía es antisentido a la diana, "
+    "así que su seed cae ahí por construcción y lo esperado es 1. La pasajera es "
+    "sentido —la misma secuencia que la diana, no la complementaria—, así que lo "
+    "esperado es 0 y lo que hay que mirar es que SÍ tenga sitio."
+)
+
+
+def expected_self_count(strand_name: str) -> int:
+    """Cuántos sitios espera esa hebra en su propia diana.
+
+    Una hebra que no esté declarada ABORTA: son dos geometrías distintas y una tercera
+    no tiene valor por defecto que valga — poner 1 o 0 sería elegir una de las dos por
+    nuestra cuenta.
+    """
+    try:
+        return EXPECTED_SELF_COUNT[str(strand_name)]
+    except KeyError as exc:
+        raise ShmirDesignError(
+            f"No hay autoconteo esperado declarado para la hebra {strand_name!r}; las "
+            f"que hay son {', '.join(sorted(EXPECTED_SELF_COUNT))}. No se elige uno por "
+            f"nuestra cuenta: {WHY_THE_EXPECTED_DIFFERS}"
+        ) from exc
+
+
 @dataclass(frozen=True)
 class SelfCount:
     """Cuantos sitios tiene la hebra en su PROPIA diana. Deberia ser 1."""
@@ -955,15 +996,27 @@ class SelfCount:
     def describe(self) -> str:
         if self.occurrences == self.expected:
             return (
-                f"{self.query}: {self.occurrences} sitio en {self.target_label}, que es "
-                f"lo esperado."
+                f"{self.query}: {self.occurrences} sitio(s) en {self.target_label}, que "
+                f"es lo esperado para esta hebra."
             )
         if self.occurrences == 0:
+            # Sólo se llega aquí con `expected != 0`, o sea con una GUIA: para una
+            # pasajera el cero es lo esperado y sale por la rama de arriba.
             return (
                 f"{self.query}: 0 sitios en {self.target_label}. ANOMALO, y hacia el "
                 f"otro lado: si la hebra no tiene su propio sitio en la diana, esa hebra "
                 f"NO sale de esa diana. Comprueba que la secuencia analizada es la que "
                 f"se cree."
+            )
+        if self.expected == 0:
+            detalle = "; ".join(s.describe() for s in self.detail)
+            return (
+                f"{self.query}: {self.occurrences} sitio(s) en {self.target_label}"
+                f"{f' [{detalle}]' if detalle else ''}. MERECE MIRARSE: esta hebra es "
+                f"SENTIDO respecto de la diana, así que lo esperado era 0 — su seed no "
+                f"tiene por qué caer ahí. Que caiga significa que la propia diana lleva "
+                f"el núcleo de la pasajera, y entonces la pasajera cargada reprimiría "
+                f"también el mensajero que se quiere medir."
             )
         detalle = "; ".join(s.describe() for s in self.detail)
         return (
@@ -976,14 +1029,27 @@ class SelfCount:
 
 
 def self_count(strand: str, *, target: str, target_label: str,
-               query: str = "", window=None) -> SelfCount:
+               query: str = "", window=None, strand_name: str = "guia",
+               frame=None, anatomy=None) -> SelfCount:
+    """El autoconteo de una hebra, CON el esperado que le corresponde.
+
+    `strand_name` no tiene un valor por defecto neutro: `guia` es el caso mayoritario y
+    el histórico, y lo que NO puede pasar es que una pasajera se cuente con el esperado
+    de una guía — que es lo que daba siete avisos falsos de once.
+    """
     patrones = site_patterns(strand)
+    extra = {}
+    if frame is not None:
+        extra["frame"] = frame
     return SelfCount(
         query=query or patrones.heptamer,
         target_label=target_label,
         occurrences=core_occurrences(target, patrones),
         sites=count_in(target, patrones),
-        detail=self_sites(strand, target=target, window=window),
+        detail=self_sites(
+            strand, target=target, window=window, anatomy=anatomy, **extra
+        ),
+        expected=expected_self_count(strand_name),
     )
 
 
@@ -1283,7 +1349,9 @@ class OfftargetScan:
         lineas.extend(f"    {c.describe()}" for c in self.controls)
         lineas.extend(["", f"  {CONTROLS_NOTE}", ""])
 
-        lineas.append("  AUTOCONTEO SOBRE LA PROPIA DIANA (esperado: 1):")
+        lineas.append("  AUTOCONTEO SOBRE LA PROPIA DIANA:")
+        lineas.extend(f"    {l}" for l in textwrap.wrap(
+            WHY_THE_EXPECTED_DIFFERS, 86))
         lineas.extend(f"    {s.describe()}" for s in self.self_counts.values())
         lineas.append("")
 
@@ -1371,9 +1439,12 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
                 patterns=patrones, counts=cuentas, percentiles=percentiles,
             )
         )
+        # LA HEBRA VIAJA, y de ella sale el ESPERADO. Sin pasarla, la pasajera se
+        # contaba con el esperado de la guia y su cero —que es lo normal, porque es
+        # SENTIDO respecto de la diana— salia como anomalia: siete falsos de once.
         autoconteos[consulta] = self_count(
             secuencia, target=target, target_label=target_label, query=consulta,
-            window=ventanas.get(inicio),
+            window=ventanas.get(inicio), strand_name=hebra,
         )
         crudas.append(
             "\t".join(

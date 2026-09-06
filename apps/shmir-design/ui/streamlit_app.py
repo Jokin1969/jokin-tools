@@ -28,6 +28,7 @@ from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E4
 from shmir_design.blast import DEFAULTS as DEFAULT_BLAST  # noqa: E402
 from shmir_design.seed_scan import DEFAULTS as SEED_DEFAULTS  # noqa: E402
 from shmir_design.offtarget import DEFAULTS as OFFTARGET_DEFAULTS  # noqa: E402
+from shmir_design.offtarget import WHY_THE_EXPECTED_DIFFERS  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
@@ -2981,7 +2982,8 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         st.dataframe(offtarget_control_rows(scan), hide_index=True)
         st.caption(destacados["controles"]["texto"])
 
-        st.markdown("**Autoconteo sobre la propia diana** — esperado: 1")
+        st.markdown("**Autoconteo sobre la propia diana**")
+        st.caption(WHY_THE_EXPECTED_DIFFERS)
         st.dataframe(offtarget_self_count_rows(scan), hide_index=True)
         if destacados["autoconteo"]["activo"]:
             st.error(destacados["autoconteo"]["texto"])

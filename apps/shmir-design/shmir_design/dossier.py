@@ -149,7 +149,7 @@ class Dossier:
         )
         lineas.extend([
             "",
-            "── Sitios de esta seed en la PROPIA diana (esperado: 1) ──",
+            "── Sitios de esta seed en la PROPIA diana ──",
             alcance,
         ])
         if not self.self_sites:

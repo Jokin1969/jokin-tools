@@ -6073,3 +6073,54 @@ modal reventaba y la alternativa no existía—.
 acciones dejan de ser literales sueltos en la página (`ACCION_DISENAR`, `ACCION_ESTIMAR`):
 la comparación a mano es lo que permitió que hubiera dos definiciones. Con test de que la
 página no vuelve a comparar la acción por su cuenta.
+
+---
+
+## 125 — «0 sitios» era el resultado ESPERADO de una pasajera, y salía como anomalía: siete de once
+
+**Reportado (2026-09-06)** con la corrida buena delante — las once guías dando lo esperado
+y los cuatro segundos sitios sobreviviendo a la re-medida — y con el argumento que lo
+decide:
+
+> *«La guía es ANTISENTIDO a la diana: su seed encuentra su sitio por construcción. La
+> pasajera es SENTIDO — tiene la misma secuencia que la diana, no la complementaria — así
+> que su seed no tiene por qué encontrar nada ahí. Cero es el resultado esperado para una
+> pasajera. Y las tres que sí tienen sitio —1092, 1149, 1768— son las que merecen mirarse,
+> no al revés.»*
+
+`SelfCount.expected` valía **1** y no dependía de la hebra. El texto que salía —«si la
+hebra no tiene su propio sitio en la diana, esa hebra NO sale de esa diana; comprueba que
+la secuencia analizada es la que se cree»— es **correcto para una guía** y manda a buscar
+un fallo que no existe cuando quien lo lee es una pasajera.
+
+### Es `ANTISENSE` en el BLAST otra vez (errata nº 57)
+
+Un criterio correcto **movido a la otra hebra sin el supuesto que lo sostenía**. Allí, el
+descarte por orientación era correcto en nuestro escáner y, copiado al `-outfmt 6`, tiraba
+el acierto legítimo de la pasajera **contra su propia diana**. Aquí, el «esperado: 1» es
+correcto para la guía y convierte en anomalía lo normal de la pasajera. **La misma
+geometría, el mismo sitio del código, y la segunda vez en un mes.**
+
+### Y SIETE DE ONCE ES LO QUE APAGA UN GUARDIA
+
+No es que sobre un aviso: es que con esa proporción de falsos positivos **la próxima
+anomalía real de pasajera se lee como ruido**. El proyecto ya tiene escrito que un guardia
+con falsos positivos se acaba apagando; esto es el caso con número.
+
+### EL COROLARIO, y es lo que generaliza (del responsable del proyecto)
+
+> *«Guía y pasajera van separadas en todos los frentes desde hace semanas, y aquí van
+> separadas en el conteo pero comparten el valor esperado. **Separar la medida no basta si
+> el criterio de lectura sigue siendo uno.**»*
+
+Es el principio nº 29 —una dimensión del modelo que la consulta no atraviesa— aplicado a
+**la lectura y no a la medida**: `verdict_for` es por hebra, el almacén es por hebra, la
+ficha son dos filas… y el número contra el que se comparan las dos era el mismo. La
+separación se declaró en el eje del dato y no en el eje del criterio.
+
+**El arreglo**: `EXPECTED_SELF_COUNT` —guía 1, pasajera 0—, `expected_self_count()`
+**aborta** con una hebra no declarada (dos geometrías distintas; una tercera no tiene
+valor por defecto que valga), la hebra viaja hasta `self_count`, y la lectura se
+**invierte** para la pasajera: lo que se destaca es que SÍ tenga sitio, con el motivo —la
+propia diana lleva el núcleo de la pasajera, así que la pasajera cargada reprimiría también
+el mensajero que se quiere medir—.
