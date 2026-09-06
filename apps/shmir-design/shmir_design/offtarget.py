@@ -1010,13 +1010,26 @@ class SelfCount:
             )
         if self.expected == 0:
             detalle = "; ".join(s.describe() for s in self.detail)
+            # LA CLASE GRADÚA, igual que en la rama de la guía. Sin esto, dos 7mer-A1 y
+            # un 6mer suelto daban EL MISMO aviso — el criterio de lectura sin separar
+            # mientras la medida ya lo estaba (el corolario de la errata nº 125,
+            # aplicándose una segunda vez un nivel más abajo).
+            solo_6mer = bool(self.detail) and all(
+                s.site_class == "6mer" for s in self.detail
+            )
+            peso = (
+                " Todos son 6mer, así que es MARGINAL: se anota y no cambia la lectura."
+                if solo_6mer
+                else " Hay al menos un sitio de clase 7mer o mejor, así que NO es "
+                     "marginal: la represión esperada de esa clase sí es apreciable."
+            )
             return (
                 f"{self.query}: {self.occurrences} sitio(s) en {self.target_label}"
                 f"{f' [{detalle}]' if detalle else ''}. MERECE MIRARSE: esta hebra es "
                 f"SENTIDO respecto de la diana, así que lo esperado era 0 — su seed no "
                 f"tiene por qué caer ahí. Que caiga significa que la propia diana lleva "
                 f"el núcleo de la pasajera, y entonces la pasajera cargada reprimiría "
-                f"también el mensajero que se quiere medir."
+                f"también el mensajero que se quiere medir.{peso}"
             )
         detalle = "; ".join(s.describe() for s in self.detail)
         return (
@@ -1277,13 +1290,20 @@ class LoadResult:
     patterns: SitePatterns
     counts: Counts
     percentiles: dict[str, float]
+    #: El marco de `start`, DERIVADO de la anatomía de la corrida. Aquí iba `3utr:`
+    #: escrito a mano, y sobre un tilado del transcrito eso etiquetaba `tx:1398` como
+    #: `3utr:1398`. El propio fichero se delataba: doce líneas más abajo, el autoconteo
+    #: de esa misma guía —que SÍ deriva su marco— decía que su sitio propio está en
+    #: `3utr:464`, y 464 no puede caer dentro de una ventana que empieza en 1398.
+    frame: Frame = Frame.UTR3
 
     def describe(self) -> str:
         piezas = "  ".join(
             f"{c}={self.counts.sites[c]} (p{self.percentiles[c]:.1f})"
             for c in SITE_CLASSES
         )
-        return f"3utr:{self.start:<6} {self.strand:<10} {self.patterns.heptamer}  {piezas}"
+        etiqueta = label(self.start, self.frame)
+        return f"{etiqueta:<12} {self.strand:<10} {self.patterns.heptamer}  {piezas}"
 
 
 @dataclass(frozen=True)
@@ -1408,6 +1428,11 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
     autoconteos: dict[str, SelfCount] = {}
     crudas: list[str] = []
 
+    from .coords import frame_of  # noqa: PLC0415
+
+    marco = (
+        frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
+    )
     for inicio, hebra, secuencia in _strands(
         selection, species, pedidos, guides, passengers
     ):
@@ -1437,6 +1462,10 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
             LoadResult(
                 start=inicio, strand=hebra, query=consulta, sequence=secuencia,
                 patterns=patrones, counts=cuentas, percentiles=percentiles,
+                # EL MARCO SE RECIBE, sacado de la anatomía que viaja con la selección.
+                # Es la misma derivación que usan la ficha, el informe y los avisos; aquí
+                # era lo único que quedaba con `3utr:` escrito a mano.
+                frame=marco,
             )
         )
         # LA HEBRA VIAJA, y de ella sale el ESPERADO. Sin pasarla, la pasajera se

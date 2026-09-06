@@ -6124,3 +6124,51 @@ valor por defecto que valga), la hebra viaja hasta `self_count`, y la lectura se
 **invierte** para la pasajera: lo que se destaca es que SÍ tenga sitio, con el motivo —la
 propia diana lleva el núcleo de la pasajera, así que la pasajera cargada reprimiría también
 el mensajero que se quiere medir—.
+
+---
+
+## 126 — El bloque exportable se contradecía a sí mismo: `3utr:1398` y `3utr:464` en el mismo fichero
+
+**Reportado (2026-09-06)** pegando la corrida entera y preguntando «¿esto está bien?».
+Los datos sí —las 22 seeds recalculadas cuadran una a una— y **las etiquetas no**.
+
+La tabla de hebras decía `3utr:1398 guia`, y **doce líneas más abajo, en el mismo
+fichero**, el autoconteo de esa misma guía decía que su sitio propio está en `3utr:464`.
+Un sitio propio cae dentro de la ventana del candidato: si 1398 fuera 3'UTR, 464 no podría
+serlo. **El fichero se delata solo.**
+
+Y las dos mitades discrepan por una razón concreta: las del autoconteo salen de
+`self_sites` con el marco **derivado** —lo que arregló la errata nº 122— y las de la tabla
+de un `f"3utr:{self.start}"` **escrito a mano** en `LoadResult.describe()`. O sea que el
+arreglo del marco llegó a un lado del mismo módulo y no al otro: **el patrón de la errata
+nº 121 dentro de un solo fichero**.
+
+Séptima vez de la familia, y en el peor sitio de todos: este bloque es *«material para
+defender la selección»*, el que se lee **sin la app delante** y se pega en un documento.
+Quien lo abra dentro de un año buscará `3utr:959` en un 3'UTR de 1242 nt y encontrará otro
+sitio — o ninguno.
+
+**Arreglado igual que siempre**: `LoadResult` recibe el marco, derivado de la anatomía que
+viaja con la selección, y la etiqueta la pone `coords.label`.
+
+### Y LA SEGUNDA MITAD ES UN FALLO DE LA TANDA ANTERIOR, no del reporte
+
+Al leer el fichero completo salieron **cuatro** pasajeras con sitio, no tres: falta
+`3utr:449`, que además es la peor —**dos sitios `7mer-A1`**, en `3utr:824` y `3utr:1089`—.
+Y no se veía porque **el aviso de la pasajera no graduaba por clase**:
+
+| candidato | sitios de la pasajera | lectura correcta |
+|---|---|---|
+| `3utr:143` | 1 × 7mer-m8 | no marginal |
+| `3utr:200` | 1 × 6mer | **marginal** |
+| `3utr:449` | 2 × 7mer-A1 | no marginal, y son dos |
+| `3utr:819` | 1 × 6mer | **marginal** |
+
+La rama de la GUÍA sí gradúa —«un 8mer o un 7mer-m8 de más dan cooperatividad real; un
+6mer es marginal»— y la de la pasajera decía «MERECE MIRARSE» igual para las cuatro.
+
+**Es el corolario de la errata nº 125 aplicándose una segunda vez, un nivel más abajo, y
+sobre el arreglo de la nº 125.** Allí quedó escrito que *«separar la medida no basta si el
+criterio de lectura sigue siendo uno»* — y al separar el **valor esperado** por hebra dejé
+sin separar el **criterio de la clase**. La lección no se aprendió del todo la primera vez:
+se aplicó al eje que el reporte señalaba y no al eje que la frase describe.
