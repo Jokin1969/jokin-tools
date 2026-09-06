@@ -1022,14 +1022,32 @@ ASSEMBLY_NEEDS_BOTH = (
 )
 
 
-def assembly_report(plasmid, fragments_fasta_text: str, *, name: str = ""):
+def assembly_report(
+    plasmid,
+    fragments_fasta_text: str,
+    *,
+    name: str = "",
+    before_pasting: bool = False,
+    architecture_change: bool = False,
+):
     """La comprobación del montaje, para que la página sólo tenga que enseñarla.
 
     Vive aquí y no en la interfaz porque decide cosas: qué se compara, contra qué intrón
     previo y con qué veredicto (regla 6).
-    """
-    from .montaje import verify_assembly
 
+    `before_pasting` cambia LA PREGUNTA, no el rigor: sobre el plásmido receptor se
+    pregunta «¿va este fragmento aquí?» y sobre el montado «¿está dentro lo que
+    emitimos?». La primera no se puede hacer después — al pegar, el intrón anterior
+    desaparece y con él la casilla de la matriz.
+    """
+    from .montaje import check_before_pasting, verify_assembly
+
+    if before_pasting:
+        return check_before_pasting(
+            plasmid, fragments_fasta_text,
+            architecture_change=architecture_change,
+            name=name or "el plásmido receptor",
+        )
     return verify_assembly(
         plasmid, fragments_fasta_text, name=name or "el plásmido montado"
     )

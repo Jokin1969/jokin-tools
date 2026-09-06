@@ -2043,3 +2043,77 @@ columnas, un mapa de caracteres contesta las dos preguntas del reparto y sale id
 markdown, en `.docx` y en `.pdf` — monoespaciado deja de ser el obstáculo y pasa a ser la
 garantía. Lo que había que cambiar no era el formato de salida: era dejar de creer que
 resumir es una forma barata de llegar.
+
+---
+
+## 43 — Un guardia que aprueba las cuatro casillas no mide lo que su nombre promete
+
+Señalado por el responsable del proyecto (2026-09-06), sobre la comprobación del montaje:
+
+> *«Un guardia que da PASS a las cuatro casillas no está midiendo lo que dice medir, y
+> eso es peor que no tenerlo — porque el nombre promete algo que no hace.»*
+
+**Peor que no tenerlo, y por qué.** Sin guardia, quien pega sabe que no hay red y mira.
+Con un guardia que aprueba todo, la red existe en el informe y no en el código: el `PASS`
+se lee como «comprobado» y sustituye a la mirada. Un hueco declarado cuesta menos que uno
+tapado con un verde.
+
+**La prueba mínima, y es barata:** un guardia con N resultados posibles se corre sobre las
+N situaciones que dice distinguir. Si sale lo mismo en todas, no distingue — y eso se ve
+antes de escribir una línea de justificación. Aquí eran cuatro: dos arquitecturas de
+fragmento × dos de plásmido receptor, y las cuatro daban `PASS`.
+
+**La causa era estructural, no un descuido.** El guardia miraba el MÓDULO, y el módulo es
+idéntico en las dos arquitecturas: misma horquilla, mismos contextos, mismos espaciadores.
+Lo que cambia son los FLANCOS, porque son de intrones distintos. **Cuando un guardia no
+discrimina, la pregunta no es qué umbral mover: es qué parte de lo comparado contiene de
+verdad la diferencia.**
+
+**Y el criterio se CALIBRA midiendo, no se elige.** Los extremos discriminan, pero no
+cualquier longitud: los dos donantes empiezan por `GTAAG` y el exón aporta otros 5, así
+que los primeros 10 nt son idénticos y divergen en el 11; por el otro lado divergen en el
+9. Con 5 nt el guardia habría seguido aprobando las cuatro casillas — con otro nombre.
+Es el principio nº 34 (un guardia se CALIBRA midiendo) aplicado a la longitud de la
+comparación.
+
+**El corolario, que es lo que evita la tentación de prohibir.** Tres de las cuatro
+casillas no son errores: pegar el fragmento de un intrón sobre un plásmido que lleva otro
+**es** cómo se cambia de arquitectura. El trabajo del guardia no era prohibir una casilla,
+era **decir en cuál se está**. Por eso el cambio se declara y sin declararlo la cruzada
+falla — y declarándolo, lo que falla es no cambiar nada. Un guardia que sólo puede decir
+«sí» o «no» sobre algo que tiene cuatro estados va a acabar diciendo «sí» a los cuatro.
+
+---
+
+## 44 — Cinco magnitudes que en la conversación se llaman igual
+
+Pedido por el responsable del proyecto (2026-09-06):
+
+> *«Son tres magnitudes con el mismo nombre coloquial y ya nos costó una vez — que cada
+> una salga siempre con su etiqueta, como las coordenadas.»*
+
+Al escribirlas resultaron **cinco**, y eso es la mitad del principio: «el intrón» son dos
+números y «el fragmento» otros dos.
+
+| etiqueta | MVM | qué es | con qué se compara |
+|---|---|---|---|
+| intrón vacío | 82 | de `GT` a `AG`, sin módulo | el mínimo del espliceosoma y el rango típico de mamífero |
+| intrón montado | 284 (296 con sitios) | con el módulo dentro | el montado de la OTRA arquitectura |
+| feature anotada | 92 | lo que cubre la anotación, con contexto exónico | lo que se SELECCIONA en SnapGene |
+| fragmento de síntesis | 294 (306 con sitios) | lo que se manda a sintetizar | el presupuesto y el límite del proveedor |
+| crecimiento | 202 (214 con sitios) | lo que crece el plásmido al pegar | la longitud antes y después |
+
+**Ya costó una vez.** La errata nº 35 fue exactamente esto: 214 nt de intercalado
+aplicados a un intrón que se monta con 149. Y lo que la hizo cara no fue el error, fue que
+**el número equivocado era plausible** — 314-318 nt de donante→punto de ramificación es
+una cifra creíble, sólo que del intrón de al lado.
+
+**Es la regla de `coords` sobre longitudes.** Una posición no sale sin su marco porque
+`3utr:1684` y `tx:1684` son dos sitios; una longitud no sale sin su etiqueta porque 284 y
+294 son dos cosas. La diferencia con las coordenadas es que ahí el techo del 3'UTR hace
+que la equivocación ABORTE, y aquí no hay techo: dos longitudes de la misma construcción
+son las dos verosímiles. Por eso la etiqueta no es cortesía — es lo único que hay.
+
+**Y se DERIVAN del objeto que se tiene delante**, nunca de una tabla escrita: con otro
+intrón o con los sitios dentro salen otros cinco números y nada que actualizar. Una tabla
+de valores sería la sexta magnitud, y sería la que se queda vieja.

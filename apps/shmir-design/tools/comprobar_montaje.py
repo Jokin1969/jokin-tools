@@ -28,7 +28,7 @@ sys.path.insert(0, str(RAIZ))
 
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.filters import FilterState  # noqa: E402
-from shmir_design.montaje import verify_assembly  # noqa: E402
+from shmir_design.montaje import check_before_pasting, verify_assembly  # noqa: E402
 
 
 def main(argv=None) -> int:
@@ -42,6 +42,19 @@ def main(argv=None) -> int:
         help="el FASTA de fragmentos que emitió la app (`<especie>_fragmentos.fasta`)",
     )
     parser.add_argument(
+        "--antes-de-pegar", action="store_true",
+        help="el plásmido que se da es el RECEPTOR, todavía sin el fragmento: "
+             "comprueba QUÉ INTRÓN lleva y si el fragmento va ahí. Es la pregunta que "
+             "hay que hacerse mientras todavía se puede no pegar, y no se puede "
+             "reconstruir después: sobre el montado el intrón anterior ya no está.",
+    )
+    parser.add_argument(
+        "--cambio-de-arquitectura", action="store_true",
+        help="con --antes-de-pegar: declara que la sustitución cambia de intrón a "
+             "propósito. Sin declararlo, una cruzada es FAIL; declarándolo, lo que "
+             "falla es que no haya cambio.",
+    )
+    parser.add_argument(
         "--intron-previo", default="",
         help="el intrón que había ANTES, si no es el del casete parental. Encontrarlo "
              "todavía dentro es el fallo que esto caza: pegado al lado en vez de encima.",
@@ -49,12 +62,20 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        informe = verify_assembly(
-            Path(args.plasmido).read_bytes(),
-            Path(args.fragmentos).read_text(encoding="utf-8"),
-            name=Path(args.plasmido).name,
-            previous_intron=args.intron_previo,
-        )
+        crudo = Path(args.plasmido).read_bytes()
+        fasta = Path(args.fragmentos).read_text(encoding="utf-8")
+        if args.antes_de_pegar:
+            informe = check_before_pasting(
+                crudo, fasta,
+                architecture_change=args.cambio_de_arquitectura,
+                name=Path(args.plasmido).name,
+            )
+        else:
+            informe = verify_assembly(
+                crudo, fasta,
+                name=Path(args.plasmido).name,
+                previous_intron=args.intron_previo,
+            )
     except (ShmirDesignError, OSError) as exc:
         # rule2-ok: frontera CLI. El fallo sale entero por stderr y con codigo 2; no se
         # imprime un informe a medias que parezca una comprobacion hecha.

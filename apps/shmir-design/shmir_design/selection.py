@@ -1819,7 +1819,14 @@ class TercioCoverage:
     free_of_reference: int
     free_of_panel: int
     reference: int | None
+    #: Los mejores que caben con TODO el panel, por el orden con que se eligió.
     next_free: tuple[NextInTercio, ...]
+    #: Los mejores que sólo tienen que respetar el espaciado con la REFERENCIA del
+    #: tramo. Son dos listas y no una porque son dos preguntas: «¿qué cabe sin tocar
+    #: nada?» y «¿qué cabe en ESTE tramo?». La segunda es la que hay que mirar para
+    #: decidir si la cobertura del tramo está limitada por la geometría o por la cuota:
+    #: si hay de sobra a ≥ espaciado de su propio vecino, lo que falta son plazas.
+    next_free_of_reference: tuple[NextInTercio, ...] = ()
 
     @property
     def quota_met(self) -> bool:
@@ -1876,14 +1883,30 @@ class TercioCoverage:
                 f"  Margen: {self.free_of_panel} sitio(s) del tramo caben en el panel "
                 f"respetando el espaciado de {self.spacing} nt."
             )
-        if self.next_free:
+        if self.next_free_of_reference:
             lineas.append(
-                "  El siguiente, por el mismo orden con que se eligió el panel "
-                "(asimetría): "
+                f"  Los mejores del tramo a {self.spacing} nt o más de "
+                + (
+                    label(self.reference, Frame.UTR3)
+                    if self.reference is not None
+                    else "el panel"
+                )
+                + ", por el mismo orden con que se eligió el panel (asimetría): "
+                + "; ".join(s.describe() for s in self.next_free_of_reference)
+                + "."
+            )
+        if self.next_free and self.next_free != self.next_free_of_reference:
+            lineas.append(
+                "  Los que además caben con TODO el panel NO son los mismos: "
                 + "; ".join(s.describe() for s in self.next_free)
                 + "."
             )
-        else:
+        elif self.next_free:
+            lineas.append(
+                f"  Los tres son también los mejores que caben con TODO el panel, así "
+                f"que aquí las dos preguntas dan la misma respuesta."
+            )
+        if not self.next_free:
             lineas.append(
                 "  No queda ninguno: o no hay más sitios elegibles en el tramo o todos "
                 f"caen a menos de {self.spacing} nt de un candidato ya elegido."
@@ -1964,15 +1987,16 @@ def tercio_coverage(
         panel_inicio = tuple(p for p in panel if por_inicio(p) == nombre)
         panel_medio = tuple(p for p in panel if tercio_de_elegido.get(p) == nombre)
         referencia = panel_medio[-1] if panel_medio else None
-        libres_referencia = (
-            sum(
-                1 for (s, a, _b) in del_tercio_medio
+        de_la_referencia = (
+            [
+                (s, a, b) for (s, a, b) in del_tercio_medio
                 if a not in panel
                 and respects_spacing(a, referencia, spacing=ajustes.min_spacing)
-            )
+            ]
             if referencia is not None
-            else 0
+            else []
         )
+        libres_referencia = len(de_la_referencia)
         caben = [
             (s, a, b) for (s, a, b) in del_tercio_medio
             if a not in panel
@@ -1998,6 +2022,10 @@ def tercio_coverage(
                 next_free=tuple(
                     NextInTercio(start=a, end=b, asymmetry=s.best.asymmetry)
                     for (s, a, b) in caben[:top]
+                ),
+                next_free_of_reference=tuple(
+                    NextInTercio(start=a, end=b, asymmetry=s.best.asymmetry)
+                    for (s, a, b) in de_la_referencia[:top]
                 ),
             )
         )

@@ -5261,10 +5261,74 @@ tercios, así que si se cumple tiene que VERSE.
   elegidos dejan una franja de ±50 nt que cubre casi los 414. Un tramo se lee lleno y el
   otro depende de uno, y los dos números salen del mismo sitio.
 - **Dos números, no uno**: 13 sitios del distal quedan a ≥50 nt de `3utr:1018` y **9** lo
-  cumplen con TODO el panel. Manda el segundo — añadir uno exige espaciado con todos.
+  cumplen con TODO el panel. Manda el segundo — añadir uno exige espaciado con todos. Y
+  se emiten las DOS listas de los tres mejores, porque son dos preguntas: en el tercio
+  PROXIMAL no coinciden, que es donde se ve que no eran la misma.
+- **La cobertura del distal NO la limita la geometría, la limita la cuota** — 13 de 16
+  caben a ≥50 de `3utr:1018`. Los tres mejores por asimetría: **`3utr:1071-1092`**
+  (+4,28), `3utr:1076-1097` (+4,20) y `3utr:900-921` (+4,15). La cifra de 11 que se dio
+  al pedirlo no sale con ninguna definición probada; ver la errata nº 116.
 - **Las posiciones se convierten al marco del 3'UTR AL ENTRAR, no al imprimir.** Con un
   tilado del transcrito, guardarlas crudas daba `3utr:1684` y abortaba la corrida entera
   (errata nº 113).
+
+## La matriz de arquitecturas: qué fragmento se pega sobre qué intrón
+
+**El guardia daba PASS a las cuatro casillas** (señalado el 2026-09-06, errata nº 115).
+No por descuido: `fragmento_presente` encuentra el fragmento se haya pegado donde se haya
+pegado, y **el módulo es idéntico en las dos arquitecturas** — misma horquilla, mismos
+contextos, mismos espaciadores. Mirando el módulo, una sustitución cruzada y una correcta
+son la misma secuencia. Principio nº 43.
+
+**Lo que discrimina son los EXTREMOS, y su longitud está CALIBRADA.** Los dos donantes
+empiezan por `GTAAG` y el contexto exónico aporta otros 5, así que los primeros 10 nt del
+fragmento son idénticos en las dos arquitecturas: **divergen en el 11**, y por el otro
+extremo **en el 9**. Con 5 nt el guardia seguiría aprobando las cuatro casillas; con 10
+también. Los 15 que destaca la hoja de pedido cubren los dos con margen — y por eso
+`montaje.WHY_FIFTEEN` es una medida y no una preferencia. Con un tercer intrón se vuelve a
+medir con `montaje.divergence_point`.
+
+**Tres de las cuatro casillas no son errores**, y por eso el guardia no prohíbe: DICE en
+cuál se está. Pegar el fragmento del quimérico sobre un plásmido con MVM **es** cómo se
+cambia de arquitectura, así que el cambio se DECLARA — sin declararlo la cruzada es
+`FAIL`, y declarándolo lo que falla es que no haya cambio. La matriz se invierte, que es
+la prueba de que discrimina en las dos direcciones.
+
+**`check_before_pasting` es una entrada nueva, no un modo de `verify_assembly`.** Sobre el
+plásmido ya montado el intrón anterior **ya no está**: la casilla no se puede reconstruir
+después. La comprobación tenía que existir mientras todavía se puede no pegar.
+
+**El intrón del plásmido se identifica por los FLANCOS del vector** (`MluI+exon5` y
+`exon3+AgeI`, únicos y derivados de `blocks.PIECES`), que son los mismos con cualquier
+arquitectura dentro — `splicing.locate_intron` no vale aquí, busca las dos mitades del
+MVM. Si los extremos no coinciden con ninguno del registro, se DICE y no se adivina; si
+los flancos no están, sale `NOT_RUN`, que no es `PASS`.
+
+Y `sin_intron_previo` tenía la misma ceguera por otro camino: buscaba sólo el intrón vacío
+del MVM, por valor por defecto, así que un plásmido con el quimérico detrás salía `PASS`.
+**Barre el registro entero.**
+
+## Las cinco longitudes, cada una con su etiqueta
+
+Pedido el 2026-09-06: *«son tres magnitudes con el mismo nombre coloquial y ya nos costó
+una vez — que cada una salga siempre con su etiqueta, como las coordenadas»*. Al
+escribirlas salen **cinco**, y eso es la mitad del hallazgo. Principio nº 44.
+
+| etiqueta | MVM | qué es |
+|---|---|---|
+| intrón vacío | **82** | de `GT` a `AG`, sin módulo. Es el que se compara con el rango típico de mamífero |
+| intrón montado | **284** (296 con sitios) | con el módulo dentro. Es el que se compara entre arquitecturas |
+| feature anotada | **92** | lo que cubre la anotación, contexto exónico incluido: lo que se SELECCIONA en SnapGene |
+| fragmento de síntesis | **294** (306 con sitios) | lo que se manda a sintetizar |
+| crecimiento | **202** (214 con sitios) | lo que crece el plásmido al pegar |
+
+**OJO con «el fragmento son 306»**: 306 es la variante CON los sitios de restricción
+dentro. Por defecto salen fuera —la decisión del 2026-09-05— y el fragmento son **294**.
+Es exactamente el tipo de confusión que esta tabla existe para cerrar.
+
+Las cinco se DERIVAN del fragmento que se tiene delante (`fragmento.lengths`), nunca de
+una tabla escrita: con otro intrón salen otros cinco números y no hay nada que actualizar
+— una tabla de valores sería la sexta magnitud, y la que se queda vieja.
 
 ## Ficheros que faltan (por eso hay filtros en NOT_RUN)
 

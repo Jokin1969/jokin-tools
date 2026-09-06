@@ -100,6 +100,48 @@ class TestLaComprobacionDelMontajePorLineaDeOrdenes(unittest.TestCase):
         )
         self.assertEqual(codigo, 0)
 
+    def test_antes_de_pegar_sobre_el_plasmido_QUE_TOCA_sale_en_cero(self):
+        directorio, _ = self.preparar()
+        codigo = montaje_main(
+            ["--plasmido", str(CASETE),
+             "--fragmentos", str(directorio / "fragmentos.fasta"),
+             "--antes-de-pegar"]
+        )
+        self.assertEqual(codigo, 0)
+
+    def test_y_la_cruzada_sin_declarar_sale_en_UNO(self):
+        from shmir_design import fragmento, introns
+
+        directorio, frag = self.preparar()
+        feature = frag.feature
+        (directorio / "receptor_quimerico.fa").write_text(
+            ">receptor\n"
+            + feature.paste(
+                feature.exon5
+                + introns.get("intron_quimerico").empty_sequence
+                + feature.exon3
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            montaje_main(
+                ["--plasmido", str(directorio / "receptor_quimerico.fa"),
+                 "--fragmentos", str(directorio / "fragmentos.fasta"),
+                 "--antes-de-pegar"]
+            ),
+            1,
+        )
+        # Declarado, la misma sustitución PASA: es cómo se cambia de arquitectura.
+        self.assertEqual(
+            montaje_main(
+                ["--plasmido", str(directorio / "receptor_quimerico.fa"),
+                 "--fragmentos", str(directorio / "fragmentos.fasta"),
+                 "--antes-de-pegar", "--cambio-de-arquitectura"]
+            ),
+            0,
+        )
+
     def test_un_montaje_con_el_intron_viejo_dentro_sale_en_UNO(self):
         directorio, frag = self.preparar()
         crudo = CASETE.read_text(encoding="utf-8").splitlines()

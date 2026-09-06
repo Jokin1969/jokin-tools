@@ -5598,3 +5598,87 @@ localizador salen las ventanas de cebador con las que se mide la eficiencia de e
 No es un fallo del fragmento: es lo que cuesta cambiar de arquitectura, y estaba
 invisible. Ahora sale como comprobación `localizable` en `NO_APLICA`, con el motivo, al
 lado del `PASS` que da el MVM por el mismo camino.
+
+---
+
+## 115 — El guardia del montaje aprobaba las CUATRO casillas
+
+Señalado por el responsable del proyecto el 2026-09-06, y comprobado antes de tocar nada:
+`montaje.verify_assembly` daba `PASS` a las cuatro combinaciones de fragmento × plásmido
+receptor.
+
+| | plásmido con MVM | plásmido con quimérico |
+|---|---|---|
+| **fragmento MVM** | PASS ✔ correcto | **PASS** ✘ cruzada |
+| **fragmento quimérico** | **PASS** ✘ cruzada | PASS ✔ correcto |
+
+### La causa no era un umbral: era qué se comparaba
+
+`fragmento_presente` busca el fragmento **dentro** del plásmido y lo encuentra siempre —
+porque el fragmento está, se haya pegado donde se haya pegado. Y mirar el MÓDULO no ayuda:
+**es idéntico en las dos arquitecturas** (misma horquilla, mismos contextos de SGEP,
+mismos espaciadores). Lo que cambia son los FLANCOS, que son de intrones distintos.
+
+`sin_intron_previo` tenía además su propia ceguera: buscaba SÓLO el intrón vacío del MVM,
+por valor por defecto, así que un plásmido que llevara el quimérico detrás salía `PASS`.
+Un centinela que sólo busca lo que ya esperabas no es un centinela. Ahora barre el
+registro entero.
+
+### El criterio que discrimina, y su CALIBRACIÓN
+
+Los extremos del fragmento contra los del intrón **donde se va a pegar**. Y hace falta
+medir cuántos nucleótidos, porque no es obvio:
+
+```
+MVM   AAGAG GTAAG GGTTT …   AAGAG GTAAG = 10 nt IDÉNTICOS
+QUI   AAGAG GTAAG TATCA …   divergen en el 11
+                            por el otro extremo, en el 9
+```
+
+**Con 5 nt no se distinguen. Con 10 tampoco.** Los 15 que ya destacaba la hoja de pedido
+cubren los dos casos con margen — y eso convierte una preferencia en una medida. Con un
+tercer intrón se vuelve a medir con `montaje.divergence_point`; no se hereda.
+
+### Tres de las cuatro casillas no son errores
+
+Pegar el fragmento del quimérico sobre un plásmido que lleva el MVM **es** cómo se cambia
+de arquitectura. Así que el guardia no prohíbe una casilla: DICE en cuál se está. El
+cambio se declara (`--cambio-de-arquitectura`), sin declararlo la cruzada es `FAIL`, y
+declarándolo lo que falla es que no haya cambio — la matriz se invierte, que es la prueba
+de que discrimina en las dos direcciones.
+
+### Y una pregunta que no se puede hacer después
+
+`check_before_pasting` es una entrada nueva y no un modo de la otra: sobre el plásmido YA
+montado el intrón anterior **ya no está**, así que la casilla de la matriz no se puede
+reconstruir a posteriori. La comprobación tenía que existir en el momento en que todavía
+se puede no pegar.
+
+---
+
+## 116 — «11 de los 16» no sale con ninguna definición: son 13
+
+Al pedir los tres mejores candidatos del tercio distal, el responsable del proyecto dio la
+cifra como *«de los 16 elegibles del tercio distal, 11 quedan a ≥50 nt de 3utr:1018»*. La
+conclusión que saca de ella —**la cobertura de ese tramo no la limita la geometría, la
+limita la cuota**— es correcta, y con el número medido lo es más. Pero el 11 no sale.
+
+Medido sobre las definiciones que hay, con el panel de diez:
+
+| conjunto | total | a ≥50 nt de `3utr:1018` | a ≥50 nt de TODO el panel |
+|---|---|---|---|
+| distal por INICIO | 16 | **13** | 9 |
+| distal por PUNTO MEDIO | 17 | 14 | 9 |
+
+Se probaron además tres lecturas alternativas y ninguna da 11: medir el espaciado entre
+extremos de ventana en vez de entre inicios da 10; exigir además espaciado con `3utr:819`
+da 9; y un recuento voraz respetando el espaciado entre los propios candidatos da 3.
+
+**No se le asigna causa** (principio nº 3): puede ser un conjunto distinto, otra
+definición de espaciado o un desliz al contar, y ninguna de las tres se puede comprobar
+desde aquí. Lo que se hace es emitir el número CON su definición al lado, que es lo que
+permite que la próxima vez se vea en qué difieren las dos cuentas en vez de discutirlas.
+
+Y las dos listas se emiten por separado, porque son dos preguntas: los mejores del tramo
+a ≥50 de su propio vecino, y los que además caben con todo el panel. En el tercio
+proximal **no coinciden**, que es donde se ve que no eran la misma.

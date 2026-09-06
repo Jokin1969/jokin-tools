@@ -47,6 +47,7 @@ Python 3.11+, solo biblioteca estándar (regla 6).
 
 from __future__ import annotations
 
+import textwrap
 from dataclasses import dataclass
 
 from . import blocks, introns, splicing
@@ -580,6 +581,115 @@ def build_fragment(
     )
 
 
+# ─── Las cinco longitudes, cada una con su etiqueta ──────────────────────────
+#
+# Pedido por el responsable del proyecto (2026-09-06): 82, 92 y el fragmento «son tres
+# magnitudes con el mismo nombre coloquial y ya nos costó una vez — que cada una salga
+# siempre con su etiqueta, como las coordenadas».
+#
+# Y al escribirlas salen CINCO, que es justo el problema: «el intrón» son DOS números
+# —vacío y montado— y «el fragmento» otros dos según lleve los sitios o no. La errata
+# nº 35 fue exactamente esto con otra magnitud: 214 aplicado a un intrón que se monta
+# con 149, y la diferencia era plausible.
+
+WHY_EACH_LENGTH_IS_LABELLED = (
+    "Cinco magnitudes de esta construcción se llaman igual al hablar —«lo del intrón», "
+    "«el fragmento»— y ninguna es intercambiable con otra: el intrón VACÍO (82) se "
+    "compara con el mínimo del espliceosoma y el rango típico de mamífero; el intrón "
+    "MONTADO (284, o 296 con los sitios) es el que se compara entre arquitecturas; la "
+    "FEATURE (92) es lo que se selecciona en SnapGene; el FRAGMENTO (294, o 306) es lo "
+    "que se manda a sintetizar; y el CRECIMIENTO (202, o 214) es lo que crece el "
+    "plásmido. El mismo nombre para dos cantidades ya costó una vez —la errata nº 35, "
+    "con 214 aplicados a un intrón que se monta con 149— y lo que la hizo cara es que "
+    "el número equivocado era PLAUSIBLE. Por eso ninguna sale sin su etiqueta, igual "
+    "que ninguna posición sale sin su marco."
+)
+
+
+@dataclass(frozen=True)
+class Magnitud:
+    """Una longitud de esta construcción, con su etiqueta y su punto de comparación."""
+
+    key: str
+    label: str
+    value: int
+    what: str
+    compared_with: str
+
+    def describe(self) -> str:
+        return f"{self.label}: {self.value} — {self.what}"
+
+
+def lengths(fragment: Fragment) -> tuple[Magnitud, ...]:
+    """Las cinco, DERIVADAS del fragmento que se tiene delante. Ninguna se teclea.
+
+    Con otro intrón o con los sitios dentro salen otros números y esta tabla no se toca:
+    es lo que impide que una de ellas se quede con el valor de la construcción anterior.
+    """
+    registro = introns.get(fragment.intron_name)
+    feature = fragment.feature
+    return (
+        Magnitud(
+            key="intron_vacio",
+            label="intrón vacío",
+            value=len(registro.empty_sequence),
+            what=f"el intrón de {fragment.intron_name} sin módulo, de GT a AG",
+            compared_with=(
+                "el mínimo del espliceosoma (`introns.MIN_INTRON_LENGTH`) y el rango "
+                "típico de intrón de mamífero. NO es el que se compara entre "
+                "arquitecturas: ése es el montado"
+            ),
+        ),
+        Magnitud(
+            key="intron_montado",
+            label="intrón montado",
+            value=len(fragment.intron),
+            what=(
+                "el intrón CON el módulo dentro, que es lo que se pliega y lo que se "
+                "consulta a SpliceAI"
+            ),
+            compared_with=(
+                "el mismo número de la otra arquitectura —donante→punto de "
+                "ramificación—, y sólo tiene sentido comparándolo con el montado de la "
+                "otra, no con su vacío (errata nº 35)"
+            ),
+        ),
+        Magnitud(
+            key="feature",
+            label="feature anotada",
+            value=feature.length,
+            what=(
+                "lo que cubre la feature del intrón en el casete, contexto exónico "
+                "incluido: es lo que se SELECCIONA en SnapGene"
+            ),
+            compared_with=(
+                "la longitud del fragmento, para saber cuánto crece el plásmido. NO es "
+                "el intrón: son 10 nt más, los dos exones"
+            ),
+        ),
+        Magnitud(
+            key="fragmento",
+            label="fragmento de síntesis",
+            value=len(fragment.sequence),
+            what="lo que se manda a sintetizar, entero",
+            compared_with=(
+                "el presupuesto del gBlock y el límite de longitud del proveedor. Es el "
+                "único de los cinco que se pide a nadie"
+            ),
+        ),
+        Magnitud(
+            key="crecimiento",
+            label="crecimiento del plásmido",
+            value=fragment.growth,
+            what="cuánto crece el plásmido al pegar el fragmento sobre la feature",
+            compared_with=(
+                "la longitud del plásmido antes y después, que es la ÚNICA "
+                "comprobación que se puede hacer a ojo tras pegar"
+            ),
+        ),
+    )
+
+
 # ─── La hoja de pedido ───────────────────────────────────────────────────────
 
 WRAP = 60
@@ -608,12 +718,14 @@ def fragment_order_sheet(fragment: Fragment) -> str:
         f"({len(registro.empty_sequence)} nt, vacío)",
         f"  md5 del fragmento: {fragment.md5}",
         "",
-        f"  Longitud total   : {len(fragment.sequence)} nt",
         f"  Sustituye        : {feature.plasmid_name} {feature.start}-{feature.end} "
-        f"({feature.length} nt, la feature del intrón)",
-        f"  El plásmido crece: {fragment.growth} pb — de {feature.plasmid_length} a "
-        f"{fragment.plasmid_length}",
+        f"(la feature del intrón)",
+        f"  El plásmido pasa : de {feature.plasmid_length} a {fragment.plasmid_length} pb",
         f"  Sitios NheI/SacI : {'DENTRO (opción declarada)' if fragment.with_sites else 'FUERA'}",
+        "",
+        "  ── Las longitudes, cada una con su etiqueta ──",
+        *[f"    {m.label:<26} {m.value:>4}  ({m.what})" for m in lengths(fragment)],
+        *[f"    {l}" for l in textwrap.wrap(WHY_EACH_LENGTH_IS_LABELLED, 92)],
         "",
         "  ── Cómo se pega ──",
         "  Se selecciona la feature del intrón ENTERA en SnapGene y se pega el",
@@ -628,8 +740,11 @@ def fragment_order_sheet(fragment: Fragment) -> str:
         f"          {'-' * (HIGHLIGHT - len(feature.exon3))}{'^' * len(feature.exon3)}"
         f"  ({HIGHLIGHT - len(feature.exon3)} de intrón + {len(feature.exon3)} de exón)",
         "",
-        "  Los cinco de exón son los MISMOS en las dos arquitecturas de intrón; los",
-        "  diez de al lado NO. Por eso se destacan quince y no cinco.",
+        "  Los cinco de exón son los MISMOS en las dos arquitecturas, y los cinco",
+        "  siguientes TAMBIÉN: los dos donantes empiezan por GTAAG. Medido, las dos",
+        "  arquitecturas divergen en el nucleótido 11 por delante y en el 9 por detrás,",
+        "  así que con 5 o con 10 no se distinguen. Por eso quince, y por eso es una",
+        "  medida y no una preferencia (`montaje.WHY_FIFTEEN`).",
         "",
         "  ── Secuencia ──",
     ]

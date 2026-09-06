@@ -138,8 +138,9 @@ que_es = "«Alguien lo declaró en vez de deducirlo»: el CDS, la especie, el pr
 ["length"]
 donde = [
   "anatomy.TileRange", "audit.GuideAudit", "audit.Span", "conservation.ConservedBlock",
-  "conservation.Utr3", "fragmento.FeatureDelIntron", "orf.Orf", "scaffold.ScaffoldSpec",
-  "seed_scan.SeedParams", "selection.TercioCoverage", "splicing.IntronLocation",
+  "conservation.Utr3", "fragmento.FeatureDelIntron", "montaje.IntronInPlasmid",
+  "orf.Orf", "scaffold.ScaffoldSpec", "seed_scan.SeedParams",
+  "selection.TercioCoverage", "splicing.IntronLocation",
 ]
 relacion = "MISMA_MAGNITUD"
 que_es = """\

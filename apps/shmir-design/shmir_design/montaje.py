@@ -247,6 +247,180 @@ def parse_fragments_fasta(text: str) -> tuple[EmittedFragment, ...]:
     return tuple(registros)
 
 
+# ─── Qué intrón lleva el plásmido, y si el fragmento va ahí ──────────────────
+#
+# EL GUARDIA QUE DABA PASS A LAS CUATRO CASILLAS. Señalado por el responsable del
+# proyecto (2026-09-06): `verify_assembly` aprobaba las cuatro combinaciones de
+# fragmento x plasmido receptor. Y no por descuido — **el modulo es el mismo en las dos
+# arquitecturas**: misma horquilla, mismos contextos de SGEP, mismos espaciadores.
+# Mirando el modulo, una sustitucion cruzada y una correcta son la misma secuencia.
+#
+# Lo que discrimina son los EXTREMOS, porque los flancos son de intrones distintos. Y no
+# valen cinco: hay que medir cuantos hacen falta.
+
+#: Los flancos versionados del casete, que NO dependen de la arquitectura del intron:
+#: son del vector. Se derivan de `blocks.PIECES` — nadie los teclea — y son las anclas
+#: con las que se localiza el intron en un plasmido que lleva CUALQUIER arquitectura.
+#: `splicing.locate_intron` no sirve para esto: busca las dos mitades del MVM.
+def _flanco(a: str, b: str) -> str:
+    from .blocks import PIECES  # noqa: PLC0415
+
+    return PIECES[a].sequence + PIECES[b].sequence
+
+
+FLANK_5 = _flanco("MluI", "exon5")
+FLANK_3 = _flanco("exon3", "AgeI")
+
+#: Cuantos nucleotidos de cada extremo se comparan. Es el mismo numero que destaca la
+#: hoja de pedido, y por el mismo motivo — ver `WHY_FIFTEEN`.
+COMPARED_ENDS = 15
+
+
+def divergence_point(a: str, b: str) -> int | None:
+    """En qué nucleótido (1-based) empiezan a diferir dos secuencias. `None` = no difieren.
+
+    Existe para que los números de `WHY_FIFTEEN` se MIDAN y no se afirmen: el día que
+    entre un tercer intrón, la longitud que hace falta se vuelve a medir con esto en vez
+    de heredarse.
+    """
+    # zip-ok: trunca al mas corto A PROPOSITO. Se comparan PREFIJOS que pueden medir
+    # distinto —el extremo de un intron corto contra el de uno largo—, y lo que se busca
+    # es el primer nucleotido en que difieren, que si existe esta dentro del comun. La
+    # diferencia de longitud NO se pierde: la trata el `return` de abajo, que devuelve
+    # el primer nucleotido que ya no tiene pareja.
+    for i, (x, y) in enumerate(zip(a, b), start=1):
+        if x != y:
+            return i
+    return None if len(a) == len(b) else min(len(a), len(b)) + 1
+
+
+WHY_FIFTEEN = (
+    "Se comparan 15 nt de cada extremo y no 5, y está MEDIDO sobre los dos intrones del "
+    "registro: los dos donantes empiezan por GTAAG y el contexto exónico aporta otros 5, "
+    "así que los primeros 10 nt del fragmento son IDÉNTICOS en las dos arquitecturas y "
+    "divergen en el 11. Por el otro extremo el aceptor AG más los 5 del exón dan 8 "
+    "iguales, y divergen en el 9. Con 5 nt las dos arquitecturas son indistinguibles; "
+    "con 10 también. Los 15 cubren los dos casos con margen, y eso deja de ser una "
+    "preferencia. Con un intrón nuevo se vuelve a medir con `divergence_point`."
+)
+
+WHY_THE_MODULE_CANNOT_TELL = (
+    "El MÓDULO es el mismo en las dos arquitecturas —misma horquilla, mismos contextos "
+    "de SGEP, mismos espaciadores—, así que mirándolo una sustitución cruzada y una "
+    "correcta son la misma secuencia. Un guardia que se apoye en el módulo da PASS a las "
+    "cuatro casillas, y un guardia que aprueba todo no mide lo que su nombre promete."
+)
+
+WHY_THE_CHANGE_IS_DECLARED = (
+    "Pegar el fragmento del quimérico sobre un plásmido que lleva el MVM ES cómo se "
+    "cambia de arquitectura: no es un error. El trabajo de esta comprobación no es "
+    "prohibir una casilla, es DECIR EN CUÁL SE ESTÁ para que quien pega confirme que es "
+    "la que quería. Por eso el cambio se DECLARA (`architecture_change`), igual que "
+    "`--reoptimizar-espaciadores`: una decisión se toma a propósito, no se descubre en "
+    "un comprobador."
+)
+
+
+@dataclass(frozen=True)
+class IntronInPlasmid:
+    """Qué intrón lleva un plásmido, identificado POR SUS EXTREMOS."""
+
+    #: Nombre en el registro. Cadena vacía = ninguno coincide, y NO se adivina.
+    name: str
+    sequence: str
+    empty: bool
+    head: str
+    tail: str
+
+    @property
+    def length(self) -> int:
+        return len(self.sequence)
+
+    def describe(self) -> str:
+        if not self.name:
+            return (
+                f"El plásmido lleva un intrón de {self.length} nt cuyos extremos "
+                f"({self.head}… / …{self.tail}) NO COINCIDEN con ninguno del registro "
+                f"({', '.join(sorted(_registry_ends()))}). No se adivina cuál es: se "
+                f"dice lo que hay."
+            )
+        que = "vacío" if self.empty else "con el módulo dentro"
+        return (
+            f"El plásmido lleva {self.name} ({self.length} nt, {que}), identificado por "
+            f"sus extremos: {self.head}… / …{self.tail}."
+        )
+
+
+def _registry_ends() -> dict[str, tuple[str, str]]:
+    """Los extremos de cada intrón del registro, CON el contexto exónico del vector.
+
+    Se derivan del registro y de `blocks.PIECES`; no hay ninguna tabla que mantener. Un
+    intrón sin secuencia no aparece: no se puede identificar por unos extremos que no
+    tenemos.
+    """
+    from .blocks import PIECES  # noqa: PLC0415
+    from .introns import INTRONS  # noqa: PLC0415
+
+    exon5, exon3 = PIECES["exon5"].sequence, PIECES["exon3"].sequence
+    extremos: dict[str, tuple[str, str]] = {}
+    for nombre, intron in INTRONS.items():
+        if not intron.provided:
+            continue
+        vacio = intron.empty_sequence
+        extremos[nombre] = (
+            (exon5 + vacio)[:COMPARED_ENDS],
+            (vacio + exon3)[-COMPARED_ENDS:],
+        )
+    return extremos
+
+
+def intron_in_plasmid(plasmid: str | bytes) -> IntronInPlasmid:
+    """El intrón que lleva un plásmido HOY, sea de la arquitectura que sea.
+
+    Se ancla en los FLANCOS del vector (`MluI+exon5` y `exon3+AgeI`), que son los mismos
+    con cualquier intrón dentro, y luego identifica por los extremos. Aborta si los
+    flancos no están o no son únicos: sobre otra cosa no se emite ninguna identidad.
+    """
+    secuencia = plasmid_sequence(plasmid)
+    for etiqueta, ancla in (("5'", FLANK_5), ("3'", FLANK_3)):
+        cuantas = secuencia.count(ancla)
+        if cuantas != 1:
+            raise ShmirDesignError(
+                f"El flanco {etiqueta} del casete ({ancla}) aparece {cuantas} veces en "
+                f"el plásmido y tiene que aparecer UNA. Sin un ancla única no se puede "
+                f"decir qué intrón lleva; se aborta en vez de identificar el de otro "
+                f"sitio."
+            )
+    inicio = secuencia.index(FLANK_5) + len(FLANK_5)
+    fin = secuencia.index(FLANK_3)
+    if fin <= inicio:
+        raise ShmirDesignError(
+            "En este plásmido el flanco 3' del casete va por delante del 5': eso no "
+            "delimita ningún intrón y se aborta."
+        )
+    from .blocks import PIECES  # noqa: PLC0415
+
+    exon5, exon3 = PIECES["exon5"].sequence, PIECES["exon3"].sequence
+    con_exones = exon5 + secuencia[inicio:fin] + exon3
+    cuerpo = secuencia[inicio:fin]
+    cabeza, cola = con_exones[:COMPARED_ENDS], con_exones[-COMPARED_ENDS:]
+
+    from .introns import INTRONS  # noqa: PLC0415
+
+    for nombre, (h, t) in _registry_ends().items():
+        if (cabeza, cola) == (h, t):
+            return IntronInPlasmid(
+                name=nombre,
+                sequence=cuerpo,
+                empty=cuerpo == INTRONS[nombre].empty_sequence,
+                head=cabeza,
+                tail=cola,
+            )
+    return IntronInPlasmid(
+        name="", sequence=cuerpo, empty=False, head=cabeza, tail=cola
+    )
+
+
 # ─── La comprobación ─────────────────────────────────────────────────────────
 
 
@@ -258,6 +432,11 @@ class AssemblyReport:
     plasmid_length: int
     plasmid_md5: str
     checks: tuple[FilterResult, ...]
+    #: QUÉ pregunta se ha contestado. Los dos informes tienen la misma forma y NO dicen
+    #: lo mismo: uno mira el plásmido receptor —«¿va este fragmento aquí?»— y el otro el
+    #: ya montado —«¿está dentro lo que emitimos?»—. Un encabezado que no distinga los
+    #: dos deja al que lo pega leyendo el informe de la otra pregunta.
+    title: str = "El plásmido montado contra lo que emitió la app"
 
     @property
     def verdict_state(self) -> FilterState:
@@ -276,7 +455,7 @@ class AssemblyReport:
 
     def render(self) -> str:
         lineas = [
-            f"═══ El plásmido montado contra lo que emitió la app ═══",
+            f"═══ {self.title} ═══",
             "",
             f"  Plásmido : {self.plasmid_name}, {self.plasmid_length} pb, "
             f"md5 {self.plasmid_md5}",
@@ -309,11 +488,6 @@ def verify_assembly(
     """
     secuencia = plasmid_sequence(plasmid)
     emitidos = parse_fragments_fasta(fragments_fasta_text)
-
-    if not previous_intron:
-        from .introns import get  # noqa: PLC0415
-
-        previous_intron = get("mvm_actual").empty_sequence
 
     presentes = [f for f in emitidos if f.sequence in secuencia]
     ausentes = [f for f in emitidos if f.sequence not in secuencia]
@@ -373,19 +547,40 @@ def verify_assembly(
             reason="No se ha encontrado ningún fragmento, así que no hay nada que contar.",
         )
 
-    cuantos_viejo = secuencia.count(previous_intron)
-    if cuantos_viejo:
-        i = secuencia.index(previous_intron)
+    # BARRE TODO EL REGISTRO, no sólo el que se declare. Antes el valor por defecto era
+    # el MVM vacío, así que un plásmido que llevara el QUIMÉRICO detrás daba PASS: el
+    # guardia miraba el intrón equivocado y aprobaba. Un centinela que sólo busca lo que
+    # ya esperabas no es un centinela.
+    from .introns import INTRONS  # noqa: PLC0415
+
+    candidatos: dict[str, str] = {}
+    if previous_intron:
+        candidatos["el declarado"] = previous_intron
+    else:
+        candidatos.update(
+            {n: i.empty_sequence for n, i in INTRONS.items() if i.provided}
+        )
+    encontrados = {
+        nombre: secuencia.count(vacio)
+        for nombre, vacio in candidatos.items()
+        if vacio and secuencia.count(vacio)
+    }
+    if encontrados:
+        primero = sorted(encontrados)[0]
+        i = secuencia.index(candidatos[primero])
         contexto = secuencia[max(0, i - CONTEXT_SHOWN) : i + CONTEXT_SHOWN]
         previo = FilterResult(
             name="sin_intron_previo",
             state=FilterState.FAIL,
             reason=(
-                f"El intrón ANTERIOR ({len(previous_intron)} nt, md5 "
-                f"{_md5(previous_intron)}) sigue en {name}, {cuantos_viejo} vez(ces). "
-                f"Contexto de la primera: …{contexto}… Si el fragmento también está, el "
-                f"plásmido lleva LOS DOS: se pegó al lado en vez de encima. Se dice lo "
-                f"que hay; la causa la decide quien mire el fichero."
+                f"Hay intrón(es) ANTERIOR(es) todavía en {name}: "
+                + ", ".join(
+                    f"{n} ({len(candidatos[n])} nt, md5 {_md5(candidatos[n])}) × {c}"
+                    for n, c in sorted(encontrados.items())
+                )
+                + f". Contexto del primero: …{contexto}… Si el fragmento también está, "
+                f"el plásmido lleva LOS DOS: se pegó al lado en vez de encima. Se dice "
+                f"lo que hay; la causa la decide quien mire el fichero."
             ),
         )
     else:
@@ -393,8 +588,9 @@ def verify_assembly(
             name="sin_intron_previo",
             state=FilterState.PASS,
             reason=(
-                f"El intrón anterior ({len(previous_intron)} nt) no está en {name}: la "
-                f"sustitución lo reemplazó en vez de añadirse al lado."
+                f"Ninguno de los intrones vacíos que se han buscado está en {name} "
+                f"({', '.join(sorted(candidatos))}): la sustitución los reemplazó en vez "
+                f"de añadirse al lado."
             ),
         )
 
@@ -427,4 +623,127 @@ def verify_assembly(
         plasmid_length=len(secuencia),
         plasmid_md5=_md5(secuencia),
         checks=(presencia, unicidad, previo, crecimiento),
+    )
+
+
+def _check_architecture(
+    plasmid: str, emitidos, *, architecture_change: bool, name: str
+) -> FilterResult:
+    """La casilla de la matriz: qué fragmento se pega sobre qué intrón.
+
+    Ver `WHY_THE_MODULE_CANNOT_TELL`, `WHY_FIFTEEN` y `WHY_THE_CHANGE_IS_DECLARED`.
+    """
+    try:
+        lleva = intron_in_plasmid(plasmid)
+    except ShmirDesignError as error:
+        # rule2-ok: el fallo NO se traga — se convierte en el `FilterResult` con estado
+        # NOT_RUN y el mensaje original dentro. NOT_RUN no es PASS, que es justo lo que
+        # esta comprobación existe para no dar.
+        return FilterResult(
+            name="arquitectura",
+            state=FilterState.NOT_RUN,
+            reason=(
+                f"No se ha podido decir qué intrón lleva {name}, así que NO se ha "
+                f"comprobado si el fragmento va ahí: {error}"
+            ),
+        )
+
+    del_fragmento = sorted({f.declared.get("intron", "") for f in emitidos} - {""})
+    if len(del_fragmento) != 1:
+        return FilterResult(
+            name="arquitectura",
+            state=FilterState.NOT_RUN,
+            reason=(
+                f"El FASTA declara {len(del_fragmento)} arquitectura(s) de intrón "
+                f"({', '.join(del_fragmento) or 'ninguna'}) y la comparación necesita "
+                f"UNA. No se ha comprobado."
+            ),
+        )
+    trae = del_fragmento[0]
+
+    if not lleva.name:
+        return FilterResult(
+            name="arquitectura",
+            state=FilterState.NOT_RUN,
+            reason=(
+                f"El fragmento trae {trae}. {lleva.describe()} Sin saber qué hay "
+                f"debajo no se puede decir si la sustitución es la de la misma "
+                f"arquitectura o una cruzada. NOT_RUN no es PASS."
+            ),
+        )
+
+    misma = lleva.name == trae
+    if misma and not architecture_change:
+        return FilterResult(
+            name="arquitectura",
+            state=FilterState.PASS,
+            reason=(
+                f"MISMA ARQUITECTURA: el fragmento trae {trae}. {lleva.describe()} "
+                f"Comparado por los {COMPARED_ENDS} nt de cada extremo, que es lo único "
+                f"que distingue las dos. {WHY_THE_MODULE_CANNOT_TELL}"
+            ),
+        )
+    if misma and architecture_change:
+        return FilterResult(
+            name="arquitectura",
+            state=FilterState.FAIL,
+            reason=(
+                f"Se ha DECLARADO un cambio de arquitectura y no lo hay: el fragmento "
+                f"trae {trae}. {lleva.describe()} Se avisa en vez de dejarlo pasar — "
+                f"una declaración que no se corresponde con lo que se pega es "
+                f"exactamente lo que hace que la siguiente no se lea."
+            ),
+        )
+    if architecture_change:
+        return FilterResult(
+            name="arquitectura",
+            state=FilterState.PASS,
+            reason=(
+                f"CAMBIO DE ARQUITECTURA DECLARADO: el plásmido lleva {lleva.name} y el "
+                f"fragmento trae {trae}. {lleva.describe()} Es la sustitución con la que "
+                f"se cambia de intrón, y sale PASS porque se pidió. "
+                f"{WHY_THE_CHANGE_IS_DECLARED}"
+            ),
+        )
+    return FilterResult(
+        name="arquitectura",
+        state=FilterState.FAIL,
+        reason=(
+            f"SUSTITUCIÓN CRUZADA SIN DECLARAR: el plásmido lleva {lleva.name} y el "
+            f"fragmento trae {trae}. {lleva.describe()} Puede ser lo que se quiere —así "
+            f"es como se cambia de arquitectura— pero entonces se declara: "
+            f"`--cambio-de-arquitectura`. {WHY_THE_CHANGE_IS_DECLARED}"
+        ),
+    )
+
+
+def check_before_pasting(
+    plasmid: str | bytes,
+    fragments_fasta_text: str,
+    *,
+    architecture_change: bool = False,
+    name: str = "el plásmido receptor",
+) -> AssemblyReport:
+    """ANTES de pegar: ¿va este fragmento en este plásmido?
+
+    `verify_assembly` mira el plásmido YA montado y contesta «¿está dentro lo que
+    emitimos?». Esto mira el plásmido de destino y contesta otra pregunta —«¿es éste su
+    sitio?»—, que es la que hay que hacerse mientras todavía se puede no pegar.
+
+    Y son dos preguntas de verdad: sobre el montado, el intrón anterior ya no está, así
+    que la casilla de la matriz no se puede reconstruir a posteriori.
+    """
+    secuencia = plasmid_sequence(plasmid)
+    emitidos = parse_fragments_fasta(fragments_fasta_text)
+    return AssemblyReport(
+        plasmid_name=name,
+        plasmid_length=len(secuencia),
+        plasmid_md5=_md5(secuencia),
+        title="ANTES DE PEGAR: ¿va este fragmento en este plásmido?",
+        checks=(
+            _check_architecture(
+                secuencia, emitidos,
+                architecture_change=architecture_change, name=name,
+            ),
+        ),
     )

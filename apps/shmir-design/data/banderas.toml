@@ -839,3 +839,13 @@ que_hace = "de qué intrón sale el fragmento de síntesis: cambia el ADN que se
 bandera = "design:--fragmento-con-sitios"
 consecuencia = "VEREDICTO"
 que_hace = "deja NheI y SacI dentro del fragmento: 12 nt más de ADN sintetizado"
+
+[[bandera]]
+bandera = "comprobar_montaje:--antes-de-pegar"
+consecuencia = "VEREDICTO"
+que_hace = "pregunta si el fragmento va en ese plásmido, no si ya está dentro"
+
+[[bandera]]
+bandera = "comprobar_montaje:--cambio-de-arquitectura"
+consecuencia = "VEREDICTO"
+que_hace = "declara que la sustitución cambia de intrón; invierte la matriz"

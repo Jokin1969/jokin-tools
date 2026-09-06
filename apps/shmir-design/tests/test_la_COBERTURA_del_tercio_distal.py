@@ -97,6 +97,29 @@ class TestLaCoberturaPorTercios(unittest.TestCase):
             for start in elegidos:
                 self.assertGreaterEqual(abs(siguiente.start - start), 50)
 
+    def test_los_TRES_MEJORES_a_50_nt_de_1018_se_EMITEN(self):
+        """Pedido el 2026-09-06: la cobertura del distal no la limita la geometría.
+
+        De los 16 elegibles del tramo, 13 quedan a 50 nt o más de `3utr:1018` — o sea
+        que si ahí hay un solo candidato NO es porque no quepan más, es porque la cuota
+        pide uno. Los tres mejores por asimetría son la lista con la que se decide.
+        """
+        distal = self.por_nombre["distal"]
+        self.assertEqual(
+            [(s.start, s.end) for s in distal.next_free_of_reference],
+            [(1071, 1092), (1076, 1097), (900, 921)],
+        )
+        self.assertEqual(distal.free_of_reference, 13)
+        texto = "\n".join(distal.describe())
+        self.assertIn("3utr:1071-1092", texto)
+        self.assertIn("3utr:1018", texto)
+
+    def test_las_DOS_listas_son_dos_preguntas(self):
+        """En el proximal NO coinciden, y ahí se ve que no son la misma."""
+        proximal = self.por_nombre["proximal"]
+        self.assertNotEqual(proximal.next_free_of_reference, proximal.next_free)
+        self.assertIn("NO son los mismos", "\n".join(proximal.describe()))
+
     def test_se_distingue_libre_de_1018_de_libre_del_panel_entero(self):
         distal = self.por_nombre["distal"]
         self.assertEqual(distal.free_of_reference, 13)

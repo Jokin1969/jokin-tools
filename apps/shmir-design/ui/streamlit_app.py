@@ -757,8 +757,29 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             # silencioso—: se comprueba el que se montó a mano, y por SECUENCIA.
             with st.expander("Comprobar el plásmido montado a mano"):
                 st.caption(ASSEMBLY_NEEDS_BOTH)
+                antes = st.checkbox(
+                    "Es el vector RECEPTOR, todavía sin pegar",
+                    key=f"antes_{nombre}",
+                    help=(
+                        "Cambia la pregunta: sobre el receptor se comprueba QUÉ INTRÓN "
+                        "lleva y si el fragmento va ahí; sobre el montado, si está "
+                        "dentro lo que emitió la app. La primera no se puede hacer "
+                        "después — al pegar, el intrón anterior desaparece."
+                    ),
+                )
+                cambio = st.checkbox(
+                    "La sustitución CAMBIA de arquitectura de intrón, a propósito",
+                    key=f"cambio_{nombre}",
+                    disabled=not antes,
+                    help=(
+                        "Pegar el fragmento de un intrón sobre un plásmido que lleva "
+                        "otro es cómo se cambia de arquitectura, así que no es un "
+                        "error: es una decisión, y se declara. Sin declararla, una "
+                        "sustitución cruzada sale FAIL."
+                    ),
+                )
                 subido = st.file_uploader(
-                    "El vector montado",
+                    "El vector",
                     key=f"montaje_{nombre}",
                     help=(
                         "GenBank, FASTA, secuencia pelada o el `.dna` de SnapGene. No "
@@ -771,7 +792,8 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
                 else:
                     try:
                         informe_montaje = assembly_report(
-                            subido.getvalue(), emitido, name=subido.name
+                            subido.getvalue(), emitido, name=subido.name,
+                            before_pasting=antes, architecture_change=cambio,
                         )
                     except ShmirDesignError as exc:
                         # rule2-ok: frontera de la interfaz. No se comprueba nada y se

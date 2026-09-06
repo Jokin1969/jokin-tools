@@ -593,13 +593,19 @@ Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, cuántos can
       cumplida.
     Margen: 18 sitio(s) del tramo quedan a 50 nt o más de 3utr:200, y 12 lo cumplen con TODO el panel. El
       que manda es el segundo: añadir uno exige espaciado con todos.
-    El siguiente, por el mismo orden con que se eligió el panel (asimetría): 3utr:359-380 (asimetría +4.82);
-      3utr:329-350 (asimetría +4.39); 3utr:338-359 (asimetría +3.79).
+    Los mejores del tramo a 50 nt o más de 3utr:200, por el mismo orden con que se eligió el panel
+      (asimetría): 3utr:359-380 (asimetría +4.82); 3utr:329-350 (asimetría +4.39); 3utr:69-90 (asimetría
+      +3.80).
+    Los que además caben con TODO el panel NO son los mismos: 3utr:359-380 (asimetría +4.82); 3utr:329-350
+      (asimetría +4.39); 3utr:338-359 (asimetría +3.79).
   medio — 3utr:415-828, 414 nt: 42 sitios elegibles por inicio (41 por punto medio).
     Panel: 4 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 5 por inicio. Cuota 1:
       cumplida.
     Margen: 27 sitio(s) del tramo quedan a 50 nt o más de 3utr:735, y 0 lo cumplen con TODO el panel. El que
       manda es el segundo: añadir uno exige espaciado con todos.
+    Los mejores del tramo a 50 nt o más de 3utr:735, por el mismo orden con que se eligió el panel
+      (asimetría): 3utr:573-594 (asimetría +4.42); 3utr:673-694 (asimetría +4.42); 3utr:517-538 (asimetría
+      +4.33).
     No queda ninguno: o no hay más sitios elegibles en el tramo o todos caen a menos de 50 nt de un
       candidato ya elegido.
   distal — 3utr:829-1242, 414 nt: 16 sitios elegibles por inicio (17 por punto medio).
@@ -609,8 +615,11 @@ Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, cuántos can
       primer nucleótido del tramo, no el tramo.
     Margen: 13 sitio(s) del tramo quedan a 50 nt o más de 3utr:1018, y 9 lo cumplen con TODO el panel. El
       que manda es el segundo: añadir uno exige espaciado con todos.
-    El siguiente, por el mismo orden con que se eligió el panel (asimetría): 3utr:1071-1092 (asimetría
-      +4.28); 3utr:1076-1097 (asimetría +4.20); 3utr:900-921 (asimetría +4.15).
+    Los mejores del tramo a 50 nt o más de 3utr:1018, por el mismo orden con que se eligió el panel
+      (asimetría): 3utr:1071-1092 (asimetría +4.28); 3utr:1076-1097 (asimetría +4.20); 3utr:900-921 (asimetría
+      +4.15).
+    Los tres son también los mejores que caben con TODO el panel, así que aquí las dos preguntas dan la
+      misma respuesta.
 ```
 
 ## 5. Tabla de candidatos
