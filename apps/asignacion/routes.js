@@ -92,6 +92,9 @@ function todayIso() { const d = new Date(); return `${d.getFullYear()}-${String(
 // Whole days from today to an ISO date (negative = already past). null if no date.
 function daysUntil(iso) { if (!iso) return null; const a = new Date(todayIso() + 'T00:00:00'), b = new Date(iso + 'T00:00:00'); if (isNaN(b)) return null; return Math.round((b - a) / 86400000); }
 function cleanDate(v) { const s = String(v == null ? '' : v).trim(); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null; }
+// Traffic light for the "caducidad de disponibilidad" of a plan medication: rojo ya
+// caducada, naranja dentro de un mes (30 días), verde el resto. null = sin fecha.
+function planExpiryState(days) { if (days == null) return null; if (days < 0) return 'expired'; if (days <= 30) return 'warn'; return 'ok'; }
 
 // ── Views of the two foreign records ─────────────────────────────────────────────
 function parseGroups(str) { return String(str == null ? '' : str).split('\n').map(s => s.trim()).filter(Boolean); }
@@ -345,6 +348,9 @@ function planView(personId) {
     const effective_at = db.effectiveDate(l.release_at, advance_days);
     const effective_days = daysUntil(effective_at);
     const release_state = !l.release_at ? 'sin_fecha' : (effective_days != null && effective_days <= 0 ? 'disponible' : 'programada');
+    // Caducidad de la disponibilidad calculada (campo aparte, no ligado a release_at).
+    const expiry_days = daysUntil(l.expiry_at);
+    const expiry_state = planExpiryState(expiry_days);
     // Barcode ("precinto") for scanning into Salud when there's no Data Matrix.
     const eanFromGtin = (g) => (g && g.length === 14 && g[0] === '0') ? g.slice(1) : g;
     const barcode = l.barcode || (l.cn ? cima.barcodeFromCn(l.cn) : null) || (l.gtin ? eanFromGtin(l.gtin) : null);
@@ -353,9 +359,10 @@ function planView(personId) {
     const dose = db.getDoseScheduleForDate(l.id);   // pauta vigente hoy (Pastillero); null = sin definir
     return {
       id: l.id, gtin: l.gtin || null, cn: l.cn || null, barcode,
-      qty: l.qty, notes: l.notes || null, active: l.active,
+      qty: l.qty, notes: l.notes || null, active: l.active, si_precisa: !!l.si_precisa,
       nombre, color, shape, available, cn_only: !hasGtin,
       release_at: l.release_at || null, advance_days, effective_at, effective_days, release_state,
+      expiry_at: l.expiry_at || null, expiry_days, expiry_state,
       foto_caja: !!(cc && cc.has_caja), foto_pastilla: !!(cc && cc.has_pastilla),
       dose: dose ? { desayuno: dose.desayuno, comida: dose.comida, cena: dose.cena, noche: dose.noche, effective_from: dose.effective_from } : null,
     };
@@ -377,19 +384,20 @@ router.post('/api/person/:id(\\d+)/plan', json, (req, res) => {
     const nombre = b.nombre ? String(b.nombre).trim() : null;
     // CN ⇄ barcode se derivan uno del otro: rellena el que falte y valida la pareja.
     const { cn, barcode } = normCnBarcode(b.cn, b.barcode, !gtin);
+    const si_precisa = !!b.si_precisa;
     if (gtin && gtin.replace(/^0+/, '').length >= 8) {
       // Catalogued path: the GTIN must exist in the Data Matrix app.
       const known = dmDb.getProduct(gtin) || dmDb.availableItems(gtin).length || dmDb.listItems('utilizado').some(i => i.gtin === gtin);
       if (!known) throw bad('Ese medicamento no está en la app Data Matrix. Añádelo allí primero (escanea una caja o impórtalo).');
-      db.addPlanMed(p.id, { gtin, qty: b.qty, notes: b.notes, nombre, barcode, cn });
+      db.addPlanMed(p.id, { gtin, qty: b.qty, notes: b.notes, nombre, barcode, cn, si_precisa });
     } else if (cn) {
       // CN-only path (info before Data Matrix). Promote to catalogued if the CN is
       // already known in the medication catalogue; otherwise keep it CN-only.
       const prod = dmDb.listProducts().find(x => x.cn && String(x.cn) === cn);
-      if (prod) db.addPlanMed(p.id, { gtin: prod.gtin, qty: b.qty, notes: b.notes, nombre: nombre || prod.nombre, barcode, cn });
+      if (prod) db.addPlanMed(p.id, { gtin: prod.gtin, qty: b.qty, notes: b.notes, nombre: nombre || prod.nombre, barcode, cn, si_precisa });
       else {
         if (!nombre) throw bad('Indica el nombre del medicamento.');
-        db.addPlanMed(p.id, { cn, nombre, barcode, qty: b.qty, notes: b.notes });
+        db.addPlanMed(p.id, { cn, nombre, barcode, qty: b.qty, notes: b.notes, si_precisa });
       }
     } else {
       throw bad('Indica el GTIN o el Código Nacional del medicamento.');
@@ -403,8 +411,8 @@ router.patch('/api/plan/:id(\\d+)', json, (req, res) => {
     const line = db.getPlanLine(Number(req.params.id));
     if (!line) return res.status(404).json({ error: 'Línea de plan no encontrada.' });
     const b = req.body || {};
-    if (b.qty !== undefined || b.notes !== undefined || b.active !== undefined) {
-      db.updatePlanById(line.id, { qty: b.qty, notes: b.notes, active: b.active });
+    if (b.qty !== undefined || b.notes !== undefined || b.active !== undefined || b.si_precisa !== undefined) {
+      db.updatePlanById(line.id, { qty: b.qty, notes: b.notes, active: b.active, si_precisa: b.si_precisa });
     }
     // Edit the medication itself (name; and CN/barcode for CN-only meds).
     if (b.nombre !== undefined || b.cn !== undefined || b.barcode !== undefined) {
@@ -446,6 +454,12 @@ router.put('/api/plan/:id(\\d+)/release', json, (req, res) => {
       const n = Math.round(Number(b.advance_days));
       if (!Number.isFinite(n) || n < 0 || n > 365) throw bad('Días de anticipación no válidos (0–365).');
       db.setPlanAdvance(line.id, n);
+    }
+    // Caducidad de la disponibilidad: campo aparte, sin relación con Fecha/Días.
+    if (b.expiry_at !== undefined) {
+      const expiry = String(b.expiry_at == null ? '' : b.expiry_at).trim();
+      if (expiry && !cleanDate(expiry)) throw bad('Fecha de caducidad no válida (AAAA-MM-DD).');
+      db.setPlanExpiry(line.id, expiry || null);
     }
     res.json({ plan: planView(line.person_id) });
   } catch (err) { fail(res, err); }
@@ -552,6 +566,60 @@ router.get('/api/overview', (req, res) => {
     const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     rows.sort((a, b) => norm(a.person.apellidos + ' ' + a.person.nombre).localeCompare(norm(b.person.apellidos + ' ' + b.person.nombre), 'es'));
     res.json({ month, items: rows });
+  } catch (err) { fail(res, err); }
+});
+
+// ── Disponibilidad de medicamentos (dashboard: quién puede ya recoger algo) ───────
+// Per person, splits the active plan into normales / eventuales (si_precisa) and,
+// for each side, counts how many are "disponibles" hoy (effective date reached) and
+// the OLDEST such date (the one available the longest — most overdue to dispense).
+router.get('/api/plan-availability', (req, res) => {
+  try {
+    const today = todayIso();
+    const stat = (lines) => {
+      let disp = 0, oldest_days = null, oldest_at = null;
+      for (const l of lines) {
+        const adv = l.advance_days == null ? db.DEFAULT_ADVANCE : l.advance_days;
+        const eff = db.effectiveDate(l.release_at, adv);
+        if (eff && eff <= today) {
+          disp++;
+          const days = daysUntil(eff);
+          if (oldest_days === null || days < oldest_days) { oldest_days = days; oldest_at = eff; }
+        }
+      }
+      return { total: lines.length, disp, oldest_days, oldest_at };
+    };
+    // Medicamentos (normales o eventuales, da igual) cuya caducidad de disponibilidad
+    // ya está en naranja (≤30 días) o roja (caducada). "La más caducada" = la de
+    // menos días restantes (más negativa primero), para la tarjeta de alerta.
+    const expStat = (lines) => {
+      let count = 0, worst_days = null, worst_at = null;
+      for (const l of lines) {
+        if (!l.expiry_at) continue;
+        const days = daysUntil(l.expiry_at);
+        if (days == null || days > 30) continue;
+        count++;
+        if (worst_days === null || days < worst_days) { worst_days = days; worst_at = l.expiry_at; }
+      }
+      return { count, worst_days, worst_at, worst_state: planExpiryState(worst_days) };
+    };
+    const rows = [];
+    for (const id of db.planPersonIds()) {
+      const p = qrDb.getPerson(id);
+      if (!p) continue; // person deleted from qr-tis
+      const plan = db.listPlan(id).filter(l => l.active);
+      if (!plan.length) continue;
+      const n = stat(plan.filter(l => !l.si_precisa));
+      const e = stat(plan.filter(l => l.si_precisa));
+      const x = expStat(plan);
+      rows.push({
+        person: personView(p),
+        normal_total: n.total, normal_disp: n.disp, normal_oldest_days: n.oldest_days, normal_oldest_at: n.oldest_at,
+        eventual_total: e.total, eventual_disp: e.disp, eventual_oldest_days: e.oldest_days, eventual_oldest_at: e.oldest_at,
+        exp_count: x.count, exp_worst_days: x.worst_days, exp_worst_at: x.worst_at, exp_worst_state: x.worst_state,
+      });
+    }
+    res.json({ today, items: rows });
   } catch (err) { fail(res, err); }
 });
 

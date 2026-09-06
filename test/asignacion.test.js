@@ -83,6 +83,31 @@ test('add a medication to the plan (must exist in DM)', async () => {
   assert.equal(ok.data.plan[0].qty, 2);
 });
 
+test('"si precisa" (PRN): se guarda al añadir, por defecto false, y se puede cambiar después sin tocar qty', async () => {
+  const pid = qrDb.createPerson({ pharmacy_no: '80900', nombre: 'Prn', apellidos: 'Test', tis: '00080900' }, 1).id;
+
+  // Por defecto, sin indicarlo, queda en false — tanto por GTIN como por CN.
+  const normal = (await call('POST', `/person/${pid}/plan`, { gtin: GTIN, qty: 1 })).data.plan.find(m => m.gtin === GTIN);
+  assert.equal(normal.si_precisa, false);
+  const cnNormal = (await call('POST', `/person/${pid}/plan`, { cn: '715000', nombre: 'Ibuprofeno', qty: 1 })).data.plan.find(m => m.cn === '715000');
+  assert.equal(cnNormal.si_precisa, false);
+
+  // Al añadir con si_precisa:true, queda marcado desde el alta — por CN.
+  const prn = (await call('POST', `/person/${pid}/plan`, { cn: '999333', nombre: 'Paracetamol si precisa', si_precisa: true })).data.plan.find(m => m.cn === '999333');
+  assert.equal(prn.si_precisa, true);
+
+  // PATCH puede cambiarlo después, sin afectar a qty/notes ya guardados.
+  const toggled = (await call('PATCH', `/plan/${normal.id}`, { si_precisa: true })).data.plan.find(m => m.id === normal.id);
+  assert.equal(toggled.si_precisa, true);
+  assert.equal(toggled.qty, 1, 'qty no se toca al marcar si_precisa');
+
+  // Y se puede volver a desmarcar; cambiar qty por separado no lo resetea.
+  await call('PATCH', `/plan/${normal.id}`, { si_precisa: false });
+  const afterQty = (await call('PATCH', `/plan/${normal.id}`, { qty: 3 })).data.plan.find(m => m.id === normal.id);
+  assert.equal(afterQty.qty, 3);
+  assert.equal(afterQty.si_precisa, false, 'un PATCH de qty no reactiva si_precisa');
+});
+
 test('plan CN-only: add a medication by Código Nacional before any Data Matrix, then link a box', async () => {
   const pid = qrDb.createPerson({ pharmacy_no: '80001', nombre: 'Noa', apellidos: 'Cea', tis: '00080001' }, 1).id;
   // Adding by CN requires a name.
@@ -952,4 +977,110 @@ test('pauta por franja: vigencia hacia el futuro, sin sobreescribir el históric
   const r = await call('PUT', `/plan/${med.id}/dose`, { effective_from: '2026-08-20', desayuno: 2, comida: 1, cena: 0, noche: 1 });
   assert.equal(r.status, 200);
   assert.ok(Array.isArray(r.data.history));
+});
+
+test('disponibilidad de medicamentos: alguna / toda / eventual, y el más antiguo primero', async () => {
+  // Fechas RELATIVAS a hoy — nunca hardcodeadas — para que el test no caduque.
+  const isoDaysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+  const isoDaysAhead = (n) => isoDaysAgo(-n);
+  const setRelease = (planId, date, advance_days = 0) => call('PUT', `/plan/${planId}/release`, { date, advance_days });
+
+  // Persona A: un medicamento disponible desde hace 10 días, otro desde hace 3 —
+  // "alguna" cuenta con ella; "toda" NO (le falta uno sin fecha); su "si precisa"
+  // también está disponible.
+  const a = qrDb.createPerson({ pharmacy_no: '80930', nombre: 'Ana', apellidos: 'Disp', tis: '00080930', group_name: 'Residencia Sol' }, 1).id;
+  const aOld = (await call('POST', `/person/${a}/plan`, { cn: '810001', nombre: 'Med Viejo' })).data.plan.find(m => m.cn === '810001');
+  await setRelease(aOld.id, isoDaysAgo(10));
+  const aRecent = (await call('POST', `/person/${a}/plan`, { cn: '810002', nombre: 'Med Reciente' })).data.plan.find(m => m.cn === '810002');
+  await setRelease(aRecent.id, isoDaysAgo(3));
+  await call('POST', `/person/${a}/plan`, { cn: '810003', nombre: 'Med Sin Fecha' }); // sin fecha: nunca "disponible"
+  const aPrn = (await call('POST', `/person/${a}/plan`, { cn: '810004', nombre: 'Med Eventual', si_precisa: true })).data.plan.find(m => m.cn === '810004');
+  await setRelease(aPrn.id, isoDaysAgo(1));
+
+  // Persona B: sus DOS únicos medicamentos normales están disponibles — cuenta
+  // para "toda". El más antiguo de los suyos es de hace 20 días (el más antiguo
+  // de todos), así que debe salir PRIMERO en el orden por defecto.
+  const b = qrDb.createPerson({ pharmacy_no: '80931', nombre: 'Bruno', apellidos: 'Completo', tis: '00080931', group_name: 'Residencia Luna' }, 1).id;
+  const b1 = (await call('POST', `/person/${b}/plan`, { cn: '810005', nombre: 'Med B Uno' })).data.plan.find(m => m.cn === '810005');
+  await setRelease(b1.id, isoDaysAgo(20));
+  const b2 = (await call('POST', `/person/${b}/plan`, { cn: '810006', nombre: 'Med B Dos' })).data.plan.find(m => m.cn === '810006');
+  await setRelease(b2.id, isoDaysAgo(5));
+
+  // Persona C: medicamento con fecha en el FUTURO — no cuenta en ninguna lista.
+  const c = qrDb.createPerson({ pharmacy_no: '80932', nombre: 'Cris', apellidos: 'Futuro', tis: '00080932' }, 1).id;
+  const cMed = (await call('POST', `/person/${c}/plan`, { cn: '810007', nombre: 'Med Futuro' })).data.plan.find(m => m.cn === '810007');
+  await setRelease(cMed.id, isoDaysAhead(5));
+
+  const { status, data } = await call('GET', '/plan-availability');
+  assert.equal(status, 200);
+  const byId = new Map(data.items.map(r => [r.person.id, r]));
+
+  const rowA = byId.get(a);
+  assert.equal(rowA.normal_total, 3, 'A tiene 3 medicamentos normales');
+  assert.equal(rowA.normal_disp, 2, 'A tiene 2 disponibles hoy (el de sin fecha no cuenta)');
+  assert.equal(rowA.normal_oldest_days < 0, true, 'el más antiguo de A queda en negativo (ya pasó)');
+  assert.equal(rowA.eventual_total, 1);
+  assert.equal(rowA.eventual_disp, 1, 'su "si precisa" también está disponible');
+  assert.equal(rowA.person.groups[0], 'Residencia Sol');
+
+  const rowB = byId.get(b);
+  assert.equal(rowB.normal_total, 2);
+  assert.equal(rowB.normal_disp, 2, 'B tiene TODOS sus medicamentos disponibles');
+
+  const rowC = byId.get(c);
+  assert.equal(rowC.normal_disp, 0, 'el de C está en el futuro: no cuenta como disponible');
+
+  // "Alguna": A y B (no C, que no tiene ninguno disponible).
+  const alguna = data.items.filter(r => r.normal_disp >= 1).map(r => r.person.id);
+  assert.ok(alguna.includes(a) && alguna.includes(b) && !alguna.includes(c));
+
+  // "Toda": solo B (a A le falta el de "Med Sin Fecha"; C no tiene ninguno disponible).
+  const toda = data.items.filter(r => r.normal_total >= 1 && r.normal_disp === r.normal_total).map(r => r.person.id);
+  assert.ok(toda.includes(b) && !toda.includes(a) && !toda.includes(c));
+
+  // "Eventual disponible": solo A.
+  const eventual = data.items.filter(r => r.eventual_disp >= 1).map(r => r.person.id);
+  assert.ok(eventual.includes(a) && !eventual.includes(b));
+
+  // Orden por defecto dentro de "alguna": el más antiguo (hace más días) primero —
+  // B (hace 20 días) antes que A (hace 10 días como mucho). El servidor es compartido
+  // por todo el fichero de test, así que se acota a A y B antes de comprobar el orden.
+  const algunaOrdered = data.items
+    .filter(r => r.normal_disp >= 1 && (r.person.id === a || r.person.id === b))
+    .sort((x, y) => x.normal_oldest_days - y.normal_oldest_days);
+  assert.equal(algunaOrdered.length, 2);
+  assert.equal(algunaOrdered[0].person.id, b, 'el medicamento disponible desde hace más tiempo va primero');
+});
+
+test('caducidad de disponibilidad: se guarda, colorea (verde/naranja/rojo) y agrega en /plan-availability', async () => {
+  const isoDaysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+  const isoDaysAhead = (n) => isoDaysAgo(-n);
+
+  const d = qrDb.createPerson({ pharmacy_no: '80940', nombre: 'Dora', apellidos: 'Caduca', tis: '00080940', group_name: 'Residencia Caduca' }, 1).id;
+
+  // Verde: caduca dentro de mucho (60 días).
+  const mOk = (await call('POST', `/person/${d}/plan`, { cn: '810010', nombre: 'Med Verde' })).data.plan.find(m => m.cn === '810010');
+  await call('PUT', `/plan/${mOk.id}/release`, { expiry_at: isoDaysAhead(60) });
+
+  // Naranja: caduca dentro de 10 días (≤30, "le queda un mes").
+  const mWarn = (await call('POST', `/person/${d}/plan`, { cn: '810011', nombre: 'Med Naranja' })).data.plan.find(m => m.cn === '810011');
+  await call('PUT', `/plan/${mWarn.id}/release`, { expiry_at: isoDaysAhead(10) });
+
+  // Rojo: ya caducada (hace 2 días) — la "más caducada" de las tres.
+  const mBad = (await call('POST', `/person/${d}/plan`, { cn: '810012', nombre: 'Med Rojo' })).data.plan.find(m => m.cn === '810012');
+  await call('PUT', `/plan/${mBad.id}/release`, { expiry_at: isoDaysAgo(2) });
+
+  const { data: planData } = await call('GET', `/person/${d}/plan`);
+  assert.equal(planData.plan.find(m => m.cn === '810010').expiry_state, 'ok');
+  assert.equal(planData.plan.find(m => m.cn === '810011').expiry_state, 'warn');
+  assert.equal(planData.plan.find(m => m.cn === '810012').expiry_state, 'expired');
+
+  const { data: availData } = await call('GET', '/plan-availability');
+  const row = availData.items.find(r => r.person.id === d);
+  assert.equal(row.exp_count, 2, 'naranja + rojo cuentan como alerta; el verde no');
+  assert.equal(row.exp_worst_at, isoDaysAgo(2), 'la más caducada (más atrasada) es la roja');
+  assert.equal(row.exp_worst_state, 'expired');
+
+  const caducada = availData.items.filter(r => r.exp_count >= 1).map(r => r.person.id);
+  assert.ok(caducada.includes(d));
 });

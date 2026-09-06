@@ -167,6 +167,11 @@ try { db.prepare('ALTER TABLE asig_line ADD COLUMN advance_days INTEGER NOT NULL
 // every month on the same Salud date.
 try { db.prepare('ALTER TABLE asig_plan ADD COLUMN release_at TEXT').run(); } catch { /* already present */ }
 try { db.prepare('ALTER TABLE asig_plan ADD COLUMN advance_days INTEGER NOT NULL DEFAULT 15').run(); } catch { /* already present */ }
+// "Si precisa" (PRN): medicación eventual, no diaria. Se muestra aparte en el plan.
+try { db.prepare('ALTER TABLE asig_plan ADD COLUMN si_precisa INTEGER NOT NULL DEFAULT 0').run(); } catch { /* already present */ }
+// Caducidad de la DISPONIBILIDAD calculada (distinta de la caducidad física de la
+// caja): a partir de esta fecha, esa disponibilidad ya no es de fiar sin revisarla.
+try { db.prepare('ALTER TABLE asig_plan ADD COLUMN expiry_at TEXT').run(); } catch { /* already present */ }
 
 // Plan medications can now exist by Código Nacional before any GTIN/Data Matrix.
 // Old asig_plan had `gtin NOT NULL` + inline UNIQUE(person_id,gtin); rebuild it so
@@ -362,35 +367,38 @@ function addPlanMed(personId, data) {
   const barcode = data.barcode != null ? (String(data.barcode).trim() || null) : null;
   const cur = gtin ? planByGtin(personId, gtin) : (cn ? planByCn(personId, cn) : null);
   if (cur) {
-    db.prepare(`UPDATE asig_plan SET qty = @qty, notes = @notes, active = @active,
+    db.prepare(`UPDATE asig_plan SET qty = @qty, notes = @notes, active = @active, si_precisa = @si_precisa,
        cn = COALESCE(@cn, cn), nombre = COALESCE(@nombre, nombre), barcode = COALESCE(@barcode, barcode),
        updated_at = CURRENT_TIMESTAMP WHERE id = @id`).run({
       id: cur.id, qty: cleanQty(data.qty, cur.qty || 1),
       notes: data.notes !== undefined ? (data.notes || null) : (cur.notes || null),
       active: data.active != null ? (data.active ? 1 : 0) : (cur.active != null ? cur.active : 1),
+      si_precisa: data.si_precisa != null ? (data.si_precisa ? 1 : 0) : (cur.si_precisa != null ? cur.si_precisa : 0),
       cn, nombre, barcode,
     });
     return getPlanLine(cur.id);
   }
   const info = db.prepare(
-    `INSERT INTO asig_plan (person_id, gtin, cn, nombre, barcode, qty, notes, active, updated_at)
-     VALUES (@person_id, @gtin, @cn, @nombre, @barcode, @qty, @notes, @active, CURRENT_TIMESTAMP)`
+    `INSERT INTO asig_plan (person_id, gtin, cn, nombre, barcode, qty, notes, active, si_precisa, updated_at)
+     VALUES (@person_id, @gtin, @cn, @nombre, @barcode, @qty, @notes, @active, @si_precisa, CURRENT_TIMESTAMP)`
   ).run({
     person_id: personId, gtin, cn, nombre, barcode,
     qty: cleanQty(data.qty), notes: data.notes || null,
     active: data.active != null ? (data.active ? 1 : 0) : 1,
+    si_precisa: data.si_precisa ? 1 : 0,
   });
   return getPlanLine(info.lastInsertRowid);
 }
 // Back-compat helper for the GTIN path.
 function upsertPlan(personId, gtin, data) { return addPlanMed(personId, { ...data, gtin }); }
-// Edit qty/notes/active of a plan row by id (works for CN-only rows too).
+// Edit qty/notes/active/si_precisa of a plan row by id (works for CN-only rows too).
 function updatePlanById(id, data) {
   const cur = getPlanLine(id); if (!cur) return null;
-  db.prepare(`UPDATE asig_plan SET qty = @qty, notes = @notes, active = @active, updated_at = CURRENT_TIMESTAMP WHERE id = @id`).run({
+  db.prepare(`UPDATE asig_plan SET qty = @qty, notes = @notes, active = @active, si_precisa = @si_precisa, updated_at = CURRENT_TIMESTAMP WHERE id = @id`).run({
     id, qty: cleanQty(data.qty, cur.qty || 1),
     notes: data.notes !== undefined ? (data.notes || null) : (cur.notes || null),
     active: data.active != null ? (data.active ? 1 : 0) : (cur.active != null ? cur.active : 1),
+    si_precisa: data.si_precisa != null ? (data.si_precisa ? 1 : 0) : (cur.si_precisa != null ? cur.si_precisa : 0),
   });
   return getPlanLine(id);
 }
@@ -427,6 +435,11 @@ function clearPlanGtin(id) {
 // Set (or clear, with null) the official Salud release date of a plan medication.
 function setPlanRelease(id, isoDate) {
   db.prepare('UPDATE asig_plan SET release_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(isoDate || null, id);
+  return getPlanLine(id);
+}
+// Set (or clear, with null) the caducidad de disponibilidad of a plan medication.
+function setPlanExpiry(id, isoDate) {
+  db.prepare('UPDATE asig_plan SET expiry_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(isoDate || null, id);
   return getPlanLine(id);
 }
 function setPlanAdvance(id, days) {
@@ -868,7 +881,7 @@ module.exports = {
   listPlan, plansByCnOrGtin, distinctCnCount, allCns, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, clearPlanGtin, deletePlanLine, planPersonIds,
   SLOTS, setDoseSchedule, getDoseScheduleForDate, getDoseHistory,
   createEmptyPlan, personsWithPlanSet,
-  setPlanRelease, setPlanAdvance, plansForRelease, planForItem, findPendingLineForMed,
+  setPlanRelease, setPlanAdvance, setPlanExpiry, plansForRelease, planForItem, findPendingLineForMed,
   getPeriod, findPeriod, getOrCreatePeriod, listPeriods, latestPeriod, setPeriodStatus, deletePeriod, periodPersonIds,
   DEFAULT_ADVANCE, clampAdvance, effectiveDate,
   listLines, getLine, findLine, lineByItem, addLine, setLineState, setLineRelease, setLineAdvance, pendingReleaseLines, deleteLine, periodCounts,
