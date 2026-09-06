@@ -4323,6 +4323,29 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     eso, una corrida sobre el transcrito se relee como si fuera del 3'UTR — el mismo fallo,
     esta vez desde un fichero y semanas después.
 
+- **EL CASETE SE COMPRUEBA AL EMITIR, no al validar (2026-09-06)**
+  (`presentation.cassette_deposit_check`, `Construction.cassette_check`), errata nº 129.
+  - **El caso**: un FASTA de producción montado sobre un casete de **5.170 nt** cuando el
+    del depósito mide **5.282**. El resultado de SpliceAI se rechazó al subirlo —
+    correctamente— pero **la corrida ya estaba gastada**. Principio nº 47: la salida va
+    donde está el bloqueo, y el bloqueo se fabrica al emitir.
+  - **Medido**: la geometría del FASTA (3133 / 1955 / 5384) la reproduce exactamente un
+    casete de 5.170 con el mismo flanco 5' y 112 nt menos por el 3', pero **con otro
+    md5** — o sea, OTRA MOLÉCULA, no el fichero del depósito mal leído. Ese fichero **no
+    está en el repositorio**: vive sólo en el volumen. **No se le asigna causa.**
+  - **El mecanismo que lo hace invisible**, que sí se puede nombrar: la siembra del
+    volumen respeta lo que ya está (a propósito) y `_transgen` valida contra el md5 del
+    **propio manifiesto del volumen**. Los dos son autoconsistentes, así que **nada
+    compara el depósito con lo versionado** y un casete viejo puede vivir ahí para
+    siempre sin dar ningún error.
+  - **Tres estados, no un booleano** — `COINCIDE`, `NO_COINCIDE`, `SIN_COMPROBAR` — y el
+    veredicto viaja en CADA cabecera del FASTA (`casete_del_deposito=`), también cuando
+    coincide. Por defecto `SIN_COMPROBAR`: el silencio se leía como «coincide».
+  - **`estado=COMPLETO` habla del PANEL**, no del casete. Dos ejes con una palabra es la
+    errata nº 126 otra vez; ahora son dos campos.
+  - El motivo lleva **los dos md5 y las dos longitudes**: «no coincide» a secas no se
+    puede investigar, y eso ya está calculado cuando se dice.
+
 - **UN GUARDIA DEMUESTRA QUE HA MIRADO, no sólo que no ha fallado (2026-09-06)**
   (`tests/test_un_GUARDIA_demuestra_que_ha_mirado.py`), principio nº 51. **GUARDIA sobre
   los guardias.**

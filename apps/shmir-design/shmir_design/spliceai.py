@@ -209,6 +209,16 @@ def warning_blocks() -> list[dict[str, object]]:
     ]
 
 
+#: Los tres estados de «¿el casete con el que se emite es el del deposito?».
+#:
+#: Tres y no un booleano, por lo de siempre: «no se ha podido comprobar» y «coincide» no
+#: son la misma cosa y un `False` los funde. Viven aqui —y no en `presentation`— porque
+#: `Construction` los lleva dentro y este modulo es el de abajo.
+CASETE_COINCIDE = "COINCIDE"
+CASETE_NO_COINCIDE = "NO_COINCIDE"
+CASETE_SIN_COMPROBAR = "SIN_COMPROBAR"
+
+
 # ─────────────────────────── la construccion: candidato x intron ───────────────────────
 
 
@@ -240,6 +250,10 @@ class Construction:
     #: otra cosa —`FrameCheck`, el desfase entre las posiciones del resultado y las de
     #: la construccion— y dos cosas con el mismo nombre acaban comparandose.
     candidate_frame: Frame = Frame.UTR3
+    #: Si el casete con el que se monto es el del deposito. Por defecto SIN_COMPROBAR:
+    #: el silencio se leia como «coincide», y eso es exactamente lo que paso el
+    #: 2026-09-06 — un FASTA con `estado=COMPLETO` montado sobre otro casete.
+    cassette_check: str = CASETE_SIN_COMPROBAR
     #: DE DONDE salio el contexto exonico: el casete con su md5 y su longitud, o las
     #: piezas del plasmido. Va en la cabecera del FASTA porque es lo unico que ata un
     #: resultado a las ENTRADAS con las que se monto — el md5 de la construccion dice
@@ -416,6 +430,7 @@ def build_panel(
     starts=None,
     cassette: str | None = None,
     context_nt: int = 0,
+    cassette_check: str = CASETE_SIN_COMPROBAR,
 ) -> ConstructionPanel:
     """Monta todos los pares y dice CUALES no pudo. No aborta por uno.
 
@@ -433,7 +448,8 @@ def build_panel(
         try:
             hechas.extend(build_constructions(
                 selection, intron_names=(nombre,), scaffold=scaffold, starts=starts,
-                cassette=cassette, context_nt=context_nt, _failures=fallidas,
+                cassette=cassette, context_nt=context_nt,
+                cassette_check=cassette_check, _failures=fallidas,
             ))
         except ShmirDesignError as exc:
             # rule2-ok: no se traga — el motivo entero viaja en `failed` y la pagina lo
@@ -469,6 +485,7 @@ def build_constructions(
     starts=None,
     cassette: str | None = None,
     context_nt: int = 0,
+    cassette_check: str = CASETE_SIN_COMPROBAR,
     _failures: list | None = None,
 ) -> tuple[Construction, ...]:
     """Monta un cassette POR PAR candidato x intron. La unidad de este modal.
@@ -540,6 +557,7 @@ def build_constructions(
                     donor_position=desplazamiento + elementos.donor.start,
                     acceptor_position=desplazamiento + elementos.acceptor.start,
                     candidate_frame=marco_candidato,
+                    cassette_check=cassette_check,
                     cryptic_position=(
                         desplazamiento + criptico + 1 if criptico >= 0 else 0
                     ),
@@ -677,6 +695,10 @@ def constructions_fasta(constructions, *, summary=None) -> str:
             f"spliceai_donante={c.donor_position + TO_SPLICEAI['donante']} "
             f"spliceai_aceptor={c.acceptor_position + TO_SPLICEAI['aceptor']}"
             f"{' contexto_origen=' + c.context_source if c.context_source else ''}"
+            # SIEMPRE, tambien cuando coincide y tambien cuando no se pudo mirar: es
+            # OTRO EJE que `estado=`, que habla del panel —cuantas construcciones de las
+            # anunciadas salieron— y se leia como «todo en orden».
+            f" casete_del_deposito={c.cassette_check}"
             f"{estado}"
         )
         for i in range(0, len(c.sequence), FASTA_WRAP):

@@ -6304,3 +6304,80 @@ consistente y no una reescritura.
 El registro de empalme guarda ahora el marco en disco (`candidate_frame`). Sin eso, una
 corrida sobre el transcrito se relee como si fuera del 3'UTR y vuelve a imprimir el mismo
 fallo semanas después, esta vez desde un fichero.
+
+## 129 — Se emitía con un casete y se validaba con otro, y sólo se sabía al gastar la corrida
+
+**Reportada el 2026-09-06** desde un FASTA descargado de producción a las 18:17:
+
+```
+>mvm_actual__3utr959 md5=778b1daf… longitud=5384 contexto5=3133 contexto3=1955
+ contexto_origen=casete:md5=a9f6ac140d33f504313dc03ba7805b1f:5170nt
+ panel=22de22 estado=COMPLETO
+```
+
+El casete del depósito —`aav_casete.fa`, el que subió su autor— mide **5.282 nt**. Al
+subir el resultado de SpliceAI, la app lo rechazó por longitud. Es el mismo desajuste de
+112 nt que apareció el 2026-09-05 y que se dio por cerrado con `contexto_origen` en la
+cabecera: **la mitigación funcionó** —es lo que permitió verlo— pero la causa seguía viva.
+
+### Lo MEDIDO, que descarta la explicación fácil
+
+`aav_casete.fa` versionado: **5.282 nt, md5 `74f3fd79…`** — el mismo md5 que declara su
+autor haber subido. Con él, montando el panel murino de verdad:
+
+| casete | contexto5 | contexto3 | construcción |
+|---|---|---|---|
+| el del depósito, entero (5282) | 3133 | **2067** | **5496** nt |
+| el mismo cortado 112 nt por el 3' (5170) | 3133 | **1955** | **5384** nt |
+| el mismo cortado 112 nt por el 5' (5170) | **3021** | 2067 | 5384 nt |
+
+La geometría del FASTA de producción —3133 / 1955 / 5384— la reproduce **exactamente** un
+casete de 5.170 nt con el mismo flanco 5' y 112 nt menos por el 3'. Pero su md5 sería
+`0bfe9ea6…` y el de producción es `a9f6ac14…`: **no es el fichero del depósito truncado al
+leerlo**. Es OTRA MOLÉCULA, con el intrón en la misma posición y un 3' distinto — o sea,
+otra versión del plásmido, no un fallo del lector.
+
+Y **no está en el repositorio**: barridos todos los `.fa`/`.gb`/`.tsv`, ni un fichero de
+5.170 nt ni ninguna aparición de ese md5. Vive sólo en el volumen de producción, que desde
+aquí no se ve. **No se le asigna causa** — decir «era esto» sin comprobarlo es el
+principio nº 3, y un diagnóstico equivocado cuesta más que ninguno.
+
+Lo que sí se puede nombrar es el **mecanismo que permite que sobreviva**: la siembra del
+volumen *copia lo que no está y respeta lo que ya está* (a propósito, para no pisar lo
+subido), y `_transgen` valida el fichero contra **el md5 del propio manifiesto del
+volumen**. Los dos son autoconsistentes, así que un casete viejo en el volumen es
+**invisible por construcción**: nada compara el depósito con lo versionado.
+
+### Los dos fallos de la app, que son independientes de qué fichero sea
+
+1. **La comprobación estaba en el sitio equivocado.** Existía —`parse_result` rechaza un
+   resultado cuyo md5 no cuadra— pero llega **después de la corrida de SpliceAI**, que son
+   horas fuera de esta app. Rechazar bien un resultado que costó una corrida no es una
+   salida: es una autopsia. Principio nº 47, otra vez: *la salida va donde está el
+   bloqueo*, y aquí el bloqueo se fabrica al emitir.
+2. **`estado=COMPLETO` no hablaba del casete.** «Completo» se refiere al PANEL —cuántas
+   construcciones de las anunciadas salieron— y se lee como «todo en orden». Dos ejes
+   distintos con una sola palabra, que es la errata nº 126 otra vez.
+
+### El arreglo
+
+`presentation.cassette_deposit_check()` compara, **antes de montar nada**, el casete en
+uso con el que hay en el depósito **en ese momento**, leyéndolo por el mismo cargador que
+usa el rol `transgen` —comparar una lectura cruda con una normalizada daría «no coincide»
+siempre y por el motivo equivocado—. Tres estados, no un booleano: `COINCIDE`,
+`NO_COINCIDE` y `SIN_COMPROBAR`. El nombre del fichero se le pide a `manifest.ROLES`.
+
+Con el caso real, la página ahora **para antes del botón de descarga**:
+
+> **PARA** — El casete con el que se iban a montar las construcciones NO es el de
+> `aav_casete.fa`: en uso 5170 nt (md5 `0bfe9ea6…`) y en el depósito 5282 nt (md5
+> `74f3fd79…`), 112 nt de diferencia. Las construcciones saldrían de un casete y el
+> resultado se validaría contra el otro, así que la corrida de SpliceAI se perdería.
+
+Los **dos md5 y las dos longitudes** van en el motivo a propósito: «no coincide» a secas
+no se puede investigar, y lo que hace falta para investigarlo es justo lo que la
+comprobación ya ha calculado.
+
+Y el veredicto **viaja en cada cabecera del FASTA** (`casete_del_deposito=…`), también
+cuando coincide y también cuando no se pudo mirar: por defecto `SIN_COMPROBAR`, porque el
+silencio se leía como «coincide» — que es exactamente lo que pasó.

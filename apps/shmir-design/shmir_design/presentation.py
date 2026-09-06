@@ -4762,10 +4762,15 @@ def splice_constructions(selection, *, intron_names, scaffold, starts=None,
     """
     from .spliceai import build_panel
 
+    # EL CASETE SE COMPRUEBA AQUÍ, ANTES DE MONTAR NADA. La comprobación existía sólo al
+    # otro lado —`parse_result` rechaza un resultado cuyo md5 no cuadra— y eso llega
+    # cuando la corrida de SpliceAI ya se ha gastado. Ver
+    # `WHY_THE_CASSETTE_IS_CHECKED_BEFORE` y la errata nº 129.
+    ficha = cassette_deposit_check(cassette)
     return build_panel(
         selection, intron_names=tuple(intron_names),
         scaffold=scaffold, starts=starts, cassette=cassette,
-        context_nt=int(context_nt),
+        context_nt=int(context_nt), cassette_check=str(ficha["estado"]),
     )
 
 
@@ -6797,6 +6802,108 @@ def cassette_sequence(tiling) -> str | None:
             f"aparición o de concatenarlos, que inventaría una juntura."
         )
     return next(iter(registros.values()))
+
+
+#: Los tres estados, PEDIDOS a `spliceai`, que es quien los lleva en la construcción.
+#: Redefinirlos aquí daría dos listas que un día dicen cosas distintas.
+from .spliceai import (  # noqa: E402,PLC0415
+    CASETE_COINCIDE, CASETE_NO_COINCIDE, CASETE_SIN_COMPROBAR,
+)
+
+#: Por qué esta comprobación va AL EMITIR y no al validar.
+WHY_THE_CASSETTE_IS_CHECKED_BEFORE = (
+    "Entre emitir el FASTA y subir el resultado hay una corrida de SpliceAI, que es "
+    "tiempo fuera de esta app. Si el casete con el que se emitió no es el del depósito, "
+    "el resultado se rechaza al volver —correctamente— pero la corrida ya está gastada. "
+    "La comprobación tiene que estar donde todavía sirve de algo."
+)
+
+
+def cassette_deposit_check(cassette, *, directory=None) -> dict[str, object]:
+    """¿El casete que se va a usar es el que hay AHORA en el depósito?
+
+    Lo compara por md5 de la secuencia NORMALIZADA, leyendo el depósito por el mismo
+    cargador que usa el rol `transgen` —`specificity.load_database`— para que los dos
+    lados hablen la misma normalización: comparar una lectura cruda con una normalizada
+    daría «no coincide» siempre y por el motivo equivocado.
+
+    El nombre del fichero se le PIDE a `manifest.ROLES`. Escribirlo aquí sería una
+    segunda definición de la misma correspondencia, y el día que el rol apunte a otro
+    fichero esta comprobación miraría el de antes sin dar ningún error (principio nº 13).
+
+    Devuelve SIEMPRE los dos md5 y las dos longitudes cuando los tiene: «no coincide» a
+    secas no se puede investigar, y lo que hace falta para investigarlo es exactamente
+    lo que esta función ya ha calculado.
+    """
+    from .identidad import result_fingerprint  # noqa: PLC0415
+    from .manifest import ROLES  # noqa: PLC0415
+    from .specificity import load_database  # noqa: PLC0415
+    from .trabajo import reference_dir  # noqa: PLC0415
+
+    rol = next(r for r in ROLES if r.role == "transgen")
+    carpeta = Path(directory) if directory is not None else reference_dir()
+    ruta = carpeta / rol.filename
+
+    en_uso = "".join(str(cassette).split()).upper() if cassette else ""
+    ficha: dict[str, object] = {
+        "fichero": rol.filename,
+        "directorio": str(carpeta),
+        "md5_en_uso": result_fingerprint(en_uso) if en_uso else "",
+        "nt_en_uso": len(en_uso),
+        "md5_deposito": "",
+        "nt_deposito": 0,
+    }
+    if not en_uso:
+        return {
+            **ficha, "estado": CASETE_SIN_COMPROBAR,
+            "motivo": (
+                "No hay ningún casete conectado, así que no hay nada que comparar con "
+                f"{rol.filename}. El contexto exónico saldrá de las piezas del plásmido "
+                "y la cabecera lo dirá. NO se da por bueno: no comprobado no es "
+                "comprobado."
+            ),
+        }
+    if not ruta.is_file():
+        return {
+            **ficha, "estado": CASETE_SIN_COMPROBAR,
+            "motivo": (
+                f"No hay {rol.filename} en {carpeta}, así que no se puede comprobar si "
+                f"el casete en uso es el del depósito. Se emite diciéndolo, no callando: "
+                f"un silencio aquí se lee como «coincide»."
+            ),
+        }
+
+    deposito = "".join(
+        str(
+            next(iter(load_database(
+                str(ruta), name=rol.what, version="deposito",
+            ).records.values()))
+        ).split()
+    ).upper()
+    ficha["md5_deposito"] = result_fingerprint(deposito)
+    ficha["nt_deposito"] = len(deposito)
+
+    if ficha["md5_en_uso"] == ficha["md5_deposito"]:
+        return {
+            **ficha, "estado": CASETE_COINCIDE,
+            "motivo": (
+                f"El casete en uso es {rol.filename} del depósito "
+                f"({ficha['nt_deposito']} nt, md5 {str(ficha['md5_deposito'])[:8]}…)."
+            ),
+        }
+    return {
+        **ficha, "estado": CASETE_NO_COINCIDE,
+        "motivo": (
+            f"El casete con el que se iban a montar las construcciones NO es el de "
+            f"{rol.filename}: en uso {ficha['nt_en_uso']} nt "
+            f"(md5 {str(ficha['md5_en_uso'])[:8]}…) y en el depósito "
+            f"{ficha['nt_deposito']} nt (md5 {str(ficha['md5_deposito'])[:8]}…), "
+            f"{abs(int(ficha['nt_en_uso']) - int(ficha['nt_deposito']))} nt de "
+            f"diferencia. Las construcciones saldrían de un casete y el resultado se "
+            f"validaría contra el otro, así que la corrida de SpliceAI se perdería. "
+            f"{WHY_THE_CASSETTE_IS_CHECKED_BEFORE}"
+        ),
+    }
 
 
 def arms_rows(present=()) -> list[dict[str, object]]:

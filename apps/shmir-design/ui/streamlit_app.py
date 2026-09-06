@@ -114,6 +114,9 @@ from shmir_design.presentation import (  # noqa: E402
     splice_context_note,
     splice_fasta_name,
     splice_panel_summary,
+    CASETE_NO_COINCIDE,
+    CASETE_SIN_COMPROBAR,
+    cassette_deposit_check,
     splice_constructions,
     SPLICE_CONTEXT_DEFAULT,
     SPLICE_CONTEXT_MAX,
@@ -2717,6 +2720,19 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         help="Del casete, si está cargado. Cambia el resultado, así que viaja con la "
              "consulta. 0 = lo que dan las piezas del plásmido.",
     )
+    # EL CASETE, ANTES DE MONTAR NADA. Entre este botón y subir el resultado hay una
+    # corrida de SpliceAI: si el casete no es el del depósito, el resultado se rechaza al
+    # volver —correctamente— pero la corrida ya está gastada (errata nº 129). La app lo
+    # dice aquí, que es donde todavía sirve de algo. La decisión la toma `presentation`.
+    ficha_casete = cassette_deposit_check(casete)
+    if ficha_casete["estado"] == CASETE_NO_COINCIDE:
+        st.error(f"**PARA** — {ficha_casete['motivo']}")
+        return
+    if ficha_casete["estado"] == CASETE_SIN_COMPROBAR:
+        st.warning(ficha_casete["motivo"])
+    else:
+        st.caption(ficha_casete["motivo"])
+
     try:
         panel = splice_constructions(
             seleccion, intron_names=elegidos, scaffold=SGEP_SCAFFOLD,
