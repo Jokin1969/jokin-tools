@@ -4290,6 +4290,58 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     medida con mecanismo detrás. Con control adversario: sin él, «ninguna trunca» y «el
     guardia no mira nada» darían el mismo verde (errata nº 29).
 
+- **EL PREFIJO DEL MARCO NO SE PUEDE TECLEAR FUERA DE `coords` (2026-09-06)**
+  (`tools/auditar_marcos.py`, `data/marcos_en_prosa.toml`, dentro de
+  `npm run check:shmir`), errata nº 121. **GUARDIA, cero.**
+  - **Por qué hacía falta un guardia y no un sexto arreglo.** `coords.Position` ya impedía
+    imprimir un entero desnudo, y con eso bastaba para el fallo que se había visto. Lo que
+    NO impedía era **teclear el prefijo**: `f"3utr:{start}"` se escribe igual de fácil, se
+    lee igual de bien y sobre un tilado del transcrito etiqueta como 3'UTR una posición
+    que no lo es — saltándose el invariante de rango. Pasó **cinco veces en cinco
+    módulos**, cada una arreglada por su cuenta. *Un arreglo que hay que acordarse de
+    repetir no es un arreglo: es una costumbre.* Con las palabras con que se pidió:
+    *«Si el literal no se puede teclear, no puede haber un sexto sitio»*.
+  - **La regla es mecánica**: un literal que **TERMINA** en el prefijo fabrica una etiqueta
+    con lo que venga detrás —una interpolación, un `.join`, una concatenación— y eso es
+    fallo. Con el número **dentro** es prosa: nombra un caso, y va declarada en la tabla
+    **por símbolo, no por fichero**, para que una mención nueva en la constante de al lado
+    no entre amparada por la de al lado. Declaración sin literal → aborta.
+  - **Los prefijos se le piden a `coords.Frame`**, no se teclean en el guardia: si mañana
+    entra un tercer espacio, el barrido lo ve solo. Tecleados, el guardia diría cero
+    porque no lo estaría buscando — el «Alu 0 %» obtenido sin buscar Alu.
+  - **Los tests quedan fuera A PROPÓSITO y por escrito** (`WHY_NOT_THE_TESTS`): un test que
+    exige `3utr:449` en la salida es el control adversario de esta misma regla.
+  - **Al reescribir los 37 literales, el invariante cazó CUATRO sitios más** que nadie
+    había visto — entre ellos `SpliceStore.verdict_for`, que etiquetaba `3utr:1684` en el
+    NOT_RUN del frente de empalme, y la sección 5 del documento, que titulaba
+    `### 3utr:1149` encima de una ficha que dice `tx:1149`. Convertir el literal en una
+    llamada convierte un error silencioso en un aborto.
+  - `coords.tiled_frame` reúne en un sitio la decisión que estaba copiada en trece, y
+    `coords.requested` nombra una posición **pedida desde fuera**, que puede no existir:
+    sin ella, el aborto que explica el error abortaba a su vez con otro error.
+  - **El marco viaja también al disco** (`candidate_frame` en el registro de empalme). Sin
+    eso, una corrida sobre el transcrito se relee como si fuera del 3'UTR — el mismo fallo,
+    esta vez desde un fichero y semanas después.
+
+- **EL TIEMPO ENTRA POR PARÁMETRO; el reloj se mira en UN sitio (2026-09-06)**
+  (`tests/test_el_TIEMPO_llega_por_PARAMETRO.py`), errata nº 127 y principio nº 48.
+  - **El caso es del hub, no de aquí**: una prueba de Asignación **se puso roja sola el 1
+    de septiembre**. Su valor esperado era cierto mientras «el mes en curso» fuese el mes
+    que tenía escrito. Nadie la rompió — caducó. Es el principio nº 11 sobre el test, con
+    el agravante de que aquí no se mueve el código: se mueve el mundo.
+  - **Aquí no ha pasado porque el tiempo ENTRA por parámetro** (`date=`, `generated=`) y
+    sólo hay un sitio que mire el reloj: `presentation.today_text()`. Este test es lo que
+    mantiene que siga siendo uno — un segundo `date.today()` en cualquier módulo lo rompe,
+    y un test que lea el reloj tiene que declararse con su motivo.
+  - **Medido, no leído (2026-09-06)**: las 4796 pruebas pasan con el reloj adelantado 40,
+    400 y 4000 días. En el hub el experimento está automatizado
+    (`test/calendario.test.js`, dentro de `npm test`); aquí no, porque son cinco minutos
+    por pasada — lo que se comprueba en cada tanda es la **propiedad** que lo sostiene.
+  - **Y lo que hizo durar aquel rojo cinco días vale más que el fallo**: estaba fuera de la
+    zona de quien miraba la suite y las dos partes lo dimos por ajeno. *Un fallo persistente
+    fuera de tu zona se convierte en ruido de fondo, y a partir de ahí ya no informa de
+    nada* — un guardia con falsos positivos a escala de suite entera.
+
 - **LOS PROYECTOS SE MANTIENEN: renombrar, llevarse el registro y borrar (2026-09-02)**,
   errata nº 64 (`store.ProjectStore.rename` / `.export`, `presentation.project_delete_plan`,
   `_gestionar_proyectos` en la página). La capa de persistencia estaba entera y **no se

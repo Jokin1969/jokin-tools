@@ -192,6 +192,23 @@ npm run check:tildes      # el castellano de los mensajes que ve el usuario
 npm run test:shmir        # tests de shmir-design (sin dependencias externas)
 ```
 
+`npm test` incluye `test/calendario.test.js`, que **vuelve a correr la suite entera con el
+reloj 400 días por delante** (cruza día, mes y año, y cae en otro día de la semana). Existe
+porque una prueba del overview de Asignación **se puso roja sola el 1 de septiembre de
+2026**: su valor esperado era cierto mientras «el mes en curso» fuese el mes que tenía
+escrito. Nadie la rompió — caducó. Si una prueba nueva depende del calendario, falla hoy
+aquí en vez de dentro de un año en la máquina de otro. Un test que necesite tiempo lo
+**recibe como parámetro**; si el código bajo prueba mira el reloj por dentro, la entrada y
+el valor esperado salen **del mismo reloj**, nunca una escrita y el otro calculado. Está
+en `npm test` y no en un comando aparte a propósito: una comprobación que hay que
+acordarse de pedir es una comprobación que nadie pide. Ver el principio nº 48 y la errata
+nº 127 en `apps/shmir-design/docs/`.
+
+Y lo que hizo que aquel rojo durase cinco días importa más que el fallo: estaba **fuera de
+la zona** de quien miraba la suite y se leyó como ruido de fondo. Una suite con un rojo
+permanente no dice «hay un fallo», dice «hay un rojo» — y a partir de ahí ningún rojo se
+atiende. **Un rojo ajeno se abre igual: o se arregla, o se dice de quién es.**
+
 `check:shmir` imprime además el **informe de alcanzabilidad**: qué función pública de
 `apps/shmir-design/` no tiene ningún llamador fuera de su propio módulo y de sus tests.
 No es un fallo automático —hay casos legítimos— pero aparecer ahí obliga a decidir: o se

@@ -2455,3 +2455,87 @@ Lo cazó un test cuyas claves **se derivan del código de la caja** en vez de tr
 así que el día que la caja pida un campo más, la fila que no lo traiga hace fallar la
 suite. Poner la salida donde toca no basta: hay que comprobar que **desde ahí tiene con
 qué funcionar**.
+
+## 48 — El valor esperado de un test también caduca
+
+El principio nº 11 dice que cuando código y prosa discrepan, **la prosa es la que se ha
+quedado atrás**: se escribió cierta y el código se movió por debajo. Esto es lo mismo,
+sobre el sitio donde nadie lo esperaba — **el propio test** — y con una diferencia que lo
+hace peor: aquí **no se mueve el código, se mueve el mundo**.
+
+### EL CASO (2026-09-06, en el hub, no en shmiR)
+
+Una prueba de Asignación decía:
+
+```js
+test('overview lists the person with their plan and month status', async () => {
+  const { data } = await call('GET', '/overview');
+  const row = data.items.find(r => r.person.id === personId);
+  assert.equal(row.has_month_period, true);
+});
+```
+
+El endpoint mide `has_month_period` contra `thisMonth()`, **el mes en curso**. Los
+periodos del bloque se creaban en `'2026-08'`, escrito. La prueba era **correcta** — pasó
+en verde durante todo agosto de 2026 — y **se puso roja sola el 1 de septiembre**. Nadie
+tocó nada. No había un valor esperado sacado del código: había un valor esperado sacado
+**del calendario del día en que se escribió**.
+
+### La regla
+
+**Un test cuyo valor esperado depende de CUÁNDO se corre no está comprobando lo que dice
+comprobar: está comprobando eso Y la fecha.** Así que:
+
+- lo que necesite tiempo lo **recibe como parámetro**, no lo lee del reloj;
+- lo que no lo pueda recibir —porque el código bajo prueba mira el reloj por dentro—
+  **deriva las dos mitades del mismo reloj**: la entrada y el esperado, nunca una escrita
+  y la otra calculada;
+- y lo que mide algo *relativo a hoy* lo dice **relativo a hoy** (`isoDaysAgo(10)`), no
+  con la fecha de hoy escrita.
+
+### Lo que lo hizo durar cinco días, que es lo que hay que retener
+
+El fallo estaba **fuera de la zona de quien miraba la suite**, y las dos partes lo dimos
+por ajeno sin mirarlo. Con las palabras del responsable del proyecto:
+
+> *«Un fallo persistente fuera de tu zona se convierte en ruido de fondo, y a partir de
+> ahí ya no informa de nada. Eso es lo mismo que un guardia con falsos positivos, en la
+> escala de la suite entera.»*
+
+Es el principio nº 43 subido un nivel: allí era **un guardia** el que dejaba de medir lo
+que su nombre promete; aquí es **la suite entera**. Una suite con un rojo permanente no
+dice «hay un fallo»: dice «hay un rojo», que es otra cosa y no obliga a nada. **El coste
+de un rojo que no se atiende no es el fallo que tapa: es que a partir de él ningún rojo
+se atiende.**
+
+### Y la contramedida NO es mover el mes: es que un cambio de criterio se DECLARE
+
+Poner el periodo en el mes en curso arregla el síntoma y deja el agujero: si mañana el
+endpoint midiera contra otra cosa —el último periodo, el mes de la ficha—, la prueba
+volvería a pasar **sin comprobar nada**. Por eso el arreglo añade una línea más:
+
+```js
+assert.equal(data.month, mesEnCurso, 'el overview informa del mes que mide');
+```
+
+**Lo que ata la prueba al criterio es esa segunda línea, no la primera.** Con ella, un
+cambio de criterio sale como un fallo que dice cuál es; sin ella, saldría como un verde.
+
+### La comprobación, que es un experimento y no una lectura
+
+`test/calendario.test.js` **vuelve a correr la suite entera con el reloj 400 días por
+delante** — 400 porque cruza día, mes y año de una vez, y además cae en otro día de la
+semana. Comprobado que **caza el caso original**: con la versión de la prueba anterior al
+arreglo, falla y **la nombra**.
+
+Va dentro de `npm test` y no en un comando aparte por lo de siempre: *una comprobación que
+hay que acordarse de pedir es una comprobación que nadie pide*. Y lleva su propio control
+adversario en dos mitades — que el reloj adelantado **adelante de verdad**, y que el hijo
+haya **corrido la suite** en vez de salir con 0 sin descubrir nada, que es como un
+experimento mal invocado se lee como un verde.
+
+En `apps/shmir-design/` la propiedad se sostiene por otro lado: el tiempo **entra por
+parámetro** (`date=`, `generated=`) y sólo hay un sitio que mire el reloj,
+`presentation.today_text()`. `tests/test_el_TIEMPO_llega_por_PARAMETRO.py` es lo que
+mantiene que siga siendo uno. Medido el 2026-09-06: las 4796 pruebas pasan con el reloj
+adelantado 40, 400 y 4000 días.

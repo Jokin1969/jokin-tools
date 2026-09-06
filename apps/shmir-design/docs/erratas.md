@@ -6172,3 +6172,62 @@ sobre el arreglo de la nº 125.** Allí quedó escrito que *«separar la medida 
 criterio de lectura sigue siendo uno»* — y al separar el **valor esperado** por hebra dejé
 sin separar el **criterio de la clase**. La lección no se aprendió del todo la primera vez:
 se aplicó al eje que el reporte señalaba y no al eje que la frase describe.
+
+## 127 — Una prueba del hub se puso roja sola al cambiar de mes, y cinco días nadie la miró
+
+**Encontrada el 2026-09-06**, al correr `npm test` para poder fusionar. No la encontró
+nadie mirándola: llevaba **cinco días en rojo**.
+
+`GET /asignacion/api/overview` mide `has_month_period` contra `thisMonth()` — el **mes en
+curso**. La prueba `overview lists the person with their plan and month status` creaba sus
+periodos en `'2026-08'`, escrito, como todo su bloque, y afirmaba `has_month_period ===
+true`. Cierto durante agosto de 2026. **Falso desde el día 1 de septiembre**, sin que nadie
+tocara una línea.
+
+No es un valor esperado sacado del código: es un valor esperado sacado **del calendario
+del día en que se escribió**. Principio nº 11 —la prosa se queda atrás— aplicado al test,
+con el agravante de que aquí no se movió el código: se movió el mundo. Queda como
+**principio nº 48**.
+
+### Lo que lo hizo durar, que es lo peor de la errata
+
+Está **fuera de la zona de shmiR**, y las dos partes lo dimos por ajeno sin abrirlo. Con
+las palabras del responsable del proyecto:
+
+> *«Un fallo persistente fuera de tu zona se convierte en ruido de fondo, y a partir de ahí
+> ya no informa de nada. Eso es lo mismo que un guardia con falsos positivos, en la escala
+> de la suite entera.»*
+
+Una suite con un rojo permanente no dice «hay un fallo»: dice «hay un rojo». El coste no
+es el fallo que tapa — es que a partir de él ningún rojo se atiende.
+
+### El arreglo tiene DOS mitades, y la segunda es la que vale
+
+Mover el periodo al mes en curso arregla el síntoma:
+
+```js
+const mesEnCurso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+asigDb.getOrCreatePeriod(personId, mesEnCurso);
+```
+
+…y deja el agujero abierto: si mañana el endpoint midiera contra otra cosa —el último
+periodo, el mes de la ficha—, la prueba volvería a pasar **sin comprobar nada**. Lo que la
+ata al criterio es la línea de al lado:
+
+```js
+assert.equal(data.month, mesEnCurso, 'el overview informa del mes que mide');
+```
+
+Con ella, un cambio de criterio **se declara** como un fallo que dice cuál es. Sin ella,
+saldría como un verde.
+
+### Y el barrido, que es un experimento
+
+`test/calendario.test.js` vuelve a correr la suite del hub **con el reloj 400 días por
+delante**, dentro de `npm test`. Comprobado que **caza el caso original**: con la versión
+anterior al arreglo falla y nombra la prueba. Con el arreglo, las 345 pasan a +400 días.
+
+La suite de `apps/shmir-design/` se barrió igual, a mano y a +40, +400 y +4000 días: las
+**4796 pasan**. Lo que lo sostiene es que aquí el tiempo **entra por parámetro** y sólo un
+sitio mira el reloj (`presentation.today_text()`), y eso lo mantiene ahora
+`tests/test_el_TIEMPO_llega_por_PARAMETRO.py`.
