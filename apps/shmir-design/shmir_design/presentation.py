@@ -4900,6 +4900,18 @@ def splice_executor_text():
     return f"{ejecutor.name}: {ejecutor.why}"
 
 
+def splice_edge_note(raw, *, constructions) -> str | None:
+    """Qué filas del resultado NO entraron por el borde de la conversión, o `None`.
+
+    La página la PINTA; no decide nada (regla 6). Existe porque saltarse filas en
+    silencio es peor que rechazar el fichero: quien lo sube tiene que saber que su
+    resultado no entró entero, aunque lo que se quedara fuera no apunte a ningún sitio.
+    """
+    from .spliceai import edge_note
+
+    return edge_note(raw, constructions=constructions)
+
+
 def splice_scan_from_result(raw, *, constructions):
     """Del TSV crudo al analisis. La pagina no parsea ni valida: llama aqui."""
     from .spliceai import scan_from_result

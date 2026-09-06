@@ -6483,3 +6483,70 @@ La causa. Si vuelve a pasar, lo que la distinguiría es **si el navegador llega 
 URL de medios**: con la pestaña de red abierta, una petición a `/shmir/media/…` que no
 responde señala al transporte; ninguna petición señala al cliente. Hasta entonces, el
 bloque copiable hace que la respuesta a esa pregunta no bloquee ningún frente.
+
+## 131 — El resultado se rechazaba por una fila del borde, y el mensaje mandaba al sitio equivocado
+
+**Reportada el 2026-09-06.** Un TSV de SpliceAI con las 22 construcciones correctas —md5
+buenos, casete bueno— se rechazó entero con:
+
+```
+RECHAZADO — fila 2: la posición -1 se sale de la construcción
+mvm_actual__3utr959 (5496 nt); se aborta.
+```
+
+Su autor concluyó, razonablemente, que el parser leía **la cabecera de columnas como
+dato**: en su fichero la línea 2 ES la cabecera, porque la 1 es `# convencion: spliceai`.
+
+**No era eso, y que lo pareciera es el fallo.** Reproducido: la cabecera se salta bien.
+Lo que había eran **tres** cosas, ninguna visible en el mensaje.
+
+### 1. `fila 2` no era la línea 2 del fichero
+
+El número contaba filas **ya filtradas** —sin comentarios—, así que con una línea `#`
+delante los dos números se separan: la «fila 2» era la **línea 3**. Es la errata nº 121
+en otro espacio: *un número impreso sin decir de qué espacio es*. Y aquí el único espacio
+que le sirve a quien abre el fichero es la línea del fichero.
+
+### 2. El −1 salía de la CONVERSIÓN, no del fichero
+
+La fila declara `posicion=1`, `tipo=aceptor`. En la convención de SpliceAI el aceptor
+apunta dos bases más allá, así que traerla a la nuestra es `1 − 2 = −1`. **El fichero no
+traía ningún −1**, y el mensaje lo enseñaba como si sí. Ahora dice las dos posiciones y de
+dónde sale la resta:
+
+> línea 3: la posición 99999 declarada en la convención 'spliceai' para un aceptor se
+> convierte a 99997 en la nuestra (99999 +2 invertido), y la construcción tiene 5496 nt.
+
+Y un campo no numérico **nombra el texto y la columna** — antes pegaba el
+`invalid literal for int()` de Python y decía «posición o puntuación», sin decir cuál ni
+qué ponía:
+
+> línea 3: en la columna de posición hay 'posicion', que no es un número entero.
+
+### 3. Y lo que bloqueaba de verdad: una fila del borde tumbaba el fichero entero
+
+**SpliceAI puntúa TODAS las posiciones**, también la 1 y la 2. Una puntuación de
+`1,57e-07` en la posición 1 es ruido legítimo — pero al convertirla cae fuera de la
+construcción. Abortar 22 construcciones buenas por ella no defiende nada.
+
+Ahora se distingue: una posición fuera de rango **como viene declarada** sigue abortando
+—es la señal de un fichero de otra corrida, que es lo que el guardia existe para cazar— y
+una que sólo se sale **después** de convertirla, y como mucho por el desplazamiento de la
+convención, se salta. `EDGE_TOLERANCE` se **deriva** de `TO_SPLICEAI`: un `2` escrito
+sería la misma cifra en dos sitios, y el día que discreparan toleraríamos un fichero
+equivocado.
+
+**Y lo saltado se dice**, con su línea y su posición. Saltarse filas en silencio sería
+peor que rechazar el fichero: quien lo sube tiene que saber que su resultado no entró
+entero. Si NINGUNA fila deja sitio, se aborta — eso ya no es un borde, es otro fichero.
+
+### La lección, que es sobre el mensaje y no sobre el parser
+
+El diagnóstico que hizo su autor era el único que el mensaje permitía. **Un error que
+describe el síntoma en los términos del contenido —«la posición −1 se sale»— manda a
+mirar el contenido**, y aquí lo que había que mirar era la conversión. Es la misma
+familia que el 503 de `/shmir` que mandaba a comprobar la instalación de Streamlit: un
+diagnóstico equivocado cuesta más que ninguno.
+
+La regla operativa que queda: **cuando un mensaje nombra un valor que el fichero no
+contiene, tiene que decir de dónde salió ese valor.**

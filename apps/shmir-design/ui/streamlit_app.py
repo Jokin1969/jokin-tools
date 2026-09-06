@@ -134,6 +134,7 @@ from shmir_design.presentation import (  # noqa: E402
     splice_modulation_rows,
     splice_query_text,
     splice_result_rows,
+    splice_edge_note,
     splice_scan_from_result,
     splice_warning_rows,
     WHY_NO_GLOBAL_TOGGLE,
@@ -2860,14 +2861,20 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
     )
     if subido is None:
         return
+    crudo = _read_upload(subido)
     try:
-        scan = splice_scan_from_result(
-            _read_upload(subido), constructions=construcciones
-        )
+        scan = splice_scan_from_result(crudo, constructions=construcciones)
+        # LO QUE NO ENTRÓ, DICHO. SpliceAI puntúa también las posiciones del borde y al
+        # traerlas a nuestra convención caen fuera de la construcción. No son sitios de
+        # ella, así que no se pierde ninguna medida — pero saltárselas en silencio sería
+        # peor que rechazar el fichero (errata nº 131).
+        aviso_borde = splice_edge_note(crudo, constructions=construcciones)
     except (ShmirDesignError, ValueError) as exc:
         # rule2-ok: el resultado se RECHAZA entero y se dice por qué.
         st.error(f"**RECHAZADO** — {exc}")
         return
+    if aviso_borde:
+        st.warning(aviso_borde)
 
     for bloque in splice_highlights(scan).values():
         if bloque["activo"]:

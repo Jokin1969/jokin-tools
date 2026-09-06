@@ -311,3 +311,121 @@ test('y el cuerpo de una descarga troceada llega ENTERO', async () => {
   // quitarle a Node su propio troceado, que es peor que el fallo. Lo que se reenvía o
   // no lo fija el test de `forwardableHeaders`.
 });
+
+// ─────────────── un fallo en el flujo de RESPUESTA no puede callarse ───────────────
+//
+// El hueco: `upstream.on('error')` cubre el fallo al PEDIR —el upstream no está, la
+// conexión no se abre— y contesta 502 con el motivo. Pero el flujo de RESPUESTA
+// (`upRes`) no tenía manejador ninguno, así que un fallo DESPUÉS de las cabeceras
+// —Streamlit que corta, la conexión que se rompe a mitad— no lo recogía nadie.
+//
+// Por qué importa, con las palabras de quien lo sufrió: «hoy un error en el flujo de
+// respuesta se traga y deja 0 bytes, que es indistinguible de una descarga vacía
+// legítima. Llevo días sin poder distinguirlos». NO es una causa comprobada del fallo
+// de producción —no se ha reproducido, ver la errata nº 130— pero convierte un
+// silencio en un mensaje, y eso ya vale.
+
+test('si el upstream corta ANTES de las cabeceras, 502 con el motivo', async () => {
+  const { server, port } = await upstream((req, res) => {
+    // Se destruye el socket sin escribir nada: el `error` llega a la PETICIÓN.
+    res.socket.destroy();
+  });
+
+  const respuesta = await new Promise((resolve, reject) => {
+    const frente = http.createServer((req, res) => proxyRequest(req, res, { port }));
+    frente.listen(0, '127.0.0.1', () => {
+      http.get({ port: frente.address().port, path: '/shmir/media/x.bin' }, r => {
+        let cuerpo = '';
+        r.on('data', d => { cuerpo += d; });
+        r.on('end', () => { frente.close(); resolve({ status: r.statusCode, cuerpo }); });
+      }).on('error', reject);
+    });
+  });
+
+  server.close();
+  assert.equal(respuesta.status, 502);
+  assert.match(respuesta.cuerpo, /shmir-design/);
+});
+
+test('y si corta DESPUÉS, la descarga se rompe en vez de llegar a cero y callando',
+  async () => {
+    // El caso que interesa: cabeceras con `content-length` de 5.000 y el upstream se
+    // muere tras 10 bytes. Sin manejador, el cliente recibe un fichero corto —o vacío—
+    // y ningún error: exactamente lo que no se puede distinguir de una descarga
+    // legítimamente vacía.
+    const { server, port } = await upstream((req, res) => {
+      res.writeHead(200, {
+        'content-type': 'application/octet-stream',
+        'content-length': '5000',
+      });
+      res.write('1234567890');
+      setTimeout(() => res.socket.destroy(), 20);
+    });
+
+    const resultado = await new Promise((resolve, reject) => {
+      const frente = http.createServer((req, res) => proxyRequest(req, res, { port }));
+      frente.listen(0, '127.0.0.1', () => {
+        const peticion = http.get(
+          { port: frente.address().port, path: '/shmir/media/x.bin' },
+          r => {
+            let cuerpo = '';
+            r.on('data', d => { cuerpo += d; });
+            r.on('end', () => {
+              frente.close();
+              resolve({ acabo_limpio: true, cuerpo, status: r.statusCode });
+            });
+            r.on('error', err => {
+              frente.close();
+              resolve({ acabo_limpio: false, error: err.code || err.message, cuerpo });
+            });
+          }
+        );
+        peticion.on('error', err => {
+          frente.close();
+          resolve({ acabo_limpio: false, error: err.code || err.message });
+        });
+      });
+    });
+
+    server.close();
+    // Lo que NO puede pasar: que el cliente crea que la descarga terminó bien. Un
+    // `content-length` de 5.000 con 10 bytes dentro y un final limpio es un fichero
+    // truncado que nadie distingue de uno vacío de verdad.
+    assert.equal(
+      resultado.acabo_limpio, false,
+      `la descarga terminó como si estuviera completa con ${(resultado.cuerpo || '').length} `
+      + 'de 5000 bytes: un truncamiento que se lee como una descarga hecha'
+    );
+  });
+
+test('y el fallo de la respuesta NO tumba el proceso del hub', async () => {
+  // Sin manejador, un `error` en `upRes` es un evento de error sin escuchador: en Node
+  // eso es una excepción no capturada y se lleva por delante el hub ENTERO — el resto
+  // de las apps con él. Que el arreglo evite eso es la mitad que no se ve, y aquí se
+  // comprueba de la única forma que significa algo: si pasara, este proceso moriría y
+  // el test no llegaría a su aserción.
+  const { server, port } = await upstream((req, res) => {
+    res.writeHead(200, { 'content-length': '5000' });
+    res.write('123');
+    setTimeout(() => res.socket.destroy(), 20);
+  });
+
+  const frente = http.createServer((req, res) => proxyRequest(req, res, { port }));
+  await new Promise(r => frente.listen(0, '127.0.0.1', r));
+
+  await new Promise(resolve => {
+    const peticion = http.get(
+      { port: frente.address().port, path: '/shmir/media/x.bin' },
+      r => {
+        r.on('data', () => {});
+        r.on('end', resolve);
+        r.on('error', () => resolve());
+      }
+    );
+    peticion.on('error', () => resolve());
+  });
+
+  frente.close();
+  server.close();
+  assert.ok(true, 'el proceso sigue en pie después del fallo del flujo de respuesta');
+});

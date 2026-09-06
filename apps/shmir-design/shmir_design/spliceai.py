@@ -145,6 +145,18 @@ CONVENTIONS = (OUR_CONVENTION, SPLICEAI_CONVENTION)
 #: supuesto: ver el bloque de arriba.
 TO_SPLICEAI = {"donante": -1, "aceptor": +2}
 
+#: CUANTO puede salirse una posicion por el borde AL CONVERTIRLA, y ni un nucleotido mas.
+#:
+#: SpliceAI puntua TODAS las posiciones de la secuencia, tambien la 1 y la 2. Traerlas a
+#: nuestra convencion les resta el desplazamiento del tipo, asi que un aceptor en la
+#: posicion 1 cae en la -1: una fila legitima —ruido, 1,57e-07— que no apunta a ningun
+#: sitio de ESTA construccion. Abortar el fichero entero por ella no defiende nada.
+#:
+#: Se DERIVA de `TO_SPLICEAI` y no se teclea: si mañana cambia un desplazamiento, la
+#: tolerancia cambia con el. Un `2` escrito aqui seria la misma cifra en dos sitios
+#: (principio nº 13), y el dia que discreparan tolerariamos un fichero equivocado.
+EDGE_TOLERANCE = max(abs(v) for v in TO_SPLICEAI.values())
+
 #: La línea que un resultado puede traer para declarar en qué convención vienen sus
 #: posiciones. Va como comentario para que el fichero siga siendo un TSV de cinco
 #: columnas.
@@ -843,7 +855,16 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
     """
     convencion = declared_convention(text)
     por_nombre = {c.name: c for c in constructions}
-    filas = [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
+    # CADA FILA CON SU LINEA DEL FICHERO. Antes se numeraban las filas YA FILTRADAS, asi
+    # que con una linea `# convencion: …` delante los dos numeros se separaban y el
+    # mensaje mandaba a mirar la linea de al lado. Es la errata nº 121 en otro espacio:
+    # un numero impreso sin decir de que espacio es. Aqui el espacio que le sirve a quien
+    # abre el fichero es UNO: la linea del fichero.
+    numeradas = [
+        (n, l) for n, l in enumerate(text.splitlines(), start=1)
+        if l.strip() and not l.startswith("#")
+    ]
+    filas = [l for _, l in numeradas]
     if not filas:
         raise ShmirDesignError(
             "El resultado está vacío del todo: ni cabecera. Se aborta."
@@ -862,18 +883,19 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
         )
 
     sitios: list[SiteScore] = []
-    for numero, fila in enumerate(filas[1:], start=2):
+    saltadas: list[tuple[int, int, str]] = []
+    for numero, fila in numeradas[1:]:
         campos = fila.split("\t")
         if len(campos) != len(RESULT_COLUMNS):
             raise ShmirDesignError(
-                f"fila {numero}: tiene {len(campos)} campo(s) y la cabecera declara "
+                f"línea {numero}: tiene {len(campos)} campo(s) y la cabecera declara "
                 f"{len(RESULT_COLUMNS)}; se aborta en vez de saltarse la fila."
             )
         nombre, md5, posicion, tipo, puntuacion = (c.strip() for c in campos)
         construccion = por_nombre.get(nombre)
         if construccion is None:
             raise ShmirDesignError(
-                f"fila {numero}: la construcción {nombre!r} no es ninguna de las que "
+                f"línea {numero}: la construcción {nombre!r} no es ninguna de las que "
                 f"genero esta corrida ({', '.join(sorted(por_nombre))}). Se rechaza el "
                 f"fichero entero: es el fallo del CSV de miRarchitect —un fichero de "
                 f"OTRA CORRIDA pegado por error, que entra, cuadra de forma y produce un "
@@ -881,32 +903,96 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
             )
         if md5 != construccion.md5:
             raise ShmirDesignError(
-                f"fila {numero}: {nombre} declara md5 {md5!r} y la construcción que se "
+                f"línea {numero}: {nombre} declara md5 {md5!r} y la construcción que se "
                 f"entrego tiene {construccion.md5!r}. Se rechaza: un resultado de OTRA "
                 f"CORRIDA no puede entrar, aunque encaje de forma."
             )
         if tipo not in SITE_KINDS:
             raise ShmirDesignError(
-                f"fila {numero}: tipo {tipo!r} desconocido; los que hay son "
+                f"línea {numero}: tipo {tipo!r} desconocido; los que hay son "
                 f"{SITE_KINDS}. Se aborta."
             )
+        # QUE TEXTO habia DONDE se esperaba un numero. El mensaje anterior pegaba el
+        # `invalid literal for int()` de Python y decia «posición o puntuación», sin
+        # decir CUAL de las dos ni que ponia. Con el texto delante se ve en un segundo.
         try:
-            entero = int(posicion)
+            declarada = int(posicion)
+        except ValueError as exc:
+            raise ShmirDesignError(
+                f"línea {numero}: en la columna de posición hay {posicion!r}, que no es "
+                f"un número entero. Se aborta en vez de suponer cual era."
+            ) from exc
+        try:
             valor = float(puntuacion)
         except ValueError as exc:
             raise ShmirDesignError(
-                f"fila {numero}: posición o puntuación no numericas ({exc}); se aborta."
+                f"línea {numero}: en la columna de puntuación hay {puntuacion!r}, que no "
+                f"es un número. Se aborta en vez de suponer cual era."
             ) from exc
-        entero = to_our_frame(entero, tipo, convention=convencion)
-        if not 1 <= entero <= len(construccion.sequence):
+
+        entero = to_our_frame(declarada, tipo, convention=convencion)
+        tope = len(construccion.sequence)
+        if not 1 <= entero <= tope:
+            # ¿Se sale porque el fichero es OTRO, o porque la conversion la empuja fuera
+            # por el borde? Son cosas distintas y hasta hoy daban el mismo aborto.
+            del_borde = (
+                convencion != OUR_CONVENTION
+                and 1 <= declarada <= tope
+                and min(abs(entero - 1), abs(entero - tope)) <= EDGE_TOLERANCE
+            )
+            if del_borde:
+                saltadas.append((numero, declarada, tipo))
+                continue
             raise ShmirDesignError(
-                f"fila {numero}: la posición {entero} se sale de la construcción "
-                f"{nombre} ({len(construccion.sequence)} nt); se aborta."
+                f"línea {numero}: la posición {declarada} declarada en la convención "
+                f"{convencion!r} para un {tipo} se convierte a {entero} en la nuestra "
+                f"({declarada} {TO_SPLICEAI.get(tipo, 0):+d} invertido), y la "
+                f"construcción {nombre} tiene {tope} nt. Se aborta: una posición que no "
+                f"existe en esta construcción es la señal de un resultado de OTRA "
+                f"corrida, que es lo que este fichero no puede traer."
             )
         sitios.append(
             SiteScore(construction=nombre, position=entero, kind=tipo, score=valor)
         )
+    if not sitios:
+        raise ShmirDesignError(
+            f"Ninguna de las {len(numeradas) - 1} fila(s) del resultado ha dejado un "
+            f"sitio: todas caian fuera de la construcción por el borde de la conversión. "
+            f"Eso no es un resultado vacío, es un fichero que no encaja con lo que se "
+            f"entregó. Se aborta."
+        )
+    _ULTIMAS_SALTADAS.clear()
+    _ULTIMAS_SALTADAS.extend(saltadas)
     return tuple(sitios)
+
+
+#: Las filas del ultimo `parse_result` que cayeron fuera POR EL BORDE de la conversion.
+#:
+#: Saltarse filas EN SILENCIO seria peor que abortar: quien sube el fichero tiene que
+#: saber que su resultado no entro entero. Van aparte y no dentro de `SiteScore` porque
+#: no son sitios — son filas que no apuntan a ningun sitio de esta construccion.
+_ULTIMAS_SALTADAS: list[tuple[int, int, str]] = []
+
+
+def edge_note(text: str, *, constructions) -> str | None:
+    """Qué filas se saltaron por el borde de la conversión, o `None` si ninguna.
+
+    Se pide con el MISMO texto y las MISMAS construcciones que `parse_result`: así no
+    hay forma de enseñar un aviso que no corresponda al fichero que se leyó.
+    """
+    parse_result(text, constructions=constructions)
+    if not _ULTIMAS_SALTADAS:
+        return None
+    detalle = ", ".join(
+        f"línea {n} (posición {p}, {t})" for n, p, t in _ULTIMAS_SALTADAS
+    )
+    return (
+        f"{len(_ULTIMAS_SALTADAS)} fila(s) del resultado NO han entrado: {detalle}. "
+        f"SpliceAI puntúa todas las posiciones, también las del borde, y al traerlas a "
+        f"nuestra convención caen fuera de la construcción. No apuntan a ningún sitio de "
+        f"ella, así que no se pierde ninguna medida — pero se dice, porque saltarse "
+        f"filas en silencio es peor que rechazar el fichero."
+    )
 
 
 # ─────────────────────────── el analisis ───────────────────────────
