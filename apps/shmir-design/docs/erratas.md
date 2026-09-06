@@ -5994,3 +5994,82 @@ ficha lo dice con esas palabras en vez de dar un número mudo.
 comprobó midiendo que el golden del 3'UTR pelado **no cambia ni un byte** — porque ahí el
 desfase es 0 y las dos lecturas coinciden —, que es lo que demuestra que el arreglo es
 consistente y no un ajuste para que cuadre la variante nueva.
+
+---
+
+## 123 — El test comprobaba la clave que YO había roto, no las que la caja consume
+
+**Reportado (2026-09-06)** con la traza entera y con la cita de lo que yo mismo había
+escrito el día anterior:
+
+> *«Es exactamente lo que dijiste que habías evitado: "la fila del modal no traía
+> `especie`, así que la caja se habría pintado perfectamente y habría reventado al
+> pulsar". Comprobaste `especie` y no `etiqueta` — la contramedida se escribió para la
+> clave concreta que habías encontrado, no para el conjunto de claves que la caja
+> necesita.»*
+
+`KeyError: 'etiqueta'`, y **al PINTARSE**, no al pulsar: el modal entero se cae. **Es peor
+que antes del arreglo** — el `PARA` anterior al menos decía a dónde ir.
+
+### Los dos fallos, y ninguno es el que yo creía haber cubierto
+
+**1. `procedencia` eran DOS COSAS con el mismo nombre** (principio nº 27, literal):
+
+| fila | qué es | forma |
+|---|---|---|
+| gestor (`refinement_panel`) | los campos **que hay que pedir** | `clave` / `etiqueta` / `ayuda` |
+| modal (`deposit_file`) | los campos **ya declarados**, para enseñarlos | `campo` / `valor` |
+
+La misma caja sobre las dos filas no podía funcionar, y el nombre compartido es lo que
+hizo que pareciera que sí. Se **renombra**, no se amplía: `procedencia_pedida` y
+`procedencia_declarada`, y la fila del modal trae ahora las dos —lo pedido sale de
+`gestor._procedencia_pedida`, la misma función que usa el gestor—.
+
+**2. El test miraba UN SOLO NIVEL.** Derivaba las claves del cuerpo de
+`_declarar_procedencia` y ahí sólo aparece `especie`; `etiqueta` la lee
+`_casillas_de_procedencia`, a la que la caja **le pasa la fila**. Ahora el barrido es
+**transitivo** —el cuerpo de la caja más el de todo ayudante que reciba `fila`— y mira
+también las claves de **cada elemento** de las listas que recorre, que es donde vivía
+`campo["etiqueta"]`.
+
+**3. Y el fixture no reproducía el estado del fallo**: probaba sobre `data/reference/`,
+donde el transcriptoma **no está**, así que `falta_procedencia` salía vacío y la caja ni
+se pintaba. El test pasaba sin ejecutar la rama que revienta (principio nº 18).
+
+### La lección, y es del que lo reportó
+
+**Un guardia escrito sobre el caso que ya se conoce no cubre el conjunto, y no puede
+delatarse a sí mismo: el caso conocido siempre pasa.** Es el principio nº 34 —un guardia
+se calibra midiendo— por el lado que no se ve: allí el riesgo era un criterio demasiado
+ancho que se acaba apagando; aquí, uno tan estrecho que sólo reconoce el ejemplar que lo
+motivó. La calibración se mide contra **el conjunto que el consumidor necesita**, derivado
+de él, no contra el fallo que se acaba de arreglar.
+
+---
+
+## 124 — Dos definiciones de «se ha diseñado», y el paso 5 no se pintaba nunca con un proyecto retomado
+
+**Reportado en la misma tanda**: *«el paso 5 sigo sin verlo»*, con la caja del modal ya
+presente — o sea, con el despliegue nuevo y descartada la hipótesis del despliegue viejo.
+
+En `ui/streamlit_app.py` había **dos**:
+
+```python
+línea 1871:  designed = st.session_state.get("accion") == "diseñar"
+línea 1987:  accion   = "diseñar" if retomado is not None else st.session_state.get("accion")
+```
+
+La segunda decide si se corre el diseño y se pintan los resultados y los cuatro modales, y
+**sabe** que retomar un proyecto es ver su resultado. La primera decide si el paso 5 es
+visible, y **no lo sabe**. Con un proyecto retomado: modales sí, «Ficheros de referencia»
+no. Y `refinement_panel` estaba perfecto — nunca llegaba a llamarse.
+
+**Es `resolve.py` otra vez**: la misma pregunta contestada en dos sitios, uno se entera de
+un camino nuevo y el otro no. Lo que lo hace caro aquí es CUÁNDO se cobra: el paso 5 es la
+**única vía alternativa** cuando un modal falla, así que los dos fallos se sumaron —el
+modal reventaba y la alternativa no existía—.
+
+`presentation.design_action(stored, resumed=…)` lo resuelve en un sitio, y las dos
+acciones dejan de ser literales sueltos en la página (`ACCION_DISENAR`, `ACCION_ESTIMAR`):
+la comparación a mano es lo que permitió que hubiera dos definiciones. Con test de que la
+página no vuelve a comparar la acción por su cuenta.

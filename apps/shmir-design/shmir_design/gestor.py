@@ -381,7 +381,12 @@ def manager_rows(species: str, *, directory) -> list[dict]:
                     # Que casillas de PROCEDENCIA hay que rellenar para que este fichero
                     # pueda entrar. Sale de `deposito.PROVENANCE_REQUIRED`, que es quien
                     # las exige: la pagina las pinta y no decide cuales son (regla 6).
-                    "procedencia": _procedencia_pedida(fila.role),
+                    # `procedencia_PEDIDA`: las casillas que hay que RELLENAR.
+                    # NO se llama `procedencia` a secas desde la errata nº 123:
+                    # ese nombre lo usaba tambien la fila del modal para los
+                    # campos YA DECLARADOS —otra forma y otro significado— y la
+                    # misma caja sobre las dos filas reventaba con un KeyError.
+                    "procedencia_pedida": _procedencia_pedida(fila.role),
                     # Y CUALES LE FALTAN A UNO QUE YA ESTA. No es lo mismo que la lista
                     # de arriba: aquella dice que se le pide a este rol, esta dice que
                     # le falta a ESTE fichero. Un fichero que entro antes de que su

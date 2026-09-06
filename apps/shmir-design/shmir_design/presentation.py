@@ -2790,6 +2790,35 @@ BUILD_WHY_ALWAYS = (
 )
 
 
+#: LAS DOS ACCIONES, en un sitio. Estaban como literales sueltos en la página —el que se
+#: escribe en `session_state`, el que se compara para pintar los pasos y el que decide si
+#: se estima—, y una comparación a mano es lo que permitió que hubiera dos definiciones
+#: de «se ha diseñado» (errata nº 124).
+ACCION_DISENAR = "diseñar"
+ACCION_ESTIMAR = "estimar"
+
+
+def design_action(stored, *, resumed: bool):
+    """Qué se va a hacer en esta corrida: `diseñar`, `estimar` o nada.
+
+    **UNA sola definición**, y la falta de ella costó el paso 5 entero. Había dos: la que
+    decide si se corre el diseño sabía que RETOMAR UN PROYECTO es ver su resultado —o sea,
+    haber diseñado— y la que decide si el paso 5 es visible preguntaba sólo por el botón.
+    Con un proyecto retomado, la primera decía «diseñar» y la segunda que no: se pintaban
+    los cuatro modales y **no se pintaba la sección de ficheros de referencia**, que es la
+    única vía alternativa cuando un modal falla.
+
+    Es `resolve.py` otra vez: la misma pregunta contestada en dos sitios, y uno se entera
+    de un camino nuevo y el otro no.
+
+    `stored` MANDA cuando lo hay: retomar no puede pisar una estimación que se acaba de
+    pedir. Sólo cuando no se ha pulsado nada, un proyecto retomado significa «diseñar».
+    """
+    if stored:
+        return stored
+    return ACCION_DISENAR if resumed else None
+
+
 def build_banner() -> dict[str, object]:
     """QUÉ VERSIÓN está sirviendo esta página. Arriba, sin abrir nada.
 
@@ -3467,11 +3496,19 @@ def deposit_file(role: str, *, species: str, directory) -> dict[str, object]:
     from .species import resolve  # noqa: PLC0415
 
     fichero = read_deposit(role, species=resolve(species), directory=directory)
-    procedencia = [
+    from .gestor import _procedencia_pedida  # noqa: PLC0415
+
+    # DOS COSAS DISTINTAS Y DOS NOMBRES. Lo DECLARADO —para enseñarlo— y lo PEDIDO —las
+    # casillas que hay que rellenar—. Compartían el nombre `procedencia` con formas
+    # incompatibles (`campo`/`valor` frente a `clave`/`etiqueta`/`ayuda`), así que la
+    # caja del gestor puesta sobre esta fila reventaba al PINTARSE (errata nº 123).
+    # Renombrar, no ampliar el significado: principio nº 27.
+    declarada = [
         {"campo": campo, "valor": valor}
         for campo, valor in fichero.provenance_fields().items()
         if str(valor).strip()
     ] if fichero.present else []
+    pedida = _procedencia_pedida(fichero.role)
     return {
         "rol": fichero.role,
         "nombre": fichero.filename,
@@ -3483,7 +3520,8 @@ def deposit_file(role: str, *, species: str, directory) -> dict[str, object]:
         "registrado": fichero.registered,
         "md5": fichero.md5,
         "tamano": fichero.size,
-        "procedencia": procedencia,
+        "procedencia_declarada": declarada,
+        "procedencia_pedida": pedida,
         "falta_procedencia": list(fichero.missing_provenance),
         # SOLO se ofrece subida si el fichero NO esta. Ofrecerla teniendolo dentro es lo
         # que hacia el modal de off-targets, y con ello volvia a pedir la procedencia.

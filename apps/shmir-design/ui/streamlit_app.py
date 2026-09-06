@@ -31,8 +31,11 @@ from shmir_design.offtarget import DEFAULTS as OFFTARGET_DEFAULTS  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
+    ACCION_DISENAR,
+    ACCION_ESTIMAR,
     BLAST_MODAL_NOTE,
     build_banner,
+    design_action,
     arms_rows,
     arms_warning,
     control_choices,
@@ -1178,7 +1181,7 @@ def _declarar_procedencia(fila, directorio) -> None:
     metadatos.
 
     La página no decide nada: `fila["falta_procedencia"]` dice qué falta,
-    `fila["procedencia"]` con qué texto se pide, y `presentation.declare_provenance`
+    `fila["procedencia_pedida"]` con qué texto se pide, y `presentation.declare_provenance`
     escribe — comprobando que el fichero de disco siga siendo el que su línea registra.
     """
     faltan = fila.get("falta_procedencia") or []
@@ -1290,7 +1293,7 @@ def _casillas_de_procedencia(fila, *, prefijo: str) -> dict[str, str]:
     de una corrida, asi que el modal que las usa las lee luego del manifiesto en vez de
     volver a preguntarlas.
     """
-    campos = fila.get("procedencia") or []
+    campos = fila.get("procedencia_pedida") or []
     if not campos:
         return {}
     st.caption(
@@ -1864,11 +1867,16 @@ def main() -> None:
     # cuales CAEN van en el paso 5, DESPUES del boton: pedirlos todos aqui hacia creer
     # que sin ellos no se puede empezar, y eso es falso — se puede diseñar hoy y refinar
     # mañana. Ver `presentation.WHY_TWO_MOMENTS`.
+    # LA ACCION SE RESUELVE UNA VEZ, aqui, y la usan los DOS sitios que dependian de
+    # ella. Habia dos definiciones: esta preguntaba solo por el boton y la de mas abajo
+    # sabia ademas que retomar un proyecto es ver su resultado. Con un proyecto retomado
+    # se pintaban los modales y NO se pintaba el paso 5 (errata nº 124).
+    accion = design_action(st.session_state.get("accion"), resumed=retomado is not None)
     pasos = steps_rows(
         species=nombre_modelo,
         sequence_loaded=secuencia_modelo is not None,
         directory=reference_dir(),
-        designed=st.session_state.get("accion") == "diseñar",
+        designed=accion == ACCION_DISENAR,
     )
     # EL PASO DE «FICHEROS DE REFERENCIA PARA DISEÑAR» YA NO ESTA AQUI, y no es una
     # supresion: es que su lista esta VACIA —para obtener candidatos no hace falta
@@ -1970,7 +1978,7 @@ def main() -> None:
         acciones = st.columns([2, 2, 3])
         with acciones[0]:
             if st.button(BUTTON_DESIGN, type="primary", width="stretch"):
-                st.session_state["accion"] = "diseñar"
+                st.session_state["accion"] = ACCION_DISENAR
         with acciones[1]:
             if st.button(
                 BUTTON_ESTIMATE,
@@ -1980,11 +1988,11 @@ def main() -> None:
                     "busca nada: sólo dice si esto son segundos o minutos."
                 ),
             ):
-                st.session_state["accion"] = "estimar"
+                st.session_state["accion"] = ACCION_ESTIMAR
 
     # RETOMAR ES VER EL RESULTADO. Pedir otra vez «Buscar candidatos» sobre un proyecto
     # que ya los tiene guardados es pedir que se repita lo que se acaba de recuperar.
-    accion = "diseñar" if retomado is not None else st.session_state.get("accion")
+    # Ya resuelta arriba, en UN solo sitio: ver `presentation.design_action`.
     if accion is None:
         st.info(
             "Todo listo. **Estimar coste** dice cuanto va a tardar sin diseñar nada; "
@@ -2024,7 +2032,7 @@ def main() -> None:
             for aviso in avisos:
                 st.warning(f"**{nombre}** — {aviso}")
 
-        if accion == "estimar":
+        if accion == ACCION_ESTIMAR:
             for nombre, (_, anat) in anatomias.items():
                 st.subheader(f"{nombre} — estimación")
                 st.code(
@@ -2261,7 +2269,7 @@ def _panel_deposito(tipo: str, nombre: str, *, clave: str) -> list[dict]:
         (st.warning if fila["avisa"] else (st.caption if fila["presente"] else st.info))(
             fila["texto"]
         )
-        for campo in fila["procedencia"]:
+        for campo in fila["procedencia_declarada"]:
             st.caption(f"· {campo['campo']}: {campo['valor']}")
         # LA SALIDA VA DONDE APARECE EL PROBLEMA. El modal aborta por los cuatro campos
         # y hasta hoy sólo decía dónde estaba la caja para declararlos — en el gestor,
