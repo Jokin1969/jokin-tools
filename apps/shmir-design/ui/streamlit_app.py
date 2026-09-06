@@ -134,6 +134,8 @@ from shmir_design.presentation import (  # noqa: E402
     splice_modulation_rows,
     splice_query_text,
     splice_result_rows,
+    GUARDADA_SI,
+    run_saved_state,
     splice_edge_note,
     splice_scan_from_result,
     splice_warning_rows,
@@ -2881,6 +2883,16 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         return
     if aviso_borde:
         st.warning(aviso_borde)
+
+    # ¿ESTÁ GUARDADA? ARRIBA, PEGADO AL RESULTADO. El análisis se pinta completo y
+    # convincente aquí, y el formulario que lo hace permanente está al final del modal,
+    # después de la última tabla: es fácil darlo por hecho, y la última vez costó una
+    # corrida de SpliceAI (errata nº 132). La decisión la toma `presentation`.
+    guardada = run_saved_state(
+        load_stores(proyecto) if proyecto is not None else None,
+        front="empalme_sitios", raw=crudo,
+    )
+    (st.success if guardada["estado"] == GUARDADA_SI else st.warning)(guardada["texto"])
 
     for bloque in splice_highlights(scan).values():
         if bloque["activo"]:

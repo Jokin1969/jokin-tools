@@ -2781,3 +2781,66 @@ Un desajuste invisible por construcción no se manifiesta como un error: se mani
 **un resultado coherente sobre la entrada equivocada**. Aquí, un FASTA con
 `estado=COMPLETO` montado sobre otro plásmido. La misma firma que el «Alu 0 %» y que el
 CSV de miRarchitect: nada falla, todo cuadra, y lo que sale contesta otra pregunta.
+
+## 53 — Una lista de exclusión declarada para un propósito acaba gobernando todos los que la consultan
+
+La formulación es del responsable del proyecto, sobre `FRONTS_WITHOUT_COLUMN`:
+
+> *«Una lista de excepciones declarada para un propósito se convierte en la condición de
+> todo lo que la consulta, y los usos posteriores heredan una decisión que no se tomó para
+> ellos. Y no da error porque cada uso es coherente con la lista.»*
+
+### EL CASO (2026-09-07)
+
+`FRONTS_WITHOUT_COLUMN` se escribió para **una** cosa, y su motivo era correcto y estaba
+bien redactado: *«`empalme_sitios` no tiene columna por candidato porque su unidad es el
+par candidato × intrón; una columna por candidato colapsaría justo lo que ese frente existe
+para comparar»*.
+
+Pero el único camino por el que una corrida **cierra** un frente sale de `STORE_FOR_FRONT`,
+y quien no está ahí no está en ninguna parte. Así que **«no tiene columna» pasó a
+significar «no puede cerrarse»** — y eso no lo decidió nadie. `empalme_sitios` se quedaba
+en `NOT_RUN` por muchas corridas que se guardaran. Costó **tres corridas de SpliceAI**.
+
+**Lo peligroso es que cada uso, por separado, es correcto.** La tabla hace bien en no
+darle columna. El cierre hace bien en mirar sólo los frentes que sabe consultar. Lo que
+está mal es que la misma lista conteste a las dos preguntas, y sólo una de ellas la tenía
+escrita.
+
+### La regla
+
+**Cuando una constante de exclusión tenga más de un consumidor, cada uno declara qué
+excluye por su cuenta**, con su motivo. Compartir la lista sólo es correcto si los dos
+contestan **la misma pregunta**, y entonces se dice ahí.
+
+Y la prueba de que ya no es la misma lista es concreta: **se les puede dar contenido
+distinto sin que nada se rompa**. Si no se puede, es que siguen siendo una.
+
+### El barrido (2026-09-07), con su instancia negativa
+
+Se buscaron las demás listas de exclusión con más de un lector. Salieron tres cosas y las
+tres enseñan:
+
+| lista | lectores | ¿instancia? |
+|---|---|---|
+| `FRONTS_WITHOUT_COLUMN` | la columna y el cierre | **SÍ** — el caso. Separadas: `PAIR_UNIT_FRONTS` declara el cierre |
+| `manifest._NO_SON_DATOS` | `check_directory` y `deposit_vs_versioned` | **SÍ** — y la introduje YO un día después de nombrar el patrón |
+| `ESTADOS_SIN_RESPUESTA` | tres sitios de `presentation` | **NO** — los tres preguntan lo mismo, y está escrito que es a propósito |
+
+La segunda merece decirse entera: `deposit_vs_versioned` leía `_NO_SON_DATOS` —**privada
+de otro módulo**— y por eso dejaba fuera `manifest.tsv`. La respuesta coincidía, y el
+motivo no: allí es «no es un dato que el manifiesto tenga que listar» y aquí es «el del
+depósito se reescribe en cada subida, así que difiere siempre y contarlo sería ruido
+permanente». Ahora declara `FUERA_DE_LA_COMPARACION`, con el suyo.
+
+**La tercera es la que afila la regla.** El criterio no es *cuántos lectores tiene*, es
+**cuántas preguntas contesta**. `ESTADOS_SIN_RESPUESTA` tiene tres lectores y una sola
+pregunta —«¿este estado es una laguna?»— y compartirla es exactamente lo correcto: escribir
+la lista otra vez sería la segunda definición que se queda vieja. Su código ya lo dice.
+
+### Cómo se reconoce antes de que cueste
+
+Ante una lista de exclusión con dos consumidores, la pregunta no es «¿los dos excluyen lo
+mismo?» sino **«¿los dos excluyen POR LO MISMO?»**. Si los motivos que se escribirían son
+distintos, son dos listas aunque hoy tengan el mismo contenido — y la coincidencia de hoy
+es justo lo que impide ver la divergencia de mañana.

@@ -6588,3 +6588,50 @@ diagnóstico equivocado cuesta más que ninguno.
 
 La regla operativa que queda: **cuando un mensaje nombra un valor que el fichero no
 contiene, tiene que decir de dónde salió ese valor.**
+
+## 132 — `empalme_sitios` no podía salir de NOT_RUN, y el análisis no decía si estaba guardado
+
+**Reportada el 2026-09-07**, después de **tres corridas de SpliceAI**: el TSV entró, el
+análisis se pintó completo, y ni la corrida aparecía en el historial ni `empalme_sitios`
+dejaba el `NOT_RUN` en la tabla de candidatos.
+
+### 1. El frente no podía cerrarse — y no era un descuido
+
+`selection.blocking_fronts` añade `empalme_sitios` con un motivo `NOT_RUN` escrito a mano
+e **incondicionalmente**; nunca consulta el almacén. Y el único camino que cierra un frente
+—`closed_by_panel`, construido desde `panel_states_by_front` → `STORE_FOR_FRONT`— **lo
+excluye**, porque está en `FRONTS_WITHOUT_COLUMN`.
+
+Esa exclusión se declaró para otra cosa: «no cabe en una columna por candidato, porque su
+unidad es el par». Motivo correcto y bien escrito. Pero **no tener columna acabó
+significando no poder cerrarse**, y eso no lo decidió nadie. Queda como **principio nº 53**.
+
+**Las dos decisiones van ahora separadas.** `FRONTS_WITHOUT_COLUMN` sigue diciendo lo suyo
+—si hay columna— y `PAIR_UNIT_FRONTS` dice lo otro: **con qué almacén se cierra y por qué**.
+Un candidato queda contestado en cuanto **alguno de sus pares** lo está, que es lo que
+significa haber corrido SpliceAI sobre ese cassette; el que no estuvo en la corrida sigue
+sin contestar, que también es la verdad. Y un frente no puede estar en las dos listas: dos
+caminos para cerrar lo mismo son dos criterios que un día discrepan.
+
+### 2. Y el análisis no decía si estaba guardado
+
+Del guardado en sí no hubo forma de saber si se llegó a pulsar el botón, y ahí está el
+segundo fallo, que es de forma y cuesta igual. Con las palabras de quien lo sufrió:
+
+> *«El resultado aparece completo y convincente arriba, y lo que lo hace permanente está
+> tres pantallas más abajo. Es fácil darlo por hecho. Un análisis que se ve entero y no
+> está guardado es indistinguible de uno que sí.»*
+
+**El formulario NO se ha movido**: guardar antes de haber visto lo que se guarda sería
+peor. Lo que faltaba no era el botón — era saber, **mirando el resultado**, si ese
+resultado existe fuera de la pantalla. Ahora, pegado al análisis:
+
+> ⚠ SIN GUARDAR todavía. Este análisis está completo en pantalla y NO está en el
+> registro: al cerrar la pestaña se pierde. El formulario para guardarlo está al final
+> de este modal.
+
+Tres estados y no dos: **sin proyecto abierto no es que no esté guardada, es que no puede
+estarlo**, y eso se arregla con otra cosa. Se compara por la **huella del resultado**
+(`result_md5`) — la fecha y el nombre los teclea una persona y no atan nada. Y de qué
+almacén sale el estado de cada frente **se declara**: `empalme_sitios` se guarda en
+`splice`, y deducirlo del nombre habría dado «no guardada» siempre y en silencio.

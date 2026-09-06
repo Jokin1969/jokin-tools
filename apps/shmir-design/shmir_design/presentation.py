@@ -2423,6 +2423,32 @@ STORE_FOR_FRONT = {
 #: de consulta que usan los otros tres; darle una columna por candidato colapsaria justo
 #: lo que ese frente existe para comparar. Se declara para que el test no lo eche de
 #: menos en silencio, que es lo que dejo a `offtarget_seed` sin columna.
+#: Frentes cuya UNIDAD es el par candidato x algo, y que AUN ASI tienen estado por
+#: candidato: el candidato esta contestado si alguno de sus pares lo esta.
+#:
+#: **Por que existe esta lista y no basta la de abajo (2026-09-07).**
+#: `FRONTS_WITHOUT_COLUMN` se declaro para UNA cosa —«no cabe en una columna por
+#: candidato»— y acabo gobernando OTRA sin que nadie lo decidiera: no tener columna paso
+#: a significar **no poder cerrarse**, porque el unico camino que cierra un frente sale
+#: de `STORE_FOR_FRONT` y quien no esta en ella no esta en ninguna. Resultado:
+#: `empalme_sitios` se quedaba en `NOT_RUN` por muchas corridas que se guardaran, y el
+#: usuario perdio tres corridas de SpliceAI para verlo. Principio nº 53.
+#:
+#: Las dos decisiones van ahora separadas y cada una declara lo suyo: **si tiene columna**
+#: lo dice `STORE_FOR_FRONT`/`FRONTS_WITHOUT_COLUMN`; **si puede cerrarse y con que
+#: almacen** lo dice esta.
+PAIR_UNIT_FRONTS = {
+    "empalme_sitios": {
+        "almacen": "splice",
+        "unidad": "par candidato x intrón",
+        "por_que": (
+            "su veredicto se pide por PAR, así que un candidato está contestado en "
+            "cuanto alguno de sus pares lo está — que es lo que significa haber corrido "
+            "SpliceAI sobre ese cassette"
+        ),
+    },
+}
+
 FRONTS_WITHOUT_COLUMN = {
     "empalme_sitios": (
         "su unidad es el par candidato x intrón, no el candidato: una columna por "
@@ -2702,6 +2728,46 @@ def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int
             por_candidato[int(inicio)] = _peor_de(estados)
         if por_candidato:
             salida[frente] = por_candidato
+
+    # LOS FRENTES POR PAR. Van aparte porque su almacen no se consulta con el nombre del
+    # frente y un inicio, sino con el PAR — y por eso se quedaron fuera del bucle de
+    # arriba durante toda su vida. Ver `PAIR_UNIT_FRONTS`.
+    for frente, declarado in PAIR_UNIT_FRONTS.items():
+        por_candidato = _estado_por_par(
+            stores, declarado["almacen"], starts=starts
+        )
+        if por_candidato:
+            salida[frente] = por_candidato
+    return salida
+
+
+def _estado_por_par(stores, nombre_almacen: str, *, starts) -> dict[int, str]:
+    """El estado por candidato de un frente cuya unidad es el PAR.
+
+    Un candidato esta contestado en cuanto ALGUNO de sus pares lo esta: haber corrido
+    SpliceAI sobre uno de sus cassettes es haberlo consultado. Sin ninguna corrida no se
+    devuelve nada —`None` no es `NOT_RUN`— y manda el motivo de siempre.
+    """
+    almacen = (stores or {}).get(nombre_almacen)
+    corrida = getattr(almacen, "latest", None) if almacen is not None else None
+    if corrida is None:
+        return {}
+    pares = getattr(getattr(corrida, "scan", None), "pairs", ()) or ()
+    por_inicio: dict[int, list[str]] = {}
+    for par in pares:
+        por_inicio.setdefault(int(par.candidate_start), []).append(par.intron)
+    salida: dict[int, str] = {}
+    for inicio in starts:
+        intrones = por_inicio.get(int(inicio))
+        if not intrones:
+            continue
+        estados = [
+            almacen.verdict_for(
+                int(inicio), intron, frame=corrida.candidate_frame,
+            ).state.value
+            for intron in intrones
+        ]
+        salida[int(inicio)] = _peor_de(estados)
     return salida
 
 
@@ -6050,6 +6116,69 @@ def project_open(base, slug: str, *, expect_md5: str | None = None,
 STORES = ("blast", "seed", "offtarget", "splice")
 
 
+#: Los tres estados de «¿esta corrida que estoy viendo esta GUARDADA?».
+GUARDADA_SI = "GUARDADA"
+GUARDADA_NO = "SIN_GUARDAR"
+GUARDADA_SIN_PROYECTO = "SIN_PROYECTO"
+
+#: Por que esto va PEGADO al resultado y no solo en el formulario de abajo.
+WHY_THE_SAVE_STATE_GOES_ON_TOP = (
+    "Un análisis que se ve entero y no está guardado es indistinguible de uno que sí. El "
+    "resultado se pinta completo y convincente arriba, y lo que lo hace permanente está "
+    "tres pantallas más abajo, después de la última tabla: es fácil darlo por hecho. La "
+    "última vez costó una corrida de SpliceAI."
+)
+
+
+def run_saved_state(stores, *, front: str, raw: str) -> dict[str, object]:
+    """¿La corrida que se está viendo está en el log del proyecto? Estado, no booleano.
+
+    Recibe el TEXTO CRUDO del resultado y la huella la calcula aquí: la página no calcula
+    md5 (regla 6), y con la huella como parámetro habría dos sitios donde decidir qué se
+    compara — el de guardar y el de mirar si está guardado.
+
+    Se compara por la HUELLA DEL RESULTADO —`result_md5`—, que es lo único que ata lo
+    que hay en pantalla con lo que hay en el registro: la fecha y el nombre los teclea
+    una persona y pueden coincidir por casualidad.
+
+    Tres estados, no dos: sin proyecto abierto no es que no esté guardada, es que no
+    puede estarlo, y eso se arregla con otra cosa.
+    """
+    from .identidad import result_fingerprint  # noqa: PLC0415
+
+    fingerprint = result_fingerprint(raw)
+    if stores is None:
+        return {
+            "estado": GUARDADA_SIN_PROYECTO,
+            "texto": (
+                "SIN PROYECTO: esta corrida no se puede guardar y se perderá al cerrar "
+                "la pestaña. Actívalo en la barra lateral."
+            ),
+        }
+    almacen = stores.get(STORE_FOR_SAVED_STATE.get(front, front))
+    corridas = getattr(almacen, "runs", ()) if almacen is not None else ()
+    if any(getattr(c, "result_md5", None) == fingerprint for c in corridas):
+        return {
+            "estado": GUARDADA_SI,
+            "texto": "GUARDADA en el log del proyecto: sobrevive a cerrar la pestaña.",
+        }
+    return {
+        "estado": GUARDADA_NO,
+        "texto": (
+            "SIN GUARDAR todavía. Este análisis está completo en pantalla y NO está en "
+            "el registro: al cerrar la pestaña se pierde. El formulario para guardarlo "
+            "está al final de este modal."
+        ),
+    }
+
+
+#: De que almacen sale el estado de guardado de cada frente. Se declara aqui —y no se
+#: deduce del nombre— porque el frente y su almacen no se llaman igual: `empalme_sitios`
+#: se guarda en `splice`. Deducirlo por el nombre daria «no guardada» SIEMPRE y en
+#: silencio, que es el fallo que este bloque existe para no repetir.
+STORE_FOR_SAVED_STATE = {"empalme_sitios": "splice"}
+
+
 def load_stores(store) -> dict[str, object]:
     """Los almacenes de `STORES`, reconstruidos desde el log. Un solo sitio, no cuatro."""
     from .store import (
@@ -7018,6 +7147,20 @@ WHY_NOBODY_COMPARED = (
 )
 
 
+#: Lo que esta comparacion NO mira, con su motivo — el suyo, no el de otro.
+#:
+#: Aqui se leia `manifest._NO_SON_DATOS`, que es privada de otro modulo y se declaro para
+#: OTRA pregunta: «que ficheros del directorio no son datos que el manifiesto tenga que
+#: listar». La respuesta coincidia hoy y no tiene por que coincidir mañana — y sobre todo,
+#: heredaba una decision que no se tomo para esto. Es el principio nº 53, y esta segunda
+#: instancia la introduje al escribir esta funcion, un dia despues de nombrar el patron.
+#:
+#: `manifest.tsv` queda fuera por una razon PROPIA y distinta de la del manifiesto: el del
+#: deposito se REESCRIBE cada vez que se sube un fichero, asi que difiere del versionado
+#: siempre y contarlo seria ruido permanente. `.gitignore` no es un dato de nadie.
+FUERA_DE_LA_COMPARACION = frozenset({"manifest.tsv", ".gitignore"})
+
+
 def _secuencia_fasta(datos: bytes) -> str | None:
     """La secuencia de un FASTA de un solo registro, o `None` si no lo es.
 
@@ -7054,7 +7197,6 @@ def deposit_vs_versioned(*, directory=None, only=None) -> dict[str, object]:
     que difiera es lo normal y contarlo sería ruido permanente.
     """
     from .identidad import file_fingerprint  # noqa: PLC0415
-    from .manifest import _NO_SON_DATOS  # noqa: PLC0415
     from .reference import PACKAGE_REFERENCE_DIR  # noqa: PLC0415
     from .trabajo import reference_dir  # noqa: PLC0415
 
@@ -7082,7 +7224,8 @@ def deposit_vs_versioned(*, directory=None, only=None) -> dict[str, object]:
         return {
             p.name: p.read_bytes()
             for p in sorted(carpeta.iterdir())
-            if p.is_file() and p.name not in _NO_SON_DATOS and p.suffix.lower() != ".md"
+            if p.is_file() and p.name not in FUERA_DE_LA_COMPARACION
+            and p.suffix.lower() != ".md"
         }
 
     en_deposito, en_versionado = _datos(deposito), _datos(versionado)

@@ -175,3 +175,36 @@ class TestEsUnINFORME_y_lo_dice(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLaEXCLUSION_es_PROPIA_y_no_heredada(unittest.TestCase):
+    """Principio nº 53: cada consumidor declara qué excluye POR SU CUENTA.
+
+    Aquí se leía `manifest._NO_SON_DATOS` —privada de otro módulo y declarada para otra
+    pregunta— y por eso `manifest.tsv` quedaba fuera: por el motivo del manifiesto, no
+    por el suyo. Coincidía hoy y heredaba una decisión que no se tomó para esto.
+    """
+
+    def test_esta_comparacion_declara_LA_SUYA(self):
+        self.assertTrue(presentation.FUERA_DE_LA_COMPARACION)
+        self.assertIn("manifest.tsv", presentation.FUERA_DE_LA_COMPARACION)
+
+    def test_y_NO_lee_la_del_manifiesto(self):
+        fuente = (RAIZ / "shmir_design" / "presentation.py").read_text(encoding="utf-8")
+        bloque = fuente.split("def deposit_vs_versioned", 1)[1].split("\ndef ", 1)[0]
+        self.assertNotIn("_NO_SON_DATOS", bloque)
+
+    def test_el_MOTIVO_de_esta_exclusion_es_distinto_del_de_alla(self):
+        """El del manifiesto es «no es un dato que listar»; el de aquí, «difiere siempre»."""
+        fuente = (RAIZ / "shmir_design" / "presentation.py").read_text(encoding="utf-8")
+        motivo = fuente.split("FUERA_DE_LA_COMPARACION", 1)[0][-1200:]
+        self.assertIn("REESCRIBE", motivo)
+        self.assertIn("ruido permanente", motivo)
+
+    def test_y_pueden_DIVERGIR_sin_que_nada_se_rompa(self):
+        """La prueba de que ya no es la misma lista: se les puede dar contenido distinto."""
+        from shmir_design import manifest
+
+        self.assertIsNot(
+            presentation.FUERA_DE_LA_COMPARACION, manifest._NO_SON_DATOS
+        )
