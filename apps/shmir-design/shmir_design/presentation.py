@@ -931,21 +931,33 @@ def _intron_names(intron: str | tuple[str, ...] | None) -> tuple[str, ...]:
     return tuple(dict.fromkeys(nombres))
 
 
-def _candidate_label(selection: ReportSelection, choice) -> str:
-    """La etiqueta de un candidato CON su marco, derivado de la anatomía que viaja con
-    la selección.
+def _start_label(selection: ReportSelection, start: int) -> str:
+    """La etiqueta de una posición del panel CON su marco, derivado de la anatomía que
+    viaja con la selección.
 
     No `report.frame` —`ReportSelection` no lleva el informe— ni `Frame.UTR3` a secas:
     con un tilado del transcrito eso etiqueta `tx:1684` como `3utr:1684` y `coords`
     aborta la corrida entera, que es exactamente lo que pasó la primera vez que esto se
     escribió sin mirar de dónde salía el marco.
+
+    Y hay un caso en que NO aborta y es peor: `selection_warnings` escribía la etiqueta
+    a mano y emitía `3utr:1398` por `tx:1398`. Sobre el 3'UTR murino de 1242 nt esa
+    posición es imposible, pero el techo del invariante se deriva del 3'UTR más largo
+    que conoce el proyecto —1606, que lo pone el humano— así que cabe y pasa. El
+    invariante caza lo imposible, no lo equivocado (principio nº 9): por eso la etiqueta
+    se pide aquí en vez de construirse con una f-string en cada sitio que imprime.
     """
     marco = (
         coords.frame_of(selection.anatomy)
         if selection.anatomy is not None
         else Frame.UTR3
     )
-    return coords.label(choice.start, marco)
+    return coords.label(start, marco)
+
+
+def _candidate_label(selection: ReportSelection, choice) -> str:
+    """La etiqueta de un candidato. Delega: una sola definición del marco."""
+    return _start_label(selection, choice.start)
 
 
 def fragment_bundle(
@@ -2884,8 +2896,9 @@ def selection_warnings(tiling, selection, *, selected=None,
                 avisos.append({
                     "rojo": True,
                     "texto": (
-                        f"3utr:{uno} y 3utr:{otro} están a {abs(otro - uno)} nt, por "
-                        f"debajo del espaciado mínimo de {espaciado} nt. "
+                        f"{_start_label(selection, uno)} y "
+                        f"{_start_label(selection, otro)} están a {abs(otro - uno)} nt, "
+                        f"por debajo del espaciado mínimo de {espaciado} nt. "
                         f"{MIN_SPACING_WARNING}"
                     ),
                 })
@@ -2895,7 +2908,8 @@ def selection_warnings(tiling, selection, *, selected=None,
                 "rojo": True,
                 "texto": (
                     conflicto.describe(
-                        label_a=f"3utr:{conflicto.a}", label_b=f"3utr:{conflicto.b}"
+                        label_a=_start_label(selection, conflicto.a),
+                        label_b=_start_label(selection, conflicto.b),
                     )
                     + " " + MULTIPLEX_NOTE
                 ),

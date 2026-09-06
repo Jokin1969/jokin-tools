@@ -5816,3 +5816,51 @@ nuevo aparece, y es justo donde hay que poder declarar y reemplazar.
 - Y dos conjuntos separados donde había uno: `cierran` decide los estados, `en_disco`
   decide qué botones se pintan. Fundirlos deja un fichero que está sin sus cuatro
   acciones, que es lo que hay que poder hacer con él.
+
+---
+
+## 121 — `3utr:1398` era `tx:1398`: el aviso del multiplexado nombraba a dos candidatos que no existen
+
+**Encontrada (2026-09-06)** contestando otra pregunta: al comprobar si el undécimo del
+panel comparte núcleo de seed con alguno de los diez, el aviso que salió decía
+
+> «**3utr:1398** y **3utr:1967** comparten el núcleo TACTAA…»
+
+y ninguna de las dos está en el panel. Son `tx:1398` y `tx:1967`, o sea **`3utr:449` y
+`3utr:1018`** — el par que la propia nota del multiplexado pone de ejemplo cuatro líneas
+más abajo, escrito bien allí y mal aquí, en el mismo párrafo.
+
+`selection_warnings` construía la etiqueta con una f-string, `f"3utr:{uno}"`, sobre un
+`start` que va en el marco de LO TILADO. Con el 3'UTR pelado coincide; con el transcrito
+entero —que es lo que tila la página y lo que tila el CLI— no.
+
+### Por qué el invariante de rango no podía cazarla
+
+Y no por descuido: es el **corolario ya escrito** del principio nº 9. `3utr:1398` sobre un
+3'UTR murino de 1242 nt es una posición imposible, pero `coords.max_utr3()` se **deriva**
+del 3'UTR más largo que el proyecto conoce —**1606**, que lo pone el humano— así que 1398
+cabe y no aborta. *El invariante caza lo imposible, no lo equivocado.* Es la misma frontera
+que dejó pasar `3utr:1185` en su día.
+
+### Por qué esta vez es peor que las cinco anteriores de la familia
+
+Las otras cinco eran una etiqueta mal escrita en un bloque de informe. Ésta está en un
+**aviso rojo que se lee justo antes de decidir qué se sintetiza**, y sobre el ÚNICO eje que
+el espaciado no ve — el parecido de seed. Quien lo lee no puede recalcularlo de cabeza y no
+encuentra los candidatos que nombra: la salida natural es dar el aviso por roto y seguir,
+que es exactamente perder la advertencia que este aviso existe para dar.
+
+### El arreglo, y por qué no es cambiar la cadena
+
+La etiqueta se **pide** a `presentation._start_label`, que saca el marco de la anatomía que
+viaja con la selección; `_candidate_label` pasa a colgar de él, así que hay **una sola
+definición del marco** en vez de dos. No se puede volver a escribir `3utr:` a mano aquí
+porque ya no se escribe ninguna etiqueta a mano.
+
+### El test, con el control por el OTRO lado
+
+`tests/test_los_AVISOS_de_la_seleccion_llevan_su_marco.py`, escrito antes y **comprobado
+que falla con el código de antes** (3 de 5). Y con el control adversario que importa:
+tilando el 3'UTR pelado, las etiquetas tienen que ser `3utr:` y **no** `tx:`. Sin esa
+segunda mitad, un arreglo que escribiera `tx:` a pelo pasaría el primer test y estaría
+igual de mal — sería el mismo fallo con la otra etiqueta.
