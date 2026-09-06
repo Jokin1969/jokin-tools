@@ -144,3 +144,91 @@ class TestElEstadoVIAJA_EN_EL_FASTA(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ─────────── el TERCER eje: el depósito contra lo VERSIONADO, al emitir ───────────
+#
+# **La ceguera que queda después del arreglo de arriba, y es mía.** `cassette_deposit_check`
+# compara «lo que voy a usar» contra «lo que hay en el depósito», y las dos salen de LA
+# MISMA lectura del MISMO fichero. Caza un reemplazo a mitad de sesión; **no puede cazar
+# un depósito que tiene el fichero equivocado** — por construcción.
+#
+# Es el principio nº 52 aplicándose a mi propio arreglo: una tercera comprobación que
+# también es autoconsistente con una de las dos que ya había. El eje que sí lo ve
+# —`deposit_vs_versioned`— estaba en OTRA PANTALLA, el panel de ficheros. Principio nº 47:
+# la salida tiene que estar donde está el bloqueo, y el bloqueo se fabrica al emitir.
+#
+# Con las palabras del responsable del proyecto: *«el cassette está bien hoy y nada impide
+# que mañana el depósito vuelva a tener otro. Y ese eje es el único que lo vería.»*
+
+class TestElCaseteDelDepositoSeCompara_CON_LO_VERSIONADO(unittest.TestCase):
+
+    def _con_deposito(self, contenido: bytes | None):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as deposito:
+            if contenido is not None:
+                (Path(deposito) / CASETE.filename).write_bytes(contenido)
+            secuencia = _secuencia(DEPOSITO) if contenido else "ACGT"
+            if contenido is not None:
+                from shmir_design import specificity
+
+                db = specificity.load_database(
+                    str(Path(deposito) / CASETE.filename), name="c", version="t",
+                )
+                secuencia = "".join(next(iter(db.records.values())).split()).upper()
+            return presentation.cassette_deposit_check(
+                secuencia, directory=Path(deposito)
+            )
+
+    def test_si_el_deposito_ES_el_versionado_no_hay_nada_que_avisar(self):
+        ficha = self._con_deposito(DEPOSITO.read_bytes())
+        self.assertEqual(ficha["estado"], presentation.CASETE_COINCIDE)
+        self.assertEqual(
+            ficha["versionado"]["estado"], presentation.DEPOSITO_IGUAL
+        )
+        self.assertFalse(ficha["versionado"]["avisa"])
+
+    def test_pero_si_el_deposito_tiene_OTRO_se_avisa_AL_EMITIR(self):
+        """El caso real: el depósito con un casete que no es el versionado."""
+        texto = DEPOSITO.read_text(encoding="utf-8")
+        cabecera, _, cuerpo = texto.partition("\n")
+        recortado = cabecera + "\n" + "".join(cuerpo.split())[:-112] + "\n"
+        ficha = self._con_deposito(recortado.encode())
+        # En uso y depósito SIGUEN coincidiendo —son la misma lectura— y por eso este
+        # eje hace falta: sin él, aquí no habría ni una palabra.
+        self.assertEqual(ficha["estado"], presentation.CASETE_COINCIDE)
+        self.assertEqual(
+            ficha["versionado"]["estado"], presentation.DEPOSITO_DISTINTO
+        )
+        self.assertTrue(ficha["versionado"]["avisa"])
+        self.assertIs(ficha["versionado"]["misma_secuencia"], False)
+
+    def test_y_el_aviso_lleva_las_DOS_longitudes_y_los_DOS_md5(self):
+        texto = DEPOSITO.read_text(encoding="utf-8")
+        cabecera, _, cuerpo = texto.partition("\n")
+        recortado = cabecera + "\n" + "".join(cuerpo.split())[:-112] + "\n"
+        motivo = self._con_deposito(recortado.encode())["versionado"]["motivo"]
+        self.assertIn("5170", motivo)
+        self.assertIn("5282", motivo)
+        self.assertIn(CASETE.filename, motivo)
+
+class TestElAvisoNO_BLOQUEA(unittest.TestCase):
+    """Un depósito distinto del versionado NO es un fallo: para eso existe el depósito."""
+
+    def test_el_estado_que_bloquea_sigue_siendo_solo_el_de_EN_USO(self):
+        self.assertEqual(
+            presentation.CASETE_NO_COINCIDE, presentation.CASETE_NO_COINCIDE
+        )
+        self.assertIn("no es un fallo", presentation.WHY_THE_DEPOSIT_MAY_DIFFER.lower())
+
+    def test_en_local_los_dos_directorios_son_el_mismo_y_no_se_avisa(self):
+        from shmir_design.reference import PACKAGE_REFERENCE_DIR
+
+        ficha = presentation.cassette_deposit_check(
+            _secuencia(DEPOSITO), directory=PACKAGE_REFERENCE_DIR
+        )
+        self.assertEqual(
+            ficha["versionado"]["estado"], presentation.DEPOSITO_MISMO_DIRECTORIO
+        )
+        self.assertFalse(ficha["versionado"]["avisa"])

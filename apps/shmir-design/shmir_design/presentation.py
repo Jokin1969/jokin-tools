@@ -6831,6 +6831,72 @@ WHY_THE_CASSETTE_IS_CHECKED_BEFORE = (
 )
 
 
+def _casete_contra_lo_versionado(carpeta, nombre: str) -> dict[str, object]:
+    """El casete del depósito contra el versionado. AVISO, nunca bloqueo.
+
+    Que el depósito tenga un casete más nuevo que el versionado **es legítimo** — para
+    eso existe el depósito— así que esto no puede parar nada. Lo que no puede pasar es
+    que no se vea antes de gastar una corrida de SpliceAI.
+
+    Se apoya en `deposit_vs_versioned` acotado a un fichero: una segunda comparación
+    aquí serían dos criterios sobre el mismo hecho, que es lo que ya pasó una vez entre
+    `auditar_fixtures` y `auditar_claves`.
+    """
+    informe = deposit_vs_versioned(directory=carpeta, only=nombre)
+    estado = str(informe["estado"])
+    if estado == DEPOSITO_MISMO_DIRECTORIO:
+        return {
+            "estado": DEPOSITO_MISMO_DIRECTORIO, "avisa": False,
+            "misma_secuencia": None, "motivo": str(informe["motivo"]),
+        }
+    fila = next(iter(informe["filas"]), None)
+    if fila is None:
+        return {
+            "estado": DEPOSITO_SOLO_DEPOSITO, "avisa": False, "misma_secuencia": None,
+            "motivo": f"No hay {nombre} ni en el depósito ni versionado.",
+        }
+    if fila["estado"] != DEPOSITO_DISTINTO:
+        return {
+            "estado": str(fila["estado"]), "avisa": False,
+            "misma_secuencia": fila["misma_secuencia"],
+            "motivo": (
+                f"El {nombre} del depósito es el versionado "
+                f"({fila['bytes_versionado']} bytes)."
+            ),
+        }
+    misma = fila["misma_secuencia"]
+    matiz = (
+        " La SECUENCIA es la misma: sólo cambia el formato del fichero, así que las "
+        "construcciones no cambian."
+        if misma is True
+        else " Y la SECUENCIA es OTRA: las construcciones que salgan de aquí no son las "
+             "que saldrían del versionado."
+        if misma is False
+        else ""
+    )
+    # En nt si se pudieron leer las dos secuencias; en bytes si no. Nunca se inventa un
+    # numero de nucleotidos para algo que no es un FASTA.
+    hay_nt = bool(fila["nt_deposito"] and fila["nt_versionado"])
+    tamaños = (
+        f"en el depósito {fila['nt_deposito']} nt "
+        f"(md5 del fichero {str(fila['md5_deposito'])[:8]}…) y versionado "
+        f"{fila['nt_versionado']} nt "
+        f"(md5 del fichero {str(fila['md5_versionado'])[:8]}…)"
+        if hay_nt else
+        f"en el depósito {fila['bytes_deposito']} bytes "
+        f"(md5 del fichero {str(fila['md5_deposito'])[:8]}…) y versionado "
+        f"{fila['bytes_versionado']} bytes "
+        f"(md5 del fichero {str(fila['md5_versionado'])[:8]}…)"
+    )
+    return {
+        "estado": DEPOSITO_DISTINTO, "avisa": True, "misma_secuencia": misma,
+        "motivo": (
+            f"El {nombre} del depósito NO es el versionado: {tamaños}.{matiz} "
+            f"{WHY_THE_DEPOSIT_MAY_DIFFER}"
+        ),
+    }
+
+
 def cassette_deposit_check(cassette, *, directory=None) -> dict[str, object]:
     """¿El casete que se va a usar es el que hay AHORA en el depósito?
 
@@ -6848,7 +6914,7 @@ def cassette_deposit_check(cassette, *, directory=None) -> dict[str, object]:
     lo que esta función ya ha calculado.
     """
     from .identidad import result_fingerprint  # noqa: PLC0415
-    from .manifest import ROLES  # noqa: PLC0415
+    from .manifest import ROLES  # noqa: PLC0415  (el nombre del fichero, derivado)
     from .specificity import load_database  # noqa: PLC0415
     from .trabajo import reference_dir  # noqa: PLC0415
 
@@ -6860,6 +6926,14 @@ def cassette_deposit_check(cassette, *, directory=None) -> dict[str, object]:
     ficha: dict[str, object] = {
         "fichero": rol.filename,
         "directorio": str(carpeta),
+        # EL TERCER EJE, y va SIEMPRE — también cuando los dos primeros coinciden.
+        #
+        # Los otros dos campos comparan «lo que voy a usar» contra «lo que hay en el
+        # depósito», y las dos cosas salen de LA MISMA lectura del MISMO fichero: cazan
+        # un reemplazo a mitad de sesión y NO pueden cazar un depósito que tiene el
+        # fichero equivocado. Por construcción. Es el principio nº 52 sobre esta misma
+        # función, y el eje que lo ve vivía en otra pantalla (errata nº 129).
+        "versionado": _casete_contra_lo_versionado(carpeta, rol.filename),
         "md5_en_uso": result_fingerprint(en_uso) if en_uso else "",
         "nt_en_uso": len(en_uso),
         "md5_deposito": "",
@@ -6900,7 +6974,8 @@ def cassette_deposit_check(cassette, *, directory=None) -> dict[str, object]:
             **ficha, "estado": CASETE_COINCIDE,
             "motivo": (
                 f"El casete en uso es {rol.filename} del depósito "
-                f"({ficha['nt_deposito']} nt, md5 {str(ficha['md5_deposito'])[:8]}…)."
+                f"({ficha['nt_deposito']} nt, md5 de la secuencia "
+                f"{str(ficha['md5_deposito'])[:8]}…)."
             ),
         }
     return {
@@ -6908,8 +6983,9 @@ def cassette_deposit_check(cassette, *, directory=None) -> dict[str, object]:
         "motivo": (
             f"El casete con el que se iban a montar las construcciones NO es el de "
             f"{rol.filename}: en uso {ficha['nt_en_uso']} nt "
-            f"(md5 {str(ficha['md5_en_uso'])[:8]}…) y en el depósito "
-            f"{ficha['nt_deposito']} nt (md5 {str(ficha['md5_deposito'])[:8]}…), "
+            f"(md5 de la secuencia {str(ficha['md5_en_uso'])[:8]}…) y en el "
+            f"depósito {ficha['nt_deposito']} nt "
+            f"(md5 de la secuencia {str(ficha['md5_deposito'])[:8]}…), "
             f"{abs(int(ficha['nt_en_uso']) - int(ficha['nt_deposito']))} nt de "
             f"diferencia. Las construcciones saldrían de un casete y el resultado se "
             f"validaría contra el otro, así que la corrida de SpliceAI se perdería. "
@@ -6962,7 +7038,7 @@ def _secuencia_fasta(datos: bytes) -> str | None:
     return "".join("".join(cuerpo).split()).upper() or None
 
 
-def deposit_vs_versioned(*, directory=None) -> dict[str, object]:
+def deposit_vs_versioned(*, directory=None, only=None) -> dict[str, object]:
     """Qué ficheros del DEPÓSITO no son los VERSIONADOS. Informe, no veredicto.
 
     Nace de la errata nº 129: el casete con el que se emitía no era el del depósito, y
@@ -7010,8 +7086,14 @@ def deposit_vs_versioned(*, directory=None) -> dict[str, object]:
         }
 
     en_deposito, en_versionado = _datos(deposito), _datos(versionado)
+    nombres = sorted(set(en_deposito) | set(en_versionado))
+    if only is not None:
+        # Acotar a UNO no es una comparación distinta: es la misma sobre menos ficheros.
+        # Se acota aquí y no con una función aparte porque el emisor lo pide en cada
+        # repintado y leer `mature.fa` —5,6 MB— para mirar el casete sería absurdo.
+        nombres = [n for n in nombres if n == only]
     filas = []
-    for nombre in sorted(set(en_deposito) | set(en_versionado)):
+    for nombre in nombres:
         a, b = en_deposito.get(nombre), en_versionado.get(nombre)
         fila = {
             "fichero": nombre,
@@ -7019,6 +7101,11 @@ def deposit_vs_versioned(*, directory=None) -> dict[str, object]:
             "md5_versionado": file_fingerprint(b) if b is not None else "",
             "bytes_deposito": len(a) if a is not None else 0,
             "bytes_versionado": len(b) if b is not None else 0,
+            # LOS NUCLEOTIDOS, cuando los dos lados son FASTA. Los BYTES cambian con el
+            # ancho de linea y no significan nada para quien mira un plasmido; «5170
+            # frente a 5282 nt» es el vocabulario en el que se razona sobre esto.
+            "nt_deposito": 0,
+            "nt_versionado": 0,
             "misma_secuencia": None,
         }
         if a is None:
@@ -7032,6 +7119,8 @@ def deposit_vs_versioned(*, directory=None) -> dict[str, object]:
             sa, sb = _secuencia_fasta(a), _secuencia_fasta(b)
             if sa is not None and sb is not None:
                 fila["misma_secuencia"] = sa == sb
+                fila["nt_deposito"] = len(sa)
+                fila["nt_versionado"] = len(sb)
         filas.append(fila)
 
     distintos = [f for f in filas if f["estado"] == DEPOSITO_DISTINTO]

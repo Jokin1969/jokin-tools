@@ -2782,6 +2782,12 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         st.warning(ficha_casete["motivo"])
     else:
         st.caption(ficha_casete["motivo"])
+    # EL TERCER EJE: el casete del depósito contra el VERSIONADO. Aviso, nunca bloqueo —
+    # un depósito más nuevo es legítimo—, pero tiene que verse ANTES de gastar la
+    # corrida. Es el único de los tres que ve un depósito con el fichero equivocado: los
+    # otros dos comparan la misma lectura consigo misma (principio nº 52).
+    if ficha_casete["versionado"]["avisa"]:
+        st.warning(ficha_casete["versionado"]["motivo"])
 
     try:
         panel = splice_constructions(

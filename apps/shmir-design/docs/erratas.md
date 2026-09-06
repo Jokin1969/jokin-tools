@@ -6413,6 +6413,44 @@ se puede leer **en producción**, y por eso la comparación va en el panel de fi
 Comprobado sobre un volumen simulado —sembrado desde lo versionado y con el casete de
 5.170—: 24 ficheros comparados, **1 distinto**, y es el casete, con `misma_secuencia=False`.
 
+### El arreglo no veía el caso que lo motivó, y eso es un asiento aparte (2026-09-07)
+
+`cassette_deposit_check` compara **lo que se va a usar** contra **lo que hay en el
+depósito**, y las dos cosas salen de LA MISMA lectura del MISMO fichero
+(`reference_dir()/aav_casete.fa`). Caza un reemplazo a mitad de sesión. **No puede cazar
+un depósito que tiene el fichero equivocado — por construcción.**
+
+Lo enseñó el propio caso: el 2026-09-06 la app emitía con el casete de 5.170 y **no salía
+ningún aviso**, porque era verdad que lo que se usaba era lo que había en el depósito. La
+comprobación decía la verdad y no servía.
+
+Es el **principio nº 52 aplicándose a mi propio arreglo**: una tercera comprobación que
+también es autoconsistente con una de las dos que ya existían. Y el eje que sí lo ve
+—`deposit_vs_versioned`, depósito contra versionado— estaba en **otra pantalla**, el panel
+de ficheros. Principio nº 47: la salida tiene que estar donde está el bloqueo, y el
+bloqueo se fabrica al emitir.
+
+**Ahora los tres ejes van juntos, delante del botón.** El tercero es un AVISO y nunca un
+bloqueo —un depósito más nuevo que lo versionado es legítimo, para eso existe— y dice
+además si cambia la SECUENCIA o sólo el formato, que es la diferencia entre «hay que
+reemplazarlo» y «da igual». Con el caso real:
+
+```
+·  El casete en uso es aav_casete.fa del depósito (5170 nt, md5 de la secuencia 0bfe9ea6…).
+⚠  El aav_casete.fa del depósito NO es el versionado: en el depósito 5170 nt (md5 del
+   fichero 81be9a31…) y versionado 5282 nt (md5 del fichero e49521f7…). Y la SECUENCIA es
+   OTRA: las construcciones que salgan de aquí no son las que saldrían del versionado.
+```
+
+**Y un homónimo que salió al pintarlo**: las dos líneas decían «md5» y son md5 DISTINTOS
+—el de la secuencia normalizada y el del fichero—, uno debajo del otro en la misma
+pantalla. Comparar los dos números y no ver que miden cosas distintas es el principio
+nº 27 en su forma más barata de cometer. Cada uno dice ahora de qué es.
+
+La comparación no se reimplementa: `deposit_vs_versioned` acepta acotarse a un fichero.
+Dos comparaciones sobre el mismo hecho es lo que ya pasó entre `auditar_fixtures` y
+`auditar_claves` (principio nº 26).
+
 ## 130 — La descarga se queda colgada y no baja nada — NO REPRODUCIDA, sin causa asignada
 
 **Reportada el 2026-09-06**, y bloqueaba el último frente del panel: sin el FASTA de

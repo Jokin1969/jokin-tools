@@ -4341,6 +4341,14 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - **Tres estados, no un booleano** — `COINCIDE`, `NO_COINCIDE`, `SIN_COMPROBAR` — y el
     veredicto viaja en CADA cabecera del FASTA (`casete_del_deposito=`), también cuando
     coincide. Por defecto `SIN_COMPROBAR`: el silencio se leía como «coincide».
+  - **Y hay un TERCER EJE, que es el que ve el caso de verdad (2026-09-07).** Los dos
+    primeros comparan «lo que voy a usar» contra «lo que hay en el depósito», y las dos
+    salen de LA MISMA lectura del MISMO fichero: no pueden cazar un depósito con el
+    fichero equivocado, por construcción. El principio nº 52 sobre el propio arreglo. El
+    tercero —**depósito contra lo VERSIONADO**, `deposit_vs_versioned` acotado al casete—
+    va también delante del botón: AVISO y nunca bloqueo (un depósito más nuevo es
+    legítimo), y dice si cambia la SECUENCIA o sólo el formato. Los dos md5 que salen en
+    pantalla declaran de qué son —de la secuencia y del fichero—, que no es lo mismo.
   - **`estado=COMPLETO` habla del PANEL**, no del casete. Dos ejes con una palabra es la
     errata nº 126 otra vez; ahora son dos campos.
   - El motivo lleva **los dos md5 y las dos longitudes**: «no coincide» a secas no se
