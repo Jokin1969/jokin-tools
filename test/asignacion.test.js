@@ -518,7 +518,16 @@ test('remove a line releases the reservation (and returns a used box to stock)',
 });
 
 test('overview lists the person with their plan and month status', async () => {
+  // has_month_period se mide contra el MES EN CURSO (thisMonth() en routes.js), no
+  // contra el de la ficha: los periodos de este bloque son de 2026-08, así que el del
+  // mes corriente hay que crearlo aquí. Antes la prueba sólo pasaba durante agosto de
+  // 2026 y se puso roja sola el 1 de septiembre, sin que nadie tocara nada.
+  const asigDb = require('../apps/asignacion/db');
+  const hoy = new Date();
+  const mesEnCurso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  asigDb.getOrCreatePeriod(personId, mesEnCurso);
   const { data } = await call('GET', '/overview');
+  assert.equal(data.month, mesEnCurso, 'el overview informa del mes que mide');
   const row = data.items.find(r => r.person.id === personId);
   assert.ok(row, 'person present in overview');
   assert.equal(row.plan_count, 1);
