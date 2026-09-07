@@ -26,6 +26,8 @@ Regla 5: escritos antes del arreglo, con el fichero real del depósito.
 import hashlib
 import sys
 import unittest
+
+from shmir_design.coords import Frame
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -123,6 +125,8 @@ class TestElEstadoVIAJA_EN_EL_FASTA(unittest.TestCase):
             donor_position=10, acceptor_position=20, cryptic_position=0,
             context_source="casete:md5=abc:5170nt",
             cassette_check=presentation.CASETE_NO_COINCIDE,
+            # Panel sobre el 3'UTR pelado: `candidate_start` va en su espacio.
+            candidate_frame=Frame.UTR3,
         )
         texto = presentation.splice_query_text([construccion])
         self.assertIn(f"casete_del_deposito={presentation.CASETE_NO_COINCIDE}", texto)
@@ -135,6 +139,7 @@ class TestElEstadoVIAJA_EN_EL_FASTA(unittest.TestCase):
             name="mvm_actual__3utr959", candidate_start=959, intron="mvm_actual",
             sequence="ACGT" * 10, md5="da", context_5=5, context_3=5,
             donor_position=10, acceptor_position=20, cryptic_position=0,
+            candidate_frame=Frame.UTR3,
         )
         texto = presentation.splice_query_text([construccion])
         self.assertIn(

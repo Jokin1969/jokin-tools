@@ -19,7 +19,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 import textwrap
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .coords import Frame, label, requested, span, tiled_frame
 from .errors import ShmirDesignError
@@ -62,7 +62,7 @@ class NearbyHexamer:
     #: eso etiquetaba `tx:1185` como `3utr:1185` —una posicion valida, sólo que de otra
     #: señal— y `coords` no puede abortar porque 1185 cabe en el 3'UTR mas largo que el
     #: proyecto conoce. Lo cazo la variante del golden sobre el transcrito.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     def describe(self) -> str:
         donde = (
@@ -96,7 +96,7 @@ class Dossier:
     #: El marco de `start` y `end`, DERIVADO de la anatomia de la corrida. Los dos van
     #: en el MISMO marco: hasta hoy `start` venia del tilado y `end` convertido al 3'UTR,
     #: y sobre el 3'UTR pelado coincidian —desfase 0— asi que la mezcla era invisible.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
     module_note: str = ""
     #: Otros candidatos ELEGIDOS que comparten el nucleo de seed de 6 nt con este. No
     #: es un veredicto del candidato: es una propiedad de la PAREJA, y por eso va en su
@@ -223,8 +223,7 @@ def _normalizar(secuencia) -> str:
 
 
 def _hexamers_near(
-    tiling, start: int, end: int, *, offset: int, window: int = 60,
-    frame: Frame = Frame.UTR3,
+    tiling, start: int, end: int, *, offset: int, frame: Frame, window: int = 60,
 ):
     from .polya import SignalClass
 

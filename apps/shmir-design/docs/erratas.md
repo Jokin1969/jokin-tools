@@ -6637,3 +6637,115 @@ estarlo**, y eso se arregla con otra cosa. Se compara por la **huella del result
 (`result_md5`) — la fecha y el nombre los teclea una persona y no atan nada. Y de qué
 almacén sale el estado de cada frente **se declara**: `empalme_sitios` se guarda en
 `splice`, y deducirlo del nombre habría dado «no guardada» siempre y en silencio.
+
+## 133b — El aborto del duplicado tumbaba la página, y el proyecto quedaba MUERTO
+
+*(Numerado como 137 en el registro de `CLAUDE.md`; aquí queda con la nota que se pidió
+añadir el 2026-09-07, después de arreglarlo.)*
+
+**No era un bloqueo de sesión: era un proyecto muerto.** Va escrito con esas palabras
+porque la diferencia decide qué se hace. Un bloqueo se sale recargando, cerrando la
+pestaña o volviendo mañana; esto no se salía **nunca**:
+
+1. el log es **append-only**, y la segunda subida del mismo fichero **escribía** una
+   segunda línea con el mismo `run_id`;
+2. esa línea es **imborrable** — quitarla rompe la cadena de md5, que es lo único que
+   hace auditable el registro;
+3. y `load_stores` abortaba **en cada repintado, para siempre**, desde `_bloque_especie`
+   y fuera de todo `try`, así que la excepción subía al `try` de `main()` y la página
+   terminaba en el mensaje rojo.
+
+O sea: **un fichero soltado dos veces convertía el registro de decisiones de un proyecto
+en un fichero que la app ya no podía abrir.** El daño no era el rato perdido: era el
+historial.
+
+## 138 — El marco no sobrevivía al log, y el defecto lo reponía en `3utr`
+
+Reportado el 2026-09-07 con la página cortada por la mitad:
+
+> *«`3utr:1768 no cabe en ningún 3'UTR conocido del proyecto: el más largo mide 1606 nt`.
+> Y el propio mensaje acierta: es `tx:1768`, que es `3utr:819`. Está en la tabla que se ve
+> justo encima, fila 2. Sale después de la tabla de candidatos y del bloque de
+> percentiles, y corta todo lo que va debajo: modales, descargas, paso 5. Esto es la
+> novena o décima instancia de la misma familia. No arregles sólo éste: encuéntrala.»*
+
+Y con las dos sospechas puestas por escrito, las dos correctas: *«o el prefijo se obtiene
+de `coords.Frame` correctamente pero con el marco equivocado, o la posición se pasa a una
+función que ya trae el marco por defecto»*.
+
+### LA VÍA, y por qué los tres guardias no podían verla
+
+No es un literal ni un prefijo tecleado: la etiqueta se fabricaba **bien** —con
+`coords.label` y un miembro de `coords.Frame`— y lo que estaba mal era el MARCO. Ninguno
+de los tres guardias mira eso: `Position` impide imprimir un entero desnudo,
+`auditar_marcos` impide teclear el prefijo, y los 37 literales estaban corregidos.
+
+**Dos rutas, y las dos medidas:**
+
+- **El marco se perdía al ESCRIBIR el log.** `save_offtarget_run` y `save_seed_run` no
+  guardaban el campo, y al releer `LoadResult` y `SeedResult` lo reponían con su valor
+  por defecto, que era `Frame.UTR3`. Medido sobre el proyecto real:
+
+      marcos al crear la corrida:  {'tx'}
+      marcos tras releer el log:   {'3utr'}
+
+  Así que la errata nº 122 —«el bloque de off-targets no miente en el marco»— estaba
+  arreglada **sólo mientras el objeto viviera en memoria**: la capa de persistencia
+  reconstruía el mismo objeto sin la contramedida, y podía hacerlo en silencio porque el
+  campo tenía defecto.
+- **Y el emisor concreto lo ESCRIBÍA porque no tenía de dónde sacarlo.**
+  `seed_load_highlights(stores, species, starts)` recibe enteros pelados: sin anatomía y
+  sin la corrida delante, la única salida era `Frame.UTR3`. La corrida sí lo sabe —
+  `run_scan` guarda el marco del tilado en cada `LoadResult`— y desde hoy sobrevive al log,
+  así que la etiqueta se **deriva** del resultado que la trae.
+
+### Lo que hace que se vea tarde, y es la mitad peor
+
+El techo de `coords` es **1606** —el 3'UTR humano, el más largo que conoce el proyecto—,
+así que de los once candidatos del panel murino sobre el TRANSCRITO **sólo abortan los
+cuatro que pasan de 1606**. Los otros siete se imprimen mal Y EN SILENCIO: `3utr:1398` por
+`tx:1398`, que es `3utr:449`. **El invariante caza lo imposible, no lo equivocado**
+(principio nº 9), y por eso el fallo aparece de uno en uno, en orden distinto cada vez, y
+cada arreglo destapa el siguiente en la misma pantalla.
+
+### Por qué ningún test lo cazó (principio nº 22)
+
+Los fixtures de off-targets y de seed tilan el **3'UTR PELADO** —`tile_utr(load_3utr(...))`—
+y ahí `tiled_frame` ya es `UTR3`. Sobre ese fixture, un `Frame.UTR3` escrito a mano y uno
+derivado son **INDISTINGUIBLES**. Un fixture que hace coincidir los dos marcos no puede
+delatar a quien confunde los dos marcos, corran los tests que corran — y lo mismo pasaba
+con el golden de la página, que se genera con el **proyecto vacío**: todo lo que sólo
+aparece con corridas guardadas no lo pintaba nadie.
+
+### El barrido: 21 sitios, no uno
+
+`Frame.UTR3` era el valor por defecto en **veinte** sitios —campos de dataclass, firmas de
+función y un `.get(clave, Frame.UTR3.value)` al releer el log— más el emisor. Ninguno daba
+error al omitirse: daban una posición de otro sitio, bien formada y callada. Todos
+retirados: el marco es ahora **obligatorio**, y omitirlo es un `TypeError` en el sitio del
+fallo.
+
+### El mecanismo, en tres piezas
+
+1. **`tools/auditar_marcos.py` gana dos categorías, las dos a cero y sin excepciones**: el
+   marco no puede venir POR DEFECTO —en una firma, en un campo o al releer— y no se puede
+   ESCRIBIR dentro de una función que recibe `start`/`starts`. La segunda es la forma
+   exacta del emisor. Con control adversario de las tres formas que había el 2026-09-07.
+2. **El marco viaja en el log** y, cuando un registro viejo no lo trae, se **DERIVA de la
+   anatomía que el propio proyecto guarda** (`store.marco_del_panel`). No es un defecto
+   nuevo con otro nombre: el proyecto sabe sobre qué frontera tiló, así que el marco de sus
+   corridas es una consecuencia y no un supuesto — y para el log del transcrito contesta
+   `tx`, que es lo que un defecto no podía hacer.
+3. **Y se pinta la página ENTERA con las corridas dentro**
+   (`tests/test_la_pagina_se_PINTA_HASTA_EL_FINAL.py`, con el Streamlit de verdad): sin
+   `**PARA**`, llegando hasta Descargas y el paso 5, y con la exigencia que caza la mitad
+   silenciosa — **ninguna etiqueta `3utr:N` puede pasar de los 1242 nt del 3'UTR de ESTE
+   proyecto**, que es mucho más estricto que el techo de 1606.
+
+### La corrección de método, que va con mi nombre
+
+Dije que *«el aborto se recoge en la frontera del modal y no tumba el resto (errata
+nº 89)»* y era falso. Lo miré en `_guardar_corrida` —donde sí hay un `try`— y no comprobé
+por dónde salía de verdad. La lección quedó escrita en la errata nº 137 y se repite aquí
+porque volvió a aplicar: **un `try` que cubre el camino que uno tiene en la cabeza no dice
+nada del camino que corre**, y la única forma de saberlo es reproducir la secuencia entera.

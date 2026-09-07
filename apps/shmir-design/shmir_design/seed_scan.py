@@ -21,7 +21,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from .coords import Frame, label, tiled_frame
 from .errors import ShmirDesignError
@@ -212,7 +212,7 @@ class PreviewRow:
     checked: bool = True
     #: El marco de `start` y de los compartidos, DERIVADO de la anatomia de la corrida.
     #: Aqui iba `3utr:` escrito a mano — el quinto y sexto sitio de la errata nº 121.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     def describe(self) -> str:
         def etiquetas(starts) -> str:
@@ -414,7 +414,7 @@ class SeedResult:
     collisions: tuple[SeedCollision, ...]
     level: str
     #: El marco de `start`, DERIVADO de la anatomía de la corrida (errata nº 121).
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     @property
     def mir30(self) -> bool:

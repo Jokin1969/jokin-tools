@@ -41,7 +41,7 @@ import random
 import re
 import textwrap
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from .coords import Frame, label
 from .errors import ShmirDesignError
@@ -873,7 +873,7 @@ class SelfSite:
     #: El marco de `position`, que es el de la secuencia que se pasó como `target`. NO
     #: se pone `3utr` a pelo: con el transcrito entero delante eso etiquetaba `tx:1164`
     #: como `3utr:1164` — una posición válida, sólo que de otro sitio.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     def describe(self) -> str:
         marca = "el suyo" if self.own_window else "SEGUNDO SITIO"
@@ -900,8 +900,7 @@ SITES_OUTSIDE_UTR3 = (
 
 
 def self_sites(
-    strand: str, *, target: str, window=None, frame: Frame = Frame.UTR3,
-    anatomy=None,
+    strand: str, *, target: str, frame: Frame, window=None, anatomy=None,
 ) -> tuple[SelfSite, ...]:
     """Los sitios de esta hebra en su propia diana, con posicion y CLASE.
 
@@ -1041,9 +1040,9 @@ class SelfCount:
         )
 
 
-def self_count(strand: str, *, target: str, target_label: str,
+def self_count(strand: str, *, target: str, target_label: str, frame: Frame,
                query: str = "", window=None, strand_name: str = "guia",
-               frame=None, anatomy=None) -> SelfCount:
+               anatomy=None) -> SelfCount:
     """El autoconteo de una hebra, CON el esperado que le corresponde.
 
     `strand_name` no tiene un valor por defecto neutro: `guia` es el caso mayoritario y
@@ -1051,16 +1050,13 @@ def self_count(strand: str, *, target: str, target_label: str,
     de una guía — que es lo que daba siete avisos falsos de once.
     """
     patrones = site_patterns(strand)
-    extra = {}
-    if frame is not None:
-        extra["frame"] = frame
     return SelfCount(
         query=query or patrones.heptamer,
         target_label=target_label,
         occurrences=core_occurrences(target, patrones),
         sites=count_in(target, patrones),
         detail=self_sites(
-            strand, target=target, window=window, anatomy=anatomy, **extra
+            strand, target=target, frame=frame, window=window, anatomy=anatomy
         ),
         expected=expected_self_count(strand_name),
     )
@@ -1122,7 +1118,9 @@ def shared_network(strand_a: str, strand_b: str, *, catalog: "Catalog | None",
         """(registro, posicion) → clase. La CLAVE es la posicion, no la clase."""
         tabla: dict[tuple[str, int], str] = {}
         for nombre, secuencia in catalog.records:
-            for sitio in self_sites(hebra, target=secuencia):
+            # El catalogo son 3'UTR: la posicion de un sitio dentro de un registro va
+            # en ese espacio. Afirmado aqui porque `self_sites` ya no lo supone.
+            for sitio in self_sites(hebra, target=secuencia, frame=Frame.UTR3):
                 tabla[(nombre, sitio.position)] = sitio.site_class
         return tabla
 
@@ -1295,7 +1293,7 @@ class LoadResult:
     #: `3utr:1398`. El propio fichero se delataba: doce líneas más abajo, el autoconteo
     #: de esa misma guía —que SÍ deriva su marco— decía que su sitio propio está en
     #: `3utr:464`, y 464 no puede caer dentro de una ventana que empieza en 1398.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     def describe(self) -> str:
         piezas = "  ".join(
@@ -1428,9 +1426,10 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
     autoconteos: dict[str, SelfCount] = {}
     crudas: list[str] = []
 
-    from .coords import tiled_frame  # noqa: PLC0415
+    from .coords import frame_of_target, tiled_frame  # noqa: PLC0415
 
     marco = tiled_frame(selection.anatomy)
+    marco_diana = frame_of_target(selection.anatomy, len(_normalize(target)))
     for inicio, hebra, secuencia in _strands(
         selection, species, pedidos, guides, passengers
     ):
@@ -1472,6 +1471,11 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
         autoconteos[consulta] = self_count(
             secuencia, target=target, target_label=target_label, query=consulta,
             window=ventanas.get(inicio), strand_name=hebra,
+            # EL MARCO DE `target`, DERIVADO de su longitud contra el 3'UTR de esta
+            # anatomia. No es el marco de LO TILADO: en esta misma corrida
+            # `LoadResult.start` va en el del tilado, que con el transcrito delante es
+            # `tx`. Dos espacios en la misma corrida, y ninguno de los dos se escribe.
+            frame=marco_diana,
         )
         crudas.append(
             "\t".join(

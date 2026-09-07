@@ -294,7 +294,24 @@ def frame_of(anatomy) -> Frame:
             f"La anatomía {anatomy!r} no declara 3'UTR, así que no hay desfase con el "
             f"que decidir el espacio de coordenadas; se aborta."
         )
-    return Frame.UTR3 if utr3[0] == 1 else Frame.TX
+    return frame_of_utr3_bounds(utr3)
+
+
+def frame_of_utr3_bounds(utr3) -> Frame:
+    """La misma cuenta, sobre la FRONTERA pelada: `(inicio, fin)`, 1-based.
+
+    Existe para quien tiene las coordenadas y no el objeto. El caso real es el registro
+    de un proyecto: `proyecto.json` guarda la anatomia como una lista, y de ahi tiene que
+    salir el marco de las corridas que se releen del log. Ponerlo alli seria una segunda
+    definicion de la misma regla, que es como se fabrica que dos sitios contesten cosas
+    distintas.
+
+    Sin frontera, `UTR3`: lo tilado ES el 3'UTR por construccion. Es la decision que ya
+    tomaba `tiled_frame`, escrita UNA vez y aqui.
+    """
+    if not utr3:
+        return Frame.UTR3
+    return Frame.UTR3 if int(utr3[0]) == 1 else Frame.TX
 
 
 def tiled_frame(anatomy) -> Frame:
@@ -309,7 +326,26 @@ def tiled_frame(anatomy) -> Frame:
     regla copiada en cuatro sitios es la que llega al quinto sin copiarse — que es
     exactamente como la errata nº 121 sobrevivio a su propio arreglo.
     """
-    return frame_of(anatomy) if anatomy is not None else Frame.UTR3
+    return frame_of(anatomy) if anatomy is not None else frame_of_utr3_bounds(None)
+
+
+def frame_of_target(anatomy, length: int) -> Frame:
+    """El marco de una secuencia que se BARRE, decidido por su longitud.
+
+    Existe porque una corrida puede tener DOS espacios a la vez: en la carga de
+    off-targets, `LoadResult.start` va en el marco de lo tilado —que con el transcrito
+    delante es `tx`— y las posiciones del autoconteo van en el de `target`, que puede ser
+    el 3'UTR pelado. Escribir `UTR3` ahi «porque suele serlo» es exactamente la forma que
+    tiene este fallo de volver, asi que se MIDE: si lo barrido mide lo que el 3'UTR de
+    esta anatomia, sus posiciones van en el 3'UTR; si no, van en el marco de lo tilado.
+
+    Sin anatomia no hay 3'UTR con el que comparar y vale lo de `tiled_frame`: lo tilado
+    ES el 3'UTR por construccion.
+    """
+    tope = bound_of(anatomy)
+    if tope is not None and int(length) != tope:
+        return tiled_frame(anatomy)
+    return Frame.UTR3
 
 
 def offset_of(anatomy) -> int:

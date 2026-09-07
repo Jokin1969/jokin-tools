@@ -1859,9 +1859,14 @@ def seed_load_highlights(*, stores, species: str, starts) -> dict[str, dict]:
     from .offtarget import SITE_CLASSES, USE_NOTE
 
     almacen = (stores or {}).get("offtarget")
-    marco_utr3 = None
     filas: dict[int, dict[str, float]] = {}
     autoconteos: dict[int, object] = {}
+    #: EL MARCO DE CADA INICIO, sacado del resultado que lo trae. Aqui llegan enteros
+    #: pelados —`starts`— y no hay anatomia de la que derivarlo, asi que escribirlo era
+    #: la unica salida y por eso se escribio: `Frame.UTR3` sobre un panel del transcrito,
+    #: o sea `3utr:1768` por `tx:1768` (errata nº 138). La corrida SI lo sabe: `run_scan`
+    #: guarda el marco del tilado en cada `LoadResult`, y desde hoy sobrevive al log.
+    marcos: dict[int, coords.Frame] = {}
     ultima = None
     for inicio in (starts if almacen is not None else ()):
         consulta = query_name(species, int(inicio), "guia")
@@ -1872,14 +1877,23 @@ def seed_load_highlights(*, stores, species: str, starts) -> dict[str, dict]:
         if resultado is None:
             continue
         filas[int(inicio)] = dict(resultado.percentiles)
+        marcos[int(inicio)] = resultado.frame
         propio = corrida.scan.self_counts.get(consulta)
         if propio is not None:
             autoconteos[int(inicio)] = propio
         ultima = corrida
-    del marco_utr3
 
     def _etiqueta(inicio: int) -> str:
-        return coords.label(int(inicio), coords.Frame.UTR3)
+        # Sin marco no se etiqueta: se aborta. Un candidato que llega aqui sin resultado
+        # no puede llegar a ninguno de los tres bloques —los tres salen de `filas`— asi
+        # que esto no puede pasar; si pasara, poner uno seria inventarselo otra vez.
+        marco = marcos.get(int(inicio))
+        if marco is None:
+            raise ShmirDesignError(
+                f"No hay marco para la posición {int(inicio)}: su corrida de carga de "
+                f"off-targets no lo declara. Se aborta en vez de etiquetarla al azar."
+            )
+        return coords.label(int(inicio), marco)
 
     def _coma(valor: float) -> str:
         return f"{valor:.1f}".replace(".", ",")

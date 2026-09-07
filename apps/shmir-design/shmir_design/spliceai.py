@@ -48,7 +48,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .blocks import PIECES, build_block
 from .coords import Frame, label, tiled_frame
@@ -261,7 +261,7 @@ class Construction:
     #: `candidate_frame` y no `frame` a proposito: en este modulo «marco» ya significa
     #: otra cosa —`FrameCheck`, el desfase entre las posiciones del resultado y las de
     #: la construccion— y dos cosas con el mismo nombre acaban comparandose.
-    candidate_frame: Frame = Frame.UTR3
+    candidate_frame: Frame = field(kw_only=True)
     #: Si el casete con el que se monto es el del deposito. Por defecto SIN_COMPROBAR:
     #: el silencio se leia como «coincide», y eso es exactamente lo que paso el
     #: 2026-09-06 — un FASTA con `estado=COMPLETO` montado sobre otro casete.
@@ -390,7 +390,7 @@ class FailedConstruction:
     intron: str
     reason: str
     #: El marco de `candidate_start`. Ver `Construction.candidate_frame`.
-    candidate_frame: Frame = Frame.UTR3
+    candidate_frame: Frame = field(kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -1216,7 +1216,7 @@ class PairResult:
     frame_check: FrameCheck = FrameCheck(state=FilterState.NOT_RUN, reason="sin comprobar")
     #: El espacio de coordenadas de `candidate_start`, heredado de la construccion con
     #: la que se consulto. Otra cosa que `frame_check`: ver `Construction`.
-    candidate_frame: Frame = Frame.UTR3
+    candidate_frame: Frame = field(kw_only=True)
 
     @property
     def best_cryptic(self) -> Cryptic | None:

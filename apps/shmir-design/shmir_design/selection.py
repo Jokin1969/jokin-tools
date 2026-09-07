@@ -1061,7 +1061,7 @@ class PolyAModeComparison:
     eligible: dict[str, int]
     stable: bool
     #: Espacio de las posiciones de `selections`: el de LO TILADO.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     def format_text(self) -> str:
         lines = [
@@ -1116,6 +1116,10 @@ def polya_mode_comparison(
                 list(report.signals),
                 utr_length=report.utr_length,
                 mode=modo,
+                # EL MARCO, que hasta hoy no se pasaba: la comparativa lo declaraba en su
+                # propio campo y las anotaciones de dentro se quedaban con el valor por
+                # defecto. Es el mismo de la comparativa, y ahora sale de un solo sitio.
+                frame=tiled_frame(report.anatomy),
             )
             ventanas.append(
                 replace(

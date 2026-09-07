@@ -90,6 +90,11 @@ class Informe:
     sin_declarar: list[dict] = field(default_factory=list)
     #: Entradas de la tabla que ya no corresponden a ningun literal.
     muertas: list[dict] = field(default_factory=list)
+    #: Sitios donde el MARCO lo pone un valor POR DEFECTO. Cero, sin excepciones.
+    por_defecto: list[dict] = field(default_factory=list)
+    #: Funciones que reciben una posicion del panel (`start`/`starts`) y ESCRIBEN el
+    #: marco en vez de recibirlo o derivarlo. Cero, sin excepciones.
+    escrito_sobre_un_start: list[dict] = field(default_factory=list)
 
 
 def _prefijos() -> tuple[str, ...]:
@@ -191,6 +196,89 @@ def _fabrica_sin_dos_puntos(arbol: ast.AST, valores: tuple[str, ...]) -> list[in
     return lineas
 
 
+#: Como se llaman las posiciones del PANEL cuando cruzan una frontera de funcion. Son
+#: enteros pelados: el marco se queda al otro lado, y quien las imprime no tiene de donde
+#: sacarlo — asi nacio `3utr:1768` por `tx:1768`. Donde llegue uno de estos, el marco se
+#: recibe o se saca de la corrida; escribirlo es la forma que tiene este fallo de volver.
+NOMBRES_DE_POSICION = ("start", "starts")
+
+
+def _es_miembro_del_marco(nodo: ast.AST) -> bool:
+    """`Frame.UTR3`, `coords.Frame.TX`… — un miembro del enum, escrito.
+
+    No se listan los miembros: se acepta cualquier atributo de algo llamado `Frame`. Un
+    tercer espacio de coordenadas entraria aqui solo, que es la diferencia entre un
+    guardia y una lista que hay que acordarse de ampliar.
+    """
+    if not isinstance(nodo, ast.Attribute):
+        return False
+    duenno = nodo.value
+    return (
+        getattr(duenno, "id", None) == "Frame"
+        or getattr(duenno, "attr", None) == "Frame"
+    )
+
+
+def _es_valor_del_marco(nodo: ast.AST) -> bool:
+    """Lo mismo, pero pasado por `.value` — que es como se guarda en el log."""
+    if _es_miembro_del_marco(nodo):
+        return True
+    return (
+        isinstance(nodo, ast.Attribute)
+        and nodo.attr == "value"
+        and _es_miembro_del_marco(nodo.value)
+    )
+
+
+def _defectos(arbol: ast.AST) -> list[tuple[int, str]]:
+    """Los sitios donde el marco lo pone la AUSENCIA de una decision, con su forma.
+
+    Tres formas, y las tres estaban en el codigo el 2026-09-07: el campo de una
+    dataclass, el parametro de una firma y el segundo argumento de un `.get()` al releer
+    el log. Un ARGUMENTO escrito —`label(w.inicio_3utr, Frame.UTR3)`— NO entra: eso
+    afirma algo sobre ese valor, no rellena lo que nadie dijo.
+    """
+    salida: list[tuple[int, str]] = []
+    for nodo in ast.walk(arbol):
+        if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            a = nodo.args
+            posicionales = a.posonlyargs + a.args
+            defectos = [None] * (len(posicionales) - len(a.defaults)) + list(a.defaults)
+            for defecto in defectos + list(a.kw_defaults):
+                if defecto is not None and _es_valor_del_marco(defecto):
+                    salida.append((defecto.lineno, "firma"))
+        elif isinstance(nodo, ast.AnnAssign):
+            if nodo.value is not None and _es_valor_del_marco(nodo.value):
+                salida.append((nodo.lineno, "campo"))
+        elif isinstance(nodo, ast.Call):
+            nombre = nodo.func.attr if isinstance(nodo.func, ast.Attribute) else ""
+            if nombre in ("get", "pop") and len(nodo.args) == 2:
+                if _es_valor_del_marco(nodo.args[1]):
+                    salida.append((nodo.args[1].lineno, "al releer"))
+            elif getattr(nodo.func, "id", "") == "getattr" and len(nodo.args) == 3:
+                if _es_valor_del_marco(nodo.args[2]):
+                    salida.append((nodo.args[2].lineno, "al releer"))
+    return salida
+
+
+def _escritos_sobre_un_start(arbol: ast.AST) -> list[tuple[int, str]]:
+    """Miembros del marco ESCRITOS dentro de una funcion que recibe `start`/`starts`."""
+    salida: list[tuple[int, str]] = []
+    for nodo in ast.walk(arbol):
+        if not isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        a = nodo.args
+        nombres = {
+            arg.arg for arg in a.posonlyargs + a.args + a.kwonlyargs
+        }
+        if not nombres & set(NOMBRES_DE_POSICION):
+            continue
+        for dentro in ast.walk(nodo):
+            if _es_miembro_del_marco(dentro):
+                salida.append((dentro.lineno, nodo.name))
+    return salida
+
+
 def analizar_fuentes(fuentes: dict[str, str], declaradas: list[dict]) -> Informe:
     prefijos = _prefijos()
     valores = tuple(p.rstrip(":") for p in prefijos)
@@ -199,6 +287,17 @@ def analizar_fuentes(fuentes: dict[str, str], declaradas: list[dict]) -> Informe
     for nombre, texto in sorted(fuentes.items()):
         arbol = ast.parse(texto, filename=nombre)
         docs = _docstrings(arbol)
+        for linea, donde in _defectos(arbol):
+            informe.por_defecto.append({
+                "fichero": nombre,
+                "linea": linea,
+                "simbolo": _simbolo(arbol, linea),
+                "donde": donde,
+            })
+        for linea, funcion in _escritos_sobre_un_start(arbol):
+            informe.escrito_sobre_un_start.append({
+                "fichero": nombre, "linea": linea, "simbolo": funcion,
+            })
         for linea in _fabrica_sin_dos_puntos(arbol, valores):
             informe.fabrican.append({
                 "fichero": nombre,
@@ -293,6 +392,28 @@ def render(informe: Informe) -> str:
         lineas.append(f"    {len(informe.muertas):3}  ⚠  DECLARACIONES muertas:")
         for fila in informe.muertas:
             lineas.append(f"         · {fila['fichero']}  {fila['simbolo']}")
+    if informe.por_defecto:
+        lineas.append(
+            f"    {len(informe.por_defecto):3}  ⚠  el MARCO viene POR DEFECTO:"
+        )
+        for fila in informe.por_defecto:
+            lineas.append(
+                f"         · {fila['fichero']}:{fila['linea']}  {fila['simbolo']}  "
+                f"[{fila['donde']}]"
+            )
+    else:
+        lineas.append("      0  el MARCO viene por defecto")
+    if informe.escrito_sobre_un_start:
+        lineas.append(
+            f"    {len(informe.escrito_sobre_un_start):3}  ⚠  marco ESCRITO donde llega "
+            f"una posición del panel:"
+        )
+        for fila in informe.escrito_sobre_un_start:
+            lineas.append(
+                f"         · {fila['fichero']}:{fila['linea']}  {fila['simbolo']}"
+            )
+    else:
+        lineas.append("      0  marco escrito donde llega una posición del panel")
     lineas.append("")
     lineas.append(
         "  El prefijo lo pone `coords.label`/`span`, que además comprueba el rango. Un"
@@ -300,16 +421,34 @@ def render(informe: Informe) -> str:
     lineas.append(
         "  literal tecleado se salta el invariante y ya lo hizo cinco veces (errata 121)."
     )
+    lineas.append(
+        "  Y el MARCO no tiene valor por defecto: olvidarse de pasarlo es un TypeError,"
+    )
+    lineas.append(
+        "  no una posición de otro sitio bien formada y callada (errata nº 138)."
+    )
     return "\n".join(lineas)
+
+
+def fallos(informe: Informe) -> int:
+    """Los hallazgos que tienen que estar a CERO. En un solo sitio, no en dos.
+
+    Estaba contado aqui y otra vez en `check_rules`, y al añadir una categoria nueva se
+    actualiza uno y no el otro: un guardia que solo falla por la mitad de lo que mira.
+    """
+    return (
+        len(informe.fabrican)
+        + len(informe.sin_declarar)
+        + len(informe.muertas)
+        + len(informe.por_defecto)
+        + len(informe.escrito_sobre_un_start)
+    )
 
 
 def main(argv: list[str]) -> int:
     informe = auditar()
     print(render(informe))
-    fallos = (
-        len(informe.fabrican) + len(informe.sin_declarar) + len(informe.muertas)
-    )
-    return 1 if fallos else 0
+    return 1 if fallos(informe) else 0
 
 
 if __name__ == "__main__":

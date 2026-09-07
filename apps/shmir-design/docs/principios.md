@@ -2876,6 +2876,37 @@ está bien puesto es la misma que la de que dos listas son dos: **enunciar la le
 equivocada y ver si el nombre la admite**. Si la admite, el motivo escrito no la va a
 impedir.
 
+### LA TERCERA FORMA, y no es una lista: un MÉTODO que contesta dos preguntas (2026-09-07)
+
+La formulación es del responsable del proyecto, sobre la errata nº 137:
+
+> *«Un método que contesta dos preguntas y sólo tiene escrita una. El comentario explicaba
+> por qué no se aborta en `add` por `result_md5`, y `add` seguía abortando por `run_id`. La
+> justificación estaba, aplicada a la mitad del caso.»*
+
+Es el mismo mecanismo sin ninguna lista de por medio. `BlastStore.add` y sus tres hermanos
+contestaban **«¿acepto esta corrida nueva?»** y **«¿reproduzco esta línea del log?»**, y
+sólo la primera estaba escrita. Los cargadores llaman al mismo método, así que la regla de
+la primera pregunta —abortar con un `run_id` repetido, que ahí es correcta— se aplicaba a
+la segunda, donde deja **sin poder abrir** un proyecto cuyo log ya tiene el duplicado
+escrito. Y el log es append-only: esa línea no se puede quitar.
+
+**Lo que lo hace la misma familia** es que la justificación estaba redactada y era buena.
+`_rechaza_si_es_el_mismo_fichero` se puso en `append` **con este motivo textual**: *«`add`
+lo llaman también los cargadores al releer el log, así que abortar ahí dejaría sin poder
+ABRIR un proyecto que ya tiene el duplicado escrito»*. Se escribió del `result_md5`
+mientras `add` hacía exactamente eso con el `run_id`, tres líneas más allá.
+
+**La regla operativa es la de arriba con el sujeto cambiado**: donde una lista se parte en
+dos listas, un método se parte en **dos métodos con dos nombres**. `add` (escribir, aborta)
+y `add_recorded` (releer, tolera y apunta). Y la prueba de que ya son dos es la misma:
+**se les puede dar reglas distintas sin que nada se rompa**.
+
+Y el corolario que enseña dónde mirar: **una justificación escrita en un sitio no protege
+al sitio de al lado**, ni aunque hable exactamente de él. La pregunta que la cierra es
+**qué otros llamadores tiene este método**, y si contestan la misma pregunta que el que se
+está mirando.
+
 ## 54 — Una excepción declarada es una HIPÓTESIS, y el uso puede refutarla
 
 Formulado por Joaquín Castilla el 2026-09-07, con el caso delante y en forma de pregunta
@@ -3041,3 +3072,96 @@ frase no es una pista floja: es falsa, y manda a un sitio donde no hay nada.
 - **Y el hueco no se deja vacío.** Un aborto a secas empuja a inventarse una fecha o a
   abrir otro proyecto (errata nº 48). Lo que entra en su sitio es lo medido: qué
   validación pasó el fichero, y qué queda descartado con eso.
+
+## 57 — Lo que se ejecuta dentro de un `except` no puede PODER fallar
+
+La formulación es del responsable del proyecto, sobre la errata nº 137:
+
+> *«Lo del `except` es lo que más enseña: el código que da la salida vive dentro del bloque
+> que atrapa el fallo, así que una excepción ahí se lleva por delante la salida que ese
+> bloque existe para dar. Merece regla propia: lo que se ejecuta dentro de un `except` no
+> puede poder fallar, porque su fallo se lleva por delante el único mensaje que iba a
+> llegar al usuario.»*
+
+### Por qué no es un caso más del nº 47
+
+El principio nº 47 dice que la salida va donde está el bloqueo. Éste dice lo siguiente:
+**una salida puesta en el sitio correcto puede borrarse a sí misma.** Un `except` es, por
+construcción, el último sitio donde algo puede ir mal antes de que el usuario se entere de
+nada: si lo que hay dentro levanta a su vez, la excepción nueva **sustituye** a la que se
+estaba explicando, y quien lo lee ni siquiera ve el fallo original.
+
+Y la asimetría es lo que lo hace grave: en el camino normal, un fallo se ve y se arregla;
+en el camino del `except`, un fallo **destruye la información sobre otro fallo**. Se paga
+dos veces y sólo se cobra una.
+
+### EL CASO (2026-09-07), y es el arreglo de la errata anterior
+
+Para la errata nº 135, el `except` de `_guardar_corrida` pasó a llamar a
+`pending_after_duplicate` —qué del panel sigue sin contestar— y a pintarlo debajo del
+mensaje rojo. Esa función mira el panel, y **puede abortar**: un frente mal escrito, unos
+almacenes que no se pudieron cargar. Cuando aborta, la excepción sube, la página se corta
+**por debajo del mensaje que se acaba de pintar**, y el usuario se queda con el aborto y
+sin la salida que ese bloque existía para darle. La errata nº 137 dentro del arreglo de la
+nº 135, en el mismo día.
+
+### La regla, en tres formas
+
+1. **Un `except` se escribe hacia dentro**: lo que va ahí se calcula ANTES —donde un fallo
+   todavía se puede explicar— o se envuelve en su propio `try`, que es lo que se hizo.
+2. **Lo primero que se pinta es el motivo original**, y sólo después lo que lo enriquece.
+   Al revés, un fallo del enriquecimiento borra el motivo; en este orden, lo peor que
+   pasa es que el enriquecimiento no salga.
+3. **Y ese `try` de dentro no puede tragarse el fallo** (regla 2): lleva su
+   `# rule2-ok: <motivo>` y lo que se pierde va nombrado. Si el propio motivo no se puede
+   escribir, es que ahí no había un `except`, había una decisión sin tomar.
+
+### Lo que hay que preguntarse
+
+Delante de cualquier bloque de manejo de errores: **¿qué pasa si esto falla?** Si la
+respuesta es «se pierde el mensaje», el código no puede estar ahí. Y la comprobación no es
+leerlo: es **hacerlo fallar** — el control adversario aplicado al camino que sólo se
+recorre cuando ya ha ido algo mal, que es exactamente el que nadie ejercita.
+
+## 58 — Un valor por defecto convierte un olvido en un dato
+
+Sale de la errata nº 138, y es la generalización de una familia con nueve instancias
+registradas: el marco de coordenadas escrito donde debería derivarse.
+
+### El mecanismo
+
+Un parámetro obligatorio que se olvida da un `TypeError`: **ruidoso, inmediato y en el
+sitio del fallo**. El mismo parámetro con valor por defecto da **un dato**, con la forma
+correcta, dentro de rango y callado — y el sitio donde se nota queda tres pantallas o tres
+semanas más allá.
+
+En este proyecto eso tiene nombre: `Frame.UTR3` era el defecto en **veinte** sitios
+—campos de dataclass, firmas de función y un `.get(clave, Frame.UTR3.value)` al releer el
+log— así que olvidarse de pasar el marco no daba ningún error: daba una posición de otro
+sitio. `3utr:1768` por `tx:1768`, con el agravante de que de once candidatos sólo cuatro
+pasaban el techo del invariante y los otros siete **se imprimían mal en silencio**.
+
+### La regla
+
+**Un valor por defecto es una decisión, y sólo se pone donde esa decisión sea correcta
+para todos los llamadores presentes y futuros.** Si el valor depende del contexto —y un
+espacio de coordenadas siempre depende del contexto— no hay ninguno correcto, y el
+obligatorio es el único honesto.
+
+Y tiene su guardia, con la misma doctrina que el del prefijo: **si el marco no se puede
+omitir, no puede haber un décimo sitio que lo omita**. `tools/auditar_marcos.py` lo
+persigue en las tres formas en que aparecía —campo, firma y defecto al releer— y el número
+correcto es cero, sin excepciones.
+
+### El corolario, que es donde vive el resto de la familia
+
+**La persistencia es el sitio donde un defecto hace más daño.** Al escribir se pierde un
+campo sin que nadie lo note; al releer, el defecto lo repone; y el objeto reconstruido es
+**autoconsistente**, así que ninguna comprobación posterior puede distinguirlo del bueno.
+La contramedida se le había puesto al emisor (errata nº 122) y la capa de persistencia
+volvía a construir el mismo objeto sin ella.
+
+De ahí la regla operativa: **lo que decide cómo se lee un número viaja con el número**, y
+si no viajó, se **DERIVA** de algo que el propio registro conserve — nunca de un literal.
+El proyecto sabe sobre qué anatomía tiló; de ahí sale el marco de sus corridas viejas, y
+eso es un hecho y no un supuesto.

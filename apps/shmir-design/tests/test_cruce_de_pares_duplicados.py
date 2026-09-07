@@ -23,6 +23,8 @@ Al cruzarlas, los tres pares resultaron ser tres cosas DISTINTAS, y eso es el re
 
 import unittest
 
+from shmir_design.coords import Frame
+
 from shmir_design.filters import FilterState
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 from tests.tabla_medida import TABLA
@@ -49,6 +51,8 @@ class TestElParQueNOCoincide(unittest.TestCase):
             candidate_start=200, intron="intron_quimerico",
             legit_donor=0.90, legit_acceptor=0.85, cryptics=(),
             known_cryptic=None, context_5=0, context_3=0,
+            # Panel sobre el 3'UTR pelado: `candidate_start` va en su espacio.
+            candidate_frame=Frame.UTR3,
         )
         return SpliceScan(pairs=(par,))
 

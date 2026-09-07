@@ -404,13 +404,16 @@ def main(argv: list[str]) -> int:
     marcos = auditar_marcos()
     print(render_marcos(marcos))
 
-    fallos_marco = (
-        len(marcos.fabrican) + len(marcos.sin_declarar) + len(marcos.muertas)
-    )
+    # EL RECUENTO LO DA EL AUDITOR, no se rehace aqui. Estaba escrito en los dos
+    # sitios, asi que una categoria nueva —el marco POR DEFECTO— habria hecho fallar a
+    # `auditar_marcos` por su cuenta y no a `check_rules`, que es el que corre.
+    from auditar_marcos import fallos as fallos_de_marcos
+
+    fallos_marco = fallos_de_marcos(marcos)
     if fallos_marco:
         print(
-            f"\ncheck_rules: {fallos_marco} literal(es) del prefijo del marco fuera de "
-            f"`coords` sin arreglar ni declarar.",
+            f"\ncheck_rules: {fallos_marco} hallazgo(s) del guardia del marco sin "
+            f"arreglar ni declarar.",
             file=sys.stderr,
         )
         return 1

@@ -32,6 +32,8 @@ saberlo antes de pedir cebadores.
 
 import unittest
 
+from shmir_design.coords import Frame
+
 from shmir_design.polya import CLEAVAGE_MAX, CLEAVAGE_MIN, find_polya_signals, SignalClass
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 from shmir_design.tiling import tile_utr
@@ -97,7 +99,9 @@ class TestElPlanDECLARAQueCortesCruza(unittest.TestCase):
             if s.classification is SignalClass.APA_POSSIBLE
         ]
         cls.plan = rtqpcr_amplicons(
-            señales[0], utr_length=informe.utr_length, others=tuple(señales[1:])
+            señales[0], utr_length=informe.utr_length, others=tuple(señales[1:]),
+            # El fixture tila el 3'UTR PELADO: sus posiciones van en ese espacio.
+            frame=Frame.UTR3,
         )
 
     def test_el_distal_cruza_la_banda_de_la_OTRA_señal(self):
@@ -120,7 +124,9 @@ class TestElPlanDECLARAQueCortesCruza(unittest.TestCase):
 
         informe = tile_utr(load_3utr(RATON))
         señal = next(s for s in informe.signals if s.position == 236)
-        plan = rtqpcr_amplicons(señal, utr_length=informe.utr_length)
+        plan = rtqpcr_amplicons(
+            señal, utr_length=informe.utr_length, frame=Frame.UTR3
+        )
         self.assertEqual(plan.distal_crosses, ())
         self.assertNotIn("no cabe", "\n".join(plan.describe()).lower())
 

@@ -76,7 +76,11 @@ class TestElAvisoDeLaPasajeraGRADUA(unittest.TestCase):
             query="p", target_label="d", occurrences=len(clases), sites={},
             expected=0,
             detail=tuple(
-                SelfSite(position=100 + i, site_class=c, own_window=False)
+                SelfSite(
+                    position=100 + i, site_class=c, own_window=False,
+                    # Sitios dentro de la diana, que aqui es el 3'UTR.
+                    frame=Frame.UTR3,
+                )
                 for i, c in enumerate(clases)
             ),
         )

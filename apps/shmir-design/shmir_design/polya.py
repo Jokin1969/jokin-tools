@@ -228,7 +228,7 @@ class PolyASignal:
     def forbidden_end(self) -> int:
         return min(self.utr_length, self.end + self.flank)
 
-    def describe(self, *, frame: Frame = Frame.UTR3) -> str:
+    def describe(self, *, frame: Frame) -> str:
         """`frame` es el espacio de `position`: el de LO TILADO.
 
         Por defecto `3utr` porque las coordenadas de una señal son 1-based sobre el
@@ -454,7 +454,7 @@ class Report:
     avisos: tuple[Aviso, ...] = field(default=())
     signals_available: bool = True
     #: Espacio de coordenadas de las posiciones de este informe.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     def format_text(self) -> str:
         lines = [f"3'UTR de {self.utr_length} nt"]
@@ -705,7 +705,7 @@ def annotate_3utr(
 def _avisos_apa(
     signals: list[PolyASignal] | None,
     annotated: list[AnnotatedWindow],
-    frame: Frame = Frame.UTR3,
+    frame: Frame,
 ) -> list[Aviso]:
     """Un AVISO destacado por cada APA proximal detectado (apartado B).
 
@@ -985,7 +985,7 @@ class PolyAAnnotation:
     #: pagina no. Dos sitios que hacen lo mismo y uno se olvida: el patron de los dos
     #: contadores que discrepan. Ahora la etiqueta la pone la anotacion, que es quien
     #: sabe de que posicion habla.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     def as_columns(self) -> dict[str, str]:
         if self.posicion_rel is None:
@@ -1317,7 +1317,7 @@ def annotate_polya(
     sequence: str | None = None,
     mode: PolyAMode = PolyAMode.ESCALONADO,
     fraccion_isoforma_larga: float | None = None,
-    frame: Frame = Frame.UTR3,
+    frame: Frame,
 ) -> PolyAAnnotation:
     """Anota una ventana: cinco campos, y solo uno es un veredicto.
 
@@ -1551,7 +1551,7 @@ class AmpliconPlan:
     utr_length: int
     #: Espacio en que van TODAS las coordenadas de este plan. Un 334 no dice por si
     #: solo si es del transcrito o del 3'UTR, y esa confusion ya costo una tanda.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
     #: OTRAS señales APA_POSIBLE cuyas bandas de corte ATRAVIESA cada amplicon. Un
     #: amplicon partido por un corte no da producto en la isoforma cortada, asi que
     #: cruzar una banda cambia lo que la razon mide — y el plan no puede callarselo.
@@ -1732,7 +1732,7 @@ def rtqpcr_amplicons(
     signal: PolyASignal,
     *,
     utr_length: int,
-    frame: Frame = Frame.UTR3,
+    frame: Frame,
     first_position: int = 1,
     avoid: list[tuple[int, int]] | tuple[tuple[int, int], ...] = (),
     length: int = RTQPCR_AMPLICON_LENGTH,

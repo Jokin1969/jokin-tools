@@ -21,6 +21,8 @@ próxima anomalía real de pasajera se lee como ruido.
 
 import unittest
 
+from shmir_design.coords import Frame
+
 from shmir_design.offtarget import SelfCount, expected_self_count, self_count
 
 #: La guía de `3utr:1071` y su pasajera, del panel murino. La pasajera es la de verdad:
@@ -52,13 +54,13 @@ class TestSobreLaDianaDeVERDAD(unittest.TestCase):
 
     def test_la_guia_encuentra_SU_sitio(self):
         conteo = self_count(GUIA, target=DIANA, target_label="su diana",
-                            strand_name="guia")
+                            strand_name="guia", frame=Frame.UTR3)
         self.assertEqual(conteo.occurrences, 1)
         self.assertFalse(conteo.anomalous)
 
     def test_la_pasajera_NO_encuentra_ninguno_y_eso_es_lo_ESPERADO(self):
         conteo = self_count(PASAJERA, target=DIANA, target_label="su diana",
-                            strand_name="pasajera")
+                            strand_name="pasajera", frame=Frame.UTR3)
         self.assertEqual(conteo.occurrences, 0)
         self.assertFalse(conteo.anomalous, "cero es lo normal en una pasajera")
 
@@ -71,7 +73,7 @@ class TestSobreLaDianaDeVERDAD(unittest.TestCase):
         nucleo = site_patterns(PASAJERA).core
         conteo = self_count(
             PASAJERA, target=DIANA + nucleo + "AAAA", target_label="su diana",
-            strand_name="pasajera",
+            strand_name="pasajera", frame=Frame.UTR3,
         )
         self.assertGreaterEqual(conteo.occurrences, 1)
         self.assertTrue(conteo.anomalous)

@@ -32,6 +32,8 @@ con otro panel— el destacado señala a otro candidato, o a ninguno, y se enter
 
 import unittest
 
+from shmir_design.coords import Frame
+
 from shmir_design import presentation
 from shmir_design.filters import FilterResult, FilterState
 from shmir_design.identidad import run_id
@@ -45,9 +47,14 @@ class _Cuentas:
 
 
 class _Resultado:
-    def __init__(self, sitios, percentiles):
+    #: EL MARCO VIAJA EN EL RESULTADO, igual que en `offtarget.LoadResult`. Este doble lo
+    #: lleva porque la lectura lo LEE de aqui: escribirlo en `seed_load_highlights` fue el
+    #: emisor de la errata nº 138 —`3utr:1768` por `tx:1768`— y un doble sin este campo
+    #: dejaria de probar el camino que la app recorre.
+    def __init__(self, sitios, percentiles, frame=Frame.UTR3):
         self.counts = _Cuentas(sitios)
         self.percentiles = dict(percentiles)
+        self.frame = frame
 
 
 class _Autoconteo:

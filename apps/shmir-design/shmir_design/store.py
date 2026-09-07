@@ -32,7 +32,7 @@ import json
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from .coords import Frame
+from .coords import Frame, frame_of_utr3_bounds
 from .identidad import configuration_fingerprint
 from .errors import ShmirDesignError
 
@@ -606,6 +606,8 @@ def save_seed_run(store: ProjectStore, run) -> Record:
                     "start": r.start, "strand": r.strand, "query": r.query,
                     "sequence": r.sequence, "heptamer": r.heptamer,
                     "window": r.window, "level": r.level,
+                    # El marco de `start`. Mismo motivo que en la corrida de off-targets.
+                    "frame": r.frame.value,
                     "collisions": [
                         {"name": c.name, "core": c.core, "mir30": c.mir30}
                         for c in r.collisions
@@ -635,6 +637,9 @@ def load_seed_store(store: ProjectStore):
     from .seed_store import SeedRun, SeedStore
 
     almacen = SeedStore()
+    # El marco de los registros que no lo traen: DERIVADO de la anatomia del proyecto,
+    # nunca por defecto. Ver `marco_del_panel`.
+    marco = marco_del_panel(store)
     for registro in store.records("corrida_seed"):
         datos = registro.payload
         resultados = tuple(
@@ -642,6 +647,7 @@ def load_seed_store(store: ProjectStore):
                 start=r["start"], strand=r["strand"], query=r["query"],
                 sequence=r["sequence"], heptamer=r["heptamer"], window=r["window"],
                 level=r["level"],
+                frame=Frame(r["frame"]) if "frame" in r else marco,
                 collisions=tuple(
                     SeedCollision(name=c["name"], core=c["core"], mir30=c["mir30"])
                     for c in r["collisions"]
@@ -706,6 +712,21 @@ def _null_from_json(datos: dict):
     )
 
 
+def marco_del_panel(store: ProjectStore) -> Frame:
+    """El espacio de coordenadas del PANEL de este proyecto, DERIVADO de su anatomia.
+
+    Existe para los registros escritos ANTES de que el marco viajara en el log. **No es
+    un valor por defecto**: el proyecto guarda sobre que frontera se tilo, asi que el
+    marco de sus corridas es una consecuencia de eso y no una suposicion — que es lo que
+    convirtio un panel del transcrito en once posiciones del 3'UTR (errata nº 138).
+
+    La cuenta la hace `coords`, que es su dueño; aqui solo se le pasa la frontera que el
+    proyecto tiene escrita.
+    """
+    anatomia = getattr(store.project, "anatomy", None) or {}
+    return frame_of_utr3_bounds(anatomia.get("utr3"))
+
+
 def save_offtarget_run(store: ProjectStore, run) -> Record:
     """Persiste una corrida de carga de off-targets por seed."""
     scan = run.scan
@@ -751,6 +772,10 @@ def save_offtarget_run(store: ProjectStore, run) -> Record:
                     "sequence": r.sequence, "heptamer": r.patterns.heptamer,
                     "sites": r.counts.sites, "transcripts": r.counts.transcripts,
                     "percentiles": r.percentiles,
+                    # EL MARCO DE `start`, que hasta hoy no se guardaba. Sin el, una
+                    # corrida del TRANSCRITO volvia del log con sus once posiciones en el
+                    # espacio del 3'UTR — medido (errata nº 138).
+                    "frame": r.frame.value,
                 }
                 for r in scan.results
             ],
@@ -791,6 +816,8 @@ def load_offtarget_store(store: ProjectStore):
     from .offtarget_store import OfftargetRun, OfftargetStore
 
     almacen = OfftargetStore()
+    # El marco de los registros que no lo traen. Ver `marco_del_panel`.
+    marco = marco_del_panel(store)
     for registro in store.records("corrida_offtarget"):
         datos = registro.payload
         auditoria = dict(datos["audit"])
@@ -812,6 +839,7 @@ def load_offtarget_store(store: ProjectStore):
                     patterns=patterns_from_heptamer(r["heptamer"]),
                     counts=Counts(sites=r["sites"], transcripts=r["transcripts"]),
                     percentiles=r["percentiles"],
+                    frame=Frame(r["frame"]) if "frame" in r else marco,
                 )
                 for r in datos["results"]
             ),
@@ -954,6 +982,7 @@ def load_splice_store(store: ProjectStore):
     from .spliceai import Cryptic, PairResult, SpliceScan
 
     almacen = SpliceStore()
+    marco = marco_del_panel(store)
     for registro in store.records("corrida_empalme"):
         datos = registro.payload
 
@@ -968,10 +997,13 @@ def load_splice_store(store: ProjectStore):
             PairResult(
                 construction=p["construction"],
                 candidate_start=p["candidate_start"],
-                # Los registros escritos ANTES de que el marco viajara no lo traen, y
-                # todos son de tilados del 3'UTR pelado: `UTR3` es lo que eran. Lo que
-                # no se hace es adivinarlo para los nuevos — los nuevos lo traen.
-                candidate_frame=Frame(p.get("candidate_frame", Frame.UTR3.value)),
+                # Los registros escritos ANTES de que el marco viajara no lo traen.
+                # NO se rellena con `UTR3` —eso era un valor por defecto, y contestaba
+                # `3utr` a un log del transcrito (errata nº 138)—: se DERIVA de la
+                # anatomia que el propio proyecto guarda.
+                candidate_frame=(
+                    Frame(p["candidate_frame"]) if "candidate_frame" in p else marco
+                ),
                 intron=p["intron"],
                 legit_donor=p["legit_donor"],
                 legit_acceptor=p["legit_acceptor"],
