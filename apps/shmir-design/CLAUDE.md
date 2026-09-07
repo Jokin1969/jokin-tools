@@ -5949,6 +5949,50 @@ fichero subido dos veces y eso debería reconocerse, como haces con BLAST»*.
   cambiar la fecha: si lo que se quería era repetir la comprobación, hay que volver a
   correrla; si sólo consultarla, ya está en el historial.
 
+### Y EL ABORTO ADIVINABA POR QUÉ (errata nº 136)
+
+Reportado el mismo día y por segunda vez, con el mensaje entero delante. Entre lo que
+había que hacer decía —con un adverbio de conjetura que le daba la forma de un hecho—
+que **casi seguro se había cogido el resultado viejo de SpliceAI**.
+
+- **No se había comprobado. Y estaba DESCARTADO por el guardia que ese fichero acababa de
+  pasar.** `spliceai.parse_result` valida CADA fila contra las construcciones de ESTA
+  corrida —por nombre y por md5, con el nombre heredado admitido sólo si el md5 lo
+  confirma— y rechaza el fichero entero si alguna nombra una que este panel no genera.
+  **MEDIDO** con el resultado versionado del 2026-09-05: contra el panel de hoy revienta
+  en la **línea 2**, por `mvm_actual__3utr959` —el `3utr:10` retirado—. Así que un
+  resultado del panel anterior **no puede llegar al guardia del duplicado**.
+- **O sea que lo único que el fichero NO podía ser era justo lo que el texto mandaba a
+  buscar**, y se mandó dos veces. Principio nº 3, en la forma que ya tiene registro: la
+  misma que «comprueba que Streamlit está instalado» pegado a un conflicto de
+  configuración y que el «Alu 0 %» obtenido sin buscar Alu. **Un diagnóstico equivocado
+  cuesta más que ninguno** — y aquí el coste fue mandar a repetir una corrida de SpliceAI
+  que no hacía falta.
+- **El barrido encontró TRES, no una**: la de empalme, la misma frase en BLAST, y una
+  tercera en `blast_store.validate_upload` («se rechaza: casi seguro es el resultado de
+  otra corrida»). Las tres decían de una causa lo que no habían mirado. Ahora cada aborto
+  dice **lo que sí se ha comprobado** —qué validación pasó el fichero y qué queda
+  descartado con eso— y **no dice por qué se repitió**, que es lo que no sabe.
+- **El guardia es sobre los ADVERBIOS, no sobre la prosa**
+  (`tests/test_el_ABORTO_no_ADIVINA_la_causa.py`): un aborto que dice «casi seguro»,
+  «probablemente» o «lo más probable» está adivinando, y quien lo lee no tiene forma de
+  saberlo — la frase tiene la misma forma que una medida. Barre los dos almacenes enteros
+  por el fuente, así que un cuarto sitio queda cubierto sin acordarse; con control
+  adversario, porque si no «ninguno conjetura» y «el barrido no mira nada» darían el mismo
+  verde. Y la regla ya estaba escrita en `process.diagnose`: **una pista sólo cuando la
+  propia evidencia la nombra**.
+- **Al retirar la frase, el hueco no se deja vacío**: un aborto a secas es lo que empuja a
+  inventarse una fecha o a abrir otro proyecto, que es la errata nº 48. Lo que entra es lo
+  medido — que ese fichero pasó la validación de ESTA corrida, así que no es de otro
+  panel — y la cobertura pendiente del bloque anterior.
+- **Y LA CONJETURA TENÍA UN TEST EN VERDE DEFENDIÉNDOLA.**
+  `test_y_el_motivo_dice_que_es_de_OTRA_corrida` exigía esa frase, así que el código y su
+  prueba **compartían la suposición** y ninguno de los dos podía delatar al otro
+  (principio nº 22) — el fallo salió al arreglarlo, no al probarlo. El test se reescribe
+  para exigir lo que el mensaje SÍ puede sostener: que no es de esta consulta, y que **no
+  adivina** qué lo produjo. **Un test que fija una conjetura la convierte en un
+  requisito**, y a partir de ahí quitarla parece una regresión.
+
 ### Y EL RECHAZO DICE LO QUE SIGUE FALTANDO (errata nº 135)
 
 Reportado el mismo día, con el aborto en pantalla y en estas palabras: *«resulta que ahora

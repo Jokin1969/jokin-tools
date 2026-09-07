@@ -162,14 +162,26 @@ class TestCriterio2_ElMd5DeConsulta(unittest.TestCase):
             )
         self.assertIn("md5", str(ctx.exception).lower())
 
-    def test_y_el_motivo_dice_que_es_de_OTRA_corrida(self):
+    def test_el_motivo_dice_QUE_NO_ES_y_NO_adivina_QUE_ES(self):
+        """Lo que el md5 demuestra es que NO es de esta consulta. Nada mas.
+
+        Aqui se afirmaba «casi seguro es el resultado de otra corrida», y este test
+        exigia esa frase — o sea que **fijaba la conjetura** (errata nº 136). Que lo
+        produjo no lo dice el fichero: pudo ser otra corrida, un `-out` a medio escribir
+        o una consulta regenerada despues de descargarlo. Lo que si es seguro, y es lo
+        unico accionable, es que analizarlo mediria otra cosa.
+        """
         consulta = _consulta()
         with self.assertRaises(ShmirDesignError) as ctx:
             validate_upload(
                 raw=CRUDO, query=consulta, declared_query_md5="b" * 32,
                 panel_names=consulta.names,
             )
-        self.assertIn("otra corrida", str(ctx.exception).lower())
+        motivo = str(ctx.exception).lower()
+        self.assertIn("no es de esta consulta", motivo)
+        self.assertIn("no se adivina", motivo)
+        # Y el precedente que lo hace grave se sigue nombrando: el CSV de miRarchitect.
+        self.assertIn("mirarchitect", motivo)
 
     def test_una_guia_del_resultado_que_NO_esta_en_el_panel_se_rechaza(self):
         consulta = _consulta()
