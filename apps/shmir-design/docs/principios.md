@@ -2981,3 +2981,63 @@ que se mira con la app delante.
   `presentation.py` y no vio esto porque el export vive en `outputs.py`. La regla es la
   misma un módulo más allá: **quien emita un estado por filtro le pide las columnas a
   `presentation`**, que es donde se decide qué dicen los almacenes.
+
+## 56 — Un test que fija una conjetura la convierte en un requisito
+
+Las dos formulaciones son del responsable del proyecto, sobre la errata nº 136:
+
+> *«El test defendiendo la conjetura es lo peor del hallazgo. Código y prueba compartiendo
+> la suposición, ninguno capaz de delatar al otro, y el arreglo pareciendo una regresión.»*
+
+> *«El texto me mandó a comprobar lo único que el fichero no podía ser. No era una
+> conjetura floja — era una conjetura ya descartada por el guardia que el fichero acababa
+> de pasar. Perdí dos rondas en eso.»*
+
+### EL CASO (2026-09-07)
+
+El aborto por fichero repetido decía, entre lo que había que hacer, que **casi seguro se
+había cogido el resultado viejo de SpliceAI**. Y
+`test_y_el_motivo_dice_que_es_de_OTRA_corrida` **exigía esa frase**.
+
+A partir de ahí el par está cerrado sobre sí mismo: el mensaje afirma una causa, el test
+afirma que el mensaje la afirma, los dos pasan, y **ninguno de los dos mira si es
+cierta**. Es el principio nº 22 —código y test compartiendo la confusión— en su forma más
+cara, porque aquí lo compartido no es un cálculo sino **una creencia sobre el mundo**.
+
+Y tiene una consecuencia que el nº 22 no tenía: **quitar la conjetura hace fallar la
+suite**, así que el arreglo llega con la forma de una regresión. Un test verde no sólo
+deja de proteger — **empieza a defender el fallo**.
+
+### Lo que lo hizo caro: la conjetura estaba DESCARTADA, no sólo sin comprobar
+
+Aquí no había una causa plausible entre varias. `spliceai.parse_result` valida cada fila
+del resultado contra las construcciones de ESA corrida —por nombre y por md5— y rechaza el
+fichero entero si alguna nombra una que el panel no genera. **Medido** con el resultado
+versionado del panel anterior: revienta en la línea 2, por el candidato retirado. O sea
+que un resultado de otro panel **no puede llegar** al guardia del duplicado.
+
+**El mensaje mandaba a comprobar lo único que el fichero no podía ser.** No costó una
+lectura escéptica: costó **dos rondas** de ir a buscar un fichero que no existía.
+
+### EL COROLARIO, y es lo operativo
+
+**Cuando un aborto conjetura una causa, tiene que descartar antes lo que las validaciones
+previas ya excluyen.** Con las palabras con que se dijo: **el guardia sabía más que el
+mensaje.**
+
+La información estaba en el propio camino de ejecución —el fichero había pasado tres
+comprobaciones para llegar hasta ahí— y el texto se escribió como si el fichero hubiera
+aparecido de la nada. La pregunta que hay que hacerle a cada hipótesis de un mensaje de
+error es: **¿podría haber llegado hasta aquí un fichero así?** Si la respuesta es no, la
+frase no es una pista floja: es falsa, y manda a un sitio donde no hay nada.
+
+- **El default seguro es no conjeturar**, y de ahí sale el guardia mecánico: un aborto que
+  dice «casi seguro», «probablemente» o «lo más probable» está adivinando, y quien lo lee
+  no tiene forma de saberlo — la frase tiene la misma forma que una medida.
+- **Cuando una pista sí está justificada**, se escribe sobre lo que las validaciones ya
+  establecieron, no sobre lo que se imagina de quien la lee. Es la regla de
+  `process.diagnose` —*una pista sólo cuando la propia evidencia la nombra*— con la
+  evidencia entendida entera: **los guardias que se han pasado también son evidencia.**
+- **Y el hueco no se deja vacío.** Un aborto a secas empuja a inventarse una fecha o a
+  abrir otro proyecto (errata nº 48). Lo que entra en su sitio es lo medido: qué
+  validación pasó el fichero, y qué queda descartado con eso.

@@ -5962,12 +5962,15 @@ que **casi seguro se había cogido el resultado viejo de SpliceAI**.
   **MEDIDO** con el resultado versionado del 2026-09-05: contra el panel de hoy revienta
   en la **línea 2**, por `mvm_actual__3utr959` —el `3utr:10` retirado—. Así que un
   resultado del panel anterior **no puede llegar al guardia del duplicado**.
-- **O sea que lo único que el fichero NO podía ser era justo lo que el texto mandaba a
-  buscar**, y se mandó dos veces. Principio nº 3, en la forma que ya tiene registro: la
+- **LO QUE LO HACE CARO, con las palabras de quien lo pagó**: *«el texto me mandó a
+  comprobar lo único que el fichero no podía ser. No era una conjetura floja — era una
+  conjetura ya descartada por el guardia que el fichero acababa de pasar. Perdí dos
+  rondas en eso»*. No había una causa plausible entre varias: había una **imposible**
+  presentada como la más probable. Principio nº 3 en la forma que ya tiene registro —la
   misma que «comprueba que Streamlit está instalado» pegado a un conflicto de
-  configuración y que el «Alu 0 %» obtenido sin buscar Alu. **Un diagnóstico equivocado
-  cuesta más que ninguno** — y aquí el coste fue mandar a repetir una corrida de SpliceAI
-  que no hacía falta.
+  configuración y que el «Alu 0 %» obtenido sin buscar Alu— y **un diagnóstico equivocado
+  cuesta más que ninguno**: no cuesta una lectura escéptica, cuesta las rondas de ir a
+  buscar un fichero que no existe.
 - **El barrido encontró TRES, no una**: la de empalme, la misma frase en BLAST, y una
   tercera en `blast_store.validate_upload` («se rechaza: casi seguro es el resultado de
   otra corrida»). Las tres decían de una causa lo que no habían mirado. Ahora cada aborto
@@ -5976,22 +5979,42 @@ que **casi seguro se había cogido el resultado viejo de SpliceAI**.
 - **El guardia es sobre los ADVERBIOS, no sobre la prosa**
   (`tests/test_el_ABORTO_no_ADIVINA_la_causa.py`): un aborto que dice «casi seguro»,
   «probablemente» o «lo más probable» está adivinando, y quien lo lee no tiene forma de
-  saberlo — la frase tiene la misma forma que una medida. Barre los dos almacenes enteros
-  por el fuente, así que un cuarto sitio queda cubierto sin acordarse; con control
-  adversario, porque si no «ninguno conjetura» y «el barrido no mira nada» darían el mismo
-  verde. Y la regla ya estaba escrita en `process.diagnose`: **una pista sólo cuando la
-  propia evidencia la nombra**.
+  saberlo — la frase tiene la misma forma que una medida. Y la regla ya estaba escrita en
+  `process.diagnose`: **una pista sólo cuando la propia evidencia la nombra**.
+  - **La lista de sitios se DERIVA**, y no es un detalle de estilo: son **CUATRO** los
+    almacenes que abortan por id repetido y el barrido se escribió sobre los **dos** que
+    se acababan de mirar. Un guardia que sólo mira donde ya se ha mirado es exactamente
+    cómo se llega a que haya dos con la misma frase (principio nº 31). Ahora los descubre
+    de quién llama a `mensaje_de_id_repetido`, así que un quinto almacén queda cubierto
+    sin que nadie se acuerde.
+  - **Con las DOS mitades del control adversario** (principio nº 51): que el detector
+    MUERDE —se le da la frase retirada y tiene que verla— y que está MIRANDO donde debe
+    —el descubrimiento tiene que encontrar los cuatro—. Sin la segunda, un barrido
+    derivado que se quedara sin ficheros daría el mismo verde que uno que no encuentra
+    nada.
 - **Al retirar la frase, el hueco no se deja vacío**: un aborto a secas es lo que empuja a
   inventarse una fecha o a abrir otro proyecto, que es la errata nº 48. Lo que entra es lo
   medido — que ese fichero pasó la validación de ESTA corrida, así que no es de otro
   panel — y la cobertura pendiente del bloque anterior.
-- **Y LA CONJETURA TENÍA UN TEST EN VERDE DEFENDIÉNDOLA.**
-  `test_y_el_motivo_dice_que_es_de_OTRA_corrida` exigía esa frase, así que el código y su
-  prueba **compartían la suposición** y ninguno de los dos podía delatar al otro
-  (principio nº 22) — el fallo salió al arreglarlo, no al probarlo. El test se reescribe
-  para exigir lo que el mensaje SÍ puede sostener: que no es de esta consulta, y que **no
-  adivina** qué lo produjo. **Un test que fija una conjetura la convierte en un
-  requisito**, y a partir de ahí quitarla parece una regresión.
+- **Y LA CONJETURA TENÍA UN TEST EN VERDE DEFENDIÉNDOLA, que es lo peor del hallazgo.**
+  Con las palabras con que se registró: *«código y prueba compartiendo la suposición,
+  ninguno capaz de delatar al otro, y el arreglo pareciendo una regresión»*.
+  `test_y_el_motivo_dice_que_es_de_OTRA_corrida` exigía esa frase, así que el par quedaba
+  cerrado sobre sí mismo —el mensaje afirma una causa, el test afirma que el mensaje la
+  afirma, los dos pasan, y ninguno mira si es cierta—. Es el principio nº 22 sobre algo
+  que no es un cálculo sino **una creencia sobre el mundo**, y con una consecuencia que
+  aquél no tenía: **un test verde deja de proteger y empieza a defender el fallo**. El
+  test se reescribe para exigir lo que el mensaje SÍ puede sostener: que no es de esta
+  consulta, y que **no adivina** qué lo produjo. Queda como **principio nº 56**.
+- **EL COROLARIO, y es lo operativo: cuando un aborto conjetura una causa, tiene que
+  descartar antes lo que las validaciones previas ya excluyen.** Dicho corto: **el
+  guardia sabía más que el mensaje.** La información estaba en el propio camino de
+  ejecución —ese fichero había pasado tres comprobaciones para llegar hasta ahí— y el
+  texto se escribió como si hubiera aparecido de la nada. La pregunta que hay que hacerle
+  a cada hipótesis de un mensaje de error es: **¿podría haber llegado hasta aquí un
+  fichero así?** Si la respuesta es no, la frase no es una pista floja — es falsa, y manda
+  a un sitio donde no hay nada. Es `process.diagnose` con la evidencia entendida entera:
+  **los guardias que se han pasado también son evidencia.**
 
 ### Y EL RECHAZO DICE LO QUE SIGUE FALTANDO (errata nº 135)
 

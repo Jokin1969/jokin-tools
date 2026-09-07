@@ -48,6 +48,25 @@ CONJETURA = ("casi seguro", "probablemente", "seguramente", "lo mas probable",
              "lo más probable", "suele ser", "sera que", "será que", "quiza", "quizá")
 
 
+def _fuentes_que_abortan_por_id_repetido() -> dict[str, str]:
+    """Los modulos del paquete que llaman a `identidad.mensaje_de_id_repetido`.
+
+    DERIVADO, no listado: es la lista de sitios donde puede reaparecer una conjetura con
+    forma de hecho, y escribirla a mano la deja congelada en los que ya se revisaron.
+    """
+    from pathlib import Path
+
+    paquete = Path(__file__).resolve().parent.parent / "shmir_design"
+    salida = {}
+    for fichero in sorted(paquete.glob("*.py")):
+        if fichero.name == "identidad.py":
+            continue  # es quien DEFINE el mensaje, no quien lo usa.
+        texto = fichero.read_text(encoding="utf-8")
+        if "mensaje_de_id_repetido(" in texto:
+            salida[fichero.stem] = texto
+    return salida
+
+
 def _mensaje(**extra):
     # El id se PIDE, no se teclea (errata nº 49): un test que escribe la clave por la
     # que pregunta coincide por construccion. Aqui ni siquiera se compara con nada, y
@@ -113,19 +132,37 @@ class TestElAbortoNoAdivina(unittest.TestCase):
             with self.subTest(palabra):
                 self.assertNotIn(palabra, texto)
 
-    def test_NI_el_de_EMPALME_ni_el_de_BLAST(self):
-        """Los dos lo tenian, y con la misma frase. Se barren los dos almacenes.
+    def test_NINGUNO_de_los_que_ABORTAN_por_id_repetido(self):
+        """Se barren TODOS, y la lista se DERIVA de quien llama al mensaje.
 
-        Se leen del fuente porque son argumentos de una llamada: comprobar solo el que
-        se recuerda es como llegamos a que hubiera dos.
+        Eran dos con la misma frase —empalme y BLAST— y son CUATRO los almacenes que
+        abortan asi. Escribir los dos que se recuerdan es exactamente como se llega a que
+        haya dos: un guardia que solo mira donde ya se ha mirado no protege al siguiente
+        (principio nº 31). Asi que la lista sale de los modulos del paquete que llaman a
+        `mensaje_de_id_repetido`, y un quinto almacen queda cubierto sin que nadie se
+        acuerde.
+
+        Se lee del FUENTE porque el texto es el argumento de una llamada: no hay ningun
+        sitio desde el que pedirselo sin construir la excepcion.
         """
-        import inspect
-
-        for modulo in (splice_store, blast_store):
-            fuente = inspect.getsource(modulo).lower()
+        for nombre, fuente in _fuentes_que_abortan_por_id_repetido().items():
             for palabra in CONJETURA:
-                with self.subTest(modulo=modulo.__name__, palabra=palabra):
-                    self.assertNotIn(palabra, fuente)
+                with self.subTest(modulo=nombre, palabra=palabra):
+                    self.assertNotIn(palabra, fuente.lower())
+
+    def test_y_el_barrido_ENCUENTRA_los_cuatro_almacenes(self):
+        """Si el descubrimiento dejara de encontrarlos, «ninguno conjetura» seria vacio.
+
+        Es la otra mitad del control adversario: la de arriba comprueba que el detector
+        MUERDE, y esta que esta MIRANDO donde tiene que mirar. Un barrido derivado que se
+        queda sin ficheros da el mismo verde que uno que no encuentra nada — el «Alu 0 %»
+        aplicado al propio guardia (principio nº 51).
+        """
+        encontrados = _fuentes_que_abortan_por_id_repetido()
+        self.assertGreaterEqual(len(encontrados), 4, sorted(encontrados))
+        for esperado in ("blast_store", "seed_store", "splice_store", "offtarget_store"):
+            with self.subTest(esperado):
+                self.assertIn(esperado, encontrados)
 
     def test_y_DICE_lo_que_SI_se_ha_comprobado(self):
         """Quitar la conjetura no puede dejar el hueco vacio: eso es un aborto a secas.
