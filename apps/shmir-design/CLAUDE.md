@@ -6326,3 +6326,76 @@ equivocada de la errata nº 133.
   sección, cisteínas, longitudes en nt— pide una tabla de declaración que hoy no está
   escrita. Lo que hay es la regresión sobre las cinco, medida sobre el panel del
   transcrito, y esta frase para que nadie la lea como cobertura.
+
+---
+
+## EL BOTÓN QUE SE VEÍA NO ERA EL NUESTRO (2026-09-07)
+
+Se reportó como «el export sigue teniendo 46 columnas sin `empalme_sitios` ni
+`offtarget_seed`, y sin `# BUILD:`», y se investigó como un fallo de despliegue durante
+días, con dos fusiones de por medio. **No era ni el código ni el despliegue.**
+
+**El fichero que se descargaba no lo generaba esta app.** Se llamaba
+`2026-09-07T10-48_export.csv`, y ese nombre lo construye Streamlit en el navegador —está
+en su bundle, `streamlit/static/static/js/DataFrame.*.js`—:
+
+```js
+`${new Date().toISOString().slice(0,16).replace(":","-")}_export.csv`
+```
+
+Es el icono de descarga que `st.dataframe` pinta en la esquina de **toda** tabla al pasar
+el ratón. Genera el CSV **en el navegador, con la tabla ya pintada**: no pasa por Python,
+así que no lleva el sello `# BUILD:` ni las columnas de frente, y lleva las de la VISTA.
+
+Y **el export bueno no tenía botón**: `tsv_selected` llegaba a la interfaz por un único
+camino, `output_bundle`, o sea **dentro del zip**. Sobre esa tabla el único botón visible
+era el que no es nuestro. Queda como **principio nº 59**:
+
+> *No lo escribimos nosotros, pero lo servimos nosotros.*
+
+Es la variante del nº 55 que faltaba: un artefacto que **no controlamos** compitiendo con
+uno que sí, y ganando **por posición**.
+
+### Las tres cosas que hacen falta, y las tres están
+
+1. **`presentation.selected_export_file`** — el export como entregable: nombre, etiqueta,
+   datos y mime. La página no decide ninguno (regla 6), igual que `informe_files`.
+2. **Va ANTES de la tabla**, con `type="primary"`. Es lo único de los tres que se puede
+   perder sin que nadie lo note —basta mover un bloque—, así que lo fija un test sobre el
+   ORDEN DEL FUENTE: `test_el_boton_del_export_va_ANTES_de_la_tabla_del_panel`.
+3. **`EXPORT_VS_ICONO_NOTE` dice cuál es cuál**, nombrando el patrón `…_export.csv`. El
+   icono **no se tapa**: quien ya lo tenga en Descargas necesita poder identificarlo.
+
+Y la nota **no adivina**: hay un test (`test_y_NO_manda_a_mirar_el_DESPLIEGUE`) que
+prohíbe que contenga «despliegue», «desplegado» o «caché». Es el principio nº 47 puesto
+justo donde este fallo se pasó una semana.
+
+### El defecto que salió por debajo: el espacio en el nombre
+
+La especie que llega de la página es el nombre **científico** (`species_options` pone
+`especie.scientific`), así que las salidas se llamaban **`Mus musculus_seleccionados.tsv`,
+con el espacio dentro**. En el zip se disimula; en Descargas, pegado en una consola o
+citado en un correo, no. Y una de esas cadenas es una **orden para pegar en una consola**
+—la línea de BLAST del informe—, donde el espacio la parte en dos argumentos.
+
+Se barrió **la familia entera**, no sólo el emisor que se vio (la lección de la errata
+nº 138): **`outputs.output_stem` es el único sitio** que decide cómo la especie entra en
+un nombre de fichero, y lo usan el zip, el botón suelto, los bloques, los fragmentos y la
+línea de BLAST. Un test exige que **ninguna** entrada del zip lleve un espacio.
+
+### La corrección de método, que vale más que el arreglo (principio nº 60)
+
+> **Cuando un fichero descargado no tiene el nombre que esperamos, lo primero es
+> preguntar quién lo generó.**
+
+Esta app **no emite ni un solo `.csv`** —emite `.tsv`, `.txt`, `.zip`, `.fasta`, `.gb`,
+`.docx`/`.pdf`—; el único `.csv` del proyecto es `mirarchitect_prnp_export_buena.csv`, que
+es un fichero de ENTRADA. Un vistazo a la extensión cerraba esto el primer día. En vez de
+eso se miró el CONTENIDO de un fichero cuya PROCEDENCIA no se había establecido, y como
+el contenido era plausible, cada observación confirmaba la hipótesis equivocada.
+
+**Y el corolario:** de las tres pistas, dos **no eran evidencia**. La ausencia de
+`# BUILD:` se contó como síntoma cuando esa línea se había fusionado minutos antes (un
+despliegue al día tampoco la tendría), y la marca de tiempo repetida es de resolución de
+**minuto**, así que dos clics seguidos dan el mismo nombre. **Antes de contar un síntoma,
+hay que preguntarse desde cuándo sería visible si todo fuera bien.**

@@ -18,6 +18,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 from .conservation import ConservationReport, single_shmir_verdict
+from .errors import ShmirDesignError
 from .accessibility import CONTEXT_WINDOWS, DISCREPANCY
 from .filters import FilterState, Verdict
 from .folding import VIENNA_AVAILABLE
@@ -98,6 +99,33 @@ def _sin_correr(selection: ReportSelection) -> str:
         f"{name} ({count} ventana(s))"
         for name, count in selection.not_run_filters.items()
     )
+
+
+#: El mime del TSV. Lo pide el botón de descarga, y va aquí porque quien decide QUÉ
+#: formato tiene el fichero es quien lo escribe, no quien lo pinta (regla 6).
+TSV_MIME = "text/tab-separated-values"
+
+
+def output_stem(species: str) -> str:
+    """El trozo de nombre de fichero que aporta la especie. SIN espacios.
+
+    La especie que llega de la página es el nombre CIENTÍFICO —`species_options` pone
+    `especie.scientific` en el desplegable—, así que los seis ficheros del zip se
+    llamaban `Mus musculus_seleccionados.tsv`, con el espacio dentro. En el zip se
+    disimula; en la carpeta de Descargas y pegado en una consola, no.
+
+    Va en `outputs` y no en la página porque el que nombra un fichero es el que lo
+    escribe: aquí lo usan el zip, el botón suelto y el CLI, y así los tres no pueden
+    discrepar. Un fichero con dos nombres es el mismo fallo que dos ficheros con uno.
+    """
+    limpio = "_".join(str(species).split())
+    if not limpio:
+        raise ShmirDesignError(
+            "La especie llega vacía y de ahí sale el nombre de los ficheros de salida. "
+            "Se aborta en vez de emitir `_seleccionados.tsv`, que no dice de qué corrida "
+            "es y se confunde con el de cualquier otra."
+        )
+    return limpio
 
 
 def tsv_selected(
@@ -516,7 +544,11 @@ def text_report(
             f"  BLAST remoto de inspeccion (NUNCA fuente del veredicto), solo para los "
             f"{len(selection.selection.chosen)} supervivientes:"
         )
-        lines.append(f"    {blast_command(f'{species}_guias.fasta', species)}")
+        # POR `output_stem`: esta linea es una ORDEN PARA PEGAR EN UNA CONSOLA, y
+        # `Mus musculus_guias.fasta` se parte en dos argumentos al pegarla.
+        lines.append(
+            f"    {blast_command(f'{output_stem(species)}_guias.fasta', species)}"
+        )
         lines.append("    Etiqueta de NCBI: una sumision cada ~10 s, polling >= 60 s.")
     elif selection.selection.chosen:
         lines.append(
