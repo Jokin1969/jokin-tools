@@ -6399,3 +6399,36 @@ el contenido era plausible, cada observación confirmaba la hipótesis equivocad
 despliegue al día tampoco la tendría), y la marca de tiempo repetida es de resolución de
 **minuto**, así que dos clics seguidos dan el mismo nombre. **Antes de contar un síntoma,
 hay que preguntarse desde cuándo sería visible si todo fuera bien.**
+
+---
+
+## EL BOTÓN NUEVO NO TENÍA SEGUNDA VÍA (2026-09-07)
+
+Horas después de fusionar el botón del export se reportó que **no descarga**: la petición
+sale y no baja ni un byte. Con el contexto que lo clasifica: *«viene siendo ya habitual»*.
+
+**Es la errata nº 130, que sigue SIN CAUSA ASIGNADA.** Medido antes de decir nada: el
+contenido es determinista —tres construcciones por el camino real de la página, el mismo
+md5—, así que el mecanismo de la errata nº 76 no aplica; y aquella vez no se reprodujo ni
+con un navegador de verdad por el proxy real del hub.
+
+**Lo que sí es un fallo, y es mío del mismo día**: el botón nuevo era la ÚNICA vía para su
+fichero, y el guardia que existe para eso lo dejó pasar. Vive en `bloque_especie`, que
+está en `SIN_ALTERNATIVA` **con un motivo falso**: decía que la segunda vía es el ZIP de
+resultados, y **el ZIP es otro `st.download_button`** — o sea el mecanismo que se cuelga.
+Es el corolario de la errata nº 124 incumplido **por escrito, dentro del test que lo hace
+cumplir**.
+
+- **`_tambien_para_copiar` va entre el botón y la tabla**, con el mismo contenido y el
+  nombre del fichero. No comparte nada con `st.download_button`: es texto en la página.
+- **Las dos exenciones se reescriben** para no apoyarse en otra descarga, y un test nuevo
+  prohíbe esa forma: `test_NINGUNA_exencion_nombra_otra_DESCARGA_como_alternativa`.
+
+**Y el ancla del test nuevo estaba mal a la primera**: comparaba contra la primera
+`st.dataframe` de la función —la de la anatomía— en vez de contra la tabla del panel, y
+daba rojo sobre código correcto. Un ancla al elemento equivocado no señala nada; misma
+familia que buscar `st.rerun()` y encontrarlo dentro del comentario que lo explica.
+
+**Lo que sigue faltando para cerrar la nº 130** es una sola observación: con la pestaña de
+red abierta, si el navegador pide `/shmir/media/…` y esa petición no responde, el problema
+es de transporte; si no la pide, es del cliente.

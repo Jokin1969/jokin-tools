@@ -6824,3 +6824,64 @@ Se barrió la familia entera, no sólo el emisor que se vio (la lección de la e
 nº 138): `outputs.output_stem` es ahora el único sitio que decide cómo la especie entra
 en un nombre de fichero, y lo usan el zip, el botón suelto, los bloques, los fragmentos y
 la línea de BLAST. Un test exige que **ninguna** entrada del zip lleve un espacio.
+
+---
+
+## 140 — El botón nuevo del export no tenía segunda vía, y la exención que lo tapaba nombraba otra descarga
+
+Reportado el 2026-09-07, horas después de fusionar el botón: *«NO DESCARGA. La información
+llega al navegador pero se queda dando vueltas sin bajar ni un solo byte»*, y con el
+contexto que lo clasifica: *«viene siendo ya habitual»*.
+
+### Lo que NO es, medido antes de decir nada
+
+**No es la errata nº 76.** El contenido es determinista: tres construcciones del export
+por el camino real de la página dan el mismo md5 (`b8f2e1bf…`), así que el mecanismo de
+«bytes distintos → id distinto → fichero huérfano a media descarga» no aplica aquí, igual
+que no aplicaba en la errata nº 130.
+
+**La causa sigue SIN ASIGNAR** (errata nº 130, principio nº 3): no se reprodujo entonces
+—con un navegador de verdad, por el proxy real del hub, con un botón de 130 kB regenerado
+en cada repintado, bajó entero— y no se ha reproducido ahora.
+
+### Lo que SÍ es, y es un fallo mío del mismo día
+
+El botón que se añadió esa mañana **era la única vía** para su fichero. El guardia que
+existe exactamente para eso —`test_una_DESCARGA_no_puede_ser_la_UNICA_via`, escrito el
+2026-09-06 tras el bloqueo del frente de empalme— **lo dejó pasar**, porque vive en
+`bloque_especie` y esa función está en `SIN_ALTERNATIVA`.
+
+**Y su motivo declarado era falso en el peor sentido posible**: decía que los entregables
+del diseño *«van TAMBIÉN en el ZIP de resultados: ésa es la segunda vía»*. **El ZIP es otro
+`st.download_button`**, o sea exactamente el mecanismo que se cuelga. Es el corolario de la
+errata nº 124 —*una vía y su alternativa no pueden compartir el mecanismo que falla*—
+**incumplido por escrito, dentro del test que lo hace cumplir**. Lo mismo en la entrada de
+`main`.
+
+Una exención que se apoya en el mecanismo que falla no exime de nada, y como está escrita
+se lee como si lo hiciera: el guardia daba verde sobre el hueco que existía para cerrar.
+
+### El arreglo
+
+1. **`_tambien_para_copiar` en el export**, entre el botón y la tabla, con el mismo
+   contenido y el nombre del fichero. No comparte nada con `st.download_button`: es texto
+   en la página y el botón de copiar lo pone el navegador.
+2. **Las dos exenciones se reescriben** para no apoyarse en otra descarga: lo que exime al
+   informe es que su contenido íntegro está en el `.md` de al lado y en la pantalla; lo
+   que exime al ZIP es que cada fichero que empaqueta tiene su propio botón suelto.
+3. **`test_NINGUNA_exencion_nombra_otra_DESCARGA_como_alternativa`**, para que la forma de
+   este fallo no se pueda volver a escribir.
+
+### Y un ancla equivocada en el test nuevo, cazada al primer rojo
+
+La primera versión comparaba la posición del bloque copiable contra la **primera**
+`st.dataframe` de la función —que es la de la anatomía, cientos de líneas más arriba— en
+vez de contra la tabla del panel. Daba rojo sobre código correcto. **Un ancla al elemento
+equivocado no señala nada**, y es la misma familia que buscar `st.rerun()` y encontrarlo
+dentro del comentario que lo explica (errata nº 54).
+
+### Lo que queda por saber, y es lo mismo que en la nº 130
+
+La causa. Lo que la distinguiría sigue siendo **si el navegador llega a pedir la URL de
+medios**: con la pestaña de red abierta, una petición a `/shmir/media/…` que no responde
+señala al transporte; ninguna petición señala al cliente.
