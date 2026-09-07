@@ -73,8 +73,14 @@ class TestElPanelCumpleLaCuotaDeInmunes(unittest.TestCase):
         self.assertEqual(list(self.seleccion.selection.quota_unfilled), [])
 
     def test_la_seleccion_DICE_que_no_fue_por_el_orden_voraz(self):
-        """Una decisión que cambia el panel no puede tomarse en silencio."""
-        texto = " ".join(self.seleccion.selection.notes)
+        """Una decisión que cambia el panel no puede tomarse en silencio.
+
+        Va en `decisions` y NO en `notes`: `notes` dice lo que se pidió y no se pudo dar
+        —algo que quien lee puede cambiar— y esto dice CÓMO se cumplió la cuota. En
+        `notes` saldría en rojo en toda corrida por defecto, y un aviso que sale siempre
+        deja de leerse.
+        """
+        texto = " ".join(self.seleccion.selection.decisions)
         self.assertIn("inmunes", texto.lower())
         self.assertIn("espaciado", texto.lower())
 

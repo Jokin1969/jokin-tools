@@ -162,7 +162,7 @@ class TestElAutoconteoSobrePrnp(unittest.TestCase):
             for elegido in self.seleccion.selection.chosen
         }
 
-    def test_CUATRO_del_panel_del_raton_tienen_un_SEGUNDO_sitio(self):
+    def test_CINCO_del_panel_del_raton_tienen_un_SEGUNDO_sitio(self):
         """HALLAZGO, no expectativa: el valor con su procedencia, no su forma.
 
         No es un fallo del panel ni de la cuenta: es informacion que hay que tener ANTES
@@ -174,7 +174,12 @@ class TestElAutoconteoSobrePrnp(unittest.TestCase):
             for inicio, propio in self._autoconteos().items()
             if propio.anomalous
         }
-        self.assertEqual(raros, {449: 2, 553: 2, 819: 2, 1018: 2})
+        # CINCO desde el 2026-09-07, y eran CUATRO. El panel cambia al medir el
+        # homopolímero sobre la molécula (errata nº 144): `3utr:819` sale y entra su
+        # vecino `3utr:818` —que también tiene dos— y además entra `3utr:673`, que es
+        # nuevo en esta lista. El hallazgo no se debilita: se amplía, y hay que
+        # RE-LEERLO antes de interpretar ninguna cinética.
+        self.assertEqual(raros, {449: 2, 553: 2, 673: 2, 818: 2, 1018: 2})
 
     def test_los_otros_seis_tienen_UNO_solo(self):
         limpios = {
@@ -184,10 +189,10 @@ class TestElAutoconteoSobrePrnp(unittest.TestCase):
         # SEIS, y ya no son los mismos: `3utr:10` está retirado desde el 2026-09-07
         # y su plaza en un panel sin cuota de inmunes la ocupa `3utr:1071`. El
         # hallazgo —CUATRO con segundo sitio— no se mueve: los cuatro siguen dentro.
-        self.assertEqual(limpios, {60, 143, 359, 652, 735, 1071})
+        self.assertEqual(limpios, {60, 359, 736, 900, 1071})
 
     def test_el_aviso_dice_que_son_MULTIPLES_DIANAS_en_el_mismo_mensajero(self):
-        texto = self._autoconteos()[819].describe()
+        texto = self._autoconteos()[818].describe()
         self.assertIn("MULTIPLES DIANAS", texto)
         self.assertIn("cinetica", texto)
 

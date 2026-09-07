@@ -555,7 +555,7 @@ COMO CERRAR EL FRENTE «empalme_sitios»
 
 **Que mide.** ¿Que fracción de los transcritos conserva la diana? Un sitio de poliadenilación alternativa proximal corta el 3'UTR, así que un candidato por detrás de ese corte solo tiene diana en la isoforma larga. Eso no es un veto: es un TECHO de knockdown.
 
-**Por que importa / resultado.** CERRADO. 8 de 11 candidatos quedan por detrás del corte de tx:1185: comparten UN ÚNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes por tramo son 16/0/0 —todos en el proximal— y el espaciado deja meter cuatro, que son los 3 que ya están. POR QUE BLOQUEABA: si la fracción de isoforma corta es alta, esos 8 candidatos entran al cribado con un TECHO INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no funciona dan la misma lectura en la placa, y el experimento se gasta en no poder separarlos. ESTADO: MEDIDO. PolyA_DB v4.1, fracción larga 0.86 ponderada / 0.65 sin ponderar. El mapeo genomico↔transcrito que bloqueaba está RESUELTO sin coordenadas genomicas y sobre 4 puntos de apoyo, no sobre una resta. Y el techo no es uno: va POR TRAMOS (0.91, 0.86), porque depende de por detrás de cuántos cortes está cada candidato. Con eso deja de cumplirse lo que hacia bloquear a este frente: un techo de 0.86 NO es indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, así que estas cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos amplicones sigue en pie y puede MEJORARLAS.
+**Por que importa / resultado.** CERRADO. 8 de 11 candidatos quedan por detrás del corte de tx:1185: comparten UN ÚNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes por tramo son 17/0/0 —todos en el proximal— y el espaciado deja meter cuatro, que son los 3 que ya están. POR QUE BLOQUEABA: si la fracción de isoforma corta es alta, esos 8 candidatos entran al cribado con un TECHO INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no funciona dan la misma lectura en la placa, y el experimento se gasta en no poder separarlos. ESTADO: MEDIDO. PolyA_DB v4.1, fracción larga 0.86 ponderada / 0.65 sin ponderar. El mapeo genomico↔transcrito que bloqueaba está RESUELTO sin coordenadas genomicas y sobre 4 puntos de apoyo, no sobre una resta. Y el techo no es uno: va POR TRAMOS (0.91, 0.86), porque depende de por detrás de cuántos cortes está cada candidato. Con eso deja de cumplirse lo que hacia bloquear a este frente: un techo de 0.86 NO es indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, así que estas cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos amplicones sigue en pie y puede MEJORARLAS.
 
 **Fuente de datos.** MAPEO GENOMICO↔TRANSCRITO — RESUELTO SIN COORDENADAS GENOMICAS. ·   PolyA_DB pública el sitio de CORTE, NO EL HEXÁMERO. Su leyenda: «A[A/U]UAAA motif within 40-nt upstream from the PAS» — el hexámero se busca AGUAS ARRIBA del PAS, luego la coordenada publicada es el corte. Con nuestra convención el hexámero cae 10-30 nt por delante, dentro de esos 40 nt. ·   Hipotesis «PAS = hexámero»: DESCARTADA. Un hexámero es un punto, no una banda, así que ·   bajo esa lectura el aterrizaje tiene que ser EXACTO — y no hay ningún desfase que haga ·   aterrizar más de 1 de las 4 coordenadas. Bajo «PAS = corte» aterrizan las 4, ·   con el MISMO desfase y con la CLASE de hexámero que declara la propia base en cada una. ·   No es una resta: son 4 puntos de apoyo independientes. Desfase 3'UTR→mm10 acotado a 131937185-131937193 (9 valores); se deja como INTERVALO ·   porque la banda de corte mide 20 nt y fijarlo en un entero sería inventarse precisión. ·  ·     chr2:+:131937444  Other   → corte 3utr:251-271, hexámero AATATA en 3utr:236  PSE 21.1%, AvgRPM 0.55  ← TERCER sitio de corte, el proximal MÁS USADO de los tres ·     chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexámero AATAAA en 3utr:288  PSE 23.5%, AvgRPM 0.34  ← nuestro AATAAA de 3utr:288 ·     chr2:+:131938392  Other   → AMBIGUO: 2 hexámeros de su clase en la banda (TATAAA en 3utr:1178, TATAAA en 3utr:1189). Ancla, pero NO entra al modelo con banda propia. ·     chr2:+:131938427  AUUAAA  → corte 3utr:1229-1249, hexámero ATTAAA en 3utr:1214  (sin datos de expresión)  ← fuerza 99,9 %, conservado en humano y rata; SIN expresión, así que no entra en la fracción — solo ancla ·  ·   TECHO POR TRAMOS. Con tres sitios de corte medidos el techo ya no es UNO: la pregunta ·   de un candidato no es cuanta isoforma larga hay, es que fracción de transcritos conserva ·   SU diana — y eso depende de por detrás de cuántos cortes esta. ·     tx:1-1200  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE. ·     tx:1201-1220  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937444: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     tx:1221-1252  techo 0.91           por detrás de chr2:+:131937444 ·     tx:1253-1272  TECHO INDETERMINADO  dentro de la banda de corte de chr2:+:131937504: no se sabe de que lado cae, así que el techo es INDETERMINADO (PENALIZADO, no TECHO) ·     tx:1273-2191  techo 0.86           por detrás de chr2:+:131937444, chr2:+:131937504
 
@@ -585,7 +585,7 @@ Todo a la misma escala: los candidatos numerados por su puesto en el panel, las 
   conserv NOT_RUN: no se ha dado informe de conservación para esta especie.
   polyA                      M   M                                                A   A     A           AA T
   corte                       === ===                                              === ===    ==         =====
-  cand         1     2    3            4      5       6       7      8     9               10  11
+  cand         1     2    3            4      5       6         7    8     9               10  11
 
   3'UTR de 1242 nt en 100 columnas — 12.4 nt por columna (marco de lo tilado: tx).
   M = señal polyA con uso MEDIDO · A = señal polyA por canonicidad, sin dato de uso · T = terminal probable
@@ -593,45 +593,43 @@ Todo a la misma escala: los candidatos numerados por su puesto en el panel, las 
   enmascarada · dígito = candidato, por su puesto en el panel.
   2 banda(s) de corte se salen del transcrito anotado: el corte de una terminal cae aguas abajo del final.
   Van recortadas.
-  1=tx:1009  2=tx:1092  3=tx:1149  4=tx:1308  5=tx:1398  6=tx:1502  7=tx:1601  8=tx:1684  9=tx:1768
+  1=tx:1009  2=tx:1093  3=tx:1149  4=tx:1308  5=tx:1398  6=tx:1502  7=tx:1622  8=tx:1685  9=tx:1767
   10=tx:1967  11=tx:2020
 ```
 
 Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, cuántos candidatos del panel caen ahí con cada una de las dos definiciones de tercio, y cuál sería el siguiente sin romper el espaciado. Un tramo que se ve vacío en el mapa puede estarlo porque no hay sitios elegibles o porque no caben: no es lo mismo.
 
 ```
-  proximal — 3utr:1-414, 414 nt: 28 sitios elegibles por inicio (28 por punto medio).
+  proximal — 3utr:1-414, 414 nt: 29 sitios elegibles por inicio (29 por punto medio).
     Panel: 4 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 4 por inicio. Cuota 1:
       cumplida.
     RETIRADO(S) por decisión declarada, fuera de las listas de abajo: 3utr:10. Siguen siendo sitios
       elegibles y siguen en la tabla con sus veredictos; lo que no vuelven a hacer es proponerse para una
       plaza.
-    Margen: 13 sitio(s) del tramo quedan a 50 nt o más de 3utr:359, y 1 lo cumplen con TODO el panel. El que
+    Margen: 14 sitio(s) del tramo quedan a 50 nt o más de 3utr:359, y 1 lo cumplen con TODO el panel. El que
       manda es el segundo: añadir uno exige espaciado con todos.
     Los mejores del tramo a 50 nt o más de 3utr:359, por el mismo orden con que se eligió el panel
       (asimetría): 3utr:187-208 (asimetría +4.06); 3utr:171-192 (asimetría +3.96); 3utr:69-90 (asimetría
       +3.80).
     Los que además caben con TODO el panel NO son los mismos: 3utr:309-330 (asimetría +2.73).
-  medio — 3utr:415-828, 414 nt: 42 sitios elegibles por inicio (41 por punto medio).
-    Panel: 4 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 5 por inicio. Cuota 1:
+  medio — 3utr:415-828, 414 nt: 48 sitios elegibles por inicio (46 por punto medio).
+    Panel: 5 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 5 por inicio. Cuota 1:
       cumplida.
-    Margen: 27 sitio(s) del tramo quedan a 50 nt o más de 3utr:735, y 0 lo cumplen con TODO el panel. El que
+    Margen: 32 sitio(s) del tramo quedan a 50 nt o más de 3utr:818, y 0 lo cumplen con TODO el panel. El que
       manda es el segundo: añadir uno exige espaciado con todos.
-    Los mejores del tramo a 50 nt o más de 3utr:735, por el mismo orden con que se eligió el panel
-      (asimetría): 3utr:573-594 (asimetría +4.42); 3utr:673-694 (asimetría +4.42); 3utr:517-538 (asimetría
-      +4.33).
+    Los mejores del tramo a 50 nt o más de 3utr:818, por el mismo orden con que se eligió el panel
+      (asimetría): 3utr:573-594 (asimetría +4.42); 3utr:651-672 (asimetría +4.17); 3utr:522-543 (asimetría
+      +3.96).
     No queda ninguno: o no hay más sitios elegibles en el tramo o todos caen a menos de 50 nt de un
       candidato ya elegido.
-  distal — 3utr:829-1242, 414 nt: 16 sitios elegibles por inicio (17 por punto medio).
-    Panel: 3 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 2 por inicio. Cuota 1:
+  distal — 3utr:829-1242, 414 nt: 18 sitios elegibles por inicio (20 por punto medio).
+    Panel: 2 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 2 por inicio. Cuota 1:
       cumplida.
-    OJO, borde: 3utr:819 cuenta(n) en este tercio por punto medio y empieza(n) en el anterior. Cubre(n) el
-      primer nucleótido del tramo, no el tramo.
-    Margen: 8 sitio(s) del tramo quedan a 50 nt o más de 3utr:1071, y 4 lo cumplen con TODO el panel. El que
-      manda es el segundo: añadir uno exige espaciado con todos.
+    Margen: 11 sitio(s) del tramo quedan a 50 nt o más de 3utr:1071, y 4 lo cumplen con TODO el panel. El
+      que manda es el segundo: añadir uno exige espaciado con todos.
     Los mejores del tramo a 50 nt o más de 3utr:1071, por el mismo orden con que se eligió el panel
-      (asimetría): 3utr:900-921 (asimetría +4.15); 3utr:851-872 (asimetría +3.19); 3utr:846-867 (asimetría
-      +3.12).
+      (asimetría): 3utr:900-921 (asimetría +4.15); 3utr:1020-1041 (asimetría +3.95); 3utr:825-846 (asimetría
+      +3.63).
     Los que además caben con TODO el panel NO son los mismos: 3utr:900-921 (asimetría +4.15); 3utr:922-943
       (asimetría +1.90); 3utr:904-925 (asimetría +1.33).
 ```
@@ -640,19 +638,19 @@ Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, cuántos can
 
 Todas las columnas, con un estado POR FILTRO. No se colapsan ni se omiten los que no corrieron: un filtro ausente de la tabla es indistinguible de uno superado.
 
-| rango | inicio | fin | region | inicio_3utr | fin_3utr | tercio | asimetria_kcal | polyA_hexamero | polyA_clase | polyA_posicion_rel | polyA_hexamero_pos | polyA_dist_extremo3 | polyA_solapa_seed | polyA_veredicto | polyA_estricto | polyA_escalonado | polyA_truncamiento | polyA_truncamiento_propio | polyA_esterico | polyA_dist_corte | polyA_fraccion_isoforma_larga | tilado_8mer | tilado_7mer-m8 | tilado_7mer-A1 | carga_8mer | carga_7mer-m8 | carga_7mer-A1 | carga_6mer | accesibilidad | GC | homopolimero | asimetria | zona_prohibida_polyA | repeticiones | repeticion_polimorfica | seed | especificidad | transgen | seed_colision | bandera_polyA_debil | biofisicos_ok | riesgo_APA | veredicto | diana | guia |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 6 | 1009 | 1030 | 3'UTR | 60 | 81 | proximal | 5.15 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | CCACCTGTAGCTCTTTCAATTG | UAAUUGAAAGAGCUACAGGUGG |
-| 7 | 1092 | 1113 | 3'UTR | 143 | 164 | proximal | 5.08 | AATATA | APA_POSIBLE | aguas abajo, 71 nt | tx:1185 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | GCCCTGGGAAATGTACAGTAGA | UCUACUGUACAUUUCCCAGGGC |
-| 11 | 1149 | 1170 | 3'UTR | 200 | 221 | proximal | 3.8 | AATATA | APA_POSIBLE | aguas abajo, 14 nt | tx:1185 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:no | INCOMPLETE | TCTGTCATCAGCCAGTGCTAAC | UUUAGCACUGGCUGAUGACAGA |
-| 9 | 1308 | 1329 | 3'UTR | 359 | 380 | proximal | 4.82 | AATAAA | APA_POSIBLE | aguas arriba, 65 nt | tx:1237 | 949 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 108 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GGCAAAGGGTTCTACAACCAAA | UUUGGUUGUAGAACCCUUUGCC |
-| 5 | 1398 | 1419 | 3'UTR | 449 | 470 | medio | 5.32 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 198 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GTGGAATTCTTTCTTTACTAAC | UUUAGUAAAGAAAGAAUUCCAC |
-| 3 | 1502 | 1523 | 3'UTR | 553 | 574 | medio | 5.86 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 302 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | AGGGCACTAGAATGATCTTTAG | UUAAAGAUCAUUCUAGUGCCCU |
-| 4 | 1601 | 1622 | 3'UTR | 652 | 673 | medio | 5.8 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 401 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GAGGGATGGTTAAGGTACAAAG | UUUUGUACCUUAACCAUCCCUC |
-| 8 | 1684 | 1705 | 3'UTR | 735 | 756 | medio | 5.08 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 484 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCCCTATGTTTCTGTACTTCTA | UAGAAGUACAGAAACAUAGGGC |
-| 2 | 1768 | 1789 | 3'UTR | 819 | 840 | distal | 5.96 | CATAAA | OTRA | aguas abajo, 66 nt | tx:1856 | 330 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 568 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | GCTCCATTCCAAAGTGGGAAAG | UUUUCCCACUUUGGAAUGGAGC |
-| 1 | 1967 | 1988 | 3'UTR | 1018 | 1039 | distal | 6.65 | ACTAAA | OTRA | dentro | tx:1983 | 203 nt | si | PASS | FAIL | PASS | TECHO | NO_APLICA | PENALIZADO | 767 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | True | True | prediccion:si | INCOMPLETE | GGCCGTTCCATCCAGTACTAAA | UUUAGUACUGGAUGGAACGGCC |
-| 10 | 2020 | 2041 | 3'UTR | 1071 | 1092 | distal | 4.28 | ACTAAA | OTRA | aguas arriba, 31 nt | tx:1983 | 203 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 820 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | False | True | prediccion:si | INCOMPLETE | TGCACTCAGTTCCGTAGGATTC | UAAUCCUACGGAACUGAGUGCA |
+| rango | inicio | fin | region | inicio_3utr | fin_3utr | tercio | asimetria_kcal | polyA_hexamero | polyA_clase | polyA_posicion_rel | polyA_hexamero_pos | polyA_dist_extremo3 | polyA_solapa_seed | polyA_veredicto | polyA_estricto | polyA_escalonado | polyA_truncamiento | polyA_truncamiento_propio | polyA_esterico | polyA_dist_corte | polyA_fraccion_isoforma_larga | tilado_8mer | tilado_7mer-m8 | tilado_7mer-A1 | carga_8mer | carga_7mer-m8 | carga_7mer-A1 | carga_6mer | accesibilidad | GC | homopolimero | asimetria | zona_prohibida_polyA | repeticiones | repeticion_polimorfica | seed | especificidad | transgen | seed_colision | homopolimero_molecula | bandera_polyA_debil | biofisicos_ok | riesgo_APA | veredicto | diana | guia |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 4 | 1009 | 1030 | 3'UTR | 60 | 81 | proximal | 5.15 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:no | INCOMPLETE | CCACCTGTAGCTCTTTCAATTG | UAAUUGAAAGAGCUACAGGUGG |
+| 11 | 1093 | 1114 | 3'UTR | 144 | 165 | proximal | 3.69 | AATATA | APA_POSIBLE | aguas abajo, 70 nt | tx:1185 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:no | INCOMPLETE | CCCTGGGAAATGTACAGTAGAC | UUCUACUGUACAUUUCCCAGGG |
+| 10 | 1149 | 1170 | 3'UTR | 200 | 221 | proximal | 3.8 | AATATA | APA_POSIBLE | aguas abajo, 14 nt | tx:1185 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:no | INCOMPLETE | TCTGTCATCAGCCAGTGCTAAC | UUUAGCACUGGCUGAUGACAGA |
+| 5 | 1308 | 1329 | 3'UTR | 359 | 380 | proximal | 4.82 | AATAAA | APA_POSIBLE | aguas arriba, 65 nt | tx:1237 | 949 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 108 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:si | INCOMPLETE | GGCAAAGGGTTCTACAACCAAA | UUUGGUUGUAGAACCCUUUGCC |
+| 3 | 1398 | 1419 | 3'UTR | 449 | 470 | medio | 5.32 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 198 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:si | INCOMPLETE | GTGGAATTCTTTCTTTACTAAC | UUUAGUAAAGAAAGAAUUCCAC |
+| 2 | 1502 | 1523 | 3'UTR | 553 | 574 | medio | 5.86 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 302 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:si | INCOMPLETE | AGGGCACTAGAATGATCTTTAG | UUAAAGAUCAUUCUAGUGCCCU |
+| 7 | 1622 | 1643 | 3'UTR | 673 | 694 | medio | 4.42 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 422 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:si | INCOMPLETE | GGCTAGAAACTTGAGTTTCTTC | UAAGAAACUCAAGUUUCUAGCC |
+| 9 | 1685 | 1706 | 3'UTR | 736 | 757 | medio | 4.26 |  |  |  |  |  | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 485 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:si | INCOMPLETE | CCCTATGTTTCTGTACTTCTAT | UUAGAAGUACAGAAACAUAGGG |
+| 6 | 1767 | 1788 | 3'UTR | 818 | 839 | medio | 4.55 | CATAAA | OTRA | aguas abajo, 67 nt | tx:1856 | 330 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 567 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:si | INCOMPLETE | GGCTCCATTCCAAAGTGGGAAA | UUUCCCACUUUGGAAUGGAGCC |
+| 1 | 1967 | 1988 | 3'UTR | 1018 | 1039 | distal | 6.65 | ACTAAA | OTRA | dentro | tx:1983 | 203 nt | si | PASS | FAIL | PASS | TECHO | NO_APLICA | PENALIZADO | 767 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | True | True | prediccion:si | INCOMPLETE | GGCCGTTCCATCCAGTACTAAA | UUUAGUACUGGAUGGAACGGCC |
+| 8 | 2020 | 2041 | 3'UTR | 1071 | 1092 | distal | 4.28 | ACTAAA | OTRA | aguas arriba, 31 nt | tx:1983 | 203 nt | no | PASS | PASS | PASS | TECHO | NO_APLICA | NO_APLICA | 820 |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:si | INCOMPLETE | TGCACTCAGTTCCGTAGGATTC | UAAUCCUACGGAACUGAGUGCA |
 
 > **MULTIPLEXADO: hay candidatos que comparten núcleo.**
 
@@ -669,16 +667,16 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | elegido | sitio | inicio | tercio | asimetria | rango | empalme_intron | empalme_sitios | especificidad | fraccion_isoforma_larga | offtarget_seed:guia | offtarget_seed:pasajera | repeticion_polimorfica | repeticiones | seed | seed_colision:guia | seed_colision:pasajera | transgen | veredicto | guia |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | True | 3utr:1018 | 1967 | distal | 7.65 | 1 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGUACUGGAUGGAACGGCC |
-| True | 3utr:819 | 1768 | distal | 5.96 | 2 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUCCCACUUUGGAAUGGAGC |
-| True | 3utr:553 | 1502 | medio | 5.86 | 3 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAAGAUCAUUCUAGUGCCCU |
-| True | 3utr:652 | 1601 | medio | 5.8 | 4 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGUACCUUAACCAUCCCUC |
-| True | 3utr:449 | 1398 | medio | 5.32 | 5 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGUAAAGAAAGAAUUCCAC |
-| True | 3utr:60 | 1009 | proximal | 5.15 | 6 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUUGAAAGAGCUACAGGUGG |
-| True | 3utr:143 | 1092 | proximal | 5.08 | 7 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUACUGUACAUUUCCCAGGGC |
-| True | 3utr:735 | 1684 | medio | 5.08 | 8 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAGUACAGAAACAUAGGGC |
-| True | 3utr:359 | 1308 | proximal | 4.82 | 9 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGGUUGUAGAACCCUUUGCC |
-| True | 3utr:1071 | 2020 | distal | 4.28 | 10 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCCUACGGAACUGAGUGCA |
-| True | 3utr:200 | 1149 | proximal | 3.8 | 11 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGCACUGGCUGAUGACAGA |
+| True | 3utr:553 | 1502 | medio | 5.86 | 2 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAAGAUCAUUCUAGUGCCCU |
+| True | 3utr:449 | 1398 | medio | 5.32 | 3 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGUAAAGAAAGAAUUCCAC |
+| True | 3utr:60 | 1009 | proximal | 5.15 | 4 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUUGAAAGAGCUACAGGUGG |
+| True | 3utr:359 | 1308 | proximal | 4.82 | 5 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGGUUGUAGAACCCUUUGCC |
+| True | 3utr:818 | 1767 | medio | 4.55 | 6 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCCCACUUUGGAAUGGAGCC |
+| True | 3utr:673 | 1622 | medio | 4.42 | 7 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAAACUCAAGUUUCUAGCC |
+| True | 3utr:1071 | 2020 | distal | 4.28 | 8 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCCUACGGAACUGAGUGCA |
+| True | 3utr:736 | 1685 | medio | 4.26 | 9 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGAAGUACAGAAACAUAGGG |
+| True | 3utr:200 | 1149 | proximal | 3.8 | 10 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGCACUGGCUGAUGACAGA |
+| True | 3utr:144 | 1093 | proximal | 3.69 | 11 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUACUGUACAUUUCCCAGGG |
 | False | 3utr:9 | 958 | proximal | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGCGAAGGAACAAGCAGGAA |
 | False | 3utr:10 | 959 | proximal | 4.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGCGAAGGAACAAGCAGGA |
 | False | 3utr:11 | 960 | proximal | 2.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUGCGAAGGAACAAGCAGG |
@@ -703,7 +701,6 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:85 | 1034 | proximal | 0.62 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAGAAGCAAGAAUGAGAACCA |
 | False | 3utr:86 | 1035 | proximal | 1.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAGAAGCAAGAAUGAGAACC |
 | False | 3utr:90 | 1039 | proximal | 1.31 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACACAGAGAAGCAAGAAUGAG |
-| False | 3utr:144 | 1093 | proximal | 3.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUACUGUACAUUUCCCAGGG |
 | False | 3utr:145 | 1094 | proximal | 1.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUCUACUGUACAUUUCCCAGG |
 | False | 3utr:146 | 1095 | proximal | 0.74 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGGUCUACUGUACAUUUCCCAG |
 | False | 3utr:147 | 1096 | proximal | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGGUCUACUGUACAUUUCCCA |
@@ -723,7 +720,6 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:176 | 1125 | proximal | 1.35 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAUCAAAGGGACCUGAAGCAA |
 | False | 3utr:183 | 1132 | proximal | 0.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCAGACUCCAUCAAAGGGACCU |
 | False | 3utr:185 | 1134 | proximal | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGACAGACUCCAUCAAAGGGAC |
-| False | 3utr:186 | 1135 | proximal | 3.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGACAGACUCCAUCAAAGGGA |
 | False | 3utr:187 | 1136 | proximal | 4.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGACAGACUCCAUCAAAGGG |
 | False | 3utr:188 | 1137 | proximal | 1.16 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAUGACAGACUCCAUCAAAGG |
 | False | 3utr:199 | 1148 | proximal | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGCACUGGCUGAUGACAGAC |
@@ -734,7 +730,6 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:309 | 1258 | proximal | 2.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUACUCUGGGUACAAGUCA |
 | False | 3utr:310 | 1259 | proximal | 1.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUGUACUCUGGGUACAAGUC |
 | False | 3utr:316 | 1265 | proximal | 2.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUCACCUUGUACUCUGGGUA |
-| False | 3utr:317 | 1266 | proximal | 2.22 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUGUCACCUUGUACUCUGGGU |
 | False | 3utr:319 | 1268 | proximal | 1.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCACUGUCACCUUGUACUCUGG |
 | False | 3utr:320 | 1269 | proximal | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCACUGUCACCUUGUACUCUG |
 | False | 3utr:322 | 1271 | proximal | 1.84 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUCACUGUCACCUUGUACUC |
@@ -751,13 +746,11 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:338 | 1287 | proximal | 3.79 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAUGCUAAGUUACAUGUGUCA |
 | False | 3utr:339 | 1288 | proximal | 1.39 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUAUGCUAAGUUACAUGUGUC |
 | False | 3utr:343 | 1292 | proximal | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGCCUAUGCUAAGUUACAUG |
-| False | 3utr:344 | 1293 | proximal | 2.66 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGCCUAUGCUAAGUUACAU |
 | False | 3utr:352 | 1301 | proximal | 2.49 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGAACCCUUUGCCUAUGCUA |
 | False | 3utr:353 | 1302 | proximal | 1.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUAGAACCCUUUGCCUAUGCU |
 | False | 3utr:354 | 1303 | proximal | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGUAGAACCCUUUGCCUAUGC |
 | False | 3utr:355 | 1304 | proximal | 0.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGUAGAACCCUUUGCCUAUG |
 | False | 3utr:358 | 1307 | proximal | 2.46 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGGUUGUAGAACCCUUUGCCU |
-| False | 3utr:360 | 1309 | proximal | 4.12 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGGUUGUAGAACCCUUUGC |
 | False | 3utr:363 | 1312 | proximal | 2.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCUUUGGUUGUAGAACCCUU |
 | False | 3utr:364 | 1313 | proximal | 3.69 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUCUUUGGUUGUAGAACCCU |
 | False | 3utr:365 | 1314 | proximal | 1.6 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGCUUCUUUGGUUGUAGAACCC |
@@ -785,10 +778,8 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:474 | 1423 | medio | 0.98 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUGCCUUCAAUCAGCUAUCG |
 | False | 3utr:478 | 1427 | medio | 0.59 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCCUGUUGCCUUCAAUCAGCU |
 | False | 3utr:479 | 1428 | medio | 3.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCCUGUUGCCUUCAAUCAGC |
-| False | 3utr:512 | 1461 | medio | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUCAACGUCAGUAGGACAAU |
 | False | 3utr:515 | 1464 | medio | 1.84 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGCUUUCAACGUCAGUAGGAC |
 | False | 3utr:516 | 1465 | medio | 3.27 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGCUUUCAACGUCAGUAGGA |
-| False | 3utr:517 | 1466 | medio | 4.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGCUUUCAACGUCAGUAGG |
 | False | 3utr:518 | 1467 | medio | 1.27 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGUUUGCUUUCAACGUCAGUAG |
 | False | 3utr:521 | 1470 | medio | 2.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGGUUUGCUUUCAACGUCAG |
 | False | 3utr:522 | 1471 | medio | 3.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGGUUUGCUUUCAACGUCA |
@@ -801,7 +792,6 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:544 | 1493 | medio | 0.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCUAGUGCCCUGGGAAUGAA |
 | False | 3utr:545 | 1494 | medio | 2.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUCUAGUGCCCUGGGAAUGA |
 | False | 3utr:548 | 1497 | medio | 1.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCAUUCUAGUGCCCUGGGAA |
-| False | 3utr:549 | 1498 | medio | 3.76 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAUCAUUCUAGUGCCCUGGGA |
 | False | 3utr:550 | 1499 | medio | 3.32 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAUCAUUCUAGUGCCCUGGG |
 | False | 3utr:551 | 1500 | medio | 3.56 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAUCAUUCUAGUGCCCUGG |
 | False | 3utr:552 | 1501 | medio | 5.16 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAGAUCAUUCUAGUGCCCUG |
@@ -837,7 +827,6 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:670 | 1619 | medio | 1.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAACUCAAGUUUCUAGCCUUU |
 | False | 3utr:671 | 1620 | medio | 1.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAACUCAAGUUUCUAGCCUU |
 | False | 3utr:672 | 1621 | medio | 3.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAAACUCAAGUUUCUAGCCU |
-| False | 3utr:673 | 1622 | medio | 4.42 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGAAACUCAAGUUUCUAGCC |
 | False | 3utr:674 | 1623 | medio | 1.89 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGAAACUCAAGUUUCUAGC |
 | False | 3utr:675 | 1624 | medio | 1.0 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUGAAGAAACUCAAGUUUCUAG |
 | False | 3utr:678 | 1627 | medio | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAAUGAAGAAACUCAAGUUUC |
@@ -855,7 +844,6 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:732 | 1681 | medio | 1.34 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGUACAGAAACAUAGGGCAGA |
 | False | 3utr:733 | 1682 | medio | 3.72 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGUACAGAAACAUAGGGCAG |
 | False | 3utr:734 | 1683 | medio | 3.85 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAGUACAGAAACAUAGGGCA |
-| False | 3utr:736 | 1685 | medio | 4.26 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGAAGUACAGAAACAUAGGG |
 | False | 3utr:737 | 1686 | medio | 3.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUAGAAGUACAGAAACAUAGG |
 | False | 3utr:748 | 1697 | medio | 1.48 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCAGUUCAAAUAGAAGUAC |
 | False | 3utr:750 | 1699 | medio | 2.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAUCCAGUUCAAAUAGAAGU |
@@ -867,7 +855,6 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:764 | 1713 | medio | 1.96 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAUUGUCUCUCUGUUAUCCA |
 | False | 3utr:765 | 1714 | medio | 2.37 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGAUUGUCUCUCUGUUAUCC |
 | False | 3utr:766 | 1715 | medio | 2.04 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGAUUGUCUCUCUGUUAUC |
-| False | 3utr:767 | 1716 | medio | 0.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUAGAUUGUCUCUCUGUUAU |
 | False | 3utr:770 | 1719 | medio | 1.89 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUGUUUAGAUUGUCUCUCUGU |
 | False | 3utr:771 | 1720 | medio | 3.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUGUUUAGAUUGUCUCUCUG |
 | False | 3utr:772 | 1721 | medio | 1.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUGUUUAGAUUGUCUCUCU |
@@ -883,14 +870,11 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:799 | 1748 | medio | 0.82 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCCUACUUCUCUUAUCUGCAGC |
 | False | 3utr:802 | 1751 | medio | 1.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAGCCUACUUCUCUUAUCUGC |
 | False | 3utr:810 | 1759 | medio | 2.81 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGGAAUGGAGCCUACUUCUC |
-| False | 3utr:811 | 1760 | medio | 2.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGGAAUGGAGCCUACUUCU |
 | False | 3utr:812 | 1761 | medio | 0.9 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUGGAAUGGAGCCUACUUC |
 | False | 3utr:817 | 1766 | medio | 2.22 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCCCACUUUGGAAUGGAGCCU |
-| False | 3utr:818 | 1767 | medio | 4.55 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCCCACUUUGGAAUGGAGCC |
 | False | 3utr:820 | 1769 | distal | 3.23 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUCCCACUUUGGAAUGGAG |
 | False | 3utr:821 | 1770 | distal | 2.36 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUUUCCCACUUUGGAAUGGA |
 | False | 3utr:822 | 1771 | distal | 2.26 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUCUUUCCCACUUUGGAAUGG |
-| False | 3utr:823 | 1772 | distal | 1.8 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUCUUUCCCACUUUGGAAUG |
 | False | 3utr:824 | 1773 | distal | 1.47 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUUCUUUCCCACUUUGGAAU |
 | False | 3utr:825 | 1774 | distal | 3.63 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUUUCUUUCCCACUUUGGAA |
 | False | 3utr:826 | 1775 | distal | 2.33 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UGAAUUUCUUUCCCACUUUGGA |
@@ -919,7 +903,6 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:921 | 1870 | distal | 1.65 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCACAGUGCAAGCUGAAGC |
 | False | 3utr:922 | 1871 | distal | 2.9 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAUCCACAGUGCAAGCUGAAG |
 | False | 3utr:1017 | 1966 | distal | 4.45 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAGUACUGGAUGGAACGGCCA |
-| False | 3utr:1019 | 1968 | distal | 7.15 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUAGUACUGGAUGGAACGGC |
 | False | 3utr:1020 | 1969 | distal | 4.95 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUUUAGUACUGGAUGGAACGG |
 | False | 3utr:1024 | 1973 | distal | 2.93 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAAGCAUUUAGUACUGGAUGGA |
 | False | 3utr:1025 | 1974 | distal | 3.73 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAGCAUUUAGUACUGGAUGG |
@@ -927,7 +910,6 @@ Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla e
 | False | 3utr:1029 | 1978 | distal | 1.97 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UACGGUAAGCAUUUAGUACUGG |
 | False | 3utr:1070 | 2019 | distal | 3.44 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAUCCUACGGAACUGAGUGCAC |
 | False | 3utr:1075 | 2024 | distal | 2.57 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUGGAAUCCUACGGAACUGAG |
-| False | 3utr:1076 | 2025 | distal | 4.2 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUUGGAAUCCUACGGAACUGA |
 | False | 3utr:1077 | 2026 | distal | 1.52 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UCUUUGGAAUCCUACGGAACUG |
 | False | 3utr:1081 | 2030 | distal | 3.06 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUCUGCUUUGGAAUCCUACGGA |
 | False | 3utr:1103 | 2052 | distal | 3.29 |  | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UAGAUUCAAAGACCAGCUAGGG |

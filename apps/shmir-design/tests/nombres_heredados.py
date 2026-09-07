@@ -85,3 +85,37 @@ def start_del_nombre_heredado(nombre: str) -> int:
             f"{PREFIJO_HEREDADO!r} hay {resto!r}."
         )
     return int(resto)
+
+
+def starts_disponibles_hoy(ruta, seleccion) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Los inicios del fichero medido que HOY siguen siendo ventanas elegibles.
+
+    Devuelve `(disponibles, caidos)` y **las dos mitades importan**: la evidencia no se
+    reescribe, así que un candidato que aquel día se consultó y hoy ya no es elegible
+    sigue nombrado en el fichero — lo que cambia es que esta corrida no puede montar su
+    construcción. Pasarlo a `build_panel` haría abortar la corrida entera, y con razón:
+    ese guardia existe para no emitir menos consultas de las que la etiqueta anuncia.
+
+    **Por qué hace falta desde el 2026-09-07**: al medir el homopolímero sobre la guía y
+    la pasajera (errata nº 144) caen `3utr:143`, `652`, `735` y `819`, que estaban en el
+    panel del 2026-09-05 y por tanto en aquella corrida de SpliceAI.
+
+    Quien llama tiene que DECIR cuántos usa y cuántos no: un subconjunto silencioso es
+    exactamente lo que convierte una corrida parcial en una que parece completa.
+    """
+    del_fichero = starts_del_medido(ruta)
+    # `choices_for` es quien resuelve un inicio contra el alcance de la corrida —panel
+    # MAS sitios elegibles—, asi que se le pregunta a el y no a una segunda definicion
+    # (errata nº 107).
+    # Acepta la corrida de la pagina (`PageRun`) o su `ReportSelection`: quien llama
+    # tiene una u otra, y el alcance lo resuelve siempre el mismo objeto.
+    reporte = seleccion if hasattr(seleccion, "resolvable_choices") else seleccion.selection
+    resolubles = set(reporte.resolvable_choices())
+    disponibles = tuple(s for s in del_fichero if s in resolubles)
+    caidos = tuple(s for s in del_fichero if s not in resolubles)
+    if not disponibles:
+        raise ValueError(
+            f"Ningun inicio de {ruta} sigue siendo una ventana elegible: la corrida "
+            f"medida no se puede releer contra este panel. Caidos: {caidos}."
+        )
+    return disponibles, caidos

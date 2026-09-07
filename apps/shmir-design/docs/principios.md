@@ -3347,3 +3347,47 @@ ausencia de `# BUILD:` se sumó a la cuenta como tercer síntoma, cuando esa lí
 fusionado minutos antes: un despliegue perfectamente al día tampoco la habría tenido.
 **Antes de contar un síntoma, hay que preguntarse desde cuándo sería visible si todo
 fuera bien.**
+
+---
+
+## 61 — Un umbral definido sobre la DIANA no dice nada sobre la MOLÉCULA
+
+Sale de la errata nº 144, y es el **tercer** caso del mismo eje.
+
+Este proyecto tiene declaradas dos posiciones de **CONVENIO**
+(`comparative.CONVENTION_NOTE`): la posición 1 de la guía, donde se fuerza una T/U para
+que AGO2 cargue la hebra, y la posición 1 de la pasajera, el desapareamiento del bulge
+basal. Ninguna de las dos viene de la diana.
+
+Consecuencia: **la guía NO es su diana, ni siquiera su reverso-complementario.** Difieren
+justo en la base que ningún criterio de secuencia mira, y por eso todo criterio de
+secuencia definido sobre la diana **puede dar otro resultado sobre lo que se sintetiza**:
+
+- **GC** — la guía de `3utr:449` empieza por G; al forzarse la T su GC baja de 0,318 a
+  0,273 y cruza el mínimo, así que ese candidato **no admite scrambled por permutación**
+  aunque su diana pase el filtro;
+- **identidad con una fuente externa** — el cruce con miRarchitect **no compara la
+  posición 1**, porque los dos lados fuerzan ahí una T: comparándola, `3utr:819` se
+  quedaba sin cruzar por un único desapareamiento sobre 19 nt idénticos;
+- **homopolímeros** — cuatro candidatos con 3 bases iguales en la diana acaban con 4 en
+  la molécula, y los cuatro tramos los crea una posición de convenio (errata nº 144).
+
+### La regla
+
+Cada vez que un criterio de secuencia vaya a aplicarse a lo que se sintetiza, la pregunta
+es **sobre qué cadena se midió el umbral**. Si el umbral es de la diana y la pregunta es
+de la molécula, **no es el mismo filtro**: es otro, con otro nombre.
+
+### Y el corolario, que es el que costó decidir
+
+**No se arregla moviendo el filtro de sitio.** La tentación era hacer que
+`homopolimero` midiera la guía, y eso habría perdido la medida sobre la diana —que es la
+que tiene sentido biofísico— y habría dejado el proyecto sin poder comparar las dos. Son
+**dos medidas distintas y la comparación tiene valor**: van las dos, con nombre propio
+cada una, y el motivo del `FAIL` del segundo dice expresamente que «la ventana diana
+puede estar por debajo», para que un `FAIL` aquí y un `PASS` allí no se lean como una
+contradicción del código.
+
+Es la misma forma que `polyA_estricto` / `polyA_escalonado` y que los dos contadores de
+carga de seed: **cuando dos criterios miden cosas distintas, el arreglo son dos columnas,
+no una decisión sobre cuál gana.**

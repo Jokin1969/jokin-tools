@@ -546,6 +546,8 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
     usados: set[int] = set()
     quota_unfilled: list[str] = []
     notes: list[str] = []
+    #: Lo que alguien DECIDIÓ, frente a lo que se pidió y no se pudo dar.
+    decisions: list[str] = []
 
     if config.region_quota is not None:
         if not sites:
@@ -589,6 +591,7 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
             config=config,
             quota_unfilled=tuple(quota_unfilled),
             notes=tuple(notes),
+            decisions=tuple(decisions),
             _ranked=tuple(c.start for c in por_asimetria),
         )
 
@@ -643,7 +646,13 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
             if rescate is not None and len(rescate) > len(voraces):
                 elegidos_inmunes = rescate
                 llega = len(rescate) >= config.apa_immune_quota
-                notes.append(
+                # VA EN `decisions`, NO EN `notes`. `notes` dice lo que se PIDIÓ y no se
+                # pudo dar —algo que quien lee puede cambiar—; esto dice CÓMO se cumplió
+                # la cuota. Si además se quedara corta, el aviso lo da `quota_unfilled`,
+                # que es su sitio. Puesto en `notes` saldría en rojo en toda corrida por
+                # defecto, y un aviso que sale siempre deja de leerse — la misma razón
+                # por la que la retirada declarada tampoco es un aviso.
+                decisions.append(
                     f"inmunes al corte: el orden por asimetría sacaba {len(voraces)} de "
                     f"{config.apa_immune_quota} —el mejor de cada paso deja a los "
                     f"siguientes por debajo del espaciado de {config.min_spacing} nt—, "
@@ -795,6 +804,7 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
         config=config,
         quota_unfilled=tuple(quota_unfilled),
         notes=tuple(notes),
+        decisions=tuple(decisions),
         _ranked=tuple(c.start for c in por_asimetria),
     )
 
@@ -819,6 +829,23 @@ class ReportSelection:
     def window_of(self, choice: Choice) -> TiledWindow:
         return self.windows[choice.label]
 
+    def resolvable_choices(self) -> dict[int, Choice]:
+        """El alcance de esta corrida: `{inicio: candidato}`, panel MAS elegibles.
+
+        Es la mitad de `choices_for` que contesta «¿esta este inicio?» sin abortar. Vive
+        aparte porque quien quiere PREGUNTAR no quiere que se le caiga la corrida —y
+        reconstruirlo por su cuenta seria la segunda definicion del alcance, que es
+        exactamente la errata nº 107.
+
+        El panel va primero por la misma razon que en `choices_for`: un inicio elegido
+        esta ademas en su sitio, y el `Choice` que manda es el que la seleccion escogio.
+        """
+        por_inicio = {c.start: c for c in self.selection.chosen}
+        for sitio in self.selection.sites:
+            for choice in sitio.choices:
+                por_inicio.setdefault(choice.start, choice)
+        return por_inicio
+
     def choices_for(self, starts) -> list[Choice]:
         """Los candidatos de esos inicios: del PANEL o de CUALQUIER sitio elegible.
 
@@ -835,10 +862,7 @@ class ReportSelection:
         Un inicio que no corresponda a NINGUNA ventana elegible aborta, y el motivo habla
         de ventanas elegibles y no del panel: el que pide no ha pedido nada raro.
         """
-        por_inicio = {c.start: c for c in self.selection.chosen}
-        for sitio in self.selection.sites:
-            for choice in sitio.choices:
-                por_inicio.setdefault(choice.start, choice)
+        por_inicio = self.resolvable_choices()
         faltan = sorted(set(int(s) for s in starts) - set(por_inicio))
         if faltan:
             # CON SU MARCO: aqui llegan `starts` pelados y este mensaje los NOMBRA. El

@@ -100,7 +100,11 @@ class TestLasPlazasNuevasDependenDeLaReferencia(unittest.TestCase):
     def _referencia(self, label, starts):
         return ReferenceSet(label=label, starts=starts, frame=Frame.UTR3)
 
-    def test_contra_los_6_elegidos_salen_7_plazas(self):
+    def test_contra_los_6_elegidos_salen_6_plazas(self):
+        # SEIS desde el 2026-09-07: `3utr:735` cae al medir el homopolímero sobre la
+        # molécula (errata nº 144), y era la referencia con la que chocaba `765`. La
+        # cifra depende del CONJUNTO de referencia, que es justo lo que este fichero
+        # existe para enseñar.
         elegidos = {
             c.start: self.seleccion.window_of(c).evaluation.guide
             for c in self.seleccion.selection.chosen
@@ -109,7 +113,7 @@ class TestLasPlazasNuevasDependenDeLaReferencia(unittest.TestCase):
             candidates=self.externos,
             reference=self._referencia("los 6 candidatos elegidos", elegidos),
         )
-        self.assertEqual(len(comparacion.new_plazas), 7)
+        self.assertEqual(len(comparacion.new_plazas), 6)
 
     def test_contra_la_tabla_COMPLETA_solo_sobrevive_1200(self):
         # 90 sitios elegibles cubren el 3'UTR mucho mas densamente que 6 posiciones: de
@@ -161,7 +165,9 @@ class TestLasPlazasNuevasDependenDeLaReferencia(unittest.TestCase):
             for c in comparacion.conflicts
         }
         self.assertIn((337, 329, 8), choques)
-        self.assertIn((765, 735, 30), choques)
+        # Contra `736` y no contra `735`: el bloque sigue ahí y lo que cambia es cuál
+        # de sus ventanas es elegible. La distancia baja de 30 a 29 por lo mismo.
+        self.assertIn((765, 736, 29), choques)
 
     def test_la_salida_no_da_una_cifra_sin_decir_contra_que(self):
         comparacion = compare_sites(

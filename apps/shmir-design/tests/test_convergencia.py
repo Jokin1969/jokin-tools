@@ -77,13 +77,22 @@ class TestElHallazgoDeSaturacion(unittest.TestCase):
             method_b="miRarchitect (andamio miR-30a)",
         )
 
-    def test_TRES_coincidencias_EXACTAS(self):
-        # Eran CUATRO cuando `3utr:221` seguía siendo elegible. Con la promoción por
-        # medida aplicada siempre, 221 es FAIL por solape estérico y sale de la piscina,
-        # así que ya no puede coincidir con nada. El hallazgo de SATURACIÓN no cambia —
-        # sigue habiendo cero sitios exclusivos de la fuente externa que superen nuestros
-        # filtros—, y ésa es la conclusión que este test protege.
-        self.assertEqual(self.hallazgo.exact, (735, 810, 1018))
+    def test_CUATRO_coincidencias_EXACTAS(self):
+        """La lista se mueve con la piscina de elegibles; el HALLAZGO no.
+
+        Historia, porque las dos veces cambió por una decisión y no por un fallo:
+        eran cuatro con `3utr:221` dentro; bajaron a tres cuando la promoción por medida
+        lo dejó en FAIL por solape estérico; y vuelven a cuatro el 2026-09-07 al medir el
+        homopolímero sobre la molécula (errata nº 144) — **sale `3utr:735`**, que es uno
+        de los cuatro que caen, y **entran `3utr:516` y `3utr:1075`**, que ya coincidían
+        a 1 nt y ahora lo hacen exacto porque el sitio que representaba su bloque cambió.
+
+        **Lo que este test protege es la conclusión de SATURACIÓN**, y no se ha movido en
+        ninguna de las tres: cero sitios exclusivos de la fuente externa que superen
+        nuestros filtros. La coincidencia no discrimina entre candidatos y no se usa para
+        elegir; la lista es calibración de nuestra propia cascada.
+        """
+        self.assertEqual(self.hallazgo.exact, (516, 810, 1018, 1075))
 
     def test_735_es_la_misma_ventana_base_a_base(self):
         self.assertEqual(self.utr3[734:756], self.hallazgo.window_of(735, self.utr3))
@@ -91,7 +100,10 @@ class TestElHallazgoDeSaturacion(unittest.TestCase):
     def test_seis_coincidencias_a_1_nt(self):
         self.assertEqual(
             self.hallazgo.within_1nt,
-            ((337, 338), (516, 517), (552, 553), (1017, 1018), (1024, 1025), (1075, 1076)),
+            # `3utr:735` aparece ahora AQUÍ, y con sus dos vecinos: la ventana externa
+            # sigue estando y lo que ha cambiado es cuál de nuestras ventanas del bloque
+            # es elegible. `516` y `1075` se han ido arriba, a las exactas.
+            ((337, 338), (552, 553), (735, 734), (735, 736), (1017, 1018), (1024, 1025)),
         )
 
     def test_el_unico_exclusivo_es_1200(self):

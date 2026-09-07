@@ -433,22 +433,35 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     dos cláusulas van juntas y ninguna sobra — el informe termina con «rebaja, no
     descarta».
   - **PANEL CONFIRMADO (2026-08-27, AMPLIADO A ONCE EL 2026-09-06, `3utr:10` RETIRADO
-    Y SUSTITUIDO POR `3utr:359` EL 2026-09-07)**: con la promoción por medida aplicada
-    siempre, la corrida real por defecto da `3utr:` **60, 143, 200, 359, 449, 553, 652,
-    735, 819, 1018, 1071** — con **tres inmunes**, que es la cuota desde ese día. Los diez
+    Y SUSTITUIDO POR `3utr:359` EL 2026-09-07, y CUATRO PLAZAS MOVIDAS EL 2026-09-07 POR
+    EL HOMOPOLÍMERO DE LA MOLÉCULA)**: con la promoción por medida aplicada siempre, la
+    corrida real por defecto da `3utr:` **60, 144, 200, 359, 449, 553, 673, 736, 818,
+    1018, 1071** — con **tres inmunes**, que es la cuota desde ese día. Los diez
     primeros del panel original coincidían con el del responsable, así que la app
     reprodujo lo que se sabía antes de construirla y esa validación quedó **cerrada**; la
     plaza once es el **segundo distal**, decidida después y con la cuenta delante (ver el
     bloque de la cobertura por tercios). Fijado en
-    `tests/test_promocion_por_defecto.py`.
+    `tests/test_promocion_por_defecto.py` y declarado UNA sola vez en
+    `tests/panel_confirmado.py`.
+    **Las cuatro que se movieron son `143→144`, `652→673`, `735→736` y `819→818`**, y
+    ninguna es un candidato nuevo: **son la MISMA región**, con la mejor ventana de su
+    sitio corrida entre 1 y 21 nt porque la que ganaba dejó de ser elegible. El motivo es
+    el filtro del homopolímero medido sobre la MOLÉCULA (bloque de abajo, errata nº 144).
+    Que cambien cuatro números y no cambie ninguna decisión anterior —cuota de inmunes,
+    retirada de `3utr:10`, espaciado— es lo que hizo que se eligiera esta opción con la
+    tabla de sustitutos delante.
     **`3utr:10` no se ha ido de la piscina**: sigue siendo un sitio elegible, con sus
     veredictos, en la tabla y en el alcance de los modales. Lo que se retiró es su plaza
     en el panel, y por eso `tercio_coverage` lo excluye de «el siguiente que cabe» —
     volver a proponer al que alguien retiró es exactamente lo que la decisión impide.
-  - **Inmunes: 60, 143 y 200**, no solo 60. 60 es el único que salía por asimetría, pero
-    la piscina de elegibles tiene 15 sitios más por delante del corte y el informe saca los
-    mejores — `3utr:143` (+5,08) y `3utr:200` (+3,80) entre ellos. Con un solo inmune el
-    panel entero depende de un supuesto; con tres, no. **Eran cuatro con `3utr:10`, y
+  - **Inmunes: 60, 144 y 200**, no solo 60. 60 es el único que salía por asimetría, pero
+    la piscina de elegibles tiene 16 sitios más por delante del corte y el informe saca los
+    mejores — `3utr:144` (+3,69) y `3utr:200` (+3,80) entre ellos. Con un solo inmune el
+    panel entero depende de un supuesto; con tres, no.
+    **Eran `60, 143 y 200` hasta el 2026-09-07**, con `3utr:143` en +5,08. Al caer 143 su
+    sitio lo representa `3utr:144`, que vale +3,69 — o sea que **el mismo sitio pierde
+    1,39 de asimetría al correrse una posición**, y eso es lo que hace que el trío deje de
+    salir del orden voraz (bloque siguiente). **Eran cuatro con `3utr:10`, y
     desde su retirada son estos tres: la cuota bajó POR GEOMETRÍA, no por criterio**
     (`selection.WHY_THE_IMMUNE_QUOTA_IS_THREE`).
     **`3utr:221` era el tercero y ya no está**: el `AATATA` de `3utr:236` pasó a
@@ -1201,8 +1214,15 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     dos ejes y el informe no los mezcla. Su plaza proximal la ocupa **`3utr:200`** (+3,80
     frente al +4,15 neto de 221): la cuota de cuatro inmunes se cumple igual.
   - **Lo que cuesta la promoción va NOMBRADO** (`selection.measured_promotion_cost`): 17
-    ventanas que superaban todos los demás filtros pasan a FAIL, elegibles 287 → 270,
-    sitios 90 → 86, sitios inmunes 20 → 16 (todos siguen en el proximal). Sin esa cuenta la
+    ventanas que superaban todos los demás filtros pasan a FAIL, elegibles 271 → 254,
+    sitios 99 → 95, sitios inmunes 21 → 17 (todos siguen en el proximal). **Las cifras de
+    partida bajaron el 2026-09-07** —eran 287, 90 y 20— porque el homopolímero pasó a
+    medirse sobre la MOLÉCULA (errata nº 144) y la piscina es más pequeña por un motivo
+    que nada tiene que ver con el APA; **lo que la promoción CUESTA no se movió**: 17
+    ventanas y 4 sitios, los mismos. Que el coste no cambie al encoger la piscina es la
+    comprobación de que sólo se cobran las que caen POR ESTO. Ojo con los inmunes, que
+    SUBEN al endurecer un filtro: un sitio agrupa ventanas contiguas, así que quitar una
+    de en medio PARTE un bloque en dos y deja un sitio más. Sin esa cuenta la
     única huella de la decisión sería una piscina más pequeña, que es exactamente la forma
     que tiene un candidato de desaparecer sin que nadie lo vea. **Solo se cobran las
     ventanas que caen POR ESTO**: una que ya fallaba GC no la tumba la promoción, y a la
@@ -3693,7 +3713,9 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     compense»*.
   - **Y `3utr:359` ENTRA DERIVADO, no pinchado**: medido, con la cuota en tres y la
     retirada aplicada, la selección lo elige sola como el mejor disponible. El panel
-    queda `3utr:` **60, 143, 200, 359, 449, 553, 652, 735, 819, 1018, 1071**. Que la
+    queda `3utr:` **60, 143, 200, 359, 449, 553, 652, 735, 819, 1018, 1071** —cuatro de
+    esas plazas se corren el mismo día al medir el homopolímero sobre la molécula, y el
+    panel de hoy es **60, 144, 200, 359, 449, 553, 673, 736, 818, 1018, 1071**—. Que la
     plaza NO haya hecho falta clavarla con `start_window_quota` es lo que mantiene el
     panel derivado: una plaza pinchada a mano habría que revisarla cada vez que cambie
     cualquier otra cosa.
@@ -5632,6 +5654,26 @@ tercios, así que si se cumple tiene que VERSE.
   tilado del transcrito, guardarlas crudas daba `3utr:1684` y abortaba la corrida entera
   (errata nº 113).
 
+### RE-MEDIDO CON EL PANEL DE HOY (2026-09-07), y el borde DESAPARECE
+
+| tramo | sitios elegibles (inicio) | panel (punto medio / inicio) | caben más | el siguiente |
+|---|---|---|---|---|
+| proximal `3utr:1-414` | 29 | 4 / 4 | 1 | `3utr:309-330` (+2,73) |
+| medio `3utr:415-828` | 48 | 5 / 5 | **0** | — |
+| distal `3utr:829-1242` | 18 | 2 / 2 | 4 | `3utr:900-921` (+4,15) |
+
+**El caso del borde ya no existe, y eso NO es una mejora: es un distal menos.**
+`3utr:819-840` tenía su punto medio en 829,5 y contaba como distal; con el homopolímero
+medido sobre la molécula (errata nº 144) su sitio lo representa `3utr:818-839`, punto
+medio 828,5, o sea **medio**. Así que el `borderline` se vacía —el informe deja de sacar
+la línea «OJO, borde»— **porque el candidato que lo producía se ha ido al otro tramo**.
+El distal pasa de 3 a 2 y los dos que quedan, `3utr:1018` y `3utr:1071`, están los dos de
+verdad dentro.
+
+Lo que **no** cambia es la lectura: el tercio medio sigue **saturado** (cero caben con
+todo el panel) y el distal sigue teniendo sitio de sobra —**4** libres— si alguna vez se
+decide subir la cuota. La geometría no lo limita; lo limita la cuota.
+
 ## La matriz de arquitecturas: qué fragmento se pega sobre qué intrón
 
 **El guardia daba PASS a las cuatro casillas** (señalado el 2026-09-06, errata nº 115).
@@ -6459,3 +6501,125 @@ contando columnas sobre un fichero desplazado (errata nº 142).
 lo invariante —que el sello esté y que la primera línea sea la cabecera—, no dónde está. Es
 el principio nº 56 por su lado bueno: un test que fija una decisión se mueve cuando la
 decisión se mueve; no la bloquea.
+
+## EL HOMOPOLÍMERO SE MIDE SOBRE LA MOLÉCULA QUE SE SINTETIZA. DECIDIDO (2026-09-07)
+
+Con las palabras con que se decidió: **«la molécula que se sintetiza es la que importa,
+no el proxy»**. `homopolimero` mira la **ventana diana**; `homopolimero_molecula`
+(`scaffold.filter_molecule_homopolymer`) mira **la guía y la pasajera**, que es lo que
+va dentro del 97-mero y lo que se manda a sintetizar.
+
+**Los dos se quedan, y ésa es la decisión**: *«implementa el filtro con nombre propio y
+sin borrar el de la ventana — son dos medidas distintas y la comparación tiene valor»*.
+El de la ventana sigue siendo el criterio biofísico sobre la diana; el nuevo es el de
+síntesis, y donde discrepan es donde está la información.
+
+### Los cuatro que caen, y por qué la ventana no podía verlos
+
+**MEDIDO** sobre el 3'UTR murino: de las ventanas que superan todos los demás filtros,
+**cuatro del panel** fallan el nuevo y **ninguna falla el de la ventana**:
+
+| candidato | hebra | tramo | de dónde sale |
+|---|---|---|---|
+| `3utr:143` | pasajera | 4 × C | el desapareamiento de la posición 1 |
+| `3utr:652` | guía | 4 × T | la U forzada de la posición 1 |
+| `3utr:735` | pasajera | 4 × C | el desapareamiento de la posición 1 |
+| `3utr:819` | guía | 4 × T | la U forzada de la posición 1 |
+
+**Los cuatro tramos los crea una posición de CONVENIO**, no la diana: la T/U que se
+fuerza en la posición 1 de la guía para que AGO2 cargue la hebra, y el desapareamiento
+basal de la posición 1 de la pasajera. La diana lleva 3 y la molécula acaba con 4. Por
+eso el filtro de la ventana no podía verlos y no estaba roto: **contesta a otra
+pregunta**. Es la misma distinción que ya costó el scrambled de `3utr:449` —el GC de la
+guía no es el GC de su diana— y por eso el motivo del `FAIL` **lo dice**: «la ventana
+diana puede estar por debajo».
+
+### El coste: sólo se pliega el 9,4 % de las ventanas
+
+La regla de la pasajera es **estructural** —se pliega el 97-mero—, así que medir el
+homopolímero de la pasajera podría costar un plegado por ventana: **45 s por corrida**
+sobre las 2170 tiladas. No hace falta: la guía no necesita plegado ninguno, y la
+pasajera sólo cambia respecto de `revcomp(guía)` **en la posición 1**, así que el resto
+del cuerpo se puede medir sin plegar. Sólo hay que plegar cuando el prefijo del cuerpo
+es ya un homopolímero de longitud `MAX_HOMOPOLYMER` y la base indecisa lo alargaría —
+**el 9,4 %**, y la corrida cuesta **+0,43 s**.
+
+- **El atajo está CRUZADO contra el camino lento** (regla 5 del proyecto y principio
+  nº 5): `tests/test_homopolimero_de_la_MOLECULA.py` recorre las **2170** ventanas
+  plegando SIEMPRE y exige el mismo veredicto que el atajo, con un control de que el
+  barrido no se ha quedado vacío. Un atajo sin cruzar es una segunda definición del
+  mismo número.
+- **Sin ViennaRNA, `NOT_RUN`, nunca `PASS`** — y sólo en el caso indeciso: el `FAIL` de
+  la guía no depende del plegado y se sigue emitiendo. El motivo lleva la frase de
+  siempre, «NOT_RUN no es PASS».
+- **`MAX_HOMOPOLYMER` es UNO** (principio nº 13): `blocks.py`, `gblock.py` y
+  `spacers.py` tenían el `3` escrito, y ahora los tres lo importan de `hard_filters`.
+  Hay test de que son el mismo objeto.
+
+### NO es un frente, y eso hay que declararlo
+
+Un **frente** es un filtro que se cierra **consiguiendo algo** —un fichero, una lectura
+de banco—. Éste corre siempre y no hay nada que conseguir, así que va en
+`selection.filtros_sin_frente()` junto a los biofísicos. Sin eso, `blocking_fronts` le
+pedía su **ficha de obtención** y abortaba la corrida entera. Es exactamente el caso ya
+registrado de `GC` y `G4_diana` saliendo como frentes con la máscara puesta.
+
+### Lo que se movió, y lo que NO
+
+Cuatro plazas se corren dentro de **su propio sitio** —`143→144`, `652→673`, `735→736`,
+`819→818`—: no entra ningún candidato de una región nueva. **Ninguna decisión anterior
+se toca**: la cuota de tres inmunes se cumple, la retirada de `3utr:10` sigue en pie
+—los crípticos que lo sacaron no desaparecen porque otro filtro tumbe a otros— y el
+espaciado no se baja.
+
+El coste, medido: la asimetría del panel pasa de **+57,80 a +52,80** (−5,00 sobre once
+plazas) y el reparto por tercios de **4/4/3 a 4/5/2** — **un distal menos**, porque
+`3utr:819-840` tenía su punto medio en 829,5 (distal) y `3utr:818-839` lo tiene en 828,5
+(medio). El tercio distal se queda otra vez dependiendo de `3utr:1018` y `3utr:1071`.
+
+### EL HALLAZGO DE `3utr:200`, que sólo se ve corriéndolo
+
+`3utr:200` **sigue en el panel sin fallar nada**, y por poco. Con las palabras con que
+se registró: *«salía porque `3utr:187` estaba bloqueado por espaciado con `3utr:143`. Al
+caer `3utr:143`, `3utr:187` se libera y gana en asimetría»*.
+
+La aritmética, medida: `187` está a **44 nt** de `143` y a **43** de `144`, o sea por
+debajo del espaciado de 50 en los dos casos; y a **13** de `200`. Con `143` puesto,
+`187` no cabía y la plaza era de `200`. Al caer `143`, el orden voraz coge `60` (+5,15)
+y después **`187` (+4,06), que gana a `200` (+3,80)** — y entonces `144`, `171`, `200` y
+`69` quedan todos bloqueados por espaciado contra `60` o contra `187`: **dos inmunes de
+tres**.
+
+**Es la selección funcionando, y sólo se ve corriéndola.** Nadie lo habría predicho
+mirando la tabla: el que cae es `143` y el que se mueve es `200`, dos sitios distintos a
+57 nt.
+
+### Y POR ESO LA CUOTA DE INMUNES PASA A SER UN REQUISITO, NO UN ORDEN
+
+Hasta aquí la cuota se **intentaba** por orden de asimetría: coger el mejor de cada paso
+y esperar que quepan tres. Cuando no caben, eso no es «no hay tres» — es que **el mejor
+de cada paso deja a los siguientes por debajo del espaciado**. Y aquí sí los hay:
+`{60, 144, 200}` cumple el espaciado y la cuota entera.
+
+`selection._conjunto_que_cumple` busca el **conjunto más grande** que cabe hasta la
+cuota, desempatando por asimetría total, y se usa **sólo si mejora** lo que sacó el
+orden voraz. La cuota es un **requisito** —los inmunes son la única reserva si el APA de
+`3utr:288` resulta funcional— y el orden voraz es sólo el camino rápido.
+
+- **La sustitución se APUNTA en `Selection.decisions`**, no en `notes`: `notes` dice lo
+  que se pidió y no se pudo dar —algo que quien lee puede cambiar—; esto es una decisión
+  del algoritmo, sale en TODAS las corridas de esta secuencia, y en rojo dejaría el rojo
+  puesto para siempre. Es la misma regla que la retirada de `3utr:10`.
+- **Si ni siquiera el conjunto llega a la cuota, se dice con esas palabras** y se toman
+  los que sí caben juntos: «se toman los N que sí caben juntos, que siguen sin llegar a
+  la cuota». Un cero silencioso y un dos silencioso se leen igual.
+- **Hay tope de combinaciones** (`TOPE_COMBINACIONES`), porque la búsqueda es
+  combinatoria y una piscina grande la haría explotar. Al pasarlo se queda con lo que
+  dio el orden voraz **y lo dice**.
+
+### El panel confirmado se declara UNA vez
+
+`tests/panel_confirmado.py` lleva `PANEL_UTR3`, `INMUNES_UTR3` y el desfase, y de ahí
+sale `PANEL_TX`. Estaba transcrito en una docena de ficheros de test, así que un cambio
+de panel obligaba a tocarlos uno a uno y cada copia envejecía por su cuenta — que es
+exactamente la errata nº 28 dentro de la suite. Principio nº 13.
