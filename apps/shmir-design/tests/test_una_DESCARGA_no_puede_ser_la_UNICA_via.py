@@ -47,10 +47,16 @@ SIN_ALTERNATIVA = {
                       "el gestor dice su md5 para poder comprobarlo",
     "_gestionar_proyectos": "el registro de un proyecto se lleva entero por el ZIP de la "
                             "copia de seguridad, que es la vía alternativa y ya existe",
-    "bloque_especie": "son los entregables del diseño, que van TAMBIÉN en el ZIP de "
-                      "resultados de la sección Descargas: ésa es la segunda vía",
-    "main": "las dos de `main` son el ZIP de resultados y los ficheros que ese mismo ZIP "
-            "empaqueta, así que cada una es la alternativa de la otra",
+    # NINGUNA de estas dice «va también en el zip». El zip es OTRO `download_button`,
+    # así que comparte exactamente el mecanismo que se cuelga: nombrarlo como vía
+    # alternativa es el corolario de la errata nº 124 incumplido por escrito. Lo que
+    # exime a estas dos es que su contenido está en un SITIO, no en otro botón.
+    "bloque_especie": "los informes (.docx/.pdf) son binarios maquetados: copiar y pegar "
+                      "no es una vía para ellos, y su contenido íntegro está en el .md "
+                      "que se descarga al lado y en el informe de la propia pantalla",
+    "main": "el ZIP de resultados es binario, y cada fichero que empaqueta tiene su "
+            "propio botón suelto al lado con bloque copiable o con su contenido en "
+            "pantalla: la alternativa no es el ZIP, es el fichero suelto",
 }
 
 
@@ -124,6 +130,63 @@ class TestCadaDescargaTieneSuSegundaVia(unittest.TestCase):
         for funcion, motivo in SIN_ALTERNATIVA.items():
             with self.subTest(funcion):
                 self.assertGreater(len(motivo), 40)
+
+    def test_NINGUNA_exencion_nombra_otra_DESCARGA_como_alternativa(self):
+        """Una vía y su alternativa no pueden compartir el mecanismo que falla.
+
+        Es el corolario de la errata nº 124, y estaba incumplido POR ESCRITO en dos de
+        las exenciones: las dos decían «va también en el ZIP». El ZIP es otro
+        `st.download_button`, o sea justo el mecanismo que se cuelga. Una exención que se
+        apoya en él no exime de nada — y como está escrita, se lee como si lo hiciera.
+        """
+        for funcion, motivo in SIN_ALTERNATIVA.items():
+            with self.subTest(funcion):
+                self.assertNotIn(
+                    "ésa es la segunda vía", motivo,
+                    "la alternativa no puede ser otra descarga",
+                )
+                self.assertNotRegex(
+                    motivo.lower(),
+                    r"(va|van) tambi[eé]n en el zip",
+                    "el ZIP es otro `download_button`: comparte el mecanismo que falla",
+                )
+
+    def test_el_EXPORT_de_candidatos_tiene_bloque_copiable(self):
+        """Es el fichero que VIAJA, y su única vía era un botón que se cuelga.
+
+        Por AST y no por `find`: la primera aparición del nombre en el fuente es el
+        IMPORT, y buscar desde ahí medía la distancia desde la cabecera del fichero.
+        Un detector que mira al sitio equivocado da el mismo rojo que uno que funciona,
+        y el mismo verde (principio nº 51).
+        """
+        llamadas = [
+            n.lineno for n in ast.walk(ARBOL)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            and n.func.id == "selected_export_file"
+        ]
+        self.assertEqual(len(llamadas), 1, "se esperaba UNA llamada al export")
+        export = llamadas[0]
+
+        copiables = [
+            n.lineno for n in ast.walk(ARBOL)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            and n.func.id == ALTERNATIVA
+            and _funcion_de(n.lineno) == _funcion_de(export)
+        ]
+        self.assertTrue(
+            copiables,
+            f"el export no tiene `{ALTERNATIVA}` en su misma función: si la descarga se "
+            f"cuelga no queda ninguna vía para el fichero que VIAJA.",
+        )
+        # Y ANTES de LA TABLA DEL PANEL — la que lleva el icono de Streamlit encima—,
+        # no de la primera `st.dataframe` de la función, que es la de la anatomía y está
+        # mucho más arriba. Un ancla al elemento equivocado da un rojo que no señala nada.
+        tabla = min(
+            n.lineno for n in ast.walk(ARBOL)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            and n.func.id == "site_table_rows"
+        )
+        self.assertLess(min(copiables), tabla, "el bloque copiable va DESPUÉS de la tabla")
 
     def test_los_CUATRO_ficheros_que_desbloquean_un_frente_la_tienen(self):
         """Los que paran una corrida de horas si no llegan: BLAST, seed, off-target y

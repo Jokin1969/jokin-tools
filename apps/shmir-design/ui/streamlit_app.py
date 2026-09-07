@@ -638,6 +638,14 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         )
         st.caption(entrega["nota"])
         st.caption(EXPORT_VS_ICONO_NOTE)
+        # LA SEGUNDA VIA, que este boton no tenia. La exencion que lo tapaba decia que
+        # la alternativa era el ZIP de la seccion Descargas — y el ZIP es OTRO
+        # `download_button`, o sea exactamente el mecanismo que se cuelga (errata nº 130,
+        # sin causa asignada todavia). Una via y su alternativa no pueden compartir el
+        # mecanismo que falla: es el corolario que costo tres dias en la errata nº 124.
+        _tambien_para_copiar(
+            entrega["datos"], nombre=entrega["nombre"], clave=f"exp_sel_{nombre}",
+        )
 
         st.dataframe(
             # LOS ALMACENES VAN AQUI. La capacidad estaba cableada y probada desde
