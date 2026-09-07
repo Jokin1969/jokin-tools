@@ -23,6 +23,40 @@ cuaderno con las coordenadas viejas ya está escrito.
 120 nt cada uno, holgura de 10 nt. Emitidos por `polya.rtqpcr_amplicons` sobre el corte
 más temprano, que es el del `AATATA` de `3utr:236`.
 
+### ⚠ EL DISTAL DEPENDE DEL PANEL, Y HOY EL INFORME EMITE OTRO. DECISIÓN ABIERTA (2026-09-07)
+
+**Esta tabla NO es lo que emite el informe de una corrida**, y hace falta saberlo antes de
+pedir cebadores. Los dos números salen del mismo `rtqpcr_amplicons` y difieren en un
+argumento: **`avoid`**, las ventanas diana de los elegidos, que el informe le pasa y esta
+tabla no. El proximal no se mueve —se coloca contra la señal, no contra el panel—; **el
+distal sí**, porque se va al primer hueco que no solape ninguna diana.
+
+| | esta tabla (`rtqpcr_amplicons` SIN panel) | el informe de hoy (panel de once) |
+|---|---|---|
+| **proximal** | `3utr:106-225` · `tx:1055-1174` | `3utr:106-225` · `tx:1055-1174` **⚠ solapa** `tx:1083-1124` y `tx:1139-1180` |
+| **distal** | `3utr:282-401` · `tx:1231-1350` | **`3utr:850-969` · `tx:1799-1918`** |
+
+**No es una discrepancia nueva de esta semana**: con el panel anterior el informe emitía
+`3utr:851-970`, así que llevaba tiempo sin coincidir con lo declarado aquí. Lo que ha
+hecho aparecer la pregunta es el panel del homopolímero de la molécula (errata nº 144),
+que movió el distal un nucleótido y, con panel de seis, hasta `3utr:585-704`.
+
+**Lo que cambia al moverse, y es lo que hay que decidir con contexto**: el distal de
+`3utr:850-969` queda **entero por detrás de las dos bandas** y **no atraviesa ninguna**,
+mientras que el de `3utr:282-401` **atraviesa** la de `3utr:303-323`. Los dos miden la
+misma cantidad —la fracción que sobrevive a los DOS cortes, o sea el tramo de 0,86— y el
+nuevo la mide sin quedar partido por el segundo suceso. **Consecuencia de emisión que no
+se corrige de paso**: `_lineas_de_cruce` sólo escribe el «QUÉ MIDE / QUÉ NO MIDE» cuando
+el distal **atraviesa** algo, así que con el emitido hoy **el informe deja de imprimir esa
+pareja** — y la limitación sigue siendo cierta (el tramo intermedio de 0,91 sigue siendo
+geométricamente inalcanzable: entre las dos bandas quedan 11 nt para un amplicón de 120).
+
+**DECIDIDO NO DECIDIRLO DE PASO (2026-09-07)**, con las palabras del responsable del
+proyecto: *«son coordenadas de banco y una decisión tomada de paso es una decisión sin
+contexto»*. Hasta que se decida, **la tabla de arriba es la que se declara** y esto queda
+como lo que es: dos emisiones del mismo generador con distinto argumento, las dos
+correctas para su pregunta, y ninguna elegida.
+
 ### ~~Los viejos: `3utr:158-277` y `3utr:684-803`~~ — NO VALEN
 
 Se diseñaron contra `3utr:288`, cuyo corte cae en `3utr:303-323`. Eso era el corte más
@@ -1276,7 +1310,9 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
 - **El APA fue el cuarto FRENTE BLOQUEANTE y hoy está CERRADO. DECIDIDO (2026-08-26)**
   (`selection.blocking_fronts`, `BlockingFront.blocking`). La cuenta que lo abrió sigue
   siendo cierta —sitios inmunes por tramo 16/0/0, tope de cuatro por espaciado, seis de diez
-  candidatos con el mismo modo de fallo—, pero **la razón por la que bloqueaba era que un
+  candidatos con el mismo modo de fallo, que son las cifras de aquel día; con el panel de
+  hoy la tarjeta emite **17/0/0**, el mismo tope de cuatro y **8 de 11**, todas
+  derivadas—, pero **la razón por la que bloqueaba era que un
   techo alto y un shmiR malo dan la misma lectura en la placa**, y con el techo cuantificado
   en **0,86** eso deja de cumplirse: 0,86 no es indistinguible de una guía que no funciona.
   - **Un frente cerrado NO desaparece del informe**: sale como `FRENTE CERRADO` con el
@@ -1287,6 +1323,18 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **mejorar** el número.
   - Sin tabla aplicable (p. ej. el 3'UTR humano) el frente **sigue bloqueando**, y el motivo
     dice que la tabla no entra en esa corrida **por md5**, no que no exista.
+  - **«CABEN» Y «LLEVA» SON DOS CANTIDADES, Y LAS DOS SE DERIVAN (2026-09-07)**
+    (`selection.inmunes_que_caben`). La tarjeta decía «el espaciado deja meter **cuatro**,
+    que son los **3** que ya están»: el cuatro iba ESCRITO desde que la cuota era cuatro y
+    el tres se derivaba, así que al bajar la cuota por geometría la frase se contradijo
+    sola — en la tarjeta verde, que es la que más se lee, y sin dar ningún error.
+    **Caben** se mide sobre los SITIOS ELEGIBLES y no cambia al retirar un candidato del
+    panel (hoy **4**, con `3utr:10` dentro, que sigue siendo elegible); **lleva** es del
+    panel (hoy **3**). Las dos son ciertas y lo que sobraba era el «que son». El barrido
+    es voraz por posición —el espaciado es una restricción de distancia en una dimensión,
+    así que coger el más temprano y saltar da el máximo— y no la búsqueda combinatoria:
+    ésta enumera ~130.000 conjuntos sobre 17 sitios y esto se repinta en cada rerun. Los
+    dos están **cruzados con un test** sobre los sitios reales.
 - **`--inmunes-antes` se DERIVA, no se teclea** (`selection.derive_immune_cut`). Estaba
   puesto a mano (`--inmunes-antes 1252`, o sea `3utr:303`) y cuando el tercer sitio medido
   adelantó la frontera a `3utr:251` la cifra tecleada siguió ahí **sin dar ningún error**.

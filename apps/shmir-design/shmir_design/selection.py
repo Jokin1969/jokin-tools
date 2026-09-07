@@ -502,6 +502,33 @@ def _conjunto_que_cumple(
     return None
 
 
+def inmunes_que_caben(sitios: list[Site], min_spacing: int) -> int:
+    """CUANTOS sitios inmunes caben juntos con el espaciado. Un HECHO GEOMETRICO.
+
+    NO es la cuota, y no es cuantos lleva el panel: se mide sobre los SITIOS ELEGIBLES,
+    que no cambian al retirar un candidato del panel. Las dos cantidades conviven —hoy
+    caben cuatro y el panel lleva tres— y son las dos ciertas; pegarlas con un «que son»
+    es lo que hacia que la tarjeta dijera «deja meter cuatro, que son los 3 que ya
+    estan». Principio nº 27.
+
+    **Se DERIVA, no se teclea.** Estaba escrito `cuatro` en el texto del frente desde
+    que la cuota era cuatro, y siguio ahi cuando bajo a tres: un numero en prosa al lado
+    de otro derivado envejece solo y no da ningun error (principio nº 13).
+
+    El barrido es voraz por posicion, no `_conjunto_que_cumple`, y por dos razones que
+    van juntas: el espaciado es una restriccion de DISTANCIA en una dimension, asi que
+    coger el mas temprano y saltar al siguiente que quepa da el MAXIMO —es seleccion de
+    actividades—, y ademas cuesta O(n). La busqueda combinatoria sobre 17 sitios enumera
+    ~130.000 conjuntos y esto se repinta en cada rerun: es la errata nº 59 esperando.
+    Comprobado que los dos dan lo mismo sobre los sitios reales.
+    """
+    cabe: list[int] = []
+    for inicio in sorted(s.best.start for s in sitios):
+        if all(respects_spacing(inicio, otro, spacing=min_spacing) for otro in cabe):
+            cabe.append(inicio)
+    return len(cabe)
+
+
 def filtros_sin_frente() -> frozenset[str]:
     """Los filtros que NO abren frente, en un solo sitio.
 
@@ -2574,6 +2601,17 @@ def blocking_fronts(
     )
     marco = tiled_frame(report.anatomy)
     inmunes = len(selection.selection.chosen) - len(con_techo)
+    # CUANTOS CABEN se DERIVA (ver `inmunes_que_caben`): aqui habia un `cuatro` escrito
+    # que dejo de cuadrar con el numero de al lado en cuanto la cuota bajo a tres.
+    corte_inmune = derive_immune_cut(report)
+    caben = (
+        inmunes_que_caben(
+            [s for s in selection.selection.sites if s.best.start < corte_inmune],
+            selection.selection.config.min_spacing,
+        )
+        if corte_inmune is not None
+        else inmunes
+    )
     medido = getattr(report, "measured_apa", None)
     frentes.append(
         BlockingFront(
@@ -2587,8 +2625,11 @@ def blocking_fronts(
                 f"{len(selection.selection.chosen)} candidatos quedan por detrás del "
                 f"corte de {label(min(s.position for s in apa), marco)}: comparten "
                 f"UN ÚNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes "
-                f"por tramo son {reparto} —{donde}— y el espaciado deja "
-                f"meter cuatro, que son los {inmunes} que ya están. "
+                f"por tramo son {reparto} —{donde}—; con el espaciado de "
+                f"{selection.selection.config.min_spacing} nt caben {caben} de esos "
+                f"sitios juntos y el panel lleva {inmunes}. Son DOS cantidades: la "
+                f"primera se mide sobre los sitios elegibles y no cambia al retirar un "
+                f"candidato del panel. "
                 f"POR QUE BLOQUEABA: si la fracción de isoforma corta es alta, esos "
                 f"{len(con_techo)} candidatos entran al cribado con un TECHO "
                 f"INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no "

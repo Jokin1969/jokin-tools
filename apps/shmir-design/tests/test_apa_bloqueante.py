@@ -136,7 +136,18 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
         # elegibles CONTIGUAS, así que quitar una del medio parte el bloque en dos.
         # Menos ventanas y más sitios no es una contradicción: son dos cantidades.
         self.assertIn("17/0/0", apa.reason)
-        self.assertIn("cuatro", apa.reason.lower())
+        # EL TOPE DEL ESPACIADO SE DERIVA desde el 2026-09-07. Aquí se exigía la palabra
+        # «cuatro», que iba ESCRITA en el motivo desde que la cuota era cuatro: al bajar
+        # a tres por geometría, la tarjeta pasó a decir «deja meter cuatro, que son los 3
+        # que ya están» — dos cantidades pegadas con un «que son», y la escrita
+        # contradiciendo a la derivada de al lado. Ahora las dos se derivan y salen
+        # NOMBRADAS como dos (`selection.inmunes_que_caben`). Principios nº 13 y nº 27.
+        self.assertIn("caben 4 de esos sitios juntos", apa.reason)
+        self.assertIn("Son DOS cantidades", apa.reason)
+        # Control adversario del arreglo: si volviera a haber un número en letra, este
+        # test no lo vería mirando sólo las cifras.
+        for escrito in ("cuatro", "tres", "cinco"):
+            self.assertNotIn(escrito, apa.reason.lower(), f"«{escrito}» va escrito")
 
     def test_y_la_frase_que_explica_POR_QUE_bloquea(self):
         apa = [f for f in self.frentes if f.name == "fraccion_isoforma_larga"][0]

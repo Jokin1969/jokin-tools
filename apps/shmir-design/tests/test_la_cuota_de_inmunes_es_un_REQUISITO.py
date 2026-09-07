@@ -88,3 +88,85 @@ class TestElPanelCumpleLaCuotaDeInmunes(unittest.TestCase):
         inicios = sorted(c.start for c in self.seleccion.selection.chosen)
         for a, b in zip(inicios, inicios[1:]):
             self.assertGreaterEqual(b - a, self.config.min_spacing, f"{a} y {b}")
+
+
+@unittest.skipUnless(HAY, "falta data/reference/NM_011170.3.fa")
+class TestCUANTOSCABENSeDERIVA(unittest.TestCase):
+    """«Caben cuatro» y «el panel lleva tres» son DOS cantidades, y las dos ciertas.
+
+    La tarjeta del frente de APA —la verde, la que más se lee— decía «el espaciado deja
+    meter **cuatro**, que son los **3** que ya están». El cuatro estaba ESCRITO desde que
+    la cuota era cuatro y el tres se DERIVA, así que en cuanto la cuota bajó por
+    geometría (2026-09-07, retirada de `3utr:10`) la frase se contradecía sola y no daba
+    ningún error. Principios nº 13 y nº 27.
+
+    Las dos siguen siendo verdad y por eso no se elige una: **caben** se mide sobre los
+    SITIOS ELEGIBLES —que no cambian al retirar un candidato del panel— y **lleva** es
+    del panel. Lo que se arregla es pegarlas con un «que son».
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        secuencia = load_reference(RATON)
+        anatomia = Anatomy.from_cds(
+            cds=RATON.cds, length=len(secuencia),
+            source=RegionSource.FIXTURE_VERIFICADO,
+        )
+        cls.informe = tile_utr(secuencia, anatomy=anatomia)
+        cls.seleccion = select_from_report(cls.informe, default_config())
+
+    def _inmunes(self):
+        from shmir_design.selection import derive_immune_cut
+
+        corte = derive_immune_cut(self.informe)
+        self.assertIsNotNone(corte, "sin corte no hay inmunidad que medir")
+        return [s for s in self.seleccion.selection.sites if s.best.start < corte]
+
+    def test_el_barrido_voraz_da_el_MAXIMO_igual_que_la_busqueda_completa(self):
+        """Regla 5 / principio nº 5: dos implementaciones cruzadas, no una borrada.
+
+        El barrido por posición es O(n) y la búsqueda combinatoria es exacta por
+        definición. Que coincidan sobre los sitios REALES es lo que permite usar el
+        barato en un texto que se repinta en cada rerun (errata nº 59).
+        """
+        from shmir_design.selection import _conjunto_que_cumple, inmunes_que_caben
+
+        sitios = self._inmunes()
+        espaciado = self.seleccion.selection.config.min_spacing
+        exacto = _conjunto_que_cumple(sitios, len(sitios), [], espaciado)
+        self.assertIsNotNone(exacto, "control adversario: no cabe ni uno")
+        self.assertEqual(inmunes_que_caben(sitios, espaciado), len(exacto))
+
+    def test_CABEN_cuatro_y_el_panel_lleva_TRES(self):
+        """Las dos cifras medidas, y la primera INCLUYE al retirado.
+
+        `3utr:10` sigue siendo un sitio elegible —lo que se retiró es su plaza—, así que
+        cuenta para «cuántos caben». Es exactamente por lo que las dos cantidades no
+        pueden fundirse.
+        """
+        from shmir_design.selection import inmunes_que_caben
+
+        espaciado = self.seleccion.selection.config.min_spacing
+        self.assertEqual(inmunes_que_caben(self._inmunes(), espaciado), 4)
+        corte = self.seleccion.selection.config.apa_immune_before
+        lleva = sum(1 for c in self.seleccion.selection.chosen if c.start <= corte)
+        self.assertEqual(lleva, 3)
+
+    def test_y_la_TARJETA_las_emite_como_dos_y_sin_ningun_numero_escrito(self):
+        """Lo que se lee, no lo que se calcula (principio nº 23).
+
+        El control que importa es el segundo: la frase no puede volver a llevar un
+        número en letra al lado de otro derivado. Se comprueba sobre el texto que emite
+        el frente, que es el que va a la tarjeta y al informe descargable.
+        """
+        from shmir_design.selection import blocking_fronts
+
+        frente = next(
+            f for f in blocking_fronts(self.informe, self.seleccion)
+            if f.name == "fraccion_isoforma_larga"
+        )
+        self.assertIn("caben 4 de esos sitios juntos", frente.reason)
+        self.assertIn("el panel lleva 3", frente.reason)
+        self.assertIn("Son DOS cantidades", frente.reason)
+        for escrito in ("cuatro", "tres", "cinco"):
+            self.assertNotIn(escrito, frente.reason, f"«{escrito}» va escrito a mano")

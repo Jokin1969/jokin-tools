@@ -7174,3 +7174,56 @@ Nadie lo habría predicho mirando la tabla —el que cae es `143` y el que se mu
 ajuste: **la cuota de inmunes pasa a ser un REQUISITO**. Si el orden por asimetría no la
 cumple, se busca el conjunto más grande que sí cabe (`_conjunto_que_cumple`), y la
 sustitución se APUNTA en `Selection.decisions`. El orden voraz era sólo el camino rápido.
+
+---
+
+## 145 — «Deja meter cuatro, que son los 3 que ya están»: un número escrito al lado de uno derivado
+
+En la tarjeta del frente de APA —**la verde, la que más se lee**— el motivo decía:
+
+> …los sitios inmunes por tramo son 17/0/0 —todos en el proximal— y el espaciado deja
+> meter **cuatro**, que son los **3** que ya están.
+
+El `cuatro` iba **escrito en la f-string** y el `3` se **deriva** del panel. Cuando la
+cuota de inmunes bajó de cuatro a tres por geometría (2026-09-07, retirada de `3utr:10`),
+la mitad derivada se movió y la escrita no: **la frase pasó a contradecirse sola**, sin
+dar ningún error, en el texto que se copia a un correo.
+
+### Y las dos cifras eran ciertas — lo que sobraba era el «que son»
+
+No es que una estuviera mal. Son **DOS cantidades distintas** (principio nº 27):
+
+- **cuántos CABEN** se mide sobre los **sitios elegibles** y **no cambia** al retirar un
+  candidato del panel — `3utr:10` sigue siendo elegible, así que sigue contando. Hoy: **4**;
+- **cuántos LLEVA el panel**. Hoy: **3**.
+
+Pegarlas con un «que son» afirma que son la misma, que es justamente lo que el registro
+ya tenía escrito que no lo es: *«que cuatro QUEPAN y que el panel LLEVE tres son dos
+cantidades distintas y las dos siguen siendo ciertas»*. La prosa del registro lo sabía y
+la del código no.
+
+### El arreglo es derivar la que faltaba, no corregir el número
+
+`selection.inmunes_que_caben` lo calcula, y el motivo emite las dos **nombradas como
+dos**. La comprobación es de forma además de valor: el test exige que en el motivo no
+aparezca ningún número **en letra**, porque mirando sólo las cifras un `cuatro` nuevo
+volvería a colarse.
+
+### Y el barrido es VORAZ, no la búsqueda combinatoria
+
+`_conjunto_que_cumple` da la respuesta exacta y enumera ~130.000 conjuntos sobre 17
+sitios — y este texto se repinta en **cada rerun** de la página: es la errata nº 59
+esperando. El espaciado es una restricción de **distancia en una dimensión**, así que
+coger el más temprano y saltar al siguiente que quepa da el **máximo** (selección de
+actividades) en O(n). Los dos están **cruzados con un test sobre los sitios reales**
+(principio nº 5): la implementación barata no se acepta porque parezca equivalente.
+
+### Por qué ningún guardia lo veía
+
+`auditar_umbrales` mira comparaciones que deciden un veredicto y esto no decide nada;
+`auditar_claves` mira claves de diccionario; el golden **sí** lo leía —está en el informe
+entero— pero sólo delata un cambio, y este número llevaba escrito desde antes que el
+golden existiera en su forma actual: un valor **estable y equivocado** no produce diff.
+Lo que lo destapó fue leerlo junto al derivado de al lado, que es el mismo mecanismo del
+principio nº 11 — código y prosa discrepando, y aquí las dos mitades dentro de la misma
+frase.

@@ -621,19 +621,21 @@
   FRENTE CERRADO — fraccion_isoforma_larga:
     CERRADO. 8 de 11 candidatos quedan por detrás del corte de tx:1185: comparten UN ÚNICO
     MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes por tramo son 17/0/0
-    —todos en el proximal— y el espaciado deja meter cuatro, que son los 3 que ya están.
-    POR QUE BLOQUEABA: si la fracción de isoforma corta es alta, esos 8 candidatos entran
-    al cribado con un TECHO INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía
-    que no funciona dan la misma lectura en la placa, y el experimento se gasta en no
-    poder separarlos. ESTADO: MEDIDO. PolyA_DB v4.1, fracción larga 0.86 ponderada / 0.65
-    sin ponderar. El mapeo genomico↔transcrito que bloqueaba está RESUELTO sin coordenadas
-    genomicas y sobre 4 puntos de apoyo, no sobre una resta. Y el techo no es uno: va POR
-    TRAMOS (0.91, 0.86), porque depende de por detrás de cuántos cortes está cada
-    candidato. Con eso deja de cumplirse lo que hacia bloquear a este frente: un techo de
-    0.86 NO es indistinguible de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el
-    dato es de TODOS LOS TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, así que
-    estas cifras son un LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos
-    amplicones sigue en pie y puede MEJORARLAS.
+    —todos en el proximal—; con el espaciado de 50 nt caben 4 de esos sitios juntos y el
+    panel lleva 3. Son DOS cantidades: la primera se mide sobre los sitios elegibles y no
+    cambia al retirar un candidato del panel. POR QUE BLOQUEABA: si la fracción de
+    isoforma corta es alta, esos 8 candidatos entran al cribado con un TECHO
+    INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no funciona dan la
+    misma lectura en la placa, y el experimento se gasta en no poder separarlos. ESTADO:
+    MEDIDO. PolyA_DB v4.1, fracción larga 0.86 ponderada / 0.65 sin ponderar. El mapeo
+    genomico↔transcrito que bloqueaba está RESUELTO sin coordenadas genomicas y sobre 4
+    puntos de apoyo, no sobre una resta. Y el techo no es uno: va POR TRAMOS (0.91, 0.86),
+    porque depende de por detrás de cuántos cortes está cada candidato. Con eso deja de
+    cumplirse lo que hacia bloquear a este frente: un techo de 0.86 NO es indistinguible
+    de un shmiR malo en la placa. RESERVA QUE SE MANTIENE: el dato es de TODOS LOS
+    TEJIDOS, no cerebro, y las neuronas alargan los 3'UTR, así que estas cifras son un
+    LÍMITE INFERIOR conservador para el nuestro. La RT-qPCR de los dos amplicones sigue en
+    pie y puede MEJORARLAS.
   NO SE PIDE OLIGO hasta que los siete tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
   y otro necesite una base entera no cambia nada: los dos bloquean igual, y llamar «único
   bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin correr.
