@@ -33,7 +33,15 @@ from .conservation import (
 from .errors import ShmirDesignError
 from .hard_filters import DEFAULT_THRESHOLDS, Thresholds
 from .filters import FilterState
-from .outputs import fasta_guides, text_report, tsv_all_windows, tsv_oligos, tsv_selected
+from .outputs import (
+    TSV_MIME,
+    fasta_guides,
+    output_stem,
+    text_report,
+    tsv_all_windows,
+    tsv_oligos,
+    tsv_selected,
+)
 from .reference import ReferenceTranscript
 from .resources import ResourceSet
 from .scaffold import ScaffoldSpec, build_hairpin
@@ -886,6 +894,65 @@ def tsv_rows(texto: str) -> list[list[str]]:
     ]
 
 
+#: QUÉ es cada uno de los dos botones que hay sobre esa tabla. Va junto al nuestro.
+#:
+#: `st.dataframe` pinta SIEMPRE, en la esquina de la tabla y al pasar el ratón, un icono
+#: de descarga que produce `<marca de tiempo>_export.csv`. Lo construye el navegador con
+#: la tabla ya pintada: no pasa por aquí, así que sale sin el sello `# BUILD:`, sin las
+#: columnas de frente y con las columnas de la VISTA. No se puede quitar —es de
+#: Streamlit— y taparlo sería peor: quien ya lo tenga en Descargas necesita saber qué es.
+#:
+#: La nota dice QUÉ contiene cada uno. NO adivina por qué falta algo: un diagnóstico
+#: equivocado cuesta más que ninguno, y este fallo se pasó cinco días mirando el
+#: despliegue porque nadie miró el nombre del fichero.
+EXPORT_VS_ICONO_NOTE = (
+    "El icono de descarga que sale en la esquina de la tabla es de Streamlit, no de esta "
+    "app: baja lo que se ve en pantalla como `…_export.csv`, sin el sello de versión y "
+    "sin las columnas de frente. El fichero de abajo es el completo."
+)
+
+#: Lo que el botón dice que hace. NO se llama como el fichero: tres botones etiquetados
+#: con su nombre de fichero se leyeron como una lista de ficheros y el informe «no
+#: aparecía» con los tres delante. El nombre va en la nota, que es lo que luego hay que
+#: buscar en la carpeta de Descargas.
+EXPORT_BUTTON_LABEL = "Descargar los candidatos con sus frentes (tabla completa)"
+
+
+def selected_export_file(
+    selection: ReportSelection,
+    *,
+    species: str,
+    tiling: TilingReport,
+    stores=None,
+) -> dict[str, str]:
+    """El export de candidatos COMO ENTREGABLE: nombre, etiqueta, datos y mime.
+
+    Existe porque no había ninguno. `tsv_selected` llegaba a la interfaz por un único
+    camino —`output_bundle`, o sea DENTRO del zip—, así que el único botón visible sobre
+    la tabla del panel era el icono de `st.dataframe`, que baja otra cosa con pinta de
+    ser ésta. Es el principio nº 55 en su variante nueva: **no lo escribimos nosotros,
+    pero lo servimos nosotros** — un artefacto que no controlamos compitiendo con uno que
+    sí, y ganando por posición.
+
+    Devuelve lo mismo que `informe_files` y por el mismo motivo (regla 6): la página no
+    decide el nombre, ni la etiqueta, ni el formato. Y el nombre sale de `output_stem`,
+    el mismo que nombra las entradas del zip: el fichero es EL MISMO, así que no puede
+    tener dos nombres según por dónde se baje.
+    """
+    return {
+        "nombre": f"{output_stem(species)}_seleccionados.tsv",
+        "etiqueta": EXPORT_BUTTON_LABEL,
+        "datos": tsv_selected(
+            selection, species=species, tiling=tiling, stores=stores,
+        ),
+        "mime": TSV_MIME,
+        "nota": (
+            f"`{output_stem(species)}_seleccionados.tsv` — lleva el sello de versión, "
+            f"los frentes por candidato y las columnas que no caben en la pantalla."
+        ),
+    }
+
+
 def output_bundle(
     *,
     species: str,
@@ -904,14 +971,18 @@ def output_bundle(
     `empalme_sitios`, y con estados de filtro de ventana en vez de veredictos de frente—
     y es el fichero que VIAJA.
     """
+    # EL NOMBRE, POR `output_stem`: la especie que llega es el nombre CIENTÍFICO, así que
+    # los seis se llamaban `Mus musculus_…` con el espacio dentro. Un solo sitio decide
+    # cómo se nombra una salida, y es el mismo que usa el botón suelto del export.
+    stem = output_stem(species)
     salidas = {
-        f"{species}_ventanas.tsv": tsv_all_windows(tiling),
-        f"{species}_seleccionados.tsv": tsv_selected(
+        f"{stem}_ventanas.tsv": tsv_all_windows(tiling),
+        f"{stem}_seleccionados.tsv": tsv_selected(
             selection, species=species, tiling=tiling, stores=stores,
         ),
-        f"{species}_guias.fasta": fasta_guides(selection, species=species),
-        f"{species}_oligos.tsv": tsv_oligos(selection, scaffold, species=species),
-        f"{species}_informe.txt": text_report(
+        f"{stem}_guias.fasta": fasta_guides(selection, species=species),
+        f"{stem}_oligos.tsv": tsv_oligos(selection, scaffold, species=species),
+        f"{stem}_informe.txt": text_report(
             species=species,
             tiling=tiling,
             selection=selection,
@@ -919,7 +990,7 @@ def output_bundle(
             transcript=transcript,
             conservation=conservation,
         ),
-        f"{species}_comparativa.tsv": comparative_tsv(
+        f"{stem}_comparativa.tsv": comparative_tsv(
             selection, scaffold, with_header=True, anatomy=tiling.anatomy,
             # LOS ALMACENES TAMBIÉN AQUÍ. Sin ellos las cuatro `carga_<clase>` salían
             # VACÍAS para los once aunque el proyecto tuviera corrida, y ésta es la tabla
@@ -978,10 +1049,11 @@ def block_bundle(
         )
         for choice in selection.selection.chosen
     ]
+    stem = output_stem(species)
     return {
-        f"{species}_bloques.fasta": blocks_fasta(bloques, species=species),
-        f"{species}_bloques.tsv": blocks_tsv(bloques, species=species),
-        f"{species}_hoja_de_pedido.txt": order_sheet(bloques, species=species),
+        f"{stem}_bloques.fasta": blocks_fasta(bloques, species=species),
+        f"{stem}_bloques.tsv": blocks_tsv(bloques, species=species),
+        f"{stem}_hoja_de_pedido.txt": order_sheet(bloques, species=species),
     }
 
 
@@ -1080,7 +1152,7 @@ def fragment_bundle(
     )
 
     if not cassette:
-        return {f"{species}_fragmentos.txt": FRAGMENT_NEEDS_CASSETTE}
+        return {f"{output_stem(species)}_fragmentos.txt": FRAGMENT_NEEDS_CASSETTE}
     fragmentos = []
     for choice in selection.selection.chosen:
         ventana = selection.window_of(choice)
@@ -1106,9 +1178,10 @@ def fragment_bundle(
                     fronts=frentes,
                 )
             )
+    stem = output_stem(species)
     return {
-        f"{species}_fragmentos.fasta": fragments_fasta(fragmentos, species=species),
-        f"{species}_fragmentos.txt": "\n\n".join(
+        f"{stem}_fragmentos.fasta": fragments_fasta(fragmentos, species=species),
+        f"{stem}_fragmentos.txt": "\n\n".join(
             fragment_order_sheet(f) for f in fragmentos
         ),
     }

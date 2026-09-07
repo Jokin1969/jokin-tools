@@ -6756,3 +6756,71 @@ nº 89)»* y era falso. Lo miré en `_guardar_corrida` —donde sí hay un `try`
 por dónde salía de verdad. La lección quedó escrita en la errata nº 137 y se repite aquí
 porque volvió a aplicar: **un `try` que cubre el camino que uno tiene en la cabeza no dice
 nada del camino que corre**, y la única forma de saberlo es reproducir la secuencia entera.
+
+---
+
+## 139 — El botón que se veía no era el nuestro, y el nuestro no existía
+
+Reportado como «el export sigue teniendo 46 columnas sin `empalme_sitios` ni
+`offtarget_seed`, y sin `# BUILD:`». Se investigó como un fallo de despliegue durante
+días, con dos fusiones de por medio. **No era ni el código ni el despliegue.**
+
+### Lo que pasaba
+
+El fichero que se descargaba se llamaba `2026-09-07T10-48_export.csv`. Ese nombre lo
+construye Streamlit en el navegador —está en su bundle,
+`streamlit/static/static/js/DataFrame.*.js`—:
+
+```js
+`${new Date().toISOString().slice(0,16).replace(":","-")}_export.csv`
+```
+
+Es el icono de descarga que `st.dataframe` pinta en la esquina de **toda** tabla al pasar
+el ratón. Genera el CSV **en el navegador, con la tabla ya pintada**: no pasa por Python,
+así que no puede llevar el sello `# BUILD:` ni las columnas de frente, y lleva las
+columnas de la VISTA.
+
+Y el export bueno **no tenía botón**: `tsv_selected` llegaba a la interfaz por un único
+camino, `output_bundle`, o sea dentro del zip. Sobre esa tabla el único botón visible era
+el que no es nuestro.
+
+### Las tres pistas, y cuál era la buena
+
+| pista | ¿es evidencia? |
+|---|---|
+| 46 columnas sin los frentes | **sí** — pero de que ese fichero no es el nuestro, no de que el despliegue vaya atrasado |
+| sin `# BUILD:` | **no** — esa línea se había fusionado minutos antes; un despliegue al día tampoco la tendría |
+| misma marca de tiempo en descargas seguidas | **no** — el nombre tiene resolución de MINUTO, dos clics en el mismo minuto dan el mismo nombre |
+
+Las tres se contaron como síntomas del mismo fallo. Dos no lo eran.
+
+### El dato que estaba a la vista desde el primer día
+
+**El nombre.** La app no emite ni un solo `.csv` —emite `.tsv`, `.txt`, `.zip`, `.fasta`,
+`.gb`, `.docx`/`.pdf`—; el único `.csv` del proyecto es
+`mirarchitect_prnp_export_buena.csv`, que es un fichero de ENTRADA. Un vistazo a la
+extensión habría cerrado esto el primer día. Queda como **principio nº 60**.
+
+### El arreglo
+
+1. `presentation.selected_export_file` — el export como entregable, con nombre, etiqueta,
+   datos y mime (regla 6: la página no decide ninguno).
+2. El botón va **ANTES** de la tabla, con `type="primary"`, y hay un test sobre el orden
+   del fuente: es lo único que se puede perder sin que nadie lo note.
+3. `EXPORT_VS_ICONO_NOTE` dice cuál es cuál y nombra el patrón `…_export.csv`. El icono
+   **no se tapa**: quien ya lo tenga en Descargas necesita poder identificarlo.
+
+Queda como **principio nº 59**: *no lo escribimos nosotros, pero lo servimos nosotros.*
+
+### Y un defecto que salió por debajo, de la misma familia
+
+La especie que llega de la página es el nombre CIENTÍFICO (`species_options` pone
+`especie.scientific`), así que las salidas se llamaban **`Mus musculus_seleccionados.tsv`,
+con el espacio dentro**. En el zip se disimula; en la carpeta de Descargas, pegado en una
+consola o citado en un correo, no. Y una de esas cadenas es una **orden para pegar en una
+consola** —la línea de BLAST del informe—, donde el espacio la parte en dos argumentos.
+
+Se barrió la familia entera, no sólo el emisor que se vio (la lección de la errata
+nº 138): `outputs.output_stem` es ahora el único sitio que decide cómo la especie entra
+en un nombre de fichero, y lo usan el zip, el botón suelto, los bloques, los fragmentos y
+la línea de BLAST. Un test exige que **ninguna** entrada del zip lleve un espacio.

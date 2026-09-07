@@ -197,6 +197,8 @@ from shmir_design.presentation import (  # noqa: E402
     immune_panel_members,
     immune_replacements,
     selection_warnings,
+    EXPORT_VS_ICONO_NOTE,
+    selected_export_file,
     site_table_rows,
     TABLE_SCOPE_NOTE,
     vector_note,
@@ -615,6 +617,28 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "de abajo se recalculan con lo que esté marcado."
         )
         st.info(TABLE_SCOPE_NOTE)
+
+        # EL BOTON DEL EXPORT VA AQUI: ANTES de la tabla y no debajo. `st.dataframe`
+        # pinta en su esquina un icono de descarga que NO es nuestro —baja la vista como
+        # `…_export.csv`, sin sello y sin las columnas de frente— y no se puede quitar.
+        # Lo unico que queda es que el de verdad se vea primero, y que la nota diga cual
+        # es cual: dos botones que se parecen y uno solo visible es como se paso una
+        # semana creyendo que fallaba el despliegue.
+        entrega = selected_export_file(
+            seleccion, species=nombre, tiling=tiling, stores=almacenes,
+        )
+        st.download_button(
+            entrega["etiqueta"],
+            data=entrega["datos"],
+            file_name=entrega["nombre"],
+            mime=entrega["mime"],
+            key=f"exp_sel_{nombre}",
+            width="stretch",
+            type="primary",
+        )
+        st.caption(entrega["nota"])
+        st.caption(EXPORT_VS_ICONO_NOTE)
+
         st.dataframe(
             # LOS ALMACENES VAN AQUI. La capacidad estaba cableada y probada desde
             # hacía días, y ESTA llamada —la única que se ejecuta— no la usaba: la celda

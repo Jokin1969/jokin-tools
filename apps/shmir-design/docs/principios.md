@@ -3219,3 +3219,98 @@ derivado de su anatomía, no escrito—, y eso convierte las siete silenciosas e
 fallos ruidosos. Es el principio nº 9 con la consecuencia sacada hasta el final: si el
 invariante caza lo imposible y no lo equivocado, **lo equivocado lo tiene que cazar quien
 sí sabe cuál era la entrada**.
+
+---
+
+## 59 — Un artefacto que NO controlamos compitiendo con uno que sí, y ganando por posición
+
+Es la variante del principio nº 55 que faltaba, y la formulación es mía, del 2026-09-07,
+al encontrar de dónde salía el fichero que se llevaba días leyendo:
+
+> *«No lo escribimos nosotros, pero lo servimos nosotros.»*
+
+El nº 55 habla de un artefacto **nuestro** que dice menos que la pantalla. Éste habla de
+uno que **no es nuestro** y que la plataforma pinta al lado del nuestro, con la misma
+pinta y en mejor sitio.
+
+### EL CASO (2026-09-07, el `_export.csv`)
+
+`st.dataframe` pinta SIEMPRE, en la esquina de cada tabla y al pasar el ratón, un icono
+de descarga. Produce un fichero cuyo nombre construye el navegador:
+
+```js
+`${new Date().toISOString().slice(0,16).replace(":","-")}_export.csv`
+```
+
+o sea `2026-09-07T10-48_export.csv`. Lo genera el navegador **con la tabla ya pintada**,
+así que no pasa por Python: sale sin el sello `# BUILD:`, sin las columnas de frente y
+con las columnas de la VISTA.
+
+Enfrente, el export bueno —`Mus_musculus_seleccionados.tsv`, con el sello, los frentes y
+34 columnas— **no tenía botón**. `tsv_selected` llegaba a la interfaz por un único
+camino, `output_bundle`, o sea **dentro del zip**. El único botón visible sobre esa tabla
+era el que no es nuestro.
+
+### Por qué gana el que no controlamos
+
+No gana por ser mejor: gana **por posición**. Está encima de la tabla, sale solo, y se
+parece a lo que uno venía a buscar. El nuestro estaba a dos clics y dentro de un zip.
+
+Y el daño es el del nº 55 con un agravante: **el que dice menos ni siquiera es nuestro**,
+así que no se arregla arreglándolo. No se puede quitar —es de Streamlit— y taparlo sería
+peor, porque quien ya lo tenga en Descargas necesita saber qué es.
+
+### La regla
+
+Cuando la plataforma pinta una salida que se parece a una nuestra, hay **tres cosas y las
+tres hacen falta**:
+
+1. **la nuestra existe como botón**, no sólo dentro de un paquete;
+2. **va antes y se ve más** — es lo único de los tres que se puede perder sin que nadie
+   lo note, así que se fija con un test sobre el orden del fuente
+   (`test_el_boton_del_export_va_ANTES_de_la_tabla_del_panel`);
+3. **se dice cuál es cuál**, nombrando el patrón del otro (`…_export.csv`). Sin eso, los
+   dos se parecen y el que ya está en Descargas no se puede identificar.
+
+### Y lo que la nota NO hace
+
+No adivina por qué falta algo. Está escrito como test
+(`test_y_NO_manda_a_mirar_el_DESPLIEGUE`): la nota no puede contener «despliegue»,
+«desplegado» ni «caché». Es el principio nº 47 aplicado al sitio exacto donde este fallo
+se pasó una semana — mandando a mirar el despliegue.
+
+---
+
+## 60 — El nombre del fichero es el primer dato, y es el que no se mira
+
+La corrección de método de la errata nº 139, y vale más que el arreglo.
+
+> **Cuando un fichero descargado no tiene el nombre que esperamos, lo primero es
+> preguntar quién lo generó.**
+
+`2026-09-07T10-48_export.csv` no es un nombre que ponga nuestro código: nuestros ficheros
+se llaman `<algo>_seleccionados.tsv`, `<algo>_informe.txt`, `<algo>_guias.fasta`. Bastaba
+mirar la **extensión** —la app no emite ni un solo `.csv`— para saber que ese fichero no
+salía de aquí.
+
+En vez de eso se miraron las columnas, que es mirar el CONTENIDO de un fichero cuya
+PROCEDENCIA no se había establecido. Y como el contenido era plausible —columnas
+nuestras, candidatos nuestros—, cada observación confirmaba la hipótesis equivocada:
+primero que faltaba fusionar, luego que faltaba desplegar.
+
+### El orden correcto
+
+1. **¿Quién generó este fichero?** — nombre, extensión, patrón. Un nombre que no está en
+   nuestro código no es nuestro fichero, y ahí se acaba la investigación de contenido.
+2. Sólo entonces, **¿qué dice?**
+
+Invertirlo cuesta lo que costó aquí: dos fusiones y una espera de redespliegue para un
+fallo que no estaba ni en el código ni en el despliegue.
+
+### Y el corolario, que es el que se repite
+
+Un síntoma que **no es evidencia** cuenta como evidencia si nadie lo separa. Aquí la
+ausencia de `# BUILD:` se sumó a la cuenta como tercer síntoma, cuando esa línea se había
+fusionado minutos antes: un despliegue perfectamente al día tampoco la habría tenido.
+**Antes de contar un síntoma, hay que preguntarse desde cuándo sería visible si todo
+fuera bien.**
