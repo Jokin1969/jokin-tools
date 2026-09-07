@@ -47,6 +47,18 @@ def _corrida():
 
 
 @unittest.skipUnless(HAY, "NOT_RUN: falta data/reference/NM_011170.3.fa")
+
+def _sello(texto: str) -> str:
+    """La última línea NO VACÍA: donde vive el sello desde la errata nº 142.
+
+    Estaba arriba del todo, con un motivo que sigue siendo cierto —«es lo primero que
+    hace falta cuando el fichero no cuadra»—, y ahí Excel lo tomaba como fila de títulos:
+    la cabecera de columnas bajaba una fila y todas se leían corridas, sin dar ningún
+    error. Costó dos rondas contando columnas sobre un fichero desplazado.
+    """
+    return [l for l in texto.splitlines() if l.strip()][-1]
+
+
 class TestElSelloViajaEnLosDosTSV(unittest.TestCase):
 
     @classmethod
@@ -62,19 +74,29 @@ class TestElSelloViajaEnLosDosTSV(unittest.TestCase):
 
     def test_el_export_de_candidatos_lo_lleva(self):
         self.assertTrue(
-            self.seleccionados.startswith(BUILD_PREFIX), self.seleccionados[:80]
+            _sello(self.seleccionados).startswith(BUILD_PREFIX),
+            _sello(self.seleccionados),
         )
 
     def test_la_comparativa_tambien(self):
-        self.assertIn(BUILD_PREFIX, self.comparativa.splitlines()[0])
+        self.assertIn(BUILD_PREFIX, _sello(self.comparativa))
+
+    def test_y_va_AL_FINAL_para_que_Excel_no_se_coma_la_cabecera(self):
+        """Errata nº 142. Lo que se fija NO es dónde está: es que ESTÉ y que la primera
+        línea sea la cabecera de columnas — que es lo que Excel toma como títulos."""
+        for nombre, texto in (
+            ("seleccionados", self.seleccionados), ("comparativa", self.comparativa),
+        ):
+            with self.subTest(nombre):
+                self.assertFalse(texto.splitlines()[0].startswith("#"))
 
     def test_y_dice_LO_QUE_EL_ENTORNO_DECLARA_o_que_no_lo_declara(self):
         # Sin `SHMIR_BUILD` el sello dice «sin declarar», que es información; inventarse
         # un commit sería peor que no ponerlo (principio nº 32).
-        primera = self.seleccionados.splitlines()[0]
-        self.assertIn(build_stamp(), primera)
+        sello = _sello(self.seleccionados)
+        self.assertIn(build_stamp(), sello)
         if build_stamp() == BUILD_NOT_DECLARED:
-            self.assertIn(BUILD_NOT_DECLARED, primera)
+            self.assertIn(BUILD_NOT_DECLARED, sello)
 
     def test_la_cabecera_de_columnas_sigue_siendo_LEGIBLE(self):
         # El sello es un comentario `#`, así que quien lea el fichero salta esas líneas
