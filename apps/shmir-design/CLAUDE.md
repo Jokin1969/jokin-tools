@@ -6234,3 +6234,95 @@ registro— no lo pintaba nadie.
   mitad silenciosa** — ninguna etiqueta `3utr:N` puede pasar de los 1242 nt del 3'UTR de
   ESTE proyecto, que es mucho más estricto que el techo de 1606. La primera vez que se
   corrió reprodujo exactamente el `3utr:1768` reportado.
+
+## EL FICHERO QUE VIAJA DICE QUÉ VERSIÓN LO PRODUJO (2026-09-07)
+
+Reportado así: *«`empalme_sitios` y `offtarget_seed` siguen sin columna en el export de
+candidatos. Era lo que dijiste haber arreglado. Comprueba si está desplegado o si el
+export que descargo es otro»*.
+
+- **El código las tiene, MEDIDO sobre el panel del transcrito**: la cabecera de
+  `<especie>_seleccionados.tsv` sale hoy con `empalme_sitios`, `offtarget_seed:guia` y
+  `offtarget_seed:pasajera`, y el arreglo entró en `fccd6c5`. Lo que se veía —los filtros
+  de la ventana y a continuación `bandera_polyA_debil`— es la forma **anterior** a ese
+  commit. **No se le asigna causa desde aquí** (principio nº 3): desde este entorno no se
+  puede ver qué commit sirve el despliegue.
+- **Y ésa es la pregunta que el fichero tenía que contestar solo.** El sello existe desde
+  el 2026-09-05 —`identidad.build_stamp()`, que el hub pasa por `SHMIR_BUILD`— y **su
+  único consumidor era la cabecera del FASTA de empalme**: los dos TSV que se descargan,
+  se mandan por correo y se leen dentro de un año salían sin él. Ahora los dos empiezan
+  por `# BUILD: <commit>`, con `identidad.BUILD_PREFIX` y `build_line()` en un solo sitio
+  —tres formatos, y con el prefijo escrito en cada uno cambiarlo dejaría a los demás sin
+  sello y a sus tests pasando igual.
+- **Distinguir «el arreglo no está» de «el despliegue va por detrás» es media
+  investigación**, y sin el sello cuesta medir el propio fichero. Es el mismo motivo por
+  el que el FASTA lo lleva (`SHMIR_BUILD`, 2026-09-05) y por el que la página lo enseña
+  arriba del todo: la pantalla lo dice para quien la tiene delante; el fichero, para
+  quien no.
+- El sello va como comentario `#`, así que la cabecera de columnas sigue siendo la
+  primera línea de datos. Quien lo lea usa `presentation.tsv_header`, que los salta:
+  `splitlines()[0]` dejó de ser la cabecera y un lector por su cuenta en cada sitio es
+  como se llega a que uno la lea bien y otro no.
+
+### Y LA COMPARATIVA DESCARGADA NO RECIBÍA LOS ALMACENES
+
+`output_bundle` la montaba con `comparative_tsv(..., anatomy=…)` y **sin `stores` ni
+`species`**, así que las cuatro `carga_<clase>` salían **vacías para los once** aunque el
+proyecto tuviera corrida. Octava vez del patrón de `page_run`, y la segunda sobre este
+mismo fichero — la primera fue la errata nº 90, que las cableó a `candidate_rows` y no al
+TSV. `species` va con ellos: la clave de consulta se deriva de la especie, así que sin
+ella no se encuentra nada y el silencio es idéntico al de no pasarlos (errata nº 47).
+
+## UNA CELDA VACÍA NO DICE LO MISMO QUE `SIN_CONSULTAR` (2026-09-07)
+
+Reportado con el panel nuevo aplicado: *«`3utr:359` sale con `carga_8mer` y
+`carga_7mer-m8` vacías, y es el único de los once. La corrida de off-targets es del panel
+anterior. Y una celda vacía no dice qué le pasa: debería decir `SIN_CONSULTAR` — vacío se
+lee como "no se ha medido nunca" y lo que hay es "se midió el panel anterior y éste no
+estaba"»*.
+
+Es la **errata nº 55 en la familia de los números comparativos**, que no tienen columna de
+estado: el estado va DENTRO de la celda, igual que `NOT_RUN` y `NO_PEDIDO` (errata nº 91).
+Tres formas y ninguna es cero:
+
+| celda | qué pasó | qué lo arregla |
+|---|---|---|
+| **vacía** | no hay ninguna corrida de este frente | el catálogo del transcriptoma y correr el modal |
+| **`SIN_CONSULTAR`** | hay corrida y a este candidato no se le preguntó | repetir la corrida con un alcance que lo incluya |
+| **`12 (p95.3)`** | se le preguntó | — |
+
+**Y la diferencia se paga**: una corrida de carga son ≥10.000 sorteos por consulta sobre
+un índice de 84 MB, así que mandar a conseguir un fichero que ya está cuesta una corrida
+entera. `seed_load_reference` publica `hay_corridas` —si el ALMACÉN tiene algo guardado—
+que **no es** `hay` —si alguno de los preguntados salió en una—: la diferencia entre las
+dos es justo este caso.
+
+## LOS QUE FALTAN SALEN CON SU MARCO (2026-09-07)
+
+Salió contestando a *«¿qué frentes le faltan a `3utr:359`?»*. La respuesta está en la
+tarjeta del frente —`run_coverage` nombra a los que no cubre— y sobre un tilado del
+transcrito los nombraba `Faltan: 1308, 2020`. **`1308` es `tx:1308`, o sea `3utr:359`**:
+leído a secas es otra ventana con otro veredicto, que es exactamente la conversación
+equivocada de la errata nº 133.
+
+- **Es la OTRA forma de la errata nº 138, la que sus dos guardias no ven.** Allí la
+  etiqueta se fabricaba con el marco equivocado; aquí **no se fabrica ninguna**:
+  `str(inicio)` se salta `coords` entero. `Position` impide imprimir un entero desnudo
+  **cuando es una `Position`**, y un `int` que cruza una frontera como `starts` no lo es.
+  Principio nº 50: una conversión implícita no puede fallar.
+- **Cinco emisores, y los cinco nombran candidatos del panel**: la tarjeta de cobertura,
+  los tres abortos que listan el panel para decir que algo no está en él
+  (`candidate_fronts`, `immune_replacements`, `ReportSelection.choices_for`) y la línea de
+  «Última selección guardada» de la página — que además la montaba la página (regla 6) y
+  ahora la da `presentation.saved_selection_note`.
+- **`coords.labels(valores, marco)` es la única definición** de «lista de posiciones para
+  una persona»: cinco sitios, y una regla copiada en cinco es la que llega al sexto sin
+  copiarse. `run_coverage` y `fronts_closed_over_panel` reciben el marco **obligatorio y
+  sin defecto** (principio nº 58); la página se lo pide a `presentation.panel_frame`.
+- **NO hay guardia mecánico, y va dicho** (principio nº 33): `join(str(` da **52**
+  posiciones en el paquete y casi todas son `"".join(str(x).split())` —normalizar una
+  secuencia—; las que nombran posiciones del panel son cinco. Separar «lista para una
+  persona» de «normalizar una cadena» y de listas que no son posiciones —números de
+  sección, cisteínas, longitudes en nt— pide una tabla de declaración que hoy no está
+  escrita. Lo que hay es la regresión sobre las cinco, medida sobre el panel del
+  transcrito, y esta frase para que nadie la lea como cobertura.

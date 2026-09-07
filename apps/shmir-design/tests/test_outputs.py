@@ -5,6 +5,8 @@ Regla 5: escritos antes que `shmir_design/outputs.py`.
 
 import unittest
 
+from shmir_design.presentation import tsv_header, tsv_rows as _lineas
+
 from shmir_design.outputs import (
     fasta_guides,
     text_report,
@@ -38,7 +40,7 @@ class TestTsvCompleto(unittest.TestCase):
         report, _ = piezas()
         lineas = tsv_all_windows(report).splitlines()
         self.assertEqual(len(lineas), len(report.windows) + 1)
-        cabecera = lineas[0].split("\t")
+        cabecera = lineas[0]
         for filtro in ("GC", "homopolimero", "asimetria",
                        "zona_prohibida_polyA", "repeticiones", "seed"):
             with self.subTest(filtro):
@@ -55,13 +57,13 @@ class TestTsvSeleccionados(unittest.TestCase):
 
     def test_una_fila_por_candidato(self):
         report, seleccion = piezas()
-        lineas = tsv_selected(seleccion, species="sonda", tiling=report).splitlines()
+        lineas = _lineas(tsv_selected(seleccion, species="sonda", tiling=report))
         self.assertEqual(len(lineas), len(seleccion.selection.chosen) + 1)
 
     def test_lleva_una_columna_por_filtro(self):
         """Quien abra este TSV tiene que ver QUE filtro falta, no solo INCOMPLETE."""
         report, seleccion = piezas()
-        cabecera = tsv_selected(seleccion, species="sonda", tiling=report).splitlines()[0].split("\t")
+        cabecera = tsv_header(tsv_selected(seleccion, species="sonda", tiling=report))
         for filtro in ("GC", "homopolimero", "asimetria",
                        "zona_prohibida_polyA", "repeticiones", "seed"):
             with self.subTest(filtro):
@@ -69,8 +71,8 @@ class TestTsvSeleccionados(unittest.TestCase):
 
     def test_lleva_rango_tercio_asimetria_y_veredicto(self):
         report, seleccion = piezas()
-        lineas = tsv_selected(seleccion, species="sonda", tiling=report).splitlines()
-        fila = dict(zip(lineas[0].split("\t"), lineas[1].split("\t")))
+        lineas = _lineas(tsv_selected(seleccion, species="sonda", tiling=report))
+        fila = dict(zip(lineas[0], lineas[1]))
         self.assertEqual(fila["especie"], "sonda")
         self.assertIn(fila["tercio"], ("proximal", "medio", "distal"))
         self.assertEqual(fila["veredicto"], "INCOMPLETE")
@@ -137,12 +139,12 @@ class TestColumnasNuevas(unittest.TestCase):
         anatomia = Anatomy.from_cds(cds=(1, 240), length=len(SONDA))
         report = tile_utr(SONDA, anatomy=anatomia)
         seleccion = select_from_report(report, SelectionConfig(n_candidates=2))
-        lineas = tsv_selected(seleccion, species="sonda", tiling=report).splitlines()
-        cabecera = lineas[0].split("\t")
+        lineas = _lineas(tsv_selected(seleccion, species="sonda", tiling=report))
+        cabecera = lineas[0]
         for columna in ("region", "inicio_3utr", "fin_3utr", "bandera_polyA_debil"):
             with self.subTest(columna):
                 self.assertIn(columna, cabecera)
-        fila = dict(zip(cabecera, lineas[1].split("\t")))
+        fila = dict(zip(cabecera, lineas[1]))
         self.assertEqual(fila["region"], "3'UTR")
         from shmir_design.coords import Frame, parse
 

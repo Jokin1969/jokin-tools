@@ -89,9 +89,9 @@ class TestElExportLLEVAlosFrentes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.corrida = _corrida()
-        cls.cabecera = outputs.tsv_selected(
+        cls.cabecera = presentation.tsv_header(outputs.tsv_selected(
             cls.corrida.selection, species=ESPECIE, tiling=cls.corrida.tiling,
-        ).splitlines()[0].split("\t")
+        ))
 
     def test_TODA_columna_de_frente_de_la_pantalla_esta_en_el_export(self):
         """Derivado, no listado: un frente nuevo entra solo en las dos."""
@@ -137,12 +137,14 @@ class TestLaCELDA_es_la_MISMA(unittest.TestCase):
         cls.almacenes = _almacen_offtarget(cls.corrida)
 
     def _export(self, stores):
-        crudo = outputs.tsv_selected(
+        # Por `presentation.tsv_rows`, que salta el sello `# BUILD:`. `splitlines()[0]`
+        # dejó de ser la cabecera el día que el fichero declara qué versión lo produjo.
+        crudo = presentation.tsv_rows(outputs.tsv_selected(
             self.corrida.selection, species=ESPECIE,
             tiling=self.corrida.tiling, stores=stores,
-        ).splitlines()
-        cabecera = crudo[0].split("\t")
-        return [dict(zip(cabecera, l.split("\t"), strict=True)) for l in crudo[1:]]
+        ))
+        cabecera = crudo[0]
+        return [dict(zip(cabecera, fila, strict=True)) for fila in crudo[1:]]
 
     def test_con_la_corrida_guardada_el_export_dice_PASS_como_la_pantalla(self):
         filas = self._export(self.almacenes)

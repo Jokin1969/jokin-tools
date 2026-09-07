@@ -36,7 +36,7 @@ from types import MappingProxyType
 
 from .accessibility import CONTEXT_WINDOWS as _CTX
 from .anatomy import Anatomy, Region
-from .coords import Frame, label, tiled_frame
+from .coords import Frame, label, labels, requested_labels, tiled_frame
 from .errors import ShmirDesignError
 from .filters import FilterState, Verdict
 from .hard_filters import gc_fraction
@@ -723,9 +723,17 @@ class ReportSelection:
                 por_inicio.setdefault(choice.start, choice)
         faltan = sorted(set(int(s) for s in starts) - set(por_inicio))
         if faltan:
+            # CON SU MARCO: aqui llegan `starts` pelados y este mensaje los NOMBRA. El
+            # marco sale de la anatomia que viaja con la seleccion, que es la del panel
+            # sobre el que se piden (errata nº 138, la forma sin etiqueta).
+            marco = tiled_frame(getattr(self, "anatomy", None))
+            # `requested_labels` y no `labels`: lo que se nombra aqui es lo PEDIDO, y lo
+            # pedido puede no ser una posicion —un `99999` tecleado en el modal—. Con
+            # `labels`, este aborto abortaba a su vez por el invariante de rango y el
+            # motivo que importa se perdia.
             raise ShmirDesignError(
                 f"No hay ninguna ventana elegible que empiece en "
-                f"{', '.join(str(f) for f in faltan)}: se aborta en vez de emitir menos "
+                f"{requested_labels(faltan, marco)}: se aborta en vez de emitir menos "
                 f"consultas de las que la etiqueta del alcance anuncia. El alcance de "
                 f"esta corrida son los {len(por_inicio)} sitios elegibles, de los que "
                 f"{len(self.selection.chosen)} están en el panel."

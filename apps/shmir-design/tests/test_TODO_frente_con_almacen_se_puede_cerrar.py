@@ -38,6 +38,8 @@ Regla 5: escritos antes.
 
 import unittest
 
+from shmir_design.coords import Frame
+
 from shmir_design import presentation
 from shmir_design.filters import FilterResult, FilterState
 
@@ -123,7 +125,7 @@ class TestTodoFrenteConAlmacenSePuedeCerrar(unittest.TestCase):
                 )
                 self.assertIn(
                     frente,
-                    presentation.fronts_closed_over_panel(estados, starts=PANEL),
+                    presentation.fronts_closed_over_panel(estados, starts=PANEL, frame=Frame.UTR3),
                     f"{frente}: contesta a todo el panel y aun así no se cierra.",
                 )
 
@@ -142,7 +144,7 @@ class TestTodoFrenteConAlmacenSePuedeCerrar(unittest.TestCase):
                 )
                 self.assertNotIn(
                     frente,
-                    presentation.fronts_closed_over_panel(estados, starts=PANEL),
+                    presentation.fronts_closed_over_panel(estados, starts=PANEL, frame=Frame.UTR3),
                     f"{frente}: se cierra con una sola de sus {len(columnas)} columnas. "
                     f"Fundirlas daría por buena la de la pasajera con el estado de la "
                     f"guía.",
@@ -157,7 +159,7 @@ class TestTodoFrenteConAlmacenSePuedeCerrar(unittest.TestCase):
                 )
                 self.assertNotIn(
                     frente,
-                    presentation.fronts_closed_over_panel(estados, starts=PANEL),
+                    presentation.fronts_closed_over_panel(estados, starts=PANEL, frame=Frame.UTR3),
                     f"{frente}: cierra con {len(PANEL) - 1} de {len(PANEL)} candidatos.",
                 )
 

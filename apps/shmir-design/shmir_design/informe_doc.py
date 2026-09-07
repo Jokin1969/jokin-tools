@@ -975,6 +975,13 @@ def _numerar(secciones: tuple[Section, ...]) -> tuple[Section, ...]:
     )
 
 
+def _marco_del_panel(selection):
+    """El marco de los inicios del panel, para los mensajes que los NOMBRAN."""
+    from .coords import tiled_frame  # noqa: PLC0415
+
+    return tiled_frame(getattr(selection, "anatomy", None))
+
+
 def build_document(
     *, species: str, tiling, selection, generated: str,
     anatomy_source: str = "no declarada en esta corrida",
@@ -1021,6 +1028,7 @@ def build_document(
     cerrados = fronts_closed_over_panel(
         vista_del_panel["estados"],
         starts=panel_para_frentes,
+        frame=_marco_del_panel(selection),
         origins=vista_del_panel["origenes"],
     )
     frentes = blocking_fronts(tiling, selection, closed_by_panel=cerrados)
