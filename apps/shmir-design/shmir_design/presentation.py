@@ -1812,6 +1812,179 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
     }
 
 
+#: EL UMBRAL DEL DESTACADO, declarado como PARÁMETRO y no citado. No decide nada —la
+#: carga de off-targets es DESEMPATE y nunca filtro, y `OfftargetStore.verdict_for` no
+#: puede devolver FAIL— y sólo sirve para que la lectura no se llene de ruido: con once
+#: candidatos y cuatro clases hay 44 celdas y destacarlas todas es no destacar ninguna.
+PERCENTIL_DESTACADO = 95.0
+
+#: Y el de abajo, para el otro lado. Un candidato bien colocado en TODAS sus clases es
+#: información igual que uno cargado, y sólo sale la alarma se lee como que el resto no
+#: se ha mirado — el «Alu 0 %» por omisión.
+PERCENTIL_BIEN_COLOCADO = 50.0
+
+#: POR QUÉ SON DOS SEÑALES Y NO UNA. Salen de dos tablas distintas y de dos barridos
+#: distintos: el percentil, de la nula por PERMUTACIÓN del propio heptámero contra el
+#: transcriptoma; el autoconteo, de barrer la PROPIA diana. Ninguna de las dos puede
+#: decir que coinciden, y cruzarlas a mano sobre 44 celdas es lo que nadie hace.
+DOS_SENALES_INDEPENDIENTES = (
+    "Son DOS señales INDEPENDIENTES sobre el mismo candidato, y por eso van juntas: el "
+    "percentil sale de la nula por permutación de su heptámero contra el transcriptoma, "
+    "y el segundo sitio sale de barrer su propia diana. Son dos tablas distintas, así "
+    "que coincidir no es contar lo mismo dos veces."
+)
+
+
+def seed_load_highlights(*, stores, species: str, starts) -> dict[str, dict]:
+    """La LECTURA de los percentiles de carga, no la tabla. Y la convergencia.
+
+    **Pedido el 2026-09-07**: *«los percentiles de carga son el primer eje que reparte de
+    verdad… que eso salga destacado: es desempate, no filtro, pero es el primer número
+    que separa a los once de forma clara»*.
+
+    El percentil ya salía —pegado a su conteo en cada celda, que es la regla del
+    proyecto—, y con once candidatos por cuatro clases eso son 44 celdas: el hallazgo se
+    queda DENTRO de la tabla. Es el mismo caso que el punto de ramificación, que estaba
+    calculado y había que sacarlo comparando cuatro columnas a ojo sobre 22 filas.
+
+    Y la CONVERGENCIA no la puede leer ninguna de las dos tablas: el percentil y el
+    autoconteo salen de barridos distintos, así que sólo cruzándolos se ve que señalan al
+    mismo candidato.
+
+    **Todo se DERIVA de la corrida guardada**, ni un percentil escrito: con otra corrida
+    —o con otro panel— esto señala a otro candidato, o a ninguno, y se entera solo
+    (principio nº 13). Y no se recalcula nada: la nula son ≥10.000 sorteos por consulta
+    sobre un índice de 84 MB (errata nº 59).
+    """
+    from .offtarget import SITE_CLASSES, USE_NOTE
+
+    almacen = (stores or {}).get("offtarget")
+    marco_utr3 = None
+    filas: dict[int, dict[str, float]] = {}
+    autoconteos: dict[int, object] = {}
+    ultima = None
+    for inicio in (starts if almacen is not None else ()):
+        consulta = query_name(species, int(inicio), "guia")
+        corrida = almacen.latest(consulta)
+        if corrida is None:
+            continue
+        resultado = corrida.result_for(consulta)
+        if resultado is None:
+            continue
+        filas[int(inicio)] = dict(resultado.percentiles)
+        propio = corrida.scan.self_counts.get(consulta)
+        if propio is not None:
+            autoconteos[int(inicio)] = propio
+        ultima = corrida
+    del marco_utr3
+
+    def _etiqueta(inicio: int) -> str:
+        return coords.label(int(inicio), coords.Frame.UTR3)
+
+    def _coma(valor: float) -> str:
+        return f"{valor:.1f}".replace(".", ",")
+
+    #: El PEOR percentil de cada candidato y en qué clase. Se mira por clase y no un
+    #: agregado: la represión esperada de un 8mer y la de un 6mer no se parecen en nada,
+    #: y `offtarget.WHY_NOT_SUMMED` prohíbe fundirlas.
+    peores = {
+        inicio: max(clases.items(), key=lambda par: par[1])
+        for inicio, clases in filas.items()
+        if clases
+    }
+    cargados = sorted(
+        (i for i, (_, p) in peores.items() if p >= PERCENTIL_DESTACADO),
+        key=lambda i: -peores[i][1],
+    )
+    bien = sorted(
+        i for i, clases in filas.items()
+        if clases and max(clases.values()) < PERCENTIL_BIEN_COLOCADO
+    )
+    convergen = [
+        i for i in cargados
+        if i in autoconteos and autoconteos[i].anomalous
+    ]
+
+    if not filas:
+        texto_carga = (
+            "PERCENTILES DE CARGA — NOT_RUN. No hay ninguna corrida de carga de "
+            "off-targets guardada en este proyecto, así que no hay percentil que leer. "
+            "No es que ningún candidato esté cargado: es que nadie lo ha mirado."
+        )
+    elif not cargados:
+        texto_carga = (
+            f"Ninguno de los {len(filas)} candidatos consultados llega al percentil "
+            f"{_coma(PERCENTIL_DESTACADO)} en ninguna clase de sitio. La corrida está "
+            f"hecha y el eje no reparte: no es que no se haya mirado."
+        )
+    else:
+        piezas = []
+        for inicio in cargados:
+            clase, percentil = peores[inicio]
+            #: EL PERCENTIL, EN PALABRAS. «p99,7» no se lee; «de 1.000 seeds aleatorias
+            #: de su composición sólo 3 tienen más sitios» sí. La cuenta se DERIVA del
+            #: propio percentil, no se escribe.
+            de_mil = round((100.0 - percentil) * 10)
+            piezas.append(
+                f"{_etiqueta(inicio)} está en el percentil {_coma(percentil)} de "
+                f"`{clase}`: de 1.000 seeds aleatorias de su composición, sólo {de_mil} "
+                f"tienen más sitios"
+            )
+        texto_carga = (
+            "CARGA DE OFF-TARGETS POR SEED — es el eje que más reparte de este panel. "
+            + "; ".join(piezas)
+            + f". El umbral del destacado ({_coma(PERCENTIL_DESTACADO)}) va DECLARADO "
+            f"como parámetro y no decide nada: sirve para que la lectura no se llene de "
+            f"ruido."
+        )
+
+    if convergen:
+        piezas = []
+        for inicio in convergen:
+            clase, percentil = peores[inicio]
+            piezas.append(
+                f"{_etiqueta(inicio)}: percentil {_coma(percentil)} de `{clase}` contra "
+                f"el transcriptoma, y {autoconteos[inicio].occurrences} sitios de seed "
+                f"en su PROPIA diana cuando lo esperado es "
+                f"{autoconteos[inicio].expected}"
+            )
+        texto_convergencia = (
+            "DOS SEÑALES SOBRE EL MISMO CANDIDATO — " + "; ".join(piezas)
+            + f". {DOS_SENALES_INDEPENDIENTES}"
+        )
+    else:
+        texto_convergencia = (
+            "Ningún candidato con la carga destacada tiene además un segundo sitio de "
+            "seed en su propia diana: los dos ejes no coinciden en ninguno."
+        )
+
+    if bien:
+        texto_bien = (
+            "BIEN COLOCADOS EN TODAS LAS CLASES — "
+            + ", ".join(_etiqueta(i) for i in bien)
+            + f" quedan por debajo del percentil {_coma(PERCENTIL_BIEN_COLOCADO)} en "
+            f"todas las clases de sitio. Sale porque enseñar sólo la alarma deja el "
+            f"resto pareciendo que no se ha mirado."
+        )
+    else:
+        texto_bien = (
+            "Ninguno de los consultados queda por debajo del percentil "
+            f"{_coma(PERCENTIL_BIEN_COLOCADO)} en todas sus clases."
+        )
+
+    return {
+        "carga": {"activo": bool(cargados), "texto": texto_carga},
+        "convergencia": {"activo": bool(convergen), "texto": texto_convergencia},
+        "bien_colocados": {"activo": bool(bien), "texto": texto_bien},
+        # EL USO VA CON EL NUMERO, no solo. Sin corrida no hay percentil del que decir
+        # que es desempate y nunca filtro: la frase se leeria como una advertencia sobre
+        # algo que nadie ha calculado.
+        "uso": {"activo": bool(filas), "texto": USE_NOTE},
+        "corrida": ultima.run_id if ultima is not None else "",
+        "clases": tuple(SITE_CLASSES),
+    }
+
+
 def seed_load_columns(*, stores, species: str, start: int, reference=None) -> dict[str, str]:
     """Las celdas `carga_<clase>` de UNA fila. Vacias si no hay corrida, nunca a cero."""
     from .offtarget import SITE_CLASSES

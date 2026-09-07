@@ -196,6 +196,7 @@ from shmir_design.presentation import (  # noqa: E402
     TABLE_SCOPE_NOTE,
     vector_note,
     seed_load_placeholder,
+    seed_load_highlights,
     seed_load_reference,
     seed_preview_rows,
     seed_setting_rows,
@@ -573,6 +574,20 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         stores=almacenes, species=nombre, starts=chosen_starts(seleccion),
     )
     (st.caption if referencia_carga["hay"] else st.warning)(referencia_carga["texto"])
+
+    # Y LA LECTURA DE ESOS PERCENTILES, ARRIBA Y NO DENTRO DE LA TABLA. Once candidatos
+    # por cuatro clases son 44 celdas: el percentil esta pegado a su conteo desde el
+    # 2026-09-03 y aun asi el hallazgo se queda dentro. Mismo caso que el punto de
+    # ramificacion. La CONVERGENCIA con el autoconteo no la puede leer ninguna de las dos
+    # tablas: salen de barridos distintos.
+    destacados_carga = seed_load_highlights(
+        stores=almacenes, species=nombre, starts=chosen_starts(seleccion),
+    )
+    for clave in ("carga", "convergencia", "bien_colocados", "uso"):
+        bloque = destacados_carga[clave]
+        if bloque["activo"]:
+            (st.warning if clave == "convergencia" else st.info)(bloque["texto"])
+
     if referencia_carga["controles"]:
         st.markdown("**Controles biológicos** — la magnitud, no el percentil")
         st.dataframe(referencia_carga["controles"], hide_index=True)

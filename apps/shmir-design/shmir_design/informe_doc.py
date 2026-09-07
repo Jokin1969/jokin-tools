@@ -489,7 +489,9 @@ def _section_3(fronts, *, species, tiling) -> Section:
 
 
 def _section_4(selection, *, species: str = "", stores=None) -> Section:
-    from .presentation import candidate_rows, seed_load_reference
+    from .presentation import (
+        candidate_rows, seed_load_highlights, seed_load_reference,
+    )
 
     # LOS ALMACENES ENTRAN AQUI porque `carga_seed` no se puede leer sola: su percentil y
     # sus controles viven en la corrida guardada. Sin esto, el documento que defiende la
@@ -547,6 +549,16 @@ def _section_4(selection, *, species: str = "", stores=None) -> Section:
         starts=[c.start for c in selection.selection.chosen],
     )
     bloques.append(para(referencia["texto"]))
+    # LA LECTURA DE LOS PERCENTILES, EN EL DOCUMENTO QUE SE ENTREGA. Es el primer eje que
+    # reparte de verdad este panel y hasta hoy sólo se podía sacar comparando 44 celdas a
+    # ojo. Principio nº 23: dos artefactos leen el mismo estado y sólo uno lo cuenta.
+    destacados_carga = seed_load_highlights(
+        stores=stores, species=species,
+        starts=[c.start for c in selection.selection.chosen],
+    )
+    for clave in ("carga", "convergencia", "bien_colocados", "uso"):
+        if destacados_carga[clave]["activo"]:
+            bloques.append(para(destacados_carga[clave]["texto"]))
     if referencia["controles"]:
         cabeceras_control = ("control", "heptamero", *referencia["clases"])
         bloques.append(

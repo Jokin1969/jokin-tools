@@ -5849,3 +5849,114 @@ filtro queda en `NOT_RUN` y los candidatos salen `INCOMPLETE`:
 | export de **Addgene #20670** con el precursor de miR-30a anotado, o sus coordenadas | el andamio **miR-30 original**. Plegando la ventana de 71 nt centrada en el loop anotado **sí sale horquilla** (−34,70; 73 %; un bucle) frente al control de SGEP (−35,10; 82 %; un bucle): hay base para pedir la anotación, pero anotado no está | se sube por el gestor |
 | ~~**DECISIÓN pendiente: `aav_casete.fa`**~~ — **DECIDIDA (2026-09-05): EL FICHERO VA EN GIT** | Ya no falta nada aquí. La decisión, con las palabras con que se tomó: *«que vaya el fichero, no su md5 en código. Es la única forma de que la corrida sea reproducible por alguien que clone el repositorio, y su tamaño lo permite — son 5.282 nt. Un md5 en código dice si cambió, pero no permite rehacer nada»*. **Revierte** la de dejarlo fuera por «material de laboratorio»: el criterio de este `.gitignore` es el TAMAÑO —«un RefSeq RNA completo no entra»— y 5,3 kB es el mismo orden que las otras siete excepciones. Lo que lo decidió es un caso real: el FASTA del 2026-09-05 traía construcciones de **5.384 nt** y hoy salen **5.496** —112 nt sólo en el flanco 3', con contexto 5', donante y aceptor exactos, o sea **otra entrada y no otro código**— y **no hubo historia que mirar**, porque el único md5 del casete vivía en el depósito de un volumen. La mitigación de aquel día sigue puesta y es complementaria: el FASTA declara `contexto_origen=casete:md5=…:5282nt` y `# BUILD: <sha>` | versionado |
 | **otro plásmido de miR-155** | el andamio **miR-155**. #78126 queda **DESCARTADO con motivo medido**: su único hueco sin anotar es un polilinker vacío — 15 dianas de restricción canónicas en 215 nt, densidad **105×** la del resto — y su mejor ventana de 71 nt se queda en −26,00 y 65 % | se sube por el gestor |
+
+## EL EXPORT DECÍA MENOS QUE LA PANTALLA, y eso es peor que al revés (2026-09-07)
+
+Reportado con el fichero delante y con la pregunta ya planteada: *«¿`empalme_sitios` y
+`offtarget_seed` tienen columna en el export de candidatos, o sólo en la tabla de
+pantalla? Si sólo en pantalla, es la novena tabla del guardia de `_filter_columns` — y
+entonces el export es un artefacto que dice menos que la pantalla, que es peor que al
+revés porque el export es lo que viaja»*.
+
+- **Era eso.** `outputs.tsv_selected` montaba sus columnas de `window.filters` —los
+  filtros de la VENTANA— y no recibía los almacenes nunca. Así que `offtarget_seed` no
+  tenía columna, y las que sí salían eran estados de filtro y **no veredictos de frente
+  con la corrida guardada encima**: una corrida de BLAST podía cerrar el frente en
+  pantalla y el export seguía diciendo `NOT_RUN` de los mismos once.
+- **El guardia no la veía y no podía**: cubre `_filter_columns` dentro de
+  `presentation.py`, y el export vive en `outputs.py`. La regla es la misma un módulo más
+  allá — **quien emita un estado por filtro pide sus columnas a
+  `presentation.export_states`**, que es donde se decide qué dicen los almacenes. Hay
+  guardia mecánico de que `tsv_selected` no vuelve a mirar `window.filters`.
+- **`tiling` pasa a ser OBLIGATORIO** y sin valor por defecto: con un `None` habría dos
+  formas de montar el mismo fichero —una con frentes y otra sin ellos— y nada que dijera
+  cuál salió. Los dos llamadores lo tienen delante.
+- **`empalme_sitios` sale POR INTRÓN, no colapsado.** Su unidad es el par candidato ×
+  intrón; fundirla perdería justo lo que ese frente existe para comparar. Los intrones se
+  DERIVAN de la corrida guardada: sin corrida no hay intrones que nombrar y sale una sola
+  columna en `NOT_RUN`. Misma forma que `por_hebra`, con el eje que le toca a este frente.
+
+### Y debajo estaba lo que dejaba a los once en INCOMPLETE
+
+`front_columns` derivaba la columna `empalme_sitios` de `blocking_fronts` —siempre la
+tuvo— y **nadie podía resolverla**: el único camino que contesta una columna sale de
+`STORE_FOR_FRONT`, y la regla de este frente vive en `PAIR_UNIT_FRONTS`, que hasta hoy
+sólo consultaban las tarjetas. Y un `NOT_RUN` en una celda **arrastra el VEREDICTO de la
+fila**: por eso los once candidatos salían `INCOMPLETE` con la corrida de SpliceAI dentro
+del proyecto. **Principio nº 53 por segunda vez sobre la misma lista**:
+`FRONTS_WITHOUT_COLUMN` se leyó como «sin columna en ninguna parte» y lo que declara es
+que no cabe una columna POR PAR donde la fila es el candidato.
+
+- `_store_state` resuelve ahora los frentes por par, con la regla que `PAIR_UNIT_FRONTS`
+  ya tenía escrita: contestado en cuanto alguno de sus pares lo está.
+- **Y un candidato que la corrida no miró sale `SIN_CONSULTAR`, no `NOT_RUN`**: se
+  arregla lanzando una corrida que lo incluya, no consiguiendo un fichero. Es el caso real
+  de `3utr:359` y `3utr:1071`, que entraron en el panel DESPUÉS de la corrida del
+  2026-09-05 — dejarlos en el `NOT_RUN` del frente sin corridas los hacía
+  indistinguibles de un proyecto vacío.
+- **El test recorre el camino ENTERO** (`test_la_UNIDAD_par_se_resuelve_para_TODO_el_panel.py`):
+  el resultado versionado de SpliceAI, guardado en un proyecto de verdad, reabierto, y la
+  celda y el veredicto mirados desde la tabla. Los que había usan un almacén FALSO —
+  prueban la regla y no atraviesan el camino—, y por eso no lo veían. **Un cliente que no
+  se parece al real no prueba nada.**
+- **Medido**: con esa corrida, el frente cubre **9 de los 11** del panel de hoy y los dos
+  que faltan se nombran. Un frente sólo se cierra si lo cubre TODO el panel.
+
+## EL MISMO FICHERO SUBIDO DOS DÍAS NO ES DOS CORRIDAS (2026-09-07)
+
+Reportado leyendo el historial: *«hay dos `corrida_empalme` con el mismo `result_md5` en
+días distintos. El `run_id` incluye la fecha, así que no chocan — pero son el mismo
+fichero subido dos veces y eso debería reconocerse, como haces con BLAST»*.
+
+- **Y BLAST tampoco lo reconocía.** El `run_id` es `<tipo>-<fecha>-<result_md5>` (errata
+  nº 48), así que el mismo fichero en dos días da dos ids y entra dos veces, **en los
+  cuatro almacenes**. La comprobación que había cubría la mitad del caso —la del mismo
+  día, donde el id coincide y `add` aborta— y **la mitad que faltaba es justo la que no se
+  ve**, porque no da ningún error: deja el historial diciendo que una medida se comprobó
+  dos veces, que es lo contrario de lo que pasó.
+- **Va en `ProjectStore.append`**, el único sitio por el que se ESCRIBE en el log, y se
+  DERIVA del registro: cualquier tipo cuyo contenido lleve `result_md5` queda cubierto sin
+  nombrarlo. Una `seleccion` o una `nota` no lo llevan, y repetirlas es normal.
+- **NO va en el `add` de cada almacén, y ésa es la parte que importa**: `add` lo llaman
+  también los cargadores al releer el log, así que abortar ahí dejaría sin poder ABRIR un
+  proyecto que ya tiene el duplicado escrito — y el log es append-only, así que borrarlo
+  no es una opción. **La regla se aplica al ESCRIBIR, no al leer**, y hay test de que ese
+  proyecto se sigue abriendo y verificando.
+- El mensaje dice **cuál es la corrida anterior y de qué día**, y que la salida no es
+  cambiar la fecha: si lo que se quería era repetir la comprobación, hay que volver a
+  correrla; si sólo consultarla, ya está en el historial.
+
+## LOS PERCENTILES DE CARGA, DESTACADOS — Y LA CONVERGENCIA DE DOS SEÑALES (2026-09-07)
+
+Pedido con la corrida delante y con la lectura ya hecha por quien la pide: *«los
+percentiles de carga son el primer eje que reparte de verdad. `3utr:819` está en el
+percentil 99,7 — de mil seeds aleatorias de su composición, sólo tres tienen más sitios. Y
+es el mismo que ya tenía dos sitios `7mer-m8` en la propia diana. Dos señales
+independientes sobre el mismo candidato»*.
+
+- **El percentil YA salía**, pegado a su conteo en cada celda desde el 2026-09-03 — que es
+  la regla del proyecto, toda cifra comparativa con su referencia. Lo que no salía es la
+  **LECTURA**: once candidatos por cuatro clases son 44 celdas, y el hallazgo se queda
+  dentro de la tabla. Mismo caso que el punto de ramificación, que estaba calculado y
+  había que sacarlo comparando cuatro columnas a ojo sobre 22 filas.
+- **La CONVERGENCIA no la puede leer ninguna de las dos tablas**, y por eso es lo que más
+  vale: el percentil sale de la nula por PERMUTACIÓN del heptámero contra el
+  transcriptoma, y el segundo sitio de barrer la PROPIA diana. Son dos barridos y dos
+  tablas, así que coincidir **no es contar lo mismo dos veces** — y cruzarlas a mano sobre
+  44 celdas es lo que nadie hace.
+- **El percentil se dice EN PALABRAS además de en número**: «de 1.000 seeds aleatorias de
+  su composición, sólo 3 tienen más sitios». `p99,7` no se lee. La cuenta se DERIVA del
+  propio percentil.
+- **Los BIEN COLOCADOS salen también**, no sólo la alarma: un candidato por debajo del
+  percentil declarado en TODAS sus clases es información igual, y enseñar sólo lo cargado
+  deja el resto pareciendo que no se ha mirado — el «Alu 0 %» por omisión. Es el caso de
+  `3utr:1018`, bajo en los dos ejes.
+- **Los dos umbrales van DECLARADOS como parámetros y no deciden nada**: la carga de
+  off-targets es DESEMPATE y nunca filtro —`OfftargetStore.verdict_for` no puede devolver
+  `FAIL`— y sirven para que la lectura no se llene de ruido. El uso va pegado, y **sólo
+  cuando hay corrida**: sin percentil que leer, «desempate y nunca filtro» se leería como
+  una advertencia sobre algo que nadie ha calculado.
+- **Todo se DERIVA de la corrida guardada**, ni un percentil escrito: con otra corrida —o
+  con otro panel— esto señala a otro candidato, o a ninguno, y se entera solo. Y no se
+  recalcula nada: la nula son ≥10.000 sorteos por consulta sobre un índice de 84 MB
+  (errata nº 59). Sale en la página **y en el informe descargable** (principio nº 23).
