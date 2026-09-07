@@ -6885,3 +6885,88 @@ dentro del comentario que lo explica (errata nº 54).
 La causa. Lo que la distinguiría sigue siendo **si el navegador llega a pedir la URL de
 medios**: con la pestaña de red abierta, una petición a `/shmir/media/…` que no responde
 señala al transporte; ninguna petición señala al cliente.
+
+---
+
+## 141 — Un frente CERRADO con su columna diciendo `NOT_RUN` en los once
+
+Reportado el 2026-09-07 leyendo el export bueno: `fraccion_isoforma_larga` sale `NOT_RUN`
+en los once mientras el frente está cerrado con `polya_db_mouse.tsv` desde hace semanas.
+
+### Y NO era «la pantalla y el export sin el mismo estado»
+
+Medido antes de tocar nada: los dos decían `NOT_RUN`. **Coincidían.** Lo que discrepaba
+era el FRENTE —`blocking=False`, «CERRADO. 8 de 11 candidatos quedan por detrás del
+corte»— con **su propia columna**, que es peor de leer: dos cifras del mismo suceso, una
+al lado de la otra y las dos con pinta de medida (errata nº 51).
+
+### La causa
+
+`front_columns` deriva una columna por frente, y quien la resuelve es `_filter_columns`
+—los filtros de la VENTANA— o `STORE_FOR_FRONT` —los almacenes—. Este frente no tiene
+ninguna de las dos cosas, **y no por descuido**: la tabla de APA medido se aplica **por
+md5 del 3'UTR**, así que «¿está medida la fracción de isoforma larga?» es una pregunta del
+TRANSCRITO y se contesta una vez para todos. Sin resolutor, la celda caía al `NOT_RUN` por
+defecto.
+
+Es la errata nº 68 en su **tercera forma**. Las dos primeras eran ejes POR CANDIDATO
+resueltos mal —el fichero contra el panel, y el eje guía/pasajera—; ésta es un eje que
+**no es por candidato** y al que se le pedía una respuesta por candidato.
+
+### El arreglo
+
+`ESTADO_GLOBAL_NO_POR_CANDIDATO` declara los frentes cuya respuesta es de la corrida
+entera, y `global_front_states` la saca de **`blocking_fronts`** — el único sitio donde se
+decide si un frente está contestado. Recalcularlo habría sido la segunda regla para la
+misma pregunta, que es exactamente lo que la nº 68 dejó escrito.
+
+- **Los globales se aplican SIEMPRE**, haya almacenes o no: el `if not stores` de
+  `_with_stores` era lo que dejaba esa celda sin tocar nunca.
+- **`PASS` y no un techo**: el APA **no veta** (`TECHO`, no `FAIL`), y el techo POR
+  CANDIDATO ya tiene columna propia, `riesgo_APA`. Emitirlo aquí sería una segunda
+  definición de la misma cantidad.
+- **Sólo las dos tablas con columnas de frente** lo necesitan. Medido: `candidate_rows` y
+  `window_rows` no tienen esa columna, así que la frontera es limpia y no hay que declarar
+  ninguna excepción.
+
+### El control adversario tuvo que cambiar de palanca, y eso es medida
+
+La primera versión quitaba los recursos y esperaba que el frente bloqueara. **No bloquea:**
+`tile_utr` resuelve la tabla por su cuenta y la aplica por md5, así que entra igual sin
+recursos. La palanca declarada es `apa.ApaExcluded` con su motivo, que además es la forma
+que tendrá cualquier especie sin tabla. Sin ese control, «no dice NOT_RUN» y «la columna no
+mira nada» darían el mismo verde.
+
+### Y el golden lo enseñó entero
+
++270 `PASS`, exactamente una columna por fila y ninguna otra tocada, con el `veredicto`
+siguiendo en `INCOMPLETE` porque los otros frentes siguen abiertos.
+
+---
+
+## 140b — El barrido de los botones: quedaban DOS, y una exención repetía el defecto
+
+Al pedir «mira si algún otro botón sufre lo mismo», el inventario dio dos:
+
+- **`_gestionar_proyectos`** (el registro de un proyecto) — exento con el motivo *«se
+  lleva entero por el ZIP de la copia de seguridad, que es la vía alternativa»*. **El ZIP
+  es otro `st.download_button`**: es literalmente el mismo defecto de la nº 140, en la
+  exención que no se tocó al arreglar las otras dos.
+- **Los ficheros sueltos de «Descargas»** — el módulo, el casete, la hoja de pedido, los
+  fragmentos, la comparativa y el export. Ninguno tenía bloque copiable, así que la
+  alternativa del ZIP era el botón suelto y la del botón suelto, ninguna.
+
+Los dos llevan ahora `_tambien_para_copiar`. **Quedan dos exenciones y las dos son de
+verdad**: `_descargar_todo` y `_fila_presente`, por `ORIGEN_EXTERNO`.
+
+### Y el guardia deja de ser una lista negra de frases
+
+Prohibir «va también en el ZIP» sólo prohibía esa redacción. Ahora cada exención **declara
+su MECANISMO** de un conjunto cerrado —`ORIGEN_EXTERNO`, `TEXTO_EN_PANTALLA`,
+`OTRO_FICHERO_COPIABLE`— que **no contiene `DESCARGA`**, con control adversario de que no
+lo contiene. La forma del fallo deja de poder escribirse.
+
+**Lo que este guardia NO puede hacer, y va dicho**: la tabla se indexa por FUNCIÓN, y
+`bloque_especie` tiene dos descargas de naturaleza distinta —los informes binarios y el
+export de texto—, así que sale a la vez como exenta y como copiable. Un test que lo
+prohibiera daría rojo sobre código correcto; se escribió, dio ese rojo y se retiró.
