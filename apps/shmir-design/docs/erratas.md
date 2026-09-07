@@ -6692,7 +6692,9 @@ de los tres guardias mira eso: `Position` impide imprimir un entero desnudo,
   Así que la errata nº 122 —«el bloque de off-targets no miente en el marco»— estaba
   arreglada **sólo mientras el objeto viviera en memoria**: la capa de persistencia
   reconstruía el mismo objeto sin la contramedida, y podía hacerlo en silencio porque el
-  campo tenía defecto.
+  campo tenía defecto. Va como **segundo corolario del principio nº 50**: un valor por
+  defecto es un literal por la puerta de atrás, y una contramedida puesta al emisor **no
+  sobrevive a un viaje por disco** si el campo lo tiene.
 - **Y el emisor concreto lo ESCRIBÍA porque no tenía de dónde sacarlo.**
   `seed_load_highlights(stores, species, starts)` recibe enteros pelados: sin anatomía y
   sin la corrida delante, la única salida era `Frame.UTR3`. La corrida sí lo sabe —
@@ -6707,6 +6709,11 @@ cuatro que pasan de 1606**. Los otros siete se imprimen mal Y EN SILENCIO: `3utr
 `tx:1398`, que es `3utr:449`. **El invariante caza lo imposible, no lo equivocado**
 (principio nº 9), y por eso el fallo aparece de uno en uno, en orden distinto cada vez, y
 cada arreglo destapa el siguiente en la misma pantalla.
+
+Y de ahí sale el criterio del test: **el techo dejaba pasar la mitad del fallo**, así que
+lo que se exige no es el techo del invariante sino **el límite real de la entrada que hay
+delante** — los 1242 nt del 3'UTR de ese proyecto, derivados de su anatomía. Eso convierte
+las siete silenciosas en siete fallos ruidosos (principio nº 58).
 
 ### Por qué ningún test lo cazó (principio nº 22)
 

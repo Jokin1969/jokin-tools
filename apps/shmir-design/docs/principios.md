@@ -2654,6 +2654,36 @@ porque la aplicación misma es el barrido. Aquí los cuatro fallos nuevos salier
 **mientras** se reescribían los 37, no antes ni después. Leer los 37 buscando cuáles
 estaban mal no los habría encontrado: los cuatro se leían perfectamente.
 
+### EL SEGUNDO COROLARIO: un VALOR POR DEFECTO es un literal por la puerta de atrás
+
+La formulación es del responsable del proyecto, sobre la errata nº 138:
+
+> *«Una contramedida puesta al emisor no sobrevive a un viaje por disco si el campo tiene
+> valor por defecto. La errata nº 122 estaba arreglada sólo en memoria, y la persistencia
+> la deshacía en silencio. `Frame.UTR3` como defecto es exactamente un literal que no
+> puede fallar.»*
+
+Un defecto se **evalúa siempre**, no consulta nada y no puede rechazar nada: es la
+definición de la primera columna de la tabla de arriba, sólo que escrita en la firma en
+vez de en el cuerpo. Y tiene una forma de fallar que el literal no tiene: **el sitio donde
+se escribe y el sitio donde se lee son distintos**, así que quien mira el emisor no ve el
+defecto y quien mira el defecto no ve el emisor.
+
+**El caso, medido**: la errata nº 122 le puso a `LoadResult.describe()` un marco derivado
+en vez de un `f"3utr:{start}"`. Y `save_offtarget_run` no guardaba el campo, así que al
+releer el log el defecto lo reponía en `Frame.UTR3`. La contramedida estaba **arreglada
+sólo mientras el objeto viviera en memoria** — `{'tx'}` al crear la corrida, `{'3utr'}`
+tras releerla — y el objeto reconstruido es **autoconsistente**, así que ninguna
+comprobación posterior puede distinguirlo del bueno.
+
+**La regla operativa, y es la que cierra el corolario anterior**: una contramedida que
+convierte literales en llamadas no está terminada cuando se han reescrito todos los
+sitios. Está terminada cuando **el dato que la sostiene sobrevive al viaje por disco** —
+o sea cuando se ha seguido el valor de punta a punta: se emite → se escribe → se relee →
+se vuelve a emitir. Si en ese trayecto hay un defecto, la contramedida termina donde
+empieza el defecto, y no lo dice nadie. Ver el principio nº 58, que es esto mismo visto
+desde el defecto.
+
 ## 51 — Un guardia tiene que demostrar que HIZO TRABAJO, no sólo que no falló
 
 El caso es del guardia del calendario (`test/calendario.test.js`), y lo señaló el
@@ -3126,7 +3156,9 @@ recorre cuando ya ha ido algo mal, que es exactamente el que nadie ejercita.
 ## 58 — Un valor por defecto convierte un olvido en un dato
 
 Sale de la errata nº 138, y es la generalización de una familia con nueve instancias
-registradas: el marco de coordenadas escrito donde debería derivarse.
+registradas: el marco de coordenadas escrito donde debería derivarse. Es **el principio
+nº 50 visto desde el defecto** —un defecto es un literal que no puede fallar, escrito en
+la firma en vez de en el cuerpo— y allí está el corolario que lo ata al viaje por disco.
 
 ### El mecanismo
 
@@ -3165,3 +3197,25 @@ De ahí la regla operativa: **lo que decide cómo se lee un número viaja con el
 si no viajó, se **DERIVA** de algo que el propio registro conserve — nunca de un literal.
 El proyecto sabe sobre qué anatomía tiló; de ahí sale el marco de sus corridas viejas, y
 eso es un hecho y no un supuesto.
+
+### Y LA MITAD SILENCIOSA ES LA QUE HAY QUE COMPROBAR, no la que aborta
+
+> *«La mitad silenciosa explica los tres días: sólo abortaban los cuatro que pasan el
+> techo, y los otros siete salían mal sin decir nada. Que el test exija ahora que ninguna
+> etiqueta pase de los 1242 nt reales, y no del techo, es lo que lo cierra — el techo
+> dejaba pasar la mitad del fallo.»*
+
+El invariante de `coords` tiene el techo en el 3'UTR **más largo que conoce el proyecto**
+(1606, del humano). Ese techo caza lo imposible en cualquier especie, que es para lo que
+está — y por eso **no puede ser el criterio de un test**: sobre el panel murino deja pasar
+siete de once posiciones equivocadas, con la forma correcta y sin decir nada. Los cuatro
+que abortan no son «el fallo»: son **la parte del fallo que se ve**, y arreglarlos de uno
+en uno es lo que hace que cada arreglo destape el siguiente.
+
+**La regla**: un test comprueba contra **el límite real de la entrada que tiene delante**,
+no contra el que el invariante puede permitirse. `test_la_pagina_se_PINTA_HASTA_EL_FINAL`
+exige que ninguna etiqueta `3utr:N` pase de los **1242 nt del 3'UTR de ESE proyecto** —
+derivado de su anatomía, no escrito—, y eso convierte las siete silenciosas en siete
+fallos ruidosos. Es el principio nº 9 con la consecuencia sacada hasta el final: si el
+invariante caza lo imposible y no lo equivocado, **lo equivocado lo tiene que cazar quien
+sí sabe cuál era la entrada**.
