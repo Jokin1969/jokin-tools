@@ -341,6 +341,8 @@ class ProjectStore:
                 f"se aborta en vez de escribir una línea que luego no se pueda leer."
             ) from exc
 
+        _rechaza_si_es_el_mismo_fichero(self, kind, payload)
+
         anterior = self._records[-1].md5 if self._records else ""
         seq = len(self._records) + 1
         registro = Record(
@@ -458,6 +460,43 @@ class ProjectStore:
 # sesion— y ganan durabilidad por aqui. Lo que NO se hace es que cada uno abra su
 # fichero: un solo log por proyecto, o el dia que se añada un cuarto modal la ficha se
 # dejaria uno fuera sin que nadie lo note.
+
+
+def _rechaza_si_es_el_mismo_fichero(store, kind: str, payload: dict) -> None:
+    """El MISMO resultado ya registrado, sea cual sea el dia: no es otra corrida.
+
+    El `run_id` es `<tipo>-<fecha>-<result_md5>` (errata nº 48), asi que el mismo fichero
+    subido dos DIAS distintos da dos ids distintos y entraba dos veces — en los cuatro
+    almacenes, BLAST incluido. La comprobacion que habia cubria la mitad del caso: la del
+    mismo dia, donde el id coincide y `add` aborta. La otra mitad es justo la que no se
+    ve, porque no da ningun error — y deja el historial con la misma medida dos veces,
+    que se lee como dos comprobaciones independientes.
+
+    **Va aqui y no en el `add` de cada almacen**: `add` lo llaman tambien los cargadores
+    al releer el log, asi que abortar ahi dejaria sin poder ABRIR un proyecto que ya tiene
+    el duplicado escrito — y el log es append-only, asi que borrarlo no es una opcion. La
+    regla se aplica al ESCRIBIR.
+
+    Y se DERIVA del registro: cualquier tipo cuyo contenido lleve `result_md5` queda
+    cubierto sin nombrarlo. Un `seleccion` o una `nota` no lo llevan, y repetirlas es
+    normal.
+    """
+    md5 = str(payload.get("result_md5") or "")
+    if not md5:
+        return
+    for registro in store.records(kind):
+        if str(registro.payload.get("result_md5") or "") != md5:
+            continue
+        raise ShmirDesignError(
+            f"Este resultado YA está registrado en el proyecto: mismo `result_md5` "
+            f"({md5}) que la corrida {registro.payload.get('run_id', '(sin id)')!r}, "
+            f"del {registro.date}. Es el MISMO FICHERO subido dos veces, no otra "
+            f"corrida — el `run_id` lleva la fecha, así que no chocan, pero la medida "
+            f"es la misma y guardarla otra vez dejaría el historial diciendo que se "
+            f"comprobó dos veces. Si lo que querías era repetir la comprobación, hay "
+            f"que volver a CORRERLA y subir ese resultado; si sólo querías consultarla, "
+            f"ya está en el historial."
+        )
 
 
 def save_blast_run(store: ProjectStore, run) -> Record:

@@ -75,6 +75,15 @@ degrada_como = "No se degrada: se recalcula de la secuencia cargada."
 revalida = "Se revalida a sí mismo en cada carga."
 
 [[guardia]]
+guardia = "El MISMO resultado no se registra dos veces, aunque sea otro día"
+implementa = ["store._rechaza_si_es_el_mismo_fichero"]
+protege = "Que el historial de un proyecto no diga que una medida se comprobó dos veces cuando lo que hubo fue el mismo fichero subido dos veces. El `run_id` lleva la fecha (errata nº 48), así que el mismo `result_md5` en dos días da dos ids y entraba sin dar ningún error — en los cuatro almacenes."
+momento = "INGESTA"
+puede_degradar = false
+degrada_como = "No se degrada: el `result_md5` se compara contra el log entero en cada escritura, y el log es append-only."
+revalida = "Se comprueba en cada `append`, que es el único sitio por el que se escribe en el log. NO se comprueba al LEER a propósito: los cargadores replayan el log con `add`, y abortar ahí dejaría sin poder abrir un proyecto que ya tiene el duplicado escrito."
+
+[[guardia]]
 guardia = "Una retirada declarada se aplica al 3'UTR que dice, y retira ALGO"
 implementa = ["retirados.aplicar"]
 protege = "Las dos mitades de una decisión escrita en `data/candidatos_retirados.toml`. Que caiga sobre la secuencia que nombra —se compara el `md5_utr3` declarado con el del informe, así que sobre otro 3'UTR no retira nada—, y que UNA VEZ que esa secuencia coincide, la posición nombrada exista entre las ventanas elegibles: una retirada que no retira nada es una decisión perdida, y dejaría al candidato dentro del panel con el motivo escrito al lado."

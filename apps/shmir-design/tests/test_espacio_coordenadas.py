@@ -148,7 +148,9 @@ class TestLasSalidasDeVerdadLlevanElEspacio(unittest.TestCase):
             scaffold=SGEP_SCAFFOLD,
         )
         cls.comparativa = comparative_tsv(cls.seleccion, SGEP_SCAFFOLD, anatomy=cls.tiling.anatomy)
-        cls.seleccionados = tsv_selected(cls.seleccion, species="raton")
+        cls.seleccionados = tsv_selected(
+            cls.seleccion, species="raton", tiling=cls.tiling,
+        )
 
     def _columna(self, tsv: str, nombre: str) -> list[str]:
         filas = [l for l in tsv.splitlines() if l and not l.startswith("#")]

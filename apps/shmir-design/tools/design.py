@@ -1068,7 +1068,9 @@ def main(argv: list[str]) -> int:
             )
             salidas = {
                 f"{especie}_ventanas.tsv": tsv_all_windows(tiling),
-                f"{especie}_seleccionados.tsv": tsv_selected(seleccion, species=especie),
+                f"{especie}_seleccionados.tsv": tsv_selected(
+                    seleccion, species=especie, tiling=tiling,
+                ),
                 f"{especie}_guias.fasta": fasta_guides(seleccion, species=especie),
                 f"{especie}_oligos.tsv": tsv_oligos(
                     seleccion, scaffold, species=especie

@@ -203,6 +203,17 @@ def _filter_columns(window: TiledWindow) -> dict[str, str]:
     return {r.name: r.state.value for r in window.filters}
 
 
+def _filter_names(window: TiledWindow) -> list[str]:
+    """Solo los NOMBRES de los filtros de una ventana. No emite ningun estado.
+
+    Existe para que quien necesite la lista de columnas no llame a `_filter_columns`:
+    esa funcion emite ESTADOS y el guardia exige que todo el que la llame los envuelva
+    con `_with_stores`. Pedir nombres y pedir estados son dos cosas, y confundirlas
+    obligaria a relajar el guardia — que es como un guardia deja de morder.
+    """
+    return [r.name for r in window.filters]
+
+
 def candidate_rows(
     selection: ReportSelection, *, species: str = "", stores=None,
 ) -> list[dict[str, object]]:
@@ -816,11 +827,20 @@ def output_bundle(
     transcript: ReferenceTranscript | None = None,
     conservation: ConservationReport | None = None,
     blocks: bool = False,
+    stores=None,
 ) -> dict[str, str]:
-    """Las salidas, con los mismos nombres y contenido que el CLI."""
+    """Las salidas, con los mismos nombres y contenido que el CLI.
+
+    `stores` son los almacenes del proyecto, y llegan hasta el EXPORT de candidatos: sin
+    ellos ese fichero decia MENOS que la pantalla —sin columna de `offtarget_seed`, sin
+    `empalme_sitios`, y con estados de filtro de ventana en vez de veredictos de frente—
+    y es el fichero que VIAJA.
+    """
     salidas = {
         f"{species}_ventanas.tsv": tsv_all_windows(tiling),
-        f"{species}_seleccionados.tsv": tsv_selected(selection, species=species),
+        f"{species}_seleccionados.tsv": tsv_selected(
+            selection, species=species, tiling=tiling, stores=stores,
+        ),
         f"{species}_guias.fasta": fasta_guides(selection, species=species),
         f"{species}_oligos.tsv": tsv_oligos(selection, scaffold, species=species),
         f"{species}_informe.txt": text_report(
@@ -2449,10 +2469,24 @@ PAIR_UNIT_FRONTS = {
     },
 }
 
+#: **CORREGIDO (2026-09-07): esto NO significa «sin columna en ninguna parte».** Lo que
+#: declara es que el frente no tiene UNA COLUMNA POR PAR en las tablas cuya fila es el
+#: candidato — ahí la única columna posible es por candidato, y se resuelve con la regla
+#: de `PAIR_UNIT_FRONTS`: contestado en cuanto alguno de sus pares lo está. La comparación
+#: entre intrones, que es para lo que el frente existe, vive en su modal y en el EXPORT,
+#: donde sí sale una columna por intrón.
+#:
+#: Leído como «sin columna» costó tres corridas de SpliceAI: `front_columns` derivaba la
+#: columna de `blocking_fronts` —siempre la tuvo— y nadie podía resolverla, así que se
+#: quedaba en `NOT_RUN` y arrastraba el VEREDICTO de los once candidatos a `INCOMPLETE`
+#: con la corrida guardada dentro del proyecto. Principio nº 53: una lista declarada para
+#: una cosa gobernando otra sin que nadie lo decidiera.
 FRONTS_WITHOUT_COLUMN = {
     "empalme_sitios": (
-        "su unidad es el par candidato x intrón, no el candidato: una columna por "
-        "candidato colapsaria la comparación entre intrones, que es para lo que existe"
+        "su unidad es el par candidato x intrón, no el candidato: en una tabla cuya fila "
+        "es el candidato no cabe una columna por par, así que ahí sale UNA columna "
+        "resuelta con la regla de PAIR_UNIT_FRONTS y la comparación entre intrones se "
+        "lee en el modal y en el export, que sí tiene una columna por intrón"
     ),
 }
 
@@ -2467,6 +2501,98 @@ FRONTS_WITHOUT_COLUMN = {
 #: honesto sigue siendo `NOT_RUN` — nadie ha corrido nada, no es que este candidato se
 #: haya quedado fuera.
 SIN_CONSULTAR = "SIN_CONSULTAR"
+
+
+def export_states(
+    tiling, selection, *, species: str = "", stores=None,
+) -> tuple[list[str], dict[int, dict[str, str]]]:
+    """Los estados por candidato para el EXPORT: filtros de ventana Y frentes.
+
+    **Existe porque el export decía MENOS que la pantalla** (2026-09-07), y eso es peor
+    que al revés: la pantalla se mira con la app delante y el export es lo que se manda
+    por correo, se adjunta a un pedido y se lee dentro de un año. `tsv_selected` montaba
+    sus columnas de `window.filters` —los filtros de la VENTANA— y no recibía los
+    almacenes nunca, así que `offtarget_seed` no tenía columna y las que sí salían eran
+    estados de filtro, no veredictos de frente con la corrida guardada encima.
+
+    Es la novena tabla del guardia de `_filter_columns`, y el guardia no la veía porque
+    vive en `outputs.py`: la regla es la misma un módulo más allá — **quien emita un
+    estado por filtro pide sus columnas aquí**, que es donde se decide qué dicen los
+    almacenes.
+
+    Devuelve `(columnas, {inicio: {columna: estado}})`. Las columnas se DERIVAN: los
+    filtros de la ventana, más los frentes que no son filtro de ventana
+    (`front_columns`), más los de unidad PAR — y ésos **no se colapsan**.
+    """
+    chosen = list(selection.selection.chosen)
+    if not chosen:
+        return [], {}
+
+    columnas = _filter_names(selection.window_of(chosen[0]))
+    for nombre in front_columns(tiling, selection):
+        if nombre not in columnas:
+            columnas.append(nombre)
+
+    por_par = _columnas_por_par(stores, starts=[c.start for c in chosen])
+    if por_par["columnas"]:
+        # Con las columnas POR INTRON delante, la columna colapsada del frente sobra: son
+        # dos formas del mismo dato, y la que menos dice es la que se acaba leyendo.
+        columnas = [c for c in columnas if c not in por_par["frentes"]]
+        columnas.extend(por_par["columnas"])
+
+    filas: dict[int, dict[str, str]] = {}
+    for choice in chosen:
+        ventana = selection.window_of(choice)
+        base = _filter_columns(ventana)
+        estados = _with_stores(
+            {n: base.get(n, "NOT_RUN") for n in columnas if n not in por_par["columnas"]},
+            stores, species, choice.start,
+        )
+        estados.update(por_par["estados"].get(int(choice.start), {}))
+        filas[int(choice.start)] = estados
+    return columnas, filas
+
+
+def _columnas_por_par(stores, *, starts) -> dict:
+    """Las columnas POR INTRON de los frentes cuya unidad es el PAR candidato x algo.
+
+    **No se colapsan a una columna por candidato**: la unidad de `empalme_sitios` es el
+    par candidato x intrón, y fundirla perdería justo lo que ese frente existe para
+    comparar — el mismo módulo dentro de dos arquitecturas distintas. Es la misma forma
+    que `por_hebra` en `STORE_FOR_FRONT`, con el eje que le toca a este frente.
+
+    Los intrones se DERIVAN de la corrida guardada, no de una lista: sin corrida no hay
+    intrones que nombrar y aquí no sale ninguna columna — la del nombre del frente ya la
+    da `front_columns`, y ahí un `NOT_RUN` es la verdad. Escribir los intrones del
+    registro daría columnas de pares que nadie ha consultado, todas vacías y con la forma
+    correcta.
+    """
+    columnas: list[str] = []
+    estados: dict[int, dict[str, str]] = {}
+    for frente, declarado in PAIR_UNIT_FRONTS.items():
+        almacen = (stores or {}).get(declarado["almacen"])
+        corrida = getattr(almacen, "latest", None) if almacen is not None else None
+        pares = getattr(getattr(corrida, "scan", None), "pairs", ()) or ()
+        intrones = sorted({p.intron for p in pares})
+        if not intrones:
+            continue
+        del_par: dict[int, set[str]] = {}
+        for par in pares:
+            del_par.setdefault(int(par.candidate_start), set()).add(par.intron)
+        for intron in intrones:
+            columna = f"{frente}:{intron}"
+            columnas.append(columna)
+            for inicio in starts:
+                if intron in del_par.get(int(inicio), ()):
+                    valor = almacen.verdict_for(
+                        int(inicio), intron, frame=corrida.candidate_frame,
+                    ).state.value
+                else:
+                    # LA CORRIDA EXISTE Y NO MIRO A ESTE PAR. No es lo mismo que no haber
+                    # corrido nada: se arregla lanzando una corrida que lo incluya.
+                    valor = SIN_CONSULTAR
+                estados.setdefault(int(inicio), {})[columna] = valor
+    return {"columnas": columnas, "estados": estados, "frentes": set(PAIR_UNIT_FRONTS)}
 
 
 def _with_stores(estados: dict, stores, species: str, start: int) -> dict:
@@ -2488,6 +2614,23 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
     # Una columna por hebra llega como `<frente>:guia`. La hebra se saca del NOMBRE de la
     # columna, que es quien la lleva; el frente es lo de delante.
     nombre, _, hebra = front.partition(":")
+    # LOS FRENTES POR PAR TAMBIEN CONTESTAN AQUI (2026-09-07). `empalme_sitios` tiene
+    # columna en las tablas por candidato —`front_columns` la deriva de `blocking_fronts`
+    # y siempre la tuvo— y NADIE podia resolverla: no esta en `STORE_FOR_FRONT`, asi que
+    # se quedaba en `NOT_RUN` por muchas corridas que se guardaran. Y `NOT_RUN` en una
+    # celda arrastra el VEREDICTO de la fila, asi que los once candidatos salian
+    # `INCOMPLETE` con la corrida de SpliceAI dentro del proyecto. Es el principio nº 53
+    # otra vez: una lista se declaro para «no cabe en una columna» y acabo significando
+    # «no se puede cerrar» sin que nadie lo decidiera.
+    #
+    # La regla es la de `PAIR_UNIT_FRONTS` y no otra: en una tabla cuya FILA es el
+    # candidato, la unica columna posible es por candidato, y ahi el candidato esta
+    # contestado en cuanto alguno de sus pares lo esta. La comparacion entre intrones
+    # vive en el modal y en el export, que si tiene UNA COLUMNA POR INTRON.
+    if nombre in PAIR_UNIT_FRONTS and not hebra:
+        return _estado_por_par(
+            stores, PAIR_UNIT_FRONTS[nombre]["almacen"], starts=[start],
+        ).get(int(start))
     declarado = STORE_FOR_FRONT.get(nombre)
     if not declarado or not stores:
         return None
@@ -2760,6 +2903,14 @@ def _estado_por_par(stores, nombre_almacen: str, *, starts) -> dict[int, str]:
     for inicio in starts:
         intrones = por_inicio.get(int(inicio))
         if not intrones:
+            # HAY CORRIDA Y NO MIRO A ESTE CANDIDATO, que no es lo mismo que no haber
+            # corrido nada: se arregla lanzando una corrida que lo incluya, no
+            # consiguiendo un fichero. Es el caso REAL de `3utr:359` y `3utr:1071`, que
+            # entraron en el panel despues de la corrida del 2026-09-05, y devolver
+            # `None` los dejaba en el `NOT_RUN` del frente sin corridas — el mismo estado
+            # que un proyecto vacio. Misma distincion que hace `_store_state` con los
+            # otros tres almacenes (errata nº 55).
+            salida[int(inicio)] = SIN_CONSULTAR
             continue
         estados = [
             almacen.verdict_for(
@@ -2963,7 +3114,11 @@ def candidate_fronts(
         f.name for f in blocking_fronts(tiling, selection) if f.blocking
     }
     for frente, porque in sorted(FRONTS_WITHOUT_COLUMN.items()):
-        if frente not in abiertos:
+        if frente not in abiertos or frente in estados:
+            # Con una corrida guardada, `panel_states_by_front` YA lo contesta por par y
+            # su estado sale abajo con el motivo que le toca. Emitirlo aqui tambien
+            # pondria el mismo frente dos veces en la misma ficha, una con estado y otra
+            # con un `NOT_RUN` fijo — dos numeros del mismo suceso (principio nº 27).
             continue
         filas.append({
             "frente": frente,

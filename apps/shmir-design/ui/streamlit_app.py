@@ -857,6 +857,11 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         transcript=transcrito,
         conservation=conservacion,
         blocks=bloques,
+        # LOS ALMACENES LLEGAN AL EXPORT DE CANDIDATOS. Sin ellos ese fichero decia
+        # MENOS que la pantalla —sin columna de `offtarget_seed` ni de `empalme_sitios`,
+        # y con estados de filtro de ventana en vez de veredictos de frente— y es el
+        # fichero que VIAJA: se manda por correo y se lee dentro de un año.
+        stores=almacenes,
     )
     salida.update(extras)
     return salida

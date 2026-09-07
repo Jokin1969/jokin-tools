@@ -98,12 +98,23 @@ class TestConUnaCorridaGUARDADA_el_frente_contesta(unittest.TestCase):
         self.assertEqual(estados["empalme_sitios"][1149], FilterState.PASS.value)
 
     def test_y_el_que_NO_estaba_en_la_corrida_sigue_sin_contestar(self):
-        """Cerrar el frente para quien no se consultó sería lo contrario del arreglo."""
+        """Cerrar el frente para quien no se consultó sería lo contrario del arreglo.
+
+        Y desde el 2026-09-07 no basta con no contestarlo: sale `SIN_CONSULTAR`, que es
+        una respuesta distinta de `NOT_RUN` y se arregla de otra forma —lanzando una
+        corrida que lo incluya, no consiguiendo un fichero—. Es el caso real de
+        `3utr:359` y `3utr:1071`, que entraron en el panel DESPUÉS de la corrida
+        guardada: dejarlos en el `NOT_RUN` del frente sin corridas los hacía
+        indistinguibles de un proyecto vacío.
+        """
         almacen = AlmacenFalso([ParFalso(959, "mvm_actual")])
         estados = presentation.store_states_by_front(
             {"splice": almacen}, species="raton", starts=[959, 2020],
         )
-        self.assertNotIn(2020, estados["empalme_sitios"])
+        self.assertEqual(estados["empalme_sitios"][2020], presentation.SIN_CONSULTAR)
+        self.assertIn(
+            presentation.SIN_CONSULTAR, presentation.ESTADOS_SIN_RESPUESTA
+        )
 
     def test_SIN_corrida_no_dice_nada_y_manda_el_NOT_RUN_de_siempre(self):
         estados = presentation.store_states_by_front(

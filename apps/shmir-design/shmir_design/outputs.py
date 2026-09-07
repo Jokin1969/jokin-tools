@@ -100,18 +100,39 @@ def _sin_correr(selection: ReportSelection) -> str:
     )
 
 
-def tsv_selected(selection: ReportSelection, *, species: str) -> str:
-    """Los candidatos, con el estado de CADA filtro en su columna.
+def tsv_selected(
+    selection: ReportSelection,
+    *,
+    species: str,
+    tiling,
+    stores=None,
+) -> str:
+    """Los candidatos, con el estado de CADA filtro Y DE CADA FRENTE en su columna.
 
     Quien abra este fichero tiene que poder ver que filtro falta sin abrir otro: un
     `INCOMPLETE` a secas invita a decidir sin saber que le falta al candidato.
+
+    **Y las columnas se piden a `presentation.export_states`, no se montan aqui**
+    (2026-09-07). Se montaban de `window.filters` —los filtros de la VENTANA— y este
+    fichero no recibia los almacenes nunca, asi que `offtarget_seed` no tenia columna,
+    `empalme_sitios` tampoco, y las que si salian eran estados de filtro y no veredictos
+    de frente con la corrida guardada encima. **El export decia MENOS que la pantalla**, y
+    eso es peor que al reves: la pantalla se mira con la app delante y esto es lo que se
+    manda por correo y se lee dentro de un año.
+
+    `tiling` es OBLIGATORIO y no tiene valor por defecto: los frentes salen de
+    `blocking_fronts`, que lo necesita. Con un `None` por defecto habria DOS formas de
+    montar este fichero —una con frentes y otra sin ellos— y nada que dijera cual salio;
+    los dos llamadores lo tienen delante, asi que no hace falta la segunda.
     """
+    from .presentation import export_states, verdict_with_stores  # noqa: PLC0415
+
     chosen = list(selection.selection.chosen)
     marco = (
         tiled_frame(selection.anatomy)
     )
-    filtros = (
-        [r.name for r in selection.window_of(chosen[0]).filters] if chosen else []
+    filtros, por_candidato = export_states(
+        tiling, selection, species=species, stores=stores,
     )
     rows = [
         [
@@ -140,7 +161,7 @@ def tsv_selected(selection: ReportSelection, *, species: str) -> str:
     sin_correr = _sin_correr(selection)
     for choice in chosen:
         window = selection.window_of(choice)
-        estados = {r.name: r.state.value for r in window.filters}
+        estados = por_candidato[int(choice.start)]
         rows.append(
             [
                 species,
@@ -159,7 +180,11 @@ def tsv_selected(selection: ReportSelection, *, species: str) -> str:
                 str(window.bandera_polyA_debil),
                 str(window.biofisicos_ok),
                 str(window.riesgo_APA),
-                window.verdict.value,
+                # EL VEREDICTO CUENTA LO MISMO QUE LAS CELDAS. Con los almacenes leidos,
+                # `window.verdict` es el del informe de tilado: la fila podria decir
+                # `especificidad: PASS` y `veredicto: INCOMPLETE`, las dos con pinta de
+                # medida (errata nº 51, dentro del export).
+                verdict_with_stores(estados),
                 window.evaluation.sequence,
                 window.evaluation.guide,
                 sin_correr,

@@ -54,22 +54,22 @@ class TestTsvCompleto(unittest.TestCase):
 class TestTsvSeleccionados(unittest.TestCase):
 
     def test_una_fila_por_candidato(self):
-        _, seleccion = piezas()
-        lineas = tsv_selected(seleccion, species="sonda").splitlines()
+        report, seleccion = piezas()
+        lineas = tsv_selected(seleccion, species="sonda", tiling=report).splitlines()
         self.assertEqual(len(lineas), len(seleccion.selection.chosen) + 1)
 
     def test_lleva_una_columna_por_filtro(self):
         """Quien abra este TSV tiene que ver QUE filtro falta, no solo INCOMPLETE."""
-        _, seleccion = piezas()
-        cabecera = tsv_selected(seleccion, species="sonda").splitlines()[0].split("\t")
+        report, seleccion = piezas()
+        cabecera = tsv_selected(seleccion, species="sonda", tiling=report).splitlines()[0].split("\t")
         for filtro in ("GC", "homopolimero", "asimetria",
                        "zona_prohibida_polyA", "repeticiones", "seed"):
             with self.subTest(filtro):
                 self.assertIn(filtro, cabecera)
 
     def test_lleva_rango_tercio_asimetria_y_veredicto(self):
-        _, seleccion = piezas()
-        lineas = tsv_selected(seleccion, species="sonda").splitlines()
+        report, seleccion = piezas()
+        lineas = tsv_selected(seleccion, species="sonda", tiling=report).splitlines()
         fila = dict(zip(lineas[0].split("\t"), lineas[1].split("\t")))
         self.assertEqual(fila["especie"], "sonda")
         self.assertIn(fila["tercio"], ("proximal", "medio", "distal"))
@@ -137,7 +137,7 @@ class TestColumnasNuevas(unittest.TestCase):
         anatomia = Anatomy.from_cds(cds=(1, 240), length=len(SONDA))
         report = tile_utr(SONDA, anatomy=anatomia)
         seleccion = select_from_report(report, SelectionConfig(n_candidates=2))
-        lineas = tsv_selected(seleccion, species="sonda").splitlines()
+        lineas = tsv_selected(seleccion, species="sonda", tiling=report).splitlines()
         cabecera = lineas[0].split("\t")
         for columna in ("region", "inicio_3utr", "fin_3utr", "bandera_polyA_debil"):
             with self.subTest(columna):
