@@ -547,7 +547,7 @@ def load_blast_store(store: ProjectStore):
         consulta = _QueryEcho(
             md5=datos["query_md5"], names=tuple(datos["query_names"])
         )
-        almacen.add(
+        almacen.add_recorded(
             BlastRun(
                 run_id=datos["run_id"], date=registro.date,
                 uploaded_by=datos["uploaded_by"], query_md5=datos["query_md5"],
@@ -660,7 +660,7 @@ def load_seed_store(store: ProjectStore):
             mature_md5=datos.get("mature_md5", ""),
             mature_version=datos.get("mature_version", ""),
         )
-        almacen.add(
+        almacen.add_recorded(
             SeedRun(
                 run_id=datos["run_id"], date=registro.date, ran_by=datos["ran_by"],
                 source=datos["source"], result_md5=datos["result_md5"], scan=scan,
@@ -835,7 +835,7 @@ def load_offtarget_store(store: ProjectStore):
             mature_md5=datos.get("mature_md5", ""),
             mature_version=datos.get("mature_version", ""),
         )
-        almacen.add(
+        almacen.add_recorded(
             OfftargetRun(
                 run_id=datos["run_id"], date=registro.date, ran_by=datos["ran_by"],
                 source=datos["source"], result_md5=datos["result_md5"], scan=scan,
@@ -986,7 +986,7 @@ def load_splice_store(store: ProjectStore):
         for clave, valores in datos.get("folding", {}).items():
             inicio, _, intron = clave.partition("|")
             plegado[(int(inicio), intron)] = valores
-        almacen.add(
+        almacen.add_recorded(
             SpliceRun(
                 run_id=datos["run_id"], date=registro.date, ran_by=datos["ran_by"],
                 executor=datos["executor"], result_md5=datos["result_md5"],

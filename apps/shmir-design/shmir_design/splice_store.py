@@ -27,7 +27,9 @@ from dataclasses import dataclass, field
 
 from .coords import Frame, label
 from .errors import ShmirDesignError
-from .identidad import mensaje_de_id_repetido, result_fingerprint
+from .identidad import (
+    mensaje_de_id_repetido, registrar_del_log, result_fingerprint,
+)
 from .filters import FilterResult, FilterState
 from .spliceai import (
     NO_ABSOLUTE_THRESHOLD,
@@ -173,6 +175,9 @@ class SpliceStore:
     POSSIBLE_VERDICTS = (FilterState.NOT_RUN, FilterState.PASS)
 
     runs: list[SpliceRun] = field(default_factory=list)
+    #: Los `run_id` que el LOG traia repetidos. Se apuntan al releer y no abortan: esa
+    #: linea ya esta escrita y el log es append-only (errata nº 137).
+    repetidas: list[str] = field(default_factory=list)
 
     def add(self, run: SpliceRun) -> None:
         ya = next((r for r in self.runs if r.run_id == run.run_id), None)
@@ -182,6 +187,10 @@ class SpliceStore:
                 que_es="corrida de empalme", como_repetir=COMO_REPETIR_EMPALME,
             ))
         self.runs.append(run)
+
+    def add_recorded(self, run: SpliceRun) -> None:
+        """La via del CARGADOR: una repetida del log se omite y se apunta, no aborta."""
+        registrar_del_log(self, run)
 
     @property
     def latest(self) -> SpliceRun | None:

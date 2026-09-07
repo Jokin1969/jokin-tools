@@ -6046,6 +6046,81 @@ intentando cubrir a `3utr:359`, que entró en el panel DESPUÉS de aquella corri
   segundo confundía «ese frente no existe» con «todavía no lo contesta nadie», que es el
   principio nº 19: la pregunta era por el NOMBRE y la comprobación miraba el CONTENIDO.
 
+## EL ABORTO SÍ TUMBABA LA PÁGINA, Y EL LOG QUEDABA INSERVIBLE (2026-09-07)
+
+Errata nº 137, y **empieza por una afirmación mía que era falsa**: dije que el aborto del
+duplicado «se recoge en la frontera del modal y no tumba el resto (errata nº 89)». Lo
+había mirado en `_guardar_corrida` —donde sí hay un `try`— y **no comprobé por dónde salía
+de verdad**. La corrección vino con el síntoma entero: *«el mensaje rojo del duplicado es
+el final de la página: por debajo no hay nada. Así que no puedo hacer nada de lo que el
+propio mensaje me dice — el texto me manda a sitios que ese mismo error ha hecho
+inalcanzables»*. **Principio nº 47 en su forma más pura: la salida está donde el bloqueo
+la ha borrado.**
+
+### MEDIDO sobre un proyecto de verdad, con la comprobación nueva desactivada
+
+Es lo que se pidió —*«con el fichero duplicado soltado, no con un fixture»*— y es lo que
+convierte el diagnóstico en un hecho:
+
+    1a subida OK. registros: 1
+    2a subida: NO ABORTA en el append. registros: 2
+    load_stores REVIENTA: ShmirDesignError
+
+La cadena entera, y ninguna pieza es sorprendente por separado:
+
+1. `ProjectStore.append` **no miraba el `run_id`**, así que la segunda subida del mismo
+   fichero **escribe una segunda línea** con el mismo id;
+2. quien sí lo miraba era el `add` de cada almacén — **que lo llama también el CARGADOR**;
+3. desde ese momento **`load_stores` aborta en CADA repintado**, y se llama en
+   `_bloque_especie` **antes de la tabla de candidatos** y fuera de todo `try`, así que la
+   excepción sube al `try` de `main()`, que pinta el motivo y hace `return` (errata nº 89);
+4. y el log es **append-only**: esa línea no se puede quitar. **El proyecto quedaba
+   inservible para siempre.**
+
+### La regla estaba escrita y aplicada a medias
+
+`_rechaza_si_es_el_mismo_fichero` se puso en `append` **con este motivo textual**: *«`add`
+lo llaman también los cargadores al releer el log, así que abortar ahí dejaría sin poder
+ABRIR un proyecto que ya tiene el duplicado escrito»*. Se escribió del `result_md5` **y
+`add` seguía haciendo exactamente eso con el `run_id`**. La regla era correcta y no se
+aplicó al guardia que ya estaba — el principio nº 31 sobre una regla propia recién
+redactada.
+
+**`add` contestaba DOS preguntas** —«¿acepto esta corrida nueva?» y «¿reproduzco esta
+línea del log?»— y sólo la primera estaba escrita. Es el principio nº 53 dentro de un
+método.
+
+### Lo que cambia
+
+- **`identidad.registrar_del_log`**, en UN sitio para los cuatro almacenes: al releer, una
+  repetida **se omite y se APUNTA**. Cuatro copias de una regla son cuatro sitios donde
+  arreglarla la próxima vez.
+- **`add` sigue abortando al ESCRIBIR.** La comprobación no se relaja: lo que cambia es
+  quién la hace, no si se hace.
+- **Omitir no es callar** (`presentation.duplicated_runs_note`): la app dice qué id venía
+  dos veces, que la segunda se ignora —es la misma medida— y que **no hay nada que borrar
+  y no se debe intentar**, porque la cadena de md5 se rompería. Un log que se abriera en
+  silencio después de esto sería el `verify()` que no verificaba.
+- **Y el `except` de `_guardar_corrida` no podía llamar a nada que fallara.** Lo que se
+  añadió el mismo día para la errata nº 135 —la cobertura pendiente— vive DENTRO de ese
+  `except`, y una excepción ahí se propaga y **borra la página por debajo del mensaje que
+  se acaba de pintar**: o sea, borra la salida que ese bloque existe para dar. La errata
+  nº 137 dentro del arreglo de la nº 135.
+- **Y LO SOLTADO SE PUEDE QUITAR** (`_clave_de_subida`, `_boton_de_quitar`). Streamlit
+  retiene el fichero mientras el widget conserve su clave, y **en Streamlit cada tecla es
+  un repintado**: si lo soltado hace abortar algo, el aborto vuelve en cada uno. Cambiar
+  la clave es lo único que lo descarta sin recargar. Va en los **TRES** modales que suben
+  fichero, no sólo en el que se reportó — arreglar sólo ése es como se llega a tener tres
+  (principio nº 31).
+
+### Lo que enseña sobre el método, y es lo que más pesa
+
+**Miré dónde se recogía la excepción que yo esperaba, no la que se estaba lanzando.** El
+`try` de `_guardar_corrida` existe y es correcto; el aborto salía de `load_stores`, en
+otra función y en otro momento del repintado. **Un `try` que cubre el camino que uno tiene
+en la cabeza no dice nada del camino que corre** — y la única forma de saberlo era
+reproducir la secuencia entera, que es exactamente lo que se pidió y lo que no había hecho.
+
 ## LOS PERCENTILES DE CARGA, DESTACADOS — Y LA CONVERGENCIA DE DOS SEÑALES (2026-09-07)
 
 Pedido con la corrida delante y con la lectura ya hecha por quien la pide: *«los

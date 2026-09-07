@@ -160,6 +160,8 @@ from shmir_design.presentation import (  # noqa: E402
     blast_defaults_for,
     front_card_rows,
     fronts_closed_over_panel,
+    QUITAR_SUBIDA_AYUDA,
+    duplicated_runs_note,
     panel_states_by_front,
     pending_after_duplicate,
     verdicts_changed,
@@ -722,6 +724,12 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     # Es el mismo patrón que `store.save_*` y que `page_run`, tercera vez en dos días.
     if proyecto is not None:
         st.caption(stored_runs_note(almacenes))
+        # EL LOG PUEDE TRAER UNA CORRIDA DOS VECES, y ahora se lee en vez de reventar
+        # (errata nº 137). Que se lea obliga a decirlo: un log que se abre en silencio
+        # despues de aquello seria el `verify()` que no verificaba.
+        repetidas = duplicated_runs_note(almacenes)
+        if repetidas["activo"]:
+            st.warning(repetidas["texto"])
 
     _modal_blast(seleccion, nombre, proyecto, tiling)
     # LOS CUATRO RECIBEN EL TILADO. Sin el, `_guardar_corrida` no podia decir cuantos
@@ -2235,6 +2243,32 @@ def main() -> None:
 
 
 
+def _clave_de_subida(base: str) -> str:
+    """La clave del `file_uploader`, con un CONTADOR que permite VACIARLO.
+
+    Streamlit retiene el fichero soltado mientras el widget conserve su clave, y en
+    Streamlit **cada tecla es un repintado**: si lo que se soltó hace abortar algo, el
+    aborto vuelve en cada uno. Reportado el 2026-09-07: *«si al recargar vuelve a estar
+    puesto y vuelve a abortar, quedo atrapado sin forma de quitarlo»*.
+
+    Cambiar la clave es lo único que descarta lo subido sin recargar. Va aqui —y no en
+    cada modal— porque los TRES que suben fichero tienen el mismo problema, y arreglar
+    solo el que se reporto es como se llega a tener tres.
+    """
+    return f"{base}__{st.session_state.get(f'{base}__vaciados', 0)}"
+
+
+def _boton_de_quitar(base: str, subido) -> None:
+    """«Quitar el fichero», al lado del uploader y SOLO cuando hay uno puesto."""
+    if subido is None:
+        return
+    if st.button("Quitar el fichero", key=f"{base}__quitar", help=QUITAR_SUBIDA_AYUDA):
+        st.session_state[f"{base}__vaciados"] = (
+            st.session_state.get(f"{base}__vaciados", 0) + 1
+        )
+        st.rerun()
+
+
 def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
                      tiling=None, seleccion=None, frente: str = "") -> None:
     """Guarda la corrida de un modal en el log del proyecto.
@@ -2298,14 +2332,29 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
                 # que no nombra la salida. Principio nº 47: la salida va donde está el
                 # bloqueo. Lo decide `presentation`, no esta página (regla 6).
                 if frente and tiling is not None and seleccion is not None:
-                    pendiente = pending_after_duplicate(
-                        tiling, seleccion, species=nombre, front=frente,
-                        stores=load_stores(proyecto),
-                    )
-                    if pendiente["texto"]:
-                        (st.warning if pendiente["activo"] else st.caption)(
-                            pendiente["texto"]
+                    # EN UN `except` NO SE PUEDE LLAMAR A ALGO QUE PUEDA FALLAR sin
+                    # recogerlo: una excepcion lanzada aqui dentro se propaga, se lleva
+                    # `main()` por delante y borra la pagina POR DEBAJO del mensaje que
+                    # se acaba de pintar — o sea, borra la salida que este bloque existe
+                    # para dar. Es la errata nº 137 en el propio arreglo de la nº 135.
+                    try:
+                        pendiente = pending_after_duplicate(
+                            tiling, seleccion, species=nombre, front=frente,
+                            stores=load_stores(proyecto),
                         )
+                    except (ShmirDesignError, ValueError, OSError) as otro:
+                        # rule2-ok: frontera de la interfaz, y DENTRO de un except. El
+                        # aborto principal ya esta dicho; esto es el añadido, asi que se
+                        # dice que no se ha podido calcular y no se pierde lo de arriba.
+                        st.caption(
+                            f"(No se ha podido calcular qué falta de este frente: "
+                            f"{otro})"
+                        )
+                    else:
+                        if pendiente["texto"]:
+                            (st.warning if pendiente["activo"] else st.caption)(
+                                pendiente["texto"]
+                            )
             else:
                 if tiling is None or seleccion is None:
                     resumen = {
@@ -2536,12 +2585,13 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
             return
         subido = st.file_uploader(
             "Soltar aquí el resultado (-outfmt 6)",
-            key=f"blast_up_{nombre}",
+            key=_clave_de_subida(f"blast_up_{nombre}"),
             help=(
                 "Se valida contra el md5 del FASTA de consulta y contra los nombres del "
                 "panel antes de almacenarse. Un resultado de otra corrida se rechaza."
             ),
         )
+        _boton_de_quitar(f"blast_up_{nombre}", subido)
         if subido is not None:
             # LA PROCEDENCIA DE LA CORRIDA, que es fecha, quien y parametros — y el md5
             # de la consulta, que la app genero. Los TRES campos de la base ya NO se
@@ -2954,8 +3004,10 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         st.error(veredicto["motivo"])
         return
     subido = st.file_uploader(
-        "Resultado (TSV)", type=["tsv", "txt"], key=f"sp_res_{nombre}"
+        "Resultado (TSV)", type=["tsv", "txt"],
+        key=_clave_de_subida(f"sp_res_{nombre}"),
     )
+    _boton_de_quitar(f"sp_res_{nombre}", subido)
     if subido is None:
         return
     crudo = _read_upload(subido)
@@ -3060,13 +3112,14 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         fila = next(f for f in filas if f["ofrecer_subida"])
         subido = st.file_uploader(
             f"Soltar aquí `{fila['nombre']}`",
-            key=f"ot_up_{nombre}",
+            key=_clave_de_subida(f"ot_up_{nombre}"),
             help=(
                 "Se valida al recibirlo: que sea FASTA, cuántas secuencias, longitud "
                 "total, md5 y si hay varias isoformas por gen. Si algo no cuadra, se "
                 "rechaza y no se escribe nada."
             ),
         )
+        _boton_de_quitar(f"ot_up_{nombre}", subido)
         if subido is None:
             st.warning(offtarget_placeholder(None)["texto"])
             return

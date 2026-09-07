@@ -7761,6 +7761,63 @@ def selection_rules_report(*, species: str, sequence, anatomy, thresholds=None) 
     return "\n".join(lineas)
 
 
+#: LO QUE SOLTASTE SE PUEDE QUITAR. Streamlit retiene el fichero mientras el widget
+#: conserve su clave, y en Streamlit cada tecla es un repintado: si lo subido hace
+#: abortar algo, el aborto vuelve en CADA uno. Reportado el 2026-09-07 como quedarse
+#: atrapado sin forma de quitarlo. El boton sube un contador que va en la clave, que es
+#: lo unico que lo descarta sin recargar la pagina.
+QUITAR_SUBIDA_AYUDA = (
+    "Descarta el fichero que has soltado, sin recargar la página. No borra nada de lo "
+    "que ya esté guardado en el proyecto: el registro es append-only."
+)
+
+
+def duplicated_runs_note(stores) -> dict[str, object]:
+    """Los `run_id` que el LOG traía REPETIDOS, dichos. Omitir en silencio no vale.
+
+    Sale de la errata nº 137: `ProjectStore.append` no miraba el `run_id`, así que la
+    segunda subida del mismo fichero escribía una segunda línea con el mismo id — y quien
+    sí lo miraba era el `add` de cada almacén, **que también lo llama el cargador**. Desde
+    ese momento `load_stores` abortaba en CADA repintado, y con él se iba la página entera
+    a partir de la tabla de candidatos.
+
+    El cargador tolera ahora la repetida, y **eso obliga a decirlo**: un log que se abre
+    en silencio después de esto sería el `verify()` que no verificaba. Lo que se emite es
+    qué id venía dos veces, que la segunda se ignora —es la misma medida, contarla dos
+    veces diría que se comprobó dos veces— y que **no se puede borrar**, porque el log es
+    append-only y su integridad se comprueba con una cadena de md5. Esa última frase es la
+    que evita que alguien lo intente y rompa la cadena.
+
+    Se DERIVA de los almacenes cargados, no de una lista: un quinto modal queda cubierto
+    en cuanto su almacén lleve `repetidas`, sin que nadie se acuerde.
+    """
+    por_almacen = {
+        nombre: list(getattr(almacen, "repetidas", ()) or ())
+        for nombre, almacen in (stores or {}).items()
+    }
+    repetidas = {n: ids for n, ids in por_almacen.items() if ids}
+    if not repetidas:
+        return {"activo": False, "texto": "", "ids": ()}
+    detalle = "; ".join(
+        f"{nombre}: {', '.join(ids)}" for nombre, ids in sorted(repetidas.items())
+    )
+    total = sum(len(ids) for ids in repetidas.values())
+    return {
+        "activo": True,
+        "ids": tuple(i for ids in repetidas.values() for i in ids),
+        "texto": (
+            f"EL LOG TRAE {total} CORRIDA(S) REGISTRADA(S) DOS VECES, y la app las lee "
+            f"una sola vez: {detalle}. No es un fallo de esta sesión — esas líneas se "
+            f"escribieron antes de que subir dos veces el mismo fichero se rechazara, y "
+            f"la segunda es la MISMA medida, así que contarla diría que se comprobó dos "
+            f"veces. **No hay nada que borrar y no se debe intentar**: el registro es "
+            f"**append-only** a propósito y su integridad se comprueba con una cadena de "
+            f"md5, así que quitar una línea a mano la rompería. Lo guardado no se pierde "
+            f"y los veredictos son los mismos."
+        ),
+    }
+
+
 def stored_runs_note(stores) -> str:
     """Qué corridas trae el proyecto ya guardadas, por frente.
 

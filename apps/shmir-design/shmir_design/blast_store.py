@@ -25,7 +25,9 @@ from dataclasses import dataclass, field
 
 from . import blast
 from .errors import ShmirDesignError
-from .identidad import mensaje_de_id_repetido, result_fingerprint
+from .identidad import (
+    mensaje_de_id_repetido, registrar_del_log, result_fingerprint,
+)
 from .filters import FilterResult, FilterState
 
 FILTER_NAME = "especificidad"
@@ -388,6 +390,9 @@ class BlastStore:
     """Historial por consulta. Nada se sobrescribe."""
 
     runs: list[BlastRun] = field(default_factory=list)
+    #: Los `run_id` que el LOG traia repetidos. Se apuntan al releer y no abortan: esa
+    #: linea ya esta escrita y el log es append-only (errata nº 137).
+    repetidas: list[str] = field(default_factory=list)
 
     def add(self, run: BlastRun) -> None:
         ya = next((r for r in self.runs if r.run_id == run.run_id), None)
@@ -400,6 +405,10 @@ class BlastStore:
                 que_es="corrida de BLAST", como_repetir=COMO_REPETIR_BLAST,
             ))
         self.runs.append(run)
+
+    def add_recorded(self, run: BlastRun) -> None:
+        """La via del CARGADOR: una repetida del log se omite y se apunta, no aborta."""
+        registrar_del_log(self, run)
 
     def history(self, query_name: str) -> tuple[BlastRun, ...]:
         return tuple(
