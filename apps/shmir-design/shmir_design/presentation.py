@@ -2842,6 +2842,24 @@ PAIR_UNIT_FRONTS = {
 #: quedaba en `NOT_RUN` y arrastraba el VEREDICTO de los once candidatos a `INCOMPLETE`
 #: con la corrida guardada dentro del proyecto. Principio nº 53: una lista declarada para
 #: una cosa gobernando otra sin que nadie lo decidiera.
+#: Frentes cuya respuesta es del TRANSCRITO, no de cada candidato.
+#:
+#: `fraccion_isoforma_larga` se contesta con la tabla de APA medido, que se aplica **por
+#: md5 del 3'UTR**: o está medida para esta secuencia o no lo está, y eso vale igual para
+#: los once. No tiene filtro de ventana ni almacén — y no por descuido, sino porque no hay
+#: nada que preguntarle a un candidato—, así que su columna caía al `NOT_RUN` por defecto
+#: mientras su tarjeta decía «CERRADO. 8 de 11 candidatos quedan por detrás del corte».
+#:
+#: Es la errata nº 68 en su tercera forma. Las dos primeras eran ejes POR CANDIDATO
+#: resueltos mal —el fichero contra el panel, y el eje guía/pasajera—; ésta es un eje que
+#: NO es por candidato y al que se le pedía una respuesta por candidato.
+#:
+#: NO se solapa con `NO_CABE_COLUMNA_POR_CANDIDATO`, que dice otra cosa: allí la unidad es
+#: un PAR y por eso no cabe UNA columna; aquí la unidad es la corrida entera. Hay test de
+#: que ningún frente está en las dos (principio nº 53).
+ESTADO_GLOBAL_NO_POR_CANDIDATO = ("fraccion_isoforma_larga",)
+
+
 NO_CABE_COLUMNA_POR_CANDIDATO = {
     "empalme_sitios": (
         "su unidad es el par candidato x intrón, no el candidato: en una tabla cuya fila "
@@ -2885,6 +2903,9 @@ def export_states(
     filtros de la ventana, más los frentes que no son filtro de ventana
     (`front_columns`), más los de unidad PAR — y ésos **no se colapsan**.
     """
+    # LOS FRENTES GLOBALES, una vez por corrida: su respuesta es del
+    # TRANSCRITO y no de cada candidato (errata nº 141).
+    globales = global_front_states(tiling, selection)
     chosen = list(selection.selection.chosen)
     if not chosen:
         return [], {}
@@ -2908,6 +2929,7 @@ def export_states(
         estados = _with_stores(
             {n: base.get(n, "NOT_RUN") for n in columnas if n not in por_par["columnas"]},
             stores, species, choice.start,
+            globales=globales,
         )
         estados.update(por_par["estados"].get(int(choice.start), {}))
         filas[int(choice.start)] = estados
@@ -2956,8 +2978,43 @@ def _columnas_por_par(stores, *, starts) -> dict:
     return {"columnas": columnas, "estados": estados, "frentes": set(PAIR_UNIT_FRONTS)}
 
 
-def _with_stores(estados: dict, stores, species: str, start: int) -> dict:
-    """Los estados de una fila, con lo que digan los almacenes encima. UN solo sitio."""
+def global_front_states(tiling, selection) -> dict[str, str]:
+    """El estado de los frentes GLOBALES, uno para toda la corrida.
+
+    Sale de `blocking_fronts`, que es EL ÚNICO sitio donde se decide si un frente está
+    contestado: recalcularlo aquí sería la segunda regla para la misma pregunta, que es
+    exactamente la errata nº 68. Un frente cerrado da `PASS` para los once; uno que
+    bloquea, `NOT_RUN` — que es lo que ya decía, sólo que ahora porque alguien lo ha
+    mirado y no porque nadie pudiera contestarlo.
+
+    Sobre por qué `PASS` y no un techo: el APA **no veta** (`TECHO`, no `FAIL`), y el
+    techo POR CANDIDATO ya tiene su propia columna, `riesgo_APA`. Emitirlo también aquí
+    sería una segunda definición de la misma cantidad.
+    """
+    from .selection import blocking_fronts  # noqa: PLC0415
+
+    estados = {}
+    for frente in blocking_fronts(tiling, selection):
+        if frente.name in ESTADO_GLOBAL_NO_POR_CANDIDATO:
+            estados[frente.name] = (
+                FilterState.NOT_RUN.value if frente.blocking else FilterState.PASS.value
+            )
+    return estados
+
+
+def _with_stores(
+    estados: dict, stores, species: str, start: int, *, globales=None,
+) -> dict:
+    """Los estados de una fila, con los almacenes y los frentes GLOBALES encima.
+
+    UN solo sitio, y los globales van PRIMERO y **sin depender de que haya almacenes**:
+    `fraccion_isoforma_larga` no tiene ninguno, así que con el `if not stores` de antes su
+    celda no se tocaba nunca y caía al `NOT_RUN` por defecto (errata nº 141).
+    """
+    if globales:
+        estados = {
+            nombre: globales.get(nombre, estado) for nombre, estado in estados.items()
+        }
     if not stores:
         return estados
     return {
@@ -3541,6 +3598,9 @@ def panel_states_by_front(
     Devuelve `{"estados": {frente: {inicio: estado}}, "origenes": {frente: {inicio: ...}}}`
     — una sola pasada y dos proyecciones, no dos calculos del mismo numero.
     """
+    # LOS FRENTES GLOBALES, una vez por corrida: su respuesta es del
+    # TRANSCRITO y no de cada candidato (errata nº 141).
+    globales = global_front_states(tiling, selection)
     starts = [int(s) for s in chosen_starts(selection)]
     ventanas = {int(w.window.start): w for w in tiling.windows}
     estados: dict[str, dict[int, str]] = {}
@@ -3556,7 +3616,8 @@ def panel_states_by_front(
         if ventana is None:
             continue
         efectivos = _with_stores(
-            _filter_columns(ventana), stores, species, inicio
+            _filter_columns(ventana), stores, species, inicio,
+            globales=globales,
         )
         for frente, estado in efectivos.items():
             estados.setdefault(frente, {})[inicio] = estado
@@ -3704,6 +3765,9 @@ def site_table_rows(tiling, selection, *, species: str = "",
     afirmando cosas distintas del mismo frente (principio nº 23)— y el desacuerdo habia
     que declararlo en pantalla. Con ellos, ese aviso sobra y se ha borrado.
     """
+    # LOS FRENTES GLOBALES, una vez por corrida: su respuesta es del
+    # TRANSCRITO y no de cada candidato (errata nº 141).
+    globales = global_front_states(tiling, selection)
     from .selection import is_eligible
 
     columnas = front_columns(tiling, selection)
@@ -3746,6 +3810,7 @@ def site_table_rows(tiling, selection, *, species: str = "",
                 **(efectivos := _with_stores(
                     {n: estados.get(n, "NOT_RUN") for n in columnas},
                     stores, species, ventana.window.start,
+                    globales=globales,
                 )),
                 # EL VEREDICTO CUENTA LO MISMO QUE LAS CELDAS. Antes salia
                 # `ventana.verdict`, del informe de tilado, asi que una fila podia decir

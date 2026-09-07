@@ -1204,10 +1204,17 @@ def _gestionar_proyectos(especie: str, raiz, catalogo, fecha: str) -> None:
                         st.rerun()
             with columnas[1]:
                 try:
+                    registro = project_export(raiz, slug)
                     st.download_button(
-                        "Descargar", data=project_export(raiz, slug),
+                        "Descargar", data=registro,
                         file_name=f"{slug}.txt", key=f"pr_dl_{especie}_{slug}",
                         width="stretch",
+                    )
+                    # SEGUNDA VIA. Era la unica, y su exencion alegaba el ZIP de la copia
+                    # de seguridad — que es otro `download_button`, o sea el mecanismo que
+                    # se cuelga (errata nº 140, el mismo defecto que en `bloque_especie`).
+                    _tambien_para_copiar(
+                        registro, nombre=f"{slug}.txt", clave=f"pr_{especie}_{slug}",
                     )
                 except (ShmirDesignError, OSError) as exc:
                     # rule2-ok: frontera de la interfaz.
@@ -2261,6 +2268,10 @@ def main() -> None:
         st.caption(paquete["texto"])
         for nombre, contenido in sorted(ficheros.items()):
             st.download_button(nombre, contenido, nombre, "text/plain", key=f"dl_{nombre}")
+            # Y SU BLOQUE COPIABLE. Sin el, la alternativa del ZIP era este boton suelto
+            # —otra descarga— y la de este boton, ninguna. Ahora la alternativa de los dos
+            # es el texto de abajo, que no comparte mecanismo con ninguno.
+            _tambien_para_copiar(contenido, nombre=nombre, clave=f"res_{nombre}")
     else:
         st.info(paquete["texto"])
 
