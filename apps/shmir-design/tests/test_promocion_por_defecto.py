@@ -32,6 +32,8 @@ from shmir_design.polya import SignalClass
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 from shmir_design.tiling import tile_utr
 
+from .panel_confirmado import INMUNES_UTR3, PANEL_UTR3
+
 RATON = REFERENCES["NM_011170.3"]
 HAY = fixture_available(RATON)
 
@@ -132,7 +134,7 @@ class TestElPanelDeDIEZ(unittest.TestCase):
     # se apelotonan entre `3utr:10` y `3utr:200` y con `60`, `143` y `200` puestos ninguno
     # de los trece restantes cabe a 50 nt. La cuota baja a TRES por geometría, y la plaza
     # once se la lleva el mejor disponible.
-    ESPERADO = [60, 143, 200, 359, 449, 553, 652, 735, 819, 1018, 1071]
+    ESPERADO = list(PANEL_UTR3)
 
     def test_el_panel_por_defecto_es_el_del_responsable(self):
         from shmir_design.selection import default_config, select_from_report
@@ -160,7 +162,7 @@ class TestElPanelDeDIEZ(unittest.TestCase):
             c.start for c in select_from_report(informe, default_config()).selection.chosen
         )
         inmunes = [p for p in panel if p <= 251]
-        self.assertEqual(inmunes, [60, 143, 200])
+        self.assertEqual(inmunes, list(INMUNES_UTR3))
         # La cuota se CUMPLE: no es que falte uno, es que la cuota son tres.
         self.assertEqual(len(inmunes), DEFAULT_IMMUNE_QUOTA)
 

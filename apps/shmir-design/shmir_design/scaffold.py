@@ -60,7 +60,8 @@ from pathlib import Path
 from types import MappingProxyType
 
 from .errors import InvalidSequenceError, ShmirDesignError
-from .filters import FilterState
+from .filters import FilterResult, FilterState
+from .hard_filters import MAX_HOMOPOLYMER, longest_homopolymer
 
 ARM_LENGTH = 22
 DNA_BASES = frozenset("ACGT")
@@ -457,4 +458,136 @@ def extended_cassette(guide: str) -> str:
         f"Los flancos extendidos del pri-miR están {EXTENDED_FLANKS_STATUS}. "
         f"Lo verificado es el 97-mero de SGEP y solo eso; no se inventan flancos para "
         f"completar un cassette AAV."
+    )
+
+
+# ─── El homopolímero de la MOLÉCULA, no de la ventana ────────────────────────
+#
+# Lo que se manda a sintetizar no es la ventana diana: es la GUIA —con una U forzada en
+# la posicion 1 (paso 6)— y la PASAJERA —con la posicion 1 desapareada por la regla de
+# arriba—. Son DOS sustituciones de la posicion 1 que el filtro biofisico no ve, y las
+# dos pueden crear un tramo de 4 sobre una ventana cuyo maximo es 3.
+#
+# Paso el 2026-09-07 con el panel murino: cuatro de los once con la ventana en PASS y la
+# hoja de pedido en FAIL. Ver la errata nº 144.
+#
+# ESTE FILTRO NO SUSTITUYE A `homopolimero`. Son dos medidas de cosas distintas y las
+# dos se emiten: la de la ventana dice como es la diana, esta dice como es el oligo. Es
+# la comparacion la que hace visible que el filtro de diseño medía un sustituto —y por
+# decision del responsable del proyecto (2026-09-07) se conservan las dos.
+
+#: Nombre del filtro. Va aqui y no escrito a mano en cada sitio: es el que aparece en la
+#: columna del TSV, en `TiledWindow.filter(...)` y en los tests.
+MOLECULE_HOMOPOLYMER = "homopolimero_molecula"
+
+
+def _peor_tramo(cadena: str) -> tuple[str, int]:
+    return longest_homopolymer(cadena)
+
+
+def filter_molecule_homopolymer(
+    guide: str, *, available: bool | None = None
+) -> FilterResult:
+    """Homopolimero sobre la guia y la pasajera, que es lo que se sintetiza.
+
+    NO PLIEGA SALVO QUE HAGA FALTA, y eso no es una optimizacion suelta: es la estructura
+    del problema. La pasajera es `base_elegida + revcomp[1:]`, asi que un tramo largo o
+    esta entero dentro de `revcomp[1:]` —y entonces la respuesta no depende de la base—
+    o lo crea la base de la posicion 1, y eso solo puede pasar si las tres siguientes son
+    iguales entre si. Fuera de ese caso la respuesta se sabe sin plegar nada.
+
+    Medido sobre el raton (2026-09-07): plegar siempre son 45 s por corrida sobre las
+    2170 ventanas; con esto solo hace falta en el 9,4 %, y sobre las que superan los
+    biofisicos son unas decenas. `tests/test_homopolimero_de_la_MOLECULA.py` cruza el
+    atajo contra la version que pliega siempre en las 2170 (principio nº 5).
+
+    `available=False` fuerza el camino sin ViennaRNA para poder probarlo.
+    """
+    from .folding import VIENNA_AVAILABLE  # noqa: PLC0415
+
+    limpia = _validate_arm(guide)
+    adn = limpia.replace("U", "T")
+    revcomp = reverse_complement(limpia)
+
+    base_guia, largo_guia = _peor_tramo(adn)
+    if largo_guia > MAX_HOMOPOLYMER:
+        # La guia no necesita plegado: es la diana con la posicion 1 forzada a U. Asi que
+        # esto se puede afirmar tambien sin ViennaRNA.
+        return FilterResult(
+            name=MOLECULE_HOMOPOLYMER,
+            state=FilterState.FAIL,
+            reason=(
+                f"La guía ({adn}) tiene un homopolimero de {largo_guia} {base_guia}: el "
+                f"límite es {MAX_HOMOPOLYMER}. La ventana diana puede estar por debajo — "
+                f"este tramo lo crea la U forzada en la posición 1 de la guía."
+            ),
+        )
+
+    # El cuerpo de la pasajera —todo menos su posicion 1— no depende de la base elegida.
+    base_cuerpo, largo_cuerpo = _peor_tramo(revcomp[1:])
+    if largo_cuerpo > MAX_HOMOPOLYMER:
+        return FilterResult(
+            name=MOLECULE_HOMOPOLYMER,
+            state=FilterState.FAIL,
+            reason=(
+                f"La pasajera tiene un homopolimero de {largo_cuerpo} {base_cuerpo} "
+                f"fuera de su posición 1, así que no depende de qué base se desaparee: "
+                f"el límite es {MAX_HOMOPOLYMER}."
+            ),
+        )
+
+    # Solo queda la posicion 1, y solo puede alargar un tramo si las tres siguientes son
+    # iguales. Si no lo son, la respuesta ya esta: PASS sin plegar.
+    cuerpo = revcomp[1:]
+    # El `MAX_HOMOPOLYMER` NO es un 3 escrito aquí: la base de la posicion 1 solo puede
+    # llevar un tramo hasta MAX+1 si las MAX siguientes ya son iguales entre si. El
+    # numero SALE del umbral, asi que si el umbral cambia esto sigue siendo cierto.
+    prefijo = cuerpo[:MAX_HOMOPOLYMER]
+    indeciso = len(prefijo) == MAX_HOMOPOLYMER and len(set(prefijo)) == 1
+    if not indeciso:
+        return FilterResult(
+            name=MOLECULE_HOMOPOLYMER,
+            state=FilterState.PASS,
+            reason=(
+                f"Sin tramos de más de {MAX_HOMOPOLYMER} nt iguales en la guía ni en la "
+                f"pasajera. La posición 1 de la pasajera no puede alargar ninguno: las "
+                f"{MAX_HOMOPOLYMER} siguientes ({prefijo}) no son todas iguales."
+            ),
+        )
+
+    usable = VIENNA_AVAILABLE if available is None else available
+    if not usable:
+        # NOT_RUN, no PASS. Sin plegado la posicion 1 se elegiria con la regla que este
+        # proyecto DESCARTO por escrito, asi que decir «pasa» seria afirmar sobre una
+        # pasajera que no es la que se va a pedir.
+        return FilterResult(
+            name=MOLECULE_HOMOPOLYMER,
+            state=FilterState.NOT_RUN,
+            reason=(
+                f"La guía está limpia, pero la posición 1 de la pasajera podría alargar "
+                f"el tramo {prefijo} hasta {MAX_HOMOPOLYMER + 1} y sin ViennaRNA no "
+                f"se sabe qué base se elige: la regla es estructural. NOT_RUN no es "
+                f"PASS. `pip install ViennaRNA`."
+            ),
+        )
+
+    pasajera = passenger_from_guide(limpia).sequence
+    base, largo = _peor_tramo(pasajera)
+    if largo > MAX_HOMOPOLYMER:
+        return FilterResult(
+            name=MOLECULE_HOMOPOLYMER,
+            state=FilterState.FAIL,
+            reason=(
+                f"La pasajera ({pasajera}) tiene un homopolimero de {largo} {base}: el "
+                f"límite es {MAX_HOMOPOLYMER}. La ventana diana puede estar por debajo — "
+                f"este tramo lo crea el desapareamiento de la posición 1 de la pasajera."
+            ),
+        )
+    return FilterResult(
+        name=MOLECULE_HOMOPOLYMER,
+        state=FilterState.PASS,
+        reason=(
+            f"Sin tramos de más de {MAX_HOMOPOLYMER} nt iguales en la guía ni en la "
+            f"pasajera, con la posición 1 ya elegida ({pasajera[0]})."
+        ),
     )

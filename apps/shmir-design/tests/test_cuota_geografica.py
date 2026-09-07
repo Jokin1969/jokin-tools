@@ -29,6 +29,8 @@ from pathlib import Path
 from shmir_design.polya import Tercio
 from shmir_design.selection import SelectionConfig, select_from_report
 
+from .panel_confirmado import INMUNES_UTR3
+
 DIR = Path(__file__).resolve().parent.parent / "data" / "reference"
 RATON = DIR / "NM_011170.3.fa"
 
@@ -133,10 +135,17 @@ class TestElPanelDeDiez(unittest.TestCase):
         self.assertEqual(maximo, 4)
         # Y LA GEOMETRIA NO SE MUEVE AL RETIRAR UN CANDIDATO: `3utr:10` sigue siendo un
         # sitio elegible —la retirada sale de la SELECCION, no de la piscina—, asi que el
-        # maximo alcanzable sigue siendo 4. Lo que baja a TRES es lo que el panel LLEVA,
-        # y esas son dos cantidades distintas (principio nº 27).
+        # maximo alcanzable sigue siendo 4.
+        #
+        # DESDE EL 2026-09-07 EL PANEL ALCANZA ESE MAXIMO. Antes llevaba TRES y aqui se
+        # decia que llevar menos del maximo era otra cantidad; era cierto, y la causa no
+        # era geometrica sino el ORDEN: el relleno voraz cogia el de mas asimetria y ese
+        # dejaba a dos por debajo del espaciado. Con la cuota como requisito el panel
+        # lleva los cuatro que la geometria permite — o sea que las dos cantidades
+        # coinciden porque se arreglo el orden, no porque se relajara nada.
         inmunes = [p for p in self.inicios if p <= CORTE_ESTRICTO]
-        self.assertEqual(inmunes, [60, 143, 200])
+        self.assertEqual(inmunes, [20, 83, 144, 200])
+        self.assertEqual(len(inmunes), maximo)
 
     def test_y_lo_que_FALTA_para_la_quinta_se_DECLARA(self):
         # No se rellena con un candidato de mas abajo: seria otro riesgo, no el que la
@@ -165,15 +174,21 @@ class TestElPanelDeDiez(unittest.TestCase):
             ),
         )
         inicios = sorted(c.start for c in laxa.selection.chosen)
-        # CUATRO desde que `3utr:10` está retirado; eran cinco. Lo que este test mide no
-        # es cuántos salen sino DE DÓNDE sale el último, y eso no ha cambiado.
-        self.assertEqual(len([p for p in inicios if p <= CORTE_LAXO]), 4)
+        # CINCO otra vez, desde el 2026-09-07. Bajaron a cuatro al retirar `3utr:10` y
+        # vuelven a cinco al dejar de rellenar la cuota en orden voraz: no es que haya
+        # aparecido ningún candidato, es que los que ya cabían juntos ahora se eligen
+        # juntos. Lo que este test mide sigue siendo DE DÓNDE sale el último.
+        self.assertEqual(len([p for p in inicios if p <= CORTE_LAXO]), 5)
         # El último cae DENTRO de la banda de corte: no es inmune, es incierto.
         de_la_banda = [p for p in inicios if CORTE_ESTRICTO < p <= CORTE_LAXO]
         self.assertEqual(de_la_banda, [309])
 
-    def test_los_tres_inmunes_conocidos_siguen_dentro(self):
-        for posicion in (60, 143, 200):
+    def test_los_inmunes_de_ESTA_configuracion_siguen_dentro(self):
+        # OJO: NO son los tres del panel confirmado. Esta configuración pide DIEZ
+        # candidatos y cinco inmunes, así que su conjunto es otro — y confundirlos es
+        # justo el error que el marco de las posiciones existe para evitar un nivel más
+        # abajo. Los del panel confirmado están en `tests/panel_confirmado.py`.
+        for posicion in (20, 83, 144, 200):
             with self.subTest(posicion):
                 self.assertIn(posicion, self.inicios)
 
@@ -284,12 +299,14 @@ class TestLaQuintaPlazaVaAlTercioMEDIO(unittest.TestCase):
                 self.assertGreaterEqual(b - a, 50)
 
     def test_los_inmunes_que_QUEDAN_ni_uno_mas(self):
-        # Eran cuatro hasta el 2026-09-07; `3utr:10` está retirado por el frente de
-        # empalme y ningún otro inmune cabe a 50 nt de los tres que quedan.
+        # CUATRO. Bajaron a tres al retirar `3utr:10` y vuelven a cuatro el 2026-09-07,
+        # al dejar de rellenar la cuota por orden voraz: los cuatro cabían juntos y ahora
+        # se eligen juntos. `3utr:10` sigue retirado — no ha vuelto.
         inicios = [c.start for c in self.seleccion.selection.chosen]
         self.assertEqual(
-            sorted(p for p in inicios if p <= CORTE_ESTRICTO), [60, 143, 200]
+            sorted(p for p in inicios if p <= CORTE_ESTRICTO), [20, 83, 144, 200]
         )
+        self.assertNotIn(10, inicios)
 
     def test_el_medio_se_lleva_tres(self):
         from shmir_design.polya import Tercio

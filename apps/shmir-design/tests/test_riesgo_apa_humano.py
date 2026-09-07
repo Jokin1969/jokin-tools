@@ -70,19 +70,22 @@ class TestLasDosATTAAAHumanas(unittest.TestCase):
     def test_la_tabla_trae_una_fila_por_señal(self):
         self.assertEqual([f.signal.position for f in self.tabla], [955, 1167])
 
-    def test_hay_309_ventanas_elegibles(self):
-        self.assertEqual(self.tabla[0].eligible_total, 309)
+    def test_hay_293_ventanas_elegibles(self):
+        # 293 desde el 2026-09-07: el homopolímero pasa a medirse sobre la guía y la
+        # pasajera (errata nº 144) y eso también muerde en el humano — eran 309.
+        self.assertEqual(self.tabla[0].eligible_total, 293)
 
-    def test_la_de_955_deja_100_por_detras(self):
+    def test_la_de_955_deja_95_por_detras(self):
         fila = self.tabla[0]
-        self.assertEqual(fila.behind, 100)
-        self.assertAlmostEqual(fila.fraction, 100 / 309, places=4)
+        self.assertEqual(fila.behind, 95)
+        self.assertAlmostEqual(fila.fraction, 95 / 293, places=4)
 
-    def test_la_de_1167_deja_74(self):
-        self.assertEqual(self.tabla[1].behind, 74)
+    def test_la_de_1167_deja_71(self):
+        self.assertEqual(self.tabla[1].behind, 71)
 
-    def test_y_seis_en_la_banda_de_cada_una(self):
-        self.assertEqual([f.in_band for f in self.tabla], [6, 6])
+    def test_y_las_de_la_banda_de_cada_una(self):
+        # Eran 6 y 6; la segunda baja a 5 con el filtro de la molécula.
+        self.assertEqual([f.in_band for f in self.tabla], [6, 5])
 
     def test_la_segunda_es_subconjunto_de_la_primera(self):
         # Estar por detras del corte de 1167 implica estarlo del de 955.
@@ -90,8 +93,8 @@ class TestLasDosATTAAAHumanas(unittest.TestCase):
 
     def test_la_fila_se_describe_con_las_dos_cifras(self):
         texto = self.tabla[0].describe()
-        self.assertIn("100", texto)
-        self.assertIn("309", texto)
+        self.assertIn("95", texto)
+        self.assertIn("293", texto)
         self.assertIn("32.4", texto)
 
 
@@ -164,12 +167,12 @@ class TestElInformeHumanoLasSacaLasDOS(unittest.TestCase):
         self.assertIn("3utr:1167", self.bloque)
 
     def test_con_la_fraccion_de_elegibles_que_condiciona_cada_una(self):
-        self.assertIn("100 de 309", self.bloque)
-        self.assertIn("74 de 309", self.bloque)
+        self.assertIn("95 de 293", self.bloque)
+        self.assertIn("71 de 293", self.bloque)
 
     def test_y_los_porcentajes(self):
         self.assertIn("32.4%", self.bloque)
-        self.assertIn("23.9%", self.bloque)
+        self.assertIn("24.2%", self.bloque)
 
     def test_dice_que_el_techo_de_las_dos_esta_sin_medir(self):
         self.assertIn("INDETERMINADO", self.bloque)

@@ -65,7 +65,11 @@ from .polya import (
     normalize_sequence,
 )
 from .mirna import AbundanceList, MatureSet, filter_seed_collision
-from .scaffold import passenger_from_guide
+from .scaffold import (
+    MOLECULE_HOMOPOLYMER,
+    filter_molecule_homopolymer,
+    passenger_from_guide,
+)
 from .seed_load import SEED_LOAD_SKIPPED, SeedLoad, Utr3Set, seed_load
 from .seeds import SeedSet, bootstrap_expiry_note, filter_seed
 from .specificity import (
@@ -97,6 +101,23 @@ _SEED_COLISION_SIN_BASE = FilterResult(
     reason=(
         "No hay tabla de maduros de miRBase cargada, así que no se puede saber si la "
         "seed de esta guía coincide con la de un miARN endogeno. NOT_RUN no es PASS."
+    ),
+)
+
+
+#: Estado por defecto del homopolimero DE LA MOLECULA: no se ha mirado.
+#:
+#: Se mira solo en las ventanas que superan los biofisicos, por el mismo motivo que la
+#: colision de seed: montar la pasajera pliega, y plegarlas todas son 45 s por corrida
+#: sobre las 2170 (medido el 2026-09-07) — en CADA repintado de la pagina. Las que no
+#: los superan ya no son elegibles por su cuenta, asi que no se pierde ningun candidato;
+#: lo que NO se hace es dejarlas en PASS, que seria decir que se miro.
+_HOMOPOLIMERO_MOLECULA_SIN_MIRAR = FilterResult(
+    name=MOLECULE_HOMOPOLYMER,
+    state=FilterState.NOT_RUN,
+    reason=(
+        "No evaluado: por coste, el homopolimero de la guía y la pasajera solo se mira "
+        "en las ventanas que superan los filtros biofísicos. NOT_RUN no es PASS."
     ),
 )
 
@@ -210,6 +231,11 @@ class TiledWindow:
     #: gnomAD —que anota sustituciones— capta mal esa variacion. Son dos ejes y por eso
     #: son dos columnas.
     repeticion_polimorfica: FilterResult | None = None
+    #: HOMOPOLIMERO DE LA MOLECULA — la guia y la pasajera, no la ventana diana. Es una
+    #: medida DISTINTA de `homopolimero`, no su sustituta: entre la ventana y el oligo
+    #: hay dos sustituciones de la posicion 1 y las dos pueden crear un tramo de 4. Ver
+    #: `scaffold.filter_molecule_homopolymer` y la errata nº 144.
+    homopolimero_molecula: FilterResult | None = None
 
     @property
     def bandera_polyA_debil(self) -> bool:
@@ -227,6 +253,7 @@ class TiledWindow:
             self.especificidad or _ESPECIFICIDAD_SIN_BASE,
             self.transgen or _TRANSGEN_SIN_BASE,
             self.seed_colision or _SEED_COLISION_SIN_BASE,
+            self.homopolimero_molecula or _HOMOPOLIMERO_MOLECULA_SIN_MIRAR,
         )
 
     def filter(self, name: str) -> FilterResult:
@@ -700,6 +727,16 @@ def tile_utr(
 
         guia_adn = evaluation.guide.replace("U", "T")
 
+        # EL HOMOPOLIMERO DE LA MOLECULA. Misma puerta que la colision de seed —solo las
+        # que superan los biofisicos—: montar la pasajera pliega, y las que no los
+        # superan ya no son elegibles. Sin la puerta, cada repintado de la pagina paga
+        # 45 s.
+        homopolimero_molecula = (
+            filter_molecule_homopolymer(evaluation.guide)
+            if escaneable
+            else _HOMOPOLIMERO_MOLECULA_SIN_MIRAR
+        )
+
         colision = None
         if mature is not None:
             colision = (
@@ -809,6 +846,7 @@ def tile_utr(
                 transgen_detalle=transgen_detalle,
                 polya=anotacion_polya,
                 seed_colision=colision,
+                homopolimero_molecula=homopolimero_molecula,
                 carga_seed=carga,
                 accesibilidad=acceso,
                 tercio=anotada.tercio,

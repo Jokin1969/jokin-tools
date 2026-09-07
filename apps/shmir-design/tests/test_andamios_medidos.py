@@ -215,12 +215,16 @@ class TestElCALCULO2yLoQueDECIDE(unittest.TestCase):
         cfg = default_config()
         n_hoy = sum(1 for w in hoy.windows if is_eligible(w, cfg))
         n_otro = sum(1 for w in otro.windows if is_eligible(w, cfg))
-        self.assertEqual(n_hoy, 270)
-        self.assertEqual(n_otro, 554)
+        # Cifras del 2026-09-07: el homopolímero pasa a medirse sobre la guía y la
+        # pasajera (errata nº 144) y la piscina de elegibles baja de 270 a 254.
+        # La DIFERENCIA no se mueve: el filtro nuevo y la asimetría muerden en sitios
+        # distintos, que es lo que este test mide.
+        self.assertEqual(n_hoy, 254)
+        self.assertEqual(n_otro, 538)
         self.assertEqual(n_otro - n_hoy, 284)
 
     def test_y_los_SITIOS_bajan_aunque_las_ventanas_suban(self):
-        """El aviso, medido: 86 → 40 mientras las ventanas van de 270 a 554. No se
+        """El aviso, medido: 95 → 54 mientras las ventanas van de 254 a 538. No se
         pierden sitios, se FUNDEN. El recuento de sitios mide fragmentación, no
         oportunidad, y no es comparable entre criterios."""
         from shmir_design.selection import default_config, eligible_choices, group_choices
@@ -229,12 +233,15 @@ class TestElCALCULO2yLoQueDECIDE(unittest.TestCase):
         cfg = default_config()
         sitios_hoy = group_choices(eligible_choices(hoy, cfg))
         sitios_otro = group_choices(eligible_choices(otro, cfg))
-        self.assertEqual(len(sitios_hoy), 86)
-        self.assertEqual(len(sitios_otro), 40)
+        self.assertEqual(len(sitios_hoy), 95)
+        self.assertEqual(len(sitios_otro), 54)
         medio_hoy = sum(len(s.choices) for s in sitios_hoy) / len(sitios_hoy)
         medio_otro = sum(len(s.choices) for s in sitios_otro) / len(sitios_otro)
+        # El contraste sigue en pie y los umbrales se ajustan a lo medido: con el
+        # filtro de la molécula los bloques del criterio de hoy están MÁS partidos
+        # (2,7 ventanas por sitio) y el del otro andamio menos denso (10,0).
         self.assertLess(medio_hoy, 4)
-        self.assertGreater(medio_otro, 13)
+        self.assertGreater(medio_otro, 9)
 
     def test_la_asimetria_va_a_NO_APLICA_y_no_a_PASS(self):
         """No es que la superen: es que la pregunta no se les hace. Regla 3."""

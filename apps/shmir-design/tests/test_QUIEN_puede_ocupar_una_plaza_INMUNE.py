@@ -76,8 +76,11 @@ class TestElCasoReal(unittest.TestCase):
         self.assertIn("espaciado", self.plan["texto"])
         # Y dice cuántos inmunes hay, o «ninguno disponible» no se puede interpretar:
         # cero de cero y cero de dieciséis no son la misma noticia.
-        self.assertEqual(self.plan["inmunes"], 16)
-        self.assertIn("16", self.plan["texto"])
+        # DIECISIETE desde el 2026-09-07: un filtro más estricto quita ventanas y eso
+        # PARTE bloques contiguos en dos, así que los SITIOS pueden subir mientras
+        # las ventanas bajan. Son dos cantidades distintas.
+        self.assertEqual(self.plan["inmunes"], 17)
+        self.assertIn("17", self.plan["texto"])
 
     def test_y_dice_CUANTOS_inmunes_QUEDAN_en_el_panel(self):
         """Lo que se perdió fue el cuarto inmune, y eso hay que verlo al decidir.

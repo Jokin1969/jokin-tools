@@ -31,6 +31,8 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 
@@ -449,6 +451,76 @@ def _rellenar(
         usados.add(id(site))
 
 
+#: Tope de combinaciones que se prueban al rescatar una cuota. Con la cuota de tres y
+#: los 17 sitios inmunes del raton son 680, pero una cuota grande sobre una piscina
+#: grande crece rapido y esto NO puede convertir una seleccion en un cuelgue. Si se pasa
+#: del tope se deja el resultado voraz y la cuota sale como no cubierta, que es la
+#: respuesta honesta: «no se ha encontrado», nunca «no existe».
+TOPE_COMBINACIONES = 200_000
+
+
+def _conjunto_que_cumple(
+    sitios: list[Site], cuota: int, ya: list[Choice], min_spacing: int
+) -> list[Site] | None:
+    """El MAYOR conjunto de hasta `cuota` sitios que cumple el espaciado.
+
+    Entre los del mismo tamaño manda la asimetria total. Se busca de mayor a menor y se
+    para en el primero que existe, asi que devuelve el optimo.
+
+    **Por que el MAYOR y no solo el de tamaño `cuota`.** Porque cuando la cuota no se
+    puede cumplir la respuesta no es «pues la voraz»: la voraz puede sacar MENOS de lo
+    alcanzable por el mismo motivo que la deja corta —el mejor de cada paso se lleva por
+    delante a dos que juntos cabian—. Medido el 2026-09-07 sobre el panel de diez con
+    cuota cinco: la voraz sacaba 2 inmunes y caben 3. Rendirse al numero de la voraz
+    seria dar por imposible lo que solo era un orden.
+
+    Devuelve `None` si no cabe ni uno, o si hay tantas combinaciones que no se exploran:
+    quien llama lo distingue por la nota, no por el valor.
+    """
+    from itertools import combinations  # noqa: PLC0415
+
+    tope = min(cuota, len(sitios))
+    for tamaño in range(tope, 0, -1):
+        if math.comb(len(sitios), tamaño) > TOPE_COMBINACIONES:
+            continue
+        mejor: list[Site] | None = None
+        mejor_suma = float("-inf")
+        for combinacion in combinations(sitios, tamaño):
+            elegidos = [s.best for s in combinacion]
+            if not all(
+                _respects_spacing(
+                    c, ya + [o for o in elegidos if o is not c], min_spacing
+                )
+                for c in elegidos
+            ):
+                continue
+            suma = sum(c.asymmetry for c in elegidos)
+            if suma > mejor_suma:
+                mejor, mejor_suma = list(combinacion), suma
+        if mejor is not None:
+            return mejor
+    return None
+
+
+def filtros_sin_frente() -> frozenset[str]:
+    """Los filtros que NO abren frente, en un solo sitio.
+
+    Un frente se cierra CONSIGUIENDO algo — un fichero o una lectura de banco. Estos no:
+    los biofisicos no dependen de ningun recurso, y el homopolimero de la molecula se
+    calcula con el andamio que ya esta dentro. Ponerlos en la lista haria que la app
+    pidiera su ficha de obtencion y dijera «falta el recurso» de algo que no tiene
+    recurso — el fallo que `blocking_fronts` describe en su docstring.
+
+    Vive aqui y no dentro de `blocking_fronts` para que los tests que cuentan frentes lo
+    DERIVEN en vez de transcribirlo (principio nº 13): transcrito, el dia que entre otro
+    filtro sin frente la cuenta falla en un sitio y se «arregla» sumando uno.
+    """
+    from .filters import BIOPHYSICAL_FILTERS  # noqa: PLC0415
+    from .scaffold import MOLECULE_HOMOPOLYMER  # noqa: PLC0415
+
+    return frozenset(BIOPHYSICAL_FILTERS | {MOLECULE_HOMOPOLYMER})
+
+
 def choose(sites: list[Site], config: SelectionConfig) -> Selection:
     """Seleccion voraz: cuota por tercio primero, y el resto por asimetria (paso 5).
 
@@ -542,12 +614,58 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
             s for s in ordenados
             if s.best.start <= config.apa_immune_before and id(s) not in usados
         ]
-        puestos = 0
+        voraces: list = []
         for sitio in inmunes:
-            if puestos >= config.apa_immune_quota:
+            if len(voraces) >= config.apa_immune_quota:
                 break
-            if not _respects_spacing(sitio.best, chosen, config.min_spacing):
+            if not _respects_spacing(
+                sitio.best, chosen + [s.best for s in voraces], config.min_spacing
+            ):
                 continue
+            voraces.append(sitio)
+
+        # LA CUOTA ES UN REQUISITO, NO UNA PREFERENCIA. El orden voraz coge el de mas
+        # asimetria primero, y ese puede llevarse por delante a DOS que juntos la
+        # habrian completado: paso el 2026-09-07, cuando `3utr:187` (+4,06) dejo fuera a
+        # `3utr:144` (a 43 nt) y a `3utr:200` (a 13 nt) y la cuota se quedo en dos.
+        #
+        # Asi que si la voraz se queda corta se busca el conjunto que SI la cumple, y
+        # entre los que la cumplen el de mas asimetria total. Solo entonces: donde la
+        # voraz ya la cumple no se toca nada, que es lo que mantiene en su sitio el panel
+        # confirmado. Ver `tests/test_la_cuota_de_inmunes_es_un_REQUISITO.py`.
+        elegidos_inmunes = voraces
+        if len(voraces) < config.apa_immune_quota:
+            rescate = _conjunto_que_cumple(
+                inmunes, config.apa_immune_quota, chosen, config.min_spacing
+            )
+            # Solo si MEJORA lo que ya habia: un rescate que empata no cambia nada y
+            # ensuciaria las notas con una decision que no se ha tomado.
+            if rescate is not None and len(rescate) > len(voraces):
+                elegidos_inmunes = rescate
+                llega = len(rescate) >= config.apa_immune_quota
+                notes.append(
+                    f"inmunes al corte: el orden por asimetría sacaba {len(voraces)} de "
+                    f"{config.apa_immune_quota} —el mejor de cada paso deja a los "
+                    f"siguientes por debajo del espaciado de {config.min_spacing} nt—, "
+                    + (
+                        "así que se toma el conjunto que sí la cumple: "
+                        if llega
+                        # La cuota SIGUE sin cumplirse y eso sale en `quota_unfilled`.
+                        # Decir aquí que se cumple sería un PASS silencioso.
+                        else f"así que se toman los {len(rescate)} que sí caben juntos, "
+                             f"que siguen sin llegar a la cuota: "
+                    )
+                    + ", ".join(
+                        str(sitio.best.label)
+                        for sitio in sorted(rescate, key=lambda x: x.best.start)
+                    )
+                    + " (nombres de ventana, no posiciones: aquí no hay marco al que "
+                    "referirlas). La cuota es un requisito; el orden voraz sólo es el "
+                    "camino rápido."
+                )
+
+        puestos = 0
+        for sitio in elegidos_inmunes:
             chosen.append(sitio.best)
             usados.add(id(sitio))
             puestos += 1
@@ -2332,7 +2450,14 @@ def blocking_fronts(
     #   - los que estan PENDIENTES DE DECISION (`G4_*`): tampoco se cierran con un
     #     fichero. Lo que les falta es que alguien decida su criterio, y eso no tiene
     #     ficha de obtencion — tiene una entrada en `justificacion.py`.
-    sin_frente = BIOPHYSICAL_FILTERS
+    #   - el HOMOPOLIMERO DE LA MOLECULA: tampoco se cierra consiguiendo nada. Sale
+    #     NOT_RUN en las ventanas que no superan los biofisicos —porque montar la
+    #     pasajera pliega y ahi no compensa— y esas ventanas ya no son elegibles por su
+    #     cuenta. Ponerlo en la lista de frentes haria que la app dijera «falta el
+    #     recurso» de un filtro que no tiene recurso, que es EXACTAMENTE el fallo que
+    #     este bloque describe arriba. Sin ViennaRNA hay un NOT_RUN de verdad, y ese ya
+    #     lo dice su propio motivo — y ademas `check_can_emit_dna` impide emitir ADN.
+    sin_frente = filtros_sin_frente()
     cerrados = dict(closed_by_panel or {})
     frentes = [
         BlockingFront(

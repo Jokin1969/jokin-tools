@@ -26,6 +26,8 @@ from shmir_design.selection import (
     tercio_counts,
 )
 
+from .panel_confirmado import INMUNES_UTR3
+
 DIR = Path(__file__).resolve().parent.parent / "data" / "reference"
 RATON = DIR / "NM_011170.3.fa"
 
@@ -52,13 +54,13 @@ class TestLasDosDefinicionesNoCoinciden(unittest.TestCase):
         )
 
     def test_por_punto_medio_que_es_como_se_etiqueta_hoy(self):
-        self.assertEqual(self.cuenta.by_midpoint, {"proximal": 88, "medio": 128, "distal": 54})
+        self.assertEqual(self.cuenta.by_midpoint, {"proximal": 83, "medio": 121, "distal": 50})
 
     def test_por_posicion_de_inicio(self):
-        self.assertEqual(self.cuenta.by_start, {"proximal": 88, "medio": 137, "distal": 45})
+        self.assertEqual(self.cuenta.by_start, {"proximal": 83, "medio": 128, "distal": 43})
 
     def test_y_los_SITIOS_por_inicio(self):
-        self.assertEqual(self.cuenta.sites_by_start, {"proximal": 28, "medio": 42, "distal": 16})
+        self.assertEqual(self.cuenta.sites_by_start, {"proximal": 29, "medio": 48, "distal": 18})
 
     def test_819_es_el_caso_que_las_separa(self):
         ventana = [w for w in self.tiling.windows if w.window.start == 819][0]
@@ -69,8 +71,8 @@ class TestLasDosDefinicionesNoCoinciden(unittest.TestCase):
         texto = "\n".join(self.cuenta.describe())
         self.assertIn("PUNTO MEDIO", texto)
         self.assertIn("3utr:829-1242", texto)
-        self.assertIn("88", texto)
-        self.assertIn("45", texto)
+        self.assertIn("83", texto)
+        self.assertIn("43", texto)
 
 
 @unittest.skipUnless(RATON.is_file(), "NOT_RUN: falta data/reference/NM_011170.3.fa")
@@ -108,7 +110,9 @@ class TestLaPlazaExtraEnElTramoDistal(unittest.TestCase):
         sigue exigiendo es que la cuota del tramo no se lleve por delante a ninguno de
         los que quedan.
         """
-        self.assertEqual(sorted(p for p in self.inicios if p <= 303), [60, 143, 200])
+        self.assertEqual(
+            sorted(p for p in self.inicios if p <= 303), [20, 83, 144, 200]
+        )
 
     def test_una_cuota_de_tramo_invertida_aborta(self):
         with self.assertRaises(ValueError):
@@ -155,10 +159,12 @@ class TestSitiosPorTramoQueQuedanConTecho(unittest.TestCase):
         self.assertGreater(self.cuenta.sites_immune["proximal"], 0)
 
     def test_la_cifra_proximal_cuadra_con_los_16_sitios_conocidos(self):
-        self.assertEqual(self.cuenta.sites_immune["proximal"], 16)
+        # DIECISIETE: quitar ventanas parte bloques contiguos, así que los SITIOS suben
+        # mientras las ventanas bajan (errata nº 144).
+        self.assertEqual(self.cuenta.sites_immune["proximal"], 17)
 
     def test_y_la_salida_lo_dice_con_el_corte_nombrado(self):
         texto = "\n".join(self.cuenta.describe())
         self.assertIn("3utr:251", texto)
-        self.assertIn("16", texto)
+        self.assertIn("17", texto)
         self.assertIn("rebalancear", texto.lower())

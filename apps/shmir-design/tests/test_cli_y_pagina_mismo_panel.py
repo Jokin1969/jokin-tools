@@ -40,6 +40,8 @@ from shmir_design.selection import (
 )
 from shmir_design.tiling import tile_utr
 
+from .panel_confirmado import PANEL_UTR3
+
 RATON = REFERENCES["NM_011170.3"]
 HAY = fixture_available(RATON)
 
@@ -54,7 +56,7 @@ HAY = fixture_available(RATON)
 # derivado. La cuota baja de cuatro a tres por GEOMETRIA (`WHY_THE_IMMUNE_QUOTA_IS_THREE`)
 # y ese es justo el desplazamiento que este fichero describe arriba — con la diferencia
 # de que ahora es la decisión y no una divergencia entre frontales.
-PANEL = (60, 143, 200, 359, 449, 553, 652, 735, 819, 1018, 1071)
+PANEL = PANEL_UTR3
 
 
 def _sitios(seleccion) -> tuple[int, ...]:
