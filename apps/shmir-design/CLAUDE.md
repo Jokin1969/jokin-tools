@@ -3614,12 +3614,55 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     informe descargable, **en su propia sección y no mezclado con la de SpliceAI**: aquéllas
     son de la corrida del 2026-09-05 con el panel de DIEZ (20 construcciones) y éstas del
     panel de ONCE (22). Bajo un mismo recuento se leerían como medidas sobre lo mismo.
+  - **LA CONTRADICCIÓN DEL DONANTE SALE DESTACADA, y se DERIVA** (`folding_contradictions`,
+    `SPLICEAI_ELEMENT_SCORES`). Del **mismo** donante legítimo, SpliceAI da mejor al
+    quimérico (0,966 frente a 0,873) y el plegado al MVM (0,533 frente a 0,889). No está
+    escrito «el donante se contradice»: se **cruzan los dos veredictos por elemento**, así
+    que con otra corrida o con un tercer intrón la contradicción puede ser otra —o
+    ninguna— y esto se entera solo. Control adversario escrito: con un plegado que
+    coincida con SpliceAI, ahí no sale nada.
+    - **LA LECTURA, que es la que hay que escribir** (`TWO_QUESTIONS_NOT_ONE`): **no se
+      promedian y no se reconcilian — la secuencia dice que el sitio existe, el plegado
+      dice si se puede usar. Son dos preguntas, y que discrepen es INFORMACIÓN, no
+      ruido.** Misma familia que `apa.EXPECTED_DIRECTION` y que «rebaja, no descarta».
+    - **SpliceAI sólo puntúa DOS de los cuatro** —es un modelo de sitios de splicing—, y
+      los otros dos salen NOMBRADOS: su silencio ahí **no es acuerdo**, y sin decirlo dos
+      elementos sin contraste se leerían como dos elementos donde los dos análisis
+      coinciden. Es el `.out` sin resumen otra vez.
+  - **RIESGO COMPARTIDO: los dos ejes miran el MISMO sitio, y va en UN bloque**
+    (`presentation.shared_branch_risk`). Que el punto de ramificación sea el menos
+    accesible **en las dos** lo convierte en propiedad del ELEMENTO; que además la
+    geometría donante→punto esté **fuera del rango típico en las dos** (256 nt y
+    249-253, contra 18-100) apunta al mismo sitio por otro camino. Juntos son el
+    **candidato a CAUSA COMÚN si el empalme falla en las dos**, y es lo primero que hay
+    que mirar antes de culpar a la guía o al módulo — y no lo arregla cambiar de
+    arquitectura: lo movería acortar lo que se intercala. **Separados en dos notas se
+    leen como dos observaciones sueltas**, que es justo la lectura que se pierde. Las dos
+    mitades se derivan: la accesibilidad de lo plegado y la geometría de
+    `introns.donor_to_branch`, que ya dice por su cuenta si es atípica — y ese `atypical`
+    pasa a tener por fin un llamador en la app, no sólo en el auditor.
   - **Las ocho cifras del informe van ESCRITAS y con un test que las recalcula**, que es la
     misma disciplina que la mordida de la máscara: derivarlas al pintar cuesta **8,5 s de
     plegado** y ese bloque se repinta en cada rerun —la errata nº 59 esperando—, así que
     `tests/test_el_PUNTO_DE_RAMIFICACION_es_el_MAS_FRAGIL.py` las saca de las 22 de verdad y
     **exige que la prosa las cite**. Si el plegado cambia, la suite falla en vez de que el
     texto envejezca en silencio (principio nº 13).
+
+- **LA MATRIZ DEJA DE SER «UNO GANA»: VAN LAS DOS A SÍNTESIS. DECIDIDO (2026-09-07)**
+  (`introns.BOTH_ARCHITECTURES_GO`), con las palabras del responsable del proyecto: *«dos
+  arquitecturas que hay que probar las dos, porque ninguna medida las separa de forma
+  unánime y el gel es quien decide»*.
+  - **Es la consecuencia de las medidas, no un empate ni una indecisión**: cada eje manda
+    a un lado —SpliceAI al quimérico en donante y aceptor, el plegado al MVM en donante y
+    tracto, la geometría a ninguno— y **ninguno de esos números predice el empalme**. Lo
+    que se retira es la CONCLUSIÓN AGREGADA; las medidas siguen todas, y cada una sigue
+    diciendo a quién favorece.
+  - **Lo que cambia en la práctica**: mientras se buscaba un ganador, la comparación
+    empujaba a sintetizar UNA. Puesta así empuja a lo correcto — se construyen las dos y
+    el experimento decide, que es el único árbitro que hay. La matriz pasa de «cuál gana»
+    a «qué sabemos de cada una antes de meterlas en el banco».
+  - Sale en la nota de arquitecturas **y en el informe descargable**, que es donde lo lee
+    quien no tiene la app delante (principio nº 23).
 
 - **LOS PUNTOS DE INSERCIÓN DE `intron_quimerico` (2026-08-30)**
   (`intron_design.insertion_candidates`). Ese intrón llegaba entero de su plásmido y no

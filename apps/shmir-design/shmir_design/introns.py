@@ -591,16 +591,36 @@ WHY_THE_COUNTERWEIGHT_WAS_RETIRED = (
 #:
 #: Y no excluye nada: la accesibilidad estructural es DESEMPATE Y ALERTA, NUNCA FILTRO.
 #: Lo que cambia es que la eleccion entre las dos arquitecturas deja de ser unanime.
+#: LA MATRIZ DEJA DE SER «UNO GANA». DECIDIDO (2026-09-07) por el responsable del
+#: proyecto, y con sus palabras: *«dos arquitecturas que hay que probar las dos, porque
+#: ninguna medida las separa de forma unánime y el gel es quien decide»*.
+#:
+#: Es la consecuencia de que cada eje mande a un lado distinto —SpliceAI al quimérico en
+#: donante y aceptor, el plegado al MVM en donante y tracto, la geometría a ninguno— y de
+#: que NINGUNO de esos números prediga el empalme. Mientras se buscaba un ganador, la
+#: comparación empujaba a sintetizar UNA; puesta así, empuja a lo correcto: se construyen
+#: las dos y el experimento decide, que es el único árbitro que hay.
+#:
+#: Y NO ES UN EMPATE NI UNA INDECISIÓN: los ejes están medidos, emitidos y cada uno dice
+#: a quién favorece. Lo que se retira es la conclusión agregada, no las medidas.
+BOTH_ARCHITECTURES_GO = (
+    "DECIDIDO (2026-09-07): VAN LAS DOS A SÍNTESIS. Ninguna medida separa a las dos "
+    "arquitecturas de forma unánime —cada eje manda a un lado y ninguno predice el "
+    "empalme—, así que esto no es una comparación para elegir una: son dos "
+    "construcciones que hay que probar las dos, y el gel es quien decide. La matriz "
+    "deja de ser «cuál gana» y pasa a ser «qué sabemos de cada una antes de meterlas "
+    "en el banco»."
+)
+
 THE_FIRST_COUNTERWEIGHT_MEASURED = (
     "CONTRAPESO, medido el 2026-09-06 sobre las 22 construcciones: el quimérico deja el "
     "punto de ramificación —el menos accesible de los cuatro en las DOS "
     "arquitecturas— más libre (0,355 frente a 0,257), y ése es un eje a su favor que no "
     "estaba medido; pero en el mismo plegado su donante queda bastante más secuestrado "
     "(0,533 frente a 0,889). Las dos frases van juntas: sola, la primera deja la "
-    "decisión pareciendo tomada. No se reconcilia con SpliceAI, que del mismo donante "
-    "dice lo contrario (0,966 frente a 0,873) — la secuencia dice que el sitio existe y "
-    "el plegado dice si se puede usar, y son dos preguntas. Nada de esto excluye a "
-    "ninguna: sigue siendo desempate y alerta, nunca filtro."
+    "decisión pareciendo tomada. Y del MISMO donante SpliceAI dice lo contrario: 0,966 "
+    "frente a 0,873. Nada de esto excluye a ninguna: sigue siendo desempate y alerta, "
+    "nunca filtro."
 )
 
 #: CORREGIDO (2026-09-05), errata nº 106. Aquí ponía que el quimérico es PEOR en el eje
@@ -618,10 +638,8 @@ THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES = (
     "demás: POR SECUENCIA Y POR SpliceAI el quimérico tiene mejor donante, mejor tracto "
     "y 97 posiciones de inserción frente a 39. POR PLEGADO no: el MVM deja el donante y "
     "el tracto más accesibles, y el quimérico el punto de ramificación y el aceptor "
-    "(el contrapeso medido, más arriba). Los dos análisis no se promedian — el de "
-    "secuencia dice que el sitio existe y el del plegado si se puede usar —, así que la "
-    "elección deja de ser unánime. Y ninguno de esos números predice el empalme: las "
-    "opciones van a síntesis; el gel decide."
+    "(el contrapeso medido, más arriba). Así que la elección deja de ser unánime, y "
+    "ninguno de esos números predice el empalme."
 )
 
 OPEN_QUESTION_DONOR_TO_BRANCH = (

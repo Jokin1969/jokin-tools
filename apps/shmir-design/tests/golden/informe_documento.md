@@ -977,10 +977,10 @@ Medido el 2026-09-06 plegando las 22 construcciones del panel de once con las DO
 
 | elemento | mvm_actual | intron_quimerico | gana |
 |---|---|---|---|
-| donante (fracción sin aparear) | 0,889 | 0,533 | mvm_actual |
-| punto de ramificación | 0,257 | 0,355 | quimérico |
-| tracto de polipirimidinas | 0,594 | 0,547 | mvm_actual |
-| aceptor | 0,836 | 0,994 | quimérico |
+| donante | 0,889 | 0,533 | mvm_actual |
+| punto_de_ramificacion | 0,257 | 0,355 | intron_quimerico |
+| tracto_polipirimidinas | 0,594 | 0,547 | mvm_actual |
+| aceptor | 0,836 | 0,994 | intron_quimerico |
 
 Cuál es el elemento menos accesible se DERIVA de lo plegado, no está escrito en el código: con otro intrón puede ser otro, y una constante que lo nombrara sería cierta hoy y falsa sin avisar.
 
@@ -988,9 +988,15 @@ La cifra del punto de ramificación es el PEOR de sus candidatos, y las dos arqu
 
 La guía NO mueve la accesibilidad de ninguno de los cuatro elementos: entre las construcciones de una misma arquitectura la dispersión se queda por debajo del 1 %. Este eje NO discrimina entre candidatos — lo que compara son las ARQUITECTURAS. Y no es que sea ciego: un módulo complementario al extremo 5' del intrón lleva el donante de 0,89 a 0,00, así que cazaría una guía que secuestrara un elemento. Lo que dice esta medida es que ninguna lo hace.
 
-CONTRAPESO, medido el 2026-09-06 sobre las 22 construcciones: el quimérico deja el punto de ramificación —el menos accesible de los cuatro en las DOS arquitecturas— más libre (0,355 frente a 0,257), y ése es un eje a su favor que no estaba medido; pero en el mismo plegado su donante queda bastante más secuestrado (0,533 frente a 0,889). Las dos frases van juntas: sola, la primera deja la decisión pareciendo tomada. No se reconcilia con SpliceAI, que del mismo donante dice lo contrario (0,966 frente a 0,873) — la secuencia dice que el sitio existe y el plegado dice si se puede usar, y son dos preguntas. Nada de esto excluye a ninguna: sigue siendo desempate y alerta, nunca filtro.
+RIESGO COMPARTIDO — «punto_de_ramificacion», y son LOS DOS EJES mirando el mismo sitio. Es el elemento menos accesible de los cuatro en las 2 arquitecturas (mvm_actual 0,257, intron_quimerico 0,355), o sea una propiedad del ELEMENTO y no de un intrón; y la geometría donante→punto está fuera del rango típico de mamífero (18-100 nt) también en las dos (mvm_actual 256 nt, intron_quimerico 249-253 nt). Los dos ejes apuntan al mismo elemento por caminos distintos, así que es el candidato a CAUSA COMÚN si el empalme falla en las dos: es lo primero que hay que mirar antes de culpar a la guía o al módulo. Y no lo arregla cambiar de arquitectura — lo que lo movería es acortar lo que se intercala.
 
-En el intrón VACÍO el quimérico tiene el punto de ramificación mucho más lejos del donante (100-104 nt frente a 42), pero MONTADOS empatan: el MVM lleva además los dos espaciadores, así que intercala 214 nt frente a 149 y acaba en 256 nt frente a los 249-253 del quimérico. Los dos quedan fuera del rango típico de mamífero y la diferencia entre ellos es de unos pocos nucleótidos, así que ESTE EJE NO DISCRIMINA y queda retirado como contrapeso. Lo que sí separa a los dos es lo demás: POR SECUENCIA Y POR SpliceAI el quimérico tiene mejor donante, mejor tracto y 97 posiciones de inserción frente a 39. POR PLEGADO no: el MVM deja el donante y el tracto más accesibles, y el quimérico el punto de ramificación y el aceptor (el contrapeso medido, más arriba). Los dos análisis no se promedian — el de secuencia dice que el sitio existe y el del plegado si se puede usar —, así que la elección deja de ser unánime. Y ninguno de esos números predice el empalme: las opciones van a síntesis; el gel decide.
+CONTRAPESO, medido el 2026-09-06 sobre las 22 construcciones: el quimérico deja el punto de ramificación —el menos accesible de los cuatro en las DOS arquitecturas— más libre (0,355 frente a 0,257), y ése es un eje a su favor que no estaba medido; pero en el mismo plegado su donante queda bastante más secuestrado (0,533 frente a 0,889). Las dos frases van juntas: sola, la primera deja la decisión pareciendo tomada. Y del MISMO donante SpliceAI dice lo contrario: 0,966 frente a 0,873. Nada de esto excluye a ninguna: sigue siendo desempate y alerta, nunca filtro.
+
+No se promedian y no se reconcilian: la secuencia dice que el sitio existe, el plegado dice si se puede usar. Son dos preguntas, y que discrepen es INFORMACIÓN, no ruido.
+
+En el intrón VACÍO el quimérico tiene el punto de ramificación mucho más lejos del donante (100-104 nt frente a 42), pero MONTADOS empatan: el MVM lleva además los dos espaciadores, así que intercala 214 nt frente a 149 y acaba en 256 nt frente a los 249-253 del quimérico. Los dos quedan fuera del rango típico de mamífero y la diferencia entre ellos es de unos pocos nucleótidos, así que ESTE EJE NO DISCRIMINA y queda retirado como contrapeso. Lo que sí separa a los dos es lo demás: POR SECUENCIA Y POR SpliceAI el quimérico tiene mejor donante, mejor tracto y 97 posiciones de inserción frente a 39. POR PLEGADO no: el MVM deja el donante y el tracto más accesibles, y el quimérico el punto de ramificación y el aceptor (el contrapeso medido, más arriba). Así que la elección deja de ser unánime, y ninguno de esos números predice el empalme.
+
+DECIDIDO (2026-09-07): VAN LAS DOS A SÍNTESIS. Ninguna medida separa a las dos arquitecturas de forma unánime —cada eje manda a un lado y ninguno predice el empalme—, así que esto no es una comparación para elegir una: son dos construcciones que hay que probar las dos, y el gel es quien decide. La matriz deja de ser «cuál gana» y pasa a ser «qué sabemos de cada una antes de meterlas en el banco».
 
 ## 9. Fichas de los seleccionados
 

@@ -220,12 +220,34 @@ el suyo. Salía rojo unas veces y verde otras, y el rojo **no señalaba a nada d
 guardia del calendario existe para vigilar** — que es exactamente cómo un guardia deja de
 leerse. El hijo lleva ahora su propio `SHMIR_PORT`.
 
-**Y queda un cabo suelto, dicho y no arreglado**: que un arranque se dé por bueno porque
-*alguien* contesta en ese puerto es un guardia aprobando lo que no es suyo. En producción
-significaría servir la interfaz de un proceso viejo que quedó vivo —el propio
-`process.diagnose` ya contempla ese caso— sin que nada lo diga. Lo que lo cerraría es
-comprobar que **el hijo propio sigue vivo** además de que el puerto conteste; no se ha
-tocado porque cambia el arranque de producción y eso se decide aparte.
+**Y el cabo que dejaba, CERRADO (2026-09-07)**: que un arranque se diera por bueno porque
+*alguien* contesta en ese puerto era un guardia aprobando lo que no es suyo — «el sondeo
+no distingue *mi proceso está listo* de *alguien contesta en ese puerto*», que es el
+«Alu 0 %» en su forma más pura. En producción significa servir la interfaz de un proceso
+viejo que quedó vivo (caso que el propio `process.diagnose` ya contempla) mientras el
+despliegue nuevo NO ha arrancado, sin un solo error en ningún log: el síntoma es «está
+fusionado pero no lo veo».
+
+`waitUntilReady` comprueba ahora **dos cosas, y ninguna sustituye a la otra**:
+
+- **el hijo propio sigue vivo, y se mira ANTES de sondear.** Esa comprobación ya estaba
+  escrita — y estaba DESPUÉS del sondeo, así que el sondeo le ganaba siempre. Un orden;
+- **quien escucha en el puerto es ESE hijo** (`process.portOwner`): el inodo del socket
+  en escucha (`/proc/net/tcp`) tiene que estar entre los descriptores del hijo
+  (`/proc/<pid>/fd`). Lo primero no basta — un hijo vivo que todavía no escucha, con
+  otro contestando, da el mismo verde falso.
+
+**Tres estados y el tercero NO es «coincide»**: sin `/proc` la respuesta es
+`NO_COMPROBABLE` **con el motivo**, y eso no bloquea el arranque —fuera de Linux la app
+tiene que poder correr— pero viaja a `status().identidad`, que es donde se lee. Callarlo
+lo convertiría en un «comprobado» silencioso, que es el fallo que esto cierra.
+
+**Y el guardia está CALIBRADO contra el proceso real**, no supuesto: si Streamlit
+bifurcara, el socket sería de un nieto y esto daría `AJENO` sobre un arranque correcto —
+un guardia con falsos positivos se acaba apagando. `test/shmir.smoke.test.js` lo mide
+sobre la interfaz de verdad y exige `PROPIO`; `test/shmir.puerto_ocupado.test.js`
+reproduce el caso entero —un impostor que contesta `ok` en la ruta de salud— y exige que
+el arranque FALLE nombrando el puerto.
 
 `check:shmir` imprime además el **informe de alcanzabilidad**: qué función pública de
 `apps/shmir-design/` no tiene ningún llamador fuera de su propio módulo y de sus tests.

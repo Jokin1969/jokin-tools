@@ -4776,14 +4776,223 @@ FOLDING_MEASURED_ON = (
     "plegar la construcción real, no de un modelo entrenado para otra cosa."
 )
 
+#: Como se escribe una fraccion de apareamiento en la salida: tres decimales y coma
+#: decimal, en un solo sitio. Repetida, dos bloques del mismo informe acabarian
+#: imprimiendo el mismo numero con dos formas.
+def _cifra(valor) -> str:
+    return f"{valor:.3f}".replace(".", ",")
+
+
 #: Fraccion media SIN APAREAR de cada elemento, por arquitectura. Mas alto es mejor: un
 #: elemento secuestrado dentro de un tallo no esta disponible para el espliceosoma.
-INTRON_FOLDING_AXES = (
-    ("donante (fracción sin aparear)", "0,889", "0,533", "mvm_actual"),
-    ("punto de ramificación", "0,257", "0,355", "quimérico"),
-    ("tracto de polipirimidinas", "0,594", "0,547", "mvm_actual"),
-    ("aceptor", "0,836", "0,994", "quimérico"),
+#:
+#: LO QUE SE ESCRIBE SON LOS NUMEROS, no la tabla: la tabla que se pinta y el ganador de
+#: cada fila se DERIVAN de aqui, asi que no puede haber una fila que diga una cosa y un
+#: ganador que diga otra. Y con esto el informe puede hacer las mismas lecturas que el
+#: modal —la contradiccion con SpliceAI, el riesgo compartido— sin repetir ninguna
+#: regla: se montan unas filas con estas medias y se pasan por las MISMAS funciones.
+INTRON_FOLDING_MEANS = {
+    "donante": {"mvm_actual": 0.889, "intron_quimerico": 0.533},
+    "punto_de_ramificacion": {"mvm_actual": 0.257, "intron_quimerico": 0.355},
+    "tracto_polipirimidinas": {"mvm_actual": 0.594, "intron_quimerico": 0.547},
+    "aceptor": {"mvm_actual": 0.836, "intron_quimerico": 0.994},
+}
+
+
+def recorded_folding_rows():
+    """Las medias REGISTRADAS, en forma de filas, para pasarlas por lo mismo que las vivas.
+
+    No es una segunda definicion de nada: es el MISMO analisis sobre la medida escrita en
+    vez de sobre un plegado recien hecho, y la medida escrita la revalida el test que la
+    recalcula de las 22. Sirve para el informe, que no puede plegar en cada repintado.
+    """
+    arquitecturas = sorted(
+        {a for medias in INTRON_FOLDING_MEANS.values() for a in medias},
+        reverse=True,
+    )
+    return tuple(
+        {"construccion": f"registrada__{a}", "intron": a,
+         **{e: INTRON_FOLDING_MEANS[e][a] for e in INTRON_FOLDING_MEANS}}
+        for a in arquitecturas
+    )
+
+
+def _axes_from_means():
+    """La tabla que se pinta, DERIVADA de las medias y con su ganador derivado también."""
+    from .intron_folding import ELEMENTS, architecture_contrast
+
+    contraste = {f["elemento"]: f for f in architecture_contrast(recorded_folding_rows())}
+    filas = []
+    for elemento in ELEMENTS:
+        medias = INTRON_FOLDING_MEANS[elemento]
+        gana = contraste[elemento]["gana"] or "ninguno: empatan"
+        filas.append((
+            elemento, _cifra(medias["mvm_actual"]),
+            _cifra(medias["intron_quimerico"]), gana,
+        ))
+    return tuple(filas)
+
+
+INTRON_FOLDING_AXES = _axes_from_means()
+
+
+#: LO QUE SpliceAI DICE DE LOS MISMOS ELEMENTOS, para poder CRUZARLO con el plegado.
+#: Transcritas —este proyecto no ejecuta SpliceAI— de la corrida del 2026-09-05, que está
+#: en `data/medido/` con su procedencia y se validó al entrar por md5 y por nombre. Son
+#: las medias del sitio LEGÍTIMO sobre las construcciones de esa corrida.
+#:
+#: SÓLO HAY DOS, y eso no es un hueco que rellenar: SpliceAI puntúa SITIOS DE SPLICING,
+#: así que del punto de ramificación y del tracto no dice nada. Su silencio ahí **no es
+#: acuerdo**, y el destacado lo dice con esas palabras — si no, dos elementos sin
+#: contraste se leerían como dos elementos donde los dos análisis coinciden.
+SPLICEAI_ELEMENT_SCORES = {
+    "donante": {"mvm_actual": 0.873, "intron_quimerico": 0.966},
+    "aceptor": {"mvm_actual": 0.831, "intron_quimerico": 0.990},
+}
+
+SPLICEAI_SCORES_FROM = (
+    "Puntuaciones del sitio legítimo en la corrida de SpliceAI del 2026-09-05 (panel de "
+    "diez, 20 construcciones), guardada con su procedencia."
 )
+
+#: LA LECTURA DE LA DISCREPANCIA, y es de quien decide: **la secuencia dice que el sitio
+#: existe, el plegado dice si se puede usar**. No se promedian y no se reconcilian —
+#: promediarlas perdería justo lo que la discrepancia lleva dentro, que es la misma regla
+#: que `apa.EXPECTED_DIRECTION` y la misma forma que «rebaja, no descarta».
+TWO_QUESTIONS_NOT_ONE = (
+    "No se promedian y no se reconcilian: la secuencia dice que el sitio existe, el "
+    "plegado dice si se puede usar. Son dos preguntas, y que discrepen es INFORMACIÓN, "
+    "no ruido."
+)
+
+
+def folding_contradictions(rows):
+    """Elementos donde SpliceAI y el plegado dan GANADORES DISTINTOS. Se DERIVA.
+
+    No está escrito «el donante se contradice»: se cruzan los dos veredictos por
+    elemento, así que con otra corrida o con otro intrón la contradicción puede ser otra
+    —o ninguna— y esto se entera solo. El control adversario está escrito: con un plegado
+    que coincida con SpliceAI en el donante, aquí no sale nada.
+    """
+    from .intron_folding import ELEMENTS, architecture_contrast
+
+    contraste = {f["elemento"]: f for f in architecture_contrast(rows)}
+    salida = []
+    for elemento in ELEMENTS:
+        medias = SPLICEAI_ELEMENT_SCORES.get(elemento)
+        if medias is None:
+            continue
+        gana_spliceai = max(medias, key=lambda a: (medias[a], a))
+        fila = contraste.get(elemento)
+        gana_plegado = fila["gana"] if fila else None
+        if gana_plegado is None or gana_plegado == gana_spliceai:
+            continue
+        salida.append({
+            "elemento": elemento,
+            "gana_spliceai": gana_spliceai,
+            "gana_plegado": gana_plegado,
+            "spliceai": dict(medias),
+            "plegado": dict(fila["medias"]),
+        })
+    return salida
+
+
+def shared_branch_risk(rows=None):
+    """EL RIESGO COMPARTIDO, en UN bloque: el mismo sitio visto por DOS ejes.
+
+    Que el elemento menos accesible sea el mismo **en las dos arquitecturas** lo
+    convierte en propiedad del ELEMENTO y no de un intrón; que además la geometría
+    donante→punto esté fuera de rango **en las dos** apunta al mismo sitio por otro
+    camino. Juntos son el candidato a **causa común** si el empalme falla en las dos —
+    separados en dos notas se leen como dos observaciones sueltas, y ésa es justo la
+    lectura que se pierde.
+
+    Las dos mitades se DERIVAN: la accesibilidad de lo plegado y la geometría de
+    `introns.donor_to_branch`, que ya dice por su cuenta si es atípica.
+    """
+    from .blocks import MODULE_LENGTH
+    from .intron_folding import weakest_element
+    from .introns import INTRONS, TYPICAL_DONOR_TO_BRANCH, donor_to_branch
+
+    # SIN FILAS SE USA LA MEDIDA REGISTRADA, no se calla: el informe no puede plegar en
+    # cada repintado —8,5 s— y esta lectura decide dónde mirar primero si el empalme
+    # falla. Es el mismo análisis sobre la misma medida, no otra regla.
+    if rows is None:
+        rows = recorded_folding_rows()
+
+    arquitecturas = []
+    for fila in rows:
+        nombre = fila.get("intron")
+        if nombre is not None and nombre not in arquitecturas:
+            arquitecturas.append(nombre)
+
+    fragil = weakest_element(rows)
+    menos_accesible_en = [
+        a for a in arquitecturas
+        if weakest_element([f for f in rows if f.get("intron") == a]) == fragil
+    ] if fragil else []
+
+    atipica_en, geometria = [], {}
+    for nombre in arquitecturas:
+        entrada = INTRONS.get(nombre)
+        if entrada is None:
+            continue
+        salto = donor_to_branch(
+            entrada.elements(), name=nombre,
+            inserted=entrada.inserted_length(MODULE_LENGTH),
+        )
+        if salto is None:
+            continue
+        geometria[nombre] = salto.assembled
+        if salto.atypical:
+            atipica_en.append(nombre)
+
+    en_las_dos = (
+        fragil is not None
+        and len(arquitecturas) > 1
+        and len(menos_accesible_en) == len(arquitecturas)
+        and len(atipica_en) == len(arquitecturas)
+    )
+    if not en_las_dos:
+        texto = (
+            "No hay riesgo compartido que emitir con lo que hay: hace falta que el "
+            "elemento menos accesible sea el mismo en TODAS las arquitecturas y que la "
+            "geometría donante→punto esté fuera de rango en todas. Que no salga NO es "
+            "que no lo haya: es que con estas construcciones no se puede afirmar."
+        )
+    else:
+        rango = ", ".join(
+            f"{a} {geometria[a][0]}-{geometria[a][1]} nt" if geometria[a][0] != geometria[a][1]
+            else f"{a} {geometria[a][0]} nt"
+            for a in arquitecturas if a in geometria
+        )
+        accesibilidad = ", ".join(
+            f"{a} {_cifra(sum(v) / len(v))}"
+            for a in arquitecturas
+            for v in [[f[fragil] for f in rows
+                       if f.get("intron") == a and f.get(fragil) is not None]]
+            if v
+        )
+        texto = (
+            f"RIESGO COMPARTIDO — «{fragil}», y son LOS DOS EJES mirando el mismo sitio. "
+            f"Es el elemento menos accesible de los cuatro en las "
+            f"{len(arquitecturas)} arquitecturas ({accesibilidad}), o sea una propiedad "
+            f"del ELEMENTO y no de un intrón; y la geometría donante→punto está fuera "
+            f"del rango típico de mamífero ({TYPICAL_DONOR_TO_BRANCH[0]}-"
+            f"{TYPICAL_DONOR_TO_BRANCH[1]} nt) también en las dos ({rango}). Los dos "
+            f"ejes apuntan al mismo elemento por caminos distintos, así que es el "
+            f"candidato a CAUSA COMÚN si el empalme falla en las dos: es lo primero que "
+            f"hay que mirar antes de culpar a la guía o al módulo. Y no lo arregla "
+            f"cambiar de arquitectura — lo que lo movería es acortar lo que se "
+            f"intercala."
+        )
+    return {
+        "elemento": fragil,
+        "menos_accesible_en": menos_accesible_en,
+        "geometria_atipica_en": atipica_en,
+        "geometria": geometria,
+        "texto": texto,
+    }
 
 
 def intron_architecture_note() -> str:
@@ -4797,6 +5006,7 @@ def intron_architecture_note() -> str:
         BRANCH_IS_A_WORST_CASE, THE_GUIDE_DOES_NOT_MOVE_IT, WEAKEST_IS_DERIVED,
     )
     from .introns import (
+        BOTH_ARCHITECTURES_GO,
         THE_FIRST_COUNTERWEIGHT_MEASURED,
         THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES,
         WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
@@ -4830,9 +5040,20 @@ def intron_architecture_note() -> str:
         f"  {BRANCH_IS_A_WORST_CASE}",
         f"  {THE_GUIDE_DOES_NOT_MOVE_IT}",
         "",
+        # EL RIESGO COMPARTIDO, DERIVADO de la medida registrada y de la geometría: los
+        # dos ejes miran el mismo elemento, y juntos son el candidato a causa común.
+        f"  {shared_branch_risk()['texto']}",
+        "",
         f"  {THE_FIRST_COUNTERWEIGHT_MEASURED}",
         "",
+        # LA CONTRADICCIÓN DEL DONANTE, DICHA AQUÍ TAMBIÉN. En el modal sale derivada de
+        # las filas plegadas; aquí no hay filas, así que se emite la lectura —que es lo
+        # que no se puede deducir de las dos tablas puestas una encima de otra—.
+        f"  {TWO_QUESTIONS_NOT_ONE}",
+        "",
         f"  LECTURA: {THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES}",
+        "",
+        f"  {BOTH_ARCHITECTURES_GO}",
     ]
     return "\n".join(lineas)
 
@@ -5216,6 +5437,7 @@ def folding_highlights(rows):
     from .intron_folding import (
         BRANCH_IS_A_WORST_CASE,
         CONTRAST_NEEDS_TWO,
+        ELEMENTS,
         THE_GUIDE_DOES_NOT_MOVE_IT,
         USE_NOTE,
         WEAKEST_IS_DERIVED,
@@ -5262,10 +5484,46 @@ def folding_highlights(rows):
             f"ningún otro elemento: en este eje no se le conoce contrapeso."
         )
 
+    # LA CONTRADICCIÓN VA DESTACADA, NO EN UNA NOTA. Del mismo donante, SpliceAI dice
+    # una cosa y el plegado la contraria, y eso decide qué se sintetiza. Se DERIVA
+    # cruzando los dos veredictos por elemento; y los elementos que SpliceAI no puntúa
+    # se NOMBRAN, porque su silencio no es acuerdo.
+    contradicciones = folding_contradictions(rows)
+    sin_cruzar = ", ".join(
+        e for e in ELEMENTS if e not in SPLICEAI_ELEMENT_SCORES
+    )
+    if contradicciones:
+        partes = []
+        for fila in contradicciones:
+            sp = fila["spliceai"]
+            pl = fila["plegado"]
+            partes.append(
+                f"«{fila['elemento']}»: SpliceAI da mejor a {fila['gana_spliceai']} "
+                f"({' frente a '.join(_cifra(sp[a]) for a in sorted(sp, key=lambda x: -sp[x]))})"
+                f" y el plegado a {fila['gana_plegado']} "
+                f"({' frente a '.join(_cifra(pl[a]) for a in sorted(pl, key=lambda x: -pl[x]))})"
+            )
+        texto_contradiccion = (
+            "LOS DOS ANÁLISIS SE CONTRADICEN, y eso es lo que hay que leer — "
+            + "; ".join(partes) + ". " + TWO_QUESTIONS_NOT_ONE
+            + f" De {sin_cruzar} SpliceAI no dice nada: ahí no hay contraste que hacer, "
+            f"que no es lo mismo que coincidir. {SPLICEAI_SCORES_FROM}"
+        )
+    else:
+        texto_contradiccion = (
+            "Los dos análisis NO se contradicen en ningún elemento de los que SpliceAI "
+            f"puntúa. De {sin_cruzar} SpliceAI no dice nada: ahí no hay contraste que "
+            f"hacer, que no es lo mismo que coincidir. {SPLICEAI_SCORES_FROM}"
+        )
+
+    riesgo = shared_branch_risk(rows)
+
     return {
         "por_que": {"texto": WHY_IT_MATTERS, "activo": True},
         "mas_fragil": {"texto": texto_fragil, "activo": True},
         "contraste": {"texto": texto_contraste, "activo": True},
+        "contradiccion": {"texto": texto_contradiccion, "activo": True},
+        "riesgo_compartido": {"texto": riesgo["texto"], "activo": True},
         "peor_caso": {"texto": BRANCH_IS_A_WORST_CASE, "activo": True},
         "la_guia_no_lo_mueve": {"texto": THE_GUIDE_DOES_NOT_MOVE_IT, "activo": True},
         "uso": {"texto": USE_NOTE, "activo": True},

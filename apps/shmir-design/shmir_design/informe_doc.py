@@ -893,12 +893,17 @@ def _seccion_arquitecturas() -> Section:
         BRANCH_IS_A_WORST_CASE, THE_GUIDE_DOES_NOT_MOVE_IT, WEAKEST_IS_DERIVED,
     )
     from .introns import (
+        BOTH_ARCHITECTURES_GO,
         THE_FIRST_COUNTERWEIGHT_MEASURED,
         THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES,
         WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
     )
     from .presentation import (
-        FOLDING_MEASURED_ON, INTRON_AXES_MEASURED, INTRON_FOLDING_AXES,
+        FOLDING_MEASURED_ON,
+        INTRON_AXES_MEASURED,
+        INTRON_FOLDING_AXES,
+        TWO_QUESTIONS_NOT_ONE,
+        shared_branch_risk,
     )
 
     bloques = [
@@ -927,8 +932,15 @@ def _seccion_arquitecturas() -> Section:
         para(WEAKEST_IS_DERIVED),
         para(BRANCH_IS_A_WORST_CASE),
         para(THE_GUIDE_DOES_NOT_MOVE_IT),
+        # EL RIESGO COMPARTIDO VA EN EL DOCUMENTO, no sólo en la pantalla: dice dónde
+        # mirar PRIMERO si el empalme falla en las dos, y eso se lee cuando ya no se
+        # tiene la app delante. Sale de la medida registrada por las mismas funciones
+        # que lo derivan del plegado vivo en el modal.
+        para(shared_branch_risk()["texto"]),
         para(THE_FIRST_COUNTERWEIGHT_MEASURED),
+        para(TWO_QUESTIONS_NOT_ONE),
         para(THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES),
+        para(BOTH_ARCHITECTURES_GO),
     ]
     return Section(
         number=0,   # lo asigna `build_document` por POSICION; ver `_numerar`.
