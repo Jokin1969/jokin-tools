@@ -200,6 +200,21 @@ def label(value: int | None, frame: Frame, *, limit: int | None = None) -> str:
     return str(posicion)
 
 
+def labels(values, frame: Frame, *, sep: str = ", ") -> str:
+    """Una LISTA de posiciones, etiquetadas y unidas. `3utr:60, 3utr:143`.
+
+    Existe porque los mensajes que nombran varios candidatos se armaban con
+    `", ".join(str(x) for x in …)`, y ahi `coords` no interviene: `Position` impide
+    imprimir un entero desnudo **cuando es una `Position`**, y un `int` que cruza una
+    frontera como `starts` no lo es. Asi salia `Faltan: 1308, 2020` sobre un tilado del
+    transcrito, que se lee como dos posiciones del 3'UTR y son otras dos ventanas.
+
+    Va aqui y no en cada emisor por lo de siempre: son cinco sitios, y una regla copiada
+    en cinco es la que llega al sexto sin copiarse.
+    """
+    return sep.join(str(Position(int(v), frame)) for v in values)
+
+
 def requested(value: int, frame: Frame) -> str:
     """Una posicion PEDIDA DESDE FUERA, que todavia no se sabe si existe.
 
@@ -222,6 +237,21 @@ def requested(value: int, frame: Frame) -> str:
         # rule2-ok: no se pierde nada — el motivo entero de `exc` viaja en el texto que
         # se devuelve, que es el unico sitio donde puede verlo quien lo pidio.
         return f"{frame.value}{SEPARATOR}{value} — NO ES UNA POSICIÓN: {exc}"
+
+
+def requested_labels(values, frame: Frame, *, sep: str = ", ") -> str:
+    """La lista de posiciones PEDIDAS DESDE FUERA. Es `labels` para lo que puede no caber.
+
+    `labels` es para las que el proyecto AFIRMA —el panel, los que faltan por cubrir— y
+    aborta si alguna no cabe, que es lo correcto. Aqui las que se nombran son las que
+    ALGUIEN HA PEDIDO, y lo pedido puede ser un `99999` tecleado: sin esto, el aborto que
+    explica que ese inicio no existe aborta a su vez con OTRO error y quien lo lee no
+    sabe cual de los dos le importa (principio nº 47 dentro de una sola funcion).
+
+    Va aqui y no en cada emisor por lo mismo que `labels`: una regla copiada en dos
+    sitios es la que llega al tercero sin copiarse.
+    """
+    return sep.join(requested(int(v), frame) for v in values)
 
 
 def span(start: int, end: int, frame: Frame, *, limit: int | None = None) -> str:

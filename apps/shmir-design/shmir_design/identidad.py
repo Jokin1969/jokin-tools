@@ -209,6 +209,17 @@ BUILD_NOTE = (
 )
 
 
+#: Con qué se marca el sello en un fichero de texto. Va aquí y no en cada emisor: son
+#: tres formatos —FASTA, TSV de candidatos y comparativa— y con el prefijo escrito en
+#: cada uno, cambiarlo dejaría a los demás sin sello y a sus tests pasando igual.
+BUILD_PREFIX = "# BUILD:"
+
+
+def build_line() -> str:
+    """La línea del sello, tal cual se escribe en la cabecera de un fichero de texto."""
+    return f"{BUILD_PREFIX} {build_stamp()}"
+
+
 def build_stamp() -> str:
     """Qué versión está produciendo esto, si el entorno lo declara.
 

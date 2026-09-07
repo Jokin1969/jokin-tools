@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from .anatomy import Anatomy
 from .coords import Frame, bound_of, label, tiled_frame
+from .identidad import build_line
 from .external_score import (
     FEATURE_COLUMNS,
     MIRARCH_COLUMNS,
@@ -341,7 +342,10 @@ def comparative_tsv(
         f"# {l}\n"
         for l in (coordinate_note(anatomy) + "\n" + CONVENTION_NOTE).splitlines()
     )
-    return CABECERA + nota + cuerpo
+    # El sello de la versión ARRIBA DEL TODO, antes de la prosa: es lo primero que hace
+    # falta cuando el fichero no cuadra con lo que se esperaba. Mismo motivo y misma
+    # línea que en `outputs.tsv_selected` y en el FASTA de empalme.
+    return build_line() + "\n" + CABECERA + nota + cuerpo
 
 
 #: Columnas que se enseñan en el bloque legible del informe. La tabla entera no cabe en

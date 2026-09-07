@@ -24,6 +24,8 @@ Regla 5: escritos antes.
 """
 
 import unittest
+
+from shmir_design.coords import Frame
 from pathlib import Path
 
 from shmir_design import presentation
@@ -86,19 +88,19 @@ class TestUnFrenteSoloSeCierraSiLOCUBRETODOelPanel(unittest.TestCase):
 
     def test_con_todos_los_candidatos_cubiertos_el_frente_se_cierra(self):
         cerrados = presentation.fronts_closed_over_panel(
-            {"especificidad": {10: "PASS", 20: "PASS"}}, starts=(10, 20)
+            {"especificidad": {10: "PASS", 20: "PASS"}}, starts=(10, 20), frame=Frame.UTR3
         )
         self.assertIn("especificidad", cerrados)
 
     def test_con_SOLO_ALGUNOS_no_se_cierra_y_dice_cuantos(self):
         cerrados = presentation.fronts_closed_over_panel(
-            {"especificidad": {10: "PASS"}}, starts=(10, 20)
+            {"especificidad": {10: "PASS"}}, starts=(10, 20), frame=Frame.UTR3
         )
         self.assertNotIn("especificidad", cerrados)
 
     def test_un_NOT_RUN_del_almacen_NO_cierra(self):
         cerrados = presentation.fronts_closed_over_panel(
-            {"especificidad": {10: "NOT_RUN", 20: "PASS"}}, starts=(10, 20)
+            {"especificidad": {10: "NOT_RUN", 20: "PASS"}}, starts=(10, 20), frame=Frame.UTR3
         )
         self.assertNotIn("especificidad", cerrados)
 
@@ -106,12 +108,12 @@ class TestUnFrenteSoloSeCierraSiLOCUBRETODOelPanel(unittest.TestCase):
         # Un frente se cierra CONSIGUIENDO la respuesta, no consiguiendo un PASS. Un FAIL
         # es una respuesta: el candidato cae, y el frente deja de estar abierto.
         cerrados = presentation.fronts_closed_over_panel(
-            {"especificidad": {10: "FAIL", 20: "PASS"}}, starts=(10, 20)
+            {"especificidad": {10: "FAIL", 20: "PASS"}}, starts=(10, 20), frame=Frame.UTR3
         )
         self.assertIn("especificidad", cerrados)
 
     def test_sin_almacenes_no_cierra_nada(self):
-        self.assertEqual(presentation.fronts_closed_over_panel(None, starts=(10,)), {})
+        self.assertEqual(presentation.fronts_closed_over_panel(None, starts=(10,), frame=Frame.UTR3), {})
 
 
 if __name__ == "__main__":
@@ -135,16 +137,18 @@ class TestLaCOBERTURAPARCIALseDICE(unittest.TestCase):
     def test_una_corrida_parcial_NO_cierra_pero_DICE_cuanto_cubre(self):
         cobertura = presentation.run_coverage(
             {"especificidad": {10: "PASS", 20: "PASS", 30: "PASS"}},
-            starts=(10, 20, 30, 40, 50),
+            starts=(10, 20, 30, 40, 50), frame=Frame.UTR3,
         )["especificidad"]
         self.assertFalse(cobertura["cerrado"])
         self.assertEqual((cobertura["cubiertos"], cobertura["panel"]), (3, 5))
         self.assertIn("3 de 5", cobertura["motivo"])
-        self.assertIn("40", cobertura["motivo"])
+        # CON SU MARCO. Decia `Faltan: 40, 50`, y sobre un tilado del transcrito eso son
+        # dos posiciones del 3'UTR que no son esas (errata nº 138, la forma sin etiqueta).
+        self.assertIn("3utr:40", cobertura["motivo"])
 
     def test_y_dice_que_la_corrida_NO_se_pierde(self):
         motivo = presentation.run_coverage(
-            {"especificidad": {10: "PASS"}}, starts=(10, 20)
+            {"especificidad": {10: "PASS"}}, starts=(10, 20), frame=Frame.UTR3
         )["especificidad"]["motivo"]
         self.assertIn("no se pierde", motivo)
 
@@ -152,7 +156,7 @@ class TestLaCOBERTURAPARCIALseDICE(unittest.TestCase):
         # Control adversario: si el aviso saliera siempre, no distinguiría «a medias» de
         # «sin tocar», que es exactamente lo que se está arreglando.
         cobertura = presentation.run_coverage(
-            {"especificidad": {}}, starts=(10, 20)
+            {"especificidad": {}}, starts=(10, 20), frame=Frame.UTR3
         )["especificidad"]
         self.assertEqual(cobertura["motivo"], "")
 

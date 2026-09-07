@@ -818,6 +818,74 @@ def wrap_for_map(lines) -> list[str]:
 
 
 # ─── Descargas ───────────────────────────────────────────────────────────────
+#: Con qué empieza una línea que EXPLICA el fichero en vez de traer datos. Los dos TSV
+#: llevan comentarios en la cabecera —el sello de la versión, la nota de coordenadas— y
+#: quien los lee tiene que saltarlos: es la convención de siempre en un TSV, y escrita
+#: aquí para que no la reinvente cada lector.
+TSV_COMMENT = "#"
+
+
+def tsv_header(texto: str) -> list[str]:
+    """La cabecera de columnas de un TSV emitido por la app, saltando los comentarios.
+
+    Existe porque estos ficheros llevan prosa delante y `splitlines()[0]` dejó de ser la
+    cabecera el día que se les puso el sello de la versión. Un lector por su cuenta en
+    cada sitio es como se llega a que uno la lea bien y otro no.
+    """
+    for linea in texto.splitlines():
+        if linea.startswith(TSV_COMMENT) or not linea.strip():
+            continue
+        return linea.split("\t")
+    raise ShmirDesignError(
+        "El TSV no tiene ninguna línea de datos: sólo comentarios. Se aborta en vez de "
+        "devolver una cabecera vacía, que se leería como una tabla sin columnas."
+    )
+
+
+def panel_frame(selection) -> coords.Frame:
+    """El marco de los inicios del panel. Lo pide la página y lo decide `presentation`.
+
+    Es `coords.tiled_frame` sobre la anatomía que viaja con la selección, con nombre
+    propio para que la página no navegue el modelo (regla 6) ni monte el marco a mano:
+    un marco elegido en la vista es una decisión sin test, y ya sabemos lo que cuesta.
+    """
+    return coords.tiled_frame(getattr(selection, "anatomy", None))
+
+
+def saved_selection_note(starts, *, selection) -> str:
+    """La última selección guardada, con cada posición EN SU MARCO. Vacía si no hay.
+
+    La montaba la página con un `", ".join(str(s) …)` sobre los inicios del log, así que
+    sobre un tilado del transcrito escribía enteros desnudos — que se leen como
+    posiciones del 3'UTR. El marco sale de la anatomía de la corrida que hay delante, que
+    es la misma sobre la que se guardaron.
+
+    Vacía significa que no hay selección guardada, y entonces la página no pinta nada:
+    una línea que diga «ninguna» ocupa sitio para decir lo que ya dice su ausencia.
+    """
+    if not starts:
+        return ""
+    marco = coords.tiled_frame(getattr(selection, "anatomy", None))
+    return (
+        f"Última selección guardada: "
+        f"{coords.labels(sorted(int(s) for s in starts), marco)}"
+    )
+
+
+def tsv_rows(texto: str) -> list[list[str]]:
+    """Las filas de DATOS de un TSV emitido por la app, cabecera incluida.
+
+    La otra mitad de `tsv_header`: quien cuenta filas tampoco puede contar los
+    comentarios. Las dos viven aquí para que la regla de qué es una línea de datos esté
+    escrita UNA vez.
+    """
+    return [
+        linea.split("\t")
+        for linea in texto.splitlines()
+        if linea.strip() and not linea.startswith(TSV_COMMENT)
+    ]
+
+
 def output_bundle(
     *,
     species: str,
@@ -852,7 +920,14 @@ def output_bundle(
             conservation=conservation,
         ),
         f"{species}_comparativa.tsv": comparative_tsv(
-            selection, scaffold, with_header=True, anatomy=tiling.anatomy
+            selection, scaffold, with_header=True, anatomy=tiling.anatomy,
+            # LOS ALMACENES TAMBIÉN AQUÍ. Sin ellos las cuatro `carga_<clase>` salían
+            # VACÍAS para los once aunque el proyecto tuviera corrida, y ésta es la tabla
+            # que se descarga y se discute. Octava vez del patrón de `page_run`, y la
+            # segunda sobre este mismo fichero. `species` va con ellos: la clave de
+            # consulta se deriva de la especie, así que sin ella no se encuentra nada
+            # —el mismo silencio que no pasárselos (errata nº 47)—.
+            stores=stores, species=species,
         ),
     }
     if blocks:
@@ -1805,6 +1880,11 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
 
     return {
         "hay": ultima is not None,
+        # SI EL ALMACÉN TIENE CORRIDAS, que NO es lo mismo que `hay`. `hay` dice si
+        # alguno de los candidatos preguntados salió en una; esto dice si hay algo
+        # guardado de este frente. La diferencia es justo el caso de `3utr:359`: corrida
+        # guardada, y él no estaba en ella.
+        "hay_corridas": bool(getattr(almacen, "runs", ())),
         "por_candidato": por_candidato,
         "controles": controles,
         "clases": tuple(SITE_CLASSES),
@@ -2000,14 +2080,34 @@ def seed_load_highlights(*, stores, species: str, starts) -> dict[str, dict]:
 
 
 def seed_load_columns(*, stores, species: str, start: int, reference=None) -> dict[str, str]:
-    """Las celdas `carga_<clase>` de UNA fila. Vacias si no hay corrida, nunca a cero."""
+    """Las celdas `carga_<clase>` de UNA fila. Nunca a cero, y con TRES formas.
+
+    **Vacía y `SIN_CONSULTAR` no dicen lo mismo, y hasta el 2026-09-07 daban la misma
+    celda** — reportado con `3utr:359` delante, el único de los once en blanco porque la
+    corrida de off-targets es del panel anterior y él entró después:
+
+    · **vacía** — no hay ninguna corrida de este frente. Se arregla consiguiendo el
+      catálogo del transcriptoma y corriendo el modal;
+    · **`SIN_CONSULTAR`** — hay corrida y a este candidato no se le preguntó. Se arregla
+      repitiendo la corrida con un alcance que lo incluya, que es otra cosa;
+    · **el número con su percentil pegado** — se le preguntó.
+
+    Es la errata nº 55 en la familia de los números comparativos, que no tienen columna de
+    estado: el estado va DENTRO de la celda, igual que `NOT_RUN` y `NO_PEDIDO` (errata
+    nº 91). Y la diferencia se paga: una corrida de carga son ≥10.000 sorteos por
+    consulta, así que mandar a conseguir un fichero que ya está cuesta una corrida entera.
+    """
     from .offtarget import SITE_CLASSES
 
     vista = reference if reference is not None else seed_load_reference(
         stores=stores, species=species, starts=(start,)
     )
     celdas = vista["por_candidato"].get(int(start), {})
-    return {f"carga_{clase}": celdas.get(clase, "") for clase in SITE_CLASSES}
+    # El hueco se rellena con `SIN_CONSULTAR` sólo si el ALMACÉN tiene corridas. Con la
+    # vista de un solo candidato, `hay` diría que no hay referencia justo en el caso que
+    # se quiere distinguir, así que la pregunta es por el almacén y no por esta fila.
+    vacio = SIN_CONSULTAR if vista["hay_corridas"] else ""
+    return {f"carga_{clase}": celdas.get(clase, vacio) for clase in SITE_CLASSES}
 
 
 def seed_load_placeholder(utr3_set):
@@ -2905,7 +3005,9 @@ def verdict_with_stores(estados) -> str:
     return overall_verdict(resultados).value
 
 
-def fronts_closed_over_panel(estados_por_frente, *, starts, origins=None) -> dict[str, str]:
+def fronts_closed_over_panel(
+    estados_por_frente, *, starts, frame: coords.Frame, origins=None,
+) -> dict[str, str]:
     """Que frentes estan CONTESTADOS en todo el panel, y con que motivo.
 
     `estados_por_frente` es `{frente: {inicio: estado}}` — lo que dice cada candidato del
@@ -2924,13 +3026,15 @@ def fronts_closed_over_panel(estados_por_frente, *, starts, origins=None) -> dic
     return {
         frente: datos["motivo"]
         for frente, datos in run_coverage(
-            estados_por_frente, starts=starts, origins=origins
+            estados_por_frente, starts=starts, frame=frame, origins=origins
         ).items()
         if datos["cerrado"]
     }
 
 
-def run_coverage(estados_por_frente, *, starts, origins=None) -> dict[str, dict]:
+def run_coverage(
+    estados_por_frente, *, starts, frame: coords.Frame, origins=None,
+) -> dict[str, dict]:
     """CUANTOS candidatos del panel contesta cada frente, y si eso lo cierra.
 
     LA COBERTURA PARCIAL SE DICE. Sin esto, un frente consultado para 6 de 10 candidatos
@@ -2943,6 +3047,13 @@ def run_coverage(estados_por_frente, *, starts, origins=None) -> dict[str, dict]
     causas distintas —una se arregla consiguiendo un fichero y la otra lanzando una
     corrida— asi que no pueden compartir motivo. Sin `origins` se asume corrida, que es
     lo unico que habia cuando esta funcion se escribio.
+
+    `frame` es OBLIGATORIO y no tiene defecto: aqui llegan `starts`, enteros pelados, y
+    este texto NOMBRA a los que faltan. Sobre un tilado del transcrito los nombraba
+    `Faltan: 1308, 2020`, que se lee como dos posiciones del 3'UTR y son otras dos
+    ventanas — la otra forma de la errata nº 138, la que no fabrica una etiqueta sino que
+    se salta `coords` entero. Un valor por defecto aqui seria el mismo fallo con otra
+    cara (principio nº 58).
     """
     if not starts:
         return {}
@@ -2962,7 +3073,7 @@ def run_coverage(estados_por_frente, *, starts, origins=None) -> dict[str, dict]
         if cerrado:
             motivo = _motivo_cerrado(len(panel), de_donde)
         elif cubiertos:
-            motivo = _motivo_a_medias(panel, cubiertos, de_donde)
+            motivo = _motivo_a_medias(panel, cubiertos, de_donde, frame)
         else:
             motivo = ""
         # `motivo` y `avance` SON DOS PREGUNTAS y por eso son dos campos (errata nº 108).
@@ -3001,14 +3112,13 @@ def _motivo_cerrado(panel: int, de_donde: set[str]) -> str:
     )
 
 
-def _motivo_a_medias(panel, cubiertos, de_donde: set[str]) -> str:
+def _motivo_a_medias(panel, cubiertos, de_donde: set[str], frame: coords.Frame) -> str:
     """Contestado a medias. Y quien no contesta NO es siempre una corrida que falta."""
     faltan = [inicio for inicio in panel if inicio not in cubiertos]
     cola = (
         f"El frente NO se cierra con eso —darlo por cerrado daría por comprobados los "
         f"que nadie miró—, y lo que hay no se pierde: su veredicto está en la celda de "
-        f"cada candidato cubierto. Faltan: "
-        f"{', '.join(str(inicio) for inicio in faltan)}."
+        f"cada candidato cubierto. Faltan: {coords.labels(faltan, frame)}."
     )
     if de_donde == {ORIGEN_FICHERO}:
         return (
@@ -3280,11 +3390,12 @@ def candidate_fronts(
     pregunta, que es exactamente la errata nº 68.
     """
     inicio = int(start)
+    marco = coords.tiled_frame(getattr(selection, "anatomy", None))
     if inicio not in {int(s) for s in chosen_starts(selection)}:
         raise ShmirDesignError(
-            f"{inicio} no está en el panel de esta corrida, así que no tiene frentes que "
-            f"emitir. Los del panel son: "
-            f"{', '.join(str(s) for s in sorted(chosen_starts(selection)))}."
+            f"{coords.requested(inicio, marco)} no está en el panel de esta corrida, así "
+            f"que no tiene frentes que emitir. Los del panel son: "
+            f"{coords.labels(sorted(chosen_starts(selection)), marco)}."
         )
     resuelto = panel_states_by_front(
         tiling, selection, species=species, stores=stores
@@ -5487,9 +5598,10 @@ def immune_replacements(tiling, selection, *, retire: int):
     # nadie ha abierto.
     ya_retirados = set(selection.selection.config.retired_starts)
     if retire not in panel and retire not in ya_retirados:
+        marco = coords.tiled_frame(getattr(selection, "anatomy", None))
         raise ShmirDesignError(
-            f"{retire} no está en el panel de esta corrida "
-            f"({', '.join(str(s) for s in sorted(panel))}) ni entre las retiradas "
+            f"{coords.requested(int(retire), marco)} no está en el panel de esta corrida "
+            f"({coords.labels(sorted(panel), marco)}) ni entre las retiradas "
             f"declaradas, así que no deja ninguna plaza que ocupar. Se aborta en vez de "
             f"emitir un plan para una vacante que nadie ha abierto."
         )
@@ -8791,7 +8903,8 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
         run.tiling, run.selection, species=species, stores=stores
     )
     cobertura = run_coverage(
-        vista["estados"], starts=panel, origins=vista["origenes"]
+        vista["estados"], starts=panel, frame=coords.tiled_frame(run.selection.anatomy),
+        origins=vista["origenes"],
     )
     cerrados = {f: d["motivo"] for f, d in cobertura.items() if d["cerrado"]}
     tarjetas = []

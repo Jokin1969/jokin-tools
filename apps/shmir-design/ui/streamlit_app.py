@@ -53,6 +53,8 @@ from shmir_design.presentation import (  # noqa: E402
     upload_path,
     anatomy_source_label,
     chosen_starts,
+    panel_frame,
+    saved_selection_note,
     scope_rows,
     selection_notes,
     obsolete_rows,
@@ -544,6 +546,9 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     frentes_cerrados = fronts_closed_over_panel(
         vista_del_panel["estados"],
         starts=panel_abierto,
+        # EL MARCO, que hace falta para NOMBRAR a los que faltan. Lo decide
+        # `presentation`; aquí sólo se pasa la selección que ya está delante.
+        frame=panel_frame(seleccion),
         origins=vista_del_panel["origenes"],
     )
     semaforo(status_light(seleccion, resueltos=tuple(frentes_cerrados)))
@@ -2386,9 +2391,11 @@ def _guardar_seleccion(proyecto, seleccion, nombre: str, *,
     if proyecto is None:
         return
     st.markdown("**Guardar la selección en el proyecto**")
-    guardada = selected_starts(proyecto)
-    if guardada:
-        st.caption(f"Última selección guardada: {', '.join(str(s) for s in guardada)}")
+    nota_guardada = saved_selection_note(
+        selected_starts(proyecto), selection=seleccion
+    )
+    if nota_guardada:
+        st.caption(nota_guardada)
     # ¿LA CONFIGURACION DE AHORA ES LA QUE PRODUJO LO GUARDADO? Se DERIVA comparando
     # huellas, igual que `insumos.obsoleta`. Los ajustes NO se restauran al reabrir —eso
     # daria dos fuentes de verdad en la barra lateral— asi que decirlo es la mitad del

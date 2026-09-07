@@ -223,12 +223,12 @@ class TestElCaminoENTERO(unittest.TestCase):
 
     def test_el_EXPORT_lo_dice_POR_INTRON_y_no_fundido(self):
         """La comparación entre arquitecturas es para lo que el frente existe."""
-        from shmir_design import outputs
+        from shmir_design import outputs, presentation
 
-        cabecera = outputs.tsv_selected(
+        cabecera = presentation.tsv_header(outputs.tsv_selected(
             self.corrida.selection, species=ESPECIE,
             tiling=self.corrida.tiling, stores=self.almacenes,
-        ).splitlines()[0].split("\t")
+        ))
         for intron in INTRONES:
             self.assertIn(f"empalme_sitios:{intron}", cabecera)
         self.assertNotIn("empalme_sitios", cabecera)

@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from shmir_design import presentation
 from shmir_design.reference import REFERENCES, fixture_available
 from tools.design import main
 
@@ -123,8 +124,12 @@ class TestUmbralesPorLineaDeComandos(unittest.TestCase):
     def test_el_numero_de_candidatos_llega_al_TSV(self):
         codigo, salida = self.correr(["--candidates", "2"])
         self.assertEqual(codigo, 0)
-        lineas = (salida / "sonda_seleccionados.tsv").read_text().splitlines()
-        self.assertLessEqual(len(lineas) - 1, 2)
+        # Por `tsv_rows`, que salta el sello `# BUILD:`: contar líneas crudas cuenta
+        # también la prosa de cabecera, y entonces el número no es el de candidatos.
+        filas = presentation.tsv_rows(
+            (salida / "sonda_seleccionados.tsv").read_text()
+        )
+        self.assertLessEqual(len(filas) - 1, 2)
 
     def test_el_umbral_de_asimetria_se_puede_mover(self):
         """Con el umbral por los suelos, ninguna ventana falla por asimetria."""
@@ -172,8 +177,12 @@ class TestEjecucionCompleta(unittest.TestCase):
 
     def test_el_numero_de_candidatos_es_configurable(self):
         _, salida = self.correr(["--candidates", "2"])
-        lineas = (salida / "sonda_seleccionados.tsv").read_text().splitlines()
-        self.assertLessEqual(len(lineas) - 1, 2)
+        # Por `tsv_rows`, que salta el sello `# BUILD:`: contar líneas crudas cuenta
+        # también la prosa de cabecera, y entonces el número no es el de candidatos.
+        filas = presentation.tsv_rows(
+            (salida / "sonda_seleccionados.tsv").read_text()
+        )
+        self.assertLessEqual(len(filas) - 1, 2)
 
     def test_los_oligos_traen_la_horquilla_y_el_modulo(self):
         _, salida = self.correr()

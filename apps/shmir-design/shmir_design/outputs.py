@@ -125,6 +125,7 @@ def tsv_selected(
     montar este fichero —una con frentes y otra sin ellos— y nada que dijera cual salio;
     los dos llamadores lo tienen delante, asi que no hace falta la segunda.
     """
+    from .identidad import build_line  # noqa: PLC0415
     from .presentation import export_states, verdict_with_stores  # noqa: PLC0415
 
     chosen = list(selection.selection.chosen)
@@ -190,7 +191,13 @@ def tsv_selected(
                 sin_correr,
             ]
         )
-    return _tsv(rows)
+    # EL SELLO DE LA VERSIÓN, DELANTE. Este fichero se descarga, se manda por correo
+    # y se lee dentro de un año, y la primera pregunta cuando algo no cuadra es «¿qué
+    # versión lo produjo?» — la hizo el 2026-09-07 quien tenía delante un export sin
+    # las columnas de dos frentes y no podía distinguir «no está arreglado» de «el
+    # despliegue va por detrás». Va como comentario `#`, así que la cabecera de
+    # columnas sigue siendo la primera línea de datos.
+    return build_line() + "\n" + _tsv(rows)
 
 
 def fasta_guides(selection: ReportSelection, *, species: str) -> str:
